@@ -20,6 +20,7 @@ status: active
 | 在线回答 | `docs/architecture/system/durable-runtime.md`、`docs/architecture/system/agent-framework.md` |
 | 采集数据面 | `docs/architecture/system/data-plane.md`、领域 source 文档、`docs/runbooks/ingestion.md` |
 | Agent 知识读取 | `docs/architecture/system/retrieval-serving.md`、`docs/architecture/system/agentic-retrieval.md` |
+| Campus Docs 发布 | `docs/architecture/system/document-site.md`、`docs/architecture/system/retrieval-serving.md`、`docs/runbooks/campus-docs.md` |
 | 可观测性与评测 | `docs/architecture/system/ops-observability.md`、`docs/architecture/system/langfuse.md` |
 
 ## 产品运行
@@ -86,19 +87,32 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  Route["execution-control\n确定性 grounding 路由"]
-  Admission["execution-control\n不可变范围与 release 准入"]
-  Current["PostgreSQL\ncurrent_releases"]
-  Retrieval["Qdrant\n并发候选召回"]
-  RRF["Qdrant RRF 合并与裁剪"]
-  Context["受保护\ngrounding_context.v2"]
+  Admission["execution-control\n不可变 Campus Docs 索引准入"]
+  Current["PostgreSQL\ncampus_docs_serving.current_index"]
+  Retrieval["Qdrant\ndense + sparse 候选召回"]
+  RRF["RRF 排序与裁剪"]
+  Evidence["本轮\ncampus_docs_evidence"]
   Primary["Primary Agent"]
   Final["终结\n校验引用并生成来源"]
 
-  Route -->|single/multi scope| Admission
-  Current --> Admission --> Retrieval --> RRF --> Context
-  Route -->|none| Context
-  Context --> Primary --> Final
+  Current --> Admission --> Retrieval --> RRF --> Evidence
+  Evidence --> Primary --> Final
+  Evidence --> Final
+```
+
+## Campus Docs 发布
+
+```mermaid
+flowchart LR
+  Source["对象存储\nsource.json 与 reader"]
+  Site["Campus Web 构建\n静态文档候选"]
+  Publisher["手动 publisher Job\n完整索引构建"]
+  Qdrant["Qdrant\n不可变 collection"]
+  Current["PostgreSQL\ncurrent_index"]
+
+  Source --> Site
+  Source --> Publisher --> Qdrant
+  Publisher --> Current
 ```
 
 ## 可观测性与评测

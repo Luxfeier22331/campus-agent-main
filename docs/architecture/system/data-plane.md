@@ -10,7 +10,7 @@ status: active
 
 采集数据面包含注册的确定性文件任务、按 ID 执行的内部门户文件发布采集，以及本地通知采集。
 这些入口共享对象存储和来源适配器，但不强行进入同一任务模型。采集完成不会自动创建产品读
-模型、知识索引或查询目标。
+模型、知识索引或切换 Campus Docs 当前索引。
 
 ## 组件职责
 
@@ -78,8 +78,11 @@ Temporal。source-collector 只在本地命令或显式启动的进程中消费�
 ## 在线检索边界
 
 规范文档单元可以通过注册的 `build-retrieval-chunks-v2` 任务生成确定性的
-`retrieval_chunk_set.v2`。当前没有把该产物写入 Qdrant 与 PostgreSQL release 的正式生产者；
-采集和分块止于离线产物，不会自动开放在线查询范围。
+`retrieval_chunk_set.v2`。这些注册任务及其产物仍属于独立 ingestion 数据面，不是当前 Campus Docs
+RAG publisher 的输入，也不会自动写入 Qdrant 或推进在线索引。
+
+当前文档检索只消费 Campus Web 已清洗的 `campus-docs/source.json` 和当前 reader。通知来源对象、
+内部门户文件、canonical 单元和 Rust 检索分块都不能绕过该输入边界直接进入在线索引。
 
 部署清单存在只表示期望状态；实际运行以环境仓选择和控制器状态为准。
 

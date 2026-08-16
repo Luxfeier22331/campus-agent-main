@@ -68,7 +68,7 @@ exporter。只有配置 OTLP endpoint 时才启用，且必须保持：
 - 只发送 Agent/model/tool 名称、用量、阶段结果和
   `request_id`、`run_id`、`trace_id`、`turn_id` 关联字段。
 
-执行编排、grounding 明细、Temporal activity、Hindsight 调用、queue、workflow 和
+执行编排、Campus Docs 检索明细、Temporal activity、Hindsight 调用、queue、workflow 和
 `activity_attempt` 不再复制到 Langfuse metadata。具体字段和个人数据删除见
 `../contracts/langfuse-runtime.md`。
 

@@ -11,15 +11,8 @@ status: active
 规章领域维护适用于较长时间范围的学校制度正文及其版本，不把通知包装、临时安排或来源附件直接
 当作规范规章。
 
-当前在线文档范围包括：
-
-- `student_rules`：面向学生的手册和规章；
-- `institutional_rules`：学校层面的稳定制度正文。
-
-`scoped_rules` 用于有明确时间、组织或人群范围的规则配置，目前不在在线查询范围。
-
 `institutional_rules`、`scoped_rules` 和 `student_rules` 继续表示来源所有权与处理策略，但不作为
-公开目录分类。公开阅读侧栏使用以下十个主题组织全部文档：
+在线查询范围或独立 collection。公开阅读侧栏使用以下十个主题组织全部文档：
 
 - 学籍与培养；
 - 课程与考试；
@@ -42,10 +35,8 @@ status: active
 -> Worker 交付静态文档
 ```
 
-当前没有把检索分块发布为 release 与 Qdrant 索引的正式生产者，也没有可准入的发布数据，因此
-`student_rules` 和 `institutional_rules` grounding 当前不可用。
-
-公开阅读发布不创建、更新或选择在线知识索引，也不改变查询目标的准入状态。
+同一 `campus_docs_source.v3` 及其当前 reader 也由 Campus Docs publisher 消费。Campus Web 构建不会
+直接更新 Qdrant 或当前索引指针；publisher 需要独立构建、验证并激活新索引。
 
 Internal Portal 可以提供来源材料，但来源清单不会自动成为规章。把通知中的制度正文提升为
 `institutional_rules` 需要显式的规范文档物化、来源关联和质量检查；当前任务注册表没有实现该
@@ -54,12 +45,12 @@ Internal Portal 可以提供来源材料，但来源清单不会自动成为规�
 ## 查询边界
 
 规章不向 Primary Agent 提供文档召回或章节读取工具。公开阅读发布不意味着模型获得访问权限。
-在线请求不能读取原始通知、现场抓取官网、查询历史 release、跟随可变 alias，或绕过准入查询未
+在线请求不能读取原始通知、现场抓取官网、查询历史 reader、跟随可变 alias，或绕过准入查询未
 发布 collection。找不到足够当前证据时必须返回无依据终态，不能使用模型记忆补齐。
 
-范围名称、路由词与逻辑集合的映射由 `configs/runtime/query-serving-targets.v3.json` 维护。索引发布
-和生命周期属于独立检索链路，不由 Campus Web 文档构建触发；`scoped_rules` 当前未进入查询目标
-注册表。
+索引发布和生命周期属于独立检索链路，不由 Campus Web 文档构建触发。publisher 不按
+`institutional_rules`、`scoped_rules` 或 `student_rules` 过滤；凡是来源清单列为当前版本的公开
+reader 都进入同一个索引。
 
 ## 相关文档
 

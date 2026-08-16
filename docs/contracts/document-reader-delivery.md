@@ -36,7 +36,8 @@ status: active
 -> 构建派生站点索引、内容寻址搜索索引、静态资产和预渲染 HTML
 ```
 
-独立的文档发布 Job、reader 中间对象和发布版本指针不在现行链路中。
+静态交付链不建立独立 reader 发布 Job、reader 中间对象或第二个发布版本指针。检索服务拥有的独立
+Campus Docs 索引 publisher 读取同一固定来源键，但不属于本合同定义的静态产物链。
 
 ## 来源要求
 
@@ -49,6 +50,9 @@ status: active
 - 每个对象引用包含实际字节数和 SHA-256；
 - 补充数据与图片使用安全相对路径，同一版本内目标路径不重复；
 - 旧路由只从已退役正文地址指向来源清单中的正文固定链接，不登记领域或集合目录。
+
+清单是完整当前期望集合，不是增量操作记录。新增和修订对象必须先写入对象存储，固定来源键最后更新；
+删除文档通过从完整清单移除对应文档和版本表达。未被清单引用的 bucket 对象不属于交付输入。
 
 公开培养方案集合固定为 `undergraduate`、`second_degree` 和 `general_education`。规章来源集合固定为
 `institutional_rules`、`scoped_rules` 和 `student_rules`，公开目录再按来源清单中的主题组织。
@@ -63,11 +67,13 @@ status: active
 
 `paragraph.text` 使用空行分隔需要独立显示的段落；单个换行不能代替段落边界。`list.text` 每个非空行
 表示一个列表项，保留来源中的编号文字。Campus Web 不再额外生成项目符号。来源整理流程不能把多个
-明确编号的项目折叠在一个只有单换行的 `paragraph` 中。
+明确编号的项目折叠在一个只有单换行的 `paragraph` 中，也不能保留 `migrated-heading-*` 迁移占位
+元素或用多行 pipe 文本代替 `table`。
 
 `table` 的单元格按行提供；应用 `rowSpan` 和 `colSpan` 后，每行必须占据相同且连续的逻辑列。
 跨度不得相互重叠或超过表格行数，有意留空必须提供 `text: ""` 的显式单元格或正确跨度。来源整理
-流程不得省略空单元格并让 Campus Web 猜测表格结构。
+流程不得省略空单元格并让 Campus Web 猜测表格结构。`header` 表示语义表头，多级表头的每层均应
+标记为 `true`；不得仅按来源是否使用 HTML `<th>` 机械映射。
 
 Campus Web 不从检索分块、HTML、文件名或其他对象重建阅读结构，也不进行版本兼容转换。reader 的
 摘要、字节数、身份、元素标识和补充声明任一不一致时，构建直接终止。
@@ -163,8 +169,8 @@ lane 的独立 Campus Web publisher 使用 Source staging Environment 的公网�
 - `public/_headers`、`public/_redirects`：静态文档的响应头和旧正文重定向。
 
 `/docs` 是唯一目录页。培养方案集合和规章主题只在侧边栏与移动端目录中展开，不生成领域或集合
-目录页。`/docs/<corpus>` 与 `/docs/<corpus>/<collection>` 返回真实 `404`。历史版本可直接阅读，
-但不进入普通搜索。
+目录页。`/docs/<corpus>` 与 `/docs/<corpus>/<collection>` 返回真实 `404`。当前版本同时生成无版本
+canonical URL 和 `/v/<versionSlug>` 固定别名；历史版本可直接阅读，但不进入普通搜索。
 
 旧正文重定向只由来源清单维护。Campus Web 将其写入静态 `_redirects`，不在 Worker 维护第二份映射。
 
@@ -182,6 +188,7 @@ version 时同时回滚全部文档静态内容。
 - 来源更新与 Campus Web 构建：`apps/campus-web/README.md`；
 - 环境选择与候选发布：`docs/runbooks/release.md`；
 - 数据对象定义：`docs/data/document-reader.md`。
+- 检索索引操作：`docs/runbooks/campus-docs.md`。
 
 ## 相关文档
 

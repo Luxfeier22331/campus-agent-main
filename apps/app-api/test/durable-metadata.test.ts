@@ -24,12 +24,6 @@ function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecut
 				ownershipScopes: [],
 				principalId: "user-001",
 				projectionSource: "campus_identity",
-				retrievalFilter: {
-					entitlementGroups: [],
-					policyProjectionVersion: "phase1-authorization-projection-v1",
-					visibilityLevel: "public",
-					visibilityScope: "campus",
-				},
 				visibilityScope: "campus",
 			},
 			session: {
@@ -72,19 +66,13 @@ describe("durable run metadata", () => {
 		]);
 	});
 
-	it("projects selected notice context as an explicit session reference", () => {
+	it("projects only confirmed session slots and turn count", () => {
 		const frozen = freezeToolExecutionRunInput(
 			executionInput({
 				context: {
 					...executionInput().context,
 					session: {
-						confirmedSlots: [],
-						selectedNoticeRef: {
-							noticeId: "notice:transport:353903",
-							sourceFamily: "internal_notice_restricted",
-							targetSurface: "authenticated_notice/current",
-							title: "关于通勤学生规定丰台校区乘车点调整的通知",
-						},
+						confirmedSlots: [{ confirmed: true, name: "campus", value: "丰台校区" }],
 						turnCount: 3,
 					},
 				},
@@ -95,12 +83,7 @@ describe("durable run metadata", () => {
 		const payload = JSON.parse(frozen.executionInputJson) as Record<string, unknown>;
 		expect(payload.context).toMatchObject({
 			session: {
-				selected_notice_ref: {
-					notice_id: "notice:transport:353903",
-					source_family: "internal_notice_restricted",
-					target_surface: "authenticated_notice/current",
-					title: "关于通勤学生规定丰台校区乘车点调整的通知",
-				},
+				confirmed_slots: [{ confirmed: true, name: "campus", value: "丰台校区" }],
 				turn_count: 3,
 			},
 		});

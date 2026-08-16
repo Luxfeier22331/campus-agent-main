@@ -8,14 +8,14 @@ status: active
 
 ## 文档边界
 
-本文定义公开文档阅读、站内搜索和来源卡片共享的标识与数据边界。字段由 JSON Schema 维护，来源
-发布、构建和界面由 Campus Web 维护。
+本文定义公开文档阅读、站内搜索、来源卡片和 Campus Docs 索引输入共享的标识与数据边界。字段由
+JSON Schema 维护，来源发布、静态构建和界面由 Campus Web 维护；索引发布由独立 publisher 维护。
 
 ```text
 来源资料 -> 整理后的 reader v3、课程图来源与图片 -> campus_docs_source.v3 -> 静态阅读资产
 ```
 
-本文不定义知识检索输入、分块、索引或查询准入。
+本文只定义共享文档输入，不定义检索分块、索引发布或在线查询行为。
 
 ## 稳定标识
 
@@ -30,8 +30,9 @@ status: active
 
 ## 来源清单
 
-`campus_docs_source.v3` 是 Campus Web 构建的唯一文档目录输入，包含集合、主题、文档、版本、旧正文
-重定向和来源对象引用。
+`campus_docs_source.v3` 是 Campus Web 构建与 Campus Docs publisher 共享的文档控制清单，包含集合、
+主题、文档、版本、旧正文重定向和来源对象引用。publisher 只读取文档、当前版本和 reader 引用；
+它不把清单自身作为正文索引。
 
 ### 集合与主题
 
@@ -62,7 +63,11 @@ status: active
 - `sha256`：带 `sha256:` 前缀的内容摘要。
 
 Campus Web 发布命令和构建都按字节数与摘要核对对象。固定来源清单位于
-`campus-docs/source.json`；规范文档单元、课程图来源和图片由该清单明确引用。
+`campus-docs/source.json`；reader、课程图来源和图片由该清单明确引用。
+
+来源清单是完整期望状态。其全部 reader、补充对象和补充图片引用共同构成对象存储存活集合；对象是否
+存在于 bucket、上传时间或路径前缀本身不赋予消费资格。RAG 只选择每份文档的当前 reader，Campus Web
+仍读取清单中的历史版本和补充对象。
 
 ## Reader
 
@@ -82,7 +87,8 @@ Campus Web 发布命令和构建都按字节数与摘要核对对象。固定来
 - `paragraph`：纯文本，空行分隔独立显示的段落；
 - `list`：纯文本，每个非空行是一项，来源编号保留在正文中；
 - `blockquote`：纯文本引用；
-- `table`：二维单元格、表头标记及可选 `rowSpan`、`colSpan`。
+- `table`：二维单元格、语义表头标记及可选 `rowSpan`、`colSpan`。`header: true` 表示该单元格在
+  表格结构中承担表头语义，不是对来源 HTML `<th>` 的机械复制；多级表头的每一层都必须正确标记。
 
 表格应用跨度后必须形成完整矩形网格。跨度不得重叠或超出表格行数；空白内容以显式空单元格表示，
 Campus Web 不补齐缺失列或推断合并范围。
@@ -122,24 +128,30 @@ Campus Web 从同一来源摘要生成：
 
 ## 来源卡片
 
-阅读目标包含 `docId`、`versionId`、固定链接、`anchor` 和 `highlightRootUnitIds[]`。来源卡片只
-携带用户可见标题、摘要、版本和阅读目标，不包含检索分数、对象存储位置或供应商响应。
+阅读目标包含 `docId`、`versionId`、`versionSlug`、固定链接、`anchor` 和
+`highlightRootUnitIds[]`。历史版本与当前版本都提供 `/v/<versionSlug>` permalink；普通文档导航仍
+使用当前版本的无版本 URL。来源卡片只携带用户可见标题、摘要、版本标签和固定阅读目标，不包含检索
+分数、对象存储位置或供应商响应。
 
 ## 存储边界
 
 - 对象存储保存固定来源清单及其引用的 reader、课程图来源和图片；
 - Campus Web 构建目录保存本次来源摘要的 reader 副本、课程图、派生索引和预渲染页面；
 - 不可变 Worker version 保存实际对外静态内容；
-- 产品 PostgreSQL 不保存文档投影，也没有文档发布角色；
+- 产品 PostgreSQL schema 不保存文档投影；独立 `campus_docs_serving` schema 只保存 Campus Docs
+  当前索引的单行查询绑定；
 - App API 不读取、选择或转发公开文档。
 
 构建后的最终课程图和站点索引不回写对象存储。旧发布清单、当前版本指针和 App API 文档
 投影不是运行时兼容输入。
 
+内容修订新建文档版本。只修复提取或分段且来源版本未改变时，保留 `docId`、`versionId` 和公开路径，
+替换为新的内容寻址 reader 引用。公开 slug 变化必须同时登记旧路径 `308`。
+
 ## 不负责
 
 - 来源资料采集与保存；
-- 检索分块、向量索引和查询目标准入；
+- 检索分块、向量索引发布和在线运行准入；
 - 文档站界面样式；
 - Worker 环境版本选择；
 - 运维观测中的原始来源记录。

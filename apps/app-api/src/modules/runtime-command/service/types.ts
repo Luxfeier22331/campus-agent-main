@@ -142,7 +142,6 @@ export interface ChatCommandServiceDependencies {
 	isExecutionRuntimeConfigured?: boolean;
 	now?: () => Date;
 	profileMemoryStore?: Pick<ProfileMemoryStore, "loadSummary">;
-	publicNoticeURLAllowlist?: string[];
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;

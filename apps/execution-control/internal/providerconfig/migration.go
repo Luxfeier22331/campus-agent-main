@@ -213,7 +213,11 @@ func migrateLegacyProfile(ctx context.Context, tx *sql.Tx, keyring *Keyring, rol
 		Provider:   provider,
 		Transport:  newTransport,
 	}
-	if err := validateSettingShape(candidate); err != nil {
+	if newKind == KindEmbedding {
+		if err := validateProviderConnection(candidate); err != nil {
+			return fmt.Errorf("validate migrated provider profile %s: %w", profileID, err)
+		}
+	} else if err := validateSettingShape(candidate); err != nil {
 		return fmt.Errorf("validate migrated provider profile %s: %w", profileID, err)
 	}
 	secret, err := keyring.Encrypt(plain, settingAAD(newKind))

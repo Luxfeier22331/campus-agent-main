@@ -8,15 +8,17 @@ status: active
 
 ## 边界
 
-Campus Web 在 `/docs` 及正文固定链接提供公开目录、正文、历史版本和浏览器本地搜索。公开阅读链路
-独立于知识检索的输入、索引和运行配置。
+Campus Web 在 `/docs` 及正文固定链接提供公开目录、正文、历史版本和浏览器本地搜索。公开阅读与
+Campus Docs 检索 publisher 共享已清洗的 `source.json` 和 reader 输入，但分别生成静态站点与不可变
+向量索引；Campus Web 不创建或激活检索索引。
 
 ```text
 reader、课程图来源与图片
 -> campus-docs/source.json
--> Campus Web 构建进程校验 reader 并生成课程图
--> 构建派生目录、搜索索引、静态资产和 HTML
--> Cloudflare Assets 直接交付静态文件
+├-> Campus Web 构建进程校验 reader 并生成课程图
+│  -> 构建派生目录、搜索索引、静态资产和 HTML
+│  -> Cloudflare Assets 直接交付静态文件
+└-> Campus Docs index publisher（独立链路）
 ```
 
 `app-api`、产品 PostgreSQL、Better Auth 和文档访问准入不在这条链路中。文档来源或构建失败不能
@@ -34,7 +36,8 @@ reader、课程图来源与图片
 | FlexSearch Web Worker | 在后台线程加载并查询当前版本搜索索引 | 服务端查询、权限判断和历史版本选择 |
 | Cloudflare Assets | 直接提供文档、`/_docs/**`、重定向和 404 页面 | 请求 App API 获取文档或判断访问权限 |
 
-仓库不维护独立文档发布 Job、文档数据库角色或运行时文档 API。
+Campus Web 静态交付不维护独立 reader 发布 Job、文档数据库角色或运行时文档 API。独立 Campus Docs
+索引 publisher 由检索服务拥有，不属于静态交付链。
 
 ## 构建输入
 
@@ -84,9 +87,9 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 收起文档列表，不生成独立目录页面。根页侧栏默认收起各分组，正文页自动展开当前位置；根页主内容
 仍完整展示发布目录，不依赖侧栏展开状态。
 
-`/docs/<corpus>` 与 `/docs/<corpus>/<collection>` 返回 `404`。每份当前文档使用固定链接，历史版本
-使用显式版本路径。来源清单的 `redirects[]` 只允许旧正文地址指向现有正文固定链接，Worker 不维护
-硬编码重定向表。
+`/docs/<corpus>` 与 `/docs/<corpus>/<collection>` 返回 `404`。每份当前文档使用无版本 URL 作为普通
+导航和 canonical 地址，同时生成 `/v/<versionSlug>` 固定版本别名；历史版本只使用显式版本路径。
+来源清单的 `redirects[]` 只允许旧正文地址指向现有正文固定链接，Worker 不维护硬编码重定向表。
 
 搜索对完整当前版本索引执行查询，按文档聚合章节命中。首次只把 8 篇文档、每篇 3 个章节传回页面；
 展开某篇文档或继续显示时，浏览器再向搜索 Worker 请求对应结果。
@@ -95,6 +98,10 @@ Cloudflare Assets 以 `drop-trailing-slash` 解析文档 HTML，并按 `_redirec
 
 `pnpm --dir apps/campus-web docs:source:update` 更新固定来源键。`dev` 和 `build` 自动读取该键，
 不接受手工文档版本参数。
+
+固定来源键表达完整期望集合。静态构建与检索 publisher 分别读取它并独立产生不可变产物，不维护
+跨系统事务；具体更新和手动索引步骤见
+[Campus Docs 维护与索引发布](../../runbooks/campus-docs.md)。
 
 `CAMPUS_WEB_BUILD_TARGET` 和 `CAMPUS_WEB_DOCS_CONTENT_ROOT` 仅用于构建进程之间传递目标和本地目录。
 对象存储连接变量只由受信任的来源准备命令消费，不进入 Vite 子进程、Worker 或静态产物。PR 与当前

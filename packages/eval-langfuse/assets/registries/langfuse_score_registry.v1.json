@@ -89,11 +89,11 @@
 			"description": "Whether the product execution terminal outcome matches the dataset expectation."
 		},
 		{
-			"name": "routing.grounding_mode_match",
+			"name": "retrieval.context_present",
 			"data_type": "BOOLEAN",
 			"owner": "packages/eval-langfuse",
-			"eval_kinds": ["routing"],
-			"description": "Whether the frozen grounding mode matches the dataset routing expectation."
+			"eval_kinds": ["retrieval"],
+			"description": "Whether a dataset case with reference contexts retrieved at least one runtime context."
 		},
 		{
 			"name": "retrieval.forbidden_context_absent",

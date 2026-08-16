@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/activity"
@@ -70,24 +69,16 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if providerConfigAdmissionHash(providerConfig) != snapshot.ProviderConfigSHA256 {
 		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", errors.New("active llm setting does not match admission"))
 	}
-	grounding, groundingSHA256, err := s.loadGroundingContextForPrimaryAgent(
-		ctx,
-		run,
-		input,
-	)
+	campusDocsRetrieval, err := campusDocsRetrievalForPrimaryAgent(input)
 	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "grounding_context_invalid", err)
+		return s.failPrimaryAgentActivity(ctx, run, "campus_docs_retrieval_invalid", err)
 	}
 	limits = limitsFromAdmissionSnapshot(snapshot.AgentLimits)
 	limits.MaxTurns = snapshot.ExecutionStrategy.MaxModelTurns
 	limits.MaxToolCalls = snapshot.ExecutionStrategy.MaxToolCalls
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := temporalActivityAttempt(ctx)
-	finalModelContext, err := primaryAgentFinalModelContextForRun(
-		executionPayload,
-		limits,
-		grounding,
-	)
+	conversationContext, err := primaryAgentConversationContextForRun(executionPayload, limits)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "context_budget_exceeded", err)
 	}
@@ -96,8 +87,8 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		input,
 		strings.TrimSpace(stringValue(executionPayload["user_goal"])),
 		providerConfig,
-		finalModelContext,
-		grounding,
+		conversationContext,
+		campusDocsRetrieval,
 		limits,
 		attempt,
 	)
@@ -109,7 +100,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		run,
 		input,
 		inputMetadata.ExecutionInputSHA256,
-		finalModelContext,
+		conversationContext,
 		providerRequestBody,
 		attempt,
 	)
@@ -159,16 +150,9 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		UpdatedAt:     startedAt,
 		ProjectionRef: agentResultRef,
 		Payload: map[string]any{
-			"context_usage":                primaryAgentContextUsageSummary(finalModelContext),
-			"embedding_provider_admission": embeddingProviderAdmissionPin(snapshot).projectionPayload(),
-			"grounding_context_ref":        groundingContextRef(run.RunID),
-			"grounding_context_sha256":     groundingSHA256,
-			"grounding_evidence_count":     len(grounding.Evidence),
-			"grounding_status":             grounding.Status,
-			"grounding_token_count":        grounding.TokenCount,
-			"execution_strategy":           executionStrategyProjectionPayload(snapshot.ExecutionStrategy),
-			"tool_runtime_fingerprint":     toolRuntimeFingerprintSnapshotMap(snapshot.ToolRuntimeFingerprint),
-			"visible_tool_names":           append([]string{}, visibleToolNames...),
+			"execution_strategy":       executionStrategyProjectionPayload(snapshot.ExecutionStrategy),
+			"tool_runtime_fingerprint": toolRuntimeFingerprintSnapshotMap(snapshot.ToolRuntimeFingerprint),
+			"visible_tool_names":       append([]string{}, visibleToolNames...),
 		},
 	}, attempt)
 	attempt = startedProjection.Attempt
@@ -253,12 +237,10 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			output,
 		)
 	}
-	output.GroundingContext = grounding
 	payload, err := primaryAgentResultPayload(primaryAgentResultInput{
-		activityAttempt:        attempt,
-		activityInput:          input,
-		groundingContextSHA256: groundingSHA256,
-		run:                    run,
+		activityAttempt: attempt,
+		activityInput:   input,
+		run:             run,
 	}, output)
 	if err != nil {
 		projectionErr := s.projectPrimaryAgentToolResults(
@@ -282,15 +264,11 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		}
 		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_result_invalid", err, output)
 	}
-	payload["grounding_mode"] = grounding.Mode
-	payload["grounding_selected_scopes"] = append([]string{}, grounding.SelectedScopes...)
-	payload["grounding_covered_scopes"] = append([]string{}, grounding.CoveredScopes...)
-	payload["grounding_status"] = grounding.Status
 	payload["activity_evidence"] = invocationEvidence.payload()
 	payload["activity_worker_id"] = invocationEvidence.WorkerID
 	payload["provider_invocation_sha256"] = invocationSHA256
-	if contextUsage := primaryAgentContextUsageSummary(finalModelContext); contextUsage != nil {
-		payload["context_usage"] = contextUsage
+	if len(output.ContextUsage) > 0 {
+		payload["context_usage"] = cloneAnyMapFromMetadata(output.ContextUsage)
 	}
 	outputSummary, err := encodeAgentInvocationOutputSummary(agentResultRef, invocationSHA256)
 	if err != nil {
@@ -385,83 +363,6 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	return output, nil
-}
-
-func (s *Server) documentScopesForAgent(
-	ctx context.Context,
-	selectedScopes []string,
-) ([]temporalruntime.DocumentScope, error) {
-	policies, err := runtimepolicy.QueryServingScopes(
-		strings.TrimSpace(s.config.QueryServingTargetsPath),
-	)
-	if err != nil {
-		return nil, err
-	}
-	selected := make(map[string]struct{}, len(selectedScopes))
-	for _, scope := range selectedScopes {
-		selected[strings.TrimSpace(scope)] = struct{}{}
-	}
-	targets := make([]temporalruntime.DocumentScope, 0, len(selectedScopes))
-	for _, policy := range policies {
-		if _, ok := selected[policy.Scope]; !ok {
-			continue
-		}
-		servingConfig, err := retrievalruntime.LoadServingConfigPath(
-			retrievalServingConfigRoot(),
-			policy.ServingConfigPath,
-		)
-		if err != nil {
-			return nil, err
-		}
-		if servingConfig.Collection != policy.Collection {
-			return nil, fmt.Errorf(
-				"document scope %s collection = %q, serving config collection = %q",
-				policy.Scope,
-				policy.Collection,
-				servingConfig.Collection,
-			)
-		}
-		topK := policy.CandidateTopK
-		if s.config.RAGTopKMax > 0 && topK > s.config.RAGTopKMax {
-			topK = s.config.RAGTopKMax
-		}
-		servingSnapshot := knowledgeServingConfigSnapshotFromRuntime(servingConfig)
-		if s.toolReadModel == nil {
-			return nil, errors.New("knowledge read model is not configured")
-		}
-		release, found, err := s.toolReadModel.CurrentKnowledgeRelease(ctx, policy.Scope)
-		if err != nil {
-			return nil, fmt.Errorf("resolve current knowledge release for %s: %w", policy.Scope, err)
-		}
-		if !found {
-			return nil, fmt.Errorf("document scope %s does not have a current knowledge release", policy.Scope)
-		}
-		if release.DocumentScope != policy.Scope || release.Corpus != policy.Corpus ||
-			release.Collection != policy.Collection ||
-			release.EmbeddingModel != servingConfig.EmbeddingModel ||
-			release.EmbeddingDimensions != servingConfig.EmbeddingDimensions ||
-			strings.TrimSpace(release.ReleaseID) == "" || strings.TrimSpace(release.QdrantCollection) == "" {
-			return nil, fmt.Errorf("document scope %s current release is incompatible with serving config", policy.Scope)
-		}
-		targets = append(targets, temporalruntime.DocumentScope{
-			CandidateTopK:       topK,
-			Collection:          policy.Collection,
-			Corpus:              policy.Corpus,
-			Description:         policy.Description,
-			MaxEvidenceSections: policy.MaxEvidenceSections,
-			QdrantCollection:    release.QdrantCollection,
-			ReleaseID:           release.ReleaseID,
-			ServingConfig:       servingSnapshot,
-			ServingConfigPath:   policy.ServingConfigPath,
-			ServingConfigSHA256: hashAdmissionJSON(servingSnapshot),
-			Scope:               policy.Scope,
-		})
-		delete(selected, policy.Scope)
-	}
-	if len(selected) > 0 {
-		return nil, errors.New("grounding plan contains an unknown document scope")
-	}
-	return targets, nil
 }
 
 func containsPrimaryAgentVisibleTool(values []string, want string) bool {

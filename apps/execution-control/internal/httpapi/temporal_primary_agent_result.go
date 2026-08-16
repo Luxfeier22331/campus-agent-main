@@ -35,10 +35,9 @@ func boundedToolOutcome(value any) string {
 }
 
 type primaryAgentResultInput struct {
-	activityAttempt        int
-	activityInput          temporalruntime.ExecutePrimaryAgentActivityInput
-	groundingContextSHA256 string
-	run                    execution.DurableRun
+	activityAttempt int
+	activityInput   temporalruntime.ExecutePrimaryAgentActivityInput
+	run             execution.DurableRun
 }
 
 func primaryAgentResultPayload(
@@ -86,24 +85,18 @@ func primaryAgentResultPayload(
 	payload := map[string]any{
 		"activity_attempt":          input.activityAttempt,
 		"admission_snapshot_sha256": sha256JSONRef(input.activityInput.AdmissionSnapshot),
-		"allow_ungrounded_answer": input.activityInput.AdmissionSnapshot.ExecutionStrategy.
-			AllowUngroundedAnswer,
-		"embedding_provider_admission": embeddingProviderAdmissionPin(
-			input.activityInput.AdmissionSnapshot,
-		).projectionPayload(),
-		"agent_result_ref":         output.AgentResultRef,
-		"final_output":             output.FinalOutput,
-		"grounding_context_ref":    groundingContextRef(input.run.RunID),
-		"grounding_context_sha256": input.groundingContextSHA256,
-		"model_name":               output.ModelName,
-		"model_provider":           output.ModelProvider,
-		"prompt_trace":             cloneAnyMapFromMetadata(output.PromptTrace),
-		"provider_response_id":     output.ProviderResponseID,
-		"stage_timing":             cloneAnyMapFromMetadata(output.StageTiming),
-		"status":                   output.Status,
-		"terminal_envelope":        cloneAnyMapFromMetadata(output.TerminalEnvelope),
-		"terminal_reason":          output.TerminalReason,
-		"tool_results":             toolResults,
+		"agent_result_ref":          output.AgentResultRef,
+		"context_usage":             cloneAnyMapFromMetadata(output.ContextUsage),
+		"final_output":              output.FinalOutput,
+		"model_name":                output.ModelName,
+		"model_provider":            output.ModelProvider,
+		"prompt_trace":              cloneAnyMapFromMetadata(output.PromptTrace),
+		"provider_response_id":      output.ProviderResponseID,
+		"stage_timing":              cloneAnyMapFromMetadata(output.StageTiming),
+		"status":                    output.Status,
+		"terminal_envelope":         cloneAnyMapFromMetadata(output.TerminalEnvelope),
+		"terminal_reason":           output.TerminalReason,
+		"tool_results":              toolResults,
 		"tool_runtime_fingerprint": cloneAnyMapFromMetadata(
 			output.ToolRuntimeFingerprint,
 		),
@@ -143,21 +136,18 @@ func primaryAgentFinalizationResultMap(
 	result := map[string]any{
 		"admission_snapshot_sha256": sha256JSONRef(input.AdmissionSnapshot),
 		"agent_result_ref":          output.AgentResultRef,
-		"allow_ungrounded_answer": input.AdmissionSnapshot.ExecutionStrategy.
-			AllowUngroundedAnswer,
-		"final_output":             output.FinalOutput,
-		"grounding_context_ref":    groundingContextRef(input.RunID),
-		"grounding_context_sha256": sha256JSONRef(output.GroundingContext),
-		"model_name":               output.ModelName,
-		"model_provider":           output.ModelProvider,
-		"prompt_trace":             cloneAnyMapFromMetadata(output.PromptTrace),
-		"provider_response_id":     output.ProviderResponseID,
-		"stage_timing":             cloneAnyMapFromMetadata(output.StageTiming),
-		"status":                   output.Status,
-		"terminal_envelope":        cloneAnyMapFromMetadata(output.TerminalEnvelope),
-		"terminal_reason":          output.TerminalReason,
-		"tool_results":             toolResults,
-		"tool_runtime_fingerprint": cloneAnyMapFromMetadata(output.ToolRuntimeFingerprint),
+		"context_usage":             cloneAnyMapFromMetadata(output.ContextUsage),
+		"final_output":              output.FinalOutput,
+		"model_name":                output.ModelName,
+		"model_provider":            output.ModelProvider,
+		"prompt_trace":              cloneAnyMapFromMetadata(output.PromptTrace),
+		"provider_response_id":      output.ProviderResponseID,
+		"stage_timing":              cloneAnyMapFromMetadata(output.StageTiming),
+		"status":                    output.Status,
+		"terminal_envelope":         cloneAnyMapFromMetadata(output.TerminalEnvelope),
+		"terminal_reason":           output.TerminalReason,
+		"tool_results":              toolResults,
+		"tool_runtime_fingerprint":  cloneAnyMapFromMetadata(output.ToolRuntimeFingerprint),
 		"usage": map[string]any{
 			"model_request_count": output.Usage.ModelRequestCount,
 			"cached_input_tokens": output.Usage.CachedInputTokens,
@@ -179,9 +169,7 @@ func primaryAgentResultProjectionPayload(raw map[string]any) map[string]any {
 	result := map[string]any{}
 	for _, key := range []string{
 		"activity_attempt", "agent_result_ref", "model_name", "model_provider",
-		"admission_snapshot_sha256", "context_usage", "embedding_provider_admission",
-		"grounding_context_ref", "grounding_context_sha256",
-		"grounding_mode", "grounding_selected_scopes", "grounding_covered_scopes", "grounding_status",
+		"admission_snapshot_sha256", "context_usage",
 		"provider_response_id", "stage_timing", "status",
 		"terminal_reason", "tool_runtime_fingerprint", "admitted_tool_runtime_fingerprint",
 		"usage", "provider_invocation_sha256",

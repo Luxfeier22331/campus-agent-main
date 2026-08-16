@@ -8,8 +8,9 @@ status: active
 
 ## 边界
 
-本文记录 `regulations/student_rules` 当前可执行的校验与检索分块规则。实际行为以任务注册表、
-`packages/ingestion-contracts` schema、Rust 内核和测试为准。
+本文记录 `regulations/student_rules` 独立采集任务当前可执行的校验与分块规则。实际行为以任务注册表、
+`packages/ingestion-contracts` schema、Rust 内核和测试为准。这条链生成
+`retrieval_chunk_set.v2`，但不是当前 Campus Docs RAG publisher 的输入。
 
 ## 执行链
 
@@ -30,8 +31,7 @@ ingestion-control 使用源码固定的镜像内路径
 
 精确预算只在
 [`chunk-profile.json`](../../configs/ingestion/regulations/student_rules/chunk-profile.json) 维护。分块
-tokenizer 只负责 token 预算，不发起向量请求；向量模型与维度由
-[`serving-config.json`](../../configs/ingestion/regulations/student_rules/serving-config.json) 维护。
+tokenizer 只负责 token 预算，不发起向量请求，也不决定当前 Campus Docs 索引使用的 embedding。
 
 ## 当前分块行为
 
@@ -59,7 +59,8 @@ Rust 内核执行：
 - 每个 chunk 的 `token_count` 必须精确且不超过上限；
 - 内核输出的 `error_count` 必须为零。
 
-检索开放由范围注册表、知识 release 发布和运行准入共同决定，不能从分块配置单独推断。
+该任务成功只产生 derived 对象，不写入 Qdrant 或切换 Campus Docs 当前索引。当前在线文档检索只
+消费 `campus-docs/source.json` 选中的 `campus_docs_reader.v3`。
 
 ## 可执行来源
 

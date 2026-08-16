@@ -20,8 +20,8 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 		activity.RegisterOptions{Name: AppendConversationMemoryActivityName},
 	)
 	env.RegisterActivityWithOptions(
-		activities.PrepareGroundingContextActivity,
-		activity.RegisterOptions{Name: PrepareGroundingContextActivityName},
+		activities.RetrieveCampusDocsEvidenceActivity,
+		activity.RegisterOptions{Name: RetrieveCampusDocsEvidenceActivityName},
 	)
 	env.RegisterActivityWithOptions(
 		activities.ExecutePrimaryAgentActivity,
@@ -61,16 +61,12 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 	)
 }
 
-func (Activities) PrepareGroundingContextActivity(
+func (Activities) RetrieveCampusDocsEvidenceActivity(
 	_ context.Context,
-	input PrepareGroundingContextActivityInput,
-) (PrepareGroundingContextActivityOutput, error) {
-	return PrepareGroundingContextActivityOutput{
-		GroundingContext:    GroundingContext{RunID: input.RunID},
-		GroundingContextRef: "projection://runs/" + input.RunID + "/grounding/context",
-		PayloadSHA256:       "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		RunID:               input.RunID,
-		Status:              "empty",
+	input RetrieveCampusDocsEvidenceActivityInput,
+) (CampusDocsRetrievalResult, error) {
+	return CampusDocsRetrievalResult{
+		Evidence: []CampusDocsEvidence{},
 	}, nil
 }
 

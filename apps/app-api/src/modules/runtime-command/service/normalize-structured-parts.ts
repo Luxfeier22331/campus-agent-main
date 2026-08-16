@@ -5,14 +5,8 @@ import { normalizeSourceItemsPart } from "./normalize-source-items";
 export { normalizeSourceItemsPart } from "./normalize-source-items";
 
 export function normalizeChatResponseStructuredParts(input: {
-	allowedPublicNoticeHosts?: readonly string[];
 	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	return normalizeSourceItemsPart({
-		...input,
-		...(input.allowedPublicNoticeHosts
-			? { allowedPublicNoticeHosts: input.allowedPublicNoticeHosts }
-			: {}),
-	});
+	return normalizeSourceItemsPart(input);
 }

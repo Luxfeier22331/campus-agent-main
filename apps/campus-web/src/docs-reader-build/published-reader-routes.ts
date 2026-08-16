@@ -14,6 +14,10 @@ export function buildReaderCanonicalUrl(entry: RoutedPublishedReaderManifestEntr
 	return entry.isCurrent ? base : `${base}/v/${encodeURIComponent(entry.versionSlug)}`;
 }
 
+export function buildReaderVersionUrl(entry: RoutedPublishedReaderManifestEntry): string {
+	return `/docs/${entry.corpus}/${entry.collection}/${entry.routeSlug}/v/${encodeURIComponent(entry.versionSlug)}`;
+}
+
 export function compareEntryRoute(
 	left: RoutedPublishedReaderManifestEntry,
 	right: RoutedPublishedReaderManifestEntry,

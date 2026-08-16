@@ -23,7 +23,6 @@ export interface AgentToolEvalCase extends JsonObject {
 	case_id: string;
 	dataset_item_id: string;
 	expected_outcome?: "answer" | "clarification" | "no_answer";
-	expected_grounding_mode?: "none" | "single_scope" | "multi_scope";
 	forbidden_context_ids: string[];
 	query: string;
 	reference?: string;
@@ -92,10 +91,6 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 	}
 	const caseFamily = optionalString(metadata.case_family);
 	const expectedOutcome = parseExpectedOutcome(expectedOutput.expected_outcome, caseId);
-	const expectedGroundingMode = parseExpectedGroundingMode(
-		expectedOutput.expected_grounding_mode,
-		caseId,
-	);
 	const reference = optionalString(expectedOutput.reference);
 	const surfaceKey = optionalString(metadata.surface_key);
 	return {
@@ -104,7 +99,6 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 		case_id: caseId,
 		dataset_item_id: stringField(item.id, `${caseId}.dataset_item_id`),
 		...(expectedOutcome ? { expected_outcome: expectedOutcome } : {}),
-		...(expectedGroundingMode ? { expected_grounding_mode: expectedGroundingMode } : {}),
 		forbidden_context_ids: stringList(expectedOutput.forbidden_context_ids),
 		query: stringField(input.query ?? input.user_input, `${caseId}.input.query`),
 		...(reference ? { reference } : {}),
@@ -114,20 +108,6 @@ function parseDatasetItem(item: JsonObject, index: number): AgentToolEvalCase {
 		setup_turns: parseSetupTurns(input.setup_turns, caseId),
 		...(surfaceKey ? { surface_key: surfaceKey } : {}),
 	};
-}
-
-function parseExpectedGroundingMode(
-	value: unknown,
-	caseId: string,
-): AgentToolEvalCase["expected_grounding_mode"] {
-	const mode = optionalString(value);
-	if (!mode) {
-		return;
-	}
-	if (mode === "none" || mode === "single_scope" || mode === "multi_scope") {
-		return mode;
-	}
-	throw new Error(`${caseId}.expected_grounding_mode must be none, single_scope, or multi_scope`);
 }
 
 function parseExpectedOutcome(

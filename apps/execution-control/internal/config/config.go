@@ -9,12 +9,9 @@ import (
 )
 
 const (
-	MaxKnowledgeSearches = 3
-
 	defaultAgentRuntimeDeadlineMS      = 90_000
 	defaultAgentRuntimeInputCharLimit  = 8_000
 	defaultAgentRuntimeMaxOutputTokens = 2_048
-	defaultAgentRuntimeMaxTurns        = 6
 	defaultMaxConcurrentAnswers        = 8
 	defaultMemoryContextCharBudget     = 2_500
 	defaultMemoryRecallLimit           = 8
@@ -22,18 +19,13 @@ const (
 	defaultMemoryTimeoutSeconds        = 90
 	defaultQueueCapacity               = 24
 	defaultQueueTimeoutMS              = 3_000
-	defaultRAGEmbeddingTimeoutMS       = 10_000
-	defaultRAGQdrantTimeoutMS          = 60_000
-	defaultRAGTopKMax                  = 8
 	defaultRequestBodyLimitBytes       = 1_048_576
 	defaultRequestTimeoutMS            = 95_000
 	defaultShutdownGraceMS             = 95_000
-	defaultToolReadModelTimeoutMS      = 1_000
 	fixedHTTPHost                      = "0.0.0.0"
 	fixedHTTPPort                      = 8000
 	fixedProviderConfigKeyringPath     = "/run/campus-agent/provider-config/keyring.json"
 	fixedTemporalWorkflowTimeoutSec    = 900
-	packagedQueryServingTargetsPath    = "/etc/campus-agent/query-serving-targets.v3.json"
 )
 
 type Config struct {
@@ -61,21 +53,14 @@ type Config struct {
 	AgentRuntimeSharedSecret                string
 	AgentRuntimeDeadlineMS                  int
 	AgentRuntimeMaxOutputTokens             int
-	AgentRuntimeMaxTurns                    int
-	AgentRuntimeSearchLimit                 int
 	AgentRuntimeInputCharLimit              int
 	AgentRuntimeContextCharLimit            int
 	ProductCallbackBaseURL                  string
 	ProductCallbackTimeoutMS                int
 	ProviderConfigKeyringPath               string
-	QueryServingTargetsPath                 string
-	ToolReadModelTimeoutMS                  int
 	QdrantURL                               string
 	QdrantReadOnlyAPIKey                    string
 	QdrantTLSCACertPath                     string
-	RAGTopKMax                              int
-	RAGEmbeddingTimeoutMS                   int
-	RAGQdrantTimeoutMS                      int
 	WorkerProfiles                          map[string]WorkerProfile
 	PersonalMemoryRuntime                   string
 	PersonalMemoryBaseURL                   string
@@ -168,21 +153,14 @@ func loadFromEnv() (Config, error) {
 		AgentRuntimeSharedSecret:                values.AgentRuntimeSharedSecret,
 		AgentRuntimeDeadlineMS:                  defaultAgentRuntimeDeadlineMS,
 		AgentRuntimeMaxOutputTokens:             defaultAgentRuntimeMaxOutputTokens,
-		AgentRuntimeMaxTurns:                    defaultAgentRuntimeMaxTurns,
-		AgentRuntimeSearchLimit:                 MaxKnowledgeSearches,
 		AgentRuntimeInputCharLimit:              defaultAgentRuntimeInputCharLimit,
 		AgentRuntimeContextCharLimit:            16_000,
 		ProductCallbackBaseURL:                  strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
 		ProductCallbackTimeoutMS:                1_000,
 		ProviderConfigKeyringPath:               fixedProviderConfigKeyringPath,
-		QueryServingTargetsPath:                 packagedQueryServingTargetsPath,
-		ToolReadModelTimeoutMS:                  defaultToolReadModelTimeoutMS,
 		QdrantURL:                               strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantReadOnlyAPIKey:                    strings.TrimSpace(values.QdrantReadOnlyAPIKey),
 		QdrantTLSCACertPath:                     strings.TrimSpace(values.QdrantTLSCACertPath),
-		RAGTopKMax:                              defaultRAGTopKMax,
-		RAGEmbeddingTimeoutMS:                   defaultRAGEmbeddingTimeoutMS,
-		RAGQdrantTimeoutMS:                      defaultRAGQdrantTimeoutMS,
 		WorkerProfiles:                          defaultWorkerProfiles(),
 		PersonalMemoryRuntime:                   "hindsight",
 		PersonalMemoryBaseURL:                   strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),

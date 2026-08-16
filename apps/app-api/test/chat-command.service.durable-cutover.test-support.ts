@@ -57,10 +57,15 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 		result: {
 			sources: [
 				{
-					canonical_url: "/docs/regulations/student_rules/national-scholarship",
-					source_kind: "regulation",
-					source_title: "学生奖学金评审办法",
-					target_kind: "canonical_reader",
+					document_id: "student_rules/national-scholarship",
+					root_unit_ids: ["national-scholarship-review"],
+					section_ref: "/docs/regulations/student_rules/national-scholarship/v/2026-current#review",
+					section_title: "评审规则",
+					snippet: "国家奖学金每学年评审一次。",
+					title: "学生奖学金评审办法",
+					version_id: "version-national-scholarship-2026",
+					version_label: "2026 版",
+					version_slug: "2026-current",
 				},
 			],
 		},

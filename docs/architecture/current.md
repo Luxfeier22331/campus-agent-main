@@ -23,7 +23,7 @@ flowchart LR
   Agent["agent-runtime"]
   Memory["Hindsight"]
   Search["Qdrant"]
-  Knowledge["PostgreSQL knowledge_serving"]
+  Knowledge["PostgreSQL campus_docs_serving"]
   DB["PostgreSQL"]
   Axiom["Axiom"]
   Sentry["Sentry"]
@@ -48,34 +48,34 @@ flowchart LR
 
 - Campus Web 提供学生问答和其他产品页面；
 - App API 拥有浏览器认证、会话、聊天接收和产品终态；
-- execution-control 拥有持久执行、知识准入、grounding、工具调用和安全投影；Temporal 只提供
+- execution-control 拥有持久执行、Campus Docs 检索准入、工具调用和安全投影；Temporal 只提供
   工作流历史、任务调度、定时器和 Activity 投递；
 - agent-runtime 在一个 Primary Agent SDK run 中生成唯一最终答案；
 - Ops Web 是独立受保护的运行排查和内容运营应用，不通过 App API 代理内部能力。
 
 ## 在线回答
 
-浏览器提交请求后，App API 冻结执行输入并创建持久运行。`ToolExecutionWorkflow` 先按冻结的本地
-grounding plan 选择路径：
+浏览器提交请求后，App API 冻结执行输入并创建持久运行。execution-control 为每个有效请求冻结
+Campus Docs 当前索引、查询摘要和 Embedding 设置：
 
 ```text
-none: ExecutePrimaryAgentActivity
-selected scopes: PrepareGroundingContextActivity
+RetrieveCampusDocsEvidenceActivity
 -> ExecutePrimaryAgentActivity
 -> WriteFinalizationActivity
 -> AppendConversationMemoryActivity
 ```
 
-execution-control 仅在选中范围时读取本轮冻结的文档范围和检索 Provider Config，执行一次查询向量化，
-并发查询选中范围的不可变 Qdrant collection，再使用 Qdrant RRF 分数合并、去重和裁剪。完整且有界的
-`grounding_context.v2` 经由 Temporal history 传给 Primary Agent 和 Finalization；普通运行投影和产品
-响应只携带引用、摘要、计数和 hash。`none` 路径建立 `not_required` context，不执行检索。Primary Agent
-必须消费本轮 context，只能引用其中出现的 `evidence://` 标识，并只生成一次最终答案。
+execution-control 读取并冻结 PostgreSQL 当前索引和 embedding Provider Config，对当前问题生成一次
+dense 与 sparse query vector，再查询唯一不可变 Qdrant collection，按 Qdrant 查询分数
+排序、chunk 去重和 Unicode 字符预算单次裁剪。workflow 把最小 `campus_docs_evidence` 传给 Agent Runtime，
+并把原检索结果独立传给 Finalization；Agent result 不回传检索副本。普通运行投影和产品响应只携带
+引用、摘要、计数和 hash。空与非空 evidence 分别表示没有选出依据和存在可引用依据，不维护额外
+mode/status。普通任务可以不引用文档直接回答；机构事实主张只能引用本轮 evidence 中的
+`evidence://`。Primary Agent 只生成一次最终答案。
 
-当前文档范围为 `student_rules`、`institutional_rules` 和 `curriculum`。培养方案、规章和普通正式
-文档共用同一文档 RAG，不再作为课程事实、文档召回或章节读取模型工具。范围准入只接受
-PostgreSQL `current_releases` 指向的 release 及其不可变 Qdrant collection；在线回答不查询历史
-release，也不跟随 Qdrant alias。
+培养方案、规章和其他 Campus Web 当前文档共用同一个 `campus_docs` 索引，不再作为课程事实、文档
+召回或章节读取模型工具，也不按文档范围拆 collection。准入只接受 PostgreSQL
+`campus_docs_serving.current_index` 指向的不可变索引；在线回答不查询历史版本，也不跟随 Qdrant alias。
 
 当前工具注册表只包含：
 
@@ -84,20 +84,21 @@ release，也不跟随 Qdrant alias。
 | `personal_memory_recall` | 按本轮授权开放 | 有界读取当前用户的个人记忆 |
 
 未获个人记忆召回授权的运行没有模型可见工具；获授权的运行最多调用一次
-`personal_memory_recall`。知识 grounding 不是模型工具，也不进入工具轨迹。
+`personal_memory_recall`。Campus Docs 检索不是模型工具，也不进入工具轨迹。
 
 ## 离线知识数据
 
-离线采集由 ingestion-control、Temporal、source-collector 和 Rust 内核执行。规范文档单元通过
-`build-retrieval-chunks-v2` 生成确定性的 `retrieval_chunk_set.v2`；分块不跨章节，使用本地
-tokenizer 计算精确 token 数，并校验内容摘要。
+Campus Web 文档整理流程生成规范化 `campus-docs/source.json` 及其引用的
+`campus_docs_reader.v3`。文档站与检索 publisher 共享这些已清洗输入，但各自生成静态站点产物和
+不可变 Qdrant 索引。publisher 只选择每份文档的当前 reader，按代码内唯一索引定义生成
+section/chunk 和 dense/sparse 向量，验证新 collection 后原子替换 PostgreSQL 当前索引绑定；它不
+消费旧 canonical chunk 任务。`embedding_space_id`、provider、model 和 dimensions 全部兼容时，
+publisher 按检索文本摘要复用当前 collection 的 dense vector，只对未命中的唯一检索文本调用
+embedding provider；payload 和 sparse vector 始终完整重建。
 
-源码保留 `knowledge-serving-release.v1`、查询范围注册表和 execution-control 的 release/Qdrant
-消费接口，但当前没有正式索引生产者，也没有可供准入的发布数据。因此文档 grounding 当前不可用；
-采集完成、schema 存在或 collection 已构建都不会单独开放在线范围。
-
-通知和校历不在查询目标注册表中，在线回答也不执行实时网页搜索。配置、schema、采集产物或
-页面存在不表示能力已经向模型开放。
+源码提供可运行的 `jobs/campus-docs-index-publisher`，但源码、schema 或任务存在不表示任一环境已经
+激活索引。Kubernetes 清单提供保持暂停的手动 Job 模板，不运行定时索引任务。通知和校历不进入该
+publisher，在线回答也不执行实时网页搜索。
 
 ## 产品与离线数据
 
@@ -106,8 +107,9 @@ Dining 当前也不提供模型工具。
 
 注册的离线任务由 ingestion-control、Temporal 和 Rust 内核执行。内部门户文件发布使用独立
 workflow 调用 source-collector；通知则由本地 source-collector 命令采集，经人工确认领域后由
-`notice-publisher` 显式物化。App API 和 Campus Web 只读规范化通知。通知没有自动分类、自动发布或
-集群定时采集；App API 不代理附件字节，Agent 结构化查询与通知 RAG 也未接入。完整边界见
+`notice-publisher` 显式物化。文件发布与通知采集都不是注册任务；通知没有自动分类、自动发布或集群
+定时采集。App API 和 Campus Web 只读规范化通知，App API 不代理附件字节，Agent 结构化查询与通知
+RAG 也未接入。采集或通知发布不会自动创建 reader、生成 Campus Docs 索引或替换当前绑定。完整边界见
 `docs/architecture/domains/notices.md`，源码中的读取路径不表示任一环境已经完成通知写入或部署。
 
 Ops Web 在所属 PostgreSQL schema 保存多条内部门户 TGC，提供真实 CAS 验证、轮换、按需明文读取
@@ -117,7 +119,7 @@ Ops Web 取得的目标值。
 ## 观测与部署
 
 单套 CNPG PostgreSQL 集群以独立 database、schema 和登录角色保存产品、执行投影、Temporal、
-Hindsight、知识 release 和激活指针；App API 通过一个关闭 query cache 的 Hyperdrive binding 访问
+Hindsight 和 Campus Docs 当前索引绑定；App API 通过一个关闭 query cache 的 Hyperdrive binding 访问
 其产品数据。Temporal 保存工作流历史，Hindsight 保存个人记忆，Qdrant 保存在线检索索引。local、
 staging 和 production 共用 Langfuse Cloud Japan 区域中的 `campus-agent` project，并通过原生
 `environment` 字段区分；Agent Runtime 可以按环境选择发送受控 trace，配额停收不影响产品执行。

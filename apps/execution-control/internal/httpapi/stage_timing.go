@@ -40,8 +40,8 @@ func (s *Server) stageTimingForRun(
 		duration := stepAttemptDuration(attempt)
 		stepID := strings.TrimSpace(attempt.StepID)
 		switch {
-		case stepID == "grounding.prepare":
-			addStageTimingDuration(timing, "grounding.prepare_ms", duration)
+		case stepID == "campus_docs.retrieve":
+			addStageTimingDuration(timing, "campus_docs.retrieve_ms", duration)
 		case strings.HasPrefix(stepID, "sdk_tool.execute."):
 			addStageTimingDuration(timing, "tool.total_ms", duration)
 			if field := stageTimingToolField(attempt); field != "" {

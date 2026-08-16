@@ -72,12 +72,15 @@ describe("chat command service", () => {
 				result: {
 					sources: [
 						{
-							canonical_url: "/docs/regulations/student_rules/scholarship",
+							document_id: "student_rules/scholarship",
+							root_unit_ids: ["scholarship-eligibility"],
+							section_ref: "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility",
+							section_title: "申请条件",
 							snippet: "所评学年学习成绩排名与综合测评排名均位于前10%以内。",
-							source_kind: "regulation",
-							source_title: "示例大学本科学生国家奖学金评审办法",
-							target_kind: "canonical_reader",
-							version_id: "student-rules-current",
+							title: "示例大学本科学生国家奖学金评审办法",
+							version_id: "version-scholarship-2026",
+							version_label: "2026 版",
+							version_slug: "2026-current",
 						},
 					],
 				},
@@ -125,10 +128,9 @@ describe("chat command service", () => {
 				sourceItems: [
 					expect.objectContaining({
 						primaryAction: expect.objectContaining({
-							href: "/docs/regulations/student_rules/scholarship",
+							href: "/docs/regulations/student_rules/scholarship/v/2026-current?hl=scholarship-eligibility#eligibility",
 						}),
 						title: "示例大学本科学生国家奖学金评审办法",
-						versionId: "student-rules-current",
 					}),
 				],
 				type: "source_items",

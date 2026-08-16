@@ -9,7 +9,7 @@ status: active
 ## 范围
 
 本文说明注册 Rust 任务、内部门户文件发布 workflow 和本地通知命令。系统没有来源 callback、
-独立 run ledger、文件发布离线发布流或自动 query target 发布。
+独立 run ledger、文件发布离线发布流或自动 Campus Docs 索引激活。
 
 ## 前置条件
 

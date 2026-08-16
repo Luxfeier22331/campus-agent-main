@@ -11,6 +11,8 @@ status: active
 内部门户数据包含 Ops Web 所有的认证凭据，以及 source-collector 产生的来源对象。凭据进入
 PostgreSQL，来源对象只写 source bucket；两类数据不互相复制。本文维护凭据、认证和文件发布来源
 数据；通知来源与规范化投影由 [通知数据](./notices.md) 统一维护。
+来源采集本身不创建 Campus Web reader、derived 产物或 Campus Docs 索引，也不替换当前索引绑定。门户
+内容不按登录主体变化，对象身份只包含站点与来源 ID。
 
 ## 认证凭据
 

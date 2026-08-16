@@ -191,7 +191,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				principalType: "student",
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				supportingSources: [],
 			},
 		});
 		expect(finalWrite.turnDispatch).not.toHaveProperty("actorGroups");

@@ -2,7 +2,6 @@ import type { AbuseThrottleReason } from "../abuse-throttle-policy";
 import type { ResolvedAppPrincipal } from "../auth";
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { ToolExecutionWorkflowTraceSummary } from "../integration/tool-execution-types";
-import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ChatCommandResponse } from "./service";
 
 export type TurnDispatchStatus =
@@ -83,14 +82,12 @@ export interface RequestObservabilityFactWrite {
 	surface: string;
 	principalType: string;
 	entitlementSnapshotId: string | null;
-	policyProjectionVersion: string | null;
 	policyReason: string | null;
 	status: TurnDispatchStatus;
 	errorCode: string | null;
 	startedAt: string;
 	completedAt: string | null;
 	durationMs: number | null;
-	supportingSources: ObservedSourceTraceEntry[];
 	refusalClass: string | null;
 	semanticOutcome: string | null;
 	aclDecision: string | null;

@@ -54,11 +54,12 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	activeProvider := pinnedProvider
 	activeProvider.APIKey = "sk-active"
 	activeProvider.Model = "model-active"
+	index := campusDocsIndexForTest()
 	embeddingProvider := embeddingProviderConfigSnapshotForTest(
 		providerConfigKindEmbedding,
 		"https://embedding.example/v1",
-		"embedding-test",
-		2560,
+		index.EmbeddingModel,
+		index.EmbeddingDimensions,
 	)
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:          agentRuntime.URL,
@@ -70,7 +71,7 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 		TemporalWorkerIdentity:       "test:agent:admission-snapshot",
 	})
 	attachRunProjectionStoreForHandlerTest(server, store)
-	server.toolReadModel = knowledgeReadModelForTest()
+	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 	server.providerConfigResolver = staticProviderConfigResolver{
 		providerConfigKindLLM:       pinnedProvider,
 		providerConfigKindEmbedding: embeddingProvider,
@@ -78,8 +79,7 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	snapshot, err := server.buildAgentAdmissionSnapshot(
 		context.Background(),
 		false,
-		false,
-		groundingPlanForTest("hi", "student_rules"),
+		campusDocsQuerySHA256ForTest("admission snapshot request"),
 	)
 	if err != nil {
 		t.Fatalf("build immutable admission snapshot: %v", err)
@@ -89,7 +89,7 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 		providerConfigKindEmbedding: embeddingProvider,
 	}
 
-	input := withGroundingContextForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
+	input := withCampusDocsRetrievalForTest(t, temporalruntime.ExecutePrimaryAgentActivityInput{
 		AdmissionSnapshot: snapshot,
 		ConversationID:    "conv-admission-snapshot",
 		RequestID:         "req-admission-snapshot",
@@ -111,12 +111,10 @@ func TestValidateAdmissionSnapshotRejectsMissingProviderHash(t *testing.T) {
 		CurrentInputCharLimit: 1,
 		MaxOutputTokens:       1,
 	}
-	strategy := executionStrategyForAdmission(false, false)
+	strategy := executionStrategyForAdmission(false)
 	snapshot := temporalruntime.AgentAdmissionSnapshot{
 		AgentLimits:             limits,
 		AgentLimitsSHA256:       hashAdmissionJSON(limits),
-		DocumentScopes:          []temporalruntime.DocumentScope{},
-		DocumentScopesSHA256:    hashDocumentScopes(nil),
 		ExecutionStrategy:       strategy,
 		ExecutionStrategySHA256: hashAdmissionJSON(strategy),
 	}
@@ -155,8 +153,7 @@ func TestExecutePrimaryAgentActivityRejectsLocalToolRuntimeDriftBeforeAgentCall(
 	snapshot, err := server.buildAgentAdmissionSnapshot(
 		context.Background(),
 		false,
-		false,
-		groundingPlanForTest("hi"),
+		campusDocsQuerySHA256ForTest("hi"),
 	)
 	if err != nil {
 		t.Fatalf("build admission snapshot: %v", err)

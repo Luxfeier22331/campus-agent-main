@@ -10,6 +10,7 @@ spec:
         values:
           - agent-runtime
           - app-api-schema
+          - campus-docs-index-publisher
           - execution-control
           - execution-run-projection-schema
   policyTypes: ["Ingress"]
@@ -41,6 +42,7 @@ spec:
         values:
           - agent-runtime
           - app-api-schema
+          - campus-docs-index-publisher
           - execution-control
           - execution-run-projection-schema
   policyTypes: ["Egress"]
@@ -103,3 +105,21 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: campus-docs-index-publisher-object-store-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: campus-docs-index-publisher
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: object-store
+      ports:
+        - protocol: TCP
+          port: 9000

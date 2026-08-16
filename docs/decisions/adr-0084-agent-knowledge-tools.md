@@ -6,87 +6,103 @@ status: accepted
 supersedes: ADR-0075
 ---
 
-# ADR-0084 单一 Agent 与服务端 Grounding
+# ADR-0084 单一 Agent 与服务端 Campus Docs 检索
 
 ## 背景
 
 ADR-0075 把机构知识查询包装为 Primary Agent 到 Knowledge Agent 的 handoff。该分层没有形成独立
-权限、模型、数据或扩缩容边界，却增加了第二套角色指令、handoff 终态和难以解释的 target 语义。
+权限、模型、数据或扩缩容边界，却增加了第二套角色指令、handoff 终态和查询目标语义。
 
-后续按课程事实、文档召回和章节读取继续拆工具，也把数据尚未结构化的培养方案误写成独立事实
-模型，并要求模型先选工具才能开始检索。对当前以正式文档为主的数据，这增加一次模型往返、扩大
-工具合同和评测面，却没有提高来源真实性。
+后续按课程事实、文档召回和章节读取继续拆工具，也把仍以正式文档存在的培养方案误写成独立事实
+模型，并要求模型先选工具才能开始检索。对当前数据，这增加了模型往返、工具合同和评测面，却没有
+提高来源真实性。
 
-知识发布还需要明确激活身份。运行时跟随 Qdrant alias 或在每次查询重新读取 current release，会
-让同一 run 读取到不同发布版本。
+早期重构又引入 `grounding_plan`、`grounding_context`、mode/status 和“允许无依据回答”等投影。
+这些字段重复表达 workflow 已经明确的控制流，没有独立消费者，还迫使上下游维护不存在、空结果和
+非空结果的第二套状态机。
+
+索引发布同时需要明确激活身份。运行时跟随 Qdrant alias 或在执行途中重新读取当前指针，会让同一
+run 读取到不同发布版本。
 
 ## 决策
 
 ### 一个答案循环
 
-- 在线回答只运行一个 Primary Agent，不建立 Knowledge Agent、handoff、外部 planner 或第二次
-  答案合成；
+- 在线回答只运行一个 Primary Agent，不建立 Knowledge Agent、handoff、外部 planner 或第二次答案
+  合成；
 - OpenAI Agents SDK 在一个 Agent Activity 内完成可选个人记忆函数调用和结构化答案；
-- finalization 只做确定性校验、来源派生和投影提交，不调用模型或改写答案。
+- Finalization 只做确定性校验、来源派生和投影提交，不调用模型或改写答案。
 
-### 文档知识统一预取
+### 统一 Campus Docs 检索
 
-- 培养方案、学生规则和学校制度统一作为文档 RAG 消费；
-- execution-control 先确定性选择是否需要 grounding；检索路径在模型调用前执行
-  `PrepareGroundingContextActivity`；
-- 对冻结查询只做一次 embedding，并发查询选中的已准入 scope，再用 Qdrant dense+sparse RRF 分数全局
-  排序、去重和裁剪；
-- 完整且有界的 `grounding_context.v2` 经由 Temporal Activity result 传递，Primary Agent 只能引用本轮
-  `evidence://`；
-- 知识 grounding 不注册为模型工具，不进入 SDK 工具轨迹。
+- 培养方案、学生规则、学校制度和其他 Campus Web 当前文档统一进入同一个索引；
+- 每个有效请求都创建检索准入并执行一次 Campus Docs 检索，不再维护直接回答与检索回答两条
+  workflow 分支；
+- `RetrieveCampusDocsEvidenceActivity` 对冻结查询生成一次 dense 与 sparse query vector，查询唯一
+  已准入 collection，再按 Qdrant 查询分数顺序去重 chunk，并在证据条数与字符预算内单次裁剪；
+- workflow 把最小 `campus_docs_evidence` 传给 Agent Runtime，并把完整检索结果独立传给
+  Finalization；Agent result 不回传 evidence 副本；
+- Campus Docs 检索不注册为模型工具，不进入 SDK 工具轨迹。
 
-类型化工具只保留确实拥有独立读取模型的能力。当前只有 `personal_memory_recall` 按本轮授权可选开放。
-课程、文档召回和章节读取旧工具合同直接删除，不保留兼容 route 或 fallback。
+Retrieval Activity 成功后只返回包含 evidence 数组的 `CampusDocsRetrievalResult`，workflow 取得该
+结果后才进入 Agent，不维护检索 mode/status。空 evidence 表示检索成功但没有选出证据，非空
+evidence 表示有可引用证据。普通任务不要求引用；机构事实缺少充分证据时返回
+`unsupported_by_evidence`。
+
+类型化工具只保留确实拥有独立运行能力的 `personal_memory_recall`。课程、文档召回和章节读取旧工具
+合同直接删除，不保留兼容 route 或 fallback。
 
 ### 不可变发布消费边界
 
 - 在线请求不采集、清理、分块、建索引或发布；
-- Qdrant 不可变物理 collection 保存在线检索正文、token 数和引用 metadata；
-- PostgreSQL `knowledge_serving` 保存不可变 release 与 `current_releases` 激活指针；
-- `current_releases` 是唯一激活来源，不使用 Qdrant alias；
-- 当前在线检索只消费激活的当前 release，不提供历史 release 查询。
+- publisher 直接消费 Campus Web 已清洗的 `source.json` 和当前 reader，不建立第二套 canonical 文档；
+- Qdrant 不可变物理 collection 保存在线检索正文、检索文本摘要和引用 metadata；
+- collection 名由当前文档投影和代码内唯一 `INDEX_DEFINITION` 的规范 JSON SHA-256 形成，collection
+  本身是唯一索引身份；
+- PostgreSQL 只用 `campus_docs_serving.current_index` 单行保存当前 collection 及查询所需绑定，不保存
+  索引历史、独立 index ID、fingerprint 或来源摘要实体；
+- `campus_docs_serving.current_index` 是唯一激活来源，不使用 Qdrant alias；
+- 当前在线检索只消费激活的当前索引，不提供历史 reader 查询。
 
-本决策只约束在线消费形态，不指定离线生产者。当前没有正式索引生产者和发布数据，文档
-grounding 不可用。
+publisher 在会影响 point 或查询兼容性的当前输入变化时构建完整新 collection，验证后原子替换当前
+绑定；它不原地更新向量，也不在激活后立即删除旧 collection。
 
 ### 不可变运行准入
 
-execution-control 在 run 准入时冻结每个 scope 的 `release_id`、物理 Qdrant collection、完整 serving
-config，以及 `llm` 和（检索路径的）`embedding` 模型设置 hash。整个 run 只消费该快照，不跟随后续
-发布或模型设置变化。
+execution-control 在每个 run 准入时冻结 `llm` 设置、物理 Qdrant collection、完整查询绑定、本轮
+查询 hash 和 `embedding` 设置 hash。整个 run 只消费该快照，不跟随后续发布或模型设置变化。
 
-准入快照作为有界 workflow input 进入 Temporal；文档正文、Provider 凭据和完整 grounding 不进入
-Temporal history。缺少 release、配置不兼容或身份不一致时失败关闭。
+准入快照作为有界 workflow input 进入 Temporal，不携带文档正文或 Provider 凭据。完整有界检索结果
+只作为 Activity result 进入 Temporal history；普通投影不保存正文。缺少当前索引、配置不兼容或
+身份不一致时失败关闭。
 
-### 轨迹与评测
+### 模型上下文与评测
 
-`tool_trajectory.v3` 只保存同一个 Agent 实际执行的 SDK `tool_calls[]`，当前词汇为个人记忆。RAG
-评测单独使用 grounding 范围、上下文、答案和引用，不把知识预取伪造成工具调用。
+Agent Runtime 在真实 `AgentInputItem[]` 上计算字符预算，从最旧处裁剪完整会话片段，并返回实际
+`context_usage`。execution-control 不预先构造另一份模型上下文投影。
 
-标准数据集只评测当前 release；无答案用例的 `minimum_relevant_context_count` 为 0。产品终态不
-暴露内部 collection、release 选择或路由标签。
+`tool_trajectory.v3` 只保存同一个 Agent 实际执行的 SDK `tool_calls[]`。运行评测不复制检索准入、
+collection 或候选/证据计数；RAGAS 从答案和已验证 sources 派生检索上下文，并由数据集中的 reference
+contexts 决定样本是否进入 RAG 评测。服务端检索不伪造成工具调用。
 
 ## 结果
 
-- 用户请求只支付一次最终答案模型往返，知识检索可在其之前确定性执行；
+- 用户请求只支付一次最终答案模型循环，每个有效请求在其之前执行一次 Campus Docs 检索；
 - 培养方案不再被假设成尚不存在的结构化课程事实库；
-- 同一 run 的候选、正文和依据不会因发布切换而跨 release；
-- 删除 Knowledge Agent、知识 target 和三个旧知识工具及其轨迹语义；
-- 多 Agent 或迭代检索只有在出现独立权限、模型、生命周期边界和评测证据时才重新决策。
+- workflow 控制流、数据存在性和 evidence 内容各自只表达一次，不再同步额外状态机；
+- 同一 run 的候选、正文和依据不会因索引切换而混用版本；
+- 删除 Knowledge Agent、旧知识路由、旧工具及 `grounding` 上下游合同；
+- 多 Agent 或迭代检索只有在出现独立边界和评测证据时才重新决策。
 
 ## 未采用方案
 
 - **保留 Knowledge Agent 包装 RAG**：没有独立系统边界，却增加提示词、轨迹和失败语义；
 - **模型先选知识工具**：增加模型往返，并把服务端准入参数暴露给工具循环；
+- **保留 `none|campus_docs` 与 `not_required|empty|ready`**：重复表达字段和 evidence 的存在性；
 - **为培养方案维护独立课程事实工具**：当前来源仍是文档，没有可靠的结构化生产链；
 - **从 PostgreSQL 回读每个命中章节**：Qdrant 已保存经发布校验的 chunk 正文，会增加在线串行读取；
-- **运行时跟随 alias 或 current 指针**：同一 run 可能跨版本；
-- **默认检索历史 release**：会让过期规章与当前事实竞争。
+- **运行时跟随 alias 或在 Activity 内读取 current 指针**：同一 run 可能跨版本；
+- **默认检索历史 reader**：会让过期规章与当前事实竞争。
 
 ## 参考
 

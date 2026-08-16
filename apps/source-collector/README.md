@@ -4,9 +4,16 @@
 
 ## 所有权
 
-source-collector 使用直接传入的 TGC 建立当前执行所需的门户会话，只写 source bucket。进程不保存或
-定期检查凭据，不启动 workflow，不维护 ingestion task 或 PostgreSQL 投影，不写 derived bucket，也
-不发布在线查询目标。TGC 的持久化、验证和定时检查由 Ops Web 负责。
+本应用使用共享内部门户客户端从原始 `SSO_TGC` 建立当前执行所需的门户会话，并提供三条独立入口：
+
+- Temporal worker 按精确 ID 采集一份文件发布；
+- 本地命令增量采集、按日期回填通知或补齐原始资源；
+- 本地 `auth:check` 建立一次门户会话并检查当前 TGC。
+
+当前 source-collector 进程只在执行期间持有 HTTP 会话、派生 Cookie、临时下载文件和直接传入的
+TGC。应用不保存或定期检查凭据，不启动 workflow，不维护 ingestion task 或 PostgreSQL 投影，不写
+derived bucket，也不生成 reader、写入 Qdrant 或切换 Campus Docs 当前索引。多条 TGC 的持久化、
+验证和定时检查由 Ops Web 负责。
 
 ## 文件发布
 

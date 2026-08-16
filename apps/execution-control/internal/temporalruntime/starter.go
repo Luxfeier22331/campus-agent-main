@@ -633,10 +633,10 @@ type ContextActivities interface {
 }
 
 type AgentActivities interface {
-	PrepareGroundingContextActivity(
+	RetrieveCampusDocsEvidenceActivity(
 		context.Context,
-		PrepareGroundingContextActivityInput,
-	) (PrepareGroundingContextActivityOutput, error)
+		RetrieveCampusDocsEvidenceActivityInput,
+	) (CampusDocsRetrievalResult, error)
 	ExecutePrimaryAgentActivity(
 		context.Context,
 		ExecutePrimaryAgentActivityInput,
@@ -860,8 +860,8 @@ func NewAgentActivityWorkerWithOptions(
 	options.Interceptors = append(options.Interceptors, &ActivityFailureSanitizer{})
 	agentWorker := worker.New(temporalClient, agentQueue, options)
 	agentWorker.RegisterActivityWithOptions(
-		activities.PrepareGroundingContextActivity,
-		activityRegisterOptions(PrepareGroundingContextActivityName),
+		activities.RetrieveCampusDocsEvidenceActivity,
+		activityRegisterOptions(RetrieveCampusDocsEvidenceActivityName),
 	)
 	agentWorker.RegisterActivityWithOptions(
 		activities.ExecutePrimaryAgentActivity,

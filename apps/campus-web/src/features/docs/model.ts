@@ -1,47 +1,21 @@
-import { assertDocsTableLayout } from "./table-layout";
+import { parseDocsReaderContract } from "../../docs-reader-build/reader-contract";
+import type {
+	DocsReader as SourceDocsReader,
+	DocsReaderElement as SourceDocsReaderElement,
+	DocsReaderHeadingElement as SourceDocsReaderHeadingElement,
+	DocsReaderTableCell as SourceDocsReaderTableCell,
+	DocsReaderTableElement as SourceDocsReaderTableElement,
+	DocsReaderTextElement as SourceDocsReaderTextElement,
+} from "../../docs-reader-build/source-types";
 
-export interface DocsReaderTextElement {
-	kind: "blockquote" | "list" | "paragraph";
-	rootUnitId: string;
-	text: string;
-}
-
-export interface DocsReaderTableCell {
-	colSpan?: number;
-	header: boolean;
-	rowSpan?: number;
-	text: string;
-}
-
-export interface DocsReaderTableElement {
-	kind: "table";
-	rootUnitId: string;
-	rows: DocsReaderTableCell[][];
-}
-
-export interface DocsReaderHeadingElement {
-	anchor: string;
-	kind: "heading";
-	level: 2 | 3 | 4 | 5 | 6;
-	rootUnitId: string;
-	text: string;
-}
-
+export type DocsReaderPayload = SourceDocsReader;
+export type DocsReaderElement = SourceDocsReaderElement;
+export type DocsReaderHeadingElement = SourceDocsReaderHeadingElement;
+export type DocsReaderTableCell = SourceDocsReaderTableCell;
+export type DocsReaderTableElement = SourceDocsReaderTableElement;
+export type DocsReaderTextElement = SourceDocsReaderTextElement;
 export type DocsReaderBlock = DocsReaderTableElement | DocsReaderTextElement;
-export type DocsReaderElement = DocsReaderBlock | DocsReaderHeadingElement;
-
-export interface DocsReaderSupplement {
-	kind: "course_maps";
-	path: "course-maps.json";
-}
-
-export interface DocsReaderPayload {
-	docId: string;
-	elements: DocsReaderElement[];
-	schemaVersion: "campus_docs_reader.v3";
-	supplements: DocsReaderSupplement[];
-	versionId: string;
-}
+export type DocsReaderSupplement = SourceDocsReader["supplements"][number];
 
 export interface DocsCourseMapPart {
 	height: number;
@@ -63,21 +37,7 @@ export interface DocsReaderContent {
 }
 
 export function parseDocsReaderPayload(value: unknown): DocsReaderPayload {
-	const record = requiredRecord(value, "reader");
-	if (record.schemaVersion !== "campus_docs_reader.v3" || !Array.isArray(record.elements)) {
-		throw new Error("reader schema is invalid");
-	}
-	const elements = record.elements.map((element, index) =>
-		parseReaderElement(element, `reader.elements[${index}]`),
-	);
-	assertReaderElementIdentity(elements);
-	return {
-		docId: requiredString(record.docId, "reader.docId"),
-		elements,
-		schemaVersion: "campus_docs_reader.v3",
-		supplements: parseReaderSupplements(record.supplements),
-		versionId: requiredString(record.versionId, "reader.versionId"),
-	};
+	return parseDocsReaderContract(value);
 }
 
 export async function loadDocsReaderContent(input: {
@@ -120,102 +80,6 @@ export function buildReaderDescription(reader: DocsReaderPayload, documentTitle:
 		return element.text.length > 150 ? `${element.text.slice(0, 147)}...` : element.text;
 	}
 	return `${documentTitle}的校园文档阅读页。`;
-}
-
-function parseReaderElement(value: unknown, label: string): DocsReaderElement {
-	const record = requiredRecord(value, label);
-	const kind = requiredString(record.kind, `${label}.kind`);
-	const rootUnitId = requiredString(record.rootUnitId, `${label}.rootUnitId`);
-	if (kind === "heading") {
-		const level = requiredInteger(record.level, `${label}.level`);
-		if (level < 2 || level > 6) {
-			throw new Error(`${label}.level must be between 2 and 6`);
-		}
-		return {
-			anchor: requiredString(record.anchor, `${label}.anchor`),
-			kind,
-			level: level as DocsReaderHeadingElement["level"],
-			rootUnitId,
-			text: requiredString(record.text, `${label}.text`),
-		};
-	}
-	if (kind === "table") {
-		if (!Array.isArray(record.rows) || record.rows.length === 0) {
-			throw new Error(`${label}.rows must be a non-empty array`);
-		}
-		const rows = record.rows.map((row, rowIndex) => {
-			if (!Array.isArray(row) || row.length === 0) {
-				throw new Error(`${label}.rows[${rowIndex}] must be a non-empty array`);
-			}
-			return row.map((cell, cellIndex) =>
-				parseTableCell(cell, `${label}.rows[${rowIndex}][${cellIndex}]`),
-			);
-		});
-		assertDocsTableLayout(rows, `${label} (${rootUnitId})`);
-		return {
-			kind,
-			rootUnitId,
-			rows,
-		};
-	}
-	if (kind !== "paragraph" && kind !== "list" && kind !== "blockquote") {
-		throw new Error(`${label}.kind is unsupported`);
-	}
-	return {
-		kind,
-		rootUnitId,
-		text: requiredString(record.text, `${label}.text`),
-	};
-}
-
-function assertReaderElementIdentity(elements: DocsReaderElement[]): void {
-	const anchors = new Set<string>();
-	const rootUnitIds = new Set<string>();
-	for (const element of elements) {
-		if (rootUnitIds.has(element.rootUnitId)) {
-			throw new Error(`reader rootUnitId is duplicated: ${element.rootUnitId}`);
-		}
-		rootUnitIds.add(element.rootUnitId);
-		if (element.kind === "heading") {
-			if (anchors.has(element.anchor)) {
-				throw new Error(`reader heading anchor is duplicated: ${element.anchor}`);
-			}
-			anchors.add(element.anchor);
-		}
-	}
-}
-
-function parseTableCell(value: unknown, label: string): DocsReaderTableCell {
-	const record = requiredRecord(value, label);
-	if (typeof record.header !== "boolean") {
-		throw new Error(`${label}.header must be a boolean`);
-	}
-	return {
-		...(record.colSpan === undefined
-			? {}
-			: { colSpan: requiredPositiveInteger(record.colSpan, `${label}.colSpan`) }),
-		header: record.header,
-		...(record.rowSpan === undefined
-			? {}
-			: { rowSpan: requiredPositiveInteger(record.rowSpan, `${label}.rowSpan`) }),
-		text: typeof record.text === "string" ? record.text : "",
-	};
-}
-
-function parseReaderSupplements(value: unknown): DocsReaderSupplement[] {
-	if (!Array.isArray(value)) {
-		throw new Error("reader.supplements must be an array");
-	}
-	return value.map((item, index) => {
-		const record = requiredRecord(item, `reader.supplements[${index}]`);
-		if (record.kind !== "course_maps" || record.path !== "course-maps.json") {
-			throw new Error(`reader.supplements[${index}] is unsupported`);
-		}
-		return {
-			kind: "course_maps",
-			path: "course-maps.json",
-		};
-	});
 }
 
 function parseCourseMaps(

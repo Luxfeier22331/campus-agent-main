@@ -1,7 +1,7 @@
 # execution-control
 
 Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流、在线供应商配置、个人记忆命令、
-文档 grounding 准备、终态校验和有界运行投影，不面向浏览器。
+Campus Docs 检索、终态校验和有界运行投影，不面向浏览器。
 
 ## 运行边界
 
@@ -10,19 +10,19 @@ Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流�
 - `execution-control` 在同一进程中提供执行与模型配置 HTTP 接口，并轮询 workflow、core activity
   和 agent activity 三类 Temporal 队列；
 - Temporal 保存 workflow history、重试、超时、heartbeat 和 cancellation；
-- PostgreSQL 保存产品、运维和评测需要的有界投影，以及知识 release、激活指针和发布身份；
-- Hindsight 保存个人记忆，Qdrant 保存当前 release 的文档 chunk 正文与引用元数据。
+- PostgreSQL 保存产品、运维和评测需要的有界投影，以及 Campus Docs 当前索引绑定；
+- Hindsight 保存个人记忆，Qdrant 保存当前 Campus Docs 索引的文档 chunk 正文与引用元数据。
 
 ## Temporal 工作流
 
 | 工作流 | 用途 | 详细文档 |
 | --- | --- | --- |
-| `ToolExecutionWorkflow` | 在线回答的 grounding、Agent Activity、终态处理和记忆追加 | `docs/architecture/system/durable-runtime.md` |
+| `ToolExecutionWorkflow` | 在线回答的 Campus Docs 检索、Agent Activity、终态处理和记忆追加 | `docs/architecture/system/durable-runtime.md` |
 | `PersonalMemoryCommandWorkflow` | 个人记忆条目、会话和账户级变更 | `docs/architecture/system/memory-plane.md` |
 
 在线回答只使用 workflow、core activity 和 agent activity 三类 task queue。文档检索由 agent
-queue 上的 `PrepareGroundingContextActivity` 在 Agent Activity 前统一完成；各文档范围查询、
-rerank 和 Agents SDK 函数工具不再分别展开成 Temporal activity。
+queue 上的 `RetrieveCampusDocsEvidenceActivity` 在 Agent Activity 前执行；向量查询、候选选择和
+Agents SDK 函数工具不再分别展开成 Temporal activity。
 
 ## 进程入口
 

@@ -45,9 +45,9 @@ func TestWriteFinalizationActivityRejectsInvalidWorkflowAgentResult(t *testing.T
 			},
 		},
 		{
-			name: "grounding admission drift",
+			name: "retrieval admission without result",
 			mutate: func(input *temporalruntime.WriteFinalizationActivityInput) {
-				input.AgentResult.GroundingContext.AdmissionSHA256 = ""
+				input.AdmissionSnapshot.CampusDocsRetrieval = temporalruntime.CampusDocsRetrievalAdmission{}
 			},
 		},
 	}

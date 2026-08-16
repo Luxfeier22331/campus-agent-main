@@ -9,8 +9,8 @@ import {
 	createPrincipal,
 } from "./chat-command.service.test-support";
 
-export function registerChatCommandServiceObservabilityTargetsSuite(): void {
-	it("records execution-resolved knowledge targets", async () => {
+export function registerChatCommandServiceObservabilitySupportingSourcesSuite(): void {
+	it("records execution supporting sources", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({
@@ -36,11 +36,15 @@ export function registerChatCommandServiceObservabilityTargetsSuite(): void {
 					result: {
 						sources: [
 							{
-								canonical_url: "/docs/curriculum/curriculum_plan/ethnology",
-								source_kind: "curriculum",
-								source_title: "民族学本科人才培养方案",
-								target_kind: "canonical_reader",
-								version_id: "curriculum-current",
+								document_id: "curriculum_plan/ethnology",
+								root_unit_ids: ["ethnology-credits"],
+								section_ref: "/docs/curriculum/curriculum_plan/ethnology/v/2026-current#credits",
+								section_title: "学分要求",
+								snippet: "总学分要求以培养方案正文为准。",
+								title: "民族学本科人才培养方案",
+								version_id: "version-ethnology-2026",
+								version_label: "2026 版",
+								version_slug: "2026-current",
 							},
 						],
 					},
@@ -64,14 +68,7 @@ export function registerChatCommandServiceObservabilityTargetsSuite(): void {
 		});
 		expect(finalWrites[0]).toMatchObject({
 			turnDispatch: {},
-			requestObservabilityFact: {
-				supportingSources: [
-					{
-						canonicalUrl: "/docs/curriculum/curriculum_plan/ethnology",
-						sourceTitle: "民族学本科人才培养方案",
-					},
-				],
-			},
+			requestObservabilityFact: {},
 		});
 	});
 }

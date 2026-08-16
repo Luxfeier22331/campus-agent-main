@@ -10,23 +10,25 @@ const (
 )
 
 type RuntimeSetting struct {
-	APIKey     string `json:"api_key"`
-	BaseURL    string `json:"base_url"`
-	Dimensions int    `json:"dimensions,omitempty"`
-	Kind       Kind   `json:"kind"`
-	Model      string `json:"model"`
-	Provider   string `json:"provider"`
-	Transport  string `json:"transport"`
+	APIKey           string `json:"api_key"`
+	BaseURL          string `json:"base_url"`
+	Dimensions       int    `json:"dimensions,omitempty"`
+	EmbeddingSpaceID string `json:"embedding_space_id,omitempty"`
+	Kind             Kind   `json:"kind"`
+	Model            string `json:"model"`
+	Provider         string `json:"provider"`
+	Transport        string `json:"transport"`
 }
 
 type SettingInput struct {
-	APIKey     string `json:"apiKey"`
-	BaseURL    string `json:"baseUrl"`
-	Dimensions int    `json:"dimensions"`
-	Kind       Kind   `json:"kind"`
-	Model      string `json:"model"`
-	Provider   string `json:"provider"`
-	Transport  string `json:"transport"`
+	APIKey           string `json:"apiKey"`
+	BaseURL          string `json:"baseUrl"`
+	Dimensions       int    `json:"dimensions"`
+	EmbeddingSpaceID string `json:"embeddingSpaceId,omitempty"`
+	Kind             Kind   `json:"kind"`
+	Model            string `json:"model"`
+	Provider         string `json:"provider"`
+	Transport        string `json:"transport"`
 }
 
 type ValidationResult struct {
@@ -50,6 +52,7 @@ type SettingView struct {
 	CredentialConfigured bool                  `json:"credentialConfigured"`
 	CredentialLast4      string                `json:"credentialLast4,omitempty"`
 	Dimensions           int                   `json:"dimensions,omitempty"`
+	EmbeddingSpaceID     string                `json:"embeddingSpaceId,omitempty"`
 	Kind                 Kind                  `json:"kind"`
 	LatestValidation     *LatestValidationView `json:"latestValidation"`
 	Model                string                `json:"model"`

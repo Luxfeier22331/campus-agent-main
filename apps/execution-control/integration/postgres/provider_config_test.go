@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
+	"github.com/jackc/pgx/v5"
 )
 
 func testProviderSchemaRejectsMissingRoles(t *testing.T, harness *postgresHarness) {
@@ -23,6 +24,36 @@ func testProviderSchemaRejectsMissingRoles(t *testing.T, harness *postgresHarnes
 	if err == nil || !strings.Contains(err.Error(), "database role "+executionRole+" is not installed") {
 		t.Fatalf("missing-role schema error = %v", err)
 	}
+
+	admin := connect(t, harness.adminURL)
+	if _, err := admin.Exec(t.Context(), fmt.Sprintf(`
+		create role %s login password '%s';
+		create role %s nologin;
+		create role %s login password '%s';
+	`,
+		pgx.Identifier{executionRole}.Sanitize(), executionPassword,
+		pgx.Identifier{appAPIRole}.Sanitize(),
+		pgx.Identifier{opsWebRole}.Sanitize(), opsWebPassword,
+	)); err != nil {
+		closeConn(t, admin)
+		t.Fatalf("install non-publisher roles for missing publisher test: %v", err)
+	}
+	closeConn(t, admin)
+	err = migrateSchema(t.Context(), databaseURL, nil)
+	if err == nil || !strings.Contains(err.Error(), "database role "+publisherRole+" is not installed") {
+		t.Fatalf("missing publisher role schema error = %v", err)
+	}
+	admin = connect(t, harness.adminURL)
+	if _, err := admin.Exec(t.Context(), fmt.Sprintf(
+		"drop role %s, %s, %s",
+		pgx.Identifier{executionRole}.Sanitize(),
+		pgx.Identifier{appAPIRole}.Sanitize(),
+		pgx.Identifier{opsWebRole}.Sanitize(),
+	)); err != nil {
+		closeConn(t, admin)
+		t.Fatalf("remove non-publisher roles after missing publisher test: %v", err)
+	}
+	closeConn(t, admin)
 }
 
 func testProviderConfig(t *testing.T, harness *postgresHarness) {
@@ -57,13 +88,14 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("save llm setting: %v", err)
 		}
 		embedding := providerconfig.RuntimeSetting{
-			APIKey:     "sk-integration-embedding-secret",
-			BaseURL:    "https://embedding.integration.example/v1",
-			Dimensions: 2560,
-			Kind:       providerconfig.KindEmbedding,
-			Model:      "Qwen3-Embedding-4B",
-			Provider:   "openai-compatible",
-			Transport:  "embeddings",
+			APIKey:           "sk-integration-embedding-secret",
+			BaseURL:          "https://embedding.integration.example/v1",
+			Dimensions:       2560,
+			EmbeddingSpaceID: "qwen3-embedding-4b-test-v1",
+			Kind:             providerconfig.KindEmbedding,
+			Model:            "Qwen3-Embedding-4B",
+			Provider:         "openai-compatible",
+			Transport:        "embeddings",
 		}
 		status, err = runtimeStore.Put(
 			t.Context(),

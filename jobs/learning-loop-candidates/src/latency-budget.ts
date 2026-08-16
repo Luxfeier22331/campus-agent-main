@@ -9,7 +9,7 @@ const STAGE_TIMING_FIELDS = [
 	"stream.app_api_ttft_ms",
 	"stream.orchestration_overhead_ms",
 	"execution.admission_ms",
-	"grounding.prepare_ms",
+	"campus_docs.retrieve_ms",
 	"memory.recall_ms",
 	"agent.primary_ms",
 	"agent.runtime_ms",

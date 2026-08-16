@@ -400,11 +400,12 @@ func temporalActivityTypeForStep(stepID string) string {
 		return temporalruntime.AppendConversationMemoryActivityName
 	case "agent.primary":
 		return temporalruntime.ExecutePrimaryAgentActivityName
+	case "campus_docs.retrieve":
+		return temporalruntime.RetrieveCampusDocsEvidenceActivityName
 	case "finalization.write":
 		return temporalruntime.WriteFinalizationActivityName
 	default:
-		if strings.HasPrefix(normalized, "knowledge.search.") ||
-			strings.HasPrefix(normalized, "sdk_tool.execute.") {
+		if strings.HasPrefix(normalized, "sdk_tool.execute.") {
 			return temporalruntime.ExecutePrimaryAgentActivityName
 		}
 		return ""

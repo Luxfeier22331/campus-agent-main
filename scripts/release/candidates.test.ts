@@ -230,7 +230,7 @@ test("Campus Web docs refresh works when the GitOps cursor already equals head",
 	});
 });
 
-test("selects Docker-only schema and Go images", async (t) => {
+test("selects Docker-only schema, publisher, and Go images", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
 		if (command === "pnpm") {
@@ -240,6 +240,7 @@ test("selects Docker-only schema and Go images", async (t) => {
 			return result({
 				stdout: changed(
 					"apps/app-api/ops/db/schema.ts",
+					"apps/campus-web/src/docs-reader-build/source-schema.ts",
 					"apps/execution-control/internal/schemamigrations/migrator.go",
 				),
 			});
@@ -249,7 +250,7 @@ test("selects Docker-only schema and Go images", async (t) => {
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,
-		images: ["app-api-schema", "execution-control"],
+		images: ["app-api-schema", "campus-docs-index-publisher", "execution-control"],
 		kubernetes: false,
 		workers: [],
 	});
@@ -270,7 +271,7 @@ test("does not publish artifacts for an artifact adapter test change", async (t)
 	assert.deepEqual(plan.images, []);
 });
 
-test("a Node lockfile change does not select the independent Go image", async (t) => {
+test("a Node lockfile change selects Node one-shot images but not the independent Go image", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
 		if (command === "pnpm") {
@@ -289,7 +290,7 @@ test("a Node lockfile change does not select the independent Go image", async (t
 		return result();
 	};
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["app-api-schema"]);
+	assert.deepEqual(plan.images, ["app-api-schema", "campus-docs-index-publisher"]);
 });
 
 test("rejects a release base that is not an ancestor of head", async (t) => {

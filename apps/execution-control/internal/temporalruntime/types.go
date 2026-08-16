@@ -12,7 +12,6 @@ type ToolExecutionWorkflowInput struct {
 	ConversationID               string                 `json:"conversation_id"`
 	Namespace                    string                 `json:"namespace"`
 	PayloadSHA256                string                 `json:"payload_sha256"`
-	PolicyVersions               map[string]string      `json:"policy_versions"`
 	PersonalMemoryTimeoutSeconds float64                `json:"personal_memory_timeout_seconds"`
 	RequestID                    string                 `json:"request_id"`
 	RunID                        string                 `json:"run_id"`
@@ -26,15 +25,11 @@ type ToolExecutionWorkflowInput struct {
 // AgentAdmissionSnapshot contains only bounded, non-secret execution policy
 // inputs. Provider credentials and model responses are deliberately excluded.
 type AgentAdmissionSnapshot struct {
-	AgentLimits                   AgentRuntimeLimitsSnapshot `json:"agent_limits"`
-	AgentLimitsSHA256             string                     `json:"agent_limits_sha256"`
-	EmbeddingProviderConfigSHA256 string                     `json:"embedding_provider_config_sha256"`
-	DocumentScopes                []DocumentScope            `json:"document_scopes"`
-	DocumentScopesSHA256          string                     `json:"document_scopes_sha256"`
-	ExecutionStrategy             ExecutionStrategySnapshot  `json:"execution_strategy"`
-	ExecutionStrategySHA256       string                     `json:"execution_strategy_sha256"`
-	GroundingPlan                 GroundingPlanSnapshot      `json:"grounding_plan"`
-	GroundingPlanSHA256           string                     `json:"grounding_plan_sha256"`
+	AgentLimits             AgentRuntimeLimitsSnapshot   `json:"agent_limits"`
+	AgentLimitsSHA256       string                       `json:"agent_limits_sha256"`
+	CampusDocsRetrieval     CampusDocsRetrievalAdmission `json:"campus_docs_retrieval"`
+	ExecutionStrategy       ExecutionStrategySnapshot    `json:"execution_strategy"`
+	ExecutionStrategySHA256 string                       `json:"execution_strategy_sha256"`
 	// ProviderConfigSHA256 fingerprints the active LLM setting used by the
 	// Primary Agent. It excludes credentials and storage identifiers.
 	ProviderConfigSHA256         string                         `json:"provider_config_sha256"`
@@ -42,57 +37,38 @@ type AgentAdmissionSnapshot struct {
 	ToolRuntimeFingerprintSHA256 string                         `json:"tool_runtime_fingerprint_sha256"`
 }
 
-type GroundingPlanSnapshot struct {
-	Mode           string   `json:"mode"`
-	QuerySHA256    string   `json:"query_sha256"`
-	SchemaVersion  string   `json:"schema_version"`
-	SelectedScopes []string `json:"selected_scopes"`
+type CampusDocsRetrievalAdmission struct {
+	EmbeddingProviderConfigSHA256 string                  `json:"embedding_provider_config_sha256"`
+	Index                         CampusDocsIndexSnapshot `json:"index"`
+	QuerySHA256                   string                  `json:"query_sha256"`
 }
 
-// GroundingContext is the bounded retrieval result consumed by the Primary
-// Agent and terminal finalization. It is carried through the workflow history
-// rather than persisted in a separate runtime-owned payload store.
-type GroundingContext struct {
-	AdmissionSHA256   string              `json:"admission_sha256"`
-	CoveredScopes     []string            `json:"covered_scopes"`
-	Evidence          []GroundingEvidence `json:"evidence"`
-	Mode              string              `json:"mode"`
-	ModelContextChars int                 `json:"model_context_chars"`
-	PlanSHA256        string              `json:"plan_sha256"`
-	PreparedAt        time.Time           `json:"prepared_at"`
-	QuerySHA256       string              `json:"query_sha256"`
-	RunID             string              `json:"run_id"`
-	SchemaVersion     string              `json:"schema_version"`
-	SelectedScopes    []string            `json:"selected_scopes"`
-	Status            string              `json:"status"`
-	TokenCount        int                 `json:"token_count"`
+// CampusDocsRetrievalResult is carried through workflow history so
+// finalization can close evidence references without a second payload store.
+type CampusDocsRetrievalResult struct {
+	Evidence []CampusDocsEvidence `json:"evidence"`
 }
 
-type GroundingEvidence struct {
-	EvidenceRef   string  `json:"evidence_ref"`
-	DocumentScope string  `json:"document_scope"`
-	ReleaseID     string  `json:"release_id"`
-	ChunkID       string  `json:"chunk_id"`
-	SectionRef    string  `json:"section_ref"`
-	DocumentID    string  `json:"document_id"`
-	SectionID     string  `json:"section_id"`
-	DocumentTitle string  `json:"document_title"`
-	SectionTitle  string  `json:"section_title"`
-	CanonicalURL  string  `json:"canonical_url"`
-	Text          string  `json:"text"`
-	TextSHA256    string  `json:"text_sha256"`
-	TokenCount    int     `json:"token_count"`
-	RerankScore   float64 `json:"rerank_score"`
+type CampusDocsEvidence struct {
+	EvidenceRef   string   `json:"evidence_ref"`
+	SectionRef    string   `json:"section_ref"`
+	DocumentID    string   `json:"document_id"`
+	RootUnitIDs   []string `json:"root_unit_ids"`
+	DocumentTitle string   `json:"document_title"`
+	SectionTitle  string   `json:"section_title"`
+	Text          string   `json:"text"`
+	VersionID     string   `json:"version_id"`
+	VersionLabel  string   `json:"version_label"`
+	VersionSlug   string   `json:"version_slug"`
 }
 
 type ExecutionStrategySnapshot struct {
-	AllowUngroundedAnswer bool     `json:"allow_ungrounded_answer"`
-	Kind                  string   `json:"kind"`
-	MaxModelTurns         int      `json:"max_model_turns"`
-	MaxToolCalls          int      `json:"max_tool_calls"`
-	MemoryRecall          string   `json:"memory_recall"`
-	SchemaVersion         string   `json:"schema_version"`
-	VisibleToolNames      []string `json:"visible_tool_names"`
+	Kind             string   `json:"kind"`
+	MaxModelTurns    int      `json:"max_model_turns"`
+	MaxToolCalls     int      `json:"max_tool_calls"`
+	MemoryRecall     string   `json:"memory_recall"`
+	SchemaVersion    string   `json:"schema_version"`
+	VisibleToolNames []string `json:"visible_tool_names"`
 }
 
 // ToolRuntimeFingerprintSnapshot binds an admitted run to the exact tool
@@ -141,69 +117,34 @@ type AppendConversationMemoryActivityOutput struct {
 }
 
 type ExecutePrimaryAgentActivityInput struct {
-	AdmissionSnapshot AgentAdmissionSnapshot `json:"admission_snapshot"`
-	ConversationID    string                 `json:"conversation_id"`
-	GroundingContext  GroundingContext       `json:"grounding_context"`
-	RequestID         string                 `json:"request_id"`
-	RunID             string                 `json:"run_id"`
-	TraceID           string                 `json:"trace_id"`
-	TraceParent       string                 `json:"traceparent,omitempty"`
-	TurnID            string                 `json:"turn_id"`
-	VisibleToolNames  []string               `json:"visible_tool_names"`
+	AdmissionSnapshot   AgentAdmissionSnapshot    `json:"admission_snapshot"`
+	CampusDocsRetrieval CampusDocsRetrievalResult `json:"campus_docs_retrieval"`
+	ConversationID      string                    `json:"conversation_id"`
+	RequestID           string                    `json:"request_id"`
+	RunID               string                    `json:"run_id"`
+	TraceID             string                    `json:"trace_id"`
+	TraceParent         string                    `json:"traceparent,omitempty"`
+	TurnID              string                    `json:"turn_id"`
+	VisibleToolNames    []string                  `json:"visible_tool_names"`
 }
 
-type PrepareGroundingContextActivityInput struct {
+type RetrieveCampusDocsEvidenceActivityInput struct {
 	AdmissionSnapshot       AgentAdmissionSnapshot `json:"admission_snapshot"`
 	AdmissionSnapshotSHA256 string                 `json:"admission_snapshot_sha256"`
 	RunID                   string                 `json:"run_id"`
 	TraceID                 string                 `json:"trace_id"`
 }
 
-type PrepareGroundingContextActivityOutput struct {
-	CoveredScopes       []string         `json:"covered_scopes"`
-	EvidenceCount       int              `json:"evidence_count"`
-	GroundingContext    GroundingContext `json:"grounding_context"`
-	GroundingContextRef string           `json:"grounding_context_ref"`
-	Mode                string           `json:"mode"`
-	ModelContextChars   int              `json:"model_context_chars"`
-	PayloadSHA256       string           `json:"payload_sha256"`
-	RunID               string           `json:"run_id"`
-	SelectedScopes      []string         `json:"selected_scopes"`
-	Status              string           `json:"status"`
-	TokenCount          int              `json:"token_count"`
-}
-
-type DocumentScope struct {
-	Collection          string                         `json:"collection"`
-	Corpus              string                         `json:"corpus"`
-	CandidateTopK       int                            `json:"candidate_top_k"`
-	Description         string                         `json:"description"`
-	MaxEvidenceSections int                            `json:"max_evidence_sections"`
-	QdrantCollection    string                         `json:"qdrant_collection"`
-	ReleaseID           string                         `json:"release_id"`
-	ServingConfig       KnowledgeServingConfigSnapshot `json:"serving_config"`
-	ServingConfigPath   string                         `json:"serving_config_path"`
-	ServingConfigSHA256 string                         `json:"serving_config_sha256"`
-	Scope               string                         `json:"scope"`
-}
-
-type KnowledgeServingConfigSnapshot struct {
-	Collection                string   `json:"collection"`
-	Corpus                    string   `json:"corpus"`
-	DensePrefetchLimit        int      `json:"dense_prefetch_limit"`
-	DenseVectorName           string   `json:"dense_vector_name"`
-	EmbeddingQueryInstruction string   `json:"embedding_query_instruction"`
-	EmbeddingDimensions       int      `json:"embedding_dimensions"`
-	EmbeddingModel            string   `json:"embedding_model"`
-	EmbeddingProvider         string   `json:"embedding_provider"`
-	EmbeddingVectorName       string   `json:"embedding_vector_name"`
-	RetrievalEnabled          bool     `json:"retrieval_enabled"`
-	ServingRevisionTracks     []string `json:"serving_revision_tracks"`
-	ServingStage              string   `json:"serving_stage"`
-	ServingVisibilityLevels   []string `json:"serving_visibility_levels"`
-	ServingVisibilityScopes   []string `json:"serving_visibility_scopes"`
-	SparsePrefetchLimit       int      `json:"sparse_prefetch_limit"`
-	SparseVectorName          string   `json:"sparse_vector_name"`
+type CampusDocsIndexSnapshot struct {
+	DenseVectorName           string `json:"dense_vector_name"`
+	EmbeddingDimensions       int    `json:"embedding_dimensions"`
+	EmbeddingModel            string `json:"embedding_model"`
+	EmbeddingProvider         string `json:"embedding_provider"`
+	EmbeddingQueryInstruction string `json:"embedding_query_instruction"`
+	EmbeddingSpaceID          string `json:"embedding_space_id"`
+	Collection                string `json:"collection"`
+	SparseModel               string `json:"sparse_model"`
+	SparseVectorName          string `json:"sparse_vector_name"`
 }
 
 type AgentToolResult struct {
@@ -219,8 +160,8 @@ type AgentToolResult struct {
 
 type ExecutePrimaryAgentActivityOutput struct {
 	AgentResultRef         string            `json:"agent_result_ref"`
+	ContextUsage           map[string]any    `json:"context_usage"`
 	FinalOutput            string            `json:"final_output"`
-	GroundingContext       GroundingContext  `json:"grounding_context"`
 	ModelName              string            `json:"model_name"`
 	ModelProvider          string            `json:"model_provider"`
 	PromptTrace            map[string]any    `json:"prompt_trace"`
@@ -244,11 +185,12 @@ type AgentUsageSummary struct {
 }
 
 type WriteFinalizationActivityInput struct {
-	AgentResult       ExecutePrimaryAgentActivityOutput `json:"agent_result"`
-	AdmissionSnapshot AgentAdmissionSnapshot            `json:"admission_snapshot"`
-	FinalizedAt       time.Time                         `json:"finalized_at"`
-	RunID             string                            `json:"run_id"`
-	TraceID           string                            `json:"trace_id"`
+	AgentResult         ExecutePrimaryAgentActivityOutput `json:"agent_result"`
+	AdmissionSnapshot   AgentAdmissionSnapshot            `json:"admission_snapshot"`
+	CampusDocsRetrieval CampusDocsRetrievalResult         `json:"campus_docs_retrieval"`
+	FinalizedAt         time.Time                         `json:"finalized_at"`
+	RunID               string                            `json:"run_id"`
+	TraceID             string                            `json:"trace_id"`
 }
 
 type WriteFinalizationActivityOutput struct {

@@ -162,21 +162,12 @@ function expectedPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 			reference: stringField(item.reference, "reference"),
 			reference_context_ids: referenceContextIds,
 			reference_contexts: stringList(item.reference_contexts),
-			expected_grounding: {
-				document_scopes: expectedDocumentScopes,
-				minimum_relevant_context_count: requiredNonNegativeInteger(
-					item.minimum_relevant_context_count,
-					"minimum_relevant_context_count",
-				),
-			},
 			split: optionalString(item.split),
 		};
 	}
 	if (dataset.kind === "agent_tool_eval") {
-		const expectedGroundingMode = optionalString(item.expected_grounding_mode);
 		return {
 			case_id: item.case_id,
-			...(expectedGroundingMode ? { expected_grounding_mode: expectedGroundingMode } : {}),
 			expected_outcome: stringField(item.expected_outcome, "expected_outcome"),
 			forbidden_context_ids: stringList(item.forbidden_context_ids),
 			reference: stringField(item.reference, "reference"),
@@ -223,13 +214,6 @@ function datasetItem(input: {
 		},
 		status: "ACTIVE",
 	};
-}
-
-function requiredNonNegativeInteger(value: unknown, field: string): number {
-	if (!(typeof value === "number" && Number.isInteger(value) && value >= 0)) {
-		throw new Error(`${field} must be a non-negative integer`);
-	}
-	return value;
 }
 
 async function syncOneDataset(input: {

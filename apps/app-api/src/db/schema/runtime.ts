@@ -1,6 +1,5 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 import type { ToolExecutionWorkflowTraceSummary } from "../../modules/integration/tool-execution-types";
-import type { ObservedSourceTraceEntry } from "../../modules/source-trace";
 
 const runtime = pgSchema("runtime");
 
@@ -14,17 +13,12 @@ export const requestObservabilityFact = runtime.table(
 		surface: text("surface").notNull(),
 		principalType: text("principal_type").notNull(),
 		entitlementSnapshotId: text("entitlement_snapshot_id"),
-		policyProjectionVersion: text("policy_projection_version"),
 		policyReason: text("policy_reason"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
 		completedAt: timestamp("completed_at", { withTimezone: true }),
 		durationMs: integer("duration_ms"),
-		supportingSourcesJson: jsonb("supporting_sources_json")
-			.$type<ObservedSourceTraceEntry[]>()
-			.notNull()
-			.default([]),
 		refusalClass: text("refusal_class"),
 		semanticOutcome: text("semantic_outcome"),
 		aclDecision: text("acl_decision"),

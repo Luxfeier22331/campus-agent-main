@@ -39,7 +39,6 @@ export type {
 	CampusIdentityClaimsInput,
 	ExecutionActorContext,
 	ExecutionAuthorizationContext,
-	ExecutionAuthorizationRetrievalFilter,
 	ResolvedAppPrincipal,
 } from "./principal";
 export {

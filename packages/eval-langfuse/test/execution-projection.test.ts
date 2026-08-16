@@ -10,12 +10,8 @@ function runStepsPayload() {
 		agentRuntimeEvalProjection: {
 			rag: {
 				answer: "奖学金评审同时受学生规则和学校通用规定约束。",
-				covered_scopes: ["student_rules", "institutional_rules"],
-				grounding_mode: "multi_scope",
-				grounding_status: "ready",
 				retrieved_context_ids: ["doc:student-scholarship", "doc:institution-awards"],
 				retrieved_contexts: ["学生奖学金评审条件。", "学校奖励管理通用规定。"],
-				selected_scopes: ["student_rules", "institutional_rules"],
 			},
 			run: {
 				run_id: "run-001",
@@ -45,10 +41,8 @@ describe("execution run eval projection", () => {
 			"doc:institution-awards",
 		]);
 		expect(projection.toolTrajectory.tool_calls).toHaveLength(0);
-		expect(projection.groundingMode).toBe("multi_scope");
-		expect(projection.selectedScopes).toEqual(["student_rules", "institutional_rules"]);
-		expect(projection.coveredScopes).toEqual(["student_rules", "institutional_rules"]);
 		expect(projection).not.toHaveProperty("resolvedTargets");
+		expect(projection).not.toHaveProperty("campusDocsRetrieval");
 	});
 
 	it("materializes an official Ragas sample from run projection and dataset truth", () => {

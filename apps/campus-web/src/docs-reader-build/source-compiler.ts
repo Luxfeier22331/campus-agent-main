@@ -1,4 +1,3 @@
-import { parseDocsReaderPayload } from "../features/docs/model.ts";
 import {
 	assertPublishedReaderAssetLayout,
 	readPublishedObject,
@@ -8,10 +7,11 @@ import type {
 	PublishedReaderManifestEntry,
 	ReaderObjectStoreClient,
 } from "./published-reader-types.ts";
+import { assertReaderExtractionQuality } from "./reader-quality.ts";
 import { assertReaderSegmentationQuality } from "./reader-segmentation.ts";
 import { buildReaderRouteSlug, canonicalJsonBytes, sha256 } from "./source-catalog.ts";
 import { materializeDocsCourseMaps } from "./source-course-maps.ts";
-import { parseCourseMaps } from "./source-schema.ts";
+import { parseCourseMaps, parseReader } from "./source-schema.ts";
 import type {
 	DocsDocument,
 	DocsReader,
@@ -41,7 +41,7 @@ export async function compileDocsSource(input: {
 			if (!document) {
 				throw new Error(`version references missing document: ${version.versionId}`);
 			}
-			const reader = parseDocsReaderPayload(
+			const reader = parseReader(
 				parseJson(
 					await readPublishedObject({
 						client: input.client,
@@ -50,6 +50,7 @@ export async function compileDocsSource(input: {
 					`reader ${version.versionId}`,
 				),
 			);
+			assertReaderExtractionQuality(reader);
 			assertReaderSegmentationQuality(reader);
 			assertReaderIdentity(reader, version);
 			assertReaderSupplements(reader, version);

@@ -13,19 +13,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
-const (
-	modelSettingsAdminPrefix      = "/internal/admin/model-settings"
-	fixedQueryEmbeddingModel      = "Qwen3-Embedding-4B"
-	fixedQueryEmbeddingDimensions = 2560
-)
+const modelSettingsAdminPrefix = "/internal/admin/model-settings"
 
 type ProviderConfigAdminServer struct {
-	config config.Config
-	store  *providerconfig.Store
+	campusDocsIndexStore campusdocs.IndexStore
+	config               config.Config
+	store                *providerconfig.Store
 }
 
 func NewProviderConfigAdminServer(cfg config.Config) (*ProviderConfigAdminServer, error) {
@@ -41,12 +39,20 @@ func NewProviderConfigAdminServer(cfg config.Config) (*ProviderConfigAdminServer
 	if err != nil {
 		return nil, err
 	}
-	return &ProviderConfigAdminServer{config: cfg, store: store}, nil
+	indexStore := campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
+	if indexStore == nil {
+		store.Close()
+		return nil, errors.New("Campus docs index store is not configured")
+	}
+	return &ProviderConfigAdminServer{campusDocsIndexStore: indexStore, config: cfg, store: store}, nil
 }
 
 func (s *ProviderConfigAdminServer) Close() {
 	if s != nil && s.store != nil {
 		s.store.Close()
+	}
+	if s != nil {
+		closeCampusDocsIndexStore(s.campusDocsIndexStore)
 	}
 }
 
@@ -61,7 +67,7 @@ func (s *ProviderConfigAdminServer) ServeHTTP(response http.ResponseWriter, requ
 		}
 		writeJSON(response, http.StatusOK, map[string]any{"status": "ready"})
 	case strings.HasPrefix(request.URL.Path, modelSettingsAdminPrefix):
-		handleModelSettingsAdmin(response, request, s.config, s.store)
+		handleModelSettingsAdmin(response, request, s.config, s.store, s.campusDocsIndexStore)
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 	}
@@ -72,6 +78,7 @@ func handleModelSettingsAdmin(
 	request *http.Request,
 	cfg config.Config,
 	store *providerconfig.Store,
+	indexStore campusdocs.IndexStore,
 ) {
 	if !providerConfigAdminAuthorized(request, cfg) {
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid model settings admin credential.", false)
@@ -80,7 +87,7 @@ func handleModelSettingsAdmin(
 	path := request.URL.Path
 	switch {
 	case request.Method == http.MethodGet && path == modelSettingsAdminPrefix:
-		writeModelSettingsStatus(response, request, store)
+		writeModelSettingsStatus(response, request, store, indexStore)
 	case request.Method == http.MethodPost && path == modelSettingsAdminPrefix+"/llm/models":
 		discoverLLMModels(response, request, store)
 	case request.Method == http.MethodPut:
@@ -89,7 +96,7 @@ func handleModelSettingsAdmin(
 			writeError(response, http.StatusNotFound, "not_found", "Model setting was not found.", false)
 			return
 		}
-		putModelSetting(response, request, store, kind)
+		putModelSetting(response, request, store, indexStore, kind)
 	case request.Method == http.MethodPost && strings.HasSuffix(path, "/validate"):
 		kind, ok := modelSettingKindFromPath(strings.TrimSuffix(path, "/validate"))
 		if !ok {
@@ -136,20 +143,31 @@ func discoverLLMModels(response http.ResponseWriter, request *http.Request, stor
 	})
 }
 
-func writeModelSettingsStatus(response http.ResponseWriter, request *http.Request, store *providerconfig.Store) {
+func writeModelSettingsStatus(
+	response http.ResponseWriter,
+	request *http.Request,
+	store *providerconfig.Store,
+	indexStore campusdocs.IndexStore,
+) {
+	requirement, err := currentEmbeddingRequirement(request.Context(), indexStore)
+	if err != nil {
+		writeError(response, http.StatusServiceUnavailable, "campus_docs_index_unavailable", "Campus docs current index is unavailable.", true)
+		return
+	}
 	status, err := store.Status(request.Context())
 	if err != nil {
 		writeError(response, http.StatusServiceUnavailable, "model_settings_unavailable", "Model settings status is unavailable.", true)
 		return
 	}
 	response.Header().Set("ETag", quotedETag(status.ETag))
-	writeJSON(response, http.StatusOK, status)
+	writeModelSettingsStatusResponse(response, status, requirement)
 }
 
 func putModelSetting(
 	response http.ResponseWriter,
 	request *http.Request,
 	store *providerconfig.Store,
+	indexStore campusdocs.IndexStore,
 	kind providerconfig.Kind,
 ) {
 	expectedETag := strings.TrimSpace(request.Header.Get("If-Match"))
@@ -162,12 +180,22 @@ func putModelSetting(
 		return
 	}
 	input.Kind = kind
+	requirement, err := currentEmbeddingRequirement(request.Context(), indexStore)
+	if err != nil {
+		writeError(response, http.StatusServiceUnavailable, "campus_docs_index_unavailable", "Campus docs current index is unavailable.", true)
+		return
+	}
 	if kind == providerconfig.KindEmbedding {
-		input.Model = fixedQueryEmbeddingModel
-		input.Dimensions = fixedQueryEmbeddingDimensions
+		if requirement == nil {
+			writeError(response, http.StatusConflict, "campus_docs_index_unavailable", "Publish the Campus docs index before configuring Embedding.", false)
+			return
+		}
+		input.Dimensions = requirement.Dimensions
+		input.Model = requirement.Model
+		input.Provider = requirement.Provider
 		input.Transport = "embeddings"
 	}
-	if err := validateModelSettingInput(input); err != nil {
+	if err := validateModelSettingInput(input, requirement); err != nil {
 		writeError(response, http.StatusUnprocessableEntity, "model_setting_invalid", err.Error(), false)
 		return
 	}
@@ -193,7 +221,54 @@ func putModelSetting(
 		return
 	}
 	response.Header().Set("ETag", quotedETag(status.ETag))
-	writeJSON(response, http.StatusOK, status)
+	writeModelSettingsStatusResponse(response, status, requirement)
+}
+
+type modelSettingsStatusResponse struct {
+	providerconfig.Status
+	EmbeddingRequirement *embeddingSettingRequirement `json:"embeddingRequirement"`
+}
+
+type embeddingSettingRequirement struct {
+	Dimensions       int    `json:"dimensions"`
+	EmbeddingSpaceID string `json:"embeddingSpaceId"`
+	Model            string `json:"model"`
+	Provider         string `json:"provider"`
+	Transport        string `json:"transport"`
+}
+
+func writeModelSettingsStatusResponse(
+	response http.ResponseWriter,
+	status providerconfig.Status,
+	requirement *embeddingSettingRequirement,
+) {
+	writeJSON(response, http.StatusOK, modelSettingsStatusResponse{
+		Status:               status,
+		EmbeddingRequirement: requirement,
+	})
+}
+
+func currentEmbeddingRequirement(
+	ctx context.Context,
+	store campusdocs.IndexStore,
+) (*embeddingSettingRequirement, error) {
+	if store == nil {
+		return nil, errors.New("Campus docs index store is not configured")
+	}
+	index, found, err := store.CurrentIndex(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, nil
+	}
+	return &embeddingSettingRequirement{
+		Dimensions:       index.EmbeddingDimensions,
+		EmbeddingSpaceID: index.EmbeddingSpaceID,
+		Model:            index.EmbeddingModel,
+		Provider:         index.EmbeddingProvider,
+		Transport:        "embeddings",
+	}, nil
 }
 
 func validateCurrentModelSetting(
@@ -236,7 +311,10 @@ func modelSettingKindFromPath(path string) (providerconfig.Kind, bool) {
 	return "", false
 }
 
-func validateModelSettingInput(input providerconfig.SettingInput) error {
+func validateModelSettingInput(
+	input providerconfig.SettingInput,
+	embeddingRequirement *embeddingSettingRequirement,
+) error {
 	if input.Kind != providerconfig.KindLLM && input.Kind != providerconfig.KindEmbedding {
 		return errors.New("kind must be llm or embedding")
 	}
@@ -253,8 +331,17 @@ func validateModelSettingInput(input providerconfig.SettingInput) error {
 	if input.Kind == providerconfig.KindLLM && input.Transport != "responses" && input.Transport != "chat_completions" {
 		return errors.New("llm transport must be responses or chat_completions")
 	}
-	if input.Kind == providerconfig.KindEmbedding && (input.Transport != "embeddings" || input.Dimensions != fixedQueryEmbeddingDimensions || input.Model != fixedQueryEmbeddingModel) {
-		return errors.New("embedding model settings are fixed by the serving config")
+	if input.Kind == providerconfig.KindEmbedding {
+		if embeddingRequirement == nil {
+			return errors.New("Campus docs current index is required for embedding settings")
+		}
+		if input.Transport != "embeddings" || input.Provider != embeddingRequirement.Provider ||
+			input.Dimensions != embeddingRequirement.Dimensions || input.Model != embeddingRequirement.Model ||
+			strings.TrimSpace(input.EmbeddingSpaceID) != embeddingRequirement.EmbeddingSpaceID {
+			return errors.New("embedding model settings must match the Campus docs current index")
+		}
+	} else if strings.TrimSpace(input.EmbeddingSpaceID) != "" {
+		return errors.New("llm model settings must not define an embedding space id")
 	}
 	return nil
 }

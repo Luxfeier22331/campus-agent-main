@@ -16,8 +16,6 @@ export type {
 	ChatSourceAction,
 	ChatSourceItem,
 	ChatSourceItemsStructuredPart,
-	ChatSourceKind,
-	ChatSourceTargetKind,
 	VendorChatHistoryItemResponse,
 	VendorChatHistoryPageResponse,
 } from "./model";

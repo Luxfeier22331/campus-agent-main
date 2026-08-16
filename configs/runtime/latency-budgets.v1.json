@@ -59,10 +59,10 @@
 			"enabled": true
 		},
 		{
-			"field": "grounding.prepare_ms",
+			"field": "campus_docs.retrieve_ms",
 			"warn_ms": 3000,
 			"critical_ms": 7000,
-			"candidate_reason": "grounding_prepare_too_slow",
+			"candidate_reason": "campus_docs_retrieval_too_slow",
 			"candidate_category": "model_provider_or_latency_budget_fix",
 			"enabled": true
 		},

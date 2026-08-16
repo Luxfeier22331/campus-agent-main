@@ -45,7 +45,8 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 ## execution_control schema 切换
 
 Goose v4 会把 execution-control 拥有的 12 张运行表和 `model_settings` 原位移动到
-`execution_control`。迁移后源码只读写新路径；`runtime` 和 `execution_config` 下的同名对象是临时
+`execution_control`；Goose v5 随后新增查询 Embedding space 字段和 Campus Docs 当前索引绑定表。
+迁移后源码只读写新路径；`runtime` 和 `execution_config` 下的同名对象是临时
 只读视图，不能承接旧构建的 `INSERT ... ON CONFLICT` 或其他 DML。因此该版本不能按普通无停写滚动
 升级处理。
 
@@ -53,8 +54,9 @@ Goose v4 会把 execution-control 拥有的 12 张运行表和 `model_settings` 
 
 1. 暂停新的产品请求准入，等待 execution-control PostgreSQL 写入排空；Temporal 服务和 workflow
    history 保持可用，不删除或重置开放 workflow；
-2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4 已应用、13
-   张目标表保留已有行、外键和索引，并确认旧路径只能读取；
+2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4、v5 已应用、
+   13 张 execution-control 表保留已有行、外键和索引，`campus_docs_serving.current_index` 已创建，
+   并确认旧路径只能读取；
 3. 部署同一 revision 的 execution-control 与 Ops Web，确认 Store 健康、Provider Config 解密、
    start/cancel reconciler、个人记忆状态和 Ops Web 精确列读取；
 4. 恢复产品准入，并观察新写入只进入 `execution_control`；不得恢复旧 writer、双写或通过旧视图写入；
@@ -120,7 +122,7 @@ schema 向前修复；不能把旧构建当作应用回滚。`model_settings` �
 - 断开 POST stream 后按 `next_sequence` 恢复同一 run；游标能跨过只有内部事件的区间；
 - 显式取消先落 app-api 发件箱，最终得到产品取消终态和浏览器 `run.canceled`；
 - 完成与取消的重复 closeout 保持同一 fingerprint，较晚的不同终态不能覆盖；
-- Temporal history 可包含有界 grounding 与 Agent result；execution-control metadata/event/step、应用日志和
+- Temporal history 可包含有界 Campus Docs evidence 与 Agent result；execution-control metadata/event/step、应用日志和
   trace 不含合成 prompt、对话、工具原始载荷或认证材料；
 - 已经分配 run 的 app-api 执行输入在完成、失败、取消和超时后仍可按同一 ref/hash 读取，不存在
   execution-control 清理记录或释放回调；
@@ -130,10 +132,11 @@ schema 向前修复；不能把旧构建当作应用回滚。`model_settings` �
 - 当前新运行不含 `selected_tool` 或 handoff。关闭个人记忆召回时 `visible_tool_names` 和
   `available_tools` 为空；允许召回时只包含 `personal_memory_recall`，工具轨迹最多产生一次对应 SDK
   调用；
-- 准入快照包含 `student_rules`、`institutional_rules`、`curriculum` 的 current release、物理 Qdrant
-  collection，以及 `llm` 和检索路径 `embedding` 模型设置 hash；
-- Temporal 顺序包含 `grounding.prepare`、`agent.primary`、`finalization.write` 和 `memory.append`；完整
-  grounding 正文经由 workflow history 传递，知识问题不产生 SDK tool call。
+- 每个新运行的快照都包含 `campus_docs_serving.current_index` 的物理 Qdrant collection、
+  dense/embedding/sparse 查询绑定、本轮查询 hash，以及 `llm` 和 `embedding` 模型设置 hash；
+- 每个有效请求的 Temporal 顺序都包含 `campus_docs.retrieve`、`agent.primary`、
+  `finalization.write` 和 `memory.append`；完整 evidence 经由 workflow history 传递，Campus Docs
+  检索不产生 SDK tool call。
 
 环境完成证据至少包括环境仓选择的 commit、Argo CD sync/health、schema/migration 结果、三个
 `.v3` 队列的 v5 poller 与 backlog、旧 workflow 排空记录和合成请求关联标识。源码 CI、本地

@@ -412,17 +412,15 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 	completedAt := time.Date(2026, 7, 11, 1, 2, 3, 0, time.UTC)
 
 	env.OnActivity(
-		PrepareGroundingContextActivityName,
+		RetrieveCampusDocsEvidenceActivityName,
 		mock.Anything,
-		mock.MatchedBy(func(input PrepareGroundingContextActivityInput) bool {
+		mock.MatchedBy(func(input RetrieveCampusDocsEvidenceActivityInput) bool {
 			return input.RunID == runID && input.TraceID == traceID
 		}),
 	).
-		Run(func(mock.Arguments) { sequence = append(sequence, "grounding") }).
-		Return(PrepareGroundingContextActivityOutput{
-			GroundingContext: GroundingContext{RunID: runID},
-			RunID:            runID,
-			Status:           "ready",
+		Run(func(mock.Arguments) { sequence = append(sequence, "campus_docs_retrieve") }).
+		Return(CampusDocsRetrievalResult{
+			Evidence: []CampusDocsEvidence{{EvidenceRef: "evidence://sha256/example"}},
 		}, nil)
 
 	env.OnActivity(
@@ -432,7 +430,7 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 			return input.RunID == runID &&
 				input.TraceID == traceID &&
 				input.TraceParent == traceParent &&
-				input.GroundingContext.RunID == runID
+				len(input.CampusDocsRetrieval.Evidence) == 1
 		}),
 	).
 		Run(func(mock.Arguments) { sequence = append(sequence, "agent") }).
@@ -454,6 +452,7 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 			return input.RunID == runID &&
 				input.TraceID == traceID &&
 				input.AgentResult.AgentResultRef == agentResultRef &&
+				len(input.CampusDocsRetrieval.Evidence) == 1 &&
 				!input.FinalizedAt.IsZero()
 		}),
 	).
@@ -473,9 +472,9 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 			Status:        "completed",
 		}, nil)
 	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
-		AdmissionSnapshot: AgentAdmissionSnapshot{GroundingPlan: GroundingPlanSnapshot{
-			Mode:           "single_scope",
-			SelectedScopes: []string{"curriculum"},
+		AdmissionSnapshot: AgentAdmissionSnapshot{CampusDocsRetrieval: CampusDocsRetrievalAdmission{
+			Index:       CampusDocsIndexSnapshot{Collection: "campus_docs_test"},
+			QuerySHA256: "sha256:" + strings.Repeat("a", 64),
 		}},
 		ConversationID: "conv-linear-knowledge",
 		RequestID:      "req-linear-knowledge",
@@ -488,21 +487,23 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	if got, want := sequence, []string{"grounding", "agent", "finalization", "memory_append"}; !equalStrings(got, want) {
+	if got, want := sequence, []string{"campus_docs_retrieve", "agent", "finalization", "memory_append"}; !equalStrings(got, want) {
 		t.Fatalf("activity sequence = %#v, want %#v", got, want)
 	}
 	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 1)
-	env.AssertActivityNumberOfCalls(t, PrepareGroundingContextActivityName, 1)
+	env.AssertActivityNumberOfCalls(t, RetrieveCampusDocsEvidenceActivityName, 1)
 }
 
-func TestToolExecutionWorkflowSkipsGroundingForDirectPlan(t *testing.T) {
+func TestToolExecutionWorkflowAlwaysRetrievesCampusDocs(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
 	runID := "run-linear-direct"
+	env.OnActivity(RetrieveCampusDocsEvidenceActivityName, mock.Anything, mock.Anything).
+		Return(CampusDocsRetrievalResult{Evidence: []CampusDocsEvidence{}}, nil)
 	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.MatchedBy(
 		func(input ExecutePrimaryAgentActivityInput) bool {
-			return input.GroundingContext.SchemaVersion == ""
+			return len(input.CampusDocsRetrieval.Evidence) == 0
 		},
 	)).Return(ExecutePrimaryAgentActivityOutput{
 		AgentResultRef: "projection://runs/" + runID + "/agent/primary/result",
@@ -515,14 +516,17 @@ func TestToolExecutionWorkflowSkipsGroundingForDirectPlan(t *testing.T) {
 		Return(AppendConversationMemoryActivityOutput{RunID: runID, Status: "completed"}, nil)
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
-		AdmissionSnapshot: AgentAdmissionSnapshot{GroundingPlan: GroundingPlanSnapshot{Mode: "none"}},
-		RunID:             runID,
+		AdmissionSnapshot: AgentAdmissionSnapshot{CampusDocsRetrieval: CampusDocsRetrievalAdmission{
+			Index:       CampusDocsIndexSnapshot{Collection: "campus_docs_test"},
+			QuerySHA256: "sha256:" + strings.Repeat("a", 64),
+		}},
+		RunID: runID,
 	})
 
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("direct workflow error: %v", err)
 	}
-	env.AssertActivityNumberOfCalls(t, PrepareGroundingContextActivityName, 0)
+	env.AssertActivityNumberOfCalls(t, RetrieveCampusDocsEvidenceActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 1)
 }
 

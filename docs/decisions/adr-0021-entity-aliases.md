@@ -30,8 +30,8 @@ alias。
 checked-in alias 配置在有已开放运行时消费前只是 offline data；文件存在不代表能力已经
 产品化。
 
-本决策不为 `grounding_context.v2` 或文档范围准入增加 entity 字段。当前 grounding 只消费冻结的
-用户问题和服务端文档范围。未来领域 resolver 如需新的运行参数，必须先引入可执行合同和评测，
+本决策不为 Campus Docs 检索结果或索引准入增加 entity 字段。当前检索只消费冻结的用户问题和
+服务端当前索引。未来领域 resolver 如需新的运行参数，必须先引入可执行合同和评测，
 不能以别名配置存在推断在线能力。
 
 ## 后果

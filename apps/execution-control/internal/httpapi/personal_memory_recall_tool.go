@@ -36,7 +36,7 @@ type personalMemoryRecallToolPayload struct {
 }
 
 func (s *Server) handlePersonalMemoryRecallTool(response http.ResponseWriter, request *http.Request) {
-	if !s.toolReadModelAuthorized(request) {
+	if !s.executionQueryAuthorized(request) {
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid internal query auth.", false)
 		return
 	}

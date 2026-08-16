@@ -29,7 +29,6 @@ export type {
 	ToolExecutionObservability,
 	ToolExecutionPromptTrace,
 	ToolExecutionResponse,
-	ToolExecutionSelectedNoticeRef,
 	ToolExecutionSessionSlot,
 	ToolExecutionSessionSummary,
 	ToolExecutionWorkflowTraceSummary,

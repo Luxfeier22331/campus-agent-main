@@ -126,30 +126,25 @@ func (s *Server) workflowInputForRun(
 	if err != nil {
 		return temporalruntime.ToolExecutionWorkflowInput{}, err
 	}
-	groundingPlan, err := s.buildGroundingPlan(wire)
+	campusDocsQuerySHA256, err := s.campusDocsQuerySHA256ForAdmission(wire)
 	if err != nil {
 		return temporalruntime.ToolExecutionWorkflowInput{}, err
 	}
 	admissionSnapshot, err := s.buildAgentAdmissionSnapshot(
 		ctx,
 		personalMemoryRecallAllowed,
-		allowsUngroundedAnswer(wire.UserGoal),
-		groundingPlan,
+		campusDocsQuerySHA256,
 	)
 	if err != nil {
 		return temporalruntime.ToolExecutionWorkflowInput{}, err
 	}
 	admissionSHA256 := sha256JSONRef(admissionSnapshot)
 	return temporalruntime.ToolExecutionWorkflowInput{
-		AdmissionSnapshot:       admissionSnapshot,
-		AdmissionSnapshotSHA256: admissionSHA256,
-		ConversationID:          run.ConversationID,
-		Namespace:               s.config.TemporalNamespace,
-		PayloadSHA256:           inputMetadata.ExecutionInputSHA256,
-		PolicyVersions: map[string]string{
-			"document_scope_registry": "query-serving-targets-v3",
-			"tool_registry":           "tools.v6",
-		},
+		AdmissionSnapshot:            admissionSnapshot,
+		AdmissionSnapshotSHA256:      admissionSHA256,
+		ConversationID:               run.ConversationID,
+		Namespace:                    s.config.TemporalNamespace,
+		PayloadSHA256:                inputMetadata.ExecutionInputSHA256,
 		PersonalMemoryTimeoutSeconds: s.config.PersonalMemoryTimeoutSeconds,
 		RequestID:                    run.RequestID,
 		RunID:                        run.RunID,

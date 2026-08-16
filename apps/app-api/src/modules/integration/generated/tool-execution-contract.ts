@@ -2,7 +2,7 @@
 
 export const TOOL_EXECUTION_CONTRACT = {
 	executionContractVersion: "tool_execution_v5",
-	responseContract: "execution_finalization_response_v5",
+	responseContract: "execution_finalization_response_v6",
 	workflowTraceSummaryVersion: "workflow-trace-summary-v7",
 } as const;
 
@@ -33,7 +33,7 @@ export const STAGE_TIMING_FIELDS = [
 	"stream.app_api_ttft_ms",
 	"stream.orchestration_overhead_ms",
 	"execution.admission_ms",
-	"grounding.prepare_ms",
+	"campus_docs.retrieve_ms",
 	"memory.recall_ms",
 	"agent.primary_ms",
 	"agent.runtime_ms",

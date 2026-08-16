@@ -95,7 +95,6 @@ function buildRequestObservabilityFactRecord(input: RequestObservabilityFactWrit
 	return {
 		aclAnomalyCode: input.aclAnomalyCode,
 		aclDecision: input.aclDecision,
-		supportingSourcesJson: input.supportingSources,
 		completedAt: input.completedAt ? new Date(input.completedAt) : null,
 		conversationId: input.conversationId,
 		durationMs: input.durationMs,
@@ -110,7 +109,6 @@ function buildRequestObservabilityFactRecord(input: RequestObservabilityFactWrit
 		promptId: input.promptId,
 		promptVersion: input.promptVersion,
 		templateSha256: input.templateSha256,
-		policyProjectionVersion: input.policyProjectionVersion,
 		policyReason: input.policyReason,
 		principalType: input.principalType,
 		projectionLagMs: input.projectionLagMs,

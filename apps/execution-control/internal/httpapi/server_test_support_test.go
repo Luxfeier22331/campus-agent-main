@@ -7,11 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/retrievalruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -31,7 +29,6 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 
 func newServerForTest() *Server {
 	return NewServer(config.Config{
-		RAGTopKMax:                  8,
 		AppAPIExecutionSharedSecret: "test-execution-input-secret",
 	})
 }
@@ -42,21 +39,8 @@ func newWorkerAuthServerForTest() *Server {
 	return server
 }
 
-func delegateAnswerBody(requestID string) io.Reader {
-	return strings.NewReader(
-		`{"user_goal":"学生手册图书馆开放时间","request_id":"` + requestID + `","scope":"student_rules"}`,
-	)
-}
-
 type readyTemporalStarter struct {
 	readiness temporalruntime.RuntimeReadiness
-}
-
-func publicRetrievalAccessProjectionForTest() retrievalruntime.RetrievalAccess {
-	return retrievalruntime.RetrievalAccess{
-		PolicyProjectionVersion: "phase1-authorization-projection-v1",
-		VisibilityLevel:         "public",
-	}
 }
 
 func (readyTemporalStarter) StartToolExecutionWorkflow(
@@ -132,7 +116,6 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 		AgentRuntimeSharedSecret:    "agent-runtime-secret",
 		AppAPIExecutionSharedSecret: "test-execution-input-secret",
 		MaxConcurrentAnswers:        8,
-		RAGTopKMax:                  8,
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)

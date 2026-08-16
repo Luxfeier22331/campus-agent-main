@@ -44,8 +44,13 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "completed",
-			"run_id":               "run-primary-agent-001",
+			"status": "completed",
+			"run_id": "run-primary-agent-001",
+			"context_usage": map[string]any{
+				"context_chars":            64,
+				"current_input_chars":      7,
+				"model_visible_item_count": 1,
+			},
 			"final_output":         "你好，我是校园问答助手。",
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
@@ -87,8 +92,12 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if seenAuthorization != "Bearer agent-secret" {
 		t.Fatalf("authorization = %q", seenAuthorization)
 	}
-	if seenBody["run_id"] != "run-primary-agent-001" || seenBody["allow_ungrounded_answer"] != true {
+	if seenBody["run_id"] != "run-primary-agent-001" {
 		t.Fatalf("agent runtime request = %#v", seenBody)
+	}
+	evidence, exists := seenBody["campus_docs_evidence"].([]any)
+	if !exists || len(evidence) != 0 {
+		t.Fatalf("Campus Docs evidence = %#v, want empty array", seenBody["campus_docs_evidence"])
 	}
 	providerConfig, ok := seenBody["provider_config"].(map[string]any)
 	if !ok {
@@ -133,15 +142,15 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if err != nil {
 		t.Fatalf("get provider invocation receipt: %v", err)
 	}
-	finalModelContext, ok := seenBody["final_model_context"].(map[string]any)
+	conversationContext, ok := seenBody["conversation_context"].(map[string]any)
 	if !ok {
-		t.Fatalf("final_model_context = %#v", seenBody["final_model_context"])
+		t.Fatalf("conversation_context = %#v", seenBody["conversation_context"])
 	}
 	invocationEnvelope, err := newPrimaryAgentProviderInvocationEnvelope(
 		run,
 		input,
 		stringValue(run.Metadata["execution_input_sha256"]),
-		finalModelContext,
+		conversationContext,
 		seenBodyBytes,
 		1,
 	)
@@ -161,8 +170,8 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		summary.ProviderInvocationSHA256 != receipt.InputSHA256 {
 		t.Fatalf("receipt summary = %#v, output=%#v", summary, output)
 	}
-	if output.GroundingContext.RunID != run.RunID || output.GroundingContext.Status != "not_required" {
-		t.Fatalf("workflow agent output lost grounding context: %#v", output.GroundingContext)
+	if output.ContextUsage["context_chars"] != float64(64) {
+		t.Fatalf("workflow agent output lost context usage: %#v", output.ContextUsage)
 	}
 	if output.TerminalEnvelope["kind"] != "answer" || output.PromptTrace["prompt_id"] != "primary_agent" {
 		t.Fatalf("workflow agent output is incomplete: %#v", output)

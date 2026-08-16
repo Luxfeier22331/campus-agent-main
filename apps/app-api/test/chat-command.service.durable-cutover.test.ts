@@ -239,7 +239,7 @@ describe("chat command durable runtime cutover", () => {
 		]);
 		expect(executionPayload).toMatchObject({
 			execution_contract_version: "tool_execution_v5",
-			response_contract: "execution_finalization_response_v5",
+			response_contract: "execution_finalization_response_v6",
 			tenant_id: "tenant-main",
 			trace: {
 				trace_id: "trace_0001",

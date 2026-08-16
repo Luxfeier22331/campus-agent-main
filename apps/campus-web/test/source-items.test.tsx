@@ -3,35 +3,35 @@ import { describe, expect, it } from "vitest";
 import { SourceItemsList } from "../src/components/conversation/source-items";
 
 describe("conversation source items", () => {
-	it("renders public web sources as external links", () => {
+	it("renders Campus Docs sources as internal links", () => {
 		render(
 			<SourceItemsList
 				sourceItems={[
 					{
-						collectionLabel: "公开网页",
-						pageLabel: "",
+						collectionLabel: "学生手册",
 						primaryAction: {
 							disabledReason: null,
-							external: true,
-							href: "https://yx.muc.edu.cn/shuzixiaoyuan/shangwangzhinan/",
-							label: "打开网页",
+							external: false,
+							href: "/docs/regulations/student_rules/network-guide/v/2026-current#account",
+							label: "查看文档",
 						},
-						publisherLabel: "中央民族大学",
-						sectionTitle: "",
-						snippet: "校园网用户可通过数字校园相关页面查看上网指南。",
+						sectionTitle: "校园网账号",
+						snippet: "校园网用户应按学校规定管理账号。",
 						title: "上网指南",
-						trustLabel: "",
-						versionLabel: "",
+						versionLabel: "2026 版",
 					},
 				]}
 			/>,
 		);
 
 		expect(screen.getByText("上网指南")).toBeInTheDocument();
-		expect(screen.getByText("校园网用户可通过数字校园相关页面查看上网指南。")).toBeInTheDocument();
-		const link = screen.getByRole("link", { name: /打开网页/u });
-		expect(link).toHaveAttribute("href", "https://yx.muc.edu.cn/shuzixiaoyuan/shangwangzhinan/");
-		expect(link).toHaveAttribute("target", "_blank");
-		expect(link).toHaveAttribute("rel", "noreferrer noopener");
+		expect(screen.getByText("学生手册 · 2026 版")).toBeInTheDocument();
+		expect(screen.getByText("校园网用户应按学校规定管理账号。")).toBeInTheDocument();
+		const link = screen.getByRole("link", { name: "查看文档" });
+		expect(link).toHaveAttribute(
+			"href",
+			"/docs/regulations/student_rules/network-guide/v/2026-current#account",
+		);
+		expect(link).not.toHaveAttribute("target");
 	});
 });

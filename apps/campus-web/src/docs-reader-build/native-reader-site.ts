@@ -20,7 +20,11 @@ import {
 } from "../features/docs/site-index.ts";
 import { publicReaderUrl, readPublishedObject } from "./published-reader-assets.ts";
 import { resolveCorpusLabel, resolveDocumentDisplayTitle } from "./published-reader-labels.ts";
-import { buildReaderCanonicalUrl, resolveDocumentVersionKey } from "./published-reader-routes.ts";
+import {
+	buildReaderCanonicalUrl,
+	buildReaderVersionUrl,
+	resolveDocumentVersionKey,
+} from "./published-reader-routes.ts";
 import { formatJson, writeText } from "./published-reader-text.ts";
 import type {
 	PublishedReaderCollection,
@@ -90,7 +94,7 @@ export async function writeNativeReaderSite(input: {
 		}
 		readersByVersion.set(entry.versionId, reader);
 	}
-	const routes = input.entries.map((entry) => {
+	const routes = input.entries.flatMap((entry) => {
 		const reader = readersByVersion.get(entry.versionId);
 		if (!reader) {
 			throw new Error(`reader is missing after validation: ${entry.versionId}`);
@@ -99,7 +103,7 @@ export async function writeNativeReaderSite(input: {
 		if (!collection) {
 			throw new Error(`docs source collection is missing: ${scopeKey(entry)}`);
 		}
-		return {
+		const route: NativeDocsCatalogRoute = {
 			canonicalUrl: buildReaderCanonicalUrl(entry),
 			collection: entry.collection,
 			collectionLabel: collection.displayName,
@@ -125,6 +129,9 @@ export async function writeNativeReaderSite(input: {
 				versionSlug: version.versionSlug,
 			})),
 		};
+		return entry.isCurrent
+			? [route, { ...route, canonicalUrl: buildReaderVersionUrl(entry) }]
+			: [route];
 	});
 	const publicSearchIndex = buildPublicSearchIndex({
 		entries: input.entries,

@@ -5,7 +5,6 @@ import {
 	type StageTimingField,
 } from "./integration/execution-finalization-contract";
 import type { RequestObservabilityFactWrite, TurnDispatchStatus } from "./runtime-command/store";
-import { extractObservedSourcesFromResult } from "./source-trace";
 
 const STAGE_TIMING_FIELD_SET = new Set<string>(STAGE_TIMING_FIELDS);
 
@@ -144,7 +143,6 @@ export function buildAcceptedRequestObservabilityFact(input: {
 	return {
 		aclAnomalyCode: null,
 		aclDecision: null,
-		supportingSources: [],
 		completedAt: null,
 		conversationId: input.conversationId,
 		durationMs: null,
@@ -156,8 +154,6 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		modelProvider: null,
 		promptId: null,
 		promptVersion: null,
-		policyProjectionVersion:
-			input.principal.authorization?.retrievalFilter.policyProjectionVersion ?? null,
 		policyReason: null,
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
@@ -196,13 +192,11 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	conversationId: string;
 }): RequestObservabilityFactWrite {
 	const observability = input.response.observability;
-	const supportingSources = extractObservedSourcesFromResult(input.response.result);
 	const promptTrace = observability?.promptTrace ?? null;
 
 	return {
 		aclAnomalyCode: null,
 		aclDecision: normalizeAclDecision({ status: input.status }),
-		supportingSources,
 		completedAt: input.completedAt,
 		conversationId: input.conversationId,
 		durationMs: input.durationMs,
@@ -214,8 +208,6 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		modelProvider: observability?.modelProvider ?? null,
 		promptId: promptTrace?.promptId ?? null,
 		promptVersion: null,
-		policyProjectionVersion:
-			input.principal.authorization?.retrievalFilter.policyProjectionVersion ?? null,
 		policyReason: normalizePolicyReason({ status: input.status }),
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,

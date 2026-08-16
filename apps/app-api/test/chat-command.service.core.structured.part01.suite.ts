@@ -33,11 +33,15 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 					result: {
 						sources: [
 							{
-								canonical_url: "/docs/curriculum/law",
+								document_id: "curriculum/law",
+								root_unit_ids: ["law-semester-four"],
+								section_ref: "/docs/curriculum/curriculum_plan/law/v/2026-current#semester-four",
+								section_title: "第四学期",
 								snippet: "第四学期课程包括合同法、人格权法和侵权责任法。",
-								source_kind: "curriculum",
-								source_title: "法学本科人才培养方案",
-								target_kind: "canonical_reader",
+								title: "法学本科人才培养方案",
+								version_id: "version-law-2026",
+								version_label: "2026 版",
+								version_slug: "2026-current",
 							},
 						],
 					},
@@ -78,7 +82,9 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 			{
 				sourceItems: [
 					{
-						primaryAction: { href: "/docs/curriculum/law" },
+						primaryAction: {
+							href: "/docs/curriculum/curriculum_plan/law/v/2026-current?hl=law-semester-four#semester-four",
+						},
 						title: "法学本科人才培养方案",
 					},
 				],

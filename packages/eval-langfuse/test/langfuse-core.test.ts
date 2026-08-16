@@ -336,10 +336,9 @@ describe("eval dataset manifest builder", () => {
 			metadata: { argument_mode: "name_only" },
 		});
 		expect(
-			items.find((item) => metadataCaseId(item) === "routing-knowledge-student-rules"),
+			items.find((item) => metadataCaseId(item) === "routing-campus-docs-student-rules"),
 		).toMatchObject({
 			expectedOutput: {
-				expected_grounding_mode: "single_scope",
 				expected_outcome: "answer",
 				reference_tool_calls: [],
 			},
@@ -378,10 +377,6 @@ describe("eval dataset manifest builder", () => {
 			expectedOutput: {
 				expected_outcome: "answer",
 				expected_document_scopes: ["student_rules"],
-				expected_grounding: {
-					document_scopes: ["student_rules"],
-					minimum_relevant_context_count: 1,
-				},
 				metric_applicability: {
 					context_recall: true,
 				},

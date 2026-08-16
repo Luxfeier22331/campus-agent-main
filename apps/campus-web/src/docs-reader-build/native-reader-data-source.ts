@@ -36,7 +36,9 @@ export function createBuildDocsDataSource(input: {
 				throw new Error(`native docs topic is missing: ${route.topicId}`);
 			}
 			const base: DocsDocumentRouteData = {
-				canonicalUrl: route.canonicalUrl,
+				canonicalUrl: route.isCurrent
+					? `/docs/${route.corpus}/${route.collection}/${route.routeSlug}`
+					: route.canonicalUrl,
 				collection: route.collection,
 				collectionLabel: route.collectionLabel,
 				corpus: route.corpus,

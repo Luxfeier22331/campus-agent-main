@@ -74,6 +74,8 @@ describe("app-api schema installer", () => {
 			{ idx: 9, tag: "0009_drop_docs_schema", version: "7" },
 			{ idx: 10, tag: "0010_cynical_maddog", version: "7" },
 			{ idx: 11, tag: "0011_cynical_thunderbolts", version: "7" },
+			{ idx: 12, tag: "0012_numerous_omega_sentinel", version: "7" },
+			{ idx: 13, tag: "0013_drop_supporting_sources", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,
@@ -138,6 +140,12 @@ describe("app-api schema installer", () => {
 		expect(docsRetirement).toContain('DROP SCHEMA "docs"');
 		expect(readAppFile("drizzle/0010_cynical_maddog.sql").trim()).toBe(
 			'DROP INDEX "profile"."profile_account_deletion_status_updated_idx";',
+		);
+		expect(readAppFile("drizzle/0012_numerous_omega_sentinel.sql").trim()).toBe(
+			'ALTER TABLE "runtime"."request_observability_fact" DROP COLUMN "policy_projection_version";',
+		);
+		expect(readAppFile("drizzle/0013_drop_supporting_sources.sql").trim()).toBe(
+			'ALTER TABLE "runtime"."request_observability_fact" DROP COLUMN "supporting_sources_json";',
 		);
 		for (const schema of [
 			"campus_services_ops",

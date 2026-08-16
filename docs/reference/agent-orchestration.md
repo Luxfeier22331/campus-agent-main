@@ -23,10 +23,10 @@ status: active
 ## 当前实现与研究边界
 
 本文中的“Agentic RAG”是检索策略的统称，不表示必须增加 Knowledge Agent、第二个答案 Agent
-或默认多轮工具循环。当前源码实现是一个 `execution_strategy.v2` 的 `direct` Primary Agent：机构
-文档在模型调用前由 execution-control 进行一次服务端 grounding，模型只消费受保护的
-`grounding_context.v2`。准入快照还冻结是否允许无依据回答；该值只对简单社交、能力介绍和用户提供
-完整正文的转换任务开放，不把未命中文档路由的事实问题当作普通直答。
+或默认多轮工具循环。当前源码实现是一个 `execution_strategy.v2` 的 `direct` Primary Agent：
+execution-control 在每个有效请求的模型调用前执行一次 Campus Docs 检索，模型只消费最小
+`campus_docs_evidence`。空与非空 evidence 直接表达检索结果，不增加路由 mode、覆盖 status 或
+“允许无依据回答”开关；普通任务是否需要引用由其是否包含机构事实主张决定。
 
 “快速依据回答”和“审慎检索”是目标或实验策略，不是当前已开放的运行模式。任何新增路由、检索轮次、
 specialist 或 Provider 调用，都必须先在 Campus Agent 的真实用例上证明质量收益超过延迟、成本和
@@ -71,11 +71,11 @@ specialist 或 Provider 调用，都必须先在 Campus Agent 的真实用例上
 
 | 来源 | 可采用结论 | 适用边界 |
 | --- | --- | --- |
-| [Sufficient Context，ICLR 2025](https://iclr.cc/virtual/2025/poster/30092) | 检索到相关文本不等于已有足够信息回答，强模型在依据不足时仍可能猜测 | grounding 覆盖状态不能代替答案充分性判断；`ready` 仍允许明确无答案 |
-| [Inference Scaling for Long-Context RAG，ICLR 2025 Oral](https://iclr.cc/virtual/2025/oral/31886) | 单纯增加文档数量没有稳定收益，应按问题难度分配检索和迭代预算 | 默认路径保持一次有界 grounding，不扩大文档数量或默认增加检索轮次 |
+| [Sufficient Context，ICLR 2025](https://iclr.cc/virtual/2025/poster/30092) | 检索到相关文本不等于已有足够信息回答，强模型在依据不足时仍可能猜测 | evidence 非空不能代替答案充分性判断；证据不足仍明确返回无答案 |
+| [Inference Scaling for Long-Context RAG，ICLR 2025 Oral](https://iclr.cc/virtual/2025/oral/31886) | 单纯增加文档数量没有稳定收益，应按问题难度分配检索和迭代预算 | 默认路径保持一次有界检索，不扩大文档数量或默认增加检索轮次 |
 | [Q-RAG，ICLR 2026 Oral](https://iclr.cc/virtual/2026/oral/10009945) | 复杂问题可以从有界多步检索受益 | 只有本仓库多跳用例证明单步检索不足时才增加一次受限补充检索，不进入当前默认路径 |
 | [Intrinsic Entropy of Context Length Scaling in LLMs，ICLR 2026](https://iclr.cc/virtual/2026/poster/10006782) | 模型存在任务相关的有效上下文长度，继续增加内容可能降低效果 | 只注入本轮依据、有意义会话状态和近期完整对话，不预载旧依据与工具结果 |
-| [Lost in the Middle，TACL 2024](https://doi.org/10.1162/tacl_a_00638) | 长上下文存在位置偏差，中间信息更容易被忽略 | 当前问题和本轮 grounding 放在输入末端附近，历史内容从最旧处按完整片段裁剪 |
+| [Lost in the Middle，TACL 2024](https://doi.org/10.1162/tacl_a_00638) | 长上下文存在位置偏差，中间信息更容易被忽略 | 当前问题和本轮 evidence 放在输入末端附近，历史内容从最旧处按完整片段裁剪 |
 | [LongLLMLingua，ACL 2024](https://aclanthology.org/2024.acl-long.91/) | 裁剪低价值上下文可降低成本并改善长上下文使用 | 当前先删除空会话状态和最旧对话，不引入额外压缩模型或不可解释摘要 |
 | [GEPA，ICLR 2026 Oral](https://iclr.cc/virtual/2026/oral/10009494) | Prompt 优化应消费执行轨迹和可解释失败反馈，而不是只靠人工扩写规则 | 复用现有 Agent/RAG 用例验证 Prompt 变更，不建立远程 Prompt 版本或在线自动优化器 |
 
@@ -99,10 +99,10 @@ specialist 或 Provider 调用，都必须先在 Campus Agent 的真实用例上
 Campus Agent 采用以下原则：
 
 - 一个产品请求只有一个持久执行所有者和一个最终答案所有者；单 Agent 不等于所有请求走同一成本路径；
-- 当前只开放 `direct` 执行策略和一次服务端 grounding；其他策略必须先完成独立评测和决策；
-- 路由只选择成本和执行方式，不能扩大用户权限、文档范围、工具 exposure 或 Provider 能力；
-- 当前 grounding 在模型调用前并行准备相互独立的已准入上下文，避免先调用模型才能开始检索；
-- 只有真实多跳用例证明一次 grounding 不足时，才单独设计有界分解、工具循环和依赖查询；
+- 当前只开放 `direct` 执行策略和至多一次服务端 Campus Docs 检索；其他策略必须先完成独立评测和决策；
+- 路由只选择成本和执行方式，不能扩大用户权限、索引、工具 exposure 或 Provider 能力；
+- 当前检索在模型调用前准备本轮已准入 evidence，避免先调用模型才能开始检索；
+- 只有真实多跳用例证明一次检索不足时，才单独设计有界分解、工具循环和依赖查询；
 - 所有路径只生成一份最终答案，不默认增加 critic、debate、树搜索或第二个答案改写模型；
 - 完整度通过问题分面覆盖、证据覆盖、引用质量和无依据主张评测，不以回答长度或工具调用次数代替；
 - 新增模型调用、specialist、检索轮次或推理服务优化前，必须在 Campus Agent 数据集上证明质量收益

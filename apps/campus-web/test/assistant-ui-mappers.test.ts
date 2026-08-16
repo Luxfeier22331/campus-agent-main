@@ -1,30 +1,27 @@
 import { describe, expect, it } from "vitest";
 
 import { toAssistantThreadMessages } from "../src/features/conversation/assistant-ui-mappers";
-import type { ConversationDetail } from "../src/features/conversation/model";
+import type { ChatStructuredPart, ConversationDetail } from "../src/features/conversation/model";
 
 describe("assistant-ui conversation mappers", () => {
 	it("keeps assistant text and structured source cards as assistant-ui message parts", () => {
-		const structuredPart = {
+		const structuredPart: ChatStructuredPart = {
 			sourceItems: [
 				{
 					collectionLabel: "学生手册",
-					pageLabel: "第 12 页",
 					primaryAction: {
 						disabledReason: null,
 						external: false,
-						href: "/docs/regulations/student-rules/national-scholarship",
-						label: "查看来源",
+						href: "/docs/regulations/student-rules/national-scholarship/v/2026-current",
+						label: "查看文档",
 					},
-					publisherLabel: "中央民族大学",
 					sectionTitle: "国家奖学金",
 					snippet: "国家奖学金每学年评审一次。",
 					title: "本科学生国家奖学金评审办法",
-					trustLabel: "正式制度",
-					versionLabel: "现行",
+					versionLabel: "2026 版",
 				},
 			],
-			type: "source_items" as const,
+			type: "source_items",
 		};
 		const conversation: ConversationDetail = {
 			archivedAt: null,

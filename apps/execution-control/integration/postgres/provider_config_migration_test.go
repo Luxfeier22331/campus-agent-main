@@ -160,7 +160,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 		if err != nil {
 			t.Fatalf("resolve migrated embedding: %v", err)
 		}
-		if embedding.APIKey != "legacy-provider-secret" || embedding.Dimensions != 2560 {
+		if embedding.APIKey != "legacy-provider-secret" || embedding.Dimensions != 2560 || embedding.EmbeddingSpaceID != "" {
 			t.Fatalf("migrated embedding = %#v", embedding)
 		}
 		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {

@@ -13,12 +13,15 @@
 		"provider_response_id": "resp_contract_completed",
 		"sources": [
 			{
-				"canonical_url": "/docs/regulations/student_rules/leave-policy",
+				"document_id": "student_rules/leave-policy",
+				"root_unit_ids": ["leave-policy-process"],
+				"section_ref": "/docs/regulations/student_rules/leave-policy/v/2026-current#process",
+				"section_title": "请假程序",
 				"snippet": "学生请假应按现行学生手册办理。",
-				"source_kind": "regulation",
-				"source_title": "学生请假管理规定",
-				"target_kind": "canonical_reader",
-				"title": "学生请假管理规定"
+				"title": "学生请假管理规定",
+				"version_id": "version-leave-policy-2026",
+				"version_label": "2026 版",
+				"version_slug": "2026-current"
 			}
 		],
 		"terminal_reason": "answer"

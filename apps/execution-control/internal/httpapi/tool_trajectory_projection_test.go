@@ -176,15 +176,15 @@ func TestBuildAgentRuntimeEvalProjectionExcludesPriorActivityAttempt(t *testing.
 	}
 	attempts := []execution.StepAttemptProjection{
 		{
-			AttemptID:       temporalStepAttemptID(run.RunID, "knowledge.search.1", 1),
-			StepID:          "knowledge.search.1",
+			AttemptID:       temporalStepAttemptID(run.RunID, "campus_docs.retrieve", 1),
+			StepID:          "campus_docs.retrieve",
 			RunID:           run.RunID,
 			Attempt:         1,
 			ActivityAttempt: 1,
 		},
 		{
-			AttemptID:       temporalStepAttemptID(run.RunID, "knowledge.search.1", 2),
-			StepID:          "knowledge.search.1",
+			AttemptID:       temporalStepAttemptID(run.RunID, "campus_docs.retrieve", 2),
+			StepID:          "campus_docs.retrieve",
 			RunID:           run.RunID,
 			Attempt:         2,
 			ActivityAttempt: 2,

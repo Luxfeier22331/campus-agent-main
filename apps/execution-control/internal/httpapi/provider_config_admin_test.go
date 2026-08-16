@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
@@ -24,6 +25,14 @@ func TestModelSettingsAdminAuthorizationUsesOpsWebInternalToken(t *testing.T) {
 }
 
 func TestModelSettingValidationUsesCapabilitiesInsteadOfRoles(t *testing.T) {
+	index := campusDocsIndexForTest()
+	embeddingRequirement := &embeddingSettingRequirement{
+		Dimensions:       index.EmbeddingDimensions,
+		EmbeddingSpaceID: index.EmbeddingSpaceID,
+		Model:            index.EmbeddingModel,
+		Provider:         index.EmbeddingProvider,
+		Transport:        "embeddings",
+	}
 	llm := providerconfig.SettingInput{
 		BaseURL:   "https://provider.example/v1",
 		Kind:      providerconfig.KindLLM,
@@ -31,23 +40,71 @@ func TestModelSettingValidationUsesCapabilitiesInsteadOfRoles(t *testing.T) {
 		Provider:  "openai-compatible",
 		Transport: "responses",
 	}
-	if err := validateModelSettingInput(llm); err != nil {
+	if err := validateModelSettingInput(llm, embeddingRequirement); err != nil {
 		t.Fatalf("validate llm setting: %v", err)
 	}
 	embedding := providerconfig.SettingInput{
-		BaseURL:    "https://embedding.example/v1",
-		Dimensions: fixedQueryEmbeddingDimensions,
-		Kind:       providerconfig.KindEmbedding,
-		Model:      fixedQueryEmbeddingModel,
-		Provider:   "openai-compatible",
-		Transport:  "embeddings",
+		BaseURL:          "https://embedding.example/v1",
+		Dimensions:       embeddingRequirement.Dimensions,
+		EmbeddingSpaceID: embeddingRequirement.EmbeddingSpaceID,
+		Kind:             providerconfig.KindEmbedding,
+		Model:            embeddingRequirement.Model,
+		Provider:         embeddingRequirement.Provider,
+		Transport:        "embeddings",
 	}
-	if err := validateModelSettingInput(embedding); err != nil {
+	if err := validateModelSettingInput(embedding, embeddingRequirement); err != nil {
 		t.Fatalf("validate embedding setting: %v", err)
 	}
 	embedding.Model = "operator-selected-model"
-	if err := validateModelSettingInput(embedding); err == nil {
-		t.Fatal("embedding model must remain fixed by serving config")
+	if err := validateModelSettingInput(embedding, embeddingRequirement); err == nil {
+		t.Fatal("embedding model must remain fixed by the Campus docs current index")
+	}
+}
+
+func TestModelSettingsStatusIncludesCampusDocsEmbeddingRequirement(t *testing.T) {
+	index := campusDocsIndexForTest()
+	requirement := &embeddingSettingRequirement{
+		Dimensions:       index.EmbeddingDimensions,
+		EmbeddingSpaceID: index.EmbeddingSpaceID,
+		Model:            index.EmbeddingModel,
+		Provider:         index.EmbeddingProvider,
+		Transport:        "embeddings",
+	}
+	response := httptest.NewRecorder()
+	writeModelSettingsStatusResponse(response, providerconfig.Status{
+		ETag:      "etag-test",
+		SampledAt: time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
+		Settings:  map[providerconfig.Kind]*providerconfig.SettingView{},
+	}, requirement)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.Code)
+	}
+	body := decodeBody(t, response)
+	requirementBody, ok := body["embeddingRequirement"].(map[string]any)
+	if !ok {
+		t.Fatalf("embeddingRequirement = %#v", body["embeddingRequirement"])
+	}
+	if requirementBody["model"] != index.EmbeddingModel ||
+		requirementBody["provider"] != index.EmbeddingProvider ||
+		requirementBody["embeddingSpaceId"] != index.EmbeddingSpaceID ||
+		requirementBody["dimensions"] != float64(index.EmbeddingDimensions) ||
+		requirementBody["transport"] != "embeddings" {
+		t.Fatalf("embeddingRequirement = %#v", requirementBody)
+	}
+}
+
+func TestModelSettingsStatusAllowsMissingCampusDocsIndex(t *testing.T) {
+	response := httptest.NewRecorder()
+	writeModelSettingsStatusResponse(response, providerconfig.Status{
+		ETag:      "etag-test",
+		SampledAt: time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
+		Settings:  map[providerconfig.Kind]*providerconfig.SettingView{},
+	}, nil)
+
+	body := decodeBody(t, response)
+	if body["embeddingRequirement"] != nil {
+		t.Fatalf("embeddingRequirement = %#v, want null", body["embeddingRequirement"])
 	}
 }
 

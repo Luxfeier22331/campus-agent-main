@@ -122,10 +122,18 @@ export function createBrowserDocsDataSource(): DocsDataSource {
 			const collection = siteIndex.collections.find(
 				(item) => item.corpus === target.corpus && item.collection === target.collection,
 			);
-			const document = collection?.documents.find((item) =>
-				item.versions.some((version) => version.canonicalUrl === path),
+			const document = collection?.documents.find(
+				(item) =>
+					item.canonicalUrl ===
+					documentPath({
+						collection: target.collection,
+						corpus: target.corpus,
+						routeSlug: target.routeSlug,
+					}),
 			);
-			const version = document?.versions.find((item) => item.canonicalUrl === path);
+			const version = target.versionSlug
+				? document?.versions.find((item) => item.versionSlug === target.versionSlug)
+				: document?.versions.find((item) => item.canonicalUrl === path);
 			if (!(collection && document && version)) {
 				throw new DocsRouteNotFoundError(path);
 			}
@@ -231,6 +239,21 @@ function normalizeDocsPath(value: string): string {
 }
 
 function bootstrapMatchesPath(bootstrap: DocsRouteData, path: string): boolean {
-	const bootstrapPath = bootstrap.kind === "document" ? bootstrap.canonicalUrl : "/docs";
-	return normalizeDocsPath(bootstrapPath) === path;
+	if (bootstrap.kind === "directory") {
+		return path === "/docs";
+	}
+	if (normalizeDocsPath(bootstrap.canonicalUrl) === path) {
+		return true;
+	}
+	return (
+		bootstrap.isCurrent &&
+		normalizeDocsPath(
+			documentPath({
+				collection: bootstrap.collection,
+				corpus: bootstrap.corpus,
+				routeSlug: bootstrap.routeSlug,
+				versionSlug: bootstrap.versionSlug,
+			}),
+		) === path
+	);
 }

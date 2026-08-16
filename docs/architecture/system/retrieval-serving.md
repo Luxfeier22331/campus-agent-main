@@ -8,94 +8,156 @@ status: active
 
 ## 边界
 
-本文定义 execution-control 拥有的文档范围准入、不可变知识 release、候选召回和 grounding
-准备。它不负责来源采集、答案生成或个人记忆。
+本文定义 Campus Web 文档如何形成不可变检索索引，以及 execution-control 如何准入和查询该索引。
+它不负责来源采集、文档清洗、Campus Web 页面构建、答案生成或通知检索。
 
-## 文档范围
+当前检索链只消费已经交付给 Campus Web 的公开文档，直接读取当前 reader，并把所有文档发布为
+一个不可变 collection 和一个 PostgreSQL 当前索引绑定。
 
-`configs/runtime/query-serving-targets.v3.json` 是 `document_scope` 到 corpus、逻辑 collection、
-server-owned serving config、候选限制和本地路由词的权威映射。当前范围为：
+## 输入所有权
 
-- `student_rules`；
-- `institutional_rules`；
-- `curriculum`。
+对象存储固定键 `campus-docs/source.json` 保存规范化的 `campus_docs_source.v3` 控制清单。清单负责：
 
-范围是领域准入标识，不是模型工具参数、Qdrant alias 或物理 collection 名。execution-control
-根据冻结问题选择零个、一个或多个范围；app-api 和浏览器不能选择或缩小范围。
+- 列出公开文档及其唯一当前版本；
+- 把 `docId`、`versionId`、公开目录和 reader 对象关联起来；
+- 用 `key`、`byteSize` 和 `sha256` 固定 reader 对象身份。
 
-## 消费合同与当前缺口
+`source.json` 不是可检索正文。发布器消费它，是为了和 Campus Web 使用同一份当前版本选择，并在读取
+reader 前核对对象身份。真正进入检索索引的正文只来自清单引用的当前
+`campus_docs_reader.v3`。历史版本、课程图和其他补充资产不进入在线索引。
 
-`knowledge-serving-release.v1` 定义不可变 `release_id`、Qdrant 物理 collection 和 embedding
-身份。PostgreSQL `knowledge_serving.current_releases` 是 execution-control 唯一接受的激活指针。
+`source.json` 表达完整当前期望集合，不是增量补丁。新增、修订和删除都先形成新的完整清单；bucket 中
+未被清单引用的对象不会被 publisher 自动发现或索引。
 
-在线运行不解析 Qdrant alias，也不在执行途中重新读取激活状态。采集任务、schema、serving config
-或物理 collection 单独存在都不表示范围可用。
+这一输入已经包含文档站需要的稳定文档、版本、章节锚点和正文结构，因此检索发布器直接按 reader
+元素形成 section 和 chunk。通知仍在独立采集设计中，不是当前 publisher 的输入。
 
-当前没有写入这些 release、索引和激活指针的正式生产者，也没有可供准入的发布数据。因此文档
-grounding 当前不可用；本节其余内容描述已经实现的消费合同，不代表发布链已经存在。
+## 索引定义
 
-## 运行准入
+publisher 代码内的 `INDEX_DEFINITION` 固定 reader/source schema、分块算法、embedding
+provider/model/dimensions、查询指令、point schema、向量名和本地 sparse 算法。实际模型权重及修订由
+运行环境以非敏感 `embedding_space_id` 显式声明；endpoint 和凭据不参与该身份。execution-control 从
+当前索引绑定取得实际查询字段，不加载第二份索引配置。
 
-execution-control 先形成 `grounding_plan.v1`，再在创建 workflow 前一次性解析并冻结：
+collection 名由当前文档投影、`INDEX_DEFINITION` 与 `embedding_space_id` 的规范 JSON SHA-256 形成：
+`campus_docs_<sha256>`。当前文档投影只包含每份当前文档的 `corpus`、`collection`、`doc_id`、公开
+slug、标题、`version_id`、`version_slug`、`version_label` 和带正文 SHA-256 的 reader 对象引用。
+历史版本、redirect、topic 描述和清单 JSON 格式不参与 collection 身份。collection 本身是唯一索引
+身份，不另建 index ID、fingerprint 或来源摘要实体。
 
-- 每个选中 scope 的 corpus、逻辑 collection、`release_id` 和物理 Qdrant collection；
-- 完整归一化 serving config、hash 和候选限制；
-- 所有路径的 `llm` 模型设置 hash；检索路径额外冻结 `embedding` 模型设置 hash；
-- `tool_runtime_fingerprint.v2` 与 Agent 运行限制。
+当前 sparse 向量使用 `fnv1a_log_tf.v1`：`unicode_word_v1` 分词、`und` 语言标签下的 Unicode
+小写映射、FNV-1a 32 位索引和 `log1p(term frequency)` 权重；Qdrant 对 named sparse vector 应用
+`idf` modifier。publisher 与在线查询端使用固定用例验证同一实现。
 
-缺少 current release、配置不兼容、配置 hash 不一致或 collection 身份冲突时拒绝准入。整个 run 只消费
-该快照，不跟随后续发布或模型设置变更。
+### 分块规则
 
-准入快照是有界 workflow input，不含凭据、文档正文或 Provider 响应。Provider 凭据只按冻结
-kind 在 Activity 内解析，并用准入 hash 做 rotation fence。
+当前 `campus_docs_reader_elements.v3` 使用 Unicode 字符数，不依赖模型 tokenizer：软目标为 800
+字符，单个 chunk 硬上限为 1600 字符，不做通用重叠。
 
-## Grounding 流程
+- heading 只维护按 level 收敛的完整标题路径，不进入 evidence 正文，也不单独生成 point；没有正文的
+  heading 会被省略，子章节仍继承有效父标题；
+- 标题前正文属于 preamble，`section_ref` 使用当前版本的 `/v/<versionSlug>` 固定链接，不生成伪锚点；
+- paragraph、list 和 blockquote 保持 reader 元素完整，按原顺序贪心合并到 800 字符；单元素在
+  801 至 1600 字符之间时保持完整，超过 1600 字符时优先在 800 至 1600 字符间的自然边界切分，
+  边界优先级依次为空行、列表项、句末标点和子句标点，没有边界才在硬上限切分。ASCII `.` 位于
+  Unicode 字母或数字之间、或后面仍是 `.` 时不作为边界；ASCII `,`、`:` 位于两个数字之间时也不
+  作为边界，避免拆开小数、千分位、时间、域名和版本号；
+- table 不与普通正文合并。publisher 展开 `rowSpan`、`colSpan` 时保留物理单元格身份，再按完整逻辑
+  行分块；开头连续语义表头行形成多级列路径。`colSpan` 值每行只输出一次，`rowSpan` 正文上下文在
+  每个覆盖行输出一次，相邻同值单元格合并值并合并列路径，空值省略；没有表头时按非空物理值的阅读
+  顺序输出，不生成通用列名。全表只有表头，或部分表头列没有任何非空数据时，仍保留对应的非空表头
+  文本。单行超过硬上限时先在 field 边界拆分，单 field 超限时再使用普通正文的结构边界；
+- chunk 的 `root_unit_ids` 按正文元素首次出现顺序去重，覆盖该 evidence 实际包含的全部 reader 根单元。
+
+字符硬上限之外仍保留 16000 UTF-8 byte 传输限制；它不参与正常分块目标。
+
+point 中的 `text` 是可交给 Agent 和来源卡片的 evidence 正文。point v3 保存版本 ID、版本 slug、
+版本标签以及该版本的公开 `section_ref`。dense embedding 和 sparse vector 使用
+`retrieval_text`，其内容依次为文档标题、完整 heading 路径和 evidence 正文；标题上下文不混入引用
+片段。point 分别保存 `text_sha256` 和 `retrieval_text_sha256`，不保存字符数。
+
+## 发布流程
 
 ```text
-冻结查询与所选范围
--> 按 serving instruction 执行一次 embedding
--> 并发查询各准入物理 collection
--> 校验 scope、release、chunk、正文 hash 和 token_count
--> 跨 scope 去重
--> 使用 Qdrant dense+sparse RRF 分数统一排序
--> 范围保底、section 去重并按 grounding_context.v2 的数量和 token 预算裁剪
--> 返回有界 Grounding Activity result
+读取 source.json 并核对当前 reader
+-> 按 reader heading/preamble 形成标题路径和 section
+-> 按 reader 元素及表格逻辑行确定性分块
+-> 按 retrieval_text 摘要复用兼容旧索引的 dense 向量，只为未命中输入生成 embedding
+-> 为全部 chunk 重新生成 payload 和本地 sparse 向量
+-> 创建 campus_docs_<sha256> Qdrant collection
+-> 写入全部 points 并全量校验身份、payload 和双向量
+-> 重新读取 source.json，确认当前文档投影在构建期间未变化
+-> 原子替换 campus_docs_serving.current_index 单行绑定
 ```
 
-Qdrant collection 保存在线检索所需的 chunk 正文、token 数和引用元数据，因此 grounding 不再回
-PostgreSQL 读取章节正文。PostgreSQL 仍拥有 release、激活指针和发布审计身份。
+只有会影响当前 point 或查询兼容性的输入变化才产生新 collection。section、chunk 和 Qdrant UUID
+point ID 也由稳定输入确定。每个 point payload 只保存 schema、chunk、document、section、
+版本 ID/slug/label、`root_unit_ids`、公开 `section_ref`、正文、正文 SHA-256 和检索文本 SHA-256，
+并带 dense/sparse named vector。publisher 不把对象存储地址、凭据、原始来源文件、endpoint 或
+`embedding_space_id` 重复写入 point。
 
-每个范围的查询相互独立并发执行；任一范围查询、embedding 或结果校验失败都会使
-`grounding.prepare` 失败关闭，不返回部分 grounding，也不回退到旧 release、旧缓存或模型记忆。
-`partial` 只表示多范围检索成功完成但部分范围没有合格依据，不表示依赖调用部分成功。
-`ready` 只表示全部所选范围都有合格依据；两者都不是答案充分性判断，Primary Agent 仍需按用户
-问题逐项确认现有正文能否支持回答。
+激活前校验包括 collection 的 dense 维度与 `Cosine` distance、sparse `idf` 配置、精确 point 数，
+并分页读取全部 point，核对精确 ID 集合、payload、dense vector 和 sparse vector。构建或末次输入
+核对失败时删除尚未激活的新 collection，当前绑定保持不变。
+进入数据库激活后，即使调用方收到不确定错误，也保留已验证 collection，避免误删可能已经激活的
+索引。
 
-Qdrant RRF 分数只用于候选排序和预算选择，不是答案正确性的证明，也不是答案置信度。当前实现不调用
-外部 reranker；`grounding.rerank_ms` 只是 Activity 内部 timing 投影，不发送到外部观测平台。
+publisher 以当前索引中 point 的 `retrieval_text_sha256` 作为 dense 复用键。只有
+`embedding_space_id`、provider、model 和 dimensions 全部一致时才读取旧 dense vector；同一新检索
+文本只调用一次 embedding。chunk、payload 和 sparse vector 始终从当前 reader 重建，因此每次成功
+发布仍得到完整的新 collection。仓库不把 chunk 或 embedding 缓存为对象存储制品。
 
-## Activity 结果
+PostgreSQL session advisory lock 保证同一时间只有一个 publisher。未激活目标 collection 已由中断
+任务完整写入时，重跑会验证并激活；确定性内容不匹配时删除重建；Qdrant 请求错误不触发删除。目标
+已经是当前绑定时仍完整校验：物理 collection 缺失则原名重建，已存在但内容不匹配则停止且不删除。
+环境通过保持暂停的 `CronJob/campus-docs-index-publisher` 手动创建一次性 Job，不运行定时索引任务。
 
-完整 `grounding_context.v2` 绑定 run、准入 hash、计划 hash、查询 hash、所选范围与覆盖范围。它是有界
-Grounding Activity result，由 Temporal history 传给 Agent 和 Finalization；当前合同允许其中包含完整
-evidence 正文。Activity 重试会重新执行只读 embedding 与 Qdrant 查询，不从 PostgreSQL 重放旧 context。
+## 激活读取模型
 
-普通 step/result 投影只保存 `grounding_context_ref`、payload hash、路由与覆盖状态、候选数、证据数、
-token 数，以及 embedding、search、RRF 合并、pack 的耗时；不保存查询或正文。现有
-`grounding.rerank_ms` 键固定为零，只表示当前没有外部 reranker。Agent 结果携带相同 context，Finalization 据此
-验证 `evidence://`，防止跨 run、跨 release 或伪造引用。
+PostgreSQL `campus_docs_serving` 只保存 `current_index` 单行绑定，包含当前 collection、dense
+向量名、embedding provider/model/dimensions/query instruction/space ID，以及 sparse model/vector
+name。
+publisher 在事务内插入或更新该行；execution-control 只有读取权限。数据库不保存索引历史、来源
+摘要、构建计数或重复的不可变索引记录。
+
+数据库角色 `campus_docs_index_publisher` 只有 schema `USAGE` 和当前绑定表的
+`SELECT/INSERT/UPDATE`；它不能创建或删除表，也不能删除当前绑定行。
+
+在线请求不跟随 Qdrant alias，也不从浏览器或模型接收 collection。旧 collection 不在新索引激活后
+立即删除，因为已准入 run 仍持有旧快照；仓库当前没有自动清理或保留期状态机。
+
+文档更新不会原地修改向量。来源维护者先更新 reader 和 `source.json`，publisher 再构建新的完整
+collection，验证后原子替换当前绑定。切换前创建的 run 继续使用已冻结旧 collection，切换后创建的
+run 使用新索引。仅修改历史版本或未被当前清单引用的对象不会改变当前 collection 身份。
+
+## 在线准入与查询
+
+每个有效请求都在 workflow 创建前读取当前索引绑定。准入快照冻结物理 collection、dense/sparse
+向量名、embedding provider/model/dimensions/query instruction/space ID、sparse model、本轮查询
+hash 和 embedding Provider Config 的非敏感 hash。当前 embedding 设置的 space ID、provider、model
+和 dimensions 必须与索引绑定一致；缺少当前绑定或配置不兼容时拒绝准入。
+
+`RetrieveCampusDocsEvidenceActivity` 使用 `Instruct: <instruction>\nQuery:<query>` 构造 Qwen3 dense
+查询文本，并对原问题生成同算法 sparse vector。sparse 非空时向冻结 collection 的 dense 和 sparse
+查询各预取 24 个候选，再由 Qdrant RRF 返回最多 24 个 point；纯符号等无法生成 sparse token 的合法
+问题直接执行 dense 查询，不进入第二条检索链路。返回 point 的正文摘要、固定版本 section 引用、
+版本字段、根单元数组和必需字段必须有效；随后按 Qdrant 查询分数顺序单次扫描并去重 chunk，超过
+剩余字符预算的候选会被跳过，继续检查后续候选。最终最多 8 条
+evidence、合计最多 4000 个 Unicode 字符；不再按 section 重排。字符数由正文现场计算，不依赖 point
+计数字段。任一依赖或校验失败都失败关闭，不回退旧绑定、缓存、其他 collection 或模型记忆。
 
 ## 当前限制
 
-- 当前没有正式索引生产者和发布数据，文档 grounding 不可用；
-- 只查询 `current_releases` 指向的当前发布，不提供历史版本检索；
-- 不执行远程模型查询改写、模型 scope 路由或迭代检索；
-- 不把 `ready` 当作答案充分性，不把 RRF 分数当作答案置信度；
-- official web 不在当前文档范围；
-- grounding 不进入 SDK 工具轨迹。
+- 只索引 Campus Web 清单中的当前 reader，不支持通知或实时网页搜索；
+- 不提供历史版本、指定日期或用户选择版本的在线检索；
+- 不执行模型查询改写、模型路由、外部 reranker 或迭代检索；
+- Qdrant 查询分数只用于候选排序，不表示答案正确性或充分性；
+- publisher 可运行不表示任一环境已经存在当前索引，环境状态需由实际数据库和发布任务确认。
 
 ## 相关文档
 
-- `agentic-retrieval.md`
-- `data-plane.md`
-- `../../data/durable-runtime.md`
+- [Agent 知识读取](agentic-retrieval.md)
+- [文档站架构](document-site.md)
+- [文档阅读器数据模型](../../data/document-reader.md)
+- [持久运行数据](../../data/durable-runtime.md)
+- [Campus Docs 维护与索引发布](../../runbooks/campus-docs.md)

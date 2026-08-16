@@ -15,94 +15,84 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestPrimaryAgentContextBudgetDropsCategoriesInDeterministicOrder(t *testing.T) {
-	contextPayload := map[string]any{
-		"schema_version": "final_model_context.v3",
-		"recent_turns": []any{
-			map[string]any{"message_id": "msg-1", "role": "user", "content": strings.Repeat("旧问题", 30)},
-			map[string]any{"message_id": "msg-2", "role": "assistant", "content": strings.Repeat("旧回答", 30)},
-			map[string]any{"message_id": "msg-3", "role": "user", "content": "最近问题"},
-		},
-	}
-	expected := deepCloneContextForTest(t, contextPayload)
-	expected["recent_turns"] = anyListFromAny(expected["recent_turns"])[2:]
-	limit, err := primaryAgentContextCharacterCount(expected)
-	if err != nil {
-		t.Fatalf("count expected context: %v", err)
-	}
-
-	first := cloneAnyMapFromMetadata(contextPayload)
-	dropped, after, err := primaryAgentApplyContextBudget(first, limit)
-	if err != nil {
-		t.Fatalf("apply context budget: %v", err)
-	}
-	if !reflect.DeepEqual(first, expected) {
-		t.Fatalf("truncated context = %#v, want %#v", first, expected)
-	}
-	if !reflect.DeepEqual(dropped, map[string]any{"recent_turns": 2}) {
-		t.Fatalf("dropped counts = %#v", dropped)
-	}
-	if after != limit {
-		t.Fatalf("context chars after = %d, want %d", after, limit)
-	}
-
-	second := cloneAnyMapFromMetadata(contextPayload)
-	secondDropped, secondAfter, err := primaryAgentApplyContextBudget(second, limit)
-	if err != nil {
-		t.Fatalf("apply context budget again: %v", err)
-	}
-	if !reflect.DeepEqual(second, first) || !reflect.DeepEqual(secondDropped, dropped) || secondAfter != after {
-		t.Fatalf("context truncation is not deterministic")
-	}
-}
-
-func deepCloneContextForTest(t *testing.T, value map[string]any) map[string]any {
-	t.Helper()
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("encode context fixture: %v", err)
-	}
-	var cloned map[string]any
-	if err := json.Unmarshal(encoded, &cloned); err != nil {
-		t.Fatalf("decode context fixture: %v", err)
-	}
-	return cloned
-}
-
-func TestPrimaryAgentFinalModelContextRejectsOversizedCurrentInput(t *testing.T) {
+func TestPrimaryAgentConversationContextRejectsOversizedCurrentInput(t *testing.T) {
 	payload := map[string]any{"user_goal": strings.Repeat("界", 8001)}
-	_, err := primaryAgentFinalModelContextForRun(payload, primaryAgentRuntimeLimits{
+	_, err := primaryAgentConversationContextForRun(payload, primaryAgentRuntimeLimits{
 		CurrentInputCharLimit: 8000,
-		ContextCharLimit:      16000,
-	}, groundingContext{})
+	})
 	if err == nil || !strings.Contains(err.Error(), "8001 characters") {
 		t.Fatalf("oversized input error = %v", err)
 	}
 }
 
-func TestPrimaryAgentContextBudgetRejectsUntrimmableContext(t *testing.T) {
-	contextPayload := map[string]any{
-		"schema_version": "final_model_context.v3",
-		"recent_turns":   []any{},
-		"session_state": map[string]any{
-			"confirmed_slots": []any{map[string]any{
-				"confirmed": true,
-				"name":      "curriculum_program",
-				"value":     strings.Repeat("计算机科学与技术", 100),
-			}},
-			"turn_count": 1,
+func TestPrimaryAgentConversationContextKeepsOnlyModelRelevantConversationFields(t *testing.T) {
+	payload := map[string]any{
+		"user_goal": "那大一能不能申请？",
+		"context": map[string]any{
+			"conversation": map[string]any{
+				"recent_turns": []any{
+					map[string]any{
+						"message_id": "msg_user_001",
+						"role":       "user",
+						"content":    "转专业条件是什么？",
+						"created_at": "2026-06-12T10:30:00Z",
+					},
+					map[string]any{"role": "tool", "content": "internal result"},
+					map[string]any{"role": "assistant", "content": "上一轮回答。"},
+				},
+				"session_state": map[string]any{
+					"confirmed_slots": []any{
+						map[string]any{
+							"confirmed": true,
+							"name":      "curriculum_program",
+							"value":     "计算机科学与技术",
+						},
+						map[string]any{
+							"confirmed": false,
+							"name":      "grade",
+							"value":     "大一",
+						},
+					},
+					"turn_count": 2,
+				},
+			},
 		},
 	}
-	_, _, err := primaryAgentApplyContextBudget(contextPayload, 100)
-	if err == nil || !strings.Contains(err.Error(), "after deterministic truncation") {
-		t.Fatalf("untrimmable context error = %v", err)
+
+	contextValue, err := primaryAgentConversationContextForRun(payload, primaryAgentRuntimeLimits{
+		CurrentInputCharLimit: 8000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{
+		"schema_version": "agent_conversation_context.v1",
+		"recent_turns": []any{
+			map[string]any{
+				"message_id": "msg_user_001",
+				"role":       "user",
+				"content":    "转专业条件是什么？",
+			},
+			map[string]any{"role": "assistant", "content": "上一轮回答。"},
+		},
+		"session_state": map[string]any{
+			"confirmed_slots": []any{
+				map[string]any{
+					"confirmed": true,
+					"name":      "curriculum_program",
+					"value":     "计算机科学与技术",
+				},
+			},
+		},
+	}
+	if !reflect.DeepEqual(contextValue, want) {
+		t.Fatalf("conversation context = %#v, want %#v", contextValue, want)
 	}
 }
 
-func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelope(t *testing.T) {
+func TestExecutePrimaryAgentActivitySendsConversationContextAndProjectsRuntimeUsage(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 31, 0, 0, time.UTC)
-	longAssistantTurn := strings.Repeat("转专业要求", 60)
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
 		store,
@@ -112,21 +102,7 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		agentRequestForDurableWorkerTest("那大一能不能申请？"),
 	)
 	setExecutionPayloadConversationContextForRunTest(t, store, "run-primary-agent-context", map[string]any{
-		"schema_version":    "conversation_context.v1",
-		"conversation_id":   "conv-primary-agent-context",
-		"user_message_id":   "msg_user_003",
-		"parent_message_id": "msg_assistant_002",
-		"current_user_message": map[string]any{
-			"role":       "user",
-			"content":    "那大一能不能申请？",
-			"created_at": "2026-06-12T10:31:00Z",
-		},
 		"recent_turns": []any{
-			map[string]any{
-				"message_id": "msg_user_000",
-				"role":       "user",
-				"content":    "最早一轮应被丢弃。",
-			},
 			map[string]any{
 				"message_id": "msg_user_001",
 				"role":       "user",
@@ -137,33 +113,8 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 				"role":       "assistant",
 				"content":    "上一轮回答的是转专业申请条件。",
 			},
-			map[string]any{
-				"message_id": "msg_user_003",
-				"role":       "user",
-				"content":    "名额有限制吗？",
-			},
-			map[string]any{
-				"message_id": "msg_assistant_004",
-				"role":       "assistant",
-				"content":    "名额由学院公布。",
-			},
-			map[string]any{
-				"message_id": "msg_user_005",
-				"role":       "user",
-				"content":    "成绩有什么要求？",
-			},
-			map[string]any{
-				"message_id": "msg_assistant_006",
-				"role":       "assistant",
-				"content":    longAssistantTurn,
-			},
-			map[string]any{
-				"message_id": "msg_user_007",
-				"role":       "user",
-				"content":    "还要学院审核吗？",
-			},
 		},
-		"session_state": map[string]any{"confirmed_slots": []any{}, "turn_count": 2},
+		"session_state": map[string]any{"confirmed_slots": []any{}},
 	})
 	var seenBody map[string]any
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -171,15 +122,20 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status":               "completed",
-			"run_id":               "run-primary-agent-context",
-			"final_output":         "大一是否可申请需要看转专业办法的年级条件。",
+			"status":       "completed",
+			"run_id":       "run-primary-agent-context",
+			"final_output": "当前证据不足。",
+			"context_usage": map[string]any{
+				"context_chars":            320,
+				"current_input_chars":      9,
+				"model_visible_item_count": 4,
+			},
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "大一是否可申请需要看转专业办法的年级条件。"},
+			"terminal_envelope":    map[string]any{"kind": "unsupported_by_evidence", "answer_text": "当前证据不足。"},
 			"provider_response_id": "resp-primary-agent-context",
 			"tool_results":         []any{},
-			"terminal_reason":      "answer_completed",
+			"terminal_reason":      "unsupported_by_evidence",
 			"usage":                map[string]any{"input_tokens": 12, "output_tokens": 8},
 		})
 	}))
@@ -200,62 +156,21 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		TurnID:           "turn-primary-agent-context",
 		VisibleToolNames: []string{},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	output, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
-	finalModelContext, ok := seenBody["final_model_context"].(map[string]any)
-	if !ok {
-		t.Fatalf("agent runtime request missing final_model_context: %#v", seenBody)
+	conversationContext, ok := seenBody["conversation_context"].(map[string]any)
+	if !ok || conversationContext["schema_version"] != "agent_conversation_context.v1" {
+		t.Fatalf("agent runtime request missing conversation context: %#v", seenBody)
 	}
-	if finalModelContext["schema_version"] != "final_model_context.v3" {
-		t.Fatalf("final_model_context = %#v", finalModelContext)
+	if _, exists := conversationContext["current_user_message"]; exists {
+		t.Fatalf("conversation context duplicates current input: %#v", conversationContext)
 	}
-	if _, exists := finalModelContext["current_user_message"]; exists {
-		t.Fatalf("final_model_context duplicates current_user_message: %#v", finalModelContext)
+	if _, exists := conversationContext["usage_summary"]; exists {
+		t.Fatalf("execution-control must not precompute model context usage: %#v", conversationContext)
 	}
-	if _, exists := seenBody["memory_context"]; exists {
-		t.Fatalf("agent runtime request duplicates memory_context: %#v", seenBody)
-	}
-	if _, exists := seenBody["memory_projection_refs"]; exists {
-		t.Fatalf("agent runtime request exposes unused memory_projection_refs: %#v", seenBody)
-	}
-	usageSummary, ok := finalModelContext["usage_summary"].(map[string]any)
-	if !ok || intFromAny(usageSummary["context_chars"]) <= 0 ||
-		intFromAny(usageSummary["current_input_chars"]) != 9 {
-		t.Fatalf("usage_summary = %#v", finalModelContext["usage_summary"])
-	}
-	if _, exists := usageSummary["token_estimate"]; exists {
-		t.Fatalf("usage_summary contains retired token estimate: %#v", usageSummary)
-	}
-	recentTurns, ok := finalModelContext["recent_turns"].([]any)
-	if !ok || len(recentTurns) != 8 {
-		t.Fatalf("recent_turns = %#v", finalModelContext["recent_turns"])
-	}
-	firstRecentTurn, _ := recentTurns[0].(map[string]any)
-	if firstRecentTurn["message_id"] != "msg_user_000" {
-		t.Fatalf("recent_turn ordering = %#v", recentTurns)
-	}
-	if _, exists := finalModelContext["previous_evidence"]; exists {
-		t.Fatalf("final context exposes previous evidence: %#v", finalModelContext)
-	}
-	if _, exists := finalModelContext["previous_tool_results"]; exists {
-		t.Fatalf("final context exposes previous tool results: %#v", finalModelContext)
-	}
-	if _, exists := finalModelContext["session_state"]; exists {
-		t.Fatalf("final context exposes empty session state: %#v", finalModelContext)
-	}
-	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-context")
-	if err != nil {
-		t.Fatalf("list run steps: %v", err)
-	}
-	if len(steps) != 1 {
-		t.Fatalf("steps = %#v", steps)
-	}
-	contextUsage, ok := steps[0].SanitizedPayload["context_usage"].(map[string]any)
-	if !ok || contextUsage["schema_version"] != "final_model_context.v3" ||
-		intFromAny(contextUsage["grounding_context_chars"]) <= 0 ||
-		intFromAny(contextUsage["context_chars"]) <= 0 {
-		t.Fatalf("context_usage = %#v", steps[0].SanitizedPayload["context_usage"])
+	if output.ContextUsage["context_chars"] != float64(320) {
+		t.Fatalf("runtime context usage = %#v", output.ContextUsage)
 	}
 }

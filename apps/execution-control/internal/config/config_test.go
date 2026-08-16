@@ -33,12 +33,6 @@ func TestRuntimeUsesFixedRuntimePolicy(t *testing.T) {
 	if cfg.AgentRuntimeDeadlineMS != 90_000 || cfg.AgentRuntimeMaxOutputTokens != 2_048 {
 		t.Fatalf("unexpected agent limits: %#v", cfg)
 	}
-	if cfg.RAGTopKMax != 8 || cfg.RAGEmbeddingTimeoutMS != 10_000 || cfg.RAGQdrantTimeoutMS != 60_000 {
-		t.Fatalf("unexpected RAG limits: %#v", cfg)
-	}
-	if cfg.QueryServingTargetsPath != "/etc/campus-agent/query-serving-targets.v3.json" {
-		t.Fatalf("query targets path = %q", cfg.QueryServingTargetsPath)
-	}
 }
 
 func TestRuntimeLoaderUsesOnlyOwnedInputs(t *testing.T) {

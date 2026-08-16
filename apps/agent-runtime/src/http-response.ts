@@ -91,6 +91,27 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 	return {
 		status: result.status,
 		run_id: result.runId,
+		context_usage: {
+			context_chars: result.contextUsage.contextChars,
+			current_input_chars: result.contextUsage.currentInputChars,
+			model_visible_item_count: result.contextUsage.modelVisibleItemCount,
+			...(result.contextUsage.truncationSummary
+				? {
+						truncation_summary: {
+							context_chars_after: result.contextUsage.truncationSummary.contextCharsAfter,
+							context_chars_before: result.contextUsage.truncationSummary.contextCharsBefore,
+							dropped_category_counts: result.contextUsage.truncationSummary.droppedCategoryCounts,
+							model_visible_after_count:
+								result.contextUsage.truncationSummary.modelVisibleAfterCount,
+							model_visible_before_count:
+								result.contextUsage.truncationSummary.modelVisibleBeforeCount,
+							policy_version: result.contextUsage.truncationSummary.policyVersion,
+							reason: result.contextUsage.truncationSummary.reason,
+							schema_version: result.contextUsage.truncationSummary.schemaVersion,
+						},
+					}
+				: {}),
+		},
 		final_output: result.finalOutput,
 		model_name: result.modelName,
 		model_provider: result.modelProvider,

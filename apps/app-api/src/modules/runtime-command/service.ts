@@ -686,9 +686,6 @@ export function buildChatCommandService(
 			: null;
 		const appApiStageTiming = await dependencies.store.readRequestStageTiming(context.requestId);
 		const finalized = buildFinalizedWrite({
-			...(dependencies.publicNoticeURLAllowlist
-				? { allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist }
-				: {}),
 			assistantMessageId: context.assistantMessageId,
 			branchId: context.branchId,
 			completedAt,
@@ -773,9 +770,6 @@ export function buildChatCommandService(
 		const { context } = input;
 		const completedAt = now().toISOString();
 		const finalized = buildFinalizedWrite({
-			...(dependencies.publicNoticeURLAllowlist
-				? { allowedPublicNoticeHosts: dependencies.publicNoticeURLAllowlist }
-				: {}),
 			assistantMessageId: context.assistantMessageId,
 			branchId: context.branchId,
 			completedAt,

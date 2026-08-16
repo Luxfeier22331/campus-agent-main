@@ -14,7 +14,7 @@ import (
 const (
 	ExecutionContractVersion    = "tool_execution_v5"
 	ExecutionRunIDPattern       = "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-	ResponseContract            = "execution_finalization_response_v5"
+	ResponseContract            = "execution_finalization_response_v6"
 	WorkflowTraceSummaryVersion = "workflow-trace-summary-v7"
 )
 
@@ -76,7 +76,7 @@ const (
 	StageTimingFieldStreamAppApiTtftMs            StageTimingField = "stream.app_api_ttft_ms"
 	StageTimingFieldStreamOrchestrationOverheadMs StageTimingField = "stream.orchestration_overhead_ms"
 	StageTimingFieldExecutionAdmissionMs          StageTimingField = "execution.admission_ms"
-	StageTimingFieldGroundingPrepareMs            StageTimingField = "grounding.prepare_ms"
+	StageTimingFieldCampusDocsRetrieveMs          StageTimingField = "campus_docs.retrieve_ms"
 	StageTimingFieldMemoryRecallMs                StageTimingField = "memory.recall_ms"
 	StageTimingFieldAgentPrimaryMs                StageTimingField = "agent.primary_ms"
 	StageTimingFieldAgentRuntimeMs                StageTimingField = "agent.runtime_ms"
@@ -436,7 +436,7 @@ func (value StageTimingField) Valid() bool {
 		StageTimingFieldStreamAppApiTtftMs,
 		StageTimingFieldStreamOrchestrationOverheadMs,
 		StageTimingFieldExecutionAdmissionMs,
-		StageTimingFieldGroundingPrepareMs,
+		StageTimingFieldCampusDocsRetrieveMs,
 		StageTimingFieldMemoryRecallMs,
 		StageTimingFieldAgentPrimaryMs,
 		StageTimingFieldAgentRuntimeMs,

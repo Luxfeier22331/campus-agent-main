@@ -50,7 +50,8 @@ Langfuse、Cloudflare 和其他环境运行凭据由环境仓及其所属交付�
 Embedding，使用旧 AAD 解密并按不可变 AAD v1
 `execution_config.model_settings:<kind>` 重加密，验证两个设置后删除七张旧表。Goose v4 随后将该表
 原位移动到 `execution_control.model_settings`；表所在 schema 改变不触发再次加密，也不增加双 AAD
-读取。
+读取。Goose v5 在新路径新增 `embedding_space_id`，旧设置保持为空，下一次保存并验证查询
+Embedding 设置时写入明确的 space 身份。
 
 旧结构不完整、当前表已经含有数据、激活配置缺失、验证未通过、密钥无法解密或旧表存在未知依赖时，
 整个事务回滚。不得手工复制数据、保留新旧表并存、双写或让运行时回退到旧表。切换发布允许在线问答

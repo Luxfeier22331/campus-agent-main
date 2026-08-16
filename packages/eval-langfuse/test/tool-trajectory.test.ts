@@ -44,14 +44,14 @@ describe("tool trajectory projection", () => {
 				request_id: "req_1",
 				run_id: "run_1",
 				schema_version: "tool_trajectory.v3",
-				selected_tool: "knowledge_query",
+				selected_tool: "legacy_tool",
 				tool_calls: [],
 				trace_id: "trace_1",
 			}),
 		).toThrow(/forbidden/i);
 		expect(() =>
 			parseToolTrajectory({
-				available_tools: ["retrieve_document_evidence"],
+				available_tools: ["legacy_tool"],
 				decision_kind: "fail_closed",
 				request_id: "req_1",
 				run_id: "run_1",

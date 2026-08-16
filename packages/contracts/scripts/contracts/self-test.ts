@@ -18,7 +18,6 @@ function checkRegistryCoverage(): void {
 	const entries = registryEntries();
 	const expectedValidates: Record<string, string[]> = {
 		"runtime-tools.v6": ["configs/runtime/tools.v6.json"],
-		"query-serving-targets.v3": ["configs/runtime/query-serving-targets.v3.json"],
 		"runtime-latency-budgets.v1": ["configs/runtime/latency-budgets.v1.json"],
 	};
 	for (const [entryId, validates] of Object.entries(expectedValidates)) {

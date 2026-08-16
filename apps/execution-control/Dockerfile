@@ -16,7 +16,6 @@ COPY apps/execution-control/go.mod apps/execution-control/go.sum ./
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod go mod download
 
 COPY apps/execution-control ./
-COPY configs/runtime/query-serving-targets.v3.json /src/configs/runtime/query-serving-targets.v3.json
 COPY configs/runtime/tool-function-schemas.v3.json /src/configs/runtime/tool-function-schemas.v3.json
 COPY configs/runtime/tools.v6.json /src/configs/runtime/tools.v6.json
 COPY configs/ingestion /src/configs/ingestion
@@ -36,7 +35,6 @@ RUN apt-get update \
 
 COPY --from=build /out/execution-control /usr/local/bin/execution-control
 COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schema
-COPY configs/runtime/query-serving-targets.v3.json /etc/campus-agent/query-serving-targets.v3.json
 COPY configs/runtime/tool-function-schemas.v3.json /etc/campus-agent/tool-function-schemas.v3.json
 COPY configs/runtime/tools.v6.json /etc/campus-agent/tools.v6.json
 COPY configs/ingestion /configs/ingestion

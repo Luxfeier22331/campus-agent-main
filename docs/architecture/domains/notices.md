@@ -36,9 +36,9 @@ source-collector 只产生来源对象和原始资源。分类只确定一条通
 App API 提供会话保护的目录、站内详情和图片读取。外链通知从目录直接前往已校验来源，不抓取外部
 正文。站内详情提供需要用户门户登录态的原文和附件链接；App API 不代理附件字节。
 
-通知当前不在查询目标注册表中。Agent 不能扫描通知对象存储或 PostgreSQL，也不提供通知结构化查询、
-附件解析、embedding 或 RAG。分类、schema、读取接口和页面源码存在都不表示任一环境已经完成资源
-回填、规范化写入或部署。
+`campus_notices/internal_notice` 不是当前 Campus Docs publisher 的输入。Agent 不能扫描通知对象存储或
+PostgreSQL，也不提供通知结构化查询、附件解析、embedding 或 RAG，不能把通知分类配置视为产品
+能力。分类、schema、读取接口和页面源码存在都不表示任一环境已经完成资源回填、规范化写入或部署。
 
 ## 相关文档
 

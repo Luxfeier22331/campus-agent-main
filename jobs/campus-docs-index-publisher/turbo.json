@@ -1,0 +1,17 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"test": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] },
+		"test:database-integration": {
+			"inputs": [
+				"package.json",
+				"src/catalog.ts",
+				"src/types.ts",
+				"test/catalog.database.integration.test.ts",
+				"vitest.database-integration.config.mts"
+			]
+		},
+		"typecheck": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] }
+	}
+}

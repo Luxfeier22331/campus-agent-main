@@ -1,7 +1,5 @@
 import type { DataMessagePartProps } from "@assistant-ui/react";
-import { ArrowUpRightIcon } from "lucide-react";
 import type { SourceItemPayload } from "@/features/conversation/model";
-import { cn } from "@/lib/utils";
 
 export interface SourceItemsPayload {
 	sourceItems: SourceItemPayload[];
@@ -27,24 +25,13 @@ export function SourceItemsList({ sourceItems }: { sourceItems: SourceItemPayloa
 }
 
 function sourceItemKey(sourceItem: SourceItemPayload) {
-	return [
-		sourceItem.primaryAction.href,
-		sourceItem.title,
-		sourceItem.sectionTitle,
-		sourceItem.publisherLabel,
-		sourceItem.pageLabel,
-	]
+	return [sourceItem.primaryAction.href, sourceItem.title, sourceItem.sectionTitle]
 		.filter(Boolean)
 		.join(":");
 }
 
 function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
-	const metadata = [
-		sourceItem.collectionLabel,
-		sourceItem.publisherLabel,
-		sourceItem.versionLabel,
-		sourceItem.pageLabel,
-	].filter(Boolean);
+	const metadata = [sourceItem.collectionLabel, sourceItem.versionLabel].filter(Boolean);
 
 	return (
 		<div className="border-border/70 bg-surface-muted/20 rounded-md border px-3 py-2">
@@ -71,30 +58,12 @@ function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
 
 function SourceItemAction({ sourceItem }: { sourceItem: SourceItemPayload }) {
 	const action = sourceItem.primaryAction;
-	const href = action.href;
-	const disabled = href === null || Boolean(action.disabledReason);
-	const className = cn(
-		"border-border text-foreground hover:bg-accent hover:text-accent-foreground inline-flex h-8 shrink-0 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors",
-		disabled && "pointer-events-none opacity-60",
-	);
-
-	if (disabled) {
-		return (
-			<span aria-disabled="true" className={className} title={action.disabledReason ?? undefined}>
-				{action.label}
-			</span>
-		);
-	}
-
 	return (
 		<a
-			className={className}
-			href={href}
-			rel={action.external ? "noreferrer noopener" : undefined}
-			target={action.external ? "_blank" : undefined}
+			className="border-border text-foreground hover:bg-accent hover:text-accent-foreground inline-flex h-8 shrink-0 items-center rounded-md border px-2 text-xs font-medium transition-colors"
+			href={action.href}
 		>
 			{action.label}
-			{action.external ? <ArrowUpRightIcon aria-hidden className="size-3.5" /> : null}
 		</a>
 	);
 }

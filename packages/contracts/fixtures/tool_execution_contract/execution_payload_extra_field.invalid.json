@@ -1,6 +1,6 @@
 {
 	"execution_contract_version": "tool_execution_v5",
-	"response_contract": "execution_finalization_response_v5",
+	"response_contract": "execution_finalization_response_v6",
 	"user_goal": "学生手册请假制度怎么规定？",
 	"conversation_id": "conv-contract-001",
 	"request_id": "req-contract-extra",

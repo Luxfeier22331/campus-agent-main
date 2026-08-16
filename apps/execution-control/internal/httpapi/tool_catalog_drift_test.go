@@ -26,7 +26,7 @@ func TestCheckedInExecutionControlToolsRetainCurrentExposure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load Go tool registry: %v", err)
 	}
-	registeredEndpoints := toolReadModelEndpointsByPath()
+	registeredEndpoints := executionControlToolEndpointsByPath()
 	wantEndpoints := map[string]string{
 		"personal_memory_recall": "/internal/memory/personal/recall",
 	}
@@ -45,7 +45,7 @@ func TestCheckedInExecutionControlToolsRetainCurrentExposure(t *testing.T) {
 		}
 		if registeredEndpoints[tool.Handler.Endpoint] != tool.Name {
 			t.Fatalf(
-				"tool %s endpoint %q not registered to matching tool read model handler; registered=%q",
+				"tool %s endpoint %q not registered to matching execution-control handler; registered=%q",
 				tool.Name,
 				tool.Handler.Endpoint,
 				registeredEndpoints[tool.Handler.Endpoint],
@@ -157,7 +157,7 @@ func isObjectOrNullableObject(value any) bool {
 	return false
 }
 
-func toolReadModelEndpointsByPath() map[string]string {
+func executionControlToolEndpointsByPath() map[string]string {
 	return map[string]string{
 		"/internal/memory/personal/recall": personalMemoryRecallToolName,
 	}

@@ -325,7 +325,6 @@ function requireFinalizationTraceMatch(input: {
 }
 
 export function buildFinalizedWrite(input: {
-	allowedPublicNoticeHosts?: readonly string[];
 	assistantMessageId: string;
 	branchId: string;
 	conversation: ChatConversation;
@@ -361,9 +360,6 @@ export function buildFinalizedWrite(input: {
 		traceId: normalizedTraceId,
 	} satisfies ToolExecutionResponse;
 	const structuredParts = normalizeChatResponseStructuredParts({
-		...(input.allowedPublicNoticeHosts
-			? { allowedPublicNoticeHosts: input.allowedPublicNoticeHosts }
-			: {}),
 		result: input.response.result,
 		status: input.response.status,
 	});

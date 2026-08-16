@@ -91,13 +91,14 @@ func TestValidateSnapshotUsesEmbeddingsTransportAndChecksDimensions(t *testing.T
 	defer server.Close()
 
 	result := Validate(context.Background(), RuntimeSetting{
-		APIKey:     "secret",
-		BaseURL:    server.URL,
-		Dimensions: 3,
-		Kind:       KindEmbedding,
-		Model:      "embedding-1",
-		Provider:   "openai-compatible",
-		Transport:  "embeddings",
+		APIKey:           "secret",
+		BaseURL:          server.URL,
+		Dimensions:       3,
+		EmbeddingSpaceID: "embedding-test-space-v1",
+		Kind:             KindEmbedding,
+		Model:            "embedding-1",
+		Provider:         "openai-compatible",
+		Transport:        "embeddings",
 	})
 
 	if result.Status != "passed" || result.ObservedDimensions != 3 {
@@ -118,7 +119,7 @@ func TestValidateSnapshotRejectsUnsupportedTransportBeforeCallingProvider(t *tes
 			Provider: "openai-compatible", Transport: "legacy_prompt",
 		},
 		{
-			APIKey: "secret", BaseURL: server.URL, Dimensions: 3, Kind: KindEmbedding, Model: "embedding-1",
+			APIKey: "secret", BaseURL: server.URL, Dimensions: 3, EmbeddingSpaceID: "embedding-test-space-v1", Kind: KindEmbedding, Model: "embedding-1",
 			Provider: "openai-compatible", Transport: "responses",
 		},
 	}

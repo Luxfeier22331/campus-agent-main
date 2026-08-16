@@ -78,14 +78,16 @@ Finalization result 也不得在终态后补写。该例外不放宽其他 Activ
 
 ### Activity Result 与 Receipt
 
-`grounding_context.v2` 绑定 run、完整 admission snapshot hash、冻结 grounding plan hash 和查询
-hash。它最多包含 8 条 evidence 和 4096 token，作为 Grounding Activity 的有界 result 写入 Temporal
-history，再传给 Primary Agent 与 Finalization。Primary Agent 的完整有界结果同样经由 Temporal
-history 传递；当前合同不要求加密 Temporal history，也不要求按 run 删除这些正文。
+`CampusDocsRetrievalResult` 绑定 run 的冻结准入和查询，最多包含 8 条 evidence，正文合计最多 4000 个
+Unicode 字符。它作为
+`RetrieveCampusDocsEvidenceActivity` 的有界 result 写入 Temporal history；workflow 把最小 evidence
+视图传给 Primary Agent，并把原结果独立传给 Finalization。Primary Agent 的完整有界结果同样经由
+Temporal history 传递；当前合同不要求加密 Temporal history，也不要求按 run 删除这些正文。
 
 普通 run、event、step、result 投影不保存上述 canonical 正文，只保存 ref、hash、计数、用量和公开
-终态。`none` 路径不执行 Grounding Activity，由 Primary Agent Activity 建立 `not_required` context。
-Grounding Activity 的重试会重新执行只读 embedding/Qdrant 查询，而不是从 PostgreSQL 重放先前结果。
+终态。每个有效请求都执行 Retrieval Activity；成功后产生唯一检索 result 并继续 Agent，失败则关闭
+workflow。空 evidence 与非空 evidence 只表达是否选出可引用证据，不另存 mode/status。Retrieval
+Activity 重试会重新执行只读 embedding/Qdrant 查询，而不是从 PostgreSQL 重放先前结果。
 
 个人记忆召回不单独建立外部调用 receipt。Primary Agent invocation receipt 绑定整个 SDK run 的精确
 请求摘要，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通 SDK tool 投影只保存
@@ -106,8 +108,8 @@ Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 
 
 Primary Agent 在供应商调用前构造 canonical provider invocation envelope。envelope 的规范 JSON
 SHA-256 是 invocation receipt 的 `InputSHA256`，绑定 run、invocation、Activity attempt、完整
-Activity input SHA、execution input SHA、完整 admission snapshot 及其 SHA、模型可见工具、最终模型
-上下文 SHA，以及实际发送给 agent-runtime 的 HTTP body SHA。HTTP 调用必须发送计算 request SHA 时的
+Activity input SHA、execution input SHA、完整 admission snapshot 及其 SHA、模型可见工具，以及实际
+发送给 Agent Runtime 的 HTTP body SHA。HTTP 调用必须发送计算 request SHA 时的
 同一份编码 bytes，不能在计算摘要后重新编码。envelope 只在本次 Activity 内存中用于生成 receipt
 fingerprint，不持久化为单独载荷。
 
@@ -122,27 +124,26 @@ invocation receipt 在供应商调用前持久化调用身份、上述 envelope 
 provider/model 与有界用量摘要保存于正式投影中。已开始或已完成 receipt 但没有可用 Activity result 时，
 只能以 `agent_attempt_uncertain` 失败关闭，不能重新调用供应商。
 
-## Grounding 投影
+## Campus Docs 检索投影
 
-每个 run 至多生成一份 `grounding_context.v2` Activity result。`single_scope` 和 `multi_scope` 路径
-最多有一个 `grounding.prepare` step；`none` 路径不创建该 step。检索路径的普通 StepResult 只保存
-context ref、路由与覆盖状态、候选数、证据数、token 数、准入与计划 hash、查询 hash 和四个 grounding
-子阶段耗时；完整证据及正文只存在于该 run 的 Temporal history。
+每个已启动的在线 workflow 固定执行一个 `campus_docs.retrieve` step；检索成功时只生成一份
+`CampusDocsRetrievalResult`。普通 StepResult 只保存 collection、候选数、证据数、准入与查询 hash
+及检索子阶段耗时；完整 evidence 正文只存在于该 run 的 Temporal history。
 
-grounding 不派生 SDK tool call，不携带 `tool_name` 或 `eval_safe_args`。原始 query vector、Qdrant
+Campus Docs 检索不派生 SDK tool call，不携带 `tool_name` 或 `eval_safe_args`。原始 query vector、Qdrant
 响应、Provider 凭据和正文不得进入普通投影。
 
 ## Finalization 投影
 
-Finalization 保存 SDK 终态答案和确定性校验结果。有证据支持时，还会保存从本轮 workflow grounding
+Finalization 保存 SDK 终态答案和确定性校验结果。有证据支持时，还会保存从本轮 workflow 检索结果
 中已引用 evidence 派生的浏览器可用 source。
 
 Finalization 可以拒绝格式错误或不受支持的 output，但不会创建或改写答案。app-api 可以在
 保留答案原文的前提下，把已验证 source 转换为产品 source-item 结构。相同 fingerprint 的完成
 可以幂等重放；不同 fingerprint 与已提交的产品终态冲突，execution-control 不得用较晚结果覆盖。
 
-Finalization 读取 workflow 传入的 Agent result 后，必须验证 result 身份、冻结准入快照、grounding
-绑定、终态 schema 与 evidence 引用。`finalization.write` 的 completed StepResult 保存由 agent result
+Finalization 分别读取 workflow 传入的 Agent result 和检索结果，验证身份、冻结准入快照、
+终态 schema 与 evidence 引用。`finalization.write` 的 completed StepResult 保存由 agent result
 ref、最终响应、request/trace 生成的 `finalization_fingerprint_sha256`。
 `FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的
 单个事务中，校验并提交 completed `finalization.write` Step、Attempt、Result 与 completed run 四元组，

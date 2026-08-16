@@ -26,12 +26,6 @@ function createPrincipal(): ResolvedAppPrincipal {
 			ownershipScopes: [],
 			principalId: "principal_01HQ",
 			projectionSource: "campus_identity",
-			retrievalFilter: {
-				entitlementGroups: ["students"],
-				policyProjectionVersion: "phase1-authorization-projection-v1",
-				visibilityLevel: "public",
-				visibilityScope: "main",
-			},
 			visibilityScope: "main",
 		},
 		permissions: {
@@ -143,48 +137,6 @@ describe("request observability", () => {
 			refusalClass: "rejected",
 			semanticOutcome: "policy_refusal",
 		});
-	});
-
-	it("projects only trusted top-level result sources", () => {
-		const fact = buildFinalizedFact({
-			response: createResponse({
-				result: {
-					evidence: {
-						sources: [
-							{
-								doc_id: "legacy-doc",
-								source_title: "旧来源",
-							},
-						],
-					},
-					sources: [
-						{
-							canonical_url:
-								"/docs/regulations/student_rules/leave-policy?chunk=raw#legacy-fragment",
-							source_kind: "regulation",
-							source_title: "学生请假管理规定",
-							target_kind: "canonical_reader",
-							version_id: "student-rules-current",
-						},
-						{
-							canonical_url: "/docs/incomplete",
-						},
-					],
-				},
-				status: "completed",
-			}),
-			status: "completed",
-		});
-
-		expect(fact.supportingSources).toEqual([
-			{
-				canonicalUrl: "/docs/regulations/student_rules/leave-policy",
-				sourceKind: "regulation",
-				sourceTitle: "学生请假管理规定",
-				targetKind: "canonical_reader",
-				versionId: "student-rules-current",
-			},
-		]);
 	});
 
 	it("persists official workflow and trace projections without raw runtime payloads", () => {

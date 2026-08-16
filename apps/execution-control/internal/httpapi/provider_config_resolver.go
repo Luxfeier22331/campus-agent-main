@@ -24,13 +24,14 @@ const (
 )
 
 type providerConfigSnapshot struct {
-	APIKey     string             `json:"api_key"`
-	BaseURL    string             `json:"base_url"`
-	Dimensions int                `json:"dimensions,omitempty"`
-	Kind       providerConfigKind `json:"kind"`
-	Model      string             `json:"model"`
-	Provider   string             `json:"provider"`
-	Transport  string             `json:"transport"`
+	APIKey           string             `json:"api_key"`
+	BaseURL          string             `json:"base_url"`
+	Dimensions       int                `json:"dimensions,omitempty"`
+	EmbeddingSpaceID string             `json:"embedding_space_id,omitempty"`
+	Kind             providerConfigKind `json:"kind"`
+	Model            string             `json:"model"`
+	Provider         string             `json:"provider"`
+	Transport        string             `json:"transport"`
 }
 
 type providerConfigResolver interface {
@@ -68,13 +69,14 @@ func (resolver postgresProviderConfigResolver) ResolveActiveProviderConfig(
 		return providerConfigSnapshot{}, err
 	}
 	snapshot := providerConfigSnapshot{
-		APIKey:     resolved.APIKey,
-		BaseURL:    resolved.BaseURL,
-		Dimensions: resolved.Dimensions,
-		Kind:       providerConfigKind(resolved.Kind),
-		Model:      resolved.Model,
-		Provider:   resolved.Provider,
-		Transport:  resolved.Transport,
+		APIKey:           resolved.APIKey,
+		BaseURL:          resolved.BaseURL,
+		Dimensions:       resolved.Dimensions,
+		EmbeddingSpaceID: resolved.EmbeddingSpaceID,
+		Kind:             providerConfigKind(resolved.Kind),
+		Model:            resolved.Model,
+		Provider:         resolved.Provider,
+		Transport:        resolved.Transport,
 	}
 	if err := validateProviderConfigSnapshot(snapshot, kind); err != nil {
 		return providerConfigSnapshot{}, err
@@ -116,6 +118,11 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, kind provid
 		if snapshot.Transport != "embeddings" {
 			return errors.New("embedding provider config snapshot transport must be embeddings")
 		}
+		if strings.TrimSpace(snapshot.EmbeddingSpaceID) == "" {
+			return errors.New("embedding provider config snapshot space id is required")
+		}
+	} else if strings.TrimSpace(snapshot.EmbeddingSpaceID) != "" {
+		return errors.New("llm provider config snapshot must not define an embedding space id")
 	} else if kind == providerConfigKindLLM && snapshot.Transport != "responses" && snapshot.Transport != "chat_completions" {
 		return errors.New("llm provider config snapshot transport is invalid")
 	}
@@ -145,6 +152,9 @@ func providerConfigAdmissionHash(snapshot providerConfigSnapshot) string {
 		"model":      strings.TrimSpace(snapshot.Model),
 		"provider":   strings.TrimSpace(snapshot.Provider),
 		"transport":  strings.TrimSpace(snapshot.Transport),
+	}
+	if embeddingSpaceID := strings.TrimSpace(snapshot.EmbeddingSpaceID); embeddingSpaceID != "" {
+		payload["embedding_space_id"] = embeddingSpaceID
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

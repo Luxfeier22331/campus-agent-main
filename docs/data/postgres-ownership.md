@@ -18,9 +18,10 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | --- | --- | --- |
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
-| `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和文档 grounding 准入 |
+| `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和 Campus Docs 检索准入 |
 | `ingestion_control` | `apps/ingestion-control` | 采集任务投影读写 |
 | `notice_publisher` | `jobs/notice-publisher` | 规范化通知写入 |
+| `campus_docs_index_publisher` | `jobs/campus-docs-index-publisher` | Campus Docs 当前索引单行绑定替换 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户凭据读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
@@ -40,6 +41,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
 | `execution_control.model_settings` | execution-control 配置管理 | execution-control |
+| `campus_docs_serving.current_index` | Campus Docs index publisher | execution-control、Campus Docs index publisher |
 | `ingestion_control.tasks` | ingestion-control | ingestion-control |
 | `notices.*` | notice-publisher | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
@@ -53,7 +55,8 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 `drizzle.app_api_migrations` 这一条 ledger 迁移；Better Auth 运行时不执行 DDL，也不维护第二条
 migration 记录。
 
-公开文档发布只使用对象存储和 Campus Web 构建产物，不拥有产品 PostgreSQL schema 或运行角色。
+Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campus Docs index publisher 使用专用角色
+替换 `campus_docs_serving.current_index` 单行绑定，不访问产品 schema；execution-control 只读该表。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 
 ## 迁移合同
@@ -81,6 +84,9 @@ migration 记录。
 - 修改 migration 时必须运行所属 PostgreSQL Testcontainers 套件，至少覆盖空库、受支持历史升级、
   未知部分状态、重复执行及运行角色权限；Drizzle 所有者还要覆盖已应用 hash 校验。
 
+`campus_docs_serving` 的 DDL 和授权属于 execution-control 的 migration ledger；publisher 只写业务
+记录，不执行 DDL 或维护第二条 migration ledger。
+
 ## 访问规则
 
 - 常驻运行时不使用 schema 管理或 migration 凭据；
@@ -94,6 +100,8 @@ migration 记录。
 - schema Job 必须校验上述固定角色的有效权限。常驻 execution-control 的运行投影和个人记忆
   状态健康检查必须实际读取所属表，不能用 PostgreSQL catalog 可见性代替运行角色的数据访问能力；
 - 在线模型配置只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
+- `campus_docs_index_publisher` 对 `campus_docs_serving.current_index` 只有 `SELECT`、`INSERT`、
+  `UPDATE`；`execution_control` 对该表只有 `SELECT`；
 - `execution_control.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
   该 Job 使用环境仓交付的 schema-install DSN 和现有 provider keyring；常驻 runtime 只使用
   `execution_control` DSN，不执行迁移。
@@ -110,6 +118,8 @@ migration 记录。
   切换期间的旧读取；旧 writer 不获得 DML。活跃环境完成停写迁移、同 revision 部署和读取验证后，
   才能由后续 migration 删除这些视图及空的 `execution_config` schema；源码合并本身不证明环境已
   完成该清理。
+- Goose v5 在已移动的 `execution_control.model_settings` 上新增 `embedding_space_id`，并创建
+  `campus_docs_serving.current_index`；已应用 v3 的数据库通过 v4、v5 顺序升级，不会重跑或改写 v3。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和领域业务表，不能读取

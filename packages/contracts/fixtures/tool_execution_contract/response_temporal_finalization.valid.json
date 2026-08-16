@@ -14,13 +14,15 @@
 		"provider_response_id": "resp_temporal_finalization",
 		"sources": [
 			{
-				"canonical_url": "/docs/regulations/student_rules/national-scholarship",
+				"document_id": "student_rules/national-scholarship",
+				"root_unit_ids": ["national-scholarship-principles"],
+				"section_ref": "/docs/regulations/student_rules/national-scholarship/v/2026-current#principles",
+				"section_title": "评审原则",
 				"snippet": "示例奖学金评审坚持公开、公平、公正的原则。",
-				"source_kind": "regulation",
-				"source_title": "示例学生奖学金评审办法",
-				"target_kind": "canonical_reader",
 				"title": "示例学生奖学金评审办法",
-				"version_id": "student-rules-current"
+				"version_id": "version-national-scholarship-2026",
+				"version_label": "2026 版",
+				"version_slug": "2026-current"
 			}
 		],
 		"terminal_reason": "answer"

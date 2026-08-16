@@ -125,7 +125,7 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
 
 retrieval 或 Agent 工具选择发生变化时：
 
-1. 确认查询目标、工具合同和 serving config 通过所属可执行校验；
+1. 确认 Campus Docs 当前索引绑定、publisher 索引定义和工具合同通过所属可执行校验；
 2. 运行 contracts check、手动 `go` profile 和手动 `ragas` profile；
 3. 确认 Langfuse dataset 包含本次行为及直接相关的反例；
 4. 通过真实产品路径生成 answer、retrieved context、tool trajectory 和 trace identity；

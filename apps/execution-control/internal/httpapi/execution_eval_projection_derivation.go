@@ -19,8 +19,8 @@ func projectedPlanningForEval(results []execution.StepResultProjection) map[stri
 
 func projectedPlanningStepsFromRuntimeResults(results []execution.StepResultProjection) []string {
 	steps := []string{}
-	if hasStepResult(results, "grounding.prepare") {
-		appendUniqueProjectionString(&steps, "grounding.prepare")
+	if hasStepResult(results, "campus_docs.retrieve") {
+		appendUniqueProjectionString(&steps, "campus_docs.retrieve")
 	}
 	if hasStepResult(results, "agent.primary") {
 		appendUniqueProjectionString(&steps, "agent.primary")
@@ -47,11 +47,6 @@ func hasStepResult(results []execution.StepResultProjection, stepID string) bool
 
 func projectedRAGForEval(results []execution.StepResultProjection) map[string]any {
 	rag := map[string]any{}
-	if grounding := projectedGroundingForEval(results); len(grounding) > 0 {
-		for key, value := range grounding {
-			rag[key] = value
-		}
-	}
 	if answer := projectedRAGAnswer(results); answer != "" {
 		rag["answer"] = answer
 	}
@@ -69,36 +64,6 @@ func projectedRAGForEval(results []execution.StepResultProjection) map[string]an
 		rag["source_refs"] = refs
 	}
 	return rag
-}
-
-func projectedGroundingForEval(results []execution.StepResultProjection) map[string]any {
-	for _, stepID := range []string{"grounding.prepare", "agent.primary"} {
-		for _, result := range results {
-			if result.StepID != stepID || result.Status != "completed" {
-				continue
-			}
-			payload := sanitizeProjectionPayload(result.SanitizedPayload)
-			mode := firstNonEmptyText(payload["grounding_mode"])
-			if mode == "" {
-				continue
-			}
-			selectedKey := "selected_scopes"
-			coveredKey := "covered_scopes"
-			statusKey := "status"
-			if stepID == "agent.primary" {
-				selectedKey = "grounding_selected_scopes"
-				coveredKey = "grounding_covered_scopes"
-				statusKey = "grounding_status"
-			}
-			return map[string]any{
-				"grounding_mode":   mode,
-				"grounding_status": firstNonEmptyText(payload[statusKey]),
-				"selected_scopes":  stringsToAny(stringSliceFromAny(payload[selectedKey])),
-				"covered_scopes":   stringsToAny(stringSliceFromAny(payload[coveredKey])),
-			}
-		}
-	}
-	return map[string]any{}
 }
 
 func projectedRAGAnswer(results []execution.StepResultProjection) string {
@@ -125,10 +90,7 @@ func projectedRAGRetrievedContexts(results []execution.StepResultProjection) ([]
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		for _, source := range projectedRAGSourcesFromPayload(payload) {
 			appendUniqueProjectionString(&contexts, firstNonEmptyText(source["snippet"]))
-			appendUniqueProjectionString(&contextIDs, firstNonEmptyText(
-				source["document_id"],
-				source["evidence_ref"],
-			))
+			appendUniqueProjectionString(&contextIDs, firstNonEmptyText(source["document_id"]))
 		}
 	}
 	return contexts, contextIDs
@@ -142,11 +104,7 @@ func projectedRAGSourceTitles(results []execution.StepResultProjection) []any {
 		}
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		for _, source := range projectedRAGSourcesFromPayload(payload) {
-			appendUniqueProjectionString(&values, firstNonEmptyText(
-				source["canonical_source_title"],
-				source["source_title"],
-				source["title"],
-			))
+			appendUniqueProjectionString(&values, firstNonEmptyText(source["title"]))
 		}
 	}
 	return stringsToAny(values)
@@ -162,20 +120,9 @@ func projectedRAGSourceRefs(results []execution.StepResultProjection) []any {
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		for _, source := range projectedRAGSourcesFromPayload(payload) {
 			ref := map[string]any{}
-			copyProjectionString(ref, source, "canonical_url", "canonical_url")
-			copyProjectionString(ref, source, "canonical_source_title", "canonical_source_title")
-			copyProjectionString(ref, source, "source_title", "source_title")
+			copyProjectionString(ref, source, "document_id", "document_id")
 			copyProjectionString(ref, source, "title", "title")
-			copyProjectionString(ref, source, "source_kind", "source_kind")
-			copyProjectionString(ref, source, "target_kind", "target_kind")
-			copyProjectionString(ref, source, "url", "url")
-			copyProjectionString(ref, source, "version_id", "version_id")
-			key := firstNonEmptyText(
-				ref["canonical_url"],
-				ref["url"],
-				ref["source_title"],
-				ref["title"],
-			)
+			key := firstNonEmptyText(ref["document_id"], ref["title"])
 			if key == "" {
 				continue
 			}
@@ -293,17 +240,4 @@ func mapListFromAny(value any) []map[string]any {
 		}
 	}
 	return items
-}
-
-func intFromProjection(value any) int {
-	switch typed := value.(type) {
-	case int:
-		return typed
-	case int64:
-		return int(typed)
-	case float64:
-		return int(typed)
-	default:
-		return 0
-	}
 }

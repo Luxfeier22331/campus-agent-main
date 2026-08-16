@@ -8,12 +8,7 @@ export {
 export {
 	type CollectionChunkProfile,
 	type CollectionChunkRuntimeDefaults,
-	type CollectionEmbeddingProfile,
-	type CollectionRuntimeProfile,
-	type CollectionSparseProfile,
 	parseCollectionChunkProfile,
-	parseCollectionRuntimeProfile,
-	type QdrantIndexBindingProfile,
 } from "./collection-profiles.ts";
 export * from "./core.ts";
 export {

@@ -37,7 +37,7 @@
 			"case_family": "evidence_coverage",
 			"split": "regression",
 			"question": "请分别核对学位条款、学校奖励原则和公共事务培养方案学分要求。",
-			"reference": "一次有界 grounding 应覆盖学生规则、学校制度和培养方案中的相关证据。",
+			"reference": "一次有界检索应覆盖学生规则、学校制度和培养方案中的相关证据。",
 			"reference_context_ids": [
 				"handbook:synthetic-degree-policy",
 				"institution:synthetic-awards-policy",

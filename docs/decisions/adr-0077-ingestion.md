@@ -23,7 +23,7 @@ status: accepted
   bucket 保存原文件和 `source.json`；
 - 文件发布不进入任务注册表或 PostgreSQL 投影，不创建父子 pipeline、物化阶段或离线发布流；
 - 长 Activity 使用心跳报告有界进度，取消必须传播到外部请求和产物写入；
-- 来源采集与知识发布分离，采集成功不会自动开放在线查询目标。
+- 来源采集与 Campus Docs 索引发布分离，采集成功不会自动生成 reader 或切换当前索引。
 
 source-collector 的本地通知同步命令不进入 Temporal；定期认证检查也由 Kubernetes CronJob 直接
 执行。
@@ -36,7 +36,8 @@ source-collector 的本地通知同步命令不进入 Temporal；定期认证检
 - 页面、附件和详细观测不会扩大 workflow history 或 PostgreSQL 投影；
 - 来源适配器和文件内核保持独立依赖与凭据边界；
 - 简单来源采集不需要为通用任务模型生成额外状态和持久化对象；
-- 在线发布必须经过独立的规范化、索引、release 和查询目标准入。
+- 注册任务产物不会自动进入在线检索；当前 Campus Docs publisher 只消费文档站已清洗的当前
+  reader，并通过完整新索引和当前指针独立激活。
 
 ## 未采用方案
 

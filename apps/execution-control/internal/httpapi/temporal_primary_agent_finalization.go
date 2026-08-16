@@ -98,7 +98,8 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		ctx,
 		run,
 		agentResult,
-		input.AgentResult.GroundingContext,
+		input.AdmissionSnapshot,
+		input.CampusDocsRetrieval,
 	)
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", "", err)
@@ -655,7 +656,8 @@ func (s *Server) primaryAgentFinalizedResponse(
 	ctx context.Context,
 	run execution.DurableRun,
 	agentResult map[string]any,
-	grounding groundingContext,
+	admission temporalruntime.AgentAdmissionSnapshot,
+	campusDocsRetrieval temporalruntime.CampusDocsRetrievalResult,
 	additionalStageTiming ...stageTimingDuration,
 ) (map[string]any, error) {
 	envelope := cloneAnyMapFromMetadata(agentResult["terminal_envelope"])
@@ -663,9 +665,8 @@ func (s *Server) primaryAgentFinalizedResponse(
 		return nil, fmt.Errorf("agent terminal_envelope is required")
 	}
 	evidenceClosure, err := s.primaryAgentEvidenceClosureForFinalization(
-		run,
-		agentResult,
-		grounding,
+		admission,
+		campusDocsRetrieval,
 		envelope,
 	)
 	if err != nil {
@@ -757,7 +758,7 @@ func primaryAgentTerminalReason(agentResult map[string]any) execution.DurableTer
 	case "out_of_scope", "policy_refusal":
 		return execution.DurableTerminalReasonPolicyRejected
 	case "unsupported_by_evidence":
-		return execution.DurableTerminalReasonNoAnswerGrounded
+		return execution.DurableTerminalReasonUnsupportedByEvidence
 	default:
 		return execution.DurableTerminalReasonAnswerCompleted
 	}

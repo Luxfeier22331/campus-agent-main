@@ -301,7 +301,6 @@ func TestReadyzOmitsNonCoreRuntimeDiagnostics(t *testing.T) {
 	}
 	body := decodeBody(t, response)
 	for _, key := range []string{
-		"document_evidence_runtime",
 		"personal_memory_runtime",
 		"provider_config_gate",
 		"telemetry_runtime",

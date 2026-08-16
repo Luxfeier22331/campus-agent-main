@@ -49,7 +49,6 @@ export {
 } from "../src/modules/runtime-command";
 export type { AppTelemetry } from "../src/modules/telemetry";
 
-export const PUBLIC_NOTICE_URL_ALLOWLIST = ["www.example.edu"];
 export const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
 export const CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program";
 export const CURRICULUM_SEMESTER_SLOT_NAME = "curriculum_semester";
@@ -119,12 +118,6 @@ function createAuthorization() {
 		ownershipScopes: ["conversation:user_01HQ"],
 		principalId: "user_01HQ",
 		projectionSource: "campus_identity" as const,
-		retrievalFilter: {
-			entitlementGroups: ["students"],
-			policyProjectionVersion: "phase1-authorization-projection-v1",
-			visibilityLevel: "public",
-			visibilityScope: "main",
-		},
 		visibilityScope: "main",
 	};
 }
@@ -662,13 +655,8 @@ function toolExecutionInputFromRunCreate(
 function internalContextFromWire(wire: Record<string, unknown>): ToolExecutionInput["context"] {
 	const actor = internalActorFromWire(getRecordOrThrow(wire.actor, "execution context actor"));
 	const authorizationWire = getRecordOrThrow(wire.authorization, "execution context authorization");
-	const retrievalFilterWire = getRecordOrThrow(
-		authorizationWire.retrieval_filter,
-		"execution context retrieval filter",
-	);
 	const memoryWire = getRecord(wire.memory);
 	const sessionWire = getRecordOrThrow(wire.session, "execution context session");
-	const selectedNoticeWire = getRecord(sessionWire.selected_notice_ref);
 	return {
 		actor,
 		authorization: {
@@ -679,12 +667,6 @@ function internalContextFromWire(wire: Record<string, unknown>): ToolExecutionIn
 			ownershipScopes: getStringArray(authorizationWire.ownership_scopes),
 			principalId: getString(authorizationWire.principal_id) ?? "",
 			projectionSource: authorizationProjectionSource(authorizationWire.projection_source),
-			retrievalFilter: {
-				entitlementGroups: getStringArray(retrievalFilterWire.entitlement_groups),
-				policyProjectionVersion: getString(retrievalFilterWire.policy_projection_version) ?? "",
-				visibilityLevel: getString(retrievalFilterWire.visibility_level) ?? "",
-				visibilityScope: getString(retrievalFilterWire.visibility_scope) ?? "",
-			},
 			visibilityScope: getString(authorizationWire.visibility_scope) ?? "",
 		},
 		...(typeof memoryWire?.recall_enabled === "boolean" &&
@@ -706,16 +688,6 @@ function internalContextFromWire(wire: Record<string, unknown>): ToolExecutionIn
 				name: getString(slot.name) ?? "",
 				value: getString(slot.value) ?? "",
 			})),
-			...(selectedNoticeWire
-				? {
-						selectedNoticeRef: {
-							noticeId: getString(selectedNoticeWire.notice_id) ?? "",
-							sourceFamily: getString(selectedNoticeWire.source_family) ?? "",
-							targetSurface: getString(selectedNoticeWire.target_surface) ?? "",
-							title: getString(selectedNoticeWire.title) ?? "",
-						},
-					}
-				: {}),
 			turnCount: typeof sessionWire.turn_count === "number" ? sessionWire.turn_count : 0,
 		},
 	};

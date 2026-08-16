@@ -159,18 +159,16 @@ describe("agent runtime HTTP handler", () => {
 	});
 
 	it("runs a primary agent turn with worker authorization", async () => {
-		let observedAllowUngroundedAnswer: unknown;
+		let observedCampusDocsEvidence: unknown;
 		let observedProvider: unknown;
-		let observedFinalModelContext: unknown;
-		let observedGroundingContext: unknown;
+		let observedConversationContext: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
 				async run(input) {
-					observedAllowUngroundedAnswer = input.allowUngroundedAnswer;
+					observedCampusDocsEvidence = input.campusDocsEvidence;
 					observedProvider = input.providerConfig;
-					observedFinalModelContext = input.finalModelContext;
-					observedGroundingContext = input.groundingContext;
+					observedConversationContext = input.conversationContext;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
 				},
 				stream(input) {
@@ -185,8 +183,9 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					final_model_context: {
-						schema_version: "final_model_context.v3",
+					campus_docs_evidence: validCampusDocsEvidence(),
+					conversation_context: {
+						schema_version: "agent_conversation_context.v1",
 						recent_turns: [
 							{
 								message_id: "msg_user_001",
@@ -203,15 +202,6 @@ describe("agent runtime HTTP handler", () => {
 							confirmed_slots: [
 								{ confirmed: true, name: "curriculum_program", value: "计算机科学与技术" },
 							],
-							selected_notice_ref: null,
-							turn_count: 2,
-						},
-						usage_summary: {
-							context_chars: 680,
-							current_input_chars: 6,
-							grounding_context_chars: 39,
-							model_visible_item_count: 3,
-							runtime_only_item_count: 0,
 						},
 					},
 					provider_config: validPromptProviderConfig(),
@@ -240,6 +230,11 @@ describe("agent runtime HTTP handler", () => {
 				model_request_count?: number;
 				usage_observed?: boolean;
 			};
+			context_usage?: {
+				context_chars?: number;
+				current_input_chars?: number;
+				model_visible_item_count?: number;
+			};
 		};
 		expect(body.final_output).toBe("我是校园问答助手。");
 		expect(body.model_name).toBe("gpt-5-mini");
@@ -263,14 +258,18 @@ describe("agent runtime HTTP handler", () => {
 			model_request_count: 1,
 			usage_observed: true,
 		});
+		expect(body.context_usage).toMatchObject({
+			context_chars: expect.any(Number),
+			current_input_chars: 6,
+			model_visible_item_count: 5,
+		});
 		expect(JSON.stringify(body)).not.toMatch(
 			/rawPrompt|rawAnswer|rawTranscript|rawProvider|providerPayload|rawSdk|sdkSpan|spanData|traceBody|modelInput|modelOutput/i,
 		);
 		expect(JSON.stringify(body)).not.toContain("用户偏好先给结论");
-		expect(observedAllowUngroundedAnswer).toBe(true);
 		expect(observedProvider).toEqual(validRuntimePromptProviderConfig());
-		expect(observedFinalModelContext).toMatchObject({
-			schemaVersion: "final_model_context.v3",
+		expect(observedConversationContext).toMatchObject({
+			schemaVersion: "agent_conversation_context.v1",
 			recentTurns: [
 				expect.objectContaining({ content: "转专业条件是什么？", role: "user" }),
 				expect.objectContaining({
@@ -282,18 +281,9 @@ describe("agent runtime HTTP handler", () => {
 				confirmedSlots: [
 					{ confirmed: true, name: "curriculum_program", value: "计算机科学与技术" },
 				],
-				selectedNoticeRef: null,
-				turnCount: 2,
-			},
-			usageSummary: {
-				contextChars: 680,
-				currentInputChars: 6,
-				groundingContextChars: 39,
-				modelVisibleItemCount: 3,
-				runtimeOnlyItemCount: 0,
 			},
 		});
-		expect(observedGroundingContext).toEqual(validRuntimeGroundingContext("run-1"));
+		expect(observedCampusDocsEvidence).toEqual(validRuntimeCampusDocsEvidence());
 	});
 
 	it("accepts chat-completions LLM settings at the HTTP boundary", async () => {
@@ -365,6 +355,11 @@ describe("agent runtime HTTP handler", () => {
 							data: {
 								status: "completed",
 								runId: input.runId,
+								contextUsage: {
+									contextChars: 48,
+									currentInputChars: 6,
+									modelVisibleItemCount: 1,
+								},
 								finalOutput: "国家奖学金每学年评审一次。",
 								modelName: input.providerConfig.model,
 								modelProvider: input.providerConfig.provider,
@@ -492,29 +487,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 	});
 
-	it("requires the frozen ungrounded-answer policy", async () => {
-		const handler = createAgentRuntimeHandler({
-			sharedSecret: "secret",
-			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
-		});
-		const body = validRunBody();
-		delete body.allow_ungrounded_answer;
-
-		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
-				method: "POST",
-				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify({ ...body, provider_config: validPromptProviderConfig() }),
-			}),
-		);
-
-		expect(response.status).toBe(400);
-		expect(await response.json()).toMatchObject({
-			error: { code: "invalid_request", retryable: false },
-		});
-	});
-
-	it("accepts a valid partial grounding context at the HTTP boundary", async () => {
+	it("accepts an admitted direct-answer request with empty Campus Docs evidence", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
@@ -526,7 +499,6 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					grounding_context: validPartialGroundingContext("run-1"),
 					provider_config: validPromptProviderConfig(),
 				}),
 			}),
@@ -535,13 +507,11 @@ describe("agent runtime HTTP handler", () => {
 		expect(response.status).toBe(200);
 	});
 
-	it("rejects a grounding context whose covered scopes do not match its evidence", async () => {
+	it("accepts minimal Campus Docs evidence at the HTTP boundary", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
 		});
-		const groundingContext = validPartialGroundingContext("run-1");
-		groundingContext.covered_scopes = ["curriculum"];
 
 		const response = await handler(
 			new Request("http://agent-runtime/internal/agent-runs", {
@@ -549,7 +519,34 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					grounding_context: groundingContext,
+					campus_docs_evidence: validCampusDocsEvidence(),
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+	});
+
+	it("rejects fields outside the minimal evidence contract", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
+		});
+		const campusDocsEvidence = validCampusDocsEvidence();
+		const [evidence] = campusDocsEvidence;
+		if (!evidence) {
+			throw new Error("Campus Docs evidence fixture has no evidence");
+		}
+		evidence.extra = "not allowed";
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					campus_docs_evidence: campusDocsEvidence,
 					provider_config: validPromptProviderConfig(),
 				}),
 			}),
@@ -586,7 +583,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 	});
 
-	it("rejects final model context above its wire character limit", async () => {
+	it("truncates oversized conversation history where model input is assembled", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
@@ -598,26 +595,26 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					final_model_context: {
-						schema_version: "final_model_context.v3",
+					conversation_context: {
+						schema_version: "agent_conversation_context.v1",
 						recent_turns: [{ role: "user", content: "很长的历史上下文".repeat(40) }],
-						usage_summary: {
-							context_chars: 400,
-							current_input_chars: 6,
-							grounding_context_chars: 39,
-							model_visible_item_count: 1,
-							runtime_only_item_count: 0,
-						},
 					},
-					limits: { ...validRuntimeLimits(), context_char_limit: 100 },
+					limits: { ...validRuntimeLimits(), context_char_limit: 200 },
 					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
 
-		expect(response.status).toBe(400);
+		expect(response.status).toBe(200);
 		expect(await response.json()).toMatchObject({
-			error: { code: "context_budget_exceeded", retryable: false },
+			context_usage: {
+				current_input_chars: 6,
+				model_visible_item_count: 2,
+				truncation_summary: {
+					dropped_category_counts: { recent_turns: 1 },
+					schema_version: "truncation_summary.v3",
+				},
+			},
 		});
 	});
 
@@ -632,6 +629,11 @@ describe("agent runtime HTTP handler", () => {
 					return {
 						status: "completed",
 						runId: input.runId,
+						contextUsage: {
+							contextChars: 48,
+							currentInputChars: 6,
+							modelVisibleItemCount: 1,
+						},
 						finalOutput: "ok",
 						modelName: "gpt-test",
 						modelProvider: "openai",
@@ -1004,7 +1006,6 @@ function waitForAbort(signal: AbortSignal | undefined): Promise<void> {
 function validRunBody(): Record<string, unknown> {
 	return {
 		activity_attempt: 1,
-		allow_ungrounded_answer: true,
 		user_id: "user-1",
 		request_id: "req-1",
 		run_id: "run-1",
@@ -1012,7 +1013,7 @@ function validRunBody(): Record<string, unknown> {
 		turn_id: "turn-1",
 		trace_id: "trace-1",
 		input: "hi 你是谁",
-		grounding_context: validGroundingContext("run-1"),
+		campus_docs_evidence: [],
 		visible_tool_names: ["test_lookup"],
 		expected_tool_runtime_fingerprint: wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
 		limits: validRuntimeLimits(),
@@ -1043,75 +1044,26 @@ function validRuntimeLimits(): Record<string, number> {
 	};
 }
 
-function validGroundingContext(runId: string): Record<string, unknown> {
-	return {
-		schema_version: "grounding_context.v2",
-		run_id: runId,
-		admission_sha256: `sha256:${"1".repeat(64)}`,
-		plan_sha256: "3".repeat(64),
-		query_sha256: `sha256:${"2".repeat(64)}`,
-		prepared_at: "2026-07-26T08:00:00.000Z",
-		mode: "none",
-		selected_scopes: [],
-		covered_scopes: [],
-		status: "not_required",
-		token_count: 0,
-		model_context_chars: 39,
-		evidence: [],
-	};
+function validCampusDocsEvidence(): Record<string, unknown>[] {
+	return [
+		{
+			evidence_ref: `evidence://${"4".repeat(64)}`,
+			document_title: "学生管理规定",
+			section_title: "缓考",
+			text: "缓考申请应符合规定条件。",
+		},
+	];
 }
 
-function validPartialGroundingContext(runId: string): Record<string, unknown> {
-	return {
-		schema_version: "grounding_context.v2",
-		run_id: runId,
-		admission_sha256: `sha256:${"1".repeat(64)}`,
-		plan_sha256: "3".repeat(64),
-		query_sha256: `sha256:${"2".repeat(64)}`,
-		prepared_at: "2026-07-26T08:00:00.000Z",
-		mode: "multi_scope",
-		selected_scopes: ["student_rules", "curriculum"],
-		covered_scopes: ["student_rules"],
-		status: "partial",
-		token_count: 3,
-		model_context_chars: 120,
-		evidence: [
-			{
-				evidence_ref: `evidence://${"4".repeat(64)}`,
-				document_scope: "student_rules",
-				release_id: "release-1",
-				chunk_id: "chunk-1",
-				section_ref: "section-ref-1",
-				document_id: "document-1",
-				section_id: "section-1",
-				document_title: "学生管理规定",
-				section_title: "缓考",
-				canonical_url: "https://example.edu/rules/student",
-				text: "缓考申请应符合规定条件。",
-				text_sha256: `sha256:${"5".repeat(64)}`,
-				token_count: 3,
-				rerank_score: 0.9,
-			},
-		],
-	};
-}
-
-function validRuntimeGroundingContext(runId: string): Record<string, unknown> {
-	return {
-		admissionSha256: `sha256:${"1".repeat(64)}`,
-		coveredScopes: [],
-		evidence: [],
-		mode: "none",
-		modelContextChars: 39,
-		planSha256: "3".repeat(64),
-		preparedAt: "2026-07-26T08:00:00.000Z",
-		querySha256: `sha256:${"2".repeat(64)}`,
-		runId,
-		schemaVersion: "grounding_context.v2",
-		selectedScopes: [],
-		status: "not_required",
-		tokenCount: 0,
-	};
+function validRuntimeCampusDocsEvidence(): Record<string, unknown>[] {
+	return [
+		{
+			evidenceRef: `evidence://${"4".repeat(64)}`,
+			documentTitle: "学生管理规定",
+			sectionTitle: "缓考",
+			text: "缓考申请应符合规定条件。",
+		},
+	];
 }
 
 function validPromptProviderConfig(): Record<string, unknown> {

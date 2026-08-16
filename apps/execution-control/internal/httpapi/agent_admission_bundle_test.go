@@ -27,11 +27,12 @@ func (resolver *countingProviderConfigResolver) ResolveActiveProviderConfig(
 
 func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.T) {
 	primary := primaryAgentProviderConfigSnapshotForTest()
+	index := campusDocsIndexForTest()
 	embedding := embeddingProviderConfigSnapshotForTest(
 		providerConfigKindEmbedding,
 		"https://embedding.example/v1",
-		"embedding-test",
-		2560,
+		index.EmbeddingModel,
+		index.EmbeddingDimensions,
 	)
 	resolver := &countingProviderConfigResolver{configs: map[providerConfigKind]providerConfigSnapshot{
 		providerConfigKindLLM:       primary,
@@ -40,29 +41,25 @@ func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
 	server.providerConfigResolver = resolver
 	server.providerConfigErr = nil
-	server.toolReadModel = knowledgeReadModelForTest()
+	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 
 	snapshot, err := server.buildAgentAdmissionSnapshot(
 		t.Context(),
 		true,
-		false,
-		groundingPlanForTest("学生请假手续", "student_rules"),
+		campusDocsQuerySHA256ForTest("学生请假手续"),
 	)
 	if err != nil {
 		t.Fatalf("build admission snapshot: %v", err)
 	}
-	if len(resolver.calls) != 2 || resolver.calls[0] != providerConfigKindLLM || resolver.calls[1] != providerConfigKindEmbedding {
-		t.Fatalf("provider setting calls = %#v, want llm then embedding", resolver.calls)
+	if len(resolver.calls) != 2 || resolver.calls[0] != providerConfigKindEmbedding || resolver.calls[1] != providerConfigKindLLM {
+		t.Fatalf("provider setting calls = %#v, want embedding then llm", resolver.calls)
 	}
 	if snapshot.ProviderConfigSHA256 != providerConfigAdmissionHash(primary) ||
-		snapshot.EmbeddingProviderConfigSHA256 != providerConfigAdmissionHash(embedding) {
+		snapshot.CampusDocsRetrieval.EmbeddingProviderConfigSHA256 != providerConfigAdmissionHash(embedding) {
 		t.Fatalf("provider admission hashes = %#v", snapshot)
 	}
 	if snapshot.ExecutionStrategy.MemoryRecall != "model_optional" {
 		t.Fatalf("execution strategy = %#v", snapshot.ExecutionStrategy)
-	}
-	if snapshot.ExecutionStrategy.AllowUngroundedAnswer {
-		t.Fatalf("grounded execution strategy allows ungrounded answers: %#v", snapshot.ExecutionStrategy)
 	}
 	snapshot.ExecutionStrategy.MaxToolCalls++
 	if err := validateAdmissionSnapshot(snapshot); err == nil {
@@ -70,42 +67,46 @@ func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.
 	}
 }
 
-func TestBuildAgentAdmissionSnapshotDirectRequestsLLMOnly(t *testing.T) {
+func TestBuildAgentAdmissionSnapshotAlwaysPinsRetrieval(t *testing.T) {
+	index := campusDocsIndexForTest()
+	embedding := embeddingProviderConfigSnapshotForTest(
+		providerConfigKindEmbedding,
+		"https://embedding.example/v1",
+		index.EmbeddingModel,
+		index.EmbeddingDimensions,
+	)
 	resolver := &countingProviderConfigResolver{configs: map[providerConfigKind]providerConfigSnapshot{
-		providerConfigKindLLM: primaryAgentProviderConfigSnapshotForTest(),
+		providerConfigKindLLM:       primaryAgentProviderConfigSnapshotForTest(),
+		providerConfigKindEmbedding: embedding,
 	}}
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
 	server.providerConfigResolver = resolver
+	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 
 	snapshot, err := server.buildAgentAdmissionSnapshot(
 		t.Context(),
 		false,
-		true,
-		groundingPlanForTest("你好"),
+		campusDocsQuerySHA256ForTest("你好"),
 	)
 	if err != nil {
 		t.Fatalf("build direct admission snapshot: %v", err)
 	}
-	if len(resolver.calls) != 1 || resolver.calls[0] != providerConfigKindLLM {
-		t.Fatalf("direct provider setting calls = %#v, want llm only", resolver.calls)
+	if len(resolver.calls) != 2 || resolver.calls[0] != providerConfigKindEmbedding || resolver.calls[1] != providerConfigKindLLM {
+		t.Fatalf("provider setting calls = %#v, want embedding then llm", resolver.calls)
 	}
-	if snapshot.EmbeddingProviderConfigSHA256 != "" {
-		t.Fatalf("direct admission pinned embedding setting: %#v", snapshot)
-	}
-	if !snapshot.ExecutionStrategy.AllowUngroundedAnswer {
-		t.Fatalf("direct execution strategy rejected an authorized ungrounded answer: %#v", snapshot)
+	if snapshot.CampusDocsRetrieval.QuerySHA256 == "" {
+		t.Fatalf("admission did not pin Campus docs retrieval: %#v", snapshot)
 	}
 }
 
 func TestBuildAgentAdmissionSnapshotRequiresProviderSettings(t *testing.T) {
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
-	server.toolReadModel = knowledgeReadModelForTest()
+	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 
 	if _, err := server.buildAgentAdmissionSnapshot(
 		t.Context(),
 		false,
-		true,
-		groundingPlanForTest("你好"),
+		campusDocsQuerySHA256ForTest("学生请假手续"),
 	); !errors.Is(err, errProviderConfigResolverNotConfigured) {
 		t.Fatalf("provider-less admission error = %v", err)
 	}

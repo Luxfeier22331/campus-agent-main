@@ -61,26 +61,20 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		t.Fatalf("upsert agent result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "grounding.prepare:result:1",
-		StepID:               "grounding.prepare",
+		ResultID:             "campus_docs.retrieve:result:1",
+		StepID:               "campus_docs.retrieve",
 		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "grounding.prepare", 1),
+		AttemptID:            temporalStepAttemptID(run.RunID, "campus_docs.retrieve", 1),
 		Status:               "completed",
-		ResultKind:           "grounding_context",
-		ProjectionRef:        "projection://runs/run-temporal-derived-eval/grounding/context",
+		ResultKind:           "campus_docs_retrieval",
+		ProjectionRef:        "projection://runs/run-temporal-derived-eval/campus-docs/retrieval",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
 			"activity_attempt": 1,
-			"covered_scopes":   []string{"student_rules"},
-			"evidence_count":   1,
-			"grounding_mode":   "single_scope",
-			"selected_scopes":  []string{"student_rules"},
-			"status":           "ready",
-			"token_count":      64,
 		},
 	}); err != nil {
-		t.Fatalf("upsert SDK tool result: %v", err)
+		t.Fatalf("upsert Campus Docs retrieval result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "finalization.write:result:1",
@@ -98,13 +92,16 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 				"result": map[string]any{
 					"sources": []any{
 						map[string]any{
-							"canonical_url": "https://example.edu/rules/scholarship",
 							"document_id":   "handbook:scholarship-policy",
+							"root_unit_ids": []any{"scholarship-eligibility"},
+							"section_ref":   "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility",
+							"section_title": "申请条件",
 							"snippet":       "国家奖学金评审需要满足学习成绩和综合测评要求。",
 							"source_body":   "must not leak",
-							"source_kind":   "regulation",
-							"source_title":  "本科生国家奖学金评审办法",
-							"target_kind":   "public_web_url",
+							"title":         "本科生国家奖学金评审办法",
+							"version_id":    "version-scholarship-2026",
+							"version_label": "2026 版",
+							"version_slug":  "2026-current",
 						},
 					},
 				},
@@ -136,10 +133,8 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	if rag["answer"] != "学习成绩、综合测评和奖励标准都需要满足。" {
 		t.Fatalf("rag.answer = %#v", rag["answer"])
 	}
-	if rag["grounding_mode"] != "single_scope" || rag["grounding_status"] != "ready" ||
-		!equalStringSlices(stringSliceFromAny(rag["selected_scopes"]), []string{"student_rules"}) ||
-		!equalStringSlices(stringSliceFromAny(rag["covered_scopes"]), []string{"student_rules"}) {
-		t.Fatalf("rag grounding route = %#v", rag)
+	if _, exists := evalProjection["campus_docs_retrieval"]; exists {
+		t.Fatalf("eval projection leaked retrieval internals: %#v", evalProjection)
 	}
 	contexts, _ := rag["retrieved_contexts"].([]any)
 	if len(contexts) != 1 || contexts[0] != "国家奖学金评审需要满足学习成绩和综合测评要求。" {
@@ -149,13 +144,22 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	if len(contextIDs) != 1 || contextIDs[0] != "handbook:scholarship-policy" {
 		t.Fatalf("rag.retrieved_context_ids = %#v", rag["retrieved_context_ids"])
 	}
+	sourceRefs, _ := rag["source_refs"].([]any)
+	if len(sourceRefs) != 1 {
+		t.Fatalf("rag.source_refs = %#v", rag["source_refs"])
+	}
+	sourceRef := expectRecord(t, sourceRefs[0], "agent_runtime_eval_projection.rag.source_refs[0]")
+	if sourceRef["document_id"] != "handbook:scholarship-policy" ||
+		sourceRef["title"] != "本科生国家奖学金评审办法" || len(sourceRef) != 2 {
+		t.Fatalf("rag.source_refs[0] = %#v", sourceRef)
+	}
 	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
 	toolSequence, _ := planning["tool_sequence"].([]any)
 	if len(toolSequence) != 0 {
-		t.Fatalf("grounding must not appear as a model tool: %#v", planning["tool_sequence"])
+		t.Fatalf("Campus Docs retrieval must not appear as a model tool: %#v", planning["tool_sequence"])
 	}
 	if steps, _ := planning["planned_steps"].([]any); len(steps) != 3 ||
-		steps[0] != "grounding.prepare" || steps[1] != "agent.primary" || steps[2] != "finalization.write" {
+		steps[0] != "campus_docs.retrieve" || steps[1] != "agent.primary" || steps[2] != "finalization.write" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 	memory := expectRecord(t, evalProjection["memory"], "agent_runtime_eval_projection.memory")
@@ -168,34 +172,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	}
 }
 
-func TestProjectedEvalDirectRouteDoesNotRequireGroundingStep(t *testing.T) {
-	results := []execution.StepResultProjection{
-		{
-			StepID: "agent.primary",
-			Status: "completed",
-			SanitizedPayload: map[string]any{
-				"grounding_mode":            "none",
-				"grounding_status":          "not_required",
-				"grounding_selected_scopes": []string{},
-				"grounding_covered_scopes":  []string{},
-			},
-		},
-		{StepID: "finalization.write", Status: "completed"},
-	}
-	planning := projectedPlanningForEval(results)
-	steps := stringSliceFromAny(planning["planned_steps"])
-	if !equalStringSlices(steps, []string{"agent.primary", "finalization.write"}) {
-		t.Fatalf("direct planned steps = %#v", steps)
-	}
-	rag := projectedRAGForEval(results)
-	if rag["grounding_mode"] != "none" || rag["grounding_status"] != "not_required" ||
-		len(stringSliceFromAny(rag["selected_scopes"])) != 0 ||
-		len(stringSliceFromAny(rag["covered_scopes"])) != 0 {
-		t.Fatalf("direct grounding projection = %#v", rag)
-	}
-}
-
-func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsGroundingOutOfToolTrajectory(t *testing.T) {
+func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsRetrievalOutOfToolTrajectory(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -244,23 +221,20 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsGroundingOutOfToolTraje
 		t.Fatalf("upsert agent result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "grounding.prepare:result:1",
-		StepID:               "grounding.prepare",
+		ResultID:             "campus_docs.retrieve:result:1",
+		StepID:               "campus_docs.retrieve",
 		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "grounding.prepare", 1),
+		AttemptID:            temporalStepAttemptID(run.RunID, "campus_docs.retrieve", 1),
 		Status:               "completed",
-		ResultKind:           "grounding_context",
-		ProjectionRef:        "projection://runs/run-temporal-derived-history-eval/grounding/context",
+		ResultKind:           "campus_docs_retrieval",
+		ProjectionRef:        "projection://runs/run-temporal-derived-history-eval/campus-docs/retrieval",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
 			"activity_attempt": 1,
-			"evidence_count":   1,
-			"status":           "ready",
-			"token_count":      32,
 		},
 	}); err != nil {
-		t.Fatalf("upsert grounding result: %v", err)
+		t.Fatalf("upsert Campus Docs retrieval result: %v", err)
 	}
 
 	response := httptest.NewRecorder()
@@ -281,10 +255,10 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsGroundingOutOfToolTraje
 	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
 	toolSequence, _ := planning["tool_sequence"].([]any)
 	if len(toolSequence) != 0 {
-		t.Fatalf("grounding must not appear as a model tool: %#v", planning["tool_sequence"])
+		t.Fatalf("Campus Docs retrieval must not appear as a model tool: %#v", planning["tool_sequence"])
 	}
 	steps, _ := planning["planned_steps"].([]any)
-	if len(steps) != 2 || steps[0] != "grounding.prepare" || steps[1] != "agent.primary" {
+	if len(steps) != 2 || steps[0] != "campus_docs.retrieve" || steps[1] != "agent.primary" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 }

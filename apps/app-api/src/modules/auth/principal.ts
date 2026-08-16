@@ -35,13 +35,6 @@ export interface ExecutionActorContext {
 	program?: string;
 }
 
-export interface ExecutionAuthorizationRetrievalFilter {
-	entitlementGroups: string[];
-	policyProjectionVersion: string;
-	visibilityLevel: string;
-	visibilityScope: string | null;
-}
-
 export interface ExecutionAuthorizationContext {
 	principalId: string;
 	projectionSource: AuthorizationProjectionSource;
@@ -51,7 +44,6 @@ export interface ExecutionAuthorizationContext {
 	applicabilityScope?: string;
 	ownershipScopes: string[];
 	approvalState: string;
-	retrievalFilter: ExecutionAuthorizationRetrievalFilter;
 }
 
 export interface ResolvedAppPrincipal {
@@ -85,11 +77,9 @@ export interface CampusIdentityClaimsInput {
 	entitlementSnapshotId?: string;
 	ownershipScopes?: string[];
 	principalType?: Exclude<AppPrincipalType, "service">;
-	visibilityLevel?: string;
 	visibilityScope?: string | null;
 }
 
-const DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1";
 const ALLOWED_END_USER_PRINCIPAL_TYPES = new Set<AppPrincipalType>([
 	"campus_member",
 	"student",
@@ -184,12 +174,6 @@ export function buildExecutionAuthorizationContext(
 		visibilityScope: null,
 		ownershipScopes: [],
 		approvalState: "",
-		retrievalFilter: {
-			entitlementGroups,
-			policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
-			visibilityLevel: "public",
-			visibilityScope: null,
-		},
 	};
 }
 
@@ -199,7 +183,6 @@ function buildCampusAuthorizationContext(input: {
 	entitlementGroups: string[];
 	entitlementSnapshotId: string;
 	ownershipScopes?: string[];
-	visibilityLevel?: string;
 	visibilityScope: string | null;
 }): ExecutionAuthorizationContext {
 	const entitlementGroups = mergeEntitlementGroups(
@@ -215,12 +198,6 @@ function buildCampusAuthorizationContext(input: {
 		...(input.applicabilityScope ? { applicabilityScope: input.applicabilityScope } : {}),
 		ownershipScopes: input.ownershipScopes ?? [],
 		approvalState: "",
-		retrievalFilter: {
-			entitlementGroups,
-			policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
-			visibilityLevel: input.visibilityLevel?.trim() || "public",
-			visibilityScope: input.visibilityScope,
-		},
 	};
 }
 
@@ -334,9 +311,6 @@ export function mapSessionToAppPrincipal(
 			entitlementGroups,
 			entitlementSnapshotId,
 			ownershipScopes,
-			...(campusIdentity.visibilityLevel
-				? { visibilityLevel: campusIdentity.visibilityLevel }
-				: {}),
 			visibilityScope,
 		}),
 	};

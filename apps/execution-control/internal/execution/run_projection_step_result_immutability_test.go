@@ -35,7 +35,7 @@ func TestInMemoryStepResultProjectionReplaysExactFirstWrite(t *testing.T) {
 	}
 	assertStepResultProjectionForImmutabilityTest(t, replayed, want)
 	canonicalReplay := stepResultProjectionForImmutabilityTest("run-step-result-replay", now.Add(time.Second))
-	canonicalReplay.SanitizedPayload["labels"] = []any{"grounded", "memory"}
+	canonicalReplay.SanitizedPayload["labels"] = []any{"evidence_based", "memory"}
 	canonicalReplay.SanitizedPayload["metadata"] = map[string]any{"source": "agent"}
 	canonicalReplay.SanitizedPayload["observed_at"] = now.Add(time.Second).Format(time.RFC3339Nano)
 	canonicalReplay.SanitizedPayload["structured"] = map[string]any{
@@ -289,7 +289,7 @@ func stepResultProjectionForImmutabilityTest(runID string, createdAt time.Time) 
 		SanitizedPayload: map[string]any{
 			"citations":     []any{"doc-1", "doc-2"},
 			"large_counter": int64(9007199254740993),
-			"labels":        []string{"grounded", "memory"},
+			"labels":        []string{"evidence_based", "memory"},
 			"metadata":      map[string]string{"source": "agent"},
 			"observed_at":   createdAt,
 			"outcome":       "answer",

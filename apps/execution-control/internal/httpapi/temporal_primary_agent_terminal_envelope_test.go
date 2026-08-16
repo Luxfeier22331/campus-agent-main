@@ -333,37 +333,17 @@ func preparePrimaryAgentFinalizationRunForTest(
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
-	plan := groundingPlanForTest("finalization:" + runID)
 	snapshot := temporalruntime.AgentAdmissionSnapshot{
-		ExecutionStrategy: temporalruntime.ExecutionStrategySnapshot{
-			AllowUngroundedAnswer: true,
+		CampusDocsRetrieval: temporalruntime.CampusDocsRetrievalAdmission{
+			EmbeddingProviderConfigSHA256: strings.Repeat("a", 64),
+			Index:                         *campusDocsTargetForHTTPTest(),
+			QuerySHA256:                   "sha256:" + strings.Repeat("b", 64),
 		},
-		GroundingPlan: plan,
 	}
-	snapshot.GroundingPlanSHA256 = hashAdmissionJSON(plan)
-	grounding := groundingContext{
-		AdmissionSHA256: sha256JSONRef(snapshot),
-		CoveredScopes:   []string{},
-		Evidence:        []groundingEvidence{},
-		Mode:            plan.Mode,
-		PlanSHA256:      snapshot.GroundingPlanSHA256,
-		PreparedAt:      now.UTC().Truncate(time.Microsecond),
-		QuerySHA256:     plan.QuerySHA256,
-		RunID:           runID,
-		SchemaVersion:   groundingContextSchemaVersion,
-		SelectedScopes:  []string{},
-		Status:          "not_required",
-		TokenCount:      0,
-	}
-	grounding.ModelContextChars = groundingModelContextCharacterCount(
-		grounding.Status,
-		grounding.Evidence,
-	)
 	usageObserved, _ := nestedAny(agentMetadata, "usage", "usage_observed").(bool)
 	output := temporalruntime.ExecutePrimaryAgentActivityOutput{
 		AgentResultRef:     strings.TrimSpace(stringValue(agentMetadata["agent_result_ref"])),
 		FinalOutput:        strings.TrimSpace(stringValue(agentMetadata["final_output"])),
-		GroundingContext:   grounding,
 		ModelName:          firstNonEmptyText(stringValue(agentMetadata["model_name"]), "gpt-4.1"),
 		ModelProvider:      firstNonEmptyText(stringValue(agentMetadata["model_provider"]), "openai"),
 		PromptTrace:        cloneAnyMapFromMetadata(agentMetadata["prompt_trace"]),
@@ -418,8 +398,11 @@ func preparePrimaryAgentFinalizationRunForTest(
 	return temporalruntime.WriteFinalizationActivityInput{
 		AdmissionSnapshot: snapshot,
 		AgentResult:       output,
-		FinalizedAt:       now.Add(4 * time.Second),
-		RunID:             runID,
-		TraceID:           run.TraceID,
+		CampusDocsRetrieval: temporalruntime.CampusDocsRetrievalResult{
+			Evidence: []temporalruntime.CampusDocsEvidence{},
+		},
+		FinalizedAt: now.Add(4 * time.Second),
+		RunID:       runID,
+		TraceID:     run.TraceID,
 	}
 }

@@ -46,11 +46,7 @@ func TestCallAgentRuntimeDoesNotFollowRedirect(t *testing.T) {
 		"private prompt",
 		providerConfigSnapshot{APIKey: "provider-secret"},
 		nil,
-		groundingContext{
-			SchemaVersion: groundingContextSchemaVersion,
-			RunID:         run.RunID,
-			Status:        "empty",
-		},
+		temporalruntime.CampusDocsRetrievalResult{Evidence: []temporalruntime.CampusDocsEvidence{}},
 		server.primaryAgentRuntimeLimits(),
 		1,
 	)

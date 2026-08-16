@@ -5,6 +5,7 @@ resources:
   - database-config.yaml
   - database-roles.yaml
   - network-policy.yaml
+  - campus-docs-index-publisher.yaml
   - app-api-schema-job.yaml
   - run-projection-schema-job.yaml
   - availability.yaml

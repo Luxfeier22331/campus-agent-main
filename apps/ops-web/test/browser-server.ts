@@ -530,7 +530,15 @@ function initialDiningDraft(): DiningMapDraft {
 
 function fixtureProviderConfigClient() {
 	let counter = 1;
+	const embeddingRequirement: NonNullable<ExecutionModelSettingsStatus["embeddingRequirement"]> = {
+		dimensions: 2560,
+		embeddingSpaceId: "qwen3-embedding-4b-test-v1",
+		model: "Qwen3-Embedding-4B",
+		provider: "openai-compatible",
+		transport: "embeddings",
+	};
 	const status: ExecutionModelSettingsStatus = {
+		embeddingRequirement,
 		etag: "etag-1",
 		sampledAt: new Date().toISOString(),
 		settings: {
@@ -539,6 +547,7 @@ function fixtureProviderConfigClient() {
 				credentialConfigured: true,
 				credentialLast4: "demo",
 				dimensions: 2560,
+				embeddingSpaceId: "qwen3-embedding-4b-test-v1",
 				kind: "embedding",
 				latestValidation: {
 					message: "Embedding validation passed.",
@@ -590,23 +599,28 @@ function fixtureProviderConfigClient() {
 				baseUrl: String(body.baseUrl),
 				credentialConfigured: true,
 				credentialLast4: String(body.apiKey || current?.credentialLast4 || "").slice(-4),
-				...(kind === "embedding" ? { dimensions: 2560 } : {}),
+				...(kind === "embedding"
+					? {
+							dimensions: embeddingRequirement.dimensions,
+							embeddingSpaceId: embeddingRequirement.embeddingSpaceId,
+						}
+					: {}),
 				kind,
 				latestValidation: {
 					message: "Validation passed.",
-					...(kind === "embedding" ? { observedDimensions: 2560 } : {}),
+					...(kind === "embedding" ? { observedDimensions: embeddingRequirement.dimensions } : {}),
 					status: "passed",
 					validatedAt: new Date().toISOString(),
 					validatedBy: "ops@example.test",
 				},
-				model: kind === "embedding" ? "Qwen3-Embedding-4B" : String(body.model),
+				model: kind === "embedding" ? embeddingRequirement.model : String(body.model),
 				provider:
 					kind === "embedding"
-						? "openai-compatible"
+						? embeddingRequirement.provider
 						: (body.provider as "openai" | "openai-compatible"),
 				transport:
 					kind === "embedding"
-						? "embeddings"
+						? embeddingRequirement.transport
 						: (body.transport as "responses" | "chat_completions"),
 				updatedAt: new Date().toISOString(),
 				updatedBy: "ops@example.test",

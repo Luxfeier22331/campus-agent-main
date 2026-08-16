@@ -24,12 +24,6 @@ function createPrincipal(): ResolvedAppPrincipal {
 			ownershipScopes: [],
 			principalId: "principal_01HQ",
 			projectionSource: "campus_identity",
-			retrievalFilter: {
-				entitlementGroups: ["students"],
-				policyProjectionVersion: "phase1-authorization-projection-v1",
-				visibilityLevel: "public",
-				visibilityScope: "main",
-			},
 			visibilityScope: "main",
 		},
 		permissions: {

@@ -166,6 +166,67 @@ describe("native docs data source", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("uses the current version permalink bootstrap while preserving the canonical URL", async () => {
+		window.history.replaceState(
+			null,
+			"",
+			"/docs/regulations/student_rules/student-attendance/v/2026-current",
+		);
+		const route = createDocumentBootstrap();
+		appendRouteBootstrap(route);
+		const fetchMock = vi.spyOn(globalThis, "fetch");
+
+		await expect(
+			createBrowserDocsDataSource().loadDocument({
+				collection: "student_rules",
+				corpus: "regulations",
+				routeSlug: "student-attendance",
+				versionSlug: "2026-current",
+			}),
+		).resolves.toEqual(route);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("resolves the current version permalink from the site index", async () => {
+		window.history.replaceState(
+			null,
+			"",
+			"/docs/regulations/student_rules/student-attendance/v/2026-current",
+		);
+		const requests: string[] = [];
+		vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+			const url = String(input);
+			requests.push(url);
+			if (url === "/_docs/site-index.json") {
+				return jsonResponse(createSiteIndex());
+			}
+			if (url === "/_docs/student-attendance/reader.json") {
+				return jsonResponse({
+					docId: "doc-public",
+					elements: [],
+					schemaVersion: "campus_docs_reader.v3",
+					supplements: [],
+					versionId: "version-public",
+				});
+			}
+			return new Response(null, { status: 404 });
+		});
+
+		await expect(
+			createBrowserDocsDataSource().loadDocument({
+				collection: "student_rules",
+				corpus: "regulations",
+				routeSlug: "student-attendance",
+				versionSlug: "2026-current",
+			}),
+		).resolves.toMatchObject({
+			canonicalUrl: "/docs/regulations/student_rules/student-attendance",
+			isCurrent: true,
+			versionSlug: "2026-current",
+		});
+		expect(requests).toEqual(["/_docs/site-index.json", "/_docs/student-attendance/reader.json"]);
+	});
+
 	it("uses the root directory bootstrap without making a network request", async () => {
 		window.history.replaceState(null, "", "/docs");
 		const bootstrap = {

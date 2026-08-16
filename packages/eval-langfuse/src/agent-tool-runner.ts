@@ -256,7 +256,7 @@ function ragRagasSample(input: {
 	projection: ExecutionRunEvalProjection;
 	terminal: TerminalAnswer;
 }): JsonObject | null {
-	if (input.projection.retrievedContexts.length === 0) {
+	if (!expectsRetrievedContext(input.item) || input.projection.retrievedContexts.length === 0) {
 		return null;
 	}
 	return {
@@ -301,16 +301,16 @@ function deterministicScores(input: {
 			}),
 		);
 	}
-	if (input.item.expected_grounding_mode) {
+	if (expectsRetrievedContext(input.item)) {
 		scores.push(
 			booleanScore({
 				caseItem: input.item,
 				datasetRunId: input.datasetRunId,
-				evalKind: "routing",
+				evalKind: "retrieval",
 				evalRunId: input.evalRunId,
 				langfuseTraceId: input.langfuseTraceId,
-				name: "routing.grounding_mode_match",
-				passed: input.projection.groundingMode === input.item.expected_grounding_mode,
+				name: "retrieval.context_present",
+				passed: input.projection.retrievedContexts.length > 0,
 			}),
 		);
 	}
@@ -330,6 +330,10 @@ function deterministicScores(input: {
 		);
 	}
 	return scores;
+}
+
+function expectsRetrievedContext(item: AgentToolEvalCase): boolean {
+	return item.reference_context_ids.length > 0 || item.reference_contexts.length > 0;
 }
 
 function booleanScore(input: {

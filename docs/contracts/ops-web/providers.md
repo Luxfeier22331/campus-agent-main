@@ -21,13 +21,18 @@ namespace、Secret、Deployment 或内部服务地址。
 - `PUT /api/ops/model-settings/execution/:kind`
 - `POST /api/ops/model-settings/execution/:kind/validate`
 
-`kind` 只允许 `llm` 或 `embedding`。读取结果包含当前值、最后验证结果、更新时间和不透明 `etag`，
-不返回 API key、密文或 nonce。写入使用 `If-Match` 携带最近读取的 `etag`；配置已变化时返回
-`409`，页面刷新后由操作者重新保存，不静默覆盖。
+`kind` 只允许 `llm` 或 `embedding`。读取结果包含当前值、最后验证结果、更新时间、不透明 `etag`，
+以及从 Campus Docs 当前索引绑定派生的可空 `embeddingRequirement`；不返回 API key、密文或
+nonce。写入使用 `If-Match` 携带最近读取的 `etag`；配置已变化时返回 `409`，页面刷新后由操作者
+重新保存，不静默覆盖。
 
 LLM 可设置 provider、Base URL、API key、model 和 transport。transport 只允许 `responses`
-或 `chat_completions`。Embedding 固定为 `Qwen3-Embedding-4B`、2560 维和 `embeddings`
-transport，页面只允许维护兼容 endpoint 和 API key。
+或 `chat_completions`。Embedding 的 `embeddingSpaceId`、provider、model 和 dimensions 必须等于
+`embeddingRequirement`，transport 固定为 `embeddings`；页面显示这些只读字段，保存请求显式提交
+space ID，execution-control 再与当前索引绑定核对。页面只允许维护兼容 Base URL 和 API key。没有
+当前索引时
+`embeddingRequirement=null`，页面禁用 Embedding 编辑、保存和重新验证，Embedding PUT 返回
+`409 campus_docs_index_unavailable`；LLM 设置仍可读取和修改。
 
 模型发现只支持 LLM。浏览器提交 provider、Base URL 和可选 API key；首次配置必须提供 API key，
 已有 LLM 配置时空值表示复用服务端已保存的密钥。execution-control 请求该供应商 Base URL 下的
@@ -43,6 +48,6 @@ transport，页面只允许维护兼容 endpoint 和 API key。
 所有写请求必须来自配置的同源页面并通过人员准入。错误响应只包含稳定 Ops Web 错误码和脱敏信息；
 不得透传供应商正文或凭据。读取失败必须保留失败状态，不能伪装成未配置。
 
-页面将 Base URL、API key 和模型作为核心字段；provider 和 transport 放在高级设置。固定模型、
-维度和接口以只读事实展示。API key 留空表示保留现值，页面只展示是否配置和末四位。存在未保存
-修改时，切换页面必须由操作者确认。
+页面将 Base URL、API key 和 LLM 模型作为核心字段；LLM provider 和 transport 放在高级设置。
+Embedding 固定身份以 `embeddingRequirement` 的只读事实展示。API key 留空表示保留现值，页面只
+展示是否配置和末四位。存在未保存修改时，切换页面必须由操作者确认。

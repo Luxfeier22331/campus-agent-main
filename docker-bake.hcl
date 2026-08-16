@@ -10,6 +10,7 @@ group "default" {
   targets = [
     "agent-runtime",
     "app-api-schema",
+    "campus-docs-index-publisher",
     "execution-control",
     "ingestion-control",
     "ingestion-control-worker",
@@ -36,6 +37,11 @@ target "agent-runtime" {
 target "app-api-schema" {
   inherits   = ["_common"]
   dockerfile = "jobs/app-api-schema/Dockerfile"
+}
+
+target "campus-docs-index-publisher" {
+  inherits   = ["_common"]
+  dockerfile = "jobs/campus-docs-index-publisher/Dockerfile"
 }
 
 target "execution-control" {

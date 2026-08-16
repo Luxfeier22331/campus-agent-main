@@ -93,13 +93,6 @@ func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.Ru
 	}
 }
 
-func publicRetrievalFilterForTest() map[string]any {
-	return map[string]any{
-		"policy_projection_version": "phase1-authorization-projection-v1",
-		"visibility_level":          "public",
-	}
-}
-
 func v3ExecutionMetadataForHTTPTest(runID, _ string) map[string]any {
 	return map[string]any{
 		"execution_contract_version": contracts.ExecutionContractVersion,
@@ -179,10 +172,8 @@ func durableRunCreateBodyWithToolForTest(
 		"学生请假手续是什么？",
 		"",
 		map[string]any{
-			"actor": map[string]any{"user_id": "user-executor"},
-			"authorization": map[string]any{
-				"retrieval_filter": publicRetrievalFilterForTest(),
-			},
+			"actor":         map[string]any{"user_id": "user-executor"},
+			"authorization": map[string]any{"entitlement_groups": []string{"students"}},
 		},
 	)
 	encodedWire, err := json.Marshal(wire)
@@ -245,10 +236,8 @@ func createHTTPAPIQueuedDurableRunForTest(
 		"conversation_id":            conversationID,
 		"trace":                      map[string]any{"trace_id": "trace-executor-001"},
 		"context": map[string]any{
-			"actor": map[string]any{"user_id": "user-executor"},
-			"authorization": map[string]any{
-				"retrieval_filter": publicRetrievalFilterForTest(),
-			},
+			"actor":         map[string]any{"user_id": "user-executor"},
+			"authorization": map[string]any{"entitlement_groups": []string{"students"}},
 			"conversation": map[string]any{
 				"current_user_message": map[string]any{
 					"created_at": now.UTC().Format(time.RFC3339),

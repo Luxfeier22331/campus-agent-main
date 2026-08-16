@@ -374,7 +374,7 @@ func buildAgentRuntimeEvalProjection(
 ) map[string]any {
 	results, attempts = successfulPrimaryAgentActivityProjections(steps, results, attempts)
 	toolCalls := projectedPublicToolCalls(results, attempts)
-	return map[string]any{
+	projection := map[string]any{
 		"schema_version": "agent_runtime_eval_projection.v3",
 		"run": map[string]any{
 			"run_id":            run.RunID,
@@ -394,6 +394,7 @@ func buildAgentRuntimeEvalProjection(
 		"rag":             projectedRAGForEval(results),
 		"memory":          projectedMemoryForEval(results),
 	}
+	return projection
 }
 
 func successfulPrimaryAgentActivityProjections(

@@ -2,7 +2,7 @@ package temporalruntime
 
 const (
 	AppendConversationMemoryActivityName             = "AppendConversationMemoryActivity"
-	PrepareGroundingContextActivityName              = "PrepareGroundingContextActivity"
+	RetrieveCampusDocsEvidenceActivityName           = "RetrieveCampusDocsEvidenceActivity"
 	ExecutePrimaryAgentActivityName                  = "ExecutePrimaryAgentActivity"
 	WriteFinalizationActivityName                    = "WriteFinalizationActivity"
 	FinalizeExecutionCancellationActivityName        = "FinalizeExecutionCancellationActivity"

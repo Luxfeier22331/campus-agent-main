@@ -4,6 +4,13 @@ import { OpsWebApp } from "../src/app/ops-web-app";
 import type { ExecutionModelSettingsStatus } from "../src/shared/ops-contract";
 
 const executionStatus: ExecutionModelSettingsStatus = {
+	embeddingRequirement: {
+		dimensions: 2560,
+		embeddingSpaceId: "qwen3-embedding-4b-test-v1",
+		model: "Qwen3-Embedding-4B",
+		provider: "openai-compatible",
+		transport: "embeddings",
+	},
 	etag: "etag-1",
 	sampledAt: "2026-07-21T01:00:00.000Z",
 	settings: {
@@ -12,6 +19,7 @@ const executionStatus: ExecutionModelSettingsStatus = {
 			credentialConfigured: true,
 			credentialLast4: "demo",
 			dimensions: 2560,
+			embeddingSpaceId: "qwen3-embedding-4b-test-v1",
 			kind: "embedding",
 			latestValidation: null,
 			model: "Qwen3-Embedding-4B",
@@ -45,6 +53,7 @@ describe("model settings page", () => {
 
 		expect(await screen.findByRole("heading", { name: "模型配置" })).toBeInTheDocument();
 		expect(await screen.findByText("Qwen3-Embedding-4B", { exact: true })).toBeInTheDocument();
+		expect(screen.getByText("qwen3-embedding-4b-test-v1")).toBeInTheDocument();
 		expect(screen.queryByDisplayValue("Qwen3-Embedding-4B")).not.toBeInTheDocument();
 		for (const button of screen.getAllByRole("button", { name: "保存并验证" })) {
 			expect(button).toBeDisabled();
@@ -53,6 +62,25 @@ describe("model settings page", () => {
 
 		expect(screen.getByText("高级设置")).toBeInTheDocument();
 		expect(screen.queryByLabelText("请求超时（秒）")).not.toBeInTheDocument();
+	});
+
+	it("disables Embedding configuration until a current Campus Docs index exists", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({ ...executionStatus, embeddingRequirement: null })),
+		);
+		render(<OpsWebApp initialPath="/providers" />);
+
+		expect(
+			await screen.findByText("尚未发布 Campus Docs 当前索引，Embedding 配置暂不可编辑。"),
+		).toBeInTheDocument();
+		expect(screen.getByDisplayValue("https://embedding.example.test/v1")).toBeDisabled();
+		expect(screen.getByLabelText("Embedding API Key")).toBeDisabled();
+		expect(screen.getByDisplayValue("https://provider.example.test/v1")).toBeEnabled();
+		const saveButtons = screen.getAllByRole("button", { name: "保存并验证" });
+		const validationButtons = screen.getAllByRole("button", { name: "重新验证" });
+		expect(saveButtons[1]).toBeDisabled();
+		expect(validationButtons[1]).toBeDisabled();
 	});
 
 	it("marks invalid fields, focuses the first error, and can discard edits", async () => {

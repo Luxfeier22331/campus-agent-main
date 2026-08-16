@@ -11,6 +11,7 @@ const SOURCE_REPOSITORY = "MUC-WIKI/campus-agent";
 const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["agent-runtime", ["agent-runtime"]],
 	["app-api-schema", ["app-api-schema"]],
+	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
 	["execution-control", ["execution-control"]],
 	["ops-web", ["ops-web"]],
 ]);
@@ -18,6 +19,7 @@ const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["apps/execution-control/Dockerfile", ["execution-control"]],
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
+	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
 ]);
 const WORKER_PACKAGES = new Map<string, string>([
 	["app-api-staging", "app-api"],
@@ -142,6 +144,19 @@ export async function planCandidates(
 		images.add("app-api-schema");
 	}
 	if (
+		sharedNodeRelease ||
+		changesPath(files, "jobs/campus-docs-index-publisher") ||
+		changesPath(files, "apps/campus-web/src/docs-reader-build") ||
+		files.some((file) =>
+			[
+				"packages/contracts/schemas/campus-docs-reader.v3.schema.json",
+				"packages/contracts/schemas/campus-docs-source.v3.schema.json",
+			].includes(file),
+		)
+	) {
+		images.add("campus-docs-index-publisher");
+	}
+	if (
 		files.some(
 			(file) =>
 				file.startsWith("apps/execution-control/") &&
@@ -151,7 +166,6 @@ export async function planCandidates(
 		files.some((file) =>
 			[
 				"configs/ingestion/",
-				"configs/runtime/query-serving-targets.v3.json",
 				"configs/runtime/tool-function-schemas.v3.json",
 				"configs/runtime/tools.v6.json",
 				"packages/contracts/fixtures/tool_execution_contract/",

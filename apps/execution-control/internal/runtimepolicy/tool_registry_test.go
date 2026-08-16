@@ -33,6 +33,9 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 			exposure: "model_visible",
 		},
 	}
+	if len(registry.Tools) != len(wantTools) {
+		t.Fatalf("registered tools = %d, want %d", len(registry.Tools), len(wantTools))
+	}
 	for name, expected := range wantTools {
 		tool, ok := registry.ToolByName(name)
 		if !ok {
@@ -44,14 +47,6 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 		if tool.Handler.Type != "execution_control_internal_query" ||
 			tool.Handler.Target != "" || tool.Handler.Endpoint != expected.endpoint {
 			t.Fatalf("registered tool %s handler = %#v", name, tool.Handler)
-		}
-	}
-	if _, ok := registry.ToolByName("retrieval.query"); ok {
-		t.Fatal("retrieval.query must not be registered as a tool")
-	}
-	for _, retired := range []string{"curriculum_lookup", "retrieve_document_evidence", "read_document_section"} {
-		if _, ok := registry.ToolByName(retired); ok {
-			t.Fatalf("retired knowledge tool %s must not be registered", retired)
 		}
 	}
 }

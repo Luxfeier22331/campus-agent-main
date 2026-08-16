@@ -18,6 +18,9 @@ apps/app-api/.env
 apps/app-api/.dev.vars
 !apps/campus-web/
 !apps/campus-web/package.json
+!apps/campus-web/src/
+!apps/campus-web/src/docs-reader-build/
+!apps/campus-web/src/docs-reader-build/**
 !apps/execution-control/
 !apps/execution-control/**
 !apps/ingestion-control/
@@ -26,6 +29,8 @@ apps/app-api/.dev.vars
 !apps/ops-web/**
 !jobs/app-api-schema/
 !jobs/app-api-schema/**
+!jobs/campus-docs-index-publisher/
+!jobs/campus-docs-index-publisher/**
 !packages/domains/
 !packages/domains/**
 !configs/ingestion/
@@ -33,7 +38,7 @@ apps/app-api/.dev.vars
 !configs/runtime/
 !configs/runtime/provider-pricing.v1.json
 !configs/runtime/latency-budgets.v1.json
-!configs/runtime/query-serving-targets.v3.json
+!configs/runtime/campus-docs-indexing-profile.v1.json
 !configs/runtime/tool-function-schemas.v3.json
 !configs/runtime/tools.v6.json
 !configs/runtime/workflow-artifacts.v3.json

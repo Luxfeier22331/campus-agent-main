@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -19,7 +20,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 type Server struct {
@@ -27,7 +27,7 @@ type Server struct {
 	admission                 *admission.Controller
 	lifecycle                 *lifecycle.Registry
 	logger                    *slog.Logger
-	toolReadModel             *toolreadmodel.Runtime
+	campusDocsIndexStore      campusdocs.IndexStore
 	runProjectionStore        execution.RunProjectionStore
 	runProjectionStoreErr     error
 	executionInputLoader      ExecutionInputLoader
@@ -38,10 +38,8 @@ type Server struct {
 	personalMemoryStateErr    error
 	langfuseTraceStore        langfuseTraceMaintenance
 	langfuseTraceErr          error
-	documentEvidenceExecutor  documentEvidenceExecutor
-	documentEvidenceErr       error
-	groundingExecutor         groundingExecutor
-	groundingErr              error
+	campusDocsRetriever       campusDocsRetriever
+	campusDocsRetrievalErr    error
 	providerConfigResolver    providerConfigResolver
 	providerConfigErr         error
 	temporalStarter           temporalruntime.ChatWorkflowStarter
@@ -117,11 +115,11 @@ func (a TemporalAgentActivities) ExecutePrimaryAgentActivity(
 	return a.server.ExecutePrimaryAgentActivity(ctx, input)
 }
 
-func (a TemporalAgentActivities) PrepareGroundingContextActivity(
+func (a TemporalAgentActivities) RetrieveCampusDocsEvidenceActivity(
 	ctx context.Context,
-	input temporalruntime.PrepareGroundingContextActivityInput,
-) (temporalruntime.PrepareGroundingContextActivityOutput, error) {
-	return a.server.PrepareGroundingContextActivity(ctx, input)
+	input temporalruntime.RetrieveCampusDocsEvidenceActivityInput,
+) (temporalruntime.CampusDocsRetrievalResult, error) {
+	return a.server.RetrieveCampusDocsEvidenceActivity(ctx, input)
 }
 
 type TemporalFinalizationActivities struct {
@@ -189,9 +187,7 @@ func NewServerWithDependencies(
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	registry := lifecycle.NewRegistry()
-	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
-		DatabaseURL: cfg.DatabaseURL,
-	})
+	campusDocsIndexStore := campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
 	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
@@ -200,15 +196,14 @@ func NewServerWithDependencies(
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
 		personalMemoryExecutor = newFencedPersonalMemoryExecutor(personalMemoryExecutor, personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
 	}
-	documentEvidenceExecutor, documentEvidenceErr := newDocumentEvidenceExecutor(
+	campusDocsClient, campusDocsClientErr := newCampusDocsQdrantClient(
 		cfg,
 		providerConfigResolver,
-		toolReadModelRuntime,
 	)
-	groundingExecutor, groundingErr := groundingExecutorFromDocumentEvidence(
-		documentEvidenceExecutor,
-		documentEvidenceErr,
-	)
+	var campusDocsRetriever campusDocsRetriever
+	if campusDocsClientErr == nil {
+		campusDocsRetriever = newQdrantCampusDocsRetriever(campusDocsClient)
+	}
 	executionInputLoader, executionInputErr := newExecutionInputLoader(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
@@ -217,7 +212,7 @@ func NewServerWithDependencies(
 		admission:                admissionController,
 		lifecycle:                registry,
 		logger:                   logger,
-		toolReadModel:            toolReadModelRuntime,
+		campusDocsIndexStore:     campusDocsIndexStore,
 		runProjectionStore:       runProjectionStore,
 		runProjectionStoreErr:    runProjectionStoreErr,
 		executionInputLoader:     executionInputLoader,
@@ -228,10 +223,8 @@ func NewServerWithDependencies(
 		personalMemoryStateErr:   personalMemoryStateErr,
 		langfuseTraceStore:       langfuseTraceStore,
 		langfuseTraceErr:         langfuseTraceErr,
-		documentEvidenceExecutor: documentEvidenceExecutor,
-		documentEvidenceErr:      documentEvidenceErr,
-		groundingExecutor:        groundingExecutor,
-		groundingErr:             groundingErr,
+		campusDocsRetriever:      campusDocsRetriever,
+		campusDocsRetrievalErr:   campusDocsClientErr,
 		providerConfigResolver:   providerConfigResolver,
 		providerConfigErr:        providerConfigErr,
 		temporalStarter:          temporalStarter,
@@ -282,20 +275,19 @@ func NewTemporalActivityServer(
 			closeRunProjectionStore()
 			return nil, fmt.Errorf("initialize provider config resolver: %w", err)
 		}
-		server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
-			DatabaseURL: cfg.DatabaseURL,
-		})
-		documentExecutor, documentErr := newDocumentEvidenceExecutor(
+		server.campusDocsIndexStore = campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
+		campusDocsClient, campusDocsClientErr := newCampusDocsQdrantClient(
 			cfg,
 			server.providerConfigResolver,
-			server.toolReadModel,
 		)
-		server.groundingExecutor, server.groundingErr =
-			groundingExecutorFromDocumentEvidence(documentExecutor, documentErr)
-		if server.groundingErr != nil {
+		server.campusDocsRetrievalErr = campusDocsClientErr
+		if campusDocsClientErr == nil {
+			server.campusDocsRetriever = newQdrantCampusDocsRetriever(campusDocsClient)
+		}
+		if server.campusDocsRetrievalErr != nil {
 			closeRunProjectionStore()
-			server.toolReadModel.Close()
-			return nil, fmt.Errorf("initialize grounding executor: %w", server.groundingErr)
+			closeCampusDocsIndexStore(server.campusDocsIndexStore)
+			return nil, fmt.Errorf("initialize Campus docs retriever: %w", server.campusDocsRetrievalErr)
 		}
 	default:
 		closeRunProjectionStore()
@@ -330,9 +322,6 @@ func normalizeServerConfig(cfg config.Config) config.Config {
 	if cfg.RequestBodyLimitBytes <= 0 {
 		cfg.RequestBodyLimitBytes = 1_048_576
 	}
-	if cfg.ToolReadModelTimeoutMS <= 0 {
-		cfg.ToolReadModelTimeoutMS = 1_000
-	}
 	if cfg.QueueTimeoutMS <= 0 {
 		cfg.QueueTimeoutMS = 3_000
 	}
@@ -342,26 +331,11 @@ func normalizeServerConfig(cfg config.Config) config.Config {
 	return cfg
 }
 
-func newDocumentEvidenceExecutor(
+func newCampusDocsQdrantClient(
 	cfg config.Config,
 	configResolver providerConfigResolver,
-	knowledgeReadModel *toolreadmodel.Runtime,
-) (documentEvidenceExecutor, error) {
-	return newQdrantDocumentEvidenceExecutor(cfg, configResolver, knowledgeReadModel)
-}
-
-func groundingExecutorFromDocumentEvidence(
-	executor documentEvidenceExecutor,
-	executorErr error,
-) (groundingExecutor, error) {
-	if executorErr != nil {
-		return nil, executorErr
-	}
-	qdrant, ok := executor.(qdrantDocumentEvidenceExecutor)
-	if !ok {
-		return nil, errors.New("qdrant grounding executor is not configured")
-	}
-	return newQdrantGroundingExecutor(qdrant), nil
+) (campusDocsQdrantClient, error) {
+	return buildCampusDocsQdrantClient(cfg, configResolver)
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
@@ -421,9 +395,7 @@ func (s *Server) StartDraining() {
 
 func (s *Server) Shutdown(_ context.Context) error {
 	s.StopTemporalReconciler()
-	if s.toolReadModel != nil {
-		s.toolReadModel.Close()
-	}
+	closeCampusDocsIndexStore(s.campusDocsIndexStore)
 	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
@@ -437,6 +409,12 @@ func (s *Server) Shutdown(_ context.Context) error {
 		closer.Close()
 	}
 	return nil
+}
+
+func closeCampusDocsIndexStore(store campusdocs.IndexStore) {
+	if closer, ok := store.(interface{ Close() }); ok {
+		closer.Close()
+	}
 }
 
 func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) {
@@ -480,8 +458,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		} else {
 			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
-	case request.Method == http.MethodPost && path == "/internal/provider-config/embedding:check-compatibility":
-		s.handleProviderConfigCompatibility(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/commands":
 		s.handlePersonalMemoryCommand(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/turns:append":

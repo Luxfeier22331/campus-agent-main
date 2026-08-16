@@ -230,23 +230,8 @@ describe("agent runtime Langfuse telemetry", () => {
 function validRunBody() {
 	return {
 		activity_attempt: 2,
-		allow_ungrounded_answer: true,
+		campus_docs_evidence: [],
 		conversation_id: "conversation-1",
-		grounding_context: {
-			admission_sha256: `sha256:${"1".repeat(64)}`,
-			covered_scopes: [],
-			evidence: [],
-			mode: "none",
-			model_context_chars: 39,
-			plan_sha256: "3".repeat(64),
-			prepared_at: "2026-07-26T08:00:00.000Z",
-			query_sha256: `sha256:${"2".repeat(64)}`,
-			run_id: "run-1",
-			schema_version: "grounding_context.v2",
-			selected_scopes: [],
-			status: "not_required",
-			token_count: 0,
-		},
 		input: "你好",
 		limits: {
 			agent_deadline_ms: 10_000,
@@ -283,6 +268,11 @@ function validRunBody() {
 
 function completedResult(runId: string) {
 	return {
+		contextUsage: {
+			contextChars: 44,
+			currentInputChars: 2,
+			modelVisibleItemCount: 1,
+		},
 		finalOutput: "你好",
 		modelName: "test-model",
 		modelProvider: "openai",

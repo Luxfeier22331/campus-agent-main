@@ -105,7 +105,7 @@ describe("campus-web published reader sync", () => {
 		expect(output.syncResult).toMatchObject({
 			generatedDocumentCount: 3,
 		});
-		expect(output.pageCount).toBe(5);
+		expect(output.pageCount).toBe(7);
 		const catalog = readJson<{
 			routes: Array<{
 				canonicalUrl: string;
@@ -120,12 +120,22 @@ describe("campus-web published reader sync", () => {
 			};
 		}>(join(output.generatedRoot, "catalog.json"));
 		expect(catalog.schemaVersion).toBe("campus_docs_native_catalog.v4");
-		expect(catalog.routes).toHaveLength(3);
+		expect(catalog.routes).toHaveLength(5);
 		const currentPublicRoute = catalog.routes.find(
 			(route) => route.canonicalUrl === "/docs/regulations/student_rules/student-attendance",
 		);
 		expect(currentPublicRoute).toMatchObject({
 			canonicalUrl: "/docs/regulations/student_rules/student-attendance",
+			documentSlug: "student-attendance",
+			routeSlug: "student-attendance",
+		});
+		expect(
+			catalog.routes.find(
+				(route) =>
+					route.canonicalUrl ===
+					"/docs/regulations/student_rules/student-attendance/v/2026-current",
+			),
+		).toMatchObject({
 			documentSlug: "student-attendance",
 			routeSlug: "student-attendance",
 		});
@@ -169,6 +179,13 @@ describe("campus-web published reader sync", () => {
 			),
 			"utf8",
 		);
+		const currentVersionHtml = readFileSync(
+			join(
+				output.pagesRoot,
+				"regulations/student_rules/student-attendance/v/2026-current/index.html",
+			),
+			"utf8",
+		);
 		const secondaryHtml = readFileSync(
 			join(output.pagesRoot, "regulations/student_rules/leave-policy/index.html"),
 			"utf8",
@@ -190,6 +207,10 @@ describe("campus-web published reader sync", () => {
 			'<link rel="canonical" href="https://campus.muc.wiki/docs/regulations/student_rules/student-attendance"',
 		);
 		expect(publicHtml).toContain('<script type="module" src="/src/docs-main.tsx"></script>');
+		expect(currentVersionHtml).toContain("学生应按时参加教学活动");
+		expect(currentVersionHtml).toContain(
+			'<link rel="canonical" href="https://campus.muc.wiki/docs/regulations/student_rules/student-attendance"',
+		);
 		expect(historicalHtml).toContain("正在阅读历史版本，请以当前版为准。");
 		expect(secondaryHtml).toContain('content="index,follow"');
 		expect(secondaryHtml).toContain('<template id="campus-docs-route-bootstrap">');
@@ -213,7 +234,7 @@ describe("campus-web published reader sync", () => {
 			publicCorpus: "curriculum",
 		});
 
-		expect(output.pageCount).toBe(5);
+		expect(output.pageCount).toBe(7);
 		expect(existsSync(join(output.pagesRoot, "curriculum/index.html"))).toBe(false);
 		expect(existsSync(join(output.pagesRoot, "curriculum/undergraduate/index.html"))).toBe(false);
 	});

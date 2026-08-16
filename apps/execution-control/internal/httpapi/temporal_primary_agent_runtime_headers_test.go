@@ -55,12 +55,7 @@ func TestCallAgentRuntimeExecutionTraceHeaders(t *testing.T) {
 				"hello",
 				providerConfigSnapshot{},
 				nil,
-				groundingContext{
-					SchemaVersion: groundingContextSchemaVersion,
-					RunID:         run.RunID,
-					Status:        "empty",
-					Evidence:      []groundingEvidence{},
-				},
+				temporalruntime.CampusDocsRetrievalResult{Evidence: []temporalruntime.CampusDocsEvidence{}},
 				server.primaryAgentRuntimeLimits(),
 				1,
 			)

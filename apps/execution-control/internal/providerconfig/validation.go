@@ -47,8 +47,14 @@ func validateSettingShape(setting RuntimeSetting) error {
 	if setting.Kind == KindEmbedding && setting.Dimensions <= 0 {
 		return errors.New("embedding dimensions must be positive")
 	}
+	if setting.Kind == KindEmbedding && strings.TrimSpace(setting.EmbeddingSpaceID) == "" {
+		return errors.New("embedding space id is required")
+	}
 	if setting.Kind == KindEmbedding && setting.Transport != "embeddings" {
 		return errors.New("embedding transport must be embeddings")
+	}
+	if setting.Kind == KindLLM && strings.TrimSpace(setting.EmbeddingSpaceID) != "" {
+		return errors.New("llm setting must not define an embedding space id")
 	}
 	if setting.Kind == KindLLM && setting.Transport != "responses" && setting.Transport != "chat_completions" {
 		return errors.New("llm transport must be responses or chat_completions")

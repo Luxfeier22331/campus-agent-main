@@ -67,8 +67,8 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 		t.Fatalf("visible tools = %#v, want none", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
 	}
 	snapshot := starter.input.AdmissionSnapshot
-	if len(snapshot.DocumentScopes) == 0 || snapshot.EmbeddingProviderConfigSHA256 == "" {
-		t.Fatalf("grounding admission state is incomplete: %#v", snapshot)
+	if snapshot.CampusDocsRetrieval.EmbeddingProviderConfigSHA256 == "" {
+		t.Fatalf("Campus Docs retrieval admission is incomplete: %#v", snapshot)
 	}
 	if snapshot.ToolRuntimeFingerprintSHA256 == "" ||
 		validateToolRuntimeFingerprintSnapshot(snapshot.ToolRuntimeFingerprint) != nil {

@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -23,16 +22,6 @@ type primaryAgentRuntimeLimits struct {
 	MaxOutputTokens       int
 	MaxToolCalls          int
 	MaxTurns              int
-}
-
-type primaryAgentContextPolicyStats struct {
-	DroppedCategoryCounts   map[string]any
-	ModelVisibleAfterCount  int
-	ModelVisibleBeforeCount int
-	ContextCharsAfter       int
-	ContextCharsBefore      int
-	CurrentInputChars       int
-	GroundingContextChars   int
 }
 
 func (s *Server) primaryAgentRuntimeLimits() primaryAgentRuntimeLimits {
@@ -62,10 +51,9 @@ func positiveOrDefault(value int, fallback int) int {
 	return fallback
 }
 
-func primaryAgentFinalModelContextForRun(
+func primaryAgentConversationContextForRun(
 	payload map[string]any,
 	limits primaryAgentRuntimeLimits,
-	grounding groundingContext,
 ) (map[string]any, error) {
 	currentInput := strings.TrimSpace(stringValue(payload["user_goal"]))
 	currentInputChars := len([]rune(currentInput))
@@ -76,78 +64,18 @@ func primaryAgentFinalModelContextForRun(
 			limits.CurrentInputCharLimit,
 		)
 	}
-	availableContextChars := limits.ContextCharLimit - currentInputChars - grounding.ModelContextChars
-	if availableContextChars < 0 {
-		return nil, fmt.Errorf(
-			"current input and grounding use %d characters, limit is %d",
-			currentInputChars+grounding.ModelContextChars,
-			limits.ContextCharLimit,
-		)
-	}
 	conversation := cloneAnyMapFromMetadata(nestedAny(payload, "context", "conversation"))
 	if len(conversation) == 0 {
 		return nil, nil
 	}
 	context := map[string]any{
-		"schema_version": "final_model_context.v3",
+		"schema_version": "agent_conversation_context.v1",
 		"recent_turns":   primaryAgentNormalizedRecentTurns(conversation),
 	}
 	if sessionState := primaryAgentModelRelevantSessionState(conversation); len(sessionState) > 0 {
 		context["session_state"] = sessionState
 	}
-	beforeContext := cloneAnyMapFromMetadata(context)
-	contextCharsBefore, err := primaryAgentContextCharacterCount(beforeContext)
-	if err != nil {
-		return nil, err
-	}
-	droppedCategoryCounts, contextCharsAfter, err := primaryAgentApplyContextBudget(
-		context,
-		availableContextChars,
-	)
-	if err != nil {
-		return nil, err
-	}
-	stats := primaryAgentContextPolicyStats{
-		DroppedCategoryCounts:   droppedCategoryCounts,
-		ModelVisibleAfterCount:  primaryAgentModelVisibleItemCount(context),
-		ModelVisibleBeforeCount: primaryAgentModelVisibleItemCount(beforeContext),
-		ContextCharsAfter:       contextCharsAfter + currentInputChars + grounding.ModelContextChars,
-		ContextCharsBefore:      contextCharsBefore + currentInputChars + grounding.ModelContextChars,
-		CurrentInputChars:       currentInputChars,
-		GroundingContextChars:   grounding.ModelContextChars,
-	}
-	context["usage_summary"] = primaryAgentFinalModelUsageSummary(stats)
 	return context, nil
-}
-
-func primaryAgentFinalModelUsageSummary(stats primaryAgentContextPolicyStats) map[string]any {
-	usage := map[string]any{
-		"context_chars":            stats.ContextCharsAfter,
-		"current_input_chars":      stats.CurrentInputChars,
-		"grounding_context_chars":  stats.GroundingContextChars,
-		"model_visible_item_count": stats.ModelVisibleAfterCount,
-		"runtime_only_item_count":  0,
-	}
-	if len(stats.DroppedCategoryCounts) > 0 {
-		usage["truncation_reason"] = "context_policy_limit"
-		usage["truncation_summary"] = primaryAgentTruncationSummary(stats)
-	}
-	return usage
-}
-
-func primaryAgentTruncationSummary(stats primaryAgentContextPolicyStats) map[string]any {
-	return map[string]any{
-		"schema_version":             "truncation_summary.v2",
-		"policy_version":             "primary_agent_context.v4",
-		"reason":                     "context_policy_limit",
-		"context_chars_before":       stats.ContextCharsBefore,
-		"context_chars_after":        stats.ContextCharsAfter,
-		"model_visible_before_count": stats.ModelVisibleBeforeCount,
-		"model_visible_after_count":  stats.ModelVisibleAfterCount,
-		"runtime_only_before_count":  0,
-		"runtime_only_after_count":   0,
-		"dropped_category_counts":    stats.DroppedCategoryCounts,
-	}
 }
 
 func primaryAgentNormalizedRecentTurns(conversation map[string]any) []any {
@@ -159,15 +87,14 @@ func primaryAgentNormalizedRecentTurns(conversation map[string]any) []any {
 		if role != "user" && role != "assistant" {
 			continue
 		}
-		item := map[string]any{"role": role}
-		if messageID := firstNonEmptyText(turn["message_id"]); messageID != "" {
-			item["message_id"] = messageID
-		}
 		content := firstNonEmptyText(turn["content"])
 		if content == "" {
 			continue
 		}
-		item["content"] = content
+		item := map[string]any{"role": role, "content": content}
+		if messageID := firstNonEmptyText(turn["message_id"]); messageID != "" {
+			item["message_id"] = messageID
+		}
 		result = append(result, item)
 	}
 	return result
@@ -175,117 +102,24 @@ func primaryAgentNormalizedRecentTurns(conversation map[string]any) []any {
 
 func primaryAgentModelRelevantSessionState(conversation map[string]any) map[string]any {
 	state := cloneAnyMapFromMetadata(conversation["session_state"])
+	confirmedSlots := make([]any, 0)
 	for _, rawSlot := range anyListFromAny(state["confirmed_slots"]) {
 		slot := cloneAnyMapFromMetadata(rawSlot)
 		confirmed, _ := slot["confirmed"].(bool)
-		if confirmed && firstNonEmptyText(slot["value"]) != "" {
-			return state
+		name := firstNonEmptyText(slot["name"])
+		value := firstNonEmptyText(slot["value"])
+		if confirmed && name != "" && value != "" {
+			confirmedSlots = append(confirmedSlots, map[string]any{
+				"confirmed": true,
+				"name":      name,
+				"value":     value,
+			})
 		}
 	}
-	selectedNotice := cloneAnyMapFromMetadata(state["selected_notice_ref"])
-	if firstNonEmptyText(selectedNotice["notice_id"]) != "" {
-		return state
-	}
-	return nil
-}
-
-func primaryAgentModelVisibleItemCount(context map[string]any) int {
-	count := 0
-	count += len(anyListFromAny(context["recent_turns"]))
-	if len(cloneAnyMapFromMetadata(context["session_state"])) > 0 {
-		count++
-	}
-	return count
-}
-
-func primaryAgentApplyContextBudget(context map[string]any, limit int) (map[string]any, int, error) {
-	dropped := map[string]any{}
-	for {
-		count, err := primaryAgentContextCharacterCount(context)
-		if err != nil {
-			return nil, 0, err
-		}
-		if count <= limit {
-			return dropped, count, nil
-		}
-		if droppedTurns := primaryAgentDropOldestRecentSegment(context, true); droppedTurns > 0 {
-			incrementAnyCount(dropped, "recent_turns", droppedTurns)
-			continue
-		}
-		if droppedTurns := primaryAgentDropOldestRecentSegment(context, false); droppedTurns > 0 {
-			incrementAnyCount(dropped, "recent_turns", droppedTurns)
-			continue
-		}
-		return nil, count, fmt.Errorf(
-			"final model context has %d characters after deterministic truncation, limit is %d",
-			count,
-			limit,
-		)
-	}
-}
-
-func primaryAgentContextCharacterCount(context map[string]any) (int, error) {
-	payload := cloneAnyMapFromMetadata(context)
-	delete(payload, "usage_summary")
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return 0, fmt.Errorf("encode final model context for character budget: %w", err)
-	}
-	return len([]rune(string(encoded))), nil
-}
-
-func primaryAgentDropOldestRecentSegment(context map[string]any, preserveLatest bool) int {
-	turns := anyListFromAny(context["recent_turns"])
-	if len(turns) == 0 {
-		return 0
-	}
-	dropCount := 1
-	for dropCount < len(turns) {
-		turn := cloneAnyMapFromMetadata(turns[dropCount])
-		if firstNonEmptyText(turn["role"]) == "user" {
-			break
-		}
-		dropCount++
-	}
-	if preserveLatest && dropCount == len(turns) {
-		return 0
-	}
-	context["recent_turns"] = append([]any{}, turns[dropCount:]...)
-	return dropCount
-}
-
-func incrementAnyCount(counts map[string]any, key string, delta int) {
-	counts[key] = intFromAny(counts[key]) + delta
-}
-
-func primaryAgentContextUsageSummary(finalModelContext map[string]any) map[string]any {
-	if len(finalModelContext) == 0 {
+	if len(confirmedSlots) == 0 {
 		return nil
 	}
-	usage := cloneAnyMapFromMetadata(finalModelContext["usage_summary"])
-	summary := map[string]any{
-		"schema_version":           finalModelContext["schema_version"],
-		"recent_turn_count":        len(anyListFromAny(finalModelContext["recent_turns"])),
-		"model_visible_item_count": usage["model_visible_item_count"],
-		"runtime_only_item_count":  usage["runtime_only_item_count"],
-		"context_chars":            usage["context_chars"],
-		"current_input_chars":      usage["current_input_chars"],
-		"grounding_context_chars":  usage["grounding_context_chars"],
-	}
-	if reason := firstNonEmptyText(usage["truncation_reason"]); reason != "" {
-		summary["truncation_reason"] = reason
-	}
-	if truncationSummary := cloneAnyMapFromMetadata(usage["truncation_summary"]); len(truncationSummary) > 0 {
-		summary["truncation_summary"] = truncationSummary
-	}
-	return summary
-}
-
-func withPrimaryAgentContextUsage(payload map[string]any, finalModelContext map[string]any) map[string]any {
-	if summary := primaryAgentContextUsageSummary(finalModelContext); summary != nil {
-		payload["context_usage"] = summary
-	}
-	return payload
+	return map[string]any{"confirmed_slots": confirmedSlots}
 }
 
 func anyListFromAny(value any) []any {
@@ -306,16 +140,11 @@ func intFromAny(value any) int {
 	}
 }
 
-func copyOptionalString(target map[string]any, source map[string]any, key string) {
-	if value := firstNonEmptyText(source[key]); value != "" {
-		target[key] = value
-	}
-}
-
 type agentRuntimeResponse struct {
 	Status                 string            `json:"status"`
 	Error                  agentRuntimeError `json:"error"`
 	RunID                  string            `json:"run_id"`
+	ContextUsage           map[string]any    `json:"context_usage"`
 	FinalOutput            string            `json:"final_output"`
 	ModelName              string            `json:"model_name"`
 	ModelProvider          string            `json:"model_provider"`

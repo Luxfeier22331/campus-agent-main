@@ -36,18 +36,28 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 					result: {
 						sources: [
 							{
-								canonical_url: "/docs/regulations/student_rules/library-hours",
-								source_kind: "regulation",
-								source_title: "图书馆开放时间",
-								target_kind: "canonical_reader",
-								version_id: "student-rules-current",
+								document_id: "student_rules/library-hours",
+								root_unit_ids: ["library-hours-default"],
+								section_ref:
+									"/docs/regulations/student_rules/library-hours/v/2026-current#default-hours",
+								section_title: "日常开放时间",
+								snippet: "图书馆日常开放到 22:00。",
+								title: "图书馆开放时间",
+								version_id: "version-library-hours-2026",
+								version_label: "2026 版",
+								version_slug: "2026-current",
 							},
 							{
-								canonical_url: "/docs/regulations/student_rules/holiday-hours",
-								source_kind: "regulation",
-								source_title: "节假日开放时间",
-								target_kind: "canonical_reader",
-								version_id: "student-rules-current",
+								document_id: "student_rules/holiday-hours",
+								root_unit_ids: ["library-hours-holiday"],
+								section_ref:
+									"/docs/regulations/student_rules/holiday-hours/v/2026-current#holiday-hours",
+								section_title: "节假日开放时间",
+								snippet: "节假日开放时间另行通知。",
+								title: "节假日开放时间",
+								version_id: "version-holiday-hours-2026",
+								version_label: "2026 版",
+								version_slug: "2026-current",
 							},
 						],
 					},
@@ -72,7 +82,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				failClosed: null,
 				requestId: "req_0001",
 				status: "accepted",
-				supportingSources: [],
 				traceAvailable: true,
 				traceId: "trace_0001",
 			},
@@ -83,16 +92,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				failClosed: false,
 				requestId: "req_0001",
 				status: "completed",
-				supportingSources: [
-					{
-						canonicalUrl: "/docs/regulations/student_rules/library-hours",
-						sourceTitle: "图书馆开放时间",
-					},
-					{
-						canonicalUrl: "/docs/regulations/student_rules/holiday-hours",
-						sourceTitle: "节假日开放时间",
-					},
-				],
 				traceAvailable: true,
 				traceId: "trace_0001",
 			},

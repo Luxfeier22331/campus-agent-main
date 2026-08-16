@@ -21,7 +21,7 @@ type DurableTerminalReason string
 const (
 	DurableTerminalReasonAnswerCompleted       DurableTerminalReason = "answer_completed"
 	DurableTerminalReasonClarificationRequired DurableTerminalReason = "clarification_required"
-	DurableTerminalReasonNoAnswerGrounded      DurableTerminalReason = "no_answer_grounded"
+	DurableTerminalReasonUnsupportedByEvidence DurableTerminalReason = "unsupported_by_evidence"
 	DurableTerminalReasonPolicyRejected        DurableTerminalReason = "policy_rejected"
 	DurableTerminalReasonToolClosed            DurableTerminalReason = "tool_closed"
 	DurableTerminalReasonConversationActiveRun DurableTerminalReason = "conversation_active_run"

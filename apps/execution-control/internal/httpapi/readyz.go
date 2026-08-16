@@ -10,6 +10,8 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+const dependencyHealthCheckTimeout = time.Second
+
 func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Request) {
 	if !s.readinessAuthorized(request) {
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid readiness auth.", false)
@@ -56,7 +58,7 @@ func (s *Server) agentRuntimeStatus(ctx context.Context) map[string]any {
 		status["last_error"] = "agent runtime is not configured"
 		return status
 	}
-	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
+	checkCtx, cancel := context.WithTimeout(ctx, dependencyHealthCheckTimeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(checkCtx, http.MethodGet, baseURL+"/internal/readyz", nil)
 	if err != nil {
@@ -171,7 +173,7 @@ func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
 	if !ok {
 		return status
 	}
-	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
+	checkCtx, cancel := context.WithTimeout(ctx, dependencyHealthCheckTimeout)
 	defer cancel()
 	if err := checker.HealthCheck(checkCtx); err != nil {
 		status["healthy"] = false

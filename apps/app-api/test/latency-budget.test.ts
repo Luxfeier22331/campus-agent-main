@@ -9,7 +9,7 @@ describe("runtime latency budget", () => {
 	it("classifies canonical stage timing fields against repo-owned thresholds", () => {
 		const result = evaluateStageTimingBudget({
 			"agent.runtime_ms": 13_000,
-			"grounding.prepare_ms": 4_000,
+			"campus_docs.retrieve_ms": 4_000,
 			"request.total_ms": 900,
 		});
 
@@ -18,8 +18,8 @@ describe("runtime latency budget", () => {
 			{
 				category: "model_provider_or_latency_budget_fix",
 				durationMs: 4_000,
-				field: "grounding.prepare_ms",
-				reason: "grounding_prepare_too_slow",
+				field: "campus_docs.retrieve_ms",
+				reason: "campus_docs_retrieval_too_slow",
 				severity: "warn",
 				thresholdMs: 3_000,
 			},

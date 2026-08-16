@@ -61,14 +61,30 @@ describe("Campus Web 文档内容准备合同", () => {
 		const catalog = JSON.parse(
 			readFileSync(join(content.generatedRoot, "catalog.json"), "utf8"),
 		) as {
-			routes: unknown[];
+			routes: Array<{
+				canonicalUrl: string;
+				isCurrent: boolean;
+				versionId: string;
+				versionSlug: string;
+			}>;
 			siteIndex: { collections: Array<{ documents: unknown[] }> };
 		};
 
 		expect(content.root).toBe(
 			resolveSourceDocsContentPaths(appRoot ?? "", fixture.sourceDigest).root,
 		);
-		expect(catalog.routes).toHaveLength(27);
+		expect(catalog.routes).toHaveLength(
+			fixture.source.versions.length +
+				fixture.source.versions.filter((version) => version.isCurrent).length,
+		);
+		for (const version of fixture.source.versions.filter((item) => item.isCurrent)) {
+			const routes = catalog.routes.filter((route) => route.versionId === version.versionId);
+			expect(routes).toHaveLength(2);
+			expect(routes.some((route) => route.canonicalUrl.endsWith(`/v/${version.versionSlug}`))).toBe(
+				true,
+			);
+			expect(routes.some((route) => !route.canonicalUrl.includes("/v/"))).toBe(true);
+		}
 		expect(catalog.siteIndex.collections).toHaveLength(6);
 		expect(
 			catalog.siteIndex.collections.flatMap((collection) => collection.documents),

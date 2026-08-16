@@ -5,7 +5,7 @@ info:
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
   execution_contract_version: tool_execution_v5
-  response_contract: execution_finalization_response_v5
+  response_contract: execution_finalization_response_v6
   workflow_trace_summary_version: workflow-trace-summary-v7
   versioning_policy:
     execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
@@ -641,7 +641,7 @@ components:
         execution.admission_ms:
           type: number
           minimum: 0
-        grounding.prepare_ms:
+        campus_docs.retrieve_ms:
           type: number
           minimum: 0
         memory.recall_ms:
@@ -768,7 +768,7 @@ components:
         execution_contract_version:
           const: tool_execution_v5
         response_contract:
-          const: execution_finalization_response_v5
+          const: execution_finalization_response_v6
         user_goal:
           type: string
         conversation_id:

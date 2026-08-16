@@ -23,8 +23,8 @@ func (s *Server) callAgentRuntime(
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	inputText string,
 	providerConfig providerConfigSnapshot,
-	finalModelContext map[string]any,
-	grounding groundingContext,
+	conversationContext map[string]any,
+	campusDocsRetrieval temporalruntime.CampusDocsRetrievalResult,
 	limits primaryAgentRuntimeLimits,
 	activityAttempt int,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
@@ -33,8 +33,8 @@ func (s *Server) callAgentRuntime(
 		input,
 		inputText,
 		providerConfig,
-		finalModelContext,
-		grounding,
+		conversationContext,
+		campusDocsRetrieval,
 		limits,
 		activityAttempt,
 	)
@@ -50,32 +50,40 @@ func primaryAgentRuntimeRequestPayload(
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	inputText string,
 	providerConfig providerConfigSnapshot,
-	finalModelContext map[string]any,
-	grounding groundingContext,
+	conversationContext map[string]any,
+	campusDocsRetrieval temporalruntime.CampusDocsRetrievalResult,
 	limits primaryAgentRuntimeLimits,
 	activityAttempt int,
 ) map[string]any {
 	payload := map[string]any{
-		"activity_attempt":        activityAttempt,
-		"allow_ungrounded_answer": input.AdmissionSnapshot.ExecutionStrategy.AllowUngroundedAnswer,
-		"user_id":                 run.OwnerUserID,
-		"run_id":                  input.RunID,
-		"request_id":              run.RequestID,
-		"conversation_id":         input.ConversationID,
-		"turn_id":                 input.TurnID,
-		"trace_id":                input.TraceID,
-		"input":                   strings.TrimSpace(inputText),
-		"visible_tool_names":      append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
-		"limits":                  primaryAgentRuntimeLimitsPayload(limits),
-		"provider_config":         primaryAgentProviderConfigPayload(providerConfig),
-		"grounding_context":       grounding,
+		"activity_attempt":   activityAttempt,
+		"user_id":            run.OwnerUserID,
+		"run_id":             input.RunID,
+		"request_id":         run.RequestID,
+		"conversation_id":    input.ConversationID,
+		"turn_id":            input.TurnID,
+		"trace_id":           input.TraceID,
+		"input":              strings.TrimSpace(inputText),
+		"visible_tool_names": append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
+		"limits":             primaryAgentRuntimeLimitsPayload(limits),
+		"provider_config":    primaryAgentProviderConfigPayload(providerConfig),
 	}
 	if expected := toolRuntimeFingerprintSnapshotMap(input.AdmissionSnapshot.ToolRuntimeFingerprint); expected != nil {
 		payload["expected_tool_runtime_fingerprint"] = expected
 	}
-	if len(finalModelContext) > 0 {
-		payload["final_model_context"] = finalModelContext
+	if len(conversationContext) > 0 {
+		payload["conversation_context"] = conversationContext
 	}
+	evidence := make([]map[string]any, 0, len(campusDocsRetrieval.Evidence))
+	for _, item := range campusDocsRetrieval.Evidence {
+		evidence = append(evidence, map[string]any{
+			"document_title": item.DocumentTitle,
+			"evidence_ref":   item.EvidenceRef,
+			"section_title":  item.SectionTitle,
+			"text":           item.Text,
+		})
+	}
+	payload["campus_docs_evidence"] = evidence
 	return payload
 }
 
@@ -612,6 +620,7 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 		})
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{
+		ContextUsage:           cloneAnyMapFromMetadata(response.ContextUsage),
 		FinalOutput:            strings.TrimSpace(response.FinalOutput),
 		ModelName:              strings.TrimSpace(response.ModelName),
 		ModelProvider:          strings.TrimSpace(response.ModelProvider),

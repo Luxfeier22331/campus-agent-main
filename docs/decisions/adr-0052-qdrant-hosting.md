@@ -18,12 +18,12 @@ Qdrant 自托管且不公开。除非 availability requirement 证明需要经�
 deployment，否则保持 single-node。
 
 - 在线执行使用 read-only query credential。
-- admin credential 仅供 ingestion、lifecycle、backup 和 restore。
+- admin credential 仅供索引 publisher、lifecycle、backup 和 restore。
 - 服务不直接暴露到 public internet。
 - runtime storage、TLS、key 和 topology 属于 environment repo；local Compose 只用于开发。
 
 恢复使用 Qdrant 原生 collection snapshot。snapshot 不进入 ingestion source/derived
-bucket。可恢复 backup 必须包含 snapshot、release/physical collection metadata、off-host copy 和经测试的
+bucket。可恢复 backup 必须包含 snapshot、Campus Docs index/physical collection metadata、off-host copy 和经测试的
 restore procedure；挂载 snapshot directory 或创建文件本身不构成恢复证据。
 
 backup frequency 和 retention 属于环境策略，本 ADR 不固定。所属环境无法提供证据时，
@@ -33,8 +33,9 @@ backup frequency 和 retention 属于环境策略，本 ADR 不固定。所属�
 
 - Qdrant 是可以从已开放上游事实重建的 index，不是 document source。
 - single-node 不具备 high-availability 声明。
-- collection 恢复必须与 PostgreSQL release 和 `current_releases` 身份核对，不能只恢复同名 snapshot。
-- 可执行 release/retention lifecycle 出现前，不允许 collection deletion。
+- 当前 collection 恢复必须与 PostgreSQL `campus_docs_serving.current_index` 的完整查询绑定核对，
+  不能只恢复同名 snapshot。
+- 可执行索引保留与清理生命周期出现前，不允许删除仍可能被准入 run 使用的 collection。
 
 ## 外部参考
 

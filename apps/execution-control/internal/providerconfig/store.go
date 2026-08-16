@@ -74,6 +74,16 @@ func CheckDatabaseSchema(ctx context.Context, databaseURL string) error {
 	if retiredTimeoutColumnExists {
 		return errors.New("retired execution_control.model_settings.timeout_ms column is still installed")
 	}
+	var embeddingSpaceIDColumnExists bool
+	if err := pool.QueryRow(ctx, `select exists(
+		select 1 from information_schema.columns
+		where table_schema='execution_control' and table_name='model_settings' and column_name='embedding_space_id'
+	)`).Scan(&embeddingSpaceIDColumnExists); err != nil {
+		return err
+	}
+	if !embeddingSpaceIDColumnExists {
+		return errors.New("execution_control.model_settings.embedding_space_id column is not installed")
+	}
 	legacyTables, err := legacyProviderConfigTablePresence(ctx, pool)
 	if err != nil {
 		return err
@@ -140,6 +150,7 @@ func (s *Store) Resolve(ctx context.Context, kind Kind) (RuntimeSetting, error) 
 	var keyID string
 	var nonce, ciphertext []byte
 	err := s.pool.QueryRow(ctx, `select kind,provider,base_url,model,transport,coalesce(dimensions,0),
+		coalesce(embedding_space_id,''),
 		secret_key_id,secret_nonce,secret_ciphertext
 		from execution_control.model_settings where kind=$1`, kind).Scan(
 		&setting.Kind,
@@ -148,6 +159,7 @@ func (s *Store) Resolve(ctx context.Context, kind Kind) (RuntimeSetting, error) 
 		&setting.Model,
 		&setting.Transport,
 		&setting.Dimensions,
+		&setting.EmbeddingSpaceID,
 		&keyID,
 		&nonce,
 		&ciphertext,
@@ -167,13 +179,14 @@ func (s *Store) Resolve(ctx context.Context, kind Kind) (RuntimeSetting, error) 
 
 func (s *Store) Candidate(ctx context.Context, input SettingInput) (RuntimeSetting, error) {
 	candidate := RuntimeSetting{
-		APIKey:     strings.TrimSpace(input.APIKey),
-		BaseURL:    strings.TrimRight(strings.TrimSpace(input.BaseURL), "/"),
-		Dimensions: input.Dimensions,
-		Kind:       input.Kind,
-		Model:      strings.TrimSpace(input.Model),
-		Provider:   strings.TrimSpace(input.Provider),
-		Transport:  strings.TrimSpace(input.Transport),
+		APIKey:           strings.TrimSpace(input.APIKey),
+		BaseURL:          strings.TrimRight(strings.TrimSpace(input.BaseURL), "/"),
+		Dimensions:       input.Dimensions,
+		EmbeddingSpaceID: strings.TrimSpace(input.EmbeddingSpaceID),
+		Kind:             input.Kind,
+		Model:            strings.TrimSpace(input.Model),
+		Provider:         strings.TrimSpace(input.Provider),
+		Transport:        strings.TrimSpace(input.Transport),
 	}
 	if candidate.APIKey != "" {
 		return candidate, nil
@@ -217,14 +230,14 @@ func (s *Store) Put(
 	}
 	now := time.Now().UTC()
 	_, err = tx.Exec(ctx, `insert into execution_control.model_settings
-		(kind,provider,base_url,model,transport,dimensions,
+		(kind,provider,base_url,model,transport,dimensions,embedding_space_id,
 		 secret_key_id,secret_nonce,secret_ciphertext,secret_fingerprint,secret_last4,
 		 validation_status,validation_error_code,validation_message,validation_observed_dimensions,
 		 validated_at,validated_by,updated_at,updated_by)
-		 values($1,$2,$3,$4,$5,nullif($6,0),$7,$8,$9,$10,$11,$12,$13,$14,nullif($15,0),$16,$17,$16,$17)
+		 values($1,$2,$3,$4,$5,nullif($6,0),nullif($7,''),$8,$9,$10,$11,$12,$13,$14,$15,nullif($16,0),$17,$18,$17,$18)
 		 on conflict(kind) do update set
 		 provider=excluded.provider,base_url=excluded.base_url,model=excluded.model,
-		 transport=excluded.transport,dimensions=excluded.dimensions,
+		 transport=excluded.transport,dimensions=excluded.dimensions,embedding_space_id=excluded.embedding_space_id,
 		 secret_key_id=excluded.secret_key_id,secret_nonce=excluded.secret_nonce,
 		 secret_ciphertext=excluded.secret_ciphertext,secret_fingerprint=excluded.secret_fingerprint,
 		 secret_last4=excluded.secret_last4,validation_status=excluded.validation_status,
@@ -238,6 +251,7 @@ func (s *Store) Put(
 		candidate.Model,
 		candidate.Transport,
 		candidate.Dimensions,
+		candidate.EmbeddingSpaceID,
 		secret.KeyID,
 		secret.Nonce,
 		secret.Ciphertext,
@@ -288,6 +302,7 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 		},
 	}
 	rows, err := s.pool.Query(ctx, `select kind,provider,base_url,model,transport,coalesce(dimensions,0),
+		coalesce(embedding_space_id,''),
 		secret_last4,validation_status,validation_error_code,validation_message,
 		coalesce(validation_observed_dimensions,0),validated_at,validated_by,updated_at,updated_by
 		from execution_control.model_settings order by kind`)
@@ -305,6 +320,7 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 			&view.Model,
 			&view.Transport,
 			&view.Dimensions,
+			&view.EmbeddingSpaceID,
 			&view.CredentialLast4,
 			&validation.Status,
 			&validation.ErrorCode,

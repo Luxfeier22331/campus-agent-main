@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020.js";
 
+import { parseDocsReaderContract } from "./reader-contract.ts";
 import type { DocsCourseMaps, DocsReader, DocsSourceManifest, ObjectRef } from "./source-types.ts";
 
 const schemasRoot = resolve(import.meta.dirname, "../../../../packages/contracts/schemas");
@@ -15,7 +16,7 @@ export function parseSourceManifest(value: unknown): DocsSourceManifest {
 }
 
 export function parseReader(value: unknown): DocsReader {
-	return validate(value, readerValidator, "docs reader") as DocsReader;
+	return parseDocsReaderContract(validate(value, readerValidator, "docs reader"));
 }
 
 export function parseCourseMaps(value: unknown): DocsCourseMaps {

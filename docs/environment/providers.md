@@ -20,12 +20,17 @@ status: active
 | 能力 | 配置所有者 | 消费方 | 隔离要求 |
 | --- | --- | --- | --- |
 | LLM | execution-control 当前模型设置 | agent-runtime | Activity 调用读取当前值，不向浏览器返回密钥 |
-| 查询 Embedding | execution-control 当前模型设置 | 检索运行时 | 固定 Qwen3/2560，与索引发布配置相容，查询凭据不具备索引管理权限 |
+| 查询 Embedding | Campus Docs 当前索引绑定与 execution-control 当前模型设置 | 检索运行时 | space ID、provider、模型和维度必须匹配当前索引，查询凭据不具备索引管理权限 |
+| 索引 Embedding | publisher `INDEX_DEFINITION`、环境 space ID 与专用 Secret | Campus Docs index publisher | 只用于手动索引 Job；space ID 非敏感，凭据不进入在线配置数据库或查询运行时 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
-具体模型、维度、transport 和 endpoint 由当前模型设置、collection serving config 与
-可执行注册表维护，不在本文复制。
+Campus Docs embedding 的 provider、模型、维度和查询指令由 publisher 代码内索引定义固定；实际模型
+权重和修订由 `CAMPUS_DOCS_EMBEDDING_SPACE_ID` 显式声明。它们随 collection 一起写入
+`campus_docs_serving.current_index`。当前 Embedding 设置保存对应连接、凭据、已验证值和同一 space
+ID，管理端不得写入与当前索引不同的身份；没有当前索引时不能创建或更新 Embedding 设置。publisher
+的构建凭据由手动 Job 专用 Secret 提供，不从当前 Embedding 设置读取。LLM 模型、transport 和
+endpoint 由当前模型设置维护，不在本文复制。
 
 ## 数据服务
 

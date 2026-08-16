@@ -26,16 +26,8 @@ export interface ToolExecutionSessionSlot {
 	value: string;
 }
 
-export interface ToolExecutionSelectedNoticeRef {
-	noticeId: string;
-	sourceFamily?: string;
-	targetSurface?: string;
-	title?: string;
-}
-
 export interface ToolExecutionSessionSummary {
 	confirmedSlots: ToolExecutionSessionSlot[];
-	selectedNoticeRef?: ToolExecutionSelectedNoticeRef | null;
 	turnCount: number;
 }
 

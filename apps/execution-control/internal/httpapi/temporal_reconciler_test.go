@@ -2004,8 +2004,7 @@ func createReconcilerStartIntentForTest(t *testing.T) (*execution.InMemoryRunPro
 	snapshot, err := server.buildAgentAdmissionSnapshot(
 		t.Context(),
 		false,
-		false,
-		groundingPlanForTest("reconciler fixture"),
+		campusDocsQuerySHA256ForTest("reconciler fixture"),
 	)
 	if err != nil {
 		t.Fatalf("build reconciler admission snapshot: %v", err)

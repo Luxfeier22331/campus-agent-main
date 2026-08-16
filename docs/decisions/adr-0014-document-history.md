@@ -16,10 +16,10 @@ status: accepted
 
 - 来源和文档所有者可以保留历史版本；
 - 阅读器可以按明确版本展示已发布历史内容；
-- Primary Agent 在线 grounding 只使用 `current_releases` 指向的当前发布，不查询历史 release；
+- Primary Agent 在线检索只使用 `campus_docs_serving.current_index` 指向、由来源清单当前 reader 构建的索引；
 - 历史、截至日期和版本比较问题在当前 Agent 能力中返回无法支持，不能让过期内容与当前事实竞争；
 - 若未来开放历史检索，必须另行定义精确版本选择、引用呈现和评测合同；
-- 保留来源版本不会自动发布阅读器资产、知识 release 或开放文档范围。
+- 保留来源版本不会自动把它加入当前检索索引；只有 `source.json` 选中的当前 reader 进入 publisher。
 
 阅读器的版本字段由文档阅读合同维护；Agent 当前没有历史模式字段。
 

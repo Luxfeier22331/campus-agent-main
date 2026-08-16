@@ -8,118 +8,123 @@ status: active
 
 ## 边界
 
-本文统一文档、检索、发布和 Agent 运行中的名称。实现状态仍以注册表、合同和代码为准。
+本文统一 Campus Web 文档、检索发布和 Agent 运行中的名称。实现状态仍以 schema、配置、数据库
+migration 和代码为准。
 
-## 产品与数据
+## 文档输入
 
 ### 阅读器固定链接
 
-面向用户的稳定文档 URL，例如 `/docs/:corpus/:collection/:docSlug`。链接中不包含分块标识、
-Qdrant collection 或对象存储位置。
+面向用户的稳定文档 URL，例如 `/docs/:corpus/:collection/:docSlug`。链接中不包含 chunk、Qdrant
+collection 或对象存储位置。
 
-### 来源通道
+### 语料域与集合
 
-一类来源的采集适配器和来源记录边界。一个来源通道可以向多个语料域或集合提供资料。
+`corpus` 和 `collection` 是 Campus Web 来源清单中的文档所有权与公开目录 metadata，例如
+`regulations/student_rules`。它们可以用于评测结果分类，但不是模型参数、在线路由范围或独立向量
+collection。
 
-### 语料域
+### Campus Docs 来源清单
 
-`corpus` 表示一类机构知识，例如 `regulations` 或 `curriculum`。
+对象存储固定键 `campus-docs/source.json` 中的 `campus_docs_source.v3`。它列出文档、版本、唯一当前
+版本和内容寻址 reader 引用，是 Campus Web 构建与检索 publisher 共享的控制清单。清单本身不是可
+检索正文。
 
-### 集合
+### Reader
 
-语料域内规范文档和索引的所有权单元，例如 `regulations/student_rules`。集合名不是模型可选择的
-工具参数。
+`campus_docs_reader.v3` 是已经清洗的显示正文，按原始阅读顺序保存 heading、paragraph、list、
+blockquote 和 table。publisher 只消费来源清单选中的当前 reader。
 
-### 文档范围
-
-`document_scope` 是在线 grounding 的领域准入范围，例如 `student_rules`。范围注册表把它映射到
-语料域、逻辑集合和服务端检索配置。范围、语料域、逻辑集合和 Qdrant 物理集合不是同一个概念。
-
-## Agent 与 Grounding
+## Agent 与检索
 
 ### 模型可见工具
 
-当前运行中通过 `tools.v6.json` 和本轮授权向 Primary Agent 暴露的函数工具。知识检索不是模型
-工具。
+当前运行中通过 `tools.v6.json` 和本轮授权向 Primary Agent 暴露的函数工具。Campus Docs 检索不是模型工具。
 
-### Grounding Context
+### Campus Docs Retrieval Admission
 
-`grounding_context.v2` 是 execution-control 在模型调用前准备的、绑定单个 run 和冻结 grounding
-plan 的依据合同。它以 `not_required`、`empty`、`partial` 或 `ready` 区分无需检索、无依据、范围
-覆盖不完整和依据就绪。完整正文作为有界 Activity result 保存在 Temporal history；普通投影只携带
-ref、hash 和有界摘要。
+execution-control 在 workflow 创建前为每个有效请求冻结的检索输入，包含当前 collection 的查询绑定、
+查询 hash 和 embedding 配置 hash。它不表达“是否检索”，也不选择文档类别、collection 或版本。
+
+### Campus Docs Retrieval Result
+
+`CampusDocsRetrievalResult` 是 `RetrieveCampusDocsEvidenceActivity` 的有界结果，只包含 evidence
+数组。空数组表示没有选出证据，非空数组表示有可引用证据；不另设 mode 或 status。完整正文进入
+Temporal history，普通投影只携带 hash、collection、计数和阶段耗时。
 
 ### Evidence 引用
 
-`evidence://` 标识 grounding 中的一条已验证依据。Primary Agent 只能引用本轮 context 中出现的
-标识；finalization 用 workflow 传入的同一 context 校验并派生公开来源。
+`evidence://` 标识本轮 Campus Docs 检索结果中的一条已验证依据。Primary Agent 只能引用传入的
+`campus_docs_evidence` 中出现的标识；Finalization 用 workflow 独立传入的检索结果校验并派生公开来源。
 
 ### 工具调用上限
 
-一次 SDK run 允许的最大真实函数工具调用次数。它与 grounding 的候选数量、Temporal retry 和
-SDK `maxTurns` 分开计算。
+一次 SDK run 允许的最大真实函数工具调用次数。它与检索候选数量、Temporal retry 和 SDK
+`maxTurns` 分开计算。
 
-## 检索
+## 索引与检索
+
+### 索引定义
+
+publisher 代码内的 `INDEX_DEFINITION` 固定 reader 分块、embedding provider/model/dimensions、查询
+指令和本地 sparse 向量身份，并包含 point schema。环境显式提供的 `embedding_space_id` 标识实际模型
+权重和修订。改变任一项都会生成新的 collection。
+
+### Collection 身份
+
+Qdrant collection 名由当前文档投影、索引定义和 `embedding_space_id` 的规范 JSON SHA-256 形成：
+`campus_docs_<sha256>`。当前投影包含文档目录、身份、标题、当前版本和带正文摘要的 reader 对象引用，
+不包含历史版本、redirect、topic 描述或清单格式。collection 本身是唯一索引身份，不另建 index ID、
+fingerprint 或来源摘要实体。
+
+### Section 与 Chunk
+
+section 由 reader heading 路径或标题前正文形成，并绑定文档、版本和可选 `anchor`。chunk 在同一
+section 内按 reader 正文元素或表格逻辑行形成，记录覆盖的全部 `root_unit_ids`；它不是公开 URL 或
+独立来源对象。
+
+### Point
+
+写入 Qdrant 的检索单元。point 使用确定性 UUID，payload 只包含 schema、chunk、document、section、
+版本 ID/slug/label、`root_unit_ids`、正文、正文 SHA-256 和检索文本 SHA-256，并同时保存 `dense` 与
+`sparse` named vector。检索文本由文档标题、完整 heading 路径和正文组成；公开 evidence 只使用正文。
 
 ### 候选结果
 
-Qdrant 返回且已带 dense+sparse RRF 分数、尚未经过跨 scope 合并、去重和总预算裁剪的内部 chunk。
-候选不会自动成为答案依据。
+Qdrant 返回且带查询分数、尚未经过 payload 校验、chunk 去重和总预算裁剪的内部 point。混合查询的
+分数来自 RRF，dense-only 查询使用向量相似度；候选不会自动成为答案依据，有效候选保持分数顺序，
+不按 section 重新排序。
 
 ### 混合检索
 
-在冻结的物理 collection 中执行稠密和稀疏候选召回，并由 Qdrant 以 RRF 融合；最终 grounding 还需要
-跨 scope 合并、校验和裁剪。
+在冻结的物理 collection 中分别使用 dense query vector 和 `fnv1a_log_tf.v1` sparse query vector，
+由 Qdrant 以 RRF 融合。合法问题无法生成 sparse token 时直接执行 dense 查询。两种模式的查询分数
+都只用于排序，不是答案置信度或充分性证明。当前 JSON evidence 字段不暴露该分数，也没有外部
+reranker。
 
-### 有界检索依据
+## 发布与激活
 
-返回给 Primary Agent 的已验证结果。它绑定 scope、release、chunk、section、文档、公开 URL、
-正文 hash、token 数和 RRF retrieval score。该分数只用于候选排序和预算选择，不是答案置信度或充分性
-证明；当前 JSON 字段仍使用 `rerank_score`，但不代表调用了外部 reranker，代码字段使用 `evidence`。
+### 当前索引绑定
 
-### 当前发布搜索
-
-在线 grounding 只使用 PostgreSQL `current_releases` 指向的 release。历史 release 可以被离线保留，
-但当前不参与 Agent 在线检索。
-
-## 发布与索引
-
-### Knowledge Release
-
-`knowledge_serving` 中一组不可变章节身份和对应 Qdrant 物理 collection 的发布记录。release 记录
-包含物理 collection 与 embedding 身份。
-
-### 当前发布指针
-
-PostgreSQL `current_releases` 是每个 scope 的唯一激活指针。execution-control 在 run 准入时解析并
-冻结它，运行中不跟随后续变化。
-
-### 检索分块
-
-`retrieval_chunk.v2` 是同一 section 内按本地 tokenizer 预算确定性生成的在线检索单元。它包含正文、
-正文 hash、token 数和引用 metadata；分块不能跨 section。
-
-### 物理集合
-
-一次知识发布写入的不可变 Qdrant collection。模型不接收其名称；execution-control 在准入时冻结
-该名称。
-
-### 查询配置
-
-服务端维护的语料域、集合、向量名称、embedding instruction、候选限制、版本轨道和可见性规则。
-它不向模型或客户端暴露。
+PostgreSQL `campus_docs_serving.current_index` 的单行记录，保存当前 collection 及实际查询所需的
+dense、embedding 和 sparse 绑定。execution-control 在 run 准入时读取并冻结它，运行中不跟随后续
+变化。数据库不保存索引历史或重复的不可变索引记录。
 
 ### 索引发布
 
-把在线检索 chunk 写入不可变 Qdrant collection、记录 PostgreSQL release 并推进
-`current_releases` 的离线过程。当前只有消费合同，没有正式索引生产者和发布数据。文档阅读器
-静态文档交付完成不等于知识 release 已激活。
+publisher 读取来源清单和当前 reader，构建完整新 Qdrant collection，验证后原子替换当前索引绑定。
+文档更新不会原地改写旧 collection；旧 collection 也不会在切换后立即删除。
+
+新旧索引的 `embedding_space_id`、provider、model 和 dimensions 全部一致时，publisher 按
+`retrieval_text_sha256` 复用旧 dense vector，只为新检索文本生成 embedding；payload 与 sparse
+vector 仍从当前 reader 完整重建。复用是发布计算方式，不形成独立缓存、索引身份或持久化实体。
 
 ## 常见混淆
 
-- 工具开放不等于文档 grounding 可用；
-- 文档范围不等于集合、release 或物理 collection；
-- grounding 不属于工具轨迹；
-- 文档静态交付不等于检索索引发布；
-- 配置、schema 或评测用例存在不代表环境已经部署该能力；
+- `source.json` 是控制清单，不是检索正文；
+- 文档集合不等于在线路由范围或物理 collection；
+- 文档静态交付与检索索引发布共享输入，但拥有独立产物和激活过程；
+- Campus Docs 检索不属于工具轨迹；
+- publisher、schema 或配置存在不代表某个环境已经激活当前索引；
+- 通知采集产物不属于当前 Campus Docs 索引输入；
 - Langfuse 中存在 trace 不代表 Temporal workflow 已经成功结束。

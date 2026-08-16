@@ -2,18 +2,15 @@ export type ChatMessageKind = "answer" | "clarification" | "error" | "no_answer"
 
 export interface SourceItemPayload {
 	collectionLabel: string;
-	pageLabel: string;
 	primaryAction: {
-		disabledReason: string | null;
-		external: boolean;
-		href: string | null;
-		label: string;
+		disabledReason: null;
+		external: false;
+		href: string;
+		label: "查看文档";
 	};
-	publisherLabel: string;
 	sectionTitle: string;
 	snippet: string | null;
 	title: string;
-	trustLabel: string;
 	versionLabel: string;
 }
 

@@ -26,12 +26,6 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 			applicability_scope: context.authorization.applicabilityScope,
 			ownership_scopes: context.authorization.ownershipScopes,
 			approval_state: context.authorization.approvalState,
-			retrieval_filter: {
-				entitlement_groups: context.authorization.retrievalFilter.entitlementGroups,
-				policy_projection_version: context.authorization.retrievalFilter.policyProjectionVersion,
-				visibility_level: context.authorization.retrievalFilter.visibilityLevel,
-				visibility_scope: context.authorization.retrievalFilter.visibilityScope,
-			},
 		},
 		...(context.conversation
 			? {
@@ -57,16 +51,6 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 								name: slot.name,
 								value: slot.value,
 							})),
-							selected_notice_ref: context.conversation.sessionState.selectedNoticeRef
-								? {
-										notice_id: context.conversation.sessionState.selectedNoticeRef.noticeId,
-										source_family:
-											context.conversation.sessionState.selectedNoticeRef.sourceFamily ?? "",
-										target_surface:
-											context.conversation.sessionState.selectedNoticeRef.targetSurface ?? "",
-										title: context.conversation.sessionState.selectedNoticeRef.title ?? "",
-									}
-								: null,
 							turn_count: context.conversation.sessionState.turnCount,
 						},
 					},
@@ -88,14 +72,6 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 				name: slot.name,
 				value: slot.value,
 			})),
-			selected_notice_ref: context.session.selectedNoticeRef
-				? {
-						notice_id: context.session.selectedNoticeRef.noticeId,
-						source_family: context.session.selectedNoticeRef.sourceFamily ?? "",
-						target_surface: context.session.selectedNoticeRef.targetSurface ?? "",
-						title: context.session.selectedNoticeRef.title ?? "",
-					}
-				: null,
 			turn_count: context.session.turnCount,
 		},
 	};

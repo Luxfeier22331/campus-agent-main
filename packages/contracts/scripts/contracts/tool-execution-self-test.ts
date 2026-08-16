@@ -28,7 +28,7 @@ function checkOpenApiMetadata(): void {
 	const meta = asRecord(openapi["x-campus-contract"], "x-campus-contract");
 	expect(meta.execution_contract_version === "tool_execution_v5", "execution contract mismatch");
 	expect(
-		meta.response_contract === "execution_finalization_response_v5",
+		meta.response_contract === "execution_finalization_response_v6",
 		"response contract mismatch",
 	);
 	expect(
@@ -288,7 +288,7 @@ function checkExecutionResponseDiagnostics(): void {
 			"stream.app_api_ttft_ms",
 			"stream.orchestration_overhead_ms",
 			"execution.admission_ms",
-			"grounding.prepare_ms",
+			"campus_docs.retrieve_ms",
 			"memory.recall_ms",
 			"agent.primary_ms",
 			"agent.runtime_ms",
@@ -354,7 +354,7 @@ function checkFixtureMatrix(): void {
 		"delegate execution contract",
 	);
 	expect(
-		delegate.response_contract === "execution_finalization_response_v5",
+		delegate.response_contract === "execution_finalization_response_v6",
 		"delegate response contract",
 	);
 	expectFixtureValidity("execution_payload.valid.json", "ExecutionPayload", true);

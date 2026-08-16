@@ -176,7 +176,6 @@ describe("agent tool eval runner", () => {
 						{
 							expectedOutput: {
 								expected_outcome: "answer",
-								expected_grounding_mode: "single_scope",
 								forbidden_context_ids: ["handbook:wrong-policy"],
 								reference: "应依据示例学位授予规定第十条回答。",
 								reference_context_ids: ["handbook:degree-policy"],
@@ -253,12 +252,8 @@ describe("agent tool eval runner", () => {
 					},
 					{
 						answer: "第十条规定了学位授予条件。",
-						covered_scopes: ["student_rules"],
-						grounding_mode: "single_scope",
-						grounding_status: "ready",
 						retrieved_context_ids: ["handbook:degree-policy"],
 						retrieved_contexts: ["第十条规定申请人应满足学位授予条件。"],
-						selected_scopes: ["student_rules"],
 					},
 				);
 			}
@@ -414,8 +409,8 @@ describe("agent tool eval runner", () => {
 			"execution.outcome_match",
 			"ragas.faithfulness",
 			"ragas.tool_call_accuracy.name_only",
+			"retrieval.context_present",
 			"retrieval.forbidden_context_absent",
-			"routing.grounding_mode_match",
 		]);
 		for (const request of scoreRequests) {
 			expect(request).toMatchObject({
@@ -428,5 +423,179 @@ describe("agent tool eval runner", () => {
 			expect(request.body).not.toHaveProperty("datasetRunId");
 			expect(request.body).not.toHaveProperty("observationId");
 		}
+	});
+
+	it("records empty retrieval as a deterministic failure without invoking Ragas", async () => {
+		const requests: Array<{ body: unknown; url: string }> = [];
+		const runs = [
+			{
+				caseId: "expected-context-empty",
+				datasetItemId: "dataset-item-expected",
+				referenceContextIds: ["doc-expected"],
+				runId: "run-expected",
+				traceId: "trace-expected",
+			},
+			{
+				caseId: "no-reference-empty",
+				datasetItemId: "dataset-item-no-reference",
+				referenceContextIds: [],
+				runId: "run-no-reference",
+				traceId: "trace-no-reference",
+			},
+		];
+		let chatRequestCount = 0;
+		let ragScorerCalled = false;
+		const fetchImpl: typeof fetch = async (input, init) => {
+			const url = String(input);
+			if (url.endsWith("/api/public/datasets/campus%2Fagent%2Fempty-retrieval")) {
+				return jsonResponse({
+					items: runs.map((run) => ({
+						expectedOutput: {
+							expected_outcome: "answer",
+							reference: "应根据当前文档回答。",
+							reference_context_ids: run.referenceContextIds,
+							reference_tool_calls: [],
+						},
+						id: run.datasetItemId,
+						input: { query: `问题：${run.caseId}` },
+						metadata: {
+							argument_mode: "name_only",
+							case_id: run.caseId,
+							surface_key: "app-api.chat",
+						},
+					})),
+				});
+			}
+			if (url.endsWith("/api/chat/requests/stream")) {
+				const run = runs[chatRequestCount];
+				chatRequestCount += 1;
+				if (!run) {
+					throw new Error("unexpected chat request");
+				}
+				return new Response(
+					sse("request.accepted", {
+						requestId: `request-${run.runId}`,
+						runId: run.runId,
+						status: "accepted",
+						traceId: run.traceId,
+					}) +
+						sse("request.completed", {
+							answer: {
+								conversation: { id: `conversation-${run.runId}`, messages: [] },
+								result: {
+									kind: "answer",
+									requestId: `request-${run.runId}`,
+									text: "当前没有检索到上下文。",
+									traceId: run.traceId,
+								},
+							},
+							requestId: `request-${run.runId}`,
+							status: "completed",
+							traceId: run.traceId,
+						}),
+					{ headers: { "content-type": "text/event-stream" }, status: 200 },
+				);
+			}
+			const projectionRun = runs.find((run) => url.endsWith(`/api/chat/runs/${run.runId}/steps`));
+			if (projectionRun) {
+				return runStepsResponse(
+					{
+						available_tools: [],
+						conversation_id: `conversation-${projectionRun.runId}`,
+						decision_kind: "direct_answer",
+						request_id: `request-${projectionRun.runId}`,
+						run_id: projectionRun.runId,
+						schema_version: "tool_trajectory.v3",
+						tool_calls: [],
+						trace_id: projectionRun.traceId,
+					},
+					{ answer: "当前没有检索到上下文。" },
+				);
+			}
+			if (url.endsWith("/api/public/dataset-run-items")) {
+				const body = JSON.parse(String(init?.body)) as JsonObject;
+				return jsonResponse({
+					createdAt: "2026-08-16T00:00:00Z",
+					datasetItemId: body.datasetItemId,
+					datasetRunId: `dataset-run-${String(body.datasetItemId)}`,
+					datasetRunName: "empty-retrieval-eval",
+					id: `dataset-run-item-${String(body.datasetItemId)}`,
+					observationId: null,
+					traceId: body.traceId,
+					updatedAt: "2026-08-16T00:00:00Z",
+				});
+			}
+			if (url.endsWith("/api/public/scores")) {
+				requests.push({
+					body: init?.body ? JSON.parse(String(init.body)) : null,
+					url,
+				});
+				return jsonResponse({ id: `score-${requests.length}` });
+			}
+			throw new Error(`unexpected fetch: ${url}`);
+		};
+
+		const result = await runAgentToolEval({
+			appApiBaseUrl: "https://campus-staging.example",
+			cookieHeader: "session=abc",
+			datasetName: "campus/agent/empty-retrieval",
+			environment: "test",
+			fetchImpl,
+			runPythonRagasAgentScoreBatch: ({ inputPath, outputPath }) => {
+				const samples = JSON.parse(readFileSync(inputPath, "utf-8")) as JsonObject;
+				writeFileSync(
+					outputPath,
+					JSON.stringify({
+						eval_run_id: samples.eval_run_id,
+						items: (samples.items as JsonObject[]).map((sample) => ({
+							case_id: sample.case_id,
+							dataset_item_id: sample.dataset_item_id,
+							dataset_run_id: sample.dataset_run_id,
+							errors: [],
+							metadata: { argument_mode: "name_only", surface_key: "app-api.chat" },
+							observation_id: null,
+							scores: { "ragas.tool_call_accuracy.name_only": 1 },
+							trace_id: sample.trace_id,
+						})),
+						schema_version: "ragas_agent_score_batch.v1",
+					}),
+					"utf-8",
+				);
+			},
+			runPythonRagasScoreBatch: () => {
+				ragScorerCalled = true;
+				throw new Error("Ragas scorer must not receive empty contexts");
+			},
+			settings: {
+				baseUrl: "https://langfuse.example",
+				publicKey: "pk-test",
+				secretKey: "sk-test",
+			},
+		});
+
+		expect(ragScorerCalled).toBe(false);
+		expect(result).toMatchObject({
+			agent_sample_count: 2,
+			case_count: 2,
+			expected_publish_denominator: 5,
+			published: 5,
+			rag_sample_count: 0,
+		});
+		const scoreRequests = requests.filter((request) => request.url.endsWith("/api/public/scores"));
+		const contextPresenceScores = scoreRequests.filter(
+			(request) => (request.body as JsonObject).name === "retrieval.context_present",
+		);
+		expect(contextPresenceScores).toHaveLength(1);
+		expect(contextPresenceScores[0]?.body).toMatchObject({
+			metadata: { case_id: "expected-context-empty", verdict: "fail" },
+			value: 0,
+		});
+		expect(
+			scoreRequests.some(
+				(request) =>
+					(request.body as JsonObject).name === "retrieval.context_present" &&
+					((request.body as JsonObject).metadata as JsonObject).case_id === "no-reference-empty",
+			),
+		).toBe(false);
 	});
 });

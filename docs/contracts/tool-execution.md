@@ -37,7 +37,7 @@ execution-control 与 app-api 之间的执行输入读取及产品回调通道�
 ## 创建运行
 
 运行信封携带不可变的 run、conversation、turn、request、`owner_user_id`、`surface` 和 trace 标识。
-当前载荷是 `tool_execution_v5`，响应合同是 `execution_finalization_response_v5`。运行 metadata
+当前载荷是 `tool_execution_v5`，响应合同是 `execution_finalization_response_v6`。运行 metadata
 严格限制为以下内容：
 
 ```json
@@ -57,8 +57,8 @@ hash。execution-control 读取输入时必须校验 ref、run、hash 与 1 MiB 
 `tenant_id` 属于冻结的完整输入，不进入 metadata。调用方不能指定工具；Primary Agent 只能从
 准入快照提供的模型可见工具中选择。
 
-调用方不得发送 document scope、version query、corpus、collection、top-k、provider、vector-store
-或 task-queue 字段。
+调用方不得发送 document scope、version query、corpus、collection、top-k、provider、vector-store 或
+task-queue 字段。
 
 ## 工具注册与开放
 
@@ -70,13 +70,9 @@ hash。execution-control 读取输入时必须校验 ref、run、hash 与 1 MiB 
 `personal_memory_recall` 为 `model_visible`，但只在 execution-control 冻结的本轮授权允许召回时注册到
 Agent Runtime，且预算固定为一次调用；未获授权时 `visible_tool_names` 为空。
 
-机构文档知识不作为工具开放。execution-control 从
-`configs/runtime/query-serving-targets.v3.json` 注入文档范围和本地路由词，先在 admission 前确定
-`none`、`single_scope` 或 `multi_scope`。仅在选中范围时冻结各范围的 current release、物理 Qdrant
-collection、完整 serving config，以及 `embedding` 模型设置的 hash。检索路径的
-`PrepareGroundingContextActivity` 在模型调用前形成
-`grounding_context.v2`；`none` 路径由 Agent Activity 形成 `not_required` context。app-api 不选择或
-校验范围，模型也不接收检索参数。
+机构文档不作为工具开放。execution-control 为每个有效请求冻结 PostgreSQL 当前索引查询绑定、本轮
+查询 hash 和 `embedding` 模型设置 hash，并由 `RetrieveCampusDocsEvidenceActivity` 在模型调用前
+返回有界检索结果。app-api 不选择或校验索引，模型也不接收检索参数。
 
 ## 工具运行时指纹
 
@@ -90,20 +86,21 @@ execution-control 在调用 agent-runtime 前校验本地指纹并把完整准�
 并在 Finalization 前同时核对准入、已保存结果和本地指纹。任一阶段不匹配都以
 `agent_runtime_fingerprint_mismatch` 失败关闭，不能调用模型、持久化成功结果或发布产品终态。
 
-知识 grounding 使用同一运行的不可变准入快照；document scope、release、物理 collection、完整
-serving config、候选限制以及 `embedding` 模型设置 hash 的冻结与执行约束见
+Campus Docs 检索使用同一运行的不可变准入快照；物理 collection、dense/embedding/sparse 查询
+绑定、本轮查询 hash 和 `embedding` 模型设置 hash 的冻结与执行约束见
 `../architecture/system/retrieval-serving.md`。
 
-## Grounding 与结果传递
+## 检索与结果传递
 
-`grounding_context.v2` 是 Grounding Activity 的有界结果，包含本轮 run、admission hash、计划 hash、
-查询 hash 和最多 8 条 evidence / 4096 token。workflow 将它传给 Primary Agent，再随有界 Agent result
-传给 Finalization；这些内容进入 Temporal history。普通 StepResult 投影只保存 ref、hash、计数和摘要。
+`CampusDocsRetrievalResult` 是 Retrieval Activity 的有界结果，绑定本轮准入和查询，只包含 evidence
+数组，最多 8 条，正文合计最多 4000 个 Unicode 字符。workflow 把最小 `campus_docs_evidence` 数组传给 Primary Agent，并
+把原检索结果和 Agent result 分别传给 Finalization；这些内容进入 Temporal history。普通 StepResult
+投影只保存准入与查询 hash、collection、计数和阶段耗时。
 
-Grounding Activity 重试时重新执行只读 embedding/Qdrant 查询，不从 PostgreSQL 读取或重放 canonical
-正文。`none` 路径由 Primary Agent 建立 `not_required` context。
-StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memory.append` 可写的例外由
-`../data/durable-runtime.md` 定义。
+Retrieval Activity 重试时重新执行只读 embedding/Qdrant 查询，不从 PostgreSQL 读取或重放 evidence
+正文。每个有效请求都执行该 Activity；成功后产生唯一检索 result 并继续 Agent，失败则关闭 workflow。
+空与非空 evidence 只表达是否选出可引用证据，不增加状态字段。StepResult 自身首写不可变，终态
+写入 fence 及 completed 后仅 `memory.append` 可写的例外由 `../data/durable-runtime.md` 定义。
 
 `personal_memory_recall` 是 Primary Agent 同一次 SDK run 内的有界工具调用，不使用独立 memory ref
 或独立 payload。它的完整结果只进入有界 Agent result；Primary Agent invocation receipt 约束整个 SDK
@@ -117,7 +114,7 @@ run 不得因 Activity 重投递而再次执行。已有 `started` 或 `complete
 Activity。
 
 Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，不携带冻结输入正文。Temporal history
-另携带有界 Grounding 与 Agent Activity result；app-api 产品终态及其 `finalization_fingerprint` 是跨系统
+另携带有界 Campus Docs 检索结果与 Agent Activity result；app-api 产品终态及其 `finalization_fingerprint` 是跨系统
 重复完成、取消和较晚结果的最终裁决；execution-control 的终态投影必须与该结果一致，不能先向浏览器
 发布相冲突的终态。
 
@@ -145,8 +142,10 @@ Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_
 trace 标识；可选字段包括观测摘要、工作流调用链摘要和阶段耗时。它不返回路由标签、外部平台引用
 或逐请求遥测控制项。
 
-对于知识答案，execution-control 根据绑定本轮 run 的受保护 grounding 校验每个终态依据引用，并派生
-`result.sources`；该阶段不调用模型，也不改写答案。
+对于 Campus Docs 答案，execution-control 根据绑定本轮 run 的检索结果校验每个终态依据引用，并派生
+`result.sources`；每条公开 source 只包含 `document_id`、`root_unit_ids`、`section_ref`、
+`section_title`、`snippet`、`title`、`version_id`、`version_slug` 和 `version_label`。`section_ref`
+必须指向该版本的公开 permalink。该阶段不调用模型，也不改写答案。
 
 Finalization Activity 必须通过一次 `FinalizeRunProjection` 提交 completed Step、Attempt、Result 与
 run 四元组；不得拆成独立投影写入与 run completion。存储以单次 CAS 原子提交四元组、释放
