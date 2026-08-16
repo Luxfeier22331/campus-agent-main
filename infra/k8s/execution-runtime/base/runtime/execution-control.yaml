@@ -28,6 +28,21 @@ spec:
   selector:
     app.kubernetes.io/name: execution-control
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: execution-control-provider-snapshot
+  labels:
+    app.kubernetes.io/name: execution-control
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  ports:
+    - name: http
+      port: 8002
+      targetPort: snapshot
+  selector:
+    app.kubernetes.io/name: execution-control
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,6 +80,8 @@ spec:
               containerPort: 8000
             - name: admin
               containerPort: 8001
+            - name: snapshot
+              containerPort: 8002
           env:
             - name: DEPLOYMENT_ENVIRONMENT
               valueFrom:

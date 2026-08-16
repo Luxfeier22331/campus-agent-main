@@ -20,7 +20,8 @@
 		"dev:init": "pnpm exec tsx scripts/dev/cli.ts init",
 		"dev:doctor": "pnpm exec tsx scripts/dev/cli.ts doctor",
 		"dev:instances": "pnpm exec tsx scripts/dev/cli.ts instances",
-		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy"
+		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy",
+		"campus-docs:index-job": "tsx scripts/deploy/campus-docs-index-job.ts"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-s3": "^3.1109.0",

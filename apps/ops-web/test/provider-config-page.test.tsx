@@ -4,13 +4,6 @@ import { OpsWebApp } from "../src/app/ops-web-app";
 import type { ExecutionModelSettingsStatus } from "../src/shared/ops-contract";
 
 const executionStatus: ExecutionModelSettingsStatus = {
-	embeddingRequirement: {
-		dimensions: 2560,
-		embeddingSpaceId: "qwen3-embedding-4b-test-v1",
-		model: "Qwen3-Embedding-4B",
-		provider: "openai-compatible",
-		transport: "embeddings",
-	},
 	etag: "etag-1",
 	sampledAt: "2026-07-21T01:00:00.000Z",
 	settings: {
@@ -18,8 +11,6 @@ const executionStatus: ExecutionModelSettingsStatus = {
 			baseUrl: "https://embedding.example.test/v1",
 			credentialConfigured: true,
 			credentialLast4: "demo",
-			dimensions: 2560,
-			embeddingSpaceId: "qwen3-embedding-4b-test-v1",
 			kind: "embedding",
 			latestValidation: null,
 			model: "Qwen3-Embedding-4B",
@@ -44,7 +35,7 @@ const executionStatus: ExecutionModelSettingsStatus = {
 };
 
 describe("model settings page", () => {
-	it("separates editable fields, fixed facts, and advanced settings", async () => {
+	it("keeps provider connections editable without exposing index identity", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () => Response.json(executionStatus)),
@@ -52,9 +43,8 @@ describe("model settings page", () => {
 		render(<OpsWebApp initialPath="/providers" />);
 
 		expect(await screen.findByRole("heading", { name: "模型配置" })).toBeInTheDocument();
-		expect(await screen.findByText("Qwen3-Embedding-4B", { exact: true })).toBeInTheDocument();
-		expect(screen.getByText("qwen3-embedding-4b-test-v1")).toBeInTheDocument();
-		expect(screen.queryByDisplayValue("Qwen3-Embedding-4B")).not.toBeInTheDocument();
+		expect(screen.queryByText("qwen3-embedding-4b@2560-v1")).not.toBeInTheDocument();
+		expect(await screen.findByDisplayValue("Qwen3-Embedding-4B")).toBeEnabled();
 		for (const button of screen.getAllByRole("button", { name: "保存并验证" })) {
 			expect(button).toBeDisabled();
 		}
@@ -64,23 +54,60 @@ describe("model settings page", () => {
 		expect(screen.queryByLabelText("请求超时（秒）")).not.toBeInTheDocument();
 	});
 
-	it("disables Embedding configuration until a current Campus Docs index exists", async () => {
+	it("saves an embedding provider and model alias without submitting index identity", async () => {
+		let savedBody: Record<string, unknown> | undefined;
 		vi.stubGlobal(
 			"fetch",
-			vi.fn(async () => Response.json({ ...executionStatus, embeddingRequirement: null })),
+			vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+				if (init?.method === "PUT") {
+					savedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+				}
+				return Response.json(executionStatus);
+			}),
 		);
 		render(<OpsWebApp initialPath="/providers" />);
 
-		expect(
-			await screen.findByText("尚未发布 Campus Docs 当前索引，Embedding 配置暂不可编辑。"),
-		).toBeInTheDocument();
-		expect(screen.getByDisplayValue("https://embedding.example.test/v1")).toBeDisabled();
-		expect(screen.getByLabelText("Embedding API Key")).toBeDisabled();
+		fireEvent.change(await screen.findByDisplayValue("Qwen3-Embedding-4B"), {
+			target: { value: "provider-embedding-alias" },
+		});
+		const provider = screen
+			.getAllByRole("combobox")
+			.find((control) => (control as HTMLSelectElement).value === "openai-compatible");
+		if (!provider) {
+			throw new Error("Expected the Embedding provider control.");
+		}
+		fireEvent.change(provider, { target: { value: "openai" } });
+		const save = screen.getAllByRole("button", { name: "保存并验证" })[1];
+		if (!save) {
+			throw new Error("Expected the Embedding save button.");
+		}
+		fireEvent.click(save);
+
+		await waitFor(() =>
+			expect(savedBody).toEqual({
+				apiKey: "",
+				baseUrl: "https://embedding.example.test/v1",
+				model: "provider-embedding-alias",
+				provider: "openai",
+			}),
+		);
+	});
+
+	it("allows Embedding configuration before the first Campus Docs index exists", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					...executionStatus,
+					settings: { ...executionStatus.settings, embedding: null },
+				}),
+			),
+		);
+		render(<OpsWebApp initialPath="/providers" />);
+
+		expect(await screen.findByLabelText("Embedding API Key")).toBeEnabled();
+		expect(screen.queryByText(/尚未发布 Campus Docs 当前索引/u)).not.toBeInTheDocument();
 		expect(screen.getByDisplayValue("https://provider.example.test/v1")).toBeEnabled();
-		const saveButtons = screen.getAllByRole("button", { name: "保存并验证" });
-		const validationButtons = screen.getAllByRole("button", { name: "重新验证" });
-		expect(saveButtons[1]).toBeDisabled();
-		expect(validationButtons[1]).toBeDisabled();
 	});
 
 	it("marks invalid fields, focuses the first error, and can discard edits", async () => {

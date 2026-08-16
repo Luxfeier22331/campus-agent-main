@@ -6,7 +6,9 @@
 	"license": "Apache-2.0",
 	"type": "module",
 	"scripts": {
-		"publish": "tsx src/cli.ts",
+		"build-chunks": "tsx src/cli.ts build-chunks",
+		"build-embeddings": "tsx src/cli.ts build-embeddings",
+		"publish-index": "tsx src/cli.ts publish-index",
 		"test": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
 		"typecheck": "tsc --noEmit"

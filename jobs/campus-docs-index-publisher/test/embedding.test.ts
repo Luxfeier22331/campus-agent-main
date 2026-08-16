@@ -1,14 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { createOpenAICompatibleEmbeddingClient } from "../src/embedding.ts";
+import {
+	createOpenAICompatibleEmbeddingClient,
+	fetchEmbeddingProviderSnapshot,
+} from "../src/embedding.ts";
 
-const env = {
-	CAMPUS_DOCS_EMBEDDING_API_KEY: "test-key",
-	CAMPUS_DOCS_EMBEDDING_BASE_URL: "https://embedding.example/v1",
-	CAMPUS_DOCS_EMBEDDING_SPACE_ID: "test-space",
+const snapshot = {
+	apiKey: "test-key",
+	baseUrl: "https://embedding.example/v1",
+	model: "provider-model-alias",
+	provider: "openai-compatible" as const,
+	schemaVersion: "embedding_provider_snapshot.v1" as const,
 };
 
 describe("OpenAI-compatible embedding client", () => {
+	it("loads the one-time provider snapshot without vector-space fields", async () => {
+		const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+			api_key: "snapshot-key",
+			base_url: "https://embedding.example/v1/",
+			model: "embedding-model",
+			provider: "openai-compatible",
+			schema_version: "embedding_provider_snapshot.v1",
+		}), { status: 200 }));
+
+		await expect(fetchEmbeddingProviderSnapshot(fetchMock, "http://snapshot.test/internal")).resolves.toEqual({
+			apiKey: "snapshot-key",
+			baseUrl: "https://embedding.example/v1",
+			model: "embedding-model",
+			provider: "openai-compatible",
+			schemaVersion: "embedding_provider_snapshot.v1",
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
 	it("reorders response vectors by their input index", async () => {
 		const client = clientFor({
 			data: [
@@ -18,7 +42,7 @@ describe("OpenAI-compatible embedding client", () => {
 		});
 
 		await expect(
-			client.embed({ dimensions: 2, model: "test-model", texts: ["first", "second"] }),
+			client.embed({ dimensions: 2, texts: ["first", "second"] }),
 		).resolves.toEqual([
 			[1, 1],
 			[2, 2],
@@ -43,7 +67,7 @@ describe("OpenAI-compatible embedding client", () => {
 		const client = clientFor(payload);
 
 		await expect(
-			client.embed({ dimensions: 2, model: "test-model", texts: ["first", "second"] }),
+			client.embed({ dimensions: 2, texts: ["first", "second"] }),
 		).rejects.toThrow(message);
 	});
 
@@ -51,7 +75,7 @@ describe("OpenAI-compatible embedding client", () => {
 		const client = clientFor({ data: [{ embedding: [1, 1], index: 0 }] });
 
 		await expect(
-			client.embed({ dimensions: 2, model: "test-model", texts: ["first", "second"] }),
+			client.embed({ dimensions: 2, texts: ["first", "second"] }),
 		).rejects.toThrow("embedding provider response is missing index 1");
 	});
 
@@ -59,14 +83,14 @@ describe("OpenAI-compatible embedding client", () => {
 		const client = clientFor({ data: [{ embedding: [1, "invalid"], index: 0 }] });
 
 		await expect(
-			client.embed({ dimensions: 2, model: "test-model", texts: ["first"] }),
+			client.embed({ dimensions: 2, texts: ["first"] }),
 		).rejects.toThrow("embedding provider vector 0 is invalid");
 	});
 });
 
 function clientFor(payload: unknown) {
 	return createOpenAICompatibleEmbeddingClient(
-		env,
+		snapshot,
 		async () =>
 			new Response(JSON.stringify(payload), {
 				headers: { "content-type": "application/json" },

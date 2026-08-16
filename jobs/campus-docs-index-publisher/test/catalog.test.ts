@@ -8,10 +8,8 @@ const binding: CurrentIndexBinding = {
 	collection: `campus_docs_${"a".repeat(64)}`,
 	dense_vector_name: INDEX_DEFINITION.embedding.vectorName,
 	embedding_dimensions: INDEX_DEFINITION.embedding.dimensions,
-	embedding_model: INDEX_DEFINITION.embedding.model,
-	embedding_provider: INDEX_DEFINITION.embedding.provider,
 	embedding_query_instruction: INDEX_DEFINITION.embedding.queryInstruction,
-	embedding_space_id: "qwen3-embedding-4b-test-v1",
+	embedding_space_id: INDEX_DEFINITION.embedding.spaceId,
 	sparse_model: INDEX_DEFINITION.sparse.model,
 	sparse_vector_name: INDEX_DEFINITION.sparse.vectorName,
 };

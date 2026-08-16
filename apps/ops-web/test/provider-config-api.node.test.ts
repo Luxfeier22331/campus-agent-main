@@ -7,13 +7,6 @@ import { ExecutionModelSettingsStatusSchema } from "../src/shared/ops-contract";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 const status = ExecutionModelSettingsStatusSchema.parse({
-	embeddingRequirement: {
-		dimensions: 2560,
-		embeddingSpaceId: "qwen3-embedding-4b-test-v1",
-		model: "Qwen3-Embedding-4B",
-		provider: "openai-compatible",
-		transport: "embeddings",
-	},
 	etag: "etag-1",
 	sampledAt: "2026-07-14T10:00:00.000Z",
 	settings: { embedding: null, llm: null },
@@ -22,9 +15,6 @@ const status = ExecutionModelSettingsStatusSchema.parse({
 describe("ops model settings BFF", () => {
 	it("parses the current-settings contract without release entities", () => {
 		expect(ExecutionModelSettingsStatusSchema.parse(status)).toEqual(status);
-		expect(
-			ExecutionModelSettingsStatusSchema.parse({ ...status, embeddingRequirement: null }),
-		).toEqual({ ...status, embeddingRequirement: null });
 	});
 
 	it("requires same-origin writes and forwards the hidden ETag", async () => {

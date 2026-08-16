@@ -54,8 +54,6 @@ export const ExecutionModelSettingSchema = z.object({
 	baseUrl: z.string().url(),
 	credentialConfigured: z.boolean(),
 	credentialLast4: z.string().max(4).optional(),
-	dimensions: z.number().int().positive().optional(),
-	embeddingSpaceId: z.string().trim().min(1).optional(),
 	kind: ModelSettingKindSchema,
 	latestValidation: ModelSettingLatestValidationSchema.nullable(),
 	model: z.string().min(1),
@@ -66,16 +64,6 @@ export const ExecutionModelSettingSchema = z.object({
 });
 
 export const ExecutionModelSettingsStatusSchema = z.object({
-	embeddingRequirement: z
-		.object({
-			dimensions: z.number().int().positive(),
-			embeddingSpaceId: z.string().trim().min(1),
-			model: z.string().min(1),
-			provider: z.literal("openai-compatible"),
-			transport: z.literal("embeddings"),
-		})
-		.strict()
-		.nullable(),
 	etag: z.string(),
 	sampledAt: IsoDateTimeSchema,
 	settings: z.object({
@@ -86,20 +74,25 @@ export const ExecutionModelSettingsStatusSchema = z.object({
 
 export type ExecutionModelSettingsStatus = z.infer<typeof ExecutionModelSettingsStatusSchema>;
 
-export const ModelSettingUpdateSchema = z
-	.object({
-		apiKey: z
-			.string()
-			.max(16 * 1024)
-			.optional(),
-		baseUrl: z.string().url(),
-		embeddingSpaceId: z.string().trim().min(1).optional(),
-		model: z.string().trim().min(1).max(256),
-		provider: z.enum(["openai", "openai-compatible"]),
-		transport: z.enum(["responses", "chat_completions", "embeddings"]),
-	})
-	.strict();
-export type ModelSettingUpdate = z.infer<typeof ModelSettingUpdateSchema>;
+const ModelSettingUpdateBaseSchema = z.object({
+	apiKey: z
+		.string()
+		.max(16 * 1024)
+		.optional(),
+	baseUrl: z.string().url(),
+	model: z.string().trim().min(1).max(256),
+	provider: z.enum(["openai", "openai-compatible"]),
+});
+
+export const LLMModelSettingUpdateSchema = ModelSettingUpdateBaseSchema.extend({
+	transport: z.enum(["responses", "chat_completions"]),
+}).strict();
+
+export const EmbeddingModelSettingUpdateSchema = ModelSettingUpdateBaseSchema.strict();
+
+export type ModelSettingUpdate =
+	| z.infer<typeof LLMModelSettingUpdateSchema>
+	| z.infer<typeof EmbeddingModelSettingUpdateSchema>;
 
 export const InternalPortalCredentialOutcomeSchema = z.enum([
 	"valid",

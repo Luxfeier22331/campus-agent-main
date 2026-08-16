@@ -34,10 +34,8 @@ func campusDocsIndexForTest() campusdocs.Index {
 		Collection:                "campus_docs_" + repeatedHex("a", 64),
 		DenseVectorName:           "dense",
 		EmbeddingDimensions:       2560,
-		EmbeddingModel:            "Qwen3-Embedding-4B",
-		EmbeddingProvider:         "openai-compatible",
 		EmbeddingQueryInstruction: "Given a Campus Web document question, retrieve relevant current passages that answer the query.",
-		EmbeddingSpaceID:          "qwen3-embedding-4b-test-v1",
+		EmbeddingSpaceID:          "qwen3-embedding-4b@2560-v1",
 		SparseModel:               "fnv1a_log_tf.v1",
 		SparseVectorName:          "sparse",
 	}
@@ -48,8 +46,6 @@ func campusDocsTargetForHTTPTest() *temporalruntime.CampusDocsIndexSnapshot {
 		Collection:                "campus_docs_" + repeatedHex("d", 64),
 		DenseVectorName:           "dense",
 		EmbeddingDimensions:       3,
-		EmbeddingModel:            "embedding-test",
-		EmbeddingProvider:         "openai-compatible",
 		EmbeddingQueryInstruction: "retrieve Campus Web document passages",
 		EmbeddingSpaceID:          "embedding-test-space-v1",
 		SparseModel:               "fnv1a_log_tf.v1",
@@ -76,13 +72,7 @@ func TestCampusDocsQueryUsesFrozenCollectionAndExplicitSparseVector(t *testing.T
 		qdrantQueryAPIKey: "test-key",
 	}
 	target := campusDocsTargetForHTTPTest()
-	provider := providerConfigSnapshot{
-		Dimensions:       3,
-		EmbeddingSpaceID: "embedding-test-space-v1",
-		Model:            "embedding-test",
-		Provider:         "openai-compatible",
-	}
-	if _, err := executor.queryCampusDocsPoints(context.Background(), "学生请假", []float64{0.1, 0.2, 0.3}, provider, target); err != nil {
+	if _, err := executor.queryCampusDocsPoints(context.Background(), "学生请假", []float64{0.1, 0.2, 0.3}, target); err != nil {
 		t.Fatal(err)
 	}
 	prefetch, ok := received["prefetch"].([]any)
@@ -103,16 +93,44 @@ func TestCampusDocsQueryUsesFrozenCollectionAndExplicitSparseVector(t *testing.T
 	}
 }
 
-func TestCampusDocsEmbeddingAdmissionRejectsDifferentEmbeddingSpace(t *testing.T) {
+func TestCampusDocsEmbeddingAdmissionDoesNotDuplicateIndexVectorSpace(t *testing.T) {
 	target := campusDocsTargetForHTTPTest()
 	provider := providerConfigSnapshot{
-		Dimensions:       target.EmbeddingDimensions,
-		EmbeddingSpaceID: "different-space-v1",
-		Model:            target.EmbeddingModel,
-		Provider:         target.EmbeddingProvider,
+		APIKey:    "secret",
+		BaseURL:   "https://embedding.example/v1",
+		Kind:      providerConfigKindEmbedding,
+		Model:     "provider-model-alias",
+		Provider:  "openai-compatible",
+		Transport: "embeddings",
 	}
-	if err := validateCampusDocsEmbeddingAdmission(target, provider); err == nil {
-		t.Fatal("embedding provider from a different vector space was accepted")
+	if err := validateCampusDocsEmbeddingAdmission(target, provider); err != nil {
+		t.Fatalf("provider connection was incorrectly coupled to index vector space: %v", err)
+	}
+}
+
+func TestCampusDocsEmbeddingRequestUsesAdmittedIndexDimensions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if payload["dimensions"] != float64(3) {
+			t.Fatalf("dimensions = %#v, want 3", payload["dimensions"])
+		}
+		_, _ = response.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3]}]}`))
+	}))
+	defer server.Close()
+	executor := campusDocsQdrantClient{embeddingHTTPClient: server.Client()}
+	provider := providerConfigSnapshot{
+		APIKey: "secret", BaseURL: server.URL, Kind: providerConfigKindEmbedding,
+		Model: "embedding-model", Provider: "openai-compatible", Transport: "embeddings",
+	}
+	vector, err := executor.embedQueryWithProviderConfig(t.Context(), provider, "query", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vector) != 3 {
+		t.Fatalf("vector dimensions = %d, want 3", len(vector))
 	}
 }
 

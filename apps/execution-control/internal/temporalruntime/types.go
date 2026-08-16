@@ -138,8 +138,6 @@ type RetrieveCampusDocsEvidenceActivityInput struct {
 type CampusDocsIndexSnapshot struct {
 	DenseVectorName           string `json:"dense_vector_name"`
 	EmbeddingDimensions       int    `json:"embedding_dimensions"`
-	EmbeddingModel            string `json:"embedding_model"`
-	EmbeddingProvider         string `json:"embedding_provider"`
 	EmbeddingQueryInstruction string `json:"embedding_query_instruction"`
 	EmbeddingSpaceID          string `json:"embedding_space_id"`
 	Collection                string `json:"collection"`

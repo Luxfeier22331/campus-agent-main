@@ -119,6 +119,7 @@ func (e campusDocsQdrantClient) embedQueryWithProviderConfig(
 	ctx context.Context,
 	embeddingConfig providerConfigSnapshot,
 	queryText string,
+	dimensions int,
 ) ([]float64, error) {
 	if e.embeddingHTTPClient == nil {
 		return nil, errors.New("embedding HTTP client is not configured")
@@ -126,7 +127,7 @@ func (e campusDocsQdrantClient) embedQueryWithProviderConfig(
 	body, err := json.Marshal(map[string]any{
 		"model":      embeddingConfig.Model,
 		"input":      strings.TrimSpace(queryText),
-		"dimensions": embeddingConfig.Dimensions,
+		"dimensions": dimensions,
 	})
 	if err != nil {
 		return nil, err
@@ -169,11 +170,11 @@ func (e campusDocsQdrantClient) embedQueryWithProviderConfig(
 	if len(payload.Data) == 0 || len(payload.Data[0].Embedding) == 0 {
 		return nil, errors.New("embedding response did not contain embedding")
 	}
-	if embeddingConfig.Dimensions > 0 && len(payload.Data[0].Embedding) != embeddingConfig.Dimensions {
+	if len(payload.Data[0].Embedding) != dimensions {
 		return nil, fmt.Errorf(
 			"embedding dimension = %d, want %d",
 			len(payload.Data[0].Embedding),
-			embeddingConfig.Dimensions,
+			dimensions,
 		)
 	}
 	return payload.Data[0].Embedding, nil
@@ -211,10 +212,9 @@ func (e campusDocsQdrantClient) queryCampusDocsPoints(
 	ctx context.Context,
 	query string,
 	embedding []float64,
-	embeddingConfig providerConfigSnapshot,
 	target *temporalruntime.CampusDocsIndexSnapshot,
 ) ([]qdrantPoint, error) {
-	if err := validateCampusDocsEmbeddingAdmission(target, embeddingConfig); err != nil {
+	if err := validateCampusDocsIndexAdmission(target); err != nil {
 		return nil, err
 	}
 	if len(embedding) != target.EmbeddingDimensions {

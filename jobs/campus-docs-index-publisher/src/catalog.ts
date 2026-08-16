@@ -1,4 +1,6 @@
-import { Client } from "pg";
+import { readFileSync } from "node:fs";
+
+import { Client, type ClientConfig } from "pg";
 
 import {
 	INDEX_DEFINITION,
@@ -7,15 +9,19 @@ import {
 } from "./types.ts";
 
 export interface PostgresCatalogEnv {
-	CAMPUS_DOCS_DATABASE_URL?: string;
+	PGDATABASE?: string;
+	PGHOST?: string;
+	PGPASSWORD?: string;
+	PGPORT?: string;
+	PGSSLMODE?: string;
+	PGSSLROOTCERT?: string;
+	PGUSER?: string;
 }
 
 export function createPostgresIndexCatalog(
 	env: PostgresCatalogEnv = process.env,
 ): PublisherIndexCatalog & { close(): Promise<void> } {
-	const connectionString = env.CAMPUS_DOCS_DATABASE_URL?.trim();
-	if (!connectionString) throw new Error("CAMPUS_DOCS_DATABASE_URL is required for Campus docs publisher");
-	const client = new Client({ connectionString });
+	const client = new Client(postgresClientConfig(env));
 	let connected = false;
 	const connect = async () => {
 		if (!connected) {
@@ -54,15 +60,13 @@ export function createPostgresIndexCatalog(
 				await client.query(
 					`insert into campus_docs_serving.current_index
 					 (singleton, collection, dense_vector_name, embedding_dimensions,
-					  embedding_model, embedding_provider, embedding_query_instruction,
-					  embedding_space_id, sparse_model, sparse_vector_name)
-					 values (true, $1, $2, $3, $4, $5, $6, $7, $8, $9)
+					  embedding_query_instruction, embedding_space_id, sparse_model,
+					  sparse_vector_name)
+					 values (true, $1, $2, $3, $4, $5, $6, $7)
 					 on conflict (singleton) do update set
 					   collection = excluded.collection,
 					   dense_vector_name = excluded.dense_vector_name,
 					   embedding_dimensions = excluded.embedding_dimensions,
-					   embedding_model = excluded.embedding_model,
-					   embedding_provider = excluded.embedding_provider,
 					   embedding_query_instruction = excluded.embedding_query_instruction,
 					   embedding_space_id = excluded.embedding_space_id,
 					   sparse_model = excluded.sparse_model,
@@ -71,8 +75,6 @@ export function createPostgresIndexCatalog(
 						index.collection,
 						index.dense_vector_name,
 						index.embedding_dimensions,
-						index.embedding_model,
-						index.embedding_provider,
 						index.embedding_query_instruction,
 						index.embedding_space_id,
 						index.sparse_model,
@@ -113,8 +115,6 @@ interface CurrentIndexRow {
 	collection: string;
 	dense_vector_name: string;
 	embedding_dimensions: number;
-	embedding_model: string;
-	embedding_provider: string;
 	embedding_query_instruction: string;
 	embedding_space_id: string;
 	sparse_model: string;
@@ -125,8 +125,6 @@ const bindingFields = [
 	"collection",
 	"dense_vector_name",
 	"embedding_dimensions",
-	"embedding_model",
-	"embedding_provider",
 	"embedding_query_instruction",
 	"embedding_space_id",
 	"sparse_model",
@@ -138,8 +136,6 @@ function toBinding(row: CurrentIndexRow): CurrentIndexBinding {
 		collection: row.collection,
 		dense_vector_name: row.dense_vector_name,
 		embedding_dimensions: row.embedding_dimensions,
-		embedding_model: row.embedding_model,
-		embedding_provider: row.embedding_provider,
 		embedding_query_instruction: row.embedding_query_instruction,
 		embedding_space_id: row.embedding_space_id,
 		sparse_model: row.sparse_model,
@@ -170,13 +166,53 @@ function validateTargetBinding(binding: CurrentIndexBinding): void {
 	if (
 		binding.dense_vector_name !== expected.embedding.vectorName ||
 		binding.embedding_dimensions !== expected.embedding.dimensions ||
-		binding.embedding_model !== expected.embedding.model ||
-		binding.embedding_provider !== expected.embedding.provider ||
 		binding.embedding_query_instruction !== expected.embedding.queryInstruction ||
-		!binding.embedding_space_id.trim() ||
+		binding.embedding_space_id !== expected.embedding.spaceId ||
 		binding.sparse_model !== expected.sparse.model ||
 		binding.sparse_vector_name !== expected.sparse.vectorName
 	) {
 		throw new Error("Campus docs current index query binding is invalid");
 	}
+}
+
+function postgresClientConfig(env: PostgresCatalogEnv): ClientConfig {
+	const portValue = env.PGPORT?.trim() || "5432";
+	const port = Number(portValue);
+	if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
+		throw new Error("PGPORT must be a valid TCP port for Campus docs publisher");
+	}
+	const sslMode = requiredEnv(env.PGSSLMODE, "PGSSLMODE");
+	let ssl: ClientConfig["ssl"];
+	if (sslMode === "disable") {
+		ssl = false;
+	} else if (sslMode === "verify-full") {
+		const rootCert = requiredEnv(env.PGSSLROOTCERT, "PGSSLROOTCERT");
+		try {
+			ssl = { ca: readFileSync(rootCert, "utf8"), rejectUnauthorized: true };
+		} catch (error) {
+			throw new Error(`read PGSSLROOTCERT for Campus docs publisher: ${rootCert}`, {
+				cause: error,
+			});
+		}
+	} else {
+		throw new Error("PGSSLMODE must be disable or verify-full for Campus docs publisher");
+	}
+	const password = env.PGPASSWORD;
+	if (password === undefined || password.length === 0) {
+		throw new Error("PGPASSWORD is required for Campus docs publisher");
+	}
+	return {
+		database: requiredEnv(env.PGDATABASE, "PGDATABASE"),
+		host: requiredEnv(env.PGHOST, "PGHOST"),
+		password,
+		port,
+		ssl,
+		user: requiredEnv(env.PGUSER, "PGUSER"),
+	};
+}
+
+function requiredEnv(value: string | undefined, name: string): string {
+	const normalized = value?.trim();
+	if (!normalized) throw new Error(`${name} is required for Campus docs publisher`);
+	return normalized;
 }

@@ -28,6 +28,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 import { DiningDraftUpdateSchema, DiningRevisionSchema } from "../shared/dining-contract.ts";
 import {
+	EmbeddingModelSettingUpdateSchema,
 	InternalPortalAutomationCredentialUpdateSchema,
 	InternalPortalAutomationTokenCreateSchema,
 	InternalPortalAutomationTokenListSchema,
@@ -40,9 +41,9 @@ import {
 	InternalPortalCredentialRevealSchema,
 	InternalPortalCredentialSchema,
 	InternalPortalCredentialUpdateSchema,
+	LLMModelSettingUpdateSchema,
 	ModelDiscoveryRequestSchema,
 	ModelSettingKindSchema,
-	ModelSettingUpdateSchema,
 	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsOverviewWindowSchema,
@@ -520,7 +521,11 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			);
 		}
 		const kind = ModelSettingKindSchema.safeParse(context.req.param("kind"));
-		const body = ModelSettingUpdateSchema.safeParse(await context.req.json().catch(() => null));
+		const rawBody = await context.req.json().catch(() => null);
+		const body =
+			kind.success && kind.data === "embedding"
+				? EmbeddingModelSettingUpdateSchema.safeParse(rawBody)
+				: LLMModelSettingUpdateSchema.safeParse(rawBody);
 		if (!(kind.success && body.success)) {
 			return jsonError("OPS_INVALID_JSON", "请求体必须是有效 JSON。", 400);
 		}
@@ -1895,10 +1900,10 @@ function providerConfigAdminErrorResponse(error: ProviderConfigAdminResponseErro
 function providerConfigValidationMessage(upstreamCode: string) {
 	return (
 		{
-			dimension_mismatch: "Embedding 返回的向量维度与固定配置不一致。",
 			invalid_response: "模型服务返回了无法识别的响应。",
-			provider_timeout: "连接模型服务超时，请检查地址和网络。",
+			invalid_setting: "在线模型配置内容无效。",
 			provider_unavailable: "无法连接模型服务，请检查地址和网络。",
+			provider_timeout: "连接模型服务超时，请检查地址和网络。",
 		}[upstreamCode] ?? "在线模型配置内容无效，请检查填写内容。"
 	);
 }

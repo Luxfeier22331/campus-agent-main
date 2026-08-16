@@ -55,11 +55,10 @@ export function validationDetail(validation: LatestValidation) {
 function validationErrorLabel(errorCode: string | undefined) {
 	return (
 		{
-			dimension_mismatch: "向量维度不一致",
 			invalid_response: "供应商响应格式不正确",
-			provider_http_error: "供应商拒绝了验证请求",
+			invalid_setting: "在线模型配置无效",
+			provider_unavailable: "无法连接供应商",
 			provider_timeout: "供应商验证超时",
-			transport_error: "无法连接供应商",
 		}[errorCode ?? ""] ?? "验证未通过"
 	);
 }
@@ -75,19 +74,6 @@ export function InlineNotice({
 		<Alert className="px-3 py-2" role="status" tone={tone}>
 			{children}
 		</Alert>
-	);
-}
-
-export function ReadOnlyFacts({ items }: { items: Array<{ label: string; value: string }> }) {
-	return (
-		<dl className="grid gap-x-4 gap-y-3 rounded-md border border-border bg-secondary p-3 sm:grid-cols-2">
-			{items.map((item) => (
-				<div className="min-w-0" key={item.label}>
-					<dt className="text-muted-foreground text-xs">{item.label}</dt>
-					<dd className="mt-1 break-words font-medium text-foreground text-sm">{item.value}</dd>
-				</div>
-			))}
-		</dl>
 	);
 }
 

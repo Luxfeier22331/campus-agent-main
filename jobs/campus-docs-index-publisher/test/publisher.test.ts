@@ -1,358 +1,269 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createDocsSourceSiteFixture } from "../../../apps/campus-web/fixtures/docs-source-site.ts";
 import {
-	buildChunks,
-	buildCurrentIndexBinding,
-	buildPointId,
-	loadCurrentVersions,
-	parseIndexingSource,
-	sha256Text,
-} from "../src/indexing.ts";
-import { publishCampusDocsIndex } from "../src/publisher.ts";
+	artifactHex,
+	indexManifestKey,
+	readChunkSet,
+} from "../src/artifacts.ts";
+import {
+	buildCampusDocsChunkSet,
+	buildCampusDocsEmbeddingSet,
+	publishCampusDocsIndex,
+} from "../src/publisher.ts";
 import { QdrantCollectionContentMismatchError } from "../src/qdrant.ts";
-import type {
-	CurrentIndexBinding,
-	IndexChunk,
-	PublishInput,
-	StoredDenseVector,
+import {
+	CAMPUS_DOCS_SOURCE_KEY,
+	type ArtifactObjectStore,
+	type CurrentIndexBinding,
+	type IndexCatalog,
+	type QdrantIndexClient,
+	type Sha256Ref,
 } from "../src/types.ts";
-import { INDEX_DEFINITION } from "../src/types.ts";
 
-describe("Campus docs index publisher", () => {
-	it("rejects activation when source.json changes during a new build", async () => {
-		const harness = createHarness();
-		harness.input.readSource = async () => new TextEncoder().encode("{}");
+describe("Campus docs artifact stages", () => {
+	it("builds a deterministic chunk set from the current source and readers", async () => {
+		const store = fixtureStore();
+		const first = await buildCampusDocsChunkSet({ store });
+		const second = await buildCampusDocsChunkSet({ store });
+		const loaded = await readChunkSet(store, first.chunkSet);
 
-		await expect(publishCampusDocsIndex(harness.input)).rejects.toThrow(
-			"Campus docs source changed while the index was being built",
-		);
-		expect(harness.activationCount()).toBe(0);
-		expect(harness.deletedCollections).toHaveLength(1);
+		expect(second).toEqual(first);
+		expect(first.chunkSet).toMatch(/^sha256:[a-f0-9]{64}$/u);
+		expect(loaded.chunks).toHaveLength(first.chunkCount);
+		expect(loaded.manifest.documentCount).toBe(first.documentCount);
+		expect(loaded.chunks.every((chunk) => chunk.retrievalTextSha256.startsWith("sha256:"))).toBe(true);
 	});
 
-	it("embeds unique retrieval texts and activates the validated immutable collection", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		const result = await publishCampusDocsIndex(harness.input);
-		const uniqueTextCount = new Set(projection.chunks.map((chunk) => sha256Text(chunk.retrievalText))).size;
-
-		expect(result).toMatchObject({
-			collection: projection.binding.collection,
-			documentCount: projection.documentCount,
-			generatedEmbeddingInputCount: uniqueTextCount,
-			noOp: false,
-			pointCount: projection.chunks.length,
-			reusedEmbeddingInputCount: 0,
-			uniqueEmbeddingInputCount: uniqueTextCount,
+	it("reuses embeddings only from the explicitly named compatible embedding set", async () => {
+		const store = fixtureStore();
+		const chunks = await buildCampusDocsChunkSet({ store });
+		const generatedTexts: string[] = [];
+		const first = await buildCampusDocsEmbeddingSet({
+			chunkSet: chunks.chunkSet,
+			embedding: embeddingClient(generatedTexts),
+			store,
 		});
-		expect(result.sourceDigest).toMatch(/^sha256:[a-f0-9]{64}$/u);
-		expect(harness.embeddingTexts).toHaveLength(uniqueTextCount);
-		expect(harness.embeddingTexts).toEqual(
-			[...new Set(projection.chunks.map((chunk) => chunk.retrievalText))],
-		);
-		expect(harness.activationCount()).toBe(1);
-		expect(harness.deletedCollections).toEqual([]);
+		const secondClient = vi.fn(async () => {
+			throw new Error("explicit reuse should cover every input");
+		});
+		const second = await buildCampusDocsEmbeddingSet({
+			chunkSet: chunks.chunkSet,
+			embedding: { embed: secondClient },
+			reuseEmbeddingSet: first.embeddingSet,
+			store,
+		});
+
+		expect(first.generatedEmbeddingInputCount).toBe(first.embeddingCount);
+		expect(new Set(generatedTexts).size).toBe(first.embeddingCount);
+		expect(second).toMatchObject({
+			embeddingSet: first.embeddingSet,
+			generatedEmbeddingInputCount: 0,
+			reusedEmbeddingInputCount: first.embeddingCount,
+		});
+		expect(secondClient).not.toHaveBeenCalled();
 	});
 
-	it("reuses compatible dense vectors by retrieval text digest", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		const firstChunk = projection.chunks[0];
-		if (!firstChunk) throw new Error("fixture produced no chunks");
-		const oldCollection = `campus_docs_${"b".repeat(64)}`;
-		harness.input.catalog.current = async () => ({
-			...projection.binding,
-			collection: oldCollection,
+	it("does not infer embedding reuse from existing artifacts", async () => {
+		const store = fixtureStore();
+		const chunks = await buildCampusDocsChunkSet({ store });
+		const first = await buildCampusDocsEmbeddingSet({
+			chunkSet: chunks.chunkSet,
+			embedding: embeddingClient([]),
+			store,
 		});
-		harness.input.qdrant.readDenseVectors = async ({ collection }) => {
-			expect(collection).toBe(oldCollection);
-			return [storedVector(firstChunk, 0.25)];
-		};
+		const generatedTexts: string[] = [];
+		const second = await buildCampusDocsEmbeddingSet({
+			chunkSet: chunks.chunkSet,
+			embedding: embeddingClient(generatedTexts),
+			store,
+		});
 
-		const result = await publishCampusDocsIndex(harness.input);
-
-		expect(result.reusedEmbeddingInputCount).toBe(1);
-		expect(result.generatedEmbeddingInputCount).toBe(
-			(result.uniqueEmbeddingInputCount ?? 0) - 1,
-		);
-		expect(harness.embeddingTexts).not.toContain(firstChunk.retrievalText);
+		expect(second.embeddingSet).toBe(first.embeddingSet);
+		expect(second.generatedEmbeddingInputCount).toBe(second.embeddingCount);
+		expect(generatedTexts).toHaveLength(second.embeddingCount);
 	});
 
-	it("does not reuse dense vectors from a different embedding space", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		harness.input.catalog.current = async () => ({
-			...projection.binding,
-			collection: `campus_docs_${"b".repeat(64)}`,
-			embedding_space_id: "qwen3-embedding-4b-test-v0",
+	it("publishes only explicit chunk and embedding artifacts", async () => {
+		const store = fixtureStore();
+		const artifacts = await buildArtifacts(store);
+		const qdrant = qdrantHarness();
+		const catalog = catalogHarness();
+
+		const result = await publishCampusDocsIndex({
+			catalog: catalog.client,
+			chunkSet: artifacts.chunkSet,
+			embeddingSet: artifacts.embeddingSet,
+			qdrant: qdrant.client,
+			store,
 		});
-		harness.input.qdrant.readDenseVectors = async () => {
-			throw new Error("incompatible embedding space must not be read");
-		};
 
-		const result = await publishCampusDocsIndex(harness.input);
-
-		expect(result.reusedEmbeddingInputCount).toBe(0);
-		expect(result.generatedEmbeddingInputCount).toBe(result.uniqueEmbeddingInputCount);
+		expect(result.collection).toBe(`campus_docs_${artifactHex(result.index)}`);
+		expect(result.pointCount).toBe(artifacts.chunkCount);
+		expect(qdrant.created).toEqual([result.collection]);
+		expect(qdrant.upsertedPointCount()).toBe(result.pointCount);
+		expect(qdrant.validated).toEqual([result.collection]);
+		expect(catalog.activated).toHaveLength(1);
+		await expect(store.read(indexManifestKey(result.index))).resolves.toBeInstanceOf(Uint8Array);
 	});
 
-	it("does not reuse a dense vector keyed only by evidence text", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		const firstChunk = projection.chunks[0];
-		if (!firstChunk) throw new Error("fixture produced no chunks");
-		const oldCollection = `campus_docs_${"b".repeat(64)}`;
-		harness.input.catalog.current = async () => ({
-			...projection.binding,
-			collection: oldCollection,
-		});
-		harness.input.qdrant.readDenseVectors = async () => [{
-			...storedVector(firstChunk, 0.25),
-			retrievalTextSha256: sha256Text(firstChunk.content),
-		}];
+	it("deletes a newly created collection when the source projection changed", async () => {
+		const store = fixtureStore();
+		const artifacts = await buildArtifacts(store);
+		await store.replace(CAMPUS_DOCS_SOURCE_KEY, new TextEncoder().encode("{}\n"));
+		const qdrant = qdrantHarness();
+		const catalog = catalogHarness();
 
-		const result = await publishCampusDocsIndex(harness.input);
-
-		expect(result.reusedEmbeddingInputCount).toBe(0);
-		expect(harness.embeddingTexts).toContain(firstChunk.retrievalText);
+		await expect(publishCampusDocsIndex({
+			catalog: catalog.client,
+			chunkSet: artifacts.chunkSet,
+			embeddingSet: artifacts.embeddingSet,
+			qdrant: qdrant.client,
+			store,
+		})).rejects.toThrow("Campus docs source changed after the chunk set was built");
+		expect(qdrant.deleted).toHaveLength(1);
+		expect(catalog.activated).toEqual([]);
 	});
 
-	it("fails instead of silently rebuilding when the current collection is malformed", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		harness.input.catalog.current = async () => ({
-			...projection.binding,
-			collection: `campus_docs_${"b".repeat(64)}`,
+	it("does not delete a malformed collection that is already current", async () => {
+		const store = fixtureStore();
+		const artifacts = await buildArtifacts(store);
+		const firstQdrant = qdrantHarness();
+		const catalog = catalogHarness();
+		await publishCampusDocsIndex({
+			catalog: catalog.client,
+			chunkSet: artifacts.chunkSet,
+			embeddingSet: artifacts.embeddingSet,
+			qdrant: firstQdrant.client,
+			store,
 		});
-		harness.input.qdrant.readDenseVectors = async () => {
+		const qdrant = qdrantHarness({ exists: true });
+		qdrant.client.validate = async () => {
 			throw new QdrantCollectionContentMismatchError("malformed current collection");
 		};
 
-		await expect(publishCampusDocsIndex(harness.input)).rejects.toThrow(
-			"malformed current collection",
-		);
-		expect(harness.embeddingTexts).toEqual([]);
-		expect(harness.createdCollections).toEqual([]);
-		expect(harness.deletedCollections).toEqual([]);
-	});
-
-	it("returns no-op only after validating the target collection that is already current", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		harness.setCollectionExists(true);
-		harness.input.catalog.current = async () => projection.binding;
-		harness.input.catalog.activate = async () => {
-			harness.recordActivation();
-			return { noOp: true };
-		};
-		harness.input.qdrant.readDenseVectors = async () =>
-			projection.chunks.map((chunk) => storedVector(chunk, 0.2));
-
-		const result = await publishCampusDocsIndex(harness.input);
-
-		expect(result).toMatchObject({ collection: projection.binding.collection, noOp: true });
-		expect(result.pointCount).toBeUndefined();
-		expect(harness.collectionLookupCount()).toBe(1);
-		expect(harness.embeddingTexts).toEqual([]);
-	});
-
-	it("rebuilds a missing target collection that is already current", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		harness.input.catalog.current = async () => projection.binding;
-		harness.input.catalog.activate = async () => {
-			harness.recordActivation();
-			return { noOp: true };
-		};
-
-		const result = await publishCampusDocsIndex(harness.input);
-
-		expect(result).toMatchObject({ collection: projection.binding.collection, noOp: false });
-		expect(harness.createdCollections).toEqual([projection.binding.collection]);
-		expect(result.generatedEmbeddingInputCount).toBe(result.uniqueEmbeddingInputCount);
-	});
-
-	it("fails without deleting when the target collection is current but malformed", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		harness.setCollectionExists(true);
-		harness.input.catalog.current = async () => projection.binding;
-		harness.input.qdrant.readDenseVectors = async () => {
-			throw new QdrantCollectionContentMismatchError("malformed current target");
-		};
-
-		await expect(publishCampusDocsIndex(harness.input)).rejects.toThrow("malformed current target");
-		expect(harness.deletedCollections).toEqual([]);
-		expect(harness.createdCollections).toEqual([]);
-	});
-
-	it("validates and activates a complete target collection left by an earlier run", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		harness.setCollectionExists(true);
-		harness.input.qdrant.readDenseVectors = async () =>
-			projection.chunks.map((chunk) => storedVector(chunk, 0.2));
-
-		const result = await publishCampusDocsIndex(harness.input);
-
-		expect(result).toMatchObject({ collection: projection.binding.collection, noOp: false });
-		expect(result.pointCount).toBeUndefined();
-		expect(harness.createdCollections).toEqual([]);
-		expect(harness.embeddingTexts).toEqual([]);
-		expect(harness.deletedCollections).toEqual([]);
-	});
-
-	it("rebuilds an existing target collection only after deterministic content mismatch", async () => {
-		const harness = createHarness();
-		harness.setCollectionExists(true);
-		harness.input.qdrant.readDenseVectors = async () => {
-			throw new QdrantCollectionContentMismatchError("invalid target");
-		};
-
-		const result = await publishCampusDocsIndex(harness.input);
-
-		expect(harness.deletedCollections).toEqual([result.collection]);
-		expect(harness.createdCollections).toEqual([result.collection]);
-	});
-
-	it("does not delete an existing target collection after a Qdrant transport failure", async () => {
-		const harness = createHarness();
-		harness.setCollectionExists(true);
-		harness.input.qdrant.readDenseVectors = async () => {
-			throw new Error("Qdrant scroll returned HTTP 503");
-		};
-
-		await expect(publishCampusDocsIndex(harness.input)).rejects.toThrow("HTTP 503");
-		expect(harness.deletedCollections).toEqual([]);
-		expect(harness.createdCollections).toEqual([]);
-	});
-
-	it("does not delete a validated pre-existing collection when the source changes", async () => {
-		const harness = createHarness();
-		const projection = await sourceProjection(harness.input);
-		harness.setCollectionExists(true);
-		harness.input.qdrant.readDenseVectors = async () =>
-			projection.chunks.map((chunk) => storedVector(chunk, 0.2));
-		harness.input.readSource = async () => new TextEncoder().encode("{}");
-
-		await expect(publishCampusDocsIndex(harness.input)).rejects.toThrow(
-			"Campus docs source changed while the index was being built",
-		);
-		expect(harness.deletedCollections).toEqual([]);
-	});
-
-	it("does not delete a validated collection when activation fails", async () => {
-		const harness = createHarness();
-		harness.input.catalog.activate = async () => {
-			throw new Error("activation failed");
-		};
-
-		await expect(publishCampusDocsIndex(harness.input)).rejects.toThrow("activation failed");
-		expect(harness.deletedCollections).toEqual([]);
+		await expect(publishCampusDocsIndex({
+			catalog: catalog.client,
+			chunkSet: artifacts.chunkSet,
+			embeddingSet: artifacts.embeddingSet,
+			qdrant: qdrant.client,
+			store,
+		})).rejects.toThrow("malformed current collection");
+		expect(qdrant.deleted).toEqual([]);
 	});
 });
 
-interface Harness {
-	activationCount(): number;
-	collectionLookupCount(): number;
-	createdCollections: string[];
-	deletedCollections: string[];
-	embeddingTexts: string[];
-	input: PublishInput;
-	recordActivation(): void;
-	setCollectionExists(value: boolean): void;
+class MemoryArtifactStore implements ArtifactObjectStore {
+	readonly objects = new Map<string, Uint8Array>();
+
+	async read(key: string): Promise<Uint8Array> {
+		const value = this.objects.get(key);
+		if (!value) throw new Error(`missing object: ${key}`);
+		return value;
+	}
+
+	async replace(key: string, body: Uint8Array): Promise<void> {
+		this.objects.set(key, body);
+	}
+
+	async writeImmutable(key: string, body: Uint8Array): Promise<void> {
+		const existing = this.objects.get(key);
+		if (existing && !Buffer.from(existing).equals(Buffer.from(body))) {
+			throw new Error(`immutable object conflict: ${key}`);
+		}
+		this.objects.set(key, body);
+	}
 }
 
-function createHarness(): Harness {
+function fixtureStore(): MemoryArtifactStore {
 	const fixture = createDocsSourceSiteFixture();
-	const createdCollections: string[] = [];
-	const deletedCollections: string[] = [];
-	const embeddingTexts: string[] = [];
-	let activations = 0;
-	let collectionExists = false;
-	let collectionLookups = 0;
-	const harness: Harness = {
-		activationCount: () => activations,
-		collectionLookupCount: () => collectionLookups,
-		createdCollections,
-		deletedCollections,
-		embeddingTexts,
-		input: {
-			catalog: {
-				activate: async () => {
-					activations += 1;
-					return { noOp: false };
-				},
-				current: async () => null,
-			},
-			embedding: {
-				spaceId: "qwen3-embedding-4b-test-v1",
-				embed: async ({ texts, dimensions }) => {
-					embeddingTexts.push(...texts);
-					return texts.map(() => Array(dimensions).fill(0.1));
-				},
-			},
-			qdrant: {
-				collectionExists: async () => {
-					collectionLookups += 1;
-					return collectionExists;
-				},
-				createCollection: async ({ collection }) => {
-					createdCollections.push(collection);
-				},
-				deleteCollection: async (collection) => {
-					deletedCollections.push(collection);
-				},
-				readDenseVectors: async () => [],
-				upsert: async () => undefined,
-				validate: async () => undefined,
-			},
-			readerStore: {
-				read: async (key) => {
-					const object = fixture.objects.get(key);
-					if (!object) throw new Error(`missing fixture object: ${key}`);
-					return object.body;
-				},
-			},
-			readSource: async () => fixture.sourceBytes,
-			sourceBytes: fixture.sourceBytes,
-		},
-		recordActivation: () => {
-			activations += 1;
-		},
-		setCollectionExists: (value) => {
-			collectionExists = value;
-		},
-	};
-	return harness;
+	const store = new MemoryArtifactStore();
+	store.objects.set(CAMPUS_DOCS_SOURCE_KEY, fixture.sourceBytes);
+	for (const [key, value] of fixture.objects) store.objects.set(key, value.body);
+	return store;
 }
 
-async function sourceProjection(input: PublishInput): Promise<{
-	binding: CurrentIndexBinding;
-	chunks: IndexChunk[];
-	documentCount: number;
+function embeddingClient(texts: string[]) {
+	return {
+		async embed(input: { dimensions: number; texts: string[] }) {
+			texts.push(...input.texts);
+			return input.texts.map((text) => {
+				const value = Math.max(1, text.length % 97) / 100;
+				return Array(input.dimensions).fill(value) as number[];
+			});
+		},
+	};
+}
+
+async function buildArtifacts(store: MemoryArtifactStore): Promise<{
+	chunkCount: number;
+	chunkSet: Sha256Ref;
+	embeddingSet: Sha256Ref;
 }> {
-	const source = parseIndexingSource(input.sourceBytes);
-	const selections = await loadCurrentVersions({ readerStore: input.readerStore, source });
+	const chunks = await buildCampusDocsChunkSet({ store });
+	const embeddings = await buildCampusDocsEmbeddingSet({
+		chunkSet: chunks.chunkSet,
+		embedding: embeddingClient([]),
+		store,
+	});
 	return {
-		binding: buildCurrentIndexBinding({ embeddingSpaceId: input.embedding.spaceId, selections }),
-		chunks: selections.flatMap((selection) =>
-			buildChunks({
-				document: selection.document,
-				reader: selection.reader,
-				version: selection.version,
-			}),
-		),
-		documentCount: selections.length,
+		chunkCount: chunks.chunkCount,
+		chunkSet: chunks.chunkSet,
+		embeddingSet: embeddings.embeddingSet,
 	};
 }
 
-function storedVector(chunk: IndexChunk, value: number): StoredDenseVector {
+function catalogHarness(): {
+	activated: CurrentIndexBinding[];
+	client: IndexCatalog;
+} {
+	const activated: CurrentIndexBinding[] = [];
 	return {
-		dense: Array(INDEX_DEFINITION.embedding.dimensions).fill(value) as number[],
-		pointId: buildPointId(chunk),
-		retrievalTextSha256: sha256Text(chunk.retrievalText),
-		schemaVersion: INDEX_DEFINITION.pointSchemaVersion,
+		activated,
+		client: {
+			async activate(index) {
+				activated.push(index);
+				return { noOp: false };
+			},
+			async current() {
+				return activated.at(-1) ?? null;
+			},
+		},
+	};
+}
+
+function qdrantHarness(options: { exists?: boolean } = {}): {
+	client: QdrantIndexClient;
+	created: string[];
+	deleted: string[];
+	upsertedPointCount(): number;
+	validated: string[];
+} {
+	const created: string[] = [];
+	const deleted: string[] = [];
+	const validated: string[] = [];
+	let upserted = 0;
+	return {
+		client: {
+			async collectionExists() {
+				return options.exists ?? false;
+			},
+			async createCollection({ collection }) {
+				created.push(collection);
+			},
+			async deleteCollection(collection) {
+				deleted.push(collection);
+			},
+			async upsert({ points }) {
+				upserted += points.length;
+			},
+			async validate({ collection }) {
+				validated.push(collection);
+			},
+		},
+		created,
+		deleted,
+		upsertedPointCount: () => upserted,
+		validated,
 	};
 }

@@ -90,14 +90,14 @@ mode/status。普通任务可以不引用文档直接回答；机构事实主张
 
 Campus Web 文档整理流程生成规范化 `campus-docs/source.json` 及其引用的
 `campus_docs_reader.v3`。文档站与检索 publisher 共享这些已清洗输入，但各自生成静态站点产物和
-不可变 Qdrant 索引。publisher 只选择每份文档的当前 reader，按代码内唯一索引定义生成
-section/chunk 和 dense/sparse 向量，验证新 collection 后原子替换 PostgreSQL 当前索引绑定；它不
-消费旧 canonical chunk 任务。`embedding_space_id`、provider、model 和 dimensions 全部兼容时，
-publisher 按检索文本摘要复用当前 collection 的 dense vector，只对未命中的唯一检索文本调用
-embedding provider；payload 和 sparse vector 始终完整重建。
+不可变 RAG 制品与 Qdrant 索引。手动流程分成 Chunk、Embedding 和 Publisher 三个独立 Job：Chunk Job
+只选择每份文档的当前 reader 并写入内容寻址 chunk set；Embedding Job 从 execution-control 读取一次
+当前 provider 连接，按显式 chunk set 生成 embedding set，可从显式旧 embedding set 按
+`embedding_space_id + retrievalTextSha256` 复用；Publisher 只消费显式制品，验证新 collection 后
+原子替换 PostgreSQL 当前索引绑定。Qdrant 不再充当 embedding 复用缓存。
 
 源码提供可运行的 `jobs/campus-docs-index-publisher`，但源码、schema 或任务存在不表示任一环境已经
-激活索引。Kubernetes 清单提供保持暂停的手动 Job 模板，不运行定时索引任务。通知和校历不进入该
+激活索引。Kubernetes 清单提供三个保持暂停的手动 Job 模板，不运行定时索引任务。通知和校历不进入该
 publisher，在线回答也不执行实时网页搜索。
 
 ## 产品与离线数据

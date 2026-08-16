@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
@@ -24,15 +23,7 @@ func TestModelSettingsAdminAuthorizationUsesOpsWebInternalToken(t *testing.T) {
 	}
 }
 
-func TestModelSettingValidationUsesCapabilitiesInsteadOfRoles(t *testing.T) {
-	index := campusDocsIndexForTest()
-	embeddingRequirement := &embeddingSettingRequirement{
-		Dimensions:       index.EmbeddingDimensions,
-		EmbeddingSpaceID: index.EmbeddingSpaceID,
-		Model:            index.EmbeddingModel,
-		Provider:         index.EmbeddingProvider,
-		Transport:        "embeddings",
-	}
+func TestModelSettingValidationUsesRuntimeCapabilities(t *testing.T) {
 	llm := providerconfig.SettingInput{
 		BaseURL:   "https://provider.example/v1",
 		Kind:      providerconfig.KindLLM,
@@ -40,89 +31,77 @@ func TestModelSettingValidationUsesCapabilitiesInsteadOfRoles(t *testing.T) {
 		Provider:  "openai-compatible",
 		Transport: "responses",
 	}
-	if err := validateModelSettingInput(llm, embeddingRequirement); err != nil {
+	if err := validateModelSettingInput(llm); err != nil {
 		t.Fatalf("validate llm setting: %v", err)
 	}
 	embedding := providerconfig.SettingInput{
-		BaseURL:          "https://embedding.example/v1",
-		Dimensions:       embeddingRequirement.Dimensions,
-		EmbeddingSpaceID: embeddingRequirement.EmbeddingSpaceID,
-		Kind:             providerconfig.KindEmbedding,
-		Model:            embeddingRequirement.Model,
-		Provider:         embeddingRequirement.Provider,
-		Transport:        "embeddings",
+		BaseURL:   "https://embedding.example/v1",
+		Kind:      providerconfig.KindEmbedding,
+		Model:     "operator-selected-model",
+		Provider:  "openai",
+		Transport: "embeddings",
 	}
-	if err := validateModelSettingInput(embedding, embeddingRequirement); err != nil {
+	if err := validateModelSettingInput(embedding); err != nil {
 		t.Fatalf("validate embedding setting: %v", err)
 	}
-	embedding.Model = "operator-selected-model"
-	if err := validateModelSettingInput(embedding, embeddingRequirement); err == nil {
-		t.Fatal("embedding model must remain fixed by the Campus docs current index")
+	embedding.Transport = "responses"
+	if err := validateModelSettingInput(embedding); err == nil {
+		t.Fatal("embedding setting accepted a non-embedding transport")
 	}
 }
 
-func TestModelSettingsStatusIncludesCampusDocsEmbeddingRequirement(t *testing.T) {
-	index := campusDocsIndexForTest()
-	requirement := &embeddingSettingRequirement{
-		Dimensions:       index.EmbeddingDimensions,
-		EmbeddingSpaceID: index.EmbeddingSpaceID,
-		Model:            index.EmbeddingModel,
-		Provider:         index.EmbeddingProvider,
-		Transport:        "embeddings",
+func TestLLMSettingUpdateInputRejectsServerOwnedAndUnknownFields(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "embedding space id", body: `{"baseUrl":"https://provider.example/v1","embeddingSpaceId":"client-space","model":"model-1","provider":"openai","transport":"responses"}`},
+		{name: "dimensions", body: `{"baseUrl":"https://provider.example/v1","dimensions":2560,"model":"model-1","provider":"openai","transport":"responses"}`},
+		{name: "kind", body: `{"baseUrl":"https://provider.example/v1","kind":"llm","model":"model-1","provider":"openai","transport":"responses"}`},
+		{name: "retired timeout", body: `{"baseUrl":"https://provider.example/v1","model":"model-1","provider":"openai","timeoutMs":30000,"transport":"responses"}`},
+		{name: "unknown field", body: `{"baseUrl":"https://provider.example/v1","model":"model-1","provider":"openai","transport":"responses","unexpected":true}`},
 	}
-	response := httptest.NewRecorder()
-	writeModelSettingsStatusResponse(response, providerconfig.Status{
-		ETag:      "etag-test",
-		SampledAt: time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
-		Settings:  map[providerconfig.Kind]*providerconfig.SettingView{},
-	}, requirement)
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", response.Code)
-	}
-	body := decodeBody(t, response)
-	requirementBody, ok := body["embeddingRequirement"].(map[string]any)
-	if !ok {
-		t.Fatalf("embeddingRequirement = %#v", body["embeddingRequirement"])
-	}
-	if requirementBody["model"] != index.EmbeddingModel ||
-		requirementBody["provider"] != index.EmbeddingProvider ||
-		requirementBody["embeddingSpaceId"] != index.EmbeddingSpaceID ||
-		requirementBody["dimensions"] != float64(index.EmbeddingDimensions) ||
-		requirementBody["transport"] != "embeddings" {
-		t.Fatalf("embeddingRequirement = %#v", requirementBody)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPut,
+				modelSettingsAdminPrefix+"/llm",
+				strings.NewReader(test.body),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			var input llmSettingUpdateInput
+
+			if decodeProviderAdminJSON(response, request, &input) {
+				t.Fatal("server-owned or unknown field was accepted")
+			}
+			assertError(t, response, http.StatusBadRequest, "invalid_json")
+		})
 	}
 }
 
-func TestModelSettingsStatusAllowsMissingCampusDocsIndex(t *testing.T) {
-	response := httptest.NewRecorder()
-	writeModelSettingsStatusResponse(response, providerconfig.Status{
-		ETag:      "etag-test",
-		SampledAt: time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
-		Settings:  map[providerconfig.Kind]*providerconfig.SettingView{},
-	}, nil)
-
-	body := decodeBody(t, response)
-	if body["embeddingRequirement"] != nil {
-		t.Fatalf("embeddingRequirement = %#v, want null", body["embeddingRequirement"])
+func TestEmbeddingSettingUpdateInputRejectsTransportAndVectorFields(t *testing.T) {
+	for _, body := range []string{
+		`{"baseUrl":"https://provider.example/v1","model":"model-1","provider":"openai","transport":"embeddings"}`,
+		`{"baseUrl":"https://provider.example/v1","dimensions":2560,"model":"model-1","provider":"openai"}`,
+		`{"baseUrl":"https://provider.example/v1","embeddingSpaceId":"space","model":"model-1","provider":"openai"}`,
+	} {
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPut,
+			modelSettingsAdminPrefix+"/embedding",
+			strings.NewReader(body),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		var input embeddingSettingUpdateInput
+		if decodeProviderAdminJSON(response, request, &input) {
+			t.Fatalf("server-owned embedding field was accepted: %s", body)
+		}
+		assertError(t, response, http.StatusBadRequest, "invalid_json")
 	}
-}
-
-func TestModelSettingAdminRejectsRetiredTimeoutField(t *testing.T) {
-	request := httptest.NewRequestWithContext(
-		t.Context(),
-		http.MethodPut,
-		modelSettingsAdminPrefix+"/llm",
-		strings.NewReader(`{"baseUrl":"https://provider.example/v1","model":"model-1","provider":"openai","timeoutMs":30000,"transport":"responses"}`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	response := httptest.NewRecorder()
-	var input providerconfig.SettingInput
-
-	if decodeProviderAdminJSON(response, request, &input) {
-		t.Fatal("retired timeoutMs field was accepted")
-	}
-	assertError(t, response, http.StatusBadRequest, "invalid_json")
 }
 
 func TestModelDiscoveryInputRejectsUnknownFields(t *testing.T) {

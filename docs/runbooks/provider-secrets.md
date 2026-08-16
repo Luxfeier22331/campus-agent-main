@@ -30,8 +30,9 @@ Langfuse、Cloudflare 和其他环境运行凭据由环境仓及其所属交付�
 1. 确认目标环境和配置种类 `llm` 或 `embedding`。
 2. 必要时在供应商平台创建该环境的密钥。
 3. 在 Ops Web 的“模型配置 > 在线问答”中编辑当前设置。`llm` 可设置 endpoint、model、
-   transport；`embedding` 的 model、dimensions 和 transport 由服务合同固定。模型设置不包含
-   推理超时；Agent 与 RAG 分别使用所属运行策略的时限。
+   transport；`embedding` 可设置 provider、endpoint、model alias，transport 由服务端固定为
+   `embeddings`。模型设置不包含索引 dimensions 或 `embedding_space_id`，也不包含推理超时；Agent
+   与 RAG 分别使用所属运行策略的时限。
 4. 保存时由 execution-control 调用真实供应商进行验证。验证失败不覆盖当前设置；
    页面返回 `409` 时先重新读取，再由操作者决定是否重新提交。
 5. 确认 execution-control 的 `EXECUTION_CONTROL_DATABASE_URL` 和 keyring 可用；同一 Deployment
@@ -50,8 +51,9 @@ Langfuse、Cloudflare 和其他环境运行凭据由环境仓及其所属交付�
 Embedding，使用旧 AAD 解密并按不可变 AAD v1
 `execution_config.model_settings:<kind>` 重加密，验证两个设置后删除七张旧表。Goose v4 随后将该表
 原位移动到 `execution_control.model_settings`；表所在 schema 改变不触发再次加密，也不增加双 AAD
-读取。Goose v5 在新路径新增 `embedding_space_id`，旧设置保持为空，下一次保存并验证查询
-Embedding 设置时写入明确的 space 身份。
+读取。Goose v5 在新路径创建 `campus_docs_serving.current_index` 并暂时增加索引绑定所需的
+`embedding_space_id`；后续 Goose v6 从模型设置和当前索引删除不再由配置管理的 model/provider 与向量
+空间字段。新设置只保存 provider 连接，索引定义由 Publisher 代码和当前索引绑定共同确定。
 
 旧结构不完整、当前表已经含有数据、激活配置缺失、验证未通过、密钥无法解密或旧表存在未知依赖时，
 整个事务回滚。不得手工复制数据、保留新旧表并存、双写或让运行时回退到旧表。切换发布允许在线问答

@@ -27,12 +27,10 @@ func (resolver *countingProviderConfigResolver) ResolveActiveProviderConfig(
 
 func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.T) {
 	primary := primaryAgentProviderConfigSnapshotForTest()
-	index := campusDocsIndexForTest()
 	embedding := embeddingProviderConfigSnapshotForTest(
 		providerConfigKindEmbedding,
 		"https://embedding.example/v1",
-		index.EmbeddingModel,
-		index.EmbeddingDimensions,
+		"provider-model-alias",
 	)
 	resolver := &countingProviderConfigResolver{configs: map[providerConfigKind]providerConfigSnapshot{
 		providerConfigKindLLM:       primary,
@@ -68,12 +66,10 @@ func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.
 }
 
 func TestBuildAgentAdmissionSnapshotAlwaysPinsRetrieval(t *testing.T) {
-	index := campusDocsIndexForTest()
 	embedding := embeddingProviderConfigSnapshotForTest(
 		providerConfigKindEmbedding,
 		"https://embedding.example/v1",
-		index.EmbeddingModel,
-		index.EmbeddingDimensions,
+		"provider-model-alias",
 	)
 	resolver := &countingProviderConfigResolver{configs: map[providerConfigKind]providerConfigSnapshot{
 		providerConfigKindLLM:       primaryAgentProviderConfigSnapshotForTest(),

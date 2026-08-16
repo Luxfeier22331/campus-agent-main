@@ -202,16 +202,14 @@ func migrateLegacyProfile(ctx context.Context, tx *sql.Tx, keyring *Keyring, rol
 	if role == "rag_query_embedding" {
 		newKind = KindEmbedding
 		newTransport = "embeddings"
-		dimensions = canonicalEmbeddingDimensions
 	}
 	candidate := RuntimeSetting{
-		APIKey:     plain,
-		BaseURL:    baseURL,
-		Dimensions: dimensions,
-		Kind:       newKind,
-		Model:      model,
-		Provider:   provider,
-		Transport:  newTransport,
+		APIKey:    plain,
+		BaseURL:   baseURL,
+		Kind:      newKind,
+		Model:     model,
+		Provider:  provider,
+		Transport: newTransport,
 	}
 	if newKind == KindEmbedding {
 		if err := validateProviderConnection(candidate); err != nil {
@@ -225,11 +223,11 @@ func migrateLegacyProfile(ctx context.Context, tx *sql.Tx, keyring *Keyring, rol
 		return fmt.Errorf("encrypt migrated provider profile %s: %w", profileID, err)
 	}
 	_, err = tx.ExecContext(ctx, `insert into execution_config.model_settings
-		(kind,provider,base_url,model,transport,dimensions,secret_key_id,secret_nonce,secret_ciphertext,
+		(kind,provider,base_url,model,transport,secret_key_id,secret_nonce,secret_ciphertext,
 		 secret_fingerprint,secret_last4,validation_status,validation_error_code,validation_message,
 		 validation_observed_dimensions,validated_at,validated_by,updated_at,updated_by)
-		values($1,$2,$3,$4,$5,nullif($6,0),$7,$8,$9,$10,$11,$12,$13,$14,nullif($15,0),$16,$17,$16,$17)
-		`, newKind, provider, baseURL, model, newTransport, dimensions,
+		values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,nullif($14,0),$15,$16,$15,$16)
+		`, newKind, provider, baseURL, model, newTransport,
 		secret.KeyID, secret.Nonce, secret.Ciphertext, secret.Fingerprint, secret.Last4, validationStatus,
 		validationCode, validationMsg, observedDimensions, validatedAt, validatedBy)
 	return err

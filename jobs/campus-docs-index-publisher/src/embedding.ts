@@ -1,29 +1,54 @@
-import type { EmbeddingClient } from "./types.ts";
+import type { EmbeddingClient, EmbeddingProviderSnapshot } from "./types.ts";
 
-export interface EmbeddingEnv {
-	CAMPUS_DOCS_EMBEDDING_API_KEY?: string;
-	CAMPUS_DOCS_EMBEDDING_BASE_URL?: string;
-	CAMPUS_DOCS_EMBEDDING_SPACE_ID?: string;
+export const EMBEDDING_PROVIDER_SNAPSHOT_URL =
+	"http://execution-control-provider-snapshot:8002/internal/provider-snapshots/embedding";
+
+export async function fetchEmbeddingProviderSnapshot(
+	fetchImpl: typeof fetch = fetch,
+	url = EMBEDDING_PROVIDER_SNAPSHOT_URL,
+): Promise<EmbeddingProviderSnapshot> {
+	const response = await fetchImpl(url, {
+		headers: { accept: "application/json" },
+		method: "GET",
+		redirect: "error",
+	});
+	if (!response.ok) {
+		throw new Error(`embedding provider snapshot returned HTTP ${response.status}`);
+	}
+	const payload = (await response.json()) as unknown;
+	if (
+		!isRecord(payload) ||
+		payload.schema_version !== "embedding_provider_snapshot.v1" ||
+		(payload.provider !== "openai" && payload.provider !== "openai-compatible") ||
+		!nonEmptyString(payload.base_url) ||
+		!nonEmptyString(payload.model) ||
+		!nonEmptyString(payload.api_key)
+	) {
+		throw new Error("embedding provider snapshot is invalid");
+	}
+	return {
+		apiKey: payload.api_key,
+		baseUrl: payload.base_url.replace(/\/$/u, ""),
+		model: payload.model,
+		provider: payload.provider,
+		schemaVersion: "embedding_provider_snapshot.v1",
+	};
 }
 
 export function createOpenAICompatibleEmbeddingClient(
-	env: EmbeddingEnv = process.env,
+	snapshot: EmbeddingProviderSnapshot,
 	fetchImpl: typeof fetch = fetch,
 ): EmbeddingClient {
-	const baseURL = requiredEnv(env.CAMPUS_DOCS_EMBEDDING_BASE_URL, "CAMPUS_DOCS_EMBEDDING_BASE_URL").replace(/\/$/u, "");
-	const apiKey = requiredEnv(env.CAMPUS_DOCS_EMBEDDING_API_KEY, "CAMPUS_DOCS_EMBEDDING_API_KEY");
-	const spaceId = requiredEnv(env.CAMPUS_DOCS_EMBEDDING_SPACE_ID, "CAMPUS_DOCS_EMBEDDING_SPACE_ID");
 	return {
-		spaceId,
 		async embed(input) {
-			const response = await fetchImpl(`${baseURL}/embeddings`, {
+			const response = await fetchImpl(`${snapshot.baseUrl}/embeddings`, {
 				body: JSON.stringify({
 					dimensions: input.dimensions,
 					input: input.texts,
-					model: input.model,
+					model: snapshot.model,
 				}),
 				headers: {
-					authorization: `Bearer ${apiKey}`,
+					authorization: `Bearer ${snapshot.apiKey}`,
 					"content-type": "application/json",
 				},
 				method: "POST",
@@ -72,8 +97,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function requiredEnv(value: string | undefined, name: string): string {
-	const normalized = value?.trim();
-	if (!normalized) throw new Error(`${name} is required for Campus docs publisher`);
-	return normalized;
+function nonEmptyString(value: unknown): value is string {
+	return typeof value === "string" && value.trim() !== "";
 }

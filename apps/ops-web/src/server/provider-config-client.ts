@@ -1,10 +1,12 @@
 import type { z } from "zod";
 import {
+	EmbeddingModelSettingUpdateSchema,
 	ExecutionModelSettingsStatusSchema,
+	LLMModelSettingUpdateSchema,
 	ModelDiscoveryRequestSchema,
 	ModelDiscoveryResponseSchema,
 	type ModelSettingKindSchema,
-	ModelSettingUpdateSchema,
+	type ModelSettingUpdate,
 	ModelSettingValidationResponseSchema,
 } from "../shared/ops-contract.ts";
 
@@ -90,16 +92,15 @@ export function createProviderConfigAdminClient(
 		async getStatus() {
 			return ExecutionModelSettingsStatusSchema.parse(await request("", { method: "GET" }));
 		},
-		async put(
-			kind: ModelSettingKind,
-			body: z.input<typeof ModelSettingUpdateSchema>,
-			actorId: string,
-			etag: string,
-		) {
+		async put(kind: ModelSettingKind, body: ModelSettingUpdate, actorId: string, etag: string) {
+			const parsed =
+				kind === "embedding"
+					? EmbeddingModelSettingUpdateSchema.parse(body)
+					: LLMModelSettingUpdateSchema.parse(body);
 			return ExecutionModelSettingsStatusSchema.parse(
 				await request(`/${kind}`, {
 					actorId,
-					body: ModelSettingUpdateSchema.parse(body),
+					body: parsed,
 					etag,
 					method: "PUT",
 				}),

@@ -1,6 +1,163 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
+  name: campus-docs-chunk-builder
+  labels:
+    app.kubernetes.io/name: campus-docs-chunk-builder
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: campus-docs-chunk-builder
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: execution-runtime
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: chunk-builder
+              image: ghcr.io/muc-wiki/campus-agent/campus-docs-index-publisher:replace-me
+              imagePullPolicy: IfNotPresent
+              args: ["build-chunks"]
+              env:
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_DERIVED_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_ACCESS_KEY
+                - name: OBJECT_STORE_DERIVED_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_SECRET_KEY
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  memory: 2Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 32Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: campus-docs-embedding-builder
+  labels:
+    app.kubernetes.io/name: campus-docs-embedding-builder
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: campus-docs-embedding-builder
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: execution-runtime
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: embedding-builder
+              image: ghcr.io/muc-wiki/campus-agent/campus-docs-index-publisher:replace-me
+              imagePullPolicy: IfNotPresent
+              args:
+                - build-embeddings
+                - --chunk-set
+                - sha256:0000000000000000000000000000000000000000000000000000000000000000
+              env:
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_DERIVED_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_ACCESS_KEY
+                - name: OBJECT_STORE_DERIVED_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_SECRET_KEY
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  memory: 2Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 32Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
   name: campus-docs-index-publisher
   labels:
     app.kubernetes.io/name: campus-docs-index-publisher
@@ -34,48 +191,69 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           containers:
-            - name: publisher
+            - name: index-publisher
               image: ghcr.io/muc-wiki/campus-agent/campus-docs-index-publisher:replace-me
               imagePullPolicy: IfNotPresent
+              args:
+                - publish-index
+                - --chunk-set
+                - sha256:0000000000000000000000000000000000000000000000000000000000000000
+                - --embedding-set
+                - sha256:0000000000000000000000000000000000000000000000000000000000000000
               env:
-                - name: CAMPUS_DOCS_DATABASE_URL
-                  valueFrom:
-                    secretKeyRef:
-                      name: campus-docs-index-publisher-secrets
-                      key: CAMPUS_DOCS_DATABASE_URL
-                - name: CAMPUS_DOCS_EMBEDDING_BASE_URL
-                  valueFrom:
-                    secretKeyRef:
-                      name: campus-docs-index-publisher-secrets
-                      key: CAMPUS_DOCS_EMBEDDING_BASE_URL
-                - name: CAMPUS_DOCS_EMBEDDING_SPACE_ID
+                - name: PGHOST
                   valueFrom:
                     configMapKeyRef:
-                      name: execution-runtime-rendered-config
-                      key: CAMPUS_DOCS_EMBEDDING_SPACE_ID
-                - name: CAMPUS_DOCS_EMBEDDING_API_KEY
+                      name: execution-schema-database-config
+                      key: PGHOST
+                - name: PGPORT
+                  valueFrom:
+                    configMapKeyRef:
+                      name: execution-schema-database-config
+                      key: PGPORT
+                - name: PGDATABASE
+                  valueFrom:
+                    configMapKeyRef:
+                      name: execution-schema-database-config
+                      key: PGDATABASE
+                - name: PGSSLMODE
+                  valueFrom:
+                    configMapKeyRef:
+                      name: execution-schema-database-config
+                      key: PGSSLMODE
+                - name: PGSSLROOTCERT
+                  valueFrom:
+                    configMapKeyRef:
+                      name: execution-schema-database-config
+                      key: PGSSLROOTCERT
+                - name: PGUSER
                   valueFrom:
                     secretKeyRef:
-                      name: campus-docs-index-publisher-secrets
-                      key: CAMPUS_DOCS_EMBEDDING_API_KEY
-                - name: CAMPUS_DOCS_QDRANT_URL
+                      name: campus-docs-index-publisher-database-secrets
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-docs-index-publisher-database-secrets
+                      key: password
+                - name: QDRANT_URL
                   valueFrom:
                     configMapKeyRef:
                       name: execution-runtime-rendered-config
                       key: QDRANT_URL
-                - name: CAMPUS_DOCS_QDRANT_API_KEY
+                - name: QDRANT_API_KEY
                   valueFrom:
                     secretKeyRef:
                       name: qdrant-server-secrets
                       key: QDRANT_API_KEY
                 - name: OBJECT_STORE_ENDPOINT
                   value: http://object-store:9000
-                - name: OBJECT_STORE_DERIVED_READ_ACCESS_KEY
+                - name: OBJECT_STORE_DERIVED_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       name: object-store-secrets
                       key: OBJECT_STORE_DERIVED_ACCESS_KEY
-                - name: OBJECT_STORE_DERIVED_READ_SECRET_KEY
+                - name: OBJECT_STORE_DERIVED_SECRET_KEY
                   valueFrom:
                     secretKeyRef:
                       name: object-store-secrets

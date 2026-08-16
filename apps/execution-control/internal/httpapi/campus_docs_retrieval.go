@@ -90,13 +90,14 @@ func (e qdrantCampusDocsRetriever) Retrieve(
 		ctx,
 		embeddingConfig,
 		campusdocs.BuildDenseQueryText(query, target.EmbeddingQueryInstruction),
+		target.EmbeddingDimensions,
 	)
 	if err != nil {
 		return campusDocsRetrievalDiagnostics{}, err
 	}
 	timing.EmbedQuery = time.Since(embeddingStartedAt)
 	queryStartedAt := time.Now()
-	points, err := e.qdrant.queryCampusDocsPoints(ctx, query, embedding, embeddingConfig, target)
+	points, err := e.qdrant.queryCampusDocsPoints(ctx, query, embedding, target)
 	if err != nil {
 		return campusDocsRetrievalDiagnostics{}, err
 	}

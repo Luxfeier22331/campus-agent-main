@@ -34,16 +34,16 @@ reader 前核对对象身份。真正进入检索索引的正文只来自清单�
 
 ## 索引定义
 
-publisher 代码内的 `INDEX_DEFINITION` 固定 reader/source schema、分块算法、embedding
-provider/model/dimensions、查询指令、point schema、向量名和本地 sparse 算法。实际模型权重及修订由
-运行环境以非敏感 `embedding_space_id` 显式声明；endpoint 和凭据不参与该身份。execution-control 从
-当前索引绑定取得实际查询字段，不加载第二份索引配置。
+publisher 代码内的 `INDEX_DEFINITION` 固定 reader/source schema、分块算法、embedding space ID、
+dimensions、查询指令、point schema、向量名和本地 sparse 算法。provider、endpoint、API key 和
+provider-specific model alias 是连接属性，不参与索引身份。execution-control 从当前索引绑定取得
+实际查询字段，不加载第二份索引配置。
 
-collection 名由当前文档投影、`INDEX_DEFINITION` 与 `embedding_space_id` 的规范 JSON SHA-256 形成：
-`campus_docs_<sha256>`。当前文档投影只包含每份当前文档的 `corpus`、`collection`、`doc_id`、公开
-slug、标题、`version_id`、`version_slug`、`version_label` 和带正文 SHA-256 的 reader 对象引用。
-历史版本、redirect、topic 描述和清单 JSON 格式不参与 collection 身份。collection 本身是唯一索引
-身份，不另建 index ID、fingerprint 或来源摘要实体。
+collection 名由 `campus_docs_index.v1` manifest 的规范 JSON SHA-256 形成：
+`campus_docs_<manifest-sha256>`。manifest 引用显式 chunk set、embedding set、`INDEX_DEFINITION`、
+point 数和当前文档投影摘要。当前文档投影只包含每份当前文档的目录、身份、公开 slug、标题、当前
+版本和 reader 对象引用；历史版本、redirect、topic 描述和清单 JSON 格式不参与。manifest 摘要同时
+是对象存储制品 ID 和 collection 后缀，不维护第二套数据库索引身份。
 
 当前 sparse 向量使用 `fnv1a_log_tf.v1`：`unicode_word_v1` 分词、`und` 语言标签下的 Unicode
 小写映射、FNV-1a 32 位索引和 `log1p(term frequency)` 权重；Qdrant 对 named sparse vector 应用
@@ -79,19 +79,18 @@ point 中的 `text` 是可交给 Agent 和来源卡片的 evidence 正文。poin
 ## 发布流程
 
 ```text
-读取 source.json 并核对当前 reader
--> 按 reader heading/preamble 形成标题路径和 section
--> 按 reader 元素及表格逻辑行确定性分块
--> 按 retrieval_text 摘要复用兼容旧索引的 dense 向量，只为未命中输入生成 embedding
--> 为全部 chunk 重新生成 payload 和本地 sparse 向量
--> 创建 campus_docs_<sha256> Qdrant collection
--> 写入全部 points 并全量校验身份、payload 和双向量
--> 重新读取 source.json，确认当前文档投影在构建期间未变化
+Chunk Job: source.json + 当前 reader -> chunk set manifest + chunks.ndjson
+Embedding Job: 显式 chunk set + 一次性 provider snapshot -> embedding set manifest + embeddings.ndjson
+Publisher Job: 显式 chunk set + embedding set -> index manifest -> campus_docs_<manifest-sha256>
+-> 写入并全量校验 Qdrant points
+-> 重新读取 source.json，确认当前文档投影未变化
 -> 原子替换 campus_docs_serving.current_index 单行绑定
 ```
 
-只有会影响当前 point 或查询兼容性的输入变化才产生新 collection。section、chunk 和 Qdrant UUID
-point ID 也由稳定输入确定。每个 point payload 只保存 schema、chunk、document、section、
+三个阶段都由人工独立触发，不自动串联，也不维护 `latest` 制品指针或构建状态机。manifest 和 NDJSON
+使用规范序列化、最终换行和内容寻址对象键；不可变写入采用 create-or-verify。只有会影响 index
+manifest 的输入变化才产生新 collection。section、chunk 和 Qdrant UUID point ID 也由稳定输入确定。
+每个 point payload 只保存 schema、chunk、document、section、
 版本 ID/slug/label、`root_unit_ids`、公开 `section_ref`、正文、正文 SHA-256 和检索文本 SHA-256，
 并带 dense/sparse named vector。publisher 不把对象存储地址、凭据、原始来源文件、endpoint 或
 `embedding_space_id` 重复写入 point。
@@ -102,21 +101,20 @@ point ID 也由稳定输入确定。每个 point payload 只保存 schema、chun
 进入数据库激活后，即使调用方收到不确定错误，也保留已验证 collection，避免误删可能已经激活的
 索引。
 
-publisher 以当前索引中 point 的 `retrieval_text_sha256` 作为 dense 复用键。只有
-`embedding_space_id`、provider、model 和 dimensions 全部一致时才读取旧 dense vector；同一新检索
-文本只调用一次 embedding。chunk、payload 和 sparse vector 始终从当前 reader 重建，因此每次成功
-发布仍得到完整的新 collection。仓库不把 chunk 或 embedding 缓存为对象存储制品。
+Embedding Job 只从显式 `--reuse-embedding-set` 读取候选向量，并以
+`embedding_space_id + retrievalTextSha256` 作为复用键；同一新检索文本只调用一次 provider。
+Qdrant 不再作为 embedding 复用缓存。Publisher 从 chunk set 重新生成全部 payload 和 sparse vector，
+并从 embedding set 取得 dense vector，因此每次成功发布仍得到完整的新 collection。
 
-PostgreSQL session advisory lock 保证同一时间只有一个 publisher。未激活目标 collection 已由中断
+PostgreSQL session advisory lock 只保证同一时间只有一个 Publisher。未激活目标 collection 已由中断
 任务完整写入时，重跑会验证并激活；确定性内容不匹配时删除重建；Qdrant 请求错误不触发删除。目标
 已经是当前绑定时仍完整校验：物理 collection 缺失则原名重建，已存在但内容不匹配则停止且不删除。
-环境通过保持暂停的 `CronJob/campus-docs-index-publisher` 手动创建一次性 Job，不运行定时索引任务。
+环境通过三个保持暂停的 CronJob 模板分别创建一次性 Job，不运行定时索引任务。
 
 ## 激活读取模型
 
 PostgreSQL `campus_docs_serving` 只保存 `current_index` 单行绑定，包含当前 collection、dense
-向量名、embedding provider/model/dimensions/query instruction/space ID，以及 sparse model/vector
-name。
+向量名、embedding dimensions/query instruction/space ID，以及 sparse model/vector name。
 publisher 在事务内插入或更新该行；execution-control 只有读取权限。数据库不保存索引历史、来源
 摘要、构建计数或重复的不可变索引记录。
 
@@ -133,12 +131,14 @@ run 使用新索引。仅修改历史版本或未被当前清单引用的对象�
 ## 在线准入与查询
 
 每个有效请求都在 workflow 创建前读取当前索引绑定。准入快照冻结物理 collection、dense/sparse
-向量名、embedding provider/model/dimensions/query instruction/space ID、sparse model、本轮查询
-hash 和 embedding Provider Config 的非敏感 hash。当前 embedding 设置的 space ID、provider、model
-和 dimensions 必须与索引绑定一致；缺少当前绑定或配置不兼容时拒绝准入。
+向量名、embedding dimensions/query instruction/space ID、sparse model、本轮查询 hash 和 embedding
+Provider Config 的非敏感 hash。当前 embedding 设置只保存 provider、Base URL、model、固定
+`embeddings` transport 和加密 API key；完整配置仍被 hash 固定，保证单次请求内连接不变化。索引
+维度与 space ID 不重复写入模型设置。缺少当前绑定或 Embedding 设置时拒绝准入。
 
 `RetrieveCampusDocsEvidenceActivity` 使用 `Instruct: <instruction>\nQuery:<query>` 构造 Qwen3 dense
-查询文本，并对原问题生成同算法 sparse vector。sparse 非空时向冻结 collection 的 dense 和 sparse
+查询文本，以已准入索引 dimensions 调用当前 provider，并校验返回向量长度；同时对原问题生成同算法
+sparse vector。sparse 非空时向冻结 collection 的 dense 和 sparse
 查询各预取 24 个候选，再由 Qdrant RRF 返回最多 24 个 point；纯符号等无法生成 sparse token 的合法
 问题直接执行 dense 查询，不进入第二条检索链路。返回 point 的正文摘要、固定版本 section 引用、
 版本字段、根单元数组和必需字段必须有效；随后按 Qdrant 查询分数顺序单次扫描并去重 chunk，超过

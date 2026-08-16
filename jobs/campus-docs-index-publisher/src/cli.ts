@@ -1,42 +1,145 @@
-import { createPostgresIndexCatalog } from "./catalog.ts";
-import { createOpenAICompatibleEmbeddingClient } from "./embedding.ts";
-import { createS3ReaderStore } from "./object-store.ts";
-import { publishCampusDocsIndex } from "./publisher.ts";
-import { createQdrantClient } from "./qdrant.ts";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-async function main(): Promise<void> {
-	const readerStore = createS3ReaderStore();
-	const readSource = () => readerStore.read("campus-docs/source.json");
-	const catalog = createPostgresIndexCatalog();
-	try {
-		await catalog.acquirePublisherLock();
-		const sourceBytes = await readSource();
-		const result = await publishCampusDocsIndex({
-			catalog,
-			embedding: createOpenAICompatibleEmbeddingClient(),
-			qdrant: createQdrantClient(),
-			readSource,
-			readerStore,
-			sourceBytes,
-		});
-		console.log(JSON.stringify({
-			collection: result.collection,
-			document_count: result.documentCount,
-			...(result.pointCount === undefined ? {} : {
+import { assertSha256Ref } from "./artifacts.ts";
+import { createPostgresIndexCatalog } from "./catalog.ts";
+import {
+	createOpenAICompatibleEmbeddingClient,
+	fetchEmbeddingProviderSnapshot,
+} from "./embedding.ts";
+import { createS3ArtifactStore } from "./object-store.ts";
+import {
+	buildCampusDocsChunkSet,
+	buildCampusDocsEmbeddingSet,
+	publishCampusDocsIndex,
+} from "./publisher.ts";
+import { createQdrantClient } from "./qdrant.ts";
+import type { Sha256Ref } from "./types.ts";
+
+type Command =
+	| { kind: "build-chunks" }
+	| { chunkSet: Sha256Ref; kind: "build-embeddings"; reuseEmbeddingSet?: Sha256Ref }
+	| { chunkSet: Sha256Ref; embeddingSet: Sha256Ref; kind: "publish-index" };
+
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+	const command = parseCommand(argv);
+	const store = createS3ArtifactStore();
+	switch (command.kind) {
+		case "build-chunks": {
+			const result = await buildCampusDocsChunkSet({ store });
+			writeResult({
+				chunk_count: result.chunkCount,
+				chunk_set: result.chunkSet,
+				document_count: result.documentCount,
+				source_digest: result.sourceDigest,
+			});
+			return;
+		}
+		case "build-embeddings": {
+			const snapshot = await fetchEmbeddingProviderSnapshot();
+			const result = await buildCampusDocsEmbeddingSet({
+				chunkSet: command.chunkSet,
+				embedding: createOpenAICompatibleEmbeddingClient(snapshot),
+				...(command.reuseEmbeddingSet
+					? { reuseEmbeddingSet: command.reuseEmbeddingSet }
+					: {}),
+				store,
+			});
+			writeResult({
+				embedding_count: result.embeddingCount,
+				embedding_set: result.embeddingSet,
 				generated_embedding_input_count: result.generatedEmbeddingInputCount,
-				point_count: result.pointCount,
 				reused_embedding_input_count: result.reusedEmbeddingInputCount,
-				unique_embedding_input_count: result.uniqueEmbeddingInputCount,
-			}),
-			no_op: result.noOp,
-			source_digest: result.sourceDigest,
-		}, null, 2));
-	} finally {
-		await catalog.close();
+			});
+			return;
+		}
+		case "publish-index": {
+			const catalog = createPostgresIndexCatalog();
+			try {
+				await catalog.acquirePublisherLock();
+				const result = await publishCampusDocsIndex({
+					catalog,
+					chunkSet: command.chunkSet,
+					embeddingSet: command.embeddingSet,
+					qdrant: createQdrantClient(),
+					store,
+				});
+				writeResult({
+					collection: result.collection,
+					index: result.index,
+					no_op: result.noOp,
+					point_count: result.pointCount,
+				});
+			} finally {
+				await catalog.close();
+			}
+		}
 	}
 }
 
-main().catch((error: unknown) => {
-	console.error(error instanceof Error ? error.message : String(error));
-	process.exitCode = 1;
-});
+export function parseCommand(argv: string[]): Command {
+	const [kind, ...args] = argv;
+	if (kind === "build-chunks") {
+		if (args.length !== 0) usage();
+		return { kind };
+	}
+	const flags = parseFlags(args);
+	if (kind === "build-embeddings") {
+		const chunkSet = requiredRef(flags, "--chunk-set");
+		const reuse = flags.get("--reuse-embedding-set");
+		assertOnlyFlags(flags, ["--chunk-set", "--reuse-embedding-set"]);
+		return {
+			chunkSet,
+			kind,
+			...(reuse ? { reuseEmbeddingSet: assertSha256Ref(reuse, "reuse embedding set") } : {}),
+		};
+	}
+	if (kind === "publish-index") {
+		const chunkSet = requiredRef(flags, "--chunk-set");
+		const embeddingSet = requiredRef(flags, "--embedding-set");
+		assertOnlyFlags(flags, ["--chunk-set", "--embedding-set"]);
+		return { chunkSet, embeddingSet, kind };
+	}
+	return usage();
+}
+
+function parseFlags(args: string[]): Map<string, string> {
+	if (args.length % 2 !== 0) usage();
+	const result = new Map<string, string>();
+	for (let index = 0; index < args.length; index += 2) {
+		const name = args[index];
+		const value = args[index + 1];
+		if (!name?.startsWith("--") || !value || result.has(name)) usage();
+		result.set(name, value);
+	}
+	return result;
+}
+
+function requiredRef(flags: Map<string, string>, name: string): Sha256Ref {
+	const value = flags.get(name);
+	if (!value) usage();
+	return assertSha256Ref(value, name.slice(2).replaceAll("-", " "));
+}
+
+function assertOnlyFlags(flags: Map<string, string>, allowed: readonly string[]): void {
+	for (const flag of flags.keys()) {
+		if (!allowed.includes(flag)) usage();
+	}
+}
+
+function usage(): never {
+	throw new Error(
+		"Usage: build-chunks | build-embeddings --chunk-set sha256:<id> [--reuse-embedding-set sha256:<id>] | publish-index --chunk-set sha256:<id> --embedding-set sha256:<id>",
+	);
+}
+
+function writeResult(value: Record<string, unknown>): void {
+	console.log(JSON.stringify(value, null, 2));
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+	main().catch((error: unknown) => {
+		console.error(error instanceof Error ? error.message : String(error));
+		process.exitCode = 1;
+	});
+}

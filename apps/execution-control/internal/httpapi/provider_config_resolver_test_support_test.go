@@ -16,14 +16,12 @@ func attachPrimaryAgentProviderConfigForTest(server *Server) {
 }
 
 func attachAgentAdmissionProviderConfigsForTest(server *Server) {
-	index, _, _ := campusDocsIndexStoreForTest().CurrentIndex(context.Background())
 	server.providerConfigResolver = staticProviderConfigResolver{
 		providerConfigKindLLM: primaryAgentProviderConfigSnapshotForTest(),
 		providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
 			providerConfigKindEmbedding,
 			"https://embedding.example/v1",
-			index.EmbeddingModel,
-			index.EmbeddingDimensions,
+			"provider-model-alias",
 		),
 	}
 	server.providerConfigErr = nil
@@ -91,17 +89,14 @@ func embeddingProviderConfigSnapshotForTest(
 	kind providerConfigKind,
 	baseURL string,
 	model string,
-	dimensions int,
 ) providerConfigSnapshot {
 	return providerConfigSnapshot{
-		APIKey:           "test-embedding-key",
-		BaseURL:          baseURL,
-		Dimensions:       dimensions,
-		EmbeddingSpaceID: "qwen3-embedding-4b-test-v1",
-		Kind:             kind,
-		Model:            model,
-		Provider:         "openai-compatible",
-		Transport:        "embeddings",
+		APIKey:    "test-embedding-key",
+		BaseURL:   baseURL,
+		Kind:      kind,
+		Model:     model,
+		Provider:  "openai-compatible",
+		Transport: "embeddings",
 	}
 }
 

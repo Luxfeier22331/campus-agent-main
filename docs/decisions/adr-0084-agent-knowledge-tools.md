@@ -55,17 +55,20 @@ evidence 表示有可引用证据。普通任务不要求引用；机构事实�
 ### 不可变发布消费边界
 
 - 在线请求不采集、清理、分块、建索引或发布；
-- publisher 直接消费 Campus Web 已清洗的 `source.json` 和当前 reader，不建立第二套 canonical 文档；
+- Chunk Job 直接消费 Campus Web 已清洗的 `source.json` 和当前 reader，不建立第二套 canonical 文档；
+- Chunk、Embedding 和 Publisher 是三个独立手动阶段，以内容寻址 manifest 和 NDJSON 传递显式输入；
 - Qdrant 不可变物理 collection 保存在线检索正文、检索文本摘要和引用 metadata；
-- collection 名由当前文档投影和代码内唯一 `INDEX_DEFINITION` 的规范 JSON SHA-256 形成，collection
-  本身是唯一索引身份；
+- collection 名由 index manifest 的规范 JSON SHA-256 形成；manifest 摘要同时是 collection 后缀，
+  不再另建第二套运行时索引身份；
 - PostgreSQL 只用 `campus_docs_serving.current_index` 单行保存当前 collection 及查询所需绑定，不保存
   索引历史、独立 index ID、fingerprint 或来源摘要实体；
 - `campus_docs_serving.current_index` 是唯一激活来源，不使用 Qdrant alias；
 - 当前在线检索只消费激活的当前索引，不提供历史 reader 查询。
 
-publisher 在会影响 point 或查询兼容性的当前输入变化时构建完整新 collection，验证后原子替换当前
-绑定；它不原地更新向量，也不在激活后立即删除旧 collection。
+Embedding Job 只从 execution-control 取得一次当前 provider 连接，并可从显式旧 embedding set 按
+向量空间与检索文本摘要复用。Publisher 不读取 reader 或调用 provider；它从显式 chunk set 和
+embedding set 构建完整新 collection，验证后原子替换当前绑定。流程不原地更新向量，也不在激活后
+立即删除旧 collection。
 
 ### 不可变运行准入
 

@@ -10,7 +10,6 @@ spec:
         values:
           - agent-runtime
           - app-api-schema
-          - campus-docs-index-publisher
           - execution-control
           - execution-run-projection-schema
   policyTypes: ["Ingress"]
@@ -27,6 +26,31 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: private-service-connector
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8001
+        - protocol: TCP
+          port: 27062
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-control-provider-snapshot-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: execution-control
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: campus-docs-embedding-builder
+      ports:
+        - protocol: TCP
+          port: 8002
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -42,7 +66,6 @@ spec:
         values:
           - agent-runtime
           - app-api-schema
-          - campus-docs-index-publisher
           - execution-control
           - execution-run-projection-schema
   policyTypes: ["Egress"]
@@ -109,11 +132,41 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: campus-docs-index-publisher-object-store-egress
+  name: campus-docs-artifact-jobs-dns-egress
 spec:
   podSelector:
-    matchLabels:
-      app.kubernetes.io/name: campus-docs-index-publisher
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - campus-docs-chunk-builder
+          - campus-docs-embedding-builder
+          - campus-docs-index-publisher
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: campus-docs-artifact-jobs-object-store-egress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - campus-docs-chunk-builder
+          - campus-docs-embedding-builder
+          - campus-docs-index-publisher
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -123,3 +176,52 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: campus-docs-embedding-builder-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: campus-docs-embedding-builder
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: execution-control
+      ports:
+        - protocol: TCP
+          port: 8002
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: campus-docs-index-publisher-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: campus-docs-index-publisher
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432

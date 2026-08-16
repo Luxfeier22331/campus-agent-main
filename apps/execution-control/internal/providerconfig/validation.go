@@ -44,17 +44,8 @@ func validateSettingShape(setting RuntimeSetting) error {
 	if strings.TrimSpace(setting.Model) == "" {
 		return errors.New("model is required")
 	}
-	if setting.Kind == KindEmbedding && setting.Dimensions <= 0 {
-		return errors.New("embedding dimensions must be positive")
-	}
-	if setting.Kind == KindEmbedding && strings.TrimSpace(setting.EmbeddingSpaceID) == "" {
-		return errors.New("embedding space id is required")
-	}
 	if setting.Kind == KindEmbedding && setting.Transport != "embeddings" {
 		return errors.New("embedding transport must be embeddings")
-	}
-	if setting.Kind == KindLLM && strings.TrimSpace(setting.EmbeddingSpaceID) != "" {
-		return errors.New("llm setting must not define an embedding space id")
 	}
 	if setting.Kind == KindLLM && setting.Transport != "responses" && setting.Transport != "chat_completions" {
 		return errors.New("llm transport must be responses or chat_completions")
@@ -160,9 +151,8 @@ func validateLLM(ctx context.Context, client *http.Client, setting RuntimeSettin
 
 func validateEmbedding(ctx context.Context, client *http.Client, setting RuntimeSetting) ValidationResult {
 	result, err := callProvider(ctx, client, setting, "/embeddings", map[string]any{
-		"dimensions": setting.Dimensions,
-		"input":      "campus-agent provider validation",
-		"model":      setting.Model,
+		"input": "campus-agent provider validation",
+		"model": setting.Model,
 	})
 	if err != nil {
 		return failedValidation(err)
@@ -173,13 +163,8 @@ func validateEmbedding(ctx context.Context, client *http.Client, setting Runtime
 	}
 	item, _ := data[0].(map[string]any)
 	embedding, _ := item["embedding"].([]any)
-	if len(embedding) != setting.Dimensions {
-		return ValidationResult{
-			ErrorCode:          "dimension_mismatch",
-			Message:            fmt.Sprintf("embedding dimensions = %d, want %d", len(embedding), setting.Dimensions),
-			ObservedDimensions: len(embedding),
-			Status:             "failed",
-		}
+	if len(embedding) == 0 {
+		return ValidationResult{ErrorCode: "invalid_response", Message: "embedding response vector is empty", Status: "failed"}
 	}
 	return ValidationResult{Message: "embedding provider validation passed", ObservedDimensions: len(embedding), Status: "passed"}
 }

@@ -60,8 +60,8 @@ func TestPostgresIntegration(t *testing.T) {
 	}
 	harness := &postgresHarness{adminURL: adminURL, moduleDir: executionControlModuleDir(t)}
 
-	t.Run("provider schema fails closed when roles are missing", func(t *testing.T) {
-		testProviderSchemaRejectsMissingRoles(t, harness)
+	t.Run("schema migrations are independent from grant roles", func(t *testing.T) {
+		testSchemaMigrationsWithoutGrantRoles(t, harness)
 	})
 	harness.installClusterRoles(t)
 	t.Run("run projection store", func(t *testing.T) {

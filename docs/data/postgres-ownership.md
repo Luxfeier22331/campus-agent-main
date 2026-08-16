@@ -57,6 +57,8 @@ migration 记录。
 
 Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campus Docs index publisher 使用专用角色
 替换 `campus_docs_serving.current_index` 单行绑定，不访问产品 schema；execution-control 只读该表。
+该角色的 Secret 只保存 `username` / `password`，数据库地址、库名和 TLS 参数复用 schema workload 的
+标准 `PG*` ConfigMap，不创建第二套数据库 URL 合同。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 
 ## 迁移合同
@@ -118,8 +120,10 @@ Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campu
   切换期间的旧读取；旧 writer 不获得 DML。活跃环境完成停写迁移、同 revision 部署和读取验证后，
   才能由后续 migration 删除这些视图及空的 `execution_config` schema；源码合并本身不证明环境已
   完成该清理。
-- Goose v5 在已移动的 `execution_control.model_settings` 上新增 `embedding_space_id`，并创建
-  `campus_docs_serving.current_index`；已应用 v3 的数据库通过 v4、v5 顺序升级，不会重跑或改写 v3。
+- Goose v5 在已移动的 `execution_control.model_settings` 上暂时新增 `embedding_space_id`，并创建
+  `campus_docs_serving.current_index`；Goose v6 删除模型设置中的向量字段以及当前索引中不再由配置管理的
+  `embedding_model`、`embedding_provider`。已应用 v3 的数据库通过 v4、v5、v6 顺序升级，不会重跑或
+  改写 v3。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和领域业务表，不能读取

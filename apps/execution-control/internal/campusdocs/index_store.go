@@ -19,8 +19,6 @@ type Index struct {
 	Collection                string
 	DenseVectorName           string
 	EmbeddingDimensions       int
-	EmbeddingModel            string
-	EmbeddingProvider         string
 	EmbeddingQueryInstruction string
 	EmbeddingSpaceID          string
 	SparseModel               string
@@ -69,8 +67,6 @@ func (s *PostgresIndexStore) CurrentIndex(ctx context.Context) (Index, bool, err
 		`select collection,
 		        dense_vector_name,
 		        embedding_dimensions,
-		        embedding_model,
-		        embedding_provider,
 		        embedding_query_instruction,
 		        embedding_space_id,
 		        sparse_model,
@@ -81,8 +77,6 @@ func (s *PostgresIndexStore) CurrentIndex(ctx context.Context) (Index, bool, err
 		&index.Collection,
 		&index.DenseVectorName,
 		&index.EmbeddingDimensions,
-		&index.EmbeddingModel,
-		&index.EmbeddingProvider,
 		&index.EmbeddingQueryInstruction,
 		&index.EmbeddingSpaceID,
 		&index.SparseModel,
@@ -104,8 +98,6 @@ func ValidateIndex(index Index) error {
 	if !collectionPattern.MatchString(strings.TrimSpace(index.Collection)) ||
 		strings.TrimSpace(index.DenseVectorName) == "" ||
 		index.EmbeddingDimensions <= 0 ||
-		strings.TrimSpace(index.EmbeddingModel) == "" ||
-		strings.TrimSpace(index.EmbeddingProvider) == "" ||
 		strings.TrimSpace(index.EmbeddingQueryInstruction) == "" ||
 		strings.TrimSpace(index.EmbeddingSpaceID) == "" ||
 		strings.TrimSpace(index.SparseModel) == "" ||

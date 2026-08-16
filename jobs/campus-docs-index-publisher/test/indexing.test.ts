@@ -14,11 +14,10 @@ import {
 	loadCurrentVersions,
 	parseIndexingSource,
 	sha256Text,
+	sourceProjectionSha256,
 } from "../src/indexing.ts";
 import { buildSparseVector } from "../src/indexing.ts";
 import { INDEX_DEFINITION } from "../src/types.ts";
-
-const TEST_EMBEDDING_SPACE_ID = "qwen3-embedding-4b-test-v1";
 
 describe("Campus docs indexing", () => {
 	it("indexes only current reader versions and preserves section boundaries", async () => {
@@ -412,23 +411,12 @@ describe("Campus docs indexing", () => {
 	});
 
 	it("produces stable fingerprints and bounded sparse vectors", async () => {
-		const fixture = createDocsSourceSiteFixture();
-		const source = parseIndexingSource(fixture.sourceBytes);
-		const selections = await loadCurrentVersions({
-			readerStore: {
-				read: async (key) => fixture.objects.get(key)?.body ?? (() => { throw new Error(key); })(),
-			},
-			source,
-		});
-		const first = buildCurrentIndexBinding({ embeddingSpaceId: TEST_EMBEDDING_SPACE_ID, selections });
-		const second = buildCurrentIndexBinding({ embeddingSpaceId: TEST_EMBEDDING_SPACE_ID, selections });
-		const differentSpace = buildCurrentIndexBinding({
-			embeddingSpaceId: "qwen3-embedding-4b-test-v2",
-			selections,
-		});
+		const index = `sha256:${"a".repeat(64)}` as const;
+		const first = buildCurrentIndexBinding(index);
+		const second = buildCurrentIndexBinding(index);
 		expect(first.collection).toMatch(/^campus_docs_[a-f0-9]{64}$/u);
 		expect(second).toEqual(first);
-		expect(differentSpace.collection).not.toBe(first.collection);
+		expect(first.embedding_space_id).toBe(INDEX_DEFINITION.embedding.spaceId);
 		const sparse = buildSparseVector("培养方案 Course_101 course_101 课程 课程 ÄÖ");
 		expect(sparse).toEqual({
 			indices: [148423468, 272413536, 603158067, 919704991, 1116344764, 1145662860, 1154101346, 1767701743],
@@ -481,8 +469,8 @@ describe("Campus docs indexing", () => {
 		});
 
 		expect(historicalOnlySource.sourceBytes).not.toEqual(baselineSource.sourceBytes);
-		expect(buildCurrentIndexBinding({ embeddingSpaceId: TEST_EMBEDDING_SPACE_ID, selections: historicalOnlySelections }).collection).toBe(
-			buildCurrentIndexBinding({ embeddingSpaceId: TEST_EMBEDDING_SPACE_ID, selections: baselineSelections }).collection,
+		expect(sourceProjectionSha256(historicalOnlySelections)).toBe(
+			sourceProjectionSha256(baselineSelections),
 		);
 
 		const changedCurrentSource = parseIndexingSource(canonicalJsonBytes({
@@ -495,8 +483,8 @@ describe("Campus docs indexing", () => {
 			readerStore: { read },
 			source: changedCurrentSource,
 		});
-		expect(buildCurrentIndexBinding({ embeddingSpaceId: TEST_EMBEDDING_SPACE_ID, selections: changedCurrentSelections }).collection).not.toBe(
-			buildCurrentIndexBinding({ embeddingSpaceId: TEST_EMBEDDING_SPACE_ID, selections: baselineSelections }).collection,
+		expect(sourceProjectionSha256(changedCurrentSelections)).not.toBe(
+			sourceProjectionSha256(baselineSelections),
 		);
 	});
 

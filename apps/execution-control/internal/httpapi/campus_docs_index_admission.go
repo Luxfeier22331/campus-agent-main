@@ -26,8 +26,6 @@ func (s *Server) campusDocsIndexForAdmission(
 		Collection:                index.Collection,
 		DenseVectorName:           index.DenseVectorName,
 		EmbeddingDimensions:       index.EmbeddingDimensions,
-		EmbeddingModel:            index.EmbeddingModel,
-		EmbeddingProvider:         index.EmbeddingProvider,
 		EmbeddingQueryInstruction: index.EmbeddingQueryInstruction,
 		EmbeddingSpaceID:          index.EmbeddingSpaceID,
 		SparseModel:               index.SparseModel,
@@ -45,8 +43,7 @@ func validateCampusDocsIndexAdmission(target *temporalruntime.CampusDocsIndexSna
 	}
 	if !strings.HasPrefix(target.Collection, "campus_docs_") || target.DenseVectorName != "dense" ||
 		target.SparseVectorName != "sparse" || target.SparseModel != "fnv1a_log_tf.v1" ||
-		strings.TrimSpace(target.EmbeddingProvider) == "" ||
-		strings.TrimSpace(target.EmbeddingModel) == "" || strings.TrimSpace(target.EmbeddingQueryInstruction) == "" ||
+		strings.TrimSpace(target.EmbeddingQueryInstruction) == "" ||
 		strings.TrimSpace(target.EmbeddingSpaceID) == "" ||
 		target.EmbeddingDimensions <= 0 {
 		return errors.New("Campus docs index admission snapshot is invalid")
@@ -61,11 +58,8 @@ func validateCampusDocsEmbeddingAdmission(
 	if err := validateCampusDocsIndexAdmission(target); err != nil {
 		return err
 	}
-	if strings.TrimSpace(provider.Provider) != target.EmbeddingProvider ||
-		strings.TrimSpace(provider.Model) != target.EmbeddingModel ||
-		strings.TrimSpace(provider.EmbeddingSpaceID) != target.EmbeddingSpaceID ||
-		provider.Dimensions != target.EmbeddingDimensions {
-		return errors.New("active embedding setting does not match the Campus docs index")
+	if err := validateProviderConfigSnapshot(provider, providerConfigKindEmbedding); err != nil {
+		return fmt.Errorf("active embedding setting is invalid: %w", err)
 	}
 	return nil
 }

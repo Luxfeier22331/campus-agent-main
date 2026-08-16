@@ -25,6 +25,7 @@ import type {
 	IndexPoint,
 	IndexingSource,
 	ReaderSection,
+	Sha256Ref,
 	SourceVersionSelection,
 	SparseVector,
 } from "./types.ts";
@@ -163,24 +164,14 @@ export function buildChunks(input: {
 	return chunks;
 }
 
-export function buildCurrentIndexBinding(input: {
-	embeddingSpaceId: string;
-	selections: readonly SourceVersionSelection[];
-}): CurrentIndexBinding {
-	const canonical = canonicalJsonBytes({
-		current_source: currentSourceProjection(input.selections),
-		embedding_space_id: input.embeddingSpaceId,
-		index_definition: INDEX_DEFINITION,
-	});
-	const digest = sha256TextBytes(canonical).slice("sha256:".length);
+export function buildCurrentIndexBinding(index: Sha256Ref): CurrentIndexBinding {
+	const digest = index.slice("sha256:".length);
 	return {
 		collection: `${INDEX_COLLECTION_PREFIX}_${digest}`,
 		dense_vector_name: INDEX_DEFINITION.embedding.vectorName,
 		embedding_dimensions: INDEX_DEFINITION.embedding.dimensions,
-		embedding_model: INDEX_DEFINITION.embedding.model,
-		embedding_provider: INDEX_DEFINITION.embedding.provider,
 		embedding_query_instruction: INDEX_DEFINITION.embedding.queryInstruction,
-		embedding_space_id: input.embeddingSpaceId,
+		embedding_space_id: INDEX_DEFINITION.embedding.spaceId,
 		sparse_model: INDEX_DEFINITION.sparse.model,
 		sparse_vector_name: INDEX_DEFINITION.sparse.vectorName,
 	};
@@ -191,7 +182,7 @@ export function buildCurrentIndexBinding(input: {
  * indexed chunks. Historical versions, redirects, topic descriptions and
  * manifest formatting are intentionally outside the collection identity.
  */
-function currentSourceProjection(
+export function buildCurrentSourceProjection(
 	selections: readonly SourceVersionSelection[],
 ): Array<Record<string, unknown>> {
 	return selections
@@ -207,6 +198,12 @@ function currentSourceProjection(
 			version_slug: item.version.versionSlug,
 		}))
 		.sort((left, right) => String(left.doc_id).localeCompare(String(right.doc_id)));
+}
+
+export function sourceProjectionSha256(
+	selections: readonly SourceVersionSelection[],
+): Sha256Ref {
+	return sha256TextBytes(canonicalJsonBytes(buildCurrentSourceProjection(selections)));
 }
 
 export function buildPoint(input: {

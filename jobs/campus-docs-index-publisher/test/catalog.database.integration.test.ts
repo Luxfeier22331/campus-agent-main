@@ -6,7 +6,10 @@ import { Client } from "pg";
 import { Wait } from "testcontainers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createPostgresIndexCatalog } from "../src/catalog.ts";
+import {
+	createPostgresIndexCatalog,
+	type PostgresCatalogEnv,
+} from "../src/catalog.ts";
 import type { CurrentIndexBinding } from "../src/types.ts";
 import { INDEX_DEFINITION } from "../src/types.ts";
 
@@ -39,8 +42,6 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 					collection text not null,
 					dense_vector_name text not null,
 					embedding_dimensions integer not null,
-					embedding_model text not null,
-					embedding_provider text not null,
 					embedding_query_instruction text not null,
 					embedding_space_id text not null,
 					sparse_model text not null,
@@ -63,22 +64,21 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 			await admin.query(
 				`insert into campus_docs_serving.current_index
 				 (singleton, collection, dense_vector_name, embedding_dimensions,
-				  embedding_model, embedding_provider, embedding_query_instruction,
-				  embedding_space_id, sparse_model, sparse_vector_name)
-				 values (true, $1, 'legacy_dense', 1024, 'legacy-model', 'legacy-provider',
-				         'legacy instruction', 'legacy-space', 'legacy-sparse', 'legacy_sparse')`,
+				  embedding_query_instruction, embedding_space_id, sparse_model,
+				  sparse_vector_name)
+				 values (true, $1, 'legacy_dense', 1024, 'legacy instruction',
+				         'legacy-space', 'legacy-sparse', 'legacy_sparse')`,
 				[`campus_docs_${"a".repeat(64)}`],
 			);
 		} finally {
 			await admin.end();
 		}
 
-		const catalog = createPostgresIndexCatalog({ CAMPUS_DOCS_DATABASE_URL: connectionString });
+		const catalog = createPostgresIndexCatalog(catalogEnv(connectionString));
 		try {
 			await expect(catalog.current()).resolves.toMatchObject({
 				embedding_dimensions: 1024,
-				embedding_model: "legacy-model",
-				embedding_provider: "legacy-provider",
+				embedding_space_id: "legacy-space",
 			});
 			const target = targetBinding("b");
 			await expect(catalog.activate(target)).resolves.toEqual({ noOp: false });
@@ -89,8 +89,8 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 	});
 
 	it("rejects concurrent publisher sessions and releases the lock on close", async () => {
-		const first = createPostgresIndexCatalog({ CAMPUS_DOCS_DATABASE_URL: connectionString });
-		const second = createPostgresIndexCatalog({ CAMPUS_DOCS_DATABASE_URL: connectionString });
+		const first = createPostgresIndexCatalog(catalogEnv(connectionString));
+		const second = createPostgresIndexCatalog(catalogEnv(connectionString));
 		try {
 			await first.acquirePublisherLock();
 			await expect(second.acquirePublisherLock()).rejects.toThrow(
@@ -117,7 +117,7 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 		} finally {
 			await admin.end();
 		}
-		const catalog = createPostgresIndexCatalog({ CAMPUS_DOCS_DATABASE_URL: connectionString });
+		const catalog = createPostgresIndexCatalog(catalogEnv(connectionString));
 		try {
 			await expect(catalog.activate(target)).rejects.toThrow(
 				"Campus docs current index conflicts at embedding_query_instruction",
@@ -133,11 +133,21 @@ function targetBinding(digestCharacter: string): CurrentIndexBinding {
 		collection: `campus_docs_${digestCharacter.repeat(64)}`,
 		dense_vector_name: INDEX_DEFINITION.embedding.vectorName,
 		embedding_dimensions: INDEX_DEFINITION.embedding.dimensions,
-		embedding_model: INDEX_DEFINITION.embedding.model,
-		embedding_provider: INDEX_DEFINITION.embedding.provider,
 		embedding_query_instruction: INDEX_DEFINITION.embedding.queryInstruction,
-		embedding_space_id: "qwen3-embedding-4b-test-v1",
+		embedding_space_id: INDEX_DEFINITION.embedding.spaceId,
 		sparse_model: INDEX_DEFINITION.sparse.model,
 		sparse_vector_name: INDEX_DEFINITION.sparse.vectorName,
+	};
+}
+
+function catalogEnv(connectionString: string): PostgresCatalogEnv {
+	const parsed = new URL(connectionString);
+	return {
+		PGDATABASE: decodeURIComponent(parsed.pathname.slice(1)),
+		PGHOST: parsed.hostname,
+		PGPASSWORD: decodeURIComponent(parsed.password),
+		PGPORT: parsed.port,
+		PGSSLMODE: "disable",
+		PGUSER: decodeURIComponent(parsed.username),
 	};
 }

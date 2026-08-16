@@ -47,4 +47,4 @@ spec:
   name: campus_docs_index_publisher
   login: true
   passwordSecret:
-    name: campus-docs-index-publisher-secrets
+    name: campus-docs-index-publisher-database-secrets

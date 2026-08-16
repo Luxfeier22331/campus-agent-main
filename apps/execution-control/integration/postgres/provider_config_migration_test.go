@@ -3,6 +3,7 @@
 package postgres_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -160,7 +161,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 		if err != nil {
 			t.Fatalf("resolve migrated embedding: %v", err)
 		}
-		if embedding.APIKey != "legacy-provider-secret" || embedding.Dimensions != 2560 || embedding.EmbeddingSpaceID != "" {
+		if embedding.APIKey != "legacy-provider-secret" || embedding.Model != "Qwen3-Embedding-4B" || embedding.Transport != "embeddings" {
 			t.Fatalf("migrated embedding = %#v", embedding)
 		}
 		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
@@ -362,23 +363,42 @@ func insertCurrentModelSetting(
 	if err != nil {
 		t.Fatalf("encrypt current model setting: %v", err)
 	}
-	dimensions := 0
 	observedDimensions := 0
 	transport := "responses"
 	if kind == providerconfig.KindEmbedding {
-		dimensions = 2560
 		observedDimensions = 2560
 		transport = "embeddings"
 	}
 	conn := connect(t, databaseURL)
 	defer closeConn(t, conn)
-	if _, err := conn.Exec(t.Context(), `insert into `+table+`
+	var dimensionsColumnExists bool
+	parts := strings.Split(table, ".")
+	if err := conn.QueryRow(t.Context(), `select exists(
+		select 1 from information_schema.columns
+		where table_schema=$1 and table_name=$2 and column_name='dimensions'
+	)`, parts[0], parts[1]).Scan(&dimensionsColumnExists); err != nil {
+		t.Fatalf("inspect current model setting columns: %v", err)
+	}
+	if dimensionsColumnExists {
+		if _, err := conn.Exec(t.Context(), `insert into `+table+`
 		(kind,provider,base_url,model,transport,dimensions,secret_key_id,secret_nonce,secret_ciphertext,
 		 secret_fingerprint,secret_last4,validation_status,validation_error_code,validation_message,
 		 validation_observed_dimensions,validated_at,validated_by,updated_at,updated_by)
 		values($1,'openai-compatible','https://provider.integration.example/v1',$2,$3,nullif($4,0),$5,$6,$7,$8,$9,
 		 'passed','','legacy validation',nullif($10,0),$11,'legacy-test',$11,'legacy-test')`,
-		kind, model, transport, dimensions, secret.KeyID, secret.Nonce, secret.Ciphertext, secret.Fingerprint,
+			kind, model, transport, observedDimensions, secret.KeyID, secret.Nonce, secret.Ciphertext, secret.Fingerprint,
+			secret.Last4, observedDimensions, time.Date(2026, 7, 1, 0, 30, 0, 0, time.UTC)); err != nil {
+			t.Fatalf("insert current %s setting: %v", kind, err)
+		}
+		return
+	}
+	if _, err := conn.Exec(t.Context(), `insert into `+table+`
+		(kind,provider,base_url,model,transport,secret_key_id,secret_nonce,secret_ciphertext,
+		 secret_fingerprint,secret_last4,validation_status,validation_error_code,validation_message,
+		 validation_observed_dimensions,validated_at,validated_by,updated_at,updated_by)
+		values($1,'openai-compatible','https://provider.integration.example/v1',$2,$3,$4,$5,$6,$7,$8,
+		 'passed','','legacy validation',nullif($9,0),$10,'legacy-test',$10,'legacy-test')`,
+		kind, model, transport, secret.KeyID, secret.Nonce, secret.Ciphertext, secret.Fingerprint,
 		secret.Last4, observedDimensions, time.Date(2026, 7, 1, 0, 30, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("insert current %s setting: %v", kind, err)
 	}

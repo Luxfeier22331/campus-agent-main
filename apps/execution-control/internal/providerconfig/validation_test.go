@@ -73,7 +73,7 @@ func TestValidateSnapshotUsesConfiguredPromptTransport(t *testing.T) {
 	}
 }
 
-func TestValidateSnapshotUsesEmbeddingsTransportAndChecksDimensions(t *testing.T) {
+func TestValidateSnapshotUsesEmbeddingsTransportAndObservesDimensions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/embeddings" {
 			t.Fatalf("request path = %q, want /embeddings", request.URL.Path)
@@ -82,8 +82,8 @@ func TestValidateSnapshotUsesEmbeddingsTransportAndChecksDimensions(t *testing.T
 		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode request body: %v", err)
 		}
-		if payload["dimensions"] != float64(3) {
-			t.Fatalf("request dimensions = %#v", payload["dimensions"])
+		if _, configured := payload["dimensions"]; configured {
+			t.Fatalf("validation request must not configure dimensions: %#v", payload)
 		}
 		response.Header().Set("content-type", "application/json")
 		_, _ = response.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3]}]}`))
@@ -91,14 +91,12 @@ func TestValidateSnapshotUsesEmbeddingsTransportAndChecksDimensions(t *testing.T
 	defer server.Close()
 
 	result := Validate(context.Background(), RuntimeSetting{
-		APIKey:           "secret",
-		BaseURL:          server.URL,
-		Dimensions:       3,
-		EmbeddingSpaceID: "embedding-test-space-v1",
-		Kind:             KindEmbedding,
-		Model:            "embedding-1",
-		Provider:         "openai-compatible",
-		Transport:        "embeddings",
+		APIKey:    "secret",
+		BaseURL:   server.URL,
+		Kind:      KindEmbedding,
+		Model:     "embedding-1",
+		Provider:  "openai-compatible",
+		Transport: "embeddings",
 	})
 
 	if result.Status != "passed" || result.ObservedDimensions != 3 {
@@ -119,7 +117,7 @@ func TestValidateSnapshotRejectsUnsupportedTransportBeforeCallingProvider(t *tes
 			Provider: "openai-compatible", Transport: "legacy_prompt",
 		},
 		{
-			APIKey: "secret", BaseURL: server.URL, Dimensions: 3, EmbeddingSpaceID: "embedding-test-space-v1", Kind: KindEmbedding, Model: "embedding-1",
+			APIKey: "secret", BaseURL: server.URL, Kind: KindEmbedding, Model: "embedding-1",
 			Provider: "openai-compatible", Transport: "responses",
 		},
 	}

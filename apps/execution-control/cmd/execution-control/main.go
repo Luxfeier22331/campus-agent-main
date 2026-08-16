@@ -15,7 +15,10 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
 )
 
-const providerConfigAdminPort = 8001
+const (
+	providerConfigAdminPort    = 8001
+	providerConfigSnapshotPort = 8002
+)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -70,9 +73,15 @@ func run(logger *slog.Logger) error {
 		adminHandler,
 		15*time.Second,
 	)
-	serverErrors := make(chan error, 2)
+	snapshotServer := newHTTPServer(
+		fmt.Sprintf("%s:%d", cfg.Host, providerConfigSnapshotPort),
+		adminHandler.EmbeddingProviderSnapshotHandler(),
+		15*time.Second,
+	)
+	serverErrors := make(chan error, 3)
 	startHTTPServer("execution-control", gatewayServer, serverErrors, logger)
 	startHTTPServer("provider-config-admin", adminServer, serverErrors, logger)
+	startHTTPServer("provider-config-snapshot", snapshotServer, serverErrors, logger)
 
 	var runtimeErr error
 	select {
@@ -101,6 +110,9 @@ func run(logger *slog.Logger) error {
 	}
 	if err := adminServer.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
 		runtimeErr = fmt.Errorf("shutdown provider-config admin HTTP server: %w", err)
+	}
+	if err := snapshotServer.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
+		runtimeErr = fmt.Errorf("shutdown provider-config snapshot HTTP server: %w", err)
 	}
 	if err := handler.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
 		runtimeErr = fmt.Errorf("shutdown execution runtime: %w", err)

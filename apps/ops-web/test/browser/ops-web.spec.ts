@@ -922,13 +922,6 @@ test("未保存模型配置时确认离开", async ({ page }) => {
 
 async function mockExecutionModelSettings(page: Page) {
 	const state: ExecutionModelSettingsStatus & { receivedApiKeys: string[] } = {
-		embeddingRequirement: {
-			dimensions: 2560,
-			embeddingSpaceId: "qwen3-embedding-4b-test-v1",
-			model: "Qwen3-Embedding-4B",
-			provider: "openai-compatible",
-			transport: "embeddings",
-		},
 		etag: "etag-1",
 		receivedApiKeys: [],
 		sampledAt: "2026-07-16T00:00:00.000Z",
@@ -937,8 +930,6 @@ async function mockExecutionModelSettings(page: Page) {
 				baseUrl: "https://embedding.example/v1",
 				credentialConfigured: true,
 				credentialLast4: "demo",
-				dimensions: 2560,
-				embeddingSpaceId: "qwen3-embedding-4b-test-v1",
 				kind: "embedding",
 				latestValidation: null,
 				model: "Qwen3-Embedding-4B",

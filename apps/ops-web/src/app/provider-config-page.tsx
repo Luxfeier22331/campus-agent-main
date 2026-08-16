@@ -29,7 +29,6 @@ import { ErrorState, InlineError, PageHeader, StaleDataWarning } from "./ops-dis
 import {
 	executionModelSettingsQueryKey,
 	InlineNotice,
-	ReadOnlyFacts,
 	transportLabel,
 	UnsavedChangesGuard,
 	ValidationBadge,
@@ -40,8 +39,8 @@ interface ExecutionDraft {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
-	provider: ModelSettingUpdate["provider"];
-	transport: ModelSettingUpdate["transport"];
+	provider: "openai" | "openai-compatible";
+	transport: "responses" | "chat_completions" | "embeddings";
 }
 
 export function ProviderConfigPage() {
@@ -88,14 +87,12 @@ function ExecutionModelSettings() {
 			) : null}
 			<div className="grid gap-4 xl:grid-cols-2">
 				<ExecutionModelSettingForm
-					embeddingRequirement={status.data.embeddingRequirement}
 					etag={status.data.etag}
 					kind="llm"
 					onDirtyChange={onDirtyChange}
 					setting={status.data.settings.llm}
 				/>
 				<ExecutionModelSettingForm
-					embeddingRequirement={status.data.embeddingRequirement}
 					etag={status.data.etag}
 					kind="embedding"
 					onDirtyChange={onDirtyChange}
@@ -107,13 +104,11 @@ function ExecutionModelSettings() {
 }
 
 function ExecutionModelSettingForm({
-	embeddingRequirement,
 	etag,
 	kind,
 	onDirtyChange,
 	setting,
 }: {
-	embeddingRequirement: ExecutionModelSettingsStatus["embeddingRequirement"];
 	etag: string;
 	kind: ModelSettingKind;
 	onDirtyChange: (kind: ModelSettingKind, dirty: boolean) => void;
@@ -121,12 +116,11 @@ function ExecutionModelSettingForm({
 }) {
 	const queryClient = useQueryClient();
 	const embedding = kind === "embedding";
-	const embeddingUnavailable = embedding && embeddingRequirement === null;
 	const [baseline, setBaseline] = useState<ExecutionDraft>(() =>
-		executionDraftFromSetting(setting, embedding, embeddingRequirement),
+		executionDraftFromSetting(setting, embedding),
 	);
 	const [draft, setDraft] = useState<ExecutionDraft>(() =>
-		executionDraftFromSetting(setting, embedding, embeddingRequirement),
+		executionDraftFromSetting(setting, embedding),
 	);
 	const [errors, setErrors] = useState<Record<string, string>>({});
 	const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -136,11 +130,8 @@ function ExecutionModelSettingForm({
 	const dirty = !executionDraftEquals(draft, baseline);
 
 	const syncFromSetting = useCallback(
-		(
-			next: typeof setting,
-			nextRequirement: ExecutionModelSettingsStatus["embeddingRequirement"],
-		) => {
-			const nextDraft = executionDraftFromSetting(next, embedding, nextRequirement);
+		(next: typeof setting) => {
+			const nextDraft = executionDraftFromSetting(next, embedding);
 			setBaseline(nextDraft);
 			setDraft(nextDraft);
 			setErrors({});
@@ -154,7 +145,7 @@ function ExecutionModelSettingForm({
 	}, [dirty, kind, onDirtyChange]);
 
 	useEffect(() => {
-		const next = executionDraftFromSetting(setting, embedding, embeddingRequirement);
+		const next = executionDraftFromSetting(setting, embedding);
 		if (executionDraftEquals(next, baseline)) {
 			return;
 		}
@@ -162,8 +153,8 @@ function ExecutionModelSettingForm({
 			setRemoteChanged(true);
 			return;
 		}
-		syncFromSetting(setting, embeddingRequirement);
-	}, [baseline, dirty, embedding, embeddingRequirement, setting, syncFromSetting]);
+		syncFromSetting(setting);
+	}, [baseline, dirty, embedding, setting, syncFromSetting]);
 
 	const save = useMutation({
 		mutationFn: (payload: ModelSettingUpdate) => putExecutionModelSetting(kind, payload, etag),
@@ -174,7 +165,7 @@ function ExecutionModelSettingForm({
 		},
 		onSuccess: (data) => {
 			queryClient.setQueryData(executionModelSettingsQueryKey, data);
-			syncFromSetting(data.settings[kind], data.embeddingRequirement);
+			syncFromSetting(data.settings[kind]);
 			setSaveFeedback("配置已保存并验证通过。");
 		},
 	});
@@ -201,7 +192,7 @@ function ExecutionModelSettingForm({
 		mutationFn: fetchExecutionModelSettings,
 		onSuccess: (data) => {
 			queryClient.setQueryData(executionModelSettingsQueryKey, data);
-			syncFromSetting(data.settings[kind], data.embeddingRequirement);
+			syncFromSetting(data.settings[kind]);
 			save.reset();
 			validation.reset();
 			setSaveFeedback(null);
@@ -233,16 +224,13 @@ function ExecutionModelSettingForm({
 	};
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
-		if (embeddingUnavailable) {
-			return;
-		}
 		const nextErrors = validateExecutionDraft(draft, !setting?.credentialConfigured);
 		setErrors(nextErrors);
 		if (Object.keys(nextErrors).length > 0) {
 			focusFirstInvalid(formRef);
 			return;
 		}
-		save.mutate(executionDraftPayload(draft, embedding ? embeddingRequirement : null));
+		save.mutate(executionDraftPayload(draft, embedding));
 	};
 
 	const credentialHelper = credentialHelperText(
@@ -256,7 +244,7 @@ function ExecutionModelSettingForm({
 			: { credentialConfigured: false },
 	);
 	const validationResult = validation.data?.validation;
-	const modelControlId = "execution-llm-model";
+	const modelControlId = `execution-${kind}-model`;
 	const modelErrorId = `${modelControlId}-error`;
 	return (
 		<Card>
@@ -279,7 +267,6 @@ function ExecutionModelSettingForm({
 					<FormField error={errors.baseUrl} label="Base URL">
 						<Input
 							className="min-h-11"
-							disabled={embeddingUnavailable}
 							onChange={(event) => updateDraft({ baseUrl: event.target.value }, ["baseUrl"])}
 							placeholder="https://provider.example/v1"
 							spellCheck={false}
@@ -288,28 +275,37 @@ function ExecutionModelSettingForm({
 					</FormField>
 					<SecretField
 						{...(errors.apiKey ? { error: errors.apiKey } : {})}
-						disabled={embeddingUnavailable}
 						helper={credentialHelper}
 						label={`${embedding ? "Embedding" : "LLM"} API Key`}
 						onChange={(value) => updateDraft({ apiKey: value }, ["apiKey"])}
 						value={draft.apiKey}
 					/>
 					{embedding ? (
-						embeddingRequirement ? (
-							<ReadOnlyFacts
-								items={[
-									{ label: "模型", value: embeddingRequirement.model },
-									{ label: "向量维度", value: String(embeddingRequirement.dimensions) },
-									{ label: "向量空间", value: embeddingRequirement.embeddingSpaceId },
-									{ label: "服务商", value: "OpenAI 兼容接口" },
-									{ label: "接口类型", value: "Embeddings API" },
-								]}
-							/>
-						) : (
-							<InlineNotice tone="warning">
-								尚未发布 Campus Docs 当前索引，Embedding 配置暂不可编辑。
-							</InlineNotice>
-						)
+						<>
+							<FormField error={errors.model} label="模型">
+								<Input
+									aria-invalid={Boolean(errors.model)}
+									className="min-h-11"
+									id={modelControlId}
+									onChange={(event) => updateDraft({ model: event.target.value }, ["model"])}
+									value={draft.model}
+								/>
+							</FormField>
+							<FormField label="服务商">
+								<NativeSelect
+									className="min-h-11"
+									onChange={(event) =>
+										updateDraft({ provider: event.target.value as ExecutionDraft["provider"] }, [
+											"provider",
+										])
+									}
+									value={draft.provider}
+								>
+									<option value="openai">OpenAI</option>
+									<option value="openai-compatible">OpenAI 兼容接口</option>
+								</NativeSelect>
+							</FormField>
+						</>
 					) : (
 						<>
 							<div className="grid gap-1.5 text-sm">
@@ -398,7 +394,7 @@ function ExecutionModelSettingForm({
 											className="min-h-11"
 											onChange={(event) =>
 												updateDraft(
-													{ provider: event.target.value as ModelSettingUpdate["provider"] },
+													{ provider: event.target.value as ExecutionDraft["provider"] },
 													["provider"],
 												)
 											}
@@ -413,7 +409,7 @@ function ExecutionModelSettingForm({
 											className="min-h-11"
 											onChange={(event) =>
 												updateDraft(
-													{ transport: event.target.value as ModelSettingUpdate["transport"] },
+													{ transport: event.target.value as ExecutionDraft["transport"] },
 													["transport"],
 												)
 											}
@@ -474,15 +470,12 @@ function ExecutionModelSettingForm({
 					) : null}
 					{validation.isError ? <InlineError error={validation.error} title="验证失败" /> : null}
 					<div className="grid gap-2 sm:flex sm:flex-wrap">
-						<Button
-							disabled={embeddingUnavailable || !dirty || save.isPending || remoteChanged}
-							type="submit"
-						>
+						<Button disabled={!dirty || save.isPending || remoteChanged} type="submit">
 							<Save className="size-4" />
 							{save.isPending ? "验证并保存中" : "保存并验证"}
 						</Button>
 						<Button
-							disabled={embeddingUnavailable || !setting || dirty || validation.isPending}
+							disabled={!setting || dirty || validation.isPending}
 							onClick={() => validation.mutate()}
 							variant="outline"
 						>
@@ -561,30 +554,26 @@ function SecretField({
 function executionDraftFromSetting(
 	setting: ExecutionModelSettingsStatus["settings"][ModelSettingKind],
 	embedding: boolean,
-	embeddingRequirement: ExecutionModelSettingsStatus["embeddingRequirement"],
 ): ExecutionDraft {
-	const requirement = embedding ? embeddingRequirement : null;
 	return {
 		apiKey: "",
 		baseUrl: setting?.baseUrl ?? "",
-		model: requirement?.model ?? setting?.model ?? "",
-		provider: requirement?.provider ?? setting?.provider ?? "openai",
-		transport: requirement?.transport ?? setting?.transport ?? "responses",
+		model: setting?.model ?? "",
+		provider: setting?.provider ?? (embedding ? "openai-compatible" : "openai"),
+		transport: embedding ? "embeddings" : (setting?.transport ?? "responses"),
 	};
 }
 
-function executionDraftPayload(
-	draft: ExecutionDraft,
-	embeddingRequirement: NonNullable<ExecutionModelSettingsStatus["embeddingRequirement"]> | null,
-): ModelSettingUpdate {
-	return {
+function executionDraftPayload(draft: ExecutionDraft, embedding: boolean): ModelSettingUpdate {
+	const common = {
 		apiKey: draft.apiKey,
 		baseUrl: draft.baseUrl,
-		...(embeddingRequirement ? { embeddingSpaceId: embeddingRequirement.embeddingSpaceId } : {}),
-		model: embeddingRequirement?.model ?? draft.model,
-		provider: embeddingRequirement?.provider ?? draft.provider,
-		transport: embeddingRequirement?.transport ?? draft.transport,
+		model: draft.model,
+		provider: draft.provider,
 	};
+	return embedding
+		? common
+		: { ...common, transport: draft.transport as "responses" | "chat_completions" };
 }
 
 function executionDraftEquals(left: ExecutionDraft, right: ExecutionDraft) {

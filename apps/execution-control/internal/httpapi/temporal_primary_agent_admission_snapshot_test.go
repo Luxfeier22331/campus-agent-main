@@ -54,12 +54,10 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	activeProvider := pinnedProvider
 	activeProvider.APIKey = "sk-active"
 	activeProvider.Model = "model-active"
-	index := campusDocsIndexForTest()
 	embeddingProvider := embeddingProviderConfigSnapshotForTest(
 		providerConfigKindEmbedding,
 		"https://embedding.example/v1",
-		index.EmbeddingModel,
-		index.EmbeddingDimensions,
+		"provider-model-alias",
 	)
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:          agentRuntime.URL,

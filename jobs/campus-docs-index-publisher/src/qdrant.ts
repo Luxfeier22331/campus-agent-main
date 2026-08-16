@@ -3,14 +3,13 @@ import { isDeepStrictEqual } from "node:util";
 import type {
 	IndexPoint,
 	QdrantIndexClient,
-	StoredDenseVector,
 } from "./types.ts";
 
 const SCROLL_PAGE_SIZE = 256;
 
 export interface QdrantEnv {
-	CAMPUS_DOCS_QDRANT_API_KEY?: string;
-	CAMPUS_DOCS_QDRANT_URL?: string;
+	QDRANT_API_KEY?: string;
+	QDRANT_URL?: string;
 }
 
 export class QdrantCollectionContentMismatchError extends Error {
@@ -18,8 +17,8 @@ export class QdrantCollectionContentMismatchError extends Error {
 }
 
 export function createQdrantClient(env: QdrantEnv = process.env, fetchImpl: typeof fetch = fetch): QdrantIndexClient {
-	const baseURL = requiredEnv(env.CAMPUS_DOCS_QDRANT_URL, "CAMPUS_DOCS_QDRANT_URL").replace(/\/$/u, "");
-	const apiKey = requiredEnv(env.CAMPUS_DOCS_QDRANT_API_KEY, "CAMPUS_DOCS_QDRANT_API_KEY");
+	const baseURL = requiredEnv(env.QDRANT_URL, "QDRANT_URL").replace(/\/$/u, "");
+	const apiKey = requiredEnv(env.QDRANT_API_KEY, "QDRANT_API_KEY");
 	const request = async (path: string, init: RequestInit = {}): Promise<unknown> => {
 		const response = await fetchImpl(`${baseURL}${path}`, {
 			...init,
@@ -71,42 +70,6 @@ export function createQdrantClient(env: QdrantEnv = process.env, fetchImpl: type
 			});
 			if (!response.ok && response.status !== 404) throw new Error(`Qdrant delete returned HTTP ${response.status}`);
 		},
-		async readDenseVectors(input) {
-			const result: StoredDenseVector[] = [];
-			const seenPointIds = new Set<string>();
-			const seenOffsets = new Set<string>();
-			let offset: string | undefined;
-			for (;;) {
-				const page = await request(`/collections/${encodeURIComponent(input.collection)}/points/scroll`, {
-					body: JSON.stringify({
-						limit: SCROLL_PAGE_SIZE,
-						...(offset === undefined ? {} : { offset }),
-						with_payload: ["schema_version", "retrieval_text_sha256"],
-						with_vector: [input.denseVectorName],
-					}),
-					method: "POST",
-				});
-				if (!isRecord(page) || !isRecord(page.result) || !Array.isArray(page.result.points)) {
-					mismatch("Qdrant dense vector scroll response is invalid");
-				}
-				for (const value of page.result.points) {
-					const vector = parseStoredDenseVector(value, input.denseVectorName, input.dimensions);
-					if (seenPointIds.has(vector.pointId)) {
-						mismatch(`Qdrant dense vector scroll repeated point: ${vector.pointId}`);
-					}
-					seenPointIds.add(vector.pointId);
-					result.push(vector);
-				}
-				const nextOffset = page.result.next_page_offset;
-				if (nextOffset === null || nextOffset === undefined) break;
-				if (typeof nextOffset !== "string" || !nextOffset || seenOffsets.has(nextOffset)) {
-					mismatch("Qdrant dense vector scroll offset is invalid");
-				}
-				seenOffsets.add(nextOffset);
-				offset = nextOffset;
-			}
-			return result.sort((left, right) => left.pointId.localeCompare(right.pointId));
-		},
 		async upsert(input) {
 			await request(`/collections/${encodeURIComponent(input.collection)}/points?wait=true`, {
 				body: JSON.stringify({
@@ -139,37 +102,6 @@ export function createQdrantClient(env: QdrantEnv = process.env, fetchImpl: type
 			}
 			await validateStoredPoints(request, input);
 		},
-	};
-}
-
-function parseStoredDenseVector(value: unknown, vectorName: string, dimensions: number): StoredDenseVector {
-	if (!isRecord(value) || typeof value.id !== "string" || !value.id) {
-		mismatch("Qdrant dense vector point identity is invalid");
-	}
-	if (!isRecord(value.payload)) {
-		mismatch(`Qdrant dense vector payload is missing: ${value.id}`);
-	}
-	const schemaVersion = value.payload.schema_version;
-	const retrievalTextSha256 = value.payload.retrieval_text_sha256;
-	if (typeof schemaVersion !== "string" || !/^campus_docs_point\.v[1-9][0-9]*$/u.test(schemaVersion)) {
-		mismatch(`Qdrant dense vector point schema is invalid: ${value.id}`);
-	}
-	if (
-		typeof retrievalTextSha256 !== "string" ||
-		!/^sha256:[a-f0-9]{64}$/u.test(retrievalTextSha256)
-	) {
-		mismatch(`Qdrant dense vector retrieval text digest is invalid: ${value.id}`);
-	}
-	if (!isRecord(value.vector)) {
-		mismatch(`Qdrant dense vector is missing: ${value.id}`);
-	}
-	const dense = value.vector[vectorName];
-	assertFiniteVector(dense, dimensions, `dense vector ${value.id}`);
-	return {
-		dense: dense as number[],
-		pointId: value.id,
-		retrievalTextSha256: retrievalTextSha256 as `sha256:${string}`,
-		schemaVersion,
 	};
 }
 
@@ -321,16 +253,6 @@ function assertStoredPoint(
 		point.vector.sparse.values.length,
 		`sparse vector ${point.id}`,
 	);
-}
-
-function assertFiniteVector(actual: unknown, dimensions: number, label: string): asserts actual is number[] {
-	if (
-		!Array.isArray(actual) ||
-		actual.length !== dimensions ||
-		actual.some((value) => typeof value !== "number" || !Number.isFinite(value))
-	) {
-		mismatch(`Qdrant ${label} dimensions or values do not match`);
-	}
 }
 
 function assertApproximateVector(

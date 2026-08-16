@@ -30,7 +30,7 @@ describe("Campus docs Qdrant validation", () => {
 	it("reads back payload plus dense and sparse vectors", async () => {
 		const fetchMock = qdrantFetch(point);
 		const client = createQdrantClient(
-			{ CAMPUS_DOCS_QDRANT_API_KEY: "test", CAMPUS_DOCS_QDRANT_URL: "https://qdrant.example" },
+			{ QDRANT_API_KEY: "test", QDRANT_URL: "https://qdrant.example" },
 			fetchMock,
 		);
 
@@ -60,7 +60,7 @@ describe("Campus docs Qdrant validation", () => {
 			payload: { ...point.payload, text: "wrong text" },
 		};
 		const client = createQdrantClient(
-			{ CAMPUS_DOCS_QDRANT_API_KEY: "test", CAMPUS_DOCS_QDRANT_URL: "https://qdrant.example" },
+			{ QDRANT_API_KEY: "test", QDRANT_URL: "https://qdrant.example" },
 			qdrantFetch(stored),
 		);
 
@@ -95,7 +95,7 @@ describe("Campus docs Qdrant validation", () => {
 		if (!second) throw new Error("test point is missing");
 		second.payload.text = "wrong text outside the former sample";
 		const client = createQdrantClient(
-			{ CAMPUS_DOCS_QDRANT_API_KEY: "test", CAMPUS_DOCS_QDRANT_URL: "https://qdrant.example" },
+			{ QDRANT_API_KEY: "test", QDRANT_URL: "https://qdrant.example" },
 			qdrantValidationFetch({
 				count: expected.length,
 				pages: [{ nextOffset: null, points: stored }],
@@ -109,7 +109,7 @@ describe("Campus docs Qdrant validation", () => {
 
 	it("validates collection distance", async () => {
 		const client = createQdrantClient(
-			{ CAMPUS_DOCS_QDRANT_API_KEY: "test", CAMPUS_DOCS_QDRANT_URL: "https://qdrant.example" },
+			{ QDRANT_API_KEY: "test", QDRANT_URL: "https://qdrant.example" },
 			qdrantValidationFetch({
 				count: 1,
 				distance: "Dot",
@@ -132,7 +132,7 @@ describe("Campus docs Qdrant validation", () => {
 			],
 		});
 		const client = createQdrantClient(
-			{ CAMPUS_DOCS_QDRANT_API_KEY: "test", CAMPUS_DOCS_QDRANT_URL: "https://qdrant.example" },
+			{ QDRANT_API_KEY: "test", QDRANT_URL: "https://qdrant.example" },
 			fetchMock,
 		);
 
@@ -167,62 +167,14 @@ describe("Campus docs Qdrant validation", () => {
 		},
 	])("rejects $name", async ({ expected, message, pages }) => {
 		const client = createQdrantClient(
-			{ CAMPUS_DOCS_QDRANT_API_KEY: "test", CAMPUS_DOCS_QDRANT_URL: "https://qdrant.example" },
+			{ QDRANT_API_KEY: "test", QDRANT_URL: "https://qdrant.example" },
 			qdrantValidationFetch({ count: expected.length, pages }),
 		);
 
 		await expect(validatePoints(client, expected)).rejects.toThrow(message);
 	});
 
-	it("scrolls all dense vectors with the minimal payload selector", async () => {
-		const fetchMock = vi.fn<typeof fetch>(async (_request, init) => {
-			const body = JSON.parse(String(init?.body)) as { offset?: string };
-			if (body.offset === undefined) {
-				return jsonResponse({
-					result: {
-						next_page_offset: "point-b",
-						points: [storedDensePoint("point-b", "b", [0.4, 0.5, 0.6])],
-					},
-				});
-			}
-			return jsonResponse({
-				result: {
-					next_page_offset: null,
-					points: [storedDensePoint("point-a", "a", [0.1, 0.2, 0.3])],
-				},
-			});
-		});
-		const client = createQdrantClient(
-			{ CAMPUS_DOCS_QDRANT_API_KEY: "test", CAMPUS_DOCS_QDRANT_URL: "https://qdrant.example" },
-			fetchMock,
-		);
-
-		const vectors = await client.readDenseVectors({
-			collection: `campus_docs_${"a".repeat(64)}`,
-			denseVectorName: "legacy_dense",
-			dimensions: 3,
-		});
-
-		expect(vectors.map((value) => value.pointId)).toEqual(["point-a", "point-b"]);
-		const firstBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
-		expect(firstBody).toEqual({
-			limit: 256,
-			with_payload: ["schema_version", "retrieval_text_sha256"],
-			with_vector: ["legacy_dense"],
-		});
-	});
 });
-
-function storedDensePoint(id: string, digestCharacter: string, dense: number[]): Record<string, unknown> {
-	return {
-		id,
-		payload: {
-			retrieval_text_sha256: `sha256:${digestCharacter.repeat(64)}`,
-			schema_version: "campus_docs_point.v2",
-		},
-		vector: { legacy_dense: dense },
-	};
-}
 
 function indexedPoint(index: number): IndexPoint {
 	return {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -59,7 +60,7 @@ func testSchemaCommand(t *testing.T, harness *postgresHarness) {
 		assertAppliedExecutionControlMigrations(t, databaseURL)
 		assertExecutionControlSchemaConsolidated(t, databaseURL)
 	})
-	t.Run("upgrades an applied v3 ledger through v4 and v5", func(t *testing.T) {
+	t.Run("upgrades an applied v3 ledger through v6", func(t *testing.T) {
 		testSchemaCommandUpgradesAppliedV3(t, harness, binaryPath)
 	})
 	t.Run("rejects incomplete and unknown runtime schemas before creating a ledger", func(t *testing.T) {
@@ -84,6 +85,16 @@ func testSchemaCommandUpgradesAppliedV3(
 		closeConn(t, conn)
 		t.Fatalf("install v3 provider config fixture: %v", err)
 	}
+	closeConn(t, conn)
+	insertCurrentModelSetting(
+		t,
+		databaseURL,
+		loadIntegrationKeyring(t),
+		"execution_config.model_settings",
+		providerconfig.KindEmbedding,
+		"provider-model-alias",
+	)
+	conn = connect(t, databaseURL)
 	if _, err := conn.Exec(t.Context(), `
 		drop table runtime.agent_run_cleanups;
 		create table public.execution_control_migrations (
@@ -107,25 +118,38 @@ func testSchemaCommandUpgradesAppliedV3(
 
 	conn = connect(t, databaseURL)
 	defer closeConn(t, conn)
-	var embeddingSpaceColumn, campusDocsCurrentIndex bool
+	var retiredModelSettingColumns, campusDocsCurrentIndex bool
 	if err := conn.QueryRow(t.Context(), `
 		select
 			exists(
 				select 1 from information_schema.columns
 				where table_schema = 'execution_control'
 					and table_name = 'model_settings'
-					and column_name = 'embedding_space_id'
+					and column_name in ('dimensions', 'embedding_space_id')
 			),
 			to_regclass('campus_docs_serving.current_index') is not null
-	`).Scan(&embeddingSpaceColumn, &campusDocsCurrentIndex); err != nil {
-		t.Fatalf("inspect v5 schema: %v", err)
+	`).Scan(&retiredModelSettingColumns, &campusDocsCurrentIndex); err != nil {
+		t.Fatalf("inspect v6 schema: %v", err)
 	}
-	if !embeddingSpaceColumn || !campusDocsCurrentIndex {
+	if retiredModelSettingColumns || !campusDocsCurrentIndex {
 		t.Fatalf(
-			"v5 schema embedding_space_id=%t campus_docs_serving.current_index=%t, want both true",
-			embeddingSpaceColumn,
+			"v6 schema retired_model_setting_columns=%t campus_docs_serving.current_index=%t, want false/true",
+			retiredModelSettingColumns,
 			campusDocsCurrentIndex,
 		)
+	}
+	var retiredIndexColumns int
+	if err := conn.QueryRow(t.Context(), `
+		select count(*)::int
+		from information_schema.columns
+		where table_schema = 'campus_docs_serving'
+		  and table_name = 'current_index'
+		  and column_name in ('embedding_model', 'embedding_provider')
+	`).Scan(&retiredIndexColumns); err != nil {
+		t.Fatalf("inspect retired Campus docs index columns: %v", err)
+	}
+	if retiredIndexColumns != 0 {
+		t.Fatalf("retired Campus docs index columns = %d, want 0", retiredIndexColumns)
 	}
 }
 
@@ -449,12 +473,12 @@ func assertAppliedExecutionControlMigrations(t *testing.T, databaseURL string) {
 	if err := conn.QueryRow(t.Context(), `
 		select count(*)::int
 		from public.execution_control_migrations
-		where version_id in (1, 2, 3, 4, 5) and is_applied
+		where version_id in (1, 2, 3, 4, 5, 6) and is_applied
 	`).Scan(&applied); err != nil {
 		t.Fatalf("inspect execution-control migration ledger: %v", err)
 	}
-	if applied != 5 {
-		t.Fatalf("applied execution-control migrations = %d, want 5", applied)
+	if applied != 6 {
+		t.Fatalf("applied execution-control migrations = %d, want 6", applied)
 	}
 }
 
@@ -726,11 +750,10 @@ func assertCampusDocsPublisherAccess(t *testing.T, publisherURL string) {
 			arguments: []any{collection},
 			statement: `insert into campus_docs_serving.current_index (
 				singleton, collection, dense_vector_name, embedding_dimensions,
-				embedding_model, embedding_provider, embedding_query_instruction,
-				embedding_space_id, sparse_model, sparse_vector_name
-			) values (true, $1, 'dense', 2560, 'model', 'provider', 'instruction', 'space-v1', 'sparse', 'sparse')`,
+				embedding_query_instruction, embedding_space_id, sparse_model, sparse_vector_name
+			) values (true, $1, 'dense', 2560, 'instruction', 'space-v1', 'sparse', 'sparse')`,
 		},
-		{statement: "update campus_docs_serving.current_index set embedding_model = 'updated-model'"},
+		{statement: "update campus_docs_serving.current_index set embedding_query_instruction = 'updated instruction'"},
 	}
 	for _, operation := range allowed {
 		if _, err := conn.Exec(t.Context(), operation.statement, operation.arguments...); err != nil {

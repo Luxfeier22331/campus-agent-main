@@ -14,15 +14,27 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/schemamigrations"
 	"github.com/jackc/pgx/v5"
 )
 
-func testProviderSchemaRejectsMissingRoles(t *testing.T, harness *postgresHarness) {
+func testSchemaMigrationsWithoutGrantRoles(t *testing.T, harness *postgresHarness) {
 	databaseName := harness.createDatabase(t, "")
 	databaseURL := harness.databaseURL(t, databaseName, adminUser, adminPassword)
-	err := migrateSchema(t.Context(), databaseURL, nil)
-	if err == nil || !strings.Contains(err.Error(), "database role "+executionRole+" is not installed") {
-		t.Fatalf("missing-role schema error = %v", err)
+	migrator, err := schemamigrations.New(databaseURL, nil)
+	if err != nil {
+		t.Fatalf("create schema migrator: %v", err)
+	}
+	defer func() { _ = migrator.Close() }()
+	if err := migrator.Up(t.Context()); err != nil {
+		t.Fatalf("apply schema without runtime roles: %v", err)
+	}
+	if err := migrator.Check(t.Context()); err != nil {
+		t.Fatalf("check schema without runtime roles: %v", err)
+	}
+	if err := migrator.InstallGrants(t.Context()); err == nil ||
+		!strings.Contains(err.Error(), "database role "+executionRole+" is not installed") {
+		t.Fatalf("missing-role grant error = %v", err)
 	}
 
 	admin := connect(t, harness.adminURL)
@@ -39,9 +51,9 @@ func testProviderSchemaRejectsMissingRoles(t *testing.T, harness *postgresHarnes
 		t.Fatalf("install non-publisher roles for missing publisher test: %v", err)
 	}
 	closeConn(t, admin)
-	err = migrateSchema(t.Context(), databaseURL, nil)
+	err = migrator.InstallGrants(t.Context())
 	if err == nil || !strings.Contains(err.Error(), "database role "+publisherRole+" is not installed") {
-		t.Fatalf("missing publisher role schema error = %v", err)
+		t.Fatalf("missing publisher role grant error = %v", err)
 	}
 	admin = connect(t, harness.adminURL)
 	if _, err := admin.Exec(t.Context(), fmt.Sprintf(
@@ -88,14 +100,12 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("save llm setting: %v", err)
 		}
 		embedding := providerconfig.RuntimeSetting{
-			APIKey:           "sk-integration-embedding-secret",
-			BaseURL:          "https://embedding.integration.example/v1",
-			Dimensions:       2560,
-			EmbeddingSpaceID: "qwen3-embedding-4b-test-v1",
-			Kind:             providerconfig.KindEmbedding,
-			Model:            "Qwen3-Embedding-4B",
-			Provider:         "openai-compatible",
-			Transport:        "embeddings",
+			APIKey:    "sk-integration-embedding-secret",
+			BaseURL:   "https://embedding.integration.example/v1",
+			Kind:      providerconfig.KindEmbedding,
+			Model:     "Qwen3-Embedding-4B",
+			Provider:  "openai-compatible",
+			Transport: "embeddings",
 		}
 		status, err = runtimeStore.Put(
 			t.Context(),

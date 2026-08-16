@@ -326,7 +326,6 @@ create table if not exists execution_config.model_settings (
 	base_url text not null,
 	model text not null,
 	transport text not null,
-	dimensions integer,
 	secret_key_id text not null,
 	secret_nonce bytea not null,
 	secret_ciphertext bytea not null,
@@ -347,7 +346,6 @@ alter table execution_config.model_settings drop column if exists timeout_ms;
 
 var providerConfigColumns = []string{
 	"base_url",
-	"dimensions",
 	"kind",
 	"model",
 	"provider",
@@ -609,9 +607,6 @@ func sortedColumnNames(columns []string) []string {
 }
 
 func (m *Migrator) Up(ctx context.Context) error {
-	if err := m.requireDatabaseRoles(ctx); err != nil {
-		return err
-	}
 	if err := m.requireKnownRuntimeSchema(ctx); err != nil {
 		return err
 	}
@@ -622,9 +617,6 @@ func (m *Migrator) Up(ctx context.Context) error {
 }
 
 func (m *Migrator) Check(ctx context.Context) error {
-	if err := m.requireDatabaseRoles(ctx); err != nil {
-		return err
-	}
 	pending, err := m.provider.HasPending(ctx)
 	if err != nil {
 		return fmt.Errorf("inspect execution-control schema migrations: %w", err)
@@ -646,6 +638,9 @@ func (m *Migrator) InstallGrants(ctx context.Context) error {
 }
 
 func (m *Migrator) CheckGrants(ctx context.Context) error {
+	if err := m.requireDatabaseRoles(ctx); err != nil {
+		return err
+	}
 	var usage, create bool
 	if err := m.db.QueryRowContext(
 		ctx,

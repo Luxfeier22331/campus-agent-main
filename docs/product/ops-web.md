@@ -86,13 +86,13 @@ Sentry Issue 和应用日志按来源加载。操作者点击某一来源的加�
 
 在线问答分别展示 LLM 和 Embedding。LLM 可以维护服务商、Base URL、API key、model 和 transport，
 并使用当前填写的 Base URL 和 API key 获取供应商模型列表；
-Embedding 明确展示固定模型、维度和 transport，只开放实际可变的连接字段。保存前
-必须完成真实供应商验证，失败不能覆盖当前配置。并发变化使用隐藏 ETag 阻止覆盖，页面不把 ETag
-展示成产品版本。
+Embedding 可以维护服务商、Base URL、API key 和 provider-specific model alias，transport 由服务端固定为
+Embeddings API。页面不展示索引维度、向量空间或 collection；保存前必须完成真实供应商验证，失败不能
+覆盖当前配置。并发变化使用隐藏 ETag 阻止覆盖，页面不把 ETag 展示成产品版本。
 
-页面直接展示 Base URL、模型和 API key，将服务商和接口类型收纳到高级设置。固定参数使用
-只读摘要，不表现为禁用输入。保存按钮只在存在修改时启用；重新验证只验证已保存配置。切换页签或
-离开页面会确认是否放弃未保存修改。Hindsight 配置由环境仓维护，不进入本页面。
+页面直接展示 Base URL、模型和 API key，将服务商和接口类型收纳到高级设置。保存按钮只在存在修改时
+启用；重新验证只验证已保存配置。切换页签或离开页面会确认是否放弃未保存修改。Hindsight 配置由
+环境仓维护，不进入本页面。
 
 所有 API key 输入在成功后清空，服务端后续只返回是否配置和末四位。服务身份不能进入 Ops Web。
 
