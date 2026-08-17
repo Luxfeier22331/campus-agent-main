@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
-	"go.temporal.io/sdk/workflow"
 )
 
 func TestPersonalMemoryCommandWorkflowRetriesCallbackWithoutRepeatingProviderMutation(t *testing.T) {
@@ -303,6 +302,11 @@ func TestPersonalMemoryEraseCompletesAfterProviderDeletion(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
+	env.OnGetVersion(
+		personalMemoryTraceMaintenanceRemovalChangeID,
+		personalMemoryTraceMaintenanceRemovedVersion,
+		personalMemoryTraceMaintenanceRemovedVersion,
+	).Return(personalMemoryTraceMaintenanceRemovedVersion).Once()
 	command := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "cmd-owner-erase",
 		CommandKind:       "owner_erase",
@@ -334,58 +338,7 @@ func TestPersonalMemoryEraseCompletesAfterProviderDeletion(t *testing.T) {
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	env.AssertActivityNumberOfCalls(t, PurgePersonalMemoryTracesActivityName, 0)
-	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, 0)
 	env.AssertActivityNumberOfCalls(t, FinalizePersonalMemoryCommandReceiptActivityName, 1)
-}
-
-func TestPersonalMemoryEraseReplaysLegacyTraceMaintenance(t *testing.T) {
-	var suite testsuite.WorkflowTestSuite
-	env := suite.NewTestWorkflowEnvironment()
-	registerWorkflowTestActivities(env, &Activities{})
-	command := memoryruntime.PersonalMemoryCommandRequest{
-		CommandID:         "cmd-owner-erase-legacy",
-		CommandKind:       "owner_erase",
-		OwnerGeneration:   2,
-		OwnerSequence:     3,
-		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
-		SourceUpdatedAt:   "2026-07-16T00:00:00Z",
-		SupersessionScope: "owner:erase:2",
-		TenantID:          "tenant-main",
-		UserID:            "user-1",
-	}
-	result := PersonalMemoryCommandActivityOutput{
-		CommandID:         command.CommandID,
-		ResultFingerprint: "fingerprint",
-		Status:            "succeeded",
-	}
-	maintenanceInput := PersonalMemoryTraceMaintenanceActivityInput{Command: command}
-	env.OnGetVersion(
-		personalMemoryTraceMaintenanceRemovalChangeID,
-		workflow.DefaultVersion,
-		personalMemoryTraceMaintenanceRemovedVersion,
-	).Return(workflow.DefaultVersion).Once()
-	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
-		Return(result, nil).Once()
-	env.OnActivity(PurgePersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
-		Return(PersonalMemoryTraceMaintenanceActivityOutput{}, nil).Once()
-	env.OnActivity(VerifyPersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
-		Return(PersonalMemoryTraceMaintenanceActivityOutput{RemainingTraceCount: 0}, nil).Once()
-	env.OnActivity(
-		FinalizePersonalMemoryCommandReceiptActivityName,
-		mock.Anything,
-		FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: result},
-	).Return(result, nil).Once()
-	env.OnActivity(WritePersonalMemoryCommandResultActivityName, mock.Anything, result).
-		Return(nil).Once()
-
-	env.ExecuteWorkflow(PersonalMemoryCommandWorkflow, PersonalMemoryCommandWorkflowInput{Command: command})
-
-	if err := env.GetWorkflowError(); err != nil {
-		t.Fatalf("workflow error: %v", err)
-	}
-	env.AssertActivityNumberOfCalls(t, PurgePersonalMemoryTracesActivityName, 1)
-	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, 1)
 }
 
 func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {

@@ -35,8 +35,6 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		"AppendConversationMemoryActivity",
 		"ExecutePersonalMemoryCommandActivity",
 		"FinalizePersonalMemoryCommandReceiptActivity",
-		"PurgePersonalMemoryTracesActivity",
-		"VerifyPersonalMemoryTracesActivity",
 		"WritePersonalMemoryCommandResultActivity",
 	} {
 		if _, ok := contextType.MethodByName(method); !ok {

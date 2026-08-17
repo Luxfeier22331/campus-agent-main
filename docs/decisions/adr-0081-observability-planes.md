@@ -90,9 +90,7 @@ Axiom 保留现有两个逻辑 token 合同：
 环境变量中的不同名称只表示交付位置；是否映射到同一上游 identity 由环境交付维护。
 
 Sentry 同样沿用既有 provider token，不创建按 runtime 或 source-map consumer 拆分的新身份。
-Langfuse trace ingestion credential 只属于 Agent Runtime。execution-control 暂时保留 maintenance
-credential，仅用于 replay 兼容版本上线前已启动的个人记忆删除 history；新命令不使用该身份，旧
-history 排空后删除。
+Langfuse trace ingestion credential 只属于 Agent Runtime。
 
 ## 后果
 

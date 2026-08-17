@@ -240,10 +240,12 @@ describe("app-api migration upgrade", () => {
 	let ownershipPredecessorMigrationsFolder = "";
 	let executionPredecessorMigrationsFolder = "";
 	let docsRetirementPredecessorMigrationsFolder = "";
+	let memoryContractPredecessorMigrationsFolder = "";
 	let fullMigrationCount = 0;
 	let ownershipPredecessorMigrationCount = 0;
 	let executionPredecessorMigrationCount = 0;
 	let docsRetirementPredecessorMigrationCount = 0;
+	let memoryContractPredecessorMigrationCount = 0;
 	let pool: Pool;
 
 	beforeAll(async () => {
@@ -273,6 +275,10 @@ describe("app-api migration upgrade", () => {
 			journal,
 			"0008_retain_execution_input",
 		);
+		memoryContractPredecessorMigrationCount = migrationEntryCountThrough(
+			journal,
+			"0014_sad_rictor",
+		);
 		initialMigrationsFolder = await createMigrationFolderThrough(initialMigrationCount, journal);
 		mainMigrationsFolder = await createMigrationFolderThrough(mainMigrationCount, journal);
 		ownershipPredecessorMigrationsFolder = await createMigrationFolderThrough(
@@ -285,6 +291,10 @@ describe("app-api migration upgrade", () => {
 		);
 		docsRetirementPredecessorMigrationsFolder = await createMigrationFolderThrough(
 			docsRetirementPredecessorMigrationCount,
+			journal,
+		);
+		memoryContractPredecessorMigrationsFolder = await createMigrationFolderThrough(
+			memoryContractPredecessorMigrationCount,
 			journal,
 		);
 	}, 180_000);
@@ -308,6 +318,12 @@ describe("app-api migration upgrade", () => {
 			}
 			if (docsRetirementPredecessorMigrationsFolder) {
 				await rm(docsRetirementPredecessorMigrationsFolder, {
+					force: true,
+					recursive: true,
+				});
+			}
+			if (memoryContractPredecessorMigrationsFolder) {
+				await rm(memoryContractPredecessorMigrationsFolder, {
 					force: true,
 					recursive: true,
 				});
@@ -460,10 +476,16 @@ describe("app-api migration upgrade", () => {
 				values ('legacy-rate-limit-key', 7, 1785705600000)
 			`);
 
-		await installAppApiSchema({
-			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
-			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
+		await migrate(drizzle(pool), {
+			...migrationOptions,
+			migrationsFolder: memoryContractPredecessorMigrationsFolder,
 		});
+		const memoryContractPredecessorLedger = await pool.query<{ count: string }>(
+			`select count(*)::text as count from "drizzle"."app_api_migrations"`,
+		);
+		expect(memoryContractPredecessorLedger.rows[0]?.count).toBe(
+			String(memoryContractPredecessorMigrationCount),
+		);
 
 		const migratedExecutionRecords = await pool.query<{
 			active_run_id: string | null;
@@ -752,11 +774,77 @@ describe("app-api migration upgrade", () => {
 				updatedAt: "2026-07-15T09:02:00Z",
 			}),
 		).resolves.toBe("applied");
+		const legacyMemoryColumns = await pool.query<{
+			column_default: string | null;
+			column_name: string;
+		}>(`
+			select column_name, column_default
+			from information_schema.columns
+			where table_schema = 'profile'
+			  and table_name = 'memory_items'
+			  and column_name in ('source_type', 'confidence', 'visibility', 'last_verified_at')
+			order by column_name
+		`);
+		expect(legacyMemoryColumns.rows).toEqual([
+			{ column_default: "'low'::text", column_name: "confidence" },
+			{ column_default: "now()", column_name: "last_verified_at" },
+			{ column_default: "'user_declared'::text", column_name: "source_type" },
+			{ column_default: "'user_visible'::text", column_name: "visibility" },
+		]);
 
 		await installAppApiSchema({
 			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
 		});
+		const contractedMemoryColumns = await pool.query<{ column_name: string }>(`
+			select column_name
+			from information_schema.columns
+			where table_schema = 'profile'
+			  and table_name = 'memory_items'
+			  and column_name in ('source_type', 'confidence', 'visibility', 'last_verified_at')
+			order by column_name
+		`);
+		expect(contractedMemoryColumns.rows).toEqual([]);
+		const contractedDb = drizzle(pool, { schema: appApiSchema });
+		const contractedStore = createPgProfileMemoryStore({}, { getDb: async () => contractedDb });
+		await expect(
+			contractedStore.createItem({
+				commandId: "memory-contract-create",
+				idempotencyKeyHash: "memory-contract-create-idempotency",
+				itemId: "memory-contract-item",
+				key: "answer_style",
+				ownerUserId: "memory-contract-owner",
+				requestFingerprint: "memory-contract-create-request",
+				updatedAt: "2026-08-17T01:00:00Z",
+				value: "先给结论",
+			}),
+		).resolves.toMatchObject({ item: { itemId: "memory-contract-item" } });
+		await expect(contractedStore.listByOwner("memory-contract-owner")).resolves.toMatchObject({
+			itemCount: 1,
+			items: [{ itemId: "memory-contract-item", value: "先给结论" }],
+		});
+		await expect(
+			contractedStore.updateItem({
+				commandId: "memory-contract-update",
+				idempotencyKeyHash: "memory-contract-update-idempotency",
+				itemId: "memory-contract-item",
+				key: "answer_style",
+				ownerUserId: "memory-contract-owner",
+				requestFingerprint: "memory-contract-update-request",
+				updatedAt: "2026-08-17T01:01:00Z",
+				value: "先给步骤",
+			}),
+		).resolves.toMatchObject({ item: { revision: 2, value: "先给步骤" } });
+		await expect(
+			contractedStore.deleteItem({
+				commandId: "memory-contract-delete",
+				idempotencyKeyHash: "memory-contract-delete-idempotency",
+				itemId: "memory-contract-item",
+				ownerUserId: "memory-contract-owner",
+				requestFingerprint: "memory-contract-delete-request",
+				updatedAt: "2026-08-17T01:02:00Z",
+			}),
+		).resolves.toMatchObject({ item: { state: "deleting" } });
 		const retired = await pool.query<{ schema_name: string }>(`
 			select schema_name
 			from unnest(array['campus_services', 'campus_services_ops', 'docs', 'identity', 'observability', 'official_web', 'operator', 'provider_config', 'wechat_official_account']) schema_name
@@ -812,6 +900,7 @@ describe("app-api migration upgrade", () => {
 			campus_groups_ready: boolean;
 			campus_group_sections_ready: boolean;
 			memory_commands_ready: boolean;
+			memory_legacy_column_count: string;
 			retired_column_count: string;
 		}>(`
 				select
@@ -824,6 +913,11 @@ describe("app-api migration upgrade", () => {
 				(select column_name from information_schema.columns
 				 where table_schema = 'chat' and table_name = 'turn_dispatches'
 				   and column_name = 'assistant_message_id') as assistant_message_id,
+				(select count(*)::text from information_schema.columns
+				 where table_schema = 'profile' and table_name = 'memory_items'
+				   and column_name in (
+				     'source_type', 'confidence', 'visibility', 'last_verified_at'
+				   )) as memory_legacy_column_count,
 				(select count(*)::text from information_schema.columns
 				 where (table_schema, table_name) in (
 				         ('chat', 'conversations'),
@@ -843,6 +937,7 @@ describe("app-api migration upgrade", () => {
 				campus_group_sections_ready: true,
 				campus_groups_ready: true,
 				memory_commands_ready: true,
+				memory_legacy_column_count: "0",
 				retired_column_count: "0",
 			},
 		]);
@@ -876,72 +971,6 @@ describe("app-api migration upgrade", () => {
 				set name = excluded.name
 			`),
 		).resolves.toMatchObject({ rowCount: 1 });
-
-		const legacyMemoryColumns = await pool.query<{
-			column_default: string | null;
-			column_name: string;
-		}>(`
-			select column_name, column_default
-			from information_schema.columns
-			where table_schema = 'profile'
-			  and table_name = 'memory_items'
-			  and column_name in ('source_type', 'confidence', 'visibility', 'last_verified_at')
-			order by column_name
-		`);
-		expect(legacyMemoryColumns.rows).toEqual([
-			{ column_default: "'low'::text", column_name: "confidence" },
-			{ column_default: "now()", column_name: "last_verified_at" },
-			{ column_default: "'user_declared'::text", column_name: "source_type" },
-			{ column_default: "'user_visible'::text", column_name: "visibility" },
-		]);
-
-		await pool.query(`
-			alter table "profile"."memory_items"
-				drop column "source_type",
-				drop column "confidence",
-				drop column "visibility",
-				drop column "last_verified_at"
-		`);
-		const contractedDb = drizzle(pool, { schema: appApiSchema });
-		const contractedStore = createPgProfileMemoryStore({}, { getDb: async () => contractedDb });
-		await expect(
-			contractedStore.createItem({
-				commandId: "memory-contract-create",
-				idempotencyKeyHash: "memory-contract-create-idempotency",
-				itemId: "memory-contract-item",
-				key: "answer_style",
-				ownerUserId: "memory-contract-owner",
-				requestFingerprint: "memory-contract-create-request",
-				updatedAt: "2026-08-17T01:00:00Z",
-				value: "先给结论",
-			}),
-		).resolves.toMatchObject({ item: { itemId: "memory-contract-item" } });
-		await expect(contractedStore.listByOwner("memory-contract-owner")).resolves.toMatchObject({
-			itemCount: 1,
-			items: [{ itemId: "memory-contract-item", value: "先给结论" }],
-		});
-		await expect(
-			contractedStore.updateItem({
-				commandId: "memory-contract-update",
-				idempotencyKeyHash: "memory-contract-update-idempotency",
-				itemId: "memory-contract-item",
-				key: "answer_style",
-				ownerUserId: "memory-contract-owner",
-				requestFingerprint: "memory-contract-update-request",
-				updatedAt: "2026-08-17T01:01:00Z",
-				value: "先给步骤",
-			}),
-		).resolves.toMatchObject({ item: { revision: 2, value: "先给步骤" } });
-		await expect(
-			contractedStore.deleteItem({
-				commandId: "memory-contract-delete",
-				idempotencyKeyHash: "memory-contract-delete-idempotency",
-				itemId: "memory-contract-item",
-				ownerUserId: "memory-contract-owner",
-				requestFingerprint: "memory-contract-delete-request",
-				updatedAt: "2026-08-17T01:02:00Z",
-			}),
-		).resolves.toMatchObject({ item: { state: "deleting" } });
 	});
 
 	it("rejects app-owned partial state before creating a migration ledger", async () => {

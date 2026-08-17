@@ -12,8 +12,6 @@ data:
   EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: http://agent-runtime:27062
   EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL: https://api.example.invalid
   HINDSIGHT_API_BASE_URL: http://hindsight-api:8888
-  LANGFUSE_BASE_URL: https://jp.cloud.langfuse.com
-  LANGFUSE_PUBLIC_KEY: pk-lf-example
   QDRANT_URL: https://qdrant:6333
   QDRANT_TLS_CA_CERT_PATH: /etc/campus-agent/qdrant/tls/ca.crt
   AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: http://execution-control:8000

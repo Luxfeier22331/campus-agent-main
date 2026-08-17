@@ -36,8 +36,6 @@ type Server struct {
 	personalMemoryErr         error
 	personalMemoryStateStore  memoryruntime.StateStore
 	personalMemoryStateErr    error
-	langfuseTraceStore        langfuseTraceMaintenance
-	langfuseTraceErr          error
 	campusDocsRetriever       campusDocsRetriever
 	campusDocsRetrievalErr    error
 	providerConfigResolver    providerConfigResolver
@@ -70,20 +68,6 @@ func (a TemporalContextActivities) ExecutePersonalMemoryCommandActivity(
 	input memoryruntime.PersonalMemoryCommandRequest,
 ) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
 	return a.server.ExecutePersonalMemoryCommandActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) PurgePersonalMemoryTracesActivity(
-	ctx context.Context,
-	input temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
-) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
-	return a.server.PurgePersonalMemoryTracesActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) VerifyPersonalMemoryTracesActivity(
-	ctx context.Context,
-	input temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
-) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
-	return a.server.VerifyPersonalMemoryTracesActivity(ctx, input)
 }
 
 func (a TemporalContextActivities) FinalizePersonalMemoryCommandReceiptActivity(
@@ -192,7 +176,6 @@ func NewServerWithDependencies(
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
 	personalMemoryExecutor, personalMemoryErr := newHindsightMemoryExecutor(cfg)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(cfg)
-	langfuseTraceStore, langfuseTraceErr := newLangfuseTraceMaintenance(cfg)
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
 		personalMemoryExecutor = newFencedPersonalMemoryExecutor(personalMemoryExecutor, personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
 	}
@@ -221,8 +204,6 @@ func NewServerWithDependencies(
 		personalMemoryErr:        personalMemoryErr,
 		personalMemoryStateStore: personalMemoryStateStore,
 		personalMemoryStateErr:   personalMemoryStateErr,
-		langfuseTraceStore:       langfuseTraceStore,
-		langfuseTraceErr:         langfuseTraceErr,
 		campusDocsRetriever:      campusDocsRetriever,
 		campusDocsRetrievalErr:   campusDocsClientErr,
 		providerConfigResolver:   providerConfigResolver,
@@ -268,7 +249,6 @@ func NewTemporalActivityServer(
 		if server.personalMemoryErr == nil && server.personalMemoryStateErr == nil {
 			server.personalMemoryExecutor = newFencedPersonalMemoryExecutor(server.personalMemoryExecutor, server.personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
 		}
-		server.langfuseTraceStore, server.langfuseTraceErr = newLangfuseTraceMaintenance(cfg)
 	case TemporalActivityRuntimeRoleAgent:
 		server.providerConfigResolver, err = newProviderConfigResolver(cfg)
 		if err != nil {

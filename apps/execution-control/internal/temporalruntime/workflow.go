@@ -17,9 +17,6 @@ const defaultPersonalMemoryActivityTimeoutSeconds = 90
 const (
 	personalMemoryTraceMaintenanceRemovalChangeID = "personal-memory-trace-maintenance-removal"
 	personalMemoryTraceMaintenanceRemovedVersion  = workflow.Version(1)
-	personalMemoryEraseExporterDrainDelay         = 10 * time.Minute
-	personalMemoryEraseRetryDelay                 = time.Minute
-	personalMemoryEraseMaxRounds                  = 5
 )
 
 func ToolExecutionWorkflow(
@@ -109,21 +106,12 @@ func PersonalMemoryCommandWorkflow(
 		}
 	}
 	if result.Status == "succeeded" && strings.TrimSpace(input.Command.CommandKind) == "owner_erase" {
-		version := workflow.GetVersion(
+		workflow.GetVersion(
 			ctx,
 			personalMemoryTraceMaintenanceRemovalChangeID,
-			workflow.DefaultVersion,
+			personalMemoryTraceMaintenanceRemovedVersion,
 			personalMemoryTraceMaintenanceRemovedVersion,
 		)
-		if version == workflow.DefaultVersion {
-			if err := executePersonalMemoryTraceErase(ctx, input.Command); err != nil {
-				result = PersonalMemoryCommandActivityOutput{
-					CommandID: input.Command.CommandID,
-					ErrorCode: "personal_memory_trace_erase_failed",
-					Status:    "failed",
-				}
-			}
-		}
 	}
 	finalizerOptions := unlimitedFinalizerActivityOptions(15 * time.Second)
 	finalizerCtx := workflow.WithActivityOptions(ctx, finalizerOptions)
@@ -144,72 +132,6 @@ func PersonalMemoryCommandWorkflow(
 		return PersonalMemoryCommandWorkflowResult{}, err
 	}
 	return result, nil
-}
-
-func executePersonalMemoryTraceErase(
-	ctx workflow.Context,
-	command memoryruntime.PersonalMemoryCommandRequest,
-) error {
-	if err := workflow.Sleep(ctx, personalMemoryEraseExporterDrainDelay); err != nil {
-		return err
-	}
-	return purgeAndVerifyPersonalMemoryTraces(ctx, command)
-}
-
-func purgeAndVerifyPersonalMemoryTraces(
-	ctx workflow.Context,
-	command memoryruntime.PersonalMemoryCommandRequest,
-) error {
-	options := boundedPersonalMemoryTraceMaintenanceActivityOptions()
-	activityCtx := workflow.WithActivityOptions(ctx, options)
-	input := PersonalMemoryTraceMaintenanceActivityInput{Command: command}
-	for round := 1; round <= personalMemoryEraseMaxRounds; round++ {
-		if err := workflow.ExecuteActivity(
-			activityCtx,
-			PurgePersonalMemoryTracesActivityName,
-			input,
-		).Get(ctx, nil); err != nil {
-			return err
-		}
-		var verification PersonalMemoryTraceMaintenanceActivityOutput
-		if err := workflow.ExecuteActivity(
-			activityCtx,
-			VerifyPersonalMemoryTracesActivityName,
-			input,
-		).Get(ctx, &verification); err != nil {
-			return err
-		}
-		if verification.RemainingTraceCount == 0 {
-			return nil
-		}
-		if round < personalMemoryEraseMaxRounds {
-			if err := workflow.Sleep(ctx, personalMemoryEraseRetryDelay); err != nil {
-				return err
-			}
-		}
-	}
-	return temporal.NewNonRetryableApplicationError(
-		"personal memory trace erase did not converge",
-		"personal_memory_trace_erase_incomplete",
-		nil,
-	)
-}
-
-func boundedPersonalMemoryTraceMaintenanceActivityOptions() workflow.ActivityOptions {
-	options := defaultActivityOptions()
-	options.TaskQueue = ActivityTaskQueueCore
-	options.StartToCloseTimeout = 2 * time.Minute
-	options.ScheduleToCloseTimeout = 5 * time.Minute
-	options.HeartbeatTimeout = 30 * time.Second
-	options.RetryPolicy.MaximumAttempts = 3
-	options.RetryPolicy.InitialInterval = 10 * time.Second
-	options.RetryPolicy.MaximumInterval = 30 * time.Second
-	options.RetryPolicy.NonRetryableErrorTypes = append(
-		options.RetryPolicy.NonRetryableErrorTypes,
-		"memory_command_invalid",
-		"memory_trace_maintenance_invalid",
-	)
-	return options
 }
 
 func executePersonalMemoryCommandProvider(

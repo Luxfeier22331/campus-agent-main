@@ -78,9 +78,6 @@ app-api 在 PostgreSQL 中维护 lifecycle、item desired state 和 command outb
 - 账号全量清除会递增代次、拒绝旧代次、等待在途调用排空并删除上一代 bank；
 - retired bank 删除并确认不存在后，产品 lifecycle 才能从 `erasing` 进入 `erased`。
 
-兼容版本上线前已启动的 `owner_erase` history 仍 replay 旧 Langfuse trace maintenance 检查点；新命令
-不进入该路径。旧 history 排空后，旧 activity 和凭据由独立清理任务退役。
-
 conversation prune/delete 在删除产品 message 前捕获 message ID，并派生与 retain 相同的 document
 ID。`DeleteDocument` 同步删除来源文档及其 memory units；后续 consolidation 由 Hindsight 内部维护，
 仓库不轮询该内部过程。

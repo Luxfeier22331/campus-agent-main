@@ -614,14 +614,6 @@ type ContextActivities interface {
 		context.Context,
 		memoryruntime.PersonalMemoryCommandRequest,
 	) (PersonalMemoryCommandActivityOutput, error)
-	PurgePersonalMemoryTracesActivity(
-		context.Context,
-		PersonalMemoryTraceMaintenanceActivityInput,
-	) (PersonalMemoryTraceMaintenanceActivityOutput, error)
-	VerifyPersonalMemoryTracesActivity(
-		context.Context,
-		PersonalMemoryTraceMaintenanceActivityInput,
-	) (PersonalMemoryTraceMaintenanceActivityOutput, error)
 	FinalizePersonalMemoryCommandReceiptActivity(
 		context.Context,
 		FinalizePersonalMemoryCommandReceiptActivityInput,
@@ -811,14 +803,6 @@ func NewCoreActivityWorkerWithOptions(
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.ExecutePersonalMemoryCommandActivity,
 		activityRegisterOptions(ExecutePersonalMemoryCommandActivityName),
-	)
-	coreWorker.RegisterActivityWithOptions(
-		contextActivities.PurgePersonalMemoryTracesActivity,
-		activityRegisterOptions(PurgePersonalMemoryTracesActivityName),
-	)
-	coreWorker.RegisterActivityWithOptions(
-		contextActivities.VerifyPersonalMemoryTracesActivity,
-		activityRegisterOptions(VerifyPersonalMemoryTracesActivityName),
 	)
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.FinalizePersonalMemoryCommandReceiptActivity,

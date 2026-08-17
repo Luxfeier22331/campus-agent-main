@@ -245,7 +245,7 @@ func TestTemporalDevServerRunsPersonalMemoryCommandFinalizers(t *testing.T) {
 	}
 }
 
-func TestTemporalDevServerReplaysLegacyPersonalMemoryEraseHistory(t *testing.T) {
+func TestTemporalDevServerReplaysVersionedPersonalMemoryEraseHistory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	server, err := testsuite.StartDevServer(ctx, testsuite.DevServerOptions{
@@ -262,9 +262,9 @@ func TestTemporalDevServerReplaysLegacyPersonalMemoryEraseHistory(t *testing.T) 
 	}()
 	temporalClient := server.Client()
 	activities := &Activities{}
-	legacyWorker := worker.New(temporalClient, WorkflowTaskQueue, worker.Options{})
-	legacyWorker.RegisterWorkflowWithOptions(
-		legacyPersonalMemoryCommandWorkflow,
+	versionedWorker := worker.New(temporalClient, WorkflowTaskQueue, worker.Options{})
+	versionedWorker.RegisterWorkflowWithOptions(
+		versionedPersonalMemoryCommandWorkflow,
 		workflow.RegisterOptions{Name: PersonalMemoryCommandWorkflowType},
 	)
 	coreWorker := NewCoreActivityWorkerWithOptions(
@@ -274,7 +274,7 @@ func TestTemporalDevServerReplaysLegacyPersonalMemoryEraseHistory(t *testing.T) 
 		activities,
 		worker.Options{},
 	)
-	for _, runtimeWorker := range []worker.Worker{legacyWorker, coreWorker} {
+	for _, runtimeWorker := range []worker.Worker{versionedWorker, coreWorker} {
 		if err := runtimeWorker.Start(); err != nil {
 			t.Fatalf("start worker: %v", err)
 		}
@@ -282,7 +282,7 @@ func TestTemporalDevServerReplaysLegacyPersonalMemoryEraseHistory(t *testing.T) 
 	}
 
 	command := memoryruntime.PersonalMemoryCommandRequest{
-		CommandID:         "command-temporal-legacy-erase",
+		CommandID:         "command-temporal-versioned-erase",
 		CommandKind:       "owner_erase",
 		OwnerGeneration:   2,
 		OwnerSequence:     2,
@@ -301,27 +301,24 @@ func TestTemporalDevServerReplaysLegacyPersonalMemoryEraseHistory(t *testing.T) 
 		WorkflowID: workflowID,
 	})
 	if err != nil {
-		t.Fatalf("execute legacy workflow: %v", err)
+		t.Fatalf("execute versioned workflow: %v", err)
 	}
-	history, err := waitForWorkflowHistoryEvent(
-		ctx,
-		temporalClient,
-		workflowID,
-		workflowRun.GetRunID(),
-		enumspb.EVENT_TYPE_TIMER_STARTED,
-	)
+	if err := workflowRun.Get(ctx, nil); err != nil {
+		t.Fatalf("complete versioned workflow: %v", err)
+	}
+	history, err := workflowHistory(ctx, temporalClient, workflowID, workflowRun.GetRunID())
 	if err != nil {
-		t.Fatalf("wait for legacy workflow timer: %v", err)
+		t.Fatalf("read versioned workflow history: %v", err)
+	}
+	if !historyContains(history, enumspb.EVENT_TYPE_MARKER_RECORDED) {
+		t.Fatal("versioned personal memory history is missing the version marker")
 	}
 	replayer := worker.NewWorkflowReplayer()
 	replayer.RegisterWorkflowWithOptions(PersonalMemoryCommandWorkflow, workflow.RegisterOptions{
 		Name: PersonalMemoryCommandWorkflowType,
 	})
 	if err := replayer.ReplayWorkflowHistory(nil, history); err != nil {
-		t.Fatalf("replay legacy personal memory history: %v", err)
-	}
-	if err := temporalClient.CancelWorkflow(ctx, workflowID, workflowRun.GetRunID()); err != nil {
-		t.Fatalf("cancel legacy workflow: %v", err)
+		t.Fatalf("replay versioned personal memory history: %v", err)
 	}
 }
 
@@ -408,7 +405,7 @@ type blockingAgentActivities struct {
 	once    sync.Once
 }
 
-func legacyPersonalMemoryCommandWorkflow(
+func versionedPersonalMemoryCommandWorkflow(
 	ctx workflow.Context,
 	input PersonalMemoryCommandWorkflowInput,
 ) (PersonalMemoryCommandWorkflowResult, error) {
@@ -422,13 +419,12 @@ func legacyPersonalMemoryCommandWorkflow(
 		}
 	}
 	if result.Status == "succeeded" && input.Command.CommandKind == "owner_erase" {
-		if err := executePersonalMemoryTraceErase(ctx, input.Command); err != nil {
-			result = PersonalMemoryCommandActivityOutput{
-				CommandID: input.Command.CommandID,
-				ErrorCode: "personal_memory_trace_erase_failed",
-				Status:    "failed",
-			}
-		}
+		workflow.GetVersion(
+			ctx,
+			personalMemoryTraceMaintenanceRemovalChangeID,
+			workflow.DefaultVersion,
+			personalMemoryTraceMaintenanceRemovedVersion,
+		)
 	}
 	finalizerCtx := workflow.WithActivityOptions(ctx, unlimitedFinalizerActivityOptions(15*time.Second))
 	if err := workflow.ExecuteActivity(

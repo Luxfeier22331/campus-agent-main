@@ -69,9 +69,6 @@ type Config struct {
 	PersonalMemoryRecallLimit               int
 	PersonalMemoryRecallMaxTokens           int
 	PersonalMemoryContextCharBudget         int
-	LangfuseBaseURL                         string
-	LangfusePublicKey                       string
-	LangfuseSecretKey                       string
 }
 
 type WorkerProfile struct {
@@ -101,9 +98,6 @@ type envValues struct {
 	PersonalMemoryBaseURL       string `env:"HINDSIGHT_API_BASE_URL"`
 	PersonalMemoryAPISecret     string `env:"HINDSIGHT_API_TENANT_API_KEY"`
 	PersonalMemoryOwnerSalt     string `env:"HINDSIGHT_OWNER_SALT"`
-	LangfuseBaseURL             string `env:"LANGFUSE_BASE_URL"`
-	LangfusePublicKey           string `env:"LANGFUSE_PUBLIC_KEY"`
-	LangfuseSecretKey           string `env:"LANGFUSE_SECRET_KEY"`
 }
 
 func LoadRuntimeFromEnv() (Config, error) {
@@ -168,9 +162,6 @@ func loadFromEnv() (Config, error) {
 		PersonalMemoryRecallLimit:               defaultMemoryRecallLimit,
 		PersonalMemoryRecallMaxTokens:           defaultMemoryRecallMaxTokens,
 		PersonalMemoryContextCharBudget:         defaultMemoryContextCharBudget,
-		LangfuseBaseURL:                         strings.TrimRight(strings.TrimSpace(values.LangfuseBaseURL), "/"),
-		LangfusePublicKey:                       strings.TrimSpace(values.LangfusePublicKey),
-		LangfuseSecretKey:                       strings.TrimSpace(values.LangfuseSecretKey),
 	}, nil
 }
 

@@ -13,9 +13,8 @@ PostgreSQL run projection、Hindsight bank 或仓库 dataset 真相。所有环�
 区域中的 `campus-agent` project，并通过原生 `environment` 字段区分 local、staging 和 production。
 
 运行 trace 是可选观测能力。环境可以因配额或成本策略停止 ingestion；这不表示产品请求失败，也
-不能阻断在线执行、readiness、promotion 或 PostgreSQL 终态。新流程只在显式评测命令中使用
-Langfuse Public API；execution-control 暂时保留的 maintenance client 只服务兼容版本上线前已启动的
-`owner_erase` history，不接受新命令。
+不能阻断在线执行、readiness、promotion 或 PostgreSQL 终态。只有显式评测命令使用 Langfuse
+Public API。
 
 ## Runtime 集成
 

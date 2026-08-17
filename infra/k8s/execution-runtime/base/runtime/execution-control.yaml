@@ -118,16 +118,6 @@ spec:
                 configMapKeyRef:
                   name: execution-runtime-rendered-config
                   key: HINDSIGHT_API_BASE_URL
-            - name: LANGFUSE_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: execution-runtime-rendered-config
-                  key: LANGFUSE_BASE_URL
-            - name: LANGFUSE_PUBLIC_KEY
-              valueFrom:
-                configMapKeyRef:
-                  name: execution-runtime-rendered-config
-                  key: LANGFUSE_PUBLIC_KEY
             - name: QDRANT_URL
               valueFrom:
                 configMapKeyRef:
@@ -172,11 +162,6 @@ spec:
                 secretKeyRef:
                   name: qdrant-server-secrets
                   key: QDRANT_READ_ONLY_API_KEY
-            - name: LANGFUSE_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: langfuse-secrets
-                  key: LANGFUSE_SECRET_KEY
             - name: APP_API_EXECUTION_SHARED_SECRET
               valueFrom:
                 secretKeyRef:

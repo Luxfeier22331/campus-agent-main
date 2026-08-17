@@ -49,10 +49,8 @@ dataset、experiment、score 和 annotation 保持独立评测生命周期。需
 
 ## 生命周期
 
-运行 trace 的保留期由 Langfuse project 策略拥有，不由新的 Temporal workflow 维护。新个人记忆清除
-只处理产品投影和 Hindsight bank；Langfuse 可选 trace 不参与新命令的 lifecycle 或 `erased` 终态。
-为 replay 兼容版本上线前已启动的 `owner_erase` history，execution-control 暂时保留旧维护 activity 和
-Langfuse Public API credential；新 workflow 不调度该路径，旧 history 排空后必须一并退役。
+运行 trace 的保留期由 Langfuse project 策略拥有，不由 Temporal workflow 维护。个人记忆清除只处理
+产品投影和 Hindsight bank；Langfuse 可选 trace 不参与命令 lifecycle 或 `erased` 终态。
 
 ## 相关资料
 

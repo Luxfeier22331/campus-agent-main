@@ -233,15 +233,6 @@ type FinalizePersonalMemoryCommandReceiptActivityInput struct {
 	Result  PersonalMemoryCommandActivityOutput        `json:"result"`
 }
 
-type PersonalMemoryTraceMaintenanceActivityInput struct {
-	Command memoryruntime.PersonalMemoryCommandRequest `json:"command"`
-}
-
-type PersonalMemoryTraceMaintenanceActivityOutput struct {
-	DeletedTraceCount   int `json:"deleted_trace_count,omitempty"`
-	RemainingTraceCount int `json:"remaining_trace_count"`
-}
-
 type FinalizeExecutionFailureActivityInput struct {
 	FailureHash string    `json:"failure_hash"`
 	FailureKind string    `json:"failure_kind"`
