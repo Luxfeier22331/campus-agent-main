@@ -72,7 +72,7 @@ func (e qdrantCampusDocsRetriever) Retrieve(
 	timing := campusDocsStageTiming{}
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return campusDocsRetrievalDiagnostics{}, errors.New("Campus docs query is required")
+		return campusDocsRetrievalDiagnostics{}, errors.New("campus docs query is required")
 	}
 	if err := validateCampusDocsRetrievalAdmission(admission); err != nil {
 		return campusDocsRetrievalDiagnostics{}, err
@@ -155,30 +155,30 @@ func campusDocsCandidateFromQdrantPoint(
 	}
 	for field, value := range required {
 		if strings.TrimSpace(value) == "" {
-			return campusDocsCandidate{}, fmt.Errorf("Campus docs Qdrant payload %s is required", field)
+			return campusDocsCandidate{}, fmt.Errorf("campus docs Qdrant payload %s is required", field)
 		}
 	}
 	if required["schema_version"] != "campus_docs_point.v3" {
-		return campusDocsCandidate{}, errors.New("Campus docs Qdrant payload does not match admitted index")
+		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload does not match admitted index")
 	}
 	if !campusDocsVersionedSectionRef(required["section_ref"], required["version_slug"]) {
-		return campusDocsCandidate{}, errors.New("Campus docs Qdrant payload document URL is invalid")
+		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload document URL is invalid")
 	}
 	if !validSHA256Ref(required["text_sha256"]) || sha256TextRef(required["text"]) != required["text_sha256"] {
-		return campusDocsCandidate{}, errors.New("Campus docs Qdrant payload text hash is invalid")
+		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload text hash is invalid")
 	}
 	if !validSHA256Ref(required["retrieval_text_sha256"]) {
-		return campusDocsCandidate{}, errors.New("Campus docs Qdrant payload retrieval text hash is invalid")
+		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload retrieval text hash is invalid")
 	}
 	if math.IsNaN(point.Score) || math.IsInf(point.Score, 0) {
-		return campusDocsCandidate{}, errors.New("Campus docs Qdrant score is invalid")
+		return campusDocsCandidate{}, errors.New("campus docs Qdrant score is invalid")
 	}
 	rootUnitIDs, ok := campusDocsRootUnitIDs(payload["root_unit_ids"])
 	if !ok {
-		return campusDocsCandidate{}, errors.New("Campus docs Qdrant payload root_unit_ids is invalid")
+		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload root_unit_ids is invalid")
 	}
 	if textChars := utf8.RuneCountInString(required["text"]); textChars < 1 || textChars > campusDocsEvidenceCharBudget {
-		return campusDocsCandidate{}, errors.New("Campus docs Qdrant payload text length is invalid")
+		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload text length is invalid")
 	}
 	dedupKey := strings.Join([]string{target.Collection, required["chunk_id"], required["text_sha256"]}, "\x00")
 	return campusDocsCandidate{
@@ -234,14 +234,14 @@ func selectCampusDocsEvidence(
 func validateCampusDocsRetrievalAdmission(value temporalruntime.CampusDocsRetrievalAdmission) error {
 	if !validSHA256Ref(value.QuerySHA256) ||
 		!validProviderConfigHash(value.EmbeddingProviderConfigSHA256) {
-		return errors.New("Campus docs retrieval admission is invalid")
+		return errors.New("campus docs retrieval admission is invalid")
 	}
 	return validateCampusDocsIndexAdmission(&value.Index)
 }
 
 func validateCampusDocsRetrievalResult(value temporalruntime.CampusDocsRetrievalResult) error {
 	if len(value.Evidence) > campusDocsEvidenceLimit {
-		return errors.New("Campus docs retrieval result is invalid")
+		return errors.New("campus docs retrieval result is invalid")
 	}
 	characterCount := 0
 	seen := map[string]struct{}{}
@@ -255,16 +255,16 @@ func validateCampusDocsRetrievalResult(value temporalruntime.CampusDocsRetrieval
 			strings.TrimSpace(evidence.VersionSlug) == "" ||
 			!campusDocsVersionedSectionRef(evidence.SectionRef, evidence.VersionSlug) ||
 			strings.TrimSpace(evidence.Text) == "" {
-			return errors.New("Campus docs evidence is invalid")
+			return errors.New("campus docs evidence is invalid")
 		}
 		if _, exists := seen[evidence.EvidenceRef]; exists {
-			return errors.New("Campus docs evidence_ref is duplicated")
+			return errors.New("campus docs evidence_ref is duplicated")
 		}
 		seen[evidence.EvidenceRef] = struct{}{}
 		characterCount += utf8.RuneCountInString(evidence.Text)
 	}
 	if characterCount > campusDocsEvidenceCharBudget {
-		return errors.New("Campus docs evidence exceeds the character budget")
+		return errors.New("campus docs evidence exceeds the character budget")
 	}
 	return nil
 }

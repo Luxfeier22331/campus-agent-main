@@ -62,7 +62,6 @@ type Config struct {
 	QdrantReadOnlyAPIKey                    string
 	QdrantTLSCACertPath                     string
 	WorkerProfiles                          map[string]WorkerProfile
-	PersonalMemoryRuntime                   string
 	PersonalMemoryBaseURL                   string
 	PersonalMemoryAPISecret                 string
 	PersonalMemoryOwnerSalt                 string
@@ -162,7 +161,6 @@ func loadFromEnv() (Config, error) {
 		QdrantReadOnlyAPIKey:                    strings.TrimSpace(values.QdrantReadOnlyAPIKey),
 		QdrantTLSCACertPath:                     strings.TrimSpace(values.QdrantTLSCACertPath),
 		WorkerProfiles:                          defaultWorkerProfiles(),
-		PersonalMemoryRuntime:                   "hindsight",
 		PersonalMemoryBaseURL:                   strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
 		PersonalMemoryAPISecret:                 strings.TrimSpace(values.PersonalMemoryAPISecret),
 		PersonalMemoryOwnerSalt:                 strings.TrimSpace(values.PersonalMemoryOwnerSalt),

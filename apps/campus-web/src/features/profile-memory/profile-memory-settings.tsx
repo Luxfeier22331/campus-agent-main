@@ -26,6 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useCampusSession } from "@/platform/auth/session";
 import {
 	createProfileMemoryItem,
 	deleteProfileMemoryItem,
@@ -36,28 +37,31 @@ import {
 	updateProfileMemoryItem,
 } from "./api";
 
-const PROFILE_MEMORY_QUERY_KEY = ["profile-memory"] as const;
-
 export function ProfileMemorySettings() {
 	const queryClient = useQueryClient();
+	const session = useCampusSession();
+	const userId = session.data?.user.id ?? "";
+	const queryKey = ["profile-memory", userId] as const;
 	const [editing, setEditing] = useState<ProfileMemoryItem | null>(null);
 	const [eraseOpen, setEraseOpen] = useState(false);
 	const query = useQuery({
-		queryKey: PROFILE_MEMORY_QUERY_KEY,
+		enabled: userId !== "",
+		queryKey,
 		queryFn: getProfileMemory,
 		refetchInterval: (result) => {
 			const value = result.state.data;
-			return value?.lifecycleState === "erasing" || value?.syncStatus === "pending" ? 2_000 : false;
+			return value?.syncStatus === "pending" ? 2_000 : false;
 		},
 	});
-	const settle = async () => queryClient.invalidateQueries({ queryKey: PROFILE_MEMORY_QUERY_KEY });
+	const settle = async () => queryClient.invalidateQueries({ queryKey });
 	const lifecycle = useMutation({ mutationFn: setProfileMemoryEnabled, onSettled: settle });
 	const createItem = useMutation({ mutationFn: createProfileMemoryItem, onSettled: settle });
 	const updateItem = useMutation({ mutationFn: updateProfileMemoryItem, onSettled: settle });
 	const deleteItem = useMutation({ mutationFn: deleteProfileMemoryItem, onSettled: settle });
 	const erase = useMutation({ mutationFn: eraseProfileMemory, onSettled: settle });
 	const memory = query.data;
-	const busy = memory?.lifecycleState === "erasing" || memory?.syncStatus === "pending";
+	const controlsBusy = memory?.lifecycleState === "erasing" || memory?.syncStatus === "pending";
+	const eraseBusy = memory?.syncStatus === "pending" || erase.isPending;
 	const mutationError =
 		lifecycle.error ?? createItem.error ?? updateItem.error ?? deleteItem.error ?? erase.error;
 
@@ -95,7 +99,7 @@ export function ProfileMemorySettings() {
 									? "border-primary bg-primary"
 									: "border-border bg-muted",
 							)}
-							disabled={busy || lifecycle.isPending || memory.lifecycleState === "erasing"}
+							disabled={controlsBusy || lifecycle.isPending}
 							onClick={() => lifecycle.mutate(memory.lifecycleState !== "active")}
 							role="switch"
 							type="button"
@@ -112,7 +116,7 @@ export function ProfileMemorySettings() {
 				</div>
 				<div className="mt-4 flex items-center gap-2">
 					<Badge tone="neutral">{statusLabel(memory.lifecycleState, memory.syncStatus)}</Badge>
-					{busy ? (
+					{memory.syncStatus === "pending" ? (
 						<LoaderCircle aria-hidden className="size-4 animate-spin text-muted-foreground" />
 					) : null}
 				</div>
@@ -155,7 +159,7 @@ export function ProfileMemorySettings() {
 						</h2>
 						<p className="mt-1 text-sm text-muted-foreground">{memory.itemCount} 条</p>
 					</div>
-					<Button disabled={busy} onClick={() => setEditing(emptyItem())} size="sm">
+					<Button disabled={controlsBusy} onClick={() => setEditing(emptyItem())} size="sm">
 						<Plus />
 						添加
 					</Button>
@@ -177,7 +181,7 @@ export function ProfileMemorySettings() {
 								)}
 								<Button
 									aria-label="编辑记忆"
-									disabled={busy || item.state === "deleting"}
+									disabled={controlsBusy || item.state === "deleting"}
 									onClick={() => setEditing(item)}
 									size="icon"
 									variant="ghost"
@@ -186,7 +190,7 @@ export function ProfileMemorySettings() {
 								</Button>
 								<Button
 									aria-label="删除记忆"
-									disabled={busy || deleteItem.isPending}
+									disabled={controlsBusy || deleteItem.isPending}
 									onClick={() => deleteItem.mutate(item.itemId)}
 									size="icon"
 									variant="ghost"
@@ -208,7 +212,7 @@ export function ProfileMemorySettings() {
 				</p>
 				<AlertDialog onOpenChange={setEraseOpen} open={eraseOpen}>
 					<AlertDialogTrigger asChild>
-						<Button className="mt-4" disabled={busy} variant="destructive">
+						<Button className="mt-4" disabled={eraseBusy} variant="destructive">
 							清除全部记忆
 						</Button>
 					</AlertDialogTrigger>
@@ -268,9 +272,6 @@ function ItemEditor({
 	onSubmit: (value: { key: string; value: string }) => void;
 	pending: boolean;
 }) {
-	const [key, setKey] = useState("");
-	const [value, setValue] = useState("");
-	const formKey = item ? `${item.itemId}:${item.revision}` : "closed";
 	return (
 		<Dialog
 			onOpenChange={(open) => {
@@ -280,50 +281,75 @@ function ItemEditor({
 			}}
 			open={item !== null}
 		>
-			<DialogContent key={formKey}>
-				<form
-					onSubmit={(event: FormEvent) => {
-						event.preventDefault();
-						onSubmit({ key: key || item?.key || "", value: value || item?.value || "" });
-					}}
-				>
-					<DialogHeader>
-						<DialogTitle>{item?.itemId ? "编辑记忆" : "添加记忆"}</DialogTitle>
-						<DialogDescription>使用简短键名和明确内容保存一条个人信息。</DialogDescription>
-					</DialogHeader>
-					<div className="grid gap-4 py-5">
-						<div className="grid gap-2">
-							<Label htmlFor="memory-key">键名</Label>
-							<Input
-								defaultValue={item?.key}
-								id="memory-key"
-								maxLength={64}
-								onChange={(event) => setKey(event.target.value)}
-								required
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="memory-value">内容</Label>
-							<Input
-								defaultValue={item?.value}
-								id="memory-value"
-								maxLength={500}
-								onChange={(event) => setValue(event.target.value)}
-								required
-							/>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button onClick={onClose} type="button" variant="outline">
-							取消
-						</Button>
-						<Button disabled={pending} type="submit">
-							{pending ? <LoaderCircle className="animate-spin" /> : null}保存
-						</Button>
-					</DialogFooter>
-				</form>
+			<DialogContent>
+				{item ? (
+					<ItemEditorForm
+						item={item}
+						key={`${item.itemId || "new"}:${item.revision}`}
+						onClose={onClose}
+						onSubmit={onSubmit}
+						pending={pending}
+					/>
+				) : null}
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+function ItemEditorForm({
+	item,
+	onClose,
+	onSubmit,
+	pending,
+}: {
+	item: ProfileMemoryItem;
+	onClose: () => void;
+	onSubmit: (value: { key: string; value: string }) => void;
+	pending: boolean;
+}) {
+	const [key, setKey] = useState(item.key);
+	const [value, setValue] = useState(item.value);
+
+	return (
+		<form
+			onSubmit={(event: FormEvent) => {
+				event.preventDefault();
+				onSubmit({ key, value });
+			}}
+		>
+			<DialogHeader>
+				<DialogTitle>{item.itemId ? "编辑记忆" : "添加记忆"}</DialogTitle>
+				<DialogDescription>使用简短键名和明确内容保存一条个人信息。</DialogDescription>
+			</DialogHeader>
+			<div className="grid gap-4 py-5">
+				<div className="grid gap-2">
+					<Label htmlFor="memory-key">键名</Label>
+					<Input
+						id="memory-key"
+						onChange={(event) => setKey(event.target.value)}
+						required
+						value={key}
+					/>
+				</div>
+				<div className="grid gap-2">
+					<Label htmlFor="memory-value">内容</Label>
+					<Input
+						id="memory-value"
+						onChange={(event) => setValue(event.target.value)}
+						required
+						value={value}
+					/>
+				</div>
+			</div>
+			<DialogFooter>
+				<Button onClick={onClose} type="button" variant="outline">
+					取消
+				</Button>
+				<Button disabled={pending} type="submit">
+					{pending ? <LoaderCircle className="animate-spin" /> : null}保存
+				</Button>
+			</DialogFooter>
+		</form>
 	);
 }
 
@@ -331,14 +357,14 @@ function emptyItem(): ProfileMemoryItem {
 	return { itemId: "", key: "", revision: 0, state: "synced", updatedAt: "", value: "" };
 }
 function statusLabel(lifecycle: string, sync: string) {
-	if (lifecycle === "erasing") {
-		return "正在清除";
+	if (sync === "failed") {
+		return "同步失败";
 	}
 	if (sync === "pending") {
 		return "正在同步";
 	}
-	if (sync === "failed") {
-		return "同步失败";
+	if (lifecycle === "erasing") {
+		return "正在清除";
 	}
 	if (lifecycle === "paused") {
 		return "已暂停";

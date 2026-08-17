@@ -19,6 +19,16 @@ export type ProfileMemoryTransaction = Parameters<Parameters<RuntimeDatabase["tr
 
 type CommandRow = typeof profileMemoryCommands.$inferSelect;
 
+export function deriveProfileMemorySyncStatus(input: {
+	hasFailedHead: boolean;
+	hasNonterminalHead: boolean;
+}): ProfileMemorySyncStatus {
+	if (input.hasNonterminalHead) {
+		return "pending";
+	}
+	return input.hasFailedHead ? "failed" : "synced";
+}
+
 export async function supersedePendingCommandsInScope(
 	tx: ProfileMemoryTransaction,
 	input: {
@@ -216,11 +226,7 @@ export async function reconcileOwnerMemoryState(
 	const ownerState = ownerStateRows[0];
 	const hasFailedHead = ownerState?.hasFailedHead ?? false;
 	const hasNonterminalHead = ownerState?.hasNonterminalHead ?? false;
-	const syncStatus: ProfileMemorySyncStatus = hasFailedHead
-		? "failed"
-		: hasNonterminalHead
-			? "pending"
-			: "synced";
+	const syncStatus = deriveProfileMemorySyncStatus({ hasFailedHead, hasNonterminalHead });
 	await tx
 		.update(profileMemorySettings)
 		.set({

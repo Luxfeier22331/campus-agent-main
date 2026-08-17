@@ -45,11 +45,16 @@ describe("chat memory staging e2e runner", () => {
 	it("proves explicit memory write and SDK personal memory recall through sanitized run steps", async () => {
 		const calls: Array<{
 			body?: unknown;
+			expectedStatus?: number;
+			idempotencyKey?: string;
 			method?: string;
 			observabilityCanary?: unknown;
 			url: string;
 		}> = [];
 		let signedInEmail: string | undefined;
+		let memoryState: "missing" | "saving" | "synced" | "deleting" = "missing";
+		let memoryPolls = 0;
+		const sleep = vi.fn().mockResolvedValue(undefined);
 		const result = await runChatMemoryE2eStaging(
 			[
 				"--chat-base-url",
@@ -81,6 +86,8 @@ describe("chat memory staging e2e runner", () => {
 				) {
 					calls.push({
 						...(input.body === undefined ? {} : { body: input.body }),
+						expectedStatus: input.expectedStatus,
+						...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
 						...(input.method ? { method: input.method } : {}),
 						url: input.url,
 					});
@@ -101,24 +108,47 @@ describe("chat memory staging e2e runner", () => {
 						} as T);
 					}
 					if (input.url.endsWith("/api/me/profile-memory")) {
+						if (memoryState === "saving" || memoryState === "deleting") {
+							memoryPolls += 1;
+							if (memoryPolls % 2 === 0) {
+								memoryState = memoryState === "saving" ? "synced" : "missing";
+							}
+						}
 						return jsonResult({
 							profileMemory: {
-								enabled: true,
-								items: [],
+								itemCount: memoryState === "missing" ? 0 : 1,
+								items:
+									memoryState === "missing"
+										? []
+										: [
+												{
+													itemId: "mem_01HQ",
+													key: "smoke_memory_probe",
+													revision: 1,
+													state: memoryState,
+													updatedAt: "2026-06-04T00:00:00.000Z",
+													value: "smoke memory sentinel",
+												},
+											],
+								lifecycleState: "active",
+								syncStatus:
+									memoryState === "saving" || memoryState === "deleting" ? "pending" : "synced",
 							},
 						} as T);
 					}
 					if (input.url.endsWith("/api/me/profile-memory/items") && input.method === "POST") {
+						memoryState = "saving";
+						memoryPolls = 0;
 						return jsonResult({
-							item: {
-								confidence: "low",
-								itemId: "mem_01HQ",
-								key: "smoke_memory_probe",
-								lastVerifiedAt: "2026-06-04T00:00:00.000Z",
-								sourceType: "user_declared",
-								updatedAt: "2026-06-04T00:00:00.000Z",
-								value: "smoke memory sentinel",
-								visibility: "user_visible",
+							profileMemory: {
+								item: {
+									itemId: "mem_01HQ",
+									key: "smoke_memory_probe",
+									state: "saving",
+									value: "smoke memory sentinel",
+								},
+								lifecycleState: "active",
+								syncStatus: "pending",
 							},
 						} as T);
 					}
@@ -179,7 +209,20 @@ describe("chat memory staging e2e runner", () => {
 						input.url.endsWith("/api/me/profile-memory/items/mem_01HQ") &&
 						input.method === "DELETE"
 					) {
-						return jsonResult({ deleted: true } as T);
+						memoryState = "deleting";
+						memoryPolls = 0;
+						return jsonResult({
+							profileMemory: {
+								item: {
+									itemId: "mem_01HQ",
+									key: "smoke_memory_probe",
+									state: "deleting",
+									value: "smoke memory sentinel",
+								},
+								lifecycleState: "active",
+								syncStatus: "pending",
+							},
+						} as T);
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
@@ -187,6 +230,7 @@ describe("chat memory staging e2e runner", () => {
 					signedInEmail = input.email;
 					return "session=staging";
 				},
+				sleep,
 				async openSubmitStream(input) {
 					calls.push({
 						body: input.body,
@@ -205,6 +249,7 @@ describe("chat memory staging e2e runner", () => {
 		expect(result.passed).toBe(true);
 		expect(result.memory.itemId).toBe("mem_01HQ");
 		expect(result.memory.deleted).toBe(true);
+		expect(sleep).toHaveBeenCalledTimes(2);
 		expect(result.submit).toEqual({
 			requestId: "req_01HQ",
 			resultKind: "answer",
@@ -227,6 +272,8 @@ describe("chat memory staging e2e runner", () => {
 						value: "body-sentinel-0001",
 					},
 					method: "POST",
+					expectedStatus: 202,
+					idempotencyKey: expect.stringMatching(/^chat-memory-e2e-create-/u),
 					url: "https://campus.example.com/api/me/profile-memory/items",
 				}),
 				expect.objectContaining({
@@ -239,13 +286,16 @@ describe("chat memory staging e2e runner", () => {
 					url: "https://campus.example.com/api/chat/requests/stream",
 				}),
 				{
+					expectedStatus: 200,
 					method: "GET",
 					url: "https://api.example.com/api/chat/runs/run_01HQ/steps",
 				},
-				{
+				expect.objectContaining({
+					expectedStatus: 202,
+					idempotencyKey: expect.stringMatching(/^chat-memory-e2e-delete-/u),
 					method: "DELETE",
 					url: "https://campus.example.com/api/me/profile-memory/items/mem_01HQ",
-				},
+				}),
 			]),
 		);
 	});

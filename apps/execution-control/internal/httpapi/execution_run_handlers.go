@@ -16,6 +16,22 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+type executionDependencyNotReadyError struct {
+	cause error
+}
+
+func (e *executionDependencyNotReadyError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *executionDependencyNotReadyError) Unwrap() error {
+	return e.cause
+}
+
+func executionDependencyNotReady(cause error) error {
+	return &executionDependencyNotReadyError{cause: cause}
+}
+
 func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request *http.Request) {
 	if !s.internalWorkerAuthorized(request) {
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
@@ -35,7 +51,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 	if !ok {
 		return
 	}
-	run, personalMemoryRecallAllowed, err := durableRunFromCreateBody(
+	run, personalMemoryRecallAvailable, err := durableRunFromCreateBody(
 		body,
 		time.Now().UTC(),
 		defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
@@ -47,9 +63,20 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 	workflowInput, err := s.workflowInputForRun(
 		request.Context(),
 		run,
-		personalMemoryRecallAllowed,
+		personalMemoryRecallAvailable,
 	)
 	if err != nil {
+		var dependencyErr *executionDependencyNotReadyError
+		if errors.As(err, &dependencyErr) || executionInputErrorIsRetryable(err) {
+			writeError(
+				response,
+				http.StatusServiceUnavailable,
+				"dependency_not_ready",
+				"A required execution dependency is not ready.",
+				true,
+			)
+			return
+		}
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
@@ -58,7 +85,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
-	requestFingerprint, err := durableRunCreateFingerprint(run, personalMemoryRecallAllowed)
+	requestFingerprint, err := durableRunCreateFingerprint(run, personalMemoryRecallAvailable)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
@@ -115,7 +142,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 func (s *Server) workflowInputForRun(
 	ctx context.Context,
 	run execution.DurableRun,
-	personalMemoryRecallAllowed bool,
+	personalMemoryRecallAvailable bool,
 ) (temporalruntime.ToolExecutionWorkflowInput, error) {
 	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
 	inputMetadata, err := executionInputMetadata(run)
@@ -132,7 +159,7 @@ func (s *Server) workflowInputForRun(
 	}
 	admissionSnapshot, err := s.buildAgentAdmissionSnapshot(
 		ctx,
-		personalMemoryRecallAllowed,
+		personalMemoryRecallAvailable,
 		campusDocsQuerySHA256,
 	)
 	if err != nil {
@@ -156,7 +183,7 @@ func (s *Server) workflowInputForRun(
 	}, nil
 }
 
-func durableRunCreateFingerprint(run execution.DurableRun, personalMemoryRecallAllowed bool) (string, error) {
+func durableRunCreateFingerprint(run execution.DurableRun, personalMemoryRecallAvailable bool) (string, error) {
 	canonical := struct {
 		ConversationID              string         `json:"conversation_id"`
 		Metadata                    map[string]any `json:"metadata"`
@@ -172,7 +199,7 @@ func durableRunCreateFingerprint(run execution.DurableRun, personalMemoryRecallA
 		ConversationID:              run.ConversationID,
 		Metadata:                    cloneAnyMapFromMetadata(run.Metadata),
 		OwnerUserID:                 run.OwnerUserID,
-		PersonalMemoryRecallAllowed: personalMemoryRecallAllowed,
+		PersonalMemoryRecallAllowed: personalMemoryRecallAvailable,
 		RequestID:                   run.RequestID,
 		RunID:                       run.RunID,
 		RuntimeVersions:             cloneAnyMapFromMetadata(run.RuntimeVersions),

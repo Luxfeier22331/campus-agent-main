@@ -39,7 +39,7 @@ blockquote 和 table。publisher 只消费来源清单选中的当前 reader。
 
 ### 模型可见工具
 
-当前运行中通过 `tools.v6.json` 和本轮授权向 Primary Agent 暴露的函数工具。Campus Docs 检索不是模型工具。
+当前运行中通过 `tools.v6.json` 和冻结准入策略向 Primary Agent 暴露的函数工具。Campus Docs 检索不是模型工具。
 
 ### Campus Docs Retrieval Admission
 

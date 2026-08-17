@@ -41,23 +41,9 @@ func (f *fakePersonalMemoryExecutor) Recall(
 ) (memoryruntime.RecallResult, error) {
 	f.recallCount++
 	f.seenRequest = request
-	return memoryruntime.FinalizeRecallResult(memoryruntime.RecallResult{
+	return memoryruntime.RecallResult{
 		ContextBlock: "用户记忆:\n相关事实:\n- 用户关注保研和培养方案。",
-		Items: []memoryruntime.ContextItem{{
-			CompactText: "用户关注保研和培养方案。",
-			MemoryID:    "mem-test-1",
-			MemoryType:  "preference",
-			Score:       0.91,
-			UpdatedAt:   "2026-06-01T00:00:00Z",
-		}},
-		MemoryRef:     "projection://runs/" + request.RunID + "/memory/recall",
-		Provider:      "hindsight",
-		RetrievalMode: "recall",
-		RunID:         request.RunID,
-		SchemaVersion: "memory_recall_result_v1",
-		ThreadID:      request.ThreadID,
-		UserID:        request.UserID,
-	})
+	}, nil
 }
 
 func (f *fakePersonalMemoryExecutor) AppendConversationTurn(
@@ -69,12 +55,7 @@ func (f *fakePersonalMemoryExecutor) AppendConversationTurn(
 	if f.appendErr != nil {
 		return memoryruntime.AppendConversationTurnResult{}, f.appendErr
 	}
-	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
+	return memoryruntime.AppendConversationTurnResult{
 		AppendedMessageCount: 1,
-		RunID:                request.RunID,
-		SchemaVersion:        "memory_conversation_append_result_v2",
-		Status:               "completed",
-		ThreadID:             request.ThreadID,
-		UserID:               request.UserID,
-	})
+	}, nil
 }

@@ -128,9 +128,8 @@ func (Activities) AppendConversationMemoryActivity(
 ) (AppendConversationMemoryActivityOutput, error) {
 	return AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: 1,
-		PayloadSHA256:        "sha256:memory-append",
 		RunID:                input.RunID,
-		SchemaVersion:        "memory_conversation_append_result_v2",
+		SchemaVersion:        "memory_conversation_append_result_v3",
 		Status:               "completed",
 	}, nil
 }

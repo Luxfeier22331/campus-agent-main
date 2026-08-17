@@ -77,7 +77,7 @@ func publicSourcesFromCampusDocsEvidence(
 	for _, rawRef := range evidenceRefs {
 		evidenceRef := strings.TrimSpace(rawRef)
 		if _, duplicate := seen[evidenceRef]; duplicate {
-			return nil, fmt.Errorf("Campus docs evidence_ref %q is duplicated", evidenceRef)
+			return nil, fmt.Errorf("campus docs evidence_ref %q is duplicated", evidenceRef)
 		}
 		seen[evidenceRef] = struct{}{}
 		evidence, ok := allowed[evidenceRef]

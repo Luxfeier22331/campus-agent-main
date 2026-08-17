@@ -13,14 +13,14 @@ func (s *Server) campusDocsIndexForAdmission(
 	ctx context.Context,
 ) (*temporalruntime.CampusDocsIndexSnapshot, error) {
 	if s.campusDocsIndexStore == nil {
-		return nil, errors.New("Campus docs index store is not configured")
+		return nil, errors.New("campus docs index store is not configured")
 	}
 	index, found, err := s.campusDocsIndexStore.CurrentIndex(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve current Campus docs index: %w", err)
 	}
 	if !found {
-		return nil, errors.New("Campus docs current index is not available")
+		return nil, errors.New("campus docs current index is not available")
 	}
 	target := &temporalruntime.CampusDocsIndexSnapshot{
 		Collection:                index.Collection,
@@ -39,14 +39,14 @@ func (s *Server) campusDocsIndexForAdmission(
 
 func validateCampusDocsIndexAdmission(target *temporalruntime.CampusDocsIndexSnapshot) error {
 	if target == nil {
-		return errors.New("Campus docs index admission snapshot is required")
+		return errors.New("campus docs index admission snapshot is required")
 	}
 	if !strings.HasPrefix(target.Collection, "campus_docs_") || target.DenseVectorName != "dense" ||
 		target.SparseVectorName != "sparse" || target.SparseModel != "fnv1a_log_tf.v1" ||
 		strings.TrimSpace(target.EmbeddingQueryInstruction) == "" ||
 		strings.TrimSpace(target.EmbeddingSpaceID) == "" ||
 		target.EmbeddingDimensions <= 0 {
-		return errors.New("Campus docs index admission snapshot is invalid")
+		return errors.New("campus docs index admission snapshot is invalid")
 	}
 	return nil
 }

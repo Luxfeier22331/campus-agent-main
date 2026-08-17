@@ -21,8 +21,8 @@ framing 和措辞。它不能决定身份、授权、来源信任、工具开放
 | Hindsight | retain、recall、extraction、graph、dedupe/merge 和 bank lifecycle |
 | execution-control | ID 派生、bank policy、SDK 调用、边界裁剪、内部命令、generation fence 和 receipt |
 | Temporal | Agent Activity、append、个人记忆命令和删除检查点的 durable execution |
-| app-api | 用户可见接口、consent、desired state、outbox 和 PostgreSQL 产品投影 |
-| agent-runtime | 向模型暴露获准的 `personal_memory_recall`，不持有 Hindsight credential |
+| app-api | 用户可见接口、生命周期、期望状态、outbox 和 PostgreSQL 产品投影 |
+| agent-runtime | 在本轮可用时向模型暴露 `personal_memory_recall`，不持有 Hindsight credential |
 
 app-api 不直连 Hindsight；agent-runtime 只调用 execution-control 的有界内部 handler，不直连
 Hindsight 或暴露其原始 API。运行配置归属见 [Provider 与模型配置](../../environment/providers.md)，
@@ -38,17 +38,17 @@ Hindsight 或暴露其原始 API。运行配置归属见 [Provider 与模型配�
 - 产品 user、conversation 和 message ID 不直接作为 Hindsight object ID；
 - salt 在同一环境必须稳定，不跨环境共享。
 
-每次 retain、recall 或 profile mutation 前，execution-control 创建或更新 scoped bank，
-并确认 Memory Defense `sensitive_data -> redact` 已启用。bootstrap 或校验失败时不继续本次 memory
-operation。
+写入操作先检查 scoped bank，仅在不存在时按固定策略创建，并启用 Memory Defense
+`sensitive_data -> redact`。recall 只读取已存在的 bank；bank 不存在时返回 no-match，不创建或重配
+bank。
 
 ## 在线执行
 
 在持久回答开始时，execution-control 冻结 `recall_enabled`、`append_enabled` 和用户代次。
-`recall_enabled=true` 时，冻结的 `execution_strategy.v2` 向 Primary Agent 开放一次
-`personal_memory_recall`，模型只在当前问题需要跨会话个人上下文时调用；handler 重新校验运行身份、
-策略和用户代次后调用 Hindsight，并返回裁剪后的 `memory_text`。`recall_enabled=false` 时该工具对
-模型不可见，不创建独立 recall Activity 或 skipped step。
+`recall_enabled=false` 时新运行不开放个人记忆工具；为 true 时，Primary Agent 可以按当前请求调用
+一次 `personal_memory_recall`。handler 重新校验运行身份、策略和用户代次后调用 Hindsight，并返回
+裁剪后的 `memory_text`。matched 结果可以支持用户自身事实或偏好，但不能支持机构事实、替代 Campus
+Docs evidence、成为公开来源或改变工具集合；no-match 不能被解释为任何事实。
 
 追加 activity 只有在 app-api 已接受同一 `finalization_fingerprint`，且 execution-control 的
 `completed` run 已绑定 `completed` `finalization.write` 投影后，才以确定性文档标识同步保留已接受
@@ -62,8 +62,9 @@ append 使用确定性 document ID、`update_mode=replace` 和 private observati
 同步返回后本次 activity 才成功；仓库不代理其内部 operation。append 失败不回滚已经完成的回答，
 但必须记录 failed step 和稳定失败状态。
 
-gate 在 chat 准入时冻结，后续执行不重读可变设置。关闭 recall 时不开放工具、不创建 recall step；
-关闭 append 时追加 activity 投影 skipped step。两者都不能从 PostgreSQL、Qdrant 或供应商抽取记忆。
+gate 在 chat 准入时冻结，后续执行不重读可变设置。关闭 recall 时不开放工具或创建 recall step；
+开启 recall 时由 Primary Agent 按当前请求决定是否执行，单个 run 最多一次。关闭 append 时追加
+activity 投影 skipped step。两者都不能从 PostgreSQL、Qdrant 或供应商抽取记忆。
 
 ## 用户管理与删除
 
@@ -72,14 +73,17 @@ app-api 在 PostgreSQL 中维护 lifecycle、item desired state 和 command outb
 更新用户可见状态。
 
 - pause 保留当前 generation 的 bank 和 item，后续 turn 的两个 gate 均关闭；
-- resume 重新允许后续 turn 召回和追加，不创建新 generation；
+- resume 恢复后续 turn 的召回和追加，不创建新 generation；
 - item upsert/delete 使用确定性 profile document ID，删除不存在的 document 视为幂等成功；
 - 账号全量清除会递增代次、拒绝旧代次、等待在途调用排空并删除上一代 bank；
-- 账号全量清除还要按产品用户身份和上一代 bank 身份删除并复核 Langfuse trace；
-- 所有删除检查点完成后，产品 lifecycle 才能从 `erasing` 进入 `erased`。
+- retired bank 删除并确认不存在后，产品 lifecycle 才能从 `erasing` 进入 `erased`。
+
+兼容版本上线前已启动的 `owner_erase` history 仍 replay 旧 Langfuse trace maintenance 检查点；新命令
+不进入该路径。旧 history 排空后，旧 activity 和凭据由独立清理任务退役。
 
 conversation prune/delete 在删除产品 message 前捕获 message ID，并派生与 retain 相同的 document
-ID。删除后需要等待 Hindsight consolidation 生效，再确认来源不再通过 recall 返回。
+ID。`DeleteDocument` 同步删除来源文档及其 memory units；后续 consolidation 由 Hindsight 内部维护，
+仓库不轮询该内部过程。
 
 ## 投影与数据最小化
 
@@ -87,7 +91,7 @@ execution-control 可以保存 bank/document identity、generation fence 和 com
 student run-step 和 Axiom application logs 不得保存原始 bank/document/operation ID、provider payload
 或 memory 正文；允许保存公共状态、计数、hash、timing 和 failure kind。
 
-Langfuse Agent trace 可以记录获准工具名和有界结果状态，但不记录 Hindsight metadata、
+Langfuse Agent trace 可以记录实际可见工具名和有界结果状态，但不记录 Hindsight metadata、
 `memory_text`、工具输入输出或模型输入输出。Hindsight 不发送新的 Langfuse trace；具体字段边界见
 [Langfuse](./langfuse.md)。
 
@@ -104,11 +108,11 @@ Langfuse Agent trace 可以记录获准工具名和有界结果状态，但不�
 ## 数据边界
 
 - Hindsight：个人记忆图、bank 和内部操作；
-- PostgreSQL `profile.*`：consent、desired state、command outbox 和用户可见投影；
+- PostgreSQL `profile.*`：生命周期、期望状态、command outbox 和用户可见投影；
 - Temporal：Activity、命令和删除检查点生命周期；
 - 执行投影：有界 step 与结果；
 - Qdrant：机构知识；
-- Langfuse：可选 Agent/model/tool trace，以及个人数据清除维护的历史 trace 范围。
+- Langfuse：可选 Agent/model/tool trace，不参与个人记忆 lifecycle。
 
 ## 禁止形态
 

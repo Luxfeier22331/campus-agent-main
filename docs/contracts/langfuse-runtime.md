@@ -13,8 +13,9 @@ PostgreSQL run projection、Hindsight bank 或仓库 dataset 真相。所有环�
 区域中的 `campus-agent` project，并通过原生 `environment` 字段区分 local、staging 和 production。
 
 运行 trace 是可选观测能力。环境可以因配额或成本策略停止 ingestion；这不表示产品请求失败，也
-不能阻断在线执行、readiness、promotion 或 PostgreSQL 终态。Langfuse Public API 仍用于显式评测
-命令和个人数据清除维护。
+不能阻断在线执行、readiness、promotion 或 PostgreSQL 终态。新流程只在显式评测命令中使用
+Langfuse Public API；execution-control 暂时保留的 maintenance client 只服务兼容版本上线前已启动的
+`owner_erase` history，不接受新命令。
 
 ## Runtime 集成
 
@@ -91,56 +92,13 @@ observation，若无 observation 则指向一个 trace。dataset item/run ID 不
 名称、缺失关联、非有限数值或 Langfuse 写入失败必须使离线命令失败；metadata 只允许标量白名单，
 答案和 context text 不进入 score metadata。
 
-## 个人数据清除
-
-execution-control core worker 使用以下配置访问同一 project 的 Public API：
-
-- `LANGFUSE_BASE_URL`
-- `LANGFUSE_PUBLIC_KEY`
-- `LANGFUSE_SECRET_KEY`
-
-部署的 core activity 必须同时配置三项；任何一项缺失都是启动配置错误。maintenance client 使用
-HTTP Basic auth，base URL 必须是没有内嵌 credential 的 Langfuse Cloud HTTP(S) origin。
-
-个人记忆全量清除同时处理两类已有数据：
-
-- 按 command 冻结的产品 `UserID` 和 `source_updated_at` 上界删除 Agent/runtime trace；
-- 按已退役 generation 派生的 bank identity 删除历史 Hindsight trace。
-
-Hindsight 已停止生产新 trace，但历史数据仍属于用户删除合同，不能删除对应查询。runtime 查询
-故意覆盖该用户在 command 上界内的全部 trace，不得按 conversation、request、tag 或 observation
-名称缩窄；上界之后的新 runtime trace 不得被删除。历史 Hindsight 查询不加时间上界，因为 generation
-fence 已阻止退役 bank 接收新业务调用。
-
-purge 使用 `fields=core`、`orderBy=timestamp.asc`，每页最多取 100 个 trace ID，最多读取 1000 页；
-先完成有界分页和重复 ID 去重，再按最多 100 个 ID 调用批量
-`DELETE /api/public/traces`。`200`、`204` 和 `404` 都是幂等删除成功。HTTP timeout 为 15 秒，
-请求/响应正文上限为 1 MiB。
-
-`PersonalMemoryCommandWorkflow` 在 Hindsight old-generation bank 删除后执行：
-
-1. generation fence 等待旧 lease 排空，Hindsight 删除已退役 bank；
-2. 等待 10 分钟，使既有 exporter 的最长重试窗口结束；
-3. `PurgePersonalMemoryTracesActivity` 清理两类 trace；
-4. `VerifyPersonalMemoryTracesActivity` 查询 remaining count，非零时每分钟重复 purge/verify，
-   最多五轮；
-5. 两类 trace 均为零后执行 receipt finalization 和 app-api callback；五轮仍非零则返回固定
-   `personal_memory_trace_erase_incomplete` 错误并保持未完成状态。
-
-Langfuse 删除是异步的且没有 completion callback。DELETE 成功或删除数量不是产品 `erased` 的
-充分条件。活动错误只返回固定 application error code；不得把 endpoint、credential、derived
-userId、trace ID 或 response body 序列化到 Temporal Failure。
-
 ## 可用性
 
 - 普通 trace export 是可选观测能力；Langfuse 不可用或配额停收不得阻塞在线回答。
 - eval command 读取或写入失败必须使该离线命令失败。
-- personal-memory erase maintenance 属于隐私生命周期；失败必须由 Temporal 有界重试且不能提前
-  写完成状态。
 - project、credential、Collector pipeline 或 workflow 存在不证明数据已写入或删除；需要数据事实时
   必须查询实际 project。
 
 ## 参考
 
 - Langfuse OpenTelemetry：<https://langfuse.com/docs/integrations/native/opentelemetry>
-- Langfuse 数据删除：<https://langfuse.com/docs/data-deletion>

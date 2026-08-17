@@ -74,9 +74,9 @@ Agent trace 只允许 user/session 关联、model/provider、Agent/tool 名称�
 `request_id`、`run_id`、`trace_id`、`turn_id`。prompt、模型输入输出、对话、工具原始载荷、
 memory/retrieval 正文、provider 原始响应和认证材料不得进入运行 trace。
 
-Langfuse dataset 是独立的显式评测生命周期，不能从生产 trace 正文自动生成。个人数据清除仍使用
-Langfuse Public API 删除 Agent/runtime trace 和历史遗留 Hindsight trace；停止新 trace ingestion
-不能删除这项隐私维护。
+Langfuse dataset 是独立的显式评测生命周期，不能从生产 trace 正文自动生成。运行 trace 已在
+producer 侧排除对话、个人记忆正文和工具载荷；个人记忆清除不依赖 Langfuse，也不把外部观测数据
+删除建模为产品终态。
 
 ### 凭据
 
@@ -90,8 +90,9 @@ Axiom 保留现有两个逻辑 token 合同：
 环境变量中的不同名称只表示交付位置；是否映射到同一上游 identity 由环境交付维护。
 
 Sentry 同样沿用既有 provider token，不创建按 runtime 或 source-map consumer 拆分的新身份。
-Langfuse trace ingestion key 与 execution-control personal-data maintenance key 对应不同调用协议，
-但属于同一个 project 生命周期。
+Langfuse trace ingestion credential 只属于 Agent Runtime。execution-control 暂时保留 maintenance
+credential，仅用于 replay 兼容版本上线前已启动的个人记忆删除 history；新命令不使用该身份，旧
+history 排空后删除。
 
 ## 后果
 

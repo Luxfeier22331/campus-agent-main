@@ -27,6 +27,10 @@ export interface ProfileMemoryService {
 		idempotencyKey: string;
 		principal: ResolvedAppPrincipal;
 	}): Promise<ProfileMemoryMutationResult>;
+	eraseForAccountDeletion(input: {
+		principal: ResolvedAppPrincipal;
+		requestId: string;
+	}): Promise<ProfileMemoryMutationResult>;
 	list(input: { principal: ResolvedAppPrincipal }): Promise<ProfileMemoryList>;
 	setLifecycle(input: {
 		idempotencyKey: string;
@@ -149,7 +153,7 @@ function normalizeItemInput(input: { key: string; value: string }) {
 	if (!(key && value)) {
 		throw createProfileMemoryError({
 			code: "invalid_profile_memory_item",
-			message: "Profile memory requires a safe key and a non-empty value under 500 characters.",
+			message: "Profile memory requires a non-empty key and value within the length limits.",
 			status: 400,
 		});
 	}
@@ -190,6 +194,18 @@ export function buildProfileMemoryService(
 ): ProfileMemoryService {
 	const generateId = dependencies.generateId ?? defaultGenerateId;
 	const now = dependencies.now ?? (() => new Date());
+	const eraseWithIdempotencyKey = async (
+		ownerUserId: string,
+		idempotencyKey: string,
+	): Promise<ProfileMemoryMutationResult> => {
+		const identity = mutationIdentity(idempotencyKey, { action: "erase" });
+		return dependencies.store.erase({
+			commandId: generateId("memcmd"),
+			...identity,
+			ownerUserId,
+			updatedAt: now().toISOString(),
+		});
+	};
 	return {
 		async applyResult(input) {
 			const errorCode = publicMemoryCommandErrorCode(input);
@@ -275,14 +291,38 @@ export function buildProfileMemoryService(
 
 		async erase(input) {
 			const ownerUserId = assertProfileMemoryPrincipal(input.principal);
-			const identity = mutationIdentity(input.idempotencyKey, { action: "erase" });
 			try {
-				return await dependencies.store.erase({
-					commandId: generateId("memcmd"),
-					...identity,
-					ownerUserId,
-					updatedAt: now().toISOString(),
+				return await eraseWithIdempotencyKey(ownerUserId, input.idempotencyKey);
+			} catch (error) {
+				return mapStoreError(error);
+			}
+		},
+
+		async eraseForAccountDeletion(input) {
+			const ownerUserId = assertProfileMemoryPrincipal(input.principal);
+			const requestId = input.requestId.trim();
+			if (!requestId) {
+				throw createProfileMemoryError({
+					code: "invalid_account_deletion_request",
+					message: "Account deletion request id is required.",
+					status: 400,
 				});
+			}
+			const baseIdempotencyKey = `account-delete:${requestId}`;
+			let idempotencyKey = baseIdempotencyKey;
+			try {
+				for (;;) {
+					const identity = mutationIdentity(idempotencyKey, { action: "erase" });
+					const command = await dependencies.store.findCommandByIdempotency({
+						...identity,
+						ownerUserId,
+					});
+					if (command?.status === "failed") {
+						idempotencyKey = `${baseIdempotencyKey}:retry:${command.commandId}`;
+						continue;
+					}
+					return await eraseWithIdempotencyKey(ownerUserId, idempotencyKey);
+				}
 			} catch (error) {
 				return mapStoreError(error);
 			}

@@ -67,11 +67,16 @@ describe("Axiom client", () => {
 			.split("\n")
 			.find((line) => line.startsWith("| where"));
 		expect(whereClause).toContain("['attributes.custom']['campus.request_id']");
-		expect(whereClause).toContain("body['campus.request_id']");
+		expect(whereClause).not.toContain("body[");
+		expect(apl).toContain("severityText = tostring(severity_text)");
+		expect(apl).not.toContain("severityText, severity");
+		expect(apl).not.toContain("coalesce(");
 		expect(whereClause).not.toContain("campus.trace_id");
 		expect(apl).not.toContain("campus.trace_id");
 		expect(apl).not.toContain("otelTraceId");
 		expect(apl).not.toContain("otelSpanId");
+		expect(apl).toContain("errorCode = tostring(['attributes.custom']['error_code'])");
+		expect(apl).not.toContain("['attributes.custom']['error.code']");
 		expect(apl).toContain("| take 201");
 	});
 

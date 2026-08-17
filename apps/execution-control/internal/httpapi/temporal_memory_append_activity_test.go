@@ -282,7 +282,7 @@ func TestAppendConversationMemoryActivityProjectsCompletedResultWithoutProviderR
 	if err != nil {
 		t.Fatalf("append conversation memory: %v", err)
 	}
-	if output.Status != "completed" || output.SchemaVersion != "memory_conversation_append_result_v2" {
+	if output.Status != "completed" || output.SchemaVersion != "memory_conversation_append_result_v3" {
 		t.Fatalf("output = %#v", output)
 	}
 
@@ -302,7 +302,7 @@ func TestAppendConversationMemoryActivityProjectsCompletedResultWithoutProviderR
 	if _, ok := payload["operation_id"]; ok {
 		t.Fatalf("payload exposes provider operation id: %#v", payload)
 	}
-	if payload["status"] != "completed" || payload["schema_version"] != "memory_conversation_append_result_v2" {
+	if payload["status"] != "completed" || payload["schema_version"] != "memory_conversation_append_result_v3" {
 		t.Fatalf("payload = %#v", payload)
 	}
 }

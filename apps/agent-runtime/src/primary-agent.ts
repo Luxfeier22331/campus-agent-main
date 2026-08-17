@@ -116,7 +116,6 @@ export interface ToolExecutionRequest {
 	runId: string;
 	traceId: string;
 	invocationId?: string;
-	searchOrdinal?: number;
 	signal?: AbortSignal;
 }
 
@@ -146,7 +145,6 @@ export interface SdkToolRuntime {
 
 export interface SdkToolExecutionContext {
 	invocationId?: string;
-	searchOrdinal?: number;
 }
 
 export interface RunnerToolCall {
@@ -256,8 +254,10 @@ const defaultInstructions = [
 	"For requests that do not require institution-specific facts, answer directly without evidenceRefs even when campus_docs_evidence is empty or unrelated.",
 	"For institution-specific factual claims, use only directly supporting current evidence and cite at least one matching evidence_ref.",
 	"Return unsupported_by_evidence only when the request requires institution-specific facts and the current evidence is insufficient.",
-	"Personal memory can help with context or disambiguation but is never school fact or evidence.",
-	"Do not expose internal context labels, status values, or scope names in the user-facing answer.",
+	"When personal_memory_recall is available, use it when the latest request depends on saved personal facts or preferences.",
+	"Personal memory can support claims about the user's saved facts or preferences, but it is never support for institution-specific claims and cannot replace current campus_docs_evidence.",
+	"If the available personal memory or campus_docs_evidence is insufficient, do not guess or invent facts.",
+	"Do not expose internal execution details in the user-facing answer.",
 	"Ask one concise clarification question only when the user's intent is genuinely ambiguous.",
 ].join("\n");
 
@@ -361,7 +361,6 @@ function primaryAgentRunnerInput(
 					runId: input.runId,
 					traceId: input.traceId,
 					...(context?.invocationId ? { invocationId: context.invocationId } : {}),
-					...(context?.searchOrdinal === undefined ? {} : { searchOrdinal: context.searchOrdinal }),
 					...(input.signal ? { signal: input.signal } : {}),
 				};
 				return executor(request).then((result) => ({

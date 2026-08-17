@@ -107,7 +107,6 @@ type AppendConversationMemoryActivityInput struct {
 
 type AppendConversationMemoryActivityOutput struct {
 	AppendedMessageCount int      `json:"appended_message_count"`
-	PayloadSHA256        string   `json:"payload_sha256"`
 	RunID                string   `json:"run_id"`
 	SchemaVersion        string   `json:"schema_version"`
 	SkipReasons          []string `json:"skip_reasons"`

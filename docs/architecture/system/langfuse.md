@@ -37,8 +37,7 @@ Langfuse 不可用不得阻塞普通在线回答。执行生命周期由 Tempora
 ## 身份与数据
 
 产品 trace identity 在内部运行时传播。Agent trace 可以按合同保存 user/session 关联以及
-`request_id`、`run_id`、`trace_id`、`turn_id` metadata。Hindsight 不再产生新的 Langfuse trace；
-删除流程仍会清理历史遗留的 Hindsight bank trace identity。
+`request_id`、`run_id`、`trace_id`、`turn_id` metadata。Hindsight 不产生 Langfuse trace。
 
 Langfuse Cloud project 是受信任模型观测面。采样 trace 可以包含 user/session 关联、模型/工具
 标识、usage、阶段结果和有界关联 metadata。Agent producer 关闭 SDK sensitive data 导出；运行
@@ -50,15 +49,10 @@ dataset、experiment、score 和 annotation 保持独立评测生命周期。需
 
 ## 生命周期
 
-个人记忆删除先停止旧 bank 接收新请求并等待旧 lease 排空，再删除 Hindsight bank。随后 Temporal
-workflow 使用 command 冻结的产品用户和 `source_updated_at` 上界删除 Agent/runtime trace，并使用
-上一代 bank identity 清理历史 Hindsight trace。等待既有 exporter 的有界排空窗口后，删除和复核按
-有界轮次执行；两类查询都为零后才能完成产品删除状态。
-
-execution-control core worker 只使用 `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY` 和
-`LANGFUSE_SECRET_KEY` 执行 owner erase。普通 trace
-保留期由 Langfuse 部署策略拥有，不再由自研 Temporal retention workflow 维护。精确分页、批量、
-等待、重试和失败语义由运行合同维护。
+运行 trace 的保留期由 Langfuse project 策略拥有，不由新的 Temporal workflow 维护。新个人记忆清除
+只处理产品投影和 Hindsight bank；Langfuse 可选 trace 不参与新命令的 lifecycle 或 `erased` 终态。
+为 replay 兼容版本上线前已启动的 `owner_erase` history，execution-control 暂时保留旧维护 activity 和
+Langfuse Public API credential；新 workflow 不调度该路径，旧 history 排空后必须一并退役。
 
 ## 相关资料
 
@@ -68,5 +62,4 @@ execution-control core worker 只使用 `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_K
 - `../../runbooks/hindsight.md`
 - Langfuse environments：<https://langfuse.com/docs/observability/features/environments>
 - Langfuse OpenTelemetry：<https://langfuse.com/integrations/native/opentelemetry>
-- Langfuse data deletion：<https://langfuse.com/docs/data-deletion>
 - Langfuse data retention：<https://langfuse.com/docs/administration/data-retention>

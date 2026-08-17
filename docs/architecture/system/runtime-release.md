@@ -43,6 +43,8 @@ status: active
   创建 Worker、修改路由或切换流量；
 - Kubernetes 使用镜像摘要，不用可变标签表达环境目标；
 - 依赖新 schema 的运行时必须在迁移成功后才能接收流量；
+- 删除列或收紧约束必须采用 expand/contract：先部署同时兼容新旧 schema 的运行时，确认旧版本不再
+  承接流量和即时回滚后，再由后续 migration 收缩结构；
 - 一个应用失败不能被其他应用的健康状态掩盖；
 - 候选版本上传成功、镜像构建成功或清单渲染成功都不等于部署完成。
 - 常规 staging 版本选择使用唯一滚动 PR；Secret、权限、资源、网络、Terraform、Application 拓扑和

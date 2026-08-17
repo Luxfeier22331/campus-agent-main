@@ -4,7 +4,7 @@
 
 ## 职责
 
-- 运行单一 Primary Agent 与本轮准入的可选函数工具循环；当前只可能按本轮授权开放
+- 运行单一 Primary Agent 与本轮可用的可选函数工具循环；当前只可能开放
   `personal_memory_recall`；
 - 消费 execution-control 提供的模型配置、工具目录、上下文和截止时间；
 - 把工具调用交回 execution-control，不直接访问产品数据库或内部工具服务；

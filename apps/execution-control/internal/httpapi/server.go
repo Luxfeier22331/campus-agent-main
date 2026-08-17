@@ -190,7 +190,7 @@ func NewServerWithDependencies(
 	campusDocsIndexStore := campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
-	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
+	personalMemoryExecutor, personalMemoryErr := newHindsightMemoryExecutor(cfg)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(cfg)
 	langfuseTraceStore, langfuseTraceErr := newLangfuseTraceMaintenance(cfg)
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
@@ -263,7 +263,7 @@ func NewTemporalActivityServer(
 	}
 	switch role {
 	case TemporalActivityRuntimeRoleCore:
-		server.personalMemoryExecutor, server.personalMemoryErr = newPersonalMemoryExecutor(cfg, nil)
+		server.personalMemoryExecutor, server.personalMemoryErr = newHindsightMemoryExecutor(cfg)
 		server.personalMemoryStateStore, server.personalMemoryStateErr = newPersonalMemoryStateStore(cfg)
 		if server.personalMemoryErr == nil && server.personalMemoryStateErr == nil {
 			server.personalMemoryExecutor = newFencedPersonalMemoryExecutor(server.personalMemoryExecutor, server.personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
@@ -460,10 +460,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		}
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/commands":
 		s.handlePersonalMemoryCommand(response, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/turns:append":
-		s.handleProfileMemoryAppend(response, request)
-	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:recall":
-		s.handleProfileMemoryRecall(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/recall":
 		s.handlePersonalMemoryRecallTool(response, request)
 	default:

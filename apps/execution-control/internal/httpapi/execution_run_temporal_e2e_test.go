@@ -227,9 +227,8 @@ func (httpTemporalE2EActivities) AppendConversationMemoryActivity(
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	return temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: 1,
-		PayloadSHA256:        "memory-append-hash",
 		RunID:                input.RunID,
-		SchemaVersion:        "memory_conversation_append_result_v1",
+		SchemaVersion:        "memory_conversation_append_result_v3",
 		Status:               "completed",
 	}, nil
 }
@@ -242,20 +241,6 @@ func (httpTemporalE2EActivities) ExecutePersonalMemoryCommandActivity(
 		CommandID: input.CommandID,
 		Status:    "succeeded",
 	}, nil
-}
-
-func (httpTemporalE2EActivities) PurgePersonalMemoryTracesActivity(
-	context.Context,
-	temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
-) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
-	return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, nil
-}
-
-func (httpTemporalE2EActivities) VerifyPersonalMemoryTracesActivity(
-	context.Context,
-	temporalruntime.PersonalMemoryTraceMaintenanceActivityInput,
-) (temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput, error) {
-	return temporalruntime.PersonalMemoryTraceMaintenanceActivityOutput{}, nil
 }
 
 func (httpTemporalE2EActivities) FinalizePersonalMemoryCommandReceiptActivity(

@@ -29,8 +29,8 @@ Hindsight 是唯一个人记忆 runtime：
 - execution-control 拥有身份派生、bank policy、调用边界、Agent Activity 内部 handler、记忆追加
   Activity 与有界结果；
 - app-api 拥有用户设置、命令和产品投影，不直连 Hindsight；
-- Agent runtime 只向获准运行暴露仓库正式的 `personal_memory_recall`，通过 execution-control handler
-  取得有界结果，不持有 Hindsight 凭据；
+- Agent runtime 只在本轮个人记忆可用时暴露仓库正式的 `personal_memory_recall`，通过
+  execution-control handler 取得有界结果，不持有 Hindsight 凭据；
 - Hindsight 的数据库、模型与 embedding 配置属于其部署，不经过 app-api Provider Config；
 - Qdrant 只保存机构知识，不保存个人记忆。
 

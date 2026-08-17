@@ -43,7 +43,7 @@ Cloudflare application-log destination 可以消费这些日志；app-api 不维
 `searchQuery`。
 
 Cloudflare application logs 保留平台提供的结构化 `body`，不经过本地 Collector。Ops Web 只从
-固定 logs dataset 读取 `attributes.custom` 或 `body` 中允许的摘要字段，不返回任意原始 body、
+固定 logs dataset 读取 `attributes.custom` 中允许的摘要字段，不返回任意原始 body、
 attributes、header、query 或认证材料。
 
 ## Sentry
@@ -69,7 +69,7 @@ exporter。只有配置 OTLP endpoint 时才启用，且必须保持：
   `request_id`、`run_id`、`trace_id`、`turn_id` 关联字段。
 
 执行编排、Campus Docs 检索明细、Temporal activity、Hindsight 调用、queue、workflow 和
-`activity_attempt` 不再复制到 Langfuse metadata。具体字段和个人数据删除见
+`activity_attempt` 不再复制到 Langfuse metadata。具体字段边界见
 `../contracts/langfuse-runtime.md`。
 
 环境可以因配额停止 Langfuse ingestion。此时在线回答、PostgreSQL 投影和 Temporal 执行继续工作，

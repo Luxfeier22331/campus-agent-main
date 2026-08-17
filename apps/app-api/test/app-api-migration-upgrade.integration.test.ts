@@ -376,8 +376,15 @@ describe("app-api migration upgrade", () => {
 			insert into "profile"."memory_items"
 				("item_id", "owner_user_id", "key", "runtime_episode_uuid", "value", "source_type",
 				 "confidence", "visibility", "created_at", "updated_at", "last_verified_at")
-			values ('memory-upgrade-item', 'memory-upgrade-owner', 'answer_style', 'episode-legacy',
+			values
+			('memory-upgrade-item', 'memory-upgrade-owner', 'answer_style', 'episode-legacy',
 				'先给结论', 'user_declared', 'low', 'user_visible',
+				'2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z'),
+			('memory-upgrade-inferred', 'memory-upgrade-owner', 'inferred_note', 'episode-inferred',
+				'推断内容', 'session_inferred', 'low', 'user_visible',
+				'2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z'),
+			('memory-upgrade-internal', 'memory-upgrade-owner', 'internal_note', 'episode-internal',
+				'内部内容', 'user_declared', 'low', 'internal_only',
 				'2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z', '2026-07-15T08:00:00Z');
 		`);
 		await migrate(drizzle(pool), {
@@ -698,12 +705,13 @@ describe("app-api migration upgrade", () => {
 			command_sequence: string;
 			desired_state: string;
 			generation: string;
+			item_id: string;
 			lifecycle_state: string;
 			owner_generation: string;
 			revision: string;
 			sync_status: string;
 		}>(`
-			select settings."lifecycle_state", settings."generation"::text,
+			select settings."lifecycle_state", settings."generation"::text, item."item_id",
 			       settings."command_sequence"::text, item."owner_generation"::text,
 			       item."revision"::text, item."desired_state", item."sync_status"
 			from "profile"."memory_settings" settings
@@ -715,6 +723,7 @@ describe("app-api migration upgrade", () => {
 				command_sequence: "0",
 				desired_state: "present",
 				generation: "1",
+				item_id: "memory-upgrade-item",
 				lifecycle_state: "paused",
 				owner_generation: "1",
 				revision: "1",
@@ -867,6 +876,72 @@ describe("app-api migration upgrade", () => {
 				set name = excluded.name
 			`),
 		).resolves.toMatchObject({ rowCount: 1 });
+
+		const legacyMemoryColumns = await pool.query<{
+			column_default: string | null;
+			column_name: string;
+		}>(`
+			select column_name, column_default
+			from information_schema.columns
+			where table_schema = 'profile'
+			  and table_name = 'memory_items'
+			  and column_name in ('source_type', 'confidence', 'visibility', 'last_verified_at')
+			order by column_name
+		`);
+		expect(legacyMemoryColumns.rows).toEqual([
+			{ column_default: "'low'::text", column_name: "confidence" },
+			{ column_default: "now()", column_name: "last_verified_at" },
+			{ column_default: "'user_declared'::text", column_name: "source_type" },
+			{ column_default: "'user_visible'::text", column_name: "visibility" },
+		]);
+
+		await pool.query(`
+			alter table "profile"."memory_items"
+				drop column "source_type",
+				drop column "confidence",
+				drop column "visibility",
+				drop column "last_verified_at"
+		`);
+		const contractedDb = drizzle(pool, { schema: appApiSchema });
+		const contractedStore = createPgProfileMemoryStore({}, { getDb: async () => contractedDb });
+		await expect(
+			contractedStore.createItem({
+				commandId: "memory-contract-create",
+				idempotencyKeyHash: "memory-contract-create-idempotency",
+				itemId: "memory-contract-item",
+				key: "answer_style",
+				ownerUserId: "memory-contract-owner",
+				requestFingerprint: "memory-contract-create-request",
+				updatedAt: "2026-08-17T01:00:00Z",
+				value: "先给结论",
+			}),
+		).resolves.toMatchObject({ item: { itemId: "memory-contract-item" } });
+		await expect(contractedStore.listByOwner("memory-contract-owner")).resolves.toMatchObject({
+			itemCount: 1,
+			items: [{ itemId: "memory-contract-item", value: "先给结论" }],
+		});
+		await expect(
+			contractedStore.updateItem({
+				commandId: "memory-contract-update",
+				idempotencyKeyHash: "memory-contract-update-idempotency",
+				itemId: "memory-contract-item",
+				key: "answer_style",
+				ownerUserId: "memory-contract-owner",
+				requestFingerprint: "memory-contract-update-request",
+				updatedAt: "2026-08-17T01:01:00Z",
+				value: "先给步骤",
+			}),
+		).resolves.toMatchObject({ item: { revision: 2, value: "先给步骤" } });
+		await expect(
+			contractedStore.deleteItem({
+				commandId: "memory-contract-delete",
+				idempotencyKeyHash: "memory-contract-delete-idempotency",
+				itemId: "memory-contract-item",
+				ownerUserId: "memory-contract-owner",
+				requestFingerprint: "memory-contract-delete-request",
+				updatedAt: "2026-08-17T01:02:00Z",
+			}),
+		).resolves.toMatchObject({ item: { state: "deleting" } });
 	});
 
 	it("rejects app-owned partial state before creating a migration ledger", async () => {

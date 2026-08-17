@@ -69,7 +69,7 @@ schema 向前修复；不能把旧构建当作应用回滚。`model_settings` �
 
 ## v5 单向切换
 
-`tool_execution_v5` 冻结 `execution_strategy.v2`，并将获准的个人记忆召回改为模型按需调用的
+`tool_execution_v5` 冻结 `execution_strategy.v2`，并在个人记忆可用时向模型暴露按需调用的
 `personal_memory_recall` 工具。它与 v4 输入和准入快照不兼容，必须作为同一个源码 revision
 交付；不拆成双读/双写版本，也不保留 v4 fallback。Temporal 队列名仍为 `.v3`，它是
 现有工作流队列身份，不等于应用执行合同版本。
@@ -129,8 +129,8 @@ schema 向前修复；不能把旧构建当作应用回滚。`model_settings` �
 - start RPC 前已经持久化 `dispatch_attempted`；该 fence 只裁决启动和取消，不控制执行输入生命周期；
 - Primary Agent 的故障注入结果与源码测试一致：已有 `started` 或 `completed` receipt 但没有可用
   Activity result 时关闭为 `agent_attempt_uncertain`，不产生第二次供应商调用；
-- 当前新运行不含 `selected_tool` 或 handoff。关闭个人记忆召回时 `visible_tool_names` 和
-  `available_tools` 为空；允许召回时只包含 `personal_memory_recall`，工具轨迹最多产生一次对应 SDK
+- 当前新运行不含 `selected_tool` 或 handoff。个人记忆不可用时 `visible_tool_names` 和
+  `available_tools` 为空；可用时只包含 `personal_memory_recall`，工具轨迹最多产生一次对应 SDK
   调用；
 - 每个新运行的快照都包含 `campus_docs_serving.current_index` 的物理 Qdrant collection、
   dense/embedding/sparse 查询绑定、本轮查询 hash，以及 `llm` 和 `embedding` 模型设置 hash；

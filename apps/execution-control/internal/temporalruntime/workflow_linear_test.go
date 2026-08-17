@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 )
 
 func TestPersonalMemoryCommandWorkflowRetriesCallbackWithoutRepeatingProviderMutation(t *testing.T) {
@@ -298,7 +299,7 @@ func TestPersonalMemoryCommandWorkflowWaitsAtOwnerReceiptGate(t *testing.T) {
 	env.AssertActivityNumberOfCalls(t, ExecutePersonalMemoryCommandActivityName, 2)
 }
 
-func TestPersonalMemoryEraseDrainsExporterThenConverges(t *testing.T) {
+func TestPersonalMemoryEraseCompletesAfterProviderDeletion(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -318,7 +319,52 @@ func TestPersonalMemoryEraseDrainsExporterThenConverges(t *testing.T) {
 		ResultFingerprint: "fingerprint",
 		Status:            "succeeded",
 	}
+	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
+		Return(result, nil).Once()
+	env.OnActivity(
+		FinalizePersonalMemoryCommandReceiptActivityName,
+		mock.Anything,
+		FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: result},
+	).Return(result, nil).Once()
+	env.OnActivity(WritePersonalMemoryCommandResultActivityName, mock.Anything, result).
+		Return(nil).Once()
+
+	env.ExecuteWorkflow(PersonalMemoryCommandWorkflow, PersonalMemoryCommandWorkflowInput{Command: command})
+
+	if err := env.GetWorkflowError(); err != nil {
+		t.Fatalf("workflow error: %v", err)
+	}
+	env.AssertActivityNumberOfCalls(t, PurgePersonalMemoryTracesActivityName, 0)
+	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, 0)
+	env.AssertActivityNumberOfCalls(t, FinalizePersonalMemoryCommandReceiptActivityName, 1)
+}
+
+func TestPersonalMemoryEraseReplaysLegacyTraceMaintenance(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	command := memoryruntime.PersonalMemoryCommandRequest{
+		CommandID:         "cmd-owner-erase-legacy",
+		CommandKind:       "owner_erase",
+		OwnerGeneration:   2,
+		OwnerSequence:     3,
+		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
+		SourceUpdatedAt:   "2026-07-16T00:00:00Z",
+		SupersessionScope: "owner:erase:2",
+		TenantID:          "tenant-main",
+		UserID:            "user-1",
+	}
+	result := PersonalMemoryCommandActivityOutput{
+		CommandID:         command.CommandID,
+		ResultFingerprint: "fingerprint",
+		Status:            "succeeded",
+	}
 	maintenanceInput := PersonalMemoryTraceMaintenanceActivityInput{Command: command}
+	env.OnGetVersion(
+		personalMemoryTraceMaintenanceRemovalChangeID,
+		workflow.DefaultVersion,
+		personalMemoryTraceMaintenanceRemovedVersion,
+	).Return(workflow.DefaultVersion).Once()
 	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
 		Return(result, nil).Once()
 	env.OnActivity(PurgePersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
@@ -340,64 +386,6 @@ func TestPersonalMemoryEraseDrainsExporterThenConverges(t *testing.T) {
 	}
 	env.AssertActivityNumberOfCalls(t, PurgePersonalMemoryTracesActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, 1)
-	env.AssertActivityNumberOfCalls(t, FinalizePersonalMemoryCommandReceiptActivityName, 1)
-}
-
-func TestPersonalMemoryEraseFailsAfterBoundedVerificationRounds(t *testing.T) {
-	var suite testsuite.WorkflowTestSuite
-	env := suite.NewTestWorkflowEnvironment()
-	registerWorkflowTestActivities(env, &Activities{})
-	command := memoryruntime.PersonalMemoryCommandRequest{
-		CommandID:         "cmd-owner-erase-bounded",
-		CommandKind:       "owner_erase",
-		OwnerGeneration:   2,
-		OwnerSequence:     3,
-		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
-		SourceUpdatedAt:   "2026-07-16T00:00:00Z",
-		SupersessionScope: "owner:erase:2",
-		TenantID:          "tenant-main",
-		UserID:            "user-1",
-	}
-	succeeded := PersonalMemoryCommandActivityOutput{
-		CommandID:         command.CommandID,
-		ResultFingerprint: "fingerprint",
-		Status:            "succeeded",
-	}
-	failed := PersonalMemoryCommandActivityOutput{
-		CommandID: command.CommandID,
-		ErrorCode: "personal_memory_trace_erase_failed",
-		Status:    "failed",
-	}
-	maintenanceInput := PersonalMemoryTraceMaintenanceActivityInput{Command: command}
-	env.OnActivity(ExecutePersonalMemoryCommandActivityName, mock.Anything, command).
-		Return(succeeded, nil).Once()
-	env.OnActivity(PurgePersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
-		Return(PersonalMemoryTraceMaintenanceActivityOutput{}, nil).Times(personalMemoryEraseMaxRounds)
-	env.OnActivity(VerifyPersonalMemoryTracesActivityName, mock.Anything, maintenanceInput).
-		Return(PersonalMemoryTraceMaintenanceActivityOutput{RemainingTraceCount: 1}, nil).
-		Times(personalMemoryEraseMaxRounds)
-	env.OnActivity(
-		FinalizePersonalMemoryCommandReceiptActivityName,
-		mock.Anything,
-		FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: failed},
-	).Return(failed, nil).Once()
-	env.OnActivity(WritePersonalMemoryCommandResultActivityName, mock.Anything, failed).
-		Return(nil).Once()
-
-	env.ExecuteWorkflow(PersonalMemoryCommandWorkflow, PersonalMemoryCommandWorkflowInput{Command: command})
-
-	if err := env.GetWorkflowError(); err != nil {
-		t.Fatalf("workflow error: %v", err)
-	}
-	var result PersonalMemoryCommandActivityOutput
-	if err := env.GetWorkflowResult(&result); err != nil {
-		t.Fatal(err)
-	}
-	if result != failed {
-		t.Fatalf("result = %#v, want %#v", result, failed)
-	}
-	env.AssertActivityNumberOfCalls(t, PurgePersonalMemoryTracesActivityName, personalMemoryEraseMaxRounds)
-	env.AssertActivityNumberOfCalls(t, VerifyPersonalMemoryTracesActivityName, personalMemoryEraseMaxRounds)
 }
 
 func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
@@ -466,10 +454,10 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
 		Run(func(mock.Arguments) { sequence = append(sequence, "memory_append") }).
 		Return(AppendConversationMemoryActivityOutput{
-			PayloadSHA256: "sha256:memory",
-			RunID:         runID,
-			SchemaVersion: "memory_conversation_append_result_v1",
-			Status:        "completed",
+			AppendedMessageCount: 1,
+			RunID:                runID,
+			SchemaVersion:        "memory_conversation_append_result_v3",
+			Status:               "completed",
 		}, nil)
 	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
 		AdmissionSnapshot: AgentAdmissionSnapshot{CampusDocsRetrieval: CampusDocsRetrievalAdmission{

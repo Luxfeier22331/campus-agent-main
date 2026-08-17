@@ -97,14 +97,15 @@ item 和 Hindsight bank，但后续运行不会召回或追加个人记忆。
 ### `DELETE /api/me/profile-memory`
 
 接受当前账号的完整清除命令，响应 lifecycle 为 `erasing`。只有代次隔离、Hindsight
-bank 删除和受约束的 Langfuse trace 删除均完成后，状态才会进入 `erased`。
+bank 删除及不存在确认完成后，状态才会进入 `erased`。
 
 ## 共同规则
 
 - 所有接口都要求已解析的会话用户；认证和错误 envelope 见 [错误合同](./error.md)。
-- `key` 必须以小写字母开头，只包含小写字母、数字、`_`、`:`、`-`，最长 64 个字符，并拒绝
-  授权、权限、token 和可见性类键。
+- `key` 去除首尾空白并合并连续 Unicode 空白，保留大小写，长度为 1 到 64 个 Unicode 字符。
 - `value` 会去除首尾空白、合并连续空白，非空且最长 500 个字符。
+- `pending` 表示命令仍在收敛，此时新聊天不启用 recall/append；`failed` 保留失败状态供用户处理，
+  但不会关闭 active lifecycle 下已存在的记忆运行时。
 - item ID 只在当前用户范围内有效；浏览器不会获得 bank、document、operation 或 provider ID。
 - 个人记忆不能改变身份、授权、工具准入或知识目标准入。
 - 当前产品 tenant 为显式 `tenant-main`，由 app-api 调用 execution-control 内部命令时传递。

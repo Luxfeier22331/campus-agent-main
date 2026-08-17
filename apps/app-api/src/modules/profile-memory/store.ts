@@ -1,11 +1,11 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { bigint, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 import type { Env } from "../../config";
 import { createRuntimeDbGetter, type RuntimeDbGetter } from "../../db/runtime";
 import {
 	profileMemoryCommandSources,
 	profileMemoryCommands,
-	profileMemoryItems,
 	profileMemorySettings,
 } from "../../db/schema";
 import {
@@ -22,11 +22,25 @@ import type {
 	ProfileMemoryLifecycleState,
 	ProfileMemoryList,
 	ProfileMemoryMutationResult,
-	ProfileMemoryProjectionItem,
-	ProfileMemorySummary,
 	ProfileMemorySyncStatus,
 } from "./model";
 import { profileMemoryItemState, toIsoString } from "./model";
+
+const profileRuntime = pgSchema("profile");
+
+const profileMemoryItems = profileRuntime.table("memory_items", {
+	itemId: text("item_id").primaryKey(),
+	ownerUserId: text("owner_user_id").notNull(),
+	ownerGeneration: bigint("owner_generation", { mode: "number" }).notNull().default(1),
+	key: text("key").notNull(),
+	value: text("value").notNull(),
+	revision: bigint("revision", { mode: "number" }).notNull().default(1),
+	desiredState: text("desired_state").notNull().default("present"),
+	syncStatus: text("sync_status").notNull().default("pending"),
+	syncErrorCode: text("sync_error_code"),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
 
 export class ProfileMemoryStoreConflict extends Error {
 	readonly code:
@@ -75,6 +89,11 @@ export interface ProfileMemoryStore {
 	): Promise<ProfileMemoryMutationResult>;
 	deleteItem(input: MutationBase & { itemId: string }): Promise<ProfileMemoryMutationResult | null>;
 	erase(input: MutationBase): Promise<ProfileMemoryMutationResult>;
+	findCommandByIdempotency(input: {
+		idempotencyKeyHash: string;
+		ownerUserId: string;
+		requestFingerprint: string;
+	}): Promise<Pick<ProfileMemoryCommand, "commandId" | "status"> | null>;
 	listPendingAdmissions(input: { limit: number }): Promise<ProfileMemoryCommandPayload[]>;
 	markCommandAdmitted(input: {
 		admittedAt: string;
@@ -82,8 +101,6 @@ export interface ProfileMemoryStore {
 		workflowId: string;
 	}): Promise<boolean>;
 	listByOwner(ownerUserId: string): Promise<ProfileMemoryList>;
-	listProjectionItems(input: { ownerUserId: string }): Promise<ProfileMemoryProjectionItem[]>;
-	loadSummary(input: { ownerUserId: string }): Promise<ProfileMemorySummary>;
 	setLifecycle(
 		input: MutationBase & {
 			lifecycleState: "active" | "paused";
@@ -98,11 +115,23 @@ export interface ProfileMemoryStore {
 	): Promise<ProfileMemoryMutationResult | null>;
 }
 
-export type ProfileMemoryProjectionStore = Pick<ProfileMemoryStore, "listProjectionItems">;
-
 type SettingsRow = typeof profileMemorySettings.$inferSelect;
 type ItemRow = typeof profileMemoryItems.$inferSelect;
 type CommandRow = typeof profileMemoryCommands.$inferSelect;
+
+const profileMemoryItemSelection = {
+	createdAt: profileMemoryItems.createdAt,
+	desiredState: profileMemoryItems.desiredState,
+	itemId: profileMemoryItems.itemId,
+	key: profileMemoryItems.key,
+	ownerGeneration: profileMemoryItems.ownerGeneration,
+	ownerUserId: profileMemoryItems.ownerUserId,
+	revision: profileMemoryItems.revision,
+	syncErrorCode: profileMemoryItems.syncErrorCode,
+	syncStatus: profileMemoryItems.syncStatus,
+	updatedAt: profileMemoryItems.updatedAt,
+	value: profileMemoryItems.value,
+};
 
 function defaultSettings(ownerUserId: string): SettingsRow {
 	return {
@@ -125,18 +154,6 @@ function toItem(row: ItemRow): ProfileMemoryItem {
 		state: profileMemoryItemState(row),
 		updatedAt: toIsoString(row.updatedAt),
 		value: row.value,
-	};
-}
-
-function toProjectionItem(row: ItemRow): ProfileMemoryProjectionItem {
-	return {
-		confidence: row.confidence as ProfileMemoryProjectionItem["confidence"],
-		itemId: row.itemId,
-		key: row.key,
-		lastVerifiedAt: toIsoString(row.lastVerifiedAt),
-		sourceType: row.sourceType as ProfileMemoryProjectionItem["sourceType"],
-		value: row.value,
-		visibility: row.visibility as ProfileMemoryProjectionItem["visibility"],
 	};
 }
 
@@ -221,6 +238,30 @@ export function createPgProfileMemoryStore(
 		return command;
 	}
 
+	async function readLatestOwnerErase(
+		tx: ProfileMemoryTransaction,
+		ownerUserId: string,
+		generation: number,
+	): Promise<CommandRow | null> {
+		const rows = await tx
+			.select()
+			.from(profileMemoryCommands)
+			.where(
+				and(
+					eq(profileMemoryCommands.ownerUserId, ownerUserId),
+					eq(profileMemoryCommands.ownerGeneration, generation),
+					eq(profileMemoryCommands.commandKind, "owner_erase"),
+					eq(
+						profileMemoryCommands.supersessionScope,
+						PROFILE_MEMORY_SUPERSESSION_SCOPE.erase(generation),
+					),
+				),
+			)
+			.orderBy(desc(profileMemoryCommands.ownerSequence))
+			.limit(1);
+		return rows[0] ?? null;
+	}
+
 	async function replayResult(
 		tx: ProfileMemoryTransaction,
 		input: MutationBase,
@@ -231,7 +272,7 @@ export function createPgProfileMemoryStore(
 			return mutationResult(settings);
 		}
 		const rows = await tx
-			.select()
+			.select(profileMemoryItemSelection)
 			.from(profileMemoryItems)
 			.where(
 				and(
@@ -312,7 +353,7 @@ export function createPgProfileMemoryStore(
 				) {
 					const subjectRows = command.subjectId
 						? await tx
-								.select()
+								.select(profileMemoryItemSelection)
 								.from(profileMemoryItems)
 								.where(
 									and(
@@ -418,22 +459,18 @@ export function createPgProfileMemoryStore(
 				const itemRows = await tx
 					.insert(profileMemoryItems)
 					.values({
-						confidence: "low",
 						createdAt: now,
 						desiredState: "present",
 						itemId: input.itemId,
 						key: input.key,
-						lastVerifiedAt: now,
 						ownerGeneration: settings.generation,
 						ownerUserId: input.ownerUserId,
 						revision: 1,
-						sourceType: "user_declared",
 						syncStatus: "pending",
 						updatedAt: now,
 						value: input.value,
-						visibility: "user_visible",
 					})
-					.returning();
+					.returning(profileMemoryItemSelection);
 				await tx.insert(profileMemoryCommands).values({
 					acceptedItemKey: input.key,
 					acceptedItemValue: input.value,
@@ -487,7 +524,7 @@ export function createPgProfileMemoryStore(
 				}
 				assertItemMutable(settings);
 				const itemRows = await tx
-					.select()
+					.select(profileMemoryItemSelection)
 					.from(profileMemoryItems)
 					.where(
 						and(
@@ -520,7 +557,7 @@ export function createPgProfileMemoryStore(
 						updatedAt: now,
 					})
 					.where(eq(profileMemoryItems.itemId, item.itemId))
-					.returning();
+					.returning(profileMemoryItemSelection);
 				await tx.insert(profileMemoryCommands).values({
 					acceptedLifecycleState: settings.lifecycleState,
 					commandId: input.commandId,
@@ -569,6 +606,15 @@ export function createPgProfileMemoryStore(
 				const replay = await readReplay(tx, input);
 				if (replay) {
 					return replayResult(tx, input, replay, settings);
+				}
+				const latestErase = await readLatestOwnerErase(tx, input.ownerUserId, settings.generation);
+				if (
+					settings.lifecycleState === "erased" ||
+					(settings.lifecycleState === "erasing" &&
+						latestErase !== null &&
+						(latestErase.status === "pending_admission" || latestErase.status === "admitted"))
+				) {
+					return mutationResult(settings);
 				}
 				const generation =
 					settings.lifecycleState === "erasing" ? settings.generation : settings.generation + 1;
@@ -647,6 +693,35 @@ export function createPgProfileMemoryStore(
 			});
 		},
 
+		async findCommandByIdempotency(input) {
+			const db = await getDb();
+			const rows = await db
+				.select({
+					commandId: profileMemoryCommands.commandId,
+					requestFingerprint: profileMemoryCommands.requestFingerprint,
+					status: profileMemoryCommands.status,
+				})
+				.from(profileMemoryCommands)
+				.where(
+					and(
+						eq(profileMemoryCommands.ownerUserId, input.ownerUserId),
+						eq(profileMemoryCommands.idempotencyKeyHash, input.idempotencyKeyHash),
+					),
+				)
+				.limit(1);
+			const command = rows[0];
+			if (!command) {
+				return null;
+			}
+			if (command.requestFingerprint !== input.requestFingerprint) {
+				throw new ProfileMemoryStoreConflict("idempotency_conflict");
+			}
+			return {
+				commandId: command.commandId,
+				status: command.status as ProfileMemoryCommand["status"],
+			};
+		},
+
 		async listPendingAdmissions(input) {
 			const db = await getDb();
 			const commands = await db
@@ -714,57 +789,15 @@ export function createPgProfileMemoryStore(
 			const settings = await readSettings(ownerUserId);
 			const db = await getDb();
 			const rows = await db
-				.select()
+				.select(profileMemoryItemSelection)
 				.from(profileMemoryItems)
-				.where(
-					and(
-						eq(profileMemoryItems.ownerUserId, ownerUserId),
-						eq(profileMemoryItems.visibility, "user_visible"),
-						eq(profileMemoryItems.sourceType, "user_declared"),
-					),
-				)
+				.where(eq(profileMemoryItems.ownerUserId, ownerUserId))
 				.orderBy(asc(profileMemoryItems.key));
 			return {
 				itemCount: rows.filter((row) => row.desiredState === "present").length,
 				items: rows.map(toItem),
 				lifecycleState: settings.lifecycleState as ProfileMemoryLifecycleState,
 				syncStatus: settings.syncStatus as ProfileMemorySyncStatus,
-			};
-		},
-
-		async listProjectionItems(input) {
-			const settings = await readSettings(input.ownerUserId);
-			if (settings.lifecycleState !== "active" || settings.syncStatus !== "synced") {
-				return [];
-			}
-			const db = await getDb();
-			const rows = await db
-				.select()
-				.from(profileMemoryItems)
-				.where(
-					and(
-						eq(profileMemoryItems.ownerUserId, input.ownerUserId),
-						eq(profileMemoryItems.visibility, "user_visible"),
-						eq(profileMemoryItems.desiredState, "present"),
-						eq(profileMemoryItems.syncStatus, "synced"),
-					),
-				)
-				.orderBy(asc(profileMemoryItems.key));
-			return rows.map(toProjectionItem);
-		},
-
-		async loadSummary(input) {
-			const [list, settings] = await Promise.all([
-				this.listByOwner(input.ownerUserId),
-				readSettings(input.ownerUserId),
-			]);
-			return {
-				commandSequence: settings.commandSequence,
-				enabled: list.lifecycleState === "active" && list.syncStatus === "synced",
-				generation: settings.generation,
-				itemCount: list.itemCount,
-				lifecycleState: list.lifecycleState,
-				syncStatus: list.syncStatus,
 			};
 		},
 
@@ -849,7 +882,7 @@ export function createPgProfileMemoryStore(
 				}
 				assertItemMutable(settings);
 				const itemRows = await tx
-					.select()
+					.select(profileMemoryItemSelection)
 					.from(profileMemoryItems)
 					.where(
 						and(
@@ -897,7 +930,7 @@ export function createPgProfileMemoryStore(
 						value: input.value,
 					})
 					.where(eq(profileMemoryItems.itemId, item.itemId))
-					.returning();
+					.returning(profileMemoryItemSelection);
 				await tx.insert(profileMemoryCommands).values({
 					acceptedItemKey: input.key,
 					acceptedItemValue: input.value,

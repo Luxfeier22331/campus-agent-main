@@ -1,6 +1,3 @@
-export type ProfileMemorySourceType = "user_declared" | "session_inferred";
-export type ProfileMemoryConfidence = "low" | "medium" | "high";
-export type ProfileMemoryVisibility = "user_visible" | "internal_only";
 export type ProfileMemoryLifecycleState = "active" | "paused" | "erasing" | "erased";
 export type ProfileMemorySyncStatus = "synced" | "pending" | "failed";
 export type ProfileMemoryItemState = "synced" | "saving" | "deleting" | "failed";
@@ -28,25 +25,6 @@ export interface ProfileMemoryList {
 	syncStatus: ProfileMemorySyncStatus;
 }
 
-export interface ProfileMemorySummary {
-	commandSequence?: number;
-	enabled: boolean;
-	generation?: number;
-	itemCount: number;
-	lifecycleState: ProfileMemoryLifecycleState;
-	syncStatus: ProfileMemorySyncStatus;
-}
-
-export interface ProfileMemoryProjectionItem {
-	confidence: ProfileMemoryConfidence;
-	itemId: string;
-	key: string;
-	lastVerifiedAt: string;
-	sourceType: ProfileMemorySourceType;
-	value: string;
-	visibility: ProfileMemoryVisibility;
-}
-
 export interface ProfileMemoryCommand {
 	commandId: string;
 	commandKind: ProfileMemoryCommandKind;
@@ -64,6 +42,13 @@ export interface ProfileMemoryMutationResult {
 	item?: ProfileMemoryItem;
 	lifecycleState: ProfileMemoryLifecycleState;
 	syncStatus: ProfileMemorySyncStatus;
+}
+
+export function isProfileMemoryRuntimeEnabled(input: {
+	lifecycleState: string;
+	syncStatus: string;
+}): boolean {
+	return input.lifecycleState === "active" && input.syncStatus !== "pending";
 }
 
 export function profileMemoryItemState(input: {
@@ -87,33 +72,15 @@ function normalizeString(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
 }
 
-const MEMORY_KEY_PATTERN = /^[a-z][a-z0-9_:-]{0,63}$/;
-const AUTHZ_KEY_FRAGMENTS = [
-	"acl",
-	"admin",
-	"approval",
-	"auth",
-	"entitlement",
-	"permission",
-	"role",
-	"token",
-	"visibility",
-];
-
 export function normalizeProfileMemoryKey(value: unknown): string {
-	const normalized = normalizeString(value).toLowerCase();
-	if (!MEMORY_KEY_PATTERN.test(normalized)) {
-		return "";
-	}
-	if (AUTHZ_KEY_FRAGMENTS.some((fragment) => normalized.includes(fragment))) {
-		return "";
-	}
-	return normalized;
+	const normalized = normalizeString(value).replace(/\s+/gu, " ");
+	const characterCount = Array.from(normalized).length;
+	return characterCount >= 1 && characterCount <= 64 ? normalized : "";
 }
 
 export function normalizeProfileMemoryValue(value: unknown): string {
 	const normalized = normalizeString(value).replace(/\s+/g, " ");
-	if (!normalized || normalized.length > 500) {
+	if (!normalized || Array.from(normalized).length > 500) {
 		return "";
 	}
 	return normalized;

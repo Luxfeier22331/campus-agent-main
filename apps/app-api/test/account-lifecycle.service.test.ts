@@ -45,7 +45,9 @@ describe("account lifecycle service", () => {
 	});
 
 	it("deletes product data and the Better Auth user only after memory erasure converges", async () => {
-		const erase = vi.fn().mockResolvedValue({ lifecycleState: "erasing", syncStatus: "pending" });
+		const eraseForAccountDeletion = vi
+			.fn()
+			.mockResolvedValue({ lifecycleState: "erasing", syncStatus: "pending" });
 		const dispatchPending = vi.fn().mockResolvedValue({ admitted: 1, failed: 0, processed: 1 });
 		const completeDeletion = vi.fn();
 		const deleteOwnedData = vi.fn();
@@ -64,7 +66,7 @@ describe("account lifecycle service", () => {
 			.mockResolvedValue([]);
 		const defer = vi.fn().mockResolvedValue(true);
 		const service = buildAccountLifecycleService({
-			profileMemoryService: { dispatchPending, erase } as never,
+			profileMemoryService: { dispatchPending, eraseForAccountDeletion },
 			removeAuthUser,
 			safetyIdentifierForUser: () => "safety-user-1",
 			store: {
@@ -93,8 +95,8 @@ describe("account lifecycle service", () => {
 			failed: 0,
 			processed: 1,
 		});
-		expect(erase).toHaveBeenCalledWith(
-			expect.objectContaining({ idempotencyKey: "account-delete:acctdel_1" }),
+		expect(eraseForAccountDeletion).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId: "acctdel_1" }),
 		);
 		expect(deleteOwnedData).toHaveBeenCalledWith(request, expect.any(Date), "safety-user-1");
 		expect(removeAuthUser).toHaveBeenCalledWith("user_1");
@@ -107,8 +109,8 @@ describe("account lifecycle service", () => {
 		const service = buildAccountLifecycleService({
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
-				erase: vi.fn().mockRejectedValue(new Error("downstream unavailable")),
-			} as never,
+				eraseForAccountDeletion: vi.fn().mockRejectedValue(new Error("downstream unavailable")),
+			},
 			removeAuthUser: vi.fn(),
 			safetyIdentifierForUser: () => null,
 			store: {
@@ -145,8 +147,8 @@ describe("account lifecycle service", () => {
 		const service = buildAccountLifecycleService({
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
-				erase: vi.fn(),
-			} as never,
+				eraseForAccountDeletion: vi.fn(),
+			},
 			removeAuthUser,
 			safetyIdentifierForUser: () => "safety-user-1",
 			store: {
@@ -194,8 +196,8 @@ describe("account lifecycle service", () => {
 		const service = buildAccountLifecycleService({
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
-				erase: vi.fn(),
-			} as never,
+				eraseForAccountDeletion: vi.fn(),
+			},
 			removeAuthUser: vi.fn(),
 			safetyIdentifierForUser: () => null,
 			store: {

@@ -81,10 +81,10 @@ mode/status。普通任务可以不引用文档直接回答；机构事实主张
 
 | 名称 | 暴露范围 | 用途 |
 | --- | --- | --- |
-| `personal_memory_recall` | 按本轮授权开放 | 有界读取当前用户的个人记忆 |
+| `personal_memory_recall` | 本轮个人记忆可用时按需开放 | 有界读取当前用户已保存的个人事实和偏好 |
 
-未获个人记忆召回授权的运行没有模型可见工具；获授权的运行最多调用一次
-`personal_memory_recall`。Campus Docs 检索不是模型工具，也不进入工具轨迹。
+个人记忆不可用的运行没有模型可见工具；可用时最多调用一次 `personal_memory_recall`。Campus Docs
+检索不是模型工具，也不进入工具轨迹。
 
 ## 离线知识数据
 

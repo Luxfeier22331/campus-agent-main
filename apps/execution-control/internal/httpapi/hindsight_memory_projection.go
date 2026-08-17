@@ -7,6 +7,8 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
+const maxHindsightCompactTextBytes = 1200
+
 func hindsightRecallQuery(request memoryruntime.RecallRequest) string {
 	query := strings.TrimSpace(request.UserGoal)
 	if len(request.SessionSlots) == 0 {
@@ -37,25 +39,16 @@ func hindsightRecallQuery(request memoryruntime.RecallRequest) string {
 func hindsightContextItems(
 	results []hindsightRecallResult,
 	limit int,
-) []memoryruntime.ContextItem {
-	items := make([]memoryruntime.ContextItem, 0, len(results))
+) []string {
+	items := make([]string, 0, len(results))
 	for _, result := range results {
 		if limit > 0 && len(items) >= limit {
 			break
 		}
-		if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.Text) == "" {
+		if strings.TrimSpace(result.Text) == "" {
 			continue
 		}
-		updatedAt := firstNonEmpty(result.OccurredEnd, result.OccurredStart, result.MentionedAt)
-		memoryType := defaultString(strings.TrimSpace(result.Type), "experience")
-		items = append(items, memoryruntime.ContextItem{
-			CompactText:     truncateUTF8Bytes(strings.TrimSpace(result.Text), memoryruntime.MaxCompactTextBytes),
-			MemoryID:        strings.TrimSpace(result.ID),
-			MemoryType:      memoryType,
-			Score:           result.Score,
-			SourceFactCount: result.SourceFactCount,
-			UpdatedAt:       updatedAt,
-		})
+		items = append(items, truncateUTF8Bytes(strings.TrimSpace(result.Text), maxHindsightCompactTextBytes))
 	}
 	return items
 }
@@ -72,7 +65,7 @@ func truncateUTF8Bytes(value string, limit int) string {
 	return string(bytes[:end])
 }
 
-func hindsightContextBlock(items []memoryruntime.ContextItem, maxChars int) string {
+func hindsightContextBlock(items []string, maxChars int) string {
 	if len(items) == 0 || maxChars <= 0 {
 		return ""
 	}
@@ -82,7 +75,7 @@ func hindsightContextBlock(items []memoryruntime.ContextItem, maxChars int) stri
 	usedChars := len([]rune(header))
 	usedChars = writeHindsightContextLine(&builder, usedChars, maxChars, "相关事实:\n")
 	for _, item := range items {
-		usedChars = writeHindsightContextLine(&builder, usedChars, maxChars, "- "+strings.TrimSpace(item.CompactText)+"\n")
+		usedChars = writeHindsightContextLine(&builder, usedChars, maxChars, "- "+strings.TrimSpace(item)+"\n")
 	}
 	return strings.TrimSpace(builder.String())
 }
@@ -132,24 +125,4 @@ func copyStringMap(input map[string]string) map[string]string {
 		output[key] = value
 	}
 	return output
-}
-
-func copyAnyMap(input map[string]any) map[string]any {
-	if len(input) == 0 {
-		return nil
-	}
-	output := make(map[string]any, len(input))
-	for key, value := range input {
-		output[key] = value
-	}
-	return output
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }

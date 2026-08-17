@@ -26,6 +26,7 @@ import {
 } from "../../db/schema";
 import { ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS } from "../abuse-throttle-policy";
 import type { ChatConversation } from "../chat";
+import { isProfileMemoryRuntimeEnabled } from "../profile-memory/model";
 import { createEmptyAbuseControlState, deriveAbuseControlState } from "./store-abuse";
 import { buildStoredIdempotentRequest, toChatConversation } from "./store-conversation";
 import {
@@ -508,11 +509,12 @@ export function createPgChatCommandStore(
 					const settings = settingsRows[0];
 					const lifecycleState = settings?.lifecycleState ?? "active";
 					const syncStatus = settings?.syncStatus ?? "synced";
+					const memoryEnabled = isProfileMemoryRuntimeEnabled({ lifecycleState, syncStatus });
 					memorySnapshot = {
-						appendEnabled: lifecycleState === "active" && syncStatus === "synced",
+						appendEnabled: memoryEnabled,
 						ownerGeneration: settings?.generation ?? 1,
 						ownerSequence: settings?.commandSequence ?? 0,
-						recallEnabled: lifecycleState === "active" && syncStatus === "synced",
+						recallEnabled: memoryEnabled,
 					};
 				}
 				const frozenAdmission = input.freezeDurableAdmission(memorySnapshot);

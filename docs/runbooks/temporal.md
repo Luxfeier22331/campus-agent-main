@@ -11,8 +11,7 @@ status: active
 endpoint 和资源尺寸由环境仓库拥有，不在本文复制。
 
 本文不定义应用工作流语义：在线回答见 `../architecture/system/durable-runtime.md`，个人记忆见
-`../architecture/system/memory-plane.md`，Langfuse 个人数据清除见
-`../contracts/langfuse-runtime.md`。平台运维不得改变这些工作流的业务状态。
+`../architecture/system/memory-plane.md`。平台运维不得改变这些工作流的业务状态。
 
 execution-control 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
 poller；ingestion-control worker 与 source-collector worker 各使用一个标准 Deployment。副本数与
@@ -49,6 +48,9 @@ Temporal `WorkflowExecutionTimeout`；source K8s manifest 与本地 compose 必�
 1. 核对开放 workflow、backlog、Activity error 与产品终态后完成变更。
 
 不得直接 patch Deployment，也不得用普通滚动更新交付无法 replay 已有 history 的 workflow code。
+删除 workflow command、timer 或 activity 时，先用 SDK version marker 保留旧 history 分支，并继续
+注册旧 history 仍会调度的 activity。只有旧 poller 退出前启动的相关开放 workflow 全部终止后，后续
+发布才能删除旧分支和 activity；固定 version marker 继续保留，不能复用其 change ID。
 
 源码 base 只保留标准 Deployment，不再声明 `WorkerDeployment`、`WorkerResourceTemplate` 或 KEDA。
 环境仓若仍有旧迁移资源，应依据该环境的开放 workflow 和 poller 状态单独完成排空与清理；不得把

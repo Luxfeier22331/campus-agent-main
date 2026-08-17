@@ -255,7 +255,7 @@ export function buildChatCommandService(
 		const workflowId = `campus-agent.chat.${runId}`;
 		const acceptedWrite = buildAcceptedWrite({
 			assistantMessageId,
-			captureMemorySnapshot: dependencies.profileMemoryStore !== undefined,
+			captureMemorySnapshot: dependencies.captureProfileMemorySnapshot === true,
 			branchId,
 			conversation,
 			...(conversationSeed ? { conversationSeed } : {}),

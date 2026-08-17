@@ -23,7 +23,7 @@ func (s *Server) RetrieveCampusDocsEvidenceActivity(
 		sha256JSONRef(input.AdmissionSnapshot) != input.AdmissionSnapshotSHA256 {
 		return temporalruntime.CampusDocsRetrievalResult{}, sanitizedTemporalApplicationError(
 			"campus_docs_retrieval_unavailable",
-			errors.New("Campus docs admission identity is invalid"),
+			errors.New("campus docs admission identity is invalid"),
 			true,
 		)
 	}
@@ -47,7 +47,7 @@ func (s *Server) RetrieveCampusDocsEvidenceActivity(
 	if querySHA256 != admission.QuerySHA256 {
 		return temporalruntime.CampusDocsRetrievalResult{}, sanitizedTemporalApplicationError(
 			"campus_docs_retrieval_unavailable",
-			errors.New("Campus docs query differs from admission"),
+			errors.New("campus docs query differs from admission"),
 			true,
 		)
 	}
@@ -59,7 +59,7 @@ func (s *Server) RetrieveCampusDocsEvidenceActivity(
 	if s.campusDocsRetriever == nil {
 		return temporalruntime.CampusDocsRetrievalResult{}, sanitizedTemporalApplicationError(
 			"campus_docs_retrieval_unavailable",
-			errors.New("Campus docs retriever is not configured"),
+			errors.New("campus docs retriever is not configured"),
 			false,
 		)
 	}

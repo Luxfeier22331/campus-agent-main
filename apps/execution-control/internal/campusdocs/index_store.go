@@ -59,7 +59,7 @@ func (s *PostgresIndexStore) Close() {
 
 func (s *PostgresIndexStore) CurrentIndex(ctx context.Context) (Index, bool, error) {
 	if s == nil || s.pool == nil {
-		return Index{}, false, errors.New("Campus docs index store is not configured")
+		return Index{}, false, errors.New("campus docs index store is not configured")
 	}
 	var index Index
 	err := s.pool.QueryRow(
@@ -102,7 +102,7 @@ func ValidateIndex(index Index) error {
 		strings.TrimSpace(index.EmbeddingSpaceID) == "" ||
 		strings.TrimSpace(index.SparseModel) == "" ||
 		strings.TrimSpace(index.SparseVectorName) == "" {
-		return errors.New("Campus docs current index query binding is invalid")
+		return errors.New("campus docs current index query binding is invalid")
 	}
 	return nil
 }

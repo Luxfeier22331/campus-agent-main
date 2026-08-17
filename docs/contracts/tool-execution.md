@@ -65,10 +65,20 @@ task-queue 字段。
 `configs/runtime/tools.v6.json` 与
 `configs/runtime/tool-function-schemas.v3.json` 是运行时工具事实。当前登记的内部合同为：
 
-- `personal_memory_recall`：按获准用户身份读取有界个人记忆。
+- `personal_memory_recall`：按当前 run 绑定的用户身份读取有界个人记忆。
 
-`personal_memory_recall` 为 `model_visible`，但只在 execution-control 冻结的本轮授权允许召回时注册到
-Agent Runtime，且预算固定为一次调用；未获授权时 `visible_tool_names` 为空。
+`personal_memory_recall` 的 exposure 登记为 `model_visible`，但注册表本身不会自动向 Agent Runtime
+开放工具：
+
+- `personal_memory_recall_allowed=false` 时使用 `memory_recall=disabled`、`max_model_turns=1`、
+  `max_tool_calls=0` 和空 `visible_tool_names`；
+- `personal_memory_recall_allowed=true` 时使用 `memory_recall=model_optional`、`max_model_turns=2`、
+  `max_tool_calls=1`，并只开放 `personal_memory_recall`。
+
+`personal_memory_recall_allowed` 是当前 v5 私有 wire 字段，表示由个人记忆生命周期和就绪状态派生、
+随本轮冻结的内部可用性，不表示用户同意状态或逐次读取授权。浏览器和用户文案不得暴露该字段、
+recall 工具或执行结果。matched personal memory 可以支持用户自身事实或偏好，但不能支持机构事实、
+替代 Campus Docs evidence 或成为公开来源。
 
 机构文档不作为工具开放。execution-control 为每个有效请求冻结 PostgreSQL 当前索引查询绑定、本轮
 查询 hash 和 `embedding` 模型设置 hash，并由 `RetrieveCampusDocsEvidenceActivity` 在模型调用前

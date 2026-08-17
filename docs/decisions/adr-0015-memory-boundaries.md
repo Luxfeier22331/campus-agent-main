@@ -20,7 +20,7 @@ partially_superseded_by: ADR-0058
 ### 四类事实分开维护
 
 - `account / session`：稳定用户标识、会话有效性和调用方类别，由 `apps/app-api` 拥有；
-- `profile memory`：用户允许持久化的长期偏好、目标和背景；
+- `profile memory`：用户可管理的长期偏好、目标和背景；
 - `session memory`：当前会话摘要、已确认槽位和短期上下文；
 - `institutional knowledge`：校园制度、培养方案和已发布内容，是回答机构事实的主要来源。
 

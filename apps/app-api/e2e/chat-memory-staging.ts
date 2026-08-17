@@ -60,6 +60,19 @@ interface RuntimeStepTrajectory {
 	}>;
 }
 
+interface ProfileMemoryItemSnapshot {
+	itemId: string;
+	key: string;
+	state: "synced" | "saving" | "deleting" | "failed";
+	value: string;
+}
+
+interface ProfileMemorySnapshot {
+	items: ProfileMemoryItemSnapshot[];
+	lifecycleState: "active" | "paused" | "erasing" | "erased";
+	syncStatus: "synced" | "pending" | "failed";
+}
+
 export interface ChatMemoryE2eStagingResult {
 	identity: {
 		email: string;
@@ -95,6 +108,7 @@ export interface ChatMemoryE2eStagingDependencies {
 		email: string;
 		password: string;
 	}) => Promise<string>;
+	sleep?: (milliseconds: number) => Promise<void>;
 	openSubmitStream?: (input: {
 		body: unknown;
 		cookieHeader: string;
@@ -105,6 +119,12 @@ export interface ChatMemoryE2eStagingDependencies {
 
 const OBSERVABILITY_CANARY_HEADER_SENTINEL_PATTERN = /^header-[A-Za-z0-9._:-]{5,249}$/u;
 const OBSERVABILITY_CANARY_API_KEY_SENTINEL_PATTERN = /^credential-[A-Za-z0-9._:-]{1,245}$/u;
+const PROFILE_MEMORY_POLL_INTERVAL_MS = 2_000;
+const PROFILE_MEMORY_POLL_ATTEMPTS = 60;
+
+async function defaultSleep(milliseconds: number): Promise<void> {
+	await new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
+}
 
 function normalizeOptionalValue(value: string | undefined): string | null {
 	if (typeof value !== "string") {
@@ -401,6 +421,47 @@ function readMemoryRecallProof(
 	};
 }
 
+async function readProfileMemory(input: {
+	cookieHeader: string;
+	fetchJsonWithCookie: NonNullable<ChatMemoryE2eStagingDependencies["fetchJsonWithCookie"]>;
+	url: string;
+}): Promise<ProfileMemorySnapshot> {
+	const response = await input.fetchJsonWithCookie<{ profileMemory: ProfileMemorySnapshot }>({
+		cookieHeader: input.cookieHeader,
+		expectedStatus: 200,
+		url: input.url,
+	});
+	return response.payload.profileMemory;
+}
+
+async function waitForProfileMemoryItem(input: {
+	cookieHeader: string;
+	deleted: boolean;
+	fetchJsonWithCookie: NonNullable<ChatMemoryE2eStagingDependencies["fetchJsonWithCookie"]>;
+	itemId: string;
+	sleep: NonNullable<ChatMemoryE2eStagingDependencies["sleep"]>;
+	url: string;
+}): Promise<void> {
+	for (let attempt = 1; attempt <= PROFILE_MEMORY_POLL_ATTEMPTS; attempt += 1) {
+		const profileMemory = await readProfileMemory(input);
+		const item = profileMemory.items.find((candidate) => candidate.itemId === input.itemId);
+		if (input.deleted ? !item : item?.state === "synced") {
+			return;
+		}
+		if (item?.state === "failed") {
+			throw new Error(`Profile memory item ${input.itemId} failed to synchronize.`);
+		}
+		if (attempt < PROFILE_MEMORY_POLL_ATTEMPTS) {
+			await input.sleep(PROFILE_MEMORY_POLL_INTERVAL_MS);
+		}
+	}
+	throw new Error(
+		`Timed out waiting for profile memory item ${input.itemId} to ${
+			input.deleted ? "be deleted" : "synchronize"
+		}.`,
+	);
+}
+
 export async function runChatMemoryE2eStaging(
 	argv: string[],
 	deps: ChatMemoryE2eStagingDependencies = {},
@@ -409,9 +470,11 @@ export async function runChatMemoryE2eStaging(
 	const resolvedDeps = {
 		fetchJsonWithCookie: deps.fetchJsonWithCookie ?? fetchJsonWithCookie,
 		fetchReadyz: deps.fetchReadyz ?? fetchReadyz,
-		signInIdentity: deps.signInIdentity ?? signInE2eIdentity,
 		openSubmitStream: deps.openSubmitStream ?? openChatMemorySubmitStream,
+		signInIdentity: deps.signInIdentity ?? signInE2eIdentity,
+		sleep: deps.sleep ?? defaultSleep,
 	};
+	const operationId = Date.now().toString(36);
 	const result: ChatMemoryE2eStagingResult = {
 		identity: {
 			email: args.email,
@@ -463,17 +526,44 @@ export async function runChatMemoryE2eStaging(
 		throw new Error("E2E identity does not have chat permission.");
 	}
 
-	await resolvedDeps.fetchJsonWithCookie({
+	const profileMemoryUrl = new URL("/api/me/profile-memory", args.chatBaseUrl).toString();
+	const initialProfileMemory = await readProfileMemory({
 		cookieHeader,
-		expectedStatus: 200,
-		url: new URL("/api/me/profile-memory", args.chatBaseUrl).toString(),
+		fetchJsonWithCookie: resolvedDeps.fetchJsonWithCookie,
+		url: profileMemoryUrl,
 	});
+	if (initialProfileMemory.lifecycleState !== "active") {
+		throw new Error(
+			`Profile memory lifecycle is ${initialProfileMemory.lifecycleState}, expected active.`,
+		);
+	}
+	const existingItem = initialProfileMemory.items.find(
+		(candidate) => candidate.key === result.memory.key,
+	);
+	if (existingItem) {
+		await resolvedDeps.fetchJsonWithCookie({
+			cookieHeader,
+			expectedStatus: 202,
+			idempotencyKey: `chat-memory-e2e-preclean-${operationId}`,
+			method: "DELETE",
+			url: new URL(
+				`/api/me/profile-memory/items/${encodeURIComponent(existingItem.itemId)}`,
+				args.chatBaseUrl,
+			).toString(),
+		});
+		await waitForProfileMemoryItem({
+			cookieHeader,
+			deleted: true,
+			fetchJsonWithCookie: resolvedDeps.fetchJsonWithCookie,
+			itemId: existingItem.itemId,
+			sleep: resolvedDeps.sleep,
+			url: profileMemoryUrl,
+		});
+	}
 
 	const upsertResult = await resolvedDeps.fetchJsonWithCookie<{
-		item: {
-			itemId: string;
-			key: string;
-			value: string;
+		profileMemory: {
+			item?: ProfileMemoryItemSnapshot;
 		};
 	}>({
 		body: {
@@ -481,12 +571,25 @@ export async function runChatMemoryE2eStaging(
 			value: args.memoryValue,
 		},
 		cookieHeader,
-		expectedStatus: 200,
+		expectedStatus: 202,
+		idempotencyKey: `chat-memory-e2e-create-${operationId}`,
 		method: "POST",
 		url: new URL("/api/me/profile-memory/items", args.chatBaseUrl).toString(),
 	});
-	result.memory.itemId = upsertResult.payload.item.itemId;
+	const createdItem = upsertResult.payload.profileMemory.item;
+	if (!createdItem) {
+		throw new Error("Profile memory create response is missing the accepted item.");
+	}
+	result.memory.itemId = createdItem.itemId;
 	try {
+		await waitForProfileMemoryItem({
+			cookieHeader,
+			deleted: false,
+			fetchJsonWithCookie: resolvedDeps.fetchJsonWithCookie,
+			itemId: createdItem.itemId,
+			sleep: resolvedDeps.sleep,
+			url: profileMemoryUrl,
+		});
 		const submit = await submitStream({
 			body: {
 				prompt: args.prompt,
@@ -512,16 +615,25 @@ export async function runChatMemoryE2eStaging(
 		return result;
 	} finally {
 		if (result.memory.itemId) {
-			const deleteResult = await resolvedDeps.fetchJsonWithCookie<{ deleted: boolean }>({
+			await resolvedDeps.fetchJsonWithCookie({
 				cookieHeader,
-				expectedStatus: 200,
+				expectedStatus: 202,
+				idempotencyKey: `chat-memory-e2e-delete-${operationId}`,
 				method: "DELETE",
 				url: new URL(
 					`/api/me/profile-memory/items/${encodeURIComponent(result.memory.itemId)}`,
 					args.chatBaseUrl,
 				).toString(),
 			});
-			result.memory.deleted = deleteResult.payload.deleted === true;
+			await waitForProfileMemoryItem({
+				cookieHeader,
+				deleted: true,
+				fetchJsonWithCookie: resolvedDeps.fetchJsonWithCookie,
+				itemId: result.memory.itemId,
+				sleep: resolvedDeps.sleep,
+				url: profileMemoryUrl,
+			});
+			result.memory.deleted = true;
 		}
 	}
 }

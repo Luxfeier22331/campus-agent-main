@@ -58,7 +58,7 @@ flowchart LR
 
   Browser --> AppAPI --> Exec --> Temporal
   Temporal --> Agent --> Temporal
-  Agent -. 获准调用 .-> Memory --> Hindsight --> Memory --> Agent
+  Agent -. 可用时按需调用 .-> Memory --> Hindsight --> Memory --> Agent
   Agent --> Exec
   Temporal --> Final --> Temporal
   Temporal --> Append --> Temporal

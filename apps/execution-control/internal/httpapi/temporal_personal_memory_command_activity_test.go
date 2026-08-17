@@ -78,6 +78,61 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 	}
 }
 
+func TestPersonalMemoryCommandActivityAllowsSameGenerationEraseAfterErased(t *testing.T) {
+	state := memoryruntime.NewInMemoryStateStore()
+	executor := &fakePersonalMemoryExecutor{}
+	server := NewServer(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})
+	server.personalMemoryExecutor = executor
+	server.personalMemoryErr = nil
+	server.personalMemoryStateStore = state
+	server.personalMemoryStateErr = nil
+	first := memoryruntime.PersonalMemoryCommandRequest{
+		CommandID:         "erase-first",
+		CommandKind:       "owner_erase",
+		OwnerGeneration:   2,
+		OwnerSequence:     1,
+		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
+		SourceUpdatedAt:   "2026-08-16T00:00:00Z",
+		SupersessionScope: "owner:erase:2",
+		TenantID:          "tenant-main",
+		UserID:            "user-erase-retry",
+	}
+
+	firstResult, err := server.ExecutePersonalMemoryCommandActivity(context.Background(), first)
+	if err != nil || firstResult.Status != "succeeded" {
+		t.Fatalf("execute first erase result=%#v err=%v", firstResult, err)
+	}
+	if _, err := server.FinalizePersonalMemoryCommandReceiptActivity(
+		context.Background(),
+		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{
+			Command: first,
+			Result:  firstResult,
+		},
+	); err != nil {
+		t.Fatalf("finalize first erase: %v", err)
+	}
+
+	successor := first
+	successor.CommandID = "erase-successor"
+	successor.OwnerSequence = 2
+	successorResult, err := server.ExecutePersonalMemoryCommandActivity(context.Background(), successor)
+	if err != nil || successorResult.Status != "succeeded" {
+		t.Fatalf("execute successor erase result=%#v err=%v", successorResult, err)
+	}
+	if executor.commandCount != 2 {
+		t.Fatalf("provider command count=%d, want 2", executor.commandCount)
+	}
+	if _, err := server.FinalizePersonalMemoryCommandReceiptActivity(
+		context.Background(),
+		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{
+			Command: successor,
+			Result:  successorResult,
+		},
+	); err != nil {
+		t.Fatalf("finalize successor erase: %v", err)
+	}
+}
+
 func TestPersonalMemoryReceiptFinalizerRecoversMissingReceipt(t *testing.T) {
 	state := memoryruntime.NewInMemoryStateStore()
 	server := NewServer(config.Config{PersonalMemoryOwnerSalt: "owner-salt"})

@@ -56,6 +56,35 @@ func TestInMemoryStateStoreAllowsEraseToJumpSupersededSequences(t *testing.T) {
 	}
 }
 
+func TestInMemoryStateStoreAllowsSameGenerationEraseAfterErased(t *testing.T) {
+	store := NewInMemoryStateStore()
+	ctx := context.Background()
+	first := PersonalMemoryCommandRequest{
+		CommandID:         "erase-first",
+		CommandKind:       "owner_erase",
+		OwnerGeneration:   2,
+		OwnerSequence:     1,
+		SchemaVersion:     PersonalMemoryCommandSchemaVersion,
+		SupersessionScope: "owner:erase:2",
+	}
+	if _, execute, err := store.BeginCommand(ctx, "owner", first, time.Minute); err != nil || !execute {
+		t.Fatalf("begin first erase execute=%v err=%v", execute, err)
+	}
+	if _, err := store.FinalizeCommand(ctx, first.CommandID, "owner", "succeeded", "", testCommandResultFingerprint, "erased"); err != nil {
+		t.Fatalf("finalize first erase: %v", err)
+	}
+
+	duplicate := first
+	duplicate.CommandID = "erase-duplicate"
+	duplicate.OwnerSequence = 2
+	if _, execute, err := store.BeginCommand(ctx, "owner", duplicate, time.Minute); err != nil || !execute {
+		t.Fatalf("begin duplicate erase execute=%v err=%v", execute, err)
+	}
+	if _, err := store.FinalizeCommand(ctx, duplicate.CommandID, "owner", "succeeded", "", otherCommandResultFingerprint, "erased"); err != nil {
+		t.Fatalf("finalize duplicate erase: %v", err)
+	}
+}
+
 func TestInMemoryStateStoreAllowsCoalescedSequenceGapAndRejectsOlderCommand(t *testing.T) {
 	store := NewInMemoryStateStore()
 	ctx := context.Background()

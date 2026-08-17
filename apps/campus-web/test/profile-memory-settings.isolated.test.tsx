@@ -10,8 +10,12 @@ const api = vi.hoisted(() => ({
 	setProfileMemoryEnabled: vi.fn(),
 	updateProfileMemoryItem: vi.fn(),
 }));
+const auth = vi.hoisted(() => ({ userId: "user_1" }));
 
 vi.mock("@/features/profile-memory/api", () => api);
+vi.mock("@/platform/auth/session", () => ({
+	useCampusSession: () => ({ data: { user: { id: auth.userId } } }),
+}));
 
 import { ProfileMemorySettings } from "@/features/profile-memory/profile-memory-settings";
 
@@ -31,18 +35,23 @@ const state = {
 	syncStatus: "synced",
 } as const;
 
-function renderSettings() {
-	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-	return render(
-		<QueryClientProvider client={queryClient}>
-			<ProfileMemorySettings />
-		</QueryClientProvider>,
-	);
+function renderSettings(
+	queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
+	return {
+		queryClient,
+		...render(
+			<QueryClientProvider client={queryClient}>
+				<ProfileMemorySettings />
+			</QueryClientProvider>,
+		),
+	};
 }
 
 describe("profile memory settings", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		auth.userId = "user_1";
 		api.getProfileMemory.mockResolvedValue(state);
 		api.setProfileMemoryEnabled.mockResolvedValue({
 			...state,
@@ -66,5 +75,86 @@ describe("profile memory settings", () => {
 		fireEvent.click(screen.getByRole("button", { name: "清除全部记忆" }));
 		expect(screen.getByRole("heading", { name: "确认清除全部记忆？" })).toBeInTheDocument();
 		expect(api.eraseProfileMemory).not.toHaveBeenCalled();
+	});
+
+	it("uses a separate query cache entry after the authenticated user changes", async () => {
+		api.getProfileMemory
+			.mockResolvedValueOnce(state)
+			.mockResolvedValueOnce({ ...state, items: [], itemCount: 0 });
+		const view = renderSettings();
+		expect(await screen.findByText("answer_style")).toBeInTheDocument();
+
+		auth.userId = "user_2";
+		view.rerender(
+			<QueryClientProvider client={view.queryClient}>
+				<ProfileMemorySettings />
+			</QueryClientProvider>,
+		);
+
+		expect(await screen.findByText("还没有可管理的记忆")).toBeInTheDocument();
+		expect(api.getProfileMemory).toHaveBeenCalledTimes(2);
+	});
+
+	it("submits the active item values after switching between editors", async () => {
+		const secondItem = {
+			...state.items[0],
+			itemId: "mem_02",
+			key: "major",
+			value: "计算机科学",
+		};
+		api.getProfileMemory.mockResolvedValue({
+			...state,
+			itemCount: 2,
+			items: [state.items[0], secondItem],
+		});
+		api.updateProfileMemoryItem.mockResolvedValue(state);
+		const view = renderSettings();
+		await screen.findByText("answer_style");
+
+		fireEvent.click(screen.getAllByRole("button", { name: "编辑记忆" })[0]!);
+		fireEvent.change(screen.getByLabelText("键名"), { target: { value: "临时键" } });
+		fireEvent.change(screen.getByLabelText("内容"), { target: { value: "临时值" } });
+		fireEvent.click(screen.getByRole("button", { name: "取消" }));
+
+		view.rerender(
+			<QueryClientProvider client={view.queryClient}>
+				<ProfileMemorySettings />
+			</QueryClientProvider>,
+		);
+		fireEvent.click(screen.getAllByRole("button", { name: "编辑记忆" })[1]!);
+		expect(screen.getByLabelText("键名")).toHaveValue("major");
+		expect(screen.getByLabelText("内容")).toHaveValue("计算机科学");
+		expect(screen.getByLabelText("键名")).not.toHaveAttribute("maxlength");
+		fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+		await waitFor(() => expect(api.updateProfileMemoryItem).toHaveBeenCalled());
+		expect(api.updateProfileMemoryItem.mock.calls[0]?.[0]).toEqual({
+			itemId: "mem_02",
+			key: "major",
+			value: "计算机科学",
+		});
+	});
+
+	it("allows retrying an erase that failed after entering the erasing lifecycle", async () => {
+		const failedState = {
+			...state,
+			lifecycleState: "erasing" as const,
+			syncStatus: "failed" as const,
+		};
+		api.getProfileMemory.mockResolvedValue(failedState);
+		api.eraseProfileMemory.mockResolvedValue({
+			...failedState,
+			syncStatus: "pending" as const,
+		});
+		renderSettings();
+		await screen.findByText("answer_style");
+
+		expect(screen.getByText("同步失败")).toBeInTheDocument();
+		expect(screen.queryByText("正在清除")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "清除全部记忆" })).toBeEnabled();
+
+		fireEvent.click(screen.getByRole("button", { name: "清除全部记忆" }));
+		fireEvent.click(screen.getByRole("button", { name: "确认清除" }));
+		await waitFor(() => expect(api.eraseProfileMemory).toHaveBeenCalledTimes(1));
 	});
 });

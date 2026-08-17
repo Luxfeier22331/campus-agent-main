@@ -78,7 +78,7 @@ export function createRequestScopeFactory(input: {
 					}),
 					...(executionRuntime ? { executionRuntime } : {}),
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
-					profileMemoryStore: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
+					captureProfileMemorySnapshot: true,
 					...(input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET
 						? { safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET }
 						: {}),

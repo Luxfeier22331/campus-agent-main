@@ -461,7 +461,8 @@ func applyFenceCommand(fence *memoryFence, command PersonalMemoryCommandRequest)
 		if command.OwnerSequence <= fence.Sequence {
 			return fmt.Errorf("%w: erase sequence=%d must exceed=%d", ErrMemoryFenceConflict, command.OwnerSequence, fence.Sequence)
 		}
-		if command.OwnerGeneration != fence.Generation+1 && (fence.Lifecycle != "erasing" || command.OwnerGeneration != fence.Generation) {
+		if command.OwnerGeneration != fence.Generation+1 &&
+			((fence.Lifecycle != "erasing" && fence.Lifecycle != "erased") || command.OwnerGeneration != fence.Generation) {
 			return fmt.Errorf("%w: erase generation mismatch", ErrMemoryFenceConflict)
 		}
 		fence.Generation = command.OwnerGeneration

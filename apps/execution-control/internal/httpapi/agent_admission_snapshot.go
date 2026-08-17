@@ -21,24 +21,28 @@ var sha256RefPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func (s *Server) buildAgentAdmissionSnapshot(
 	ctx context.Context,
-	personalMemoryRecallAllowed bool,
+	personalMemoryRecallAvailable bool,
 	campusDocsQuerySHA256 string,
 ) (temporalruntime.AgentAdmissionSnapshot, error) {
-	strategy := executionStrategyForAdmission(personalMemoryRecallAllowed)
+	strategy := executionStrategyForAdmission(personalMemoryRecallAvailable)
 	visibleToolNames := strategy.VisibleToolNames
 	if !validSHA256Ref(campusDocsQuerySHA256) {
-		return temporalruntime.AgentAdmissionSnapshot{}, errors.New("Campus docs retrieval query admission is invalid")
+		return temporalruntime.AgentAdmissionSnapshot{}, errors.New("campus docs retrieval query admission is invalid")
 	}
 	campusDocsIndex, err := s.campusDocsIndexForAdmission(ctx)
 	if err != nil {
-		return temporalruntime.AgentAdmissionSnapshot{}, fmt.Errorf("load Campus docs index admission snapshot: %w", err)
+		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
+			fmt.Errorf("load Campus docs index admission snapshot: %w", err),
+		)
 	}
 	embedding, err := s.resolveProviderConfigSnapshot(ctx, providerConfigKindEmbedding)
 	if err != nil {
-		return temporalruntime.AgentAdmissionSnapshot{}, fmt.Errorf("resolve active embedding setting: %w", err)
+		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
+			fmt.Errorf("resolve active embedding setting: %w", err),
+		)
 	}
 	if err := validateCampusDocsEmbeddingAdmission(campusDocsIndex, embedding); err != nil {
-		return temporalruntime.AgentAdmissionSnapshot{}, err
+		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(err)
 	}
 	campusDocsRetrieval := temporalruntime.CampusDocsRetrievalAdmission{
 		EmbeddingProviderConfigSHA256: providerConfigAdmissionHash(embedding),
@@ -54,7 +58,9 @@ func (s *Server) buildAgentAdmissionSnapshot(
 	}
 	toolRuntime, err := buildToolRuntimeFingerprint(s.config.DeploymentRelease)
 	if err != nil {
-		return temporalruntime.AgentAdmissionSnapshot{}, fmt.Errorf("build tool runtime admission snapshot: %w", err)
+		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
+			fmt.Errorf("build tool runtime admission snapshot: %w", err),
+		)
 	}
 	toolRuntimeSnapshot := toolRuntime.toAdmissionSnapshot()
 	snapshot := temporalruntime.AgentAdmissionSnapshot{
@@ -68,7 +74,9 @@ func (s *Server) buildAgentAdmissionSnapshot(
 	}
 	provider, providerErr := s.resolveProviderConfigSnapshot(ctx, providerConfigKindLLM)
 	if providerErr != nil {
-		return temporalruntime.AgentAdmissionSnapshot{}, fmt.Errorf("resolve active llm setting: %w", providerErr)
+		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
+			fmt.Errorf("resolve active llm setting: %w", providerErr),
+		)
 	}
 	snapshot.ProviderConfigSHA256 = providerConfigAdmissionHash(provider)
 	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleToolNames); err != nil {
@@ -77,7 +85,7 @@ func (s *Server) buildAgentAdmissionSnapshot(
 	return snapshot, nil
 }
 
-func executionStrategyForAdmission(personalMemoryRecallAllowed bool) temporalruntime.ExecutionStrategySnapshot {
+func executionStrategyForAdmission(personalMemoryRecallAvailable bool) temporalruntime.ExecutionStrategySnapshot {
 	strategy := temporalruntime.ExecutionStrategySnapshot{
 		Kind:             "direct",
 		MaxModelTurns:    1,
@@ -86,11 +94,11 @@ func executionStrategyForAdmission(personalMemoryRecallAllowed bool) temporalrun
 		SchemaVersion:    executionStrategySchemaVersion,
 		VisibleToolNames: []string{},
 	}
-	if personalMemoryRecallAllowed {
+	if personalMemoryRecallAvailable {
 		strategy.MaxModelTurns = 2
 		strategy.MaxToolCalls = 1
 		strategy.MemoryRecall = "model_optional"
-		strategy.VisibleToolNames = []string{"personal_memory_recall"}
+		strategy.VisibleToolNames = []string{personalMemoryRecallToolName}
 	}
 	return strategy
 }
@@ -139,7 +147,7 @@ func validateAdmissionSnapshot(snapshot temporalruntime.AgentAdmissionSnapshot) 
 		return errors.New("provider admission snapshot is invalid")
 	}
 	if !validSHA256Ref(snapshot.CampusDocsRetrieval.QuerySHA256) {
-		return errors.New("Campus docs retrieval query admission is invalid")
+		return errors.New("campus docs retrieval query admission is invalid")
 	}
 	if err := validateCampusDocsIndexAdmission(&snapshot.CampusDocsRetrieval.Index); err != nil {
 		return err

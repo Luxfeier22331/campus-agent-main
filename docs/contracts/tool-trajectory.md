@@ -32,7 +32,8 @@ v3 只接受当前注册表中的名称：
 
 - `personal_memory_recall`。
 
-`personal_memory_recall` 只有本轮冻结授权允许时才进入 `available_tools`，并且最多产生一次调用。
+`personal_memory_recall` 只有在本轮冻结的个人记忆状态可用时才进入 `available_tools`，
+并且最多产生一次调用。
 
 培养方案和规章文档由 `campus_docs.retrieve` 检索，不是模型工具，不得派生工具调用、`tool_name`、
 `eval_safe_args` 或 `selected_tool`。

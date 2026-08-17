@@ -18,8 +18,8 @@ timeout 由以下可执行注册表维护：
 
 ## 当前状态
 
-当前注册表只有 `personal_memory_recall`；它为 `model_visible`，但只有本轮冻结授权允许时才进入 SDK
-工具数组。
+当前注册表只有 `personal_memory_recall`，其 exposure 登记为 `model_visible`。注册表、handler 和
+内部可用性字段的存在不会单独开放工具；execution-control 根据冻结的准入策略决定本轮工具集合。
 
 培养方案、规章和其他正式文档统一由 execution-control 在需要时检索，并以最小
 `campus_docs_evidence` 传入 Agent Runtime。Campus Docs 检索不是模型工具，不进入 `visible_tool_names`、SDK 工具轮次或
@@ -28,9 +28,9 @@ timeout 由以下可执行注册表维护：
 ## 职责
 
 - app-api 负责身份、会话和产品传输，不接收客户端指定的工具、索引或检索参数；
-- execution-control 根据注册表和本轮授权冻结模型可见工具，并执行工具 handler；
+- execution-control 根据注册表和冻结准入策略确定模型可见工具，并执行工具 handler；
 - OpenAI Agents SDK 只在已开放工具中决定是否调用及其参数；
-- handler 重新校验运行身份、授权、参数和结果合同；
+- handler 重新校验运行身份、冻结策略、参数和结果合同；
 - finalization 校验真实工具投影与依据引用，不重新选择工具或改写答案。
 
 工具准入只能缩小能力，不能改变用户权限、开放关闭工具或选择 Provider。Campus Docs 索引和检索
@@ -38,8 +38,9 @@ timeout 由以下可执行注册表维护：
 
 ## 执行方式
 
-没有个人记忆授权时，Primary Agent 直接消费对话和本轮 Campus Docs evidence，单次生成结构化终态。允许个人记忆
-召回时，SDK 最多执行一次 `personal_memory_recall`，再由同一 Primary Agent 完成答案。
+Primary Agent 消费对话和本轮 Campus Docs evidence，并生成一份结构化终态。个人记忆可用时，SDK
+可以按当前请求执行一次 `personal_memory_recall`；matched memory 只支持用户自身事实和偏好，不能
+支持机构事实。
 
 `execution_control_internal_query` handler 在同一个 Agent Activity 内调用 execution-control 的有界
 读取接口。个人记忆 handler 重新校验冻结策略和运行身份后调用 Hindsight，只向 Agent 返回受限结果；

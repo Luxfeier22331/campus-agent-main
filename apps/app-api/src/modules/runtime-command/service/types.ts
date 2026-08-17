@@ -1,7 +1,6 @@
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversation, ChatConversationStore } from "../../chat";
 import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../../integration";
-import type { ProfileMemoryStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry } from "../../telemetry";
 import type {
@@ -141,7 +140,7 @@ export interface ChatCommandServiceDependencies {
 	generateId?: (prefix: string) => string;
 	isExecutionRuntimeConfigured?: boolean;
 	now?: () => Date;
-	profileMemoryStore?: Pick<ProfileMemoryStore, "loadSummary">;
+	captureProfileMemorySnapshot?: boolean;
 	safetyIdentifierHmacSecret?: string;
 	store: import("../store").ChatCommandStore;
 	durableEventPolling?: DurableEventPollingPolicy;

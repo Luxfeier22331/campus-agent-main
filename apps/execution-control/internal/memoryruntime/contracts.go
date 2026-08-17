@@ -1,9 +1,6 @@
 package memoryruntime
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -12,8 +9,6 @@ import (
 )
 
 var ErrInvalidMemoryProjection = errors.New("invalid memory runtime projection")
-
-const MaxCompactTextBytes = 1200
 
 const PersonalMemoryCommandSchemaVersion = "personal_memory_command.v2"
 
@@ -29,36 +24,8 @@ type RecallRequest struct {
 	UserID          string            `json:"user_id"`
 }
 
-type ContextItem struct {
-	CompactText     string  `json:"compact_text"`
-	MemoryID        string  `json:"memory_id"`
-	MemoryType      string  `json:"memory_type"`
-	Score           float64 `json:"score,omitempty"`
-	SourceFactCount int     `json:"source_fact_count,omitempty"`
-	UpdatedAt       string  `json:"updated_at"`
-}
-
-type RecentMessage struct {
-	Content   string `json:"content"`
-	CreatedAt string `json:"created_at"`
-	Role      string `json:"role"`
-	RoleType  string `json:"role_type"`
-}
-
 type RecallResult struct {
-	ContextBlock        string          `json:"context_block,omitempty"`
-	Items               []ContextItem   `json:"memory_context_items"`
-	MemoryRef           string          `json:"memory_ref"`
-	PayloadSHA256       string          `json:"payload_sha256"`
-	Provider            string          `json:"provider,omitempty"`
-	RecentMessages      []RecentMessage `json:"recent_messages,omitempty"`
-	RetrievalMode       string          `json:"retrieval_mode,omitempty"`
-	RunID               string          `json:"run_id"`
-	SchemaVersion       string          `json:"schema_version"`
-	SelectedMemoryChars int             `json:"selected_memory_chars"`
-	SelectedMemoryCount int             `json:"selected_memory_count"`
-	ThreadID            string          `json:"thread_id,omitempty"`
-	UserID              string          `json:"user_id,omitempty"`
+	ContextBlock string
 }
 
 type AppendConversationTurnRequest struct {
@@ -74,14 +41,7 @@ type AppendConversationTurnRequest struct {
 }
 
 type AppendConversationTurnResult struct {
-	AppendedMessageCount int      `json:"appended_message_count"`
-	MessageUUIDs         []string `json:"message_uuids,omitempty"`
-	PayloadSHA256        string   `json:"payload_sha256"`
-	RunID                string   `json:"run_id"`
-	SchemaVersion        string   `json:"schema_version"`
-	Status               string   `json:"status"`
-	ThreadID             string   `json:"thread_id"`
-	UserID               string   `json:"user_id"`
+	AppendedMessageCount int
 }
 
 type PersonalMemoryCommandItem struct {
@@ -108,10 +68,9 @@ type PersonalMemoryCommandRequest struct {
 }
 
 type PersonalMemoryCommandResult struct {
-	CommandID         string `json:"command_id"`
-	ErrorCode         string `json:"error_code,omitempty"`
-	RetryAfterSeconds int    `json:"retry_after_seconds,omitempty"`
-	Status            string `json:"status"`
+	CommandID string `json:"command_id"`
+	ErrorCode string `json:"error_code,omitempty"`
+	Status    string `json:"status"`
 }
 
 func ValidatePersonalMemoryCommandRequest(request PersonalMemoryCommandRequest) error {
@@ -239,109 +198,6 @@ func validateRFC3339Timestamp(field string, value string) error {
 	}
 	if _, err := time.Parse(time.RFC3339, strings.TrimSpace(value)); err != nil {
 		return fmt.Errorf("%w: %s must be RFC3339", ErrInvalidMemoryProjection, field)
-	}
-	return nil
-}
-
-func FinalizeRecallResult(result RecallResult) (RecallResult, error) {
-	if strings.TrimSpace(result.SchemaVersion) == "" {
-		result.SchemaVersion = "memory_recall_result_v1"
-	}
-	result.SelectedMemoryCount = len(result.Items)
-	result.SelectedMemoryChars = len([]rune(result.ContextBlock))
-	for index, item := range result.Items {
-		if err := validateContextItem(index, item); err != nil {
-			return RecallResult{}, err
-		}
-		result.SelectedMemoryChars += len([]rune(item.CompactText))
-	}
-	for index, message := range result.RecentMessages {
-		if err := validateRecentMessage(index, message); err != nil {
-			return RecallResult{}, err
-		}
-	}
-	if strings.TrimSpace(result.RunID) == "" {
-		return RecallResult{}, fmt.Errorf("%w: run_id is required", ErrInvalidMemoryProjection)
-	}
-	if strings.TrimSpace(result.MemoryRef) == "" {
-		return RecallResult{}, fmt.Errorf("%w: memory_ref is required", ErrInvalidMemoryProjection)
-	}
-	result.PayloadSHA256 = ""
-	hash, err := HashProjection(result)
-	if err != nil {
-		return RecallResult{}, err
-	}
-	result.PayloadSHA256 = hash
-	return result, nil
-}
-
-func FinalizeAppendConversationTurnResult(
-	result AppendConversationTurnResult,
-) (AppendConversationTurnResult, error) {
-	if strings.TrimSpace(result.SchemaVersion) == "" {
-		result.SchemaVersion = "memory_conversation_append_result_v2"
-	}
-	if strings.TrimSpace(result.Status) == "" {
-		result.Status = "completed"
-	}
-	if strings.TrimSpace(result.RunID) == "" {
-		return AppendConversationTurnResult{}, fmt.Errorf("%w: run_id is required", ErrInvalidMemoryProjection)
-	}
-	if strings.TrimSpace(result.ThreadID) == "" {
-		return AppendConversationTurnResult{}, fmt.Errorf("%w: thread_id is required", ErrInvalidMemoryProjection)
-	}
-	if strings.TrimSpace(result.UserID) == "" {
-		return AppendConversationTurnResult{}, fmt.Errorf("%w: user_id is required", ErrInvalidMemoryProjection)
-	}
-	result.PayloadSHA256 = ""
-	hash, err := HashProjection(result)
-	if err != nil {
-		return AppendConversationTurnResult{}, err
-	}
-	result.PayloadSHA256 = hash
-	return result, nil
-}
-
-func HashProjection(value any) (string, error) {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:]), nil
-}
-
-func validateContextItem(index int, item ContextItem) error {
-	required := map[string]string{
-		"memory_id":    item.MemoryID,
-		"memory_type":  item.MemoryType,
-		"compact_text": item.CompactText,
-	}
-	for field, value := range required {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%w: memory_context_items[%d].%s is required", ErrInvalidMemoryProjection, index, field)
-		}
-	}
-	if len([]byte(item.CompactText)) > MaxCompactTextBytes {
-		return fmt.Errorf("%w: memory_context_items[%d].compact_text exceeds limit", ErrInvalidMemoryProjection, index)
-	}
-	return nil
-}
-
-func validateRecentMessage(index int, message RecentMessage) error {
-	required := map[string]string{
-		"content":    message.Content,
-		"created_at": message.CreatedAt,
-		"role":       message.Role,
-		"role_type":  message.RoleType,
-	}
-	for field, value := range required {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%w: recent_messages[%d].%s is required", ErrInvalidMemoryProjection, index, field)
-		}
-	}
-	if len([]byte(message.Content)) > MaxCompactTextBytes {
-		return fmt.Errorf("%w: recent_messages[%d].content exceeds limit", ErrInvalidMemoryProjection, index)
 	}
 	return nil
 }

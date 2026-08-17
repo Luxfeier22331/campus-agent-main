@@ -28,7 +28,7 @@ function createCompletedExecutionClient(): ToolExecutionClient {
 
 describe("chat command service memory gate projection", () => {
 	it("projects the immutable memory snapshot returned by accept", async () => {
-		const { frozenAdmissionMemorySnapshots, store } = createCommandStore({
+		const { acceptedWrites, frozenAdmissionMemorySnapshots, store } = createCommandStore({
 			memorySnapshot: {
 				appendEnabled: true,
 				ownerGeneration: 3,
@@ -43,6 +43,7 @@ describe("chat command service memory gate projection", () => {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
+			captureProfileMemorySnapshot: true,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
@@ -63,6 +64,7 @@ describe("chat command service memory gate projection", () => {
 				recallEnabled: false,
 			},
 		]);
+		expect(acceptedWrites[0]?.captureMemorySnapshot).toBe(true);
 
 		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({

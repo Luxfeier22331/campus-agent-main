@@ -18,6 +18,8 @@ func TestRetiredPersonalMemoryControlPlaneRoutesAreNotExposed(t *testing.T) {
 		"/internal/memory/personal/operations:list",
 		"/internal/memory/personal/operations:cancel",
 		"/internal/memory/personal/operations:retry",
+		"/internal/memory/personal/turns:append",
+		"/internal/memory/personal/graph:recall",
 	}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {

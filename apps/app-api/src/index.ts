@@ -108,7 +108,7 @@ export function createWorkerRuntime(
 			conversationStore: createPgChatConversationStore(env),
 			executionRuntime,
 			isExecutionRuntimeConfigured: true,
-			profileMemoryStore: createPgProfileMemoryStore(env),
+			captureProfileMemorySnapshot: true,
 			...(env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET
 				? { safetyIdentifierHmacSecret: env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET }
 				: {}),

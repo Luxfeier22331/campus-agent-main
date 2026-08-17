@@ -741,8 +741,8 @@ describe("app-api shared product DB integration", () => {
 			status: "succeeded",
 			updatedAt: "2026-07-16T01:04:00.000Z",
 		});
-		expect(await firstStore.loadSummary({ ownerUserId })).toMatchObject({
-			enabled: true,
+		expect(await firstStore.listByOwner(ownerUserId)).toMatchObject({
+			lifecycleState: "active",
 			syncStatus: "synced",
 		});
 
@@ -848,11 +848,172 @@ describe("app-api shared product DB integration", () => {
 				updatedAt: "2026-07-16T01:09:00.000Z",
 			}),
 		).resolves.toMatchObject({ lifecycleState: "active" });
-		expect(await firstStore.loadSummary({ ownerUserId })).toMatchObject({
-			enabled: false,
+		expect(await firstStore.listByOwner(ownerUserId)).toMatchObject({
 			lifecycleState: "active",
 			syncStatus: "pending",
 		});
+		await expect(
+			firstStore.erase({
+				commandId: `command-erase-after-reactivate-${suffix}`,
+				idempotencyKeyHash: `idem-erase-after-reactivate-${suffix}`,
+				ownerUserId,
+				requestFingerprint: `request-erase-after-reactivate-${suffix}`,
+				updatedAt: "2026-07-16T01:10:00.000Z",
+			}),
+		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+		const reeraseRows = await dbClient.query<{ owner_generation: number }>(
+			`
+			select "owner_generation"::int
+			from "profile"."memory_commands"
+			where "command_id" = $1
+			`,
+			[`command-erase-after-reactivate-${suffix}`],
+		);
+		expect(reeraseRows.rows[0]?.owner_generation).toBe(3);
+	});
+
+	it("coalesces repeated erase requests and retries failed erase in the same generation", async () => {
+		const suffix = Date.now().toString(36);
+		const ownerUserId = `erase-owner-${suffix}`;
+		const store = createPgProfileMemoryStore(
+			buildSharedDbIntegrationEnv({ runtimeConnectionString: postgres.runtimeConnectionString }),
+		);
+		const dbClient = requireClient(client);
+
+		await expect(
+			store.erase({
+				commandId: `erase-first-${suffix}`,
+				idempotencyKeyHash: `erase-idem-first-${suffix}`,
+				ownerUserId,
+				requestFingerprint: `erase-request-first-${suffix}`,
+				updatedAt: "2026-07-16T05:00:00.000Z",
+			}),
+		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+
+		await expect(
+			store.erase({
+				commandId: `erase-pending-duplicate-${suffix}`,
+				idempotencyKeyHash: `erase-idem-pending-${suffix}`,
+				ownerUserId,
+				requestFingerprint: `erase-request-pending-${suffix}`,
+				updatedAt: "2026-07-16T05:00:01.000Z",
+			}),
+		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+
+		let commandRows = await dbClient.query<{
+			command_id: string;
+			owner_generation: number;
+			owner_sequence: number;
+			status: string;
+		}>(
+			`
+			select "command_id", "owner_generation"::int, "owner_sequence"::int, "status"
+			from "profile"."memory_commands"
+			where "owner_user_id" = $1 and "command_kind" = 'owner_erase'
+			order by "owner_sequence"
+			`,
+			[ownerUserId],
+		);
+		expect(commandRows.rows).toEqual([
+			{
+				command_id: `erase-first-${suffix}`,
+				owner_generation: 2,
+				owner_sequence: 1,
+				status: "pending_admission",
+			},
+		]);
+
+		await store.markCommandAdmitted({
+			admittedAt: "2026-07-16T05:00:02.000Z",
+			commandId: `erase-first-${suffix}`,
+			workflowId: `erase-workflow-${suffix}`,
+		});
+		await expect(
+			store.erase({
+				commandId: `erase-admitted-duplicate-${suffix}`,
+				idempotencyKeyHash: `erase-idem-admitted-${suffix}`,
+				ownerUserId,
+				requestFingerprint: `erase-request-admitted-${suffix}`,
+				updatedAt: "2026-07-16T05:00:03.000Z",
+			}),
+		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+
+		await expect(
+			store.applyCommandResult({
+				commandId: `erase-first-${suffix}`,
+				errorCode: "personal_memory_command_failed",
+				resultFingerprint: "a".repeat(64),
+				status: "failed",
+				updatedAt: "2026-07-16T05:00:04.000Z",
+			}),
+		).resolves.toBe("applied");
+
+		await expect(
+			store.erase({
+				commandId: `erase-retry-${suffix}`,
+				idempotencyKeyHash: `erase-idem-retry-${suffix}`,
+				ownerUserId,
+				requestFingerprint: `erase-request-retry-${suffix}`,
+				updatedAt: "2026-07-16T05:00:05.000Z",
+			}),
+		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
+
+		commandRows = await dbClient.query<{
+			command_id: string;
+			owner_generation: number;
+			owner_sequence: number;
+			status: string;
+		}>(
+			`
+			select "command_id", "owner_generation"::int, "owner_sequence"::int, "status"
+			from "profile"."memory_commands"
+			where "owner_user_id" = $1 and "command_kind" = 'owner_erase'
+			order by "owner_sequence"
+			`,
+			[ownerUserId],
+		);
+		expect(commandRows.rows).toEqual([
+			{
+				command_id: `erase-first-${suffix}`,
+				owner_generation: 2,
+				owner_sequence: 1,
+				status: "failed",
+			},
+			{
+				command_id: `erase-retry-${suffix}`,
+				owner_generation: 2,
+				owner_sequence: 2,
+				status: "pending_admission",
+			},
+		]);
+
+		await expect(
+			store.applyCommandResult({
+				commandId: `erase-retry-${suffix}`,
+				resultFingerprint: "b".repeat(64),
+				status: "succeeded",
+				updatedAt: "2026-07-16T05:00:06.000Z",
+			}),
+		).resolves.toBe("applied");
+		await expect(
+			store.erase({
+				commandId: `erase-after-success-${suffix}`,
+				idempotencyKeyHash: `erase-idem-after-success-${suffix}`,
+				ownerUserId,
+				requestFingerprint: `erase-request-after-success-${suffix}`,
+				updatedAt: "2026-07-16T05:00:07.000Z",
+			}),
+		).resolves.toMatchObject({ lifecycleState: "erased", syncStatus: "synced" });
+
+		const commandCount = await dbClient.query<{ count: string }>(
+			`
+			select count(*)::text as count
+			from "profile"."memory_commands"
+			where "owner_user_id" = $1 and "command_kind" = 'owner_erase'
+			`,
+			[ownerUserId],
+		);
+		expect(commandCount.rows[0]?.count).toBe("2");
 	});
 
 	it("keeps conversation source batches independent and scrubs them after callback", async () => {
@@ -936,8 +1097,8 @@ describe("app-api shared product DB integration", () => {
 			[ownerUserId],
 		);
 		expect(retainedSources.rows[0]?.count).toBe("0");
-		expect(await memoryStore.loadSummary({ ownerUserId })).toMatchObject({
-			enabled: true,
+		expect(await memoryStore.listByOwner(ownerUserId)).toMatchObject({
+			lifecycleState: "active",
 			syncStatus: "synced",
 		});
 	});
@@ -1028,8 +1189,8 @@ describe("app-api shared product DB integration", () => {
 			[commandId],
 		);
 		expect(retainedSources.rows[0]?.count).toBe("0");
-		expect(await memoryStore.loadSummary({ ownerUserId })).toMatchObject({
-			enabled: true,
+		expect(await memoryStore.listByOwner(ownerUserId)).toMatchObject({
+			lifecycleState: "active",
 			syncStatus: "synced",
 		});
 	});

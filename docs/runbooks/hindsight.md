@@ -9,8 +9,7 @@ status: active
 ## 边界
 
 本文只说明如何检查和排查 campus-agent 对 Hindsight 的使用。组件关系和生命周期见
-[个人记忆架构](../architecture/system/memory-plane.md)，历史 trace 删除边界见
-[Langfuse 架构](../architecture/system/langfuse.md)；环境资源、Secret、Helm values、备份和恢复
+[个人记忆架构](../architecture/system/memory-plane.md)；环境资源、Secret、Helm values、备份和恢复
 由环境仓维护。
 
 ## 配置检查
@@ -32,15 +31,15 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 
 ## Bank 配置
 
-创建或修复 scoped bank 后，回读配置并确认：
+写入操作发现 scoped bank 不存在时创建并配置：
 
 - observations 已启用；
 - automatic consolidation 已启用；
 - Memory Defense 对敏感数据使用 redaction；
 - 没有仓库自定义 `observations_mission`。
 
-bootstrap 或 policy 校验失败时，本次 retain、recall 或 profile mutation 必须失败，不能
-继续访问未满足 policy 的 bank。
+已存在的 bank 不在每次操作中重复配置。recall 只读取已有 bank；bank 不存在时返回 no-match，
+不会因读取请求创建 bank。bootstrap 失败时本次写入失败。
 
 ## 功能冒烟
 
@@ -55,8 +54,8 @@ bootstrap 或 policy 校验失败时，本次 retain、recall 或 profile mutati
 4. pause 后发起同类新 turn，确认 `personal_memory_recall` 不可见且没有 recall step，append 投影
    skipped；resume 后新 turn 恢复工具准入和 append。
 5. 删除 item，等待 sync 收敛后确认对应 profile document 不再通过 recall 返回。
-6. 执行账号全量删除，确认状态先进入 `erasing`，在代次隔离、bank 删除和 Langfuse 删除检查
-   点全部完成后才进入 `erased`。
+6. 执行账号全量删除，确认状态先进入 `erasing`，在代次隔离和 bank 删除确认完成后进入
+   `erased`。
 
 不要用 HTTP `202`、Temporal Schedule 存在或 UI 隐藏代替最终状态检查。测试结束后删除临时账号
 数据。
@@ -66,8 +65,8 @@ bootstrap 或 policy 校验失败时，本次 retain、recall 或 profile mutati
 会话裁剪或删除必须在删除产品消息前捕获消息 ID，并派生与 retain 相同的确定性文档标识。删除按
 实现约束的有界批次执行；不存在的文档视为幂等成功。精确标识格式以个人记忆架构与实现为准。
 
-删除完成后等待 Hindsight consolidation 生效，并使用不会引入新来源的查询确认已删除内容不再
-被 recall。不得通过删除产品行、隐藏 UI 或创建新 bank 伪造来源删除成功。
+`DeleteDocument` 成功会同步删除该来源文档及其 memory units。后续 consolidation 属于 Hindsight
+内部维护，不由仓库轮询；可使用不会引入新来源的查询做人工冒烟，但不得建立自定义等待或恢复流程。
 
 ## 账号全量清除
 
@@ -76,17 +75,7 @@ bootstrap 或 policy 校验失败时，本次 retain、recall 或 profile mutati
 1. app-api 接受 durable command 并进入 `erasing`；
 2. execution-control 递增 generation，拒绝 retired generation 的新调用并等待旧调用排空；
 3. 删除 retired Hindsight bank，并验证 bank 不存在；
-4. 旧 lease 排空且 bank 删除成功后，按 Langfuse 运行合同等待既有 exporter 的有界排空窗口；
-5. 按 command 冻结的产品 user identity 与 `source_updated_at` 上界删除 runtime trace，并按
-   retired bank identity 清理历史 Hindsight trace；按运行合同执行有界删除与复核；
-6. 两类查询均收敛为零后，receipt 才允许 app-api 进入 `erased`。
-
-Langfuse 查询、分页、时间边界、等待和失败语义由
-[Langfuse 运行合同](../contracts/langfuse-runtime.md) 唯一维护。
-
-`activity-core` 使用 `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY` 和
-`LANGFUSE_SECRET_KEY` 访问当前环境 project；缺少任一项时必须启动失败。DELETE
-成功不代表异步删除完成，不能省略后续精确查询复核。
+4. bank 不存在后完成 receipt，app-api 才允许 lifecycle 进入 `erased`。
 
 ## 排障
 
@@ -96,9 +85,8 @@ Langfuse 查询、分页、时间边界、等待和失败语义由
 | bank bootstrap 失败 | observations、consolidation、Memory Defense 配置和 provider 可用性 |
 | recall/append timeout | recall 对应 Agent Activity 与 SDK tool attempt；append 对应 core Activity；同时检查 Hindsight provider latency 和 worker backlog |
 | item 长期 `saving`/`deleting` | app-api outbox、execution-control command admission 和 receipt callback |
-| 账号长期 `erasing` | 代次租约、bank 删除、Langfuse 两类身份的删除与复核 |
-| 已删来源仍被 recall | document identity 是否一致、删除结果和 consolidation 是否完成 |
-| Langfuse 没有新的 Hindsight trace | 这是当前预期；只在账号清除时查询并清理历史数据 |
+| 账号长期 `erasing` | 代次租约、retired bank 删除和 receipt callback |
+| 已删来源仍被 recall | document identity 是否一致、DeleteDocument 结果和 Hindsight 内部状态 |
 | Axiom 出现记忆正文 | 立即按 OpenTelemetry 手册检查入口、容器日志排除和路由 |
 
 Hindsight 后台 operation 使用其原生诊断能力排查；不要在 campus-agent 增加 operation
@@ -123,5 +111,3 @@ OpenTelemetry 配置和信号验证统一见 [OpenTelemetry Collector](./otel.md
 - [Hindsight Documents](https://hindsight.vectorize.io/developer/api/documents)
 - [Hindsight Operations](https://hindsight.vectorize.io/developer/api/operations)
 - [Hindsight Memory Defense](https://hindsight.vectorize.io/developer/memory-defense)
-- [Langfuse OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry)
-- [Langfuse Data Deletion](https://langfuse.com/docs/data-deletion)

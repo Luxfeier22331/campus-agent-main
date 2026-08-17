@@ -245,6 +245,86 @@ func TestTemporalDevServerRunsPersonalMemoryCommandFinalizers(t *testing.T) {
 	}
 }
 
+func TestTemporalDevServerReplaysLegacyPersonalMemoryEraseHistory(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	server, err := testsuite.StartDevServer(ctx, testsuite.DevServerOptions{
+		ClientOptions: &client.Options{Namespace: "campus-agent-temporal-memory-replay-e2e"},
+		LogLevel:      "error",
+	})
+	if err != nil {
+		t.Fatalf("start Temporal dev server: %v", err)
+	}
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Fatalf("stop Temporal dev server: %v", err)
+		}
+	}()
+	temporalClient := server.Client()
+	activities := &Activities{}
+	legacyWorker := worker.New(temporalClient, WorkflowTaskQueue, worker.Options{})
+	legacyWorker.RegisterWorkflowWithOptions(
+		legacyPersonalMemoryCommandWorkflow,
+		workflow.RegisterOptions{Name: PersonalMemoryCommandWorkflowType},
+	)
+	coreWorker := NewCoreActivityWorkerWithOptions(
+		temporalClient,
+		ActivityTaskQueueCore,
+		activities,
+		activities,
+		worker.Options{},
+	)
+	for _, runtimeWorker := range []worker.Worker{legacyWorker, coreWorker} {
+		if err := runtimeWorker.Start(); err != nil {
+			t.Fatalf("start worker: %v", err)
+		}
+		defer runtimeWorker.Stop()
+	}
+
+	command := memoryruntime.PersonalMemoryCommandRequest{
+		CommandID:         "command-temporal-legacy-erase",
+		CommandKind:       "owner_erase",
+		OwnerGeneration:   2,
+		OwnerSequence:     2,
+		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
+		SourceUpdatedAt:   "2026-08-17T00:00:00Z",
+		SupersessionScope: "owner:erase:2",
+		TenantID:          "tenant-temporal-e2e",
+		UserID:            "user-temporal-e2e",
+	}
+	workflowID := "campus-agent.temporal-e2e." + command.CommandID
+	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID:        workflowID,
+		TaskQueue: WorkflowTaskQueue,
+	}, PersonalMemoryCommandWorkflowType, PersonalMemoryCommandWorkflowInput{
+		Command:    command,
+		WorkflowID: workflowID,
+	})
+	if err != nil {
+		t.Fatalf("execute legacy workflow: %v", err)
+	}
+	history, err := waitForWorkflowHistoryEvent(
+		ctx,
+		temporalClient,
+		workflowID,
+		workflowRun.GetRunID(),
+		enumspb.EVENT_TYPE_TIMER_STARTED,
+	)
+	if err != nil {
+		t.Fatalf("wait for legacy workflow timer: %v", err)
+	}
+	replayer := worker.NewWorkflowReplayer()
+	replayer.RegisterWorkflowWithOptions(PersonalMemoryCommandWorkflow, workflow.RegisterOptions{
+		Name: PersonalMemoryCommandWorkflowType,
+	})
+	if err := replayer.ReplayWorkflowHistory(nil, history); err != nil {
+		t.Fatalf("replay legacy personal memory history: %v", err)
+	}
+	if err := temporalClient.CancelWorkflow(ctx, workflowID, workflowRun.GetRunID()); err != nil {
+		t.Fatalf("cancel legacy workflow: %v", err)
+	}
+}
+
 func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -328,6 +408,47 @@ type blockingAgentActivities struct {
 	once    sync.Once
 }
 
+func legacyPersonalMemoryCommandWorkflow(
+	ctx workflow.Context,
+	input PersonalMemoryCommandWorkflowInput,
+) (PersonalMemoryCommandWorkflowResult, error) {
+	providerOptions := personalMemoryCommandProviderActivityOptions(input.Command.CommandKind)
+	var result PersonalMemoryCommandActivityOutput
+	if err := executePersonalMemoryCommandProvider(ctx, providerOptions, input.Command, &result); err != nil {
+		result = PersonalMemoryCommandActivityOutput{
+			CommandID: input.Command.CommandID,
+			ErrorCode: "personal_memory_command_failed",
+			Status:    "failed",
+		}
+	}
+	if result.Status == "succeeded" && input.Command.CommandKind == "owner_erase" {
+		if err := executePersonalMemoryTraceErase(ctx, input.Command); err != nil {
+			result = PersonalMemoryCommandActivityOutput{
+				CommandID: input.Command.CommandID,
+				ErrorCode: "personal_memory_trace_erase_failed",
+				Status:    "failed",
+			}
+		}
+	}
+	finalizerCtx := workflow.WithActivityOptions(ctx, unlimitedFinalizerActivityOptions(15*time.Second))
+	if err := workflow.ExecuteActivity(
+		finalizerCtx,
+		FinalizePersonalMemoryCommandReceiptActivityName,
+		FinalizePersonalMemoryCommandReceiptActivityInput{Command: input.Command, Result: result},
+	).Get(ctx, &result); err != nil {
+		return PersonalMemoryCommandWorkflowResult{}, err
+	}
+	callbackCtx := workflow.WithActivityOptions(ctx, unlimitedFinalizerActivityOptions(15*time.Second))
+	if err := workflow.ExecuteActivity(
+		callbackCtx,
+		WritePersonalMemoryCommandResultActivityName,
+		result,
+	).Get(ctx, nil); err != nil {
+		return PersonalMemoryCommandWorkflowResult{}, err
+	}
+	return result, nil
+}
+
 func devServerWorkflowInput(runID string) ToolExecutionWorkflowInput {
 	return ToolExecutionWorkflowInput{
 		ConversationID: "conversation-" + runID,
@@ -363,6 +484,29 @@ func workflowHistory(
 		history.Events = append(history.Events, event)
 	}
 	return &history, nil
+}
+
+func waitForWorkflowHistoryEvent(
+	ctx context.Context,
+	temporalClient client.Client,
+	workflowID string,
+	runID string,
+	eventType enumspb.EventType,
+) (*historypb.History, error) {
+	for {
+		history, err := workflowHistory(ctx, temporalClient, workflowID, runID)
+		if err != nil {
+			return nil, err
+		}
+		if historyContains(history, eventType) {
+			return history, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }
 
 func historyContains(history *historypb.History, eventType enumspb.EventType) bool {

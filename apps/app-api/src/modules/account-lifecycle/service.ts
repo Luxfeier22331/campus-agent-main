@@ -19,7 +19,7 @@ export interface AccountLifecycleService {
 }
 
 export interface AccountLifecycleServiceDependencies {
-	profileMemoryService: ProfileMemoryService;
+	profileMemoryService: Pick<ProfileMemoryService, "dispatchPending" | "eraseForAccountDeletion">;
 	removeAuthUser: (userId: string) => Promise<void>;
 	safetyIdentifierForUser: (userId: string) => string | null;
 	store: AccountLifecycleStore;
@@ -83,9 +83,9 @@ export function buildAccountLifecycleService(
 					);
 				};
 				try {
-					await dependencies.profileMemoryService.erase({
-						idempotencyKey: `account-delete:${request.requestId}`,
+					await dependencies.profileMemoryService.eraseForAccountDeletion({
 						principal: internalDeletionPrincipal(request.ownerUserId),
+						requestId: request.requestId,
 					});
 					await dependencies.profileMemoryService.dispatchPending();
 					if (!(await renewLease())) {

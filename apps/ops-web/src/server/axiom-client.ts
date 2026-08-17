@@ -195,11 +195,10 @@ export function buildAxiomRequestApl(input: { dataset: string; limit: number; re
 	}
 	const quotedRequestId = JSON.stringify(requestId);
 	const requestAttribute = "tostring(['attributes.custom']['campus.request_id'])";
-	const requestBody = "tostring(body['campus.request_id'])";
 	return [
 		`['${dataset}']`,
-		`| where ${requestAttribute} == ${quotedRequestId} or ${requestBody} == ${quotedRequestId}`,
-		"| project timestamp = _time, serviceName = ['service.name'], severityText = tostring(coalesce(severity_text, severityText, severity)), eventType = tostring(coalesce(['attributes.custom']['event_type'], body['event_type'])), source = tostring(coalesce(['attributes.custom']['source'], body['source'])), status = tostring(coalesce(['attributes.custom']['status'], body['status'])), errorCode = tostring(coalesce(['attributes.custom']['error.code'], body['error_code'])), durationMs = todouble(coalesce(['attributes.custom']['duration_ms'], body['duration_ms'])), requestId = tostring(coalesce(['attributes.custom']['campus.request_id'], body['campus.request_id']))",
+		`| where ${requestAttribute} == ${quotedRequestId}`,
+		"| project timestamp = _time, serviceName = tostring(['service.name']), severityText = tostring(severity_text), eventType = tostring(['attributes.custom']['event_type']), source = tostring(['attributes.custom']['source']), status = tostring(['attributes.custom']['status']), errorCode = tostring(['attributes.custom']['error_code']), durationMs = todouble(['attributes.custom']['duration_ms']), requestId = tostring(['attributes.custom']['campus.request_id'])",
 		"| sort by timestamp asc",
 		`| take ${input.limit}`,
 	].join("\n");

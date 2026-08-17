@@ -56,6 +56,10 @@ function service(): ProfileMemoryService {
 			lifecycleState: "erasing" as const,
 			syncStatus: "pending" as const,
 		})),
+		eraseForAccountDeletion: vi.fn(async () => ({
+			lifecycleState: "erasing" as const,
+			syncStatus: "pending" as const,
+		})),
 		list: vi.fn(async () => ({
 			itemCount: 0,
 			items: [],

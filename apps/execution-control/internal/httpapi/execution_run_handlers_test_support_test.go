@@ -33,6 +33,17 @@ func (mapExecutionInputLoader) Load(_ context.Context, run execution.DurableRun)
 	return wire, nil
 }
 
+type failingExecutionInputLoader struct {
+	err error
+}
+
+func (loader failingExecutionInputLoader) Load(
+	context.Context,
+	execution.DurableRun,
+) (contracts.ExecutionPayloadWire, error) {
+	return contracts.ExecutionPayloadWire{}, loader.err
+}
+
 type fakeTemporalStarter struct {
 	cancelRunID  string
 	cancelReason string

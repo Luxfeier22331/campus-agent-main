@@ -63,11 +63,10 @@ func (s *Server) AppendConversationMemoryActivity(
 	recordTemporalActivityHeartbeat(ctx, "memory.append.project_result")
 	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: result.AppendedMessageCount,
-		PayloadSHA256:        result.PayloadSHA256,
 		RunID:                run.RunID,
-		SchemaVersion:        result.SchemaVersion,
-		Status:               result.Status,
-		ThreadID:             result.ThreadID,
+		SchemaVersion:        "memory_conversation_append_result_v3",
+		Status:               "completed",
+		ThreadID:             run.ConversationID,
 	})
 	recordTemporalActivityHeartbeat(ctx, "memory.append.completed")
 	return output, err
@@ -82,7 +81,7 @@ func (s *Server) projectMemoryAppendFailure(
 	summary := summarizeTemporalFailure(failureKind, "", cause)
 	output := temporalruntime.AppendConversationMemoryActivityOutput{
 		RunID:         run.RunID,
-		SchemaVersion: "memory_conversation_append_result_v2",
+		SchemaVersion: "memory_conversation_append_result_v3",
 		SkipReasons:   []string{failureKind},
 		Status:        "failed",
 	}
@@ -92,7 +91,6 @@ func (s *Server) projectMemoryAppendFailure(
 		"failure_kind":           summary.Kind,
 		"failure_hash":           summary.Hash,
 		"message":                summary.Message,
-		"payload_sha256":         output.PayloadSHA256,
 		"schema_version":         output.SchemaVersion,
 		"skip_reasons":           output.SkipReasons,
 		"skipped_count":          output.SkippedCount,
@@ -177,7 +175,7 @@ func skippedMemoryAppendOutput(
 ) temporalruntime.AppendConversationMemoryActivityOutput {
 	return temporalruntime.AppendConversationMemoryActivityOutput{
 		RunID:         strings.TrimSpace(runID),
-		SchemaVersion: "memory_conversation_append_result_v2",
+		SchemaVersion: "memory_conversation_append_result_v3",
 		SkipReasons:   []string{reason},
 		SkippedCount:  1,
 		Status:        "skipped",
@@ -191,14 +189,13 @@ func (s *Server) projectMemoryAppendResult(
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	now := time.Now().UTC()
 	if strings.TrimSpace(output.SchemaVersion) == "" {
-		output.SchemaVersion = "memory_conversation_append_result_v2"
+		output.SchemaVersion = "memory_conversation_append_result_v3"
 	}
 	if strings.TrimSpace(output.Status) == "" {
 		output.Status = "completed"
 	}
 	payload := map[string]any{
 		"appended_message_count": output.AppendedMessageCount,
-		"payload_sha256":         output.PayloadSHA256,
 		"schema_version":         output.SchemaVersion,
 		"skip_reasons":           output.SkipReasons,
 		"skipped_count":          output.SkippedCount,

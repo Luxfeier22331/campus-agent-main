@@ -240,7 +240,7 @@ components:
           type: string
         personal_memory_recall_allowed:
           type: boolean
-          description: Frozen user authorization fact; execution-control owns whether and how recall is exposed.
+          description: Frozen personal memory availability derived from lifecycle and readiness; execution-control owns whether and how recall is exposed.
         surface:
           type: string
         runtime_versions:

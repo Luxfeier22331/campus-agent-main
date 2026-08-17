@@ -72,7 +72,6 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 						run_id: request.runId,
 						trace_id: request.traceId,
 						invocation_id: request.invocationId,
-						search_ordinal: request.searchOrdinal,
 					},
 				}),
 				redirect: "manual",

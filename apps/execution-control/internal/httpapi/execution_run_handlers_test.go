@@ -2,8 +2,11 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -73,6 +76,191 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	if snapshot.ToolRuntimeFingerprintSHA256 == "" ||
 		validateToolRuntimeFingerprintSnapshot(snapshot.ToolRuntimeFingerprint) != nil {
 		t.Fatalf("tool runtime admission snapshot = %#v", snapshot)
+	}
+}
+
+func TestExecutionRunCreateClassifiesExecutionInputErrors(t *testing.T) {
+	for _, test := range []struct {
+		code       string
+		name       string
+		retryable  bool
+		runID      string
+		statusCode int
+	}{
+		{
+			code:       "dependency_not_ready",
+			name:       "retryable upstream failure",
+			retryable:  true,
+			runID:      "run-execution-input-retryable",
+			statusCode: http.StatusServiceUnavailable,
+		},
+		{
+			code:       "execution_workflow_input_invalid",
+			name:       "deterministic contract failure",
+			retryable:  false,
+			runID:      "run-execution-input-deterministic",
+			statusCode: http.StatusBadRequest,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := execution.NewInMemoryRunProjectionStore()
+			server := newWorkerAuthServerForTest()
+			attachRunProjectionStoreForHandlerTest(server, store)
+			server.executionInputLoader = failingExecutionInputLoader{err: newExecutionInputError(
+				"load",
+				"execution_input_unavailable",
+				test.retryable,
+				errors.New("sensitive upstream failure"),
+			)}
+
+			response := httptest.NewRecorder()
+			request := newTestRequest(
+				http.MethodPost,
+				"/internal/execution/runs",
+				strings.NewReader(durableRunCreateBodyForTest(test.runID, "conv-"+test.runID)),
+			)
+			request.Header.Set("x-worker-origin-auth", "secret")
+
+			server.ServeHTTP(response, request)
+
+			assertError(t, response, test.statusCode, test.code)
+			body := decodeBody(t, response)
+			errorBody := expectRecord(t, body["error"], "error")
+			if errorBody["retryable"] != test.retryable {
+				t.Fatalf("retryable = %#v, want %t", errorBody["retryable"], test.retryable)
+			}
+			if test.retryable && errorBody["message"] != "A required execution dependency is not ready." {
+				t.Fatalf("message = %#v", errorBody["message"])
+			}
+			if strings.Contains(response.Body.String(), "sensitive upstream failure") {
+				t.Fatalf("execution input error leaked upstream detail: %s", response.Body.String())
+			}
+			if _, err := store.GetRun(context.Background(), test.runID); err == nil {
+				t.Fatal("execution input failure must not create a run projection")
+			}
+		})
+	}
+}
+
+func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *testing.T) {
+	for _, test := range []struct {
+		configure func(*Server)
+		name      string
+		runID     string
+	}{
+		{
+			name:  "Campus Docs index query failure",
+			runID: "run-campus-docs-index-failed",
+			configure: func(server *Server) {
+				server.campusDocsIndexStore = campusDocsIndexStoreFixture{
+					err: errors.New("sensitive index failure"),
+				}
+			},
+		},
+		{
+			name:  "Campus Docs index missing",
+			runID: "run-campus-docs-index-missing",
+			configure: func(server *Server) {
+				server.campusDocsIndexStore = campusDocsIndexStoreFixture{}
+			},
+		},
+		{
+			name:  "embedding provider missing",
+			runID: "run-embedding-provider-missing",
+			configure: func(server *Server) {
+				server.providerConfigResolver = staticProviderConfigResolver{
+					providerConfigKindLLM: primaryAgentProviderConfigSnapshotForTest(),
+				}
+			},
+		},
+		{
+			name:  "llm provider missing",
+			runID: "run-llm-provider-missing",
+			configure: func(server *Server) {
+				server.providerConfigResolver = staticProviderConfigResolver{
+					providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
+						providerConfigKindEmbedding,
+						"https://embedding.example/v1",
+						"provider-model-alias",
+					),
+				}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := execution.NewInMemoryRunProjectionStore()
+			server := newWorkerAuthServerForTest()
+			attachAgentAdmissionProviderConfigsForTest(server)
+			test.configure(server)
+			attachRunProjectionStoreForHandlerTest(server, store)
+
+			response := httptest.NewRecorder()
+			request := newTestRequest(
+				http.MethodPost,
+				"/internal/execution/runs",
+				strings.NewReader(durableRunCreateBodyForTest(test.runID, "conv-"+test.runID)),
+			)
+			request.Header.Set("x-worker-origin-auth", "secret")
+
+			server.ServeHTTP(response, request)
+
+			assertError(t, response, http.StatusServiceUnavailable, "dependency_not_ready")
+			body := decodeBody(t, response)
+			errorBody := expectRecord(t, body["error"], "error")
+			if errorBody["retryable"] != true {
+				t.Fatalf("retryable = %#v, want true", errorBody["retryable"])
+			}
+			if errorBody["message"] != "A required execution dependency is not ready." {
+				t.Fatalf("message = %#v", errorBody["message"])
+			}
+			if strings.Contains(response.Body.String(), "sensitive") ||
+				strings.Contains(response.Body.String(), "no active model setting") {
+				t.Fatalf("dependency error leaked internal detail: %s", response.Body.String())
+			}
+			if _, err := store.GetRun(context.Background(), test.runID); err == nil {
+				t.Fatal("dependency admission failure must not create a run projection")
+			}
+		})
+	}
+}
+
+func TestExecutionRunCreateReturnsDependencyNotReadyForToolRuntimeRegistry(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "configs", "runtime")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("create runtime config directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "tools.v6.json"), []byte("{"), 0o600); err != nil {
+		t.Fatalf("write malformed tool registry: %v", err)
+	}
+	t.Chdir(root)
+
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newWorkerAuthServerForTest()
+	attachAgentAdmissionProviderConfigsForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	const runID = "run-tool-runtime-registry-invalid"
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/execution/runs",
+		strings.NewReader(durableRunCreateBodyForTest(runID, "conv-"+runID)),
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusServiceUnavailable, "dependency_not_ready")
+	body := decodeBody(t, response)
+	errorBody := expectRecord(t, body["error"], "error")
+	if errorBody["retryable"] != true ||
+		errorBody["message"] != "A required execution dependency is not ready." ||
+		strings.Contains(response.Body.String(), "invalid character") {
+		t.Fatalf("tool runtime dependency error was not sanitized and retryable: %s", response.Body.String())
+	}
+	if _, err := store.GetRun(context.Background(), runID); err == nil {
+		t.Fatal("tool runtime admission failure must not create a run projection")
 	}
 }
 

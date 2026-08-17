@@ -142,7 +142,7 @@ export function readFrozenChatAdmission(
 	if (typeof workflowInput.personalMemoryRecallAllowed !== "boolean") {
 		throw new PermanentAdmissionFailure(
 			"runtime_invariant_failed",
-			`Frozen chat admission memory authorization is missing for ${candidate.requestId}.`,
+			`Frozen chat admission memory availability is missing for ${candidate.requestId}.`,
 		);
 	}
 	if (typeof runId !== "string" || !runId) {

@@ -39,17 +39,6 @@ type hindsightExecutor struct {
 	contextCharBudget int
 }
 
-func newPersonalMemoryExecutor(
-	cfg config.Config,
-	_ providerConfigResolver,
-) (personalMemoryExecutor, error) {
-	runtimeName := strings.TrimSpace(cfg.PersonalMemoryRuntime)
-	if runtimeName == "" || runtimeName == "hindsight" {
-		return newHindsightMemoryExecutor(cfg)
-	}
-	return nil, fmt.Errorf("unsupported personal memory runtime: %s", runtimeName)
-}
-
 func newHindsightMemoryExecutor(cfg config.Config) (personalMemoryExecutor, error) {
 	if strings.TrimSpace(cfg.PersonalMemoryBaseURL) == "" {
 		return nil, errors.New("HINDSIGHT_API_BASE_URL is required for Hindsight memory runtime")
@@ -113,7 +102,7 @@ func (e hindsightExecutor) ExecuteCommand(
 			return memoryruntime.PersonalMemoryCommandResult{}, errors.New("hindsight retired bank still exists after delete")
 		}
 	case "item_upsert":
-		if err := e.ensureBank(ctx, bankID); err != nil {
+		if err := e.ensureBankForWrite(ctx, bankID); err != nil {
 			return memoryruntime.PersonalMemoryCommandResult{}, err
 		}
 		documentID := hindsightProfileDocumentID(request.SubjectID)
@@ -161,8 +150,12 @@ func (e hindsightExecutor) Recall(
 		return memoryruntime.RecallResult{}, err
 	}
 	bankID := e.scopedBankIDForGeneration(request.TenantID, request.UserID, request.OwnerGeneration)
-	if err := e.ensureBank(ctx, bankID); err != nil {
+	exists, err := e.client.BankExists(ctx, bankID)
+	if err != nil {
 		return memoryruntime.RecallResult{}, err
+	}
+	if !exists {
+		return memoryruntime.RecallResult{}, nil
 	}
 	response, err := e.client.RecallMemories(ctx, bankID, hindsightRecallRequest{
 		Budget:             "mid",
@@ -179,18 +172,9 @@ func (e hindsightExecutor) Recall(
 		return memoryruntime.RecallResult{}, err
 	}
 	items := hindsightContextItems(response.Results, e.recallLimit)
-	result := memoryruntime.RecallResult{
-		ContextBlock:  hindsightContextBlock(items, e.contextCharBudget),
-		Items:         items,
-		MemoryRef:     temporalProjectionRef(request.RunID, "memory/recall"),
-		Provider:      "hindsight",
-		RetrievalMode: "recall",
-		RunID:         request.RunID,
-		SchemaVersion: "memory_recall_result_v1",
-		ThreadID:      request.ThreadID,
-		UserID:        strings.TrimSpace(request.UserID),
-	}
-	return memoryruntime.FinalizeRecallResult(result)
+	return memoryruntime.RecallResult{
+		ContextBlock: hindsightContextBlock(items, e.contextCharBudget),
+	}, nil
 }
 
 func (e hindsightExecutor) AppendConversationTurn(
@@ -201,7 +185,7 @@ func (e hindsightExecutor) AppendConversationTurn(
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
 	bankID := e.scopedBankIDForGeneration(request.TenantID, request.UserID, request.OwnerGeneration)
-	if err := e.ensureBank(ctx, bankID); err != nil {
+	if err := e.ensureBankForWrite(ctx, bankID); err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
 	documentID := e.conversationMessageDocumentID(bankID, request.ThreadID, request.UserMessageID)
@@ -229,21 +213,21 @@ func (e hindsightExecutor) AppendConversationTurn(
 	if err := requireHindsightRetainAccepted(retainResult, bankID, 1, false); err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
-	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
+	return memoryruntime.AppendConversationTurnResult{
 		AppendedMessageCount: 1,
-		RunID:                request.RunID,
-		SchemaVersion:        "memory_conversation_append_result_v2",
-		Status:               "completed",
-		ThreadID:             request.ThreadID,
-		UserID:               strings.TrimSpace(request.UserID),
-	})
+	}, nil
 }
 
-func (e hindsightExecutor) ensureBank(ctx context.Context, bankID string) error {
+func (e hindsightExecutor) ensureBankForWrite(ctx context.Context, bankID string) error {
 	if e.client == nil {
 		return errors.New("hindsight client is not configured")
 	}
-	return e.client.EnsureBank(ctx, strings.TrimSpace(bankID), defaultHindsightBankConfig())
+	bankID = strings.TrimSpace(bankID)
+	exists, err := e.client.BankExists(ctx, bankID)
+	if err != nil || exists {
+		return err
+	}
+	return e.client.EnsureBank(ctx, bankID, defaultHindsightBankConfig())
 }
 
 func defaultHindsightBankConfig() hindsightBankConfig {

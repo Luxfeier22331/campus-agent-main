@@ -199,6 +199,10 @@ describe("primary agent runtime", () => {
 		expect(observedInstructions).toContain(
 			"Return unsupported_by_evidence only when the request requires institution-specific facts",
 		);
+		expect(observedInstructions).toContain(
+			"Personal memory can support claims about the user's saved facts or preferences",
+		);
+		expect(observedInstructions).toContain("cannot replace current campus_docs_evidence");
 	});
 
 	it("fails closed when a no-tool final answer has no typed terminal envelope", async () => {
@@ -374,6 +378,13 @@ describe("primary agent runtime", () => {
 
 		expect(observedTools).toEqual(["personal_memory_recall"]);
 		expect(observedInstructions).not.toContain("用户偏好回答先给结论");
+		expect(observedInstructions).toContain(
+			"When personal_memory_recall is available, use it when the latest request depends on saved personal facts or preferences.",
+		);
+		expect(observedInstructions).toContain(
+			"If the available personal memory or campus_docs_evidence is insufficient, do not guess or invent facts.",
+		);
+		expect(observedInstructions).not.toContain("personal memory authorization");
 		expect(observedInput).toEqual([
 			{
 				role: "user",

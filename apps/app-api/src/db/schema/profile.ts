@@ -81,7 +81,7 @@ export const profileMemoryItems = profile.table(
 		visibility: text("visibility").notNull().default("user_visible"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-		lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }).notNull(),
+		lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => ({
 		ownerKeyUnique: uniqueIndex("profile_memory_items_owner_key_uidx").on(

@@ -133,6 +133,8 @@ func publicErrorMessage(code string, _ string) string {
 		return "Request body could not be read."
 	case "execution_workflow_input_invalid":
 		return "Execution workflow input is invalid."
+	case "dependency_not_ready":
+		return "A required execution dependency is not ready."
 	case "execution_run_create_failed":
 		return "Execution run could not be created."
 	case "execution_run_query_failed", "durable_run_query_failed":
@@ -151,12 +153,8 @@ func publicErrorMessage(code string, _ string) string {
 		return "Execution run was not found."
 	case "run_context_conflict":
 		return "Execution run context is invalid."
-	case "profile_memory_append_failed":
-		return "Personal memory could not be updated."
 	case "profile_memory_recall_failed":
 		return "Personal memory could not be loaded."
-	case "profile_memory_not_configured":
-		return "Personal memory is not configured."
 	case "model_setting_invalid":
 		return "Model setting is invalid."
 	case "model_settings_not_ready", "model_settings_unavailable":

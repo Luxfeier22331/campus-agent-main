@@ -20,8 +20,8 @@ status: active
 
 当前执行策略为 `execution_strategy.v2` 的 `kind=direct`：
 
-- 未获个人记忆授权时，最多一次模型调用且没有模型工具；
-- 获授权时，最多两次模型调用和一次 `personal_memory_recall`；
+- 个人记忆不可用时，最多一次模型调用且没有模型工具；
+- 个人记忆可用时，最多两次模型调用和一次 `personal_memory_recall`；
 - Campus Docs 检索在模型调用前完成，不消耗 SDK 工具轮次。
 
 重复 Activity 投递受 execution-control 的 invocation receipt 约束。供应商调用已经开始但完整结果
@@ -51,8 +51,9 @@ Agent Runtime 在创建真实 `AgentInputItem[]` 时组装：
 execution-control 不预先构造另一份模型上下文摘要。
 
 用户文本、对话、记忆和检索片段都是不可信数据，不能拼入 developer instruction。Primary Agent
-只能把本轮 `campus_docs_evidence` 中的 `evidence://` 标识写入终态 `evidenceRefs`；个人记忆和
-上一轮回答不能成为正式来源。
+只能把本轮 `campus_docs_evidence` 中的 `evidence://` 标识写入终态 `evidenceRefs`。匹配的个人记忆
+可以支持用户自身事实或偏好，但不能支持机构事实、替代 Campus Docs evidence 或成为公开来源；
+上一轮回答也不能成为正式来源。
 
 不需要机构事实的请求不添加 evidence 引用，无论数组是否为空或相关。需要机构事实时，数组为空或
 证据不足必须返回 `unsupported_by_evidence`；数组非空不表示证据必然充分。机构事实答案必须直接

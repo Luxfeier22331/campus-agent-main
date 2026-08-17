@@ -260,7 +260,11 @@ describe("account journeys PostgreSQL integration", () => {
 		const database = drizzle(pool, { schema: appApiSchema });
 		lifecycle = buildAccountLifecycleService({
 			profileMemoryService: {
-				erase: async ({ principal }: { principal: { actor: { userId: string } } }) => {
+				eraseForAccountDeletion: async ({
+					principal,
+				}: {
+					principal: { actor: { userId: string } };
+				}) => {
 					await pool.query(
 						`update "profile"."memory_settings"
 						 set "lifecycle_state" = 'erased', "sync_status" = 'synced',
