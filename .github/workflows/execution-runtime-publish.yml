@@ -586,7 +586,8 @@ jobs:
 
       - name: Install GitOps tooling
         shell: nix develop ./gitops#ci-control --command bash -e {0}
-        run: pnpm --dir gitops --ignore-workspace install --frozen-lockfile
+        # GitOps owns its pnpm workspace and dependency build policy.
+        run: pnpm --dir gitops install --frozen-lockfile
 
       - name: Update GitOps desired state
         id: promotion

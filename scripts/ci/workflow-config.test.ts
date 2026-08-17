@@ -441,10 +441,9 @@ test("candidate publishing uses GitHub-hosted runners before final status", asyn
 		(step) => isObject(step) && step.name === "Install GitOps tooling",
 	);
 	assert(isObject(installGitOpsTooling));
-	assert.equal(
-		installGitOpsTooling.run,
-		"pnpm --dir gitops --ignore-workspace install --frozen-lockfile",
-	);
+	assert(typeof installGitOpsTooling.run === "string");
+	assert.equal(installGitOpsTooling.run, "pnpm --dir gitops install --frozen-lockfile");
+	assert(!installGitOpsTooling.run.includes("--ignore-workspace"));
 	const verifyPromotionMain = promote.steps.find(
 		(step) => isObject(step) && step.name === "Verify current main revision before promotion",
 	);
