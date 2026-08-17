@@ -1,11 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createDocsSourceSiteFixture } from "../../../apps/campus-web/fixtures/docs-source-site.ts";
+import {
+	createDocsSourceSiteFixture,
+	type DocsSourceFixture,
+} from "../../../apps/campus-web/fixtures/docs-source-site.ts";
+import {
+	canonicalJsonBytes,
+	sha256,
+} from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import {
 	artifactHex,
+	chunkSetManifestKey,
 	indexManifestKey,
 	readChunkSet,
 } from "../src/artifacts.ts";
+import { runBuildChunks } from "../src/chunk-command.ts";
 import {
 	buildCampusDocsChunkSet,
 	buildCampusDocsEmbeddingSet,
@@ -23,21 +32,84 @@ import {
 
 describe("Campus docs artifact stages", () => {
 	it("builds a deterministic chunk set from the current source and readers", async () => {
-		const store = fixtureStore();
-		const first = await buildCampusDocsChunkSet({ store });
-		const second = await buildCampusDocsChunkSet({ store });
-		const loaded = await readChunkSet(store, first.chunkSet);
+		const sourceStore = fixtureStore();
+		const artifactStore = new MemoryArtifactStore();
+		const first = await buildCampusDocsChunkSet({ artifactStore, sourceStore });
+		const second = await buildCampusDocsChunkSet({ artifactStore, sourceStore });
+		const loaded = await readChunkSet(artifactStore, first.chunkSet);
 
 		expect(second).toEqual(first);
 		expect(first.chunkSet).toMatch(/^sha256:[a-f0-9]{64}$/u);
+		expect(first.sourceProjectionSha256).toBe(loaded.manifest.sourceProjectionSha256);
+		expect(loaded.manifest.schemaVersion).toBe("campus_docs_chunk_set.v2");
+		expect(loaded.manifest).not.toHaveProperty("source");
 		expect(loaded.chunks).toHaveLength(first.chunkCount);
 		expect(loaded.manifest.documentCount).toBe(first.documentCount);
 		expect(loaded.chunks.every((chunk) => chunk.retrievalTextSha256.startsWith("sha256:"))).toBe(true);
 	});
 
+	it("keeps source changes outside the current projection out of the chunk set identity", async () => {
+		const fixture = createDocsSourceSiteFixture();
+		const changedSourceBytes = canonicalJsonBytes({ ...fixture.source, redirects: [] });
+		const first = await buildCampusDocsChunkSet({
+			artifactStore: new MemoryArtifactStore(),
+			sourceStore: fixtureStore(fixture),
+		});
+		const second = await buildCampusDocsChunkSet({
+			artifactStore: new MemoryArtifactStore(),
+			sourceStore: fixtureStore(fixture, changedSourceBytes),
+		});
+
+		expect(second.sourceDigest).not.toBe(first.sourceDigest);
+		expect(second.sourceProjectionSha256).toBe(first.sourceProjectionSha256);
+		expect(second.chunkSet).toBe(first.chunkSet);
+	});
+
+	it("changes the chunk set when the current document projection changes", async () => {
+		const fixture = createDocsSourceSiteFixture();
+		const changedDocuments = fixture.source.documents.map((document, index) =>
+			index === 0 ? { ...document, title: `${document.title}（修订）` } : document,
+		);
+		const changedSourceBytes = canonicalJsonBytes({ ...fixture.source, documents: changedDocuments });
+		const first = await buildCampusDocsChunkSet({
+			artifactStore: new MemoryArtifactStore(),
+			sourceStore: fixtureStore(fixture),
+		});
+		const second = await buildCampusDocsChunkSet({
+			artifactStore: new MemoryArtifactStore(),
+			sourceStore: fixtureStore(fixture, changedSourceBytes),
+		});
+
+		expect(second.sourceProjectionSha256).not.toBe(first.sourceProjectionSha256);
+		expect(second.chunkSet).not.toBe(first.chunkSet);
+	});
+
+	it("rejects retired v1 chunk set manifests", async () => {
+		const store = new MemoryArtifactStore();
+		const bytes = canonicalJsonBytes({ schemaVersion: "campus_docs_chunk_set.v1" });
+		const id = sha256(bytes);
+		store.objects.set(chunkSetManifestKey(id), bytes);
+
+		await expect(readChunkSet(store, id)).rejects.toThrow("chunk set manifest schema is invalid");
+	});
+
+	it("prints the chunk set and effective source projection", async () => {
+		const store = fixtureStore();
+		const output = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		try {
+			await runBuildChunks({ artifactStore: store, sourceStore: store });
+			const result = JSON.parse(String(output.mock.calls[0]?.[0])) as Record<string, unknown>;
+			expect(result.chunk_set).toMatch(/^sha256:[a-f0-9]{64}$/u);
+			expect(result.source_digest).toMatch(/^sha256:[a-f0-9]{64}$/u);
+			expect(result.source_projection_sha256).toMatch(/^sha256:[a-f0-9]{64}$/u);
+		} finally {
+			output.mockRestore();
+		}
+	});
+
 	it("reuses embeddings only from the explicitly named compatible embedding set", async () => {
 		const store = fixtureStore();
-		const chunks = await buildCampusDocsChunkSet({ store });
+		const chunks = await buildCampusDocsChunkSet({ artifactStore: store, sourceStore: store });
 		const generatedTexts: string[] = [];
 		const first = await buildCampusDocsEmbeddingSet({
 			chunkSet: chunks.chunkSet,
@@ -66,7 +138,7 @@ describe("Campus docs artifact stages", () => {
 
 	it("does not infer embedding reuse from existing artifacts", async () => {
 		const store = fixtureStore();
-		const chunks = await buildCampusDocsChunkSet({ store });
+		const chunks = await buildCampusDocsChunkSet({ artifactStore: store, sourceStore: store });
 		const first = await buildCampusDocsEmbeddingSet({
 			chunkSet: chunks.chunkSet,
 			embedding: embeddingClient([]),
@@ -175,11 +247,13 @@ class MemoryArtifactStore implements ArtifactObjectStore {
 	}
 }
 
-function fixtureStore(): MemoryArtifactStore {
-	const fixture = createDocsSourceSiteFixture();
+function fixtureStore(
+	fixture: DocsSourceFixture = createDocsSourceSiteFixture(),
+	sourceBytes: Uint8Array = fixture.sourceBytes,
+): MemoryArtifactStore {
 	const store = new MemoryArtifactStore();
-	store.objects.set(CAMPUS_DOCS_SOURCE_KEY, fixture.sourceBytes);
 	for (const [key, value] of fixture.objects) store.objects.set(key, value.body);
+	store.objects.set(CAMPUS_DOCS_SOURCE_KEY, sourceBytes);
 	return store;
 }
 
@@ -200,7 +274,7 @@ async function buildArtifacts(store: MemoryArtifactStore): Promise<{
 	chunkSet: Sha256Ref;
 	embeddingSet: Sha256Ref;
 }> {
-	const chunks = await buildCampusDocsChunkSet({ store });
+	const chunks = await buildCampusDocsChunkSet({ artifactStore: store, sourceStore: store });
 	const embeddings = await buildCampusDocsEmbeddingSet({
 		chunkSet: chunks.chunkSet,
 		embedding: embeddingClient([]),

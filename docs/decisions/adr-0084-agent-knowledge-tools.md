@@ -70,6 +70,21 @@ Embedding Job 只从 execution-control 取得一次当前 provider 连接，并�
 embedding set 构建完整新 collection，验证后原子替换当前绑定。流程不原地更新向量，也不在激活后
 立即删除旧 collection。
 
+### 离线任务执行模型
+
+- 本地 Chunk CLI 和集群 Chunk Job 复用同一个命令输出合同与领域实现，只在组装层分别使用 worktree
+  文件 Store 和 derived S3 Store；不维护 `LOCAL_MODE`、存储模式配置或第二套分块定义；
+- 本地 Chunk CLI 只读对象存储来源并写入 `var/`，其制品不上传或晋升；正式 Chunk Set 由集群
+  Job 使用同一有效输入重新确定性生成；
+- 每个进程只执行 Chunk、Embedding 或 Publisher 中的一个阶段并退出，下一阶段只接收操作者显式传入的
+  内容寻址制品 ID；
+- Kubernetes 只提供一次性 Job 执行载体，三个保持暂停的 CronJob 只保存各阶段 Pod 模板，不通过
+  解除暂停执行，也不自动串联后续阶段；
+- 集群镜像在构建期编译 TypeScript，运行时只执行 JavaScript 产物；本地只读 `eval-chunks` 不进入
+  集群镜像；
+- Job 环境只提供该阶段实际依赖的对象存储、PostgreSQL 或 Qdrant 连接。Embedding provider 连接继续
+  来自 execution-control 的一次性快照，向量空间与分块定义继续由代码所有。
+
 ### 不可变运行准入
 
 execution-control 在每个 run 准入时冻结 `llm` 设置、物理 Qdrant collection、完整查询绑定、本轮
@@ -94,6 +109,7 @@ contexts 决定样本是否进入 RAG 评测。服务端检索不伪造成工具
 - 培养方案不再被假设成尚不存在的结构化课程事实库；
 - workflow 控制流、数据存在性和 evidence 内容各自只表达一次，不再同步额外状态机；
 - 同一 run 的候选、正文和依据不会因索引切换而混用版本；
+- 本地开发和集群执行不会因不同入口形成两套制品语义或配置来源；
 - 删除 Knowledge Agent、旧知识路由、旧工具及 `grounding` 上下游合同；
 - 多 Agent 或迭代检索只有在出现独立边界和评测证据时才重新决策。
 
@@ -105,7 +121,12 @@ contexts 决定样本是否进入 RAG 评测。服务端检索不伪造成工具
 - **为培养方案维护独立课程事实工具**：当前来源仍是文档，没有可靠的结构化生产链；
 - **从 PostgreSQL 回读每个命中章节**：Qdrant 已保存经发布校验的 chunk 正文，会增加在线串行读取；
 - **运行时跟随 alias 或在 Activity 内读取 current 指针**：同一 run 可能跨版本；
-- **默认检索历史 reader**：会让过期规章与当前事实竞争。
+- **默认检索历史 reader**：会让过期规章与当前事实竞争；
+- **把三个制品阶段合并为一个自动 Job**：无法在 Chunk 与 Embedding 之间进行人工抽样，也会隐藏显式
+  制品边界；
+- **为本地和集群维护不同实现或配置**：相同输入可能产生不同制品，且需要同步两套命令和默认值；
+- **使用 Temporal、Argo 或数据库状态机编排当前流程**：当前只有人工分段执行需求，没有独立的持久
+  编排状态需要维护。
 
 ## 参考
 

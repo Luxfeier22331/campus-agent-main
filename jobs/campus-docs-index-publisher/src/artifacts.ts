@@ -186,7 +186,7 @@ function decodeNDJSON<T>(bytes: Uint8Array, parse: (value: unknown, index: numbe
 }
 
 function parseChunkSetManifest(value: unknown): ChunkSetManifest {
-	if (!isRecord(value) || value.schemaVersion !== "campus_docs_chunk_set.v1") {
+	if (!isRecord(value) || value.schemaVersion !== "campus_docs_chunk_set.v2") {
 		throw new Error("chunk set manifest schema is invalid");
 	}
 	const manifest = value as unknown as ChunkSetManifest;
@@ -199,7 +199,6 @@ function parseChunkSetManifest(value: unknown): ChunkSetManifest {
 	) {
 		throw new Error("chunk set manifest definition is invalid");
 	}
-	assertObjectRef(manifest.source, "chunk set source");
 	assertObjectRef(manifest.chunks, "chunk set data");
 	assertSha256Ref(manifest.sourceProjectionSha256, "source projection digest");
 	return manifest;

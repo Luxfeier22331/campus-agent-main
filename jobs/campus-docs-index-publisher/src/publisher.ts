@@ -40,9 +40,9 @@ const QDRANT_UPSERT_BATCH_SIZE = 64;
 export async function buildCampusDocsChunkSet(
 	input: BuildChunkSetInput,
 ): Promise<BuildChunkSetResult> {
-	const sourceBytes = await input.store.read(CAMPUS_DOCS_SOURCE_KEY);
+	const sourceBytes = await input.sourceStore.read(CAMPUS_DOCS_SOURCE_KEY);
 	const source = parseIndexingSource(sourceBytes);
-	const selections = await loadCurrentVersions({ readerStore: input.store, source });
+	const selections = await loadCurrentVersions({ readerStore: input.sourceStore, source });
 	const chunks = selections.flatMap((selection) =>
 		buildChunks({
 			document: selection.document,
@@ -56,28 +56,25 @@ export async function buildCampusDocsChunkSet(
 		...chunk,
 		retrievalTextSha256: sha256Text(chunk.retrievalText),
 	}));
-	const chunkData = await writeChunkData(input.store, storedChunks);
+	const sourceProjection = sourceProjectionSha256(selections);
+	const chunkData = await writeChunkData(input.artifactStore, storedChunks);
 	const manifest = {
 		chunkCount: storedChunks.length,
 		chunkDefinition: INDEX_DEFINITION.chunking,
 		chunks: chunkData,
 		documentCount: selections.length,
 		readerSchemaVersion: INDEX_DEFINITION.readerSchemaVersion,
-		schemaVersion: "campus_docs_chunk_set.v1",
-		source: {
-			byteSize: sourceBytes.byteLength,
-			key: CAMPUS_DOCS_SOURCE_KEY,
-			sha256: source.sourceDigest,
-		},
-		sourceProjectionSha256: sourceProjectionSha256(selections),
+		schemaVersion: "campus_docs_chunk_set.v2",
+		sourceProjectionSha256: sourceProjection,
 		sourceSchemaVersion: INDEX_DEFINITION.sourceSchemaVersion,
 	} as const;
-	const chunkSet = await writeChunkSetManifest(input.store, manifest);
+	const chunkSet = await writeChunkSetManifest(input.artifactStore, manifest);
 	return {
 		chunkCount: chunks.length,
 		chunkSet,
 		documentCount: selections.length,
 		sourceDigest: source.sourceDigest,
+		sourceProjectionSha256: sourceProjection,
 	};
 }
 

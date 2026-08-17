@@ -1,20 +1,31 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
-import type { ArtifactObjectStore } from "./types.ts";
+import type { ArtifactObjectStore, ReaderObjectStore } from "./types.ts";
 
-export interface ObjectStoreEnv {
-	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
-	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
+interface ObjectStoreConnectionEnv {
 	OBJECT_STORE_ENDPOINT?: string;
 	CAMPUS_DOCS_OBJECT_STORE_BUCKET?: string;
 }
 
+export interface ObjectStoreEnv extends ObjectStoreConnectionEnv {
+	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
+	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
+}
+
+export interface ObjectStoreReaderEnv extends ObjectStoreConnectionEnv {
+	OBJECT_STORE_DERIVED_READ_ACCESS_KEY?: string;
+	OBJECT_STORE_DERIVED_READ_SECRET_KEY?: string;
+}
+
 export function createS3ArtifactStore(env: ObjectStoreEnv = process.env): ArtifactObjectStore {
-	const { bucket, client } = createS3Client(env);
+	const bucket = bucketFromEnv(env);
+	const client = createS3Client({
+		accessKeyId: requiredEnv(env.OBJECT_STORE_DERIVED_ACCESS_KEY, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
+		endpoint: requiredEnv(env.OBJECT_STORE_ENDPOINT, "OBJECT_STORE_ENDPOINT"),
+		secretAccessKey: requiredEnv(env.OBJECT_STORE_DERIVED_SECRET_KEY, "OBJECT_STORE_DERIVED_SECRET_KEY"),
+	});
 	const read = async (key: string): Promise<Uint8Array> => {
-		const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-		if (!response.Body) throw new Error(`object body is missing: ${key}`);
-		return response.Body.transformToByteArray();
+		return readObject(client, bucket, key);
 	};
 	return {
 		read,
@@ -38,24 +49,52 @@ export function createS3ArtifactStore(env: ObjectStoreEnv = process.env): Artifa
 	};
 }
 
-function createS3Client(env: ObjectStoreEnv) {
-	const endpoint = requiredEnv(env.OBJECT_STORE_ENDPOINT, "OBJECT_STORE_ENDPOINT");
-	const accessKeyId = requiredEnv(env.OBJECT_STORE_DERIVED_ACCESS_KEY, "OBJECT_STORE_DERIVED_ACCESS_KEY");
-	const secretAccessKey = requiredEnv(env.OBJECT_STORE_DERIVED_SECRET_KEY, "OBJECT_STORE_DERIVED_SECRET_KEY");
-	const bucket = env.CAMPUS_DOCS_OBJECT_STORE_BUCKET?.trim() || "campus-agent-derived";
+export function createS3ReaderStore(env: ObjectStoreReaderEnv = process.env): ReaderObjectStore {
+	const bucket = bucketFromEnv(env);
+	const client = createS3Client({
+		accessKeyId: requiredEnv(
+			env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
+			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
+		),
+		endpoint: requiredEnv(env.OBJECT_STORE_ENDPOINT, "OBJECT_STORE_ENDPOINT"),
+		secretAccessKey: requiredEnv(
+			env.OBJECT_STORE_DERIVED_READ_SECRET_KEY,
+			"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
+		),
+	});
 	return {
-		bucket,
-		client: new S3Client({
-			credentials: { accessKeyId, secretAccessKey },
-			endpoint,
-			forcePathStyle: true,
-			region: "us-east-1",
-		}),
+		read: (key) => readObject(client, bucket, key),
 	};
+}
+
+function createS3Client(input: {
+	accessKeyId: string;
+	endpoint: string;
+	secretAccessKey: string;
+}): S3Client {
+	return new S3Client({
+		credentials: {
+			accessKeyId: input.accessKeyId,
+			secretAccessKey: input.secretAccessKey,
+		},
+		endpoint: input.endpoint,
+		forcePathStyle: true,
+		region: "us-east-1",
+	});
+}
+
+async function readObject(client: S3Client, bucket: string, key: string): Promise<Uint8Array> {
+	const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+	if (!response.Body) throw new Error(`object body is missing: ${key}`);
+	return response.Body.transformToByteArray();
 }
 
 function contentTypeForKey(key: string): string {
 	return key.endsWith(".ndjson") ? "application/x-ndjson" : "application/json";
+}
+
+function bucketFromEnv(env: ObjectStoreConnectionEnv): string {
+	return env.CAMPUS_DOCS_OBJECT_STORE_BUCKET?.trim() || "campus-agent-derived";
 }
 
 function isPreconditionFailure(error: unknown): boolean {
@@ -68,6 +107,6 @@ function isPreconditionFailure(error: unknown): boolean {
 
 function requiredEnv(value: string | undefined, name: string): string {
 	const normalized = value?.trim();
-	if (!normalized) throw new Error(`${name} is required for Campus docs publisher`);
+	if (!normalized) throw new Error(`${name} is required for Campus docs object storage`);
 	return normalized;
 }

@@ -283,6 +283,20 @@ interface ChunkPiece {
 	rootUnitIds: string[];
 }
 
+interface ChunkLimits {
+	maxChars: number;
+	targetChars: number;
+}
+
+interface TableContext extends ChunkPiece {
+	fullyCopiedRootUnitIds: string[];
+}
+
+type SplittableTextKind = "blockquote" | "list" | "paragraph" | "table";
+
+const TABLE_CONTEXT_MAX_CHARS = Math.floor(INDEX_DEFINITION.chunking.targetChars / 2);
+const TABLE_CONTEXT_SEPARATOR = "\n\n";
+
 interface LogicalTableCell {
 	columnSpan: number;
 	header: boolean;
@@ -348,10 +362,34 @@ function buildSectionPieces(
 		});
 		textBlocks = [];
 	};
-	for (const element of elements) {
+	for (const [elementIndex, element] of elements.entries()) {
 		if (element.kind === "table") {
+			const context = buildTableContext(elements, elementIndex, element);
+			const contextPrefixLength = context
+				? unicodeLength(context.content) + unicodeLength(TABLE_CONTEXT_SEPARATOR)
+				: 0;
+			const tableMaxChars = INDEX_DEFINITION.chunking.maxChars - contextPrefixLength;
+			if (tableMaxChars < 1) {
+				throw new Error(`Campus docs table context exceeds Unicode character limit: ${versionId}`);
+			}
+			const tableLimits: ChunkLimits = {
+				maxChars: tableMaxChars,
+				targetChars: Math.max(
+					1,
+					Math.min(tableMaxChars, INDEX_DEFINITION.chunking.targetChars - contextPrefixLength),
+				),
+			};
+			if (context) {
+				const fullyCopiedRootUnitIds = new Set(context.fullyCopiedRootUnitIds);
+				while (
+					textBlocks.at(-1)?.rootUnitIds.length === 1 &&
+					fullyCopiedRootUnitIds.has(textBlocks.at(-1)?.rootUnitIds[0] ?? "")
+				) {
+					textBlocks.pop();
+				}
+			}
 			flushText();
-			result.push(...buildTablePieces(element, versionId));
+			result.push(...attachTableContext(buildTablePieces(element, versionId, tableLimits), context));
 			continue;
 		}
 		for (const content of splitOversizedText(element.text, element.kind)) {
@@ -387,7 +425,7 @@ function splitOversizedText(
 
 function splitTextByLimits(
 	value: string,
-	kind: "blockquote" | "list" | "paragraph",
+	kind: SplittableTextKind,
 	targetChars: number,
 	maxChars: number,
 ): string[] {
@@ -407,7 +445,7 @@ function splitTextByLimits(
 
 function textSplitIndex(
 	characters: readonly string[],
-	kind: "blockquote" | "list" | "paragraph",
+	kind: SplittableTextKind,
 	targetChars: number,
 	maxChars: number,
 ): number {
@@ -415,7 +453,7 @@ function textSplitIndex(
 	const target = Math.min(Math.max(1, targetChars), max);
 	const predicates: Array<(index: number) => boolean> = [
 		(index) => characters[index - 2] === "\n" && characters[index - 1] === "\n",
-		(index) => kind === "list" && characters[index - 1] === "\n",
+		(index) => (kind === "list" || kind === "table") && characters[index - 1] === "\n",
 		(index) => sentenceBoundaryAt(characters, index),
 		(index) => clauseBoundaryAt(characters, index),
 	];
@@ -428,6 +466,85 @@ function textSplitIndex(
 		}
 	}
 	return max;
+}
+
+function buildTableContext(
+	elements: readonly ReaderContentElement[],
+	tableIndex: number,
+	table: DocsReaderTableElement,
+): TableContext | null {
+	const element = elements[tableIndex - 1];
+	if (!element || element.kind === "table") return null;
+	const content = normalizeBlockText(element.text);
+	if (!content || !qualifiesAsTableContext(content, table)) return null;
+	if (unicodeLength(content) <= TABLE_CONTEXT_MAX_CHARS) {
+		const contextParts = [content];
+		const rootUnitIds = [element.rootUnitId];
+		const fullyCopiedRootUnitIds = [element.rootUnitId];
+		for (let index = tableIndex - 2; index >= 0; index -= 1) {
+			const candidate = elements[index];
+			if (!candidate || candidate.kind === "table") break;
+			const candidateContent = normalizeBlockText(candidate.text);
+			if (!isExplicitTableLeadIn(candidateContent)) break;
+			const combined = [candidateContent, ...contextParts].join("\n\n");
+			if (unicodeLength(combined) > TABLE_CONTEXT_MAX_CHARS) break;
+			contextParts.unshift(candidateContent);
+			rootUnitIds.unshift(candidate.rootUnitId);
+			fullyCopiedRootUnitIds.unshift(candidate.rootUnitId);
+		}
+		return {
+			content: contextParts.join("\n\n"),
+			fullyCopiedRootUnitIds,
+			rootUnitIds,
+		};
+	}
+	const lastLine = content
+		.split(/\n+/u)
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.at(-1);
+	if (!lastLine) return null;
+	const pieces = splitTextByLimits(
+		lastLine,
+		element.kind,
+		TABLE_CONTEXT_MAX_CHARS,
+		TABLE_CONTEXT_MAX_CHARS,
+	);
+	const tail = pieces.at(-1);
+	return tail
+		? { content: tail, fullyCopiedRootUnitIds: [], rootUnitIds: [element.rootUnitId] }
+		: null;
+}
+
+function qualifiesAsTableContext(content: string, table: DocsReaderTableElement): boolean {
+	if (isExplicitTableLeadIn(content)) return true;
+	const comparableContent = content.replace(/\s+/gu, "");
+	return table.rows.some((row) =>
+		row.some((cell) => {
+			if (cell.header) return false;
+			const term = normalizeBlockText(cell.text).replace(/\s+/gu, "");
+			return (
+				unicodeLength(term) >= 3 &&
+				/[\p{L}\p{Script=Han}]/u.test(term) &&
+				comparableContent.includes(term)
+			);
+		}),
+	);
+}
+
+function isExplicitTableLeadIn(content: string): boolean {
+	return /(?:如下|见下表|具体如下)[：:]?$/u.test(content);
+}
+
+function attachTableContext(
+	pieces: readonly ChunkPiece[],
+	context: ChunkPiece | null,
+): ChunkPiece[] {
+	if (!context) return [...pieces];
+	return pieces.map((piece) => ({
+		content: `${context.content}${TABLE_CONTEXT_SEPARATOR}${piece.content}`,
+		rootUnitIds: orderedUnique([...context.rootUnitIds, ...piece.rootUnitIds]),
+	}));
 }
 
 function sentenceBoundaryAt(characters: readonly string[], index: number): boolean {
@@ -457,7 +574,11 @@ function unicodeNumber(value: string): boolean {
 	return /^\p{N}$/u.test(value);
 }
 
-function buildTablePieces(table: DocsReaderTableElement, versionId: string): ChunkPiece[] {
+function buildTablePieces(
+	table: DocsReaderTableElement,
+	versionId: string,
+	limits: ChunkLimits,
+): ChunkPiece[] {
 	const logicalRows = logicalTableGrid(table.rows);
 	if (logicalRows.length === 0) return [];
 	let leadingHeaderCount = 0;
@@ -466,16 +587,18 @@ function buildTablePieces(table: DocsReaderTableElement, versionId: string): Chu
 	}
 	let rows: string[];
 	if (leadingHeaderCount === logicalRows.length) {
-		rows = table.rows.flatMap((row) => serializePhysicalTableRow(row, versionId));
+		rows = table.rows.flatMap((row) => serializePhysicalTableRow(row, versionId, limits));
 	} else {
 		const bodyRows = logicalRows.slice(leadingHeaderCount);
 		const columnPaths = tableColumnPaths(logicalRows, leadingHeaderCount);
 		rows = [
-			...serializeUnusedTableHeaders(bodyRows, columnPaths, versionId),
-			...bodyRows.flatMap((row) => serializeLogicalTableRow(row, columnPaths, versionId)),
+			...serializeUnusedTableHeaders(bodyRows, columnPaths, versionId, limits),
+			...bodyRows.flatMap((row) =>
+				serializeLogicalTableRow(row, columnPaths, versionId, limits),
+			),
 		];
 	}
-	const grouped = groupTableRows(rows, versionId);
+	const grouped = groupTableRows(rows, versionId, limits);
 	return grouped.map((content) => ({ content, rootUnitIds: [table.rootUnitId] }));
 }
 
@@ -541,18 +664,20 @@ function serializeLogicalTableRow(
 	row: readonly (LogicalTableCell | undefined)[],
 	columnPaths: readonly (readonly string[])[],
 	versionId: string,
+	limits: ChunkLimits,
 ): string[] {
 	const fields = logicalTableValues(row).flatMap((value) => {
 		const label = compactColumnLabel(value.columns, columnPaths);
-		return serializeTableValue(value.text, label, versionId);
+		return serializeTableValue(value.text, label, versionId, limits);
 	});
-	return groupTableFields(fields, versionId);
+	return groupTableFields(fields, versionId, limits);
 }
 
 function serializeUnusedTableHeaders(
 	rows: readonly (readonly (LogicalTableCell | undefined)[])[],
 	columnPaths: readonly (readonly string[])[],
 	versionId: string,
+	limits: ChunkLimits,
 ): string[] {
 	const usedColumns = new Set(
 		rows.flatMap((row) => logicalTableValues(row).flatMap((value) => value.columns)),
@@ -562,12 +687,13 @@ function serializeUnusedTableHeaders(
 	);
 	if (unusedColumns.length === 0) return [];
 	const label = compactColumnLabel(unusedColumns, columnPaths);
-	return groupTableFields(serializeTableValue(label, "", versionId), versionId);
+	return groupTableFields(serializeTableValue(label, "", versionId, limits), versionId, limits);
 }
 
 function serializePhysicalTableRow(
 	row: readonly DocsReaderTableCell[],
 	versionId: string,
+	limits: ChunkLimits,
 ): string[] {
 	const values: LogicalTableValue[] = [];
 	let columnIndex = 0;
@@ -583,8 +709,9 @@ function serializePhysicalTableRow(
 		columnIndex += columnSpan;
 	}
 	return groupTableFields(
-		values.flatMap((value) => serializeTableValue(value.text, "", versionId)),
+		values.flatMap((value) => serializeTableValue(value.text, "", versionId, limits)),
 		versionId,
+		limits,
 	);
 }
 
@@ -648,27 +775,36 @@ function compactColumnLabel(
 	return `${prefix} / ${suffixes.join("、")}`;
 }
 
-function serializeTableValue(text: string, label: string, versionId: string): string[] {
+function serializeTableValue(
+	text: string,
+	label: string,
+	versionId: string,
+	limits: ChunkLimits,
+): string[] {
 	const prefix = label ? `${label}：` : "";
-	const availableMax = INDEX_DEFINITION.chunking.maxChars - unicodeLength(prefix);
+	const availableMax = limits.maxChars - unicodeLength(prefix);
 	if (availableMax < 1) {
 		throw new Error(`Campus docs table column name exceeds Unicode character limit: ${versionId}`);
 	}
 	const availableTarget = Math.max(
 		1,
-		Math.min(availableMax, INDEX_DEFINITION.chunking.targetChars - unicodeLength(prefix)),
+		Math.min(availableMax, limits.targetChars - unicodeLength(prefix)),
 	);
 	return splitTextByLimits(text, "paragraph", availableTarget, availableMax)
 		.map((value) => `${prefix}${value}`);
 }
 
-function groupTableFields(fields: readonly string[], versionId: string): string[] {
+function groupTableFields(
+	fields: readonly string[],
+	versionId: string,
+	limits: ChunkLimits,
+): string[] {
 	const result: string[] = [];
 	let current: string[] = [];
 	for (const field of fields) {
 		const currentText = current.join("；");
 		const candidate = [...current, field].join("；");
-		if (current.length > 0 && unicodeLength(candidate) > INDEX_DEFINITION.chunking.maxChars) {
+		if (current.length > 0 && unicodeLength(candidate) > limits.maxChars) {
 			result.push(currentText);
 			current = [field];
 		} else {
@@ -680,7 +816,11 @@ function groupTableFields(fields: readonly string[], versionId: string): string[
 	return result;
 }
 
-function groupTableRows(rows: readonly string[], versionId: string): string[] {
+function groupTableRows(
+	rows: readonly string[],
+	versionId: string,
+	limits: ChunkLimits,
+): string[] {
 	const result: string[] = [];
 	let current: string[] = [];
 	for (const row of rows) {
@@ -688,8 +828,8 @@ function groupTableRows(rows: readonly string[], versionId: string): string[] {
 		const candidate = [...current, row].join("\n");
 		if (
 			current.length > 0 &&
-			(unicodeLength(currentText) >= INDEX_DEFINITION.chunking.targetChars ||
-				unicodeLength(candidate) > INDEX_DEFINITION.chunking.maxChars)
+			(unicodeLength(currentText) >= limits.targetChars ||
+				unicodeLength(candidate) > limits.maxChars)
 		) {
 			result.push(currentText);
 			current = [row];

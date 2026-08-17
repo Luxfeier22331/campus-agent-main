@@ -8,11 +8,9 @@ metadata:
 spec:
   schedule: "0 0 1 1 *"
   suspend: true
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 1
-  successfulJobsHistoryLimit: 1
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 86400
       activeDeadlineSeconds: 3600
       backoffLimit: 0
       template:
@@ -85,11 +83,9 @@ metadata:
 spec:
   schedule: "0 0 1 1 *"
   suspend: true
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 1
-  successfulJobsHistoryLimit: 1
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 86400
       activeDeadlineSeconds: 3600
       backoffLimit: 0
       template:
@@ -114,10 +110,7 @@ spec:
             - name: embedding-builder
               image: ghcr.io/muc-wiki/campus-agent/campus-docs-index-publisher:replace-me
               imagePullPolicy: IfNotPresent
-              args:
-                - build-embeddings
-                - --chunk-set
-                - sha256:0000000000000000000000000000000000000000000000000000000000000000
+              args: []
               env:
                 - name: OBJECT_STORE_ENDPOINT
                   value: http://object-store:9000
@@ -165,11 +158,9 @@ metadata:
 spec:
   schedule: "0 0 1 1 *"
   suspend: true
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 1
-  successfulJobsHistoryLimit: 1
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 86400
       activeDeadlineSeconds: 3600
       backoffLimit: 0
       template:
@@ -194,12 +185,7 @@ spec:
             - name: index-publisher
               image: ghcr.io/muc-wiki/campus-agent/campus-docs-index-publisher:replace-me
               imagePullPolicy: IfNotPresent
-              args:
-                - publish-index
-                - --chunk-set
-                - sha256:0000000000000000000000000000000000000000000000000000000000000000
-                - --embedding-set
-                - sha256:0000000000000000000000000000000000000000000000000000000000000000
+              args: []
               env:
                 - name: PGHOST
                   valueFrom:

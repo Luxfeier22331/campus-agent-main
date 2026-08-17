@@ -3,13 +3,13 @@ import { fileURLToPath } from "node:url";
 
 import { assertSha256Ref } from "./artifacts.ts";
 import { createPostgresIndexCatalog } from "./catalog.ts";
+import { runBuildChunks } from "./chunk-command.ts";
 import {
 	createOpenAICompatibleEmbeddingClient,
 	fetchEmbeddingProviderSnapshot,
 } from "./embedding.ts";
 import { createS3ArtifactStore } from "./object-store.ts";
 import {
-	buildCampusDocsChunkSet,
 	buildCampusDocsEmbeddingSet,
 	publishCampusDocsIndex,
 } from "./publisher.ts";
@@ -26,13 +26,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 	const store = createS3ArtifactStore();
 	switch (command.kind) {
 		case "build-chunks": {
-			const result = await buildCampusDocsChunkSet({ store });
-			writeResult({
-				chunk_count: result.chunkCount,
-				chunk_set: result.chunkSet,
-				document_count: result.documentCount,
-				source_digest: result.sourceDigest,
-			});
+			await runBuildChunks({ artifactStore: store, sourceStore: store });
 			return;
 		}
 		case "build-embeddings": {

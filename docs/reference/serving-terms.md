@@ -79,8 +79,9 @@ ID、fingerprint 或数据库历史记录。
 
 ### Chunk Set
 
-`campus_docs_chunk_set.v1` manifest 与 `chunks.ndjson` 组成的内容寻址制品。它记录来源对象、当前文档
-投影摘要、分块定义和数量，是 Embedding 与 Publisher 的显式输入；它不是当前指针。
+`campus_docs_chunk_set.v2` manifest 与 `chunks.ndjson` 组成的内容寻址制品。manifest 记录当前文档
+投影摘要、分块定义、Chunk 数据引用和数量；完整 `source.json` 摘要不参与身份。Chunk Set 是
+Embedding 与 Publisher 的显式输入，不是当前指针。
 
 ### Embedding Set
 

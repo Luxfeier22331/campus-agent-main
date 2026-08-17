@@ -25,8 +25,9 @@ Campus Web 静态构建和 Campus Docs 索引发布共享这份清洗后输入�
 `sha256` 固定；历史版本 reader、通知、校历和其他补充资产不进入当前索引。bucket 中存在但未被当前
 清单引用的对象不会被自动发现。
 
-Chunk、Embedding 和 Index manifest 都使用内容寻址身份。Index manifest 摘要同时形成物理
-collection 名：
+Chunk、Embedding 和 Index manifest 都使用内容寻址身份。`campus_docs_chunk_set.v2` 只把当前文档
+投影摘要、分块定义和实际 Chunk 数据纳入身份，完整 `source.json` 摘要只作为诊断输出。Index manifest
+摘要同时形成物理 collection 名：
 
 ```text
 campus_docs_<index-manifest-sha256>
@@ -35,6 +36,22 @@ campus_docs_<index-manifest-sha256>
 publisher 的索引定义固定 reader/point schema、分块算法、dense 与 sparse 向量名、Embedding space、
 dimensions、查询指令和 sparse 算法。provider、Base URL、API key 和 provider-specific model alias
 是连接属性，不进入索引身份。
+
+## 分块定义
+
+当前 `campus_docs_reader_elements.v4` 使用 Unicode 字符数，不依赖模型 tokenizer：软目标为 800
+字符，单个 Chunk 硬上限为 1600 字符，不做通用重叠。
+
+- heading 只维护按 level 收敛的标题路径，不进入 evidence 正文，也不单独生成 point；标题前正文作为
+  preamble 使用当前版本固定链接；
+- paragraph、list 和 blockquote 保持 reader 元素完整并按原顺序合并；超长元素优先在空行、列表项、
+  句末和子句边界切分，没有可用边界时才在硬上限切分；
+- table 保持逻辑行和多级列路径，会携带紧邻且高置信相关的有界正文上下文。上下文最多 400 字，表格
+  拆成多个 Chunk 时重复该上下文和列名，不附着无关相邻段落；
+- `root_unit_ids` 按正文元素首次出现顺序去重，覆盖 evidence 实际包含的全部 reader 根单元。
+
+字符硬上限之外仍保留 16000 UTF-8 byte 传输限制。dense embedding 和 sparse vector 使用由文档
+标题、完整 heading 路径和 evidence 正文组成的 `retrieval_text`；point 分别保存正文和检索文本摘要。
 
 ## 构建与发布
 
@@ -50,7 +67,12 @@ Publisher Job: 显式 chunk set + embedding set
   -> 原子替换 campus_docs_serving.current_index
 ```
 
-阶段之间只传递显式 `sha256:<id>`，不自动串联，不维护 `latest` 制品指针或构建状态机。Embedding Job
+本地 Chunk CLI 和集群 Chunk Job 共用同一个命令输出合同与领域实现，只替换制品 Store：本地只读对象
+存储来源并写入 worktree `var/`，集群写入 derived bucket。相同有效来源必须生成相同 Chunk Set ID；
+本地制品不上传或晋升。只读 `eval-chunks` 是独立本地评测入口，不进入集群镜像。
+
+阶段之间只传递显式 `sha256:<id>`，不自动串联，不维护 `latest` 制品指针或构建状态机。manifest 和
+NDJSON 使用规范序列化、最终换行和内容寻址对象键，不可变写入采用 create-or-verify。Embedding Job
 从 execution-control 读取一次当前 Embedding 连接；它可以从操作者显式指定的旧 embedding set 按
 `embedding_space_id + retrievalTextSha256` 复用向量，但不扫描 bucket，也不把 Qdrant 当作复用缓存。
 Publisher 不读取 reader，也不调用 provider。

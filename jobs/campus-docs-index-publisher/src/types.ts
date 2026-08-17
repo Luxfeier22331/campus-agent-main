@@ -12,7 +12,7 @@ export type Sha256Ref = `sha256:${string}`;
 
 export const INDEX_DEFINITION = {
 	chunking: {
-		algorithm: "campus_docs_reader_elements.v3",
+		algorithm: "campus_docs_reader_elements.v4",
 		maxChars: 1600,
 		overlapChars: 0,
 		targetChars: 800,
@@ -183,8 +183,7 @@ export interface ChunkSetManifest {
 	chunks: ObjectRef;
 	documentCount: number;
 	readerSchemaVersion: typeof INDEX_DEFINITION.readerSchemaVersion;
-	schemaVersion: "campus_docs_chunk_set.v1";
-	source: ObjectRef;
+	schemaVersion: "campus_docs_chunk_set.v2";
 	sourceProjectionSha256: Sha256Ref;
 	sourceSchemaVersion: typeof INDEX_DEFINITION.sourceSchemaVersion;
 }
@@ -208,7 +207,8 @@ export interface IndexManifest {
 }
 
 export interface BuildChunkSetInput {
-	store: ArtifactObjectStore;
+	artifactStore: ArtifactObjectStore;
+	sourceStore: ReaderObjectStore;
 }
 
 export interface BuildChunkSetResult {
@@ -216,6 +216,7 @@ export interface BuildChunkSetResult {
 	chunkSet: Sha256Ref;
 	documentCount: number;
 	sourceDigest: Sha256Ref;
+	sourceProjectionSha256: Sha256Ref;
 }
 
 export interface BuildEmbeddingSetInput {

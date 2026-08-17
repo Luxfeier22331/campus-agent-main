@@ -6,8 +6,10 @@
 	"license": "Apache-2.0",
 	"type": "module",
 	"scripts": {
-		"build-chunks": "tsx src/cli.ts build-chunks",
+		"build": "tsc --project tsconfig.build.json",
+		"build-chunks": "tsx src/local-chunk-cli.ts",
 		"build-embeddings": "tsx src/cli.ts build-embeddings",
+		"eval-chunks": "tsx src/eval-cli.ts",
 		"publish-index": "tsx src/cli.ts publish-index",
 		"test": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
@@ -16,13 +18,13 @@
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1109.0",
 		"ajv": "^8.20.0",
-		"pg": "^8.23.0",
-		"tsx": "^4.23.12"
+		"pg": "^8.23.0"
 	},
 	"devDependencies": {
 		"@testcontainers/postgresql": "12.1.0",
 		"@types/node": "^24.13.3",
 		"@types/pg": "^8.21.0",
+		"tsx": "^4.23.12",
 		"testcontainers": "12.1.0",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.10"

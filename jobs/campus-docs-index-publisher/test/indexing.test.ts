@@ -273,6 +273,233 @@ describe("Campus docs indexing", () => {
 		}
 	});
 
+	it("copies adjacent reader context into otherwise identical table chunks", async () => {
+		const fixture = createDocsSourceSiteFixture();
+		const source = parseIndexingSource(fixture.sourceBytes);
+		const [selection] = await loadCurrentVersions({
+			readerStore: {
+				read: async (key) => fixture.objects.get(key)?.body ?? (() => { throw new Error(key); })(),
+			},
+			source,
+		});
+		if (!selection) throw new Error("docs fixture is empty");
+		const tableRows = [
+			[
+				{ header: true, text: "类别" },
+				{ header: true, text: "学分" },
+			],
+			[
+				{ header: false, text: "演出实践" },
+				{ header: false, text: "2" },
+			],
+		];
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: {
+				...selection.reader,
+				elements: [
+					{
+						anchor: "practice",
+						kind: "heading",
+						level: 2,
+						rootUnitId: "heading",
+						text: "专业实践",
+					},
+					{
+						kind: "paragraph",
+						rootUnitId: "root-track-a",
+						text: "舞蹈表演专业实践包括毕业实习和演出实践。",
+					},
+					{ kind: "table", rootUnitId: "root-table-a", rows: tableRows },
+					{
+						kind: "paragraph",
+						rootUnitId: "root-track-b",
+						text: "舞蹈表演（民族英才班）专业实践包括毕业实习和演出实践。",
+					},
+					{ kind: "table", rootUnitId: "root-table-b", rows: tableRows },
+				],
+			},
+			version: selection.version,
+		});
+		const trackA = chunks.find((chunk) => chunk.rootUnitIds.includes("root-table-a"));
+		const trackB = chunks.find((chunk) => chunk.rootUnitIds.includes("root-table-b"));
+
+		expect(trackA).toMatchObject({
+			content: "舞蹈表演专业实践包括毕业实习和演出实践。\n\n类别：演出实践；学分：2",
+			rootUnitIds: ["root-track-a", "root-table-a"],
+		});
+		expect(trackB).toMatchObject({
+			content: "舞蹈表演（民族英才班）专业实践包括毕业实习和演出实践。\n\n类别：演出实践；学分：2",
+			rootUnitIds: ["root-track-b", "root-table-b"],
+		});
+		expect(chunks.filter((chunk) => chunk.rootUnitIds.includes("root-track-a"))).toHaveLength(1);
+		expect(chunks.filter((chunk) => chunk.rootUnitIds.includes("root-track-b"))).toHaveLength(1);
+		expect(trackA?.retrievalText).not.toBe(trackB?.retrievalText);
+	});
+
+	it("copies a contiguous table lead-in and related list as one context chain", async () => {
+		const fixture = createDocsSourceSiteFixture();
+		const source = parseIndexingSource(fixture.sourceBytes);
+		const [selection] = await loadCurrentVersions({
+			readerStore: {
+				read: async (key) => fixture.objects.get(key)?.body ?? (() => { throw new Error(key); })(),
+			},
+			source,
+		});
+		if (!selection) throw new Error("docs fixture is empty");
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: {
+				...selection.reader,
+				elements: [
+					{
+						anchor: "course-plan",
+						kind: "heading",
+						level: 2,
+						rootUnitId: "heading",
+						text: "课程安排",
+					},
+					{
+						kind: "paragraph",
+						rootUnitId: "root-lead-in",
+						text: "修读建议如下：",
+					},
+					{
+						kind: "list",
+						rootUnitId: "root-advice",
+						text: "1. 先修高等数学\n2. 再修线性代数",
+					},
+					{
+						kind: "table",
+						rootUnitId: "root-course-table",
+						rows: [
+							[
+								{ header: true, text: "课程" },
+								{ header: true, text: "学分" },
+							],
+							[
+								{ header: false, text: "高等数学" },
+								{ header: false, text: "4" },
+							],
+						],
+					},
+				],
+			},
+			version: selection.version,
+		});
+
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]).toMatchObject({
+			content:
+				"修读建议如下：\n\n1. 先修高等数学\n2. 再修线性代数\n\n课程：高等数学；学分：4",
+			rootUnitIds: ["root-lead-in", "root-advice", "root-course-table"],
+		});
+	});
+
+	it("repeats a bounded tail context across split table chunks", async () => {
+		const fixture = createDocsSourceSiteFixture();
+		const source = parseIndexingSource(fixture.sourceBytes);
+		const [selection] = await loadCurrentVersions({
+			readerStore: {
+				read: async (key) => fixture.objects.get(key)?.body ?? (() => { throw new Error(key); })(),
+			},
+			source,
+		});
+		if (!selection) throw new Error("docs fixture is empty");
+		const context = "前文".repeat(250) + "\n最终表格说明如下：";
+		const value = "甲".repeat(3000);
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: {
+				...selection.reader,
+				elements: [
+					{
+						anchor: "long-table",
+						kind: "heading",
+						level: 2,
+						rootUnitId: "heading",
+						text: "长表格",
+					},
+					{ kind: "paragraph", rootUnitId: "root-context", text: context },
+					{
+						kind: "table",
+						rootUnitId: "root-long-table",
+						rows: [
+							[{ header: true, text: "说明" }],
+							[{ header: false, text: value }],
+						],
+					},
+				],
+			},
+			version: selection.version,
+		});
+		const tableChunks = chunks.filter((chunk) => chunk.rootUnitIds.includes("root-long-table"));
+		const contextPrefix = "最终表格说明如下：\n\n";
+		const columnPrefix = "说明：";
+
+		expect(tableChunks.length).toBeGreaterThan(1);
+		expect(
+			tableChunks.every(
+				(chunk) =>
+					chunk.content.startsWith(`${contextPrefix}${columnPrefix}`) &&
+					chunk.rootUnitIds.join(",") === "root-context,root-long-table" &&
+					[...chunk.content].length <= INDEX_DEFINITION.chunking.maxChars,
+			),
+		).toBe(true);
+		expect(
+			tableChunks
+				.map((chunk) => chunk.content.slice(contextPrefix.length + columnPrefix.length))
+				.join(""),
+		).toBe(value);
+	});
+
+	it("does not attach an unrelated adjacent paragraph to a table", async () => {
+		const fixture = createDocsSourceSiteFixture();
+		const source = parseIndexingSource(fixture.sourceBytes);
+		const [selection] = await loadCurrentVersions({
+			readerStore: {
+				read: async (key) => fixture.objects.get(key)?.body ?? (() => { throw new Error(key); })(),
+			},
+			source,
+		});
+		if (!selection) throw new Error("docs fixture is empty");
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: {
+				...selection.reader,
+				elements: [
+					{ anchor: "form", kind: "heading", level: 2, rootUnitId: "heading", text: "申请表" },
+					{
+						kind: "paragraph",
+						rootUnitId: "root-explanation",
+						text: "十八、本办法由学生处负责解释。",
+					},
+					{
+						kind: "table",
+						rootUnitId: "root-form",
+						rows: [
+							[
+								{ header: true, text: "姓名" },
+								{ header: true, text: "学院" },
+							],
+							[
+								{ header: false, text: "张三" },
+								{ header: false, text: "文学院" },
+							],
+						],
+					},
+				],
+			},
+			version: selection.version,
+		});
+		const explanation = chunks.find((chunk) => chunk.rootUnitIds.includes("root-explanation"));
+		const table = chunks.find((chunk) => chunk.rootUnitIds.includes("root-form"));
+
+		expect(explanation?.rootUnitIds).toEqual(["root-explanation"]);
+		expect(table?.rootUnitIds).toEqual(["root-form"]);
+		expect(table?.content).not.toContain("本办法由学生处负责解释");
+	});
+
 	it("serializes table semantics without expanded coordinates or empty fields", async () => {
 		const fixture = createDocsSourceSiteFixture();
 		const source = parseIndexingSource(fixture.sourceBytes);

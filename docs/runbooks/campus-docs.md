@@ -57,9 +57,29 @@ Web Worker version；环境是否选择该 version 仍由环境仓决定。
 选择了包含这些版本链接的 Campus Web version。静态构建和 RAG 构建仍是独立消费者，失败时分别修复
 和重跑，不回滚已经写入的来源清单。
 
+## 分块评测
+
+正式生成 chunk set 前，使用当前对象存储的只读身份执行：
+
+```bash
+pnpm --dir jobs/campus-docs-index-publisher eval-chunks
+```
+
+该命令读取固定来源和当前 reader，在内存中执行正式分块实现，检查来源覆盖、section 边界、表格
+序列化、长度分布和确定性，并按集合生成稳定人工抽样。报告只写入本机
+`/tmp/campus-docs-chunk-eval/<source-digest>/`，不写对象存储、PostgreSQL 或 Qdrant，也不调用
+embedding provider。人工评分和当前文档问题通过显式 `--reviews`、`--query-cases` 文件补充；现有
+synthetic RAG 数据集不能替代当前 Campus Web 文档证据。
+
+当前 `campus_docs_reader_elements.v4` 会把紧邻且明确引导表格或命中表格实质词项的 reader 文本作为有界
+上下文放入每个表格 chunk；评测必须确认表格前导语与表格根单元同时出现，并检查无关相邻段落没有被
+附着，不能只检查表格单元格是否覆盖。
+
 ## RAG 制品
 
-三个阶段写入同一 derived bucket，所有对象都按内容寻址：
+本地 `pnpm --dir jobs/campus-docs-index-publisher build-chunks` 只读对象存储中的当前 source 和 reader，
+把相同对象键写入当前 worktree 的 `var/`。这些文件用于本地检查，不是线上候选，也不通过上传
+进入下一阶段。三个线上 Job 写入同一 derived bucket，所有正式对象都按内容寻址：
 
 | 制品 | 对象键 |
 | --- | --- |
@@ -80,8 +100,10 @@ Secret 或只读/写入两套 Campus Docs 凭据。
 ## 手动执行
 
 `CronJob/campus-docs-chunk-builder`、`CronJob/campus-docs-embedding-builder` 和
-`CronJob/campus-docs-index-publisher` 必须保持 `suspend: true`。仓库命令每次只从一个模板创建一个
-Job，不等待、不读取日志，也不触发下一阶段。命令使用当前 `kubectl` context 和 namespace。
+`CronJob/campus-docs-index-publisher` 只保存各阶段 Pod 模板，必须保持 `suspend: true`，不得通过解除
+暂停执行。仓库命令每次从一个模板创建一个 Job，并写入本次完整阶段参数；Embedding 和 Publisher
+模板本身不保存 chunk set 或 embedding set 占位值。命令不等待、不读取日志，也不触发下一阶段，使用
+当前 `kubectl` context 和 namespace。
 
 ### 1. 构建 Chunk Set
 
@@ -89,8 +111,10 @@ Job，不等待、不读取日志，也不触发下一阶段。命令使用当�
 pnpm campus-docs:index-job -- --stage chunks
 ```
 
-等待并读取该 Job 日志。成功 JSON 包含 `chunk_set`、`chunk_count`、`document_count` 和
-`source_digest`。记录 `chunk_set`，抽样核对对应 `chunks.ndjson` 后再进入下一阶段。
+等待并读取该 Job 日志。成功 JSON 包含 `chunk_set`、`chunk_count`、`document_count`、
+`source_digest` 和 `source_projection_sha256`。`source_digest` 只用于诊断，Chunk Set 身份由有效当前
+文档投影、分块定义和实际 Chunk 数据形成。记录 `chunk_set`，抽样核对对应 `chunks.ndjson` 后再进入
+下一阶段。
 
 该 Job 只访问来源、reader 和 derived bucket，不访问 execution-control、PostgreSQL、Qdrant 或
 embedding provider。
@@ -147,6 +171,9 @@ PostgreSQL advisory lock 只保护发布阶段的当前绑定替换。同一时�
 kubectl wait --for=condition=complete --timeout=65m job/<job-name>
 kubectl logs job/<job-name> --all-containers=true
 ```
+
+Job 完成或失败后保留 24 小时再由 Kubernetes 自动删除。必须在此之前读取日志并记录本阶段输出的
+内容寻址 ID；CronJob 的任务历史设置不管理由上述命令创建的独立 Job。
 
 ## 验证与失败处理
 
