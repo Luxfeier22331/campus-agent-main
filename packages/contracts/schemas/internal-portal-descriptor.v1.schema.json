@@ -1,0 +1,36 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/internal-portal-descriptor.v1.schema.json",
+	"title": "Campus internal portal source descriptor",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"portal_base_url",
+		"portal_page_url",
+		"site_id",
+		"source_home_url",
+		"sso_cookie_domain"
+	],
+	"properties": {
+		"portal_base_url": {
+			"type": "string",
+			"pattern": "^https://[^\\s]+$"
+		},
+		"portal_page_url": {
+			"type": "string",
+			"pattern": "^https://[^\\s]+$"
+		},
+		"site_id": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+		},
+		"source_home_url": {
+			"type": "string",
+			"pattern": "^https://[^\\s]+$"
+		},
+		"sso_cookie_domain": {
+			"type": "string",
+			"pattern": "^\\.?[A-Za-z0-9.-]+$"
+		}
+	}
+}

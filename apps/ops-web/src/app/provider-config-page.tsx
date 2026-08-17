@@ -18,13 +18,13 @@ import type {
 	ModelSettingUpdate,
 } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
+import { OpsApiError } from "./ops-api/core";
 import {
 	discoverExecutionLLMModels,
 	fetchExecutionModelSettings,
-	OpsApiError,
 	putExecutionModelSetting,
 	validateExecutionModelSetting,
-} from "./ops-api-client";
+} from "./ops-api/model-settings";
 import { ErrorState, InlineError, PageHeader, StaleDataWarning } from "./ops-display";
 import {
 	executionModelSettingsQueryKey,

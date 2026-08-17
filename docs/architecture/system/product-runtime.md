@@ -109,3 +109,6 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - `docs/architecture/system/ops-observability.md`
 - `docs/contracts/ops-web/README.md`
 - `docs/data/postgres-ownership.md`
+- `docs/product/status-web.md`
+- `docs/decisions/adr-0013-app-api-worker-runtime.md`
+- `docs/decisions/adr-0086-product-availability-status.md`

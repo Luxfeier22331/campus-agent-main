@@ -111,7 +111,11 @@ describe("profile memory settings", () => {
 		const view = renderSettings();
 		await screen.findByText("answer_style");
 
-		fireEvent.click(screen.getAllByRole("button", { name: "编辑记忆" })[0]!);
+		const firstEditButton = screen.getAllByRole("button", { name: "编辑记忆" }).at(0);
+		if (!firstEditButton) {
+			throw new Error("Expected the first profile-memory edit button.");
+		}
+		fireEvent.click(firstEditButton);
 		fireEvent.change(screen.getByLabelText("键名"), { target: { value: "临时键" } });
 		fireEvent.change(screen.getByLabelText("内容"), { target: { value: "临时值" } });
 		fireEvent.click(screen.getByRole("button", { name: "取消" }));
@@ -121,7 +125,11 @@ describe("profile memory settings", () => {
 				<ProfileMemorySettings />
 			</QueryClientProvider>,
 		);
-		fireEvent.click(screen.getAllByRole("button", { name: "编辑记忆" })[1]!);
+		const secondEditButton = screen.getAllByRole("button", { name: "编辑记忆" }).at(1);
+		if (!secondEditButton) {
+			throw new Error("Expected the second profile-memory edit button.");
+		}
+		fireEvent.click(secondEditButton);
 		expect(screen.getByLabelText("键名")).toHaveValue("major");
 		expect(screen.getByLabelText("内容")).toHaveValue("计算机科学");
 		expect(screen.getByLabelText("键名")).not.toHaveAttribute("maxlength");

@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/cmd/internal/workermain"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimeassembly"
 )
 
 const (
@@ -55,14 +55,18 @@ func run(logger *slog.Logger) error {
 	}
 	defer adminHandler.Close()
 
-	runtimeWorkers, err := workermain.StartRuntimeWorkers(runtimeContext, cfg, handler, logger)
+	runtime, err := runtimeassembly.StartRuntime(
+		runtimeContext,
+		cfg,
+		handler,
+		handler.ExecutionReconciler(),
+		logger,
+	)
 	if err != nil {
 		_ = handler.Shutdown(context.Background())
 		return err
 	}
-	defer runtimeWorkers.Stop()
-
-	handler.StartTemporalReconciler(runtimeContext)
+	defer runtime.Stop()
 	gatewayServer := newHTTPServer(
 		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		handler,
@@ -92,13 +96,12 @@ func run(logger *slog.Logger) error {
 			"status", "draining",
 			"source", "process",
 		)
-	case runtimeErr = <-runtimeWorkers.Errors():
+	case runtimeErr = <-runtime.Errors():
 	case runtimeErr = <-serverErrors:
 	}
 
 	handler.StartDraining()
-	handler.StopTemporalReconciler()
-	runtimeWorkers.Stop()
+	runtime.Stop()
 
 	shutdownContext, cancel := context.WithTimeout(
 		context.Background(),

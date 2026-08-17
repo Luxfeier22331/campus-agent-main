@@ -56,7 +56,7 @@ func TestWriteFinalizationActivityRejectsInvalidWorkflowAgentResult(t *testing.T
 			server, store, input := primaryAgentFinalizationTrustChainFixture(t, test.name)
 			test.mutate(&input)
 
-			if _, err := server.WriteFinalizationActivity(context.Background(), input); err == nil {
+			if _, err := server.WriteFinalization(context.Background(), input); err == nil {
 				t.Fatal("finalization unexpectedly accepted invalid workflow agent result")
 			}
 			run, err := store.GetRun(context.Background(), input.RunID)
@@ -124,7 +124,7 @@ func TestCompletedFinalizationReplayOnlyValidatesCanonicalResult(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server, baseStore, input := primaryAgentFinalizationTrustChainFixture(t, test.name)
-			if _, err := server.WriteFinalizationActivity(context.Background(), input); err != nil {
+			if _, err := server.WriteFinalization(context.Background(), input); err != nil {
 				t.Fatalf("seed completed finalization: %v", err)
 			}
 			before, err := baseStore.ListStepResults(context.Background(), input.RunID)
@@ -135,7 +135,7 @@ func TestCompletedFinalizationReplayOnlyValidatesCanonicalResult(t *testing.T) {
 				InMemoryRunProjectionStore: baseStore,
 				mutateStepResults:          test.mutate,
 			}
-			if _, err := server.WriteFinalizationActivity(context.Background(), input); err == nil {
+			if _, err := server.WriteFinalization(context.Background(), input); err == nil {
 				t.Fatal("completed finalization replay unexpectedly accepted invalid result")
 			}
 			after, err := baseStore.ListStepResults(context.Background(), input.RunID)

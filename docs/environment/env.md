@@ -9,14 +9,16 @@ status: active
 ## 边界
 
 本文定义本地和部署环境配置的分层规则。供应商与 Secret 所有权见
-[Provider 与 Secret](./providers.md)，健康和就绪语义见 [就绪状态](./readiness.md)。精确变量由
+[Provider 与 Secret](./providers.md)，健康、就绪和环境验收的证据边界见
+[测试与验证](../reference/verification.md)。精确变量由
 所属应用模板、配置解析器和部署清单维护。
 
 ## 配置分层
 
 ### 仓库根环境
 
-根 `.env` 不属于 worktree 本地开发合同，`pnpm dev`、`pnpm dev:init` 和应用开发入口都不得读取或复制它。根 worktree 中已有的被忽略文件只服务明确声明的旧命令，不能作为 linked worktree 的兜底配置源。
+根 `.env` 不属于 worktree 本地开发合同，仓库命令和应用入口都不得读取或复制它。根 checkout
+中已有的被忽略文件同样不是任何当前入口的配置源，也不能作为 linked worktree 的兜底配置源。
 
 ### 应用本地环境
 
@@ -35,8 +37,10 @@ status: active
 CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site key 与 secret key。
 
 Source Collector 的托管 `.env.local` 只保存当前 worktree 的本地对象存储配置。adapter 目录下未跟踪的
-`.env` 由开发者按照同目录 `.env.example` 维护门户地址、TGC 和代理配置；不使用托管本地环境的独立
-命令也可在其中提供对象存储配置。`dev:init` 不创建或覆盖该文件，进程环境仍具有最高优先级。
+`.env` 由开发者按照同目录 `.env.example` 维护 TGC 和代理配置；不使用托管本地环境的独立命令也可
+在其中提供对象存储配置。门户地址、站点身份和 SSO Cookie domain 由
+`configs/sources/internal-portal.json` 维护，不从环境文件覆盖。`dev:init` 不创建或覆盖该文件，进程
+环境仍具有最高优先级。
 
 ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和本地 source
 bucket 连接。notice-publisher 仅用于本地显式写入，使用现有 worktree 数据库中的通知 schema、分离的
@@ -62,6 +66,9 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 长期运行的 Kubernetes workload 从共享 ConfigMap 逐 key 投影实际消费字段。只服务单个一次性 Job
 且字段全部由该 Job 消费的专用 ConfigMap 可以整体注入。
 
+源码 base 中的 `configmap-rendered.example.yaml` 只展示环境仓需要提供的字段，不进入 Kustomization，
+也不是 staging 或其他环境的配置来源；示例必须带 `campus-agent.muc.wiki/example-only` 标记。
+
 ### 部署配置生命周期
 
 部署变量从实际消费者开始定义。应用配置解析器、Wrangler 配置、GitHub Actions workflow 或
@@ -86,7 +93,7 @@ Kubernetes workload 必须先存在明确读取点，环境仓才能投递对应
 仓库不维护手写的全局变量表。变量名和必需性以所属消费者为准，环境仓只维护当前环境实际投递的
 集合，远端核对只用于确认配置生命周期已经闭合。
 
-Campus Web 的 `dev`、`build`、`build:staging` 和 `deploy` 在文档准备阶段按以下顺序合并配置，
+Campus Web 的 `dev`、`build` 和 `build:staging` 在文档准备阶段按以下顺序合并配置，
 后者覆盖前者：
 
 1. 当前应用的 `.dev.vars.local`；
@@ -98,6 +105,9 @@ Campus Web 的 `dev`、`build`、`build:staging` 和 `deploy` 在文档准备阶
 PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGET` 与
 `CAMPUS_WEB_DOCS_CONTENT_ROOT` 由构建脚本临时生成，同样不进入环境配置。`build:test` 使用固定测试
 输入，不读取以上对象存储配置。
+
+`docs:source:update` 不调用上述构建环境加载器，只读取调用进程环境。需要复用
+`env/commands/campus-docs-source.env` 时，操作者必须先在当前 shell 中显式加载该文件。
 
 ## 读取与覆盖
 
@@ -129,6 +139,6 @@ pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
 ## 相关文档
 
 - [Provider 与 Secret](./providers.md)
-- [就绪状态](./readiness.md)
+- [测试与验证](../reference/verification.md)
 - [供应商密钥操作](../runbooks/provider-secrets.md)
 - [Secret 投递决策](../decisions/adr-0066-secret-delivery.md)

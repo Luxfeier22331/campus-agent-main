@@ -1,5 +1,6 @@
 import {
 	Button,
+	cn,
 	Input,
 	Separator,
 	Sheet,
@@ -19,7 +20,6 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import * as React from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { isEditableKeyboardTarget } from "@/lib/keyboard";
-import { cn } from "@/lib/utils";
 
 const SIDEBAR_WIDTH = "16.25rem";
 const SIDEBAR_WIDTH_MOBILE = "16.25rem";

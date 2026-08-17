@@ -10,41 +10,21 @@ target/
 .env
 .env.*
 !.env.example
-!.env.local-minimal.example
-!.env.staging.local.example
 apps/source-collector/adapters/internal-portal/.auth-status.json
 apps/source-collector/adapters/internal-portal/.auth-status.json.*.tmp
 env/commands/*.env
 env/commands/historical/*.env
 .dev.vars
 .dev.vars.*
-!.dev.vars.example
-tmp.md
 .tmp/
-.smoke-evidence/
-.playwright-mcp/
 var/
-.worktrees/
-.cache/
 node_modules/
 .wrangler/
 .turbo/
 .wrangler-home/
 .tanstack/
 
-# Local map/screenshot scratch files
-tmp-*.png
-tmp-*.jpg
-tmp-*.jpeg
-tmp-*.webp
-
-# Local runtime and scratch artifacts
-artifacts/
-infra/local/.generated/
-!apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/
-!apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/**
-tmp/
-docs-*.png
+# Browser test outputs
 apps/ops-web/playwright-report/
 apps/ops-web/test-results/
 apps/status-web/playwright-report/
@@ -56,6 +36,3 @@ secret.local.yaml
 sealed-secrets-*.pem
 sealed-secrets-key.backup.yaml
 sealed-secrets-key.*.backup.yaml
-
-# Turborepo
-.turbo

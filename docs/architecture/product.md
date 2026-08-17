@@ -83,4 +83,5 @@ status: active
 - 长期约束：[target.md](./target.md)
 - 产品运行边界：[system/product-runtime.md](./system/product-runtime.md)
 - 工具开放规则：[system/tool-routing.md](./system/tool-routing.md)
+- 校级产品范围：[ADR-0030](../decisions/adr-0030-product-scope.md)
 - 文档治理：[../documentation-architecture.md](../documentation-architecture.md)

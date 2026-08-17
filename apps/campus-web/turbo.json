@@ -16,7 +16,7 @@
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",
-				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"assets/favicon.ico",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/packages/contracts/package.json",
 				"$TURBO_ROOT$/packages/contracts/schemas/**",
@@ -50,7 +50,7 @@
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",
-				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"assets/favicon.ico",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/packages/contracts/package.json",
 				"$TURBO_ROOT$/packages/contracts/schemas/**",
@@ -84,7 +84,7 @@
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",
-				"$TURBO_ROOT$/configs/branding/web-public/**",
+				"assets/favicon.ico",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/packages/contracts/package.json",
 				"$TURBO_ROOT$/packages/contracts/schemas/**",
@@ -109,7 +109,7 @@
 				"$TURBO_DEFAULT$",
 				"!README.md",
 				"!**/README.md",
-				"$TURBO_ROOT$/configs/branding/**",
+				"assets/favicon.ico",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]
@@ -131,7 +131,7 @@
 				"tsconfig.json",
 				"vite.config.ts",
 				"wrangler*.toml",
-				"$TURBO_ROOT$/configs/branding/**",
+				"assets/favicon.ico",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/packages/domains/dining/**",
 				"$TURBO_ROOT$/packages/ui/**"
@@ -146,7 +146,7 @@
 				"tsconfig.json",
 				"vitest.worker.config.mts",
 				"wrangler.test.toml",
-				"$TURBO_ROOT$/configs/branding/**",
+				"assets/favicon.ico",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/scripts/deploy/**"
 			]

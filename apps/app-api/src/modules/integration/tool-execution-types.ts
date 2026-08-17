@@ -1,6 +1,9 @@
 import type { ExecutionActorContext, ExecutionAuthorizationContext } from "../auth";
+import type { ToolExecutionWorkflowTraceSummary } from "../request-observability-types";
 import type { TracePropagationHeaders } from "../telemetry/trace";
 import type { ExecutionFinalizationStatus } from "./execution-finalization-contract";
+
+export type { ToolExecutionWorkflowTraceSummary } from "../request-observability-types";
 
 export interface ToolRuntimeFingerprint {
 	combinedSha256: string;
@@ -85,13 +88,6 @@ export interface ToolExecutionObservability {
 	modelProvider: string | null;
 	promptTrace: ToolExecutionPromptTrace | null;
 	terminalReason: string | null;
-}
-
-export interface ToolExecutionWorkflowTraceSummary {
-	answerArtifactRefs: string[];
-	executionPath: "direct" | "tool_assisted" | "clarification" | "rejected" | "unsupported";
-	runtimeVersions: Record<string, unknown>;
-	terminalReason: string;
 }
 
 export interface ToolExecutionModelUsage {

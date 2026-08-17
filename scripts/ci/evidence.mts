@@ -2,48 +2,15 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { readNodeVersion } from "../toolchain/node-version.mts";
 import { type CommandResult, type CommandRunner, resolveAffectedScope } from "./scope.mts";
-import { VALIDATION_PROFILES, type ValidationProfile } from "./validation.mts";
+import {
+	isValidationProfile,
+	VALIDATION_PROFILE_REGISTRY,
+	type ValidationProfile,
+} from "./validation-profiles.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
-
-function turboCommand(packageName: string, ...tasks: string[]): string[] {
-	return ["pnpm", "exec", "turbo", "run", ...tasks, `--filter=${packageName}`, "--summarize"];
-}
-
-const PROFILE_COMMANDS: Partial<Record<ValidationProfile, string[][]>> = {
-	go: [
-		turboCommand(
-			"execution-control",
-			"native:format",
-			"native:lint",
-			"native:typecheck",
-			"native:test",
-		),
-	],
-	rust: [
-		turboCommand(
-			"ingestion-kernels-rs",
-			"native:format",
-			"native:lint",
-			"native:typecheck",
-			"native:test",
-		),
-	],
-	ragas: [
-		turboCommand("eval-langfuse", "typecheck", "test"),
-		turboCommand("ragas-runner", "test:eval"),
-	],
-	"app-api-migration": [turboCommand("app-api", "test:migration-integration")],
-	"app-api-product-db": [turboCommand("app-api", "test:shared-db-integration")],
-	"execution-control-postgres": [turboCommand("execution-control", "test:database-integration")],
-	"ingestion-control-postgres": [turboCommand("ingestion-control", "test:database-integration")],
-	"ops-web-postgres": [turboCommand("ops-web", "test:database-integration")],
-	infra: [["scripts/infra/validate.sh"]],
-	otel: [["scripts/otel/validate-config.sh"]],
-	dependencies: [["scripts/dependencies/scan.sh"]],
-	toolchain: [["docker", "buildx", "bake", "--file", "docker-bake.hcl", "--print"]],
-};
 
 export type EvidenceCommandRunner = CommandRunner;
 
@@ -199,13 +166,10 @@ export function parseValidationProfiles(source: string): ValidationProfile[] {
 		throw new Error("Candidate validation profiles must be a JSON array");
 	}
 	const selected = value.map((profile) => {
-		if (
-			typeof profile !== "string" ||
-			!VALIDATION_PROFILES.includes(profile as ValidationProfile)
-		) {
+		if (typeof profile !== "string" || !isValidationProfile(profile)) {
 			throw new Error(`Unsupported validation profile: ${String(profile)}`);
 		}
-		return profile as ValidationProfile;
+		return profile;
 	});
 	if (new Set(selected).size !== selected.length) {
 		throw new Error("Candidate validation profiles must be unique");
@@ -227,13 +191,17 @@ export function runCandidateEvidence(
 	}
 	const env = {
 		...process.env,
+		...(input.profiles.includes("toolchain")
+			? { NODE_VERSION: readNodeVersion(input.repositoryRoot) }
+			: {}),
 		TURBO_SCM_BASE: input.base,
 		TURBO_SCM_HEAD: input.head,
 	};
 	const options = { cwd: input.repositoryRoot, env };
 	for (const profile of input.profiles) {
 		process.stdout.write(`Running validation profile: ${profile}\n`);
-		if (profile === "affected-node") {
+		const executor = VALIDATION_PROFILE_REGISTRY[profile].executor;
+		if (executor.kind === "affected-node") {
 			runAffectedNodeEvidence(
 				{
 					base: input.base,
@@ -245,7 +213,7 @@ export function runCandidateEvidence(
 			);
 			continue;
 		}
-		for (const [command, ...args] of PROFILE_COMMANDS[profile] ?? []) {
+		for (const [command, ...args] of executor.commands) {
 			runProfileCommand(profile, command, args, runner, options);
 		}
 	}

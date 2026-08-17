@@ -14,112 +14,25 @@ import {
 	diningMapBundleFingerprint,
 	renderDiningMapAssets,
 } from "@campus-agent/dining/publisher";
-import { Pool, type PoolClient } from "pg";
-import type {
-	DiningOpsState,
-	DiningReleaseList,
-	DiningReleaseSummary,
-} from "../shared/dining-contract.ts";
+import type { Pool, PoolClient } from "pg";
+import type { DiningReleaseSummary } from "../shared/dining-contract.ts";
+import type { DiningFloorplanAssetStore } from "./dining-floorplan-assets.ts";
+import type { DiningMapStore, DiningOpsActor } from "./dining-store-contract.ts";
 import {
-	createDiningFloorplanAssetStoreFromEnv,
-	type DiningFloorplanAssetStore,
-	type DiningFloorplanAssetStoreEnv,
-} from "./dining-floorplan-assets.ts";
-import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
-import { logOpsError } from "./safe-logging.ts";
+	DiningStoreConflictError,
+	DiningStoreNotFoundError,
+	DiningStoreUnavailableError,
+	DiningStoreValidationError,
+} from "./dining-store-errors.ts";
 
 const GLOBAL_SCOPE = "global";
-
-export interface DiningOpsActor {
-	displayName: string;
-	principalId: string;
-}
-
-export interface DiningStoreEnv extends DiningFloorplanAssetStoreEnv {
-	DEPLOYMENT_ENVIRONMENT?: string;
-	NODE_ENV?: string;
-	OPS_WEB_DATABASE_CA_CERT_PATH?: string;
-	OPS_WEB_DATABASE_SSLMODE?: string;
-	OPS_WEB_DATABASE_URL?: string;
-}
-
-export interface DiningStore {
-	getState(): Promise<DiningOpsState>;
-	listReleases(): Promise<DiningReleaseList>;
-	publish(actor: DiningOpsActor, expectedRevision: number): Promise<DiningReleaseSummary>;
-	restore(
-		actor: DiningOpsActor,
-		releaseId: string,
-		expectedRevision: number,
-	): Promise<{ draft: DiningMapDraft; release: DiningReleaseSummary }>;
-	saveDraft(
-		actor: DiningOpsActor,
-		bundle: DiningFloorplanBundleV1,
-		expectedRevision: number,
-	): Promise<DiningMapDraft>;
-	verifyReadiness(): Promise<void>;
-}
-
-export class DiningStoreUnavailableError extends Error {
-	readonly code = "OPS_DINING_STORE_UNAVAILABLE";
-
-	constructor(message: string, options?: ErrorOptions) {
-		super(message, options);
-		this.name = "DiningStoreUnavailableError";
-	}
-}
-
-export class DiningStoreNotFoundError extends Error {
-	constructor(message: string) {
-		super(message);
-		this.name = "DiningStoreNotFoundError";
-	}
-}
-
-export class DiningStoreConflictError extends Error {
-	readonly details: Record<string, unknown> | undefined;
-
-	constructor(message: string, details?: Record<string, unknown>) {
-		super(message);
-		this.name = "DiningStoreConflictError";
-		this.details = details;
-	}
-}
-
-export class DiningStoreValidationError extends Error {
-	constructor(message: string, options?: ErrorOptions) {
-		super(message, options);
-		this.name = "DiningStoreValidationError";
-	}
-}
-
-export function createDiningStoreFromEnv(env: DiningStoreEnv): DiningStore {
-	const databaseUrl = required(env.OPS_WEB_DATABASE_URL, "OPS_WEB_DATABASE_URL");
-	const database = resolvePostgresTlsConfig({
-		...(env.OPS_WEB_DATABASE_CA_CERT_PATH ? { caCertPath: env.OPS_WEB_DATABASE_CA_CERT_PATH } : {}),
-		databaseUrl,
-		...(env.DEPLOYMENT_ENVIRONMENT ? { deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT } : {}),
-		...(env.NODE_ENV ? { nodeEnvironment: env.NODE_ENV } : {}),
-		...(env.OPS_WEB_DATABASE_SSLMODE ? { sslMode: env.OPS_WEB_DATABASE_SSLMODE } : {}),
-	});
-	const pool = new Pool({
-		connectionString: database.connectionString,
-		max: env.NODE_ENV === "test" ? 1 : 4,
-		ssl: database.ssl,
-	});
-	pool.on("error", (error) => logOpsError("ops_web.postgres_pool", error, { source: "dining" }));
-	return createPgDiningStore({
-		assetStore: createDiningFloorplanAssetStoreFromEnv(env),
-		pool,
-	});
-}
 
 export function createPgDiningStore(input: {
 	assetStore: DiningFloorplanAssetStore;
 	now?: () => Date;
 	pool: Pick<Pool, "connect" | "query">;
 	releaseId?: () => string;
-}): DiningStore {
+}): DiningMapStore {
 	const now = input.now ?? (() => new Date());
 	const nextReleaseId = input.releaseId ?? randomUUID;
 
@@ -301,7 +214,7 @@ async function assertActiveMenuWindowsExist(
 	}
 }
 
-export function createUnavailableDiningStore(error: unknown): DiningStore {
+export function createUnavailableDiningStore(error: unknown): DiningMapStore {
 	const unavailable = async (): Promise<never> => {
 		throw new DiningStoreUnavailableError("食堂地图存储不可用。", { cause: error });
 	};
@@ -628,14 +541,6 @@ async function withStoreErrors<T>(callback: () => Promise<T>): Promise<T> {
 		}
 		throw new DiningStoreUnavailableError("食堂地图数据库请求失败。", { cause: error });
 	}
-}
-
-function required(value: string | undefined, name: string): string {
-	const normalized = value?.trim();
-	if (!normalized) {
-		throw new DiningStoreUnavailableError(`${name} is required.`);
-	}
-	return normalized;
 }
 
 function nonEmptyString(value: unknown, field: string): string {

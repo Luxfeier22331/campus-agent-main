@@ -90,7 +90,7 @@ student run-step 和 Axiom application logs 不得保存原始 bank/document/ope
 
 Langfuse Agent trace 可以记录实际可见工具名和有界结果状态，但不记录 Hindsight metadata、
 `memory_text`、工具输入输出或模型输入输出。Hindsight 不发送新的 Langfuse trace；具体字段边界见
-[Langfuse](./langfuse.md)。
+[Langfuse 运行合同](../../contracts/langfuse-runtime.md)。
 
 ## Temporal 与失败语义
 
@@ -123,6 +123,7 @@ Langfuse Agent trace 可以记录实际可见工具名和有界结果状态，�
 
 ## 相关文档
 
+- [ADR-0015](../../decisions/adr-0015-memory-boundaries.md)
 - [ADR-0058](../../decisions/adr-0058-hindsight.md)
 - [ADR-0082](../../decisions/adr-0082-hindsight-lifecycle.md)
 - [个人记忆接口](../../contracts/app-api/memory.md)

@@ -1,12 +1,9 @@
 // @vitest-environment node
 
-import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
-import type { Env } from "../../app-api/src/config";
-import { appApiSchema } from "../../app-api/src/db/schema";
-import { createPgDiningMapReadService } from "../../app-api/src/modules/dining/store";
+import { createDiningMapReadServiceTestAdapter } from "../../app-api/test-support/dining";
 import { bootstrapDiningPublication } from "../ops/db/bootstrap-dining";
 import { applyOpsWebDatabaseGrants } from "../ops/db/ops-web-database";
 import type { DiningFloorplanAssetStore } from "../src/server/dining-floorplan-assets";
@@ -86,10 +83,7 @@ describe("Dining bootstrap PostgreSQL publication", () => {
 			releases: 1,
 		});
 
-		const appApiDatabase = drizzle(appApiPool, { schema: appApiSchema });
-		const map = await createPgDiningMapReadService({} as Env, {
-			getDb: async () => appApiDatabase,
-		}).getMap();
+		const map = await createDiningMapReadServiceTestAdapter(appApiPool).getMap();
 		expect(map.releaseId).toBe("release-bootstrap");
 		expect(map.halls.length).toBeGreaterThan(0);
 		expect(map.halls.flatMap((hall) => hall.floors).length).toBeGreaterThan(0);

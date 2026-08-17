@@ -7,7 +7,7 @@ import {
 	type ExecutionControlRuntimeClient,
 	ExecutionControlTransportError,
 } from "../integration";
-import type { ChatCommandStore, PendingChatAdmission } from "./store-types";
+import type { ChatAdmissionStore, PendingChatAdmission } from "./store-types";
 
 export interface ChatAdmissionDispatchResult {
 	admitted: number;
@@ -181,7 +181,7 @@ export async function dispatchPendingChatAdmissions(input: {
 	executionRuntime: ExecutionControlRuntimeClient;
 	finalizeAdmissionFailure: (failure: ChatAdmissionFailureFinalization) => Promise<void>;
 	limit?: number;
-	store: ChatCommandStore;
+	store: ChatAdmissionStore;
 }): Promise<ChatAdmissionDispatchResult> {
 	const staleBefore = new Date(Date.now() - 30_000).toISOString();
 	const candidates = await input.store.listPendingAdmissions({

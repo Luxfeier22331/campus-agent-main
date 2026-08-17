@@ -13,9 +13,9 @@ export interface ChatDurableE2eArgs {
 	prompt: string;
 }
 
-import type { FetchJsonWithCookie } from "./http-smoke";
+import type { FetchJsonWithCookie } from "./http-e2e";
 
-export type { ProductStreamEvent } from "./http-smoke";
+export type { ProductStreamEvent } from "./http-e2e";
 
 export interface DurableRunEventProjection {
 	event: string;

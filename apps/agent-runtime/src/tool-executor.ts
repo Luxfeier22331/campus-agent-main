@@ -1,4 +1,4 @@
-import type { ToolExecutionRequest, UntimedToolExecutionResult } from "./primary-agent.ts";
+import type { ToolExecutionRequest, UntimedToolExecutionResult } from "./agent-run-contract.ts";
 import { injectTraceContext } from "./telemetry.ts";
 import { isCanonicalExecutionControlInternalEndpoint } from "./tool-catalog.ts";
 

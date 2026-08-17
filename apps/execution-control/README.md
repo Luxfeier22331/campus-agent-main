@@ -24,6 +24,21 @@ Campus Docs 检索、终态校验和有界运行投影，不面向浏览器。
 queue 上的 `RetrieveCampusDocsEvidenceActivity` 在 Agent Activity 前执行；向量查询、候选选择和
 Agents SDK 函数工具不再分别展开成 Temporal activity。
 
+进程入口只负责配置、服务生命周期和退出协调；Temporal client、poller 与 queue 组装由运行时组装
+层拥有。各 queue 的 activity adapter 依赖窄 handler interface，不依赖 HTTP server 的具体类型，
+HTTP API 也不拥有 worker 生命周期。
+
+内部实现按以下边界组织：
+
+- `internal/temporalruntime` 拥有 workflow、activity 名称、输入输出合同和 worker 注册；
+- `internal/primaryagentactivity`、`internal/memoryactivity` 与 `internal/finalizationactivity` 只把
+  Temporal activity 方法映射到对应业务 handler，不复制业务规则；
+- `internal/executionreconciler` 独立拥有启动、取消和终态收敛状态机，`internal/runtimeassembly`
+  统一启动和停止 poller 与 reconciler；
+- `internal/execution` 拥有执行输入读取，`internal/providerconfig` 拥有在线配置解析，
+  `internal/retrievalruntime` 拥有 Qdrant 传输与 collection 兼容检查；这些实现不得回流到
+  `internal/httpapi`。
+
 ## 进程入口
 
 - `execution-control`：生产入口；`8000` 提供内部执行、查询、记忆和健康接口，`8001` 提供
@@ -33,8 +48,8 @@ Agents SDK 函数工具不再分别展开成 Temporal activity。
 
 Migration 位于 `internal/schemamigrations/`，统一记录在
 `public.execution_control_migrations`。运行时 Store 只连接和读写，不自动建表。普通结构变化新增
-SQL migration；需要解密并重加密旧 Provider 配置的数据转换使用同一版本序列中的事务型 Go
-migration。修改后运行 `pnpm --dir apps/execution-control test:database-integration`。
+SQL migration；需要事务型数据转换时使用同一版本序列中的 Go migration。修改后运行
+`pnpm --dir apps/execution-control test:database-integration`。
 
 具体 HTTP 路径、字段和枚举不在 README 复制：
 
@@ -44,7 +59,8 @@ migration。修改后运行 `pnpm --dir apps/execution-control test:database-int
 
 ## 本地开发
 
-要求 Go `1.26.6` 和 `golangci-lint v2.12.2`；仓库 flake 的 `ci-full` 提供这两个版本。
+Go 语言版本与完整工具链版本由 `go.mod` 拥有。`flake.nix` 从中派生本地工具链，Dockerfile 保留
+构建镜像所需的版本投影，并由仓库测试检查一致性。优先使用仓库 flake 的 `ci-full` 运行以下命令。
 
 ```bash
 pnpm --dir apps/execution-control native:format
@@ -55,4 +71,4 @@ pnpm check
 ```
 
 运行配置和环境操作见 `docs/runbooks/execution.md`、`docs/runbooks/temporal.md` 与
-`docs/runbooks/local-smoke.md`。README 不保存环境地址、Secret、完整变量清单或部署状态。
+`docs/runbooks/local-verification.md`。README 不保存环境地址、Secret、完整变量清单或部署状态。

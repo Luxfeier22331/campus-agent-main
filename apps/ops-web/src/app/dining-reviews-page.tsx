@@ -26,7 +26,7 @@ import {
 	fetchDiningReviews,
 	setDiningReviewVisible,
 	updateDiningReview,
-} from "./ops-api-client";
+} from "./ops-api/dining";
 import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
 import { ConfirmAction } from "./ui/alert-dialog";
 import { DataTable } from "./ui/data-table";

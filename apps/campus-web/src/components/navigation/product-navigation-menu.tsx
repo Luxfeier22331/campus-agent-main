@@ -1,5 +1,6 @@
 import {
 	Button,
+	cn,
 	Sheet,
 	SheetClose,
 	SheetContent,
@@ -31,7 +32,6 @@ import {
 	ProductNavLink,
 	readBrowserPathname,
 } from "@/components/navigation/product-navigation";
-import { cn } from "@/lib/utils";
 import {
 	getProductNavItems,
 	isProductNavActive,

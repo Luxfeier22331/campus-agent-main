@@ -11,7 +11,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { TurnDispatchPrincipalSnapshot } from "../../modules/runtime-command/store-types";
+import type { TurnDispatchPrincipalSnapshot } from "../../modules/turn-dispatch-types";
 
 const chat = pgSchema("chat");
 

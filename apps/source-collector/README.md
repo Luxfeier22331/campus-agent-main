@@ -35,7 +35,7 @@ worker 只轮询 `campus-agent.ingestion.activity.source-collector`。Kubernetes
 ```bash
 pnpm dev:init
 pnpm --filter source-collector notice:sync
-pnpm --filter source-collector notice:backfill --start-date 2026-08-01
+pnpm --filter source-collector notice:backfill --start-date YYYY-MM-DD
 pnpm --filter source-collector notice:status
 pnpm --filter source-collector notice:resources --dry-run --notice-id 123456
 ```

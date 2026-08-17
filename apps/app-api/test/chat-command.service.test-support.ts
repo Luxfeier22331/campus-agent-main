@@ -16,10 +16,12 @@ import type {
 } from "../src/modules/integration/execution-control";
 import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
 import type {
+	AcceptedChatCommandStore,
 	AcceptRequestWrite,
+	ChatAdmissionStore,
+	ChatCommandObservabilityStore,
 	ChatCommandService,
 	ChatCommandServiceDependencies,
-	ChatCommandStore,
 	ChatConversationStore,
 	FinalizeRequestWrite,
 	FrozenChatAdmissionWrite,
@@ -30,12 +32,14 @@ import type { AppTelemetry } from "../src/modules/telemetry";
 
 export { createHmac } from "node:crypto";
 export type { ResolvedAppPrincipal } from "../src/modules/auth";
+export type ChatCommandStore = AcceptedChatCommandStore &
+	ChatAdmissionStore &
+	ChatCommandObservabilityStore;
 export interface ToolExecutionClient {
 	execute(input: ToolExecutionInput): Promise<ToolExecutionResponse>;
 	executeStream?(input: ToolExecutionInput): Promise<Response>;
 }
 export type {
-	ChatCommandStore,
 	ChatCommandStreamEvent,
 	ChatConversationStore,
 	FinalizeRequestWrite,
@@ -87,14 +91,21 @@ export function getFrozenExecutionPayload(runId: string): Record<string, unknown
 }
 
 export function buildChatCommandService(
-	dependencies: ChatCommandServiceDependencies,
+	dependencies: Omit<
+		ChatCommandServiceDependencies,
+		"admissionStore" | "commandStore" | "observabilityStore"
+	> & { store: ChatCommandStore },
 ): ChatCommandService {
+	const { store, ...serviceDependencies } = dependencies;
 	const service = buildProductionChatCommandService({
-		...dependencies,
+		...serviceDependencies,
+		admissionStore: store,
+		commandStore: store,
+		observabilityStore: store,
 		safetyIdentifierHmacSecret:
 			dependencies.safetyIdentifierHmacSecret ?? TEST_SAFETY_IDENTIFIER_HMAC_SECRET,
 	});
-	testServicesByStore.set(dependencies.store, service);
+	testServicesByStore.set(store, service);
 	const runtime = dependencies.executionRuntime as
 		| (ExecutionControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean })
 		| undefined;
@@ -243,7 +254,8 @@ export function createCommandStore(options?: {
 		markAdmitted: vi.fn(async () => true),
 		readExecutionInput: vi.fn(async () => null),
 		acceptRequest: vi.fn(async (input) => {
-			const memorySnapshot = options?.memorySnapshot ?? null;
+			const memorySnapshot =
+				input.requestKind === "public_chat" ? (options?.memorySnapshot ?? null) : null;
 			frozenAdmissionMemorySnapshots.push(memorySnapshot ? { ...memorySnapshot } : null);
 			const frozenAdmission = input.freezeDurableAdmission(memorySnapshot);
 			const admissionInput = JSON.parse(frozenAdmission.admissionInputJson) as Record<
@@ -462,7 +474,7 @@ export function createTelemetryMock(): AppTelemetry {
 }
 
 export function expectNoInternalLocators(text: string) {
-	for (const marker of ["source-faithful", "program_semester_facts:", "chunk-"]) {
+	for (const marker of ["source-faithful", "student_rules:", "chunk-"]) {
 		if (text.includes(marker)) {
 			throw new Error(`Unexpected internal locator marker in answer: ${marker}`);
 		}

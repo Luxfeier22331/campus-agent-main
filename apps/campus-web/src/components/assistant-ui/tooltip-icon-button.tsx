@@ -1,9 +1,15 @@
 "use client";
 
-import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@campus-agent/ui";
+import {
+	Button,
+	cn,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@campus-agent/ui";
 import { Slot } from "radix-ui";
 import { type ComponentPropsWithRef, forwardRef } from "react";
-import { cn } from "@/lib/utils";
 
 export type TooltipIconButtonProps = ComponentPropsWithRef<typeof Button> & {
 	tooltip: string;

@@ -12,7 +12,7 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-func (s *Server) WriteFinalizationActivity(
+func (s *Server) WriteFinalization(
 	ctx context.Context,
 	input temporalruntime.WriteFinalizationActivityInput,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {

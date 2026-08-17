@@ -5,7 +5,7 @@ import type {
 	PrimaryAgentStreamEvent,
 	ToolExecutionResult,
 	UntimedToolExecutionResult,
-} from "../src/primary-agent.ts";
+} from "../src/agent-run-contract.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
 

@@ -1,9 +1,0 @@
-{
-	"corpus": "curriculum",
-	"collection": "program_family_facts",
-	"canonical_profile_version": "curriculum_program_family_facts_projection_v1",
-	"notes": [
-		"program_family_facts is derived from current curriculum source-truth documents plus repo-tracked family governance.",
-		"Canonical program-family IDs are assigned during ingestion projection, not at retrieval time."
-	]
-}

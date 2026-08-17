@@ -1,4 +1,4 @@
-import { Badge, Button, Dialog, DialogContent, DialogTitle, Input } from "@campus-agent/ui";
+import { Badge, Button, cn, Dialog, DialogContent, DialogTitle, Input } from "@campus-agent/ui";
 import { List, LocateFixed, MapPin, Search, X } from "lucide-react";
 import { LayoutGroup, motion } from "motion/react";
 import type { RefObject } from "react";
@@ -20,7 +20,6 @@ import {
 	type MapPlaceView,
 	type MapTaskFilter,
 } from "@/features/map/view-model";
-import { cn } from "@/lib/utils";
 
 const DESKTOP_MAP_QUERY = "(min-width: 960px)";
 const DEFAULT_VISIBLE_PLACES_PER_GROUP = 5;

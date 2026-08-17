@@ -1,14 +1,14 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
-import type { Env } from "../../index";
+import type { CampusWorkerEnv } from "../worker/env";
 import {
 	sanitizeCampusSentryEvent,
 	sanitizeCampusSentrySpan,
 	sanitizeCampusSentryTransaction,
 } from "./sentry-scrub";
 
-export function createCampusEdgeSentryOptions(env: Env): CloudflareOptions | undefined {
+export function createCampusEdgeSentryOptions(env: CampusWorkerEnv): CloudflareOptions | undefined {
 	const dsn = env.SENTRY_DSN?.trim();
 	if (!dsn) {
 		return;

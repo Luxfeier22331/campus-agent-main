@@ -1,6 +1,5 @@
-import { ThemeModeMenu } from "@campus-agent/ui";
+import { cn, ThemeModeMenu } from "@campus-agent/ui";
 import { lazy, type ReactNode, Suspense } from "react";
-import { cn } from "@/lib/utils";
 import {
 	ProductBrandLink,
 	ProductNavActions,

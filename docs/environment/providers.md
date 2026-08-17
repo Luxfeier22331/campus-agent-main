@@ -20,21 +20,16 @@ status: active
 | 能力 | 配置所有者 | 消费方 | 隔离要求 |
 | --- | --- | --- | --- |
 | LLM | execution-control 当前模型设置 | agent-runtime | Activity 调用读取当前值，不向浏览器返回密钥 |
-| 查询 Embedding | execution-control 当前模型设置 | 检索运行时 | 当前设置只维护 provider、Base URL、model 和凭据；查询维度来自已准入当前索引，查询凭据不具备索引管理权限 |
-| 索引 Embedding | execution-control 当前模型设置与 Publisher `INDEX_DEFINITION` | Campus Docs Embedding Job | Job 从 execution-control 读取一次连接快照；索引定义固定 space ID 与维度，不创建第二份 provider 配置或 Secret |
+| Embedding 连接 | execution-control 当前模型设置 | Campus Docs Embedding Job、在线检索 Activity | provider、Base URL、API key 和 model alias 共用一份当前连接；索引维度和 space 由制品及当前索引绑定拥有 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
-Campus Docs 索引定义固定 embedding space ID、维度和查询指令，并随 collection 写入
-`campus_docs_serving.current_index`。provider、endpoint、API key 和 provider-specific model alias
-属于连接属性，只在 execution-control 当前 Embedding 设置中保存。Ops Web 可以在首次索引发布前保存
-并验证该连接；服务端固定 `transport=embeddings`，验证调用不指定索引维度，只记录实际返回维度。
+Embedding Job 在启动后读取一次当前连接并直接调用 provider；在线检索按准入时冻结的同一设置 hash
+解析连接。系统不为索引构建维护第二份 provider 配置。Embedding transport 固定为 `embeddings`；
+设置验证观测到的向量长度不是可编辑索引配置。实际 dimensions、`embedding_space_id`、查询指令和
+向量名来自显式 embedding/index 制品及 `campus_docs_serving.current_index`，并随每次运行准入冻结。
 
-Embedding Job 通过仅允许其 Pod 访问的内部端口取得一次
-`embedding_provider_snapshot.v1`，随后直接调用 provider。快照只包含 provider、Base URL、model 和
-API key，不包含 dimensions、`embedding_space_id`、当前 collection 或索引状态。在线查询使用同一份
-当前连接，但请求维度和结果校验来自已准入索引。更换 provider 但保持模型与向量空间不变，不需要
-修改 chunk；是否重建 embedding 由操作者显式选择新的 Embedding Job 输入决定。
+具体模型、transport 和 endpoint 由当前模型设置、索引制品与可执行注册表维护，不在本文复制。
 
 ## 数据服务
 
@@ -74,14 +69,13 @@ API key，不包含 dimensions、`embedding_space_id`、当前 collection 或索
 
 ## 可观测性
 
-外部平台管理与运行时消费保持现有逻辑 token 合同，不因删除消费者新增或机械拆分凭据。Axiom
-当前运行时消费者只有 Worker application-log destination 和 Ops Web logs query；Terraform 继续
-使用既有管理合同。Sentry 也沿用既有 provider token，投影到 Terraform、Source staging
-Environment 和 Ops Web runtime Secret。不同环境位置的变量名只是消费方投影，不代表必须创建
-新的上游身份或轮换单元。完整理由见 ADR-0081。
+外部平台管理与运行时消费使用不同权限边界。Axiom 的 Worker application-log destination 和 Ops Web
+logs query 使用运行时 token，Terraform 使用平台管理身份。Sentry 的 source map 上传和 Ops Web Issue
+查询使用所属环境投递的 provider token。不同环境位置的变量名只是消费方投影，不代表独立的上游
+身份或轮换单元。完整理由见 ADR-0081。
 
-`AXIOM_RUNTIME_TOKEN` 是现有 `observability-runtime-secrets` 字段，本次不新增或拆分；Sentry
-继续使用现有 `SENTRY_AUTH_TOKEN`，不创建 `SENTRY_RUNTIME_AUTH_TOKEN`。
+`AXIOM_RUNTIME_TOKEN` 是 `observability-runtime-secrets` 的运行时字段；Sentry 使用
+`SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_AUTH_TOKEN` 消费合同。
 
 - app-api producer 在 Cloudflare log destination 前执行字段白名单，不依赖 Collector 清理；
 - Ops Web 只执行固定范围的 Axiom logs 查询和 Sentry Issue 读取；
@@ -93,7 +87,7 @@ Environment 和 Ops Web runtime Secret。不同环境位置的变量名只是消
 解释成 Campus Agent 团队或投递路由；`ticket` 不属于当前 Campus Agent 告警合同。当前通知事实只
 以环境仓可执行的 monitor 与 notifier 配置为准。
 
-字段与内容边界见 `../reference/telemetry.md`、`../architecture/system/langfuse.md` 和
+字段与内容边界见 `../reference/telemetry.md`、`../contracts/langfuse-runtime.md` 和
 `../architecture/system/ops-observability.md`。
 
 ## 交付规则

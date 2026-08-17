@@ -1,9 +1,0 @@
-{
-	"corpus": "curriculum",
-	"collection": "course_facts",
-	"canonical_profile_version": "curriculum_course_facts_projection_v1",
-	"notes": [
-		"course_facts is derived from current curriculum source-truth documents.",
-		"Canonical course and course-family IDs are assigned during ingestion projection, not at retrieval time."
-	]
-}

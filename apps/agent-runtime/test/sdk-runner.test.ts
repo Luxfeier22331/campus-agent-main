@@ -1,6 +1,6 @@
 import { RunContext } from "@openai/agents";
 import { describe, expect, it } from "vitest";
-import type { ToolExecutionResult, UntimedToolExecutionResult } from "../src/primary-agent.ts";
+import type { ToolExecutionResult, UntimedToolExecutionResult } from "../src/agent-run-contract.ts";
 import { createOpenAIAgentsRunner, createStreamingOpenAIAgentsRunner } from "../src/sdk-runner.ts";
 
 const providerConfig = {

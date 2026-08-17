@@ -1,7 +1,6 @@
-import { Button } from "@campus-agent/ui";
+import { Button, cn } from "@campus-agent/ui";
 import { UserRound } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
-import { cn } from "@/lib/utils";
 
 const ProductAccountEntry = lazy(() =>
 	import("./product-account-entry").then((module) => ({

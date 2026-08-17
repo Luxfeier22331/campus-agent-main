@@ -8,10 +8,10 @@ import {
 } from "@campus-agent/dining/publisher";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
-import type { Env } from "../../app-api/src/config";
-import { createPgDiningContentService } from "../../app-api/src/modules/dining/content-store";
+import { createDiningContentServiceTestAdapter } from "../../app-api/test-support/dining";
 import { applyOpsWebDatabaseGrants } from "../ops/db/ops-web-database";
-import { createPgDiningContentStore } from "../src/server/dining-content-store";
+import { createPgDiningMenuStore } from "../src/server/dining-menu-store";
+import { createPgDiningReviewStore } from "../src/server/dining-review-store";
 
 const postgres = inject("opsWebPostgres");
 const databaseEnv = {
@@ -22,6 +22,13 @@ const databaseEnv = {
 	OPS_WEB_SCHEMA_DATABASE_URL: postgres.managementConnectionString,
 } as const;
 const operator = { displayName: "值班员", principalId: "ops:1" };
+
+function createPgDiningStores(input: Parameters<typeof createPgDiningMenuStore>[0]) {
+	return {
+		menu: createPgDiningMenuStore(input),
+		reviews: createPgDiningReviewStore(input),
+	};
+}
 const windowIds = DINING_BOOTSTRAP_FLOORPLANS.layouts.flatMap((layout) =>
 	layout.windows.map((window) => `${layout.hallId}:${layout.floorId}:${window.anchorId}`),
 );
@@ -39,12 +46,14 @@ const publicMap = buildDiningMapResponse({
 });
 
 describe("Dining content PostgreSQL stores", () => {
+	let appApiPool: Pool;
 	let managementPool: Pool;
 	let opsPool: Pool;
 	let tick = 0;
 
 	beforeAll(async () => {
 		await applyOpsWebDatabaseGrants(databaseEnv);
+		appApiPool = new Pool({ connectionString: postgres.appApiConnectionString, max: 4 });
 		managementPool = new Pool({ connectionString: postgres.managementConnectionString, max: 6 });
 		opsPool = new Pool({ connectionString: postgres.opsWebConnectionString, max: 4 });
 	});
@@ -78,7 +87,7 @@ describe("Dining content PostgreSQL stores", () => {
 	});
 
 	afterAll(async () => {
-		await Promise.all([managementPool.end(), opsPool.end()]);
+		await Promise.all([appApiPool.end(), managementPool.end(), opsPool.end()]);
 	});
 
 	function now() {
@@ -86,17 +95,14 @@ describe("Dining content PostgreSQL stores", () => {
 	}
 
 	function createAppApiService() {
-		return createPgDiningContentService(
-			{
-				APP_API_DB: { connectionString: postgres.appApiConnectionString },
-				DEPLOYMENT_ENVIRONMENT: "test",
-			} as Env,
-			{ now },
-		);
+		return createDiningContentServiceTestAdapter({
+			now,
+			pool: appApiPool,
+		});
 	}
 
 	it("maintains menu ordering, movement and archival against stable map windows", async () => {
-		const store = createPgDiningContentStore({ now, pool: opsPool });
+		const store = createPgDiningStores({ now, pool: opsPool }).menu;
 		const first = await store.createMenuItem(operator, {
 			name: "牛肉面",
 			priceText: "12 元",
@@ -127,7 +133,7 @@ describe("Dining content PostgreSQL stores", () => {
 	});
 
 	it("enforces member daily limits under concurrency and keeps deleted reviews in the count", async () => {
-		const opsStore = createPgDiningContentStore({ now, pool: opsPool });
+		const opsStore = createPgDiningStores({ now, pool: opsPool }).menu;
 		const item = await opsStore.createMenuItem(operator, {
 			name: "牛肉面",
 			priceText: "12 元",
@@ -240,21 +246,21 @@ describe("Dining content PostgreSQL stores", () => {
 	});
 
 	it("records every Ops edit and resolves all reports for a review together", async () => {
-		const store = createPgDiningContentStore({ now, pool: opsPool });
-		const item = await store.createMenuItem(operator, {
+		const stores = createPgDiningStores({ now, pool: opsPool });
+		const item = await stores.menu.createMenuItem(operator, {
 			name: "牛肉面",
 			priceText: null,
 			windowId: primaryWindowId,
 		});
-		const review = await store.createReview(operator, {
+		const review = await stores.reviews.createReview(operator, {
 			anonymous: false,
 			body: "原始正文",
 			idempotencyKey: "ops-review-key-1",
 			menuItemId: item.menuItemId,
 		});
 
-		await store.updateReview(operator, review.reviewId, "修改后的正文");
-		const detail = await store.getReview(review.reviewId);
+		await stores.reviews.updateReview(operator, review.reviewId, "修改后的正文");
+		const detail = await stores.reviews.getReview(review.reviewId);
 		expect(detail.review).toMatchObject({ body: "修改后的正文", editCount: 1 });
 		expect(detail.edits).toEqual([
 			expect.objectContaining({ nextBody: "修改后的正文", previousBody: "原始正文" }),
@@ -268,8 +274,8 @@ describe("Dining content PostgreSQL stores", () => {
 			 ('drp_2', $1, 'user_2', 'privacy', '包含联系方式', $3)`,
 			[review.reviewId, now(), now()],
 		);
-		const firstPage = await store.listReports({ limit: 1, status: "pending" });
-		const secondPage = await store.listReports({
+		const firstPage = await stores.reviews.listReports({ limit: 1, status: "pending" });
+		const secondPage = await stores.reviews.listReports({
 			...(firstPage.nextCursor ? { cursor: firstPage.nextCursor } : {}),
 			limit: 1,
 			status: "pending",
@@ -278,9 +284,13 @@ describe("Dining content PostgreSQL stores", () => {
 		expect(secondPage.items).toHaveLength(1);
 		expect(secondPage.items[0]?.reportId).not.toBe(firstPage.items[0]?.reportId);
 
-		await store.resolveReports(operator, review.reviewId, "hide");
-		expect((await store.listReports({ limit: 10, status: "pending" })).items).toHaveLength(0);
-		expect((await store.listReports({ limit: 10, status: "resolved" })).items).toHaveLength(2);
-		expect((await store.getReview(review.reviewId)).review.hiddenAt).not.toBeNull();
+		await stores.reviews.resolveReports(operator, review.reviewId, "hide");
+		expect((await stores.reviews.listReports({ limit: 10, status: "pending" })).items).toHaveLength(
+			0,
+		);
+		expect(
+			(await stores.reviews.listReports({ limit: 10, status: "resolved" })).items,
+		).toHaveLength(2);
+		expect((await stores.reviews.getReview(review.reviewId)).review.hiddenAt).not.toBeNull();
 	});
 });

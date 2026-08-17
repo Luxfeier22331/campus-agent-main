@@ -43,7 +43,6 @@ describe("chat command service memory gate projection", () => {
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
-			captureProfileMemorySnapshot: true,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
@@ -64,7 +63,7 @@ describe("chat command service memory gate projection", () => {
 				recallEnabled: false,
 			},
 		]);
-		expect(acceptedWrites[0]?.captureMemorySnapshot).toBe(true);
+		expect(acceptedWrites[0]?.requestKind).toBe("public_chat");
 
 		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -88,8 +87,15 @@ describe("chat command service memory gate projection", () => {
 		);
 	});
 
-	it("omits memory when accept returns no configured snapshot", async () => {
-		const { store } = createCommandStore();
+	it("omits memory for internal evaluation requests", async () => {
+		const { store } = createCommandStore({
+			memorySnapshot: {
+				appendEnabled: true,
+				ownerGeneration: 3,
+				ownerSequence: 7,
+				recallEnabled: true,
+			},
+		});
 		const { store: conversationStore } = createConversationStore();
 		const executionClient = createCompletedExecutionClient();
 
@@ -107,7 +113,7 @@ describe("chat command service memory gate projection", () => {
 				prompt: "我之后主要关注保研材料",
 			},
 			principal: createPrincipal(),
-			requestKind: "public_chat",
+			requestKind: "internal_eval",
 		});
 
 		expect(executionClient.execute).toHaveBeenCalledWith(

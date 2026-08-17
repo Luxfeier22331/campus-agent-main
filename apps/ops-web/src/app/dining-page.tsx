@@ -23,7 +23,7 @@ import {
 	publishDiningDraft,
 	restoreDiningRelease,
 	saveDiningDraft,
-} from "./ops-api-client";
+} from "./ops-api/dining";
 import { ConfirmAction } from "./ui/alert-dialog";
 
 const loadDiningFloorplanEditor = () =>

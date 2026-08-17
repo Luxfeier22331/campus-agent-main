@@ -16,7 +16,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
-import { fetchOpsRequestDetail } from "./ops-api-client";
+import { fetchOpsRequestDetail } from "./ops-api/observability";
 import { ErrorState, PageHeader, PageShell, StaleDataWarning, StatusBadge } from "./ops-display";
 import { formatLifecyclePhase, formatOpsDomainValue } from "./ops-domain-labels";
 import {

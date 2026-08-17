@@ -6,8 +6,10 @@ import { resolve } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { parseEnv } from "node:util";
 
+import { localApplicationBootstrapCommands } from "./application-bootstrap";
 import {
 	MANAGED_LOCAL_ENV_MARKER,
+	managedLocalEnvironmentPaths,
 	removeLocalEnvironmentFiles,
 	renderLocalEnvironmentFiles,
 } from "./environment";
@@ -15,13 +17,9 @@ import {
 	assertDestroyConfirmation,
 	classifyIsolatedResourceState,
 	classifyLocalDevInstanceStatus,
-	classifySharedInfrastructureStatus,
-	derivedBucketPublicReadPolicy,
-	objectStoreCommand,
 	resolveIsolatedResourceAction,
-	resolveSharedInfrastructureAction,
-	sharedComposeUpCommand,
-} from "./lifecycle";
+} from "./instance-resources";
+import * as lifecycle from "./lifecycle";
 import {
 	allocateLocalDevSlot,
 	calculateLocalDevPorts,
@@ -31,6 +29,13 @@ import {
 	listLocalDevProfiles,
 	normalizeResourceLabel,
 } from "./profile";
+import {
+	classifySharedInfrastructureStatus,
+	derivedBucketPublicReadPolicy,
+	objectStoreCommand,
+	resolveSharedInfrastructureAction,
+	sharedComposeUpCommand,
+} from "./shared-infrastructure";
 
 const temporaryDirectories: string[] = [];
 
@@ -213,16 +218,26 @@ describe("managed worktree environment", () => {
 
 	it("marks every generated file as lifecycle-managed", () => {
 		const repoRoot = createRepositoryShape();
-		for (const path of renderLocalEnvironmentFiles({
+		const rendered = renderLocalEnvironmentFiles({
 			profile: createProfile(repoRoot),
 			repoRoot,
-		})) {
+		});
+		assert.deepEqual(rendered.sort(), Object.values(managedLocalEnvironmentPaths(repoRoot)).sort());
+		for (const path of rendered) {
 			assert.ok(readFileSync(path, "utf8").startsWith(MANAGED_LOCAL_ENV_MARKER));
 		}
 	});
 });
 
 describe("local development lifecycle guards", () => {
+	it("keeps the lifecycle facade limited to init, diagnosis, and destruction", () => {
+		assert.deepEqual(Object.keys(lifecycle).sort(), [
+			"destroyLocalDevelopment",
+			"diagnoseLocalDevelopment",
+			"initializeLocalDevelopment",
+		]);
+	});
+
 	it("only exposes immutable Dining floorplans from the derived bucket", () => {
 		assert.deepEqual(
 			JSON.parse(derivedBucketPublicReadPolicy("campus-agent-derived-wt-1-deadbeef")),
@@ -424,12 +439,6 @@ describe("local development lifecycle guards", () => {
 		assert.throws(() => assertDestroyConfirmation("dining-a1b2", "dining-other"));
 	});
 
-	it("keeps destruction read-only with respect to shared Compose", () => {
-		const source = readFileSync(resolve(import.meta.dirname, "./lifecycle.ts"), "utf8");
-		assert.match(source, /assertSharedInfrastructureReady\(input\.repoRoot\)/u);
-		assert.doesNotMatch(source, /ensureSharedInfrastructure\(input\.repoRoot\)/u);
-	});
-
 	it("keeps the app-api local loader outside the root environment", () => {
 		const source = readFileSync(
 			resolve(import.meta.dirname, "../../apps/app-api/scripts/run-with-local-env.ts"),
@@ -440,12 +449,23 @@ describe("local development lifecycle guards", () => {
 		assert.match(source, /\.dev\.vars\.local/u);
 	});
 
-	it("seeds the fixed local test user after installing the app-api schema", () => {
-		const source = readFileSync(resolve(import.meta.dirname, "./lifecycle.ts"), "utf8");
-		const schemaIndex = source.indexOf('"./ops/db/schema.ts"');
-		const seedIndex = source.indexOf('"./ops/db/seed-local-test-user.ts"');
-		assert.ok(schemaIndex >= 0);
-		assert.ok(seedIndex > schemaIndex);
+	it("runs application bootstrap in explicit dependency order", () => {
+		const commands = localApplicationBootstrapCommands("/repo", createProfile("/repo"));
+		assert.deepEqual(
+			commands.map(({ step }) => step),
+			[
+				"campus-web-docs",
+				"app-api-schema",
+				"app-api-seed-local-test-user",
+				"ops-web-dining-schema",
+				"ops-web-dining-bootstrap",
+				"ingestion-control-schema",
+				"ingestion-control-migrate",
+				"notice-publisher-migrate",
+			],
+		);
+		assert.deepEqual(commands[5]?.args, ["--dir", "apps/ingestion-control", "schema:bootstrap"]);
+		assert.deepEqual(commands[6]?.args, ["--dir", "apps/ingestion-control", "migrate"]);
 	});
 
 	it("keeps the source collector local loader inside its adapter", () => {

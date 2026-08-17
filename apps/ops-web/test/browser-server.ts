@@ -13,15 +13,18 @@ import {
 import { diningMapBundleFingerprint } from "@campus-agent/dining/publisher";
 import { serve } from "@hono/node-server";
 import { createOpsApp } from "../src/server/app.ts";
-import type { DiningContentStore } from "../src/server/dining-content-store.ts";
+import type {
+	DiningMapStore,
+	DiningMenuStore,
+	DiningOpsActor,
+	DiningReviewStore,
+} from "../src/server/dining-store-contract.ts";
 import {
-	type DiningOpsActor,
-	type DiningStore,
 	DiningStoreConflictError,
 	DiningStoreNotFoundError,
-} from "../src/server/dining-store.ts";
+} from "../src/server/dining-store-errors.ts";
+import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
-import { createFixtureOpsStatusStore } from "../src/server/ops-status-store.ts";
 import type { DiningReleaseSummary } from "../src/shared/dining-contract.ts";
 import type { ExecutionModelSettingsStatus } from "../src/shared/ops-contract.ts";
 import {
@@ -87,8 +90,9 @@ const app = createOpsApp({
 						to: completedAt ?? startedAt,
 					},
 	},
-	diningStore: browserDiningStore,
-	diningContentStore: browserDiningContentStore,
+	diningMapStore: browserDiningStore,
+	diningMenuStore: browserDiningContentStore,
+	diningReviewStore: browserDiningContentStore,
 	providerConfigClient: fixtureProviderConfigClient(),
 	staticRoot: "dist",
 	store: createFixtureOpsStatusStore(),
@@ -106,7 +110,8 @@ serve({
 	port: browserTestPort,
 });
 
-function createBrowserDiningContentStore(): DiningContentStore & { reset(): void } {
+function createBrowserDiningContentStore(): DiningMenuStore &
+	DiningReviewStore & { reset(): void } {
 	const firstLayout = DINING_BOOTSTRAP_FLOORPLANS.layouts[0];
 	const firstWindow = firstLayout?.windows[0];
 	if (!(firstLayout && firstWindow)) {
@@ -378,7 +383,7 @@ interface BrowserDiningRelease {
 	summary: DiningReleaseSummary;
 }
 
-function createBrowserDiningStore(): DiningStore & { reset(): void } {
+function createBrowserDiningStore(): DiningMapStore & { reset(): void } {
 	let clock = Date.parse("2026-07-24T08:00:00.000Z");
 	let releaseSequence = 1;
 	let draft = initialDiningDraft();

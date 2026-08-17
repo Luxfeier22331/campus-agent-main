@@ -52,7 +52,7 @@ invocation receipt 支持完整结果的只读恢复；已经开始却没有完�
 ## 未采用方案
 
 - **PostgreSQL queue**：会重复 workflow 重试、timer、heartbeat 和取消语义。
-- **每个工具或 specialist 一个 activity**：会拆散 SDK 循环并产生多个语义所有者。
+- **每个工具或语义能力一个 activity**：会拆散 SDK 循环并产生多个语义所有者。
 - **同步 HTTP 生命周期**：浏览器连接不能拥有回答运行。
 
 ## 相关文档

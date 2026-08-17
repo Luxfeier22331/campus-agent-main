@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./primary-agent.ts";
+import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./agent-run-contract.ts";
 import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
 export function agentRunStreamResponse(

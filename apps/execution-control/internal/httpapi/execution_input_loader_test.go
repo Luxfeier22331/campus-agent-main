@@ -59,8 +59,8 @@ func TestExecutionInputLoaderRejectsInvalidRunIDBeforeRequest(t *testing.T) {
 	loader := executionInputTestLoader(t, server.URL)
 
 	_, err := loader.Load(context.Background(), run)
-	if err == nil || executionInputErrorKind(err) != "execution_input_run_id_invalid" ||
-		executionInputErrorIsRetryable(err) {
+	if err == nil || execution.InputErrorKind(err) != "execution_input_run_id_invalid" ||
+		execution.InputErrorIsRetryable(err) {
 		t.Fatalf("error = %v, want non-retryable run_id rejection", err)
 	}
 	if requests.Load() != 0 {
@@ -82,7 +82,7 @@ func TestExecutionInputLoaderRejectsRedirects(t *testing.T) {
 	defer source.Close()
 
 	_, err := executionInputTestLoader(t, source.URL).Load(context.Background(), run)
-	if err == nil || !errors.Is(err, errExecutionInputRedirect) {
+	if err == nil || !errors.Is(err, execution.ErrInputRedirect) {
 		t.Fatalf("error = %v, want redirect rejection", err)
 	}
 	if redirectedRequests.Load() != 0 {
@@ -115,7 +115,7 @@ func TestExecutionInputLoaderValidatesResponseHeaders(t *testing.T) {
 			defer server.Close()
 
 			_, err := executionInputTestLoader(t, server.URL).Load(context.Background(), run)
-			if err == nil || executionInputErrorKind(err) != "execution_input_response_invalid" || executionInputErrorIsRetryable(err) {
+			if err == nil || execution.InputErrorKind(err) != "execution_input_response_invalid" || execution.InputErrorIsRetryable(err) {
 				t.Fatalf("error = %v, want non-retryable invalid response", err)
 			}
 		})
@@ -124,7 +124,7 @@ func TestExecutionInputLoaderValidatesResponseHeaders(t *testing.T) {
 
 func TestExecutionInputLoaderEnforcesStreamingBodyLimit(t *testing.T) {
 	run, _ := executionInputTestRun(t)
-	oversized := strings.Repeat("x", int(maxExecutionInputBytes)+1)
+	oversized := strings.Repeat("x", int(execution.MaxInputBytes)+1)
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		response.Header().Set("Cache-Control", "no-store")
 		response.Header().Set("Content-Type", "application/json")
@@ -134,7 +134,7 @@ func TestExecutionInputLoaderEnforcesStreamingBodyLimit(t *testing.T) {
 	defer server.Close()
 
 	_, err := executionInputTestLoader(t, server.URL).Load(context.Background(), run)
-	if err == nil || executionInputErrorKind(err) != "execution_input_too_large" || executionInputErrorIsRetryable(err) {
+	if err == nil || execution.InputErrorKind(err) != "execution_input_too_large" || execution.InputErrorIsRetryable(err) {
 		t.Fatalf("error = %v, want non-retryable size rejection", err)
 	}
 }
@@ -153,7 +153,7 @@ func TestExecutionInputLoaderHashesRawResponseBeforeDecode(t *testing.T) {
 	defer server.Close()
 
 	_, err = executionInputTestLoader(t, server.URL).Load(context.Background(), run)
-	if err == nil || executionInputErrorKind(err) != "execution_input_hash_mismatch" {
+	if err == nil || execution.InputErrorKind(err) != "execution_input_hash_mismatch" {
 		t.Fatalf("error = %v, want raw-byte hash mismatch", err)
 	}
 }
@@ -166,7 +166,7 @@ func TestExecutionInputLoaderStrictlyDecodesOneObject(t *testing.T) {
 	defer server.Close()
 
 	_, err := executionInputTestLoader(t, server.URL).Load(context.Background(), run)
-	if err == nil || executionInputErrorKind(err) != "execution_input_contract_invalid" {
+	if err == nil || execution.InputErrorKind(err) != "execution_input_contract_invalid" {
 		t.Fatalf("error = %v, want strict contract rejection", err)
 	}
 }
@@ -187,7 +187,7 @@ func TestExecutionInputLoaderDoesNotIncludeInvalidJSONFieldsInErrors(t *testing.
 	defer server.Close()
 
 	_, err = executionInputTestLoader(t, server.URL).Load(context.Background(), run)
-	if err == nil || executionInputErrorKind(err) != "execution_input_contract_invalid" {
+	if err == nil || execution.InputErrorKind(err) != "execution_input_contract_invalid" {
 		t.Fatalf("error = %v, want strict contract rejection", err)
 	}
 	if strings.Contains(err.Error(), "sensitive-body-field") {
@@ -203,7 +203,7 @@ func TestExecutionInputLoaderRejectsRunBindingMismatch(t *testing.T) {
 	defer server.Close()
 
 	_, err := executionInputTestLoader(t, server.URL).Load(context.Background(), run)
-	if err == nil || executionInputErrorKind(err) != "execution_input_binding_mismatch" {
+	if err == nil || execution.InputErrorKind(err) != "execution_input_binding_mismatch" {
 		t.Fatalf("error = %v, want run binding rejection", err)
 	}
 }
@@ -217,7 +217,7 @@ func TestExecutionInputLoaderNeverIncludesErrorResponseBody(t *testing.T) {
 	defer server.Close()
 
 	_, err := executionInputTestLoader(t, server.URL).Load(context.Background(), run)
-	if err == nil || !executionInputErrorIsRetryable(err) {
+	if err == nil || !execution.InputErrorIsRetryable(err) {
 		t.Fatalf("error = %v, want retryable upstream failure", err)
 	}
 	if strings.Contains(err.Error(), "sensitive-upstream-body") {
@@ -228,7 +228,7 @@ func TestExecutionInputLoaderNeverIncludesErrorResponseBody(t *testing.T) {
 func TestExecutionInputLoaderRejectsAmbiguousBaseURLSuffixes(t *testing.T) {
 	for _, suffix := range []string{"?", "#"} {
 		t.Run(suffix, func(t *testing.T) {
-			_, err := newExecutionInputLoader(config.Config{
+			_, err := execution.NewInputLoader(config.Config{
 				AppAPIExecutionSharedSecret: "input-secret",
 				ProductCallbackBaseURL:      "https://app-api.internal" + suffix,
 			})
@@ -255,15 +255,15 @@ func TestReadyzDoesNotExposeExecutionInputCredential(t *testing.T) {
 	}
 }
 
-func executionInputTestLoader(t *testing.T, baseURL string) ExecutionInputLoader {
+func executionInputTestLoader(t *testing.T, baseURL string) execution.InputLoader {
 	t.Helper()
-	loader, err := newExecutionInputLoader(config.Config{
+	loader, err := execution.NewInputLoader(config.Config{
 		AppAPIExecutionSharedSecret: "input-secret",
 		ProductCallbackBaseURL:      baseURL,
 		ProductCallbackTimeoutMS:    2_000,
 	})
 	if err != nil {
-		t.Fatalf("newExecutionInputLoader returned error: %v", err)
+		t.Fatalf("execution.NewInputLoader returned error: %v", err)
 	}
 	return loader
 }

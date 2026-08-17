@@ -111,7 +111,6 @@ Langfuse trace ingestion credential 只属于 Agent Runtime。
 ## 相关文档
 
 - `../architecture/system/ops-observability.md`
-- `../architecture/system/langfuse.md`
 - `../contracts/langfuse-runtime.md`
 - `../runbooks/otel.md`
 - `../runbooks/worker-otel.md`

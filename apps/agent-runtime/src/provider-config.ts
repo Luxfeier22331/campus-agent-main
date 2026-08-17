@@ -5,7 +5,7 @@ import type {
 	AgentRunner,
 	PromptProviderRuntimeConfig,
 	StreamingAgentRunner,
-} from "./primary-agent.ts";
+} from "./agent-run-contract.ts";
 import {
 	createOpenAIAgentsRunner,
 	createStreamingOpenAIAgentsRunner,

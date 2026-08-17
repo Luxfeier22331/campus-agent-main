@@ -11,13 +11,13 @@ import type {
 	RuntimeStepTrajectory,
 	WorkflowIdentity,
 } from "./support/chat-durable-e2e-staging.types";
+import { expectEventStreamResponse, fetchJsonWithCookie, parseSse } from "./support/http-e2e";
 import {
 	DEFAULT_CHAT_E2E_PROMPT,
 	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL,
 	DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL,
-} from "./support/chat-e2e.args";
-import { expectEventStreamResponse, fetchJsonWithCookie, parseSse } from "./support/http-smoke";
-import { fetchReadyz, signInE2eIdentity } from "./support/staging-smoke-support";
+} from "./support/staging-e2e-defaults";
+import { fetchReadyz, signInE2eIdentity } from "./support/staging-e2e-support";
 
 export type {
 	ChatDurableE2eDependencies,
@@ -183,7 +183,7 @@ function requireStringField(value: Record<string, unknown>, field: string): stri
 
 function readPrincipalId(principal: unknown): string {
 	if (!principal || typeof principal !== "object" || Array.isArray(principal)) {
-		throw new Error("staging smoke principal must be an object.");
+		throw new Error("staging E2E principal must be an object.");
 	}
 	return requireStringField(principal as Record<string, unknown>, "principalId");
 }

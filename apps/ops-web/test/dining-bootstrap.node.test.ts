@@ -5,7 +5,7 @@ import { DINING_BOOTSTRAP_FLOORPLANS } from "@campus-agent/dining/floorplans";
 import { diningMapBundleFingerprint } from "@campus-agent/dining/publisher";
 import { describe, expect, it, vi } from "vitest";
 import { bootstrapDiningPublication } from "../ops/db/bootstrap-dining";
-import type { DiningStore } from "../src/server/dining-store";
+import type { DiningMapStore } from "../src/server/dining-store-contract";
 
 const NOW = new Date("2026-07-24T08:00:00.000Z");
 const BASELINE_FINGERPRINT = diningMapBundleFingerprint(DINING_BOOTSTRAP_FLOORPLANS);
@@ -195,7 +195,7 @@ function createDraft(input: Partial<Pick<DiningMapDraft, "fingerprint" | "revisi
 
 function createStore(
 	state: {
-		currentRelease?: Awaited<ReturnType<DiningStore["getState"]>>["currentRelease"];
+		currentRelease?: Awaited<ReturnType<DiningMapStore["getState"]>>["currentRelease"];
 		draft?: DiningMapDraft;
 	} = {},
 ) {

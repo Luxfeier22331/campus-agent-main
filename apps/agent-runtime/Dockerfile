@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM node:24.19.0-bookworm-slim AS build
+ARG NODE_VERSION
+FROM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -15,7 +16,7 @@ COPY apps/agent-runtime ./apps/agent-runtime
 
 RUN pnpm --filter agent-runtime build
 
-FROM node:24.19.0-bookworm-slim AS dependencies
+FROM node:${NODE_VERSION}-bookworm-slim AS dependencies
 
 WORKDIR /app
 
@@ -27,7 +28,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   corepack enable pnpm \
   && pnpm install --frozen-lockfile --prod --filter agent-runtime
 
-FROM node:24.19.0-bookworm-slim AS runtime
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production

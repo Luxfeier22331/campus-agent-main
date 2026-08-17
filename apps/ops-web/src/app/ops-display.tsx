@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { OpsHealthStatus, OpsRequestSummary } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
-import { OpsApiError } from "./ops-api-client";
+import { OpsApiError } from "./ops-api/core";
 import { formatStatusLabel } from "./ops-view-helpers";
 
 export function PageHeader({

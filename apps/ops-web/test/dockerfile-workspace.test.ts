@@ -142,7 +142,23 @@ describe("ops-web Dockerfile workspace inputs", () => {
 	it("allows only the Campus Web manifest into the Docker build context", () => {
 		const patterns = dockerignore.split("\n");
 		expect(patterns).toContain("!apps/campus-web/");
+		expect(patterns).toContain("apps/campus-web/**");
 		expect(patterns).toContain("!apps/campus-web/package.json");
 		expect(patterns).not.toContain("!apps/campus-web/**");
+	});
+
+	it("keeps the non-ingestion config allowlist explicit", () => {
+		const patterns = dockerignore.split("\n");
+		expect(patterns).toContain("configs/runtime/**");
+		expect(patterns).toContain("!configs/runtime/tools.v6.json");
+		expect(patterns).toContain("!configs/runtime/tool-function-schemas.v3.json");
+		expect(patterns).toContain("!configs/runtime/latency-budgets.v1.json");
+		expect(patterns).toContain("configs/sources/**");
+		expect(patterns).toContain("!configs/sources/internal-portal.json");
+		expect(patterns).not.toContain("!configs/runtime/provider-pricing.v1.json");
+		expect(patterns).not.toContain("!configs/runtime/workflow-artifacts.v3.json");
+		expect(patterns).not.toContain(
+			"!configs/sources/official_web/muc_public/target-inventory.json",
+		);
 	});
 });

@@ -9,10 +9,9 @@ import {
 	useScrollLock,
 	useToolCallElapsed,
 } from "@assistant-ui/react";
-import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger } from "@campus-agent/ui";
+import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger, cn } from "@campus-agent/ui";
 import { AlertCircleIcon, CheckIcon, ChevronDownIcon, LoaderIcon, XCircleIcon } from "lucide-react";
 import { memo, useCallback, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
 
 const ANIMATION_DURATION = 200;
 

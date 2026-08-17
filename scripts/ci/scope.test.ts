@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -20,6 +20,11 @@ const HEAD_TREE = "d".repeat(40);
 const SYNTHETIC_BASE = "e".repeat(40);
 const SYNTHETIC_HEAD = "f".repeat(40);
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
+const REPOSITORY_PACKAGE_MANAGER = (
+	JSON.parse(readFileSync(path.join(REPOSITORY_ROOT, "package.json"), "utf8")) as {
+		packageManager: string;
+	}
+).packageManager;
 
 function result(overrides: Partial<CommandResult> = {}): CommandResult {
 	return { status: 0, stderr: "", stdout: "", ...overrides };
@@ -254,7 +259,12 @@ test("real Turbo keeps config-only scope empty without dropping source changes",
 	writeFileSync(path.join(root, ".gitignore"), "node_modules\n");
 	writeFileSync(
 		path.join(root, "package.json"),
-		`${JSON.stringify({ name: "scope-fixture", packageManager: "pnpm@11.20.0", private: true })}\n`,
+		`${JSON.stringify({
+			name: "scope-fixture",
+			packageManager: REPOSITORY_PACKAGE_MANAGER,
+			private: true,
+			version: "99.88.77",
+		})}\n`,
 	);
 	writeFileSync(path.join(root, "pnpm-workspace.yaml"), 'packages:\n  - "apps/*"\n');
 	writeFileSync(

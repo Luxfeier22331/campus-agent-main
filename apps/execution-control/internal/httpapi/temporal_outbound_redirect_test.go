@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -44,7 +45,7 @@ func TestCallAgentRuntimeDoesNotFollowRedirect(t *testing.T) {
 		run,
 		temporalruntime.ExecutePrimaryAgentActivityInput{RunID: run.RunID},
 		"private prompt",
-		providerConfigSnapshot{APIKey: "provider-secret"},
+		providerconfig.RuntimeSetting{APIKey: "provider-secret"},
 		nil,
 		temporalruntime.CampusDocsRetrievalResult{Evidence: []temporalruntime.CampusDocsEvidence{}},
 		server.primaryAgentRuntimeLimits(),
@@ -78,7 +79,7 @@ func TestWritePersonalMemoryCommandResultDoesNotFollowRedirect(t *testing.T) {
 		AppAPIExecutionSharedSecret: "callback-secret",
 		ProductCallbackTimeoutMS:    1000,
 	})
-	err := server.WritePersonalMemoryCommandResultActivity(
+	err := server.WritePersonalMemoryCommandResult(
 		context.Background(),
 		temporalruntime.PersonalMemoryCommandActivityOutput{
 			CommandID: "memory-command-redirect",

@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM --platform=$BUILDPLATFORM node:24.19.0-bookworm-slim AS build
+ARG NODE_VERSION
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -36,7 +37,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   && pnpm --filter ops-web deploy --legacy --prod /opt/ops-web \
   && node scripts/release/check-ops-web-artifact.mjs /opt/ops-web
 
-FROM node:24.19.0-bookworm-slim AS runtime
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 WORKDIR /app
 

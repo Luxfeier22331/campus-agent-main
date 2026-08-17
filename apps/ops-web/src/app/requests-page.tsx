@@ -8,7 +8,7 @@ import type {
 	OpsRequestSummary,
 } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
-import { fetchOpsRequests } from "./ops-api-client";
+import { fetchOpsRequests } from "./ops-api/observability";
 import {
 	CopyIconButton,
 	ErrorState,

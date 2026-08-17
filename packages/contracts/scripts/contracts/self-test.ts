@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { repoPath } from "./common.ts";
+import { listFilesMatching, relativePath, repoPath } from "./common.ts";
 import { checkContractSchemas } from "./schema-registry.ts";
 
 export function runContractSchemaSelfTest(): void {
@@ -17,6 +17,7 @@ function checkContractSchemasPass(): void {
 function checkRegistryCoverage(): void {
 	const entries = registryEntries();
 	const expectedValidates: Record<string, string[]> = {
+		"internal-portal-descriptor.v1": ["configs/sources/internal-portal.json"],
 		"runtime-tools.v6": ["configs/runtime/tools.v6.json"],
 		"runtime-latency-budgets.v1": ["configs/runtime/latency-budgets.v1.json"],
 	};
@@ -34,6 +35,27 @@ function checkRegistryCoverage(): void {
 		}
 		expect(fixtureGroups.length > 0, `${entryId} fixture groups empty`);
 	}
+	const runtimeConfigPaths = listFilesMatching(repoPath("configs/runtime"), "*.json").map(
+		relativePath,
+	);
+	const sourceConfigPaths = listFilesMatching(repoPath("configs/sources"), "*.json").map(
+		relativePath,
+	);
+	const registeredConfigPaths = Object.values(entries).flatMap((entry) =>
+		Array.isArray(entry.validates)
+			? entry.validates.filter((value): value is string => typeof value === "string")
+			: [],
+	);
+	expectEqualJson(
+		registeredConfigPaths.filter((path) => path.startsWith("configs/runtime/")).sort(),
+		runtimeConfigPaths.sort(),
+		"runtime config registry coverage",
+	);
+	expectEqualJson(
+		registeredConfigPaths.filter((path) => path.startsWith("configs/sources/")).sort(),
+		sourceConfigPaths.sort(),
+		"source config registry coverage",
+	);
 }
 
 function checkObservabilityFixtures(): void {

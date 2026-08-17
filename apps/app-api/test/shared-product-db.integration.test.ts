@@ -7,14 +7,32 @@ import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { createAppAuth } from "../src/modules/auth";
 import { createPgChatConversationStore } from "../src/modules/chat";
-import { createPgProfileMemoryStore } from "../src/modules/profile-memory";
-import { createPgChatCommandStore } from "../src/modules/runtime-command";
+import { createPgProfileMemoryPersistence } from "../src/modules/profile-memory";
+import { createPgChatCommandPersistence } from "../src/modules/runtime-command";
 import {
 	buildAcceptedWrite,
 	buildFinalizedWrite,
 } from "../src/modules/runtime-command/service/writes";
 import { createPrincipal } from "./chat-command.service.test-support";
 import { buildSharedDbIntegrationEnv } from "./shared-db-integration-helpers";
+
+function createPgProfileMemoryStore(...args: Parameters<typeof createPgProfileMemoryPersistence>) {
+	const persistence = createPgProfileMemoryPersistence(...args);
+	return {
+		...persistence.commands,
+		...persistence.mutations,
+		...persistence.reads,
+	};
+}
+
+function createPgChatCommandStore(...args: Parameters<typeof createPgChatCommandPersistence>) {
+	const persistence = createPgChatCommandPersistence(...args);
+	return {
+		...persistence.admission,
+		...persistence.commands,
+		...persistence.observability,
+	};
+}
 
 const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 const postgres = inject("appApiPostgres");
@@ -469,7 +487,6 @@ describe("app-api shared product DB integration", () => {
 			const acceptedWrite = buildAcceptedWrite({
 				assistantMessageId: `timing-assistant-${suffix}`,
 				branchId: "branch_active",
-				captureMemorySnapshot: false,
 				conversation,
 				conversationSeed: {
 					createdAt: acceptedAt,
@@ -492,6 +509,7 @@ describe("app-api shared product DB integration", () => {
 				prompt: "国家奖学金怎么评审？",
 				requestFingerprintSha256: null,
 				requestId,
+				requestKind: "internal_eval",
 				runId,
 				safetyIdentifier: null,
 				surface: "campus_web",

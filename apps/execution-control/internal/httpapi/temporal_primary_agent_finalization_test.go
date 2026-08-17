@@ -66,7 +66,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 		},
 	)
 
-	output, err := server.WriteFinalizationActivity(context.Background(), input)
+	output, err := server.WriteFinalization(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 		},
 	)
 
-	output, err := server.WriteFinalizationActivity(context.Background(), input)
+	output, err := server.WriteFinalization(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 		}},
 	})
 
-	_, err := server.WriteFinalizationActivity(context.Background(), input)
+	_, err := server.WriteFinalization(context.Background(), input)
 	assertTemporalFailureSanitized(t, err, "agent_tool_result_failed", true)
 	failedRun, getErr := store.GetRun(context.Background(), runID)
 	if getErr != nil {
@@ -327,7 +327,7 @@ func TestWriteFinalizationActivityRetryKeepsProductCallbackStable(t *testing.T) 
 		}
 		return nil
 	}
-	if _, err := server.WriteFinalizationActivity(context.Background(), input); err == nil {
+	if _, err := server.WriteFinalization(context.Background(), input); err == nil {
 		t.Fatal("first finalization should report the lost callback acknowledgement")
 	}
 	upsertStageTimingAttempt(
@@ -340,7 +340,7 @@ func TestWriteFinalizationActivityRetryKeepsProductCallbackStable(t *testing.T) 
 		nil,
 		now,
 	)
-	output, err := server.WriteFinalizationActivity(context.Background(), input)
+	output, err := server.WriteFinalization(context.Background(), input)
 	if err != nil {
 		t.Fatalf("retry finalization: %v", err)
 	}
@@ -414,7 +414,7 @@ func TestWriteFinalizationActivityRepairsCompletedRunEventWithVerifiedStep(t *te
 	if err != nil {
 		t.Fatalf("complete run with finalization result: %v", err)
 	}
-	output, err := server.WriteFinalizationActivity(context.Background(), input)
+	output, err := server.WriteFinalization(context.Background(), input)
 	if err != nil {
 		t.Fatalf("repair completed finalization: %v", err)
 	}
@@ -475,7 +475,7 @@ func TestWriteFinalizationActivityKeepsRunActiveWhenStepProjectionFails(t *testi
 		"terminal_reason":   "answer_completed",
 		"tool_results":      []map[string]any{},
 	})
-	_, err := server.WriteFinalizationActivity(context.Background(), input)
+	_, err := server.WriteFinalization(context.Background(), input)
 	if err == nil || !strings.Contains(err.Error(), "finalization result storage unavailable") {
 		t.Fatalf("finalization error = %v, want step projection failure", err)
 	}
@@ -533,11 +533,11 @@ func TestWriteFinalizationActivityRepairsTransientInternalProjectionFailure(t *t
 		callbackCount++
 		return nil
 	}
-	if _, err := server.WriteFinalizationActivity(context.Background(), input); err == nil ||
+	if _, err := server.WriteFinalization(context.Background(), input); err == nil ||
 		!strings.Contains(err.Error(), "finalization result storage unavailable") {
 		t.Fatalf("first finalization error = %v, want injected internal projection failure", err)
 	}
-	output, err := server.WriteFinalizationActivity(context.Background(), input)
+	output, err := server.WriteFinalization(context.Background(), input)
 	if err != nil {
 		t.Fatalf("repair internal finalization projection: %v", err)
 	}

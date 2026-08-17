@@ -125,7 +125,7 @@ describe("agent runtime node HTTP server", () => {
 					return: returnIterator,
 				};
 			},
-		} as ReturnType<import("../src/primary-agent.ts").PrimaryAgentRuntime["stream"]>;
+		} as ReturnType<import("../src/agent-run-contract.ts").PrimaryAgentRuntime["stream"]>;
 		const writePromise = writeNodeResponse(response, agentRunStreamResponse(events));
 
 		await vi.waitFor(() => expect(response.write).toHaveBeenCalledOnce());

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -35,7 +36,7 @@ func (s *Server) buildAgentAdmissionSnapshot(
 			fmt.Errorf("load Campus docs index admission snapshot: %w", err),
 		)
 	}
-	embedding, err := s.resolveProviderConfigSnapshot(ctx, providerConfigKindEmbedding)
+	embedding, err := s.resolveProviderConfig(ctx, providerconfig.KindEmbedding)
 	if err != nil {
 		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
 			fmt.Errorf("resolve active embedding setting: %w", err),
@@ -45,7 +46,7 @@ func (s *Server) buildAgentAdmissionSnapshot(
 		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(err)
 	}
 	campusDocsRetrieval := temporalruntime.CampusDocsRetrievalAdmission{
-		EmbeddingProviderConfigSHA256: providerConfigAdmissionHash(embedding),
+		EmbeddingProviderConfigSHA256: providerconfig.AdmissionHash(embedding),
 		Index:                         *campusDocsIndex,
 		QuerySHA256:                   campusDocsQuerySHA256,
 	}
@@ -72,13 +73,13 @@ func (s *Server) buildAgentAdmissionSnapshot(
 		ToolRuntimeFingerprint:       toolRuntimeSnapshot,
 		ToolRuntimeFingerprintSHA256: hashAdmissionJSON(toolRuntimeSnapshot),
 	}
-	provider, providerErr := s.resolveProviderConfigSnapshot(ctx, providerConfigKindLLM)
+	provider, providerErr := s.resolveProviderConfig(ctx, providerconfig.KindLLM)
 	if providerErr != nil {
 		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
 			fmt.Errorf("resolve active llm setting: %w", providerErr),
 		)
 	}
-	snapshot.ProviderConfigSHA256 = providerConfigAdmissionHash(provider)
+	snapshot.ProviderConfigSHA256 = providerconfig.AdmissionHash(provider)
 	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleToolNames); err != nil {
 		return temporalruntime.AgentAdmissionSnapshot{}, err
 	}

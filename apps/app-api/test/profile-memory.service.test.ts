@@ -7,7 +7,9 @@ import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import {
 	buildProfileMemoryService,
 	type ProfileMemoryCommandAdmitter,
-	type ProfileMemoryStore,
+	type ProfileMemoryCommandStore,
+	type ProfileMemoryMutationStore,
+	type ProfileMemoryReadStore,
 } from "../src/modules/profile-memory";
 import { deriveProfileMemorySyncStatus } from "../src/modules/profile-memory/command-state";
 import { isProfileMemoryRuntimeEnabled } from "../src/modules/profile-memory/model";
@@ -55,7 +57,19 @@ function pendingItem() {
 	};
 }
 
-function createStore(): ProfileMemoryStore {
+type TestProfileMemoryStore = ProfileMemoryCommandStore &
+	ProfileMemoryMutationStore &
+	ProfileMemoryReadStore;
+
+function serviceStores(store: TestProfileMemoryStore) {
+	return {
+		commandStore: store,
+		mutationStore: store,
+		readStore: store,
+	};
+}
+
+function createStore(): TestProfileMemoryStore {
 	return {
 		applyCommandResult: vi.fn(async () => "applied" as const),
 		createItem: vi.fn(async () => pendingResult()),
@@ -109,9 +123,9 @@ describe("profile memory service", () => {
 	it("writes normalized desired state and a command without calling Hindsight inline", async () => {
 		const store = createStore();
 		const service = buildProfileMemoryService({
+			...serviceStores(store),
 			generateId: (prefix) => (prefix === "mem" ? "mem_01HQ" : "memcmd_01HQ"),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
-			store,
 		});
 
 		const result = await service.createItem({
@@ -136,7 +150,7 @@ describe("profile memory service", () => {
 
 	it("accepts Unicode keys and ordinary auth substrings without changing case", async () => {
 		const store = createStore();
-		const service = buildProfileMemoryService({ store });
+		const service = buildProfileMemoryService(serviceStores(store));
 		await service.createItem({
 			idempotencyKey: "idem-create-0002",
 			key: "Favorite_Author",
@@ -150,7 +164,7 @@ describe("profile memory service", () => {
 
 	it("counts key and value limits by Unicode code points", async () => {
 		const store = createStore();
-		const service = buildProfileMemoryService({ store });
+		const service = buildProfileMemoryService(serviceStores(store));
 		const key = "😀".repeat(64);
 		const value = "🧭".repeat(500);
 
@@ -186,8 +200,8 @@ describe("profile memory service", () => {
 			.mockResolvedValueOnce({ commandId: "memcmd_failed", status: "failed" })
 			.mockResolvedValueOnce(null);
 		const service = buildProfileMemoryService({
+			...serviceStores(store),
 			generateId: () => "memcmd_retry",
-			store,
 		});
 
 		await service.eraseForAccountDeletion({
@@ -209,7 +223,10 @@ describe("profile memory service", () => {
 
 	it("models pause as an owner transition and preserves the generation in the store", async () => {
 		const store = createStore();
-		const service = buildProfileMemoryService({ generateId: () => "memcmd_pause", store });
+		const service = buildProfileMemoryService({
+			...serviceStores(store),
+			generateId: () => "memcmd_pause",
+		});
 		await service.setLifecycle({
 			idempotencyKey: "idem-pause-0001",
 			principal: createPrincipal(),
@@ -245,9 +262,9 @@ describe("profile memory service", () => {
 			admit: vi.fn(async () => ({ workflowId: "campus-agent.memory.command.memcmd_01HQ" })),
 		};
 		const service = buildProfileMemoryService({
+			...serviceStores(store),
 			commandAdmitter,
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
-			store,
 		});
 
 		await expect(service.dispatchPending()).resolves.toEqual({
@@ -265,7 +282,7 @@ describe("profile memory service", () => {
 
 	it("rejects a missing or weak idempotency key before writing", async () => {
 		const store = createStore();
-		const service = buildProfileMemoryService({ store });
+		const service = buildProfileMemoryService(serviceStores(store));
 		await expect(
 			service.erase({ idempotencyKey: "short", principal: createPrincipal() }),
 		).rejects.toMatchObject({
@@ -277,7 +294,7 @@ describe("profile memory service", () => {
 
 	it("maps untrusted callback errors to the bounded public failure kind", async () => {
 		const store = createStore();
-		const service = buildProfileMemoryService({ store });
+		const service = buildProfileMemoryService(serviceStores(store));
 		await service.applyResult({
 			commandId: "memcmd_01HQ",
 			errorCode: "postgres://user:secret@internal-db/runtime",
@@ -290,7 +307,7 @@ describe("profile memory service", () => {
 	});
 
 	it("rejects principals without chat permission", async () => {
-		const service = buildProfileMemoryService({ store: createStore() });
+		const service = buildProfileMemoryService(serviceStores(createStore()));
 		await expect(service.list({ principal: createPrincipal(false) })).rejects.toMatchObject({
 			code: "forbidden",
 			status: 403,

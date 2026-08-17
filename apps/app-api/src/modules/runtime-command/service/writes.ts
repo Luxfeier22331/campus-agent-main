@@ -20,7 +20,7 @@ import type {
 	TurnDispatchStatus,
 } from "../store";
 import { normalizeChatResponseStructuredParts, sanitizePublicAssistantText } from "./normalize";
-import type { ChatCommandResponse, ChatCommandResult } from "./types";
+import type { ChatCommandRequestKind, ChatCommandResponse, ChatCommandResult } from "./types";
 
 export function buildConversationTitle(currentTitle: string, prompt: string): string {
 	if (currentTitle !== DRAFT_CONVERSATION_TITLE || !prompt.trim()) {
@@ -194,7 +194,6 @@ export function publicExecutionFailure(input: {
 
 export function buildAcceptedWrite(input: {
 	assistantMessageId: string;
-	captureMemorySnapshot: boolean;
 	branchId: string;
 	conversation: ChatConversation;
 	conversationSeed?: {
@@ -214,6 +213,7 @@ export function buildAcceptedWrite(input: {
 	prompt: string;
 	requestFingerprintSha256: string | null;
 	requestId: string;
+	requestKind: ChatCommandRequestKind;
 	runId: string | null;
 	safetyIdentifier: string | null;
 	surface: string;
@@ -240,7 +240,6 @@ export function buildAcceptedWrite(input: {
 	};
 
 	return {
-		captureMemorySnapshot: input.captureMemorySnapshot,
 		conversationBaseline: {
 			activeBranchId: input.conversation.activeBranchId ?? "branch_active",
 			activeMessageId: input.conversation.activeMessageId ?? null,
@@ -291,6 +290,7 @@ export function buildAcceptedWrite(input: {
 			surface: input.surface,
 			traceId: input.traceId,
 		}),
+		requestKind: input.requestKind,
 	};
 }
 

@@ -76,7 +76,7 @@ func TestProductCallbackRejectionDoesNotPersistResponseBody(t *testing.T) {
 		ProductCallbackTimeoutMS:    1_000,
 	})
 
-	personalErr := server.WritePersonalMemoryCommandResultActivity(
+	personalErr := server.WritePersonalMemoryCommandResult(
 		context.Background(),
 		temporalruntime.PersonalMemoryCommandActivityOutput{
 			CommandID: "memory-command-sanitized",

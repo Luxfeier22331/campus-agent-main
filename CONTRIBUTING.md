@@ -23,7 +23,9 @@ area、优先级、依赖和可验证的验收条件都已明确，且工作当�
 
 `Done` 表示 Issue 的验收条件已经满足。只涉及源码且合并即完成的事项可以随 Pull Request 合并
 关闭；涉及部署的事项必须等 `staging/deployment` 成功，并完成所需正式用户路径验收后再关闭。
-Project 的 `Done` 状态本身不用于关闭 Issue。
+Project 的 `Done` 状态本身不用于关闭 Issue。这只规定部署类事项的关闭条件，不把环境证据变成
+未合并实现或普通 Pull Request 的前置条件；验证证据按[测试与验证](./docs/reference/verification.md)
+选择。
 
 ### 选择 Issue 模板
 

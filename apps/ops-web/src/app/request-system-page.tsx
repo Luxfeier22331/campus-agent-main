@@ -14,7 +14,7 @@ import {
 	fetchOpsObservability,
 	fetchOpsRequestDetail,
 	fetchOpsSentryIssues,
-} from "./ops-api-client";
+} from "./ops-api/observability";
 import {
 	CopyableKeyValue,
 	ErrorState,

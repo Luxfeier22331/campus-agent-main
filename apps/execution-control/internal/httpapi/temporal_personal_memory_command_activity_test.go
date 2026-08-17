@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryactivity"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/activity"
@@ -36,7 +37,7 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 		UserID:            "user-1",
 	}
 
-	result, err := server.ExecutePersonalMemoryCommandActivity(context.Background(), command)
+	result, err := server.ExecutePersonalMemoryCommand(context.Background(), command)
 	if err != nil || result.Status != "succeeded" || executor.commandCount != 1 {
 		t.Fatalf("provider result=%#v calls=%d err=%v", result, executor.commandCount, err)
 	}
@@ -46,7 +47,7 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 		t.Fatalf("receipt before finalizer=%#v execute=%t err=%v", receipt, execute, err)
 	}
 
-	finalized, err := server.FinalizePersonalMemoryCommandReceiptActivity(
+	finalized, err := server.FinalizePersonalMemoryCommandReceipt(
 		context.Background(),
 		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: result},
 	)
@@ -58,7 +59,7 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 		t.Fatalf("receipt after finalizer=%#v execute=%t err=%v", receipt, execute, err)
 	}
 
-	replayed, err := server.FinalizePersonalMemoryCommandReceiptActivity(
+	replayed, err := server.FinalizePersonalMemoryCommandReceipt(
 		context.Background(),
 		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: finalized},
 	)
@@ -68,7 +69,7 @@ func TestPersonalMemoryProviderActivityLeavesTerminalReceiptToFinalizer(t *testi
 	conflictingResult := finalized
 	conflictingResult.Status = "failed"
 	conflictingResult.ErrorCode = "personal_memory_command_failed"
-	_, err = server.FinalizePersonalMemoryCommandReceiptActivity(
+	_, err = server.FinalizePersonalMemoryCommandReceipt(
 		context.Background(),
 		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{Command: command, Result: conflictingResult},
 	)
@@ -86,6 +87,7 @@ func TestPersonalMemoryCommandActivityAllowsSameGenerationEraseAfterErased(t *te
 	server.personalMemoryErr = nil
 	server.personalMemoryStateStore = state
 	server.personalMemoryStateErr = nil
+	activities := memoryactivity.New(server)
 	first := memoryruntime.PersonalMemoryCommandRequest{
 		CommandID:         "erase-first",
 		CommandKind:       "owner_erase",
@@ -98,11 +100,11 @@ func TestPersonalMemoryCommandActivityAllowsSameGenerationEraseAfterErased(t *te
 		UserID:            "user-erase-retry",
 	}
 
-	firstResult, err := server.ExecutePersonalMemoryCommandActivity(context.Background(), first)
+	firstResult, err := activities.ExecutePersonalMemoryCommandActivity(context.Background(), first)
 	if err != nil || firstResult.Status != "succeeded" {
 		t.Fatalf("execute first erase result=%#v err=%v", firstResult, err)
 	}
-	if _, err := server.FinalizePersonalMemoryCommandReceiptActivity(
+	if _, err := activities.FinalizePersonalMemoryCommandReceiptActivity(
 		context.Background(),
 		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{
 			Command: first,
@@ -115,14 +117,14 @@ func TestPersonalMemoryCommandActivityAllowsSameGenerationEraseAfterErased(t *te
 	successor := first
 	successor.CommandID = "erase-successor"
 	successor.OwnerSequence = 2
-	successorResult, err := server.ExecutePersonalMemoryCommandActivity(context.Background(), successor)
+	successorResult, err := activities.ExecutePersonalMemoryCommandActivity(context.Background(), successor)
 	if err != nil || successorResult.Status != "succeeded" {
 		t.Fatalf("execute successor erase result=%#v err=%v", successorResult, err)
 	}
 	if executor.commandCount != 2 {
 		t.Fatalf("provider command count=%d, want 2", executor.commandCount)
 	}
-	if _, err := server.FinalizePersonalMemoryCommandReceiptActivity(
+	if _, err := activities.FinalizePersonalMemoryCommandReceiptActivity(
 		context.Background(),
 		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{
 			Command: successor,
@@ -151,7 +153,7 @@ func TestPersonalMemoryReceiptFinalizerRecoversMissingReceipt(t *testing.T) {
 		UserID:            "user-missing-receipt",
 	}
 
-	finalized, err := server.FinalizePersonalMemoryCommandReceiptActivity(
+	finalized, err := server.FinalizePersonalMemoryCommandReceipt(
 		context.Background(),
 		temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput{
 			Command: command,
@@ -193,7 +195,7 @@ func TestPersonalMemoryCommandActivityRecordsHeartbeat(t *testing.T) {
 	}
 
 	env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
-	env.RegisterActivity(server.ExecutePersonalMemoryCommandActivity)
+	env.RegisterActivity(server.ExecutePersonalMemoryCommand)
 	heartbeats := make([]string, 0, 1)
 	env.SetOnActivityHeartbeatListener(func(_ *activity.Info, details converter.EncodedValues) {
 		var detail string
@@ -202,7 +204,7 @@ func TestPersonalMemoryCommandActivityRecordsHeartbeat(t *testing.T) {
 		}
 		heartbeats = append(heartbeats, detail)
 	})
-	if _, err := env.ExecuteActivity(server.ExecutePersonalMemoryCommandActivity, command); err != nil {
+	if _, err := env.ExecuteActivity(server.ExecutePersonalMemoryCommand, command); err != nil {
 		t.Fatalf("execute personal memory command activity: %v", err)
 	}
 	if len(heartbeats) == 0 || heartbeats[0] != "memory.command" {
@@ -232,6 +234,6 @@ func TestPersonalMemoryProviderFailureDoesNotPersistRawCause(t *testing.T) {
 		UserID:            "user-provider-sanitized",
 	}
 
-	_, err := server.ExecutePersonalMemoryCommandActivity(context.Background(), command)
+	_, err := server.ExecutePersonalMemoryCommand(context.Background(), command)
 	assertTemporalFailureSanitized(t, err, "hindsight_command_failed", false)
 }

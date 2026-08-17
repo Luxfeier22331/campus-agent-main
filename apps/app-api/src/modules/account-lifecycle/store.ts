@@ -20,46 +20,7 @@ import {
 	verification,
 } from "../../db/schema";
 import { AppApiRouteError } from "../../http";
-import type { AccountDeletionReceipt } from "./service";
-
-export interface PendingAccountDeletion {
-	ownerUserId: string;
-	requestId: string;
-}
-
-export interface ClaimedAccountDeletion extends PendingAccountDeletion {
-	leaseToken: string;
-}
-
-export interface AccountLifecycleStore {
-	claimPending(input: {
-		leaseExpiresAt: Date;
-		leaseToken: string;
-		limit: number;
-		now: Date;
-	}): Promise<ClaimedAccountDeletion[]>;
-	completeDeletion(request: ClaimedAccountDeletion, now: Date): Promise<boolean>;
-	defer(request: ClaimedAccountDeletion, nextAttemptAt: Date, now: Date): Promise<boolean>;
-	deleteOwnedData(
-		request: ClaimedAccountDeletion,
-		now: Date,
-		safetyIdentifier: string | null,
-	): Promise<boolean>;
-	isMemoryErased(ownerUserId: string): Promise<boolean>;
-	recordFailure(input: {
-		errorCode: string;
-		leaseToken: string;
-		nextAttemptAt: Date;
-		now: Date;
-		requestId: string;
-	}): Promise<boolean>;
-	renewLease(request: ClaimedAccountDeletion, leaseExpiresAt: Date, now: Date): Promise<boolean>;
-	requestDeletion(input: {
-		ownerUserId: string;
-		requestId: string;
-		requestedAt: Date;
-	}): Promise<AccountDeletionReceipt>;
-}
+import type { AccountLifecycleStore } from "./types";
 
 function accountError(code: string, message: string, status: number): AppApiRouteError {
 	return new AppApiRouteError({ code, message, retryable: false, status });

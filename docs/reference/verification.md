@@ -3,151 +3,82 @@ doc_type: reference
 owner_boundary: docs/reference
 status: active
 ---
+
 # 测试与验证
 
 ## 边界
 
-本文说明稳定验证入口和执行边界，不复制 GitHub Actions job、runner、Secret、镜像清单或一次性
-环境状态。
+本文定义验证证据的选择、稳定入口和报告语义。具体 package task 由所属 manifest 维护，CI job、
+runner、工具版本、缓存和发布实现由可执行配置维护；本文不复制这些动态细节。
 
-- package 的 `package.json` 拥有具体检查；Turbo 拥有 package task graph、任务输入和缓存；
-- `scripts/ci/scope.mts` 唯一负责校验 revision、读取 Git diff 和解析 Turbo affected graph；
-- `scripts/ci/validation.mts` 唯一负责静态面与受影响 profile 选择；
-- `scripts/ci/evidence.mts` 负责 PR 和手动入口共用的 profile 执行；
-- `.github/workflows/pr.yml` 的静态门禁和受影响证据均在 GitHub-hosted runner；
-- `.github/workflows/execution-runtime-publish.yml` 拥有候选物发布和 GitOps 交接；
-- `.github/workflows/dependencies.yml` 每周重新检查外部 vulnerability 数据；
-- staging、release 和真实外部依赖验收由所属 runbook 说明。
+## 证据层级
 
-`main` 发布候选以环境仓游标到当前 Source SHA 的累计差异为输入；PR 验证以该 PR 的 base/head 为
-输入，不读取私有环境仓或环境凭据。两条路径复用同一 affected scope，但分别选择验证 profile 和
-候选制品。Turbo 根据 package graph 和 task input 选择 package；没有 `build` task 的 Go 与 schema
-镜像，以及 `infra/k8s`，由其明确的制品所有权补充选择。Docker 构建定义仍由 `docker-bake.hcl`
-负责，不另建镜像实现清单。
+| 证据 | 回答的问题 | 不能证明 |
+| --- | --- | --- |
+| 配置检查 | 命令需要的输入是否存在且可解析 | 远端服务健康或环境已部署 |
+| 单元、合同与集成检查 | 所属实现和边界是否符合合同 | 候选物已发布或线上用户路径可用 |
+| `/healthz` | 当前进程或 Worker 是否能响应 | 核心依赖或产品路径完整 |
+| `/readyz` | 服务是否具备接受其职责范围请求的核心依赖 | 新版本已部署或完整用户旅途可用 |
+| 制品检查 | 构建结果是否完整、可识别且满足发布合同 | 环境已经选择或运行该制品 |
+| 环境验收 | 环境实际选择的版本和受影响用户路径是否符合预期 | 长期稳定性或所有可选依赖健康 |
 
-数据库和浏览器任务在所属 package 的 `turbo.json` 中声明边界输入。`turbo.json` 自身变化会使 Turbo
-任务定义失效；累计差异包含这类提交时，`scripts/ci/scope.mts` 用 head 版本的任务图构造临时 SCM
-比较基线，只解析一次真实源码差异，不把配置变化转换成全部业务 profile 或候选制品。同一差异中的
-基础设施、数据库、用户界面和已注册候选 Dockerfile 仍按其明确所有权选择对应证据或制品。
-
-`flake.lock` 固定 source 工具链的 nixpkgs revision，`ci-core` 提供普通 hosted 控制路径，`ci-light`
-在其上增加静态 lint 和依赖扫描工具，`ci-release` 从 `ci-core` 单独增加 Docker client/Buildx/Trivy，
-`ci-full` 汇总静态、发布和重型 profile 所需 CLI，并为 uv 安装的 Python 二进制 wheel 提供 C++ runtime
-搜索路径；它们都不是 validation profile，也不会自动触发全量检查。
-Nix 不接管 `pnpm-lock.yaml`、`uv.lock`、
-`Cargo.lock` 或 Go module，也不提供 Docker daemon、PostgreSQL、Testcontainers 或 Playwright browser。
+配置、健康、就绪、构建和环境验收不能相互替代。服务级 `/readyz` 条件由所属合同、配置解析器和
+测试维护，不在仓库级文档复制。
 
 ## 选择原则
 
 1. 先运行能够验证改动模块的最小检查。
-1. 跨 package 合同变更先校验合同，再校验受影响消费者。
-1. 数据库、浏览器、镜像和真实外部依赖只在改动可能破坏对应边界时运行。
-1. formatting、lint、配置解析和构建都不能证明运行时或部署环境健康。
-1. 测试报告只列实际运行及明确省略的检查。
+2. 跨 package 合同变更先校验合同，再校验受影响消费者。
+3. 数据库、浏览器、镜像和真实外部依赖只在改动可能破坏对应边界时运行。
+4. formatting、lint、配置解析和构建都不能证明运行时或部署环境健康。
+5. 报告只列实际运行的检查，以及与改动风险相关但未执行的检查。
+
+实现和 PR 准备根据改动可能破坏的边界选择证据。本地、合同、依赖集成、受控用户路径和制品检查可以
+成为完成条件；相关 integration 或 E2E 不因任务尚未进入 release 或 staging 而自动省略。
+
+只有任务目标明确包含 release、staging、部署或运行验收时，缺少对应环境证据才表示任务未完成；
+否则无需主动列为缺失项，也不是阻塞项。
 
 ## 稳定命令
 
 | 命令 | 负责 | 不证明 |
 | --- | --- | --- |
-| `pre-commit` | staged file 基础格式、解析、冲突和 secret hygiene | typecheck、test、build 或 runtime |
-| `pnpm check` | 仓库 lint、文档治理和自动化脚本单元测试 | 架构正确性、package 行为或 E2E |
+| `pre-commit` | 暂存文件的基础格式、解析、冲突和 Secret 检查 | typecheck、test、build 或 runtime |
+| `pnpm check` | 仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
 | `pnpm lint` | Biome、Markdownlint 与 EditorConfig | 文档链接、业务行为或类型正确性 |
-| `pnpm docs:check` | 文档 frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
-| `pnpm test` | Source CI、开发和发布脚本的单元测试 | package test、镜像构建或外部服务 |
-| `pnpm --dir packages/contracts check` | JSON Schema/OpenAPI 生成同步与合同 invariant | consumer runtime 行为 |
-| `scripts/dependencies/scan.sh` | pnpm、uv、Cargo 与 Go lockfile 的 OSV 扫描 | 应用行为或镜像漏洞 |
-| `scripts/infra/validate.sh` | Kustomize render 与基础设施 Conftest policy | 集群已应用或工作负载健康 |
-| `scripts/otel/validate-config.sh` | 固定 Collector 镜像的官方配置校验 | 真实 OTLP payload 或后端已收到信号 |
+| `pnpm docs:check` | frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
+| `pnpm test` | 仓库开发、验证和发布脚本测试 | package test、镜像构建或外部服务 |
+| `pnpm --dir packages/contracts check` | JSON Schema/OpenAPI 同步和合同不变量 | consumer runtime 行为 |
+| `scripts/dependencies/scan.sh` | 已锁定依赖的漏洞扫描 | 应用行为或镜像漏洞 |
+| `scripts/infra/validate.sh` | Kustomize render 与基础设施 policy | 集群已应用或 workload 健康 |
+| `scripts/otel/validate-config.sh` | Collector 配置校验 | 后端已经收到真实信号 |
 
-根 `package.json` 只拥有仓库级人类工作流和本地开发生命周期。`ci`、`manual`、`hosted` 与 `local`
-是调用 lane，不进入命令名；package task、Turbo task 或领域脚本已有真实入口时，不再增加根 wrapper。
-数据库、浏览器、原生语言和评测证据通过所属 package task 或手动 validation profile 运行。
+package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护。Turbo 只负责声明
+任务图、输入和缓存边界；integration test 与有副作用任务不得依赖缓存，远端缓存是否命中不影响
+正确性。
 
-## PR 门禁
-
-自动 PR 保留一个稳定的 `repo-checks` hosted 门禁；Draft PR 跳过 job，转为 ready 后运行。门禁始终运行 `pnpm check` 和 authored commit range
-的 Gitleaks，并按 planner 选择合同、GitHub Actions、Python、YAML、SQL 和 Shell 静态检查；需要时在
-同一个 job 一次 checkout，并在根工具链安装后串行执行 `affected-node` 或 `toolchain`。若选择
-`affected-node`，再扩展安装受影响 workspace；没有受影响 Node 证据时不执行这次扩展安装，但始终
-返回明确结果。依赖漏洞数据会在没有 PR 改动时变化，不作为 PR 阻塞 profile。
-
-PR checkout 使用 GitHub 生成的 merge revision，普通 PR 不发布镜像或 Worker，不访问 staging、provider
-state、集群或真实外部服务。candidate 不自动运行数据库、浏览器、原生、OTel 或其他完整 profile；需要
-专项重检查时，手动入口一次只选择一个明确的非浏览器 profile，浏览器业务 E2E 只在本地或发布执行者
-终端验收。
-
-## 变更面选择
+## 变更面
 
 | 变更面 | 至少运行 |
 | --- | --- |
 | 仅 Markdown、文档索引或贡献规范 | `pnpm check` |
-| `packages/contracts`、OpenAPI、共享 schema | `pnpm --dir packages/contracts check`，再运行受影响 consumer 检查 |
-| 一般 app/package/job TypeScript | 所属 package 的 `typecheck` 与 `test`；跨 package 时为 Turbo 指定明确 filter |
-| Worker route、binding 或 wrangler config | 所属 Worker 的 `test:worker`、`build:worker` 与模块测试 |
-| Campus Web 用户可见运行时 | 模块 typecheck/test、bundle 完整性检查；`test:e2e:smoke` 和 `test:e2e:full` 仅本地运行 |
-| execution-control Go | 手动 `go` profile；合同变化时加 contracts check |
-| Rust kernel 或 Cargo workspace | 手动 `rust` profile |
-| ingestion app、package 或 source config | 所属 package 的 `typecheck` 与 `test`；合同变化时加 contracts check |
-| eval package、Ragas adapter 或 eval contract | 所属 package test；跨语言适配器使用手动 `ragas` profile |
-| migration 或数据库权限 | 对应 PostgreSQL 子入口与模块测试 |
-| `.github/**` | `pnpm check`、`actionlint` 与 `zizmor --min-severity=medium .github` |
-| dependency manifest 或 lockfile | frozen lockfile 安装与受影响模块检查；OSV 使用手动或定时入口 |
-| Dockerfile、Bake 或发布适配器 | `pnpm test`、`docker buildx bake --print`；需要构建证据时手动运行 Docker profile |
-| K8s 或 deployment source | `scripts/infra/validate.sh` 与明确的环境验收 |
+| `packages/contracts`、OpenAPI、共享 schema | contracts check，再运行受影响 consumer 检查 |
+| 一般 TypeScript app/package/job | 所属 package 的 typecheck 与 test；跨 package 时使用明确 filter |
+| Worker route、binding 或 Wrangler 配置 | 所属 Worker 的 worker test、build 和模块测试 |
+| Campus Web 用户可见运行时 | 模块检查和制品完整性；按风险运行本地浏览器路径 |
+| execution-control Go | 所属 native format、lint、typecheck 和 test |
+| Rust kernel 或 Cargo workspace | 所属 Rust 检查 |
+| migration 或数据库权限 | 对应 migration、数据库集成和所有者测试 |
+| eval package、Ragas adapter 或评测合同 | 所属 package test；跨语言时运行对应 adapter |
+| GitHub Actions | `pnpm check`、Actionlint 与 Zizmor |
+| dependency manifest 或 lockfile | frozen install、受影响模块检查，必要时运行漏洞扫描 |
+| Dockerfile、Bake 或发布适配器 | 仓库脚本测试、Bake 解析；风险需要时构建目标制品 |
+| Kubernetes 或 deployment source | `scripts/infra/validate.sh`；进入环境操作后按发布手册验收 |
 
-## 执行器与定时检查
+普通 PR 只验证源码和受影响边界，不访问私有环境或把候选物存在解释为已经部署。发布与环境验收见
+[发布手册](../runbooks/release.md) 和 [E2E 手册](../runbooks/e2e.md)。
 
-格式、文档、合同、workflow、受影响 Node 证据和候选发布均在 GitHub-hosted runner 执行。ARM 镜像
-构建使用 `ubuntu-24.04-arm`，其余任务使用 `ubuntu-24.04`；需要仓库工具链的 job 通过固定 commit 的
-安装 action 获取 Nix 2.35.1，并使用同一 flake，不维护第二套 CLI 安装路径。
+## 报告
 
-依赖 advisory 可以在没有代码变化时变化，因此每周一 `02:35 UTC` 在 hosted runner 运行一次
-`scripts/dependencies/scan.sh`，并保留同一手动入口。PR 通过 frozen lockfile 安装和受影响模块证据验证
-依赖变更，不根据实时全仓 advisory 结果阻塞。仓库不保存未被消费的扫描 JSON artifact，也不把
-dependency scan 的成功结果当作应用行为或镜像安全证据。
-
-## 测试与缓存
-
-- package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护；
-- Turbo task 必须声明 package 外行为输入；integration test 与有副作用任务禁用缓存；
-- Remote Cache 缺失时正常执行，正确性不依赖 runner 的旧工作目录；
-- PR 和手动 profile 使用本地读写、远端读写的 Turbo Cache；缺少远端命中时仍正常执行。仓库不再
-  使用 GitHub Actions pnpm store cache；candidate 不注入 Turbo 配置或 Turbo evidence。任何 lane
-  都不把 Secret、对象存储内容或部署结果写入缓存；
-- CI 不缓存 vulnerability scan、staging check 或 release check 的通过/失败结论，也不缓存
-  `node_modules`；Trivy 通过 `--cache-dir` 在当前 job 内复用其漏洞数据库和镜像分析缓存，数据库更新
-  仍由 Trivy 的正常策略负责；
-- 浏览器 E2E 不进入 GitHub Actions，不写入 Turbo Cache；本地入口使用应用现有的 smoke/full 命令；
-- execution-control 的 Temporal server 测试使用模块明确入口，不属于默认 `go` profile；
-- PR 数据库 profile 只使用 disposable PostgreSQL；真实 provider、staging database、object store、
-  Langfuse 或 cluster credential 不进入 PR test。
-- Campus Web bundle 大小超过 `500 KiB gzip` 只记录 warning；bundle graph、入口、静态文件或 vendor
-  登记缺失仍是 artifact failure。PR 的 `build:worker` 使用确定性文档 fixture，不代表真实 staging
-  对象存储内容已完成构建或发布。
-
-评估 CI 性能时从真实 workflow 分别记录调度等待和任务耗时，并优先移除重复安装、重复构建和无关
-检查面；没有具体性能问题时不为比较缓存状态制造额外构建。
-
-## 发布与环境
-
-普通 PR 不发布最终镜像。`main` 发布链在存在镜像、Worker 或 Kubernetes 候选时先把精确 Source SHA 的
-`staging/candidate` 标为 `pending`，被选 publisher 全部成功后才标为 `success`；没有任何候选的空发布
-由 planner 直接标为 `success`，不再启动状态汇总 job。该状态只证明所选制品已经完成构建、扫描和上传。镜像
-使用 Docker Bake 构建单一 `linux/arm64` 索引、经 Trivy 扫描并记录 digest；同一源码提交已有合法
-不可变镜像时直接复用。
-
-机器 promotion 必须携带 planner 读取的旧 `releases/staging.json` 游标；环境仓游标已经前进时拒绝
-写入。promotion checkout GitOps 后通过 `nix develop ./gitops#ci-control` 调用环境仓拥有的更新入口，
-再创建或更新 `deploy/staging` PR；受影响渲染和策略检查由该 PR 的 GitOps 门禁负责。Agent
-Runtime、App API schema 和 Ops Web 运维 Job 的容器入口均执行构建期生成的 JavaScript，不在部署
-环境执行 TypeScript 源码。
-
-候选物存在、源码仓 workflow 成功或 GitOps PR 创建，都不表示环境已经部署。GitOps 的
-`staging/deployment` 状态只证明本次选择的 apply 与 controller 协调完成，不表示真实用户路径已经
-通过。受影响用户路径由发布执行者按 E2E runbook 手动选择并验收；GitOps 链路不自动运行
-`chat-staging` 或其他用户 smoke。
-
-## 提交前报告
-
-PR 或最终交接至少写明改动范围、实际执行的命令和结果、未运行的 integration/E2E/staging/release
-检查及原因，以及需要由其他环境继续提供的证据。
+PR 或最终交接至少写明改动范围、实际执行的命令和结果，以及与本次风险相关但未执行的检查。完成状态
+按本文件的证据边界判断，不重复枚举无关下游流程，也不得把未执行的检查描述为已经通过。

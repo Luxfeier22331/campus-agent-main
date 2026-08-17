@@ -1,6 +1,5 @@
-import { Card, Skeleton } from "@campus-agent/ui";
+import { Card, cn, Skeleton } from "@campus-agent/ui";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 
 type SurfaceStateKind = "empty" | "error" | "info" | "loading" | "success";
 

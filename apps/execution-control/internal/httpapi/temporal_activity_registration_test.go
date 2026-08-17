@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimeassembly"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -11,11 +12,12 @@ import (
 
 func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 	server := &Server{}
+	sets := runtimeassembly.NewActivitySets(server)
 
 	for name, activities := range map[string]any{
-		"context":      server.TemporalContextActivities(),
-		"agent":        server.TemporalAgentActivities(),
-		"finalization": server.TemporalFinalizationActivities(),
+		"context":      sets.Context,
+		"agent":        sets.Agent,
+		"finalization": sets.Finalization,
 	} {
 		activityType := reflect.TypeOf(activities)
 		if activityType == nil {
@@ -29,8 +31,9 @@ func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 
 func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	server := &Server{}
+	sets := runtimeassembly.NewActivitySets(server)
 
-	contextType := reflect.TypeOf(server.TemporalContextActivities())
+	contextType := reflect.TypeOf(sets.Context)
 	for _, method := range []string{
 		"AppendConversationMemoryActivity",
 		"ExecutePersonalMemoryCommandActivity",
@@ -48,7 +51,7 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		t.Fatal("context activities still expose retired UpdateInferredMemoryActivity")
 	}
 
-	agentType := reflect.TypeOf(server.TemporalAgentActivities())
+	agentType := reflect.TypeOf(sets.Agent)
 	if _, ok := agentType.MethodByName("ExecutePrimaryAgentActivity"); !ok {
 		t.Fatal("agent activities missing ExecutePrimaryAgentActivity")
 	}
@@ -56,7 +59,7 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 		t.Fatal("agent activities expose context method")
 	}
 
-	finalizationType := reflect.TypeOf(server.TemporalFinalizationActivities())
+	finalizationType := reflect.TypeOf(sets.Finalization)
 	if _, ok := finalizationType.MethodByName("WriteFinalizationActivity"); !ok {
 		t.Fatal("finalization activities missing WriteFinalizationActivity")
 	}
@@ -79,6 +82,7 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 
 func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 	server := &Server{}
+	sets := runtimeassembly.NewActivitySets(server)
 	temporalClient, err := client.NewLazyClient(client.Options{})
 	if err != nil {
 		t.Fatalf("temporal client: %v", err)
@@ -88,8 +92,8 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 		worker := temporalruntime.NewCoreActivityWorkerWithOptions(
 			temporalClient,
 			"test-core",
-			server.TemporalContextActivities(),
-			server.TemporalFinalizationActivities(),
+			sets.Context,
+			sets.Finalization,
 			workerOptionsForRegistrationTest(),
 		)
 		worker.Stop()
@@ -98,7 +102,7 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 		worker := temporalruntime.NewAgentActivityWorker(
 			temporalClient,
 			"test-agent",
-			server.TemporalAgentActivities(),
+			sets.Agent,
 		)
 		worker.Stop()
 	})

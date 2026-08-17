@@ -41,6 +41,23 @@ func containsString(values []string, needle string) bool {
 	return false
 }
 
+func optionalBoolFromAny(values ...any) bool {
+	for _, value := range values {
+		switch typed := value.(type) {
+		case bool:
+			return typed
+		case string:
+			switch strings.TrimSpace(strings.ToLower(typed)) {
+			case "true", "1", "yes":
+				return true
+			case "false", "0", "no":
+				return false
+			}
+		}
+	}
+	return false
+}
+
 func workflowToolLifecycleState(status string) string {
 	if status == "error" || status == "cancelled" || status == "timed_out" {
 		return "failed"

@@ -269,35 +269,11 @@ jobs:
         run: |
           set -euo pipefail
           filters=()
-          declare -A seen=()
-          add_filter() {
-            local filter="$1"
-            if [[ -z "${seen[$filter]+present}" ]]; then
-              filters+=(--filter "$filter")
-              seen["$filter"]=1
-            fi
-          }
-          add_filter campus-agent-web-workspace
-          while read -r worker; do
-            case "$worker" in
-              app-api-staging)
-                add_filter 'campus-contracts...'
-                add_filter 'app-api...'
-                ;;
-              campus-web-staging)
-                add_filter 'campus-contracts...'
-                add_filter 'campus-web...'
-                ;;
-              status-web-staging)
-                add_filter 'campus-contracts...'
-                add_filter 'status-web...'
-                ;;
-              *)
-                echo "Unsupported Worker candidate: $worker" >&2
-                exit 1
-                ;;
-            esac
-          done < <(jq -r '.[]' <<< "$WORKERS")
+          while read -r filter; do
+            filters+=(--filter "$filter")
+          done < <(
+            node --experimental-strip-types scripts/release/workers.mts --workers "$WORKERS"
+          )
           pnpm install --frozen-lockfile "${filters[@]}"
 
       - name: Upload app-api candidate

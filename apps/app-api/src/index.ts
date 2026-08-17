@@ -22,13 +22,13 @@ import {
 } from "./modules/integration";
 import {
 	buildProfileMemoryService,
-	createPgProfileMemoryStore,
+	createPgProfileMemoryPersistence,
 	type ProfileMemoryService,
 } from "./modules/profile-memory";
 import {
 	buildChatCommandService,
 	type ChatCommandService,
-	createPgChatCommandStore,
+	createPgChatCommandPersistence,
 	deriveSafetyIdentifierForUser,
 } from "./modules/runtime-command";
 import {
@@ -85,9 +85,12 @@ export function createWorkerRuntime(
 		if (profileMemoryService) {
 			return profileMemoryService;
 		}
+		const persistence = createPgProfileMemoryPersistence(env);
 		profileMemoryService = buildProfileMemoryService({
 			commandAdmitter: createExecutionControlPersonalMemoryClient(env),
-			store: createPgProfileMemoryStore(env),
+			commandStore: persistence.commands,
+			mutationStore: persistence.mutations,
+			readStore: persistence.reads,
 		});
 		return profileMemoryService;
 	}
@@ -104,15 +107,17 @@ export function createWorkerRuntime(
 			};
 			return scheduledRuntimeServices;
 		}
+		const commandPersistence = createPgChatCommandPersistence(env);
 		const chatCommandService = buildChatCommandService({
+			admissionStore: commandPersistence.admission,
+			commandStore: commandPersistence.commands,
 			conversationStore: createPgChatConversationStore(env),
 			executionRuntime,
 			isExecutionRuntimeConfigured: true,
-			captureProfileMemorySnapshot: true,
+			observabilityStore: commandPersistence.observability,
 			...(env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET
 				? { safetyIdentifierHmacSecret: env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET }
 				: {}),
-			store: createPgChatCommandStore(env),
 			telemetry,
 		});
 		scheduledRuntimeServices = {

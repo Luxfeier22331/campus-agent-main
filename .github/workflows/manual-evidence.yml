@@ -57,18 +57,24 @@ jobs:
           set -euo pipefail
           pnpm install --frozen-lockfile
 
+      - name: Resolve profile requirements
+        id: profile
+        env:
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          set -euo pipefail
+          metadata="$(node --experimental-strip-types scripts/ci/validation.mts \
+            --describe-profile "$PROFILE")"
+          test "$(jq -r '.lane' <<< "$metadata")" = manual
+          echo "requires_docker=$(jq -r '.requiresDocker' <<< "$metadata")" >> "$GITHUB_OUTPUT"
+          echo "requires_uv=$(jq -r '.requiresUv' <<< "$metadata")" >> "$GITHUB_OUTPUT"
+
       - name: Install evaluation dependencies
-        if: inputs.profile == 'ragas'
+        if: steps.profile.outputs.requires_uv == 'true'
         run: uv sync --package campus-ragas-runner
 
       - name: Verify Docker evidence dependency
-        if: >-
-          inputs.profile == 'app-api-migration' ||
-          inputs.profile == 'app-api-product-db' ||
-          inputs.profile == 'execution-control-postgres' ||
-          inputs.profile == 'ingestion-control-postgres' ||
-          inputs.profile == 'ops-web-postgres' ||
-          inputs.profile == 'otel'
+        if: steps.profile.outputs.requires_docker == 'true'
         run: docker info >/dev/null
 
       - name: Run selected profile

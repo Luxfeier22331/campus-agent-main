@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createOpsApp } from "../src/server/app";
+import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
-import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 
 describe("ops app shell", () => {
 	it("serves client routes without swallowing API or asset 404 responses", async () => {

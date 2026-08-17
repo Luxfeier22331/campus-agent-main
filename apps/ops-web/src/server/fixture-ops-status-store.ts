@@ -12,8 +12,7 @@ import {
 	requestListView,
 	summarizeRequests,
 } from "./ops-status-mappers.ts";
-import type { OpsStatusStore } from "./ops-status-store.ts";
-import { OPS_REQUEST_PAGE_SIZE } from "./ops-status-store.ts";
+import { OPS_REQUEST_PAGE_SIZE, type OpsStatusStore } from "./ops-status-types.ts";
 
 export function createFixtureOpsStatusStore(): OpsStatusStore {
 	const requestDetails = opsRequestDetailFixtures;

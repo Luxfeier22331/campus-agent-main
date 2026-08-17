@@ -3,16 +3,16 @@ import process from "node:process";
 
 import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
-	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL,
-	DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL,
-} from "./support/chat-e2e.args";
-import {
 	expectEventStreamResponse,
 	fetchJsonWithCookie,
 	type ProductStreamEvent,
 	parseSse,
-} from "./support/http-smoke";
-import { fetchReadyz, signInE2eIdentity } from "./support/staging-smoke-support";
+} from "./support/http-e2e";
+import {
+	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL,
+	DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL,
+} from "./support/staging-e2e-defaults";
+import { fetchReadyz, signInE2eIdentity } from "./support/staging-e2e-support";
 
 interface ReadyzProbe {
 	payload: unknown;
@@ -165,7 +165,7 @@ const PROFILE_MEMORY_POLL_INTERVAL_MS = 2_000;
 const PROFILE_MEMORY_POLL_ATTEMPTS = 60;
 const RUN_STEPS_POLL_INTERVAL_MS = 2_000;
 const RUN_STEPS_POLL_ATTEMPTS = 60;
-const PROFILE_MEMORY_KEY = "smoke_memory_probe";
+const PROFILE_MEMORY_KEY = "e2e_memory_probe";
 const PERSONAL_MEMORY_RECALL_TOOL = "personal_memory_recall";
 
 async function defaultSleep(milliseconds: number): Promise<void> {
@@ -186,11 +186,11 @@ function parseArgs(argv: string[]): ChatMemoryE2eStagingArgs {
 	let captchaToken = "";
 	let chatBaseUrl = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
 	let email = "";
-	let memoryValue = `smoke memory sentinel ${Date.now()}`;
+	let memoryValue = `e2e memory sentinel ${Date.now()}`;
 	let observabilityCanaryApiKeySentinel: string | null = null;
 	let observabilityCanaryHeaderSentinel: string | null = null;
 	let password = "";
-	let prompt = "请完整复述你记住的 smoke_memory_probe 值，只输出该值。";
+	let prompt = "请完整复述你记住的 e2e_memory_probe 值，只输出该值。";
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -1081,7 +1081,7 @@ export async function runChatMemoryE2eStaging(
 		result.runs.paused = await submitAndProveMemoryRun({
 			appApiBaseUrl: args.appApiReadyzUrl,
 			appendStatus: "skipped",
-			body: { prompt: "请复述我的 smoke_memory_probe 值。" },
+			body: { prompt: "请复述我的 e2e_memory_probe 值。" },
 			cookieHeader,
 			fetchJsonWithCookie: resolvedDeps.fetchJsonWithCookie,
 			observabilityCanary: args.observabilityCanary,
@@ -1121,7 +1121,7 @@ export async function runChatMemoryE2eStaging(
 		result.runs.resumed = await submitAndProveMemoryRun({
 			appApiBaseUrl: args.appApiReadyzUrl,
 			appendStatus: "completed",
-			body: { prompt: "请完整复述你记住的 smoke_memory_probe 值，只输出该值。" },
+			body: { prompt: "请完整复述你记住的 e2e_memory_probe 值，只输出该值。" },
 			cookieHeader,
 			expectedAnswerText: updatedMemoryValue,
 			fetchJsonWithCookie: resolvedDeps.fetchJsonWithCookie,
@@ -1164,7 +1164,7 @@ export async function runChatMemoryE2eStaging(
 		result.runs.deletedProbe = await submitAndProveMemoryRun({
 			appApiBaseUrl: args.appApiReadyzUrl,
 			appendStatus: "completed",
-			body: { prompt: "请完整复述你记住的 smoke_memory_probe 值，只输出该值。" },
+			body: { prompt: "请完整复述你记住的 e2e_memory_probe 值，只输出该值。" },
 			cookieHeader,
 			fetchJsonWithCookie: resolvedDeps.fetchJsonWithCookie,
 			forbiddenAnswerText: updatedMemoryValue,
@@ -1206,7 +1206,7 @@ export async function runChatMemoryE2eStaging(
 			if (primaryError !== undefined) {
 				throw new AggregateError(
 					[primaryError, cleanupError],
-					"Memory staging smoke failed and account cleanup also failed.",
+					"Memory staging E2E failed and account cleanup also failed.",
 				);
 			}
 			throw cleanupError;

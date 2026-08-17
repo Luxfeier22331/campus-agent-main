@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatWranglerFailure, runWranglerCommand } from "./run-wrangler-command.ts";
-import { resolveGitSha } from "./staging-release.ts";
+import { resolveGitSha } from "./staging-release.mts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 

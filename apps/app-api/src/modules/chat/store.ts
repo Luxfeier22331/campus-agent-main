@@ -1,22 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
-
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
-import {
-	conversations,
-	messageFeedback,
-	messages,
-	profileMemoryCommandSources,
-	profileMemoryCommands,
-	profileMemorySettings,
-	sessionSlots,
-} from "../../db/schema";
-import {
-	PROFILE_MEMORY_SUPERSESSION_SCOPE,
-	reconcileOwnerMemoryState,
-} from "../profile-memory/command-state";
+import { conversations, messageFeedback, messages, sessionSlots } from "../../db/schema";
+import { invalidateConversationSources } from "../profile-memory/conversation-source-invalidator";
 import {
 	type ChatConversation,
 	type ChatConversationSearchResult,
@@ -115,22 +102,6 @@ export interface ChatConversationStore {
 
 function toIsoString(value: Date): string {
 	return value.toISOString();
-}
-
-function createMemorySourceCommandId(): string {
-	return `memcmd_${randomUUID().replaceAll("-", "")}`;
-}
-
-function sourceCommandHash(commandId: string): string {
-	return createHash("sha256").update(commandId, "utf8").digest("hex");
-}
-
-function chunkMemorySourceIds(sourceMessageIds: string[]): string[][] {
-	const chunks: string[][] = [];
-	for (let index = 0; index < sourceMessageIds.length; index += 50) {
-		chunks.push(sourceMessageIds.slice(index, index + 50));
-	}
-	return chunks;
 }
 
 function toChatFeedback(row: typeof messageFeedback.$inferSelect): ChatMessageFeedback {
@@ -471,61 +442,18 @@ export function createPgChatConversationStore(
 					.update(conversations)
 					.set({ deletedAt: now, updatedAt: now })
 					.where(and(eq(conversations.ownerUserId, ownerUserId), isNull(conversations.deletedAt)));
-				await tx
-					.insert(profileMemorySettings)
-					.values({ ownerUserId, updatedAt: now })
-					.onConflictDoNothing({ target: profileMemorySettings.ownerUserId });
-				const settingsRows = await tx
-					.select()
-					.from(profileMemorySettings)
-					.where(eq(profileMemorySettings.ownerUserId, ownerUserId))
-					.limit(1)
-					.for("update");
-				const settings = settingsRows[0];
-				if (
-					settings &&
-					(settings.lifecycleState === "active" || settings.lifecycleState === "paused")
-				) {
-					let sequence = settings.commandSequence;
-					for (const row of activeRows) {
-						const sourceIds = sourceRows
+				await invalidateConversationSources(tx, {
+					mutation: "conversation_delete",
+					now,
+					ownerUserId,
+					reconcileWhenUnchanged: true,
+					sources: activeRows.map((row) => ({
+						conversationId: row.id,
+						sourceMessageIds: sourceRows
 							.filter((source) => source.conversationId === row.id)
-							.map((source) => source.sourceMessageId);
-						for (const chunk of chunkMemorySourceIds(sourceIds)) {
-							sequence += 1;
-							const commandId = createMemorySourceCommandId();
-							const hash = sourceCommandHash(commandId);
-							await tx.insert(profileMemoryCommands).values({
-								acceptedLifecycleState: settings.lifecycleState,
-								commandId,
-								commandKind: "conversation_delete",
-								createdAt: now,
-								idempotencyKeyHash: hash,
-								ownerGeneration: settings.generation,
-								ownerSequence: sequence,
-								ownerUserId,
-								requestFingerprint: hash,
-								sourceUpdatedAt: now,
-								status: "pending_admission",
-								subjectId: row.id,
-								supersessionScope: PROFILE_MEMORY_SUPERSESSION_SCOPE.sourceBatch(commandId),
-								updatedAt: now,
-							});
-							await tx
-								.insert(profileMemoryCommandSources)
-								.values(chunk.map((sourceMessageId) => ({ commandId, sourceMessageId })));
-						}
-					}
-					await tx
-						.update(profileMemorySettings)
-						.set({ commandSequence: sequence, updatedAt: now })
-						.where(eq(profileMemorySettings.ownerUserId, ownerUserId));
-					await reconcileOwnerMemoryState(tx, {
-						generation: settings.generation,
-						now,
-						ownerUserId,
-					});
-				}
+							.map((source) => source.sourceMessageId),
+					})),
+				});
 				return activeRows.length;
 			});
 		},
@@ -592,60 +520,18 @@ export function createPgChatConversationStore(
 							isNull(conversations.deletedAt),
 						),
 					);
-				await tx
-					.insert(profileMemorySettings)
-					.values({ ownerUserId: input.ownerUserId, updatedAt: now })
-					.onConflictDoNothing({ target: profileMemorySettings.ownerUserId });
-				const settingsRows = await tx
-					.select()
-					.from(profileMemorySettings)
-					.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId))
-					.limit(1)
-					.for("update");
-				const settings = settingsRows[0];
-				if (
-					settings &&
-					(settings.lifecycleState === "active" || settings.lifecycleState === "paused")
-				) {
-					let sequence = settings.commandSequence;
-					for (const chunk of chunkMemorySourceIds(
-						removedSourceRows.map((row) => row.sourceMessageId),
-					)) {
-						sequence += 1;
-						const commandId = createMemorySourceCommandId();
-						const hash = sourceCommandHash(commandId);
-						await tx.insert(profileMemoryCommands).values({
-							acceptedLifecycleState: settings.lifecycleState,
-							commandId,
-							commandKind: "conversation_prune",
-							createdAt: now,
-							idempotencyKeyHash: hash,
-							ownerGeneration: settings.generation,
-							ownerSequence: sequence,
-							ownerUserId: input.ownerUserId,
-							requestFingerprint: hash,
-							sourceUpdatedAt: now,
-							status: "pending_admission",
-							subjectId: input.conversationId,
-							supersessionScope: PROFILE_MEMORY_SUPERSESSION_SCOPE.sourceBatch(commandId),
-							updatedAt: now,
-						});
-						await tx
-							.insert(profileMemoryCommandSources)
-							.values(chunk.map((sourceMessageId) => ({ commandId, sourceMessageId })));
-					}
-					if (sequence !== settings.commandSequence) {
-						await tx
-							.update(profileMemorySettings)
-							.set({ commandSequence: sequence, updatedAt: now })
-							.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId));
-						await reconcileOwnerMemoryState(tx, {
-							generation: settings.generation,
-							now,
-							ownerUserId: input.ownerUserId,
-						});
-					}
-				}
+				await invalidateConversationSources(tx, {
+					mutation: "conversation_prune",
+					now,
+					ownerUserId: input.ownerUserId,
+					reconcileWhenUnchanged: false,
+					sources: [
+						{
+							conversationId: input.conversationId,
+							sourceMessageIds: removedSourceRows.map((row) => row.sourceMessageId),
+						},
+					],
+				});
 				return true;
 			});
 		},
@@ -706,58 +592,18 @@ export function createPgChatConversationStore(
 					.update(conversations)
 					.set({ deletedAt: new Date(input.deletedAt), updatedAt: now })
 					.where(eq(conversations.id, input.conversationId));
-				await tx
-					.insert(profileMemorySettings)
-					.values({ ownerUserId: input.ownerUserId, updatedAt: now })
-					.onConflictDoNothing({ target: profileMemorySettings.ownerUserId });
-				const settingsRows = await tx
-					.select()
-					.from(profileMemorySettings)
-					.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId))
-					.limit(1)
-					.for("update");
-				const settings = settingsRows[0];
-				if (
-					settings &&
-					(settings.lifecycleState === "active" || settings.lifecycleState === "paused")
-				) {
-					let sequence = settings.commandSequence;
-					for (const chunk of chunkMemorySourceIds(sourceRows.map((row) => row.sourceMessageId))) {
-						sequence += 1;
-						const commandId = createMemorySourceCommandId();
-						const hash = sourceCommandHash(commandId);
-						await tx.insert(profileMemoryCommands).values({
-							acceptedLifecycleState: settings.lifecycleState,
-							commandId,
-							commandKind: "conversation_delete",
-							createdAt: now,
-							idempotencyKeyHash: hash,
-							ownerGeneration: settings.generation,
-							ownerSequence: sequence,
-							ownerUserId: input.ownerUserId,
-							requestFingerprint: hash,
-							sourceUpdatedAt: now,
-							status: "pending_admission",
-							subjectId: input.conversationId,
-							supersessionScope: PROFILE_MEMORY_SUPERSESSION_SCOPE.sourceBatch(commandId),
-							updatedAt: now,
-						});
-						await tx
-							.insert(profileMemoryCommandSources)
-							.values(chunk.map((sourceMessageId) => ({ commandId, sourceMessageId })));
-					}
-					if (sequence !== settings.commandSequence) {
-						await tx
-							.update(profileMemorySettings)
-							.set({ commandSequence: sequence, updatedAt: now })
-							.where(eq(profileMemorySettings.ownerUserId, input.ownerUserId));
-						await reconcileOwnerMemoryState(tx, {
-							generation: settings.generation,
-							now,
-							ownerUserId: input.ownerUserId,
-						});
-					}
-				}
+				await invalidateConversationSources(tx, {
+					mutation: "conversation_delete",
+					now,
+					ownerUserId: input.ownerUserId,
+					reconcileWhenUnchanged: false,
+					sources: [
+						{
+							conversationId: input.conversationId,
+							sourceMessageIds: sourceRows.map((row) => row.sourceMessageId),
+						},
+					],
+				});
 				return true;
 			});
 		},

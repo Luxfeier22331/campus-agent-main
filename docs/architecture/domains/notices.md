@@ -46,5 +46,6 @@ PostgreSQL，也不提供通知结构化查询、附件解析、embedding 或 RA
 - `../../contracts/app-api/notices.md`
 - `../../runbooks/ingestion.md`
 - `../../contracts/internal-portal-file-release.md`
+- `../../decisions/adr-0024-authenticated-notice.md`
 - `../../decisions/adr-0087-internal-portal-notice-source.md`
 - `../../decisions/adr-0088-normalized-notice-storage.md`

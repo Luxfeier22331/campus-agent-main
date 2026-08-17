@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import type { AgentRunner } from "../src/agent-run-contract.ts";
 import { createAgentRuntimeHandler } from "../src/http-server.ts";
-import type { AgentRunner } from "../src/primary-agent.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
 import { testPromptTrace, testToolRuntimeFingerprint } from "./helpers/runtime-fingerprint.ts";

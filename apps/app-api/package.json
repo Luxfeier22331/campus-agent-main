@@ -4,31 +4,31 @@
 	"private": true,
 	"type": "module",
 	"description": "Shared Worker-native application backend for campus-agent v2.",
-	"packageManager": "pnpm@11.20.0",
 	"scripts": {
 		"build:worker": "rm -rf dist/worker && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home pnpm exec wrangler deploy --dry-run --outdir dist/worker --env local",
 		"dev": "pnpm --dir ../.. exec tsx scripts/dev/service.ts app-api",
-		"deploy": "pnpm exec tsx ../../scripts/deploy/run-wrangler-command.ts deploy",
 		"db:check": "drizzle-kit check --config drizzle.config.ts",
 		"db:generate": "drizzle-kit generate --config drizzle.config.ts",
 		"upload:staging": "pnpm exec tsx ./scripts/upload-staging-version.ts",
 		"test": "pnpm run test:node:fast && pnpm run test:node:isolated",
 		"test:node:fast": "vitest run -c vitest.node-fast.config.mts",
 		"test:node:isolated": "vitest run -c vitest.node-isolated.config.mts",
+		"test:e2e:staging:chat": "pnpm exec tsx ./e2e/chat-durable-staging.ts",
+		"test:e2e:staging:memory": "pnpm exec tsx ./e2e/chat-memory-staging.ts",
 		"test:migration-integration": "vitest run -c vitest.migration-integration.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
 		"test:shared-db-integration": "vitest run -c vitest.shared-db.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@better-auth/core": "1.6.27",
-		"@better-auth/oauth-provider": "1.6.27",
+		"@better-auth/core": "1.6.29",
+		"@better-auth/oauth-provider": "1.6.29",
 		"@campus-agent/dining": "workspace:*",
 		"@campus-agent/langfuse-identity": "workspace:*",
-		"@hono/zod-openapi": "^1.5.2",
+		"@hono/zod-openapi": "^1.6.0",
 		"@sentry/cloudflare": "10.70.0",
 		"aws4fetch": "1.0.20",
-		"better-auth": "^1.6.27",
+		"better-auth": "1.6.29",
 		"better-call": "1.4.0",
 		"campus-contracts": "workspace:*",
 		"drizzle-orm": "^0.45.2",
@@ -36,12 +36,12 @@
 		"hono": "4.13.1",
 		"html-escaper": "^3.0.3",
 		"pg": "^8.23.0",
-		"resend": "^6.19.0",
+		"resend": "^6.20.0",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "0.21.2",
-		"@cloudflare/workers-types": "5.20260813.1",
+		"@cloudflare/vitest-pool-workers": "0.21.3",
+		"@cloudflare/workers-types": "5.20260815.1",
 		"@testcontainers/postgresql": "12.1.0",
 		"@types/html-escaper": "^3.0.4",
 		"@types/node": "^24.13.3",
@@ -53,7 +53,7 @@
 		"typescript": "^7.0.2",
 		"vite": "^8.2.1",
 		"vitest": "^4.1.10",
-		"wrangler": "4.122.0"
+		"wrangler": "4.123.0"
 	},
 	"license": "Apache-2.0"
 }

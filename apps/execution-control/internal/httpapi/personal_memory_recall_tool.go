@@ -105,7 +105,7 @@ func (s *Server) executePersonalMemoryRecallTool(
 	if err != nil {
 		return nil, err
 	}
-	workflowInput, err := decodeAndValidateWorkflowStartInput(intent, run)
+	workflowInput, err := s.newExecutionReconciler().DecodeAndValidateWorkflowStartInput(intent, run)
 	if err != nil {
 		return nil, agentToolConflictError{message: err.Error()}
 	}

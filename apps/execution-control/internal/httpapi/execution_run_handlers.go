@@ -67,7 +67,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 	)
 	if err != nil {
 		var dependencyErr *executionDependencyNotReadyError
-		if errors.As(err, &dependencyErr) || executionInputErrorIsRetryable(err) {
+		if errors.As(err, &dependencyErr) || execution.InputErrorIsRetryable(err) {
 			writeError(
 				response,
 				http.StatusServiceUnavailable,
@@ -145,7 +145,7 @@ func (s *Server) workflowInputForRun(
 	personalMemoryRecallAvailable bool,
 ) (temporalruntime.ToolExecutionWorkflowInput, error) {
 	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
-	inputMetadata, err := executionInputMetadata(run)
+	inputMetadata, err := execution.InputMetadata(run)
 	if err != nil {
 		return temporalruntime.ToolExecutionWorkflowInput{}, err
 	}

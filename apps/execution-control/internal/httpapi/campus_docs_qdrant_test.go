@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -95,10 +96,10 @@ func TestCampusDocsQueryUsesFrozenCollectionAndExplicitSparseVector(t *testing.T
 
 func TestCampusDocsEmbeddingAdmissionDoesNotDuplicateIndexVectorSpace(t *testing.T) {
 	target := campusDocsTargetForHTTPTest()
-	provider := providerConfigSnapshot{
+	provider := providerconfig.RuntimeSetting{
 		APIKey:    "secret",
 		BaseURL:   "https://embedding.example/v1",
-		Kind:      providerConfigKindEmbedding,
+		Kind:      providerconfig.KindEmbedding,
 		Model:     "provider-model-alias",
 		Provider:  "openai-compatible",
 		Transport: "embeddings",
@@ -121,8 +122,8 @@ func TestCampusDocsEmbeddingRequestUsesAdmittedIndexDimensions(t *testing.T) {
 	}))
 	defer server.Close()
 	executor := campusDocsQdrantClient{embeddingHTTPClient: server.Client()}
-	provider := providerConfigSnapshot{
-		APIKey: "secret", BaseURL: server.URL, Kind: providerConfigKindEmbedding,
+	provider := providerconfig.RuntimeSetting{
+		APIKey: "secret", BaseURL: server.URL, Kind: providerconfig.KindEmbedding,
 		Model: "embedding-model", Provider: "openai-compatible", Transport: "embeddings",
 	}
 	vector, err := executor.embedQueryWithProviderConfig(t.Context(), provider, "query", 3)

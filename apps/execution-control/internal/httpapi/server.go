@@ -3,12 +3,10 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
@@ -16,8 +14,10 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -30,7 +30,7 @@ type Server struct {
 	campusDocsIndexStore      campusdocs.IndexStore
 	runProjectionStore        execution.RunProjectionStore
 	runProjectionStoreErr     error
-	executionInputLoader      ExecutionInputLoader
+	executionInputLoader      execution.InputLoader
 	executionInputErr         error
 	personalMemoryExecutor    personalMemoryExecutor
 	personalMemoryErr         error
@@ -38,112 +38,12 @@ type Server struct {
 	personalMemoryStateErr    error
 	campusDocsRetriever       campusDocsRetriever
 	campusDocsRetrievalErr    error
-	providerConfigResolver    providerConfigResolver
+	providerConfigResolver    providerconfig.Resolver
 	providerConfigErr         error
 	temporalStarter           temporalruntime.ChatWorkflowStarter
 	temporalStarterErr        error
-	temporalWorkersStarted    bool
-	temporalReconcilerMu      sync.Mutex
-	temporalReconciler        *temporalReconciler
+	executionReconciler       *executionreconciler.Reconciler
 	productFinalizationWriter func(context.Context, execution.DurableRun, time.Time, map[string]any) error
-}
-
-type TemporalContextActivities struct {
-	server *Server
-}
-
-func (s *Server) TemporalContextActivities() TemporalContextActivities {
-	return TemporalContextActivities{server: s}
-}
-
-func (a TemporalContextActivities) AppendConversationMemoryActivity(
-	ctx context.Context,
-	input temporalruntime.AppendConversationMemoryActivityInput,
-) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
-	return a.server.AppendConversationMemoryActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) ExecutePersonalMemoryCommandActivity(
-	ctx context.Context,
-	input memoryruntime.PersonalMemoryCommandRequest,
-) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
-	return a.server.ExecutePersonalMemoryCommandActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) FinalizePersonalMemoryCommandReceiptActivity(
-	ctx context.Context,
-	input temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput,
-) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
-	return a.server.FinalizePersonalMemoryCommandReceiptActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) WritePersonalMemoryCommandResultActivity(
-	ctx context.Context,
-	input temporalruntime.PersonalMemoryCommandActivityOutput,
-) error {
-	return a.server.WritePersonalMemoryCommandResultActivity(ctx, input)
-}
-
-type TemporalAgentActivities struct {
-	server *Server
-}
-
-func (s *Server) TemporalAgentActivities() TemporalAgentActivities {
-	return TemporalAgentActivities{server: s}
-}
-
-func (a TemporalAgentActivities) ExecutePrimaryAgentActivity(
-	ctx context.Context,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	return a.server.ExecutePrimaryAgentActivity(ctx, input)
-}
-
-func (a TemporalAgentActivities) RetrieveCampusDocsEvidenceActivity(
-	ctx context.Context,
-	input temporalruntime.RetrieveCampusDocsEvidenceActivityInput,
-) (temporalruntime.CampusDocsRetrievalResult, error) {
-	return a.server.RetrieveCampusDocsEvidenceActivity(ctx, input)
-}
-
-type TemporalFinalizationActivities struct {
-	server *Server
-}
-
-type TemporalActivityRuntimeRole string
-
-const (
-	TemporalActivityRuntimeRoleAgent TemporalActivityRuntimeRole = "activity-agent"
-	TemporalActivityRuntimeRoleCore  TemporalActivityRuntimeRole = "activity-core"
-)
-
-func (s *Server) TemporalFinalizationActivities() TemporalFinalizationActivities {
-	return TemporalFinalizationActivities{server: s}
-}
-
-func (a TemporalFinalizationActivities) FinalizeExecutionCancellationActivity(
-	ctx context.Context,
-	input temporalruntime.FinalizeExecutionCancellationActivityInput,
-) (temporalruntime.FinalizeExecutionCancellationActivityOutput, error) {
-	return a.server.FinalizeExecutionCancellationActivity(ctx, input)
-}
-
-func (a TemporalFinalizationActivities) WriteFinalizationActivity(
-	ctx context.Context,
-	input temporalruntime.WriteFinalizationActivityInput,
-) (temporalruntime.WriteFinalizationActivityOutput, error) {
-	return a.server.WriteFinalizationActivity(ctx, input)
-}
-
-func (a TemporalFinalizationActivities) FinalizeExecutionFailureActivity(
-	ctx context.Context,
-	input temporalruntime.FinalizeExecutionFailureActivityInput,
-) (temporalruntime.FinalizeExecutionFailureActivityOutput, error) {
-	return a.server.FinalizeExecutionFailureActivity(ctx, input)
-}
-
-func (s *Server) MarkTemporalWorkersStarted(started bool) {
-	s.temporalWorkersStarted = started
 }
 
 type errorInfo struct {
@@ -173,7 +73,13 @@ func NewServerWithDependencies(
 	registry := lifecycle.NewRegistry()
 	campusDocsIndexStore := campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
-	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
+	providerConfigResolver, providerConfigErr := providerconfig.NewResolver(
+		context.Background(),
+		providerconfig.ResolverOptions{
+			DatabaseURL: cfg.DatabaseURL,
+			KeyringPath: cfg.ProviderConfigKeyringPath,
+		},
+	)
 	personalMemoryExecutor, personalMemoryErr := newHindsightMemoryExecutor(cfg)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(cfg)
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
@@ -187,7 +93,7 @@ func NewServerWithDependencies(
 	if campusDocsClientErr == nil {
 		campusDocsRetriever = newQdrantCampusDocsRetriever(campusDocsClient)
 	}
-	executionInputLoader, executionInputErr := newExecutionInputLoader(cfg)
+	executionInputLoader, executionInputErr := execution.NewInputLoader(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
@@ -211,69 +117,34 @@ func NewServerWithDependencies(
 		temporalStarter:          temporalStarter,
 		temporalStarterErr:       temporalStarterErr,
 	}
+	server.executionReconciler = server.newExecutionReconciler()
 	return server
 }
 
-func NewTemporalActivityServer(
-	cfg config.Config,
-	role TemporalActivityRuntimeRole,
-) (*Server, error) {
-	cfg = normalizeServerConfig(cfg)
-	executionInputLoader, err := newExecutionInputLoader(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("initialize execution input loader: %w", err)
+func (s *Server) newExecutionReconciler() *executionreconciler.Reconciler {
+	if s == nil {
+		return nil
 	}
-	runProjectionStore, err := newRunProjectionStore(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("initialize run projection store: %w", err)
-	}
-	if runProjectionStore == nil {
-		return nil, execution.ErrRunProjectionStoreNotConfigured
-	}
-	closeRunProjectionStore := func() {
-		if closer, ok := runProjectionStore.(interface{ Close() }); ok {
-			closer.Close()
-		}
-	}
+	return executionreconciler.New(executionreconciler.Options{
+		Finalizer:        s,
+		Logger:           s.logger,
+		OperationTimeout: time.Duration(s.config.TemporalStartTimeoutMS) * time.Millisecond,
+		Starter:          s.temporalStarter,
+		Store:            s.runProjectionStore,
+	})
+}
 
-	server := &Server{
-		config:               cfg,
-		logger:               slog.New(slog.NewTextHandler(io.Discard, nil)),
-		runProjectionStore:   runProjectionStore,
-		executionInputLoader: executionInputLoader,
+func (s *Server) ExecutionReconciler() *executionreconciler.Reconciler {
+	if s == nil {
+		return nil
 	}
-	switch role {
-	case TemporalActivityRuntimeRoleCore:
-		server.personalMemoryExecutor, server.personalMemoryErr = newHindsightMemoryExecutor(cfg)
-		server.personalMemoryStateStore, server.personalMemoryStateErr = newPersonalMemoryStateStore(cfg)
-		if server.personalMemoryErr == nil && server.personalMemoryStateErr == nil {
-			server.personalMemoryExecutor = newFencedPersonalMemoryExecutor(server.personalMemoryExecutor, server.personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
-		}
-	case TemporalActivityRuntimeRoleAgent:
-		server.providerConfigResolver, err = newProviderConfigResolver(cfg)
-		if err != nil {
-			closeRunProjectionStore()
-			return nil, fmt.Errorf("initialize provider config resolver: %w", err)
-		}
-		server.campusDocsIndexStore = campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
-		campusDocsClient, campusDocsClientErr := newCampusDocsQdrantClient(
-			cfg,
-			server.providerConfigResolver,
-		)
-		server.campusDocsRetrievalErr = campusDocsClientErr
-		if campusDocsClientErr == nil {
-			server.campusDocsRetriever = newQdrantCampusDocsRetriever(campusDocsClient)
-		}
-		if server.campusDocsRetrievalErr != nil {
-			closeRunProjectionStore()
-			closeCampusDocsIndexStore(server.campusDocsIndexStore)
-			return nil, fmt.Errorf("initialize Campus docs retriever: %w", server.campusDocsRetrievalErr)
-		}
-	default:
-		closeRunProjectionStore()
-		return nil, fmt.Errorf("unsupported temporal activity runtime role %q", role)
+	return s.executionReconciler
+}
+
+func (s *Server) wakeTemporalReconciler() {
+	if s != nil && s.executionReconciler != nil {
+		s.executionReconciler.Wake()
 	}
-	return server, nil
 }
 
 func (s *Server) loadExecutionInput(
@@ -285,7 +156,7 @@ func (s *Server) loadExecutionInput(
 		if cause == nil {
 			cause = errors.New("execution input loader is not configured")
 		}
-		return contracts.ExecutionPayloadWire{}, newExecutionInputError(
+		return contracts.ExecutionPayloadWire{}, execution.NewInputError(
 			"load",
 			"execution_input_not_configured",
 			false,
@@ -293,6 +164,17 @@ func (s *Server) loadExecutionInput(
 		)
 	}
 	return s.executionInputLoader.Load(ctx, run)
+}
+
+func (s *Server) loadExecutionPayload(
+	ctx context.Context,
+	run execution.DurableRun,
+) (map[string]any, error) {
+	wire, err := s.loadExecutionInput(ctx, run)
+	if err != nil {
+		return nil, err
+	}
+	return execution.PayloadMap(wire), nil
 }
 
 func normalizeServerConfig(cfg config.Config) config.Config {
@@ -313,7 +195,7 @@ func normalizeServerConfig(cfg config.Config) config.Config {
 
 func newCampusDocsQdrantClient(
 	cfg config.Config,
-	configResolver providerConfigResolver,
+	configResolver providerconfig.Resolver,
 ) (campusDocsQdrantClient, error) {
 	return buildCampusDocsQdrantClient(cfg, configResolver)
 }
@@ -374,7 +256,6 @@ func (s *Server) StartDraining() {
 }
 
 func (s *Server) Shutdown(_ context.Context) error {
-	s.StopTemporalReconciler()
 	closeCampusDocsIndexStore(s.campusDocsIndexStore)
 	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
 		closer.Close()

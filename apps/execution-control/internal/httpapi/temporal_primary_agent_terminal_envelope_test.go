@@ -59,7 +59,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 		TurnID:           "turn-primary-agent-missing-envelope",
 		VisibleToolNames: []string{},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err == nil {
 		t.Fatal("expected direct primary agent answer without terminal envelope to fail")
 	}
@@ -116,7 +116,7 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentPr
 		},
 	)
 
-	_, err := server.WriteFinalizationActivity(context.Background(), input)
+	_, err := server.WriteFinalization(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestWriteFinalizationActivityKeepsToolCallTraceInternal(t *testing.T) {
 		},
 	)
 
-	_, err := server.WriteFinalizationActivity(context.Background(), input)
+	_, err := server.WriteFinalization(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 		},
 	)
 
-	_, err := server.WriteFinalizationActivity(context.Background(), input)
+	_, err := server.WriteFinalization(context.Background(), input)
 	if err != nil {
 		t.Fatalf("write finalization: %v", err)
 	}

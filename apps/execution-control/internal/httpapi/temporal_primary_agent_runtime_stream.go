@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -22,7 +23,7 @@ func (s *Server) callAgentRuntime(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	inputText string,
-	providerConfig providerConfigSnapshot,
+	providerConfig providerconfig.RuntimeSetting,
 	conversationContext map[string]any,
 	campusDocsRetrieval temporalruntime.CampusDocsRetrievalResult,
 	limits primaryAgentRuntimeLimits,
@@ -49,7 +50,7 @@ func primaryAgentRuntimeRequestPayload(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	inputText string,
-	providerConfig providerConfigSnapshot,
+	providerConfig providerconfig.RuntimeSetting,
 	conversationContext map[string]any,
 	campusDocsRetrieval temporalruntime.CampusDocsRetrievalResult,
 	limits primaryAgentRuntimeLimits,
@@ -142,7 +143,7 @@ func primaryAgentTransportTimeout(deadlineMS int) time.Duration {
 	return time.Duration(deadlineMS+graceMS) * time.Millisecond
 }
 
-func primaryAgentProviderConfigPayload(config providerConfigSnapshot) map[string]any {
+func primaryAgentProviderConfigPayload(config providerconfig.RuntimeSetting) map[string]any {
 	return map[string]any{
 		"provider":  config.Provider,
 		"transport": config.Transport,

@@ -18,8 +18,11 @@ import type {
 	StreamingAgentRunner,
 	ToolExecutionResult,
 	UntimedToolExecutionResult,
-} from "./primary-agent.ts";
-import { finalOutputFromTerminalEnvelope, terminalEnvelopeFromUnknown } from "./primary-agent.ts";
+} from "./agent-run-contract.ts";
+import {
+	finalOutputFromTerminalEnvelope,
+	terminalEnvelopeFromUnknown,
+} from "./terminal-envelope.ts";
 import type { JsonObjectSchema } from "./tool-catalog.ts";
 
 const emptyParametersSchema = {

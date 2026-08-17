@@ -20,7 +20,9 @@
 			"inputs": [
 				"ops/db/**",
 				"package.json",
+				"src/server/database.ts",
 				"src/server/dining*.ts",
+				"src/server/internal-portal-automation-token-store.ts",
 				"src/server/internal-portal-credential-store.ts",
 				"src/server/postgres-tls.ts",
 				"src/shared/dining-contract.ts",

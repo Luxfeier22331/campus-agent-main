@@ -258,7 +258,7 @@ func executePrimaryAgentSDKToolFixture(
 		TurnID:           "turn-" + runID,
 		VisibleToolNames: []string{personalMemoryRecallToolName},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	return store, err
 }
 

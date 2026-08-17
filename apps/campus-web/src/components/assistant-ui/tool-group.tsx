@@ -1,11 +1,10 @@
 "use client";
 
 import { useScrollLock } from "@assistant-ui/react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@campus-agent/ui";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, cn } from "@campus-agent/ui";
 import { cva, type VariantProps } from "class-variance-authority";
 import { ChevronDownIcon, LoaderIcon } from "lucide-react";
 import { type FC, memo, type PropsWithChildren, useCallback, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
 
 const ANIMATION_DURATION = 200;
 

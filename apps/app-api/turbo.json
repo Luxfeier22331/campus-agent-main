@@ -18,7 +18,7 @@
 				"$TURBO_ROOT$/packages/langfuse-identity/package.json",
 				"$TURBO_ROOT$/packages/langfuse-identity/src/**",
 				"$TURBO_ROOT$/scripts/deploy/run-wrangler-command.ts",
-				"$TURBO_ROOT$/scripts/deploy/staging-release.ts",
+				"$TURBO_ROOT$/scripts/deploy/staging-release.mts",
 				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
 			],
 			"outputLogs": "new-only",
@@ -36,7 +36,6 @@
 				"$TURBO_ROOT$/packages/contracts/fixtures/**",
 				"$TURBO_ROOT$/packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json",
 				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/**",
 				"$TURBO_ROOT$/turbo.json"
 			]
 		},
@@ -87,8 +86,7 @@
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/configs/runtime/latency-budgets.v1.json",
-				"$TURBO_ROOT$/scripts/deploy/**",
-				"$TURBO_ROOT$/scripts/smoke/**"
+				"$TURBO_ROOT$/scripts/deploy/**"
 			]
 		}
 	}

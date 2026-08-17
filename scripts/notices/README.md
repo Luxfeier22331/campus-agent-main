@@ -1,4 +1,4 @@
-# 内部门户通知分类试点
+# 内部门户通知分类
 
 该脚本只读本地 RustFS 的 `campus-agent-source` bucket，把原始门户通知映射为唯一内部领域，并把
 结果写到标准输出。它不修改来源对象，不写 derived bucket 或数据库，也不表示领域处理完成。
@@ -6,7 +6,7 @@
 ## 运行
 
 先通过 `pnpm dev:init` 生成 source-collector 的本地对象存储配置，并确保本地 RustFS 已运行。
-分类全部本地样本：
+分类全部本地通知：
 
 ```bash
 pnpm notice:classify
@@ -52,6 +52,6 @@ pnpm notice:classify:typecheck
 pnpm exec biome check scripts/notices package.json
 ```
 
-`golden/recent-notices.json` 固定试点样本的标题、门户类型、外链标记和期望领域，不保存外部正文或
+`golden/recent-notices.json` 固定回归样本的标题、门户类型、外链标记和期望领域，不保存外部正文或
 消费状态。通知数据语义和人工确认后的发布步骤分别见 `docs/data/notices.md` 与
 `docs/runbooks/ingestion.md`。

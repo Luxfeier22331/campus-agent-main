@@ -1,21 +1,11 @@
-import { Pool } from "pg";
+import type { Pool } from "pg";
 import type {
 	InternalPortalCredential,
 	InternalPortalCredentialOutcome,
 } from "../shared/ops-contract.ts";
-import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
-import { logOpsError } from "./safe-logging.ts";
 
 export interface InternalPortalCredentialRecord extends InternalPortalCredential {
 	ssoTgc: string;
-}
-
-export interface InternalPortalCredentialStoreEnv {
-	DEPLOYMENT_ENVIRONMENT?: string;
-	NODE_ENV?: string;
-	OPS_WEB_DATABASE_CA_CERT_PATH?: string;
-	OPS_WEB_DATABASE_SSLMODE?: string;
-	OPS_WEB_DATABASE_URL?: string;
 }
 
 export interface InternalPortalCredentialStore {
@@ -96,36 +86,6 @@ export function createUnavailableInternalPortalCredentialStore(
 		rename: fail,
 		rotate: fail,
 	};
-}
-
-export function createInternalPortalCredentialStoreFromEnv(
-	env: InternalPortalCredentialStoreEnv,
-): InternalPortalCredentialStore {
-	const databaseUrl = env.OPS_WEB_DATABASE_URL?.trim();
-	if (!databaseUrl) {
-		throw new InternalPortalCredentialStoreUnavailableError("OPS_WEB_DATABASE_URL is required.");
-	}
-	const database = resolvePostgresTlsConfig({
-		...(env.OPS_WEB_DATABASE_CA_CERT_PATH ? { caCertPath: env.OPS_WEB_DATABASE_CA_CERT_PATH } : {}),
-		databaseUrl,
-		...(env.DEPLOYMENT_ENVIRONMENT ? { deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT } : {}),
-		...(env.NODE_ENV ? { nodeEnvironment: env.NODE_ENV } : {}),
-		...(env.OPS_WEB_DATABASE_SSLMODE ? { sslMode: env.OPS_WEB_DATABASE_SSLMODE } : {}),
-	});
-	const pool = new Pool({
-		connectionString: database.connectionString,
-		connectionTimeoutMillis: 5_000,
-		idleTimeoutMillis: 30_000,
-		max: env.NODE_ENV === "test" ? 1 : 4,
-		ssl: database.ssl,
-		statement_timeout: 10_000,
-	});
-	pool.on("error", (error) =>
-		logOpsError("ops_web.postgres_pool", error, {
-			source: "internal-portal",
-		}),
-	);
-	return createPgInternalPortalCredentialStore(pool);
 }
 
 export function createPgInternalPortalCredentialStore(pool: Pick<Pool, "query">) {

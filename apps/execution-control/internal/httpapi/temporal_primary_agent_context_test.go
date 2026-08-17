@@ -156,7 +156,7 @@ func TestExecutePrimaryAgentActivitySendsConversationContextAndProjectsRuntimeUs
 		TurnID:           "turn-primary-agent-context",
 		VisibleToolNames: []string{},
 	})
-	output, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	output, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}

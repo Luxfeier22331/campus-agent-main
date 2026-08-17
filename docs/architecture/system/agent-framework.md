@@ -83,4 +83,5 @@ trace context。请求不能改变遥测配置，SDK 保持 `traceIncludeSensiti
 - `agentic-retrieval.md`
 - `retrieval-serving.md`
 - `../../contracts/tool-execution.md`
+- `../../decisions/adr-0084-agent-knowledge-tools.md`
 - `../../reference/agent-orchestration.md`

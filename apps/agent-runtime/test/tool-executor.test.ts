@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 
 import { describe, expect, it } from "vitest";
-import type { ToolExecutionRequest } from "../src/primary-agent.ts";
+import type { ToolExecutionRequest } from "../src/agent-run-contract.ts";
 import { createExecutionControlToolExecutor } from "../src/tool-executor.ts";
 
 const transportPayloadSchemaRef = schemaRef(

@@ -2,9 +2,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createStore, runChecks } = vi.hoisted(() => ({
+const { createPool, createStore, endPool, runChecks } = vi.hoisted(() => ({
+	createPool: vi.fn(),
 	createStore: vi.fn(),
+	endPool: vi.fn(),
 	runChecks: vi.fn(),
+}));
+
+vi.mock("../src/server/database.ts", () => ({
+	createOpsWebDatabasePool: createPool,
 }));
 
 vi.mock("../src/server/internal-portal-credential-service.ts", () => ({
@@ -13,7 +19,7 @@ vi.mock("../src/server/internal-portal-credential-service.ts", () => ({
 
 vi.mock("../src/server/internal-portal-credential-store.ts", async () => ({
 	...(await vi.importActual("../src/server/internal-portal-credential-store.ts")),
-	createInternalPortalCredentialStoreFromEnv: createStore,
+	createPgInternalPortalCredentialStore: createStore,
 }));
 
 import { buildCheckRunFailureEvent, main, runCli } from "../src/server/internal-portal-check.ts";
@@ -23,7 +29,9 @@ describe("internal portal scheduled check telemetry", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		process.exitCode = undefined;
+		createPool.mockReturnValue({ end: endPool });
 		createStore.mockReturnValue({});
+		endPool.mockResolvedValue(undefined);
 	});
 
 	afterEach(() => {
@@ -40,6 +48,7 @@ describe("internal portal scheduled check telemetry", () => {
 		expect(runChecks).toHaveBeenCalledWith({
 			store: expect.anything(),
 		});
+		expect(endPool).toHaveBeenCalledOnce();
 	});
 
 	it("propagates scheduled-check errors to the CLI failure boundary", async () => {
@@ -50,7 +59,7 @@ describe("internal portal scheduled check telemetry", () => {
 	});
 
 	it("reports store initialization failure through the real CLI path", async () => {
-		createStore.mockImplementation(() => {
+		createPool.mockImplementation(() => {
 			throw new InternalPortalCredentialStoreUnavailableError("store unavailable", {
 				cause: new Error("database secret TGT-secret"),
 			});

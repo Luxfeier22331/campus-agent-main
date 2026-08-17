@@ -1,12 +1,32 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { relative, resolve, sep } from "node:path";
 
+const docsDir = resolve(process.cwd(), "docs");
 const decisionsDir = resolve(process.cwd(), "docs/decisions");
 const files = readdirSync(decisionsDir)
 	.filter((name) => /^adr-\d{4}-.+\.md$/u.test(name))
 	.sort();
 const filesById = new Map<string, string[]>();
 const errors: string[] = [];
+
+function markdownFiles(directory: string): string[] {
+	return readdirSync(directory, { withFileTypes: true })
+		.flatMap((entry) => {
+			const path = resolve(directory, entry.name);
+			if (entry.isDirectory()) {
+				return markdownFiles(path);
+			}
+			return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
+		})
+		.sort();
+}
+
+const ownerDocuments = markdownFiles(docsDir)
+	.filter((path) => !path.startsWith(`${decisionsDir}${sep}`))
+	.map((path) => ({
+		content: readFileSync(path, "utf8"),
+		file: relative(process.cwd(), path),
+	}));
 
 for (const file of files) {
 	const content = readFileSync(resolve(decisionsDir, file), "utf8");
@@ -25,6 +45,12 @@ for (const file of files) {
 	}
 	if (headingId !== decisionId) {
 		errors.push(`${file}: H1 id does not match ${id}`);
+	}
+	const referenced = ownerDocuments.some(
+		(document) => document.content.includes(id) || document.content.includes(file),
+	);
+	if (!referenced) {
+		errors.push(`${file}: accepted ADR 没有当前所有者文档引用`);
 	}
 }
 

@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { type CommandRunner, resolveAffectedScope } from "../ci/scope.mts";
+import { type WorkerCandidate, workerCandidatesForPackage } from "./workers.mts";
 
 export type { CommandResult, CommandRunner } from "../ci/scope.mts";
 
@@ -21,12 +22,7 @@ const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
 ]);
-const WORKER_PACKAGES = new Map<string, string>([
-	["app-api-staging", "app-api"],
-	["campus-web-staging", "campus-web"],
-	["status-web-staging", "status-web"],
-]);
-const CAMPUS_WEB_WORKER = "campus-web-staging";
+const CAMPUS_WEB_WORKER: WorkerCandidate = "campus-web-staging";
 const CAMPUS_MAP_ASSET_PATH = "apps/campus-web/assets/campus-map";
 
 export interface CandidatePlan {
@@ -34,7 +30,7 @@ export interface CandidatePlan {
 	head: string;
 	images: string[];
 	kubernetes: boolean;
-	workers: string[];
+	workers: WorkerCandidate[];
 }
 
 export interface CandidatePlanOptions {
@@ -106,7 +102,7 @@ export async function planCandidates(
 		runner,
 	);
 	const images = new Set<string>();
-	const workers = new Set<string>();
+	const workers = new Set<WorkerCandidate>();
 	for (const task of scope.tasks) {
 		if (task.task === "build") {
 			for (const image of IMAGE_PACKAGES.get(task.package) ?? []) {
@@ -114,10 +110,8 @@ export async function planCandidates(
 			}
 		}
 		if (task.task === "build:worker") {
-			for (const [worker, packageName] of WORKER_PACKAGES) {
-				if (task.package === packageName) {
-					workers.add(worker);
-				}
+			for (const worker of workerCandidatesForPackage(task.package)) {
+				workers.add(worker);
 			}
 		}
 	}

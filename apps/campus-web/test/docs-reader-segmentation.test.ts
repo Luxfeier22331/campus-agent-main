@@ -1,16 +1,10 @@
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { parseHotfixDocsReaderSegmentationArgs } from "../scripts/hotfix-docs-reader-segmentation.ts";
-import type { ReaderObjectStoreWriter } from "../src/docs-reader-build/published-reader-types.ts";
+import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
 import {
 	assertReaderSegmentationQuality,
 	cleanReaderSegmentation,
 } from "../src/docs-reader-build/reader-segmentation.ts";
-import {
-	applyPreparedDocsReaderSegmentationHotfix,
-	prepareDocsReaderSegmentationHotfix,
-} from "../src/docs-reader-build/reader-segmentation-hotfix.ts";
 import {
 	canonicalJsonBytes,
 	DOCS_SOURCE_KEY,
@@ -21,7 +15,6 @@ import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
 import type {
 	DocsReader,
 	DocsSourceManifest,
-	DocsSupplement,
 	ObjectRef,
 } from "../src/docs-reader-build/source-types.ts";
 
@@ -115,102 +108,6 @@ describe("文档 reader 分段清洗", () => {
 	});
 });
 
-describe("文档 reader 分段热修", () => {
-	it("默认预览并要求来源摘要与报告目录", () => {
-		expect(
-			parseHotfixDocsReaderSegmentationArgs([
-				"--expected-source-digest",
-				`sha256:${"a".repeat(64)}`,
-				"--report-dir",
-				"report",
-			]),
-		).toEqual({
-			apply: false,
-			expectedSourceDigest: `sha256:${"a".repeat(64)}`,
-			reportDir: resolve("report"),
-		});
-		expect(() => parseHotfixDocsReaderSegmentationArgs([])).toThrow(
-			"usage: hotfix-docs-reader-segmentation",
-		);
-	});
-
-	it("摘要不匹配时不读取 reader，也不写入对象", async () => {
-		const fixture = createSourceFixture();
-
-		await expect(
-			prepareDocsReaderSegmentationHotfix({
-				client: fixture.store,
-				expectedSourceDigest: `sha256:${"a".repeat(64)}`,
-			}),
-		).rejects.toThrow("campus docs source digest changed");
-		expect(fixture.store.reads).toEqual([DOCS_SOURCE_KEY]);
-		expect(fixture.store.writes).toEqual([]);
-	});
-
-	it("完整编译失败时不上传 reader 或更新来源键", async () => {
-		const fixture = createSourceFixture({ invalidCourseMaps: true });
-		const previous = fixture.store.objects.get(DOCS_SOURCE_KEY);
-
-		await expect(
-			prepareDocsReaderSegmentationHotfix({
-				client: fixture.store,
-				expectedSourceDigest: fixture.sourceDigest,
-			}),
-		).rejects.toThrow("must contain at least one map");
-		expect(fixture.store.writes).toEqual([]);
-		expect(fixture.store.objects.get(DOCS_SOURCE_KEY)).toBe(previous);
-	});
-
-	it("上传内容寻址 reader 后更新来源清单", async () => {
-		const fixture = createSourceFixture();
-		const prepared = await prepareDocsReaderSegmentationHotfix({
-			client: fixture.store,
-			expectedSourceDigest: fixture.sourceDigest,
-			generatedAt: "2026-08-02T00:00:00.000Z",
-		});
-
-		expect(prepared.report).toMatchObject({
-			changedBlockCount: 1,
-			changedReaderCount: 1,
-			readerCount: 1,
-			unresolvedBlockCount: 0,
-		});
-		const result = await applyPreparedDocsReaderSegmentationHotfix({
-			client: fixture.store,
-			prepared,
-		});
-
-		expect(result).toEqual({
-			sourceDigest: prepared.report.candidateSourceDigest,
-			sourceUpdated: true,
-			uploadedReaderCount: 1,
-		});
-		const readerObject = prepared.readerObjects[0];
-		expect(readerObject?.ref.key).toMatch(
-			/^campus-docs\/readers\/sha256\/[a-f0-9]{64}\/reader\.json$/u,
-		);
-		expect(readerObject && fixture.store.objects.get(readerObject.ref.key)).toEqual(
-			readerObject?.bytes,
-		);
-		expect(fixture.store.objects.get(DOCS_SOURCE_KEY)).toEqual(prepared.candidateSourceBytes);
-		expect(fixture.store.reads.at(-1)).toBe(DOCS_SOURCE_KEY);
-	});
-
-	it("预览后来源摘要变化时禁止应用", async () => {
-		const fixture = createSourceFixture();
-		const prepared = await prepareDocsReaderSegmentationHotfix({
-			client: fixture.store,
-			expectedSourceDigest: fixture.sourceDigest,
-		});
-		fixture.store.objects.set(DOCS_SOURCE_KEY, new TextEncoder().encode("changed source"));
-
-		await expect(
-			applyPreparedDocsReaderSegmentationHotfix({ client: fixture.store, prepared }),
-		).rejects.toThrow("campus docs source digest changed");
-		expect(fixture.store.writes).toEqual([]);
-	});
-});
-
 function readerFixture(text: string): DocsReader {
 	return {
 		docId: "doc-1",
@@ -221,27 +118,13 @@ function readerFixture(text: string): DocsReader {
 	};
 }
 
-function createSourceFixture(input: { invalidCourseMaps?: boolean } = {}): {
+function createSourceFixture(): {
 	readerRef: ObjectRef;
 	source: DocsSourceManifest;
-	sourceDigest: `sha256:${string}`;
 	store: MemoryStore;
 } {
 	const store = memoryStore();
-	const supplements: DocsSupplement[] = [];
 	const reader = readerFixture("1. 第一项\n2. 第二项");
-	if (input.invalidCourseMaps) {
-		supplements.push({
-			assets: [],
-			kind: "course_maps",
-			object: putJson(store, "inputs/invalid-course-maps.json", {
-				blocks: [],
-				schemaVersion: "curriculum_course_maps_reader_v1",
-			}),
-			path: "course-maps.json",
-		});
-		reader.supplements = [{ kind: "course_maps", path: "course-maps.json" }];
-	}
 	const readerRef = putJson(store, "readers/original.json", reader);
 	const source = normalizeSourceManifest({
 		collections: [
@@ -275,7 +158,7 @@ function createSourceFixture(input: { invalidCourseMaps?: boolean } = {}): {
 				label: "现行版",
 				reader: readerRef,
 				sourceLabel: "测试来源",
-				supplements,
+				supplements: [],
 				updatedAt: "2026-08-02T00:00:00.000Z",
 				versionId: "version-1",
 				versionSlug: "current",
@@ -284,35 +167,19 @@ function createSourceFixture(input: { invalidCourseMaps?: boolean } = {}): {
 	});
 	const sourceBytes = canonicalJsonBytes(source);
 	store.objects.set(DOCS_SOURCE_KEY, sourceBytes);
-	return {
-		readerRef,
-		source,
-		sourceDigest: sha256(sourceBytes),
-		store,
-	};
+	return { readerRef, source, store };
 }
 
-interface MemoryStore extends ReaderObjectStoreWriter {
+interface MemoryStore extends ReaderObjectStoreClient {
 	objects: Map<string, Uint8Array>;
-	reads: string[];
-	writes: string[];
 }
 
 function memoryStore(): MemoryStore {
 	const objects = new Map<string, Uint8Array>();
-	const reads: string[] = [];
-	const writes: string[] = [];
 	return {
 		objects,
-		reads,
-		writes,
 		async readOptionalBytesObject({ key }) {
-			reads.push(key);
 			return objects.get(key);
-		},
-		async writeBytesObject({ body, key }) {
-			writes.push(key);
-			objects.set(key, body);
 		},
 	};
 }

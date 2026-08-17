@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import type { Pool } from "pg";
 import type {
 	OpsOverviewResponse,
 	OpsOverviewWindow,
@@ -19,8 +19,8 @@ import type {
 	OpsRequestTrendRow,
 	OpsStatusStore,
 	PgOpsStatusStoreDatabase,
-} from "./ops-status-store.ts";
-import { OPS_REQUEST_PAGE_SIZE } from "./ops-status-store.ts";
+} from "./ops-status-types.ts";
+import { OPS_REQUEST_PAGE_SIZE, OpsStatusStoreUnavailableError } from "./ops-status-types.ts";
 import {
 	agentUsageSql,
 	buildRequestFilter,
@@ -29,13 +29,6 @@ import {
 	requestSql,
 	summarizeStatusCounts,
 } from "./pg-request-query.ts";
-import type { PostgresSslConfig } from "./postgres-tls.ts";
-import { logOpsError } from "./safe-logging.ts";
-
-const DEFAULT_POOL_MAX = 4;
-const DEFAULT_CONNECTION_TIMEOUT_MS = 5_000;
-const DEFAULT_IDLE_TIMEOUT_MS = 30_000;
-const DEFAULT_STATEMENT_TIMEOUT_MS = 10_000;
 
 export function createPgOpsStatusStore(input: {
 	db: PgOpsStatusStoreDatabase;
@@ -133,28 +126,9 @@ export function createPgOpsStatusStore(input: {
 	};
 }
 
-export interface PgOpsStatusStoreDatabaseOptions {
-	connectionTimeoutMs?: number;
-	idleTimeoutMs?: number;
-	max?: number;
-	ssl: PostgresSslConfig;
-	statementTimeoutMs?: number;
-}
-
 export function createPgOpsStatusStoreDatabase(
-	databaseUrl: string,
-	options: PgOpsStatusStoreDatabaseOptions,
+	pool: Pick<Pool, "query">,
 ): PgOpsStatusStoreDatabase {
-	const pool = new Pool({
-		connectionString: databaseUrl,
-		connectionTimeoutMillis: options.connectionTimeoutMs ?? DEFAULT_CONNECTION_TIMEOUT_MS,
-		idleTimeoutMillis: options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS,
-		max: options.max ?? DEFAULT_POOL_MAX,
-		ssl: options.ssl,
-		statement_timeout: options.statementTimeoutMs ?? DEFAULT_STATEMENT_TIMEOUT_MS,
-	});
-	pool.on("error", (error) => logOpsError("ops_web.postgres_pool", error, { source: "requests" }));
-
 	return {
 		async getAgentUsages(runIds) {
 			if (runIds.length === 0) {
@@ -446,7 +420,6 @@ async function classifyDbError<T>(operation: () => Promise<T>): Promise<T> {
 	} catch (error) {
 		const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
 		const message = error instanceof Error ? error.message : String(error);
-		const { OpsStatusStoreUnavailableError } = await import("./ops-status-store.ts");
 		if (code === "42P01" || code === "42703") {
 			throw new OpsStatusStoreUnavailableError("MISSING_SCHEMA", message);
 		}

@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 
-const port = 27031;
+const port = Number.parseInt(process.env.CAMPUS_WEB_E2E_APP_API_PORT ?? "27031", 10);
 
 const server = createServer((request, response) => {
 	request.resume();

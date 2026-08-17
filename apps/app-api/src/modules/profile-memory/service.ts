@@ -4,7 +4,12 @@ import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import type { ProfileMemoryList, ProfileMemoryMutationResult } from "./model";
 import { normalizeProfileMemoryKey, normalizeProfileMemoryValue } from "./model";
-import type { ProfileMemoryCommandPayload, ProfileMemoryStore } from "./store";
+import type {
+	ProfileMemoryCommandPayload,
+	ProfileMemoryCommandStore,
+	ProfileMemoryMutationStore,
+	ProfileMemoryReadStore,
+} from "./store";
 import { ProfileMemoryStoreConflict } from "./store";
 
 export interface ProfileMemoryService {
@@ -52,9 +57,11 @@ export interface ProfileMemoryCommandAdmitter {
 
 export interface ProfileMemoryServiceDependencies {
 	commandAdmitter?: ProfileMemoryCommandAdmitter;
+	commandStore: ProfileMemoryCommandStore;
 	generateId?: (prefix: string) => string;
+	mutationStore: ProfileMemoryMutationStore;
 	now?: () => Date;
-	store: ProfileMemoryStore;
+	readStore: ProfileMemoryReadStore;
 }
 
 export interface ProfileMemoryCommandResultInput {
@@ -199,7 +206,7 @@ export function buildProfileMemoryService(
 		idempotencyKey: string,
 	): Promise<ProfileMemoryMutationResult> => {
 		const identity = mutationIdentity(idempotencyKey, { action: "erase" });
-		return dependencies.store.erase({
+		return dependencies.mutationStore.erase({
 			commandId: generateId("memcmd"),
 			...identity,
 			ownerUserId,
@@ -209,7 +216,7 @@ export function buildProfileMemoryService(
 	return {
 		async applyResult(input) {
 			const errorCode = publicMemoryCommandErrorCode(input);
-			return dependencies.store.applyCommandResult({
+			return dependencies.commandStore.applyCommandResult({
 				commandId: input.commandId,
 				...(errorCode ? { errorCode } : {}),
 				resultFingerprint: input.resultFingerprint,
@@ -222,7 +229,7 @@ export function buildProfileMemoryService(
 			const item = normalizeItemInput(input);
 			const identity = mutationIdentity(input.idempotencyKey, { action: "create", ...item });
 			try {
-				return await dependencies.store.createItem({
+				return await dependencies.mutationStore.createItem({
 					commandId: generateId("memcmd"),
 					...identity,
 					itemId: generateId("mem"),
@@ -240,7 +247,7 @@ export function buildProfileMemoryService(
 			const itemId = normalizeItemId(input.itemId);
 			const identity = mutationIdentity(input.idempotencyKey, { action: "delete", itemId });
 			try {
-				const result = await dependencies.store.deleteItem({
+				const result = await dependencies.mutationStore.deleteItem({
 					commandId: generateId("memcmd"),
 					...identity,
 					itemId,
@@ -267,14 +274,14 @@ export function buildProfileMemoryService(
 			if (!dependencies.commandAdmitter) {
 				return { admitted: 0, failed: 0, processed: 0 };
 			}
-			const commands = await dependencies.store.listPendingAdmissions({ limit: 20 });
+			const commands = await dependencies.commandStore.listPendingAdmissions({ limit: 20 });
 			let failed = 0;
 			let admitted = 0;
 			for (const command of commands) {
 				try {
 					const outcome = await dependencies.commandAdmitter.admit(command);
 					if (
-						await dependencies.store.markCommandAdmitted({
+						await dependencies.commandStore.markCommandAdmitted({
 							commandId: command.commandId,
 							admittedAt: now().toISOString(),
 							workflowId: outcome.workflowId,
@@ -313,7 +320,7 @@ export function buildProfileMemoryService(
 			try {
 				for (;;) {
 					const identity = mutationIdentity(idempotencyKey, { action: "erase" });
-					const command = await dependencies.store.findCommandByIdempotency({
+					const command = await dependencies.mutationStore.findCommandByIdempotency({
 						...identity,
 						ownerUserId,
 					});
@@ -329,7 +336,7 @@ export function buildProfileMemoryService(
 		},
 
 		async list(input) {
-			return dependencies.store.listByOwner(assertProfileMemoryPrincipal(input.principal));
+			return dependencies.readStore.listByOwner(assertProfileMemoryPrincipal(input.principal));
 		},
 
 		async setLifecycle(input) {
@@ -339,7 +346,7 @@ export function buildProfileMemoryService(
 				state: input.state,
 			});
 			try {
-				return await dependencies.store.setLifecycle({
+				return await dependencies.mutationStore.setLifecycle({
 					commandId: generateId("memcmd"),
 					...identity,
 					lifecycleState: input.state,
@@ -361,7 +368,7 @@ export function buildProfileMemoryService(
 				...item,
 			});
 			try {
-				const result = await dependencies.store.updateItem({
+				const result = await dependencies.mutationStore.updateItem({
 					commandId: generateId("memcmd"),
 					...identity,
 					itemId,

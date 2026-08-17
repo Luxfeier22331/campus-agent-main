@@ -18,7 +18,7 @@ import type {
 	OpsRequestListQuery,
 	OpsRequestRow,
 	OpsRequestSummaryTotals,
-} from "./ops-status-store.ts";
+} from "./ops-status-types.ts";
 
 const TERMINAL_STATUSES = new Set<OpsRequestSummary["status"]>([
 	"COMPLETED",

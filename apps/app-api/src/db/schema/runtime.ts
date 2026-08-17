@@ -1,5 +1,5 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
-import type { ToolExecutionWorkflowTraceSummary } from "../../modules/integration/tool-execution-types";
+import type { ToolExecutionWorkflowTraceSummary } from "../../modules/request-observability-types";
 
 const runtime = pgSchema("runtime");
 

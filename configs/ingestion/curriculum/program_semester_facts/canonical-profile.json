@@ -1,9 +1,0 @@
-{
-	"corpus": "curriculum",
-	"collection": "program_semester_facts",
-	"canonical_profile_version": "curriculum_program_semester_facts_projection_v1",
-	"notes": [
-		"program_semester_facts is derived from current curriculum source-truth documents.",
-		"Each projected document is scoped to one active curriculum program document and one normalized semester label."
-	]
-}

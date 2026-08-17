@@ -24,10 +24,13 @@ import {
 	createNoticeObjectStore,
 	createPgNoticeStore,
 } from "../modules/notices";
-import { buildProfileMemoryService, createPgProfileMemoryStore } from "../modules/profile-memory";
+import {
+	buildProfileMemoryService,
+	createPgProfileMemoryPersistence,
+} from "../modules/profile-memory";
 import {
 	buildChatCommandService,
-	createPgChatCommandStore,
+	createPgChatCommandPersistence,
 	deriveSafetyIdentifierForUser,
 } from "../modules/runtime-command";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
@@ -54,37 +57,63 @@ export function createRequestScopeFactory(input: {
 			let chatAvailability = input.dependencies.chatAvailabilityService ?? null;
 			let chat = input.dependencies.chatConversationService ?? null;
 			let command = input.dependencies.chatCommandService ?? null;
+			let chatCommandPersistence: ReturnType<typeof createPgChatCommandPersistence> | null = null;
 			let dining = input.dependencies.diningMapReadService ?? null;
 			let diningContent = input.dependencies.diningContentService ?? null;
 			let emailAccess = input.dependencies.emailAccessService ?? null;
 			let memory = input.dependencies.profileMemoryService ?? null;
+			let profileMemoryPersistence: ReturnType<typeof createPgProfileMemoryPersistence> | null =
+				null;
 			let notices = input.dependencies.noticeService ?? null;
 			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
-			const resolveProfileMemoryService = () =>
-				(memory ??= buildProfileMemoryService({
-					commandAdmitter: createExecutionControlPersonalMemoryClient(input.env),
-					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
+			const resolveProfileMemoryPersistence = () =>
+				(profileMemoryPersistence ??= createPgProfileMemoryPersistence(input.env, {
+					getDb: runtime.getDb,
 				}));
+			const resolveProfileMemoryService = () => {
+				const persistence = resolveProfileMemoryPersistence();
+				if (!memory) {
+					memory = buildProfileMemoryService({
+						commandAdmitter: createExecutionControlPersonalMemoryClient(input.env),
+						commandStore: persistence.commands,
+						mutationStore: persistence.mutations,
+						readStore: persistence.reads,
+					});
+				}
+				return memory;
+			};
 			const resolveChatConversationService = () =>
 				(chat ??= buildChatConversationService({
 					detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
 					dispatchMemoryCommands: () => resolveProfileMemoryService().dispatchPending(),
 					store: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
 				}));
-			const resolveChatCommandService = () =>
-				(command ??= buildChatCommandService({
+			const resolveChatCommandService = () => {
+				if (command) {
+					return command;
+				}
+				if (!chatCommandPersistence) {
+					chatCommandPersistence = createPgChatCommandPersistence(input.env, {
+						getDb: runtime.getDb,
+					});
+				}
+				const persistence = chatCommandPersistence;
+				command = buildChatCommandService({
+					admissionStore: persistence.admission,
+					commandStore: persistence.commands,
 					conversationStore: createPgChatConversationStore(input.env, {
 						getDb: runtime.getDb,
 					}),
 					...(executionRuntime ? { executionRuntime } : {}),
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
-					captureProfileMemorySnapshot: true,
+					observabilityStore: persistence.observability,
 					...(input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET
 						? { safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET }
 						: {}),
-					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
 					telemetry: input.telemetry,
-				}));
+				});
+				return command;
+			};
 			return {
 				getAppAuth,
 				resolveAccountAdminService: () =>

@@ -5,6 +5,8 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 
+import { readNodeVersion } from "../toolchain/node-version.mts";
+
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const IMAGE_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -250,6 +252,7 @@ export async function publishImages(
 		...process.env,
 		IMAGE_REVISION: options.sourceSha,
 		IMAGE_SOURCE: `https://github.com/${options.repository}`,
+		NODE_VERSION: readNodeVersion(root),
 	};
 	const commandOptions = { cwd: root, env: environment, output: "capture" as const };
 	const printArguments = ["buildx", "bake", "--file", "docker-bake.hcl", "--print"];

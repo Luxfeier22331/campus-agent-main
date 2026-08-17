@@ -70,8 +70,6 @@ jobs:
           has_evidence="$(jq -r '.validationProfiles | length > 0' <<< "$plan")"
           has_affected_node="$(jq -r --arg profile affected-node \
             '.validationProfiles | index($profile) != null' <<< "$plan")"
-          has_dependencies="$(jq -r --arg profile dependencies \
-            '.validationProfiles | index($profile) != null' <<< "$plan")"
           has_toolchain="$(jq -r --arg profile toolchain \
             '.validationProfiles | index($profile) != null' <<< "$plan")"
           {
@@ -82,7 +80,6 @@ jobs:
             echo "validation_profiles=$validation_profiles"
             echo "has_evidence=$has_evidence"
             echo "has_affected_node=$has_affected_node"
-            echo "has_dependencies=$has_dependencies"
             echo "has_toolchain=$has_toolchain"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
@@ -146,7 +143,6 @@ jobs:
           gitleaks git \
             --redact \
             --exit-code=1 \
-            --config=.gitleaks.toml \
             --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"
 
       - name: Install affected workspaces
@@ -173,19 +169,6 @@ jobs:
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           VALIDATION_PROFILES: '["affected-node"]'
-        run: >-
-          node --experimental-strip-types scripts/ci/evidence.mts
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-          --profiles "$VALIDATION_PROFILES"
-
-      - name: Run dependency evidence
-        if: steps.plan.outputs.has_dependencies == 'true'
-        env:
-          BASE_SHA: ${{ steps.plan.outputs.base }}
-          HEAD_SHA: ${{ steps.plan.outputs.head }}
-          VALIDATION_PROFILES: '["dependencies"]'
-        shell: nix develop .#ci-light --command bash -e {0}
         run: >-
           node --experimental-strip-types scripts/ci/evidence.mts
           --base "$BASE_SHA"

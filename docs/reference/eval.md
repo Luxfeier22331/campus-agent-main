@@ -138,6 +138,9 @@ score、dataset 或 annotation 状态。
 
 - `eval-cases.md`
 - `../contracts/tool-trajectory.md`
-- `../architecture/system/langfuse.md`
+- `../contracts/langfuse-runtime.md`
 - `../runbooks/ragas.md`
 - `agent-orchestration.md`
+- `../decisions/adr-0003-golden-datasets.md`
+- `../decisions/adr-0004-evaluation-metrics.md`
+- `../decisions/adr-0061-eval-runtime.md`

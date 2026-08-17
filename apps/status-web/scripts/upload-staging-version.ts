@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release.ts";
+import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release.mts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
 import {
 	buildStatusStagingUploadConfig,

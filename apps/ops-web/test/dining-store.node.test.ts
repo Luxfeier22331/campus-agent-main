@@ -8,11 +8,11 @@ import {
 import { diningMapBundleFingerprint } from "@campus-agent/dining/publisher";
 import { describe, expect, it, vi } from "vitest";
 import type { DiningFloorplanAssetStore } from "../src/server/dining-floorplan-assets";
+import { createPgDiningStore } from "../src/server/dining-store";
 import {
-	createPgDiningStore,
 	DiningStoreConflictError,
 	DiningStoreUnavailableError,
-} from "../src/server/dining-store";
+} from "../src/server/dining-store-errors";
 
 const NOW = new Date("2026-07-24T08:00:00.000Z");
 

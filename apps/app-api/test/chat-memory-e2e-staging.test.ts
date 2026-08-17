@@ -11,9 +11,9 @@ import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 
 const E2E_CREDENTIAL_ARGS = [
 	"--email",
-	"smoke-user@example.edu",
+	"e2e-user@example.edu",
 	"--password",
-	"dev-smoke-password",
+	"dev-e2e-password",
 	"--captcha-token",
 	"dev-captcha-token",
 ];
@@ -126,7 +126,7 @@ describe("chat memory staging e2e runner", () => {
 			value: string;
 		} | null = {
 			itemId: "mem_01HQ",
-			key: "smoke_memory_probe",
+			key: "e2e_memory_probe",
 			revision: 7,
 			state: "synced",
 			updatedAt: "2026-08-16T00:00:00.000Z",
@@ -389,7 +389,7 @@ describe("chat memory staging e2e runner", () => {
 			requestId: "req_6",
 		});
 		expect(result.runs.explicitRecall?.runtimeTraceId).toBe(await deriveLangfuseTraceId("trace_1"));
-		expect(signedInEmail).toBe("smoke-user@example.edu");
+		expect(signedInEmail).toBe("e2e-user@example.edu");
 		expect(submitCount).toBe(6);
 		expect(sleep).toHaveBeenCalledTimes(14);
 		expect(JSON.stringify(result)).not.toContain("body-sentinel-0001");
@@ -397,13 +397,13 @@ describe("chat memory staging e2e runner", () => {
 		expect(calls).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					body: { key: "smoke_memory_probe", value: "body-sentinel-0001" },
+					body: { key: "e2e_memory_probe", value: "body-sentinel-0001" },
 					expectedStatus: 202,
 					method: "POST",
 					url: "https://campus.example.com/api/me/profile-memory/items",
 				}),
 				expect.objectContaining({
-					body: expect.objectContaining({ key: "smoke_memory_probe" }),
+					body: expect.objectContaining({ key: "e2e_memory_probe" }),
 					expectedStatus: 202,
 					method: "PATCH",
 					url: "https://campus.example.com/api/me/profile-memory/items/mem_01HQ",
@@ -518,7 +518,7 @@ describe("chat memory staging e2e runner", () => {
 		]);
 
 		await openChatMemorySubmitStream({
-			body: { prompt: "ordinary-smoke" },
+			body: { prompt: "ordinary-e2e" },
 			cookieHeader: "session=staging",
 			observabilityCanary: null,
 			url: "https://campus.example.com/api/chat/requests/stream",

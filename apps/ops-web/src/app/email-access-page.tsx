@@ -12,7 +12,7 @@ import {
 	commandEmailAccessGrant,
 	createEmailAccessGrant,
 	fetchEmailAccessGrants,
-} from "./ops-api-client";
+} from "./ops-api/email-access";
 import { ErrorState, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
 

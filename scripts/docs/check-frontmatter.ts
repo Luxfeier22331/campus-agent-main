@@ -4,14 +4,6 @@ import { join, relative, resolve } from "node:path";
 const docsDir = resolve(process.cwd(), "docs");
 const requiredKeys = ["doc_type", "owner_boundary", "status"] as const;
 const forbiddenKeys = new Set(["truth_scope", "created", "updated"]);
-const allowedStatuses = new Set([
-	"active",
-	"historical",
-	"proposed",
-	"accepted",
-	"superseded",
-	"deprecated",
-]);
 const errors: string[] = [];
 
 function markdownFiles(directory: string): string[] {
@@ -73,9 +65,11 @@ for (const path of files) {
 			errors.push(`${file}: 不再维护 ${key}`);
 		}
 	}
+	const docType = values.get("doc_type");
 	const status = values.get("status");
-	if (status && !allowedStatuses.has(status)) {
-		errors.push(`${file}: 无效 status ${status}`);
+	const expectedStatus = docType === "decision" ? "accepted" : "active";
+	if (status && status !== expectedStatus) {
+		errors.push(`${file}: ${docType ?? "文档"} 只允许 status: ${expectedStatus}`);
 	}
 }
 

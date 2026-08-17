@@ -1,4 +1,4 @@
-import { type JsonObject, mapping, optionalString, stringField, stringList } from "./shared";
+import { type JsonObject, mapping, optionalString, stringField, stringList } from "./json";
 import { parseToolTrajectory, type ToolTrajectory } from "./tool-trajectory";
 
 export interface ExecutionRunEvalProjection {

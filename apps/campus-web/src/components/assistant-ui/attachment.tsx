@@ -8,6 +8,7 @@ import {
 	useAuiState,
 } from "@assistant-ui/react";
 import {
+	cn,
 	Dialog,
 	DialogContent,
 	DialogTitle,
@@ -21,7 +22,6 @@ import { type FC, type PropsWithChildren, useEffect, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
 
 const useFileSrc = (file: File | undefined) => {
 	const [src, setSrc] = useState<string | undefined>(undefined);

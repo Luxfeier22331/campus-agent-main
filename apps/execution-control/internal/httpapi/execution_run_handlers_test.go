@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -106,7 +107,7 @@ func TestExecutionRunCreateClassifiesExecutionInputErrors(t *testing.T) {
 			store := execution.NewInMemoryRunProjectionStore()
 			server := newWorkerAuthServerForTest()
 			attachRunProjectionStoreForHandlerTest(server, store)
-			server.executionInputLoader = failingExecutionInputLoader{err: newExecutionInputError(
+			server.executionInputLoader = failingExecutionInputLoader{err: execution.NewInputError(
 				"load",
 				"execution_input_unavailable",
 				test.retryable,
@@ -169,7 +170,7 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 			runID: "run-embedding-provider-missing",
 			configure: func(server *Server) {
 				server.providerConfigResolver = staticProviderConfigResolver{
-					providerConfigKindLLM: primaryAgentProviderConfigSnapshotForTest(),
+					providerconfig.KindLLM: primaryAgentProviderConfigSnapshotForTest(),
 				}
 			},
 		},
@@ -178,8 +179,8 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 			runID: "run-llm-provider-missing",
 			configure: func(server *Server) {
 				server.providerConfigResolver = staticProviderConfigResolver{
-					providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
-						providerConfigKindEmbedding,
+					providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
+						providerconfig.KindEmbedding,
 						"https://embedding.example/v1",
 						"provider-model-alias",
 					),

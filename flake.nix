@@ -30,10 +30,45 @@
           pnpmVersion = nixpkgs.lib.removePrefix "pnpm@" packageJson.packageManager;
           rustToolchain = builtins.fromTOML (builtins.readFile ./rust-toolchain.toml);
           tools = import ./nix/tools.nix { inherit pkgs; };
-          goToolchain = pkgs.go_1_26.overrideAttrs (_: {
-            version = "1.26.6";
+          goModLines = pkgs.lib.splitString "\n" (builtins.readFile ./apps/execution-control/go.mod);
+          goLanguageDirective = pkgs.lib.findFirst (line: pkgs.lib.hasPrefix "go " line) null goModLines;
+          goToolchainDirective = pkgs.lib.findFirst (line: pkgs.lib.hasPrefix "toolchain go" line) null goModLines;
+          goLanguageMatch =
+            if goLanguageDirective == null then
+              throw "apps/execution-control/go.mod must declare a go language version"
+            else
+              builtins.match "go ([0-9]+)[.]([0-9]+)" goLanguageDirective;
+          goToolchainMatch =
+            if goToolchainDirective == null then
+              throw "apps/execution-control/go.mod must declare a toolchain version"
+            else
+              builtins.match "toolchain go([0-9]+)[.]([0-9]+)[.]([0-9]+)" goToolchainDirective;
+          goLanguageMajor =
+            if goLanguageMatch == null then
+              throw "apps/execution-control/go.mod has an invalid go language directive"
+            else
+              builtins.elemAt goLanguageMatch 0;
+          goLanguageMinor = builtins.elemAt goLanguageMatch 1;
+          goToolchainMajor =
+            if goToolchainMatch == null then
+              throw "apps/execution-control/go.mod has an invalid toolchain directive"
+            else
+              builtins.elemAt goToolchainMatch 0;
+          goToolchainMinor = builtins.elemAt goToolchainMatch 1;
+          goToolchainPatch = builtins.elemAt goToolchainMatch 2;
+          goToolchainVersion = "${goToolchainMajor}.${goToolchainMinor}.${goToolchainPatch}";
+          goPackageAttribute = "go_${goLanguageMajor}_${goLanguageMinor}";
+          goBaseToolchain =
+            if goLanguageMajor != goToolchainMajor || goLanguageMinor != goToolchainMinor then
+              throw "apps/execution-control/go.mod go and toolchain versions must share major/minor"
+            else if builtins.hasAttr goPackageAttribute pkgs then
+              builtins.getAttr goPackageAttribute pkgs
+            else
+              throw "nixpkgs does not provide ${goPackageAttribute}";
+          goToolchain = goBaseToolchain.overrideAttrs (_: {
+            version = goToolchainVersion;
             src = pkgs.fetchurl {
-              url = "https://go.dev/dl/go1.26.6.src.tar.gz";
+              url = "https://go.dev/dl/go${goToolchainVersion}.src.tar.gz";
               hash = "sha256-oHIcVMaIkBRI13rZs+x+p8R0cwdV/4kTgukuy5P/LLE=";
             };
           });
@@ -80,7 +115,6 @@
         in
         assert pkgs.nodejs_24.version == nodeVersion;
         assert pkgs.pnpm_11.version == pnpmVersion;
-        assert goToolchain.version == "1.26.6";
         assert pkgs.golangci-lint.version == "2.12.2";
         assert pkgs.rustc.version == rustToolchain.toolchain.channel;
         assert pkgs.trivy.version == "0.73.0";

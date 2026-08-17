@@ -25,7 +25,7 @@
 				"$TURBO_ROOT$/packages/contracts/package.json",
 				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/scripts/deploy/run-wrangler-command.ts",
-				"$TURBO_ROOT$/scripts/deploy/staging-release.ts",
+				"$TURBO_ROOT$/scripts/deploy/staging-release.mts",
 				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
 			],
 			"outputLogs": "new-only",

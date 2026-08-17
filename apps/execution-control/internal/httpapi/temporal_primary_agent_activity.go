@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/activity"
 )
 
-func (s *Server) ExecutePrimaryAgentActivity(
+func (s *Server) ExecutePrimaryAgent(
 	ctx context.Context,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
@@ -24,7 +25,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	inputMetadata, err := executionInputMetadata(run)
+	inputMetadata, err := execution.InputMetadata(run)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "execution_input_metadata_invalid", err)
 	}
@@ -34,7 +35,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return s.failPrimaryAgentActivity(
 			ctx,
 			run,
-			executionInputFailureKind(err, "execution_input_unavailable"),
+			execution.InputFailureKind(err, "execution_input_unavailable"),
 			err,
 		)
 	}
@@ -52,7 +53,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime base URL and shared secret are required"),
 		)
 	}
-	var providerConfig providerConfigSnapshot
+	var providerConfig providerconfig.RuntimeSetting
 	limits := s.primaryAgentRuntimeLimits()
 	snapshot := input.AdmissionSnapshot
 	visibleToolNames := input.VisibleToolNames
@@ -62,11 +63,11 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err := s.validateLocalToolRuntimeFingerprint(snapshot.ToolRuntimeFingerprint); err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", err)
 	}
-	providerConfig, err = s.resolveProviderConfigSnapshot(ctx, providerConfigKindLLM)
+	providerConfig, err = s.resolveProviderConfig(ctx, providerconfig.KindLLM)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "provider_config_missing", err)
 	}
-	if providerConfigAdmissionHash(providerConfig) != snapshot.ProviderConfigSHA256 {
+	if providerconfig.AdmissionHash(providerConfig) != snapshot.ProviderConfigSHA256 {
 		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", errors.New("active llm setting does not match admission"))
 	}
 	campusDocsRetrieval, err := campusDocsRetrievalForPrimaryAgent(input)

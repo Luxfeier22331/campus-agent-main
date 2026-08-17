@@ -18,13 +18,22 @@ import { conversations } from "../src/db/schema";
 import {
 	ChatAcceptanceConversationConflict,
 	ChatAcceptanceIdempotencyConflict,
-	createPgChatCommandStore,
+	createPgChatCommandPersistence,
 } from "../src/modules/runtime-command/store";
 import type {
 	AcceptRequestWrite,
 	FinalizeRequestWrite,
 } from "../src/modules/runtime-command/store-types";
 import { ChatFinalizationConflict } from "../src/modules/runtime-command/store-types";
+
+function createPgChatCommandStore(...args: Parameters<typeof createPgChatCommandPersistence>) {
+	const persistence = createPgChatCommandPersistence(...args);
+	return {
+		...persistence.admission,
+		...persistence.commands,
+		...persistence.observability,
+	};
+}
 
 function finalizedWrite(): FinalizeRequestWrite {
 	return {
@@ -146,7 +155,7 @@ describe("pg chat command store", () => {
 
 		await expect(
 			store.acceptRequest({
-				captureMemorySnapshot: false,
+				requestKind: "internal_eval",
 				conversationBaseline: {
 					activeBranchId: "branch_active",
 					activeMessageId: null,
@@ -199,7 +208,7 @@ describe("pg chat command store", () => {
 
 		await expect(
 			store.acceptRequest({
-				captureMemorySnapshot: false,
+				requestKind: "internal_eval",
 				conversationSeed: {
 					createdAt: "2026-06-04T01:02:03.000Z",
 					id: "conv_01HQ",
@@ -249,7 +258,7 @@ describe("pg chat command store", () => {
 
 		await expect(
 			store.acceptRequest({
-				captureMemorySnapshot: false,
+				requestKind: "internal_eval",
 				conversationSeed: {
 					createdAt: "2026-06-04T01:02:03.000Z",
 					id: "conv_01HQ",

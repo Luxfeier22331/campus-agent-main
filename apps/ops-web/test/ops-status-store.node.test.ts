@@ -2,9 +2,9 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
-	createOpsStatusStoreFromEnv,
+	createOpsStatusStore,
 	resolveCampusWebPublicOrigin,
-} from "../src/server/ops-status-store";
+} from "../src/server/ops-status-factory";
 import { createPgOpsStatusStore } from "../src/server/pg-ops-status-store";
 import { agentUsageSql, requestRowsCte } from "../src/server/pg-request-query";
 import { OpsRequestDetailResponseSchema } from "../src/shared/ops-contract";
@@ -13,13 +13,13 @@ import { agentUsageRow, createFakeOpsDb, requestRow } from "./ops-status-store-t
 const now = new Date("2026-07-09T07:30:00.000Z");
 
 describe("PostgreSQL ops status store", () => {
-	it("requires the runtime database in every deployment environment", () => {
-		expect(() => createOpsStatusStoreFromEnv({ DEPLOYMENT_ENVIRONMENT: "local" })).toThrow(
-			"OPS_WEB_DATABASE_URL is required.",
-		);
-		expect(() => createOpsStatusStoreFromEnv({ NODE_ENV: "test" })).toThrow(
-			"OPS_WEB_DATABASE_URL is required.",
-		);
+	it("uses the application-owned database pool", async () => {
+		const query = vi.fn(async () => ({ rows: [] }));
+		const store = createOpsStatusStore({ pool: { query } as never });
+
+		await store.verifyReadiness();
+
+		expect(query).toHaveBeenCalledWith("select 1");
 	});
 
 	it("accepts only canonical trusted Campus Web origins", () => {

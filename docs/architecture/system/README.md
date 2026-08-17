@@ -15,8 +15,7 @@ status: active
   [agentic-retrieval.md](./agentic-retrieval.md)、[data-plane.md](./data-plane.md)；
 - 身份与记忆：[identity-authz.md](./identity-authz.md)、[mucwiki-login.md](./mucwiki-login.md)、
   [memory-plane.md](./memory-plane.md)；
-- 运维与改进：[ops-observability.md](./ops-observability.md)、[langfuse.md](./langfuse.md)、
-  [learning-loop.md](./learning-loop.md)；
+- 运维与改进：[ops-observability.md](./ops-observability.md)、[learning-loop.md](./learning-loop.md)；
 - 界面与代码边界：[ui-foundation.md](./ui-foundation.md)、
   [code-organization.md](./code-organization.md)。
 

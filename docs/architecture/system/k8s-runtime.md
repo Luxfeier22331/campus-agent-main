@@ -61,7 +61,7 @@ workflow 代码不得部署、重启或修改自己的 Kubernetes 资源。
 目标。浏览器不能直连
 Temporal、worker、数据库或对象存储。
 
-环境仓为不同服务提供最小权限 Secret，并满足源码声明的 key 消费合同。运行身份、用户凭据和外部服务
+环境仓为不同服务提供其实际消费的 Secret，并满足源码声明的 key 消费合同。运行身份、用户凭据和外部服务
 凭据不能混用；精确 Secret、NetworkPolicy 和地址以 base 与环境配置为准。
 
 第一方 workload 禁止使用 `envFrom.secretRef`。每个进程只通过显式

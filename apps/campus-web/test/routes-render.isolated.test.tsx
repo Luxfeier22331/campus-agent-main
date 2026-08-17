@@ -21,6 +21,8 @@ import diningFloorplanSource from "../src/components/dining/dining-floorplan.tsx
 import diningFloorplanZoomSource from "../src/components/dining/dining-floorplan-zoom.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
 import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
+import assistantControllerSource from "../src/features/conversation/use-assistant-ui-run-controller.ts?raw";
+import assistantCoordinatorSource from "../src/features/conversation/use-conversation-run-coordinator.ts?raw";
 import { createCampusQueryClient } from "../src/platform/query/client";
 import {
 	DINING_FIXTURE_ASSETS,
@@ -298,9 +300,14 @@ describe("campus routes", () => {
 		expect(qaShellSource).not.toContain("@assistant-ui/react-data-stream");
 		expect(qaShellSource).not.toContain("/api/chat/assistant-ui");
 		expect(assistantRuntimeSource).toContain("useExternalStoreRuntime");
-		expect(assistantRuntimeSource).toContain("submitChatRequestStream");
-		expect(assistantRuntimeSource).not.toContain("@assistant-ui/react-data-stream");
-		expect(assistantRuntimeSource).not.toContain("/api/chat/assistant-ui");
+		expect(assistantControllerSource).toContain("useConversationRunCoordinator");
+		expect(assistantCoordinatorSource).toContain("submitChatRequestStream");
+		expect(
+			assistantRuntimeSource + assistantControllerSource + assistantCoordinatorSource,
+		).not.toContain("@assistant-ui/react-data-stream");
+		expect(
+			assistantRuntimeSource + assistantControllerSource + assistantCoordinatorSource,
+		).not.toContain("/api/chat/assistant-ui");
 		expect(qaShellSource).toContain("@/components/auth/auth-dialog");
 		expect(qaShellSource).toContain("@/components/auth/user/account-entry");
 		expect(qaShellSource).not.toContain("const AuthDialog = lazy(");

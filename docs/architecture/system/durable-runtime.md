@@ -123,8 +123,8 @@ Reset 或其他 successor 不能改写产品终态或被重新绑定到原产品
 - core activity poller：`campus-agent.activity.core.v3`；
 - agent activity poller：`campus-agent.activity.agent.v3`。
 
-三个 poller 与执行 HTTP API 运行在同一个 `execution-control` 进程。不存在独立的
-knowledge/tool/retrieval/specialist worker；`agent-runtime` 仍是独立 Deployment。
+三个 poller 与执行 HTTP API 运行在同一个 `execution-control` 进程。不存在按知识类型、工具或检索
+能力拆分的独立 worker；`agent-runtime` 仍是独立 Deployment。
 
 ## Agent Activity
 
@@ -218,7 +218,7 @@ Temporal task queue 与 worker 扩缩容共同定义部署容量。缺少 Tempor
 
 ## 禁止形态
 
-- 每个 SDK tool/specialist 一个 Temporal activity 或 queue；
+- 每个 SDK 工具或语义能力一个 Temporal activity 或 queue；
 - 独立知识 Agent worker；
 - 确定性 workflow 代码选择语义工具；
 - 将每个检索查询、候选处理、重排、SDK tool call 或模型轮次展开成 Temporal activity graph；

@@ -4,9 +4,9 @@ import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
 import { describe, expect, it, vi } from "vitest";
 import { AxiomUnavailableError } from "../src/server/axiom-client";
 import { createUnavailableDiningStore } from "../src/server/dining-store";
+import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
-import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 import { SentryUnavailableError } from "../src/server/sentry-client";
 import { opsLogObservabilityFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures";
 import { createTestOpsApp } from "./helpers/ops-app";
@@ -51,7 +51,7 @@ describe("ops API", () => {
 		store.verifyReadiness = vi.fn().mockRejectedValue(new Error("database unavailable"));
 		const unavailable = createTestOpsApp({
 			admission: createAllowAllOpsAdmission(),
-			diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
+			diningMapStore: createUnavailableDiningStore(new Error("dining unavailable")),
 			env: {
 				ACCESS_POLICY_AUD: "access-audience",
 				ACCESS_TEAM_DOMAIN: "https://team.example.cloudflareaccess.com",
@@ -67,7 +67,7 @@ describe("ops API", () => {
 
 		const ready = createTestOpsApp({
 			admission: createAllowAllOpsAdmission(),
-			diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
+			diningMapStore: createUnavailableDiningStore(new Error("dining unavailable")),
 			env: {
 				ACCESS_POLICY_AUD: "access-audience",
 				ACCESS_TEAM_DOMAIN: "https://team.example.cloudflareaccess.com",

@@ -12,7 +12,16 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { installAppApiSchema } from "../ops/db/schema.ts";
 import { appApiSchema } from "../src/db/schema";
-import { createPgProfileMemoryStore } from "../src/modules/profile-memory";
+import { createPgProfileMemoryPersistence } from "../src/modules/profile-memory";
+
+function createPgProfileMemoryStore(...args: Parameters<typeof createPgProfileMemoryPersistence>) {
+	const persistence = createPgProfileMemoryPersistence(...args);
+	return {
+		...persistence.commands,
+		...persistence.mutations,
+		...persistence.reads,
+	};
+}
 
 const POSTGRES_IMAGE =
 	"postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15";

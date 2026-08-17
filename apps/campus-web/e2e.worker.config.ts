@@ -2,7 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = Number.parseInt(process.env.CAMPUS_WEB_E2E_WORKER_PORT ?? "27016", 10);
 const baseURL = `http://127.0.0.1:${port}`;
-const appApiURL = "http://127.0.0.1:27031";
+const appApiPort = Number.parseInt(process.env.CAMPUS_WEB_E2E_APP_API_PORT ?? "27031", 10);
+const appApiURL = `http://127.0.0.1:${appApiPort}`;
 const isCI = Boolean(process.env.CI);
 const usePrebuiltApp = process.env.CAMPUS_WEB_E2E_PREBUILT === "1";
 
@@ -33,13 +34,13 @@ export default defineConfig({
 	webServer: [
 		{
 			command: "pnpm exec tsx e2e/support/app-api-stub.ts",
-			reuseExistingServer: !isCI,
+			reuseExistingServer: false,
 			timeout: 30_000,
 			url: `${appApiURL}/healthz`,
 		},
 		{
-			command: `${usePrebuiltApp ? "" : "pnpm run build:worker && "}WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec wrangler dev --config dist/campus_web/wrangler.json --local --ip 127.0.0.1 --port ${port} --var APP_API_BASE_URL:http://127.0.0.1:27031 --var STATUS_WEB_PUBLIC_ORIGIN:https://status.muc.wiki`,
-			reuseExistingServer: !isCI,
+			command: `${usePrebuiltApp ? "" : "pnpm run build:worker && "}WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home pnpm exec wrangler dev --config dist/campus_web/wrangler.json --local --ip 127.0.0.1 --port ${port} --var APP_API_BASE_URL:${appApiURL} --var STATUS_WEB_PUBLIC_ORIGIN:https://status.muc.wiki`,
+			reuseExistingServer: false,
 			timeout: 120_000,
 			url: baseURL,
 		},

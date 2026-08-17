@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -53,12 +54,12 @@ func validateCampusDocsIndexAdmission(target *temporalruntime.CampusDocsIndexSna
 
 func validateCampusDocsEmbeddingAdmission(
 	target *temporalruntime.CampusDocsIndexSnapshot,
-	provider providerConfigSnapshot,
+	provider providerconfig.RuntimeSetting,
 ) error {
 	if err := validateCampusDocsIndexAdmission(target); err != nil {
 		return err
 	}
-	if err := validateProviderConfigSnapshot(provider, providerConfigKindEmbedding); err != nil {
+	if err := providerconfig.ValidateRuntimeSetting(provider, providerconfig.KindEmbedding); err != nil {
 		return fmt.Errorf("active embedding setting is invalid: %w", err)
 	}
 	return nil

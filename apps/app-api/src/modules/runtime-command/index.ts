@@ -19,12 +19,15 @@ export {
 export { publicExecutionFailure } from "./service/writes";
 export {
 	type AbuseControlState,
+	type AcceptedChatCommandStore,
 	type AcceptedDurableRequestCloseout,
 	type AcceptRequestWrite,
 	ChatAcceptanceConversationConflict,
 	ChatAcceptanceIdempotencyConflict,
-	type ChatCommandStore,
-	createPgChatCommandStore,
+	type ChatAdmissionStore,
+	type ChatCommandObservabilityStore,
+	type ChatCommandPersistence,
+	createPgChatCommandPersistence,
 	type FinalizeRequestResult,
 	type FinalizeRequestWrite,
 	type FinalizeTurnDispatchWrite,

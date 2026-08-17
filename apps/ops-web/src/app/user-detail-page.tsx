@@ -19,9 +19,9 @@ import { formatTimestamp } from "./format";
 import {
 	commandAccountAdminUser,
 	fetchAccountAdminUser,
-	OpsApiError,
 	revokeAccountAdminSession,
-} from "./ops-api-client";
+} from "./ops-api/account-admin";
+import { OpsApiError } from "./ops-api/core";
 import { CopyableValue, ErrorState, InlineError, KeyValue, PageHeader } from "./ops-display";
 import {
 	AlertDialog,

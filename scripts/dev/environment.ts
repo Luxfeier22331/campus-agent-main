@@ -7,6 +7,18 @@ import type { LocalDevProfileV1 } from "./profile";
 
 export const MANAGED_LOCAL_ENV_MARKER = "# Managed by pnpm dev:init. Do not edit.";
 
+export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
+	appApi: "apps/app-api/.env.local",
+	appApiVars: "apps/app-api/.dev.vars.local",
+	campusWeb: "apps/campus-web/.dev.vars.local",
+	ingestionControl: "apps/ingestion-control/.env.local",
+	noticePublisher: "jobs/notice-publisher/.env.local",
+	opsWeb: "apps/ops-web/.env.local",
+	sourceCollector: "apps/source-collector/adapters/internal-portal/.env.local",
+} as const;
+
+type ManagedLocalEnvironment = keyof typeof MANAGED_LOCAL_ENVIRONMENT_PATHS;
+
 const LOCAL_DATABASE_PASSWORDS = {
 	appApi: "campus-agent-local-app-api",
 	ingestionControl: "campus-agent-local-ingestion-control",
@@ -14,15 +26,17 @@ const LOCAL_DATABASE_PASSWORDS = {
 	noticePublisher: "campus-agent-local-notice-publisher",
 	owner: "campus-agent-local-owner",
 } as const;
-const LOCAL_ENVIRONMENT_PATHS = [
-	"apps/app-api/.env.local",
-	"apps/app-api/.dev.vars.local",
-	"apps/campus-web/.dev.vars.local",
-	"apps/ingestion-control/.env.local",
-	"apps/ops-web/.env.local",
-	"apps/source-collector/adapters/internal-portal/.env.local",
-	"jobs/notice-publisher/.env.local",
-] as const;
+
+export function managedLocalEnvironmentPaths(
+	repoRoot: string,
+): Record<ManagedLocalEnvironment, string> {
+	return Object.fromEntries(
+		Object.entries(MANAGED_LOCAL_ENVIRONMENT_PATHS).map(([name, path]) => [
+			name,
+			resolve(repoRoot, path),
+		]),
+	) as Record<ManagedLocalEnvironment, string>;
+}
 
 export function localDatabaseUrls(profile: LocalDevProfileV1): {
 	appApi: string;
@@ -49,25 +63,16 @@ export function renderLocalEnvironmentFiles(input: {
 	const { profile, repoRoot } = input;
 	assertLocalEnvironmentFilesAreManaged(repoRoot);
 	const database = localDatabaseUrls(profile);
-	const appApiEnvPath = resolve(repoRoot, "apps/app-api/.env.local");
-	const appApiVarsPath = resolve(repoRoot, "apps/app-api/.dev.vars.local");
-	const campusVarsPath = resolve(repoRoot, "apps/campus-web/.dev.vars.local");
-	const ingestionControlEnvPath = resolve(repoRoot, "apps/ingestion-control/.env.local");
-	const opsEnvPath = resolve(repoRoot, "apps/ops-web/.env.local");
-	const noticePublisherEnvPath = resolve(repoRoot, "jobs/notice-publisher/.env.local");
-	const sourceCollectorEnvPath = resolve(
-		repoRoot,
-		"apps/source-collector/adapters/internal-portal/.env.local",
-	);
-	const existingSecrets = readManagedEnv(appApiVarsPath);
+	const paths = managedLocalEnvironmentPaths(repoRoot);
+	const existingSecrets = readManagedEnv(paths.appApiVars);
 	const opsWebInternalToken = existingSecrets.OPS_WEB_INTERNAL_TOKEN || randomSecret();
 
-	writeManagedEnv(appApiEnvPath, {
+	writeManagedEnv(paths.appApi, {
 		APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
 		APP_API_SCHEMA_DATABASE_URL: database.owner,
 		CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB: database.appApi,
 	});
-	writeManagedEnv(appApiVarsPath, {
+	writeManagedEnv(paths.appApiVars, {
 		APP_API_EXECUTION_SHARED_SECRET:
 			existingSecrets.APP_API_EXECUTION_SHARED_SECRET || randomSecret(),
 		APP_API_SAFETY_IDENTIFIER_HMAC_SECRET:
@@ -84,7 +89,7 @@ export function renderLocalEnvironmentFiles(input: {
 		DEPLOYMENT_ENVIRONMENT: "development",
 		DEPLOYMENT_RELEASE: `app-api@${profile.instanceId}`,
 	});
-	writeManagedEnv(campusVarsPath, {
+	writeManagedEnv(paths.campusWeb, {
 		APP_API_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 		AUTH_TURNSTILE_SITE_KEY: "",
 		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
@@ -94,7 +99,7 @@ export function renderLocalEnvironmentFiles(input: {
 		DEPLOYMENT_ENVIRONMENT: "development",
 		DEPLOYMENT_RELEASE: `campus-web@${profile.instanceId}`,
 	});
-	writeManagedEnv(ingestionControlEnvPath, {
+	writeManagedEnv(paths.ingestionControl, {
 		DEPLOYMENT_ENVIRONMENT: "local",
 		INGESTION_CONTROL_DATABASE_SSLMODE: "disable",
 		INGESTION_CONTROL_DATABASE_URL: database.ingestionControl,
@@ -106,7 +111,7 @@ export function renderLocalEnvironmentFiles(input: {
 		OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
 		OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 	});
-	writeManagedEnv(opsEnvPath, {
+	writeManagedEnv(paths.opsWeb, {
 		DEPLOYMENT_ENVIRONMENT: "local",
 		NODE_ENV: "development",
 		OPS_WEB_APP_API_URL: `http://127.0.0.1:${profile.ports.appApi}`,
@@ -124,14 +129,14 @@ export function renderLocalEnvironmentFiles(input: {
 		OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
 		PORT: String(profile.ports.opsWebApi),
 	});
-	writeManagedEnv(sourceCollectorEnvPath, {
+	writeManagedEnv(paths.sourceCollector, {
 		OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		OBJECT_STORE_REGION: "us-east-1",
 		OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
 		OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 	});
-	writeManagedEnv(noticePublisherEnvPath, {
+	writeManagedEnv(paths.noticePublisher, {
 		INTERNAL_PORTAL_BASE_URL: "https://portal.example.invalid",
 		NOTICES_DATABASE_URL: database.noticePublisher,
 		OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
@@ -142,21 +147,12 @@ export function renderLocalEnvironmentFiles(input: {
 		OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
 		OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 	});
-	return [
-		appApiEnvPath,
-		appApiVarsPath,
-		campusVarsPath,
-		ingestionControlEnvPath,
-		noticePublisherEnvPath,
-		opsEnvPath,
-		sourceCollectorEnvPath,
-	];
+	return Object.values(paths);
 }
 
 export function removeLocalEnvironmentFiles(repoRoot: string): void {
 	assertLocalEnvironmentFilesAreManaged(repoRoot);
-	for (const path of LOCAL_ENVIRONMENT_PATHS) {
-		const resolved = resolve(repoRoot, path);
+	for (const resolved of Object.values(managedLocalEnvironmentPaths(repoRoot))) {
 		if (!existsSync(resolved)) {
 			continue;
 		}
@@ -166,8 +162,7 @@ export function removeLocalEnvironmentFiles(repoRoot: string): void {
 }
 
 export function assertLocalEnvironmentFilesAreManaged(repoRoot: string): void {
-	for (const path of LOCAL_ENVIRONMENT_PATHS) {
-		const resolved = resolve(repoRoot, path);
+	for (const resolved of Object.values(managedLocalEnvironmentPaths(repoRoot))) {
 		if (existsSync(resolved)) {
 			assertManagedFile(resolved);
 		}

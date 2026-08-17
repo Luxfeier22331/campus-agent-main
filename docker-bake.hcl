@@ -2,6 +2,8 @@ variable "IMAGE_REVISION" {
   default = "local"
 }
 
+variable "NODE_VERSION" {}
+
 variable "IMAGE_SOURCE" {
   default = "https://github.com/MUC-WIKI/campus-agent"
 }
@@ -23,6 +25,9 @@ target "_common" {
   context   = "."
   platforms = ["linux/arm64"]
   attest    = ["type=sbom"]
+  args = {
+    NODE_VERSION = NODE_VERSION
+  }
   labels = {
     "org.opencontainers.image.revision" = IMAGE_REVISION
     "org.opencontainers.image.source"   = IMAGE_SOURCE

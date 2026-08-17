@@ -1,245 +1,29 @@
 import { createHash } from "node:crypto";
 import type { AgentInputItem } from "@openai/agents";
-import { AgentRuntimeError } from "./runtime-errors.ts";
 import type {
-	JsonObjectSchema,
-	ToolCatalog,
-	ToolCatalogEntry,
-	ToolRuntimeFingerprint,
-} from "./tool-catalog.ts";
+	AgentConversationContextSessionState,
+	AgentConversationContextTurn,
+	AgentRunner,
+	AgentRunnerAnswerDelta,
+	AgentRunnerInput,
+	AgentRunnerResult,
+	CreatePrimaryAgentRuntimeOptions,
+	ModelContextUsage,
+	PrimaryAgentRunInput,
+	PrimaryAgentRunResult,
+	PrimaryAgentRuntime,
+	PrimaryAgentTerminalEnvelope,
+	PromptTrace,
+	SdkToolRuntime,
+	ToolExecutionRequest,
+	ToolExecutionResult,
+	ToolExecutor,
+	UntimedToolExecutionResult,
+} from "./agent-run-contract.ts";
+import { AgentRuntimeError } from "./runtime-errors.ts";
+import { finalOutputFromTerminalEnvelope } from "./terminal-envelope.ts";
+import type { ToolCatalog, ToolCatalogEntry, ToolRuntimeFingerprint } from "./tool-catalog.ts";
 import { buildVisibleToolDefinitions } from "./tool-catalog.ts";
-
-export interface PrimaryAgentRunInput {
-	activityAttempt?: number;
-	campusDocsEvidence: CampusDocsEvidence[];
-	runId: string;
-	requestId: string;
-	conversationId: string;
-	turnId: string;
-	traceId: string;
-	input: string;
-	visibleToolNames: string[];
-	conversationContext?: AgentConversationContext;
-	expectedToolRuntimeFingerprint?: ToolRuntimeFingerprint;
-	providerConfig: PromptProviderRuntimeConfig;
-	limits: AgentRuntimeLimits;
-	signal?: AbortSignal;
-}
-
-export interface AgentRuntimeLimits {
-	agentDeadlineMs: number;
-	contextCharLimit: number;
-	currentInputCharLimit: number;
-	maxOutputTokens: number;
-	maxToolCalls: number;
-	maxTurns: number;
-}
-
-export interface CampusDocsEvidence {
-	documentTitle: string;
-	evidenceRef: string;
-	sectionTitle: string;
-	text: string;
-}
-
-export interface AgentConversationContext {
-	schemaVersion: "agent_conversation_context.v1";
-	recentTurns: AgentConversationContextTurn[];
-	sessionState?: AgentConversationSessionState;
-}
-
-export interface TruncationSummary {
-	contextCharsAfter: number;
-	contextCharsBefore: number;
-	droppedCategoryCounts: Record<string, number>;
-	modelVisibleAfterCount: number;
-	modelVisibleBeforeCount: number;
-	policyVersion: string;
-	reason: string;
-	schemaVersion: "truncation_summary.v3";
-}
-
-export interface AgentConversationContextTurn {
-	content: string;
-	messageId?: string;
-	role: "assistant" | "user";
-}
-
-export interface AgentConversationSessionState {
-	confirmedSlots: Array<{
-		confirmed: boolean;
-		name: string;
-		value: string;
-	}>;
-}
-
-export interface ModelContextUsage {
-	contextChars: number;
-	currentInputChars: number;
-	modelVisibleItemCount: number;
-	truncationSummary?: TruncationSummary;
-}
-
-export interface PromptProviderRuntimeConfig {
-	provider: string;
-	transport: string;
-	baseUrl?: string;
-	model: string;
-	apiKey: string;
-}
-
-export interface UsageSummary {
-	modelRequestCount: number;
-	inputTokens: number;
-	outputTokens: number;
-	cachedInputTokens?: number;
-	usageObserved: boolean;
-}
-
-export interface PromptTrace {
-	promptId: "primary_agent";
-	promptTemplateSha256: string;
-	renderedPromptSha256: string;
-	schemaVersion: "agent_runtime_prompt_trace.v1";
-}
-
-export interface AgentRunnerAnswerDelta {
-	accumulatedText: string;
-	chunkIndex: number;
-	delta: string;
-}
-
-export interface ToolExecutionRequest {
-	activityAttempt?: number;
-	tool: ToolCatalogEntry;
-	argumentsJson: Record<string, unknown>;
-	runId: string;
-	traceId: string;
-	invocationId?: string;
-	signal?: AbortSignal;
-}
-
-export interface UntimedToolExecutionResult {
-	status: "completed" | "failed";
-	toolName: string;
-	payloadKind: string;
-	argumentsJson?: Record<string, unknown>;
-	result: Record<string, unknown>;
-	resultRef: string;
-	failCloseReason?: string;
-}
-
-export interface ToolExecutionResult extends UntimedToolExecutionResult {
-	durationMs: number;
-}
-
-export interface SdkToolRuntime {
-	name: string;
-	description: string;
-	parameters?: JsonObjectSchema;
-	execute(
-		argumentsJson: Record<string, unknown>,
-		context?: SdkToolExecutionContext,
-	): Promise<UntimedToolExecutionResult>;
-}
-
-export interface SdkToolExecutionContext {
-	invocationId?: string;
-}
-
-export interface RunnerToolCall {
-	name: string;
-	argumentsSummary: Record<string, unknown>;
-	result: ToolExecutionResult | undefined;
-}
-
-export type PrimaryAgentTerminalKind =
-	| "answer"
-	| "clarification_required"
-	| "out_of_scope"
-	| "policy_refusal"
-	| "unsupported_by_evidence";
-
-export interface PrimaryAgentTerminalEnvelope {
-	answerText?: string;
-	evidenceRefs?: string[];
-	followUpQuestion?: string;
-	kind: PrimaryAgentTerminalKind;
-	reason?: string;
-}
-
-export interface AgentRunnerInput {
-	activityAttempt?: number;
-	input: AgentInputItem[];
-	instructions: string;
-	limits: AgentRuntimeLimits;
-	tools: SdkToolRuntime[];
-	requestId: string;
-	runId: string;
-	traceId: string;
-	providerConfig: PromptProviderRuntimeConfig;
-	signal?: AbortSignal;
-}
-
-export interface AgentRunnerResult {
-	finalOutput: string;
-	providerResponseId: string;
-	terminalEnvelope?: PrimaryAgentTerminalEnvelope | undefined;
-	toolCalls: RunnerToolCall[];
-	usage: UsageSummary;
-}
-
-export type AgentRunner = (input: AgentRunnerInput) => Promise<AgentRunnerResult>;
-export type StreamingAgentRunner = (
-	input: AgentRunnerInput,
-) => AsyncIterable<AgentRunnerAnswerDelta | AgentRunnerResult>;
-export type ToolExecutor = (request: ToolExecutionRequest) => Promise<UntimedToolExecutionResult>;
-
-export interface PrimaryAgentRunResult {
-	status: "completed" | "failed";
-	runId: string;
-	contextUsage: ModelContextUsage;
-	finalOutput: string;
-	modelName: string;
-	modelProvider: string;
-	promptTrace: PromptTrace;
-	providerResponseId: string;
-	stageTiming: Record<string, number>;
-	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
-	toolRuntimeFingerprint: ToolRuntimeFingerprint;
-	toolResults: ToolExecutionResult[];
-	terminalReason:
-		| "answer_completed"
-		| "agent_runtime_failed"
-		| "clarification_required"
-		| "out_of_scope"
-		| "policy_refusal"
-		| "unsupported_by_evidence";
-	usage: UsageSummary;
-}
-
-export interface PrimaryAgentRuntime {
-	run(input: PrimaryAgentRunInput): Promise<PrimaryAgentRunResult>;
-	stream(input: PrimaryAgentRunInput): AsyncIterable<PrimaryAgentStreamEvent>;
-}
-
-export interface CreatePrimaryAgentRuntimeOptions {
-	catalog: ToolCatalog;
-	runner: AgentRunner;
-	streamingRunner?: StreamingAgentRunner;
-	toolExecutor?: ToolExecutor;
-	instructions?: string;
-}
-
-export type PrimaryAgentStreamEvent =
-	| {
-			event: "answer_delta";
-			data: AgentRunnerAnswerDelta;
-	  }
-	| {
-			event: "completed";
-			data: PrimaryAgentRunResult;
-	  };
 
 const defaultInstructions = [
 	"You are the campus-agent primary assistant.",
@@ -361,6 +145,7 @@ function primaryAgentRunnerInput(
 					runId: input.runId,
 					traceId: input.traceId,
 					...(context?.invocationId ? { invocationId: context.invocationId } : {}),
+					...(context?.searchOrdinal === undefined ? {} : { searchOrdinal: context.searchOrdinal }),
 					...(input.signal ? { signal: input.signal } : {}),
 				};
 				return executor(request).then((result) => ({
@@ -593,7 +378,7 @@ function modelInputItems(input: PrimaryAgentRunInput): {
 	return { items, usage };
 }
 
-function modelRelevantSessionState(state: AgentConversationSessionState): boolean {
+function modelRelevantSessionState(state: AgentConversationContextSessionState): boolean {
 	return state.confirmedSlots.some((slot) => slot.confirmed && slot.value.trim() !== "");
 }
 
@@ -636,76 +421,6 @@ function requireCatalogEntry(catalog: ToolCatalog, name: string): ToolCatalogEnt
 	return tool;
 }
 
-export function terminalEnvelopeFromUnknown(
-	value: unknown,
-): PrimaryAgentTerminalEnvelope | undefined {
-	const record = recordFromUnknown(value);
-	if (record === undefined) {
-		return;
-	}
-	const allowedKeys = new Set(["answerText", "evidenceRefs", "followUpQuestion", "kind", "reason"]);
-	if (Object.keys(record).some((key) => !allowedKeys.has(key))) {
-		return;
-	}
-	const kind = stringFromUnknown(record.kind);
-	if (!isPrimaryAgentTerminalKind(kind)) {
-		return;
-	}
-	const envelope: PrimaryAgentTerminalEnvelope = { kind };
-	const answerText = stringFromUnknown(record.answerText);
-	if (answerText !== "") {
-		envelope.answerText = answerText;
-	}
-	const followUpQuestion = stringFromUnknown(record.followUpQuestion);
-	if (followUpQuestion !== "") {
-		envelope.followUpQuestion = followUpQuestion;
-	}
-	const reason = stringFromUnknown(record.reason);
-	if (reason !== "") {
-		envelope.reason = reason;
-	}
-	const evidenceRefs = stringArrayFromUnknown(record.evidenceRefs);
-	if (evidenceRefs.length > 0) {
-		envelope.evidenceRefs = evidenceRefs;
-	}
-	if (kind === "answer" && envelope.answerText === undefined) {
-		return;
-	}
-	if (
-		kind === "clarification_required" &&
-		envelope.followUpQuestion === undefined &&
-		envelope.answerText === undefined
-	) {
-		return;
-	}
-	if (
-		(kind === "out_of_scope" || kind === "policy_refusal" || kind === "unsupported_by_evidence") &&
-		envelope.reason === undefined &&
-		envelope.answerText === undefined
-	) {
-		return;
-	}
-	return envelope;
-}
-
-function stringArrayFromUnknown(value: unknown): string[] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-	return value.map((item) => stringFromUnknown(item)).filter((item) => item !== "");
-}
-
-export function finalOutputFromTerminalEnvelope(envelope: PrimaryAgentTerminalEnvelope): string {
-	switch (envelope.kind) {
-		case "clarification_required":
-			return envelope.followUpQuestion ?? envelope.answerText ?? "";
-		case "answer":
-			return envelope.answerText ?? "";
-		default:
-			return envelope.answerText ?? envelope.reason ?? "";
-	}
-}
-
 function terminalReasonFromEnvelope(
 	envelope: PrimaryAgentTerminalEnvelope | undefined,
 ): PrimaryAgentRunResult["terminalReason"] {
@@ -718,27 +433,6 @@ function terminalReasonFromEnvelope(
 		default:
 			return "answer_completed";
 	}
-}
-
-function isPrimaryAgentTerminalKind(value: string): value is PrimaryAgentTerminalKind {
-	return (
-		value === "answer" ||
-		value === "clarification_required" ||
-		value === "out_of_scope" ||
-		value === "policy_refusal" ||
-		value === "unsupported_by_evidence"
-	);
-}
-
-function recordFromUnknown(value: unknown): Record<string, unknown> | undefined {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) {
-		return;
-	}
-	return value as Record<string, unknown>;
-}
-
-function stringFromUnknown(value: unknown): string {
-	return typeof value === "string" ? value.trim() : "";
 }
 
 async function defaultToolExecutor(

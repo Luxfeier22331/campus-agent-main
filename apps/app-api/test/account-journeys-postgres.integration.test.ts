@@ -3,7 +3,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
-import campusWebWorker from "../../campus-web/src/index";
+import campusWebWorker from "../../campus-web/test-support/worker";
 import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { appApiSchema } from "../src/db/schema";

@@ -72,14 +72,7 @@ interface MutationBase {
 	updatedAt: string;
 }
 
-export interface ProfileMemoryStore {
-	applyCommandResult(input: {
-		commandId: string;
-		errorCode?: string;
-		resultFingerprint: string;
-		status: "succeeded" | "failed";
-		updatedAt: string;
-	}): Promise<"applied" | "conflict" | "not_found" | "replayed" | "superseded">;
+export interface ProfileMemoryMutationStore {
 	createItem(
 		input: MutationBase & {
 			itemId: string;
@@ -94,13 +87,6 @@ export interface ProfileMemoryStore {
 		ownerUserId: string;
 		requestFingerprint: string;
 	}): Promise<Pick<ProfileMemoryCommand, "commandId" | "status"> | null>;
-	listPendingAdmissions(input: { limit: number }): Promise<ProfileMemoryCommandPayload[]>;
-	markCommandAdmitted(input: {
-		admittedAt: string;
-		commandId: string;
-		workflowId: string;
-	}): Promise<boolean>;
-	listByOwner(ownerUserId: string): Promise<ProfileMemoryList>;
 	setLifecycle(
 		input: MutationBase & {
 			lifecycleState: "active" | "paused";
@@ -115,6 +101,31 @@ export interface ProfileMemoryStore {
 	): Promise<ProfileMemoryMutationResult | null>;
 }
 
+export interface ProfileMemoryCommandStore {
+	applyCommandResult(input: {
+		commandId: string;
+		errorCode?: string;
+		resultFingerprint: string;
+		status: "succeeded" | "failed";
+		updatedAt: string;
+	}): Promise<"applied" | "conflict" | "not_found" | "replayed" | "superseded">;
+	listPendingAdmissions(input: { limit: number }): Promise<ProfileMemoryCommandPayload[]>;
+	markCommandAdmitted(input: {
+		admittedAt: string;
+		commandId: string;
+		workflowId: string;
+	}): Promise<boolean>;
+}
+
+export interface ProfileMemoryReadStore {
+	listByOwner(ownerUserId: string): Promise<ProfileMemoryList>;
+}
+
+export interface ProfileMemoryPersistence {
+	commands: ProfileMemoryCommandStore;
+	mutations: ProfileMemoryMutationStore;
+	reads: ProfileMemoryReadStore;
+}
 type SettingsRow = typeof profileMemorySettings.$inferSelect;
 type ItemRow = typeof profileMemoryItems.$inferSelect;
 type CommandRow = typeof profileMemoryCommands.$inferSelect;
@@ -198,10 +209,10 @@ function assertLifecycleMutable(
 	}
 }
 
-export function createPgProfileMemoryStore(
+export function createPgProfileMemoryPersistence(
 	env: Env,
 	input: { getDb?: RuntimeDbGetter } = {},
-): ProfileMemoryStore {
+): ProfileMemoryPersistence {
 	const getDb = input.getDb ?? createRuntimeDbGetter(env);
 
 	async function readSettings(ownerUserId: string): Promise<SettingsRow> {
@@ -295,7 +306,7 @@ export function createPgProfileMemoryStore(
 			.onConflictDoNothing({ target: profileMemorySettings.ownerUserId });
 	}
 
-	return {
+	const persistence = {
 		async applyCommandResult(input) {
 			const db = await getDb();
 			return db.transaction(async (tx) => {
@@ -965,5 +976,10 @@ export function createPgProfileMemoryStore(
 				);
 			});
 		},
+	} satisfies ProfileMemoryCommandStore & ProfileMemoryMutationStore & ProfileMemoryReadStore;
+	return {
+		commands: persistence,
+		mutations: persistence,
+		reads: persistence,
 	};
 }

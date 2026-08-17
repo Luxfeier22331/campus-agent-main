@@ -3,10 +3,11 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { runAgentToolEval } from "./agent-tool-runner";
 import { buildEvalDatasetManifest } from "./dataset-manifest";
+import type { JsonObject } from "./json";
 import { syncLangfuseDatasets, syncLangfuseScoreConfigs } from "./platform";
 import { withRagasRuntimeConfig } from "./provider-config";
 import { runRagasDatasetScoring, runRagasTraceScoring } from "./ragas-langfuse";
-import { type JsonObject, settingsFromEnv } from "./shared";
+import { settingsFromEnv } from "./settings";
 import { deriveLangfuseTraceId } from "./trace";
 import { verifyLangfuseOnlineTraceEvidence } from "./trace-evidence";
 

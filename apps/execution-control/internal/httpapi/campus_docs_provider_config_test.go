@@ -3,13 +3,15 @@ package httpapi
 import (
 	"context"
 	"testing"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
 func TestEmbeddingAdmissionPinRejectsProviderDrift(t *testing.T) {
 	resolver := staticProviderConfigResolver{
-		providerConfigKindEmbedding: providerConfigSnapshot{
+		providerconfig.KindEmbedding: providerconfig.RuntimeSetting{
 			APIKey: "key", BaseURL: "https://embedding.example/v1",
-			Kind: providerConfigKindEmbedding, Model: "embedding-test", Provider: "openai-compatible", Transport: "embeddings",
+			Kind: providerconfig.KindEmbedding, Model: "embedding-test", Provider: "openai-compatible", Transport: "embeddings",
 		},
 	}
 	executor := campusDocsQdrantClient{configResolver: resolver}

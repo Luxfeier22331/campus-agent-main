@@ -104,20 +104,10 @@ Campus Web 不从检索分块、HTML、文件名或其他对象重建阅读结�
 pnpm --dir apps/campus-web docs:source:update -- --source-file <path>
 ```
 
-修复现有 reader 的明确编号分段时，先预览并保存旧来源、候选来源和未处理项报告：
-
-```bash
-pnpm --dir apps/campus-web docs:source:clean-segmentation -- \
-  --expected-source-digest <sha256:...> \
-  --report-dir .generated/docs-segmentation-hotfix
-```
-
-确认报告和完整编译结果后，在同一命令末尾添加 `--apply`。命令只上传发生变化的内容寻址 reader，
-并在更新固定来源键前再次核对来源摘要；摘要变化或编译失败时不得更新固定来源键。
-
-命令先解析 schema、规范化排序、核对关系并完整编译所有版本；只有全部成功后才覆盖固定来源键，
-随后回读并逐字节核对。编译失败不得修改固定来源键。对象存储地址和凭据来自
-`env/commands/campus-docs-source.env` 或进程环境，不写入来源清单。
+来源更新命令先解析 schema、规范化排序、核对关系并完整编译所有版本；只有全部成功后才覆盖固定
+来源键，随后回读并逐字节核对。编译失败不得修改固定来源键。该命令只读取调用进程环境；需要使用
+`env/commands/campus-docs-source.env` 时先在当前 shell 中显式加载。对象存储地址和凭据不写入来源
+清单。
 
 来源对象引用仍按摘要核对。reader 原件保存在对象存储；最终课程图只存在于 Campus Web 的本次构建
 目录及最终静态产物中，不回写对象存储。
@@ -148,8 +138,8 @@ Campus Web 开发和构建入口都必须：
 `CAMPUS_WEB_BUILD_TARGET` 只区分应用和文档两次 Vite 构建，`CAMPUS_WEB_DOCS_CONTENT_ROOT` 只传递
 来源摘要对应的本地准备目录。两者均为构建进程内部变量，不进入 Worker、Wrangler、Argo 或 GitHub
 Environment。`OBJECT_STORE_ENDPOINT`、`OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和
-`OBJECT_STORE_DERIVED_READ_SECRET_KEY` 是正式构建读取来源和文档对象的输入；受信任的来源更新与
-分段修复命令另行使用 `OBJECT_STORE_DERIVED_ACCESS_KEY`、`OBJECT_STORE_DERIVED_SECRET_KEY` 写入身份。
+`OBJECT_STORE_DERIVED_READ_SECRET_KEY` 是正式构建读取来源和文档对象的输入；受信任的来源更新
+命令另行使用 `OBJECT_STORE_DERIVED_ACCESS_KEY`、`OBJECT_STORE_DERIVED_SECRET_KEY` 写入身份。
 读身份不具备写入能力，所有这些变量都不传给 Vite 子进程，也不写入静态产物。
 
 PR job 不访问对象存储；Campus Web 只执行无对象存储依赖的 `build:worker` 测试构建。main/artifact

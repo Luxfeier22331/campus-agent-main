@@ -1,15 +1,28 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createOpsWebDatabasePool } from "./database.ts";
 import { runScheduledInternalPortalChecks } from "./internal-portal-credential-service.ts";
 import {
-	createInternalPortalCredentialStoreFromEnv,
+	createPgInternalPortalCredentialStore,
 	InternalPortalCredentialStoreUnavailableError,
 } from "./internal-portal-credential-store.ts";
 
 export async function main(): Promise<void> {
-	await runScheduledInternalPortalChecks({
-		store: createInternalPortalCredentialStoreFromEnv(process.env),
-	});
+	let pool: ReturnType<typeof createOpsWebDatabasePool>;
+	try {
+		pool = createOpsWebDatabasePool(process.env);
+	} catch (error) {
+		throw new InternalPortalCredentialStoreUnavailableError("内部门户凭据数据库不可用。", {
+			cause: error,
+		});
+	}
+	try {
+		await runScheduledInternalPortalChecks({
+			store: createPgInternalPortalCredentialStore(pool),
+		});
+	} finally {
+		await pool.end();
+	}
 }
 
 export function buildCheckRunFailureEvent(error: unknown, durationMs: number) {

@@ -5,7 +5,7 @@ import {
 	OpsOverviewResponseSchema,
 	type OpsOverviewWindow,
 } from "../shared/ops-contract.ts";
-import type { OpsStatusOverview, OpsStatusStore } from "./ops-status-store.ts";
+import type { OpsStatusOverview, OpsStatusStore } from "./ops-status-types.ts";
 import { raceWithSignal } from "./race-with-signal.ts";
 
 const DEFAULT_TIMEOUT_MS = 3_000;

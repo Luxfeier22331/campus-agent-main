@@ -1,8 +1,7 @@
-import { Badge, Button, Input } from "@campus-agent/ui";
+import { Badge, Button, cn, Input } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { ArrowUp, Check, Copy, ExternalLink, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SurfaceState } from "@/components/ui/surface-state";
 import {
@@ -15,7 +14,6 @@ import {
 } from "@/features/interest-groups/model";
 import { interestGroupCatalogQueryOptions } from "@/features/interest-groups/query";
 import { interestGroupQueryClient } from "@/features/interest-groups/query-client";
-import { cn } from "@/lib/utils";
 
 type CopyState = {
 	groupId: string;

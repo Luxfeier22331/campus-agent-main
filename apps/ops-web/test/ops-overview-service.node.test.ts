@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
-import type { OpsStatusOverview } from "../src/server/ops-status-store";
+import type { OpsStatusOverview } from "../src/server/ops-status-types";
 import { opsOverviewFixture } from "../src/shared/ops-fixtures";
 
 function statusOverview(requestTotal = opsOverviewFixture.requests.total): OpsStatusOverview {

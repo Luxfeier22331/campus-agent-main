@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import { AccountAccessBadge, AccountStateBadge, accountStateLabel } from "./account-admin-display";
 import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
 import { formatTimestamp } from "./format";
-import { fetchAccountAdminUsers } from "./ops-api-client";
+import { fetchAccountAdminUsers } from "./ops-api/account-admin";
 import { ErrorState, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
 

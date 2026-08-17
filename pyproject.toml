@@ -21,7 +21,6 @@ line-length = 100
 force-exclude = true
 extend-exclude = [
   ".tmp",
-  ".worktrees",
   "apps/app-api/drizzle/meta",
 ]
 

@@ -1,29 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import type { ResolvedAppPrincipal } from "../auth";
-import type { ProfileMemoryService } from "../profile-memory";
-import type { AccountLifecycleStore } from "./store";
+import type { ResolvedAppPrincipal } from "../auth/principal";
+import type { AccountLifecycleService, AccountLifecycleServiceDependencies } from "./types";
 
 const ACCOUNT_DELETION_LEASE_MS = 5 * 60 * 1_000;
 const ACCOUNT_DELETION_PENDING_DELAY_MS = 60 * 1_000;
 const ACCOUNT_DELETION_RETRY_DELAY_MS = 5 * 60 * 1_000;
-
-export interface AccountDeletionReceipt {
-	requestId: string;
-	status: "deleting";
-}
-
-export interface AccountLifecycleService {
-	dispatchPending(): Promise<{ completed: number; failed: number; processed: number }>;
-	requestDeletion(input: { principal: ResolvedAppPrincipal }): Promise<AccountDeletionReceipt>;
-}
-
-export interface AccountLifecycleServiceDependencies {
-	profileMemoryService: Pick<ProfileMemoryService, "dispatchPending" | "eraseForAccountDeletion">;
-	removeAuthUser: (userId: string) => Promise<void>;
-	safetyIdentifierForUser: (userId: string) => string | null;
-	store: AccountLifecycleStore;
-}
 
 function internalDeletionPrincipal(ownerUserId: string): ResolvedAppPrincipal {
 	return {

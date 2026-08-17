@@ -4,13 +4,11 @@ import type { DiningMapDraft } from "@campus-agent/dining/domain";
 import { DINING_BOOTSTRAP_FLOORPLANS } from "@campus-agent/dining/floorplans";
 import { diningMapBundleFingerprint } from "@campus-agent/dining/publisher";
 import { describe, expect, it, vi } from "vitest";
-import {
-	createUnavailableDiningStore,
-	type DiningStore,
-	DiningStoreConflictError,
-} from "../src/server/dining-store";
+import { createUnavailableDiningStore } from "../src/server/dining-store";
+import type { DiningMapStore } from "../src/server/dining-store-contract";
+import { DiningStoreConflictError } from "../src/server/dining-store-errors";
+import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
-import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 const NOW = "2026-07-24T08:00:00.000Z";
@@ -25,7 +23,7 @@ function createDraft(): DiningMapDraft {
 	};
 }
 
-function createDiningStore(): DiningStore {
+function createDiningStore(): DiningMapStore {
 	const draft = createDraft();
 	const release = {
 		createdAt: NOW,
@@ -46,10 +44,10 @@ function createDiningStore(): DiningStore {
 	};
 }
 
-function createTestApp(diningStore: DiningStore) {
+function createTestApp(diningStore: DiningMapStore) {
 	return createTestOpsApp({
 		admission: createAllowAllOpsAdmission(),
-		diningStore,
+		diningMapStore: diningStore,
 		env: {
 			ACCESS_POLICY_AUD: "ops-web-test-audience",
 			ACCESS_TEAM_DOMAIN: "https://team-ops-web.cloudflareaccess.com",
@@ -158,7 +156,7 @@ describe("Ops Web Dining API", () => {
 		try {
 			const app = createTestOpsApp({
 				admission: createAllowAllOpsAdmission(),
-				diningStore: createUnavailableDiningStore(new Error("dining unavailable")),
+				diningMapStore: createUnavailableDiningStore(new Error("dining unavailable")),
 				env: {
 					OPS_WEB_AUTOMATION_ORIGIN: "https://ops-api.example.test",
 					OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",

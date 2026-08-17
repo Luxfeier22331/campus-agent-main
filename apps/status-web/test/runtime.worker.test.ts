@@ -55,10 +55,25 @@ describe("status worker runtime", () => {
 		expect(pageModule.headers.get("x-content-type-options")).toBe("nosniff");
 		expect(pageModule.headers.get("content-type")).toContain("javascript");
 		const pageScript = await pageModule.text();
-		expect(pageScript).toContain('id: "campus.qa", name: "校园问答"');
-		expect(pageScript).toContain('id: "campus.services", name: "其他服务"');
-		expect(pageScript).not.toContain("school.");
-		expect(pageScript).toContain("过去 30 天");
+		expect(pageScript).toContain('from "./status-model.js"');
+		expect(pageScript).toContain('from "./status-page-controller.js"');
+
+		const modelModule = await SELF.fetch("https://status.muc.wiki/status-model.js");
+		expect(modelModule.status).toBe(200);
+		const modelScript = await modelModule.text();
+		expect(modelScript).toContain('id === "campus.qa"');
+		expect(modelScript).toContain('id === "campus.services"');
+		expect(modelScript).not.toContain("school.");
+
+		const clientModule = await SELF.fetch("https://status.muc.wiki/status-client.js");
+		expect(clientModule.status).toBe(200);
+		const clientScript = await clientModule.text();
+		expect(clientScript).toContain('id: "campus.qa", name: "校园问答"');
+		expect(clientScript).toContain('id: "campus.services", name: "其他服务"');
+
+		const rendererModule = await SELF.fetch("https://status.muc.wiki/status-renderer.js");
+		expect(rendererModule.status).toBe(200);
+		expect(await rendererModule.text()).toContain("过去 30 天");
 
 		const status = await SELF.fetch("https://status.muc.wiki/api/status");
 		expect(status.status).toBe(204);

@@ -71,6 +71,7 @@ async function fixture(t: test.TestContext): Promise<{
 }> {
 	const root = await mkdtemp(path.join(os.tmpdir(), "campus-agent-image-test-"));
 	t.after(() => rm(root, { force: true, recursive: true }));
+	await writeFile(path.join(root, ".node-version"), "99.88.77\n");
 	return {
 		options: {
 			images: ["agent-runtime"],
@@ -95,12 +96,22 @@ test("rejects image names that Docker Bake does not declare", async (t) => {
 
 test("reuses an existing immutable linux/arm64 image", async (t) => {
 	const { options } = await fixture(t);
-	const calls: Array<{ args: string[]; command: string; output: CommandOutput }> = [];
+	const calls: Array<{
+		args: string[];
+		command: string;
+		nodeVersion?: string;
+		output: CommandOutput;
+	}> = [];
 	const logs: string[] = [];
 	options.logger = (message) => logs.push(message);
 	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
 	const runner: CommandRunner = async (command, args, commandOptions) => {
-		calls.push({ args, command, output: commandOptions.output });
+		calls.push({
+			args,
+			command,
+			nodeVersion: commandOptions.env.NODE_VERSION,
+			output: commandOptions.output,
+		});
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
 		}
@@ -125,6 +136,7 @@ test("reuses an existing immutable linux/arm64 image", async (t) => {
 			{ command: "trivy", output: "capture", subcommand: "image" },
 		],
 	);
+	assert(calls.every((call) => call.nodeVersion === "99.88.77"));
 	assert(logs.some((line) => /stage=inspect state=complete .*reused=true/u.test(line)));
 	assert(logs.some((line) => /stage=scan state=complete duration_ms=\d+/u.test(line)));
 	assert(!logs.some((line) => line.includes("stage=build")));

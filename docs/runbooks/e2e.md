@@ -11,7 +11,7 @@ status: active
 本文说明如何根据发布变更选择并执行 staging 真实用户路径。它不维护固定的全产品清单，也不
 替代 PR 测试、环境 rollout、离线评测或 production 审批。
 
-浏览器业务 E2E、真实 staging 登录和 `chat-staging` 不在 GitHub Actions 中自动运行。它们需要
+浏览器业务 E2E 和真实 staging 登录路径不在 GitHub Actions 中自动运行。它们需要
 一次性测试账号和即时 Turnstile token，由发布执行者在受控本地终端按本文验收；CI 只验证候选
 制品和发布合同。
 
@@ -49,13 +49,22 @@ status: active
 
 ### 2. 执行真实旅途
 
-使用部署后的 URL、正式认证方式和环境选择的数据完成用户任务。已有 smoke profile 或 Playwright
-项目时使用模块维护的入口；具体命令以根 `package.json`、应用 README 和测试配置为准。
+使用部署后的 URL、正式认证方式和环境选择的数据完成用户任务。已有手动 E2E 或 Playwright 项目时
+使用模块维护的入口；具体命令以应用 `package.json`、README 和测试配置为准。
 
 execution 或 App API 变化部署完成后，人工执行正式认证路径：
 
 ```bash
-pnpm smoke:app-api -- chat-staging \
+pnpm --dir apps/app-api test:e2e:staging:chat -- \
+  --email '<test-account>' \
+  --password '<temporary-password>' \
+  --captcha-token '<fresh-turnstile-token>'
+```
+
+个人记忆链路变化时，再执行对应的写入、召回和清理路径：
+
+```bash
+pnpm --dir apps/app-api test:e2e:staging:memory -- \
   --email '<test-account>' \
   --password '<temporary-password>' \
   --captcha-token '<fresh-turnstile-token>'
@@ -63,8 +72,8 @@ pnpm smoke:app-api -- chat-staging \
 
 测试账号由环境所有者提供，密码只在本次受控终端会话中使用。Turnstile token 必须在执行前即时取得，
 五分钟内单次使用；不得把账号密码或 token 保存为 GitHub Environment Secret、Worker Secret 或 GitOps
-配置。该入口通过产品的 email/password 和 Turnstile 登录取得 session，不使用 Cloudflare service
-token、内部 smoke endpoint 或认证旁路。
+配置。这些入口通过产品的 email/password 和 Turnstile 登录取得 session，不使用 Cloudflare service
+token、内部测试 endpoint 或认证旁路。
 
 至少确认：
 
@@ -100,7 +109,6 @@ token、内部 smoke endpoint 或认证旁路。
 ## 相关文档
 
 - `docs/reference/verification.md`
-- `docs/environment/readiness.md`
 - `docs/runbooks/release.md`
 - `docs/runbooks/otel.md`
 - `apps/campus-web/README.md`

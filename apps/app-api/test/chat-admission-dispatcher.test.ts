@@ -10,7 +10,9 @@ import type {
 } from "../src/modules/integration";
 import { ExecutionControlTransportError } from "../src/modules/integration";
 import { dispatchPendingChatAdmissions } from "../src/modules/runtime-command";
-import type { ChatCommandStore } from "../src/modules/runtime-command/store-types";
+import type { ChatAdmissionStore } from "../src/modules/runtime-command/store-types";
+
+type ChatCommandStore = ChatAdmissionStore;
 
 function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
 	return {

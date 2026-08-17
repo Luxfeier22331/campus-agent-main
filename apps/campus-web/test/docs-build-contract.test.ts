@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createDocsSourceSiteFixture } from "../fixtures/docs-source-site.ts";
 import { parseCampusWebBuildArgs } from "../scripts/build-campus-web.ts";
-import { parseCampusWebDeployArgs } from "../scripts/deploy-campus-web.ts";
 import {
 	parsePrepareDocsContentArgs,
 	prepareDocsContent,
@@ -201,14 +200,12 @@ describe("Campus Web 文档内容准备合同", () => {
 		).rejects.toThrow(`missing campus docs source catalog: ${DOCS_SOURCE_KEY}`);
 	});
 
-	it("构建和部署不接受手工文档来源参数", () => {
+	it("构建不接受手工文档来源参数", () => {
 		expect(parseCampusWebBuildArgs([])).toEqual({ staging: false });
 		expect(parseCampusWebBuildArgs(["--staging"])).toEqual({ staging: true });
 		expect(() => parseCampusWebBuildArgs(["--source-digest", "sha256:abc"])).toThrow(
 			"unknown campus web build argument",
 		);
-		expect(parseCampusWebDeployArgs([])).toBeUndefined();
-		expect(() => parseCampusWebDeployArgs(["--staging"])).toThrow("does not accept --staging");
 	});
 });
 

@@ -20,9 +20,8 @@ geocoder 或 RAG collection。
 - app-api 不再提供地图路由、地点 read model 或地图资产 binding；
 - 当前没有模型可见的地点工具或 execution contract。
 
-`configs/reference-data/campus_navigation/place_catalog/seed.v1.json` 是 synthetic reference
-fixture，当前 campus-web 不加载它。修改该 seed 不会改变浏览器地图；不得把它描述为已发布的
-runtime catalog。
+仓库不保存未被消费者加载的地点目录 seed。浏览器地图只消费上文所列的
+`apps/campus-web/assets/campus-map` 发布资产；不得把未来样例描述为已发布的 runtime catalog。
 
 ## 浏览器数据
 

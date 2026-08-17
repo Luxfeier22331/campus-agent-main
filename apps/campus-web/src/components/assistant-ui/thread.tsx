@@ -13,7 +13,7 @@ import {
 	type ToolCallMessagePartComponent,
 	useAuiState,
 } from "@assistant-ui/react";
-import { Button } from "@campus-agent/ui";
+import { Button, cn } from "@campus-agent/ui";
 import {
 	ArrowDownIcon,
 	ArrowUpIcon,
@@ -58,7 +58,6 @@ import {
 	ToolGroupTrigger,
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { cn } from "@/lib/utils";
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
 

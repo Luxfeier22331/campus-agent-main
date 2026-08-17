@@ -1,6 +1,3 @@
 /.generated/
-/docs/
-/public/_docs/
-/public/_gated-docs/
-/public/_gated-docs-search/
+/playwright-report/
 /test-results/

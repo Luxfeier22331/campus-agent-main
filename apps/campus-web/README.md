@@ -4,37 +4,23 @@
 
 ## 职责
 
-- 组合产品路由、共享导航、认证界面和领域页面；
-- 提供邮箱验证、密码恢复、强制改密和账号注销流程；
-- 通过 Service Binding 或配置的来源调用 app-api；
-- 在 `/docs/*` 构建和交付原生文档目录与阅读器；
-- 通过静态 `/campus-map/manifest.json` 加载内容寻址校园 GeoJSON，并展示来源署名；
-- 通过 App API 查询通知目录，展示站内正文与图片，并将外链通知直接交给来源页面；
-- 按明确 Dining release 加载完整地图和不可变 SVG 资源；
-- 维护浏览器与 Worker 的错误、日志和调用链接入。
+- 组合产品路由、导航、认证界面和领域页面；
+- 通过 App API 使用产品接口和账号生命周期；
+- 构建并交付公开文档站与校园地图静态资源；
+- 展示通知、Dining 和同好群等已发布领域数据；
+- 维护浏览器与 Worker 的错误和性能接入。
 
-本应用不拥有产品数据库、Agent 编排、知识检索、文档来源采集或运维页面。
+本应用不拥有产品数据库、Agent 编排、知识检索、来源采集或运维页面。
 
-## 界面实现
+## 内部边界
 
-- `@campus-agent/ui` 提供仓库语义 Token 和跨应用基础控件；
-- `src/design/tokens.css` 只维护页面布局、问答、文档、地图和 Dining 等应用 Token；
-- `src/components/ui/` 只维护 Campus 专属组合控件和共享状态；
-- `src/styles.css` 负责普通应用，`src/components/docs/docs-reader.css` 负责文档阅读；
-- assistant-ui 负责问答交互；登录、注册、邮箱验证、密码恢复和强制改密使用 Campus 自有表单，
-  Better Auth UI 与 HeroUI 只组合已登录账号设置；TanStack Router 和 FlexSearch 负责文档路由与
-  浏览器本地搜索，索引下载、解析和查询在 Web Worker 中执行；
-- 账号页复用 App API 的 Better Auth 与账号生命周期接口，不保存临时密码或注销凭据；
-- 根级 `CampusSessionProvider` 统一会话读取，根级路由守卫负责受保护账号页、已登录认证入口和
-  强制改密跳转；会话服务不可用时保持独立错误状态，不按未登录处理；
-- 普通共享控件使用仓库的 shadcn/Radix wrapper，单场景展示优先使用语义 HTML；
-- `src/components/ui/motion.tsx` 统一共享交互动效并处理 reduced motion；
-- `SurfaceState` 用于区域级读取、空状态、错误和降级状态。
+- Worker 默认入口只组合 Sentry 与请求路由；健康检查、App API 代理、静态资源和应用 shell 由各自
+  的平台能力维护；
+- Conversation feature 的产品请求、运行状态请求和流协议解析相互分离，对外 API facade 只保留
+  稳定调用面；
+- 浏览器组件不直接依赖 Worker 入口，telemetry 也不得反向导入入口文件。
 
-页面布局分为阅读、表单、工作区和沉浸式四类，具体组件尺寸与样式由 Token、组件和测试维护，不在
-产品文档固定类名。
-
-## 入口
+## 本地命令
 
 ```bash
 pnpm dev:init
@@ -45,67 +31,14 @@ pnpm --dir apps/campus-web build
 pnpm --dir apps/campus-web typecheck
 ```
 
-完整产品开发优先使用根 `pnpm dev`，它同时启动 app-api 与 Ops Web。单独启动 Campus Web 前先执行
-`pnpm dev:init`；该命令创建共享本地文档 bucket，并在固定来源键缺失时写入确定性开发样例。应用从
-当前 worktree 的 `.dev.vars.local` 读取独立端口和本地对象存储连接信息；开发服务读取
-`campus-docs/source.json`，在当前 worktree 的
-`.generated/docs-content/sources/sha256-<digest>` 中准备目录、索引和阅读资产，不生成全部静态页面。
-`env/commands/campus-docs-source.env` 只用于显式覆盖本地配置或执行受信任的来源维护命令。
-
-普通应用由 `src/main.tsx` 启动，文档页面由 `src/docs-main.tsx` 补充交互。两者共享产品导航和基础
-组件，但文档组件、数据源与样式不进入普通应用入口。文档页面全部公开，不读取认证会话、运行配置或
-App API 文档接口。
-
-文档构建只接受固定来源键中的规范化 `campus_docs_source.v3`，逐个核对 reader 和补充资产，
-校验 reader v3 并生成最终课程图，再派生 `campus_docs_site_index.v4`、内容寻址搜索索引和
-全部预渲染页面。浏览器搜索在 Web Worker 中加载索引并按文档聚合章节命中，不阻塞页面主线程，也
-不依赖在线搜索服务。
-
-`/docs` 是唯一目录入口，主区只显示发布概况；完整文档树在侧边栏和移动端目录中展示。侧边栏中的
-“培养方案”和“规章制度”是不可点击标题；培养方案集合和规章主题只展开或收起文档列表，选择具体
-文档后才发生页面导航。`/docs/<corpus>` 与 `/docs/<corpus>/<collection>` 不生成页面并返回 `404`。
-
-site index 的 `redirects` 只维护旧正文地址到已发布正文固定链接的 `308`；构建同步生成静态
-`_redirects`，Worker 不内置路径规则。
-所有文档页面公开，不要求登录。
-
-来源维护者使用以下命令在完整编译校验后更新固定来源键：
-
-```bash
-pnpm --dir apps/campus-web docs:source:update -- --source-file <path>
-```
-
-现有 reader 的明确编号分段热修先以预览模式运行；报告目录会保存旧来源、候选来源、改动明细和未处理
-段落。确认后添加 `--apply`：
-
-```bash
-pnpm --dir apps/campus-web docs:source:clean-segmentation -- \
-  --expected-source-digest <sha256:...> \
-  --report-dir .generated/docs-segmentation-hotfix
-```
-
-`dev`、`build` 和 `deploy` 自动读取当前 worktree 的 `.dev.vars.local`，并从对象存储固定键读取文档；
-`env/commands/campus-docs-source.env` 可覆盖本地文件，调用进程环境的优先级最高。它们不接受手工文档
-版本参数，也不按对象列表或修改时间选择内容。构建完成后会把 `sourceDigest` 写入候选元数据；它不是
-Worker 运行变量。`build:test`
-仅供浏览器回归生成确定性测试内容，不能作为开发或交付入口。`build:worker` 在 Campus Web 中是
-这个测试入口的兼容任务名，不是正式文档构建。
-
-`CAMPUS_WEB_BUILD_TARGET` 和 `CAMPUS_WEB_DOCS_CONTENT_ROOT` 只在构建脚本与 Vite 子进程之间传递，
-不属于 Worker、Wrangler、Argo 或 GitHub Environment 配置。`OBJECT_STORE_ENDPOINT`、
-`OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_READ_SECRET_KEY` 由正式文档构建读取；
-来源更新和分段修复命令另行使用 `OBJECT_STORE_DERIVED_ACCESS_KEY` 与
-`OBJECT_STORE_DERIVED_SECRET_KEY`。Vite 子进程和前端产物不接收这些值。PR 只运行受影响包的测试、类型检查、普通包
-构建和 Campus Web 的确定性测试构建，不访问对象存储。staging 的独立 Campus Web publisher 在
-main/artifact lane 使用 Source staging Environment 的公网对象存储端点和只读身份执行真实文档构建，
-并将同一构建结果上传为不可变 Worker version。
+完整产品开发使用根 `pnpm dev`。文档来源维护使用应用现有的 `docs:source:update`；
+来源合同、构建输入、缓存目录和交付行为由文档站架构、合同和可执行脚本维护。
 
 ## 相关文档
 
 - `docs/product/web.md`
 - `docs/product/ui.md`
-- `docs/architecture/system/ui-foundation.md`
 - `docs/architecture/system/product-runtime.md`
-- `docs/architecture/system/identity-authz.md`
 - `docs/architecture/system/document-site.md`
+- `docs/architecture/system/identity-authz.md`
 - `docs/runbooks/e2e.md`

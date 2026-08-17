@@ -90,6 +90,6 @@ Prompt 或模型输入输出变化应验证：
 - `tool-routing.md`
 - `agentic-retrieval.md`
 - `retrieval-serving.md`
-- `langfuse.md`
+- `../../contracts/langfuse-runtime.md`
 - `../../decisions/adr-0060-agent-io.md`
 - `../../reference/agent-orchestration.md`

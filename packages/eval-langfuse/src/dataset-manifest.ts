@@ -8,7 +8,7 @@ import {
 	optionalString,
 	stringField,
 	writeJsonObject,
-} from "./shared";
+} from "./json";
 
 export function buildEvalDatasetManifest(input: {
 	assetRoot: string;

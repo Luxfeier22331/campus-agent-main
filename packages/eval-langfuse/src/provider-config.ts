@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { isRecord, type JsonObject } from "./shared";
+import { isRecord, type JsonObject } from "./json";
 
 const PROJECTION_SCHEMA_VERSION = "provider_config_projection.v1";
 const RUNNER_CONFIG_SCHEMA_VERSION = "ragas_runner_config.v1";

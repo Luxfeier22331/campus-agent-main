@@ -1,21 +1,18 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-
-import { createLangfuseEvalClient } from "./langfuse-client";
+import { sha256Bytes, sha256Text, slug } from "./identifiers";
 import {
 	type JsonObject,
-	type LangfuseSettings,
 	loadJsonObject,
 	mapping,
 	mappingList,
 	optionalString,
 	requireEqual,
-	sha256Bytes,
-	sha256Text,
-	slug,
 	stringField,
 	stringList,
-} from "./shared";
+} from "./json";
+import { createLangfuseEvalClient } from "./langfuse-client";
+import type { LangfuseSettings } from "./settings";
 
 export function buildLangfuseDatasetItems(input: {
 	dataset: JsonObject;

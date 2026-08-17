@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
 	resolveGitSha,
 	resolveStagingSentryRelease,
-} from "../../../scripts/deploy/staging-release.ts";
+} from "../../../scripts/deploy/staging-release.mts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
 import { readCampusWebBuildSourceDigest } from "./build-campus-web.ts";
 

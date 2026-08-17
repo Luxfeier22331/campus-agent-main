@@ -1,10 +1,9 @@
 "use client";
 
+import { cn } from "@campus-agent/ui";
 import * as TogglePrimitive from "@radix-ui/react-toggle";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
-
-import { cn } from "@/lib/utils";
 
 const toggleVariants = cva(
 	"inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-selected data-[state=on]:text-selected-foreground data-[state=on]:hover:bg-selected-hover data-[state=on]:active:bg-selected-pressed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",

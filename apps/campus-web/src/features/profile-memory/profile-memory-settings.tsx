@@ -13,6 +13,7 @@ import {
 	AlertTitle,
 	Badge,
 	Button,
+	cn,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -25,7 +26,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { cn } from "@/lib/utils";
 import { useCampusSession } from "@/platform/auth/session";
 import {
 	createProfileMemoryItem,

@@ -23,7 +23,7 @@ evidence 的具体保留周期。
 - 已记录所有权的 self-authored seed、示意图、坐标、GeoJSON 或 tile；
 - 具有明确再分发权利、provenance、attribution 与兼容 license 的第三方或来源派生 artifact；
 - 不复制受限正文的 attribution-only metadata；
-- 只含 placeholder 的 `.env.example` / `.dev.vars.example`；
+- 只含 placeholder 的 `.env.example`；
 - namespace-neutral Kubernetes workload base 与 placeholder deployment input。
 
 项目自己标注或绘制的地图数据不会仅因“真实”而被排除；从 OSM、供应商、学校网站或其他来源

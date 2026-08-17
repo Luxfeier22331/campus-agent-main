@@ -1,5 +1,6 @@
 import {
 	Button,
+	cn,
 	Select,
 	SelectContent,
 	SelectGroup,
@@ -11,7 +12,6 @@ import {
 import { X } from "lucide-react";
 import { useState } from "react";
 import type { DiningHallSummary, DiningSearchResult } from "@/features/dining/model";
-import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "../ui/command";
 import { Popover, PopoverAnchor, PopoverContent } from "../ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";

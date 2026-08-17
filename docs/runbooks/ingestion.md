@@ -88,16 +88,17 @@ pnpm --filter source-collector auth:check
 
 ### 小范围采集
 
-先选择一个日期边界完成试点，再扩大同一来源范围：
+根据目标数据范围明确日期边界，先完成小范围验证，再扩大同一来源范围：
 
 ```bash
-NOTICE_START_DATE=2026-08-01
+NOTICE_START_DATE=YYYY-MM-DD
 pnpm --filter source-collector notice:sync
 pnpm --filter source-collector notice:status
 pnpm --filter source-collector notice:backfill --start-date "$NOTICE_START_DATE"
 pnpm --filter source-collector notice:status
 ```
 
+运行前必须把 `YYYY-MM-DD` 替换为本次任务明确选择的日期；仓库不提供跨环境固定默认值。
 首次 sync 只建立全局列表 head；后续 sync 采集新通知，历史内容必须显式 backfill。sync 与 backfill
 不得并发执行。成功后检查 source bucket 包含 `internal_portal/meta.json`、通知对象和 `_state.json`，
 并确认状态中的历史边界已经覆盖 `NOTICE_START_DATE`。来源对象必须通过版本化 schema，内部通知与外链
@@ -117,7 +118,7 @@ pnpm --filter source-collector notice:resources --dry-run --notice-id "$NOTICE_I
 附件请求不使用 `notice_annex_path` 作为 URL，而是按
 `/comsys-portal-notice-web/download?id=<annex-id>&notice_id=<notice-id>` 构造；单个图片或附件上限为
 100 MiB。默认并发为 4，`--concurrency` 只接受 1 到 16。资源命令成功后再次 dry-run，目标范围必须
-报告 `missing=0`。试点确认图片、附件名称、顺序和字节类型后，可以省略 `--notice-id` 补齐全部已采集
+报告 `missing=0`。单条验证图片、附件名称、顺序和字节类型后，可以省略 `--notice-id` 补齐全部已采集
 通知。外链通知不会触发外部正文抓取。
 
 ### 分类交接
@@ -165,7 +166,7 @@ pnpm --filter notice-publisher backfill-attachment-links --dry-run
 dry-run 必须没有缺失 ID 或序号冲突；apply 后的 `pending` 必须为 `0`。全新投影由 publisher 直接写入
 附件 ID，不运行历史回填。
 
-### 试点与批量发布
+### 单条与批量发布
 
 先发布一个通知：
 
@@ -221,7 +222,7 @@ INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
 该步骤只适用于 `dev:init` 生成的本地数据库，不是集群迁移或 publisher 自动更新模式。类型、组织、
 领域映射和 source bucket 保持不变。
 
-该流程没有定时任务或自动双写。集群回填和发布必须由对应环境配置明确执行，本地试点结果不表示集群
+该流程没有定时任务或自动双写。集群回填和发布必须由对应环境配置明确执行，本地验证结果不表示集群
 已经更新。App API 与 Campus Web 的读取路径也不表示任一环境已经完成写入或部署。
 
 ## Kubernetes

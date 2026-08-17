@@ -1,5 +1,5 @@
 import { createOpsApp } from "../../src/server/app";
-import { createFixtureOpsStatusStore } from "../../src/server/ops-status-store";
+import { createFixtureOpsStatusStore } from "../../src/server/fixture-ops-status-store";
 
 type TestOpsAppOptions = NonNullable<Parameters<typeof createOpsApp>[0]>;
 

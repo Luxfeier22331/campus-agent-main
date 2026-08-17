@@ -100,4 +100,6 @@ observation，若无 observation 则指向一个 trace。dataset item/run ID 不
 
 ## 参考
 
+- `../decisions/adr-0059-langfuse.md`
+- `../decisions/adr-0076-langfuse-trace-data.md`
 - Langfuse OpenTelemetry：<https://langfuse.com/docs/integrations/native/opentelemetry>

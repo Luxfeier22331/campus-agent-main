@@ -1,6 +1,6 @@
 {
 	"schema_version": "contract-schema-registry.v1",
-	"updated": "2026-07-26",
+	"updated": "2026-08-16",
 	"entries": [
 		{
 			"id": "contract-schema-registry.v1",
@@ -34,6 +34,15 @@
 			"owner": "packages/contracts",
 			"status": "active",
 			"notes": "App API 与 Ops Web 之间的账号管理合同。"
+		},
+		{
+			"id": "internal-portal-descriptor.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/internal-portal-descriptor.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"validates": ["configs/sources/internal-portal.json"],
+			"notes": "多个应用共享的内部门户非敏感来源描述；凭据由各自运行时输入提供。"
 		},
 		{
 			"id": "campus-docs-source.v3",

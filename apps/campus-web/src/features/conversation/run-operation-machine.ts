@@ -1,0 +1,73 @@
+export interface ActiveRun {
+	conversationId?: string | undefined;
+	requestId: string;
+	runId: string;
+	sequence?: number | undefined;
+	traceId: string;
+}
+
+export interface RuntimeOperationIdentity {
+	id: number;
+	controller: AbortController;
+}
+
+export type RunCancellationState =
+	| { phase: "idle" }
+	| { localMessageId: string; operationId: number; phase: "initializing" }
+	| { operationId: number; phase: "awaiting_run_id" }
+	| { operationId: number; phase: "requesting"; promise: Promise<void>; runId: string }
+	| { operationId: number; phase: "acknowledged"; runId: string };
+
+export class RunOperationMachine {
+	activeRun: ActiveRun | null = null;
+	cancellation: RunCancellationState = { phase: "idle" };
+	controller: AbortController | null = null;
+	operationId = 0;
+
+	start(): RuntimeOperationIdentity {
+		this.controller?.abort();
+		this.cancellation = { phase: "idle" };
+		const controller = new AbortController();
+		this.controller = controller;
+		this.operationId += 1;
+		return { controller, id: this.operationId };
+	}
+
+	begin(controller = new AbortController()): RuntimeOperationIdentity {
+		this.controller?.abort();
+		this.cancellation = { phase: "idle" };
+		this.controller = controller;
+		this.operationId += 1;
+		return { controller, id: this.operationId };
+	}
+
+	current(): RuntimeOperationIdentity | null {
+		return this.controller ? { controller: this.controller, id: this.operationId } : null;
+	}
+
+	ownedBy(operation: RuntimeOperationIdentity): boolean {
+		return this.operationId === operation.id && this.controller === operation.controller;
+	}
+
+	clearController(operation: RuntimeOperationIdentity): void {
+		if (this.ownedBy(operation)) {
+			this.controller = null;
+		}
+	}
+
+	invalidate(): void {
+		this.operationId += 1;
+		this.controller?.abort();
+		this.controller = null;
+		this.activeRun = null;
+		this.cancellation = { phase: "idle" };
+	}
+
+	replaceActiveRun(run: ActiveRun | null): void {
+		this.activeRun = run;
+	}
+
+	updateActiveRun(update: (current: ActiveRun | null) => ActiveRun | null): void {
+		this.activeRun = update(this.activeRun);
+	}
+}

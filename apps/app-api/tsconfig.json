@@ -27,6 +27,7 @@
 	},
 	"include": [
 		"src/**/*.ts",
+		"test-support/**/*.ts",
 		"test/**/*.ts",
 		"e2e/**/*.ts",
 		"ops/**/*.ts",

@@ -35,6 +35,8 @@ Actions secret。程序请求
 
 `MUC-WIKI/sso-tgc-template` 是协作者自己的运行入口。协作者在自己的电脑或 GitHub Actions 中保存
 学校账号、密码、目标凭据名称、endpoint 和 Bearer token，并自行决定 schedule；这些输入不会投递到集群。
+模板的 Playwright 实现、依赖、测试和 workflow 由模板仓独立拥有；本仓只维护 Ops Web 自动化接口及
+其服务端合同，不保留第二套提取器实现。
 普通模式缺少任一轮换配置时在登录前失败，不会降级为 dry-run；目标名称必须恰好匹配一条具名凭据。
 首次成功运行会按名称创建记录，后续每次成功运行都立即轮换同一条记录，不等待旧值过期，也不创建新记录。
 多个协作者分别使用自己的账号和唯一具名凭据即可并行轮换，Ops Web 不新增主凭据或自动切换状态。
@@ -43,9 +45,8 @@ Service Ticket、`JSESSIONID` 和 `nginx` Cookie 只存在于当前 HTTP 会话�
 ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或浏览器存储；extractor 只在当前
 进程内将它发送给 Ops Web 的一次创建或轮换请求。
 
-上句适用于 Ops Web 的凭据管理流程。`jobs/sso-tgc-extractor` 默认不保存浏览器状态；协作者只有在
-显式设置 `SSO_TGC_EXTRACTOR_STORAGE_STATE_DIR` 时，才会在自己的未跟踪本地目录中保存 Playwright
-状态用于下次复用，不向 Ops Web 以外的共享存储投递。
+上句适用于 Ops Web 的凭据管理流程。浏览器状态和本地复用选项由模板仓说明拥有；协作者启用时只能
+保存在自己的私有、未跟踪目录中，不向 Ops Web 以外的共享存储投递。
 
 ## 录入与读取
 

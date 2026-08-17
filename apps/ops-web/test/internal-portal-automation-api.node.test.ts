@@ -1,12 +1,12 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
+import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store.ts";
 import {
 	InternalPortalCredentialConflictError,
 	InternalPortalCredentialNameConflictError,
 } from "../src/server/internal-portal-credential-store.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
-import { createFixtureOpsStatusStore } from "../src/server/ops-status-store.ts";
 import { createTestOpsApp } from "./helpers/ops-app.ts";
 
 const PUBLIC_ORIGIN = "https://ops.example.test";

@@ -1,6 +1,8 @@
 import { LangfuseClient } from "@langfuse/client";
 
-import { type JsonObject, type LangfuseSettings, listPaginated, requestJson } from "./shared";
+import { listPaginated, requestJson } from "./http";
+import type { JsonObject } from "./json";
+import type { LangfuseSettings } from "./settings";
 
 export interface LangfuseEvalClient {
 	createDataset(input: JsonObject): Promise<JsonObject>;

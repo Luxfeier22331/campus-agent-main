@@ -6,7 +6,8 @@ import { DINING_BOOTSTRAP_FLOORPLANS } from "@campus-agent/dining/bootstrap";
 import { diningMapBundleFingerprint } from "@campus-agent/dining/publisher";
 import pg from "pg";
 import { createDiningFloorplanAssetStoreFromEnv } from "../../src/server/dining-floorplan-assets.ts";
-import { createPgDiningStore, type DiningStore } from "../../src/server/dining-store.ts";
+import { createPgDiningStore } from "../../src/server/dining-store.ts";
+import type { DiningMapStore } from "../../src/server/dining-store-contract.ts";
 import { readDatabaseConnectionConfig } from "./postgres-tls.ts";
 
 const BOOTSTRAP_ACTOR = {
@@ -37,7 +38,7 @@ export interface DiningBootstrapResult {
 export async function bootstrapDiningPublication(input: {
 	database: BootstrapDatabase;
 	now?: Date;
-	store: Pick<DiningStore, "getState" | "publish">;
+	store: Pick<DiningMapStore, "getState" | "publish">;
 }): Promise<DiningBootstrapResult> {
 	let inventory = await loadBootstrapInventory(input.database);
 	let insertedDraft = false;

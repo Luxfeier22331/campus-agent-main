@@ -8,8 +8,8 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { PrimaryAgentRuntime } from "../src/agent-run-contract.ts";
 import { createAgentRuntimeHandler } from "../src/http-server.ts";
-import type { PrimaryAgentRuntime } from "../src/primary-agent.ts";
 import { isAgentLangfuseSpan } from "../src/telemetry.ts";
 import { createSafeSpanProcessor } from "../src/telemetry-sanitizer.ts";
 import { testToolRuntimeFingerprint } from "./helpers/runtime-fingerprint.ts";

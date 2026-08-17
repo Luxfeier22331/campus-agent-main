@@ -1,4 +1,10 @@
-export type { AccountDeletionReceipt, AccountLifecycleService } from "./service";
 export { buildAccountLifecycleService } from "./service";
-export type { AccountLifecycleStore, PendingAccountDeletion } from "./store";
 export { createPgAccountLifecycleStore } from "./store";
+export type {
+	AccountDeletionReceipt,
+	AccountLifecycleService,
+	AccountLifecycleServiceDependencies,
+	AccountLifecycleStore,
+	ClaimedAccountDeletion,
+	PendingAccountDeletion,
+} from "./types";

@@ -10,7 +10,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 )
 
-func (s *Server) FinalizeExecutionFailureActivity(
+func (s *Server) FinalizeExecutionFailure(
 	ctx context.Context,
 	input temporalruntime.FinalizeExecutionFailureActivityInput,
 ) (temporalruntime.FinalizeExecutionFailureActivityOutput, error) {

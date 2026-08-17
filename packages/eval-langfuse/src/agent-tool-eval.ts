@@ -6,7 +6,7 @@ import {
 	optionalString,
 	stringField,
 	stringList,
-} from "./shared";
+} from "./json";
 import { type AgentRuntimeToolName, parseAgentRuntimeToolName } from "./tool-trajectory";
 
 export const AGENT_TOOL_EVAL_DATASET_SCHEMA_VERSION = "agent_tool_eval_dataset.v1";

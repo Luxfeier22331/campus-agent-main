@@ -14,7 +14,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func (s *Server) AppendConversationMemoryActivity(
+func (s *Server) AppendConversationMemory(
 	ctx context.Context,
 	input temporalruntime.AppendConversationMemoryActivityInput,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
@@ -27,7 +27,7 @@ func (s *Server) AppendConversationMemoryActivity(
 	}
 	payload, err := s.loadExecutionPayload(ctx, run)
 	if err != nil {
-		failureKind := executionInputFailureKind(err, "memory_append_request_invalid")
+		failureKind := execution.InputFailureKind(err, "memory_append_request_invalid")
 		return s.projectMemoryAppendFailure(ctx, run, failureKind, err)
 	}
 	enabled, known := memoryEnabledFromExecutionPayload(payload)

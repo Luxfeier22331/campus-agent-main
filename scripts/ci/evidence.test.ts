@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
+import { readNodeVersion } from "../toolchain/node-version.mts";
 import {
 	type EvidenceCommandRunner,
 	parseValidationProfiles,
@@ -10,6 +12,7 @@ import {
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
+const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
 
 test("captures structured command output larger than the Node default buffer", () => {
 	const outputBytes = 2 * 1024 * 1024;
@@ -24,13 +27,20 @@ test("captures structured command output larger than the Node default buffer", (
 });
 
 test("runs affected Node tasks from the shared scope without a downloaded Turbo", () => {
-	const calls: Array<{ command: string; args: string[]; base?: string; head?: string }> = [];
+	const calls: Array<{
+		command: string;
+		args: string[];
+		base?: string;
+		head?: string;
+		nodeVersion?: string;
+	}> = [];
 	const runner: EvidenceCommandRunner = (command, args, options) => {
 		calls.push({
 			command,
 			args,
 			base: options.env.TURBO_SCM_BASE,
 			head: options.env.TURBO_SCM_HEAD,
+			nodeVersion: options.env.NODE_VERSION,
 		});
 		if (command === "pnpm" && args.includes("--dry-run=json")) {
 			return {
@@ -64,7 +74,7 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 			base: BASE,
 			head: HEAD,
 			profiles: ["affected-node", "toolchain"],
-			repositoryRoot: "/repository",
+			repositoryRoot: REPOSITORY_ROOT,
 		},
 		runner,
 	);
@@ -116,19 +126,19 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	assert(commands.some((command) => command.join(" ").includes("docker buildx bake")));
 	assert(!commands.some((command) => command.includes("dlx")));
 	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
+	const bake = calls.find(
+		(call) => call.command === "docker" && call.args.slice(0, 2).join(" ") === "buildx bake",
+	);
+	assert.equal(bake?.nodeVersion, readNodeVersion(REPOSITORY_ROOT));
 });
 
-test("rejects the retired aggregate full Node profile", () => {
-	assert.throws(() => parseValidationProfiles('["full-node"]'), /Unsupported validation profile/u);
-});
-
-test("runs selected native, database, OTel, and dependency profiles in order", () => {
+test("runs selected native, database, and OTel profiles in order", () => {
 	const calls: string[] = [];
 	runCandidateEvidence(
 		{
 			base: BASE,
 			head: HEAD,
-			profiles: ["go", "rust", "ragas", "ingestion-control-postgres", "otel", "dependencies"],
+			profiles: ["go", "rust", "ragas", "ingestion-control-postgres", "otel"],
 			repositoryRoot: "/repository",
 		},
 		(command, args) => {
@@ -143,7 +153,6 @@ test("runs selected native, database, OTel, and dependency profiles in order", (
 		"pnpm exec turbo run test:eval --filter=ragas-runner --summarize",
 		"pnpm exec turbo run test:database-integration --filter=ingestion-control --summarize",
 		"scripts/otel/validate-config.sh",
-		"scripts/dependencies/scan.sh",
 	]);
 });
 

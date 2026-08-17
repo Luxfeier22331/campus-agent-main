@@ -25,9 +25,9 @@ status: active
 -> 共享的不可变 campus_docs 索引
 ```
 
-仓库中的 split manifest、旧 chunk profile 和 sample 是独立 ingestion 配置或合成测试数据，不被
-当前 Campus Docs publisher 消费。源码具备 publisher 不表示任一环境已经激活索引；实际可用性取决于
-`campus_docs_serving.current_index` 是否存在有效的当前查询绑定。
+`configs/ingestion/curriculum/curriculum_plan/` 中的 split manifest、chunk profile 和合成样例属于
+独立 ingestion 数据面，不被当前 Campus Docs publisher 消费。源码具备 publisher 不表示任一环境
+已经激活索引；实际可用性取决于 `campus_docs_serving.current_index` 是否存在有效的当前查询绑定。
 
 ## 读取边界
 

@@ -105,6 +105,7 @@ test("builds staging Worker upload arguments without leaking source-map credenti
 		SOURCE_SHA,
 	);
 
+	assert.deepEqual(args.slice(0, 2), ["versions", "upload"]);
 	assert.ok(args.includes("--env"));
 	assert.ok(args.includes("staging"));
 	assert.ok(args.includes(`git-${SOURCE_SHA}`));

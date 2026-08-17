@@ -1,130 +1,25 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpsWebApp } from "../src/app/ops-web-app.tsx";
 
-const credentials = [
-	{
-		createdAt: "2026-08-02T01:00:00.000Z",
-		credentialId: "11111111-1111-4111-8111-111111111111",
-		lastAttemptAt: "2026-08-02T01:00:00.000Z",
-		lastOutcome: "valid",
-		lastSuccessfulAt: "2026-08-02T01:00:00.000Z",
-		name: "第一条凭据",
-		updatedAt: "2026-08-02T01:00:00.000Z",
-		version: 1,
-	},
-	{
-		createdAt: "2026-08-02T01:02:00.000Z",
-		credentialId: "22222222-2222-4222-8222-222222222222",
-		lastAttemptAt: "2026-08-02T02:00:00.000Z",
-		lastOutcome: "credential_rejected",
-		lastSuccessfulAt: "2026-08-02T01:30:00.000Z",
-		name: "第二条凭据",
-		updatedAt: "2026-08-02T01:02:00.000Z",
-		version: 1,
-	},
-];
-
-const automationToken = {
-	createdAt: "2026-08-02T03:00:00.000Z",
-	name: "开发同步程序",
-	revokedAt: null,
-	tokenId: "33333333-3333-4333-8333-333333333333",
-};
-
-describe("internal portal credentials page", () => {
+describe("internal portal page", () => {
 	afterEach(() => vi.unstubAllGlobals());
 
-	it("shows multiple credentials and keeps revealed plaintext in the dialog lifecycle", async () => {
-		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-			if (String(input).includes("/automation-tokens")) {
-				return Response.json({ endpoint: "https://ops-api.example.test", tokens: [] });
-			}
-			if (String(input).endsWith("/reveal") && init?.method === "POST") {
-				return Response.json({
-					credentialId: credentials[0]?.credentialId,
-					ssoTgc: "TGT-plaintext",
-					version: 1,
-				});
-			}
-			return Response.json({ credentials });
-		});
-		vi.stubGlobal("fetch", fetchMock);
-		render(<OpsWebApp initialPath="/internal-portal" />);
-
-		expect(await screen.findByRole("heading", { name: "内部门户凭据" })).toBeInTheDocument();
-		expect((await screen.findAllByText("第一条凭据")).length).toBeGreaterThan(0);
-		expect((await screen.findAllByText("第二条凭据")).length).toBeGreaterThan(0);
-		expect(screen.getAllByText("已暂停，等待轮换").length).toBeGreaterThan(0);
-		expect(screen.queryByDisplayValue("TGT-plaintext")).not.toBeInTheDocument();
-
-		fireEvent.click(screen.getAllByRole("button", { name: "显示明文" })[0] as HTMLElement);
-		const dialog = await screen.findByRole("dialog");
-		fireEvent.click(within(dialog).getByRole("button", { name: "显示明文" }));
-		expect(await within(dialog).findByDisplayValue("TGT-plaintext")).toBeInTheDocument();
-		expect(fetchMock).toHaveBeenCalledWith(
-			expect.stringMatching(/\/reveal$/u),
-			expect.objectContaining({ method: "POST" }),
-		);
-
-		fireEvent.click(within(dialog).getAllByRole("button", { name: "关闭" })[0] as HTMLElement);
-		await waitFor(() =>
-			expect(screen.queryByDisplayValue("TGT-plaintext")).not.toBeInTheDocument(),
-		);
-	});
-
-	it("labels candidate fields for raw TGC or Cookie input", async () => {
+	it("composes credential and automation sections", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async (input: RequestInfo | URL) =>
 				String(input).includes("/automation-tokens")
 					? Response.json({ endpoint: "https://ops-api.example.test", tokens: [] })
-					: Response.json({ credentials }),
+					: Response.json({ credentials: [] }),
 			),
 		);
+
 		render(<OpsWebApp initialPath="/internal-portal" />);
 
-		fireEvent.click(await screen.findByRole("button", { name: "新增凭据" }));
-		expect(screen.getByLabelText("SSO_TGC 或 Cookie")).toHaveAttribute("type", "password");
-		expect(screen.getByLabelText("SSO_TGC 或 Cookie")).toHaveAttribute(
-			"maxlength",
-			String(16 * 1024),
-		);
-	});
-
-	it("shows the automation endpoint and keeps revealed token plaintext in the dialog", async () => {
-		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-			const url = String(input);
-			if (
-				url.includes("/automation-tokens") &&
-				url.endsWith("/reveal") &&
-				init?.method === "POST"
-			) {
-				return Response.json({ token: { ...automationToken, tokenValue: "ops_plaintext" } });
-			}
-			if (url.includes("/automation-tokens")) {
-				return Response.json({
-					endpoint: "https://ops-api.example.test",
-					tokens: [automationToken],
-				});
-			}
-			return Response.json({ credentials });
-		});
-		vi.stubGlobal("fetch", fetchMock);
-		render(<OpsWebApp initialPath="/internal-portal" />);
-
-		expect(await screen.findByDisplayValue("https://ops-api.example.test")).toBeInTheDocument();
-		expect((await screen.findAllByText("开发同步程序")).length).toBeGreaterThan(0);
-		expect(screen.queryByDisplayValue("ops_plaintext")).not.toBeInTheDocument();
-
-		fireEvent.click(screen.getAllByRole("button", { name: "显示 token" })[0] as HTMLElement);
-		const dialog = await screen.findByRole("dialog");
-		fireEvent.click(within(dialog).getByRole("button", { name: "显示 token" }));
-		expect(await within(dialog).findByDisplayValue("ops_plaintext")).toBeInTheDocument();
-
-		fireEvent.click(within(dialog).getAllByRole("button", { name: "关闭" })[0] as HTMLElement);
-		await waitFor(() =>
-			expect(screen.queryByDisplayValue("ops_plaintext")).not.toBeInTheDocument(),
-		);
+		await screen.findByText("尚无内部门户凭据。");
+		await screen.findByDisplayValue("https://ops-api.example.test");
+		expect(screen.getByRole("heading", { name: "内部门户凭据" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "开发者自动化访问" })).toBeInTheDocument();
 	});
 });

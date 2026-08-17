@@ -1,8 +1,8 @@
+import { cn } from "@campus-agent/ui";
 import { Dropdown } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut, Settings, ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { campusAuthClient } from "@/platform/auth/client";
 import { useCampusSession } from "@/platform/auth/session";
 

@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 type JsonObject = Record<string, unknown>;
+
+interface WorkspaceManifest {
+	name: string;
+	path: string;
+	scripts: Record<string, unknown>;
+}
 
 function readJson(relativePath: string): JsonObject {
 	return JSON.parse(readFileSync(path.join(ROOT, relativePath), "utf8")) as JsonObject;
@@ -26,6 +33,29 @@ function assertTaskInputs(config: string, taskNames: string[], requiredInputs: s
 			assert(inputs.includes(input), `${config} ${task} must include ${input}`);
 		}
 	}
+}
+
+function readTrackedWorkspaceManifests(): WorkspaceManifest[] {
+	const paths = execFileSync("git", ["ls-files", "-z", ":(glob)**/package.json"], {
+		cwd: ROOT,
+		encoding: "utf8",
+	})
+		.split("\0")
+		.filter((relativePath) => relativePath && relativePath !== "package.json");
+
+	return paths.map((relativePath) => {
+		const manifest = readJson(relativePath);
+		if (typeof manifest.name !== "string") {
+			throw new Error(`${relativePath} must declare a package name`);
+		}
+		const scripts = manifest.scripts;
+		return {
+			name: manifest.name,
+			path: relativePath,
+			scripts:
+				scripts !== null && typeof scripts === "object" ? (scripts as Record<string, unknown>) : {},
+		};
+	});
 }
 
 test("Turbo affected selection uses task inputs and no phantom CI tasks", () => {
@@ -52,14 +82,38 @@ test("Turbo does not cache side-effecting or environment-coupled tasks", () => {
 		"test:migration-integration",
 		"test:database-integration",
 		"test:shared-db-integration",
-		"test:integration",
 		"test:browser",
 		"test:e2e:full",
 		"test:e2e:smoke",
-		"deploy",
 	]) {
 		const taskConfig = tasks[task] as JsonObject | undefined;
 		assert.equal(taskConfig?.cache, false, `${task} must remain uncached`);
+	}
+});
+
+test("every root Turbo task has a tracked workspace script owner", () => {
+	const tasks = readJson("turbo.json").tasks as JsonObject;
+	const manifests = readTrackedWorkspaceManifests();
+
+	for (const taskName of Object.keys(tasks)) {
+		const separator = taskName.indexOf("#");
+		if (separator === -1) {
+			assert(
+				manifests.some((manifest) => typeof manifest.scripts[taskName] === "string"),
+				`${taskName} must be provided by at least one tracked workspace package`,
+			);
+			continue;
+		}
+
+		const packageName = taskName.slice(0, separator);
+		const scriptName = taskName.slice(separator + 1);
+		const owner = manifests.find((manifest) => manifest.name === packageName);
+		assert(owner, `${taskName} must reference a tracked workspace package`);
+		assert.equal(
+			typeof owner.scripts[scriptName],
+			"string",
+			`${taskName} must reference a script declared by ${owner.path}`,
+		);
 	}
 });
 

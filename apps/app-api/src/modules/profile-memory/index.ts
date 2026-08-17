@@ -18,8 +18,13 @@ export type {
 	ProfileMemoryServiceDependencies,
 } from "./service";
 export { buildProfileMemoryService } from "./service";
+export type { ProfileMemoryRuntimeSnapshot } from "./snapshot";
+export { captureProfileMemorySnapshotForUpdate } from "./snapshot";
 export type {
 	ProfileMemoryCommandPayload,
-	ProfileMemoryStore,
+	ProfileMemoryCommandStore,
+	ProfileMemoryMutationStore,
+	ProfileMemoryPersistence,
+	ProfileMemoryReadStore,
 } from "./store";
-export { createPgProfileMemoryStore } from "./store";
+export { createPgProfileMemoryPersistence } from "./store";

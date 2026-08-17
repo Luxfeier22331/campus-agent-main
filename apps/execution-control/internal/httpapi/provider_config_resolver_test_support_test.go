@@ -6,10 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-type staticProviderConfigResolver map[providerConfigKind]providerConfigSnapshot
+type staticProviderConfigResolver map[providerconfig.Kind]providerconfig.RuntimeSetting
 
 func attachPrimaryAgentProviderConfigForTest(server *Server) {
 	attachAgentAdmissionProviderConfigsForTest(server)
@@ -17,9 +18,9 @@ func attachPrimaryAgentProviderConfigForTest(server *Server) {
 
 func attachAgentAdmissionProviderConfigsForTest(server *Server) {
 	server.providerConfigResolver = staticProviderConfigResolver{
-		providerConfigKindLLM: primaryAgentProviderConfigSnapshotForTest(),
-		providerConfigKindEmbedding: embeddingProviderConfigSnapshotForTest(
-			providerConfigKindEmbedding,
+		providerconfig.KindLLM: primaryAgentProviderConfigSnapshotForTest(),
+		providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
+			providerconfig.KindEmbedding,
 			"https://embedding.example/v1",
 			"provider-model-alias",
 		),
@@ -74,11 +75,11 @@ func campusDocsQuerySHA256ForTest(query string) string {
 	return sha256TextRef(strings.TrimSpace(query))
 }
 
-func primaryAgentProviderConfigSnapshotForTest() providerConfigSnapshot {
-	return providerConfigSnapshot{
+func primaryAgentProviderConfigSnapshotForTest() providerconfig.RuntimeSetting {
+	return providerconfig.RuntimeSetting{
 		APIKey:    "sk-primary-agent",
 		BaseURL:   "https://provider.example/v1",
-		Kind:      providerConfigKindLLM,
+		Kind:      providerconfig.KindLLM,
 		Model:     "gpt-test",
 		Provider:  "openai",
 		Transport: "responses",
@@ -86,11 +87,11 @@ func primaryAgentProviderConfigSnapshotForTest() providerConfigSnapshot {
 }
 
 func embeddingProviderConfigSnapshotForTest(
-	kind providerConfigKind,
+	kind providerconfig.Kind,
 	baseURL string,
 	model string,
-) providerConfigSnapshot {
-	return providerConfigSnapshot{
+) providerconfig.RuntimeSetting {
+	return providerconfig.RuntimeSetting{
 		APIKey:    "test-embedding-key",
 		BaseURL:   baseURL,
 		Kind:      kind,
@@ -102,14 +103,14 @@ func embeddingProviderConfigSnapshotForTest(
 
 func (resolver staticProviderConfigResolver) ResolveActiveProviderConfig(
 	_ context.Context,
-	kind providerConfigKind,
-) (providerConfigSnapshot, error) {
+	kind providerconfig.Kind,
+) (providerconfig.RuntimeSetting, error) {
 	snapshot, ok := resolver[kind]
 	if !ok {
-		return providerConfigSnapshot{}, fmt.Errorf("no active model setting for kind %s", kind)
+		return providerconfig.RuntimeSetting{}, fmt.Errorf("no active model setting for kind %s", kind)
 	}
-	if err := validateProviderConfigSnapshot(snapshot, kind); err != nil {
-		return providerConfigSnapshot{}, err
+	if err := providerconfig.ValidateRuntimeSetting(snapshot, kind); err != nil {
+		return providerconfig.RuntimeSetting{}, err
 	}
 	return snapshot, nil
 }

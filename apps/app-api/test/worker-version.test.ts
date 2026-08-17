@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatWranglerFailure } from "../../../scripts/deploy/run-wrangler-command";
-import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release";
+import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release.mts";
 import {
 	buildSentrySourceMapUploadArgs,
 	buildWorkerVersionUploadArgs,

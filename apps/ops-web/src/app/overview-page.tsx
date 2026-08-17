@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import type { OpsOverviewResponse, OpsOverviewWindow } from "../shared/ops-contract";
 import { formatDuration, formatPercent, formatTimestamp } from "./format";
-import { fetchOpsOverview } from "./ops-api-client";
+import { fetchOpsOverview } from "./ops-api/observability";
 import {
 	ErrorState,
 	formatIssueSeverity,

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { AccountOutcomeBadge, accountActionLabel } from "./account-admin-display";
 import { decodeCursorHistory, encodeCursorHistory } from "./account-admin-navigation";
 import { formatTimestamp } from "./format";
-import { fetchAccountAdminEvents } from "./ops-api-client";
+import { fetchAccountAdminEvents } from "./ops-api/account-admin";
 import { ErrorState, PageHeader } from "./ops-display";
 import { DataTable } from "./ui/data-table";
 

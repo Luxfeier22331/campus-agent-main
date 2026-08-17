@@ -28,8 +28,8 @@ const (
 
 type campusDocsQdrantClient struct {
 	embeddingHTTPClient *http.Client
-	embeddingKind       providerConfigKind
-	configResolver      providerConfigResolver
+	embeddingKind       providerconfig.Kind
+	configResolver      providerconfig.Resolver
 	httpClient          *http.Client
 	qdrantQueryAPIKey   string
 	qdrantURL           string
@@ -38,7 +38,7 @@ type campusDocsQdrantClient struct {
 
 func buildCampusDocsQdrantClient(
 	cfg config.Config,
-	configResolver providerConfigResolver,
+	configResolver providerconfig.Resolver,
 ) (campusDocsQdrantClient, error) {
 	qdrantURL := strings.TrimRight(strings.TrimSpace(cfg.QdrantURL), "/")
 	if qdrantURL == "" {
@@ -63,7 +63,7 @@ func buildCampusDocsQdrantClient(
 	}
 	return campusDocsQdrantClient{
 		embeddingHTTPClient: &http.Client{Timeout: campusDocsEmbeddingTimeout},
-		embeddingKind:       providerConfigKindEmbedding,
+		embeddingKind:       providerconfig.KindEmbedding,
 		configResolver:      configResolver,
 		httpClient:          httpClient,
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantReadOnlyAPIKey),
@@ -102,22 +102,9 @@ func qdrantHTTPClient(scheme string, timeout time.Duration, caCertPath string) (
 	}), nil
 }
 
-func noRedirectHTTPClient(client *http.Client) *http.Client {
-	if client == nil {
-		return &http.Client{CheckRedirect: rejectHTTPRedirect}
-	}
-	clone := *client
-	clone.CheckRedirect = rejectHTTPRedirect
-	return &clone
-}
-
-func rejectHTTPRedirect(_ *http.Request, _ []*http.Request) error {
-	return http.ErrUseLastResponse
-}
-
 func (e campusDocsQdrantClient) embedQueryWithProviderConfig(
 	ctx context.Context,
-	embeddingConfig providerConfigSnapshot,
+	embeddingConfig providerconfig.RuntimeSetting,
 	queryText string,
 	dimensions int,
 ) ([]float64, error) {
@@ -183,27 +170,27 @@ func (e campusDocsQdrantClient) embedQueryWithProviderConfig(
 func (e campusDocsQdrantClient) resolveEmbeddingProviderConfig(
 	ctx context.Context,
 	pins ...providerConfigAdmissionPin,
-) (providerConfigSnapshot, error) {
+) (providerconfig.RuntimeSetting, error) {
 	kind := e.embeddingKind
 	if kind == "" {
-		kind = providerConfigKindEmbedding
+		kind = providerconfig.KindEmbedding
 	}
 	if e.configResolver == nil {
-		return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
+		return providerconfig.RuntimeSetting{}, providerconfig.ErrResolverNotConfigured
 	}
 	snapshot, err := e.configResolver.ResolveActiveProviderConfig(ctx, kind)
 	if err != nil {
-		return providerConfigSnapshot{}, err
+		return providerconfig.RuntimeSetting{}, err
 	}
 	if len(pins) == 0 {
 		return snapshot, nil
 	}
 	pin := pins[0]
 	if !pin.valid() {
-		return providerConfigSnapshot{}, errors.New("embedding provider admission pin is invalid")
+		return providerconfig.RuntimeSetting{}, errors.New("embedding provider admission pin is invalid")
 	}
-	if providerConfigAdmissionHash(snapshot) != pin.ConfigSHA256 {
-		return providerConfigSnapshot{}, errors.New("embedding provider configuration does not match admission")
+	if providerconfig.AdmissionHash(snapshot) != pin.ConfigSHA256 {
+		return providerconfig.RuntimeSetting{}, errors.New("embedding provider configuration does not match admission")
 	}
 	return snapshot, nil
 }

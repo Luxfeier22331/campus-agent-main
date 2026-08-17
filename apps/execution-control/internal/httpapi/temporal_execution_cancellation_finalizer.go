@@ -15,7 +15,7 @@ import (
 // cancellation closeout. The HTTP cancel endpoint only records intent; this
 // activity runs after Temporal has observed cancellation and uses an
 // idempotent callback/projection order.
-func (s *Server) FinalizeExecutionCancellationActivity(
+func (s *Server) FinalizeExecutionCancellation(
 	ctx context.Context,
 	input temporalruntime.FinalizeExecutionCancellationActivityInput,
 ) (temporalruntime.FinalizeExecutionCancellationActivityOutput, error) {

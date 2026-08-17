@@ -1,8 +1,8 @@
 import { useAssistantDataUI } from "@assistant-ui/react";
+import { cn } from "@campus-agent/ui";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { SourceItemsDataPart } from "@/components/conversation/source-items";
-import { cn } from "@/lib/utils";
 
 interface AssistantConversationSurfaceProps {
 	className?: string;

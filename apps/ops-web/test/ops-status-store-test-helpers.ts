@@ -9,8 +9,8 @@ import type {
 	OpsRequestListQuery,
 	OpsRequestRow,
 	PgOpsStatusStoreDatabase,
-} from "../src/server/ops-status-store";
-import { OPS_REQUEST_PAGE_SIZE } from "../src/server/ops-status-store";
+} from "../src/server/ops-status-types";
+import { OPS_REQUEST_PAGE_SIZE } from "../src/server/ops-status-types";
 
 export function createFakeOpsDb(
 	overrides: { requestRows?: OpsRequestDetailRow[]; usageRows?: OpsAgentUsageRow[] } = {},

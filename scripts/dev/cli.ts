@@ -1,14 +1,15 @@
 import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-
+import {
+	diagnoseLocalDevInstances,
+	formatProfileSummary,
+	localInstanceDestroyPreview,
+} from "./instance-resources";
 import {
 	destroyLocalDevelopment,
 	diagnoseLocalDevelopment,
-	diagnoseLocalDevInstances,
-	formatProfileSummary,
 	initializeLocalDevelopment,
-	localInstanceDestroyPreview,
 } from "./lifecycle";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));

@@ -1,6 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 const PROXY_ENV_KEYS = [
 	"ALL_PROXY",
@@ -92,55 +90,4 @@ export function runWranglerCommand(
 		stdio: options.stdio ?? "inherit",
 		cwd: options.cwd,
 	});
-}
-
-function parseCliArgs(argv: string[]): { cwd: string | undefined; wranglerArgs: string[] } | null {
-	let cwd: string | undefined;
-	const wranglerArgs: string[] = [];
-
-	for (let index = 0; index < argv.length; index += 1) {
-		const value = argv[index];
-		if (value === undefined) {
-			return null;
-		}
-		if (value === "--cwd") {
-			const nextCwd = argv[index + 1];
-			if (!nextCwd) {
-				return null;
-			}
-			cwd = nextCwd;
-			index += 1;
-			continue;
-		}
-		wranglerArgs.push(value);
-	}
-
-	return { cwd, wranglerArgs };
-}
-
-export function main(argv: string[] = process.argv.slice(2)): number {
-	const parsed = parseCliArgs(argv);
-	if (!parsed || parsed.wranglerArgs.length === 0) {
-		console.error(
-			"Usage: pnpm exec tsx scripts/deploy/run-wrangler-command.ts [--cwd <dir>] <wrangler-args...>",
-		);
-		return 1;
-	}
-	const { cwd, wranglerArgs } = parsed;
-
-	const result = runWranglerCommand(wranglerArgs, {
-		...(cwd ? { cwd } : {}),
-		env: process.env,
-		stdio: "inherit",
-	});
-
-	if (typeof result.status === "number") {
-		return result.status;
-	}
-
-	return result.error ? 1 : 0;
-}
-
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
-	process.exit(main(process.argv.slice(2)));
 }

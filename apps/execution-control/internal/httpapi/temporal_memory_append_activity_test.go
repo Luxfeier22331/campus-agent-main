@@ -18,7 +18,7 @@ func TestAppendConversationMemoryActivityRequiresMemoryEnabledGate(t *testing.T)
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-append"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	output, err := server.AppendConversationMemoryActivity(
+	output, err := server.AppendConversationMemory(
 		context.Background(),
 		temporalruntime.AppendConversationMemoryActivityInput{
 			RequestID: "req-memory-append-disabled",
@@ -47,7 +47,7 @@ func TestAppendConversationMemoryActivityAcceptsCompletedTurnForAsyncPersonalMem
 	server.personalMemoryErr = nil
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	output, err := server.AppendConversationMemoryActivity(
+	output, err := server.AppendConversationMemory(
 		context.Background(),
 		temporalruntime.AppendConversationMemoryActivityInput{
 			RequestID: "req-memory-append-enabled",
@@ -91,7 +91,7 @@ func TestAppendConversationMemoryActivityPreservesTenantForScopedHindsightBank(t
 	server.personalMemoryErr = nil
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	output, err := server.AppendConversationMemoryActivity(
+	output, err := server.AppendConversationMemory(
 		context.Background(),
 		temporalruntime.AppendConversationMemoryActivityInput{
 			RequestID: "req-memory-append-tenant",
@@ -123,7 +123,7 @@ func TestAppendConversationMemoryActivityProjectsFailureWhenHindsightAppendFails
 	server.personalMemoryErr = nil
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	output, err := server.AppendConversationMemoryActivity(
+	output, err := server.AppendConversationMemory(
 		context.Background(),
 		temporalruntime.AppendConversationMemoryActivityInput{
 			RequestID: "req-memory-append-failed",
@@ -168,7 +168,7 @@ func TestAppendConversationMemoryActivityRejectsTraceMismatchForTerminalRun(t *t
 	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-append"})
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	_, err := server.AppendConversationMemoryActivity(
+	_, err := server.AppendConversationMemory(
 		context.Background(),
 		temporalruntime.AppendConversationMemoryActivityInput{
 			RequestID: "req-memory-append-trace-mismatch",
@@ -209,7 +209,7 @@ func TestPostFinalizationMemoryAppendRejectsNonCompletedTerminalRuns(t *testing.
 			server.personalMemoryExecutor = executor
 			server.personalMemoryErr = nil
 			attachRunProjectionStoreForHandlerTest(server, store)
-			if _, err := server.AppendConversationMemoryActivity(context.Background(), temporalruntime.AppendConversationMemoryActivityInput{
+			if _, err := server.AppendConversationMemory(context.Background(), temporalruntime.AppendConversationMemoryActivityInput{
 				RunID: runID, TraceID: "trace-" + runID,
 			}); err == nil {
 				t.Fatalf("append accepted %s run", test.status)
@@ -230,7 +230,7 @@ func TestAppendConversationMemoryActivityProjectionDoesNotStoreConversationText(
 	server.personalMemoryErr = nil
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	_, err := server.AppendConversationMemoryActivity(
+	_, err := server.AppendConversationMemory(
 		context.Background(),
 		temporalruntime.AppendConversationMemoryActivityInput{
 			RequestID: "req-memory-append-projection",
@@ -271,7 +271,7 @@ func TestAppendConversationMemoryActivityProjectsCompletedResultWithoutProviderR
 	server.personalMemoryErr = nil
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	output, err := server.AppendConversationMemoryActivity(
+	output, err := server.AppendConversationMemory(
 		context.Background(),
 		temporalruntime.AppendConversationMemoryActivityInput{
 			RequestID: "req-memory-append-operation",

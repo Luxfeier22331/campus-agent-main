@@ -6,9 +6,9 @@ import type {
 	DiningOpsReviewRecord,
 } from "@campus-agent/dining/domain";
 import { describe, expect, it, vi } from "vitest";
-import type { DiningContentStore } from "../src/server/dining-content-store";
+import type { DiningMenuStore, DiningReviewStore } from "../src/server/dining-store-contract";
+import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
-import { createFixtureOpsStatusStore } from "../src/server/ops-status-store";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 const NOW = "2026-07-24T08:00:00.000Z";
@@ -55,7 +55,9 @@ const report: DiningOpsReportRecord = {
 	review,
 };
 
-function contentStore(): DiningContentStore {
+type TestDiningContentStore = DiningMenuStore & DiningReviewStore;
+
+function contentStore(): TestDiningContentStore {
 	return {
 		archiveMenuItem: vi.fn(async () => ({ ...menuItem, archivedAt: NOW })),
 		createMenuItem: vi.fn(async () => menuItem),
@@ -76,10 +78,11 @@ function contentStore(): DiningContentStore {
 	};
 }
 
-function createTestApp(diningContentStore: DiningContentStore) {
+function createTestApp(diningContentStore: TestDiningContentStore) {
 	return createTestOpsApp({
 		admission: createAllowAllOpsAdmission(),
-		diningContentStore,
+		diningMenuStore: diningContentStore,
+		diningReviewStore: diningContentStore,
 		env: {
 			ACCESS_POLICY_AUD: "ops-web-test-audience",
 			ACCESS_TEAM_DOMAIN: "https://team-ops-web.cloudflareaccess.com",

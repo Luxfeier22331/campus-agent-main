@@ -1,11 +1,6 @@
+import { type JsonObject, mapping, optionalString, stringField } from "./json";
 import { createLangfuseEvalClient, type LangfuseEvalClient } from "./langfuse-client";
-import {
-	type JsonObject,
-	type LangfuseSettings,
-	mapping,
-	optionalString,
-	stringField,
-} from "./shared";
+import type { LangfuseSettings } from "./settings";
 
 const REQUIRED_TRACE_IDENTITY_ATTRIBUTES = ["request_id", "run_id", "trace_id", "turn_id"];
 const TRACE_FORBIDDEN_FIELDS = new Set([

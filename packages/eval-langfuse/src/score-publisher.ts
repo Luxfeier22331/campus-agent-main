@@ -1,19 +1,17 @@
 import { resolve } from "node:path";
-
-import { createLangfuseEvalClient } from "./langfuse-client";
+import { stableId } from "./identifiers";
 import {
-	assertCompleteSettings,
 	isRecord,
 	type JsonObject,
-	type LangfuseSettings,
 	loadJsonObject,
 	mapping,
 	mappingList,
 	optionalString,
 	requireEqual,
-	stableId,
 	stringField,
-} from "./shared";
+} from "./json";
+import { createLangfuseEvalClient } from "./langfuse-client";
+import { assertCompleteSettings, type LangfuseSettings } from "./settings";
 
 export const SCORE_REGISTRY_SCHEMA_VERSION = "langfuse_score_registry.v1";
 const DEFAULT_REGISTRY_PATH = resolve(

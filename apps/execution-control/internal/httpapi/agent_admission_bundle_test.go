@@ -6,21 +6,22 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
 type countingProviderConfigResolver struct {
-	configs map[providerConfigKind]providerConfigSnapshot
-	calls   []providerConfigKind
+	configs map[providerconfig.Kind]providerconfig.RuntimeSetting
+	calls   []providerconfig.Kind
 }
 
 func (resolver *countingProviderConfigResolver) ResolveActiveProviderConfig(
 	ctx context.Context,
-	kind providerConfigKind,
-) (providerConfigSnapshot, error) {
+	kind providerconfig.Kind,
+) (providerconfig.RuntimeSetting, error) {
 	resolver.calls = append(resolver.calls, kind)
 	snapshot, ok := resolver.configs[kind]
 	if !ok {
-		return providerConfigSnapshot{}, errors.New("requested model setting is missing")
+		return providerconfig.RuntimeSetting{}, errors.New("requested model setting is missing")
 	}
 	return snapshot, nil
 }
@@ -28,13 +29,13 @@ func (resolver *countingProviderConfigResolver) ResolveActiveProviderConfig(
 func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.T) {
 	primary := primaryAgentProviderConfigSnapshotForTest()
 	embedding := embeddingProviderConfigSnapshotForTest(
-		providerConfigKindEmbedding,
+		providerconfig.KindEmbedding,
 		"https://embedding.example/v1",
 		"provider-model-alias",
 	)
-	resolver := &countingProviderConfigResolver{configs: map[providerConfigKind]providerConfigSnapshot{
-		providerConfigKindLLM:       primary,
-		providerConfigKindEmbedding: embedding,
+	resolver := &countingProviderConfigResolver{configs: map[providerconfig.Kind]providerconfig.RuntimeSetting{
+		providerconfig.KindLLM:       primary,
+		providerconfig.KindEmbedding: embedding,
 	}}
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
 	server.providerConfigResolver = resolver
@@ -49,11 +50,11 @@ func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.
 	if err != nil {
 		t.Fatalf("build admission snapshot: %v", err)
 	}
-	if len(resolver.calls) != 2 || resolver.calls[0] != providerConfigKindEmbedding || resolver.calls[1] != providerConfigKindLLM {
+	if len(resolver.calls) != 2 || resolver.calls[0] != providerconfig.KindEmbedding || resolver.calls[1] != providerconfig.KindLLM {
 		t.Fatalf("provider setting calls = %#v, want embedding then llm", resolver.calls)
 	}
-	if snapshot.ProviderConfigSHA256 != providerConfigAdmissionHash(primary) ||
-		snapshot.CampusDocsRetrieval.EmbeddingProviderConfigSHA256 != providerConfigAdmissionHash(embedding) {
+	if snapshot.ProviderConfigSHA256 != providerconfig.AdmissionHash(primary) ||
+		snapshot.CampusDocsRetrieval.EmbeddingProviderConfigSHA256 != providerconfig.AdmissionHash(embedding) {
 		t.Fatalf("provider admission hashes = %#v", snapshot)
 	}
 	if snapshot.ExecutionStrategy.MemoryRecall != "model_optional" {
@@ -67,13 +68,13 @@ func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.
 
 func TestBuildAgentAdmissionSnapshotAlwaysPinsRetrieval(t *testing.T) {
 	embedding := embeddingProviderConfigSnapshotForTest(
-		providerConfigKindEmbedding,
+		providerconfig.KindEmbedding,
 		"https://embedding.example/v1",
 		"provider-model-alias",
 	)
-	resolver := &countingProviderConfigResolver{configs: map[providerConfigKind]providerConfigSnapshot{
-		providerConfigKindLLM:       primaryAgentProviderConfigSnapshotForTest(),
-		providerConfigKindEmbedding: embedding,
+	resolver := &countingProviderConfigResolver{configs: map[providerconfig.Kind]providerconfig.RuntimeSetting{
+		providerconfig.KindLLM:       primaryAgentProviderConfigSnapshotForTest(),
+		providerconfig.KindEmbedding: embedding,
 	}}
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
 	server.providerConfigResolver = resolver
@@ -87,7 +88,7 @@ func TestBuildAgentAdmissionSnapshotAlwaysPinsRetrieval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build direct admission snapshot: %v", err)
 	}
-	if len(resolver.calls) != 2 || resolver.calls[0] != providerConfigKindEmbedding || resolver.calls[1] != providerConfigKindLLM {
+	if len(resolver.calls) != 2 || resolver.calls[0] != providerconfig.KindEmbedding || resolver.calls[1] != providerconfig.KindLLM {
 		t.Fatalf("provider setting calls = %#v, want embedding then llm", resolver.calls)
 	}
 	if snapshot.CampusDocsRetrieval.QuerySHA256 == "" {
@@ -103,7 +104,7 @@ func TestBuildAgentAdmissionSnapshotRequiresProviderSettings(t *testing.T) {
 		t.Context(),
 		false,
 		campusDocsQuerySHA256ForTest("学生请假手续"),
-	); !errors.Is(err, errProviderConfigResolverNotConfigured) {
+	); !errors.Is(err, providerconfig.ErrResolverNotConfigured) {
 		t.Fatalf("provider-less admission error = %v", err)
 	}
 }

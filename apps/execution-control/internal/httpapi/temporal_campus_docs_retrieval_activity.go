@@ -9,7 +9,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func (s *Server) RetrieveCampusDocsEvidenceActivity(
+func (s *Server) RetrieveCampusDocsEvidence(
 	ctx context.Context,
 	input temporalruntime.RetrieveCampusDocsEvidenceActivityInput,
 ) (temporalruntime.CampusDocsRetrievalResult, error) {
@@ -37,9 +37,9 @@ func (s *Server) RetrieveCampusDocsEvidenceActivity(
 	wire, err := s.loadExecutionInput(ctx, run)
 	if err != nil {
 		return temporalruntime.CampusDocsRetrievalResult{}, sanitizedTemporalApplicationError(
-			executionInputFailureKind(err, "campus_docs_retrieval_unavailable"),
+			execution.InputFailureKind(err, "campus_docs_retrieval_unavailable"),
 			err,
-			executionInputFailureIsNonRetryable(err),
+			execution.InputFailureIsNonRetryable(err),
 		)
 	}
 	query := campusDocsQueryForExecutionInput(wire, snapshot.AgentLimits.CurrentInputCharLimit)

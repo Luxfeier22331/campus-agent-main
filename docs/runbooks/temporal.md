@@ -28,10 +28,10 @@ workflow 不调用 Argo CD 或 Kubernetes；deployment 不改写 workflow histor
 
 ## 在线回答超时配置
 
-execution-control 网关通过
-`EXECUTION_CONTROL_TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT_SECONDS=900` 为新建在线回答设置
-Temporal `WorkflowExecutionTimeout`；source K8s manifest 与本地 compose 必须显式保持同一值。
-调整该值只影响之后启动的 workflow，不能缩短已经运行的 execution，也不能代替 activity deadline。
+execution-control 网关为新建在线回答固定设置 900 秒的 Temporal `WorkflowExecutionTimeout`。该值由
+源码常量拥有，不是环境变量；source K8s manifest、本地 compose 和环境仓均不投递覆盖值。修改超时
+必须调整源码并验证受影响的启动合同，只影响之后启动的 workflow，不能缩短已经运行的 execution，
+也不能代替 activity deadline。
 超时后的产品终态顺序由[持久 Agent 运行时](../architecture/system/durable-runtime.md#取消超时与终态处理)
 定义，运维不得直接修改 PostgreSQL 投影来跳过回调或输入清理。
 
@@ -51,16 +51,6 @@ Temporal `WorkflowExecutionTimeout`；source K8s manifest 与本地 compose 必�
 删除 workflow command、timer 或 activity 时，先用 SDK version marker 保留旧 history 分支，并继续
 注册旧 history 仍会调度的 activity。只有旧 poller 退出前启动的相关开放 workflow 全部终止后，后续
 发布才能删除旧分支和 activity；固定 version marker 继续保留，不能复用其 change ID。
-
-源码 base 只保留标准 Deployment，不再声明 `WorkerDeployment`、`WorkerResourceTemplate` 或 KEDA。
-环境仓若仍有旧迁移资源，应依据该环境的开放 workflow 和 poller 状态单独完成排空与清理；不得把
-这些资源重新加入源码 base 作为长期发布或扩缩容机制。
-
-`tool_execution_v5` 是不兼容的单向切换，不使用普通 rolling drain 同时接收 v4/v5 请求。必须先按
-[执行服务运维](./execution.md#v5-单向切换) 在维护窗口停止新准入并彻底排空 v4 合同 run，再让
-v5 build 接管 `campus-agent.workflow.v3`、`campus-agent.activity.core.v3` 和
-`campus-agent.activity.agent.v3`。队列后缀是工作流身份，不随本次应用合同改名；Worker Versioning
-也不能替代输入合同切换。
 
 ## 状态检查
 
@@ -87,14 +77,11 @@ kubectl get pod
 - 检查新 Pod 是否在旧 Pod 退出前完成 readiness；
 - workflow replay 不兼容时停止发布，按明确维护窗口排空，不新增长期兼容 worker。
 
-### 旧 Pod 或迁移 build 无法排空
+### 旧 Pod 无法退出
 
 - 检查仍由旧进程执行的 workflow、Activity 与 task queue；
-- workflow 或 Activity 未完成时不得强制删除旧 Pod 或迁移 CRD；
+- workflow 或 Activity 未完成时不得强制删除旧 Pod；
 - 只按产品或 ingestion policy cancel/terminate workflow。
-
-在线回答的 v5 切换不得直接 terminate 来满足“已排空”：取消必须先经过产品路径并完成产品
-终态。无法在维护窗口完成时中止切换，继续保留完整 v4 服务，不能带着未完成 workflow 启用 v5。
 
 ### 在线回答身份或超时无法收敛
 

@@ -1,7 +1,6 @@
-import { Button } from "@campus-agent/ui";
+import { Button, cn } from "@campus-agent/ui";
 import { RefreshCw, UserRound } from "lucide-react";
 import { lazy, Suspense } from "react";
-import { cn } from "@/lib/utils";
 import { useCampusSession } from "@/platform/auth/session";
 import type { AccountMenuPlacement } from "./authenticated-account-menu";
 

@@ -9,9 +9,9 @@ import {
 
 const E2E_CREDENTIAL_ARGS = [
 	"--email",
-	"smoke-user@example.edu",
+	"e2e-user@example.edu",
 	"--password",
-	"dev-smoke-password",
+	"dev-e2e-password",
 	"--captcha-token",
 	"dev-captcha-token",
 ];
@@ -260,9 +260,9 @@ describe("chat durable staging e2e runner", () => {
 				{
 					body: {
 						captchaToken: "dev-captcha-token",
-						email: "smoke-user@example.edu",
+						email: "e2e-user@example.edu",
 					},
-					password: "dev-smoke-password",
+					password: "dev-e2e-password",
 					url: "signInIdentity",
 				},
 				expect.objectContaining({

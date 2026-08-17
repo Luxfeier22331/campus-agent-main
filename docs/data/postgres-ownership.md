@@ -107,13 +107,7 @@ Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campu
 - `execution_control.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
   该 Job 使用环境仓交付的 schema-install DSN 和现有 provider keyring；常驻 runtime 只使用
   `execution_control` DSN，不执行迁移。
-- 从旧 `active_bundle`、`profiles` 和 `connection_revisions` 切换时，Job 在单一事务和 advisory
-  lock 下解密旧 AAD，以 `execution_config.model_settings:<kind>` 这一不可变 AAD v1 重加密当前
-  LLM 与 Embedding，验证写入结果后删除七张旧表。任一步失败都会连同 v3 的新表和数据转换整体
-  回滚；v4 表移动和 grants 由后续 migration 阶段执行。
-- 旧结构不完整、当前表已有数据、缺少 active bundle、缺少 keyring、profile 未验证或存在未知依赖
-  时切换失败。Provider legacy 转换不保留双写、运行时双读或 fallback。
-- 没有旧结构时，当前表可以为空或只配置一个 kind；schema 安装不把业务配置完整性变成部署门禁。
+- `model_settings` 可以为空或只配置一个 kind；schema 安装不把业务配置完整性变成部署门禁。
   `llm` 和 `embedding` 分别由消费它们的运行路径检查并失败。
 - Goose v4 将 execution-control 的 12 张运行表和 `model_settings` 原位移动到
   `execution_control`。`runtime` 与 `execution_config` 下的同名对象暂为不可写兼容视图，只支持

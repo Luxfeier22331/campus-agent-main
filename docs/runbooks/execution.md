@@ -42,21 +42,21 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 私有连接器、暂停新的产品请求准入的维护窗口执行。Schema Job 仍是唯一的 DDL 入口；不得通过
 常驻进程、手工数据库命令或伪造 migration ledger 绕过该合同。
 
-## execution_control schema 切换
+## execution_control schema 与 Campus Docs 切换
 
 Goose v4 会把 execution-control 拥有的 12 张运行表和 `model_settings` 原位移动到
-`execution_control`；Goose v5 随后新增查询 Embedding space 字段和 Campus Docs 当前索引绑定表。
-迁移后源码只读写新路径；`runtime` 和 `execution_config` 下的同名对象是临时
-只读视图，不能承接旧构建的 `INSERT ... ON CONFLICT` 或其他 DML。因此该版本不能按普通无停写滚动
-升级处理。
+`execution_control`；v5 新建 `campus_docs_serving.current_index`，v6 删除模型设置中与索引重复的
+dimensions、space 和 provider/model 身份。迁移后源码只读写新路径；`runtime` 和
+`execution_config` 下的同名对象是临时只读视图，不能承接旧构建的 `INSERT ... ON CONFLICT` 或其他
+DML。因此该版本不能按普通无停写滚动升级处理。
 
 环境交付按以下顺序执行：
 
 1. 暂停新的产品请求准入，等待 execution-control PostgreSQL 写入排空；Temporal 服务和 workflow
    history 保持可用，不删除或重置开放 workflow；
-2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4、v5 已应用、
-   13 张 execution-control 表保留已有行、外键和索引，`campus_docs_serving.current_index` 已创建，
-   并确认旧路径只能读取；
+2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4 至 v6 已
+   应用、13 张 execution-control 表保留已有行、外键和索引，Campus Docs 当前索引表已创建，并确认
+   旧路径只能读取；
 3. 部署同一 revision 的 execution-control 与 Ops Web，确认 Store 健康、Provider Config 解密、
    start/cancel reconciler、个人记忆状态和 Ops Web 精确列读取；
 4. 恢复产品准入，并观察新写入只进入 `execution_control`；不得恢复旧 writer、双写或通过旧视图写入；
@@ -66,89 +66,6 @@ Goose v4 会把 execution-control 拥有的 12 张运行表和 `model_settings` 
 迁移事务失败时保持准入暂停并修复后重跑同一 schema Job。迁移成功且新 writer 已恢复后，按新
 schema 向前修复；不能把旧构建当作应用回滚。`model_settings` 密文继续使用
 `execution_config.model_settings:<kind>` 这一 AAD v1，schema 移动不重加密。
-
-## v5 单向切换
-
-`tool_execution_v5` 冻结 `execution_strategy.v2`，并在个人记忆可用时向模型暴露按需调用的
-`personal_memory_recall` 工具。它与 v4 输入和准入快照不兼容，必须作为同一个源码 revision
-交付；不拆成双读/双写版本，也不保留 v4 fallback。Temporal 队列名仍为 `.v3`，它是
-现有工作流队列身份，不等于应用执行合同版本。
-
-### 切换前验证
-
-1. 对同一源码 revision 完成合同生成检查、app-api migration 与产品数据库检查、
-   execution-control Go/PostgreSQL 检查、受影响镜像构建和 Kubernetes render；
-2. 在环境仓确认数据库备份/恢复责任、目标不可变 image digest、schema Job、app-api migration、
-   execution-control Deployment 与 agent-runtime 均选择该 revision；确认 app-api 与 execution-control 已分别
-   获得同一 `APP_API_EXECUTION_SHARED_SECRET` 引用；
-3. 记录仍使用 v4 合同的开放 workflow、非终态 run、待准入产品请求和当前 poller，作为排空
-   基线；
-4. 若任一合同、migration 或 render 检查失败，不进入维护窗口。
-
-### 维护窗口与 v4 run 排空
-
-1. 在产品入口暂停新的聊天准入；已建立的浏览器连接可以继续读取，但不能创建新 v4 合同 run；
-2. 保持旧 app-api dispatcher、execution-control 和当前 poller 可用，等待已接收请求完成产品
-   finalization；不得先缩容或删除旧进程；
-3. 持续核对 app-api 的 accepted/pending admission、execution-control 的非终态 run、Temporal
-   开放 workflow、各旧队列 backlog 与 in-flight Activity；
-4. 对维护窗口内不再等待的 run 使用既有显式取消路径，并等待取消也写入产品终态，不能只
-   terminate Temporal history 或手改数据库；
-5. 只有在 v4 合同开放 workflow、非终态 run、待投递请求和未完成产品 finalization 都为零后，才
-   宣告排空完成。单独看到 queue backlog 为零不够。
-
-若排空未完成，退出切换并恢复同一 v4 入口；这属于切换开始前中止，不是 v5 运行时 fallback。
-
-### 启用 v5
-
-1. 维持产品准入暂停，执行 app-api 与 execution-control 所属 schema migration，并核对 schema
-   owner、版本与权限；
-2. 部署同一 revision 的 app-api、execution-control 和 agent-runtime；execution-control 的三类 poller 必须使用
-   分别为 `campus-agent.workflow.v3`、`campus-agent.activity.core.v3`、
-   `campus-agent.activity.agent.v3`；
-3. 确认每个 `.v3` 队列已有目标 poller，start/cancel reconciler 可租约并完成命令，内部输入
-   API 使用 `APP_API_EXECUTION_SHARED_SECRET` 完成读取 smoke，readiness 正常；缺少或
-   误用该 Secret 时不得恢复准入；
-4. 关闭旧 poller 和旧配置，确认没有组件在同一服务边界同时读取 v4/v5 payload；
-5. 恢复产品准入。第一个 v5 请求被接受后，切换成为单向事实，故障只能在 v5 合同上向前修复，
-   不得恢复旧 parser、旧列读取或旧工具语义。
-
-### 验收证据
-
-使用非敏感合成请求逐项验证：
-
-- `request.accepted` 提供稳定 `runId`，但不合成未观察到的 `execution.queued`；
-- run 与 start command 同时持久化，reconciler 使用 `campus-agent.chat.{runId}` 启动一次 workflow；
-- 断开 POST stream 后按 `next_sequence` 恢复同一 run；游标能跨过只有内部事件的区间；
-- 显式取消先落 app-api 发件箱，最终得到产品取消终态和浏览器 `run.canceled`；
-- 完成与取消的重复 closeout 保持同一 fingerprint，较晚的不同终态不能覆盖；
-- Temporal history 可包含有界 Campus Docs evidence 与 Agent result；execution-control metadata/event/step、应用日志和
-  trace 不含合成 prompt、对话、工具原始载荷或认证材料；
-- 已经分配 run 的 app-api 执行输入在完成、失败、取消和超时后仍可按同一 ref/hash 读取，不存在
-  execution-control 清理记录或释放回调；
-- start RPC 前已经持久化 `dispatch_attempted`；该 fence 只裁决启动和取消，不控制执行输入生命周期；
-- Primary Agent 的故障注入结果与源码测试一致：已有 `started` 或 `completed` receipt 但没有可用
-  Activity result 时关闭为 `agent_attempt_uncertain`，不产生第二次供应商调用；
-- 当前新运行不含 `selected_tool` 或 handoff。个人记忆不可用时 `visible_tool_names` 和
-  `available_tools` 为空；可用时只包含 `personal_memory_recall`，工具轨迹最多产生一次对应 SDK
-  调用；
-- 每个新运行的快照都包含 `campus_docs_serving.current_index` 的物理 Qdrant collection、
-  dense/embedding/sparse 查询绑定、本轮查询 hash，以及 `llm` 和 `embedding` 模型设置 hash；
-- 每个有效请求的 Temporal 顺序都包含 `campus_docs.retrieve`、`agent.primary`、
-  `finalization.write` 和 `memory.append`；完整 evidence 经由 workflow history 传递，Campus Docs
-  检索不产生 SDK tool call。
-
-环境完成证据至少包括环境仓选择的 commit、Argo CD sync/health、schema/migration 结果、三个
-`.v3` 队列的 v5 poller 与 backlog、旧 workflow 排空记录和合成请求关联标识。源码 CI、本地
-render、Deployment 清单或队列配置存在都不能证明 staging/production 已切换。
-
-### 故障处理
-
-schema migration 或 v5 部署开始后保持准入暂停，优先修复并重新部署同一 v5 合同。不要通过
-恢复 v4 读取、双写、旧工具语义、手工插入终态或删除 Temporal history 恢复服务。数据库
-灾难恢复只按环境仓既有流程整体执行，不能作为应用级回滚捷径。
-在线回答不支持 Temporal Reset；若必须进行管理面恢复，先停止产品准入并由应用所有者制定独立数据
-恢复方案，不能把 Reset 当成普通重试。应用会拒绝把 Reset successor 重新绑定到原产品 run。
 
 ## 配置和 Secret
 
@@ -160,6 +77,11 @@ registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount�
 `EXECUTION_CONTROL_DATABASE_URL` 和 Provider Config keyring，admin 监听器另用 `OPS_WEB_INTERNAL_TOKEN`
 鉴权；缺少 LLM、Embedding、数据库或可解密 key 都是部署阻塞项。Hindsight 与 eval provider
 配置不进入 execution 配置数据库。
+
+Campus Docs 的三个索引 Job 由人工分别触发。Embedding Job 从 execution-control 读取一次当前
+Embedding 连接，Publisher 只消费显式 chunk/embedding 制品并在完整校验 Qdrant collection 后替换
+`campus_docs_serving.current_index`。在线运行从该绑定取得 dimensions、space、查询指令和 collection；
+模型设置不重复保存这些索引属性。具体操作与清理条件见 `campus-docs.md`。
 
 ## 健康与排查
 

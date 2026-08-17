@@ -80,7 +80,6 @@ Ops Web 显示排查请求所需的运行摘要并维护在线模型配置；它
 
 ## 相关文档
 
-- [Langfuse 架构](./langfuse.md)
 - [可观测性架构](./ops-observability.md)
 - [Langfuse 合同](../../contracts/langfuse-runtime.md)
 - [评测参考](../../reference/eval.md)

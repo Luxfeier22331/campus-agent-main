@@ -50,7 +50,7 @@ func personalMemoryActivityOutput(commandID string, status string, errorCode str
 	}
 }
 
-func (s *Server) ExecutePersonalMemoryCommandActivity(
+func (s *Server) ExecutePersonalMemoryCommand(
 	ctx context.Context,
 	command memoryruntime.PersonalMemoryCommandRequest,
 ) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
@@ -151,7 +151,7 @@ func (s *Server) ExecutePersonalMemoryCommandActivity(
 	return personalMemoryActivityOutput(command.CommandID, "succeeded", ""), nil
 }
 
-func (s *Server) FinalizePersonalMemoryCommandReceiptActivity(
+func (s *Server) FinalizePersonalMemoryCommandReceipt(
 	ctx context.Context,
 	input temporalruntime.FinalizePersonalMemoryCommandReceiptActivityInput,
 ) (temporalruntime.PersonalMemoryCommandActivityOutput, error) {
@@ -251,7 +251,7 @@ func personalMemoryCommandErrorCodeForStatus(status string, errorCode string) st
 	return personalMemoryCommandErrorCode(errorCode)
 }
 
-func (s *Server) WritePersonalMemoryCommandResultActivity(
+func (s *Server) WritePersonalMemoryCommandResult(
 	ctx context.Context,
 	result temporalruntime.PersonalMemoryCommandActivityOutput,
 ) error {

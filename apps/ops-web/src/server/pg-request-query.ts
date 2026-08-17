@@ -3,7 +3,7 @@ import {
 	normalizeStatusToDbValues,
 	requestListView,
 } from "./ops-status-mappers.ts";
-import type { OpsRequestListQuery, OpsRequestSummaryTotals } from "./ops-status-store.ts";
+import type { OpsRequestListQuery, OpsRequestSummaryTotals } from "./ops-status-types.ts";
 
 export function requestSql(suffix: string): string {
 	return `

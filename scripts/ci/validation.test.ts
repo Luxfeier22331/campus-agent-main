@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { AffectedScope, ScopeTask } from "./scope.mts";
-import { validationPlanFromScope } from "./validation.mts";
+import {
+	MANUAL_VALIDATION_PROFILES,
+	VALIDATION_PROFILE_REGISTRY,
+	validationPlanFromScope,
+	validationProfileMetadata,
+} from "./validation.mts";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -15,6 +20,39 @@ function profiles(changedFiles: string[], tasks: ScopeTask[] = []) {
 	return validationPlanFromScope(scope(changedFiles, tasks), { mode: "pull-request" })
 		.validationProfiles;
 }
+
+test("validation profiles have one fail-closed registry", () => {
+	assert.deepEqual(MANUAL_VALIDATION_PROFILES, [
+		"go",
+		"rust",
+		"ragas",
+		"app-api-migration",
+		"app-api-product-db",
+		"execution-control-postgres",
+		"ingestion-control-postgres",
+		"ops-web-postgres",
+		"infra",
+		"otel",
+	]);
+	assert.deepEqual(validationProfileMetadata("ragas"), {
+		lane: "manual",
+		name: "ragas",
+		requiresDocker: false,
+		requiresUv: true,
+	});
+	assert.deepEqual(validationProfileMetadata("toolchain"), {
+		lane: "pull-request",
+		name: "toolchain",
+		requiresDocker: true,
+		requiresUv: false,
+	});
+	assert.throws(() => validationProfileMetadata("unknown"), /Unsupported validation profile/u);
+	for (const [profile, definition] of Object.entries(VALIDATION_PROFILE_REGISTRY)) {
+		if (definition.executor.kind === "commands") {
+			assert.ok(definition.executor.commands.length > 0, profile);
+		}
+	}
+});
 
 test("docs-only changes keep automatic evidence empty", () => {
 	const plan = validationPlanFromScope(scope(["docs/architecture/current.md"]), {

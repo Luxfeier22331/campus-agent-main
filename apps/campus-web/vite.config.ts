@@ -6,18 +6,19 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
-import { resolveStagingSentryRelease } from "../../scripts/deploy/staging-release";
-import { campusBundleGraphPlugin } from "./config/bundle-graph";
-import { resolveDocsContentPaths } from "./src/docs-reader-build/docs-content";
+import { resolveStagingSentryRelease } from "../../scripts/deploy/staging-release.mts";
+import { campusBundleGraphPlugin } from "./config/bundle-graph.ts";
+import { resolveDocsContentPaths } from "./src/docs-reader-build/docs-content.ts";
 import {
 	type CampusMapAssetKind,
 	getCampusMapAssetHeaders,
 	getCampusMapAssetKind,
 	getRawRequestPathname,
-} from "./src/platform/campus-map-assets";
+} from "./src/platform/campus-map-assets.ts";
 
+const campusWebRoot = import.meta.dirname;
 const require = createRequire(import.meta.url);
-const sharedFaviconPath = path.resolve(__dirname, "../../configs/branding/web-public/favicon.ico");
+const campusFaviconPath = path.resolve(campusWebRoot, "assets/favicon.ico");
 
 export default defineConfig(({ command, isPreview }) => {
 	const buildTarget = resolveCampusWebBuildTarget();
@@ -27,7 +28,7 @@ export default defineConfig(({ command, isPreview }) => {
 	}
 	const docsContent = isPreview ? undefined : resolveDocsBuildContent();
 	const clientOutputRoot = path.resolve(
-		__dirname,
+		campusWebRoot,
 		buildTarget === "docs" ? "dist/docs-client" : "dist/client",
 	);
 	let htmlInputs: Record<string, string> | undefined;
@@ -61,7 +62,7 @@ export default defineConfig(({ command, isPreview }) => {
 			campusBundleGraphPlugin({
 				entry: buildTarget,
 				outputFile: path.resolve(
-					__dirname,
+					campusWebRoot,
 					buildTarget === "docs"
 						? ".generated/docs-bundle-graph.json"
 						: ".generated/bundle-graph.json",
@@ -70,7 +71,7 @@ export default defineConfig(({ command, isPreview }) => {
 			...(docsBuildPlugin
 				? [docsBuildPlugin]
 				: [
-						copySharedFavicon(),
+						copyCampusFavicon(),
 						copyMapLibreVendor(),
 						copyCampusMapAssets(),
 						cloudflare({ inspectorPort: false }),
@@ -101,7 +102,7 @@ export default defineConfig(({ command, isPreview }) => {
 		],
 		resolve: {
 			alias: {
-				"@": path.resolve(__dirname, "src"),
+				"@": path.resolve(campusWebRoot, "src"),
 			},
 			dedupe: ["react", "react-dom"],
 		},
@@ -166,7 +167,7 @@ function findHtmlInputs(pagesRoot: string): Record<string, string> {
 }
 
 function serveDocsDevelopmentShell(publicRoot: string): Plugin {
-	const shellPath = path.resolve(__dirname, "docs-dev.html");
+	const shellPath = path.resolve(campusWebRoot, "docs-dev.html");
 	return {
 		configureServer(server) {
 			server.middlewares.use(async (request, response, next) => {
@@ -279,7 +280,7 @@ function docsDevelopmentAssetContentType(filePath: string): string {
 function relocateDocsHtmlPages(input: { clientOutputRoot: string; pagesRoot: string }): Plugin {
 	const builtPagesRoot = path.resolve(
 		input.clientOutputRoot,
-		path.relative(__dirname, input.pagesRoot),
+		path.relative(campusWebRoot, input.pagesRoot),
 	);
 	const destinationRoot = path.resolve(input.clientOutputRoot, "docs");
 	return {
@@ -333,20 +334,20 @@ function resolveSentrySourceMapUpload(): {
 	};
 }
 
-function copySharedFavicon(): Plugin {
+function copyCampusFavicon(): Plugin {
 	return {
 		closeBundle() {
-			const targetPath = path.resolve(__dirname, "dist/client/favicon.ico");
+			const targetPath = path.resolve(campusWebRoot, "dist/client/favicon.ico");
 			fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-			fs.copyFileSync(sharedFaviconPath, targetPath);
+			fs.copyFileSync(campusFaviconPath, targetPath);
 		},
 		configureServer(server) {
 			server.middlewares.use("/favicon.ico", (_request, response, next) => {
 				response.setHeader("content-type", "image/x-icon");
-				fs.createReadStream(sharedFaviconPath).on("error", next).pipe(response);
+				fs.createReadStream(campusFaviconPath).on("error", next).pipe(response);
 			});
 		},
-		name: "campus-web:copy-shared-favicon",
+		name: "campus-web:copy-favicon",
 	};
 }
 
@@ -372,7 +373,7 @@ function copyMapLibreVendor(): Plugin {
 
 	return {
 		closeBundle() {
-			const targetDir = path.resolve(__dirname, "dist/client/vendor/maplibre-gl");
+			const targetDir = path.resolve(campusWebRoot, "dist/client/vendor/maplibre-gl");
 			fs.mkdirSync(targetDir, { recursive: true });
 			for (const fileName of vendorFiles.keys()) {
 				fs.copyFileSync(getVendorSourcePath(fileName), path.join(targetDir, fileName));
@@ -403,10 +404,10 @@ function copyMapLibreVendor(): Plugin {
 }
 
 function copyCampusMapAssets(): Plugin {
-	const sourceRoot = path.resolve(__dirname, "assets/campus-map");
+	const sourceRoot = path.resolve(campusWebRoot, "assets/campus-map");
 	return {
 		closeBundle() {
-			const targetRoot = path.resolve(__dirname, "dist/client/campus-map");
+			const targetRoot = path.resolve(campusWebRoot, "dist/client/campus-map");
 			if (!fs.existsSync(sourceRoot)) {
 				throw new Error(`Campus map assets are missing: ${sourceRoot}`);
 			}

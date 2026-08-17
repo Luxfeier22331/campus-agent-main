@@ -1,4 +1,4 @@
-import { isRecord, type JsonObject, mapping, optionalString, stringField } from "./shared";
+import { isRecord, type JsonObject, mapping, optionalString, stringField } from "./json";
 
 export const AGENT_RUNTIME_TOOL_NAMES = ["personal_memory_recall"] as const;
 

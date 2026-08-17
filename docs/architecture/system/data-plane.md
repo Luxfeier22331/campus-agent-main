@@ -88,6 +88,7 @@ RAG publisher 的输入，也不会自动写入 Qdrant 或推进在线索引。
 
 ## 相关文档
 
+- `docs/decisions/adr-0002-object-storage.md`
 - `docs/decisions/adr-0077-ingestion.md`
 - `docs/data/internal-portal.md`
 - `docs/data/notices.md`

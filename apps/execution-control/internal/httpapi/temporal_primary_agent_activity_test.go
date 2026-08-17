@@ -85,7 +85,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		TurnID:           "turn-primary-agent-001",
 		VisibleToolNames: []string{},
 	})
-	output, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	output, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 		TurnID:           "turn-primary-agent-streaming",
 		VisibleToolNames: []string{},
 	})
-	output, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	output, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 	})
 	done := make(chan error, 1)
 	go func() {
-		_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+		_, err := server.ExecutePrimaryAgent(context.Background(), input)
 		done <- err
 	}()
 	select {
@@ -494,7 +494,7 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 		TurnID:           "turn-primary-agent-empty-memory",
 		VisibleToolNames: []string{},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
@@ -526,7 +526,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testi
 		return nil
 	}
 
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+	_, err := server.ExecutePrimaryAgent(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
 		RunID:   "run-primary-agent-missing",
 		TraceID: "trace-executor-001",
 	})
@@ -567,7 +567,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWithoutAdmissionSnapshot(t *testi
 	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+	_, err := server.ExecutePrimaryAgent(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
 		RunID:            "run-primary-agent-admission-missing",
 		TraceID:          "trace-executor-001",
 		VisibleToolNames: []string{},
@@ -614,7 +614,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenProviderSettingMissing(t *tes
 	})
 	server.providerConfigResolver = staticProviderConfigResolver{}
 
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err == nil {
 		t.Fatal("expected missing provider setting to fail")
 	}
@@ -669,7 +669,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 		TraceID:          "trace-executor-001",
 		VisibleToolNames: []string{},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err == nil {
 		t.Fatal("expected agent runtime diagnostic failure")
 	}
@@ -743,7 +743,7 @@ func TestExecutePrimaryAgentActivityClassifiesUnauthorizedRuntimeAsNonRetryable(
 		TraceID:          "trace-executor-001",
 		VisibleToolNames: []string{},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 
 	assertTemporalFailureSanitized(t, err, "agent_runtime_unauthorized", true)
 	steps, listErr := store.ListRunSteps(context.Background(), input.RunID)
@@ -794,7 +794,7 @@ func TestExecutePrimaryAgentActivityLeavesAgentRuntimeTimeoutTerminalStateToWork
 		TraceID:          "trace-executor-001",
 		VisibleToolNames: []string{},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err == nil {
 		t.Fatal("expected agent runtime timeout")
 	}

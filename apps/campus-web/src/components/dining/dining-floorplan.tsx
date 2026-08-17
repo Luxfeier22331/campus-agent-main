@@ -1,10 +1,9 @@
-import { Button } from "@campus-agent/ui";
+import { Button, cn } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef } from "react";
 import type { DiningFloorResponse, DiningWindowProjection } from "@/features/dining/model";
 import { diningFloorplanAssetQueryOptions } from "@/features/dining/queries";
-import { cn } from "@/lib/utils";
 
 interface InteractiveFloorplanProps {
 	floor: DiningFloorResponse;

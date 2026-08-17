@@ -1,6 +1,8 @@
+import { stableId } from "./identifiers";
+import type { JsonObject } from "./json";
 import type { LangfuseEvalClient } from "./langfuse-client";
 import { createLangfuseEvalClient } from "./langfuse-client";
-import { type JsonObject, settingsFromEnv, stableId } from "./shared";
+import { settingsFromEnv } from "./settings";
 
 export const LEARNING_LOOP_CANDIDATE_DATASET = "online-answer/candidates";
 

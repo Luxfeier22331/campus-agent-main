@@ -6,101 +6,29 @@ status: active
 
 # Ops Web 接口
 
-## 范围
-
-本目录定义 `apps/ops-web` 服务端提供给自身页面的 HTTP 接口：
+本目录定义 Ops Web 服务端提供给自身页面的 HTTP 接口：
 
 - [runtime.md](./runtime.md)：运行概况、运行记录和按需系统记录；
 - [providers.md](./providers.md)：在线模型配置；
-- [internal-portal.md](./internal-portal.md)：内部门户凭据；
-- [access.md](./access.md)：非校园邮箱准入授权；
+- [internal-portal.md](./internal-portal.md)：内部门户凭据与自动化 token；
+- [access.md](./access.md)：非校园邮箱准入；
 - [users.md](./users.md)：用户、会话、账号操作记录和只读注销状态。
 
-食堂和同好群是内容运营能力，其接口与数据边界分别由
-[食堂](../../product/dining.md) 和 [同好群](../../domains/groups.md) 说明。可执行合同位于 `apps/ops-web/src/server/app.ts` 和
-`apps/ops-web/src/shared/`。环境变量、数据库授权和网络策略不由本目录维护。
+食堂和同好群分别由 [食堂产品文档](../../product/dining.md) 和
+[同好群领域文档](../../domains/groups.md) 维护。可执行路由与 DTO 位于
+`apps/ops-web/src/server/app.ts` 和 `apps/ops-web/src/shared/`。
 
-## 接口索引
+## 共享规则
 
-运行记录：
+- `/api/ops/*` 接受经过 Cloudflare Access 验证的人员身份；Access policy 决定人员范围。
+- `/api/automation/*` 只接受配置入口上的 Bearer token，不接受人员 JWT。
+- 浏览器只调用同源接口，不获得数据库、供应商或内部服务凭据。
+- 写操作继续执行同源、正文、并发和所属领域校验。
+- 查询失败不能转换为空数组、无数据或成功状态。
+- 响应不得包含数据库地址、JWT、Cookie、Secret、供应商原始响应或任意观测正文。
+- 缓存、游标、状态枚举、错误码和精确字段由对应子合同及可执行 schema 维护。
 
-- `GET /api/ops/overview`
-- `GET /api/ops/requests`
-- `GET /api/ops/requests/:requestId`
-- `GET /api/ops/requests/:requestId/observability`
-- `GET /api/ops/requests/:requestId/sentry-issues`
-
-模型配置：
-
-- `GET /api/ops/model-settings/execution`
-- `POST /api/ops/model-settings/execution/llm/models`
-- `PUT /api/ops/model-settings/execution/:kind`
-- `POST /api/ops/model-settings/execution/:kind/validate`
-
-内部门户凭据：
-
-- `GET /api/ops/internal-portal/credentials`
-- `POST /api/ops/internal-portal/credentials`
-- `PUT /api/ops/internal-portal/credentials/:credentialId`
-- `DELETE /api/ops/internal-portal/credentials/:credentialId`
-- `POST /api/ops/internal-portal/credentials/:credentialId/validate`
-- `POST /api/ops/internal-portal/credentials/:credentialId/reveal`
-- `GET /api/ops/internal-portal/automation-tokens`
-- `POST /api/ops/internal-portal/automation-tokens`
-- `POST /api/ops/internal-portal/automation-tokens/:tokenId/reveal`
-- `POST /api/ops/internal-portal/automation-tokens/:tokenId/revoke`
-
-开发者自动化凭据接口（不经过 Cloudflare Access）：
-
-- `GET /api/automation/internal-portal/credentials`
-- `POST /api/automation/internal-portal/credentials`
-- `GET /api/automation/internal-portal/credentials/:credentialId`
-- `PUT /api/automation/internal-portal/credentials/:credentialId`
-- `DELETE /api/automation/internal-portal/credentials/:credentialId`
-
-账号管理：
-
-- `GET /api/ops/email-access-grants`
-- `POST /api/ops/email-access-grants`
-- `POST /api/ops/email-access-grants/:grantId/:action`
-- `GET /api/ops/users`
-- `GET /api/ops/users/:userId`
-- `POST /api/ops/users/:userId/:action`
-- `POST /api/ops/users/:userId/sessions/:sessionId/revoke`
-- `GET /api/ops/account-events`
-
-同好群：
-
-- `GET /api/ops/groups/catalog`
-- `PUT /api/ops/groups/catalog`
-
-健康检查：
-
-- `GET /healthz`
-- `GET /readyz`
-
-## 通用规则
-
-### 身份和权限
-
-- `/api/ops/*` 验证 Cloudflare Access JWT 的签发方、受众和签名。
-- Cloudflare Access policy 决定人员范围；服务端只接受 `type=app` 且 `sub` 非空的人员应用令牌，
-  拒绝 `sub` 为空的服务令牌，不复制人员、组或分接口白名单。
-- `/api/ops/*` 接口使用同一人员准入。写接口另外执行同源、正文、并发和领域校验；`/api/automation/*`
-  使用配置 origin、Bearer token 和自己的输入/CAS 合同，不接受人员 JWT。
-- 浏览器不持有 PostgreSQL、Axiom、在线模型配置管理接口或外部平台凭据。
-
-### 响应和错误
-
-- 成功正文为 UTF-8 JSON，并在返回前通过 Zod 校验。
-- `/api/ops/overview` 返回
-  `Cache-Control: private, max-age=15, stale-if-error=300`。
-- 其他 `/api/ops/*` 返回 `Cache-Control: no-store`。
-- 查询失败不能转换为空数组、`NO_DATA` 或成功状态。
-- 错误正文不得包含数据库地址、JWT、Cookie、Secret 或外部平台凭据。
-- 所有页面和接口设置内容安全策略并禁止被其他站点嵌入。
-
-错误格式：
+错误使用统一 JSON envelope：
 
 ```json
 {
@@ -111,95 +39,16 @@ status: active
 }
 ```
 
-主要错误码：
+## 健康与就绪
 
-| HTTP | 错误码 | 含义 |
-| ---: | --- | --- |
-| 400 | `OPS_INVALID_QUERY` | 查询参数或游标无效 |
-| 400 | `OPS_INVALID_REQUEST_ID` | 请求 ID 格式无效 |
-| 400 | `OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED`、`OPS_MODEL_SETTINGS_PRECONDITION_REQUIRED` | 在线模型配置写入合同无效 |
-| 400 | `OPS_INTERNAL_PORTAL_INPUT_INVALID`、`OPS_INTERNAL_PORTAL_CONTENT_TYPE_REQUIRED` | 内部门户凭据正文或标识无效 |
-| 400 | `OPS_DINING_QUERY_INVALID`、`OPS_DINING_DRAFT_INVALID`、`OPS_DINING_PUBLISH_INVALID`、`OPS_DINING_RESTORE_INVALID`、`OPS_DINING_MENU_INVALID`、`OPS_DINING_REVIEW_INVALID`、`OPS_DINING_REPORT_INVALID`、`OPS_DINING_INVALID` | Dining 查询、正文或内容无效 |
-| 400 | `OPS_CAMPUS_GROUPS_REQUEST_INVALID` | 同好群目录正文无效 |
-| 401 | `OPS_ACCESS_JWT_MISSING`、`OPS_ACCESS_JWT_INVALID` | 未通过 Access 验证 |
-| 403 | `OPS_PROVIDER_CONFIG_CSRF_REJECTED` | 在线模型配置写请求不同源 |
-| 403 | `OPS_INTERNAL_PORTAL_CSRF_REJECTED` | 内部门户凭据写请求不同源 |
-| 403 | `OPS_ACCOUNT_ADMIN_CSRF_REJECTED`、`OPS_EMAIL_ACCESS_CSRF_REJECTED` | 账号管理写请求不同源 |
-| 403 | `OPS_DINING_ORIGIN_INVALID` | Dining 写请求不同源 |
-| 404 | `OPS_REQUEST_NOT_FOUND`、`OPS_API_ROUTE_NOT_FOUND`、`OPS_DINING_NOT_FOUND` | 请求、接口或地图版本不存在 |
-| 409 | `OPS_PROVIDER_CONFIG_CONFLICT` | 模型配置已被其他操作更新 |
-| 409 | `OPS_INTERNAL_PORTAL_CONFLICT` | 内部门户凭据已被其他操作更新 |
-| 409 | `OPS_INTERNAL_PORTAL_NAME_CONFLICT` | 内部门户凭据名称已存在 |
-| 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
-| 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
-| 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |
-| 503 | `OPS_OBSERVABILITY_UNAVAILABLE` | Axiom 查询未配置、失败、超时或响应无效 |
-| 503 | `OPS_SENTRY_UNAVAILABLE` | Sentry Issue 查询未配置、失败或响应无效 |
-| 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | execution-control admin 未配置或不可用 |
-| 503 | `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`、`OPS_INTERNAL_PORTAL_CHECK_FAILED` | 内部门户凭据数据库或真实验证暂不可用 |
-| 400 | `OPS_AUTOMATION_TOKEN_INPUT_INVALID`、`OPS_AUTOMATION_QUERY_INVALID` | 自动化 token 管理输入或机器查询参数无效 |
-| 401 | `OPS_AUTOMATION_TOKEN_INVALID` | 机器端点缺少、错误或已撤销 Bearer token |
-| 404 | `OPS_AUTOMATION_TOKEN_NOT_FOUND` | 自动化 token 不存在 |
-| 503 | `OPS_AUTOMATION_NOT_CONFIGURED` | 自动化 token 管理与机器端点未配置 `OPS_WEB_AUTOMATION_ORIGIN` |
-| 503 | `OPS_AUTOMATION_TOKEN_STORE_UNAVAILABLE` | 自动化 token 数据库不可用 |
-| 503 | `OPS_ACCOUNT_ADMIN_UNAVAILABLE`、`OPS_EMAIL_ACCESS_UNAVAILABLE` | App API 账号管理接口未配置或不可用 |
-| 503 | `OPS_DINING_STORE_UNAVAILABLE` | Dining PostgreSQL 不可用 |
-| 503 | `OPS_CAMPUS_GROUPS_UNAVAILABLE` | App API 同好群管理接口未配置或不可用 |
-| 503 | `OPS_WEB_NOT_READY` | Ops Web 核心依赖未就绪 |
-| 500 | `OPS_API_INTERNAL_ERROR` | 未分类服务端错误 |
+`GET /healthz` 只证明 Node 进程可以响应，不访问依赖。
 
-### 状态值
-
-健康状态为 `HEALTHY`、`DEGRADED`、`OUTAGE` 或 `UNKNOWN`。
-
-数据状态为：
-
-- `FRESH`：本次读取成功；
-- `PARTIAL`：同一来源的部分固定查询成功、部分失败；
-- `STALE`：返回最近一次成功结果；
-- `NO_DATA`：读取成功但没有记录；
-- `UNAVAILABLE`：来源未配置、连接失败、超时或响应无效。
-
-`/api/ops/overview` 只读取请求状态、请求趋势和已配置外部入口。请求与趋势来自同一 PostgreSQL
-所有者，服务端提供 15 秒短期缓存和最多五分钟的明确旧数据回退。`health` 只汇总产品请求投影；
-`issues[]` 只描述请求数据或产品状态问题。接口不探测服务、不查询 Temporal task queue、不读取
-Axiom coverage 或 Collector uptime。
-
-请求状态为 `COMPLETED`、`FAILED`、`CANCELLED`、`RUNNING`、`PENDING` 或 `ACTION_REQUIRED`。
-`ACTION_REQUIRED` 是终态，表示需要用户补充信息或审批；不会继续自动执行或被当作活动请求轮询。
-
-## 健康检查
-
-`GET /healthz` 只证明 Node 进程能响应，不访问依赖：
-
-```json
-{ "ok": true, "service": "ops-web" }
-```
-
-`GET /readyz` 无需操作者 JWT。所有环境都必须配置合法的 `OPS_WEB_PUBLIC_ORIGIN` 并能读取请求
-状态 PostgreSQL；非 local/development 环境还必须配置 Cloudflare Access 验证参数。local 和
-development 环境跳过 Access 配置检查，便于本地 API 与 fixture 独立运行。`OPS_WEB_AUTOMATION_ORIGIN`
-不属于顶层就绪条件；它缺失时只有自动化 token 管理和 `/api/automation/*` 返回
-`503 OPS_AUTOMATION_NOT_CONFIGURED`。
-失败返回 `503 OPS_WEB_NOT_READY` 及不含敏感信息的缺失项或稳定 `reasonCode`。Axiom、Sentry、
-Langfuse、Temporal UI、在线模型配置、Dining 和自动化入口故障不影响 Pod 就绪；它们在所属读取面
-或页面返回明确的不可用状态。
-请求读取 schema 在进程开始监听前验证一次；周期 `/readyz` 只执行轻量数据库连接查询，不重复运行
-多条 schema 查询。
-
-## 禁止行为
-
-- 根据 Axiom、Temporal、Langfuse 或 Sentry 数据改写请求状态。
-- 让浏览器控制任意 APL、dataset、字段投影、时间窗口或返回上限。
-- 返回数据库地址、JWT、Cookie 或服务凭据。
-- 让浏览器持有在线模型配置凭据、直接写配置数据库或选择任意 Kubernetes 资源。
-- 让 Ops Web 创建、列举、读取或更新 Kubernetes Secret 或 workload。
-- 选择或操作任意 Temporal Schedule、Workflow 或 Activity。
-- 同步外部观测正文、缓存供应商响应或提供通用观测查询接口。
+`GET /readyz` 无需操作者身份，只检查 Ops Web 接受核心请求所需的公开 origin、请求状态数据库，
+以及非本地环境的 Access 配置。Axiom、Sentry、Langfuse、Temporal UI、在线模型配置、Dining 和
+自动化机器入口不属于顶层就绪条件；它们在所属接口返回局部状态。
 
 ## 相关文档
 
 - `../../product/ops-web.md`
 - `../../architecture/system/ops-observability.md`
 - `../../data/postgres-ownership.md`
-- [Cloudflare Access Application Token](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/)

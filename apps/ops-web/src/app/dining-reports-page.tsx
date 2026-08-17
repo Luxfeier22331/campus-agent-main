@@ -5,7 +5,7 @@ import { EyeOff, RefreshCw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { DiningTaskNavigation } from "./dining-navigation";
 import { formatTimestamp } from "./format";
-import { fetchDiningReports, resolveDiningReports } from "./ops-api-client";
+import { fetchDiningReports, resolveDiningReports } from "./ops-api/dining";
 import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
 import { ConfirmAction } from "./ui/alert-dialog";
 import { DataTable } from "./ui/data-table";

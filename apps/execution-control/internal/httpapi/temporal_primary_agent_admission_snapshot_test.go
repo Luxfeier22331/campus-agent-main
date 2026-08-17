@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,7 +56,7 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	activeProvider.APIKey = "sk-active"
 	activeProvider.Model = "model-active"
 	embeddingProvider := embeddingProviderConfigSnapshotForTest(
-		providerConfigKindEmbedding,
+		providerconfig.KindEmbedding,
 		"https://embedding.example/v1",
 		"provider-model-alias",
 	)
@@ -71,8 +72,8 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 	server.providerConfigResolver = staticProviderConfigResolver{
-		providerConfigKindLLM:       pinnedProvider,
-		providerConfigKindEmbedding: embeddingProvider,
+		providerconfig.KindLLM:       pinnedProvider,
+		providerconfig.KindEmbedding: embeddingProvider,
 	}
 	snapshot, err := server.buildAgentAdmissionSnapshot(
 		context.Background(),
@@ -83,8 +84,8 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 		t.Fatalf("build immutable admission snapshot: %v", err)
 	}
 	server.providerConfigResolver = staticProviderConfigResolver{
-		providerConfigKindLLM:       activeProvider,
-		providerConfigKindEmbedding: embeddingProvider,
+		providerconfig.KindLLM:       activeProvider,
+		providerconfig.KindEmbedding: embeddingProvider,
 	}
 
 	input := withCampusDocsRetrievalForTest(t, temporalruntime.ExecutePrimaryAgentActivityInput{
@@ -96,7 +97,7 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 		TurnID:            "turn-admission-snapshot",
 		VisibleToolNames:  []string{},
 	})
-	_, err = server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err = server.ExecutePrimaryAgent(context.Background(), input)
 	if err == nil || requests != 0 {
 		t.Fatalf("rotated provider setting error = %v, agent runtime requests = %d", err, requests)
 	}
@@ -159,7 +160,7 @@ func TestExecutePrimaryAgentActivityRejectsLocalToolRuntimeDriftBeforeAgentCall(
 	snapshot.ToolRuntimeFingerprint = admittedToolRuntime.toAdmissionSnapshot()
 	snapshot.ToolRuntimeFingerprintSHA256 = hashAdmissionJSON(snapshot.ToolRuntimeFingerprint)
 
-	_, err = server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+	_, err = server.ExecutePrimaryAgent(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
 		AdmissionSnapshot: snapshot,
 		ConversationID:    "conv-local-tool-runtime-drift",
 		RunID:             "run-local-tool-runtime-drift",

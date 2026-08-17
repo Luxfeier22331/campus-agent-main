@@ -41,14 +41,9 @@ hydration 前设置根节点外观。Provider 的首次 React 树保持可预渲
 应用在根布局声明 `data-ui-profile="campus"` 或 `data-ui-profile="ops"`，仅覆盖页面边距、控件高度、
 表面圆角等密度变量。profile 不能改变共享颜色语义，也不能让业务组件依赖另一个应用的变量。
 
-`status-web` 是独立的静态 Worker 页面，不接入共享 React primitive；它在应用层实现产品可用性状态行、
-时间线和原生移动导航。其密度规则为状态/数据行 `12px`、控件 `8px`，并使用与共享语义一致的颜色、焦点和
-主题要求。状态页 header 只复刻 Campus 产品导航的顺序和 active 语义，不把 `CampusTopNav` 或产品导航内容
-迁入 `packages/ui`，也不引入账号状态。30 天时间线不作为共享 Card 或全局表格模式，也不改变现有 Campus/Ops
-页面的圆角数值；每个服务的 30 天时间线使用一个复合 `role="slider"`，单一 Tab 停靠点和
-`aria-valuemin/max/now/text` 表达日期选择，30 根竖条仅作 `aria-hidden` 视觉子元素；日期用窄竖条和焦点轮廓表达，
-不在服务行内部再嵌套独立卡片。页面 H1 后直接渲染 `campus.qa` 与 `campus.services` 两行，不建立产品分组层；
-初始骨架复用两行的稳定尺寸。时间线与图例同时使用实心、横向空隙、点线或虚线轮廓编码状态，不能只依赖颜色。
+`status-web` 是独立静态页面，不接入共享 React primitive。它在应用层实现页面和导航，同时复用仓库的
+颜色、焦点、主题和无障碍语义；状态页专属服务与时间线行为见
+`../../product/status-web.md`，不进入共享组件或本架构文档。
 
 领域界面在集成边界消费应用 Token：Campus 地图的 MapLibre style、浮层和 marker 由
 `apps/campus-web/src/design/tokens.css` 拥有，`MapPage` 在解析主题变化后重新加载 style，并在旧

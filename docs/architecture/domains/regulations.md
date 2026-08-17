@@ -57,5 +57,6 @@ reader 都进入同一个索引。
 - `../system/agentic-retrieval.md`
 - `../system/retrieval-serving.md`
 - `../../data/internal-portal.md`
+- `../../decisions/adr-0037-scoped-rules.md`
 - `../../decisions/adr-0035-regulation-promotion.md`
 - `../../decisions/adr-0040-regulation-identity.md`

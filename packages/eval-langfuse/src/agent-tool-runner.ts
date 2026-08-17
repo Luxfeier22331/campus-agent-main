@@ -13,6 +13,15 @@ import {
 	type ExecutionRunEvalProjection,
 	parseExecutionRunEvalProjection,
 } from "./execution-projection";
+import { stableId } from "./identifiers";
+import {
+	type JsonObject,
+	loadJsonObject,
+	mapping,
+	optionalString,
+	stringField,
+	writeJsonObject,
+} from "./json";
 import { createLangfuseEvalClient } from "./langfuse-client";
 import {
 	buildLangfuseScoresFromRagasAgentScoreBatch,
@@ -20,16 +29,7 @@ import {
 	type LangfuseScoreItem,
 	publishLangfuseScores,
 } from "./score-publisher";
-import {
-	type JsonObject,
-	type LangfuseSettings,
-	loadJsonObject,
-	mapping,
-	optionalString,
-	stableId,
-	stringField,
-	writeJsonObject,
-} from "./shared";
+import type { LangfuseSettings } from "./settings";
 import type { ToolTrajectory } from "./tool-trajectory";
 import { deriveLangfuseTraceId } from "./trace";
 

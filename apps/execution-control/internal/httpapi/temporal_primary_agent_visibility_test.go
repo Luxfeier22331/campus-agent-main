@@ -57,7 +57,7 @@ func TestExecutePrimaryAgentActivityPassesCurrentEmptyToolSet(t *testing.T) {
 		TurnID:           "turn-primary-agent-institutional-account",
 		VisibleToolNames: []string{},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testin
 		TurnID:           "turn-primary-agent-personal-memory",
 		VisibleToolNames: []string{personalMemoryRecallToolName},
 	})
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestExecutePrimaryAgentActivityRejectsMismatchedVisibleToolSet(t *testing.T
 		VisibleToolNames: []string{},
 	})
 	input.VisibleToolNames = []string{personalMemoryRecallToolName}
-	_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	assertTemporalFailureSanitized(t, err, "admission_snapshot_invalid", true)
 	if requests != 0 {
 		t.Fatalf("agent runtime requests = %d, want none", requests)

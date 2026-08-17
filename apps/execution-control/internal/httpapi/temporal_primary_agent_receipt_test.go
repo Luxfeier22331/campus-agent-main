@@ -121,14 +121,14 @@ func TestExecutePrimaryAgentActivityFailsClosedAfterCompletedReceiptWithoutSecon
 				VisibleToolNames: []string{personalMemoryRecallToolName},
 			})
 
-			if _, err := server.ExecutePrimaryAgentActivity(context.Background(), input); err == nil {
+			if _, err := server.ExecutePrimaryAgent(context.Background(), input); err == nil {
 				t.Fatal("first Activity unexpectedly crossed the injected projection failure")
 			}
 			if calls.Load() != 1 {
 				t.Fatalf("agent runtime calls after first attempt = %d, want 1", calls.Load())
 			}
 
-			_, err := server.ExecutePrimaryAgentActivity(context.Background(), input)
+			_, err := server.ExecutePrimaryAgent(context.Background(), input)
 			assertTemporalFailureSanitized(t, err, "agent_attempt_uncertain", true)
 			if calls.Load() != 1 {
 				t.Fatalf("agent runtime calls after completed receipt = %d, want 1", calls.Load())
@@ -169,7 +169,7 @@ func TestExecutePrimaryAgentActivityReceiptStoresNoModelResult(t *testing.T) {
 		ConversationID: "conv-" + runID, RequestID: "req-executor-001", RunID: runID,
 		TraceID: "trace-executor-001", TurnID: "turn-" + runID,
 	})
-	if _, err := server.ExecutePrimaryAgentActivity(context.Background(), input); err != nil {
+	if _, err := server.ExecutePrimaryAgent(context.Background(), input); err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
 	receipt, err := store.GetAgentInvocationReceipt(context.Background(), runID+":agent.primary")

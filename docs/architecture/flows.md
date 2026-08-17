@@ -3,140 +3,116 @@ doc_type: architecture
 owner_boundary: docs/architecture
 status: active
 ---
+
 # 架构流程图
 
-本文只索引需要跨多个所有者理解的稳定流程。runtime、contract、schema、data 和 runbook
-事实仍由所属文档维护，图只展示连接关系。
+本文只展示跨多个所有者理解所需的稳定连接关系。字段、状态、版本、Activity 和操作步骤继续由所属
+架构、合同、数据文档和 runbook 维护。
 
-本地流程图应留在所属文档：runtime 位于 `docs/architecture/system/`，领域和来源位于
-`docs/architecture/domains/`，wire shape 位于 `docs/contracts/`，数据所有权位于
-`docs/data/`，操作步骤位于 `docs/runbooks/`。
-
-## 所有者入口
-
-| 流程 | 主要所有者文档 |
-| --- | --- |
-| 产品运行 | `docs/architecture/system/product-runtime.md`、`docs/contracts/app-api/request-lifecycle.md` |
-| 在线回答 | `docs/architecture/system/durable-runtime.md`、`docs/architecture/system/agent-framework.md` |
-| 采集数据面 | `docs/architecture/system/data-plane.md`、领域 source 文档、`docs/runbooks/ingestion.md` |
-| Agent 知识读取 | `docs/architecture/system/retrieval-serving.md`、`docs/architecture/system/agentic-retrieval.md` |
-| Campus Docs 发布 | `docs/architecture/system/document-site.md`、`docs/architecture/system/retrieval-serving.md`、`docs/runbooks/campus-docs.md` |
-| 可观测性与评测 | `docs/architecture/system/ops-observability.md`、`docs/architecture/system/langfuse.md` |
-
-## 产品运行
+## 产品请求
 
 ```mermaid
 flowchart LR
-  Browser["浏览器"]
-  CampusWeb["campus-web\n学生界面"]
-  AppAPI["app-api\n产品 API"]
-  Exec["execution-control\n执行引擎"]
-  Temporal["Temporal\n工作流与 activity queue"]
-  Projection["脱敏投影"]
+  Browser[学生浏览器]
+  Web[Campus Web]
+  API[App API]
+  Control[execution-control]
+  Temporal[Temporal]
+  Agent[agent-runtime]
+  Projection[产品与运行投影]
 
-  Browser --> CampusWeb
-  CampusWeb --> AppAPI
-  AppAPI --> Exec
-  Exec --> Temporal
-  Temporal --> Projection
-  Projection --> AppAPI
+  Browser --> Web --> API --> Control --> Temporal
+  Temporal --> Control --> Agent
+  Control --> Projection --> API
 ```
 
-## 在线回答
+所有者入口：`system/product-runtime.md`、`system/durable-runtime.md`、
+`../contracts/app-api/request-lifecycle.md`。
+
+## 在线回答上下文
 
 ```mermaid
 flowchart LR
-  Browser["浏览器请求"]
-  AppAPI["app-api\n会话与请求接纳"]
-  Exec["execution-control\n运行准入"]
-  Temporal["Temporal workflow"]
-  Agent["单个 Agent Activity\n完整 Agents SDK run"]
-  Memory["execution-control\n个人记忆 handler"]
-  Hindsight["Hindsight"]
-  Final["终结\n证据校验与来源生成"]
-  Append["记忆追加 activity"]
+  Admission[execution-control 准入]
+  Current[PostgreSQL 当前 Campus Docs 索引]
+  Retrieval[Qdrant dense+sparse 检索]
+  Memory[个人记忆]
+  Evidence[本轮 Campus Docs evidence]
+  Agent[Primary Agent]
+  Final[确定性终结]
 
-  Browser --> AppAPI --> Exec --> Temporal
-  Temporal --> Agent --> Temporal
-  Agent -. 可用时按需调用 .-> Memory --> Hindsight --> Memory --> Agent
-  Agent --> Exec
-  Temporal --> Final --> Temporal
-  Temporal --> Append --> Temporal
-  Temporal --> AppAPI
-```
-
-## 采集数据面
-
-```mermaid
-flowchart LR
-  Input["带摘要固定的任务输入"]
-  API["ingestion-control\n准入与注册表校验"]
-  Temporal["Temporal workflow"]
-  Collector["source-collector activity"]
-  Kernel["Rust 内核 activity"]
-  Storage["对象存储\n来源事实与结果"]
-  Projection["PostgreSQL\n有界任务投影"]
-
-  Input --> API --> Temporal
-  Temporal --> Collector --> Storage
-  Temporal --> Kernel --> Storage
-  Temporal --> Projection
-```
-
-## Agent 知识读取
-
-```mermaid
-flowchart LR
-  Admission["execution-control\n不可变 Campus Docs 索引准入"]
-  Current["PostgreSQL\ncampus_docs_serving.current_index"]
-  Retrieval["Qdrant\ndense + sparse 候选召回"]
-  RRF["RRF 排序与裁剪"]
-  Evidence["本轮\ncampus_docs_evidence"]
-  Primary["Primary Agent"]
-  Final["终结\n校验引用并生成来源"]
-
-  Current --> Admission --> Retrieval --> RRF --> Evidence
-  Evidence --> Primary --> Final
+  Current --> Admission --> Retrieval --> Evidence
+  Admission --> Agent
+  Evidence --> Agent
   Evidence --> Final
+  Agent -. 可用时按需调用 .-> Memory --> Agent
+  Agent --> Final
 ```
+
+当前索引与模型设置在 workflow 前冻结；没有获准能力时不形成隐藏 fallback。所有者入口：
+`system/memory-plane.md`、`system/retrieval-serving.md`、`system/agent-framework.md`。
 
 ## Campus Docs 发布
 
 ```mermaid
 flowchart LR
-  Source["对象存储\nsource.json 与 reader"]
-  Site["Campus Web 构建\n静态文档候选"]
-  Publisher["手动 publisher Job\n完整索引构建"]
-  Qdrant["Qdrant\n不可变 collection"]
-  Current["PostgreSQL\ncurrent_index"]
+  Source[对象存储 source.json 与 reader]
+  Site[Campus Web 静态构建]
+  Chunk[手动 Chunk Job]
+  Embedding[手动 Embedding Job]
+  Publisher[手动 Publisher Job]
+  Qdrant[不可变 Qdrant collection]
+  Current[PostgreSQL current_index]
 
   Source --> Site
-  Source --> Publisher --> Qdrant
+  Source --> Chunk --> Embedding --> Publisher --> Qdrant
   Publisher --> Current
 ```
 
-## 可观测性与评测
+三个索引阶段显式传递内容寻址制品，不自动串联；静态站候选和检索索引也不互相充当发布状态。
+所有者入口：`system/document-site.md`、`system/retrieval-serving.md`、`../runbooks/campus-docs.md`。
+
+## 离线数据
 
 ```mermaid
 flowchart LR
-  Runtime["真实产品执行与投影"]
-  AppLogs["App API\n有界 application events"]
-  AgentTrace["Agent Runtime\n可选受控 trace"]
-  Axiom["Axiom\napplication logs"]
-  Sentry["Sentry SDK\n错误与性能"]
-  Langfuse["Langfuse\ntrace、dataset、score"]
-  Adapter["eval-langfuse 适配器"]
-  Ragas["Ragas 运行器"]
-  Ops["Ops Web 固定查询"]
+  Input[登记输入]
+  Control[ingestion-control]
+  Temporal[Temporal]
+  Collector[source-collector]
+  Kernel[转换内核]
+  Storage[对象存储]
+  Domain[领域发布器]
+  Product[产品读取]
 
-  Runtime --> AppLogs --> Axiom
-  Runtime --> AgentTrace --> Langfuse
-  Runtime --> Sentry
-  Axiom --> Ops
-  Sentry --> Ops
-  Langfuse --> Adapter
-  Adapter -->|dataset-run-item 关联| Langfuse
-  Adapter --> Ragas --> Adapter
+  Input --> Control --> Temporal
+  Temporal --> Collector --> Storage
+  Temporal --> Kernel --> Storage
+  Storage --> Domain --> Product
 ```
 
-纯字段字典、所属模块内部流程和可从 Git 历史恢复的材料不进入中央流程图。
+采集成功不表示领域数据已经发布，也不表示在线模型能力已经开放。所有者入口：
+`system/data-plane.md`、`../runbooks/ingestion.md` 和所属领域文档。
+
+## 运行观测与评测
+
+```mermaid
+flowchart LR
+  Runtime[产品执行]
+  Logs[应用日志]
+  Errors[错误与性能]
+  Trace[Agent trace]
+  Axiom[Axiom]
+  Sentry[Sentry]
+  Langfuse[Langfuse]
+  Ops[Ops Web]
+  Eval[评测适配器]
+
+  Runtime --> Logs --> Axiom --> Ops
+  Runtime --> Errors --> Sentry --> Ops
+  Runtime --> Trace --> Langfuse
+  Langfuse --> Eval
+```
+
+观测和评分不能改写产品终态。所有者入口：`system/ops-observability.md`、
+`../contracts/langfuse-runtime.md`、`../reference/eval.md`。

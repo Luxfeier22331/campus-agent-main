@@ -1,6 +1,4 @@
-import { Pool } from "pg";
-import { resolvePostgresTlsConfig } from "./postgres-tls.ts";
-import { logOpsError } from "./safe-logging.ts";
+import type { Pool } from "pg";
 
 export interface InternalPortalAutomationTokenRecord {
 	createdAt: string;
@@ -15,14 +13,6 @@ export type InternalPortalAutomationTokenMetadata = Omit<
 	InternalPortalAutomationTokenRecord,
 	"tokenHash" | "tokenValue"
 >;
-
-export interface InternalPortalAutomationTokenStoreEnv {
-	DEPLOYMENT_ENVIRONMENT?: string;
-	NODE_ENV?: string;
-	OPS_WEB_DATABASE_CA_CERT_PATH?: string;
-	OPS_WEB_DATABASE_SSLMODE?: string;
-	OPS_WEB_DATABASE_URL?: string;
-}
 
 export interface InternalPortalAutomationTokenStore {
 	authenticate(tokenHash: string): Promise<InternalPortalAutomationTokenMetadata | null>;
@@ -69,38 +59,6 @@ export function createUnavailableInternalPortalAutomationTokenStore(
 		list: fail,
 		revoke: fail,
 	};
-}
-
-export function createInternalPortalAutomationTokenStoreFromEnv(
-	env: InternalPortalAutomationTokenStoreEnv,
-): InternalPortalAutomationTokenStore {
-	const databaseUrl = env.OPS_WEB_DATABASE_URL?.trim();
-	if (!databaseUrl) {
-		throw new InternalPortalAutomationTokenStoreUnavailableError(
-			"OPS_WEB_DATABASE_URL is required.",
-		);
-	}
-	const database = resolvePostgresTlsConfig({
-		...(env.OPS_WEB_DATABASE_CA_CERT_PATH ? { caCertPath: env.OPS_WEB_DATABASE_CA_CERT_PATH } : {}),
-		databaseUrl,
-		...(env.DEPLOYMENT_ENVIRONMENT ? { deploymentEnvironment: env.DEPLOYMENT_ENVIRONMENT } : {}),
-		...(env.NODE_ENV ? { nodeEnvironment: env.NODE_ENV } : {}),
-		...(env.OPS_WEB_DATABASE_SSLMODE ? { sslMode: env.OPS_WEB_DATABASE_SSLMODE } : {}),
-	});
-	const pool = new Pool({
-		connectionString: database.connectionString,
-		connectionTimeoutMillis: 5_000,
-		idleTimeoutMillis: 30_000,
-		max: env.NODE_ENV === "test" ? 1 : 2,
-		ssl: database.ssl,
-		statement_timeout: 10_000,
-	});
-	pool.on("error", (error) =>
-		logOpsError("internal portal automation token postgres pool error", error, {
-			source: "internal-portal-automation",
-		}),
-	);
-	return createPgInternalPortalAutomationTokenStore(pool);
 }
 
 export function createPgInternalPortalAutomationTokenStore(pool: Pick<Pool, "query">) {

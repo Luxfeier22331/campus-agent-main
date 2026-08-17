@@ -2,41 +2,23 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { type AffectedScope, type CommandRunner, resolveAffectedScope } from "./scope.mts";
+import {
+	VALIDATION_PROFILES,
+	type ValidationProfile,
+	validationProfileMetadata,
+} from "./validation-profiles.mts";
+
+export type { ValidationProfile } from "./validation-profiles.mts";
+export {
+	MANUAL_VALIDATION_PROFILES,
+	VALIDATION_PROFILE_REGISTRY,
+	VALIDATION_PROFILES,
+	validationProfileMetadata,
+} from "./validation-profiles.mts";
 
 export type LightSurface = "config" | "contracts" | "python" | "shell" | "sql" | "yaml";
 
 const LIGHT_SURFACES: LightSurface[] = ["contracts", "config", "python", "yaml", "sql", "shell"];
-
-export type ValidationProfile =
-	| "affected-node"
-	| "go"
-	| "rust"
-	| "ragas"
-	| "app-api-migration"
-	| "app-api-product-db"
-	| "execution-control-postgres"
-	| "ingestion-control-postgres"
-	| "ops-web-postgres"
-	| "infra"
-	| "otel"
-	| "dependencies"
-	| "toolchain";
-
-export const VALIDATION_PROFILES: ValidationProfile[] = [
-	"affected-node",
-	"go",
-	"rust",
-	"ragas",
-	"app-api-migration",
-	"app-api-product-db",
-	"execution-control-postgres",
-	"ingestion-control-postgres",
-	"ops-web-postgres",
-	"infra",
-	"otel",
-	"dependencies",
-	"toolchain",
-];
 
 export interface ValidationPlan {
 	affectedPackages: string[];
@@ -180,6 +162,11 @@ function required(values: Map<string, string>, name: string): string {
 
 function main(args: string[]): void {
 	const values = argumentsMap(args);
+	const describedProfile = values.get("describe-profile");
+	if (describedProfile !== undefined) {
+		process.stdout.write(`${JSON.stringify(validationProfileMetadata(describedProfile))}\n`);
+		return;
+	}
 	const mode = required(values, "mode");
 	if (mode !== "pull-request") {
 		throw new Error("--mode must be pull-request");

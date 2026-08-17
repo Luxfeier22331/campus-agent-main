@@ -193,9 +193,6 @@
 			"outputLogs": "new-only",
 			"outputs": []
 		},
-		"test:integration": {
-			"cache": false
-		},
 		"test:shared-db-integration": {
 			"cache": false
 		},
@@ -203,9 +200,6 @@
 			"cache": false,
 			"persistent": true,
 			"passThroughEnv": ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "XDG_STATE_HOME"]
-		},
-		"deploy": {
-			"cache": false
 		}
 	}
 }

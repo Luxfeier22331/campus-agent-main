@@ -14,6 +14,10 @@ TypeScript 评测编排、数据集和 Langfuse 平台适配 package。
 本 package 不实现自研 RAG 指标，不参与在线 Agent 执行，也不从 execution-control 的在线 Provider
 Config 推导评测配置。
 
+外部消费者使用 package 根入口；package 内部按 JSON 处理、环境设置、HTTP 访问和标识生成等职责
+直接导入 leaf module。`shared` 只保留既有兼容导出，不作为新增实现的依赖入口。测试按数据集、score
+发布、Ragas pipeline、trace 身份和在线证据等行为域组织。
+
 ```bash
 pnpm --dir packages/eval-langfuse typecheck
 pnpm --dir packages/eval-langfuse test

@@ -49,7 +49,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		}
 	}
 
-	output, err := server.FinalizeExecutionFailureActivity(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
+	output, err := server.FinalizeExecutionFailure(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
 		FailureHash: strings.Repeat("a", 64),
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
@@ -79,7 +79,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		t.Fatalf("product response leaked raw failure: %s", encoded)
 	}
 
-	replay, err := server.FinalizeExecutionFailureActivity(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
+	replay, err := server.FinalizeExecutionFailure(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
 		FailureHash: strings.Repeat("a", 64),
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
@@ -93,7 +93,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 	if callbackCount != 1 {
 		t.Fatalf("product callback count = %d, want 1", callbackCount)
 	}
-	_, conflictErr := server.FinalizeExecutionFailureActivity(
+	_, conflictErr := server.FinalizeExecutionFailure(
 		context.Background(),
 		temporalruntime.FinalizeExecutionFailureActivityInput{
 			FailureHash: strings.Repeat("b", 64),
@@ -151,7 +151,7 @@ func TestFinalizeExecutionFailureActivityOwnsAllPreAnswerFailureStages(t *testin
 				return nil
 			}
 
-			output, err := server.FinalizeExecutionFailureActivity(
+			output, err := server.FinalizeExecutionFailure(
 				context.Background(),
 				temporalruntime.FinalizeExecutionFailureActivityInput{
 					FailureHash: strings.Repeat("c", 64),
@@ -200,7 +200,7 @@ func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailu
 		return nil
 	}
 
-	_, err := server.FinalizeExecutionFailureActivity(
+	_, err := server.FinalizeExecutionFailure(
 		context.Background(),
 		temporalruntime.FinalizeExecutionFailureActivityInput{
 			FailureHash: strings.Repeat("d", 64),
@@ -250,7 +250,7 @@ func TestFinalizeExecutionFailureActivityKeepsRunActiveUntilCallbackSucceeds(t *
 		return errors.New(temporalFailureSentinel)
 	}
 
-	_, err := server.FinalizeExecutionFailureActivity(
+	_, err := server.FinalizeExecutionFailure(
 		context.Background(),
 		temporalruntime.FinalizeExecutionFailureActivityInput{
 			FailureHash: strings.Repeat("d", 64),

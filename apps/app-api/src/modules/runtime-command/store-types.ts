@@ -1,8 +1,11 @@
 import type { AbuseThrottleReason } from "../abuse-throttle-policy";
-import type { ResolvedAppPrincipal } from "../auth";
-import type { ChatMessage, ChatSessionSlot } from "../chat";
-import type { ToolExecutionWorkflowTraceSummary } from "../integration/tool-execution-types";
-import type { ChatCommandResponse } from "./service";
+import type { ResolvedAppPrincipal } from "../auth/principal";
+import type { ChatMessage, ChatSessionSlot } from "../chat/model";
+import type { ToolExecutionWorkflowTraceSummary } from "../request-observability-types";
+import type { TurnDispatchPrincipalSnapshot } from "../turn-dispatch-types";
+import type { ChatCommandRequestKind, ChatCommandResponse } from "./service/types";
+
+export type { TurnDispatchPrincipalSnapshot } from "../turn-dispatch-types";
 
 export type TurnDispatchStatus =
 	| "accepted"
@@ -13,12 +16,6 @@ export type TurnDispatchStatus =
 	| "approval_required"
 	| "rejected"
 	| "cancelled";
-
-export interface TurnDispatchPrincipalSnapshot {
-	actor: ResolvedAppPrincipal["actor"];
-	authorization: ResolvedAppPrincipal["authorization"] | null;
-	principal: Pick<ResolvedAppPrincipal["principal"], "displayName" | "principalId" | "type">;
-}
 
 export interface TurnDispatchMemorySnapshot {
 	appendEnabled: boolean;
@@ -107,7 +104,6 @@ export interface RequestObservabilityFactWrite {
 }
 
 export interface AcceptRequestWrite {
-	captureMemorySnapshot: boolean;
 	conversationBaseline: {
 		activeBranchId: string;
 		activeMessageId: string | null;
@@ -128,6 +124,7 @@ export interface AcceptRequestWrite {
 	) => FrozenChatAdmissionWrite;
 	ownerUserId: string;
 	requestObservabilityFact: RequestObservabilityFactWrite;
+	requestKind: ChatCommandRequestKind;
 	turnDispatch: TurnDispatchWrite;
 	userMessage: ChatMessage;
 }
@@ -200,7 +197,7 @@ export interface PendingChatAdmission {
 	workflowId: string;
 }
 
-export interface ChatCommandStore {
+export interface ChatAdmissionStore {
 	listPendingAdmissions(input?: {
 		limit?: number;
 		staleBefore?: string;
@@ -221,6 +218,9 @@ export interface ChatCommandStore {
 		requestId: string;
 		workflowId: string;
 	}): Promise<boolean>;
+}
+
+export interface AcceptedChatCommandStore {
 	findIdempotentRequest(input: {
 		actorUserId: string;
 		idempotencyKey: string;
@@ -232,12 +232,6 @@ export interface ChatCommandStore {
 	}): Promise<AbuseControlState>;
 	acceptRequest(input: AcceptRequestWrite): Promise<AcceptRequestResult>;
 	finalizeRequest(input: FinalizeRequestWrite): Promise<FinalizeRequestResult>;
-	recordStreamAppApiTtft(input: {
-		durationMs: number;
-		observedAt: string;
-		requestId: string;
-	}): Promise<boolean>;
-	readRequestStageTiming(requestId: string): Promise<Record<string, unknown>>;
 	listAcceptedDurableRequestsForCloseout(input?: {
 		limit?: number;
 		runId?: string;
@@ -250,6 +244,21 @@ export interface ChatCommandStore {
 		runId: string;
 		status: TurnDispatchStatus;
 	} | null>;
+}
+
+export interface ChatCommandObservabilityStore {
+	recordStreamAppApiTtft(input: {
+		durationMs: number;
+		observedAt: string;
+		requestId: string;
+	}): Promise<boolean>;
+	readRequestStageTiming(requestId: string): Promise<Record<string, unknown>>;
+}
+
+export interface ChatCommandPersistence {
+	admission: ChatAdmissionStore;
+	commands: AcceptedChatCommandStore;
+	observability: ChatCommandObservabilityStore;
 }
 
 export class ChatFinalizationConflict extends Error {

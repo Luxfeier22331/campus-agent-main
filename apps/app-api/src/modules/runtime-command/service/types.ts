@@ -4,7 +4,9 @@ import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../..
 import type { RuntimeRunPhase } from "../../runtime-run";
 import type { AppTelemetry } from "../../telemetry";
 import type {
-	ChatCommandStore,
+	AcceptedChatCommandStore,
+	ChatAdmissionStore,
+	ChatCommandObservabilityStore,
 	FrozenChatAdmissionWrite,
 	TurnDispatchMemorySnapshot,
 } from "../store-types";
@@ -123,7 +125,7 @@ export interface ChatCommandService {
 		failed: number;
 		processed: number;
 	}>;
-	readExecutionInput?(runId: string): ReturnType<ChatCommandStore["readExecutionInput"]>;
+	readExecutionInput?(runId: string): ReturnType<AcceptedChatCommandStore["readExecutionInput"]>;
 	submit(input: ChatCommandSubmitInput): Promise<ChatCommandResponse>;
 	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;
 }
@@ -136,13 +138,14 @@ export interface DurableEventPollingPolicy {
 export interface ChatCommandServiceDependencies {
 	computeFingerprint?: (input: { conversationDiscriminator: string; prompt: string }) => string;
 	conversationStore: ChatConversationStore;
+	admissionStore: ChatAdmissionStore;
+	commandStore: AcceptedChatCommandStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
 	generateId?: (prefix: string) => string;
 	isExecutionRuntimeConfigured?: boolean;
 	now?: () => Date;
-	captureProfileMemorySnapshot?: boolean;
 	safetyIdentifierHmacSecret?: string;
-	store: import("../store").ChatCommandStore;
+	observabilityStore: ChatCommandObservabilityStore;
 	durableEventPolling?: DurableEventPollingPolicy;
 	executionRuntime?: ExecutionControlRuntimeClient;
 	telemetry?: AppTelemetry;
