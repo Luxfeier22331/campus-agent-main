@@ -21,7 +21,7 @@ const point: IndexPoint = {
 		version_slug: "2026-current",
 	},
 	vector: {
-		dense: [0.1, 0.2, 0.3],
+		dense: [0.6, 0.8, 0],
 		sparse: { indices: [10, 20], values: [0.5, 1.25] },
 	},
 };
@@ -52,6 +52,30 @@ describe("Campus docs Qdrant validation", () => {
 			with_payload: true,
 			with_vector: ["dense", "sparse"],
 		});
+	});
+
+	it("accepts dense vectors normalized by cosine storage", async () => {
+		const expected = {
+			...point,
+			vector: {
+				dense: [0.1, 0.2, 0.3],
+				sparse: point.vector.sparse,
+			},
+		};
+		const norm = Math.sqrt(expected.vector.dense.reduce((sum, value) => sum + value * value, 0));
+		const stored = {
+			...expected,
+			vector: {
+				dense: expected.vector.dense.map((value) => value / norm),
+				sparse: expected.vector.sparse,
+			},
+		};
+		const client = createQdrantClient(
+			{ QDRANT_API_KEY: "test", QDRANT_URL: "https://qdrant.example" },
+			qdrantFetch(stored),
+		);
+
+		await validatePoints(client, [expected]);
 	});
 
 	it("rejects a point whose payload differs", async () => {

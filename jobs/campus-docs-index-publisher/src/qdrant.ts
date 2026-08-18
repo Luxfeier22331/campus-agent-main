@@ -154,6 +154,7 @@ async function validateStoredPoints(
 	request: (path: string, init?: RequestInit) => Promise<unknown>,
 	input: {
 		collection: string;
+		denseDistance: string;
 		denseVectorName: string;
 		dimensions: number;
 		expectedPoints: IndexPoint[];
@@ -202,6 +203,7 @@ async function validateStoredPoints(
 			assertStoredPoint(
 				stored,
 				point,
+				input.denseDistance,
 				input.dimensions,
 				input.denseVectorName,
 				input.sparseVectorName,
@@ -227,6 +229,7 @@ async function validateStoredPoints(
 function assertStoredPoint(
 	actual: Record<string, unknown>,
 	point: IndexPoint,
+	denseDistance: string,
 	dimensions: number,
 	denseVectorName: string,
 	sparseVectorName: string,
@@ -239,7 +242,7 @@ function assertStoredPoint(
 	}
 	assertApproximateVector(
 		actual.vector[denseVectorName],
-		point.vector.dense,
+		expectedStoredDenseVector(point.vector.dense, denseDistance),
 		dimensions,
 		`dense vector ${point.id}`,
 	);
@@ -253,6 +256,14 @@ function assertStoredPoint(
 		point.vector.sparse.values.length,
 		`sparse vector ${point.id}`,
 	);
+}
+
+function expectedStoredDenseVector(vector: readonly number[], distance: string): readonly number[] {
+	if (distance.toLowerCase() !== "cosine") return vector;
+	// Qdrant stores dense vectors L2-normalized in Cosine collections.
+	const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+	if (norm === 0) return vector;
+	return vector.map((value) => value / norm);
 }
 
 function assertApproximateVector(

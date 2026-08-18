@@ -6,6 +6,7 @@ import { parseCommand } from "../src/cli.ts";
 import { readChunkEvalQueryCases } from "../src/chunk-eval.ts";
 import { parseEmbeddingEvalCommand } from "../src/embedding-eval-cli.ts";
 import { parseLocalEmbeddingCommand } from "../src/local-embedding-cli.ts";
+import { parseLocalPublishCommand } from "../src/local-publish-cli.ts";
 
 const chunkSet = `sha256:${"a".repeat(64)}`;
 const embeddingSet = `sha256:${"b".repeat(64)}`;
@@ -67,6 +68,12 @@ describe("local Campus docs embedding commands", () => {
 			"--embedding-set",
 			embeddingSet,
 		])).toEqual({ embeddingSet, kind: "publish-index" });
+		expect(parseCommand([
+			"publish-index",
+			"--",
+			"--embedding-set",
+			embeddingSet,
+		])).toEqual({ embeddingSet, kind: "publish-index" });
 		expect(() => parseCommand([
 			"publish-index",
 			"--chunk-set",
@@ -74,5 +81,17 @@ describe("local Campus docs embedding commands", () => {
 			"--embedding-set",
 			embeddingSet,
 		])).toThrow("Usage: build-chunks");
+	});
+
+	it("uses the explicit embedding set for local publish", () => {
+		expect(parseLocalPublishCommand(["--", "--embedding-set", embeddingSet])).toEqual({
+			embeddingSet,
+		});
+		expect(() => parseLocalPublishCommand([
+			"--embedding-set",
+			embeddingSet,
+			"--chunk-set",
+			chunkSet,
+		])).toThrow("Usage: publish-index-local");
 	});
 });

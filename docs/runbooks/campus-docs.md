@@ -110,6 +110,22 @@ EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher eval-embedding
 `/tmp/campus-docs-embedding-eval/<embedding-set-id>/`。它不启动本地 Qdrant，不复制 sparse/RRF，也不因
 指标结果自动失败。
 
+## 本地 Publish 验证
+
+本地 Embedding Set 生成后，使用本地真实 Qdrant 和当前对象存储 source 执行 publish。命令只读取
+`var/` 中的 Embedding/Chunk 制品，不调用 provider，也不向对象存储写入 RAG 制品：
+
+```bash
+PGHOST=127.0.0.1 PGPORT=5432 PGDATABASE=<local-database> \
+PGUSER=campus_agent PGPASSWORD=<local-owner-password> PGSSLMODE=disable \
+QDRANT_URL=http://127.0.0.1:6333 QDRANT_API_KEY=<local-qdrant-key> \
+pnpm --dir jobs/campus-docs-index-publisher publish-index-local -- \
+  --embedding-set sha256:<embedding-set-id>
+```
+
+首次运行确认 Qdrant collection、全量 point 读回和 `campus_docs_serving.current_index`；同一制品再次
+运行确认 `no_op: true`。本地首次和重复 publish 都通过后，才触发线上三个阶段中的 Publisher Job。
+
 ## RAG 制品
 
 本地 Chunk 命令只读对象存储中的当前 source 和 reader，本地 Embedding 命令只读本地 Chunk Set；二者

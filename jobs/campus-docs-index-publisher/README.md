@@ -14,10 +14,13 @@ EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher build-embeddin
 当前不自动串联三个阶段。每个命令只执行一个阶段，并把下一阶段需要的内容寻址 ID 输出为 JSON。本地
 `build-chunks` 从对象存储只读当前 source 和 reader；`build-embeddings` 只读本地 Chunk Set，直接调用
 显式传入的 OpenAI-compatible endpoint。两者都把制品写入仓库根目录的 `var/`，不向共享 bucket 写入
-正式候选。Chunk 命令从调用进程读取 `OBJECT_STORE_ENDPOINT`、
+正式候选。`publish-index-local` 从 `var/` 读取 Embedding Set，使用本地 PostgreSQL/Qdrant，并从
+本地对象存储重新读取当前 source projection；它不调用 embedding provider，也不写入对象存储。Chunk
+命令从调用进程读取 `OBJECT_STORE_ENDPOINT`、
 `OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_READ_SECRET_KEY`，不读取其他应用的
 环境文件；Embedding 命令只读取 `EMBEDDING_API_KEY`、`--base-url` 和 `--model`，不访问本地 `8002`、
-execution-control、Ops Web 或 PostgreSQL。
+execution-control、Ops Web 或 PostgreSQL。本地 Publish 使用现有 `PGHOST`、`PGPORT`、`PGDATABASE`、
+`PGUSER`、`PGPASSWORD`、`PGSSLMODE`、`QDRANT_URL` 和 `QDRANT_API_KEY` 连接合同。
 
 本地 Chunk/Embedding 入口与集群 `src/cli.ts` 共用相同领域函数，只替换 Store 和 Embedding 连接组装。
 集群镜像在构建期生成 JavaScript，可以单独检查生产构建：
@@ -130,6 +133,19 @@ provider；只校验制品链，生成完整 points，并写入：
 任务完成 point 数、payload 和双向量校验后，重新读取 `source.json` 并比较当前文档投影；投影未变化时
 才原子替换 PostgreSQL `campus_docs_serving.current_index`。目标 collection 已存在时先做完整校验；
 当前 collection 内容不匹配时停止且不删除，未激活候选发生确定性内容冲突时才删除并重建。
+
+本地生成 Embedding Set 后，在本地真实 Qdrant 上执行同一发布函数：
+
+```bash
+PGHOST=127.0.0.1 PGPORT=5432 PGDATABASE=<local-database> \
+PGUSER=campus_agent PGPASSWORD=<local-owner-password> PGSSLMODE=disable \
+QDRANT_URL=http://127.0.0.1:6333 QDRANT_API_KEY=<local-qdrant-key> \
+pnpm --dir jobs/campus-docs-index-publisher publish-index-local -- \
+  --embedding-set sha256:<embedding-set-id>
+```
+
+首次运行必须确认 collection 配置、完整 point 校验和 `current_index` 激活；对同一 Embedding Set
+再运行一次，必须返回 `no_op: true`。通过这两个结果后，才进入线上 Publisher Job。
 
 ## 不可变写入
 

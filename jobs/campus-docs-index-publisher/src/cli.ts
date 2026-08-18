@@ -72,7 +72,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 }
 
 export function parseCommand(argv: string[]): Command {
-	const [kind, ...args] = argv;
+	const [kind, ...rawArgs] = argv;
+	const args = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
 	if (kind === "build-chunks") {
 		if (args.length !== 0) usage();
 		return { kind };

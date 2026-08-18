@@ -3,6 +3,9 @@
 		"target": "ES2022",
 		"module": "ESNext",
 		"moduleResolution": "Bundler",
+		"paths": {
+			"ajv/dist/*": ["./node_modules/ajv/dist/*"]
+		},
 		"allowImportingTsExtensions": true,
 		"strict": true,
 		"exactOptionalPropertyTypes": true,

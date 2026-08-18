@@ -11,6 +11,7 @@
 		"build-embeddings": "tsx src/local-embedding-cli.ts",
 		"eval-chunks": "tsx src/eval-cli.ts",
 		"eval-embeddings": "tsx src/embedding-eval-cli.ts",
+		"publish-index-local": "tsx src/local-publish-cli.ts",
 		"publish-index": "tsx src/cli.ts publish-index",
 		"test": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
