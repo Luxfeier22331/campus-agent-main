@@ -10,8 +10,8 @@ import {
 	createPostgresIndexCatalog,
 	type PostgresCatalogEnv,
 } from "../src/catalog.ts";
+import { COLLECTION_DEFINITION, EMBEDDING_SPACE } from "../src/definitions.ts";
 import type { CurrentIndexBinding } from "../src/types.ts";
-import { INDEX_DEFINITION } from "../src/types.ts";
 
 const POSTGRES_IMAGE =
 	"postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193";
@@ -131,12 +131,12 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 function targetBinding(digestCharacter: string): CurrentIndexBinding {
 	return {
 		collection: `campus_docs_${digestCharacter.repeat(64)}`,
-		dense_vector_name: INDEX_DEFINITION.embedding.vectorName,
-		embedding_dimensions: INDEX_DEFINITION.embedding.dimensions,
-		embedding_query_instruction: INDEX_DEFINITION.embedding.queryInstruction,
-		embedding_space_id: INDEX_DEFINITION.embedding.spaceId,
-		sparse_model: INDEX_DEFINITION.sparse.model,
-		sparse_vector_name: INDEX_DEFINITION.sparse.vectorName,
+		dense_vector_name: COLLECTION_DEFINITION.dense.vectorName,
+		embedding_dimensions: EMBEDDING_SPACE.dimensions,
+		embedding_query_instruction: COLLECTION_DEFINITION.dense.queryInstruction,
+		embedding_space_id: EMBEDDING_SPACE.spaceId,
+		sparse_model: COLLECTION_DEFINITION.sparse.model,
+		sparse_vector_name: COLLECTION_DEFINITION.sparse.vectorName,
 	};
 }
 

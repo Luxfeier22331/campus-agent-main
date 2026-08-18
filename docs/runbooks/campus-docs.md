@@ -71,14 +71,49 @@ pnpm --dir jobs/campus-docs-index-publisher eval-chunks
 embedding provider。人工评分和当前文档问题通过显式 `--reviews`、`--query-cases` 文件补充；现有
 synthetic RAG 数据集不能替代当前 Campus Web 文档证据。
 
+仓库维护的当前文档问题位于 `jobs/campus-docs-index-publisher/eval/query-cases.json`。执行：
+
+```bash
+pnpm --dir jobs/campus-docs-index-publisher eval-chunks -- \
+  --query-cases eval/query-cases.json
+```
+
 当前 `campus_docs_reader_elements.v4` 会把紧邻且明确引导表格或命中表格实质词项的 reader 文本作为有界
 上下文放入每个表格 chunk；评测必须确认表格前导语与表格根单元同时出现，并检查无关相邻段落没有被
 附着，不能只检查表格单元格是否覆盖。
 
+## 本地 Embedding 评测
+
+本地 Chunk Set 生成后，使用显式 Provider 连接生成本地 Embedding Set：
+
+```bash
+EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
+  --chunk-set sha256:<chunk-set-id> \
+  --base-url https://provider.example/v1 \
+  --model Qwen3-Embedding-4B
+```
+
+该命令只读写当前 worktree 的 `var/campus-docs/rag/`，不访问 execution-control、Ops Web、PostgreSQL、
+Qdrant 或集群对象存储。它与线上 Embedding Job 共用制品生成实现；差别只有本地显式连接和文件 Store。
+
+使用输出的 Embedding Set 执行 dense-only 检索评测：
+
+```bash
+EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher eval-embeddings -- \
+  --embedding-set sha256:<embedding-set-id> \
+  --base-url https://provider.example/v1 \
+  --model Qwen3-Embedding-4B
+```
+
+命令默认读取版本化 query cases，使用线上同一 query instruction，报告
+`root_unit_recall@K`、`evidence_coverage@K` 和 `first_relevant_mrr` 到
+`/tmp/campus-docs-embedding-eval/<embedding-set-id>/`。它不启动本地 Qdrant，不复制 sparse/RRF，也不因
+指标结果自动失败。
+
 ## RAG 制品
 
-本地 `pnpm --dir jobs/campus-docs-index-publisher build-chunks` 只读对象存储中的当前 source 和 reader，
-把相同对象键写入当前 worktree 的 `var/`。这些文件用于本地检查，不是线上候选，也不通过上传
+本地 Chunk 命令只读对象存储中的当前 source 和 reader，本地 Embedding 命令只读本地 Chunk Set；二者
+把相同相对对象键写入当前 worktree 的 `var/`。这些文件用于本地检查，不是线上候选，也不通过上传
 进入下一阶段。三个线上 Job 写入同一 derived bucket，所有正式对象都按内容寻址：
 
 | 制品 | 对象键 |
@@ -135,24 +170,26 @@ pnpm campus-docs:index-job -- \
 
 Embedding Job 启动后从 `execution-control-provider-snapshot:8002` 读取一次当前 Embedding 连接，然后
 直接调用 provider。该连接由 Ops Web 管理并保存在 `execution_control.model_settings`；Job 不接收
-provider Base URL、model 或 API key 环境变量，也没有独立 provider Secret。
+provider Base URL、model 或 API key 环境变量，也没有独立 provider Secret。每个请求固定发送 8 条
+文本，同时最多执行 8 个请求。
 
-复用只按 `embedding_space_id + retrievalTextSha256` 从显式 embedding set 读取，不扫描 bucket，也不
-从 Qdrant 读取向量。成功 JSON 包含 `embedding_set`、`embedding_count`、
+复用只按 `spaceId + dimensions + retrievalTextSha256` 从显式 embedding set 读取，不扫描 bucket，也
+不从 Qdrant 读取向量。Embedding Set 不保存 provider、endpoint、model alias 或调用参数。成功 JSON
+包含 `embedding_set`、`embedding_count`、
 `reused_embedding_input_count` 和 `generated_embedding_input_count`。抽样核对后记录
-`embedding_set`。
+`embedding_set`。`campus_docs_embedding_set.v1` 已退役，不能作为 `--reuse-embedding-set` 输入。
 
 ### 3. 发布 Index
 
 ```bash
 pnpm campus-docs:index-job -- \
   --stage publish \
-  --chunk-set sha256:<chunk-set-id> \
   --embedding-set sha256:<embedding-set-id>
 ```
 
-Publisher 只读取并核对两个显式制品，不读取 reader，也不调用 embedding provider。它生成 index
-manifest；manifest 摘要同时成为 Qdrant collection 后缀：
+Publisher 只读取显式 Embedding Set，并从其 manifest 解析 Chunk Set；不读取 reader，也不调用
+embedding provider。它生成 `campus_docs_index.v2` manifest；manifest 只保存 Embedding Set 和
+Collection Definition，其摘要同时成为 Qdrant collection 后缀：
 
 ```text
 campus_docs_<index-manifest-hex>
@@ -180,8 +217,9 @@ Job 完成或失败后保留 24 小时再由 Kubernetes 自动删除。必须在
 - reader、摘要或清单关系无效：修复来源对象或候选清单，重新运行 Chunk Job；
 - chunk 抽样不合格：修复 reader 或分块实现，生成新的 chunk set，不继续 Embedding；
 - provider 快照或 embedding 调用失败：当前索引不变；修复 Ops Web 中的连接并重新运行 Embedding Job；
-- embedding 抽样不合格：不要发布，修复模型连接或索引定义后生成新的 embedding set；
-- chunk set 与 embedding set 不匹配：Publisher 在写 Qdrant 前失败，使用正确的显式 ID 重跑；
+- embedding 抽样不合格：不要发布，修复 Provider 连接或对应阶段定义后生成新的 embedding set；
+- embedding set 或其 chunk set 引用无效：Publisher 在写 Qdrant 前失败，使用正确的 Embedding Set ID
+  重跑；
 - 新 collection 写入、校验或来源末次核对失败：Publisher 删除本次新建 collection，当前绑定不变；
 - 当前 collection 已存在但内容不匹配：Publisher 停止且不删除当前 collection；
 - 未激活候选 collection 内容完整：重跑会验证后激活；确定性内容冲突时删除并重建；

@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import { Client, type ClientConfig } from "pg";
 
 import {
-	INDEX_DEFINITION,
+	COLLECTION_DEFINITION,
+	EMBEDDING_SPACE,
+} from "./definitions.ts";
+import {
 	type CurrentIndexBinding,
 	type PublisherIndexCatalog,
 } from "./types.ts";
@@ -162,14 +165,13 @@ function validateStoredBinding(binding: CurrentIndexBinding): void {
 
 function validateTargetBinding(binding: CurrentIndexBinding): void {
 	validateStoredBinding(binding);
-	const expected = INDEX_DEFINITION;
 	if (
-		binding.dense_vector_name !== expected.embedding.vectorName ||
-		binding.embedding_dimensions !== expected.embedding.dimensions ||
-		binding.embedding_query_instruction !== expected.embedding.queryInstruction ||
-		binding.embedding_space_id !== expected.embedding.spaceId ||
-		binding.sparse_model !== expected.sparse.model ||
-		binding.sparse_vector_name !== expected.sparse.vectorName
+		binding.dense_vector_name !== COLLECTION_DEFINITION.dense.vectorName ||
+		binding.embedding_dimensions !== EMBEDDING_SPACE.dimensions ||
+		binding.embedding_query_instruction !== COLLECTION_DEFINITION.dense.queryInstruction ||
+		binding.embedding_space_id !== EMBEDDING_SPACE.spaceId ||
+		binding.sparse_model !== COLLECTION_DEFINITION.sparse.model ||
+		binding.sparse_vector_name !== COLLECTION_DEFINITION.sparse.vectorName
 	) {
 		throw new Error("Campus docs current index query binding is invalid");
 	}

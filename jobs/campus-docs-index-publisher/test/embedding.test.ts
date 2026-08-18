@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { EMBEDDING_SPACE } from "../src/definitions.ts";
 import {
 	createOpenAICompatibleEmbeddingClient,
-	fetchEmbeddingProviderSnapshot,
+	embedTexts,
+	fetchEmbeddingConnection,
 } from "../src/embedding.ts";
 
 const snapshot = {
 	apiKey: "test-key",
 	baseUrl: "https://embedding.example/v1",
 	model: "provider-model-alias",
-	provider: "openai-compatible" as const,
-	schemaVersion: "embedding_provider_snapshot.v1" as const,
 };
 
 describe("OpenAI-compatible embedding client", () => {
@@ -23,12 +23,10 @@ describe("OpenAI-compatible embedding client", () => {
 			schema_version: "embedding_provider_snapshot.v1",
 		}), { status: 200 }));
 
-		await expect(fetchEmbeddingProviderSnapshot(fetchMock, "http://snapshot.test/internal")).resolves.toEqual({
+		await expect(fetchEmbeddingConnection(fetchMock, "http://snapshot.test/internal")).resolves.toEqual({
 			apiKey: "snapshot-key",
 			baseUrl: "https://embedding.example/v1",
 			model: "embedding-model",
-			provider: "openai-compatible",
-			schemaVersion: "embedding_provider_snapshot.v1",
 		});
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
@@ -85,6 +83,30 @@ describe("OpenAI-compatible embedding client", () => {
 		await expect(
 			client.embed({ dimensions: 2, texts: ["first"] }),
 		).rejects.toThrow("embedding provider vector 0 is invalid");
+	});
+
+	it("uses batches of eight with at most eight requests in flight", async () => {
+		const batchSizes: number[] = [];
+		let active = 0;
+		let maxActive = 0;
+		const vectors = await embedTexts(
+			{
+				async embed(input) {
+					batchSizes.push(input.texts.length);
+					active += 1;
+					maxActive = Math.max(maxActive, active);
+					await new Promise<void>((resolve) => setImmediate(resolve));
+					active -= 1;
+					return input.texts.map(() => Array(input.dimensions).fill(0.5) as number[]);
+				},
+			},
+			Array.from({ length: 65 }, (_, index) => `text-${index}`),
+		);
+
+		expect(batchSizes).toEqual([8, 8, 8, 8, 8, 8, 8, 8, 1]);
+		expect(maxActive).toBe(8);
+		expect(vectors).toHaveLength(65);
+		expect(vectors[0]).toHaveLength(EMBEDDING_SPACE.dimensions);
 	});
 });
 

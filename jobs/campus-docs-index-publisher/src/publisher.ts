@@ -8,6 +8,12 @@ import {
 	writeIndexManifest,
 } from "./artifacts.ts";
 import {
+	CHUNK_SET_DEFINITION,
+	COLLECTION_DEFINITION,
+	EMBEDDING_SPACE,
+} from "./definitions.ts";
+import { embedTexts } from "./embedding.ts";
+import {
 	buildChunks,
 	buildCurrentIndexBinding,
 	buildPoint,
@@ -20,22 +26,31 @@ import {
 import { QdrantCollectionContentMismatchError } from "./qdrant.ts";
 import {
 	CAMPUS_DOCS_SOURCE_KEY,
-	INDEX_DEFINITION,
 	type BuildChunkSetInput,
 	type BuildChunkSetResult,
 	type BuildEmbeddingSetInput,
 	type BuildEmbeddingSetResult,
+	type CurrentIndexBinding,
+	type IndexCatalog,
 	type IndexManifest,
 	type IndexPoint,
 	type PublishIndexInput,
 	type PublishIndexResult,
+	type QdrantIndexClient,
+	type ReaderObjectStore,
 	type Sha256Ref,
 	type StoredChunk,
 	type StoredEmbedding,
 } from "./types.ts";
 
-const EMBEDDING_BATCH_SIZE = 32;
 const QDRANT_UPSERT_BATCH_SIZE = 64;
+
+export interface IndexCandidate {
+	binding: CurrentIndexBinding;
+	index: Sha256Ref;
+	points: IndexPoint[];
+	sourceProjectionSha256: Sha256Ref;
+}
 
 export async function buildCampusDocsChunkSet(
 	input: BuildChunkSetInput,
@@ -60,13 +75,13 @@ export async function buildCampusDocsChunkSet(
 	const chunkData = await writeChunkData(input.artifactStore, storedChunks);
 	const manifest = {
 		chunkCount: storedChunks.length,
-		chunkDefinition: INDEX_DEFINITION.chunking,
+		chunkDefinition: CHUNK_SET_DEFINITION.chunking,
 		chunks: chunkData,
 		documentCount: selections.length,
-		readerSchemaVersion: INDEX_DEFINITION.readerSchemaVersion,
+		readerSchemaVersion: CHUNK_SET_DEFINITION.readerSchemaVersion,
 		schemaVersion: "campus_docs_chunk_set.v2",
 		sourceProjectionSha256: sourceProjection,
-		sourceSchemaVersion: INDEX_DEFINITION.sourceSchemaVersion,
+		sourceSchemaVersion: CHUNK_SET_DEFINITION.sourceSchemaVersion,
 	} as const;
 	const chunkSet = await writeChunkSetManifest(input.artifactStore, manifest);
 	return {
@@ -81,14 +96,11 @@ export async function buildCampusDocsChunkSet(
 export async function buildCampusDocsEmbeddingSet(
 	input: BuildEmbeddingSetInput,
 ): Promise<BuildEmbeddingSetResult> {
-	const chunkSet = await readChunkSet(input.store, input.chunkSet);
+	const chunkSet = await readChunkSet(input.artifactStore, input.chunkSet);
 	const uniqueChunks = uniqueChunksByRetrievalText(chunkSet.chunks);
 	const denseByRetrievalText = new Map<Sha256Ref, number[]>();
 	if (input.reuseEmbeddingSet) {
-		const reuse = await readEmbeddingSet(input.store, input.reuseEmbeddingSet);
-		if (!embeddingDefinitionsCompatible(reuse.manifest.embeddingDefinition, INDEX_DEFINITION.embedding)) {
-			throw new Error("reuse embedding set belongs to a different embedding space");
-		}
+		const reuse = await readEmbeddingSet(input.artifactStore, input.reuseEmbeddingSet);
 		for (const embedding of reuse.embeddings) {
 			if (
 				uniqueChunks.has(embedding.retrievalTextSha256) &&
@@ -102,7 +114,10 @@ export async function buildCampusDocsEmbeddingSet(
 	const missing = [...uniqueChunks]
 		.filter(([digest]) => !denseByRetrievalText.has(digest))
 		.sort(([left], [right]) => left.localeCompare(right));
-	const generated = await embedChunks(input, missing.map(([, chunk]) => chunk));
+	const generated = await embedTexts(
+		input.embedding,
+		missing.map(([, chunk]) => chunk.retrievalText),
+	);
 	for (const [index, [digest]] of missing.entries()) {
 		const vector = generated[index];
 		if (!vector) throw new Error(`embedding result is missing input ${digest}`);
@@ -114,13 +129,13 @@ export async function buildCampusDocsEmbeddingSet(
 	if (embeddings.length !== uniqueChunks.size) {
 		throw new Error("embedding set does not cover every unique chunk retrieval text");
 	}
-	const embeddingData = await writeEmbeddingData(input.store, embeddings);
-	const embeddingSet = await writeEmbeddingSetManifest(input.store, {
+	const embeddingData = await writeEmbeddingData(input.artifactStore, embeddings);
+	const embeddingSet = await writeEmbeddingSetManifest(input.artifactStore, {
 		chunkSet: input.chunkSet,
 		embeddingCount: embeddings.length,
-		embeddingDefinition: INDEX_DEFINITION.embedding,
+		embeddingSpace: EMBEDDING_SPACE,
 		embeddings: embeddingData,
-		schemaVersion: "campus_docs_embedding_set.v1",
+		schemaVersion: "campus_docs_embedding_set.v2",
 	});
 	return {
 		embeddingCount: embeddings.length,
@@ -130,65 +145,121 @@ export async function buildCampusDocsEmbeddingSet(
 	};
 }
 
-export async function publishCampusDocsIndex(
-	input: PublishIndexInput,
-): Promise<PublishIndexResult> {
-	const [chunkSet, embeddingSet] = await Promise.all([
-		readChunkSet(input.store, input.chunkSet),
-		readEmbeddingSet(input.store, input.embeddingSet),
-	]);
-	if (embeddingSet.manifest.chunkSet !== input.chunkSet) {
-		throw new Error("embedding set does not reference the requested chunk set");
-	}
+export async function assembleIndexCandidate(input: {
+	artifactStore: PublishIndexInput["artifactStore"];
+	embeddingSet: Sha256Ref;
+}): Promise<IndexCandidate> {
+	const embeddingSet = await readEmbeddingSet(input.artifactStore, input.embeddingSet);
+	const chunkSet = await readChunkSet(input.artifactStore, embeddingSet.manifest.chunkSet);
 	const points = buildPoints(chunkSet.chunks, embeddingSet.embeddings);
 	const indexManifest: IndexManifest = {
-		chunkSet: input.chunkSet,
-		documentCount: chunkSet.manifest.documentCount,
+		collectionDefinition: COLLECTION_DEFINITION,
 		embeddingSet: input.embeddingSet,
-		indexDefinition: INDEX_DEFINITION,
-		pointCount: points.length,
-		schemaVersion: "campus_docs_index.v1",
+		schemaVersion: "campus_docs_index.v2",
+	};
+	const index = await writeIndexManifest(input.artifactStore, indexManifest);
+	return {
+		binding: buildCurrentIndexBinding(index, embeddingSet.manifest.embeddingSpace),
+		index,
+		points,
 		sourceProjectionSha256: chunkSet.manifest.sourceProjectionSha256,
 	};
-	const index = await writeIndexManifest(input.store, indexManifest);
-	const binding = buildCurrentIndexBinding(index);
-	const current = await input.catalog.current();
-	const targetIsCurrent = current?.collection === binding.collection;
+}
 
-	if (await input.qdrant.collectionExists(binding.collection)) {
+export async function materializeQdrantCollection(input: {
+	candidate: IndexCandidate;
+	currentCollection: string | null;
+	qdrant: QdrantIndexClient;
+}): Promise<{ created: boolean }> {
+	const collection = input.candidate.binding.collection;
+	if (await input.qdrant.collectionExists(collection)) {
 		try {
-			await validateCollection(input, binding.collection, points);
-			await assertSourceProjectionUnchanged(input, chunkSet.manifest.sourceProjectionSha256);
-			const activated = await input.catalog.activate(binding);
-			return { collection: binding.collection, index, noOp: activated.noOp, pointCount: points.length };
+			await validateCollection(
+				input.qdrant,
+				collection,
+				input.candidate.points,
+				input.candidate.binding.embedding_dimensions,
+			);
+			return { created: false };
 		} catch (error) {
-			if (targetIsCurrent || !(error instanceof QdrantCollectionContentMismatchError)) throw error;
-			await input.qdrant.deleteCollection(binding.collection);
+			if (
+				input.currentCollection === collection ||
+				!(error instanceof QdrantCollectionContentMismatchError)
+			) {
+				throw error;
+			}
+			await input.qdrant.deleteCollection(collection);
 		}
 	}
 
 	await input.qdrant.createCollection({
-		collection: binding.collection,
-		denseDistance: INDEX_DEFINITION.embedding.distance,
-		denseDimensions: INDEX_DEFINITION.embedding.dimensions,
-		denseVectorName: INDEX_DEFINITION.embedding.vectorName,
-		sparseVectorName: INDEX_DEFINITION.sparse.vectorName,
+		collection,
+		denseDistance: COLLECTION_DEFINITION.dense.distance,
+		denseDimensions: input.candidate.binding.embedding_dimensions,
+		denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
+		sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
 	});
 	try {
-		await upsertPoints(input, binding.collection, points);
-		await validateCollection(input, binding.collection, points);
-		await assertSourceProjectionUnchanged(input, chunkSet.manifest.sourceProjectionSha256);
+		await upsertPoints(input.qdrant, collection, input.candidate.points);
+		await validateCollection(
+			input.qdrant,
+			collection,
+			input.candidate.points,
+			input.candidate.binding.embedding_dimensions,
+		);
 	} catch (error) {
-		await input.qdrant.deleteCollection(binding.collection).catch(() => undefined);
+		await input.qdrant.deleteCollection(collection).catch(() => undefined);
 		throw error;
 	}
+	return { created: true };
+}
 
-	const activated = await input.catalog.activate(binding);
+export async function activateCurrentIndex(input: {
+	binding: CurrentIndexBinding;
+	catalog: IndexCatalog;
+	expectedSourceProjection: Sha256Ref;
+	sourceStore: ReaderObjectStore;
+}): Promise<{ noOp: boolean }> {
+	await assertSourceProjectionUnchanged(
+		input.sourceStore,
+		input.expectedSourceProjection,
+	);
+	return input.catalog.activate(input.binding);
+}
+
+export async function publishCampusDocsIndex(
+	input: PublishIndexInput,
+): Promise<PublishIndexResult> {
+	const candidate = await assembleIndexCandidate({
+		artifactStore: input.artifactStore,
+		embeddingSet: input.embeddingSet,
+	});
+	const current = await input.catalog.current();
+	const targetWasCurrent = current?.collection === candidate.binding.collection;
+	const materialized = await materializeQdrantCollection({
+		candidate,
+		currentCollection: current?.collection ?? null,
+		qdrant: input.qdrant,
+	});
+	let activated: { noOp: boolean };
+	try {
+		activated = await activateCurrentIndex({
+			binding: candidate.binding,
+			catalog: input.catalog,
+			expectedSourceProjection: candidate.sourceProjectionSha256,
+			sourceStore: input.sourceStore,
+		});
+	} catch (error) {
+		if (materialized.created) {
+			await input.qdrant.deleteCollection(candidate.binding.collection).catch(() => undefined);
+		}
+		throw error;
+	}
 	return {
-		collection: binding.collection,
-		index,
-		noOp: targetIsCurrent ? false : activated.noOp,
-		pointCount: points.length,
+		collection: candidate.binding.collection,
+		index: candidate.index,
+		noOp: materialized.created && targetWasCurrent ? false : activated.noOp,
+		pointCount: candidate.points.length,
 	};
 }
 
@@ -202,13 +273,6 @@ function uniqueChunksByRetrievalText(chunks: readonly StoredChunk[]): Map<Sha256
 		if (!result.has(digest)) result.set(digest, chunk);
 	}
 	return result;
-}
-
-function embeddingDefinitionsCompatible(
-	left: typeof INDEX_DEFINITION.embedding,
-	right: typeof INDEX_DEFINITION.embedding,
-): boolean {
-	return left.spaceId === right.spaceId && left.dimensions === right.dimensions;
 }
 
 function buildPoints(
@@ -227,7 +291,9 @@ function buildPoints(
 		throw new Error("embedding data count does not match unique chunk retrieval texts");
 	}
 	for (const digest of denseByRetrievalText.keys()) {
-		if (!uniqueChunks.has(digest)) throw new Error(`embedding data contains unexpected retrieval text: ${digest}`);
+		if (!uniqueChunks.has(digest)) {
+			throw new Error(`embedding data contains unexpected retrieval text: ${digest}`);
+		}
 	}
 	return chunks.map((chunk) => {
 		const dense = denseByRetrievalText.get(chunk.retrievalTextSha256);
@@ -236,71 +302,45 @@ function buildPoints(
 	});
 }
 
-async function embedChunks(
-	input: BuildEmbeddingSetInput,
-	chunks: readonly { retrievalText: string }[],
-): Promise<number[][]> {
-	const result: number[][] = [];
-	for (let offset = 0; offset < chunks.length; offset += EMBEDDING_BATCH_SIZE) {
-		const batch = chunks.slice(offset, offset + EMBEDDING_BATCH_SIZE);
-		const vectors = await input.embedding.embed({
-			dimensions: INDEX_DEFINITION.embedding.dimensions,
-			texts: batch.map((chunk) => chunk.retrievalText),
-		});
-		if (vectors.length !== batch.length) {
-			throw new Error(`embedding result count ${vectors.length} does not match batch count ${batch.length}`);
-		}
-		for (const [index, vector] of vectors.entries()) {
-			if (
-				vector.length !== INDEX_DEFINITION.embedding.dimensions ||
-				vector.some((value) => !Number.isFinite(value))
-			) {
-				throw new Error(`embedding vector ${offset + index} has invalid dimensions or values`);
-			}
-			result.push(vector);
-		}
-	}
-	return result;
-}
-
 async function upsertPoints(
-	input: PublishIndexInput,
+	qdrant: QdrantIndexClient,
 	collection: string,
 	points: IndexPoint[],
 ): Promise<void> {
 	for (let offset = 0; offset < points.length; offset += QDRANT_UPSERT_BATCH_SIZE) {
-		await input.qdrant.upsert({
+		await qdrant.upsert({
 			collection,
-			denseVectorName: INDEX_DEFINITION.embedding.vectorName,
+			denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
 			points: points.slice(offset, offset + QDRANT_UPSERT_BATCH_SIZE),
-			sparseVectorName: INDEX_DEFINITION.sparse.vectorName,
+			sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
 		});
 	}
 }
 
 async function validateCollection(
-	input: PublishIndexInput,
+	qdrant: QdrantIndexClient,
 	collection: string,
 	points: IndexPoint[],
+	dimensions: number,
 ): Promise<void> {
-	await input.qdrant.validate({
+	await qdrant.validate({
 		collection,
-		denseDistance: INDEX_DEFINITION.embedding.distance,
-		denseVectorName: INDEX_DEFINITION.embedding.vectorName,
-		dimensions: INDEX_DEFINITION.embedding.dimensions,
+		denseDistance: COLLECTION_DEFINITION.dense.distance,
+		denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
+		dimensions,
 		expectedPointCount: points.length,
 		expectedPoints: points,
-		sparseModifier: INDEX_DEFINITION.sparse.modifier,
-		sparseVectorName: INDEX_DEFINITION.sparse.vectorName,
+		sparseModifier: COLLECTION_DEFINITION.sparse.modifier,
+		sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
 	});
 }
 
 async function assertSourceProjectionUnchanged(
-	input: PublishIndexInput,
+	store: ReaderObjectStore,
 	expectedProjection: Sha256Ref,
 ): Promise<void> {
 	try {
-		const sourceBytes = await input.store.read(CAMPUS_DOCS_SOURCE_KEY);
+		const sourceBytes = await store.read(CAMPUS_DOCS_SOURCE_KEY);
 		const source = parseIndexingSource(sourceBytes);
 		const selections = selectCurrentVersions(source.manifest);
 		if (sourceProjectionSha256(selections) !== expectedProjection) {

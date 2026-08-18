@@ -8,8 +8,9 @@
 	"scripts": {
 		"build": "tsc --project tsconfig.build.json",
 		"build-chunks": "tsx src/local-chunk-cli.ts",
-		"build-embeddings": "tsx src/cli.ts build-embeddings",
+		"build-embeddings": "tsx src/local-embedding-cli.ts",
 		"eval-chunks": "tsx src/eval-cli.ts",
+		"eval-embeddings": "tsx src/embedding-eval-cli.ts",
 		"publish-index": "tsx src/cli.ts publish-index",
 		"test": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",

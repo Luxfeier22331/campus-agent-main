@@ -31,20 +31,11 @@ test("builds one explicit embedding Job command", () => {
 });
 
 test("requires explicit artifact references for publish", () => {
-	assert.throws(() => parseStageInput(["--stage", "publish", "--chunk-set", chunkSet]), /Usage:/u);
+	assert.throws(() => parseStageInput(["--stage", "publish"]), /Usage:/u);
 	assert.deepEqual(
-		stageTemplate(
-			parseStageInput([
-				"--stage",
-				"publish",
-				"--chunk-set",
-				chunkSet,
-				"--embedding-set",
-				embeddingSet,
-			]),
-		),
+		stageTemplate(parseStageInput(["--stage", "publish", "--embedding-set", embeddingSet])),
 		{
-			args: ["publish-index", "--chunk-set", chunkSet, "--embedding-set", embeddingSet],
+			args: ["publish-index", "--embedding-set", embeddingSet],
 			cronJob: "campus-docs-index-publisher",
 			jobPrefix: "campus-docs-publish",
 		},

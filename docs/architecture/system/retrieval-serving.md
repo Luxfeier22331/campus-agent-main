@@ -33,9 +33,9 @@ Chunk、Embedding 和 Index manifest 都使用内容寻址身份。`campus_docs_
 campus_docs_<index-manifest-sha256>
 ```
 
-publisher 的索引定义固定 reader/point schema、分块算法、dense 与 sparse 向量名、Embedding space、
-dimensions、查询指令和 sparse 算法。provider、Base URL、API key 和 provider-specific model alias
-是连接属性，不进入索引身份。
+代码分别以 `CHUNK_SET_DEFINITION`、`EMBEDDING_SPACE` 和 `COLLECTION_DEFINITION` 固定 reader/分块、
+space/dimensions，以及 Qdrant point、dense/sparse 向量和查询定义。provider、Base URL、API key、
+provider-specific model alias 与调用参数不进入内容寻址 manifest。
 
 ## 分块定义
 
@@ -62,20 +62,22 @@ Chunk Job: source.json + 当前 reader
   -> 显式 chunk set
 Embedding Job: 显式 chunk set + 一次性 Embedding provider snapshot
   -> 显式 embedding set
-Publisher Job: 显式 chunk set + embedding set
+Publisher Job: 显式 embedding set -> manifest 中的 chunk set
   -> index manifest -> 不可变 Qdrant collection
   -> 原子替换 campus_docs_serving.current_index
 ```
 
-本地 Chunk CLI 和集群 Chunk Job 共用同一个命令输出合同与领域实现，只替换制品 Store：本地只读对象
-存储来源并写入 worktree `var/`，集群写入 derived bucket。相同有效来源必须生成相同 Chunk Set ID；
-本地制品不上传或晋升。只读 `eval-chunks` 是独立本地评测入口，不进入集群镜像。
+本地 Chunk/Embedding CLI 与对应集群 Job 共用领域实现，只替换制品 Store 和 Embedding 连接组装。本地
+Chunk CLI 只读对象存储来源，本地 Embedding CLI 直接调用显式 OpenAI-compatible endpoint，二者都写入
+worktree `var/`；集群写入 derived bucket。Chunk 输出保持确定性，所有阶段输出都按实际内容寻址；本地
+制品不上传或晋升。`eval-chunks` 和 dense-only `eval-embeddings` 是独立本地评测入口，不进入集群镜像。
 
 阶段之间只传递显式 `sha256:<id>`，不自动串联，不维护 `latest` 制品指针或构建状态机。manifest 和
 NDJSON 使用规范序列化、最终换行和内容寻址对象键，不可变写入采用 create-or-verify。Embedding Job
 从 execution-control 读取一次当前 Embedding 连接；它可以从操作者显式指定的旧 embedding set 按
-`embedding_space_id + retrievalTextSha256` 复用向量，但不扫描 bucket，也不把 Qdrant 当作复用缓存。
-Publisher 不读取 reader，也不调用 provider。
+`spaceId + dimensions + retrievalTextSha256` 复用向量，但不扫描 bucket，也不把 Qdrant 当作复用缓存。
+Embedding Set 不保存 provider、endpoint、model alias 或调用参数。Publisher 只接收 Embedding Set，
+从 manifest 解析 Chunk Set；它不读取 reader，也不调用 provider。
 
 Publisher 在激活前完整核对 collection 配置、point 数、point 身份、payload 和向量，并在末次写入前
 重新确认当前文档投影未变化。只有验证成功才替换 PostgreSQL

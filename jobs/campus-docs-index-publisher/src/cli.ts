@@ -6,7 +6,7 @@ import { createPostgresIndexCatalog } from "./catalog.ts";
 import { runBuildChunks } from "./chunk-command.ts";
 import {
 	createOpenAICompatibleEmbeddingClient,
-	fetchEmbeddingProviderSnapshot,
+	fetchEmbeddingConnection,
 } from "./embedding.ts";
 import { createS3ArtifactStore } from "./object-store.ts";
 import {
@@ -19,7 +19,7 @@ import type { Sha256Ref } from "./types.ts";
 type Command =
 	| { kind: "build-chunks" }
 	| { chunkSet: Sha256Ref; kind: "build-embeddings"; reuseEmbeddingSet?: Sha256Ref }
-	| { chunkSet: Sha256Ref; embeddingSet: Sha256Ref; kind: "publish-index" };
+	| { embeddingSet: Sha256Ref; kind: "publish-index" };
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
 	const command = parseCommand(argv);
@@ -30,14 +30,14 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 			return;
 		}
 		case "build-embeddings": {
-			const snapshot = await fetchEmbeddingProviderSnapshot();
+			const connection = await fetchEmbeddingConnection();
 			const result = await buildCampusDocsEmbeddingSet({
+				artifactStore: store,
 				chunkSet: command.chunkSet,
-				embedding: createOpenAICompatibleEmbeddingClient(snapshot),
+				embedding: createOpenAICompatibleEmbeddingClient(connection),
 				...(command.reuseEmbeddingSet
 					? { reuseEmbeddingSet: command.reuseEmbeddingSet }
 					: {}),
-				store,
 			});
 			writeResult({
 				embedding_count: result.embeddingCount,
@@ -52,11 +52,11 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 			try {
 				await catalog.acquirePublisherLock();
 				const result = await publishCampusDocsIndex({
+					artifactStore: store,
 					catalog,
-					chunkSet: command.chunkSet,
 					embeddingSet: command.embeddingSet,
 					qdrant: createQdrantClient(),
-					store,
+					sourceStore: store,
 				});
 				writeResult({
 					collection: result.collection,
@@ -89,10 +89,9 @@ export function parseCommand(argv: string[]): Command {
 		};
 	}
 	if (kind === "publish-index") {
-		const chunkSet = requiredRef(flags, "--chunk-set");
 		const embeddingSet = requiredRef(flags, "--embedding-set");
-		assertOnlyFlags(flags, ["--chunk-set", "--embedding-set"]);
-		return { chunkSet, embeddingSet, kind };
+		assertOnlyFlags(flags, ["--embedding-set"]);
+		return { embeddingSet, kind };
 	}
 	return usage();
 }
@@ -123,7 +122,7 @@ function assertOnlyFlags(flags: Map<string, string>, allowed: readonly string[])
 
 function usage(): never {
 	throw new Error(
-		"Usage: build-chunks | build-embeddings --chunk-set sha256:<id> [--reuse-embedding-set sha256:<id>] | publish-index --chunk-set sha256:<id> --embedding-set sha256:<id>",
+		"Usage: build-chunks | build-embeddings --chunk-set sha256:<id> [--reuse-embedding-set sha256:<id>] | publish-index --embedding-set sha256:<id>",
 	);
 }
 

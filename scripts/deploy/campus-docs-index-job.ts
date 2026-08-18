@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 type StageInput =
 	| { stage: "chunks" }
 	| { chunkSet: string; reuseEmbeddingSet?: string; stage: "embeddings" }
-	| { chunkSet: string; embeddingSet: string; stage: "publish" };
+	| { embeddingSet: string; stage: "publish" };
 
 const SHA256_REF = /^sha256:[a-f0-9]{64}$/u;
 
@@ -29,9 +29,8 @@ export function parseStageInput(argv: string[]): StageInput {
 		};
 	}
 	if (stage === "publish") {
-		assertOnlyFlags(flags, ["--stage", "--chunk-set", "--embedding-set"]);
+		assertOnlyFlags(flags, ["--stage", "--embedding-set"]);
 		return {
-			chunkSet: requiredRef(flags, "--chunk-set"),
 			embeddingSet: requiredRef(flags, "--embedding-set"),
 			stage,
 		};
@@ -64,13 +63,7 @@ export function stageTemplate(input: StageInput): {
 			};
 		case "publish":
 			return {
-				args: [
-					"publish-index",
-					"--chunk-set",
-					input.chunkSet,
-					"--embedding-set",
-					input.embeddingSet,
-				],
+				args: ["publish-index", "--embedding-set", input.embeddingSet],
 				cronJob: "campus-docs-index-publisher",
 				jobPrefix: "campus-docs-publish",
 			};
@@ -184,7 +177,7 @@ function record(value: unknown, label: string): Record<string, unknown> {
 
 function usageError(): Error {
 	return new Error(
-		"Usage: pnpm campus-docs:index-job -- --stage chunks | --stage embeddings --chunk-set sha256:<id> [--reuse-embedding-set sha256:<id>] | --stage publish --chunk-set sha256:<id> --embedding-set sha256:<id>",
+		"Usage: pnpm campus-docs:index-job -- --stage chunks | --stage embeddings --chunk-set sha256:<id> [--reuse-embedding-set sha256:<id>] | --stage publish --embedding-set sha256:<id>",
 	);
 }
 

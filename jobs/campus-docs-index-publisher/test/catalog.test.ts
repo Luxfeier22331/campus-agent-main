@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { assertSameBinding } from "../src/catalog.ts";
+import { COLLECTION_DEFINITION, EMBEDDING_SPACE } from "../src/definitions.ts";
 import type { CurrentIndexBinding } from "../src/types.ts";
-import { INDEX_DEFINITION } from "../src/types.ts";
 
 const binding: CurrentIndexBinding = {
 	collection: `campus_docs_${"a".repeat(64)}`,
-	dense_vector_name: INDEX_DEFINITION.embedding.vectorName,
-	embedding_dimensions: INDEX_DEFINITION.embedding.dimensions,
-	embedding_query_instruction: INDEX_DEFINITION.embedding.queryInstruction,
-	embedding_space_id: INDEX_DEFINITION.embedding.spaceId,
-	sparse_model: INDEX_DEFINITION.sparse.model,
-	sparse_vector_name: INDEX_DEFINITION.sparse.vectorName,
+	dense_vector_name: COLLECTION_DEFINITION.dense.vectorName,
+	embedding_dimensions: EMBEDDING_SPACE.dimensions,
+	embedding_query_instruction: COLLECTION_DEFINITION.dense.queryInstruction,
+	embedding_space_id: EMBEDDING_SPACE.spaceId,
+	sparse_model: COLLECTION_DEFINITION.sparse.model,
+	sparse_vector_name: COLLECTION_DEFINITION.sparse.vectorName,
 };
 
 describe("Campus docs index catalog", () => {

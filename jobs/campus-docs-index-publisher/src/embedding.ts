@@ -1,12 +1,15 @@
-import type { EmbeddingClient, EmbeddingProviderSnapshot } from "./types.ts";
+import { EMBEDDING_SPACE } from "./definitions.ts";
+import type { EmbeddingClient, EmbeddingConnection } from "./types.ts";
 
 export const EMBEDDING_PROVIDER_SNAPSHOT_URL =
 	"http://execution-control-provider-snapshot:8002/internal/provider-snapshots/embedding";
+export const EMBEDDING_BATCH_SIZE = 8;
+export const EMBEDDING_REQUEST_CONCURRENCY = 8;
 
-export async function fetchEmbeddingProviderSnapshot(
+export async function fetchEmbeddingConnection(
 	fetchImpl: typeof fetch = fetch,
 	url = EMBEDDING_PROVIDER_SNAPSHOT_URL,
-): Promise<EmbeddingProviderSnapshot> {
+): Promise<EmbeddingConnection> {
 	const response = await fetchImpl(url, {
 		headers: { accept: "application/json" },
 		method: "GET",
@@ -26,29 +29,41 @@ export async function fetchEmbeddingProviderSnapshot(
 	) {
 		throw new Error("embedding provider snapshot is invalid");
 	}
-	return {
+	return createEmbeddingConnection({
 		apiKey: payload.api_key,
-		baseUrl: payload.base_url.replace(/\/$/u, ""),
+		baseUrl: payload.base_url,
 		model: payload.model,
-		provider: payload.provider,
-		schemaVersion: "embedding_provider_snapshot.v1",
-	};
+	});
+}
+
+export function createEmbeddingConnection(input: {
+	apiKey: string;
+	baseUrl: string;
+	model: string;
+}): EmbeddingConnection {
+	const apiKey = input.apiKey.trim();
+	const baseUrl = input.baseUrl.trim().replace(/\/+$/u, "");
+	const model = input.model.trim();
+	if (!apiKey || !baseUrl || !model) {
+		throw new Error("embedding connection requires base URL, model and API key");
+	}
+	return { apiKey, baseUrl, model };
 }
 
 export function createOpenAICompatibleEmbeddingClient(
-	snapshot: EmbeddingProviderSnapshot,
+	connection: EmbeddingConnection,
 	fetchImpl: typeof fetch = fetch,
 ): EmbeddingClient {
 	return {
 		async embed(input) {
-			const response = await fetchImpl(`${snapshot.baseUrl}/embeddings`, {
+			const response = await fetchImpl(`${connection.baseUrl}/embeddings`, {
 				body: JSON.stringify({
 					dimensions: input.dimensions,
 					input: input.texts,
-					model: snapshot.model,
+					model: connection.model,
 				}),
 				headers: {
-					authorization: `Bearer ${snapshot.apiKey}`,
+					authorization: `Bearer ${connection.apiKey}`,
 					"content-type": "application/json",
 				},
 				method: "POST",
@@ -91,6 +106,56 @@ export function createOpenAICompatibleEmbeddingClient(
 			});
 		},
 	};
+}
+
+export async function embedTexts(
+	client: EmbeddingClient,
+	texts: readonly string[],
+): Promise<number[][]> {
+	const batches: Array<{ offset: number; texts: string[] }> = [];
+	for (let offset = 0; offset < texts.length; offset += EMBEDDING_BATCH_SIZE) {
+		batches.push({
+			offset,
+			texts: texts.slice(offset, offset + EMBEDDING_BATCH_SIZE),
+		});
+	}
+	const result = new Array<number[] | undefined>(texts.length);
+	for (
+		let offset = 0;
+		offset < batches.length;
+		offset += EMBEDDING_REQUEST_CONCURRENCY
+	) {
+		await Promise.all(
+			batches
+				.slice(offset, offset + EMBEDDING_REQUEST_CONCURRENCY)
+				.map(async (batch) => {
+					const vectors = await client.embed({
+						dimensions: EMBEDDING_SPACE.dimensions,
+						texts: batch.texts,
+					});
+					if (vectors.length !== batch.texts.length) {
+						throw new Error(
+							`embedding result count ${vectors.length} does not match batch count ${batch.texts.length}`,
+						);
+					}
+					for (const [index, vector] of vectors.entries()) {
+						if (
+							vector.length !== EMBEDDING_SPACE.dimensions ||
+							vector.some((value) => !Number.isFinite(value))
+						) {
+							throw new Error(
+								`embedding vector ${batch.offset + index} has invalid dimensions or values`,
+							);
+						}
+						result[batch.offset + index] = vector;
+					}
+				}),
+		);
+	}
+	return result.map((vector, index) => {
+		if (!vector) throw new Error(`embedding result is missing input ${index}`);
+		return vector;
+	});
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -6,7 +6,10 @@ import {
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import type { ObjectRef } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
 import {
-	INDEX_DEFINITION,
+	CHUNK_SET_DEFINITION,
+	EMBEDDING_SPACE,
+} from "./definitions.ts";
+import {
 	type ArtifactObjectStore,
 	type ChunkSetManifest,
 	type EmbeddingSetManifest,
@@ -60,8 +63,13 @@ export function decodeChunkNDJSON(bytes: Uint8Array): StoredChunk[] {
 	return decodeNDJSON(bytes, parseStoredChunk);
 }
 
-export function decodeEmbeddingNDJSON(bytes: Uint8Array): StoredEmbedding[] {
-	return decodeNDJSON(bytes, parseStoredEmbedding);
+export function decodeEmbeddingNDJSON(
+	bytes: Uint8Array,
+	dimensions: number,
+): StoredEmbedding[] {
+	return decodeNDJSON(bytes, (value, index) =>
+		parseStoredEmbedding(value, index, dimensions),
+	);
 }
 
 export async function writeChunkData(
@@ -120,7 +128,7 @@ export async function readEmbeddingSet(
 ): Promise<{ embeddings: StoredEmbedding[]; manifest: EmbeddingSetManifest }> {
 	const manifest = await readManifest(store, id, embeddingSetManifestKey, parseEmbeddingSetManifest);
 	const bytes = await readVerifiedRef(store, manifest.embeddings, "embedding data");
-	const embeddings = decodeEmbeddingNDJSON(bytes);
+	const embeddings = decodeEmbeddingNDJSON(bytes, manifest.embeddingSpace.dimensions);
 	if (embeddings.length !== manifest.embeddingCount) {
 		throw new Error(`embedding data count = ${embeddings.length}, want ${manifest.embeddingCount}`);
 	}
@@ -191,9 +199,9 @@ function parseChunkSetManifest(value: unknown): ChunkSetManifest {
 	}
 	const manifest = value as unknown as ChunkSetManifest;
 	if (
-		manifest.readerSchemaVersion !== INDEX_DEFINITION.readerSchemaVersion ||
-		manifest.sourceSchemaVersion !== INDEX_DEFINITION.sourceSchemaVersion ||
-		!isDeepStrictEqual(manifest.chunkDefinition, INDEX_DEFINITION.chunking) ||
+		manifest.readerSchemaVersion !== CHUNK_SET_DEFINITION.readerSchemaVersion ||
+		manifest.sourceSchemaVersion !== CHUNK_SET_DEFINITION.sourceSchemaVersion ||
+		!isDeepStrictEqual(manifest.chunkDefinition, CHUNK_SET_DEFINITION.chunking) ||
 		!positiveInteger(manifest.chunkCount) ||
 		!positiveInteger(manifest.documentCount)
 	) {
@@ -205,12 +213,12 @@ function parseChunkSetManifest(value: unknown): ChunkSetManifest {
 }
 
 function parseEmbeddingSetManifest(value: unknown): EmbeddingSetManifest {
-	if (!isRecord(value) || value.schemaVersion !== "campus_docs_embedding_set.v1") {
+	if (!isRecord(value) || value.schemaVersion !== "campus_docs_embedding_set.v2") {
 		throw new Error("embedding set manifest schema is invalid");
 	}
 	const manifest = value as unknown as EmbeddingSetManifest;
 	if (
-		!isDeepStrictEqual(manifest.embeddingDefinition, INDEX_DEFINITION.embedding) ||
+		!isDeepStrictEqual(manifest.embeddingSpace, EMBEDDING_SPACE) ||
 		!positiveInteger(manifest.embeddingCount)
 	) {
 		throw new Error("embedding set manifest definition is invalid");
@@ -236,12 +244,16 @@ function parseStoredChunk(value: unknown, index: number): StoredChunk {
 	return value as unknown as StoredChunk;
 }
 
-function parseStoredEmbedding(value: unknown, index: number): StoredEmbedding {
+function parseStoredEmbedding(
+	value: unknown,
+	index: number,
+	dimensions: number,
+): StoredEmbedding {
 	if (!isRecord(value)) throw new Error(`embedding record ${index} is invalid`);
 	assertSha256Ref(String(value.retrievalTextSha256 ?? ""), `embedding record ${index} retrieval text digest`);
 	if (
 		!Array.isArray(value.dense) ||
-		value.dense.length !== INDEX_DEFINITION.embedding.dimensions ||
+		value.dense.length !== dimensions ||
 		value.dense.some((item) => typeof item !== "number" || !Number.isFinite(item))
 	) {
 		throw new Error(`embedding record ${index} vector is invalid`);

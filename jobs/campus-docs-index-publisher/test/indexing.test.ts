@@ -6,6 +6,7 @@ import {
 	sha256,
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import type { DocsReaderElement } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+import { CHUNK_SET_DEFINITION, EMBEDDING_SPACE } from "../src/definitions.ts";
 import {
 	buildChunks,
 	buildCurrentIndexBinding,
@@ -17,7 +18,6 @@ import {
 	sourceProjectionSha256,
 } from "../src/indexing.ts";
 import { buildSparseVector } from "../src/indexing.ts";
-import { INDEX_DEFINITION } from "../src/types.ts";
 
 describe("Campus docs indexing", () => {
 	it("indexes only current reader versions and preserves section boundaries", async () => {
@@ -202,7 +202,7 @@ describe("Campus docs indexing", () => {
 		);
 		expect(chunks.filter((chunk) => chunk.rootUnitIds.includes("root-long"))).toHaveLength(2);
 		expect(chunks.every((chunk) => [...chunk.content].length <= 1600)).toBe(true);
-		expect(INDEX_DEFINITION.chunking.overlapChars).toBe(0);
+		expect(CHUNK_SET_DEFINITION.chunking.overlapChars).toBe(0);
 	});
 
 	it("splits oversized prose and lists only at structural boundaries without overlap", async () => {
@@ -443,7 +443,7 @@ describe("Campus docs indexing", () => {
 				(chunk) =>
 					chunk.content.startsWith(`${contextPrefix}${columnPrefix}`) &&
 					chunk.rootUnitIds.join(",") === "root-context,root-long-table" &&
-					[...chunk.content].length <= INDEX_DEFINITION.chunking.maxChars,
+					[...chunk.content].length <= CHUNK_SET_DEFINITION.chunking.maxChars,
 			),
 		).toBe(true);
 		expect(
@@ -639,11 +639,11 @@ describe("Campus docs indexing", () => {
 
 	it("produces stable fingerprints and bounded sparse vectors", async () => {
 		const index = `sha256:${"a".repeat(64)}` as const;
-		const first = buildCurrentIndexBinding(index);
-		const second = buildCurrentIndexBinding(index);
+		const first = buildCurrentIndexBinding(index, EMBEDDING_SPACE);
+		const second = buildCurrentIndexBinding(index, EMBEDDING_SPACE);
 		expect(first.collection).toMatch(/^campus_docs_[a-f0-9]{64}$/u);
 		expect(second).toEqual(first);
-		expect(first.embedding_space_id).toBe(INDEX_DEFINITION.embedding.spaceId);
+		expect(first.embedding_space_id).toBe(EMBEDDING_SPACE.spaceId);
 		const sparse = buildSparseVector("培养方案 Course_101 course_101 课程 课程 ÄÖ");
 		expect(sparse).toEqual({
 			indices: [148423468, 272413536, 603158067, 919704991, 1116344764, 1145662860, 1154101346, 1767701743],

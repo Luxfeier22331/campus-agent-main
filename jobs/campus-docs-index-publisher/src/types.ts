@@ -4,39 +4,16 @@ import type {
 	DocsSourceManifest,
 	ObjectRef,
 } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+import type {
+	CHUNK_SET_DEFINITION,
+	COLLECTION_DEFINITION,
+	EMBEDDING_SPACE,
+} from "./definitions.ts";
 
 export const INDEX_COLLECTION_PREFIX = "campus_docs" as const;
 export const CAMPUS_DOCS_SOURCE_KEY = "campus-docs/source.json" as const;
 
 export type Sha256Ref = `sha256:${string}`;
-
-export const INDEX_DEFINITION = {
-	chunking: {
-		algorithm: "campus_docs_reader_elements.v4",
-		maxChars: 1600,
-		overlapChars: 0,
-		targetChars: 800,
-	},
-	embedding: {
-		distance: "Cosine",
-		dimensions: 2560,
-		queryInstruction:
-			"Given a Campus Web document question, retrieve relevant current passages that answer the query.",
-		spaceId: "qwen3-embedding-4b@2560-v1",
-		vectorName: "dense",
-	},
-	pointSchemaVersion: "campus_docs_point.v3",
-	readerSchemaVersion: "campus_docs_reader.v3",
-	sourceSchemaVersion: "campus_docs_source.v3",
-	sparse: {
-		language: "none",
-		model: "fnv1a_log_tf.v1",
-		modifier: "idf",
-		provider: "campus-agent",
-		tokenizer: "unicode_word_v1",
-		vectorName: "sparse",
-	},
-} as const;
 
 export interface ReaderObjectStore {
 	read(key: string): Promise<Uint8Array>;
@@ -95,7 +72,7 @@ export interface CampusDocsPointPayload {
 	document_title: string;
 	retrieval_text_sha256: `sha256:${string}`;
 	root_unit_ids: string[];
-	schema_version: typeof INDEX_DEFINITION.pointSchemaVersion;
+	schema_version: typeof COLLECTION_DEFINITION.pointSchemaVersion;
 	section_ref: string;
 	section_title: string;
 	text: string;
@@ -132,12 +109,10 @@ export interface EmbeddingClient {
 	embed(input: { texts: string[]; dimensions: number }): Promise<number[][]>;
 }
 
-export interface EmbeddingProviderSnapshot {
+export interface EmbeddingConnection {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
-	provider: "openai" | "openai-compatible";
-	schemaVersion: "embedding_provider_snapshot.v1";
 }
 
 export interface QdrantIndexClient {
@@ -179,31 +154,27 @@ export interface PublisherIndexCatalog extends IndexCatalog {
 
 export interface ChunkSetManifest {
 	chunkCount: number;
-	chunkDefinition: typeof INDEX_DEFINITION.chunking;
+	chunkDefinition: typeof CHUNK_SET_DEFINITION.chunking;
 	chunks: ObjectRef;
 	documentCount: number;
-	readerSchemaVersion: typeof INDEX_DEFINITION.readerSchemaVersion;
+	readerSchemaVersion: typeof CHUNK_SET_DEFINITION.readerSchemaVersion;
 	schemaVersion: "campus_docs_chunk_set.v2";
 	sourceProjectionSha256: Sha256Ref;
-	sourceSchemaVersion: typeof INDEX_DEFINITION.sourceSchemaVersion;
+	sourceSchemaVersion: typeof CHUNK_SET_DEFINITION.sourceSchemaVersion;
 }
 
 export interface EmbeddingSetManifest {
 	chunkSet: Sha256Ref;
 	embeddingCount: number;
-	embeddingDefinition: typeof INDEX_DEFINITION.embedding;
+	embeddingSpace: typeof EMBEDDING_SPACE;
 	embeddings: ObjectRef;
-	schemaVersion: "campus_docs_embedding_set.v1";
+	schemaVersion: "campus_docs_embedding_set.v2";
 }
 
 export interface IndexManifest {
-	chunkSet: Sha256Ref;
-	documentCount: number;
+	collectionDefinition: typeof COLLECTION_DEFINITION;
 	embeddingSet: Sha256Ref;
-	indexDefinition: typeof INDEX_DEFINITION;
-	pointCount: number;
-	schemaVersion: "campus_docs_index.v1";
-	sourceProjectionSha256: Sha256Ref;
+	schemaVersion: "campus_docs_index.v2";
 }
 
 export interface BuildChunkSetInput {
@@ -220,10 +191,10 @@ export interface BuildChunkSetResult {
 }
 
 export interface BuildEmbeddingSetInput {
+	artifactStore: ArtifactObjectStore;
 	chunkSet: Sha256Ref;
 	embedding: EmbeddingClient;
 	reuseEmbeddingSet?: Sha256Ref;
-	store: ArtifactObjectStore;
 }
 
 export interface BuildEmbeddingSetResult {
@@ -234,11 +205,11 @@ export interface BuildEmbeddingSetResult {
 }
 
 export interface PublishIndexInput {
+	artifactStore: ArtifactObjectStore;
 	catalog: IndexCatalog;
-	chunkSet: Sha256Ref;
 	embeddingSet: Sha256Ref;
 	qdrant: QdrantIndexClient;
-	store: ArtifactObjectStore;
+	sourceStore: ReaderObjectStore;
 }
 
 export interface PublishIndexResult {

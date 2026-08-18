@@ -18,9 +18,14 @@ import type {
 	DocsSourceVersion,
 	ObjectRef,
 } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+import {
+	CHUNK_SET_DEFINITION,
+	COLLECTION_DEFINITION,
+} from "./definitions.ts";
 import type {
 	CampusDocsPointPayload,
 	CurrentIndexBinding,
+	EmbeddingSetManifest,
 	IndexChunk,
 	IndexPoint,
 	IndexingSource,
@@ -29,7 +34,7 @@ import type {
 	SourceVersionSelection,
 	SparseVector,
 } from "./types.ts";
-import { INDEX_COLLECTION_PREFIX, INDEX_DEFINITION } from "./types.ts";
+import { INDEX_COLLECTION_PREFIX } from "./types.ts";
 
 const MAX_TEXT_BYTES = 16_000;
 
@@ -164,16 +169,19 @@ export function buildChunks(input: {
 	return chunks;
 }
 
-export function buildCurrentIndexBinding(index: Sha256Ref): CurrentIndexBinding {
+export function buildCurrentIndexBinding(
+	index: Sha256Ref,
+	embeddingSpace: EmbeddingSetManifest["embeddingSpace"],
+): CurrentIndexBinding {
 	const digest = index.slice("sha256:".length);
 	return {
 		collection: `${INDEX_COLLECTION_PREFIX}_${digest}`,
-		dense_vector_name: INDEX_DEFINITION.embedding.vectorName,
-		embedding_dimensions: INDEX_DEFINITION.embedding.dimensions,
-		embedding_query_instruction: INDEX_DEFINITION.embedding.queryInstruction,
-		embedding_space_id: INDEX_DEFINITION.embedding.spaceId,
-		sparse_model: INDEX_DEFINITION.sparse.model,
-		sparse_vector_name: INDEX_DEFINITION.sparse.vectorName,
+		dense_vector_name: COLLECTION_DEFINITION.dense.vectorName,
+		embedding_dimensions: embeddingSpace.dimensions,
+		embedding_query_instruction: COLLECTION_DEFINITION.dense.queryInstruction,
+		embedding_space_id: embeddingSpace.spaceId,
+		sparse_model: COLLECTION_DEFINITION.sparse.model,
+		sparse_vector_name: COLLECTION_DEFINITION.sparse.vectorName,
 	};
 }
 
@@ -218,7 +226,7 @@ export function buildPoint(input: {
 		document_title: input.chunk.documentTitle,
 		retrieval_text_sha256: retrievalTextSha,
 		root_unit_ids: input.chunk.rootUnitIds,
-		schema_version: INDEX_DEFINITION.pointSchemaVersion,
+		schema_version: COLLECTION_DEFINITION.pointSchemaVersion,
 		section_ref: input.chunk.sectionRef,
 		section_title: input.chunk.sectionTitle,
 		text: input.chunk.content,
@@ -238,7 +246,7 @@ export function buildPoint(input: {
 }
 
 export function buildPointId(chunk: IndexChunk): string {
-	return stableUuid([INDEX_DEFINITION.pointSchemaVersion, chunk.chunkId]);
+	return stableUuid([COLLECTION_DEFINITION.pointSchemaVersion, chunk.chunkId]);
 }
 
 export function buildSparseVector(text: string): SparseVector {
@@ -294,7 +302,7 @@ interface TableContext extends ChunkPiece {
 
 type SplittableTextKind = "blockquote" | "list" | "paragraph" | "table";
 
-const TABLE_CONTEXT_MAX_CHARS = Math.floor(INDEX_DEFINITION.chunking.targetChars / 2);
+const TABLE_CONTEXT_MAX_CHARS = Math.floor(CHUNK_SET_DEFINITION.chunking.targetChars / 2);
 const TABLE_CONTEXT_SEPARATOR = "\n\n";
 
 interface LogicalTableCell {
@@ -368,7 +376,7 @@ function buildSectionPieces(
 			const contextPrefixLength = context
 				? unicodeLength(context.content) + unicodeLength(TABLE_CONTEXT_SEPARATOR)
 				: 0;
-			const tableMaxChars = INDEX_DEFINITION.chunking.maxChars - contextPrefixLength;
+			const tableMaxChars = CHUNK_SET_DEFINITION.chunking.maxChars - contextPrefixLength;
 			if (tableMaxChars < 1) {
 				throw new Error(`Campus docs table context exceeds Unicode character limit: ${versionId}`);
 			}
@@ -376,7 +384,10 @@ function buildSectionPieces(
 				maxChars: tableMaxChars,
 				targetChars: Math.max(
 					1,
-					Math.min(tableMaxChars, INDEX_DEFINITION.chunking.targetChars - contextPrefixLength),
+					Math.min(
+						tableMaxChars,
+						CHUNK_SET_DEFINITION.chunking.targetChars - contextPrefixLength,
+					),
 				),
 			};
 			if (context) {
@@ -398,8 +409,8 @@ function buildSectionPieces(
 			const combined = [...textBlocks, next].map((piece) => piece.content).join("\n\n");
 			if (
 				textBlocks.length > 0 &&
-				(unicodeLength(current) >= INDEX_DEFINITION.chunking.targetChars ||
-					unicodeLength(combined) > INDEX_DEFINITION.chunking.maxChars)
+				(unicodeLength(current) >= CHUNK_SET_DEFINITION.chunking.targetChars ||
+					unicodeLength(combined) > CHUNK_SET_DEFINITION.chunking.maxChars)
 			) {
 				flushText();
 			}
@@ -418,8 +429,8 @@ function splitOversizedText(
 	return splitTextByLimits(
 		value,
 		kind,
-		INDEX_DEFINITION.chunking.targetChars,
-		INDEX_DEFINITION.chunking.maxChars,
+		CHUNK_SET_DEFINITION.chunking.targetChars,
+		CHUNK_SET_DEFINITION.chunking.maxChars,
 	);
 }
 
@@ -850,7 +861,7 @@ function buildRetrievalText(documentTitle: string, headingPath: readonly string[
 }
 
 function assertChunkSize(content: string, versionId: string): void {
-	if (unicodeLength(content) > INDEX_DEFINITION.chunking.maxChars) {
+	if (unicodeLength(content) > CHUNK_SET_DEFINITION.chunking.maxChars) {
 		throw new Error(`Campus docs chunk exceeds Unicode character limit: ${versionId}`);
 	}
 	if (Buffer.byteLength(content, "utf8") > MAX_TEXT_BYTES) {

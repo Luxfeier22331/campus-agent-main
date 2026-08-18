@@ -66,22 +66,24 @@ evidence 表示有可引用证据。普通任务不要求引用；机构事实�
 - 当前在线检索只消费激活的当前索引，不提供历史 reader 查询。
 
 Embedding Job 只从 execution-control 取得一次当前 provider 连接，并可从显式旧 embedding set 按
-向量空间与检索文本摘要复用。Publisher 不读取 reader 或调用 provider；它从显式 chunk set 和
-embedding set 构建完整新 collection，验证后原子替换当前绑定。流程不原地更新向量，也不在激活后
-立即删除旧 collection。
+向量空间与检索文本摘要复用。Embedding Set 只保存 Chunk Set 引用、向量空间和内容寻址向量，不保存
+provider、endpoint、model alias 或调用参数。Publisher 不读取 reader 或调用 provider；它只接收显式
+Embedding Set，并从 manifest 解析 Chunk Set 后构建完整新 collection，验证后原子替换当前绑定。流程
+不原地更新向量，也不在激活后立即删除旧 collection。
 
 ### 离线任务执行模型
 
-- 本地 Chunk CLI 和集群 Chunk Job 复用同一个命令输出合同与领域实现，只在组装层分别使用 worktree
-  文件 Store 和 derived S3 Store；不维护 `LOCAL_MODE`、存储模式配置或第二套分块定义；
-- 本地 Chunk CLI 只读对象存储来源并写入 `var/`，其制品不上传或晋升；正式 Chunk Set 由集群
-  Job 使用同一有效输入重新确定性生成；
+- 本地 Chunk/Embedding CLI 与对应集群 Job 复用领域实现，只在组装层分别使用 worktree 文件 Store、
+  derived S3 Store、本地显式 Provider 连接或 execution-control 一次性连接；不维护 `LOCAL_MODE`、存储
+  模式配置或第二套阶段定义；
+- 本地 Chunk CLI 只读对象存储来源，本地 Embedding CLI 直接调用显式 OpenAI-compatible endpoint，
+  二者都写入 `var/` 且制品不上传或晋升；正式制品由集群 Job 使用同一有效输入重新生成；
 - 每个进程只执行 Chunk、Embedding 或 Publisher 中的一个阶段并退出，下一阶段只接收操作者显式传入的
   内容寻址制品 ID；
 - Kubernetes 只提供一次性 Job 执行载体，三个保持暂停的 CronJob 只保存各阶段 Pod 模板，不通过
   解除暂停执行，也不自动串联后续阶段；
-- 集群镜像在构建期编译 TypeScript，运行时只执行 JavaScript 产物；本地只读 `eval-chunks` 不进入
-  集群镜像；
+- 集群镜像在构建期编译 TypeScript，运行时只执行 JavaScript 产物；本地 `eval-chunks` 和 dense-only
+  `eval-embeddings` 不进入集群镜像；
 - Job 环境只提供该阶段实际依赖的对象存储、PostgreSQL 或 Qdrant 连接。Embedding provider 连接继续
   来自 execution-control 的一次性快照，向量空间与分块定义继续由代码所有。
 

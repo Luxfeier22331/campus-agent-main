@@ -9,13 +9,13 @@ import {
 	sha256Text,
 	sourceProjectionSha256,
 } from "./indexing.ts";
+import { CHUNK_SET_DEFINITION } from "./definitions.ts";
 import type {
 	IndexChunk,
 	IndexingSource,
 	ReaderSection,
 	SourceVersionSelection,
 } from "./types.ts";
-import { INDEX_DEFINITION } from "./types.ts";
 
 const SHORT_CHUNK_CHAR_LIMIT = 100;
 const SAMPLE_COUNT_PER_COLLECTION = 6;
@@ -39,7 +39,7 @@ export interface ChunkEvalReview {
 }
 
 export interface ChunkEvalReport {
-	algorithm: typeof INDEX_DEFINITION.chunking;
+	algorithm: typeof CHUNK_SET_DEFINITION.chunking;
 	collection_count: number;
 	collection_stats: CollectionStats[];
 	composition: ChunkComposition;
@@ -274,7 +274,7 @@ export function evaluateChunks(input: {
 		contexts,
 	);
 	return {
-		algorithm: INDEX_DEFINITION.chunking,
+		algorithm: CHUNK_SET_DEFINITION.chunking,
 		collection_count: collectionStats.length,
 		collection_stats: collectionStats,
 		composition: buildChunkComposition(contexts),
@@ -335,7 +335,7 @@ export function renderChunkEvalMarkdown(report: ChunkEvalReport): string {
 		`- mixed: ${report.composition.mixed}`,
 		`- unknown: ${report.composition.unknown}`,
 		`- shorter than ${SHORT_CHUNK_CHAR_LIMIT} chars: ${report.composition.short}`,
-		`- at least ${INDEX_DEFINITION.chunking.targetChars} chars: ${report.composition.near_limit}`,
+		`- at least ${CHUNK_SET_DEFINITION.chunking.targetChars} chars: ${report.composition.near_limit}`,
 		`- duplicate content groups: ${report.duplicate_stats.content_groups.length}`,
 		`- duplicate retrieval text groups: ${report.duplicate_stats.retrieval_text_groups.length}`,
 		"",
@@ -594,12 +594,12 @@ function checkChunkProvenance(
 				rootUnitId: null,
 			});
 		}
-		if (context.charLength > INDEX_DEFINITION.chunking.maxChars) {
+		if (context.charLength > CHUNK_SET_DEFINITION.chunking.maxChars) {
 			addIssue(issues, {
 				chunkId: context.chunk.chunkId,
 				code: "chunk_char_limit",
 				documentId: context.chunk.documentId,
-				message: `chunk has ${context.charLength} Unicode characters; limit is ${INDEX_DEFINITION.chunking.maxChars}`,
+				message: `chunk has ${context.charLength} Unicode characters; limit is ${CHUNK_SET_DEFINITION.chunking.maxChars}`,
 				rootUnitId: null,
 			});
 		}
@@ -965,7 +965,7 @@ function findCoverCombination(
 	return null;
 }
 
-function includesEvidence(text: string, evidence: string): boolean {
+export function includesEvidence(text: string, evidence: string): boolean {
 	return canonicalCoverage(text).includes(canonicalCoverage(evidence));
 }
 
@@ -1040,7 +1040,7 @@ function buildChunkComposition(contexts: readonly ChunkContext[]): ChunkComposit
 	for (const context of contexts) {
 		result[context.kind] += 1;
 		if (context.charLength < SHORT_CHUNK_CHAR_LIMIT) result.short += 1;
-		if (context.charLength >= INDEX_DEFINITION.chunking.targetChars) result.near_limit += 1;
+		if (context.charLength >= CHUNK_SET_DEFINITION.chunking.targetChars) result.near_limit += 1;
 	}
 	return result;
 }
