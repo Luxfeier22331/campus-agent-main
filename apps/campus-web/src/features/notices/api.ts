@@ -13,7 +13,7 @@ export async function listNotices(
 ): Promise<NoticeListResponse> {
 	const search = new URLSearchParams();
 	setOptional(search, "q", query.q);
-	setOptional(search, "domain", query.domain);
+	setOptional(search, "category", query.category);
 	setOptional(search, "organization_id", query.organization_id);
 	if (query.notice_type !== undefined) {
 		search.set("notice_type", String(query.notice_type));
@@ -23,6 +23,7 @@ export async function listNotices(
 	}
 	setOptional(search, "from", query.from);
 	setOptional(search, "to", query.to);
+	search.set("stream", query.stream);
 	search.set("page", String(query.page));
 	const response = await requestJson<unknown>({
 		path: `/api/notices?${search.toString()}`,

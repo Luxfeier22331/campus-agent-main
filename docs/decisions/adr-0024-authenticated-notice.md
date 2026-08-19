@@ -3,7 +3,9 @@ doc_type: decision
 owner_boundary: docs/decisions
 decision_id: ADR-0024
 status: accepted
-partially_superseded_by: ADR-0087
+partially_superseded_by:
+  - ADR-0087
+  - ADR-0089
 ---
 # ADR-0024 认证通知来源
 
@@ -30,14 +32,13 @@ partially_superseded_by: ADR-0087
   TGC；
 - CAS 跳转、Cookie 会话、TGC 校验和错误分类由不读取运行环境或存储的
   `packages/internal-portal-client` 统一实现；
-- TGC 获取由采集器外部的人员认证流程完成。Ops Web 保存并验证多条具名 TGC，按需向开发者显示
-  当前明文；本地通知命令从适配器未跟踪的 `.env` 读取开发者显式选择的
-  `INTERNAL_PORTAL_SSO_TGC`；
-- source-collector 不持久化或定期检查 TGC，Kubernetes ingestion base 也不注入 TGC；
+- TGC 的人员认证、持久化和轮换仍由采集器外部流程完成；采集消费时的凭据解析、本地拉取和 Job
+  注入由 ADR-0089 取代；
+- source-collector 不持久化或定期检查 TGC，Kubernetes ingestion base 也不注入 TGC Secret；
 - collector 不承担规范文档、OCR、规章物化、分块、索引或查询发布；
-- 通知是 `source-collector` 的本地开发命令，不进入 Temporal、任务注册表或 Ops 控制面；文件
-  发布按精确 ID 提交独立 workflow，但不成为 ingestion task；
-- Ops Web 使用所属 PostgreSQL schema 保存原始 TGC 和有界检查 metadata；同镜像 Kubernetes
+- 通知和文件发布是 `source-collector` 的显式 CLI/Job 入口，不进入 Temporal、任务注册表或 Ops
+  控制面；
+- ingestion-control 使用所属 PostgreSQL schema 保存原始 TGC 和有界检查 metadata；同镜像 Kubernetes
   CronJob 每 30 分钟顺序建立门户会话，保存 CAS 可能返回的当前值，并以记录版本阻止旧检查覆盖
   轮换；该检查不保证延长 TGC 生命周期。凭据被明确拒绝后暂停定时检查，轮换或人工检查成功后
   恢复；依赖检查失败仍在下一周期重试。该检查不进入 Temporal、不提交采集任务，也不控制通知同步。
@@ -46,14 +47,14 @@ partially_superseded_by: ADR-0087
 
 - 成功认证和采集不代表通知已经具备在线查询能力；
 - 每个通知 ID 的来源对象和同步边界都保存在 source bucket；
-- 文件发布只保存原文件与来源 metadata，workflow result 返回 `source.json` 引用；
-- 认证凭据和检查状态由 Ops Web PostgreSQL 唯一保存；source-collector 本地检查不写状态；
+- 文件发布只保存原文件与来源 metadata；
+- 认证凭据和检查状态由 ingestion-control PostgreSQL 唯一保存；source-collector 本地检查不写状态；
 - 下游规章、校历等领域必须通过自己的校验和发布入口消费通知来源。
 
 ## 相关文档
 
 - `../architecture/domains/notices.md`
-- `adr-0077-ingestion.md`
+- `adr-0089-internal-portal-credential-resolution.md`
 - `../architecture/system/data-plane.md`
 - `../data/internal-portal.md`
 - `../data/notices.md`

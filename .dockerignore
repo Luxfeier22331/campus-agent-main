@@ -32,6 +32,8 @@ apps/campus-web/**
 !jobs/app-api-schema/**
 !jobs/campus-docs-index-publisher/
 !jobs/campus-docs-index-publisher/**
+!jobs/notice-classifier/
+!jobs/notice-classifier/**
 !packages/domains/
 !packages/domains/**
 !configs/ingestion/
@@ -47,6 +49,8 @@ configs/sources/**
 !configs/sources/internal-portal.json
 !packages/contracts/
 !packages/contracts/**
+!packages/notice-classifier-core/
+!packages/notice-classifier-core/**
 !packages/eval-langfuse/
 !packages/eval-langfuse/**
 !packages/ingestion-contracts/

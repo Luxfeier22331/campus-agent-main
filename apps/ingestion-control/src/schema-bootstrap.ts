@@ -11,8 +11,10 @@ export async function bootstrapIngestionControlSchema(
 	client: IngestionControlSchemaClient,
 ): Promise<void> {
 	await client.query("CREATE SCHEMA IF NOT EXISTS ingestion_control");
+	await client.query("ALTER SCHEMA ingestion_control OWNER TO CURRENT_USER");
 	await client.query("REVOKE ALL ON SCHEMA ingestion_control FROM PUBLIC");
-	await client.query("GRANT USAGE, CREATE ON SCHEMA ingestion_control TO ingestion_control");
+	await client.query("REVOKE ALL ON SCHEMA ingestion_control FROM ingestion_control");
+	await client.query("GRANT USAGE ON SCHEMA ingestion_control TO ingestion_control");
 }
 
 export async function runIngestionControlSchemaBootstrap(

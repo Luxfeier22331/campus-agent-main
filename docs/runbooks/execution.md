@@ -46,7 +46,8 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 
 Goose v4 会把 execution-control 拥有的 12 张运行表和 `model_settings` 原位移动到
 `execution_control`；v5 新建 `campus_docs_serving.current_index`，v6 删除模型设置中与索引重复的
-dimensions、space 和 provider/model 身份。迁移后源码只读写新路径；`runtime` 和
+dimensions、space 和当前索引中的 provider/model 字段，v7 将现有 Embedding 设置规范为固定
+provider、model 和 transport，并标记为需要重新验证。迁移后源码只读写新路径；`runtime` 和
 `execution_config` 下的同名对象是临时只读视图，不能承接旧构建的 `INSERT ... ON CONFLICT` 或其他
 DML。因此该版本不能按普通无停写滚动升级处理。
 
@@ -54,7 +55,7 @@ DML。因此该版本不能按普通无停写滚动升级处理。
 
 1. 暂停新的产品请求准入，等待 execution-control PostgreSQL 写入排空；Temporal 服务和 workflow
    history 保持可用，不删除或重置开放 workflow；
-2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4 至 v6 已
+2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4 至 v7 已
    应用、13 张 execution-control 表保留已有行、外键和索引，Campus Docs 当前索引表已创建，并确认
    旧路径只能读取；
 3. 部署同一 revision 的 execution-control 与 Ops Web，确认 Store 健康、Provider Config 解密、
@@ -73,9 +74,11 @@ schema 向前修复；不能把旧构建当作应用回滚。`model_settings` �
 并发上限和 RAG 限制等产品常量由源码拥有，不作为环境变量重复维护。私有
 registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount。
 
-在线模型配置由 execution-control 管理。runtime 与同一 Deployment 的 admin 监听器使用一个
-`EXECUTION_CONTROL_DATABASE_URL` 和 Provider Config keyring，admin 监听器另用 `OPS_WEB_INTERNAL_TOKEN`
-鉴权；缺少 LLM、Embedding、数据库或可解密 key 都是部署阻塞项。Hindsight 与 eval provider
+在线模型配置由 execution-control 管理。LLM 和通知分类的 provider、model、transport 可在线替换；Embedding
+只允许在线替换 Base URL 和 API key，固定向量空间合同由源码和当前索引共同拥有。runtime 与同一 Deployment 的 admin 监听器使用一个
+`EXECUTION_CONTROL_DATABASE_URL` 和单一 Provider Config `encryption.key`，admin 监听器另用
+`OPS_WEB_INTERNAL_TOKEN` 鉴权；缺少数据库或可解密 key 会使配置管理不可用，具体模型缺失由对应消费路径
+处理。Hindsight 与 eval provider
 配置不进入 execution 配置数据库。
 
 Campus Docs 的三个索引 Job 由人工分别触发。Embedding Job 从 execution-control 读取一次当前

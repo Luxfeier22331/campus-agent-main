@@ -7,6 +7,7 @@ import type { SourceCollectorObjectStore } from "../../../src/object-store.js";
 import type { NoticeDetailInfo, NoticeItem } from "./types.js";
 
 export interface InternalPortalNoticeSourceStore {
+	get(noticeId: number): Promise<InternalPortalNoticeSource | null>;
 	has(noticeId: number): Promise<boolean>;
 	put(source: InternalPortalNoticeSource): Promise<"reused" | "written">;
 }
@@ -52,20 +53,23 @@ export function createInternalPortalNoticeSourceStore(input: {
 	objectStore: SourceCollectorObjectStore;
 }): InternalPortalNoticeSourceStore {
 	return {
-		async has(noticeId) {
+		async get(noticeId) {
 			const key = internalPortalNoticeSourceObjectKey(noticeId);
 			const existingBytes = await input.objectStore.getObjectIfExists({
 				bucket: input.objectStore.sourceBucket,
 				key,
 			});
 			if (!existingBytes) {
-				return false;
+				return null;
 			}
 			const existing = parseStoredNoticeSource(existingBytes);
 			if (existing.notice_id !== noticeId) {
 				throw new Error(`internal portal notice source identity does not match object key: ${key}`);
 			}
-			return true;
+			return existing;
+		},
+		async has(noticeId) {
+			return (await this.get(noticeId)) !== null;
 		},
 		async put(source) {
 			const key = internalPortalNoticeSourceObjectKey(source.notice_id);

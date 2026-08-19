@@ -13,8 +13,10 @@ import {
 	InternalPortalCredentialSchema,
 } from "../../shared/ops-contract.ts";
 import type { InternalPortalAutomationTokenService } from "../internal-portal-automation-token-service.ts";
-import type { InternalPortalCredentialService } from "../internal-portal-credential-service.ts";
-import { InternalPortalCredentialNotFoundError } from "../internal-portal-credential-store.ts";
+import {
+	InternalPortalCredentialNotFoundError,
+	type InternalPortalCredentialService,
+} from "../internal-portal-credential-service.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
 import {
 	admitOpsApiRequest,

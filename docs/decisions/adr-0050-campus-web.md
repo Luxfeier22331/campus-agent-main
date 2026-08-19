@@ -34,7 +34,6 @@ status: accepted
 
 ## 相关文档
 
-- `../architecture/current.md`
 - `../architecture/system/product-runtime.md`
 - `../product/web.md`
 - `../architecture/system/identity-authz.md`

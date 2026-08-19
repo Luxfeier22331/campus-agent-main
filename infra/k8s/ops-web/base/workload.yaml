@@ -20,6 +20,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ops-web
     app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 1
   strategy:
@@ -122,6 +124,8 @@ spec:
                   key: OBJECT_STORE_DERIVED_SECRET_KEY
             - name: OPS_WEB_EXECUTION_CONTROL_ADMIN_URL
               value: http://execution-control-admin:8000
+            - name: INGESTION_CONTROL_INTERNAL_URL
+              value: http://ingestion-control:8000
             - name: OPS_WEB_LANGFUSE_URL
               valueFrom:
                 configMapKeyRef:

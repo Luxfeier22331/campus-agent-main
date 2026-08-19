@@ -65,8 +65,7 @@ Rust 内核执行：
 ## 可执行来源
 
 - [chunk-profile.json](../../configs/ingestion/regulations/student_rules/chunk-profile.json)
-- [task-registry.v3.json](../../configs/ingestion/regulations/student_rules/task-registry.v3.json)
-- [rust-kernel-runner.ts](../../apps/ingestion-control/src/rust-kernel-runner.ts)
+- [ingestion-kernel-runner.rs](../../packages/ingestion-kernels-rs/src/bin/ingestion-kernel-runner.rs)
 - [lib.rs](../../packages/ingestion-kernels-rs/src/lib.rs)
 - [canonical-document-units.v2.schema.json](../../packages/ingestion-contracts/schemas/canonical-document-units.v2.schema.json)
 - [retrieval-chunk-set.v2.schema.json](../../packages/ingestion-contracts/schemas/retrieval-chunk-set.v2.schema.json)

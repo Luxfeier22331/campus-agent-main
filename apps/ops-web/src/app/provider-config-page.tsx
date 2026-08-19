@@ -20,10 +20,9 @@ import type {
 import { formatTimestamp } from "./format";
 import { OpsApiError } from "./ops-api/core";
 import {
-	discoverExecutionLLMModels,
+	discoverExecutionModels,
 	fetchExecutionModelSettings,
 	putExecutionModelSetting,
-	validateExecutionModelSetting,
 } from "./ops-api/model-settings";
 import { ErrorState, InlineError, PageHeader, StaleDataWarning } from "./ops-display";
 import {
@@ -46,7 +45,7 @@ interface ExecutionDraft {
 export function ProviderConfigPage() {
 	return (
 		<section>
-			<PageHeader description="配置在线问答实际使用的模型连接。" title="模型配置" />
+			<PageHeader description="配置在线运行时和通知分类使用的模型连接。" title="模型配置" />
 			<ExecutionModelSettings />
 		</section>
 	);
@@ -56,6 +55,7 @@ function ExecutionModelSettings() {
 	const [dirtyKinds, setDirtyKinds] = useState<Record<ModelSettingKind, boolean>>({
 		embedding: false,
 		llm: false,
+		notice_classifier: false,
 	});
 	const status = useQuery({
 		queryFn: ({ signal }) => fetchExecutionModelSettings({ signal }),
@@ -64,7 +64,7 @@ function ExecutionModelSettings() {
 	const onDirtyChange = useCallback((kind: ModelSettingKind, dirty: boolean) => {
 		setDirtyKinds((current) => (current[kind] === dirty ? current : { ...current, [kind]: dirty }));
 	}, []);
-	const dirty = dirtyKinds.llm || dirtyKinds.embedding;
+	const dirty = dirtyKinds.llm || dirtyKinds.embedding || dirtyKinds.notice_classifier;
 
 	if (status.isPending) {
 		return <LoadingSettings />;
@@ -85,18 +85,24 @@ function ExecutionModelSettings() {
 					title="模型配置刷新失败"
 				/>
 			) : null}
-			<div className="grid gap-4 xl:grid-cols-2">
+			<div className="grid gap-4 xl:grid-cols-3">
 				<ExecutionModelSettingForm
-					etag={status.data.etag}
+					embeddingContract={status.data.embeddingContract}
 					kind="llm"
 					onDirtyChange={onDirtyChange}
 					setting={status.data.settings.llm}
 				/>
 				<ExecutionModelSettingForm
-					etag={status.data.etag}
+					embeddingContract={status.data.embeddingContract}
 					kind="embedding"
 					onDirtyChange={onDirtyChange}
 					setting={status.data.settings.embedding}
+				/>
+				<ExecutionModelSettingForm
+					embeddingContract={status.data.embeddingContract}
+					kind="notice_classifier"
+					onDirtyChange={onDirtyChange}
+					setting={status.data.settings.notice_classifier}
 				/>
 			</div>
 		</>
@@ -104,40 +110,45 @@ function ExecutionModelSettings() {
 }
 
 function ExecutionModelSettingForm({
-	etag,
+	embeddingContract,
 	kind,
 	onDirtyChange,
 	setting,
 }: {
-	etag: string;
+	embeddingContract: ExecutionModelSettingsStatus["embeddingContract"];
 	kind: ModelSettingKind;
 	onDirtyChange: (kind: ModelSettingKind, dirty: boolean) => void;
 	setting: ExecutionModelSettingsStatus["settings"][ModelSettingKind];
 }) {
 	const queryClient = useQueryClient();
 	const embedding = kind === "embedding";
+	const noticeClassifier = kind === "notice_classifier";
+	const settingTitle = embedding ? "Embedding" : noticeClassifier ? "通知分类" : "LLM";
+	const settingDescription = embedding
+		? "检索查询向量"
+		: noticeClassifier
+			? "通知标题分类"
+			: "Agent 文本生成";
 	const [baseline, setBaseline] = useState<ExecutionDraft>(() =>
-		executionDraftFromSetting(setting, embedding),
+		executionDraftFromSetting(setting, embedding, embeddingContract),
 	);
 	const [draft, setDraft] = useState<ExecutionDraft>(() =>
-		executionDraftFromSetting(setting, embedding),
+		executionDraftFromSetting(setting, embedding, embeddingContract),
 	);
 	const [errors, setErrors] = useState<Record<string, string>>({});
 	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
-	const [remoteChanged, setRemoteChanged] = useState(false);
 	const formRef = useRef<HTMLFormElement>(null);
 	const dirty = !executionDraftEquals(draft, baseline);
 
 	const syncFromSetting = useCallback(
 		(next: typeof setting) => {
-			const nextDraft = executionDraftFromSetting(next, embedding);
+			const nextDraft = executionDraftFromSetting(next, embedding, embeddingContract);
 			setBaseline(nextDraft);
 			setDraft(nextDraft);
 			setErrors({});
-			setRemoteChanged(false);
 		},
-		[embedding],
+		[embedding, embeddingContract],
 	);
 
 	useEffect(() => {
@@ -145,60 +156,33 @@ function ExecutionModelSettingForm({
 	}, [dirty, kind, onDirtyChange]);
 
 	useEffect(() => {
-		const next = executionDraftFromSetting(setting, embedding);
+		const next = executionDraftFromSetting(setting, embedding, embeddingContract);
 		if (executionDraftEquals(next, baseline)) {
 			return;
 		}
 		if (dirty) {
-			setRemoteChanged(true);
 			return;
 		}
 		syncFromSetting(setting);
-	}, [baseline, dirty, embedding, setting, syncFromSetting]);
+	}, [baseline, dirty, embedding, embeddingContract, setting, syncFromSetting]);
 
 	const save = useMutation({
-		mutationFn: (payload: ModelSettingUpdate) => putExecutionModelSetting(kind, payload, etag),
-		onError: (error) => {
-			if (error instanceof OpsApiError && error.status === 409) {
-				setRemoteChanged(true);
-			}
-		},
+		mutationFn: (payload: ModelSettingUpdate) => putExecutionModelSetting(kind, payload),
 		onSuccess: (data) => {
 			queryClient.setQueryData(executionModelSettingsQueryKey, data);
 			syncFromSetting(data.settings[kind]);
 			setSaveFeedback("配置已保存并验证通过。");
 		},
 	});
-	const validation = useMutation({
-		mutationFn: () => validateExecutionModelSetting(kind),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: executionModelSettingsQueryKey }),
-	});
 	const discovery = useMutation({
 		mutationFn: () =>
-			discoverExecutionLLMModels({
+			discoverExecutionModels(noticeClassifier ? "notice_classifier" : "llm", {
 				apiKey: draft.apiKey,
 				baseUrl: draft.baseUrl,
 				provider: draft.provider,
 			}),
-		onSuccess: (catalog) => {
-			const firstModel = catalog.models[0];
-			if (firstModel && !catalog.models.includes(draft.model)) {
-				setDraft((current) => ({ ...current, model: firstModel }));
-			}
-			setErrors((current) => clearErrors(current, ["model"]));
-		},
+		onSuccess: () => setErrors((current) => clearErrors(current, ["model"])),
 	});
-	const reload = useMutation({
-		mutationFn: fetchExecutionModelSettings,
-		onSuccess: (data) => {
-			queryClient.setQueryData(executionModelSettingsQueryKey, data);
-			syncFromSetting(data.settings[kind]);
-			save.reset();
-			validation.reset();
-			setSaveFeedback(null);
-		},
-	});
-
 	const updateDraft = (
 		patch: Partial<ExecutionDraft>,
 		errorKeys: string[],
@@ -207,7 +191,6 @@ function ExecutionModelSettingForm({
 		setDraft((current) => ({ ...current, ...patch }));
 		setErrors((current) => clearErrors(current, errorKeys));
 		save.reset();
-		validation.reset();
 		if (!options.keepDiscovery) {
 			discovery.reset();
 		}
@@ -224,7 +207,7 @@ function ExecutionModelSettingForm({
 	};
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
-		const nextErrors = validateExecutionDraft(draft, !setting?.credentialConfigured);
+		const nextErrors = validateExecutionDraft(draft, !setting?.credentialConfigured, embedding);
 		setErrors(nextErrors);
 		if (Object.keys(nextErrors).length > 0) {
 			focusFirstInvalid(formRef);
@@ -237,33 +220,22 @@ function ExecutionModelSettingForm({
 		setting
 			? {
 					credentialConfigured: setting.credentialConfigured,
-					...(setting.credentialLast4 === undefined
-						? {}
-						: { credentialLast4: setting.credentialLast4 }),
 				}
 			: { credentialConfigured: false },
 	);
-	const validationResult = validation.data?.validation;
 	const modelControlId = `execution-${kind}-model`;
 	const modelErrorId = `${modelControlId}-error`;
 	return (
 		<Card>
 			<CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
 				<div className="min-w-0">
-					<CardTitle>{embedding ? "Embedding" : "LLM"}</CardTitle>
-					<p className="mt-1 text-muted-foreground text-sm">
-						{embedding ? "检索查询向量" : "Agent 文本生成"}
-					</p>
+					<CardTitle>{settingTitle}</CardTitle>
+					<p className="mt-1 text-muted-foreground text-sm">{settingDescription}</p>
 				</div>
 				<ValidationBadge validation={setting?.latestValidation ?? null} />
 			</CardHeader>
 			<CardContent>
-				<form
-					aria-busy={save.isPending || validation.isPending}
-					className="grid gap-4"
-					onSubmit={submit}
-					ref={formRef}
-				>
+				<form aria-busy={save.isPending} className="grid gap-4" onSubmit={submit} ref={formRef}>
 					<FormField error={errors.baseUrl} label="Base URL">
 						<Input
 							className="min-h-11"
@@ -276,36 +248,20 @@ function ExecutionModelSettingForm({
 					<SecretField
 						{...(errors.apiKey ? { error: errors.apiKey } : {})}
 						helper={credentialHelper}
-						label={`${embedding ? "Embedding" : "LLM"} API Key`}
+						label={`${settingTitle} API Key`}
 						onChange={(value) => updateDraft({ apiKey: value }, ["apiKey"])}
 						value={draft.apiKey}
 					/>
 					{embedding ? (
-						<>
-							<FormField error={errors.model} label="模型">
-								<Input
-									aria-invalid={Boolean(errors.model)}
-									className="min-h-11"
-									id={modelControlId}
-									onChange={(event) => updateDraft({ model: event.target.value }, ["model"])}
-									value={draft.model}
-								/>
-							</FormField>
-							<FormField label="服务商">
-								<NativeSelect
-									className="min-h-11"
-									onChange={(event) =>
-										updateDraft({ provider: event.target.value as ExecutionDraft["provider"] }, [
-											"provider",
-										])
-									}
-									value={draft.provider}
-								>
-									<option value="openai">OpenAI</option>
-									<option value="openai-compatible">OpenAI 兼容接口</option>
-								</NativeSelect>
-							</FormField>
-						</>
+						<dl className="grid gap-3 rounded-md border border-border p-3 text-sm sm:grid-cols-2">
+							<ReadOnlySetting label="模型" value={embeddingContract.model} />
+							<ReadOnlySetting label="服务商" value={providerLabel(embeddingContract.provider)} />
+							<ReadOnlySetting
+								label="接口类型"
+								value={transportLabel(embeddingContract.transport)}
+							/>
+							<ReadOnlySetting label="向量维度" value={String(embeddingContract.dimensions)} />
+						</dl>
 					) : (
 						<>
 							<div className="grid gap-1.5 text-sm">
@@ -350,6 +306,7 @@ function ExecutionModelSettingForm({
 										/>
 									)}
 									<Button
+										aria-label={`获取${settingTitle}模型`}
 										disabled={discovery.isPending}
 										onClick={discoverModels}
 										type="button"
@@ -427,37 +384,12 @@ function ExecutionModelSettingForm({
 						<p>{setting ? validationDetail(setting.latestValidation) : "尚未配置"}</p>
 						{setting ? (
 							<p className="mt-1 break-words">
-								{transportLabel(setting.transport)} · {formatTimestamp(setting.updatedAt)} ·{" "}
-								{setting.updatedBy}
+								{transportLabel(embedding ? embeddingContract.transport : setting.transport)} ·{" "}
+								{formatTimestamp(setting.updatedAt)} · {setting.updatedBy}
 							</p>
 						) : null}
 					</div>
-					{remoteChanged ? (
-						<div
-							className="grid gap-3 rounded-md border border-warning/20 bg-warning-subtle p-3 text-warning"
-							role="alert"
-						>
-							<p className="text-sm">服务器配置已更新。请加载最新配置后重新编辑。</p>
-							<div>
-								<Button
-									disabled={reload.isPending}
-									onClick={() => reload.mutate({})}
-									variant="outline"
-								>
-									<RefreshCw className="size-4" />
-									{reload.isPending ? "正在加载" : "加载最新配置"}
-								</Button>
-							</div>
-						</div>
-					) : null}
 					{saveFeedback ? <InlineNotice>{saveFeedback}</InlineNotice> : null}
-					{validationResult ? (
-						<InlineNotice tone={validationResult.status === "passed" ? "success" : "warning"}>
-							{validationResult.status === "passed"
-								? "已保存配置验证通过。"
-								: `已保存配置验证未通过：${validationDetail(validationResult)}`}
-						</InlineNotice>
-					) : null}
 					{save.isError ? (
 						<InlineError
 							error={save.error}
@@ -468,19 +400,10 @@ function ExecutionModelSettingForm({
 							}
 						/>
 					) : null}
-					{validation.isError ? <InlineError error={validation.error} title="验证失败" /> : null}
 					<div className="grid gap-2 sm:flex sm:flex-wrap">
-						<Button disabled={!dirty || save.isPending || remoteChanged} type="submit">
+						<Button disabled={!dirty || save.isPending} type="submit">
 							<Save className="size-4" />
 							{save.isPending ? "验证并保存中" : "保存并验证"}
-						</Button>
-						<Button
-							disabled={!setting || dirty || validation.isPending}
-							onClick={() => validation.mutate()}
-							variant="outline"
-						>
-							<RefreshCw className="size-4" />
-							{validation.isPending ? "验证中" : "重新验证"}
 						</Button>
 						{dirty ? (
 							<Button
@@ -488,7 +411,6 @@ function ExecutionModelSettingForm({
 									setDraft(baseline);
 									setErrors({});
 									save.reset();
-									validation.reset();
 									setSaveFeedback(null);
 								}}
 								variant="ghost"
@@ -554,55 +476,73 @@ function SecretField({
 function executionDraftFromSetting(
 	setting: ExecutionModelSettingsStatus["settings"][ModelSettingKind],
 	embedding: boolean,
+	embeddingContract: ExecutionModelSettingsStatus["embeddingContract"],
 ): ExecutionDraft {
 	return {
 		apiKey: "",
 		baseUrl: setting?.baseUrl ?? "",
-		model: setting?.model ?? "",
-		provider: setting?.provider ?? (embedding ? "openai-compatible" : "openai"),
-		transport: embedding ? "embeddings" : (setting?.transport ?? "responses"),
+		model: embedding ? embeddingContract.model : (setting?.model ?? ""),
+		provider: embedding ? embeddingContract.provider : (setting?.provider ?? "openai"),
+		transport: embedding ? embeddingContract.transport : (setting?.transport ?? "responses"),
 	};
 }
 
 function executionDraftPayload(draft: ExecutionDraft, embedding: boolean): ModelSettingUpdate {
+	if (embedding) {
+		return {
+			...(draft.apiKey.trim() ? { apiKey: draft.apiKey } : {}),
+			baseUrl: draft.baseUrl,
+		};
+	}
 	const common = {
 		apiKey: draft.apiKey,
 		baseUrl: draft.baseUrl,
 		model: draft.model,
 		provider: draft.provider,
 	};
-	return embedding
-		? common
-		: { ...common, transport: draft.transport as "responses" | "chat_completions" };
+	return { ...common, transport: draft.transport as "responses" | "chat_completions" };
 }
 
 function executionDraftEquals(left: ExecutionDraft, right: ExecutionDraft) {
 	return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function credentialHelperText(input: {
-	credentialConfigured: boolean;
-	credentialLast4?: string | null;
-}) {
+function credentialHelperText(input: { credentialConfigured: boolean }) {
 	if (!input.credentialConfigured) {
 		return "首次保存必须填写 API Key。";
 	}
-	const suffix = input.credentialLast4 ? `末尾 ${input.credentialLast4}；` : "";
-	return `当前密钥${suffix}留空保持不变。`;
+	return "当前密钥已配置；留空保持不变。";
 }
 
-function validateExecutionDraft(draft: ExecutionDraft, apiKeyRequired: boolean) {
+function validateExecutionDraft(
+	draft: ExecutionDraft,
+	apiKeyRequired: boolean,
+	embedding: boolean,
+) {
 	const errors: Record<string, string> = {};
 	if (!validHttpUrl(draft.baseUrl)) {
 		errors.baseUrl = "请输入有效的 HTTP(S) 地址。";
 	}
-	if (!draft.model.trim()) {
+	if (!(embedding || draft.model.trim())) {
 		errors.model = "请输入模型名称。";
 	}
 	if (apiKeyRequired && !draft.apiKey.trim()) {
 		errors.apiKey = "首次保存必须填写 API Key。";
 	}
 	return errors;
+}
+
+function ReadOnlySetting({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="min-w-0">
+			<dt className="text-muted-foreground">{label}</dt>
+			<dd className="mt-1 break-words font-medium text-foreground">{value}</dd>
+		</div>
+	);
+}
+
+function providerLabel(provider: ExecutionDraft["provider"]) {
+	return provider === "openai-compatible" ? "OpenAI 兼容接口" : "OpenAI";
 }
 
 function validateModelDiscoveryDraft(draft: ExecutionDraft, apiKeyRequired: boolean) {

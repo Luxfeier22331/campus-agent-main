@@ -2,38 +2,37 @@
 	"name": "ingestion-control",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Internal ingestion task control plane for campus-agent data plane.",
+	"description": "Internal portal credential control service for the campus-agent ingestion data plane.",
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts"
 	},
 	"scripts": {
+		"build": "esbuild ./src/server.ts ./src/migrate.ts ./src/schema-bootstrap.ts ./src/internal-portal-check.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --external:pg",
+		"credentials:check": "tsx ./src/internal-portal-check.ts",
 		"migrate": "tsx ./src/migrate.ts",
 		"schema:bootstrap": "tsx ./src/schema-bootstrap.ts",
 		"start:api": "node --experimental-strip-types ./src/server.ts",
-		"start:temporal-worker": "tsx ./src/temporal-worker.ts",
 		"test": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.1111.0",
-		"@temporalio/activity": "^1.22.0",
-		"@temporalio/client": "^1.22.0",
-		"@temporalio/worker": "^1.22.0",
-		"@temporalio/workflow": "^1.22.0",
-		"ingest-core": "workspace:*",
-		"ingestion-contracts": "workspace:*",
-		"pg": "^8.23.0",
-		"tsx": "^4.23.12"
+		"@campus-agent/internal-portal-client": "workspace:*",
+		"campus-contracts": "workspace:*",
+		"cookie": "^1.1.1",
+		"pg": "^8.23.0"
 	},
 	"devDependencies": {
 		"@testcontainers/postgresql": "12.1.0",
 		"@types/node": "^24.13.3",
 		"@types/pg": "^8.21.0",
+		"esbuild": "^0.28.2",
 		"testcontainers": "12.1.0",
+		"tsx": "^4.23.12",
 		"typescript": "^7.0.2",
-		"vitest": "^4.1.10"
+		"vitest": "^4.1.10",
+		"yaml": "2.9.0"
 	},
 	"license": "Apache-2.0"
 }

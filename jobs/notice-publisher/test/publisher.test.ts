@@ -10,14 +10,31 @@ import { parsePortalReleaseTime } from "../src/time.ts";
 import type { PublisherObjectStore } from "../src/store.ts";
 
 describe("notice publisher inputs", () => {
-	it("accepts one domain per notice", () => {
-		expect(parseClassifications('{"notice_id":358159,"domain":"campus_operations"}\n')).toEqual([
-			{ domain: "campus_operations", noticeId: 358159 },
+	it("accepts one category per notice", () => {
+		expect(
+			parseClassifications('{"notice_id":358159,"category":"campus_operations"}\n'),
+		).toEqual([
+			{
+				category: "campus_operations",
+				noticeId: 358159,
+			},
 		]);
 	});
-	it("rejects duplicates and unknown domains", () => {
-		expect(() => parseClassifications('{"notice_id":1,"domain":"other"}\n')).toThrow(/invalid/u);
-		expect(() => parseClassifications('{"notice_id":1,"domain":"campus_news"}\n{"notice_id":1,"domain":"campus_news"}\n')).toThrow(/duplicate/u);
+	it("rejects missing, extra, old, and duplicate classifications", () => {
+		expect(() => parseClassifications("null\n")).toThrow(/invalid/u);
+		expect(() => parseClassifications("[]\n")).toThrow(/invalid/u);
+		expect(() => parseClassifications('{"notice_id":1}\n')).toThrow(/invalid/u);
+		expect(() => parseClassifications('{"notice_id":1,"domain":"procurement"}\n')).toThrow(
+			/invalid/u,
+		);
+		expect(() =>
+			parseClassifications('{"notice_id":1,"category":"procurement","note":"x"}\n'),
+		).toThrow(/invalid/u);
+		expect(() =>
+			parseClassifications(
+				'{"notice_id":1,"category":"procurement"}\n{"notice_id":1,"category":"procurement"}\n',
+			),
+		).toThrow(/duplicate/u);
 	});
 	it("converts portal Beijing time to an instant", () => {
 		expect(parsePortalReleaseTime("2026-08-11 08:00:00")).toBe("2026-08-11T00:00:00.000Z");
@@ -60,7 +77,7 @@ describe("notice publisher inputs", () => {
 
 		await expect(
 			publishNotices({
-				classifications: [{ domain: "campus_news", noticeId: 358159 }],
+				classifications: [{ category: "campus_operations", noticeId: 358159 }],
 				client,
 				objectStore: store,
 				portalHost: "my.muc.edu.cn",

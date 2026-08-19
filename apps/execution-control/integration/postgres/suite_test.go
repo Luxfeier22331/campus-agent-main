@@ -171,7 +171,7 @@ func closeConn(t *testing.T, conn *pgx.Conn) {
 }
 
 func migrateSchema(ctx context.Context, databaseURL string, keyring *providerconfig.Keyring) error {
-	migrator, err := schemamigrations.New(databaseURL, keyring)
+	migrator, err := schemamigrations.New(databaseURL, keyring, integrationProviderCipher())
 	if err != nil {
 		return err
 	}
@@ -180,6 +180,14 @@ func migrateSchema(ctx context.Context, databaseURL string, keyring *providercon
 		return err
 	}
 	return migrator.InstallGrants(ctx)
+}
+
+func integrationProviderCipher() *providerconfig.SecretCipher {
+	cipher, err := providerconfig.NewSecretCipher(integrationEncryptionKey())
+	if err != nil {
+		panic(err)
+	}
+	return cipher
 }
 
 func requireSchema(t *testing.T, databaseURL string, keyring *providerconfig.Keyring) {

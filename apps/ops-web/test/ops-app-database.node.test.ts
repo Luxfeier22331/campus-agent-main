@@ -3,8 +3,7 @@
 import type { Pool } from "pg";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createCredentialStore, createDining, createStatus, createTokenStore } = vi.hoisted(() => ({
-	createCredentialStore: vi.fn(),
+const { createDining, createStatus, createTokenStore } = vi.hoisted(() => ({
 	createDining: vi.fn(),
 	createStatus: vi.fn(),
 	createTokenStore: vi.fn(),
@@ -13,10 +12,6 @@ const { createCredentialStore, createDining, createStatus, createTokenStore } = 
 vi.mock("../src/server/dining-stores.ts", async () => ({
 	...(await vi.importActual("../src/server/dining-stores.ts")),
 	createDiningStores: createDining,
-}));
-vi.mock("../src/server/internal-portal-credential-store.ts", async () => ({
-	...(await vi.importActual("../src/server/internal-portal-credential-store.ts")),
-	createPgInternalPortalCredentialStore: createCredentialStore,
 }));
 vi.mock("../src/server/internal-portal-automation-token-store.ts", async () => ({
 	...(await vi.importActual("../src/server/internal-portal-automation-token-store.ts")),
@@ -33,7 +28,6 @@ describe("Ops Web database assembly", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		createDining.mockReturnValue({ map: {}, menu: {}, reviews: {} });
-		createCredentialStore.mockReturnValue({});
 		createTokenStore.mockReturnValue({});
 		createStatus.mockReturnValue({});
 	});
@@ -58,7 +52,6 @@ describe("Ops Web database assembly", () => {
 			env: expect.anything(),
 			pool: databasePool,
 		});
-		expect(createCredentialStore).toHaveBeenCalledWith(databasePool);
 		expect(createTokenStore).toHaveBeenCalledWith(databasePool);
 	});
 });

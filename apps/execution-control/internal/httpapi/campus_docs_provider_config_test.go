@@ -11,7 +11,8 @@ func TestEmbeddingAdmissionPinRejectsProviderDrift(t *testing.T) {
 	resolver := staticProviderConfigResolver{
 		providerconfig.KindEmbedding: providerconfig.RuntimeSetting{
 			APIKey: "key", BaseURL: "https://embedding.example/v1",
-			Kind: providerconfig.KindEmbedding, Model: "embedding-test", Provider: "openai-compatible", Transport: "embeddings",
+			Kind: providerconfig.KindEmbedding, Model: providerconfig.CanonicalEmbeddingModel,
+			Provider: providerconfig.CanonicalEmbeddingProvider, Transport: providerconfig.CanonicalEmbeddingTransport,
 		},
 	}
 	executor := campusDocsQdrantClient{configResolver: resolver}

@@ -6,18 +6,6 @@ import canonicalDocumentUnitSchema from "../schemas/canonical-document-units.v1.
 import canonicalDocumentUnitV2Schema from "../schemas/canonical-document-units.v2.schema.json" with {
 	type: "json",
 };
-import taskEnvelopeSchema from "../schemas/ingestion-task-envelope.v3.schema.json" with {
-	type: "json",
-};
-import taskRegistrySchema from "../schemas/ingestion-task-registry.v3.schema.json" with {
-	type: "json",
-};
-import taskResultSchema from "../schemas/ingestion-task-result.v1.schema.json" with {
-	type: "json",
-};
-import internalPortalFileReleaseCaptureResultSchema from "../schemas/internal-portal-file-release-capture-result.v1.schema.json" with {
-	type: "json",
-};
 import internalPortalFileReleaseSourceSchema from "../schemas/internal-portal-file-release-source.v1.schema.json" with {
 	type: "json",
 };
@@ -100,16 +88,6 @@ export interface IngestionArtifactRef {
 	byte_size: number;
 }
 
-export interface IngestionTaskEnvelope {
-	schema_version: "ingestion_task_envelope.v3";
-	task_id: string;
-	run_id: string;
-	registry_task_id: string;
-	input_ref: IngestionArtifactRef;
-}
-
-export type IngestionTaskExecutorKind = "rust_kernel";
-
 export interface InternalPortalNoticeSourceAttachment {
 	notice_annex_id: string | null;
 	notice_annex_name: string | null;
@@ -164,55 +142,6 @@ export interface InternalPortalFileReleaseSource {
 	};
 }
 
-export interface InternalPortalFileReleaseCaptureResult {
-	schema_version: "internal_portal_file_release_capture_result.v1";
-	file_release_id: number;
-	source_ref: IngestionArtifactRef;
-}
-
-export interface IngestionTaskSourceIdentity {
-	family: string;
-	channel: string;
-}
-
-export interface IngestionTaskTargetIdentity {
-	corpus: string;
-	collection: string;
-}
-
-export interface IngestionTaskRegistryTask {
-	registry_task_id: string;
-	executor_kind: IngestionTaskExecutorKind;
-	kernel_id?: string;
-	input_contract: string;
-	output_contract: string;
-	source?: IngestionTaskSourceIdentity;
-	target?: IngestionTaskTargetIdentity;
-}
-
-export interface IngestionTaskRegistry {
-	schema_version: "ingestion_task_registry.v3";
-	tasks: IngestionTaskRegistryTask[];
-}
-
-export interface IngestionTaskExecutionSnapshot {
-	schema_version: "ingestion_task_execution_snapshot.v1";
-	task: IngestionTaskEnvelope;
-	registry_task: IngestionTaskRegistryTask;
-}
-
-export type IngestionTaskSummaryValue = string | number | boolean | null;
-
-export interface IngestionTaskResult {
-	schema_version: "ingestion_task_result.v1";
-	task_id: string;
-	run_id: string;
-	registry_task_id: string;
-	output_contract: string;
-	result_ref: IngestionArtifactRef;
-	summary: Record<string, IngestionTaskSummaryValue>;
-}
-
 const ajv = new Ajv2020({
 	allErrors: true,
 	messages: true,
@@ -222,13 +151,6 @@ const ajv = new Ajv2020({
 });
 addFormats(ajv);
 
-const taskEnvelopeValidator = ajv.compile(
-	taskEnvelopeSchema,
-) as ValidateFunction<IngestionTaskEnvelope>;
-const taskRegistryValidator = ajv.compile(
-	taskRegistrySchema,
-) as ValidateFunction<IngestionTaskRegistry>;
-const taskResultValidator = ajv.compile(taskResultSchema) as ValidateFunction<IngestionTaskResult>;
 const canonicalDocumentUnitValidator = ajv.compile(
 	canonicalDocumentUnitSchema,
 ) as ValidateFunction<CanonicalDocumentUnit>;
@@ -241,9 +163,6 @@ const retrievalChunkV2Validator = ajv.compile(
 const retrievalChunkSetV2Validator = ajv.compile(
 	retrievalChunkSetV2Schema,
 ) as ValidateFunction<RetrievalChunkSetV2>;
-const internalPortalFileReleaseCaptureResultValidator = ajv.compile(
-	internalPortalFileReleaseCaptureResultSchema,
-) as ValidateFunction<InternalPortalFileReleaseCaptureResult>;
 const internalPortalFileReleaseSourceValidator = ajv.compile(
 	internalPortalFileReleaseSourceSchema,
 ) as ValidateFunction<InternalPortalFileReleaseSource>;
@@ -256,26 +175,6 @@ const internalPortalNoticeSyncStateValidator = ajv.compile(
 const internalPortalMetaValidator = ajv.compile(
 	internalPortalMetaSchema,
 ) as ValidateFunction<InternalPortalMeta>;
-
-export function validateIngestionTaskEnvelope(value: unknown): ValidationResult {
-	return validateWith(taskEnvelopeValidator, value);
-}
-
-export function validateIngestionTaskRegistry(value: unknown): ValidationResult {
-	return validateWith(taskRegistryValidator, value);
-}
-
-export function validateIngestionTaskResult(value: unknown): ValidationResult {
-	const result = validateWith(taskResultValidator, value);
-	if (!result.ok) {
-		return result;
-	}
-	const summary = (value as IngestionTaskResult).summary;
-	if (new TextEncoder().encode(JSON.stringify(summary)).byteLength > 4096) {
-		return { ok: false, errors: ["summary must not exceed 4096 bytes"] };
-	}
-	return { ok: true };
-}
 
 export function validateCanonicalDocumentUnit(value: unknown): ValidationResult {
 	return validateWith(canonicalDocumentUnitValidator, value);
@@ -325,10 +224,6 @@ export function validateInternalPortalMeta(value: unknown): ValidationResult {
 
 export function validateInternalPortalFileReleaseSource(value: unknown): ValidationResult {
 	return validateWith(internalPortalFileReleaseSourceValidator, value);
-}
-
-export function validateInternalPortalFileReleaseCaptureResult(value: unknown): ValidationResult {
-	return validateWith(internalPortalFileReleaseCaptureResultValidator, value);
 }
 
 export function validateCanonicalDocumentUnitsJsonl(input: string): ValidationResult {

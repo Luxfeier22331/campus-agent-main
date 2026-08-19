@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: campus-agent ingestion-control
-  version: 1.0.0
-  description: 内部离线任务查询和文件发布控制接口。
+  version: 2.0.0
+  description: 内部门户采集凭据控制接口。
 servers:
-  - url: http://ingestion-control
+  - url: http://ingestion-control:8000
 paths:
   /healthz:
     get:
@@ -13,30 +13,44 @@ paths:
       responses:
         "200":
           description: 进程正常
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Health"
   /readyz:
     get:
       operationId: getIngestionReadiness
       security: []
       responses:
         "200":
-          description: 依赖可用
+          description: PostgreSQL 可用
+        "503":
+          description: PostgreSQL 不可用
+  /internal/ingestion/internal-portal/credentials:
+    get:
+      operationId: listInternalPortalCredentials
+      security:
+        - internalBearer: []
+      responses:
+        "200":
+          description: 不含明文的凭据列表
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Readiness"
+                type: object
+                additionalProperties: false
+                required: [credentials]
+                properties:
+                  credentials:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Credential"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "503":
-          description: 依赖不可用
-  /internal/ingestion/operations/internal-portal/file-releases:
+          $ref: "#/components/responses/Unavailable"
     post:
-      operationId: startInternalPortalFileReleaseBatch
+      operationId: createInternalPortalCredential
       security:
-        - opsBearer: []
-      parameters:
-        - $ref: "#/components/parameters/OperatorId"
+        - internalBearer: []
       requestBody:
         required: true
         content:
@@ -44,503 +58,294 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [request_id, file_release_ids]
+              required: [name, ssoTgc]
               properties:
-                request_id:
-                  $ref: "#/components/schemas/RequestId"
-                file_release_ids:
-                  type: array
-                  minItems: 1
-                  maxItems: 50
-                  uniqueItems: true
-                  items:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                ssoTgc:
+                  type: string
+                  minLength: 1
+                  maxLength: 16384
+      responses:
+        "201":
+          $ref: "#/components/responses/Credential"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          description: 候选凭据被门户拒绝
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /internal/ingestion/internal-portal/credentials/resolve:
+    post:
+      operationId: resolveInternalPortalCredential
+      security:
+        - internalBearer: []
+      responses:
+        "200":
+          description: 当前第一条真实可用凭据
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [schemaVersion, ssoTgc]
+                properties:
+                  schemaVersion:
+                    const: internal-portal-credential-resolution.v1
+                  ssoTgc:
+                    type: string
+                    minLength: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /internal/ingestion/internal-portal/credentials/{credentialId}:
+    parameters:
+      - $ref: "#/components/parameters/CredentialId"
+    put:
+      operationId: updateInternalPortalCredential
+      security:
+        - internalBearer: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [name]
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                      maxLength: 80
+                - type: object
+                  additionalProperties: false
+                  required: [ssoTgc]
+                  properties:
+                    ssoTgc:
+                      type: string
+                      minLength: 1
+                      maxLength: 16384
+      responses:
+        "200":
+          $ref: "#/components/responses/Credential"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          description: 凭据已被门户拒绝
+        "428":
+          description: 缺少有效 If-Match
+        "503":
+          $ref: "#/components/responses/Unavailable"
+    delete:
+      operationId: deleteInternalPortalCredential
+      security:
+        - internalBearer: []
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          description: 已删除
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "428":
+          description: 缺少有效 If-Match
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /internal/ingestion/internal-portal/credentials/{credentialId}/validate:
+    parameters:
+      - $ref: "#/components/parameters/CredentialId"
+    post:
+      operationId: validateInternalPortalCredential
+      security:
+        - internalBearer: []
+      responses:
+        "200":
+          $ref: "#/components/responses/Credential"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: 凭据已被门户拒绝
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /internal/ingestion/internal-portal/credentials/{credentialId}/reveal:
+    parameters:
+      - $ref: "#/components/parameters/CredentialId"
+    post:
+      operationId: revealInternalPortalCredential
+      security:
+        - internalBearer: []
+      responses:
+        "200":
+          description: 当前明文和版本
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [credentialId, ssoTgc, version]
+                properties:
+                  credentialId:
+                    type: string
+                    format: uuid
+                  ssoTgc:
+                    type: string
+                    minLength: 1
+                  version:
                     type: integer
                     minimum: 1
-      responses:
-        "202":
-          description: 每个精确 ID 的工作流均已接受
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FileReleaseBatchStart"
         "400":
-          $ref: "#/components/responses/InvalidRequest"
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "503":
           $ref: "#/components/responses/Unavailable"
-  /internal/ingestion/operations/internal-portal/file-releases/status:
-    post:
-      operationId: getInternalPortalFileReleaseWorkflowStatuses
-      security:
-        - opsBearer: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [workflow_ids]
-              properties:
-                workflow_ids:
-                  type: array
-                  minItems: 1
-                  maxItems: 50
-                  uniqueItems: true
-                  items:
-                    type: string
-                    pattern: "^ingestion/internal-portal-file-release/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/[1-9][0-9]*$"
-      responses:
-        "200":
-          description: Temporal 中的文件发布工作流状态
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FileReleaseWorkflowStatuses"
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "503":
-          $ref: "#/components/responses/Unavailable"
-  /internal/ingestion/tasks:
-    post:
-      operationId: startIngestionTask
-      description: 使用管理令牌提交一个已在 registry 中声明的任务。
-      security:
-        - adminBearer: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/TaskEnvelope"
-      responses:
-        "200":
-          description: 相同任务已经存在，返回当前任务记录
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Task"
-        "202":
-          description: 任务工作流已接受
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TaskWorkflowStart"
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "409":
-          description: 任务标识已被不同输入占用，或已结束工作流缺少任务记录
-  /internal/ingestion/tasks/{taskId}:
-    get:
-      operationId: getAdminIngestionTask
-      description: 使用管理令牌读取完整任务记录。
-      security:
-        - adminBearer: []
-      parameters:
-        - $ref: "#/components/parameters/TaskId"
-      responses:
-        "200":
-          description: 任务详情
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Task"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /internal/ingestion/operations/tasks:
-    get:
-      operationId: listIngestionTasks
-      security:
-        - opsBearer: []
-      parameters:
-        - name: cursor
-          in: query
-          schema:
-            type: string
-            maxLength: 512
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-            default: 50
-        - name: status
-          in: query
-          schema:
-            $ref: "#/components/schemas/TaskStatus"
-        - name: registry_task_id
-          in: query
-          schema:
-            type: string
-        - name: run_id
-          in: query
-          schema:
-            type: string
-        - name: source_channel
-          in: query
-          schema:
-            type: string
-        - name: source_family
-          in: query
-          schema:
-            type: string
-        - name: corpus
-          in: query
-          schema:
-            type: string
-        - name: collection
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: 有界任务列表
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TaskList"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-  /internal/ingestion/operations/tasks/{taskId}:
-    get:
-      operationId: getIngestionTask
-      security:
-        - opsBearer: []
-      parameters:
-        - $ref: "#/components/parameters/TaskId"
-      responses:
-        "200":
-          description: 任务详情
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Task"
-        "404":
-          $ref: "#/components/responses/NotFound"
-  /internal/ingestion/operations/tasks/{taskId}/retry:
-    post:
-      operationId: retryIngestionTask
-      security:
-        - opsBearer: []
-      parameters:
-        - $ref: "#/components/parameters/TaskId"
-        - $ref: "#/components/parameters/OperatorId"
-      responses:
-        "202":
-          description: 新重试任务已接受
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TaskRetryStart"
-        "409":
-          description: 原任务仍在运行、不是失败终态，或当前合同已变化
-        "404":
-          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
-    adminBearer:
+    internalBearer:
       type: http
       scheme: bearer
-      description: ingestion-control 管理令牌
-    opsBearer:
-      type: http
-      scheme: bearer
-      description: ingestion-control 运维令牌
   parameters:
-    OperatorId:
-      name: x-operator-id
-      in: header
-      required: true
-      schema:
-        type: string
-        minLength: 1
-        maxLength: 256
-    TaskId:
-      name: taskId
+    CredentialId:
+      name: credentialId
       in: path
       required: true
       schema:
         type: string
-        pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
-  responses:
-    InvalidRequest:
-      description: 请求无效
-    NotFound:
-      description: 未找到
-    Unauthorized:
-      description: 服务令牌或操作者身份无效
-    Unavailable:
-      description: 依赖不可用
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^"[1-9][0-9]*"$'
   schemas:
-    Health:
-      type: object
-      required: [status]
-      properties:
-        status:
-          const: ok
-    Readiness:
-      type: object
-      required: [status]
-      properties:
-        status:
-          const: ready
-    RequestId:
-      type: string
-      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-    TaskStatus:
-      type: string
-      enum: [running, completed, failed, canceled]
-    ArtifactRef:
+    Credential:
       type: object
       additionalProperties: false
-      required: [kind, uri, digest, byte_size]
+      required:
+        - credentialId
+        - name
+        - version
+        - createdAt
+        - updatedAt
+        - lastAttemptAt
+        - lastSuccessfulAt
+        - lastOutcome
       properties:
-        kind:
-          const: object_store
-        uri:
+        credentialId:
           type: string
-          pattern: "^s3://[^/]+/.+"
-        digest:
-          type: string
-          pattern: "^sha256:[0-9a-f]{64}$"
-        byte_size:
-          type: integer
-          minimum: 0
-    TaskEnvelope:
-      type: object
-      additionalProperties: false
-      required: [schema_version, task_id, run_id, registry_task_id, input_ref]
-      properties:
-        schema_version:
-          const: ingestion_task_envelope.v3
-        task_id:
-          type: string
-          pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
-        run_id:
-          type: string
-          pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
-        registry_task_id:
+          format: uuid
+        name:
           type: string
           minLength: 1
-          maxLength: 128
-        input_ref:
-          $ref: "#/components/schemas/ArtifactRef"
-    TaskWorkflowStart:
-      type: object
-      required: [schema_version, task_id, workflow_id, workflow_run_id, temporal_status, status]
-      properties:
-        schema_version:
-          const: ingestion_workflow_start.v1
-        task_id:
-          type: string
-        workflow_id:
-          type: string
-        workflow_run_id:
-          type: [string, "null"]
-        temporal_status:
-          type: string
-        status:
-          const: accepted
-    TaskRetryStart:
-      type: object
-      required: [retry_of_task_id, task_id, workflow_id, workflow_run_id]
-      properties:
-        retry_of_task_id:
-          type: string
-        task_id:
-          type: string
-        workflow_id:
-          type: string
-        workflow_run_id:
-          type: [string, "null"]
-    Task:
-      type: object
-      required:
-        - schema_version
-        - task_id
-        - run_id
-        - registry_task_id
-        - executor_kind
-        - input_ref
-        - input_contract
-        - output_contract
-        - created_by
-        - created_at
-        - status
-        - updated_at
-        - workflow_id
-      properties:
-        schema_version:
-          const: ingestion_task_envelope.v3
-        task_id:
-          type: string
-        run_id:
-          type: string
-        registry_task_id:
-          type: string
-        executor_kind:
-          const: rust_kernel
-        input_ref:
-          $ref: "#/components/schemas/ArtifactRef"
-        input_contract:
-          type: string
-        output_contract:
-          type: string
-        created_by:
-          type: string
-        created_at:
+          maxLength: 80
+        version:
+          type: integer
+          minimum: 1
+        createdAt:
           type: string
           format: date-time
-        status:
-          $ref: "#/components/schemas/TaskStatus"
-        updated_at:
+        updatedAt:
           type: string
           format: date-time
-        workflow_id:
-          type: string
-        workflow_run_id:
+        lastAttemptAt:
           type: [string, "null"]
-        retry_of_task_id:
+          format: date-time
+        lastSuccessfulAt:
           type: [string, "null"]
-        result_ref:
-          oneOf:
-            - $ref: "#/components/schemas/ArtifactRef"
-            - type: "null"
-        result_contract:
+          format: date-time
+        lastOutcome:
           type: [string, "null"]
-        summary:
-          type: [object, "null"]
-        error_code:
-          type: [string, "null"]
-          pattern: "^[A-Za-z0-9_.:-]{1,80}$"
-    TaskList:
+          enum: [valid, credential_rejected, check_failed, null]
+    Error:
       type: object
-      required: [tasks, page]
+      additionalProperties: false
+      required: [error]
       properties:
-        tasks:
-          type: array
-          items:
-            $ref: "#/components/schemas/TaskSummary"
-        page:
+        error:
           type: object
-          required: [next_cursor]
+          additionalProperties: false
+          required: [code, message]
           properties:
-            next_cursor:
-              type: [string, "null"]
-    TaskSummary:
-      type: object
-      required:
-        - schema_version
-        - task_id
-        - run_id
-        - registry_task_id
-        - executor_kind
-        - created_by
-        - status
-        - created_at
-        - updated_at
-        - has_result
-        - workflow_id
-      properties:
-        schema_version:
-          const: ingestion_task_operator_projection.v2
-        task_id:
-          type: string
-        run_id:
-          type: string
-        registry_task_id:
-          type: string
-        executor_kind:
-          const: rust_kernel
-        source_family:
-          type: [string, "null"]
-        source_channel:
-          type: [string, "null"]
-        corpus:
-          type: [string, "null"]
-        collection:
-          type: [string, "null"]
-        created_by:
-          type: string
-        status:
-          $ref: "#/components/schemas/TaskStatus"
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        result_contract:
-          type: [string, "null"]
-        has_result:
-          type: boolean
-        summary:
-          type: [object, "null"]
-        last_error_code:
-          type: [string, "null"]
-          pattern: "^[A-Za-z0-9_.:-]{1,80}$"
-        workflow_id:
-          type: string
-        workflow_run_id:
-          type: [string, "null"]
-        retry_of_task_id:
-          type: [string, "null"]
-    FileReleaseWorkflowStatus:
-      type: object
-      additionalProperties: false
-      required: [workflowId, workflowRunId, workflowStatus]
-      properties:
-        workflowId:
-          type: string
-        workflowRunId:
-          type: string
-        workflowStatus:
-          type: string
-    FileReleaseWorkflowStatuses:
-      type: object
-      additionalProperties: false
-      required: [schema_version, workflows]
-      properties:
-        schema_version:
-          const: internal_portal_file_release_workflow_statuses.v1
-        workflows:
-          type: array
-          minItems: 1
-          maxItems: 50
-          items:
-            $ref: "#/components/schemas/FileReleaseWorkflowStatus"
-    FileReleaseBatchStart:
-      type: object
-      required: [schema_version, request_id, workflows]
-      properties:
-        schema_version:
-          const: internal_portal_file_release_batch_start.v1
-        request_id:
-          $ref: "#/components/schemas/RequestId"
-        workflows:
-          type: array
-          minItems: 1
-          maxItems: 50
-          items:
+            code:
+              type: string
+            message:
+              type: string
+  responses:
+    BadRequest:
+      description: 请求参数或请求体无效
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Credential:
+      description: 凭据 metadata
+      headers:
+        ETag:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
             type: object
-            required: [file_release_id, workflowId, workflowRunId, workflowStatus, alreadyStarted]
+            additionalProperties: false
+            required: [credential]
             properties:
-              file_release_id:
-                type: integer
-                minimum: 1
-              workflowId:
-                type: string
-              workflowRunId:
-                type: [string, "null"]
-              workflowStatus:
-                type: string
-              alreadyStarted:
-                type: boolean
+              credential:
+                $ref: "#/components/schemas/Credential"
+    Unauthorized:
+      description: 内部 Bearer token 无效
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: 凭据不存在
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: 版本或名称冲突
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unavailable:
+      description: PostgreSQL、门户验证或凭据池不可用
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

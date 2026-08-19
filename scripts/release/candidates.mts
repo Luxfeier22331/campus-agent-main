@@ -14,13 +14,17 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["app-api-schema", ["app-api-schema"]],
 	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
 	["execution-control", ["execution-control"]],
+	["ingestion-control", ["ingestion-control"]],
+	["notice-classifier", ["notice-classifier"]],
 	["ops-web", ["ops-web"]],
 ]);
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["apps/execution-control/Dockerfile", ["execution-control"]],
+	["apps/ingestion-control/Dockerfile", ["ingestion-control"]],
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
+	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
 ]);
 const CAMPUS_WEB_WORKER: WorkerCandidate = "campus-web-staging";
 const CAMPUS_MAP_ASSET_PATH = "apps/campus-web/assets/campus-map";
@@ -149,6 +153,12 @@ export async function planCandidates(
 		)
 	) {
 		images.add("campus-docs-index-publisher");
+	}
+	if (
+		changesPath(files, "jobs/notice-classifier") ||
+		changesPath(files, "packages/notice-classifier-core")
+	) {
+		images.add("notice-classifier");
 	}
 	if (
 		files.some(

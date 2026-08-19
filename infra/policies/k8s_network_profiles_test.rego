@@ -66,6 +66,12 @@ valid_ops_web_egress_policy := {
 			},
 			{
 				"to": [{"podSelector": {"matchLabels": {
+					"app.kubernetes.io/name": "ingestion-control",
+				}}}],
+				"ports": [{"protocol": "TCP", "port": 8000}],
+			},
+			{
+				"to": [{"podSelector": {"matchLabels": {
 					"app.kubernetes.io/name": "object-store",
 				}}}],
 				"ports": [{"protocol": "TCP", "port": 9000}],
@@ -86,7 +92,7 @@ valid_ops_web_egress_policy := {
 
 ops_web_policy_with_external_rule(peer, allowed_port) := policy if {
 	egress := array.concat(
-		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 6),
+		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 7),
 		[{"to": [peer], "ports": [allowed_port]}],
 	)
 	policy := object.union(valid_ops_web_egress_policy, {
@@ -311,7 +317,7 @@ test_ops_web_port_cannot_add_end_port if {
 test_ops_web_external_egress_is_required if {
 	policy := object.union(valid_ops_web_egress_policy, {
 		"spec": object.union(valid_ops_web_egress_policy.spec, {
-			"egress": array.slice(valid_ops_web_egress_policy.spec.egress, 0, 6),
+			"egress": array.slice(valid_ops_web_egress_policy.spec.egress, 0, 7),
 		}),
 	})
 	violations := violation with input as policy
@@ -320,8 +326,8 @@ test_ops_web_external_egress_is_required if {
 
 test_ops_web_agent_runtime_egress_is_required if {
 	egress := array.concat(
-		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 5),
-		array.slice(valid_ops_web_egress_policy.spec.egress, 6, 7),
+		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 6),
+		array.slice(valid_ops_web_egress_policy.spec.egress, 7, 8),
 	)
 	policy := object.union(valid_ops_web_egress_policy, {
 		"spec": object.union(valid_ops_web_egress_policy.spec, {"egress": egress}),
@@ -332,14 +338,26 @@ test_ops_web_agent_runtime_egress_is_required if {
 
 test_ops_web_object_store_egress_is_required if {
 	egress := array.concat(
-		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 4),
-		array.slice(valid_ops_web_egress_policy.spec.egress, 5, 7),
+		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 5),
+		array.slice(valid_ops_web_egress_policy.spec.egress, 6, 8),
 	)
 	policy := object.union(valid_ops_web_egress_policy, {
 		"spec": object.union(valid_ops_web_egress_policy.spec, {"egress": egress}),
 	})
 	violations := violation with input as policy
 	"NetworkPolicy ops-web-egress must allow object-store on TCP 9000" in violations
+}
+
+test_ops_web_ingestion_control_egress_is_required if {
+	egress := array.concat(
+		array.slice(valid_ops_web_egress_policy.spec.egress, 0, 4),
+		array.slice(valid_ops_web_egress_policy.spec.egress, 5, 8),
+	)
+	policy := object.union(valid_ops_web_egress_policy, {
+		"spec": object.union(valid_ops_web_egress_policy.spec, {"egress": egress}),
+	})
+	violations := violation with input as policy
+	"NetworkPolicy ops-web-egress must allow ingestion-control on TCP 8000" in violations
 }
 
 test_ops_web_external_egress_cannot_use_http if {

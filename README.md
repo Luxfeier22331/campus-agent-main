@@ -6,7 +6,7 @@
 ## 项目入口
 
 - [产品边界](./docs/architecture/product.md)：产品服务谁、提供什么和不提供什么；
-- [当前架构](./docs/architecture/current.md)：已经合入 `main` 的系统与开放能力；
+- [架构入口](./docs/architecture/README.md)：按系统、领域和跨所有者流程定位当前实现；
 - [目标架构](./docs/architecture/target.md)：长期架构约束；
 - [文档索引](./docs/README.md)：架构、合同、数据、决策和操作手册。
 
@@ -28,14 +28,15 @@
 ## 目录
 
 - [`apps/`](./apps/)：常驻应用、Worker 和浏览器界面；
-- [`jobs/`](./jobs/)：一次性或定时任务；
+- [`jobs/`](./jobs/)：需要独立构建或调度的一次性、定时任务；
 - [`packages/`](./packages/)：合同、领域逻辑和可复用库；
 - [`configs/`](./configs/)：运行时和共享来源配置；采集重构配置暂在其独立边界内维护；
 - [`infra/`](./infra/)：环境无关的基础设施配置和本地环境；
-- [`scripts/`](./scripts/)：仓库级开发、验证和发布入口；
+- [`scripts/`](./scripts/)：仓库级开发、验证、发布和本地辅助入口；
 - [`docs/`](./docs/)：长期人类可读文档。
 
-代码所有权见 [代码组织](./docs/architecture/system/code-organization.md) 和最近的模块 README。
+需要独立构建或调度的任务进入 `jobs/`；只服务仓库或本地操作的命令留在 `scripts/`。具体代码
+所有权由最近的模块 README、合同和实现维护。
 
 ## 开发
 
@@ -49,8 +50,7 @@ pnpm check
 [测试与验证](./docs/reference/verification.md)。需要数据库、供应商、对象存储或私有内容的命令
 必须显式提供所属环境配置。
 
-协作方式见 [贡献指南](./CONTRIBUTING.md)，文档规则见
-[文档规范](./docs/documentation-architecture.md)。
+协作方式见 [贡献指南](./CONTRIBUTING.md)。
 
 ## 许可证
 

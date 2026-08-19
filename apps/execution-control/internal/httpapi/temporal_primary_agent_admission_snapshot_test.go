@@ -58,7 +58,6 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	embeddingProvider := embeddingProviderConfigSnapshotForTest(
 		providerconfig.KindEmbedding,
 		"https://embedding.example/v1",
-		"provider-model-alias",
 	)
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:          agentRuntime.URL,

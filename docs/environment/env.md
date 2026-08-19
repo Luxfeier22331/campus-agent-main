@@ -27,6 +27,7 @@ status: active
 - App API：`.env.local` 和 `.dev.vars.local`；
 - Campus Web：`.dev.vars.local`；
 - ingestion-control：`.env.local`；
+- notice-classifier：`.env.local`；
 - Ops Web：`.env.local`；
 - Source Collector internal-portal adapter：`.env.local`；
 - notice-publisher：`.env.local`。
@@ -36,11 +37,14 @@ status: active
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site key 与 secret key。
 
-Source Collector 的托管 `.env.local` 只保存当前 worktree 的本地对象存储配置。adapter 目录下未跟踪的
-`.env` 由开发者按照同目录 `.env.example` 维护 TGC 和代理配置；不使用托管本地环境的独立命令也可
-在其中提供对象存储配置。门户地址、站点身份和 SSO Cookie domain 由
-`configs/sources/internal-portal.json` 维护，不从环境文件覆盖。`dev:init` 不创建或覆盖该文件，进程
-环境仍具有最高优先级。
+Source Collector 的托管 `.env.local` 保存当前 worktree 的本地对象存储配置，以及 `auth:pull` 最近一次
+成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令保留其他托管字段、原子替换该值并设置 `0600`；失败
+不改文件，后续 `dev:init` 保留已有 TGC。adapter 目录下未跟踪的 `.env` 只维护可选门户代理或不使用
+托管本地环境的对象存储配置，不作为长期 TGC 来源。进程环境仍具有最高优先级。
+
+notice-classifier 的托管 `.env.local` 保存本 worktree 的 derived bucket、本地 source bucket 和 RustFS
+连接。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时通过
+execution-control 的 provider snapshot 读取当前模型配置。
 
 ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和本地 source
 bucket 连接。notice-publisher 仅用于本地显式写入，使用现有 worktree 数据库中的通知 schema、分离的
@@ -66,8 +70,10 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 长期运行的 Kubernetes workload 从共享 ConfigMap 逐 key 投影实际消费字段。只服务单个一次性 Job
 且字段全部由该 Job 消费的专用 ConfigMap 可以整体注入。
 
-源码 base 中的 `configmap-rendered.example.yaml` 只展示环境仓需要提供的字段，不进入 Kustomization，
-也不是 staging 或其他环境的配置来源；示例必须带 `campus-agent.muc.wiki/example-only` 标记。
+Source Collector 源码中的 `notice:sync:job` 和 `file:sync:job` 读取
+`INGESTION_CONTROL_INTERNAL_URL`、`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置，但当前没有对应
+Kubernetes 采集 workload。后续只有在 Job manifest 成为实际消费者时，环境仓才投递这些既有值；
+不得新增 TGC Secret。
 
 ### 部署配置生命周期
 

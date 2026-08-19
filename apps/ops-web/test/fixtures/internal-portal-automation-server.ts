@@ -1,17 +1,17 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PortalCredentialExpiredError } from "@campus-agent/internal-portal-client";
 import { type ServerType, serve } from "@hono/node-server";
 import { createOpsApp } from "../../src/server/app.ts";
 import { createFixtureOpsStatusStore } from "../../src/server/fixture-ops-status-store.ts";
 import type { InternalPortalAutomationTokenService } from "../../src/server/internal-portal-automation-token-service.ts";
-import { createInternalPortalCredentialService } from "../../src/server/internal-portal-credential-service.ts";
 import {
+	InternalPortalCandidateCheckFailedError,
+	InternalPortalCandidateRejectedError,
 	InternalPortalCredentialConflictError,
 	InternalPortalCredentialNotFoundError,
-	type InternalPortalCredentialRecord,
-	type InternalPortalCredentialStore,
-} from "../../src/server/internal-portal-credential-store.ts";
+	type InternalPortalCredentialService,
+} from "../../src/server/internal-portal-credential-service.ts";
+import type { InternalPortalCredential } from "../../src/shared/ops-contract.ts";
 
 export const AUTOMATION_FIXTURE_CREDENTIAL_ID = "11111111-1111-4111-8111-111111111111";
 export const AUTOMATION_FIXTURE_TOKEN = "ops_fixture_token";
@@ -25,21 +25,20 @@ export const AUTOMATION_FIXTURE_TGC_NETWORK_FAILURE = "TGT-fixture-network-failu
 
 const FIXTURE_TIMESTAMP = "2026-08-07T00:00:00.000Z";
 
+interface FixtureCredential extends InternalPortalCredential {
+	ssoTgc: string;
+}
+
 export interface InternalPortalAutomationFixture {
 	close(): Promise<void>;
 	origin: string;
-	readCredential(): InternalPortalCredentialRecord | null;
+	readCredential(): FixtureCredential | null;
 }
 
 export async function startInternalPortalAutomationFixture(
 	options: { port?: number } = {},
 ): Promise<InternalPortalAutomationFixture> {
-	const store = createInMemoryCredentialStore();
-	const credentialService = createInternalPortalCredentialService({
-		checkAuthentication: checkFixtureCredential,
-		now: () => new Date(FIXTURE_TIMESTAMP),
-		store,
-	});
+	const credentials = createFixtureCredentialService();
 	const tokenService = createFixtureTokenService();
 	let app: ReturnType<typeof createOpsApp> | null = null;
 	let server: ServerType;
@@ -61,7 +60,7 @@ export async function startInternalPortalAutomationFixture(
 						OPS_WEB_PUBLIC_ORIGIN: origin,
 					},
 					internalPortalAutomationTokenService: tokenService,
-					internalPortalCredentialService: credentialService,
+					internalPortalCredentialService: credentials.service,
 					staticRoot: "test/fixtures/static",
 					store: createFixtureOpsStatusStore(),
 				});
@@ -72,7 +71,7 @@ export async function startInternalPortalAutomationFixture(
 						});
 					},
 					origin,
-					readCredential: store.readCredential,
+					readCredential: credentials.readCredential,
 				});
 			},
 		);
@@ -80,10 +79,11 @@ export async function startInternalPortalAutomationFixture(
 	});
 }
 
-function createInMemoryCredentialStore(): InternalPortalCredentialStore & {
-	readCredential(): InternalPortalCredentialRecord | null;
+function createFixtureCredentialService(): {
+	readCredential(): FixtureCredential | null;
+	service: InternalPortalCredentialService;
 } {
-	let credential: InternalPortalCredentialRecord | null = {
+	let credential: FixtureCredential | null = {
 		createdAt: FIXTURE_TIMESTAMP,
 		credentialId: AUTOMATION_FIXTURE_CREDENTIAL_ID,
 		lastAttemptAt: FIXTURE_TIMESTAMP,
@@ -95,90 +95,85 @@ function createInMemoryCredentialStore(): InternalPortalCredentialStore & {
 		version: 1,
 	};
 
-	const requireCredential = (credentialId: string): InternalPortalCredentialRecord => {
+	const requireCredential = (credentialId: string): FixtureCredential => {
 		if (!credential || credential.credentialId !== credentialId) {
 			throw new InternalPortalCredentialNotFoundError();
 		}
 		return credential;
 	};
-	const requireVersion = (
-		credentialId: string,
-		expectedVersion: number,
-	): InternalPortalCredentialRecord => {
+	const requireVersion = (credentialId: string, expectedVersion: number): FixtureCredential => {
 		const current = requireCredential(credentialId);
 		if (current.version !== expectedVersion) {
 			throw new InternalPortalCredentialConflictError();
 		}
 		return current;
 	};
-	const copy = (value: InternalPortalCredentialRecord) => structuredClone(value);
+	const publicCredential = (value: FixtureCredential): InternalPortalCredential => {
+		const { ssoTgc: _ssoTgc, ...metadata } = value;
+		return structuredClone(metadata);
+	};
 
-	return {
+	const service: InternalPortalCredentialService = {
 		async create(input) {
+			const ssoTgc = await checkFixtureCredential(input.ssoTgc);
 			credential = {
-				createdAt: input.now.toISOString(),
-				credentialId: input.credentialId,
-				lastAttemptAt: input.now.toISOString(),
+				createdAt: FIXTURE_TIMESTAMP,
+				credentialId: AUTOMATION_FIXTURE_CREDENTIAL_ID,
+				lastAttemptAt: FIXTURE_TIMESTAMP,
 				lastOutcome: "valid",
-				lastSuccessfulAt: input.now.toISOString(),
+				lastSuccessfulAt: FIXTURE_TIMESTAMP,
 				name: input.name,
-				ssoTgc: input.ssoTgc,
-				updatedAt: input.now.toISOString(),
+				ssoTgc,
+				updatedAt: FIXTURE_TIMESTAMP,
 				version: 1,
 			};
-			return copy(credential);
+			return publicCredential(credential);
 		},
 		async delete(credentialId, expectedVersion) {
 			requireVersion(credentialId, expectedVersion);
 			credential = null;
 		},
-		async get(credentialId) {
-			return credential?.credentialId === credentialId ? copy(credential) : null;
-		},
 		async list() {
-			return credential ? [copy(credential)] : [];
+			return credential ? [publicCredential(credential)] : [];
 		},
-		async recordCheck(input) {
-			const current = requireVersion(input.credentialId, input.expectedVersion);
-			const refreshed = current.ssoTgc !== input.ssoTgc;
-			credential = {
-				...current,
-				lastAttemptAt: input.attemptedAt.toISOString(),
-				lastOutcome: input.outcome,
-				lastSuccessfulAt:
-					input.outcome === "valid" ? input.attemptedAt.toISOString() : current.lastSuccessfulAt,
-				ssoTgc: input.ssoTgc,
-				updatedAt: refreshed ? input.attemptedAt.toISOString() : current.updatedAt,
-				version: refreshed ? current.version + 1 : current.version,
+		async rename(credentialId, name, expectedVersion) {
+			const current = requireVersion(credentialId, expectedVersion);
+			credential = { ...current, name, version: current.version + 1 };
+			return publicCredential(credential);
+		},
+		async reveal(credentialId) {
+			const current = requireCredential(credentialId);
+			return {
+				credentialId: current.credentialId,
+				ssoTgc: current.ssoTgc,
+				version: current.version,
 			};
-			return copy(credential);
 		},
-		async rename(input) {
-			const current = requireVersion(input.credentialId, input.expectedVersion);
+		async rotate(credentialId, candidate, expectedVersion) {
+			const ssoTgc = await checkFixtureCredential(candidate);
+			const current = requireVersion(credentialId, expectedVersion);
 			credential = {
 				...current,
-				name: input.name,
-				updatedAt: input.now.toISOString(),
-				version: current.version + 1,
-			};
-			return copy(credential);
-		},
-		async rotate(input) {
-			const current = requireVersion(input.credentialId, input.expectedVersion);
-			credential = {
-				...current,
-				lastAttemptAt: input.attemptedAt.toISOString(),
+				lastAttemptAt: FIXTURE_TIMESTAMP,
 				lastOutcome: "valid",
-				lastSuccessfulAt: input.attemptedAt.toISOString(),
-				ssoTgc: input.ssoTgc,
-				updatedAt: input.attemptedAt.toISOString(),
+				lastSuccessfulAt: FIXTURE_TIMESTAMP,
+				ssoTgc,
+				updatedAt: FIXTURE_TIMESTAMP,
 				version: current.version + 1,
 			};
-			return copy(credential);
+			return publicCredential(credential);
 		},
-		readCredential() {
-			return credential ? copy(credential) : null;
+		async validate(credentialId) {
+			const current = requireCredential(credentialId);
+			const ssoTgc = await checkFixtureCredential(current.ssoTgc);
+			credential = { ...current, ssoTgc };
+			return publicCredential(credential);
 		},
+	};
+
+	return {
+		readCredential: () => (credential ? structuredClone(credential) : null),
+		service,
 	};
 }
 
@@ -212,23 +207,23 @@ function createFixtureTokenService(): InternalPortalAutomationTokenService {
 	};
 }
 
-async function checkFixtureCredential(ssoTgc: string) {
+async function checkFixtureCredential(ssoTgc: string): Promise<string> {
 	if (ssoTgc === AUTOMATION_FIXTURE_TGC_REFRESH) {
-		return { ssoTgc: AUTOMATION_FIXTURE_TGC_REFRESHED };
+		return AUTOMATION_FIXTURE_TGC_REFRESHED;
 	}
 	if (ssoTgc === AUTOMATION_FIXTURE_TGC_CURRENT || ssoTgc === AUTOMATION_FIXTURE_TGC_VALID) {
-		return { ssoTgc };
+		return ssoTgc;
 	}
 	if (ssoTgc === AUTOMATION_FIXTURE_TGC_REJECTED) {
-		throw new PortalCredentialExpiredError("fixture credential rejected");
+		throw new InternalPortalCandidateRejectedError();
 	}
-	if (ssoTgc === AUTOMATION_FIXTURE_TGC_TIMEOUT) {
-		throw Object.assign(new Error("fixture credential check timed out"), { name: "TimeoutError" });
+	if (
+		ssoTgc === AUTOMATION_FIXTURE_TGC_TIMEOUT ||
+		ssoTgc === AUTOMATION_FIXTURE_TGC_NETWORK_FAILURE
+	) {
+		throw new InternalPortalCandidateCheckFailedError();
 	}
-	if (ssoTgc === AUTOMATION_FIXTURE_TGC_NETWORK_FAILURE) {
-		throw new Error("fixture portal unavailable");
-	}
-	throw new PortalCredentialExpiredError("fixture credential is not registered");
+	throw new InternalPortalCandidateRejectedError();
 }
 
 function parsePort(args: string[]): number {

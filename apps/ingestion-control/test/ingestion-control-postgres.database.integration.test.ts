@@ -1,33 +1,53 @@
 // @vitest-environment node
 
 import { randomBytes, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import { Wait } from "testcontainers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-	applyIngestionControlMigrations,
-	loadIngestionControlMigrations,
-	runIngestionControlMigrations,
-} from "../src/migrate";
-import { runIngestionControlSchemaBootstrap } from "../src/schema-bootstrap";
+	createPgInternalPortalCredentialStore,
+	InternalPortalCredentialConflictError,
+	InternalPortalCredentialNameConflictError,
+} from "../src/internal-portal-credential-store.ts";
+import { loadIngestionControlMigrations, runIngestionControlMigrations } from "../src/migrate.ts";
+import { runIngestionControlSchemaBootstrap } from "../src/schema-bootstrap.ts";
 
 const POSTGRES_IMAGE =
 	"postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193";
 const RYUK_IMAGE =
 	"testcontainers/ryuk:0.14.0@sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0";
 const DATABASE_NAME = "campus_agent_ingestion_test";
+const CREDENTIAL_ID = "11111111-1111-4111-8111-111111111111";
+const TOKEN_ID = "22222222-2222-4222-8222-222222222222";
+const opsMigrationRoot = fileURLToPath(new URL("../../ops-web/drizzle/", import.meta.url));
 
-function roleConnectionString(connectionString: string, password: string): string {
+function roleConnectionString(
+	connectionString: string,
+	username: string,
+	password: string,
+): string {
 	const url = new URL(connectionString);
-	url.username = "ingestion_control";
+	url.username = username;
 	url.password = password;
 	return url.toString();
 }
 
-describe("ingestion-control PostgreSQL lifecycle", () => {
+function databaseConnectionString(connectionString: string, databaseName: string): string {
+	const url = new URL(connectionString);
+	url.pathname = `/${databaseName}`;
+	return url.toString();
+}
+
+describe("ingestion-control PostgreSQL ownership handoff", () => {
 	let adminConnectionString = "";
 	let container: StartedPostgreSqlContainer;
+	let ingestionPassword = "";
+	let ownerConnectionString = "";
+	let ownerPassword = "";
+	let opsWebConnectionString = "";
 	let runtimeConnectionString = "";
 
 	beforeAll(async () => {
@@ -40,387 +60,304 @@ describe("ingestion-control PostgreSQL lifecycle", () => {
 			.withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/u, 2))
 			.start();
 		adminConnectionString = container.getConnectionUri();
-		const password = randomBytes(24).toString("hex");
+		ingestionPassword = randomBytes(24).toString("hex");
+		const opsWebPassword = randomBytes(24).toString("hex");
+		ownerPassword = randomBytes(24).toString("hex");
 		const admin = new Client({ connectionString: adminConnectionString, ssl: false });
 		await admin.connect();
 		try {
-			await admin.query(`CREATE ROLE ingestion_control LOGIN PASSWORD '${password}'`);
+			await admin.query(`CREATE ROLE ingestion_control LOGIN PASSWORD '${ingestionPassword}'`);
+			await admin.query(`CREATE ROLE ops_web LOGIN PASSWORD '${opsWebPassword}'`);
+			await admin.query("CREATE ROLE app_api LOGIN");
+			await admin.query(
+				`CREATE ROLE campus_agent LOGIN PASSWORD '${ownerPassword}' IN ROLE ingestion_control`,
+			);
+			await admin.query(`ALTER DATABASE ${DATABASE_NAME} OWNER TO campus_agent`);
 		} finally {
 			await admin.end();
 		}
-		runtimeConnectionString = roleConnectionString(adminConnectionString, password);
+		ownerConnectionString = roleConnectionString(
+			adminConnectionString,
+			"campus_agent",
+			ownerPassword,
+		);
+		opsWebConnectionString = roleConnectionString(adminConnectionString, "ops_web", opsWebPassword);
+		runtimeConnectionString = roleConnectionString(
+			adminConnectionString,
+			"ingestion_control",
+			ingestionPassword,
+		);
 	}, 180_000);
 
 	afterAll(async () => {
 		await container?.stop();
 	}, 60_000);
 
-	it("bootstraps, migrates idempotently, and limits the application role to its schema", async () => {
-		const localEnvironment = {
-			DEPLOYMENT_ENVIRONMENT: "local",
-			INGESTION_CONTROL_DATABASE_SSLMODE: "disable",
-			INGESTION_CONTROL_DATABASE_URL: runtimeConnectionString,
-			INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: "disable",
-			INGESTION_CONTROL_SCHEMA_DATABASE_URL: adminConnectionString,
-		};
-
-		await runIngestionControlSchemaBootstrap(localEnvironment);
-		await runIngestionControlSchemaBootstrap(localEnvironment);
-		const migrations = loadIngestionControlMigrations();
-		const preResetClient = new Client({ connectionString: runtimeConnectionString, ssl: false });
-		await preResetClient.connect();
+	it("takes ownership of the deployed runtime schema before retiring Temporal tables", async () => {
+		const legacyMigrations = loadIngestionControlMigrations().slice(0, -1);
+		const admin = new Client({ connectionString: adminConnectionString, ssl: false });
+		await admin.connect();
 		try {
-			await expect(
-				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -3)),
-			).resolves.toEqual([
-				"0001_tasks.sql",
-				"0002_offline_releases.sql",
-				"0003_offline_release_checks.sql",
-			]);
-			await preResetClient.query(`INSERT INTO ingestion_control.offline_release_streams (
-				stream_id,
-				source_channel,
-				source_surface,
-				corpus,
-				collection,
-				checkpoint_json,
-				version,
-				created_at,
-				updated_at,
-				last_check_at,
-				last_check_mode,
-				last_check_outcome,
-				last_check_error_code,
-				last_reconcile_at,
-				last_published_at,
-				last_added_count,
-				last_updated_count,
-				last_withdrawn_count
-			) VALUES (
-				'internal_portal:migration-reset:notice',
-				'internal_portal',
-				'notice',
-				'campus_notices',
-				'internal_notice',
-				'{"legacy":true}'::jsonb,
-				7,
-				'2026-07-24T00:00:00Z',
-				'2026-07-24T01:00:00Z',
-				'2026-07-24T01:00:00Z',
-				'reconcile',
-				'published',
-				'legacy_status',
-				'2026-07-24T01:00:00Z',
-				'2026-07-24T01:00:00Z',
-				3,
-				2,
-				1
-			)`);
-			await preResetClient.query(`INSERT INTO ingestion_control.offline_releases (
-				release_id,
-				stream_id,
-				previous_release_id,
-				run_id,
-				workflow_id,
-				workflow_run_id,
-				manifest_ref_json,
-				item_count,
-				committed_at
-			) VALUES (
-				'release:migration-reset:v7',
-				'internal_portal:migration-reset:notice',
-				NULL,
-				'migration-reset',
-				'ingestion/migration-reset',
-				'migration-reset',
-				'{"kind":"object_store"}'::jsonb,
-				3,
-				'2026-07-24T01:00:00Z'
-			)`);
-			await preResetClient.query(`UPDATE ingestion_control.offline_release_streams
-				SET current_release_id = 'release:migration-reset:v7'
-				WHERE stream_id = 'internal_portal:migration-reset:notice'`);
-			await preResetClient.query(`INSERT INTO ingestion_control.offline_release_streams (
-				stream_id,
-				source_channel,
-				source_surface,
-				corpus,
-				collection,
-				checkpoint_json,
-				version,
-				created_at,
-				updated_at,
-				last_check_at,
-				last_check_mode,
-				last_check_outcome,
-				last_check_error_code,
-				last_reconcile_at,
-				last_added_count,
-				last_updated_count,
-				last_withdrawn_count
-			) VALUES (
-				'internal_portal:migration-reset:file-release',
-				'internal_portal',
-				'file_release',
-				'authenticated_documents',
-				'file_release_source',
-				'{"file_release":646}'::jsonb,
-				3,
-				'2026-07-24T00:00:00Z',
-				'2026-07-24T01:00:00Z',
-				'2026-07-24T01:00:00Z',
-				'reconcile',
-				'failed',
-				'legacy_reconcile_failed',
-				'2026-07-24T01:00:00Z',
-				4,
-				3,
-					2
-				)`);
-			await expect(
-				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -2)),
-			).resolves.toEqual(["0004_internal_portal_ingestion_reset.sql"]);
-			await preResetClient.query(`INSERT INTO ingestion_control.internal_portal_notice_sync_state (
-				site_id,
-				notice_type,
-				incremental_head_id,
-				min_captured_id,
-				max_captured_id,
-				history_covered_from,
-				updated_at
-			) VALUES (
-				'muc_internal_portal',
-				'5',
-				355120,
-				350001,
-				355120,
-				'2026-01-01',
-				'2026-07-26T00:00:00Z'
-			)`);
-			await preResetClient.query(`INSERT INTO ingestion_control.tasks (
-				task_id,
-				run_id,
-				registry_task_id,
-				executor_kind,
-				source_family,
-				source_channel,
-				corpus,
-				collection,
-				input_ref_json,
-				input_contract,
-				output_contract,
-				created_by,
-				created_at,
-				status,
-				workflow_id,
-				workflow_run_id,
-				pipeline_workflow_id,
-				updated_at
-			) VALUES
-				(
-					'legacy-source-task',
-					'legacy-source-run',
-					'internal_portal.file_release.capture',
-					'source_collector',
-					'authenticated_documents',
-					'internal_portal',
-					NULL,
-					NULL,
-					'{"kind":"object_store"}'::jsonb,
-					'internal_portal_file_release_capture_request.v2',
-					'internal_portal_file_release_capture_result.v2',
-					'legacy:test',
-					'2026-07-26T00:00:00Z',
-					'running',
-					'ingestion/legacy-source-task',
-					'legacy-source-workflow-run',
-					NULL,
-					'2026-07-26T00:00:00Z'
-				),
-				(
-					'legacy-pipeline-task',
-					'legacy-pipeline-run',
-					'curriculum.curriculum_plan.chunk_prepare',
-					'rust_kernel',
-					NULL,
-					NULL,
-					'curriculum',
-					'curriculum_plan',
-					'{"kind":"object_store"}'::jsonb,
-					'canonical_document_units.v1',
-					'ingestion_chunk_set.v1',
-					'legacy:test',
-					'2026-07-26T00:00:00Z',
-					'running',
-					'ingestion/legacy-pipeline-task',
-					'legacy-pipeline-workflow-run',
-					'ingestion/internal-portal-file-release/legacy-pipeline-run',
-					'2026-07-26T00:00:00Z'
-				),
-				(
-					'retained-rust-task',
-					'retained-rust-run',
-					'curriculum.curriculum_plan.chunk_prepare',
-					'rust_kernel',
-					NULL,
-					NULL,
-					'curriculum',
-					'curriculum_plan',
-					'{"kind":"object_store"}'::jsonb,
-					'canonical_document_units.v1',
-					'ingestion_chunk_set.v1',
-					'operator:test',
-					'2026-07-26T00:00:00Z',
-					'running',
-					'ingestion/retained-rust-task',
-					'retained-rust-workflow-run',
-					NULL,
-					'2026-07-26T00:00:00Z'
-				)`);
-
-			await expect(
-				applyIngestionControlMigrations(preResetClient, migrations.slice(0, -1)),
-			).resolves.toEqual(["0005_remove_internal_portal_pipeline.sql"]);
-			await preResetClient.query(`INSERT INTO ingestion_control.tasks (
-				task_id,
-				run_id,
-				registry_task_id,
-				executor_kind,
-				input_ref_json,
-				input_contract,
-				output_contract,
-				created_by,
-				created_at,
-				status,
-				workflow_id,
-				workflow_run_id,
-				updated_at,
-				error_code,
-				error_message
-			) VALUES (
-				'legacy-invalid-error-code',
-				'legacy-invalid-error-run',
-				'curriculum.curriculum_plan.chunk_prepare',
-				'rust_kernel',
-				'{"kind":"object_store"}'::jsonb,
-				'canonical_document_units.v1',
-				'ingestion_chunk_set.v1',
-				'legacy:test',
-				'2026-07-26T00:00:00Z',
-				'failed',
-				'ingestion/legacy-invalid-error-code',
-				'legacy-invalid-error-workflow-run',
-				'2026-07-26T00:00:00Z',
-				'legacy error code with spaces',
-				'legacy provider response must not survive migration'
-			)`);
+			await admin.query("CREATE SCHEMA ingestion_control AUTHORIZATION ingestion_control");
 		} finally {
-			await preResetClient.end();
+			await admin.end();
 		}
 
-		await expect(runIngestionControlMigrations(localEnvironment)).resolves.toEqual([
-			"0006_remove_error_message.sql",
-		]);
-		await expect(runIngestionControlMigrations(localEnvironment)).resolves.toEqual([]);
-
-		const runtime = new Client({ connectionString: runtimeConnectionString, ssl: false });
-		await runtime.connect();
+		const legacyRuntime = new Client({ connectionString: runtimeConnectionString, ssl: false });
+		await legacyRuntime.connect();
 		try {
-			const retired = await runtime.query<{
-				noticeSyncState: string | null;
-				offlineReleases: string | null;
-				offlineReleaseStreams: string | null;
-				seedState: string | null;
-				urlFreshness: string | null;
-			}>(`SELECT
-				to_regclass('ingestion_control.official_web_seed_state')::text AS "seedState",
-				to_regclass('ingestion_control.official_web_url_freshness')::text AS "urlFreshness",
-				to_regclass('ingestion_control.offline_release_streams')::text AS "offlineReleaseStreams",
-				to_regclass('ingestion_control.offline_releases')::text AS "offlineReleases",
-				to_regclass('ingestion_control.internal_portal_notice_sync_state')::text AS "noticeSyncState"`);
-			expect(retired.rows[0]).toEqual({
-				noticeSyncState: null,
-				offlineReleases: null,
-				offlineReleaseStreams: null,
-				seedState: null,
-				urlFreshness: null,
-			});
+			await legacyRuntime.query(`CREATE TABLE ingestion_control.schema_migrations (
+				migration_id text PRIMARY KEY,
+				content_sha256 text NOT NULL CHECK (content_sha256 ~ '^[0-9a-f]{64}$'),
+				applied_at timestamptz NOT NULL DEFAULT now()
+			)`);
+			await legacyRuntime.query("CREATE TABLE ingestion_control.tasks (task_id text PRIMARY KEY)");
+			for (const migration of legacyMigrations) {
+				await legacyRuntime.query(
+					`INSERT INTO ingestion_control.schema_migrations (migration_id, content_sha256)
+					 VALUES ($1, $2)`,
+					[migration.migrationId, migration.contentSha256],
+				);
+			}
+		} finally {
+			await legacyRuntime.end();
+		}
 
-			const taskRows = await runtime.query<{
-				executorKind: string;
-				taskId: string;
-			}>(`SELECT task_id AS "taskId", executor_kind AS "executorKind"
-				FROM ingestion_control.tasks
-				ORDER BY task_id`);
-			expect(taskRows.rows).toEqual([
-				{ executorKind: "rust_kernel", taskId: "legacy-invalid-error-code" },
-				{ executorKind: "rust_kernel", taskId: "retained-rust-task" },
-			]);
-			const normalizedLegacyError = await runtime.query<{
-				errorCode: string;
-			}>(`SELECT error_code AS "errorCode"
-				FROM ingestion_control.tasks
-				WHERE task_id = 'legacy-invalid-error-code'`);
-			expect(normalizedLegacyError.rows[0]).toEqual({ errorCode: "legacy_error" });
-			const pipelineColumn = await runtime.query<{
-				count: number;
-			}>(`SELECT count(*)::integer AS count
-				FROM information_schema.columns
-				WHERE table_schema = 'ingestion_control'
-				  AND table_name = 'tasks'
-				  AND column_name = 'pipeline_workflow_id'`);
-			expect(pipelineColumn.rows[0]).toEqual({ count: 0 });
-			const errorMessageColumn = await runtime.query<{
-				count: number;
-			}>(`SELECT count(*)::integer AS count
-				FROM information_schema.columns
-				WHERE table_schema = 'ingestion_control'
-				  AND table_name = 'tasks'
-				  AND column_name = 'error_message'`);
-			expect(errorMessageColumn.rows[0]).toEqual({ count: 0 });
-			await expect(
-				runtime.query(`INSERT INTO ingestion_control.tasks (
-					task_id, run_id, registry_task_id, executor_kind,
-					source_family, source_channel, corpus, collection,
-					input_ref_json, input_contract, output_contract, created_by, created_at,
-					status, workflow_id, workflow_run_id, updated_at
-				) VALUES (
-					'retired-source-task', 'retired-source-run',
-					'internal_portal.file_release.capture', 'source_collector',
-					'authenticated_documents', 'internal_portal', NULL, NULL,
-					'{"kind":"object_store"}'::jsonb,
-					'internal_portal_file_release_capture_request.v2',
-					'internal_portal_file_release_capture_result.v2',
-					'operator:test', '2026-07-26T00:00:00Z', 'running',
-					'ingestion/retired-source-task', 'retired-source-workflow-run',
-					'2026-07-26T00:00:00Z'
-				)`),
-			).rejects.toThrow("tasks_executor_kind_check");
-
-			await expect(
-				runtime.query(`INSERT INTO ingestion_control.tasks (
-					task_id, run_id, registry_task_id, executor_kind,
-					input_ref_json, input_contract, output_contract, created_by, created_at,
-					status, workflow_id, workflow_run_id, updated_at, error_code
-				) VALUES (
-					'invalid-error-code-task', 'invalid-error-code-run',
-					'curriculum.curriculum_plan.chunk_prepare', 'rust_kernel',
-					'{"kind":"object_store"}'::jsonb,
-					'canonical_document_units.v1', 'ingestion_chunk_set.v1', 'operator:test',
-					'2026-07-26T00:00:00Z', 'failed',
-					'ingestion/invalid-error-code-task', 'invalid-error-code-workflow-run',
-					'2026-07-26T00:00:00Z', 'invalid error code'
-				)`),
-			).rejects.toThrow("tasks_error_code_format_check");
-
-			await expect(
-				runtime.query("CREATE TABLE ingestion_control.permission_probe (id integer PRIMARY KEY)"),
-			).resolves.toMatchObject({ command: "CREATE" });
-			await expect(runtime.query("CREATE SCHEMA forbidden_probe")).rejects.toThrow(
-				"permission denied for database",
+		const owner = new Client({ connectionString: ownerConnectionString, ssl: false });
+		await owner.connect();
+		try {
+			for (const migration of [
+				"0001_dizzy_gateway.sql",
+				"0002_faithful_puff_adder.sql",
+				"0003_unique_internal_portal_credential_name.sql",
+			]) {
+				await applyStatementBreakpoints(owner, `${opsMigrationRoot}/${migration}`);
+			}
+			await owner.query(
+				`INSERT INTO internal_portal.credentials (
+				credential_id, name, sso_tgc, version, created_at, updated_at,
+				last_attempt_at, last_successful_at, last_outcome
+			) VALUES (
+				$1, '开发凭据', 'TGT-before-handoff', 3,
+				'2026-08-01T00:00:00Z', '2026-08-02T00:00:00Z',
+				'2026-08-02T00:00:00Z', '2026-08-02T00:00:00Z', 'valid'
+			)`,
+				[CREDENTIAL_ID],
+			);
+			await owner.query(
+				`INSERT INTO internal_portal.automation_tokens (
+				token_id, name, token_value, token_hash, created_at, revoked_at
+			) VALUES ($1, '开发同步程序', 'ops_secret', $2, '2026-08-01T00:00:00Z', NULL)`,
+				[TOKEN_ID, "a".repeat(64)],
+			);
+			await applyStatementBreakpoints(owner, `${opsMigrationRoot}/0004_loud_loa.sql`);
+			await owner.query("GRANT USAGE ON SCHEMA internal_portal TO ops_web");
+			await owner.query(
+				"GRANT SELECT, INSERT, UPDATE, DELETE ON internal_portal.automation_tokens TO ops_web",
 			);
 		} finally {
-			await runtime.end();
+			await owner.end();
+		}
+
+		const env = {
+			DEPLOYMENT_ENVIRONMENT: "local",
+			INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: "disable",
+			INGESTION_CONTROL_SCHEMA_DATABASE_URL: ownerConnectionString,
+		};
+		await runIngestionControlSchemaBootstrap(env);
+		await expect(runIngestionControlMigrations(env)).resolves.toEqual([
+			"0007_retire_temporal_tasks.sql",
+		]);
+		await expect(runIngestionControlMigrations(env)).resolves.toEqual([]);
+
+		const runtime = new Client({ connectionString: runtimeConnectionString, ssl: false });
+		const opsWeb = new Client({ connectionString: opsWebConnectionString, ssl: false });
+		const ownerInspector = new Client({ connectionString: ownerConnectionString, ssl: false });
+		await Promise.all([runtime.connect(), opsWeb.connect(), ownerInspector.connect()]);
+		try {
+			const handoff = await runtime.query(`select
+				credential_id as "credentialId", name, sso_tgc as "ssoTgc", version,
+				created_at as "createdAt", updated_at as "updatedAt",
+				last_attempt_at as "lastAttemptAt", last_successful_at as "lastSuccessfulAt",
+				last_outcome as "lastOutcome"
+			from ingestion_control.internal_portal_credentials`);
+			expect(handoff.rows).toEqual([
+				{
+					createdAt: new Date("2026-08-01T00:00:00.000Z"),
+					credentialId: CREDENTIAL_ID,
+					lastAttemptAt: new Date("2026-08-02T00:00:00.000Z"),
+					lastOutcome: "valid",
+					lastSuccessfulAt: new Date("2026-08-02T00:00:00.000Z"),
+					name: "开发凭据",
+					ssoTgc: "TGT-before-handoff",
+					updatedAt: new Date("2026-08-02T00:00:00.000Z"),
+					version: 3,
+				},
+			]);
+			const retired = await ownerInspector.query(`select
+				to_regclass('internal_portal.credentials')::text as "legacyCredentials",
+				to_regclass('ingestion_control.tasks')::text as "tasks"`);
+			expect(retired.rows[0]).toEqual({ legacyCredentials: null, tasks: null });
+			const ownership = await ownerInspector.query(`select
+				(select pg_get_userbyid(nspowner) from pg_namespace
+				 where nspname = 'ingestion_control') as "schemaOwner",
+				(select tableowner from pg_tables
+				 where schemaname = 'ingestion_control' and tablename = 'schema_migrations')
+				 as "journalOwner",
+				(select tableowner from pg_tables
+				 where schemaname = 'ingestion_control' and tablename = 'internal_portal_credentials')
+				 as "credentialsOwner"`);
+			expect(ownership.rows[0]).toEqual({
+				credentialsOwner: "campus_agent",
+				journalOwner: "campus_agent",
+				schemaOwner: "campus_agent",
+			});
+			await runtime.query("begin");
+			try {
+				await expect(
+					runtime.query(`insert into ingestion_control.internal_portal_credentials (
+						credential_id, name, sso_tgc, version, created_at, updated_at
+					) values (
+						'33333333-3333-4333-8333-333333333333', '权限探针', 'TGT-probe', 1, now(), now()
+					)`),
+				).resolves.toMatchObject({ rowCount: 1 });
+				await expect(
+					runtime.query(`update ingestion_control.internal_portal_credentials
+					 set version = 2, updated_at = now()
+					 where credential_id = '33333333-3333-4333-8333-333333333333'`),
+				).resolves.toMatchObject({ rowCount: 1 });
+				await expect(
+					runtime.query(`delete from ingestion_control.internal_portal_credentials
+					 where credential_id = '33333333-3333-4333-8333-333333333333'`),
+				).resolves.toMatchObject({ rowCount: 1 });
+			} finally {
+				await runtime.query("rollback");
+			}
+			await expect(
+				runtime.query("create table ingestion_control.runtime_ddl_probe (id integer)"),
+			).rejects.toThrow("permission denied for schema ingestion_control");
+			await expect(
+				runtime.query("create view ingestion_control.runtime_view_probe as select 1 as id"),
+			).rejects.toThrow("permission denied for schema ingestion_control");
+			await expect(
+				runtime.query(
+					"alter table ingestion_control.internal_portal_credentials add column runtime_probe integer",
+				),
+			).rejects.toThrow();
+			await expect(
+				runtime.query("drop table ingestion_control.internal_portal_credentials"),
+			).rejects.toThrow();
+			await expect(
+				runtime.query("select * from ingestion_control.schema_migrations"),
+			).rejects.toThrow("permission denied");
+			await expect(
+				opsWeb.query("select * from ingestion_control.internal_portal_credentials"),
+			).rejects.toThrow("permission denied");
+			await expect(
+				opsWeb.query("select token_id from internal_portal.automation_tokens"),
+			).resolves.toMatchObject({ rowCount: 1 });
+
+			const store = createPgInternalPortalCredentialStore(runtime);
+			await expect(
+				store.create({
+					credentialId: randomUUID(),
+					name: "开发凭据",
+					now: new Date("2026-08-03T00:00:00.000Z"),
+					ssoTgc: "TGT-duplicate",
+				}),
+			).rejects.toBeInstanceOf(InternalPortalCredentialNameConflictError);
+			await expect(
+				store.rotate({
+					attemptedAt: new Date("2026-08-03T00:00:00.000Z"),
+					credentialId: CREDENTIAL_ID,
+					expectedVersion: 2,
+					ssoTgc: "TGT-stale",
+				}),
+			).rejects.toBeInstanceOf(InternalPortalCredentialConflictError);
+		} finally {
+			await Promise.all([runtime.end(), opsWeb.end(), ownerInspector.end()]);
+		}
+	});
+
+	it("installs the same owner and runtime boundary in a fresh database", async () => {
+		const databaseName = `ingestion_fresh_${randomUUID().replaceAll("-", "")}`;
+		const admin = new Client({ connectionString: adminConnectionString, ssl: false });
+		await admin.connect();
+		await admin.query(`CREATE DATABASE "${databaseName}" OWNER campus_agent`);
+
+		const freshAdminUrl = databaseConnectionString(adminConnectionString, databaseName);
+		const freshOwnerUrl = roleConnectionString(freshAdminUrl, "campus_agent", ownerPassword);
+		const freshRuntimeUrl = roleConnectionString(
+			freshAdminUrl,
+			"ingestion_control",
+			ingestionPassword,
+		);
+		try {
+			const owner = new Client({ connectionString: freshOwnerUrl, ssl: false });
+			await owner.connect();
+			try {
+				for (const migration of [
+					"0001_dizzy_gateway.sql",
+					"0002_faithful_puff_adder.sql",
+					"0003_unique_internal_portal_credential_name.sql",
+					"0004_loud_loa.sql",
+				]) {
+					await applyStatementBreakpoints(owner, `${opsMigrationRoot}/${migration}`);
+				}
+			} finally {
+				await owner.end();
+			}
+
+			const env = {
+				DEPLOYMENT_ENVIRONMENT: "local",
+				INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: "disable",
+				INGESTION_CONTROL_SCHEMA_DATABASE_URL: freshOwnerUrl,
+			};
+			await runIngestionControlSchemaBootstrap(env);
+			await expect(runIngestionControlMigrations(env)).resolves.toEqual(
+				loadIngestionControlMigrations().map((migration) => migration.migrationId),
+			);
+			await expect(runIngestionControlMigrations(env)).resolves.toEqual([]);
+
+			const runtime = new Client({ connectionString: freshRuntimeUrl, ssl: false });
+			const ownerInspector = new Client({ connectionString: freshOwnerUrl, ssl: false });
+			await Promise.all([runtime.connect(), ownerInspector.connect()]);
+			try {
+				await expect(
+					runtime.query("select * from ingestion_control.internal_portal_credentials"),
+				).resolves.toBeDefined();
+				await expect(
+					runtime.query("create table ingestion_control.runtime_ddl_probe (id integer)"),
+				).rejects.toThrow("permission denied for schema ingestion_control");
+				const ownership = await ownerInspector.query(`select
+					(select pg_get_userbyid(nspowner) from pg_namespace
+					 where nspname = 'ingestion_control') as "schemaOwner",
+					(select tableowner from pg_tables
+					 where schemaname = 'ingestion_control' and tablename = 'schema_migrations')
+					 as "journalOwner",
+					(select tableowner from pg_tables
+					 where schemaname = 'ingestion_control' and tablename = 'internal_portal_credentials')
+					 as "credentialsOwner"`);
+				expect(ownership.rows[0]).toEqual({
+					credentialsOwner: "campus_agent",
+					journalOwner: "campus_agent",
+					schemaOwner: "campus_agent",
+				});
+			} finally {
+				await Promise.all([runtime.end(), ownerInspector.end()]);
+			}
+		} finally {
+			await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
+			await admin.end();
 		}
 	});
 });
+
+async function applyStatementBreakpoints(client: Client, path: string): Promise<void> {
+	const sql = await readFile(path, "utf8");
+	for (const statement of sql.split(/\n?--> statement-breakpoint\n?/u)) {
+		if (statement.trim()) {
+			await client.query(statement);
+		}
+	}
+}

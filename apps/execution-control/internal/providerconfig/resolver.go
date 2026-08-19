@@ -17,8 +17,8 @@ type Resolver interface {
 }
 
 type ResolverOptions struct {
-	DatabaseURL string
-	KeyringPath string
+	DatabaseURL       string
+	EncryptionKeyPath string
 }
 
 type StoreResolver struct {
@@ -26,14 +26,14 @@ type StoreResolver struct {
 }
 
 func NewResolver(ctx context.Context, options ResolverOptions) (*StoreResolver, error) {
-	if strings.TrimSpace(options.DatabaseURL) == "" || strings.TrimSpace(options.KeyringPath) == "" {
+	if strings.TrimSpace(options.DatabaseURL) == "" || strings.TrimSpace(options.EncryptionKeyPath) == "" {
 		return nil, ErrResolverNotConfigured
 	}
-	keyring, err := LoadKeyring(options.KeyringPath)
+	cipher, err := LoadSecretCipher(options.EncryptionKeyPath)
 	if err != nil {
 		return nil, err
 	}
-	store, err := NewStore(ctx, options.DatabaseURL, keyring)
+	store, err := NewStore(ctx, options.DatabaseURL, cipher)
 	if err != nil {
 		return nil, err
 	}
@@ -90,11 +90,17 @@ func ValidateRuntimeSetting(setting RuntimeSetting, kind Kind) error {
 		return fmt.Errorf("provider config snapshot kind = %q, want %q", setting.Kind, kind)
 	}
 	if kind == KindEmbedding {
-		if setting.Transport != "embeddings" {
-			return errors.New("embedding provider config snapshot transport must be embeddings")
+		if setting.Provider != CanonicalEmbeddingProvider {
+			return fmt.Errorf("embedding provider config snapshot provider = %q, want %q", setting.Provider, CanonicalEmbeddingProvider)
 		}
-	} else if kind == KindLLM && setting.Transport != "responses" && setting.Transport != "chat_completions" {
-		return errors.New("llm provider config snapshot transport is invalid")
+		if setting.Model != CanonicalEmbeddingModel {
+			return fmt.Errorf("embedding provider config snapshot model = %q, want %q", setting.Model, CanonicalEmbeddingModel)
+		}
+		if setting.Transport != CanonicalEmbeddingTransport {
+			return fmt.Errorf("embedding provider config snapshot transport must be %s", CanonicalEmbeddingTransport)
+		}
+	} else if isTextModelKind(kind) && setting.Transport != "responses" && setting.Transport != "chat_completions" {
+		return errors.New("text model provider config snapshot transport is invalid")
 	}
 	return nil
 }

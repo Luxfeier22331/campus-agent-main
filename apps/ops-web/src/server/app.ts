@@ -51,21 +51,19 @@ import {
 	InternalPortalAutomationTokenNotFoundError,
 	InternalPortalAutomationTokenStoreUnavailableError,
 } from "./internal-portal-automation-token-store.ts";
-import { InternalPortalCandidateInputError } from "./internal-portal-candidate-input.ts";
 import {
 	createInternalPortalCredentialService,
+	createUnavailableInternalPortalCredentialService,
 	InternalPortalCandidateCheckFailedError,
+	InternalPortalCandidateInputError,
 	InternalPortalCandidateRejectedError,
-	type InternalPortalCredentialService,
-} from "./internal-portal-credential-service.ts";
-import {
-	createPgInternalPortalCredentialStore,
-	createUnavailableInternalPortalCredentialStore,
+	type InternalPortalCredentialClientEnv,
 	InternalPortalCredentialConflictError,
 	InternalPortalCredentialNameConflictError,
 	InternalPortalCredentialNotFoundError,
+	type InternalPortalCredentialService,
 	InternalPortalCredentialStoreUnavailableError,
-} from "./internal-portal-credential-store.ts";
+} from "./internal-portal-credential-service.ts";
 import {
 	createOpsAdmissionFromEnv,
 	getMissingAccessConfig,
@@ -117,6 +115,7 @@ type OpsAppEnv = OpsAdmissionEnv &
 	AxiomEnv &
 	CampusGroupsAdminEnv &
 	DiningStoreEnv &
+	InternalPortalCredentialClientEnv &
 	OpsWebDatabaseEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
@@ -180,8 +179,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const accountAdminClient = options.accountAdminClient ?? createAccountAdminClient(env);
 	const emailAccessClient = options.emailAccessClient ?? createEmailAccessAdminClient(env);
 	const internalPortalCredentialService =
-		options.internalPortalCredentialService ??
-		createDefaultInternalPortalCredentialService(databasePool, databaseUnavailable);
+		options.internalPortalCredentialService ?? createDefaultInternalPortalCredentialService(env);
 	const internalPortalAutomationTokenService =
 		options.internalPortalAutomationTokenService ??
 		createDefaultInternalPortalAutomationTokenService(databasePool, databaseUnavailable);
@@ -410,14 +408,13 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 }
 
 function createDefaultInternalPortalCredentialService(
-	pool: Pool | undefined,
-	databaseUnavailable: Error,
+	env: InternalPortalCredentialClientEnv,
 ): InternalPortalCredentialService {
-	return createInternalPortalCredentialService({
-		store: pool
-			? createPgInternalPortalCredentialStore(pool)
-			: createUnavailableInternalPortalCredentialStore(databaseUnavailable),
-	});
+	try {
+		return createInternalPortalCredentialService(env);
+	} catch (error) {
+		return createUnavailableInternalPortalCredentialService(error);
+	}
 }
 
 function createDefaultInternalPortalAutomationTokenService(

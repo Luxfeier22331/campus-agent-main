@@ -14,11 +14,6 @@ import {
 } from "../ops/db/ops-web-database.ts";
 import { hashAutomationToken } from "../src/server/internal-portal-automation-token-service.ts";
 import { createPgInternalPortalAutomationTokenStore } from "../src/server/internal-portal-automation-token-store.ts";
-import {
-	createPgInternalPortalCredentialStore,
-	InternalPortalCredentialConflictError,
-	InternalPortalCredentialNameConflictError,
-} from "../src/server/internal-portal-credential-store.ts";
 
 const postgres = inject("opsWebPostgres");
 const databaseEnv = {
@@ -113,68 +108,13 @@ describe("ops-web PostgreSQL grants", () => {
 		});
 	});
 
-	it("persists credentials and rejects stale version writes", async () => {
+	it("cannot access ingestion-control credentials after the handoff", async () => {
 		const runtime = requiredClient(opsWeb, "ops_web");
-		const store = createPgInternalPortalCredentialStore(runtime);
-		const credentialId = randomUUID();
-		const createdAt = new Date("2026-08-02T01:00:00.000Z");
-		try {
-			const created = await store.create({
-				credentialId,
-				name: "开发凭据",
-				now: createdAt,
-				ssoTgc: "TGT-initial",
-			});
-			expect(created).toMatchObject({
-				credentialId,
-				lastOutcome: "valid",
-				ssoTgc: "TGT-initial",
-				version: 1,
-			});
-			await expect(
-				store.create({
-					credentialId: randomUUID(),
-					name: "开发凭据",
-					now: createdAt,
-					ssoTgc: "TGT-duplicate",
-				}),
-			).rejects.toBeInstanceOf(InternalPortalCredentialNameConflictError);
-
-			const renamed = await store.rename({
-				credentialId,
-				expectedVersion: 1,
-				name: "协作者凭据",
-				now: new Date("2026-08-02T01:01:00.000Z"),
-			});
-			expect(renamed).toMatchObject({ name: "协作者凭据", version: 2 });
-			await expect(
-				store.rotate({
-					attemptedAt: new Date("2026-08-02T01:02:00.000Z"),
-					credentialId,
-					expectedVersion: 1,
-					ssoTgc: "TGT-stale",
-				}),
-			).rejects.toBeInstanceOf(InternalPortalCredentialConflictError);
-
-			const checked = await store.recordCheck({
-				attemptedAt: new Date("2026-08-02T01:03:00.000Z"),
-				credentialId,
-				expectedVersion: 2,
-				outcome: "valid",
-				ssoTgc: "TGT-refreshed",
-			});
-			expect(checked).toMatchObject({ ssoTgc: "TGT-refreshed", version: 3 });
-
-			await applyOpsWebDatabaseGrants(databaseEnv);
-			await expect(store.get(credentialId)).resolves.toMatchObject({
-				ssoTgc: "TGT-refreshed",
-				version: 3,
-			});
-		} finally {
-			await management.query("delete from internal_portal.credentials where credential_id = $1", [
-				credentialId,
-			]);
-		}
+		expect(
+			await postgresErrorCode(
+				runtime.query("select credential_id from ingestion_control.internal_portal_credentials"),
+			),
+		).toBe("42501");
 	});
 
 	it("persists multiple automation tokens and rejects revoked token authentication", async () => {

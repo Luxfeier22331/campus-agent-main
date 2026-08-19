@@ -44,7 +44,8 @@ HTTP API 也不拥有 worker 生命周期。
 - `execution-control`：生产入口；`8000` 提供内部执行、查询、记忆和健康接口，`8001` 提供
   Provider Config 管理接口，同时运行三类 Temporal poller；
 - `run-projection-schema`：通过 Goose 安装和验证运行投影、个人记忆状态与 Provider Config
-  schema，再独立应用运行角色授权。
+  schema，再独立应用运行角色授权。常驻 runtime 使用单一 Provider Config 加密密钥；旧 keyring
+  仅作为历史 schema 迁移输入。
 
 Migration 位于 `internal/schemamigrations/`，统一记录在
 `public.execution_control_migrations`。运行时 Store 只连接和读写，不自动建表。普通结构变化新增

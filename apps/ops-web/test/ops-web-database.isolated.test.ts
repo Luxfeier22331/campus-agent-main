@@ -57,10 +57,7 @@ const opsWebDiningPrivileges = {
 	canUseSchema: true,
 } as const;
 const opsWebInternalPortalPrivileges = {
-	canCredentialsDelete: true,
-	canCredentialsInsert: true,
-	canCredentialsSelect: true,
-	canCredentialsUpdate: true,
+	canAccessCredentials: false,
 	canTokensDelete: true,
 	canTokensInsert: true,
 	canTokensSelect: true,
@@ -104,7 +101,6 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('from "dining"."map_draft"');
 		expect(allQueries).toContain('from "dining"."menu_items"');
 		expect(allQueries).toContain('from "dining"."reviews"');
-		expect(allQueries).toContain('from "internal_portal"."credentials"');
 		expect(allQueries).toContain('from "internal_portal"."automation_tokens"');
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
 		expect(allQueries).not.toContain('from "execution_control"."agent_run_steps"');
@@ -256,21 +252,16 @@ function installSuccessfulQueries() {
 			};
 		}
 		if (
-			sql.includes("from information_schema.columns") &&
-			sql.includes("table_schema = 'internal_portal'")
+			sql.includes("to_regclass('ingestion_control.internal_portal_credentials')") &&
+			sql.includes('as "currentTable"')
 		) {
 			return {
-				rowCount: 9,
+				rowCount: 1,
 				rows: [
-					{ column_name: "credential_id" },
-					{ column_name: "name" },
-					{ column_name: "sso_tgc" },
-					{ column_name: "version" },
-					{ column_name: "created_at" },
-					{ column_name: "updated_at" },
-					{ column_name: "last_attempt_at" },
-					{ column_name: "last_successful_at" },
-					{ column_name: "last_outcome" },
+					{
+						currentTable: "ingestion_control.internal_portal_credentials",
+						legacyTable: null,
+					},
 				],
 			};
 		}

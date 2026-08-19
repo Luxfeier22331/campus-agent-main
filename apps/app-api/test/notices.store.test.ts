@@ -29,8 +29,8 @@ describe("pg notice store", () => {
 			return {
 				rows: [
 					{
+						category: "campus_operations",
 						content_html: "<p>正文</p>",
-						domain: "campus_operations",
 						external_url: null,
 						is_external: false,
 						notice_id: "358159",
@@ -53,6 +53,32 @@ describe("pg notice store", () => {
 		});
 	});
 
+	it("filters the selected stream and category in count and item queries", async () => {
+		const queries: Array<{ params: unknown[]; sql: string }> = [];
+		const dialect = new PgDialect();
+		const execute = vi.fn(async (statement: SQL) => {
+			const query = dialect.sqlToQuery(statement);
+			queries.push({ params: query.params, sql: query.sql });
+			return query.sql.includes("count(*)") ? { rows: [{ count: "0" }] } : { rows: [] };
+		});
+		const store = createPgNoticeStore({} as never, {
+			getDb: async () => ({ execute }) as never,
+		});
+
+		await store.list({
+			category: "procurement",
+			page: 1,
+			stream: "notices",
+		});
+
+		const filtered = queries.filter((query) => query.sql.includes("n.category ="));
+		expect(filtered).toHaveLength(2);
+		for (const query of filtered) {
+			expect(query.sql).toContain("n.category <> 'campus_news'");
+			expect(query.params).toContain("procurement");
+		}
+	});
+
 	it("matches an escaped keyword against both title and cleaned content", async () => {
 		const queries: Array<{ params: unknown[]; sql: string }> = [];
 		const dialect = new PgDialect();
@@ -65,7 +91,7 @@ describe("pg notice store", () => {
 			getDb: async () => ({ execute }) as never,
 		});
 
-		await store.list({ page: 1, q: "100%_安排" });
+		await store.list({ page: 1, q: "100%_安排", stream: "notices" });
 
 		const filteredQueries = queries.filter((query) => query.sql.includes("ILIKE"));
 		expect(filteredQueries).toHaveLength(2);
@@ -103,7 +129,7 @@ describe("pg notice store", () => {
 			getDb: async () => ({ execute }) as never,
 		});
 
-		const result = await store.list({ page: 1 });
+		const result = await store.list({ page: 1, stream: "notices" });
 
 		expect(result.organizations).toEqual([
 			{ id: "org-1", name: "同名部门" },

@@ -11,10 +11,11 @@ import {
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import type {
-	NoticeDomain,
+	NoticeFilterCategory,
 	NoticeListItem,
 	NoticeListRequestQuery,
 	NoticeListResponse,
+	NoticeStream,
 } from "campus-contracts/notices";
 import {
 	ArrowLeft,
@@ -34,7 +35,8 @@ import {
 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { SurfaceState } from "@/components/ui/surface-state";
-import { NoticeDomainBadge } from "@/features/notices/domain-badge";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { NoticeCategoryBadge } from "@/features/notices/category-badge";
 import {
 	describeExternalNoticeSource,
 	type ExternalNoticeSourceKind,
@@ -90,9 +92,20 @@ export function NoticesPageContent() {
 		updateSearch({ q: queryDraft.trim() || undefined });
 	}
 
+	function updateStream(stream: NoticeStream): void {
+		void navigate({
+			search: (previous) => ({
+				...previous,
+				category: undefined,
+				page: 1,
+				stream,
+			}),
+		});
+	}
+
 	const hasFilters = Boolean(
 		search.q ||
-			search.domain ||
+			search.category ||
 			search.organization_id ||
 			search.notice_type ||
 			search.is_external !== undefined ||
@@ -100,32 +113,34 @@ export function NoticesPageContent() {
 			search.to,
 	);
 	const advancedFilterCount = [
-		search.domain,
+		search.category,
 		search.organization_id,
 		search.notice_type,
 		search.is_external,
 		search.from,
 		search.to,
 	].filter((value) => value !== undefined).length;
+	const isCampusNews = search.stream === "campus_news";
+	const itemLabel = isCampusNews ? "校园动态" : "通知";
 
 	return (
 		<section className="mx-auto w-full max-w-[var(--layout-page-workspace-width)] px-4 py-6 pb-20 sm:px-5 lg:px-6">
 			<header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-5">
 				<div>
 					<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
-						通知目录
+						{isCampusNews ? "校园动态" : "通知目录"}
 					</h1>
 					<p className="mt-1 text-sm text-[var(--sys-text-muted)]">
 						{notices.data
-							? `已收录 ${notices.data.pagination.totalItems} 条符合条件的通知`
-							: "查询已收录通知"}
+							? `已收录 ${notices.data.pagination.totalItems} 条符合条件的${itemLabel}`
+							: `查询已收录${itemLabel}`}
 					</p>
 				</div>
 				{hasFilters ? (
 					<Button
 						onClick={() => {
 							setQueryDraft("");
-							void navigate({ search: { page: 1 } });
+							void navigate({ search: { page: 1, stream: search.stream } });
 						}}
 						size="sm"
 						variant="ghost"
@@ -136,12 +151,32 @@ export function NoticesPageContent() {
 				) : null}
 			</header>
 
+			<ToggleGroup
+				aria-label="通知视图"
+				className="mt-5 w-full justify-start sm:w-auto"
+				onValueChange={(value) => {
+					if (value === "notices" || value === "campus_news") {
+						updateStream(value);
+					}
+				}}
+				type="single"
+				value={search.stream}
+				variant="outline"
+			>
+				<ToggleGroupItem className="min-w-24" value="notices">
+					通知
+				</ToggleGroupItem>
+				<ToggleGroupItem className="min-w-24" value="campus_news">
+					校园动态
+				</ToggleGroupItem>
+			</ToggleGroup>
+
 			<form
-				aria-label="通知筛选"
+				aria-label={`${itemLabel}筛选`}
 				className="grid gap-x-3 gap-y-4 border-b border-border py-5 md:grid-cols-2 xl:grid-cols-12"
 				onSubmit={submitSearch}
 			>
-				<div className="md:col-span-2 xl:col-span-6">
+				<div className="md:col-span-2 xl:col-span-12">
 					<Label htmlFor="notice-search">标题或正文关键词</Label>
 					<div className="mt-1.5 flex gap-2">
 						<Input
@@ -151,7 +186,7 @@ export function NoticesPageContent() {
 							placeholder="搜索标题或正文"
 							value={queryDraft}
 						/>
-						<Button aria-label="搜索通知" className="shrink-0" size="icon" type="submit">
+						<Button aria-label={`搜索${itemLabel}`} className="shrink-0" size="icon" type="submit">
 							<Search />
 						</Button>
 					</div>
@@ -171,17 +206,21 @@ export function NoticesPageContent() {
 						</CollapsibleTrigger>
 					</div>
 					<CollapsibleContent className="grid gap-4 md:contents">
-						<FilterSelect
-							className="min-w-0 xl:col-span-3"
-							id="notice-domain"
-							label="领域"
-							onChange={(value) => updateSearch({ domain: value as NoticeDomain | undefined })}
-							options={(notices.data?.filters.domains ?? []).map((option) => ({
-								label: option.label,
-								value: option.value,
-							}))}
-							value={search.domain}
-						/>
+						{isCampusNews ? null : (
+							<FilterSelect
+								className="min-w-0 xl:col-span-3"
+								id="notice-category"
+								label="分类"
+								onChange={(value) =>
+									updateSearch({ category: value as NoticeFilterCategory | undefined })
+								}
+								options={(notices.data?.filters.categories ?? []).map((option) => ({
+									label: option.label,
+									value: option.value,
+								}))}
+								value={search.category}
+							/>
+						)}
 						<SourceFilter
 							className="min-w-0 xl:col-span-3"
 							onChange={(value) => updateSearch({ is_external: value })}
@@ -190,7 +229,7 @@ export function NoticesPageContent() {
 						<FilterSelect
 							className="min-w-0 xl:col-span-3"
 							id="notice-type"
-							label="门户类型"
+							label="门户栏目"
 							onChange={(value) => updateSearch({ notice_type: value ? Number(value) : undefined })}
 							options={(notices.data?.filters.noticeTypes ?? []).map((option) => ({
 								label: option.label,
@@ -199,7 +238,7 @@ export function NoticesPageContent() {
 							value={search.notice_type === undefined ? undefined : String(search.notice_type)}
 						/>
 						<FilterSelect
-							className="min-w-0 xl:col-span-5"
+							className="min-w-0 md:col-span-2 xl:col-span-6"
 							id="notice-organization"
 							label="发布部门"
 							onChange={(value) => updateSearch({ organization_id: value })}
@@ -210,7 +249,7 @@ export function NoticesPageContent() {
 							value={search.organization_id}
 						/>
 						<DateRangeFilter
-							className="min-w-0 md:col-span-2 xl:col-span-4"
+							className="min-w-0 md:col-span-2 xl:col-span-6"
 							from={search.from}
 							onFromChange={(value) => updateSearch({ from: value })}
 							onToChange={(value) => updateSearch({ to: value })}
@@ -221,26 +260,34 @@ export function NoticesPageContent() {
 			</form>
 
 			<div aria-live="polite" className="min-h-80">
-				{notices.isPending ? <NoticeListSkeleton /> : null}
+				{notices.isPending ? <NoticeListSkeleton itemLabel={itemLabel} /> : null}
 				{notices.isError ? (
 					<SurfaceState
 						className="mt-6"
-						description="通知目录暂时无法读取，请稍后重试。"
+						description={`${isCampusNews ? "校园动态" : "通知目录"}暂时无法读取，请稍后重试。`}
 						kind="error"
 						primaryAction={<Button onClick={() => void notices.refetch()}>重试</Button>}
-						title="通知目录不可用"
+						title={`${isCampusNews ? "校园动态" : "通知目录"}不可用`}
 					/>
 				) : null}
 				{notices.data && notices.data.items.length === 0 ? (
 					<SurfaceState
 						className="mt-6 border-dashed"
-						description="调整关键词、领域或日期范围后再试。"
+						description={
+							isCampusNews
+								? "调整关键词、来源或日期范围后再试。"
+								: "调整关键词、分类、来源或日期范围后再试。"
+						}
 						kind="empty"
-						title="没有符合条件的通知"
+						title={`没有符合条件的${itemLabel}`}
 					/>
 				) : null}
 				{notices.data && notices.data.items.length > 0 ? (
-					<NoticeResults data={notices.data} pending={notices.isPlaceholderData} />
+					<NoticeResults
+						data={notices.data}
+						itemLabel={itemLabel}
+						pending={notices.isPlaceholderData}
+					/>
 				) : null}
 			</div>
 		</section>
@@ -392,7 +439,15 @@ function DateRangeFilter(props: {
 	);
 }
 
-function NoticeResults({ data, pending }: { data: NoticeListResponse; pending: boolean }) {
+function NoticeResults({
+	data,
+	itemLabel,
+	pending,
+}: {
+	data: NoticeListResponse;
+	itemLabel: string;
+	pending: boolean;
+}) {
 	const navigate = useNavigate({ from: "/notices" });
 	return (
 		<div className={pending ? "opacity-60" : undefined}>
@@ -404,7 +459,7 @@ function NoticeResults({ data, pending }: { data: NoticeListResponse; pending: b
 				))}
 			</ul>
 			<nav
-				aria-label="通知分页"
+				aria-label={`${itemLabel}分页`}
 				className="flex min-h-16 items-center justify-between gap-4 border-t border-border"
 			>
 				<p className="text-sm tabular-nums text-[var(--sys-text-muted)]">
@@ -453,8 +508,8 @@ function NoticeRow({ item }: { item: NoticeListItem }) {
 		: { kind: "campus" as const, label: "校内门户", title: "通知来源：校内门户" };
 	const content = (
 		<div className="grid min-h-28 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:gap-x-6">
-			<div className="min-w-0">
-				<NoticeDomainBadge domain={item.domain} />
+			<div className="flex min-w-0 flex-wrap gap-2">
+				<NoticeCategoryBadge category={item.category} />
 			</div>
 			<div className="flex min-h-[22px] items-center justify-end gap-2 text-sm text-[var(--sys-text-muted)] sm:grid sm:grid-cols-[9rem_1rem] sm:gap-3">
 				<time
@@ -537,7 +592,7 @@ function NoticeMetadata({
 				<span aria-hidden="true" className="hidden text-border sm:inline">
 					·
 				</span>
-				<span className="break-words">{type}</span>
+				<span className="break-words">门户栏目：{type}</span>
 			</span>
 		</p>
 	);
@@ -547,10 +602,10 @@ function isMobileFilterViewport(): boolean {
 	return typeof window !== "undefined" && window.matchMedia(MOBILE_FILTER_QUERY).matches;
 }
 
-function NoticeListSkeleton() {
+function NoticeListSkeleton(props: { itemLabel: string }) {
 	const rows = ["first", "second", "third", "fourth", "fifth", "sixth"];
 	return (
-		<div aria-label="正在读取通知" className="divide-y divide-border" role="status">
+		<div aria-label={`正在读取${props.itemLabel}`} className="divide-y divide-border" role="status">
 			{rows.map((row) => (
 				<div
 					className="grid min-h-28 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 px-2 py-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:gap-x-6"

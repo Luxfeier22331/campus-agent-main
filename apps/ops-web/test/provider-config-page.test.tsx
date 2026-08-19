@@ -4,13 +4,17 @@ import { OpsWebApp } from "../src/app/ops-web-app";
 import type { ExecutionModelSettingsStatus } from "../src/shared/ops-contract";
 
 const executionStatus: ExecutionModelSettingsStatus = {
-	etag: "etag-1",
+	embeddingContract: {
+		dimensions: 2560,
+		model: "Qwen3-Embedding-4B",
+		provider: "openai-compatible",
+		transport: "embeddings",
+	},
 	sampledAt: "2026-07-21T01:00:00.000Z",
 	settings: {
 		embedding: {
 			baseUrl: "https://embedding.example.test/v1",
 			credentialConfigured: true,
-			credentialLast4: "demo",
 			kind: "embedding",
 			latestValidation: null,
 			model: "Qwen3-Embedding-4B",
@@ -22,7 +26,6 @@ const executionStatus: ExecutionModelSettingsStatus = {
 		llm: {
 			baseUrl: "https://provider.example.test/v1",
 			credentialConfigured: true,
-			credentialLast4: "demo",
 			kind: "llm",
 			latestValidation: null,
 			model: "primary-model",
@@ -31,11 +34,22 @@ const executionStatus: ExecutionModelSettingsStatus = {
 			updatedAt: "2026-07-21T01:00:00.000Z",
 			updatedBy: "ops@example.test",
 		},
+		notice_classifier: {
+			baseUrl: "https://classifier.example.test/v1",
+			credentialConfigured: true,
+			kind: "notice_classifier",
+			latestValidation: null,
+			model: "deepseek-v4-flash-0731",
+			provider: "openai-compatible",
+			transport: "chat_completions",
+			updatedAt: "2026-07-21T01:00:00.000Z",
+			updatedBy: "ops@example.test",
+		},
 	},
 };
 
 describe("model settings page", () => {
-	it("keeps provider connections editable without exposing index identity", async () => {
+	it("keeps the Embedding vector-space contract read-only", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async () => Response.json(executionStatus)),
@@ -43,18 +57,19 @@ describe("model settings page", () => {
 		render(<OpsWebApp initialPath="/providers" />);
 
 		expect(await screen.findByRole("heading", { name: "模型配置" })).toBeInTheDocument();
-		expect(screen.queryByText("qwen3-embedding-4b@2560-v1")).not.toBeInTheDocument();
-		expect(await screen.findByDisplayValue("Qwen3-Embedding-4B")).toBeEnabled();
+		expect(await screen.findByText("Qwen3-Embedding-4B")).toBeInTheDocument();
+		expect(screen.getByText("2560")).toBeInTheDocument();
+		expect(screen.queryByDisplayValue("Qwen3-Embedding-4B")).not.toBeInTheDocument();
 		for (const button of screen.getAllByRole("button", { name: "保存并验证" })) {
 			expect(button).toBeDisabled();
 		}
-		expect(screen.getAllByText(/当前密钥末尾 demo；留空保持不变/u)).toHaveLength(2);
+		expect(screen.getAllByText("当前密钥已配置；留空保持不变。")).toHaveLength(3);
 
-		expect(screen.getByText("高级设置")).toBeInTheDocument();
+		expect(screen.getAllByText("高级设置")).toHaveLength(2);
 		expect(screen.queryByLabelText("请求超时（秒）")).not.toBeInTheDocument();
 	});
 
-	it("saves an embedding provider and model alias without submitting index identity", async () => {
+	it("saves only the editable Embedding connection", async () => {
 		let savedBody: Record<string, unknown> | undefined;
 		vi.stubGlobal(
 			"fetch",
@@ -67,16 +82,9 @@ describe("model settings page", () => {
 		);
 		render(<OpsWebApp initialPath="/providers" />);
 
-		fireEvent.change(await screen.findByDisplayValue("Qwen3-Embedding-4B"), {
-			target: { value: "provider-embedding-alias" },
+		fireEvent.change(await screen.findByDisplayValue("https://embedding.example.test/v1"), {
+			target: { value: "https://embedding-next.example.test/v1" },
 		});
-		const provider = screen
-			.getAllByRole("combobox")
-			.find((control) => (control as HTMLSelectElement).value === "openai-compatible");
-		if (!provider) {
-			throw new Error("Expected the Embedding provider control.");
-		}
-		fireEvent.change(provider, { target: { value: "openai" } });
 		const save = screen.getAllByRole("button", { name: "保存并验证" })[1];
 		if (!save) {
 			throw new Error("Expected the Embedding save button.");
@@ -85,10 +93,7 @@ describe("model settings page", () => {
 
 		await waitFor(() =>
 			expect(savedBody).toEqual({
-				apiKey: "",
-				baseUrl: "https://embedding.example.test/v1",
-				model: "provider-embedding-alias",
-				provider: "openai",
+				baseUrl: "https://embedding-next.example.test/v1",
 			}),
 		);
 	});
@@ -151,7 +156,7 @@ describe("model settings page", () => {
 		);
 		render(<OpsWebApp initialPath="/providers" />);
 
-		fireEvent.click(await screen.findByRole("button", { name: "获取模型" }));
+		fireEvent.click(await screen.findByRole("button", { name: "获取LLM模型" }));
 
 		const model = await screen.findByRole("combobox", { name: "模型" });
 		expect(model).toHaveValue("primary-model");
@@ -164,33 +169,29 @@ describe("model settings page", () => {
 		});
 	});
 
-	it("treats a failed validation result as a business failure", async () => {
+	it("treats failed save validation as a business failure", async () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-				if (init?.method === "POST") {
-					return Response.json({
-						kind: "llm",
-						validation: {
-							errorCode: "provider_timeout",
-							message: "provider request timed out",
-							status: "failed",
-							validatedAt: "2026-07-21T01:05:00.000Z",
-							validatedBy: "ops@example.test",
-						},
-					});
+				if (init?.method === "PUT") {
+					return Response.json(
+						{ error: { code: "provider_timeout", message: "provider request timed out" } },
+						{ status: 422 },
+					);
 				}
 				return Response.json(executionStatus);
 			}),
 		);
 		render(<OpsWebApp initialPath="/providers" />);
-		const [validate] = await screen.findAllByRole("button", { name: "重新验证" });
-		if (!validate) {
-			throw new Error("Expected a revalidate button.");
+		const baseUrl = await screen.findByDisplayValue("https://provider.example.test/v1");
+		fireEvent.change(baseUrl, { target: { value: "https://provider-next.example.test/v1" } });
+		const [save] = screen.getAllByRole("button", { name: "保存并验证" });
+		if (!save) {
+			throw new Error("Expected a save button.");
 		}
-		fireEvent.click(validate);
+		fireEvent.click(save);
 
-		expect(await screen.findByText(/已保存配置验证未通过/u)).toBeInTheDocument();
-		expect(screen.getByText(/供应商验证超时/u)).toBeInTheDocument();
+		expect(await screen.findByText(/新配置验证未通过，当前配置未更改/u)).toBeInTheDocument();
+		expect(screen.getByText(/provider request timed out/u)).toBeInTheDocument();
 	});
 });

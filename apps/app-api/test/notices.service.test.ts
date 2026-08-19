@@ -30,7 +30,7 @@ function store(): NoticeStore {
 					},
 				],
 				contentHtml: '<p>正文<img src="notice-asset:image:0" alt=""></p>',
-				domain: "campus_operations",
+				category: "campus_operations",
 				externalUrl: null,
 				isExternal: false,
 				noticeId: "358159",
@@ -48,7 +48,7 @@ function store(): NoticeStore {
 		list: vi.fn(async () => ({
 			items: [
 				{
-					domain: "unclassified",
+					category: "unclassified",
 					externalUrl: "https://mp.weixin.qq.com/s/example",
 					isExternal: true,
 					noticeId: "358160",
@@ -75,15 +75,22 @@ describe("notice service", () => {
 	it("builds list options and preserves an external URL", async () => {
 		const noticeStore = store();
 		const service = buildNoticeService({ objectStore: objectStore(), store: noticeStore });
-		const response = await service.list({ page: 2 });
+		const response = await service.list({ page: 2, stream: "notices" });
 
 		expect(response.items[0]).toMatchObject({
-			domain: "unclassified",
+			category: "unclassified",
 			externalUrl: "https://mp.weixin.qq.com/s/example",
 			isExternal: true,
 			noticeId: "358160",
 		});
-		expect(response.filters.domains).toContainEqual({ label: "未分类", value: "unclassified" });
+		expect(response.filters.categories).toContainEqual({
+			label: "校园服务与运行",
+			value: "campus_operations",
+		});
+		expect(response.filters.categories).not.toContainEqual({
+			label: "未分类",
+			value: "unclassified",
+		});
 		expect(response.pagination).toEqual({
 			page: 2,
 			pageSize: 30,

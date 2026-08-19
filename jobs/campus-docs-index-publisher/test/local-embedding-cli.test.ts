@@ -19,14 +19,11 @@ describe("local Campus docs embedding commands", () => {
 			chunkSet,
 			"--base-url",
 			"https://embedding.example/v1",
-			"--model",
-			"Qwen3-Embedding-4B",
 			"--reuse-embedding-set",
 			embeddingSet,
 		])).toEqual({
 			baseUrl: "https://embedding.example/v1",
 			chunkSet,
-			model: "Qwen3-Embedding-4B",
 			reuseEmbeddingSet: embeddingSet,
 		});
 	});
@@ -59,6 +56,14 @@ describe("local Campus docs embedding commands", () => {
 		expect(() => parseLocalEmbeddingCommand([
 			"--chunk-set",
 			chunkSet,
+		])).toThrow("Usage: build-embeddings");
+		expect(() => parseLocalEmbeddingCommand([
+			"--chunk-set",
+			chunkSet,
+			"--base-url",
+			"https://embedding.example/v1",
+			"--model",
+			"other-model",
 		])).toThrow("Usage: build-embeddings");
 	});
 

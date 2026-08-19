@@ -9,23 +9,23 @@ import (
 )
 
 const (
-	defaultAgentRuntimeDeadlineMS      = 90_000
-	defaultAgentRuntimeInputCharLimit  = 8_000
-	defaultAgentRuntimeMaxOutputTokens = 2_048
-	defaultMaxConcurrentAnswers        = 8
-	defaultMemoryContextCharBudget     = 2_500
-	defaultMemoryRecallLimit           = 8
-	defaultMemoryRecallMaxTokens       = 2_500
-	defaultMemoryTimeoutSeconds        = 90
-	defaultQueueCapacity               = 24
-	defaultQueueTimeoutMS              = 3_000
-	defaultRequestBodyLimitBytes       = 1_048_576
-	defaultRequestTimeoutMS            = 95_000
-	defaultShutdownGraceMS             = 95_000
-	fixedHTTPHost                      = "0.0.0.0"
-	fixedHTTPPort                      = 8000
-	fixedProviderConfigKeyringPath     = "/run/campus-agent/provider-config/keyring.json"
-	fixedTemporalWorkflowTimeoutSec    = 900
+	defaultAgentRuntimeDeadlineMS        = 90_000
+	defaultAgentRuntimeInputCharLimit    = 8_000
+	defaultAgentRuntimeMaxOutputTokens   = 2_048
+	defaultMaxConcurrentAnswers          = 8
+	defaultMemoryContextCharBudget       = 2_500
+	defaultMemoryRecallLimit             = 8
+	defaultMemoryRecallMaxTokens         = 2_500
+	defaultMemoryTimeoutSeconds          = 90
+	defaultQueueCapacity                 = 24
+	defaultQueueTimeoutMS                = 3_000
+	defaultRequestBodyLimitBytes         = 1_048_576
+	defaultRequestTimeoutMS              = 95_000
+	defaultShutdownGraceMS               = 95_000
+	fixedHTTPHost                        = "0.0.0.0"
+	fixedHTTPPort                        = 8000
+	fixedProviderConfigEncryptionKeyPath = "/run/campus-agent/provider-config/encryption.key"
+	fixedTemporalWorkflowTimeoutSec      = 900
 )
 
 type Config struct {
@@ -57,7 +57,7 @@ type Config struct {
 	AgentRuntimeContextCharLimit            int
 	ProductCallbackBaseURL                  string
 	ProductCallbackTimeoutMS                int
-	ProviderConfigKeyringPath               string
+	ProviderConfigEncryptionKeyPath         string
 	QdrantURL                               string
 	QdrantReadOnlyAPIKey                    string
 	QdrantTLSCACertPath                     string
@@ -150,7 +150,7 @@ func loadFromEnv() (Config, error) {
 		AgentRuntimeContextCharLimit:            16_000,
 		ProductCallbackBaseURL:                  strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
 		ProductCallbackTimeoutMS:                1_000,
-		ProviderConfigKeyringPath:               fixedProviderConfigKeyringPath,
+		ProviderConfigEncryptionKeyPath:         fixedProviderConfigEncryptionKeyPath,
 		QdrantURL:                               strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantReadOnlyAPIKey:                    strings.TrimSpace(values.QdrantReadOnlyAPIKey),
 		QdrantTLSCACertPath:                     strings.TrimSpace(values.QdrantTLSCACertPath),

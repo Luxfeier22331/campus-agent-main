@@ -1,5 +1,6 @@
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
 import { describe, expect, it, vi } from "vitest";
+import type { SourceCollectorObjectStore } from "../../../src/object-store.js";
 import type { InternalPortalNoticeMetaStore } from "../src/notice-meta-store.js";
 import {
 	backfillInternalPortalNotices,
@@ -134,6 +135,93 @@ describe("notice runner", () => {
 
 		expect(sourceStore.sources.map((item) => item.notice_id)).toEqual([105]);
 		expect(result.state.headNoticeId).toBe(105);
+	});
+
+	it("collects images and attachments before advancing state", async () => {
+		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
+		const sourceStore = new MemorySourceStore();
+		const objectStore = new MemoryResourceObjectStore();
+		const fetchNoticeDetail = vi.fn(async () => detailWithResources(101));
+
+		const result = await syncInternalPortalNotices(
+			runnerInput({
+				apiContext: resourceApiContext(),
+				fetchNoticeDetail,
+				fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
+				objectStore,
+				sourceStore,
+				stateStore,
+			}),
+		);
+
+		expect(objectStore.writes.sort()).toEqual([
+			"internal_portal/notices/101/attachments/0",
+			"internal_portal/notices/101/images/0",
+		]);
+		expect(result).toMatchObject({
+			noticeIds: [101],
+			resources: {
+				attachmentsDownloaded: 1,
+				imagesDownloaded: 1,
+			},
+		});
+		expect(stateStore.saveCalls).toBe(1);
+		expect(result.state.headNoticeId).toBe(101);
+	});
+
+	it("reuses an existing source while filling its missing resources", async () => {
+		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
+		const sourceStore = new MemorySourceStore([sourceWithResources(101)]);
+		const objectStore = new MemoryResourceObjectStore();
+		const fetchNoticeDetail = vi.fn();
+
+		const result = await syncInternalPortalNotices(
+			runnerInput({
+				apiContext: resourceApiContext(),
+				fetchNoticeDetail,
+				fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
+				objectStore,
+				sourceStore,
+				stateStore,
+			}),
+		);
+
+		expect(fetchNoticeDetail).not.toHaveBeenCalled();
+		expect(result).toMatchObject({
+			objectsReused: 1,
+			objectsWritten: 0,
+			resources: { attachmentsDownloaded: 1, imagesDownloaded: 1 },
+		});
+	});
+
+	it("does not advance state after a resource failure and reruns without detail fetch", async () => {
+		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
+		const sourceStore = new MemorySourceStore();
+		const objectStore = new MemoryResourceObjectStore();
+		objectStore.failWrites = true;
+		const fetchNoticeDetail = vi.fn(async () => detailWithResources(101));
+		const input = runnerInput({
+			apiContext: resourceApiContext(),
+			fetchNoticeDetail,
+			fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
+			objectStore,
+			sourceStore,
+			stateStore,
+		});
+
+		await expect(syncInternalPortalNotices(input)).rejects.toThrow("resource write failed");
+		expect(stateStore.saveCalls).toBe(0);
+		expect(sourceStore.sources).toHaveLength(1);
+
+		objectStore.failWrites = false;
+		const rerun = await syncInternalPortalNotices(input);
+
+		expect(fetchNoticeDetail).toHaveBeenCalledOnce();
+		expect(rerun.state.headNoticeId).toBe(101);
+		expect(rerun.resources).toMatchObject({
+			attachmentsDownloaded: 1,
+			imagesDownloaded: 1,
+		});
 	});
 
 	it("backfills selected notices and skips details for an existing v2 object", async () => {
@@ -278,8 +366,13 @@ class MemorySourceStore implements InternalPortalNoticeSourceStore {
 		this.sources = structuredClone(sources);
 	}
 
+	async get(noticeId: number): Promise<InternalPortalNoticeSource | null> {
+		const value = this.sources.find((candidate) => candidate.notice_id === noticeId);
+		return value ? structuredClone(value) : null;
+	}
+
 	async has(noticeId: number): Promise<boolean> {
-		return this.sources.some((candidate) => candidate.notice_id === noticeId);
+		return (await this.get(noticeId)) !== null;
 	}
 
 	async put(sourceValue: InternalPortalNoticeSource): Promise<"reused" | "written"> {
@@ -291,6 +384,46 @@ class MemorySourceStore implements InternalPortalNoticeSourceStore {
 	}
 }
 
+class MemoryResourceObjectStore implements SourceCollectorObjectStore {
+	readonly existingKeys = new Set<string>();
+	readonly sourceBucket = "campus-agent-source";
+	readonly writes: string[] = [];
+	failWrites = false;
+
+	async createOrVerifyObject(): Promise<{ byteSize: number; contentSha256: string }> {
+		return { byteSize: 0, contentSha256: "a" };
+	}
+
+	async createOrVerifyStream(input: {
+		body: AsyncIterable<Uint8Array>;
+		byteSize: number;
+		contentSha256: string;
+		key: string;
+	}): Promise<{ byteSize: number; contentSha256: string }> {
+		for await (const _chunk of input.body) {
+			// Drain the stream before the test double completes.
+		}
+		if (this.failWrites) {
+			throw new Error("resource write failed");
+		}
+		this.writes.push(input.key);
+		this.existingKeys.add(input.key);
+		return { byteSize: input.byteSize, contentSha256: input.contentSha256 };
+	}
+
+	async getObject(): Promise<Uint8Array> {
+		return new Uint8Array();
+	}
+
+	async getObjectIfExists(input: { key: string }): Promise<Uint8Array | null> {
+		return this.existingKeys.has(input.key) ? new Uint8Array([1]) : null;
+	}
+
+	async putObject(): Promise<{ byteSize: number; contentSha256: string }> {
+		return { byteSize: 0, contentSha256: "a" };
+	}
+}
+
 function runnerInput(overrides: Partial<NoticeRunnerInput> = {}): NoticeRunnerInput {
 	return {
 		apiContext,
@@ -299,9 +432,27 @@ function runnerInput(overrides: Partial<NoticeRunnerInput> = {}): NoticeRunnerIn
 		fetchNoticePage: async () => page([], 0),
 		metaStore: new MemoryMetaStore(),
 		now: () => now,
+		objectStore: memoryObjectStore(),
+		portalHost: "portal.example.edu",
 		sourceStore: new MemorySourceStore(),
 		stateStore: new MemoryStateStore(),
 		...overrides,
+	};
+}
+
+function memoryObjectStore(): SourceCollectorObjectStore {
+	return {
+		createOrVerifyObject: async () => ({ byteSize: 0, contentSha256: "a" }),
+		createOrVerifyStream: async (input) => {
+			for await (const _chunk of input.body) {
+				// Drain the stream before returning from the test double.
+			}
+			return { byteSize: input.byteSize, contentSha256: input.contentSha256 };
+		},
+		getObject: async () => new Uint8Array(),
+		getObjectIfExists: async () => null,
+		putObject: async () => ({ byteSize: 0, contentSha256: "a" }),
+		sourceBucket: "campus-agent-source",
 	};
 }
 
@@ -374,6 +525,48 @@ function detailFetcher() {
 	}));
 }
 
+function detailWithResources(noticeId: number) {
+	return {
+		datas: {
+			notice_info: {
+				notice_annext: [
+					{
+						notice_annex_id: "annex-1",
+						notice_annex_name: "附件.pdf",
+						notice_annex_path: "/files/one.pdf",
+						suffix: "pdf",
+						type: "application/pdf",
+					},
+				],
+				notice_content: '<p>正文<img src="/images/one.png"></p>',
+				notice_id: noticeId,
+				notice_release_time: "2026-08-03 11:57",
+				notice_title: `通知 ${noticeId}`,
+			},
+		},
+		state: true,
+	};
+}
+
+function resourceApiContext(): ApiRequestContextLike {
+	return {
+		get: vi.fn(async (url: string) => ({
+			bodyStream: async function* () {
+				yield Buffer.from(url);
+			},
+			headers: () => ({
+				"content-length": String(Buffer.byteLength(url)),
+				"content-type": "application/octet-stream",
+			}),
+			ok: () => true,
+			status: () => 200,
+			statusText: () => "OK",
+			text: async () => "",
+		})),
+		post: vi.fn(),
+	};
+}
+
 function source(noticeId: number, noticeType: number): InternalPortalNoticeSource {
 	return {
 		attachments: [],
@@ -386,6 +579,22 @@ function source(noticeId: number, noticeType: number): InternalPortalNoticeSourc
 		notice_type: noticeType,
 		organization_id: "00007",
 		schema_version: "internal_portal_notice_source.v2",
+	};
+}
+
+function sourceWithResources(noticeId: number): InternalPortalNoticeSource {
+	return {
+		...source(noticeId, 5),
+		attachments: [
+			{
+				notice_annex_id: "annex-1",
+				notice_annex_name: "附件.pdf",
+				notice_annex_path: "/files/one.pdf",
+				suffix: "pdf",
+				type: "application/pdf",
+			},
+		],
+		notice_content_html: '<p>正文<img src="/images/one.png"></p>',
 	};
 }
 

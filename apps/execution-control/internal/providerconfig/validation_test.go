@@ -73,6 +73,43 @@ func TestValidateSnapshotUsesConfiguredPromptTransport(t *testing.T) {
 	}
 }
 
+func TestValidateNoticeClassifierUsesConfiguredPromptTransport(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/chat/completions" {
+			t.Fatalf("request path = %q, want /chat/completions", request.URL.Path)
+		}
+		response.Header().Set("content-type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]any{
+			"choices": []any{map[string]any{"message": map[string]any{"content": "ok"}}},
+		})
+	}))
+	defer server.Close()
+
+	result := Validate(context.Background(), RuntimeSetting{
+		APIKey: "secret", BaseURL: server.URL, Kind: KindNoticeClassifier,
+		Model: "notice-model", Provider: "openai-compatible", Transport: "chat_completions",
+	})
+	if result.Status != "passed" {
+		t.Fatalf("notice classifier validation result = %#v", result)
+	}
+}
+
+func TestValidateResponsesAcceptsOutputText(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		response.Header().Set("content-type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]any{"output_text": "OK"})
+	}))
+	defer server.Close()
+
+	result := Validate(context.Background(), RuntimeSetting{
+		APIKey: "secret", BaseURL: server.URL, Kind: KindNoticeClassifier,
+		Model: "notice-model", Provider: "openai-compatible", Transport: "responses",
+	})
+	if result.Status != "passed" {
+		t.Fatalf("responses output_text validation result = %#v", result)
+	}
+}
+
 func TestValidateSnapshotUsesEmbeddingsTransportAndObservesDimensions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/embeddings" {
@@ -82,11 +119,16 @@ func TestValidateSnapshotUsesEmbeddingsTransportAndObservesDimensions(t *testing
 		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode request body: %v", err)
 		}
-		if _, configured := payload["dimensions"]; configured {
-			t.Fatalf("validation request must not configure dimensions: %#v", payload)
+		if payload["dimensions"] != float64(CanonicalEmbeddingDimensions) {
+			t.Fatalf("validation dimensions = %#v, want %d", payload["dimensions"], CanonicalEmbeddingDimensions)
+		}
+		if payload["model"] != CanonicalEmbeddingModel {
+			t.Fatalf("validation model = %#v, want %s", payload["model"], CanonicalEmbeddingModel)
 		}
 		response.Header().Set("content-type", "application/json")
-		_, _ = response.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3]}]}`))
+		_ = json.NewEncoder(response).Encode(map[string]any{
+			"data": []any{map[string]any{"embedding": make([]float64, CanonicalEmbeddingDimensions)}},
+		})
 	}))
 	defer server.Close()
 
@@ -94,13 +136,51 @@ func TestValidateSnapshotUsesEmbeddingsTransportAndObservesDimensions(t *testing
 		APIKey:    "secret",
 		BaseURL:   server.URL,
 		Kind:      KindEmbedding,
-		Model:     "embedding-1",
-		Provider:  "openai-compatible",
-		Transport: "embeddings",
+		Model:     CanonicalEmbeddingModel,
+		Provider:  CanonicalEmbeddingProvider,
+		Transport: CanonicalEmbeddingTransport,
 	})
 
-	if result.Status != "passed" || result.ObservedDimensions != 3 {
+	if result.Status != "passed" || result.ObservedDimensions != CanonicalEmbeddingDimensions {
 		t.Fatalf("validation result = %#v", result)
+	}
+}
+
+func TestValidateEmbeddingRejectsWrongVectorDimensions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		_, _ = response.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3]}]}`))
+	}))
+	defer server.Close()
+
+	result := Validate(context.Background(), RuntimeSetting{
+		APIKey: "secret", BaseURL: server.URL, Kind: KindEmbedding,
+		Model: CanonicalEmbeddingModel, Provider: CanonicalEmbeddingProvider,
+		Transport: CanonicalEmbeddingTransport,
+	})
+	if result.Status != "failed" || result.ErrorCode != "invalid_response" || result.ObservedDimensions != 3 {
+		t.Fatalf("validation result = %#v", result)
+	}
+}
+
+func TestValidateRuntimeSettingRejectsEmbeddingIdentityDrift(t *testing.T) {
+	canonical := RuntimeSetting{
+		APIKey: "secret", BaseURL: "https://embedding.example/v1", Kind: KindEmbedding,
+		Model: CanonicalEmbeddingModel, Provider: CanonicalEmbeddingProvider,
+		Transport: CanonicalEmbeddingTransport,
+	}
+	if err := ValidateRuntimeSetting(canonical, KindEmbedding); err != nil {
+		t.Fatalf("canonical embedding setting was rejected: %v", err)
+	}
+	for _, mutate := range []func(*RuntimeSetting){
+		func(setting *RuntimeSetting) { setting.Model = "operator-selected-model" },
+		func(setting *RuntimeSetting) { setting.Provider = "openai" },
+		func(setting *RuntimeSetting) { setting.Transport = "responses" },
+	} {
+		candidate := canonical
+		mutate(&candidate)
+		if err := ValidateRuntimeSetting(candidate, KindEmbedding); err == nil {
+			t.Fatalf("embedding identity drift was accepted: %#v", candidate)
+		}
 	}
 }
 
@@ -117,8 +197,8 @@ func TestValidateSnapshotRejectsUnsupportedTransportBeforeCallingProvider(t *tes
 			Provider: "openai-compatible", Transport: "legacy_prompt",
 		},
 		{
-			APIKey: "secret", BaseURL: server.URL, Kind: KindEmbedding, Model: "embedding-1",
-			Provider: "openai-compatible", Transport: "responses",
+			APIKey: "secret", BaseURL: server.URL, Kind: KindEmbedding, Model: CanonicalEmbeddingModel,
+			Provider: CanonicalEmbeddingProvider, Transport: "responses",
 		},
 	}
 

@@ -7,7 +7,6 @@ import {
 	ModelDiscoveryResponseSchema,
 	type ModelSettingKindSchema,
 	type ModelSettingUpdate,
-	ModelSettingValidationResponseSchema,
 } from "../shared/ops-contract.ts";
 
 type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
@@ -42,7 +41,6 @@ export function createProviderConfigAdminClient(
 		options: {
 			actorId?: string;
 			body?: unknown;
-			etag?: string;
 			method: "GET" | "POST" | "PUT";
 		},
 	) {
@@ -58,7 +56,6 @@ export function createProviderConfigAdminClient(
 					authorization: `Bearer ${token}`,
 					...(options.actorId ? { "x-ops-actor-id": options.actorId } : {}),
 					...(options.body === undefined ? {} : { "content-type": "application/json" }),
-					...(options.etag ? { "if-match": options.etag } : {}),
 				},
 				method: options.method,
 				signal: AbortSignal.timeout(15_000),
@@ -82,8 +79,12 @@ export function createProviderConfigAdminClient(
 	}
 
 	return {
-		discoverModels(body: z.input<typeof ModelDiscoveryRequestSchema>, actorId: string) {
-			return request("/llm/models", {
+		discoverModels(
+			body: z.input<typeof ModelDiscoveryRequestSchema>,
+			actorId: string,
+			kind: "llm" | "notice_classifier" = "llm",
+		) {
+			return request(`/${kind}/models`, {
 				actorId,
 				body: ModelDiscoveryRequestSchema.parse(body),
 				method: "POST",
@@ -92,7 +93,7 @@ export function createProviderConfigAdminClient(
 		async getStatus() {
 			return ExecutionModelSettingsStatusSchema.parse(await request("", { method: "GET" }));
 		},
-		async put(kind: ModelSettingKind, body: ModelSettingUpdate, actorId: string, etag: string) {
+		async put(kind: ModelSettingKind, body: ModelSettingUpdate, actorId: string) {
 			const parsed =
 				kind === "embedding"
 					? EmbeddingModelSettingUpdateSchema.parse(body)
@@ -101,14 +102,8 @@ export function createProviderConfigAdminClient(
 				await request(`/${kind}`, {
 					actorId,
 					body: parsed,
-					etag,
 					method: "PUT",
 				}),
-			);
-		},
-		validate(kind: ModelSettingKind, actorId: string) {
-			return request(`/${kind}/validate`, { actorId, method: "POST" }).then((body) =>
-				ModelSettingValidationResponseSchema.parse(body),
 			);
 		},
 	};

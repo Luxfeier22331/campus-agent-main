@@ -8,4 +8,5 @@ resources:
   - migration-job.yaml
   - availability.yaml
   - ingestion-control.yaml
-  - deployments.yaml
+  - internal-portal-check.yaml
+  - notice-classifier.yaml

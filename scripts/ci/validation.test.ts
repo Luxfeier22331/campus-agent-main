@@ -55,7 +55,7 @@ test("validation profiles have one fail-closed registry", () => {
 });
 
 test("docs-only changes keep automatic evidence empty", () => {
-	const plan = validationPlanFromScope(scope(["docs/architecture/current.md"]), {
+	const plan = validationPlanFromScope(scope(["docs/architecture/system/product-runtime.md"]), {
 		mode: "pull-request",
 	});
 	assert.deepEqual(plan.affectedPackages, []);
@@ -85,7 +85,7 @@ test("keeps native, database, infrastructure, OTel, and browser checks manual", 
 		"packages/ingestion-kernels-rs/src/lib.rs",
 		"packages/ragas-runner/tests/test_runner.py",
 		"apps/app-api/drizzle/0001.sql",
-		"apps/ingestion-control/src/postgres-store.ts",
+		"apps/ingestion-control/src/internal-portal-credential-store.ts",
 		"infra/k8s/data-postgres/base/service.yaml",
 		"infra/otel/collector-local-debug.yaml",
 		"apps/campus-web/src/routes/index.tsx",
@@ -139,4 +139,21 @@ test("selects static surfaces from renamed and deleted paths", () => {
 		{ mode: "pull-request" },
 	);
 	assert.deepEqual(plan.lightSurfaces, ["config", "yaml", "sql", "shell"]);
+});
+
+test("keeps YAML validation when YAML and pnpm lock files both change", () => {
+	assert.deepEqual(profiles(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), ["toolchain"]);
+	assert.deepEqual(
+		validationPlanFromScope(scope(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), {
+			mode: "pull-request",
+		}).lightSurfaces,
+		["yaml"],
+	);
+});
+
+test("does not select YAML lint for a pnpm lock-only change", () => {
+	assert.deepEqual(
+		validationPlanFromScope(scope(["pnpm-lock.yaml"]), { mode: "pull-request" }).lightSurfaces,
+		[],
+	);
 });

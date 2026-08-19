@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
@@ -28,7 +29,7 @@ func Validate(ctx context.Context, setting RuntimeSetting) ValidationResult {
 	defer cancel()
 	client := &http.Client{Timeout: ValidationTimeout}
 	switch setting.Kind {
-	case KindLLM:
+	case KindLLM, KindNoticeClassifier:
 		return validateLLM(validationCtx, client, setting)
 	case KindEmbedding:
 		return validateEmbedding(validationCtx, client, setting)
@@ -44,13 +45,25 @@ func validateSettingShape(setting RuntimeSetting) error {
 	if strings.TrimSpace(setting.Model) == "" {
 		return errors.New("model is required")
 	}
-	if setting.Kind == KindEmbedding && setting.Transport != "embeddings" {
-		return errors.New("embedding transport must be embeddings")
+	if setting.Kind == KindEmbedding && setting.Transport != CanonicalEmbeddingTransport {
+		return fmt.Errorf("embedding transport must be %s", CanonicalEmbeddingTransport)
 	}
-	if setting.Kind == KindLLM && setting.Transport != "responses" && setting.Transport != "chat_completions" {
-		return errors.New("llm transport must be responses or chat_completions")
+	if setting.Kind == KindEmbedding {
+		if setting.Provider != CanonicalEmbeddingProvider {
+			return fmt.Errorf("embedding provider must be %s", CanonicalEmbeddingProvider)
+		}
+		if setting.Model != CanonicalEmbeddingModel {
+			return fmt.Errorf("embedding model must be %s", CanonicalEmbeddingModel)
+		}
+	}
+	if isTextModelKind(setting.Kind) && setting.Transport != "responses" && setting.Transport != "chat_completions" {
+		return errors.New("text model transport must be responses or chat_completions")
 	}
 	return nil
+}
+
+func isTextModelKind(kind Kind) bool {
+	return kind == KindLLM || kind == KindNoticeClassifier
 }
 
 func validateProviderConnection(setting RuntimeSetting) error {
@@ -143,30 +156,47 @@ func validateLLM(ctx context.Context, client *http.Client, setting RuntimeSettin
 		if result["choices"] == nil {
 			return ValidationResult{ErrorCode: "invalid_response", Message: "provider response is missing choices", Status: "failed"}
 		}
-	} else if result["id"] == nil && result["output"] == nil {
+	} else if result["id"] == nil && result["output"] == nil && !hasNonEmptyString(result["output_text"]) {
 		return ValidationResult{ErrorCode: "invalid_response", Message: "provider response is missing output", Status: "failed"}
 	}
 	return ValidationResult{Message: "llm provider validation passed", Status: "passed"}
 }
 
+func hasNonEmptyString(value any) bool {
+	text, ok := value.(string)
+	return ok && strings.TrimSpace(text) != ""
+}
+
 func validateEmbedding(ctx context.Context, client *http.Client, setting RuntimeSetting) ValidationResult {
 	result, err := callProvider(ctx, client, setting, "/embeddings", map[string]any{
-		"input": "campus-agent provider validation",
-		"model": setting.Model,
+		"dimensions": CanonicalEmbeddingDimensions,
+		"input":      []string{"campus-agent provider validation"},
+		"model":      CanonicalEmbeddingModel,
 	})
 	if err != nil {
 		return failedValidation(err)
 	}
 	data, ok := result["data"].([]any)
-	if !ok || len(data) == 0 {
+	if !ok || len(data) != 1 {
 		return ValidationResult{ErrorCode: "invalid_response", Message: "embedding response is missing data", Status: "failed"}
 	}
 	item, _ := data[0].(map[string]any)
 	embedding, _ := item["embedding"].([]any)
-	if len(embedding) == 0 {
-		return ValidationResult{ErrorCode: "invalid_response", Message: "embedding response vector is empty", Status: "failed"}
+	if len(embedding) != CanonicalEmbeddingDimensions {
+		return ValidationResult{
+			ErrorCode:          "invalid_response",
+			Message:            fmt.Sprintf("embedding response dimensions = %d, want %d", len(embedding), CanonicalEmbeddingDimensions),
+			ObservedDimensions: len(embedding),
+			Status:             "failed",
+		}
 	}
-	return ValidationResult{Message: "embedding provider validation passed", ObservedDimensions: len(embedding), Status: "passed"}
+	for _, value := range embedding {
+		number, ok := value.(float64)
+		if !ok || math.IsNaN(number) || math.IsInf(number, 0) {
+			return ValidationResult{ErrorCode: "invalid_response", Message: "embedding response vector contains a non-finite value", Status: "failed"}
+		}
+	}
+	return ValidationResult{Message: "embedding provider validation passed", ObservedDimensions: CanonicalEmbeddingDimensions, Status: "passed"}
 }
 
 func callProvider(

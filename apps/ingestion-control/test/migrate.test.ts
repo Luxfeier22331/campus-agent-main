@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { applyIngestionControlMigrations, type IngestionControlMigration } from "../src/migrate";
+import {
+	applyIngestionControlMigrations,
+	assertIngestionControlMigrationRole,
+	type IngestionControlMigration,
+} from "../src/migrate";
 
 const migration: IngestionControlMigration = {
 	contentSha256: "a".repeat(64),
@@ -8,6 +12,13 @@ const migration: IngestionControlMigration = {
 };
 
 describe("ingestion-control migrations", () => {
+	it("accepts the schema owner without requiring runtime-role membership", () => {
+		expect(() => assertIngestionControlMigrationRole("campus_agent")).not.toThrow();
+		expect(() => assertIngestionControlMigrationRole("ingestion_control")).toThrow(
+			"cannot run as the runtime role",
+		);
+	});
+
 	it("applies and journals a new migration in one transaction", async () => {
 		const calls: Array<{ params?: unknown[]; sql: string }> = [];
 		const applied = await applyIngestionControlMigrations(
@@ -29,6 +40,11 @@ describe("ingestion-control migrations", () => {
 			expect.stringContaining("SELECT content_sha256"),
 			migration.sql,
 			expect.stringContaining("INSERT INTO ingestion_control.schema_migrations"),
+			"REVOKE ALL ON SCHEMA ingestion_control FROM PUBLIC, ingestion_control",
+			"GRANT USAGE ON SCHEMA ingestion_control TO ingestion_control",
+			"REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA ingestion_control FROM PUBLIC, ingestion_control",
+			"REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA ingestion_control FROM PUBLIC, ingestion_control",
+			expect.stringContaining("ingestion_control.internal_portal_credentials"),
 			"COMMIT",
 		]);
 	});

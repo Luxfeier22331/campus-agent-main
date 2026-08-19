@@ -1,44 +1,61 @@
 import { z } from "zod";
 
-export const NOTICE_DOMAINS = [
-	"academic_information",
+export const NOTICE_CATEGORIES = [
+	"research_affairs",
+	"lectures_forums",
 	"teaching_affairs",
-	"academic_achievement",
-	"campus_news",
-	"student_support",
-	"student_development",
-	"discipline_competition",
+	"student_affairs",
+	"competitions",
 	"admissions",
 	"international_programs",
 	"employment",
 	"campus_operations",
 	"human_resources",
-	"external_cooperation",
-	"procurement",
 	"governance",
-	"culture_sports",
+	"procurement",
+	"campus_activities",
+	"campus_news",
 	"unclassified",
 ] as const;
 
-export const NOTICE_DOMAIN_LABELS = {
-	academic_information: "学术信息",
-	teaching_affairs: "教学事务",
-	academic_achievement: "学术成果",
-	campus_news: "校园新闻",
-	student_support: "学生资助",
-	student_development: "学生成长事务",
-	discipline_competition: "学科竞赛",
-	admissions: "招生",
+export const NOTICE_CATEGORY_LABELS = {
+	research_affairs: "科研项目与服务",
+	lectures_forums: "讲座与学术交流",
+	teaching_affairs: "教学与学籍",
+	student_affairs: "学生事务",
+	competitions: "竞赛与评选",
+	admissions: "招生与升学",
 	international_programs: "国际项目",
-	employment: "就业",
-	campus_operations: "校园运行",
-	human_resources: "人事",
-	external_cooperation: "对外合作",
-	procurement: "采购",
-	governance: "治理与制度",
-	culture_sports: "文体活动",
+	employment: "就业与岗位",
+	campus_operations: "校园服务与运行",
+	human_resources: "人事事务",
+	governance: "校务治理",
+	procurement: "采购招标",
+	campus_activities: "校园活动",
+	campus_news: "校园动态",
 	unclassified: "未分类",
-} as const satisfies Record<(typeof NOTICE_DOMAINS)[number], string>;
+} as const satisfies Record<(typeof NOTICE_CATEGORIES)[number], string>;
+
+export type NoticeCategory = (typeof NOTICE_CATEGORIES)[number];
+
+export const NOTICE_FILTER_CATEGORIES = [
+	"research_affairs",
+	"lectures_forums",
+	"teaching_affairs",
+	"student_affairs",
+	"competitions",
+	"admissions",
+	"international_programs",
+	"employment",
+	"campus_operations",
+	"human_resources",
+	"governance",
+	"procurement",
+	"campus_activities",
+] as const satisfies readonly NoticeCategory[];
+export type NoticeFilterCategory = (typeof NOTICE_FILTER_CATEGORIES)[number];
+
+export const NOTICE_STREAMS = ["notices", "campus_news"] as const;
 
 export const NOTICE_CONTENT_ALLOWED_TAGS = [
 	"A",
@@ -86,8 +103,10 @@ export const NOTICE_CONTENT_ALLOWED_ATTRIBUTES = {
 	Record<(typeof NOTICE_CONTENT_ALLOWED_TAGS)[number], readonly string[]>
 >;
 
-export const NoticeDomainSchema = z.enum(NOTICE_DOMAINS);
-export type NoticeDomain = z.infer<typeof NoticeDomainSchema>;
+export const NoticeCategorySchema = z.enum(NOTICE_CATEGORIES);
+export const NoticeFilterCategorySchema = z.enum(NOTICE_FILTER_CATEGORIES);
+export const NoticeStreamSchema = z.enum(NOTICE_STREAMS);
+export type NoticeStream = z.infer<typeof NoticeStreamSchema>;
 
 const PositiveDecimalIdSchema = z.string().regex(/^[1-9][0-9]*$/u);
 const ByteSizeSchema = z.string().regex(/^(0|[1-9][0-9]*)$/u);
@@ -102,10 +121,10 @@ const HttpUrlSchema = z
 
 export const NoticeIdSchema = PositiveDecimalIdSchema;
 
-export const NoticeDomainOptionSchema = z
+export const NoticeCategoryOptionSchema = z
 	.object({
 		label: NonEmptyLabelSchema,
-		value: NoticeDomainSchema,
+		value: NoticeFilterCategorySchema,
 	})
 	.strict();
 
@@ -125,7 +144,7 @@ export const NoticeOrganizationOptionSchema = z
 
 const NoticeMetadataBaseSchema = z
 	.object({
-		domain: NoticeDomainSchema,
+		category: NoticeCategorySchema,
 		noticeId: NoticeIdSchema,
 		noticeType: z.object({ id: z.number().int().positive(), name: NonEmptyLabelSchema }).strict(),
 		organization: z
@@ -152,7 +171,7 @@ export const NoticeListResponseSchema = z
 	.object({
 		filters: z
 			.object({
-				domains: z.array(NoticeDomainOptionSchema),
+				categories: z.array(NoticeCategoryOptionSchema),
 				noticeTypes: z.array(NoticeTypeOptionSchema),
 				organizations: z.array(NoticeOrganizationOptionSchema),
 			})
@@ -194,6 +213,14 @@ export const NoticeDetailResponseSchema = NoticeMetadataBaseSchema.extend({
 	isExternal: z.literal(false),
 }).strict();
 
+export const NoticeClassificationArtifactSchema = z
+	.object({
+		category: NoticeCategorySchema,
+		notice_id: z.number().int().positive().safe(),
+		schema_version: z.literal("notice_classification.v1"),
+	})
+	.strict();
+
 const OptionalQueryTextSchema = z.string().trim().min(1);
 const PageQuerySchema = z
 	.string()
@@ -207,7 +234,7 @@ const NoticeTypeQuerySchema = z
 
 export const NoticeListRequestQuerySchema = z
 	.object({
-		domain: NoticeDomainSchema.optional(),
+		category: NoticeFilterCategorySchema.optional(),
 		from: z.iso.date().optional(),
 		is_external: z
 			.enum(["true", "false"])
@@ -217,6 +244,7 @@ export const NoticeListRequestQuerySchema = z
 		organization_id: OptionalQueryTextSchema.max(500).optional(),
 		page: PageQuerySchema.optional().default(1),
 		q: OptionalQueryTextSchema.max(100).optional(),
+		stream: NoticeStreamSchema.optional().default("notices"),
 		to: z.iso.date().optional(),
 	})
 	.strict()
@@ -228,11 +256,19 @@ export const NoticeListRequestQuerySchema = z
 				path: ["from"],
 			});
 		}
+		if (value.stream === "campus_news" && value.category) {
+			context.addIssue({
+				code: "custom",
+				message: "校园动态视图不接受分类筛选。",
+				path: ["category"],
+			});
+		}
 	});
 
 export type NoticeAssetMetadata = z.infer<typeof NoticeAssetMetadataSchema>;
 export type NoticeAttachmentMetadata = z.infer<typeof NoticeAttachmentMetadataSchema>;
 export type NoticeDetailResponse = z.infer<typeof NoticeDetailResponseSchema>;
+export type NoticeClassificationArtifact = z.infer<typeof NoticeClassificationArtifactSchema>;
 export type NoticeImageMetadata = z.infer<typeof NoticeImageMetadataSchema>;
 export type NoticeListItem = z.infer<typeof NoticeListItemSchema>;
 export type NoticeListRequestQuery = z.infer<typeof NoticeListRequestQuerySchema>;

@@ -44,6 +44,5 @@ partially_supersedes: ADR-0055
 ## 相关文档
 
 - `../product/ops-web.md`
-- `../architecture/system/ops-observability.md`
 - `../contracts/ops-web/README.md`
 - `adr-0081-observability-planes.md`

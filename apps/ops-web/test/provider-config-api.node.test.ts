@@ -7,9 +7,14 @@ import { ExecutionModelSettingsStatusSchema } from "../src/shared/ops-contract";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 const status = ExecutionModelSettingsStatusSchema.parse({
-	etag: "etag-1",
+	embeddingContract: {
+		dimensions: 2560,
+		model: "Qwen3-Embedding-4B",
+		provider: "openai-compatible",
+		transport: "embeddings",
+	},
 	sampledAt: "2026-07-14T10:00:00.000Z",
-	settings: { embedding: null, llm: null },
+	settings: { embedding: null, llm: null, notice_classifier: null },
 });
 
 describe("ops model settings BFF", () => {
@@ -17,7 +22,7 @@ describe("ops model settings BFF", () => {
 		expect(ExecutionModelSettingsStatusSchema.parse(status)).toEqual(status);
 	});
 
-	it("requires same-origin writes and forwards the hidden ETag", async () => {
+	it("requires same-origin writes and forwards model discovery", async () => {
 		const put = vi.fn().mockResolvedValue(status);
 		const discoverModels = vi.fn().mockResolvedValue({
 			models: ["model-a", "model-b"],
@@ -30,7 +35,6 @@ describe("ops model settings BFF", () => {
 				discoverModels,
 				getStatus: async () => status,
 				put,
-				validate: vi.fn(),
 			},
 		});
 		const body = {
@@ -53,7 +57,6 @@ describe("ops model settings BFF", () => {
 				body: JSON.stringify({ ...body, timeoutMs: 30_000 }),
 				headers: {
 					"content-type": "application/json",
-					"if-match": "etag-1",
 					origin: "https://ops.example.test",
 					"sec-fetch-site": "same-origin",
 				},
@@ -66,14 +69,13 @@ describe("ops model settings BFF", () => {
 			body: JSON.stringify(body),
 			headers: {
 				"content-type": "application/json",
-				"if-match": "etag-1",
 				origin: "https://ops.example.test",
 				"sec-fetch-site": "same-origin",
 			},
 			method: "PUT",
 		});
 		expect(accepted.status).toBe(200);
-		expect(put).toHaveBeenCalledWith("llm", body, "ops@example.test", "etag-1");
+		expect(put).toHaveBeenCalledWith("llm", body, "ops@example.test");
 
 		const catalog = await app.request(
 			"http://ops-web:5178/api/ops/model-settings/execution/llm/models",
@@ -96,7 +98,8 @@ describe("ops model settings BFF", () => {
 			models: ["model-a", "model-b"],
 			sampledAt: "2026-07-14T10:01:00.000Z",
 		});
-		expect(discoverModels).toHaveBeenCalledWith(
+		expect(discoverModels).toHaveBeenNthCalledWith(
+			1,
 			{
 				apiKey: "secret",
 				baseUrl: "https://provider.example.test/v1",
@@ -104,12 +107,40 @@ describe("ops model settings BFF", () => {
 			},
 			"ops@example.test",
 		);
+
+		const classifierCatalog = await app.request(
+			"http://ops-web:5178/api/ops/model-settings/execution/notice_classifier/models",
+			{
+				body: JSON.stringify({
+					apiKey: "classifier-secret",
+					baseUrl: "https://classifier.example.test/v1",
+					provider: "openai-compatible",
+				}),
+				headers: {
+					"content-type": "application/json",
+					origin: "https://ops.example.test",
+					"sec-fetch-site": "same-origin",
+				},
+				method: "POST",
+			},
+		);
+		expect(classifierCatalog.status).toBe(200);
+		expect(discoverModels).toHaveBeenNthCalledWith(
+			2,
+			{
+				apiKey: "classifier-secret",
+				baseUrl: "https://classifier.example.test/v1",
+				provider: "openai-compatible",
+			},
+			"ops@example.test",
+			"notice_classifier",
+		);
 	});
 
-	it("maps execution-control conflicts without exposing its message", async () => {
+	it("maps execution-control failures without exposing its message", async () => {
 		const upstream = new Response(
-			JSON.stringify({ error: { code: "model_settings_conflict", message: "internal detail" } }),
-			{ headers: { "content-type": "application/json" }, status: 409 },
+			JSON.stringify({ error: { code: "model_settings_error", message: "internal detail" } }),
+			{ headers: { "content-type": "application/json" }, status: 503 },
 		);
 		const app = createTestOpsApp({
 			admission: createAllowAllOpsAdmission(),
@@ -120,16 +151,15 @@ describe("ops model settings BFF", () => {
 					throw new ProviderConfigAdminResponseError(upstream);
 				},
 				put: vi.fn(),
-				validate: vi.fn(),
 			},
 		});
 
 		const response = await app.request("http://ops.test/api/ops/model-settings/execution");
-		expect(response.status).toBe(409);
+		expect(response.status).toBe(503);
 		expect(await response.json()).toEqual({
 			error: {
-				code: "OPS_PROVIDER_CONFIG_CONFLICT",
-				message: "在线模型配置已被其他操作更新，请刷新后重试。",
+				code: "OPS_PROVIDER_CONFIG_COMMAND_FAILED",
+				message: "在线模型配置操作失败。",
 				upstreamCode: "model_settings_error",
 			},
 		});

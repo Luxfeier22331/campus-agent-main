@@ -21,7 +21,11 @@ const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "ops_web_schema_owner";
 const OPS_WEB_ROLE = "ops_web";
 const APP_API_ROLE = "app_api";
-const NOLOGIN_ROLES = ["execution_control", "campus_docs_index_publisher"] as const;
+const NOLOGIN_ROLES = [
+	"execution_control",
+	"ingestion_control",
+	"campus_docs_index_publisher",
+] as const;
 const executionControlRoot = fileURLToPath(new URL("../../execution-control", import.meta.url));
 
 export interface OpsWebPostgresContext {
@@ -85,6 +89,7 @@ async function provisionDatabase(
 		for (const role of NOLOGIN_ROLES) {
 			await admin.query(`create role "${role}" nologin`);
 		}
+		await admin.query(`grant "ingestion_control" to "${SCHEMA_OWNER}"`);
 		await admin.query(`alter database "${DATABASE_NAME}" owner to "${SCHEMA_OWNER}"`);
 	} finally {
 		await admin.end();

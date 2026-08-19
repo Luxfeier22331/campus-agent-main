@@ -8,47 +8,47 @@ status: active
 
 ## 边界
 
-该接口按已知文件发布 ID 保存一份门户来源快照。它不扫描范围、不生成 ingestion task、不执行
-正文抽取或物化，也不发布在线文档或切换 Campus Docs 当前索引。
+Source Collector 分页扫描门户文件发布库存，按 ID 保存原始文件和来源 metadata。当前不生成 ingestion
+task 或 workflow，不执行 PDF 解析、OCR、正文抽取、清洗、分类、索引或在线发布。
 
-## 提交
+## 入口
 
-获准的内部调用使用 `POST /internal/ingestion/operations/internal-portal/file-releases`，提供请求 ID
-和最多 50 个不重复的正整数文件发布 ID。当前 Ops Web 不提供该入口。ingestion-control 为每个 ID
-创建独立 workflow：
-
-```text
-ingestion/internal-portal-file-release/<request-id>/<file-release-id>
+```bash
+pnpm --filter source-collector file:sync
+pnpm --filter source-collector file:sync:job
 ```
 
-同一请求 ID 与文件 ID 重复提交时直接返回已有 workflow；操作者信息不改变采集身份。调用方保存
-响应中的 workflow ID，并通过
-`POST /internal/ingestion/operations/internal-portal/file-releases/status` 查询 Temporal 状态。
+`file:sync` 使用本地直接 TGC。`file:sync:job` 先调用 ingestion-control 解析可用 TGC，再执行相同
+实现。当前没有已部署的 Kubernetes 文件采集 Job 或 schedule。
 
-## 采集
+## 分页与失败
 
-workflow 调用 source-collector 的 `captureInternalPortalFileRelease` Activity。Activity 校验详情 ID，
-取得同站点下载地址，流式写入原文件，再写入
-`internal_portal_file_release_source.v1`。固定对象路径和字段以数据文档与 JSON Schema 为准。
+列表接口每页请求 50 条，ID 必须是唯一正整数，累计数量必须与门户返回的 total 一致。采集固定并发
+为 2：
 
-Activity 返回 `internal_portal_file_release_capture_result.v1`，只包含文件发布 ID 与带 SHA-256、
-字节数的 `source.json` 对象引用。返回值不落成额外 manifest。
+- 已有合法 `source.json`：计为 `reused`，不访问门户；
+- 首次成功写入：计为 `written`；
+- 普通单项失败：记录 ID 和有界错误码，继续后续条目，整轮最终非零退出；
+- 认证失败：立即终止整轮。
 
-已有合法 `source.json` 时 Activity 直接返回同一引用，不重新访问门户。门户请求、下载、对象写入
-或 schema 校验任一失败都会使 workflow 失败；workflow 不把失败转换为空结果或部分成功。
+摘要字段为 `scanned`、`written`、`reused`、`failed` 和 `failures`。
 
-## 不负责
+## 对象
 
-- 通知采集与通知附件下载；
-- OCR、正文抽取、规范文档转换或规章提升；
-- derived bucket、离线发布、索引或 alias；
-- 在线文件读取或模型查询。
+```text
+internal_portal/<site-id>/file-releases/<file-release-id>/file
+internal_portal/<site-id>/file-releases/<file-release-id>/source.json
+```
+
+`file` 是原始下载字节。`source.json` 使用 `internal_portal_file_release_source.v1`，保存门户 metadata、
+原始文件名、media type、字节数、SHA-256 摘要和对象 key。首次成功采集确定固定对象；同 key 内容冲突
+明确失败。
 
 ## 所有者
 
-- HTTP 与 workflow：`apps/ingestion-control`；
-- 来源 Activity 与门户适配器：`apps/source-collector`；
-- 跨运行时对象：`packages/ingestion-contracts`。
+- 门户适配、分页和对象写入：`apps/source-collector`；
+- 凭据解析：`apps/ingestion-control`；
+- 来源对象合同：`packages/ingestion-contracts`。
 
 ## 相关文档
 

@@ -61,6 +61,40 @@ export function registerModelSettingsRoutes(input: {
 		return context.json(await providerConfigClient.discoverModels(body.data, operator.operatorId));
 	});
 
+	app.post("/api/ops/model-settings/execution/notice_classifier/models", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
+				"在线模型配置写请求未通过同源校验。",
+				403,
+			);
+		}
+		if (!isJsonContentType(context.req.header("content-type"))) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED",
+				"Content-Type 必须是 application/json。",
+				400,
+			);
+		}
+		const body = ModelDiscoveryRequestSchema.safeParse(
+			await readBoundedJson(context.req.raw, 20 * 1024),
+		);
+		if (!body.success) {
+			return jsonError("OPS_INVALID_JSON", "模型列表请求内容无效。", 400);
+		}
+		return context.json(
+			await providerConfigClient.discoverModels(
+				body.data,
+				operator.operatorId,
+				"notice_classifier",
+			),
+		);
+	});
+
 	app.put("/api/ops/model-settings/execution/:kind", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
@@ -89,31 +123,8 @@ export function registerModelSettingsRoutes(input: {
 		if (!(kind.success && body.success)) {
 			return jsonError("OPS_INVALID_JSON", "请求体必须是有效 JSON。", 400);
 		}
-		const etag = context.req.header("if-match")?.trim();
-		if (!etag || etag.length > 200) {
-			return jsonError("OPS_MODEL_SETTINGS_PRECONDITION_REQUIRED", "请刷新模型配置后再保存。", 400);
-		}
-		const result = await providerConfigClient.put(kind.data, body.data, operator.operatorId, etag);
+		const result = await providerConfigClient.put(kind.data, body.data, operator.operatorId);
 		return context.json(result);
-	});
-
-	app.post("/api/ops/model-settings/execution/:kind/validate", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
-			return jsonError(
-				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
-				"在线模型配置写请求未通过同源校验。",
-				403,
-			);
-		}
-		const kind = ModelSettingKindSchema.safeParse(context.req.param("kind"));
-		if (!kind.success) {
-			return jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。", 404);
-		}
-		return context.json(await providerConfigClient.validate(kind.data, operator.operatorId));
 	});
 }
 
@@ -121,14 +132,6 @@ export function providerConfigAdminErrorResponse(
 	error: ProviderConfigAdminResponseError,
 ): Response {
 	const details = { upstreamCode: error.upstreamCode };
-	if (error.response.status === 409) {
-		return jsonError(
-			"OPS_PROVIDER_CONFIG_CONFLICT",
-			"在线模型配置已被其他操作更新，请刷新后重试。",
-			409,
-			details,
-		);
-	}
 	if (error.response.status === 400 || error.response.status === 422) {
 		return jsonError(
 			"OPS_PROVIDER_CONFIG_INVALID",

@@ -15,8 +15,6 @@ status: active
   [agentic-retrieval.md](./agentic-retrieval.md)、[data-plane.md](./data-plane.md)；
 - 身份与记忆：[identity-authz.md](./identity-authz.md)、[mucwiki-login.md](./mucwiki-login.md)、
   [memory-plane.md](./memory-plane.md)；
-- 运维与改进：[ops-observability.md](./ops-observability.md)、[learning-loop.md](./learning-loop.md)；
-- 界面与代码边界：[ui-foundation.md](./ui-foundation.md)、
-  [code-organization.md](./code-organization.md)。
+- 运维与改进：[learning-loop.md](./learning-loop.md)。
 
-稳定跨边界流程见 [flows.md](../flows.md)。领域细节、合同、数据和操作步骤不在本索引重复。
+领域细节、合同、数据和操作步骤不在本索引重复。

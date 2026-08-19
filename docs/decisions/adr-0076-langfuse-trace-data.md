@@ -54,6 +54,6 @@ ADR-0059 继续拥有 Langfuse 平台；ADR-0081 继续拥有观测平面划分�
 ## 相关文档
 
 - `docs/contracts/langfuse-runtime.md`
-- `docs/architecture/system/ops-observability.md`
+- `docs/reference/telemetry.md`
 - `docs/reference/eval.md`
 - `docs/runbooks/ragas.md`

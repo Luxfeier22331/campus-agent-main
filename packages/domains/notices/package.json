@@ -5,7 +5,8 @@
 	"description": "Runtime-neutral notice domain contracts, taxonomy, and content normalization.",
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./taxonomy": "./src/taxonomy.ts"
 	},
 	"scripts": {
 		"test": "vitest run",

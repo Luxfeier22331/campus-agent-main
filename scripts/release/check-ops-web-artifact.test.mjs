@@ -8,7 +8,6 @@ const checker = join(process.cwd(), "scripts/release/check-ops-web-artifact.mjs"
 
 function artifact({
 	bootstrap = "export const ready = true;",
-	check = "export const ready = true;",
 	database = "export const ready = true;",
 	server = "export const ready = true;",
 } = {}) {
@@ -28,10 +27,6 @@ function artifact({
 	if (database !== null) {
 		mkdirSync(join(root, "dist-ops", "db"), { recursive: true });
 		writeFileSync(join(root, "dist-ops/db/ops-web-database.js"), database);
-	}
-	if (check !== null) {
-		mkdirSync(join(root, "dist-ops", "internal-portal"), { recursive: true });
-		writeFileSync(join(root, "dist-ops/internal-portal/check.js"), check);
 	}
 	return root;
 }
@@ -64,14 +59,6 @@ test("rejects a missing database artifact", () => {
 	assert.throws(
 		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
 		/production database entry is missing/u,
-	);
-});
-
-test("rejects a missing internal portal check artifact", () => {
-	const root = artifact({ check: null });
-	assert.throws(
-		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
-		/internal portal check entry is missing/u,
 	);
 });
 

@@ -10,7 +10,12 @@ const api = vi.hoisted(() => ({
 	listNotices: vi.fn(),
 }));
 const navigate = vi.hoisted(() => vi.fn());
-const routeSearch = vi.hoisted((): Record<string, unknown> => ({ page: 1 }));
+const routeSearch = vi.hoisted(
+	(): Record<string, unknown> => ({
+		page: 1,
+		stream: "notices",
+	}),
+);
 
 vi.mock("../src/features/notices/api", () => ({
 	getNoticeDetail: api.getNoticeDetail,
@@ -53,16 +58,16 @@ describe("notice pages", () => {
 			delete routeSearch[key];
 		}
 		routeSearch.page = 1;
+		routeSearch.stream = "notices";
 		mockFilterViewport(false);
 	});
 
 	it("renders internal rows as router links and external rows as new-tab links", async () => {
 		api.listNotices.mockResolvedValue({
 			filters: {
-				domains: [
-					{ label: "校园运行", value: "campus_operations" },
-					{ label: "采购", value: "procurement" },
-					{ label: "未分类", value: "unclassified" },
+				categories: [
+					{ label: "校园服务与运行", value: "campus_operations" },
+					{ label: "采购招标", value: "procurement" },
 				],
 				noticeTypes: [
 					{ label: "活动报道", value: 5 },
@@ -72,7 +77,7 @@ describe("notice pages", () => {
 			},
 			items: [
 				{
-					domain: "campus_operations",
+					category: "campus_operations",
 					externalUrl: null,
 					isExternal: false,
 					noticeId: "358159",
@@ -82,7 +87,7 @@ describe("notice pages", () => {
 					title: "海淀校区东北门暂停开放",
 				},
 				{
-					domain: "unclassified",
+					category: "unclassified",
 					externalUrl: "https://mp.weixin.qq.com/s/example",
 					isExternal: true,
 					noticeId: "358160",
@@ -92,7 +97,7 @@ describe("notice pages", () => {
 					title: "外部通知样本",
 				},
 				{
-					domain: "procurement",
+					category: "procurement",
 					externalUrl: "https://www.ccgp.gov.cn/cggg/zygg/example",
 					isExternal: true,
 					noticeId: "358161",
@@ -113,10 +118,9 @@ describe("notice pages", () => {
 		expect(internalTime).toBeVisible();
 		expect(within(internal).getByText("校内门户")).toBeVisible();
 		expect(within(internal).getByText("校内门户").closest('[data-slot="badge"]')).toBeNull();
-		expect(within(internal).getByText("校园运行").closest('[data-slot="badge"]')).toHaveAttribute(
-			"data-notice-domain-tone",
-			"orange",
-		);
+		expect(
+			within(internal).getByText("校园服务与运行").closest('[data-slot="badge"]'),
+		).toHaveAttribute("data-notice-category-tone", "orange");
 		expect(internal.querySelector(".lucide-chevron-right")).not.toBeNull();
 		expect(internal.querySelector(".lucide-arrow-up-right")).toBeNull();
 		const external = screen.getByRole("link", { name: /外部通知样本/u });
@@ -131,26 +135,25 @@ describe("notice pages", () => {
 		expect(external.querySelector(".lucide-arrow-up-right")).not.toBeNull();
 		expect(external.querySelector(".lucide-chevron-right")).toBeNull();
 		const procurement = screen.getByRole("link", { name: /采购结果公告/u });
-		expect(within(procurement).getByText("采购").closest('[data-slot="badge"]')).toHaveAttribute(
-			"data-notice-domain-tone",
-			"orange",
-		);
+		expect(
+			within(procurement).getByText("采购招标").closest('[data-slot="badge"]'),
+		).toHaveAttribute("data-notice-category-tone", "orange");
 		expect(within(procurement).getByText("中国政府采购网")).toBeVisible();
 		expect(within(procurement).getByText("招标采购中心")).toBeVisible();
-		expect(within(procurement).getByText("公示公告")).toBeVisible();
-		expect(screen.getAllByText("未分类")).toHaveLength(2);
+		expect(within(procurement).getByText("门户栏目：公示公告")).toBeVisible();
+		expect(within(external).queryByText("未分类")).toBeNull();
 	});
 
 	it("keeps advanced filters collapsed on mobile and counts only active advanced filters", async () => {
 		mockFilterViewport(true);
 		Object.assign(routeSearch, {
-			domain: "procurement",
+			category: "procurement",
 			is_external: true,
 			q: "采购",
 		});
 		api.listNotices.mockResolvedValue({
 			filters: {
-				domains: [{ label: "采购", value: "procurement" }],
+				categories: [{ label: "采购招标", value: "procurement" }],
 				noticeTypes: [{ label: "公示公告", value: 36 }],
 				organizations: [{ label: "招标采购中心", value: "org-2" }],
 			},
@@ -163,15 +166,62 @@ describe("notice pages", () => {
 		const trigger = await screen.findByRole("button", { name: "筛选条件（2）" });
 		expect(trigger).toHaveAttribute("aria-expanded", "false");
 		expect(screen.getByLabelText("标题或正文关键词")).toHaveValue("采购");
-		expect(screen.queryByLabelText("领域")).toBeNull();
+		expect(screen.queryByLabelText("分类")).toBeNull();
 
 		fireEvent.click(trigger);
 
 		expect(trigger).toHaveAttribute("aria-expanded", "true");
-		expect(screen.getByLabelText("领域")).toHaveValue("procurement");
+		expect(screen.getByLabelText("分类")).toHaveValue("procurement");
 		expect(screen.getByRole("radio", { name: "外部链接" })).toBeChecked();
 		expect(screen.getByRole("radio", { name: "全部" })).not.toBeChecked();
 		expect(screen.getByLabelText("发布部门")).toBeVisible();
+	});
+
+	it("switches between notification and campus news streams and clears category", async () => {
+		Object.assign(routeSearch, { category: "procurement", page: 4 });
+		api.listNotices.mockResolvedValue(emptyNoticeList());
+
+		renderWithQuery(<NoticesPageContent />);
+
+		fireEvent.click(await screen.findByRole("radio", { name: "校园动态" }));
+		expect(lastSearchUpdate({ category: "procurement", page: 4, stream: "notices" })).toEqual({
+			category: undefined,
+			page: 1,
+			stream: "campus_news",
+		});
+	});
+
+	it("renders campus news as an independent view without category controls", async () => {
+		Object.assign(routeSearch, { stream: "campus_news" });
+		api.listNotices.mockResolvedValue(emptyNoticeList());
+
+		renderWithQuery(<NoticesPageContent />);
+
+		expect(await screen.findByRole("heading", { name: "校园动态" })).toBeVisible();
+		expect(screen.getByRole("form", { name: "校园动态筛选" })).toBeVisible();
+		expect(screen.getByRole("button", { name: "搜索校园动态" })).toBeVisible();
+		expect(screen.queryByLabelText("分类")).toBeNull();
+		expect(await screen.findByRole("heading", { name: "没有符合条件的校园动态" })).toBeVisible();
+		expect(await screen.findByText("调整关键词、来源或日期范围后再试。")).toBeVisible();
+	});
+
+	it("uses campus news wording while the independent view is loading", () => {
+		Object.assign(routeSearch, { stream: "campus_news" });
+		api.listNotices.mockImplementation(() => new Promise(() => undefined));
+
+		renderWithQuery(<NoticesPageContent />);
+
+		expect(screen.getByRole("status", { name: "正在读取校园动态" })).toBeVisible();
+	});
+
+	it("uses campus news wording when the independent view fails", async () => {
+		Object.assign(routeSearch, { stream: "campus_news" });
+		api.listNotices.mockRejectedValue(new Error("campus news unavailable"));
+
+		renderWithQuery(<NoticesPageContent />);
+
+		expect(await screen.findByRole("alert")).toHaveTextContent("校园动态不可用");
+		expect(screen.getByRole("alert")).toHaveTextContent("校园动态暂时无法读取，请稍后重试。");
 	});
 
 	it("maps source segments to the existing query and resets pagination", async () => {
@@ -238,14 +288,14 @@ describe("notice pages", () => {
 			q: "开放安排",
 		});
 
-		fireEvent.change(screen.getByLabelText("领域"), { target: { value: "procurement" } });
+		fireEvent.change(screen.getByLabelText("分类"), { target: { value: "procurement" } });
 		expect(lastSearchUpdate({ page: 5, q: "旧关键词" })).toEqual({
-			domain: "procurement",
+			category: "procurement",
 			page: 1,
 			q: "旧关键词",
 		});
 
-		fireEvent.change(screen.getByLabelText("门户类型"), { target: { value: "36" } });
+		fireEvent.change(screen.getByLabelText("门户栏目"), { target: { value: "36" } });
 		expect(lastSearchUpdate({ page: 5, q: "旧关键词" })).toEqual({
 			notice_type: 36,
 			page: 1,
@@ -261,7 +311,7 @@ describe("notice pages", () => {
 	});
 
 	it("clears the URL filters and the local title draft together", async () => {
-		Object.assign(routeSearch, { domain: "procurement", page: 4, q: "采购" });
+		Object.assign(routeSearch, { category: "procurement", page: 4, q: "采购" });
 		api.listNotices.mockResolvedValue(emptyNoticeList());
 
 		renderWithQuery(<NoticesPageContent />);
@@ -271,7 +321,9 @@ describe("notice pages", () => {
 		fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
 
 		expect(title).toHaveValue("");
-		expect(navigate).toHaveBeenLastCalledWith({ search: { page: 1 } });
+		expect(navigate).toHaveBeenLastCalledWith({
+			search: { page: 1, stream: "notices" },
+		});
 	});
 
 	it("shows validated content and attachment metadata without a download action", async () => {
@@ -287,7 +339,7 @@ describe("notice pages", () => {
 				},
 			],
 			contentHtml: '<p>暂停开放说明</p><img src="notice-asset:image:0" alt="暂停开放示意">',
-			domain: "campus_operations",
+			category: "campus_operations",
 			externalUrl: null,
 			images: [
 				{
@@ -309,8 +361,8 @@ describe("notice pages", () => {
 		renderWithQuery(<NoticeDetailPageContent />);
 
 		expect(await screen.findByRole("heading", { name: "海淀校区东北门暂停开放" })).toBeVisible();
-		expect(screen.getByText("校园运行").closest('[data-slot="badge"]')).toHaveAttribute(
-			"data-notice-domain-tone",
+		expect(screen.getByText("校园服务与运行").closest('[data-slot="badge"]')).toHaveAttribute(
+			"data-notice-category-tone",
 			"orange",
 		);
 		expect(screen.getByText("暂停开放说明")).toBeVisible();
@@ -371,7 +423,7 @@ function renderWithQuery(children: React.ReactNode) {
 function emptyNoticeList() {
 	return {
 		filters: {
-			domains: [{ label: "采购", value: "procurement" }],
+			categories: [{ label: "采购招标", value: "procurement" }],
 			noticeTypes: [{ label: "公示公告", value: 36 }],
 			organizations: [{ label: "招标采购中心", value: "org-2" }],
 		},

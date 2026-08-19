@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+	NOTICE_CATEGORIES,
+	NOTICE_CATEGORY_LABELS,
 	NOTICE_CONTENT_ALIGNMENTS,
 	NOTICE_CONTENT_ALLOWED_ATTRIBUTES,
 	NOTICE_CONTENT_ALLOWED_TAGS,
-	NOTICE_DOMAIN_LABELS,
-	NOTICE_DOMAINS,
+	NoticeClassificationArtifactSchema,
 	NoticeDetailResponseSchema,
 	NoticeListRequestQuerySchema,
 	NoticeListResponseSchema,
 } from "../src/notices";
 
 const metadata = {
-	domain: "campus_operations",
+	category: "campus_operations",
 	noticeId: "358159",
 	noticeType: { id: 5, name: "办公通知" },
 	organization: { id: "100", name: "海淀校区" },
@@ -20,9 +21,9 @@ const metadata = {
 } as const;
 
 describe("notice contracts", () => {
-	it("keeps every domain paired with one Chinese label", () => {
-		expect(Object.keys(NOTICE_DOMAIN_LABELS)).toEqual([...NOTICE_DOMAINS]);
-		expect(NOTICE_DOMAIN_LABELS.unclassified).toBe("未分类");
+	it("keeps every category paired with one Chinese label", () => {
+		expect(Object.keys(NOTICE_CATEGORY_LABELS)).toEqual([...NOTICE_CATEGORIES]);
+		expect(NOTICE_CATEGORY_LABELS.unclassified).toBe("未分类");
 	});
 
 	it("defines the bounded normalized notice HTML contract", () => {
@@ -40,22 +41,34 @@ describe("notice contracts", () => {
 	it("parses list filters and rejects reversed dates", () => {
 		expect(
 			NoticeListRequestQuerySchema.parse({
-				domain: "campus_operations",
+				category: "campus_operations",
 				is_external: "false",
 				notice_type: "5",
 				page: "2",
 				q: "暂停开放",
 			}),
-		).toMatchObject({ is_external: false, notice_type: 5, page: 2 });
+		).toMatchObject({
+			category: "campus_operations",
+			is_external: false,
+			notice_type: 5,
+			page: 2,
+			stream: "notices",
+		});
 		expect(
 			NoticeListRequestQuerySchema.safeParse({ from: "2026-08-12", to: "2026-08-11" }).success,
+		).toBe(false);
+		expect(
+			NoticeListRequestQuerySchema.safeParse({
+				category: "campus_operations",
+				stream: "campus_news",
+			}).success,
 		).toBe(false);
 	});
 
 	it("parses internal and external list items without bigint JSON values", () => {
 		const response = {
 			filters: {
-				domains: [{ label: "校园运行", value: "campus_operations" }],
+				categories: [{ label: "校园服务与运行", value: "campus_operations" }],
 				noticeTypes: [{ label: "办公通知", value: 5 }],
 				organizations: [{ label: "海淀校区", value: "100" }],
 			},
@@ -122,6 +135,24 @@ describe("notice contracts", () => {
 				externalUrl: null,
 				images: [],
 				isExternal: false,
+			}).success,
+		).toBe(false);
+	});
+
+	it("parses one derived classification artifact without model metadata", () => {
+		expect(
+			NoticeClassificationArtifactSchema.safeParse({
+				category: "campus_operations",
+				notice_id: 358159,
+				schema_version: "notice_classification.v1",
+			}).success,
+		).toBe(true);
+		expect(
+			NoticeClassificationArtifactSchema.safeParse({
+				category: "campus_operations",
+				notice_id: 358159,
+				model: "provider-model",
+				schema_version: "notice_classification.v1",
 			}).success,
 		).toBe(false);
 	});

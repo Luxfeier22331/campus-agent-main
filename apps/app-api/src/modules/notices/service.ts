@@ -1,8 +1,8 @@
 import {
-	NOTICE_DOMAIN_LABELS,
-	NOTICE_DOMAINS,
+	NOTICE_CATEGORY_LABELS,
+	NOTICE_FILTER_CATEGORIES,
+	type NoticeCategory,
 	NoticeDetailResponseSchema,
-	type NoticeDomain,
 	type NoticeListResponse,
 	NoticeListResponseSchema,
 } from "campus-contracts/notices";
@@ -45,8 +45,8 @@ export function buildNoticeService(input: {
 			const records = await input.store.list(query);
 			const response: NoticeListResponse = {
 				filters: {
-					domains: NOTICE_DOMAINS.map((value) => ({
-						label: NOTICE_DOMAIN_LABELS[value],
+					categories: NOTICE_FILTER_CATEGORIES.map((value) => ({
+						label: NOTICE_CATEGORY_LABELS[value],
 						value,
 					})),
 					noticeTypes: records.noticeTypes.map((item) => ({
@@ -100,7 +100,7 @@ export function buildNoticeService(input: {
 
 function toNoticeMetadata(record: NoticeRecord) {
 	return {
-		domain: record.domain as NoticeDomain,
+		category: record.category as NoticeCategory,
 		noticeId: record.noticeId,
 		noticeType: record.noticeType,
 		organization: record.organization,

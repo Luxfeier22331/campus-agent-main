@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+export {
+	type InternalPortalCredential,
+	InternalPortalCredentialCreateSchema,
+	InternalPortalCredentialListSchema,
+	type InternalPortalCredentialOutcome,
+	InternalPortalCredentialOutcomeSchema,
+	InternalPortalCredentialResponseSchema,
+	InternalPortalCredentialRevealSchema,
+	InternalPortalCredentialSchema,
+	InternalPortalCredentialUpdateSchema,
+} from "campus-contracts/internal-portal-credential";
+
 const IsoDateTimeSchema = z.string().datetime();
 const HttpsUrlSchema = z
 	.string()
@@ -11,7 +23,7 @@ export const OpsRequestWindowSchema = z.enum(["15m", "1h", "6h", "24h", "7d"]);
 export const OpsHealthStatusSchema = z.enum(["HEALTHY", "DEGRADED", "OUTAGE", "UNKNOWN"]);
 export const OpsDataStateSchema = z.enum(["FRESH", "PARTIAL", "STALE", "NO_DATA", "UNAVAILABLE"]);
 
-export const ModelSettingKindSchema = z.enum(["llm", "embedding"]);
+export const ModelSettingKindSchema = z.enum(["llm", "embedding", "notice_classifier"]);
 export type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
 
 export const ModelSettingLatestValidationSchema = z.object({
@@ -23,12 +35,6 @@ export const ModelSettingLatestValidationSchema = z.object({
 	validatedBy: z.string().min(1),
 });
 export type ModelSettingLatestValidation = z.infer<typeof ModelSettingLatestValidationSchema>;
-
-export const ModelSettingValidationResponseSchema = z.object({
-	kind: ModelSettingKindSchema,
-	validation: ModelSettingLatestValidationSchema,
-});
-export type ModelSettingValidationResponse = z.infer<typeof ModelSettingValidationResponseSchema>;
 
 export const ModelDiscoveryRequestSchema = z
 	.object({
@@ -53,7 +59,6 @@ export type ModelDiscoveryResponse = z.infer<typeof ModelDiscoveryResponseSchema
 export const ExecutionModelSettingSchema = z.object({
 	baseUrl: z.string().url(),
 	credentialConfigured: z.boolean(),
-	credentialLast4: z.string().max(4).optional(),
 	kind: ModelSettingKindSchema,
 	latestValidation: ModelSettingLatestValidationSchema.nullable(),
 	model: z.string().min(1),
@@ -63,18 +68,28 @@ export const ExecutionModelSettingSchema = z.object({
 	updatedBy: z.string().min(1),
 });
 
+export const EmbeddingContractSchema = z
+	.object({
+		dimensions: z.number().int().positive(),
+		model: z.string().trim().min(1).max(256),
+		provider: z.enum(["openai", "openai-compatible"]),
+		transport: z.enum(["responses", "chat_completions", "embeddings"]),
+	})
+	.strict();
+
 export const ExecutionModelSettingsStatusSchema = z.object({
-	etag: z.string(),
+	embeddingContract: EmbeddingContractSchema,
 	sampledAt: IsoDateTimeSchema,
 	settings: z.object({
 		embedding: ExecutionModelSettingSchema.nullable(),
 		llm: ExecutionModelSettingSchema.nullable(),
+		notice_classifier: ExecutionModelSettingSchema.nullable(),
 	}),
 });
 
 export type ExecutionModelSettingsStatus = z.infer<typeof ExecutionModelSettingsStatusSchema>;
 
-const ModelSettingUpdateBaseSchema = z.object({
+const LLMModelSettingUpdateBaseSchema = z.object({
 	apiKey: z
 		.string()
 		.max(16 * 1024)
@@ -84,74 +99,25 @@ const ModelSettingUpdateBaseSchema = z.object({
 	provider: z.enum(["openai", "openai-compatible"]),
 });
 
-export const LLMModelSettingUpdateSchema = ModelSettingUpdateBaseSchema.extend({
+export const LLMModelSettingUpdateSchema = LLMModelSettingUpdateBaseSchema.extend({
 	transport: z.enum(["responses", "chat_completions"]),
 }).strict();
 
-export const EmbeddingModelSettingUpdateSchema = ModelSettingUpdateBaseSchema.strict();
+export const EmbeddingModelSettingUpdateSchema = z
+	.object({
+		apiKey: z
+			.string()
+			.trim()
+			.min(1)
+			.max(16 * 1024)
+			.optional(),
+		baseUrl: z.string().url(),
+	})
+	.strict();
 
 export type ModelSettingUpdate =
 	| z.infer<typeof LLMModelSettingUpdateSchema>
 	| z.infer<typeof EmbeddingModelSettingUpdateSchema>;
-
-export const InternalPortalCredentialOutcomeSchema = z.enum([
-	"valid",
-	"credential_rejected",
-	"check_failed",
-]);
-export type InternalPortalCredentialOutcome = z.infer<typeof InternalPortalCredentialOutcomeSchema>;
-
-export const InternalPortalCredentialSchema = z
-	.object({
-		credentialId: z.string().uuid(),
-		name: z.string().trim().min(1).max(80),
-		version: z.number().int().positive(),
-		createdAt: IsoDateTimeSchema,
-		updatedAt: IsoDateTimeSchema,
-		lastAttemptAt: IsoDateTimeSchema.nullable(),
-		lastSuccessfulAt: IsoDateTimeSchema.nullable(),
-		lastOutcome: InternalPortalCredentialOutcomeSchema.nullable(),
-	})
-	.strict();
-export type InternalPortalCredential = z.infer<typeof InternalPortalCredentialSchema>;
-
-export const InternalPortalCredentialListSchema = z
-	.object({ credentials: z.array(InternalPortalCredentialSchema) })
-	.strict();
-
-export const InternalPortalCredentialResponseSchema = z
-	.object({ credential: InternalPortalCredentialSchema })
-	.strict();
-
-export const InternalPortalCredentialCreateSchema = z
-	.object({
-		name: z.string().trim().min(1).max(80),
-		ssoTgc: z
-			.string()
-			.min(1)
-			.max(16 * 1024),
-	})
-	.strict();
-
-export const InternalPortalCredentialUpdateSchema = z.union([
-	z.object({ name: z.string().trim().min(1).max(80) }).strict(),
-	z
-		.object({
-			ssoTgc: z
-				.string()
-				.min(1)
-				.max(16 * 1024),
-		})
-		.strict(),
-]);
-
-export const InternalPortalCredentialRevealSchema = z
-	.object({
-		credentialId: z.string().uuid(),
-		ssoTgc: z.string().min(1),
-		version: z.number().int().positive(),
-	})
-	.strict();
 
 export const InternalPortalAutomationTokenMetadataSchema = z
 	.object({

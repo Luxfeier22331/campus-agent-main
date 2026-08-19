@@ -259,7 +259,7 @@ services:
       HINDSIGHT_API_TENANT_API_KEY: ${HINDSIGHT_API_TENANT_API_KEY:-}
       HINDSIGHT_OWNER_SALT: ${HINDSIGHT_OWNER_SALT:-}
     volumes:
-      - ${PROVIDER_CONFIG_KEYRING_FILE:?set PROVIDER_CONFIG_KEYRING_FILE}:/run/campus-agent/provider-config/keyring.json:ro
+      - ${PROVIDER_CONFIG_ENCRYPTION_KEY_FILE:?set PROVIDER_CONFIG_ENCRYPTION_KEY_FILE}:/run/campus-agent/provider-config/encryption.key:ro
       - ${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro
     ports:
       - "${EXECUTION_CONTROL_HOST_PORT:-27051}:8000"

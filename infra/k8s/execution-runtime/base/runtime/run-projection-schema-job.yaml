@@ -39,8 +39,10 @@ spec:
             - install
             - --evidence-path
             - /tmp/run-projection-schema.json
+            - --provider-config-encryption-key-path
+            - /run/campus-agent/provider-config/encryption.key
             - --provider-config-keyring-path
-            - /run/campus-agent/provider-config/keyring.json
+            - /run/campus-agent/provider-config-legacy/keyring.json
           envFrom:
             - configMapRef:
                 name: execution-schema-database-config
@@ -69,8 +71,11 @@ spec:
           volumeMounts:
             - name: evidence
               mountPath: /tmp
-            - name: provider-config-keyring
+            - name: provider-config-encryption
               mountPath: /run/campus-agent/provider-config
+              readOnly: true
+            - name: provider-config-legacy
+              mountPath: /run/campus-agent/provider-config-legacy
               readOnly: true
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
@@ -79,9 +84,17 @@ spec:
         - name: evidence
           emptyDir:
             sizeLimit: 16Mi
-        - name: provider-config-keyring
+        - name: provider-config-encryption
+          secret:
+            secretName: execution-provider-config-encryption
+            defaultMode: 0440
+            items:
+              - key: encryption.key
+                path: encryption.key
+        - name: provider-config-legacy
           secret:
             secretName: execution-provider-config-keyring
+            optional: true
             defaultMode: 0440
             items:
               - key: keyring.json

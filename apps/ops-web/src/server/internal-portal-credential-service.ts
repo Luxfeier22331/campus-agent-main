@@ -1,30 +1,23 @@
-import { randomUUID } from "node:crypto";
-import { setTimeout as delay } from "node:timers/promises";
 import {
-	checkPortalAuthentication,
-	type InternalPortalAuthenticationResult,
-	PortalCredentialExpiredError,
-	PortalCredentialUnavailableError,
-	PortalSessionExpiredError,
-	validateSsoTgc,
-} from "@campus-agent/internal-portal-client";
-import type {
-	InternalPortalCredential,
-	InternalPortalCredentialOutcome,
-} from "../shared/ops-contract.ts";
-import { normalizeInternalPortalCandidateInput } from "./internal-portal-candidate-input.ts";
-import { createInternalPortalClientConfig } from "./internal-portal-config.ts";
-import {
-	InternalPortalCredentialConflictError,
-	InternalPortalCredentialNotFoundError,
-	type InternalPortalCredentialRecord,
-	type InternalPortalCredentialStore,
-	InternalPortalCredentialStoreUnavailableError,
-} from "./internal-portal-credential-store.ts";
+	type InternalPortalCredential,
+	InternalPortalCredentialListSchema,
+	InternalPortalCredentialResponseSchema,
+	InternalPortalCredentialRevealSchema,
+} from "campus-contracts/internal-portal-credential";
 
-export const INTERNAL_PORTAL_CHECK_TIMEOUT_MS = 60_000;
-const INITIAL_DATABASE_READY_ATTEMPTS = 5;
-const INITIAL_DATABASE_READY_DELAY_MS = 1_000;
+const CREDENTIALS_PATH = "/internal/ingestion/internal-portal/credentials";
+
+export interface InternalPortalCredentialClientEnv {
+	INGESTION_CONTROL_INTERNAL_URL?: string;
+	OPS_WEB_INTERNAL_TOKEN?: string;
+}
+
+export class InternalPortalCandidateInputError extends Error {
+	constructor() {
+		super("SSO_TGC 或 Cookie 格式无效。");
+		this.name = "InternalPortalCandidateInputError";
+	}
+}
 
 export class InternalPortalCandidateRejectedError extends Error {
 	constructor() {
@@ -34,9 +27,37 @@ export class InternalPortalCandidateRejectedError extends Error {
 }
 
 export class InternalPortalCandidateCheckFailedError extends Error {
-	constructor(options?: ErrorOptions) {
-		super("暂时无法连接内部门户验证该 SSO_TGC。", options);
+	constructor() {
+		super("暂时无法连接内部门户验证该 SSO_TGC。");
 		this.name = "InternalPortalCandidateCheckFailedError";
+	}
+}
+
+export class InternalPortalCredentialStoreUnavailableError extends Error {
+	constructor(message = "内部门户凭据服务不可用。", options?: ErrorOptions) {
+		super(message, options);
+		this.name = "InternalPortalCredentialStoreUnavailableError";
+	}
+}
+
+export class InternalPortalCredentialNotFoundError extends Error {
+	constructor() {
+		super("未找到内部门户凭据。");
+		this.name = "InternalPortalCredentialNotFoundError";
+	}
+}
+
+export class InternalPortalCredentialConflictError extends Error {
+	constructor() {
+		super("内部门户凭据已被其他操作更新，请刷新后重试。");
+		this.name = "InternalPortalCredentialConflictError";
+	}
+}
+
+export class InternalPortalCredentialNameConflictError extends Error {
+	constructor() {
+		super("已存在同名内部门户凭据，请使用其他名称。");
+		this.name = "InternalPortalCredentialNameConflictError";
 	}
 }
 
@@ -66,349 +87,199 @@ export interface InternalPortalCredentialService {
 	validate(credentialId: string, signal?: AbortSignal): Promise<InternalPortalCredential>;
 }
 
-export interface ScheduledInternalPortalCheck {
-	credentialId: string;
-	credentialName: string;
-	durationMs: number;
-	failureKind: InternalPortalCheckFailureKind | null;
-	outcome: InternalPortalCredentialOutcome | "stale";
-	refreshed: boolean;
+export function createUnavailableInternalPortalCredentialService(
+	error: unknown,
+): InternalPortalCredentialService {
+	const fail = async (): Promise<never> => {
+		throw error instanceof InternalPortalCredentialStoreUnavailableError
+			? error
+			: new InternalPortalCredentialStoreUnavailableError(undefined, { cause: error });
+	};
+	return {
+		create: fail,
+		delete: fail,
+		list: fail,
+		rename: fail,
+		reveal: fail,
+		rotate: fail,
+		validate: fail,
+	};
 }
 
-export interface ScheduledInternalPortalCheckRun {
-	checks: ScheduledInternalPortalCheck[];
-	suspended: Array<{ credentialId: string; credentialName: string }>;
-}
-
-export type InternalPortalCheckFailureKind =
-	| "configuration"
-	| "credential_expired"
-	| "dependency_error"
-	| "session_expired"
-	| "timeout";
-
-export function createInternalPortalCredentialService(input: {
-	checkAuthentication?: (
-		ssoTgc: string,
-		signal: AbortSignal,
-	) => Promise<InternalPortalAuthenticationResult>;
-	now?: () => Date;
-	randomId?: () => string;
-	store: InternalPortalCredentialStore;
-}): InternalPortalCredentialService {
-	const now = input.now ?? (() => new Date());
-	const randomId = input.randomId ?? randomUUID;
-	const checkAuthentication = input.checkAuthentication ?? checkCredentialAgainstPortal;
+export function createInternalPortalCredentialService(
+	env: InternalPortalCredentialClientEnv,
+	options: { fetch?: typeof fetch } = {},
+): InternalPortalCredentialService {
+	const origin = parseOrigin(env.INGESTION_CONTROL_INTERNAL_URL);
+	const token = requiredValue(env.OPS_WEB_INTERNAL_TOKEN, "OPS_WEB_INTERNAL_TOKEN");
+	const request = async (
+		path: string,
+		init: RequestInit = {},
+	): Promise<{ response: Response; value: unknown }> => {
+		let response: Response;
+		try {
+			response = await (options.fetch ?? fetch)(new URL(path, origin), {
+				...init,
+				headers: {
+					accept: "application/json",
+					authorization: `Bearer ${token}`,
+					...init.headers,
+				},
+			});
+		} catch (error) {
+			throw new InternalPortalCredentialStoreUnavailableError(undefined, { cause: error });
+		}
+		let value: unknown = null;
+		if (response.status !== 204) {
+			try {
+				value = await response.json();
+			} catch (error) {
+				throw new InternalPortalCredentialStoreUnavailableError(undefined, { cause: error });
+			}
+		}
+		if (!response.ok) {
+			throw mapResponseError(value);
+		}
+		return { response, value };
+	};
 
 	return {
-		async create(candidate, signal) {
-			const attemptedAt = now();
-			const effectiveTgc = await validateCandidate(
-				normalizeInternalPortalCandidateInput(candidate.ssoTgc),
-				signal,
-				checkAuthentication,
-			);
-			return toPublicCredential(
-				await input.store.create({
-					credentialId: randomId(),
-					name: candidate.name,
-					now: attemptedAt,
-					ssoTgc: effectiveTgc,
-				}),
-			);
-		},
-
-		async delete(credentialId, expectedVersion) {
-			await input.store.delete(credentialId, expectedVersion);
-		},
-
-		async list() {
-			return (await input.store.list()).map(toPublicCredential);
-		},
-
-		async rename(credentialId, name, expectedVersion) {
-			return toPublicCredential(
-				await input.store.rename({
-					credentialId,
-					expectedVersion,
-					name,
-					now: now(),
-				}),
-			);
-		},
-
-		async reveal(credentialId) {
-			const credential = await requireCredential(input.store, credentialId);
-			return {
-				credentialId: credential.credentialId,
-				ssoTgc: credential.ssoTgc,
-				version: credential.version,
-			};
-		},
-
-		async rotate(credentialId, ssoTgc, expectedVersion, signal) {
-			const attemptedAt = now();
-			const effectiveTgc = await validateCandidate(
-				normalizeInternalPortalCandidateInput(ssoTgc),
-				signal,
-				checkAuthentication,
-			);
-			return toPublicCredential(
-				await input.store.rotate({
-					attemptedAt,
-					credentialId,
-					expectedVersion,
-					ssoTgc: effectiveTgc,
-				}),
-			);
-		},
-
-		async validate(credentialId, signal) {
-			const credential = await requireCredential(input.store, credentialId);
-			const result = await checkAndRecord({
-				checkAuthentication,
-				credential,
-				now,
+		async create(input, signal) {
+			const { value } = await request(CREDENTIALS_PATH, {
+				body: JSON.stringify(input),
+				headers: { "content-type": "application/json" },
+				method: "POST",
 				...(signal ? { signal } : {}),
-				store: input.store,
 			});
-			return toPublicCredential(result.credential);
+			return parseUpstreamResponse(InternalPortalCredentialResponseSchema, value).credential;
+		},
+		async delete(credentialId, expectedVersion) {
+			await request(`${CREDENTIALS_PATH}/${credentialId}`, {
+				headers: { "if-match": `"${expectedVersion}"` },
+				method: "DELETE",
+			});
+		},
+		async list() {
+			const { value } = await request(CREDENTIALS_PATH);
+			return parseUpstreamResponse(InternalPortalCredentialListSchema, value).credentials;
+		},
+		async rename(credentialId, name, expectedVersion) {
+			const { value } = await request(`${CREDENTIALS_PATH}/${credentialId}`, {
+				body: JSON.stringify({ name }),
+				headers: {
+					"content-type": "application/json",
+					"if-match": `"${expectedVersion}"`,
+				},
+				method: "PUT",
+			});
+			return parseUpstreamResponse(InternalPortalCredentialResponseSchema, value).credential;
+		},
+		async reveal(credentialId) {
+			const { value } = await request(`${CREDENTIALS_PATH}/${credentialId}/reveal`, {
+				method: "POST",
+			});
+			return parseUpstreamResponse(InternalPortalCredentialRevealSchema, value);
+		},
+		async rotate(credentialId, ssoTgc, expectedVersion, signal) {
+			const { value } = await request(`${CREDENTIALS_PATH}/${credentialId}`, {
+				body: JSON.stringify({ ssoTgc }),
+				headers: {
+					"content-type": "application/json",
+					"if-match": `"${expectedVersion}"`,
+				},
+				method: "PUT",
+				...(signal ? { signal } : {}),
+			});
+			return parseUpstreamResponse(InternalPortalCredentialResponseSchema, value).credential;
+		},
+		async validate(credentialId, signal) {
+			const { value } = await request(`${CREDENTIALS_PATH}/${credentialId}/validate`, {
+				method: "POST",
+				...(signal ? { signal } : {}),
+			});
+			return parseUpstreamResponse(InternalPortalCredentialResponseSchema, value).credential;
 		},
 	};
 }
 
-export async function runScheduledInternalPortalChecks(input: {
-	checkAuthentication?: (
-		ssoTgc: string,
-		signal: AbortSignal,
-	) => Promise<InternalPortalAuthenticationResult>;
-	now?: () => Date;
-	store: InternalPortalCredentialStore;
-	wait?: (milliseconds: number) => Promise<void>;
-}): Promise<ScheduledInternalPortalCheckRun> {
-	const now = input.now ?? (() => new Date());
-	const checkAuthentication = input.checkAuthentication ?? checkCredentialAgainstPortal;
-	const checks: ScheduledInternalPortalCheck[] = [];
-	const suspended: ScheduledInternalPortalCheckRun["suspended"] = [];
-	const credentials = await listCredentialsWhenDatabaseReady(input.store, input.wait ?? delay);
-	for (const credential of credentials) {
-		if (credential.lastOutcome === "credential_rejected") {
-			suspended.push({
-				credentialId: credential.credentialId,
-				credentialName: credential.name,
-			});
-			continue;
-		}
-		const startedAt = performance.now();
-		try {
-			const result = await checkAndRecord({
-				checkAuthentication,
-				credential,
-				now,
-				store: input.store,
-			});
-			checks.push({
-				credentialId: credential.credentialId,
-				credentialName: credential.name,
-				durationMs: elapsedMilliseconds(startedAt),
-				failureKind: result.failureKind,
-				outcome: result.credential.lastOutcome ?? "check_failed",
-				refreshed: result.refreshed,
-			});
-		} catch (error) {
-			if (
-				error instanceof InternalPortalCredentialConflictError ||
-				error instanceof InternalPortalCredentialNotFoundError
-			) {
-				checks.push({
-					credentialId: credential.credentialId,
-					credentialName: credential.name,
-					durationMs: elapsedMilliseconds(startedAt),
-					failureKind: null,
-					outcome: "stale",
-					refreshed: false,
-				});
-				continue;
-			}
-			throw error;
-		}
-	}
-	return { checks, suspended };
-}
-
-async function listCredentialsWhenDatabaseReady(
-	store: InternalPortalCredentialStore,
-	wait: (milliseconds: number) => Promise<void>,
-): Promise<InternalPortalCredentialRecord[]> {
-	let attempt = 0;
-	while (true) {
-		attempt += 1;
-		try {
-			return await store.list();
-		} catch (error) {
-			if (attempt >= INITIAL_DATABASE_READY_ATTEMPTS || !isConnectionRefused(error)) {
-				throw error;
-			}
-			await wait(INITIAL_DATABASE_READY_DELAY_MS);
-		}
-	}
-}
-
-function isConnectionRefused(error: unknown): boolean {
-	if (!(error instanceof InternalPortalCredentialStoreUnavailableError)) {
-		return false;
-	}
-	let cause: unknown = error.cause;
-	while (cause instanceof Error) {
-		if ("code" in cause && cause.code === "ECONNREFUSED") {
-			return true;
-		}
-		cause = cause.cause;
-	}
-	return false;
-}
-
-async function checkAndRecord(input: {
-	checkAuthentication: (
-		ssoTgc: string,
-		signal: AbortSignal,
-	) => Promise<InternalPortalAuthenticationResult>;
-	credential: InternalPortalCredentialRecord;
-	now: () => Date;
-	signal?: AbortSignal;
-	store: InternalPortalCredentialStore;
-}): Promise<{
-	credential: InternalPortalCredentialRecord;
-	failureKind: InternalPortalCheckFailureKind | null;
-	refreshed: boolean;
-}> {
-	const attemptedAt = input.now();
-	let outcome: InternalPortalCredentialOutcome = "valid";
-	let effectiveTgc = input.credential.ssoTgc;
-	let failureKind: InternalPortalCheckFailureKind | null = null;
-	try {
-		const result = await input.checkAuthentication(
-			input.credential.ssoTgc,
-			checkSignal(input.signal),
+function parseUpstreamResponse<T>(
+	schema: { safeParse(value: unknown): { data: T; success: true } | { success: false } },
+	value: unknown,
+): T {
+	const parsed = schema.safeParse(value);
+	if (!parsed.success) {
+		throw new InternalPortalCredentialStoreUnavailableError(
+			"ingestion-control returned an invalid credential response.",
 		);
-		effectiveTgc = result.ssoTgc;
-	} catch (error) {
-		const failure = classifyCheckFailure(error);
-		outcome = failure.outcome;
-		failureKind = failure.failureKind;
 	}
-	const credential = await input.store.recordCheck({
-		attemptedAt,
-		credentialId: input.credential.credentialId,
-		expectedVersion: input.credential.version,
-		outcome,
-		ssoTgc: effectiveTgc,
-	});
-	return {
-		credential,
-		failureKind,
-		refreshed: effectiveTgc !== input.credential.ssoTgc,
-	};
+	return parsed.data;
 }
 
-async function validateCandidate(
-	rawSsoTgc: string,
-	signal: AbortSignal | undefined,
-	checkAuthentication: (
-		ssoTgc: string,
-		signal: AbortSignal,
-	) => Promise<InternalPortalAuthenticationResult>,
-): Promise<string> {
-	let normalized: string;
+function mapResponseError(value: unknown): Error {
+	const code = readErrorCode(value);
+	switch (code) {
+		case "INGESTION_INTERNAL_PORTAL_INPUT_INVALID":
+			return new InternalPortalCandidateInputError();
+		case "INGESTION_INTERNAL_PORTAL_CREDENTIAL_REJECTED":
+			return new InternalPortalCandidateRejectedError();
+		case "INGESTION_INTERNAL_PORTAL_CHECK_FAILED":
+			return new InternalPortalCandidateCheckFailedError();
+		case "INGESTION_INTERNAL_PORTAL_NOT_FOUND":
+			return new InternalPortalCredentialNotFoundError();
+		case "INGESTION_INTERNAL_PORTAL_CONFLICT":
+			return new InternalPortalCredentialConflictError();
+		case "INGESTION_INTERNAL_PORTAL_NAME_CONFLICT":
+			return new InternalPortalCredentialNameConflictError();
+		default:
+			return new InternalPortalCredentialStoreUnavailableError();
+	}
+}
+
+function readErrorCode(value: unknown): string | null {
+	if (
+		typeof value === "object" &&
+		value !== null &&
+		"error" in value &&
+		typeof value.error === "object" &&
+		value.error !== null &&
+		"code" in value.error &&
+		typeof value.error.code === "string"
+	) {
+		return value.error.code;
+	}
+	return null;
+}
+
+function parseOrigin(value: string | undefined): URL {
+	const normalized = requiredValue(value, "INGESTION_CONTROL_INTERNAL_URL");
+	let url: URL;
 	try {
-		normalized = validateSsoTgc(rawSsoTgc);
-	} catch {
-		throw new InternalPortalCandidateRejectedError();
-	}
-	try {
-		return (await checkAuthentication(normalized, checkSignal(signal))).ssoTgc;
+		url = new URL(normalized);
 	} catch (error) {
-		if (isCredentialRejection(error)) {
-			throw new InternalPortalCandidateRejectedError();
-		}
-		throw new InternalPortalCandidateCheckFailedError({ cause: error });
+		throw new InternalPortalCredentialStoreUnavailableError(
+			"INGESTION_CONTROL_INTERNAL_URL is invalid.",
+			{ cause: error },
+		);
 	}
-}
-
-async function checkCredentialAgainstPortal(
-	ssoTgc: string,
-	signal: AbortSignal,
-): Promise<InternalPortalAuthenticationResult> {
-	return await checkPortalAuthentication(createInternalPortalClientConfig(ssoTgc), {
-		abortSignal: signal,
-	});
-}
-
-function checkSignal(signal?: AbortSignal): AbortSignal {
-	const timeout = AbortSignal.timeout(INTERNAL_PORTAL_CHECK_TIMEOUT_MS);
-	return signal ? AbortSignal.any([signal, timeout]) : timeout;
-}
-
-function isCredentialRejection(error: unknown): boolean {
-	return (
-		error instanceof PortalCredentialExpiredError || error instanceof PortalSessionExpiredError
-	);
-}
-
-function classifyCheckFailure(error: unknown): {
-	failureKind: InternalPortalCheckFailureKind;
-	outcome: Exclude<InternalPortalCredentialOutcome, "valid">;
-} {
-	if (error instanceof PortalCredentialExpiredError) {
-		return { failureKind: "credential_expired", outcome: "credential_rejected" };
+	if (
+		(url.protocol !== "http:" && url.protocol !== "https:") ||
+		url.username ||
+		url.password ||
+		url.pathname !== "/" ||
+		url.search ||
+		url.hash
+	) {
+		throw new InternalPortalCredentialStoreUnavailableError(
+			"INGESTION_CONTROL_INTERNAL_URL must be an HTTP or HTTPS origin.",
+		);
 	}
-	if (error instanceof PortalSessionExpiredError) {
-		return { failureKind: "session_expired", outcome: "credential_rejected" };
-	}
-	if (error instanceof PortalCredentialUnavailableError) {
-		return { failureKind: "configuration", outcome: "check_failed" };
-	}
-	if (hasErrorName(error, "TimeoutError")) {
-		return { failureKind: "timeout", outcome: "check_failed" };
-	}
-	return { failureKind: "dependency_error", outcome: "check_failed" };
+	return url;
 }
 
-function hasErrorName(error: unknown, name: string): boolean {
-	let current: unknown = error;
-	while (current instanceof Error) {
-		if (current.name === name) {
-			return true;
-		}
-		current = current.cause;
+function requiredValue(value: string | undefined, key: string): string {
+	const normalized = value?.trim() ?? "";
+	if (!normalized) {
+		throw new InternalPortalCredentialStoreUnavailableError(`${key} is required.`);
 	}
-	return false;
-}
-
-function elapsedMilliseconds(startedAt: number): number {
-	return Math.max(0, Math.round(performance.now() - startedAt));
-}
-
-async function requireCredential(
-	store: InternalPortalCredentialStore,
-	credentialId: string,
-): Promise<InternalPortalCredentialRecord> {
-	const credential = await store.get(credentialId);
-	if (!credential) {
-		throw new InternalPortalCredentialNotFoundError();
-	}
-	return credential;
-}
-
-function toPublicCredential(record: InternalPortalCredentialRecord): InternalPortalCredential {
-	return {
-		credentialId: record.credentialId,
-		name: record.name,
-		version: record.version,
-		createdAt: record.createdAt,
-		updatedAt: record.updatedAt,
-		lastAttemptAt: record.lastAttemptAt,
-		lastSuccessfulAt: record.lastSuccessfulAt,
-		lastOutcome: record.lastOutcome,
-	};
+	return normalized;
 }

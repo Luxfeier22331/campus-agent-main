@@ -10,12 +10,12 @@ status: active
 
 本文规定在线模型当前设置中供应商密钥的首次配置、验证、替换、轮换和撤销。Provider 与环境
 所有权见 `../environment/providers.md`，接口边界见 `../contracts/ops-web/providers.md`。
-本文只负责 Ops Web 在线模型设置使用的 `llm` 和 `embedding` 供应商密钥；Axiom、Sentry、
+本文只负责 Ops Web 在线模型设置使用的 `llm`、`embedding` 和 `notice_classifier` 供应商密钥；Axiom、Sentry、
 Langfuse、Cloudflare 和其他环境运行凭据由环境仓及其所属交付入口负责，不在本文配置或轮换。
 
 固定边界：
 
-- execution-control 只管理 `llm` 和 `embedding` 两个当前设置，不提供 profile、role、
+- execution-control 只管理 `llm`、`embedding` 和 `notice_classifier` 三个当前设置，不提供 profile、role、
   bundle、revision 或 activation；
 - 保存前必须通过真实供应商调用，成功后直接替换该 kind 的当前设置；
 - 顶层 Agent Activity 开始时读取一次当前 `llm` 设置，在途调用保留该快照；之后的
@@ -27,17 +27,16 @@ Langfuse、Cloudflare 和其他环境运行凭据由环境仓及其所属交付�
 
 ## 首次配置和替换
 
-1. 确认目标环境和配置种类 `llm` 或 `embedding`。
+1. 确认目标环境和配置种类 `llm`、`embedding` 或 `notice_classifier`。
 2. 必要时在供应商平台创建该环境的密钥。
-3. 在 Ops Web 的“模型配置 > 在线问答”中编辑当前设置。`llm` 可设置 endpoint、model、
-   transport；`embedding` 可设置 provider、endpoint、model alias，transport 由服务端固定为
-   `embeddings`。模型设置不包含索引 dimensions 或 `embedding_space_id`，也不包含推理超时；Agent
+3. 在 Ops Web 的“模型配置”中编辑当前设置。`llm` 和 `notice_classifier` 可设置 provider、endpoint、model
+   和 transport；`embedding` 只设置 endpoint 和 API key。Embedding provider、model、transport 和
+   dimensions 由 Campus Docs 固定合同拥有，不包含可编辑 `embedding_space_id` 或推理超时；Agent
    与 RAG 分别使用所属运行策略的时限。
-4. 保存时由 execution-control 调用真实供应商进行验证。验证失败不覆盖当前设置；
-   页面返回 `409` 时先重新读取，再由操作者决定是否重新提交。
-5. 确认 execution-control 的 `EXECUTION_CONTROL_DATABASE_URL` 和 keyring 可用；同一 Deployment
+4. 保存时由 execution-control 调用真实供应商进行验证。验证失败不覆盖当前设置。
+5. 确认 execution-control 的 `EXECUTION_CONTROL_DATABASE_URL` 和单一加密密钥文件可用；同一 Deployment
    的 admin 监听器使用 `OPS_WEB_INTERNAL_TOKEN` 鉴权。
-6. keyring 本地文件权限使用 `0600`；Kubernetes Secret 投影使用 `0440`，由 Pod `fsGroup` 授予
+6. 运行时加密密钥文件使用 `0600`；Kubernetes Secret 投影使用 `0440`，由 Pod `fsGroup` 授予
    运行时组只读权限。Kubernetes 使用目录挂载，不使用 `subPath`。
 7. 运行所属环境检查和受控冒烟测试。
 
@@ -52,19 +51,23 @@ Embedding，使用旧 AAD 解密并按不可变 AAD v1
 `execution_config.model_settings:<kind>` 重加密，验证两个设置后删除七张旧表。Goose v4 随后将该表
 原位移动到 `execution_control.model_settings`；表所在 schema 改变不触发再次加密，也不增加双 AAD
 读取。Goose v5 在新路径创建 `campus_docs_serving.current_index` 并暂时增加索引绑定所需的
-`embedding_space_id`；后续 Goose v6 从模型设置和当前索引删除不再由配置管理的 model/provider 与向量
-空间字段。新设置只保存 provider 连接，索引定义由 Publisher 代码和当前索引绑定共同确定。
+`embedding_space_id`；后续 Goose v6 从模型设置和当前索引删除重复的向量空间字段。Goose v7 将现有
+Embedding 行规范为固定 provider、model 和 transport，保留 endpoint 与加密 API key，并要求重新
+验证。Go migration 9 将现有 `model_settings` 中的旧 keyring 密文一次性重加密为单一
+`encryption.key` 密文，随后删除旧 key ID、指纹和末四位列并重建只读兼容视图；常驻 runtime 不再读取
+keyring。新设置只允许替换连接 endpoint 和凭据，索引定义由 Publisher 代码和当前索引绑定共同确定。
 
 旧结构不完整、当前表已经含有数据、激活配置缺失、验证未通过、密钥无法解密或旧表存在未知依赖时，
 整个事务回滚。不得手工复制数据、保留新旧表并存、双写或让运行时回退到旧表。切换发布允许在线问答
 短暂不可用；旧构建不能作为数据库切换后的回滚目标。
 
-没有旧结构的新环境可以用空的 `model_settings` 完成安装，并通过 Ops Web 分别配置 LLM 和
-Embedding。只配置其中一项时，后续 schema install 仍保持幂等；依赖缺失项的运行路径单独失败。
+没有旧结构的新环境可以用空的 `model_settings` 完成安装，并通过 Ops Web 分别配置 LLM、Embedding 和
+通知分类。只配置其中一项时，后续 schema install 仍保持幂等；依赖缺失项的运行路径单独失败。历史
+密文存在时 schema Job 需要同时取得迁移专用旧 keyring 和新的 `encryption.key`；空表不需要旧 keyring。
 
 ## 本地开发
 
-1. 启动 execution-control 本地运行与管理监听器，并提供一个 PostgreSQL DSN 与版本化 keyring。
+1. 启动 execution-control 本地运行与管理监听器，并提供一个 PostgreSQL DSN 与单一 `encryption.key` 文件。
 2. 通过 `OPS_WEB_EXECUTION_CONTROL_ADMIN_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 将 Ops Web 指向该
    admin 接口。
 3. 启动 Ops Web 后通过同一页面保存并验证当前设置。
@@ -75,7 +78,7 @@ Embedding。只配置其中一项时，后续 schema install 仍保持幂等；�
 在线模型必须另行确认：
 
 1. 目标 kind 的当前设置存在，最后验证通过；
-2. execution-control 使用 `execution_control` 角色读取当前设置，并能解密对应 key ID；
+2. execution-control 使用 `execution_control` 角色读取当前设置，并能使用 `encryption.key` 解密；
 3. Ops Web 服务端使用 `OPS_WEB_INTERNAL_TOKEN`，浏览器不获得该 token 或数据库凭据；
 4. 受控在线请求使用预期 endpoint 和 model。
 

@@ -922,14 +922,18 @@ test("未保存模型配置时确认离开", async ({ page }) => {
 
 async function mockExecutionModelSettings(page: Page) {
 	const state: ExecutionModelSettingsStatus & { receivedApiKeys: string[] } = {
-		etag: "etag-1",
+		embeddingContract: {
+			dimensions: 2560,
+			model: "Qwen3-Embedding-4B",
+			provider: "openai-compatible",
+			transport: "embeddings",
+		},
 		receivedApiKeys: [],
 		sampledAt: "2026-07-16T00:00:00.000Z",
 		settings: {
 			embedding: {
 				baseUrl: "https://embedding.example/v1",
 				credentialConfigured: true,
-				credentialLast4: "demo",
 				kind: "embedding",
 				latestValidation: null,
 				model: "Qwen3-Embedding-4B",
@@ -941,12 +945,22 @@ async function mockExecutionModelSettings(page: Page) {
 			llm: {
 				baseUrl: "https://provider.example/v1",
 				credentialConfigured: true,
-				credentialLast4: "demo",
 				kind: "llm",
 				latestValidation: null,
 				model: "primary-model",
 				provider: "openai",
 				transport: "responses",
+				updatedAt: "2026-07-16T00:00:00.000Z",
+				updatedBy: "ops@example.test",
+			},
+			notice_classifier: {
+				baseUrl: "https://classifier.example/v1",
+				credentialConfigured: true,
+				kind: "notice_classifier",
+				latestValidation: null,
+				model: "deepseek-v4-flash-0731",
+				provider: "openai-compatible",
+				transport: "chat_completions",
 				updatedAt: "2026-07-16T00:00:00.000Z",
 				updatedBy: "ops@example.test",
 			},
@@ -975,7 +989,6 @@ async function mockExecutionModelSettings(page: Page) {
 				throw new Error("Execution LLM fixture is not configured");
 			}
 			state.receivedApiKeys.push(String(body.apiKey));
-			state.etag = "etag-2";
 			state.settings.llm = {
 				...current,
 				baseUrl: String(body.baseUrl),

@@ -14,12 +14,13 @@
 			"inputs": [
 				"migrations/**",
 				"package.json",
+				"src/internal-portal-credential-store.ts",
 				"src/migrate.ts",
 				"src/postgres-config.ts",
-				"src/postgres-store.ts",
 				"src/schema-bootstrap.ts",
 				"test/ingestion-control-postgres.database.integration.test.ts",
-				"vitest.database-integration.config.mts"
+				"vitest.database-integration.config.mts",
+				"$TURBO_ROOT$/apps/ops-web/drizzle/*.sql"
 			]
 		}
 	}

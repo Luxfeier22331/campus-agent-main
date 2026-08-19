@@ -1,4 +1,8 @@
+import type { InternalPortalNoticeSource } from "ingestion-contracts";
+
+import type { SourceCollectorObjectStore } from "../../../src/object-store.js";
 import type { InternalPortalNoticeMetaStore } from "./notice-meta-store.js";
+import { ensureNoticeResources, type NoticeResourceEnsureResult } from "./notice-resources.js";
 import {
 	buildInternalPortalNoticeSource,
 	type InternalPortalNoticeSourceStore,
@@ -33,15 +37,27 @@ export interface NoticeRunnerInput {
 	}) => Promise<NoticeListResponse>;
 	metaStore: InternalPortalNoticeMetaStore;
 	now?: () => string;
+	objectStore: SourceCollectorObjectStore;
+	portalHost: string;
+	resourceConcurrency?: number;
 	sourceStore: InternalPortalNoticeSourceStore;
 	stateStore: InternalPortalNoticeSyncStateStore;
 }
 
+export interface NoticeRunnerResourceCounts {
+	attachmentsDownloaded: number;
+	attachmentsReused: number;
+	imagesDownloaded: number;
+	imagesReused: number;
+}
+
 export interface NoticeRunnerResult {
 	mode: "backfill" | "sync";
+	noticeIds: number[];
 	objectsReused: number;
 	objectsWritten: number;
 	pagesFetched: number;
+	resources: NoticeRunnerResourceCounts;
 	state: InternalPortalNoticeSyncState;
 }
 
@@ -306,36 +322,58 @@ function assertNewMapping(
 async function writeCandidates(
 	input: NoticeRunnerInput,
 	candidates: NoticeCandidate[],
-): Promise<{ objectsReused: number; objectsWritten: number }> {
+): Promise<{
+	noticeIds: number[];
+	objectsReused: number;
+	objectsWritten: number;
+	resources: NoticeRunnerResourceCounts;
+}> {
 	let objectsReused = 0;
 	let objectsWritten = 0;
+	const noticeIds: number[] = [];
+	const resources = emptyResourceCounts();
 	for (const candidate of candidates) {
-		if (await input.sourceStore.has(candidate.noticeId)) {
-			objectsReused += 1;
-			continue;
-		}
-		const detail = await input.fetchNoticeDetail({
-			apiContext: input.apiContext,
-			noticeId: candidate.noticeId,
-		});
-		const detailInfo = detail.datas?.notice_info;
-		if (!detailInfo) {
-			throw new Error(`notice ${candidate.noticeId} detail is missing notice_info`);
-		}
-		const source = buildInternalPortalNoticeSource({
-			detailInfo,
-			listItem: candidate.item,
-			noticeId: candidate.noticeId,
-			noticeType: candidate.noticeType,
-		});
-		const outcome = await input.sourceStore.put(source);
-		if (outcome === "reused") {
+		const existing = await input.sourceStore.get(candidate.noticeId);
+		let source: InternalPortalNoticeSource;
+		if (existing) {
+			source = existing;
 			objectsReused += 1;
 		} else {
-			objectsWritten += 1;
+			const detail = await input.fetchNoticeDetail({
+				apiContext: input.apiContext,
+				noticeId: candidate.noticeId,
+			});
+			const detailInfo = detail.datas?.notice_info;
+			if (!detailInfo) {
+				throw new Error(`notice ${candidate.noticeId} detail is missing notice_info`);
+			}
+			source = buildInternalPortalNoticeSource({
+				detailInfo,
+				listItem: candidate.item,
+				noticeId: candidate.noticeId,
+				noticeType: candidate.noticeType,
+			});
+			const outcome = await input.sourceStore.put(source);
+			if (outcome === "reused") {
+				objectsReused += 1;
+			} else {
+				objectsWritten += 1;
+			}
 		}
+		const resourceResult = await ensureNoticeResources({
+			apiContext: input.apiContext,
+			...(input.resourceConcurrency === undefined
+				? {}
+				: { concurrency: input.resourceConcurrency }),
+			dryRun: false,
+			notices: [source],
+			objectStore: input.objectStore,
+			portalHost: input.portalHost,
+		});
+		noticeIds.push(candidate.noticeId);
+		addResourceCounts(resources, resourceResult);
 	}
-	return { objectsReused, objectsWritten };
+	return { noticeIds, objectsReused, objectsWritten, resources };
 }
 
 async function saveMappings(
@@ -437,10 +475,34 @@ function result(
 	mode: NoticeRunnerResult["mode"],
 	state: InternalPortalNoticeSyncState,
 	pagesFetched: number,
-	counts: Pick<NoticeRunnerResult, "objectsReused" | "objectsWritten"> = {
+	counts: Pick<
+		NoticeRunnerResult,
+		"noticeIds" | "objectsReused" | "objectsWritten" | "resources"
+	> = {
+		noticeIds: [],
 		objectsReused: 0,
 		objectsWritten: 0,
+		resources: emptyResourceCounts(),
 	},
 ): NoticeRunnerResult {
 	return { mode, pagesFetched, state, ...counts };
+}
+
+function emptyResourceCounts(): NoticeRunnerResourceCounts {
+	return {
+		attachmentsDownloaded: 0,
+		attachmentsReused: 0,
+		imagesDownloaded: 0,
+		imagesReused: 0,
+	};
+}
+
+function addResourceCounts(
+	target: NoticeRunnerResourceCounts,
+	resultValue: NoticeResourceEnsureResult,
+): void {
+	target.attachmentsDownloaded += resultValue.attachments.downloaded;
+	target.attachmentsReused += resultValue.attachments.existing;
+	target.imagesDownloaded += resultValue.images.downloaded;
+	target.imagesReused += resultValue.images.existing;
 }

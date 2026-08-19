@@ -1,0 +1,27 @@
+{
+	"name": "notice-classifier",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Title-only notice classification job and shared classification core.",
+	"type": "module",
+	"scripts": {
+		"build": "esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:@aws-sdk/client-s3",
+		"classify": "tsx src/cli.ts",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1111.0",
+		"@campus-agent/notices": "workspace:*",
+		"campus-contracts": "workspace:*",
+		"notice-classifier-core": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.3",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.12",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.10"
+	},
+	"license": "Apache-2.0"
+}

@@ -365,6 +365,24 @@ var providerConfigColumns = []string{
 	"validation_status",
 }
 
+var currentProviderConfigColumns = []string{
+	"base_url",
+	"kind",
+	"model",
+	"provider",
+	"secret_ciphertext",
+	"secret_nonce",
+	"transport",
+	"updated_at",
+	"updated_by",
+	"validated_at",
+	"validated_by",
+	"validation_error_code",
+	"validation_message",
+	"validation_observed_dimensions",
+	"validation_status",
+}
+
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
@@ -373,7 +391,11 @@ type Migrator struct {
 	provider *goose.Provider
 }
 
-func New(databaseURL string, keyring *providerconfig.Keyring) (*Migrator, error) {
+func New(
+	databaseURL string,
+	legacyKeyring *providerconfig.Keyring,
+	encryptionKey *providerconfig.SecretCipher,
+) (*Migrator, error) {
 	databaseURL = strings.TrimSpace(databaseURL)
 	if databaseURL == "" {
 		return nil, errors.New("schema migration database URL is required")
@@ -399,17 +421,24 @@ func New(databaseURL string, keyring *providerconfig.Keyring) (*Migrator, error)
 		goose.WithTableName(migrationTable),
 		goose.WithDisableGlobalRegistry(true),
 		goose.WithSessionLocker(locker),
-		goose.WithGoMigrations(goose.NewGoMigration(3, &goose.GoFunc{
-			RunTx: func(ctx context.Context, tx *sql.Tx) error {
-				if err := requireKnownProviderConfigSchema(ctx, tx); err != nil {
-					return err
-				}
-				if _, err := tx.ExecContext(ctx, providerConfigSchemaMigrationSQL); err != nil {
-					return fmt.Errorf("install provider config schema: %w", err)
-				}
-				return providerconfig.MigrateAndRemoveLegacyModelSettings(ctx, tx, keyring)
-			},
-		}, nil)),
+		goose.WithGoMigrations(
+			goose.NewGoMigration(3, &goose.GoFunc{
+				RunTx: func(ctx context.Context, tx *sql.Tx) error {
+					if err := requireKnownProviderConfigSchema(ctx, tx); err != nil {
+						return err
+					}
+					if _, err := tx.ExecContext(ctx, providerConfigSchemaMigrationSQL); err != nil {
+						return fmt.Errorf("install provider config schema: %w", err)
+					}
+					return providerconfig.MigrateAndRemoveLegacyModelSettings(ctx, tx, legacyKeyring)
+				},
+			}, nil),
+			goose.NewGoMigration(8, &goose.GoFunc{
+				RunTx: func(ctx context.Context, tx *sql.Tx) error {
+					return providerconfig.ReencryptCurrentModelSettings(ctx, tx, legacyKeyring, encryptionKey)
+				},
+			}, nil),
+		),
 	)
 	if err != nil {
 		_ = db.Close()
@@ -429,7 +458,7 @@ func requireKnownProviderConfigSchema(ctx context.Context, tx *sql.Tx) error {
 	if !exists {
 		return nil
 	}
-	columns, err := providerConfigColumnNames(ctx, tx)
+	columns, err := providerConfigColumnNames(ctx, tx, "execution_config", true)
 	if err != nil {
 		return err
 	}
@@ -442,13 +471,22 @@ func requireKnownProviderConfigSchema(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
-func providerConfigColumnNames(ctx context.Context, tx *sql.Tx) (_ []string, err error) {
-	rows, err := tx.QueryContext(ctx, `
+type sqlContextQuerier interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func providerConfigColumnNames(
+	ctx context.Context,
+	querier sqlContextQuerier,
+	schema string,
+	ignoreRetiredTimeout bool,
+) (_ []string, err error) {
+	rows, err := querier.QueryContext(ctx, `
 		select column_name
 		from information_schema.columns
-		where table_schema = 'execution_config' and table_name = 'model_settings'
+		where table_schema = $1 and table_name = 'model_settings'
 		order by column_name collate "C"
-	`)
+	`, schema)
 	if err != nil {
 		return nil, fmt.Errorf("inspect provider config columns: %w", err)
 	}
@@ -457,13 +495,13 @@ func providerConfigColumnNames(ctx context.Context, tx *sql.Tx) (_ []string, err
 			err = fmt.Errorf("close provider config column rows: %w", closeErr)
 		}
 	}()
-	columns := make([]string, 0, len(providerConfigColumns)+1)
+	columns := make([]string, 0, len(currentProviderConfigColumns))
 	for rows.Next() {
 		var column string
 		if err := rows.Scan(&column); err != nil {
 			return nil, fmt.Errorf("scan provider config column: %w", err)
 		}
-		if column != "timeout_ms" {
+		if !ignoreRetiredTimeout || column != "timeout_ms" {
 			columns = append(columns, column)
 		}
 	}
@@ -623,6 +661,34 @@ func (m *Migrator) Check(ctx context.Context) error {
 	}
 	if pending {
 		return errors.New("execution-control schema migrations are pending")
+	}
+	if err := m.requireCurrentProviderConfigSchema(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Migrator) requireCurrentProviderConfigSchema(ctx context.Context) error {
+	var exists bool
+	if err := m.db.QueryRowContext(
+		ctx,
+		"select to_regclass('execution_control.model_settings') is not null",
+	).Scan(&exists); err != nil {
+		return fmt.Errorf("inspect current provider config schema: %w", err)
+	}
+	if !exists {
+		return errors.New("execution_control.model_settings is not installed")
+	}
+	columns, err := providerConfigColumnNames(ctx, m.db, "execution_control", false)
+	if err != nil {
+		return err
+	}
+	if !sameColumnNames(columns, currentProviderConfigColumns) {
+		return fmt.Errorf(
+			"execution_control.model_settings has unknown or missing columns: got %s, want %s",
+			strings.Join(columns, ","),
+			strings.Join(sortedColumnNames(currentProviderConfigColumns), ","),
+		)
 	}
 	return nil
 }

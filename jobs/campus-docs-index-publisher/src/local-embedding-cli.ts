@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { assertSha256Ref } from "./artifacts.ts";
+import { CANONICAL_EMBEDDING_MODEL } from "./definitions.ts";
 import {
 	createEmbeddingConnection,
 	createOpenAICompatibleEmbeddingClient,
@@ -15,7 +16,6 @@ const ARTIFACT_ROOT = fileURLToPath(new URL("../../../var/", import.meta.url));
 interface LocalEmbeddingCommand {
 	baseUrl: string;
 	chunkSet: Sha256Ref;
-	model: string;
 	reuseEmbeddingSet?: Sha256Ref;
 }
 
@@ -31,7 +31,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 			createEmbeddingConnection({
 				apiKey,
 				baseUrl: command.baseUrl,
-				model: command.model,
+				model: CANONICAL_EMBEDDING_MODEL,
 			}),
 		),
 		...(command.reuseEmbeddingSet
@@ -59,18 +59,16 @@ export function parseLocalEmbeddingCommand(
 		flags.set(name, value);
 	}
 	for (const name of flags.keys()) {
-		if (!["--base-url", "--chunk-set", "--model", "--reuse-embedding-set"].includes(name)) {
+		if (!["--base-url", "--chunk-set", "--reuse-embedding-set"].includes(name)) {
 			usage();
 		}
 	}
 	const baseUrl = requiredFlag(flags, "--base-url");
-	const model = requiredFlag(flags, "--model");
 	const chunkSet = assertSha256Ref(requiredFlag(flags, "--chunk-set"), "chunk set");
 	const reuse = flags.get("--reuse-embedding-set");
 	return {
 		baseUrl,
 		chunkSet,
-		model,
 		...(reuse
 			? { reuseEmbeddingSet: assertSha256Ref(reuse, "reuse embedding set") }
 			: {}),
@@ -85,7 +83,7 @@ function requiredFlag(flags: ReadonlyMap<string, string>, name: string): string 
 
 function usage(): never {
 	throw new Error(
-		"Usage: build-embeddings --chunk-set sha256:<id> --base-url <url> --model <model> [--reuse-embedding-set sha256:<id>]",
+		"Usage: build-embeddings --chunk-set sha256:<id> --base-url <url> [--reuse-embedding-set sha256:<id>]",
 	);
 }
 

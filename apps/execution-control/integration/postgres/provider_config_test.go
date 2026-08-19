@@ -5,12 +5,10 @@ package postgres_test
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
@@ -21,7 +19,7 @@ import (
 func testSchemaMigrationsWithoutGrantRoles(t *testing.T, harness *postgresHarness) {
 	databaseName := harness.createDatabase(t, "")
 	databaseURL := harness.databaseURL(t, databaseName, adminUser, adminPassword)
-	migrator, err := schemamigrations.New(databaseURL, nil)
+	migrator, err := schemamigrations.New(databaseURL, nil, integrationProviderCipher())
 	if err != nil {
 		t.Fatalf("create schema migrator: %v", err)
 	}
@@ -77,7 +75,8 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		if err != nil {
 			t.Fatalf("read empty model settings: %v", err)
 		}
-		if empty.Settings[providerconfig.KindLLM] != nil || empty.Settings[providerconfig.KindEmbedding] != nil || empty.ETag == "" {
+		if empty.Settings[providerconfig.KindLLM] != nil || empty.Settings[providerconfig.KindEmbedding] != nil ||
+			empty.Settings[providerconfig.KindNoticeClassifier] != nil {
 			t.Fatalf("empty model settings = %#v", empty)
 		}
 
@@ -92,7 +91,6 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		status, err := runtimeStore.Put(
 			t.Context(),
 			"ops:integration",
-			empty.ETag,
 			llm,
 			providerconfig.ValidationResult{Message: "integration validation", Status: "passed"},
 		)
@@ -110,14 +108,31 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		status, err = runtimeStore.Put(
 			t.Context(),
 			"ops:integration",
-			status.ETag,
 			embedding,
 			providerconfig.ValidationResult{Message: "integration validation", ObservedDimensions: 2560, Status: "passed"},
 		)
 		if err != nil {
 			t.Fatalf("save embedding setting: %v", err)
 		}
-		if status.Settings[providerconfig.KindLLM] == nil || status.Settings[providerconfig.KindEmbedding] == nil {
+		classifier := providerconfig.RuntimeSetting{
+			APIKey:    "sk-integration-classifier-secret",
+			BaseURL:   "https://classifier.integration.example/v1",
+			Kind:      providerconfig.KindNoticeClassifier,
+			Model:     "integration-classifier",
+			Provider:  "openai-compatible",
+			Transport: "chat_completions",
+		}
+		status, err = runtimeStore.Put(
+			t.Context(),
+			"ops:integration",
+			classifier,
+			providerconfig.ValidationResult{Message: "integration validation", Status: "passed"},
+		)
+		if err != nil {
+			t.Fatalf("save notice classifier setting: %v", err)
+		}
+		if status.Settings[providerconfig.KindLLM] == nil || status.Settings[providerconfig.KindEmbedding] == nil ||
+			status.Settings[providerconfig.KindNoticeClassifier] == nil {
 			t.Fatalf("configured model settings = %#v", status.Settings)
 		}
 
@@ -141,6 +156,10 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 		if err != nil || resolvedLLM.APIKey != llm.APIKey || resolvedLLM.Model != llm.Model {
 			t.Fatalf("resolved llm setting = %#v error=%v", resolvedLLM, err)
 		}
+		resolvedClassifier, err := runtimeStore.Resolve(t.Context(), providerconfig.KindNoticeClassifier)
+		if err != nil || resolvedClassifier.APIKey != classifier.APIKey || resolvedClassifier.Model != classifier.Model {
+			t.Fatalf("resolved notice classifier setting = %#v error=%v", resolvedClassifier, err)
+		}
 		retained, err := runtimeStore.Candidate(t.Context(), providerconfig.SettingInput{
 			BaseURL:   llm.BaseURL,
 			Kind:      providerconfig.KindLLM,
@@ -152,28 +171,15 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("retain existing credential = %#v error=%v", retained, err)
 		}
 
-		const rawProviderMessage = "upstream https://private-provider.example rejected secret"
-		if err := runtimeStore.RecordValidation(
-			t.Context(),
-			"ops:integration",
-			providerconfig.KindLLM,
-			providerconfig.ValidationResult{ErrorCode: "provider_unavailable", Message: "provider request failed", Status: "failed"},
-			status.Settings[providerconfig.KindLLM].UpdatedAt,
-		); err != nil {
-			t.Fatalf("record failed validation: %v", err)
-		}
-		status, err = runtimeStore.Status(t.Context())
-		if err != nil {
-			t.Fatalf("read status after failed validation: %v", err)
-		}
-		if status.Settings[providerconfig.KindLLM].LatestValidation.Status != "failed" {
+		if status.Settings[providerconfig.KindLLM].LatestValidation == nil ||
+			status.Settings[providerconfig.KindLLM].LatestValidation.Status != "passed" {
 			t.Fatalf("llm validation = %#v", status.Settings[providerconfig.KindLLM].LatestValidation)
 		}
 		rawStatus, err := json.Marshal(status)
 		if err != nil {
 			t.Fatalf("marshal model settings status: %v", err)
 		}
-		for _, forbidden := range []string{llm.APIKey, embedding.APIKey, rawProviderMessage, "secretCiphertext", "secretNonce"} {
+		for _, forbidden := range []string{llm.APIKey, embedding.APIKey, classifier.APIKey, "secretCiphertext", "secretNonce"} {
 			if strings.Contains(string(rawStatus), forbidden) {
 				t.Fatalf("model settings status exposed forbidden value %q", forbidden)
 			}
@@ -184,11 +190,7 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 	t.Run("schema check rejects drift after an applied migration", func(t *testing.T) {
 		_, ownerURL, runtimeURL, keyring := newProviderDatabase(t, harness)
 		store := newProviderStore(t, runtimeURL, keyring)
-		empty, err := store.Status(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = store.Put(t.Context(), "ops:integration", empty.ETag, providerconfig.RuntimeSetting{
+		_, err := store.Put(t.Context(), "ops:integration", providerconfig.RuntimeSetting{
 			APIKey: "sk-existing", BaseURL: "https://provider.integration.example/v1", Kind: providerconfig.KindLLM,
 			Model: "existing-model", Provider: "openai-compatible", Transport: "responses",
 		}, providerconfig.ValidationResult{Message: "passed", Status: "passed"})
@@ -215,96 +217,6 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("setting after schema drift = %#v error=%v", resolved, err)
 		}
 	})
-
-	t.Run("concurrent updates reject stale etag", func(t *testing.T) {
-		_, _, runtimeURL, keyring := newProviderDatabase(t, harness)
-		store := newProviderStore(t, runtimeURL, keyring)
-		status, err := store.Status(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
-		start := make(chan struct{})
-		results := make(chan error, 2)
-		var waitGroup sync.WaitGroup
-		for index := range 2 {
-			waitGroup.Add(1)
-			go func(index int) {
-				defer waitGroup.Done()
-				<-start
-				_, putErr := store.Put(
-					t.Context(),
-					"ops:integration",
-					status.ETag,
-					providerconfig.RuntimeSetting{
-						APIKey:    fmt.Sprintf("sk-race-%d", index),
-						BaseURL:   "https://provider.integration.example/v1",
-						Kind:      providerconfig.KindLLM,
-						Model:     fmt.Sprintf("model-%d", index),
-						Provider:  "openai-compatible",
-						Transport: "responses",
-					},
-					providerconfig.ValidationResult{Message: "passed", Status: "passed"},
-				)
-				results <- putErr
-			}(index)
-		}
-		close(start)
-		waitGroup.Wait()
-		close(results)
-		var succeeded, conflicted int
-		for result := range results {
-			switch {
-			case result == nil:
-				succeeded++
-			case errors.Is(result, providerconfig.ErrConflict):
-				conflicted++
-			default:
-				t.Fatalf("unexpected concurrent update error: %v", result)
-			}
-		}
-		if succeeded != 1 || conflicted != 1 {
-			t.Fatalf("concurrent updates = %d succeeded/%d conflicted", succeeded, conflicted)
-		}
-	})
-
-	t.Run("late validation cannot update a newer setting", func(t *testing.T) {
-		_, _, runtimeURL, keyring := newProviderDatabase(t, harness)
-		store := newProviderStore(t, runtimeURL, keyring)
-		initial, err := store.Status(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
-		first, err := store.Put(t.Context(), "ops:integration", initial.ETag, providerconfig.RuntimeSetting{
-			APIKey: "sk-before", BaseURL: "https://provider.integration.example/v1", Kind: providerconfig.KindLLM,
-			Model: "model-before", Provider: "openai-compatible", Transport: "responses",
-		}, providerconfig.ValidationResult{Message: "passed", Status: "passed"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		staleUpdatedAt := first.Settings[providerconfig.KindLLM].UpdatedAt
-		second, err := store.Put(t.Context(), "ops:integration", first.ETag, providerconfig.RuntimeSetting{
-			APIKey: "sk-after", BaseURL: "https://provider.integration.example/v1", Kind: providerconfig.KindLLM,
-			Model: "model-after", Provider: "openai-compatible", Transport: "responses",
-		}, providerconfig.ValidationResult{Message: "passed", Status: "passed"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if second.Settings[providerconfig.KindLLM].UpdatedAt.Equal(staleUpdatedAt) {
-			t.Fatal("setting update did not advance updated_at fence")
-		}
-		err = store.RecordValidation(t.Context(), "ops:integration", providerconfig.KindLLM,
-			providerconfig.ValidationResult{ErrorCode: "late", Message: "late result", Status: "failed"}, staleUpdatedAt)
-		if !errors.Is(err, providerconfig.ErrConflict) {
-			t.Fatalf("late validation error = %v, want ErrConflict", err)
-		}
-		latest, err := store.Status(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if latest.Settings[providerconfig.KindLLM].Model != "model-after" || latest.Settings[providerconfig.KindLLM].LatestValidation.Status != "passed" {
-			t.Fatalf("late validation overwrote newer setting: %#v", latest.Settings[providerconfig.KindLLM])
-		}
-	})
 }
 
 func newProviderDatabase(
@@ -329,9 +241,14 @@ func newProviderDatabase(
 
 func loadIntegrationKeyring(t *testing.T) *providerconfig.Keyring {
 	t.Helper()
+	return loadIntegrationKeyringWithOffset(t, 1)
+}
+
+func loadIntegrationKeyringWithOffset(t *testing.T, offset byte) *providerconfig.Keyring {
+	t.Helper()
 	key := make([]byte, 32)
 	for index := range key {
-		key[index] = byte(index + 1)
+		key[index] = offset + byte(index)
 	}
 	payload := fmt.Sprintf(
 		`{"active_key_id":"integration-key","keys":{"integration-key":%q}}`,
@@ -348,13 +265,43 @@ func loadIntegrationKeyring(t *testing.T) *providerconfig.Keyring {
 	return keyring
 }
 
+func writeIntegrationProviderSecrets(t *testing.T) (keyringPath, encryptionKeyPath string) {
+	t.Helper()
+	key := make([]byte, 32)
+	for index := range key {
+		key[index] = byte(index + 1)
+	}
+	payload := fmt.Sprintf(
+		`{"active_key_id":"integration-key","keys":{"integration-key":%q}}`,
+		base64.StdEncoding.EncodeToString(key),
+	)
+	directory := t.TempDir()
+	keyringPath = filepath.Join(directory, "provider-keyring.json")
+	if err := os.WriteFile(keyringPath, []byte(payload), 0o600); err != nil {
+		t.Fatalf("write provider keyring: %v", err)
+	}
+	encryptionKeyPath = filepath.Join(directory, "encryption.key")
+	if err := os.WriteFile(encryptionKeyPath, []byte(base64.StdEncoding.EncodeToString(integrationEncryptionKey())), 0o600); err != nil {
+		t.Fatalf("write provider encryption key: %v", err)
+	}
+	return keyringPath, encryptionKeyPath
+}
+
+func integrationEncryptionKey() []byte {
+	key := make([]byte, 32)
+	for index := range key {
+		key[index] = byte(0xa0 + index)
+	}
+	return key
+}
+
 func newProviderStore(
 	t *testing.T,
 	databaseURL string,
-	keyring *providerconfig.Keyring,
+	_ *providerconfig.Keyring,
 ) *providerconfig.Store {
 	t.Helper()
-	store, err := providerconfig.NewStore(t.Context(), databaseURL, keyring)
+	store, err := providerconfig.NewStore(t.Context(), databaseURL, integrationProviderCipher())
 	if err != nil {
 		t.Fatalf("create model settings store: %v", err)
 	}

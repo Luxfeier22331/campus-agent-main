@@ -1,15 +1,9 @@
 import path from "node:path";
 
 import { parse as parseContentDisposition } from "content-disposition";
-import { buildObjectStoreArtifactRef, encodeObjectKeySegment, sha256Hex } from "ingest-core";
-import type {
-	InternalPortalFileReleaseCaptureResult,
-	InternalPortalFileReleaseSource,
-} from "ingestion-contracts";
-import {
-	validateInternalPortalFileReleaseCaptureResult,
-	validateInternalPortalFileReleaseSource,
-} from "ingestion-contracts";
+import { encodeObjectKeySegment } from "ingest-core";
+import type { InternalPortalFileReleaseSource } from "ingestion-contracts";
+import { validateInternalPortalFileReleaseSource } from "ingestion-contracts";
 import { lookup as lookupMimeType } from "mime-types";
 
 import type { SourceCollectorObjectStore } from "../../../src/object-store.js";
@@ -47,10 +41,16 @@ export interface CaptureInternalPortalFileReleaseDependencies {
 	}) => Promise<FileReleaseDownloadUrlResponse>;
 }
 
+export interface CaptureInternalPortalFileReleaseResult {
+	disposition: "reused" | "written";
+	fileReleaseId: number;
+	sourceKey: string;
+}
+
 export async function captureInternalPortalFileRelease(
 	input: CaptureInternalPortalFileReleaseInput,
 	dependencies: CaptureInternalPortalFileReleaseDependencies = {},
-): Promise<InternalPortalFileReleaseCaptureResult> {
+): Promise<CaptureInternalPortalFileReleaseResult> {
 	assertFileReleaseId(input.fileReleaseId);
 	input.abortSignal?.throwIfAborted();
 	const prefix = [
@@ -68,12 +68,7 @@ export async function captureInternalPortalFileRelease(
 	});
 	if (existingSource) {
 		parseStoredSource(existingSource, input.config.siteId, input.fileReleaseId);
-		return buildCaptureResult({
-			bytes: existingSource,
-			bucket: input.objectStore.sourceBucket,
-			fileReleaseId: input.fileReleaseId,
-			key: sourceKey,
-		});
+		return { disposition: "reused", fileReleaseId: input.fileReleaseId, sourceKey };
 	}
 
 	const apiContext = await (
@@ -151,20 +146,14 @@ export async function captureInternalPortalFileRelease(
 			};
 			assertValidSource(source);
 			const sourceBytes = new TextEncoder().encode(`${JSON.stringify(source, null, 2)}\n`);
-			const storedSource = await input.objectStore.createOrVerifyObject({
+			await input.objectStore.createOrVerifyObject({
 				...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
 				body: sourceBytes,
 				bucket: input.objectStore.sourceBucket,
 				contentType: "application/json",
 				key: sourceKey,
 			});
-			return buildCaptureResult({
-				bytes: sourceBytes,
-				bucket: input.objectStore.sourceBucket,
-				contentSha256: storedSource.contentSha256,
-				fileReleaseId: input.fileReleaseId,
-				key: sourceKey,
-			});
+			return { disposition: "written", fileReleaseId: input.fileReleaseId, sourceKey };
 		} finally {
 			await downloaded.remove();
 		}
@@ -198,32 +187,6 @@ function assertValidSource(value: unknown): asserts value is InternalPortalFileR
 	if (!validation.ok) {
 		throw new Error(`invalid internal portal file-release source: ${validation.errors.join("; ")}`);
 	}
-}
-
-function buildCaptureResult(input: {
-	bytes: Uint8Array;
-	bucket: string;
-	contentSha256?: string;
-	fileReleaseId: number;
-	key: string;
-}): InternalPortalFileReleaseCaptureResult {
-	const result: InternalPortalFileReleaseCaptureResult = {
-		schema_version: "internal_portal_file_release_capture_result.v1",
-		file_release_id: input.fileReleaseId,
-		source_ref: buildObjectStoreArtifactRef({
-			bucket: input.bucket,
-			byteSize: input.bytes.byteLength,
-			contentSha256: input.contentSha256 ?? sha256Hex(input.bytes),
-			key: input.key,
-		}),
-	};
-	const validation = validateInternalPortalFileReleaseCaptureResult(result);
-	if (!validation.ok) {
-		throw new Error(
-			`invalid internal portal file-release capture result: ${validation.errors.join("; ")}`,
-		);
-	}
-	return result;
 }
 
 function resolveDownloadUrl(

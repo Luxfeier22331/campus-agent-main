@@ -125,7 +125,15 @@ describe("managed worktree environment", () => {
 		const profile = createProfile(repoRoot);
 		renderLocalEnvironmentFiles({ profile, repoRoot });
 		const secretPath = resolve(repoRoot, "apps/app-api/.dev.vars.local");
+		const sourceCollectorPath = resolve(
+			repoRoot,
+			"apps/source-collector/adapters/internal-portal/.env.local",
+		);
 		const first = parseEnv(readFileSync(secretPath, "utf8"));
+		writeFileSync(
+			sourceCollectorPath,
+			`${readFileSync(sourceCollectorPath, "utf8").trimEnd()}\nINTERNAL_PORTAL_SSO_TGC="TGT-local"\n`,
+		);
 		renderLocalEnvironmentFiles({ profile, repoRoot });
 		const second = parseEnv(readFileSync(secretPath, "utf8"));
 
@@ -164,6 +172,9 @@ describe("managed worktree environment", () => {
 		const noticePublisherEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "jobs/notice-publisher/.env.local"), "utf8"),
 		);
+		const noticeClassifierEnvironment = parseEnv(
+			readFileSync(resolve(repoRoot, "jobs/notice-classifier/.env.local"), "utf8"),
+		);
 		assert.equal(new URL(appApiEnvironment.APP_API_SCHEMA_DATABASE_URL ?? "").search, "");
 		assert.equal(campusWebEnvironment.AUTH_TURNSTILE_SITE_KEY, "");
 		assert.equal(campusWebEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
@@ -176,10 +187,21 @@ describe("managed worktree environment", () => {
 			new URL(ingestionControlEnvironment.INGESTION_CONTROL_DATABASE_URL ?? "").username,
 			"ingestion_control",
 		);
-		assert.equal(ingestionControlEnvironment.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
+		assert.equal(ingestionControlEnvironment.OBJECT_STORE_BUCKET_SOURCE, undefined);
 		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
 		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
 		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
+		assert.equal(sourceCollectorEnvironment.INTERNAL_PORTAL_SSO_TGC, "TGT-local");
+		assert.equal(
+			noticeClassifierEnvironment.OBJECT_STORE_BUCKET_DERIVED,
+			"campus-agent-derived-wt-1-deadbeef",
+		);
+		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
+		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
+		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_REGION, "us-east-1");
+		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
+		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "minioadmin");
+		assert.equal(noticeClassifierEnvironment.INTERNAL_NOTICE_CLASSIFIER_OPENAI_API_KEY, undefined);
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_SECRET_KEY, "minioadmin");
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "minioadmin");
@@ -491,7 +513,9 @@ function createRepositoryShape(): string {
 	mkdirSync(resolve(repoRoot, "apps/source-collector/adapters/internal-portal"), {
 		recursive: true,
 	});
-	mkdirSync(resolve(repoRoot, "jobs/notice-publisher"), { recursive: true });
+	for (const job of ["notice-classifier", "notice-publisher"]) {
+		mkdirSync(resolve(repoRoot, "jobs", job), { recursive: true });
+	}
 	return repoRoot;
 }
 

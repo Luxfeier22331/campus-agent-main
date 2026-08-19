@@ -12,8 +12,10 @@ describe("bootstrapIngestionControlSchema", () => {
 
 		expect(calls).toEqual([
 			"CREATE SCHEMA IF NOT EXISTS ingestion_control",
+			"ALTER SCHEMA ingestion_control OWNER TO CURRENT_USER",
 			"REVOKE ALL ON SCHEMA ingestion_control FROM PUBLIC",
-			"GRANT USAGE, CREATE ON SCHEMA ingestion_control TO ingestion_control",
+			"REVOKE ALL ON SCHEMA ingestion_control FROM ingestion_control",
+			"GRANT USAGE ON SCHEMA ingestion_control TO ingestion_control",
 		]);
 	});
 });

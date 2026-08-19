@@ -48,6 +48,9 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: campus-docs-embedding-builder
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: notice-classifier
       ports:
         - protocol: TCP
           port: 8002

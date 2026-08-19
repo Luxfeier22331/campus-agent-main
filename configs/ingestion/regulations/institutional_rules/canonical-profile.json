@@ -13,6 +13,6 @@
 		"The target contract uses regulation_work_title for document identity inputs and regulation_display_title for presentation.",
 		"The target display title preserves full edition semantics such as 2026版 or 2026年修订; it does not collapse an edition to a bare year token.",
 		"A future materializer must preserve source_title_literal as source-facing metadata.",
-		"The active task registry does not implement source materialization or promotion."
+		"No active runtime currently materializes or promotes this profile."
 	]
 }

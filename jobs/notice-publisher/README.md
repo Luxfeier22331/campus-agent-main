@@ -1,15 +1,20 @@
 # 通知发布器
 
 `notice-publisher` 是来源通知进入 `notices.*` 规范化投影的唯一显式写入入口。它读取 source bucket、
-人工确认的 `notice_id/domain` JSONL 和来源资源，写入内容寻址的 derived 对象，再用一个 PostgreSQL
-事务写入通知、映射和资源 metadata。
+模型生成并完成完整性校验的 `notice_id/category` JSONL 和来源资源，写入内容寻址的 derived 对象，再用一个
+PostgreSQL 事务写入通知、映射和资源 metadata。分类必须使用共享通知合同中的值，且同一通知只能
+出现一次。
 
 发布器不抓取外部网页、不自动调度、不保存分类模型 metadata，也不创建批次状态。相同输入可以
 幂等重跑；来源、schema 或已有投影冲突时整批失败。
 
+单分类 migration 5 只接受空的 `notices.notices` 投影。它不会把旧分类值映射到新 taxonomy，也不会
+保留兼容列；已有本地旧投影应先按 runbook 清空，再运行 migration 和重新发布。该约束描述当前本地
+实现，不表示集群已经创建 publisher workload 或完成数据发布。
+
 ## 运行
 
-先按 `docs/runbooks/ingestion.md` 完成来源采集、资源 dry-run 和分类确认，再运行：
+先按 `docs/runbooks/ingestion.md` 完成来源采集、资源 dry-run 和分类完整性校验，再运行：
 
 ```bash
 set -a

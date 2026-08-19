@@ -19,16 +19,20 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和 Campus Docs 检索准入 |
-| `ingestion_control` | `apps/ingestion-control` | 采集任务投影读写 |
+| `ingestion_control` | `apps/ingestion-control` | 内部门户凭据池读写 |
 | `notice_publisher` | `jobs/notice-publisher` | 规范化通知写入 |
 | `campus_docs_index_publisher` | `jobs/campus-docs-index-publisher` | Campus Docs 当前索引单行绑定替换 |
-| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户凭据读写 |
+| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户 automation token 读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
 观测平台不获得产品 PostgreSQL 角色。
 
 表中角色是权限主体，不等于都已具备环境登录凭据。`ops_web` 是 Ops Web 的唯一运行角色，Dining
 不创建第二个角色或连接。
+
+`campus_agent` 是 `ingestion_control` 的成员，只为接管旧 staging 中由该 runtime role 创建的 schema 和
+migration 对象。成员关系不反向授予 `ingestion_control` 数据库 owner 权限；接管完成后 schema 和当前表
+均由 `campus_agent` 持有。
 
 ## Schema 所有权
 
@@ -42,10 +46,10 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
 | `execution_control.model_settings` | execution-control 配置管理 | execution-control |
 | `campus_docs_serving.current_index` | Campus Docs index publisher | execution-control、Campus Docs index publisher |
-| `ingestion_control.tasks` | ingestion-control | ingestion-control |
+| `ingestion_control.internal_portal_credentials` | ingestion-control | ingestion-control；Ops Web 与 Source Collector 通过内部 API |
 | `notices.*` | notice-publisher | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
-| `internal_portal.credentials`、`internal_portal.automation_tokens` | Ops Web | Ops Web |
+| `internal_portal.automation_tokens` | Ops Web | Ops Web |
 
 ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
 规则由所属数据文档或 schema 唯一维护。
@@ -105,8 +109,8 @@ Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campu
 - `campus_docs_index_publisher` 对 `campus_docs_serving.current_index` 只有 `SELECT`、`INSERT`、
   `UPDATE`；`execution_control` 对该表只有 `SELECT`；
 - `execution_control.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
-  该 Job 使用环境仓交付的 schema-install DSN 和现有 provider keyring；常驻 runtime 只使用
-  `execution_control` DSN，不执行迁移。
+  该 Job 使用环境仓交付的 schema-install DSN、新的 `encryption.key`，以及仅在历史密文迁移时使用的
+  旧 provider keyring；常驻 runtime 只使用 `execution_control` DSN 和 `encryption.key`，不执行迁移。
 - `model_settings` 可以为空或只配置一个 kind；schema 安装不把业务配置完整性变成部署门禁。
   `llm` 和 `embedding` 分别由消费它们的运行路径检查并失败。
 - Goose v4 将 execution-control 的 12 张运行表和 `model_settings` 原位移动到
@@ -115,17 +119,19 @@ Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campu
   才能由后续 migration 删除这些视图及空的 `execution_config` schema；源码合并本身不证明环境已
   完成该清理。
 - Goose v5 在已移动的 `execution_control.model_settings` 上暂时新增 `embedding_space_id`，并创建
-  `campus_docs_serving.current_index`；Goose v6 删除模型设置中的向量字段以及当前索引中不再由配置管理的
-  `embedding_model`、`embedding_provider`。已应用 v3 的数据库通过 v4、v5、v6 顺序升级，不会重跑或
-  改写 v3。
+  `campus_docs_serving.current_index`；Goose v6 删除模型设置中的向量字段以及当前索引中的
+  `embedding_model`、`embedding_provider`；Goose v7 规范现有 Embedding 设置并要求重新验证。已应用
+  v3 的数据库通过 v4 至 v7 顺序升级，不会重跑或改写 v3。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和领域业务表，不能读取
   `notices.schema_migrations` 或写入该 schema；
 - Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
-- Ops Web 使用同一角色读写 `internal_portal.credentials` 和
-  `internal_portal.automation_tokens`；App API 和其他运行角色没有该 schema 权限。token 明文保留是
-  为满足 Ops Web 的重复 reveal 合同，不作为通用 Secret 管理能力；
+- ingestion-control runtime 只获得 `ingestion_control.internal_portal_credentials` 的 DML 权限，
+  不获得 schema `CREATE` 或 migration journal 读取权限；schema 安装和 migration 使用既有数据库
+  bootstrap 角色，并在历史升级时把 runtime-owned schema、journal 和当前表接管给该角色；
+- Ops Web 使用 `ops_web` 角色读写 `internal_portal.automation_tokens`，不能读取 ingestion-control
+  凭据表。token 明文保留是为满足 Ops Web 的重复 reveal 合同，不作为通用 Secret 管理能力；
 - 不同所有者不共享 migration journal，也不通过双写复制同一事实；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 

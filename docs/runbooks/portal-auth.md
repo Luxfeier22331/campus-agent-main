@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-owner_boundary: apps/ops-web
+owner_boundary: ingestion-control
 status: active
 ---
 
@@ -8,30 +8,24 @@ status: active
 
 ## 运行模型
 
-协作者先通过学校统一认证取得 `SSO_TGC` 或浏览器中的原始请求 Cookie，再在 Ops Web 的“内部门户
-凭据”页面录入并验证。
-Ops Web Node 后端使用该值建立一次真实 CAS 与门户会话；只有验证成功才把 CAS 返回的当前 TGC
-写入 PostgreSQL `internal_portal.credentials`。系统允许同时保存多条具名凭据，不设置主凭据，也不
-自动选择其中一条供采集运行时使用。
+ingestion-control 是 TGC、检查结果和 CAS 刷新值的唯一运行所有者。Ops Web 提供人员页面和 automation
+入口，但所有凭据操作都通过内部 HTTP 转发 ingestion-control。Source Collector 不读取数据库，也不按
+名称选择记录。
 
-Ops Web 是已保存 TGC、检查结果和轮换操作的唯一所有者。`packages/internal-portal-client` 只实现
-CAS 跳转、Cookie 会话和错误分类，不读取环境变量、文件、数据库或 Kubernetes。source-collector
-只在一次本地命令或显式启动的进程中消费 `INTERNAL_PORTAL_SSO_TGC`，不持久化、不保活，也不从
-Ops Web 自动读取凭据。
+系统允许多条具名凭据，不维护主凭据。消费解析排除 `credential_rejected`，按 `valid`、未检查、
+`check_failed` 逐条真实验证，返回第一条可用 TGC。采集会话随后得到的新 TGC 只在本次进程使用，不
+回写。
 
-需要由开发程序自动创建、更新或删除凭据时，操作者在同一页面的“开发者自动化访问”区域生成或选择 token，
-复制显示的 `OPS_WEB_AUTOMATION_ORIGIN` 对应端点和 Bearer token。协作者使用
-`MUC-WIKI/sso-tgc-template` 创建运行仓库后，自行将 endpoint 配置为 Actions variable、将 token 配置为
-Actions secret。程序请求
-`/api/automation/internal-portal/credentials`，名称不存在时先创建记录；已有记录读取 metadata 后以当前
-`ETag` 作为 `If-Match` 更新 `ssoTgc`，或删除指定记录。机器端点不经过 Cloudflare Access，不提供 reveal、
-检查或重命名；token 可在页面重复查看，撤销后立即不能认证。程序必须把 token 放在自己的运行时
-凭据存储中，不写入 Git、日志、URL 或 source bucket。
+## 录入、轮换与读取
 
-自动化 origin 缺失不会让 Ops Web `/readyz` 失败；它只使自动化 token 管理区和机器接口返回
-`OPS_AUTOMATION_NOT_CONFIGURED`。生产环境没有共享的测试 token，接口验证必须使用 Ops Web 页面创建的
-具名 token。开发者程序应先读取目标记录 metadata，再用返回的 `ETag` 发送 `If-Match`，不要并发覆盖
-其他程序的更新。
+1. 在 Ops Web 的“内部门户凭据”页面新增记录，填写唯一名称和裸 TGC 或包含唯一 `SSO_TGC` 的 Cookie。
+2. 等待真实 CAS/门户验证；拒绝或依赖失败时不写候选值。
+3. 重命名、轮换和删除都使用页面当前版本。版本冲突时刷新后重新决定。
+4. “立即检查”更新最近检查 metadata；“显示明文”只把 TGC 放入当前对话框 state。
+
+需要由外部程序维护凭据时，在同页生成 automation token，并使用页面显示的
+`OPS_WEB_AUTOMATION_ORIGIN`。程序先读取 metadata，再以 ETag 作为 `If-Match` 创建、轮换或删除记录。
+automation token 不用于采集消费。
 
 `MUC-WIKI/sso-tgc-template` 是协作者自己的运行入口。协作者在自己的电脑或 GitHub Actions 中保存
 学校账号、密码、目标凭据名称、endpoint 和 Bearer token，并自行决定 schedule；这些输入不会投递到集群。
@@ -45,114 +39,71 @@ Service Ticket、`JSESSIONID` 和 `nginx` Cookie 只存在于当前 HTTP 会话�
 ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或浏览器存储；extractor 只在当前
 进程内将它发送给 Ops Web 的一次创建或轮换请求。
 
-上句适用于 Ops Web 的凭据管理流程。浏览器状态和本地复用选项由模板仓说明拥有；协作者启用时只能
-保存在自己的私有、未跟踪目录中，不向 Ops Web 以外的共享存储投递。
-
-## 录入与读取
-
-1. 需要人工录入时，在 Ops Web 进入“内部门户凭据”，选择“新增凭据”。自动化模板不需要这一步，首次
-   成功运行会使用机器接口完成同样的验证和创建。
-2. 填写可辨认的唯一名称，以及原始 TGC 值、`SSO_TGC=<value>` 或包含唯一 `SSO_TGC` 的完整请求
-   Cookie。后端只提取并保存裸 TGC 值，其他 Cookie 字段不会保存。
-3. 等待真实门户验证完成。CAS 拒绝或门户暂时不可用时，新增失败且不创建记录。
-4. 需要开发时选择目标记录的“显示明文”并复制当前值。明文只保存在当前对话框的 React state，
-   关闭后即从页面移除，不进入 TanStack Query cache 或 mutation 结果。
-
-列表只返回标识、名称、版本、最近尝试、最近成功和结果分类，不返回 TGC。明文读取使用同源
-`POST`；接口和页面响应均为 `Cache-Control: no-store`。
-
-## 轮换与删除
-
-轮换先使用候选 TGC 建立真实门户会话，成功后才按当前记录版本替换原值。CAS 拒绝、网络失败或
-门户失败都不会覆盖原凭据。重命名、轮换和删除使用当前版本作为并发前置条件；页面版本过旧时操作
-失败，刷新后由操作者重新决定，不自动重放。
-
-CAS 可能在验证过程中刷新 `SSO_TGC`。Ops Web 保存刷新后的值并递增记录版本，后续明文读取和定时
-检查都使用该值。
-
 ## 定时检查
 
-`ops-web-internal-portal-check` CronJob 使用 `*/30 * * * *` 每 30 分钟读取记录并顺序检查，每条
-门户调用最多等待 60 秒：
+`ingestion-control-internal-portal-check` 每 30 分钟顺序检查未暂停记录：
 
-- `valid`：门户会话建立成功，更新最近成功时间并保存 CAS 返回的当前 TGC；
-- `credential_rejected`：CAS 或门户明确拒绝该凭据；记录随后暂停自动检查，避免继续请求无效凭据；
-- `check_failed`：配置、网络、超时或其他依赖错误，不能据此判断凭据已失效，下一周期继续检查。
+- `valid`：更新最近成功时间，并保存 CAS 返回的当前 TGC；
+- `credential_rejected`：记录明确拒绝并暂停后续定时检查；
+- `check_failed`：记录依赖、网络或超时失败，下周期继续；
+- `stale`：检查期间版本变化或记录删除，本次结果不落库。
 
-定时检查跳过已为 `credential_rejected` 的记录。操作者成功轮换该记录，或通过“立即检查”成功写回
-`valid` 后，下一周期自动恢复；人工检查仍失败时保持暂停。单条认证失败不阻断后续记录。每次写回
-都使用检查开始时读取的 `credential_id + version`；检查期间发生轮换或删除时，旧结果标记为
-`stale`，不得覆盖新值。
+单条业务结果不使 CronJob 失败；数据库或未处理异常使整轮返回非零。该检查不是可承诺续期的保活
+协议，也不触发采集。
 
-`valid`、`credential_rejected` 和 `check_failed` 是写入数据库的业务检查结果；`stale` 只表示本次结果
-因版本冲突或记录删除而没有持久化，不会覆盖新状态。四种业务结果都不会使 Job 失败。进程完成一轮
-检查后不输出周期性成功日志；数据库不可用、配置初始化失败或未处理异常导致本轮无法完成时，才输出
-带脱敏失败分类的失败事件并返回非零退出码。
-凭据状态、暂停和下周期重试由数据库记录及 Ops Web 页面表达，不复制到逐凭据日志。CronJob 禁止
-并发，不在同一 Job 内重试，并保留最近 3 个成功 Job 和 1 个失败 Job。
-
-该任务是认证健康检查，不是可承诺续期的保活协议。CAS 若在建会话时返回当前 TGC，Ops Web 会保存
-它；门户仍可按自身策略使 TGC 失效。
-
-CronJob 使用 Ops Web 同一镜像、ServiceAccount、数据库连接和 CA，只开放 DNS、PostgreSQL 5432
-与外部 HTTPS 443 的 egress。它不访问 Kubernetes API，不触发通知或文件发布采集。
-
-## 本地使用
-
-从 Ops Web 取出目标值后，将其写入未跟踪的
-`apps/source-collector/adapters/internal-portal/.env`：
+## 本地拉取
 
 ```bash
-INTERNAL_PORTAL_SSO_TGC=TGT-...
-# 若本机通过 HTTP(S) 代理访问门户，也必须显式配置客户端使用的代理：
-INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
-```
-
-`source-collector` 不会自动继承 `HTTP_PROXY`、`HTTPS_PROXY` 或 `ALL_PROXY`；代理环境需要复制到
-`INTERNAL_PORTAL_PROXY_SERVER`。集群内的 source-collector 或 Ops Web 使用各自的网络出口，不读取
-开发者本机代理配置。
-
-验证当前值：
-
-```bash
+pnpm dev:init
+pnpm --filter source-collector auth:pull
 pnpm --filter source-collector auth:check
 ```
 
-该命令只执行一次并用退出码表示结果，不写状态文件。通知采集和显式启动的文件发布 worker 读取
-同一直接变量。source-collector 不持久化该值，也不运行后台认证检查。
+`auth:pull` 使用当前 kubectl context 和 namespace，从 `ops-web-internal-secrets` 读取既有
+`OPS_WEB_INTERNAL_TOKEN`，只为本次命令建立 `service/ingestion-control:8000` 的临时 port-forward。
+解析成功后原子更新
+Source Collector 适配器本地托管环境中的 `INTERNAL_PORTAL_SSO_TGC`，权限为
+`0600`；失败不改文件，命令不输出 token 或 TGC。
 
-自动化 endpoint 与 Bearer token 不改变上述边界：endpoint 只是环境配置，token 只授权 Ops Web 机器
-接口；source-collector 仍须由开发者显式把目标 TGC 传入 `INTERNAL_PORTAL_SSO_TGC`，不会读取 token
-或直接查询 Ops Web。需要在没有真实门户凭据时验证 HTTP 链路，可运行 `pnpm dev:ops-web-api-fixture`；
-该 fixture 的 token 和 TGC 仅在本地进程生命周期内有效。
+本机代理仅通过未跟踪环境显式配置：
 
-extractor 通过 Ops Web 更新记录后，source-collector 的 `INTERNAL_PORTAL_SSO_TGC` 不会自动改变；需要
-本地采集时由开发者重新显式取得当前值。extractor 的标准输出和错误不包含 TGC/Cookie 值。
+```bash
+INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
+```
 
-## 数据保留与环境重置
+## Job 入口
 
-凭据保存在 Ops Web 所属 PostgreSQL schema，Pod 重启和普通滚动部署不会删除记录。删除或重建
-包含该数据库的环境、清空 schema 或执行完整 staging namespace 重置后，记录不会自动恢复；环境
-可用后必须由协作者重新录入并通过真实门户验证。GitOps 不保存或回填 TGC。
+```bash
+pnpm --filter source-collector notice:sync:job
+pnpm --filter source-collector file:sync:job
+```
+
+两个入口读取 `INGESTION_CONTROL_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
+现有采集实现。它们不读取本地 TGC 作为 fallback，不修改 `process.env`，没有可用凭据时明确失败。
+当前 Kubernetes base 尚未部署这两个采集 Job 或 schedule。
+
+## 数据升级与保留
+
+Ops Web migration `0004_loud_loa.sql` 将旧 `internal_portal.credentials` 逐字段复制并双向比较到
+`ingestion_control.internal_portal_credentials`，随后删除旧表。automation token 仍留在 Ops Web
+schema。Pod 重启不会删除凭据；数据库或 schema 被重建后，GitOps 不会从 Secret 回填 TGC，必须重新
+录入。
 
 ## 失败处理
 
-- `OPS_INTERNAL_PORTAL_CREDENTIAL_REJECTED`：候选值已被拒绝，重新取得 TGC 后再新增或轮换；
-- `OPS_INTERNAL_PORTAL_INPUT_INVALID`：输入缺失、为空、包含重复 `SSO_TGC` 或不是支持的 TGC/Cookie
-  格式；
-- `OPS_INTERNAL_PORTAL_CHECK_FAILED`：候选验证暂时无法完成，保留原值并检查门户网络；
-- `OPS_INTERNAL_PORTAL_CONFLICT`：记录在操作期间已变化，刷新页面后重新决定；
-- `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`：检查 Ops Web 数据库 migration、授权、连接和 CA；
-- `internal_portal_credential_unavailable`：本地直接变量缺失、为空或格式错误；
-- `internal_portal_credential_expired`、`internal_portal_session_expired`：本地值已失效，从 Ops Web
-  取得仍有效的记录或重新录入。
+- `INGESTION_INTERNAL_PORTAL_CREDENTIAL_REJECTED`：重新取得 TGC 后再录入或轮换；
+- `INGESTION_INTERNAL_PORTAL_INPUT_INVALID`：检查 TGC/Cookie 格式；
+- `INGESTION_INTERNAL_PORTAL_CHECK_FAILED`：检查门户网络和依赖；
+- `INGESTION_INTERNAL_TOKEN_INVALID`：核对既有内部 token；
+- `INGESTION_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE`：池中没有当前可用记录；
+- `INGESTION_INTERNAL_PORTAL_CONFLICT`：刷新当前版本后重试；
+- `INGESTION_INTERNAL_PORTAL_STORE_UNAVAILABLE`：检查 migration、授权、连接和 CA。
 
-应用不会读取旧 Secret、恢复已删除的保活进程、自动选择其他凭据、重放采集或把认证失败伪装成
-空结果。
+Ops Web 会把这些领域结果映射为对应的 `OPS_INTERNAL_PORTAL_*` 页面错误。
 
 ## 相关文档
 
 - `ingestion.md`
 - `../data/internal-portal.md`
 - `../contracts/ops-web/internal-portal.md`
-- `../contracts/internal-portal-file-release.md`
+- `../decisions/adr-0089-internal-portal-credential-resolution.md`

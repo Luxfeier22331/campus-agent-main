@@ -5,8 +5,8 @@ import type { NoticeAttachmentMetadata } from "campus-contracts/notices";
 import { ArrowLeft, ExternalLink, File } from "lucide-react";
 import { useMemo } from "react";
 import { SurfaceState } from "@/components/ui/surface-state";
+import { NoticeCategoryBadge } from "@/features/notices/category-badge";
 import { prepareNoticeContentHtml } from "@/features/notices/content-html";
-import { NoticeDomainBadge } from "@/features/notices/domain-badge";
 import { buildInternalPortalNoticeUrl } from "@/features/notices/internal-portal-url";
 import { noticeDetailQueryOptions } from "@/features/notices/queries";
 import { noticeQueryClient } from "@/features/notices/query-client";
@@ -35,13 +35,20 @@ export function NoticeDetailPageContent() {
 				: { status: "empty" as const },
 		[notice.data],
 	);
+	const isCampusNews = notice.data?.category === "campus_news";
 
 	return (
 		<article className="mx-auto w-full max-w-[var(--layout-docs-content-width)] px-4 py-6 pb-24 sm:px-5 lg:px-6">
 			<Button asChild className="-ml-3" size="sm" variant="ghost">
-				<Link search={{ page: 1 }} to="/notices">
+				<Link
+					search={{
+						page: 1,
+						stream: isCampusNews ? "campus_news" : "notices",
+					}}
+					to="/notices"
+				>
 					<ArrowLeft />
-					返回通知目录
+					{isCampusNews ? "返回校园动态" : "返回通知目录"}
 				</Link>
 			</Button>
 
@@ -58,7 +65,7 @@ export function NoticeDetailPageContent() {
 			{notice.data ? (
 				<>
 					<header className="border-b border-border pb-6 pt-4">
-						<NoticeDomainBadge domain={notice.data.domain} />
+						<NoticeCategoryBadge category={notice.data.category} />
 						<h1 className="mt-4 break-words text-2xl font-semibold leading-9 tracking-normal text-[var(--sys-text-strong)] md:text-3xl md:leading-10">
 							{notice.data.title}
 						</h1>
@@ -70,6 +77,7 @@ export function NoticeDetailPageContent() {
 									</time>
 								</Metadata>
 								<Metadata label="发布部门">{notice.data.organization?.name ?? "未标注"}</Metadata>
+								<Metadata label="门户栏目">{notice.data.noticeType.name}</Metadata>
 							</dl>
 							<Button asChild size="sm" variant="outline">
 								<a

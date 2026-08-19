@@ -85,27 +85,47 @@ jobs:
           jq . <<< "$plan"
 
       - name: Install Python lint dependencies
+        id: install_light_dependencies
         if: >-
           contains(fromJSON(steps.plan.outputs.light_surfaces), 'python') ||
           contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql') ||
           contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml')
+        continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
         run: uv sync --only-dev --no-install-workspace
 
-      - name: Run repository checks
-        run: pnpm check
+      - name: Lint repository
+        id: repository_lint
+        if: always()
+        continue-on-error: true
+        run: pnpm lint
+
+      - name: Test repository scripts
+        id: repository_tests
+        if: always()
+        continue-on-error: true
+        run: pnpm test
 
       - name: Check executable contracts
-        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts')
+        id: contracts
+        if: always() && contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts')
+        continue-on-error: true
         run: pnpm --dir packages/contracts check
 
       - name: Lint GitHub Actions
-        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')
+        id: github_actions
+        if: always() && contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')
+        continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
         run: actionlint && zizmor --min-severity=medium .github
 
       - name: Lint Python
-        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'python')
+        id: python
+        if: >-
+          always() &&
+          contains(fromJSON(steps.plan.outputs.light_surfaces), 'python') &&
+          steps.install_light_dependencies.outcome == 'success'
+        continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
         run: |
           git ls-files -z -- '*.py' \
@@ -114,27 +134,42 @@ jobs:
             | xargs -0 --no-run-if-empty uv run --no-sync ruff format --check
 
       - name: Lint YAML
-        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml')
+        id: yaml
+        if: >-
+          always() &&
+          contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml') &&
+          steps.install_light_dependencies.outcome == 'success'
+        continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
         run: |
           git ls-files -z -- '*.yaml' '*.yml' ':(exclude)pnpm-lock.yaml' \
             | xargs -0 --no-run-if-empty uv run --no-sync yamllint -c .yamllint.yml
 
       - name: Lint SQL
-        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql')
+        id: sql
+        if: >-
+          always() &&
+          contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql') &&
+          steps.install_light_dependencies.outcome == 'success'
+        continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
         run: |
           git ls-files -z -- '*.sql' \
             | xargs -0 --no-run-if-empty uv run --no-sync sqlfluff lint --config .sqlfluff
 
       - name: Lint Shell
-        if: contains(fromJSON(steps.plan.outputs.light_surfaces), 'shell')
+        id: shell
+        if: always() && contains(fromJSON(steps.plan.outputs.light_surfaces), 'shell')
+        continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
         run: |
           git ls-files -z -- '*.sh' \
             | xargs -0 --no-run-if-empty shellcheck -x -s bash
 
       - name: Scan authored commits for secrets
+        id: secrets
+        if: always()
+        continue-on-error: true
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -146,7 +181,9 @@ jobs:
             --log-opts="--no-merges ${merge_base}..${HEAD_SHA}"
 
       - name: Install affected workspaces
-        if: contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node')
+        id: install_affected
+        if: always() && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-node')
+        continue-on-error: true
         env:
           AFFECTED_PACKAGES: ${{ steps.plan.outputs.affected_packages }}
         run: |
@@ -160,7 +197,12 @@ jobs:
           pnpm install --frozen-lockfile "${filters[@]}"
 
       - name: Run affected Node evidence
-        if: steps.plan.outputs.has_affected_node == 'true'
+        id: affected_node
+        if: >-
+          always() &&
+          steps.plan.outputs.has_affected_node == 'true' &&
+          steps.install_affected.outcome == 'success'
+        continue-on-error: true
         env:
           BASE_SHA: ${{ steps.plan.outputs.base }}
           HEAD_SHA: ${{ steps.plan.outputs.head }}
@@ -176,7 +218,9 @@ jobs:
           --profiles "$VALIDATION_PROFILES"
 
       - name: Run toolchain evidence
-        if: steps.plan.outputs.has_toolchain == 'true'
+        id: toolchain
+        if: always() && steps.plan.outputs.has_toolchain == 'true'
+        continue-on-error: true
         env:
           BASE_SHA: ${{ steps.plan.outputs.base }}
           HEAD_SHA: ${{ steps.plan.outputs.head }}
@@ -188,7 +232,29 @@ jobs:
           --head "$HEAD_SHA"
           --profiles "$VALIDATION_PROFILES"
 
-      - name: Complete stable check without affected evidence
-        if: steps.plan.outputs.has_evidence != 'true'
+      - name: Summarize repository evidence
+        if: always()
         shell: /bin/bash -e {0}
-        run: echo "No affected evidence is required for this pull request."
+        env:
+          RESULTS: >-
+            {
+              "affected-node":"${{ steps.affected_node.outcome }}",
+              "contracts":"${{ steps.contracts.outcome }}",
+              "github-actions":"${{ steps.github_actions.outcome }}",
+              "install-affected":"${{ steps.install_affected.outcome }}",
+              "install-light-dependencies":"${{ steps.install_light_dependencies.outcome }}",
+              "python":"${{ steps.python.outcome }}",
+              "repository-lint":"${{ steps.repository_lint.outcome }}",
+              "repository-tests":"${{ steps.repository_tests.outcome }}",
+              "secrets":"${{ steps.secrets.outcome }}",
+              "shell":"${{ steps.shell.outcome }}",
+              "sql":"${{ steps.sql.outcome }}",
+              "toolchain":"${{ steps.toolchain.outcome }}",
+              "yaml":"${{ steps.yaml.outcome }}"
+            }
+        run: |
+          jq . <<< "$RESULTS"
+          if ! jq -e 'all(.[]; . != "failure" and . != "cancelled")' <<< "$RESULTS" >/dev/null; then
+            echo "One or more repository evidence surfaces failed." >&2
+            exit 1
+          fi

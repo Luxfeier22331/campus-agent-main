@@ -60,7 +60,7 @@ func testSchemaCommand(t *testing.T, harness *postgresHarness) {
 		assertAppliedExecutionControlMigrations(t, databaseURL)
 		assertExecutionControlSchemaConsolidated(t, databaseURL)
 	})
-	t.Run("upgrades an applied v3 ledger through v6", func(t *testing.T) {
+	t.Run("upgrades an applied v3 ledger through current schema", func(t *testing.T) {
 		testSchemaCommandUpgradesAppliedV3(t, harness, binaryPath)
 	})
 	t.Run("rejects incomplete and unknown runtime schemas before creating a ledger", func(t *testing.T) {
@@ -92,7 +92,7 @@ func testSchemaCommandUpgradesAppliedV3(
 		loadIntegrationKeyring(t),
 		"execution_config.model_settings",
 		providerconfig.KindEmbedding,
-		"provider-model-alias",
+		providerconfig.CanonicalEmbeddingModel,
 	)
 	conn = connect(t, databaseURL)
 	if _, err := conn.Exec(t.Context(), `
@@ -150,6 +150,22 @@ func testSchemaCommandUpgradesAppliedV3(
 	}
 	if retiredIndexColumns != 0 {
 		t.Fatalf("retired Campus docs index columns = %d, want 0", retiredIndexColumns)
+	}
+	store, err := providerconfig.NewStore(t.Context(), databaseURL, integrationProviderCipher())
+	if err != nil {
+		t.Fatalf("open migrated provider config store: %v", err)
+	}
+	defer store.Close()
+	setting, err := store.Resolve(t.Context(), providerconfig.KindEmbedding)
+	if err != nil {
+		t.Fatalf("resolve migrated embedding setting: %v", err)
+	}
+	if setting.APIKey != "legacy-provider-secret" ||
+		setting.BaseURL != "https://provider.integration.example/v1" ||
+		setting.Model != providerconfig.CanonicalEmbeddingModel ||
+		setting.Provider != providerconfig.CanonicalEmbeddingProvider ||
+		setting.Transport != providerconfig.CanonicalEmbeddingTransport {
+		t.Fatalf("migrated embedding setting = %#v", setting)
 	}
 }
 
@@ -434,12 +450,15 @@ func testSchemaCommandRejectsUnknownRuntimeSchema(t *testing.T, harness *postgre
 
 func runSchemaCommand(t *testing.T, harness *postgresHarness, binaryPath, databaseURL, mode, evidencePath string) ([]byte, error) {
 	t.Helper()
+	keyringPath, encryptionKeyPath := writeIntegrationProviderSecrets(t)
 	command := exec.CommandContext(
 		t.Context(),
 		binaryPath,
 		"--mode", mode,
 		"--database-url", databaseURL,
 		"--evidence-path", evidencePath,
+		"--provider-config-keyring-path", keyringPath,
+		"--provider-config-encryption-key-path", encryptionKeyPath,
 	)
 	command.Dir = harness.moduleDir
 	return command.CombinedOutput()
@@ -473,12 +492,12 @@ func assertAppliedExecutionControlMigrations(t *testing.T, databaseURL string) {
 	if err := conn.QueryRow(t.Context(), `
 		select count(*)::int
 		from public.execution_control_migrations
-		where version_id in (1, 2, 3, 4, 5, 6) and is_applied
+		where version_id in (1, 2, 3, 4, 5, 6, 7, 8) and is_applied
 	`).Scan(&applied); err != nil {
 		t.Fatalf("inspect execution-control migration ledger: %v", err)
 	}
-	if applied != 6 {
-		t.Fatalf("applied execution-control migrations = %d, want 6", applied)
+	if applied != 8 {
+		t.Fatalf("applied execution-control migrations = %d, want 8", applied)
 	}
 }
 

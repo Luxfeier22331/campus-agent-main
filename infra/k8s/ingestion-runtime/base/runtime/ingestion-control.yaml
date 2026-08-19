@@ -20,6 +20,8 @@ metadata:
   labels:
     app.kubernetes.io/name: ingestion-control
     app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 2
   strategy:
@@ -59,16 +61,6 @@ spec:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
           env:
-            - name: INGESTION_TEMPORAL_ADDRESS
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_ADDRESS
-            - name: INGESTION_TEMPORAL_NAMESPACE
-              valueFrom:
-                configMapKeyRef:
-                  name: ingestion-runtime-rendered-config
-                  key: INGESTION_TEMPORAL_NAMESPACE
             - name: INGESTION_CONTROL_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -111,9 +103,9 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 128Mi
             limits:
-              memory: 1Gi
+              memory: 512Mi
       volumes:
         - name: postgres-ca
           secret:

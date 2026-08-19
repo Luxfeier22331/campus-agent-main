@@ -5,8 +5,9 @@ import "time"
 type Kind string
 
 const (
-	KindLLM       Kind = "llm"
-	KindEmbedding Kind = "embedding"
+	KindLLM              Kind = "llm"
+	KindEmbedding        Kind = "embedding"
+	KindNoticeClassifier Kind = "notice_classifier"
 )
 
 type RuntimeSetting struct {
@@ -46,7 +47,6 @@ type LatestValidationView struct {
 type SettingView struct {
 	BaseURL              string                `json:"baseUrl"`
 	CredentialConfigured bool                  `json:"credentialConfigured"`
-	CredentialLast4      string                `json:"credentialLast4,omitempty"`
 	Kind                 Kind                  `json:"kind"`
 	LatestValidation     *LatestValidationView `json:"latestValidation"`
 	Model                string                `json:"model"`
@@ -56,8 +56,15 @@ type SettingView struct {
 	UpdatedBy            string                `json:"updatedBy"`
 }
 
+type EmbeddingContractView struct {
+	Dimensions int    `json:"dimensions"`
+	Model      string `json:"model"`
+	Provider   string `json:"provider"`
+	Transport  string `json:"transport"`
+}
+
 type Status struct {
-	ETag      string                `json:"etag"`
-	SampledAt time.Time             `json:"sampledAt"`
-	Settings  map[Kind]*SettingView `json:"settings"`
+	EmbeddingContract EmbeddingContractView `json:"embeddingContract"`
+	SampledAt         time.Time             `json:"sampledAt"`
+	Settings          map[Kind]*SettingView `json:"settings"`
 }

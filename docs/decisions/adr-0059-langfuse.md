@@ -44,7 +44,7 @@ Temporal 和产品数据库可以说明请求如何执行及最终状态，但�
 
 ## 相关文档
 
-- `../architecture/system/ops-observability.md`
+- `../reference/telemetry.md`
 - `../contracts/langfuse-runtime.md`
 - `../reference/eval.md`
 - `adr-0081-observability-planes.md`

@@ -99,8 +99,8 @@ pnpm dev:ops-web-api-fixture
 
 ## Provider 配置
 
-在线配置由 execution-control 的模型配置数据库和 keyring 持有。需要修改时启动本地
-execution-control admin 与 Ops Web，按 `provider-secrets.md` 保存并验证 LLM 和 Embedding 当前值；
+在线配置由 execution-control 的模型配置数据库和单一 `encryption.key` 持有。需要修改时启动本地
+execution-control admin 与 Ops Web，按 `provider-secrets.md` 保存并验证 LLM、Embedding 或通知分类当前值；
 应用启动不能静默 seed 在线配置。
 
 ## Campus Web 浏览器回归

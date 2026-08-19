@@ -58,5 +58,4 @@ App API 只通过私有绑定读取 `campus-agent-derived/dining/floorplans/`。
 ## 相关文档
 
 - `docs/architecture/system/data-plane.md`
-- `docs/architecture/system/code-organization.md`
 - `packages/ingest-core/README.md`

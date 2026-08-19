@@ -4,60 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	listCollectionChunkProfileFiles,
-	listIngestionTaskRegistryFiles,
 	loadCollectionChunkProfilesFromRoot,
-	loadIngestionTaskRegistryCatalogFromRoot,
-	loadIngestionTaskRegistryFromFile,
 } from "../src/node.ts";
 
-const repoRoot = join(import.meta.dirname, "..", "..", "..");
-
 describe("ingest-core node registry loading", () => {
-	it("loads every repository ingestion registry through the runtime catalog", () => {
-		expect(() =>
-			loadIngestionTaskRegistryCatalogFromRoot(join(repoRoot, "configs", "ingestion")),
-		).not.toThrow();
-	});
-
-	it("loads registry files recursively and validates shape", () => {
-		const root = mkdtempSync(join(tmpdir(), "ingest-core-registry-"));
-		const registryDir = join(root, "sources");
-		mkdirSync(registryDir, { recursive: true });
-		const registryPath = join(registryDir, "task-registry.v3.json");
-		writeFileSync(
-			registryPath,
-			JSON.stringify({
-				schema_version: "ingestion_task_registry.v3",
-				tasks: [
-					{
-						executor_kind: "rust_kernel",
-						input_contract: "canonical_document_units.v2",
-						kernel_id: "build-retrieval-chunks-v2",
-						output_contract: "retrieval_chunk_set.v2",
-						registry_task_id: "curriculum.curriculum_plan.chunk_prepare",
-						target: { collection: "curriculum_plan", corpus: "curriculum" },
-					},
-				],
-			}),
-		);
-
-		expect(listIngestionTaskRegistryFiles(root)).toEqual([registryPath]);
-		expect(loadIngestionTaskRegistryFromFile(registryPath).tasks[0]?.registry_task_id).toBe(
-			"curriculum.curriculum_plan.chunk_prepare",
-		);
-		expect(loadIngestionTaskRegistryCatalogFromRoot(root).requireTask).toBeTypeOf("function");
-	});
-
-	it("rejects invalid registry files", () => {
-		const root = mkdtempSync(join(tmpdir(), "ingest-core-registry-invalid-"));
-		const registryPath = join(root, "task-registry.v3.json");
-		writeFileSync(registryPath, JSON.stringify({ schema_version: "wrong" }));
-
-		expect(() => loadIngestionTaskRegistryFromFile(registryPath)).toThrow(
-			"invalid ingestion task registry",
-		);
-	});
-
 	it("loads collection chunk profiles recursively", () => {
 		const root = mkdtempSync(join(tmpdir(), "ingest-core-chunk-profile-"));
 		const profileDir = join(root, "regulations", "institutional_rules");

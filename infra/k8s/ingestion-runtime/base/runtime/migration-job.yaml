@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/part-of: campus-agent
   annotations:
     argocd.argoproj.io/sync-options: Force=true,Replace=true
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   activeDeadlineSeconds: 300
   backoffLimit: 6
@@ -42,8 +42,7 @@ spec:
                 url.password = process.env.PGPASSWORD;
                 process.stdout.write(url.toString());
               ')"
-              exec /app/apps/ingestion-control/node_modules/.bin/tsx \
-                /app/apps/ingestion-control/src/schema-bootstrap.ts
+              exec node /app/apps/ingestion-control/dist/schema-bootstrap.js
           envFrom:
             - configMapRef:
                 name: ingestion-schema-database-config
@@ -79,21 +78,30 @@ spec:
         - name: migrate
           image: ghcr.io/muc-wiki/campus-agent/ingestion-control:replace-me
           imagePullPolicy: IfNotPresent
-          command:
-            - /app/apps/ingestion-control/node_modules/.bin/tsx
-            - /app/apps/ingestion-control/src/migrate.ts
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              export INGESTION_CONTROL_SCHEMA_DATABASE_URL="$(node -e '
+                const url = new URL(`postgresql://${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`);
+                url.username = process.env.PGUSER;
+                url.password = process.env.PGPASSWORD;
+                process.stdout.write(url.toString());
+              ')"
+              exec node /app/apps/ingestion-control/dist/migrate.js
+          envFrom:
+            - configMapRef:
+                name: ingestion-schema-database-config
           env:
-            - name: INGESTION_CONTROL_DATABASE_URL
+            - name: PGUSER
               valueFrom:
                 secretKeyRef:
-                  name: ingestion-control-secrets
-                  key: INGESTION_CONTROL_DATABASE_URL
-            - name: DEPLOYMENT_ENVIRONMENT
-              value: production
-            - name: INGESTION_CONTROL_DATABASE_CA_CERT_PATH
-              value: /etc/campus-agent/postgres/ca.crt
-            - name: INGESTION_CONTROL_DATABASE_SSLMODE
-              value: verify-full
+                  name: campus-agent-postgres-campus-agent-owner
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: campus-agent-postgres-campus-agent-owner
+                  key: password
           resources:
             requests:
               cpu: 50m

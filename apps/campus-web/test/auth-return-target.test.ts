@@ -33,7 +33,10 @@ describe("account authentication return target", () => {
 		["/map?building=library#entrance", "/map?building=library#entrance"],
 		["https://campus.muc.wiki/docs/guide?q=auth#step-2", "/docs/guide?q=auth#step-2"],
 		["/c/conversation-1?focus=latest", "/c/conversation-1?focus=latest"],
-		["/notices?domain=student_support&page=2", "/notices?domain=student_support&page=2"],
+		[
+			"/notices?category=student_affairs&page=2&stream=notices",
+			"/notices?category=student_affairs&page=2&stream=notices",
+		],
 		["/notices/358159", "/notices/358159"],
 	])("normalizes an allowed same-origin return target: %s", (redirectTo, expected) => {
 		expect(

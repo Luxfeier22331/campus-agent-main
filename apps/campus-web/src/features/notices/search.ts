@@ -5,17 +5,18 @@ import {
 
 export function parseNoticeRouteSearch(search: Record<string, unknown>): NoticeListRequestQuery {
 	const candidate = {
-		domain: asString(search.domain),
+		category: asString(search.category),
 		from: asString(search.from),
 		is_external: asBooleanString(search.is_external),
 		notice_type: asNumberString(search.notice_type),
 		organization_id: asString(search.organization_id),
 		page: asNumberString(search.page) ?? "1",
 		q: asString(search.q),
+		stream: asString(search.stream),
 		to: asString(search.to),
 	};
 	const result = NoticeListRequestQuerySchema.safeParse(candidate);
-	return result.success ? result.data : { page: 1 };
+	return result.success ? result.data : { page: 1, stream: "notices" };
 }
 
 function asString(value: unknown): string | undefined {

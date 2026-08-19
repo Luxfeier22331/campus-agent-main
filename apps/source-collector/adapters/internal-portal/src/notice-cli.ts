@@ -2,6 +2,7 @@ import { createSourceCollectorObjectStoreFromEnv } from "../../../src/object-sto
 import { fetchNoticeDetail, fetchNoticeMetadata, fetchNoticePage } from "./api.js";
 import { loadInternalPortalEnv, resolveInternalPortalConfig } from "./config.js";
 import { createInternalPortalNoticeMetaStore } from "./notice-meta-store.js";
+import { DEFAULT_NOTICE_RESOURCE_CONCURRENCY } from "./notice-resources.js";
 import {
 	backfillInternalPortalNotices,
 	isNoticeHistoryCovered,
@@ -16,15 +17,28 @@ import {
 import { createPortalApiContext } from "./portal.js";
 import { formatSafeErrorMessage } from "./safe-error.js";
 
-type NoticeCommand =
-	| { name: "backfill"; startDate: string }
+export type NoticeCommand =
+	| { name: "backfill"; resourceConcurrency: number; startDate: string }
 	| { name: "status" }
-	| { name: "sync" };
+	| { name: "sync"; resourceConcurrency: number };
+
+export interface NoticeCommandOptions {
+	env?: NodeJS.ProcessEnv;
+	ssoTgc?: string;
+}
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
 	loadInternalPortalEnv();
-	const command = parseCommand(argv);
-	const objectStore = createSourceCollectorObjectStoreFromEnv(process.env);
+	const command = parseNoticeCommand(argv);
+	await runNoticeCommand(command);
+}
+
+export async function runNoticeCommand(
+	command: NoticeCommand,
+	options: NoticeCommandOptions = {},
+): Promise<void> {
+	const env = options.env ?? process.env;
+	const objectStore = createSourceCollectorObjectStoreFromEnv(env);
 	const stateStore = createObjectStoreInternalPortalNoticeSyncStateStore({ objectStore });
 	try {
 		if (command.name === "status") {
@@ -39,9 +53,16 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 					JSON.stringify(
 						{
 							mode: "backfill",
+							noticeIds: [],
 							objectsReused: 0,
 							objectsWritten: 0,
 							pagesFetched: 0,
+							resources: {
+								attachmentsDownloaded: 0,
+								attachmentsReused: 0,
+								imagesDownloaded: 0,
+								imagesReused: 0,
+							},
 							state,
 						},
 						null,
@@ -52,7 +73,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 			}
 		}
 
-		const config = resolveInternalPortalConfig(process.env);
+		const config = resolveInternalPortalConfig(
+			options.ssoTgc === undefined ? env : { ...env, INTERNAL_PORTAL_SSO_TGC: options.ssoTgc },
+		);
 		const apiContext = await createPortalApiContext(config);
 		try {
 			const runnerInput = {
@@ -61,6 +84,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 				fetchNoticeMetadata,
 				fetchNoticePage,
 				metaStore: createInternalPortalNoticeMetaStore({ objectStore }),
+				objectStore,
+				portalHost: new URL(config.portalBaseUrl).hostname,
+				resourceConcurrency: command.resourceConcurrency,
 				sourceStore: createInternalPortalNoticeSourceStore({ objectStore }),
 				stateStore,
 			};
@@ -80,22 +106,37 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 	}
 }
 
-function parseCommand(argv: string[]): NoticeCommand {
+export function parseNoticeCommand(argv: string[]): NoticeCommand {
 	const [name, ...args] = argv;
-	if (name === "sync" && args.length === 0) {
-		return { name };
+	if (name === "sync") {
+		return { name, resourceConcurrency: parseConcurrency(args) };
 	}
 	if (name === "status" && args.length === 0) {
 		return { name };
 	}
 	if (name === "backfill") {
 		const startDateIndex = args.indexOf("--start-date");
-		if (startDateIndex >= 0 && args.length === 2 && startDateIndex === 0) {
-			return { name, startDate: parseNoticeStartDate(args[1] ?? "") };
+		if (startDateIndex >= 0 && startDateIndex === 0) {
+			const startDate = parseNoticeStartDate(args[1] ?? "");
+			const remaining = args.slice(2);
+			return { name, resourceConcurrency: parseConcurrency(remaining), startDate };
 		}
 		throw new Error("notice:backfill requires --start-date YYYY-MM-DD");
 	}
 	throw new Error("notice command must be sync, backfill, or status");
+}
+
+function parseConcurrency(args: string[]): number {
+	if (args.length === 0) {
+		return DEFAULT_NOTICE_RESOURCE_CONCURRENCY;
+	}
+	if (args.length === 2 && args[0] === "--concurrency" && /^[1-9][0-9]*$/u.test(args[1] ?? "")) {
+		const value = Number(args[1]);
+		if (value >= 1 && value <= 16) {
+			return value;
+		}
+	}
+	throw new Error("notice sync/backfill accepts --concurrency 1..16");
 }
 
 function toStatusRecord(state: InternalPortalNoticeSyncState | null): Record<string, unknown> {

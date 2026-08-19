@@ -9,7 +9,7 @@ status: active
 ## 文档边界
 
 本文只规定长期系统约束，不列举当前组件、接口字段、环境状态或实施步骤。当前实现见
-`current.md` 和所属系统文档，具体技术选择及理由见 ADR，可执行字段由合同、schema 和注册表
+所属系统、领域、合同和数据文档，具体技术选择及理由见 ADR，可执行字段由代码、schema 和注册表
 维护。
 
 ## 系统形态
@@ -95,7 +95,7 @@ status: active
 
 ## 所有者文档
 
-- 当前系统：`current.md`、`system/README.md`
+- 当前系统：`system/README.md`、`domains/README.md`
 - 产品边界：`product.md`、`../product/README.md`
 - 领域：`domains/README.md`
 - 合同与数据：`../contracts/README.md`、`../data/README.md`

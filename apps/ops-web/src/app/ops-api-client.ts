@@ -56,7 +56,6 @@ export {
 	discoverExecutionLLMModels,
 	fetchExecutionModelSettings,
 	putExecutionModelSetting,
-	validateExecutionModelSetting,
 } from "./ops-api/model-settings";
 export {
 	fetchOpsObservability,

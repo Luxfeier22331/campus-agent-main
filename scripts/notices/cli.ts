@@ -2,12 +2,16 @@ import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+export {
+	assertCompleteNoticeClassificationResults,
+	classifyNoticeBatch,
+	type NoticeClassificationResult,
+} from "../../packages/notice-classifier-core/src/batch";
+
 import {
-	classifyNotice,
-	type NoticeClassificationInput,
-	type NoticeDomain,
-	type NoticeModelClassifier,
-} from "./classifier";
+	classifyNoticeBatch,
+	DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY as DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY_VALUE,
+} from "../../packages/notice-classifier-core/src/batch";
 import { createOpenAINoticeModelClassifier } from "./model";
 import {
 	createNoticeSourceObjectStoreFromEnv,
@@ -15,38 +19,33 @@ import {
 	loadNoticeClassificationInputs,
 } from "./source";
 
-export interface NoticeClassificationResult {
-	notice_id: number;
-	domain: NoticeDomain;
-}
+export const DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY =
+	DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY_VALUE;
 
-export async function classifyNoticeBatch(
-	inputs: readonly NoticeClassificationInput[],
-	createModelClassifier: () => NoticeModelClassifier,
-): Promise<NoticeClassificationResult[]> {
-	let modelClassifier: NoticeModelClassifier | undefined;
-	const classifyWithModel: NoticeModelClassifier = async (input) => {
-		modelClassifier ??= createModelClassifier();
-		return modelClassifier(input);
-	};
-	const results: NoticeClassificationResult[] = [];
-	for (const input of inputs) {
-		results.push({
-			notice_id: input.noticeId,
-			domain: await classifyNotice(input, classifyWithModel),
-		});
-	}
-	return results;
+export interface NoticeClassificationOptions {
+	concurrency: number;
+	noticeIds: number[] | undefined;
 }
 
 export function parseNoticeIds(argv: readonly string[]): number[] | undefined {
-	if (argv.length === 0) {
-		return;
-	}
+	return parseNoticeOptions(argv).noticeIds;
+}
+
+export function parseNoticeOptions(argv: readonly string[]): NoticeClassificationOptions {
 	const ids = new Set<number>();
-	for (let index = 0; index < argv.length; index += 2) {
-		if (argv[index] !== "--notice-id" || index + 1 >= argv.length) {
-			throw new Error("Usage: pnpm notice:classify [--notice-id <positive-integer> ...]");
+	let concurrency = DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY;
+	for (let index = 0; index < argv.length; index += 1) {
+		const argument = argv[index];
+		if (argument === "--concurrency") {
+			const raw = argv[index + 1] ?? "";
+			concurrency = parsePositiveInteger(raw, "concurrency");
+			index += 1;
+			continue;
+		}
+		if (argument !== "--notice-id" || index + 1 >= argv.length) {
+			throw new Error(
+				"Usage: pnpm notice:classify [--concurrency <positive-integer>] [--notice-id <positive-integer> ...]",
+			);
 		}
 		const raw = argv[index + 1] ?? "";
 		if (!/^[1-9][0-9]*$/u.test(raw)) {
@@ -60,24 +59,40 @@ export function parseNoticeIds(argv: readonly string[]): number[] | undefined {
 			throw new Error(`duplicate notice id: ${noticeId}`);
 		}
 		ids.add(noticeId);
+		index += 1;
 	}
-	return [...ids];
+	return { concurrency, noticeIds: ids.size > 0 ? [...ids] : undefined };
 }
 
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
 	const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 	loadLocalNoticeSourceEnvironment(repositoryRoot);
-	const noticeIds = parseNoticeIds(argv);
+	const options = parseNoticeOptions(argv);
 	const objectStore = createNoticeSourceObjectStoreFromEnv();
 	try {
-		const inputs = await loadNoticeClassificationInputs(objectStore, noticeIds);
-		const results = await classifyNoticeBatch(inputs, () =>
-			createOpenAINoticeModelClassifier(process.env),
+		const inputs = await loadNoticeClassificationInputs(objectStore, options.noticeIds, {
+			concurrency: options.concurrency,
+		});
+		const results = await classifyNoticeBatch(
+			inputs,
+			() => createOpenAINoticeModelClassifier(process.env),
+			options.concurrency,
 		);
 		process.stdout.write(`${results.map((result) => JSON.stringify(result)).join("\n")}\n`);
 	} finally {
 		objectStore.close();
 	}
+}
+
+function parsePositiveInteger(value: string, name: string): number {
+	if (!/^[1-9][0-9]*$/u.test(value)) {
+		throw new Error(`invalid ${name}: ${value}`);
+	}
+	const parsed = Number(value);
+	if (!Number.isSafeInteger(parsed)) {
+		throw new Error(`invalid ${name}: ${value}`);
+	}
+	return parsed;
 }
 
 const entrypoint = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : "";

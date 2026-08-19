@@ -5,7 +5,7 @@ import type {
 } from "campus-contracts/notices";
 
 export interface NoticeRecord {
-	domain: string;
+	category: string;
 	externalUrl: string | null;
 	isExternal: boolean;
 	noticeId: string;

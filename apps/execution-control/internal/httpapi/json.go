@@ -159,14 +159,10 @@ func publicErrorMessage(code string, _ string) string {
 		return "Model setting is invalid."
 	case "model_settings_not_ready", "model_settings_unavailable":
 		return "Model settings are temporarily unavailable."
-	case "model_settings_precondition_required":
-		return "Refresh model settings before saving."
 	case "model_setting_not_found":
 		return "Model setting was not found."
 	case "api_key_required":
 		return "API key is required."
-	case "model_settings_conflict":
-		return "Model settings changed. Refresh and try again."
 	case "temporal_not_ready", "temporal_unavailable":
 		return "Temporal workflow service is temporarily unavailable."
 	case "temporal_admission_failed":

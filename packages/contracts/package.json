@@ -7,6 +7,7 @@
 		"./account-admin": "./src/account-admin.ts",
 		"./campus-groups": "./src/campus-groups.ts",
 		"./email-access": "./src/email-access.ts",
+		"./internal-portal-credential": "./src/internal-portal-credential.ts",
 		"./notices": "./src/notices.ts",
 		"./product-availability": "./src/product-availability.ts"
 	},

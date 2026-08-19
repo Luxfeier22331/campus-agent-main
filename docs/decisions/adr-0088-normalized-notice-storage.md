@@ -10,13 +10,13 @@ partially_supersedes: ADR-0087
 ## 背景
 
 来源对象适合保留门户原始结构，但不适合后续通知网站、结构化查询或 RAG 直接消费。在设计
-在线消费路径前，需要先建立经人工确认的分类、清洗正文和资源 metadata。`ingestion-control` 只拥有
+在线消费路径前，需要先建立经模型生成并完成完整性校验的分类、清洗正文和资源 metadata。`ingestion-control` 只拥有
 执行控制，不拥有通知内容。
 
 ## 决策
 
 - `source-collector` 继续拥有原始 JSON、门户 HTML 和原始图片、附件字节；
-- 独立 `notice-publisher` 在人工确认分类和资源完整性后清洗正文并显式物化；
+- 独立 `notice-publisher` 在分类和资源完整性校验后清洗正文并显式物化；人工抽查不属于执行前置条件；
 - `packages/domains/notices` 统一拥有领域枚举、资源类型与清洗规则；
 - `notices.*` PostgreSQL schema 保存规范化字段与资源 metadata，derived bucket 保存内容寻址资源；
 - App API 通过现有 Hyperdrive 以只读角色查询规范化通知，并通过现有私有对象存储路径读取通知图片；

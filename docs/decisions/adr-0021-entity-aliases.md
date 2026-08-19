@@ -43,4 +43,3 @@ checked-in alias 配置在有已开放运行时消费前只是 offline data；�
 ## 相关文档
 
 - `docs/decisions/adr-0084-agent-knowledge-tools.md`
-- `docs/architecture/system/code-organization.md`

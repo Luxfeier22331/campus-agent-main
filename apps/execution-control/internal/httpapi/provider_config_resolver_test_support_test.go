@@ -22,7 +22,6 @@ func attachAgentAdmissionProviderConfigsForTest(server *Server) {
 		providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
 			providerconfig.KindEmbedding,
 			"https://embedding.example/v1",
-			"provider-model-alias",
 		),
 	}
 	server.providerConfigErr = nil
@@ -89,15 +88,14 @@ func primaryAgentProviderConfigSnapshotForTest() providerconfig.RuntimeSetting {
 func embeddingProviderConfigSnapshotForTest(
 	kind providerconfig.Kind,
 	baseURL string,
-	model string,
 ) providerconfig.RuntimeSetting {
 	return providerconfig.RuntimeSetting{
 		APIKey:    "test-embedding-key",
 		BaseURL:   baseURL,
 		Kind:      kind,
-		Model:     model,
-		Provider:  "openai-compatible",
-		Transport: "embeddings",
+		Model:     providerconfig.CanonicalEmbeddingModel,
+		Provider:  providerconfig.CanonicalEmbeddingProvider,
+		Transport: providerconfig.CanonicalEmbeddingTransport,
 	}
 }
 

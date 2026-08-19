@@ -124,6 +124,7 @@ Langfuse Agent trace 可以记录实际可见工具名和有界结果状态，�
 ## 相关文档
 
 - [ADR-0015](../../decisions/adr-0015-memory-boundaries.md)
+- [ADR-0021](../../decisions/adr-0021-entity-aliases.md)
 - [ADR-0058](../../decisions/adr-0058-hindsight.md)
 - [ADR-0082](../../decisions/adr-0082-hindsight-lifecycle.md)
 - [个人记忆接口](../../contracts/app-api/memory.md)

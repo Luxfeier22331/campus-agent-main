@@ -34,12 +34,17 @@ func TestModelSettingValidationUsesRuntimeCapabilities(t *testing.T) {
 	if err := validateModelSettingInput(llm); err != nil {
 		t.Fatalf("validate llm setting: %v", err)
 	}
+	classifier := llm
+	classifier.Kind = providerconfig.KindNoticeClassifier
+	if err := validateModelSettingInput(classifier); err != nil {
+		t.Fatalf("validate notice classifier setting: %v", err)
+	}
 	embedding := providerconfig.SettingInput{
 		BaseURL:   "https://embedding.example/v1",
 		Kind:      providerconfig.KindEmbedding,
-		Model:     "operator-selected-model",
-		Provider:  "openai",
-		Transport: "embeddings",
+		Model:     providerconfig.CanonicalEmbeddingModel,
+		Provider:  providerconfig.CanonicalEmbeddingProvider,
+		Transport: providerconfig.CanonicalEmbeddingTransport,
 	}
 	if err := validateModelSettingInput(embedding); err != nil {
 		t.Fatalf("validate embedding setting: %v", err)
@@ -47,6 +52,13 @@ func TestModelSettingValidationUsesRuntimeCapabilities(t *testing.T) {
 	embedding.Transport = "responses"
 	if err := validateModelSettingInput(embedding); err == nil {
 		t.Fatal("embedding setting accepted a non-embedding transport")
+	}
+}
+
+func TestModelSettingKindFromPathIncludesNoticeClassifier(t *testing.T) {
+	kind, ok := modelSettingKindFromPath(modelSettingsAdminPrefix + "/notice_classifier")
+	if !ok || kind != providerconfig.KindNoticeClassifier {
+		t.Fatalf("kind = %q, ok = %t", kind, ok)
 	}
 }
 
@@ -84,9 +96,11 @@ func TestLLMSettingUpdateInputRejectsServerOwnedAndUnknownFields(t *testing.T) {
 
 func TestEmbeddingSettingUpdateInputRejectsTransportAndVectorFields(t *testing.T) {
 	for _, body := range []string{
-		`{"baseUrl":"https://provider.example/v1","model":"model-1","provider":"openai","transport":"embeddings"}`,
-		`{"baseUrl":"https://provider.example/v1","dimensions":2560,"model":"model-1","provider":"openai"}`,
-		`{"baseUrl":"https://provider.example/v1","embeddingSpaceId":"space","model":"model-1","provider":"openai"}`,
+		`{"baseUrl":"https://provider.example/v1","transport":"embeddings"}`,
+		`{"baseUrl":"https://provider.example/v1","dimensions":2560}`,
+		`{"baseUrl":"https://provider.example/v1","embeddingSpaceId":"space"}`,
+		`{"baseUrl":"https://provider.example/v1","model":"model-1"}`,
+		`{"baseUrl":"https://provider.example/v1","provider":"openai-compatible"}`,
 	} {
 		request := httptest.NewRequestWithContext(
 			t.Context(),
@@ -101,6 +115,24 @@ func TestEmbeddingSettingUpdateInputRejectsTransportAndVectorFields(t *testing.T
 			t.Fatalf("server-owned embedding field was accepted: %s", body)
 		}
 		assertError(t, response, http.StatusBadRequest, "invalid_json")
+	}
+}
+
+func TestEmbeddingSettingUpdateInputAcceptsOnlyConnectionFields(t *testing.T) {
+	request := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodPut,
+		modelSettingsAdminPrefix+"/embedding",
+		strings.NewReader(`{"apiKey":"secret","baseUrl":"https://provider.example/v1"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	var input embeddingSettingUpdateInput
+	if !decodeProviderAdminJSON(response, request, &input) {
+		t.Fatalf("connection-only embedding input was rejected: %s", response.Body.String())
+	}
+	if input.APIKey == nil || *input.APIKey != "secret" || input.BaseURL != "https://provider.example/v1" {
+		t.Fatalf("embedding update input = %#v", input)
 	}
 }
 

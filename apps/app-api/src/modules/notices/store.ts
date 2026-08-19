@@ -8,7 +8,7 @@ import type { NoticeAssetRecord, NoticeListRecords, NoticeRecord, NoticeStore } 
 type RuntimeDbGetter = () => Promise<RuntimeDatabase>;
 
 interface NoticeRow extends Record<string, unknown> {
-	domain: string;
+	category: string;
 	external_url: string | null;
 	is_external: boolean;
 	notice_id: string | number;
@@ -45,7 +45,7 @@ export function createPgNoticeStore(
 			const db = await getDb();
 			const noticeResult = await db.execute<NoticeDetailRow>(sql`
 				SELECT
-					n.domain,
+					n.category,
 					n.external_url,
 					n.is_external,
 					n.notice_id::text,
@@ -123,7 +123,7 @@ export function createPgNoticeStore(
 				`),
 				db.execute<NoticeRow>(sql`
 					SELECT
-						n.domain,
+						n.category,
 						n.external_url,
 						n.is_external,
 						n.notice_id::text,
@@ -175,8 +175,13 @@ function noticeWhere(input: NoticeListRequestQuery): SQL {
 			sql`(n.title ILIKE ${pattern} OR COALESCE(n.content_text, '') ILIKE ${pattern})`,
 		);
 	}
-	if (input.domain) {
-		conditions.push(sql`n.domain = ${input.domain}`);
+	conditions.push(
+		input.stream === "campus_news"
+			? sql`n.category = 'campus_news'`
+			: sql`n.category <> 'campus_news'`,
+	);
+	if (input.category) {
+		conditions.push(sql`n.category = ${input.category}`);
 	}
 	if (input.organization_id) {
 		conditions.push(sql`n.organization_id = ${input.organization_id}`);
@@ -206,7 +211,7 @@ function containsPattern(value: string): string {
 
 function toNoticeRecord(row: NoticeRow): NoticeRecord {
 	return {
-		domain: row.domain,
+		category: row.category,
 		externalUrl: row.external_url,
 		isExternal: row.is_external,
 		noticeId: String(row.notice_id),

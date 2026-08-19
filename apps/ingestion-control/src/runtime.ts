@@ -1,43 +1,27 @@
 import { createServer } from "node:http";
-import { loadIngestionTaskRegistryCatalogFromRoot } from "ingest-core/node";
 import { Pool } from "pg";
+import { createIngestionControlHandler, type IngestionControlHandler } from "./http.ts";
+import { createInternalPortalCredentialService } from "./internal-portal-credential-service.ts";
 import {
-	createIngestionControlHandler,
-	type IngestionControlHandler,
-	type IngestionControlServiceTokens,
-} from "./http";
-import { type PostgresConnectionConfig, readPostgresConnectionConfig } from "./postgres-config";
-import {
-	assertIngestionControlPostgresSchema,
-	createPostgresIngestionTaskStore,
-} from "./postgres-store";
-import { INGESTION_TASK_REGISTRY_ROOT } from "./runtime-paths";
-import {
-	type ClosableIngestionWorkflowStarter,
-	createTemporalIngestionWorkflowStarter,
-	type IngestionWorkflowStarter,
-} from "./temporal-client";
-import { buildIngestionTemporalConfig, type IngestionTemporalConfig } from "./temporal-config";
-import type { IngestionTaskStore } from "./types";
+	assertInternalPortalCredentialSchema,
+	createPgInternalPortalCredentialStore,
+} from "./internal-portal-credential-store.ts";
+import { type PostgresConnectionConfig, readPostgresConnectionConfig } from "./postgres-config.ts";
 
 const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 const API_DATABASE_TIMEOUT_MS = 4_000;
 
 export interface IngestionControlRuntimeConfig {
 	database: PostgresConnectionConfig;
-	registryRoot: string;
 	host: string;
+	internalToken: string | null;
 	port: number;
-	serviceTokens: Required<IngestionControlServiceTokens>;
-	temporal: IngestionTemporalConfig;
 }
 
 export interface IngestionControlRuntime {
 	close(): Promise<void>;
+	handler: IngestionControlHandler;
 	readinessCheck(): Promise<void>;
-	registryCatalog: ReturnType<typeof loadIngestionTaskRegistryCatalogFromRoot>;
-	store: IngestionTaskStore;
-	workflowStarter: IngestionWorkflowStarter;
 }
 
 export function buildIngestionControlRuntimeConfig(
@@ -49,14 +33,54 @@ export function buildIngestionControlRuntimeConfig(
 			connectionString: "INGESTION_CONTROL_DATABASE_URL",
 			sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
 		}),
-		registryRoot: INGESTION_TASK_REGISTRY_ROOT,
 		host: "0.0.0.0",
+		internalToken: env.OPS_WEB_INTERNAL_TOKEN?.trim() || null,
 		port: 8000,
-		serviceTokens: {
-			internalToken: env.OPS_WEB_INTERNAL_TOKEN?.trim() || null,
-		},
-		temporal: buildIngestionTemporalConfig(env),
 	};
+}
+
+export async function createIngestionControlRuntime(
+	config: Pick<IngestionControlRuntimeConfig, "database" | "internalToken">,
+): Promise<IngestionControlRuntime> {
+	const pool = new Pool({
+		...config.database,
+		connectionTimeoutMillis: API_DATABASE_TIMEOUT_MS,
+		query_timeout: API_DATABASE_TIMEOUT_MS,
+		statement_timeout: API_DATABASE_TIMEOUT_MS,
+	});
+	pool.on("error", () => {
+		console.error(
+			JSON.stringify({
+				error_code: "postgres_pool_error",
+				event_type: "ingestion_control.postgres_pool_error",
+				level: "error",
+				status: "failed",
+			}),
+		);
+	});
+	try {
+		await assertInternalPortalCredentialSchema(pool);
+		const credentialService = createInternalPortalCredentialService({
+			store: createPgInternalPortalCredentialStore(pool),
+		});
+		const readinessCheck = async () => {
+			await pool.query("SELECT 1");
+		};
+		return {
+			async close() {
+				await pool.end();
+			},
+			handler: createIngestionControlHandler({
+				credentialService,
+				internalToken: config.internalToken,
+				readinessCheck,
+			}),
+			readinessCheck,
+		};
+	} catch (error) {
+		await pool.end();
+		throw error;
+	}
 }
 
 export async function startIngestionControlServer(
@@ -64,15 +88,8 @@ export async function startIngestionControlServer(
 	input: { runtime?: IngestionControlRuntime } = {},
 ): Promise<{ close(): Promise<void> }> {
 	const runtime = input.runtime ?? (await createIngestionControlRuntime(config));
-	const handler = createIngestionControlHandler({
-		readinessCheck: runtime.readinessCheck,
-		registryCatalog: runtime.registryCatalog,
-		serviceTokens: config.serviceTokens,
-		store: runtime.store,
-		workflowStarter: runtime.workflowStarter,
-	});
 	const server = createServer((request, response) => {
-		void serveNodeRequest({ handler, request, response }).catch((error) => {
+		void serveNodeRequest({ handler: runtime.handler, request, response }).catch((error) => {
 			if (response.destroyed || response.writableEnded) {
 				return;
 			}
@@ -108,38 +125,6 @@ export async function startIngestionControlServer(
 			await runtime.close();
 		},
 	};
-}
-
-async function createIngestionControlRuntime(
-	config: Pick<IngestionControlRuntimeConfig, "database" | "registryRoot" | "temporal">,
-): Promise<IngestionControlRuntime> {
-	const pool = new Pool({
-		...config.database,
-		connectionTimeoutMillis: API_DATABASE_TIMEOUT_MS,
-		query_timeout: API_DATABASE_TIMEOUT_MS,
-		statement_timeout: API_DATABASE_TIMEOUT_MS,
-	});
-	let workflowStarter: ClosableIngestionWorkflowStarter | null = null;
-	try {
-		await assertIngestionControlPostgresSchema(pool);
-		workflowStarter = await createTemporalIngestionWorkflowStarter(config.temporal);
-		return {
-			async close() {
-				await workflowStarter?.close();
-				await pool.end();
-			},
-			async readinessCheck() {
-				await Promise.all([pool.query("SELECT 1"), workflowStarter?.checkReady()]);
-			},
-			registryCatalog: loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot),
-			store: createPostgresIngestionTaskStore({ pool }),
-			workflowStarter,
-		};
-	} catch (error) {
-		await workflowStarter?.close();
-		await pool.end();
-		throw error;
-	}
 }
 
 export async function readRequestBody(

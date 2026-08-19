@@ -86,4 +86,4 @@ COPY configs/sources/internal-portal.json /workspace/configs/sources/internal-po
 USER node
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["/workspace/apps/source-collector/node_modules/.bin/tsx", "/workspace/apps/source-collector/src/temporal-worker.ts"]
+CMD ["node", "--version"]

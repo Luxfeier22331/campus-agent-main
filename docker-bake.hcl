@@ -15,7 +15,7 @@ group "default" {
     "campus-docs-index-publisher",
     "execution-control",
     "ingestion-control",
-    "ingestion-control-worker",
+    "notice-classifier",
     "ops-web",
     "source-collector",
   ]
@@ -60,10 +60,9 @@ target "ingestion-control" {
   target     = "api"
 }
 
-target "ingestion-control-worker" {
+target "notice-classifier" {
   inherits   = ["_common"]
-  dockerfile = "apps/ingestion-control/Dockerfile"
-  target     = "worker"
+  dockerfile = "jobs/notice-classifier/Dockerfile"
 }
 
 target "ops-web" {

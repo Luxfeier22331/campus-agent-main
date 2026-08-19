@@ -182,7 +182,6 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 					providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
 						providerconfig.KindEmbedding,
 						"https://embedding.example/v1",
-						"provider-model-alias",
 					),
 				}
 			},

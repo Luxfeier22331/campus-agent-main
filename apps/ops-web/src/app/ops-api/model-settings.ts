@@ -6,7 +6,6 @@ import type {
 import {
 	ExecutionModelSettingsStatusSchema,
 	ModelDiscoveryResponseSchema,
-	ModelSettingValidationResponseSchema,
 } from "../../shared/ops-contract";
 import { fetchJson } from "./core";
 
@@ -16,9 +15,12 @@ export async function fetchExecutionModelSettings(input: { signal?: AbortSignal 
 	);
 }
 
-export async function discoverExecutionLLMModels(payload: ModelDiscoveryRequest) {
+export async function discoverExecutionModels(
+	kind: "llm" | "notice_classifier",
+	payload: ModelDiscoveryRequest,
+) {
 	return ModelDiscoveryResponseSchema.parse(
-		await fetchJson("/api/ops/model-settings/execution/llm/models", {
+		await fetchJson(`/api/ops/model-settings/execution/${kind}/models`, {
 			body: JSON.stringify(payload),
 			headers: { "content-type": "application/json" },
 			method: "POST",
@@ -26,25 +28,18 @@ export async function discoverExecutionLLMModels(payload: ModelDiscoveryRequest)
 	);
 }
 
+export const discoverExecutionLLMModels = (payload: ModelDiscoveryRequest) =>
+	discoverExecutionModels("llm", payload);
+
 export async function putExecutionModelSetting(
 	kind: ModelSettingKind,
 	payload: ModelSettingUpdate,
-	etag: string,
 ) {
 	return ExecutionModelSettingsStatusSchema.parse(
 		await fetchJson(`/api/ops/model-settings/execution/${kind}`, {
 			body: JSON.stringify(payload),
-			headers: {
-				"content-type": "application/json",
-				"if-match": etag,
-			},
+			headers: { "content-type": "application/json" },
 			method: "PUT",
 		}),
-	);
-}
-
-export async function validateExecutionModelSetting(kind: ModelSettingKind) {
-	return ModelSettingValidationResponseSchema.parse(
-		await fetchJson(`/api/ops/model-settings/execution/${kind}/validate`, { method: "POST" }),
 	);
 }

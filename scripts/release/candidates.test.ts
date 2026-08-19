@@ -103,7 +103,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,
-		images: ["agent-runtime"],
+		images: ["agent-runtime", "ingestion-control"],
 		kubernetes: true,
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
@@ -157,6 +157,25 @@ test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit"
 	);
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, ["agent-runtime", "ops-web"]);
+	assert.deepEqual(plan.workers, []);
+});
+
+test("publishes the ingestion-control image for a Dockerfile-only change", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(changed("apps/ingestion-control/Dockerfile"), []);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, ["ingestion-control"]);
+	assert.deepEqual(plan.workers, []);
+});
+
+test("publishes the notice classifier image for its source or Dockerfile change", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(
+		changed("jobs/notice-classifier/src/job.ts", "jobs/notice-classifier/Dockerfile"),
+		[],
+	);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, ["notice-classifier"]);
 	assert.deepEqual(plan.workers, []);
 });
 

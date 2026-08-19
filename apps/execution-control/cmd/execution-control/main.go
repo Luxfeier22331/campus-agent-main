@@ -79,7 +79,7 @@ func run(logger *slog.Logger) error {
 	)
 	snapshotServer := newHTTPServer(
 		fmt.Sprintf("%s:%d", cfg.Host, providerConfigSnapshotPort),
-		adminHandler.EmbeddingProviderSnapshotHandler(),
+		adminHandler.ProviderSnapshotHandler(),
 		15*time.Second,
 	)
 	serverErrors := make(chan error, 3)

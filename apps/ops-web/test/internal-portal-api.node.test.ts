@@ -1,8 +1,10 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
-import { InternalPortalCandidateInputError } from "../src/server/internal-portal-candidate-input.ts";
-import { InternalPortalCandidateRejectedError } from "../src/server/internal-portal-credential-service.ts";
+import {
+	InternalPortalCandidateInputError,
+	InternalPortalCandidateRejectedError,
+} from "../src/server/internal-portal-credential-service.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 import { createTestOpsApp } from "./helpers/ops-app.ts";
 
@@ -37,7 +39,10 @@ function createTestApp() {
 			email: "operator@example.test",
 			operatorId: "operator@example.test",
 		}),
-		env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
+		env: {
+			OPS_WEB_INTERNAL_TOKEN: "internal-token",
+			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
+		},
 		internalPortalCredentialService: service,
 	});
 	return { app, service };

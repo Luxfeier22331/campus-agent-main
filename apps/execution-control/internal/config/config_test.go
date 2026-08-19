@@ -21,8 +21,8 @@ func TestRuntimeUsesFixedRuntimePolicy(t *testing.T) {
 	if cfg.TemporalWorkflowExecutionTimeoutSeconds != 900 {
 		t.Fatalf("workflow timeout = %d", cfg.TemporalWorkflowExecutionTimeoutSeconds)
 	}
-	if cfg.ProviderConfigKeyringPath != fixedProviderConfigKeyringPath {
-		t.Fatalf("provider keyring path = %q", cfg.ProviderConfigKeyringPath)
+	if cfg.ProviderConfigEncryptionKeyPath != fixedProviderConfigEncryptionKeyPath {
+		t.Fatalf("provider encryption key path = %q", cfg.ProviderConfigEncryptionKeyPath)
 	}
 	if cfg.MaxConcurrentAnswers != 8 || cfg.QueueCapacity != 24 || cfg.QueueTimeoutMS != 3_000 {
 		t.Fatalf("unexpected admission limits: %#v", cfg)

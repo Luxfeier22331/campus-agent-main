@@ -24,17 +24,6 @@ function checkRegistryCoverage(): void {
 	for (const [entryId, validates] of Object.entries(expectedValidates)) {
 		expectEqualJson(entries[entryId]?.validates, validates, `${entryId} validates`);
 	}
-	for (const entryId of [
-		"ingestion-task-envelope.v3",
-		"ingestion-task-registry.v3",
-		"ingestion-task-result.v1",
-	]) {
-		const fixtureGroups = entries[entryId]?.fixture_groups;
-		if (!Array.isArray(fixtureGroups)) {
-			throw new Error(`${entryId} fixture groups missing`);
-		}
-		expect(fixtureGroups.length > 0, `${entryId} fixture groups empty`);
-	}
 	const runtimeConfigPaths = listFilesMatching(repoPath("configs/runtime"), "*.json").map(
 		relativePath,
 	);

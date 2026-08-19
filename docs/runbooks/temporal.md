@@ -7,15 +7,15 @@ status: active
 
 ## 边界
 
-本文说明 Temporal Server 与应用 poller 的稳定运维规则。具体 chart 版本、Helm value、namespace、
-endpoint 和资源尺寸由环境仓库拥有，不在本文复制。
+本文说明 Temporal Server 与 execution-control poller 的稳定运维规则。具体 chart 版本、Helm
+value、namespace、endpoint 和资源尺寸由环境仓库拥有，不在本文复制。
 
 本文不定义应用工作流语义：在线回答见 `../architecture/system/durable-runtime.md`，个人记忆见
 `../architecture/system/memory-plane.md`。平台运维不得改变这些工作流的业务状态。
 
 execution-control 在一个标准 Deployment 中运行 workflow、core activity 和 agent activity 三类
-poller；ingestion-control worker 与 source-collector worker 各使用一个标准 Deployment。副本数与
-滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套自动扩缩状态。
+poller。副本数与滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套
+自动扩缩状态。采集链路不使用 Temporal，见[采集与离线数据运维](./ingestion.md)。
 
 ## 所有权
 
@@ -61,7 +61,8 @@ kubectl get deployment
 kubectl get pod
 ```
 
-逐个应用检查 Deployment rollout、Pod readiness、task queue poller、backlog 与旧 Pod 退出状态。
+检查 execution-control Deployment rollout、Pod readiness、task queue poller、backlog 与旧 Pod
+退出状态。
 
 ## 常见故障
 
@@ -80,8 +81,8 @@ kubectl get pod
 ### 旧 Pod 无法退出
 
 - 检查仍由旧进程执行的 workflow、Activity 与 task queue；
-- workflow 或 Activity 未完成时不得强制删除旧 Pod；
-- 只按产品或 ingestion policy cancel/terminate workflow。
+- workflow 或 Activity 未完成时不得强制删除旧 Pod 或迁移 CRD；
+- 只按产品策略 cancel/terminate workflow。
 
 ### 在线回答身份或超时无法收敛
 

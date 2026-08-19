@@ -25,7 +25,7 @@ const detail: NoticeDetailResponse = {
 		},
 	],
 	contentHtml: '<p>正文<img src="notice-asset:image:0" alt=""></p>',
-	domain: "campus_operations",
+	category: "campus_operations",
 	externalUrl: null,
 	images: [
 		{
@@ -46,13 +46,13 @@ const detail: NoticeDetailResponse = {
 
 const list: NoticeListResponse = {
 	filters: {
-		domains: [{ label: "校园运行", value: "campus_operations" }],
+		categories: [{ label: "校园服务与运行", value: "campus_operations" }],
 		noticeTypes: [{ label: "办公通知", value: 5 }],
 		organizations: [{ label: "图书馆", value: "100" }],
 	},
 	items: [
 		{
-			domain: detail.domain,
+			category: detail.category,
 			externalUrl: null,
 			isExternal: false,
 			noticeId: detail.noticeId,
@@ -118,7 +118,7 @@ describe("notice routes", () => {
 		});
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/notices?q=%E6%9A%82%E5%81%9C&domain=campus_operations&notice_type=5&organization_id=100&is_external=false&from=2026-08-01&to=2026-08-13&page=2",
+				"https://app-api.internal/api/notices?q=%E6%9A%82%E5%81%9C&category=campus_operations&stream=notices&notice_type=5&organization_id=100&is_external=false&from=2026-08-01&to=2026-08-13&page=2",
 			),
 		);
 
@@ -126,13 +126,14 @@ describe("notice routes", () => {
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		await expect(response.json()).resolves.toEqual(list);
 		expect(noticeService.list).toHaveBeenCalledWith({
-			domain: "campus_operations",
+			category: "campus_operations",
 			from: "2026-08-01",
 			is_external: false,
 			notice_type: 5,
 			organization_id: "100",
 			page: 2,
 			q: "暂停",
+			stream: "notices",
 			to: "2026-08-13",
 		});
 	});
@@ -145,7 +146,9 @@ describe("notice routes", () => {
 		});
 
 		for (const query of [
-			"domain=unknown",
+			"category=unknown",
+			"stream=unknown",
+			"stream=campus_news&category=procurement",
 			"from=2026-08-13&to=2026-08-01",
 			"page=0",
 			"notice_type=-1",

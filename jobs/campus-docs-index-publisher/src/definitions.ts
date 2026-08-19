@@ -9,6 +9,8 @@ export const CHUNK_SET_DEFINITION = {
 	sourceSchemaVersion: "campus_docs_source.v3",
 } as const;
 
+export const CANONICAL_EMBEDDING_MODEL = "Qwen3-Embedding-4B";
+
 export const EMBEDDING_SPACE = {
 	dimensions: 2560,
 	spaceId: "qwen3-embedding-4b@2560-v1",

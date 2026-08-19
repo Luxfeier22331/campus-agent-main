@@ -33,11 +33,12 @@ const (
 var errInvalidOptions = errors.New("invalid run projection schema options")
 
 type schemaOptions struct {
-	DatabaseURL  string
-	EvidencePath string
-	KeyringPath  string
-	Mode         string
-	Now          time.Time
+	DatabaseURL       string
+	EvidencePath      string
+	EncryptionKeyPath string
+	KeyringPath       string
+	Mode              string
+	Now               time.Time
 }
 
 type schemaReport struct {
@@ -87,13 +88,15 @@ func parseOptions(args []string) (schemaOptions, error) {
 	var options schemaOptions
 	flags.StringVar(&options.DatabaseURL, "database-url", "", "explicit Postgres run projection database URL")
 	flags.StringVar(&options.EvidencePath, "evidence-path", "", "path to write run projection schema evidence JSON")
-	flags.StringVar(&options.KeyringPath, "provider-config-keyring-path", "", "provider config keyring path")
+	flags.StringVar(&options.EncryptionKeyPath, "provider-config-encryption-key-path", "", "provider config encryption key path")
+	flags.StringVar(&options.KeyringPath, "provider-config-keyring-path", "", "legacy provider config keyring path used only during migration")
 	flags.StringVar(&options.Mode, "mode", "", "schema operation mode: install or check")
 	if err := flags.Parse(args); err != nil {
 		return schemaOptions{}, err
 	}
 	options.DatabaseURL = strings.TrimSpace(options.DatabaseURL)
 	options.EvidencePath = strings.TrimSpace(options.EvidencePath)
+	options.EncryptionKeyPath = strings.TrimSpace(options.EncryptionKeyPath)
 	options.KeyringPath = strings.TrimSpace(options.KeyringPath)
 	options.Mode = strings.TrimSpace(options.Mode)
 	if options.Mode == "" {
@@ -159,13 +162,25 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 	}
 	var keyring *providerconfig.Keyring
 	if options.KeyringPath != "" {
+		if _, statErr := os.Stat(options.KeyringPath); statErr == nil {
+			var loadErr error
+			keyring, loadErr = providerconfig.LoadKeyring(options.KeyringPath)
+			if loadErr != nil {
+				return schemaReport{}, loadErr
+			}
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return schemaReport{}, fmt.Errorf("stat legacy provider config keyring: %w", statErr)
+		}
+	}
+	var encryptionKey *providerconfig.SecretCipher
+	if options.EncryptionKeyPath != "" {
 		var loadErr error
-		keyring, loadErr = providerconfig.LoadKeyring(options.KeyringPath)
+		encryptionKey, loadErr = providerconfig.LoadSecretCipher(options.EncryptionKeyPath)
 		if loadErr != nil {
 			return schemaReport{}, loadErr
 		}
 	}
-	migrator, err := schemamigrations.New(options.DatabaseURL, keyring)
+	migrator, err := schemamigrations.New(options.DatabaseURL, keyring, encryptionKey)
 	if err != nil {
 		return schemaReport{}, err
 	}

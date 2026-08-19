@@ -172,14 +172,16 @@ test("pull request validation keeps one bounded hosted gate", async () => {
 	assert.equal(repoChecks.if, "github.event.pull_request.draft == false");
 	assert.equal(repoChecks["runs-on"], "ubuntu-24.04");
 	assert.equal(repoChecks["timeout-minutes"], 30);
-	assert.equal(namedStep(repoChecks, "Run repository checks").run, "pnpm check");
+	assert.equal(namedStep(repoChecks, "Lint repository").run, "pnpm lint");
+	assert.equal(namedStep(repoChecks, "Test repository scripts").run, "pnpm test");
+	assert.throws(() => namedStep(repoChecks, "Check documentation"), /missing workflow step/u);
 	assert.equal(
 		namedStep(repoChecks, "Run affected Node evidence").if,
-		"steps.plan.outputs.has_affected_node == 'true'",
+		"always() && steps.plan.outputs.has_affected_node == 'true' && steps.install_affected.outcome == 'success'",
 	);
 	assert.equal(
 		namedStep(repoChecks, "Run toolchain evidence").if,
-		"steps.plan.outputs.has_toolchain == 'true'",
+		"always() && steps.plan.outputs.has_toolchain == 'true'",
 	);
 });
 

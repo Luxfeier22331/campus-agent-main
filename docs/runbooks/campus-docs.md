@@ -89,12 +89,12 @@ pnpm --dir jobs/campus-docs-index-publisher eval-chunks -- \
 ```bash
 EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
   --chunk-set sha256:<chunk-set-id> \
-  --base-url https://provider.example/v1 \
-  --model Qwen3-Embedding-4B
+  --base-url https://provider.example/v1
 ```
 
-该命令只读写当前 worktree 的 `var/campus-docs/rag/`，不访问 execution-control、Ops Web、PostgreSQL、
-Qdrant 或集群对象存储。它与线上 Embedding Job 共用制品生成实现；差别只有本地显式连接和文件 Store。
+该命令固定使用 `Qwen3-Embedding-4B`，只读写当前 worktree 的 `var/campus-docs/rag/`，不访问
+execution-control、Ops Web、PostgreSQL、Qdrant 或集群对象存储。它与线上 Embedding Job 共用制品生成
+实现；差别只有本地显式连接和文件 Store。
 
 使用输出的 Embedding Set 执行 dense-only 检索评测：
 
@@ -108,7 +108,8 @@ EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher eval-embedding
 命令默认读取版本化 query cases，使用线上同一 query instruction，报告
 `root_unit_recall@K`、`evidence_coverage@K` 和 `first_relevant_mrr` 到
 `/tmp/campus-docs-embedding-eval/<embedding-set-id>/`。它不启动本地 Qdrant，不复制 sparse/RRF，也不因
-指标结果自动失败。
+指标结果自动失败。这里的 `--model` 只用于只读评测查询向量，不改变正式 Embedding 构建固定的模型或
+向量空间。
 
 ## 本地 Publish 验证
 

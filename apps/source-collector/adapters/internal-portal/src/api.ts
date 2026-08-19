@@ -10,6 +10,7 @@ import type {
 	ApiResponseLike,
 	FileReleaseDetailResponse,
 	FileReleaseDownloadUrlResponse,
+	FileReleaseListResponse,
 	NoticeDetailResponse,
 	NoticeListResponse,
 	NoticeMetadataResponse,
@@ -27,6 +28,7 @@ export interface FetchNoticeDetailInput {
 }
 
 const NOTICE_PAGE_SIZE = 20;
+export const FILE_RELEASE_PAGE_SIZE = 50;
 
 export interface FetchAttachmentBinaryInput {
 	abortSignal?: AbortSignal;
@@ -48,6 +50,11 @@ export interface FetchFileReleaseDetailInput {
 export interface FetchFileReleaseDownloadUrlInput {
 	apiContext: ApiRequestContextLike;
 	fileReleaseId: number;
+}
+
+export interface FetchFileReleasePageInput {
+	apiContext: ApiRequestContextLike;
+	currentPage: number;
 }
 
 export async function fetchNoticePage(input: FetchNoticePageInput): Promise<NoticeListResponse> {
@@ -205,6 +212,35 @@ export async function fetchFileReleaseDetail(
 	const json = await parseJsonResponse<FileReleaseDetailResponse>(response, "getFile");
 	if (!(json.state === 1 || json.state === true)) {
 		throw new Error("Internal portal file detail request was rejected.");
+	}
+	return json;
+}
+
+export async function fetchFileReleasePage(
+	input: FetchFileReleasePageInput,
+): Promise<FileReleaseListResponse> {
+	const response = await input.apiContext.post("/comsys-prompt-portlet-web/pageFile", {
+		form: {
+			currentPage: String(input.currentPage),
+			pageSize: String(FILE_RELEASE_PAGE_SIZE),
+			searchValue: "",
+			fileType: "",
+			fileFileType: "",
+			explainDept: "",
+		},
+	});
+	if (!response.ok()) {
+		await throwRequestError(response, "pageFile");
+	}
+	const json = await parseJsonResponse<FileReleaseListResponse>(response, "pageFile");
+	if (
+		!(
+			(json.state === 1 || json.state === true) &&
+			Array.isArray(json.datas?.tables) &&
+			json.datas?.page
+		)
+	) {
+		throw new Error("Internal portal file list response is invalid.");
 	}
 	return json;
 }

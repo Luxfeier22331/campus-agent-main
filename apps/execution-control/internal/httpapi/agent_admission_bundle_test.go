@@ -31,7 +31,6 @@ func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.
 	embedding := embeddingProviderConfigSnapshotForTest(
 		providerconfig.KindEmbedding,
 		"https://embedding.example/v1",
-		"provider-model-alias",
 	)
 	resolver := &countingProviderConfigResolver{configs: map[providerconfig.Kind]providerconfig.RuntimeSetting{
 		providerconfig.KindLLM:       primary,
@@ -70,7 +69,6 @@ func TestBuildAgentAdmissionSnapshotAlwaysPinsRetrieval(t *testing.T) {
 	embedding := embeddingProviderConfigSnapshotForTest(
 		providerconfig.KindEmbedding,
 		"https://embedding.example/v1",
-		"provider-model-alias",
 	)
 	resolver := &countingProviderConfigResolver{configs: map[providerconfig.Kind]providerconfig.RuntimeSetting{
 		providerconfig.KindLLM:       primaryAgentProviderConfigSnapshotForTest(),

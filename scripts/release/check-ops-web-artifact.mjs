@@ -36,13 +36,6 @@ if (!existsSync(databaseEntry)) {
 	throw new Error(`ops-web production database entry is missing: ${databaseEntry}`);
 }
 
-const internalPortalCheckEntry = join(root, "dist-ops", "internal-portal", "check.js");
-if (!existsSync(internalPortalCheckEntry)) {
-	throw new Error(
-		`ops-web production internal portal check entry is missing: ${internalPortalCheckEntry}`,
-	);
-}
-
 const diningJournal = join(root, "drizzle", "meta", "_journal.json");
 if (!existsSync(diningJournal)) {
 	throw new Error(`ops-web Dining migration journal is missing: ${diningJournal}`);
@@ -58,7 +51,6 @@ for (const entry of journal.entries ?? []) {
 for (const [label, entry] of [
 	["bootstrap", bootstrapEntry],
 	["database", databaseEntry],
-	["internal portal check", internalPortalCheckEntry],
 ]) {
 	try {
 		execFileSync(

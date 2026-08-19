@@ -534,15 +534,18 @@ function initialDiningDraft(): DiningMapDraft {
 }
 
 function fixtureProviderConfigClient() {
-	let counter = 1;
 	const status: ExecutionModelSettingsStatus = {
-		etag: "etag-1",
+		embeddingContract: {
+			dimensions: 2560,
+			model: "Qwen3-Embedding-4B",
+			provider: "openai-compatible",
+			transport: "embeddings",
+		},
 		sampledAt: new Date().toISOString(),
 		settings: {
 			embedding: {
 				baseUrl: "https://embedding.example.test/v1",
 				credentialConfigured: true,
-				credentialLast4: "demo",
 				kind: "embedding",
 				latestValidation: {
 					message: "Embedding validation passed.",
@@ -560,7 +563,6 @@ function fixtureProviderConfigClient() {
 			llm: {
 				baseUrl: "https://provider.example.test/v1",
 				credentialConfigured: true,
-				credentialLast4: "demo",
 				kind: "llm",
 				latestValidation: {
 					message: "LLM validation passed.",
@@ -571,6 +573,22 @@ function fixtureProviderConfigClient() {
 				model: "primary-demo-model",
 				provider: "openai",
 				transport: "responses",
+				updatedAt: "2026-07-16T00:00:00.000Z",
+				updatedBy: "ops@example.test",
+			},
+			notice_classifier: {
+				baseUrl: "https://classifier.example.test/v1",
+				credentialConfigured: true,
+				kind: "notice_classifier",
+				latestValidation: {
+					message: "Notice classifier validation passed.",
+					status: "passed",
+					validatedAt: "2026-07-16T00:05:00.000Z",
+					validatedBy: "ops@example.test",
+				},
+				model: "deepseek-v4-flash-0731",
+				provider: "openai-compatible",
+				transport: "chat_completions",
 				updatedAt: "2026-07-16T00:00:00.000Z",
 				updatedBy: "ops@example.test",
 			},
@@ -586,14 +604,10 @@ function fixtureProviderConfigClient() {
 		async getStatus() {
 			return status;
 		},
-		async put(kind: "llm" | "embedding", body: Record<string, unknown>) {
-			counter += 1;
-			const current = status.settings[kind];
-			status.etag = `etag-${counter}`;
+		async put(kind: "llm" | "embedding" | "notice_classifier", body: Record<string, unknown>) {
 			status.settings[kind] = {
 				baseUrl: String(body.baseUrl),
 				credentialConfigured: true,
-				credentialLast4: String(body.apiKey || current?.credentialLast4 || "").slice(-4),
 				kind,
 				latestValidation: {
 					message: "Validation passed.",
@@ -602,8 +616,11 @@ function fixtureProviderConfigClient() {
 					validatedAt: new Date().toISOString(),
 					validatedBy: "ops@example.test",
 				},
-				model: String(body.model),
-				provider: body.provider as "openai" | "openai-compatible",
+				model: kind === "embedding" ? status.embeddingContract.model : String(body.model),
+				provider:
+					kind === "embedding"
+						? status.embeddingContract.provider
+						: (body.provider as "openai" | "openai-compatible"),
 				transport:
 					kind === "embedding"
 						? "embeddings"
@@ -612,17 +629,6 @@ function fixtureProviderConfigClient() {
 				updatedBy: "ops@example.test",
 			};
 			return status;
-		},
-		async validate(kind: "llm" | "embedding") {
-			return {
-				kind,
-				validation: {
-					message: "Validation passed.",
-					status: "passed" as const,
-					validatedAt: new Date().toISOString(),
-					validatedBy: "ops@example.test",
-				},
-			};
 		},
 	};
 }

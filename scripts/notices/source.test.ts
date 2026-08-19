@@ -25,11 +25,13 @@ test("collects every object-list page", async () => {
 	);
 });
 
-test("loads, validates, derives type names, and orders notice sources", async () => {
+test("loads, validates, and orders title-only notice sources", async () => {
 	const store = fakeStore({
-		"internal_portal/meta.json": meta(),
-		"internal_portal/notices/2.json": notice(2, 36, "活动记录", true),
-		"internal_portal/notices/5.json": notice(5, 5, "临时关闭校门", false, "<p>正文</p>"),
+		"internal_portal/notices/2.json": notice(2, "活动记录"),
+		"internal_portal/notices/5.json": notice(5, "临时关闭校门", {
+			notice_content_html: 42,
+			notice_type: null,
+		}),
 	});
 	store.listObjectKeys = async () => [
 		"internal_portal/notices/_state.json",
@@ -37,27 +39,14 @@ test("loads, validates, derives type names, and orders notice sources", async ()
 		"internal_portal/notices/2.json",
 	];
 	assert.deepEqual(await loadNoticeClassificationInputs(store), [
-		{
-			contentText: null,
-			isExternal: true,
-			noticeId: 2,
-			noticeTitle: "活动记录",
-			noticeTypeName: "活动报道",
-		},
-		{
-			contentText: "正文",
-			isExternal: false,
-			noticeId: 5,
-			noticeTitle: "临时关闭校门",
-			noticeTypeName: "办公通知",
-		},
+		{ noticeId: 2, noticeTitle: "活动记录" },
+		{ noticeId: 5, noticeTitle: "临时关闭校门" },
 	]);
 });
 
 test("loads selected ids without listing and rejects inconsistent objects", async () => {
 	const store = fakeStore({
-		"internal_portal/meta.json": meta(),
-		"internal_portal/notices/7.json": notice(8, 5, "通知", false),
+		"internal_portal/notices/7.json": notice(8, "通知"),
 	});
 	store.listObjectKeys = async () => {
 		throw new Error("list must not be called");
@@ -65,21 +54,45 @@ test("loads selected ids without listing and rejects inconsistent objects", asyn
 	await assert.rejects(loadNoticeClassificationInputs(store, [7]), /contains notice_id 8/u);
 });
 
-test("rejects malformed source contracts and unknown type ids", async () => {
+test("bounds concurrent source reads while preserving notice order", async () => {
+	const objects = {
+		"internal_portal/notices/1.json": notice(1, "一"),
+		"internal_portal/notices/2.json": notice(2, "二"),
+		"internal_portal/notices/3.json": notice(3, "三"),
+	};
+	const store = fakeStore(objects);
+	const getObject = store.getObject.bind(store);
+	let active = 0;
+	let maximumActive = 0;
+	store.getObject = async (key) => {
+		active += 1;
+		maximumActive = Math.max(maximumActive, active);
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		active -= 1;
+		return getObject(key);
+	};
+	const inputs = await loadNoticeClassificationInputs(store, [3, 1, 2], { concurrency: 2 });
+	assert.deepEqual(
+		inputs.map((value) => value.noticeId),
+		[1, 2, 3],
+	);
+	assert.equal(maximumActive, 2);
+	await assert.rejects(
+		loadNoticeClassificationInputs(store, [1], { concurrency: 0 }),
+		/positive integer/u,
+	);
+});
+
+test("rejects malformed classification fields", async () => {
 	const malformed = fakeStore({
-		"internal_portal/meta.json": meta(),
 		"internal_portal/notices/1.json": JSON.stringify({ notice_id: 1 }),
 	});
-	await assert.rejects(loadNoticeClassificationInputs(malformed, [1]), /violates its contract/u);
+	await assert.rejects(loadNoticeClassificationInputs(malformed, [1]), /schema_version/u);
 
-	const unknownType = fakeStore({
-		"internal_portal/meta.json": meta(),
-		"internal_portal/notices/1.json": notice(1, 999, "通知", false),
+	const invalidTitle = fakeStore({
+		"internal_portal/notices/1.json": notice(1, "   "),
 	});
-	await assert.rejects(
-		loadNoticeClassificationInputs(unknownType, [1]),
-		/unknown notice_type 999/u,
-	);
+	await assert.rejects(loadNoticeClassificationInputs(invalidTitle, [1]), /invalid notice_title/u);
 });
 
 function fakeStore(objects: Record<string, string>): NoticeSourceObjectStore {
@@ -100,32 +113,11 @@ function fakeStore(objects: Record<string, string>): NoticeSourceObjectStore {
 	};
 }
 
-function meta(): string {
+function notice(noticeId: number, title: string, extra: Record<string, unknown> = {}): string {
 	return JSON.stringify({
-		notice_types: { "5": "办公通知", "36": "活动报道" },
-		organizations: {},
-		schema_version: "internal_portal_meta.v1",
-		updated_at: "2026-08-11T00:00:00.000Z",
-	});
-}
-
-function notice(
-	noticeId: number,
-	noticeType: number,
-	title: string,
-	isExternal: boolean,
-	content: string | null = null,
-): string {
-	return JSON.stringify({
-		attachments: [],
-		external_url: isExternal ? "https://example.edu/notice" : null,
-		is_external: isExternal,
-		notice_content_html: content,
 		notice_id: noticeId,
-		notice_release_time: "2026-08-11 08:00:00",
 		notice_title: title,
-		notice_type: noticeType,
-		organization_id: null,
 		schema_version: "internal_portal_notice_source.v2",
+		...extra,
 	});
 }

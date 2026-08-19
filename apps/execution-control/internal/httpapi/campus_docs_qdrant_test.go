@@ -100,9 +100,9 @@ func TestCampusDocsEmbeddingAdmissionDoesNotDuplicateIndexVectorSpace(t *testing
 		APIKey:    "secret",
 		BaseURL:   "https://embedding.example/v1",
 		Kind:      providerconfig.KindEmbedding,
-		Model:     "provider-model-alias",
-		Provider:  "openai-compatible",
-		Transport: "embeddings",
+		Model:     providerconfig.CanonicalEmbeddingModel,
+		Provider:  providerconfig.CanonicalEmbeddingProvider,
+		Transport: providerconfig.CanonicalEmbeddingTransport,
 	}
 	if err := validateCampusDocsEmbeddingAdmission(target, provider); err != nil {
 		t.Fatalf("provider connection was incorrectly coupled to index vector space: %v", err)

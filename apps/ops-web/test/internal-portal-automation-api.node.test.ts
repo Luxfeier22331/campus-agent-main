@@ -5,7 +5,7 @@ import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-st
 import {
 	InternalPortalCredentialConflictError,
 	InternalPortalCredentialNameConflictError,
-} from "../src/server/internal-portal-credential-store.ts";
+} from "../src/server/internal-portal-credential-service.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 import { createTestOpsApp } from "./helpers/ops-app.ts";
 

@@ -12,6 +12,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	appApiVars: "apps/app-api/.dev.vars.local",
 	campusWeb: "apps/campus-web/.dev.vars.local",
 	ingestionControl: "apps/ingestion-control/.env.local",
+	noticeClassifier: "jobs/notice-classifier/.env.local",
 	noticePublisher: "jobs/notice-publisher/.env.local",
 	opsWeb: "apps/ops-web/.env.local",
 	sourceCollector: "apps/source-collector/adapters/internal-portal/.env.local",
@@ -65,6 +66,7 @@ export function renderLocalEnvironmentFiles(input: {
 	const database = localDatabaseUrls(profile);
 	const paths = managedLocalEnvironmentPaths(repoRoot);
 	const existingSecrets = readManagedEnv(paths.appApiVars);
+	const existingSourceCollectorEnvironment = readManagedEnv(paths.sourceCollector);
 	const opsWebInternalToken = existingSecrets.OPS_WEB_INTERNAL_TOKEN || randomSecret();
 
 	writeManagedEnv(paths.appApi, {
@@ -105,11 +107,7 @@ export function renderLocalEnvironmentFiles(input: {
 		INGESTION_CONTROL_DATABASE_URL: database.ingestionControl,
 		INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: "disable",
 		INGESTION_CONTROL_SCHEMA_DATABASE_URL: database.owner,
-		OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-		OBJECT_STORE_REGION: "us-east-1",
-		OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
-		OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+		OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 	});
 	writeManagedEnv(paths.opsWeb, {
 		DEPLOYMENT_ENVIRONMENT: "local",
@@ -122,6 +120,7 @@ export function renderLocalEnvironmentFiles(input: {
 		OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
 		OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
 		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+		INGESTION_CONTROL_INTERNAL_URL: `http://127.0.0.1:${profile.ports.ingestionControl}`,
 		OPS_WEB_DATABASE_SSLMODE: "disable",
 		OPS_WEB_DATABASE_URL: database.opsWeb,
 		OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
@@ -130,7 +129,22 @@ export function renderLocalEnvironmentFiles(input: {
 		PORT: String(profile.ports.opsWebApi),
 	});
 	writeManagedEnv(paths.sourceCollector, {
+		...(existingSourceCollectorEnvironment.INTERNAL_PORTAL_SSO_TGC
+			? { INTERNAL_PORTAL_SSO_TGC: existingSourceCollectorEnvironment.INTERNAL_PORTAL_SSO_TGC }
+			: {}),
+		INGESTION_CONTROL_INTERNAL_URL: `http://127.0.0.1:${profile.ports.ingestionControl}`,
 		OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
+		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+		OBJECT_STORE_REGION: "us-east-1",
+		OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
+		OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+		OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
+	});
+	writeManagedEnv(paths.noticeClassifier, {
+		OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
+		OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
+		OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
+		OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
 		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		OBJECT_STORE_REGION: "us-east-1",
 		OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",

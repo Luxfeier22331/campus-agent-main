@@ -8,8 +8,8 @@ status: active
 ## 文档边界
 
 本文定义 `campus-agent` 服务谁、解决什么问题、向用户承诺什么，以及哪些能力不属于产品
-范围。当前已经实现的界面和服务以 [current.md](./current.md) 为准；技术所有权和运行方式由
-目标架构、合同、数据文档和 ADR 维护。
+范围。当前已经实现的界面和服务由最近的产品、系统、领域和合同文档及可执行实现维护；技术所有权
+和运行方式由目标架构、合同、数据文档和 ADR 维护。
 
 ## 核心定位
 
@@ -43,7 +43,7 @@ status: active
 - 账号、会话和额度可以限制使用，但不能改变事实来源或降低回答要求；
 - 状态页、文档页、地图和问答页可以分别呈现，但不得各自维护一份相互冲突的事实。
 
-当前开放范围由代码注册表、产品配置和 [current.md](./current.md) 共同验证。schema、配置、
+当前开放范围由代码注册表、产品配置和所属产品、领域合同共同验证。schema、配置、
 页面占位或测试数据的存在不代表能力已经向用户开放。
 
 ## 产品界面
@@ -56,7 +56,7 @@ status: active
 - 账号页面：管理身份、会话和个人设置。
 
 这些界面属于同一个产品，但不要求所有功能都经过聊天或模型工具。当前界面是否存在及其
-部署方式以 [current.md](./current.md) 为准。
+运行边界见 [产品运行时](./system/product-runtime.md)，环境是否部署由环境仓选择和运行状态证明。
 
 ## 扩展边界
 
@@ -79,9 +79,8 @@ status: active
 
 ## 相关文档
 
-- 当前实现：[current.md](./current.md)
+- 当前实现入口：[README.md](./README.md)
 - 长期约束：[target.md](./target.md)
 - 产品运行边界：[system/product-runtime.md](./system/product-runtime.md)
 - 工具开放规则：[system/tool-routing.md](./system/tool-routing.md)
 - 校级产品范围：[ADR-0030](../decisions/adr-0030-product-scope.md)
-- 文档治理：[../documentation-architecture.md](../documentation-architecture.md)

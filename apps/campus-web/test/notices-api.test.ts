@@ -3,7 +3,7 @@ import { getNoticeDetail, listNotices } from "../src/features/notices/api";
 import { noticeQueryKeys } from "../src/features/notices/queries";
 
 const listResponse = {
-	filters: { domains: [], noticeTypes: [], organizations: [] },
+	filters: { categories: [], noticeTypes: [], organizations: [] },
 	items: [],
 	pagination: { page: 3, pageSize: 30, totalItems: 0, totalPages: 0 },
 };
@@ -20,39 +20,42 @@ describe("notice browser API", () => {
 		);
 		vi.stubGlobal("fetch", fetchMock);
 		const query = {
-			domain: "student_support" as const,
+			category: "student_affairs" as const,
 			from: "2026-01-01",
 			is_external: false,
 			notice_type: 5,
 			organization_id: "org-1",
 			page: 3,
 			q: "奖学金",
+			stream: "notices" as const,
 			to: "2026-08-13",
 		};
 
 		await expect(listNotices(query)).resolves.toEqual(listResponse);
 		const requestUrl = new URL(String(fetchMock.mock.calls[0]?.[0]), "https://campus.test");
 		expect(Object.fromEntries(requestUrl.searchParams)).toEqual({
-			domain: "student_support",
+			category: "student_affairs",
 			from: "2026-01-01",
 			is_external: "false",
 			notice_type: "5",
 			organization_id: "org-1",
 			page: "3",
 			q: "奖学金",
+			stream: "notices",
 			to: "2026-08-13",
 		});
 		expect(noticeQueryKeys.list(query)).toEqual([
 			"notices",
 			"list",
 			{
-				domain: "student_support",
+				category: "student_affairs",
 				from: "2026-01-01",
 				isExternal: false,
 				noticeType: 5,
 				organizationId: "org-1",
 				page: 3,
 				q: "奖学金",
+				stream: "notices",
 				to: "2026-08-13",
 			},
 		]);
@@ -61,8 +64,8 @@ describe("notice browser API", () => {
 	it("requests and validates an internal detail", async () => {
 		const detail = {
 			attachments: [],
+			category: "campus_operations",
 			contentHtml: "<p>正文</p>",
-			domain: "campus_operations",
 			externalUrl: null,
 			images: [],
 			isExternal: false,

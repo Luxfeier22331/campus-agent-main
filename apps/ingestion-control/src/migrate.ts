@@ -79,6 +79,19 @@ export async function applyIngestionControlMigrations(
 			);
 			applied.push(migration.migrationId);
 		}
+		await client.query("REVOKE ALL ON SCHEMA ingestion_control FROM PUBLIC, ingestion_control");
+		await client.query("GRANT USAGE ON SCHEMA ingestion_control TO ingestion_control");
+		await client.query(
+			"REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA ingestion_control FROM PUBLIC, ingestion_control",
+		);
+		await client.query(
+			"REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA ingestion_control FROM PUBLIC, ingestion_control",
+		);
+		await client.query(
+			`GRANT SELECT, INSERT, UPDATE, DELETE
+			 ON TABLE ingestion_control.internal_portal_credentials
+			 TO ingestion_control`,
+		);
 		await client.query("COMMIT");
 		return applied;
 	} catch (error) {
@@ -91,9 +104,9 @@ export async function runIngestionControlMigrations(
 	env: Record<string, string | undefined> = process.env,
 ): Promise<string[]> {
 	const database = readPostgresConnectionConfig(env, {
-		caCertPath: "INGESTION_CONTROL_DATABASE_CA_CERT_PATH",
-		connectionString: "INGESTION_CONTROL_DATABASE_URL",
-		sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
+		caCertPath: "INGESTION_CONTROL_SCHEMA_DATABASE_CA_CERT_PATH",
+		connectionString: "INGESTION_CONTROL_SCHEMA_DATABASE_URL",
+		sslMode: "INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE",
 	});
 	const pool = new Pool({
 		...database,
@@ -102,10 +115,23 @@ export async function runIngestionControlMigrations(
 	let client: PoolClient | null = null;
 	try {
 		client = await pool.connect();
+		const role = await client.query<{ currentUser: string }>(
+			`SELECT current_user AS "currentUser"`,
+		);
+		assertIngestionControlMigrationRole(role.rows[0]?.currentUser);
 		return await applyIngestionControlMigrations(client, loadIngestionControlMigrations());
 	} finally {
 		client?.release();
 		await pool.end();
+	}
+}
+
+export function assertIngestionControlMigrationRole(currentUser: string | undefined): void {
+	if (!currentUser) {
+		throw new Error("ingestion-control migration could not resolve the database role");
+	}
+	if (currentUser === "ingestion_control") {
+		throw new Error("ingestion-control migrations cannot run as the runtime role");
 	}
 }
 

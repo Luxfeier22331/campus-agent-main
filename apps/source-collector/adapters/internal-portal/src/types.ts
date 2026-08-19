@@ -76,6 +76,24 @@ export interface FileReleaseDetailResponse {
 	explainDept?: string | null;
 }
 
+export interface FileReleaseListItem {
+	id?: number | string | null;
+	filename?: string | null;
+	filetime?: string | null;
+}
+
+export interface FileReleaseListResponse {
+	state?: number | boolean | null;
+	datas?: {
+		tables?: FileReleaseListItem[] | null;
+		page?: {
+			pageSize?: number | string | null;
+			total?: number | string | null;
+			totalCounts?: number | string | null;
+		} | null;
+	} | null;
+}
+
 export interface FileReleaseDownloadUrlResponse {
 	state?: boolean;
 	url?: string | null;

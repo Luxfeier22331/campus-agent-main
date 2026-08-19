@@ -3,18 +3,17 @@ import { resolve } from "node:path";
 import process from "node:process";
 
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import type { NoticeClassificationTask } from "../../packages/notice-classifier-core/src/batch";
 import {
-	type InternalPortalMeta,
-	type InternalPortalNoticeSource,
-	validateInternalPortalMeta,
-	validateInternalPortalNoticeSource,
-} from "ingestion-contracts";
+	NOTICE_SOURCE_PREFIX,
+	type NoticeClassificationSource,
+	noticeSourceIdFromKey,
+	noticeSourceKey,
+	parseNoticeClassificationSourceJson,
+	validateNoticeIds,
+} from "../../packages/notice-classifier-core/src/source";
+import { mapWithConcurrency } from "./concurrency";
 
-import { cleanNoticeContentHtml, type NoticeClassificationInput } from "./classifier";
-
-const META_KEY = "internal_portal/meta.json";
-const NOTICE_PREFIX = "internal_portal/notices/";
-const NOTICE_KEY_PATTERN = /^internal_portal\/notices\/([1-9][0-9]*)\.json$/u;
 const SOURCE_BUCKET = "campus-agent-source";
 
 export interface NoticeSourceObjectStore {
@@ -27,6 +26,10 @@ export interface NoticeObjectListPage {
 	isTruncated: boolean;
 	keys: string[];
 	nextContinuationToken?: string;
+}
+
+export interface NoticeInputLoadOptions {
+	concurrency?: number;
 }
 
 export function loadLocalNoticeSourceEnvironment(repositoryRoot: string): void {
@@ -102,85 +105,43 @@ export async function collectObjectKeys(
 export async function loadNoticeClassificationInputs(
 	objectStore: NoticeSourceObjectStore,
 	noticeIds?: readonly number[],
-): Promise<NoticeClassificationInput[]> {
-	const meta = await loadMeta(objectStore);
-	const ids = noticeIds ? [...noticeIds] : await listNoticeIds(objectStore);
+	options: NoticeInputLoadOptions = {},
+): Promise<NoticeClassificationTask[]> {
+	const ids = noticeIds ? validateNoticeIds(noticeIds) : await listNoticeSourceIds(objectStore);
 	if (ids.length === 0) {
 		throw new Error("no notice source objects were found");
 	}
 	ids.sort((left, right) => left - right);
-	const inputs: NoticeClassificationInput[] = [];
-	for (const noticeId of ids) {
-		const key = `${NOTICE_PREFIX}${noticeId}.json`;
+	const concurrency = options.concurrency ?? 1;
+	if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
+		throw new Error("notice input concurrency must be a positive integer");
+	}
+	return mapWithConcurrency(ids, concurrency, async (noticeId) => {
+		const key = noticeSourceKey(noticeId);
 		const notice = await loadNotice(objectStore, key);
 		if (notice.notice_id !== noticeId) {
 			throw new Error(`${key} contains notice_id ${notice.notice_id}`);
 		}
-		const noticeTypeName = meta.notice_types[String(notice.notice_type)];
-		if (!noticeTypeName) {
-			throw new Error(`${key} references unknown notice_type ${notice.notice_type}`);
-		}
-		inputs.push(toClassificationInput(notice, noticeTypeName));
-	}
-	return inputs;
+		return { noticeId: notice.notice_id, noticeTitle: notice.notice_title };
+	});
 }
 
-async function listNoticeIds(objectStore: NoticeSourceObjectStore): Promise<number[]> {
+export async function listNoticeSourceIds(objectStore: NoticeSourceObjectStore): Promise<number[]> {
 	const ids = new Set<number>();
-	for (const key of await objectStore.listObjectKeys(NOTICE_PREFIX)) {
-		const match = NOTICE_KEY_PATTERN.exec(key);
-		if (!match) {
-			continue;
+	for (const key of await objectStore.listObjectKeys(NOTICE_SOURCE_PREFIX)) {
+		const noticeId = noticeSourceIdFromKey(key);
+		if (noticeId !== null) {
+			ids.add(noticeId);
 		}
-		const id = Number(match[1]);
-		if (!Number.isSafeInteger(id)) {
-			throw new Error(`notice object key has an unsafe integer id: ${key}`);
-		}
-		ids.add(id);
 	}
 	return [...ids];
-}
-
-async function loadMeta(objectStore: NoticeSourceObjectStore): Promise<InternalPortalMeta> {
-	const value = parseJson(await objectStore.getObject(META_KEY), META_KEY);
-	const validation = validateInternalPortalMeta(value);
-	if (!validation.ok) {
-		throw new Error(`${META_KEY} violates its contract: ${validation.errors.join("; ")}`);
-	}
-	return value as InternalPortalMeta;
 }
 
 async function loadNotice(
 	objectStore: NoticeSourceObjectStore,
 	key: string,
-): Promise<InternalPortalNoticeSource> {
-	const value = parseJson(await objectStore.getObject(key), key);
-	const validation = validateInternalPortalNoticeSource(value);
-	if (!validation.ok) {
-		throw new Error(`${key} violates its contract: ${validation.errors.join("; ")}`);
-	}
-	return value as InternalPortalNoticeSource;
-}
-
-function toClassificationInput(
-	notice: InternalPortalNoticeSource,
-	noticeTypeName: string,
-): NoticeClassificationInput {
-	return {
-		contentText: cleanNoticeContentHtml(notice.notice_content_html),
-		isExternal: notice.is_external,
-		noticeId: notice.notice_id,
-		noticeTitle: notice.notice_title,
-		noticeTypeName,
-	};
-}
-
-function parseJson(input: string, key: string): unknown {
-	try {
-		return JSON.parse(input);
-	} catch (error) {
-		throw new Error(`${key} is not valid JSON`, { cause: error });
-	}
+): Promise<NoticeClassificationSource> {
+	return parseNoticeClassificationSourceJson(await objectStore.getObject(key), key);
 }
 
 function requiredEnv(env: NodeJS.ProcessEnv, key: string): string {

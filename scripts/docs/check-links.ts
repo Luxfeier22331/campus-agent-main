@@ -1,24 +1,39 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
-const root = process.cwd();
-const errors = new Set<string>();
-
-function repositoryMarkdownFiles(): string[] {
+function repositoryFiles(root: string): string[] {
 	const git = (args: string[]) =>
 		execFileSync("git", args, {
+			cwd: root,
 			encoding: "utf8",
 			maxBuffer: 32 * 1024 * 1024,
-		})
-			.split("\n")
-			.filter(Boolean);
-	return [
-		...new Set([
-			...git(["ls-files", "*.md"]),
-			...git(["ls-files", "--others", "--exclude-standard", "--", "*.md"]),
-		]),
-	]
+		});
+	return git(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
+		.split("\0")
+		.filter(Boolean);
+}
+
+function repositoryPaths(root: string): Set<string> {
+	const paths = new Set<string>([resolve(root)]);
+	for (const relativePath of repositoryFiles(root)) {
+		let current = resolve(root, relativePath);
+		while (current.startsWith(`${resolve(root)}/`)) {
+			paths.add(current);
+			const parent = dirname(current);
+			if (parent === current) {
+				break;
+			}
+			current = parent;
+		}
+	}
+	return paths;
+}
+
+function repositoryMarkdownFiles(root: string): string[] {
+	return repositoryFiles(root)
+		.filter((path) => path.endsWith(".md"))
 		.map((path) => resolve(root, path))
 		.filter((path) => existsSync(path))
 		.sort();
@@ -65,7 +80,7 @@ function localMarkdownTargets(line: string, checkRepositoryCodePaths: boolean): 
 	return [...targets].filter(Boolean);
 }
 
-function resolveTarget(source: string, target: string): string | null {
+function resolveTarget(root: string, source: string, target: string): string | null {
 	const withoutAnchor = target.split("#", 1)[0]?.trim() ?? "";
 	if (
 		!withoutAnchor ||
@@ -92,34 +107,44 @@ function resolveTarget(source: string, target: string): string | null {
 	return resolve(dirname(source), withoutAnchor);
 }
 
-const files = repositoryMarkdownFiles();
-for (const path of files) {
-	const lines = readFileSync(path, "utf8").split(/\r?\n/u);
-	const status = lines.find((line) => line.startsWith("status: "))?.slice("status: ".length);
-	const checkRepositoryCodePaths = status !== "superseded" && status !== "deprecated";
-	let inFence = false;
-	for (const [index, line] of lines.entries()) {
-		if (/^\s*(```|~~~)/u.test(line)) {
-			inFence = !inFence;
-			continue;
-		}
-		if (inFence) {
-			continue;
-		}
-		for (const target of localMarkdownTargets(line, checkRepositoryCodePaths)) {
-			const resolved = resolveTarget(path, target);
-			if (resolved && !existsSync(resolved)) {
-				errors.add(`${relative(root, path)}:${index + 1}: 不存在 ${target}`);
+export function checkDocumentationLinks(root = process.cwd()): string[] {
+	const errors = new Set<string>();
+	const availablePaths = repositoryPaths(root);
+	const files = repositoryMarkdownFiles(root);
+	for (const path of files) {
+		const lines = readFileSync(path, "utf8").split(/\r?\n/u);
+		const status = lines.find((line) => line.startsWith("status: "))?.slice("status: ".length);
+		const checkRepositoryCodePaths = status !== "superseded" && status !== "deprecated";
+		let inFence = false;
+		for (const [index, line] of lines.entries()) {
+			if (/^\s*(```|~~~)/u.test(line)) {
+				inFence = !inFence;
+				continue;
+			}
+			if (inFence) {
+				continue;
+			}
+			for (const target of localMarkdownTargets(line, checkRepositoryCodePaths)) {
+				const resolved = resolveTarget(root, path, target);
+				if (resolved && !(existsSync(resolved) && availablePaths.has(resolved))) {
+					errors.add(`${relative(root, path)}:${index + 1}: 不存在 ${target}`);
+				}
 			}
 		}
 	}
+	return [...errors].sort();
 }
 
-if (errors.size > 0) {
-	for (const error of [...errors].sort()) {
-		console.error(error);
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+	const errors = checkDocumentationLinks();
+	if (errors.length > 0) {
+		for (const error of errors) {
+			console.error(error);
+		}
+		process.exitCode = 1;
+	} else {
+		console.log(
+			`Documentation link check passed for ${repositoryMarkdownFiles(process.cwd()).length} repository Markdown files.`,
+		);
 	}
-	process.exitCode = 1;
-} else {
-	console.log(`Documentation link check passed for ${files.length} repository Markdown files.`);
 }

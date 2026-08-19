@@ -1,24 +1,25 @@
 import { createHash } from "node:crypto";
 import { extname } from "node:path";
-import { isNoticeDomain, normalizeNoticeContent, type NoticeAssetKind, type NoticeDomain } from "@campus-agent/notices";
+import { isNoticeCategory, normalizeNoticeContent, type NoticeAssetKind, type NoticeCategory } from "@campus-agent/notices";
 import { type InternalPortalMeta, type InternalPortalNoticeSource, validateInternalPortalMeta, validateInternalPortalNoticeSource } from "ingestion-contracts";
 import type { PoolClient } from "pg";
 import type { PublisherObjectStore } from "./store.ts";
 import { parsePortalReleaseTime } from "./time.ts";
 
 const NOTICE_PATTERN = /^internal_portal\/notices\/([1-9][0-9]*)\.json$/u;
-export interface Classification { domain: NoticeDomain; noticeId: number }
+export interface Classification { category: NoticeCategory; noticeId: number }
 interface AssetRow { assetKind: NoticeAssetKind; body: Uint8Array; contentSha256: string; contentType: string; ordinal: number; originalName: string | null; portalAnnexId: string | null }
-interface PublishedNotice { assets: AssetRow[]; contentHtml: string | null; contentText: string | null; domain: NoticeDomain; externalUrl: string | null; isExternal: boolean; noticeId: number; noticeType: number; organizationId: string | null; releasedAt: string; title: string }
+interface PublishedNotice { assets: AssetRow[]; category: NoticeCategory; contentHtml: string | null; contentText: string | null; externalUrl: string | null; isExternal: boolean; noticeId: number; noticeType: number; organizationId: string | null; releasedAt: string; title: string }
 
 export function parseClassifications(input: string): Classification[] {
 	const seen = new Set<number>();
 	return input.split(/\r?\n/u).filter((line) => line.trim()).map((line, index) => {
 		let value: unknown; try { value = JSON.parse(line); } catch (error) { throw new Error(`classification line ${index + 1} is invalid JSON`, { cause: error }); }
+		if (!(value && typeof value === "object" && !Array.isArray(value))) throw new Error(`classification line ${index + 1} is invalid`);
 		const item = value as Record<string, unknown>;
-		if (!Number.isSafeInteger(item.notice_id) || Number(item.notice_id) <= 0 || !isNoticeDomain(item.domain)) throw new Error(`classification line ${index + 1} is invalid`);
+		if (!Number.isSafeInteger(item.notice_id) || Number(item.notice_id) <= 0 || !isNoticeCategory(item.category) || Object.keys(item).sort().join(",") !== "category,notice_id") throw new Error(`classification line ${index + 1} is invalid`);
 		const noticeId = Number(item.notice_id); if (seen.has(noticeId)) throw new Error(`duplicate classification for notice ${noticeId}`); seen.add(noticeId);
-		return { domain: item.domain, noticeId };
+		return { category: item.category, noticeId };
 	});
 }
 
@@ -73,7 +74,7 @@ async function loadRecord(store: PublisherObjectStore, meta: InternalPortalMeta,
 		}
 		assets.push(await loadAsset(store, source.notice_id, "attachment", ordinal, ordinal, attachment.notice_annex_name, attachment.notice_annex_name ?? attachment.notice_annex_path, attachment.notice_annex_id));
 	}
-	return { assets, contentHtml: content.contentHtml, contentText: content.contentText, domain: classification.domain, externalUrl: source.external_url, isExternal: source.is_external, noticeId: source.notice_id, noticeType: source.notice_type, organizationId: source.organization_id, releasedAt: parsePortalReleaseTime(source.notice_release_time, key), title: source.notice_title };
+	return { assets, category: classification.category, contentHtml: content.contentHtml, contentText: content.contentText, externalUrl: source.external_url, isExternal: source.is_external, noticeId: source.notice_id, noticeType: source.notice_type, organizationId: source.organization_id, releasedAt: parsePortalReleaseTime(source.notice_release_time, key), title: source.notice_title };
 }
 export function normalizePublishedNoticeContent(input: { html: string | null; isExternal: boolean; portalHost: string; title: string }): ReturnType<typeof normalizeNoticeContent> {
 	if (input.isExternal) return { contentHtml: null, contentText: null, images: [] };
@@ -88,13 +89,13 @@ async function upsertMappings(client: PoolClient, meta: InternalPortalMeta): Pro
 	for (const [id, name] of Object.entries(meta.organizations)) await client.query("INSERT INTO notices.organizations(organization_id, name) VALUES ($1, $2) ON CONFLICT (organization_id) DO UPDATE SET name = EXCLUDED.name", [id, name]);
 }
 async function insertOrVerify(client: PoolClient, record: PublishedNotice): Promise<void> {
-	const existing = await client.query("SELECT notice_type, organization_id, title, released_at, is_external, external_url, domain, content_html, content_text FROM notices.notices WHERE notice_id=$1", [record.noticeId]);
+	const existing = await client.query("SELECT notice_type, organization_id, title, released_at, is_external, external_url, category, content_html, content_text FROM notices.notices WHERE notice_id=$1", [record.noticeId]);
 	if (existing.rows.length) {
 		const row = existing.rows[0] as Record<string, unknown>;
-		const comparable = [Number(row.notice_type), row.organization_id ?? null, row.title, new Date(String(row.released_at)).toISOString(), row.is_external, row.external_url ?? null, row.domain, row.content_html ?? null, row.content_text ?? null];
-		const expected = [record.noticeType, record.organizationId, record.title, record.releasedAt, record.isExternal, record.externalUrl, record.domain, record.contentHtml, record.contentText];
+		const comparable = [Number(row.notice_type), row.organization_id ?? null, row.title, new Date(String(row.released_at)).toISOString(), row.is_external, row.external_url ?? null, row.category, row.content_html ?? null, row.content_text ?? null];
+		const expected = [record.noticeType, record.organizationId, record.title, record.releasedAt, record.isExternal, record.externalUrl, record.category, record.contentHtml, record.contentText];
 		if (JSON.stringify(comparable) !== JSON.stringify(expected)) throw new Error(`published notice conflicts: ${record.noticeId}`);
-	} else await client.query("INSERT INTO notices.notices(notice_id, notice_type, organization_id, title, released_at, is_external, external_url, domain, content_html, content_text) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [record.noticeId, record.noticeType, record.organizationId, record.title, record.releasedAt, record.isExternal, record.externalUrl, record.domain, record.contentHtml, record.contentText]);
+	} else await client.query("INSERT INTO notices.notices(notice_id, notice_type, organization_id, title, released_at, is_external, external_url, category, content_html, content_text) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [record.noticeId, record.noticeType, record.organizationId, record.title, record.releasedAt, record.isExternal, record.externalUrl, record.category, record.contentHtml, record.contentText]);
 	const storedAssets = await client.query("SELECT asset_kind, ordinal, original_name, content_type, byte_size, content_sha256, portal_annex_id FROM notices.notice_assets WHERE notice_id=$1 ORDER BY asset_kind, ordinal", [record.noticeId]);
 	if (storedAssets.rows.length) {
 		const actual = storedAssets.rows.map((row) => [row.asset_kind, Number(row.ordinal), row.original_name ?? null, row.content_type, Number(row.byte_size), row.content_sha256, row.portal_annex_id ?? null]);

@@ -1,14 +1,7 @@
 import { createHash } from "node:crypto";
 
 import canonicalStringify from "canonical-json";
-import type {
-	IngestionArtifactRef,
-	IngestionTaskEnvelope,
-	IngestionTaskExecutionSnapshot,
-	IngestionTaskRegistry,
-	IngestionTaskRegistryTask,
-} from "ingestion-contracts";
-import { validateIngestionTaskEnvelope } from "ingestion-contracts";
+import type { IngestionArtifactRef } from "ingestion-contracts";
 import { type ZodIssue, z } from "zod";
 
 export type Sha256Digest = `sha256:${string}`;
@@ -492,103 +485,11 @@ export function parseSourceObjectRef(value: unknown, label: string): SourceObjec
 	return parsed.data;
 }
 
-export class IngestionTaskEnvelopeParseError extends Error {
-	constructor(message: string) {
-		super(message);
-		this.name = "IngestionTaskEnvelopeParseError";
-	}
-}
-
-export function parseIngestionTaskEnvelope(value: unknown): IngestionTaskEnvelope {
-	const validation = validateIngestionTaskEnvelope(value);
-	if (!validation.ok) {
-		throw new IngestionTaskEnvelopeParseError(
-			`invalid ingestion task: ${validation.errors.join("; ")}`,
-		);
-	}
-	return value as IngestionTaskEnvelope;
-}
-
-export function createIngestionTaskExecutionSnapshot(input: {
-	task: IngestionTaskEnvelope;
-	registryTask: IngestionTaskRegistryTask;
-}): IngestionTaskExecutionSnapshot {
-	if (input.task.registry_task_id !== input.registryTask.registry_task_id) {
-		throw new RegistryAdmissionError(
-			`registry task mismatch: ${input.task.registry_task_id} != ${input.registryTask.registry_task_id}`,
-		);
-	}
-	return {
-		schema_version: "ingestion_task_execution_snapshot.v1",
-		task: structuredClone(input.task),
-		registry_task: structuredClone(input.registryTask),
-	};
-}
-
 export function formatZodIssues(issues: readonly ZodIssue[], rootLabel = "payload"): string[] {
 	return issues.map((issue) => {
 		const path = zodPath(rootLabel, issue.path);
 		return `${path}: ${issue.message}`;
 	});
-}
-
-export class IngestionTaskRegistryCatalog {
-	readonly #tasks = new Map<
-		string,
-		{ registry: IngestionTaskRegistry; task: IngestionTaskRegistryTask }
-	>();
-
-	constructor(registries: readonly IngestionTaskRegistry[]) {
-		for (const registry of registries) {
-			for (const task of registry.tasks) {
-				if (this.#tasks.has(task.registry_task_id)) {
-					throw new Error(`duplicate ingestion task declaration: ${task.registry_task_id}`);
-				}
-				this.#tasks.set(task.registry_task_id, { registry, task });
-			}
-		}
-	}
-
-	requireTask(task: IngestionTaskEnvelope): IngestionTaskRegistryTask {
-		return this.requireTaskById(task.registry_task_id);
-	}
-
-	requireTaskById(registryTaskId: string): IngestionTaskRegistryTask {
-		const entry = this.#tasks.get(registryTaskId);
-		if (!entry) {
-			throw new RegistryAdmissionError(
-				`task is not declared by ingestion registry: ${registryTaskId}`,
-			);
-		}
-		return entry.task;
-	}
-
-	requireRegistry(task: IngestionTaskEnvelope): IngestionTaskRegistry {
-		const entry = this.#tasks.get(task.registry_task_id);
-		if (!entry) {
-			throw new RegistryAdmissionError(
-				`task is not declared by ingestion registry: ${task.registry_task_id}`,
-			);
-		}
-		return entry.registry;
-	}
-
-	registeredTasks(): IngestionTaskRegistryTask[] {
-		return [...this.#tasks.values()].map((entry) => entry.task);
-	}
-}
-
-export class RegistryAdmissionError extends Error {
-	constructor(message: string) {
-		super(message);
-		this.name = "RegistryAdmissionError";
-	}
-}
-
-export function createIngestionTaskRegistryCatalog(
-	registries: readonly IngestionTaskRegistry[],
-): IngestionTaskRegistryCatalog {
-	return new IngestionTaskRegistryCatalog(registries);
 }
 
 function normalizeSha256Hex(value: string): string {
@@ -642,9 +543,4 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-export type {
-	IngestionArtifactRef,
-	IngestionTaskEnvelope,
-	IngestionTaskRegistry,
-	IngestionTaskRegistryTask,
-} from "ingestion-contracts";
+export type { IngestionArtifactRef } from "ingestion-contracts";

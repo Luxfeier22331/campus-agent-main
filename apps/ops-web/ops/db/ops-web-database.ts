@@ -42,10 +42,17 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	`REVOKE ALL PRIVILEGES ON SCHEMA "internal_portal" FROM PUBLIC, "ops_web", "app_api"`,
 	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "internal_portal" FROM PUBLIC, "ops_web", "app_api"`,
 	`GRANT USAGE ON SCHEMA "internal_portal" TO "ops_web"`,
-	`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
-		"internal_portal"."credentials",
-		"internal_portal"."automation_tokens"
+	`GRANT SELECT, INSERT, UPDATE, DELETE
+	 ON TABLE "internal_portal"."automation_tokens"
 	 TO "ops_web"`,
+	`DO $ops_web_ingestion_control_revoke$
+	BEGIN
+		IF pg_catalog.to_regnamespace('ingestion_control') IS NOT NULL THEN
+			EXECUTE 'REVOKE ALL PRIVILEGES ON SCHEMA "ingestion_control" FROM "ops_web", "app_api"';
+			EXECUTE 'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "ingestion_control" FROM "ops_web", "app_api"';
+		END IF;
+	END
+	$ops_web_ingestion_control_revoke$`,
 	`GRANT USAGE ON SCHEMA "chat" TO "ops_web"`,
 	`REVOKE ALL PRIVILEGES ON TABLE
 		"chat"."turn_dispatches",
@@ -121,15 +128,6 @@ interface DatabaseConnectionConfig {
 	ssl: DatabaseSslConfig;
 }
 const REQUIRED_SELECTS = [
-	{
-		label: "internal_portal.credentials",
-		sql: `
-			select "credential_id", "name", "sso_tgc", "version", "created_at", "updated_at",
-				"last_attempt_at", "last_successful_at", "last_outcome"
-			from "internal_portal"."credentials"
-			limit 0
-		`,
-	},
 	{
 		label: "internal_portal.automation_tokens",
 		sql: `
@@ -454,10 +452,7 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 
 async function verifyOpsWebInternalPortalPrivileges(client: Client): Promise<void> {
 	const privileges = await client.query<{
-		canCredentialsDelete: boolean;
-		canCredentialsInsert: boolean;
-		canCredentialsSelect: boolean;
-		canCredentialsUpdate: boolean;
+		canAccessCredentials: boolean;
 		canTokensDelete: boolean;
 		canTokensInsert: boolean;
 		canTokensSelect: boolean;
@@ -465,10 +460,23 @@ async function verifyOpsWebInternalPortalPrivileges(client: Client): Promise<voi
 		canUseSchema: boolean;
 	}>(`select
 		has_schema_privilege(current_user, 'internal_portal', 'USAGE') as "canUseSchema",
-		has_table_privilege(current_user, 'internal_portal.credentials', 'SELECT') as "canCredentialsSelect",
-		has_table_privilege(current_user, 'internal_portal.credentials', 'INSERT') as "canCredentialsInsert",
-		has_table_privilege(current_user, 'internal_portal.credentials', 'UPDATE') as "canCredentialsUpdate",
-		has_table_privilege(current_user, 'internal_portal.credentials', 'DELETE') as "canCredentialsDelete",
+		exists (
+			select 1
+			from pg_catalog.pg_class class
+			join pg_catalog.pg_namespace namespace on namespace.oid = class.relnamespace
+			where namespace.nspname = 'ingestion_control'
+				and class.relname = 'internal_portal_credentials'
+				and class.relkind in ('r', 'p', 'v', 'm', 'f')
+				and (
+					has_table_privilege(current_user, class.oid, 'SELECT')
+					or has_table_privilege(current_user, class.oid, 'INSERT')
+					or has_table_privilege(current_user, class.oid, 'UPDATE')
+					or has_table_privilege(current_user, class.oid, 'DELETE')
+					or has_any_column_privilege(current_user, class.oid, 'SELECT')
+					or has_any_column_privilege(current_user, class.oid, 'INSERT')
+					or has_any_column_privilege(current_user, class.oid, 'UPDATE')
+				)
+		) as "canAccessCredentials",
 		has_table_privilege(current_user, 'internal_portal.automation_tokens', 'SELECT') as "canTokensSelect",
 		has_table_privilege(current_user, 'internal_portal.automation_tokens', 'INSERT') as "canTokensInsert",
 		has_table_privilege(current_user, 'internal_portal.automation_tokens', 'UPDATE') as "canTokensUpdate",
@@ -477,45 +485,19 @@ async function verifyOpsWebInternalPortalPrivileges(client: Client): Promise<voi
 	if (
 		!(
 			access?.canUseSchema &&
-			access.canCredentialsSelect &&
-			access.canCredentialsInsert &&
-			access.canCredentialsUpdate &&
-			access.canCredentialsDelete &&
 			access.canTokensSelect &&
 			access.canTokensInsert &&
 			access.canTokensUpdate &&
-			access.canTokensDelete
+			access.canTokensDelete &&
+			!access.canAccessCredentials
 		)
 	) {
-		throw new Error("ops_web is missing required internal portal privileges.");
+		throw new Error("ops_web internal portal privileges do not match automation-token ownership.");
 	}
 }
 
 async function verifyInternalPortalSchemaBoundary(config: DatabaseConnectionConfig): Promise<void> {
 	return withClient(config, async (client) => {
-		const credentialColumns = await client.query<{ column_name: string }>(`
-			select column_name
-			from information_schema.columns
-			where table_schema = 'internal_portal' and table_name = 'credentials'
-			order by ordinal_position
-		`);
-		const expectedCredentials = [
-			"credential_id",
-			"name",
-			"sso_tgc",
-			"version",
-			"created_at",
-			"updated_at",
-			"last_attempt_at",
-			"last_successful_at",
-			"last_outcome",
-		];
-		if (
-			credentialColumns.rows.map((row) => row.column_name).join(",") !==
-			expectedCredentials.join(",")
-		) {
-			throw new Error("internal_portal.credentials does not match the owned schema.");
-		}
 		const tokenColumns = await client.query<{ column_name: string }>(`
 			select column_name
 			from information_schema.columns
@@ -533,15 +515,33 @@ async function verifyInternalPortalSchemaBoundary(config: DatabaseConnectionConf
 		if (tokenColumns.rows.map((row) => row.column_name).join(",") !== expectedTokens.join(",")) {
 			throw new Error("internal_portal.automation_tokens does not match the owned schema.");
 		}
+		const credentialHandoff = await client.query<{
+			currentTable: string | null;
+			legacyTable: string | null;
+		}>(`select
+			to_regclass('ingestion_control.internal_portal_credentials')::text as "currentTable",
+			to_regclass('internal_portal.credentials')::text as "legacyTable"`);
+		if (
+			credentialHandoff.rows[0]?.currentTable !== "ingestion_control.internal_portal_credentials" ||
+			credentialHandoff.rows[0]?.legacyTable !== null
+		) {
+			throw new Error("internal portal credential ownership handoff is incomplete.");
+		}
 		const privileges = await client.query<{
 			appApiCanAccess: boolean;
 		}>(`select
 			has_schema_privilege('app_api', 'internal_portal', 'USAGE')
-				or has_table_privilege('app_api', 'internal_portal.credentials', 'SELECT,INSERT,UPDATE,DELETE')
 				or has_table_privilege('app_api', 'internal_portal.automation_tokens', 'SELECT,INSERT,UPDATE,DELETE')
+				or coalesce(has_schema_privilege(
+					'app_api', to_regnamespace('ingestion_control'), 'USAGE'
+				), false)
+				or coalesce(has_table_privilege(
+					'app_api', to_regclass('ingestion_control.internal_portal_credentials'),
+					'SELECT,INSERT,UPDATE,DELETE'
+				), false)
 				as "appApiCanAccess"`);
 		if (privileges.rows[0]?.appApiCanAccess) {
-			throw new Error("internal portal data must be owned only by ops_web.");
+			throw new Error("app_api must not access internal portal operational data.");
 		}
 	});
 }

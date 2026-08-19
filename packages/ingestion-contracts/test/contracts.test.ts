@@ -1,16 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-	type IngestionTaskEnvelope,
-	type IngestionTaskResult,
 	validateCanonicalDocumentUnit,
 	validateCanonicalDocumentUnitsJsonl,
 	validateCanonicalDocumentUnitV2,
-	validateIngestionTaskEnvelope,
-	validateIngestionTaskRegistry,
-	validateIngestionTaskResult,
-	validateInternalPortalFileReleaseCaptureResult,
 	validateInternalPortalFileReleaseSource,
 	validateInternalPortalMeta,
 	validateInternalPortalNoticeSource,
@@ -18,12 +10,7 @@ import {
 	validateRetrievalChunkSetV2,
 } from "../src/index.ts";
 
-const assertionRoot = join(import.meta.dirname, "..", "assertions");
 const digest = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-
-function loadAssertion(name: string): unknown {
-	return JSON.parse(readFileSync(join(assertionRoot, name), "utf8"));
-}
 
 describe("ingestion task contracts", () => {
 	it("validates canonical document units with reader-facing identity fields", () => {
@@ -96,59 +83,6 @@ describe("ingestion task contracts", () => {
 				chunks: [chunk],
 				error_count: 0,
 				errors: [],
-			}).ok,
-		).toBe(false);
-	});
-
-	it("keeps the task envelope small and derives execution metadata from the registry", () => {
-		const envelope: IngestionTaskEnvelope = {
-			input_ref: {
-				byte_size: 128,
-				digest,
-				kind: "object_store",
-				uri: "s3://campus-agent-source/requests/internal-portal-file-release.json",
-			},
-			registry_task_id: "internal_portal.file_release.capture",
-			run_id: "run_01",
-			schema_version: "ingestion_task_envelope.v3",
-			task_id: "task_01",
-		};
-
-		expect(validateIngestionTaskEnvelope(envelope).ok).toBe(true);
-		expect(
-			validateIngestionTaskEnvelope({ ...envelope, corpus: "authenticated_documents" }).ok,
-		).toBe(false);
-		expect(validateIngestionTaskEnvelope({ ...envelope, task_id: "x".repeat(201) }).ok).toBe(false);
-		expect(validateIngestionTaskEnvelope({ ...envelope, run_id: "run/unsafe" }).ok).toBe(false);
-	});
-
-	it("requires an immutable input digest", () => {
-		expect(validateIngestionTaskEnvelope(loadAssertion("task-envelope.valid.json")).ok).toBe(true);
-		const result = validateIngestionTaskEnvelope(
-			loadAssertion("task-envelope.invalid-missing-digest.json"),
-		);
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.errors).toContain("input_ref.digest is required");
-		}
-	});
-
-	it("accepts only Rust kernel registry declarations", () => {
-		expect(validateIngestionTaskRegistry(loadAssertion("task-registry.valid.json")).ok).toBe(true);
-		expect(
-			validateIngestionTaskRegistry(loadAssertion("task-registry.invalid-python-adapter.json")).ok,
-		).toBe(false);
-		expect(
-			validateIngestionTaskRegistry({
-				schema_version: "ingestion_task_registry.v3",
-				tasks: [
-					{
-						executor_kind: "source_collector",
-						input_contract: "unsupported_capture_request.v1",
-						output_contract: "unsupported_source_manifest.v1",
-						registry_task_id: "unsupported.capture",
-					},
-				],
 			}).ok,
 		).toBe(false);
 	});
@@ -237,25 +171,6 @@ describe("ingestion task contracts", () => {
 		expect(validateInternalPortalFileReleaseSource({ ...source, request: {} }).ok).toBe(false);
 	});
 
-	it("validates a file-release capture result with one source reference", () => {
-		const result = {
-			file_release_id: 646,
-			schema_version: "internal_portal_file_release_capture_result.v1",
-			source_ref: {
-				byte_size: 256,
-				digest,
-				kind: "object_store",
-				uri: "s3://campus-agent-source/internal_portal/muc/file-releases/646/source.json",
-			},
-		};
-
-		expect(validateInternalPortalFileReleaseCaptureResult(result).ok).toBe(true);
-		expect(
-			validateInternalPortalFileReleaseCaptureResult({ ...result, export_ref: result.source_ref })
-				.ok,
-		).toBe(false);
-	});
-
 	it("validates the notice incremental and history boundaries", () => {
 		const state = {
 			head_notice_id: 355119,
@@ -282,33 +197,5 @@ describe("ingestion task contracts", () => {
 		expect(validateInternalPortalMeta(meta).ok).toBe(true);
 		expect(validateInternalPortalMeta({ ...meta, notice_types: { zero: "错误" } }).ok).toBe(false);
 		expect(validateInternalPortalMeta({ ...meta, site_id: "muc_internal_portal" }).ok).toBe(false);
-	});
-
-	it("validates a single bounded result reference", () => {
-		const result: IngestionTaskResult = {
-			output_contract: "internal_portal_file_release_capture_result.v2",
-			registry_task_id: "internal_portal.file_release.capture",
-			result_ref: {
-				byte_size: 256,
-				digest,
-				kind: "object_store",
-				uri: "s3://campus-agent-source/internal_portal/site/runs/run_01/result.json",
-			},
-			run_id: "run_01",
-			schema_version: "ingestion_task_result.v1",
-			summary: { pages_captured: 12, pages_failed: 1 },
-			task_id: "task_01",
-		};
-
-		expect(validateIngestionTaskResult(result).ok).toBe(true);
-		expect(validateIngestionTaskResult({ ...result, artifact_refs: [result.result_ref] }).ok).toBe(
-			false,
-		);
-		expect(
-			validateIngestionTaskResult({ ...result, summary: { message: "x".repeat(5000) } }).ok,
-		).toBe(false);
-		expect(validateIngestionTaskResult({ ...result, summary: { InvalidKey: true } }).ok).toBe(
-			false,
-		);
 	});
 });

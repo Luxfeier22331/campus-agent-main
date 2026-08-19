@@ -20,16 +20,24 @@ status: active
 | 能力 | 配置所有者 | 消费方 | 隔离要求 |
 | --- | --- | --- | --- |
 | LLM | execution-control 当前模型设置 | agent-runtime | Activity 调用读取当前值，不向浏览器返回密钥 |
-| Embedding 连接 | execution-control 当前模型设置 | Campus Docs Embedding Job、在线检索 Activity | provider、Base URL、API key 和 model alias 共用一份当前连接；索引维度和 space 由制品及当前索引绑定拥有 |
+| Embedding 连接 | execution-control 当前模型设置 | Campus Docs Embedding Job、在线检索 Activity | Ops Web 只替换 Base URL 和 API key；provider、model、transport 与 2560 维向量空间由 Campus Docs 固定合同拥有 |
+| 通知分类连接 | execution-control 当前模型设置 | notice-classifier 在线 Job | Job 启动阶段读取一次内部快照；不接收独立模型 Secret，API key 不返回浏览器 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
 Embedding Job 在启动后读取一次当前连接并直接调用 provider；在线检索按准入时冻结的同一设置 hash
-解析连接。系统不为索引构建维护第二份 provider 配置。Embedding transport 固定为 `embeddings`；
-设置验证观测到的向量长度不是可编辑索引配置。实际 dimensions、`embedding_space_id`、查询指令和
-向量名来自显式 embedding/index 制品及 `campus_docs_serving.current_index`，并随每次运行准入冻结。
+解析连接。系统不为索引构建维护第二份连接配置。Embedding provider 固定为 `openai-compatible`，
+model 固定为 `Qwen3-Embedding-4B`，transport 固定为 `embeddings`，dimensions 固定为 `2560`；
+`embedding_space_id`、查询指令和向量名来自 v2 制品及 `campus_docs_serving.current_index`，并在运行
+准入时核对和冻结。
 
 具体模型、transport 和 endpoint 由当前模型设置、索引制品与可执行注册表维护，不在本文复制。
+
+通知分类 Job 在启动分类阶段后读取一次 `notice_classifier_provider_snapshot.v1`，直接调用快照中的
+transport。模型名、provider、Base URL 和 API key 由 Ops Web 的独立通知分类模型设置维护；本地
+`pnpm notice:classify:job:local` 通过端口转发读取同一份 execution-control 快照，不保存模型连接。
+保留的 `pnpm notice:classify` JSONL/评测命令可以由调用进程显式提供连接，用于离线模型比较，不是在线
+Job 的配置来源。
 
 ## 数据服务
 
@@ -61,7 +69,7 @@ Embedding Job 在启动后读取一次当前连接并直接调用 provider；在
 | 身份与安全验证 | App API、Campus Web | 账号、session、邮件验证和反滥用 |
 | 邮件服务 | App API | 密码重置和账号通知 |
 | 微信公众号来源 | Source Collector | 发现来源并取得采集入口，规范正文仍来自真实文章 |
-| 内部门户认证 | Ops Web、开发者程序、Source Collector | Ops Web 在所属 PostgreSQL 管理多条 TGC 和自动化 token；开发者程序从 Ops Web 获得 endpoint 与 Bearer token 后显式调用更新/删除接口；Source Collector 只消费开发者显式提供的本地 TGC，不读取数据库或部署 Secret |
+| 内部门户认证 | ingestion-control、Ops Web、开发者程序、Source Collector | ingestion-control 在所属 PostgreSQL 管理多条 TGC 并提供采集解析；Ops Web 保存 automation token 并代理人员/机器管理请求；Source Collector 不读数据库，本地通过 `auth:pull` 写入当前 worktree，Job 入口只在内存中消费解析结果 |
 | Cloudflare Worker 平台 | App API、Campus Web、status-web | Worker 运行、公开配置和平台绑定 |
 
 来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能
@@ -87,13 +95,13 @@ logs query 使用运行时 token，Terraform 使用平台管理身份。Sentry �
 解释成 Campus Agent 团队或投递路由；`ticket` 不属于当前 Campus Agent 告警合同。当前通知事实只
 以环境仓可执行的 monitor 与 notifier 配置为准。
 
-字段与内容边界见 `../reference/telemetry.md`、`../contracts/langfuse-runtime.md` 和
-`../architecture/system/ops-observability.md`。
+字段与内容边界见 `../reference/telemetry.md` 和 `../contracts/langfuse-runtime.md`。
 
 ## 交付规则
 
-- 本地 Secret 进入应用自己的忽略文件或开发者密钥管理器；开发者从 Ops Web 按需取出的内部门户
-  TGC 只写入 Source Collector 适配器未跟踪的 `.env`，不进入 `dev:init` 管理的 `.env.local`；
+- 本地 Secret 进入应用自己的忽略文件或开发者密钥管理器；`auth:pull` 使用当前 Kubernetes 权限读取
+  既有 `OPS_WEB_INTERNAL_TOKEN`，通过临时 port-forward ingestion-control 取得 TGC，只写入 Source Collector 适配器
+  受 `dev:init` 管理的 `.env.local`，不创建机器级缓存或 TGC Secret；
 - Kubernetes 非敏感启动值使用 ConfigMap，敏感材料使用 Secret 交付机制；
 - Cloudflare 应用分别维护自己的 Worker vars 和 secrets；
 - 跨平台共享认证值属于同一轮换单元，但由各平台独立投递，不能互相充当同步源；
@@ -103,6 +111,10 @@ logs query 使用运行时 token，Terraform 使用平台管理身份。Sentry �
 - `OPS_WEB_AUTOMATION_ORIGIN` 是环境仓投递给 Ops Web 的非敏感机器端点配置；自动化 token 属于
   Ops Web PostgreSQL 数据，不进入 ConfigMap、GitOps Secret、Source Collector 或 URL。开发者程序
   只在请求时显式提供 `Authorization: Bearer <token>`。
+- `OPS_WEB_INTERNAL_TOKEN` 继续是既有服务间认证值。Ops Web BFF 和 Source Collector Job 调用
+  ingestion-control 时复用该值，不新增
+  `NOTICE_*`、TGC 或 Source Collector 专用 token；notice-classifier 只复用已有对象存储 Secret，模型
+  设置通过 execution-control 快照提供。
 
 环境文件和覆盖规则见 `env.md`，新增、轮换和撤销步骤见
 `../runbooks/provider-secrets.md`。

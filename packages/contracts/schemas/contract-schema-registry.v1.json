@@ -212,51 +212,6 @@
 			"notes": "包含 retrieval_chunk.v2 的确定性 Rust kernel 输出；不自动进入当前 Campus Docs 索引。"
 		},
 		{
-			"id": "ingestion-task-envelope.v3",
-			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/ingestion-task-envelope.v3.schema.json",
-			"owner": "packages/ingestion-contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/ingestion-contracts/assertions",
-					"valid_glob": "task-envelope.valid.json",
-					"invalid_glob": "task-envelope.invalid-*.json"
-				}
-			],
-			"notes": "Offline ingestion task envelope contract."
-		},
-		{
-			"id": "ingestion-task-registry.v3",
-			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/ingestion-task-registry.v3.schema.json",
-			"owner": "packages/ingestion-contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/ingestion-contracts/assertions",
-					"valid_glob": "task-registry.valid.json",
-					"invalid_glob": "task-registry.invalid-*.json"
-				}
-			],
-			"notes": "Offline ingestion task registry contract."
-		},
-		{
-			"id": "ingestion-task-result.v1",
-			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/ingestion-task-result.v1.schema.json",
-			"owner": "packages/ingestion-contracts",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/ingestion-contracts/assertions",
-					"valid_glob": "task-result.valid.json",
-					"invalid_glob": "task-result.invalid-*.json"
-				}
-			],
-			"notes": "Object-store-backed terminal result contract for ingestion activities."
-		},
-		{
 			"id": "agent-runtime-tool-catalog-zod",
 			"kind": "language_local",
 			"path": "apps/agent-runtime/src/tool-catalog.ts",

@@ -14,11 +14,7 @@ func legacyConnectionAAD(connectionID string, revision int64) string {
 	return fmt.Sprintf("execution_config.connection:%s:%d", connectionID, revision)
 }
 
-const (
-	canonicalEmbeddingModel      = "Qwen3-Embedding-4B"
-	canonicalEmbeddingDimensions = 2560
-	modelSettingsLockName        = "execution_config.model_settings"
-)
+const modelSettingsLockName = "execution_config.model_settings"
 
 var legacyProviderConfigTables = []string{
 	"execution_config.active_bundle",
@@ -187,7 +183,7 @@ func migrateLegacyProfile(ctx context.Context, tx *sql.Tx, keyring *Keyring, rol
 	if err != nil {
 		return fmt.Errorf("read legacy provider profile %s: %w", profileID, err)
 	}
-	if storedRole != role || (role == "primary_agent" && kind != "prompt") || (role == "rag_query_embedding" && (kind != "embedding" || model != canonicalEmbeddingModel || dimensions != canonicalEmbeddingDimensions || transport != "embeddings")) {
+	if storedRole != role || (role == "primary_agent" && kind != "prompt") || (role == "rag_query_embedding" && (kind != "embedding" || model != CanonicalEmbeddingModel || dimensions != CanonicalEmbeddingDimensions || transport != CanonicalEmbeddingTransport)) {
 		return fmt.Errorf("legacy provider profile %s does not match %s", profileID, role)
 	}
 	if validationStatus != "passed" {

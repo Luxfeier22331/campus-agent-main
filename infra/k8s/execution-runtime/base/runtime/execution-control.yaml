@@ -168,7 +168,7 @@ spec:
                   name: execution-app-api-internal-secrets
                   key: APP_API_EXECUTION_SHARED_SECRET
           volumeMounts:
-            - name: provider-config-keyring
+            - name: provider-config-encryption
               mountPath: /run/campus-agent/provider-config
               readOnly: true
             - name: postgres-ca
@@ -205,13 +205,13 @@ spec:
             limits:
               memory: 1Gi
       volumes:
-        - name: provider-config-keyring
+        - name: provider-config-encryption
           secret:
-            secretName: execution-provider-config-keyring
+            secretName: execution-provider-config-encryption
             defaultMode: 0440
             items:
-              - key: keyring.json
-                path: keyring.json
+              - key: encryption.key
+                path: encryption.key
         - name: postgres-ca
           secret:
             secretName: campus-agent-postgres-origin-server

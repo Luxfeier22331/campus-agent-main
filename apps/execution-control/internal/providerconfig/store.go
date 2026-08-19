@@ -2,11 +2,8 @@ package providerconfig
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -15,19 +12,18 @@ import (
 )
 
 var (
-	ErrConflict              = errors.New("model settings changed")
 	ErrInitialAPIKeyRequired = errors.New("api key is required for the initial model setting")
 	ErrNotConfigured         = errors.New("model settings store is not configured")
 	ErrNotFound              = errors.New("model setting not found")
 )
 
 type Store struct {
-	keyring *Keyring
-	pool    *pgxpool.Pool
+	cipher *SecretCipher
+	pool   *pgxpool.Pool
 }
 
-func NewStore(ctx context.Context, databaseURL string, keyring *Keyring) (*Store, error) {
-	if strings.TrimSpace(databaseURL) == "" || keyring == nil {
+func NewStore(ctx context.Context, databaseURL string, cipher *SecretCipher) (*Store, error) {
+	if strings.TrimSpace(databaseURL) == "" || cipher == nil {
 		return nil, ErrNotConfigured
 	}
 	config, err := pgxpool.ParseConfig(strings.TrimSpace(databaseURL))
@@ -39,7 +35,7 @@ func NewStore(ctx context.Context, databaseURL string, keyring *Keyring) (*Store
 	if err != nil {
 		return nil, fmt.Errorf("create model settings pool: %w", err)
 	}
-	return &Store{keyring: keyring, pool: pool}, nil
+	return &Store{cipher: cipher, pool: pool}, nil
 }
 
 type databaseRoleQuerier interface {
@@ -85,6 +81,17 @@ func CheckDatabaseSchema(ctx context.Context, databaseURL string) error {
 	if retiredVectorColumnsExist {
 		return errors.New("retired model settings vector columns are still installed")
 	}
+	var retiredSecretColumnsExist bool
+	if err := pool.QueryRow(ctx, `select exists(
+		select 1 from information_schema.columns
+		where table_schema='execution_control' and table_name='model_settings'
+		  and column_name in ('secret_key_id','secret_fingerprint','secret_last4')
+	)`).Scan(&retiredSecretColumnsExist); err != nil {
+		return err
+	}
+	if retiredSecretColumnsExist {
+		return errors.New("retired model settings secret columns are still installed")
+	}
 	legacyTables, err := legacyProviderConfigTablePresence(ctx, pool)
 	if err != nil {
 		return err
@@ -115,11 +122,15 @@ func CheckDatabaseSchema(ctx context.Context, databaseURL string) error {
 }
 
 func (s *Store) HealthCheck(ctx context.Context) error {
-	if s == nil || s.pool == nil || s.keyring == nil {
+	if s == nil || s.pool == nil || s.cipher == nil {
 		return ErrNotConfigured
 	}
 	for _, kind := range []Kind{KindLLM, KindEmbedding} {
-		if _, err := s.Resolve(ctx, kind); err != nil {
+		setting, err := s.Resolve(ctx, kind)
+		if err != nil {
+			return err
+		}
+		if err := ValidateRuntimeSetting(setting, kind); err != nil {
 			return err
 		}
 	}
@@ -148,17 +159,15 @@ func (s *Store) Close() {
 
 func (s *Store) Resolve(ctx context.Context, kind Kind) (RuntimeSetting, error) {
 	var setting RuntimeSetting
-	var keyID string
 	var nonce, ciphertext []byte
 	err := s.pool.QueryRow(ctx, `select kind,provider,base_url,model,transport,
-		secret_key_id,secret_nonce,secret_ciphertext
+		secret_nonce,secret_ciphertext
 		from execution_control.model_settings where kind=$1`, kind).Scan(
 		&setting.Kind,
 		&setting.Provider,
 		&setting.BaseURL,
 		&setting.Model,
 		&setting.Transport,
-		&keyID,
 		&nonce,
 		&ciphertext,
 	)
@@ -168,7 +177,7 @@ func (s *Store) Resolve(ctx context.Context, kind Kind) (RuntimeSetting, error) 
 	if err != nil {
 		return RuntimeSetting{}, err
 	}
-	setting.APIKey, err = s.keyring.Decrypt(keyID, nonce, ciphertext, settingAAD(kind))
+	setting.APIKey, err = s.cipher.Decrypt(nonce, ciphertext, settingAAD(kind))
 	if err != nil {
 		return RuntimeSetting{}, err
 	}
@@ -183,6 +192,11 @@ func (s *Store) Candidate(ctx context.Context, input SettingInput) (RuntimeSetti
 		Model:     strings.TrimSpace(input.Model),
 		Provider:  strings.TrimSpace(input.Provider),
 		Transport: strings.TrimSpace(input.Transport),
+	}
+	if candidate.Kind == KindEmbedding {
+		candidate.Model = CanonicalEmbeddingModel
+		candidate.Provider = CanonicalEmbeddingProvider
+		candidate.Transport = CanonicalEmbeddingTransport
 	}
 	if candidate.APIKey != "" {
 		return candidate, nil
@@ -201,10 +215,12 @@ func (s *Store) Candidate(ctx context.Context, input SettingInput) (RuntimeSetti
 func (s *Store) Put(
 	ctx context.Context,
 	actor string,
-	expectedETag string,
 	candidate RuntimeSetting,
 	validation ValidationResult,
 ) (Status, error) {
+	if err := ValidateRuntimeSetting(candidate, candidate.Kind); err != nil {
+		return Status{}, err
+	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return Status{}, err
@@ -213,30 +229,22 @@ func (s *Store) Put(
 	if err := lockModelSettings(ctx, tx); err != nil {
 		return Status{}, err
 	}
-	currentETag, err := statusETagTx(ctx, tx)
-	if err != nil {
-		return Status{}, err
-	}
-	if normalizeETag(expectedETag) != currentETag {
-		return Status{}, ErrConflict
-	}
-	secret, err := s.keyring.Encrypt(candidate.APIKey, settingAAD(candidate.Kind))
+	secret, err := s.cipher.Encrypt(candidate.APIKey, settingAAD(candidate.Kind))
 	if err != nil {
 		return Status{}, err
 	}
 	now := time.Now().UTC()
 	_, err = tx.Exec(ctx, `insert into execution_control.model_settings
 		(kind,provider,base_url,model,transport,
-		 secret_key_id,secret_nonce,secret_ciphertext,secret_fingerprint,secret_last4,
+		 secret_nonce,secret_ciphertext,
 		 validation_status,validation_error_code,validation_message,validation_observed_dimensions,
 		 validated_at,validated_by,updated_at,updated_by)
-		 values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,nullif($14,0),$15,$16,$15,$16)
+		 values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,nullif($11,0),$12,$13,$12,$13)
 		 on conflict(kind) do update set
 		 provider=excluded.provider,base_url=excluded.base_url,model=excluded.model,
 		 transport=excluded.transport,
-		 secret_key_id=excluded.secret_key_id,secret_nonce=excluded.secret_nonce,
-		 secret_ciphertext=excluded.secret_ciphertext,secret_fingerprint=excluded.secret_fingerprint,
-		 secret_last4=excluded.secret_last4,validation_status=excluded.validation_status,
+		 secret_nonce=excluded.secret_nonce,secret_ciphertext=excluded.secret_ciphertext,
+		 validation_status=excluded.validation_status,
 		 validation_error_code=excluded.validation_error_code,validation_message=excluded.validation_message,
 		 validation_observed_dimensions=excluded.validation_observed_dimensions,
 		 validated_at=excluded.validated_at,validated_by=excluded.validated_by,
@@ -246,11 +254,8 @@ func (s *Store) Put(
 		candidate.BaseURL,
 		candidate.Model,
 		candidate.Transport,
-		secret.KeyID,
 		secret.Nonce,
 		secret.Ciphertext,
-		secret.Fingerprint,
-		secret.Last4,
 		validation.Status,
 		validation.ErrorCode,
 		validation.Message,
@@ -267,36 +272,18 @@ func (s *Store) Put(
 	return s.Status(ctx)
 }
 
-func (s *Store) RecordValidation(
-	ctx context.Context,
-	actor string,
-	kind Kind,
-	result ValidationResult,
-	expectedUpdatedAt time.Time,
-) error {
-	command, err := s.pool.Exec(ctx, `update execution_control.model_settings set
-		validation_status=$2,validation_error_code=$3,validation_message=$4,
-		validation_observed_dimensions=nullif($5,0),validated_at=$6,validated_by=$7
-		where kind=$1 and updated_at=$8`, kind, result.Status, result.ErrorCode, result.Message, result.ObservedDimensions, time.Now().UTC(), normalizeActor(actor), expectedUpdatedAt)
-	if err != nil {
-		return err
-	}
-	if command.RowsAffected() == 0 {
-		return fmt.Errorf("%w: %s", ErrConflict, kind)
-	}
-	return nil
-}
-
 func (s *Store) Status(ctx context.Context) (Status, error) {
 	status := Status{
-		SampledAt: time.Now().UTC(),
+		EmbeddingContract: CanonicalEmbeddingContract(),
+		SampledAt:         time.Now().UTC(),
 		Settings: map[Kind]*SettingView{
-			KindLLM:       nil,
-			KindEmbedding: nil,
+			KindLLM:              nil,
+			KindEmbedding:        nil,
+			KindNoticeClassifier: nil,
 		},
 	}
 	rows, err := s.pool.Query(ctx, `select kind,provider,base_url,model,transport,
-		secret_last4,validation_status,validation_error_code,validation_message,
+		(length(secret_ciphertext) > 0),validation_status,validation_error_code,validation_message,
 		coalesce(validation_observed_dimensions,0),validated_at,validated_by,updated_at,updated_by
 		from execution_control.model_settings order by kind`)
 	if err != nil {
@@ -312,7 +299,7 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 			&view.BaseURL,
 			&view.Model,
 			&view.Transport,
-			&view.CredentialLast4,
+			&view.CredentialConfigured,
 			&validation.Status,
 			&validation.ErrorCode,
 			&validation.Message,
@@ -324,61 +311,18 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 		); err != nil {
 			return Status{}, err
 		}
-		view.CredentialConfigured = view.CredentialLast4 != ""
+		if view.Kind == KindEmbedding {
+			view.Model = CanonicalEmbeddingModel
+			view.Provider = CanonicalEmbeddingProvider
+			view.Transport = CanonicalEmbeddingTransport
+		}
 		view.LatestValidation = &validation
 		status.Settings[view.Kind] = &view
 	}
 	if err := rows.Err(); err != nil {
 		return Status{}, err
 	}
-	status.ETag = statusETag(status.Settings)
 	return status, nil
-}
-
-func statusETagTx(ctx context.Context, tx pgx.Tx) (string, error) {
-	rows, err := tx.Query(ctx, "select kind,updated_at from execution_control.model_settings order by kind")
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	settings := map[Kind]*SettingView{}
-	for rows.Next() {
-		var kind Kind
-		var updatedAt time.Time
-		if err := rows.Scan(&kind, &updatedAt); err != nil {
-			return "", err
-		}
-		settings[kind] = &SettingView{Kind: kind, UpdatedAt: updatedAt}
-	}
-	if err := rows.Err(); err != nil {
-		return "", err
-	}
-	return statusETag(settings), nil
-}
-
-func statusETag(settings map[Kind]*SettingView) string {
-	kinds := make([]string, 0, len(settings))
-	for kind, setting := range settings {
-		if setting != nil {
-			kinds = append(kinds, string(kind))
-		}
-	}
-	sort.Strings(kinds)
-	var source strings.Builder
-	for _, rawKind := range kinds {
-		kind := Kind(rawKind)
-		setting := settings[kind]
-		source.WriteString(rawKind)
-		source.WriteByte(':')
-		source.WriteString(setting.UpdatedAt.UTC().Format(time.RFC3339Nano))
-		source.WriteByte('\n')
-	}
-	sum := sha256.Sum256([]byte(source.String()))
-	return hex.EncodeToString(sum[:])
-}
-
-func normalizeETag(value string) string {
-	return strings.Trim(strings.TrimSpace(value), "\"")
 }
 
 func normalizeActor(actor string) string {

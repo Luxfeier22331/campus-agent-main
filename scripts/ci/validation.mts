@@ -73,7 +73,7 @@ function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 	if (matchesFile(files, /(?:^|\/)\w[^/]*\.py$/u) || files.includes("pyproject.toml")) {
 		selected.add("python");
 	}
-	if (matchesFile(files, /\.ya?ml$/u) && !files.includes("pnpm-lock.yaml")) {
+	if (files.some((file) => file !== "pnpm-lock.yaml" && /\.ya?ml$/u.test(file))) {
 		selected.add("yaml");
 	}
 	if (

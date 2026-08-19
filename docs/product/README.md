@@ -19,6 +19,7 @@ status: active
 - [run-context.md](./run-context.md)：连续追问、上一轮依据、上下文裁剪和并发轮次体验；
 - [ops-web.md](./ops-web.md)：自托管运行概览、运行记录、在线模型配置和内容运营。
 
-产品边界见 `docs/architecture/product.md`，当前实现见 `docs/architecture/current.md`，wire
-shape 见 `docs/contracts/`。PRD 可以定义用户行为和验收标准，但不得重新定义架构所有者、
-data schema 或部署 runbook。尚未接受的产品提案留在 Issue 或 Project，不进入本目录。
+产品边界见 `docs/architecture/product.md`，当前实现从 `docs/architecture/README.md` 进入最近的
+系统、领域和合同所有者，wire shape 见 `docs/contracts/`。PRD 可以定义用户行为和验收标准，但不得
+重新定义架构所有者、data schema 或部署 runbook。尚未接受的产品提案留在 Issue 或 Project，不进入
+本目录。

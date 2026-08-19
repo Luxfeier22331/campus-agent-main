@@ -52,7 +52,7 @@ App API 和 Agent Runtime 的允许字段分别由所属代码及测试维护。
 
 ## 相关文档
 
-- `../architecture/system/ops-observability.md`
+- `../decisions/adr-0081-observability-planes.md`
 - `../contracts/langfuse-runtime.md`
 - `../runbooks/otel.md`
 - `../runbooks/worker-otel.md`

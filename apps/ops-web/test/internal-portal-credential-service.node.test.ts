@@ -1,400 +1,126 @@
 // @vitest-environment node
 
-import {
-	PortalCredentialExpiredError,
-	PortalCredentialUnavailableError,
-	PortalSessionExpiredError,
-} from "@campus-agent/internal-portal-client";
 import { describe, expect, it, vi } from "vitest";
-import { InternalPortalCandidateInputError } from "../src/server/internal-portal-candidate-input.ts";
 import {
 	createInternalPortalCredentialService,
-	InternalPortalCandidateCheckFailedError,
+	InternalPortalCandidateInputError,
 	InternalPortalCandidateRejectedError,
-	runScheduledInternalPortalChecks,
-} from "../src/server/internal-portal-credential-service.ts";
-import {
 	InternalPortalCredentialConflictError,
-	type InternalPortalCredentialRecord,
-	type InternalPortalCredentialStore,
+	InternalPortalCredentialNameConflictError,
+	InternalPortalCredentialNotFoundError,
 	InternalPortalCredentialStoreUnavailableError,
-} from "../src/server/internal-portal-credential-store.ts";
+} from "../src/server/internal-portal-credential-service.ts";
 
-const FIRST_ID = "11111111-1111-4111-8111-111111111111";
-const SECOND_ID = "22222222-2222-4222-8222-222222222222";
+const CREDENTIAL_ID = "11111111-1111-4111-8111-111111111111";
+const credential = {
+	createdAt: "2026-08-02T01:00:00.000Z",
+	credentialId: CREDENTIAL_ID,
+	lastAttemptAt: "2026-08-02T01:00:00.000Z",
+	lastOutcome: "valid" as const,
+	lastSuccessfulAt: "2026-08-02T01:00:00.000Z",
+	name: "开发凭据",
+	updatedAt: "2026-08-02T01:00:00.000Z",
+	version: 1,
+};
 
-function credential(
-	credentialId = FIRST_ID,
-	ssoTgc = "TGT-current",
-): InternalPortalCredentialRecord {
-	return {
-		createdAt: "2026-08-02T01:00:00.000Z",
-		credentialId,
-		lastAttemptAt: "2026-08-02T01:00:00.000Z",
-		lastOutcome: "valid",
-		lastSuccessfulAt: "2026-08-02T01:00:00.000Z",
-		name: credentialId === FIRST_ID ? "第一条" : "第二条",
-		ssoTgc,
-		updatedAt: "2026-08-02T01:00:00.000Z",
-		version: 1,
-	};
+function createService(request: typeof fetch) {
+	return createInternalPortalCredentialService(
+		{
+			INGESTION_CONTROL_INTERNAL_URL: "http://ingestion-control:8000",
+			OPS_WEB_INTERNAL_TOKEN: "internal-token",
+		},
+		{ fetch: request },
+	);
 }
 
-function createStore(
-	overrides: Partial<InternalPortalCredentialStore> = {},
-): InternalPortalCredentialStore {
-	return {
-		create: vi.fn(async (input) => ({
-			...credential(input.credentialId, input.ssoTgc),
-			createdAt: input.now.toISOString(),
-			name: input.name,
-			updatedAt: input.now.toISOString(),
-		})),
-		delete: vi.fn(async () => undefined),
-		get: vi.fn(async () => credential()),
-		list: vi.fn(async () => [credential()]),
-		recordCheck: vi.fn(async (input) => ({
-			...credential(input.credentialId, input.ssoTgc),
-			lastAttemptAt: input.attemptedAt.toISOString(),
-			lastOutcome: input.outcome,
-			lastSuccessfulAt:
-				input.outcome === "valid" ? input.attemptedAt.toISOString() : credential().lastSuccessfulAt,
-		})),
-		rename: vi.fn(async (input) => ({
-			...credential(input.credentialId),
-			name: input.name,
-			version: input.expectedVersion + 1,
-		})),
-		rotate: vi.fn(async (input) => ({
-			...credential(input.credentialId, input.ssoTgc),
-			version: input.expectedVersion + 1,
-		})),
-		...overrides,
-	};
-}
+describe("internal portal credential client", () => {
+	it("lists credentials through ingestion-control without exposing the internal token", async () => {
+		const request = vi.fn(async () => Response.json({ credentials: [credential] }));
 
-describe("internal portal credential service", () => {
-	it("validates and stores the CAS-refreshed TGC without returning plaintext", async () => {
-		const store = createStore();
-		const checkAuthentication = vi.fn(async () => ({ ssoTgc: "TGT-refreshed" }));
-		const service = createInternalPortalCredentialService({
-			checkAuthentication,
-			now: () => new Date("2026-08-02T02:00:00.000Z"),
-			randomId: () => FIRST_ID,
-			store,
-		});
-
-		const result = await service.create({ name: "开发凭据", ssoTgc: "TGT-candidate" });
-
-		expect(checkAuthentication).toHaveBeenCalledWith("TGT-candidate", expect.any(AbortSignal));
-		expect(store.create).toHaveBeenCalledWith({
-			credentialId: FIRST_ID,
-			name: "开发凭据",
-			now: new Date("2026-08-02T02:00:00.000Z"),
-			ssoTgc: "TGT-refreshed",
-		});
-		expect(result).not.toHaveProperty("ssoTgc");
-	});
-
-	it("normalizes candidate Cookie input before validation and storage", async () => {
-		const store = createStore();
-		const checkAuthentication = vi.fn(async (ssoTgc: string) => ({ ssoTgc }));
-		const service = createInternalPortalCredentialService({
-			checkAuthentication,
-			randomId: () => FIRST_ID,
-			store,
-		});
-
-		await service.create({
-			name: "开发凭据",
-			ssoTgc: "Path=/; JSESSIONID=synthetic-session; SSO_TGC=TGT-synthetic-cookie",
-		});
-
-		expect(checkAuthentication).toHaveBeenCalledWith(
-			"TGT-synthetic-cookie",
-			expect.any(AbortSignal),
-		);
-		expect(store.create).toHaveBeenCalledWith(
-			expect.objectContaining({ ssoTgc: "TGT-synthetic-cookie" }),
-		);
-	});
-
-	it("does not overwrite a credential when candidate validation fails", async () => {
-		const store = createStore();
-		const malformed = createInternalPortalCredentialService({ store });
-		await expect(malformed.rotate(FIRST_ID, " TGT-new", 1)).rejects.toBeInstanceOf(
-			InternalPortalCandidateInputError,
-		);
-		expect(store.rotate).not.toHaveBeenCalled();
-
-		const rejected = createInternalPortalCredentialService({
-			checkAuthentication: async () => {
-				throw new PortalCredentialExpiredError();
-			},
-			store,
-		});
-		await expect(rejected.rotate(FIRST_ID, "TGT-expired", 1)).rejects.toBeInstanceOf(
-			InternalPortalCandidateRejectedError,
-		);
-		expect(store.rotate).not.toHaveBeenCalled();
-
-		const unavailable = createInternalPortalCredentialService({
-			checkAuthentication: async () => {
-				throw new Error("network unavailable");
-			},
-			store,
-		});
-		await expect(unavailable.rotate(FIRST_ID, "TGT-new", 1)).rejects.toBeInstanceOf(
-			InternalPortalCandidateCheckFailedError,
-		);
-		expect(store.rotate).not.toHaveBeenCalled();
-	});
-
-	it("checks every stored credential and records independent outcomes", async () => {
-		const first = credential();
-		const second = credential(SECOND_ID, "TGT-second");
-		const checkAuthentication = vi
-			.fn()
-			.mockRejectedValueOnce(new PortalCredentialExpiredError())
-			.mockResolvedValueOnce({ ssoTgc: "TGT-second-refreshed" });
-		const recordCheck = vi.fn(async (input) => ({
-			...(input.credentialId === FIRST_ID ? first : second),
-			lastOutcome: input.outcome,
-			ssoTgc: input.ssoTgc,
-		}));
-		const store = createStore({
-			list: vi.fn(async () => [first, second]),
-			recordCheck,
-		});
-
-		await expect(runScheduledInternalPortalChecks({ checkAuthentication, store })).resolves.toEqual(
-			{
-				checks: [
-					{
-						credentialId: FIRST_ID,
-						credentialName: "第一条",
-						durationMs: expect.any(Number),
-						failureKind: "credential_expired",
-						outcome: "credential_rejected",
-						refreshed: false,
-					},
-					{
-						credentialId: SECOND_ID,
-						credentialName: "第二条",
-						durationMs: expect.any(Number),
-						failureKind: null,
-						outcome: "valid",
-						refreshed: true,
-					},
-				],
-				suspended: [],
-			},
-		);
-		expect(recordCheck).toHaveBeenNthCalledWith(
-			1,
-			expect.objectContaining({ credentialId: FIRST_ID, outcome: "credential_rejected" }),
-		);
-		expect(recordCheck).toHaveBeenNthCalledWith(
-			2,
+		await expect(createService(request as typeof fetch).list()).resolves.toEqual([credential]);
+		expect(request).toHaveBeenCalledWith(
+			new URL("http://ingestion-control:8000/internal/ingestion/internal-portal/credentials"),
 			expect.objectContaining({
-				credentialId: SECOND_ID,
-				outcome: "valid",
-				ssoTgc: "TGT-second-refreshed",
+				headers: {
+					accept: "application/json",
+					authorization: "Bearer internal-token",
+				},
 			}),
 		);
 	});
 
-	it("suspends rejected credentials while retrying dependency failures", async () => {
-		const rejected = { ...credential(), lastOutcome: "credential_rejected" as const };
-		const retryable = {
-			...credential(SECOND_ID, "TGT-second"),
-			lastOutcome: "check_failed" as const,
-		};
-		const checkAuthentication = vi.fn(async () => {
-			throw new Error("synthetic dependency failure");
-		});
-		const store = createStore({
-			list: vi.fn(async () => [rejected, retryable]),
-		});
+	it("forwards create, CAS update, validate, reveal and delete operations", async () => {
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(Response.json({ credential }, { status: 201 }))
+			.mockResolvedValueOnce(Response.json({ credential: { ...credential, version: 2 } }))
+			.mockResolvedValueOnce(Response.json({ credential: { ...credential, version: 2 } }))
+			.mockResolvedValueOnce(
+				Response.json({ credentialId: CREDENTIAL_ID, ssoTgc: "TGT-secret", version: 2 }),
+			)
+			.mockResolvedValueOnce(new Response(null, { status: 204 }));
+		const service = createService(request);
 
-		await expect(runScheduledInternalPortalChecks({ checkAuthentication, store })).resolves.toEqual(
-			{
-				checks: [
-					{
-						credentialId: SECOND_ID,
-						credentialName: "第二条",
-						durationMs: expect.any(Number),
-						failureKind: "dependency_error",
-						outcome: "check_failed",
-						refreshed: false,
-					},
-				],
-				suspended: [{ credentialId: FIRST_ID, credentialName: "第一条" }],
-			},
-		);
-		expect(checkAuthentication).toHaveBeenCalledOnce();
-		expect(checkAuthentication).toHaveBeenCalledWith("TGT-second", expect.any(AbortSignal));
-		expect(store.recordCheck).toHaveBeenCalledOnce();
-		expect(store.recordCheck).toHaveBeenCalledWith(
-			expect.objectContaining({ credentialId: SECOND_ID, outcome: "check_failed" }),
-		);
+		await service.create({ name: "开发凭据", ssoTgc: "TGT-new" });
+		await service.rotate(CREDENTIAL_ID, "TGT-next", 1);
+		await service.validate(CREDENTIAL_ID);
+		await service.reveal(CREDENTIAL_ID);
+		await service.delete(CREDENTIAL_ID, 2);
+
+		expect(request.mock.calls.map(([url, init]) => [String(url), init?.method ?? "GET"])).toEqual([
+			["http://ingestion-control:8000/internal/ingestion/internal-portal/credentials", "POST"],
+			[
+				`http://ingestion-control:8000/internal/ingestion/internal-portal/credentials/${CREDENTIAL_ID}`,
+				"PUT",
+			],
+			[
+				`http://ingestion-control:8000/internal/ingestion/internal-portal/credentials/${CREDENTIAL_ID}/validate`,
+				"POST",
+			],
+			[
+				`http://ingestion-control:8000/internal/ingestion/internal-portal/credentials/${CREDENTIAL_ID}/reveal`,
+				"POST",
+			],
+			[
+				`http://ingestion-control:8000/internal/ingestion/internal-portal/credentials/${CREDENTIAL_ID}`,
+				"DELETE",
+			],
+		]);
+		expect(request.mock.calls[1]?.[1]?.headers).toMatchObject({ "if-match": '"1"' });
+		expect(request.mock.calls[4]?.[1]?.headers).toMatchObject({ "if-match": '"2"' });
 	});
 
 	it.each([
-		{
-			error: new PortalSessionExpiredError("synthetic session expiry"),
-			failureKind: "session_expired",
-			outcome: "credential_rejected",
-		},
-		{
-			error: new PortalCredentialUnavailableError("synthetic configuration failure"),
-			failureKind: "configuration",
-			outcome: "check_failed",
-		},
-		{
-			error: Object.assign(new Error("synthetic timeout"), { name: "TimeoutError" }),
-			failureKind: "timeout",
-			outcome: "check_failed",
-		},
-	])("classifies $failureKind without aborting the scheduled run", async (testCase) => {
-		const checkAuthentication = vi.fn(async () => {
-			throw testCase.error;
-		});
-		const store = createStore();
-
-		const result = await runScheduledInternalPortalChecks({ checkAuthentication, store });
-
-		expect(result).toEqual({
-			checks: [
-				expect.objectContaining({
-					failureKind: testCase.failureKind,
-					outcome: testCase.outcome,
-				}),
-			],
-			suspended: [],
-		});
-	});
-
-	it("resumes a rejected credential after a successful manual check", async () => {
-		const rejected = { ...credential(), lastOutcome: "credential_rejected" as const };
-		const store = createStore({
-			get: vi.fn(async () => rejected),
-		});
-		const service = createInternalPortalCredentialService({
-			checkAuthentication: async (ssoTgc) => ({ ssoTgc }),
-			store,
-		});
-
-		await expect(service.validate(FIRST_ID)).resolves.toEqual(
-			expect.objectContaining({ lastOutcome: "valid" }),
+		["INGESTION_INTERNAL_PORTAL_INPUT_INVALID", InternalPortalCandidateInputError],
+		["INGESTION_INTERNAL_PORTAL_CREDENTIAL_REJECTED", InternalPortalCandidateRejectedError],
+		["INGESTION_INTERNAL_PORTAL_NOT_FOUND", InternalPortalCredentialNotFoundError],
+		["INGESTION_INTERNAL_PORTAL_CONFLICT", InternalPortalCredentialConflictError],
+		["INGESTION_INTERNAL_PORTAL_NAME_CONFLICT", InternalPortalCredentialNameConflictError],
+	] as const)("maps upstream error %s", async (code, expectedError) => {
+		const request = vi.fn(async () =>
+			Response.json({ error: { code } }, { status: code.endsWith("NOT_FOUND") ? 404 : 409 }),
 		);
-		expect(store.recordCheck).toHaveBeenCalledWith(
-			expect.objectContaining({ credentialId: FIRST_ID, outcome: "valid" }),
+
+		await expect(createService(request as typeof fetch).list()).rejects.toBeInstanceOf(
+			expectedError,
 		);
 	});
 
-	it("marks a stale scheduled write and continues with later credentials", async () => {
-		const first = credential();
-		const second = credential(SECOND_ID, "TGT-second");
-		const store = createStore({
-			list: vi.fn(async () => [first, second]),
-			recordCheck: vi
-				.fn()
-				.mockRejectedValueOnce(new InternalPortalCredentialConflictError())
-				.mockResolvedValueOnce(second),
-		});
-
-		await expect(
-			runScheduledInternalPortalChecks({
-				checkAuthentication: async (ssoTgc) => ({ ssoTgc }),
-				store,
-			}),
-		).resolves.toEqual({
-			checks: [
-				{
-					credentialId: FIRST_ID,
-					credentialName: "第一条",
-					durationMs: expect.any(Number),
-					failureKind: null,
-					outcome: "stale",
-					refreshed: false,
-				},
-				{
-					credentialId: SECOND_ID,
-					credentialName: "第二条",
-					durationMs: expect.any(Number),
-					failureKind: null,
-					outcome: "valid",
-					refreshed: false,
-				},
-			],
-			suspended: [],
-		});
-	});
-
-	it("waits for initial cron database connectivity before checking credentials", async () => {
-		const initialFailure = connectionRefusedStoreError();
-		const list = vi
-			.fn()
-			.mockRejectedValueOnce(initialFailure)
-			.mockResolvedValueOnce([credential()]);
-		const wait = vi.fn(async () => undefined);
-		const checkAuthentication = vi.fn(async (ssoTgc: string) => ({ ssoTgc }));
-		const store = createStore({ list });
-
-		await expect(
-			runScheduledInternalPortalChecks({ checkAuthentication, store, wait }),
-		).resolves.toEqual({
-			checks: [
-				expect.objectContaining({
-					credentialId: FIRST_ID,
-					failureKind: null,
-					outcome: "valid",
-				}),
-			],
-			suspended: [],
-		});
-		expect(list).toHaveBeenCalledTimes(2);
-		expect(wait).toHaveBeenCalledOnce();
-		expect(wait).toHaveBeenCalledWith(1_000);
-		expect(checkAuthentication).toHaveBeenCalledOnce();
-		expect(store.recordCheck).toHaveBeenCalledOnce();
-	});
-
-	it("bounds the initial cron database readiness wait", async () => {
-		const failure = connectionRefusedStoreError();
-		const list = vi.fn(async () => {
-			throw failure;
-		});
-		const wait = vi.fn(async () => undefined);
-
-		await expect(
-			runScheduledInternalPortalChecks({ store: createStore({ list }), wait }),
-		).rejects.toBe(failure);
-		expect(list).toHaveBeenCalledTimes(5);
-		expect(wait).toHaveBeenCalledTimes(4);
-	});
-
-	it("does not wait for non-connectivity database failures", async () => {
-		const failure = new InternalPortalCredentialStoreUnavailableError(
-			"内部门户凭据数据库不可用。",
-			{ cause: Object.assign(new Error("authentication failed"), { code: "28P01" }) },
+	it("fails closed for invalid configuration, transport failure and invalid responses", async () => {
+		expect(() => createInternalPortalCredentialService({})).toThrow(
+			InternalPortalCredentialStoreUnavailableError,
 		);
-		const list = vi.fn(async () => {
-			throw failure;
-		});
-		const wait = vi.fn(async () => undefined);
-
 		await expect(
-			runScheduledInternalPortalChecks({ store: createStore({ list }), wait }),
-		).rejects.toBe(failure);
-		expect(list).toHaveBeenCalledOnce();
-		expect(wait).not.toHaveBeenCalled();
+			createService(
+				vi.fn(async () => Response.json({ credentials: "invalid" })) as typeof fetch,
+			).list(),
+		).rejects.toBeInstanceOf(InternalPortalCredentialStoreUnavailableError);
+		await expect(
+			createService(
+				vi.fn(async () => {
+					throw new Error("unreachable");
+				}) as typeof fetch,
+			).list(),
+		).rejects.toBeInstanceOf(InternalPortalCredentialStoreUnavailableError);
 	});
 });
-
-function connectionRefusedStoreError(): InternalPortalCredentialStoreUnavailableError {
-	return new InternalPortalCredentialStoreUnavailableError("内部门户凭据数据库不可用。", {
-		cause: Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }),
-	});
-}

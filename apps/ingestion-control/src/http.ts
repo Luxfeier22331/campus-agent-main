@@ -1,30 +1,38 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import {
-	createIngestionTaskExecutionSnapshot,
-	type IngestionTaskRegistryCatalog,
-	parseIngestionTaskEnvelope,
-	parseIngestionWorkflowStatus,
-} from "ingest-core";
+	InternalPortalCredentialCreateSchema,
+	InternalPortalCredentialListSchema,
+	InternalPortalCredentialResolutionSchema,
+	InternalPortalCredentialRevealSchema,
+	InternalPortalCredentialSchema,
+	InternalPortalCredentialUpdateSchema,
+} from "campus-contracts/internal-portal-credential";
+import { z } from "zod";
+import { InternalPortalCandidateInputError } from "./internal-portal-candidate-input.ts";
 import {
-	IngestionWorkflowIdentityConflictError,
-	type IngestionWorkflowStarter,
-} from "./temporal-client";
-import type { IngestionTaskStore } from "./types";
+	InternalPortalCandidateCheckFailedError,
+	InternalPortalCandidateRejectedError,
+	InternalPortalCredentialResolutionUnavailableError,
+	type InternalPortalCredentialService,
+} from "./internal-portal-credential-service.ts";
+import {
+	InternalPortalCredentialConflictError,
+	InternalPortalCredentialNameConflictError,
+	InternalPortalCredentialNotFoundError,
+	InternalPortalCredentialStoreUnavailableError,
+} from "./internal-portal-credential-store.ts";
 
 export type IngestionControlHandler = (request: Request) => Promise<Response>;
 
-export interface IngestionControlServiceTokens {
-	internalToken?: string | null;
-}
+const CREDENTIALS_PATH = "/internal/ingestion/internal-portal/credentials";
+const CredentialIdSchema = z.string().uuid();
 
 export function createIngestionControlHandler(input: {
-	store: IngestionTaskStore;
-	registryCatalog: IngestionTaskRegistryCatalog;
+	credentialService: InternalPortalCredentialService;
+	internalToken?: string | null;
 	readinessCheck?: () => Promise<void>;
-	serviceTokens?: IngestionControlServiceTokens;
-	workflowStarter?: IngestionWorkflowStarter;
 }): IngestionControlHandler {
-	const internalToken = input.serviceTokens?.internalToken?.trim() || null;
+	const internalToken = input.internalToken?.trim() || null;
 	return async (request): Promise<Response> => {
 		const url = new URL(request.url);
 		try {
@@ -39,219 +47,101 @@ export function createIngestionControlHandler(input: {
 				}
 				return jsonResponse({ status: "ready" });
 			}
-			if (
-				request.method === "POST" &&
-				url.pathname === "/internal/ingestion/operations/internal-portal/file-releases/status"
-			) {
-				requireToken(request, internalToken, "internal");
-				const workflowStarter = input.workflowStarter;
-				const getFileReleaseStatuses = workflowStarter?.getInternalPortalFileReleaseStatuses;
-				if (!getFileReleaseStatuses) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
-				}
-				const body = await readJsonObject(request);
-				const workflowIds = requiredFileReleaseWorkflowIds(body.workflow_ids);
-				return jsonResponse({
-					schema_version: "internal_portal_file_release_workflow_statuses.v1",
-					workflows: await runIngestionWorkflowOperation(() =>
-						getFileReleaseStatuses.call(workflowStarter, workflowIds),
-					),
-				});
-			}
-			if (
-				request.method === "POST" &&
-				url.pathname === "/internal/ingestion/operations/internal-portal/file-releases"
-			) {
-				requireToken(request, internalToken, "internal");
-				const createdBy = requireOperatorId(request);
-				const workflowStarter = input.workflowStarter;
-				const startFileRelease = workflowStarter?.startInternalPortalFileRelease;
-				if (!startFileRelease) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
-				}
-				const body = await readJsonObject(request);
-				const requestId = requiredRequestId(body.request_id);
-				const ids = requiredFileReleaseIds(body.file_release_ids);
-				const workflows = await runIngestionWorkflowOperation(() =>
-					Promise.all(
-						ids.map(async (fileReleaseId) => ({
-							file_release_id: fileReleaseId,
-							...(await startFileRelease.call(workflowStarter, {
-								createdBy,
-								fileReleaseId,
-								requestId,
-							})),
-						})),
-					),
-				);
-				return jsonResponse(
-					{
-						request_id: requestId,
-						schema_version: "internal_portal_file_release_batch_start.v1",
-						workflows,
-					},
-					202,
+
+			requireToken(request, internalToken);
+			if (url.search) {
+				throw new InternalPortalRequestError(
+					"INGESTION_INTERNAL_PORTAL_INPUT_INVALID",
+					"内部门户凭据接口不接受查询参数。",
+					400,
 				);
 			}
-			if (request.method === "POST" && url.pathname === "/internal/ingestion/tasks") {
-				requireToken(request, internalToken, "internal");
-				const workflowStarter = input.workflowStarter;
-				if (!workflowStarter) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
-				}
-				const task = parseIngestionTaskEnvelope(await request.json());
-				const snapshot = createIngestionTaskExecutionSnapshot({
-					task,
-					registryTask: input.registryCatalog.requireTask(task),
-				});
-				const started = await runIngestionWorkflowOperation(() =>
-					workflowStarter.startTask(snapshot, {
-						createdBy: "admin-api",
-					}),
-				);
-				if (started.alreadyStarted) {
-					const existing = await input.store.getTask(task.task_id);
-					if (existing) {
-						return jsonResponse(existing);
-					}
-					if (started.workflowStatus !== "RUNNING") {
-						return jsonResponse(
-							{
-								error: "ingestion_projection_missing",
-								task_id: task.task_id,
-								temporal_status: started.workflowStatus,
-								workflow_id: started.workflowId,
-								workflow_run_id: started.workflowRunId,
-							},
-							409,
-						);
-					}
-				}
-				return jsonResponse(
-					{
-						schema_version: "ingestion_workflow_start.v1",
-						task_id: task.task_id,
-						workflow_id: started.workflowId,
-						workflow_run_id: started.workflowRunId,
-						temporal_status: started.workflowStatus,
-						status: "accepted",
-					},
-					202,
-				);
-			}
-			if (request.method === "GET" && url.pathname === "/internal/ingestion/operations/tasks") {
-				requireToken(request, internalToken, "internal");
-				return jsonResponse(
-					await input.store.listOperatorTaskProjections({
-						collection: url.searchParams.get("collection"),
-						corpus: url.searchParams.get("corpus"),
-						cursor: url.searchParams.get("cursor"),
-						limit: parseLimit(url.searchParams.get("limit")),
-						registryTaskId: url.searchParams.get("registry_task_id"),
-						runId: url.searchParams.get("run_id"),
-						sourceChannel: url.searchParams.get("source_channel"),
-						sourceFamily: url.searchParams.get("source_family"),
-						status: parseIngestionWorkflowStatus(url.searchParams.get("status")),
+
+			if (request.method === "GET" && url.pathname === CREDENTIALS_PATH) {
+				return credentialResponse(
+					InternalPortalCredentialListSchema.parse({
+						credentials: await input.credentialService.list(),
 					}),
 				);
 			}
-			const opsTaskMatch = url.pathname.match(
-				/^\/internal\/ingestion\/operations\/tasks\/([^/]+)$/u,
+			if (request.method === "POST" && url.pathname === CREDENTIALS_PATH) {
+				const body = InternalPortalCredentialCreateSchema.safeParse(await readJson(request));
+				if (!body.success) {
+					throw invalidInput();
+				}
+				const credential = InternalPortalCredentialSchema.parse(
+					await input.credentialService.create(body.data, request.signal),
+				);
+				return credentialResponse({ credential }, 201, credential.version);
+			}
+			if (request.method === "POST" && url.pathname === `${CREDENTIALS_PATH}/resolve`) {
+				await requireEmptyBody(request);
+				return credentialResponse(
+					InternalPortalCredentialResolutionSchema.parse({
+						schemaVersion: "internal-portal-credential-resolution.v1",
+						ssoTgc: await input.credentialService.resolve(request.signal),
+					}),
+				);
+			}
+
+			const match = url.pathname.match(
+				/^\/internal\/ingestion\/internal-portal\/credentials\/([^/]+)(?:\/(validate|reveal))?$/u,
 			);
-			if (request.method === "GET" && opsTaskMatch) {
-				requireToken(request, internalToken, "internal");
-				const task = await input.store.getTask(parseTaskPathId(opsTaskMatch[1]));
-				return task ? jsonResponse(task) : jsonResponse({ error: "not_found" }, 404);
+			if (!match?.[1]) {
+				return jsonResponse({ error: { code: "INGESTION_ROUTE_NOT_FOUND" } }, 404);
 			}
-			const retryTaskMatch = url.pathname.match(
-				/^\/internal\/ingestion\/operations\/tasks\/([^/]+)\/retry$/u,
-			);
-			if (request.method === "POST" && retryTaskMatch) {
-				requireToken(request, internalToken, "internal");
-				const createdBy = requireOperatorId(request);
-				const workflowStarter = input.workflowStarter;
-				if (!workflowStarter) {
-					return jsonResponse({ error: "ingestion workflow starter is required" }, 503);
+			const credentialId = CredentialIdSchema.safeParse(match[1]);
+			if (!credentialId.success) {
+				throw invalidInput();
+			}
+
+			if (request.method === "PUT" && !match[2]) {
+				const expectedVersion = requireExpectedVersion(request);
+				const body = InternalPortalCredentialUpdateSchema.safeParse(await readJson(request));
+				if (!body.success) {
+					throw invalidInput();
 				}
-				const previous = await input.store.getTask(parseTaskPathId(retryTaskMatch[1]));
-				if (!previous) {
-					return jsonResponse({ error: "not_found" }, 404);
-				}
-				if (previous.status === "running") {
-					return jsonResponse({ error: "ingestion_task_still_running" }, 409);
-				}
-				if (previous.status !== "failed" && previous.status !== "canceled") {
-					return jsonResponse({ error: "ingestion_task_not_retryable" }, 409);
-				}
-				const registryTask = input.registryCatalog.requireTaskById(previous.registry_task_id);
-				if (
-					registryTask.executor_kind !== previous.executor_kind ||
-					registryTask.input_contract !== previous.input_contract ||
-					registryTask.output_contract !== previous.output_contract
-				) {
-					return jsonResponse({ error: "ingestion_retry_contract_changed" }, 409);
-				}
-				const retryId = randomUUID();
-				const snapshot = createIngestionTaskExecutionSnapshot({
-					registryTask,
-					task: {
-						input_ref: previous.input_ref,
-						registry_task_id: previous.registry_task_id,
-						run_id: `retry:${retryId}`,
-						schema_version: "ingestion_task_envelope.v3",
-						task_id: `retry:${retryId}`,
-					},
-				});
-				const started = await runIngestionWorkflowOperation(() =>
-					workflowStarter.startTask(snapshot, {
-						createdBy,
-						retryOfTaskId: previous.task_id,
-					}),
+				const credential = InternalPortalCredentialSchema.parse(
+					"name" in body.data
+						? await input.credentialService.rename(
+								credentialId.data,
+								body.data.name,
+								expectedVersion,
+							)
+						: await input.credentialService.rotate(
+								credentialId.data,
+								body.data.ssoTgc,
+								expectedVersion,
+								request.signal,
+							),
 				);
-				return jsonResponse(
-					{
-						retry_of_task_id: previous.task_id,
-						task_id: snapshot.task.task_id,
-						workflow_id: started.workflowId,
-						workflow_run_id: started.workflowRunId,
-					},
-					202,
+				return credentialResponse({ credential }, 200, credential.version);
+			}
+			if (request.method === "DELETE" && !match[2]) {
+				await requireEmptyBody(request);
+				await input.credentialService.delete(credentialId.data, requireExpectedVersion(request));
+				return new Response(null, { status: 204, headers: noStoreHeaders() });
+			}
+			if (request.method === "POST" && match[2] === "validate") {
+				await requireEmptyBody(request);
+				const credential = InternalPortalCredentialSchema.parse(
+					await input.credentialService.validate(credentialId.data, request.signal),
 				);
+				return credentialResponse({ credential }, 200, credential.version);
 			}
-			const taskMatch = url.pathname.match(/^\/internal\/ingestion\/tasks\/([^/]+)$/u);
-			if (request.method === "GET" && taskMatch) {
-				requireToken(request, internalToken, "internal");
-				const task = await input.store.getTask(parseTaskPathId(taskMatch[1]));
-				return task ? jsonResponse(task) : jsonResponse({ error: "not_found" }, 404);
+			if (request.method === "POST" && match[2] === "reveal") {
+				await requireEmptyBody(request);
+				const revealed = InternalPortalCredentialRevealSchema.parse(
+					await input.credentialService.reveal(credentialId.data),
+				);
+				return credentialResponse(revealed, 200, revealed.version);
 			}
-			return jsonResponse({ error: "not_found" }, 404);
+
+			return jsonResponse({ error: { code: "INGESTION_ROUTE_NOT_FOUND" } }, 404);
 		} catch (error) {
-			if (error instanceof IngestionWorkflowIdentityConflictError) {
-				return jsonResponse(
-					{
-						error: "ingestion_task_conflict",
-						task_id: error.taskId,
-						workflow_id: error.workflowId,
-					},
-					409,
-				);
-			}
-			if (error instanceof IngestionAuthenticationError) {
-				return jsonResponse({ error: error.message }, error.status);
-			}
-			if (error instanceof IngestionWorkflowUnavailableError) {
-				return jsonResponse({ error: error.message }, 503);
-			}
-			return jsonResponse({ error: "ingestion-control request could not be completed" }, 400);
+			return internalPortalErrorResponse(error);
 		}
 	};
-}
-
-class IngestionWorkflowUnavailableError extends Error {
-	constructor(cause: unknown) {
-		super("ingestion workflow dependency is unavailable", { cause });
-		this.name = "IngestionWorkflowUnavailableError";
-	}
 }
 
 class IngestionAuthenticationError extends Error {
@@ -263,25 +153,63 @@ class IngestionAuthenticationError extends Error {
 	}
 }
 
-async function runIngestionWorkflowOperation<T>(operation: () => Promise<T>): Promise<T> {
-	try {
-		return await operation();
-	} catch (error) {
-		if (error instanceof IngestionWorkflowIdentityConflictError) {
-			throw error;
-		}
-		throw new IngestionWorkflowUnavailableError(error);
+class InternalPortalRequestError extends Error {
+	readonly code: string;
+	readonly status: number;
+
+	constructor(code: string, message: string, status: number) {
+		super(message);
+		this.code = code;
+		this.status = status;
 	}
 }
 
-function requireToken(request: Request, configured: string | null, label: string): void {
+function internalPortalErrorResponse(error: unknown): Response {
+	if (error instanceof IngestionAuthenticationError) {
+		return errorResponse("INGESTION_INTERNAL_TOKEN_INVALID", error.message, error.status);
+	}
+	if (error instanceof InternalPortalRequestError) {
+		return errorResponse(error.code, error.message, error.status);
+	}
+	if (error instanceof InternalPortalCredentialStoreUnavailableError) {
+		return errorResponse(
+			"INGESTION_INTERNAL_PORTAL_STORE_UNAVAILABLE",
+			"内部门户凭据数据库暂不可用。",
+			503,
+		);
+	}
+	if (error instanceof InternalPortalCredentialNotFoundError) {
+		return errorResponse("INGESTION_INTERNAL_PORTAL_NOT_FOUND", error.message, 404);
+	}
+	if (error instanceof InternalPortalCredentialConflictError) {
+		return errorResponse("INGESTION_INTERNAL_PORTAL_CONFLICT", error.message, 409);
+	}
+	if (error instanceof InternalPortalCredentialNameConflictError) {
+		return errorResponse("INGESTION_INTERNAL_PORTAL_NAME_CONFLICT", error.message, 409);
+	}
+	if (error instanceof InternalPortalCandidateInputError) {
+		return errorResponse("INGESTION_INTERNAL_PORTAL_INPUT_INVALID", error.message, 400);
+	}
+	if (error instanceof InternalPortalCandidateRejectedError) {
+		return errorResponse("INGESTION_INTERNAL_PORTAL_CREDENTIAL_REJECTED", error.message, 422);
+	}
+	if (error instanceof InternalPortalCandidateCheckFailedError) {
+		return errorResponse("INGESTION_INTERNAL_PORTAL_CHECK_FAILED", error.message, 503);
+	}
+	if (error instanceof InternalPortalCredentialResolutionUnavailableError) {
+		return errorResponse("INGESTION_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE", error.message, 503);
+	}
+	return errorResponse("INGESTION_INTERNAL_PORTAL_REQUEST_FAILED", "内部门户凭据请求失败。", 500);
+}
+
+function requireToken(request: Request, configured: string | null): void {
 	if (!configured) {
-		throw new IngestionAuthenticationError(`${label} token is not configured`, 503);
+		throw new IngestionAuthenticationError("内部访问 token 未配置。", 503);
 	}
 	const match = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/iu);
 	const supplied = match?.[1]?.trim();
 	if (!(supplied && constantTimeEqual(configured, supplied))) {
-		throw new IngestionAuthenticationError(`${label} bearer token is required`, 401);
+		throw new IngestionAuthenticationError("内部访问 token 无效。", 401);
 	}
 }
 
@@ -292,106 +220,68 @@ function constantTimeEqual(left: string, right: string): boolean {
 	);
 }
 
-function parseLimit(value: string | null): number | null {
-	if (!value) {
-		return null;
+function requireExpectedVersion(request: Request): number {
+	const match = /^"([1-9]\d*)"$/u.exec(request.headers.get("if-match")?.trim() ?? "");
+	const version = match?.[1] ? Number(match[1]) : Number.NaN;
+	if (!Number.isSafeInteger(version)) {
+		throw new InternalPortalRequestError(
+			"INGESTION_INTERNAL_PORTAL_PRECONDITION_REQUIRED",
+			"请刷新内部门户凭据后再修改。",
+			428,
+		);
 	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isInteger(parsed) ? parsed : null;
+	return version;
 }
 
-function parseTaskPathId(value: string | undefined): string {
-	if (value === undefined) {
-		throw new Error("task_id path segment is invalid");
-	}
-	const decoded = decodeURIComponent(value);
-	if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(decoded)) {
-		throw new Error("task_id path segment is invalid");
-	}
-	return decoded;
+function invalidInput(): InternalPortalRequestError {
+	return new InternalPortalRequestError(
+		"INGESTION_INTERNAL_PORTAL_INPUT_INVALID",
+		"内部门户凭据信息无效。",
+		400,
+	);
 }
 
-function requireOperatorId(request: Request): string {
-	const value = request.headers.get("x-operator-id")?.trim();
-	if (!value || value.length > 256 || containsControlCharacter(value)) {
-		throw new IngestionAuthenticationError("operator identity is required", 401);
+async function readJson(request: Request): Promise<unknown> {
+	if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+		throw new InternalPortalRequestError(
+			"INGESTION_INTERNAL_PORTAL_CONTENT_TYPE_REQUIRED",
+			"Content-Type 必须是 application/json。",
+			400,
+		);
 	}
-	return value;
+	try {
+		return await request.json();
+	} catch {
+		throw invalidInput();
+	}
 }
 
-function containsControlCharacter(value: string): boolean {
-	return [...value].some((character) => {
-		const code = character.codePointAt(0) ?? 0;
-		return code < 32 || code === 127;
+async function requireEmptyBody(request: Request): Promise<void> {
+	if ((request.headers.get("content-length") ?? "").trim() === "0") {
+		return;
+	}
+	if ((await request.clone().arrayBuffer()).byteLength > 0) {
+		throw invalidInput();
+	}
+}
+
+function credentialResponse(value: unknown, status = 200, version?: number): Response {
+	const headers = noStoreHeaders();
+	if (version !== undefined) {
+		headers.set("etag", `"${version}"`);
+	}
+	return new Response(JSON.stringify(value), { headers, status });
+}
+
+function errorResponse(code: string, message: string, status: number): Response {
+	return credentialResponse({ error: { code, message } }, status);
+}
+
+function noStoreHeaders(): Headers {
+	return new Headers({
+		"cache-control": "no-store",
+		"content-type": "application/json",
 	});
-}
-
-async function readJsonObject(request: Request): Promise<Record<string, unknown>> {
-	const value = await request.json();
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw new Error("request body must be a JSON object");
-	}
-	return value as Record<string, unknown>;
-}
-
-function requiredRequestId(value: unknown): string {
-	if (
-		typeof value !== "string" ||
-		!value.trim() ||
-		!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(value.trim())
-	) {
-		throw new Error("request_id is invalid");
-	}
-	return value.trim();
-}
-
-function optionalPositiveInteger(value: unknown, label: string, maximum?: number): number | null {
-	if (value === undefined || value === null) {
-		return null;
-	}
-	if (!Number.isSafeInteger(value) || Number(value) < 1) {
-		throw new Error(`${label} must be a positive integer`);
-	}
-	if (maximum !== undefined && Number(value) > maximum) {
-		throw new Error(`${label} must not exceed ${maximum}`);
-	}
-	return Number(value);
-}
-
-function requiredFileReleaseIds(value: unknown): number[] {
-	if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
-		throw new Error("file_release_ids must contain between 1 and 50 IDs");
-	}
-	const ids = value.map((item) => optionalPositiveInteger(item, "file_release_id"));
-	if (ids.some((item) => item === null)) {
-		throw new Error("file_release_ids must contain positive integers");
-	}
-	const unique = [...new Set(ids as number[])];
-	if (unique.length !== ids.length) {
-		throw new Error("file_release_ids must not contain duplicates");
-	}
-	return unique;
-}
-
-function requiredFileReleaseWorkflowIds(value: unknown): string[] {
-	if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
-		throw new Error("workflow_ids must contain between 1 and 50 IDs");
-	}
-	const ids = value.map((item) => {
-		if (
-			typeof item !== "string" ||
-			!/^ingestion\/internal-portal-file-release\/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\/[1-9]\d*$/u.test(
-				item,
-			)
-		) {
-			throw new Error("workflow_ids contains an invalid file-release workflow ID");
-		}
-		return item;
-	});
-	if (new Set(ids).size !== ids.length) {
-		throw new Error("workflow_ids must not contain duplicates");
-	}
-	return ids;
 }
 
 function jsonResponse(value: unknown, status = 200): Response {

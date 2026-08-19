@@ -1,0 +1,90 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notice-classifier
+  labels:
+    app.kubernetes.io/name: notice-classifier
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 3600
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: notice-classifier
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: ingestion-runtime
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: classifier
+              image: ghcr.io/muc-wiki/campus-agent/notice-classifier:replace-me
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_BUCKET_SOURCE
+                  value: campus-agent-source
+                - name: OBJECT_STORE_BUCKET_DERIVED
+                  value: campus-agent-derived
+                - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_ACCESS_KEY
+                - name: OBJECT_STORE_SOURCE_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_SECRET_KEY
+                - name: OBJECT_STORE_DERIVED_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_ACCESS_KEY
+                - name: OBJECT_STORE_DERIVED_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_DERIVED_SECRET_KEY
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 32Mi

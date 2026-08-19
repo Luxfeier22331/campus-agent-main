@@ -25,7 +25,7 @@ vi.mock("../src/portal.js", () => ({
 	createPortalApiContext: mocks.createPortalApiContext,
 }));
 
-import { main } from "../src/notice-cli.js";
+import { main, parseNoticeCommand } from "../src/notice-cli.js";
 
 describe("notice CLI", () => {
 	beforeEach(() => {
@@ -63,5 +63,21 @@ describe("notice CLI", () => {
 		expect(mocks.createPortalApiContext).not.toHaveBeenCalled();
 		expect(log).toHaveBeenCalledOnce();
 		log.mockRestore();
+	});
+
+	it("parses resource concurrency for sync and backfill", () => {
+		expect(parseNoticeCommand(["sync"])).toEqual({ name: "sync", resourceConcurrency: 4 });
+		expect(parseNoticeCommand(["sync", "--concurrency", "8"])).toEqual({
+			name: "sync",
+			resourceConcurrency: 8,
+		});
+		expect(
+			parseNoticeCommand(["backfill", "--start-date", "2026-08-01", "--concurrency", "2"]),
+		).toEqual({
+			name: "backfill",
+			resourceConcurrency: 2,
+			startDate: "2026-08-01",
+		});
+		expect(() => parseNoticeCommand(["sync", "--concurrency", "17"])).toThrow("1..16");
 	});
 });

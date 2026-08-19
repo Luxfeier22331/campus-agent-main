@@ -79,11 +79,9 @@ describe("internal portal file-release capture", () => {
 			title: "推免管理办法",
 		});
 		expect(result).toMatchObject({
-			file_release_id: 646,
-			schema_version: "internal_portal_file_release_capture_result.v1",
-			source_ref: {
-				uri: `s3://campus-agent-source/${prefix}/source.json`,
-			},
+			disposition: "written",
+			fileReleaseId: 646,
+			sourceKey: `${prefix}/source.json`,
 		});
 		expect(dispose).toHaveBeenCalledOnce();
 	});
@@ -120,7 +118,7 @@ describe("internal portal file-release capture", () => {
 				{ config, fileReleaseId: 646, objectStore },
 				{ createApiContext },
 			),
-		).resolves.toMatchObject({ file_release_id: 646 });
+		).resolves.toEqual({ disposition: "reused", fileReleaseId: 646, sourceKey });
 		expect(createApiContext).not.toHaveBeenCalled();
 		expect(objectStore.writes).toEqual([]);
 	});

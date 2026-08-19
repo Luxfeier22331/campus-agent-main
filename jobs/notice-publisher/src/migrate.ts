@@ -25,13 +25,18 @@ const MIGRATIONS = [
 		),
 		version: 4,
 	},
+	{
+		path: fileURLToPath(
+			new URL("../migrations/0005_notice_category.sql", import.meta.url),
+		),
+		version: 5,
+	},
 ] as const;
 
-const REQUIRED_TABLES = [
+const REQUIRED_BASE_TABLES = [
 	"notices.schema_migrations",
 	"notices.notice_types",
 	"notices.organizations",
-	"notices.domains",
 	"notices.notices",
 	"notices.notice_assets",
 ] as const;
@@ -40,11 +45,13 @@ export async function migrateNotices(client: PoolClient): Promise<"applied" | "c
 	const existing = await client.query(
 		`SELECT
 			to_regnamespace('notices') AS schema,
-			${REQUIRED_TABLES.map((table, index) => `to_regclass('${table}') AS table_${index}`).join(",\n\t\t\t")}`,
+			${REQUIRED_BASE_TABLES.map((table, index) => `to_regclass('${table}') AS table_${index}`).join(",\n\t\t\t")},
+			to_regclass('notices.domains') AS domains,
+			to_regclass('notices.categories') AS categories`,
 	);
 	const row = existing.rows[0] as Record<string, string | null>;
 	const schemaExists = row.schema !== null;
-	const tablesExist = REQUIRED_TABLES.map((_, index) => row[`table_${index}`] !== null);
+	const tablesExist = REQUIRED_BASE_TABLES.map((_, index) => row[`table_${index}`] !== null);
 	if (schemaExists && !tablesExist[0]) {
 		throw new Error("notices schema exists without its migration ledger");
 	}
@@ -66,8 +73,16 @@ export async function migrateNotices(client: PoolClient): Promise<"applied" | "c
 				JSON.stringify(versions) === "[1]" ||
 				JSON.stringify(versions) === "[1,2]" ||
 				JSON.stringify(versions) === "[1,2,3]" ||
-				JSON.stringify(versions) === "[1,2,3,4]"
+				JSON.stringify(versions) === "[1,2,3,4]" ||
+				JSON.stringify(versions) === "[1,2,3,4,5]"
 			)
+		) {
+			throw new Error("notices schema migration state is unsupported");
+		}
+		const hasV5 = versions.includes(5);
+		if (
+			(hasV5 && (row.categories === null || row.domains !== null)) ||
+			(!hasV5 && (row.domains === null || row.categories !== null))
 		) {
 			throw new Error("notices schema migration state is unsupported");
 		}
@@ -105,7 +120,7 @@ async function verifyAppApiNoticeReadAccess(client: PoolClient): Promise<void> {
 		has_table_privilege('app_api', 'notices.notice_assets', 'SELECT') AS can_read_assets,
 		has_table_privilege('app_api', 'notices.notice_types', 'SELECT') AS can_read_types,
 		has_table_privilege('app_api', 'notices.organizations', 'SELECT') AS can_read_organizations,
-		has_table_privilege('app_api', 'notices.domains', 'SELECT') AS can_read_domains,
+		has_table_privilege('app_api', 'notices.categories', 'SELECT') AS can_read_categories,
 		has_table_privilege('app_api', 'notices.notices', 'INSERT,UPDATE,DELETE') AS can_write_notices,
 		has_table_privilege('app_api', 'notices.notice_assets', 'INSERT,UPDATE,DELETE') AS can_write_assets`);
 	const access = result.rows[0] as Record<string, boolean>;
@@ -116,7 +131,7 @@ async function verifyAppApiNoticeReadAccess(client: PoolClient): Promise<void> {
 		!access.can_read_assets ||
 		!access.can_read_types ||
 		!access.can_read_organizations ||
-		!access.can_read_domains ||
+		!access.can_read_categories ||
 		access.can_write_notices ||
 		access.can_write_assets
 	) {

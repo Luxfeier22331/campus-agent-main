@@ -97,7 +97,7 @@ describe("root session journey guard", () => {
 	});
 
 	it("redirects anonymous notice readers to login with the full list target", async () => {
-		window.history.replaceState({}, "", "/notices?domain=student_support&page=2");
+		window.history.replaceState({}, "", "/notices?category=student_affairs&page=2&stream=notices");
 		locationState.pathname = "/notices";
 
 		render(<RootLayout />);
@@ -105,7 +105,9 @@ describe("root session journey guard", () => {
 		await waitFor(() =>
 			expect(navigate).toHaveBeenCalledWith({
 				replace: true,
-				search: { redirectTo: "/notices?domain=student_support&page=2" },
+				search: {
+					redirectTo: "/notices?category=student_affairs&page=2&stream=notices",
+				},
 				to: "/account/login",
 			}),
 		);

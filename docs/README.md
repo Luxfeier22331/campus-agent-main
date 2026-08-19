@@ -6,15 +6,15 @@ status: active
 
 # 文档
 
-`docs/` 保存 `campus-agent` 可长期引用的文档。文档所有权、语言、命名和生命周期规则见
-[documentation-architecture.md](./documentation-architecture.md)。
+`docs/` 保存 `campus-agent` 可长期引用的文档。当前事实由最近的所有者文档和可执行实现维护；
+其他文档只提供必要路由，不复制所属正文或全系统当前快照。
+文档分区、语言和生命周期约束见 [ADR-0038](./decisions/adr-0038-documentation.md)。
 
 ## 首要入口
 
 - 产品边界、用户与非承诺：[architecture/product.md](./architecture/product.md)
-- 当前已合并事实：[architecture/current.md](./architecture/current.md)
+- 当前实现入口：[architecture/README.md](./architecture/README.md)
 - 长期架构约束：[architecture/target.md](./architecture/target.md)
-- 跨所有者流程图：[architecture/flows.md](./architecture/flows.md)
 
 ## 分区入口
 

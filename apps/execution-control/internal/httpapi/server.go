@@ -76,8 +76,8 @@ func NewServerWithDependencies(
 	providerConfigResolver, providerConfigErr := providerconfig.NewResolver(
 		context.Background(),
 		providerconfig.ResolverOptions{
-			DatabaseURL: cfg.DatabaseURL,
-			KeyringPath: cfg.ProviderConfigKeyringPath,
+			DatabaseURL:       cfg.DatabaseURL,
+			EncryptionKeyPath: cfg.ProviderConfigEncryptionKeyPath,
 		},
 	)
 	personalMemoryExecutor, personalMemoryErr := newHindsightMemoryExecutor(cfg)

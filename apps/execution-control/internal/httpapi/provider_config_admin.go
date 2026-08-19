@@ -25,14 +25,14 @@ type ProviderConfigAdminServer struct {
 }
 
 func NewProviderConfigAdminServer(cfg config.Config) (*ProviderConfigAdminServer, error) {
-	keyring, err := providerconfig.LoadKeyring(cfg.ProviderConfigKeyringPath)
+	cipher, err := providerconfig.LoadSecretCipher(cfg.ProviderConfigEncryptionKeyPath)
 	if err != nil {
 		return nil, err
 	}
 	store, err := providerconfig.NewStore(
 		context.Background(),
 		cfg.DatabaseURL,
-		keyring,
+		cipher,
 	)
 	if err != nil {
 		return nil, err
@@ -77,8 +77,13 @@ func handleModelSettingsAdmin(
 	switch {
 	case request.Method == http.MethodGet && path == modelSettingsAdminPrefix:
 		writeModelSettingsStatus(response, request, store)
-	case request.Method == http.MethodPost && path == modelSettingsAdminPrefix+"/llm/models":
-		discoverLLMModels(response, request, store)
+	case request.Method == http.MethodPost && strings.HasSuffix(path, "/models"):
+		kind, ok := modelSettingKindFromPath(strings.TrimSuffix(path, "/models"))
+		if !ok || kind == providerconfig.KindEmbedding {
+			writeError(response, http.StatusNotFound, "not_found", "Model setting was not found.", false)
+			return
+		}
+		discoverTextModels(response, request, store, kind)
 	case request.Method == http.MethodPut:
 		kind, ok := modelSettingKindFromPath(path)
 		if !ok {
@@ -86,13 +91,6 @@ func handleModelSettingsAdmin(
 			return
 		}
 		putModelSetting(response, request, store, kind)
-	case request.Method == http.MethodPost && strings.HasSuffix(path, "/validate"):
-		kind, ok := modelSettingKindFromPath(strings.TrimSuffix(path, "/validate"))
-		if !ok {
-			writeError(response, http.StatusNotFound, "not_found", "Model setting was not found.", false)
-			return
-		}
-		validateCurrentModelSetting(response, request, store, kind)
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 	}
@@ -113,13 +111,16 @@ type llmSettingUpdateInput struct {
 }
 
 type embeddingSettingUpdateInput struct {
-	APIKey   string `json:"apiKey"`
-	BaseURL  string `json:"baseUrl"`
-	Model    string `json:"model"`
-	Provider string `json:"provider"`
+	APIKey  *string `json:"apiKey"`
+	BaseURL string  `json:"baseUrl"`
 }
 
-func discoverLLMModels(response http.ResponseWriter, request *http.Request, store *providerconfig.Store) {
+func discoverTextModels(
+	response http.ResponseWriter,
+	request *http.Request,
+	store *providerconfig.Store,
+	kind providerconfig.Kind,
+) {
 	var input modelDiscoveryInput
 	if !decodeProviderAdminJSON(response, request, &input) {
 		return
@@ -127,7 +128,7 @@ func discoverLLMModels(response http.ResponseWriter, request *http.Request, stor
 	candidate, err := store.Candidate(request.Context(), providerconfig.SettingInput{
 		APIKey:    input.APIKey,
 		BaseURL:   input.BaseURL,
-		Kind:      providerconfig.KindLLM,
+		Kind:      kind,
 		Model:     "model-discovery",
 		Provider:  input.Provider,
 		Transport: "responses",
@@ -157,7 +158,6 @@ func writeModelSettingsStatus(
 		writeError(response, http.StatusServiceUnavailable, "model_settings_unavailable", "Model settings status is unavailable.", true)
 		return
 	}
-	response.Header().Set("ETag", quotedETag(status.ETag))
 	writeJSON(response, http.StatusOK, status)
 }
 
@@ -167,20 +167,24 @@ func putModelSetting(
 	store *providerconfig.Store,
 	kind providerconfig.Kind,
 ) {
-	expectedETag := strings.TrimSpace(request.Header.Get("If-Match"))
-	if expectedETag == "" {
-		writeError(response, http.StatusPreconditionRequired, "model_settings_precondition_required", "Refresh model settings before saving.", false)
-		return
-	}
 	var input providerconfig.SettingInput
 	if kind == providerconfig.KindEmbedding {
 		var update embeddingSettingUpdateInput
 		if !decodeProviderAdminJSON(response, request, &update) {
 			return
 		}
+		apiKey := ""
+		if update.APIKey != nil {
+			if strings.TrimSpace(*update.APIKey) == "" {
+				writeError(response, http.StatusUnprocessableEntity, "model_setting_invalid", "apiKey cannot be empty when provided.", false)
+				return
+			}
+			apiKey = *update.APIKey
+		}
 		input = providerconfig.SettingInput{
-			APIKey: update.APIKey, BaseURL: update.BaseURL, Kind: kind,
-			Model: update.Model, Provider: update.Provider, Transport: "embeddings",
+			APIKey: apiKey, BaseURL: update.BaseURL, Kind: kind,
+			Model: providerconfig.CanonicalEmbeddingModel, Provider: providerconfig.CanonicalEmbeddingProvider,
+			Transport: providerconfig.CanonicalEmbeddingTransport,
 		}
 	} else {
 		var update llmSettingUpdateInput
@@ -209,7 +213,6 @@ func putModelSetting(
 	status, err := store.Put(
 		request.Context(),
 		providerConfigActor(request),
-		expectedETag,
 		candidate,
 		validation,
 	)
@@ -217,37 +220,7 @@ func putModelSetting(
 		writeProviderSettingError(response, err)
 		return
 	}
-	response.Header().Set("ETag", quotedETag(status.ETag))
 	writeJSON(response, http.StatusOK, status)
-}
-
-func validateCurrentModelSetting(
-	response http.ResponseWriter,
-	request *http.Request,
-	store *providerconfig.Store,
-	kind providerconfig.Kind,
-) {
-	status, err := store.Status(request.Context())
-	if err != nil {
-		writeProviderSettingError(response, err)
-		return
-	}
-	view := status.Settings[kind]
-	if view == nil {
-		writeProviderSettingError(response, fmt.Errorf("%w: %s", providerconfig.ErrNotFound, kind))
-		return
-	}
-	setting, err := store.Resolve(request.Context(), kind)
-	if err != nil {
-		writeProviderSettingError(response, err)
-		return
-	}
-	result := providerconfig.Validate(request.Context(), setting)
-	if err := store.RecordValidation(request.Context(), providerConfigActor(request), kind, result, view.UpdatedAt); err != nil {
-		writeProviderSettingError(response, err)
-		return
-	}
-	writeJSON(response, http.StatusOK, map[string]any{"kind": kind, "validation": result})
 }
 
 func modelSettingKindFromPath(path string) (providerconfig.Kind, bool) {
@@ -258,12 +231,15 @@ func modelSettingKindFromPath(path string) (providerconfig.Kind, bool) {
 	if value == string(providerconfig.KindEmbedding) {
 		return providerconfig.KindEmbedding, true
 	}
+	if value == string(providerconfig.KindNoticeClassifier) {
+		return providerconfig.KindNoticeClassifier, true
+	}
 	return "", false
 }
 
 func validateModelSettingInput(input providerconfig.SettingInput) error {
-	if input.Kind != providerconfig.KindLLM && input.Kind != providerconfig.KindEmbedding {
-		return errors.New("kind must be llm or embedding")
+	if input.Kind != providerconfig.KindLLM && input.Kind != providerconfig.KindEmbedding && input.Kind != providerconfig.KindNoticeClassifier {
+		return errors.New("kind must be llm, embedding, or notice_classifier")
 	}
 	if strings.TrimSpace(input.BaseURL) == "" || strings.TrimSpace(input.Model) == "" {
 		return errors.New("baseUrl and model are required")
@@ -275,19 +251,20 @@ func validateModelSettingInput(input providerconfig.SettingInput) error {
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
 		return errors.New("baseUrl must be an absolute HTTP(S) URL")
 	}
-	if input.Kind == providerconfig.KindLLM && input.Transport != "responses" && input.Transport != "chat_completions" {
-		return errors.New("llm transport must be responses or chat_completions")
+	if input.Kind != providerconfig.KindEmbedding && input.Transport != "responses" && input.Transport != "chat_completions" {
+		return errors.New("text model transport must be responses or chat_completions")
 	}
-	if input.Kind == providerconfig.KindEmbedding && input.Transport != "embeddings" {
-		return errors.New("embedding transport must be embeddings")
+	if input.Kind == providerconfig.KindEmbedding && input.Transport != providerconfig.CanonicalEmbeddingTransport {
+		return fmt.Errorf("embedding transport must be %s", providerconfig.CanonicalEmbeddingTransport)
+	}
+	if input.Kind == providerconfig.KindEmbedding && (input.Provider != providerconfig.CanonicalEmbeddingProvider || input.Model != providerconfig.CanonicalEmbeddingModel) {
+		return errors.New("embedding provider and model are fixed by the Campus Docs index contract")
 	}
 	return nil
 }
 
 func writeProviderSettingError(response http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, providerconfig.ErrConflict):
-		writeError(response, http.StatusConflict, "model_settings_conflict", "Model settings changed. Refresh and try again.", false)
 	case errors.Is(err, providerconfig.ErrInitialAPIKeyRequired):
 		writeError(response, http.StatusUnprocessableEntity, "api_key_required", "API key is required for the initial model setting.", false)
 	case errors.Is(err, providerconfig.ErrNotFound):
@@ -335,8 +312,4 @@ func decodeProviderAdminJSON(response http.ResponseWriter, request *http.Request
 		return false
 	}
 	return true
-}
-
-func quotedETag(value string) string {
-	return `"` + strings.Trim(value, `"`) + `"`
 }

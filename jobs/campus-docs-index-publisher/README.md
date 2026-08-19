@@ -7,8 +7,7 @@
 pnpm --dir jobs/campus-docs-index-publisher build-chunks
 EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
   --chunk-set sha256:<id> \
-  --base-url https://provider.example/v1 \
-  --model Qwen3-Embedding-4B
+  --base-url https://provider.example/v1
 ```
 
 当前不自动串联三个阶段。每个命令只执行一个阶段，并把下一阶段需要的内容寻址 ID 输出为 JSON。本地
@@ -18,7 +17,8 @@ EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher build-embeddin
 本地对象存储重新读取当前 source projection；它不调用 embedding provider，也不写入对象存储。Chunk
 命令从调用进程读取 `OBJECT_STORE_ENDPOINT`、
 `OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_READ_SECRET_KEY`，不读取其他应用的
-环境文件；Embedding 命令只读取 `EMBEDDING_API_KEY`、`--base-url` 和 `--model`，不访问本地 `8002`、
+环境文件；Embedding 命令只读取 `EMBEDDING_API_KEY` 和 `--base-url`，正式构建固定使用
+`Qwen3-Embedding-4B`，不访问本地 `8002`、
 execution-control、Ops Web 或 PostgreSQL。本地 Publish 使用现有 `PGHOST`、`PGPORT`、`PGDATABASE`、
 `PGUSER`、`PGPASSWORD`、`PGSSLMODE`、`QDRANT_URL` 和 `QDRANT_API_KEY` 连接合同。
 
@@ -86,7 +86,7 @@ chunk 都携带同一上下文，并按剩余字符预算重新拆分表格正�
 ## Embedding 阶段
 
 `build-embeddings` 必须显式接收 `--chunk-set`。本地命令从 `var/` 读取 Chunk Set，并通过
-`--base-url`、`--model` 和 `EMBEDDING_API_KEY` 直接调用 provider；线上 Embedding Job 从
+`--base-url` 和 `EMBEDDING_API_KEY` 直接调用 provider，模型固定为 `Qwen3-Embedding-4B`；线上 Embedding Job 从
 `execution-control-provider-snapshot:8002` 读取一次 `embedding_provider_snapshot.v1`，随后直接调用同一
 连接。每个 HTTP 请求固定包含 8 条文本，同时最多执行 8 个请求。
 
@@ -117,6 +117,7 @@ EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher eval-embedding
 的 `max_chunk_count`（缺省为 3）报告 `root_unit_recall@K`、`evidence_coverage@K` 和
 `first_relevant_mrr`。报告写入 `/tmp/campus-docs-embedding-eval/<embedding-set-id>/`，首次只报告结果，
 不设置门槛。该命令不启动 Qdrant，也不模拟 sparse 或 RRF。
+这里的 `--model` 只用于只读评测查询向量，不改变正式 Embedding 构建固定的模型或向量空间。
 
 ## 发布阶段
 

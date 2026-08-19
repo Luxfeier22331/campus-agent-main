@@ -14,8 +14,8 @@ namespace、不可变镜像、环境配置、凭据对象和实际资源额度�
 ## 运行时基础
 
 `infra/k8s/execution-runtime/base` 与 `infra/k8s/ingestion-runtime/base` 分别提供 execution 和
-ingestion 的完整聚合视图。常驻 workload 位于各自 `runtime/`。内部门户凭据检查属于 Ops Web，
-由 `infra/k8s/ops-web/base` 中使用同一镜像的 CronJob 执行，不是 ingestion 子部署单元。
+ingestion 的完整聚合视图。常驻 workload 位于各自 `runtime/`。内部门户凭据检查属于
+ingestion-control，由 `infra/k8s/ingestion-runtime/base` 中使用同一镜像的 CronJob 执行。
 
 精确资源、标签、探针和配置引用以 Kustomize 清单为准，不在架构文档维护副本。源码 base 不选择
 具体环境或可变镜像标签。子单元可以引用同 namespace 中由运行时或 foundation 唯一拥有的
@@ -26,11 +26,11 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `execution-control`：一个标准 Deployment，同时提供执行 API、Provider Config 管理 API 和三类
   Temporal poller；
 - `agent-runtime`：一个独立 Deployment；
-- `ingestion-control` API、`ingestion-control-worker` 与 `source-collector-worker`：三个标准
-  Deployment；
-- `ops-web-internal-portal-check`：顺序检查 Ops Web 所有内部门户凭据的 CronJob。
+- `ingestion-control`：一个凭据 API Deployment；
+- `ingestion-control-internal-portal-check`：顺序检查凭据池的 CronJob；
+- Source Collector 当前只有镜像和 CLI/Job 入口，没有常驻 Deployment 或已调度采集 Job。
 
-Temporal Server 是运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
+Temporal Server 只属于 execution-control 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
 WorkerDeployment、WorkerResourceTemplate 或 KEDA 资源。
 
 Agent Runtime 的可选 OTLP endpoint 由环境仓选择。源码仓不把 OpenTelemetry Agent/Gateway、节点
@@ -51,7 +51,7 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 - Argo CD 选择源码声明的基础资源、不可变镜像和环境配置；
 - Temporal 保存 workflow/activity history、任务投递、retry、timeout 和 cancellation；
 - Kubernetes Deployment 管理进程副本与滚动更新；
-- PostgreSQL 只保存产品或采集投影。
+- PostgreSQL 保存产品数据、执行投影和 ingestion-control 凭据池。
 
 workflow 代码不得部署、重启或修改自己的 Kubernetes 资源。
 
