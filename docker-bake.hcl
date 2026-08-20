@@ -17,7 +17,7 @@ group "default" {
     "ingestion-control",
     "notice-classifier",
     "ops-web",
-    "source-collector",
+    "internal-portal-collection",
   ]
 }
 
@@ -70,8 +70,8 @@ target "ops-web" {
   dockerfile = "apps/ops-web/Dockerfile"
 }
 
-target "source-collector" {
+target "internal-portal-collection" {
   inherits   = ["_common"]
-  dockerfile = "apps/source-collector/Dockerfile"
+  dockerfile = "jobs/internal-portal-collection/Dockerfile"
   target     = "runtime"
 }

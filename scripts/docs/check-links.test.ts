@@ -11,15 +11,17 @@ test("ignored local environment files are not valid documentation targets", () =
 		mkdirSync(join(root, "docs"), { recursive: true });
 		writeFileSync(
 			join(root, ".gitignore"),
-			"apps/source-collector/adapters/internal-portal/.env.local\n",
+			"jobs/internal-portal-collection/adapters/internal-portal/.env.local\n",
 		);
 		writeFileSync(
 			join(root, "docs", "portal.md"),
-			"`apps/source-collector/adapters/internal-portal/.env.local`\n",
+			"`jobs/internal-portal-collection/adapters/internal-portal/.env.local`\n",
 		);
-		mkdirSync(join(root, "apps/source-collector/adapters/internal-portal"), { recursive: true });
+		mkdirSync(join(root, "jobs/internal-portal-collection/adapters/internal-portal"), {
+			recursive: true,
+		});
 		writeFileSync(
-			join(root, "apps/source-collector/adapters/internal-portal", ".env.local"),
+			join(root, "jobs/internal-portal-collection/adapters/internal-portal", ".env.local"),
 			"ignored\n",
 		);
 		execFileSync("git", ["init", "-q"], { cwd: root });

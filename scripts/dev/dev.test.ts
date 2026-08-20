@@ -125,14 +125,14 @@ describe("managed worktree environment", () => {
 		const profile = createProfile(repoRoot);
 		renderLocalEnvironmentFiles({ profile, repoRoot });
 		const secretPath = resolve(repoRoot, "apps/app-api/.dev.vars.local");
-		const sourceCollectorPath = resolve(
+		const internalPortalCollectionPath = resolve(
 			repoRoot,
-			"apps/source-collector/adapters/internal-portal/.env.local",
+			"jobs/internal-portal-collection/adapters/internal-portal/.env.local",
 		);
 		const first = parseEnv(readFileSync(secretPath, "utf8"));
 		writeFileSync(
-			sourceCollectorPath,
-			`${readFileSync(sourceCollectorPath, "utf8").trimEnd()}\nINTERNAL_PORTAL_SSO_TGC="TGT-local"\n`,
+			internalPortalCollectionPath,
+			`${readFileSync(internalPortalCollectionPath, "utf8").trimEnd()}\nINTERNAL_PORTAL_SSO_TGC="TGT-local"\n`,
 		);
 		renderLocalEnvironmentFiles({ profile, repoRoot });
 		const second = parseEnv(readFileSync(secretPath, "utf8"));
@@ -163,9 +163,9 @@ describe("managed worktree environment", () => {
 		const campusWebEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/campus-web/.dev.vars.local"), "utf8"),
 		);
-		const sourceCollectorEnvironment = parseEnv(
+		const internalPortalCollectionEnvironment = parseEnv(
 			readFileSync(
-				resolve(repoRoot, "apps/source-collector/adapters/internal-portal/.env.local"),
+				resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal/.env.local"),
 				"utf8",
 			),
 		);
@@ -188,10 +188,16 @@ describe("managed worktree environment", () => {
 			"ingestion_control",
 		);
 		assert.equal(ingestionControlEnvironment.OBJECT_STORE_BUCKET_SOURCE, undefined);
-		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
-		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
-		assert.equal(sourceCollectorEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
-		assert.equal(sourceCollectorEnvironment.INTERNAL_PORTAL_SSO_TGC, "TGT-local");
+		assert.equal(
+			internalPortalCollectionEnvironment.OBJECT_STORE_BUCKET_SOURCE,
+			"campus-agent-source",
+		);
+		assert.equal(
+			internalPortalCollectionEnvironment.OBJECT_STORE_ENDPOINT,
+			"http://127.0.0.1:9000",
+		);
+		assert.equal(internalPortalCollectionEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
+		assert.equal(internalPortalCollectionEnvironment.INTERNAL_PORTAL_SSO_TGC, "TGT-local");
 		assert.equal(
 			noticeClassifierEnvironment.OBJECT_STORE_BUCKET_DERIVED,
 			"campus-agent-derived-wt-1-deadbeef",
@@ -490,11 +496,11 @@ describe("local development lifecycle guards", () => {
 		assert.deepEqual(commands[6]?.args, ["--dir", "apps/ingestion-control", "migrate"]);
 	});
 
-	it("keeps the source collector local loader inside its adapter", () => {
+	it("keeps the internal portal collection local loader inside its adapter", () => {
 		const source = readFileSync(
 			resolve(
 				import.meta.dirname,
-				"../../apps/source-collector/adapters/internal-portal/src/config.ts",
+				"../../jobs/internal-portal-collection/adapters/internal-portal/src/config.ts",
 			),
 			"utf8",
 		);
@@ -510,7 +516,7 @@ function createRepositoryShape(): string {
 	for (const app of ["app-api", "campus-web", "ingestion-control", "ops-web"]) {
 		mkdirSync(resolve(repoRoot, "apps", app), { recursive: true });
 	}
-	mkdirSync(resolve(repoRoot, "apps/source-collector/adapters/internal-portal"), {
+	mkdirSync(resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal"), {
 		recursive: true,
 	});
 	for (const job of ["notice-classifier", "notice-publisher"]) {

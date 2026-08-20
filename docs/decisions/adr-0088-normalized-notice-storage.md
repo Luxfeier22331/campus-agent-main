@@ -15,7 +15,7 @@ partially_supersedes: ADR-0087
 
 ## 决策
 
-- `source-collector` 继续拥有原始 JSON、门户 HTML 和原始图片、附件字节；
+- `internal-portal-collection` 继续拥有原始 JSON、门户 HTML 和原始图片、附件字节；
 - 独立 `notice-publisher` 在分类和资源完整性校验后清洗正文并显式物化；人工抽查不属于执行前置条件；
 - `packages/domains/notices` 统一拥有领域枚举、资源类型与清洗规则；
 - `notices.*` PostgreSQL schema 保存规范化字段与资源 metadata，derived bucket 保存内容寻址资源；

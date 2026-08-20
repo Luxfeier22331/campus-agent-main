@@ -29,7 +29,7 @@ status: active
 - ingestion-control：`.env.local`；
 - notice-classifier：`.env.local`；
 - Ops Web：`.env.local`；
-- Source Collector internal-portal adapter：`.env.local`；
+- internal-portal-collection：adapter 目录下的 `.env.local`；
 - notice-publisher：`.env.local`。
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。进程环境优先于应用文件，因此外部供应商凭据应由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
@@ -37,10 +37,11 @@ status: active
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site key 与 secret key。
 
-Source Collector 的托管 `.env.local` 保存当前 worktree 的本地对象存储配置，以及 `auth:pull` 最近一次
-成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令保留其他托管字段、原子替换该值并设置 `0600`；失败
-不改文件，后续 `dev:init` 保留已有 TGC。adapter 目录下未跟踪的 `.env` 只维护可选门户代理或不使用
-托管本地环境的对象存储配置，不作为长期 TGC 来源。进程环境仍具有最高优先级。
+internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的本地对象存储配置，以及
+`internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令保留其他托管
+字段、原子替换该值并设置 `0600`；失败不改文件，后续 `dev:init` 保留已有 TGC。adapter 目录下未跟踪
+的 `.env` 只维护可选门户代理或不使用托管本地环境的对象存储配置，不作为长期 TGC 来源。进程环境仍
+具有最高优先级。
 
 notice-classifier 的托管 `.env.local` 保存本 worktree 的 derived bucket、本地 source bucket 和 RustFS
 连接。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时通过
@@ -70,10 +71,9 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 长期运行的 Kubernetes workload 从共享 ConfigMap 逐 key 投影实际消费字段。只服务单个一次性 Job
 且字段全部由该 Job 消费的专用 ConfigMap 可以整体注入。
 
-Source Collector 源码中的 `notice:sync:job` 和 `file:sync:job` 读取
-`INGESTION_CONTROL_INTERNAL_URL`、`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置，但当前没有对应
-Kubernetes 采集 workload。后续只有在 Job manifest 成为实际消费者时，环境仓才投递这些既有值；
-不得新增 TGC Secret。
+internal-portal-collection 的单一 Job 模板读取 `INGESTION_CONTROL_INTERNAL_URL`、
+`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置，并通过参数执行通知增量、通知回填或文件发布采集。
+模板默认暂停，只用于显式创建一次性 Job；不得新增 TGC Secret。
 
 ### 部署配置生命周期
 

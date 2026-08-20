@@ -15,7 +15,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	noticeClassifier: "jobs/notice-classifier/.env.local",
 	noticePublisher: "jobs/notice-publisher/.env.local",
 	opsWeb: "apps/ops-web/.env.local",
-	sourceCollector: "apps/source-collector/adapters/internal-portal/.env.local",
+	internalPortalCollection: "jobs/internal-portal-collection/adapters/internal-portal/.env.local",
 } as const;
 
 type ManagedLocalEnvironment = keyof typeof MANAGED_LOCAL_ENVIRONMENT_PATHS;
@@ -66,7 +66,9 @@ export function renderLocalEnvironmentFiles(input: {
 	const database = localDatabaseUrls(profile);
 	const paths = managedLocalEnvironmentPaths(repoRoot);
 	const existingSecrets = readManagedEnv(paths.appApiVars);
-	const existingSourceCollectorEnvironment = readManagedEnv(paths.sourceCollector);
+	const existingInternalPortalCollectionEnvironment = readManagedEnv(
+		paths.internalPortalCollection,
+	);
 	const opsWebInternalToken = existingSecrets.OPS_WEB_INTERNAL_TOKEN || randomSecret();
 
 	writeManagedEnv(paths.appApi, {
@@ -128,9 +130,12 @@ export function renderLocalEnvironmentFiles(input: {
 		OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
 		PORT: String(profile.ports.opsWebApi),
 	});
-	writeManagedEnv(paths.sourceCollector, {
-		...(existingSourceCollectorEnvironment.INTERNAL_PORTAL_SSO_TGC
-			? { INTERNAL_PORTAL_SSO_TGC: existingSourceCollectorEnvironment.INTERNAL_PORTAL_SSO_TGC }
+	writeManagedEnv(paths.internalPortalCollection, {
+		...(existingInternalPortalCollectionEnvironment.INTERNAL_PORTAL_SSO_TGC
+			? {
+					INTERNAL_PORTAL_SSO_TGC:
+						existingInternalPortalCollectionEnvironment.INTERNAL_PORTAL_SSO_TGC,
+				}
 			: {}),
 		INGESTION_CONTROL_INTERNAL_URL: `http://127.0.0.1:${profile.ports.ingestionControl}`,
 		OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",

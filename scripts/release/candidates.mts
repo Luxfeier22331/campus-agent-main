@@ -17,6 +17,7 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["ingestion-control", ["ingestion-control"]],
 	["notice-classifier", ["notice-classifier"]],
 	["ops-web", ["ops-web"]],
+	["internal-portal-collection", ["internal-portal-collection"]],
 ]);
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
@@ -25,6 +26,7 @@ const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
 	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
+	["jobs/internal-portal-collection/Dockerfile", ["internal-portal-collection"]],
 ]);
 const CAMPUS_WEB_WORKER: WorkerCandidate = "campus-web-staging";
 const CAMPUS_MAP_ASSET_PATH = "apps/campus-web/assets/campus-map";
@@ -140,6 +142,9 @@ export async function planCandidates(
 		changesPath(files, "apps/app-api/src/script-support/shared-db")
 	) {
 		images.add("app-api-schema");
+	}
+	if (sharedNodeRelease) {
+		images.add("internal-portal-collection");
 	}
 	if (
 		sharedNodeRelease ||

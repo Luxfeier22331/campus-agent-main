@@ -60,7 +60,7 @@ Embedding 保存和验证不依赖 Campus Docs 当前索引；页面不展示或
 
 协作者可以保存多条具名门户 TGC，查看最近检查结果，立即检查、重命名、轮换、删除，并在开发需要时
 显式显示当前值。系统不设置主凭据；运行采集时由 ingestion-control 依次验证候选并返回第一条可用
-记录，source-collector 不按名称选择或直接读取凭据数据库。
+记录，internal-portal-collection 不按名称选择或直接读取凭据数据库。
 
 新增和轮换必须先完成真实门户验证；失败不能创建记录或覆盖旧值。列表不显示明文，显示操作只能在
 当前对话框中短暂呈现，关闭后从页面状态清除，不进入 URL、浏览器存储、查询缓存或日志。
@@ -94,7 +94,7 @@ Embedding 保存和验证不依赖 Campus Docs 当前索引；页面不展示或
 协作者可以保存多条具名 `SSO_TGC`，查看最近检查结果，立即检查、重命名、轮换、删除，并在开发
 需要时显示和复制某条记录的当前明文。Ops Web 通过 ingestion-control 完成这些操作，不持有 TGC
 数据库表或门户验证实现。系统不设置主凭据，不按环境、用途或人员再拆状态，也不让
-source-collector 按名称选择记录。采集消费者通过内部接口按检查状态逐条验证候选，页面不保存当前
+internal-portal-collection 按名称选择记录。采集消费者通过内部接口按检查状态逐条验证候选，页面不保存当前
 选中项。
 
 新增和轮换必须先建立真实 CAS 与门户会话。失败不得创建记录或覆盖旧值；CAS 刷新 TGC 时保存刷新
@@ -109,7 +109,7 @@ source-collector 按名称选择记录。采集消费者通过内部接口按检
 页面同时展示开发者自动化访问区域：操作者可以生成多条具名 token，复制机器端点和 token，重复查看
 明文，或撤销 token。机器程序使用 `Authorization: Bearer` 调用独立端点创建、更新或删除凭据；一个有效
 token 默认管理全部具名凭据。该区域不创建 Ops Web 用户、角色或 Cloudflare Access Service Auth，
-也不让 source-collector 读取数据库；采集解析复用既有 `OPS_WEB_INTERNAL_TOKEN`，不使用这些
+也不让 internal-portal-collection 读取数据库；采集解析复用既有 `OPS_WEB_INTERNAL_TOKEN`，不使用这些
 automation token。
 
 ### 账号管理交互细则

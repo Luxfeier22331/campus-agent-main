@@ -40,8 +40,9 @@ delivery 也不拥有 Docker 本地 secret 或应用级运维配置。
 
 - K8s runtime 不再维护 `secret.example.yaml` inventory；
 - 由操作者录入的内部门户 `SSO_TGC` 是 ingestion-control 持久化的应用数据，不是 workload 启动
-  Secret；ingestion-control 在所属 PostgreSQL 管理多条 TGC，且不访问 Kubernetes API。Source Collector 只在本地
-  显式命令中消费开发者直接提供的 TGC，不读取部署 Secret；
+  Secret；ingestion-control 在所属 PostgreSQL 管理多条 TGC，且不访问 Kubernetes API。
+  internal-portal-collection 本地显式命令消费开发者拉取到本 worktree 的 TGC，线上 Job 通过内部 API
+  解析可用值，两者都不读取 TGC Secret；
 - 长期 API key、DSN、数据库连接和信任锚仍使用环境的常规 Secret 投递方式；
 - 小型 self-hosted deployment 可以手工创建 Secret，但 operator 必须负责轮换；
 - 环境仓库可以部署 pinned secret-delivery controller；

@@ -88,7 +88,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 						{ command: "vite build", package: "app-api", task: "build:worker" },
 						{ command: "vite build", package: "campus-web", task: "build:worker" },
 						{ command: "tsc", package: "ingestion-control", task: "build" },
-						{ command: "tsc", package: "source-collector", task: "build" },
+						{ command: "tsc", package: "internal-portal-collection", task: "build" },
 					],
 				}),
 			});
@@ -103,10 +103,20 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,
-		images: ["agent-runtime", "ingestion-control"],
+		images: ["agent-runtime", "ingestion-control", "internal-portal-collection"],
 		kubernetes: true,
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
+});
+
+test("publishes collection image when a bundled workspace dependency changes", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(changed("packages/internal-portal-client/src/portal.ts"), [
+		{ command: "tsc", package: "internal-portal-collection", task: "build" },
+	]);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, ["internal-portal-collection"]);
+	assert.deepEqual(plan.workers, []);
 });
 
 test("publishes the first product availability candidate before GitOps selects it", async (t) => {
@@ -165,6 +175,14 @@ test("publishes the ingestion-control image for a Dockerfile-only change", async
 	const runner = syntheticScopeRunner(changed("apps/ingestion-control/Dockerfile"), []);
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, ["ingestion-control"]);
+	assert.deepEqual(plan.workers, []);
+});
+
+test("publishes the internal-portal-collection image for a Dockerfile-only change", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(changed("jobs/internal-portal-collection/Dockerfile"), []);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, ["internal-portal-collection"]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -309,7 +327,11 @@ test("a Node lockfile change selects Node one-shot images but not the independen
 		return result();
 	};
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["app-api-schema", "campus-docs-index-publisher"]);
+	assert.deepEqual(plan.images, [
+		"app-api-schema",
+		"campus-docs-index-publisher",
+		"internal-portal-collection",
+	]);
 });
 
 test("rejects a release base that is not an ancestor of head", async (t) => {

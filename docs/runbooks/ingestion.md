@@ -16,9 +16,9 @@ callback、独立 run ledger 或自动 query target 发布；通知分类 Job �
 - ingestion-control bootstrap 和 migration 使用数据库 owner 连接；旧 staging 升级前，数据平面已经协调
   `campus_agent` 对 `ingestion_control` 的成员关系；
 - source 与 derived bucket 使用各自对象存储凭据；
-- ingestion-control 与 source-collector 来自同一 source revision；
-- 使用本地命令时，已通过 `auth:pull` 从 ingestion-control 解析当前有效 TGC；使用 Job 入口时，已
-  提供 ingestion-control 内部地址和既有内部 token。
+- ingestion-control 与 internal-portal-collection 来自同一 source revision；
+- 使用本地命令时，已通过 `internal-portal:auth:pull` 从 ingestion-control 解析当前有效 TGC；使用 Job
+  入口时，已提供 ingestion-control 内部地址和既有内部 token。
 
 ## 数据库与本地进程
 
@@ -39,11 +39,12 @@ migration 7 删除已退役的 ingestion Temporal 任务表，并将历史 schem
 本地按门户库存分页采集文件发布：
 
 ```bash
-pnpm --filter source-collector file:sync
+pnpm internal-portal:collect -- --mode file-sync
 ```
 
-命令固定并发 2。已有合法 `source.json` 时复用；普通单项失败继续并汇总，认证失败立即终止。结果只在
-source bucket 保存 `file` 与 `source.json`，不解析 PDF。Job 等价入口为 `file:sync:job`，当前未部署。
+命令按顺序逐条处理。已有合法 `source.json` 时复用；普通单项失败继续并汇总，认证失败立即终止。结果只在
+source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同一采集实现和共用 Job 模板的
+`file-sync` 模式。
 
 ## 本地通知流程
 
@@ -53,13 +54,13 @@ source bucket 保存 `file` 与 `source.json`，不解析 PDF。Job 等价入口
 
 ```bash
 pnpm dev:init
-pnpm --filter source-collector auth:pull
-pnpm --filter source-collector auth:check
+pnpm internal-portal:auth:pull
+pnpm internal-portal:auth:check
 ```
 
 `dev:init` 启动本地 RustFS、确保共享 source bucket 存在，并生成对象存储和本地 PostgreSQL 配置。
-`auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用 ingestion-control 凭据解析接口，
-并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
+`internal-portal:auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用
+ingestion-control 凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
 本地通知命令随后直接使用拉取到的 TGC，不需要后台编排器。
 
 ### 小范围采集
@@ -68,39 +69,19 @@ pnpm --filter source-collector auth:check
 
 ```bash
 NOTICE_START_DATE=YYYY-MM-DD
-pnpm --filter source-collector notice:sync
-pnpm --filter source-collector notice:status
-pnpm --filter source-collector notice:backfill --start-date "$NOTICE_START_DATE"
-pnpm --filter source-collector notice:status
+pnpm internal-portal:collect -- --mode notice-sync
+pnpm internal-portal:collect -- --mode notice-backfill \
+  --start-date "$NOTICE_START_DATE"
 ```
 
 运行前必须把 `YYYY-MM-DD` 替换为本次任务明确选择的日期；仓库不提供跨环境固定默认值。
 首次 sync 只建立全局列表 head；后续 sync 采集新通知，历史内容必须显式 backfill。sync 与 backfill
-不得并发执行。后续 sync/backfill 会自动下载正文引用的图片和附件；可以使用 `--concurrency 1..16`
-控制资源下载并发，默认值为 4。成功后检查 source bucket 包含 `internal_portal/meta.json`、通知对象、
+不得并发执行。后续 sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查 source bucket 包含
+`internal_portal/meta.json`、通知对象、
 资源对象和 `_state.json`，并确认状态中的历史边界已经覆盖 `NOTICE_START_DATE`。来源对象必须通过版本化
-schema，内部通知与外链字段必须成对合法；任一 source、资源或 metadata 失败时状态不能推进。通知数据
-结构见 `../data/notices.md`。
-
-### 资源审计和修复
-
-正常采集已经包含资源下载。`notice:resources` 用于试点审计、历史库存修复和指定通知补齐：
-
-```bash
-NOTICE_ID=123456
-pnpm --filter source-collector notice:resources --dry-run --notice-id "$NOTICE_ID"
-pnpm --filter source-collector notice:resources --notice-id "$NOTICE_ID"
-pnpm --filter source-collector notice:resources --dry-run --notice-id "$NOTICE_ID"
-```
-
-附件请求不使用 `notice_annex_path` 作为 URL，而是按
-`/comsys-portal-notice-web/download?id=<annex-id>&notice_id=<notice-id>` 构造；单个图片或附件上限为
-100 MiB。默认并发为 4，`--concurrency` 只接受 1 到 16。资源命令成功后再次 dry-run，目标范围必须
-报告 `missing=0`。可以省略 `--notice-id` 审计或补齐全部已采集通知。外链通知不会触发外部正文或图片
-抓取。
-
-在启用自动资源采集前，先对已有库存执行一次全量 dry-run、apply、dry-run，确保历史 source 不再有缺失
-资源。资源下载失败时重新运行相同命令即可，已成功写入的对象会被复用。
+schema，内部通知与外链字段必须成对合法；任一 source、资源或 metadata 失败时状态不能推进。附件
+请求按门户附件 ID 和通知 ID 构造，单个图片或附件上限为 100 MiB；外链通知不会触发外部正文或图片
+抓取。仓库不提供独立的资源维护或状态查看命令。通知数据结构见 `../data/notices.md`。
 
 ### 本地分类交接
 
@@ -242,12 +223,22 @@ INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
 
 ## Kubernetes
 
-`infra/k8s/ingestion-runtime/base/runtime` 包含 ingestion-control API、schema Job、凭据检查 CronJob 和
-默认暂停的通知分类 CronJob 模板，不包含自动采集调度。Source Collector 镜像保留
-`notice:sync:job` 与 `file:sync:job`，消费 `INGESTION_CONTROL_INTERNAL_URL`、既有
-`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；采集 Job 仍需另行启用。通知分类 Job 复用已有
-source/derived 对象存储 Secret，不新增数据库或模型 Secret。启用前须在环境中确认到
-execution-control 快照端口的连通性；源码和 Kustomize 渲染不代表该运行时事实。
+`infra/k8s/ingestion-runtime/base/runtime` 包含 ingestion-control API、schema Job、凭据检查 CronJob、
+默认暂停的内部门户采集模板和通知分类 CronJob 模板，不包含自动采集调度。
+internal-portal-collection 镜像的 Job 入口消费 `INGESTION_CONTROL_INTERNAL_URL`、既有
+`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；三种采集模式都只能由维护者显式创建一次性 Job：
+
+```bash
+pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
+  --mode notice-sync
+pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
+  --mode notice-backfill --start-date YYYY-MM-DD
+pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
+  --mode file-sync
+```
+
+通知分类 Job 复用已有 source/derived 对象存储 Secret，不新增数据库或模型 Secret。运行一次性采集
+Job 前须在目标环境确认到 ingestion-control、source bucket 和门户 HTTPS 的连通性。
 
 ## 排查
 
@@ -261,7 +252,7 @@ execution-control 快照端口的连通性；源码和 Kustomize 渲染不代表
 
 ```bash
 pnpm --dir packages/contracts check
-pnpm exec turbo run typecheck test --filter=ingestion-contracts --filter=ingest-core --filter=ingestion-control --filter=source-collector --concurrency=1 --summarize
+pnpm exec turbo run typecheck test --filter=ingestion-contracts --filter=ingest-core --filter=ingestion-control --filter=internal-portal-collection --concurrency=1 --summarize
 pnpm --dir apps/ingestion-control test:database-integration
 pnpm notice:classify:typecheck
 pnpm exec tsx --test scripts/notices/*.test.ts

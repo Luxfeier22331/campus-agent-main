@@ -8,23 +8,24 @@ status: active
 
 ## 边界
 
-Source Collector 分页扫描门户文件发布库存，按 ID 保存原始文件和来源 metadata。当前不生成 ingestion
-task 或 workflow，不执行 PDF 解析、OCR、正文抽取、清洗、分类、索引或在线发布。
+internal-portal-collection 分页扫描门户文件发布库存，按 ID 保存原始文件和来源 metadata。当前不生成
+ingestion task 或 workflow，不执行 PDF 解析、OCR、正文抽取、清洗、分类、索引或在线发布。
 
 ## 入口
 
 ```bash
-pnpm --filter source-collector file:sync
-pnpm --filter source-collector file:sync:job
+pnpm internal-portal:collect -- --mode file-sync
+pnpm internal-portal:collect:job -- --namespace <namespace> --mode file-sync
 ```
 
-`file:sync` 使用本地直接 TGC。`file:sync:job` 先调用 ingestion-control 解析可用 TGC，再执行相同
-实现。当前没有已部署的 Kubernetes 文件采集 Job 或 schedule。
+本地入口使用受管理环境中的直接 TGC。Job 入口先调用 ingestion-control 解析可用 TGC，再执行相同
+实现。Kubernetes base 中只有一个默认暂停的采集 CronJob 模板；维护者显式创建一次性 Job，不启用
+schedule。
 
 ## 分页与失败
 
-列表接口每页请求 50 条，ID 必须是唯一正整数，累计数量必须与门户返回的 total 一致。采集固定并发
-为 2：
+列表接口每页请求 50 条，ID 必须是唯一正整数，累计数量必须与门户返回的 total 一致。采集按 ID
+顺序逐条处理：
 
 - 已有合法 `source.json`：计为 `reused`，不访问门户；
 - 首次成功写入：计为 `written`；
@@ -46,7 +47,7 @@ internal_portal/<site-id>/file-releases/<file-release-id>/source.json
 
 ## 所有者
 
-- 门户适配、分页和对象写入：`apps/source-collector`；
+- 门户适配、分页和对象写入：`jobs/internal-portal-collection`；
 - 凭据解析：`apps/ingestion-control`；
 - 来源对象合同：`packages/ingestion-contracts`。
 

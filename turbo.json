@@ -84,7 +84,7 @@
 			],
 			"outputLogs": "new-only"
 		},
-		"source-collector#test": {
+		"internal-portal-collection#test": {
 			"dependsOn": ["^test"],
 			"inputs": [
 				"$TURBO_DEFAULT$",

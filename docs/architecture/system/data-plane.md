@@ -16,7 +16,7 @@ status: active
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
 | `apps/ingestion-control` | TGC 持久化、真实验证、定时检查、候选解析和内部凭据 API | 采集编排、Temporal、对象存储、通知发布 |
-| `apps/source-collector` | 通知、通知资源和文件发布原始对象采集 | TGC 持久化、清洗、分类、发布、PDF 解析 |
+| `jobs/internal-portal-collection` | 以本地 CLI 或一次性 Job 采集通知、通知资源和文件发布原始对象 | TGC 持久化、常驻服务、清洗、分类、发布、PDF 解析 |
 | `jobs/notice-classifier` | 读取通知来源标题并写入单通知分类制品 | 正文清洗、门户栏目判断、数据库写入、自动调度 |
 | `jobs/notice-publisher` | 校验来源、清洗正文、显式写入规范化通知和 derived 资源 | 定时采集、分类、在线读取 |
 | `packages/internal-portal-client` | CAS 跳转、门户 Cookie 会话、TGC 校验和错误分类 | 配置、凭据存储和采集业务 |
@@ -27,7 +27,7 @@ status: active
 ## 通知采集
 
 ```text
-notice:sync / notice:backfill
+notice-sync / notice-backfill
 -> 门户列表与详情
 -> 原始通知、图片、附件和边界状态写入 source bucket
 -> 独立模型分类
@@ -35,27 +35,29 @@ notice:sync / notice:backfill
 -> notice-publisher 显式清洗并写入 notices.*
 ```
 
-本地命令直接读取受管理 `.env.local` 的 TGC。`notice:sync:job` 先向 ingestion-control 解析一条当前
-可用 TGC，再调用相同 sync 实现。采集 Job 当前仍未部署或调度；通知分类使用独立的默认暂停 Job 模板，
-不与采集自动串联。
+本地命令直接读取受管理 `.env.local` 的 TGC。线上入口先向 ingestion-control 解析一条当前可用 TGC，
+再调用相同采集实现。ingestion runtime base 提供一个默认暂停的 `internal-portal-collection` CronJob
+模板，维护者
+通过显式命令按模式创建一次性 Job；不启用自动 schedule，也不与分类自动串联。
 
 ## 文件发布采集
 
 ```text
-file:sync / file:sync:job
+file-sync
 -> 分页列出文件发布库存
--> 固定并发 2 按 ID 下载原始文件
+-> 按 ID 顺序逐条下载原始文件
 -> source bucket 中的 file 与 source.json
 ```
 
 已有合法 `source.json` 时跳过该 ID。普通单项失败会汇总后返回非零，认证失败立即终止。当前只保留
-原始文件和 metadata，不解析 PDF，不生成 derived 产物，也没有 Kubernetes Job/CronJob。
+原始文件和 metadata，不解析 PDF，不生成 derived 产物。文件发布与通知采集复用同一个本地 CLI、
+镜像和暂停 Job 模板。
 
 ## 凭据
 
 ingestion-control 在 PostgreSQL 保存多条具名 TGC 和检查 metadata。Ops Web 的人员页面与 automation
-endpoint 通过内部 HTTP 管理这些记录；Source Collector 只消费解析结果。定时检查 CronJob 不触发
-采集，也不承诺续期。
+endpoint 通过内部 HTTP 管理这些记录；internal-portal-collection 只消费解析结果。定时检查 CronJob
+不触发采集，也不承诺续期。
 
 ## 状态分工
 

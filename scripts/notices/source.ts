@@ -33,7 +33,10 @@ export interface NoticeInputLoadOptions {
 }
 
 export function loadLocalNoticeSourceEnvironment(repositoryRoot: string): void {
-	const path = resolve(repositoryRoot, "apps/source-collector/adapters/internal-portal/.env.local");
+	const path = resolve(
+		repositoryRoot,
+		"jobs/internal-portal-collection/adapters/internal-portal/.env.local",
+	);
 	if (existsSync(path)) {
 		process.loadEnvFile(path);
 	}

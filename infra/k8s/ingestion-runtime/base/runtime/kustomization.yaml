@@ -9,4 +9,5 @@ resources:
   - availability.yaml
   - ingestion-control.yaml
   - internal-portal-check.yaml
+  - internal-portal-collection.yaml
   - notice-classifier.yaml

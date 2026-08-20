@@ -10,8 +10,6 @@ target/
 .env
 .env.*
 !.env.example
-apps/source-collector/adapters/internal-portal/.auth-status.json
-apps/source-collector/adapters/internal-portal/.auth-status.json.*.tmp
 env/commands/*.env
 env/commands/historical/*.env
 .dev.vars

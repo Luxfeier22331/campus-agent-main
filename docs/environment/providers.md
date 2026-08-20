@@ -68,8 +68,7 @@ Job 的配置来源。
 | --- | --- | --- |
 | 身份与安全验证 | App API、Campus Web | 账号、session、邮件验证和反滥用 |
 | 邮件服务 | App API | 密码重置和账号通知 |
-| 微信公众号来源 | Source Collector | 发现来源并取得采集入口，规范正文仍来自真实文章 |
-| 内部门户认证 | ingestion-control、Ops Web、开发者程序、Source Collector | ingestion-control 在所属 PostgreSQL 管理多条 TGC 并提供采集解析；Ops Web 保存 automation token 并代理人员/机器管理请求；Source Collector 不读数据库，本地通过 `auth:pull` 写入当前 worktree，Job 入口只在内存中消费解析结果 |
+| 内部门户认证 | ingestion-control、Ops Web、开发者程序、internal-portal-collection | ingestion-control 在所属 PostgreSQL 管理多条 TGC 并提供采集解析；Ops Web 保存 automation token 并代理人员/机器管理请求；采集任务不读数据库，本地通过 `internal-portal:auth:pull` 写入当前 worktree，Job 入口只在内存中消费解析结果 |
 | Cloudflare Worker 平台 | App API、Campus Web、status-web | Worker 运行、公开配置和平台绑定 |
 
 来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能
@@ -99,9 +98,10 @@ logs query 使用运行时 token，Terraform 使用平台管理身份。Sentry �
 
 ## 交付规则
 
-- 本地 Secret 进入应用自己的忽略文件或开发者密钥管理器；`auth:pull` 使用当前 Kubernetes 权限读取
-  既有 `OPS_WEB_INTERNAL_TOKEN`，通过临时 port-forward ingestion-control 取得 TGC，只写入 Source Collector 适配器
-  受 `dev:init` 管理的 `.env.local`，不创建机器级缓存或 TGC Secret；
+- 本地 Secret 进入所属模块的忽略文件或开发者密钥管理器；`internal-portal:auth:pull` 使用当前
+  Kubernetes 权限读取既有 `OPS_WEB_INTERNAL_TOKEN`，通过临时 port-forward ingestion-control
+  取得 TGC，只写入内部门户采集任务受 `dev:init` 管理的 `.env.local`，不创建机器级缓存或 TGC
+  Secret；
 - Kubernetes 非敏感启动值使用 ConfigMap，敏感材料使用 Secret 交付机制；
 - Cloudflare 应用分别维护自己的 Worker vars 和 secrets；
 - 跨平台共享认证值属于同一轮换单元，但由各平台独立投递，不能互相充当同步源；
@@ -109,12 +109,11 @@ logs query 使用运行时 token，Terraform 使用平台管理身份。Sentry �
   保存在受保护的 state；当前仅 Hyperdrive origin password 属于这一合同，state 不充当 Secret 投递源；
 - 环境仓选择部署版本和 Secret 引用，源码仓只维护环境无关的消费合同。
 - `OPS_WEB_AUTOMATION_ORIGIN` 是环境仓投递给 Ops Web 的非敏感机器端点配置；自动化 token 属于
-  Ops Web PostgreSQL 数据，不进入 ConfigMap、GitOps Secret、Source Collector 或 URL。开发者程序
+  Ops Web PostgreSQL 数据，不进入 ConfigMap、GitOps Secret、内部门户采集任务或 URL。开发者程序
   只在请求时显式提供 `Authorization: Bearer <token>`。
-- `OPS_WEB_INTERNAL_TOKEN` 继续是既有服务间认证值。Ops Web BFF 和 Source Collector Job 调用
-  ingestion-control 时复用该值，不新增
-  `NOTICE_*`、TGC 或 Source Collector 专用 token；notice-classifier 只复用已有对象存储 Secret，模型
-  设置通过 execution-control 快照提供。
+- `OPS_WEB_INTERNAL_TOKEN` 继续是既有服务间认证值。Ops Web BFF 和
+  `internal-portal-collection` Job 调用 ingestion-control 时复用该值，不新增 `NOTICE_*`、TGC 或采集
+  专用 token；notice-classifier 只复用已有对象存储 Secret，模型设置通过 execution-control 快照提供。
 
 环境文件和覆盖规则见 `env.md`，新增、轮换和撤销步骤见
 `../runbooks/provider-secrets.md`。

@@ -1,0 +1,41 @@
+{
+	"name": "internal-portal-collection",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "One-shot internal portal notice and file collection job.",
+	"packageManager": "pnpm@11.20.0",
+	"scripts": {
+		"build": "esbuild adapters/internal-portal/src/collection-job.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/collection-job.js --external:@aws-sdk/client-s3 --external:content-disposition --external:dotenv --external:jsdom --external:mime-types --external:tldts --external:undici && node ./dist/collection-job.js --help",
+		"auth:check": "tsx adapters/internal-portal/src/auth-cli.ts check",
+		"auth:pull": "tsx adapters/internal-portal/src/auth-cli.ts pull",
+		"collect": "tsx adapters/internal-portal/src/collection-cli.ts",
+		"collect:job": "tsx adapters/internal-portal/src/collection-job.ts",
+		"test": "vitest run -c vitest.fast.config.mts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1111.0",
+		"@campus-agent/internal-portal-client": "workspace:*",
+		"@campus-agent/notices": "workspace:*",
+		"campus-contracts": "workspace:*",
+		"content-disposition": "^2.0.1",
+		"dotenv": "^17.4.2",
+		"ingest-core": "workspace:*",
+		"ingestion-contracts": "workspace:*",
+		"jsdom": "^27.4.0",
+		"mime-types": "^3.0.2",
+		"tldts": "^7.4.10",
+		"undici": "^8.10.0"
+	},
+	"devDependencies": {
+		"@types/content-disposition": "^0.5.9",
+		"@types/mime-types": "^3.0.1",
+		"@types/node": "^24.13.3",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.12",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.10"
+	},
+	"license": "Apache-2.0"
+}

@@ -175,6 +175,28 @@ test("candidate build tasks declare their package-external artifact inputs", () 
 			"$TURBO_ROOT$/packages/contracts/src/**",
 		],
 	);
+	assertTaskInputs(
+		"jobs/internal-portal-collection/turbo.json",
+		["build"],
+		[
+			"$TURBO_ROOT$/configs/sources/internal-portal.json",
+			"$TURBO_ROOT$/packages/contracts/package.json",
+			"$TURBO_ROOT$/packages/contracts/src/**",
+			"$TURBO_ROOT$/packages/domains/notices/package.json",
+			"$TURBO_ROOT$/packages/domains/notices/src/**",
+			"$TURBO_ROOT$/packages/ingest-core/package.json",
+			"$TURBO_ROOT$/packages/ingest-core/src/**",
+			"$TURBO_ROOT$/packages/ingestion-contracts/package.json",
+			"$TURBO_ROOT$/packages/ingestion-contracts/src/**",
+			"$TURBO_ROOT$/packages/internal-portal-client/package.json",
+			"$TURBO_ROOT$/packages/internal-portal-client/src/**",
+		],
+	);
+	assertTaskInputs(
+		"jobs/internal-portal-collection/turbo.json",
+		["test", "typecheck"],
+		["$TURBO_ROOT$/configs/sources/internal-portal.json"],
+	);
 });
 
 test("tasks compiling the internal portal descriptor declare it as an affected input", () => {

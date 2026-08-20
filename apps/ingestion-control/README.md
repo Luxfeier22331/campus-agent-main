@@ -6,7 +6,7 @@
 
 - 在 `ingestion_control.internal_portal_credentials` 保存具名 TGC、版本和最近检查结果；
 - 录入、轮换、人工检查和消费解析前都通过共享门户客户端做真实认证；
-- 为 Ops Web 和 Source Collector 提供使用 `OPS_WEB_INTERNAL_TOKEN` 鉴权的内部接口；
+- 为 Ops Web 和 internal-portal-collection 提供使用 `OPS_WEB_INTERNAL_TOKEN` 鉴权的内部接口；
 - 由同镜像 CronJob 每 30 分钟检查未暂停凭据；
 - 安装自身 schema migration，并在升级时删除已退役的 ingestion Temporal 任务表。
 

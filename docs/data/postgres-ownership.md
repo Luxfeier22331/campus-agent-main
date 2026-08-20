@@ -46,7 +46,7 @@ migration 对象。成员关系不反向授予 `ingestion_control` 数据库 own
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
 | `execution_control.model_settings` | execution-control 配置管理 | execution-control |
 | `campus_docs_serving.current_index` | Campus Docs index publisher | execution-control、Campus Docs index publisher |
-| `ingestion_control.internal_portal_credentials` | ingestion-control | ingestion-control；Ops Web 与 Source Collector 通过内部 API |
+| `ingestion_control.internal_portal_credentials` | ingestion-control | ingestion-control；Ops Web 与 internal-portal-collection 通过内部 API |
 | `notices.*` | notice-publisher | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `internal_portal.automation_tokens` | Ops Web | Ops Web |

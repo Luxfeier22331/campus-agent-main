@@ -14,7 +14,7 @@ status: active
 
 ```text
 来源系统
--> source-collector
+-> internal-portal-collection
 -> 来源对象
 -> 模型生成单一用户分类
 -> 分类 derived 制品
@@ -24,14 +24,15 @@ status: active
 -> Campus Web
 ```
 
-source-collector 只产生来源对象和原始资源。分类使用一个 `category` 表示标题表达的主要用途，
+internal-portal-collection 只产生来源对象和原始资源。分类使用一个 `category` 表示标题表达的主要用途，
 不再把业务领域和内容形态拆成两个相互竞争的筛选维度。例如基金申报归
 `research_affairs`，没有更强业务流程的学术讲座预告归 `lectures_forums`，楼宇开放关闭归
 `campus_operations`。分类不表示领域处理、对外发布或用户阅读已经完成。
 
-采集当前以本地命令运行；源码另有复用同一 sync 的一次性 Job 入口，但尚未部署或调度。通知分类同时
-提供本地 CLI 和默认暂停的在线 Job：两者只消费标题，Job 将结果写入 derived 分类制品。凭据由 Ops Web
-候选池解析，本地写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内使用，不形成 TGC Secret。
+采集同时提供本地 CLI 和复用同一实现的一次性 Job 入口。ingestion runtime base 的单一采集模板默认暂停，通过
+模式参数执行通知增量、通知回填或文件发布采集，不提供自动调度；通知分类同时提供本地 CLI 和默认
+暂停的在线 Job：两者只消费标题，Job 将结果写入 derived 分类制品。凭据由 Ops Web 候选池解析，本地
+写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内使用，不形成 TGC Secret。
 
 notice-publisher 在资源齐备且分类完整性校验通过后显式物化规范化投影；App API 和 Campus Web 只读取
 该投影。完整数据结构和操作顺序分别由 `../../data/notices.md` 和

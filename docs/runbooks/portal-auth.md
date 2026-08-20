@@ -9,8 +9,8 @@ status: active
 ## 运行模型
 
 ingestion-control 是 TGC、检查结果和 CAS 刷新值的唯一运行所有者。Ops Web 提供人员页面和 automation
-入口，但所有凭据操作都通过内部 HTTP 转发 ingestion-control。Source Collector 不读取数据库，也不按
-名称选择记录。
+入口，但所有凭据操作都通过内部 HTTP 转发 ingestion-control。internal-portal-collection 不读取
+数据库，也不按名称选择记录。
 
 系统允许多条具名凭据，不维护主凭据。消费解析排除 `credential_rejected`，按 `valid`、未检查、
 `check_failed` 逐条真实验证，返回第一条可用 TGC。采集会话随后得到的新 TGC 只在本次进程使用，不
@@ -55,14 +55,13 @@ ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或
 
 ```bash
 pnpm dev:init
-pnpm --filter source-collector auth:pull
-pnpm --filter source-collector auth:check
+pnpm internal-portal:auth:pull
+pnpm internal-portal:auth:check
 ```
 
-`auth:pull` 使用当前 kubectl context 和 namespace，从 `ops-web-internal-secrets` 读取既有
+`internal-portal:auth:pull` 使用当前 kubectl context 和 namespace，从 `ops-web-internal-secrets` 读取既有
 `OPS_WEB_INTERNAL_TOKEN`，只为本次命令建立 `service/ingestion-control:8000` 的临时 port-forward。
-解析成功后原子更新
-Source Collector 适配器本地托管环境中的 `INTERNAL_PORTAL_SSO_TGC`，权限为
+解析成功后原子更新 internal-portal-collection 本地托管环境中的 `INTERNAL_PORTAL_SSO_TGC`，权限为
 `0600`；失败不改文件，命令不输出 token 或 TGC。
 
 本机代理仅通过未跟踪环境显式配置：
@@ -74,13 +73,17 @@ INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
 ## Job 入口
 
 ```bash
-pnpm --filter source-collector notice:sync:job
-pnpm --filter source-collector file:sync:job
+pnpm internal-portal:collect:job -- --namespace <namespace> \
+  --mode notice-sync
+pnpm internal-portal:collect:job -- --namespace <namespace> \
+  --mode notice-backfill --start-date YYYY-MM-DD
+pnpm internal-portal:collect:job -- --namespace <namespace> --mode file-sync
 ```
 
-两个入口读取 `INGESTION_CONTROL_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
-现有采集实现。它们不读取本地 TGC 作为 fallback，不修改 `process.env`，没有可用凭据时明确失败。
-当前 Kubernetes base 尚未部署这两个采集 Job 或 schedule。
+这些模式读取 `INGESTION_CONTROL_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数
+调用与本地 CLI 相同的采集实现。Job 不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。
+Kubernetes base 提供一个默认暂停的 `internal-portal-collection` 模板；它没有 schedule，必须由维护者
+显式创建一次性 Job。
 
 ## 数据升级与保留
 

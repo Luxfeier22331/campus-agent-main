@@ -16,9 +16,9 @@ status: active
 
 ## 来源对象
 
-`source-collector` 的本地通知命令读取门户通知选择器、全局列表和详情，在 source bucket 写入
-`internal_portal_notice_source.v2`。选择器返回的类型集合是采集范围；空类型全局列表只提供跨类型
-增量顺序，其中不属于选择器范围的条目不会落桶：
+`internal-portal-collection` 的本地 CLI 和一次性 Job 读取门户通知选择器、全局列表和详情，在 source
+bucket 写入 `internal_portal_notice_source.v2`。选择器返回的类型集合是采集范围；空类型全局列表只
+提供跨类型增量顺序，其中不属于选择器范围的条目不会落桶：
 
 ```text
 internal_portal/notices/<notice-id>.json
@@ -54,7 +54,7 @@ internal_portal/notices/_state.json
 
 ## 来源资源
 
-通知 `sync` 和 `backfill` 在详情采集后下载资源，把门户图片和附件原始字节写入：
+`notice-sync` 和 `notice-backfill` 在详情采集后下载资源，把门户图片和附件原始字节写入：
 
 ```text
 internal_portal/notices/<notice-id>/images/<ordinal>
@@ -65,9 +65,9 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 可以不连续；publisher 使用 source ordinal 读取正确字节，再为正文占位符和 PostgreSQL 生成连续的
 展示 ordinal。附件 ordinal 与来源 metadata 顺序一致。
 
-附件的 `notice_annex_id` 是门户资源身份，`notice_annex_path` 只作为来源 metadata 保留。正常采集和
-`notice:resources` 都按通知 ID、资源类型和序号 create-or-verify，不改写通知 JSON，也不抓取外部正文。
-`notice:resources` 额外提供 dry-run 和历史库存修复能力。
+附件的 `notice_annex_id` 是门户资源身份，`notice_annex_path` 只作为来源 metadata 保留。正常采集按
+通知 ID、资源类型和序号 create-or-verify，不改写通知 JSON，也不抓取外部正文。仓库不再提供独立的
+资源维护或状态查看入口。
 
 ## 分类交接
 
@@ -121,24 +121,26 @@ publisher 校验来源资源后，把内容寻址对象写入 derived bucket：
 notices/assets/sha256/<digest>
 ```
 
-source bucket 由 source-collector 写入，分类 Job 和显式 publisher 按各自权限读取，不向 Worker 或浏览器开放。App API 当前
-只按数据库摘要读取通知图片并通过通知所属的同源接口返回字节；浏览器不接收 bucket key、摘要或对象
-存储凭据。附件 metadata 包含门户资源身份，App API 即时构造门户 URL，附件字节继续由门户响应。
+source bucket 由 internal-portal-collection 写入，分类 Job 和显式 publisher 按各自权限读取，不向
+Worker 或浏览器开放。App API 当前只按数据库摘要读取通知图片并通过通知所属的同源接口返回字节；
+浏览器不接收 bucket key、摘要或对象存储凭据。附件 metadata 包含门户资源身份，App API 即时构造
+门户 URL，附件字节继续由门户响应。
 
 对象存储返回 `application/octet-stream` 时，publisher 按已知文件扩展名推导媒体类型；无法识别时
 保留不带 charset 的 `application/octet-stream`。
 
 ## 所有权
 
-- `source-collector` 只写 source bucket；
+- `internal-portal-collection` 只写 source bucket；
 - `notice-classifier` 只读 source bucket，并写入 derived bucket 中的分类制品；
 - `notice-publisher` 校验来源、写 derived bucket，并以事务写入 `notices.*`；
 - App API 只获得五张通知业务表的读取权限，并读取获准图片对象；不读取 migration ledger 或写入通知；
 - Campus Web 只通过 App API 读取规范化通知；
 - Ops Web 拥有内部门户凭据，execution-control、Agent 与 RAG 不连接通知来源或 schema。
 
-通知 publisher 仍只作为本地显式写入入口维护，不属于 Kubernetes 或 GitOps 在线拓扑。分类 Job 的
-Kubernetes 模板默认暂停；分类制品或本地投影结果都不表示任一环境已经完成后续发布或开放这套数据。
+通知 publisher 仍只作为本地显式写入入口维护，不属于 Kubernetes 在线拓扑。采集和分类 Job 模板默认
+暂停，且只能由维护者显式创建一次性 Job；分类制品或本地投影结果都不表示任一环境已经完成后续发布
+或开放这套数据。
 
 ## 相关文档
 

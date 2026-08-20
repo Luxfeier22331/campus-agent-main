@@ -28,7 +28,9 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `agent-runtime`：一个独立 Deployment；
 - `ingestion-control`：一个凭据 API Deployment；
 - `ingestion-control-internal-portal-check`：顺序检查凭据池的 CronJob；
-- Source Collector 当前只有镜像和 CLI/Job 入口，没有常驻 Deployment 或已调度采集 Job。
+- `internal-portal-collection` 提供一个镜像和共用的 CLI/Job 入口；ingestion runtime base 声明一个默认
+  暂停的 CronJob 模板，通过参数执行通知增量、通知回填或文件发布采集，没有常驻 Deployment 或自动
+  调度。
 
 Temporal Server 只属于 execution-control 的运行前置条件。源码 base 只声明标准 Deployment，不声明 Worker Controller、
 WorkerDeployment、WorkerResourceTemplate 或 KEDA 资源。

@@ -12,8 +12,8 @@ status: active
 pipeline 见 `../../infra/otel/README.md`；生产者字段见 `../reference/telemetry.md`。环境 endpoint、
 dataset、Secret、部署版本、保留期和启用状态由环境仓管理，源码检查不能证明远端状态。
 
-这里的 Collector 不是 `apps/source-collector`。Cloudflare Worker application-log destination 不经过
-本 Collector，按 `worker-otel.md` 验证。
+这里的 Collector 指 OpenTelemetry Collector，与 `jobs/internal-portal-collection` 无关。Cloudflare
+Worker application-log destination 不经过本 Collector，按 `worker-otel.md` 验证。
 
 ## 配置校验
 

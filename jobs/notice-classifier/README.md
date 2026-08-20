@@ -3,7 +3,8 @@
 该包提供通知分类的一次性在线 Job。它读取 source bucket 中具有 `schema_version`、`notice_id` 和
 `notice_title` 的通知来源，只把 `notice_title` 交给当前模型，并把单通知分类制品写入 derived bucket。
 它不是常驻 Worker，不清洗正文、读取门户栏目、不访问 PostgreSQL，也不触发 publisher。来源对象的完整
-门户合同仍由 source-collector 和 notice-publisher 各自负责；分类入口不依赖正文或其他门户 metadata。
+门户合同仍由 internal-portal-collection 和 notice-publisher 各自负责；分类入口不依赖正文或其他门户
+metadata。
 
 ## 输入与输出
 

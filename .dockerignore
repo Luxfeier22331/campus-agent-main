@@ -5,11 +5,6 @@
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
 !turbo.json
-!apps/source-collector/
-!apps/source-collector/**
-apps/source-collector/**/.env
-apps/source-collector/**/.env.*
-!apps/source-collector/**/.env.example
 !apps/agent-runtime/
 !apps/agent-runtime/**
 !apps/app-api/
@@ -32,6 +27,11 @@ apps/campus-web/**
 !jobs/app-api-schema/**
 !jobs/campus-docs-index-publisher/
 !jobs/campus-docs-index-publisher/**
+!jobs/internal-portal-collection/
+!jobs/internal-portal-collection/**
+jobs/internal-portal-collection/**/.env
+jobs/internal-portal-collection/**/.env.*
+!jobs/internal-portal-collection/**/.env.example
 !jobs/notice-classifier/
 !jobs/notice-classifier/**
 !packages/domains/

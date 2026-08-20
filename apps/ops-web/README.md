@@ -31,8 +31,8 @@
 `/internal-portal` 还管理多条开发者自动化 token。人工管理接口继续使用 Cloudflare Access；开发者
 程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，可以在名称不存在时创建一条具名
 凭据，或读取 metadata、按 `If-Match` 更新 `ssoTgc`、删除凭据。Ops Web 只作为 UI/BFF，把这些操作
-转发给 ingestion-control；TGC、检查结果和候选解析不存入 Ops Web 数据库。Source Collector 直接调用
-ingestion-control 的内部解析接口。
+转发给 ingestion-control；TGC、检查结果和候选解析不存入 Ops Web 数据库。
+internal-portal-collection 直接调用 ingestion-control 的内部解析接口。
 
 ## 内部边界
 
