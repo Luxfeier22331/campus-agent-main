@@ -49,6 +49,10 @@ function manifest(
 	architecture = "arm64",
 	revision: string | null = SHA,
 	mediaType = "application/vnd.oci.image.manifest.v1+json",
+	manifests?: Array<{
+		annotations?: Record<string, string>;
+		platform: { architecture: string; os: string };
+	}>,
 ): CommandResult {
 	return result({
 		stdout: JSON.stringify({
@@ -59,6 +63,7 @@ function manifest(
 			},
 			manifest: {
 				digest,
+				...(manifests ? { manifests } : {}),
 				mediaType,
 			},
 		}),
@@ -158,16 +163,42 @@ test("rejects an existing immutable tag for the wrong architecture", async (t) =
 	await assert.rejects(publishImages(options, runner), /not a linux\/arm64 image/u);
 });
 
+test("reuses an existing immutable arm64 index with an attestation manifest", async (t) => {
+	const { options } = await fixture(t);
+	const runner: CommandRunner = async (_command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime"]);
+		}
+		return manifest(FIRST_DIGEST, "arm64", SHA, "application/vnd.oci.image.index.v1+json", [
+			{ platform: { architecture: "arm64", os: "linux" } },
+			{
+				annotations: { "vnd.docker.reference.type": "attestation-manifest" },
+				platform: { architecture: "unknown", os: "unknown" },
+			},
+		]);
+	};
+
+	assert.deepEqual(await publishImages(options, runner), {
+		"agent-runtime": FIRST_DIGEST,
+	});
+});
+
 test("rejects an existing immutable multi-platform index", async (t) => {
 	const { options } = await fixture(t);
 	const runner: CommandRunner = async (_command, args) => {
 		if (args.includes("--print")) {
 			return bakePrint(["agent-runtime"]);
 		}
-		return manifest(FIRST_DIGEST, "arm64", SHA, "application/vnd.oci.image.index.v1+json");
+		return manifest(FIRST_DIGEST, "arm64", SHA, "application/vnd.oci.image.index.v1+json", [
+			{ platform: { architecture: "arm64", os: "linux" } },
+			{ platform: { architecture: "amd64", os: "linux" } },
+		]);
 	};
 
-	await assert.rejects(publishImages(options, runner), /not a single-platform image/u);
+	await assert.rejects(
+		publishImages(options, runner),
+		/does not contain exactly one linux\/arm64 image/u,
+	);
 });
 
 test("rejects an existing immutable tag without a source revision", async (t) => {
@@ -216,7 +247,7 @@ test("rejects the obsolete nested imagetools index shape", async (t) => {
 		});
 	};
 
-	await assert.rejects(publishImages(options, runner), /not a single-platform image/u);
+	await assert.rejects(publishImages(options, runner), /not a linux\/arm64 image/u);
 });
 
 test("does not treat an unexpected registry failure as a missing image", async (t) => {

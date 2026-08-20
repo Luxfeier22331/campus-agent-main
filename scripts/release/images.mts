@@ -60,6 +60,10 @@ interface ImageManifest {
 	};
 	manifest?: {
 		digest?: unknown;
+		manifests?: Array<{
+			annotations?: Record<string, unknown>;
+			platform?: { architecture?: unknown; os?: unknown };
+		}>;
 		mediaType?: unknown;
 	};
 }
@@ -165,11 +169,28 @@ function existingDigest(source: string, tag: string, sourceSha: string): string 
 	}
 	const manifest = value.manifest;
 	const mediaType = manifest?.mediaType;
-	if (
-		mediaType !== "application/vnd.oci.image.manifest.v1+json" &&
-		mediaType !== "application/vnd.docker.distribution.manifest.v2+json"
-	) {
-		throw new Error(`Existing immutable tag is not a single-platform image: ${tag}`);
+	const isSinglePlatformManifest =
+		mediaType === "application/vnd.oci.image.manifest.v1+json" ||
+		mediaType === "application/vnd.docker.distribution.manifest.v2+json";
+	const isImageIndex =
+		mediaType === "application/vnd.oci.image.index.v1+json" ||
+		mediaType === "application/vnd.docker.distribution.manifest.list.v2+json";
+	if (!(isSinglePlatformManifest || isImageIndex)) {
+		throw new Error(`Existing immutable tag is not a supported image manifest: ${tag}`);
+	}
+	if (isImageIndex) {
+		const runtimeManifests = (manifest.manifests ?? []).filter(
+			(entry) => entry.annotations?.["vnd.docker.reference.type"] !== "attestation-manifest",
+		);
+		if (
+			runtimeManifests.length !== 1 ||
+			runtimeManifests[0]?.platform?.os !== "linux" ||
+			runtimeManifests[0]?.platform?.architecture !== "arm64"
+		) {
+			throw new Error(
+				`Existing immutable tag does not contain exactly one linux/arm64 image: ${tag}`,
+			);
+		}
 	}
 	if (value.image?.os !== "linux" || value.image?.architecture !== "arm64") {
 		throw new Error(`Existing immutable tag is not a linux/arm64 image: ${tag}`);
