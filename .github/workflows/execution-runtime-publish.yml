@@ -48,7 +48,7 @@ jobs:
       base: ${{ steps.plan.outputs.base }}
       head: ${{ steps.plan.outputs.head }}
       images: ${{ steps.plan.outputs.images }}
-      kubernetes: ${{ steps.plan.outputs.kubernetes }}
+      source_bases: ${{ steps.plan.outputs.source_bases }}
       workers: ${{ steps.plan.outputs.workers }}
     steps:
       - name: Checkout
@@ -120,7 +120,7 @@ jobs:
             echo "base=$(jq -r '.base' <<< "$plan")"
             echo "head=$(jq -r '.head' <<< "$plan")"
             echo "images=$(jq -c '.images' <<< "$plan")"
-            echo "kubernetes=$(jq -r '.kubernetes' <<< "$plan")"
+            echo "source_bases=$(jq -c '.sourceBases' <<< "$plan")"
             echo "workers=$(jq -c '.workers' <<< "$plan")"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
@@ -131,7 +131,7 @@ jobs:
           (
             steps.plan.outputs.images != '[]' ||
             steps.plan.outputs.workers != '[]' ||
-            steps.plan.outputs.kubernetes == 'true'
+            steps.plan.outputs.source_bases != '[]'
           )
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -148,7 +148,7 @@ jobs:
           steps.plan.outcome == 'success' &&
           steps.plan.outputs.images == '[]' &&
           steps.plan.outputs.workers == '[]' &&
-          steps.plan.outputs.kubernetes == 'false'
+          steps.plan.outputs.source_bases == '[]'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -420,7 +420,7 @@ jobs:
         needs.release-plan.result != 'success' ||
         needs.release-plan.outputs.images != '[]' ||
         needs.release-plan.outputs.workers != '[]' ||
-        needs.release-plan.outputs.kubernetes == 'true'
+        needs.release-plan.outputs.source_bases != '[]'
       )
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -488,7 +488,7 @@ jobs:
       (
         needs.publish-images.result == 'success' ||
         needs.publish-workers.result == 'success' ||
-        needs.release-plan.outputs.kubernetes == 'true'
+        needs.release-plan.outputs.source_bases != '[]'
       )
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -569,7 +569,7 @@ jobs:
         id: promotion
         env:
           EXPECTED_WORKERS: ${{ needs.release-plan.outputs.workers }}
-          KUBERNETES_CHANGED: ${{ needs.release-plan.outputs.kubernetes }}
+          SOURCE_BASES: ${{ needs.release-plan.outputs.source_bases }}
         shell: nix develop ./gitops#ci-control --command bash -e {0}
         run: |
           set -euo pipefail
@@ -577,7 +577,7 @@ jobs:
             --expected-source-sha "${{ needs.release-plan.outputs.base }}" \
             --expected-workers "$EXPECTED_WORKERS" \
             --image-digests "$GITHUB_WORKSPACE/image-digests.json" \
-            --kubernetes "$KUBERNETES_CHANGED" \
+            --source-bases "$SOURCE_BASES" \
             --root "$GITHUB_WORKSPACE/gitops" \
             --source-repository "$GITHUB_REPOSITORY" \
             --source-sha "$GITHUB_SHA" \
@@ -652,7 +652,7 @@ jobs:
 
             - 更新 `campus-agent@${{ github.sha }}` 产生的活跃镜像（如有）
             - 更新 App API、Campus Web 与 status-web Worker 的不可变版本（如有）
-            - Kubernetes 基座变化时同步活跃 Application 的源码引用
+            - 受影响的 Kubernetes Source base 变化时同步实际消费者的源码引用
 
             ## 验证结果
 

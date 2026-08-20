@@ -30,12 +30,21 @@ const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 ]);
 const CAMPUS_WEB_WORKER: WorkerCandidate = "campus-web-staging";
 const CAMPUS_MAP_ASSET_PATH = "apps/campus-web/assets/campus-map";
+const SOURCE_BASE_PATHS = [
+	"infra/k8s/data-object-store/base",
+	"infra/k8s/data-postgres/base",
+	"infra/k8s/data-qdrant/base",
+	"infra/k8s/execution-runtime/base/runtime",
+	"infra/k8s/ingestion-runtime/base",
+	"infra/k8s/ops-web/base",
+	"infra/k8s/platform-temporal/base",
+] as const;
 
 export interface CandidatePlan {
 	base: string;
 	head: string;
 	images: string[];
-	kubernetes: boolean;
+	sourceBases: string[];
 	workers: WorkerCandidate[];
 }
 
@@ -88,6 +97,18 @@ async function candidateBase(options: CandidatePlanOptions): Promise<string> {
 
 function changesPath(files: readonly string[], prefix: string): boolean {
 	return files.some((file) => file === prefix || file.startsWith(`${prefix}/`));
+}
+
+function affectedSourceBases(files: readonly string[]): string[] {
+	const bases = new Set<string>();
+	for (const file of files) {
+		for (const base of SOURCE_BASE_PATHS) {
+			if (file === base || file.startsWith(`${base}/`)) {
+				bases.add(base);
+			}
+		}
+	}
+	return [...bases].sort();
 }
 
 export async function planCandidates(
@@ -188,7 +209,7 @@ export async function planCandidates(
 			images.add(image);
 		}
 	}
-	const kubernetes = changesPath(files, "infra/k8s");
+	const sourceBases = affectedSourceBases(files);
 	if (options.refreshCampusWebDocs) {
 		workers.add(CAMPUS_WEB_WORKER);
 	}
@@ -196,7 +217,7 @@ export async function planCandidates(
 		base,
 		head: options.head,
 		images: [...images].sort(),
-		kubernetes,
+		sourceBases,
 		workers: [...workers].sort(),
 	};
 }

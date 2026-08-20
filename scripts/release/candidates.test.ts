@@ -104,7 +104,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 		base: BASE,
 		head: HEAD,
 		images: ["agent-runtime", "ingestion-control", "internal-portal-collection"],
-		kubernetes: true,
+		sourceBases: ["infra/k8s/execution-runtime/base/runtime"],
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
 });
@@ -153,7 +153,7 @@ test("task graph configuration does not publish business artifacts", async (t) =
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, []);
 	assert.deepEqual(plan.workers, []);
-	assert.equal(plan.kubernetes, true);
+	assert.deepEqual(plan.sourceBases, ["infra/k8s/data-object-store/base"]);
 });
 
 test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit", async (t) => {
@@ -262,7 +262,7 @@ test("Campus Web docs refresh works when the GitOps cursor already equals head",
 		base: BASE,
 		head: BASE,
 		images: [],
-		kubernetes: false,
+		sourceBases: [],
 		workers: ["campus-web-staging"],
 	});
 });
@@ -288,7 +288,7 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 		base: BASE,
 		head: HEAD,
 		images: ["app-api-schema", "campus-docs-index-publisher", "execution-control"],
-		kubernetes: false,
+		sourceBases: [],
 		workers: [],
 	});
 });
@@ -352,7 +352,7 @@ test("an already selected Source revision has no automatic candidates", async (t
 		base: BASE,
 		head: BASE,
 		images: [],
-		kubernetes: false,
+		sourceBases: [],
 		workers: [],
 	});
 	assert.equal(turboCalled, false);
@@ -375,7 +375,7 @@ test("an explicit PR base does not require a GitOps checkout", async (t) => {
 			base: BASE,
 			head: BASE,
 			images: [],
-			kubernetes: false,
+			sourceBases: [],
 			workers: [],
 		},
 	);

@@ -283,6 +283,12 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.equal(promote.environment, "staging");
 	assert.match(String(promote.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
 	assert.match(String(promote.if), /github\.ref == 'refs\/heads\/main'/u);
+	const plan = namedStep(releasePlan, "Select release candidates");
+	assert.match(String(plan.run), /\.sourceBases/u);
+	assert.doesNotMatch(String(plan.run), /\.kubernetes/u);
+	const promotion = namedStep(promote, "Update GitOps desired state");
+	assert.match(String(promotion.run), /--source-bases "\$SOURCE_BASES"/u);
+	assert.doesNotMatch(String(promotion.run), /--kubernetes/u);
 	const installGitOpsTooling = namedStep(promote, "Install GitOps tooling");
 	assert.equal(installGitOpsTooling.run, "pnpm --dir gitops install --frozen-lockfile");
 	assert(!String(installGitOpsTooling.run).includes("--ignore-workspace"));
