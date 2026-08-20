@@ -483,6 +483,9 @@ importers:
       pg:
         specifier: ^8.23.0
         version: 8.23.0
+      undici:
+        specifier: ^8.10.0
+        version: 8.10.0
     devDependencies:
       '@testcontainers/postgresql':
         specifier: 12.1.0

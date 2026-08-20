@@ -33,6 +33,7 @@ COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
 
 RUN pnpm --filter ingestion-control typecheck \
   && pnpm --filter ingestion-control build \
+  && pnpm --filter ingestion-control check:artifact \
   && touch /check-complete
 
 FROM node:24.19.0-bookworm-slim AS production-tree

@@ -8,7 +8,8 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"build": "esbuild ./src/server.ts ./src/migrate.ts ./src/schema-bootstrap.ts ./src/internal-portal-check.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --external:pg",
+		"build": "esbuild ./src/server.ts ./src/migrate.ts ./src/schema-bootstrap.ts ./src/internal-portal-check.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --external:pg --external:undici",
+		"check:artifact": "node ./scripts/check-production-artifact.mjs",
 		"credentials:check": "tsx ./src/internal-portal-check.ts",
 		"migrate": "tsx ./src/migrate.ts",
 		"schema:bootstrap": "tsx ./src/schema-bootstrap.ts",
@@ -21,7 +22,8 @@
 		"@campus-agent/internal-portal-client": "workspace:*",
 		"campus-contracts": "workspace:*",
 		"cookie": "^1.1.1",
-		"pg": "^8.23.0"
+		"pg": "^8.23.0",
+		"undici": "^8.10.0"
 	},
 	"devDependencies": {
 		"@testcontainers/postgresql": "12.1.0",
