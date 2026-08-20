@@ -33,13 +33,13 @@ HTTP 字段与错误响应以 `openapi.yaml` 为准。健康检查为 `GET /heal
 Ops Web migration `0004_loud_loa.sql` 先把旧 `internal_portal.credentials` 全量复制到
 `ingestion_control.internal_portal_credentials`，双向比较字段后删除旧表。随后本应用 migration
 `0007_retire_temporal_tasks.sql` 接管 migration journal 和凭据表所有权，并删除已退役的
-`ingestion_control.tasks`。旧 staging 曾由 `ingestion_control` 创建并拥有 schema；数据库 owner
-`campus_agent` 因此保持为该 runtime role 的成员，只用于接管这些历史对象。bootstrap 会把 schema owner
-改为当前数据库 owner，再收回 runtime DDL 权限。
+`ingestion_control.tasks`。旧 staging 曾由 `ingestion_control` 创建并拥有 schema；历史环境按迁移步骤
+完成一次性对象接管。新环境不要求数据库 owner `campus_agent` 成为 runtime role 的成员。bootstrap 会把
+schema owner 改为当前数据库 owner，再收回 runtime DDL 权限。
 
-首次交接时，环境仓必须先协调上述角色成员关系，再把 Ops Web 与 ingestion runtime 的 base 组合到同一个
-Application，并按现有 sync wave 先运行 Ops Web migration，再运行 ingestion migration 和两个 workload；
-不同 Application 的 wave 不能作为该顺序的证据。
+首次交接时，环境仓必须把 Ops Web 与 ingestion runtime 的 base 组合到同一个 Application，并按现有
+sync wave 先运行 Ops Web migration，再运行 ingestion migration 和两个 workload；不同 Application 的
+wave 不能作为该顺序的证据。
 
 常驻进程只使用 `INGESTION_CONTROL_DATABASE_URL`。bootstrap 和 migration 必须使用
 `INGESTION_CONTROL_SCHEMA_DATABASE_URL`；该连接使用既有数据库 bootstrap 角色，不复用 runtime role。

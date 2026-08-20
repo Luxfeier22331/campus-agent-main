@@ -9,8 +9,6 @@ spec:
   cluster:
     name: campus-agent-postgres
   name: campus_agent
-  inRoles:
-    - ingestion_control
   login: true
   passwordSecret:
     name: campus-agent-postgres-campus-agent-owner

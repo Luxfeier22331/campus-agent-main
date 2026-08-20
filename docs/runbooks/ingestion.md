@@ -13,8 +13,9 @@ callback、独立 run ledger 或自动 query target 发布；通知分类 Job �
 
 ## 前置条件
 
-- ingestion-control bootstrap 和 migration 使用数据库 owner 连接；旧 staging 升级前，数据平面已经协调
-  `campus_agent` 对 `ingestion_control` 的成员关系；
+- ingestion-control bootstrap 和 migration 使用数据库 owner 连接；新环境不依赖 `campus_agent` 对
+  `ingestion_control` 的成员关系；仍由旧 runtime role 持有 schema 的历史环境，按迁移步骤先完成一次性
+  对象接管；
 - source 与 derived bucket 使用各自对象存储凭据；
 - ingestion-control 与 internal-portal-collection 来自同一 source revision；
 - 使用本地命令时，已通过 `internal-portal:auth:pull` 从 ingestion-control 解析当前有效 TGC；使用 Job

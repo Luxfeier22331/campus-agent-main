@@ -30,10 +30,6 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 表中角色是权限主体，不等于都已具备环境登录凭据。`ops_web` 是 Ops Web 的唯一运行角色，Dining
 不创建第二个角色或连接。
 
-`campus_agent` 是 `ingestion_control` 的成员，只为接管旧 staging 中由该 runtime role 创建的 schema 和
-migration 对象。成员关系不反向授予 `ingestion_control` 数据库 owner 权限；接管完成后 schema 和当前表
-均由 `campus_agent` 持有。
-
 ## Schema 所有权
 
 | Schema 或表族 | 写入所有者 | 主要读取方 |
