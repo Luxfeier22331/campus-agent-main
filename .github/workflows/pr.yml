@@ -25,7 +25,7 @@ env:
 jobs:
   repo-checks:
     if: github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
     defaults:
       run:
@@ -38,6 +38,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Nix
+        if: runner.environment != 'self-hosted'
         uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
         with:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
@@ -234,7 +235,7 @@ jobs:
 
       - name: Summarize repository evidence
         if: always()
-        shell: /bin/bash -e {0}
+        shell: bash -e {0}
         env:
           RESULTS: >-
             {
