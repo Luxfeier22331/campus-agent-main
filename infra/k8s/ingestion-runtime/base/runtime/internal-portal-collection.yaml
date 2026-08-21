@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: internal-portal-collection
+  name: notice-sync
   labels:
     app.kubernetes.io/name: internal-portal-collection
     app.kubernetes.io/part-of: campus-agent
@@ -40,8 +40,181 @@ spec:
                 - node
                 - /workspace/jobs/internal-portal-collection/dist/collection-job.js
               args:
-                - --mode
                 - notice-sync
+              env:
+                - name: INGESTION_CONTROL_INTERNAL_URL
+                  value: http://ingestion-control:8000
+                - name: OPS_WEB_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ops-web-internal-secrets
+                      key: OPS_WEB_INTERNAL_TOKEN
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_ACCESS_KEY
+                - name: OBJECT_STORE_SOURCE_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_SECRET_KEY
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 512Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notice-backfill
+  labels:
+    app.kubernetes.io/name: internal-portal-collection
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: internal-portal-collection
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: ingestion-runtime
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: collection
+              image: ghcr.io/muc-wiki/campus-agent/internal-portal-collection:replace-me
+              imagePullPolicy: IfNotPresent
+              command:
+                - /usr/bin/tini
+                - "--"
+                - node
+                - /workspace/jobs/internal-portal-collection/dist/collection-job.js
+              args:
+                - notice-backfill
+              env:
+                - name: INGESTION_CONTROL_INTERNAL_URL
+                  value: http://ingestion-control:8000
+                - name: OPS_WEB_INTERNAL_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ops-web-internal-secrets
+                      key: OPS_WEB_INTERNAL_TOKEN
+                - name: OBJECT_STORE_ENDPOINT
+                  value: http://object-store:9000
+                - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_ACCESS_KEY
+                - name: OBJECT_STORE_SOURCE_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: object-store-secrets
+                      key: OBJECT_STORE_SOURCE_SECRET_KEY
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 512Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: file-sync
+  labels:
+    app.kubernetes.io/name: internal-portal-collection
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: internal-portal-collection
+            app.kubernetes.io/part-of: campus-agent
+        spec:
+          serviceAccountName: ingestion-runtime
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: collection
+              image: ghcr.io/muc-wiki/campus-agent/internal-portal-collection:replace-me
+              imagePullPolicy: IfNotPresent
+              command:
+                - /usr/bin/tini
+                - "--"
+                - node
+                - /workspace/jobs/internal-portal-collection/dist/collection-job.js
+              args:
+                - file-sync
               env:
                 - name: INGESTION_CONTROL_INTERNAL_URL
                   value: http://ingestion-control:8000

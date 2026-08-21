@@ -181,6 +181,7 @@ export interface BuildEmbeddingSetInput {
 	artifactStore: ArtifactObjectStore;
 	chunkSet: Sha256Ref;
 	embedding: EmbeddingClient;
+	onEmbeddingProgress?: (completedInputCount: number, totalInputCount: number) => void;
 	reuseEmbeddingSet?: Sha256Ref;
 }
 
@@ -195,6 +196,9 @@ export interface PublishIndexInput {
 	artifactStore: ArtifactObjectStore;
 	catalog: IndexCatalog;
 	embeddingSet: Sha256Ref;
+	onPublishProgress?: (
+		stage: "assemble" | "materialize" | "verify-source" | "activate",
+	) => void;
 	qdrant: QdrantIndexClient;
 	sourceStore: ReaderObjectStore;
 }

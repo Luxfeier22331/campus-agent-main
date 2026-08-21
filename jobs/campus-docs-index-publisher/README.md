@@ -53,7 +53,7 @@ chunk 都携带同一上下文，并按剩余字符预算重新拆分表格正�
 
 ## Embedding 阶段
 
-`build-embeddings` 必须显式接收 `--chunk-set`。本地命令从 `var/` 读取 Chunk Set，并通过
+本地 `build-embeddings` 必须显式接收 `--chunk-set`。本地命令从 `var/` 读取 Chunk Set，并通过
 `--base-url` 和 `EMBEDDING_API_KEY` 直接调用 provider，模型固定为 `Qwen3-Embedding-4B`；线上 Embedding Job 从
 `execution-control-provider-snapshot:8002` 读取一次 `embedding_provider_snapshot.v1`，随后直接调用同一
 连接。每个 HTTP 请求固定包含 8 条文本，同时最多执行 8 个请求。
@@ -72,7 +72,8 @@ chunk 都携带同一上下文，并按剩余字符预算重新拆分表格正�
 
 ## 发布阶段
 
-`publish-index` 只接收 `--embedding-set`，从其 manifest 解析唯一 Chunk Set。它不读取 reader，也不调用
+本地发布入口显式接收 `--embedding-set`；线上 `publish-index` 从本次 Job 的
+`CAMPUS_DOCS_EMBEDDING_SET` 读取同一标识。发布阶段从 manifest 解析唯一 Chunk Set，不读取 reader，也不调用
 provider；只校验制品链、生成完整 points，并写入 Qdrant collection。collection 名由显式 Embedding
 Set ID 与 `COLLECTION_DEFINITION` 的规范 JSON SHA-256 形成，不另行生成索引制品。
 
@@ -106,15 +107,28 @@ NDJSON 使用稳定字段顺序并以换行结尾，manifest 使用规范 JSON �
 只读取显式制品并写入 Qdrant/当前 collection 指针；不创建独立的 Campus Docs 对象存储 Secret。本地
 Chunk 和 Embedding 制品不会上传或晋升，正式候选由线上 Job 使用相同实现重新生成。
 
-三个 Kubernetes `CronJob` 均保持 `suspend: true`。使用仓库根命令创建单个阶段 Job：
+三个 Kubernetes `CronJob` 均保持 `suspend: true`，且各自固定一个完整阶段命令。线上操作不依赖仓库或
+pnpm；Chunk Job 可以直接从模板创建，Embedding 和 Publisher 只通过 `kubectl set env --local` 注入本次
+制品标识：
 
 ```bash
-pnpm campus-docs:index-job -- --stage chunks
-pnpm campus-docs:index-job -- --stage embeddings --chunk-set sha256:<id>
-pnpm campus-docs:index-job -- --stage publish \
-  --embedding-set sha256:<id>
+kubectl -n <namespace> create job \
+  --from=cronjob/campus-docs-chunk-builder <job-name>
+
+kubectl -n <namespace> create job \
+  --from=cronjob/campus-docs-embedding-builder <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - CAMPUS_DOCS_CHUNK_SET=sha256:<id> -o yaml |
+kubectl -n <namespace> create -f -
+
+kubectl -n <namespace> create job \
+  --from=cronjob/campus-docs-index-publisher <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - CAMPUS_DOCS_EMBEDDING_SET=sha256:<id> -o yaml |
+kubectl -n <namespace> create -f -
 ```
 
-命令只创建 Job，不等待、不读取日志，也不触发下一阶段。完整操作顺序见
+需要复用向量时，在 Embedding 的 `kubectl set env` 命令中同时设置
+`CAMPUS_DOCS_REUSE_EMBEDDING_SET=sha256:<id>`。每个 Job 只执行自己的阶段，不触发下一阶段。完整操作顺序见
 `docs/runbooks/campus-docs.md`，设计理由见
 `docs/decisions/adr-0084-agent-knowledge-tools.md`。

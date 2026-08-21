@@ -111,15 +111,15 @@ NDJSON 和 manifest 都使用规范序列化并以换行结尾。写入使用 `I
 ## 手动执行
 
 `CronJob/campus-docs-chunk-builder`、`CronJob/campus-docs-embedding-builder` 和
-`CronJob/campus-docs-index-publisher` 只保存各阶段 Pod 模板，必须保持 `suspend: true`，不得通过解除
-暂停执行。仓库命令每次从一个模板创建一个 Job，并写入本次完整阶段参数；Embedding 和 Publisher
-模板本身不保存 chunk set 或 embedding set 占位值。命令不等待、不读取日志，也不触发下一阶段，使用
-当前 `kubectl` context 和 namespace。
+`CronJob/campus-docs-index-publisher` 各自保存一个完整阶段的 Pod 模板，必须保持 `suspend: true`，不得
+通过解除暂停执行。维护者只使用 `kubectl` 从模板创建一次性 Job；Embedding 和 Publisher 的内容寻址
+输入只写入本次 Job，不保存到 CronJob、ConfigMap 或 Secret。每个 Job 不等待或触发下一阶段。
 
 ### 1. 构建 Chunk Set
 
 ```bash
-pnpm campus-docs:index-job -- --stage chunks
+kubectl -n <namespace> create job \
+  --from=cronjob/campus-docs-chunk-builder <job-name>
 ```
 
 等待并读取该 Job 日志。成功 JSON 包含 `chunk_set`、`chunk_count`、`document_count`、
@@ -132,15 +132,24 @@ embedding provider。
 ### 2. 构建 Embedding Set
 
 ```bash
-pnpm campus-docs:index-job -- \
-  --stage embeddings \
-  --chunk-set sha256:<chunk-set-id>
+kubectl -n <namespace> create job \
+  --from=cronjob/campus-docs-embedding-builder <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - \
+  CAMPUS_DOCS_CHUNK_SET=sha256:<chunk-set-id> -o yaml |
+kubectl -n <namespace> create -f -
 ```
 
 需要显式复用既有向量时才增加：
 
 ```bash
---reuse-embedding-set sha256:<embedding-set-id>
+kubectl -n <namespace> create job \
+  --from=cronjob/campus-docs-embedding-builder <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - \
+  CAMPUS_DOCS_CHUNK_SET=sha256:<chunk-set-id> \
+  CAMPUS_DOCS_REUSE_EMBEDDING_SET=sha256:<embedding-set-id> -o yaml |
+kubectl -n <namespace> create -f -
 ```
 
 Embedding Job 启动后从 `execution-control-provider-snapshot:8002` 读取一次当前 Embedding 连接，然后
@@ -157,9 +166,12 @@ provider Base URL、model 或 API key 环境变量，也没有独立 provider Se
 ### 3. 发布 Index
 
 ```bash
-pnpm campus-docs:index-job -- \
-  --stage publish \
-  --embedding-set sha256:<embedding-set-id>
+kubectl -n <namespace> create job \
+  --from=cronjob/campus-docs-index-publisher <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - \
+  CAMPUS_DOCS_EMBEDDING_SET=sha256:<embedding-set-id> -o yaml |
+kubectl -n <namespace> create -f -
 ```
 
 Publisher 只读取显式 Embedding Set，并从其 manifest 解析 Chunk Set；不读取 reader，也不调用
@@ -181,11 +193,12 @@ PostgreSQL advisory lock 只保护发布阶段的当前绑定替换。同一时�
 查看任一阶段结果时，由操作者对刚创建的 Job 执行：
 
 ```bash
-kubectl wait --for=condition=complete --timeout=65m job/<job-name>
-kubectl logs job/<job-name> --all-containers=true
+kubectl -n <namespace> wait --for=condition=complete --timeout=65m job/<job-name>
+kubectl -n <namespace> logs job/<job-name> --all-containers=true
 ```
 
-日志是取得下一阶段内容寻址 ID 的入口。Job 完成或失败后保留 24 小时再由 Kubernetes 自动删除；
+日志输出阶段开始、低频进度和最终 JSON，也是取得下一阶段内容寻址 ID 的入口。Job 完成或失败后保留
+24 小时再由 Kubernetes 自动删除；
 CronJob 的任务历史设置不管理由上述命令创建的独立 Job。
 
 ## 验证与失败处理

@@ -15,12 +15,13 @@ ingestion task 或 workflow，不执行 PDF 解析、OCR、正文抽取、清洗
 
 ```bash
 pnpm internal-portal:collect -- --mode file-sync
-pnpm internal-portal:collect:job -- --namespace <namespace> --mode file-sync
+kubectl -n <namespace> create job \
+  --from=cronjob/file-sync <job-name>
 ```
 
 本地入口使用受管理环境中的直接 TGC。Job 入口先调用 ingestion-control 解析可用 TGC，再执行相同
-实现。Kubernetes base 中只有一个默认暂停的采集 CronJob 模板；维护者显式创建一次性 Job，不启用
-schedule。
+实现。Kubernetes base 中的 `file-sync` 是默认暂停的完整模板；维护者显式创建一次性
+Job，不启用 schedule。
 
 ## 分页与失败
 

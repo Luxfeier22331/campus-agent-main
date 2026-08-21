@@ -31,20 +31,25 @@ pnpm internal-portal:collect -- --mode file-sync
 
 ## 线上 Job
 
-Kubernetes base 提供一个默认暂停的 `internal-portal-collection` CronJob，作为三种模式共用的
-一次性 Job 模板。它不启用 schedule；维护者通过根命令显式创建 Job：
+Kubernetes base 提供三个默认暂停的 CronJob，每个模板固定一种采集动作。线上操作只依赖 `kubectl`：
 
 ```bash
-pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
-  --mode notice-sync
-pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
-  --mode notice-backfill --start-date YYYY-MM-DD
-pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
-  --mode file-sync
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-sync <job-name>
+
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-backfill <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - \
+  INTERNAL_PORTAL_NOTICE_START_DATE=YYYY-MM-DD -o yaml |
+kubectl -n <namespace> create -f -
+
+kubectl -n <namespace> create job \
+  --from=cronjob/file-sync <job-name>
 ```
 
 Job 入口通过 ingestion-control 解析第一条可用 TGC，只在当前进程内使用；采集会话可能取得的新 TGC
-也不会回写凭据池。
+也不会回写凭据池。通知和文件长任务每处理 100 项输出一次计数进度，最终结果不输出完整通知 ID 列表。
 
 ## 验证
 

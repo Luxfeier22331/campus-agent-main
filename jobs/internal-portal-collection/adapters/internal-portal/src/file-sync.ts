@@ -74,7 +74,7 @@ export async function runFileSync(
 			scanned: fileReleaseIds.length,
 			written: 0,
 		};
-		for (const fileReleaseId of fileReleaseIds) {
+		for (const [index, fileReleaseId] of fileReleaseIds.entries()) {
 			input.abortSignal?.throwIfAborted();
 			try {
 				const result = await (dependencies.capture ?? captureInternalPortalFileRelease)(
@@ -96,6 +96,18 @@ export async function runFileSync(
 					errorCode: boundedErrorCode(error),
 					fileReleaseId,
 				});
+			}
+			const processed = index + 1;
+			if (processed % 100 === 0) {
+				console.log(JSON.stringify({
+					failed: summary.failed,
+					mode: "file-sync",
+					processed,
+					reused: summary.reused,
+					status: "running",
+					total: summary.scanned,
+					written: summary.written,
+				}));
 			}
 		}
 		return summary;

@@ -117,6 +117,7 @@ export async function buildCampusDocsEmbeddingSet(
 	const generated = await embedTexts(
 		input.embedding,
 		missing.map(([, chunk]) => chunk.retrievalText),
+		input.onEmbeddingProgress,
 	);
 	for (const [index, [digest]] of missing.entries()) {
 		const vector = generated[index];
@@ -205,15 +206,18 @@ export async function materializeQdrantCollection(input: {
 export async function publishCampusDocsIndex(
 	input: PublishIndexInput,
 ): Promise<PublishIndexResult> {
+	input.onPublishProgress?.("assemble");
 	const candidate = await assembleIndexCandidate({
 		artifactStore: input.artifactStore,
 		embeddingSet: input.embeddingSet,
 	});
+	input.onPublishProgress?.("materialize");
 	const materialized = await materializeQdrantCollection({
 		candidate,
 		qdrant: input.qdrant,
 	});
 	try {
+		input.onPublishProgress?.("verify-source");
 		await assertSourceProjectionUnchanged(
 			input.sourceStore,
 			candidate.sourceProjectionSha256,
@@ -224,6 +228,7 @@ export async function publishCampusDocsIndex(
 		}
 		throw error;
 	}
+	input.onPublishProgress?.("activate");
 	const activated = await input.catalog.activate(candidate.binding);
 	return {
 		collection: candidate.binding.collection,

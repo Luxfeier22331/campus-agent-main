@@ -159,7 +159,7 @@ describe("notice runner", () => {
 			"internal_portal/notices/101/images/0",
 		]);
 		expect(result).toMatchObject({
-			noticeIds: [101],
+			noticesProcessed: 1,
 			resources: {
 				attachmentsDownloaded: 1,
 				imagesDownloaded: 1,
@@ -315,6 +315,32 @@ describe("notice runner", () => {
 		expect(parseNoticeStartDate("2026-02-28")).toBe("2026-02-28");
 		expect(() => parseNoticeStartDate("2026-02-29")).toThrow("valid calendar date");
 		expect(() => parseNoticeStartDate("2026/02/28")).toThrow("YYYY-MM-DD");
+	});
+
+	it("logs bounded progress without returning every notice ID", async () => {
+		const items = Array.from({ length: 100 }, (_, index) => notice(200 - index, 5));
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		try {
+			const result = await backfillInternalPortalNotices({
+				...runnerInput({
+					fetchNoticePage: async ({ currentPage }) =>
+						page(items.slice((currentPage - 1) * 20, currentPage * 20), items.length),
+				}),
+				startDate: "2026-08-01",
+			});
+			expect(result.noticesProcessed).toBe(100);
+			expect(result).not.toHaveProperty("noticeIds");
+			expect(log).toHaveBeenCalledOnce();
+			expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual({
+				objects_reused: 0,
+				objects_written: 100,
+				processed: 100,
+				status: "running",
+				total: 100,
+			});
+		} finally {
+			log.mockRestore();
+		}
 	});
 });
 

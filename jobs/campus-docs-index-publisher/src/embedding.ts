@@ -111,6 +111,7 @@ export function createOpenAICompatibleEmbeddingClient(
 export async function embedTexts(
 	client: EmbeddingClient,
 	texts: readonly string[],
+	onProgress?: (completedInputCount: number, totalInputCount: number) => void,
 ): Promise<number[][]> {
 	const batches: Array<{ offset: number; texts: string[] }> = [];
 	for (let offset = 0; offset < texts.length; offset += EMBEDDING_BATCH_SIZE) {
@@ -120,15 +121,15 @@ export async function embedTexts(
 		});
 	}
 	const result = new Array<number[] | undefined>(texts.length);
+	let completedInputCount = 0;
 	for (
 		let offset = 0;
 		offset < batches.length;
 		offset += EMBEDDING_REQUEST_CONCURRENCY
 	) {
+		const group = batches.slice(offset, offset + EMBEDDING_REQUEST_CONCURRENCY);
 		await Promise.all(
-			batches
-				.slice(offset, offset + EMBEDDING_REQUEST_CONCURRENCY)
-				.map(async (batch) => {
+			group.map(async (batch) => {
 					const vectors = await client.embed({
 						dimensions: EMBEDDING_SPACE.dimensions,
 						texts: batch.texts,
@@ -151,6 +152,11 @@ export async function embedTexts(
 					}
 				}),
 		);
+		completedInputCount += group.reduce(
+			(count, batch) => count + batch.texts.length,
+			0,
+		);
+		onProgress?.(completedInputCount, texts.length);
 	}
 	return result.map((vector, index) => {
 		if (!vector) throw new Error(`embedding result is missing input ${index}`);

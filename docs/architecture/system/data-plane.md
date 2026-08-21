@@ -34,9 +34,8 @@ notice-sync / notice-backfill
 ```
 
 本地命令直接读取受管理 `.env.local` 的 TGC。线上入口先向 ingestion-control 解析一条当前可用 TGC，
-再调用相同采集实现。ingestion runtime base 提供一个默认暂停的 `internal-portal-collection` CronJob
-模板，维护者
-通过显式命令按模式创建一次性 Job；不启用自动 schedule，也不与分类自动串联。
+再调用相同采集实现。ingestion runtime base 为通知增量、通知回填和文件发布分别提供一个默认暂停的
+CronJob 模板；维护者显式创建一次性 Job，不启用自动 schedule，也不与分类自动串联。
 
 ## 文件发布采集
 

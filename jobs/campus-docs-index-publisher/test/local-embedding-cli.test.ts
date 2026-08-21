@@ -39,25 +39,31 @@ describe("local Campus docs embedding commands", () => {
 		])).toThrow("Usage: build-embeddings");
 	});
 
-	it("publishes from the embedding set without a duplicate chunk set argument", () => {
-		expect(parseCommand([
-			"publish-index",
-			"--embedding-set",
-			embeddingSet,
-		])).toEqual({ embeddingSet, kind: "publish-index" });
-		expect(parseCommand([
-			"publish-index",
-			"--",
-			"--embedding-set",
-			embeddingSet,
-		])).toEqual({ embeddingSet, kind: "publish-index" });
-		expect(() => parseCommand([
-			"publish-index",
-			"--chunk-set",
+	it("reads online artifact selections only from the Job environment", () => {
+		expect(parseCommand(["build-embeddings"], {
+			CAMPUS_DOCS_CHUNK_SET: chunkSet,
+			CAMPUS_DOCS_REUSE_EMBEDDING_SET: embeddingSet,
+		})).toEqual({
 			chunkSet,
-			"--embedding-set",
-			embeddingSet,
-		])).toThrow("Usage: build-chunks");
+			kind: "build-embeddings",
+			reuseEmbeddingSet: embeddingSet,
+		});
+		expect(parseCommand(["publish-index"], {
+			CAMPUS_DOCS_EMBEDDING_SET: embeddingSet,
+		})).toEqual({ embeddingSet, kind: "publish-index" });
+	});
+
+	it("rejects missing environment selections and retired online flags", () => {
+		expect(() => parseCommand(["build-embeddings"], {})).toThrow(
+			"CAMPUS_DOCS_CHUNK_SET is required",
+		);
+		expect(() => parseCommand(["publish-index"], {})).toThrow(
+			"CAMPUS_DOCS_EMBEDDING_SET is required",
+		);
+		expect(() => parseCommand(
+			["publish-index", "--embedding-set", embeddingSet],
+			{ CAMPUS_DOCS_EMBEDDING_SET: embeddingSet },
+		)).toThrow("Usage: build-chunks");
 	});
 
 	it("uses the explicit embedding set for local publish", () => {

@@ -110,7 +110,7 @@ spec:
             - name: embedding-builder
               image: ghcr.io/muc-wiki/campus-agent/campus-docs-index-publisher:replace-me
               imagePullPolicy: IfNotPresent
-              args: []
+              args: ["build-embeddings"]
               env:
                 - name: OBJECT_STORE_ENDPOINT
                   value: http://object-store:9000
@@ -185,7 +185,7 @@ spec:
             - name: index-publisher
               image: ghcr.io/muc-wiki/campus-agent/campus-docs-index-publisher:replace-me
               imagePullPolicy: IfNotPresent
-              args: []
+              args: ["publish-index"]
               env:
                 - name: EXECUTION_CONTROL_DATABASE_URL
                   valueFrom:

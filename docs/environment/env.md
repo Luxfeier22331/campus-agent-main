@@ -61,7 +61,9 @@ bucket 连接。notice-publisher 仅用于本地显式写入，使用现有 work
 需要显式运行配置的仓库命令使用 `env/commands/*.env.example`。命令模板只保存变量名和安全示例，
 不保存真实值，也不成为常驻应用的配置来源。
 
-任务标识、来源引用和其他单次输入通过类型化请求或 CLI 参数传递，不扩张为环境合同。
+本地任务标识、来源引用和其他单次输入通过类型化请求或 CLI 参数传递。Kubernetes 一次性 Job 可以在
+从固定 CronJob 模板创建时，通过 `kubectl set env --local` 写入该 Job 独有的数据选择；这些值不进入
+CronJob、ConfigMap、Secret 或长期环境配置。
 
 ### 部署环境
 
@@ -71,9 +73,9 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 长期运行的 Kubernetes workload 从共享 ConfigMap 逐 key 投影实际消费字段。只服务单个一次性 Job
 且字段全部由该 Job 消费的专用 ConfigMap 可以整体注入。
 
-internal-portal-collection 的单一 Job 模板读取 `INGESTION_CONTROL_INTERNAL_URL`、
-`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置，并通过参数执行通知增量、通知回填或文件发布采集。
-模板默认暂停，只用于显式创建一次性 Job；不得新增 TGC Secret。
+内部门户采集使用三个默认暂停的 CronJob 模板，分别固定执行通知增量、通知回填和文件发布采集。
+它们读取 `INGESTION_CONTROL_INTERNAL_URL`、`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；回填日期
+只在创建该次 Job 时写入。模板默认暂停，只用于显式创建一次性 Job；不得新增 TGC Secret。
 
 ### 部署配置生命周期
 

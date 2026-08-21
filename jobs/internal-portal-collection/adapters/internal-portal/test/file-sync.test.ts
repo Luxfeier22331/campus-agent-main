@@ -109,6 +109,42 @@ describe("internal portal file sync", () => {
 		expect(store.close).toHaveBeenCalledOnce();
 	});
 
+	it("logs bounded progress every one hundred files", async () => {
+		const store = objectStore();
+		const ids = Array.from({ length: 100 }, (_, index) => index + 1);
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		try {
+			await runFileSync(
+				{ env },
+				{
+					capture: vi.fn(async ({ fileReleaseId }: { fileReleaseId: number }) => ({
+						disposition: "reused" as const,
+						fileReleaseId,
+						sourceKey: `files/${fileReleaseId}/source.json`,
+					})),
+					createApiContext: async () => apiContext(),
+					createObjectStore: () => store,
+					fetchPage: vi.fn(async () => ({
+						datas: { page: { totalCounts: ids.length }, tables: ids.map((id) => ({ id })) },
+						state: true,
+					})),
+				},
+			);
+			expect(log).toHaveBeenCalledOnce();
+			expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual({
+				failed: 0,
+				mode: "file-sync",
+				processed: 100,
+				reused: 100,
+				status: "running",
+				total: 100,
+				written: 0,
+			});
+		} finally {
+			log.mockRestore();
+		}
+	});
+
 	it("aborts the batch on an authentication failure", async () => {
 		const store = objectStore();
 		await expect(

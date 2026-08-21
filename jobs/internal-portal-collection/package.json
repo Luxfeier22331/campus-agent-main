@@ -10,7 +10,6 @@
 		"auth:check": "tsx adapters/internal-portal/src/auth-cli.ts check",
 		"auth:pull": "tsx adapters/internal-portal/src/auth-cli.ts pull",
 		"collect": "tsx adapters/internal-portal/src/collection-cli.ts",
-		"collect:job": "tsx adapters/internal-portal/src/collection-job.ts",
 		"test": "vitest run -c vitest.fast.config.mts",
 		"typecheck": "tsc --noEmit"
 	},

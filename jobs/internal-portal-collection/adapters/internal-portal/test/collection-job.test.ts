@@ -20,7 +20,7 @@ vi.mock("../src/ingestion-control-credential-resolver.js", () => ({
 	resolveInternalPortalCredentialFromEnv: mocks.resolveCredential,
 }));
 
-import { main } from "../src/collection-job.js";
+import { main, parseCollectionJobCommand } from "../src/collection-job.js";
 
 describe("collection Job entry", () => {
 	beforeEach(() => {
@@ -29,7 +29,15 @@ describe("collection Job entry", () => {
 
 	it("resolves one credential before running the selected mode", async () => {
 		const env = {};
-		await expect(main(["--mode", "file-sync"], env)).resolves.toBe(0);
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		try {
+			await expect(main(["file-sync"], env)).resolves.toBe(0);
+			expect(log).toHaveBeenCalledWith(
+				JSON.stringify({ mode: "file-sync", status: "started" }),
+			);
+		} finally {
+			log.mockRestore();
+		}
 		expect(mocks.loadInternalPortalEnv).toHaveBeenCalledWith(env);
 		expect(mocks.resolveCredential).toHaveBeenCalledWith(env);
 		expect(mocks.runCollectionCommand).toHaveBeenCalledWith(
@@ -38,6 +46,21 @@ describe("collection Job entry", () => {
 		);
 		expect(mocks.resolveCredential.mock.invocationCallOrder[0]).toBeLessThan(
 			mocks.runCollectionCommand.mock.invocationCallOrder[0] as number,
+		);
+	});
+
+	it("reads only the backfill date from the Job environment", () => {
+		expect(parseCollectionJobCommand(["notice-sync"], {})).toEqual({
+			mode: "notice-sync",
+		});
+		expect(parseCollectionJobCommand(["notice-backfill"], {
+			INTERNAL_PORTAL_NOTICE_START_DATE: "2026-08-01",
+		})).toEqual({ mode: "notice-backfill", startDate: "2026-08-01" });
+		expect(() => parseCollectionJobCommand(["notice-backfill"], {})).toThrow(
+			"INTERNAL_PORTAL_NOTICE_START_DATE is required",
+		);
+		expect(() => parseCollectionJobCommand(["--mode", "notice-sync"], {})).toThrow(
+			"Usage: notice-sync",
 		);
 	});
 

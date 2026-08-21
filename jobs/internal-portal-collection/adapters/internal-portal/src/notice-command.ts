@@ -38,7 +38,7 @@ export async function runNoticeCommand(
 					JSON.stringify(
 						{
 							mode: "backfill",
-							noticeIds: [],
+							noticesProcessed: 0,
 							objectsReused: 0,
 							objectsWritten: 0,
 							pagesFetched: 0,

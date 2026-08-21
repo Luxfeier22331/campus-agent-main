@@ -87,6 +87,7 @@ describe("OpenAI-compatible embedding client", () => {
 
 	it("uses batches of eight with at most eight requests in flight", async () => {
 		const batchSizes: number[] = [];
+		const progress: Array<[number, number]> = [];
 		let active = 0;
 		let maxActive = 0;
 		const vectors = await embedTexts(
@@ -101,12 +102,14 @@ describe("OpenAI-compatible embedding client", () => {
 				},
 			},
 			Array.from({ length: 65 }, (_, index) => `text-${index}`),
+			(completed, total) => progress.push([completed, total]),
 		);
 
 		expect(batchSizes).toEqual([8, 8, 8, 8, 8, 8, 8, 8, 1]);
 		expect(maxActive).toBe(8);
 		expect(vectors).toHaveLength(65);
 		expect(vectors[0]).toHaveLength(EMBEDDING_SPACE.dimensions);
+		expect(progress).toEqual([[64, 65], [65, 65]]);
 	});
 });
 

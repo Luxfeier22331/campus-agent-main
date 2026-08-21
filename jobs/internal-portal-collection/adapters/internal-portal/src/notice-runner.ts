@@ -52,7 +52,7 @@ export interface NoticeRunnerResourceCounts {
 
 export interface NoticeRunnerResult {
 	mode: "backfill" | "sync";
-	noticeIds: number[];
+	noticesProcessed: number;
 	objectsReused: number;
 	objectsWritten: number;
 	pagesFetched: number;
@@ -322,14 +322,14 @@ async function writeCandidates(
 	input: NoticeRunnerInput,
 	candidates: NoticeCandidate[],
 ): Promise<{
-	noticeIds: number[];
+	noticesProcessed: number;
 	objectsReused: number;
 	objectsWritten: number;
 	resources: NoticeRunnerResourceCounts;
 }> {
 	let objectsReused = 0;
 	let objectsWritten = 0;
-	const noticeIds: number[] = [];
+	let noticesProcessed = 0;
 	const resources = emptyResourceCounts();
 	for (const candidate of candidates) {
 		const existing = await input.sourceStore.get(candidate.noticeId);
@@ -366,10 +366,19 @@ async function writeCandidates(
 			objectStore: input.objectStore,
 			portalHost: input.portalHost,
 		});
-		noticeIds.push(candidate.noticeId);
+		noticesProcessed += 1;
 		addResourceCounts(resources, resourceResult);
+		if (noticesProcessed % 100 === 0) {
+			console.log(JSON.stringify({
+				objects_reused: objectsReused,
+				objects_written: objectsWritten,
+				processed: noticesProcessed,
+				status: "running",
+				total: candidates.length,
+			}));
+		}
 	}
-	return { noticeIds, objectsReused, objectsWritten, resources };
+	return { noticesProcessed, objectsReused, objectsWritten, resources };
 }
 
 async function saveMappings(
@@ -473,9 +482,9 @@ function result(
 	pagesFetched: number,
 	counts: Pick<
 		NoticeRunnerResult,
-		"noticeIds" | "objectsReused" | "objectsWritten" | "resources"
+		"noticesProcessed" | "objectsReused" | "objectsWritten" | "resources"
 	> = {
-		noticeIds: [],
+		noticesProcessed: 0,
 		objectsReused: 0,
 		objectsWritten: 0,
 		resources: emptyResourceCounts(),

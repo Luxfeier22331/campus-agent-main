@@ -18,7 +18,6 @@
 		"internal-portal:auth:check": "pnpm --dir jobs/internal-portal-collection auth:check",
 		"internal-portal:auth:pull": "pnpm --dir jobs/internal-portal-collection auth:pull",
 		"internal-portal:collect": "pnpm --dir jobs/internal-portal-collection collect",
-		"internal-portal:collect:job": "tsx scripts/deploy/internal-portal-collection-job.ts",
 		"predev": "pnpm dev:init",
 		"dev": "turbo run dev --env-mode=loose --filter=campus-web --filter=app-api --filter=ops-web",
 		"dev:ops-web-api": "pnpm exec tsx scripts/dev/service.ts ops-web-api",
@@ -26,8 +25,7 @@
 		"dev:init": "pnpm exec tsx scripts/dev/cli.ts init",
 		"dev:doctor": "pnpm exec tsx scripts/dev/cli.ts doctor",
 		"dev:instances": "pnpm exec tsx scripts/dev/cli.ts instances",
-		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy",
-		"campus-docs:index-job": "tsx scripts/deploy/campus-docs-index-job.ts"
+		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-s3": "^3.1111.0",

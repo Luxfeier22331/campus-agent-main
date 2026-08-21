@@ -6,7 +6,6 @@ export default defineProject({
 		exclude: ["adapters/**/*.isolated.test.ts"],
 		fileParallelism: false,
 		include: ["adapters/**/*.test.ts", "test/**/*.test.ts"],
-		isolate: false,
 		maxWorkers: 1,
 		name: "internal-portal-collection-fast",
 		silent: "passed-only",

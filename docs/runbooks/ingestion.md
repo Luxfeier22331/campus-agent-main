@@ -43,8 +43,8 @@ pnpm internal-portal:collect -- --mode file-sync
 ```
 
 命令按顺序逐条处理。已有合法 `source.json` 时复用；普通单项失败继续并汇总，认证失败立即终止。结果只在
-source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同一采集实现和共用 Job 模板的
-`file-sync` 模式。
+source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同一采集实现和固定为 `file-sync` 的
+独立 Job 模板。
 
 ## 本地通知流程
 
@@ -224,18 +224,27 @@ INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
 ## Kubernetes
 
 `infra/k8s/ingestion-runtime/base/runtime` 包含 ingestion-control API、schema Job、凭据检查 CronJob、
-默认暂停的内部门户采集模板和通知分类 CronJob 模板，不包含自动采集调度。
+三个默认暂停的内部门户采集模板和通知分类 CronJob 模板，不包含自动采集调度。
 internal-portal-collection 镜像的 Job 入口消费 `INGESTION_CONTROL_INTERNAL_URL`、既有
 `OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；三种采集模式都只能由维护者显式创建一次性 Job：
 
 ```bash
-pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
-  --mode notice-sync
-pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
-  --mode notice-backfill --start-date YYYY-MM-DD
-pnpm internal-portal:collect:job -- --namespace campus-agent-staging \
-  --mode file-sync
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-sync <job-name>
+
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-backfill <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - \
+  INTERNAL_PORTAL_NOTICE_START_DATE=YYYY-MM-DD -o yaml |
+kubectl -n <namespace> create -f -
+
+kubectl -n <namespace> create job \
+  --from=cronjob/file-sync <job-name>
 ```
+
+三个模板各自固定一种动作，不接收 `mode`。回填日期只属于本次 Job，不写入长期环境配置。通知与文件
+采集每处理 100 项输出一次计数进度；最终通知摘要只输出数量，不输出完整 ID 列表。
 
 通知分类 Job 复用已有 source/derived 对象存储 Secret，不新增数据库或模型 Secret。运行一次性采集
 Job 前须在目标环境确认到 ingestion-control、source bucket 和门户 HTTPS 的连通性。

@@ -22,19 +22,36 @@ type Command =
 	| { embeddingSet: Sha256Ref; kind: "publish-index" };
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
-	const command = parseCommand(argv);
+	const command = parseCommand(argv, process.env);
 	const store = createS3ArtifactStore();
 	switch (command.kind) {
 		case "build-chunks": {
+			writeProgress({ stage: "chunks", status: "started" });
 			await runBuildChunks({ artifactStore: store, sourceStore: store });
 			return;
 		}
 		case "build-embeddings": {
+			writeProgress({
+				chunk_set: command.chunkSet,
+				...(command.reuseEmbeddingSet
+					? { reuse_embedding_set: command.reuseEmbeddingSet }
+					: {}),
+				stage: "embeddings",
+				status: "started",
+			});
 			const connection = await fetchEmbeddingConnection();
 			const result = await buildCampusDocsEmbeddingSet({
 				artifactStore: store,
 				chunkSet: command.chunkSet,
 				embedding: createOpenAICompatibleEmbeddingClient(connection),
+				onEmbeddingProgress(completedInputCount, totalInputCount) {
+					writeProgress({
+						completed_embedding_input_count: completedInputCount,
+						stage: "embeddings",
+						status: "running",
+						total_embedding_input_count: totalInputCount,
+					});
+				},
 				...(command.reuseEmbeddingSet
 					? { reuseEmbeddingSet: command.reuseEmbeddingSet }
 					: {}),
@@ -48,6 +65,11 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 			return;
 		}
 		case "publish-index": {
+			writeProgress({
+				embedding_set: command.embeddingSet,
+				stage: "publish",
+				status: "started",
+			});
 			const catalog = createPostgresIndexCatalog();
 			try {
 				await catalog.acquirePublisherLock();
@@ -55,6 +77,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 					artifactStore: store,
 					catalog,
 					embeddingSet: command.embeddingSet,
+					onPublishProgress(stage) {
+						writeProgress({ stage: `publish:${stage}`, status: "running" });
+					},
 					qdrant: createQdrantClient(),
 					sourceStore: store,
 				});
@@ -70,60 +95,52 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 	}
 }
 
-export function parseCommand(argv: string[]): Command {
-	const [kind, ...rawArgs] = argv;
-	const args = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
+export function parseCommand(
+	argv: readonly string[],
+	env: NodeJS.ProcessEnv = process.env,
+): Command {
+	const [kind, ...args] = argv;
 	if (kind === "build-chunks") {
 		if (args.length !== 0) usage();
 		return { kind };
 	}
-	const flags = parseFlags(args);
 	if (kind === "build-embeddings") {
-		const chunkSet = requiredRef(flags, "--chunk-set");
-		const reuse = flags.get("--reuse-embedding-set");
-		assertOnlyFlags(flags, ["--chunk-set", "--reuse-embedding-set"]);
+		if (args.length !== 0) usage();
+		const chunkSet = requiredEnvRef(env, "CAMPUS_DOCS_CHUNK_SET");
+		const reuse = optionalEnvRef(env, "CAMPUS_DOCS_REUSE_EMBEDDING_SET");
 		return {
 			chunkSet,
 			kind,
-			...(reuse ? { reuseEmbeddingSet: assertSha256Ref(reuse, "reuse embedding set") } : {}),
+			...(reuse ? { reuseEmbeddingSet: reuse } : {}),
 		};
 	}
 	if (kind === "publish-index") {
-		const embeddingSet = requiredRef(flags, "--embedding-set");
-		assertOnlyFlags(flags, ["--embedding-set"]);
+		if (args.length !== 0) usage();
+		const embeddingSet = requiredEnvRef(env, "CAMPUS_DOCS_EMBEDDING_SET");
 		return { embeddingSet, kind };
 	}
 	return usage();
 }
 
-function parseFlags(args: string[]): Map<string, string> {
-	if (args.length % 2 !== 0) usage();
-	const result = new Map<string, string>();
-	for (let index = 0; index < args.length; index += 2) {
-		const name = args[index];
-		const value = args[index + 1];
-		if (!name?.startsWith("--") || !value || result.has(name)) usage();
-		result.set(name, value);
-	}
-	return result;
+function requiredEnvRef(env: NodeJS.ProcessEnv, name: string): Sha256Ref {
+	const value = env[name]?.trim();
+	if (!value) throw new Error(`${name} is required`);
+	return assertSha256Ref(value, name);
 }
 
-function requiredRef(flags: Map<string, string>, name: string): Sha256Ref {
-	const value = flags.get(name);
-	if (!value) usage();
-	return assertSha256Ref(value, name.slice(2).replaceAll("-", " "));
-}
-
-function assertOnlyFlags(flags: Map<string, string>, allowed: readonly string[]): void {
-	for (const flag of flags.keys()) {
-		if (!allowed.includes(flag)) usage();
-	}
+function optionalEnvRef(env: NodeJS.ProcessEnv, name: string): Sha256Ref | undefined {
+	const value = env[name]?.trim();
+	return value ? assertSha256Ref(value, name) : undefined;
 }
 
 function usage(): never {
 	throw new Error(
-		"Usage: build-chunks | build-embeddings --chunk-set sha256:<id> [--reuse-embedding-set sha256:<id>] | publish-index --embedding-set sha256:<id>",
+		"Usage: build-chunks | build-embeddings | publish-index",
 	);
+}
+
+function writeProgress(value: Record<string, unknown>): void {
+	console.log(JSON.stringify(value));
 }
 
 function writeResult(value: Record<string, unknown>): void {

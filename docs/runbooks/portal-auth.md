@@ -73,17 +73,23 @@ INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
 ## Job 入口
 
 ```bash
-pnpm internal-portal:collect:job -- --namespace <namespace> \
-  --mode notice-sync
-pnpm internal-portal:collect:job -- --namespace <namespace> \
-  --mode notice-backfill --start-date YYYY-MM-DD
-pnpm internal-portal:collect:job -- --namespace <namespace> --mode file-sync
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-sync <job-name>
+
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-backfill <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - \
+  INTERNAL_PORTAL_NOTICE_START_DATE=YYYY-MM-DD -o yaml |
+kubectl -n <namespace> create -f -
+
+kubectl -n <namespace> create job \
+  --from=cronjob/file-sync <job-name>
 ```
 
-这些模式读取 `INGESTION_CONTROL_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数
-调用与本地 CLI 相同的采集实现。Job 不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。
-Kubernetes base 提供一个默认暂停的 `internal-portal-collection` 模板；它没有 schedule，必须由维护者
-显式创建一次性 Job。
+这些模板读取 `INGESTION_CONTROL_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
+与本地 CLI 相同的采集实现。Job 不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。Kubernetes
+base 为三种动作分别提供默认暂停的模板；它们没有 schedule，必须由维护者显式创建一次性 Job。
 
 ## 数据升级与保留
 
