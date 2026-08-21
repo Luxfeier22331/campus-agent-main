@@ -13,6 +13,10 @@ const schemaManifestPath = resolve(
 	import.meta.dirname,
 	"../../infra/k8s/ingestion-runtime/base/runtime/notice-publisher-schema.yaml",
 );
+const networkPolicyManifestPath = resolve(
+	import.meta.dirname,
+	"../../infra/k8s/ingestion-runtime/base/runtime/network-policy.yaml",
+);
 
 test("notice publisher manual Job template is suspended and non-retrying", () => {
 	const manifest = singleManifest(publisherManifestPath);
@@ -42,14 +46,61 @@ test("notice publisher schema Job uses the existing owner identity", () => {
 	]);
 });
 
-function singleManifest(path: string): Record<string, unknown> {
-	const manifests = parseAllDocuments(readFileSync(path, "utf8")).map((document) =>
-		record(document.toJS(), "manifest"),
+test("notice publisher workloads can reach their required services", () => {
+	const policy = manifests(networkPolicyManifestPath).find(
+		(manifest) => nameOf(manifest) === "notice-publisher-egress",
 	);
-	if (manifests.length !== 1) {
+	assert.ok(policy);
+	const spec = record(policy.spec, "NetworkPolicy spec");
+	assert.deepEqual(spec, {
+		podSelector: {
+			matchExpressions: [
+				{
+					key: "app.kubernetes.io/name",
+					operator: "In",
+					values: ["notice-publisher", "notice-publisher-schema"],
+				},
+			],
+		},
+		policyTypes: ["Egress"],
+		egress: [
+			{
+				to: [
+					{
+						namespaceSelector: {
+							matchLabels: { "kubernetes.io/metadata.name": "kube-system" },
+						},
+					},
+				],
+				ports: [
+					{ protocol: "UDP", port: 53 },
+					{ protocol: "TCP", port: 53 },
+				],
+			},
+			{
+				to: [{ podSelector: { matchLabels: { "cnpg.io/cluster": "campus-agent-postgres" } } }],
+				ports: [{ protocol: "TCP", port: 5432 }],
+			},
+			{
+				to: [{ podSelector: { matchLabels: { "app.kubernetes.io/name": "object-store" } } }],
+				ports: [{ protocol: "TCP", port: 9000 }],
+			},
+		],
+	});
+});
+
+function singleManifest(path: string): Record<string, unknown> {
+	const values = manifests(path);
+	if (values.length !== 1) {
 		throw new Error(`${path} must contain exactly one manifest`);
 	}
-	return manifests[0] as Record<string, unknown>;
+	return values[0] as Record<string, unknown>;
+}
+
+function manifests(path: string): Record<string, unknown>[] {
+	return parseAllDocuments(readFileSync(path, "utf8")).map((document) =>
+		record(document.toJS(), "manifest"),
+	);
 }
 
 function nameOf(manifest: Record<string, unknown>): string {
