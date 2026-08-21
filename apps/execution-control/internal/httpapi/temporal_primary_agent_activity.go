@@ -440,6 +440,14 @@ func (s *Server) beginPrimaryAgentRun(
 		}
 		run = running
 	}
+	if err := s.appendTemporalRunProgress(
+		ctx,
+		run,
+		execution.DurableRunProgressPhaseGenerating,
+		startedAt,
+	); err != nil {
+		return execution.DurableRun{}, err
+	}
 	return run, nil
 }
 

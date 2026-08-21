@@ -14,8 +14,6 @@ import type { DocsDirectoryRouteData } from "../src/features/docs/data-source";
 import { createLargeDocsSiteIndex } from "./helpers/docs-site-index-fixture";
 
 afterEach(() => {
-	document.head.innerHTML = "";
-	document.body.innerHTML = "";
 	window.history.replaceState(null, "", "/");
 	vi.restoreAllMocks();
 });

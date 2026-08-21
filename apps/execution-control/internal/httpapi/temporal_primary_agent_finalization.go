@@ -51,6 +51,15 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	if run.Status == execution.DurableRunStatusCompleted {
 		return s.repairCompletedPrimaryAgentFinalization(ctx, run, input, finalizedAt)
 	}
+	finalizationStartedAt := time.Now().UTC()
+	if err := s.appendTemporalRunProgress(
+		ctx,
+		run,
+		execution.DurableRunProgressPhaseFinalizing,
+		finalizationStartedAt,
+	); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
 	replayEvidence, err := s.completedFinalizationProjectionEvidence(ctx, run)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -88,7 +97,6 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 			err,
 		)
 	}
-	finalizationStartedAt := time.Now().UTC()
 	if replayEvidence != nil {
 		finalizationStartedAt = replayEvidence.StartedAt
 	}

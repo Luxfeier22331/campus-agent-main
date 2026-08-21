@@ -92,4 +92,15 @@ describe("user-facing copy guard", () => {
 			}
 		}
 	});
+
+	it("does not reveal internal email admission mechanics in authentication copy", () => {
+		for (const relativePath of [
+			["src", "components", "auth", "auth-forms.tsx"],
+			["src", "components", "auth", "auth-email-flows.tsx"],
+			["src", "platform", "auth", "client.ts"],
+		]) {
+			const source = readFileSync(join(appDir, ...relativePath), "utf8");
+			expect(source, relativePath.join("/")).not.toMatch(/管理员|已获邀请|需要管理员邀请/u);
+		}
+	});
 });

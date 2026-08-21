@@ -10,12 +10,72 @@ import {
 	installAssistantUiRuntimeTestHarness,
 	RuntimeProbe,
 	readAssistantText,
+	readMessageText,
 	streamEvents,
 	TestUnauthorizedError as UnauthorizedError,
 } from "./assistant-ui-runtime.test-support";
 
 describe("assistant-ui runtime recovery and terminal handling", () => {
 	installAssistantUiRuntimeTestHarness();
+
+	it("restores an active durable run after refresh without submitting the prompt again", async () => {
+		assistantUiMock.remoteId = "conv_created";
+		conversationApiMock.getConversationDetail.mockResolvedValue({
+			activeRunId: "run_01",
+			archivedAt: null,
+			createdAt: "2026-06-24T01:00:00.000Z",
+			id: "conv_created",
+			messages: [],
+			pinnedAt: null,
+			title: "正在回答",
+			updatedAt: "2026-06-24T01:00:01.000Z",
+		});
+		conversationApiMock.getRunStatus.mockResolvedValue({
+			acceptedAt: "2026-06-24T01:00:00.000Z",
+			completedAt: null,
+			conversationId: "conv_created",
+			durationMs: null,
+			phase: "running",
+			requestId: "req_01",
+			runId: "run_01",
+			startedAt: "2026-06-24T01:00:01.000Z",
+			status: "running",
+			traceId: "trace_01",
+		});
+		conversationApiMock.getRunEvents.mockResolvedValue({
+			events: [completedTerminalEvent("刷新后恢复的完整答案。")],
+			nextSequence: 3,
+			run: {
+				acceptedAt: "2026-06-24T01:00:00.000Z",
+				completedAt: null,
+				conversationId: "conv_created",
+				durationMs: null,
+				phase: "running",
+				requestId: "req_01",
+				runId: "run_01",
+				startedAt: "2026-06-24T01:00:01.000Z",
+				status: "running",
+				traceId: "trace_01",
+			},
+		});
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		await waitFor(() => {
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(readAssistantText()).toBe("刷新后恢复的完整答案。");
+		});
+		expect(conversationApiMock.submitChatRequestStream).not.toHaveBeenCalled();
+		expect(conversationApiMock.getRunStatus).toHaveBeenCalledWith({
+			runId: "run_01",
+			signal: expect.any(AbortSignal),
+		});
+		expect(conversationApiMock.getRunEvents).toHaveBeenCalledWith({
+			afterSequence: 0,
+			runId: "run_01",
+			signal: expect.any(AbortSignal),
+		});
+	});
 
 	it("submits new assistant-ui messages through the durable lifecycle SSE contract", async () => {
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
@@ -36,6 +96,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						answer: {
 							conversation: {
 								archivedAt: null,
+								activeRunId: null,
 								createdAt: "2026-06-24T01:00:00.000Z",
 								id: "conv_created",
 								messages: [
@@ -577,7 +638,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		}
 	});
 
-	it("removes provisional text when an accepted run resumes into a non-retryable stream error", async () => {
+	it("keeps the accepted run visible when resume fails with a non-retryable stream error", async () => {
 		vi.useFakeTimers();
 		let markDeltaConsumed: () => void = () => {
 			throw new Error("delta consumption marker was not initialized");
@@ -646,8 +707,24 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(hasMessageId("msg_resume_draft")).toBe(false);
-			expect(readAssistantText()).toBe("恢复回答失败。");
+			expect(hasMessageId("msg_resume_draft")).toBe(true);
+			expect(readMessageText("msg_resume_draft")).toBe("不完整草稿");
+			expect(readMessageText("local-error-req_resume_failed")).toBe("恢复回答失败。");
+			expect(assistantUiMock.externalStoreInput?.messages).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: "msg_resume_draft",
+						metadata: {
+							custom: {
+								campusRun: expect.objectContaining({
+									connection: "disconnected",
+									runId: "run_resume_failed",
+								}),
+							},
+						},
+					}),
+				]),
+			);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -798,6 +875,17 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		await waitFor(() => expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false));
 		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
 			expect.objectContaining({ role: "user" }),
+			expect.objectContaining({
+				metadata: {
+					custom: {
+						campusRun: expect.objectContaining({
+							runId: "run_failed",
+							status: "failed",
+						}),
+					},
+				},
+				role: "assistant",
+			}),
 			expect.objectContaining({
 				content: [{ text: "请求失败。", type: "text" }],
 				id: "local-error-req_failed",

@@ -7,7 +7,9 @@ import {
 	deleteConversation,
 	deleteMessageFeedback,
 	deleteTrailingMessages,
+	getRunEvents,
 	getRunStatus,
+	getRunSteps,
 	listConversations,
 	pinConversation,
 	renameConversation,
@@ -374,10 +376,14 @@ describe("campus app-api client", () => {
 			new Response(
 				JSON.stringify({
 					run: {
+						acceptedAt: "2026-06-08T00:00:00.000Z",
+						completedAt: "2026-06-08T00:00:05.000Z",
 						conversationId: "conv_01",
+						durationMs: 5_000,
 						phase: "failed",
 						requestId: "req_01",
 						runId: "run_01",
+						startedAt: "2026-06-08T00:00:01.000Z",
 						status: "failed",
 						terminalReason: "runtime_invariant_failed",
 						traceId: "trace_01",
@@ -388,10 +394,14 @@ describe("campus app-api client", () => {
 		);
 
 		await expect(getRunStatus({ runId: "run_01", signal: controller.signal })).resolves.toEqual({
+			acceptedAt: "2026-06-08T00:00:00.000Z",
+			completedAt: "2026-06-08T00:00:05.000Z",
 			conversationId: "conv_01",
+			durationMs: 5_000,
 			phase: "failed",
 			requestId: "req_01",
 			runId: "run_01",
+			startedAt: "2026-06-08T00:00:01.000Z",
 			status: "failed",
 			terminalReason: "runtime_invariant_failed",
 			traceId: "trace_01",
@@ -532,14 +542,134 @@ describe("campus app-api client", () => {
 		});
 	});
 
+	it("reads browser-visible run events and advances the durable cursor", async () => {
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					events: [
+						{
+							eventType: "execution.phase",
+							occurredAt: "2026-06-08T00:00:01.000Z",
+							payload: { phase: "retrieving", request_id: "req_01" },
+							runId: "run_01",
+							sequence: 7,
+						},
+						{
+							eventType: "answer.delta",
+							occurredAt: "2026-06-08T00:00:02.000Z",
+							payload: { delta: "校园资料", message_id: "msg_01" },
+							runId: "run_01",
+							sequence: 8,
+						},
+					],
+					nextSequence: 9,
+					run: {
+						acceptedAt: "2026-06-08T00:00:00.000Z",
+						completedAt: null,
+						conversationId: "conv_01",
+						durationMs: null,
+						phase: "streaming",
+						requestId: "req_01",
+						runId: "run_01",
+						startedAt: "2026-06-08T00:00:01.000Z",
+						status: "streaming",
+						traceId: "trace_01",
+					},
+				}),
+				{ headers: { "content-type": "application/json" } },
+			),
+		);
+
+		await expect(getRunEvents({ afterSequence: 6, runId: "run_01" })).resolves.toMatchObject({
+			nextSequence: 9,
+			run: { runId: "run_01", status: "streaming" },
+			events: [
+				{ event: "execution.phase", data: { phase: "retrieving", sequence: 7 } },
+				{
+					event: "answer.delta",
+					data: { delta: "校园资料", messageId: "msg_01", sequence: 8 },
+				},
+			],
+		});
+		expect(fetchMock).toHaveBeenCalledWith("/api/chat/runs/run_01/events?after_sequence=6", {
+			credentials: "same-origin",
+			headers: { accept: "application/json" },
+			method: "GET",
+		});
+	});
+
+	it("reads the fixed five-phase run steps without exposing raw trajectory fields", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					run: {
+						acceptedAt: "2026-06-08T00:00:00.000Z",
+						completedAt: null,
+						conversationId: "conv_01",
+						durationMs: null,
+						phase: "running",
+						requestId: "req_01",
+						runId: "run_01",
+						startedAt: "2026-06-08T00:00:01.000Z",
+						status: "running",
+						traceId: "trace_01",
+					},
+					steps: [
+						{
+							completedAt: null,
+							durationMs: null,
+							phase: "queued",
+							startedAt: "2026-06-08T00:00:00.000Z",
+							status: "completed",
+						},
+						...(["preparing", "retrieving", "generating", "finalizing"] as const).map((phase) => ({
+							completedAt: null,
+							durationMs: null,
+							phase,
+							startedAt: null,
+							status: "pending",
+						})),
+					],
+				}),
+				{ headers: { "content-type": "application/json" } },
+			),
+		);
+
+		await expect(getRunSteps({ runId: "run_01" })).resolves.toMatchObject({
+			steps: [
+				expect.objectContaining({ phase: "queued" }),
+				expect.objectContaining({ phase: "preparing" }),
+				expect.objectContaining({ phase: "retrieving" }),
+				expect.objectContaining({ phase: "generating" }),
+				expect.objectContaining({ phase: "finalizing" }),
+			],
+		});
+	});
+
 	it("calls run control and trailing delete routes explicitly", async () => {
 		const fetchMock = vi
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValueOnce(
-				new Response(JSON.stringify({ accepted: true }), {
-					headers: { "content-type": "application/json" },
-					status: 202,
-				}),
+				new Response(
+					JSON.stringify({
+						run: {
+							acceptedAt: "2026-06-08T00:00:00.000Z",
+							completedAt: null,
+							conversationId: "conv_01",
+							durationMs: null,
+							phase: "running",
+							requestId: "req_01",
+							runId: "run_01",
+							startedAt: "2026-06-08T00:00:01.000Z",
+							status: "running",
+							traceId: "trace_01",
+						},
+					}),
+					{
+						headers: { "content-type": "application/json" },
+						status: 202,
+					},
+				),
 			)
 			.mockResolvedValueOnce(new Response(null, { status: 204 }))
 			.mockResolvedValueOnce(new Response(null, { status: 204 }))
@@ -552,7 +682,10 @@ describe("campus app-api client", () => {
 				),
 			);
 
-		await expect(cancelRun("run_01")).resolves.toBeUndefined();
+		await expect(cancelRun("run_01")).resolves.toMatchObject({
+			runId: "run_01",
+			status: "running",
+		});
 		await expect(
 			deleteTrailingMessages({ conversationId: "conv_01", messageId: "msg_01" }),
 		).resolves.toBeUndefined();

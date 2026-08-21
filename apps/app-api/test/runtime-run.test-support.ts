@@ -60,6 +60,7 @@ export function ownedRun(
 	overrides: Partial<RuntimeRunOwnershipRecord> = {},
 ): RuntimeRunOwnershipRecord {
 	return {
+		acceptedAt: "2026-06-04T01:02:03.000Z",
 		admissionStatus: "admitted",
 		cancelOutboxStatus: "not_requested",
 		cancelReason: null,
@@ -94,6 +95,7 @@ export function pgRuntimeRunStoreHarness(admissionStatus: "dispatching" | "pendi
 		cancelRequestedAt: null,
 		completedAt: null,
 		conversationId: "conv_01HQ",
+		createdAt: new Date("2026-06-04T01:02:03.000Z"),
 		requestId: "req_01HQ",
 		runId: "run_01HQ",
 		status: "accepted",

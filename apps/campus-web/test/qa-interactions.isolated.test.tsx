@@ -29,6 +29,7 @@ const sessionState = vi.hoisted(() => ({
 	},
 	isPending: false,
 	refresh: vi.fn().mockResolvedValue(undefined),
+	unavailable: false,
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -85,7 +86,13 @@ vi.mock("@/platform/auth/session", () => ({
 		error: null,
 		isRefreshing: false,
 		refresh: sessionState.refresh,
-		status: sessionState.data ? "authenticated" : sessionState.isPending ? "loading" : "anonymous",
+		status: sessionState.unavailable
+			? "unavailable"
+			: sessionState.data
+				? "authenticated"
+				: sessionState.isPending
+					? "loading"
+					: "anonymous",
 	}),
 }));
 
@@ -94,6 +101,8 @@ describe("Q&A product interactions", () => {
 		navigateMock.mockReset();
 		sessionState.data = { user: { id: "user_01", name: "测试用户" } };
 		sessionState.isPending = false;
+		sessionState.refresh.mockClear();
+		sessionState.unavailable = false;
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(() =>
@@ -213,6 +222,52 @@ describe("Q&A product interactions", () => {
 		});
 	});
 
+	it("keeps previous history results when the next search fails", async () => {
+		await import("../src/components/assistant-ui/thread-history-search-dialog");
+		conversationApiMock.searchConversations
+			.mockResolvedValueOnce({
+				conversations: [
+					{
+						archivedAt: null,
+						createdAt: "2026-06-21T01:00:00.000Z",
+						id: "conv_search",
+						matchSnippet: "图书馆开放时间以馆方公告为准。",
+						pinnedAt: null,
+						title: "图书馆开放时间",
+						updatedAt: "2026-06-21T01:02:00.000Z",
+					},
+				],
+				query: "图书馆",
+			})
+			.mockRejectedValueOnce(new Error("search unavailable"));
+		const user = userEvent.setup();
+		render(<HomePage />);
+
+		await user.click(await screen.findByRole("button", { name: "搜索聊天" }));
+		const input = await screen.findByRole("combobox", { name: "搜索历史会话" });
+		vi.useFakeTimers();
+		try {
+			fireEvent.change(input, { target: { value: "图书馆" } });
+			await act(() => vi.advanceTimersByTimeAsync(250));
+		} finally {
+			vi.useRealTimers();
+		}
+		await screen.findByText("图书馆开放时间以馆方公告为准。");
+
+		vi.useFakeTimers();
+		try {
+			fireEvent.change(input, { target: { value: "食堂" } });
+			expect(screen.getByText("图书馆开放时间以馆方公告为准。")).toBeInTheDocument();
+			await act(() => vi.advanceTimersByTimeAsync(250));
+		} finally {
+			vi.useRealTimers();
+		}
+
+		await screen.findByText("搜索结果暂时无法更新。");
+		expect(screen.getByText("图书馆开放时间以馆方公告为准。")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+	});
+
 	it("returns search focus to the opener for click and keyboard entry", async () => {
 		await import("../src/components/assistant-ui/thread-history-search-dialog");
 		const user = userEvent.setup();
@@ -304,6 +359,21 @@ describe("Q&A product interactions", () => {
 		expect(await screen.findAllByRole("status", { name: "正在加载聊天记录" })).toHaveLength(1);
 		expect(screen.queryByText("登录后可查看聊天记录")).toBeNull();
 		expect(screen.queryByText("暂无聊天记录")).toBeNull();
+		expect(conversationApiMock.listConversations).not.toHaveBeenCalled();
+	});
+
+	it("shows a local retry instead of history skeletons when account state is unavailable", async () => {
+		sessionState.data = null;
+		sessionState.unavailable = true;
+
+		render(<HomePage />);
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"账号状态暂时不可用，聊天记录未能读取。",
+		);
+		expect(screen.queryByRole("status", { name: "正在加载聊天记录" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "重试" }));
+		expect(sessionState.refresh).toHaveBeenCalledTimes(1);
 		expect(conversationApiMock.listConversations).not.toHaveBeenCalled();
 	});
 

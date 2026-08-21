@@ -5,6 +5,7 @@ import { StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 
 import { createDocsRouter, DocsRouterProvider } from "../app/docs-router.tsx";
+import { composeCampusPageTitle } from "../app/page-metadata.ts";
 import { DOCS_ROUTE_BOOTSTRAP_ID, type DocsRouteData } from "../features/docs/data-source.ts";
 import { resolveDocsPageMetadata } from "../features/docs/page-metadata.ts";
 import { createBuildDocsDataSource } from "./native-reader-data-source.ts";
@@ -31,6 +32,7 @@ export async function writeNativeDocsHtmlPages(input: {
 		const router = createDocsRouter({
 			docsDataSource,
 			history: createMemoryHistory({ initialEntries: [route] }),
+			renderMetadata: false,
 		});
 		await router.load();
 		const routeStatus = router.state.matches.at(-1)?.status;
@@ -54,6 +56,7 @@ export async function writeNativeDocsHtmlPages(input: {
 	const notFoundRouter = createDocsRouter({
 		docsDataSource,
 		history: createMemoryHistory({ initialEntries: [DOCS_NOT_FOUND_ROUTE] }),
+		renderMetadata: false,
 	});
 	await notFoundRouter.load();
 	const notFoundMatch = notFoundRouter.state.matches.find((match) => match._notFound);
@@ -152,7 +155,7 @@ function buildHtmlDocument(input: NativeDocsPageInput): string {
 				canonicalPath: null,
 				description: "这个文档地址不存在或已经停止发布。",
 				robots: "noindex,nofollow" as const,
-				title: "文档不存在",
+				title: composeCampusPageTitle("文档不存在"),
 			};
 	const canonical = metadata.canonicalPath
 		? `<link rel="canonical" href="${escapeHtml(
@@ -173,7 +176,7 @@ function buildHtmlDocument(input: NativeDocsPageInput): string {
 		<link rel="stylesheet" href="/src/styles.css" />
 		<link rel="stylesheet" href="/src/components/docs/docs-reader.css" />
 		${canonical}
-		<title>${escapeHtml(metadata.title)} | 中央民族大学校园问答</title>
+		<title>${escapeHtml(metadata.title)}</title>
 	</head>
 	<body>
 		<div id="root" data-campus-prerendered="docs">${input.appHtml}</div>

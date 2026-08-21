@@ -379,14 +379,14 @@ export function VerificationResult({
 				}
 				description={
 					accessRequired
-						? "此邮箱当前没有校园问答的访问权限，请使用校园邮箱或已获邀请的邮箱。"
+						? "该邮箱暂时无法使用，请检查邮箱地址后重试。"
 						: expired
 							? "这个验证链接已经过期，请发送新的验证邮件。"
 							: "这个验证链接无效或已使用，请重新获取验证链接。"
 				}
 				icon={<CircleAlert />}
 				title={
-					accessRequired ? "此邮箱无法继续使用" : expired ? "验证链接已过期" : "无法使用此验证链接"
+					accessRequired ? "此邮箱暂时无法使用" : expired ? "验证链接已过期" : "无法使用此验证链接"
 				}
 				tone="danger"
 			/>

@@ -23,14 +23,20 @@ import {
 import { isEditableKeyboardTarget } from "@/lib/keyboard";
 
 export function ThreadListSidebar({
-	accountPending,
+	accountLoading,
+	accountUnavailable,
 	authenticated,
 	onLoginRequired,
+	onRetryAccountStatus,
+	retryingAccountStatus,
 	...props
 }: React.ComponentProps<typeof Sidebar> & {
-	accountPending: boolean;
+	accountLoading: boolean;
+	accountUnavailable: boolean;
 	authenticated: boolean;
 	onLoginRequired: () => void;
+	onRetryAccountStatus: () => void;
+	retryingAccountStatus: boolean;
 }) {
 	const [searchOpen, setSearchOpen] = useState(false);
 	const searchTriggerRef = useRef<HTMLButtonElement>(null);
@@ -128,9 +134,12 @@ export function ThreadListSidebar({
 				</div>
 				<SidebarContent className="aui-sidebar-content px-1.5 pb-2 group-data-[collapsible=icon]:hidden">
 					<ThreadList
-						accountPending={accountPending}
+						accountLoading={accountLoading}
+						accountUnavailable={accountUnavailable}
 						authenticated={authenticated}
 						onNavigate={closeMobile}
+						onRetryAccountStatus={onRetryAccountStatus}
+						retryingAccountStatus={retryingAccountStatus}
 					/>
 				</SidebarContent>
 				<SidebarFooter className="aui-sidebar-footer mt-auto shrink-0 overflow-visible border-t p-1">

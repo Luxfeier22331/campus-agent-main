@@ -10,10 +10,12 @@ import {
 	redirect,
 	useLocation,
 	useMatches,
+	useRouter,
 	useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { buildDocsOutline } from "@/components/docs/docs-reader-view";
+import type { DocsSearchRuntime } from "@/components/docs/docs-search-dialog";
 import { DocsShell } from "@/components/docs/docs-shell";
 import type { DocsDataSource } from "@/features/docs/data-source";
 import {
@@ -29,6 +31,8 @@ import { DocsPage } from "./routes/docs-page";
 
 interface DocsRouterContext {
 	docsDataSource: DocsDataSource;
+	docsSearchRuntime: DocsSearchRuntime | undefined;
+	renderMetadata: boolean;
 }
 
 const rootRoute = createRootRouteWithContext<DocsRouterContext>()({
@@ -97,11 +101,18 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 export function createDocsRouter(
-	input: { docsDataSource?: DocsDataSource; history?: RouterHistory } = {},
+	input: {
+		docsDataSource?: DocsDataSource;
+		docsSearchRuntime?: DocsSearchRuntime;
+		history?: RouterHistory;
+		renderMetadata?: boolean;
+	} = {},
 ) {
 	return createRouter({
 		context: {
 			docsDataSource: input.docsDataSource ?? createBrowserDocsDataSource(),
+			docsSearchRuntime: input.docsSearchRuntime,
+			renderMetadata: input.renderMetadata ?? true,
 		},
 		defaultErrorComponent: DocsUnavailablePage,
 		defaultNotFoundComponent: DocsNotFoundPage,
@@ -121,17 +132,20 @@ export function DocsRouterProvider({ router }: { router: ReturnType<typeof creat
 
 function DocsIndexPage() {
 	const data = docsIndexRoute.useLoaderData() as DocsDirectoryRouteData;
-	return <DocsPage data={data} />;
+	const { renderMetadata } = docsLayoutRoute.useRouteContext();
+	return <DocsPage data={data} renderMetadata={renderMetadata} />;
 }
 
 function DocsDocumentPage() {
 	const data = docsDocumentRoute.useLoaderData() as DocsDocumentRouteData;
-	return <DocsPage data={data} />;
+	const { renderMetadata } = docsLayoutRoute.useRouteContext();
+	return <DocsPage data={data} renderMetadata={renderMetadata} />;
 }
 
 function DocsDocumentVersionPage() {
 	const data = docsDocumentVersionRoute.useLoaderData() as DocsDocumentRouteData;
-	return <DocsPage data={data} />;
+	const { renderMetadata } = docsLayoutRoute.useRouteContext();
+	return <DocsPage data={data} renderMetadata={renderMetadata} />;
 }
 
 function RootLayout() {
@@ -161,12 +175,14 @@ function DocsRootLayout() {
 	}
 	const shellData = leafState === "pending" ? settledDataRef.current : (leafState ?? layoutData);
 	const outline = buildDocsOutline(shellData.kind === "document" ? shellData.reader : null);
+	const { docsSearchRuntime } = docsLayoutRoute.useRouteContext();
 	useDocsRouteFocus(location.pathname, isPending);
 
 	return (
 		<DocsShell
 			activePath={location.pathname.replace(/\/$/u, "") || "/"}
 			outline={outline}
+			searchRuntime={docsSearchRuntime}
 			siteIndex={layoutData.siteIndex}
 		>
 			<Outlet />
@@ -174,7 +190,7 @@ function DocsRootLayout() {
 	);
 }
 
-function DocsRoutePending() {
+export function DocsRoutePending() {
 	return (
 		<section
 			aria-busy="true"
@@ -192,7 +208,7 @@ function DocsRoutePending() {
 	);
 }
 
-function DocsNotFoundPage() {
+export function DocsNotFoundPage() {
 	return (
 		<section className="mx-auto flex min-h-[70dvh] max-w-3xl flex-col justify-center px-6 py-20">
 			<p className="text-sm font-medium text-muted-foreground">404</p>
@@ -210,15 +226,36 @@ function DocsNotFoundPage() {
 	);
 }
 
-function DocsUnavailablePage() {
+export function DocsUnavailablePage({ reset }: { reset: () => void }) {
+	const router = useRouter();
+	const [retrying, setRetrying] = useState(false);
+
+	async function retryRoute() {
+		setRetrying(true);
+		try {
+			await router.invalidate();
+			reset();
+		} catch {
+			// The route remains on the same error page; the user can retry again.
+		} finally {
+			setRetrying(false);
+		}
+	}
+
 	return (
 		<section className="mx-auto flex min-h-[70dvh] max-w-3xl flex-col justify-center px-6 py-20">
 			<h1 className="text-2xl font-semibold text-[var(--sys-text-strong)]" tabIndex={-1}>
 				文档暂时无法加载
 			</h1>
 			<p className="mt-3 text-[var(--sys-text-muted)]">请检查网络连接后重试。</p>
-			<Button className="mt-8 w-fit" onClick={() => window.location.reload()} type="button">
-				重新加载
+			<Button
+				aria-busy={retrying || undefined}
+				className="mt-8 w-fit"
+				disabled={retrying}
+				onClick={() => void retryRoute()}
+				type="button"
+			>
+				{retrying ? "正在重试" : "重试"}
 			</Button>
 		</section>
 	);

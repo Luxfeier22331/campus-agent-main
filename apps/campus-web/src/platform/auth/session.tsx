@@ -15,6 +15,16 @@ export interface CampusSessionState {
 
 const CampusSessionContext = createContext<CampusSessionState | null>(null);
 
+export function CampusSessionValueProvider({
+	children,
+	value,
+}: {
+	children: ReactNode;
+	value: CampusSessionState;
+}) {
+	return <CampusSessionContext.Provider value={value}>{children}</CampusSessionContext.Provider>;
+}
+
 export function CampusSessionProvider({ children }: { children: ReactNode }) {
 	const session = campusAuthClient.useSession();
 	const refresh = useCallback(() => session.refetch(), [session.refetch]);

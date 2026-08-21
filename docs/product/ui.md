@@ -93,12 +93,6 @@ status: active
 Token，主题变化会重新加载对应 MapLibre style；tldraw 的画布、工具栏和对话框 portal 使用 Ops 语义
 表面，并同步 `colorScheme`。这些适配不改变业务 API、领域数据或编辑合同，也不引入 Liquid Glass。
 
-代表性浏览器验收覆盖 `320px`、`390px`、`1023px`、`1024px` 和 `1440px`，包括页面级重排、深色主题
-持久化、移动导航 Escape/焦点回收和 Axe 扫描。Campus 的聚焦 lane 由
-`apps/campus-web/e2e.ui-baseline.config.ts`
-和 `test:e2e:ui-baseline` 提供；Ops 的三 viewport 套件由 `apps/ops-web/browser.config.ts` 提供。
-这些检查描述源码验收范围，不表示某个环境已经部署。
-
 ## 响应式与输入
 
 - 产品页面在 `320px` CSS viewport 下能够重排，不能依赖页面级横向滚动；确需横向比较的数据区域
@@ -108,15 +102,6 @@ Token，主题变化会重新加载对应 MapLibre style；tldraw 的画布、�
 - 所有交互具有可访问名称、正确状态、可见焦点和逻辑顺序；核心任务可以只用键盘完成；
 - Dialog、Sheet、Menu 和 Tabs 使用成熟组件处理焦点、Escape 和键盘导航，关闭后焦点返回合理位置；
 - 次级侧栏在桌面端可以收起，但必须提供可见、可键盘访问的切换按钮，不能只依赖边缘 Rail 或快捷键；
-- 问答工作区 TopNav 和聊天记录侧栏 Header 使用 `52px` 统一高度；其他产品页面继续使用全局 TopNav
-  高度，不能为了问答工作区改变所有页面；
-- TopNav 的 `variant` 只定义宽度和定位等布局语义，`density` 独立定义高度；全宽工作区不能隐式切换为
-  紧凑高度；
-- 聊天记录侧栏在 `1024px` 及以上使用 `260px` 展开态和 `52px` 常驻图标轨道，低于该断点使用
-  `260px` 临时 Sheet；切换按钮提供 `aria-expanded` 和准确文案，移动 Sheet 关闭后焦点返回唯一 opener；
-- 侧栏 Header、历史滚动区和账号 Footer 分层，只有历史区滚动；桌面展开态和移动端显示完整账号行，
-  收起态显示账号图标及 Tooltip，菜单不能被滚动容器裁剪；
-- 侧栏收起状态属于界面偏好，可以在桌面端持久化，不改变导航权限、会话数据或请求状态；
 - 目标基线为 WCAG 2.2 A/AA，支持文本放大、reduced motion 和辅助技术状态播报。
 
 ## 验收

@@ -371,14 +371,14 @@ async function waitForMapClickListener() {
 
 function setMapTokens() {
 	document.documentElement.style.setProperty("--map-style-background", "#efeff2");
-	document.documentElement.style.setProperty("--map-style-boundary", "#a20000");
+	document.documentElement.style.setProperty("--map-style-boundary", "#262627");
 	document.documentElement.style.setProperty("--map-style-building-fill", "#fafafb");
 	document.documentElement.style.setProperty("--map-style-building-outline", "#8e8e93");
 	document.documentElement.style.setProperty("--map-style-green-fill", "#dfeee4");
 	document.documentElement.style.setProperty("--map-style-label", "#1c1c1e");
 	document.documentElement.style.setProperty("--map-style-road-fill", "#d1d1d6");
-	document.documentElement.style.setProperty("--map-style-selection-fill", "#d8deed");
+	document.documentElement.style.setProperty("--map-style-selection-fill", "#e8e8eb");
 	document.documentElement.style.setProperty("--map-style-selection-halo", "#ffffff");
-	document.documentElement.style.setProperty("--map-style-selection-outline", "#5a72b5");
+	document.documentElement.style.setProperty("--map-style-selection-outline", "#6f6f76");
 	document.documentElement.style.setProperty("--map-style-sport-fill", "#e1e8f5");
 }

@@ -37,7 +37,8 @@ export function QAShell({
 	const [chatSidebarOpen, setChatSidebarOpen] = useState(readChatSidebarOpen);
 	const session = useCampusSession();
 	const hasSession = session.status === "authenticated";
-	const accountPending = session.status === "loading" || session.status === "unavailable";
+	const accountLoading = session.status === "loading";
+	const accountUnavailable = session.status === "unavailable";
 	const activePath = readBrowserPathname();
 	const openAuthDialog = useCallback(() => setAuthDialogOpen(true), []);
 	const handleChatSidebarChange = useCallback((open: boolean) => {
@@ -81,8 +82,11 @@ export function QAShell({
 			onLoginRequired={openAuthDialog}
 			threadId={assistantThreadId}
 		>
-			<QAShellLayout
-				accountPending={accountPending}
+			<CampusChatWorkspace
+				accountLoading={accountLoading}
+				accountUnavailable={accountUnavailable}
+				onRetryAccountStatus={() => void session.refresh()}
+				retryingAccountStatus={session.isRefreshing}
 				activePath={activePath}
 				authDialogOpen={authDialogOpen}
 				chatSidebarOpen={chatSidebarOpen}
@@ -96,18 +100,9 @@ export function QAShell({
 	);
 }
 
-function QAShellLayout({
-	accountPending,
-	activePath,
-	authDialogOpen,
-	chatSidebarOpen,
-	hasSession,
-	hasRequestedThread,
-	onAuthDialogChange,
-	onChatSidebarChange,
-	onLoginRequired,
-}: {
-	accountPending: boolean;
+export interface CampusChatWorkspaceProps {
+	accountLoading: boolean;
+	accountUnavailable: boolean;
 	activePath: string;
 	authDialogOpen: boolean;
 	chatSidebarOpen: boolean;
@@ -116,7 +111,24 @@ function QAShellLayout({
 	onAuthDialogChange: (open: boolean) => void;
 	onChatSidebarChange: (open: boolean) => void;
 	onLoginRequired: () => void;
-}) {
+	onRetryAccountStatus: () => void;
+	retryingAccountStatus: boolean;
+}
+
+export function CampusChatWorkspace({
+	accountLoading,
+	accountUnavailable,
+	activePath,
+	authDialogOpen,
+	chatSidebarOpen,
+	hasSession,
+	hasRequestedThread,
+	onAuthDialogChange,
+	onChatSidebarChange,
+	onLoginRequired,
+	onRetryAccountStatus,
+	retryingAccountStatus,
+}: CampusChatWorkspaceProps) {
 	const runtimeTitle = useAuiState((state) => state.threadListItem.title);
 	const topTitle = runtimeTitle || (hasRequestedThread ? "会话" : "新对话");
 
@@ -133,7 +145,10 @@ function QAShellLayout({
 		>
 			<ThreadListSidebar
 				authenticated={hasSession}
-				accountPending={accountPending}
+				accountLoading={accountLoading}
+				accountUnavailable={accountUnavailable}
+				onRetryAccountStatus={onRetryAccountStatus}
+				retryingAccountStatus={retryingAccountStatus}
 				className="bg-sidebar"
 				collapsible="icon"
 				id="campus-chat-sidebar"

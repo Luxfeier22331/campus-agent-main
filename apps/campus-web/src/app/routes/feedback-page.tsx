@@ -17,7 +17,7 @@ import {
 } from "@campus-agent/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LayoutGroup, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { CampusMotionProvider, stateSwap } from "@/components/ui/motion";
@@ -55,11 +55,23 @@ const feedbackSchema = z.object({
 
 type FeedbackFormValues = z.infer<typeof feedbackSchema>;
 
-export function FeedbackPage() {
-	const [error, setError] = useState<string | null>(null);
-	const [initialRouteContext] = useState(getInitialFeedbackRouteContext);
-	const [submitted, setSubmitted] = useState(false);
-	const [submitting, setSubmitting] = useState(false);
+export type FeedbackInitialState = "empty" | "invalid" | "submitting" | "error" | "submitted";
+
+export function FeedbackPage({
+	initialState = "empty",
+	routeContext,
+	submit = submitFeedback,
+}: {
+	initialState?: FeedbackInitialState;
+	routeContext?: string;
+	submit?: typeof submitFeedback;
+} = {}) {
+	const [error, setError] = useState<string | null>(
+		initialState === "error" ? "反馈暂时没有提交成功。" : null,
+	);
+	const [initialRouteContext] = useState(() => routeContext ?? getInitialFeedbackRouteContext());
+	const [submitted, setSubmitted] = useState(initialState === "submitted");
+	const [submitting, setSubmitting] = useState(initialState === "submitting");
 	const form = useForm<FeedbackFormValues>({
 		defaultValues: {
 			body: "",
@@ -74,7 +86,7 @@ export function FeedbackPage() {
 		setError(null);
 		setSubmitted(false);
 		try {
-			await submitFeedback({
+			await submit({
 				body: values.body,
 				category: values.category,
 				contact: values.contact.trim() || null,
@@ -88,6 +100,12 @@ export function FeedbackPage() {
 			setSubmitting(false);
 		}
 	}
+
+	useEffect(() => {
+		if (initialState === "invalid") {
+			form.setError("body", { message: "请填写问题描述。" });
+		}
+	}, [form, initialState]);
 
 	return (
 		<section className="mx-auto max-w-[var(--layout-page-form-width)] px-4 py-6 pb-24 lg:px-6">

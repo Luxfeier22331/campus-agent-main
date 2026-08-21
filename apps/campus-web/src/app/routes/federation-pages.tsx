@@ -3,8 +3,8 @@ import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { type CampusOAuthContext, resolveCampusOAuthContext } from "@/platform/auth/oauth-context";
 
-export function FederationConsentPage() {
-	const oauthContext = useMemo(readOAuthContext, []);
+export function FederationConsentPage({ search }: { search?: string } = {}) {
+	const oauthContext = useMemo(() => readOAuthContext(search), [search]);
 	const title = oauthContext
 		? `使用校园账号登录 ${oauthContext.client.displayName}`
 		: "使用校园账号登录";
@@ -26,8 +26,8 @@ export function FederationConsentPage() {
 	);
 }
 
-export function FederationErrorPage() {
-	const error = useMemo(readOAuthError, []);
+export function FederationErrorPage({ search }: { search?: string } = {}) {
+	const error = useMemo(() => readOAuthError(search), [search]);
 	return (
 		<FederationPageShell>
 			<FederationStatusHeader
@@ -45,21 +45,21 @@ export function FederationErrorPage() {
 	);
 }
 
-function readOAuthContext(): CampusOAuthContext | null {
-	if (typeof window === "undefined") {
+function readOAuthContext(search?: string): CampusOAuthContext | null {
+	if (search === undefined && typeof window === "undefined") {
 		return null;
 	}
-	return resolveCampusOAuthContext(window.location.search);
+	return resolveCampusOAuthContext(search ?? window.location.search);
 }
 
-function readOAuthError(): { description: string; title: string } {
-	if (typeof window === "undefined") {
+function readOAuthError(search?: string): { description: string; title: string } {
+	if (search === undefined && typeof window === "undefined") {
 		return {
 			description: "请回到刚才的应用重新开始。",
 			title: "登录请求不可用",
 		};
 	}
-	const params = new URLSearchParams(window.location.search);
+	const params = new URLSearchParams(search ?? window.location.search);
 	const code = params.get("error")?.trim() || "invalid_request";
 	if (code === "access_denied") {
 		return {

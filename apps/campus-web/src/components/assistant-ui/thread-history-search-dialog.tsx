@@ -1,8 +1,10 @@
 "use client";
 
 import { Dialog, DialogContent, DialogTitle, Skeleton } from "@campus-agent/ui";
+import { useNavigate } from "@tanstack/react-router";
 import { SearchIcon } from "lucide-react";
 import { lazy, type RefObject, Suspense, useRef } from "react";
+import type { searchConversations } from "@/features/conversation/api";
 
 const loadThreadHistorySearchPanel = () =>
 	import("@/components/assistant-ui/thread-history-search-panel").then((module) => ({
@@ -16,18 +18,25 @@ export function preloadThreadHistorySearchPanel(): void {
 }
 
 export function ThreadHistorySearchDialog({
+	initialQuery = "",
 	onConversationSelect,
 	onLoginRequired,
+	navigateToConversation,
 	onOpenChange,
 	open,
 	returnFocusRef,
+	search,
 }: {
+	initialQuery?: string;
 	onConversationSelect?: (() => void) | undefined;
 	onLoginRequired: () => void;
+	navigateToConversation?: ((conversationId: string) => void) | undefined;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	returnFocusRef: RefObject<HTMLElement | null>;
+	search?: typeof searchConversations;
 }) {
+	const navigate = useNavigate();
 	const dialogRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const skipReturnFocusRef = useRef(false);
@@ -62,14 +71,22 @@ export function ThreadHistorySearchDialog({
 				</div>
 				<Suspense fallback={<ThreadHistorySearchPending />}>
 					<ThreadHistorySearchPanel
+						initialQuery={initialQuery}
 						inputRef={inputRef}
 						onConversationSelect={onConversationSelect}
 						onHandoff={() => {
 							skipReturnFocusRef.current = true;
 						}}
 						onLoginRequired={onLoginRequired}
+						navigateToConversation={
+							navigateToConversation ??
+							((conversationId) => {
+								void navigate({ params: { conversationId }, to: "/c/$conversationId" });
+							})
+						}
 						onOpenChange={onOpenChange}
 						open={open}
+						{...(search ? { search } : {})}
 					/>
 				</Suspense>
 			</DialogContent>

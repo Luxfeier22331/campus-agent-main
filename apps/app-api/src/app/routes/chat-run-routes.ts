@@ -184,7 +184,7 @@ function toChatRunResumeStreamEvent(input: {
 		sequence: input.event.sequence,
 		traceId,
 	};
-	if (input.event.eventType === "execution.queued" || input.event.eventType === "run.queued") {
+	if (input.event.eventType === "execution.queued") {
 		return {
 			data: {
 				...baseData,
@@ -193,11 +193,7 @@ function toChatRunResumeStreamEvent(input: {
 			event: "execution.queued",
 		};
 	}
-	if (
-		input.event.eventType === "execution.running" ||
-		input.event.eventType === "run.started" ||
-		input.event.eventType === "run.running"
-	) {
+	if (input.event.eventType === "execution.running") {
 		return {
 			data: {
 				...baseData,
@@ -206,7 +202,26 @@ function toChatRunResumeStreamEvent(input: {
 			event: "execution.running",
 		};
 	}
-	if (input.event.eventType === "run.answer_delta") {
+	if (input.event.eventType === "execution.phase") {
+		const phase = getStringPayloadValue(input.event.payload, "phase");
+		if (
+			phase !== "preparing" &&
+			phase !== "retrieving" &&
+			phase !== "generating" &&
+			phase !== "finalizing"
+		) {
+			return null;
+		}
+		return {
+			data: {
+				...baseData,
+				phase,
+				status: "running",
+			},
+			event: "execution.phase",
+		};
+	}
+	if (input.event.eventType === "answer.delta") {
 		const messageId = getStringPayloadValue(input.event.payload, "message_id");
 		const rawDelta = input.event.payload.delta;
 		const delta = typeof rawDelta === "string" && rawDelta.length > 0 ? rawDelta : null;
@@ -223,10 +238,7 @@ function toChatRunResumeStreamEvent(input: {
 			event: "answer.delta",
 		};
 	}
-	if (
-		input.event.eventType === "finalization.completed" ||
-		input.event.eventType === "run.completed"
-	) {
+	if (input.event.eventType === "request.completed") {
 		return {
 			data: {
 				...baseData,
@@ -235,7 +247,7 @@ function toChatRunResumeStreamEvent(input: {
 			event: "request.completed",
 		};
 	}
-	if (input.event.eventType === "run.canceled") {
+	if (input.event.eventType === "request.cancelled") {
 		return {
 			data: {
 				...baseData,
@@ -244,12 +256,12 @@ function toChatRunResumeStreamEvent(input: {
 			event: "request.cancelled",
 		};
 	}
-	if (input.event.eventType === "run.failed" || input.event.eventType === "run.expired") {
+	if (input.event.eventType === "request.failed") {
 		const terminalError = getPayloadRecordValue(input.event.payload, "error");
 		const errorCode =
 			(terminalError ? getStringPayloadValue(terminalError, "code") : null) ??
 			getStringPayloadValue(input.event.payload, "code") ??
-			(input.event.eventType === "run.expired" ? "run_expired" : "run_failed");
+			"run_failed";
 		const failure = publicExecutionFailure({ errorCode, status: "error" });
 		return {
 			data: {
@@ -262,7 +274,7 @@ function toChatRunResumeStreamEvent(input: {
 						getBooleanPayloadValue(input.event.payload, "retryable") ??
 						true,
 				},
-				status: input.event.eventType === "run.expired" ? "expired" : "failed",
+				status: "failed",
 			},
 			event: "request.failed",
 		};

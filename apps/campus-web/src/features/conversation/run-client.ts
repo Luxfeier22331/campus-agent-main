@@ -10,28 +10,63 @@ import type { ChatRequestStreamEvent } from "./model";
 
 const RUN_STATUS_REQUEST_TIMEOUT_MS = 5_000;
 const nonEmptyString = z.string().min(1);
+const nullableTimestamp = nonEmptyString.nullable();
+const runSummarySchema = z.object({
+	acceptedAt: nonEmptyString.optional(),
+	completedAt: nullableTimestamp.optional(),
+	conversationId: nonEmptyString,
+	durationMs: z.number().int().nonnegative().nullable().optional(),
+	phase: z.enum([
+		"created",
+		"queued",
+		"admitted",
+		"running",
+		"streaming",
+		"completed",
+		"failed",
+		"canceled",
+		"expired",
+	]),
+	requestId: nonEmptyString,
+	runId: nonEmptyString,
+	startedAt: nullableTimestamp.optional(),
+	status: nonEmptyString,
+	terminalReason: nonEmptyString.optional(),
+	traceId: nonEmptyString,
+});
 const runStatusResponseSchema = z.object({
-	run: z
-		.object({
-			conversationId: nonEmptyString,
-			phase: z.enum([
-				"created",
-				"queued",
-				"admitted",
-				"running",
-				"streaming",
-				"completed",
-				"failed",
-				"canceled",
-				"expired",
-			]),
-			requestId: nonEmptyString,
-			runId: nonEmptyString,
-			status: nonEmptyString,
-			terminalReason: nonEmptyString.optional(),
-			traceId: nonEmptyString,
-		})
-		.passthrough(),
+	run: runSummarySchema,
+});
+const runStepSchema = z.object({
+	completedAt: nullableTimestamp,
+	durationMs: z.number().int().nonnegative().nullable(),
+	phase: z.enum(["queued", "preparing", "retrieving", "generating", "finalizing"]),
+	startedAt: nullableTimestamp,
+	status: z.enum(["pending", "running", "completed", "failed", "cancelled"]),
+});
+const runStepsResponseSchema = z.object({
+	run: runSummarySchema,
+	steps: z.array(runStepSchema),
+});
+const productRunEventSchema = z.object({
+	eventType: z.enum([
+		"answer.delta",
+		"execution.phase",
+		"execution.queued",
+		"execution.running",
+		"request.cancelled",
+		"request.completed",
+		"request.failed",
+	]),
+	occurredAt: nonEmptyString,
+	payload: z.record(z.string(), z.unknown()),
+	runId: nonEmptyString,
+	sequence: z.number().int().positive(),
+});
+const runEventsResponseSchema = z.object({
+	events: z.array(productRunEventSchema),
+	nextSequence: z.number().int().nonnegative(),
+	run: runSummarySchema,
 });
 
 export type ChatRunPhase =
@@ -46,16 +81,38 @@ export type ChatRunPhase =
 	| "expired";
 
 export interface ChatRunStatus {
+	acceptedAt: string;
+	completedAt: string | null;
 	conversationId: string;
+	durationMs: number | null;
 	phase: ChatRunPhase;
 	requestId: string;
 	runId: string;
+	startedAt: string | null;
 	status: string;
 	terminalReason?: string;
 	traceId: string;
 }
 
-export async function cancelRun(runId: string): Promise<void> {
+export type ChatRunProductPhase = "preparing" | "retrieving" | "generating" | "finalizing";
+/** The API may include queued as a scheduling fact; it is not a standalone chat display phase. */
+export type ChatRunStepPhase = "queued" | ChatRunProductPhase;
+export type ChatRunStepStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+
+export interface ChatRunStep {
+	completedAt: string | null;
+	durationMs: number | null;
+	phase: ChatRunStepPhase;
+	startedAt: string | null;
+	status: ChatRunStepStatus;
+}
+
+export interface ChatRunSteps {
+	run: ChatRunStatus;
+	steps: ChatRunStep[];
+}
+
+export async function cancelRun(runId: string): Promise<ChatRunStatus> {
 	const response = await fetch(`/api/chat/runs/${encodeURIComponent(runId)}/cancel`, {
 		body: JSON.stringify({ reason: "user_requested" }),
 		credentials: "same-origin",
@@ -71,6 +128,12 @@ export async function cancelRun(runId: string): Promise<void> {
 	if (!response.ok) {
 		throw await createChatStreamRequestError(response);
 	}
+	const payload = (await response.json()) as unknown;
+	const parsed = runStatusResponseSchema.safeParse(payload);
+	if (!parsed.success) {
+		throw invalidRunStatusResponse(response.status);
+	}
+	return normalizeRunStatus(parsed.data.run);
 }
 
 export async function getRunStatus(input: {
@@ -115,11 +178,7 @@ export async function getRunStatus(input: {
 		if (!parsed.success) {
 			throw invalidRunStatusResponse(response.status);
 		}
-		const { terminalReason, ...run } = parsed.data.run;
-		return {
-			...run,
-			...(terminalReason === undefined ? {} : { terminalReason }),
-		};
+		return normalizeRunStatus(parsed.data.run);
 	} catch (error) {
 		if (timedOut) {
 			throw new ChatStreamRequestError({
@@ -133,6 +192,178 @@ export async function getRunStatus(input: {
 		globalThis.clearTimeout(timeoutId);
 		input.signal?.removeEventListener("abort", abortFromCaller);
 	}
+}
+
+function normalizeRunStatus(run: z.infer<typeof runSummarySchema>): ChatRunStatus {
+	return {
+		acceptedAt: run.acceptedAt ?? new Date().toISOString(),
+		completedAt: run.completedAt ?? null,
+		conversationId: run.conversationId,
+		durationMs: run.durationMs ?? null,
+		phase: run.phase,
+		requestId: run.requestId,
+		runId: run.runId,
+		startedAt: run.startedAt ?? null,
+		status: run.status,
+		...(run.terminalReason ? { terminalReason: run.terminalReason } : {}),
+		traceId: run.traceId,
+	};
+}
+
+function productEventToStreamEvent(
+	event: z.infer<typeof productRunEventSchema>,
+	run: ChatRunStatus,
+): ChatRequestStreamEvent | null {
+	const payload = event.payload;
+	const requestId =
+		typeof payload.request_id === "string" && payload.request_id.trim()
+			? payload.request_id
+			: run.requestId;
+	const traceId =
+		typeof payload.trace_id === "string" && payload.trace_id.trim()
+			? payload.trace_id
+			: run.traceId;
+	const base = {
+		occurredAt: event.occurredAt,
+		requestId,
+		runId: event.runId,
+		sequence: event.sequence,
+		traceId,
+	};
+	switch (event.eventType) {
+		case "execution.queued":
+			return { data: { ...base, status: "queued" }, event: "execution.queued" };
+		case "execution.running":
+			return { data: { ...base, status: "running" }, event: "execution.running" };
+		case "execution.phase":
+			if (
+				payload.phase !== "preparing" &&
+				payload.phase !== "retrieving" &&
+				payload.phase !== "generating" &&
+				payload.phase !== "finalizing"
+			) {
+				return null;
+			}
+			return {
+				data: { ...base, phase: payload.phase, status: "running" },
+				event: "execution.phase",
+			};
+		case "answer.delta":
+			if (
+				typeof payload.delta !== "string" ||
+				!payload.delta ||
+				typeof payload.message_id !== "string"
+			) {
+				return null;
+			}
+			return {
+				data: {
+					...base,
+					delta: payload.delta,
+					messageId: payload.message_id,
+					status: "streaming",
+				},
+				event: "answer.delta",
+			};
+		case "request.completed":
+			return { data: { ...base, status: "completed" }, event: "request.completed" };
+		case "request.cancelled":
+			return { data: { ...base, status: "cancelled" }, event: "request.cancelled" };
+		case "request.failed": {
+			const errorRecord = payload.error;
+			const error =
+				errorRecord && typeof errorRecord === "object" && !Array.isArray(errorRecord)
+					? (errorRecord as Record<string, unknown>)
+					: null;
+			return {
+				data: {
+					...base,
+					error: {
+						code: typeof error?.code === "string" ? error.code : "run_failed",
+						message: typeof error?.message === "string" ? error.message : "回答暂时无法完成。",
+						retryable: typeof error?.retryable === "boolean" ? error.retryable : true,
+					},
+					status: "failed",
+				},
+				event: "request.failed",
+			};
+		}
+		default:
+			return null;
+	}
+}
+
+export async function getRunEvents(input: {
+	afterSequence?: number;
+	runId: string;
+	signal?: AbortSignal;
+}): Promise<{ events: ChatRequestStreamEvent[]; nextSequence: number; run: ChatRunStatus }> {
+	const params = new URLSearchParams();
+	if (input.afterSequence !== undefined) {
+		params.set("after_sequence", String(input.afterSequence));
+	}
+	const suffix = params.size > 0 ? `?${params.toString()}` : "";
+	const response = await fetch(
+		`/api/chat/runs/${encodeURIComponent(input.runId)}/events${suffix}`,
+		{
+			credentials: "same-origin",
+			headers: { accept: "application/json" },
+			method: "GET",
+			...(input.signal ? { signal: input.signal } : {}),
+		},
+	);
+	if (response.status === 401) {
+		throw new UnauthorizedError();
+	}
+	if (!response.ok) {
+		throw await createChatStreamRequestError(response);
+	}
+	const payload = (await response.json()) as unknown;
+	const parsed = runEventsResponseSchema.safeParse(payload);
+	if (!parsed.success) {
+		throw invalidRunStatusResponse(response.status);
+	}
+	const run = normalizeRunStatus(parsed.data.run);
+	return {
+		events: parsed.data.events
+			.map((event) => productEventToStreamEvent(event, run))
+			.filter((event): event is ChatRequestStreamEvent => event !== null),
+		nextSequence: parsed.data.nextSequence,
+		run,
+	};
+}
+
+export async function getRunSteps(input: {
+	runId: string;
+	signal?: AbortSignal;
+}): Promise<ChatRunSteps> {
+	const response = await fetch(`/api/chat/runs/${encodeURIComponent(input.runId)}/steps`, {
+		credentials: "same-origin",
+		headers: { accept: "application/json" },
+		method: "GET",
+		...(input.signal ? { signal: input.signal } : {}),
+	});
+	if (response.status === 401) {
+		throw new UnauthorizedError();
+	}
+	if (!response.ok) {
+		throw await createChatStreamRequestError(response);
+	}
+	let payload: unknown;
+	try {
+		payload = await response.json();
+	} catch {
+		throw invalidRunStatusResponse(response.status);
+	}
+	const parsed = runStepsResponseSchema.safeParse(payload);
+	if (!parsed.success) {
+		throw invalidRunStatusResponse(response.status);
+	}
+	const run = parsed.data.run;
+	return {
+		run: normalizeRunStatus(run),
+		steps: parsed.data.steps,
+	};
 }
 
 export async function* submitChatRequestStream(input: {

@@ -106,6 +106,7 @@ import {
 	ResetComplete,
 	ResetLinkSent,
 	VerificationPending,
+	VerificationResult,
 } from "../src/components/auth/auth-email-flows";
 import { SignInForm, SignUpForm } from "../src/components/auth/auth-forms";
 import { Settings } from "../src/components/auth/settings/settings";
@@ -134,7 +135,7 @@ describe("campus-owned authentication journeys", () => {
 		authClient.sendVerificationEmail.mockResolvedValue({ data: { status: true }, error: null });
 	});
 
-	it("keeps invitation email as a form default and blocks sign-up until legal consent", async () => {
+	it("keeps a supplied email as the form default and blocks sign-up until legal consent", async () => {
 		const user = userEvent.setup();
 		render(<SignUpForm {...sharedFormProps} defaultEmail="invited@example.edu" />);
 
@@ -152,6 +153,56 @@ describe("campus-owned authentication journeys", () => {
 		expect(consentError).toBeVisible();
 		expect(consent).toHaveAttribute("aria-describedby", consentError.id);
 		expect(consent).toHaveFocus();
+		expect(authClient.signUpEmail).not.toHaveBeenCalled();
+	});
+
+	it("keeps internal email admission mechanics out of authentication copy", () => {
+		const signIn = render(<SignInForm {...sharedFormProps} />);
+
+		expect(screen.getByText("使用校园邮箱登录校园问答。")).toBeVisible();
+		expect(screen.queryByText(/管理员|邀请|已获邀请/u)).not.toBeInTheDocument();
+
+		signIn.unmount();
+		render(<SignUpForm {...sharedFormProps} />);
+
+		expect(screen.getByText("使用校园邮箱创建账号。")).toBeVisible();
+		expect(screen.queryByText(/管理员|邀请|已获邀请/u)).not.toBeInTheDocument();
+	});
+
+	it("uses neutral copy when email verification cannot continue", () => {
+		render(
+			<VerificationResult
+				errorCode="EMAIL_ACCESS_REQUIRED"
+				onContinue={vi.fn()}
+				onResend={vi.fn()}
+				onSignIn={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByRole("heading", { name: "此邮箱暂时无法使用" })).toBeVisible();
+		expect(screen.getByText("该邮箱暂时无法使用，请检查邮箱地址后重试。")).toBeVisible();
+		expect(screen.queryByText(/管理员|邀请|已获邀请/u)).not.toBeInTheDocument();
+	});
+
+	it("allows a presentation-only password description without lowering sign-up validation", async () => {
+		const user = userEvent.setup();
+		const targetDescription = "至少 8 个字符，最多 128 个字符。可使用字母、数字、空格和符号。";
+		render(
+			<SignUpForm
+				{...sharedFormProps}
+				defaultEmail="student@muc.edu.cn"
+				passwordDescription={targetDescription}
+			/>,
+		);
+
+		expect(screen.getByText(targetDescription)).toBeVisible();
+		await user.type(screen.getByLabelText("姓名"), "测试用户");
+		await user.type(screen.getByLabelText("密码", { exact: true }), "abcd1234");
+		await user.type(screen.getByLabelText("确认密码"), "abcd1234");
+		await user.click(screen.getByRole("checkbox"));
+		await user.click(screen.getByRole("button", { name: "创建账号" }));
+
+		expect(await screen.findByText("密码至少需要 10 个字符。")).toBeVisible();
 		expect(authClient.signUpEmail).not.toHaveBeenCalled();
 	});
 

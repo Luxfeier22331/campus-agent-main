@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { cloudflare } from "@cloudflare/vite-plugin";
@@ -46,6 +47,9 @@ export default defineConfig(({ command, isPreview }) => {
 	return {
 		build: {
 			sourcemap: sentryUpload ? ("hidden" as const) : false,
+			...(buildTarget === "app"
+				? { rollupOptions: { input: path.resolve(campusWebRoot, "index.html") } }
+				: {}),
 			...(buildTarget === "docs" ? { emptyOutDir: true, outDir: clientOutputRoot } : {}),
 		},
 		environments: {
@@ -71,6 +75,7 @@ export default defineConfig(({ command, isPreview }) => {
 			...(docsBuildPlugin
 				? [docsBuildPlugin]
 				: [
+						...(command === "serve" ? [serveStyleDevelopmentShell()] : []),
 						copyCampusFavicon(),
 						copyMapLibreVendor(),
 						copyCampusMapAssets(),
@@ -108,6 +113,48 @@ export default defineConfig(({ command, isPreview }) => {
 		},
 	};
 });
+
+function serveStyleDevelopmentShell(): Plugin {
+	const shellPath = path.resolve(campusWebRoot, "style-dev.html");
+	return {
+		enforce: "pre",
+		configureServer(server) {
+			const styleDevMiddleware = async (
+				request: IncomingMessage,
+				response: ServerResponse,
+				next: (error?: unknown) => void,
+			) => {
+				const url = new URL(request.url ?? "/", "http://campus.local");
+				const acceptHeader = request.headers.accept;
+				const acceptsHtml = (
+					Array.isArray(acceptHeader) ? acceptHeader.join(",") : (acceptHeader ?? "")
+				).match(/(?:text\/html|\*\/\*)/u);
+				if (
+					(request.method !== "GET" && request.method !== "HEAD") ||
+					url.pathname !== "/style-dev.html" ||
+					!acceptsHtml
+				) {
+					next();
+					return;
+				}
+				try {
+					const transformed = await server.transformIndexHtml(
+						url.pathname,
+						fs.readFileSync(shellPath, "utf8"),
+					);
+					response.statusCode = 200;
+					response.setHeader("content-type", "text/html; charset=utf-8");
+					response.end(request.method === "HEAD" ? undefined : transformed);
+				} catch (error) {
+					next(error);
+				}
+			};
+			server.middlewares.use(styleDevMiddleware);
+			return () => moveMiddlewareToFront(server.middlewares, styleDevMiddleware);
+		},
+		name: "campus-web:style-development-shell",
+	};
+}
 
 function resolveCampusWebBuildTarget(): "app" | "docs" {
 	const target = process.env.CAMPUS_WEB_BUILD_TARGET?.trim();
@@ -450,6 +497,27 @@ function moveLatestConnectMiddlewareToFront(middlewares: { stack?: unknown[] }):
 	const layer = stack?.pop();
 	if (layer) {
 		stack?.unshift(layer);
+	}
+}
+
+function moveMiddlewareToFront(middlewares: { stack?: unknown[] }, handler: unknown): void {
+	const stack = middlewares.stack;
+	if (!stack) {
+		return;
+	}
+	const index = stack.findIndex(
+		(layer) =>
+			typeof layer === "object" &&
+			layer !== null &&
+			"handle" in layer &&
+			(layer as { handle?: unknown }).handle === handler,
+	);
+	if (index <= 0) {
+		return;
+	}
+	const [layer] = stack.splice(index, 1);
+	if (layer) {
+		stack.unshift(layer);
 	}
 }
 

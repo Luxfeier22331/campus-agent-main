@@ -86,7 +86,8 @@ describe("chat durable run routes", () => {
 		);
 
 		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({
+		const responseBody = await response.json();
+		expect(responseBody).toEqual({
 			events: [
 				{
 					eventId: "event-final",
@@ -148,7 +149,7 @@ describe("chat durable run routes", () => {
 				(async function* () {
 					yield {
 						eventId: "event-final",
-						eventType: "finalization.completed",
+						eventType: "request.completed",
 						occurredAt: "2026-06-04T01:02:06.000Z",
 						payload: {
 							request_id: "req_01HQ",
@@ -346,7 +347,8 @@ describe("chat durable run routes", () => {
 		);
 
 		expect(response.status).toBe(202);
-		await expect(response.json()).resolves.toEqual({
+		const responseBody = await response.json();
+		expect(responseBody).toEqual({
 			run: {
 				conversationId: "conv_01HQ",
 				phase: "canceled",
@@ -513,59 +515,59 @@ describe("chat durable run routes", () => {
 		});
 	});
 
-	it("returns sanitized run step trajectory for the current principal owned run", async () => {
+	it("returns the fixed browser-safe run step projection for the current principal owned run", async () => {
 		const runtimeRunService = {
 			cancel: vi.fn(),
 			getStatus: vi.fn(),
 			listEvents: vi.fn(),
 			listSteps: vi.fn().mockResolvedValue({
-				attempts: [],
-				results: [
-					{
-						attemptId: "attempt-memory",
-						createdAt: "2026-06-04T01:02:05.000Z",
-						payloadSchemaVersion: "step-result-projection-v1",
-						projectionRef: "projection://runs/run_01HQ/sdk-tools/personal_memory_recall/1",
-						resultId: "result-memory",
-						resultKind: "typed_tool_result",
-						runId: "run_01HQ",
-						sanitizedPayload: {
-							outcome: "matched",
-							tool_name: "personal_memory_recall",
-							tool_status: "completed",
-						},
-						status: "completed",
-						stepId: "sdk_tool.execute.personal_memory_recall.1",
-					},
-				],
 				run: {
+					acceptedAt: "2026-06-04T01:02:03.000Z",
+					completedAt: "2026-06-04T01:02:06.000Z",
 					conversationId: "conv_01HQ",
+					durationMs: 3_000,
 					phase: "completed",
 					requestId: "req_01HQ",
 					runId: "run_01HQ",
+					startedAt: "2026-06-04T01:02:04.000Z",
 					status: "completed",
 					traceId: "trace_01HQ",
 				},
 				steps: [
 					{
-						tool: "personal_memory_recall",
+						completedAt: "2026-06-04T01:02:03.000Z",
+						durationMs: 0,
+						phase: "queued",
+						startedAt: "2026-06-04T01:02:03.000Z",
+						status: "completed",
+					},
+					{
+						completedAt: "2026-06-04T01:02:04.000Z",
+						durationMs: 1_000,
+						phase: "preparing",
+						startedAt: "2026-06-04T01:02:03.000Z",
+						status: "completed",
+					},
+					{
 						completedAt: "2026-06-04T01:02:05.000Z",
-						conversationId: "conv_01HQ",
-						parentStepId: "",
-						payloadSchemaVersion: "run-step-projection-v1",
-						runId: "run_01HQ",
-						sanitizedPayload: {
-							outcome: "matched",
-							tool_name: "personal_memory_recall",
-							tool_status: "completed",
-						},
+						durationMs: 1_000,
+						phase: "retrieving",
 						startedAt: "2026-06-04T01:02:04.000Z",
 						status: "completed",
-						stepId: "sdk_tool.execute.personal_memory_recall.1",
-						stepKind: "tool",
-						taskQueue: "campus-agent.activity.agent.v3",
-						updatedAt: "2026-06-04T01:02:05.000Z",
-						workerId: "test-worker",
+					},
+					{
+						completedAt: "2026-06-04T01:02:05.000Z",
+						durationMs: 0,
+						phase: "generating",
+						startedAt: "2026-06-04T01:02:05.000Z",
+						status: "completed",
+					},
+					{
+						completedAt: "2026-06-04T01:02:06.000Z",
+						durationMs: 1_000,
+						phase: "finalizing",
+						startedAt: "2026-06-04T01:02:05.000Z",
+						status: "completed",
 					},
 				],
 			}),
@@ -583,57 +585,30 @@ describe("chat durable run routes", () => {
 		);
 
 		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({
-			attempts: [],
-			results: [
-				{
-					attemptId: "attempt-memory",
-					createdAt: "2026-06-04T01:02:05.000Z",
-					payloadSchemaVersion: "step-result-projection-v1",
-					projectionRef: "projection://runs/run_01HQ/sdk-tools/personal_memory_recall/1",
-					resultId: "result-memory",
-					resultKind: "typed_tool_result",
-					runId: "run_01HQ",
-					sanitizedPayload: {
-						outcome: "matched",
-						tool_name: "personal_memory_recall",
-						tool_status: "completed",
-					},
-					status: "completed",
-					stepId: "sdk_tool.execute.personal_memory_recall.1",
-				},
-			],
+		const responseBody = await response.json();
+		expect(responseBody).toEqual({
 			run: {
+				acceptedAt: "2026-06-04T01:02:03.000Z",
+				completedAt: "2026-06-04T01:02:06.000Z",
 				conversationId: "conv_01HQ",
+				durationMs: 3_000,
 				phase: "completed",
 				requestId: "req_01HQ",
 				runId: "run_01HQ",
+				startedAt: "2026-06-04T01:02:04.000Z",
 				status: "completed",
 				traceId: "trace_01HQ",
 			},
 			steps: [
-				{
-					tool: "personal_memory_recall",
-					completedAt: "2026-06-04T01:02:05.000Z",
-					conversationId: "conv_01HQ",
-					parentStepId: "",
-					payloadSchemaVersion: "run-step-projection-v1",
-					runId: "run_01HQ",
-					sanitizedPayload: {
-						outcome: "matched",
-						tool_name: "personal_memory_recall",
-						tool_status: "completed",
-					},
-					startedAt: "2026-06-04T01:02:04.000Z",
-					status: "completed",
-					stepId: "sdk_tool.execute.personal_memory_recall.1",
-					stepKind: "tool",
-					taskQueue: "campus-agent.activity.agent.v3",
-					updatedAt: "2026-06-04T01:02:05.000Z",
-					workerId: "test-worker",
-				},
+				expect.objectContaining({ phase: "queued" }),
+				expect.objectContaining({ phase: "preparing" }),
+				expect.objectContaining({ phase: "retrieving" }),
+				expect.objectContaining({ phase: "generating" }),
+				expect.objectContaining({ phase: "finalizing" }),
 			],
 		});
+		expect(responseBody).not.toHaveProperty("attempts");
+		expect(responseBody).not.toHaveProperty("results");
 		expect(runtimeRunService.listSteps).toHaveBeenCalledWith({
 			principal: expect.objectContaining({
 				actor: expect.objectContaining({ userId: "user_01HQ" }),

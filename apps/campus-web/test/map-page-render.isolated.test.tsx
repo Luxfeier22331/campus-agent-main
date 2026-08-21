@@ -230,7 +230,7 @@ describe("campus map page", () => {
 	it("uses shared loading state while reading map places", () => {
 		render(<MapPage />);
 
-		expect(screen.getByRole("status", { name: "正在读取地图" })).toHaveAttribute(
+		expect(screen.getByRole("status", { name: "正在加载校园地图" })).toHaveAttribute(
 			"aria-busy",
 			"true",
 		);
@@ -486,28 +486,28 @@ describe("campus map page", () => {
 		tokenStyle.textContent = `
 			:root {
 				--map-style-background: #efeff2;
-				--map-style-boundary: #a20000;
+				--map-style-boundary: #262627;
 				--map-style-building-fill: #fafafb;
 				--map-style-building-outline: #8e8e93;
 				--map-style-green-fill: #dfeee4;
 				--map-style-label: #1c1c1e;
 				--map-style-road-fill: #d1d1d6;
-				--map-style-selection-fill: #d8deed;
+				--map-style-selection-fill: #e8e8eb;
 				--map-style-selection-halo: #ffffff;
-				--map-style-selection-outline: #5a72b5;
+				--map-style-selection-outline: #6f6f76;
 				--map-style-sport-fill: #e1e8f5;
 			}
 			:root[data-theme="dark"] {
 				--map-style-background: #1c1c1e;
-				--map-style-boundary: #ff9a94;
+				--map-style-boundary: #e8e8eb;
 				--map-style-building-fill: #151517;
 				--map-style-building-outline: #48484a;
 				--map-style-green-fill: #274532;
 				--map-style-label: #e5e5ea;
 				--map-style-road-fill: #343438;
-				--map-style-selection-fill: #3a4356;
+				--map-style-selection-fill: #3d3d41;
 				--map-style-selection-halo: #242426;
-				--map-style-selection-outline: #839fe8;
+				--map-style-selection-outline: #8c8c94;
 				--map-style-sport-fill: #2d3341;
 			}
 		`;

@@ -18,6 +18,7 @@ function toRuntimeRunOwnershipRecord(
 		return null;
 	}
 	return {
+		acceptedAt: row.createdAt.toISOString(),
 		admissionStatus: row.admissionStatus,
 		cancelOutboxStatus: row.cancelOutboxStatus,
 		cancelReason: row.cancelReason,

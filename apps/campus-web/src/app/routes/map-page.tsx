@@ -3,11 +3,11 @@ import type * as maplibregl from "maplibre-gl";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DeferredProductAccountEntry } from "@/components/auth/user/deferred-product-account-entry";
-import { MapExperience } from "@/components/map/map-experience";
+import { MapProductExperience } from "@/components/map/map-product-experience";
 import { CampusTopNav } from "@/components/navigation/campus-top-nav";
 import { readBrowserPathname } from "@/components/navigation/product-navigation";
 import { MapProductNavMobileMenu } from "@/components/navigation/product-navigation-menu";
-import { SurfaceState } from "@/components/ui/surface-state";
+import { StateMessage } from "@/components/ui/state-message";
 import { getCampusMapManifest, getCampusMapPlaces } from "@/features/map/api";
 import {
 	CAMPUS_HOVER_PLACE_FILL_LAYER_ID,
@@ -65,6 +65,7 @@ export function MapPage() {
 	const [mapLoaded, setMapLoaded] = useState(false);
 	const [mapStatus, setMapStatus] = useState<"error" | "loading" | "ready">("loading");
 	const [mapAttempt, setMapAttempt] = useState(0);
+	const [dataAttempt, setDataAttempt] = useState(0);
 	const [mapRuntime, setMapRuntime] = useState<MapLibreRuntime | null>(null);
 	const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 	const [hoveredFeatureRefs, setHoveredFeatureRefs] = useState<CampusMapFeatureRef[]>([]);
@@ -123,6 +124,7 @@ export function MapPage() {
 	selectedFeatureRefKeySetRef.current = selectedFeatureRefKeySet;
 
 	useEffect(() => {
+		void dataAttempt;
 		const controller = new AbortController();
 		setLoading(true);
 		setError(null);
@@ -167,7 +169,7 @@ export function MapPage() {
 				}
 			});
 		return () => controller.abort();
-	}, []);
+	}, [dataAttempt]);
 
 	useEffect(() => {
 		if (!(data && selectedCampusProfile && mapRef.current && !mapInstanceRef.current)) {
@@ -458,11 +460,11 @@ export function MapPage() {
 		<>
 			{error ? (
 				<MapStateShell>
-					<SurfaceState
+					<StateMessage
 						description={error}
-						kind="error"
+						layout="page"
 						primaryAction={
-							<Button onClick={() => window.location.reload()} type="button">
+							<Button onClick={retryMap} type="button">
 								重试
 							</Button>
 						}
@@ -471,19 +473,17 @@ export function MapPage() {
 								<a href="/feedback?source=map">反馈</a>
 							</Button>
 						}
+						role="alert"
 						title="校园地图暂时无法打开"
+						tone="danger"
 					/>
 				</MapStateShell>
 			) : loading ? (
 				<MapStateShell>
-					<SurfaceState
-						description="正在读取可展示的校园地点。"
-						kind="loading"
-						title="正在读取地图"
-					/>
+					<MapDataLoading />
 				</MapStateShell>
 			) : data && selectedCampusProfile ? (
-				<MapExperience
+				<MapProductExperience
 					mapStatus={mapStatus}
 					campuses={campuses}
 					categories={categories}
@@ -506,11 +506,11 @@ export function MapPage() {
 				/>
 			) : (
 				<MapStateShell>
-					<SurfaceState
-						className="border-dashed text-center"
+					<StateMessage
 						description="当前没有可展示的地图地点。"
-						kind="empty"
-						title="暂无内容"
+						layout="section"
+						textAlign="center"
+						title="暂无校园地点"
 					/>
 				</MapStateShell>
 			)}
@@ -569,6 +569,10 @@ export function MapPage() {
 	}
 
 	function retryMap() {
+		if (error) {
+			setDataAttempt((attempt) => attempt + 1);
+			return;
+		}
 		if (mapStyleUpdateTimerRef.current !== null) {
 			window.clearTimeout(mapStyleUpdateTimerRef.current);
 			mapStyleUpdateTimerRef.current = null;
@@ -744,6 +748,18 @@ function MapStateShell({ children }: { children: ReactNode }) {
 			</div>
 			<div className="w-full max-w-md">{children}</div>
 		</section>
+	);
+}
+
+function MapDataLoading() {
+	return (
+		<div aria-busy="true" aria-label="正在加载校园地图" className="grid gap-3" role="status">
+			<div aria-hidden="true" className="grid gap-2">
+				<div className="h-8 w-36 animate-pulse rounded-md bg-surface-muted motion-reduce:animate-none" />
+				<div className="h-4 w-full animate-pulse rounded-md bg-surface-muted motion-reduce:animate-none" />
+				<div className="h-4 w-4/5 animate-pulse rounded-md bg-surface-muted motion-reduce:animate-none" />
+			</div>
+		</div>
 	);
 }
 

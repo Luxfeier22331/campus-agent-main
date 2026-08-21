@@ -1,7 +1,9 @@
 import { createMemoryHistory } from "@tanstack/react-router";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createElement } from "react";
+import { describe, expect, it, vi } from "vitest";
 
-import { createDocsRouter } from "../src/app/docs-router";
+import { createDocsRouter, DocsRouterProvider } from "../src/app/docs-router";
 import {
 	type DocsDataSource,
 	type DocsDocumentRouteData,
@@ -49,6 +51,35 @@ describe("docs router", () => {
 		expect(router.state.location.pathname).toBe(target);
 		expect(redirects[0]?.statusCode).toBe(308);
 		expect(router.state.matches.at(-1)?.status).toBe("success");
+	});
+
+	it("retries a failed document route without reloading the page", async () => {
+		const baseDataSource = createDocsDataSource();
+		let available = false;
+		const loadDirectory = vi.fn(async () => {
+			if (!available) {
+				throw new Error("docs unavailable");
+			}
+			return baseDataSource.loadDirectory();
+		});
+		const router = createDocsRouter({
+			docsDataSource: { ...baseDataSource, loadDirectory },
+			history: createMemoryHistory({ initialEntries: ["/docs"] }),
+		});
+
+		await router.load();
+		render(createElement(DocsRouterProvider, { router }));
+		await screen.findByRole("heading", { name: "文档暂时无法加载" });
+		const failedAttempts = loadDirectory.mock.calls.length;
+
+		available = true;
+		fireEvent.click(screen.getByRole("button", { name: "重试" }));
+
+		await waitFor(() =>
+			expect(router.state.matches.some((match) => match.status === "error")).toBe(false),
+		);
+		expect(loadDirectory.mock.calls.length).toBeGreaterThan(failedAttempts);
+		expect(screen.queryByRole("heading", { name: "文档暂时无法加载" })).toBeNull();
 	});
 });
 

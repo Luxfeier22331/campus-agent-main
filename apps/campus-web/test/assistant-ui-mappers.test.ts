@@ -25,6 +25,7 @@ describe("assistant-ui conversation mappers", () => {
 		};
 		const conversation: ConversationDetail = {
 			archivedAt: null,
+			activeRunId: null,
 			createdAt: "2026-06-21T01:00:00.000Z",
 			id: "conv_01HQ",
 			messages: [

@@ -28,12 +28,12 @@
 	--default-soft-foreground: var(--sys-text-default);
 	--default-soft-hover: var(--sys-surface-hover);
 
-	--accent: var(--sys-tint);
-	--accent-foreground: var(--sys-tint-foreground);
-	--accent-hover: var(--sys-tint-hover);
-	--accent-soft: var(--sys-tint-subtle);
-	--accent-soft-foreground: var(--sys-text-selected);
-	--accent-soft-hover: var(--sys-tint-subtle-hover);
+	--accent: var(--campus-action);
+	--accent-foreground: var(--campus-action-foreground);
+	--accent-hover: var(--campus-action-hover);
+	--accent-soft: var(--campus-selected-bg);
+	--accent-soft-foreground: var(--campus-selected-foreground);
+	--accent-soft-hover: var(--campus-selected-hover);
 
 	--field-background: var(--sys-surface-default);
 	--field-foreground: var(--sys-text-default);
@@ -42,7 +42,7 @@
 	--field-hover: var(--sys-surface-hover);
 	--field-focus: var(--sys-surface-default);
 	--field-border-hover: var(--sys-border-default);
-	--field-border-focus: var(--sys-focus-ring);
+	--field-border-focus: var(--campus-focus-ring);
 	--field-border-width: 1px;
 
 	--success: var(--sys-status-success);
@@ -70,8 +70,8 @@
 	--separator: var(--sys-border-subtle);
 	--separator-secondary: var(--sys-border-default);
 	--separator-tertiary: var(--sys-border-strong);
-	--focus: var(--sys-focus-ring);
-	--link: var(--sys-text-link);
+	--focus: var(--campus-focus-ring);
+	--link: var(--campus-link);
 	--backdrop: var(--sys-overlay);
 
 	--radius: var(--radius-md);

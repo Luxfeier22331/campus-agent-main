@@ -46,7 +46,9 @@ export function AppEntry() {
 ```
 
 全局 CSS 的导入顺序必须保持为 `tokens.css` 后接 `theme.css`，应用 Token 只能在两者之后扩展。
-共享包不提供业务 profile；`data-ui-profile` 由应用根布局声明。
+应用可以用自己的 Token 和应用级 `@theme inline` 重映射通用工具类，但不得声明或覆盖同名
+`--sys-*` 变量，也不得改变其他应用的编译结果。共享包不提供业务 profile；`data-ui-profile` 由
+应用根布局声明。
 
 共享颜色按职责消费：品牌身份色只表达学校身份，实色交互 tint 用于主操作和明确控件开态，链接使用
 独立文字语义，导航、Tabs、筛选和列表当前项使用选中表面、文字与边框，业务状态使用各自的

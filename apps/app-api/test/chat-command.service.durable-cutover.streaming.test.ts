@@ -34,6 +34,7 @@ function finalizedChatResponse(): ChatCommandResponse {
 	return {
 		answer: {
 			conversation: {
+				activeRunId: null,
 				createdAt: "2026-06-04T01:02:03.000Z",
 				id: "conv_01HQ",
 				messages: [],
@@ -837,7 +838,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			},
 			event: "request.failed",
 		});
-		expect(events[0]?.data.runId).toBeUndefined();
+		expect(events[0]?.data.runId).toBeNull();
 		expect(acceptedWrites[0]).toMatchObject({
 			turnDispatch: {
 				requestId: "req_0001",
@@ -1166,33 +1167,25 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				runId: "run_0001",
 				runPhase: "queued",
 				status: "accepted",
-				text: undefined,
 			},
 			{
 				event: "execution.queued",
-				runId: undefined,
-				runPhase: undefined,
+				runId: "run_0001",
 				status: "queued",
-				text: undefined,
 			},
 			{
 				event: "execution.running",
-				runId: undefined,
-				runPhase: undefined,
+				runId: "run_0001",
 				status: "running",
-				text: undefined,
 			},
 			{
 				event: "answer.delta",
 				runId: "run_0001",
-				runPhase: undefined,
 				status: "streaming",
-				text: undefined,
 			},
 			{
 				event: "request.completed",
-				runId: undefined,
-				runPhase: undefined,
+				runId: "run_0001",
 				status: "completed",
 				text: "国家奖学金每学年评审一次。",
 			},

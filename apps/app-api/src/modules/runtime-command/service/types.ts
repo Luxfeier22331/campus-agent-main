@@ -1,7 +1,7 @@
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversation, ChatConversationStore } from "../../chat";
 import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../../integration";
-import type { RuntimeRunPhase } from "../../runtime-run";
+import type { RuntimeRunPhase, RuntimeRunProductPhase } from "../../runtime-run";
 import type { AppTelemetry } from "../../telemetry";
 import type {
 	AcceptedChatCommandStore,
@@ -51,6 +51,7 @@ export interface ChatCommandResponse {
 export type ChatCommandStreamEventName =
 	| "request.accepted"
 	| "answer.delta"
+	| "execution.phase"
 	| "execution.queued"
 	| "execution.running"
 	| "request.completed"
@@ -70,6 +71,7 @@ export interface ChatCommandStreamEvent {
 		occurredAt: string;
 		requestId: string;
 		runId?: string | null;
+		phase?: RuntimeRunProductPhase;
 		runPhase?: RuntimeRunPhase;
 		sequence?: number;
 		status: string;

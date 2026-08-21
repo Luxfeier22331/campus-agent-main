@@ -1,6 +1,6 @@
 "use client";
 
-import { useNavigate } from "@tanstack/react-router";
+import { Button } from "@campus-agent/ui";
 import { LayoutGroup, motion } from "motion/react";
 import { type RefObject, useEffect, useMemo, useState } from "react";
 import {
@@ -20,32 +20,38 @@ import { UnauthorizedError } from "@/platform/api/client";
 type ConversationSearchView = "active" | "archived";
 
 export function ThreadHistorySearchPanel({
+	initialQuery = "",
 	inputRef,
 	onConversationSelect,
 	onHandoff,
 	onLoginRequired,
+	navigateToConversation,
 	onOpenChange,
 	open,
+	search = searchConversations,
 }: {
+	initialQuery?: string;
 	inputRef: RefObject<HTMLInputElement | null>;
 	onConversationSelect?: (() => void) | undefined;
 	onHandoff: () => void;
 	onLoginRequired: () => void;
+	navigateToConversation?: ((conversationId: string) => void) | undefined;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
+	search?: typeof searchConversations;
 }) {
-	const navigate = useNavigate();
-	const [query, setQuery] = useState("");
+	const [query, setQuery] = useState(initialQuery);
 	const [view, setView] = useState<ConversationSearchView>("active");
 	const [results, setResults] = useState<ConversationSearchResult[]>([]);
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+	const [retryAttempt, setRetryAttempt] = useState(0);
 	const trimmedQuery = query.trim();
 	const emptyLabel = useMemo(() => {
 		if (!trimmedQuery) {
 			return "输入关键词搜索历史会话";
 		}
 		if (status === "loading") {
-			return "正在搜索";
+			return "";
 		}
 		if (status === "error") {
 			return "搜索暂时不可用";
@@ -60,6 +66,7 @@ export function ThreadHistorySearchPanel({
 	}, [inputRef, open]);
 
 	useEffect(() => {
+		void retryAttempt;
 		if (!(open && trimmedQuery)) {
 			setResults([]);
 			setStatus("idle");
@@ -67,10 +74,9 @@ export function ThreadHistorySearchPanel({
 		}
 
 		const controller = new AbortController();
-		setResults([]);
 		setStatus("loading");
 		const timeout = window.setTimeout(() => {
-			searchConversations({ limit: 10, query: trimmedQuery, signal: controller.signal, view })
+			search({ limit: 10, query: trimmedQuery, signal: controller.signal, view })
 				.then((payload) => {
 					if (controller.signal.aborted) {
 						return;
@@ -88,7 +94,6 @@ export function ThreadHistorySearchPanel({
 						onLoginRequired();
 						return;
 					}
-					setResults([]);
 					setStatus("error");
 				});
 		}, 250);
@@ -97,7 +102,7 @@ export function ThreadHistorySearchPanel({
 			controller.abort();
 			window.clearTimeout(timeout);
 		};
-	}, [onHandoff, onLoginRequired, onOpenChange, open, trimmedQuery, view]);
+	}, [onHandoff, onLoginRequired, onOpenChange, open, retryAttempt, search, trimmedQuery, view]);
 
 	return (
 		<CampusMotionProvider>
@@ -113,7 +118,6 @@ export function ThreadHistorySearchPanel({
 						if (nextQuery === trimmedQuery) {
 							return;
 						}
-						setResults([]);
 						setStatus(nextQuery ? "loading" : "idle");
 					}}
 					placeholder="搜索历史会话"
@@ -127,28 +131,61 @@ export function ThreadHistorySearchPanel({
 						onValueChange={(value) => {
 							if (value === "active" || value === "archived") {
 								setView(value);
-								setResults([]);
 								setStatus(trimmedQuery ? "loading" : "idle");
 							}
 						}}
 						type="single"
 						value={view}
 					>
-						<ToggleGroupItem className="min-h-11 sm:min-h-9" value="active">
+						<ToggleGroupItem
+							className="aui-thread-history-scope min-h-11 sm:min-h-9"
+							value="active"
+						>
 							当前
 						</ToggleGroupItem>
-						<ToggleGroupItem className="min-h-11 sm:min-h-9" value="archived">
+						<ToggleGroupItem
+							className="aui-thread-history-scope min-h-11 sm:min-h-9"
+							value="archived"
+						>
 							已归档
 						</ToggleGroupItem>
 					</ToggleGroup>
 				</div>
-				<CommandList>
+				<CommandList aria-busy={status === "loading" || undefined}>
 					<LayoutGroup>
 						<motion.div layout>
+							{status === "error" && results.length > 0 ? (
+								<div
+									className="flex items-center justify-between gap-3 px-4 py-2 text-xs text-muted-foreground"
+									role="alert"
+								>
+									<span>搜索结果暂时无法更新。</span>
+									<Button
+										onClick={() => setRetryAttempt((attempt) => attempt + 1)}
+										size="sm"
+										variant="ghost"
+									>
+										重试
+									</Button>
+								</div>
+							) : null}
 							<CommandEmpty>
-								<motion.span key={emptyLabel} {...stateSwap}>
-									{emptyLabel}
-								</motion.span>
+								{status === "error" ? (
+									<div className="grid justify-items-center gap-2">
+										<span>搜索暂时不可用</span>
+										<Button
+											onClick={() => setRetryAttempt((attempt) => attempt + 1)}
+											size="sm"
+											variant="outline"
+										>
+											重试搜索
+										</Button>
+									</div>
+								) : (
+									<motion.span key={emptyLabel} {...stateSwap}>
+										{emptyLabel}
+									</motion.span>
+								)}
 							</CommandEmpty>
 							{results.length > 0 ? (
 								<motion.div key={`${view}:${trimmedQuery}`} layout {...contentSwap}>
@@ -160,10 +197,7 @@ export function ThreadHistorySearchPanel({
 														onHandoff();
 														onOpenChange(false);
 														onConversationSelect?.();
-														void navigate({
-															params: { conversationId: conversation.id },
-															to: "/c/$conversationId",
-														});
+														navigateToConversation?.(conversation.id);
 													}}
 													value={conversation.id}
 												>

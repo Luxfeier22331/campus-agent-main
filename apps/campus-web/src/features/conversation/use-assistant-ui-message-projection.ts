@@ -3,19 +3,30 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatStreamRequestError } from "./api";
 import { AssistantAnswerBuffer } from "./assistant-answer-buffer";
 import {
+	attachAssistantRunMetadata,
 	localUserMessage,
+	provisionalAssistantMessage,
 	type RuntimeMessages,
 	removeMessagesById,
+	updateAssistantRunMetadata,
 	upsertAssistantTextMessage,
 } from "./assistant-ui-message-projection";
+import type { CampusRunViewState } from "./run-view-state";
 
 export function useAssistantUiMessageProjection() {
 	const [messages, setMessages] = useState<RuntimeMessages>([]);
 	const answerBufferRef = useRef(new AssistantAnswerBuffer());
+	const provisionalAssistantMessageIdRef = useRef<string | null>(null);
 
 	const revealAssistantText = useCallback(
 		(input: { messageId: string; occurredAt: string; text: string }) => {
-			setMessages((current) => upsertAssistantTextMessage(current, input));
+			setMessages((current) => {
+				const provisionalMessageId = provisionalAssistantMessageIdRef.current;
+				return upsertAssistantTextMessage(current, {
+					...input,
+					...(provisionalMessageId ? { provisionalMessageId } : {}),
+				});
+			});
 		},
 		[],
 	);
@@ -30,14 +41,86 @@ export function useAssistantUiMessageProjection() {
 
 	const clearProvisionalAssistantMessages = useCallback(() => {
 		const provisionalIds = answerBufferRef.current.clear();
+		if (provisionalAssistantMessageIdRef.current) {
+			provisionalIds.add(provisionalAssistantMessageIdRef.current);
+			provisionalAssistantMessageIdRef.current = null;
+		}
 		if (provisionalIds.size > 0) {
 			setMessages((current) => removeMessagesById(current, provisionalIds));
 		}
 	}, []);
 
-	const replaceWithCanonicalMessages = useCallback((nextMessages: RuntimeMessages) => {
-		answerBufferRef.current.markCanonical();
-		setMessages(nextMessages);
+	const replaceWithCanonicalMessages = useCallback(
+		(nextMessages: RuntimeMessages, runView?: CampusRunViewState) => {
+			answerBufferRef.current.markCanonical();
+			provisionalAssistantMessageIdRef.current = null;
+			setMessages(runView ? attachAssistantRunMetadata(nextMessages, runView) : nextMessages);
+		},
+		[],
+	);
+
+	const appendProvisionalAssistantMessage = useCallback(
+		(input: { messageId: string; occurredAt: string; runView: CampusRunViewState }) => {
+			provisionalAssistantMessageIdRef.current = input.messageId;
+			setMessages((current) => [...current, provisionalAssistantMessage(input)]);
+		},
+		[],
+	);
+
+	const migrateProvisionalAssistantMessage = useCallback(
+		(input: { messageId: string; occurredAt: string }) => {
+			const provisionalId = provisionalAssistantMessageIdRef.current;
+			if (!provisionalId || provisionalId === input.messageId) {
+				return;
+			}
+			setMessages((current) => {
+				if (current.some((message) => message.id === input.messageId)) {
+					return current.filter((message) => message.id !== provisionalId);
+				}
+				return current.map((message) =>
+					message.id === provisionalId
+						? { ...message, createdAt: new Date(input.occurredAt), id: input.messageId }
+						: message,
+				);
+			});
+			provisionalAssistantMessageIdRef.current = input.messageId;
+		},
+		[],
+	);
+
+	const updateAssistantRunView = useCallback((runView: CampusRunViewState) => {
+		setMessages((current) => {
+			const targetId = provisionalAssistantMessageIdRef.current ?? runView.runId;
+			if (targetId) {
+				const direct = updateAssistantRunMetadata(current, { messageId: targetId, runView });
+				if (direct.some((message, index) => message !== current[index])) {
+					return direct;
+				}
+			}
+			if (!runView.runId) {
+				return current;
+			}
+			const index = current.findIndex((message) => {
+				if (message.role !== "assistant") {
+					return false;
+				}
+				const metadata = message.metadata?.custom?.campusRun;
+				return Boolean(
+					metadata &&
+						typeof metadata === "object" &&
+						!Array.isArray(metadata) &&
+						(metadata as Record<string, unknown>).runId === runView.runId,
+				);
+			});
+			if (index < 0) {
+				return current;
+			}
+			const messageId = current[index]?.id;
+			return updateAssistantRunMetadata(current, {
+				...(messageId ? { messageId } : {}),
+				runView,
+			});
+		});
 	}, []);
 
 	const appendLocalErrorMessage = useCallback((error: ChatStreamRequestError) => {
@@ -104,6 +187,7 @@ export function useAssistantUiMessageProjection() {
 	useEffect(
 		() => () => {
 			answerBufferRef.current.clear();
+			provisionalAssistantMessageIdRef.current = null;
 		},
 		[],
 	);
@@ -112,15 +196,18 @@ export function useAssistantUiMessageProjection() {
 		appendAssistantDelta,
 		appendLocalErrorMessage,
 		appendLocalUserMessage,
+		appendProvisionalAssistantMessage,
 		cancelAssistantFrame,
 		clearMessages,
 		clearProvisionalAssistantMessages,
 		flushAssistantFrame,
 		messages,
+		migrateProvisionalAssistantMessage,
 		removeMessage,
 		replaceWithCanonicalMessages,
 		revealAccumulatedAssistantText,
 		scheduleAssistantFrame,
 		truncateMessagesFrom,
+		updateAssistantRunView,
 	};
 }

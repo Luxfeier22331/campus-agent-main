@@ -2,6 +2,7 @@ import {
 	parseExecutionFinalizationResponsePayload,
 	type ToolExecutionResponse,
 } from "../../integration";
+import type { RuntimeRunProductPhase } from "../../runtime-run";
 import type {
 	ChatCommandResponse,
 	ChatCommandStreamEvent,
@@ -51,6 +52,15 @@ function getError(value: unknown): { code: string; retryable: boolean } {
 		code,
 		retryable: record.retryable,
 	};
+}
+
+function isRuntimeRunProductPhase(value: unknown): value is RuntimeRunProductPhase {
+	return (
+		value === "finalizing" ||
+		value === "generating" ||
+		value === "preparing" ||
+		value === "retrieving"
+	);
 }
 
 function parseSseBlock(block: string): ParsedSseEvent | null {
@@ -127,7 +137,11 @@ export function mapExecutionLifecycleEvent(input: {
 	event: string;
 	now: () => Date;
 }): ChatCommandStreamEvent | null {
-	if (input.event !== "execution.queued" && input.event !== "execution.running") {
+	if (
+		input.event !== "execution.queued" &&
+		input.event !== "execution.running" &&
+		input.event !== "execution.phase"
+	) {
 		return null;
 	}
 
@@ -149,11 +163,20 @@ export function mapExecutionLifecycleEvent(input: {
 	}
 	const status =
 		input.event === "execution.queued" ? "queued" : (getString(record, "status") ?? "running");
+	const phase = record.phase;
+	if (input.event === "execution.phase" && !isRuntimeRunProductPhase(phase)) {
+		throw new ExecutionLifecycleContractError("phase event missing a supported phase");
+	}
+	const phaseData: { phase: RuntimeRunProductPhase } | undefined =
+		input.event === "execution.phase" && isRuntimeRunProductPhase(phase) ? { phase } : undefined;
 
 	return {
 		data: {
 			occurredAt,
 			requestId,
+			...(phaseData ?? {}),
+			...(getString(record, "run_id") ? { runId: getString(record, "run_id") } : {}),
+			...(typeof record.sequence === "number" ? { sequence: record.sequence } : {}),
 			status,
 			traceId,
 		},
@@ -269,6 +292,8 @@ export function executionFinalizationErrorResponse(input: {
 export function toTerminalChatStreamEvent(input: {
 	occurredAt: string;
 	response: ChatCommandResponse;
+	runId?: string | null;
+	sequence?: number;
 	sourceEvent?: string;
 }): ChatCommandStreamEvent {
 	const status = input.response.execution?.status ?? input.response.answer.result.kind;
@@ -293,6 +318,8 @@ export function toTerminalChatStreamEvent(input: {
 				: {}),
 			occurredAt: input.occurredAt,
 			requestId: input.response.requestId,
+			runId: input.runId ?? null,
+			...(input.sequence === undefined ? {} : { sequence: input.sequence }),
 			status,
 			traceId: input.response.traceId,
 		},

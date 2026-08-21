@@ -44,8 +44,8 @@ Collector。它只输出 Agent trace。要验证 Langfuse 转发，使用
 
 本地检查至少确认：
 
-- Agent Runtime 在 endpoint 配置存在时只产生允许的 Agent/OpenInference span；
-- trace producer 的 allowlist 删除未知属性、异常正文、stack、输入输出和认证材料；
+- Agent Runtime 在 endpoint 配置存在时只产生合同允许的 Agent/OpenInference span；
+- trace producer 的 allowlist 在发送前删除合同禁止的属性和正文；
 - debug 配置只输出到 debug exporter，prodlike 配置只发送到 Langfuse exporter；
 - execution-control 的产品投影、Temporal history、Hindsight 业务请求和 W3C context propagation
   不依赖 Collector 成功。
@@ -61,8 +61,8 @@ Collector。它只输出 Agent trace。要验证 Langfuse 转发，使用
 3. 使用合成哨兵覆盖 query、header、正文、用户标识和 credential 位置，确认 Langfuse trace 中
    不出现模型输入输出、对话、memory/retrieval 正文、工具原始载荷、Cookie、token、数据库地址
    或其他认证内容。
-4. 若环境因 Langfuse 配额或成本策略停止 trace ingestion，不应把“没有新 trace”当作 staging 或
-   在线业务故障；改用 PostgreSQL 产品投影、Sentry 错误和 Axiom application logs 验证业务状态。
+4. 若环境因 Langfuse 配额或成本策略停止 trace ingestion，不应把“没有新 trace”当作在线业务故障；
+   改用 PostgreSQL 产品投影、Sentry 错误和 Axiom application logs 验证业务状态。
 
 合成哨兵只验证代表性路径，不构成内容级 DLP 承诺；producer 的
 `traceIncludeSensitiveData=false` 和字段白名单才是主要边界。正文规则以

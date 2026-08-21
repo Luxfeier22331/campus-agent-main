@@ -62,6 +62,7 @@ function createConversationService() {
 		matchSnippet: null,
 	}));
 	const conversation: ChatConversationResponse = {
+		activeRunId: null,
 		createdAt: "2026-03-28T08:00:00.000Z",
 		id: "conv_01HQ",
 		messages: [

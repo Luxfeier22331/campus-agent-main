@@ -22,27 +22,10 @@ status: active
 execution-control、ingestion-control、internal-portal-collection 和 Hindsight 不维护仓库自有 OTel exporter。
 它们的数据库投影、Temporal 状态、业务调用和普通进程日志不能改写成外部遥测合同。
 
-## 内容边界
+## 共同约束
 
-运行信号不得包含：
-
-- prompt、回答、聊天全文或用户原始问题；
-- memory、检索正文、source body、OCR 原文或工具原始载荷；
-- provider 原始响应或任意未裁剪错误正文；
-- Cookie、Authorization、JWT、session token、API key、数据库地址或对象存储凭据；
-- 通过动态属性名或嵌套 payload 绕过 producer allowlist 的内容。
-
-App API 和 Agent Runtime 的允许字段分别由所属代码及测试维护。文档不复制字段清单；字段变化必须
-先修改 producer、合同和测试。
-
-## 消费与故障
-
-- Axiom 只消费获准的 Cloudflare application logs；Ops Web 固定查询只读取
-  `attributes.custom` 中允许的摘要字段。
-- Sentry 保存获准错误、release/source map 和生产浏览器采样性能，不承担产品终态。
-- Langfuse 只消费获准 Agent trace 和显式评测数据；运行 trace 可以因配额停止接收。
-- 任一观测链路失败都不能改写 PostgreSQL 产品状态或 Temporal workflow 状态。
-- 配置、Collector 或 SDK 存在不证明某环境已经收到数据。
+各 producer 的字段白名单和敏感数据边界由实现、测试及所属合同维护；本文不复制字段清单。观测链路
+失败不得改写产品、workflow 或个人记忆状态，配置、Collector 或 SDK 存在也不证明环境已经收到数据。
 
 ## 验证
 

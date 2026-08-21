@@ -86,13 +86,10 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
   固定 Axiom logs 查询和常用摘要。
 
-## 部署
+## 部署边界
 
-- browser-facing Worker 应用（包括 `campus-web`、`app-api` 和 `status-web`）由源码 workflow
-  上传不可变版本，环境仓 Terraform 管理 custom domain、KV、cron 与流量版本。
-- execution-control、agent-runtime、ops-web、PostgreSQL 和依赖平台由 Kubernetes/GitOps 管理。
-- app-api Worker 通过 Hyperdrive/Workers VPC 访问私有 CNPG，不公开 PostgreSQL。
-- 源码仓的 base 和镜像不表示已经部署；实际环境状态由环境仓 revision 和运行检查确定。
+浏览器产品与自托管运行时由不同平台承载；候选物、环境选择和实际发布的所有权见
+[运行时发布架构](./runtime-release.md)。源码仓的 base 和镜像不单独构成环境状态。
 
 ## 架构约束
 
@@ -109,5 +106,6 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - `docs/contracts/ops-web/README.md`
 - `docs/data/postgres-ownership.md`
 - `docs/product/status-web.md`
+- `docs/architecture/system/runtime-release.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0086-product-availability-status.md`

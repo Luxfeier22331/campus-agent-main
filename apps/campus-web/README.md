@@ -31,12 +31,22 @@ pnpm --dir apps/campus-web build
 pnpm --dir apps/campus-web typecheck
 ```
 
+`style-dev.html` 是独立的本地组件展示入口。运行 `pnpm dev:init` 后访问 `/style-dev.html#overview`，
+目录按组件族列出真实组件和真实组合组件；详情页一次只挂载当前示例。示例可以通过
+`/style-dev.html#style-dev-conversation-run-status/completed` 这样的 hash 直接打开，搜索只作用于本地目录。
+
+当前目录覆盖基础与主题、表单与控件、浮层、问答、文档、地图、食堂和账号。展示页只提供最小真实容器、
+内存适配器和静态合同数据，不导入产品路由、领域 API 或提交函数，也不会进入 app 生产构建。
+
+组件行为测试由 Vitest 负责；浏览器 MCP 仅用于本地人工评审，不维护 style-dev 专用 Playwright 验证入口。
+
 完整产品开发使用根 `pnpm dev`。文档来源维护使用应用现有的 `docs:source:update`；
 来源合同、构建输入、缓存目录和交付行为由文档站架构、合同和可执行脚本维护。
 
 ## 相关文档
 
 - `docs/product/web.md`
+- `docs/product/campus-ui-state.md`
 - `docs/product/ui.md`
 - `docs/architecture/system/product-runtime.md`
 - `docs/architecture/system/document-site.md`

@@ -1,15 +1,7 @@
-import { Button } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-	DiningHallSwitcher,
-	DiningMapToolbar,
-	DiningWindowDetail,
-	InteractiveFloorplan,
-} from "@/components/dining/dining-experience";
-import { DiningPageSkeleton } from "@/components/dining/dining-page-skeleton";
-import { SurfaceState } from "@/components/ui/surface-state";
+import { DiningPageView } from "@/components/dining/dining-page-view";
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
@@ -137,98 +129,36 @@ export function DiningPageContent() {
 	}
 
 	return (
-		<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-4 pb-40 sm:px-5 sm:py-6 sm:pb-24 lg:px-6">
-			<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
-				食堂地图
-			</h1>
-			{dining.isPending ? <DiningPageSkeleton includeHallSwitcher /> : null}
-			{dining.isError ? (
-				<SurfaceState
-					className="mt-5"
-					description="食堂地图暂时无法读取。"
-					kind="error"
-					primaryAction={
-						<Button className="min-h-11" onClick={() => void dining.refetch()}>
-							重试
-						</Button>
-					}
-					secondaryAction={
-						<Button asChild variant="outline">
-							<a href="/feedback?source=dining">反馈</a>
-						</Button>
-					}
-					title="食堂地图不可用"
-				/>
-			) : null}
-			{dining.data && halls.length === 0 ? (
-				<SurfaceState className="mt-5 border-dashed" kind="empty" title="暂无食堂地图" />
-			) : null}
-			{dining.data && selectedHall && selectedFloor && activeFloor ? (
-				<div className="mt-4 space-y-4">
-					<DiningHallSwitcher
-						halls={halls}
-						onSelectHall={selectHall}
-						selectedHallId={selectedHall.hallId}
-					/>
-					<div
-						className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start lg:gap-6"
-						data-testid="dining-selection-panel"
-					>
-						<section
-							className="min-w-0 overflow-hidden rounded-lg border border-border/80 bg-card"
-							data-testid="dining-map-panel"
-						>
-							<DiningMapToolbar
-								floors={selectedHall.floors}
-								onQueryChange={setQuery}
-								onSelectFloor={selectFloor}
-								onSelectResult={selectSearchResult}
-								query={query}
-								searchResults={searchResults}
-								selectedFloorId={selectedFloor.floorId}
-							/>
-							<InteractiveFloorplan
-								floor={activeFloor}
-								matchedWindowIds={matchedWindowIds}
-								onSelectWindow={selectWindow}
-								selectedWindowId={selectedWindow?.windowId ?? null}
-								windows={activeFloor.windows}
-							/>
-							<div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-border/70 border-t px-3 text-xs text-[var(--sys-text-subtle)] sm:px-4">
-								<span>更新于 {formatDiningDate(dining.data.updatedAt)}</span>
-								<a
-									className="inline-flex min-h-11 items-center text-link hover:text-link-hover hover:underline"
-									href="/feedback?source=dining"
-								>
-									信息有误？反馈
-								</a>
-							</div>
-						</section>
-						<div
-							className="min-w-0 scroll-mt-28 border-border/70 border-t pt-4 lg:sticky lg:top-20 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
-							data-testid="dining-detail-panel"
-							ref={detailRef}
-						>
-							<DiningWindowDetail
-								floorLabel={selectedFloor.label}
-								onSelectMenuItem={(item) =>
-									void navigate({
-										search: {
-											floor: selectedFloor.floorId,
-											hall: selectedHall.hallId,
-											item: item ?? undefined,
-											window: selectedWindow?.windowId,
-										},
-									})
-								}
-								selectedMenuItemId={routeSearch.item ?? null}
-								window={selectedWindow}
-							/>
-						</div>
-					</div>
-				</div>
-			) : null}
-		</section>
+		<DiningPageView
+			activeFloor={activeFloor}
+			data={dining.data ?? null}
+			detailRef={detailRef}
+			isError={dining.isError}
+			isPending={dining.isPending}
+			matchedWindowIds={matchedWindowIds}
+			onQueryChange={setQuery}
+			onRetry={() => void dining.refetch()}
+			onSelectFloor={selectFloor}
+			onSelectHall={selectHall}
+			onSelectMenuItem={(item) =>
+				void navigate({
+					search: {
+						floor: selectedFloor?.floorId,
+						hall: selectedHall?.hallId,
+						item: item ?? undefined,
+						window: selectedWindow?.windowId,
+					},
+				})
+			}
+			onSelectResult={selectSearchResult}
+			onSelectWindow={selectWindow}
+			query={query}
+			searchResults={searchResults}
+			selectedFloor={selectedFloor}
+			selectedHall={selectedHall}
+			selectedMenuItemId={routeSearch.item ?? null}
+			selectedWindow={selectedWindow}
+		/>
 	);
 }
 
@@ -256,11 +186,5 @@ export function searchDiningWindows(
 					]
 				: [],
 		),
-	);
-}
-
-function formatDiningDate(value: string): string {
-	return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(
-		new Date(value),
 	);
 }

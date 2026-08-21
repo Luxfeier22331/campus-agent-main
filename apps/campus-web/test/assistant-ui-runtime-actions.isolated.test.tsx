@@ -101,6 +101,7 @@ function historicalConversation(input: {
 	const answerText = input.answerText ?? "原回答";
 	return {
 		archivedAt: null,
+		activeRunId: null,
 		createdAt: "2026-06-24T01:00:00.000Z",
 		id: "conv_history",
 		messages: [

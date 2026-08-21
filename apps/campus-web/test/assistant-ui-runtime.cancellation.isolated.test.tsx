@@ -1,6 +1,7 @@
 import { act, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
+import type { ChatRunStatus } from "../src/features/conversation/run-client";
 import {
 	assistantUiTestState as assistantUiMock,
 	TestChatStreamRequestError as ChatStreamRequestError,
@@ -15,6 +16,21 @@ import {
 	streamEvents,
 	TestUnauthorizedError as UnauthorizedError,
 } from "./assistant-ui-runtime.test-support";
+
+function runningCancellationStatus(): ChatRunStatus {
+	return {
+		acceptedAt: "2026-06-24T01:00:00.000Z",
+		completedAt: null,
+		conversationId: "conv_created",
+		durationMs: null,
+		phase: "running",
+		requestId: "req_01",
+		runId: "run_01",
+		startedAt: "2026-06-24T01:00:01.000Z",
+		status: "running",
+		traceId: "trace_01",
+	};
+}
 
 describe("assistant-ui runtime cancellation and rendering races", () => {
 	installAssistantUiRuntimeTestHarness();
@@ -58,6 +74,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					answer: {
 						conversation: {
 							archivedAt: null,
+							activeRunId: null,
 							createdAt: "2026-06-24T01:00:00.000Z",
 							id: "conv_created",
 							messages: [
@@ -225,8 +242,21 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				releaseTerminal();
 				await submitPromise;
 			});
-			expect(hasMessageId("msg_delta")).toBe(false);
-			expect(readAssistantText()).toBe("测试结束。");
+			expect(hasMessageId("msg_delta")).toBe(true);
+			expect(readMessageText("msg_delta")).toBe("按学校奖学金通知");
+			expect(readMessageText("local-error-req_delta")).toBe("测试结束。");
+			expect(assistantUiMock.externalStoreInput?.messages).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						id: "msg_delta",
+						metadata: {
+							custom: {
+								campusRun: expect.objectContaining({ status: "failed" }),
+							},
+						},
+					}),
+				]),
+			);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -313,12 +343,12 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		let releaseTerminal: () => void = () => {
 			throw new Error("terminal release was not initialized");
 		};
-		let resolveCancellation: () => void = () => {
+		let resolveCancellation: (status: ChatRunStatus) => void = () => {
 			throw new Error("cancellation resolution was not initialized");
 		};
 		conversationApiMock.cancelRun.mockImplementation(
 			() =>
-				new Promise<void>((resolve) => {
+				new Promise<ChatRunStatus>((resolve) => {
 					resolveCancellation = resolve;
 				}),
 		);
@@ -398,7 +428,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			expect(hasMessageId("msg_cancel_frame")).toBe(false);
 
 			await act(async () => {
-				resolveCancellation();
+				resolveCancellation(runningCancellationStatus());
 				await cancellationPromise;
 			});
 			await act(async () => {
@@ -477,7 +507,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 
 	it("waits for durable cancellation confirmation and merges duplicate stop requests", async () => {
 		let observedSignal: AbortSignal | undefined;
-		let resolveCancellation: () => void = () => {
+		let resolveCancellation: (status: ChatRunStatus) => void = () => {
 			throw new Error("cancellation resolution was not initialized");
 		};
 		let releaseStream: () => void = () => {
@@ -505,7 +535,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		});
 		conversationApiMock.cancelRun.mockImplementation(
 			() =>
-				new Promise<void>((resolve) => {
+				new Promise<ChatRunStatus>((resolve) => {
 					resolveCancellation = resolve;
 				}),
 		);
@@ -538,7 +568,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 
 		await act(async () => {
-			resolveCancellation();
+			resolveCancellation(runningCancellationStatus());
 			await Promise.all([firstCancellation, duplicateCancellation]);
 		});
 
@@ -696,7 +726,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		let releaseTerminal: () => void = () => {
 			throw new Error("terminal release was not initialized");
 		};
-		let resolveCancellation: () => void = () => {
+		let resolveCancellation: (status: ChatRunStatus) => void = () => {
 			throw new Error("cancellation resolution was not initialized");
 		};
 		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
@@ -734,7 +764,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		});
 		conversationApiMock.cancelRun.mockImplementation(
 			() =>
-				new Promise<void>((resolve) => {
+				new Promise<ChatRunStatus>((resolve) => {
 					resolveCancellation = resolve;
 				}),
 		);
@@ -768,7 +798,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		expect(observedSignal?.aborted).toBe(false);
 
 		await act(async () => {
-			resolveCancellation();
+			resolveCancellation(runningCancellationStatus());
 			await cancellationPromise;
 		});
 
@@ -952,7 +982,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			});
 			yield cancellationTerminalEvent();
 		});
-		conversationApiMock.cancelRun.mockResolvedValue(undefined);
+		conversationApiMock.cancelRun.mockResolvedValue(runningCancellationStatus());
 
 		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 

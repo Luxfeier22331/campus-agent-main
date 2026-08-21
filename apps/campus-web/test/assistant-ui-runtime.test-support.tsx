@@ -48,6 +48,7 @@ const conversationApiMock = vi.hoisted(() => ({
 	},
 	deleteTrailingMessages: vi.fn(),
 	getConversationDetail: vi.fn(),
+	getRunEvents: vi.fn(),
 	getRunStatus: vi.fn(),
 	resumeRunEventsStream: vi.fn(),
 	submitChatRequestStream: vi.fn(),
@@ -112,6 +113,7 @@ export function cancellationTerminalEvent(): ChatRequestStreamEvent {
 			answer: {
 				conversation: {
 					archivedAt: null,
+					activeRunId: null,
 					createdAt: "2026-06-24T01:00:00.000Z",
 					id: "conv_created",
 					messages: [],
@@ -145,6 +147,7 @@ export function completedTerminalEvent(answerText: string): ChatRequestStreamEve
 			answer: {
 				conversation: {
 					archivedAt: null,
+					activeRunId: null,
 					createdAt: "2026-06-24T01:00:00.000Z",
 					id: "conv_created",
 					messages: [
@@ -201,7 +204,17 @@ export function readAssistantText(): string {
 			"role" in item &&
 			item.role === "assistant" &&
 			"content" in item &&
-			Array.isArray(item.content),
+			Array.isArray(item.content) &&
+			item.content.some(
+				(part) =>
+					typeof part === "object" &&
+					part !== null &&
+					"type" in part &&
+					part.type === "text" &&
+					"text" in part &&
+					typeof part.text === "string" &&
+					part.text.length > 0,
+			),
 	);
 	return message?.content.find((part) => part.type === "text")?.text ?? "";
 }
@@ -247,12 +260,17 @@ export function installAssistantUiRuntimeTestHarness() {
 		conversationApiMock.cancelRun.mockReset();
 		conversationApiMock.deleteTrailingMessages.mockReset();
 		conversationApiMock.getConversationDetail.mockReset();
+		conversationApiMock.getRunEvents.mockReset();
 		conversationApiMock.getRunStatus.mockReset();
 		conversationApiMock.getRunStatus.mockResolvedValue({
+			acceptedAt: "2026-06-24T01:00:00.000Z",
+			completedAt: null,
 			conversationId: "conv_created",
+			durationMs: null,
 			phase: "running",
 			requestId: "req_01",
 			runId: "run_01",
+			startedAt: "2026-06-24T01:00:01.000Z",
 			status: "running",
 			traceId: "trace_01",
 		});

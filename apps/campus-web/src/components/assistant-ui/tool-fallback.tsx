@@ -7,7 +7,6 @@ import {
 	type ToolCallMessagePartProps,
 	type ToolCallMessagePartStatus,
 	useScrollLock,
-	useToolCallElapsed,
 } from "@assistant-ui/react";
 import { Button, Collapsible, CollapsibleContent, CollapsibleTrigger, cn } from "@campus-agent/ui";
 import { AlertCircleIcon, CheckIcon, ChevronDownIcon, LoaderIcon, XCircleIcon } from "lucide-react";
@@ -78,47 +77,11 @@ const statusIconMap: Record<ToolStatus, React.ElementType> = {
 	"requires-action": AlertCircleIcon,
 };
 
-const formatToolDuration = (ms: number) => {
-	if (ms < 1000) {
-		return "<1s";
-	}
-	const seconds = ms / 1000;
-	if (seconds < 10) {
-		return `${(Math.floor(seconds * 10) / 10).toFixed(1)}s`;
-	}
-	if (seconds < 60) {
-		return `${Math.floor(seconds)}s`;
-	}
-	return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
-};
-
-function ToolFallbackDuration({ className, ...props }: React.ComponentProps<"span">) {
-	const elapsedMs = useToolCallElapsed();
-	if (elapsedMs === undefined) {
-		return null;
-	}
-
-	return (
-		<span
-			data-slot="tool-fallback-duration"
-			className={cn(
-				"aui-tool-fallback-duration text-muted-foreground text-xs tabular-nums",
-				className,
-			)}
-			{...props}
-		>
-			{formatToolDuration(elapsedMs)}
-		</span>
-	);
-}
-
 function ToolFallbackTrigger({
-	toolName,
 	status,
 	className,
 	...props
 }: React.ComponentProps<typeof CollapsibleTrigger> & {
-	toolName: string;
 	status?: ToolCallMessagePartStatus;
 }) {
 	const statusType = status?.type ?? "complete";
@@ -126,7 +89,16 @@ function ToolFallbackTrigger({
 	const isCancelled = status?.type === "incomplete" && status.reason === "cancelled";
 
 	const Icon = statusIconMap[statusType];
-	const label = isCancelled ? "工具已取消" : "调用工具";
+	const label =
+		statusType === "running"
+			? "正在查找校园资料"
+			: statusType === "requires-action"
+				? "需要确认资料查询"
+				: isCancelled
+					? "资料查询已取消"
+					: statusType === "incomplete"
+						? "资料查询未完成"
+						: "已查找校园资料";
 
 	return (
 		<CollapsibleTrigger
@@ -152,20 +124,17 @@ function ToolFallbackTrigger({
 					isCancelled && "text-muted-foreground line-through",
 				)}
 			>
-				<span>
-					{label}: <b>{toolName}</b>
-				</span>
+				<span>{label}</span>
 				{isRunning && (
 					<span
 						aria-hidden
 						data-slot="tool-fallback-trigger-shimmer"
 						className="aui-tool-fallback-trigger-shimmer shimmer pointer-events-none absolute inset-0 motion-reduce:animate-none"
 					>
-						{label}: <b>{toolName}</b>
+						{label}
 					</span>
 				)}
 			</span>
-			<ToolFallbackDuration />
 			<ChevronDownIcon
 				data-slot="tool-fallback-trigger-chevron"
 				className={cn(
@@ -205,57 +174,6 @@ function ToolFallbackContent({
 	);
 }
 
-function ToolFallbackArgs({
-	argsText,
-	className,
-	...props
-}: React.ComponentProps<"div"> & {
-	argsText?: string;
-}) {
-	if (!argsText) {
-		return null;
-	}
-
-	return (
-		<div
-			data-slot="tool-fallback-args"
-			className={cn("aui-tool-fallback-args", className)}
-			{...props}
-		>
-			<pre className="aui-tool-fallback-args-value bg-surface-muted/50 text-muted-foreground rounded-md p-2.5 text-xs whitespace-pre-wrap">
-				{argsText}
-			</pre>
-		</div>
-	);
-}
-
-function ToolFallbackResult({
-	result,
-	className,
-	...props
-}: React.ComponentProps<"div"> & {
-	result?: unknown;
-}) {
-	if (result === undefined) {
-		return null;
-	}
-
-	return (
-		<div
-			data-slot="tool-fallback-result"
-			className={cn("aui-tool-fallback-result", className)}
-			{...props}
-		>
-			<p className="aui-tool-fallback-result-header text-muted-foreground text-xs font-medium">
-				结果：
-			</p>
-			<pre className="aui-tool-fallback-result-content bg-surface-muted/50 text-muted-foreground mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap">
-				{typeof result === "string" ? result : JSON.stringify(result, null, 2)}
-			</pre>
-		</div>
-	);
-}
-
 function ToolFallbackError({
 	status,
 	className,
@@ -267,15 +185,7 @@ function ToolFallbackError({
 		return null;
 	}
 
-	const error = status.error;
-	const errorText = error ? (typeof error === "string" ? error : JSON.stringify(error)) : null;
-
-	if (!errorText) {
-		return null;
-	}
-
 	const isCancelled = status.reason === "cancelled";
-	const headerText = isCancelled ? "取消原因：" : "错误：";
 
 	return (
 		<div
@@ -283,10 +193,9 @@ function ToolFallbackError({
 			className={cn("aui-tool-fallback-error", className)}
 			{...props}
 		>
-			<p className="aui-tool-fallback-error-header text-muted-foreground font-semibold">
-				{headerText}
+			<p className="aui-tool-fallback-error-reason text-muted-foreground">
+				{isCancelled ? "资料查询已取消。" : "资料查询未完成，请查看回答或稍后重试。"}
 			</p>
-			<p className="aui-tool-fallback-error-reason text-muted-foreground">{errorText}</p>
 		</div>
 	);
 }
@@ -466,9 +375,6 @@ function ToolFallbackApproval({
 }
 
 const ToolFallbackImpl: ToolCallMessagePartComponent = ({
-	toolName,
-	argsText,
-	result,
 	status,
 	addResult,
 	resume,
@@ -476,7 +382,6 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
 	approval,
 	respondToApproval,
 }) => {
-	const isCancelled = status?.type === "incomplete" && status.reason === "cancelled";
 	const isRequiresAction = status?.type === "requires-action";
 
 	const [open, setOpen] = useState(isRequiresAction);
@@ -490,10 +395,9 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
 
 	return (
 		<ToolFallbackRoot open={open} onOpenChange={setOpen}>
-			<ToolFallbackTrigger toolName={toolName} status={status} />
+			<ToolFallbackTrigger status={status} />
 			<ToolFallbackContent>
 				<ToolFallbackError status={status} />
-				<ToolFallbackArgs argsText={argsText} className={cn(isCancelled && "opacity-60")} />
 				{isRequiresAction && (
 					<ToolFallbackApproval
 						addResult={addResult}
@@ -503,7 +407,6 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
 						respondToApproval={respondToApproval}
 					/>
 				)}
-				{!isCancelled && <ToolFallbackResult result={result} />}
 			</ToolFallbackContent>
 		</ToolFallbackRoot>
 	);
@@ -513,8 +416,6 @@ const ToolFallback = memo(ToolFallbackImpl) as unknown as ToolCallMessagePartCom
 	Root: typeof ToolFallbackRoot;
 	Trigger: typeof ToolFallbackTrigger;
 	Content: typeof ToolFallbackContent;
-	Args: typeof ToolFallbackArgs;
-	Result: typeof ToolFallbackResult;
 	Error: typeof ToolFallbackError;
 	Approval: typeof ToolFallbackApproval;
 };
@@ -523,18 +424,14 @@ ToolFallback.displayName = "ToolFallback";
 ToolFallback.Root = ToolFallbackRoot;
 ToolFallback.Trigger = ToolFallbackTrigger;
 ToolFallback.Content = ToolFallbackContent;
-ToolFallback.Args = ToolFallbackArgs;
-ToolFallback.Result = ToolFallbackResult;
 ToolFallback.Error = ToolFallbackError;
 ToolFallback.Approval = ToolFallbackApproval;
 
 export {
 	ToolFallback,
 	ToolFallbackApproval,
-	ToolFallbackArgs,
 	ToolFallbackContent,
 	ToolFallbackError,
-	ToolFallbackResult,
 	ToolFallbackRoot,
 	ToolFallbackTrigger,
 };

@@ -24,22 +24,30 @@ try {
 	const initialLoadFailed = docsRouter.state.matches.some((match) => match.status === "error");
 	if (initialLoadFailed) {
 		docsRootElement.dataset.campusEnhancement = "unavailable";
+	}
+	const application = (
+		<StrictMode>
+			<ThemeProvider>
+				<DocsApplication />
+			</ThemeProvider>
+		</StrictMode>
+	);
+	if (isPrerendered && !initialLoadFailed) {
+		hydrateRoot(docsRootElement, application);
 	} else {
-		const application = (
-			<StrictMode>
-				<ThemeProvider>
-					<DocsApplication />
-				</ThemeProvider>
-			</StrictMode>
-		);
 		if (isPrerendered) {
-			hydrateRoot(docsRootElement, application);
-		} else {
-			createRoot(docsRootElement).render(application);
+			docsRootElement.replaceChildren();
 		}
+		createRoot(docsRootElement).render(application);
 	}
 } catch {
 	docsRootElement.dataset.campusEnhancement = "unavailable";
+	docsRootElement.replaceChildren();
+	createRoot(docsRootElement).render(
+		<ThemeProvider>
+			<DocsApplicationFailure />
+		</ThemeProvider>,
+	);
 }
 
 function DocsApplication() {
@@ -71,9 +79,11 @@ function DocsApplicationFailure() {
 		<main className="flex min-h-screen items-center justify-center bg-background p-6">
 			<div className="max-w-md text-center">
 				<h1 className="text-xl font-semibold">页面暂时无法显示</h1>
-				<p className="mt-2 text-sm text-muted-foreground">请刷新页面后重试。</p>
+				<p className="mt-2 text-sm text-muted-foreground">
+					应用遇到意外错误，重新打开页面可以恢复当前界面。
+				</p>
 				<Button className="mt-5" onClick={() => window.location.reload()} type="button">
-					刷新
+					重新打开
 				</Button>
 			</div>
 		</main>

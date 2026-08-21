@@ -1,9 +1,9 @@
-import { Badge, Button, cn, Input } from "@campus-agent/ui";
+import { Badge, Button, cn, Input, Skeleton } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { ArrowUp, Check, Copy, ExternalLink, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { SurfaceState } from "@/components/ui/surface-state";
+import { StateMessage } from "@/components/ui/state-message";
 import {
 	countInterestGroups,
 	filterInterestGroupCatalog,
@@ -33,27 +33,54 @@ function InterestGroupsPageQuery() {
 	if (query.isPending) {
 		return (
 			<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-7 sm:px-5 lg:px-6">
-				<SurfaceState description="正在读取同好群目录。" kind="loading" title="正在加载同好群" />
+				<InterestGroupsPageSkeleton />
 			</section>
 		);
 	}
 	if (query.isError) {
-		return (
-			<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-7 sm:px-5 lg:px-6">
-				<SurfaceState
-					description="暂时无法读取同好群目录，请稍后重试。"
-					kind="error"
-					primaryAction={
-						<Button onClick={() => void query.refetch()} variant="outline">
-							重试
-						</Button>
-					}
-					title="同好群目录加载失败"
-				/>
-			</section>
-		);
+		return <InterestGroupsUnavailable onRetry={() => void query.refetch()} />;
 	}
 	return <InterestGroupsPageContent catalog={query.data} />;
+}
+
+export function InterestGroupsUnavailable({ onRetry }: { onRetry: () => void }) {
+	return (
+		<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-7 sm:px-5 lg:px-6">
+			<StateMessage
+				description="暂时无法读取同好群目录，请稍后重试。"
+				layout="page"
+				primaryAction={
+					<Button onClick={onRetry} variant="outline">
+						重试
+					</Button>
+				}
+				role="alert"
+				title="同好群目录暂时不可用"
+				tone="danger"
+			/>
+		</section>
+	);
+}
+
+export function InterestGroupsPageSkeleton() {
+	const groupSkeletonIds = ["group-1", "group-2", "group-3", "group-4", "group-5", "group-6"];
+
+	return (
+		<div aria-busy="true" aria-label="正在加载同好群目录" className="grid gap-7" role="status">
+			<div aria-hidden="true" className="grid gap-3">
+				<Skeleton className="h-9 w-28 motion-reduce:animate-none" />
+				<Skeleton className="mx-auto h-11 w-full max-w-xl rounded-full motion-reduce:animate-none" />
+			</div>
+			<div aria-hidden="true" className="grid gap-3 lg:grid-cols-[12rem_minmax(0,1fr)]">
+				<Skeleton className="hidden h-32 w-full motion-reduce:animate-none lg:block" />
+				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+					{groupSkeletonIds.map((id) => (
+						<Skeleton className="h-32 w-full motion-reduce:animate-none" key={id} />
+					))}
+				</div>
+			</div>
+		</div>
+	);
 }
 
 export function InterestGroupsPageContent({ catalog }: { catalog: InterestGroupCatalog }) {
@@ -214,17 +241,17 @@ export function InterestGroupsPageContent({ catalog }: { catalog: InterestGroupC
 						</p>
 
 						{totalCount === 0 ? (
-							<SurfaceState
+							<StateMessage
 								className="mt-8 lg:mt-0"
 								description="还没有可展示的群。"
-								kind="empty"
+								layout="section"
 								title="暂无已收录的同好群"
 							/>
 						) : resultCount === 0 ? (
-							<SurfaceState
+							<StateMessage
 								className="mt-8 lg:mt-0"
 								description="请尝试其他主题、群号、群名或说明。"
-								kind="empty"
+								layout="section"
 								primaryAction={
 									<Button onClick={() => setQuery("")} type="button" variant="outline">
 										清除搜索

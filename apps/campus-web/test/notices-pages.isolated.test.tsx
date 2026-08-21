@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NoticeDetailPageContent } from "../src/app/routes/notice-detail-page";
 import { NoticesPageContent } from "../src/app/routes/notices-page";
+import { ApiRequestError } from "../src/platform/api/client";
 import { createCampusQueryClient } from "../src/platform/query/client";
 
 const api = vi.hoisted(() => ({
@@ -409,8 +410,28 @@ describe("notice pages", () => {
 
 		renderWithQuery(<NoticeDetailPageContent />);
 
-		expect(await screen.findByRole("alert")).toHaveTextContent("通知无法打开");
+		const alert = await screen.findByRole("alert");
+		expect(alert).toHaveTextContent("通知暂时不可用");
+		expect(within(alert).getByRole("button", { name: "重试" })).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: "在信息门户查看" })).toBeNull();
+	});
+
+	it("returns to the notice directory when the notice does not exist", async () => {
+		api.getNoticeDetail.mockRejectedValue(
+			new ApiRequestError({
+				code: "notice_not_found",
+				message: "notice not found",
+				retryable: false,
+				status: 404,
+			}),
+		);
+
+		renderWithQuery(<NoticeDetailPageContent />);
+
+		const alert = await screen.findByRole("alert");
+		expect(alert).toHaveTextContent("通知不存在");
+		expect(within(alert).getByRole("link", { name: "返回通知目录" })).toBeInTheDocument();
+		expect(within(alert).queryByRole("button", { name: "重试" })).toBeNull();
 	});
 });
 

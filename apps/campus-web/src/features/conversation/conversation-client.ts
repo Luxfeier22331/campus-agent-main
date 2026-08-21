@@ -203,6 +203,7 @@ function normalizeConversationDetail(conversation: ConversationDetail): Conversa
 	return {
 		...conversation,
 		archivedAt: conversation.archivedAt ?? null,
+		activeRunId: conversation.activeRunId ?? null,
 		pinnedAt: conversation.pinnedAt ?? null,
 	};
 }

@@ -34,7 +34,7 @@ import {
 	X,
 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
-import { SurfaceState } from "@/components/ui/surface-state";
+import { StateMessage } from "@/components/ui/state-message";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { NoticeCategoryBadge } from "@/features/notices/category-badge";
 import {
@@ -259,26 +259,28 @@ export function NoticesPageContent() {
 				</Collapsible>
 			</form>
 
-			<div aria-live="polite" className="min-h-80">
+			<div className="min-h-80">
 				{notices.isPending ? <NoticeListSkeleton itemLabel={itemLabel} /> : null}
 				{notices.isError ? (
-					<SurfaceState
+					<StateMessage
 						className="mt-6"
 						description={`${isCampusNews ? "校园动态" : "通知目录"}暂时无法读取，请稍后重试。`}
-						kind="error"
+						layout="section"
 						primaryAction={<Button onClick={() => void notices.refetch()}>重试</Button>}
+						role="alert"
 						title={`${isCampusNews ? "校园动态" : "通知目录"}不可用`}
+						tone="danger"
 					/>
 				) : null}
 				{notices.data && notices.data.items.length === 0 ? (
-					<SurfaceState
+					<StateMessage
 						className="mt-6 border-dashed"
 						description={
 							isCampusNews
 								? "调整关键词、来源或日期范围后再试。"
 								: "调整关键词、分类、来源或日期范围后再试。"
 						}
-						kind="empty"
+						layout="section"
 						title={`没有符合条件的${itemLabel}`}
 					/>
 				) : null}

@@ -19,7 +19,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { LazyMarkdownText } from "@/components/assistant-ui/lazy-markdown-text";
 
 const ANIMATION_DURATION = 200;
 
@@ -244,7 +243,7 @@ function ReasoningContent({
 	);
 }
 
-function ReasoningText({ className, children, ...props }: React.ComponentProps<"div">) {
+function ReasoningText({ className, ...props }: React.ComponentProps<"div">) {
 	const isPreview = useContext(ReasoningPreviewContext);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const contentRef = useRef<HTMLDivElement>(null);
@@ -287,15 +286,17 @@ function ReasoningText({ className, children, ...props }: React.ComponentProps<"
 			{...props}
 		>
 			<div ref={contentRef} className="aui-reasoning-text-content space-y-4">
-				{children}
+				<p className="m-0">{isPreview ? "正在分析问题…" : "已完成分析。"}</p>
 			</div>
 		</div>
 	);
 }
 
-const ReasoningImpl: ReasoningMessagePartComponent = () => <LazyMarkdownText />;
+const ReasoningImpl: ReasoningMessagePartComponent = () => (
+	<span className="text-muted-foreground text-sm">正在分析问题…</span>
+);
 
-const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, endIndex }) => {
+const ReasoningGroupImpl: ReasoningGroupComponent = ({ startIndex, endIndex }) => {
 	const isReasoningStreaming = useAuiState((s) => {
 		if (s.message.status?.type !== "running") {
 			return false;
@@ -315,7 +316,7 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, end
 		<ReasoningRoot streaming={isReasoningStreaming}>
 			<ReasoningTrigger active={isReasoningStreaming} />
 			<ReasoningContent aria-busy={isReasoningStreaming}>
-				<ReasoningText>{children}</ReasoningText>
+				<ReasoningText />
 			</ReasoningContent>
 		</ReasoningRoot>
 	);

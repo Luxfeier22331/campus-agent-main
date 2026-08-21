@@ -14,6 +14,7 @@ import {
 	type DocsSearchClient,
 	type DocsSearchDocumentGroup,
 	loadDocsSearchClient,
+	resetDocsSearchClient,
 } from "@/features/docs/search-client";
 import { normalizeDocsSearchQuery } from "@/features/docs/search-query";
 import type { DocsSiteIndex } from "@/features/docs/site-index";
@@ -24,29 +25,42 @@ const INITIAL_VISIBLE_SECTIONS = 3;
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_MAX_WAIT_MS = 500;
 
+export interface DocsSearchRuntime {
+	load: typeof loadDocsSearchClient;
+	reset: typeof resetDocsSearchClient;
+}
+
 export function DocsSearchPanel({
+	initialQuery = "",
 	onNavigate,
 	searchIndexUrl,
+	searchRuntime,
 	siteIndex,
 }: {
+	initialQuery?: string;
 	onNavigate: () => void;
 	searchIndexUrl: string;
+	searchRuntime?: DocsSearchRuntime;
 	siteIndex: DocsSiteIndex;
 }) {
 	const navigate = useNavigate();
 	const [searchClient, setSearchClient] = useState<DocsSearchClient | null>(null);
-	const [query, setQuery] = useState("");
+	const [query, setQuery] = useState(initialQuery);
 	const [activeQuery, setActiveQuery] = useState("");
 	const [documentGroups, setDocumentGroups] = useState<DocsSearchDocumentGroup[]>([]);
 	const [totalDocumentCount, setTotalDocumentCount] = useState(0);
 	const [searching, setSearching] = useState(false);
 	const [loadingMore, setLoadingMore] = useState(false);
 	const [status, setStatus] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
+	const [searchError, setSearchError] = useState(false);
+	const [retryAttempt, setRetryAttempt] = useState(0);
 	const [expandedDocuments, setExpandedDocuments] = useState<Set<string>>(() => new Set());
 	const inputRef = useRef<HTMLInputElement>(null);
 	const querySequence = useRef(0);
 	const executedQuerySequence = useRef(0);
 	const normalizedQueryRef = useRef("");
+	const loadSearchClient = searchRuntime?.load ?? loadDocsSearchClient;
+	const resetSearchClient = searchRuntime?.reset ?? resetDocsSearchClient;
 
 	function executeSearch(client: DocsSearchClient, searchQuery: string, sequence: number) {
 		if (sequence !== querySequence.current || sequence === executedQuerySequence.current) {
@@ -67,16 +81,14 @@ export function DocsSearchPanel({
 				setDocumentGroups(response.documentGroups);
 				setTotalDocumentCount(response.totalDocumentCount);
 				setSearching(false);
+				setSearchError(false);
 			})
 			.catch(() => {
 				if (sequence !== querySequence.current) {
 					return;
 				}
-				setActiveQuery("");
-				setDocumentGroups([]);
-				setTotalDocumentCount(0);
 				setSearching(false);
-				setStatus("unavailable");
+				setSearchError(true);
 			});
 	}
 
@@ -93,16 +105,17 @@ export function DocsSearchPanel({
 
 	useEffect(() => {
 		let active = true;
-		const client = loadDocsSearchClient({ searchIndexUrl, siteIndex });
+		if (retryAttempt > 0) {
+			resetSearchClient(searchIndexUrl);
+		}
+		const client = loadSearchClient({ searchIndexUrl, siteIndex });
 		querySequence.current += 1;
 		searchDebouncer.cancel();
 		searchMaxWaitThrottler.cancel();
 		setStatus("loading");
 		setSearchClient(null);
-		setActiveQuery("");
-		setDocumentGroups([]);
-		setTotalDocumentCount(0);
 		setExpandedDocuments(new Set());
+		setSearchError(false);
 		setSearching(false);
 		setLoadingMore(false);
 		void client
@@ -125,7 +138,15 @@ export function DocsSearchPanel({
 			searchDebouncer.cancel();
 			searchMaxWaitThrottler.cancel();
 		};
-	}, [searchIndexUrl, searchDebouncer, searchMaxWaitThrottler, siteIndex]);
+	}, [
+		loadSearchClient,
+		retryAttempt,
+		resetSearchClient,
+		searchDebouncer,
+		searchIndexUrl,
+		searchMaxWaitThrottler,
+		siteIndex,
+	]);
 
 	const normalizedQuery = normalizeDocsSearchQuery(query);
 	useEffect(() => {
@@ -137,13 +158,12 @@ export function DocsSearchPanel({
 			setTotalDocumentCount(0);
 			setSearching(false);
 			setLoadingMore(false);
+			setSearchError(false);
 			return;
 		}
 		const sequence = querySequence.current;
-		setActiveQuery("");
-		setDocumentGroups([]);
-		setTotalDocumentCount(0);
 		setSearching(true);
+		setSearchError(false);
 		setLoadingMore(false);
 		searchDebouncer.maybeExecute(searchClient, normalizedQuery, sequence);
 		searchMaxWaitThrottler.maybeExecute(searchClient, normalizedQuery, sequence);
@@ -164,6 +184,19 @@ export function DocsSearchPanel({
 			searchDebouncer.cancel();
 			searchMaxWaitThrottler.cancel();
 		}
+	}
+
+	function retrySearch() {
+		if (!(searchClient && normalizedQuery)) {
+			setRetryAttempt((attempt) => attempt + 1);
+			return;
+		}
+		querySequence.current += 1;
+		const sequence = querySequence.current;
+		setSearching(true);
+		setSearchError(false);
+		searchDebouncer.maybeExecute(searchClient, normalizedQuery, sequence);
+		searchMaxWaitThrottler.maybeExecute(searchClient, normalizedQuery, sequence);
 	}
 
 	function toggleDocument(docId: string) {
@@ -205,7 +238,7 @@ export function DocsSearchPanel({
 					return;
 				}
 				setSearching(false);
-				setStatus("unavailable");
+				setSearchError(true);
 			});
 	}
 
@@ -238,7 +271,7 @@ export function DocsSearchPanel({
 					return;
 				}
 				setLoadingMore(false);
-				setStatus("unavailable");
+				setSearchError(true);
 			});
 	}
 
@@ -258,25 +291,34 @@ export function DocsSearchPanel({
 				ref={inputRef}
 				value={query}
 			/>
-			<CommandList className="max-h-[min(70dvh,36rem)]">
-				{status === "loading" ? (
-					<div className="grid gap-3 px-4 py-5" role="status">
-						<p className="m-0 text-sm text-muted-foreground">正在载入搜索索引</p>
-						<div aria-hidden="true" className="grid gap-2">
-							<Skeleton className="h-4 w-2/5 motion-reduce:animate-none" />
-							<Skeleton className="h-3 w-4/5 motion-reduce:animate-none" />
-						</div>
+			<CommandList
+				aria-busy={status === "loading" || searching || loadingMore || undefined}
+				className="max-h-[min(70dvh,36rem)]"
+			>
+				{status === "loading" && documentGroups.length === 0 && normalizedQuery ? (
+					<div aria-hidden="true" className="grid gap-2 px-4 py-5">
+						<Skeleton className="h-4 w-2/5 motion-reduce:animate-none" />
+						<Skeleton className="h-3 w-4/5 motion-reduce:animate-none" />
 					</div>
 				) : null}
 				{status === "unavailable" ? (
-					<p className="px-4 py-8 text-center text-sm text-muted-foreground" role="alert">
-						搜索暂时不可用，请刷新页面后重试
-					</p>
+					<div className="grid gap-2 px-4 py-8 text-center" role="alert">
+						<p className="m-0 text-sm text-muted-foreground">搜索暂时不可用。</p>
+						<Button className="mx-auto" onClick={retrySearch} size="sm" variant="outline">
+							重试搜索
+						</Button>
+					</div>
 				) : null}
-				{status === "ready" && normalizedQuery && searching ? (
-					<p className="px-4 py-8 text-center text-sm text-muted-foreground" role="status">
-						正在搜索
-					</p>
+				{status === "ready" && normalizedQuery && searchError && documentGroups.length > 0 ? (
+					<div
+						className="flex items-center justify-between gap-3 px-4 py-2 text-xs text-muted-foreground"
+						role="alert"
+					>
+						<span>搜索结果暂时无法更新。</span>
+						<Button onClick={retrySearch} size="sm" variant="ghost">
+							重试
+						</Button>
+					</div>
 				) : null}
 				{status === "ready" && normalizedQuery && !searching && totalDocumentCount === 0 ? (
 					<p className="px-4 py-8 text-center text-sm text-muted-foreground">没有找到相关文档</p>

@@ -1,11 +1,7 @@
-export interface CampusRouteMetadata {
-	canonicalPath: string | null;
-	description: string;
-	robots: "index,follow" | "noindex,nofollow";
-	title: string;
-}
+import { type CampusPageMetadata, composeCampusPageTitle } from "./page-metadata";
+import { CampusPageMetadataHead } from "./page-metadata-head";
 
-const PRODUCT_NAME = "中央民族大学校园问答";
+export type CampusRouteMetadata = CampusPageMetadata;
 
 export function resolveRouteMetadata(pathname: string): CampusRouteMetadata {
 	if (pathname === "/") {
@@ -82,16 +78,7 @@ export function resolveRouteMetadata(pathname: string): CampusRouteMetadata {
 
 export function RouteMetadata({ pathname }: { pathname: string }) {
 	const metadata = resolveRouteMetadata(pathname);
-	return (
-		<>
-			<title data-campus-route-metadata="true">{metadata.title}</title>
-			<meta content={metadata.description} data-campus-route-metadata="true" name="description" />
-			<meta content={metadata.robots} data-campus-route-metadata="true" name="robots" />
-			{metadata.canonicalPath ? (
-				<link data-campus-route-metadata="true" href={metadata.canonicalPath} rel="canonical" />
-			) : null}
-		</>
-	);
+	return <CampusPageMetadataHead metadata={metadata} />;
 }
 
 function publicMetadata(
@@ -103,7 +90,7 @@ function publicMetadata(
 		canonicalPath,
 		description,
 		robots: "index,follow",
-		title: `${title} | ${PRODUCT_NAME}`,
+		title: composeCampusPageTitle(title),
 	};
 }
 
@@ -112,6 +99,6 @@ function privateMetadata(title: string, description: string): CampusRouteMetadat
 		canonicalPath: null,
 		description,
 		robots: "noindex,nofollow",
-		title: `${title} | ${PRODUCT_NAME}`,
+		title: composeCampusPageTitle(title),
 	};
 }

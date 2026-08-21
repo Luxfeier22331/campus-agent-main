@@ -72,8 +72,8 @@ key，不创建按消费者复制的影子 Secret。非敏感 ConfigMap 不受�
 
 ## 镜像与发布
 
-源码 CI 生成并校验不可变候选物，环境仓通过 digest 选择部署版本。候选物存在不表示已部署；
-实际状态由环境 revision 和 controller 状态确认。发布操作见 `docs/runbooks/release.md`。
+Kubernetes 候选物、环境选择和实际发布的所有权见
+[运行时发布架构](./runtime-release.md)；本文件只维护 Kubernetes 运行时资源和平台职责。
 
 ## 不允许的形态
 

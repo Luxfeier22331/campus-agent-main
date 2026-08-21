@@ -1,10 +1,8 @@
 import type { ResolvedAppPrincipal } from "../auth";
-import {
-	type ExecutionControlRunStepTrajectory,
-	ExecutionControlTransportError,
-} from "../integration";
+import { ExecutionControlTransportError } from "../integration";
 
 export interface RuntimeRunOwnershipRecord {
+	acceptedAt: string;
 	admissionStatus: string;
 	cancelOutboxStatus: string;
 	cancelReason: string | null;
@@ -53,10 +51,14 @@ export interface RuntimeRunStore {
 }
 
 export interface RuntimeRunSummary {
+	acceptedAt: string;
+	completedAt: string | null;
 	conversationId: string;
+	durationMs: number | null;
 	phase: RuntimeRunPhase;
 	requestId: string;
 	runId: string;
+	startedAt: string | null;
 	status: string;
 	terminalReason?: string;
 	traceId: string;
@@ -105,7 +107,7 @@ export function runtimeRunPhaseFromExecutionStatus(status: string): RuntimeRunPh
 
 export interface RuntimeRunEventProjection {
 	eventId: string;
-	eventType: string;
+	eventType: RuntimeRunProductEventName;
 	occurredAt: string;
 	payload: Record<string, unknown>;
 	runId: string;
@@ -113,8 +115,37 @@ export interface RuntimeRunEventProjection {
 	visibility: string;
 }
 
-export interface RuntimeRunStepTrajectory extends ExecutionControlRunStepTrajectory {
+export type RuntimeRunProductEventName =
+	| "answer.delta"
+	| "execution.phase"
+	| "execution.queued"
+	| "execution.running"
+	| "request.cancelled"
+	| "request.completed"
+	| "request.failed";
+
+export type RuntimeRunProductPhase = "finalizing" | "generating" | "preparing" | "retrieving";
+
+export type RuntimeRunStepPhase =
+	| "finalizing"
+	| "generating"
+	| "preparing"
+	| "queued"
+	| "retrieving";
+
+export type RuntimeRunStepStatus = "cancelled" | "completed" | "failed" | "pending" | "running";
+
+export interface RuntimeRunStep {
+	completedAt: string | null;
+	durationMs: number | null;
+	phase: RuntimeRunStepPhase;
+	startedAt: string | null;
+	status: RuntimeRunStepStatus;
+}
+
+export interface RuntimeRunStepTrajectory {
 	run: RuntimeRunSummary;
+	steps: RuntimeRunStep[];
 }
 
 export interface RuntimeRunEventSubscriptionPolicy {

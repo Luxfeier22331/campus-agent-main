@@ -96,6 +96,8 @@ function chatStreamEventsForFinalized(input: {
 	const terminal = toTerminalChatStreamEvent({
 		occurredAt: input.occurredAt,
 		response: input.finalized,
+		runId: input.context.runId,
+		...(input.sequence === undefined ? {} : { sequence: input.sequence }),
 		...(input.sourceEvent ? { sourceEvent: input.sourceEvent } : {}),
 	});
 	if (input.hasStreamedAnswerDelta) {
@@ -229,13 +231,18 @@ export function lifecycleEventFromDurableRunEvent(
 		event,
 		"Durable run event run_id does not match the accepted run.",
 	);
+	const baseData = {
+		occurredAt: event.occurredAt,
+		requestId: context.requestId,
+		runId: context.runId,
+		sequence: event.sequence,
+		traceId: context.traceId,
+	};
 	if (event.eventType === "run.queued") {
 		return {
 			data: {
-				occurredAt: event.occurredAt,
-				requestId: context.requestId,
+				...baseData,
 				status: "queued",
-				traceId: context.traceId,
 			},
 			event: "execution.queued",
 		};
@@ -243,12 +250,49 @@ export function lifecycleEventFromDurableRunEvent(
 	if (event.eventType === "run.started") {
 		return {
 			data: {
-				occurredAt: event.occurredAt,
-				requestId: context.requestId,
+				...baseData,
 				status: "running",
-				traceId: context.traceId,
 			},
 			event: "execution.running",
+		};
+	}
+	if (event.eventType === "run.progress") {
+		const phase = event.payload.phase;
+		if (phase !== "retrieving" && phase !== "generating" && phase !== "finalizing") {
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Durable run progress event phase is invalid.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		return {
+			data: {
+				...baseData,
+				phase,
+				status: "running",
+			},
+			event: "execution.phase",
+		};
+	}
+	if (event.eventType === "run.answer_started") {
+		return {
+			data: {
+				...baseData,
+				phase: "generating",
+				status: "running",
+			},
+			event: "execution.phase",
+		};
+	}
+	if (event.eventType === "run.answer_completed") {
+		return {
+			data: {
+				...baseData,
+				phase: "finalizing",
+				status: "running",
+			},
+			event: "execution.phase",
 		};
 	}
 	return null;

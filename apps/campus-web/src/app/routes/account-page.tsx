@@ -1,8 +1,14 @@
-import { Auth, type CampusAuthView } from "@/components/auth/auth";
+import { Auth, type CampusAuthPresentationCopy, type CampusAuthView } from "@/components/auth/auth";
 import { type CampusAccountSettingsView, Settings } from "@/components/auth/settings/settings";
 
-export function AccountAuthPage({ view }: { view: CampusAuthView }) {
-	return <Auth view={view} />;
+export function AccountAuthPage({
+	presentationCopy,
+	view,
+}: {
+	presentationCopy?: CampusAuthPresentationCopy | undefined;
+	view: CampusAuthView;
+}) {
+	return <Auth presentationCopy={presentationCopy} view={view} />;
 }
 
 export function AccountSettingsPage({

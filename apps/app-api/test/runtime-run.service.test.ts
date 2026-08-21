@@ -318,7 +318,7 @@ describe("runtime run service", () => {
 		});
 		expect(first.events).toMatchObject([
 			{
-				eventType: "run.queued",
+				eventType: "execution.queued",
 				sequence: 3,
 				visibility: "browser",
 			},
@@ -329,7 +329,7 @@ describe("runtime run service", () => {
 			principal: createPrincipal(),
 			runId: "run_01HQ",
 		});
-		expect(second.events.map((event) => event.eventType)).toEqual(["run.started"]);
+		expect(second.events.map((event) => event.eventType)).toEqual(["execution.running"]);
 		expect(listRunEvents).toHaveBeenNthCalledWith(2, expect.objectContaining({ afterSequence: 4 }));
 	});
 
@@ -408,7 +408,7 @@ describe("runtime run service", () => {
 		expect(observed).toEqual([
 			{
 				eventId: "event-3",
-				eventType: "run.started",
+				eventType: "execution.running",
 				occurredAt: "2026-06-04T01:02:06.000Z",
 				payload: {},
 				runId: "run_01HQ",
@@ -417,7 +417,7 @@ describe("runtime run service", () => {
 			},
 			{
 				eventId: "event-4",
-				eventType: "finalization.completed",
+				eventType: "request.completed",
 				occurredAt: "2026-06-04T01:02:06.000Z",
 				payload: {
 					request_id: "req_01HQ",
@@ -481,7 +481,7 @@ describe("runtime run service", () => {
 		});
 		expect(observed).toEqual([
 			expect.objectContaining({
-				eventType: "finalization.completed",
+				eventType: "request.completed",
 				sequence: 3,
 			}),
 		]);

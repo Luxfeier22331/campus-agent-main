@@ -35,6 +35,7 @@ import {
 	type PropsWithChildren,
 	useContext,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -58,6 +59,8 @@ import {
 	ToolGroupTrigger,
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { CampusRunStatus } from "@/components/conversation/campus-run-status";
+import { readCampusRunViewMetadata } from "@/features/conversation/run-view-state";
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
 
@@ -82,6 +85,7 @@ export interface ThreadProps {
 	assistantAvatarFallback?: string | undefined;
 	components?: ThreadComponents | undefined;
 	composerPlaceholder?: string | undefined;
+	defaultRunStepsOpen?: boolean | undefined;
 	welcomeMessage?: string | undefined;
 }
 
@@ -90,6 +94,7 @@ const DEFAULT_THREAD_SETTINGS = {
 	allowAttachments: true,
 	assistantAvatarFallback: "问",
 	composerPlaceholder: "输入校园问题",
+	defaultRunStepsOpen: false,
 	welcomeMessage: "今天想了解什么校园信息？",
 };
 
@@ -106,6 +111,7 @@ export const Thread: FC<ThreadProps> = ({
 	assistantAvatarFallback = DEFAULT_THREAD_SETTINGS.assistantAvatarFallback,
 	components = EMPTY_COMPONENTS,
 	composerPlaceholder = DEFAULT_THREAD_SETTINGS.composerPlaceholder,
+	defaultRunStepsOpen = DEFAULT_THREAD_SETTINGS.defaultRunStepsOpen,
 	welcomeMessage = DEFAULT_THREAD_SETTINGS.welcomeMessage,
 }) => {
 	const isEmpty = useAuiState(isNewChatView);
@@ -117,6 +123,7 @@ export const Thread: FC<ThreadProps> = ({
 					allowAttachments,
 					assistantAvatarFallback,
 					composerPlaceholder,
+					defaultRunStepsOpen,
 					welcomeMessage,
 				}}
 			>
@@ -349,7 +356,7 @@ const ComposerAction: FC = () => {
 							type="button"
 							variant="primary"
 							size="icon"
-							className="aui-composer-send size-7 rounded-full after:-inset-x-2 after:-inset-y-2"
+							className="aui-composer-send bg-chat-accent text-chat-accent-foreground hover:bg-chat-accent-hover active:bg-chat-accent-pressed size-7 rounded-full border-chat-accent-foreground/20 after:-inset-x-2 after:-inset-y-2"
 							aria-label="发送"
 						>
 							<ArrowUpIcon className="aui-composer-send-icon size-4.5" />
@@ -362,7 +369,7 @@ const ComposerAction: FC = () => {
 							type="button"
 							variant="primary"
 							size="icon"
-							className="aui-composer-cancel relative size-7 rounded-full after:absolute after:-inset-x-2 after:-inset-y-2 after:content-['']"
+							className="aui-composer-cancel bg-chat-accent text-chat-accent-foreground hover:bg-chat-accent-hover active:bg-chat-accent-pressed relative size-7 rounded-full border-chat-accent-foreground/20 after:absolute after:-inset-x-2 after:-inset-y-2 after:content-['']"
 							aria-label="停止生成"
 						>
 							<SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" />
@@ -388,9 +395,12 @@ const AssistantMessage: FC = () => {
 		ToolGroup,
 		ReasoningGroup,
 	} = useContext(ThreadComponentsContext);
+	const { defaultRunStepsOpen } = useContext(ThreadSettingsContext);
 
 	// Keep the 44px hit area in flow; the message-group gap offsets only the visual spacing.
 	const ACTION_BAR_HEIGHT = "-mb-5 min-h-11";
+	const runMetadata = useAuiState((s) => s.message.metadata.custom?.campusRun);
+	const runView = useMemo(() => readCampusRunViewMetadata(runMetadata), [runMetadata]);
 
 	return (
 		<MessagePrimitive.Root
@@ -403,6 +413,7 @@ const AssistantMessage: FC = () => {
 				// [contain-intrinsic-size:auto_24px] fixes issue #4104, don't change without checking for regressions
 				className="text-foreground px-2 leading-relaxed wrap-break-word [contain-intrinsic-size:auto_24px] [content-visibility:auto]"
 			>
+				{runView ? <CampusRunStatus defaultStepsOpen={defaultRunStepsOpen} run={runView} /> : null}
 				<MessagePrimitive.GroupedParts
 					groupBy={groupPartByType({
 						reasoning: ["group-chainOfThought", "group-reasoning"],
@@ -450,6 +461,9 @@ const AssistantMessage: FC = () => {
 							case "data":
 								return part.dataRendererUI;
 							case "indicator":
+								if (runView) {
+									return null;
+								}
 								return (
 									<span
 										data-slot="aui_assistant-message-indicator"
@@ -530,7 +544,7 @@ const UserMessage: FC = () => (
 		<UserMessageAttachments />
 
 		<div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
-			<div className="aui-user-message-content peer bg-surface-muted text-foreground rounded-lg px-4 py-2 wrap-break-word empty:hidden">
+			<div className="aui-user-message-content peer bg-chat-message-user-bg text-chat-message-user-text rounded-lg px-4 py-2 wrap-break-word empty:hidden">
 				<MessagePrimitive.Parts />
 			</div>
 			<div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2.5 peer-empty:hidden rtl:translate-x-full">

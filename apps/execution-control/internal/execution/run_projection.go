@@ -43,6 +43,7 @@ const (
 	DurableRunEventTypeRunQueued             DurableRunEventType = "run.queued"
 	DurableRunEventTypeRunAdmitted           DurableRunEventType = "run.admitted"
 	DurableRunEventTypeRunStarted            DurableRunEventType = "run.started"
+	DurableRunEventTypeRunProgress           DurableRunEventType = "run.progress"
 	DurableRunEventTypeRunAnswerStarted      DurableRunEventType = "run.answer_started"
 	DurableRunEventTypeRunAnswerDelta        DurableRunEventType = "run.answer_delta"
 	DurableRunEventTypeRunAnswerCompleted    DurableRunEventType = "run.answer_completed"
@@ -55,6 +56,14 @@ const (
 	DurableRunEventTypeActivityFailed        DurableRunEventType = "activity.failed"
 	DurableRunEventTypeAgentCompleted        DurableRunEventType = "agent.completed"
 	DurableRunEventTypeFinalizationCompleted DurableRunEventType = "finalization.completed"
+)
+
+type DurableRunProgressPhase string
+
+const (
+	DurableRunProgressPhaseRetrieving DurableRunProgressPhase = "retrieving"
+	DurableRunProgressPhaseGenerating DurableRunProgressPhase = "generating"
+	DurableRunProgressPhaseFinalizing DurableRunProgressPhase = "finalizing"
 )
 
 type DurableRunEventVisibility string

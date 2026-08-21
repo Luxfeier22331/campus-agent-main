@@ -17,6 +17,7 @@ status: active
 - [dining.md](./dining.md)：食堂地图、菜单、评价、举报与内容维护；
 - [legal-consent.md](./legal-consent.md)：注册同意体验和法律页面内容；
 - [run-context.md](./run-context.md)：连续追问、上一轮依据、上下文裁剪和并发轮次体验；
+- [campus-ui-state.md](./campus-ui-state.md)：Campus Web 用户可见状态、恢复范围、问答过程和搜索生命周期治理；
 - [ops-web.md](./ops-web.md)：自托管运行概览、运行记录、在线模型配置和内容运营。
 
 产品边界见 `docs/architecture/product.md`，当前实现从 `docs/architecture/README.md` 进入最近的

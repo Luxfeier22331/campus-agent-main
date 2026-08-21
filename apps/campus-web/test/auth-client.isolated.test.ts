@@ -223,7 +223,7 @@ describe("campus auth client", () => {
 		[
 			"EMAIL_ACCESS_REQUIRED",
 			"This email is not admitted.",
-			"请使用 @muc.edu.cn 校园邮箱，或管理员已邀请的邮箱。",
+			"该邮箱暂时无法使用，请检查邮箱地址后重试。",
 		],
 		["MISSING_RESPONSE", "Missing CAPTCHA response", "安全验证还没有完成，请稍后再试。"],
 		["VERIFICATION_FAILED", "Captcha verification failed", "安全验证未通过，请重新完成验证。"],

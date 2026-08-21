@@ -12,16 +12,45 @@ import { type FC, type FormEvent, Fragment, useEffect, useMemo, useRef, useState
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 
 export const ThreadList: FC<{
-	accountPending: boolean;
+	accountLoading: boolean;
+	accountUnavailable: boolean;
 	authenticated: boolean;
 	onNavigate?: (() => void) | undefined;
-}> = ({ accountPending, authenticated, onNavigate }) => {
+	onRetryAccountStatus: () => void;
+	retryingAccountStatus: boolean;
+}> = ({
+	accountLoading,
+	accountUnavailable,
+	authenticated,
+	onNavigate,
+	onRetryAccountStatus,
+	retryingAccountStatus,
+}) => {
 	const [actionError, setActionError] = useState<string | null>(null);
 
-	if (accountPending) {
+	if (accountLoading) {
 		return (
 			<ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-0.5">
 				<ThreadListSkeleton />
+			</ThreadListPrimitive.Root>
+		);
+	}
+
+	if (accountUnavailable) {
+		return (
+			<ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-2 px-2.5 py-3">
+				<p className="m-0 text-xs leading-5 text-muted-foreground" role="alert">
+					账号状态暂时不可用，聊天记录未能读取。
+				</p>
+				<Button
+					aria-busy={retryingAccountStatus || undefined}
+					disabled={retryingAccountStatus}
+					onClick={onRetryAccountStatus}
+					size="sm"
+					variant="outline"
+				>
+					{retryingAccountStatus ? "正在重试" : "重试"}
+				</Button>
 			</ThreadListPrimitive.Root>
 		);
 	}
@@ -46,9 +75,6 @@ export const ThreadList: FC<{
 			</AuiIf>
 			<AuiIf condition={(s) => !s.threads.isLoading}>
 				<ThreadListItems onActionError={setActionError} onNavigate={onNavigate} />
-			</AuiIf>
-			<AuiIf condition={(s) => !s.threads.isLoading && s.threads.threadIds.length === 0}>
-				<p className="text-muted-foreground px-2.5 py-3 text-xs">暂无聊天记录</p>
 			</AuiIf>
 		</ThreadListPrimitive.Root>
 	);
@@ -219,7 +245,7 @@ const ThreadListItem: FC<ThreadListItemsProps> = ({ onActionError, onNavigate })
 	};
 
 	return (
-		<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-surface-hover data-active:bg-selected relative flex h-11 items-center rounded-md transition-colors lg:h-9">
+		<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-surface-hover data-active:bg-chat-accent-subtle data-active:text-chat-accent-text relative flex h-11 items-center rounded-md transition-colors lg:h-9">
 			{isEditing ? (
 				<form className="min-w-0 flex-1 px-1" onSubmit={(event) => void submitRename(event)}>
 					<Input

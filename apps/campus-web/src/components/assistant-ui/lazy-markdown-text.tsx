@@ -6,7 +6,14 @@ const MarkdownText = lazy(() =>
 
 export function LazyMarkdownText() {
 	return (
-		<Suspense fallback={<span className="text-muted-foreground text-sm">正在整理回答</span>}>
+		<Suspense
+			fallback={
+				<span
+					aria-hidden="true"
+					className="inline-block h-4 w-24 animate-pulse rounded bg-surface-muted motion-reduce:animate-none"
+				/>
+			}
+		>
 			<MarkdownText />
 		</Suspense>
 	);

@@ -9,7 +9,7 @@ describe("chat run routes", () => {
 		const event = __chatRunRoutesTestables.toChatRunResumeStreamEvent({
 			event: {
 				eventId: "event-run-queued",
-				eventType: "run.queued",
+				eventType: "execution.queued",
 				occurredAt: "2026-06-04T01:02:03.000Z",
 				payload: {
 					request_id: "req_0001",
@@ -21,7 +21,11 @@ describe("chat run routes", () => {
 				visibility: "browser",
 			},
 			run: {
+				acceptedAt: "2026-06-04T01:02:03.000Z",
+				completedAt: null,
 				conversationId: "conv_01HQ",
+				durationMs: null,
+				startedAt: null,
 				phase: "queued",
 				requestId: "req_0001",
 				runId: "run_0001",
@@ -46,7 +50,7 @@ describe("chat run routes", () => {
 		const event = __chatRunRoutesTestables.toChatRunResumeStreamEvent({
 			event: {
 				eventId: "event-answer-delta",
-				eventType: "run.answer_delta",
+				eventType: "answer.delta",
 				occurredAt: "2026-06-04T01:02:04.000Z",
 				payload: {
 					accumulated_text: "国家奖学金每学年评审一次。",
@@ -65,7 +69,11 @@ describe("chat run routes", () => {
 				visibility: "browser",
 			},
 			run: {
+				acceptedAt: "2026-06-04T01:02:03.000Z",
+				completedAt: null,
 				conversationId: "conv_01HQ",
+				durationMs: null,
+				startedAt: "2026-06-04T01:02:04.000Z",
 				phase: "running",
 				requestId: "req_0001",
 				runId: "run_0001",
@@ -92,7 +100,7 @@ describe("chat run routes", () => {
 		const event = __chatRunRoutesTestables.toChatRunResumeStreamEvent({
 			event: {
 				eventId: "event-run-failed",
-				eventType: "run.failed",
+				eventType: "request.failed",
 				occurredAt: "2026-06-04T01:02:06.000Z",
 				payload: {
 					error: {
@@ -111,7 +119,11 @@ describe("chat run routes", () => {
 				visibility: "browser",
 			},
 			run: {
+				acceptedAt: "2026-06-04T01:02:03.000Z",
+				completedAt: "2026-06-04T01:02:06.000Z",
 				conversationId: "conv_01HQ",
+				durationMs: 3_000,
+				startedAt: "2026-06-04T01:02:04.000Z",
 				phase: "failed",
 				requestId: "req_0001",
 				runId: "run_0001",

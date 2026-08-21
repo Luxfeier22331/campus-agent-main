@@ -20,8 +20,10 @@ import { type FormEvent, useState } from "react";
 import { type AccountDeletionReceipt, requestAccountDeletion } from "./api";
 
 export function AccountDeletionPanel({
+	requestDeletion = requestAccountDeletion,
 	onAccepted,
 }: {
+	requestDeletion?: typeof requestAccountDeletion;
 	onAccepted: (receipt: AccountDeletionReceipt) => void;
 }) {
 	const [open, setOpen] = useState(false);
@@ -34,7 +36,7 @@ export function AccountDeletionPanel({
 		setPending(true);
 		setError(null);
 		try {
-			const receipt = await requestAccountDeletion(password);
+			const receipt = await requestDeletion(password);
 			setOpen(false);
 			setPassword("");
 			onAccepted(receipt);

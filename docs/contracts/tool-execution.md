@@ -172,6 +172,12 @@ HTTP `ExecutionRunStatus` 与 execution-control 内部运行状态保持一致�
 流式输出和终态。精确枚举、字段及响应结构只由 OpenAPI 维护；内部迁移规则见
 `../data/durable-runtime.md`。
 
+面向 Campus Web 的 app-api 产品投影使用独立的事件名称和阶段合同：`execution.queued`、
+`execution.running`、`execution.phase`、`answer.delta`、`request.completed`、
+`request.failed`、`request.cancelled`。其中 `execution.phase` 只允许四个受控阶段，不能把
+Temporal Activity、SDK tool、retry 或 worker 状态直接变成浏览器状态；回答过程由 app-api 从这些
+产品事件派生固定五阶段，不返回 execution-control 的 attempt/result 轨迹。
+
 事件查询同时返回浏览器安全的 `events` 和 `next_sequence`。`next_sequence` 表示
 execution-control 已检查到的持久序列游标；app-api 后续必须将它作为 `after_sequence`，即使本次
 只有被过滤的内部事件而 `events` 为空。不能以“最后一个返回事件”的 sequence 推进游标，否则会

@@ -4,12 +4,13 @@ import { Link, useParams } from "@tanstack/react-router";
 import type { NoticeAttachmentMetadata } from "campus-contracts/notices";
 import { ArrowLeft, ExternalLink, File } from "lucide-react";
 import { useMemo } from "react";
-import { SurfaceState } from "@/components/ui/surface-state";
+import { StateMessage } from "@/components/ui/state-message";
 import { NoticeCategoryBadge } from "@/features/notices/category-badge";
 import { prepareNoticeContentHtml } from "@/features/notices/content-html";
 import { buildInternalPortalNoticeUrl } from "@/features/notices/internal-portal-url";
 import { noticeDetailQueryOptions } from "@/features/notices/queries";
 import { noticeQueryClient } from "@/features/notices/query-client";
+import { ApiRequestError } from "@/platform/api/client";
 
 const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
 	dateStyle: "long",
@@ -35,6 +36,7 @@ export function NoticeDetailPageContent() {
 				: { status: "empty" as const },
 		[notice.data],
 	);
+	const noticeNotFound = notice.error instanceof ApiRequestError && notice.error.status === 404;
 	const isCampusNews = notice.data?.category === "campus_news";
 
 	return (
@@ -54,12 +56,26 @@ export function NoticeDetailPageContent() {
 
 			{notice.isPending ? <NoticeDetailSkeleton /> : null}
 			{notice.isError ? (
-				<SurfaceState
+				<StateMessage
 					className="mt-5"
-					description="通知不存在，或正文暂时无法读取。"
-					kind="error"
-					primaryAction={<Button onClick={() => void notice.refetch()}>重试</Button>}
-					title="通知无法打开"
+					description={
+						noticeNotFound ? "这条通知不存在，或你没有权限查看。" : "通知暂时无法读取，请稍后重试。"
+					}
+					layout="section"
+					primaryAction={
+						noticeNotFound ? (
+							<Button asChild>
+								<Link search={{ page: 1, stream: "notices" }} to="/notices">
+									返回通知目录
+								</Link>
+							</Button>
+						) : (
+							<Button onClick={() => void notice.refetch()}>重试</Button>
+						)
+					}
+					role="alert"
+					title={noticeNotFound ? "通知不存在" : "通知暂时不可用"}
+					tone={noticeNotFound ? "neutral" : "danger"}
 				/>
 			) : null}
 			{notice.data ? (
@@ -106,16 +122,18 @@ export function NoticeDetailPageContent() {
 								dangerouslySetInnerHTML={{ __html: preparedContent.html }}
 							/>
 						) : preparedContent.status === "empty" ? (
-							<SurfaceState
+							<StateMessage
 								description="这条通知没有可展示的站内正文。"
-								kind="empty"
+								layout="section"
 								title="正文为空"
 							/>
 						) : (
-							<SurfaceState
-								description="正文未通过展示校验，因此没有载入页面。"
-								kind="error"
-								title="正文格式异常"
+							<StateMessage
+								description="正文暂时无法安全展示，附件和门户入口仍可使用。"
+								layout="section"
+								role="alert"
+								title="正文暂时无法展示"
+								tone="danger"
 							/>
 						)}
 					</section>

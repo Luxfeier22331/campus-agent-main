@@ -69,6 +69,14 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
 			expect.objectContaining({ role: "user" }),
+			expect.objectContaining({
+				metadata: {
+					custom: {
+						campusRun: expect.objectContaining({ provisional: true, status: "queued" }),
+					},
+				},
+				role: "assistant",
+			}),
 		]);
 		expect(conversationApiMock.submitChatRequestStream).not.toHaveBeenCalled();
 
@@ -127,6 +135,14 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
 			expect.objectContaining({ role: "user" }),
+			expect.objectContaining({
+				metadata: {
+					custom: {
+						campusRun: expect.objectContaining({ provisional: true, status: "queued" }),
+					},
+				},
+				role: "assistant",
+			}),
 		]);
 		expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
 
@@ -385,6 +401,7 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 					answer: {
 						conversation: {
 							archivedAt: null,
+							activeRunId: null,
 							createdAt: "2026-06-24T01:00:00.000Z",
 							id: "conv_created",
 							messages: [

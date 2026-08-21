@@ -1,11 +1,7 @@
+import { type CampusPageMetadata, composeCampusPageTitle } from "@/app/page-metadata";
 import type { DocsRouteData } from "./data-source";
 
-export interface DocsPageMetadata {
-	canonicalPath: string | null;
-	description: string;
-	robots: "index,follow" | "noindex,nofollow";
-	title: string;
-}
+export type DocsPageMetadata = CampusPageMetadata;
 
 export function resolveDocsPageMetadata(data: DocsRouteData): DocsPageMetadata {
 	if (data.kind === "document") {
@@ -13,7 +9,7 @@ export function resolveDocsPageMetadata(data: DocsRouteData): DocsPageMetadata {
 			canonicalPath: data.canonicalUrl,
 			description: data.description,
 			robots: "index,follow",
-			title: data.title,
+			title: composeCampusPageTitle(data.title),
 		};
 	}
 
@@ -21,6 +17,6 @@ export function resolveDocsPageMetadata(data: DocsRouteData): DocsPageMetadata {
 		canonicalPath: "/docs",
 		description: "中央民族大学校园文档。",
 		robots: "index,follow",
-		title: "校园文档",
+		title: composeCampusPageTitle("校园文档"),
 	};
 }

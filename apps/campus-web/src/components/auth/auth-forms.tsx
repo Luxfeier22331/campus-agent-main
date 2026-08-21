@@ -121,7 +121,7 @@ export function SignInForm(props: SharedAuthFormProps) {
 
 	return (
 		<AuthFormFrame
-			description="使用校园邮箱或已获邀请的邮箱继续。"
+			description="使用校园邮箱登录校园问答。"
 			footer={
 				<p className="text-center text-sm text-[var(--sys-text-muted)]">
 					还没有账号？{" "}
@@ -202,8 +202,12 @@ export function SignInForm(props: SharedAuthFormProps) {
 
 export function SignUpForm({
 	defaultEmail = "",
+	passwordDescription = "使用 10 至 128 个字符。",
 	...props
-}: SharedAuthFormProps & { defaultEmail?: string }) {
+}: SharedAuthFormProps & {
+	defaultEmail?: string;
+	passwordDescription?: string | undefined;
+}) {
 	const captchaRef = useRef<CampusCaptchaHandle>(null);
 	const legalConsentId = useId();
 	const legalConsentErrorId = useId();
@@ -259,7 +263,7 @@ export function SignUpForm({
 
 	return (
 		<AuthFormFrame
-			description="使用 @muc.edu.cn 校园邮箱，或管理员已邀请的邮箱。"
+			description="使用校园邮箱创建账号。"
 			footer={
 				<p className="text-center text-sm text-[var(--sys-text-muted)]">
 					已有账号？ <AuthTextAction onClick={() => props.onSwitch("signIn")}>登录</AuthTextAction>
@@ -272,11 +276,7 @@ export function SignUpForm({
 					<Field error={form.formState.errors.name?.message} label="姓名">
 						<Input autoComplete="name" autoFocus required {...form.register("name")} />
 					</Field>
-					<Field
-						description="校园邮箱可直接注册，其他邮箱需要管理员邀请。"
-						error={form.formState.errors.email?.message}
-						label="邮箱"
-					>
+					<Field error={form.formState.errors.email?.message} label="邮箱">
 						<Input
 							autoComplete="email"
 							inputMode="email"
@@ -288,7 +288,7 @@ export function SignUpForm({
 					</Field>
 					<PasswordField
 						autoComplete="new-password"
-						description="使用 10 至 128 个字符。"
+						description={passwordDescription}
 						error={form.formState.errors.password?.message}
 						label="密码"
 						registration={form.register("password")}

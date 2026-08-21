@@ -18,16 +18,19 @@ import { createLargeDocsSiteIndex } from "./helpers/docs-site-index-fixture";
 const searchClientMock = vi.hoisted(() => ({
 	expand: vi.fn(),
 	ready: vi.fn<() => Promise<void>>(),
+	reset: vi.fn(),
 	search: vi.fn(),
 }));
 
 vi.mock("@/features/docs/search-client", () => ({
 	loadDocsSearchClient: () => searchClientMock,
+	resetDocsSearchClient: searchClientMock.reset,
 }));
 
 beforeEach(() => {
 	searchClientMock.ready.mockReset().mockResolvedValue();
 	searchClientMock.expand.mockReset();
+	searchClientMock.reset.mockReset();
 	searchClientMock.search.mockReset();
 });
 
@@ -158,6 +161,44 @@ describe("docs search dialog", () => {
 
 		await waitFor(() => expect(screen.getByText("2 篇文档")).toBeInTheDocument());
 		expect(screen.queryByText("没有找到相关文档")).not.toBeInTheDocument();
+	});
+
+	it("keeps existing results while a new query is pending or fails", async () => {
+		const siteIndex = createLargeDocsSiteIndex();
+		const searchIndex = createSearchIndex(siteIndex, 2);
+		const firstPage = toSearchPage(searchDocsIndexes("共同关键词", [searchIndex], siteIndex), 0, 8);
+		searchClientMock.search
+			.mockResolvedValueOnce(firstPage)
+			.mockRejectedValueOnce(new Error("search unavailable"));
+
+		await renderSearchPanel(siteIndex);
+		const input = screen.getByRole("combobox", { name: "搜索校园文档" });
+		fireEvent.change(input, { target: { value: "共同关键词" } });
+		await screen.findByText("2 篇文档");
+
+		fireEvent.change(input, { target: { value: "新的关键词" } });
+		expect(screen.getByText("2 篇文档")).toBeInTheDocument();
+		expect(screen.getByRole("listbox")).toHaveAttribute("aria-busy", "true");
+
+		await screen.findByText("搜索结果暂时无法更新。");
+		expect(screen.getByText("2 篇文档")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+	});
+
+	it("retries search initialization locally", async () => {
+		const siteIndex = createLargeDocsSiteIndex();
+		searchClientMock.ready
+			.mockRejectedValueOnce(new Error("worker unavailable"))
+			.mockResolvedValueOnce();
+
+		await renderSearchPanel(siteIndex);
+		await screen.findByText("搜索暂时不可用。");
+		fireEvent.click(screen.getByRole("button", { name: "重试搜索" }));
+
+		await waitFor(() =>
+			expect(searchClientMock.reset).toHaveBeenCalledWith(siteIndex.searchIndexUrl),
+		);
+		await waitFor(() => expect(screen.queryByText("搜索暂时不可用。")).not.toBeInTheDocument());
 	});
 
 	it("searches after a 150ms pause", async () => {

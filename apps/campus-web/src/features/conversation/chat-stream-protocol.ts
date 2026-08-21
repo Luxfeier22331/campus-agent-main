@@ -31,6 +31,11 @@ const optionalRunCursor = {
 const acceptedEventData = streamBase.extend({ runId: nonEmptyString });
 const queuedEventData = streamBase.extend(optionalRunCursor);
 const runningEventData = streamBase.extend(optionalRunCursor);
+const phaseEventData = streamBase.extend({
+	phase: z.enum(["finalizing", "generating", "preparing", "retrieving"]),
+	runId: nonEmptyString,
+	sequence,
+});
 const deltaEventData = streamBase.extend({
 	delta: z.string().min(1),
 	messageId: nonEmptyString,
@@ -40,7 +45,7 @@ const deltaEventData = streamBase.extend({
 const completedEventData = streamBase
 	.extend({
 		answer: answerPayload.optional(),
-		runId: nonEmptyString.optional(),
+		runId: nonEmptyString.nullable().optional(),
 		sequence: sequence.optional(),
 	})
 	.refine((value) => value.answer !== undefined || value.runId !== undefined);
@@ -54,7 +59,7 @@ const failedEventData = streamBase.extend({
 const cancelledEventData = streamBase
 	.extend({
 		answer: answerPayload.optional(),
-		runId: nonEmptyString.optional(),
+		runId: nonEmptyString.nullable().optional(),
 		sequence: sequence.optional(),
 	})
 	.refine((value) => value.answer !== undefined || value.runId !== undefined);
@@ -161,13 +166,15 @@ function validateProductStreamEvent(eventName: ChatRequestStreamEventName, data:
 				? queuedEventData
 				: eventName === "execution.running"
 					? runningEventData
-					: eventName === "answer.delta"
-						? deltaEventData
-						: eventName === "request.completed"
-							? completedEventData
-							: eventName === "request.failed"
-								? failedEventData
-								: cancelledEventData;
+					: eventName === "execution.phase"
+						? phaseEventData
+						: eventName === "answer.delta"
+							? deltaEventData
+							: eventName === "request.completed"
+								? completedEventData
+								: eventName === "request.failed"
+									? failedEventData
+									: cancelledEventData;
 	return schema.safeParse(data).success;
 }
 
@@ -186,6 +193,7 @@ function assertEventStreamContentType(response: Response): void {
 function isProductStreamEventName(value: string): value is ChatRequestStreamEventName {
 	return (
 		value === "answer.delta" ||
+		value === "execution.phase" ||
 		value === "execution.queued" ||
 		value === "execution.running" ||
 		value === "request.accepted" ||

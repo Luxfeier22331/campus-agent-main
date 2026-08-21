@@ -212,6 +212,11 @@ run 的 conversation lock；CAS 外只允许幂等补充后续 `run.completed` �
 浏览器可见 event。`request.accepted` 只确认产品请求和稳定 run 已持久化，不代表 Temporal 已
 排队；`run.canceled` 则是浏览器可见的持久终态。
 
+app-api 只把持久事件投影为固定产品事件：排队、开始执行、阶段变化、答案增量和请求终态。阶段变化
+只公开 `preparing`、`retrieving`、`generating`、`finalizing`；Temporal Activity、SDK 工具调用、
+attempt/result、worker 和 task queue 不进入 Campus Web。回答过程读取同一事件时间线，固定派生
+`queued`、`preparing`、`retrieving`、`generating`、`finalizing` 五阶段及其时间，不透传原始步骤轨迹。
+
 execution-control 根据运行就绪状态、策略和下游预算接纳新 run。进程内 limit 只是单进程保护，
 Temporal task queue 与 worker 扩缩容共同定义部署容量。缺少 Temporal、
 投影、供应商、内部查询、目标注册表或可信依据时拒绝接收或终结运行。

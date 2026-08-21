@@ -15,6 +15,7 @@ export function toAssistantThreadMessages(conversation: ConversationDetail): Thr
 				: []),
 		],
 		id: message.id,
+		...(message.runId ? { metadata: { custom: { campusRun: { runId: message.runId } } } } : {}),
 		role: message.role,
 	}));
 }

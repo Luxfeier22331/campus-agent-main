@@ -18,7 +18,9 @@ export {
 export type { ChatRunPhase, ChatRunStatus } from "./run-client";
 export {
 	cancelRun,
+	getRunEvents,
 	getRunStatus,
+	getRunSteps,
 	resumeRunEventsStream,
 	submitChatRequestStream,
 } from "./run-client";

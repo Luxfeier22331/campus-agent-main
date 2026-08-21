@@ -85,7 +85,8 @@ function ToolGroupTrigger({
 	count: number;
 	active?: boolean;
 }) {
-	const label = `${count} 次工具调用`;
+	void count;
+	const label = active ? "正在查找校园资料" : "已查找校园资料";
 
 	return (
 		<CollapsibleTrigger

@@ -53,6 +53,11 @@ describe("native docs build boundary", () => {
 			'<link rel="stylesheet" href="/src/components/docs/docs-reader.css" />',
 		);
 		expect(docsPrerenderSource).toContain('<script src="/theme-bootstrap.js"></script>');
+		expect(docsPrerenderSource).toContain("renderMetadata: false");
+		expect(docsPrerenderSource).toMatch(/<title>\$\{escapeHtml\(metadata\.title\)}<\/title>/);
+		expect(docsPrerenderSource).not.toMatch(
+			/<title>\$\{escapeHtml\(metadata\.title\)} \| 中央民族大学校园问答<\/title>/,
+		);
 		expect(indexHtmlSource).toContain('<script src="/theme-bootstrap.js"></script>');
 		expect(docsMainSource).not.toContain("getCampusRuntimeConfig");
 		expect(docsMainSource).not.toContain("initializeCampusBrowserSentry");

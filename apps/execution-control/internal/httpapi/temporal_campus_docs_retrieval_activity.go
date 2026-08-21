@@ -89,6 +89,14 @@ func (s *Server) RetrieveCampusDocsEvidence(
 	)); err != nil {
 		return temporalruntime.CampusDocsRetrievalResult{}, err
 	}
+	if err := s.appendTemporalRunProgress(
+		ctx,
+		run,
+		execution.DurableRunProgressPhaseRetrieving,
+		startedAt,
+	); err != nil {
+		return temporalruntime.CampusDocsRetrievalResult{}, err
+	}
 	diagnostics, err := s.campusDocsRetriever.Retrieve(ctx, query, admission)
 	if err != nil {
 		return temporalruntime.CampusDocsRetrievalResult{}, sanitizedTemporalApplicationError(

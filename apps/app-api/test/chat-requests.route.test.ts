@@ -29,6 +29,7 @@ const inboundTraceHeaders = {
 const answerResponse = {
 	answer: {
 		conversation: {
+			activeRunId: null,
 			createdAt: "2026-03-28T07:59:00.000Z",
 			id: "conv_01HQ",
 			messages: [],
@@ -103,6 +104,7 @@ describe("POST /api/chat/requests", () => {
 		await expect(response.json()).resolves.toEqual({
 			answer: {
 				conversation: {
+					activeRunId: null,
 					createdAt: "2026-03-28T07:59:00.000Z",
 					id: "conv_01HQ",
 					messages: [],
@@ -332,6 +334,7 @@ describe("POST /api/chat/requests/stream", () => {
 					data: {
 						answer: {
 							conversation: {
+								activeRunId: null,
 								createdAt: "2026-03-28T07:59:00.000Z",
 								id: "conv_wait_01HQ",
 								messages: [],
@@ -404,6 +407,7 @@ describe("POST /api/chat/requests/stream", () => {
 					data: {
 						answer: {
 							conversation: {
+								activeRunId: null,
 								createdAt: "2026-03-28T07:59:00.000Z",
 								id: "conv_01HQ",
 								messages: [],

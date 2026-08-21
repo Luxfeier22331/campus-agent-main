@@ -419,8 +419,8 @@ function appendDiningFloorplanInteractionStyles(document: Document): void {
 .dining-svg-anchor { outline: none; transition: opacity 140ms ease-out; }
 .dining-svg-anchor-hit { transition: fill 140ms ease-out, stroke-width 140ms ease-out; }
 .wayfinding-window-label { fill: var(--sys-text-default); font-size: 16px; font-weight: 650; }
-.dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--sys-surface-selected); stroke: var(--sys-border-selected); stroke-width: 3px; }
-.dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--sys-border-selected); stroke-width: 3px; }
+.dining-svg-anchor.is-selected .dining-svg-anchor-hit { fill: var(--campus-selected-bg); stroke: var(--campus-selected-border); stroke-width: 3px; }
+.dining-svg-anchor[role="button"]:not(.is-dimmed):is(:hover, :focus-visible) .dining-svg-anchor-hit { stroke: var(--campus-selected-border); stroke-width: 3px; }
 .dining-svg-anchor[role="button"]:not(.is-dimmed):focus-visible .dining-svg-anchor-hit { stroke-width: 5px; }
 @media (max-width: 639px) { [data-dining-anchor-label] { font-size: 14px; } }
 @media (prefers-reduced-motion: reduce) { .dining-svg-anchor, .dining-svg-anchor-hit { transition: none; } }

@@ -31,6 +31,7 @@ export interface ChatMessage {
 	kind: ChatMessageKind | null;
 	requestId: string | null;
 	retryable: boolean | null;
+	runId?: string | null;
 	role: "assistant" | "user";
 	structuredParts?: ChatStructuredPart[];
 	text: string;
@@ -71,6 +72,7 @@ export interface ConversationSearchResult extends ConversationSummary {
 }
 
 export interface ConversationDetail extends ConversationSummary {
+	activeRunId: string | null;
 	messages: ChatMessage[];
 }
 
@@ -97,6 +99,7 @@ export interface ChatAnswerPayload {
 
 export type ChatRequestStreamEventName =
 	| "answer.delta"
+	| "execution.phase"
 	| "execution.queued"
 	| "execution.running"
 	| "request.accepted"
@@ -117,6 +120,7 @@ export interface ChatRequestStreamEvent {
 		occurredAt: string;
 		requestId: string;
 		runId?: string | null;
+		phase?: "finalizing" | "generating" | "preparing" | "retrieving";
 		sequence?: number;
 		status: string;
 		traceId: string;

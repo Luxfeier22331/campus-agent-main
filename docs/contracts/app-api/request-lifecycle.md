@@ -68,9 +68,14 @@ document scope、collection 或检索控制参数。关联标识必须在后续�
 
 stream 请求在产品事务持久化且稳定 `run_id` 可供查询、恢复和取消后发送
 `request.accepted`。该事件不表示 Temporal 已排队或 worker 已开始，app-api 不合成未由持久事件
-证明的 `execution.queued`。随后只转发受类型约束的运行与答案事件，并使用 execution-control
-返回的 `next_sequence` 跨过不可见内部事件。客户端断开只停止当前连接消费，不自动取消运行；
-显式取消先写入 app-api 取消发件箱，再由 reconciler 幂等投递 execution-control。
+证明的 `execution.queued`。随后只转发受类型约束的 `execution.queued`、`execution.running`、
+`execution.phase`、`answer.delta` 和请求终态事件；`execution.phase` 只允许
+`preparing|retrieving|generating|finalizing`。app-api 使用 execution-control 返回的
+`next_sequence` 跨过不可见内部事件。客户端断开只停止当前连接消费，不自动取消运行；显式取消先写入
+app-api 取消发件箱，再由 reconciler 幂等投递 execution-control。
+
+conversation detail 的 `activeRunId` 是浏览器刷新恢复入口。客户端必须先读取 run 摘要，再从持久事件
+游标恢复当前消息与状态；恢复流程不得重新提交 prompt，也不得生成新的 idempotency key 或第二个 run。
 
 ## 最终事务
 

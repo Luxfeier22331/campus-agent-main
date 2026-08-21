@@ -37,6 +37,11 @@ describe("campus map theme token contract", () => {
 		}
 		expect(designTokens).toContain(":root {");
 		expect(designTokens).toContain("--map-style-background: #efeff2;");
+		expect(designTokens).toContain("--map-style-boundary: var(--campus-brand-identity);");
+		expect(designTokens).toContain("--map-style-selection-fill: var(--campus-selected-bg);");
+		expect(designTokens).toContain("--map-style-selection-outline: var(--campus-selected-border);");
+		expect(designTokens).toContain("--map-marker-building: var(--campus-brand-identity);");
+		expect(designTokens).toContain("--map-marker-service: var(--campus-brand-identity);");
 		expect(designTokens).toContain("--map-marker-border: var(--neutral-0);");
 		expect(designTokens).toContain("--map-marker-landmark-foreground: var(--neutral-900);");
 		expect(mapStyles).toContain("border: 2px solid var(--map-marker-border);");
@@ -44,6 +49,9 @@ describe("campus map theme token contract", () => {
 		expect(mapStyles).toContain("color: var(--map-marker-landmark-foreground);");
 		expect(mapStyles).toContain("transform: scale(1.16);");
 		expect(mapStyles).not.toContain("background: var(--map-marker-selected);");
+		expect(designTokens).not.toContain("--map-style-boundary: var(--sys-brand-identity);");
+		expect(designTokens).not.toContain("--map-marker-building: var(--muc-caisson-blue);");
+		expect(designTokens).not.toContain("--map-marker-service: var(--muc-caisson-blue);");
 	});
 
 	it("defines dark overrides for explicit and system themes", () => {
@@ -61,9 +69,12 @@ describe("campus map theme token contract", () => {
 		expect(explicitDark).toContain("--map-style-background: var(--sys-bg-muted);");
 		expect(explicitDark).toContain("--map-style-green-fill: #274532;");
 		expect(explicitDark).toContain("--map-style-road-fill: #343438;");
+		expect(explicitDark).toContain("--map-style-selection-fill: var(--campus-selected-pressed);");
+		expect(explicitDark).toContain("--map-style-selection-outline: var(--campus-selected-border);");
 		expect(explicitDark).toContain("--map-style-sport-fill: #2d3341;");
 		expect(systemDark).toContain("--map-style-green-fill: #274532;");
 		expect(systemDark).toContain("--map-style-road-fill: #343438;");
+		expect(systemDark).toContain("--map-style-selection-fill: var(--campus-selected-pressed);");
 		expect(systemDark).toContain("--map-style-sport-fill: #2d3341;");
 		expect(systemDark).toContain("--map-marker-border: var(--sys-surface-raised);");
 	});

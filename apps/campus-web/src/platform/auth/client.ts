@@ -83,7 +83,7 @@ const USER_FACING_AUTH_ERROR_MESSAGES = {
 	emailAlreadyVerified: "这个邮箱已经完成验证。",
 	emailChangeUnavailable: "当前无法更换到这个邮箱。",
 	emailInvalid: "请输入有效的邮箱地址。",
-	emailNotAllowed: "请使用 @muc.edu.cn 校园邮箱，或管理员已邀请的邮箱。",
+	emailNotAllowed: "该邮箱暂时无法使用，请检查邮箱地址后重试。",
 	emailNotVerified: "请先完成邮箱验证。",
 	emailOrPasswordInvalid: "邮箱或密码不正确。",
 	emailRegistered: "这个邮箱已经注册，请直接登录。",

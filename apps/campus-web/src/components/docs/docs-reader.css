@@ -123,13 +123,13 @@
 .docs-start-document-list a:focus-visible,
 .docs-course-map-frame:focus-visible,
 .document-meta-details summary:focus-visible {
-	outline: 2px solid var(--sys-focus-ring);
+	outline: 2px solid var(--campus-focus-ring);
 	outline-offset: 2px;
 }
 
 .docs-reader-document [tabindex="-1"]:focus-visible {
 	border-radius: var(--radius-sm);
-	outline: 2px solid var(--sys-focus-ring);
+	outline: 2px solid var(--campus-focus-ring);
 	outline-offset: 3px;
 }
 
@@ -186,7 +186,7 @@
 }
 
 .docs-tree-collection-row > .docs-tree-collection:focus-visible {
-	outline: 2px solid var(--sys-focus-ring);
+	outline: 2px solid var(--campus-focus-ring);
 	outline-offset: 2px;
 }
 
@@ -475,13 +475,13 @@
 .reader-block.docs-reader-highlight,
 .docs-toc-heading.docs-reader-highlight {
 	border-radius: var(--radius-sm);
-	background: var(--sys-tint-subtle);
-	box-shadow: 0 0 0 0.3rem var(--sys-tint-subtle);
+	background: var(--campus-selected-bg);
+	box-shadow: 0 0 0 0.3rem var(--campus-selected-bg);
 }
 
 .docs-reader-document :where(h2, h3):target {
 	border-radius: var(--radius-sm);
-	background: var(--sys-tint-subtle);
+	background: var(--campus-selected-bg);
 }
 
 .document-meta-panel {
@@ -815,10 +815,6 @@
 
 .docs-table-scroll[data-docs-sticky-first-column="true"] tr:first-child > th:first-child {
 	z-index: 6;
-}
-
-.reader-bootstrap-status {
-	margin-top: 2rem;
 }
 
 .docs-breadcrumbs {

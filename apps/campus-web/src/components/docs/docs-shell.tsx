@@ -17,6 +17,7 @@ import { lazy, type ReactNode, Suspense, useEffect, useId, useMemo, useRef, useS
 import { CampusTopNav } from "@/components/navigation/campus-top-nav";
 import { buildDocsNavigationGroups, type DocsSiteIndex } from "@/features/docs/site-index";
 import type { DocsOutlineItem } from "./docs-reader-view";
+import type { DocsSearchRuntime } from "./docs-search-dialog";
 
 const loadDocsSearchPanel = () =>
 	import("./docs-search-dialog").then((module) => ({ default: module.DocsSearchPanel }));
@@ -26,11 +27,13 @@ export function DocsShell({
 	activePath,
 	children,
 	outline,
+	searchRuntime,
 	siteIndex,
 }: {
 	activePath: string;
 	children: ReactNode;
 	outline: readonly DocsOutlineItem[];
+	searchRuntime?: DocsSearchRuntime;
 	siteIndex: DocsSiteIndex;
 }) {
 	const [searchOpen, setSearchOpen] = useState(false);
@@ -141,6 +144,7 @@ export function DocsShell({
 						}}
 						searchIndexUrl={siteIndex.searchIndexUrl}
 						siteIndex={siteIndex}
+						{...(searchRuntime ? { searchRuntime } : {})}
 					/>
 				</Suspense>
 			</DialogContent>
@@ -450,8 +454,7 @@ function BackToTop() {
 
 function DocsSearchPanelPending() {
 	return (
-		<div className="grid min-h-40 gap-3 px-4 py-5" role="status">
-			<p className="m-0 text-sm text-muted-foreground">正在载入搜索</p>
+		<div aria-busy="true" className="grid min-h-40 gap-3 px-4 py-5" role="status">
 			<div aria-hidden="true" className="grid content-start gap-2">
 				<Skeleton className="h-10 w-full motion-reduce:animate-none" />
 				<Skeleton className="h-4 w-2/5 motion-reduce:animate-none" />

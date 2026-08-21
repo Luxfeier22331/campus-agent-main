@@ -12,10 +12,14 @@ describe("assistant-ui recovery policy", () => {
 		(phase) => {
 			expect(
 				isTerminalRunStatus({
+					acceptedAt: "2026-06-24T01:00:00.000Z",
+					completedAt: "2026-06-24T01:00:02.000Z",
 					conversationId: "conv_01",
+					durationMs: 2_000,
 					phase,
 					requestId: "req_01",
 					runId: "run_01",
+					startedAt: "2026-06-24T01:00:01.000Z",
 					status: phase,
 					traceId: "trace_01",
 				}),

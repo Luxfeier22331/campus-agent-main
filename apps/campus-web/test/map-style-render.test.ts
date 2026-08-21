@@ -68,7 +68,7 @@ describe("campus map style", () => {
 			expect.objectContaining({
 				filter: ["==", ["get", "fid"], -1],
 				paint: expect.objectContaining({
-					"fill-color": "#d8deed",
+					"fill-color": "#e8e8eb",
 					"fill-opacity": 1,
 				}),
 				type: "fill",
@@ -88,7 +88,7 @@ describe("campus map style", () => {
 			expect.objectContaining({
 				filter: ["==", ["get", "fid"], -1],
 				paint: expect.objectContaining({
-					"line-color": "#5a72b5",
+					"line-color": "#6f6f76",
 					"line-opacity": 0.98,
 				}),
 				type: "line",
@@ -141,15 +141,15 @@ describe("campus map style", () => {
 function readTestMapStyleColors() {
 	return {
 		background: "#efeff2",
-		boundary: "#a20000",
+		boundary: "#262627",
 		buildingFill: "#fafafb",
 		buildingOutline: "#8e8e93",
 		greenFill: "#dfeee4",
 		label: "#1c1c1e",
 		roadFill: "#d1d1d6",
-		selectionFill: "#d8deed",
+		selectionFill: "#e8e8eb",
 		selectionHalo: "#ffffff",
-		selectionOutline: "#5a72b5",
+		selectionOutline: "#6f6f76",
 		sportFill: "#e1e8f5",
 	};
 }

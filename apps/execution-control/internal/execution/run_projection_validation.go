@@ -109,6 +109,30 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 	if event.Payload == nil {
 		return fmt.Errorf("%w: payload is required", ErrInvalidRunEvent)
 	}
+	if event.EventType == DurableRunEventTypeRunProgress {
+		if event.Visibility != DurableRunEventVisibilityBrowser {
+			return fmt.Errorf("%w: run.progress visibility must be browser", ErrInvalidRunEvent)
+		}
+		for key := range event.Payload {
+			switch key {
+			case "phase", "request_id", "trace_id":
+			default:
+				return fmt.Errorf("%w: browser run.progress payload contains forbidden field %s", ErrInvalidRunEvent, key)
+			}
+		}
+		phase, phaseOK := event.Payload["phase"].(string)
+		requestID, requestIDOK := event.Payload["request_id"].(string)
+		traceID, traceIDOK := event.Payload["trace_id"].(string)
+		if !phaseOK || !durableRunProgressPhaseValid(DurableRunProgressPhase(phase)) {
+			return fmt.Errorf("%w: browser run.progress phase is invalid", ErrInvalidRunEvent)
+		}
+		if !requestIDOK || strings.TrimSpace(requestID) == "" || !traceIDOK || strings.TrimSpace(traceID) == "" {
+			return fmt.Errorf("%w: browser run.progress request_id and trace_id are required", ErrInvalidRunEvent)
+		}
+		if event.EventID != event.RunID+":progress:"+phase {
+			return fmt.Errorf("%w: browser run.progress event_id is invalid", ErrInvalidRunEvent)
+		}
+	}
 	if event.EventType == DurableRunEventTypeFinalizationCompleted &&
 		event.Visibility == DurableRunEventVisibilityBrowser {
 		for key := range event.Payload {
@@ -128,6 +152,17 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 		}
 	}
 	return nil
+}
+
+func durableRunProgressPhaseValid(phase DurableRunProgressPhase) bool {
+	switch phase {
+	case DurableRunProgressPhaseRetrieving,
+		DurableRunProgressPhaseGenerating,
+		DurableRunProgressPhaseFinalizing:
+		return true
+	default:
+		return false
+	}
 }
 
 func validLowerHexSHA256(value string) bool {

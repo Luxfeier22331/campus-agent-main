@@ -1,5 +1,9 @@
 import type { ExecutionControlRunEvent, ExecutionControlRunStepTrajectory } from "../integration";
-import type { RuntimeRunEventProjection } from "./types";
+import type {
+	RuntimeRunEventProjection,
+	RuntimeRunProductEventName,
+	RuntimeRunProductPhase,
+} from "./types";
 
 const STUDENT_FORBIDDEN_MEMORY_REF_KEYS = new Set([
 	"bank_id",
@@ -84,7 +88,9 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 		case "run.running":
 			return pickStringPayloadFields(payload, ["request_id", "status", "trace_id"]);
 		case "run.answer_started":
-			return pickStringPayloadFields(payload, ["message_id", "request_id", "status", "trace_id"]);
+			return pickStringPayloadFields(payload, ["request_id", "trace_id"]);
+		case "run.progress":
+			return pickStringPayloadFields(payload, ["phase", "request_id", "trace_id"]);
 		case "run.answer_delta": {
 			const result = pickStringPayloadFields(payload, [
 				"delta",
@@ -99,12 +105,7 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 			return result;
 		}
 		case "run.answer_completed":
-			return pickStringPayloadFields(payload, [
-				"accumulated_text",
-				"message_id",
-				"request_id",
-				"trace_id",
-			]);
+			return pickStringPayloadFields(payload, ["request_id", "trace_id"]);
 		case "finalization.completed":
 			return pickStringPayloadFields(payload, ["request_id", "trace_id"]);
 		case "run.completed":
@@ -178,16 +179,80 @@ function sanitizeStudentRuntimeValue(value: unknown): unknown {
 export function toBrowserRunEvent(
 	event: ExecutionControlRunEvent,
 ): RuntimeRunEventProjection | null {
-	if (event.visibility !== "browser" || event.eventType === "execution.queued") {
+	if (event.visibility !== "browser") {
 		return null;
+	}
+	const productEventType = toRuntimeRunProductEventType(event.eventType);
+	if (!productEventType) {
+		return null;
+	}
+	const payload = sanitizeBrowserRunEventPayload(event);
+	if (productEventType === "execution.phase") {
+		const phase =
+			event.eventType === "run.progress"
+				? payload.phase
+				: event.eventType === "run.answer_completed"
+					? "finalizing"
+					: "generating";
+		if (!isRuntimeRunProductPhase(phase)) {
+			return null;
+		}
+		return {
+			eventId: event.eventId,
+			eventType: productEventType,
+			occurredAt: event.occurredAt,
+			payload: {
+				phase,
+				...pickStringPayloadFields(payload, ["request_id", "trace_id"]),
+			},
+			runId: event.runId,
+			sequence: event.sequence,
+			visibility: event.visibility,
+		};
 	}
 	return {
 		eventId: event.eventId,
-		eventType: event.eventType,
+		eventType: productEventType,
 		occurredAt: event.occurredAt,
-		payload: sanitizeBrowserRunEventPayload(event),
+		payload,
 		runId: event.runId,
 		sequence: event.sequence,
 		visibility: event.visibility,
 	};
+}
+
+function toRuntimeRunProductEventType(eventType: string): RuntimeRunProductEventName | null {
+	switch (eventType) {
+		case "execution.queued":
+		case "run.queued":
+			return "execution.queued";
+		case "execution.running":
+		case "run.running":
+		case "run.started":
+			return "execution.running";
+		case "run.progress":
+		case "run.answer_started":
+		case "run.answer_completed":
+			return "execution.phase";
+		case "run.answer_delta":
+			return "answer.delta";
+		case "finalization.completed":
+			return "request.completed";
+		case "run.canceled":
+			return "request.cancelled";
+		case "run.failed":
+		case "run.expired":
+			return "request.failed";
+		default:
+			return null;
+	}
+}
+
+function isRuntimeRunProductPhase(value: unknown): value is RuntimeRunProductPhase {
+	return (
+		value === "finalizing" ||
+		value === "generating" ||
+		value === "preparing" ||
+		value === "retrieving"
+	);
 }

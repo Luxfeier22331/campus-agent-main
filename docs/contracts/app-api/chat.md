@@ -55,6 +55,11 @@ type ConversationSummary = {
 type ConversationSearchResult = ConversationSummary & {
   matchSnippet: string | null;
 };
+
+type ConversationDetail = ConversationSummary & {
+  activeRunId: string | null;
+  messages: ChatMessage[];
+};
 ```
 
 pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`。默认侧边栏只显示
@@ -79,6 +84,8 @@ pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`�
 
 - `POST /api/chat/conversations` 创建显式 draft；浏览器也可以跳过该接口，直接提交首个 prompt；
 - `GET /api/chat/conversations/:conversationId` 返回未删除详情、message 和 feedback 状态。
+- `activeRunId` 只标识该会话当前仍需恢复的持久 run；浏览器刷新后以它读取 run 摘要和事件，不能据此
+  重新提交原 prompt。
 
 ### 重命名、删除和状态
 
@@ -142,6 +149,7 @@ type ChatRequest = {
 - `request.accepted`
 - `execution.queued`
 - `execution.running`
+- `execution.phase`
 - `answer.delta`
 - `request.completed`
 - `request.failed`
@@ -153,6 +161,8 @@ type ChatRequest = {
   表示 Temporal 已排队，app-api 只把持久 `run.queued` 证据转换为 `execution.queued`，不能自行
   合成排队状态；
 - `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不代表最终答案；
+- `execution.phase` 的 `phase` 只允许 `preparing|retrieving|generating|finalizing`，用于显示受控产品阶段，
+  不暴露 Temporal Activity、SDK tool call 或内部重试；
 - finalization transaction 完成后才能发送 terminal event；
 - execution-control 的浏览器 `run.canceled` 只有在产品取消终态提交后才转换为
   `request.cancelled`；
@@ -165,7 +175,7 @@ type ChatRequest = {
 
 `POST /api/chat/runs/:runId/cancel` 只允许当前用户取消未终态 run。终态返回
 `run_already_terminal` 类型化、不可重试错误；成功固定返回 `202`，只表示取消命令已被产品侧持久
-接收，不表示 run 已取消。客户端必须保留 active run 与事件订阅，只有
+接收，并返回当前 `{ run: RunSummary }`，不表示 run 已取消。客户端必须保留 active run 与事件订阅，只有
 `request.cancelled`、`request.completed` 或 `request.failed` 才能结束本地运行状态；成功请求不生成
 答案。
 
@@ -173,6 +183,34 @@ type ChatRequest = {
 
 `GET /api/chat/runs/:runId` 返回当前用户可见的产品 run 摘要，不暴露 execution-control 原始
 存储。
+
+```ts
+type RunSummary = {
+  acceptedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMs: number | null;
+  conversationId: string;
+  requestId: string;
+  runId: string;
+  traceId: string;
+  phase:
+    | "created"
+    | "queued"
+    | "admitted"
+    | "running"
+    | "streaming"
+    | "completed"
+    | "failed"
+    | "canceled"
+    | "expired";
+  status: string;
+  terminalReason?: string;
+};
+```
+
+`acceptedAt` 是产品接收时间，`startedAt` 是持久执行开始时间，`completedAt` 只在终态存在；
+`durationMs` 是 `acceptedAt` 到 `completedAt` 的非负毫秒差，运行中为 `null`。
 
 ### 事件列表
 
@@ -189,11 +227,28 @@ type ChatRequest = {
 - terminal completed 只通知完成，最终答案从 conversation detail 的 app-owned projection 读取；
 - 空流表示订阅预算内没有新事件，是合法结果。
 
-### 步骤轨迹
+### 回答过程
 
-`GET /api/chat/runs/:runId/steps` 返回当前用户可见的受控 `run`、`steps`、`attempts` 和
-`results`。它不是 execution-control raw passthrough，可用于验证 memory recall 等步骤，不依赖
-答案正文。
+`GET /api/chat/runs/:runId/steps` 返回 `{ run, steps }`。接口保留一个调度事实和四个用户可感知阶段，固定按以下顺序排序：
+
+1. `queued`（内部调度事实，Campus Web 映射到准备阶段，不单独展示）
+2. `preparing`
+3. `retrieving`
+4. `generating`
+5. `finalizing`
+
+```ts
+type RunStep = {
+  phase: "queued" | "preparing" | "retrieving" | "generating" | "finalizing";
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMs: number | null;
+};
+```
+
+该接口由浏览器可见产品事件和 run 摘要派生，不返回 `attempts`、`results`、工具名、worker、task
+queue、原始步骤载荷或 memory/runtime ref，也不是 execution-control 原始轨迹透传。
 
 ## 可执行来源
 

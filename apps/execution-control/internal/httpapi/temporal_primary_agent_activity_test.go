@@ -210,8 +210,12 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	assertHTTPAPIDurableEventTypes(t, events, []execution.DurableRunEventType{
 		execution.DurableRunEventTypeRunAdmitted,
 		execution.DurableRunEventTypeRunStarted,
+		execution.DurableRunEventTypeRunProgress,
 		execution.DurableRunEventTypeAgentCompleted,
 	})
+	if events[2].Payload["phase"] != string(execution.DurableRunProgressPhaseGenerating) {
+		t.Fatalf("generating progress event = %#v", events[2])
+	}
 }
 
 func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T) {
@@ -298,27 +302,32 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 	assertHTTPAPIDurableEventTypes(t, events, []execution.DurableRunEventType{
 		execution.DurableRunEventTypeRunAdmitted,
 		execution.DurableRunEventTypeRunStarted,
+		execution.DurableRunEventTypeRunProgress,
 		execution.DurableRunEventTypeRunAnswerStarted,
 		execution.DurableRunEventTypeRunAnswerDelta,
 		execution.DurableRunEventTypeRunAnswerDelta,
 		execution.DurableRunEventTypeRunAnswerCompleted,
 		execution.DurableRunEventTypeAgentCompleted,
 	})
-	startedEvent := events[2]
+	progressEvent := events[2]
+	if progressEvent.Payload["phase"] != string(execution.DurableRunProgressPhaseGenerating) {
+		t.Fatalf("generating progress event = %#v", progressEvent)
+	}
+	startedEvent := events[3]
 	if startedEvent.Visibility != execution.DurableRunEventVisibilityBrowser ||
 		startedEvent.Payload["request_id"] != "req-executor-001" ||
 		startedEvent.Payload["trace_id"] != "trace-executor-001" ||
 		startedEvent.Payload["message_id"] != "run-primary-agent-streaming:answer" {
 		t.Fatalf("answer_started event = %#v", startedEvent)
 	}
-	firstDelta := events[3]
+	firstDelta := events[4]
 	if firstDelta.Visibility != execution.DurableRunEventVisibilityBrowser ||
 		firstDelta.Payload["delta"] != "你好" ||
 		firstDelta.Payload["chunk_index"] != 1 ||
 		firstDelta.Payload["message_id"] != "run-primary-agent-streaming:answer" {
 		t.Fatalf("first answer_delta event = %#v", firstDelta)
 	}
-	completedEvent := events[5]
+	completedEvent := events[6]
 	if completedEvent.Visibility != execution.DurableRunEventVisibilityBrowser ||
 		completedEvent.Payload["accumulated_text"] != "你好，我是校园问答助手。" ||
 		completedEvent.Payload["message_id"] != "run-primary-agent-streaming:answer" {

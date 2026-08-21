@@ -95,6 +95,7 @@ export interface ChatConversationSearchResult extends ChatConversationSummary {
 }
 
 export interface ChatConversationResponse {
+	activeRunId: string | null;
 	id: string;
 	title: string;
 	createdAt: string;
@@ -130,6 +131,7 @@ export interface VendorChatHistoryPageResponse {
 
 export function toConversationResponse(conversation: ChatConversation): ChatConversationResponse {
 	return {
+		activeRunId: conversation.activeRunId ?? null,
 		id: conversation.id,
 		title: conversation.title,
 		createdAt: conversation.createdAt,

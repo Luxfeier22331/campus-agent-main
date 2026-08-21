@@ -235,12 +235,14 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 				const activeNavigation = page
 					.getByRole("navigation", { name: "产品导航" })
 					.getByRole("link", { name: "反馈" });
-				const selectedHover = await resolveCssColor(page, "--sys-surface-selected-hover");
+				const selectedHover = await resolveCssColor(page, "--campus-selected-hover");
 				await activeNavigation.hover();
 				await expect(activeNavigation).toHaveCSS("background-color", selectedHover);
 				const navigationBeforeAuth = await readVisualStyle(activeNavigation);
 				expect(navigationBeforeAuth.backgroundColor).toBe(selectedHover);
-				expect(navigationBeforeAuth.color).toBe(await resolveCssColor(page, "--sys-text-selected"));
+				expect(navigationBeforeAuth.color).toBe(
+					await resolveCssColor(page, "--campus-selected-foreground"),
+				);
 
 				const accountTrigger = page
 					.locator(".campus-top-nav")
@@ -251,10 +253,11 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 				await expect(authDialog).toBeVisible();
 				await expect(page.locator('[data-campus-account-surface="auth-modal"]')).toBeVisible();
 
-				const submit = authDialog.getByRole("button", { name: "登录" });
-				expect((await readVisualStyle(submit)).backgroundColor).toBe(
-					await resolveCssColor(page, "--sys-tint"),
-				);
+				const submit = authDialog.getByRole("button", { exact: true, name: "登录" });
+				const campusAction = await resolveCssColor(page, "--campus-action");
+				await expect(submit).toBeEnabled();
+				await expect(submit).toHaveCSS("background-color", campusAction);
+				expect((await readVisualStyle(submit)).backgroundColor).toBe(campusAction);
 				const close = authDialog.getByRole("button", { name: "关闭登录窗口" });
 				const neutralHover = await resolveCssColor(page, "--sys-surface-hover");
 				await close.hover();

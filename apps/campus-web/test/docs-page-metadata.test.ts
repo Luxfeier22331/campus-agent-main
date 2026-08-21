@@ -18,7 +18,7 @@ describe("docs page metadata", () => {
 			canonicalPath: "/docs",
 			description: "中央民族大学校园文档。",
 			robots: "index,follow",
-			title: "校园文档",
+			title: "校园文档 | 中央民族大学校园问答",
 		});
 	});
 
@@ -64,7 +64,7 @@ describe("docs page metadata", () => {
 			canonicalPath: document.canonicalUrl,
 			description: "学生应按时参加教学活动。",
 			robots: "index,follow",
-			title: "学生考勤管理规定",
+			title: "学生考勤管理规定 | 中央民族大学校园问答",
 		});
 	});
 });

@@ -65,6 +65,10 @@ export interface DocsSearchClient {
 
 const clients = new Map<string, DocsSearchClient>();
 
+export function resetDocsSearchClient(searchIndexUrl: string): void {
+	clients.delete(searchIndexUrl);
+}
+
 export function loadDocsSearchClient(input: {
 	searchIndexUrl: string;
 	siteIndex: DocsSiteIndex;

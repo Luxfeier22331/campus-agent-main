@@ -59,7 +59,7 @@ describe("runtime run browser projection", () => {
 		expect(result).toEqual({
 			events: [
 				expect.objectContaining({
-					eventType: "finalization.completed",
+					eventType: "request.completed",
 					payload: {
 						request_id: "req_01HQ",
 						trace_id: "trace_01HQ",
@@ -139,60 +139,18 @@ describe("runtime run browser projection", () => {
 				principal: createPrincipal(),
 				runId: "run_01HQ",
 			}),
-		).resolves.toEqual({
-			attempts: [],
-			results: [
-				{
-					attemptId: "attempt-memory",
-					createdAt: "2026-06-04T01:02:05.000Z",
-					payloadSchemaVersion: "step-result-projection-v1",
-					projectionRef: "projection://runs/run_01HQ/sdk-tools/personal_memory_recall/1",
-					resultId: "result-memory",
-					resultKind: "typed_tool_result",
-					runId: "run_01HQ",
-					sanitizedPayload: {
-						outcome: "matched",
-						tool_name: "personal_memory_recall",
-						tool_status: "completed",
-					},
-					status: "completed",
-					stepId: "sdk_tool.execute.personal_memory_recall.1",
-				},
-			],
-			run: {
-				conversationId: "conv_01HQ",
+		).resolves.toMatchObject({
+			run: expect.objectContaining({
 				phase: "completed",
-				requestId: "req_01HQ",
 				runId: "run_01HQ",
-				status: "completed",
-				traceId: "trace_01HQ",
-			},
+			}),
 			steps: [
-				{
-					tool: "personal_memory_recall",
-					completedAt: "2026-06-04T01:02:05.000Z",
-					conversationId: "conv_01HQ",
-					parentStepId: "",
-					payloadSchemaVersion: "run-step-projection-v1",
-					runId: "run_01HQ",
-					sanitizedPayload: {
-						outcome: "matched",
-						tool_name: "personal_memory_recall",
-						tool_status: "completed",
-					},
-					startedAt: "2026-06-04T01:02:04.000Z",
-					status: "completed",
-					stepId: "sdk_tool.execute.personal_memory_recall.1",
-					stepKind: "tool",
-					taskQueue: "campus-agent.activity.agent.v3",
-					updatedAt: "2026-06-04T01:02:05.000Z",
-					workerId: "test-worker",
-				},
+				expect.objectContaining({ phase: "queued", status: "completed" }),
+				expect.objectContaining({ phase: "preparing", status: "completed" }),
+				expect.objectContaining({ phase: "retrieving", status: "completed" }),
+				expect.objectContaining({ phase: "generating", status: "completed" }),
+				expect.objectContaining({ phase: "finalizing", status: "completed" }),
 			],
-		});
-		expect(listRunSteps).toHaveBeenCalledWith({
-			runId: "run_01HQ",
-			traceId: "trace_01HQ",
 		});
 	});
 	it("strips Hindsight runtime refs from student-visible step trajectory", async () => {
@@ -332,18 +290,20 @@ describe("runtime run browser projection", () => {
 		]) {
 			expect(encoded).not.toContain(forbidden);
 		}
-		expect(trajectory.results[0]?.sanitizedPayload).toMatchObject({
-			appended_message_count: 1,
-			related_document_id: "student_rules",
-			status: "accepted",
+		expect(trajectory.steps).toHaveLength(5);
+		expect(trajectory.steps.map((step) => step.phase)).toEqual([
+			"queued",
+			"preparing",
+			"retrieving",
+			"generating",
+			"finalizing",
+		]);
+		expect(trajectory.steps.at(-1)).toMatchObject({
+			phase: "finalizing",
+			status: "completed",
 		});
-		expect(trajectory.steps[0]?.sanitizedPayload).toMatchObject({
-			comment: "profile: 学生偏好先看结论",
-			public_status: "accepted",
-		});
-		expect(trajectory.attempts[0]?.sanitizedPayload).toMatchObject({
-			public_status: "accepted",
-		});
-		expect(trajectory.agentRuntimeEvalProjection).toEqual({ score: 0.91 });
+		expect(trajectory).not.toHaveProperty("attempts");
+		expect(trajectory).not.toHaveProperty("results");
+		expect(trajectory).not.toHaveProperty("agentRuntimeEvalProjection");
 	});
 });

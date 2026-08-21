@@ -33,16 +33,22 @@ export type CampusAuthView =
 	| "verifyEmail"
 	| "verifyEmailResult";
 
+export interface CampusAuthPresentationCopy {
+	signUpPasswordDescription?: string | undefined;
+}
+
 export function AuthPanel({
 	className = "mx-auto w-full max-w-sm",
 	localNavigation = false,
 	onAuthenticated,
+	presentationCopy,
 	redirectTo: redirectToOverride,
 	view = "signIn",
 }: {
 	className?: string;
 	localNavigation?: boolean;
 	onAuthenticated?: () => void;
+	presentationCopy?: CampusAuthPresentationCopy | undefined;
 	redirectTo?: string;
 	view?: CampusAuthView;
 }) {
@@ -157,6 +163,7 @@ export function AuthPanel({
 				onAuthenticated={completeAuthentication}
 				onSwitch={switchView}
 				onVerificationRequired={onVerificationRequired}
+				passwordDescription={presentationCopy?.signUpPasswordDescription}
 				redirectTo={redirectTo}
 			/>
 		);
@@ -246,14 +253,20 @@ export function AuthPanel({
 	return <div className={className}>{content}</div>;
 }
 
-export function Auth({ view }: { view?: CampusAuthView | undefined }) {
+export function Auth({
+	presentationCopy,
+	view,
+}: {
+	presentationCopy?: CampusAuthPresentationCopy | undefined;
+	view?: CampusAuthView | undefined;
+}) {
 	return (
 		<section
 			aria-label="account-auth-layout"
 			className="flex min-h-[calc(100dvh-var(--layout-campus-topnav-height))] flex-col items-center px-4 pb-10 pt-8 sm:pt-10"
 			data-campus-account-surface="auth"
 		>
-			<AuthPanel {...(view ? { view } : {})} />
+			<AuthPanel {...(presentationCopy ? { presentationCopy } : {})} {...(view ? { view } : {})} />
 		</section>
 	);
 }
