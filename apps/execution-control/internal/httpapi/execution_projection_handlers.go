@@ -267,7 +267,6 @@ func durableRunResponse(run execution.DurableRun) map[string]any {
 		"surface":              run.Surface,
 		"status":               string(run.Status),
 		"task_queue":           run.TaskQueue,
-		"final_response_ref":   run.FinalResponseRef,
 		"terminal_reason":      string(run.TerminalReason),
 		"fail_close_reason":    run.FailCloseReason,
 		"created_at":           formatOptionalTime(run.CreatedAt),
@@ -277,6 +276,7 @@ func durableRunResponse(run execution.DurableRun) map[string]any {
 		"streaming_started_at": formatOptionalTime(run.StreamingStartedAt),
 		"completed_at":         formatOptionalTime(run.CompletedAt),
 		"updated_at":           formatOptionalTime(run.UpdatedAt),
+		"final_response_ref":   run.FinalResponseRef,
 	}
 }
 

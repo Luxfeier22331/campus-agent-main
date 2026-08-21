@@ -37,6 +37,16 @@ export function streamRecoveryExhausted(run?: RecoveryRunIdentity): ChatStreamRe
 	});
 }
 
+export function isStreamRecoveryExhausted(error: unknown): boolean {
+	return error instanceof ChatStreamRequestError && error.code === "chat_stream_connection_lost";
+}
+
 export function isRunAlreadyTerminalError(error: unknown): boolean {
 	return error instanceof ChatStreamRequestError && error.code === "run_already_terminal";
+}
+
+export function isPersistedConversationMessageId(
+	messageId: string | null | undefined,
+): messageId is string {
+	return Boolean(messageId && !messageId.startsWith("local-"));
 }

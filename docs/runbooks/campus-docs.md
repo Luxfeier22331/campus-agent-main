@@ -9,11 +9,11 @@ status: active
 ## 边界
 
 本文说明如何把整理后的 Campus Web 文档更新到对象存储、刷新静态文档候选，并按三个独立阶段手动
-构建 Campus Docs 检索索引。它不负责来源采集、正文清洗方法、普通运行时发布或环境 Secret 创建。
+构建 Campus Docs 离线检索索引。它不负责来源采集、正文清洗方法、普通运行时发布或环境 Secret 创建。
 
 共享输入只有对象存储中的 `campus-docs/source.json` 及其引用对象。Campus Web 静态构建和 Campus Docs
-RAG 制品是两个独立消费者，各自产生不可变产物并独立失败；二者之间没有跨系统事务或第二个文档
-版本指针。
+离线 RAG 制品是两个独立消费者，各自产生不可变产物并独立失败；二者之间没有跨系统事务或第二个
+文档版本指针。当前在线 Agent 不消费这些索引制品。
 
 ## 维护规则
 
@@ -214,8 +214,8 @@ CronJob 的任务历史设置不管理由上述命令创建的独立 Job。
   激活返回 `no_op: true`，否则完成当前指针替换。
 
 Embedding 设置可以在首次索引发布前保存和验证。配置验证使用固定 Embedding 合同并记录 provider
-返回的观测维度；在线查询使用当前代码定义请求向量并校验实际长度。发布端或查询端的定义发生变化
-时，必须用同一版本重新发布 collection；不支持旧 collection 跨代码版本查询。
+返回的观测维度。离线分块、向量和 collection 定义发生变化时，必须用同一版本重新生成并发布
+collection；当前不提供在线查询消费者。
 
 ## Reader 清理
 
@@ -233,24 +233,12 @@ Embedding 设置可以在首次索引发布前保存和验证。配置验证使�
 
 ## Qdrant 清理
 
-旧 collection 不在激活时自动删除，因为切换前已准入的运行冻结了旧 collection。人工删除前必须：
+旧 collection 不在激活时自动删除。当前在线 execution-control 不读取 collection，也不会在运行准入中
+冻结它。人工删除前必须：
 
 1. 从 `campus_docs_serving.current_index` 读取当前 collection，永不删除当前值；
-2. 确认没有非终态运行的 `runtime.agent_workflow_starts.workflow_input_json` 引用候选 collection；
-3. 使用 Qdrant 管理凭据删除明确列出的旧 collection，并再次确认当前 collection 可读取。
-
-非终态引用可按以下 JSON 路径核对：
-
-```sql
-\set collection 'campus_docs_<sha256>'
-
-select runs.run_id, runs.status
-from runtime.agent_runs as runs
-join runtime.agent_workflow_starts as starts using (run_id)
-where runs.status in ('created', 'queued', 'admitted', 'running', 'streaming')
-  and starts.workflow_input_json #>>
-      '{admission_snapshot,campus_docs_retrieval,index,collection}' = :'collection';
-```
+2. 确认没有正在运行的 Campus Docs Publisher Job 使用待删除 collection；
+3. 使用 Qdrant 管理凭据删除明确列出的非当前 collection，并再次确认当前 collection 可读取。
 
 仓库不维护 collection 历史表、保留状态机或自动回收任务。每次清理只处理本次明确核对的集合。
 

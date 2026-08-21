@@ -122,7 +122,6 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				event: "request.completed",
 			} satisfies ChatRequestStreamEvent;
 		});
-
 		try {
 			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 
@@ -219,6 +218,11 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				event: "request.failed",
 			} satisfies ChatRequestStreamEvent;
 		});
+		const canonical = completedTerminalEvent("测试结束。").data.answer?.conversation;
+		if (!canonical) {
+			throw new Error("Expected a canonical conversation fixture.");
+		}
+		conversationApiMock.getConversationDetail.mockResolvedValue(canonical);
 
 		try {
 			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
@@ -242,13 +246,13 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				releaseTerminal();
 				await submitPromise;
 			});
-			expect(hasMessageId("msg_delta")).toBe(true);
-			expect(readMessageText("msg_delta")).toBe("按学校奖学金通知");
-			expect(readMessageText("local-error-req_delta")).toBe("测试结束。");
+			expect(hasMessageId("msg_delta")).toBe(false);
+			expect(readMessageText("msg_answer")).toBe("测试结束。");
+			expect(hasMessageId("local-error-req_delta")).toBe(false);
 			expect(assistantUiMock.externalStoreInput?.messages).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						id: "msg_delta",
+						id: "msg_answer",
 						metadata: {
 							custom: {
 								campusRun: expect.objectContaining({ status: "failed" }),

@@ -78,16 +78,9 @@ Finalization result 也不得在终态后补写。该例外不放宽其他 Activ
 
 ### Activity Result 与 Receipt
 
-`CampusDocsRetrievalResult` 绑定 run 的冻结准入和查询，最多包含 8 条 evidence，正文合计最多 4000 个
-Unicode 字符。它作为
-`RetrieveCampusDocsEvidenceActivity` 的有界 result 写入 Temporal history；workflow 把最小 evidence
-视图传给 Primary Agent，并把原结果独立传给 Finalization。Primary Agent 的完整有界结果同样经由
-Temporal history 传递；当前合同不要求加密 Temporal history，也不要求按 run 删除这些正文。
-
-普通 run、event、step、result 投影不保存上述 canonical 正文，只保存 ref、hash、计数、用量和公开
-终态。每个有效请求都执行 Retrieval Activity；成功后产生唯一检索 result 并继续 Agent，失败则关闭
-workflow。空 evidence 与非空 evidence 只表达是否选出可引用证据，不另存 mode/status。Retrieval
-Activity 重试会重新执行只读 embedding/Qdrant 查询，而不是从 PostgreSQL 重放先前结果。
+Primary Agent 的有界结果经由 Temporal Activity result 传给 Finalization；普通 run、event、step、result
+投影只保存 ref、hash、用量和公开终态，不保存模型正文或工具原始载荷。当前在线 workflow 不产生
+知识检索 result；Campus Docs 的离线制品发布由独立 Job 负责，不进入本数据合同。
 
 个人记忆召回不单独建立外部调用 receipt。Primary Agent invocation receipt 绑定整个 SDK run 的精确
 请求摘要，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通 SDK tool 投影只保存
@@ -124,26 +117,17 @@ invocation receipt 在供应商调用前持久化调用身份、上述 envelope 
 provider/model 与有界用量摘要保存于正式投影中。已开始或已完成 receipt 但没有可用 Activity result 时，
 只能以 `agent_attempt_uncertain` 失败关闭，不能重新调用供应商。
 
-## Campus Docs 检索投影
-
-每个已启动的在线 workflow 固定执行一个 `campus_docs.retrieve` step；检索成功时只生成一份
-`CampusDocsRetrievalResult`。普通 StepResult 只保存 collection、候选数、证据数、准入与查询 hash
-及检索子阶段耗时；完整 evidence 正文只存在于该 run 的 Temporal history。
-
-Campus Docs 检索不派生 SDK tool call，不携带 `tool_name` 或 `eval_safe_args`。原始 query vector、Qdrant
-响应、Provider 凭据和正文不得进入普通投影。
-
 ## Finalization 投影
 
-Finalization 保存 SDK 终态答案和确定性校验结果。有证据支持时，还会保存从本轮 workflow 检索结果
-中已引用 evidence 派生的浏览器可用 source。
+Finalization 保存 SDK 终态答案和确定性校验结果。当前在线链路不生成机构知识 source；未来来源能力
+接入时必须由对应合同定义来源校验和公开字段。
 
 Finalization 可以拒绝格式错误或不受支持的 output，但不会创建或改写答案。app-api 可以在
 保留答案原文的前提下，把已验证 source 转换为产品 source-item 结构。相同 fingerprint 的完成
 可以幂等重放；不同 fingerprint 与已提交的产品终态冲突，execution-control 不得用较晚结果覆盖。
 
-Finalization 分别读取 workflow 传入的 Agent result 和检索结果，验证身份、冻结准入快照、
-终态 schema 与 evidence 引用。`finalization.write` 的 completed StepResult 保存由 agent result
+Finalization 读取 workflow 传入的 Agent result，验证身份、冻结准入快照和终态 schema。
+`finalization.write` 的 completed StepResult 保存由 agent result
 ref、最终响应、request/trace 生成的 `finalization_fingerprint_sha256`。
 `FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的
 单个事务中，校验并提交 completed `finalization.write` Step、Attempt、Result 与 completed run 四元组，

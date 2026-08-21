@@ -25,41 +25,15 @@ type ToolExecutionWorkflowInput struct {
 // AgentAdmissionSnapshot contains only bounded, non-secret execution policy
 // inputs. Provider credentials and model responses are deliberately excluded.
 type AgentAdmissionSnapshot struct {
-	AgentLimits             AgentRuntimeLimitsSnapshot   `json:"agent_limits"`
-	AgentLimitsSHA256       string                       `json:"agent_limits_sha256"`
-	CampusDocsRetrieval     CampusDocsRetrievalAdmission `json:"campus_docs_retrieval"`
-	ExecutionStrategy       ExecutionStrategySnapshot    `json:"execution_strategy"`
-	ExecutionStrategySHA256 string                       `json:"execution_strategy_sha256"`
+	AgentLimits             AgentRuntimeLimitsSnapshot `json:"agent_limits"`
+	AgentLimitsSHA256       string                     `json:"agent_limits_sha256"`
+	ExecutionStrategy       ExecutionStrategySnapshot  `json:"execution_strategy"`
+	ExecutionStrategySHA256 string                     `json:"execution_strategy_sha256"`
 	// ProviderConfigSHA256 fingerprints the active LLM setting used by the
 	// Primary Agent. It excludes credentials and storage identifiers.
 	ProviderConfigSHA256         string                         `json:"provider_config_sha256"`
 	ToolRuntimeFingerprint       ToolRuntimeFingerprintSnapshot `json:"tool_runtime_fingerprint"`
 	ToolRuntimeFingerprintSHA256 string                         `json:"tool_runtime_fingerprint_sha256"`
-}
-
-type CampusDocsRetrievalAdmission struct {
-	EmbeddingProviderConfigSHA256 string                  `json:"embedding_provider_config_sha256"`
-	Index                         CampusDocsIndexSnapshot `json:"index"`
-	QuerySHA256                   string                  `json:"query_sha256"`
-}
-
-// CampusDocsRetrievalResult is carried through workflow history so
-// finalization can close evidence references without a second payload store.
-type CampusDocsRetrievalResult struct {
-	Evidence []CampusDocsEvidence `json:"evidence"`
-}
-
-type CampusDocsEvidence struct {
-	EvidenceRef   string   `json:"evidence_ref"`
-	SectionRef    string   `json:"section_ref"`
-	DocumentID    string   `json:"document_id"`
-	RootUnitIDs   []string `json:"root_unit_ids"`
-	DocumentTitle string   `json:"document_title"`
-	SectionTitle  string   `json:"section_title"`
-	Text          string   `json:"text"`
-	VersionID     string   `json:"version_id"`
-	VersionLabel  string   `json:"version_label"`
-	VersionSlug   string   `json:"version_slug"`
 }
 
 type ExecutionStrategySnapshot struct {
@@ -116,26 +90,14 @@ type AppendConversationMemoryActivityOutput struct {
 }
 
 type ExecutePrimaryAgentActivityInput struct {
-	AdmissionSnapshot   AgentAdmissionSnapshot    `json:"admission_snapshot"`
-	CampusDocsRetrieval CampusDocsRetrievalResult `json:"campus_docs_retrieval"`
-	ConversationID      string                    `json:"conversation_id"`
-	RequestID           string                    `json:"request_id"`
-	RunID               string                    `json:"run_id"`
-	TraceID             string                    `json:"trace_id"`
-	TraceParent         string                    `json:"traceparent,omitempty"`
-	TurnID              string                    `json:"turn_id"`
-	VisibleToolNames    []string                  `json:"visible_tool_names"`
-}
-
-type RetrieveCampusDocsEvidenceActivityInput struct {
-	AdmissionSnapshot       AgentAdmissionSnapshot `json:"admission_snapshot"`
-	AdmissionSnapshotSHA256 string                 `json:"admission_snapshot_sha256"`
-	RunID                   string                 `json:"run_id"`
-	TraceID                 string                 `json:"trace_id"`
-}
-
-type CampusDocsIndexSnapshot struct {
-	Collection string `json:"collection"`
+	AdmissionSnapshot AgentAdmissionSnapshot `json:"admission_snapshot"`
+	ConversationID    string                 `json:"conversation_id"`
+	RequestID         string                 `json:"request_id"`
+	RunID             string                 `json:"run_id"`
+	TraceID           string                 `json:"trace_id"`
+	TraceParent       string                 `json:"traceparent,omitempty"`
+	TurnID            string                 `json:"turn_id"`
+	VisibleToolNames  []string               `json:"visible_tool_names"`
 }
 
 type AgentToolResult struct {
@@ -176,12 +138,11 @@ type AgentUsageSummary struct {
 }
 
 type WriteFinalizationActivityInput struct {
-	AgentResult         ExecutePrimaryAgentActivityOutput `json:"agent_result"`
-	AdmissionSnapshot   AgentAdmissionSnapshot            `json:"admission_snapshot"`
-	CampusDocsRetrieval CampusDocsRetrievalResult         `json:"campus_docs_retrieval"`
-	FinalizedAt         time.Time                         `json:"finalized_at"`
-	RunID               string                            `json:"run_id"`
-	TraceID             string                            `json:"trace_id"`
+	AgentResult       ExecutePrimaryAgentActivityOutput `json:"agent_result"`
+	AdmissionSnapshot AgentAdmissionSnapshot            `json:"admission_snapshot"`
+	FinalizedAt       time.Time                         `json:"finalized_at"`
+	RunID             string                            `json:"run_id"`
+	TraceID           string                            `json:"trace_id"`
 }
 
 type WriteFinalizationActivityOutput struct {

@@ -23,6 +23,9 @@ status: active
 也可以只在本地提供。当前仓库 Agent 用例位于
 `packages/eval-langfuse/assets/agent/routing/cases.v1.json`。Langfuse 上的 trace、score 和反馈不能
 自动改写这些输入。
+`agent-eval` 通过真实 App API 执行这些用例，并从 execution-control 的
+`agent_runtime_eval_projection.v3` 读取答案、可选来源投影和 `tool_trajectory.v3`。当前在线 Agent
+不自动产生 Campus Docs 来源；Langfuse trace 只提供相关联的 SDK 和模型观测。
 
 线上 trace 只保存受控关联、模型/工具名称、用量、耗时和有限状态，不保存 answer、prompt、对话、
 retrieval 正文、工具参数或 provider 原始响应。因此 Ragas 不从普通 trace 反查
@@ -73,6 +76,10 @@ retrieval 正文、工具参数或 provider 原始响应。因此 Ragas 不从�
 
 是否生成 RAG 样本由 case 是否声明 reference context 决定，不由实际召回是否非空决定。空召回仍须
 作为 RAG 失败样本进入评分。
+
+Primary Agent 路由使用 `campus/agent/routing`，并与当前工具 exposure 保持一致。当前覆盖直接回答、
+机构知识能力未接入时的明确无答案、跟进和 prompt injection。调用方需要评测 RAG 时显式提供
+reference context，不把它写成在线 Agent 的固定输入。
 
 ## Score
 

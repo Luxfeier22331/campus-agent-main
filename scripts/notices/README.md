@@ -6,7 +6,8 @@
 
 ## 运行
 
-先通过 `pnpm dev:init` 生成内部门户采集任务的本地对象存储配置，并确保本地 RustFS 已运行。
+先通过 `pnpm --filter internal-portal-collection dev:init` 生成内部门户采集任务的本地对象存储配置，并
+确保本地 RustFS 已运行。
 分类全部本地通知：
 
 ```bash

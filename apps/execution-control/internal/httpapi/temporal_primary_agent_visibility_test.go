@@ -68,10 +68,6 @@ func TestExecutePrimaryAgentActivityPassesCurrentEmptyToolSet(t *testing.T) {
 	if len(visible) != 0 {
 		t.Fatalf("visible_tool_names = %#v, want none", visible)
 	}
-	evidence, ok := seenBody["campus_docs_evidence"].([]any)
-	if !ok || len(evidence) != 0 {
-		t.Fatalf("institutional request Campus Docs evidence = %#v", seenBody)
-	}
 }
 
 func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testing.T) {

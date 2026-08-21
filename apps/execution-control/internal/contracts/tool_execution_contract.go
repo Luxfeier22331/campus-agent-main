@@ -76,7 +76,6 @@ const (
 	StageTimingFieldStreamAppApiTtftMs            StageTimingField = "stream.app_api_ttft_ms"
 	StageTimingFieldStreamOrchestrationOverheadMs StageTimingField = "stream.orchestration_overhead_ms"
 	StageTimingFieldExecutionAdmissionMs          StageTimingField = "execution.admission_ms"
-	StageTimingFieldCampusDocsRetrieveMs          StageTimingField = "campus_docs.retrieve_ms"
 	StageTimingFieldMemoryRecallMs                StageTimingField = "memory.recall_ms"
 	StageTimingFieldAgentPrimaryMs                StageTimingField = "agent.primary_ms"
 	StageTimingFieldAgentRuntimeMs                StageTimingField = "agent.runtime_ms"
@@ -436,7 +435,6 @@ func (value StageTimingField) Valid() bool {
 		StageTimingFieldStreamAppApiTtftMs,
 		StageTimingFieldStreamOrchestrationOverheadMs,
 		StageTimingFieldExecutionAdmissionMs,
-		StageTimingFieldCampusDocsRetrieveMs,
 		StageTimingFieldMemoryRecallMs,
 		StageTimingFieldAgentPrimaryMs,
 		StageTimingFieldAgentRuntimeMs,

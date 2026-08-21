@@ -55,12 +55,7 @@ function getError(value: unknown): { code: string; retryable: boolean } {
 }
 
 function isRuntimeRunProductPhase(value: unknown): value is RuntimeRunProductPhase {
-	return (
-		value === "finalizing" ||
-		value === "generating" ||
-		value === "preparing" ||
-		value === "retrieving"
-	);
+	return value === "finalizing" || value === "generating" || value === "preparing";
 }
 
 function parseSseBlock(block: string): ParsedSseEvent | null {

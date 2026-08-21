@@ -11,10 +11,6 @@ type Handler interface {
 		context.Context,
 		temporalruntime.ExecutePrimaryAgentActivityInput,
 	) (temporalruntime.ExecutePrimaryAgentActivityOutput, error)
-	RetrieveCampusDocsEvidence(
-		context.Context,
-		temporalruntime.RetrieveCampusDocsEvidenceActivityInput,
-	) (temporalruntime.CampusDocsRetrievalResult, error)
 }
 
 type Activities struct {
@@ -30,13 +26,6 @@ func (activities Activities) ExecutePrimaryAgentActivity(
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	return activities.handler.ExecutePrimaryAgent(ctx, input)
-}
-
-func (activities Activities) RetrieveCampusDocsEvidenceActivity(
-	ctx context.Context,
-	input temporalruntime.RetrieveCampusDocsEvidenceActivityInput,
-) (temporalruntime.CampusDocsRetrievalResult, error) {
-	return activities.handler.RetrieveCampusDocsEvidence(ctx, input)
 }
 
 var _ temporalruntime.AgentActivities = Activities{}

@@ -60,6 +60,7 @@ import {
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { CampusRunStatus } from "@/components/conversation/campus-run-status";
+import { isPersistedConversationMessageId } from "@/features/conversation/assistant-ui-recovery-policy";
 import { readCampusRunViewMetadata } from "@/features/conversation/run-view-state";
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
@@ -507,11 +508,13 @@ const AssistantActionBar: FC = () => (
 				</AuiIf>
 			</TooltipIconButton>
 		</ActionBarPrimitive.Copy>
-		<ActionBarPrimitive.Reload asChild>
-			<TooltipIconButton tooltip="重新生成">
-				<RefreshCwIcon />
-			</TooltipIconButton>
-		</ActionBarPrimitive.Reload>
+		<AuiIf condition={(state) => isPersistedConversationMessageId(state.message.parentId)}>
+			<ActionBarPrimitive.Reload asChild>
+				<TooltipIconButton tooltip="重新生成">
+					<RefreshCwIcon />
+				</TooltipIconButton>
+			</ActionBarPrimitive.Reload>
+		</AuiIf>
 		<ActionBarMorePrimitive.Root>
 			<ActionBarMorePrimitive.Trigger asChild>
 				<TooltipIconButton tooltip="更多" className="data-[state=open]:bg-accent">
@@ -565,11 +568,13 @@ const UserActionBar: FC = () => (
 		autohide="not-last"
 		className="aui-user-action-bar-root flex flex-col items-end"
 	>
-		<ActionBarPrimitive.Edit asChild>
-			<TooltipIconButton tooltip="编辑" className="aui-user-action-edit">
-				<PencilIcon />
-			</TooltipIconButton>
-		</ActionBarPrimitive.Edit>
+		<AuiIf condition={(state) => isPersistedConversationMessageId(state.message.id)}>
+			<ActionBarPrimitive.Edit asChild>
+				<TooltipIconButton tooltip="编辑" className="aui-user-action-edit">
+					<PencilIcon />
+				</TooltipIconButton>
+			</ActionBarPrimitive.Edit>
+		</AuiIf>
 	</ActionBarPrimitive.Root>
 );
 

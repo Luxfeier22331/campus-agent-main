@@ -8,7 +8,6 @@ import type {
 
 export interface PrimaryAgentRunInput {
 	activityAttempt?: number;
-	campusDocsEvidence: CampusDocsEvidence[];
 	runId: string;
 	requestId: string;
 	conversationId: string;
@@ -30,13 +29,6 @@ export interface AgentRuntimeLimits {
 	maxOutputTokens: number;
 	maxToolCalls: number;
 	maxTurns: number;
-}
-
-export interface CampusDocsEvidence {
-	documentTitle: string;
-	evidenceRef: string;
-	sectionTitle: string;
-	text: string;
 }
 
 export interface AgentConversationContext {
@@ -161,7 +153,6 @@ export type PrimaryAgentTerminalKind =
 
 export interface PrimaryAgentTerminalEnvelope {
 	answerText?: string;
-	evidenceRefs?: string[];
 	followUpQuestion?: string;
 	kind: PrimaryAgentTerminalKind;
 	reason?: string;

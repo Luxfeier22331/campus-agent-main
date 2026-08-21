@@ -204,12 +204,7 @@ function toChatRunResumeStreamEvent(input: {
 	}
 	if (input.event.eventType === "execution.phase") {
 		const phase = getStringPayloadValue(input.event.payload, "phase");
-		if (
-			phase !== "preparing" &&
-			phase !== "retrieving" &&
-			phase !== "generating" &&
-			phase !== "finalizing"
-		) {
+		if (phase !== "preparing" && phase !== "generating" && phase !== "finalizing") {
 			return null;
 		}
 		return {

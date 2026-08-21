@@ -23,15 +23,6 @@ const toolRuntimeFingerprintSchema = z
 	})
 	.strict();
 
-const campusDocsEvidenceSchema = z
-	.object({
-		evidence_ref: z.string().regex(/^evidence:\/\/[0-9a-f]{64}$/),
-		document_title: z.string().trim().min(1),
-		section_title: z.string().trim().min(1),
-		text: z.string().trim().min(1),
-	})
-	.strict();
-
 const conversationContextSchema = z.object({
 	schema_version: z.literal("agent_conversation_context.v1"),
 	recent_turns: z
@@ -80,7 +71,6 @@ export const agentRunRequestSchema = z
 		trace_id: z.string().min(1),
 		input: z.string().min(1),
 		visible_tool_names: z.array(z.string().min(1)).default([]),
-		campus_docs_evidence: z.array(campusDocsEvidenceSchema).max(8),
 		expected_tool_runtime_fingerprint: toolRuntimeFingerprintSchema,
 		provider_config: providerConfigSchema,
 		limits: runtimeLimitsSchema,
@@ -121,12 +111,6 @@ export function runtimeInputFromAgentRunRequest(
 ): PrimaryAgentRunInput {
 	return {
 		activityAttempt: parsed.activity_attempt,
-		campusDocsEvidence: parsed.campus_docs_evidence.map((item) => ({
-			documentTitle: item.document_title,
-			evidenceRef: item.evidence_ref,
-			sectionTitle: item.section_title,
-			text: item.text,
-		})),
 		runId: parsed.run_id,
 		requestId: parsed.request_id,
 		conversationId: parsed.conversation_id,

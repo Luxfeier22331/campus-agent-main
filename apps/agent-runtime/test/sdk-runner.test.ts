@@ -186,6 +186,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			runSdk: async (agent, _input, options) => {
 				observedModel = agent.model;
 				observedModelProvider = options.modelProvider;
+				expect(agent.modelSettings).toMatchObject({ maxTokens: 2_048 });
 				return {
 					finalOutput: "done",
 					lastResponseId: "resp-sdk-provider",
@@ -237,7 +238,15 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			providerConfig,
 		});
 
-		expect(observedOutputType).toBeDefined();
+		expect(observedOutputType).toMatchObject({
+			type: "json_schema",
+			name: "primary_agent_terminal_output",
+			strict: true,
+			schema: {
+				additionalProperties: false,
+				required: ["kind", "answerText", "followUpQuestion", "reason"],
+			},
+		});
 		expect((result as { terminalEnvelope?: unknown }).terminalEnvelope).toEqual(structuredOutput);
 		expect(result.finalOutput).toBe("我是校园问答助手。");
 	});
@@ -801,23 +810,21 @@ describe("OpenAI Agents SDK runner adapter", () => {
 	it("accepts empty placeholders for fields unused by the selected terminal kind", async () => {
 		const transportOutput = {
 			answerText: "",
-			evidenceRefs: [],
 			followUpQuestion: "",
 			kind: "unsupported_by_evidence" as const,
 			reason: "The request is not supported by the available evidence.",
 		};
 		const runner = createStreamingOpenAIAgentsRunner({
 			runSdkStream: async (agent) => {
-				const outputType = (agent as { outputType?: { parse(value: unknown): unknown } })
-					.outputType;
-				if (!outputType) {
-					throw new Error("structured output schema is required");
-				}
+				expect((agent as { outputType?: unknown }).outputType).toMatchObject({
+					type: "json_schema",
+					strict: true,
+				});
 				return {
 					cancelled: false,
 					completed: Promise.resolve(),
 					error: null,
-					finalOutput: outputType.parse(transportOutput),
+					finalOutput: transportOutput,
 					lastResponseId: "resp-sdk-unsupported",
 					newItems: [],
 					toTextStream: () =>
@@ -1021,7 +1028,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				finalOutput: {
 					kind: "answer",
 					answer_text: "毕业最低学分要求为 160 学分。",
-					evidence_refs: ["evidence://sha256/example"],
 					follow_up_question: null,
 					reason: null,
 					session_update: null,

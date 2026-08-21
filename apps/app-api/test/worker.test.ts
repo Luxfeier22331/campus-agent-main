@@ -110,13 +110,11 @@ describe("app-api worker foundation", () => {
 		});
 	});
 
-	it("declares the local database and execution-control bindings", () => {
+	it("declares the local database binding without freezing a runtime port", () => {
 		expect(parsedWranglerConfig.env?.local?.hyperdrive).toEqual([
 			expect.objectContaining({ binding: "APP_API_DB" }),
 		]);
-		expect(parsedWranglerConfig.env?.local?.vars?.EXECUTION_CONTROL_BASE_URL).toBe(
-			"http://127.0.0.1:27051",
-		);
+		expect(parsedWranglerConfig.env?.local?.vars).not.toHaveProperty("EXECUTION_CONTROL_BASE_URL");
 	});
 
 	it("serves healthz and readyz from the worker shell", async () => {

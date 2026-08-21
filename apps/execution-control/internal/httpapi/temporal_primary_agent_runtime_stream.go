@@ -25,7 +25,6 @@ func (s *Server) callAgentRuntime(
 	inputText string,
 	providerConfig providerconfig.RuntimeSetting,
 	conversationContext map[string]any,
-	campusDocsRetrieval temporalruntime.CampusDocsRetrievalResult,
 	limits primaryAgentRuntimeLimits,
 	activityAttempt int,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
@@ -35,7 +34,6 @@ func (s *Server) callAgentRuntime(
 		inputText,
 		providerConfig,
 		conversationContext,
-		campusDocsRetrieval,
 		limits,
 		activityAttempt,
 	)
@@ -52,7 +50,6 @@ func primaryAgentRuntimeRequestPayload(
 	inputText string,
 	providerConfig providerconfig.RuntimeSetting,
 	conversationContext map[string]any,
-	campusDocsRetrieval temporalruntime.CampusDocsRetrievalResult,
 	limits primaryAgentRuntimeLimits,
 	activityAttempt int,
 ) map[string]any {
@@ -75,16 +72,6 @@ func primaryAgentRuntimeRequestPayload(
 	if len(conversationContext) > 0 {
 		payload["conversation_context"] = conversationContext
 	}
-	evidence := make([]map[string]any, 0, len(campusDocsRetrieval.Evidence))
-	for _, item := range campusDocsRetrieval.Evidence {
-		evidence = append(evidence, map[string]any{
-			"document_title": item.DocumentTitle,
-			"evidence_ref":   item.EvidenceRef,
-			"section_title":  item.SectionTitle,
-			"text":           item.Text,
-		})
-	}
-	payload["campus_docs_evidence"] = evidence
 	return payload
 }
 

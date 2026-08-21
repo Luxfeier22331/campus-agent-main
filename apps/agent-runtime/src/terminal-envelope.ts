@@ -10,7 +10,7 @@ export function terminalEnvelopeFromUnknown(
 	if (record === undefined) {
 		return;
 	}
-	const allowedKeys = new Set(["answerText", "evidenceRefs", "followUpQuestion", "kind", "reason"]);
+	const allowedKeys = new Set(["answerText", "followUpQuestion", "kind", "reason"]);
 	if (Object.keys(record).some((key) => !allowedKeys.has(key))) {
 		return;
 	}
@@ -30,10 +30,6 @@ export function terminalEnvelopeFromUnknown(
 	const reason = stringFromUnknown(record.reason);
 	if (reason !== "") {
 		envelope.reason = reason;
-	}
-	const evidenceRefs = stringArrayFromUnknown(record.evidenceRefs);
-	if (evidenceRefs.length > 0) {
-		envelope.evidenceRefs = evidenceRefs;
 	}
 	if (kind === "answer" && envelope.answerText === undefined) {
 		return;
@@ -64,13 +60,6 @@ export function finalOutputFromTerminalEnvelope(envelope: PrimaryAgentTerminalEn
 		default:
 			return envelope.answerText ?? envelope.reason ?? "";
 	}
-}
-
-function stringArrayFromUnknown(value: unknown): string[] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-	return value.map((item) => stringFromUnknown(item)).filter((item) => item !== "");
 }
 
 function isPrimaryAgentTerminalKind(value: string): value is PrimaryAgentTerminalKind {

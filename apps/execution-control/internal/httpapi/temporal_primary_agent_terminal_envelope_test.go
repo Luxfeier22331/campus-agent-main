@@ -333,13 +333,7 @@ func preparePrimaryAgentFinalizationRunForTest(
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
-	snapshot := temporalruntime.AgentAdmissionSnapshot{
-		CampusDocsRetrieval: temporalruntime.CampusDocsRetrievalAdmission{
-			EmbeddingProviderConfigSHA256: strings.Repeat("a", 64),
-			Index:                         *campusDocsTargetForHTTPTest(),
-			QuerySHA256:                   "sha256:" + strings.Repeat("b", 64),
-		},
-	}
+	snapshot := temporalruntime.AgentAdmissionSnapshot{}
 	usageObserved, _ := nestedAny(agentMetadata, "usage", "usage_observed").(bool)
 	output := temporalruntime.ExecutePrimaryAgentActivityOutput{
 		AgentResultRef:     strings.TrimSpace(stringValue(agentMetadata["agent_result_ref"])),
@@ -398,11 +392,8 @@ func preparePrimaryAgentFinalizationRunForTest(
 	return temporalruntime.WriteFinalizationActivityInput{
 		AdmissionSnapshot: snapshot,
 		AgentResult:       output,
-		CampusDocsRetrieval: temporalruntime.CampusDocsRetrievalResult{
-			Evidence: []temporalruntime.CampusDocsEvidence{},
-		},
-		FinalizedAt: now.Add(4 * time.Second),
-		RunID:       runID,
-		TraceID:     run.TraceID,
+		FinalizedAt:       now.Add(4 * time.Second),
+		RunID:             runID,
+		TraceID:           run.TraceID,
 	}
 }

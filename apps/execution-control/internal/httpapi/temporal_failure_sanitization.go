@@ -63,8 +63,8 @@ func temporalFailurePublicMessage(kind string) string {
 		return "The agent runtime did not complete before its deadline."
 	case "agent_runtime_failed", "model_setting_missing", "provider_unavailable":
 		return "The answer provider is temporarily unavailable."
-	case "retrieval_lookup_failed", "tool_execution_failed":
-		return "Required campus information could not be retrieved."
+	case "tool_execution_failed":
+		return "A runtime tool could not complete."
 	default:
 		return defaultExecutionFailureMessage
 	}

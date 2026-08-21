@@ -1,14 +1,16 @@
 import type { SpawnSyncOptions } from "node:child_process";
-
-import { localDatabaseUrls } from "./environment";
+import { resolve } from "node:path";
+import type { LocalDevEnvironmentTarget } from "./environment";
+import { localDatabaseUrls, resolveLocalProviderConfigEncryptionKeyPath } from "./environment";
 import { runCommand } from "./process";
 import type { LocalDevProfileV1 } from "./profile";
 
 export type LocalApplicationBootstrapStep =
 	| "campus-web-docs"
 	| "app-api-schema"
+	| "execution-control-schema"
 	| "app-api-seed-local-test-user"
-	| "ops-web-dining-schema"
+	| "ops-web-schema"
 	| "ops-web-dining-bootstrap"
 	| "ingestion-control-schema"
 	| "ingestion-control-migrate"
@@ -21,12 +23,19 @@ export interface LocalApplicationBootstrapCommand {
 	step: LocalApplicationBootstrapStep;
 }
 
+type LocalApplicationBootstrapTarget = Exclude<
+	LocalDevEnvironmentTarget,
+	"all" | "internal-portal-collection" | "notice-classifier"
+>;
+
 export function localApplicationBootstrapCommands(
 	repoRoot: string,
 	profile: LocalDevProfileV1,
+	target: LocalApplicationBootstrapTarget | "all" = "all",
 ): LocalApplicationBootstrapCommand[] {
 	const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 	const database = localDatabaseUrls(profile);
+	const providerConfigEncryptionKeyPath = resolveLocalProviderConfigEncryptionKeyPath(repoRoot);
 	const opsWebEnv = {
 		...process.env,
 		DEPLOYMENT_ENVIRONMENT: "local",
@@ -55,11 +64,10 @@ export function localApplicationBootstrapCommands(
 			"--dir",
 			"apps/app-api",
 			"exec",
-			"tsx",
-			"./scripts/run-with-local-env.ts",
-			pnpm,
-			"exec",
-			"tsx",
+			"node",
+			"--env-file-if-exists=.env",
+			"--env-file-if-exists=.env.local",
+			"--import=tsx",
 			script,
 		],
 		command: pnpm,
@@ -67,7 +75,7 @@ export function localApplicationBootstrapCommands(
 		step,
 	});
 
-	return [
+	const commands = [
 		{
 			args: ["--dir", "apps/campus-web", "docs:seed-local"],
 			command: pnpm,
@@ -83,12 +91,29 @@ export function localApplicationBootstrapCommands(
 			step: "campus-web-docs",
 		},
 		appApiCommand("app-api-schema", "./ops/db/schema.ts"),
+		{
+			args: [
+				"run",
+				"./cmd/run-projection-schema",
+				"--mode",
+				"install",
+				"--database-url",
+				database.owner,
+				"--evidence-path",
+				resolve(repoRoot, "var/dev/execution-control-schema.json"),
+				"--provider-config-encryption-key-path",
+				providerConfigEncryptionKeyPath,
+			],
+			command: "go",
+			options: { cwd: resolve(repoRoot, "apps/execution-control") },
+			step: "execution-control-schema",
+		},
 		appApiCommand("app-api-seed-local-test-user", "./ops/db/seed-local-test-user.ts"),
 		{
-			args: ["--dir", "apps/ops-web", "db:apply-dining"],
+			args: ["--dir", "apps/ops-web", "db:apply"],
 			command: pnpm,
 			options: { cwd: repoRoot, env: opsWebEnv },
-			step: "ops-web-dining-schema",
+			step: "ops-web-schema",
 		},
 		{
 			args: ["--dir", "apps/ops-web", "db:bootstrap-dining"],
@@ -118,10 +143,37 @@ export function localApplicationBootstrapCommands(
 			step: "notice-publisher-migrate",
 		},
 	];
+	if (target === "all") {
+		return commands;
+	}
+	const targetSteps: Record<
+		LocalApplicationBootstrapTarget,
+		readonly LocalApplicationBootstrapStep[]
+	> = {
+		core: [
+			"campus-web-docs",
+			"app-api-schema",
+			"execution-control-schema",
+			"app-api-seed-local-test-user",
+		],
+		"ops-web": ["ops-web-schema", "ops-web-dining-bootstrap"],
+		"ingestion-control": ["ingestion-control-schema", "ingestion-control-migrate"],
+		"notice-publisher": ["notice-publisher-migrate"],
+	};
+	const allowed = new Set(targetSteps[target]);
+	return commands.filter(({ step }) => allowed.has(step));
 }
 
-export function bootstrapLocalApplications(repoRoot: string, profile: LocalDevProfileV1): void {
-	for (const { args, command, options } of localApplicationBootstrapCommands(repoRoot, profile)) {
+export function bootstrapLocalApplications(
+	repoRoot: string,
+	profile: LocalDevProfileV1,
+	target: LocalApplicationBootstrapTarget = "core",
+): void {
+	for (const { args, command, options } of localApplicationBootstrapCommands(
+		repoRoot,
+		profile,
+		target,
+	)) {
 		runCommand(command, args, options);
 	}
 }

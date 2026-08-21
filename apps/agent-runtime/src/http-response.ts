@@ -192,6 +192,5 @@ function terminalEnvelopeWire(envelope: PrimaryAgentRunResult["terminalEnvelope"
 		answer_text: envelope.answerText,
 		follow_up_question: envelope.followUpQuestion,
 		reason: envelope.reason,
-		evidence_refs: envelope.evidenceRefs,
 	};
 }

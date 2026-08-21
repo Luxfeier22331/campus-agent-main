@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
@@ -19,13 +18,8 @@ func attachPrimaryAgentProviderConfigForTest(server *Server) {
 func attachAgentAdmissionProviderConfigsForTest(server *Server) {
 	server.providerConfigResolver = staticProviderConfigResolver{
 		providerconfig.KindLLM: primaryAgentProviderConfigSnapshotForTest(),
-		providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
-			providerconfig.KindEmbedding,
-			"https://embedding.example/v1",
-		),
 	}
 	server.providerConfigErr = nil
-	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 }
 
 func withAgentAdmissionSnapshotForTest(
@@ -35,43 +29,12 @@ func withAgentAdmissionSnapshotForTest(
 ) temporalruntime.ExecutePrimaryAgentActivityInput {
 	t.Helper()
 	memoryAllowed := len(input.VisibleToolNames) == 1 && input.VisibleToolNames[0] == personalMemoryRecallToolName
-	run, err := server.runProjectionStore.GetRun(t.Context(), input.RunID)
-	if err != nil {
-		t.Fatalf("load run for admission fixture: %v", err)
-	}
-	wire, err := server.loadExecutionInput(t.Context(), run)
-	if err != nil {
-		t.Fatalf("load execution input for admission fixture: %v", err)
-	}
-	querySHA256, err := server.campusDocsQuerySHA256ForAdmission(wire)
-	if err != nil {
-		t.Fatalf("build Campus Docs retrieval admission query: %v", err)
-	}
-	snapshot, err := server.buildAgentAdmissionSnapshot(
-		t.Context(),
-		memoryAllowed,
-		querySHA256,
-	)
+	snapshot, err := server.buildAgentAdmissionSnapshot(t.Context(), memoryAllowed)
 	if err != nil {
 		t.Fatalf("build agent admission snapshot: %v", err)
 	}
 	input.AdmissionSnapshot = snapshot
-	return withCampusDocsRetrievalForTest(t, input)
-}
-
-func withCampusDocsRetrievalForTest(
-	t *testing.T,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) temporalruntime.ExecutePrimaryAgentActivityInput {
-	t.Helper()
-	input.CampusDocsRetrieval = temporalruntime.CampusDocsRetrievalResult{
-		Evidence: []temporalruntime.CampusDocsEvidence{},
-	}
 	return input
-}
-
-func campusDocsQuerySHA256ForTest(query string) string {
-	return sha256TextRef(strings.TrimSpace(query))
 }
 
 func primaryAgentProviderConfigSnapshotForTest() providerconfig.RuntimeSetting {

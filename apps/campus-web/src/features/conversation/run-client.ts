@@ -40,7 +40,7 @@ const runStatusResponseSchema = z.object({
 const runStepSchema = z.object({
 	completedAt: nullableTimestamp,
 	durationMs: z.number().int().nonnegative().nullable(),
-	phase: z.enum(["queued", "preparing", "retrieving", "generating", "finalizing"]),
+	phase: z.enum(["queued", "preparing", "generating", "finalizing"]),
 	startedAt: nullableTimestamp,
 	status: z.enum(["pending", "running", "completed", "failed", "cancelled"]),
 });
@@ -94,7 +94,7 @@ export interface ChatRunStatus {
 	traceId: string;
 }
 
-export type ChatRunProductPhase = "preparing" | "retrieving" | "generating" | "finalizing";
+export type ChatRunProductPhase = "preparing" | "generating" | "finalizing";
 /** The API may include queued as a scheduling fact; it is not a standalone chat display phase. */
 export type ChatRunStepPhase = "queued" | ChatRunProductPhase;
 export type ChatRunStepStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
@@ -238,7 +238,6 @@ function productEventToStreamEvent(
 		case "execution.phase":
 			if (
 				payload.phase !== "preparing" &&
-				payload.phase !== "retrieving" &&
 				payload.phase !== "generating" &&
 				payload.phase !== "finalizing"
 			) {

@@ -22,4 +22,9 @@ export const profileMemoryPlugin = createAuthPlugin("profile-memory", () => ({
 			view: "memory" as const,
 		},
 	],
+	viewPaths: {
+		settings: {
+			memory: "memory",
+		},
+	},
 }));

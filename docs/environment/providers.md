@@ -20,14 +20,18 @@ status: active
 | 能力 | 配置所有者 | 消费方 | 隔离要求 |
 | --- | --- | --- | --- |
 | LLM | execution-control 当前模型设置 | agent-runtime | Activity 调用读取当前值，不向浏览器返回密钥 |
-| Embedding 连接 | execution-control 当前模型设置 | Campus Docs Embedding Job、在线检索 Activity | Ops Web 只替换 Base URL 和 API key；向量空间由 Campus Docs 合同拥有 |
+| Embedding 连接 | execution-control 当前模型设置 | Campus Docs Embedding Job | Ops Web 只替换 Base URL 和 API key；provider、model 和 transport 由 Campus Docs 固定合同拥有，索引维度和 space 由制品拥有 |
 | 通知分类连接 | execution-control 当前模型设置 | notice-classifier 在线 Job | Job 启动阶段读取一次内部快照；不接收独立模型 Secret，API key 不返回浏览器 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
-Embedding Job 在启动后读取一次当前连接并直接调用 provider；在线检索按准入时冻结的同一设置 hash
-解析连接。系统不为索引构建维护第二份连接配置。具体固定字段由 Ops Web 接口合同和 Campus Docs
-索引实现维护，不在本文复制。
+Embedding Job 在启动后读取一次当前连接并直接调用 provider。系统不为索引构建维护第二份 provider
+配置。Embedding provider 固定为 `openai-compatible`，model 固定为 `Qwen3-Embedding-4B`，transport
+固定为 `embeddings`；设置验证观测到的向量长度不是可编辑索引配置。实际 dimensions、
+`embedding_space_id`、查询指令和向量名来自显式 embedding/index 制品及发布器代码。当前在线
+Agent 不读取 Embedding 连接、Qdrant 或 `campus_docs_serving.current_index`。
+
+具体模型、transport 和 endpoint 由当前模型设置、索引制品与可执行注册表维护，不在本文复制。
 
 通知分类 Job 在启动分类阶段后读取一次 `notice_classifier_provider_snapshot.v1`，直接调用快照中的
 transport。模型名、provider、Base URL 和 API key 由 Ops Web 的独立通知分类模型设置维护；本地
@@ -44,8 +48,8 @@ PostgreSQL 角色按数据所有权、授权范围和迁移边界决定，不按
 
 ### Qdrant
 
-在线查询凭据与索引生命周期管理凭据分离。在线执行只获得查询所需权限，采集、发布、备份和
-恢复使用独立管理边界。
+当前只有 Campus Docs Publisher 使用 Qdrant 凭据创建、校验和清理本次发布的 collection。在线执行
+不访问 Qdrant；备份和恢复仍使用所属管理边界。
 
 ### 对象存储
 

@@ -274,4 +274,41 @@ describe("assistant-ui runtime message actions", () => {
 			signal: expect.any(AbortSignal),
 		});
 	});
+
+	it("ignores reload requests whose parent message only exists in local state", async () => {
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+		await waitFor(() =>
+			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+				"conv_history",
+				expect.any(AbortSignal),
+			),
+		);
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onReload?.("local-user-01");
+		});
+
+		expect(conversationApiMock.deleteTrailingMessages).not.toHaveBeenCalled();
+		expect(conversationApiMock.submitChatRequestStream).not.toHaveBeenCalled();
+	});
+
+	it("ignores edit requests whose parent message only exists in local state", async () => {
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+		await waitFor(() =>
+			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+				"conv_history",
+				expect.any(AbortSignal),
+			),
+		);
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onEdit?.({
+				content: [{ text: "失败后重试", type: "text" }],
+				parentId: "local-user-01",
+			});
+		});
+
+		expect(conversationApiMock.deleteTrailingMessages).not.toHaveBeenCalled();
+		expect(conversationApiMock.submitChatRequestStream).not.toHaveBeenCalled();
+	});
 });

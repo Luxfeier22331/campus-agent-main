@@ -130,7 +130,6 @@ const PUBLIC_EXECUTION_ERROR_CODES = new Set([
 	"request_in_progress",
 	"request_not_found",
 	"request_rejected",
-	"retrieval_lookup_failed",
 	"run_expired",
 	"run_failed",
 	"runtime_invariant_failed",
@@ -180,8 +179,8 @@ export function publicExecutionFailure(input: {
 		["agent_runtime_failed", "provider_config_missing", "provider_unavailable"].includes(errorCode)
 	) {
 		message = "The answer provider is temporarily unavailable.";
-	} else if (["retrieval_lookup_failed", "tool_execution_failed"].includes(errorCode)) {
-		message = "Required campus information could not be retrieved.";
+	} else if (errorCode === "tool_execution_failed") {
+		message = "A runtime tool could not complete.";
 	} else if (errorCode === "context_budget_exceeded") {
 		message = "The conversation is too large to process safely.";
 	} else if (errorCode === "max_turns_exceeded") {

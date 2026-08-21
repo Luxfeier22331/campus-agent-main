@@ -39,6 +39,8 @@ describe("campus web browser test boundaries", () => {
 	it("keeps browser regressions as local-only evidence", () => {
 		const prWorkflow = readFileSync("../../.github/workflows/pr.yml", "utf8");
 		const evidence = readFileSync("../../scripts/ci/evidence.mts", "utf8");
+		const devChatConfig = readFileSync("e2e.dev-chat.config.ts", "utf8");
+		const packageJson = readFileSync("package.json", "utf8");
 
 		expect(prWorkflow).not.toContain("browser-checks:");
 		expect(prWorkflow).not.toContain("Install Chromium headless shell");
@@ -48,5 +50,12 @@ describe("campus web browser test boundaries", () => {
 		expect(evidence).not.toContain('"campus-browser-smoke"');
 		expect(evidence).not.toContain('"campus-browser-full"');
 		expect(evidence).not.toContain('"ops-web-browser"');
+		expect(packageJson).toContain('"test:e2e:dev:chat"');
+		expect(devChatConfig).toContain("local-execution-control-fixture.ts");
+		expect(devChatConfig).toContain("appApiDevVarsPath");
+		expect(devChatConfig).toContain("https://app-api.internal");
+		expect(devChatConfig).toContain("theme-bootstrap.js");
+		expect(devChatConfig).toContain("reuseExistingServer: false");
+		expect(devChatConfig).not.toContain("CAMPUS_WEB_E2E_PREBUILT");
 	});
 });

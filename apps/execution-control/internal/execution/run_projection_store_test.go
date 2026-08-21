@@ -331,13 +331,13 @@ func TestInMemoryRunProjectionStoreFailsRunWithTerminalReason(t *testing.T) {
 		failureRequest.RunID,
 		"conv-fail-selected-tool",
 		failedAt,
-		map[string]any{"failure_kind": "retrieval_unavailable", "status": "failed"},
+		map[string]any{"failure_kind": "worker_unavailable", "status": "failed"},
 	)
 	if _, err := store.FailRunProjection(ctx, conflictingRequest); !errors.Is(err, ErrDurableRunFailureConflict) {
 		t.Fatalf("conflicting failure replay error = %v, want ErrDurableRunFailureConflict", err)
 	}
 	conflictingReason := failureRequest
-	conflictingReason.FailCloseReason = "retrieval_unavailable"
+	conflictingReason.FailCloseReason = "worker_unavailable"
 	if _, err := store.FailRunProjection(ctx, conflictingReason); !errors.Is(err, ErrDurableRunFailureConflict) {
 		t.Fatalf("conflicting fail-close replay error = %v, want ErrDurableRunFailureConflict", err)
 	}

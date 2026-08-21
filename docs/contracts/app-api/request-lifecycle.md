@@ -70,7 +70,7 @@ stream 请求在产品事务持久化且稳定 `run_id` 可供查询、恢复和
 `request.accepted`。该事件不表示 Temporal 已排队或 worker 已开始，app-api 不合成未由持久事件
 证明的 `execution.queued`。随后只转发受类型约束的 `execution.queued`、`execution.running`、
 `execution.phase`、`answer.delta` 和请求终态事件；`execution.phase` 只允许
-`preparing|retrieving|generating|finalizing`。app-api 使用 execution-control 返回的
+`preparing|generating|finalizing`。app-api 使用 execution-control 返回的
 `next_sequence` 跨过不可见内部事件。客户端断开只停止当前连接消费，不自动取消运行；显式取消先写入
 app-api 取消发件箱，再由 reconciler 幂等投递 execution-control。
 

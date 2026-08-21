@@ -50,9 +50,10 @@ internal-portal-collection 直接调用 ingestion-control 的内部解析接口�
 
 ```bash
 pnpm dev:init
-pnpm --dir apps/ops-web dev
-pnpm dev:ops-web-api
-pnpm dev:ops-web-api-fixture
+pnpm --filter ops-web dev:init
+pnpm --filter ops-web dev:api
+pnpm --filter ops-web dev:web
+pnpm --filter ops-web dev:fixture
 pnpm --dir apps/ops-web start
 pnpm --dir apps/ops-web check
 pnpm --dir apps/ops-web test:browser
@@ -61,10 +62,9 @@ pnpm --dir apps/ops-web db:check
 pnpm --dir apps/ops-web db:generate
 ```
 
-`dev` 同时启动 Vite 和 Node API；`dev:ops-web-api` 只启动 Node API，适合让 MCP 或其他本地程序
-直接调用。`dev:ops-web-api-fixture` 只监听 loopback，使用内存凭据服务和固定 fixture
-token，启动时打印 endpoint、token 与测试凭据 ID；它不读取本地真实凭据，也不会改变生产代码或配置。
-使用 MCP 验证 fixture 时，应让 MCP 与服务处于同一网络命名空间，再使用启动输出的 loopback endpoint。
+`dev:api` 和 `dev:web` 分别启动 Node API 与 Vite 页面；`dev:fixture` 只监听 loopback，使用内存凭据服务
+和固定 fixture token，启动时打印 endpoint、token 与测试凭据 ID。它不读取本地真实凭据，也不会改变
+生产代码或配置。
 
 同好群和账号管理页面通过服务端配置的 `OPS_WEB_APP_API_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 调用 app-api；
 前者是 HTTP(S) 根地址，令牌不下发到浏览器。

@@ -61,22 +61,6 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		t.Fatalf("upsert agent result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "campus_docs.retrieve:result:1",
-		StepID:               "campus_docs.retrieve",
-		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "campus_docs.retrieve", 1),
-		Status:               "completed",
-		ResultKind:           "campus_docs_retrieval",
-		ProjectionRef:        "projection://runs/run-temporal-derived-eval/campus-docs/retrieval",
-		CreatedAt:            now,
-		PayloadSchemaVersion: "step-result-projection-v1",
-		SanitizedPayload: map[string]any{
-			"activity_attempt": 1,
-		},
-	}); err != nil {
-		t.Fatalf("upsert Campus Docs retrieval result: %v", err)
-	}
-	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "finalization.write:result:1",
 		StepID:               "finalization.write",
 		RunID:                run.RunID,
@@ -156,10 +140,10 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
 	toolSequence, _ := planning["tool_sequence"].([]any)
 	if len(toolSequence) != 0 {
-		t.Fatalf("Campus Docs retrieval must not appear as a model tool: %#v", planning["tool_sequence"])
+		t.Fatalf("tool sequence = %#v, want no tool calls", planning["tool_sequence"])
 	}
-	if steps, _ := planning["planned_steps"].([]any); len(steps) != 3 ||
-		steps[0] != "campus_docs.retrieve" || steps[1] != "agent.primary" || steps[2] != "finalization.write" {
+	if steps, _ := planning["planned_steps"].([]any); len(steps) != 2 ||
+		steps[0] != "agent.primary" || steps[1] != "finalization.write" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 	memory := expectRecord(t, evalProjection["memory"], "agent_runtime_eval_projection.memory")
@@ -220,23 +204,6 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsRetrievalOutOfToolTraje
 	}); err != nil {
 		t.Fatalf("upsert agent result: %v", err)
 	}
-	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "campus_docs.retrieve:result:1",
-		StepID:               "campus_docs.retrieve",
-		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "campus_docs.retrieve", 1),
-		Status:               "completed",
-		ResultKind:           "campus_docs_retrieval",
-		ProjectionRef:        "projection://runs/run-temporal-derived-history-eval/campus-docs/retrieval",
-		CreatedAt:            now,
-		PayloadSchemaVersion: "step-result-projection-v1",
-		SanitizedPayload: map[string]any{
-			"activity_attempt": 1,
-		},
-	}); err != nil {
-		t.Fatalf("upsert Campus Docs retrieval result: %v", err)
-	}
-
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
@@ -255,10 +222,10 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsRetrievalOutOfToolTraje
 	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
 	toolSequence, _ := planning["tool_sequence"].([]any)
 	if len(toolSequence) != 0 {
-		t.Fatalf("Campus Docs retrieval must not appear as a model tool: %#v", planning["tool_sequence"])
+		t.Fatalf("tool sequence = %#v, want no tool calls", planning["tool_sequence"])
 	}
 	steps, _ := planning["planned_steps"].([]any)
-	if len(steps) != 2 || steps[0] != "campus_docs.retrieve" || steps[1] != "agent.primary" {
+	if len(steps) != 1 || steps[0] != "agent.primary" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 }

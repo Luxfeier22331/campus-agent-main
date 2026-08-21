@@ -551,15 +551,8 @@ describe("chat durable run routes", () => {
 					{
 						completedAt: "2026-06-04T01:02:05.000Z",
 						durationMs: 1_000,
-						phase: "retrieving",
-						startedAt: "2026-06-04T01:02:04.000Z",
-						status: "completed",
-					},
-					{
-						completedAt: "2026-06-04T01:02:05.000Z",
-						durationMs: 0,
 						phase: "generating",
-						startedAt: "2026-06-04T01:02:05.000Z",
+						startedAt: "2026-06-04T01:02:04.000Z",
 						status: "completed",
 					},
 					{
@@ -602,7 +595,6 @@ describe("chat durable run routes", () => {
 			steps: [
 				expect.objectContaining({ phase: "queued" }),
 				expect.objectContaining({ phase: "preparing" }),
-				expect.objectContaining({ phase: "retrieving" }),
 				expect.objectContaining({ phase: "generating" }),
 				expect.objectContaining({ phase: "finalizing" }),
 			],

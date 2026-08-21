@@ -29,7 +29,6 @@ const DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY = {
 const RUNTIME_RUN_STEP_PHASES: RuntimeRunStepPhase[] = [
 	"queued",
 	"preparing",
-	"retrieving",
 	"generating",
 	"finalizing",
 ];
@@ -474,6 +473,10 @@ export function buildRuntimeRunService(input: {
 		);
 	}
 
+	function hasDurableProjection(owned: RuntimeRunOwnershipRecord): boolean {
+		return owned.admissionStatus === "admitted";
+	}
+
 	function assertSequenceAdvances(
 		lastSequence: number,
 		event: Pick<RuntimeRunEventProjection, "sequence">,
@@ -489,10 +492,10 @@ export function buildRuntimeRunService(input: {
 		return event.sequence;
 	}
 
-	async function listEvents(eventsInput: {
+	async function listDurableEventPage(eventsInput: {
 		afterSequence?: number;
-		principal: ResolvedAppPrincipal;
-		runId: string;
+		owned: RuntimeRunOwnershipRecord;
+		run: ExecutionControlRun;
 		signal?: AbortSignal;
 		waitMs?: number;
 	}): Promise<{
@@ -500,26 +503,19 @@ export function buildRuntimeRunService(input: {
 		nextSequence: number;
 		run: RuntimeRunSummary;
 	}> {
-		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
-		const run = await input.executionRuntime.getRun({
-			runId: owned.runId,
-			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
-			traceId: owned.traceId,
-		});
-		assertRunMatchesOwnership(owned, run);
 		const page = await input.executionRuntime.listRunEvents({
 			...(eventsInput.afterSequence === undefined
 				? {}
 				: { afterSequence: eventsInput.afterSequence }),
-			runId: owned.runId,
+			runId: eventsInput.owned.runId,
 			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
-			traceId: owned.traceId,
+			traceId: eventsInput.owned.traceId,
 			...(eventsInput.waitMs === undefined ? {} : { waitMs: eventsInput.waitMs }),
 		});
 		let lastSequence = eventsInput.afterSequence ?? 0;
 		const browserEvents: RuntimeRunEventProjection[] = [];
 		for (const event of page.events) {
-			if (event.runId !== owned.runId) {
+			if (event.runId !== eventsInput.owned.runId) {
 				throw new ExecutionControlTransportError({
 					code: "execution_control_invalid_response",
 					message: "Execution durable run event identity does not match requested run.",
@@ -544,8 +540,44 @@ export function buildRuntimeRunService(input: {
 		return {
 			events: browserEvents,
 			nextSequence: page.nextSequence,
-			run: toRunSummary(run),
+			run: toRunSummary(eventsInput.run),
 		};
+	}
+
+	async function listEvents(eventsInput: {
+		afterSequence?: number;
+		principal: ResolvedAppPrincipal;
+		runId: string;
+		signal?: AbortSignal;
+		waitMs?: number;
+	}): Promise<{
+		events: RuntimeRunEventProjection[];
+		nextSequence: number;
+		run: RuntimeRunSummary;
+	}> {
+		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
+		if (!hasDurableProjection(owned)) {
+			return {
+				events: [],
+				nextSequence: eventsInput.afterSequence ?? 0,
+				run: toLocalRunSummary(owned),
+			};
+		}
+		const run = await input.executionRuntime.getRun({
+			runId: owned.runId,
+			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
+			traceId: owned.traceId,
+		});
+		assertRunMatchesOwnership(owned, run);
+		return listDurableEventPage({
+			...(eventsInput.afterSequence === undefined
+				? {}
+				: { afterSequence: eventsInput.afterSequence }),
+			owned,
+			run,
+			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
+			...(eventsInput.waitMs === undefined ? {} : { waitMs: eventsInput.waitMs }),
+		});
 	}
 
 	return {
@@ -610,12 +642,7 @@ export function buildRuntimeRunService(input: {
 		},
 		async getStatus(statusInput) {
 			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);
-			if (
-				owned.status !== "accepted" ||
-				owned.admissionStatus === "pending_admission" ||
-				owned.admissionStatus === "cancelled" ||
-				(owned.admissionStatus === "dispatching" && owned.cancelOutboxStatus !== "not_requested")
-			) {
+			if (owned.status !== "accepted" || !hasDurableProjection(owned)) {
 				return { run: toLocalRunSummary(owned) };
 			}
 			const run = await input.executionRuntime.getRun({
@@ -628,12 +655,7 @@ export function buildRuntimeRunService(input: {
 		listEvents,
 		async listSteps(stepsInput) {
 			const owned = await requireOwnedRun(stepsInput.principal, stepsInput.runId);
-			if (
-				owned.status !== "accepted" ||
-				owned.admissionStatus === "pending_admission" ||
-				owned.admissionStatus === "cancelled" ||
-				(owned.admissionStatus === "dispatching" && owned.cancelOutboxStatus !== "not_requested")
-			) {
+			if (!hasDurableProjection(owned)) {
 				return {
 					run: toLocalRunSummary(owned),
 					steps: RUNTIME_RUN_STEP_PHASES.map((phase) => ({
@@ -650,14 +672,14 @@ export function buildRuntimeRunService(input: {
 				traceId: owned.traceId,
 			});
 			assertRunMatchesOwnership(owned, run);
-			const eventTimeline = await listEvents({
+			const eventTimeline = await listDurableEventPage({
 				afterSequence: 0,
-				principal: stepsInput.principal,
-				runId: owned.runId,
+				owned,
+				run,
 			});
 			return {
-				run: toRunSummary(run),
-				steps: deriveRunSteps(eventTimeline.events, toRunSummary(run)),
+				run: eventTimeline.run,
+				steps: deriveRunSteps(eventTimeline.events, eventTimeline.run),
 			};
 		},
 		async *subscribeEvents(eventsInput) {
@@ -680,6 +702,9 @@ export function buildRuntimeRunService(input: {
 					if (isTerminalRunEvent(event)) {
 						return;
 					}
+				}
+				if (result.run.status === "pending_admission") {
+					return;
 				}
 				if (isTerminalRunPhase(result.run.phase)) {
 					return;

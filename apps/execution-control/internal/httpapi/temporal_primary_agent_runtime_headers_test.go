@@ -56,7 +56,6 @@ func TestCallAgentRuntimeExecutionTraceHeaders(t *testing.T) {
 				"hello",
 				providerconfig.RuntimeSetting{},
 				nil,
-				temporalruntime.CampusDocsRetrievalResult{Evidence: []temporalruntime.CampusDocsEvidence{}},
 				server.primaryAgentRuntimeLimits(),
 				1,
 			)

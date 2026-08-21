@@ -8,6 +8,9 @@ import (
 
 func TestRuntimeUsesFixedRuntimePolicy(t *testing.T) {
 	t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
+	t.Setenv("HOST", "")
+	t.Setenv("PORT", "")
+	t.Setenv("PROVIDER_CONFIG_ENCRYPTION_KEY_FILE", "")
 	cfg, err := loadRuntimeFromTestEnv(t)
 	if err != nil {
 		t.Fatalf("load runtime: %v", err)
@@ -21,7 +24,7 @@ func TestRuntimeUsesFixedRuntimePolicy(t *testing.T) {
 	if cfg.TemporalWorkflowExecutionTimeoutSeconds != 900 {
 		t.Fatalf("workflow timeout = %d", cfg.TemporalWorkflowExecutionTimeoutSeconds)
 	}
-	if cfg.ProviderConfigEncryptionKeyPath != fixedProviderConfigEncryptionKeyPath {
+	if cfg.ProviderConfigEncryptionKeyPath != defaultProviderConfigEncryptionKeyPath {
 		t.Fatalf("provider encryption key path = %q", cfg.ProviderConfigEncryptionKeyPath)
 	}
 	if cfg.MaxConcurrentAnswers != 8 || cfg.QueueCapacity != 24 || cfg.QueueTimeoutMS != 3_000 {
@@ -32,6 +35,43 @@ func TestRuntimeUsesFixedRuntimePolicy(t *testing.T) {
 	}
 	if cfg.AgentRuntimeDeadlineMS != 90_000 || cfg.AgentRuntimeMaxOutputTokens != 2_048 {
 		t.Fatalf("unexpected agent limits: %#v", cfg)
+	}
+}
+
+func TestRuntimeUsesConfiguredHostPort(t *testing.T) {
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
+	t.Setenv("HOST", "127.0.0.1")
+	t.Setenv("PORT", "27151")
+
+	cfg, err := loadRuntimeFromTestEnv(t)
+	if err != nil {
+		t.Fatalf("load runtime: %v", err)
+	}
+	if cfg.Host != "127.0.0.1" || cfg.Port != 27151 {
+		t.Fatalf("configured HTTP binding = %s:%d", cfg.Host, cfg.Port)
+	}
+}
+
+func TestRuntimeUsesConfiguredProviderEncryptionKeyPath(t *testing.T) {
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
+	t.Setenv("PROVIDER_CONFIG_ENCRYPTION_KEY_FILE", " /tmp/provider-config-encryption.key ")
+
+	cfg, err := loadRuntimeFromTestEnv(t)
+	if err != nil {
+		t.Fatalf("load runtime: %v", err)
+	}
+	if cfg.ProviderConfigEncryptionKeyPath != "/tmp/provider-config-encryption.key" {
+		t.Fatalf("provider encryption key path = %q", cfg.ProviderConfigEncryptionKeyPath)
+	}
+}
+
+func TestRuntimeRejectsGatewayPortWithoutRoomForAdminListeners(t *testing.T) {
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "local")
+	t.Setenv("PORT", "65534")
+
+	_, err := loadRuntimeFromTestEnv(t)
+	if err == nil || !strings.Contains(err.Error(), "PORT must be between") {
+		t.Fatalf("error = %v, want invalid gateway port", err)
 	}
 }
 

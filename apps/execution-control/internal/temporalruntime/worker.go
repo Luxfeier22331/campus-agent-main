@@ -57,10 +57,6 @@ type ContextActivities interface {
 }
 
 type AgentActivities interface {
-	RetrieveCampusDocsEvidenceActivity(
-		context.Context,
-		RetrieveCampusDocsEvidenceActivityInput,
-	) (CampusDocsRetrievalResult, error)
 	ExecutePrimaryAgentActivity(
 		context.Context,
 		ExecutePrimaryAgentActivityInput,
@@ -275,10 +271,6 @@ func NewAgentActivityWorkerWithOptions(
 	}
 	options.Interceptors = append(options.Interceptors, &ActivityFailureSanitizer{})
 	agentWorker := worker.New(temporalClient, agentQueue, options)
-	agentWorker.RegisterActivityWithOptions(
-		activities.RetrieveCampusDocsEvidenceActivity,
-		activityRegisterOptions(RetrieveCampusDocsEvidenceActivityName),
-	)
 	agentWorker.RegisterActivityWithOptions(
 		activities.ExecutePrimaryAgentActivity,
 		activityRegisterOptions(ExecutePrimaryAgentActivityName),

@@ -120,7 +120,7 @@ export interface ChatRequestStreamEvent {
 		occurredAt: string;
 		requestId: string;
 		runId?: string | null;
-		phase?: "finalizing" | "generating" | "preparing" | "retrieving";
+		phase?: "finalizing" | "generating" | "preparing";
 		sequence?: number;
 		status: string;
 		traceId: string;

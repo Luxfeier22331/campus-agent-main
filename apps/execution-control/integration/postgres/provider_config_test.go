@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/schemamigrations"
@@ -146,6 +147,11 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			status.Settings[providerconfig.KindNoticeClassifier] == nil {
 			t.Fatalf("configured model settings = %#v", status.Settings)
 		}
+		for kind, setting := range status.Settings {
+			if setting.UpdatedAt.Location() != time.UTC || setting.LatestValidation.ValidatedAt.Location() != time.UTC {
+				t.Fatalf("%s setting timestamps are not UTC: %#v", kind, setting)
+			}
+		}
 
 		ownerConn := connect(t, ownerURL)
 		defer closeConn(t, ownerConn)
@@ -228,6 +234,38 @@ func testProviderConfig(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("setting after schema drift = %#v error=%v", resolved, err)
 		}
 	})
+
+	t.Run("stored secrets require the matching encryption key", func(t *testing.T) {
+		_, _, runtimeURL, keyring := newProviderDatabase(t, harness)
+		store := newProviderStore(t, runtimeURL, keyring)
+		_, err := store.Put(t.Context(), "ops:integration", providerconfig.RuntimeSetting{
+			APIKey: "sk-existing", BaseURL: "https://provider.integration.example/v1", Kind: providerconfig.KindLLM,
+			Model: "existing-model", Provider: "openai-compatible", Transport: "responses",
+		}, providerconfig.ValidationResult{Message: "passed", Status: "passed"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.StoredSecretsCheck(t.Context()); err != nil {
+			t.Fatalf("check stored secrets with matching encryption key: %v", err)
+		}
+		mismatchedKey := make([]byte, 32)
+		for index := range mismatchedKey {
+			mismatchedKey[index] = byte(0xb0 + index)
+		}
+		mismatchedCipher, err := providerconfig.NewSecretCipher(mismatchedKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mismatchedStore, err := providerconfig.NewStore(t.Context(), runtimeURL, mismatchedCipher)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer mismatchedStore.Close()
+		if err := mismatchedStore.StoredSecretsCheck(t.Context()); err == nil ||
+			!strings.Contains(err.Error(), "decrypt stored llm model setting") {
+			t.Fatalf("stored secrets mismatch error = %v", err)
+		}
+	})
 }
 
 func newProviderDatabase(
@@ -296,6 +334,19 @@ func writeIntegrationProviderSecrets(t *testing.T) (keyringPath, encryptionKeyPa
 		t.Fatalf("write provider encryption key: %v", err)
 	}
 	return keyringPath, encryptionKeyPath
+}
+
+func writeIntegrationEncryptionKey(t *testing.T, offset byte) string {
+	t.Helper()
+	key := make([]byte, 32)
+	for index := range key {
+		key[index] = offset + byte(index)
+	}
+	path := filepath.Join(t.TempDir(), "encryption.key")
+	if err := os.WriteFile(path, []byte(base64.StdEncoding.EncodeToString(key)), 0o600); err != nil {
+		t.Fatalf("write provider encryption key: %v", err)
+	}
+	return path
 }
 
 func integrationEncryptionKey() []byte {

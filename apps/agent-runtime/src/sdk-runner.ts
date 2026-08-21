@@ -8,7 +8,6 @@ import {
 	type Tool,
 	tool,
 } from "@openai/agents";
-import { z } from "zod";
 import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
@@ -32,19 +31,31 @@ const emptyParametersSchema = {
 	required: [],
 };
 
-const primaryAgentTerminalOutputSchema = z.object({
-	kind: z.enum([
-		"answer",
-		"clarification_required",
-		"out_of_scope",
-		"policy_refusal",
-		"unsupported_by_evidence",
-	]),
-	answerText: z.string().optional(),
-	followUpQuestion: z.string().optional(),
-	reason: z.string().optional(),
-	evidenceRefs: z.array(z.string().min(1)).optional(),
-});
+const primaryAgentTerminalOutputSchema = {
+	type: "json_schema",
+	name: "primary_agent_terminal_output",
+	strict: true,
+	schema: {
+		type: "object",
+		additionalProperties: false,
+		properties: {
+			kind: {
+				type: "string",
+				enum: [
+					"answer",
+					"clarification_required",
+					"out_of_scope",
+					"policy_refusal",
+					"unsupported_by_evidence",
+				],
+			},
+			answerText: { type: "string" },
+			followUpQuestion: { type: "string" },
+			reason: { type: "string" },
+		},
+		required: ["kind", "answerText", "followUpQuestion", "reason"],
+	},
+} as const satisfies AgentOutputType;
 
 interface AgentSdkContext {
 	runId: string;

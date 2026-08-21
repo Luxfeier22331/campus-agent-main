@@ -53,12 +53,12 @@ source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同�
 ### 初始化与认证
 
 ```bash
-pnpm dev:init
+pnpm --filter internal-portal-collection dev:init
 pnpm internal-portal:auth:pull
 pnpm internal-portal:auth:check
 ```
 
-`dev:init` 启动本地 RustFS、确保共享 source bucket 存在，并生成对象存储和本地 PostgreSQL 配置。
+初始化命令启动或校验本地 RustFS、确保共享 source bucket 存在，并生成采集任务的对象存储配置。
 `internal-portal:auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用
 ingestion-control 凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
 本地通知命令随后直接使用拉取到的 TGC，不需要后台编排器。

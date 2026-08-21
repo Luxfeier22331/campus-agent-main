@@ -114,13 +114,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: qdrant
-      ports:
-        - protocol: TCP
-          port: 6333
-    - to:
-        - podSelector:
-            matchLabels:
               cnpg.io/cluster: campus-agent-postgres
       ports:
         - protocol: TCP

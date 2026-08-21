@@ -19,9 +19,6 @@ func projectedPlanningForEval(results []execution.StepResultProjection) map[stri
 
 func projectedPlanningStepsFromRuntimeResults(results []execution.StepResultProjection) []string {
 	steps := []string{}
-	if hasStepResult(results, "campus_docs.retrieve") {
-		appendUniqueProjectionString(&steps, "campus_docs.retrieve")
-	}
 	if hasStepResult(results, "agent.primary") {
 		appendUniqueProjectionString(&steps, "agent.primary")
 	}

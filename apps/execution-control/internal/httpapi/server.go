@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -27,7 +26,6 @@ type Server struct {
 	admission                 *admission.Controller
 	lifecycle                 *lifecycle.Registry
 	logger                    *slog.Logger
-	campusDocsIndexStore      campusdocs.IndexStore
 	runProjectionStore        execution.RunProjectionStore
 	runProjectionStoreErr     error
 	executionInputLoader      execution.InputLoader
@@ -36,8 +34,6 @@ type Server struct {
 	personalMemoryErr         error
 	personalMemoryStateStore  memoryruntime.StateStore
 	personalMemoryStateErr    error
-	campusDocsRetriever       campusDocsRetriever
-	campusDocsRetrievalErr    error
 	providerConfigResolver    providerconfig.Resolver
 	providerConfigErr         error
 	temporalStarter           temporalruntime.ChatWorkflowStarter
@@ -71,7 +67,6 @@ func NewServerWithDependencies(
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	registry := lifecycle.NewRegistry()
-	campusDocsIndexStore := campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
 	providerConfigResolver, providerConfigErr := providerconfig.NewResolver(
 		context.Background(),
@@ -85,14 +80,6 @@ func NewServerWithDependencies(
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
 		personalMemoryExecutor = newFencedPersonalMemoryExecutor(personalMemoryExecutor, personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
 	}
-	campusDocsClient, campusDocsClientErr := newCampusDocsQdrantClient(
-		cfg,
-		providerConfigResolver,
-	)
-	var campusDocsRetriever campusDocsRetriever
-	if campusDocsClientErr == nil {
-		campusDocsRetriever = newQdrantCampusDocsRetriever(campusDocsClient)
-	}
 	executionInputLoader, executionInputErr := execution.NewInputLoader(cfg)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
@@ -101,7 +88,6 @@ func NewServerWithDependencies(
 		admission:                admissionController,
 		lifecycle:                registry,
 		logger:                   logger,
-		campusDocsIndexStore:     campusDocsIndexStore,
 		runProjectionStore:       runProjectionStore,
 		runProjectionStoreErr:    runProjectionStoreErr,
 		executionInputLoader:     executionInputLoader,
@@ -110,8 +96,6 @@ func NewServerWithDependencies(
 		personalMemoryErr:        personalMemoryErr,
 		personalMemoryStateStore: personalMemoryStateStore,
 		personalMemoryStateErr:   personalMemoryStateErr,
-		campusDocsRetriever:      campusDocsRetriever,
-		campusDocsRetrievalErr:   campusDocsClientErr,
 		providerConfigResolver:   providerConfigResolver,
 		providerConfigErr:        providerConfigErr,
 		temporalStarter:          temporalStarter,
@@ -193,13 +177,6 @@ func normalizeServerConfig(cfg config.Config) config.Config {
 	return cfg
 }
 
-func newCampusDocsQdrantClient(
-	cfg config.Config,
-	configResolver providerconfig.Resolver,
-) (campusDocsQdrantClient, error) {
-	return buildCampusDocsQdrantClient(cfg, configResolver)
-}
-
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
 	if strings.TrimSpace(cfg.TemporalAddress) == "" && strings.TrimSpace(cfg.TemporalNamespace) == "" {
 		return nil, temporalruntime.ErrTemporalStarterNotConfigured
@@ -256,7 +233,6 @@ func (s *Server) StartDraining() {
 }
 
 func (s *Server) Shutdown(_ context.Context) error {
-	closeCampusDocsIndexStore(s.campusDocsIndexStore)
 	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
@@ -270,12 +246,6 @@ func (s *Server) Shutdown(_ context.Context) error {
 		closer.Close()
 	}
 	return nil
-}
-
-func closeCampusDocsIndexStore(store campusdocs.IndexStore) {
-	if closer, ok := store.(interface{ Close() }); ok {
-		closer.Close()
-	}
 }
 
 func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) {

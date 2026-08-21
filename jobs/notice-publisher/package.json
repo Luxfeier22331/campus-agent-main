@@ -6,6 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"backfill-attachment-links": "tsx src/cli.ts backfill-attachment-links",
+		"dev:init": "pnpm --dir ../.. exec tsx scripts/dev/cli.ts init --target notice-publisher",
 		"migrate": "tsx src/cli.ts migrate",
 		"publish": "tsx src/cli.ts publish",
 		"test": "vitest run --exclude 'test/**/*.integration.test.ts'",

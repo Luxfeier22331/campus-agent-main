@@ -9,7 +9,7 @@ import {
 import {
 	destroyLocalDevelopment,
 	diagnoseLocalDevelopment,
-	initializeLocalDevelopment,
+	initializeLocalDevelopmentTarget,
 } from "./lifecycle";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -19,7 +19,7 @@ const args = process.argv.slice(3);
 try {
 	switch (command) {
 		case "init":
-			initializeLocalDevelopment(repoRoot);
+			initializeLocalDevelopmentTarget(repoRoot, readInitTarget(args));
 			break;
 		case "doctor": {
 			const diagnosis = diagnoseLocalDevelopment(repoRoot);
@@ -69,6 +69,23 @@ try {
 function readFlag(values: string[], flag: string): string | undefined {
 	const index = values.indexOf(flag);
 	return index >= 0 ? values[index + 1]?.trim() || undefined : undefined;
+}
+
+function readInitTarget(values: string[]): Parameters<typeof initializeLocalDevelopmentTarget>[1] {
+	const value = readFlag(values, "--target") ?? "core";
+	if (
+		value !== "core" &&
+		value !== "ops-web" &&
+		value !== "ingestion-control" &&
+		value !== "notice-publisher" &&
+		value !== "internal-portal-collection" &&
+		value !== "notice-classifier"
+	) {
+		throw new Error(
+			"Invalid init target. Expected core, ops-web, ingestion-control, notice-publisher, internal-portal-collection, or notice-classifier.",
+		);
+	}
+	return value;
 }
 
 function formatInstanceDiagnosis(

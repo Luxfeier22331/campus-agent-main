@@ -77,12 +77,7 @@ task-queue 字段。
 
 `personal_memory_recall_allowed` 是当前 v5 私有 wire 字段，表示由个人记忆生命周期和就绪状态派生、
 随本轮冻结的内部可用性，不表示用户同意状态或逐次读取授权。浏览器和用户文案不得暴露该字段、
-recall 工具或执行结果。matched personal memory 可以支持用户自身事实或偏好，但不能支持机构事实、
-替代 Campus Docs evidence 或成为公开来源。
-
-机构文档不作为工具开放。execution-control 为每个有效请求冻结 PostgreSQL 当前索引查询绑定、本轮
-查询 hash 和 `embedding` 模型设置 hash，并由 `RetrieveCampusDocsEvidenceActivity` 在模型调用前
-返回有界检索结果。app-api 不选择或校验索引，模型也不接收检索参数。
+recall 工具或执行结果。matched personal memory 只支持用户自身事实或偏好，不推导机构事实。
 
 ## 工具运行时指纹
 
@@ -96,21 +91,10 @@ execution-control 在调用 agent-runtime 前校验本地指纹并把完整准�
 并在 Finalization 前同时核对准入、已保存结果和本地指纹。任一阶段不匹配都以
 `agent_runtime_fingerprint_mismatch` 失败关闭，不能调用模型、持久化成功结果或发布产品终态。
 
-Campus Docs 检索使用同一运行的不可变准入快照；物理 collection、dense/embedding/sparse 查询
-绑定、本轮查询 hash 和 `embedding` 模型设置 hash 的冻结与执行约束见
-`../architecture/system/retrieval-serving.md`。
+## Agent 结果传递
 
-## 检索与结果传递
-
-`CampusDocsRetrievalResult` 是 Retrieval Activity 的有界结果，绑定本轮准入和查询，只包含 evidence
-数组，最多 8 条，正文合计最多 4000 个 Unicode 字符。workflow 把最小 `campus_docs_evidence` 数组传给 Primary Agent，并
-把原检索结果和 Agent result 分别传给 Finalization；这些内容进入 Temporal history。普通 StepResult
-投影只保存准入与查询 hash、collection、计数和阶段耗时。
-
-Retrieval Activity 重试时重新执行只读 embedding/Qdrant 查询，不从 PostgreSQL 读取或重放 evidence
-正文。每个有效请求都执行该 Activity；成功后产生唯一检索 result 并继续 Agent，失败则关闭 workflow。
-空与非空 evidence 只表达是否选出可引用证据，不增加状态字段。StepResult 自身首写不可变，终态
-写入 fence 及 completed 后仅 `memory.append` 可写的例外由 `../data/durable-runtime.md` 定义。
+StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memory.append` 可写的例外由
+`../data/durable-runtime.md` 定义。
 
 `personal_memory_recall` 是 Primary Agent 同一次 SDK run 内的有界工具调用，不使用独立 memory ref
 或独立 payload。它的完整结果只进入有界 Agent result；Primary Agent invocation receipt 约束整个 SDK
@@ -124,7 +108,7 @@ run 不得因 Activity 重投递而再次执行。已有 `started` 或 `complete
 Activity。
 
 Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，不携带冻结输入正文。Temporal history
-另携带有界 Campus Docs 检索结果与 Agent Activity result；app-api 产品终态及其 `finalization_fingerprint` 是跨系统
+携带有界 Agent Activity result；app-api 产品终态及其 `finalization_fingerprint` 是跨系统
 重复完成、取消和较晚结果的最终裁决；execution-control 的终态投影必须与该结果一致，不能先向浏览器
 发布相冲突的终态。
 
@@ -152,10 +136,8 @@ Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_
 trace 标识；可选字段包括观测摘要、工作流调用链摘要和阶段耗时。它不返回路由标签、外部平台引用
 或逐请求遥测控制项。
 
-对于 Campus Docs 答案，execution-control 根据绑定本轮 run 的检索结果校验每个终态依据引用，并派生
-`result.sources`；每条公开 source 只包含 `document_id`、`root_unit_ids`、`section_ref`、
-`section_title`、`snippet`、`title`、`version_id`、`version_slug` 和 `version_label`。`section_ref`
-必须指向该版本的公开 permalink。该阶段不调用模型，也不改写答案。
+当前在线链路不生成机构知识来源；若终态携带未接入能力的来源引用，Finalization 拒绝该终态。
+未来来源能力接入时，必须由对应可执行合同定义来源校验和公开字段。
 
 Finalization Activity 必须通过一次 `FinalizeRunProjection` 提交 completed Step、Attempt、Result 与
 run 四元组；不得拆成独立投影写入与 run completion。存储以单次 CAS 原子提交四元组、释放

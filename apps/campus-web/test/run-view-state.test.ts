@@ -71,7 +71,7 @@ describe("campus run view state", () => {
 		const next = reduceCampusRunViewState(acceptedState(), {
 			event: event("execution.phase", {
 				occurredAt: RUN_TIMES.startedAt,
-				phase: "retrieving",
+				phase: "generating",
 				sequence: 2,
 			}),
 			operationId: 7,
@@ -80,7 +80,7 @@ describe("campus run view state", () => {
 
 		expect(next).toMatchObject({
 			connection: "live",
-			phase: "retrieving",
+			phase: "generating",
 			sequence: 2,
 			startedAt: RUN_TIMES.startedAt,
 			status: "running",

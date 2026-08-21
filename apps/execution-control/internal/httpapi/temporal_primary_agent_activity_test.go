@@ -95,10 +95,6 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if seenBody["run_id"] != "run-primary-agent-001" {
 		t.Fatalf("agent runtime request = %#v", seenBody)
 	}
-	evidence, exists := seenBody["campus_docs_evidence"].([]any)
-	if !exists || len(evidence) != 0 {
-		t.Fatalf("Campus Docs evidence = %#v, want empty array", seenBody["campus_docs_evidence"])
-	}
 	providerConfig, ok := seenBody["provider_config"].(map[string]any)
 	if !ok {
 		t.Fatalf("agent runtime request missing provider_config: %#v", seenBody)

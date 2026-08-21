@@ -35,34 +35,19 @@ collection。
 `campus_docs_reader.v3` 是已经清洗的显示正文，按原始阅读顺序保存 heading、paragraph、list、
 blockquote 和 table。publisher 只消费来源清单选中的当前 reader。
 
-## Agent 与检索
+## Agent 与离线知识数据
 
 ### 模型可见工具
 
-当前运行中通过 `tools.v6.json` 和冻结准入策略向 Primary Agent 暴露的函数工具。Campus Docs 检索不是模型工具。
-
-### Campus Docs Retrieval Admission
-
-execution-control 在 workflow 创建前为每个有效请求冻结的检索输入，包含当前 collection 的查询绑定、
-查询 hash 和 embedding 配置 hash。它不表达“是否检索”，也不选择文档类别、collection 或版本。
-
-### Campus Docs Retrieval Result
-
-`CampusDocsRetrievalResult` 是 `RetrieveCampusDocsEvidenceActivity` 的有界结果，只包含 evidence
-数组。空数组表示没有选出证据，非空数组表示有可引用证据；不另设 mode 或 status。完整正文进入
-Temporal history，普通投影只携带 hash、collection、计数和阶段耗时。
-
-### Evidence 引用
-
-`evidence://` 标识本轮 Campus Docs 检索结果中的一条已验证依据。Primary Agent 只能引用传入的
-`campus_docs_evidence` 中出现的标识；Finalization 用 workflow 独立传入的检索结果校验并派生公开来源。
+当前运行中通过 `tools.v6.json` 和冻结准入策略向 Primary Agent 暴露的函数工具。当前没有机构知识
+检索工具；离线索引存在不表示模型已经获得知识上下文。
 
 ### 工具调用上限
 
 一次 SDK run 允许的最大真实函数工具调用次数。它与检索候选数量、Temporal retry 和 SDK
 `maxTurns` 分开计算。
 
-## 索引与检索
+## 索引与检索制品
 
 ### 阶段定义
 
@@ -71,8 +56,8 @@ publisher 代码内分别维护 `CHUNK_SET_DEFINITION`、`EMBEDDING_SPACE` 和
 向量名、查询指令、距离和 point schema。provider、endpoint、API key、model alias、批大小和并发数
 属于执行连接或调用参数，不进入内容寻址 manifest。
 
-execution-control 代码拥有当前查询使用的向量名、dimensions 和查询指令；它不从 PostgreSQL 或环境
-变量读取第二份定义。发布端与查询端的当前实现必须一起修改和验证。
+当前没有在线查询消费者；上述定义只由离线制品构建和发布实现使用，不从 PostgreSQL 或环境变量读取
+第二份定义。
 
 ### Collection 身份
 
@@ -100,31 +85,16 @@ section 内按 reader 正文元素或表格逻辑行形成，记录覆盖的全�
 
 ### Point
 
-写入 Qdrant 的检索单元。point 使用确定性 UUID，payload 只包含 schema、chunk、document、section、
+写入 Qdrant 的离线检索单元。point 使用确定性 UUID，payload 只包含 schema、chunk、document、section、
 版本 ID/slug/label、`root_unit_ids`、正文、正文 SHA-256 和检索文本 SHA-256，并同时保存 `dense` 与
-`sparse` named vector。检索文本由文档标题、完整 heading 路径和正文组成；公开 evidence 只使用正文。
-
-### 候选结果
-
-Qdrant 返回且带查询分数、尚未经过 payload 校验、chunk 去重和总预算裁剪的内部 point。混合查询的
-分数来自 RRF，dense-only 查询使用向量相似度；候选不会自动成为答案依据，有效候选保持分数顺序，
-不按 section 重新排序。
-
-### 混合检索
-
-在冻结的物理 collection 中分别使用 dense query vector 和 `fnv1a_log_tf.v1` sparse query vector，
-由 Qdrant 以 RRF 融合。合法问题无法生成 sparse token 时直接执行 dense 查询。两种模式的查询分数
-都只用于排序，不是答案置信度或充分性证明。当前 JSON evidence 字段不暴露该分数，也没有外部
-reranker。
+`sparse` named vector。检索文本由文档标题、完整 heading 路径和正文组成。
 
 ## 发布与激活
 
 ### 当前索引绑定
 
 PostgreSQL `campus_docs_serving.current_index` 的单行记录，只保存当前 collection 名。execution-control
-在 run 准入时读取并冻结它，运行中不跟随后续变化；向量名、
-dimensions、查询指令和 sparse 实现来自当前代码。数据库不保存索引历史、查询定义或重复的不可变
-索引记录。
+当前不在在线 run 准入时读取它；数据库不保存索引历史、查询定义或重复的不可变索引记录。
 
 ### 索引发布
 
@@ -142,7 +112,7 @@ Publisher 始终从 chunk set 完整生成 payload 与 sparse vector。Qdrant �
 - `source.json` 是控制清单，不是检索正文；
 - 文档集合不等于在线路由范围或物理 collection；
 - 文档静态交付与检索索引发布共享输入，但拥有独立产物和激活过程；
-- Campus Docs 检索不属于工具轨迹；
+- 离线 Campus Docs 制品不属于当前工具轨迹；
 - publisher、schema 或配置存在不代表某个环境已经激活当前索引；
 - 通知采集产物不属于当前 Campus Docs 索引输入；
 - Langfuse 中存在 trace 不代表 Temporal workflow 已经成功结束。

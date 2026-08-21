@@ -147,7 +147,6 @@ describe("runtime run browser projection", () => {
 			steps: [
 				expect.objectContaining({ phase: "queued", status: "completed" }),
 				expect.objectContaining({ phase: "preparing", status: "completed" }),
-				expect.objectContaining({ phase: "retrieving", status: "completed" }),
 				expect.objectContaining({ phase: "generating", status: "completed" }),
 				expect.objectContaining({ phase: "finalizing", status: "completed" }),
 			],
@@ -290,11 +289,10 @@ describe("runtime run browser projection", () => {
 		]) {
 			expect(encoded).not.toContain(forbidden);
 		}
-		expect(trajectory.steps).toHaveLength(5);
+		expect(trajectory.steps).toHaveLength(4);
 		expect(trajectory.steps.map((step) => step.phase)).toEqual([
 			"queued",
 			"preparing",
-			"retrieving",
 			"generating",
 			"finalizing",
 		]);

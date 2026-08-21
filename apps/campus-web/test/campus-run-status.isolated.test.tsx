@@ -31,7 +31,7 @@ const RUN: CampusRunViewState = {
 	connection: "live",
 	durationMs: 5_000,
 	operationId: 1,
-	phase: "retrieving",
+	phase: "generating",
 	provisional: false,
 	requestId: "req_01",
 	runId: "run_01",
@@ -48,14 +48,14 @@ const COMPLETED_RUN: CampusRunViewState = {
 	status: "completed",
 };
 
-const FIVE_STEPS: ChatRunStep[] = (
-	["queued", "preparing", "retrieving", "generating", "finalizing"] as const
+const FOUR_STEPS: ChatRunStep[] = (
+	["queued", "preparing", "generating", "finalizing"] as const
 ).map((phase) => ({
 	completedAt: null,
 	durationMs: null,
 	phase,
 	startedAt: null,
-	status: phase === "retrieving" ? "running" : "pending",
+	status: phase === "generating" ? "running" : "pending",
 }));
 
 describe("CampusRunStatus", () => {
@@ -131,7 +131,7 @@ describe("CampusRunStatus", () => {
 			"aria-expanded",
 			"false",
 		);
-		expect(screen.getByText("正在查找校园资料")).toBeInTheDocument();
+		expect(screen.getByText("正在生成回答")).toBeInTheDocument();
 		expect(screen.queryByRole("list", { name: "回答过程" })).not.toBeInTheDocument();
 		expect(screen.queryByText("排队")).not.toBeInTheDocument();
 		expect(screen.queryByText("准备")).not.toBeInTheDocument();
@@ -140,7 +140,7 @@ describe("CampusRunStatus", () => {
 	});
 
 	it("loads precise phase history only after a completed process is opened", async () => {
-		testMocks.getRunSteps.mockResolvedValue({ run: COMPLETED_RUN, steps: FIVE_STEPS });
+		testMocks.getRunSteps.mockResolvedValue({ run: COMPLETED_RUN, steps: FOUR_STEPS });
 		render(<CampusRunStatus run={COMPLETED_RUN} />);
 
 		expect(screen.getByText("回答过程")).toBeInTheDocument();
@@ -156,7 +156,7 @@ describe("CampusRunStatus", () => {
 			}),
 		);
 		const process = await screen.findByRole("list", { name: "回答过程" });
-		expect(process.querySelectorAll("li")).toHaveLength(4);
+		expect(process.querySelectorAll("li")).toHaveLength(3);
 		expect(screen.getAllByText("准备回答")).toHaveLength(1);
 		expect(screen.queryByText("排队")).not.toBeInTheDocument();
 	});
@@ -164,7 +164,7 @@ describe("CampusRunStatus", () => {
 	it("offers retry when the process disclosure fails to load", async () => {
 		testMocks.getRunSteps
 			.mockRejectedValueOnce(new Error("网络暂时不可用"))
-			.mockResolvedValueOnce({ run: COMPLETED_RUN, steps: FIVE_STEPS });
+			.mockResolvedValueOnce({ run: COMPLETED_RUN, steps: FOUR_STEPS });
 		render(<CampusRunStatus run={COMPLETED_RUN} />);
 
 		fireEvent.click(screen.getByRole("button", { name: /查看回答过程/u }));

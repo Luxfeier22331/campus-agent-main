@@ -159,14 +159,12 @@ describe("agent runtime HTTP handler", () => {
 	});
 
 	it("runs a primary agent turn with worker authorization", async () => {
-		let observedCampusDocsEvidence: unknown;
 		let observedProvider: unknown;
 		let observedConversationContext: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
 				async run(input) {
-					observedCampusDocsEvidence = input.campusDocsEvidence;
 					observedProvider = input.providerConfig;
 					observedConversationContext = input.conversationContext;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
@@ -183,7 +181,6 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					campus_docs_evidence: validCampusDocsEvidence(),
 					conversation_context: {
 						schema_version: "agent_conversation_context.v1",
 						recent_turns: [
@@ -261,7 +258,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.context_usage).toMatchObject({
 			context_chars: expect.any(Number),
 			current_input_chars: 6,
-			model_visible_item_count: 5,
+			model_visible_item_count: 4,
 		});
 		expect(JSON.stringify(body)).not.toMatch(
 			/rawPrompt|rawAnswer|rawTranscript|rawProvider|providerPayload|rawSdk|sdkSpan|spanData|traceBody|modelInput|modelOutput/i,
@@ -283,7 +280,6 @@ describe("agent runtime HTTP handler", () => {
 				],
 			},
 		});
-		expect(observedCampusDocsEvidence).toEqual(validRuntimeCampusDocsEvidence());
 	});
 
 	it("accepts chat-completions LLM settings at the HTTP boundary", async () => {
@@ -487,7 +483,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 	});
 
-	it("accepts an admitted direct-answer request with empty Campus Docs evidence", async () => {
+	it("accepts an admitted direct-answer request without retrieval context", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
@@ -507,7 +503,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(response.status).toBe(200);
 	});
 
-	it("accepts minimal Campus Docs evidence at the HTTP boundary", async () => {
+	it("rejects the retired Campus Docs evidence field at the HTTP boundary", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
@@ -519,34 +515,7 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					campus_docs_evidence: validCampusDocsEvidence(),
-					provider_config: validPromptProviderConfig(),
-				}),
-			}),
-		);
-
-		expect(response.status).toBe(200);
-	});
-
-	it("rejects fields outside the minimal evidence contract", async () => {
-		const handler = createAgentRuntimeHandler({
-			sharedSecret: "secret",
-			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
-		});
-		const campusDocsEvidence = validCampusDocsEvidence();
-		const [evidence] = campusDocsEvidence;
-		if (!evidence) {
-			throw new Error("Campus Docs evidence fixture has no evidence");
-		}
-		evidence.extra = "not allowed";
-
-		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
-				method: "POST",
-				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify({
-					...validRunBody(),
-					campus_docs_evidence: campusDocsEvidence,
+					campus_docs_evidence: [],
 					provider_config: validPromptProviderConfig(),
 				}),
 			}),
@@ -609,7 +578,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(await response.json()).toMatchObject({
 			context_usage: {
 				current_input_chars: 6,
-				model_visible_item_count: 2,
+				model_visible_item_count: 1,
 				truncation_summary: {
 					dropped_category_counts: { recent_turns: 1 },
 					schema_version: "truncation_summary.v3",
@@ -729,7 +698,7 @@ describe("agent runtime HTTP handler", () => {
 			}>;
 		};
 		expect(body.status).toBe("failed");
-		expect(body.final_output).toBe("");
+		expect(body.final_output).toBe("工具失败。");
 		expect(body.terminal_reason).toBe("agent_runtime_failed");
 		expect(body.tool_results?.[0]?.fail_close_reason).toBe("source_truth_unavailable");
 		expect(body.tool_results?.[0]?.arguments_json).toEqual({ query_text: "通知" });
@@ -1013,7 +982,6 @@ function validRunBody(): Record<string, unknown> {
 		turn_id: "turn-1",
 		trace_id: "trace-1",
 		input: "hi 你是谁",
-		campus_docs_evidence: [],
 		visible_tool_names: ["test_lookup"],
 		expected_tool_runtime_fingerprint: wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
 		limits: validRuntimeLimits(),
@@ -1042,28 +1010,6 @@ function validRuntimeLimits(): Record<string, number> {
 		max_tool_calls: 3,
 		max_turns: 6,
 	};
-}
-
-function validCampusDocsEvidence(): Record<string, unknown>[] {
-	return [
-		{
-			evidence_ref: `evidence://${"4".repeat(64)}`,
-			document_title: "学生管理规定",
-			section_title: "缓考",
-			text: "缓考申请应符合规定条件。",
-		},
-	];
-}
-
-function validRuntimeCampusDocsEvidence(): Record<string, unknown>[] {
-	return [
-		{
-			evidenceRef: `evidence://${"4".repeat(64)}`,
-			documentTitle: "学生管理规定",
-			sectionTitle: "缓考",
-			text: "缓考申请应符合规定条件。",
-		},
-	];
 }
 
 function validPromptProviderConfig(): Record<string, unknown> {

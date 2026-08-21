@@ -23,33 +23,9 @@ var sha256RefPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 func (s *Server) buildAgentAdmissionSnapshot(
 	ctx context.Context,
 	personalMemoryRecallAvailable bool,
-	campusDocsQuerySHA256 string,
 ) (temporalruntime.AgentAdmissionSnapshot, error) {
 	strategy := executionStrategyForAdmission(personalMemoryRecallAvailable)
 	visibleToolNames := strategy.VisibleToolNames
-	if !validSHA256Ref(campusDocsQuerySHA256) {
-		return temporalruntime.AgentAdmissionSnapshot{}, errors.New("campus docs retrieval query admission is invalid")
-	}
-	campusDocsIndex, err := s.campusDocsIndexForAdmission(ctx)
-	if err != nil {
-		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
-			fmt.Errorf("load Campus docs index admission snapshot: %w", err),
-		)
-	}
-	embedding, err := s.resolveProviderConfig(ctx, providerconfig.KindEmbedding)
-	if err != nil {
-		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
-			fmt.Errorf("resolve active embedding setting: %w", err),
-		)
-	}
-	if err := validateCampusDocsEmbeddingAdmission(campusDocsIndex, embedding); err != nil {
-		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(err)
-	}
-	campusDocsRetrieval := temporalruntime.CampusDocsRetrievalAdmission{
-		EmbeddingProviderConfigSHA256: providerconfig.AdmissionHash(embedding),
-		Index:                         *campusDocsIndex,
-		QuerySHA256:                   campusDocsQuerySHA256,
-	}
 	limits := s.primaryAgentRuntimeLimits()
 	limitSnapshot := temporalruntime.AgentRuntimeLimitsSnapshot{
 		AgentDeadlineMS:       limits.AgentDeadlineMS,
@@ -67,7 +43,6 @@ func (s *Server) buildAgentAdmissionSnapshot(
 	snapshot := temporalruntime.AgentAdmissionSnapshot{
 		AgentLimits:                  limitSnapshot,
 		AgentLimitsSHA256:            hashAdmissionJSON(limitSnapshot),
-		CampusDocsRetrieval:          campusDocsRetrieval,
 		ExecutionStrategy:            strategy,
 		ExecutionStrategySHA256:      hashAdmissionJSON(strategy),
 		ToolRuntimeFingerprint:       toolRuntimeSnapshot,
@@ -146,15 +121,6 @@ func validateAdmissionSnapshot(snapshot temporalruntime.AgentAdmissionSnapshot) 
 	}
 	if !validProviderConfigHash(snapshot.ProviderConfigSHA256) {
 		return errors.New("provider admission snapshot is invalid")
-	}
-	if !validSHA256Ref(snapshot.CampusDocsRetrieval.QuerySHA256) {
-		return errors.New("campus docs retrieval query admission is invalid")
-	}
-	if err := validateCampusDocsIndexAdmission(&snapshot.CampusDocsRetrieval.Index); err != nil {
-		return err
-	}
-	if !validProviderConfigHash(snapshot.CampusDocsRetrieval.EmbeddingProviderConfigSHA256) {
-		return errors.New("embedding provider admission snapshot is invalid")
 	}
 	if err := validateToolRuntimeFingerprintSnapshot(snapshot.ToolRuntimeFingerprint); err != nil {
 		return err

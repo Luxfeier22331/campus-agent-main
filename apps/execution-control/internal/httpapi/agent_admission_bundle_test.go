@@ -26,34 +26,23 @@ func (resolver *countingProviderConfigResolver) ResolveActiveProviderConfig(
 	return snapshot, nil
 }
 
-func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.T) {
+func TestBuildAgentAdmissionSnapshotResolvesOnlyLLMSettings(t *testing.T) {
 	primary := primaryAgentProviderConfigSnapshotForTest()
-	embedding := embeddingProviderConfigSnapshotForTest(
-		providerconfig.KindEmbedding,
-		"https://embedding.example/v1",
-	)
 	resolver := &countingProviderConfigResolver{configs: map[providerconfig.Kind]providerconfig.RuntimeSetting{
-		providerconfig.KindLLM:       primary,
-		providerconfig.KindEmbedding: embedding,
+		providerconfig.KindLLM: primary,
 	}}
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
 	server.providerConfigResolver = resolver
 	server.providerConfigErr = nil
-	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 
-	snapshot, err := server.buildAgentAdmissionSnapshot(
-		t.Context(),
-		true,
-		campusDocsQuerySHA256ForTest("学生请假手续"),
-	)
+	snapshot, err := server.buildAgentAdmissionSnapshot(t.Context(), true)
 	if err != nil {
 		t.Fatalf("build admission snapshot: %v", err)
 	}
-	if len(resolver.calls) != 2 || resolver.calls[0] != providerconfig.KindEmbedding || resolver.calls[1] != providerconfig.KindLLM {
-		t.Fatalf("provider setting calls = %#v, want embedding then llm", resolver.calls)
+	if len(resolver.calls) != 1 || resolver.calls[0] != providerconfig.KindLLM {
+		t.Fatalf("provider setting calls = %#v, want llm only", resolver.calls)
 	}
-	if snapshot.ProviderConfigSHA256 != providerconfig.AdmissionHash(primary) ||
-		snapshot.CampusDocsRetrieval.EmbeddingProviderConfigSHA256 != providerconfig.AdmissionHash(embedding) {
+	if snapshot.ProviderConfigSHA256 != providerconfig.AdmissionHash(primary) {
 		t.Fatalf("provider admission hashes = %#v", snapshot)
 	}
 	if snapshot.ExecutionStrategy.MemoryRecall != "model_optional" {
@@ -65,44 +54,26 @@ func TestBuildAgentAdmissionSnapshotResolvesOnlyRuntimeModelSettings(t *testing.
 	}
 }
 
-func TestBuildAgentAdmissionSnapshotAlwaysPinsRetrieval(t *testing.T) {
-	embedding := embeddingProviderConfigSnapshotForTest(
-		providerconfig.KindEmbedding,
-		"https://embedding.example/v1",
-	)
+func TestBuildAgentAdmissionSnapshotDoesNotRequireCampusDocs(t *testing.T) {
 	resolver := &countingProviderConfigResolver{configs: map[providerconfig.Kind]providerconfig.RuntimeSetting{
-		providerconfig.KindLLM:       primaryAgentProviderConfigSnapshotForTest(),
-		providerconfig.KindEmbedding: embedding,
+		providerconfig.KindLLM: primaryAgentProviderConfigSnapshotForTest(),
 	}}
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
 	server.providerConfigResolver = resolver
-	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 
-	snapshot, err := server.buildAgentAdmissionSnapshot(
-		t.Context(),
-		false,
-		campusDocsQuerySHA256ForTest("你好"),
-	)
+	_, err := server.buildAgentAdmissionSnapshot(t.Context(), false)
 	if err != nil {
 		t.Fatalf("build direct admission snapshot: %v", err)
 	}
-	if len(resolver.calls) != 2 || resolver.calls[0] != providerconfig.KindEmbedding || resolver.calls[1] != providerconfig.KindLLM {
-		t.Fatalf("provider setting calls = %#v, want embedding then llm", resolver.calls)
-	}
-	if snapshot.CampusDocsRetrieval.QuerySHA256 == "" {
-		t.Fatalf("admission did not pin Campus docs retrieval: %#v", snapshot)
+	if len(resolver.calls) != 1 || resolver.calls[0] != providerconfig.KindLLM {
+		t.Fatalf("provider setting calls = %#v, want llm only", resolver.calls)
 	}
 }
 
 func TestBuildAgentAdmissionSnapshotRequiresProviderSettings(t *testing.T) {
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
-	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 
-	if _, err := server.buildAgentAdmissionSnapshot(
-		t.Context(),
-		false,
-		campusDocsQuerySHA256ForTest("学生请假手续"),
-	); !errors.Is(err, providerconfig.ErrResolverNotConfigured) {
+	if _, err := server.buildAgentAdmissionSnapshot(t.Context(), false); !errors.Is(err, providerconfig.ErrResolverNotConfigured) {
 		t.Fatalf("provider-less admission error = %v", err)
 	}
 }

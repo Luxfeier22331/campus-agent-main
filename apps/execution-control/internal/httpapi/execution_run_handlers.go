@@ -142,26 +142,19 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 func (s *Server) workflowInputForRun(
 	ctx context.Context,
 	run execution.DurableRun,
-	personalMemoryRecallAvailable bool,
+	personalMemoryRecallAllowed bool,
 ) (temporalruntime.ToolExecutionWorkflowInput, error) {
 	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
 	inputMetadata, err := execution.InputMetadata(run)
 	if err != nil {
 		return temporalruntime.ToolExecutionWorkflowInput{}, err
 	}
-	wire, err := s.loadExecutionInput(ctx, run)
-	if err != nil {
+	if _, err := s.loadExecutionInput(ctx, run); err != nil {
 		return temporalruntime.ToolExecutionWorkflowInput{}, err
 	}
-	campusDocsQuerySHA256, err := s.campusDocsQuerySHA256ForAdmission(wire)
-	if err != nil {
-		return temporalruntime.ToolExecutionWorkflowInput{}, err
-	}
-	admissionSnapshot, err := s.buildAgentAdmissionSnapshot(
-		ctx,
-		personalMemoryRecallAvailable,
-		campusDocsQuerySHA256,
-	)
+	personalMemoryRecallAvailable := personalMemoryRecallAllowed &&
+		s.personalMemoryExecutor != nil && s.personalMemoryErr == nil
+	admissionSnapshot, err := s.buildAgentAdmissionSnapshot(ctx, personalMemoryRecallAvailable)
 	if err != nil {
 		return temporalruntime.ToolExecutionWorkflowInput{}, err
 	}

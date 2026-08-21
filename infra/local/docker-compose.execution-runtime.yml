@@ -2,110 +2,6 @@ x-host-gateway: &host-gateway
   - host.docker.internal:host-gateway
 
 services:
-  temporal-postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      POSTGRES_DB: temporal
-      POSTGRES_USER: ${TEMPORAL_POSTGRES_USER:-temporal}
-      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:?set TEMPORAL_POSTGRES_PASSWORD}
-    volumes:
-      - temporal-postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
-      interval: 10s
-      timeout: 5s
-      retries: 60
-      start_period: 180s
-    networks:
-      - execution-runtime
-
-  temporal:
-    image: temporalio/auto-setup:1.29.7
-    restart: unless-stopped
-    depends_on:
-      temporal-postgres:
-        condition: service_healthy
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      DB: postgres12
-      DB_PORT: 5432
-      POSTGRES_SEEDS: temporal-postgres
-      POSTGRES_USER: ${TEMPORAL_POSTGRES_USER:-temporal}
-      POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD:?set TEMPORAL_POSTGRES_PASSWORD}
-      VISIBILITY_STORE: visibility
-      TEMPORAL_ADDRESS: temporal:7233
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - temporal operator cluster health --address temporal:7233 | grep -q SERVING
-      interval: 10s
-      timeout: 5s
-      retries: 60
-      start_period: 180s
-    networks:
-      - execution-runtime
-
-  temporal-namespace-setup:
-    image: temporalio/admin-tools:1.29.7-tctl-1.18.4-cli-1.7.2
-    restart: "no"
-    depends_on:
-      temporal:
-        condition: service_healthy
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TEMPORAL_ADDRESS: temporal:7233
-      TEMPORAL_CLI_ADDRESS: temporal:7233
-    entrypoint:
-      - /bin/sh
-      - -ec
-    command:
-      - |
-        for namespace in campus-agent-staging campus-agent-production; do
-          temporal operator namespace describe --namespace "$${namespace}" >/dev/null 2>&1 ||
-            temporal operator namespace create --namespace "$${namespace}" --retention 30d
-        done
-    networks:
-      - execution-runtime
-
-  temporal-ui:
-    profiles: ["ui"]
-    image: temporalio/ui:2.53.2
-    restart: unless-stopped
-    depends_on:
-      temporal:
-        condition: service_healthy
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      TEMPORAL_ADDRESS: temporal:7233
-      TEMPORAL_CORS_ORIGINS: ${TEMPORAL_UI_CORS_ORIGINS:-http://localhost:8233}
-    ports:
-      - "${TEMPORAL_UI_HOST_PORT:-127.0.0.1:8233}:8080"
-    networks:
-      - execution-runtime
-
   hindsight-postgres:
     image: pgvector/pgvector:pg18
     restart: unless-stopped
@@ -184,6 +80,8 @@ services:
       timeout: 5s
       retries: 60
       start_period: 180s
+    ports:
+      - "${HINDSIGHT_API_HOST_PORT:-127.0.0.1:8888}:8888"
     networks:
       - execution-runtime
 
@@ -216,104 +114,9 @@ services:
     networks:
       - execution-runtime
 
-  execution-control:
-    init: true
-    restart: unless-stopped
-    extra_hosts: *host-gateway
-    build:
-      context: ../..
-      dockerfile: apps/execution-control/Dockerfile
-      args:
-        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
-        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
-    depends_on:
-      agent-runtime:
-        condition: service_healthy
-      temporal:
-        condition: service_healthy
-      temporal-namespace-setup:
-        condition: service_completed_successfully
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
-      DEPLOYMENT_RELEASE: ${DEPLOYMENT_RELEASE:-local}
-      OPS_WEB_INTERNAL_TOKEN: ${OPS_WEB_INTERNAL_TOKEN:?set OPS_WEB_INTERNAL_TOKEN}
-      QDRANT_URL: ${QDRANT_URL:-}
-      QDRANT_READ_ONLY_API_KEY: ${QDRANT_READ_ONLY_API_KEY:-}
-      QDRANT_TLS_CA_CERT_PATH: ${QDRANT_TLS_CA_CERT_PATH:-}
-      APP_API_EXECUTION_SHARED_SECRET: ${APP_API_EXECUTION_SHARED_SECRET:?set APP_API_EXECUTION_SHARED_SECRET}
-      EXECUTION_CONTROL_DATABASE_URL: ${EXECUTION_CONTROL_DATABASE_URL:?set EXECUTION_CONTROL_DATABASE_URL}
-      EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: ${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL:-http://agent-runtime:27062}
-      EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL: ${EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL:?set EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL}
-      EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
-      EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
-      EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY}
-      EXECUTION_AGENT_RUNTIME_SHARED_SECRET: ${EXECUTION_AGENT_RUNTIME_SHARED_SECRET:?set EXECUTION_AGENT_RUNTIME_SHARED_SECRET}
-      HINDSIGHT_API_BASE_URL: ${HINDSIGHT_API_BASE_URL:-http://hindsight-api:8888}
-      HINDSIGHT_API_TENANT_API_KEY: ${HINDSIGHT_API_TENANT_API_KEY:-}
-      HINDSIGHT_OWNER_SALT: ${HINDSIGHT_OWNER_SALT:-}
-    volumes:
-      - ${PROVIDER_CONFIG_ENCRYPTION_KEY_FILE:?set PROVIDER_CONFIG_ENCRYPTION_KEY_FILE}:/run/campus-agent/provider-config/encryption.key:ro
-      - ${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro
-    ports:
-      - "${EXECUTION_CONTROL_HOST_PORT:-27051}:8000"
-      - "${EXECUTION_CONTROL_ADMIN_HOST_PORT:-27052}:8001"
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - curl -fsS http://127.0.0.1:8000/healthz >/dev/null
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    networks:
-      - execution-runtime
-      - data-plane
-
-  agent-runtime:
-    init: true
-    restart: unless-stopped
-    build:
-      context: ../..
-      dockerfile: apps/agent-runtime/Dockerfile
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      EXECUTION_AGENT_RUNTIME_SHARED_SECRET: ${EXECUTION_AGENT_RUNTIME_SHARED_SECRET:?set EXECUTION_AGENT_RUNTIME_SHARED_SECRET}
-      AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: ${AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL:-http://execution-control:8000}
-      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
-      DEPLOYMENT_RELEASE: ${DEPLOYMENT_RELEASE:-local}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
-      OTEL_SERVICE_NAME: agent-runtime
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - node -e "fetch('http://127.0.0.1:27062/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    networks:
-      - execution-runtime
-
 networks:
   execution-runtime:
     name: ${EXECUTION_CONTROL_RUNTIME_INTERNAL_NETWORK:-campus-execution-control-runtime}
-  data-plane:
-    external: true
-    name: ${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}
 
 volumes:
-  temporal-postgres-data:
   hindsight-postgres-data:

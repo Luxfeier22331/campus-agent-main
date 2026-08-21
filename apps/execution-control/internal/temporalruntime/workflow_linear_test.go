@@ -346,23 +346,11 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
 	sequence := make([]string, 0, 3)
-	runID := "run-linear-knowledge"
-	traceID := "trace-linear-knowledge"
+	runID := "run-linear-agent"
+	traceID := "trace-linear-agent"
 	traceParent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 	agentResultRef := "projection://runs/" + runID + "/agent/primary/result"
 	completedAt := time.Date(2026, 7, 11, 1, 2, 3, 0, time.UTC)
-
-	env.OnActivity(
-		RetrieveCampusDocsEvidenceActivityName,
-		mock.Anything,
-		mock.MatchedBy(func(input RetrieveCampusDocsEvidenceActivityInput) bool {
-			return input.RunID == runID && input.TraceID == traceID
-		}),
-	).
-		Run(func(mock.Arguments) { sequence = append(sequence, "campus_docs_retrieve") }).
-		Return(CampusDocsRetrievalResult{
-			Evidence: []CampusDocsEvidence{{EvidenceRef: "evidence://sha256/example"}},
-		}, nil)
 
 	env.OnActivity(
 		ExecutePrimaryAgentActivityName,
@@ -370,8 +358,7 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
 				input.TraceID == traceID &&
-				input.TraceParent == traceParent &&
-				len(input.CampusDocsRetrieval.Evidence) == 1
+				input.TraceParent == traceParent
 		}),
 	).
 		Run(func(mock.Arguments) { sequence = append(sequence, "agent") }).
@@ -380,9 +367,8 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 			RunID:          runID,
 			Status:         "completed",
 			TerminalEnvelope: map[string]any{
-				"answer_text":   "毕业最低学分要求为 160 学分。",
-				"evidence_refs": []any{"evidence://sha256/example"},
-				"kind":          "answer",
+				"answer_text": "本地测试回答。",
+				"kind":        "answer",
 			},
 			TerminalReason: "answer_completed",
 		}, nil)
@@ -393,7 +379,6 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 			return input.RunID == runID &&
 				input.TraceID == traceID &&
 				input.AgentResult.AgentResultRef == agentResultRef &&
-				len(input.CampusDocsRetrieval.Evidence) == 1 &&
 				!input.FinalizedAt.IsZero()
 		}),
 	).
@@ -413,61 +398,46 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 			Status:               "completed",
 		}, nil)
 	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
-		AdmissionSnapshot: AgentAdmissionSnapshot{CampusDocsRetrieval: CampusDocsRetrievalAdmission{
-			Index:       CampusDocsIndexSnapshot{Collection: "campus_docs_test"},
-			QuerySHA256: "sha256:" + strings.Repeat("a", 64),
-		}},
-		ConversationID: "conv-linear-knowledge",
-		RequestID:      "req-linear-knowledge",
+		ConversationID: "conv-linear-agent",
+		RequestID:      "req-linear-agent",
 		RunID:          runID,
 		TraceID:        traceID,
 		TraceParent:    traceParent,
-		TurnID:         "turn-linear-knowledge",
+		TurnID:         "turn-linear-agent",
 	})
 
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	if got, want := sequence, []string{"campus_docs_retrieve", "agent", "finalization", "memory_append"}; !equalStrings(got, want) {
+	if got, want := sequence, []string{"agent", "finalization", "memory_append"}; !equalStrings(got, want) {
 		t.Fatalf("activity sequence = %#v, want %#v", got, want)
 	}
 	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 1)
-	env.AssertActivityNumberOfCalls(t, RetrieveCampusDocsEvidenceActivityName, 1)
 }
 
-func TestToolExecutionWorkflowAlwaysRetrievesCampusDocs(t *testing.T) {
+func TestToolExecutionWorkflowDoesNotRequireCampusDocs(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
 	runID := "run-linear-direct"
-	env.OnActivity(RetrieveCampusDocsEvidenceActivityName, mock.Anything, mock.Anything).
-		Return(CampusDocsRetrievalResult{Evidence: []CampusDocsEvidence{}}, nil)
-	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.MatchedBy(
-		func(input ExecutePrimaryAgentActivityInput) bool {
-			return len(input.CampusDocsRetrieval.Evidence) == 0
-		},
-	)).Return(ExecutePrimaryAgentActivityOutput{
-		AgentResultRef: "projection://runs/" + runID + "/agent/primary/result",
-		RunID:          runID,
-		Status:         "completed",
-	}, nil)
+	env.OnActivity(ExecutePrimaryAgentActivityName, mock.Anything, mock.Anything).
+		Return(ExecutePrimaryAgentActivityOutput{
+			AgentResultRef: "projection://runs/" + runID + "/agent/primary/result",
+			RunID:          runID,
+			Status:         "completed",
+		}, nil)
 	env.OnActivity(WriteFinalizationActivityName, mock.Anything, mock.Anything).
 		Return(WriteFinalizationActivityOutput{RunID: runID, Status: "completed"}, nil)
 	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).
 		Return(AppendConversationMemoryActivityOutput{RunID: runID, Status: "completed"}, nil)
 
 	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
-		AdmissionSnapshot: AgentAdmissionSnapshot{CampusDocsRetrieval: CampusDocsRetrievalAdmission{
-			Index:       CampusDocsIndexSnapshot{Collection: "campus_docs_test"},
-			QuerySHA256: "sha256:" + strings.Repeat("a", 64),
-		}},
 		RunID: runID,
 	})
 
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("direct workflow error: %v", err)
 	}
-	env.AssertActivityNumberOfCalls(t, RetrieveCampusDocsEvidenceActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, ExecutePrimaryAgentActivityName, 1)
 }
 

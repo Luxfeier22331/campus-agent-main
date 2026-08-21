@@ -249,10 +249,5 @@ function toRuntimeRunProductEventType(eventType: string): RuntimeRunProductEvent
 }
 
 function isRuntimeRunProductPhase(value: unknown): value is RuntimeRunProductPhase {
-	return (
-		value === "finalizing" ||
-		value === "generating" ||
-		value === "preparing" ||
-		value === "retrieving"
-	);
+	return value === "finalizing" || value === "generating" || value === "preparing";
 }

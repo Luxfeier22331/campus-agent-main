@@ -1,7 +1,7 @@
 import type { ChatRequestStreamEvent } from "./model";
 import type { ChatRunStatus } from "./run-client";
 
-export type CampusRunPhase = "queued" | "preparing" | "retrieving" | "generating" | "finalizing";
+export type CampusRunPhase = "queued" | "preparing" | "generating" | "finalizing";
 export type CampusRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 export type CampusRunConnection = "live" | "reconnecting" | "disconnected";
 
@@ -336,7 +336,6 @@ export function readCampusRunViewMetadata(value: unknown): CampusRunViewState | 
 			record.status !== "cancelled") ||
 		(record.phase !== "queued" &&
 			record.phase !== "preparing" &&
-			record.phase !== "retrieving" &&
 			record.phase !== "generating" &&
 			record.phase !== "finalizing")
 	) {

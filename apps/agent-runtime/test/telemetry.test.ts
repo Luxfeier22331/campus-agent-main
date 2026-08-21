@@ -230,7 +230,6 @@ describe("agent runtime Langfuse telemetry", () => {
 function validRunBody() {
 	return {
 		activity_attempt: 2,
-		campus_docs_evidence: [],
 		conversation_id: "conversation-1",
 		input: "你好",
 		limits: {

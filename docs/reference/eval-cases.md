@@ -9,8 +9,8 @@ status: active
 ## 边界
 
 需要长期复用的用例可以由仓库文件或私有对象存储维护。当前仓库公开用例位于
-`packages/eval-langfuse/assets/agent/*/cases.v1.json`。Langfuse trace、score 和其他平台状态不能自动
-改写来源。
+`packages/eval-langfuse/assets/agent/routing/cases.v1.json`。runtime 本地合同仍由所属测试维护；
+Langfuse trace、annotation、score 和其他平台状态不能自动改写来源。
 
 `agent-eval` 读取调用方显式提供的 cases 文件，并通过真实 App API 产生一次产品执行。Ragas 输入必须由
 适配器或调用方显式写成 `ragas_sample_batch.v2`，不能从普通 trace 或 Langfuse 反查 answer、retrieved
@@ -33,9 +33,9 @@ contexts 或其他正文。一次性执行也可以直接提供其他输入文�
   选择的依据预期；当前适配器用它们是否非空决定 Ragas 是否适用，但不把这些字段送入 Ragas native
   sample，也不替代产品实际检索结果。
 
-Campus Docs 问题不派生额外工具调用；当前工具合同下应使用 `reference_tool_calls=[]`。是否把一次
-Agent 执行送入 Ragas，由用例是否提供 reference context 决定，而不是由实际检索结果是否恰好非空
-决定。实际检索为空仍然生成 Ragas 样本，作为失败输入评测。
+当前在线 Campus Docs 能力未接入，文档问题不派生额外工具调用，应使用
+`reference_tool_calls=[]`。只有调用方显式提供 `reference_context_ids[]` 或 `reference_contexts[]` 时，
+适配器才为该用例生成 Ragas 样本；这不表示在线运行会自动检索。实际上下文为空时仍生成失败样本。
 
 ## Agent 工具用例
 
@@ -44,12 +44,10 @@ Agent 执行送入 Ragas，由用例是否提供 reference context 决定，而�
 - `name_only`：只评测 direct/function 选择；
 - `eval_safe_args`：仅在当前真实工具具有稳定且可公开参数时使用。
 
-文档问题预期由模型直接消费 `campus_docs_evidence` 后回答，因此 `reference_tool_calls=[]`。只有
+当前在线 Agent 用例只标注已经开放的真实工具；机构知识未接入时，不为文档问题伪造工具或固定证据
+上下文。只有 RAG 用例提供 `reference_context_ids[]` 或 `reference_contexts[]` 时，runner 才把离线
+样本送入 Ragas；普通改写、翻译或问候不因主题相似而进入 RAG 评测。
 `personal_memory_recall` 或未来实际开放的注册工具可以进入工具预期。不得从答案正文反推工具选择。
-
-所有有效在线请求都会执行一次 Campus Docs 检索，因此 Agent 用例不标注“是否检索”。只有用例提供
-`reference_context_ids[]` 或 `reference_contexts[]` 时，适配器才把该次执行送入 Ragas；普通改写、
-翻译或问候即使偶然召回文档，也只评测对应 Agent/终态行为。
 
 路由用例必须与 checked-in 工具注册表的当前 exposure 一致。知识回答不得恢复已退役的课程、文档召回或
 章节读取工具名称。

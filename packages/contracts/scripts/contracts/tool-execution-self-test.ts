@@ -288,7 +288,6 @@ function checkExecutionResponseDiagnostics(): void {
 			"stream.app_api_ttft_ms",
 			"stream.orchestration_overhead_ms",
 			"execution.admission_ms",
-			"campus_docs.retrieve_ms",
 			"memory.recall_ms",
 			"agent.primary_ms",
 			"agent.runtime_ms",

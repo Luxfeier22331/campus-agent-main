@@ -32,7 +32,7 @@ const acceptedEventData = streamBase.extend({ runId: nonEmptyString });
 const queuedEventData = streamBase.extend(optionalRunCursor);
 const runningEventData = streamBase.extend(optionalRunCursor);
 const phaseEventData = streamBase.extend({
-	phase: z.enum(["finalizing", "generating", "preparing", "retrieving"]),
+	phase: z.enum(["finalizing", "generating", "preparing"]),
 	runId: nonEmptyString,
 	sequence,
 });

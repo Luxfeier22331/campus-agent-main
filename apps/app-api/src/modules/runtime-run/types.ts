@@ -124,14 +124,9 @@ export type RuntimeRunProductEventName =
 	| "request.completed"
 	| "request.failed";
 
-export type RuntimeRunProductPhase = "finalizing" | "generating" | "preparing" | "retrieving";
+export type RuntimeRunProductPhase = "finalizing" | "generating" | "preparing";
 
-export type RuntimeRunStepPhase =
-	| "finalizing"
-	| "generating"
-	| "preparing"
-	| "queued"
-	| "retrieving";
+export type RuntimeRunStepPhase = "finalizing" | "generating" | "preparing" | "queued";
 
 export type RuntimeRunStepStatus = "cancelled" | "completed" | "failed" | "pending" | "running";
 

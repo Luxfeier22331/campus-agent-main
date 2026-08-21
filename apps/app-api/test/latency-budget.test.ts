@@ -9,18 +9,11 @@ describe("runtime latency budget", () => {
 	it("classifies canonical stage timing fields against repo-owned thresholds", () => {
 		const result = evaluateStageTimingBudget({
 			"agent.runtime_ms": 13_000,
-			"campus_docs.retrieve_ms": 4_000,
 			"request.total_ms": 900,
 		});
 
 		expect(result.version).toBe("latency-budget-v1");
 		expect(result.breaches).toEqual([
-			{
-				durationMs: 4_000,
-				field: "campus_docs.retrieve_ms",
-				severity: "warn",
-				thresholdMs: 3_000,
-			},
 			{
 				durationMs: 13_000,
 				field: "agent.runtime_ms",

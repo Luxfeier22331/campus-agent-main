@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { ChatStreamRequestError } from "../src/features/conversation/api";
+
 import {
+	isPersistedConversationMessageId,
+	isStreamRecoveryExhausted,
 	isTerminalRunStatus,
 	nextResumeDelay,
 	RESUME_MAX_DELAY_MS,
@@ -7,6 +11,34 @@ import {
 } from "../src/features/conversation/assistant-ui-recovery-policy";
 
 describe("assistant-ui recovery policy", () => {
+	it("only enables destructive message actions for persisted ids", () => {
+		expect(isPersistedConversationMessageId("msg_user_01")).toBe(true);
+		expect(isPersistedConversationMessageId("local-user-01")).toBe(false);
+		expect(isPersistedConversationMessageId("local-error-01")).toBe(false);
+		expect(isPersistedConversationMessageId(null)).toBe(false);
+	});
+
+	it("identifies exhausted recovery without treating other stream errors as recoverable state", () => {
+		expect(
+			isStreamRecoveryExhausted(
+				new ChatStreamRequestError({
+					code: "chat_stream_connection_lost",
+					message: "连接已中断。",
+					retryable: true,
+				}),
+			),
+		).toBe(true);
+		expect(
+			isStreamRecoveryExhausted(
+				new ChatStreamRequestError({
+					code: "execution_failed",
+					message: "执行失败。",
+					retryable: false,
+				}),
+			),
+		).toBe(false);
+	});
+
 	it.each(["completed", "failed", "canceled", "expired"] as const)(
 		"treats %s as terminal",
 		(phase) => {

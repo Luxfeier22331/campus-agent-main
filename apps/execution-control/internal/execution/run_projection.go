@@ -29,7 +29,6 @@ const (
 	DurableTerminalReasonQueueTimeout          DurableTerminalReason = "queue_timeout"
 	DurableTerminalReasonWorkerUnavailable     DurableTerminalReason = "worker_unavailable"
 	DurableTerminalReasonProviderUnavailable   DurableTerminalReason = "provider_unavailable"
-	DurableTerminalReasonRetrievalUnavailable  DurableTerminalReason = "retrieval_unavailable"
 	DurableTerminalReasonRuntimeInvariant      DurableTerminalReason = "runtime_invariant_failed"
 	DurableTerminalReasonUserCanceled          DurableTerminalReason = "user_canceled"
 	DurableTerminalReasonSystemDraining        DurableTerminalReason = "system_draining"
@@ -61,7 +60,6 @@ const (
 type DurableRunProgressPhase string
 
 const (
-	DurableRunProgressPhaseRetrieving DurableRunProgressPhase = "retrieving"
 	DurableRunProgressPhaseGenerating DurableRunProgressPhase = "generating"
 	DurableRunProgressPhaseFinalizing DurableRunProgressPhase = "finalizing"
 )

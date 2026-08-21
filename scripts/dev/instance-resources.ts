@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { LOCAL_DEV_DATABASE_PASSWORDS } from "./environment";
 import { captureCommandResult, runCommand } from "./process";
 import {
+	calculateLocalDevRuntimePorts,
 	type LocalDevProfileV1,
 	listLocalDevProfiles,
 	loadLocalDevProfile,
@@ -96,6 +97,49 @@ export function ensureLocalInstanceResources(profile: LocalDevProfileV1): void {
 	grantDatabaseConnect(profile.databaseName);
 }
 
+export function localTemporalNamespace(profile: LocalDevProfileV1): string {
+	return `campus-agent-local-${profile.instanceId}`;
+}
+
+export function ensureLocalTemporalNamespace(repoRoot: string, profile: LocalDevProfileV1): void {
+	const namespace = localTemporalNamespace(profile);
+	const composeArgs = [
+		"compose",
+		"--project-name",
+		"campus-agent-local",
+		"-f",
+		"infra/local/docker-compose.dev.yml",
+		"exec",
+		"-T",
+		"temporal",
+		"temporal",
+		"operator",
+		"namespace",
+	];
+	const describe = captureCommandResult(
+		"docker",
+		[...composeArgs, "describe", "--address", "temporal:7233", "--namespace", namespace],
+		{ cwd: repoRoot },
+	);
+	if (describe.status === 0 && !describe.error) {
+		return;
+	}
+	runCommand(
+		"docker",
+		[
+			...composeArgs,
+			"create",
+			"--address",
+			"temporal:7233",
+			"--namespace",
+			namespace,
+			"--retention",
+			"24h",
+		],
+		{ cwd: repoRoot },
+	);
+}
+
 export function destroyLocalInstanceResources(profile: LocalDevProfileV1): void {
 	const databaseProbe = localDatabaseProbe(profile.databaseName);
 	const bucketProbe = localBucketProbe(profile.bucketName);
@@ -113,11 +157,15 @@ export function destroyLocalInstanceResources(profile: LocalDevProfileV1): void 
 }
 
 export function formatProfileSummary(profile: LocalDevProfileV1): string {
+	const runtimePorts = calculateLocalDevRuntimePorts(profile.slot);
 	return [
 		`Local instance: ${profile.instanceId}`,
 		`Campus Web: http://127.0.0.1:${profile.ports.campusWeb}`,
 		`app-api: http://127.0.0.1:${profile.ports.appApi}`,
 		`Ops Web: http://127.0.0.1:${profile.ports.opsWeb}/dining`,
+		`Execution Control: http://127.0.0.1:${runtimePorts.executionControl}`,
+		`Agent Runtime: http://127.0.0.1:${runtimePorts.agentRuntime}`,
+		`Temporal namespace: ${localTemporalNamespace(profile)}`,
 		`Database: ${profile.databaseName}`,
 		`Source bucket: ${SOURCE_BUCKET}`,
 		`Campus docs bucket: ${DOCS_BUCKET}`,
@@ -168,7 +216,7 @@ function ensureDatabaseRoles(): void {
 	const roles = [
 		["campus_agent", LOCAL_DEV_DATABASE_PASSWORDS.owner, true],
 		["app_api", LOCAL_DEV_DATABASE_PASSWORDS.appApi, true],
-		["execution_control", "", false],
+		["execution_control", LOCAL_DEV_DATABASE_PASSWORDS.executionControl, true],
 		["ingestion_control", LOCAL_DEV_DATABASE_PASSWORDS.ingestionControl, true],
 		["ops_web", LOCAL_DEV_DATABASE_PASSWORDS.opsWeb, true],
 		["notice_publisher", LOCAL_DEV_DATABASE_PASSWORDS.noticePublisher, true],
@@ -189,7 +237,7 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 		runPsql(
 			[
 				`REVOKE ALL ON DATABASE ${quoteIdentifier(profile.databaseName)} FROM PUBLIC`,
-				...["app_api", "ingestion_control", "ops_web", "notice_publisher"].map(
+				...["app_api", "execution_control", "ingestion_control", "ops_web", "notice_publisher"].map(
 					(role) =>
 						`GRANT CONNECT ON DATABASE ${quoteIdentifier(profile.databaseName)} TO ${quoteIdentifier(role)}`,
 				),
@@ -210,7 +258,7 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 
 function grantDatabaseConnect(databaseName: string): void {
 	runPsql(
-		["ingestion_control", "notice_publisher"]
+		["execution_control", "ingestion_control", "notice_publisher"]
 			.map(
 				(role) =>
 					`GRANT CONNECT ON DATABASE ${quoteIdentifier(databaseName)} TO ${quoteIdentifier(role)}`,

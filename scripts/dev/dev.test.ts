@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -8,10 +16,12 @@ import { parseEnv } from "node:util";
 
 import { localApplicationBootstrapCommands } from "./application-bootstrap";
 import {
+	ensureLocalProviderConfigEncryptionKey,
 	MANAGED_LOCAL_ENV_MARKER,
 	managedLocalEnvironmentPaths,
 	removeLocalEnvironmentFiles,
 	renderLocalEnvironmentFiles,
+	resolveLocalProviderConfigEncryptionKeyPath,
 } from "./environment";
 import {
 	assertDestroyConfirmation,
@@ -23,6 +33,7 @@ import * as lifecycle from "./lifecycle";
 import {
 	allocateLocalDevSlot,
 	calculateLocalDevPorts,
+	calculateLocalDevRuntimePorts,
 	ensureLocalDevProfile,
 	isMainWorktree,
 	type LocalDevProfileV1,
@@ -32,6 +43,7 @@ import {
 import {
 	classifySharedInfrastructureStatus,
 	derivedBucketPublicReadPolicy,
+	isSharedDataInfrastructureReady,
 	objectStoreCommand,
 	resolveSharedInfrastructureAction,
 	sharedComposeUpCommand,
@@ -58,6 +70,13 @@ describe("local development profiles", () => {
 			campusWeb: 27_214,
 			opsWeb: 5_198,
 			opsWebApi: 5_199,
+		});
+		assert.deepEqual(calculateLocalDevRuntimePorts(2), {
+			agentRuntime: 27262,
+			executionControl: 27251,
+			executionControlAdmin: 27252,
+			executionControlSnapshot: 27253,
+			ingestionControl: 27261,
 		});
 	});
 
@@ -143,6 +162,7 @@ describe("managed worktree environment", () => {
 		assert.equal(second.AUTH_SHELL_ORIGIN, "http://127.0.0.1:27114");
 		assert.equal(second.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "minioadmin");
 		assert.equal(second.OBJECT_STORE_DERIVED_READ_SECRET_KEY, "minioadmin");
+		assert.equal(second.EXECUTION_CONTROL_BASE_URL, "http://127.0.0.1:27151");
 		assert.equal(
 			second.OBJECT_STORE_LOCAL_BASE_URL,
 			"http://127.0.0.1:9000/campus-agent-derived-wt-1-deadbeef/",
@@ -176,6 +196,8 @@ describe("managed worktree environment", () => {
 			readFileSync(resolve(repoRoot, "jobs/notice-classifier/.env.local"), "utf8"),
 		);
 		assert.equal(new URL(appApiEnvironment.APP_API_SCHEMA_DATABASE_URL ?? "").search, "");
+		assert.equal(appApiEnvironment.PORT, String(profile.ports.appApi));
+		assert.equal(campusWebEnvironment.CAMPUS_WEB_DEV_PORT, String(profile.ports.campusWeb));
 		assert.equal(campusWebEnvironment.AUTH_TURNSTILE_SITE_KEY, "");
 		assert.equal(campusWebEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_READ_ACCESS_KEY, "minioadmin");
@@ -218,9 +240,24 @@ describe("managed worktree environment", () => {
 		assert.equal(opsWebEnvironment.OPS_WEB_CAMPUS_WEB_URL, "http://127.0.0.1:27114");
 		assert.equal(opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
 		assert.equal(
+			opsWebEnvironment.OPS_WEB_EXECUTION_CONTROL_ADMIN_URL,
+			`http://127.0.0.1:${calculateLocalDevRuntimePorts(profile.slot).executionControlAdmin}`,
+		);
+		assert.equal(
 			opsWebEnvironment.OPS_WEB_AUTOMATION_ORIGIN,
 			`http://127.0.0.1:${profile.ports.opsWebApi}`,
 		);
+		assert.equal(opsWebEnvironment.OPS_WEB_WEB_PORT, String(profile.ports.opsWeb));
+	});
+
+	it("creates a stable per-worktree provider encryption key with private permissions", () => {
+		const repoRoot = createRepositoryShape();
+		const first = ensureLocalProviderConfigEncryptionKey(repoRoot);
+		const second = ensureLocalProviderConfigEncryptionKey(repoRoot);
+		assert.equal(first, resolveLocalProviderConfigEncryptionKeyPath(repoRoot));
+		assert.equal(second, first);
+		assert.equal(Buffer.from(readFileSync(first, "utf8").trim(), "base64").length, 32);
+		assert.equal(statSync(first).mode & 0o777, 0o600);
 	});
 
 	it("refuses to overwrite a developer-owned application environment file", () => {
@@ -255,6 +292,35 @@ describe("managed worktree environment", () => {
 			assert.ok(readFileSync(path, "utf8").startsWith(MANAGED_LOCAL_ENV_MARKER));
 		}
 	});
+
+	it("renders only the requested optional target", () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+		const corePaths = renderLocalEnvironmentFiles({ profile, repoRoot, target: "core" });
+		assert.equal(corePaths.length, 5);
+		assert.equal(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")), false);
+	});
+
+	it("renders each one-shot job environment independently", () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+		const collectionPaths = renderLocalEnvironmentFiles({
+			profile,
+			repoRoot,
+			target: "internal-portal-collection",
+		});
+		assert.deepEqual(collectionPaths, [
+			resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal/.env.local"),
+		]);
+		assert.equal(existsSync(resolve(repoRoot, "jobs/notice-classifier/.env.local")), false);
+
+		const classifierPaths = renderLocalEnvironmentFiles({
+			profile,
+			repoRoot,
+			target: "notice-classifier",
+		});
+		assert.deepEqual(classifierPaths, [resolve(repoRoot, "jobs/notice-classifier/.env.local")]);
+	});
 });
 
 describe("local development lifecycle guards", () => {
@@ -262,7 +328,7 @@ describe("local development lifecycle guards", () => {
 		assert.deepEqual(Object.keys(lifecycle).sort(), [
 			"destroyLocalDevelopment",
 			"diagnoseLocalDevelopment",
-			"initializeLocalDevelopment",
+			"initializeLocalDevelopmentTarget",
 		]);
 	});
 
@@ -411,6 +477,16 @@ describe("local development lifecycle guards", () => {
 			}),
 			"missing",
 		);
+		assert.equal(
+			isSharedDataInfrastructureReady({
+				...healthy,
+				containers: {
+					...healthy.containers,
+					temporal: { ...healthy.containers.temporal, healthy: false },
+				},
+			}),
+			true,
+		);
 	});
 
 	it("classifies instance records without hiding stale or partial resources", () => {
@@ -467,16 +543,6 @@ describe("local development lifecycle guards", () => {
 		assert.throws(() => assertDestroyConfirmation("dining-a1b2", "dining-other"));
 	});
 
-	it("keeps the app-api local loader outside the root environment", () => {
-		const source = readFileSync(
-			resolve(import.meta.dirname, "../../apps/app-api/scripts/run-with-local-env.ts"),
-			"utf8",
-		);
-		assert.doesNotMatch(source, /repoEnvPath|resolve\(repoRoot, "\.env"\)/u);
-		assert.match(source, /\.env\.local/u);
-		assert.match(source, /\.dev\.vars\.local/u);
-	});
-
 	it("runs application bootstrap in explicit dependency order", () => {
 		const commands = localApplicationBootstrapCommands("/repo", createProfile("/repo"));
 		assert.deepEqual(
@@ -484,16 +550,23 @@ describe("local development lifecycle guards", () => {
 			[
 				"campus-web-docs",
 				"app-api-schema",
+				"execution-control-schema",
 				"app-api-seed-local-test-user",
-				"ops-web-dining-schema",
+				"ops-web-schema",
 				"ops-web-dining-bootstrap",
 				"ingestion-control-schema",
 				"ingestion-control-migrate",
 				"notice-publisher-migrate",
 			],
 		);
-		assert.deepEqual(commands[5]?.args, ["--dir", "apps/ingestion-control", "schema:bootstrap"]);
-		assert.deepEqual(commands[6]?.args, ["--dir", "apps/ingestion-control", "migrate"]);
+		assert.doesNotMatch(commands[1]?.args.join(" ") ?? "", /\.dev\.vars/u);
+		assert.match(
+			commands[2]?.args.join(" ") ?? "",
+			/--provider-config-encryption-key-path \/repo\/var\/dev\/provider-config-encryption\.key/u,
+		);
+		assert.doesNotMatch(commands[2]?.args.join(" ") ?? "", /provider-config-keyring/u);
+		assert.deepEqual(commands[6]?.args, ["--dir", "apps/ingestion-control", "schema:bootstrap"]);
+		assert.deepEqual(commands[7]?.args, ["--dir", "apps/ingestion-control", "migrate"]);
 	});
 
 	it("keeps the internal portal collection local loader inside its adapter", () => {
@@ -508,12 +581,54 @@ describe("local development lifecycle guards", () => {
 		assert.match(source, /path\.join\(adapterRoot, "\.env\.local"\)/u);
 		assert.match(source, /path\.join\(adapterRoot, "\.env"\)/u);
 	});
+
+	it("keeps core and Ops Web dev commands package-native", () => {
+		const appApiPackage = readPackageJson("apps/app-api/package.json");
+		const campusWebPackage = readPackageJson("apps/campus-web/package.json");
+		const executionPackage = JSON.parse(
+			readFileSync(
+				resolve(import.meta.dirname, "../../apps/execution-control/package.json"),
+				"utf8",
+			),
+		) as { scripts?: { dev?: string } };
+		const agentPackage = JSON.parse(
+			readFileSync(resolve(import.meta.dirname, "../../apps/agent-runtime/package.json"), "utf8"),
+		) as { scripts?: { dev?: string } };
+		const opsWebPackage = readPackageJson("apps/ops-web/package.json");
+		assert.match(appApiPackage.scripts?.dev ?? "", /exec wrangler dev/u);
+		assert.match(campusWebPackage.scripts?.dev ?? "", /\bvite\b/u);
+		assert.match(executionPackage.scripts?.dev ?? "", /exec go run/u);
+		assert.match(agentPackage.scripts?.dev ?? "", /--experimental-strip-types src\/server\.ts/u);
+		assert.equal(opsWebPackage.scripts?.dev, undefined);
+		assert.match(opsWebPackage.scripts?.["dev:api"] ?? "", /--experimental-strip-types/u);
+		for (const command of [
+			appApiPackage.scripts?.dev,
+			campusWebPackage.scripts?.dev,
+			executionPackage.scripts?.dev,
+			agentPackage.scripts?.dev,
+		]) {
+			assert.doesNotMatch(command ?? "", /tsx|scripts\/dev\.ts/u);
+		}
+	});
 });
+
+function readPackageJson(relativePath: string): { scripts?: Record<string, string> } {
+	return JSON.parse(readFileSync(resolve(import.meta.dirname, "../..", relativePath), "utf8")) as {
+		scripts?: Record<string, string>;
+	};
+}
 
 function createRepositoryShape(): string {
 	const repoRoot = mkdtempSync(resolve(tmpdir(), "campus-agent-dev-test-"));
 	temporaryDirectories.push(repoRoot);
-	for (const app of ["app-api", "campus-web", "ingestion-control", "ops-web"]) {
+	for (const app of [
+		"app-api",
+		"campus-web",
+		"execution-control",
+		"agent-runtime",
+		"ingestion-control",
+		"ops-web",
+	]) {
 		mkdirSync(resolve(repoRoot, "apps", app), { recursive: true });
 	}
 	mkdirSync(resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal"), {
@@ -553,9 +668,16 @@ function createSharedStatusInput(): Parameters<typeof classifySharedInfrastructu
 		containers: {
 			objectStore: { ...container, service: "object-store" },
 			postgres: container,
+			temporalPostgres: { ...container, service: "temporal-postgres" },
+			temporal: { ...container, service: "temporal" },
 		},
-		expectedHashes: { objectStore: "hash", postgres: "hash" },
+		expectedHashes: {
+			objectStore: "hash",
+			postgres: "hash",
+			temporalPostgres: "hash",
+			temporal: "hash",
+		},
 		network: "present",
-		volumes: { objectStore: "present", postgres: "present" },
+		volumes: { objectStore: "present", postgres: "present", temporal: "present" },
 	};
 }

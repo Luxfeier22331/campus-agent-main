@@ -641,9 +641,6 @@ components:
         execution.admission_ms:
           type: number
           minimum: 0
-        campus_docs.retrieve_ms:
-          type: number
-          minimum: 0
         memory.recall_ms:
           type: number
           minimum: 0

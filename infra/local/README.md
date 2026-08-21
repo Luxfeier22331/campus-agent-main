@@ -7,9 +7,8 @@
 
 每个 compose 文件只负责一个本地边界：
 
-- `docker-compose.dev.yml`：共享本地 PostgreSQL 与 RustFS；
-- `docker-compose.execution-runtime.yml`：本地 execution-control、agent-runtime、Temporal、
-  Hindsight 与 runtime worker；
+- `docker-compose.dev.yml`：共享本地 PostgreSQL、RustFS 与 Temporal；
+- `docker-compose.execution-runtime.yml`：按需启动本地 Hindsight 与 OTel 诊断依赖；
 - `docker-compose.execution-runtime.langfuse.yml`：将本地 Agent trace 转发至 Langfuse 的可选 OTel overlay；
 - `docker-compose.ingestion-control.yml`：本地 ingestion-control；
 - `docker-compose.qdrant.yml`：本地非 TLS Qdrant；
@@ -30,11 +29,17 @@ checkout 是它们的 bootstrap/reconcile owner。linked worktree 只复用已�
 `campus-agent-source` 与 `campus-agent-derived` 是共享 bucket；同一来源站点的同步或回填仍需保持
 单写者，不因为增加 worktree 而并发执行。
 
+execution-control 与 agent-runtime 不由 Compose 启动。`pnpm dev` 从当前 worktree 源码启动两者，并
+使用当前 profile 派生的 loopback 端口、Temporal namespace、数据库和 provider 配置加密密钥；不同
+worktree 不共享这两个宿主进程。Temporal 服务本身仍是机器级共享依赖，业务隔离使用 namespace。
+
 ## 产品本地准备
 
-根目录 `pnpm dev:init` 启动或校验共享 PostgreSQL 与 RustFS，确保共享 source、Campus Web 文档
-bucket 和当前 worktree 的 derived bucket 存在，在固定文档来源缺失时写入确定性样例，安装 app-api
-schema，并显式执行 Dining 本地 migration 与唯一 dev seed。`pnpm dev:destroy` 只删除确认的
-worktree database、derived bucket、托管环境文件和注册记录，不会为了清理而启动或重建共享容器。
-依赖 compose 不负责启动 app-api、Campus Web、Ops Web 或同步任务，也不在容器启动时写入业务
-seed。
+根目录 `pnpm dev:init` 启动或校验共享 PostgreSQL、RustFS 与 Temporal，确保共享 source、Campus Web
+文档 bucket 和当前 worktree 的 derived bucket 存在，在固定文档来源缺失时写入确定性样例，安装 app-api
+和 execution-control schema，创建当前 worktree 的 Temporal namespace，并显式执行核心 dev seed。Ops Web、
+ingestion-control、notice-publisher、internal-portal-collection 和 notice-classifier 通过各自 package 的
+`dev:init` 按需准备。
+`pnpm dev:destroy` 只删除确认的 worktree database、derived bucket、
+托管环境文件和注册记录，不会为了清理而启动或重建共享容器。依赖 compose 不负责启动 app-api、
+Campus Web、Ops Web、execution-control、agent-runtime 或同步任务，也不在容器启动时写入业务 seed。

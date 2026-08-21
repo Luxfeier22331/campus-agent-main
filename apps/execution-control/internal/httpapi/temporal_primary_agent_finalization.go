@@ -106,8 +106,6 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		ctx,
 		run,
 		agentResult,
-		input.AdmissionSnapshot,
-		input.CampusDocsRetrieval,
 	)
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", "", err)
@@ -664,19 +662,13 @@ func (s *Server) primaryAgentFinalizedResponse(
 	ctx context.Context,
 	run execution.DurableRun,
 	agentResult map[string]any,
-	admission temporalruntime.AgentAdmissionSnapshot,
-	campusDocsRetrieval temporalruntime.CampusDocsRetrievalResult,
 	additionalStageTiming ...stageTimingDuration,
 ) (map[string]any, error) {
 	envelope := cloneAnyMapFromMetadata(agentResult["terminal_envelope"])
 	if !validPrimaryAgentTerminalEnvelope(envelope) {
 		return nil, fmt.Errorf("agent terminal_envelope is required")
 	}
-	evidenceClosure, err := s.primaryAgentEvidenceClosureForFinalization(
-		admission,
-		campusDocsRetrieval,
-		envelope,
-	)
+	evidenceClosure, err := s.primaryAgentEvidenceClosureForFinalization(envelope)
 	if err != nil {
 		return nil, err
 	}

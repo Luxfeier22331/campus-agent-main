@@ -33,6 +33,9 @@ func testSchemaCommand(t *testing.T, harness *postgresHarness) {
 	t.Run("allows an empty execution-control schema", func(t *testing.T) {
 		testSchemaCommandAllowsEmptyExecutionSchema(t, harness, binaryPath)
 	})
+	t.Run("rejects stored provider secrets without their encryption key", func(t *testing.T) {
+		testSchemaCommandRejectsMismatchedProviderEncryptionKey(t, harness, binaryPath)
+	})
 	t.Run("migrates the complete legacy runtime schema", func(t *testing.T) {
 		databaseName, databaseURL := harness.ownerDatabase(t)
 		installAppAPIRuntimeFact(t, databaseURL)
@@ -69,6 +72,56 @@ func testSchemaCommand(t *testing.T, harness *postgresHarness) {
 	t.Run("v4 down restores the source schemas", func(t *testing.T) {
 		testExecutionControlSchemaDown(t, harness)
 	})
+}
+
+func testSchemaCommandRejectsMismatchedProviderEncryptionKey(
+	t *testing.T,
+	harness *postgresHarness,
+	binaryPath string,
+) {
+	t.Helper()
+	databaseName, databaseURL := harness.ownerDatabase(t)
+	installAppAPIRuntimeFact(t, databaseURL)
+	keyringPath, encryptionKeyPath := writeIntegrationProviderSecrets(t)
+	requireSuccessfulSchemaCommand(
+		t,
+		harness,
+		binaryPath,
+		databaseURL,
+		"install",
+		"--provider-config-keyring-path",
+		keyringPath,
+		"--provider-config-encryption-key-path",
+		encryptionKeyPath,
+	)
+	runtimeURL := harness.databaseURL(t, databaseName, executionRole, executionPassword)
+	store := newProviderStore(t, runtimeURL, nil)
+	if _, err := store.Put(t.Context(), "ops:integration", providerconfig.RuntimeSetting{
+		APIKey: "sk-existing", BaseURL: "https://provider.integration.example/v1", Kind: providerconfig.KindLLM,
+		Model: "existing-model", Provider: "openai-compatible", Transport: "responses",
+	}, providerconfig.ValidationResult{Message: "passed", Status: "passed"}); err != nil {
+		t.Fatal(err)
+	}
+
+	evidencePath := filepath.Join(t.TempDir(), "mismatched-keyring-evidence.json")
+	output, err := runSchemaCommand(
+		t,
+		harness,
+		binaryPath,
+		databaseURL,
+		"check",
+		evidencePath,
+		"--provider-config-keyring-path",
+		keyringPath,
+		"--provider-config-encryption-key-path",
+		writeIntegrationEncryptionKey(t, 0xb0),
+	)
+	if err == nil || !strings.Contains(string(output), "check stored provider config secrets") {
+		t.Fatalf("mismatched encryption key schema check error = %v output=%s", err, output)
+	}
+	if _, err := os.Stat(evidencePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("mismatched keyring evidence stat error = %v, want not exist", err)
+	}
 }
 
 func testSchemaCommandUpgradesAppliedV3(
@@ -456,26 +509,35 @@ func testSchemaCommandRejectsUnknownRuntimeSchema(t *testing.T, harness *postgre
 	}
 }
 
-func runSchemaCommand(t *testing.T, harness *postgresHarness, binaryPath, databaseURL, mode, evidencePath string) ([]byte, error) {
+func runSchemaCommand(
+	t *testing.T,
+	harness *postgresHarness,
+	binaryPath, databaseURL, mode, evidencePath string,
+	extraArgs ...string,
+) ([]byte, error) {
 	t.Helper()
 	keyringPath, encryptionKeyPath := writeIntegrationProviderSecrets(t)
-	command := exec.CommandContext(
-		t.Context(),
-		binaryPath,
+	args := []string{
 		"--mode", mode,
 		"--database-url", databaseURL,
 		"--evidence-path", evidencePath,
 		"--provider-config-keyring-path", keyringPath,
 		"--provider-config-encryption-key-path", encryptionKeyPath,
-	)
+	}
+	command := exec.CommandContext(t.Context(), binaryPath, append(args, extraArgs...)...)
 	command.Dir = harness.moduleDir
 	return command.CombinedOutput()
 }
 
-func requireSuccessfulSchemaCommand(t *testing.T, harness *postgresHarness, binaryPath, databaseURL, mode string) {
+func requireSuccessfulSchemaCommand(
+	t *testing.T,
+	harness *postgresHarness,
+	binaryPath, databaseURL, mode string,
+	extraArgs ...string,
+) {
 	t.Helper()
 	evidencePath := filepath.Join(t.TempDir(), mode+"-evidence.json")
-	if output, err := runSchemaCommand(t, harness, binaryPath, databaseURL, mode, evidencePath); err != nil {
+	if output, err := runSchemaCommand(t, harness, binaryPath, databaseURL, mode, evidencePath, extraArgs...); err != nil {
 		t.Fatalf("run schema command %s: %v\n%s", mode, err, output)
 	}
 	raw, err := os.ReadFile(evidencePath)

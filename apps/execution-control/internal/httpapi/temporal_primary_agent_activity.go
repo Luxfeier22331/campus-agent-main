@@ -70,10 +70,6 @@ func (s *Server) ExecutePrimaryAgent(
 	if providerconfig.AdmissionHash(providerConfig) != snapshot.ProviderConfigSHA256 {
 		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", errors.New("active llm setting does not match admission"))
 	}
-	campusDocsRetrieval, err := campusDocsRetrievalForPrimaryAgent(input)
-	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "campus_docs_retrieval_invalid", err)
-	}
 	limits = limitsFromAdmissionSnapshot(snapshot.AgentLimits)
 	limits.MaxTurns = snapshot.ExecutionStrategy.MaxModelTurns
 	limits.MaxToolCalls = snapshot.ExecutionStrategy.MaxToolCalls
@@ -89,7 +85,6 @@ func (s *Server) ExecutePrimaryAgent(
 		strings.TrimSpace(stringValue(executionPayload["user_goal"])),
 		providerConfig,
 		conversationContext,
-		campusDocsRetrieval,
 		limits,
 		attempt,
 	)

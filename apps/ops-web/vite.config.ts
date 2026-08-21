@@ -10,6 +10,9 @@ export default defineConfig({
 			},
 		},
 	},
+	optimizeDeps: {
+		exclude: ["@tldraw/assets/imports.vite"],
+	},
 	plugins: [tailwindcss(), react()],
 	server: {
 		proxy: {

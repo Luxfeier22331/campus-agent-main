@@ -535,6 +535,25 @@ describe("campus worker boundary", () => {
 		await expect(response.text()).resolves.toContain("请先登录。");
 	});
 
+	it("forwards non-streaming app-api bodies without materializing them at the edge", async () => {
+		const upstream = new Response(JSON.stringify({ ok: true }), {
+			headers: { "content-type": "application/json" },
+		});
+		const env = createEnv({
+			fetch() {
+				return upstream;
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/me/profile-memory"),
+			env,
+		);
+
+		expect(upstream.bodyUsed).toBe(false);
+		await expect(response.json()).resolves.toEqual({ ok: true });
+	});
+
 	it("does not expose upstream HTML error overlays through app-api proxy routes", async () => {
 		const env = createEnv({
 			fetch() {

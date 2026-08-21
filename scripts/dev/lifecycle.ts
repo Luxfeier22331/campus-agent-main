@@ -3,8 +3,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { bootstrapLocalApplications } from "./application-bootstrap";
 import {
 	assertLocalEnvironmentFilesAreManaged,
+	ensureLocalProviderConfigEncryptionKey,
+	type LocalDevEnvironmentTarget,
 	MANAGED_LOCAL_ENV_MARKER,
-	managedLocalEnvironmentPaths,
+	managedLocalEnvironmentPathsForTarget,
 	removeLocalEnvironmentFiles,
 	renderLocalEnvironmentFiles,
 } from "./environment";
@@ -12,6 +14,7 @@ import {
 	assertDestroyConfirmation,
 	destroyLocalInstanceResources,
 	ensureLocalInstanceResources,
+	ensureLocalTemporalNamespace,
 	formatProfileSummary,
 	localDatabaseProbe,
 } from "./instance-resources";
@@ -23,7 +26,7 @@ import {
 	releaseLocalDevProfile,
 } from "./profile";
 import {
-	assertSharedInfrastructureReady,
+	assertSharedDataInfrastructureReady,
 	DOCS_BUCKET,
 	DOCS_SOURCE_KEY,
 	ensureSharedInfrastructure,
@@ -35,13 +38,29 @@ import {
 	SOURCE_BUCKET,
 } from "./shared-infrastructure";
 
-export function initializeLocalDevelopment(repoRoot: string): LocalDevProfileV1 {
-	assertLocalEnvironmentFilesAreManaged(repoRoot);
+export function initializeLocalDevelopmentTarget(
+	repoRoot: string,
+	target: Exclude<LocalDevEnvironmentTarget, "all">,
+): LocalDevProfileV1 {
+	assertLocalEnvironmentFilesAreManaged(repoRoot, target);
 	ensureSharedInfrastructure(repoRoot);
 	const profile = ensureLocalDevProfile(repoRoot);
 	ensureLocalInstanceResources(profile);
-	renderLocalEnvironmentFiles({ profile, repoRoot });
-	bootstrapLocalApplications(repoRoot, profile);
+	if (target === "core") {
+		ensureLocalProviderConfigEncryptionKey(repoRoot);
+	}
+	renderLocalEnvironmentFiles({ profile, repoRoot, target });
+	if (target === "core") {
+		ensureLocalTemporalNamespace(repoRoot, profile);
+	}
+	if (
+		target === "core" ||
+		target === "ops-web" ||
+		target === "ingestion-control" ||
+		target === "notice-publisher"
+	) {
+		bootstrapLocalApplications(repoRoot, profile, target);
+	}
 	console.log(formatProfileSummary(profile));
 	return profile;
 }
@@ -58,7 +77,7 @@ export function diagnoseLocalDevelopment(repoRoot: string): {
 } {
 	const profile = loadLocalDevProfile(repoRoot);
 	const sharedInfrastructure = inspectSharedInfrastructure(repoRoot);
-	const managedEnvironmentReady = Object.values(managedLocalEnvironmentPaths(repoRoot)).every(
+	const managedEnvironmentReady = managedLocalEnvironmentPathsForTarget(repoRoot, "core").every(
 		(absolutePath) =>
 			existsSync(absolutePath) &&
 			readFileSync(absolutePath, "utf8").startsWith(MANAGED_LOCAL_ENV_MARKER),
@@ -91,7 +110,7 @@ export function destroyLocalDevelopment(input: {
 	if (existsSync(profile.worktreePath)) {
 		assertLocalEnvironmentFilesAreManaged(profile.worktreePath);
 	}
-	assertSharedInfrastructureReady(input.repoRoot);
+	assertSharedDataInfrastructureReady(input.repoRoot);
 	destroyLocalInstanceResources(profile);
 	if (existsSync(profile.worktreePath)) {
 		removeLocalEnvironmentFiles(profile.worktreePath);

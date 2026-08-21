@@ -63,11 +63,11 @@ endpoint 通过内部 HTTP 管理这些记录；internal-portal-collection 只�
 - derived bucket：通知分类制品、通知清洗后的内容寻址资源和所属 Job 的不可变派生制品；
 - Temporal：只服务 execution-control 的在线执行，不再承载 ingestion 采集。
 
-## 在线检索边界
+## 离线索引边界
 
-当前文档检索只消费 Campus Web 已清洗的 `campus-docs/source.json` 和当前 reader。通知来源对象、
-内部门户文件和其他采集产物都不能绕过该输入边界直接进入在线索引。分块、Embedding 和索引发布由
-Campus Docs 所属的三个显式 Job 分别完成，并通过内容寻址制品交接。
+当前 Campus Docs 索引只消费 Campus Web 已清洗的 `campus-docs/source.json` 和当前 reader。通知来源
+对象、内部门户文件和其他采集产物都不能绕过该输入边界直接进入索引。分块、Embedding 和索引发布由
+Campus Docs 所属的三个显式 Job 分别完成，并通过内容寻址制品交接。当前在线 Agent 不消费该索引。
 
 部署清单存在只表示期望状态；实际运行以环境仓选择和控制器状态为准。
 

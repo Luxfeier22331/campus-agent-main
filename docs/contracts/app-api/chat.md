@@ -161,7 +161,7 @@ type ChatRequest = {
   表示 Temporal 已排队，app-api 只把持久 `run.queued` 证据转换为 `execution.queued`，不能自行
   合成排队状态；
 - `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不代表最终答案；
-- `execution.phase` 的 `phase` 只允许 `preparing|retrieving|generating|finalizing`，用于显示受控产品阶段，
+- `execution.phase` 的 `phase` 只允许 `preparing|generating|finalizing`，用于显示受控产品阶段，
   不暴露 Temporal Activity、SDK tool call 或内部重试；
 - finalization transaction 完成后才能发送 terminal event；
 - execution-control 的浏览器 `run.canceled` 只有在产品取消终态提交后才转换为
@@ -229,17 +229,17 @@ type RunSummary = {
 
 ### 回答过程
 
-`GET /api/chat/runs/:runId/steps` 返回 `{ run, steps }`。接口保留一个调度事实和四个用户可感知阶段，固定按以下顺序排序：
+`GET /api/chat/runs/:runId/steps` 返回 `{ run, steps }`。接口保留一个调度事实和三个用户可感知阶段，
+固定按以下顺序排序：
 
 1. `queued`（内部调度事实，Campus Web 映射到准备阶段，不单独展示）
 2. `preparing`
-3. `retrieving`
-4. `generating`
-5. `finalizing`
+3. `generating`
+4. `finalizing`
 
 ```ts
 type RunStep = {
-  phase: "queued" | "preparing" | "retrieving" | "generating" | "finalizing";
+  phase: "queued" | "preparing" | "generating" | "finalizing";
   status: "pending" | "running" | "completed" | "failed" | "cancelled";
   startedAt: string | null;
   completedAt: string | null;

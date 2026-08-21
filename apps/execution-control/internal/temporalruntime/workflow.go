@@ -24,24 +24,7 @@ func ToolExecutionWorkflow(
 	input ToolExecutionWorkflowInput,
 ) (ToolExecutionWorkflowResult, error) {
 	activityOptions := defaultActivityOptions()
-	campusDocsRetrieval, err := retrieveCampusDocsEvidence(ctx, activityOptions, input)
-	if err != nil {
-		if workflowExecutionCanceled(ctx, err) {
-			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
-		}
-		if finalizeErr := finalizeExecutionFailure(
-			ctx,
-			activityOptions,
-			input,
-			"campus_docs.retrieve",
-			"campus_docs_retrieval_unavailable",
-			err,
-		); finalizeErr != nil {
-			return ToolExecutionWorkflowResult{}, finalizeErr
-		}
-		return ToolExecutionWorkflowResult{}, err
-	}
-	agent, err := executePrimaryAgent(ctx, activityOptions, input, campusDocsRetrieval)
+	agent, err := executePrimaryAgent(ctx, activityOptions, input)
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
 			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
@@ -59,12 +42,11 @@ func ToolExecutionWorkflow(
 		return ToolExecutionWorkflowResult{}, err
 	}
 	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
-		AgentResult:         agent,
-		AdmissionSnapshot:   input.AdmissionSnapshot,
-		CampusDocsRetrieval: campusDocsRetrieval,
-		FinalizedAt:         workflow.Now(ctx).UTC(),
-		RunID:               input.RunID,
-		TraceID:             input.TraceID,
+		AgentResult:       agent,
+		AdmissionSnapshot: input.AdmissionSnapshot,
+		FinalizedAt:       workflow.Now(ctx).UTC(),
+		RunID:             input.RunID,
+		TraceID:           input.TraceID,
 	})
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
@@ -319,47 +301,21 @@ func executePrimaryAgent(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
 	input ToolExecutionWorkflowInput,
-	campusDocsRetrieval CampusDocsRetrievalResult,
 ) (ExecutePrimaryAgentActivityOutput, error) {
 	agentCtx := workflow.WithActivityOptions(ctx, primaryAgentActivityOptions(activityOptions))
 	agentInput := ExecutePrimaryAgentActivityInput{
-		AdmissionSnapshot:   input.AdmissionSnapshot,
-		CampusDocsRetrieval: campusDocsRetrieval,
-		ConversationID:      input.ConversationID,
-		RequestID:           input.RequestID,
-		RunID:               input.RunID,
-		TraceID:             input.TraceID,
-		TraceParent:         input.TraceParent,
-		TurnID:              input.TurnID,
-		VisibleToolNames:    append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
+		AdmissionSnapshot: input.AdmissionSnapshot,
+		ConversationID:    input.ConversationID,
+		RequestID:         input.RequestID,
+		RunID:             input.RunID,
+		TraceID:           input.TraceID,
+		TraceParent:       input.TraceParent,
+		TurnID:            input.TurnID,
+		VisibleToolNames:  append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
 	}
 	var agent ExecutePrimaryAgentActivityOutput
 	err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent)
 	return agent, err
-}
-
-func retrieveCampusDocsEvidence(
-	ctx workflow.Context,
-	activityOptions workflow.ActivityOptions,
-	input ToolExecutionWorkflowInput,
-) (CampusDocsRetrievalResult, error) {
-	options := activityOptions
-	options.TaskQueue = ActivityTaskQueueAgent
-	options.StartToCloseTimeout = 90 * time.Second
-	options.HeartbeatTimeout = 30 * time.Second
-	retrievalCtx := workflow.WithActivityOptions(ctx, options)
-	var output CampusDocsRetrievalResult
-	err := workflow.ExecuteActivity(
-		retrievalCtx,
-		RetrieveCampusDocsEvidenceActivityName,
-		RetrieveCampusDocsEvidenceActivityInput{
-			AdmissionSnapshot:       input.AdmissionSnapshot,
-			AdmissionSnapshotSHA256: input.AdmissionSnapshotSHA256,
-			RunID:                   input.RunID,
-			TraceID:                 input.TraceID,
-		},
-	).Get(ctx, &output)
-	return output, err
 }
 
 func defaultActivityOptions() workflow.ActivityOptions {

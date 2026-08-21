@@ -8,12 +8,11 @@ status: active
 
 ## 边界
 
-本文定义 Campus Web 当前文档如何形成不可变 Campus Docs 索引，以及 execution-control 如何准入、
-查询和交付本轮 evidence。它不负责来源采集、文档清洗、Campus Web 页面构建、答案生成、个人记忆或
-通知检索。
+本文定义 Campus Web 当前文档如何形成不可变 Campus Docs 索引，以及发布器如何验证和激活索引。
+它不负责来源采集、文档清洗、Campus Web 页面构建、在线答案生成、个人记忆或通知检索。
 
-当前链路把所有获准文档发布到一个不可变 Qdrant collection，不按领域 scope 拆分，也不让浏览器或
-模型选择 collection、索引版本或查询配置。
+发布链把所有纳入清单的文档写入不可变 Qdrant collection，不按领域 scope 拆分。当前在线 Agent
+不会读取该 collection，也不选择 collection、索引版本或查询配置。
 
 ## 输入与索引身份
 
@@ -86,58 +85,14 @@ Publisher 在激活前完整核对 collection 配置、point 数、point 身份�
 源码包含 Job、schema、制品或 collection 只能证明发布链可执行，不能证明任一环境已经运行这些 Job
 或激活当前索引。操作步骤和清理条件见 `../../runbooks/campus-docs.md`。
 
-## 运行准入
+## 在线消费边界
 
-execution-control 在创建 workflow 前读取并冻结：
+`campus_docs_serving.current_index` 是发布器维护的当前激活记录，不是当前在线 Agent 的准入输入。
+execution-control 当前不会读取该记录、生成查询或访问 Qdrant；索引制品、schema、Job 模板和当前指针
+存在，也不表示在线 RAG 能力已经开放。
 
-- `campus_docs_serving.current_index` 中的物理 collection；
-- 当前 Embedding 设置 hash；
-- 本轮规范化查询的 SHA-256；
-- 其余 Agent 运行限制和获准能力。
-
-向量名、dimensions、查询指令和 sparse 实现由当前 execution-control 代码拥有，不属于可编辑
-Provider Config 或数据库绑定。Embedding 设置只保存连接；在线 Activity 按冻结 hash 解析该连接并以
-当前代码 dimensions 请求、校验查询向量。缺少当前 collection、设置无效或 hash 不一致时拒绝准入，
-不回退到旧 collection、旧配置或模型记忆。
-
-发布端 Collection Definition 与查询端定义必须在同一代码变更中保持一致。定义变化时先用该版本重新
-生成并激活 collection；系统不识别或兼容其他代码版本生成的旧 collection。
-
-准入快照不含凭据、文档正文或 provider 响应。整个 run 使用同一快照，不跟随后续索引发布或模型
-设置变化。
-
-## 查询与 evidence
-
-`RetrieveCampusDocsEvidenceActivity` 在 Primary Agent Activity 前执行一次：
-
-```text
-冻结问题
--> 按当前代码查询指令生成一次 dense embedding
--> 本地生成 sparse query vector
--> 查询唯一 admitted collection，并由 Qdrant 对 dense+sparse 候选做 RRF fusion
--> 校验 point schema、公开版本链接和正文 hash
--> 去重、排序并按数量与 Unicode 字符预算裁剪
--> 返回本轮 campus_docs_evidence
-```
-
-Qdrant point 保存 Agent 和来源卡片需要的 evidence 正文、文档/版本/section 身份及引用元数据；在线
-查询不回 PostgreSQL 或对象存储读取正文。Qdrant 分数只用于候选排序和预算选择，不是答案正确性或
-置信度证明。当前没有外部 reranker、远程查询改写、模型 scope 路由或迭代检索。
-
-完整 evidence 作为有界 Activity result 经 Temporal history 传给 Agent 和 Finalization。Agent Runtime
-只获得 `campus_docs_evidence` 与独立的 `conversation_context`，生成的 terminal envelope 只返回实际
-使用的 `evidence://` 引用，不复制检索正文。Finalization 使用原始 Activity result 校验引用并生成
-公开来源，防止跨 run 或伪造引用；普通运行投影和产品响应只保存有界摘要、计数、hash 与公开来源。
-
-检索失败会使当前执行失败关闭，不返回部分依赖结果，也不形成隐藏 fallback。没有选出 evidence 时
-仍可回答不依赖机构文档的普通问题；机构事实主张必须由本轮 evidence 支持。
-
-## 当前限制
-
-- 只查询 `campus_docs_serving.current_index` 指向的当前不可变 collection，不提供历史索引查询；
-- Campus Docs 检索不是模型工具，不进入 SDK 工具轨迹；
-- 通知、校历、Dining 和实时网页搜索不属于当前索引；
-- 任务、schema、制品和发布模板存在不表示环境已经激活该能力。
+未来在线消费必须另行定义请求输入、工具/能力合同、来源校验、评测和观测字段。本文件只维护离线
+索引的构建与激活语义，不预先规定在线检索次数或调用链路。
 
 ## 相关文档
 
@@ -145,5 +100,4 @@ Qdrant point 保存 Agent 和来源卡片需要的 evidence 正文、文档/版�
 - `document-site.md`
 - `../../data/document-reader.md`
 - `../../runbooks/campus-docs.md`
-- `../../decisions/adr-0007-retrieval-strategy.md`
 - `../../decisions/adr-0052-qdrant-hosting.md`

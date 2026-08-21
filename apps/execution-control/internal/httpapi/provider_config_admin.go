@@ -222,7 +222,6 @@ func putModelSetting(
 	}
 	writeJSON(response, http.StatusOK, status)
 }
-
 func modelSettingKindFromPath(path string) (providerconfig.Kind, bool) {
 	value := strings.TrimPrefix(path, modelSettingsAdminPrefix+"/")
 	if value == string(providerconfig.KindLLM) {

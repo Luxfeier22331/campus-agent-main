@@ -17,6 +17,14 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
+func TestDurableRunResponseIncludesFinalResponseRef(t *testing.T) {
+	const finalResponseRef = "projection://runs/run-response/finalization/write"
+	response := durableRunResponse(execution.DurableRun{FinalResponseRef: finalResponseRef})
+	if response["final_response_ref"] != finalResponseRef {
+		t.Fatalf("final_response_ref = %#v, want %q", response["final_response_ref"], finalResponseRef)
+	}
+}
+
 func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
@@ -75,12 +83,39 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 		t.Fatalf("visible tools = %#v, want none", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
 	}
 	snapshot := starter.input.AdmissionSnapshot
-	if snapshot.CampusDocsRetrieval.EmbeddingProviderConfigSHA256 == "" {
-		t.Fatalf("Campus Docs retrieval admission is incomplete: %#v", snapshot)
-	}
 	if snapshot.ToolRuntimeFingerprintSHA256 == "" ||
 		validateToolRuntimeFingerprintSnapshot(snapshot.ToolRuntimeFingerprint) != nil {
 		t.Fatalf("tool runtime admission snapshot = %#v", snapshot)
+	}
+}
+
+func TestExecutionRunCreateHidesPersonalMemoryToolWhenRuntimeIsUnavailable(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	starter := &fakeTemporalStarter{}
+	server := newWorkerAuthServerForTest()
+	attachAgentAdmissionProviderConfigsForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = starter
+
+	body := strings.Replace(
+		durableRunCreateBodyForTest("run-memory-runtime-unavailable", "conv-memory-runtime-unavailable"),
+		`"personal_memory_recall_allowed":false`,
+		`"personal_memory_recall_allowed":true`,
+		1,
+	)
+	response := httptest.NewRecorder()
+	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	server.ReconcileTemporalRunsOnce(context.Background())
+	strategy := starter.input.AdmissionSnapshot.ExecutionStrategy
+	if strategy.MemoryRecall != "disabled" || strategy.MaxToolCalls != 0 || len(strategy.VisibleToolNames) != 0 {
+		t.Fatalf("execution strategy = %#v, want memory disabled", strategy)
 	}
 }
 
@@ -110,6 +145,7 @@ func TestExecutionRunCreateClassifiesExecutionInputErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store := execution.NewInMemoryRunProjectionStore()
 			server := newWorkerAuthServerForTest()
+			attachAgentAdmissionProviderConfigsForTest(server)
 			attachRunProjectionStoreForHandlerTest(server, store)
 			server.executionInputLoader = failingExecutionInputLoader{err: execution.NewInputError(
 				"load",
@@ -153,31 +189,6 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 		name      string
 		runID     string
 	}{
-		{
-			name:  "Campus Docs index query failure",
-			runID: "run-campus-docs-index-failed",
-			configure: func(server *Server) {
-				server.campusDocsIndexStore = campusDocsIndexStoreFixture{
-					err: errors.New("sensitive index failure"),
-				}
-			},
-		},
-		{
-			name:  "Campus Docs index missing",
-			runID: "run-campus-docs-index-missing",
-			configure: func(server *Server) {
-				server.campusDocsIndexStore = campusDocsIndexStoreFixture{}
-			},
-		},
-		{
-			name:  "embedding provider missing",
-			runID: "run-embedding-provider-missing",
-			configure: func(server *Server) {
-				server.providerConfigResolver = staticProviderConfigResolver{
-					providerconfig.KindLLM: primaryAgentProviderConfigSnapshotForTest(),
-				}
-			},
-		},
 		{
 			name:  "llm provider missing",
 			runID: "run-llm-provider-missing",

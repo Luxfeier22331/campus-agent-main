@@ -16,4 +16,16 @@ describe("runtime command public execution errors", () => {
 			).toMatchObject({ errorCode });
 		},
 	);
+
+	it("uses the runtime tool error message without campus retrieval wording", () => {
+		expect(
+			publicExecutionFailure({
+				errorCode: "tool_execution_failed",
+				status: "error",
+			}),
+		).toEqual({
+			errorCode: "tool_execution_failed",
+			message: "A runtime tool could not complete.",
+		});
+	});
 });

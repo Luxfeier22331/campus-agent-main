@@ -22,7 +22,7 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | --- | --- | --- |
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
-| `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和 Campus Docs 检索准入 |
+| `execution_control` | `apps/execution-control` | 执行投影和模型配置读写 |
 | `ingestion_control` | `apps/ingestion-control` | 内部门户凭据池读写 |
 | `notice_publisher` | `jobs/notice-publisher` | 规范化通知写入 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户 automation token 读写 |
@@ -44,7 +44,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
 | `execution_control.model_settings` | execution-control 配置管理 | execution-control |
-| `campus_docs_serving.current_index` | execution-control（由 Campus Docs 发布任务写入） | execution-control |
+| `campus_docs_serving.current_index` | execution-control（由 Campus Docs 发布任务写入） | Campus Docs 发布任务；供后续在线知识能力使用 |
 | `ingestion_control.internal_portal_credentials` | ingestion-control | ingestion-control；Ops Web 与 internal-portal-collection 通过内部 API |
 | `notices.*` | notice-publisher | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
@@ -59,8 +59,8 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 migration 记录。
 
 Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs 发布任务复用
-`execution_control` 数据库身份替换 `campus_docs_serving.current_index` 单行绑定；在线查询也由
-execution-control 读取该表。发布任务不创建独立数据库角色、连接字符串或 Secret。
+`execution_control` 数据库身份替换 `campus_docs_serving.current_index` 单行绑定。当前在线
+execution-control 不读取该表；发布任务不创建独立数据库角色、连接字符串或 Secret。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 
 ## 迁移合同
@@ -105,7 +105,8 @@ execution-control 读取该表。发布任务不创建独立数据库角色、�
   状态健康检查必须实际读取所属表，不能用 PostgreSQL catalog 可见性代替运行角色的数据访问能力；
 - 在线模型配置只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
 - `execution_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
-  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；发布任务复用该身份；
+  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；发布任务复用该身份，当前在线
+  execution-control 不消费该表；
 - `execution_control.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
   该 Job 使用环境仓交付的 schema-install DSN、新的 `encryption.key`，以及仅在历史密文迁移时使用的
   旧 provider keyring；常驻 runtime 只使用 `execution_control` DSN 和 `encryption.key`，不执行迁移。

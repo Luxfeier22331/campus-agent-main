@@ -179,7 +179,14 @@
 		"dev": {
 			"cache": false,
 			"persistent": true,
-			"passThroughEnv": ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "XDG_STATE_HOME"]
+			"passThroughEnv": [
+				"HTTP_PROXY",
+				"HTTPS_PROXY",
+				"NO_PROXY",
+				"XDG_STATE_HOME",
+				"HINDSIGHT_*",
+				"OTEL_*"
+			]
 		}
 	}
 }

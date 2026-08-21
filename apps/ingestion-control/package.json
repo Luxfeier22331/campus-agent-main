@@ -11,6 +11,7 @@
 		"build": "esbuild ./src/server.ts ./src/migrate.ts ./src/schema-bootstrap.ts ./src/internal-portal-check.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --external:pg --external:undici",
 		"check:artifact": "node ./scripts/check-production-artifact.mjs",
 		"credentials:check": "tsx ./src/internal-portal-check.ts",
+		"dev:init": "pnpm --dir ../.. exec tsx scripts/dev/cli.ts init --target ingestion-control",
 		"migrate": "tsx ./src/migrate.ts",
 		"schema:bootstrap": "tsx ./src/schema-bootstrap.ts",
 		"start:api": "node --experimental-strip-types ./src/server.ts",

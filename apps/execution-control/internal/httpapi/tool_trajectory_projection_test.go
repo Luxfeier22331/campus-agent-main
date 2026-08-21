@@ -133,7 +133,7 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 	}
 }
 
-func TestBuildAgentRuntimeEvalProjectionExcludesPriorActivityAttempt(t *testing.T) {
+func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing.T) {
 	run := execution.DurableRun{
 		RunID:          "run-retried-agent",
 		ConversationID: "conv-retried-agent",
@@ -174,24 +174,7 @@ func TestBuildAgentRuntimeEvalProjectionExcludesPriorActivityAttempt(t *testing.
 			},
 		},
 	}
-	attempts := []execution.StepAttemptProjection{
-		{
-			AttemptID:       temporalStepAttemptID(run.RunID, "campus_docs.retrieve", 1),
-			StepID:          "campus_docs.retrieve",
-			RunID:           run.RunID,
-			Attempt:         1,
-			ActivityAttempt: 1,
-		},
-		{
-			AttemptID:       temporalStepAttemptID(run.RunID, "campus_docs.retrieve", 2),
-			StepID:          "campus_docs.retrieve",
-			RunID:           run.RunID,
-			Attempt:         2,
-			ActivityAttempt: 2,
-		},
-	}
-
-	projection := buildAgentRuntimeEvalProjection(run, nil, attempts, results)
+	projection := buildAgentRuntimeEvalProjection(run, nil, nil, results)
 	planning := expectRecord(t, projection["planning"], "planning")
 	toolSequence, _ := planning["tool_sequence"].([]any)
 	if len(toolSequence) != 1 || expectRecord(t, toolSequence[0], "planning.tool_sequence[0]")["tool_name"] != "personal_memory_recall" {

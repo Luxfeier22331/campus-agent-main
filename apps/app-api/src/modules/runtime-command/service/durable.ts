@@ -258,7 +258,7 @@ export function lifecycleEventFromDurableRunEvent(
 	}
 	if (event.eventType === "run.progress") {
 		const phase = event.payload.phase;
-		if (phase !== "retrieving" && phase !== "generating" && phase !== "finalizing") {
+		if (phase !== "generating" && phase !== "finalizing") {
 			throw new ExecutionControlTransportError({
 				code: "execution_control_invalid_response",
 				message: "Durable run progress event phase is invalid.",

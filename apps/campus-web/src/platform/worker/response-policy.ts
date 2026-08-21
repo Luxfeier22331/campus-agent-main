@@ -32,15 +32,13 @@ export function responseWithSecurityHeaders(response: Response): Response {
 
 export async function withNoStore(response: Response): Promise<Response> {
 	const headers = new Headers(response.headers);
-	const shouldMaterializeBody = response.body && !isStreamingResponse(headers);
 	headers.set("cache-control", "no-store");
 	headers.delete("content-encoding");
 	headers.delete("content-length");
 	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
 		headers.set(key, value);
 	}
-	const body = shouldMaterializeBody ? await response.arrayBuffer() : response.body;
-	return new Response(body, {
+	return new Response(response.body, {
 		headers,
 		status: response.status,
 		statusText: response.statusText,
@@ -61,9 +59,4 @@ export function isHtmlServerErrorResponse(response: Response): boolean {
 		return false;
 	}
 	return (response.headers.get("content-type") ?? "").toLowerCase().includes("text/html");
-}
-
-function isStreamingResponse(headers: Headers): boolean {
-	const contentType = headers.get("content-type")?.toLowerCase() ?? "";
-	return contentType.includes("text/event-stream");
 }

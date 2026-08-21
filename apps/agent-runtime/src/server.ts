@@ -1,3 +1,6 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { createAgentRuntimeHandler } from "./http-server.ts";
 import { createAgentRuntimeNodeServer } from "./node-http.ts";
 import { createPrimaryAgentRuntime } from "./primary-agent.ts";
@@ -6,17 +9,17 @@ import {
 	createRequestScopedStreamingOpenAIAgentsRunner,
 } from "./provider-config.ts";
 import { logAgentRuntimeEvent, safeAgentRuntimeErrorCode } from "./safe-logging.ts";
-import { exactSharedSecret } from "./server-config.ts";
+import { exactSharedSecret, loadAgentRuntimeServerConfig } from "./server-config.ts";
 import { runWithExtractedTraceContext, startAgentRuntimeTelemetry } from "./telemetry.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 
-const port = 27062;
-const host = "0.0.0.0";
+const { host, port } = loadAgentRuntimeServerConfig();
 const executionAgentRuntimeSharedSecret = exactSharedSecret(
 	process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET,
 );
-const catalogPath = "configs/runtime/tools.v6.json";
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const catalogPath = resolve(repositoryRoot, "configs/runtime/tools.v6.json");
 const deploymentRelease = requiredDeploymentRelease(
 	process.env.DEPLOYMENT_ENVIRONMENT,
 	process.env.DEPLOYMENT_RELEASE,

@@ -16,6 +16,7 @@ import { toAssistantThreadMessages } from "./assistant-ui-mappers";
 import {
 	isAbortError,
 	isRunAlreadyTerminalError,
+	isStreamRecoveryExhausted,
 	isTerminalRunStatus,
 	MAX_CONSECUTIVE_RECOVERY_FAILURES,
 	MAX_INITIAL_STREAM_REPLAYS,
@@ -297,19 +298,16 @@ export function useConversationRunCoordinator({
 			) {
 				initializationRegistryRef.current.local = null;
 			}
-			if (event.event === "request.failed" && event.data.error) {
-				cancelAssistantFrame();
-				appendLocalErrorMessage(
-					new ChatStreamRequestError({
-						code: event.data.error.code,
-						message: event.data.error.message,
-						requestId: event.data.requestId,
-						retryable: event.data.error.retryable ?? true,
-						traceId: event.data.traceId,
-					}),
-				);
-				return;
-			}
+			const terminalError =
+				event.event === "request.failed" && event.data.error
+					? new ChatStreamRequestError({
+							code: event.data.error.code,
+							message: event.data.error.message,
+							requestId: event.data.requestId,
+							retryable: event.data.error.retryable ?? true,
+							traceId: event.data.traceId,
+						})
+					: null;
 			if (event.event === "request.cancelled") {
 				flushAssistantFrame();
 				return;
@@ -318,8 +316,11 @@ export function useConversationRunCoordinator({
 				const terminalMessages = toAssistantThreadMessages(event.data.answer.conversation);
 				cancelAssistantFrame();
 				replaceWithCanonicalMessages(terminalMessages, terminalRunView);
-			} else if (conversationId) {
+				return;
+			}
+			if (conversationId) {
 				cancelAssistantFrame();
+				clearProvisionalAssistantMessages();
 				try {
 					const nextMessages = await fetchConversationMessagesWithRetry(
 						conversationId,
@@ -328,12 +329,13 @@ export function useConversationRunCoordinator({
 					);
 					if (ownsOperation(operation)) {
 						replaceWithCanonicalMessages(nextMessages, terminalRunView);
+						return;
 					}
 				} catch (error) {
 					if (error instanceof UnauthorizedError || isAbortError(error)) {
 						throw error;
 					}
-					if (ownsOperation(operation)) {
+					if (ownsOperation(operation) && !terminalError) {
 						appendLocalErrorMessage(
 							new ChatStreamRequestError({
 								code: "conversation_refresh_failed",
@@ -346,10 +348,14 @@ export function useConversationRunCoordinator({
 					}
 				}
 			}
+			if (terminalError && ownsOperation(operation)) {
+				appendLocalErrorMessage(terminalError);
+			}
 		},
 		[
 			appendLocalErrorMessage,
 			cancelAssistantFrame,
+			clearProvisionalAssistantMessages,
 			fetchConversationMessages,
 			flushAssistantFrame,
 			ownsOperation,
@@ -1031,13 +1037,16 @@ export function useConversationRunCoordinator({
 				if (!ownsOperation(operation)) {
 					return;
 				}
+				const acceptedRun = operationMachineRef.current.activeRun;
 				setIsRunning(false);
 				if (error instanceof UnauthorizedError) {
 					if (operationMachineRef.current.activeRun) {
 						markRunDisconnected(operation.id, operationMachineRef.current.activeRun.runId);
 					} else {
 						cancelAssistantFrame();
-						clearProvisionalAssistantMessages();
+						if (!acceptedRun) {
+							clearProvisionalAssistantMessages();
+						}
 					}
 					onLoginRequired();
 					return;
@@ -1048,12 +1057,38 @@ export function useConversationRunCoordinator({
 					return;
 				}
 				if (error instanceof ChatStreamRequestError) {
-					operationMachineRef.current.cancellation = { phase: "idle" };
-					if (operationMachineRef.current.activeRun) {
-						markRunDisconnected(operation.id, operationMachineRef.current.activeRun.runId);
-					} else {
-						cancelAssistantFrame();
+					const recoveryExhausted = acceptedRun && isStreamRecoveryExhausted(error);
+					if (acceptedRun) {
+						markRunDisconnected(operation.id, acceptedRun.runId);
+					}
+					if (!recoveryExhausted) {
+						replaceActiveRun(null);
+					}
+					cancelAssistantFrame();
+					if (!acceptedRun) {
 						clearProvisionalAssistantMessages();
+					}
+					operationMachineRef.current.cancellation = { phase: "idle" };
+					const conversationId = acceptedRun?.conversationId ?? input.conversationId;
+					if (acceptedRun && conversationId) {
+						try {
+							const canonicalMessages = await fetchConversationMessages(
+								conversationId,
+								controller.signal,
+							);
+							if (!ownsOperation(operation)) {
+								return;
+							}
+							replaceWithCanonicalMessages(canonicalMessages, runViewRef.current);
+						} catch (refreshError) {
+							if (refreshError instanceof UnauthorizedError) {
+								onLoginRequired();
+								return;
+							}
+							if (isAbortError(refreshError)) {
+								return;
+							}
+						}
 					}
 					appendLocalErrorMessage(error);
 					return;
@@ -1070,12 +1105,14 @@ export function useConversationRunCoordinator({
 			applyRunViewAction,
 			cancelAssistantFrame,
 			clearProvisionalAssistantMessages,
+			fetchConversationMessages,
 			followLifecycleStream,
 			loginRequired,
 			markRunDisconnected,
 			onLoginRequired,
 			ownsOperation,
 			replaceActiveRun,
+			replaceWithCanonicalMessages,
 			startOperation,
 			truncateMessagesFrom,
 		],
@@ -1186,6 +1223,10 @@ export function useConversationRunCoordinator({
 			}
 			if (error instanceof ChatStreamRequestError) {
 				markRunDisconnected(operation.id, currentRun.runId);
+				if (!isStreamRecoveryExhausted(error)) {
+					replaceActiveRun(null);
+				}
+				cancelAssistantFrame();
 				operationMachineRef.current.cancellation = { phase: "idle" };
 				appendLocalErrorMessage(error);
 				return;
@@ -1204,6 +1245,7 @@ export function useConversationRunCoordinator({
 		markRunDisconnected,
 		onLoginRequired,
 		ownsOperation,
+		replaceActiveRun,
 		startOperation,
 	]);
 

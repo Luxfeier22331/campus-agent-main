@@ -47,7 +47,6 @@ func TestCallAgentRuntimeDoesNotFollowRedirect(t *testing.T) {
 		"private prompt",
 		providerconfig.RuntimeSetting{APIKey: "provider-secret"},
 		nil,
-		temporalruntime.CampusDocsRetrievalResult{Evidence: []temporalruntime.CampusDocsEvidence{}},
 		server.primaryAgentRuntimeLimits(),
 		1,
 	)

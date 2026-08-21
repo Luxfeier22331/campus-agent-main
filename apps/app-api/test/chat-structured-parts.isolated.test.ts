@@ -6,7 +6,7 @@ import { normalizeChatStructuredParts } from "../src/modules/chat";
 import { normalizeSourceItemsPart } from "../src/modules/runtime-command/service/normalize";
 
 describe("chat structured parts", () => {
-	it("projects current Campus Docs evidence into browser source items", () => {
+	it("projects a document source result into browser source items", () => {
 		const parts = normalizeSourceItemsPart({
 			result: {
 				sources: [
@@ -49,7 +49,7 @@ describe("chat structured parts", () => {
 		]);
 	});
 
-	it("ignores legacy source metadata when rebuilding persisted Campus Docs items", () => {
+	it("ignores legacy source metadata when rebuilding persisted document items", () => {
 		const parts = normalizeChatStructuredParts([
 			{
 				sourceItems: [

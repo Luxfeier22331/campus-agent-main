@@ -20,10 +20,6 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 		activity.RegisterOptions{Name: AppendConversationMemoryActivityName},
 	)
 	env.RegisterActivityWithOptions(
-		activities.RetrieveCampusDocsEvidenceActivity,
-		activity.RegisterOptions{Name: RetrieveCampusDocsEvidenceActivityName},
-	)
-	env.RegisterActivityWithOptions(
 		activities.ExecutePrimaryAgentActivity,
 		activity.RegisterOptions{Name: ExecutePrimaryAgentActivityName},
 	)
@@ -51,15 +47,6 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 		activities.WritePersonalMemoryCommandResultActivity,
 		activity.RegisterOptions{Name: WritePersonalMemoryCommandResultActivityName},
 	)
-}
-
-func (Activities) RetrieveCampusDocsEvidenceActivity(
-	_ context.Context,
-	input RetrieveCampusDocsEvidenceActivityInput,
-) (CampusDocsRetrievalResult, error) {
-	return CampusDocsRetrievalResult{
-		Evidence: []CampusDocsEvidence{},
-	}, nil
 }
 
 func (Activities) FinalizePersonalMemoryCommandReceiptActivity(

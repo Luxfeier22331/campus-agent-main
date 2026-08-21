@@ -38,11 +38,6 @@
 			"critical_ms": 1500
 		},
 		{
-			"field": "campus_docs.retrieve_ms",
-			"warn_ms": 3000,
-			"critical_ms": 7000
-		},
-		{
 			"field": "memory.recall_ms",
 			"warn_ms": 800,
 			"critical_ms": 2000

@@ -156,8 +156,7 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 
 func durableRunProgressPhaseValid(phase DurableRunProgressPhase) bool {
 	switch phase {
-	case DurableRunProgressPhaseRetrieving,
-		DurableRunProgressPhaseGenerating,
+	case DurableRunProgressPhaseGenerating,
 		DurableRunProgressPhaseFinalizing:
 		return true
 	default:

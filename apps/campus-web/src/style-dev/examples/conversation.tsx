@@ -43,7 +43,7 @@ const RUNNING_RUN: CampusRunViewState = {
 	...COMPLETED_RUN,
 	completedAt: null,
 	durationMs: null,
-	phase: "retrieving",
+	phase: "generating",
 	status: "running",
 };
 
@@ -63,17 +63,10 @@ const RUN_STEPS: readonly ChatRunStep[] = [
 		status: "completed",
 	},
 	{
-		completedAt: "2026-08-19T20:30:02+08:00",
-		durationMs: 1_000,
-		phase: "retrieving",
-		startedAt: "2026-08-19T20:30:01+08:00",
-		status: "completed",
-	},
-	{
 		completedAt: "2026-08-19T20:30:04+08:00",
-		durationMs: 2_000,
+		durationMs: 3_000,
 		phase: "generating",
-		startedAt: "2026-08-19T20:30:02+08:00",
+		startedAt: "2026-08-19T20:30:01+08:00",
 		status: "completed",
 	},
 	{

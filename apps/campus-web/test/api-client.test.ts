@@ -550,7 +550,7 @@ describe("campus app-api client", () => {
 						{
 							eventType: "execution.phase",
 							occurredAt: "2026-06-08T00:00:01.000Z",
-							payload: { phase: "retrieving", request_id: "req_01" },
+							payload: { phase: "generating", request_id: "req_01" },
 							runId: "run_01",
 							sequence: 7,
 						},
@@ -584,7 +584,7 @@ describe("campus app-api client", () => {
 			nextSequence: 9,
 			run: { runId: "run_01", status: "streaming" },
 			events: [
-				{ event: "execution.phase", data: { phase: "retrieving", sequence: 7 } },
+				{ event: "execution.phase", data: { phase: "generating", sequence: 7 } },
 				{
 					event: "answer.delta",
 					data: { delta: "校园资料", messageId: "msg_01", sequence: 8 },
@@ -598,7 +598,7 @@ describe("campus app-api client", () => {
 		});
 	});
 
-	it("reads the fixed five-phase run steps without exposing raw trajectory fields", async () => {
+	it("reads the fixed four-phase run steps without exposing raw trajectory fields", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
 			new Response(
 				JSON.stringify({
@@ -622,7 +622,7 @@ describe("campus app-api client", () => {
 							startedAt: "2026-06-08T00:00:00.000Z",
 							status: "completed",
 						},
-						...(["preparing", "retrieving", "generating", "finalizing"] as const).map((phase) => ({
+						...(["preparing", "generating", "finalizing"] as const).map((phase) => ({
 							completedAt: null,
 							durationMs: null,
 							phase,
@@ -639,7 +639,6 @@ describe("campus app-api client", () => {
 			steps: [
 				expect.objectContaining({ phase: "queued" }),
 				expect.objectContaining({ phase: "preparing" }),
-				expect.objectContaining({ phase: "retrieving" }),
 				expect.objectContaining({ phase: "generating" }),
 				expect.objectContaining({ phase: "finalizing" }),
 			],

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
@@ -9,6 +10,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 import { resolveStagingSentryRelease } from "../../scripts/deploy/staging-release.mts";
 import { campusBundleGraphPlugin } from "./config/bundle-graph.ts";
+import { loadCampusWebBuildEnvironment } from "./scripts/build-process-env.ts";
 import { resolveDocsContentPaths } from "./src/docs-reader-build/docs-content.ts";
 import {
 	type CampusMapAssetKind,
@@ -18,6 +20,7 @@ import {
 } from "./src/platform/campus-map-assets.ts";
 
 const campusWebRoot = import.meta.dirname;
+const repoRoot = path.resolve(campusWebRoot, "../..");
 const require = createRequire(import.meta.url);
 const campusFaviconPath = path.resolve(campusWebRoot, "assets/favicon.ico");
 
@@ -27,7 +30,9 @@ export default defineConfig(({ command, isPreview }) => {
 	if (buildTarget === "docs" && command !== "build") {
 		throw new Error("The Campus Web docs build requires static docs content.");
 	}
-	const docsContent = isPreview ? undefined : resolveDocsBuildContent();
+	const docsContent = isPreview ? undefined : resolveDocsBuildContent(command);
+	const developmentPort =
+		command === "serve" && !isPreview ? resolveCampusWebDevelopmentPort() : undefined;
 	const clientOutputRoot = path.resolve(
 		campusWebRoot,
 		buildTarget === "docs" ? "dist/docs-client" : "dist/client",
@@ -59,7 +64,7 @@ export default defineConfig(({ command, isPreview }) => {
 				},
 			},
 		},
-		publicDir: docsContent?.paths.publicRoot ?? false,
+		publicDir: docsContent?.paths.publicRoot ?? (false as const),
 		plugins: [
 			tailwindcss(),
 			react(),
@@ -111,6 +116,15 @@ export default defineConfig(({ command, isPreview }) => {
 			},
 			dedupe: ["react", "react-dom"],
 		},
+		...(developmentPort
+			? {
+					server: {
+						host: "127.0.0.1",
+						port: developmentPort,
+						strictPort: true,
+					},
+				}
+			: {}),
 	};
 });
 
@@ -167,14 +181,64 @@ function resolveCampusWebBuildTarget(): "app" | "docs" {
 	throw new Error("CAMPUS_WEB_BUILD_TARGET must be app or docs.");
 }
 
-function resolveDocsBuildContent(): { paths: ReturnType<typeof resolveDocsContentPaths> } {
-	const configuredRoot = process.env.CAMPUS_WEB_DOCS_CONTENT_ROOT?.trim();
+function resolveDocsBuildContent(command: "build" | "serve"): {
+	paths: ReturnType<typeof resolveDocsContentPaths>;
+} {
+	let configuredRoot = process.env.CAMPUS_WEB_DOCS_CONTENT_ROOT?.trim();
+	if (!configuredRoot && command === "serve") {
+		configuredRoot = prepareDocsDevelopmentContent();
+	}
 	if (!configuredRoot) {
 		throw new Error(
 			"Campus Web requires prepared docs content. Use pnpm run dev or pnpm run build.",
 		);
 	}
 	return { paths: resolveDocsContentPaths(configuredRoot) };
+}
+
+function prepareDocsDevelopmentContent(): string {
+	const result = spawnSync(
+		process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+		["exec", "tsx", "./scripts/prepare-docs-content.ts"],
+		{
+			cwd: campusWebRoot,
+			encoding: "utf8",
+			env: loadCampusWebBuildEnvironment({ appRoot: campusWebRoot, repoRoot }),
+			stdio: "pipe",
+		},
+	);
+	if (result.error) {
+		throw result.error;
+	}
+	if (result.status !== 0) {
+		if (result.stderr) {
+			process.stderr.write(result.stderr);
+		}
+		throw new Error(
+			`Campus Web docs preparation exited with status ${result.status ?? "unknown"}.`,
+		);
+	}
+	try {
+		const parsed = JSON.parse(result.stdout.trim()) as { root?: unknown };
+		if (typeof parsed.root !== "string" || !parsed.root) {
+			throw new Error("missing root");
+		}
+		return parsed.root;
+	} catch {
+		throw new Error("Campus Web docs preparation returned invalid output.");
+	}
+}
+
+function resolveCampusWebDevelopmentPort(): number {
+	const rawPort = loadCampusWebBuildEnvironment({
+		appRoot: campusWebRoot,
+		repoRoot,
+	}).CAMPUS_WEB_DEV_PORT?.trim();
+	const port = Number(rawPort);
+	if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+		throw new Error("CAMPUS_WEB_DEV_PORT must be a valid TCP port.");
+	}
+	return port;
 }
 
 function findHtmlInputs(pagesRoot: string): Record<string, string> {

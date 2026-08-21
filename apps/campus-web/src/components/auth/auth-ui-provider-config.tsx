@@ -106,7 +106,6 @@ export function createCampusSettingsProviderProps({
 			},
 			settings: {
 				account: "account",
-				memory: "memory",
 				security: "security",
 			},
 		},

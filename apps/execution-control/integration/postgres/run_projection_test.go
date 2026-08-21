@@ -505,7 +505,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 		conflictingRequest.TerminalEvent = postgresFailedRunTerminalEvent(
 			run,
 			failedAt,
-			map[string]any{"failure_kind": "retrieval_unavailable", "status": "failed"},
+			map[string]any{"failure_kind": "worker_unavailable", "status": "failed"},
 		)
 		if _, err := store.FailRunProjection(t.Context(), conflictingRequest); !errors.Is(err, execution.ErrDurableRunFailureConflict) {
 			t.Fatalf("conflicting replay error = %v, want ErrDurableRunFailureConflict", err)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exactSharedSecret } from "../src/server-config.ts";
+import { exactSharedSecret, loadAgentRuntimeServerConfig } from "../src/server-config.ts";
 
 describe("agent runtime server config", () => {
 	it.each([undefined, ""])("keeps an absent shared secret unconfigured", (value) => {
@@ -18,4 +18,21 @@ describe("agent runtime server config", () => {
 			);
 		},
 	);
+});
+
+describe("agent runtime server binding", () => {
+	it("uses the production-compatible defaults", () => {
+		expect(loadAgentRuntimeServerConfig({})).toEqual({ host: "0.0.0.0", port: 27062 });
+	});
+
+	it("uses the configured host and port", () => {
+		expect(loadAgentRuntimeServerConfig({ HOST: "127.0.0.1", PORT: "27162" })).toEqual({
+			host: "127.0.0.1",
+			port: 27162,
+		});
+	});
+
+	it.each(["0", "65536", "not-a-port"])("rejects invalid port %s", (port) => {
+		expect(() => loadAgentRuntimeServerConfig({ PORT: port })).toThrow("PORT");
+	});
 });

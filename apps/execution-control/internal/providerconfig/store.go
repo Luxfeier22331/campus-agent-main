@@ -151,6 +151,29 @@ func (s *Store) AdminReadinessCheck(ctx context.Context) error {
 	return nil
 }
 
+func (s *Store) StoredSecretsCheck(ctx context.Context) error {
+	if s == nil || s.pool == nil || s.cipher == nil {
+		return ErrNotConfigured
+	}
+	rows, err := s.pool.Query(ctx, `select kind,secret_nonce,secret_ciphertext
+		from execution_control.model_settings order by kind`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var kind Kind
+		var nonce, ciphertext []byte
+		if err := rows.Scan(&kind, &nonce, &ciphertext); err != nil {
+			return err
+		}
+		if _, err := s.cipher.Decrypt(nonce, ciphertext, settingAAD(kind)); err != nil {
+			return fmt.Errorf("decrypt stored %s model setting: %w", kind, err)
+		}
+	}
+	return rows.Err()
+}
+
 func (s *Store) Close() {
 	if s != nil && s.pool != nil {
 		s.pool.Close()
@@ -311,6 +334,8 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 		); err != nil {
 			return Status{}, err
 		}
+		validation.ValidatedAt = validation.ValidatedAt.UTC()
+		view.UpdatedAt = view.UpdatedAt.UTC()
 		if view.Kind == KindEmbedding {
 			view.Model = CanonicalEmbeddingModel
 			view.Provider = CanonicalEmbeddingProvider

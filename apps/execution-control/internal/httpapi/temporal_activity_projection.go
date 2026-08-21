@@ -407,8 +407,8 @@ func temporalFailureTerminalReason(
 	switch strings.TrimSpace(failureKind) {
 	case "agent_runtime_failed", "personal_memory_not_configured", "provider_config_missing", "provider_unavailable":
 		return execution.DurableTerminalReasonProviderUnavailable
-	case "retrieval_lookup_failed", "tool_execution_failed":
-		return execution.DurableTerminalReasonRetrievalUnavailable
+	case "tool_execution_failed":
+		return execution.DurableTerminalReasonWorkerUnavailable
 	case "workflow_completed_without_terminal_projection",
 		"workflow_failed_without_terminal_projection",
 		"workflow_canceled_without_terminal_projection",

@@ -15,6 +15,18 @@ import {
 	TestUnauthorizedError as UnauthorizedError,
 } from "./assistant-ui-runtime.test-support";
 
+function canonicalConversation(answerText: string) {
+	return canonicalAnswer(answerText).conversation;
+}
+
+function canonicalAnswer(answerText: string) {
+	const answer = completedTerminalEvent(answerText).data.answer;
+	if (!answer) {
+		throw new Error("Expected a canonical conversation fixture.");
+	}
+	return answer;
+}
+
 describe("assistant-ui runtime recovery and terminal handling", () => {
 	installAssistantUiRuntimeTestHarness();
 
@@ -171,6 +183,67 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		});
 	});
 
+	it("uses the canonical conversation carried by a failed terminal event", async () => {
+		const canonical = completedTerminalEvent("请求失败。");
+		if (!canonical.data.answer) {
+			throw new Error("Expected a canonical conversation fixture.");
+		}
+		canonical.event = "request.failed";
+		canonical.data.status = "failed";
+		canonical.data.error = {
+			code: "execution_failed",
+			message: "请求失败。",
+			retryable: true,
+		};
+		canonical.data.answer.result = {
+			errorCode: "execution_failed",
+			kind: "error",
+			message: "请求失败。",
+			requestId: "req_01",
+			retryable: true,
+			traceId: "trace_01",
+		};
+		const assistantMessage = canonical.data.answer.conversation.messages[1];
+		if (!assistantMessage) {
+			throw new Error("Expected an assistant message fixture.");
+		}
+		canonical.data.answer.conversation.messages[1] = {
+			...assistantMessage,
+			kind: "error",
+			retryable: true,
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_01",
+						runId: "run_01",
+						sequence: 1,
+						status: "accepted",
+						traceId: "trace_01",
+					},
+					event: "request.accepted",
+				},
+				canonical,
+			]),
+		);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "这次会失败吗？", type: "text" }],
+			});
+		});
+
+		expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
+		expect(hasMessageId("msg_user")).toBe(true);
+		expect(hasMessageId("msg_answer")).toBe(true);
+		expect(hasMessageId("local-error-req_01")).toBe(false);
+		expect(readAssistantText()).toBe("请求失败。");
+	});
+
 	it("replays a submit that closes before acceptance with the same idempotency key", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream
@@ -206,6 +279,9 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					},
 				]),
 			);
+		conversationApiMock.getConversationDetail.mockResolvedValue(
+			canonicalConversation("重放后取得同一运行。"),
+		);
 
 		try {
 			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
@@ -270,6 +346,9 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					event: "request.failed",
 				},
 			]),
+		);
+		conversationApiMock.getConversationDetail.mockResolvedValue(
+			canonicalConversation("恢复后的终态。"),
 		);
 
 		try {
@@ -423,6 +502,14 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				retryable: true,
 			}),
 		);
+		const canonicalConversation = completedTerminalEvent("unused").data.answer?.conversation;
+		if (!canonicalConversation) {
+			throw new Error("Expected a canonical conversation fixture.");
+		}
+		conversationApiMock.getConversationDetail.mockResolvedValue({
+			...canonicalConversation,
+			messages: canonicalConversation.messages.filter((message) => message.role === "user"),
+		});
 
 		try {
 			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
@@ -442,8 +529,49 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 
 			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(4);
 			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(3);
+			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+				"conv_created",
+				expect.any(AbortSignal),
+			);
 			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(hasMessageId("msg_user")).toBe(true);
+			expect(
+				assistantUiMock.externalStoreInput?.messages.some(
+					(message) =>
+						typeof message === "object" &&
+						message !== null &&
+						"id" in message &&
+						typeof message.id === "string" &&
+						message.id.startsWith("local-user-"),
+				),
+			).toBe(false);
 			expect(readAssistantText()).toBe("回答连接已中断，请重试。");
+
+			conversationApiMock.resumeRunEventsStream.mockImplementationOnce(() =>
+				streamEvents([
+					{
+						data: {
+							answer: canonicalAnswer("恢复后的规范回答"),
+							occurredAt: "2026-06-24T01:00:05.000Z",
+							requestId: "req_recovery_lost",
+							runId: "run_recovery_lost",
+							sequence: 2,
+							status: "completed",
+							traceId: "trace_recovery_lost",
+						},
+						event: "request.completed",
+					},
+				]),
+			);
+			await act(async () => {
+				await assistantUiMock.externalStoreInput?.onResume?.();
+			});
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenLastCalledWith({
+				afterSequence: 1,
+				runId: "run_recovery_lost",
+				signal: expect.any(AbortSignal),
+			});
+			expect(readAssistantText()).toBe("恢复后的规范回答");
 		} finally {
 			vi.useRealTimers();
 		}
@@ -559,6 +687,9 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					event: "request.failed",
 				},
 			]),
+		);
+		conversationApiMock.getConversationDetail.mockResolvedValue(
+			canonicalConversation("恢复订阅结束。"),
 		);
 
 		try {
@@ -830,6 +961,17 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 	});
 
 	it("renders a failed stream terminal event as an assistant error message", async () => {
+		const canonical = canonicalConversation("请求失败。");
+		const assistantMessage = canonical.messages[1];
+		if (!assistantMessage) {
+			throw new Error("Expected an assistant message fixture.");
+		}
+		canonical.messages[1] = {
+			...assistantMessage,
+			kind: "error",
+			retryable: true,
+		};
+		conversationApiMock.getConversationDetail.mockResolvedValue(canonical);
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
 				{
@@ -873,25 +1015,28 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		});
 
 		await waitFor(() => expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false));
-		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
-			expect.objectContaining({ role: "user" }),
-			expect.objectContaining({
-				metadata: {
-					custom: {
-						campusRun: expect.objectContaining({
-							runId: "run_failed",
-							status: "failed",
-						}),
+		expect(hasMessageId("msg_user")).toBe(true);
+		expect(hasMessageId("msg_answer")).toBe(true);
+		expect(hasMessageId("local-error-req_failed")).toBe(false);
+		expect(readAssistantText()).toBe("请求失败。");
+		expect(assistantUiMock.externalStoreInput?.messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "msg_answer",
+					metadata: {
+						custom: {
+							campusRun: expect.objectContaining({
+								runId: "run_failed",
+								status: "failed",
+							}),
+						},
 					},
-				},
-				role: "assistant",
-			}),
-			expect.objectContaining({
-				content: [{ text: "请求失败。", type: "text" }],
-				id: "local-error-req_failed",
-				role: "assistant",
-			}),
-		]);
-		expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
+				}),
+			]),
+		);
+		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+			"conv_created",
+			expect.any(AbortSignal),
+		);
 	});
 });

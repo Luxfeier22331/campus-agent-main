@@ -11,6 +11,14 @@ export interface LocalDevPorts {
 	opsWebApi: number;
 }
 
+export interface LocalDevRuntimePorts {
+	agentRuntime: number;
+	executionControl: number;
+	executionControlAdmin: number;
+	executionControlSnapshot: number;
+	ingestionControl: number;
+}
+
 export interface LocalDevProfileV1 {
 	bucketName: string;
 	createdAt: string;
@@ -42,6 +50,18 @@ export function calculateLocalDevPorts(slot: number): LocalDevPorts {
 		campusWeb: 27_014 + slot * 100,
 		opsWeb: 5_178 + slot * 10,
 		opsWebApi: 5_179 + slot * 10,
+	};
+}
+
+export function calculateLocalDevRuntimePorts(slot: number): LocalDevRuntimePorts {
+	assertSlot(slot);
+	const executionControl = 27_051 + slot * 100;
+	return {
+		agentRuntime: 27_062 + slot * 100,
+		executionControl,
+		executionControlAdmin: executionControl + 1,
+		executionControlSnapshot: executionControl + 2,
+		ingestionControl: 27_061 + slot * 100,
 	};
 }
 

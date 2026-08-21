@@ -44,12 +44,6 @@ func TestWriteFinalizationActivityRejectsInvalidWorkflowAgentResult(t *testing.T
 				input.AgentResult.RunID = "other-run"
 			},
 		},
-		{
-			name: "retrieval admission without result",
-			mutate: func(input *temporalruntime.WriteFinalizationActivityInput) {
-				input.AdmissionSnapshot.CampusDocsRetrieval = temporalruntime.CampusDocsRetrievalAdmission{}
-			},
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

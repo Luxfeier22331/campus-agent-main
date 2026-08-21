@@ -5,6 +5,7 @@ import {
 	readMessageText,
 	readTextContent,
 } from "./assistant-ui-message-projection";
+import { isPersistedConversationMessageId } from "./assistant-ui-recovery-policy";
 import { useConversationRunCoordinator } from "./use-conversation-run-coordinator";
 
 function convertMessage(message: RuntimeMessages[number]) {
@@ -73,6 +74,9 @@ export function useAssistantUiRunController({
 	const onEdit = useCallback(
 		async (message: AppendMessage) => {
 			const truncateFromMessageId = message.parentId;
+			if (!isPersistedConversationMessageId(truncateFromMessageId)) {
+				return;
+			}
 			await runPrompt({
 				conversationId: remoteId,
 				messageContent: message.content,
@@ -85,7 +89,7 @@ export function useAssistantUiRunController({
 
 	const onReload = useCallback(
 		async (parentId: string | null) => {
-			if (!parentId) {
+			if (!isPersistedConversationMessageId(parentId)) {
 				return;
 			}
 			const parentMessage = messages.find((message) => message.id === parentId);

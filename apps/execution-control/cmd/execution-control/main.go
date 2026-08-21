@@ -15,11 +15,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimeassembly"
 )
 
-const (
-	providerConfigAdminPort    = 8001
-	providerConfigSnapshotPort = 8002
-)
-
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if err := run(logger); err != nil {
@@ -73,12 +68,12 @@ func run(logger *slog.Logger) error {
 		time.Duration(cfg.RequestTimeoutMS+2_000)*time.Millisecond,
 	)
 	adminServer := newHTTPServer(
-		fmt.Sprintf("%s:%d", cfg.Host, providerConfigAdminPort),
+		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port+1),
 		adminHandler,
 		15*time.Second,
 	)
 	snapshotServer := newHTTPServer(
-		fmt.Sprintf("%s:%d", cfg.Host, providerConfigSnapshotPort),
+		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port+2),
 		adminHandler.ProviderSnapshotHandler(),
 		15*time.Second,
 	)

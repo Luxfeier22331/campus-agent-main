@@ -63,8 +63,6 @@ function phaseLabel(phase: CampusRunPhase): string {
 		case "queued":
 		case "preparing":
 			return "正在准备回答";
-		case "retrieving":
-			return "正在查找校园资料";
 		case "generating":
 			return "正在生成回答";
 		case "finalizing":

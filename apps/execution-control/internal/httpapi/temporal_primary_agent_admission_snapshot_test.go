@@ -55,10 +55,6 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	activeProvider := pinnedProvider
 	activeProvider.APIKey = "sk-active"
 	activeProvider.Model = "model-active"
-	embeddingProvider := embeddingProviderConfigSnapshotForTest(
-		providerconfig.KindEmbedding,
-		"https://embedding.example/v1",
-	)
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:          agentRuntime.URL,
 		AgentRuntimeSharedSecret:     "agent-secret",
@@ -69,25 +65,18 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 		TemporalWorkerIdentity:       "test:agent:admission-snapshot",
 	})
 	attachRunProjectionStoreForHandlerTest(server, store)
-	server.campusDocsIndexStore = campusDocsIndexStoreForTest()
 	server.providerConfigResolver = staticProviderConfigResolver{
-		providerconfig.KindLLM:       pinnedProvider,
-		providerconfig.KindEmbedding: embeddingProvider,
+		providerconfig.KindLLM: pinnedProvider,
 	}
-	snapshot, err := server.buildAgentAdmissionSnapshot(
-		context.Background(),
-		false,
-		campusDocsQuerySHA256ForTest("admission snapshot request"),
-	)
+	snapshot, err := server.buildAgentAdmissionSnapshot(context.Background(), false)
 	if err != nil {
 		t.Fatalf("build immutable admission snapshot: %v", err)
 	}
 	server.providerConfigResolver = staticProviderConfigResolver{
-		providerconfig.KindLLM:       activeProvider,
-		providerconfig.KindEmbedding: embeddingProvider,
+		providerconfig.KindLLM: activeProvider,
 	}
 
-	input := withCampusDocsRetrievalForTest(t, temporalruntime.ExecutePrimaryAgentActivityInput{
+	input := temporalruntime.ExecutePrimaryAgentActivityInput{
 		AdmissionSnapshot: snapshot,
 		ConversationID:    "conv-admission-snapshot",
 		RequestID:         "req-admission-snapshot",
@@ -95,7 +84,7 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 		TraceID:           "trace-executor-001",
 		TurnID:            "turn-admission-snapshot",
 		VisibleToolNames:  []string{},
-	})
+	}
 	_, err = server.ExecutePrimaryAgent(context.Background(), input)
 	if err == nil || requests != 0 {
 		t.Fatalf("rotated provider setting error = %v, agent runtime requests = %d", err, requests)
@@ -148,11 +137,7 @@ func TestExecutePrimaryAgentActivityRejectsLocalToolRuntimeDriftBeforeAgentCall(
 	if err != nil {
 		t.Fatalf("build admitted tool runtime: %v", err)
 	}
-	snapshot, err := server.buildAgentAdmissionSnapshot(
-		context.Background(),
-		false,
-		campusDocsQuerySHA256ForTest("hi"),
-	)
+	snapshot, err := server.buildAgentAdmissionSnapshot(context.Background(), false)
 	if err != nil {
 		t.Fatalf("build admission snapshot: %v", err)
 	}

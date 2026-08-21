@@ -8,7 +8,6 @@ import type {
 
 export const CAMPUS_RUN_STEP_PHASES: readonly ChatRunProductPhase[] = [
 	"preparing",
-	"retrieving",
 	"generating",
 	"finalizing",
 ];
@@ -17,7 +16,6 @@ const STEP_LABELS: Record<ChatRunProductPhase, string> = {
 	finalizing: "整理回答",
 	generating: "生成回答",
 	preparing: "准备回答",
-	retrieving: "检索校园资料",
 };
 
 const TERMINAL_STEP_STATUSES = new Set<ChatRunStep["status"]>(["completed", "failed", "cancelled"]);

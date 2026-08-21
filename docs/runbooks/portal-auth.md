@@ -54,7 +54,7 @@ ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或
 ## 本地拉取
 
 ```bash
-pnpm dev:init
+pnpm --filter internal-portal-collection dev:init
 pnpm internal-portal:auth:pull
 pnpm internal-portal:auth:check
 ```
@@ -90,6 +90,11 @@ kubectl -n <namespace> create job \
 这些模板读取 `INGESTION_CONTROL_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
 与本地 CLI 相同的采集实现。Job 不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。Kubernetes
 base 为三种动作分别提供默认暂停的模板；它们没有 schedule，必须由维护者显式创建一次性 Job。
+
+自动化 endpoint 与 Bearer token 不改变上述边界：endpoint 只是环境配置，token 只授权 Ops Web 机器
+接口；internal-portal-collection 本地入口只读取拉取到托管环境的 TGC，Job 入口只调用
+ingestion-control 解析接口。需要在没有真实门户凭据时验证 HTTP 链路，可运行
+`pnpm --filter ops-web dev:fixture`；该 fixture 的 token 和 TGC 仅在本地进程生命周期内有效。
 
 ## 数据升级与保留
 

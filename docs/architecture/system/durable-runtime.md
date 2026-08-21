@@ -28,23 +28,16 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 
 ## 执行阶段
 
-1. **Campus Docs Retrieve**：在 agent queue 读取冻结准入，对当前问题生成一次 dense 与 sparse query
-   vector，查询唯一 Campus Docs collection，并将有界检索结果交给 workflow。
-2. **Agent Activity**：在 agent queue 只调用一次 `apps/agent-runtime`，完成 Primary Agent、可选的
+1. **Agent Activity**：在 agent queue 只调用一次 `apps/agent-runtime`，完成 Primary Agent、可选的
    单次个人记忆工具调用和结构化终态输出。
-3. **Finalization**：在 core queue 校验终态输出与本轮 Campus Docs evidence 引用、生成来源并写入
+2. **Finalization**：在 core queue 校验终态输出、生成终态投影并写入
    最终投影。
-4. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
+3. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
 
-Temporal 不把向量查询、候选选择或 SDK tool call 展开成额外阶段，也不存在工作流重新规划状态。
-每个有效请求都包含检索准入并执行该阶段。检索结果最多包含 8 条 evidence，正文合计最多 4000 个
-Unicode 字符；workflow 把最小 evidence 视图传给 Agent Activity，并把原检索结果与 Agent result
-分别传给 Finalization。上述内容会进入
-Temporal history；当前合同不要求对 Temporal history 加密或按 run 删除正文。
+Temporal 不把 SDK tool call 展开成额外阶段，也不存在工作流重新规划状态。当前在线 workflow
+不包含知识检索阶段；离线 Campus Docs 制品发布不进入 Temporal history。
 
-PostgreSQL 只保存 ref、hash、计数、用量和产品终态等有界投影，不保存 evidence 正文或完整 Agent
-结果。Campus Docs Retrieval Activity 重试时重新执行只读 embedding/Qdrant 查询；它不通过另一份
-运行时存储重放旧结果。
+PostgreSQL 只保存 ref、hash、用量和产品终态等有界投影，不保存完整 Agent 结果。
 
 `personal_memory_recall` 不建立独立载荷。它的完整返回值是有界 Agent result 的一部分；Primary Agent
 invocation receipt 约束包含模型和工具调用的整个 SDK run 只能开始一次。若 receipt 已是 `started` 或
@@ -128,8 +121,8 @@ Reset 或其他 successor 不能改写产品终态或被重新绑定到原产品
 
 ## Agent Activity
 
-execution-control 提供运行标识、已冻结执行策略、已准入的模型可见工具、本轮
-`campus_docs_evidence` 数组、供应商配置和有界会话上下文。Agent Runtime 在真实 `AgentInputItem[]` 上
+execution-control 提供运行标识、已冻结执行策略、已准入的模型可见工具、供应商配置和有界会话上下文。
+Agent Runtime 在真实 `AgentInputItem[]` 上
 执行字符预算裁剪，并返回结构化终态、真实 SDK 工具摘要、上下文用量、模型用量和 trace 关联。
 
 SDK `maxTurns` 只限制该 run 的代理与工具轮次，不是重试次数、重新规划预算或新的 Temporal
@@ -185,11 +178,9 @@ Memo 一致、reset state 已知且没有 reset evidence，并确认该 executio
 
 Finalization 执行确定性校验：
 
-- 校验 workflow 传入的 Agent result、Campus Docs 检索结果、冻结准入快照和完整有界 payload；
+- 校验 workflow 传入的 Agent result、冻结准入快照和完整有界 payload；
 - 校验终态 schema 和允许的结果；
-- 根据绑定当前 run 的 Campus Docs 检索结果校验 `evidence://` 引用；
-- 从 evidence 的可信 metadata 生成浏览器可用来源；
-- 拒绝缺失、伪造或跨 run 依据；
+- 拒绝不属于当前终态合同的来源引用；
 - 通过一次 `FinalizeRunProjection` CAS 提交 completed `finalization.write` Step、Attempt、Result 与
   completed run 四元组；内存实现使用同一临界区，PostgreSQL 实现使用同一个持有 run row lock 的事务，
   任一校验或写入失败都不得留下半终态；
@@ -213,9 +204,9 @@ run 的 conversation lock；CAS 外只允许幂等补充后续 `run.completed` �
 排队；`run.canceled` 则是浏览器可见的持久终态。
 
 app-api 只把持久事件投影为固定产品事件：排队、开始执行、阶段变化、答案增量和请求终态。阶段变化
-只公开 `preparing`、`retrieving`、`generating`、`finalizing`；Temporal Activity、SDK 工具调用、
-attempt/result、worker 和 task queue 不进入 Campus Web。回答过程读取同一事件时间线，固定派生
-`queued`、`preparing`、`retrieving`、`generating`、`finalizing` 五阶段及其时间，不透传原始步骤轨迹。
+只公开 `preparing`、`generating`、`finalizing`；Temporal Activity、SDK 工具调用、attempt/result、
+worker 和 task queue 不进入 Campus Web。回答过程读取同一事件时间线，固定派生 `queued`、
+`preparing`、`generating`、`finalizing` 四个协议步骤及其时间，不透传原始步骤轨迹。
 
 execution-control 根据运行就绪状态、策略和下游预算接纳新 run。进程内 limit 只是单进程保护，
 Temporal task queue 与 worker 扩缩容共同定义部署容量。缺少 Temporal、

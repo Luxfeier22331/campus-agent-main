@@ -51,6 +51,96 @@ describe("runtime run service", () => {
 		},
 	);
 
+	it.each(["pending_admission", "dispatching"])(
+		"keeps %s runs local until durable admission is confirmed",
+		async (admissionStatus) => {
+			const getRun = vi.fn();
+			const service = buildRuntimeRunService({
+				executionRuntime: {
+					cancelRun: vi.fn(),
+					createRun: vi.fn(),
+					getRun,
+					listRunEvents: vi.fn(),
+					listRunSteps: vi.fn(),
+				},
+				store: runtimeStore({
+					getOwnedRun: vi.fn().mockResolvedValue(ownedRun({ admissionStatus })),
+				}),
+			});
+
+			await expect(
+				service.getStatus({
+					principal: createPrincipal(),
+					runId: "run_01HQ",
+				}),
+			).resolves.toMatchObject({
+				run: { phase: "queued", status: "pending_admission" },
+			});
+			expect(getRun).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each(["pending_admission", "dispatching"])(
+		"returns pending product steps while a %s run has no durable projection",
+		async (admissionStatus) => {
+			const getRun = vi.fn();
+			const listRunSteps = vi.fn();
+			const service = buildRuntimeRunService({
+				executionRuntime: {
+					cancelRun: vi.fn(),
+					createRun: vi.fn(),
+					getRun,
+					listRunEvents: vi.fn(),
+					listRunSteps,
+				},
+				store: runtimeStore({
+					getOwnedRun: vi.fn().mockResolvedValue(ownedRun({ admissionStatus })),
+				}),
+			});
+
+			await expect(
+				service.listSteps({
+					principal: createPrincipal(),
+					runId: "run_01HQ",
+				}),
+			).resolves.toEqual({
+				run: expect.objectContaining({ phase: "queued", status: "pending_admission" }),
+				steps: [
+					{
+						completedAt: null,
+						durationMs: null,
+						phase: "queued",
+						startedAt: null,
+						status: "pending",
+					},
+					{
+						completedAt: null,
+						durationMs: null,
+						phase: "preparing",
+						startedAt: null,
+						status: "pending",
+					},
+					{
+						completedAt: null,
+						durationMs: null,
+						phase: "generating",
+						startedAt: null,
+						status: "pending",
+					},
+					{
+						completedAt: null,
+						durationMs: null,
+						phase: "finalizing",
+						startedAt: null,
+						status: "pending",
+					},
+				],
+			});
+			expect(getRun).not.toHaveBeenCalled();
+			expect(listRunSteps).not.toHaveBeenCalled();
+		},
+	);
+
 	it("rejects cancellation after the product run is already terminal", async () => {
 		const cancelRun = vi.fn();
 		const store = runtimeStore({
@@ -332,6 +422,237 @@ describe("runtime run service", () => {
 		expect(second.events.map((event) => event.eventType)).toEqual(["execution.running"]);
 		expect(listRunEvents).toHaveBeenNthCalledWith(2, expect.objectContaining({ afterSequence: 4 }));
 	});
+
+	it("returns an empty local event page before durable admission", async () => {
+		const getRun = vi.fn();
+		const listRunEvents = vi.fn();
+		const service = buildRuntimeRunService({
+			executionRuntime: {
+				cancelRun: vi.fn(),
+				createRun: vi.fn(),
+				getRun,
+				listRunEvents,
+				listRunSteps: vi.fn(),
+			},
+			store: runtimeStore({
+				getOwnedRun: vi.fn().mockResolvedValue(ownedRun({ admissionStatus: "pending_admission" })),
+			}),
+		});
+
+		await expect(
+			service.listEvents({
+				afterSequence: 4,
+				principal: createPrincipal(),
+				runId: "run_01HQ",
+			}),
+		).resolves.toEqual({
+			events: [],
+			nextSequence: 4,
+			run: expect.objectContaining({ phase: "queued", status: "pending_admission" }),
+		});
+		expect(getRun).not.toHaveBeenCalled();
+		expect(listRunEvents).not.toHaveBeenCalled();
+	});
+
+	it("reads durable events after product finalization", async () => {
+		const getRun = vi.fn().mockResolvedValue(durableRun({ status: "completed" }));
+		const listRunEvents = vi.fn().mockResolvedValue(
+			eventPage([
+				durableEvent({
+					eventType: "finalization.completed",
+					sequence: 7,
+				}),
+			]),
+		);
+		const service = buildRuntimeRunService({
+			executionRuntime: {
+				cancelRun: vi.fn(),
+				createRun: vi.fn(),
+				getRun,
+				listRunEvents,
+				listRunSteps: vi.fn(),
+			},
+			store: runtimeStore({
+				getOwnedRun: vi.fn().mockResolvedValue(ownedRun({ status: "completed" })),
+			}),
+		});
+
+		await expect(
+			service.listEvents({
+				afterSequence: 6,
+				principal: createPrincipal(),
+				runId: "run_01HQ",
+			}),
+		).resolves.toMatchObject({
+			events: [expect.objectContaining({ eventType: "request.completed", sequence: 7 })],
+			nextSequence: 7,
+			run: { phase: "completed", status: "completed" },
+		});
+		expect(getRun).toHaveBeenCalledOnce();
+		expect(listRunEvents).toHaveBeenCalledWith({
+			afterSequence: 6,
+			runId: "run_01HQ",
+			traceId: "trace_01HQ",
+		});
+	});
+
+	it("reads durable steps after product finalization", async () => {
+		const getOwnedRun = vi.fn().mockResolvedValue(ownedRun({ status: "completed" }));
+		const getRun = vi.fn().mockResolvedValue(
+			durableRun({
+				completedAt: "2026-06-04T01:02:07.000Z",
+				status: "completed",
+			}),
+		);
+		const listRunEvents = vi.fn().mockResolvedValue(
+			eventPage([
+				durableEvent({
+					eventType: "run.queued",
+					occurredAt: "2026-06-04T01:02:03.500Z",
+					sequence: 1,
+				}),
+				durableEvent({
+					eventType: "run.started",
+					occurredAt: "2026-06-04T01:02:04.000Z",
+					sequence: 2,
+				}),
+				durableEvent({
+					eventType: "run.answer_started",
+					occurredAt: "2026-06-04T01:02:05.000Z",
+					sequence: 3,
+				}),
+				durableEvent({
+					eventType: "finalization.completed",
+					occurredAt: "2026-06-04T01:02:07.000Z",
+					sequence: 4,
+				}),
+			]),
+		);
+		const listRunSteps = vi.fn();
+		const service = buildRuntimeRunService({
+			executionRuntime: {
+				cancelRun: vi.fn(),
+				createRun: vi.fn(),
+				getRun,
+				listRunEvents,
+				listRunSteps,
+			},
+			store: runtimeStore({
+				getOwnedRun,
+			}),
+		});
+
+		await expect(
+			service.listSteps({
+				principal: createPrincipal(),
+				runId: "run_01HQ",
+			}),
+		).resolves.toMatchObject({
+			run: { phase: "completed", status: "completed" },
+			steps: [
+				expect.objectContaining({ phase: "queued", status: "completed" }),
+				expect.objectContaining({ phase: "preparing", status: "completed" }),
+				expect.objectContaining({ phase: "generating", status: "completed" }),
+				expect.objectContaining({ phase: "finalizing", status: "completed" }),
+			],
+		});
+		expect(getOwnedRun).toHaveBeenCalledOnce();
+		expect(getRun).toHaveBeenCalledOnce();
+		expect(listRunEvents).toHaveBeenCalledWith({
+			afterSequence: 0,
+			runId: "run_01HQ",
+			traceId: "trace_01HQ",
+		});
+		expect(listRunSteps).not.toHaveBeenCalled();
+	});
+
+	it.each(["admission_failed", "cancelled"])(
+		"keeps terminal %s runs local without durable history",
+		async (admissionStatus) => {
+			const getRun = vi.fn();
+			const listRunEvents = vi.fn();
+			const listRunSteps = vi.fn();
+			const productStatus = admissionStatus === "cancelled" ? "cancelled" : "error";
+			const service = buildRuntimeRunService({
+				executionRuntime: {
+					cancelRun: vi.fn(),
+					createRun: vi.fn(),
+					getRun,
+					listRunEvents,
+					listRunSteps,
+				},
+				store: runtimeStore({
+					getOwnedRun: vi
+						.fn()
+						.mockResolvedValue(ownedRun({ admissionStatus, status: productStatus })),
+				}),
+			});
+
+			await expect(
+				service.listEvents({
+					afterSequence: 4,
+					principal: createPrincipal(),
+					runId: "run_01HQ",
+				}),
+			).resolves.toMatchObject({
+				events: [],
+				nextSequence: 4,
+				run: { phase: productStatus === "cancelled" ? "canceled" : "failed" },
+			});
+			await expect(
+				service.listSteps({
+					principal: createPrincipal(),
+					runId: "run_01HQ",
+				}),
+			).resolves.toEqual({
+				run: expect.objectContaining({
+					phase: productStatus === "cancelled" ? "canceled" : "failed",
+				}),
+				steps: [
+					expect.objectContaining({ phase: "queued", status: "pending" }),
+					expect.objectContaining({ phase: "preparing", status: "pending" }),
+					expect.objectContaining({ phase: "generating", status: "pending" }),
+					expect.objectContaining({ phase: "finalizing", status: "pending" }),
+				],
+			});
+			expect(getRun).not.toHaveBeenCalled();
+			expect(listRunEvents).not.toHaveBeenCalled();
+			expect(listRunSteps).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each(["pending_admission", "dispatching"])(
+		"ends the subscription immediately before %s admission",
+		async (admissionStatus) => {
+			const getOwnedRun = vi.fn().mockResolvedValue(ownedRun({ admissionStatus }));
+			const getRun = vi.fn();
+			const listRunEvents = vi.fn();
+			const service = buildRuntimeRunService({
+				executionRuntime: {
+					cancelRun: vi.fn(),
+					createRun: vi.fn(),
+					getRun,
+					listRunEvents,
+					listRunSteps: vi.fn(),
+				},
+				store: runtimeStore({ getOwnedRun }),
+			});
+
+			const result = await service
+				.subscribeEvents({
+					polling: { maxAttempts: 180, waitMs: 25_000 },
+					principal: createPrincipal(),
+					runId: "run_01HQ",
+				})
+				[Symbol.asyncIterator]()
+				.next();
+
+			expect(result).toMatchObject({ done: true });
+			expect(getOwnedRun).toHaveBeenCalledOnce();
+			expect(getRun).not.toHaveBeenCalled();
+			expect(listRunEvents).not.toHaveBeenCalled();
+		},
+	);
 
 	it("subscribes to browser-visible durable run events by cursor until terminal event arrives", async () => {
 		const listRunEvents = vi

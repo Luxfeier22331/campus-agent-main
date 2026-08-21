@@ -22,17 +22,26 @@ status: active
 
 ### 应用本地环境
 
-应用只读取自身目录声明的环境文件。`pnpm dev:init` 为当前 worktree 原子生成以下 `0600` 文件：
+应用只读取自身目录声明的环境文件。显式执行 `pnpm dev:init` 为当前 worktree 原子生成核心应用的以下
+`0600` 文件：
 
 - App API：`.env.local` 和 `.dev.vars.local`；
 - Campus Web：`.dev.vars.local`；
-- ingestion-control：`.env.local`；
-- notice-classifier：`.env.local`；
-- Ops Web：`.env.local`；
-- internal-portal-collection：adapter 目录下的 `.env.local`；
-- notice-publisher：`.env.local`。
+- execution-control：`.env.local`；
+- agent-runtime：`.env.local`。
 
-这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。进程环境优先于应用文件，因此外部供应商凭据应由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
+可选应用按需执行自己的初始化命令生成文件：
+
+- `pnpm --filter ops-web dev:init`：Ops Web；
+- `pnpm --filter ingestion-control dev:init`：ingestion-control；
+- `pnpm --filter notice-publisher dev:init`：notice-publisher；
+- `pnpm --filter internal-portal-collection dev:init`：internal-portal-collection adapter；
+- `pnpm --filter notice-classifier dev:init`：notice-classifier。
+
+这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
+
+`dev:init` 还为当前 worktree 创建 `0600` 的 `var/dev/provider-config-encryption.key`，并让
+execution-control 的托管环境显式读取该文件。该 key 不进入 profile、其他 worktree 或部署环境。
 
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实际选择决定。
@@ -47,8 +56,8 @@ notice-classifier 的托管 `.env.local` 保存本 worktree 的 derived bucket�
 连接。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时通过
 execution-control 的 provider snapshot 读取当前模型配置。
 
-ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和本地 source
-bucket 连接。notice-publisher 仅用于本地显式写入，使用现有 worktree 数据库中的通知 schema、分离的
+ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和既有内部
+token。notice-publisher 仅用于本地显式写入，使用现有 worktree 数据库中的通知 schema、分离的
 本地 source/derived 对象存储身份和自身 `.env.local`；它没有部署环境配置或 GitOps Secret。publisher
 的门户地址占位值必须由实际运行环境显式覆盖。App API 的托管变量提供本地 derived bucket 地址和只读
 凭据，用于通知图片与其他获准的派生资源；部署环境改用现有私有对象存储 binding。应用之间不读取彼此
@@ -126,17 +135,18 @@ PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGE
 
 ## Worktree
 
-Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次运行 `pnpm dev` 或显式运行
-`pnpm dev:init` 时获得独立 profile、应用文件、端口、PostgreSQL database 和 derived bucket；
-PostgreSQL 与 RustFS 容器、网络和数据卷由同一机器上的 worktree 共享。主 checkout 是共享依赖的
-bootstrap/reconcile owner，linked worktree 不会重新执行 Compose reconcile，只在共享依赖 ready 时
-复用。应用仍只消费
+Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次显式运行 `pnpm dev:init` 时获得独立
+profile、核心应用文件、端口、PostgreSQL database、derived bucket、
+Temporal namespace 和 provider 配置加密密钥；PostgreSQL、RustFS 与 Temporal 容器、网络和数据卷由同一
+机器上的 worktree 共享。主 checkout 是共享依赖的 bootstrap/reconcile owner，linked worktree 不会
+重新执行 Compose reconcile，只在共享依赖 ready 时复用。execution-control 与 agent-runtime 从当前
+worktree 源码独立启动，不共享其他 worktree 的宿主进程。应用仍只消费
 `OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入应用环境合同。
 Campus Web 文档合同固定使用共享 `campus-agent-derived`；`dev:init` 只在
 `campus-docs/source.json` 缺失时写入确定性开发样例，不覆盖已有文档来源。worktree profile 中的
 独立 derived bucket 仍只服务 Dining 等实例数据。
 
-profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存外部凭据。使用 `pnpm dev:instances` 查看分配和 stale/partial 状态，使用 `pnpm dev:doctor` 检查完整性。共享依赖不可探测时，诊断结果为 `unknown`，不会据此自动创建或删除实例资源。
+profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存外部凭据。使用 `pnpm dev:instances` 查看分配和 stale/partial 状态，使用 `pnpm dev:doctor` 检查完整性。`pnpm dev` 只读取这份就绪状态，不执行初始化、迁移或 seed。共享依赖不可探测时，诊断结果为 `unknown`，不会据此自动创建或删除实例资源。
 
 `pnpm dev:destroy` 默认只打印影响范围。只有同时提供同一个实例 ID 才会删除该实例的 database、bucket、托管环境文件和注册记录；它不会启动或重建共享容器，也不会删除共享 source/docs bucket、网络或数据卷：
 

@@ -31,7 +31,6 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 		},
 		{stepID: "agent.primary", durationMS: 120, scheduleToStartMS: 75},
 		{stepID: "sdk_tool.execute.test_lookup.1", durationMS: 140, sanitizedPayload: map[string]any{"tool_name": "test_lookup"}},
-		{stepID: "campus_docs.retrieve", durationMS: 170},
 		{stepID: "finalization.write", durationMS: 230},
 	} {
 		upsertStageTimingAttemptWithSchedule(
@@ -59,7 +58,6 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 	assertStageTimingField(t, timing, "agent.primary_ms", 120)
 	assertStageTimingField(t, timing, "agent.schedule_to_start_ms", 75)
 	assertStageTimingField(t, timing, "agent.runtime_ms", 321)
-	assertStageTimingField(t, timing, "campus_docs.retrieve_ms", 170)
 	assertStageTimingField(t, timing, "tool.total_ms", 250)
 	if _, ok := timing["finalization.write_ms"]; ok {
 		t.Fatalf("stage_timing callback projection must exclude self-referential finalization.write_ms: %#v", timing)
@@ -90,7 +88,6 @@ func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
 		"memory.recall_ms",
 		"agent.runtime_ms",
 		"agent.first_delta_ms",
-		"campus_docs.retrieve_ms",
 		"tool.total_ms",
 		"finalization.write_ms",
 	} {

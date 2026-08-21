@@ -5,6 +5,7 @@ const COMPOSE_PROJECT = "campus-agent-local";
 const DATA_NETWORK = "campus-agent-data-plane";
 const POSTGRES_VOLUME = "local_postgres-data";
 const OBJECT_STORE_VOLUME = "local_object-store-data";
+const TEMPORAL_VOLUME = "local_temporal-shared-postgres-data";
 export const SOURCE_BUCKET = "campus-agent-source";
 export const DOCS_BUCKET = "campus-agent-derived";
 export const DOCS_SOURCE_KEY = "campus-docs/source.json";
@@ -18,6 +19,14 @@ const SHARED_CONTAINERS = {
 	postgres: {
 		container: `${COMPOSE_PROJECT}-postgres-1`,
 		service: "postgres",
+	},
+	temporalPostgres: {
+		container: `${COMPOSE_PROJECT}-temporal-postgres-1`,
+		service: "temporal-postgres",
+	},
+	temporal: {
+		container: `${COMPOSE_PROJECT}-temporal-1`,
+		service: "temporal",
 	},
 } as const;
 
@@ -39,11 +48,14 @@ export interface SharedInfrastructureDiagnosis {
 	containers: {
 		objectStore: SharedContainerDiagnosis;
 		postgres: SharedContainerDiagnosis;
+		temporalPostgres: SharedContainerDiagnosis;
+		temporal: SharedContainerDiagnosis;
 	};
 	network: LocalResourceProbe;
 	volumes: {
 		objectStore: LocalResourceProbe;
 		postgres: LocalResourceProbe;
+		temporal: LocalResourceProbe;
 	};
 	buckets: {
 		docs: LocalResourceProbe;
@@ -52,6 +64,8 @@ export interface SharedInfrastructureDiagnosis {
 	expectedHashes: {
 		objectStore: string | undefined;
 		postgres: string | undefined;
+		temporalPostgres: string | undefined;
+		temporal: string | undefined;
 	};
 }
 
@@ -90,37 +104,21 @@ export function classifySharedInfrastructureStatus(input: {
 }): SharedInfrastructureStatus {
 	const { buckets, containers, expectedHashes, network, volumes } = input;
 	if (
-		containers.objectStore.probe === "unknown" ||
-		containers.postgres.probe === "unknown" ||
+		Object.values(containers).some((container) => container.probe === "unknown") ||
 		Object.values(expectedHashes).some((hash) => hash === undefined)
 	) {
 		return "unknown";
 	}
-	if (containers.objectStore.probe === "missing" || containers.postgres.probe === "missing") {
+	if (Object.values(containers).some((container) => container.probe === "missing")) {
 		return "missing";
 	}
-	if (
-		!(
-			containers.objectStore.running &&
-			containers.postgres.running &&
-			containers.objectStore.healthy &&
-			containers.postgres.healthy
-		)
-	) {
+	if (!Object.values(containers).every((container) => container.running && container.healthy)) {
 		return "unhealthy";
 	}
-	if (
-		network === "unknown" ||
-		volumes.objectStore === "unknown" ||
-		volumes.postgres === "unknown"
-	) {
+	if (network === "unknown" || Object.values(volumes).some((volume) => volume === "unknown")) {
 		return "unknown";
 	}
-	if (
-		network === "missing" ||
-		volumes.objectStore === "missing" ||
-		volumes.postgres === "missing"
-	) {
+	if (network === "missing" || Object.values(volumes).some((volume) => volume === "missing")) {
 		return "missing";
 	}
 	if (buckets.docs === "unknown" || buckets.source === "unknown") {
@@ -131,12 +129,15 @@ export function classifySharedInfrastructureStatus(input: {
 	}
 	// Compose records the bootstrap path in working_dir/config_files; project, service and hash are the stable identity.
 	if (
-		containers.objectStore.configHash !== expectedHashes.objectStore ||
-		containers.postgres.configHash !== expectedHashes.postgres ||
-		containers.objectStore.project !== COMPOSE_PROJECT ||
-		containers.postgres.project !== COMPOSE_PROJECT ||
-		containers.objectStore.service !== SHARED_CONTAINERS.objectStore.service ||
-		containers.postgres.service !== SHARED_CONTAINERS.postgres.service
+		Object.entries(SHARED_CONTAINERS).some(([name, expected]) => {
+			const container = containers[name as keyof typeof containers];
+			const expectedHash = expectedHashes[name as keyof typeof expectedHashes];
+			return (
+				container.configHash !== expectedHash ||
+				container.project !== COMPOSE_PROJECT ||
+				container.service !== expected.service
+			);
+		})
 	) {
 		return "drifted";
 	}
@@ -174,7 +175,7 @@ export function ensureSharedInfrastructure(repoRoot: string): void {
 			`Shared local infrastructure is ${current.status}; run pnpm dev:init from the main checkout before initializing this worktree.`,
 		);
 	}
-	for (const volume of [POSTGRES_VOLUME, OBJECT_STORE_VOLUME]) {
+	for (const volume of [POSTGRES_VOLUME, OBJECT_STORE_VOLUME, TEMPORAL_VOLUME]) {
 		if (!commandSucceeds("docker", ["volume", "inspect", volume])) {
 			runCommand("docker", ["volume", "create", volume]);
 		}
@@ -191,37 +192,54 @@ export function ensureSharedInfrastructure(repoRoot: string): void {
 	}
 }
 
-export function assertSharedInfrastructureReady(repoRoot: string): void {
+export function assertSharedDataInfrastructureReady(repoRoot: string): void {
 	const diagnosis = inspectSharedInfrastructure(repoRoot);
-	if (diagnosis.status !== "ready") {
+	if (!isSharedDataInfrastructureReady(diagnosis)) {
 		throw new Error(
-			`Shared local infrastructure is ${diagnosis.status}; run pnpm dev:init from the main checkout before destroying an instance.`,
+			`Shared local data infrastructure is unavailable (status=${diagnosis.status}); run pnpm dev:init from the main checkout before destroying an instance.`,
 		);
 	}
+}
+
+export function isSharedDataInfrastructureReady(diagnosis: SharedInfrastructureDiagnosis): boolean {
+	return (
+		diagnosis.containers.objectStore.probe === "present" &&
+		diagnosis.containers.objectStore.running &&
+		diagnosis.containers.objectStore.healthy &&
+		diagnosis.containers.postgres.probe === "present" &&
+		diagnosis.containers.postgres.running &&
+		diagnosis.containers.postgres.healthy &&
+		diagnosis.network === "present" &&
+		diagnosis.volumes.objectStore === "present" &&
+		diagnosis.volumes.postgres === "present" &&
+		diagnosis.buckets.docs === "present" &&
+		diagnosis.buckets.source === "present"
+	);
 }
 
 export function inspectSharedInfrastructure(repoRoot: string): SharedInfrastructureDiagnosis {
 	const expectedHashes = {
 		objectStore: composeServiceHash(repoRoot, SHARED_CONTAINERS.objectStore.service),
 		postgres: composeServiceHash(repoRoot, SHARED_CONTAINERS.postgres.service),
+		temporalPostgres: composeServiceHash(repoRoot, SHARED_CONTAINERS.temporalPostgres.service),
+		temporal: composeServiceHash(repoRoot, SHARED_CONTAINERS.temporal.service),
 	};
 	const containers = {
 		objectStore: inspectSharedContainer(SHARED_CONTAINERS.objectStore.container),
 		postgres: inspectSharedContainer(SHARED_CONTAINERS.postgres.container),
+		temporalPostgres: inspectSharedContainer(SHARED_CONTAINERS.temporalPostgres.container),
+		temporal: inspectSharedContainer(SHARED_CONTAINERS.temporal.container),
 	};
 	const network = inspectDockerResource("network", DATA_NETWORK);
 	const volumes = {
 		objectStore: inspectDockerResource("volume", OBJECT_STORE_VOLUME),
 		postgres: inspectDockerResource("volume", POSTGRES_VOLUME),
+		temporal: inspectDockerResource("volume", TEMPORAL_VOLUME),
 	};
-	const containersReady =
-		containers.objectStore.probe === "present" &&
-		containers.postgres.probe === "present" &&
-		containers.objectStore.running &&
-		containers.postgres.running &&
-		containers.objectStore.healthy &&
-		containers.postgres.healthy;
-	const buckets = containersReady
+	const dataContainersReady = [containers.objectStore, containers.postgres].every(
+		(container) => container.probe === "present" && container.running && container.healthy,
+	);
+	const buckets = dataContainersReady
 		? { docs: localBucketProbe(DOCS_BUCKET), source: localBucketProbe(SOURCE_BUCKET) }
 		: { docs: "unknown" as const, source: "unknown" as const };
 	const status = classifySharedInfrastructureStatus({

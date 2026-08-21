@@ -26,7 +26,6 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
   "stream.first_delta_persist_ms": 940,
   "stream.app_api_ttft_ms": 1020,
   "stream.orchestration_overhead_ms": 310,
-  "campus_docs.retrieve_ms": 360,
   "agent.primary_ms": 1380,
   "agent.first_delta_ms": 710
 }
@@ -52,7 +51,6 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 | `stream.app_api_ttft_ms` | `apps/app-api` | 从 app-api 接受新请求到实际收到首条 answer delta 的耗时。 |
 | `stream.orchestration_overhead_ms` | `apps/app-api` | `stream.app_api_ttft_ms - agent.first_delta_ms`；仅在两者都存在且差值非负时写入。 |
 | `execution.admission_ms` | `apps/execution-control` | run 进入执行路径前的准入耗时。 |
-| `campus_docs.retrieve_ms` | `apps/execution-control` | `campus_docs.retrieve` 从开始查询到有界检索结果与投影写入完成的耗时。 |
 | `memory.recall_ms` | `apps/execution-control` | 已执行 personal memory recall 工具调用的耗时。 |
 | `agent.primary_ms` | `apps/execution-control` | 单个 Agent Activity 的端到端耗时，包括 SDK 工具调用。 |
 | `agent.runtime_ms` | `apps/agent-runtime` | 完整 OpenAI Agents SDK run 耗时。 |
@@ -100,9 +98,8 @@ OpenAI Agents SDK trace、Langfuse、Sentry 与 Axiom 可以提供进一步诊�
 也不能把 SDK span、provider payload、tool I/O、prompt、answer 或 memory text 写入
 `stage_timing.v1`。
 
-`campus_docs.retrieve_ms` 是产品可见的聚合耗时。`campus_docs.embed_query_ms`、
-`campus_docs.query_index_ms` 和 `campus_docs.select_evidence_ms` 只属于检索 StepResult 诊断，不进入
-`stage_timing.v1`，也不进入外部 Langfuse/Axiom trace。
+当前在线执行没有 Campus Docs 检索阶段，因此不产生检索阶段耗时。Campus Docs 的离线制品构建耗时
+属于对应 Job 的运行记录，不进入 `stage_timing.v1`。
 
 ## 相关文档
 
