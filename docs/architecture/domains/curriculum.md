@@ -25,9 +25,8 @@ status: active
 -> 共享的不可变 campus_docs 索引
 ```
 
-`configs/ingestion/curriculum/curriculum_plan/` 中的 split manifest、chunk profile 和合成样例属于
-独立 ingestion 数据面，不被当前 Campus Docs publisher 消费。源码具备 publisher 不表示任一环境
-已经激活索引；实际可用性取决于 `campus_docs_serving.current_index` 是否存在有效的当前查询绑定。
+源码具备 publisher 不表示任一环境已经激活索引；实际可用性取决于
+`campus_docs_serving.current_index` 是否存在有效的当前 collection 指针。
 
 ## 读取边界
 
@@ -35,8 +34,6 @@ status: active
 - 文档阅读器按公开集合、规范文档、版本和章节提供固定链接；
 - 来源清单在发布前明确记录每份文档属于哪一个公开集合，文档构建和索引发布都不按标题猜测归类；
 - 在线请求不扫描原始文件、私有 artifact 或未发布派生集合。
-
-`configs/ingestion/curriculum/` 只维护所属离线任务配置，不决定 Campus Docs 在线准入。
 
 ## 相关文档
 

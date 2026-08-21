@@ -5,16 +5,27 @@ import {
 	PutObjectCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
-import type {
-	ArtifactWriteInput,
-	ArtifactWriteResult,
-	ObjectStore,
-	ObjectStoreLocation,
-} from "ingest-core";
-import { sha256Hex } from "ingest-core";
-import { createOrVerifyS3Object } from "./s3-create-or-verify.ts";
+import { createOrVerifyS3Object, sha256Hex } from "./s3-create-or-verify.ts";
 
-export interface InternalPortalCollectionObjectStore extends ObjectStore {
+interface ObjectStoreLocation {
+	bucket: string;
+	key: string;
+}
+
+interface ArtifactWriteInput extends ObjectStoreLocation {
+	body: Uint8Array;
+	contentType: string;
+	metadata?: Record<string, string>;
+}
+
+interface ArtifactWriteResult {
+	byteSize: number;
+	contentSha256: string;
+	etag?: string | null;
+	versionId?: string | null;
+}
+
+export interface InternalPortalCollectionObjectStore {
 	readonly sourceBucket: string;
 	close?(): Promise<void> | void;
 	getObject(input: ObjectStoreLocation & { abortSignal?: AbortSignal }): Promise<Uint8Array>;

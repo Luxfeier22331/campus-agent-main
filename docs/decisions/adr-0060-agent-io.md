@@ -31,7 +31,7 @@ status: accepted
 
 - 模型可见工具通过 function/tool schema 描述用途、参数和副作用；跨工具规则才进入
   developer instructions。
-- primary direct path、handoff agent 和 tool-backed path 使用同一类 typed terminal
+- 直接路径和工具路径使用同一类 typed terminal
   contract，不以自由文本或消费端默认值表示成功。
 - evidence-backed 结果必须携带可由代码核验的 evidence refs；终态校验不得再调用模型
   补齐或改写答案。
@@ -49,13 +49,13 @@ status: accepted
 ## 后果
 
 - prompt 变更不能放宽代码拥有的能力、数据或证据边界。
-- 新 agent 或 handoff 必须复用终态和证据合同，除非新的 ADR 接受独立语义。
+- 新 Agent 路径必须复用终态和证据合同，除非新的 ADR 接受独立语义。
 - prompt registry、管理后台或托管模板不是可靠性的前置条件；出现真实治理需求后再决策。
 
 ## 未采用方案
 
 - **单一大型 system prompt**：无法可靠执行认证、工具开放和 schema 校验。
-- **为 handoff 保留自由文本结果**：会产生第二套不可验证的终态。
+- **为不同执行路径保留自由文本结果**：会产生第二套不可验证的终态。
 - **消费端修补模型输出**：会掩盖 provider 和合同失败。
 
 ## 相关文档

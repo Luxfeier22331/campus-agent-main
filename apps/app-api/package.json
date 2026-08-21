@@ -13,8 +13,6 @@
 		"test": "pnpm run test:node:fast && pnpm run test:node:isolated",
 		"test:node:fast": "vitest run -c vitest.node-fast.config.mts",
 		"test:node:isolated": "vitest run -c vitest.node-isolated.config.mts",
-		"test:e2e:staging:chat": "pnpm exec tsx ./e2e/chat-durable-staging.ts",
-		"test:e2e:staging:memory": "pnpm exec tsx ./e2e/chat-memory-staging.ts",
 		"test:migration-integration": "vitest run -c vitest.migration-integration.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
 		"test:shared-db-integration": "vitest run -c vitest.shared-db.config.mts",

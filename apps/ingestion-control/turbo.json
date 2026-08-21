@@ -2,14 +2,6 @@
 	"$schema": "https://turborepo.com/schema.json",
 	"extends": ["//"],
 	"tasks": {
-		"test": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/ingestion/**"
-			]
-		},
 		"test:database-integration": {
 			"inputs": [
 				"migrations/**",

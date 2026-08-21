@@ -25,8 +25,7 @@ digest 和字节数，不传递主机挂载路径或供应商 SDK 类型。
 endpoint 和消费者所属身份的凭据，不重复配置固定名称与 region。需要隔离本地 worktree 时，只有
 对应本地开发入口可以显式覆盖其派生 bucket。
 
-本地开发使用 RustFS；其中 `campus-rag-derived` 等旧 bucket 只用于读取历史数据，不能作为 staging
-或 production 的发布输入。部署环境使用环境仓管理的同名 S3 兼容派生桶，不依赖开发机存储。
+本地开发使用 RustFS。部署环境使用环境仓管理的同名 S3 兼容派生桶，不依赖开发机存储。
 文档发布、Campus Web 构建和其他派生产物通过同一 derived bucket 消费；不因为文档阅读器再创建
 一个 bucket，也不把旧的 `public_docs/.../current` 聚合文件复制成新的运行时入口。
 
@@ -51,11 +50,10 @@ App API 只通过私有绑定读取 `campus-agent-derived/dining/floorplans/`。
 - bucket 创建、凭据、endpoint、生命周期和供应商选择属于部署环境。
 - 文档阅读器只消费发布清单引用的来源阅读资产和内容寻址 release；旧的可变聚合文件即使仍
   保留在桶中，也不是当前数据源。
-- 领域 key 结构放在 builder 和测试附近；通用 builder 当前位于
-  `packages/ingest-core`。
+- 领域 key、摘要和不可变写入行为由实际 producer 在所属模块及测试附近维护，不建立无消费者的
+  通用 artifact core。
 - Qdrant vector 和原生 snapshot 不是采集对象存储事实。
 
 ## 相关文档
 
 - `docs/architecture/system/data-plane.md`
-- `packages/ingest-core/README.md`

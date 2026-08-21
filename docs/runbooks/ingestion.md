@@ -9,7 +9,7 @@ status: active
 ## 范围
 
 本文说明内部门户通知与文件发布采集、分类交接和通知发布。系统没有通用采集任务控制面、来源
-callback、独立 run ledger 或自动 query target 发布；通知分类 Job 是独立的一次性阶段，不由采集自动触发。
+callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立的一次性阶段，不由采集自动触发。
 
 ## 前置条件
 
@@ -32,8 +32,7 @@ pnpm --filter ingestion-control start:api
 数据库 TLS 与运行变量见 `env/commands/ingestion-control-runtime.env.example`。ingestion-control
 migration 使用 advisory lock，并在 `ingestion_control.schema_migrations` 校验已应用 SQL 的摘要；
 migration 7 删除已退役的 ingestion Temporal 任务表，并将历史 schema、journal 和当前凭据表接管给
-数据库 owner。通知分类模型类型由 execution-control migration 8 安装。Rust kernels 保留为独立命令，
-不由 ingestion-control 调度。
+数据库 owner。通知分类模型类型由 execution-control migration 8 安装。
 
 ## 文件发布
 
@@ -253,7 +252,7 @@ Job 前须在目标环境确认到 ingestion-control、source bucket 和门户 H
 
 ```bash
 pnpm --dir packages/contracts check
-pnpm exec turbo run typecheck test --filter=ingestion-contracts --filter=ingest-core --filter=ingestion-control --filter=internal-portal-collection --concurrency=1 --summarize
+pnpm exec turbo run typecheck test --filter=ingestion-contracts --filter=ingestion-control --filter=internal-portal-collection --concurrency=1 --summarize
 pnpm --dir apps/ingestion-control test:database-integration
 pnpm notice:classify:typecheck
 pnpm exec tsx --test scripts/notices/*.test.ts

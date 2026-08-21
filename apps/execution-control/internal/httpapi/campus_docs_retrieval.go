@@ -89,8 +89,8 @@ func (e qdrantCampusDocsRetriever) Retrieve(
 	embedding, err := e.qdrant.embedQueryWithProviderConfig(
 		ctx,
 		embeddingConfig,
-		campusdocs.BuildDenseQueryText(query, target.EmbeddingQueryInstruction),
-		target.EmbeddingDimensions,
+		campusdocs.BuildDenseQueryText(query, campusdocs.EmbeddingQueryInstruction),
+		campusdocs.EmbeddingDimensions,
 	)
 	if err != nil {
 		return campusDocsRetrievalDiagnostics{}, err

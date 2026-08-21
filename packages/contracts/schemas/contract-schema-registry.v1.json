@@ -117,7 +117,7 @@
 			"owner": "packages/contracts",
 			"status": "active",
 			"validates": ["configs/runtime/latency-budgets.v1.json"],
-			"notes": "Repo-owned latency budget artifact consumed by app-api and learning-loop candidate selection."
+			"notes": "Repo-owned latency budget artifact consumed by app-api stage timing evaluation."
 		},
 		{
 			"id": "truncation-summary.v2",
@@ -133,21 +133,6 @@
 				}
 			],
 			"notes": "Character-budget and count-only context truncation diagnostic without raw dropped content."
-		},
-		{
-			"id": "provider-config-projection.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/provider-config-projection.v1.schema.json",
-			"owner": "packages/eval-langfuse",
-			"status": "active",
-			"fixture_groups": [
-				{
-					"path": "packages/contracts/fixtures/provider_config_projection",
-					"valid_glob": "*.valid.json",
-					"invalid_glob": "*.invalid.json"
-				}
-			],
-			"notes": "三个已准入评测 provider 角色使用的 0600 本地投影。"
 		},
 		{
 			"id": "campus-groups-catalog.v1",
@@ -178,38 +163,6 @@
 				}
 			],
 			"notes": "status.muc.wiki 公共可用性快照和时间线合同，不包含事件或探测明细。"
-		},
-		{
-			"id": "canonical-document-units.v1",
-			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/canonical-document-units.v1.schema.json",
-			"owner": "packages/ingestion-contracts",
-			"status": "active",
-			"notes": "Canonical document-unit JSONL row contract for Rust kernels and ingestion task inputs."
-		},
-		{
-			"id": "canonical-document-units.v2",
-			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/canonical-document-units.v2.schema.json",
-			"owner": "packages/ingestion-contracts",
-			"status": "active",
-			"notes": "注册 ingestion Rust 分块任务使用的正式文档 section 合同；当前 Campus Docs publisher 不消费该格式。"
-		},
-		{
-			"id": "retrieval-chunks.v2",
-			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/retrieval-chunks.v2.schema.json",
-			"owner": "packages/ingestion-contracts",
-			"status": "active",
-			"notes": "注册 ingestion Rust 分块任务的检索 chunk 合同；当前 Campus Docs publisher 不消费该格式。"
-		},
-		{
-			"id": "retrieval-chunk-set.v2",
-			"kind": "json_artifact",
-			"path": "packages/ingestion-contracts/schemas/retrieval-chunk-set.v2.schema.json",
-			"owner": "packages/ingestion-contracts",
-			"status": "active",
-			"notes": "包含 retrieval_chunk.v2 的确定性 Rust kernel 输出；不自动进入当前 Campus Docs 索引。"
 		},
 		{
 			"id": "agent-runtime-tool-catalog-zod",

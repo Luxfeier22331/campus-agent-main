@@ -8,6 +8,10 @@ metadata:
 spec:
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:18.4-202606221003-minimal-trixie@sha256:538f1b327b8dc7621a94aac79c9c3e5c50dfa29115a6c291e19372a5b876f415
+  managed:
+    roles:
+      - name: campus_docs_index_publisher
+        ensure: absent
   bootstrap:
     initdb:
       database: campus_agent

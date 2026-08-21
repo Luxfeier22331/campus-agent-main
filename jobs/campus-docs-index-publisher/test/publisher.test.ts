@@ -9,10 +9,8 @@ import {
 	sha256,
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import {
-	artifactHex,
 	chunkSetManifestKey,
 	embeddingSetManifestKey,
-	indexManifestKey,
 	readChunkSet,
 	readEmbeddingSet,
 } from "../src/artifacts.ts";
@@ -193,20 +191,16 @@ describe("Campus docs artifact stages", () => {
 			sourceStore: store,
 		});
 
-		expect(result.collection).toBe(`campus_docs_${artifactHex(result.index)}`);
+		const index = sha256(canonicalJsonBytes({
+			collectionDefinition: COLLECTION_DEFINITION,
+			embeddingSet: artifacts.embeddingSet,
+		}));
+		expect(result.collection).toBe(`campus_docs_${index.slice("sha256:".length)}`);
 		expect(result.pointCount).toBe(artifacts.chunkCount);
 		expect(qdrant.created).toEqual([result.collection]);
 		expect(qdrant.upsertedPointCount()).toBe(result.pointCount);
 		expect(qdrant.validated).toEqual([result.collection]);
 		expect(catalog.activated).toHaveLength(1);
-		const indexManifest = JSON.parse(
-			new TextDecoder().decode(await store.read(indexManifestKey(result.index))),
-		) as unknown;
-		expect(indexManifest).toEqual({
-			collectionDefinition: COLLECTION_DEFINITION,
-			embeddingSet: artifacts.embeddingSet,
-			schemaVersion: "campus_docs_index.v2",
-		});
 	});
 
 	it("deletes a newly created collection when the source projection changed", async () => {
@@ -225,6 +219,27 @@ describe("Campus docs artifact stages", () => {
 		})).rejects.toThrow("Campus docs source changed after the chunk set was built");
 		expect(qdrant.deleted).toHaveLength(1);
 		expect(catalog.activated).toEqual([]);
+	});
+
+	it("preserves a validated collection when activation fails", async () => {
+		const store = fixtureStore();
+		const artifacts = await buildArtifacts(store);
+		const qdrant = qdrantHarness();
+		const catalog: IndexCatalog = {
+			async activate() {
+				throw new Error("activation result is unknown");
+			},
+		};
+
+		await expect(publishCampusDocsIndex({
+			artifactStore: store,
+			catalog,
+			embeddingSet: artifacts.embeddingSet,
+			qdrant: qdrant.client,
+			sourceStore: store,
+		})).rejects.toThrow("activation result is unknown");
+		expect(qdrant.created).toHaveLength(1);
+		expect(qdrant.deleted).toEqual([]);
 	});
 
 	it("treats a validated current collection as a no-op", async () => {
@@ -251,21 +266,13 @@ describe("Campus docs artifact stages", () => {
 		expect(existingQdrant.created).toEqual([]);
 	});
 
-	it("does not delete a malformed collection that is already current", async () => {
+	it("does not delete a malformed collection that already exists", async () => {
 		const store = fixtureStore();
 		const artifacts = await buildArtifacts(store);
-		const firstQdrant = qdrantHarness();
 		const catalog = catalogHarness();
-		await publishCampusDocsIndex({
-			artifactStore: store,
-			catalog: catalog.client,
-			embeddingSet: artifacts.embeddingSet,
-			qdrant: firstQdrant.client,
-			sourceStore: store,
-		});
 		const qdrant = qdrantHarness({ exists: true });
 		qdrant.client.validate = async () => {
-			throw new QdrantCollectionContentMismatchError("malformed current collection");
+			throw new QdrantCollectionContentMismatchError("malformed existing collection");
 		};
 
 		await expect(publishCampusDocsIndex({
@@ -274,8 +281,9 @@ describe("Campus docs artifact stages", () => {
 			embeddingSet: artifacts.embeddingSet,
 			qdrant: qdrant.client,
 			sourceStore: store,
-		})).rejects.toThrow("malformed current collection");
+		})).rejects.toThrow("malformed existing collection");
 		expect(qdrant.deleted).toEqual([]);
+		expect(catalog.activated).toEqual([]);
 	});
 });
 
@@ -355,9 +363,6 @@ function catalogHarness(): {
 				}
 				activated.push(index);
 				return { noOp: false };
-			},
-			async current() {
-				return activated.at(-1) ?? null;
 			},
 		},
 	};

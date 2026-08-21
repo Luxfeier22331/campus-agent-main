@@ -16,18 +16,14 @@ describe("runtime latency budget", () => {
 		expect(result.version).toBe("latency-budget-v1");
 		expect(result.breaches).toEqual([
 			{
-				category: "model_provider_or_latency_budget_fix",
 				durationMs: 4_000,
 				field: "campus_docs.retrieve_ms",
-				reason: "campus_docs_retrieval_too_slow",
 				severity: "warn",
 				thresholdMs: 3_000,
 			},
 			{
-				category: "model_provider_or_latency_budget_fix",
 				durationMs: 13_000,
 				field: "agent.runtime_ms",
-				reason: "agent_runtime_too_slow",
 				severity: "critical",
 				thresholdMs: 12_000,
 			},

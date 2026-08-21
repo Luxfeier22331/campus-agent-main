@@ -204,14 +204,14 @@ func (e campusDocsQdrantClient) queryCampusDocsPoints(
 	if err := validateCampusDocsIndexAdmission(target); err != nil {
 		return nil, err
 	}
-	if len(embedding) != target.EmbeddingDimensions {
+	if len(embedding) != campusdocs.EmbeddingDimensions {
 		return nil, errors.New("query embedding dimensions do not match the admitted Campus docs index")
 	}
 	bodyPayload, err := campusdocs.BuildHybridQueryBody(campusdocs.HybridQuery{
 		DenseEmbedding:   embedding,
-		DenseVectorName:  target.DenseVectorName,
+		DenseVectorName:  campusdocs.DenseVectorName,
 		QueryText:        query,
-		SparseVectorName: target.SparseVectorName,
+		SparseVectorName: campusdocs.SparseVectorName,
 		TopK:             campusDocsCandidateLimit,
 	})
 	if err != nil {

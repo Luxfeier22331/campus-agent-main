@@ -19,6 +19,43 @@ from campus_ragas_runner.agent_score_batch import (
 )
 
 
+def sample_payload(**item_overrides: object) -> dict[str, object]:
+    item: dict[str, object] = {
+        "answer": "我会查询相关规定。",
+        "argument_mode": "name_only",
+        "case_id": "case-001",
+        "query": "学生转专业需要什么条件？",
+        "reference": "应依据当前规定回答。",
+        "reference_tool_calls": [],
+        "tool_calls": [],
+        "metadata": {"surface_key": "app-api.chat"},
+    }
+    item.update(item_overrides)
+    return {
+        "items": [item],
+        "run_id": "agent-eval-001",
+        "schema_version": "ragas_agent_sample_batch.v2",
+    }
+
+
+def provider_config(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "profiles": {
+                    "eval_judge_llm": {
+                        "api_key": "judge-key",
+                        "base_url": "https://provider.example/v1",
+                        "model": "judge-model",
+                        "timeout_ms": 120000,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 class RagasAgentScoreBatchTest(unittest.TestCase):
     def test_package_cli_dispatches_rag_and_agent_modes(self) -> None:
         with (
@@ -31,44 +68,15 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
         agent.assert_called_once_with(["--input", "agent.json"])
         rag.assert_called_once_with(["--input", "rag.json"])
 
-    def test_scores_name_only_tool_calls_with_injected_scorer(self) -> None:
+    def test_scores_native_agent_batch_without_platform_identity(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             work_dir = Path(raw_dir)
             input_path = work_dir / "agent-samples.json"
             output_path = work_dir / "agent-scores.json"
-            input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_agent_sample_batch.v1",
-                        "eval_run_id": "agent-eval-001",
-                        "items": [
-                            {
-                                "case_id": "transport-route",
-                                "trace_id": "trace-001",
-                                "dataset_item_id": "dataset-item-001",
-                                "dataset_run_id": "dataset-run-001",
-                                "query": "你记得我偏好先看结论吗？",
-                                "answer": "我查询一下你的回答偏好。",
-                                "tool_calls": [
-                                    {
-                                        "name": "personal_memory_recall",
-                                        "args": {},
-                                    }
-                                ],
-                                "reference_tool_calls": [
-                                    {
-                                        "name": "personal_memory_recall",
-                                        "args": {},
-                                    }
-                                ],
-                                "argument_mode": "name_only",
-                                "metadata": {"surface_key": "app-api.chat"},
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
+            config_path = work_dir / "provider-config.json"
+            input_path.write_text(json.dumps(sample_payload()), encoding="utf-8")
+            provider_config(config_path)
+
             captured: list[RagasAgentProjection] = []
 
             def fake_scorer(projection: RagasAgentProjection) -> tuple[RagasAgentResult, ...]:
@@ -78,169 +86,134 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
                     RagasAgentResult(metric_name="tool_call_f1.name_only", score=1.0),
                 )
 
-            summary = run_ragas_agent_score_batch(
-                input_path=input_path,
-                output_path=output_path,
-                scorer_factory=lambda: fake_scorer,
-            )
+            with patch(
+                "campus_ragas_runner.agent_score_batch.build_ragas_agent_scorer",
+                return_value=fake_scorer,
+            ):
+                summary = run_ragas_agent_score_batch(
+                    input_path=input_path,
+                    output_path=output_path,
+                    provider_config_path=config_path,
+                )
 
-            self.assertEqual(summary, {"items": 1, "output_path": str(output_path)})
-            self.assertEqual(captured[0].case_id, "transport-route")
-            self.assertEqual(captured[0].tool_calls[0]["name"], "personal_memory_recall")
-            self.assertEqual(captured[0].reference_tool_calls[0]["name"], "personal_memory_recall")
-            self.assertEqual(captured[0].argument_mode, "name_only")
+            self.assertEqual(summary["items"], 1)
+            self.assertEqual(captured[0].case_id, "case-001")
             payload = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["schema_version"], "ragas_agent_score_batch.v1")
-            self.assertEqual(payload["eval_run_id"], "agent-eval-001")
-            self.assertEqual(
-                payload["items"][0]["scores"],
-                {
-                    "ragas.tool_call_accuracy.name_only": 1.0,
-                    "ragas.tool_call_f1.name_only": 1.0,
-                },
-            )
+            self.assertEqual(payload["schema_version"], "ragas_agent_score_batch.v2")
+            self.assertEqual(payload["run_id"], "agent-eval-001")
+            self.assertEqual(payload["items"][0]["scores"]["ragas.tool_call_f1.name_only"], 1.0)
+            self.assertNotIn("trace_id", payload["items"][0])
+            self.assertNotIn("dataset_run_id", payload["items"][0])
 
-    def test_omits_missing_and_non_finite_agent_scores_from_json_output(self) -> None:
+    def test_omits_missing_and_non_finite_scores_from_json_output(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             work_dir = Path(raw_dir)
             input_path = work_dir / "agent-samples.json"
             output_path = work_dir / "agent-scores.json"
-            input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_agent_sample_batch.v1",
-                        "eval_run_id": "agent-non-finite-001",
-                        "items": [
-                            {
-                                "case_id": "direct",
-                                "trace_id": "trace-001",
-                                "query": "你好",
-                                "answer": "你好",
-                                "tool_calls": [],
-                                "reference_tool_calls": [],
-                                "argument_mode": "name_only",
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
+            config_path = work_dir / "provider-config.json"
+            input_path.write_text(json.dumps(sample_payload()), encoding="utf-8")
+            provider_config(config_path)
 
-            def fake_scorer(
-                _projection: RagasAgentProjection,
-            ) -> tuple[RagasAgentResult, ...]:
+            def fake_scorer(_projection: RagasAgentProjection) -> tuple[RagasAgentResult, ...]:
                 return (
                     RagasAgentResult(metric_name="tool_call_accuracy.name_only"),
                     RagasAgentResult(metric_name="tool_call_f1.name_only", score=float("nan")),
-                    RagasAgentResult(
-                        metric_name="agent_goal_accuracy.with_reference", score=float("inf")
-                    ),
                 )
 
-            run_ragas_agent_score_batch(
-                input_path=input_path,
-                output_path=output_path,
-                scorer_factory=lambda: fake_scorer,
-            )
+            with patch(
+                "campus_ragas_runner.agent_score_batch.build_ragas_agent_scorer",
+                return_value=fake_scorer,
+            ):
+                run_ragas_agent_score_batch(
+                    input_path=input_path,
+                    output_path=output_path,
+                    provider_config_path=config_path,
+                )
 
             raw_output = output_path.read_text(encoding="utf-8")
             payload = json.loads(raw_output)
             self.assertEqual(payload["items"][0]["scores"], {})
             self.assertEqual(
                 [error["metric_name"] for error in payload["items"][0]["errors"]],
-                [
-                    "ragas.tool_call_accuracy.name_only",
-                    "ragas.tool_call_f1.name_only",
-                    "ragas.agent_goal_accuracy.with_reference",
-                ],
+                ["ragas.tool_call_accuracy.name_only", "ragas.tool_call_f1.name_only"],
             )
             self.assertNotIn("NaN", raw_output)
-            self.assertNotIn("Infinity", raw_output)
 
-    def test_rejects_args_mode_without_eval_safe_args(self) -> None:
+    def test_rejects_retired_schema_and_forbidden_fields(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             work_dir = Path(raw_dir)
             input_path = work_dir / "agent-samples.json"
             output_path = work_dir / "agent-scores.json"
-            input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_agent_sample_batch.v1",
-                        "eval_run_id": "agent-eval-001",
-                        "items": [
-                            {
-                                "case_id": "transport-route",
-                                "trace_id": "trace-001",
-                                "query": "你记得我偏好先看结论吗？",
-                                "answer": "我查询一下你的回答偏好。",
-                                "tool_calls": [
-                                    {
-                                        "name": "personal_memory_recall",
-                                        "args": {},
-                                    }
-                                ],
-                                "reference_tool_calls": [
-                                    {
-                                        "name": "personal_memory_recall",
-                                        "args": {"route": "海淀"},
-                                    }
-                                ],
-                                "argument_mode": "eval_safe_args",
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
+            config_path = work_dir / "provider-config.json"
+            provider_config(config_path)
 
-            with self.assertRaisesRegex(ValueError, "eval_safe_args requires non-empty tool args"):
+            legacy = sample_payload()
+            legacy["schema_version"] = "ragas_agent_sample_batch.v1"
+            input_path.write_text(json.dumps(legacy), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "ragas_agent_sample_batch.v2"):
                 run_ragas_agent_score_batch(
                     input_path=input_path,
                     output_path=output_path,
-                    scorer_factory=lambda: lambda _projection: (),
+                    provider_config_path=config_path,
                 )
 
-    def test_rejects_forbidden_raw_fields(self) -> None:
+            forbidden = sample_payload()
+            item = forbidden["items"][0]
+            assert isinstance(item, dict)
+            item["trace_id"] = "must-not-cross-boundary"
+            input_path.write_text(json.dumps(forbidden), encoding="utf-8")
+            with (
+                patch(
+                    "campus_ragas_runner.agent_score_batch.build_ragas_agent_scorer",
+                    return_value=lambda _projection: (),
+                ),
+                self.assertRaisesRegex(ValueError, "trace_id"),
+            ):
+                run_ragas_agent_score_batch(
+                    input_path=input_path,
+                    output_path=output_path,
+                    provider_config_path=config_path,
+                )
+
+    def test_rejects_args_mode_without_safe_arguments(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             work_dir = Path(raw_dir)
             input_path = work_dir / "agent-samples.json"
             output_path = work_dir / "agent-scores.json"
+            config_path = work_dir / "provider-config.json"
+            provider_config(config_path)
             input_path.write_text(
                 json.dumps(
-                    {
-                        "schema_version": "ragas_agent_sample_batch.v1",
-                        "eval_run_id": "agent-eval-001",
-                        "items": [
-                            {
-                                "case_id": "bad-raw",
-                                "trace_id": "trace-001",
-                                "query": "你好",
-                                "answer": "你好",
-                                "tool_calls": [],
-                                "reference_tool_calls": [],
-                                "argument_mode": "name_only",
-                                "raw_transcript": "must not be accepted",
-                            }
+                    sample_payload(
+                        argument_mode="eval_safe_args",
+                        tool_calls=[{"args": {}, "name": "personal_memory_recall"}],
+                        reference_tool_calls=[
+                            {"args": {"topic": "转专业"}, "name": "personal_memory_recall"}
                         ],
-                    }
+                    )
                 ),
                 encoding="utf-8",
             )
 
-            with self.assertRaisesRegex(ValueError, "bad-raw.raw_transcript is forbidden"):
+            with (
+                patch(
+                    "campus_ragas_runner.agent_score_batch.build_ragas_agent_scorer",
+                    return_value=lambda _projection: (),
+                ),
+                self.assertRaisesRegex(ValueError, "eval_safe_args requires non-empty tool args"),
+            ):
                 run_ragas_agent_score_batch(
                     input_path=input_path,
                     output_path=output_path,
-                    scorer_factory=lambda: lambda _projection: (),
+                    provider_config_path=config_path,
                 )
 
-    def test_closes_agent_llm_client_inside_each_scoring_event_loop(self) -> None:
+    def test_closes_agent_llm_client_for_each_scoring_call(self) -> None:
         settings = RagasAgentRunnerSettings(
             llm_api_key="sk-test",
-            llm_model="gpt-4o-mini",
+            llm_model="gpt-test",
             llm_base_url=None,
             timeout_seconds=180,
-            metric_names=("agent_goal_accuracy_with_reference",),
         )
         projection = RagasAgentProjection(
             case_id="case-001",
@@ -282,48 +255,31 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
         self.assertEqual(len(clients), 2)
         self.assertTrue(all(client.closed for client in clients))
 
-    def test_agent_cli_mode_writes_scores(self) -> None:
+    def test_agent_cli_mode_uses_provider_config(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             work_dir = Path(raw_dir)
             input_path = work_dir / "agent-samples.json"
             output_path = work_dir / "agent-scores.json"
-            runtime_config_path = work_dir / "runtime-config.json"
-            runtime_config_path.write_text(
-                json.dumps({"schema_version": "ragas_runner_config.v1"}),
-                encoding="utf-8",
-            )
-            runtime_config_path.chmod(0o600)
-            input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_agent_sample_batch.v1",
-                        "eval_run_id": "agent-eval-001",
-                        "items": [
-                            {
-                                "case_id": "direct",
-                                "trace_id": "trace-001",
-                                "query": "你好",
-                                "answer": "你好",
-                                "tool_calls": [],
-                                "reference_tool_calls": [],
-                                "argument_mode": "name_only",
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
+            config_path = work_dir / "provider-config.json"
+            input_path.write_text(json.dumps(sample_payload()), encoding="utf-8")
+            provider_config(config_path)
 
-            exit_code = agent_main(
-                [
-                    "--input",
-                    str(input_path),
-                    "--output",
-                    str(output_path),
-                    "--runtime-config",
-                    str(runtime_config_path),
-                ]
-            )
+            with patch(
+                "campus_ragas_runner.agent_score_batch.build_ragas_agent_scorer",
+                return_value=lambda _projection: (
+                    RagasAgentResult(metric_name="tool_call_accuracy.name_only", score=1.0),
+                ),
+            ):
+                exit_code = agent_main(
+                    [
+                        "--input",
+                        str(input_path),
+                        "--output",
+                        str(output_path),
+                        "--provider-config",
+                        str(config_path),
+                    ]
+                )
 
             self.assertEqual(exit_code, 0)
             payload = json.loads(output_path.read_text(encoding="utf-8"))

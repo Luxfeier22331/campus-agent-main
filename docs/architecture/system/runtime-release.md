@@ -8,13 +8,13 @@ status: active
 ## 文档边界
 
 本文定义 Cloudflare Worker、Kubernetes 服务和数据库变更的发布所有权。具体环境值、操作
-命令和验收步骤分别由环境仓、runbook 和 CI 工作流维护。
+命令和环境交接步骤分别由环境仓、runbook 和 CI 工作流维护。
 
 ## 所有权
 
 | 所有者 | 负责 |
 | --- | --- |
-| 源码仓 | 构建镜像、上传不可变 Cloudflare Worker 候选版本、产出 schema 和环境无关清单 |
+| 源码仓 | 构建镜像、按目标 Worker 配置上传不可变 Cloudflare Worker 候选版本、产出 schema 和发布清单 |
 | 环境仓 | 选择镜像摘要和 Cloudflare Worker 版本，维护环境配置并发起实际发布 |
 | Cloudflare Terraform | Worker 绑定、域名、路由、非密配置和流量版本 |
 | Argo CD | Kubernetes 资源和镜像摘要 |
@@ -34,7 +34,6 @@ status: active
 -> 数据库 schema 与平台配置收敛
 -> Argo CD 同步 Kubernetes
 -> Terraform 切换 Worker 流量
--> 产品入口和依赖就绪检查
 ```
 
 规则如下：
@@ -48,13 +47,12 @@ status: active
 - 一个应用失败不能被其他应用的健康状态掩盖；
 - 候选版本上传成功、镜像构建成功或清单渲染成功都不等于部署完成。
 - 常规 staging 版本选择使用唯一滚动 PR；Secret、权限、资源、网络、Terraform、Application 拓扑和
-  production 变化不进入自动合并。
+  其他环境变化不进入自动合并。
 
 Kubernetes 发布以实际故障域为 Application 边界。强依赖 schema 的运行时在同一 Application 内
-依次同步配置、身份、所需 NetworkPolicy 与 DatabaseRole、migration、workload 和 schedule。嵌入宿主的可选领域能力可以由
-独立 Application 拥有 schema、专用角色和授权，宿主必须通过 optional 引用局部降级。migration 使用
-`Sync` hook，并在本单元的上述前置资源健康后执行。不同 child Application 的 wave 只帮助
-组织资源，不能承诺跨应用事务。
+依次同步配置、身份、所需 NetworkPolicy、migration、workload 和 schedule。身份和授权按实际
+数据所有权与信任边界决定，不因进程名称自动拆分。migration 使用 `Sync` hook，并在本单元的
+上述前置资源健康后执行。不同 child Application 的 wave 只帮助组织资源，不能承诺跨应用事务。
 
 ## 发布标识
 
@@ -65,7 +63,7 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 对应部署单元的结果。
 
 `DEPLOYMENT_RELEASE` 是 execution runtime 的非密发布身份，并进入
-`tool_runtime_fingerprint.v2` 的 `runtime_release`。staging 与 production 的 execution-control 和
+`tool_runtime_fingerprint.v2` 的 `runtime_release`。在每个已启用环境内，execution-control 和
 agent-runtime 必须取得环境仓选择的同一非空值；任一进程缺失时启动失败，不能以本地默认值或环境
 名称补齐。精确指纹合同见 `../../contracts/tool-execution.md`。
 
@@ -77,11 +75,11 @@ agent-runtime 必须取得环境仓选择的同一非空值；任一进程缺失
 - Kubernetes 服务使用集群内地址和环境仓提供的运行身份；
 - 本地 `.env`、Compose 和临时隧道只服务开发，不作为环境配置来源。
 
-## 就绪与验收
+## 就绪与环境交接
 
-`/healthz` 只证明进程可以响应，`/readyz` 只证明该服务当前可以接收请求。发布验收还必须
-确认环境仓选择的版本已经生效，并从实际产品入口验证受影响路径。完整命令和检查范围见
-runbook，不在架构文档保存某次验收输出。
+`/healthz` 只证明进程可以响应，`/readyz` 只证明该服务当前可以接收请求。这些接口是运行时证据，
+不构成源码发布完成或环境交接完成。环境仓如需验证产品路径，按其自身手册处理；本仓库不把该验证
+设为发布链的固定阶段。
 
 ## 不允许的形态
 

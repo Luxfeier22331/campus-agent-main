@@ -26,7 +26,6 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 		});
 		console.log(JSON.stringify({
 			collection: result.collection,
-			index: result.index,
 			no_op: result.noOp,
 			point_count: result.pointCount,
 		}, null, 2));

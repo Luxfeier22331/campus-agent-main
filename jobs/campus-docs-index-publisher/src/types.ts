@@ -90,12 +90,6 @@ export interface IndexPoint {
 
 export interface CurrentIndexBinding {
 	collection: string;
-	dense_vector_name: string;
-	embedding_dimensions: number;
-	embedding_query_instruction: string;
-	embedding_space_id: string;
-	sparse_model: string;
-	sparse_vector_name: string;
 }
 
 export interface SourceVersionSelection {
@@ -145,7 +139,6 @@ export interface QdrantIndexClient {
 
 export interface IndexCatalog {
 	activate(index: CurrentIndexBinding): Promise<{ noOp: boolean }>;
-	current(): Promise<CurrentIndexBinding | null>;
 }
 
 export interface PublisherIndexCatalog extends IndexCatalog {
@@ -169,12 +162,6 @@ export interface EmbeddingSetManifest {
 	embeddingSpace: typeof EMBEDDING_SPACE;
 	embeddings: ObjectRef;
 	schemaVersion: "campus_docs_embedding_set.v2";
-}
-
-export interface IndexManifest {
-	collectionDefinition: typeof COLLECTION_DEFINITION;
-	embeddingSet: Sha256Ref;
-	schemaVersion: "campus_docs_index.v2";
 }
 
 export interface BuildChunkSetInput {
@@ -214,7 +201,6 @@ export interface PublishIndexInput {
 
 export interface PublishIndexResult {
 	collection: string;
-	index: Sha256Ref;
 	noOp: boolean;
 	pointCount: number;
 }

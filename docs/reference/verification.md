@@ -16,13 +16,12 @@ runner、工具版本、缓存和发布实现由可执行配置维护；本文�
 | 证据 | 回答的问题 | 不能证明 |
 | --- | --- | --- |
 | 配置检查 | 命令需要的输入是否存在且可解析 | 远端服务健康或环境已部署 |
-| 单元、合同与集成检查 | 所属实现和边界是否符合合同 | 候选物已发布或线上用户路径可用 |
+| 单元、合同、依赖集成、Ragas 与本地浏览器 E2E | 所属实现和边界是否符合合同，受控本地路径是否可完成 | 制品已经发布或外部环境当前可用 |
 | `/healthz` | 当前进程或 Worker 是否能响应 | 核心依赖或产品路径完整 |
 | `/readyz` | 服务是否具备接受其职责范围请求的核心依赖 | 新版本已部署或完整用户旅途可用 |
 | 制品检查 | 构建结果是否完整、可识别且满足发布合同 | 环境已经选择或运行该制品 |
-| 环境验收 | 环境实际选择的版本和受影响用户路径是否符合预期 | 长期稳定性或所有可选依赖健康 |
 
-配置、健康、就绪、构建和环境验收不能相互替代。服务级 `/readyz` 条件由所属合同、配置解析器和
+配置、健康、就绪、构建和本地浏览器 E2E 不能相互替代。服务级 `/readyz` 条件由所属合同、配置解析器和
 测试维护，不在仓库级文档复制。
 
 ## 选择原则
@@ -33,17 +32,17 @@ runner、工具版本、缓存和发布实现由可执行配置维护；本文�
 4. formatting、lint、配置解析和构建都不能证明运行时或部署环境健康。
 5. 报告只列实际运行的检查，以及与改动风险相关但未执行的检查。
 
-实现和 PR 准备根据改动可能破坏的边界选择证据。本地、合同、依赖集成、受控用户路径和制品检查可以
-成为完成条件；相关 integration 或 E2E 不因任务尚未进入 release 或 staging 而自动省略。
+实现和 PR 准备根据改动可能破坏的边界选择证据。本地源码、合同、依赖集成、Ragas、本地浏览器 E2E 和
+制品检查可以成为完成条件；相关 integration 或本地 E2E 不因任务尚未进入发布流程而自动省略。
 
-只有任务目标明确包含 release、staging、部署或运行验收时，缺少对应环境证据才表示任务未完成；
-否则无需主动列为缺失项，也不是阻塞项。
+环境交接和运行结果由环境仓及其所有者判断，不是源码任务的完成条件。
 
 ## 稳定命令
 
 | 命令 | 负责 | 不证明 |
 | --- | --- | --- |
 | `pre-commit` | 暂存文件的基础格式、解析、冲突和 Secret 检查 | typecheck、test、build 或 runtime |
+| `pnpm verify` | 对当前工作树的源码和配置执行全量 lint、合同、类型与测试检查 | 需显式选择的制品构建、浏览器 E2E、部署或运行时状态 |
 | `pnpm check` | 仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
 | `pnpm lint` | Biome、Markdownlint 与 EditorConfig | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
@@ -67,16 +66,14 @@ package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README �
 | Worker route、binding 或 Wrangler 配置 | 所属 Worker 的 worker test、build 和模块测试 |
 | Campus Web 用户可见运行时 | 模块检查和制品完整性；按风险运行本地浏览器路径 |
 | execution-control Go | 所属 native format、lint、typecheck 和 test |
-| Rust kernel 或 Cargo workspace | 所属 Rust 检查 |
 | migration 或数据库权限 | 对应 migration、数据库集成和所有者测试 |
 | eval package、Ragas adapter 或评测合同 | 所属 package test；跨语言时运行对应 adapter |
 | GitHub Actions | `pnpm check`、Actionlint 与 Zizmor |
 | dependency manifest 或 lockfile | frozen install、受影响模块检查，必要时运行漏洞扫描 |
 | Dockerfile、Bake 或发布适配器 | 仓库脚本测试、Bake 解析；风险需要时构建目标制品 |
-| Kubernetes 或 deployment source | `scripts/infra/validate.sh`；进入环境操作后按发布手册验收 |
+| Kubernetes 或 deployment source | `scripts/infra/validate.sh` |
 
-普通 PR 只验证源码和受影响边界，不访问私有环境或把候选物存在解释为已经部署。发布与环境验收见
-[发布手册](../runbooks/release.md) 和 [E2E 手册](../runbooks/e2e.md)。
+普通 PR 只验证源码和受影响边界，不访问私有环境；候选物存在不能解释为已经部署。
 
 ## 报告
 

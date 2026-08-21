@@ -66,9 +66,14 @@ Campus Docs 检索不进入 `visible_tool_names`、SDK 工具轮次或 `tool_tra
 
 ## 评测与耗时
 
-运行评测投影不复制检索准入、collection 或候选/证据计数。RAGAS 从最终答案及其已验证 sources
-派生检索上下文；数据集是否提供 `reference_context_ids` 或 `reference_contexts` 决定样本是否进入
-RAG 评测。文档类别只属于数据集标注，不是在线路由字段。
+运行评测投影不复制检索准入、collection 或证据计数到 Ragas 样本。TypeScript 适配器从版本化
+case 和完成 run 的 `agent_runtime_eval_projection.v3` 生成 `ragas_sample_batch.v2`；其中只保留问题、
+答案、实际检索正文和可选 reference。数据集中的 `reference_context_ids` 或 `reference_contexts`
+只决定该用例是否适用 RAG 评测，并留在适配器的确定性检查边界，不冒充 Ragas 的输入字段。空检索
+仍生成样本。文档类别只属于数据集标注，不是在线路由字段。
+
+Langfuse trace 和 score target 只由评测适配器用于可选发布，不能由 Ragas runner 读取；普通 trace
+不能反向物化为 Ragas 正文。
 
 聚合耗时字段为 `campus_docs.retrieve_ms`；内部诊断可包含 `campus_docs.embed_query_ms`、
 `campus_docs.query_index_ms` 和 `campus_docs.select_evidence_ms`。

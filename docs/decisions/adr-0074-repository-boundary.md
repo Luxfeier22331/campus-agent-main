@@ -24,8 +24,7 @@ partially_superseded_by: ADR-0083
 - namespace-neutral first-party Kustomize base，包括完整 Pod/Job 行为、稳定 Secret key 合同和
   应用级 NetworkPolicy；
 - image build、scan、SBOM 与 immutable SHA-tag publication；
-- Cloudflare Worker build 与不改变 traffic 的 immutable version upload；
-- 通过 pull request 提议环境变更的 promotion workflow。
+- Cloudflare Worker build 与不改变 traffic 的 immutable version upload。
 
 每个部署环境仓库负责：
 
@@ -38,11 +37,6 @@ partially_superseded_by: ADR-0083
 - Cloudflare 非 secret 基础设施、Worker version selection 与 traffic；
 - Terraform remote state 与从环境派生的 public GitHub variable；
 - 环境专用 rollout 与 cluster verification。
-
-环境仓库只通过完整 commit SHA 消费 source base，只通过 registry digest 消费 first-party image。
-应用 CI 使用专用 GitHub App 创建幂等 promotion pull request，不能直接写入环境仓库 `main`。
-Argo CD 通过只读 GitHub App credential 读取两个仓库，只有环境 pull request 合并后才进行
-reconcile。
 
 Cloudflare 不由 Argo CD 管理。应用仓库上传 immutable Worker version；环境仓库使用 Terraform
 选择 version、管理 traffic 并 reconcile Cloudflare infrastructure。Worker 独占 secret 只进入
@@ -59,10 +53,8 @@ Kubernetes 调用方和 Worker 验证方共同持有的跨运行时认证凭据�
   SealedSecret；
 - 通用 Kustomize base 不创建 Namespace、不选择 environment ConfigMap 或 mutable image tag，
   也不注入 registry credential；
-- 环境仓 pull request 是部署选择记录；常规 staging 机器字段在结构化校验后自动合并，环境结构和
-  production 变化仍由人员审查；
-- 一个环境 pull request 可以选择同一 source commit 产生的 Kubernetes image digest 与
-  Cloudflare Worker version；
+- 环境仓库负责选择候选版本并维护 rollout 与集群验收；具体 promotion 流程由发布架构和 runbook
+  维护；
 - source CI 证明源码与通用 base 质量，environment CI 与 Argo status 证明可部署性，双方不能
   代替对方；
 - 其他机构可以 fork 源码仓库并提供自己的环境仓库，无需修改上游部署拓扑。

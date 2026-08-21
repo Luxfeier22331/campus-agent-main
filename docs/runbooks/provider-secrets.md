@@ -22,23 +22,22 @@ Langfuse、Cloudflare 和其他环境运行凭据由环境仓及其所属交付�
   Activity 使用更新后的当前设置；
 - `llm` 和 `embedding` 分别由使用它们的运行路径失败关闭；Execution Control 顶层就绪只把当前设置
   作为诊断，不复制 Agent worker 和知识检索的能力 gate；
-- `dev`、`staging`、`production` 使用独立密钥；只有存在预算、限流或供应商隔离需求时，
-  才为两种能力分配不同密钥。
+- 不同部署环境是否使用独立密钥由实际环境、供应商限制和运维需求决定；不为不存在或未启用的环境
+  预建配置。
 
 ## 首次配置和替换
 
 1. 确认目标环境和配置种类 `llm`、`embedding` 或 `notice_classifier`。
 2. 必要时在供应商平台创建该环境的密钥。
 3. 在 Ops Web 的“模型配置”中编辑当前设置。`llm` 和 `notice_classifier` 可设置 provider、endpoint、model
-   和 transport；`embedding` 只设置 endpoint 和 API key。Embedding provider、model、transport 和
-   dimensions 由 Campus Docs 固定合同拥有，不包含可编辑 `embedding_space_id` 或推理超时；Agent
-   与 RAG 分别使用所属运行策略的时限。
+   和 transport；`embedding` 只设置 endpoint 和 API key。固定字段和拒绝字段以 Ops Web 接口合同为
+   准；Agent 与 RAG 分别使用所属运行策略的时限。
 4. 保存时由 execution-control 调用真实供应商进行验证。验证失败不覆盖当前设置。
 5. 确认 execution-control 的 `EXECUTION_CONTROL_DATABASE_URL` 和单一加密密钥文件可用；同一 Deployment
    的 admin 监听器使用 `OPS_WEB_INTERNAL_TOKEN` 鉴权。
 6. 运行时加密密钥文件使用 `0600`；Kubernetes Secret 投影使用 `0440`，由 Pod `fsGroup` 授予
    运行时组只读权限。Kubernetes 使用目录挂载，不使用 `subPath`。
-7. 运行所属环境检查和受控冒烟测试。
+7. 如果本次操作明确包含环境验证，按目标环境的操作手册执行；本文不定义线上验收命令。
 
 尚未配置当前设置时，Ops Web 自身仍应就绪并允许进入修复页；依赖该 kind 的 runtime
 必须失败关闭。
@@ -53,9 +52,10 @@ Embedding，使用旧 AAD 解密并按不可变 AAD v1
 读取。Goose v5 在新路径创建 `campus_docs_serving.current_index` 并暂时增加索引绑定所需的
 `embedding_space_id`；后续 Goose v6 从模型设置和当前索引删除重复的向量空间字段。Goose v7 将现有
 Embedding 行规范为固定 provider、model 和 transport，保留 endpoint 与加密 API key，并要求重新
-验证。Go migration 9 将现有 `model_settings` 中的旧 keyring 密文一次性重加密为单一
+验证。Go migration v8 将现有 `model_settings` 中的旧 keyring 密文一次性重加密为单一
 `encryption.key` 密文，随后删除旧 key ID、指纹和末四位列并重建只读兼容视图；常驻 runtime 不再读取
-keyring。新设置只允许替换连接 endpoint 和凭据，索引定义由 Publisher 代码和当前索引绑定共同确定。
+keyring。Goose v9 删除当前索引中剩余的查询定义字段，只保留 collection 指针。新设置只允许替换连接
+endpoint 和凭据，索引定义由当前 Publisher 与 execution-control 代码共同确定。
 
 旧结构不完整、当前表已经含有数据、激活配置缺失、验证未通过、密钥无法解密或旧表存在未知依赖时，
 整个事务回滚。不得手工复制数据、保留新旧表并存、双写或让运行时回退到旧表。切换发布允许在线问答
@@ -87,7 +87,7 @@ keyring。新设置只允许替换连接 endpoint 和凭据，索引定义由 Pu
 1. 在供应商平台创建新密钥。
 2. 在目标 kind 的当前设置中填入新密钥并保存。真实供应商验证失败时保留旧设置。
 3. 确认新的 Activity 使用新密钥，已经取得旧快照的在途 Activity 不受影响。
-4. 完成环境检查和冒烟测试。
+4. 如果本次轮换明确包含环境验证，按目标环境的操作手册执行；本文不定义线上验收命令。
 5. 撤销旧密钥。
 
 疑似泄露时先切换并立即撤销旧密钥，再检查近期日志、构建产物、截图和共享记录。
@@ -95,7 +95,7 @@ keyring。新设置只允许替换连接 endpoint 和凭据，索引定义由 Pu
 ## 禁止事项
 
 - 不把仓库根 `.env` 当作部署密钥来源；
-- 不让 staging 或 production 共用 dev 密钥；
+- 环境间是否共享密钥按实际配置和供应商约束决定，不通过环境名称自动生成额外配置；
 - 不在 issue、PR、聊天记录、日志、截图或 fixture 中记录原始密钥；
 - 不从其他 worktree 复制密钥，也不增加跨 worktree 环境文件分发脚本；
 - 不让 agent-runtime 绕过 execution-control 的当前设置直接从环境变量读取在线供应商

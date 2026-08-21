@@ -1,11 +1,5 @@
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import canonicalDocumentUnitSchema from "../schemas/canonical-document-units.v1.schema.json" with {
-	type: "json",
-};
-import canonicalDocumentUnitV2Schema from "../schemas/canonical-document-units.v2.schema.json" with {
-	type: "json",
-};
 import internalPortalFileReleaseSourceSchema from "../schemas/internal-portal-file-release-source.v1.schema.json" with {
 	type: "json",
 };
@@ -18,75 +12,8 @@ import internalPortalNoticeSourceSchema from "../schemas/internal-portal-notice-
 import internalPortalNoticeSyncStateSchema from "../schemas/internal-portal-notice-sync-state.v2.schema.json" with {
 	type: "json",
 };
-import retrievalChunkSetV2Schema from "../schemas/retrieval-chunk-set.v2.schema.json" with {
-	type: "json",
-};
-import retrievalChunkV2Schema from "../schemas/retrieval-chunks.v2.schema.json" with {
-	type: "json",
-};
 
 export type ValidationResult = { ok: true } | { ok: false; errors: string[] };
-
-export interface CanonicalDocumentUnit {
-	doc_id: string;
-	version_id: string;
-	chunk_id: string;
-	root_unit_id: string;
-	text: string;
-	clean_text: string;
-	unit_type?: string;
-	metadata: Record<string, unknown>;
-	anchor: Record<string, unknown>;
-	[key: string]: unknown;
-}
-
-export interface CanonicalDocumentUnitV2 {
-	schema_version: "canonical_document_unit.v2";
-	document_scope: string;
-	document_id: string;
-	version_id: string;
-	section_id: string;
-	parent_section_id: string | null;
-	ordinal: number;
-	anchor: string;
-	document_title: string;
-	section_title: string;
-	canonical_url: string;
-	content: string;
-	content_sha256: string;
-	metadata: Record<string, unknown>;
-}
-
-export interface RetrievalChunkV2 {
-	schema_version: "retrieval_chunk.v2";
-	document_scope: string;
-	document_id: string;
-	version_id: string;
-	section_id: string;
-	chunk_id: string;
-	ordinal: number;
-	token_count: number;
-	text: string;
-	text_sha256: string;
-	metadata: Record<string, unknown>;
-}
-
-export interface RetrievalChunkSetV2 {
-	schema_version: "retrieval_chunk_set.v2";
-	chunk_count: number;
-	chunks: RetrievalChunkV2[];
-	error_count: number;
-	errors: string[];
-}
-
-export type IngestionArtifactRefKind = "object_store";
-
-export interface IngestionArtifactRef {
-	kind: IngestionArtifactRefKind;
-	uri: string;
-	digest: string;
-	byte_size: number;
-}
 
 export interface InternalPortalNoticeSourceAttachment {
 	notice_annex_id: string | null;
@@ -151,18 +78,6 @@ const ajv = new Ajv2020({
 });
 addFormats(ajv);
 
-const canonicalDocumentUnitValidator = ajv.compile(
-	canonicalDocumentUnitSchema,
-) as ValidateFunction<CanonicalDocumentUnit>;
-const canonicalDocumentUnitV2Validator = ajv.compile(
-	canonicalDocumentUnitV2Schema,
-) as ValidateFunction<CanonicalDocumentUnitV2>;
-const retrievalChunkV2Validator = ajv.compile(
-	retrievalChunkV2Schema,
-) as ValidateFunction<RetrievalChunkV2>;
-const retrievalChunkSetV2Validator = ajv.compile(
-	retrievalChunkSetV2Schema,
-) as ValidateFunction<RetrievalChunkSetV2>;
 const internalPortalFileReleaseSourceValidator = ajv.compile(
 	internalPortalFileReleaseSourceSchema,
 ) as ValidateFunction<InternalPortalFileReleaseSource>;
@@ -175,40 +90,6 @@ const internalPortalNoticeSyncStateValidator = ajv.compile(
 const internalPortalMetaValidator = ajv.compile(
 	internalPortalMetaSchema,
 ) as ValidateFunction<InternalPortalMeta>;
-
-export function validateCanonicalDocumentUnit(value: unknown): ValidationResult {
-	return validateWith(canonicalDocumentUnitValidator, value);
-}
-
-export function validateCanonicalDocumentUnitV2(value: unknown): ValidationResult {
-	return validateWith(canonicalDocumentUnitV2Validator, value);
-}
-
-export function validateRetrievalChunkV2(value: unknown): ValidationResult {
-	return validateWith(retrievalChunkV2Validator, value);
-}
-
-export function validateRetrievalChunkSetV2(value: unknown): ValidationResult {
-	const result = validateWith(retrievalChunkSetV2Validator, value);
-	if (!result.ok) {
-		return result;
-	}
-	const set = value as RetrievalChunkSetV2;
-	if (set.chunk_count !== set.chunks.length) {
-		return { ok: false, errors: ["chunk_count must match chunks length"] };
-	}
-	if (set.error_count !== set.errors.length) {
-		return { ok: false, errors: ["error_count must match errors length"] };
-	}
-	const chunkIds = new Set<string>();
-	for (const chunk of set.chunks) {
-		if (chunkIds.has(chunk.chunk_id)) {
-			return { ok: false, errors: [`chunks contains duplicate chunk_id: ${chunk.chunk_id}`] };
-		}
-		chunkIds.add(chunk.chunk_id);
-	}
-	return { ok: true };
-}
 
 export function validateInternalPortalNoticeSource(value: unknown): ValidationResult {
 	return validateWith(internalPortalNoticeSourceValidator, value);
@@ -224,30 +105,6 @@ export function validateInternalPortalMeta(value: unknown): ValidationResult {
 
 export function validateInternalPortalFileReleaseSource(value: unknown): ValidationResult {
 	return validateWith(internalPortalFileReleaseSourceValidator, value);
-}
-
-export function validateCanonicalDocumentUnitsJsonl(input: string): ValidationResult {
-	const errors: string[] = [];
-	for (const [index, line] of input.split(/\r?\n/u).entries()) {
-		const trimmed = line.trim();
-		if (!trimmed) {
-			continue;
-		}
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(trimmed);
-		} catch (error) {
-			errors.push(
-				`line ${index + 1} invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
-			);
-			continue;
-		}
-		const result = validateCanonicalDocumentUnit(parsed);
-		if (!result.ok) {
-			errors.push(...result.errors.map((message) => `line ${index + 1} ${message}`));
-		}
-	}
-	return errors.length === 0 ? { ok: true } : { ok: false, errors };
 }
 
 function validateWith(validator: ValidateFunction, value: unknown): ValidationResult {

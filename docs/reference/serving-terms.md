@@ -71,12 +71,14 @@ publisher 代码内分别维护 `CHUNK_SET_DEFINITION`、`EMBEDDING_SPACE` 和
 向量名、查询指令、距离和 point schema。provider、endpoint、API key、model alias、批大小和并发数
 属于执行连接或调用参数，不进入内容寻址 manifest。
 
+execution-control 代码拥有当前查询使用的向量名、dimensions 和查询指令；它不从 PostgreSQL 或环境
+变量读取第二份定义。发布端与查询端的当前实现必须一起修改和验证。
+
 ### Collection 身份
 
-Qdrant collection 名由 `campus_docs_index.v2` manifest 的规范 JSON SHA-256 形成：
-`campus_docs_<manifest-sha256>`。manifest 只引用 embedding set 和 collection definition；embedding set
-已唯一引用 chunk set。manifest 摘要同时是对象存储制品 ID 和 collection 后缀，不再维护第二套运行时
-index ID、fingerprint 或数据库历史记录。
+Qdrant collection 名由显式 Embedding Set ID 与当前 `COLLECTION_DEFINITION` 的规范 JSON SHA-256
+形成：`campus_docs_<sha256>`。该摘要只用作 collection 后缀，不另行生成索引制品，也不维护第二套
+运行时 index ID、fingerprint 或数据库历史记录。
 
 ### Chunk Set
 
@@ -119,14 +121,16 @@ reranker。
 
 ### 当前索引绑定
 
-PostgreSQL `campus_docs_serving.current_index` 的单行记录，保存当前 collection 及实际查询所需的
-dense、embedding 和 sparse 绑定。execution-control 在 run 准入时读取并冻结它，运行中不跟随后续
-变化。数据库不保存索引历史或重复的不可变索引记录。
+PostgreSQL `campus_docs_serving.current_index` 的单行记录，只保存当前 collection 名。execution-control
+在 run 准入时读取并冻结它，运行中不跟随后续变化；向量名、
+dimensions、查询指令和 sparse 实现来自当前代码。数据库不保存索引历史、查询定义或重复的不可变
+索引记录。
 
 ### 索引发布
 
-Publisher 读取显式 embedding set，并从其 manifest 解析唯一 chunk set，生成 index manifest 并构建
-完整新 Qdrant collection，验证后原子替换当前索引绑定。它不读取 reader 或调用 embedding provider。
+Publisher 读取显式 embedding set，并从其 manifest 解析唯一 chunk set，构建完整新 Qdrant
+collection，验证后原子替换当前 collection 指针。它不读取 reader、调用 embedding provider 或写入
+额外的索引制品。
 文档更新不会原地改写旧 collection；旧 collection 也不会在切换后立即删除。
 
 Embedding Job 在新旧制品的 `spaceId` 和 dimensions 一致时，按

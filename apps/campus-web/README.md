@@ -41,4 +41,4 @@ pnpm --dir apps/campus-web typecheck
 - `docs/architecture/system/product-runtime.md`
 - `docs/architecture/system/document-site.md`
 - `docs/architecture/system/identity-authz.md`
-- `docs/runbooks/e2e.md`
+- `docs/runbooks/local-verification.md`

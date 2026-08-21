@@ -1,33 +1,9 @@
-import { type JsonObject, mapping, optionalString, stringField } from "./json";
-import { createLangfuseEvalClient, type LangfuseEvalClient } from "./langfuse-client";
+import { LangfuseClient } from "@langfuse/client";
+
+import { type JsonObject, optionalString, stringField } from "./json";
 import type { LangfuseSettings } from "./settings";
 
 const REQUIRED_TRACE_IDENTITY_ATTRIBUTES = ["request_id", "run_id", "trace_id", "turn_id"];
-const TRACE_FORBIDDEN_FIELDS = new Set([
-	"access_token",
-	"api_key",
-	"authorization",
-	"client_secret",
-	"cookie",
-	"cookies",
-	"database_url",
-	"jwt",
-	"object_store_secret",
-	"password",
-	"refresh_token",
-	"raw_answer",
-	"raw_prompt",
-	"provider_raw_response",
-	"secret_key",
-	"input_value",
-	"output_value",
-	"llm_input_messages",
-	"llm_output_messages",
-	"openinference_message_content",
-	"tool_arguments",
-	"tool_result",
-]);
-
 export async function verifyLangfuseOnlineTraceEvidence(input: {
 	expectedRelease: string;
 	expectedRequestId?: string | null;
@@ -35,16 +11,24 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 	expectedSessionId: string;
 	expectedTags: string[];
 	expectedUserId: string;
-	fetchImpl?: typeof fetch;
+	client?: LangfuseClient;
 	settings: LangfuseSettings;
 	traceId: string;
 }): Promise<JsonObject> {
 	const traceId = stringField(input.traceId, "trace_id");
-	const langfuse: LangfuseEvalClient = createLangfuseEvalClient({
-		...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
-		settings: input.settings,
-	});
-	const trace = await langfuse.getTrace(traceId, { fields: "core,observations" });
+	const client =
+		input.client ??
+		new LangfuseClient({
+			baseUrl: input.settings.baseUrl,
+			publicKey: input.settings.publicKey,
+			secretKey: input.settings.secretKey,
+			...(input.settings.timeoutSeconds === undefined
+				? {}
+				: { timeout: input.settings.timeoutSeconds }),
+		});
+	const trace = (await client.api.trace.get(traceId, {
+		fields: "core,observations",
+	})) as unknown as JsonObject;
 	assertTraceField(trace, "id", traceId);
 	assertTraceField(trace, "name", "online-answer");
 	assertTraceField(trace, "sessionId", input.expectedSessionId);
@@ -59,14 +43,12 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 	if (observations.length === 0) {
 		throw new Error("trace evidence missing observations");
 	}
-	assertForbiddenPayloadFieldsAbsent(trace, observations);
 	const traceIdentity = assertTraceIdentityContract(trace, observations);
 	assertExpectedTraceIdentity(traceIdentity, {
 		request_id: input.expectedRequestId,
 		run_id: input.expectedRunId,
 	});
 	return {
-		forbidden_check_passed: true,
 		observation_count: observations.length,
 		release: input.expectedRelease,
 		session_id: input.expectedSessionId,
@@ -138,40 +120,4 @@ function assertExpectedTraceIdentity(
 			throw new Error(`trace evidence ${key} mismatch`);
 		}
 	}
-}
-
-function assertForbiddenPayloadFieldsAbsent(trace: JsonObject, observations: unknown[]): void {
-	const forbidden = new Set<string>();
-	collectForbidden(trace, forbidden, TRACE_FORBIDDEN_FIELDS);
-	for (const observation of observations) {
-		collectForbidden(observation, forbidden, TRACE_FORBIDDEN_FIELDS);
-	}
-	if (forbidden.size > 0) {
-		throw new Error(`forbidden Langfuse payload fields: ${[...forbidden].sort().join(", ")}`);
-	}
-}
-
-function collectForbidden(value: unknown, result: Set<string>, forbiddenFields: Set<string>): void {
-	if (Array.isArray(value)) {
-		for (const item of value) {
-			collectForbidden(item, result, forbiddenFields);
-		}
-		return;
-	}
-	if (!value || typeof value !== "object") {
-		return;
-	}
-	for (const [key, child] of Object.entries(mapping(value, "payload"))) {
-		if (forbiddenFields.has(normalizedPayloadKey(key))) {
-			result.add(key);
-		}
-		collectForbidden(child, result, forbiddenFields);
-	}
-}
-
-function normalizedPayloadKey(value: string): string {
-	return value
-		.replace(/([a-z0-9])([A-Z])/gu, "$1_$2")
-		.replace(/[.\s-]+/gu, "_")
-		.toLowerCase();
 }

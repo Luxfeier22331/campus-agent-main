@@ -13,7 +13,6 @@ import {
 	type ArtifactObjectStore,
 	type ChunkSetManifest,
 	type EmbeddingSetManifest,
-	type IndexManifest,
 	type ReaderObjectStore,
 	type Sha256Ref,
 	type StoredChunk,
@@ -48,10 +47,6 @@ export function embeddingDataKey(digest: Sha256Ref): string {
 
 export function embeddingSetManifestKey(id: Sha256Ref): string {
 	return `campus-docs/rag/embedding-sets/sha256/${artifactHex(id)}/manifest.json`;
-}
-
-export function indexManifestKey(id: Sha256Ref): string {
-	return `campus-docs/rag/indexes/sha256/${artifactHex(id)}/manifest.json`;
 }
 
 export function encodeNDJSON(records: readonly unknown[]): Uint8Array {
@@ -100,13 +95,6 @@ export async function writeEmbeddingSetManifest(
 	manifest: EmbeddingSetManifest,
 ): Promise<Sha256Ref> {
 	return writeManifest(store, embeddingSetManifestKey, manifest);
-}
-
-export async function writeIndexManifest(
-	store: ArtifactObjectStore,
-	manifest: IndexManifest,
-): Promise<Sha256Ref> {
-	return writeManifest(store, indexManifestKey, manifest);
 }
 
 export async function readChunkSet(

@@ -28,7 +28,6 @@
           nodeVersion = nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./.node-version);
           packageJson = builtins.fromJSON (builtins.readFile ./package.json);
           pnpmVersion = nixpkgs.lib.removePrefix "pnpm@" packageJson.packageManager;
-          rustToolchain = builtins.fromTOML (builtins.readFile ./rust-toolchain.toml);
           tools = import ./nix/tools.nix { inherit pkgs; };
           goModLines = pkgs.lib.splitString "\n" (builtins.readFile ./apps/execution-control/go.mod);
           goLanguageDirective = pkgs.lib.findFirst (line: pkgs.lib.hasPrefix "go " line) null goModLines;
@@ -96,12 +95,8 @@
           ];
           releasePackages = corePackages ++ containerPackages;
           fullPackages = lightPackages ++ containerPackages ++ (with pkgs; [
-            cargo
-            clippy
             golangci-lint
             kubectl
-            rustc
-            rustfmt
             tools.conftest
             tools.kustomize
           ]) ++ [ goToolchain ];
@@ -116,7 +111,6 @@
         assert pkgs.nodejs_24.version == nodeVersion;
         assert pkgs.pnpm_11.version == pnpmVersion;
         assert pkgs.golangci-lint.version == "2.12.2";
-        assert pkgs.rustc.version == rustToolchain.toolchain.channel;
         assert pkgs.trivy.version == "0.73.0";
         {
           ci-core = ciCore;

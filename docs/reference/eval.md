@@ -8,139 +8,93 @@ status: active
 
 ## 当前形态
 
-- `packages/eval-langfuse` 是 TypeScript 平台适配器和数据集所有者；
-- `packages/ragas-runner` 是唯一 Python 包，只作为 Ragas 官方指标的窄适配器；Python 不参与
-  在线回答、检索、采集或通用评测编排；
-- Langfuse 拥有 dataset、experiment、score、annotation queue 和分析；
-- Temporal 运行真实产品请求，所属 app/package 测试拥有确定性合同；
-- 仓库不维护第二套 experiment、annotation 或 release-gate 框架。
+- `packages/eval-langfuse` 负责 Agent 用例解析、产品路径评测、Ragas 输入适配、可选 score 发布和
+  在线 trace 校验；
+- `packages/ragas-runner` 是唯一 Python 包，只调用 Ragas 官方指标；
+- 离线 Ragas 直接消费本地 JSON，不连接 Langfuse，不读取 trace，不选择数据集；
+- Langfuse 只承载在线 trace 和调用方按需发布的 score，不是评测输入来源；
+- 仓库不维护 dataset 同步、第二套报告、评测数据库或 release gate 系统。
 
-`eval-langfuse` 的标准 `test` 和 `ragas-runner` 的 `test:eval` 只运行本地适配器与 scorer 测试，
-不调用外部模型，也不证明发布质量。
+本地 `test` 和 `test:eval` 只验证适配器与合同，不调用外部模型，也不证明模型或索引质量。
 
-## 观测来源
+## 权威来源
 
-1. execution-control 的 `agent_runtime_eval_projection.v3` 提供答案、检索上下文、文档 ID 和
-   `tool_trajectory.v3`；
-2. Langfuse trace 提供相关联的 SDK 和模型观测；
-3. `agent-eval` 通过真实 app-api 路径执行 Langfuse dataset item，并将目标 turn 关联到真实
-   product trace；
-4. 仓库 `cases.v1.json` 提供 reference、context ID、文档范围、最少相关上下文、outcome 和真实工具预期。
+评测命令消费调用方显式提供的输入。需要长期复用的输入可以来自仓库文件或私有对象存储，一次性输入
+也可以只在本地提供。当前仓库 Agent 用例位于
+`packages/eval-langfuse/assets/agent/routing/cases.v1.json`。Langfuse 上的 trace、score 和反馈不能
+自动改写这些输入。
 
-安全评测投影不从 raw provider payload、未裁剪 prompt 或私有 trace 正文反推合同事实。
+线上 trace 只保存受控关联、模型/工具名称、用量、耗时和有限状态，不保存 answer、prompt、对话、
+retrieval 正文、工具参数或 provider 原始响应。因此 Ragas 不从普通 trace 反查
+正文。
 
-## 指标
+## Ragas 输入合同
 
-RAG 默认使用 Ragas 0.4.x collections API 的：
+样本批次使用 `ragas_sample_batch.v2`：
 
-- `Faithfulness`
-- `AnswerRelevancy`
-- `ContextPrecision`
-- `ContextRecall`
+```json
+{
+  "schema_version": "ragas_sample_batch.v2",
+  "run_id": "local-eval-2026-01",
+  "items": [
+    {
+      "case_id": "library-hours",
+      "user_input": "图书馆开放时间是什么？",
+      "response": "图书馆开放时间为 08:00 到 22:00。",
+      "retrieved_contexts": ["图书馆开放时间为 08:00-22:00。"],
+      "reference": "图书馆开放时间为 08:00-22:00。",
+      "metadata": {"surface_key": "app-api.chat"}
+    }
+  ]
+}
+```
 
-`context_precision_without_reference` 只在配置启用时使用。Ragas 公共 API 没有基于 context ID
-的 precision/recall；仓库不得用自研指标冒充 `ragas.*`。
+单条样本只包含 `case_id`、`user_input`、`response`、`retrieved_contexts`、可选 `reference` 和
+标量 `metadata`。不得放入 trace、observation、dataset run、context ID、凭据、本地路径或原始正文
+之外的运行 dump。空 `retrieved_contexts` 是有效的失败样本，不能因此丢弃整批评测。
 
-Agent/tool 评测使用：
+评分结果使用 `ragas_score_batch.v2`，保留 `run_id`、每个 `case_id` 的 `scores` 和实际评分错误，
+不携带 Langfuse 身份。缺少 reference 时不运行 `context_precision` 和 `context_recall`，不伪造零分。
 
-- `ToolCallAccuracy`
-- `ToolCallF1`
-- 可选 `AgentGoalAccuracyWithReference`
+默认 Ragas 指标为：
 
-工具调用来自 `tool_trajectory.v3`，只覆盖当前真实 SDK 工具。Campus Docs 检索不生成工具调用或
-评测安全参数；用户原始 query 不写入 score metadata。
+- `faithfulness`；
+- `answer_relevancy`。
 
-仓库另发布两个确定性 score：
+只有样本提供 `reference` 时才启用 `context_precision` 和 `context_recall`。不使用自研的
+`context_precision_without_reference`，也不把 context ID 冒充 Ragas 指标。
 
-- `execution.outcome_match`
-- `retrieval.forbidden_context_absent`
+## Agent 评测
 
-所有 score 名必须先登记在 Langfuse score registry。
+`agent-eval` 通过真实 App API 执行调用方显式提供的 cases 文件，生成
+`agent_product_eval_result.v1`。随后 `score-ragas` 生成 Agent 工具样本和独立的 RAG v2 样本，
+输出最终 score 文件。发布到 Langfuse 时，TypeScript 适配层用同一批次的显式 case-to-trace 映射
+补回 score target，不把平台身份传给 Python Ragas runner。
 
-## 数据集
+是否生成 RAG 样本由 case 是否声明 reference context 决定，不由实际召回是否非空决定。空召回仍须
+作为 RAG 失败样本进入评分。
 
-Primary Agent 路由使用 `campus/agent/routing`，并与当前工具 exposure 保持一致。当前覆盖直接回答、
-基于 Campus Docs evidence 的课程与规章回答、跟进、多意图、过期上下文和 prompt injection。文档案例不期待函数
-工具调用。
+## Score
 
-RAG 数据集包括：
+Langfuse score 名由 `packages/eval-langfuse/src/score-publisher.ts` 的代码级 allowlist 校验，
+不再维护或同步第二份 score registry。Ragas、Agent 和确定性 score 仍各自保留明确的名称与类型。
 
-- `campus/rag/student_rules`
-- `campus/rag/institutional_rules`
-- `campus/rag/curriculum`
-- `campus/rag/cross_target`
-
-RAG 数据集评估当前 Campus Docs 索引的召回、上下文和依据质量；它们不派生工具预期。
-
-每个数据集由一个 `cases.v1.json` 维护。用例规范见 `eval-cases.md`。
-
-## 编排评测
-
-当前评测至少回答以下问题：
-
-- 普通任务是否能在检索上下文无关或为空时直接完成，而不伪造引用；
-- 机构事实回答是否只使用本轮依据，而没有依赖模型记忆直接回答；
-- 一次 dense embedding 与 sparse query 是否通过单一 collection 的混合查询形成有界且相关的
-  evidence；
-- 用户问题的必要分面是否都有答案或明确的证据缺口；
-- 关键机构主张是否由本轮正式依据支持，引用是否正确且完整；
-- 检索错误与生成错误能否分别定位；
-- 检索上下文与来源类别覆盖是否符合用例；
-- `campus_docs.retrieve_ms` 及 embedding、query、selection 子阶段、Provider 首 token、真实工具轮次和完整响应延迟是否满足预算。
-
-问题覆盖和引用完整度需要由版本化用例与少量人工评审校准。自动评审可以辅助分析，但不能把单个
-LLM judge 或聚合分数作为发布结论。新指标必须先确认上游定义、接入正式适配器并登记 score 名，
-不能在尚未实现时复用 `ragas.*` 名称。
-
-## 观测、预期基准、评分与落点
-
-| 关注点 | 观测 | 预期基准 | 评分器 | 落点 |
-| --- | --- | --- | --- | --- |
-| Agent 工具序列 | `tool_calls[]` | routing dataset | Ragas tool metrics | Langfuse `ragas.tool_call_*` |
-| Campus Docs 来源类别与覆盖 | RAG eval projection | 来源类别/context 预期 | context metrics | Langfuse |
-| 答案忠实度 | 答案和检索上下文 | reference | `Faithfulness` | Langfuse |
-| 答案相关性 | 问题和答案 | dataset question | `AnswerRelevancy` | Langfuse |
-| 上下文质量 | 问题、reference、上下文 | reference/context IDs | context metrics | Langfuse |
-| Agent 目标 | 消息和终态 | expected outcome | 可选 goal accuracy | Langfuse |
-| 产品终态 | terminal kind | `expected_outcome` | 确定性相等 | `execution.outcome_match` |
-| 禁止上下文 | retrieved IDs | `forbidden_context_ids` | 确定性缺席检查 | `retrieval.forbidden_context_absent` |
-| 合同完整性 | 终态与工具投影 | 所属合同 | 运行时测试 | 所属测试 |
-
-授权、取消、超时、schema 严格性和 source ref 校验必须留在所属 runtime 测试，不能交给 LLM
-judge。
-
-在线实现不调用外部 reranker。评测应以 Qdrant dense+sparse RRF 为检索排序基线，比较上下文覆盖、引用
-支持和延迟；Qdrant 查询分数不作为答案置信度，也不因此新增第二套 score registry 或发布门禁。
-
-Agent dataset 只有在用例提供 `reference_context_ids` 或 `reference_contexts` 时才生成 RAGAS 样本。
-是否实际召回到上下文不决定用例适用性，否则普通任务偶然命中文档会被误分类为 RAG 用例。
+线上反馈、trace 和人工标注不自动进入评测输入。是否用于回归、如何处理以及保存在哪里，由具体任务
+决定；不需要评测输入的问题仍由所属模块建立普通修复任务。
 
 ## 平台边界
 
-真实产品请求已经产生 canonical trace，因此 runner 不使用 Langfuse `runExperiment` 创建第二条
-合成 trace。它通过官方 dataset-run-item API 建立关联，并保留 Langfuse 返回的 run identity。
-
-每个 score 只指向一个 observation 或 trace；dataset item/run ID 是 lineage，不是 score target。
-缺失、`NaN` 和无穷值不会发布为 JSON score。
-
-Langfuse、Ragas 或 score 不可用不阻塞在线回答。app-api 和 Ops Web 不镜像 Langfuse
-score、dataset 或 annotation 状态。
-
-## 禁止形态
-
-- 恢复 broad Python eval 或自研 experiment orchestration；
-- 把单个 Ragas score 当作发布结论；
-- 在 upstream 名称下实现私有指标；
-- 在安全 sample 或 score metadata 中保存 prompt、聊天全文、source body、provider response、
-  auth material 或本地/对象存储路径。
+- 离线 Ragas 默认把完整结构化 score JSON 写到 stdout，也可以写入调用方指定的文件；不生成持久报告；
+- Langfuse score 发布是可选的适配步骤，不是 Ragas runner 的职责；
+- Langfuse、Ragas 或 score 不可用不阻塞在线回答；
+- 评测结果用于定位和比较，不自动决定发布；合同测试和所属模块验证负责发布结论。
 
 ## 相关文档
 
 - `eval-cases.md`
-- `../contracts/tool-trajectory.md`
 - `../contracts/langfuse-runtime.md`
 - `../runbooks/ragas.md`
-- `agent-orchestration.md`
 - `../decisions/adr-0003-golden-datasets.md`
 - `../decisions/adr-0004-evaluation-metrics.md`
-- `../decisions/adr-0061-eval-runtime.md`
+- `../decisions/adr-0076-langfuse-trace-data.md`
+- `../decisions/adr-0090-eval-boundaries.md`

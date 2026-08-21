@@ -1,92 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-	validateCanonicalDocumentUnit,
-	validateCanonicalDocumentUnitsJsonl,
-	validateCanonicalDocumentUnitV2,
 	validateInternalPortalFileReleaseSource,
 	validateInternalPortalMeta,
 	validateInternalPortalNoticeSource,
 	validateInternalPortalNoticeSyncState,
-	validateRetrievalChunkSetV2,
 } from "../src/index.ts";
 
 const digest = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
 
 describe("ingestion task contracts", () => {
-	it("validates canonical document units with reader-facing identity fields", () => {
-		const validUnit = {
-			anchor: { source_uri: "s3://campus-agent-source/example/document.md" },
-			chunk_id: "unit-001",
-			clean_text: "第一段内容",
-			doc_id: "doc-001",
-			metadata: { heading: "总则" },
-			root_unit_id: "root-001",
-			text: "第一段内容",
-			unit_type: "paragraph",
-			version_id: "version-001",
-		};
-
-		expect(validateCanonicalDocumentUnit(validUnit).ok).toBe(true);
-		expect(
-			validateCanonicalDocumentUnitsJsonl(
-				`${JSON.stringify(validUnit)}\n${JSON.stringify(validUnit)}\n`,
-			).ok,
-		).toBe(true);
-		expect(validateCanonicalDocumentUnit({ metadata: {}, text: "legacy" }).ok).toBe(false);
-	});
-
-	it("validates the formal section-to-retrieval-chunk contract", () => {
-		const section = {
-			schema_version: "canonical_document_unit.v2",
-			document_scope: "regulations",
-			document_id: "student-handbook",
-			version_id: "2026",
-			section_id: "section-1",
-			parent_section_id: null,
-			ordinal: 0,
-			anchor: "#section-1",
-			document_title: "学生手册",
-			section_title: "第一章",
-			canonical_url: "https://example.test/handbook#section-1",
-			content: "hello",
-			content_sha256: digest,
-			metadata: {},
-		};
-		const chunk = {
-			schema_version: "retrieval_chunk.v2",
-			document_scope: section.document_scope,
-			document_id: section.document_id,
-			version_id: section.version_id,
-			section_id: section.section_id,
-			chunk_id: "retrieval:chunk-1",
-			ordinal: 0,
-			token_count: 1,
-			text: "hello",
-			text_sha256: digest,
-			metadata: {},
-		};
-
-		expect(validateCanonicalDocumentUnitV2(section).ok).toBe(true);
-		expect(
-			validateRetrievalChunkSetV2({
-				schema_version: "retrieval_chunk_set.v2",
-				chunk_count: 1,
-				chunks: [chunk],
-				error_count: 0,
-				errors: [],
-			}).ok,
-		).toBe(true);
-		expect(
-			validateRetrievalChunkSetV2({
-				schema_version: "retrieval_chunk_set.v2",
-				chunk_count: 2,
-				chunks: [chunk],
-				error_count: 0,
-				errors: [],
-			}).ok,
-		).toBe(false);
-	});
-
 	it("validates one immutable notice source object", () => {
 		const source = {
 			attachments: [

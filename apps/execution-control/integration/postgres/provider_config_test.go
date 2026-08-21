@@ -50,9 +50,20 @@ func testSchemaMigrationsWithoutGrantRoles(t *testing.T, harness *postgresHarnes
 	}
 	closeConn(t, admin)
 	err = migrator.InstallGrants(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "database role "+publisherRole+" is not installed") {
-		t.Fatalf("missing publisher role grant error = %v", err)
+	if err != nil {
+		t.Fatalf("install grants with runtime roles: %v", err)
 	}
+	databaseConn := connect(t, databaseURL)
+	if _, err := databaseConn.Exec(t.Context(), fmt.Sprintf(
+		"drop owned by %s, %s, %s",
+		pgx.Identifier{executionRole}.Sanitize(),
+		pgx.Identifier{appAPIRole}.Sanitize(),
+		pgx.Identifier{opsWebRole}.Sanitize(),
+	)); err != nil {
+		closeConn(t, databaseConn)
+		t.Fatalf("remove non-publisher database privileges after missing publisher test: %v", err)
+	}
+	closeConn(t, databaseConn)
 	admin = connect(t, harness.adminURL)
 	if _, err := admin.Exec(t.Context(), fmt.Sprintf(
 		"drop role %s, %s, %s",

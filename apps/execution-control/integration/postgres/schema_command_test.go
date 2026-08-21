@@ -129,11 +129,11 @@ func testSchemaCommandUpgradesAppliedV3(
 			),
 			to_regclass('campus_docs_serving.current_index') is not null
 	`).Scan(&retiredModelSettingColumns, &campusDocsCurrentIndex); err != nil {
-		t.Fatalf("inspect v6 schema: %v", err)
+		t.Fatalf("inspect current schema: %v", err)
 	}
 	if retiredModelSettingColumns || !campusDocsCurrentIndex {
 		t.Fatalf(
-			"v6 schema retired_model_setting_columns=%t campus_docs_serving.current_index=%t, want false/true",
+			"current schema retired_model_setting_columns=%t campus_docs_serving.current_index=%t, want false/true",
 			retiredModelSettingColumns,
 			campusDocsCurrentIndex,
 		)
@@ -144,7 +144,16 @@ func testSchemaCommandUpgradesAppliedV3(
 		from information_schema.columns
 		where table_schema = 'campus_docs_serving'
 		  and table_name = 'current_index'
-		  and column_name in ('embedding_model', 'embedding_provider')
+		  and column_name in (
+			'dense_vector_name',
+			'embedding_dimensions',
+			'embedding_model',
+			'embedding_provider',
+			'embedding_query_instruction',
+			'embedding_space_id',
+			'sparse_model',
+			'sparse_vector_name'
+		  )
 	`).Scan(&retiredIndexColumns); err != nil {
 		t.Fatalf("inspect retired Campus docs index columns: %v", err)
 	}
@@ -216,8 +225,7 @@ func testSchemaCommandAllowsEmptyExecutionSchema(t *testing.T, harness *postgres
 		t.Fatalf("runtime personal memory state health check: %v", err)
 	}
 	assertExecutionControlRuntimeAccess(t, runtimeURL)
-	publisherURL := harness.databaseURL(t, databaseName, publisherRole, publisherPassword)
-	assertCampusDocsPublisherAccess(t, publisherURL)
+	assertCampusDocsExecutionControlAccess(t, runtimeURL)
 
 	ownerConn := connect(t, databaseURL)
 	if _, err := ownerConn.Exec(
@@ -239,13 +247,13 @@ func testSchemaCommandAllowsEmptyExecutionSchema(t *testing.T, harness *postgres
 	ownerConn = connect(t, databaseURL)
 	if _, err := ownerConn.Exec(t.Context(), `
 		grant select on table runtime.agent_runs to execution_control;
-		revoke update on table campus_docs_serving.current_index from campus_docs_index_publisher;
+		revoke update on table campus_docs_serving.current_index from execution_control;
 	`); err != nil {
 		closeConn(t, ownerConn)
-		t.Fatalf("remove required Campus docs publisher grant: %v", err)
+		t.Fatalf("remove required Campus docs execution-control grant: %v", err)
 	}
 	closeConn(t, ownerConn)
-	failedPublisherEvidencePath := filepath.Join(t.TempDir(), "missing-publisher-grant-evidence.json")
+	failedPublisherEvidencePath := filepath.Join(t.TempDir(), "missing-campus-docs-grant-evidence.json")
 	if output, err := runSchemaCommand(
 		t,
 		harness,
@@ -254,7 +262,7 @@ func testSchemaCommandAllowsEmptyExecutionSchema(t *testing.T, harness *postgres
 		"check",
 		failedPublisherEvidencePath,
 	); err == nil {
-		t.Fatalf("schema check succeeded without required Campus docs publisher grant: %s", output)
+		t.Fatalf("schema check succeeded without required Campus docs execution-control grant: %s", output)
 	}
 	if _, err := os.Stat(failedPublisherEvidencePath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("failed publisher schema check evidence stat error = %v, want not exist", err)
@@ -492,12 +500,12 @@ func assertAppliedExecutionControlMigrations(t *testing.T, databaseURL string) {
 	if err := conn.QueryRow(t.Context(), `
 		select count(*)::int
 		from public.execution_control_migrations
-		where version_id in (1, 2, 3, 4, 5, 6, 7, 8) and is_applied
+		where version_id in (1, 2, 3, 4, 5, 6, 7, 8, 9) and is_applied
 	`).Scan(&applied); err != nil {
 		t.Fatalf("inspect execution-control migration ledger: %v", err)
 	}
-	if applied != 8 {
-		t.Fatalf("applied execution-control migrations = %d, want 8", applied)
+	if applied != 9 {
+		t.Fatalf("applied execution-control migrations = %d, want 9", applied)
 	}
 }
 
@@ -754,9 +762,9 @@ func assertExecutionControlRuntimeAccess(t *testing.T, runtimeURL string) {
 	}
 }
 
-func assertCampusDocsPublisherAccess(t *testing.T, publisherURL string) {
+func assertCampusDocsExecutionControlAccess(t *testing.T, runtimeURL string) {
 	t.Helper()
-	conn := connect(t, publisherURL)
+	conn := connect(t, runtimeURL)
 	defer closeConn(t, conn)
 
 	collection := "campus_docs_" + strings.Repeat("d", 64)
@@ -768,27 +776,26 @@ func assertCampusDocsPublisherAccess(t *testing.T, publisherURL string) {
 		{
 			arguments: []any{collection},
 			statement: `insert into campus_docs_serving.current_index (
-				singleton, collection, dense_vector_name, embedding_dimensions,
-				embedding_query_instruction, embedding_space_id, sparse_model, sparse_vector_name
-			) values (true, $1, 'dense', 2560, 'instruction', 'space-v1', 'sparse', 'sparse')`,
+				singleton, collection
+			) values (true, $1)`,
 		},
-		{statement: "update campus_docs_serving.current_index set embedding_query_instruction = 'updated instruction'"},
+		{statement: "update campus_docs_serving.current_index set collection = collection"},
 	}
 	for _, operation := range allowed {
 		if _, err := conn.Exec(t.Context(), operation.statement, operation.arguments...); err != nil {
-			t.Fatalf("Campus docs publisher statement %q: %v", operation.statement, err)
+			t.Fatalf("Campus docs execution-control statement %q: %v", operation.statement, err)
 		}
 	}
 
 	for _, statement := range []string{
 		"delete from campus_docs_serving.current_index where false",
 		"truncate table campus_docs_serving.current_index",
-		"create table campus_docs_serving.publisher_must_not_create (id integer)",
+		"create table campus_docs_serving.execution_control_must_not_create (id integer)",
 	} {
 		_, err := conn.Exec(t.Context(), statement)
 		var postgresError *pgconn.PgError
 		if !errors.As(err, &postgresError) || postgresError.Code != "42501" {
-			t.Fatalf("forbidden Campus docs publisher statement %q error = %v, want SQLSTATE 42501", statement, err)
+			t.Fatalf("forbidden Campus docs execution-control statement %q error = %v, want SQLSTATE 42501", statement, err)
 		}
 	}
 }

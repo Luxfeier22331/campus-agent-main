@@ -19,8 +19,9 @@ status: accepted
   不绕行公共数据库地址。
 - App API 只使用一个关闭 query cache 的 Hyperdrive binding；连接池仍由 Hyperdrive 管理，不在
   应用中建立第二条数据库路径。
-- 每个运行时使用独立登录角色和最小 schema/table/column 权限。schema 安装或迁移任务
-  使用独立 schema 管理角色，不通过应用连接路径。
+- 角色和 schema/table/column 权限按真实数据所有权、信任边界和生命周期决定，不按运行时或 Job
+  名称自动拆分。需要执行 DDL 的 schema 安装或迁移任务可以使用独立管理身份，但常驻应用不通过
+  应用连接路径执行迁移。
 - 缺少私网连接、CA、角色、schema 或权限时失败关闭，不回退到旧数据库、公共地址或
   共享 schema 管理凭据。
 
@@ -31,12 +32,13 @@ status: accepted
 - CNPG、tunnel、Workers VPC 和 Hyperdrive 共同构成 Worker 私网数据库路径，任一环节都
   必须独立验证。
 - CA 和凭据轮换属于环境操作，不通过产品代码中的回退逻辑隐藏。
-- 服务间共享数据库实例不等于共享 schema 所有权或登录角色。
+- 服务间共享数据库实例不等于共享 schema 所有权；同一所有权和信任边界可以共享登录角色，是否
+  拆分由所属数据文档和环境授权决定。
 
 ## 未采用方案
 
 - **公开 PostgreSQL**：扩大攻击面且绕过私网访问控制。
-- **每个运行时共享 schema 管理凭据**：无法独立轮换并隔离 schema 所有权。
+- **让常驻运行时共享 schema 管理凭据**：会绕过运行时最小权限边界。
 - **把 Hyperdrive 当作第二数据库**：它只是 Worker 连接与可选查询缓存层。
 
 ## 相关文档

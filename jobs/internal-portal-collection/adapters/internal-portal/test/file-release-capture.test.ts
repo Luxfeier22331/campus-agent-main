@@ -1,7 +1,7 @@
-import { sha256Hex } from "ingest-core";
 import { describe, expect, it, vi } from "vitest";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
+import { sha256Hex } from "../../../src/s3-create-or-verify.js";
 import { spoolAttachmentToTemporaryFile } from "../src/attachment-temp-file.js";
 import type { InternalPortalConfig } from "../src/config.js";
 import { captureInternalPortalFileRelease } from "../src/file-release-capture.js";

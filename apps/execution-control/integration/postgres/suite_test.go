@@ -28,8 +28,6 @@ const (
 	ownerPassword     = "execution-schema-owner-password"
 	executionRole     = "execution_control"
 	executionPassword = "execution-control-password"
-	publisherRole     = "campus_docs_index_publisher"
-	publisherPassword = "campus-docs-index-publisher-password"
 	appAPIRole        = "app_api"
 	opsWebRole        = "ops_web"
 	opsWebPassword    = "ops-web-password"
@@ -100,7 +98,6 @@ func (h *postgresHarness) installClusterRoles(t *testing.T) {
 	statements := []string{
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{ownerRole}.Sanitize(), ownerPassword),
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{executionRole}.Sanitize(), executionPassword),
-		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{publisherRole}.Sanitize(), publisherPassword),
 		fmt.Sprintf("create role %s nologin", pgx.Identifier{appAPIRole}.Sanitize()),
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{opsWebRole}.Sanitize(), opsWebPassword),
 	}

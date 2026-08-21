@@ -24,7 +24,6 @@ function profiles(changedFiles: string[], tasks: ScopeTask[] = []) {
 test("validation profiles have one fail-closed registry", () => {
 	assert.deepEqual(MANUAL_VALIDATION_PROFILES, [
 		"go",
-		"rust",
 		"ragas",
 		"app-api-migration",
 		"app-api-product-db",
@@ -82,14 +81,13 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 test("keeps native, database, infrastructure, OTel, and browser checks manual", () => {
 	for (const file of [
 		"apps/execution-control/internal/server/server.go",
-		"packages/ingestion-kernels-rs/src/lib.rs",
 		"packages/ragas-runner/tests/test_runner.py",
 		"apps/app-api/drizzle/0001.sql",
 		"apps/ingestion-control/src/internal-portal-credential-store.ts",
 		"infra/k8s/data-postgres/base/service.yaml",
 		"infra/otel/collector-local-debug.yaml",
 		"apps/campus-web/src/routes/index.tsx",
-		"apps/campus-web/e2e/chat.spec.ts",
+		"apps/campus-web/e2e/conversation-lifecycle.spec.ts",
 		"apps/ops-web/src/app/overview-page.tsx",
 	]) {
 		assert.deepEqual(profiles([file]), [], file);
@@ -100,7 +98,6 @@ test("keeps mutable vulnerability scans out of pull request profiles", () => {
 	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["toolchain"]);
 	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), ["toolchain"]);
 	assert.deepEqual(profiles(["uv.lock"]), []);
-	assert.deepEqual(profiles(["Cargo.lock"]), []);
 	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), []);
 });
 

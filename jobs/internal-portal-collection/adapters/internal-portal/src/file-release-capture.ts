@@ -1,7 +1,6 @@
 import path from "node:path";
 
 import { parse as parseContentDisposition } from "content-disposition";
-import { encodeObjectKeySegment } from "ingest-core";
 import type { InternalPortalFileReleaseSource } from "ingestion-contracts";
 import { validateInternalPortalFileReleaseSource } from "ingestion-contracts";
 import { lookup as lookupMimeType } from "mime-types";
@@ -20,6 +19,16 @@ import type {
 } from "./types.js";
 
 const GENERIC_BINARY_MIME_TYPES = new Set(["application/octet-stream", "binary/octet-stream"]);
+
+function encodeObjectKeySegment(value: string): string {
+	if (!value || value.trim() !== value) {
+		throw new Error("object key identity segment must be non-empty and trimmed");
+	}
+	return encodeURIComponent(value).replace(
+		/[!'()*]/gu,
+		(character) => `%${character.codePointAt(0)?.toString(16).toUpperCase()}`,
+	);
+}
 
 export interface CaptureInternalPortalFileReleaseInput {
 	abortSignal?: AbortSignal;

@@ -16,7 +16,7 @@ status: accepted
 - `regulations/scoped_rules` 保存年度或项目周期规则，以及有明确时间范围的操作规则；
 - 该集合不保存通知包装、附件处理结果、稳定校级规章或没有产品用途的过期通知；
 - 规范记录必须明确适用对象、组织、时间和来源；范围不足或已经失效的候选不能发布；
-- 是否开放在线查询需要单独定义时间判断、范围过滤、歧义处理和评测，集合配置存在不会自动开放
+- 是否开放在线查询需要单独定义时间判断、范围过滤、歧义处理和评测，进入公开文档目录不会自动开放
   查询能力。
 
 ## 结果
@@ -29,4 +29,3 @@ status: accepted
 
 - `../architecture/domains/regulations.md`
 - `adr-0035-regulation-promotion.md`
-- `../../configs/ingestion/regulations/scoped_rules/README.md`

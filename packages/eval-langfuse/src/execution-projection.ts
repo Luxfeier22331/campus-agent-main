@@ -1,4 +1,4 @@
-import { type JsonObject, mapping, optionalString, stringField, stringList } from "./json";
+import { mapping, optionalString, stringField, stringList } from "./json";
 import { parseToolTrajectory, type ToolTrajectory } from "./tool-trajectory";
 
 export interface ExecutionRunEvalProjection {
@@ -36,49 +36,4 @@ export function parseExecutionRunEvalProjection(value: unknown): ExecutionRunEva
 		toolTrajectory,
 		traceId,
 	};
-}
-
-export function buildRagasSampleFromExecutionRun(input: {
-	caseId: string;
-	datasetItemId?: string | null;
-	datasetRunId?: string | null;
-	question: string;
-	reference?: string | null;
-	referenceContextIds?: string[];
-	referenceContexts?: string[];
-	runStepsPayload: unknown;
-}): JsonObject {
-	const projection = parseExecutionRunEvalProjection(input.runStepsPayload);
-	const caseId = stringField(input.caseId, "caseId");
-	const question = stringField(input.question, `${caseId}.question`);
-	const answer = stringField(projection.answer, `${caseId}.answer`);
-	if (projection.retrievedContexts.length === 0) {
-		throw new Error(`${caseId}.retrieved_contexts must include at least one context`);
-	}
-	const sample: JsonObject = {
-		answer,
-		case_id: caseId,
-		contexts: projection.retrievedContexts,
-		metadata: { run_id: projection.runId },
-		question,
-		retrieved_context_ids: projection.retrievedContextIds,
-		trace_id: projection.traceId,
-	};
-	for (const [key, raw] of Object.entries({
-		dataset_item_id: input.datasetItemId,
-		dataset_run_id: input.datasetRunId,
-		reference: input.reference,
-	})) {
-		const value = optionalString(raw);
-		if (value) {
-			sample[key] = value;
-		}
-	}
-	if (input.referenceContextIds && input.referenceContextIds.length > 0) {
-		sample.reference_context_ids = [...input.referenceContextIds];
-	}
-	if (input.referenceContexts && input.referenceContexts.length > 0) {
-		sample.reference_contexts = [...input.referenceContexts];
-	}
-	return sample;
 }

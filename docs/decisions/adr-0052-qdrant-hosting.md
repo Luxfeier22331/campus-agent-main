@@ -4,38 +4,29 @@ owner_boundary: docs/decisions
 decision_id: ADR-0052
 status: accepted
 ---
+
 # ADR-0052 Qdrant 托管方式
 
 ## 背景
 
-早期方案假设使用 Qdrant Cloud 和对象存储快照包，项目实际运行的是私有自托管 Qdrant。
-容量、主机剩余空间和特定日期集合数量属于部署
-证据，不是架构决策。
+当前系统使用私有自托管 Qdrant。Qdrant 的容量、节点资源和具体集合数量属于部署状态，不应被
+写成长期架构承诺。
 
 ## 决策
 
-Qdrant 自托管且不公开。除非 availability requirement 证明需要经过独立评审的 distributed
-deployment，否则保持 single-node。
+Qdrant 自托管且不公开。除非新的可用性需求经过独立评审，否则保持 single-node。
 
-- 在线执行使用 read-only query credential。
-- admin credential 仅供索引 publisher、lifecycle、backup 和 restore。
-- 服务不直接暴露到 public internet。
-- runtime storage、TLS、key 和 topology 属于 environment repo；local Compose 只用于开发。
+- 在线执行只使用查询所需的受限凭据；索引维护身份由索引发布路径使用；
+- Qdrant 不直接暴露到公共网络；存储、TLS、密钥和拓扑由环境仓维护；
+- 本地 Compose 只用于开发，不定义环境部署方式；
+- Qdrant 只保存可由已开放文档制品重建的索引，不作为文档来源事实。
 
-恢复使用 Qdrant 原生 collection snapshot。snapshot 不进入 ingestion source/derived
-bucket。可恢复 backup 必须包含 snapshot、Campus Docs index/physical collection metadata、off-host copy 和经测试的
-restore procedure；挂载 snapshot directory 或创建文件本身不构成恢复证据。
+## 结果
 
-backup frequency 和 retention 属于环境策略，本 ADR 不固定。所属环境无法提供证据时，
-仓库不得宣称自动 backup、off-host replication 或 restore 已就绪。
-
-## 后果
-
-- Qdrant 是可以从已开放上游事实重建的 index，不是 document source。
-- single-node 不具备 high-availability 声明。
-- 当前 collection 恢复必须与 PostgreSQL `campus_docs_serving.current_index` 的完整查询绑定核对，
-  不能只恢复同名 snapshot。
-- 可执行索引保留与清理生命周期出现前，不允许删除仍可能被准入 run 使用的 collection。
+- single-node 不构成 high-availability 声明；
+- PostgreSQL `campus_docs_serving.current_index` 只选择当前 collection，查询定义由当前代码拥有；
+  collection 名称不承担环境状态或历史版本语义；
+- 具体备份、恢复和保留操作由环境 runbook 维护，不在本 ADR 固定实现细节。
 
 ## 外部参考
 

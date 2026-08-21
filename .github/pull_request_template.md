@@ -5,8 +5,8 @@ Thanks for sending a pull request. Before review:
 
 1. Read the contributor guide: CONTRIBUTING.md
 2. For agent-authored changes, also follow AGENTS.md
-3. Run the appropriate verification lane for your change:
-   docs/reference/testing-and-verification-lanes.md
+3. Run the appropriate checks for your change:
+   docs/reference/verification.md
 4. If the PR is unfinished, mark it as draft.
 -->
 
@@ -19,9 +19,9 @@ Thanks for sending a pull request. Before review:
 ## Related issue(s)
 
 <!--
-Link the Issue that owns this work. Use "Refs" by default so deployment or
-user-path verification can finish before the Issue closes. Use "Fixes" only
-when merging this Pull Request satisfies every acceptance criterion.
+Link the Issue that owns this work. Use "Refs" when the Issue still has
+follow-up work or another owner. Use "Fixes" only when merging this Pull
+Request satisfies every acceptance criterion.
 
 Examples:
 Refs #<issue number>

@@ -26,7 +26,8 @@ supersedes:
 - Temporal 保存 workflow history、task routing、retry、timeout 和 cancellation；
 - Axiom 只保存 producer 已清理的 Cloudflare Worker application logs；
 - Sentry 通过官方 SDK 保存浏览器和边缘错误、release、source map，以及生产 browser 的采样性能 trace；
-- Langfuse 保存可选 Agent/LLM trace，以及 dataset、score、experiment 和 annotation；
+- Langfuse 保存可选 Agent/LLM trace，并接收调用方按需发布的 score；仓库不把平台数据作为评测输入
+  控制面；
 - Ops Web 读取 PostgreSQL，并按需查询固定 Axiom logs 与 Sentry Issues；它只生成 Temporal 和
   Langfuse 外部入口；
 - 任何观测平台都不能改写产品状态、workflow 状态或个人记忆状态。
@@ -36,15 +37,10 @@ supersedes:
 
 ### 保留的信号路径
 
-app-api 只发出三个有消费者的结构化 application events：
-
-- `request.accepted`；
-- `request.finalized`；
-- `request.transport_error`。
-
-Cloudflare application-log destination 直接把这些事件送到 Axiom。由于该路径不经过 Collector，
-producer 必须先执行字段白名单和清理。Cloudflare native invocation logs 和 native traces 保持
-关闭，不能作为替代。
+App API 只发送由运行时合同定义、且已有消费者的结构化 application events。Cloudflare
+application-log destination 直接把这些事件送到 Axiom；具体事件名称、字段和清理规则由所属合同与
+生产者实现维护，不在本 ADR 复制。Cloudflare native invocation logs 和 native traces 保持关闭，
+不能作为替代。
 
 Agent Runtime 是唯一可选 OTel trace producer。它使用 SDK/OpenInference instrumentation、
 producer-side allowlist 和 OTLP/HTTP exporter 发送到环境选择的 Langfuse 路径。execution-control
@@ -74,23 +70,17 @@ Agent trace 只允许 user/session 关联、model/provider、Agent/tool 名称�
 `request_id`、`run_id`、`trace_id`、`turn_id`。prompt、模型输入输出、对话、工具原始载荷、
 memory/retrieval 正文、provider 原始响应和认证材料不得进入运行 trace。
 
-Langfuse dataset 是独立的显式评测生命周期，不能从生产 trace 正文自动生成。运行 trace 已在
-producer 侧排除对话、个人记忆正文和工具载荷；个人记忆清除不依赖 Langfuse，也不把外部观测数据
-删除建模为产品终态。
+评测输入由调用方显式提供，不能从生产 trace 正文自动生成。运行 trace 已在 producer 侧排除对话、
+个人记忆正文和工具载荷；个人记忆清除不依赖 Langfuse，也不把外部观测数据删除建模为产品终态。
 
 ### 凭据
 
-Axiom 保留现有两个逻辑 token 合同：
+观测平台凭据由各自的环境交付链路维护，源码仓只拥有稳定的消费合同。没有新的信任边界时，不按
+数据集、消费者、运行时或 API 操作继续拆分 provider 身份。不同 Secret 名称只表示交付位置，是否
+映射到同一上游身份由环境仓决定。
 
-- `AXIOM_TERRAFORM_TOKEN`：平台资源管理；
-- `AXIOM_RUNTIME_TOKEN`：现有运行时交付投影，供 Worker log destination 与 Ops Web logs query。
-
-不新增 `AXIOM_WORKERS_LOGS_INGEST_TOKEN`，也不按 dataset、consumer 或 API 操作继续拆分 token。
-现有 token 的宽权限不因删除信号而在本次修改中收窄。GitHub Secret、Kubernetes Secret 和进程
-环境变量中的不同名称只表示交付位置；是否映射到同一上游 identity 由环境交付维护。
-
-Sentry 同样沿用既有 provider token，不创建按 runtime 或 source-map consumer 拆分的新身份。
-Langfuse trace ingestion credential 只属于 Agent Runtime。
+Agent Runtime 的 Langfuse trace 凭据只由 trace producer 消费；Axiom、Sentry 和其他平台凭据不进入
+产品数据库、观测事件正文或 `packages/contracts`。
 
 ## 后果
 

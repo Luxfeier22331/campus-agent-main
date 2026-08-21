@@ -1,8 +1,12 @@
+import { createHash } from "node:crypto";
 import type { Readable } from "node:stream";
 import { HeadObjectCommand, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
-import { assertStoredArtifactIdentity, buildS3Uri, sha256Hex } from "ingest-core";
 
 type S3ClientLike = Pick<S3Client, "send">;
+
+export function sha256Hex(value: Uint8Array | string): string {
+	return createHash("sha256").update(value).digest("hex");
+}
 
 export async function createOrVerifyS3Object(input: {
 	abortSignal?: AbortSignal;
@@ -63,13 +67,13 @@ export async function createOrVerifyS3Object(input: {
 		new HeadObjectCommand({ Bucket: input.bucket, Key: input.key }),
 		input.abortSignal ? { abortSignal: input.abortSignal } : {},
 	);
-	assertStoredArtifactIdentity({
+	assertStoredObjectIdentity({
 		actualByteSize: existing.ContentLength ?? null,
 		actualContentSha256:
 			existing.Metadata?.["content-sha256"] ?? existing.Metadata?.content_sha256 ?? null,
 		expectedByteSize: Number(byteSize),
 		expectedContentSha256: contentSha256,
-		uri: buildS3Uri({ bucket: input.bucket, key: input.key }),
+		uri: `s3://${input.bucket}/${input.key}`,
 	});
 	return {
 		byteSize: Number(byteSize),
@@ -77,6 +81,22 @@ export async function createOrVerifyS3Object(input: {
 		etag: existing.ETag ?? putEtag,
 		versionId: existing.VersionId ?? putVersionID,
 	};
+}
+
+function assertStoredObjectIdentity(input: {
+	actualByteSize: number | null;
+	actualContentSha256: string | null;
+	expectedByteSize: number;
+	expectedContentSha256: string;
+	uri: string;
+}): void {
+	const actualSha256 = input.actualContentSha256?.trim().toLowerCase() ?? null;
+	const expectedSha256 = input.expectedContentSha256.trim().toLowerCase();
+	if (input.actualByteSize !== input.expectedByteSize || actualSha256 !== expectedSha256) {
+		throw new Error(
+			`object identity collision at ${input.uri}: expected sha256 ${expectedSha256} and ${input.expectedByteSize} bytes, got ${actualSha256 ?? "missing"} and ${input.actualByteSize ?? "missing"} bytes`,
+		);
+	}
 }
 
 function isPreconditionFailed(error: unknown): boolean {

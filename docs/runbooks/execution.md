@@ -47,7 +47,8 @@ SQL 和 schema 错误立即失败，DDL 本身不自动重放。
 Goose v4 会把 execution-control 拥有的 12 张运行表和 `model_settings` 原位移动到
 `execution_control`；v5 新建 `campus_docs_serving.current_index`，v6 删除模型设置中与索引重复的
 dimensions、space 和当前索引中的 provider/model 字段，v7 将现有 Embedding 设置规范为固定
-provider、model 和 transport，并标记为需要重新验证。迁移后源码只读写新路径；`runtime` 和
+provider、model 和 transport，并标记为需要重新验证，v9 把当前索引收敛为单一 collection 指针。
+迁移后源码只读写新路径；`runtime` 和
 `execution_config` 下的同名对象是临时只读视图，不能承接旧构建的 `INSERT ... ON CONFLICT` 或其他
 DML。因此该版本不能按普通无停写滚动升级处理。
 
@@ -55,7 +56,7 @@ DML。因此该版本不能按普通无停写滚动升级处理。
 
 1. 暂停新的产品请求准入，等待 execution-control PostgreSQL 写入排空；Temporal 服务和 workflow
    history 保持可用，不删除或重置开放 workflow；
-2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4 至 v7 已
+2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认 v4 至 v9 已
    应用、13 张 execution-control 表保留已有行、外键和索引，Campus Docs 当前索引表已创建，并确认
    旧路径只能读取；
 3. 部署同一 revision 的 execution-control 与 Ops Web，确认 Store 健康、Provider Config 解密、
@@ -83,8 +84,9 @@ registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount�
 
 Campus Docs 的三个索引 Job 由人工分别触发。Embedding Job 从 execution-control 读取一次当前
 Embedding 连接，Publisher 只消费显式 chunk/embedding 制品并在完整校验 Qdrant collection 后替换
-`campus_docs_serving.current_index`。在线运行从该绑定取得 dimensions、space、查询指令和 collection；
-模型设置不重复保存这些索引属性。具体操作与清理条件见 `campus-docs.md`。
+`campus_docs_serving.current_index`。Publisher 复用 `EXECUTION_CONTROL_DATABASE_URL`，不创建第二个
+数据库身份或连接。在线运行只从该绑定取得 collection；dimensions、查询指令和向量名由当前代码
+提供，模型设置不重复保存这些索引属性。具体操作与清理条件见 `campus-docs.md`。
 
 ## 健康与排查
 
@@ -104,4 +106,4 @@ Job 所有的精确授权；不得切回 schema owner DSN、手工在线 `GRANT`
 `42501`，并处理既有命令，不以 readiness 单项恢复代替业务收敛证据。
 
 相关入口：`../architecture/system/durable-runtime.md`、`../architecture/system/k8s-runtime.md`、
-`../contracts/tool-execution.md`、`temporal.md`、`release.md`、`e2e.md`。
+`../contracts/tool-execution.md`、`temporal.md`、`release.md`。

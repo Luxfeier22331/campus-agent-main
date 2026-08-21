@@ -10,7 +10,6 @@ import {
 	createPostgresIndexCatalog,
 	type PostgresCatalogEnv,
 } from "../src/catalog.ts";
-import { COLLECTION_DEFINITION, EMBEDDING_SPACE } from "../src/definitions.ts";
 import type { CurrentIndexBinding } from "../src/types.ts";
 
 const POSTGRES_IMAGE =
@@ -39,13 +38,7 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 				create schema campus_docs_serving;
 				create table campus_docs_serving.current_index (
 					singleton boolean primary key default true check (singleton),
-					collection text not null,
-					dense_vector_name text not null,
-					embedding_dimensions integer not null,
-					embedding_query_instruction text not null,
-					embedding_space_id text not null,
-					sparse_model text not null,
-					sparse_vector_name text not null
+					collection text not null check (collection ~ '^campus_docs_[a-f0-9]{64}$')
 				)
 			`);
 		} finally {
@@ -57,34 +50,36 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 		await container?.stop();
 	}, 60_000);
 
-	it("reads an older binding and replaces it with the current definition", async () => {
+	it("replaces the current collection pointer", async () => {
 		const admin = new Client({ connectionString, ssl: false });
 		await admin.connect();
 		try {
 			await admin.query(
 				`insert into campus_docs_serving.current_index
-				 (singleton, collection, dense_vector_name, embedding_dimensions,
-				  embedding_query_instruction, embedding_space_id, sparse_model,
-				  sparse_vector_name)
-				 values (true, $1, 'legacy_dense', 1024, 'legacy instruction',
-				         'legacy-space', 'legacy-sparse', 'legacy_sparse')`,
+				 (singleton, collection)
+				 values (true, $1)`,
 				[`campus_docs_${"a".repeat(64)}`],
 			);
 		} finally {
 			await admin.end();
 		}
 
+		const target = targetBinding("b");
 		const catalog = createPostgresIndexCatalog(catalogEnv(connectionString));
 		try {
-			await expect(catalog.current()).resolves.toMatchObject({
-				embedding_dimensions: 1024,
-				embedding_space_id: "legacy-space",
-			});
-			const target = targetBinding("b");
 			await expect(catalog.activate(target)).resolves.toEqual({ noOp: false });
-			await expect(catalog.current()).resolves.toEqual(target);
 		} finally {
 			await catalog.close();
+		}
+		const verify = new Client({ connectionString, ssl: false });
+		await verify.connect();
+		try {
+			const result = await verify.query<{ collection: string }>(
+				"select collection from campus_docs_serving.current_index where singleton = true",
+			);
+			expect(result.rows).toEqual([target]);
+		} finally {
+			await verify.end();
 		}
 	});
 
@@ -104,14 +99,14 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 		}
 	});
 
-	it("checks every field when activation sees the same collection", async () => {
+	it("treats the same collection pointer as a no-op", async () => {
 		const target = targetBinding("c");
 		const admin = new Client({ connectionString, ssl: false });
 		await admin.connect();
 		try {
 			await admin.query(
 				`update campus_docs_serving.current_index
-				    set collection = $1, embedding_query_instruction = 'conflicting instruction'`,
+				    set collection = $1`,
 				[target.collection],
 			);
 		} finally {
@@ -119,9 +114,7 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 		}
 		const catalog = createPostgresIndexCatalog(catalogEnv(connectionString));
 		try {
-			await expect(catalog.activate(target)).rejects.toThrow(
-				"Campus docs current index conflicts at embedding_query_instruction",
-			);
+			await expect(catalog.activate(target)).resolves.toEqual({ noOp: true });
 		} finally {
 			await catalog.close();
 		}
@@ -131,23 +124,11 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 function targetBinding(digestCharacter: string): CurrentIndexBinding {
 	return {
 		collection: `campus_docs_${digestCharacter.repeat(64)}`,
-		dense_vector_name: COLLECTION_DEFINITION.dense.vectorName,
-		embedding_dimensions: EMBEDDING_SPACE.dimensions,
-		embedding_query_instruction: COLLECTION_DEFINITION.dense.queryInstruction,
-		embedding_space_id: EMBEDDING_SPACE.spaceId,
-		sparse_model: COLLECTION_DEFINITION.sparse.model,
-		sparse_vector_name: COLLECTION_DEFINITION.sparse.vectorName,
 	};
 }
 
 function catalogEnv(connectionString: string): PostgresCatalogEnv {
-	const parsed = new URL(connectionString);
 	return {
-		PGDATABASE: decodeURIComponent(parsed.pathname.slice(1)),
-		PGHOST: parsed.hostname,
-		PGPASSWORD: decodeURIComponent(parsed.password),
-		PGPORT: parsed.port,
-		PGSSLMODE: "disable",
-		PGUSER: decodeURIComponent(parsed.username),
+		EXECUTION_CONTROL_DATABASE_URL: connectionString,
 	};
 }

@@ -5,122 +5,77 @@
 		{
 			"field": "request.total_ms",
 			"warn_ms": 8000,
-			"critical_ms": 15000,
-			"candidate_reason": "request_total_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 15000
 		},
 		{
 			"field": "execution.dispatch_ms",
 			"warn_ms": 250,
-			"critical_ms": 1000,
-			"candidate_reason": "execution_dispatch_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 1000
 		},
 		{
 			"field": "agent.schedule_to_start_ms",
 			"warn_ms": 500,
-			"critical_ms": 1500,
-			"candidate_reason": "agent_schedule_to_start_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 1500
 		},
 		{
 			"field": "stream.first_delta_persist_ms",
 			"warn_ms": 2500,
-			"critical_ms": 5000,
-			"candidate_reason": "stream_first_delta_persist_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 5000
 		},
 		{
 			"field": "stream.app_api_ttft_ms",
 			"warn_ms": 2500,
-			"critical_ms": 5000,
-			"candidate_reason": "stream_app_api_ttft_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 5000
 		},
 		{
 			"field": "stream.orchestration_overhead_ms",
 			"warn_ms": 750,
-			"critical_ms": 2000,
-			"candidate_reason": "stream_orchestration_overhead_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 2000
 		},
 		{
 			"field": "execution.admission_ms",
 			"warn_ms": 500,
-			"critical_ms": 1500,
-			"candidate_reason": "execution_admission_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 1500
 		},
 		{
 			"field": "campus_docs.retrieve_ms",
 			"warn_ms": 3000,
-			"critical_ms": 7000,
-			"candidate_reason": "campus_docs_retrieval_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 7000
 		},
 		{
 			"field": "memory.recall_ms",
 			"warn_ms": 800,
-			"critical_ms": 2000,
-			"candidate_reason": "memory_recall_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 2000
 		},
 		{
 			"field": "agent.primary_ms",
 			"warn_ms": 7000,
-			"critical_ms": 14000,
-			"candidate_reason": "agent_primary_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 14000
 		},
 		{
 			"field": "agent.runtime_ms",
 			"warn_ms": 6000,
-			"critical_ms": 12000,
-			"candidate_reason": "agent_runtime_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 12000
 		},
 		{
 			"field": "agent.first_delta_ms",
 			"warn_ms": 2000,
-			"critical_ms": 4500,
-			"candidate_reason": "agent_first_delta_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 4500
 		},
 		{
 			"field": "tool.total_ms",
 			"warn_ms": 6000,
-			"critical_ms": 12000,
-			"candidate_reason": "tool_total_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 12000
 		},
 		{
 			"field": "finalization.write_ms",
 			"warn_ms": 500,
-			"critical_ms": 1500,
-			"candidate_reason": "finalization_write_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 1500
 		},
 		{
 			"field": "projection.closeout_ms",
 			"warn_ms": 1000,
-			"critical_ms": 3000,
-			"candidate_reason": "projection_closeout_too_slow",
-			"candidate_category": "model_provider_or_latency_budget_fix",
-			"enabled": true
+			"critical_ms": 3000
 		}
 	]
 }

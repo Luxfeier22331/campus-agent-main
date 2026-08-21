@@ -19,11 +19,10 @@ import (
 const migrationTable = "public.execution_control_migrations"
 
 const (
-	appAPIRole              = "app_api"
-	appAPIRuntimeFactTable  = "request_observability_fact"
-	campusDocsPublisherRole = "campus_docs_index_publisher"
-	executionControlRole    = "execution_control"
-	opsWebRole              = "ops_web"
+	appAPIRole             = "app_api"
+	appAPIRuntimeFactTable = "request_observability_fact"
+	executionControlRole   = "execution_control"
+	opsWebRole             = "ops_web"
 )
 
 var executionControlTables = []string{
@@ -308,13 +307,12 @@ $$;
 
 const campusDocsGrantSQL = `
 revoke all privileges on schema campus_docs_serving
-from public, app_api, execution_control, ops_web, campus_docs_index_publisher;
-grant usage on schema campus_docs_serving to execution_control, campus_docs_index_publisher;
+from public, app_api, execution_control, ops_web;
+grant usage on schema campus_docs_serving to execution_control;
 
 revoke all privileges on table campus_docs_serving.current_index
-from public, app_api, execution_control, ops_web, campus_docs_index_publisher;
-grant select on table campus_docs_serving.current_index to execution_control;
-grant select, insert, update on table campus_docs_serving.current_index to campus_docs_index_publisher;
+from public, app_api, execution_control, ops_web;
+grant select, insert, update on table campus_docs_serving.current_index to execution_control;
 `
 
 const providerConfigSchemaMigrationSQL = `
@@ -774,34 +772,13 @@ func (m *Migrator) CheckGrants(ctx context.Context) error {
 		return fmt.Errorf("database role %s campus_docs_serving schema privileges usage=%t create=%t, want usage=true create=false", executionControlRole, campusDocsUsage, campusDocsCreate)
 	}
 	for _, table := range campusDocsReadTables {
-		if err := m.requireTablePrivilege(ctx, executionControlRole, table, "SELECT", true); err != nil {
-			return err
-		}
-		for _, privilege := range []string{"INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
-			if err := m.requireTablePrivilege(ctx, executionControlRole, table, privilege, false); err != nil {
-				return err
-			}
-		}
-	}
-	var publisherUsage, publisherCreate bool
-	if err := m.db.QueryRowContext(
-		ctx,
-		"select has_schema_privilege($1,'campus_docs_serving','USAGE'), has_schema_privilege($1,'campus_docs_serving','CREATE')",
-		campusDocsPublisherRole,
-	).Scan(&publisherUsage, &publisherCreate); err != nil {
-		return fmt.Errorf("inspect Campus docs publisher schema grants: %w", err)
-	}
-	if !publisherUsage || publisherCreate {
-		return fmt.Errorf("database role %s campus_docs_serving schema privileges usage=%t create=%t, want usage=true create=false", campusDocsPublisherRole, publisherUsage, publisherCreate)
-	}
-	for _, table := range campusDocsReadTables {
 		for _, privilege := range []string{"SELECT", "INSERT", "UPDATE"} {
-			if err := m.requireTablePrivilege(ctx, campusDocsPublisherRole, table, privilege, true); err != nil {
+			if err := m.requireTablePrivilege(ctx, executionControlRole, table, privilege, true); err != nil {
 				return err
 			}
 		}
 		for _, privilege := range []string{"DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
-			if err := m.requireTablePrivilege(ctx, campusDocsPublisherRole, table, privilege, false); err != nil {
+			if err := m.requireTablePrivilege(ctx, executionControlRole, table, privilege, false); err != nil {
 				return err
 			}
 		}
@@ -905,7 +882,7 @@ func (m *Migrator) requireExactColumnPrivileges(
 }
 
 func (m *Migrator) requireDatabaseRoles(ctx context.Context) error {
-	for _, role := range []string{executionControlRole, appAPIRole, opsWebRole, campusDocsPublisherRole} {
+	for _, role := range []string{executionControlRole, appAPIRole, opsWebRole} {
 		var exists bool
 		if err := m.db.QueryRowContext(
 			ctx,

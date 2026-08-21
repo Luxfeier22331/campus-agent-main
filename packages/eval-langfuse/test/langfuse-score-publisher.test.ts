@@ -1,31 +1,72 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
+import type { LangfuseClient } from "@langfuse/client";
 import { describe, expect, it } from "vitest";
 
-import {
-	buildLangfuseScoresFromRagasScoreBatch,
-	publishLangfuseScores,
-	validateLangfuseScorePublishPlan,
-} from "../src/index";
+import { validateAgentToolEvalCases } from "../src/agent-tool-eval";
+import { writeJsonObject } from "../src/json";
+import { type AgentProductEvalResult, writeAgentProductEvalResult } from "../src/product-result";
+import { publishLangfuseScores } from "../src/score-publisher";
 
-function validRagasScoreBatch() {
+const settings = {
+	baseUrl: "https://langfuse.example",
+	publicKey: "pk-test",
+	secretKey: "sk-test",
+} as const;
+
+function productResult(): AgentProductEvalResult {
+	const cases = validateAgentToolEvalCases({
+		cases: [
+			{
+				argument_mode: "name_only",
+				case_id: "case-001",
+				expected_outcome: "answer",
+				forbidden_context_ids: [],
+				query: "你好",
+				reference_context_ids: [],
+				reference_contexts: [],
+				reference_tool_calls: [],
+			},
+		],
+		schema_version: "agent_routing_eval_cases.v1",
+	}).cases;
+	const [firstCase] = cases;
+	if (!firstCase) {
+		throw new Error("expected one eval case");
+	}
+	const runId = "run-001";
+	const traceId = "trace-product-001";
+	const toolTrajectory = {
+		available_tools: [],
+		decision_kind: "direct_answer" as const,
+		request_id: "request-001",
+		run_id: runId,
+		schema_version: "tool_trajectory.v3" as const,
+		tool_calls: [],
+		trace_id: traceId,
+	};
 	return {
-		schema_version: "ragas_score_batch.v1",
-		eval_run_id: "ragas-smoke-001",
+		evalRunId: "eval-001",
 		items: [
 			{
-				case_id: "case-ok",
-				trace_id: "trace-product-001",
-				observation_id: "obs-001",
-				scores: {
-					"ragas.faithfulness": 0.91,
+				case: firstCase,
+				projection: {
+					retrievedContextIds: [],
+					retrievedContexts: [],
+					runId,
+					toolTrajectory,
+					traceId,
 				},
-				errors: [
-					{
-						metric_name: "ragas.context_recall",
-						reason: "missing reference contexts",
-					},
-				],
-				metadata: {
-					surface_key: "app-api.chat",
+				terminal: {
+					answer: "你好！",
+					conversationId: "conversation-001",
+					requestId: "request-001",
+					resultKind: "answer",
+					runId,
+					traceId,
 				},
 			},
 		],
@@ -33,163 +74,102 @@ function validRagasScoreBatch() {
 }
 
 describe("Langfuse score publisher", () => {
-	it("builds Langfuse score items from RAGAS scores and preserves omissions", () => {
-		const plan = buildLangfuseScoresFromRagasScoreBatch({
-			ragasScoreBatchPath: "ragas-scores.json",
-			ragasScoreBatchPayload: validRagasScoreBatch(),
-		});
-
-		expect(plan.scoreItems).toHaveLength(1);
-		expect(plan.omittedItems).toHaveLength(1);
-		expect(plan.sourceResultDenominator).toBe(2);
-		expect(plan.scoreItems[0]).toMatchObject({
-			observation_id: "obs-001",
-			trace_id: null,
-		});
-		expect(plan.omittedItems[0]).toMatchObject({
-			case_id: "case-ok",
-			reason: "missing reference contexts",
-		});
-	});
-
-	it("fails closed on denominator drift and forbidden metadata", () => {
-		const plan = buildLangfuseScoresFromRagasScoreBatch({
-			ragasScoreBatchPath: "ragas-scores.json",
-			ragasScoreBatchPayload: validRagasScoreBatch(),
-		});
-		plan.sourceResultDenominator = 3;
-		expect(() => validateLangfuseScorePublishPlan(plan)).toThrow(
-			"sourceResultDenominator must equal scoreItems plus omittedItems length",
-		);
-
-		plan.sourceResultDenominator = 2;
-		const scoreItem = plan.scoreItems[0];
-		if (!scoreItem) {
-			throw new Error("expected score item");
-		}
-		scoreItem.metadata = { raw_prompt: "secret" };
-		expect(() => validateLangfuseScorePublishPlan(plan)).toThrow(
-			"scoreItems[0].metadata.raw_prompt is forbidden Langfuse metadata",
-		);
-	});
-
-	it("requires exactly one score target", () => {
-		const plan = buildLangfuseScoresFromRagasScoreBatch({
-			ragasScoreBatchPath: "ragas-scores.json",
-			ragasScoreBatchPayload: validRagasScoreBatch(),
-		});
-		const scoreItem = plan.scoreItems[0];
-		if (!scoreItem) {
-			throw new Error("expected score item");
-		}
-
-		scoreItem.trace_id = "trace-product-001";
-		expect(() => validateLangfuseScorePublishPlan(plan)).toThrow(
-			"scoreItems[0] must carry exactly one of trace_id or observation_id",
-		);
-
-		scoreItem.trace_id = null;
-		scoreItem.observation_id = null;
-		expect(() => validateLangfuseScorePublishPlan(plan)).toThrow(
-			"scoreItems[0] must carry exactly one of trace_id or observation_id",
-		);
-	});
-
-	it("publishes score payloads with Basic auth and Langfuse field names", async () => {
-		const requests: Array<{ body: unknown; headers: Record<string, string>; url: string }> = [];
-		const plan = buildLangfuseScoresFromRagasScoreBatch({
-			ragasScoreBatchPath: "ragas-scores.json",
-			ragasScoreBatchPayload: validRagasScoreBatch(),
-		});
-		const result = await publishLangfuseScores({
-			evalRunId: plan.evalRunId,
-			fetchImpl: async (input, init) => {
-				requests.push({
-					body: JSON.parse(String(init?.body)),
-					headers: init?.headers as Record<string, string>,
-					url: String(input),
-				});
-				return new Response(JSON.stringify({ id: "score-001" }), { status: 200 });
-			},
-			omittedItems: plan.omittedItems,
-			scoreItems: plan.scoreItems,
-			settings: {
-				baseUrl: "https://langfuse.example",
-				publicKey: "pk-test",
-				secretKey: "sk-test",
-			},
-			sourceResultDenominator: plan.sourceResultDenominator,
-		});
-
-		expect(result.published).toBe(1);
-		expect(requests[0]?.url).toBe("https://langfuse.example/api/public/scores");
-		expect(requests[0]?.headers.authorization).toBe("Basic cGstdGVzdDpzay10ZXN0");
-		expect(requests[0]?.body).toMatchObject({
-			dataType: "NUMERIC",
-			name: "ragas.faithfulness",
-			observationId: "obs-001",
-			source: "API",
-		});
-		expect(requests[0]?.body).not.toHaveProperty("traceId");
-		expect(requests[0]?.body).not.toHaveProperty("datasetItemId");
-		expect(requests[0]?.body).not.toHaveProperty("datasetRunId");
-	});
-
-	it("builds score items from RAGAS scores", () => {
-		const plan = buildLangfuseScoresFromRagasScoreBatch({
-			ragasScoreBatchPath: "ragas-scores.json",
-			ragasScoreBatchPayload: {
-				schema_version: "ragas_score_batch.v1",
-				eval_run_id: "ragas-smoke-001",
+	it("uses the SDK score queue and flushes once", async () => {
+		const directory = mkdtempSync(join(tmpdir(), "langfuse-score-test-"));
+		try {
+			const productPath = join(directory, "product.json");
+			const scorePath = join(directory, "scores.json");
+			writeAgentProductEvalResult(productPath, productResult());
+			writeJsonObject(scorePath, {
 				items: [
 					{
 						case_id: "case-001",
-						trace_id: "trace-001",
-						observation_id: "obs-001",
+						errors: [],
 						scores: {
-							"ragas.faithfulness": 0.91,
-							"ragas.answer_relevancy": 0.82,
-						},
-						errors: [
-							{
-								metric_name: "ragas.context_recall",
-								reason: "missing reference contexts",
-							},
-						],
-						metadata: {
-							surface_key: "app-api.chat",
+							"execution.outcome_match": 1,
+							"ragas.faithfulness": 0.75,
 						},
 					},
 				],
-			},
-		});
+				run_id: "eval-001",
+				schema_version: "agent_eval_score_batch.v1",
+			});
 
-		expect(plan.scoreItems).toHaveLength(2);
-		expect(plan.sourceResultDenominator).toBe(3);
-		expect(plan.scoreItems.map((item) => item.name)).toEqual([
-			"ragas.faithfulness",
-			"ragas.answer_relevancy",
-		]);
-		expect(plan.scoreItems[0]).toMatchObject({
-			case_id: "case-001",
-			data_type: "NUMERIC",
-			observation_id: "obs-001",
-			trace_id: null,
-			value: 0.91,
-		});
-		expect(plan.scoreItems[0]?.metadata).toMatchObject({
-			case_id: "case-001",
-			eval_kind: "ragas",
-			metric_key: "ragas.faithfulness",
-			schema_version: "ragas_score_batch.v1",
-			source_artifact_path: "ragas-scores.json",
-			surface_key: "app-api.chat",
-		});
-		expect(plan.omittedItems).toHaveLength(1);
-		expect(plan.omittedItems[0]).toMatchObject({
-			case_id: "case-001",
-			reason: "missing reference contexts",
-			source_result_id: "case-001:ragas.context_recall",
-		});
+			const created: Record<string, unknown>[] = [];
+			let flushCount = 0;
+			const client = {
+				score: {
+					create: (data: Record<string, unknown>) => {
+						created.push(data);
+					},
+					flush: async () => {
+						flushCount += 1;
+					},
+				},
+			} as unknown as LangfuseClient;
+
+			const summary = await publishLangfuseScores({
+				client,
+				productResultPath: productPath,
+				scorePath,
+				settings,
+			});
+
+			expect(summary).toMatchObject({ published: 2, run_id: "eval-001" });
+			expect(flushCount).toBe(1);
+			expect(created.map((item) => item.name).sort()).toEqual([
+				"execution.outcome_match",
+				"ragas.faithfulness",
+			]);
+			expect(created).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						dataType: "BOOLEAN",
+						metadata: { case_id: "case-001" },
+						traceId: await deriveLangfuseTraceId("trace-product-001"),
+						value: 1,
+					}),
+				]),
+			);
+			for (const item of created) {
+				expect(item).not.toHaveProperty("datasetRunId");
+				expect(item).not.toHaveProperty("observationId");
+			}
+		} finally {
+			rmSync(directory, { force: true, recursive: true });
+		}
+	});
+
+	it("rejects scores outside the code-owned allowlist", async () => {
+		const directory = mkdtempSync(join(tmpdir(), "langfuse-score-validation-test-"));
+		try {
+			const productPath = join(directory, "product.json");
+			const scorePath = join(directory, "scores.json");
+			writeAgentProductEvalResult(productPath, productResult());
+			writeJsonObject(scorePath, {
+				items: [
+					{
+						case_id: "case-001",
+						errors: [],
+						scores: { "ragas.context_precision_without_reference": 0.5 },
+					},
+				],
+				run_id: "eval-001",
+				schema_version: "agent_eval_score_batch.v1",
+			});
+
+			await expect(
+				publishLangfuseScores({
+					client: {
+						score: { create: () => undefined, flush: async () => undefined },
+					} as unknown as LangfuseClient,
+					productResultPath: productPath,
+					scorePath,
+					settings,
+				}),
+			).rejects.toThrow("unsupported Langfuse score name");
+		} finally {
+			rmSync(directory, { force: true, recursive: true });
+		}
 	});
 });

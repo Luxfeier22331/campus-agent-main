@@ -10,8 +10,6 @@
 				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/domains/notices/package.json",
 				"$TURBO_ROOT$/packages/domains/notices/src/**",
-				"$TURBO_ROOT$/packages/ingest-core/package.json",
-				"$TURBO_ROOT$/packages/ingest-core/src/**",
 				"$TURBO_ROOT$/packages/ingestion-contracts/package.json",
 				"$TURBO_ROOT$/packages/ingestion-contracts/src/**",
 				"$TURBO_ROOT$/packages/internal-portal-client/package.json",

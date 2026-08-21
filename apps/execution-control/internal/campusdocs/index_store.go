@@ -16,13 +16,7 @@ const defaultIndexStoreMaxConns int32 = 2
 
 // Index is the immutable query binding selected for online retrieval.
 type Index struct {
-	Collection                string
-	DenseVectorName           string
-	EmbeddingDimensions       int
-	EmbeddingQueryInstruction string
-	EmbeddingSpaceID          string
-	SparseModel               string
-	SparseVectorName          string
+	Collection string
 }
 
 type IndexStore interface {
@@ -64,23 +58,11 @@ func (s *PostgresIndexStore) CurrentIndex(ctx context.Context) (Index, bool, err
 	var index Index
 	err := s.pool.QueryRow(
 		ctx,
-		`select collection,
-		        dense_vector_name,
-		        embedding_dimensions,
-		        embedding_query_instruction,
-		        embedding_space_id,
-		        sparse_model,
-		        sparse_vector_name
+		`select collection
 		   from campus_docs_serving.current_index
 		  where singleton = true`,
 	).Scan(
 		&index.Collection,
-		&index.DenseVectorName,
-		&index.EmbeddingDimensions,
-		&index.EmbeddingQueryInstruction,
-		&index.EmbeddingSpaceID,
-		&index.SparseModel,
-		&index.SparseVectorName,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -95,13 +77,7 @@ func (s *PostgresIndexStore) CurrentIndex(ctx context.Context) (Index, bool, err
 }
 
 func ValidateIndex(index Index) error {
-	if !collectionPattern.MatchString(strings.TrimSpace(index.Collection)) ||
-		strings.TrimSpace(index.DenseVectorName) == "" ||
-		index.EmbeddingDimensions <= 0 ||
-		strings.TrimSpace(index.EmbeddingQueryInstruction) == "" ||
-		strings.TrimSpace(index.EmbeddingSpaceID) == "" ||
-		strings.TrimSpace(index.SparseModel) == "" ||
-		strings.TrimSpace(index.SparseVectorName) == "" {
+	if !collectionPattern.MatchString(strings.TrimSpace(index.Collection)) {
 		return errors.New("campus docs current index query binding is invalid")
 	}
 	return nil

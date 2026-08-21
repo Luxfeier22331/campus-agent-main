@@ -41,23 +41,6 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresDocker: false,
 		requiresUv: false,
 	},
-	rust: {
-		executor: {
-			commands: [
-				turboCommand(
-					"ingestion-kernels-rs",
-					"native:format",
-					"native:lint",
-					"native:typecheck",
-					"native:test",
-				),
-			],
-			kind: "commands",
-		},
-		lane: "manual",
-		requiresDocker: false,
-		requiresUv: false,
-	},
 	ragas: {
 		executor: {
 			commands: [

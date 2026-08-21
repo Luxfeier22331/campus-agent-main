@@ -10,6 +10,7 @@
 		"docs:check": "pnpm exec tsx scripts/docs/check-frontmatter.ts && pnpm exec tsx scripts/docs/check-adr-ids.ts && pnpm exec tsx scripts/docs/check-links.ts && pnpm exec tsx scripts/docs/check-language.ts",
 		"test": "pnpm exec tsx --test scripts/ci/*.test.ts scripts/deploy/*.test.ts scripts/dev/*.test.ts scripts/docs/*.test.ts scripts/notices/*.test.ts scripts/release/*.test.ts scripts/release/*.test.mjs",
 		"check": "pnpm lint && pnpm docs:check && pnpm test",
+		"verify": "nix develop .#ci-full --command bash scripts/verify.sh",
 		"notice:classify": "tsx scripts/notices/cli.ts",
 		"notice:classify:job:local": "tsx jobs/notice-classifier/src/local-cli.ts",
 		"notice:classify:eval": "tsx scripts/notices/eval.ts",

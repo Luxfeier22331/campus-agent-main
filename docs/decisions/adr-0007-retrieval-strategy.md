@@ -24,8 +24,9 @@ embedding 身份、dimension、vector name 和 sparse 算法由 publisher 代码
 reranking、HyDE、multi-query expansion 和自动 query rewriting 不作为默认阶段。只有评测
 或 production failure 证明现有 hybrid path 存在具体缺口时，才增加其中一项。
 
-当前正文所有权、不可变索引和运行准入由 ADR-0084 维护。当前文档只使用一个 Campus Docs
-collection；分块定义和查询绑定随 collection 一起确定。
+当前正文所有权、不可变索引和运行准入由 ADR-0084 维护。当前文档检索只使用一个物理 Qdrant
+collection；公开文档站的主题集合不构成独立检索 collection。分块定义和查询绑定随 collection
+一起确定。
 
 ## 后果
 
@@ -38,4 +39,3 @@ collection；分块定义和查询绑定随 collection 一起确定。
 
 - `docs/architecture/system/retrieval-serving.md`
 - `docs/decisions/adr-0084-agent-knowledge-tools.md`
-- `docs/policies/student-rules-chunking.md`

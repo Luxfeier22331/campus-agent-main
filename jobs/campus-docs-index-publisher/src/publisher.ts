@@ -5,13 +5,17 @@ import {
 	writeChunkSetManifest,
 	writeEmbeddingData,
 	writeEmbeddingSetManifest,
-	writeIndexManifest,
 } from "./artifacts.ts";
+import {
+	canonicalJsonBytes,
+	sha256,
+} from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import {
 	CHUNK_SET_DEFINITION,
 	COLLECTION_DEFINITION,
 	EMBEDDING_SPACE,
 } from "./definitions.ts";
+import { assertValidChunkSet } from "./chunk-validation.ts";
 import { embedTexts } from "./embedding.ts";
 import {
 	buildChunks,
@@ -23,7 +27,6 @@ import {
 	sha256Text,
 	sourceProjectionSha256,
 } from "./indexing.ts";
-import { QdrantCollectionContentMismatchError } from "./qdrant.ts";
 import {
 	CAMPUS_DOCS_SOURCE_KEY,
 	type BuildChunkSetInput,
@@ -31,8 +34,6 @@ import {
 	type BuildEmbeddingSetInput,
 	type BuildEmbeddingSetResult,
 	type CurrentIndexBinding,
-	type IndexCatalog,
-	type IndexManifest,
 	type IndexPoint,
 	type PublishIndexInput,
 	type PublishIndexResult,
@@ -47,7 +48,6 @@ const QDRANT_UPSERT_BATCH_SIZE = 64;
 
 export interface IndexCandidate {
 	binding: CurrentIndexBinding;
-	index: Sha256Ref;
 	points: IndexPoint[];
 	sourceProjectionSha256: Sha256Ref;
 }
@@ -66,7 +66,7 @@ export async function buildCampusDocsChunkSet(
 		}),
 	);
 	if (chunks.length === 0) throw new Error("Campus docs source produced no index chunks");
-	assertUnique(chunks.map((chunk) => chunk.chunkId), "chunk identity");
+	assertValidChunkSet({ chunks, selections });
 	const storedChunks = chunks.map<StoredChunk>((chunk) => ({
 		...chunk,
 		retrievalTextSha256: sha256Text(chunk.retrievalText),
@@ -152,15 +152,14 @@ export async function assembleIndexCandidate(input: {
 	const embeddingSet = await readEmbeddingSet(input.artifactStore, input.embeddingSet);
 	const chunkSet = await readChunkSet(input.artifactStore, embeddingSet.manifest.chunkSet);
 	const points = buildPoints(chunkSet.chunks, embeddingSet.embeddings);
-	const indexManifest: IndexManifest = {
-		collectionDefinition: COLLECTION_DEFINITION,
-		embeddingSet: input.embeddingSet,
-		schemaVersion: "campus_docs_index.v2",
-	};
-	const index = await writeIndexManifest(input.artifactStore, indexManifest);
+	const index = sha256(
+		canonicalJsonBytes({
+			collectionDefinition: COLLECTION_DEFINITION,
+			embeddingSet: input.embeddingSet,
+		}),
+	);
 	return {
-		binding: buildCurrentIndexBinding(index, embeddingSet.manifest.embeddingSpace),
-		index,
+		binding: buildCurrentIndexBinding(index),
 		points,
 		sourceProjectionSha256: chunkSet.manifest.sourceProjectionSha256,
 	};
@@ -168,34 +167,23 @@ export async function assembleIndexCandidate(input: {
 
 export async function materializeQdrantCollection(input: {
 	candidate: IndexCandidate;
-	currentCollection: string | null;
 	qdrant: QdrantIndexClient;
 }): Promise<{ created: boolean }> {
 	const collection = input.candidate.binding.collection;
 	if (await input.qdrant.collectionExists(collection)) {
-		try {
-			await validateCollection(
-				input.qdrant,
-				collection,
-				input.candidate.points,
-				input.candidate.binding.embedding_dimensions,
-			);
-			return { created: false };
-		} catch (error) {
-			if (
-				input.currentCollection === collection ||
-				!(error instanceof QdrantCollectionContentMismatchError)
-			) {
-				throw error;
-			}
-			await input.qdrant.deleteCollection(collection);
-		}
+		await validateCollection(
+			input.qdrant,
+			collection,
+			input.candidate.points,
+			EMBEDDING_SPACE.dimensions,
+		);
+		return { created: false };
 	}
 
 	await input.qdrant.createCollection({
 		collection,
 		denseDistance: COLLECTION_DEFINITION.dense.distance,
-		denseDimensions: input.candidate.binding.embedding_dimensions,
+		denseDimensions: EMBEDDING_SPACE.dimensions,
 		denseVectorName: COLLECTION_DEFINITION.dense.vectorName,
 		sparseVectorName: COLLECTION_DEFINITION.sparse.vectorName,
 	});
@@ -205,26 +193,13 @@ export async function materializeQdrantCollection(input: {
 			input.qdrant,
 			collection,
 			input.candidate.points,
-			input.candidate.binding.embedding_dimensions,
+			EMBEDDING_SPACE.dimensions,
 		);
 	} catch (error) {
 		await input.qdrant.deleteCollection(collection).catch(() => undefined);
 		throw error;
 	}
 	return { created: true };
-}
-
-export async function activateCurrentIndex(input: {
-	binding: CurrentIndexBinding;
-	catalog: IndexCatalog;
-	expectedSourceProjection: Sha256Ref;
-	sourceStore: ReaderObjectStore;
-}): Promise<{ noOp: boolean }> {
-	await assertSourceProjectionUnchanged(
-		input.sourceStore,
-		input.expectedSourceProjection,
-	);
-	return input.catalog.activate(input.binding);
 }
 
 export async function publishCampusDocsIndex(
@@ -234,31 +209,25 @@ export async function publishCampusDocsIndex(
 		artifactStore: input.artifactStore,
 		embeddingSet: input.embeddingSet,
 	});
-	const current = await input.catalog.current();
-	const targetWasCurrent = current?.collection === candidate.binding.collection;
 	const materialized = await materializeQdrantCollection({
 		candidate,
-		currentCollection: current?.collection ?? null,
 		qdrant: input.qdrant,
 	});
-	let activated: { noOp: boolean };
 	try {
-		activated = await activateCurrentIndex({
-			binding: candidate.binding,
-			catalog: input.catalog,
-			expectedSourceProjection: candidate.sourceProjectionSha256,
-			sourceStore: input.sourceStore,
-		});
+		await assertSourceProjectionUnchanged(
+			input.sourceStore,
+			candidate.sourceProjectionSha256,
+		);
 	} catch (error) {
 		if (materialized.created) {
 			await input.qdrant.deleteCollection(candidate.binding.collection).catch(() => undefined);
 		}
 		throw error;
 	}
+	const activated = await input.catalog.activate(candidate.binding);
 	return {
 		collection: candidate.binding.collection,
-		index: candidate.index,
-		noOp: materialized.created && targetWasCurrent ? false : activated.noOp,
+		noOp: materialized.created ? false : activated.noOp,
 		pointCount: candidate.points.length,
 	};
 }
@@ -351,8 +320,4 @@ async function assertSourceProjectionUnchanged(
 			`Campus docs source changed after the chunk set was built: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
-}
-
-function assertUnique(values: readonly string[], label: string): void {
-	if (new Set(values).size !== values.length) throw new Error(`${label} is duplicated`);
 }

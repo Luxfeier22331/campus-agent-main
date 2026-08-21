@@ -20,18 +20,14 @@ status: active
 | 能力 | 配置所有者 | 消费方 | 隔离要求 |
 | --- | --- | --- | --- |
 | LLM | execution-control 当前模型设置 | agent-runtime | Activity 调用读取当前值，不向浏览器返回密钥 |
-| Embedding 连接 | execution-control 当前模型设置 | Campus Docs Embedding Job、在线检索 Activity | Ops Web 只替换 Base URL 和 API key；provider、model、transport 与 2560 维向量空间由 Campus Docs 固定合同拥有 |
+| Embedding 连接 | execution-control 当前模型设置 | Campus Docs Embedding Job、在线检索 Activity | Ops Web 只替换 Base URL 和 API key；向量空间由 Campus Docs 合同拥有 |
 | 通知分类连接 | execution-control 当前模型设置 | notice-classifier 在线 Job | Job 启动阶段读取一次内部快照；不接收独立模型 Secret，API key 不返回浏览器 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
 Embedding Job 在启动后读取一次当前连接并直接调用 provider；在线检索按准入时冻结的同一设置 hash
-解析连接。系统不为索引构建维护第二份连接配置。Embedding provider 固定为 `openai-compatible`，
-model 固定为 `Qwen3-Embedding-4B`，transport 固定为 `embeddings`，dimensions 固定为 `2560`；
-`embedding_space_id`、查询指令和向量名来自 v2 制品及 `campus_docs_serving.current_index`，并在运行
-准入时核对和冻结。
-
-具体模型、transport 和 endpoint 由当前模型设置、索引制品与可执行注册表维护，不在本文复制。
+解析连接。系统不为索引构建维护第二份连接配置。具体固定字段由 Ops Web 接口合同和 Campus Docs
+索引实现维护，不在本文复制。
 
 通知分类 Job 在启动分类阶段后读取一次 `notice_classifier_provider_snapshot.v1`，直接调用快照中的
 transport。模型名、provider、Base URL 和 API key 由 Ops Web 的独立通知分类模型设置维护；本地
@@ -43,8 +39,8 @@ Job 的配置来源。
 
 ### PostgreSQL
 
-应用、发布任务、配置管理和运维读取使用各自角色。连接拓扑与角色边界见
-`../data/postgres-ownership.md`，不得为了减少 Secret 数量合并成共享高权限账号。
+PostgreSQL 角色按数据所有权、授权范围和迁移边界决定，不按应用或 Job 名称自动拆分。连接拓扑与
+角色边界见 `../data/postgres-ownership.md`，不得为了减少 Secret 数量合并成超出职责的高权限账号。
 
 ### Qdrant
 
@@ -107,7 +103,7 @@ logs query 使用运行时 token，Terraform 使用平台管理身份。Sentry �
 - 跨平台共享认证值属于同一轮换单元，但由各平台独立投递，不能互相充当同步源；
 - Secret 不进入 Git、镜像、前端包、日志或命令输出。Terraform 管理的资源若要求敏感输入，该值会
   保存在受保护的 state；当前仅 Hyperdrive origin password 属于这一合同，state 不充当 Secret 投递源；
-- 环境仓选择部署版本和 Secret 引用，源码仓只维护环境无关的消费合同。
+- 环境仓选择部署版本和 Secret 引用；源码仓维护消费合同以及候选构建所需的代码和配置。
 - `OPS_WEB_AUTOMATION_ORIGIN` 是环境仓投递给 Ops Web 的非敏感机器端点配置；自动化 token 属于
   Ops Web PostgreSQL 数据，不进入 ConfigMap、GitOps Secret、内部门户采集任务或 URL。开发者程序
   只在请求时显式提供 `Authorization: Bearer <token>`。

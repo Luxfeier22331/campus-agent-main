@@ -30,5 +30,4 @@ table，并由 app-api federation runtime policy 校验。DSN 不进入 GitHub E
 
 ## 验证
 
-配置完成后执行 `e2e.md` 或 MediaWiki 所属 staging smoke。client 行存在只证明配置完成，
-不证明生产联邦登录已经可用。
+client 行存在只证明配置完成；联邦运行行为由 app-api 合同和本地模块检查覆盖。

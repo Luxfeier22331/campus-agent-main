@@ -25,12 +25,12 @@ Campus Web 静态构建和 Campus Docs 索引发布共享这份清洗后输入�
 `sha256` 固定；历史版本 reader、通知、校历和其他补充资产不进入当前索引。bucket 中存在但未被当前
 清单引用的对象不会被自动发现。
 
-Chunk、Embedding 和 Index manifest 都使用内容寻址身份。`campus_docs_chunk_set.v2` 只把当前文档
-投影摘要、分块定义和实际 Chunk 数据纳入身份，完整 `source.json` 摘要只作为诊断输出。Index manifest
-摘要同时形成物理 collection 名：
+Chunk Set 和 Embedding Set 使用内容寻址身份。`campus_docs_chunk_set.v2` 只把当前文档投影摘要、
+分块定义和实际 Chunk 数据纳入身份，完整 `source.json` 摘要只作为诊断输出。物理 collection 名由
+显式 Embedding Set ID 与当前 Collection Definition 的规范 JSON 摘要形成：
 
 ```text
-campus_docs_<index-manifest-sha256>
+campus_docs_<sha256>
 ```
 
 代码分别以 `CHUNK_SET_DEFINITION`、`EMBEDDING_SPACE` 和 `COLLECTION_DEFINITION` 固定 reader/分块、
@@ -63,14 +63,14 @@ Chunk Job: source.json + 当前 reader
 Embedding Job: 显式 chunk set + 一次性 Embedding provider snapshot
   -> 显式 embedding set
 Publisher Job: 显式 embedding set -> manifest 中的 chunk set
-  -> index manifest -> 不可变 Qdrant collection
+  -> 不可变 Qdrant collection
   -> 原子替换 campus_docs_serving.current_index
 ```
 
 本地 Chunk/Embedding CLI 与对应集群 Job 共用领域实现，只替换制品 Store 和 Embedding 连接组装。本地
 Chunk CLI 只读对象存储来源，本地 Embedding CLI 直接调用显式 OpenAI-compatible endpoint，二者都写入
-worktree `var/`；集群写入 derived bucket。Chunk 输出保持确定性，所有阶段输出都按实际内容寻址；本地
-制品不上传或晋升。`eval-chunks` 和 dense-only `eval-embeddings` 是独立本地评测入口，不进入集群镜像。
+worktree `var/`；集群写入 derived bucket。Chunk 构建在写入前校验来源覆盖、section、root unit、
+`retrievalText`、字符上限和表格单元格覆盖。所有阶段输出都按实际内容寻址，本地制品不上传或晋升。
 
 阶段之间只传递显式 `sha256:<id>`，不自动串联，不维护 `latest` 制品指针或构建状态机。manifest 和
 NDJSON 使用规范序列化、最终换行和内容寻址对象键，不可变写入采用 create-or-verify。Embedding Job
@@ -90,15 +90,18 @@ Publisher 在激活前完整核对 collection 配置、point 数、point 身份�
 
 execution-control 在创建 workflow 前读取并冻结：
 
-- `campus_docs_serving.current_index` 中的物理 collection、dense/sparse 向量名、Embedding
-  dimensions、space、查询指令和 sparse 算法；
+- `campus_docs_serving.current_index` 中的物理 collection；
 - 当前 Embedding 设置 hash；
 - 本轮规范化查询的 SHA-256；
 - 其余 Agent 运行限制和获准能力。
 
-dimensions 和 space 属于已准入索引，不属于可编辑 Provider Config。Embedding 设置只保存连接；
-在线 Activity 按冻结 hash 解析该连接并以索引 dimensions 请求、校验查询向量。缺少当前索引、设置
-无效、hash 不一致或索引绑定不兼容时拒绝准入，不回退到旧 collection、旧配置或模型记忆。
+向量名、dimensions、查询指令和 sparse 实现由当前 execution-control 代码拥有，不属于可编辑
+Provider Config 或数据库绑定。Embedding 设置只保存连接；在线 Activity 按冻结 hash 解析该连接并以
+当前代码 dimensions 请求、校验查询向量。缺少当前 collection、设置无效或 hash 不一致时拒绝准入，
+不回退到旧 collection、旧配置或模型记忆。
+
+发布端 Collection Definition 与查询端定义必须在同一代码变更中保持一致。定义变化时先用该版本重新
+生成并激活 collection；系统不识别或兼容其他代码版本生成的旧 collection。
 
 准入快照不含凭据、文档正文或 provider 响应。整个 run 使用同一快照，不跟随后续索引发布或模型
 设置变化。
@@ -109,7 +112,7 @@ dimensions 和 space 属于已准入索引，不属于可编辑 Provider Config�
 
 ```text
 冻结问题
--> 按 admitted query instruction 生成一次 dense embedding
+-> 按当前代码查询指令生成一次 dense embedding
 -> 本地生成 sparse query vector
 -> 查询唯一 admitted collection，并由 Qdrant 对 dense+sparse 候选做 RRF fusion
 -> 校验 point schema、公开版本链接和正文 hash

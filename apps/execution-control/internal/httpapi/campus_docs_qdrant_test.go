@@ -32,25 +32,13 @@ func campusDocsIndexStoreForTest() campusdocs.IndexStore {
 
 func campusDocsIndexForTest() campusdocs.Index {
 	return campusdocs.Index{
-		Collection:                "campus_docs_" + repeatedHex("a", 64),
-		DenseVectorName:           "dense",
-		EmbeddingDimensions:       2560,
-		EmbeddingQueryInstruction: "Given a Campus Web document question, retrieve relevant current passages that answer the query.",
-		EmbeddingSpaceID:          "qwen3-embedding-4b@2560-v1",
-		SparseModel:               "fnv1a_log_tf.v1",
-		SparseVectorName:          "sparse",
+		Collection: "campus_docs_" + repeatedHex("a", 64),
 	}
 }
 
 func campusDocsTargetForHTTPTest() *temporalruntime.CampusDocsIndexSnapshot {
 	return &temporalruntime.CampusDocsIndexSnapshot{
-		Collection:                "campus_docs_" + repeatedHex("d", 64),
-		DenseVectorName:           "dense",
-		EmbeddingDimensions:       3,
-		EmbeddingQueryInstruction: "retrieve Campus Web document passages",
-		EmbeddingSpaceID:          "embedding-test-space-v1",
-		SparseModel:               "fnv1a_log_tf.v1",
-		SparseVectorName:          "sparse",
+		Collection: "campus_docs_" + repeatedHex("d", 64),
 	}
 }
 
@@ -73,7 +61,7 @@ func TestCampusDocsQueryUsesFrozenCollectionAndExplicitSparseVector(t *testing.T
 		qdrantQueryAPIKey: "test-key",
 	}
 	target := campusDocsTargetForHTTPTest()
-	if _, err := executor.queryCampusDocsPoints(context.Background(), "学生请假", []float64{0.1, 0.2, 0.3}, target); err != nil {
+	if _, err := executor.queryCampusDocsPoints(context.Background(), "学生请假", make([]float64, campusdocs.EmbeddingDimensions), target); err != nil {
 		t.Fatal(err)
 	}
 	prefetch, ok := received["prefetch"].([]any)

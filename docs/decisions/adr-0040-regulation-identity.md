@@ -22,7 +22,7 @@ status: accepted
 - 通知标识和通知发布时间只作为来源信息，不能自动成为规章身份或生效日期；
 - “暂行”“试行”、届次和文件编号只有经过明确规则解释后才能成为版本信息。
 
-精确字段、规范化规则和标识生成由规章配置、schema 与测试维护。
+精确字段、规范化规则和标识生成由当前规章实现、schema 与测试维护。
 
 ## 后果
 
@@ -35,4 +35,3 @@ status: accepted
 
 - `../architecture/domains/regulations.md`
 - `adr-0035-regulation-promotion.md`
-- `../../configs/ingestion/regulations/institutional_rules/canonical-profile.json`

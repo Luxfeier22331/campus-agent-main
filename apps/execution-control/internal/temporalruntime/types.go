@@ -135,13 +135,7 @@ type RetrieveCampusDocsEvidenceActivityInput struct {
 }
 
 type CampusDocsIndexSnapshot struct {
-	DenseVectorName           string `json:"dense_vector_name"`
-	EmbeddingDimensions       int    `json:"embedding_dimensions"`
-	EmbeddingQueryInstruction string `json:"embedding_query_instruction"`
-	EmbeddingSpaceID          string `json:"embedding_space_id"`
-	Collection                string `json:"collection"`
-	SparseModel               string `json:"sparse_model"`
-	SparseVectorName          string `json:"sparse_vector_name"`
+	Collection string `json:"collection"`
 }
 
 type AgentToolResult struct {

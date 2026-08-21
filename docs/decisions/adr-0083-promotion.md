@@ -22,7 +22,7 @@ GitOps 默认分支中的受信任 workflow 只在以下条件全部满足时自
 App 创建、head 是当前已通过 `validate` 的提交、Source SHA 属于 Source `main`，且结构化差异只包含
 Source ref、镜像 digest、Worker version、发布标识、Application Source SHA 注解和 staging 游标。
 
-Secret、权限、资源、网络、Terraform、workflow、Application 拓扑和 production 变化不属于机器版本
+Secret、权限、资源、网络、Terraform、workflow、Application 拓扑和其他环境变化不属于机器版本
 选择，继续由人员审查。Source CI 不直接写 GitOps `main`，也不直接操作集群或流量。
 
 ## 后果
@@ -31,7 +31,7 @@ Secret、权限、资源、网络、Terraform、workflow、Application 拓扑和
 - staging 常规版本选择保留 PR 审计记录，但不要求开发者重复批准机器字段；
 - Argo CD 与 Cloudflare 将各自结果写到被选择的 Source SHA，不以候选构建或 PR 合并代替运行状态；
 - 手动重跑只能处理当前 `main`，不接受人为指定发布基线；
-- production 仍由 release tag、GitHub Environment 和环境仓人工变更控制。
+- 若后续启用 production，其选择仍由 release tag、GitHub Environment 和环境仓变更控制。
 
 ## 未采用方案
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -24,13 +24,7 @@ func (s *Server) campusDocsIndexForAdmission(
 		return nil, errors.New("campus docs current index is not available")
 	}
 	target := &temporalruntime.CampusDocsIndexSnapshot{
-		Collection:                index.Collection,
-		DenseVectorName:           index.DenseVectorName,
-		EmbeddingDimensions:       index.EmbeddingDimensions,
-		EmbeddingQueryInstruction: index.EmbeddingQueryInstruction,
-		EmbeddingSpaceID:          index.EmbeddingSpaceID,
-		SparseModel:               index.SparseModel,
-		SparseVectorName:          index.SparseVectorName,
+		Collection: index.Collection,
 	}
 	if err := validateCampusDocsIndexAdmission(target); err != nil {
 		return nil, err
@@ -42,11 +36,7 @@ func validateCampusDocsIndexAdmission(target *temporalruntime.CampusDocsIndexSna
 	if target == nil {
 		return errors.New("campus docs index admission snapshot is required")
 	}
-	if !strings.HasPrefix(target.Collection, "campus_docs_") || target.DenseVectorName != "dense" ||
-		target.SparseVectorName != "sparse" || target.SparseModel != "fnv1a_log_tf.v1" ||
-		strings.TrimSpace(target.EmbeddingQueryInstruction) == "" ||
-		strings.TrimSpace(target.EmbeddingSpaceID) == "" ||
-		target.EmbeddingDimensions <= 0 {
+	if err := campusdocs.ValidateIndex(campusdocs.Index{Collection: target.Collection}); err != nil {
 		return errors.New("campus docs index admission snapshot is invalid")
 	}
 	return nil

@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+
+import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
+
 import { runAgentToolEval } from "./agent-tool-runner";
-import { buildEvalDatasetManifest } from "./dataset-manifest";
+import { scoreAgentProductResult } from "./eval-scores";
 import type { JsonObject } from "./json";
-import { syncLangfuseDatasets, syncLangfuseScoreConfigs } from "./platform";
-import { withRagasRuntimeConfig } from "./provider-config";
-import { runRagasDatasetScoring, runRagasTraceScoring } from "./ragas-langfuse";
+import { publishLangfuseScores } from "./score-publisher";
 import { settingsFromEnv } from "./settings";
-import { deriveLangfuseTraceId } from "./trace";
 import { verifyLangfuseOnlineTraceEvidence } from "./trace-evidence";
 
 type ParsedArgs = Record<string, string | string[] | boolean>;
@@ -16,10 +15,9 @@ type ParsedArgs = Record<string, string | string[] | boolean>;
 export async function main(argv: string[]): Promise<number> {
 	const [command, ...rest] = argv;
 	const args = parseArgs(rest);
-	const json = Boolean(args.json);
 	try {
 		const result = await handleCommand(command ?? "", args);
-		if (json) {
+		if (args.json) {
 			console.log(JSON.stringify(result, null, 2));
 		} else {
 			console.log(JSON.stringify(result));
@@ -33,49 +31,38 @@ export async function main(argv: string[]): Promise<number> {
 
 async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObject> {
 	if (command === "agent-eval") {
-		const projectionPath = stringArg(args, "provider-config-projection");
 		const limit = numberArg(args, "limit");
 		return runAgentToolEval({
 			appApiBaseUrl: stringArg(args, "app-api-base-url"),
+			casesPath: stringArg(args, "cases"),
 			cookieHeader: stringArg(args, "cookie-header"),
-			datasetName: stringArg(args, "dataset"),
-			datasetVersion: optionalArg(args, "dataset-version"),
-			dryRun: Boolean(args["dry-run"]),
-			environment: stringArg(args, "environment"),
 			...(limit === null ? {} : { limit }),
-			runPythonRagasAgentScoreBatch: (input) =>
-				runPythonRagasAgentScoreBatch(input, projectionPath),
-			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
-			settings: settingsFromArgs(args),
-			validateOnly: Boolean(args["validate-only"]),
+			outputPath: stringArg(args, "output"),
 		});
 	}
-	if (command === "ragas-score-traces") {
-		const projectionPath = stringArg(args, "provider-config-projection");
-		const limit = numberArg(args, "limit");
-		const traceName = optionalArg(args, "trace-name");
-		return runRagasTraceScoring({
-			environment: stringArg(args, "environment"),
-			...(limit === null ? {} : { limit }),
-			release: optionalArg(args, "release"),
-			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
-			settings: settingsFromArgs(args),
-			tag: arrayArg(args, "tag"),
-			...(traceName ? { traceName } : {}),
-			validateOnly: Boolean(args["validate-only"]),
+	if (command === "score-ragas") {
+		return scoreAgentProductResult({
+			inputPath: stringArg(args, "input"),
+			outputPath: stringArg(args, "output"),
+			runPythonAgent: (input) =>
+				runPythonRagas({
+					...input,
+					kind: "agent",
+					providerConfigPath: stringArg(args, "provider-config"),
+				}),
+			runPythonRag: (input) =>
+				runPythonRagas({
+					...input,
+					kind: "rag",
+					providerConfigPath: stringArg(args, "provider-config"),
+				}),
 		});
 	}
-	if (command === "ragas-score-dataset") {
-		const projectionPath = stringArg(args, "provider-config-projection");
-		const limit = numberArg(args, "limit");
-		return runRagasDatasetScoring({
-			datasetName: stringArg(args, "dataset"),
-			datasetVersion: optionalArg(args, "dataset-version"),
-			environment: stringArg(args, "environment"),
-			...(limit === null ? {} : { limit }),
-			runPythonRagasScoreBatch: (input) => runPythonRagasScoreBatch(input, projectionPath),
+	if (command === "publish-scores") {
+		return publishLangfuseScores({
+			productResultPath: stringArg(args, "product-result"),
+			scorePath: stringArg(args, "scores"),
 			settings: settingsFromArgs(args),
-			validateOnly: Boolean(args["validate-only"]),
 		});
 	}
 	if (command === "verify-trace") {
@@ -94,31 +81,39 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			traceId,
 		});
 	}
-	if (command === "sync-score-configs") {
-		return syncLangfuseScoreConfigs({
-			dryRun: Boolean(args["dry-run"]),
-			registryPath:
-				optionalArg(args, "registry") ??
-				resolve(import.meta.dirname, "../assets/registries/langfuse_score_registry.v1.json"),
-			settings: settingsFromArgs(args),
-		});
-	}
-	if (command === "sync-datasets") {
-		return syncLangfuseDatasets({
-			dryRun: Boolean(args["dry-run"]),
-			manifestPath: stringArg(args, "dataset-manifest"),
-			settings: settingsFromArgs(args),
-		});
-	}
-	if (command === "build-dataset-manifest") {
-		const outputPath = stringArg(args, "output");
-		return buildEvalDatasetManifest({
-			assetRoot: optionalArg(args, "asset-root") ?? resolve(import.meta.dirname, "../assets"),
-			outputPath,
-			sourceGitHead: optionalArg(args, "source-git-head") ?? currentGitHead(),
-		});
-	}
 	throw new Error(`Unknown command: ${command}`);
+}
+
+function runPythonRagas(input: {
+	inputPath: string;
+	outputPath: string;
+	kind: "agent" | "rag";
+	providerConfigPath: string;
+}): void {
+	const result = spawnSync(
+		"uv",
+		[
+			"run",
+			"--package",
+			"campus-ragas-runner",
+			"python",
+			"-m",
+			"campus_ragas_runner",
+			input.kind,
+			"--input",
+			input.inputPath,
+			"--output",
+			input.outputPath,
+			"--provider-config",
+			input.providerConfigPath,
+		],
+		{ encoding: "utf-8", stdio: "pipe" },
+	);
+	if (result.status !== 0) {
+		throw new Error(
+			`${input.kind} Ragas scoring failed: ${(result.stderr || result.stdout || "").trim()}`,
+		);
+	}
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -132,7 +127,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 			throw new Error(`Unexpected argument: ${token}`);
 		}
 		const key = token.slice(2);
-		if (key === "json" || key === "dry-run" || key === "validate-only") {
+		if (key === "json") {
 			parsed[key] = true;
 			continue;
 		}
@@ -150,82 +145,8 @@ function parseArgs(argv: string[]): ParsedArgs {
 	return parsed;
 }
 
-function runPythonRagasScoreBatch(
-	input: { inputPath: string; outputPath: string },
-	projectionPath: string,
-): void {
-	withRagasRuntimeConfig({ kind: "rag", projectionPath }, (runtimeConfigPath) => {
-		const result = spawnSync(
-			"uv",
-			[
-				"run",
-				"--package",
-				"campus-ragas-runner",
-				"python",
-				"-m",
-				"campus_ragas_runner",
-				"rag",
-				"--input",
-				input.inputPath,
-				"--output",
-				input.outputPath,
-				"--runtime-config",
-				runtimeConfigPath,
-			],
-			{ encoding: "utf-8", stdio: "pipe" },
-		);
-		if (result.status !== 0) {
-			throw new Error(`RAGAS scoring failed: ${(result.stderr || result.stdout || "").trim()}`);
-		}
-	});
-}
-
-function runPythonRagasAgentScoreBatch(
-	input: { inputPath: string; outputPath: string },
-	projectionPath: string,
-): void {
-	withRagasRuntimeConfig({ kind: "agent", projectionPath }, (runtimeConfigPath) => {
-		const result = spawnSync(
-			"uv",
-			[
-				"run",
-				"--package",
-				"campus-ragas-runner",
-				"python",
-				"-m",
-				"campus_ragas_runner",
-				"agent",
-				"--input",
-				input.inputPath,
-				"--output",
-				input.outputPath,
-				"--runtime-config",
-				runtimeConfigPath,
-			],
-			{ encoding: "utf-8", stdio: "pipe" },
-		);
-		if (result.status !== 0) {
-			throw new Error(
-				`RAGAS agent scoring failed: ${(result.stderr || result.stdout || "").trim()}`,
-			);
-		}
-	});
-}
-
-function currentGitHead(): string {
-	const result = spawnSync("git", ["rev-parse", "HEAD"], {
-		encoding: "utf-8",
-		stdio: "pipe",
-	});
-	if (result.status !== 0) {
-		throw new Error(`git rev-parse HEAD failed: ${(result.stderr || result.stdout || "").trim()}`);
-	}
-	return result.stdout.trim();
-}
-
 function stringArg(args: ParsedArgs, key: string): string {
-	const value = optionalArg(args, key);
-	return required(value, key);
+	return required(optionalArg(args, key), key);
 }
 
 function optionalArg(args: ParsedArgs, key: string): string | null {
@@ -264,9 +185,7 @@ function required(value: string | null, field: string): string {
 }
 
 function settingsFromArgs(args: ParsedArgs) {
-	return settingsFromEnv({
-		timeoutSeconds: numberArg(args, "timeout-seconds") ?? 10,
-	});
+	return settingsFromEnv({ timeoutSeconds: numberArg(args, "timeout-seconds") ?? 10 });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

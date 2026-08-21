@@ -794,9 +794,6 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
-      ingest-core:
-        specifier: workspace:*
-        version: link:../../packages/ingest-core
       ingestion-contracts:
         specifier: workspace:*
         version: link:../../packages/ingestion-contracts
@@ -834,31 +831,6 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@27.4.0(@noble/hashes@2.3.0)(supports-color@10.2.2))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
-
-  jobs/learning-loop-candidates:
-    dependencies:
-      eval-langfuse:
-        specifier: workspace:*
-        version: link:../../packages/eval-langfuse
-      pg:
-        specifier: ^8.23.0
-        version: 8.23.0
-    devDependencies:
-      '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
-      '@types/pg':
-        specifier: ^8.21.0
-        version: 8.21.0
-      tsx:
-        specifier: ^4.23.12
-        version: 4.23.12
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
 
   jobs/notice-classifier:
     dependencies:
@@ -1019,28 +991,6 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
 
-  packages/ingest-core:
-    dependencies:
-      canonical-json:
-        specifier: ^0.4.0
-        version: 0.4.0
-      ingestion-contracts:
-        specifier: workspace:*
-        version: link:../ingestion-contracts
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
-
   packages/ingestion-contracts:
     dependencies:
       ajv:
@@ -1059,8 +1009,6 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/ingestion-kernels-rs: {}
 
   packages/internal-portal-client:
     dependencies:
@@ -5396,11 +5344,6 @@ packages:
 
   caniuse-lite@1.0.30001809:
     resolution: {integrity: sha512-xxWVywk6a6Arlk+hymeycyn/VgqEfLDxupvhH/xiY5SJ/18kmi9o6MiO320DCUzypORHLtvh0I4i04tUhCNHNQ==}
-
-  canonical-json@0.4.0:
-    resolution: {integrity: sha512-tjdV5Z1ZYX7JfotmcutLzAiwzw0XiViJB9smqVM7sIoOp+IdqRZcnqfFLzHdb9/baDzkNI0ECfLoMt+EBOYx4A==}
-    engines: {node: '>=14'}
-    hasBin: true
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -12382,8 +12325,6 @@ snapshots:
   byline@5.0.0: {}
 
   caniuse-lite@1.0.30001809: {}
-
-  canonical-json@0.4.0: {}
 
   ccount@2.0.1: {}
 

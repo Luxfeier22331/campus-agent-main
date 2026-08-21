@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	buildRagasSampleFromExecutionRun,
-	parseExecutionRunEvalProjection,
-} from "../src/execution-projection";
+import { parseExecutionRunEvalProjection } from "../src/execution-projection";
 
 function runStepsPayload() {
 	return {
@@ -43,24 +40,6 @@ describe("execution run eval projection", () => {
 		expect(projection.toolTrajectory.tool_calls).toHaveLength(0);
 		expect(projection).not.toHaveProperty("resolvedTargets");
 		expect(projection).not.toHaveProperty("campusDocsRetrieval");
-	});
-
-	it("materializes an official Ragas sample from run projection and dataset truth", () => {
-		expect(
-			buildRagasSampleFromExecutionRun({
-				caseId: "cross-target-scholarship",
-				datasetItemId: "dataset-item-001",
-				question: "奖学金评审需要看哪些规定？",
-				reference: "需要同时核对学生奖学金规则和学校奖励通用规定。",
-				referenceContextIds: ["doc:student-scholarship", "doc:institution-awards"],
-				runStepsPayload: runStepsPayload(),
-			}),
-		).toMatchObject({
-			answer: "奖学金评审同时受学生规则和学校通用规定约束。",
-			contexts: ["学生奖学金评审条件。", "学校奖励管理通用规定。"],
-			retrieved_context_ids: ["doc:student-scholarship", "doc:institution-awards"],
-			trace_id: "trace-001",
-		});
 	});
 
 	it("rejects projection identity drift", () => {

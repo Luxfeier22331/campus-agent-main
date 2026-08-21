@@ -20,7 +20,6 @@
 		"native:test": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/configs/ingestion/**",
 				"$TURBO_ROOT$/configs/runtime/**",
 				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**"
 			]

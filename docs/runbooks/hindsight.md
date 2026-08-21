@@ -20,8 +20,8 @@ status: active
    所有权见 [Provider 与模型配置](../environment/providers.md)。
 3. 确认 Hindsight 自身的 PostgreSQL、LLM、embedding 和 reranker 配置由环境仓 Helm values
    提供，未从 app-api、Ops Web 或 execution-control 在线模型配置派生。
-4. 使用临时测试用户通过个人记忆接口验证 retain、recall 与删除路径；顶层 `/readyz` 不调用
-   Hindsight，也不能替代业务路径验证。
+4. `/readyz` 不调用 Hindsight，也不能替代业务路径验证；需要业务路径证据时，由环境所有者按需
+   选择实际入口执行。
 
 源码配置存在只证明仓库合同，不证明某个环境已部署或可用。
 
@@ -41,24 +41,11 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 已存在的 bank 不在每次操作中重复配置。recall 只读取已有 bank；bank 不存在时返回 no-match，
 不会因读取请求创建 bank。bootstrap 失败时本次写入失败。
 
-## 功能冒烟
+## 环境验证边界
 
-使用临时测试用户和可识别的合成文本，按产品接口验证完整路径：
-
-1. GET 个人记忆，确认 lifecycle 和 sync status 可读。
-2. 使用 `Idempotency-Key` 新增 item，确认返回 `202`、item 为 `saving`，随后 GET 收敛为
-   `synced`。
-3. 使用必须引用上述合成记忆的问题完成一轮聊天，确认 Agent Activity 内出现
-   `sdk_tool.execute.personal_memory_recall.1`，append 在 finalization 后同步 retain accepted user
-   message。
-4. pause 后发起同类新 turn，确认 `personal_memory_recall` 不可见且没有 recall step，append 投影
-   skipped；resume 后新 turn 恢复工具准入和 append。
-5. 删除 item，等待 sync 收敛后确认对应 profile document 不再通过 recall 返回。
-6. 执行账号全量删除，确认状态先进入 `erasing`，在代次隔离和 bank 删除确认完成后进入
-   `erased`。
-
-不要用 HTTP `202`、Temporal Schedule 存在或 UI 隐藏代替最终状态检查。测试结束后删除临时账号
-数据。
+本文不定义部署环境的产品冒烟流程。任务明确包含环境验证时，由环境仓和运行负责人按实际部署入口、
+认证方式和数据选择检查，并将结果记录在对应发布或故障事项。`/readyz` 只能证明服务就绪，不能替代
+个人记忆业务路径验证。
 
 ## 会话来源删除
 
@@ -66,7 +53,7 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 实现约束的有界批次执行；不存在的文档视为幂等成功。精确标识格式以个人记忆架构与实现为准。
 
 `DeleteDocument` 成功会同步删除该来源文档及其 memory units。后续 consolidation 属于 Hindsight
-内部维护，不由仓库轮询；可使用不会引入新来源的查询做人工冒烟，但不得建立自定义等待或恢复流程。
+内部维护，不由仓库轮询；可使用不会引入新来源的查询辅助排查，但不得建立自定义等待或恢复流程。
 
 ## 账号全量清除
 

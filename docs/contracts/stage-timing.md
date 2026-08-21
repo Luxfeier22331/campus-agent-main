@@ -78,7 +78,7 @@ Temporal history 或复制下游 trace 响应来补耗时字段。
 
 - app-api 将有效 `stage_timing.v1` 写入 request observability fact；
 - Ops Web 与其他受控诊断面可以显示分组耗时和关联入口，不渲染原始 trace tree；
-- 学习闭环可以按固定字段选择耗时异常，不复制 prompt、答案或供应商响应；
+- 评测和诊断可以按固定字段定位耗时异常，不复制 prompt、答案或供应商响应；
 - app-api 的 `request.finalized` event 使用相同的固定字段名发送有效耗时，并附带汇总 budget state
   与已允许 correlation 字段。该事件是产品终态事务时点的不可变快照，晚于终态完成的
   `stream.app_api_ttft_ms` 只回填 `runtime.request_observability_fact`，不补发第二条终态事件；

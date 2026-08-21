@@ -6,7 +6,7 @@ import {
 	sha256,
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import type { DocsReaderElement } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
-import { CHUNK_SET_DEFINITION, EMBEDDING_SPACE } from "../src/definitions.ts";
+import { CHUNK_SET_DEFINITION } from "../src/definitions.ts";
 import {
 	buildChunks,
 	buildCurrentIndexBinding,
@@ -639,11 +639,10 @@ describe("Campus docs indexing", () => {
 
 	it("produces stable fingerprints and bounded sparse vectors", async () => {
 		const index = `sha256:${"a".repeat(64)}` as const;
-		const first = buildCurrentIndexBinding(index, EMBEDDING_SPACE);
-		const second = buildCurrentIndexBinding(index, EMBEDDING_SPACE);
+		const first = buildCurrentIndexBinding(index);
+		const second = buildCurrentIndexBinding(index);
 		expect(first.collection).toMatch(/^campus_docs_[a-f0-9]{64}$/u);
 		expect(second).toEqual(first);
-		expect(first.embedding_space_id).toBe(EMBEDDING_SPACE.spaceId);
 		const sparse = buildSparseVector("培养方案 Course_101 course_101 课程 课程 ÄÖ");
 		expect(sparse).toEqual({
 			indices: [148423468, 272413536, 603158067, 919704991, 1116344764, 1145662860, 1154101346, 1767701743],

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -41,7 +41,12 @@ function readTrackedWorkspaceManifests(): WorkspaceManifest[] {
 		encoding: "utf8",
 	})
 		.split("\0")
-		.filter((relativePath) => relativePath && relativePath !== "package.json");
+		.filter(
+			(relativePath) =>
+				relativePath &&
+				relativePath !== "package.json" &&
+				existsSync(path.join(ROOT, relativePath)),
+		);
 
 	return paths.map((relativePath) => {
 		const manifest = readJson(relativePath);
@@ -184,8 +189,6 @@ test("candidate build tasks declare their package-external artifact inputs", () 
 			"$TURBO_ROOT$/packages/contracts/src/**",
 			"$TURBO_ROOT$/packages/domains/notices/package.json",
 			"$TURBO_ROOT$/packages/domains/notices/src/**",
-			"$TURBO_ROOT$/packages/ingest-core/package.json",
-			"$TURBO_ROOT$/packages/ingest-core/src/**",
 			"$TURBO_ROOT$/packages/ingestion-contracts/package.json",
 			"$TURBO_ROOT$/packages/ingestion-contracts/src/**",
 			"$TURBO_ROOT$/packages/internal-portal-client/package.json",

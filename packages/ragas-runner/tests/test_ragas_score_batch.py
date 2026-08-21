@@ -14,95 +14,82 @@ from campus_ragas_runner.score_batch import (
     RagasRunnerSettings,
     _score_with_official_ragas_metrics,
     build_ragas_scorer,
+    main,
     run_ragas_score_batch,
 )
 
-warnings.filterwarnings(
-    "ignore",
-    category=ResourceWarning,
-)
+warnings.filterwarnings("ignore", category=ResourceWarning)
+
+
+def sample_payload(**item_overrides: object) -> dict[str, object]:
+    item: dict[str, object] = {
+        "case_id": "case-001",
+        "user_input": "图书馆开放时间是什么？",
+        "response": "图书馆开放时间为 08:00 到 22:00。",
+        "retrieved_contexts": ["图书馆开放时间为 08:00-22:00。"],
+        "reference": "图书馆开放时间为 08:00-22:00。",
+        "metadata": {"surface_key": "app-api.chat"},
+    }
+    item.update(item_overrides)
+    return {
+        "schema_version": "ragas_sample_batch.v2",
+        "run_id": "ragas-smoke-001",
+        "items": [item],
+    }
 
 
 class RagasRunnerScoreBatchTest(unittest.TestCase):
-    def test_scores_safe_sample_batch_with_injected_scorer(self) -> None:
+    def test_scores_native_sample_batch_without_trace_identity(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             work_dir = Path(raw_dir)
             input_path = work_dir / "samples.json"
             output_path = work_dir / "scores.json"
-            input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_sample_batch.v1",
-                        "eval_run_id": "ragas-smoke-001",
-                        "items": [
-                            {
-                                "case_id": "case-001",
-                                "trace_id": "trace-001",
-                                "observation_id": "obs-001",
-                                "question": "图书馆开放时间是什么？",
-                                "answer": "图书馆开放时间为 08:00 到 22:00。",
-                                "contexts": ["图书馆开放时间为 08:00-22:00。"],
-                                "reference": "图书馆开放时间为 08:00-22:00。",
-                                "metadata": {"surface_key": "app-api.chat"},
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
+            input_path.write_text(json.dumps(sample_payload()), encoding="utf-8")
             captured: list[RagasProjection] = []
 
             def fake_scorer(projection: RagasProjection) -> tuple[RagasResult, ...]:
                 captured.append(projection)
-                return (
-                    RagasResult(metric_name="faithfulness", score=0.91),
-                    RagasResult(
-                        metric_name="context_recall",
-                        rationale="missing reference contexts",
-                    ),
-                )
+                return (RagasResult(metric_name="faithfulness", score=0.91),)
 
-            summary = run_ragas_score_batch(
+            output = run_ragas_score_batch(
                 input_path=input_path,
                 output_path=output_path,
                 scorer_factory=lambda: fake_scorer,
             )
 
-            self.assertEqual(summary, {"items": 1, "output_path": str(output_path)})
+            self.assertEqual(output["schema_version"], "ragas_score_batch.v2")
+            self.assertEqual(output["run_id"], "ragas-smoke-001")
             self.assertEqual(captured[0].user_input, "图书馆开放时间是什么？")
             self.assertEqual(captured[0].retrieved_contexts, ("图书馆开放时间为 08:00-22:00。",))
-            self.assertEqual(captured[0].metadata["trace_id"], "trace-001")
+            self.assertEqual(captured[0].metadata, {"surface_key": "app-api.chat"})
             payload = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["schema_version"], "ragas_score_batch.v1")
+            self.assertEqual(payload["schema_version"], "ragas_score_batch.v2")
             self.assertEqual(payload["items"][0]["scores"]["ragas.faithfulness"], 0.91)
-            self.assertEqual(
-                payload["items"][0]["errors"][0]["metric_name"], "ragas.context_recall"
-            )
+            self.assertNotIn("trace_id", payload["items"][0])
+            self.assertNotIn("observation_id", payload["items"][0])
 
-    def test_omits_missing_and_non_finite_scores_from_json_output(self) -> None:
+    def test_allows_empty_retrieval_contexts_as_an_evaluable_sample(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
-            work_dir = Path(raw_dir)
-            input_path = work_dir / "samples.json"
-            output_path = work_dir / "scores.json"
+            input_path = Path(raw_dir) / "samples.json"
             input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_sample_batch.v1",
-                        "eval_run_id": "ragas-non-finite-001",
-                        "items": [
-                            {
-                                "case_id": "case-001",
-                                "trace_id": "trace-001",
-                                "question": "What are the library opening hours?",
-                                "answer": "The library is open from 08:00 to 22:00.",
-                                "contexts": ["The library opening hours are 08:00-22:00."],
-                                "reference": "The library opening hours are 08:00-22:00.",
-                            }
-                        ],
-                    }
-                ),
+                json.dumps(sample_payload(retrieved_contexts=[])),
                 encoding="utf-8",
             )
+
+            captured: list[RagasProjection] = []
+
+            def fake_scorer(projection: RagasProjection) -> tuple[RagasResult, ...]:
+                captured.append(projection)
+                return ()
+
+            run_ragas_score_batch(input_path=input_path, scorer_factory=lambda: fake_scorer)
+            self.assertEqual(captured[0].retrieved_contexts, ())
+
+    def test_preserves_errors_and_omits_non_finite_scores(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_dir:
+            input_path = Path(raw_dir) / "samples.json"
+            output_path = Path(raw_dir) / "scores.json"
+            input_path.write_text(json.dumps(sample_payload()), encoding="utf-8")
 
             def fake_scorer(_projection: RagasProjection) -> tuple[RagasResult, ...]:
                 return (
@@ -116,7 +103,6 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                 output_path=output_path,
                 scorer_factory=lambda: fake_scorer,
             )
-
             raw_output = output_path.read_text(encoding="utf-8")
             payload = json.loads(raw_output)
             self.assertEqual(payload["items"][0]["scores"], {})
@@ -131,172 +117,63 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             self.assertNotIn("NaN", raw_output)
             self.assertNotIn("Infinity", raw_output)
 
-    def test_omits_reference_context_metrics_without_reference_answer(self) -> None:
+    def test_rejects_old_sample_contract_and_trace_fields(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
-            work_dir = Path(raw_dir)
-            input_path = work_dir / "samples.json"
-            output_path = work_dir / "scores.json"
+            input_path = Path(raw_dir) / "samples.json"
             input_path.write_text(
                 json.dumps(
                     {
                         "schema_version": "ragas_sample_batch.v1",
-                        "eval_run_id": "ragas-smoke-001",
-                        "items": [
-                            {
-                                "case_id": "case-001",
-                                "trace_id": "trace-001",
-                                "question": "What are the library opening hours?",
-                                "answer": "The library is open from 08:00 to 22:00.",
-                                "contexts": ["The library opening hours are 08:00-22:00."],
-                            }
-                        ],
+                        "run_id": "legacy",
+                        "items": [],
                     }
                 ),
                 encoding="utf-8",
             )
-            captured: list[RagasProjection] = []
-
-            def fake_scorer(projection: RagasProjection) -> tuple[RagasResult, ...]:
-                captured.append(projection)
-                return (RagasResult(metric_name="faithfulness", score=0.91),)
-
-            run_ragas_score_batch(
-                input_path=input_path,
-                output_path=output_path,
-                scorer_factory=lambda: fake_scorer,
-            )
-
-            self.assertEqual(
-                captured[0].metadata["metric_applicability"],
-                {"context_precision": False, "context_recall": False},
-            )
-            payload = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(
-                payload["items"][0]["errors"],
-                [
-                    {
-                        "metric_name": "ragas.context_precision",
-                        "reason": "missing reference answer for context_precision",
-                    },
-                    {
-                        "metric_name": "ragas.context_recall",
-                        "reason": "missing reference answer for context_recall",
-                    },
-                ],
-            )
-
-    def test_rejects_forbidden_fields(self) -> None:
-        with tempfile.TemporaryDirectory() as raw_dir:
-            work_dir = Path(raw_dir)
-            input_path = work_dir / "samples.json"
-            output_path = work_dir / "scores.json"
-            input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_sample_batch.v1",
-                        "eval_run_id": "ragas-smoke-001",
-                        "items": [
-                            {
-                                "case_id": "case-001",
-                                "trace_id": "trace-001",
-                                "question": "What are the library opening hours?",
-                                "answer": "The library is open from 08:00 to 22:00.",
-                                "contexts": ["The library opening hours are 08:00-22:00."],
-                                "raw_prompt": "do not accept sink payloads here",
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
-
-            with self.assertRaisesRegex(ValueError, "case-001.raw_prompt is forbidden"):
+            with self.assertRaisesRegex(ValueError, "ragas_sample_batch.v2"):
                 run_ragas_score_batch(
                     input_path=input_path,
-                    output_path=output_path,
                     scorer_factory=lambda: lambda _projection: (),
                 )
 
-    def test_rejects_multimodal_resource_fields(self) -> None:
-        with tempfile.TemporaryDirectory() as raw_dir:
-            work_dir = Path(raw_dir)
-            input_path = work_dir / "samples.json"
-            output_path = work_dir / "scores.json"
             input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_sample_batch.v1",
-                        "eval_run_id": "ragas-smoke-001",
-                        "items": [
-                            {
-                                "case_id": "case-001",
-                                "trace_id": "trace-001",
-                                "question": "What are the library opening hours?",
-                                "answer": "The library is open from 08:00 to 22:00.",
-                                "contexts": ["The library opening hours are 08:00-22:00."],
-                                "image_url": "https://example.test/proof.png",
-                            }
-                        ],
-                    }
-                ),
+                json.dumps(sample_payload(trace_id="must-not-cross-boundary")),
                 encoding="utf-8",
             )
-
-            with self.assertRaisesRegex(ValueError, "case-001.image_url is forbidden"):
+            with self.assertRaisesRegex(ValueError, "trace_id"):
                 run_ragas_score_batch(
                     input_path=input_path,
-                    output_path=output_path,
                     scorer_factory=lambda: lambda _projection: (),
                 )
 
-    def test_rejects_url_or_file_references_in_text_fields(self) -> None:
+    def test_stdout_is_the_structured_default_output(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
-            work_dir = Path(raw_dir)
-            input_path = work_dir / "samples.json"
-            output_path = work_dir / "scores.json"
-            input_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "ragas_sample_batch.v1",
-                        "eval_run_id": "ragas-smoke-001",
-                        "items": [
-                            {
-                                "case_id": "case-001",
-                                "trace_id": "trace-001",
-                                "question": "What are the library opening hours?",
-                                "answer": "The library is open from 08:00 to 22:00.",
-                                "contexts": ["file:///tmp/proof.txt"],
-                            }
-                        ],
-                    }
+            input_path = Path(raw_dir) / "samples.json"
+            input_path.write_text(json.dumps(sample_payload()), encoding="utf-8")
+            with (
+                patch(
+                    "campus_ragas_runner.score_batch.run_ragas_score_batch",
+                    return_value={
+                        "schema_version": "ragas_score_batch.v2",
+                        "run_id": "run-001",
+                        "items": [],
+                    },
                 ),
-                encoding="utf-8",
-            )
-
-            with self.assertRaisesRegex(
-                ValueError, "case-001.contexts\\[0\\] must not be a URL or file reference"
+                patch("builtins.print") as printer,
             ):
-                run_ragas_score_batch(
-                    input_path=input_path,
-                    output_path=output_path,
-                    scorer_factory=lambda: lambda _projection: (),
+                self.assertEqual(
+                    main(
+                        [
+                            "--input",
+                            str(input_path),
+                            "--provider-config",
+                            str(input_path),
+                        ]
+                    ),
+                    0,
                 )
-
-    def test_rejects_embedding_dimensions_until_supported_by_ragas_provider(self) -> None:
-        settings = RagasRunnerSettings(
-            llm_api_key="sk-test",
-            llm_model="gpt-4o-mini",
-            llm_base_url=None,
-            embedding_api_key="sk-test",
-            embedding_model="text-embedding-3-small",
-            embedding_base_url=None,
-            embedding_dimensions=1536,
-            timeout_seconds=180,
-            max_workers=1,
-        )
-
-        with self.assertRaisesRegex(ValueError, "embedding_dimensions is not supported"):
-            build_ragas_scorer(settings)
+            printed = printer.call_args.args[0]
+            self.assertEqual(json.loads(printed)["schema_version"], "ragas_score_batch.v2")
 
     def test_closes_async_clients_inside_each_scoring_event_loop(self) -> None:
         settings = RagasRunnerSettings(
@@ -306,16 +183,13 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             embedding_api_key="sk-test",
             embedding_model="text-embedding-3-small",
             embedding_base_url=None,
-            embedding_dimensions=None,
             timeout_seconds=180,
-            max_workers=1,
         )
         projection = RagasProjection(
             case_id="case-001",
             user_input="What are the library opening hours?",
             response="The library is open from 08:00 to 22:00.",
             retrieved_contexts=("The library opening hours are 08:00-22:00.",),
-            reference="The library opening hours are 08:00-22:00.",
         )
         clients: list[FakeAsyncOpenAI] = []
 
@@ -355,7 +229,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             user_input="What are the library opening hours?",
             response="The library is open from 08:00 to 22:00.",
             retrieved_contexts=("The library opening hours are 08:00-22:00.",),
-            reference="The library opening hours are 08:00-22:00.",
+            reference="The library is open from 08:00 to 22:00.",
         )
         calls: list[tuple[object, ...]] = []
 
@@ -389,6 +263,144 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                 )
             ],
         )
+
+    def test_reports_empty_context_and_skips_reference_metrics_without_reference(self) -> None:
+        projection = RagasProjection(
+            case_id="case-001",
+            user_input="What are the library opening hours?",
+            response="The library is open from 08:00 to 22:00.",
+            retrieved_contexts=(),
+        )
+        calls: list[str] = []
+
+        class FakeAnswerRelevancy:
+            def __init__(self, *, llm: object, embeddings: object, strictness: int) -> None:
+                del llm, embeddings, strictness
+
+            async def ascore(self, *_args: object) -> float:
+                calls.append("answer_relevancy")
+                return 0.7
+
+        class UnexpectedContextMetric:
+            def __init__(self, **_kwargs: object) -> None:
+                raise AssertionError("context metrics must not be constructed for empty contexts")
+
+        with (
+            patch("ragas.metrics.collections.Faithfulness", UnexpectedContextMetric),
+            patch("ragas.metrics.collections.AnswerRelevancy", FakeAnswerRelevancy),
+            patch("ragas.metrics.collections.ContextPrecision", UnexpectedContextMetric),
+            patch("ragas.metrics.collections.ContextRecall", UnexpectedContextMetric),
+        ):
+            results = asyncio.run(
+                _score_with_official_ragas_metrics(
+                    projection,
+                    metric_names=(
+                        "faithfulness",
+                        "answer_relevancy",
+                        "context_precision",
+                        "context_recall",
+                    ),
+                    llm=object(),
+                    embeddings=object(),
+                )
+            )
+
+        self.assertEqual(calls, ["answer_relevancy"])
+        self.assertEqual(
+            [result.metric_name for result in results],
+            ["faithfulness", "answer_relevancy"],
+        )
+        self.assertIsNone(results[0].score)
+        self.assertEqual(results[0].rationale, "retrieved_contexts is empty")
+
+    def test_reports_empty_context_for_reference_metrics(self) -> None:
+        projection = RagasProjection(
+            case_id="case-001",
+            user_input="What are the library opening hours?",
+            response="The library is open from 08:00 to 22:00.",
+            retrieved_contexts=(),
+            reference="The library is open from 08:00 to 22:00.",
+        )
+        calls: list[str] = []
+
+        class FakeAnswerRelevancy:
+            def __init__(self, *, llm: object, embeddings: object, strictness: int) -> None:
+                del llm, embeddings, strictness
+
+            async def ascore(self, *_args: object) -> float:
+                calls.append("answer_relevancy")
+                return 0.7
+
+        class UnexpectedContextMetric:
+            def __init__(self, **_kwargs: object) -> None:
+                raise AssertionError("context metrics must not be constructed for empty contexts")
+
+        with (
+            patch("ragas.metrics.collections.Faithfulness", UnexpectedContextMetric),
+            patch("ragas.metrics.collections.AnswerRelevancy", FakeAnswerRelevancy),
+            patch("ragas.metrics.collections.ContextPrecision", UnexpectedContextMetric),
+            patch("ragas.metrics.collections.ContextRecall", UnexpectedContextMetric),
+        ):
+            results = asyncio.run(
+                _score_with_official_ragas_metrics(
+                    projection,
+                    metric_names=(
+                        "faithfulness",
+                        "answer_relevancy",
+                        "context_precision",
+                        "context_recall",
+                    ),
+                    llm=object(),
+                    embeddings=object(),
+                )
+            )
+
+        self.assertEqual(calls, ["answer_relevancy"])
+        self.assertEqual(
+            [result.metric_name for result in results],
+            ["faithfulness", "answer_relevancy", "context_precision", "context_recall"],
+        )
+        self.assertEqual(results[1].score, 0.7)
+        self.assertEqual(
+            [result.rationale for result in results if result.score is None],
+            ["retrieved_contexts is empty"] * 3,
+        )
+
+    def test_empty_context_error_does_not_stop_later_batch_items(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_dir:
+            input_path = Path(raw_dir) / "samples.json"
+            empty_item = sample_payload(retrieved_contexts=[])["items"][0]
+            normal_item = sample_payload()["items"][0]
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "ragas_sample_batch.v2",
+                        "run_id": "ragas-smoke-001",
+                        "items": [empty_item, {**normal_item, "case_id": "case-002"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_scorer(projection: RagasProjection) -> tuple[RagasResult, ...]:
+                if not projection.retrieved_contexts:
+                    return (
+                        RagasResult(
+                            metric_name="faithfulness", rationale="retrieved_contexts is empty"
+                        ),
+                    )
+                return (RagasResult(metric_name="faithfulness", score=0.9),)
+
+            output = run_ragas_score_batch(
+                input_path=input_path,
+                scorer_factory=lambda: fake_scorer,
+            )
+
+        items = output["items"]
+        self.assertEqual([item["case_id"] for item in items], ["case-001", "case-002"])
+        self.assertEqual(items[0]["scores"], {})
+        self.assertEqual(items[0]["errors"][0]["reason"], "retrieved_contexts is empty")
+        self.assertEqual(items[1]["scores"], {"ragas.faithfulness": 0.9})
 
 
 if __name__ == "__main__":

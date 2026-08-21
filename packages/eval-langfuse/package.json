@@ -4,9 +4,6 @@
 	"private": true,
 	"description": "TypeScript Langfuse eval platform integration for campus-agent.",
 	"type": "module",
-	"exports": {
-		".": "./src/index.ts"
-	},
 	"bin": {
 		"campus-langfuse": "./src/cli.ts"
 	},

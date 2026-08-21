@@ -29,7 +29,6 @@
 		"src/**/*.ts",
 		"test-support/**/*.ts",
 		"test/**/*.ts",
-		"e2e/**/*.ts",
 		"ops/**/*.ts",
 		"vitest*.config.mts",
 		"drizzle.config.ts"

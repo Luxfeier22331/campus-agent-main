@@ -195,7 +195,6 @@ export async function planCandidates(
 		) ||
 		files.some((file) =>
 			[
-				"configs/ingestion/",
 				"configs/runtime/tool-function-schemas.v3.json",
 				"configs/runtime/tools.v6.json",
 				"packages/contracts/fixtures/tool_execution_contract/",

@@ -9,7 +9,6 @@ on:
         type: choice
         options:
           - go
-          - rust
           - ragas
           - app-api-migration
           - app-api-product-db

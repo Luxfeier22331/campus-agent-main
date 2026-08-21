@@ -25,7 +25,6 @@ import {
 import type {
 	CampusDocsPointPayload,
 	CurrentIndexBinding,
-	EmbeddingSetManifest,
 	IndexChunk,
 	IndexPoint,
 	IndexingSource,
@@ -171,17 +170,10 @@ export function buildChunks(input: {
 
 export function buildCurrentIndexBinding(
 	index: Sha256Ref,
-	embeddingSpace: EmbeddingSetManifest["embeddingSpace"],
 ): CurrentIndexBinding {
 	const digest = index.slice("sha256:".length);
 	return {
 		collection: `${INDEX_COLLECTION_PREFIX}_${digest}`,
-		dense_vector_name: COLLECTION_DEFINITION.dense.vectorName,
-		embedding_dimensions: embeddingSpace.dimensions,
-		embedding_query_instruction: COLLECTION_DEFINITION.dense.queryInstruction,
-		embedding_space_id: embeddingSpace.spaceId,
-		sparse_model: COLLECTION_DEFINITION.sparse.model,
-		sparse_vector_name: COLLECTION_DEFINITION.sparse.vectorName,
 	};
 }
 

@@ -21,7 +21,6 @@
 		"campus-contracts": "workspace:*",
 		"content-disposition": "^2.0.1",
 		"dotenv": "^17.4.2",
-		"ingest-core": "workspace:*",
 		"ingestion-contracts": "workspace:*",
 		"jsdom": "^27.4.0",
 		"mime-types": "^3.0.2",

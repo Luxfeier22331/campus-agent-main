@@ -64,26 +64,6 @@
 			"outputLogs": "new-only",
 			"outputs": []
 		},
-		"ingest-core#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/ingestion/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"ingestion-control#test": {
-			"dependsOn": ["^test"],
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"!README.md",
-				"!**/README.md",
-				"$TURBO_ROOT$/configs/ingestion/**"
-			],
-			"outputLogs": "new-only"
-		},
 		"internal-portal-collection#test": {
 			"dependsOn": ["^test"],
 			"inputs": [

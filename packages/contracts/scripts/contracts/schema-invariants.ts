@@ -61,18 +61,14 @@ function validateLatencyBudgetInvariants(path: string, instance: unknown): void 
 	if (!Array.isArray(rules)) {
 		throw new Error(`${relativePath(path)} rules must be a list`);
 	}
-	const enabledFields = new Set<string>();
-	const reasons = new Set<string>();
+	const fields = new Set<string>();
 	for (const [index, rule] of rules.entries()) {
 		if (!isRecord(rule)) {
 			throw new Error(`${relativePath(path)} rules[${index}] must be an object`);
 		}
 		const field = rule.field;
-		const reason = rule.candidate_reason;
-		if (typeof field !== "string" || typeof reason !== "string") {
-			throw new Error(
-				`${relativePath(path)} rules[${index}] must declare field and candidate_reason`,
-			);
+		if (typeof field !== "string") {
+			throw new Error(`${relativePath(path)} rules[${index}] must declare field`);
 		}
 		if (!canonicalStageFields.has(field)) {
 			throw new Error(`${relativePath(path)} rules[${index}] field is not canonical: ${field}`);
@@ -85,22 +81,16 @@ function validateLatencyBudgetInvariants(path: string, instance: unknown): void 
 				`${relativePath(path)} rules[${index}] critical_ms must be greater than warn_ms`,
 			);
 		}
-		if (reasons.has(reason)) {
-			throw new Error(`${relativePath(path)} duplicate candidate_reason: ${reason}`);
+		if (fields.has(field)) {
+			throw new Error(`${relativePath(path)} duplicate latency budget field: ${field}`);
 		}
-		reasons.add(reason);
-		if (rule.enabled === true) {
-			if (enabledFields.has(field)) {
-				throw new Error(`${relativePath(path)} duplicate enabled latency budget field: ${field}`);
-			}
-			enabledFields.add(field);
-		}
+		fields.add(field);
 	}
 	assertSetEquals(
 		path,
-		enabledFields,
+		fields,
 		canonicalStageFields,
-		"enabled latency budget fields must exactly cover canonical stage_timing fields",
+		"latency budget fields must exactly cover canonical stage_timing fields",
 	);
 }
 

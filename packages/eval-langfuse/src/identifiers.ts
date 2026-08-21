@@ -1,15 +1,6 @@
 import { createHash } from "node:crypto";
-import { isRecord } from "./json";
 
 export function sha256Text(value: string): string {
-	return createHash("sha256").update(value).digest("hex");
-}
-
-export function sha256Json(value: unknown): string {
-	return sha256Text(JSON.stringify(value, Object.keys(isRecord(value) ? value : {}).sort()));
-}
-
-export function sha256Bytes(value: Buffer): string {
 	return createHash("sha256").update(value).digest("hex");
 }
 

@@ -44,14 +44,7 @@
 		"LatencyBudgetRule": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"field",
-				"warn_ms",
-				"critical_ms",
-				"candidate_reason",
-				"candidate_category",
-				"enabled"
-			],
+			"required": ["field", "warn_ms", "critical_ms"],
 			"properties": {
 				"field": {
 					"$ref": "#/$defs/StageTimingField"
@@ -63,16 +56,6 @@
 				"critical_ms": {
 					"type": "integer",
 					"minimum": 1
-				},
-				"candidate_reason": {
-					"type": "string",
-					"pattern": "^[a-z0-9_]+$"
-				},
-				"candidate_category": {
-					"const": "model_provider_or_latency_budget_fix"
-				},
-				"enabled": {
-					"type": "boolean"
 				}
 			}
 		}

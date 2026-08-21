@@ -5,6 +5,7 @@ decision_id: ADR-0089
 status: accepted
 supersedes: ADR-0077
 partially_supersedes: ADR-0024
+partially_superseded_by: ADR-0091
 ---
 
 # ADR-0089 简化采集控制面与内部门户凭据所有权
@@ -39,6 +40,9 @@ Temporal workflow。另一方面，TGC 曾由 Ops Web 同时承担页面、数�
 当前采集链路只有显式 CLI/Job 进程，没有第二套持久任务状态。Ops Web 回到 UI/BFF 边界，凭据健康和
 采集解析归 ingestion-control。线上 Job 与本地 CLI 必须继续共用采集实现；不得恢复通用任务控制面作为
 默认前提。
+
+ADR-0091 进一步退役了本 ADR 当时保留但没有消费者的 Rust 分块栈和 canonical/retrieval 合同；对象
+存储辅助能力与本文的采集控制面结论不受影响。
 
 ## 相关文档
 

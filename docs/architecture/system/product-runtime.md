@@ -63,10 +63,10 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - 会话、消息和轮次派发：`apps/app-api`；
 - 工作流 run、event、step、tool 和 memory 投影：`apps/execution-control`；
 - 完整 Temporal history：Temporal；
-- Agent 模型调用链与评测：Langfuse；
+- Agent 模型和工具调用 trace：Langfuse；
+- 离线评测输入与结果：调用方和所属评分器；需要关联运行时再把 score 发布到 Langfuse；
 - 有界 application logs：Axiom；
 - browser/edge 错误、生产 browser 采样性能、release 和 source map：Sentry；
-- Agent 模型和工具受信任 trace：单一 Langfuse project；
 - 个人记忆：Hindsight，仅由 execution-control Activity 调用；
 - 产品可用性快照和有限时间线：`status-web` 所属的 Cloudflare KV namespace；不写入原始探测
   响应、Langfuse trace 或数据库记录。

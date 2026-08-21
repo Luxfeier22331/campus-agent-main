@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 本文定义本地和部署环境配置的分层规则。供应商与 Secret 所有权见
-[Provider 与 Secret](./providers.md)，健康、就绪和环境验收的证据边界见
+[Provider 与 Secret](./providers.md)，健康、就绪和环境交接的证据边界见
 [测试与验证](../reference/verification.md)。精确变量由
 所属应用模板、配置解析器和部署清单维护。
 
@@ -35,7 +35,7 @@ status: active
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。进程环境优先于应用文件，因此外部供应商凭据应由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
-CAPTCHA 插件。staging 和 production 仍必须提供配套的 Turnstile site key 与 secret key。
+CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实际选择决定。
 
 internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的本地对象存储配置，以及
 `internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令保留其他托管

@@ -13,7 +13,7 @@ status: active
 目标边界见所属架构文档。
 
 证据优先级为同行评议论文、框架官方工程材料和仓库自身评测。外部数据集收益不能替代 Campus Agent
-的真实问题集、延迟分布和人工评审。
+实际需要验证的问题和延迟分布；需要人工标注校准时由具体评测任务决定。
 
 ## 自适应检索与工具循环
 
@@ -40,8 +40,8 @@ status: active
 | [SWE-agent](https://proceedings.neurips.cc/paper_files/paper/2024/hash/5a7c947568c1b1328ccc5230172e1e7c-Abstract-Conference.html) | 工具接口会显著影响 Agent 行为 | 应先改进工具合同，而不是增加包装 |
 | [AgentBench](https://openreview.net/forum?id=zAdUB0aCTQ) | 长程决策和指令遵循仍是主要失败来源 | 轮次、期限和停止条件必须可验证 |
 | [ALCE](https://aclanthology.org/2023.emnlp-main.398/) | 答案质量和引用支持需要分别评价 | 引用存在不表示所有主张获支持 |
-| [ARES](https://aclanthology.org/2024.naacl-long.20/) | RAG 应分别评价上下文和答案 | 自动评审仍需人工标注校准 |
-| [RAGChecker](https://papers.nips.cc/paper_files/paper/2024/hash/27245589131d17368cccdfa990cbf16e-Abstract-Datasets_and_Benchmarks_Track.html) | 应分别诊断召回与生成 | 指标必须通过正式适配器接入 |
+| [ARES](https://aclanthology.org/2024.naacl-long.20/) | RAG 应分别评价上下文和答案 | 自动评审可按评测风险使用人工标注校准 |
+| [RAGChecker](https://papers.nips.cc/paper_files/paper/2024/hash/27245589131d17368cccdfa990cbf16e-Abstract-Datasets_and_Benchmarks_Track.html) | 应分别诊断召回与生成 | 只有真实评测任务和可执行 scorer 存在时才引入指标 |
 
 ## 上下文
 

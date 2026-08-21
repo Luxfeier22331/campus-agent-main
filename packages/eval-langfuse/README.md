@@ -1,22 +1,21 @@
 # eval-langfuse
 
-TypeScript 评测编排、数据集和 Langfuse 平台适配 package。
+TypeScript Agent 用例、产品路径评测和 Langfuse trace/score 适配 package。
 
 ## 职责
 
-- 维护仓库评测数据集与 score 注册表；
-- 同步 Langfuse datasets 和 score configs；
-- 执行 Agent 工具选择评测与 RAG 数据集评测；
-- 从 Langfuse trace 选择样本并发布 Ragas score；
-- 核对在线 trace 的 release、session、用户和产品关联信息；
-- 调用 `packages/ragas-runner` 执行 Ragas 官方指标。
+- 读取调用方显式提供的 Agent 用例；
+- 手动通过真实 App API 执行 Agent case，读取完成 run 的评测投影；
+- 构造不含平台字段的 `ragas_sample_batch.v2`，调用 `packages/ragas-runner`，并把允许的 score
+  适配到真实 trace；
+- 校验在线 trace 的 release、session、用户和产品关联信息；
+- 维护代码级 Langfuse score allowlist，不同步第二份 score registry。
 
-本 package 不实现自研 RAG 指标，不参与在线 Agent 执行，也不从 execution-control 的在线 Provider
-Config 推导评测配置。
+本 package 不实现自研 RAG 指标，不参与在线 Agent 执行，不从普通 trace 或 Langfuse 反查 RAG 正文，
+也不同步 Langfuse dataset。离线 Ragas 的 native 输入由调用方或产品路径适配器显式生成。
 
-外部消费者使用 package 根入口；package 内部按 JSON 处理、环境设置、HTTP 访问和标识生成等职责
-直接导入 leaf module。`shared` 只保留既有兼容导出，不作为新增实现的依赖入口。测试按数据集、score
-发布、Ragas pipeline、trace 身份和在线证据等行为域组织。
+本 package 只提供 CLI，不维护无消费者的 package 根导出。内部和测试按 Agent 用例、产品执行、score
+发布、Ragas 适配、trace 身份和在线证据等行为域直接导入所属模块。
 
 ```bash
 pnpm --dir packages/eval-langfuse typecheck
@@ -24,4 +23,4 @@ pnpm --dir packages/eval-langfuse test
 pnpm --dir packages/eval-langfuse exec tsx src/cli.ts <command> --json
 ```
 
-命令和环境输入见 `docs/runbooks/ragas.md`，数据集与 score 约定见 `docs/reference/eval.md`。
+命令和环境输入见 `docs/runbooks/ragas.md`，用例与 score 约定见 `docs/reference/eval.md`。

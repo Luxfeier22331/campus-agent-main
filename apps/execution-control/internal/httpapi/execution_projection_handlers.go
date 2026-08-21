@@ -267,6 +267,7 @@ func durableRunResponse(run execution.DurableRun) map[string]any {
 		"surface":              run.Surface,
 		"status":               string(run.Status),
 		"task_queue":           run.TaskQueue,
+		"final_response_ref":   run.FinalResponseRef,
 		"terminal_reason":      string(run.TerminalReason),
 		"fail_close_reason":    run.FailCloseReason,
 		"created_at":           formatOptionalTime(run.CreatedAt),

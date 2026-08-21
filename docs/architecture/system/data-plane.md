@@ -20,9 +20,7 @@ status: active
 | `jobs/notice-classifier` | 读取通知来源标题并写入单通知分类制品 | 正文清洗、门户栏目判断、数据库写入、自动调度 |
 | `jobs/notice-publisher` | 校验来源、清洗正文、显式写入规范化通知和 derived 资源 | 定时采集、分类、在线读取 |
 | `packages/internal-portal-client` | CAS 跳转、门户 Cookie 会话、TGC 校验和错误分类 | 配置、凭据存储和采集业务 |
-| `packages/ingestion-contracts` | 当前来源、canonical 与 retrieval JSON 合同 | 任务注册表、工作流和供应商客户端 |
-| `packages/ingest-core` | 对象 key、摘要和来源辅助能力 | 调度、数据库和门户实现 |
-| `packages/ingestion-kernels-rs` | 可独立调用的确定性校验与分块 kernels | 网络、数据库、对象存储和工作流编排 |
+| `packages/ingestion-contracts` | 当前来源对象与同步边界 JSON 合同 | 任务注册表、工作流和供应商客户端 |
 
 ## 通知采集
 
@@ -63,23 +61,21 @@ endpoint 通过内部 HTTP 管理这些记录；internal-portal-collection 只�
 
 - PostgreSQL：`ingestion_control.internal_portal_credentials` 和 `notices.*`，由不同角色所有；
 - source bucket：门户通知、资源、边界状态、文件发布原始文件和 `source.json`；
-- derived bucket：通知分类制品、通知清洗后的内容寻址资源，以及显式运行 Rust kernel 产生的确定性输出；
+- derived bucket：通知分类制品、通知清洗后的内容寻址资源和所属 Job 的不可变派生制品；
 - Temporal：只服务 execution-control 的在线执行，不再承载 ingestion 采集。
 
 ## 在线检索边界
 
-规范文档单元可以显式调用 Rust kernel 生成确定性的 `retrieval_chunk_set.v2`。这些产物仍属于独立
-ingestion 数据面，不是当前 Campus Docs RAG publisher 的输入，也不会自动写入 Qdrant 或推进在线
-索引。
-
 当前文档检索只消费 Campus Web 已清洗的 `campus-docs/source.json` 和当前 reader。通知来源对象、
-内部门户文件、canonical 单元和 Rust 检索分块都不能绕过该输入边界直接进入在线索引。
+内部门户文件和其他采集产物都不能绕过该输入边界直接进入在线索引。分块、Embedding 和索引发布由
+Campus Docs 所属的三个显式 Job 分别完成，并通过内容寻址制品交接。
 
 部署清单存在只表示期望状态；实际运行以环境仓选择和控制器状态为准。
 
 ## 相关文档
 
 - `docs/decisions/adr-0002-object-storage.md`
+- `docs/decisions/adr-0091-retire-document-chunking-stack.md`
 - `docs/decisions/adr-0089-internal-portal-credential-resolution.md`
 - `docs/data/internal-portal.md`
 - `docs/data/notices.md`

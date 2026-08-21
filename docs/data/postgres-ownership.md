@@ -14,6 +14,10 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 
 ## 角色
 
+下表是当前实现中的权限主体清单，不是“每个运行时必须一个角色”的通用规则。角色按数据所有权、
+信任边界和生命周期决定；同一边界可以共享角色，只有存在独立授权或运维边界时才拆分。调整现有
+角色、schema 或 Secret 属于独立的数据库/环境实施任务，本文件的治理规则不自动改变当前部署。
+
 | 角色 | 运行所有者 | 权限边界 |
 | --- | --- | --- |
 | `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
@@ -21,7 +25,6 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `execution_control` | `apps/execution-control` | 执行投影、模型配置读写和 Campus Docs 检索准入 |
 | `ingestion_control` | `apps/ingestion-control` | 内部门户凭据池读写 |
 | `notice_publisher` | `jobs/notice-publisher` | 规范化通知写入 |
-| `campus_docs_index_publisher` | `jobs/campus-docs-index-publisher` | Campus Docs 当前索引单行绑定替换 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户 automation token 读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
@@ -41,7 +44,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
 | `execution_control.model_settings` | execution-control 配置管理 | execution-control |
-| `campus_docs_serving.current_index` | Campus Docs index publisher | execution-control、Campus Docs index publisher |
+| `campus_docs_serving.current_index` | execution-control（由 Campus Docs 发布任务写入） | execution-control |
 | `ingestion_control.internal_portal_credentials` | ingestion-control | ingestion-control；Ops Web 与 internal-portal-collection 通过内部 API |
 | `notices.*` | notice-publisher | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
@@ -55,10 +58,9 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 `drizzle.app_api_migrations` 这一条 ledger 迁移；Better Auth 运行时不执行 DDL，也不维护第二条
 migration 记录。
 
-Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campus Docs index publisher 使用专用角色
-替换 `campus_docs_serving.current_index` 单行绑定，不访问产品 schema；execution-control 只读该表。
-该角色的 Secret 只保存 `username` / `password`，数据库地址、库名和 TLS 参数复用 schema workload 的
-标准 `PG*` ConfigMap，不创建第二套数据库 URL 合同。
+Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs 发布任务复用
+`execution_control` 数据库身份替换 `campus_docs_serving.current_index` 单行绑定；在线查询也由
+execution-control 读取该表。发布任务不创建独立数据库角色、连接字符串或 Secret。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 
 ## 迁移合同
@@ -102,8 +104,8 @@ Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campu
 - schema Job 必须校验上述固定角色的有效权限。常驻 execution-control 的运行投影和个人记忆
   状态健康检查必须实际读取所属表，不能用 PostgreSQL catalog 可见性代替运行角色的数据访问能力；
 - 在线模型配置只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
-- `campus_docs_index_publisher` 对 `campus_docs_serving.current_index` 只有 `SELECT`、`INSERT`、
-  `UPDATE`；`execution_control` 对该表只有 `SELECT`；
+- `execution_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
+  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；发布任务复用该身份；
 - `execution_control.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
   该 Job 使用环境仓交付的 schema-install DSN、新的 `encryption.key`，以及仅在历史密文迁移时使用的
   旧 provider keyring；常驻 runtime 只使用 `execution_control` DSN 和 `encryption.key`，不执行迁移。
@@ -116,8 +118,9 @@ Campus Web 静态文档发布只使用对象存储和构建产物。独立 Campu
   完成该清理。
 - Goose v5 在已移动的 `execution_control.model_settings` 上暂时新增 `embedding_space_id`，并创建
   `campus_docs_serving.current_index`；Goose v6 删除模型设置中的向量字段以及当前索引中的
-  `embedding_model`、`embedding_provider`；Goose v7 规范现有 Embedding 设置并要求重新验证。已应用
-  v3 的数据库通过 v4 至 v7 顺序升级，不会重跑或改写 v3。
+  `embedding_model`、`embedding_provider`；Goose v7 规范现有 Embedding 设置并要求重新验证；Goose
+  v9 删除当前索引中剩余的查询定义字段，只保留 `singleton` 和 `collection`。已应用 v3 的数据库通过
+  v4 至 v9 顺序升级，不会重跑或改写历史 migration。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和领域业务表，不能读取

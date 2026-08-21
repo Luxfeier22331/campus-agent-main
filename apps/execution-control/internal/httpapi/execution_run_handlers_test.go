@@ -39,6 +39,10 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
+	body := decodeBody(t, response)
+	if finalResponseRef, ok := body["final_response_ref"].(string); !ok || finalResponseRef != "" {
+		t.Fatalf("final_response_ref = %#v, want empty string for a non-terminal run", body["final_response_ref"])
+	}
 	run, err := store.GetRun(context.Background(), "run-temporal-001")
 	if err != nil {
 		t.Fatalf("get run projection: %v", err)

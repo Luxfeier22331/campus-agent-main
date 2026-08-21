@@ -5,15 +5,14 @@ import asyncio
 import json
 import math
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 os.environ.setdefault("RAGAS_DO_NOT_TRACK", "true")
 
+from campus_ragas_runner.provider_config import load_provider_profiles
 from campus_ragas_runner.score_batch import (
-    _assert_no_forbidden_fields,
-    _load_runtime_config,
     _optional_mapping,
     _optional_str,
     _qualify_metric_name,
@@ -22,9 +21,13 @@ from campus_ragas_runner.score_batch import (
     _scalar_or_none,
 )
 
-AGENT_SAMPLE_BATCH_SCHEMA_VERSION = "ragas_agent_sample_batch.v1"
-AGENT_SCORE_BATCH_SCHEMA_VERSION = "ragas_agent_score_batch.v1"
-DEFAULT_AGENT_METRIC_NAMES = ("tool_call_accuracy", "tool_call_f1")
+AGENT_SAMPLE_BATCH_SCHEMA_VERSION = "ragas_agent_sample_batch.v2"
+AGENT_SCORE_BATCH_SCHEMA_VERSION = "ragas_agent_score_batch.v2"
+AGENT_METRIC_NAMES = (
+    "tool_call_accuracy",
+    "tool_call_f1",
+    "agent_goal_accuracy_with_reference",
+)
 ARGUMENT_MODES = frozenset({"name_only", "eval_safe_args"})
 
 
@@ -45,73 +48,50 @@ class RagasAgentResult:
     metric_name: str
     score: float | None = None
     rationale: str = ""
-    metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
 class RagasAgentRunnerSettings:
-    llm_api_key: str | None
-    llm_model: str | None
+    llm_api_key: str
+    llm_model: str
     llm_base_url: str | None
     timeout_seconds: int
-    metric_names: tuple[str, ...] = DEFAULT_AGENT_METRIC_NAMES
 
     @classmethod
-    def from_sources(
-        cls,
-        *,
-        runtime_config_path: Path | None = None,
-    ) -> RagasAgentRunnerSettings:
-        config = _load_runtime_config(runtime_config_path)
+    def from_sources(cls, *, provider_config_path: Path) -> RagasAgentRunnerSettings:
+        profile = load_provider_profiles(
+            provider_config_path,
+            required_roles=("eval_judge_llm",),
+        )["eval_judge_llm"]
         return cls(
-            llm_api_key=_optional_setting(
-                "llm_api_key",
-                config=config,
-            ),
-            llm_model=_optional_setting(
-                "llm_model",
-                config=config,
-            ),
-            llm_base_url=_optional_setting(
-                "llm_base_url",
-                config=config,
-            ),
-            timeout_seconds=_positive_int_setting(
-                "timeout_seconds",
-                config=config,
-                default=180,
-            ),
-            metric_names=_agent_metric_names_setting(config),
+            llm_api_key=profile.api_key,
+            llm_model=profile.model,
+            llm_base_url=profile.base_url,
+            timeout_seconds=profile.timeout_seconds,
         )
 
 
 RagasAgentScorer = Callable[[RagasAgentProjection], tuple[RagasAgentResult, ...]]
-RagasAgentScorerFactory = Callable[[], RagasAgentScorer]
 
 
 def run_ragas_agent_score_batch(
     *,
     input_path: Path,
     output_path: Path,
-    runtime_config_path: Path | None = None,
-    scorer_factory: RagasAgentScorerFactory | None = None,
+    provider_config_path: Path,
 ) -> dict[str, object]:
     payload = _load_json_object(input_path)
     if payload.get("schema_version") != AGENT_SAMPLE_BATCH_SCHEMA_VERSION:
         raise ValueError(f"schema_version must be {AGENT_SAMPLE_BATCH_SCHEMA_VERSION}")
-    eval_run_id = _required_str(payload.get("eval_run_id"), "eval_run_id")
+    run_id = _required_str(payload.get("run_id"), "run_id")
     items = _required_list(payload.get("items"), "items")
-    scorer = (
-        scorer_factory()
-        if scorer_factory is not None
-        else build_ragas_agent_scorer(
-            RagasAgentRunnerSettings.from_sources(runtime_config_path=runtime_config_path)
-        )
+    scorer = build_ragas_agent_scorer(
+        RagasAgentRunnerSettings.from_sources(provider_config_path=provider_config_path)
     )
     scored_items = [_score_agent_item(item, scorer=scorer) for item in items]
     output = {
         "schema_version": AGENT_SCORE_BATCH_SCHEMA_VERSION,
-        "eval_run_id": eval_run_id,
+        "run_id": run_id,
         "items": scored_items,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -123,17 +103,8 @@ def run_ragas_agent_score_batch(
 
 
 def build_ragas_agent_scorer(settings: RagasAgentRunnerSettings) -> RagasAgentScorer:
-    metric_names = settings.metric_names
-
     def _score(projection: RagasAgentProjection) -> tuple[RagasAgentResult, ...]:
         async def _score_in_one_event_loop() -> tuple[RagasAgentResult, ...]:
-            if not (settings.llm_api_key and settings.llm_model):
-                return await _score_with_official_ragas_metrics(
-                    projection,
-                    metric_names=metric_names,
-                    llm=None,
-                )
-
             from openai import AsyncOpenAI
             from ragas.llms import llm_factory
 
@@ -144,11 +115,7 @@ def build_ragas_agent_scorer(settings: RagasAgentRunnerSettings) -> RagasAgentSc
                 timeout=settings.timeout_seconds,
             ) as client:
                 llm = llm_factory(settings.llm_model, client=client, temperature=0)
-                return await _score_with_official_ragas_metrics(
-                    projection,
-                    metric_names=metric_names,
-                    llm=llm,
-                )
+                return await _score_with_official_ragas_metrics(projection, llm=llm)
 
         return tuple(asyncio.run(_score_in_one_event_loop()))
 
@@ -159,12 +126,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--runtime-config", required=True)
+    parser.add_argument("--provider-config", required=True)
     args = parser.parse_args(argv)
     summary = run_ragas_agent_score_batch(
         input_path=Path(args.input),
         output_path=Path(args.output),
-        runtime_config_path=Path(args.runtime_config) if args.runtime_config else None,
+        provider_config_path=Path(args.provider_config),
     )
     print(json.dumps(summary, ensure_ascii=False))
     return 0
@@ -174,11 +141,7 @@ def _score_agent_item(item: object, *, scorer: RagasAgentScorer) -> dict[str, ob
     if not isinstance(item, dict):
         raise ValueError("items entries must be objects")
     case_id = _required_str(item.get("case_id"), "items[].case_id")
-    _assert_no_forbidden_fields(item, case_id)
-    trace_id = _required_str(item.get("trace_id"), f"{case_id}.trace_id")
-    observation_id = _optional_str(item.get("observation_id"))
-    dataset_item_id = _optional_str(item.get("dataset_item_id"))
-    dataset_run_id = _optional_str(item.get("dataset_run_id"))
+    _assert_allowed_sample_fields(item, case_id)
     metadata = _optional_mapping(item.get("metadata"))
     argument_mode = _argument_mode(item.get("argument_mode"), case_id)
     tool_calls = tuple(_tool_call_list(item.get("tool_calls"), f"{case_id}.tool_calls"))
@@ -191,16 +154,12 @@ def _score_agent_item(item: object, *, scorer: RagasAgentScorer) -> dict[str, ob
     projection = RagasAgentProjection(
         case_id=case_id,
         query=_required_str(item.get("query"), f"{case_id}.query"),
-        answer=_optional_str(item.get("answer")) or "",
+        answer=_string_value(item.get("answer"), f"{case_id}.answer"),
         tool_calls=tool_calls,
         reference_tool_calls=reference_tool_calls,
         argument_mode=argument_mode,
         reference=_optional_str(item.get("reference")) or "",
-        metadata={
-            **metadata,
-            "trace_id": trace_id,
-            "observation_id": observation_id,
-        },
+        metadata=metadata,
     )
     scores: dict[str, float] = {}
     errors: list[dict[str, object]] = []
@@ -226,10 +185,6 @@ def _score_agent_item(item: object, *, scorer: RagasAgentScorer) -> dict[str, ob
         scores[metric_name] = score
     return {
         "case_id": case_id,
-        "dataset_item_id": dataset_item_id,
-        "dataset_run_id": dataset_run_id,
-        "trace_id": trace_id,
-        "observation_id": observation_id,
         "scores": scores,
         "errors": errors,
         "metadata": {
@@ -242,8 +197,7 @@ def _score_agent_item(item: object, *, scorer: RagasAgentScorer) -> dict[str, ob
 async def _score_with_official_ragas_metrics(
     projection: RagasAgentProjection,
     *,
-    metric_names: tuple[str, ...],
-    llm: object | None,
+    llm: object,
 ) -> tuple[RagasAgentResult, ...]:
     from ragas.metrics.collections import (
         AgentGoalAccuracyWithReference,
@@ -255,10 +209,9 @@ async def _score_with_official_ragas_metrics(
     reference_tool_calls = list(_ragas_tool_calls(projection.reference_tool_calls))
     results: list[RagasAgentResult] = []
     suffix = "name_only" if projection.argument_mode == "name_only" else "args"
-    for metric_name in metric_names:
+    for metric_name in AGENT_METRIC_NAMES:
         if metric_name == "tool_call_accuracy":
-            metric = ToolCallAccuracy()
-            score = await metric.ascore(messages, reference_tool_calls)
+            score = await ToolCallAccuracy().ascore(messages, reference_tool_calls)
             results.append(
                 RagasAgentResult(
                     metric_name=f"tool_call_accuracy.{suffix}",
@@ -267,8 +220,7 @@ async def _score_with_official_ragas_metrics(
                 )
             )
         elif metric_name == "tool_call_f1":
-            metric = ToolCallF1()
-            score = await metric.ascore(messages, reference_tool_calls)
+            score = await ToolCallF1().ascore(messages, reference_tool_calls)
             results.append(
                 RagasAgentResult(
                     metric_name=f"tool_call_f1.{suffix}",
@@ -277,16 +229,10 @@ async def _score_with_official_ragas_metrics(
                 )
             )
         elif metric_name == "agent_goal_accuracy_with_reference" and projection.reference:
-            if llm is None:
-                results.append(
-                    RagasAgentResult(
-                        metric_name="agent_goal_accuracy.with_reference",
-                        rationale="llm settings are required for agent goal accuracy",
-                    )
-                )
-                continue
-            metric = AgentGoalAccuracyWithReference(llm=llm)
-            score = await metric.ascore(messages, projection.reference)
+            score = await AgentGoalAccuracyWithReference(llm=llm).ascore(
+                messages,
+                projection.reference,
+            )
             results.append(
                 RagasAgentResult(
                     metric_name="agent_goal_accuracy.with_reference",
@@ -359,49 +305,25 @@ def _require_eval_safe_args(tool_calls: tuple[dict[str, object], ...], field: st
             raise ValueError(f"{field} eval_safe_args requires non-empty tool args")
 
 
-def _agent_metric_names_setting(config: Mapping[str, object]) -> tuple[str, ...]:
-    raw = config.get("agent_metric_names")
-    if raw is None:
-        raw = config.get("metric_names")
-    if raw is None:
-        return DEFAULT_AGENT_METRIC_NAMES
-    if not isinstance(raw, list):
-        raise ValueError("agent_metric_names must be a list")
-    values = tuple(_required_str(item, "agent_metric_names[]") for item in raw)
+def _assert_allowed_sample_fields(value: dict[str, object], case_id: str) -> None:
     allowed = {
-        "tool_call_accuracy",
-        "tool_call_f1",
-        "agent_goal_accuracy_with_reference",
+        "answer",
+        "argument_mode",
+        "case_id",
+        "metadata",
+        "query",
+        "reference",
+        "reference_tool_calls",
+        "tool_calls",
     }
-    unsupported = [item for item in values if item not in allowed]
-    if unsupported:
-        raise ValueError(f"unsupported Ragas agent metrics: {', '.join(unsupported)}")
-    return values
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise ValueError(f"{case_id} contains unsupported fields: {', '.join(unknown)}")
 
 
-def _optional_setting(
-    key: str,
-    *,
-    config: Mapping[str, object],
-) -> str | None:
-    value = config.get(key)
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
-
-
-def _positive_int_setting(
-    key: str,
-    *,
-    config: Mapping[str, object],
-    default: int,
-) -> int:
-    raw = config.get(key)
-    if raw is None:
-        return default
-    value = int(raw)
-    if value <= 0:
-        raise ValueError(f"{key} must be greater than zero")
+def _string_value(value: object, field: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
     return value
 
 

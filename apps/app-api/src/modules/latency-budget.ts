@@ -5,14 +5,11 @@ import {
 } from "./integration/execution-finalization-contract";
 
 export type LatencyBudgetSeverity = "warn" | "critical";
-export type LatencyBudgetCategory = "model_provider_or_latency_budget_fix";
 export type StageTimingBudgetState = "within_budget" | LatencyBudgetSeverity;
 
 export interface LatencyBudgetBreach {
-	category: LatencyBudgetCategory;
 	durationMs: number;
 	field: StageTimingField;
-	reason: string;
 	severity: LatencyBudgetSeverity;
 	thresholdMs: number;
 }
@@ -32,10 +29,7 @@ export interface StageTimingBudgetProjection {
 }
 
 interface LatencyBudgetRule {
-	candidate_category: LatencyBudgetCategory;
-	candidate_reason: string;
 	critical_ms: number;
-	enabled: boolean;
 	field: StageTimingField;
 	warn_ms: number;
 }
@@ -60,7 +54,6 @@ function validateLatencyBudgetArtifact(artifact: LatencyBudgetArtifact): void {
 		throw new Error("latency budget budget_version is required");
 	}
 	const enabledFields = new Set<string>();
-	const reasons = new Set<string>();
 	for (const [index, rule] of artifact.rules.entries()) {
 		if (!STAGE_TIMING_FIELD_SET.has(rule.field)) {
 			throw new Error(`latency budget rule ${index} uses non-canonical field ${rule.field}`);
@@ -68,22 +61,16 @@ function validateLatencyBudgetArtifact(artifact: LatencyBudgetArtifact): void {
 		if (rule.critical_ms <= rule.warn_ms) {
 			throw new Error(`latency budget rule ${index} critical_ms must be greater than warn_ms`);
 		}
-		if (reasons.has(rule.candidate_reason)) {
-			throw new Error(`latency budget duplicate candidate_reason ${rule.candidate_reason}`);
+		if (enabledFields.has(rule.field)) {
+			throw new Error(`latency budget duplicate field ${rule.field}`);
 		}
-		reasons.add(rule.candidate_reason);
-		if (rule.enabled) {
-			if (enabledFields.has(rule.field)) {
-				throw new Error(`latency budget duplicate enabled field ${rule.field}`);
-			}
-			enabledFields.add(rule.field);
-		}
+		enabledFields.add(rule.field);
 	}
 }
 
 validateLatencyBudgetArtifact(latencyBudgetArtifact);
 
-export const LATENCY_BUDGET_RULES = latencyBudgetArtifact.rules.filter((rule) => rule.enabled);
+export const LATENCY_BUDGET_RULES = latencyBudgetArtifact.rules;
 const LATENCY_BUDGET_RULE_BY_FIELD = new Map(
 	LATENCY_BUDGET_RULES.map((rule) => [rule.field, rule] as const),
 );
@@ -103,10 +90,8 @@ export function evaluateStageTimingBudget(
 		}
 		const critical = value >= rule.critical_ms;
 		breaches.push({
-			category: rule.candidate_category,
 			durationMs: value,
 			field: rule.field,
-			reason: rule.candidate_reason,
 			severity: critical ? "critical" : "warn",
 			thresholdMs: critical ? rule.critical_ms : rule.warn_ms,
 		});
