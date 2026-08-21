@@ -34,6 +34,10 @@ jobs/internal-portal-collection/**/.env.*
 !jobs/internal-portal-collection/**/.env.example
 !jobs/notice-classifier/
 !jobs/notice-classifier/**
+!jobs/notice-publisher/
+!jobs/notice-publisher/**
+jobs/notice-publisher/.env
+jobs/notice-publisher/.env.*
 !packages/domains/
 !packages/domains/**
 !configs/ingestion/

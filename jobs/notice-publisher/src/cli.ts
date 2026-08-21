@@ -1,8 +1,12 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 import { Pool } from "pg";
 import { backfillAttachmentLinks } from "./backfill.ts";
+import { readNoticeDatabaseConfig } from "./database.ts";
 import { migrateNotices } from "./migrate.ts";
+import { internalPortalHost } from "./portal.ts";
 import { parseClassifications, publishNotices } from "./publisher.ts";
 import { createPublisherObjectStoreFromEnv } from "./store.ts";
 
@@ -14,7 +18,8 @@ try {
 
 async function main(): Promise<void> {
 	const [command, ...args] = process.argv.slice(2);
-	const pool = new Pool({ connectionString: required("NOTICES_DATABASE_URL"), max: 1 });
+	const database = readNoticeDatabaseConfig(process.env);
+	const pool = new Pool({ ...database, max: 1 });
 	const client = await pool.connect();
 	try {
 		if (command === "migrate") {
@@ -44,11 +49,17 @@ async function main(): Promise<void> {
 		const store = createPublisherObjectStoreFromEnv(process.env);
 		try {
 			const result = await publishNotices({
-				classifications: parseClassifications(await readFile(parsed.classifications, "utf8")),
+				...(parsed.classifications
+					? {
+						classifications: parseClassifications(
+							await readFile(parsed.classifications, "utf8"),
+						),
+					}
+					: {}),
 				client,
 				noticeIds: parsed.noticeIds.length ? parsed.noticeIds : undefined,
 				objectStore: store,
-				portalHost: new URL(required("INTERNAL_PORTAL_BASE_URL")).hostname,
+				portalHost: internalPortalHost(),
 			});
 			console.log(JSON.stringify(result));
 		} finally { store.close(); }
@@ -73,17 +84,23 @@ function parseBackfillArgs(args: string[]): { dryRun: boolean; noticeIds: number
 	return { dryRun, noticeIds };
 }
 
-function parsePublishArgs(args: string[]): { classifications: string; noticeIds: number[] } {
-	let classifications = ""; const noticeIds: number[] = [];
+export function parsePublishArgs(
+	args: string[],
+): { classifications: string | null; noticeIds: number[] } {
+	let classifications: string | null = null;
+	const noticeIds: number[] = [];
 	for (let index = 0; index < args.length; index += 1) {
 		const value = args[index + 1];
 		if (args[index] === "--classifications" && value) { classifications = value; index += 1; }
 		else if (args[index] === "--notice-id" && value && /^[1-9][0-9]*$/u.test(value)) { noticeIds.push(Number(value)); index += 1; }
 		else throw new Error(`unknown or invalid argument: ${args[index]}`);
 	}
-	if (!classifications) throw new Error("--classifications is required");
 	return { classifications, noticeIds };
 }
-function required(key: string): string { const value = process.env[key]?.trim(); if (!value) throw new Error(`${key} is required`); return value; }
 
-void main().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+	void main().catch((error) => {
+		console.error(error instanceof Error ? error.message : String(error));
+		process.exitCode = 1;
+	});
+}

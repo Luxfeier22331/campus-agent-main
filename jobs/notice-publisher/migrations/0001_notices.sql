@@ -67,5 +67,12 @@ INSERT INTO notices.schema_migrations (version) VALUES (1);
 
 REVOKE ALL ON SCHEMA notices FROM public;
 REVOKE ALL ON ALL TABLES IN SCHEMA notices FROM public;
-GRANT USAGE ON SCHEMA notices TO notice_publisher;
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA notices TO notice_publisher;
+
+DO $notices_publisher_role$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'notice_publisher') THEN
+        EXECUTE 'GRANT USAGE ON SCHEMA notices TO notice_publisher';
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA notices TO notice_publisher';
+    END IF;
+END
+$notices_publisher_role$;

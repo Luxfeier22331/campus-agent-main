@@ -20,11 +20,11 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 
 | 角色 | 运行所有者 | 权限边界 |
 | --- | --- | --- |
-| `campus_agent` | 数据库 bootstrap | schema 安装和授权，不用于常驻运行时 |
+| `campus_agent` | 数据库 bootstrap 与显式 schema/publisher Job | schema 安装、授权和一次性规范化发布，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影和模型配置读写 |
 | `ingestion_control` | `apps/ingestion-control` | 内部门户凭据池读写 |
-| `notice_publisher` | `jobs/notice-publisher` | 规范化通知写入 |
+| `notice_publisher` | 本地 `jobs/notice-publisher` | 本地规范化通知写入；部署环境不创建该角色 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户 automation token 读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
@@ -46,7 +46,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `execution_control.model_settings` | execution-control 配置管理 | execution-control |
 | `campus_docs_serving.current_index` | execution-control（由 Campus Docs 发布任务写入） | Campus Docs 发布任务；供后续在线知识能力使用 |
 | `ingestion_control.internal_portal_credentials` | ingestion-control | ingestion-control；Ops Web 与 internal-portal-collection 通过内部 API |
-| `notices.*` | notice-publisher | App API 只读业务表 |
+| `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `internal_portal.automation_tokens` | Ops Web | Ops Web |
 
@@ -62,6 +62,9 @@ Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs 
 `execution_control` 数据库身份替换 `campus_docs_serving.current_index` 单行绑定。当前在线
 execution-control 不读取该表；发布任务不创建独立数据库角色、连接字符串或 Secret。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
+通知 schema 与显式发布 Job 同样复用既有 `campus_agent` owner Secret，不创建线上
+`notice_publisher` 登录或密码。`notice_publisher` 只保留为本地 worktree 的开发角色；通知 migration
+在该角色存在时继续授予本地发布权限，在部署环境缺失该角色时直接使用 owner。
 
 ## 迁移合同
 
@@ -124,7 +127,7 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
   v4 至 v9 顺序升级，不会重跑或改写历史 migration。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
-- App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和领域业务表，不能读取
+- App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和分类业务表，不能读取
   `notices.schema_migrations` 或写入该 schema；
 - Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
 - ingestion-control runtime 只获得 `ingestion_control.internal_portal_credentials` 的 DML 权限，

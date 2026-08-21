@@ -31,7 +31,14 @@ CREATE INDEX notices_category_released_idx ON notices.notices (
     category, released_at DESC, notice_id DESC
 );
 
-GRANT SELECT, INSERT, UPDATE ON notices.categories TO notice_publisher;
+DO $notices_publisher_role$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'notice_publisher') THEN
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE ON notices.categories TO notice_publisher';
+    END IF;
+END
+$notices_publisher_role$;
+
 GRANT SELECT ON notices.categories TO app_api;
 
 INSERT INTO notices.schema_migrations (version) VALUES (5);

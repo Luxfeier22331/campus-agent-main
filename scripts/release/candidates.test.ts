@@ -197,6 +197,17 @@ test("publishes the notice classifier image for its source or Dockerfile change"
 	assert.deepEqual(plan.workers, []);
 });
 
+test("publishes the notice publisher image for its source or Dockerfile change", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(
+		changed("jobs/notice-publisher/src/publisher.ts", "jobs/notice-publisher/Dockerfile"),
+		[],
+	);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, ["notice-publisher"]);
+	assert.deepEqual(plan.workers, []);
+});
+
 test("promotion planning remains diff-based", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
@@ -331,6 +342,7 @@ test("a Node lockfile change selects Node one-shot images but not the independen
 		"app-api-schema",
 		"campus-docs-index-publisher",
 		"internal-portal-collection",
+		"notice-publisher",
 	]);
 });
 

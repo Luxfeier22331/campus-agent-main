@@ -236,6 +236,9 @@ describe("managed worktree environment", () => {
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, "minioadmin");
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_ACCESS_KEY, undefined);
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SECRET_KEY, undefined);
+		assert.equal(noticePublisherEnvironment.DEPLOYMENT_ENVIRONMENT, "local");
+		assert.equal(noticePublisherEnvironment.NOTICES_DATABASE_SSLMODE, "disable");
+		assert.equal(noticePublisherEnvironment.INTERNAL_PORTAL_BASE_URL, undefined);
 		assert.equal(opsWebEnvironment.OPS_WEB_APP_API_URL, "http://127.0.0.1:27131");
 		assert.equal(opsWebEnvironment.OPS_WEB_CAMPUS_WEB_URL, "http://127.0.0.1:27114");
 		assert.equal(opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);

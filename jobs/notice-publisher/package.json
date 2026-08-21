@@ -7,6 +7,7 @@
 	"scripts": {
 		"backfill-attachment-links": "tsx src/cli.ts backfill-attachment-links",
 		"dev:init": "pnpm --dir ../.. exec tsx scripts/dev/cli.ts init --target notice-publisher",
+		"build": "esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:@aws-sdk/client-s3 --external:jsdom --external:pg && node --input-type=module -e \"import('./dist/cli.js')\"",
 		"migrate": "tsx src/cli.ts migrate",
 		"publish": "tsx src/cli.ts publish",
 		"test": "vitest run --exclude 'test/**/*.integration.test.ts'",
@@ -16,13 +17,16 @@
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1111.0",
 		"@campus-agent/notices": "workspace:*",
+		"campus-contracts": "workspace:*",
 		"ingestion-contracts": "workspace:*",
+		"jsdom": "^27.4.0",
 		"pg": "^8.22.0"
 	},
 	"devDependencies": {
 		"@testcontainers/postgresql": "12.1.0",
 		"@types/node": "^24.13.2",
 		"@types/pg": "^8.15.6",
+		"esbuild": "^0.28.2",
 		"tsx": "^4.23.0",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.10"

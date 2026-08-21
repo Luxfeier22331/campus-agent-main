@@ -135,10 +135,10 @@ kubectl create job \
 `execution-control-provider-snapshot:8002` 读取一次当前通知分类模型设置，模型名和 provider 由 Ops Web
 配置，不在镜像或 Kubernetes Secret 中固定。
 
-### 单分类 schema
+### 通知 schema
 
-`dev:init` 创建 `notice_publisher` 角色并安装 `notices.*`。资源齐备且分类 JSONL 已完成完整性校验后，
-先确认当前 migration：
+`dev:init` 创建本地 `notice_publisher` 角色，并使用数据库 owner 安装 `notices.*`。资源齐备且分类制品
+已完成后，先确认当前 migration：
 
 ```bash
 set -a
@@ -159,31 +159,29 @@ psql "$APP_API_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1 \
 NOTICES_DATABASE_URL="$APP_API_SCHEMA_DATABASE_URL" pnpm --filter notice-publisher migrate
 ```
 
-随后只能使用新 taxonomy 的模型分类重新发布。来源对象和 derived 内容寻址资源可以保留；旧分类文件不能
-作为新 schema 输入。该操作只适用于本地投影，不是在线环境迁移步骤。
+随后只能使用新 taxonomy 的模型分类重新发布。来源对象和 derived 内容寻址资源可以保留；旧分类文件
+不能作为新 schema 输入。该操作只适用于本地投影；线上由 wave 0 的 schema Job 使用既有
+`campus_agent` owner Secret 执行相同 migration，不创建线上 `notice_publisher` 角色。
 
 ### 单条与批量发布
 
-先发布一个通知：
+默认入口读取 derived bucket 的单通知分类制品。先发布一个通知：
 
 ```bash
-INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
-  pnpm --filter notice-publisher run publish \
-  --classifications "$NOTICE_CLASSIFICATIONS" \
-  --notice-id "$NOTICE_ID"
+pnpm --filter notice-publisher run publish --notice-id "$NOTICE_ID"
 ```
 
-核对正文、外链、图片和附件后，省略 `--notice-id` 发布分类清单全部记录：
+核对正文、外链、图片和附件后，省略 `--notice-id` 发布 source 与分类制品的完整库存：
 
 ```bash
-INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
-  pnpm --filter notice-publisher run publish \
-  --classifications "$NOTICE_CLASSIFICATIONS"
+pnpm --filter notice-publisher run publish
 ```
 
-publisher 在数据库事务前完成来源读取、正文清洗、资源摘要计算和 derived 对象写入，再用单一事务
-写映射、通知和资源 metadata。任一来源缺失、合同无效或已有投影冲突都会以非零状态停止；数据库不留
-部分批次，已验证的内容寻址对象可在重跑时复用。相同输入必须幂等。
+离线模型比较产生的 JSONL 仍可通过 `--classifications "$NOTICE_CLASSIFICATIONS"` 显式传入；全量运行
+同样要求它与 source 通知库存完全一致。publisher 在数据库事务前完成来源与分类读取、正文清洗和资源
+摘要计算；图片立即写入 derived 内容寻址对象，附件只读取校验并留在 source bucket。随后用单一事务写
+映射、通知和资源 metadata。任一来源缺失、库存不一致、合同无效或已有投影冲突都会以非零状态停止；
+数据库不留部分批次，已验证的内容寻址图片可在重跑时复用。相同输入必须幂等。
 
 ### 产品验收
 
@@ -210,13 +208,12 @@ set -a
 set +a
 psql "$APP_API_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1 \
   -c 'TRUNCATE notices.notice_assets, notices.notices;'
-INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
-  pnpm --filter notice-publisher run publish \
+pnpm --filter notice-publisher run publish \
   --classifications "$NOTICE_CLASSIFICATIONS"
 ```
 
 该步骤只适用于已经安装 classification V2 的 `dev:init` 本地数据库，不是集群迁移或 publisher 自动
-更新模式。类型、组织、领域、内容形态映射和 source bucket 保持不变。
+更新模式。类型、组织、分类和 source bucket 保持不变。
 
 该流程没有自动分类、定时发布或自动双写。集群回填和发布必须由对应环境配置明确执行，本地验证结果不表示集群
 已经更新。App API 与 Campus Web 的读取路径也不表示任一环境已经完成写入或部署。
@@ -224,7 +221,7 @@ INTERNAL_PORTAL_BASE_URL=https://portal.example.edu \
 ## Kubernetes
 
 `infra/k8s/ingestion-runtime/base/runtime` 包含 ingestion-control API、schema Job、凭据检查 CronJob、
-三个默认暂停的内部门户采集模板和通知分类 CronJob 模板，不包含自动采集调度。
+三个默认暂停的内部门户采集模板、通知分类和通知发布 CronJob 模板，不包含自动采集或发布调度。
 internal-portal-collection 镜像的 Job 入口消费 `INGESTION_CONTROL_INTERNAL_URL`、既有
 `OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；三种采集模式都只能由维护者显式创建一次性 Job：
 
@@ -248,6 +245,26 @@ kubectl -n <namespace> create job \
 
 通知分类 Job 复用已有 source/derived 对象存储 Secret，不新增数据库或模型 Secret。运行一次性采集
 Job 前须在目标环境确认到 ingestion-control、source bucket 和门户 HTTPS 的连通性。
+
+通知 schema Job 在 Argo sync wave 0 使用既有数据库 owner Secret 和 PostgreSQL CA。发布模板同样复用
+owner 与 source/derived 对象存储 Secret，不新增线上 publisher Secret。全量发布直接创建一次性 Job：
+
+```bash
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-publisher <job-name>
+```
+
+代表性发布只替换该次 Job 的参数：
+
+```bash
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-publisher <job-name> \
+  --dry-run=client -o yaml |
+kubectl patch --local -f - --type=json \
+  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["publish","--notice-id","123456"]}]' \
+  -o yaml |
+kubectl -n <namespace> create -f -
+```
 
 ## 排查
 

@@ -16,6 +16,7 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["execution-control", ["execution-control"]],
 	["ingestion-control", ["ingestion-control"]],
 	["notice-classifier", ["notice-classifier"]],
+	["notice-publisher", ["notice-publisher"]],
 	["ops-web", ["ops-web"]],
 	["internal-portal-collection", ["internal-portal-collection"]],
 ]);
@@ -26,6 +27,7 @@ const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
 	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
+	["jobs/notice-publisher/Dockerfile", ["notice-publisher"]],
 	["jobs/internal-portal-collection/Dockerfile", ["internal-portal-collection"]],
 ]);
 const CAMPUS_WEB_WORKER: WorkerCandidate = "campus-web-staging";
@@ -166,6 +168,7 @@ export async function planCandidates(
 	}
 	if (sharedNodeRelease) {
 		images.add("internal-portal-collection");
+		images.add("notice-publisher");
 	}
 	if (
 		sharedNodeRelease ||
@@ -185,6 +188,15 @@ export async function planCandidates(
 		changesPath(files, "packages/notice-classifier-core")
 	) {
 		images.add("notice-classifier");
+	}
+	if (
+		changesPath(files, "jobs/notice-publisher") ||
+		changesPath(files, "configs/sources/internal-portal.json") ||
+		changesPath(files, "packages/domains/notices") ||
+		changesPath(files, "packages/ingestion-contracts") ||
+		files.includes("packages/contracts/src/notices.ts")
+	) {
+		images.add("notice-publisher");
 	}
 	if (
 		files.some(

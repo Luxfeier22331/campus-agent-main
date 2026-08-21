@@ -16,6 +16,7 @@ group "default" {
     "execution-control",
     "ingestion-control",
     "notice-classifier",
+    "notice-publisher",
     "ops-web",
     "internal-portal-collection",
   ]
@@ -63,6 +64,11 @@ target "ingestion-control" {
 target "notice-classifier" {
   inherits   = ["_common"]
   dockerfile = "jobs/notice-classifier/Dockerfile"
+}
+
+target "notice-publisher" {
+  inherits   = ["_common"]
+  dockerfile = "jobs/notice-publisher/Dockerfile"
 }
 
 target "ops-web" {

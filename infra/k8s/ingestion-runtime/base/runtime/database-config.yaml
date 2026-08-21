@@ -12,3 +12,5 @@ data:
   PGDATABASE: campus_agent
   INGESTION_CONTROL_SCHEMA_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt
   INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: verify-full
+  NOTICES_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt
+  NOTICES_DATABASE_SSLMODE: verify-full

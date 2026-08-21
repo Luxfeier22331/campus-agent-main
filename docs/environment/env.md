@@ -56,12 +56,14 @@ notice-classifier 的托管 `.env.local` 保存本 worktree 的 derived bucket�
 连接。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时通过
 execution-control 的 provider snapshot 读取当前模型配置。
 
-ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和既有内部
-token。notice-publisher 仅用于本地显式写入，使用现有 worktree 数据库中的通知 schema、分离的
-本地 source/derived 对象存储身份和自身 `.env.local`；它没有部署环境配置或 GitOps Secret。publisher
-的门户地址占位值必须由实际运行环境显式覆盖。App API 的托管变量提供本地 derived bucket 地址和只读
-凭据，用于通知图片与其他获准的派生资源；部署环境改用现有私有对象存储 binding。应用之间不读取彼此
-环境文件。
+ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和本地 source
+bucket 连接。notice-publisher 的托管 `.env.local` 保存本地 `notice_publisher` 数据库连接、明确禁用 TLS
+的本地标记，以及分离的 source/derived 对象存储身份；门户 hostname 直接读取仓库 source descriptor，
+不再维护重复环境变量。App API 的托管变量提供本地 derived bucket 地址和只读凭据，用于通知图片与
+其他获准的派生资源；部署环境改用现有私有对象存储 binding。应用之间不读取彼此环境文件。
+
+App API 的托管变量提供本地 derived bucket 地址和只读凭据，用于通知图片与其他获准的派生资源；部署
+环境改用现有私有对象存储 binding。应用之间不读取彼此环境文件。
 
 一个应用不得读取其他应用或适配器的环境文件，也不得从根 `.env` 隐式扩散数据库或供应商凭据。
 
@@ -85,6 +87,10 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 内部门户采集使用三个默认暂停的 CronJob 模板，分别固定执行通知增量、通知回填和文件发布采集。
 它们读取 `INGESTION_CONTROL_INTERNAL_URL`、`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；回填日期
 只在创建该次 Job 时写入。模板默认暂停，只用于显式创建一次性 Job；不得新增 TGC Secret。
+
+notice-publisher 的 schema Job 和默认暂停的发布模板复用既有 `campus_agent` owner Secret、PostgreSQL
+CA 与 source/derived 对象存储 Secret。部署环境不创建 `notice_publisher` 角色、专用密码或自动 schedule；
+选择通知 ID 时只修改该次 Job 的容器参数，不修改 CronJob 或长期配置。
 
 ### 部署配置生命周期
 

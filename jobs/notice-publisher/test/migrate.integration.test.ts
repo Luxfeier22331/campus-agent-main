@@ -30,12 +30,12 @@ describe("notice schema migration", () => {
 			.start();
 		pool = new Pool({ connectionString: container.getConnectionUri() });
 		await pool.query("CREATE ROLE campus_agent NOLOGIN");
-		await pool.query("CREATE ROLE notice_publisher NOLOGIN");
 		await pool.query("CREATE ROLE app_api NOLOGIN");
 	}, 120_000);
 
 	beforeEach(async () => {
 		await pool.query("DROP SCHEMA IF EXISTS notices CASCADE");
+		await pool.query("DROP ROLE IF EXISTS notice_publisher");
 	});
 
 	afterAll(async () => {
@@ -52,6 +52,21 @@ describe("notice schema migration", () => {
 			await expect(readVersions(client)).resolves.toEqual([1, 2, 3, 4, 5]);
 			await expect(readTaxonomy(client)).resolves.toEqual([...NOTICE_CATEGORIES].sort());
 			await assertAppApiReadOnly(client);
+		});
+	});
+
+	it("preserves local publisher grants when the optional role exists", async () => {
+		await pool.query("CREATE ROLE notice_publisher NOLOGIN");
+		await withClient(pool, async (client) => {
+			await expect(migrateNotices(client)).resolves.toBe("applied");
+			await expect(
+				client.query(`SELECT
+					has_schema_privilege('notice_publisher', 'notices', 'USAGE') AS schema_usage,
+					has_table_privilege('notice_publisher', 'notices.notices', 'SELECT,INSERT,UPDATE') AS notices_write,
+					has_table_privilege('notice_publisher', 'notices.categories', 'SELECT,INSERT,UPDATE') AS categories_write`),
+			).resolves.toMatchObject({
+				rows: [{ categories_write: true, notices_write: true, schema_usage: true }],
+			});
 		});
 	});
 

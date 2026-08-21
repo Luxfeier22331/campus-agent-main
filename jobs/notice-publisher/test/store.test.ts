@@ -29,16 +29,34 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 		}) {
 			this.record.commands.push({ input: command.input, name: command.constructor.name });
 			if (command instanceof actual.GetObjectCommand) {
-				if (command.input.Bucket === "campus-agent-derived") {
+				if (
+					command.input.Bucket === "campus-agent-derived" &&
+					String(command.input.Key).startsWith("notices/assets/")
+				) {
 					throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
 				}
 				return {
-					Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) },
+					Body: {
+						transformToByteArray: async () =>
+							command.input.Bucket === "campus-agent-derived"
+								? new Uint8Array([4, 5, 6])
+								: new Uint8Array([1, 2, 3]),
+					},
 					ContentType: "application/json",
 				};
 			}
 			if (command instanceof actual.ListObjectsV2Command) {
-				return { Contents: [{ Key: "internal_portal/meta.json" }], IsTruncated: false };
+				return {
+					Contents: [
+						{
+							Key:
+								command.input.Bucket === "campus-agent-derived"
+									? "notices/classifications/358159.json"
+									: "internal_portal/meta.json",
+						},
+					],
+					IsTruncated: false,
+				};
 			}
 			return {};
 		}
@@ -75,7 +93,7 @@ describe("publisher object store identities", () => {
 		expect(() => createPublisherObjectStoreFromEnv(input)).toThrow(`${key} is required`);
 	});
 
-	it("routes source reads and derived writes through their own clients", async () => {
+		it("routes source reads and derived writes through their own clients", async () => {
 		s3.clients.length = 0;
 		const store = createPublisherObjectStoreFromEnv(environment);
 		const body = new Uint8Array([1, 2, 3]);
@@ -88,6 +106,13 @@ describe("publisher object store identities", () => {
 		await expect(store.listSource("internal_portal/")).resolves.toEqual([
 			"internal_portal/meta.json",
 		]);
+		await expect(store.getDerived("notices/classifications/358159.json")).resolves.toEqual({
+			body: new Uint8Array([4, 5, 6]),
+			contentType: "application/json",
+		});
+		await expect(store.listDerived("notices/classifications/")).resolves.toEqual([
+			"notices/classifications/358159.json",
+		]);
 		await store.createOrVerifyDerived({ body, contentType: "image/png", digest });
 		store.close();
 
@@ -98,6 +123,8 @@ describe("publisher object store identities", () => {
 			"ListObjectsV2Command",
 		]);
 		expect(derived?.commands.map((command) => command.name)).toEqual([
+			"GetObjectCommand",
+			"ListObjectsV2Command",
 			"GetObjectCommand",
 			"PutObjectCommand",
 		]);

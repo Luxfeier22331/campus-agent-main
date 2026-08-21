@@ -81,8 +81,10 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 当前每条通知都调用模型分类，不使用标题规则；模型只接收来源对象中的原始 `notice_title`。门户栏目、
 正文、外链标记和 URL 仍按来源、API 与发布合同保存，但不作为分类证据，也不是分类入口的必需字段。
 在线 Job 和本地 Job 模拟入口将结果写入
-`notices/classifications/<notice-id>.json`；本地 JSONL 命令仍把结果输出为 JSONL 交给显式 publisher。三者
-都不保存分类模型 metadata。分类完成不表示任何下游已经消费。
+`notices/classifications/<notice-id>.json`；publisher 默认读取这些单通知制品，全量运行要求来源通知与
+分类制品 ID 集合完全相同。`unclassified` 是合法发布值，不会被发布器跳过。本地 JSONL 命令仍把结果
+输出为 JSONL，作为开发和模型比较时的显式 publisher 输入。三者都不保存分类模型 metadata。分类完成
+不表示任何下游已经消费。
 
 ## 规范化投影
 
@@ -111,18 +113,21 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 
 来源门户图片改写为 `notice-asset:image:<ordinal>`，并保存清洗后的 `alt`。外链通知的两个正文字段
 固定为空，只保留原始标题、来源 metadata 与 `external_url`；门户详情返回的包装 HTML 仍留在来源
-对象中。`content_text` 始终从站内通知的最终清洗 DOM 生成。
+对象中。采集器不下载外链通知声明的图片或附件，publisher 也不读取或物化这些资源。`content_text`
+始终从站内通知的最终清洗 DOM 生成。
 
 ### Derived 资源
 
-publisher 校验来源资源后，把内容寻址对象写入 derived bucket：
+publisher 校验来源资源后，只把通知图片的内容寻址对象写入 derived bucket：
 
 ```text
 notices/assets/sha256/<digest>
 ```
 
-source bucket 由 internal-portal-collection 写入，分类 Job 和显式 publisher 按各自权限读取，不向
-Worker 或浏览器开放。App API 当前只按数据库摘要读取通知图片并通过通知所属的同源接口返回字节；
+附件原始字节继续保留在 source bucket；publisher 读取附件以确认字节数、媒体类型和 SHA-256，但不把
+附件复制到 derived bucket。source bucket 由 internal-portal-collection 写入，分类 Job 和显式 publisher
+按各自权限读取，不向 Worker 或浏览器开放。App API 当前只按数据库摘要读取通知图片并通过通知所属
+的同源接口返回字节；
 浏览器不接收 bucket key、摘要或对象存储凭据。附件 metadata 包含门户资源身份，App API 即时构造
 门户 URL，附件字节继续由门户响应。
 
@@ -133,14 +138,14 @@ Worker 或浏览器开放。App API 当前只按数据库摘要读取通知图�
 
 - `internal-portal-collection` 只写 source bucket；
 - `notice-classifier` 只读 source bucket，并写入 derived bucket 中的分类制品；
-- `notice-publisher` 校验来源、写 derived bucket，并以事务写入 `notices.*`；
+- `notice-publisher` 校验来源、读取分类制品、写 derived 图片，并以事务写入 `notices.*`；
 - App API 只获得五张通知业务表的读取权限，并读取获准图片对象；不读取 migration ledger 或写入通知；
 - Campus Web 只通过 App API 读取规范化通知；
 - Ops Web 拥有内部门户凭据，execution-control、Agent 与 RAG 不连接通知来源或 schema。
 
-通知 publisher 仍只作为本地显式写入入口维护，不属于 Kubernetes 在线拓扑。采集和分类 Job 模板默认
-暂停，且只能由维护者显式创建一次性 Job；分类制品或本地投影结果都不表示任一环境已经完成后续发布
-或开放这套数据。
+通知 publisher 同时提供本地 CLI 和默认暂停的 Kubernetes Job 模板，只能由维护者显式创建一次性
+Job，不提供自动 schedule。线上 schema 与发布复用既有数据库 owner 身份，不创建专用 publisher
+Secret。分类制品或本地投影结果都不表示任一环境已经完成后续发布或开放这套数据。
 
 ## 相关文档
 

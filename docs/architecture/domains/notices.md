@@ -34,8 +34,9 @@ internal-portal-collection 只产生来源对象和原始资源。分类使用�
 暂停的在线 Job：两者只消费标题，Job 将结果写入 derived 分类制品。凭据由 Ops Web 候选池解析，本地
 写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内使用，不形成 TGC Secret。
 
-notice-publisher 在资源齐备且分类完整性校验通过后显式物化规范化投影；App API 和 Campus Web 只读取
-该投影。完整数据结构和操作顺序分别由 `../../data/notices.md` 和
+notice-publisher 在资源齐备且分类库存完整性校验通过后显式物化规范化投影；本地 CLI 与默认暂停的
+Kubernetes Job 模板使用同一实现，不提供自动 schedule。App API 和 Campus Web 只读取该投影。完整
+数据结构和操作顺序分别由 `../../data/notices.md` 和
 `../../runbooks/ingestion.md` 维护。
 
 下游领域必须通过自己的校验和发布入口消费通知。稳定制度正文可以显式提升为规章，已核对的日期

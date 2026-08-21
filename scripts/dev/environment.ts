@@ -267,7 +267,8 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("noticePublisher")) {
 		writeManagedEnv(paths.noticePublisher, {
-			INTERNAL_PORTAL_BASE_URL: "https://portal.example.invalid",
+			DEPLOYMENT_ENVIRONMENT: "local",
+			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.noticePublisher,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
 			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
