@@ -96,7 +96,7 @@ export async function syncInternalPortalNotices(
 		const scan = await scanBackfillNotices(input, "", allowedTypes);
 		const counts = await writeCandidates(input, scan.candidates);
 		const updatedAt = now(input);
-		await saveMappings(input, mappings, updatedAt);
+		await saveMappings(input, withObservedOrganizations(mappings, scan.candidates), updatedAt);
 		if (scan.firstObservedId === null) {
 			return result("sync", current, scan.pagesFetched, counts);
 		}
@@ -111,7 +111,7 @@ export async function syncInternalPortalNotices(
 	const scan = await scanIncrementalNotices(input, current.headNoticeId, allowedTypes);
 	const counts = await writeCandidates(input, scan.candidates);
 	const updatedAt = now(input);
-	await saveMappings(input, mappings, updatedAt);
+	await saveMappings(input, withObservedOrganizations(mappings, scan.candidates), updatedAt);
 	if (scan.firstObservedId === null || scan.firstObservedId === current.headNoticeId) {
 		return result("sync", current, scan.pagesFetched, counts);
 	}
@@ -145,7 +145,7 @@ export async function backfillInternalPortalNotices(
 	}
 	const counts = await writeCandidates(input, scan.candidates);
 	const updatedAt = now(input);
-	await saveMappings(input, mappings, updatedAt);
+	await saveMappings(input, withObservedOrganizations(mappings, scan.candidates), updatedAt);
 	let updated: InternalPortalNoticeSyncState = {
 		...stateWith(current, headNoticeId),
 		historyCoveredFrom: earlierDate(current?.historyCoveredFrom ?? null, startDate),
@@ -318,6 +318,21 @@ function assertNewMapping(
 	mappings[id] = name;
 }
 
+function withObservedOrganizations(
+	mappings: NoticeMappings,
+	candidates: readonly NoticeCandidate[],
+): NoticeMappings {
+	const organizations = { ...mappings.organizations };
+	for (const candidate of candidates) {
+		const id = normalizeOptionalText(candidate.item.organization_id);
+		const name = normalizeOptionalText(candidate.item.organization_name);
+		if (id && name && !Object.hasOwn(organizations, id)) {
+			organizations[id] = name;
+		}
+	}
+	return { ...mappings, organizations };
+}
+
 async function writeCandidates(
 	input: NoticeRunnerInput,
 	candidates: NoticeCandidate[],
@@ -452,11 +467,16 @@ function parseInteger(value: number | string | undefined): number {
 }
 
 function requireText(value: string | null | undefined, field: string): string {
-	const normalized = typeof value === "string" ? value.trim() : "";
+	const normalized = normalizeOptionalText(value) ?? "";
 	if (!normalized) {
 		throw new Error(`internal portal notice metadata returned an invalid ${field}`);
 	}
 	return normalized;
+}
+
+function normalizeOptionalText(value: string | null | undefined): string | null {
+	const normalized = typeof value === "string" ? value.trim() : "";
+	return normalized || null;
 }
 
 function earlierDate(current: string | null, next: string): string {

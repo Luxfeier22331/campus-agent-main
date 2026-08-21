@@ -31,8 +31,8 @@ internal_portal/notices/<notice-id>.json
 internal_portal/meta.json
 ```
 
-`internal_portal_meta.v1` 保存通知选择器返回的类型与组织名称映射。采集器合并已有映射：当前返回的
-同 ID 名称覆盖旧名称，当前未返回的历史 ID 保留。
+`internal_portal_meta.v1` 保存通知选择器返回的类型与组织名称映射；历史回填还会补入通知列表中实际
+出现的组织映射。采集器合并已有映射：当前选择器返回的同 ID 名称优先，当前未返回的历史 ID 保留。
 
 内部通知固定使用 `is_external=false`、`external_url=null`；门户实际返回 HTTP 或 HTTPS URL 时使用
 `is_external=true` 并保留该 URL。采集器不请求外部页面，`notice_content_html` 只表示门户详情接口

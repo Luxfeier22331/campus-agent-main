@@ -257,6 +257,46 @@ describe("notice runner", () => {
 		);
 	});
 
+	it("adds organizations observed in historical notice rows to portal metadata", async () => {
+		const metaStore = new MemoryMetaStore();
+		const historical = {
+			...notice(358159, 5),
+			organization_id: "00020-1",
+			organization_name: "离退休工作处、离退休教职工党委",
+		};
+
+		await backfillInternalPortalNotices({
+			...runnerInput({
+				fetchNoticePage: async () => page([historical], 1),
+				metaStore,
+			}),
+			startDate: "2026-01-01",
+		});
+
+		expect(metaStore.value?.organizations).toEqual({
+			"00007": "党委保卫部、保卫处",
+			"00020-1": "离退休工作处、离退休教职工党委",
+		});
+	});
+
+	it("keeps the current portal organization name over an observed historical name", async () => {
+		const metaStore = new MemoryMetaStore();
+		const historical = {
+			...notice(358159, 5),
+			organization_name: "保卫处（旧名称）",
+		};
+
+		await backfillInternalPortalNotices({
+			...runnerInput({
+				fetchNoticePage: async () => page([historical], 1),
+				metaStore,
+			}),
+			startDate: "2026-01-01",
+		});
+
+		expect(metaStore.value?.organizations["00007"]).toBe("党委保卫部、保卫处");
+	});
+
 	it("returns an already-covered backfill without portal requests", async () => {
 		const current = state({ headNoticeId: 358200, historyCoveredFrom: "2026-01-01" });
 		const stateStore = new MemoryStateStore(current);
