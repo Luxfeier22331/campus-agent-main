@@ -40,6 +40,7 @@ spec:
     spec:
       serviceAccountName: model-config
       automountServiceAccountToken: false
+      enableServiceLinks: false
       securityContext:
         fsGroup: 10001
         runAsGroup: 10001
