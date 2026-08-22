@@ -19,7 +19,10 @@ func LoadCipher(path string) (*Cipher, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 {
+	// Kubernetes Secret volumes use 0440 with the workload's fsGroup so the
+	// non-root process can read the key. Keep group-read support, but reject
+	// group write/execute and every other-world permission.
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0o037 != 0 {
 		return nil, errors.New("model config key must be a regular private file")
 	}
 	raw, err := os.ReadFile(path)
