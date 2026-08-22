@@ -8,7 +8,7 @@ status: active
 
 ## 文档边界
 
-本文登记供应商类别、消费方、配置所有者和凭据隔离原则。精确环境变量由应用模板和配置解析器
+本文登记供应商类别、消费方、配置所有者和凭据边界。精确环境变量由应用模板和配置解析器
 维护，在线当前值由运行配置维护，部署 Secret 名和地址由 workload manifest 与环境仓
 维护。
 
@@ -17,25 +17,27 @@ status: active
 
 ## 模型与检索
 
-| 能力 | 配置所有者 | 消费方 | 隔离要求 |
+| 能力 | 配置所有者 | 消费方 | 合同 |
 | --- | --- | --- | --- |
-| LLM | execution-control 当前模型设置 | agent-runtime | Activity 调用读取当前值，不向浏览器返回密钥 |
-| Embedding 连接 | execution-control 当前模型设置 | Campus Docs Embedding Job | Ops Web 只替换 Base URL 和 API key；provider、model 和 transport 由 Campus Docs 固定合同拥有，索引维度和 space 由制品拥有 |
-| 通知分类连接 | execution-control 当前模型设置 | notice-classifier 在线 Job | Job 启动阶段读取一次内部快照；不接收独立模型 Secret，API key 不返回浏览器 |
+| Primary Agent | Model Config 的 `primary_agent` config | execution-control、agent-runtime | 准入冻结 target hash；Agent Runtime 按该 hash 读取完整配置 |
+| Embedding 连接 | Model Config 的 `campus_docs_embedding` config | Campus Docs Embedding Job | Job 一次读取完整配置；Ops Web 只替换 Base URL 和 API key，provider、model 和 protocol 由 Campus Docs 固定合同拥有 |
+| Reranker 连接 | Model Config 的 `campus_docs_reranker` config | 未来 Campus Docs 检索消费者 | Cohere Rerank provider/protocol 由该具名配置约束；离线实验继续使用独立本地 profile |
+| 通知分类连接 | Model Config 的 `notice_classification` config | notice-classifier 在线 Job | Job 启动阶段一次读取完整配置；API key 不返回浏览器 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
 | 评测模型 | 评测命令运行环境 | Ragas 适配器 | 不复用在线配置数据库或浏览器凭据 |
 
-Embedding Job 在启动后读取一次当前连接并直接调用 provider。系统不为索引构建维护第二份 provider
-配置。Embedding provider 固定为 `openai-compatible`，model 固定为 `Qwen3-Embedding-4B`，transport
+Embedding Job 在启动后从 Model Config 一次读取完整配置并直接调用 provider。系统不为索引构建维护
+第二份 provider 配置。Embedding provider 固定为 `openai-compatible`，model 固定为
+`Qwen3-Embedding-4B`，transport
 固定为 `embeddings`；设置验证观测到的向量长度不是可编辑索引配置。实际 dimensions、
 `embedding_space_id`、查询指令和向量名来自显式 embedding/index 制品及发布器代码。当前在线
 Agent 不读取 Embedding 连接、Qdrant 或 `campus_docs_serving.current_index`。
 
 具体模型、transport 和 endpoint 由当前模型设置、索引制品与可执行注册表维护，不在本文复制。
 
-通知分类 Job 在启动分类阶段后读取一次 `notice_classifier_provider_snapshot.v1`，直接调用快照中的
-transport。模型名、provider、Base URL 和 API key 由 Ops Web 的独立通知分类模型设置维护；本地
-`pnpm notice:classify:job:local` 通过端口转发读取同一份 execution-control 快照，不保存模型连接。
+通知分类 Job 在启动分类阶段后读取一次 `notice_classification` runtime config，直接调用其中的
+protocol。模型名、provider、Base URL 和 API key 由 Ops Web 通过 Model Config 的具名配置维护；
+本地 `pnpm notice:classify:job:local` 通过端口转发读取同一份 Model Config，不保存模型连接。
 保留的 `pnpm notice:classify` JSONL/评测命令可以由调用进程显式提供连接，用于离线模型比较，不是在线
 Job 的配置来源。
 
@@ -106,12 +108,15 @@ Sentry provider 操作使用 `SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_
 - Secret 不进入 Git、镜像、前端包、日志或命令输出。Terraform 管理的资源若要求敏感输入，该值会
   保存在受保护的 state；当前仅 Hyperdrive origin password 属于这一合同，state 不充当 Secret 投递源；
 - 环境仓选择部署版本和 Secret 引用；源码仓维护消费合同以及候选构建所需的代码和配置。
+- Model Config 与内部 consumer 位于共同受信任边界，只通过 `MODEL_CONFIG_URL` 连接，不分发调用
+  token、不登记 consumer，也不维护按 name 的权限矩阵。Provider API Key 由 Model Config 加密保存，
+  只通过内部完整配置响应交给调用方，不返回浏览器。
 - `OPS_WEB_AUTOMATION_ORIGIN` 是环境仓投递给 Ops Web 的非敏感机器端点配置；自动化 token 属于
   Ops Web PostgreSQL 数据，不进入 ConfigMap、GitOps Secret、内部门户采集任务或 URL。开发者程序
   只在请求时显式提供 `Authorization: Bearer <token>`。
 - `OPS_WEB_INTERNAL_TOKEN` 继续是既有服务间认证值。Ops Web BFF 和
   `internal-portal-collection` Job 调用 ingestion-control 时复用该值，不新增 `NOTICE_*`、TGC 或采集
-  专用 token；notice-classifier 只复用已有对象存储 Secret，模型设置通过 execution-control 快照提供。
+  专用 token；notice-classifier 只复用已有对象存储 Secret，模型设置从 Model Config 读取。
 
 环境文件和覆盖规则见 `env.md`，新增、轮换和撤销步骤见
 `../runbooks/provider-secrets.md`。

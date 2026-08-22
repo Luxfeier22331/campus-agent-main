@@ -71,10 +71,7 @@ func TestPostgresIntegration(t *testing.T) {
 	t.Run("personal memory state store", func(t *testing.T) {
 		testPersonalMemoryStateStore(t, harness)
 	})
-	t.Run("provider config store and grants", func(t *testing.T) {
-		testProviderConfig(t, harness)
-	})
-	t.Run("legacy provider config migration", func(t *testing.T) {
+	t.Run("frozen historical provider config migrations", func(t *testing.T) {
 		testLegacyProviderConfigMigration(t, harness)
 	})
 	t.Run("schema command", func(t *testing.T) {

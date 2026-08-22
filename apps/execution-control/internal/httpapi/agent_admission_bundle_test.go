@@ -6,43 +6,38 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
 )
 
-type countingProviderConfigResolver struct {
-	configs map[providerconfig.Kind]providerconfig.RuntimeSetting
-	calls   []providerconfig.Kind
+type countingPrimaryAgentTargetResolver struct {
+	targetSHA256 string
+	calls        int
 }
 
-func (resolver *countingProviderConfigResolver) ResolveActiveProviderConfig(
-	ctx context.Context,
-	kind providerconfig.Kind,
-) (providerconfig.RuntimeSetting, error) {
-	resolver.calls = append(resolver.calls, kind)
-	snapshot, ok := resolver.configs[kind]
-	if !ok {
-		return providerconfig.RuntimeSetting{}, errors.New("requested model setting is missing")
+func (resolver *countingPrimaryAgentTargetResolver) ResolvePrimaryAgentTarget(
+	context.Context,
+) (modelconfigclient.PrimaryAgentTarget, error) {
+	resolver.calls++
+	if resolver.targetSHA256 == "" {
+		return modelconfigclient.PrimaryAgentTarget{}, errors.New("requested model target is missing")
 	}
-	return snapshot, nil
+	return modelconfigclient.PrimaryAgentTarget{TargetSHA256: resolver.targetSHA256}, nil
 }
 
-func TestBuildAgentAdmissionSnapshotResolvesOnlyLLMSettings(t *testing.T) {
-	primary := primaryAgentProviderConfigSnapshotForTest()
-	resolver := &countingProviderConfigResolver{configs: map[providerconfig.Kind]providerconfig.RuntimeSetting{
-		providerconfig.KindLLM: primary,
-	}}
+func TestBuildAgentAdmissionSnapshotResolvesPrimaryAgentTargetOnce(t *testing.T) {
+	resolver := &countingPrimaryAgentTargetResolver{targetSHA256: primaryAgentModelTargetSHA256ForTest}
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
-	server.providerConfigResolver = resolver
-	server.providerConfigErr = nil
+	server.primaryAgentTargetResolver = resolver
+	server.primaryAgentTargetErr = nil
 
 	snapshot, err := server.buildAgentAdmissionSnapshot(t.Context(), true)
 	if err != nil {
 		t.Fatalf("build admission snapshot: %v", err)
 	}
-	if len(resolver.calls) != 1 || resolver.calls[0] != providerconfig.KindLLM {
-		t.Fatalf("provider setting calls = %#v, want llm only", resolver.calls)
+	if resolver.calls != 1 {
+		t.Fatalf("primary agent target calls = %d, want 1", resolver.calls)
 	}
-	if snapshot.ProviderConfigSHA256 != providerconfig.AdmissionHash(primary) {
+	if snapshot.PrimaryAgentTargetSHA256 != primaryAgentModelTargetSHA256ForTest {
 		t.Fatalf("provider admission hashes = %#v", snapshot)
 	}
 	if snapshot.ExecutionStrategy.MemoryRecall != "model_optional" {
@@ -55,25 +50,23 @@ func TestBuildAgentAdmissionSnapshotResolvesOnlyLLMSettings(t *testing.T) {
 }
 
 func TestBuildAgentAdmissionSnapshotDoesNotRequireCampusDocs(t *testing.T) {
-	resolver := &countingProviderConfigResolver{configs: map[providerconfig.Kind]providerconfig.RuntimeSetting{
-		providerconfig.KindLLM: primaryAgentProviderConfigSnapshotForTest(),
-	}}
+	resolver := &countingPrimaryAgentTargetResolver{targetSHA256: primaryAgentModelTargetSHA256ForTest}
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
-	server.providerConfigResolver = resolver
+	server.primaryAgentTargetResolver = resolver
 
 	_, err := server.buildAgentAdmissionSnapshot(t.Context(), false)
 	if err != nil {
 		t.Fatalf("build direct admission snapshot: %v", err)
 	}
-	if len(resolver.calls) != 1 || resolver.calls[0] != providerconfig.KindLLM {
-		t.Fatalf("provider setting calls = %#v, want llm only", resolver.calls)
+	if resolver.calls != 1 {
+		t.Fatalf("primary agent target calls = %d, want 1", resolver.calls)
 	}
 }
 
 func TestBuildAgentAdmissionSnapshotRequiresProviderSettings(t *testing.T) {
 	server := NewServer(config.Config{DeploymentEnvironment: "test"})
 
-	if _, err := server.buildAgentAdmissionSnapshot(t.Context(), false); !errors.Is(err, providerconfig.ErrResolverNotConfigured) {
+	if _, err := server.buildAgentAdmissionSnapshot(t.Context(), false); !errors.Is(err, modelconfigclient.ErrNotConfigured) {
 		t.Fatalf("provider-less admission error = %v", err)
 	}
 }

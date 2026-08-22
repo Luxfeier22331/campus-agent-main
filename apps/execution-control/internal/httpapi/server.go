@@ -16,30 +16,30 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 type Server struct {
-	config                    config.Config
-	admission                 *admission.Controller
-	lifecycle                 *lifecycle.Registry
-	logger                    *slog.Logger
-	runProjectionStore        execution.RunProjectionStore
-	runProjectionStoreErr     error
-	executionInputLoader      execution.InputLoader
-	executionInputErr         error
-	personalMemoryExecutor    personalMemoryExecutor
-	personalMemoryErr         error
-	personalMemoryStateStore  memoryruntime.StateStore
-	personalMemoryStateErr    error
-	providerConfigResolver    providerconfig.Resolver
-	providerConfigErr         error
-	temporalStarter           temporalruntime.ChatWorkflowStarter
-	temporalStarterErr        error
-	executionReconciler       *executionreconciler.Reconciler
-	productFinalizationWriter func(context.Context, execution.DurableRun, time.Time, map[string]any) error
+	config                     config.Config
+	admission                  *admission.Controller
+	lifecycle                  *lifecycle.Registry
+	logger                     *slog.Logger
+	runProjectionStore         execution.RunProjectionStore
+	runProjectionStoreErr      error
+	executionInputLoader       execution.InputLoader
+	executionInputErr          error
+	personalMemoryExecutor     personalMemoryExecutor
+	personalMemoryErr          error
+	personalMemoryStateStore   memoryruntime.StateStore
+	personalMemoryStateErr     error
+	primaryAgentTargetResolver modelconfigclient.PrimaryAgentTargetResolver
+	primaryAgentTargetErr      error
+	temporalStarter            temporalruntime.ChatWorkflowStarter
+	temporalStarterErr         error
+	executionReconciler        *executionreconciler.Reconciler
+	productFinalizationWriter  func(context.Context, execution.DurableRun, time.Time, map[string]any) error
 }
 
 type errorInfo struct {
@@ -68,13 +68,11 @@ func NewServerWithDependencies(
 	}
 	registry := lifecycle.NewRegistry()
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
-	providerConfigResolver, providerConfigErr := providerconfig.NewResolver(
-		context.Background(),
-		providerconfig.ResolverOptions{
-			DatabaseURL:       cfg.DatabaseURL,
-			EncryptionKeyPath: cfg.ProviderConfigEncryptionKeyPath,
-		},
-	)
+	var primaryAgentTargetResolver modelconfigclient.PrimaryAgentTargetResolver
+	var primaryAgentTargetErr error
+	if strings.TrimSpace(cfg.ModelConfigBaseURL) != "" {
+		primaryAgentTargetResolver, primaryAgentTargetErr = modelconfigclient.New(cfg.ModelConfigBaseURL)
+	}
 	personalMemoryExecutor, personalMemoryErr := newHindsightMemoryExecutor(cfg)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(cfg)
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
@@ -84,22 +82,22 @@ func NewServerWithDependencies(
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
-		config:                   cfg,
-		admission:                admissionController,
-		lifecycle:                registry,
-		logger:                   logger,
-		runProjectionStore:       runProjectionStore,
-		runProjectionStoreErr:    runProjectionStoreErr,
-		executionInputLoader:     executionInputLoader,
-		executionInputErr:        executionInputErr,
-		personalMemoryExecutor:   personalMemoryExecutor,
-		personalMemoryErr:        personalMemoryErr,
-		personalMemoryStateStore: personalMemoryStateStore,
-		personalMemoryStateErr:   personalMemoryStateErr,
-		providerConfigResolver:   providerConfigResolver,
-		providerConfigErr:        providerConfigErr,
-		temporalStarter:          temporalStarter,
-		temporalStarterErr:       temporalStarterErr,
+		config:                     cfg,
+		admission:                  admissionController,
+		lifecycle:                  registry,
+		logger:                     logger,
+		runProjectionStore:         runProjectionStore,
+		runProjectionStoreErr:      runProjectionStoreErr,
+		executionInputLoader:       executionInputLoader,
+		executionInputErr:          executionInputErr,
+		personalMemoryExecutor:     personalMemoryExecutor,
+		personalMemoryErr:          personalMemoryErr,
+		personalMemoryStateStore:   personalMemoryStateStore,
+		personalMemoryStateErr:     personalMemoryStateErr,
+		primaryAgentTargetResolver: primaryAgentTargetResolver,
+		primaryAgentTargetErr:      primaryAgentTargetErr,
+		temporalStarter:            temporalStarter,
+		temporalStarterErr:         temporalStarterErr,
 	}
 	server.executionReconciler = server.newExecutionReconciler()
 	return server
@@ -237,9 +235,6 @@ func (s *Server) Shutdown(_ context.Context) error {
 		closer.Close()
 	}
 	if closer, ok := s.personalMemoryStateStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
-	if closer, ok := s.providerConfigResolver.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	if closer, ok := s.temporalStarter.(interface{ Close() }); ok {

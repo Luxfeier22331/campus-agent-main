@@ -13,8 +13,9 @@ namespace、不可变镜像、环境配置、凭据对象和实际资源额度�
 
 ## 运行时基础
 
-`infra/k8s/execution-runtime/base` 与 `infra/k8s/ingestion-runtime/base` 分别提供 execution 和
-ingestion 的完整聚合视图。常驻 workload 位于各自 `runtime/`。内部门户凭据检查属于
+`infra/k8s/execution-runtime/base`、`infra/k8s/model-config/base` 与
+`infra/k8s/ingestion-runtime/base` 分别提供 execution、模型配置和 ingestion 的源码期望状态。
+常驻 workload 位于各自 `runtime/` 或 base。内部门户凭据检查属于
 ingestion-control，由 `infra/k8s/ingestion-runtime/base` 中使用同一镜像的 CronJob 执行。
 
 精确资源、标签、探针和配置引用以 Kustomize 清单为准，不在架构文档维护副本。源码 base 不选择
@@ -23,8 +24,9 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 
 当前稳定进程形态是：
 
-- `execution-control`：一个标准 Deployment，同时提供执行 API、Provider Config 管理 API 和三类
-  Temporal poller；
+- `execution-control`：一个标准 Deployment，提供执行 API 和三类 Temporal poller；
+- `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；独立 schema Job
+  在 execution-control 历史 Goose migration 之后完成数据库所有权切换；
 - `agent-runtime`：一个独立 Deployment；
 - `ingestion-control`：一个凭据 API Deployment；
 - `ingestion-control-internal-portal-check`：顺序检查凭据池的 CronJob；
@@ -52,7 +54,7 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 - Argo CD 选择源码声明的基础资源、不可变镜像和环境配置；
 - Temporal 保存 workflow/activity history、任务投递、retry、timeout 和 cancellation；
 - Kubernetes Deployment 管理进程副本与滚动更新；
-- PostgreSQL 保存产品数据、执行投影和 ingestion-control 凭据池。
+- PostgreSQL 保存产品数据、执行投影、Model Config 当前配置和 ingestion-control 凭据池。
 
 workflow 代码不得部署、重启或修改自己的 Kubernetes 资源。
 
@@ -64,6 +66,8 @@ Temporal、worker、数据库或对象存储。
 
 环境仓为不同服务提供其实际消费的 Secret，并满足源码声明的 key 消费合同。运行身份、用户凭据和外部服务
 凭据不能混用；精确 Secret、NetworkPolicy 和地址以 base 与环境配置为准。
+Model Config 与 `app.kubernetes.io/part-of=campus-agent` 的内部 Pod 位于共同受信任边界，访问单一
+Service 时不使用额外 consumer token；NetworkPolicy 允许这些内部 Pod 访问 TCP 8000。
 
 第一方 workload 禁止使用 `envFrom.secretRef`。每个进程只通过显式
 `env[].valueFrom.secretKeyRef` 引用实际读取的 key；多个进程需要同一逻辑凭据时引用同一 Secret

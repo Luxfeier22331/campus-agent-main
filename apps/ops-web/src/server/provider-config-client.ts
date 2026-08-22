@@ -7,13 +7,13 @@ import {
 	ModelDiscoveryResponseSchema,
 	type ModelSettingKindSchema,
 	type ModelSettingUpdate,
+	RerankerModelSettingUpdateSchema,
 } from "../shared/ops-contract.ts";
 
 type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
 
 export interface ProviderConfigAdminEnv {
-	OPS_WEB_EXECUTION_CONTROL_ADMIN_URL?: string;
-	OPS_WEB_INTERNAL_TOKEN?: string;
+	MODEL_CONFIG_URL?: string;
 }
 
 export class ProviderConfigAdminUnavailableError extends Error {}
@@ -34,7 +34,7 @@ export function createProviderConfigAdminClient(
 	input: { fetchImplementation?: typeof fetch } = {},
 ) {
 	const fetchImplementation = input.fetchImplementation ?? fetch;
-	const baseUrl = env.OPS_WEB_EXECUTION_CONTROL_ADMIN_URL?.trim().replace(/\/$/u, "");
+	const baseUrl = env.MODEL_CONFIG_URL?.trim().replace(/\/$/u, "");
 
 	async function request(
 		path: string,
@@ -44,17 +44,15 @@ export function createProviderConfigAdminClient(
 			method: "GET" | "POST" | "PUT";
 		},
 	) {
-		const token = env.OPS_WEB_INTERNAL_TOKEN?.trim();
-		if (!(baseUrl && token)) {
+		if (!baseUrl) {
 			throw new ProviderConfigAdminUnavailableError("Model settings admin API is not configured.");
 		}
 		let response: Response;
 		try {
-			response = await fetchImplementation(`${baseUrl}/internal/admin/model-settings${path}`, {
+			response = await fetchImplementation(`${baseUrl}/internal/admin/model-configs${path}`, {
 				...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
 				headers: {
-					authorization: `Bearer ${token}`,
-					...(options.actorId ? { "x-ops-actor-id": options.actorId } : {}),
+					...(options.actorId ? { "x-model-config-actor": options.actorId } : {}),
 					...(options.body === undefined ? {} : { "content-type": "application/json" }),
 				},
 				method: options.method,
@@ -82,29 +80,144 @@ export function createProviderConfigAdminClient(
 		discoverModels(
 			body: z.input<typeof ModelDiscoveryRequestSchema>,
 			actorId: string,
-			kind: "llm" | "notice_classifier" = "llm",
+			kind: "llm" | "reranker" | "notice_classifier" = "llm",
 		) {
-			return request(`/${kind}/models`, {
+			return request(`/${configNameForKind(kind)}/models`, {
 				actorId,
-				body: ModelDiscoveryRequestSchema.parse(body),
+				body: discoveryInput(ModelDiscoveryRequestSchema.parse(body)),
 				method: "POST",
-			}).then((response) => ModelDiscoveryResponseSchema.parse(response));
+			}).then((response) => ModelDiscoveryResponseSchema.parse(discoveryResponse(response)));
 		},
 		async getStatus() {
-			return ExecutionModelSettingsStatusSchema.parse(await request("", { method: "GET" }));
+			return ExecutionModelSettingsStatusSchema.parse(
+				mapStatus(await request("", { method: "GET" })),
+			);
 		},
 		async put(kind: ModelSettingKind, body: ModelSettingUpdate, actorId: string) {
 			const parsed =
 				kind === "embedding"
 					? EmbeddingModelSettingUpdateSchema.parse(body)
-					: LLMModelSettingUpdateSchema.parse(body);
+					: kind === "reranker"
+						? RerankerModelSettingUpdateSchema.parse(body)
+						: LLMModelSettingUpdateSchema.parse(body);
+			await request(`/${configNameForKind(kind)}`, {
+				actorId,
+				body: updateInput(kind, parsed),
+				method: "PUT",
+			});
 			return ExecutionModelSettingsStatusSchema.parse(
-				await request(`/${kind}`, {
-					actorId,
-					body: parsed,
-					method: "PUT",
-				}),
+				mapStatus(await request("", { method: "GET" })),
 			);
+		},
+	};
+}
+
+const CONFIG_NAME_BY_KIND = {
+	embedding: "campus_docs_embedding",
+	llm: "primary_agent",
+	reranker: "campus_docs_reranker",
+	notice_classifier: "notice_classification",
+} as const;
+
+function configNameForKind(kind: ModelSettingKind) {
+	return CONFIG_NAME_BY_KIND[kind];
+}
+function discoveryInput(input: z.infer<typeof ModelDiscoveryRequestSchema>) {
+	return {
+		...(input.apiKey ? { api_key: input.apiKey } : {}),
+		base_url: input.baseUrl,
+		provider: input.provider,
+	};
+}
+function updateInput(kind: ModelSettingKind, input: ModelSettingUpdate) {
+	if (kind === "embedding") {
+		return {
+			...(input.apiKey ? { api_key: input.apiKey } : {}),
+			api_protocol: "openai.embeddings",
+			base_url: input.baseUrl,
+			provider: "openai-compatible",
+			model: "Qwen3-Embedding-4B",
+		};
+	}
+	if (kind === "reranker") {
+		const reranker = input as z.infer<typeof RerankerModelSettingUpdateSchema>;
+		return {
+			...(reranker.apiKey ? { api_key: reranker.apiKey } : {}),
+			api_protocol: "cohere.rerank",
+			base_url: reranker.baseUrl,
+			provider: reranker.provider,
+			model: reranker.model,
+		};
+	}
+	const text = input as z.infer<typeof LLMModelSettingUpdateSchema>;
+	return {
+		...(text.apiKey ? { api_key: text.apiKey } : {}),
+		api_protocol: text.transport === "responses" ? "openai.responses" : "openai.chat_completions",
+		base_url: text.baseUrl,
+		provider: text.provider,
+		model: text.model,
+	};
+}
+function asRecord(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
+}
+function discoveryResponse(value: unknown) {
+	const raw = asRecord(value);
+	return { models: raw.models, sampledAt: raw.sampled_at };
+}
+function mapStatus(value: unknown) {
+	const raw = asRecord(value);
+	const configs = asRecord(raw.configs);
+	const setting = (kind: ModelSettingKind) => {
+		const config = configs[configNameForKind(kind)];
+		if (!config) {
+			return null;
+		}
+		const b = asRecord(config);
+		const validation = asRecord(b.validation);
+		return {
+			baseUrl: b.base_url,
+			credentialConfigured: b.credential_configured,
+			kind,
+			latestValidation: {
+				...(validation.error_code ? { errorCode: validation.error_code } : {}),
+				message: validation.message,
+				...(validation.observed_dimensions
+					? { observedDimensions: validation.observed_dimensions }
+					: {}),
+				status: validation.status,
+				validatedAt: b.validated_at,
+				validatedBy: b.validated_by,
+			},
+			model: b.model,
+			provider: b.provider,
+			transport:
+				b.api_protocol === "openai.responses"
+					? "responses"
+					: b.api_protocol === "openai.chat_completions"
+						? "chat_completions"
+						: b.api_protocol === "cohere.rerank"
+							? "rerank"
+							: "embeddings",
+			updatedAt: b.updated_at,
+			updatedBy: b.updated_by,
+		};
+	};
+	return {
+		embeddingContract: {
+			dimensions: 2560,
+			model: "Qwen3-Embedding-4B",
+			provider: "openai-compatible",
+			transport: "embeddings",
+		},
+		sampledAt: raw.sampled_at,
+		settings: {
+			embedding: setting("embedding"),
+			llm: setting("llm"),
+			reranker: setting("reranker"),
+			notice_classifier: setting("notice_classifier"),
 		},
 	};
 }

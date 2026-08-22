@@ -38,7 +38,8 @@ test("Campus Docs manual Job templates are complete and suspended", () => {
 		assert.deepEqual(container(manifest, name).args, args);
 	}
 
-	assert.doesNotMatch(source, /CAMPUS_DOCS_(CHUNK|EMBEDDING|REUSE)/u);
+	assert.doesNotMatch(source, /CAMPUS_DOCS_(CHUNK_SET|EMBEDDING_SET|REUSE_EMBEDDING_SET)/u);
+	assert.match(source, /MODEL_CONFIG_URL/u);
 	assert.doesNotMatch(source, /sha256:0{64}/u);
 });
 

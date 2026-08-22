@@ -127,6 +127,7 @@ test("expensive package tasks declare boundary-specific affected inputs", () => 
 		["apps/app-api/turbo.json", ["test:migration-integration", "test:shared-db-integration"]],
 		["apps/campus-web/turbo.json", ["test:e2e:full", "test:e2e:smoke"]],
 		["apps/execution-control/turbo.json", ["test:database-integration"]],
+		["apps/model-config/turbo.json", ["test:database-integration"]],
 		["apps/ingestion-control/turbo.json", ["test:database-integration"]],
 		["apps/ops-web/turbo.json", ["test:browser", "test:database-integration"]],
 		["apps/status-web/turbo.json", ["test:browser"]],

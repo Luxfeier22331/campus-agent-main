@@ -370,24 +370,17 @@ describe("ops-web PostgreSQL grants", () => {
 		}
 	});
 
-	it("has no direct Provider Config access", async () => {
+	it("has no direct Model Config access", async () => {
 		const privilege = await management.query<{
-			canReadCompatibilityView: boolean;
-			canReadModelSettings: boolean;
+			canReadModelConfigs: boolean;
 		}>(`select
 			has_table_privilege(
-				'ops_web', 'execution_control.model_settings', 'SELECT'
+				'ops_web', 'model_config.model_configs', 'SELECT'
 			) or has_any_column_privilege(
-				'ops_web', 'execution_control.model_settings', 'SELECT'
-			) as "canReadModelSettings",
-			has_table_privilege(
-				'ops_web', 'execution_config.model_settings', 'SELECT'
-			) or has_any_column_privilege(
-				'ops_web', 'execution_config.model_settings', 'SELECT'
-			) as "canReadCompatibilityView"`);
+				'ops_web', 'model_config.model_configs', 'SELECT'
+			) as "canReadModelConfigs"`);
 		expect(privilege.rows[0]).toEqual({
-			canReadCompatibilityView: false,
-			canReadModelSettings: false,
+			canReadModelConfigs: false,
 		});
 	});
 });

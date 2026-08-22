@@ -31,6 +31,8 @@ import {
 	type Sha256Ref,
 } from "../src/types.ts";
 
+const MODEL_TARGET_SHA256 = "a".repeat(64);
+
 describe("Campus docs artifact stages", () => {
 	it("builds a deterministic chunk set from the current source and readers", async () => {
 		const sourceStore = fixtureStore();
@@ -127,6 +129,7 @@ describe("Campus docs artifact stages", () => {
 			artifactStore: store,
 			chunkSet: chunks.chunkSet,
 			embedding: embeddingClient(generatedTexts),
+			embeddingTargetSha256: MODEL_TARGET_SHA256,
 		});
 		const secondClient = vi.fn(async () => {
 			throw new Error("explicit reuse should cover every input");
@@ -135,6 +138,7 @@ describe("Campus docs artifact stages", () => {
 			artifactStore: store,
 			chunkSet: chunks.chunkSet,
 			embedding: { embed: secondClient },
+			embeddingTargetSha256: MODEL_TARGET_SHA256,
 			reuseEmbeddingSet: first.embeddingSet,
 		});
 
@@ -152,7 +156,8 @@ describe("Campus docs artifact stages", () => {
 			embeddingCount: first.embeddingCount,
 			embeddingSpace: EMBEDDING_SPACE,
 			embeddings: loaded.manifest.embeddings,
-			schemaVersion: "campus_docs_embedding_set.v2",
+			modelTargetSha256: MODEL_TARGET_SHA256,
+			schemaVersion: "campus_docs_embedding_set.v3",
 		});
 		expect(loaded.manifest).not.toHaveProperty("embeddingDefinition");
 	});
@@ -164,12 +169,14 @@ describe("Campus docs artifact stages", () => {
 			artifactStore: store,
 			chunkSet: chunks.chunkSet,
 			embedding: embeddingClient([]),
+			embeddingTargetSha256: MODEL_TARGET_SHA256,
 		});
 		const generatedTexts: string[] = [];
 		const second = await buildCampusDocsEmbeddingSet({
 			artifactStore: store,
 			chunkSet: chunks.chunkSet,
 			embedding: embeddingClient(generatedTexts),
+			embeddingTargetSha256: MODEL_TARGET_SHA256,
 		});
 
 		expect(second.embeddingSet).toBe(first.embeddingSet);
@@ -341,6 +348,7 @@ async function buildArtifacts(store: MemoryArtifactStore): Promise<{
 		artifactStore: store,
 		chunkSet: chunks.chunkSet,
 		embedding: embeddingClient([]),
+		embeddingTargetSha256: MODEL_TARGET_SHA256,
 	});
 	return {
 		chunkCount: chunks.chunkCount,

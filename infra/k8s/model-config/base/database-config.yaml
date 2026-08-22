@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: model-config-schema-database-config
+  labels:
+    app.kubernetes.io/name: model-config
+    app.kubernetes.io/part-of: campus-agent
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+data:
+  PGHOST: postgres.example.invalid
+  PGPORT: "5432"
+  PGDATABASE: campus_agent
+  PGSSLMODE: verify-full
+  PGSSLROOTCERT: /etc/campus-agent/postgres/ca.crt

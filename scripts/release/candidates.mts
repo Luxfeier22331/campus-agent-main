@@ -15,6 +15,7 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
 	["execution-control", ["execution-control"]],
 	["ingestion-control", ["ingestion-control"]],
+	["model-config", ["model-config"]],
 	["notice-classifier", ["notice-classifier"]],
 	["notice-publisher", ["notice-publisher"]],
 	["ops-web", ["ops-web"]],
@@ -24,6 +25,7 @@ const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["apps/execution-control/Dockerfile", ["execution-control"]],
 	["apps/ingestion-control/Dockerfile", ["ingestion-control"]],
+	["apps/model-config/Dockerfile", ["model-config"]],
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
 	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
@@ -38,6 +40,7 @@ const SOURCE_BASE_PATHS = [
 	"infra/k8s/data-qdrant/base",
 	"infra/k8s/execution-runtime/base/runtime",
 	"infra/k8s/ingestion-runtime/base",
+	"infra/k8s/model-config/base",
 	"infra/k8s/ops-web/base",
 	"infra/k8s/platform-temporal/base",
 ] as const;
@@ -197,6 +200,16 @@ export async function planCandidates(
 		files.includes("packages/contracts/src/notices.ts")
 	) {
 		images.add("notice-publisher");
+	}
+	if (
+		files.some(
+			(file) =>
+				file.startsWith("apps/model-config/") &&
+				file !== "apps/model-config/turbo.json" &&
+				!file.endsWith("/README.md"),
+		)
+	) {
+		images.add("model-config");
 	}
 	if (
 		files.some(

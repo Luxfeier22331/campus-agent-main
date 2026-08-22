@@ -1,0 +1,105 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+	ModelConfigClientError,
+	resolvePrimaryAgentModelConfig,
+} from "../src/model-config-client.ts";
+
+const targetSha256 = "1c8c4cf353f3040aeabe9beb3f3e946acb1c645f95a609ade778d22c920a62ec";
+
+const validRuntimeConfig = {
+	api_key: "provider-key",
+	api_protocol: "openai.responses",
+	base_url: "https://api.openai.com/v1",
+	model: "gpt-5-mini",
+	name: "primary_agent",
+	provider: "openai",
+	schema_version: "model_runtime_config.v1",
+	target_sha256: targetSha256,
+} as const;
+
+describe("Model Config runtime client", () => {
+	it("loads the exact target with one unauthenticated GET", async () => {
+		const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+			expect(String(input)).toBe(
+				`http://model-config/internal/model-configs/primary_agent?expected_target_sha256=${targetSha256}`,
+			);
+			expect(init?.method).toBe("GET");
+			expect(new Headers(init?.headers).get("authorization")).toBeNull();
+			expect(init?.body).toBeUndefined();
+			return Response.json(validRuntimeConfig);
+		});
+
+		await expect(
+			resolvePrimaryAgentModelConfig(
+				{ baseUrl: "http://model-config/", fetchImplementation: fetchMock },
+				targetSha256,
+			),
+		).resolves.toEqual({
+			apiKey: "provider-key",
+			baseUrl: "https://api.openai.com/v1",
+			model: "gpt-5-mini",
+			provider: "openai",
+			transport: "responses",
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it.each(["", "stale", "A".repeat(64), `sha256:${"a".repeat(64)}`])(
+		"rejects invalid expected hash %j before making a request",
+		async (expected) => {
+			const fetchMock = vi.fn<typeof fetch>();
+			await expect(
+				resolvePrimaryAgentModelConfig(
+					{ baseUrl: "http://model-config", fetchImplementation: fetchMock },
+					expected,
+				),
+			).rejects.toMatchObject({ code: "invalid_model_target_sha256", status: 400 });
+			expect(fetchMock).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([
+		[409, "model_target_mismatch"],
+		[401, "model_config_unavailable"],
+		[403, "model_config_unavailable"],
+		[503, "model_config_unavailable"],
+	] as const)("maps HTTP %i to %s", async (status, code) => {
+		await expect(
+			resolvePrimaryAgentModelConfig(
+				{
+					baseUrl: "http://model-config",
+					fetchImplementation: async () => new Response(null, { status }),
+				},
+				targetSha256,
+			),
+		).rejects.toMatchObject({ code, status });
+	});
+
+	it.each([
+		["invalid JSON", new Response("not-json")],
+		["null payload", Response.json(null)],
+		["unknown field", Response.json({ ...validRuntimeConfig, extra: true })],
+		["empty secret", Response.json({ ...validRuntimeConfig, api_key: " " })],
+		["wrong name", Response.json({ ...validRuntimeConfig, name: "notice_classification" })],
+		[
+			"mismatched revision",
+			Response.json({ ...validRuntimeConfig, target_sha256: "0".repeat(64) }),
+		],
+	] as const)("rejects %s", async (_name, response) => {
+		let error: unknown;
+		try {
+			await resolvePrimaryAgentModelConfig(
+				{
+					baseUrl: "http://model-config",
+					fetchImplementation: async () => response,
+				},
+				targetSha256,
+			);
+		} catch (caught) {
+			error = caught;
+		}
+		expect(error).toBeInstanceOf(ModelConfigClientError);
+		expect(error).toMatchObject({ code: "model_config_unavailable", status: 503 });
+	});
+});

@@ -11,25 +11,62 @@ const snapshot = {
 	apiKey: "test-key",
 	baseUrl: "https://embedding.example/v1",
 	model: "provider-model-alias",
+	targetSha256: "a".repeat(64),
 };
 
 describe("OpenAI-compatible embedding client", () => {
-	it("loads the one-time provider snapshot without vector-space fields", async () => {
-		const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
-			api_key: "snapshot-key",
-			base_url: "https://embedding.example/v1/",
-			model: "embedding-model",
-			provider: "openai-compatible",
-			schema_version: "embedding_provider_snapshot.v1",
-		}), { status: 200 }));
+	it("loads the complete embedding config with one unauthenticated GET", async () => {
+		const targetSha256 = "b".repeat(64);
+		const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+			expect(String(input)).toBe(
+				"http://model-config.test/internal/model-configs/campus_docs_embedding",
+			);
+			expect(init?.method).toBe("GET");
+			expect(new Headers(init?.headers).get("authorization")).toBeNull();
+			return Response.json({
+				api_key: "snapshot-key",
+				api_protocol: "openai.embeddings",
+				base_url: "https://embedding.example/v1",
+				model: "Qwen3-Embedding-4B",
+				name: "campus_docs_embedding",
+				provider: "openai-compatible",
+				schema_version: "model_runtime_config.v1",
+				target_sha256: targetSha256,
+			});
+		});
 
-		await expect(fetchEmbeddingConnection(fetchMock, "http://snapshot.test/internal")).resolves.toEqual({
+		await expect(fetchEmbeddingConnection(fetchMock, "http://model-config.test")).resolves.toEqual({
 			apiKey: "snapshot-key",
 			baseUrl: "https://embedding.example/v1",
-			model: "embedding-model",
+			model: "Qwen3-Embedding-4B",
+			targetSha256,
 		});
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
+
+	it.each(["provider", "api_protocol", "model", "name"] as const)(
+		"rejects an invalid runtime %s",
+		async (field) => {
+			const targetSha256 = "b".repeat(64);
+			const runtime = {
+				api_key: "snapshot-key",
+				api_protocol: "openai.embeddings",
+				base_url: "https://embedding.example/v1",
+				model: "Qwen3-Embedding-4B",
+				name: "campus_docs_embedding",
+				provider: "openai-compatible",
+				schema_version: "model_runtime_config.v1",
+				target_sha256: targetSha256,
+			};
+			const fetchMock = vi.fn<typeof fetch>(async () =>
+				Response.json({ ...runtime, [field]: "different" }),
+			);
+
+			await expect(
+				fetchEmbeddingConnection(fetchMock, "http://model-config.test"),
+			).rejects.toThrow("embedding model runtime config is invalid");
+		},
+	);
 
 	it("reorders response vectors by their input index", async () => {
 		const client = clientFor({

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/activity"
@@ -53,7 +52,6 @@ func (s *Server) ExecutePrimaryAgent(
 			fmt.Errorf("agent runtime base URL and shared secret are required"),
 		)
 	}
-	var providerConfig providerconfig.RuntimeSetting
 	limits := s.primaryAgentRuntimeLimits()
 	snapshot := input.AdmissionSnapshot
 	visibleToolNames := input.VisibleToolNames
@@ -62,13 +60,6 @@ func (s *Server) ExecutePrimaryAgent(
 	}
 	if err := s.validateLocalToolRuntimeFingerprint(snapshot.ToolRuntimeFingerprint); err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", err)
-	}
-	providerConfig, err = s.resolveProviderConfig(ctx, providerconfig.KindLLM)
-	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "provider_config_missing", err)
-	}
-	if providerconfig.AdmissionHash(providerConfig) != snapshot.ProviderConfigSHA256 {
-		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", errors.New("active llm setting does not match admission"))
 	}
 	limits = limitsFromAdmissionSnapshot(snapshot.AgentLimits)
 	limits.MaxTurns = snapshot.ExecutionStrategy.MaxModelTurns
@@ -83,7 +74,6 @@ func (s *Server) ExecutePrimaryAgent(
 		run,
 		input,
 		strings.TrimSpace(stringValue(executionPayload["user_goal"])),
-		providerConfig,
 		conversationContext,
 		limits,
 		attempt,

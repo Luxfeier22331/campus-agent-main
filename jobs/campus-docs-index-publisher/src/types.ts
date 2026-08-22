@@ -107,6 +107,7 @@ export interface EmbeddingConnection {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
+	targetSha256: string;
 }
 
 export interface QdrantIndexClient {
@@ -161,7 +162,8 @@ export interface EmbeddingSetManifest {
 	embeddingCount: number;
 	embeddingSpace: typeof EMBEDDING_SPACE;
 	embeddings: ObjectRef;
-	schemaVersion: "campus_docs_embedding_set.v2";
+	modelTargetSha256: string;
+	schemaVersion: "campus_docs_embedding_set.v3";
 }
 
 export interface BuildChunkSetInput {
@@ -181,6 +183,7 @@ export interface BuildEmbeddingSetInput {
 	artifactStore: ArtifactObjectStore;
 	chunkSet: Sha256Ref;
 	embedding: EmbeddingClient;
+	embeddingTargetSha256: string;
 	onEmbeddingProgress?: (completedInputCount: number, totalInputCount: number) => void;
 	reuseEmbeddingSet?: Sha256Ref;
 }

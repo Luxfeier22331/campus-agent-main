@@ -1,7 +1,11 @@
 import type { SpawnSyncOptions } from "node:child_process";
 import { resolve } from "node:path";
 import type { LocalDevEnvironmentTarget } from "./environment";
-import { localDatabaseUrls, resolveLocalProviderConfigEncryptionKeyPath } from "./environment";
+import {
+	localDatabaseUrls,
+	resolveLocalLegacyProviderConfigEncryptionKeyPath,
+	resolveLocalModelConfigEncryptionKeyPath,
+} from "./environment";
 import { runCommand } from "./process";
 import type { LocalDevProfileV1 } from "./profile";
 
@@ -9,6 +13,7 @@ export type LocalApplicationBootstrapStep =
 	| "campus-web-docs"
 	| "app-api-schema"
 	| "execution-control-schema"
+	| "model-config-schema"
 	| "app-api-seed-local-test-user"
 	| "ops-web-schema"
 	| "ops-web-dining-bootstrap"
@@ -35,7 +40,9 @@ export function localApplicationBootstrapCommands(
 ): LocalApplicationBootstrapCommand[] {
 	const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 	const database = localDatabaseUrls(profile);
-	const providerConfigEncryptionKeyPath = resolveLocalProviderConfigEncryptionKeyPath(repoRoot);
+	const modelConfigEncryptionKeyPath = resolveLocalModelConfigEncryptionKeyPath(repoRoot);
+	const legacyProviderConfigEncryptionKeyPath =
+		resolveLocalLegacyProviderConfigEncryptionKeyPath(repoRoot);
 	const opsWebEnv = {
 		...process.env,
 		DEPLOYMENT_ENVIRONMENT: "local",
@@ -102,11 +109,26 @@ export function localApplicationBootstrapCommands(
 				"--evidence-path",
 				resolve(repoRoot, "var/dev/execution-control-schema.json"),
 				"--provider-config-encryption-key-path",
-				providerConfigEncryptionKeyPath,
+				legacyProviderConfigEncryptionKeyPath,
 			],
 			command: "go",
 			options: { cwd: resolve(repoRoot, "apps/execution-control") },
 			step: "execution-control-schema",
+		},
+		{
+			args: [
+				"run",
+				"./cmd/model-config-schema",
+				"--database-url",
+				database.owner,
+				"--encryption-key-path",
+				modelConfigEncryptionKeyPath,
+				"--legacy-encryption-key-path",
+				legacyProviderConfigEncryptionKeyPath,
+			],
+			command: "go",
+			options: { cwd: resolve(repoRoot, "apps/model-config") },
+			step: "model-config-schema",
 		},
 		appApiCommand("app-api-seed-local-test-user", "./ops/db/seed-local-test-user.ts"),
 		{
@@ -154,6 +176,7 @@ export function localApplicationBootstrapCommands(
 			"campus-web-docs",
 			"app-api-schema",
 			"execution-control-schema",
+			"model-config-schema",
 			"app-api-seed-local-test-user",
 		],
 		"ops-web": ["ops-web-schema", "ops-web-dining-bootstrap"],

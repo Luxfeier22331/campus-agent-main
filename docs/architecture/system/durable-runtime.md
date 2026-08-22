@@ -121,8 +121,9 @@ Reset 或其他 successor 不能改写产品终态或被重新绑定到原产品
 
 ## Agent Activity
 
-execution-control 提供运行标识、已冻结执行策略、已准入的模型可见工具、供应商配置和有界会话上下文。
-Agent Runtime 在真实 `AgentInputItem[]` 上
+execution-control 提供运行标识、已冻结执行策略、已准入的模型可见工具、`primary_agent` 预期
+Model Target hash 和有界会话上下文。Agent Runtime 从共同受信任的 Model Config 按预期 hash 读取
+实际供应商配置，再在真实 `AgentInputItem[]` 上
 执行字符预算裁剪，并返回结构化终态、真实 SDK 工具摘要、上下文用量、模型用量和 trace 关联。
 
 SDK `maxTurns` 只限制该 run 的代理与工具轮次，不是重试次数、重新规划预算或新的 Temporal

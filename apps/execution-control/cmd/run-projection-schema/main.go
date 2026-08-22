@@ -221,19 +221,6 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 	if err := migrator.CheckGrants(ctx); err != nil {
 		return schemaReport{}, err
 	}
-	if err := providerconfig.CheckDatabaseSchema(ctx, options.DatabaseURL); err != nil {
-		return schemaReport{}, err
-	}
-	if encryptionKey != nil {
-		providerStore, err := providerconfig.NewStore(ctx, options.DatabaseURL, encryptionKey)
-		if err != nil {
-			return schemaReport{}, err
-		}
-		defer providerStore.Close()
-		if err := providerStore.StoredSecretsCheck(ctx); err != nil {
-			return schemaReport{}, fmt.Errorf("check stored provider config secrets: %w", err)
-		}
-	}
 
 	report := schemaReport{
 		GeneratedAt: now.Format(time.RFC3339Nano),

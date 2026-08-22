@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -23,7 +22,6 @@ func (s *Server) callAgentRuntime(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	inputText string,
-	providerConfig providerconfig.RuntimeSetting,
 	conversationContext map[string]any,
 	limits primaryAgentRuntimeLimits,
 	activityAttempt int,
@@ -32,7 +30,6 @@ func (s *Server) callAgentRuntime(
 		run,
 		input,
 		inputText,
-		providerConfig,
 		conversationContext,
 		limits,
 		activityAttempt,
@@ -48,23 +45,22 @@ func primaryAgentRuntimeRequestPayload(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	inputText string,
-	providerConfig providerconfig.RuntimeSetting,
 	conversationContext map[string]any,
 	limits primaryAgentRuntimeLimits,
 	activityAttempt int,
 ) map[string]any {
 	payload := map[string]any{
-		"activity_attempt":   activityAttempt,
-		"user_id":            run.OwnerUserID,
-		"run_id":             input.RunID,
-		"request_id":         run.RequestID,
-		"conversation_id":    input.ConversationID,
-		"turn_id":            input.TurnID,
-		"trace_id":           input.TraceID,
-		"input":              strings.TrimSpace(inputText),
-		"visible_tool_names": append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
-		"limits":             primaryAgentRuntimeLimitsPayload(limits),
-		"provider_config":    primaryAgentProviderConfigPayload(providerConfig),
+		"activity_attempt":             activityAttempt,
+		"user_id":                      run.OwnerUserID,
+		"run_id":                       input.RunID,
+		"request_id":                   run.RequestID,
+		"conversation_id":              input.ConversationID,
+		"turn_id":                      input.TurnID,
+		"trace_id":                     input.TraceID,
+		"input":                        strings.TrimSpace(inputText),
+		"visible_tool_names":           append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
+		"limits":                       primaryAgentRuntimeLimitsPayload(limits),
+		"expected_model_target_sha256": input.AdmissionSnapshot.PrimaryAgentTargetSHA256,
 	}
 	if expected := toolRuntimeFingerprintSnapshotMap(input.AdmissionSnapshot.ToolRuntimeFingerprint); expected != nil {
 		payload["expected_tool_runtime_fingerprint"] = expected
@@ -128,16 +124,6 @@ func primaryAgentTransportTimeout(deadlineMS int) time.Duration {
 		graceMS = primaryAgentTransportGraceMS
 	}
 	return time.Duration(deadlineMS+graceMS) * time.Millisecond
-}
-
-func primaryAgentProviderConfigPayload(config providerconfig.RuntimeSetting) map[string]any {
-	return map[string]any{
-		"provider":  config.Provider,
-		"transport": config.Transport,
-		"base_url":  config.BaseURL,
-		"model":     config.Model,
-		"api_key":   config.APIKey,
-	}
 }
 
 func (s *Server) consumeAgentRuntimeStream(

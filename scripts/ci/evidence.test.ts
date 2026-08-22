@@ -148,6 +148,7 @@ test("runs selected native, database, and OTel profiles in order", () => {
 	);
 	assert.deepEqual(calls, [
 		"pnpm exec turbo run native:format native:lint native:typecheck native:test --filter=execution-control --summarize",
+		"pnpm exec turbo run native:format native:lint native:typecheck native:test --filter=model-config --summarize",
 		"pnpm exec turbo run typecheck test --filter=eval-langfuse --summarize",
 		"pnpm exec turbo run test:eval --filter=ragas-runner --summarize",
 		"pnpm exec turbo run test:database-integration --filter=ingestion-control --summarize",

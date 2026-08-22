@@ -9,7 +9,8 @@
 - 通过服务端固定查询访问 Sentry，不向浏览器提供任意供应商查询；
 - 执行明确准入的在线模型配置、食堂和同好群内容运营操作；
 - 通过 ingestion-control 管理、检查和按需显示多条内部门户 TGC；
-- 通过 execution-control 管理和验证在线模型当前设置；
+- 通过 Model Config 管理和验证在线模型当前设置；页面保留的 `execution` 路由名只是历史 URL，
+  不表示 execution-control 拥有模型配置；
 - 通过 App API 管理邮箱准入、用户状态和会话，并在用户详情只读显示注销状态。
 
 浏览器只调用同源 `/api/ops/*`。本应用不是产品 API、数据库浏览器、通用观测查询或 Kubernetes

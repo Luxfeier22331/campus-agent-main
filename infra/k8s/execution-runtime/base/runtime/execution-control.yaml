@@ -13,36 +13,6 @@ spec:
   selector:
     app.kubernetes.io/name: execution-control
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: execution-control-admin
-  labels:
-    app.kubernetes.io/name: execution-control
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  ports:
-    - name: http
-      port: 8000
-      targetPort: admin
-  selector:
-    app.kubernetes.io/name: execution-control
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: execution-control-provider-snapshot
-  labels:
-    app.kubernetes.io/name: execution-control
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  ports:
-    - name: http
-      port: 8002
-      targetPort: snapshot
-  selector:
-    app.kubernetes.io/name: execution-control
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -78,10 +48,6 @@ spec:
           ports:
             - name: http
               containerPort: 8000
-            - name: admin
-              containerPort: 8001
-            - name: snapshot
-              containerPort: 8002
           env:
             - name: DEPLOYMENT_ENVIRONMENT
               valueFrom:
@@ -122,11 +88,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: OPS_WEB_INTERNAL_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ops-web-internal-secrets
-                  key: OPS_WEB_INTERNAL_TOKEN
+            - name: MODEL_CONFIG_URL
+              value: http://model-config:8000
             - name: EXECUTION_CONTROL_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -153,9 +116,6 @@ spec:
                   name: execution-app-api-internal-secrets
                   key: APP_API_EXECUTION_SHARED_SECRET
           volumeMounts:
-            - name: provider-config-encryption
-              mountPath: /run/campus-agent/provider-config
-              readOnly: true
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
               readOnly: true
@@ -187,13 +147,6 @@ spec:
             limits:
               memory: 1Gi
       volumes:
-        - name: provider-config-encryption
-          secret:
-            secretName: execution-provider-config-encryption
-            defaultMode: 0440
-            items:
-              - key: encryption.key
-                path: encryption.key
         - name: postgres-ca
           secret:
             secretName: campus-agent-postgres-origin-server

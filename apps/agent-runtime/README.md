@@ -6,7 +6,8 @@
 
 - 运行单一 Primary Agent 与本轮可用的可选函数工具循环；当前只可能开放
   `personal_memory_recall`；
-- 消费 execution-control 提供的模型配置、工具目录、上下文和截止时间；
+- 消费 execution-control 提供的预期 Model Target hash、工具目录、上下文和截止时间，并从共同
+  受信任的 Model Config 读取仍匹配该 hash 的 `primary_agent` 完整运行配置；
 - 把工具调用交回 execution-control，不直接访问产品数据库或内部工具服务；
 - 返回结构化终态、工具轨迹、模型用量和调用链关联信息；
 - 通过 OpenTelemetry 与 Langfuse 记录受控 Agent 轨迹。

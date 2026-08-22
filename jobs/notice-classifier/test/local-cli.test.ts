@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
 	assertLocalNoticeClassifierObjectStoreEnvironment,
-	LOCAL_NOTICE_CLASSIFIER_PROVIDER_SNAPSHOT_URL,
+	LOCAL_NOTICE_CLASSIFIER_MODEL_CONFIG_URL,
 	loadLocalNoticeClassifierEnvironment,
 } from "../src/local-cli.ts";
 
@@ -19,10 +19,8 @@ afterEach(() => {
 });
 
 describe("local notice classifier entrypoint", () => {
-	it("uses the loopback snapshot endpoint by default", () => {
-		expect(LOCAL_NOTICE_CLASSIFIER_PROVIDER_SNAPSHOT_URL).toBe(
-			"http://127.0.0.1:18002/internal/provider-snapshots/notice-classifier",
-		);
+	it("uses the loopback Model Config service by default", () => {
+		expect(LOCAL_NOTICE_CLASSIFIER_MODEL_CONFIG_URL).toBe("http://127.0.0.1:18003");
 	});
 
 	it("requires the complete local object store contract", () => {

@@ -269,27 +269,17 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 		}
 	})
 
-	t.Run("clean and partially configured current schemas are idempotent", func(t *testing.T) {
+	t.Run("empty historical Goose chain is idempotent before cutover", func(t *testing.T) {
 		_, ownerURL := harness.ownerDatabase(t)
 		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
-			t.Fatalf("install empty current schema: %v", err)
+			t.Fatalf("install empty historical schema: %v", err)
 		}
 		assertLegacyTablesAbsent(t, ownerURL)
 		assertModelSettingsCount(t, ownerURL, "execution_control.model_settings", 0)
-		store := newProviderStore(t, ownerURL, nil)
-		if _, err := store.Put(t.Context(), "ops:integration", providerconfig.RuntimeSetting{
-			APIKey: "current-secret", BaseURL: "https://provider.integration.example/v1",
-			Kind: providerconfig.KindLLM, Model: "current-llm", Provider: "openai-compatible", Transport: "responses",
-		}, providerconfig.ValidationResult{Message: "passed", Status: "passed"}); err != nil {
-			t.Fatalf("insert current model setting: %v", err)
-		}
 		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
-			t.Fatalf("repeat install with one current setting: %v", err)
+			t.Fatalf("repeat empty historical schema install: %v", err)
 		}
-		assertModelSettingsCount(t, ownerURL, "execution_control.model_settings", 1)
-		if err := providerconfig.CheckDatabaseSchema(t.Context(), ownerURL); err != nil {
-			t.Fatalf("check current schema: %v", err)
-		}
+		assertModelSettingsCount(t, ownerURL, "execution_control.model_settings", 0)
 	})
 
 	t.Run("successful install migrates settings and removes legacy schema", func(t *testing.T) {
@@ -301,8 +291,7 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 		assertLegacyTablesAbsent(t, ownerURL)
 		assertModelSettingsCount(t, ownerURL, "execution_control.model_settings", 2)
 
-		runtimeURL := databaseURLForOwner(t, harness, ownerURL, executionRole, executionPassword)
-		store := newProviderStore(t, runtimeURL, keyring)
+		store := newProviderStore(t, ownerURL, keyring)
 		llm, err := store.Resolve(t.Context(), providerconfig.KindLLM)
 		if err != nil {
 			t.Fatalf("resolve migrated llm: %v", err)
@@ -318,11 +307,9 @@ func testLegacyProviderConfigMigration(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("migrated embedding = %#v", embedding)
 		}
 		if err := migrateSchema(t.Context(), ownerURL, nil); err != nil {
-			t.Fatalf("repeat current schema install: %v", err)
+			t.Fatalf("repeat historical schema install: %v", err)
 		}
-		if err := providerconfig.CheckDatabaseSchema(t.Context(), ownerURL); err != nil {
-			t.Fatalf("check migrated schema: %v", err)
-		}
+		assertModelSettingsCount(t, ownerURL, "execution_control.model_settings", 2)
 	})
 
 	t.Run("current and legacy settings cannot coexist", func(t *testing.T) {

@@ -42,8 +42,8 @@ func TestServerInfrastructureFieldsUseTheirOwnedPackages(t *testing.T) {
 			pointer: true,
 		},
 		{
-			field: "providerConfigResolver",
-			owner: "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig",
+			field: "primaryAgentTargetResolver",
+			owner: "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient",
 		},
 	}
 
@@ -73,6 +73,7 @@ func TestRetiredInfrastructureImplementationsDoNotReturnToHTTPPackage(t *testing
 		"execution_input_loader.go",
 		"execution_input_projection.go",
 		"provider_config_resolver.go",
+		"provider_config_resolution.go",
 		"temporal_reconcile_cancellations.go",
 		"temporal_reconcile_identity.go",
 		"temporal_reconcile_starts.go",

@@ -16,12 +16,14 @@ import { parseEnv } from "node:util";
 
 import { localApplicationBootstrapCommands } from "./application-bootstrap";
 import {
-	ensureLocalProviderConfigEncryptionKey,
+	ensureLocalLegacyProviderConfigEncryptionKey,
+	ensureLocalModelConfigEncryptionKey,
 	MANAGED_LOCAL_ENV_MARKER,
 	managedLocalEnvironmentPaths,
 	removeLocalEnvironmentFiles,
 	renderLocalEnvironmentFiles,
-	resolveLocalProviderConfigEncryptionKeyPath,
+	resolveLocalLegacyProviderConfigEncryptionKeyPath,
+	resolveLocalModelConfigEncryptionKeyPath,
 } from "./environment";
 import {
 	assertDestroyConfirmation,
@@ -74,9 +76,8 @@ describe("local development profiles", () => {
 		assert.deepEqual(calculateLocalDevRuntimePorts(2), {
 			agentRuntime: 27262,
 			executionControl: 27251,
-			executionControlAdmin: 27252,
-			executionControlSnapshot: 27253,
 			ingestionControl: 27261,
+			modelConfig: 27253,
 		});
 	});
 
@@ -177,6 +178,15 @@ describe("managed worktree environment", () => {
 		const opsWebEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/ops-web/.env.local"), "utf8"),
 		);
+		const agentRuntimeEnvironment = parseEnv(
+			readFileSync(resolve(repoRoot, "apps/agent-runtime/.env.local"), "utf8"),
+		);
+		const executionControlEnvironment = parseEnv(
+			readFileSync(resolve(repoRoot, "apps/execution-control/.env.local"), "utf8"),
+		);
+		const modelConfigEnvironment = parseEnv(
+			readFileSync(resolve(repoRoot, "apps/model-config/.env.local"), "utf8"),
+		);
 		const ingestionControlEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/ingestion-control/.env.local"), "utf8"),
 		);
@@ -205,6 +215,17 @@ describe("managed worktree environment", () => {
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, undefined);
 		assert.equal(campusWebEnvironment.OBJECT_STORE_DERIVED_SECRET_KEY, undefined);
 		assert.equal(new URL(opsWebEnvironment.OPS_WEB_DATABASE_URL ?? "").search, "");
+		assert.equal(modelConfigEnvironment.MODEL_CONFIG_HOST, "127.0.0.1");
+		assert.equal(
+			modelConfigEnvironment.MODEL_CONFIG_PORT,
+			String(calculateLocalDevRuntimePorts(profile.slot).modelConfig),
+		);
+		assert.deepEqual(Object.keys(modelConfigEnvironment).sort(), [
+			"MODEL_CONFIG_DATABASE_URL",
+			"MODEL_CONFIG_ENCRYPTION_KEY_FILE",
+			"MODEL_CONFIG_HOST",
+			"MODEL_CONFIG_PORT",
+		]);
 		assert.equal(
 			new URL(ingestionControlEnvironment.INGESTION_CONTROL_DATABASE_URL ?? "").username,
 			"ingestion_control",
@@ -230,6 +251,10 @@ describe("managed worktree environment", () => {
 		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
 		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "minioadmin");
 		assert.equal(noticeClassifierEnvironment.INTERNAL_NOTICE_CLASSIFIER_OPENAI_API_KEY, undefined);
+		const modelConfigUrl = `http://127.0.0.1:${calculateLocalDevRuntimePorts(profile.slot).modelConfig}`;
+		assert.equal(executionControlEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
+		assert.equal(agentRuntimeEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
+		assert.equal(noticeClassifierEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_SECRET_KEY, "minioadmin");
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "minioadmin");
@@ -242,10 +267,7 @@ describe("managed worktree environment", () => {
 		assert.equal(opsWebEnvironment.OPS_WEB_APP_API_URL, "http://127.0.0.1:27131");
 		assert.equal(opsWebEnvironment.OPS_WEB_CAMPUS_WEB_URL, "http://127.0.0.1:27114");
 		assert.equal(opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN, second.OPS_WEB_INTERNAL_TOKEN);
-		assert.equal(
-			opsWebEnvironment.OPS_WEB_EXECUTION_CONTROL_ADMIN_URL,
-			`http://127.0.0.1:${calculateLocalDevRuntimePorts(profile.slot).executionControlAdmin}`,
-		);
+		assert.equal(opsWebEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
 		assert.equal(
 			opsWebEnvironment.OPS_WEB_AUTOMATION_ORIGIN,
 			`http://127.0.0.1:${profile.ports.opsWebApi}`,
@@ -253,14 +275,24 @@ describe("managed worktree environment", () => {
 		assert.equal(opsWebEnvironment.OPS_WEB_WEB_PORT, String(profile.ports.opsWeb));
 	});
 
-	it("creates a stable per-worktree provider encryption key with private permissions", () => {
+	it("creates a stable per-worktree Model Config encryption key with private permissions", () => {
 		const repoRoot = createRepositoryShape();
-		const first = ensureLocalProviderConfigEncryptionKey(repoRoot);
-		const second = ensureLocalProviderConfigEncryptionKey(repoRoot);
-		assert.equal(first, resolveLocalProviderConfigEncryptionKeyPath(repoRoot));
+		const first = ensureLocalModelConfigEncryptionKey(repoRoot);
+		const second = ensureLocalModelConfigEncryptionKey(repoRoot);
+		assert.equal(first, resolveLocalModelConfigEncryptionKeyPath(repoRoot));
 		assert.equal(second, first);
 		assert.equal(Buffer.from(readFileSync(first, "utf8").trim(), "base64").length, 32);
 		assert.equal(statSync(first).mode & 0o777, 0o600);
+	});
+
+	it("preserves a separate legacy provider key for the one-time cutover", () => {
+		const repoRoot = createRepositoryShape();
+		const current = ensureLocalModelConfigEncryptionKey(repoRoot);
+		const legacy = ensureLocalLegacyProviderConfigEncryptionKey(repoRoot);
+		assert.equal(legacy, resolveLocalLegacyProviderConfigEncryptionKeyPath(repoRoot));
+		assert.notEqual(legacy, current);
+		assert.equal(Buffer.from(readFileSync(legacy, "utf8").trim(), "base64").length, 32);
+		assert.equal(statSync(legacy).mode & 0o777, 0o600);
 	});
 
 	it("refuses to overwrite a developer-owned application environment file", () => {
@@ -300,7 +332,7 @@ describe("managed worktree environment", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
 		const corePaths = renderLocalEnvironmentFiles({ profile, repoRoot, target: "core" });
-		assert.equal(corePaths.length, 5);
+		assert.equal(corePaths.length, 6);
 		assert.equal(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")), false);
 	});
 
@@ -554,6 +586,7 @@ describe("local development lifecycle guards", () => {
 				"campus-web-docs",
 				"app-api-schema",
 				"execution-control-schema",
+				"model-config-schema",
 				"app-api-seed-local-test-user",
 				"ops-web-schema",
 				"ops-web-dining-bootstrap",
@@ -567,9 +600,16 @@ describe("local development lifecycle guards", () => {
 			commands[2]?.args.join(" ") ?? "",
 			/--provider-config-encryption-key-path \/repo\/var\/dev\/provider-config-encryption\.key/u,
 		);
-		assert.doesNotMatch(commands[2]?.args.join(" ") ?? "", /provider-config-keyring/u);
-		assert.deepEqual(commands[6]?.args, ["--dir", "apps/ingestion-control", "schema:bootstrap"]);
-		assert.deepEqual(commands[7]?.args, ["--dir", "apps/ingestion-control", "migrate"]);
+		assert.match(
+			commands[3]?.args.join(" ") ?? "",
+			/--encryption-key-path \/repo\/var\/dev\/model-config-encryption\.key/u,
+		);
+		assert.match(
+			commands[3]?.args.join(" ") ?? "",
+			/--legacy-encryption-key-path \/repo\/var\/dev\/provider-config-encryption\.key/u,
+		);
+		assert.deepEqual(commands[7]?.args, ["--dir", "apps/ingestion-control", "schema:bootstrap"]);
+		assert.deepEqual(commands[8]?.args, ["--dir", "apps/ingestion-control", "migrate"]);
 	});
 
 	it("keeps the internal portal collection local loader inside its adapter", () => {
@@ -628,6 +668,7 @@ function createRepositoryShape(): string {
 		"app-api",
 		"campus-web",
 		"execution-control",
+		"model-config",
 		"agent-runtime",
 		"ingestion-control",
 		"ops-web",

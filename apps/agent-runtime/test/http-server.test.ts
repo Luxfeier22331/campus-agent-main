@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentRunner } from "../src/agent-run-contract.ts";
-import { createAgentRuntimeHandler } from "../src/http-server.ts";
+import { createAgentRuntimeHandler as createAgentRuntimeHandlerBase } from "../src/http-server.ts";
+import type { ModelConfigClientOptions } from "../src/model-config-client.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
 import { testPromptTrace, testToolRuntimeFingerprint } from "./helpers/runtime-fingerprint.ts";
@@ -46,6 +47,11 @@ const catalog: ToolCatalog = {
 		},
 	],
 };
+
+const PRIMARY_AGENT_TARGET_SHA256 =
+	"1c8c4cf353f3040aeabe9beb3f3e946acb1c645f95a609ade778d22c920a62ec";
+const CHAT_COMPLETIONS_TARGET_SHA256 =
+	"1e1042c87f45f46f64438bd9ccd8d21a09d172b67a0b2a9fb655e6e76a7147d2";
 
 function schemaRef(schemaName: string, definitionName: string): string {
 	return `https://muc.wiki/campus-agent/schemas/${schemaName}.schema.json#/$defs/${definitionName}`;
@@ -117,7 +123,10 @@ describe("agent runtime HTTP handler", () => {
 		const response = await handler(
 			new Request("http://agent-runtime/internal/agent-runs", {
 				method: "POST",
-				body: JSON.stringify(validRunBody()),
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
 			}),
 		);
 
@@ -137,7 +146,6 @@ describe("agent runtime HTTP handler", () => {
 			}),
 		});
 		const body = validRunBody();
-		body.provider_config = validPromptProviderConfig();
 		body.expected_tool_runtime_fingerprint = {
 			...wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
 			combined_sha256: `sha256:${"0".repeat(64)}`,
@@ -201,7 +209,6 @@ describe("agent runtime HTTP handler", () => {
 							],
 						},
 					},
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -285,6 +292,10 @@ describe("agent runtime HTTP handler", () => {
 	it("accepts chat-completions LLM settings at the HTTP boundary", async () => {
 		let observedProvider: unknown;
 		const handler = createAgentRuntimeHandler({
+			modelConfig: modelConfigClient({
+				api_protocol: "openai.chat_completions",
+				provider: "openai-compatible",
+			}),
 			sharedSecret: "secret",
 			runtime: {
 				async run(input) {
@@ -303,11 +314,7 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					provider_config: {
-						...validPromptProviderConfig(),
-						provider: "openai-compatible",
-						transport: "chat_completions",
-					},
+					expected_model_target_sha256: CHAT_COMPLETIONS_TARGET_SHA256,
 				}),
 			}),
 		);
@@ -403,7 +410,6 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -441,7 +447,7 @@ describe("agent runtime HTTP handler", () => {
 		await vi.waitFor(() => expect(streamClosed).toBe(true));
 	});
 
-	it("fails closed when provider config is missing from an agent run request", async () => {
+	it("rejects the retired inline provider config field", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: createPrimaryAgentRuntime({ catalog, runner: noToolRunner }),
@@ -451,7 +457,10 @@ describe("agent runtime HTTP handler", () => {
 			new Request("http://agent-runtime/internal/agent-runs", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify(validRunBody()),
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
 			}),
 		);
 
@@ -473,7 +482,7 @@ describe("agent runtime HTTP handler", () => {
 			new Request("http://agent-runtime/internal/agent-runs", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify({ ...body, provider_config: validPromptProviderConfig() }),
+				body: JSON.stringify(body),
 			}),
 		);
 
@@ -493,10 +502,7 @@ describe("agent runtime HTTP handler", () => {
 			new Request("http://agent-runtime/internal/agent-runs", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify({
-					...validRunBody(),
-					provider_config: validPromptProviderConfig(),
-				}),
+				body: JSON.stringify(validRunBody()),
 			}),
 		);
 
@@ -516,7 +522,6 @@ describe("agent runtime HTTP handler", () => {
 				body: JSON.stringify({
 					...validRunBody(),
 					campus_docs_evidence: [],
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -541,7 +546,6 @@ describe("agent runtime HTTP handler", () => {
 					...validRunBody(),
 					input: "超过五个字符",
 					limits: { ...validRuntimeLimits(), current_input_char_limit: 5 },
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -569,7 +573,6 @@ describe("agent runtime HTTP handler", () => {
 						recent_turns: [{ role: "user", content: "很长的历史上下文".repeat(40) }],
 					},
 					limits: { ...validRuntimeLimits(), context_char_limit: 200 },
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -628,7 +631,6 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					provider_config: validPromptProviderConfig(),
 				}),
 				signal: controller.signal,
 			}),
@@ -681,7 +683,6 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -722,7 +723,6 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -755,7 +755,6 @@ describe("agent runtime HTTP handler", () => {
 				body: JSON.stringify({
 					...validRunBody(),
 					limits: { ...validRuntimeLimits(), agent_deadline_ms: 5 },
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -794,7 +793,6 @@ describe("agent runtime HTTP handler", () => {
 				body: JSON.stringify({
 					...validRunBody(),
 					limits: { ...validRuntimeLimits(), agent_deadline_ms: 5 },
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -833,7 +831,6 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
-					provider_config: validPromptProviderConfig(),
 				}),
 			}),
 		);
@@ -875,10 +872,7 @@ describe("agent runtime HTTP handler", () => {
 			new Request("http://agent-runtime/internal/agent-runs/stream", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
-				body: JSON.stringify({
-					...validRunBody(),
-					provider_config: validPromptProviderConfig(),
-				}),
+				body: JSON.stringify(validRunBody()),
 			}),
 		);
 
@@ -911,7 +905,6 @@ describe("agent runtime HTTP handler", () => {
 			}),
 		});
 		const body = validRunBody();
-		body.provider_config = validPromptProviderConfig();
 		body.expected_tool_runtime_fingerprint = {
 			...wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
 			combined_sha256: `sha256:${"0".repeat(64)}`,
@@ -984,6 +977,7 @@ function validRunBody(): Record<string, unknown> {
 		input: "hi 你是谁",
 		visible_tool_names: ["test_lookup"],
 		expected_tool_runtime_fingerprint: wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
+		expected_model_target_sha256: PRIMARY_AGENT_TARGET_SHA256,
 		limits: validRuntimeLimits(),
 	};
 }
@@ -1019,6 +1013,43 @@ function validPromptProviderConfig(): Record<string, unknown> {
 		base_url: "https://api.openai.com/v1",
 		model: "gpt-5-mini",
 		api_key: "provider-key",
+	};
+}
+
+function createAgentRuntimeHandler(
+	options: Omit<Parameters<typeof createAgentRuntimeHandlerBase>[0], "modelConfig"> & {
+		modelConfig?: ModelConfigClientOptions;
+	},
+) {
+	return createAgentRuntimeHandlerBase({
+		...options,
+		modelConfig: options.modelConfig ?? modelConfigClient(),
+	});
+}
+
+function modelConfigClient(
+	overrides: Partial<{ api_protocol: string; provider: string }> = {},
+): ModelConfigClientOptions {
+	return {
+		baseUrl: "http://model-config",
+		fetchImplementation: async () => {
+			const apiProtocol = overrides.api_protocol ?? "openai.responses";
+			const provider = overrides.provider ?? "openai";
+			const targetSha256 =
+				apiProtocol === "openai.chat_completions" && provider === "openai-compatible"
+					? CHAT_COMPLETIONS_TARGET_SHA256
+					: PRIMARY_AGENT_TARGET_SHA256;
+			return Response.json({
+				api_key: "provider-key",
+				api_protocol: apiProtocol,
+				base_url: "https://api.openai.com/v1",
+				model: "gpt-5-mini",
+				name: "primary_agent",
+				provider,
+				schema_version: "model_runtime_config.v1",
+				target_sha256: targetSha256,
+			});
+		},
 	};
 }
 

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -190,14 +189,11 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 		runID     string
 	}{
 		{
-			name:  "llm provider missing",
-			runID: "run-llm-provider-missing",
+			name:  "primary agent target missing",
+			runID: "run-primary-agent-target-missing",
 			configure: func(server *Server) {
-				server.providerConfigResolver = staticProviderConfigResolver{
-					providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
-						providerconfig.KindEmbedding,
-						"https://embedding.example/v1",
-					),
+				server.primaryAgentTargetResolver = staticPrimaryAgentTargetResolver{
+					err: errors.New("primary agent model target is missing"),
 				}
 			},
 		},

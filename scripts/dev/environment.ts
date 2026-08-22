@@ -15,13 +15,15 @@ import type { LocalDevProfileV1 } from "./profile";
 import { calculateLocalDevRuntimePorts } from "./profile";
 
 export const MANAGED_LOCAL_ENV_MARKER = "# Managed by pnpm dev:init. Do not edit.";
-const LOCAL_PROVIDER_CONFIG_ENCRYPTION_KEY_PATH = "var/dev/provider-config-encryption.key";
+const LOCAL_MODEL_CONFIG_ENCRYPTION_KEY_PATH = "var/dev/model-config-encryption.key";
+const LOCAL_LEGACY_PROVIDER_CONFIG_ENCRYPTION_KEY_PATH = "var/dev/provider-config-encryption.key";
 
 export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	appApi: "apps/app-api/.env.local",
 	appApiVars: "apps/app-api/.dev.vars.local",
 	campusWeb: "apps/campus-web/.dev.vars.local",
 	executionControl: "apps/execution-control/.env.local",
+	modelConfig: "apps/model-config/.env.local",
 	agentRuntime: "apps/agent-runtime/.env.local",
 	ingestionControl: "apps/ingestion-control/.env.local",
 	noticeClassifier: "jobs/notice-classifier/.env.local",
@@ -45,7 +47,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	Exclude<LocalDevEnvironmentTarget, "all">,
 	readonly ManagedLocalEnvironment[]
 > = {
-	core: ["appApi", "appApiVars", "campusWeb", "executionControl", "agentRuntime"],
+	core: ["appApi", "appApiVars", "campusWeb", "modelConfig", "executionControl", "agentRuntime"],
 	"ops-web": ["opsWeb"],
 	"ingestion-control": ["ingestionControl"],
 	"notice-publisher": ["noticePublisher"],
@@ -56,6 +58,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 const LOCAL_DATABASE_PASSWORDS = {
 	appApi: "campus-agent-local-app-api",
 	executionControl: "campus-agent-local-execution-control",
+	modelConfig: "campus-agent-local-model-config",
 	ingestionControl: "campus-agent-local-ingestion-control",
 	opsWeb: "campus-agent-local-ops-web",
 	noticePublisher: "campus-agent-local-notice-publisher",
@@ -88,6 +91,7 @@ export function managedLocalEnvironmentPathsForTarget(
 export function localDatabaseUrls(profile: LocalDevProfileV1): {
 	appApi: string;
 	executionControl: string;
+	modelConfig: string;
 	ingestionControl: string;
 	opsWeb: string;
 	noticePublisher: string;
@@ -98,6 +102,7 @@ export function localDatabaseUrls(profile: LocalDevProfileV1): {
 	return {
 		appApi: url("app_api", LOCAL_DATABASE_PASSWORDS.appApi),
 		executionControl: url("execution_control", LOCAL_DATABASE_PASSWORDS.executionControl),
+		modelConfig: url("model_config", LOCAL_DATABASE_PASSWORDS.modelConfig),
 		ingestionControl: url("ingestion_control", LOCAL_DATABASE_PASSWORDS.ingestionControl),
 		opsWeb: url("ops_web", LOCAL_DATABASE_PASSWORDS.opsWeb),
 		noticePublisher: url("notice_publisher", LOCAL_DATABASE_PASSWORDS.noticePublisher),
@@ -183,14 +188,21 @@ export function renderLocalEnvironmentFiles(input: {
 			EXECUTION_AGENT_RUNTIME_SHARED_SECRET: executionSharedSecret,
 			EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: `http://127.0.0.1:${runtimePorts.agentRuntime}`,
 			EXECUTION_CONTROL_DATABASE_URL: database.executionControl,
+			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			EXECUTION_CONTROL_TEMPORAL_ADDRESS: "127.0.0.1:7233",
 			EXECUTION_CONTROL_TEMPORAL_NAMESPACE: `campus-agent-local-${profile.instanceId}`,
 			EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: `${profile.instanceId}:execution-control`,
 			HOST: "127.0.0.1",
-			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 			PORT: String(runtimePorts.executionControl),
-			PROVIDER_CONFIG_ENCRYPTION_KEY_FILE: resolveLocalProviderConfigEncryptionKeyPath(repoRoot),
+		});
+	}
+	if (shouldRender("modelConfig")) {
+		writeManagedEnv(paths.modelConfig, {
+			MODEL_CONFIG_DATABASE_URL: database.modelConfig,
+			MODEL_CONFIG_ENCRYPTION_KEY_FILE: resolveLocalModelConfigEncryptionKeyPath(repoRoot),
+			MODEL_CONFIG_HOST: "127.0.0.1",
+			MODEL_CONFIG_PORT: String(runtimePorts.modelConfig),
 		});
 	}
 	if (shouldRender("agentRuntime")) {
@@ -200,6 +212,7 @@ export function renderLocalEnvironmentFiles(input: {
 			DEPLOYMENT_RELEASE: `execution-runtime@${profile.instanceId}`,
 			EXECUTION_AGENT_RUNTIME_SHARED_SECRET: executionSharedSecret,
 			HOST: "127.0.0.1",
+			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			PORT: String(runtimePorts.agentRuntime),
 		});
 	}
@@ -228,7 +241,7 @@ export function renderLocalEnvironmentFiles(input: {
 			INGESTION_CONTROL_INTERNAL_URL: `http://127.0.0.1:${runtimePorts.ingestionControl}`,
 			OPS_WEB_DATABASE_SSLMODE: "disable",
 			OPS_WEB_DATABASE_URL: database.opsWeb,
-			OPS_WEB_EXECUTION_CONTROL_ADMIN_URL: `http://127.0.0.1:${runtimePorts.executionControlAdmin}`,
+			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 			OPS_WEB_AUTOMATION_ORIGIN: `http://127.0.0.1:${profile.ports.opsWebApi}`,
 			OPS_WEB_PUBLIC_ORIGIN: `http://127.0.0.1:${profile.ports.opsWeb}`,
@@ -263,6 +276,7 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_REGION: "us-east-1",
 			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 		});
 	}
 	if (shouldRender("noticePublisher")) {
@@ -282,12 +296,23 @@ export function renderLocalEnvironmentFiles(input: {
 	return managedLocalEnvironmentPathsForTarget(repoRoot, target);
 }
 
-export function resolveLocalProviderConfigEncryptionKeyPath(repoRoot: string): string {
-	return resolve(repoRoot, LOCAL_PROVIDER_CONFIG_ENCRYPTION_KEY_PATH);
+export function resolveLocalModelConfigEncryptionKeyPath(repoRoot: string): string {
+	return resolve(repoRoot, LOCAL_MODEL_CONFIG_ENCRYPTION_KEY_PATH);
 }
 
-export function ensureLocalProviderConfigEncryptionKey(repoRoot: string): string {
-	const path = resolveLocalProviderConfigEncryptionKeyPath(repoRoot);
+export function resolveLocalLegacyProviderConfigEncryptionKeyPath(repoRoot: string): string {
+	return resolve(repoRoot, LOCAL_LEGACY_PROVIDER_CONFIG_ENCRYPTION_KEY_PATH);
+}
+
+export function ensureLocalModelConfigEncryptionKey(repoRoot: string): string {
+	return ensurePrivateEncryptionKey(resolveLocalModelConfigEncryptionKeyPath(repoRoot));
+}
+
+export function ensureLocalLegacyProviderConfigEncryptionKey(repoRoot: string): string {
+	return ensurePrivateEncryptionKey(resolveLocalLegacyProviderConfigEncryptionKeyPath(repoRoot));
+}
+
+function ensurePrivateEncryptionKey(path: string): string {
 	if (existsSync(path)) {
 		return path;
 	}

@@ -32,7 +32,8 @@ pnpm --filter ingestion-control start:api
 数据库 TLS 与运行变量见 `env/commands/ingestion-control-runtime.env.example`。ingestion-control
 migration 使用 advisory lock，并在 `ingestion_control.schema_migrations` 校验已应用 SQL 的摘要；
 migration 7 删除已退役的 ingestion Temporal 任务表，并将历史 schema、journal 和当前凭据表接管给
-数据库 owner。通知分类模型类型由 execution-control migration 8 安装。
+数据库 owner。execution-control 的历史通知分类模型设置只作为 Model Config 一次性迁移输入，不构成
+当前配置所有权。
 
 ## 文件发布
 
@@ -107,16 +108,17 @@ NOTICE_CLASSIFICATIONS=/absolute/path/to/classifications.jsonl
 需要在本地验证在线 Job 的对象存储行为时，使用独立的 Job 模拟入口，不改变上述 JSONL 交接：
 
 ```bash
-kubectl port-forward svc/execution-control-provider-snapshot 18002:8002
+kubectl port-forward svc/model-config 18003:8000
 
 pnpm notice:classify:job:local \
+  --model-config-url http://127.0.0.1:18003 \
   --notice-id "$NOTICE_ID" \
   --concurrency 2
 ```
 
 该入口读取 `campus-agent-source`，并将 `notices/classifications/<notice-id>.json` 写入当前 worktree 的
-derived bucket。它通过 port-forward 从 execution-control 读取一次当前通知分类模型设置；重复默认运行时
-应跳过合法制品，`--notice-id` 始终强制重分类。它不读取模型环境变量，也不把 API key 写入本地文件。
+derived bucket。它通过 port-forward 从 Model Config 读取一次当前通知分类完整配置；重复默认运行时
+应跳过合法制品，`--notice-id` 始终强制重分类。它不读取独立模型凭据，也不把 API key 写入本地文件。
 
 ### 在线分类 Job
 
@@ -131,9 +133,9 @@ kubectl create job \
 ```
 
 默认并发为 2，单条最多三次尝试，失败以非零状态结束。已完成的在途制品会保留，重跑会按固定键复用；
-不会自动继续下一阶段，也不会写 PostgreSQL。Job 启动分类阶段后从
-`execution-control-provider-snapshot:8002` 读取一次当前通知分类模型设置，模型名和 provider 由 Ops Web
-配置，不在镜像或 Kubernetes Secret 中固定。
+不会自动继续下一阶段，也不会写 PostgreSQL。Job 启动分类阶段后从 `model-config:8000` 一次读取
+`notice_classification` 完整配置，模型名和 provider 由 Ops Web 配置，不在镜像或 Kubernetes Secret
+中固定。
 
 ### 通知 schema
 

@@ -26,6 +26,7 @@ const deploymentRelease = requiredDeploymentRelease(
 );
 const executionControlBaseUrl =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL ?? "http://127.0.0.1:27051";
+const modelConfigBaseUrl = requiredSetting("MODEL_CONFIG_URL", process.env.MODEL_CONFIG_URL);
 
 const telemetry = (() => {
 	try {
@@ -57,6 +58,7 @@ const handler = createAgentRuntimeHandler({
 		}),
 	sharedSecret: executionAgentRuntimeSharedSecret,
 	runtime,
+	modelConfig: { baseUrl: modelConfigBaseUrl },
 });
 
 const server = createAgentRuntimeNodeServer({
@@ -88,4 +90,12 @@ function requiredDeploymentRelease(environment: string | undefined, release: str
 		throw new Error("DEPLOYMENT_RELEASE is required in deployed environments");
 	}
 	return normalizedRelease || "unversioned-local";
+}
+
+function requiredSetting(name: string, value: string | undefined): string {
+	const normalized = value?.trim();
+	if (!normalized) {
+		throw new Error(`${name} is required`);
+	}
+	return normalized;
 }

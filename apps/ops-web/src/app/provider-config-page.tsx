@@ -38,14 +38,17 @@ interface ExecutionDraft {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
-	provider: "openai" | "openai-compatible";
-	transport: "responses" | "chat_completions" | "embeddings";
+	provider: "openai" | "openai-compatible" | "cohere" | "cohere-compatible";
+	transport: "responses" | "chat_completions" | "embeddings" | "rerank";
 }
 
 export function ProviderConfigPage() {
 	return (
 		<section>
-			<PageHeader description="配置在线运行时和通知分类使用的模型连接。" title="模型配置" />
+			<PageHeader
+				description="配置在线运行时、检索重排和通知分类使用的模型连接。"
+				title="模型配置"
+			/>
 			<ExecutionModelSettings />
 		</section>
 	);
@@ -55,6 +58,7 @@ function ExecutionModelSettings() {
 	const [dirtyKinds, setDirtyKinds] = useState<Record<ModelSettingKind, boolean>>({
 		embedding: false,
 		llm: false,
+		reranker: false,
 		notice_classifier: false,
 	});
 	const status = useQuery({
@@ -64,7 +68,8 @@ function ExecutionModelSettings() {
 	const onDirtyChange = useCallback((kind: ModelSettingKind, dirty: boolean) => {
 		setDirtyKinds((current) => (current[kind] === dirty ? current : { ...current, [kind]: dirty }));
 	}, []);
-	const dirty = dirtyKinds.llm || dirtyKinds.embedding || dirtyKinds.notice_classifier;
+	const dirty =
+		dirtyKinds.llm || dirtyKinds.embedding || dirtyKinds.reranker || dirtyKinds.notice_classifier;
 
 	if (status.isPending) {
 		return <LoadingSettings />;
@@ -85,7 +90,7 @@ function ExecutionModelSettings() {
 					title="模型配置刷新失败"
 				/>
 			) : null}
-			<div className="grid gap-4 xl:grid-cols-3">
+			<div className="grid gap-4 xl:grid-cols-4">
 				<ExecutionModelSettingForm
 					embeddingContract={status.data.embeddingContract}
 					kind="llm"
@@ -97,6 +102,12 @@ function ExecutionModelSettings() {
 					kind="embedding"
 					onDirtyChange={onDirtyChange}
 					setting={status.data.settings.embedding}
+				/>
+				<ExecutionModelSettingForm
+					embeddingContract={status.data.embeddingContract}
+					kind="reranker"
+					onDirtyChange={onDirtyChange}
+					setting={status.data.settings.reranker}
 				/>
 				<ExecutionModelSettingForm
 					embeddingContract={status.data.embeddingContract}
@@ -122,18 +133,27 @@ function ExecutionModelSettingForm({
 }) {
 	const queryClient = useQueryClient();
 	const embedding = kind === "embedding";
+	const reranker = kind === "reranker";
 	const noticeClassifier = kind === "notice_classifier";
-	const settingTitle = embedding ? "Embedding" : noticeClassifier ? "通知分类" : "LLM";
+	const settingTitle = embedding
+		? "Embedding"
+		: reranker
+			? "Reranker"
+			: noticeClassifier
+				? "通知分类"
+				: "LLM";
 	const settingDescription = embedding
 		? "检索查询向量"
-		: noticeClassifier
-			? "通知标题分类"
-			: "Agent 文本生成";
+		: reranker
+			? "候选文档重排"
+			: noticeClassifier
+				? "通知标题分类"
+				: "Agent 文本生成";
 	const [baseline, setBaseline] = useState<ExecutionDraft>(() =>
-		executionDraftFromSetting(setting, embedding, embeddingContract),
+		executionDraftFromSetting(setting, embedding, reranker, embeddingContract),
 	);
 	const [draft, setDraft] = useState<ExecutionDraft>(() =>
-		executionDraftFromSetting(setting, embedding, embeddingContract),
+		executionDraftFromSetting(setting, embedding, reranker, embeddingContract),
 	);
 	const [errors, setErrors] = useState<Record<string, string>>({});
 	const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -143,12 +163,12 @@ function ExecutionModelSettingForm({
 
 	const syncFromSetting = useCallback(
 		(next: typeof setting) => {
-			const nextDraft = executionDraftFromSetting(next, embedding, embeddingContract);
+			const nextDraft = executionDraftFromSetting(next, embedding, reranker, embeddingContract);
 			setBaseline(nextDraft);
 			setDraft(nextDraft);
 			setErrors({});
 		},
-		[embedding, embeddingContract],
+		[embedding, embeddingContract, reranker],
 	);
 
 	useEffect(() => {
@@ -156,7 +176,7 @@ function ExecutionModelSettingForm({
 	}, [dirty, kind, onDirtyChange]);
 
 	useEffect(() => {
-		const next = executionDraftFromSetting(setting, embedding, embeddingContract);
+		const next = executionDraftFromSetting(setting, embedding, reranker, embeddingContract);
 		if (executionDraftEquals(next, baseline)) {
 			return;
 		}
@@ -164,7 +184,7 @@ function ExecutionModelSettingForm({
 			return;
 		}
 		syncFromSetting(setting);
-	}, [baseline, dirty, embedding, embeddingContract, setting, syncFromSetting]);
+	}, [baseline, dirty, embedding, embeddingContract, reranker, setting, syncFromSetting]);
 
 	const save = useMutation({
 		mutationFn: (payload: ModelSettingUpdate) => putExecutionModelSetting(kind, payload),
@@ -176,11 +196,14 @@ function ExecutionModelSettingForm({
 	});
 	const discovery = useMutation({
 		mutationFn: () =>
-			discoverExecutionModels(noticeClassifier ? "notice_classifier" : "llm", {
-				apiKey: draft.apiKey,
-				baseUrl: draft.baseUrl,
-				provider: draft.provider,
-			}),
+			discoverExecutionModels(
+				reranker ? "reranker" : noticeClassifier ? "notice_classifier" : "llm",
+				{
+					apiKey: draft.apiKey,
+					baseUrl: draft.baseUrl,
+					provider: draft.provider,
+				},
+			),
 		onSuccess: () => setErrors((current) => clearErrors(current, ["model"])),
 	});
 	const updateDraft = (
@@ -213,7 +236,7 @@ function ExecutionModelSettingForm({
 			focusFirstInvalid(formRef);
 			return;
 		}
-		save.mutate(executionDraftPayload(draft, embedding));
+		save.mutate(executionDraftPayload(draft, embedding, reranker));
 	};
 
 	const credentialHelper = credentialHelperText(
@@ -357,25 +380,40 @@ function ExecutionModelSettingForm({
 											}
 											value={draft.provider}
 										>
-											<option value="openai">OpenAI</option>
-											<option value="openai-compatible">OpenAI 兼容接口</option>
+											{reranker ? (
+												<>
+													<option value="cohere">Cohere</option>
+													<option value="cohere-compatible">Cohere 兼容接口</option>
+												</>
+											) : (
+												<>
+													<option value="openai">OpenAI</option>
+													<option value="openai-compatible">OpenAI 兼容接口</option>
+												</>
+											)}
 										</NativeSelect>
 									</FormField>
-									<FormField label="接口类型">
-										<NativeSelect
-											className="min-h-11"
-											onChange={(event) =>
-												updateDraft(
-													{ transport: event.target.value as ExecutionDraft["transport"] },
-													["transport"],
-												)
-											}
-											value={draft.transport}
-										>
-											<option value="responses">Responses API</option>
-											<option value="chat_completions">Chat Completions API</option>
-										</NativeSelect>
-									</FormField>
+									{reranker ? (
+										<FormField label="接口类型">
+											<Input className="min-h-11" disabled value="Cohere Rerank API" />
+										</FormField>
+									) : (
+										<FormField label="接口类型">
+											<NativeSelect
+												className="min-h-11"
+												onChange={(event) =>
+													updateDraft(
+														{ transport: event.target.value as ExecutionDraft["transport"] },
+														["transport"],
+													)
+												}
+												value={draft.transport}
+											>
+												<option value="responses">Responses API</option>
+												<option value="chat_completions">Chat Completions API</option>
+											</NativeSelect>
+										</FormField>
+									)}
 								</div>
 							</div>
 						</details>
@@ -476,29 +514,46 @@ function SecretField({
 function executionDraftFromSetting(
 	setting: ExecutionModelSettingsStatus["settings"][ModelSettingKind],
 	embedding: boolean,
+	reranker: boolean,
 	embeddingContract: ExecutionModelSettingsStatus["embeddingContract"],
 ): ExecutionDraft {
 	return {
 		apiKey: "",
 		baseUrl: setting?.baseUrl ?? "",
 		model: embedding ? embeddingContract.model : (setting?.model ?? ""),
-		provider: embedding ? embeddingContract.provider : (setting?.provider ?? "openai"),
-		transport: embedding ? embeddingContract.transport : (setting?.transport ?? "responses"),
+		provider: embedding
+			? embeddingContract.provider
+			: (setting?.provider ?? (reranker ? "cohere" : "openai")),
+		transport: embedding
+			? embeddingContract.transport
+			: (setting?.transport ?? (reranker ? "rerank" : "responses")),
 	};
 }
 
-function executionDraftPayload(draft: ExecutionDraft, embedding: boolean): ModelSettingUpdate {
+function executionDraftPayload(
+	draft: ExecutionDraft,
+	embedding: boolean,
+	reranker: boolean,
+): ModelSettingUpdate {
 	if (embedding) {
 		return {
 			...(draft.apiKey.trim() ? { apiKey: draft.apiKey } : {}),
 			baseUrl: draft.baseUrl,
 		};
 	}
+	if (reranker) {
+		return {
+			...(draft.apiKey.trim() ? { apiKey: draft.apiKey } : {}),
+			baseUrl: draft.baseUrl,
+			model: draft.model,
+			provider: draft.provider as "cohere" | "cohere-compatible",
+		};
+	}
 	const common = {
 		apiKey: draft.apiKey,
 		baseUrl: draft.baseUrl,
 		model: draft.model,
-		provider: draft.provider,
+		provider: draft.provider as "openai" | "openai-compatible",
 	};
 	return { ...common, transport: draft.transport as "responses" | "chat_completions" };
 }
@@ -542,7 +597,14 @@ function ReadOnlySetting({ label, value }: { label: string; value: string }) {
 }
 
 function providerLabel(provider: ExecutionDraft["provider"]) {
-	return provider === "openai-compatible" ? "OpenAI 兼容接口" : "OpenAI";
+	return (
+		{
+			cohere: "Cohere",
+			"cohere-compatible": "Cohere 兼容接口",
+			openai: "OpenAI",
+			"openai-compatible": "OpenAI 兼容接口",
+		} as const
+	)[provider];
 }
 
 function validateModelDiscoveryDraft(draft: ExecutionDraft, apiKeyRequired: boolean) {

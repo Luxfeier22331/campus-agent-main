@@ -97,10 +97,17 @@ export async function buildCampusDocsEmbeddingSet(
 	input: BuildEmbeddingSetInput,
 ): Promise<BuildEmbeddingSetResult> {
 	const chunkSet = await readChunkSet(input.artifactStore, input.chunkSet);
+	const embeddingTargetSha256 = input.embeddingTargetSha256;
+	if (!/^[0-9a-f]{64}$/u.test(embeddingTargetSha256)) {
+		throw new Error("embedding target SHA-256 is required");
+	}
 	const uniqueChunks = uniqueChunksByRetrievalText(chunkSet.chunks);
 	const denseByRetrievalText = new Map<Sha256Ref, number[]>();
 	if (input.reuseEmbeddingSet) {
 		const reuse = await readEmbeddingSet(input.artifactStore, input.reuseEmbeddingSet);
+		if (reuse.manifest.modelTargetSha256 !== embeddingTargetSha256) {
+			throw new Error("reuse embedding set model target does not match the active model target");
+		}
 		for (const embedding of reuse.embeddings) {
 			if (
 				uniqueChunks.has(embedding.retrievalTextSha256) &&
@@ -136,7 +143,8 @@ export async function buildCampusDocsEmbeddingSet(
 		embeddingCount: embeddings.length,
 		embeddingSpace: EMBEDDING_SPACE,
 		embeddings: embeddingData,
-		schemaVersion: "campus_docs_embedding_set.v2",
+		modelTargetSha256: embeddingTargetSha256,
+		schemaVersion: "campus_docs_embedding_set.v3",
 	});
 	return {
 		embeddingCount: embeddings.length,

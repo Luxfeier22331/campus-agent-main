@@ -178,6 +178,17 @@ test("publishes the ingestion-control image for a Dockerfile-only change", async
 	assert.deepEqual(plan.workers, []);
 });
 
+test("publishes the model-config image for source and Dockerfile changes", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(
+		changed("apps/model-config/internal/modelconfig/store.go", "apps/model-config/Dockerfile"),
+		[],
+	);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, ["model-config"]);
+	assert.deepEqual(plan.workers, []);
+});
+
 test("publishes the internal-portal-collection image for a Dockerfile-only change", async (t) => {
 	const root = await fixture(t);
 	const runner = syntheticScopeRunner(changed("jobs/internal-portal-collection/Dockerfile"), []);

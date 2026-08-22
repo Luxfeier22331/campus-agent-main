@@ -3,7 +3,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { runNoticeClassificationJob } from "./job.ts";
-import { createNoticeClassifierFromSnapshot, fetchNoticeClassifierProviderSnapshot } from "./model.ts";
+import { createNoticeClassifierFromRuntimeConfig, resolveNoticeClassifierRuntimeConfig } from "./model.ts";
 import { createNoticeClassifierObjectStoreFromEnv } from "./object-store.ts";
 export { parseNoticeClassifierOptions, type NoticeClassifierCliOptions } from "./options.ts";
 import { parseNoticeClassifierOptions } from "./options.ts";
@@ -12,15 +12,15 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 	const options = parseNoticeClassifierOptions(argv);
 	const objectStore = createNoticeClassifierObjectStoreFromEnv();
 	try {
-		let snapshotPromise: ReturnType<typeof fetchNoticeClassifierProviderSnapshot> | undefined;
-		let modelClassifier: ReturnType<typeof createNoticeClassifierFromSnapshot> | undefined;
+		let runtimeConfigPromise: ReturnType<typeof resolveNoticeClassifierRuntimeConfig> | undefined;
+		let modelClassifier: ReturnType<typeof createNoticeClassifierFromRuntimeConfig> | undefined;
 		const result = await runNoticeClassificationJob({
 			concurrency: options.concurrency,
 			createModelClassifier: () => async (input) => {
-				modelClassifier ??= createNoticeClassifierFromSnapshot(
-					await (snapshotPromise ??= fetchNoticeClassifierProviderSnapshot(
+				modelClassifier ??= createNoticeClassifierFromRuntimeConfig(
+					await (runtimeConfigPromise ??= resolveNoticeClassifierRuntimeConfig(
 						fetch,
-						options.providerSnapshotUrl,
+						options.modelConfigUrl,
 					)),
 				);
 				return modelClassifier(input);

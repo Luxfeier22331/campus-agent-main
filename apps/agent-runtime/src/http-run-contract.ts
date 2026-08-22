@@ -1,14 +1,6 @@
 import { z } from "zod";
-import type { PrimaryAgentRunInput } from "./agent-run-contract.ts";
+import type { PrimaryAgentRunInput, PromptProviderRuntimeConfig } from "./agent-run-contract.ts";
 import type { ToolRuntimeFingerprint } from "./tool-catalog.ts";
-
-const providerConfigSchema = z.object({
-	provider: z.string().min(1),
-	transport: z.enum(["responses", "chat_completions"]),
-	base_url: z.string().min(1).optional(),
-	model: z.string().min(1),
-	api_key: z.string().min(1),
-});
 
 const toolRuntimeFingerprintSchema = z
 	.object({
@@ -72,7 +64,7 @@ export const agentRunRequestSchema = z
 		input: z.string().min(1),
 		visible_tool_names: z.array(z.string().min(1)).default([]),
 		expected_tool_runtime_fingerprint: toolRuntimeFingerprintSchema,
-		provider_config: providerConfigSchema,
+		expected_model_target_sha256: z.string().regex(/^[0-9a-f]{64}$/),
 		limits: runtimeLimitsSchema,
 		conversation_context: conversationContextSchema.optional(),
 	})
@@ -107,6 +99,7 @@ function mapToolRuntimeFingerprint(
 }
 export function runtimeInputFromAgentRunRequest(
 	parsed: AgentRunRequest,
+	providerConfig: PromptProviderRuntimeConfig,
 	signal: AbortSignal,
 ): PrimaryAgentRunInput {
 	return {
@@ -121,13 +114,7 @@ export function runtimeInputFromAgentRunRequest(
 		expectedToolRuntimeFingerprint: mapToolRuntimeFingerprint(
 			parsed.expected_tool_runtime_fingerprint,
 		),
-		providerConfig: {
-			provider: parsed.provider_config.provider,
-			transport: parsed.provider_config.transport,
-			...(parsed.provider_config.base_url ? { baseUrl: parsed.provider_config.base_url } : {}),
-			model: parsed.provider_config.model,
-			apiKey: parsed.provider_config.api_key,
-		},
+		providerConfig,
 		limits: {
 			agentDeadlineMs: parsed.limits.agent_deadline_ms,
 			contextCharLimit: parsed.limits.context_char_limit,

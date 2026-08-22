@@ -4,10 +4,10 @@ import { parseNoticeClassifierOptions } from "../src/options.ts";
 
 describe("notice classifier CLI options", () => {
 	it("defaults to concurrency two and scans all notices", () => {
-		 expect(parseNoticeClassifierOptions([])).toEqual({
+		expect(parseNoticeClassifierOptions([])).toEqual({
 			concurrency: 2,
 			noticeIds: undefined,
-			providerSnapshotUrl: undefined,
+			modelConfigUrl: undefined,
 		});
 	});
 
@@ -21,14 +21,14 @@ describe("notice classifier CLI options", () => {
 				"--notice-id",
 				"9",
 			]),
-		).toEqual({ concurrency: 3, noticeIds: [12, 9], providerSnapshotUrl: undefined });
+		).toEqual({ concurrency: 3, modelConfigUrl: undefined, noticeIds: [12, 9] });
 	});
 
-	it("accepts an explicit provider snapshot URL", () => {
-		expect(parseNoticeClassifierOptions(["--provider-snapshot-url", "http://127.0.0.1:18002/"])).toEqual({
+	it("accepts an explicit Model Config URL", () => {
+		expect(parseNoticeClassifierOptions(["--model-config-url", "http://127.0.0.1:18003/"])).toEqual({
 			concurrency: 2,
+			modelConfigUrl: "http://127.0.0.1:18003",
 			noticeIds: undefined,
-			providerSnapshotUrl: "http://127.0.0.1:18002",
 		});
 	});
 
@@ -45,9 +45,9 @@ describe("notice classifier CLI options", () => {
 		expect(() => parseNoticeClassifierOptions(["--notice-id", "0"])).toThrow("invalid notice id");
 	});
 
-	it("rejects a non-http provider snapshot URL", () => {
-		expect(() => parseNoticeClassifierOptions(["--provider-snapshot-url", "file:///tmp/snapshot"])).toThrow(
-			"invalid provider snapshot url",
+	it("rejects a non-http Model Config URL", () => {
+		expect(() => parseNoticeClassifierOptions(["--model-config-url", "file:///tmp/model-config"])).toThrow(
+			"invalid Model Config URL",
 		);
 	});
 });

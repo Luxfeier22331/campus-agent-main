@@ -777,20 +777,20 @@ test("在线问答直接编辑当前 LLM 和 Embedding 配置", async ({ page })
 	await page.goto("/providers");
 
 	await expect(page.getByRole("heading", { name: "模型配置" })).toBeVisible();
-	await expect(page.getByLabel("模型", { exact: true }).first()).toHaveValue("primary-model");
+	await expect(page.locator("#execution-llm-model")).toHaveValue("primary-model");
 	await expect(page.getByText("Qwen3-Embedding-4B", { exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "保存并验证" }).first()).toBeDisabled();
 	await expect(page.getByText(/版本|发布记录|角色配置/u)).toHaveCount(0);
 
-	await page.getByRole("button", { name: "获取模型" }).click();
-	const model = page.getByRole("combobox", { name: "模型" });
+	await page.getByRole("button", { name: "获取LLM模型" }).click();
+	const model = page.locator("#execution-llm-model");
 	await expect(model).toBeVisible();
 	await expect(model.getByRole("option", { name: "primary-model-next" })).toBeAttached();
 	await model.selectOption("primary-model-next");
 	await page.getByLabel("LLM API Key", { exact: true }).fill("private-next-key");
 	await page.getByRole("button", { name: "保存并验证" }).first().click();
 
-	await expect(page.getByLabel("模型", { exact: true })).toHaveValue("primary-model-next");
+	await expect(page.locator("#execution-llm-model")).toHaveValue("primary-model-next");
 	await expect(page.getByText("配置已保存并验证通过。")).toBeVisible();
 	expect(modelSettings.receivedApiKeys).toEqual(["private-next-key"]);
 	await expect(page.getByText("private-next-key")).toHaveCount(0);
@@ -889,11 +889,11 @@ test("未保存模型配置时确认离开", async ({ page }) => {
 	await mockExecutionModelSettings(page);
 	await page.goto("/providers");
 
-	await page.getByLabel("模型", { exact: true }).fill("unsaved-model");
+	await page.locator("#execution-llm-model").fill("unsaved-model");
 	await navigateFromSidebar(page, "运行概览");
 	await expect(page.getByRole("dialog")).toBeVisible();
 	await page.getByRole("button", { name: "继续编辑" }).click();
-	await expect(page.getByLabel("模型", { exact: true })).toHaveValue("unsaved-model");
+	await expect(page.locator("#execution-llm-model")).toHaveValue("unsaved-model");
 
 	await navigateFromSidebar(page, "运行概览");
 	await page.getByRole("button", { name: "放弃修改并离开" }).click();
@@ -934,6 +934,17 @@ async function mockExecutionModelSettings(page: Page) {
 				updatedAt: "2026-07-16T00:00:00.000Z",
 				updatedBy: "ops@example.test",
 			},
+			reranker: {
+				baseUrl: "https://reranker.example/v1",
+				credentialConfigured: true,
+				kind: "reranker",
+				latestValidation: null,
+				model: "rerank-model",
+				provider: "cohere-compatible",
+				transport: "rerank",
+				updatedAt: "2026-07-16T00:00:00.000Z",
+				updatedBy: "ops@example.test",
+			},
 			notice_classifier: {
 				baseUrl: "https://classifier.example/v1",
 				credentialConfigured: true,
@@ -947,10 +958,10 @@ async function mockExecutionModelSettings(page: Page) {
 			},
 		},
 	};
-	await page.route("**/api/ops/model-settings/execution**", async (route) => {
+	await page.route("**/api/ops/model-configs**", async (route) => {
 		const request = route.request();
 		const path = new URL(request.url()).pathname;
-		if (path === "/api/ops/model-settings/execution" && request.method() === "GET") {
+		if (path === "/api/ops/model-configs" && request.method() === "GET") {
 			await route.fulfill({ json: state });
 			return;
 		}

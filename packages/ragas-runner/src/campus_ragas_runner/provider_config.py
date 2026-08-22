@@ -34,6 +34,7 @@ def load_provider_profiles(
             "eval_judge_llm",
             "eval_ragas_embedding",
             "eval_ragas_llm",
+            "eval_ragas_reranker",
         }
     )
     if unsupported:

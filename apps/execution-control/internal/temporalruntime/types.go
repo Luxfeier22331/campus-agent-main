@@ -29,9 +29,9 @@ type AgentAdmissionSnapshot struct {
 	AgentLimitsSHA256       string                     `json:"agent_limits_sha256"`
 	ExecutionStrategy       ExecutionStrategySnapshot  `json:"execution_strategy"`
 	ExecutionStrategySHA256 string                     `json:"execution_strategy_sha256"`
-	// ProviderConfigSHA256 fingerprints the active LLM setting used by the
-	// Primary Agent. It excludes credentials and storage identifiers.
-	ProviderConfigSHA256         string                         `json:"provider_config_sha256"`
+	// PrimaryAgentTargetSHA256 is the opaque Model Config target hash frozen
+	// for this run. The JSON name stays stable for persisted Temporal history.
+	PrimaryAgentTargetSHA256     string                         `json:"provider_config_sha256"`
 	ToolRuntimeFingerprint       ToolRuntimeFingerprintSnapshot `json:"tool_runtime_fingerprint"`
 	ToolRuntimeFingerprintSHA256 string                         `json:"tool_runtime_fingerprint_sha256"`
 }

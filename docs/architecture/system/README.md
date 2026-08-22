@@ -9,7 +9,7 @@ status: active
 
 - 产品与交付：[product-runtime.md](./product-runtime.md)、
   [runtime-release.md](./runtime-release.md)、[document-site.md](./document-site.md)；
-- 执行与 Agent：[durable-runtime.md](./durable-runtime.md)、[k8s-runtime.md](./k8s-runtime.md)、
+- 执行与 Agent：[durable-runtime.md](./durable-runtime.md)、[model-config.md](./model-config.md)、[k8s-runtime.md](./k8s-runtime.md)、
   [agent-framework.md](./agent-framework.md)、[prompt.md](./prompt.md)；
 - 工具与知识：[tool-routing.md](./tool-routing.md)、[retrieval-serving.md](./retrieval-serving.md)、
   [agentic-retrieval.md](./agentic-retrieval.md)、[data-plane.md](./data-plane.md)；

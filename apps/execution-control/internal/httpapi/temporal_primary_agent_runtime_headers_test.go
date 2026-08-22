@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -54,7 +53,6 @@ func TestCallAgentRuntimeExecutionTraceHeaders(t *testing.T) {
 					TraceParent: testCase.traceParent,
 				},
 				"hello",
-				providerconfig.RuntimeSetting{},
 				nil,
 				server.primaryAgentRuntimeLimits(),
 				1,

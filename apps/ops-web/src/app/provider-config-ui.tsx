@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import type { ModelSettingLatestValidation } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
 
-export const executionModelSettingsQueryKey = ["ops", "model-settings", "execution"] as const;
+export const executionModelSettingsQueryKey = ["ops", "model-configs"] as const;
 
 type LatestValidation = ModelSettingLatestValidation | null;
 
@@ -23,6 +23,7 @@ export function transportLabel(value: string) {
 		{
 			chat_completions: "Chat Completions API",
 			embeddings: "Embeddings API",
+			rerank: "Rerank API",
 			responses: "Responses API",
 		}[value] ?? value
 	);

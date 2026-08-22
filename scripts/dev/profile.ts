@@ -14,8 +14,7 @@ export interface LocalDevPorts {
 export interface LocalDevRuntimePorts {
 	agentRuntime: number;
 	executionControl: number;
-	executionControlAdmin: number;
-	executionControlSnapshot: number;
+	modelConfig: number;
 	ingestionControl: number;
 }
 
@@ -55,13 +54,11 @@ export function calculateLocalDevPorts(slot: number): LocalDevPorts {
 
 export function calculateLocalDevRuntimePorts(slot: number): LocalDevRuntimePorts {
 	assertSlot(slot);
-	const executionControl = 27_051 + slot * 100;
 	return {
 		agentRuntime: 27_062 + slot * 100,
-		executionControl,
-		executionControlAdmin: executionControl + 1,
-		executionControlSnapshot: executionControl + 2,
+		executionControl: 27_051 + slot * 100,
 		ingestionControl: 27_061 + slot * 100,
+		modelConfig: 27_053 + slot * 100,
 	};
 }
 

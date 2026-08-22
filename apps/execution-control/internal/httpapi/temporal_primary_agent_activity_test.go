@@ -95,16 +95,11 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if seenBody["run_id"] != "run-primary-agent-001" {
 		t.Fatalf("agent runtime request = %#v", seenBody)
 	}
-	providerConfig, ok := seenBody["provider_config"].(map[string]any)
-	if !ok {
-		t.Fatalf("agent runtime request missing provider_config: %#v", seenBody)
+	if seenBody["expected_model_target_sha256"] != input.AdmissionSnapshot.PrimaryAgentTargetSHA256 {
+		t.Fatalf("expected_model_target_sha256 = %#v, want %s", seenBody["expected_model_target_sha256"], input.AdmissionSnapshot.PrimaryAgentTargetSHA256)
 	}
-	if providerConfig["api_key"] != "sk-primary-agent" ||
-		providerConfig["model"] != "gpt-test" {
-		t.Fatalf("provider_config = %#v", providerConfig)
-	}
-	if _, exists := providerConfig["profile_id"]; exists {
-		t.Fatalf("provider_config contains retired profile identity: %#v", providerConfig)
+	if _, exists := seenBody["provider_config"]; exists {
+		t.Fatalf("agent runtime request contains provider_config: %#v", seenBody)
 	}
 	if _, exists := seenBody["memory_context"]; exists {
 		t.Fatalf("agent runtime request contains retired memory_context: %#v", seenBody)
@@ -586,56 +581,6 @@ func TestExecutePrimaryAgentActivityFailsClosedWithoutAdmissionSnapshot(t *testi
 		t.Fatalf("list steps: %v", listErr)
 	}
 	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "admission_snapshot_invalid" {
-		t.Fatalf("steps = %#v", steps)
-	}
-}
-
-func TestExecutePrimaryAgentActivityFailsClosedWhenProviderSettingMissing(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 10, 35, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-primary-agent-provider-missing",
-		"conv-primary-agent-provider-missing",
-		now,
-		agentRequestForDurableWorkerTest("hi"),
-	)
-	agentRuntime := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("agent runtime must not be called without active llm model setting")
-	}))
-	defer agentRuntime.Close()
-	server := NewServer(config.Config{
-		AgentRuntimeBaseURL:      agentRuntime.URL,
-		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeDeadlineMS:   1000,
-		TemporalWorkerIdentity:   "test:agent:provider-missing",
-	})
-	attachPrimaryAgentProviderConfigForTest(server)
-	attachRunProjectionStoreForHandlerTest(server, store)
-	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		RunID:   "run-primary-agent-provider-missing",
-		TraceID: "trace-executor-001",
-	})
-	server.providerConfigResolver = staticProviderConfigResolver{}
-
-	_, err := server.ExecutePrimaryAgent(context.Background(), input)
-	if err == nil {
-		t.Fatal("expected missing provider setting to fail")
-	}
-	assertTemporalFailureSanitized(t, err, "provider_config_missing", true)
-	run, getErr := store.GetRun(context.Background(), "run-primary-agent-provider-missing")
-	if getErr != nil {
-		t.Fatalf("get run: %v", getErr)
-	}
-	if run.Status != execution.DurableRunStatusRunning {
-		t.Fatalf("run status = %q, want workflow-owned active state", run.Status)
-	}
-	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-provider-missing")
-	if listErr != nil {
-		t.Fatalf("list steps: %v", listErr)
-	}
-	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "provider_config_missing" {
 		t.Fatalf("steps = %#v", steps)
 	}
 }

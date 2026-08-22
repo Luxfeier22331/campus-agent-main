@@ -73,7 +73,8 @@ uv run --package campus-ragas-runner python -m campus_ragas_runner rag \
 也不使用环境变量重复保存同一凭据。
 
 - Agent 评分使用 `eval_judge_llm`；
-- RAG 评分使用 `eval_ragas_llm` 和 `eval_ragas_embedding`。
+- RAG 评分使用 `eval_ragas_llm` 和 `eval_ragas_embedding`；
+- 需要在显式检索实验中调用 Cohere Rerank 时，使用独立的 `eval_ragas_reranker`。
 
 该文件是 Python runner 的本地输入，不是跨服务合同，也不在 `packages/contracts` 注册。字段检查以
 `packages/ragas-runner/src/campus_ragas_runner/provider_config.py` 及其测试为准。
@@ -92,13 +93,21 @@ uv run --package campus-ragas-runner python -m campus_ragas_runner rag \
       "base_url": "https://provider.example/v1",
       "model": "embedding-model",
       "timeout_ms": 150000
+    },
+    "eval_ragas_reranker": {
+      "api_key": "...",
+      "base_url": "https://reranker.example/v2",
+      "model": "rerank-v4",
+      "timeout_ms": 90000
     }
   }
 }
 ```
 
-文件不声明 `schema_version`、`provider` 或 `transport`；当前 runner 已固定使用 OpenAI-compatible
-客户端和对应的 LLM/Embedding 调用方式。
+文件不声明 `schema_version`、`provider` 或 `transport`；`rag` 评分命令固定使用 OpenAI-compatible
+客户端和对应的 LLM/Embedding 调用方式。`eval_ragas_reranker` 只作为离线检索实验的独立本地
+provider profile，由调用方显式使用；它不从在线 Model Config 获取，也不改变
+`ragas_sample_batch.v2` 的 `retrieved_contexts`。
 
 ## 手动执行产品路径
 

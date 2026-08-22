@@ -27,6 +27,7 @@ status: active
 
 - App API：`.env.local` 和 `.dev.vars.local`；
 - Campus Web：`.dev.vars.local`；
+- Model Config：`.env.local`；
 - execution-control：`.env.local`；
 - agent-runtime：`.env.local`。
 
@@ -40,8 +41,9 @@ status: active
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
-`dev:init` 还为当前 worktree 创建 `0600` 的 `var/dev/provider-config-encryption.key`，并让
-execution-control 的托管环境显式读取该文件。该 key 不进入 profile、其他 worktree 或部署环境。
+`dev:init` 还为当前 worktree 创建两个 `0600` 文件：`var/dev/provider-config-encryption.key`
+只供历史 execution-control migration 和切换读取；`var/dev/model-config-encryption.key` 供 Model
+Config 当前密文使用。两者不进入 profile、其他 worktree 或部署环境。
 
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实际选择决定。
@@ -52,9 +54,9 @@ internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的本�
 的 `.env` 只维护可选门户代理或不使用托管本地环境的对象存储配置，不作为长期 TGC 来源。进程环境仍
 具有最高优先级。
 
-notice-classifier 的托管 `.env.local` 保存本 worktree 的 derived bucket、本地 source bucket 和 RustFS
-连接。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时通过
-execution-control 的 provider snapshot 读取当前模型配置。
+notice-classifier 的托管 `.env.local` 保存本 worktree 的 derived bucket、本地 source bucket、RustFS
+连接和非敏感 `MODEL_CONFIG_URL`。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类
+阶段时从 Model Config 一次读取当前完整配置。
 
 ingestion-control 的托管 `.env.local` 保存本 worktree 的 runtime/schema 数据库连接和本地 source
 bucket 连接。notice-publisher 的托管 `.env.local` 保存本地 `notice_publisher` 数据库连接、明确禁用 TLS

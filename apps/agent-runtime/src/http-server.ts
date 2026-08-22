@@ -1,5 +1,9 @@
 import { propagateAttributes } from "@langfuse/tracing";
-import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./agent-run-contract.ts";
+import type {
+	PrimaryAgentRunInput,
+	PrimaryAgentRunResult,
+	PrimaryAgentRuntime,
+} from "./agent-run-contract.ts";
 import {
 	agentRunResultWire,
 	agentRunStreamResponse,
@@ -12,6 +16,11 @@ import {
 	agentRunRequestValidationError,
 	runtimeInputFromAgentRunRequest,
 } from "./http-run-contract.ts";
+import {
+	ModelConfigClientError,
+	type ModelConfigClientOptions,
+	resolvePrimaryAgentModelConfig,
+} from "./model-config-client.ts";
 import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
 
@@ -19,6 +28,7 @@ export interface AgentRuntimeHandlerOptions {
 	onStreamError?: (error: unknown) => void;
 	sharedSecret: string;
 	runtime: PrimaryAgentRuntime;
+	modelConfig: ModelConfigClientOptions;
 }
 
 export type AgentRuntimeHandler = (request: Request) => Promise<Response>;
@@ -55,11 +65,17 @@ export function createAgentRuntimeHandler(
 			if (parsed instanceof Response) {
 				return parsed;
 			}
+			const providerConfig = await resolveProviderConfig(parsed, options.modelConfig);
+			if (providerConfig instanceof Response) {
+				return providerConfig;
+			}
 			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
 			let result: PrimaryAgentRunResult;
 			try {
 				result = await withAgentTraceAttributes(parsed, () =>
-					options.runtime.run(runtimeInputFromAgentRunRequest(parsed, signals.signal)),
+					options.runtime.run(
+						runtimeInputFromAgentRunRequest(parsed, providerConfig, signals.signal),
+					),
 				);
 			} catch (error) {
 				return jsonResponse(500, {
@@ -76,11 +92,17 @@ export function createAgentRuntimeHandler(
 			if (parsed instanceof Response) {
 				return parsed;
 			}
+			const providerConfig = await resolveProviderConfig(parsed, options.modelConfig);
+			if (providerConfig instanceof Response) {
+				return providerConfig;
+			}
 			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
 			return withAgentTraceAttributes(parsed, () =>
 				agentRunStreamResponse(
 					bindAsyncIterableToActiveContext(
-						options.runtime.stream(runtimeInputFromAgentRunRequest(parsed, signals.signal)),
+						options.runtime.stream(
+							runtimeInputFromAgentRunRequest(parsed, providerConfig, signals.signal),
+						),
 					),
 					{
 						deadlineSignal: signals.deadlineSignal,
@@ -96,6 +118,24 @@ export function createAgentRuntimeHandler(
 			},
 		});
 	};
+}
+
+async function resolveProviderConfig(
+	parsed: AgentRunRequest,
+	options: ModelConfigClientOptions,
+): Promise<PrimaryAgentRunInput["providerConfig"] | Response> {
+	try {
+		return await resolvePrimaryAgentModelConfig(options, parsed.expected_model_target_sha256);
+	} catch (error) {
+		if (error instanceof ModelConfigClientError) {
+			return jsonResponse(error.status === 409 ? 409 : 503, {
+				error: { code: error.code, message: error.message },
+			});
+		}
+		return jsonResponse(503, {
+			error: { code: "model_config_unavailable", message: "Model Config is unavailable." },
+		});
+	}
 }
 
 async function parseRunRequest(request: Request): Promise<AgentRunRequest | Response> {

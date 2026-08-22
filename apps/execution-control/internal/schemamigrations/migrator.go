@@ -38,7 +38,6 @@ var executionControlTables = []string{
 	"execution_control.personal_memory_owner_fences",
 	"execution_control.personal_memory_call_leases",
 	"execution_control.personal_memory_command_receipts",
-	"execution_control.model_settings",
 }
 
 var compatibilityViews = []string{
@@ -54,7 +53,6 @@ var compatibilityViews = []string{
 	"runtime.personal_memory_owner_fences",
 	"runtime.personal_memory_call_leases",
 	"runtime.personal_memory_command_receipts",
-	"execution_config.model_settings",
 }
 
 var campusDocsReadTables = []string{
@@ -157,9 +155,6 @@ grant usage on schema execution_control to execution_control, ops_web;
 
 revoke create on schema runtime from execution_control, ops_web;
 grant usage on schema runtime to execution_control, ops_web;
-revoke all privileges on schema execution_config from execution_control, ops_web;
-grant usage on schema execution_config to execution_control;
-
 revoke all privileges on table
 	execution_control.agent_runs,
 	execution_control.agent_run_events,
@@ -172,8 +167,7 @@ revoke all privileges on table
 	execution_control.agent_invocation_receipts,
 	execution_control.personal_memory_owner_fences,
 	execution_control.personal_memory_call_leases,
-	execution_control.personal_memory_command_receipts,
-	execution_control.model_settings
+	execution_control.personal_memory_command_receipts
 from public, app_api, execution_control, ops_web;
 
 revoke all privileges on table
@@ -188,8 +182,7 @@ revoke all privileges on table
 	runtime.agent_invocation_receipts,
 	runtime.personal_memory_owner_fences,
 	runtime.personal_memory_call_leases,
-	runtime.personal_memory_command_receipts,
-	execution_config.model_settings
+	runtime.personal_memory_command_receipts
 from public, app_api, execution_control, ops_web;
 
 do $revoke_column_privileges$
@@ -214,7 +207,7 @@ begin
 					'personal_memory_owner_fences', 'personal_memory_call_leases',
 					'personal_memory_command_receipts'
 				))
-				or (namespace.nspname = 'execution_config' and class.relname = 'model_settings'))
+				)
 		loop
 			select string_agg(quote_ident(attribute.attname), ', ' order by attribute.attnum)
 			into column_names
@@ -249,8 +242,7 @@ grant select, insert, update, delete on table
 	execution_control.agent_invocation_receipts,
 	execution_control.personal_memory_owner_fences,
 	execution_control.personal_memory_call_leases,
-	execution_control.personal_memory_command_receipts,
-	execution_control.model_settings
+	execution_control.personal_memory_command_receipts
 to execution_control;
 
 grant select on table
@@ -265,8 +257,7 @@ grant select on table
 	runtime.agent_invocation_receipts,
 	runtime.personal_memory_owner_fences,
 	runtime.personal_memory_call_leases,
-	runtime.personal_memory_command_receipts,
-	execution_config.model_settings
+	runtime.personal_memory_command_receipts
 to execution_control;
 
 grant select (
@@ -659,34 +650,6 @@ func (m *Migrator) Check(ctx context.Context) error {
 	}
 	if pending {
 		return errors.New("execution-control schema migrations are pending")
-	}
-	if err := m.requireCurrentProviderConfigSchema(ctx); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *Migrator) requireCurrentProviderConfigSchema(ctx context.Context) error {
-	var exists bool
-	if err := m.db.QueryRowContext(
-		ctx,
-		"select to_regclass('execution_control.model_settings') is not null",
-	).Scan(&exists); err != nil {
-		return fmt.Errorf("inspect current provider config schema: %w", err)
-	}
-	if !exists {
-		return errors.New("execution_control.model_settings is not installed")
-	}
-	columns, err := providerConfigColumnNames(ctx, m.db, "execution_control", false)
-	if err != nil {
-		return err
-	}
-	if !sameColumnNames(columns, currentProviderConfigColumns) {
-		return fmt.Errorf(
-			"execution_control.model_settings has unknown or missing columns: got %s, want %s",
-			strings.Join(columns, ","),
-			strings.Join(sortedColumnNames(currentProviderConfigColumns), ","),
-		)
 	}
 	return nil
 }

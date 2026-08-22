@@ -18,8 +18,8 @@ EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher build-embeddin
 命令从调用进程读取 `OBJECT_STORE_ENDPOINT`、
 `OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和 `OBJECT_STORE_DERIVED_READ_SECRET_KEY`，不读取其他应用的
 环境文件；Embedding 命令只读取 `EMBEDDING_API_KEY` 和 `--base-url`，正式构建固定使用
-`Qwen3-Embedding-4B`，不访问本地 `8002`、
-execution-control、Ops Web 或 PostgreSQL。本地 Publish 使用现有 `EXECUTION_CONTROL_DATABASE_URL`、
+`Qwen3-Embedding-4B`；纯离线 embedding CLI 不访问 Model Config、execution-control、Ops Web 或
+PostgreSQL，而显式接收 Model Target hash。本地 Publish 使用现有 `EXECUTION_CONTROL_DATABASE_URL`、
 `QDRANT_URL` 和 `QDRANT_API_KEY` 连接合同。
 
 本地 Chunk/Embedding 入口与集群 `src/cli.ts` 共用相同领域函数，只替换 Store 和 Embedding 连接组装。
@@ -54,11 +54,11 @@ chunk 都携带同一上下文，并按剩余字符预算重新拆分表格正�
 ## Embedding 阶段
 
 本地 `build-embeddings` 必须显式接收 `--chunk-set`。本地命令从 `var/` 读取 Chunk Set，并通过
-`--base-url` 和 `EMBEDDING_API_KEY` 直接调用 provider，模型固定为 `Qwen3-Embedding-4B`；线上 Embedding Job 从
-`execution-control-provider-snapshot:8002` 读取一次 `embedding_provider_snapshot.v1`，随后直接调用同一
-连接。每个 HTTP 请求固定包含 8 条文本，同时最多执行 8 个请求。
+`--base-url` 和 `EMBEDDING_API_KEY` 直接调用 provider，模型固定为 `Qwen3-Embedding-4B`；线上 Embedding
+Job 从 `model-config:8000` 一次读取 `campus_docs_embedding` 完整配置并直接调用该连接。每个 HTTP 请求
+固定包含 8 条文本，同时最多执行 8 个请求。
 
-`campus_docs_embedding_set.v2` 只记录所引用的 Chunk Set、向量数量、Embedding 数据对象，以及固定的
+`campus_docs_embedding_set.v3` 记录所引用的 Chunk Set、Model Target hash、向量数量、Embedding 数据对象，以及固定的
 `spaceId` 和 dimensions。provider、Base URL、model alias、API key、批大小和并发数均不进入制品。
 向量空间由代码内 `EMBEDDING_SPACE` 定义。v1 reader 已退役，旧 Embedding Set 不能作为生成或复用
 输入。

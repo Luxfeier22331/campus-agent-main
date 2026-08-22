@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -45,7 +44,6 @@ func TestCallAgentRuntimeDoesNotFollowRedirect(t *testing.T) {
 		run,
 		temporalruntime.ExecutePrimaryAgentActivityInput{RunID: run.RunID},
 		"private prompt",
-		providerconfig.RuntimeSetting{APIKey: "provider-secret"},
 		nil,
 		server.primaryAgentRuntimeLimits(),
 		1,

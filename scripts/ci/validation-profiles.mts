@@ -34,6 +34,13 @@ export const VALIDATION_PROFILE_REGISTRY = {
 					"native:typecheck",
 					"native:test",
 				),
+				turboCommand(
+					"model-config",
+					"native:format",
+					"native:lint",
+					"native:typecheck",
+					"native:test",
+				),
 			],
 			kind: "commands",
 		},
@@ -74,6 +81,15 @@ export const VALIDATION_PROFILE_REGISTRY = {
 	"execution-control-postgres": {
 		executor: {
 			commands: [turboCommand("execution-control", "test:database-integration")],
+			kind: "commands",
+		},
+		lane: "manual",
+		requiresDocker: true,
+		requiresUv: false,
+	},
+	"model-config-postgres": {
+		executor: {
+			commands: [turboCommand("model-config", "test:database-integration")],
 			kind: "commands",
 		},
 		lane: "manual",

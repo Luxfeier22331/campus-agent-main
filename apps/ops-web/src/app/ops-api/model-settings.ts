@@ -11,16 +11,16 @@ import { fetchJson } from "./core";
 
 export async function fetchExecutionModelSettings(input: { signal?: AbortSignal } = {}) {
 	return ExecutionModelSettingsStatusSchema.parse(
-		await fetchJson("/api/ops/model-settings/execution", { signal: input.signal }),
+		await fetchJson("/api/ops/model-configs", { signal: input.signal }),
 	);
 }
 
 export async function discoverExecutionModels(
-	kind: "llm" | "notice_classifier",
+	kind: "llm" | "reranker" | "notice_classifier",
 	payload: ModelDiscoveryRequest,
 ) {
 	return ModelDiscoveryResponseSchema.parse(
-		await fetchJson(`/api/ops/model-settings/execution/${kind}/models`, {
+		await fetchJson(`/api/ops/model-configs/${kind}/models`, {
 			body: JSON.stringify(payload),
 			headers: { "content-type": "application/json" },
 			method: "POST",
@@ -36,7 +36,7 @@ export async function putExecutionModelSetting(
 	payload: ModelSettingUpdate,
 ) {
 	return ExecutionModelSettingsStatusSchema.parse(
-		await fetchJson(`/api/ops/model-settings/execution/${kind}`, {
+		await fetchJson(`/api/ops/model-configs/${kind}`, {
 			body: JSON.stringify(payload),
 			headers: { "content-type": "application/json" },
 			method: "PUT",

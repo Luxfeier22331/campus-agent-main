@@ -200,7 +200,24 @@ describe("agent runtime Langfuse telemetry", () => {
 				})();
 			},
 		};
-		const handler = createAgentRuntimeHandler({ runtime, sharedSecret: "secret" });
+		const handler = createAgentRuntimeHandler({
+			modelConfig: {
+				baseUrl: "http://model-config",
+				fetchImplementation: async () =>
+					Response.json({
+						api_key: "test-key",
+						api_protocol: "openai.responses",
+						base_url: "https://api.openai.com/v1",
+						model: "test-model",
+						name: "primary_agent",
+						provider: "openai",
+						schema_version: "model_runtime_config.v1",
+						target_sha256: "5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
+					}),
+			},
+			runtime,
+			sharedSecret: "secret",
+		});
 		const response = await handler(
 			new Request("http://agent-runtime/internal/agent-runs/stream", {
 				body: JSON.stringify(validRunBody()),
@@ -240,12 +257,8 @@ function validRunBody() {
 			max_tool_calls: 0,
 			max_turns: 1,
 		},
-		provider_config: {
-			api_key: "test-key",
-			model: "test-model",
-			provider: "openai",
-			transport: "responses",
-		},
+		expected_model_target_sha256:
+			"5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
 		request_id: "request-1",
 		run_id: "run-1",
 		trace_id: "trace-1",

@@ -73,8 +73,8 @@ Embedding 的显式输入，并由 Embedding Set 传递给 Publisher，不是当
 
 ### Embedding Set
 
-`campus_docs_embedding_set.v2` manifest 与 `embeddings.ndjson` 组成的内容寻址制品。manifest 记录 Chunk
-Set、向量数量、数据引用及 `spaceId`/dimensions；每条记录以 `retrievalTextSha256` 标识唯一检索文本
+`campus_docs_embedding_set.v3` manifest 与 `embeddings.ndjson` 组成的内容寻址制品。manifest 记录 Chunk
+Set、Model Target hash、向量数量、数据引用及 `spaceId`/dimensions；每条记录以 `retrievalTextSha256` 标识唯一检索文本
 向量。Embedding Job 只能从操作者显式指定的同空间旧 embedding set 复用，不扫描 bucket 或 Qdrant。
 
 ### Section 与 Chunk

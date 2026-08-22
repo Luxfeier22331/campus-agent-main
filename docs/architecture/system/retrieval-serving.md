@@ -59,7 +59,7 @@ provider-specific model alias 与调用参数不进入内容寻址 manifest。
 ```text
 Chunk Job: source.json + 当前 reader
   -> 显式 chunk set
-Embedding Job: 显式 chunk set + 一次性 Embedding provider snapshot
+Embedding Job: 显式 chunk set + Model Config 完整配置
   -> 显式 embedding set
 Publisher Job: 显式 embedding set -> manifest 中的 chunk set
   -> 不可变 Qdrant collection

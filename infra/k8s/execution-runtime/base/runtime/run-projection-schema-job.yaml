@@ -41,8 +41,6 @@ spec:
             - /tmp/run-projection-schema.json
             - --provider-config-encryption-key-path
             - /run/campus-agent/provider-config/encryption.key
-            - --provider-config-keyring-path
-            - /run/campus-agent/provider-config-legacy/keyring.json
           envFrom:
             - configMapRef:
                 name: execution-schema-database-config
@@ -74,9 +72,6 @@ spec:
             - name: provider-config-encryption
               mountPath: /run/campus-agent/provider-config
               readOnly: true
-            - name: provider-config-legacy
-              mountPath: /run/campus-agent/provider-config-legacy
-              readOnly: true
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
               readOnly: true
@@ -91,14 +86,6 @@ spec:
             items:
               - key: encryption.key
                 path: encryption.key
-        - name: provider-config-legacy
-          secret:
-            secretName: execution-provider-config-keyring
-            optional: true
-            defaultMode: 0440
-            items:
-              - key: keyring.json
-                path: keyring.json
         - name: postgres-ca
           secret:
             secretName: campus-agent-postgres-origin-server

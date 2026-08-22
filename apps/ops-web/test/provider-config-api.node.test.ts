@@ -14,7 +14,7 @@ const status = ExecutionModelSettingsStatusSchema.parse({
 		transport: "embeddings",
 	},
 	sampledAt: "2026-07-14T10:00:00.000Z",
-	settings: { embedding: null, llm: null, notice_classifier: null },
+	settings: { embedding: null, llm: null, reranker: null, notice_classifier: null },
 });
 
 describe("ops model settings BFF", () => {
@@ -44,28 +44,25 @@ describe("ops model settings BFF", () => {
 			provider: "openai",
 			transport: "responses",
 		};
-		const rejected = await app.request("http://ops.test/api/ops/model-settings/execution/llm", {
+		const rejected = await app.request("http://ops.test/api/ops/model-configs/llm", {
 			body: JSON.stringify(body),
 			headers: { "content-type": "application/json", origin: "http://attacker.test" },
 			method: "PUT",
 		});
 		expect(rejected.status).toBe(403);
 
-		const retiredField = await app.request(
-			"http://ops-web:5178/api/ops/model-settings/execution/llm",
-			{
-				body: JSON.stringify({ ...body, timeoutMs: 30_000 }),
-				headers: {
-					"content-type": "application/json",
-					origin: "https://ops.example.test",
-					"sec-fetch-site": "same-origin",
-				},
-				method: "PUT",
+		const retiredField = await app.request("http://ops-web:5178/api/ops/model-configs/llm", {
+			body: JSON.stringify({ ...body, timeoutMs: 30_000 }),
+			headers: {
+				"content-type": "application/json",
+				origin: "https://ops.example.test",
+				"sec-fetch-site": "same-origin",
 			},
-		);
+			method: "PUT",
+		});
 		expect(retiredField.status).toBe(400);
 
-		const accepted = await app.request("http://ops-web:5178/api/ops/model-settings/execution/llm", {
+		const accepted = await app.request("http://ops-web:5178/api/ops/model-configs/llm", {
 			body: JSON.stringify(body),
 			headers: {
 				"content-type": "application/json",
@@ -77,22 +74,19 @@ describe("ops model settings BFF", () => {
 		expect(accepted.status).toBe(200);
 		expect(put).toHaveBeenCalledWith("llm", body, "ops@example.test");
 
-		const catalog = await app.request(
-			"http://ops-web:5178/api/ops/model-settings/execution/llm/models",
-			{
-				body: JSON.stringify({
-					apiKey: "secret",
-					baseUrl: "https://provider.example.test/v1",
-					provider: "openai",
-				}),
-				headers: {
-					"content-type": "application/json",
-					origin: "https://ops.example.test",
-					"sec-fetch-site": "same-origin",
-				},
-				method: "POST",
+		const catalog = await app.request("http://ops-web:5178/api/ops/model-configs/llm/models", {
+			body: JSON.stringify({
+				apiKey: "secret",
+				baseUrl: "https://provider.example.test/v1",
+				provider: "openai",
+			}),
+			headers: {
+				"content-type": "application/json",
+				origin: "https://ops.example.test",
+				"sec-fetch-site": "same-origin",
 			},
-		);
+			method: "POST",
+		});
 		expect(catalog.status).toBe(200);
 		expect(await catalog.json()).toEqual({
 			models: ["model-a", "model-b"],
@@ -109,7 +103,7 @@ describe("ops model settings BFF", () => {
 		);
 
 		const classifierCatalog = await app.request(
-			"http://ops-web:5178/api/ops/model-settings/execution/notice_classifier/models",
+			"http://ops-web:5178/api/ops/model-configs/notice_classifier/models",
 			{
 				body: JSON.stringify({
 					apiKey: "classifier-secret",
@@ -135,6 +129,34 @@ describe("ops model settings BFF", () => {
 			"ops@example.test",
 			"notice_classifier",
 		);
+
+		const rerankerCatalog = await app.request(
+			"http://ops-web:5178/api/ops/model-configs/reranker/models",
+			{
+				body: JSON.stringify({
+					apiKey: "reranker-secret",
+					baseUrl: "https://reranker.example.test/v1",
+					provider: "cohere-compatible",
+				}),
+				headers: {
+					"content-type": "application/json",
+					origin: "https://ops.example.test",
+					"sec-fetch-site": "same-origin",
+				},
+				method: "POST",
+			},
+		);
+		expect(rerankerCatalog.status).toBe(200);
+		expect(discoverModels).toHaveBeenNthCalledWith(
+			3,
+			{
+				apiKey: "reranker-secret",
+				baseUrl: "https://reranker.example.test/v1",
+				provider: "cohere-compatible",
+			},
+			"ops@example.test",
+			"reranker",
+		);
 	});
 
 	it("maps execution-control failures without exposing its message", async () => {
@@ -154,7 +176,7 @@ describe("ops model settings BFF", () => {
 			},
 		});
 
-		const response = await app.request("http://ops.test/api/ops/model-settings/execution");
+		const response = await app.request("http://ops.test/api/ops/model-configs");
 		expect(response.status).toBe(503);
 		expect(await response.json()).toEqual({
 			error: {

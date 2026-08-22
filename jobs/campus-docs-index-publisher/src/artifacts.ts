@@ -201,19 +201,25 @@ function parseChunkSetManifest(value: unknown): ChunkSetManifest {
 }
 
 function parseEmbeddingSetManifest(value: unknown): EmbeddingSetManifest {
-	if (!isRecord(value) || value.schemaVersion !== "campus_docs_embedding_set.v2") {
+	if (!isRecord(value) || value.schemaVersion !== "campus_docs_embedding_set.v3") {
 		throw new Error("embedding set manifest schema is invalid");
 	}
 	const manifest = value as unknown as EmbeddingSetManifest;
 	if (
 		!isDeepStrictEqual(manifest.embeddingSpace, EMBEDDING_SPACE) ||
-		!positiveInteger(manifest.embeddingCount)
+		!positiveInteger(manifest.embeddingCount) ||
+		!nonEmptyString(manifest.modelTargetSha256) ||
+		!/^[0-9a-f]{64}$/u.test(manifest.modelTargetSha256)
 	) {
 		throw new Error("embedding set manifest definition is invalid");
 	}
 	assertSha256Ref(manifest.chunkSet, "embedding set chunk reference");
 	assertObjectRef(manifest.embeddings, "embedding set data");
 	return manifest;
+}
+
+function nonEmptyString(value: unknown): value is string {
+	return typeof value === "string" && value.trim() !== "";
 }
 
 function parseStoredChunk(value: unknown, index: number): StoredChunk {

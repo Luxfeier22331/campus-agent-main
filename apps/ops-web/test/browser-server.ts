@@ -544,6 +544,22 @@ function fixtureProviderConfigClient() {
 				updatedAt: "2026-07-16T00:00:00.000Z",
 				updatedBy: "ops@example.test",
 			},
+			reranker: {
+				baseUrl: "https://reranker.example.test/v1",
+				credentialConfigured: true,
+				kind: "reranker",
+				latestValidation: {
+					message: "Reranker validation passed.",
+					status: "passed",
+					validatedAt: "2026-07-16T00:05:00.000Z",
+					validatedBy: "ops@example.test",
+				},
+				model: "rerank-v4",
+				provider: "cohere-compatible",
+				transport: "rerank",
+				updatedAt: "2026-07-16T00:00:00.000Z",
+				updatedBy: "ops@example.test",
+			},
 			notice_classifier: {
 				baseUrl: "https://classifier.example.test/v1",
 				credentialConfigured: true,
@@ -572,7 +588,10 @@ function fixtureProviderConfigClient() {
 		async getStatus() {
 			return status;
 		},
-		async put(kind: "llm" | "embedding" | "notice_classifier", body: Record<string, unknown>) {
+		async put(
+			kind: "llm" | "embedding" | "reranker" | "notice_classifier",
+			body: Record<string, unknown>,
+		) {
 			status.settings[kind] = {
 				baseUrl: String(body.baseUrl),
 				credentialConfigured: true,
@@ -588,11 +607,11 @@ function fixtureProviderConfigClient() {
 				provider:
 					kind === "embedding"
 						? status.embeddingContract.provider
-						: (body.provider as "openai" | "openai-compatible"),
+						: (body.provider as "openai" | "openai-compatible" | "cohere" | "cohere-compatible"),
 				transport:
 					kind === "embedding"
 						? "embeddings"
-						: (body.transport as "responses" | "chat_completions"),
+						: (body.transport as "responses" | "chat_completions" | "rerank"),
 				updatedAt: new Date().toISOString(),
 				updatedBy: "ops@example.test",
 			};

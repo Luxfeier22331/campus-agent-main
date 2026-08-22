@@ -65,6 +65,8 @@ spec:
                     secretKeyRef:
                       name: object-store-secrets
                       key: OBJECT_STORE_DERIVED_SECRET_KEY
+                - name: MODEL_CONFIG_URL
+                  value: http://model-config:8000
                 - name: HOME
                   value: /tmp
               securityContext:

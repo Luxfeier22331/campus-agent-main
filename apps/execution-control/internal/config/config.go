@@ -9,24 +9,23 @@ import (
 )
 
 const (
-	defaultAgentRuntimeDeadlineMS          = 90_000
-	defaultAgentRuntimeInputCharLimit      = 8_000
-	defaultAgentRuntimeMaxOutputTokens     = 2_048
-	defaultMaxConcurrentAnswers            = 8
-	defaultMemoryContextCharBudget         = 2_500
-	defaultMemoryRecallLimit               = 8
-	defaultMemoryRecallMaxTokens           = 2_500
-	defaultMemoryTimeoutSeconds            = 90
-	defaultQueueCapacity                   = 24
-	defaultQueueTimeoutMS                  = 3_000
-	defaultRequestBodyLimitBytes           = 1_048_576
-	defaultRequestTimeoutMS                = 95_000
-	defaultShutdownGraceMS                 = 95_000
-	fixedHTTPHost                          = "0.0.0.0"
-	fixedHTTPPort                          = 8000
-	defaultProviderConfigEncryptionKeyPath = "/run/campus-agent/provider-config/encryption.key"
-	fixedTemporalWorkflowTimeoutSec        = 900
-	maxGatewayPort                         = 65_533
+	defaultAgentRuntimeDeadlineMS      = 90_000
+	defaultAgentRuntimeInputCharLimit  = 8_000
+	defaultAgentRuntimeMaxOutputTokens = 2_048
+	defaultMaxConcurrentAnswers        = 8
+	defaultMemoryContextCharBudget     = 2_500
+	defaultMemoryRecallLimit           = 8
+	defaultMemoryRecallMaxTokens       = 2_500
+	defaultMemoryTimeoutSeconds        = 90
+	defaultQueueCapacity               = 24
+	defaultQueueTimeoutMS              = 3_000
+	defaultRequestBodyLimitBytes       = 1_048_576
+	defaultRequestTimeoutMS            = 95_000
+	defaultShutdownGraceMS             = 95_000
+	fixedHTTPHost                      = "0.0.0.0"
+	fixedHTTPPort                      = 8000
+	fixedTemporalWorkflowTimeoutSec    = 900
+	maxGatewayPort                     = 65_533
 )
 
 type Config struct {
@@ -58,7 +57,7 @@ type Config struct {
 	AgentRuntimeContextCharLimit            int
 	ProductCallbackBaseURL                  string
 	ProductCallbackTimeoutMS                int
-	ProviderConfigEncryptionKeyPath         string
+	ModelConfigBaseURL                      string
 	WorkerProfiles                          map[string]WorkerProfile
 	PersonalMemoryBaseURL                   string
 	PersonalMemoryAPISecret                 string
@@ -79,23 +78,23 @@ type WorkerProfile struct {
 }
 
 type envValues struct {
-	DeploymentEnvironment           string `env:"DEPLOYMENT_ENVIRONMENT" envDefault:"local"`
-	DeploymentRelease               string `env:"DEPLOYMENT_RELEASE"`
-	Host                            string `env:"HOST"`
-	Port                            int    `env:"PORT"`
-	AppAPIExecutionSharedSecret     string `env:"APP_API_EXECUTION_SHARED_SECRET"`
-	OpsWebInternalToken             string `env:"OPS_WEB_INTERNAL_TOKEN"`
-	DatabaseURL                     string `env:"EXECUTION_CONTROL_DATABASE_URL"`
-	TemporalAddress                 string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
-	TemporalNamespace               string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
-	TemporalWorkerIdentity          string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
-	AgentRuntimeBaseURL             string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
-	AgentRuntimeSharedSecret        string `env:"EXECUTION_AGENT_RUNTIME_SHARED_SECRET"`
-	ProviderConfigEncryptionKeyPath string `env:"PROVIDER_CONFIG_ENCRYPTION_KEY_FILE"`
-	ProductCallbackBaseURL          string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
-	PersonalMemoryBaseURL           string `env:"HINDSIGHT_API_BASE_URL"`
-	PersonalMemoryAPISecret         string `env:"HINDSIGHT_API_TENANT_API_KEY"`
-	PersonalMemoryOwnerSalt         string `env:"HINDSIGHT_OWNER_SALT"`
+	DeploymentEnvironment       string `env:"DEPLOYMENT_ENVIRONMENT" envDefault:"local"`
+	DeploymentRelease           string `env:"DEPLOYMENT_RELEASE"`
+	Host                        string `env:"HOST"`
+	Port                        int    `env:"PORT"`
+	AppAPIExecutionSharedSecret string `env:"APP_API_EXECUTION_SHARED_SECRET"`
+	OpsWebInternalToken         string `env:"OPS_WEB_INTERNAL_TOKEN"`
+	DatabaseURL                 string `env:"EXECUTION_CONTROL_DATABASE_URL"`
+	TemporalAddress             string `env:"EXECUTION_CONTROL_TEMPORAL_ADDRESS"`
+	TemporalNamespace           string `env:"EXECUTION_CONTROL_TEMPORAL_NAMESPACE"`
+	TemporalWorkerIdentity      string `env:"EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY"`
+	AgentRuntimeBaseURL         string `env:"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL"`
+	AgentRuntimeSharedSecret    string `env:"EXECUTION_AGENT_RUNTIME_SHARED_SECRET"`
+	ModelConfigBaseURL          string `env:"MODEL_CONFIG_URL"`
+	ProductCallbackBaseURL      string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
+	PersonalMemoryBaseURL       string `env:"HINDSIGHT_API_BASE_URL"`
+	PersonalMemoryAPISecret     string `env:"HINDSIGHT_API_TENANT_API_KEY"`
+	PersonalMemoryOwnerSalt     string `env:"HINDSIGHT_OWNER_SALT"`
 }
 
 func LoadRuntimeFromEnv() (Config, error) {
@@ -156,18 +155,15 @@ func loadFromEnv() (Config, error) {
 		AgentRuntimeContextCharLimit:            16_000,
 		ProductCallbackBaseURL:                  strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
 		ProductCallbackTimeoutMS:                1_000,
-		ProviderConfigEncryptionKeyPath: defaultString(
-			strings.TrimSpace(values.ProviderConfigEncryptionKeyPath),
-			defaultProviderConfigEncryptionKeyPath,
-		),
-		WorkerProfiles:                  defaultWorkerProfiles(),
-		PersonalMemoryBaseURL:           strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
-		PersonalMemoryAPISecret:         strings.TrimSpace(values.PersonalMemoryAPISecret),
-		PersonalMemoryOwnerSalt:         strings.TrimSpace(values.PersonalMemoryOwnerSalt),
-		PersonalMemoryTimeoutSeconds:    defaultMemoryTimeoutSeconds,
-		PersonalMemoryRecallLimit:       defaultMemoryRecallLimit,
-		PersonalMemoryRecallMaxTokens:   defaultMemoryRecallMaxTokens,
-		PersonalMemoryContextCharBudget: defaultMemoryContextCharBudget,
+		ModelConfigBaseURL:                      strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
+		WorkerProfiles:                          defaultWorkerProfiles(),
+		PersonalMemoryBaseURL:                   strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
+		PersonalMemoryAPISecret:                 strings.TrimSpace(values.PersonalMemoryAPISecret),
+		PersonalMemoryOwnerSalt:                 strings.TrimSpace(values.PersonalMemoryOwnerSalt),
+		PersonalMemoryTimeoutSeconds:            defaultMemoryTimeoutSeconds,
+		PersonalMemoryRecallLimit:               defaultMemoryRecallLimit,
+		PersonalMemoryRecallMaxTokens:           defaultMemoryRecallMaxTokens,
+		PersonalMemoryContextCharBudget:         defaultMemoryContextCharBudget,
 	}, nil
 }
 
@@ -189,6 +185,7 @@ func validateDeployedRuntime(values envValues) error {
 		{"EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", values.AgentRuntimeBaseURL},
 		{"EXECUTION_AGENT_RUNTIME_SHARED_SECRET", values.AgentRuntimeSharedSecret},
 		{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
+		{"MODEL_CONFIG_URL", values.ModelConfigBaseURL},
 	}
 	for _, item := range required {
 		if strings.TrimSpace(item.value) == "" {

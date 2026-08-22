@@ -5,8 +5,8 @@ import { pathToFileURL } from "node:url";
 
 import { runNoticeClassificationJob } from "./job.ts";
 import {
-	createNoticeClassifierFromSnapshot,
-	fetchNoticeClassifierProviderSnapshot,
+	createNoticeClassifierFromRuntimeConfig,
+	resolveNoticeClassifierRuntimeConfig,
 } from "./model.ts";
 import { createNoticeClassifierObjectStoreFromEnv } from "./object-store.ts";
 import { parseNoticeClassifierOptions } from "./options.ts";
@@ -15,8 +15,7 @@ export const LOCAL_NOTICE_CLASSIFIER_ENV_PATH = path.resolve(
 	import.meta.dirname,
 	"../.env.local",
 );
-export const LOCAL_NOTICE_CLASSIFIER_PROVIDER_SNAPSHOT_URL =
-	"http://127.0.0.1:18002/internal/provider-snapshots/notice-classifier";
+export const LOCAL_NOTICE_CLASSIFIER_MODEL_CONFIG_URL = "http://127.0.0.1:18003";
 
 const LOCAL_OBJECT_STORE_ENV_KEYS = [
 	"OBJECT_STORE_ENDPOINT",
@@ -54,15 +53,17 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 	const options = parseNoticeClassifierOptions(argv);
 	const objectStore = createNoticeClassifierObjectStoreFromEnv();
 	try {
-		let snapshotPromise: ReturnType<typeof fetchNoticeClassifierProviderSnapshot> | undefined;
-		let modelClassifier: ReturnType<typeof createNoticeClassifierFromSnapshot> | undefined;
+		let runtimeConfigPromise: ReturnType<typeof resolveNoticeClassifierRuntimeConfig> | undefined;
+		let modelClassifier: ReturnType<typeof createNoticeClassifierFromRuntimeConfig> | undefined;
 		const result = await runNoticeClassificationJob({
 			concurrency: options.concurrency,
 			createModelClassifier: () => async (input) => {
-				modelClassifier ??= createNoticeClassifierFromSnapshot(
-					await (snapshotPromise ??= fetchNoticeClassifierProviderSnapshot(
+				modelClassifier ??= createNoticeClassifierFromRuntimeConfig(
+					await (runtimeConfigPromise ??= resolveNoticeClassifierRuntimeConfig(
 						fetch,
-						options.providerSnapshotUrl ?? LOCAL_NOTICE_CLASSIFIER_PROVIDER_SNAPSHOT_URL,
+						options.modelConfigUrl ??
+							process.env.MODEL_CONFIG_URL ??
+							LOCAL_NOTICE_CLASSIFIER_MODEL_CONFIG_URL,
 					)),
 				);
 				return modelClassifier(input);

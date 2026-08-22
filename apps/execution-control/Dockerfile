@@ -38,6 +38,6 @@ COPY configs/runtime/tool-function-schemas.v3.json /etc/campus-agent/tool-functi
 COPY configs/runtime/tools.v6.json /etc/campus-agent/tools.v6.json
 
 USER appuser
-EXPOSE 8000 8001 8002
+EXPOSE 8000
 
 ENTRYPOINT ["/usr/local/bin/execution-control"]

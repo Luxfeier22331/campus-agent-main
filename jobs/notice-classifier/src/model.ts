@@ -13,15 +13,14 @@ import {
 	type NoticeModelClassifier,
 } from "./classifier.ts";
 
-export const NOTICE_CLASSIFIER_PROVIDER_SNAPSHOT_URL =
-	"http://execution-control-provider-snapshot:8002/internal/provider-snapshots/notice-classifier";
+export const NOTICE_CLASSIFIER_MODEL_CONFIG_URL = "http://model-config:8000";
 
-export interface NoticeClassifierProviderSnapshot {
+export interface NoticeClassifierRuntimeConfig {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
 	provider: "openai" | "openai-compatible";
-	schemaVersion: "notice_classifier_provider_snapshot.v1";
+	schemaVersion: "notice_classifier_runtime_config.v1";
 	transport: "responses" | "chat_completions";
 }
 
@@ -34,71 +33,63 @@ const CLASSIFICATION_SCHEMA = {
 	type: "object",
 } as const;
 
-export async function fetchNoticeClassifierProviderSnapshot(
+export async function resolveNoticeClassifierRuntimeConfig(
 	fetchImplementation: typeof fetch = fetch,
-	url = NOTICE_CLASSIFIER_PROVIDER_SNAPSHOT_URL,
-): Promise<NoticeClassifierProviderSnapshot> {
-	let response: Response;
+	url = process.env.MODEL_CONFIG_URL ?? NOTICE_CLASSIFIER_MODEL_CONFIG_URL,
+): Promise<NoticeClassifierRuntimeConfig> {
 	try {
-		response = await fetchImplementation(url, {
+		const baseUrl = url.replace(/\/$/u, "");
+		const response = await fetchImplementation(`${baseUrl}/internal/model-configs/notice_classification`, {
 			headers: { accept: "application/json" },
 			method: "GET",
 			redirect: "error",
 			signal: AbortSignal.timeout(15_000),
 		});
+		if (!response.ok) throw new Error(`runtime config returned HTTP ${response.status}`);
+		const runtime = (await response.json()) as unknown;
+		if (
+			!isRecord(runtime) ||
+			runtime.schema_version !== "model_runtime_config.v1" ||
+			runtime.name !== "notice_classification" ||
+			(runtime.provider !== "openai" && runtime.provider !== "openai-compatible") ||
+			(runtime.api_protocol !== "openai.responses" &&
+				runtime.api_protocol !== "openai.chat_completions") ||
+			!nonEmptyString(runtime.base_url) ||
+			!nonEmptyString(runtime.model) ||
+			!nonEmptyString(runtime.api_key) ||
+			typeof runtime.target_sha256 !== "string" ||
+			!/^[0-9a-f]{64}$/u.test(runtime.target_sha256)
+		)
+			throw new Error("invalid runtime config");
+		return {
+			apiKey: runtime.api_key,
+			baseUrl: runtime.base_url,
+			model: runtime.model,
+			provider: runtime.provider,
+			schemaVersion: "notice_classifier_runtime_config.v1",
+			transport: runtime.api_protocol === "openai.responses" ? "responses" : "chat_completions",
+		};
 	} catch (error) {
-		throw new Error("notice classifier provider snapshot is unavailable", { cause: error });
+		throw new Error("notice classifier Model Config is unavailable", { cause: error });
 	}
-	if (!response.ok) {
-		throw new Error(`notice classifier provider snapshot returned HTTP ${response.status}`);
-	}
-	let payload: unknown;
-	try {
-		payload = JSON.parse(await response.text()) as unknown;
-	} catch (error) {
-		throw new Error("notice classifier provider snapshot is not valid JSON", { cause: error });
-	}
-	if (!isRecord(payload)) {
-		throw new Error("notice classifier provider snapshot is invalid");
-	}
-	const provider = payload.provider;
-	const transport = payload.transport;
-	if (
-		payload.schema_version !== "notice_classifier_provider_snapshot.v1" ||
-		!nonEmptyString(payload.api_key) ||
-		!nonEmptyString(payload.base_url) ||
-		!nonEmptyString(payload.model) ||
-		(provider !== "openai" && provider !== "openai-compatible") ||
-		(transport !== "responses" && transport !== "chat_completions")
-	) {
-		throw new Error("notice classifier provider snapshot is invalid");
-	}
-	return {
-		apiKey: payload.api_key,
-		baseUrl: payload.base_url.replace(/\/$/u, ""),
-		model: payload.model,
-		provider,
-		schemaVersion: "notice_classifier_provider_snapshot.v1",
-		transport,
-	};
 }
 
-export function createNoticeClassifierFromSnapshot(
-	snapshot: NoticeClassifierProviderSnapshot,
+export function createNoticeClassifierFromRuntimeConfig(
+	runtimeConfig: NoticeClassifierRuntimeConfig,
 	fetchImplementation: typeof fetch = fetch,
 ): NoticeModelClassifier {
 	return async (noticeTitle) => {
-		const raw = await requestClassification(snapshot, noticeTitle, fetchImplementation);
+		const raw = await requestClassification(runtimeConfig, noticeTitle, fetchImplementation);
 		return parseNoticeModelOutput(raw);
 	};
 }
 
 async function requestClassification(
-	snapshot: NoticeClassifierProviderSnapshot,
+	runtimeConfig: NoticeClassifierRuntimeConfig,
 	noticeTitle: string,
 	fetchImplementation: typeof fetch,
 ): Promise<string> {
-	const isChatCompletions = snapshot.transport === "chat_completions";
+	const isChatCompletions = runtimeConfig.transport === "chat_completions";
 	const endpoint = isChatCompletions ? "/chat/completions" : "/responses";
 	const payload = isChatCompletions
 		? {
@@ -106,7 +97,7 @@ async function requestClassification(
 				{ content: NOTICE_CLASSIFIER_SYSTEM_PROMPT, role: "system" },
 				{ content: JSON.stringify(toModelInput(noticeTitle)), role: "user" },
 			],
-			model: snapshot.model,
+			model: runtimeConfig.model,
 			response_format: {
 				type: "json_schema",
 				json_schema: {
@@ -122,7 +113,7 @@ async function requestClassification(
 				{ content: NOTICE_CLASSIFIER_SYSTEM_PROMPT, role: "system" },
 				{ content: JSON.stringify(toModelInput(noticeTitle)), role: "user" },
 			],
-			model: snapshot.model,
+			model: runtimeConfig.model,
 			temperature: NOTICE_CLASSIFIER_TEMPERATURE,
 			text: {
 				format: {
@@ -135,11 +126,11 @@ async function requestClassification(
 		};
 	let response: Response;
 	try {
-		response = await fetchImplementation(`${snapshot.baseUrl}${endpoint}`, {
+		response = await fetchImplementation(`${runtimeConfig.baseUrl}${endpoint}`, {
 			body: JSON.stringify(payload),
 			headers: {
 				accept: "application/json",
-				authorization: `Bearer ${snapshot.apiKey}`,
+				authorization: `Bearer ${runtimeConfig.apiKey}`,
 				"content-type": "application/json",
 			},
 			method: "POST",

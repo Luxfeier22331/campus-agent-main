@@ -34,6 +34,17 @@ const executionStatus: ExecutionModelSettingsStatus = {
 			updatedAt: "2026-07-21T01:00:00.000Z",
 			updatedBy: "ops@example.test",
 		},
+		reranker: {
+			baseUrl: "https://reranker.example.test/v1",
+			credentialConfigured: true,
+			kind: "reranker",
+			latestValidation: null,
+			model: "rerank-v4",
+			provider: "cohere-compatible",
+			transport: "rerank",
+			updatedAt: "2026-07-21T01:00:00.000Z",
+			updatedBy: "ops@example.test",
+		},
 		notice_classifier: {
 			baseUrl: "https://classifier.example.test/v1",
 			credentialConfigured: true,
@@ -63,9 +74,9 @@ describe("model settings page", () => {
 		for (const button of screen.getAllByRole("button", { name: "保存并验证" })) {
 			expect(button).toBeDisabled();
 		}
-		expect(screen.getAllByText("当前密钥已配置；留空保持不变。")).toHaveLength(3);
+		expect(screen.getAllByText("当前密钥已配置；留空保持不变。")).toHaveLength(4);
 
-		expect(screen.getAllByText("高级设置")).toHaveLength(2);
+		expect(screen.getAllByText("高级设置")).toHaveLength(3);
 		expect(screen.queryByLabelText("请求超时（秒）")).not.toBeInTheDocument();
 	});
 
@@ -144,7 +155,7 @@ describe("model settings page", () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-				if (String(input).endsWith("/api/ops/model-settings/execution/llm/models")) {
+				if (String(input).endsWith("/api/ops/model-configs/llm/models")) {
 					discoveryBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
 					return Response.json({
 						models: ["primary-model", "reasoning-model"],
@@ -166,6 +177,58 @@ describe("model settings page", () => {
 			apiKey: "",
 			baseUrl: "https://provider.example.test/v1",
 			provider: "openai",
+		});
+	});
+
+	it("discovers and saves an independent reranker setting", async () => {
+		let discoveryBody: Record<string, unknown> | undefined;
+		let savedBody: Record<string, unknown> | undefined;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (url.endsWith("/api/ops/model-configs/reranker/models")) {
+					discoveryBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+					return Response.json({
+						models: ["rerank-v4", "rerank-v4-lite"],
+						sampledAt: "2026-07-21T01:05:00.000Z",
+					});
+				}
+				if (init?.method === "PUT") {
+					savedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+				}
+				return Response.json(executionStatus);
+			}),
+		);
+		render(<OpsWebApp initialPath="/providers" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "获取Reranker模型" }));
+		const model = await screen.findByRole("combobox", { name: "模型" });
+		fireEvent.change(model, { target: { value: "rerank-v4-lite" } });
+		fireEvent.change(await screen.findByDisplayValue("https://reranker.example.test/v1"), {
+			target: { value: "https://reranker-next.example.test/v1" },
+		});
+		fireEvent.change(await screen.findByLabelText("Reranker API Key"), {
+			target: { value: "reranker-key" },
+		});
+		const save = screen.getAllByRole("button", { name: "保存并验证" })[2];
+		if (!save) {
+			throw new Error("Expected the Reranker save button.");
+		}
+		fireEvent.click(save);
+
+		await waitFor(() =>
+			expect(discoveryBody).toEqual({
+				apiKey: "",
+				baseUrl: "https://reranker.example.test/v1",
+				provider: "cohere-compatible",
+			}),
+		);
+		expect(savedBody).toEqual({
+			apiKey: "reranker-key",
+			baseUrl: "https://reranker-next.example.test/v1",
+			model: "rerank-v4-lite",
+			provider: "cohere-compatible",
 		});
 	});
 

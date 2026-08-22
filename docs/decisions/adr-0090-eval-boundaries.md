@@ -55,7 +55,9 @@ status: accepted
 
 当前不建设 Kubernetes eval Job、持久评测报告、评测数据库、自动发布门禁或通用自研评测框架。
 Ragas 模型调用只读取 runner 本地配置文件，不把该输入注册成跨服务合同，也不重复声明 SDK 已经固定的
-provider、transport 或配置 schema version。
+provider、transport 或配置 schema version。该本地文件可以包含独立的 `eval_ragas_reranker` profile
+供显式检索实验使用，但它不自动接入在线 Model Config，也不改变 native Ragas 评分命令对最终
+`retrieved_contexts` 的语义。
 
 ## 后果
 

@@ -10,4 +10,5 @@ exec osv-scanner scan source \
 	--verbosity=error \
 	--lockfile pnpm-lock.yaml \
 	--lockfile uv.lock \
-	--lockfile apps/execution-control/go.mod
+	--lockfile apps/execution-control/go.mod \
+	--lockfile apps/model-config/go.mod

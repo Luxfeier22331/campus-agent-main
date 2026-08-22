@@ -512,6 +512,8 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
+  apps/model-config: {}
+
   apps/ops-web:
     dependencies:
       '@aws-sdk/client-s3':

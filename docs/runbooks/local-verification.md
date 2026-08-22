@@ -118,14 +118,15 @@ pnpm --filter ops-web dev:fixture
 和固定测试响应，不读取真实门户凭据，也不代表 staging 或 production 状态。MCP 调用应与该进程
 处于同一网络命名空间，并使用输出的 loopback endpoint。
 
-## Provider 配置
+## Model Config
 
-在线配置由当前 worktree execution-control 的模型配置数据库和单一 `encryption.key` 持有。需要修改时
+在线配置由当前 worktree 的独立 Model Config 数据库、role 和 `model-config-encryption.key` 持有。需要修改时
 启动本地 `pnpm dev` 与 `pnpm --filter ops-web dev:api`、`pnpm --filter ops-web dev:web`，按
 `provider-secrets.md` 保存并验证 LLM、Embedding 或通知分类当前值；应用启动不能静默 seed 在线配置。
-`pnpm dev:init` 会在启动应用前验证数据库中已有的模型密文能否由当前 worktree 的 encryption key
-解密；如果输出 stored provider config secret 解密失败，说明数据库和 key 不属于同一个本地实例。
-不要复制其他 worktree、staging 或 production 的 encryption key；使用
+`pnpm dev:init` 先运行 execution-control 历史 Goose migration，再运行 Model Config 事务切换。前者使用
+`provider-config-encryption.key` 作为冻结历史 migration 输入，后者使用它解密旧行并以
+`model-config-encryption.key` 重加密。启动前会验证当前 Model Config 密文可解密；失败说明数据库和 key
+不属于同一个本地实例。不要复制其他 worktree、staging 或 production 的任一 encryption key；使用
 `pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>` 显式销毁该实例后重新运行
 `pnpm dev:init`，再通过 Ops Web 配置本地模型。
 

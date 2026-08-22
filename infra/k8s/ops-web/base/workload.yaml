@@ -107,8 +107,8 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_DERIVED_SECRET_KEY
-            - name: OPS_WEB_EXECUTION_CONTROL_ADMIN_URL
-              value: http://execution-control-admin:8000
+            - name: MODEL_CONFIG_URL
+              value: http://model-config:8000
             - name: INGESTION_CONTROL_INTERNAL_URL
               value: http://ingestion-control:8000
             - name: OPS_WEB_LANGFUSE_URL

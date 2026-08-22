@@ -28,6 +28,7 @@ test("validation profiles have one fail-closed registry", () => {
 		"app-api-migration",
 		"app-api-product-db",
 		"execution-control-postgres",
+		"model-config-postgres",
 		"ingestion-control-postgres",
 		"ops-web-postgres",
 		"infra",

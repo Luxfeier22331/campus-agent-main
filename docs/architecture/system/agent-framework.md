@@ -29,11 +29,14 @@ status: active
 
 ## 准入身份
 
-execution-control 冻结本轮使用的 `llm` 设置和工具运行时指纹。Agent Runtime 只接收已经解析的
-`llm` 设置、会话上下文和本轮开放的工具，不读取索引目录或调用知识 Provider。
+execution-control 冻结本轮 `primary_agent` 的 `model_target.v1` hash 和工具运行时指纹。Agent Runtime
+只接收预期目标 hash、会话上下文和本轮开放的工具，再从共同受信任的 Model Config 读取仍匹配该
+hash 的 `model_runtime_config.v1`；它不接收或持久化工作流提供的 Provider API key，也不读取索引目录或调用
+知识 Provider。
 
-execution-control 在模型调用、结果持久化和 Finalization 前校验对应配置 hash。配置缺失、轮换或
-hash 不一致都失败关闭，不使用旧配置或备用模型。
+Agent Runtime 在模型调用前要求 Model Config 返回相同目标 hash；execution-control 在结果持久化和
+Finalization 前继续校验该 hash。目标缺失或不一致都失败关闭，不使用旧配置或备用模型。API key
+轮换不改变目标 hash。
 
 ## 模型输入
 

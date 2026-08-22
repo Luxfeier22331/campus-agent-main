@@ -35,10 +35,11 @@ status: active
 
 模型配置：
 
-- `GET /api/ops/model-settings/execution`
-- `POST /api/ops/model-settings/execution/llm/models`
-- `POST /api/ops/model-settings/execution/notice_classifier/models`
-- `PUT /api/ops/model-settings/execution/:kind`
+- `GET /api/ops/model-configs`
+- `POST /api/ops/model-configs/llm/models`
+- `POST /api/ops/model-configs/reranker/models`
+- `POST /api/ops/model-configs/notice_classifier/models`
+- `PUT /api/ops/model-configs/:kind`
 
 内部门户凭据：
 
@@ -138,7 +139,7 @@ status: active
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
 | 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |
 | 503 | `OPS_SENTRY_UNAVAILABLE` | Sentry Issue 查询未配置、失败或响应无效 |
-| 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | execution-control admin 未配置或不可用 |
+| 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | Model Config 未配置或不可用 |
 | 503 | `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`、`OPS_INTERNAL_PORTAL_CHECK_FAILED`、`OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE` | 内部门户凭据服务、真实验证或候选池不可用 |
 | 400 | `OPS_AUTOMATION_TOKEN_INPUT_INVALID`、`OPS_AUTOMATION_QUERY_INVALID` | 自动化 token 管理输入或机器查询参数无效 |
 | 401 | `OPS_AUTOMATION_TOKEN_INVALID` | 机器端点缺少、错误或已撤销 Bearer token |

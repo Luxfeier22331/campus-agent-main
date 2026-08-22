@@ -4,6 +4,7 @@ import {
 	LLMModelSettingUpdateSchema,
 	ModelDiscoveryRequestSchema,
 	ModelSettingKindSchema,
+	RerankerModelSettingUpdateSchema,
 } from "../../shared/ops-contract.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
 import type {
@@ -25,7 +26,7 @@ export function registerModelSettingsRoutes(input: {
 	publicOrigin: string | null;
 }): void {
 	const { admission, app, providerConfigClient, publicOrigin } = input;
-	app.get("/api/ops/model-settings/execution", async (context) => {
+	app.get("/api/ops/model-configs", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
@@ -33,7 +34,7 @@ export function registerModelSettingsRoutes(input: {
 		return context.json(await providerConfigClient.getStatus());
 	});
 
-	app.post("/api/ops/model-settings/execution/llm/models", async (context) => {
+	app.post("/api/ops/model-configs/llm/models", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
@@ -61,7 +62,7 @@ export function registerModelSettingsRoutes(input: {
 		return context.json(await providerConfigClient.discoverModels(body.data, operator.operatorId));
 	});
 
-	app.post("/api/ops/model-settings/execution/notice_classifier/models", async (context) => {
+	app.post("/api/ops/model-configs/notice_classifier/models", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
@@ -95,7 +96,37 @@ export function registerModelSettingsRoutes(input: {
 		);
 	});
 
-	app.put("/api/ops/model-settings/execution/:kind", async (context) => {
+	app.post("/api/ops/model-configs/reranker/models", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
+				"在线模型配置写请求未通过同源校验。",
+				403,
+			);
+		}
+		if (!isJsonContentType(context.req.header("content-type"))) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CONTENT_TYPE_REQUIRED",
+				"Content-Type 必须是 application/json。",
+				400,
+			);
+		}
+		const body = ModelDiscoveryRequestSchema.safeParse(
+			await readBoundedJson(context.req.raw, 20 * 1024),
+		);
+		if (!body.success) {
+			return jsonError("OPS_INVALID_JSON", "模型列表请求内容无效。", 400);
+		}
+		return context.json(
+			await providerConfigClient.discoverModels(body.data, operator.operatorId, "reranker"),
+		);
+	});
+
+	app.put("/api/ops/model-configs/:kind", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
 			return operator;
@@ -119,7 +150,9 @@ export function registerModelSettingsRoutes(input: {
 		const body =
 			kind.success && kind.data === "embedding"
 				? EmbeddingModelSettingUpdateSchema.safeParse(rawBody)
-				: LLMModelSettingUpdateSchema.safeParse(rawBody);
+				: kind.success && kind.data === "reranker"
+					? RerankerModelSettingUpdateSchema.safeParse(rawBody)
+					: LLMModelSettingUpdateSchema.safeParse(rawBody);
 		if (!(kind.success && body.success)) {
 			return jsonError("OPS_INVALID_JSON", "请求体必须是有效 JSON。", 400);
 		}

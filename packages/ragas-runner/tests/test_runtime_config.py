@@ -29,6 +29,12 @@ def provider_config_payload() -> dict[str, object]:
                 "model": "ragas-model",
                 "timeout_ms": 150_000,
             },
+            "eval_ragas_reranker": {
+                "api_key": "reranker-key",
+                "base_url": "https://reranker.example/v2",
+                "model": "rerank-v4",
+                "timeout_ms": 90_000,
+            },
         },
     }
 
@@ -41,11 +47,14 @@ class ProviderConfigTest(unittest.TestCase):
 
             profiles = load_provider_profiles(
                 path,
-                required_roles=("eval_ragas_llm", "eval_ragas_embedding"),
+                required_roles=("eval_ragas_llm", "eval_ragas_embedding", "eval_ragas_reranker"),
             )
 
             self.assertEqual(profiles["eval_ragas_llm"].model, "ragas-model")
             self.assertEqual(profiles["eval_ragas_embedding"].api_key, "embedding-key")
+            self.assertEqual(
+                profiles["eval_ragas_reranker"].base_url, "https://reranker.example/v2"
+            )
             self.assertEqual(profiles["eval_judge_llm"].timeout_seconds, 121)
 
     def test_rejects_top_level_fields(self) -> None:

@@ -22,7 +22,6 @@ spec:
                 values:
                   - agent-runtime
                   - execution-control
-                  - ops-web
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: private-service-connector
@@ -30,30 +29,7 @@ spec:
         - protocol: TCP
           port: 8000
         - protocol: TCP
-          port: 8001
-        - protocol: TCP
           port: 27062
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: execution-control-provider-snapshot-ingress
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: execution-control
-  policyTypes: ["Ingress"]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: campus-docs-embedding-builder
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: notice-classifier
-      ports:
-        - protocol: TCP
-          port: 8002
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -95,6 +71,13 @@ spec:
           port: 8000
         - protocol: TCP
           port: 27062
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: model-config
+      ports:
+        - protocol: TCP
+          port: 8000
     - to:
         - podSelector:
             matchLabels:
@@ -186,10 +169,10 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: execution-control
+              app.kubernetes.io/name: model-config
       ports:
         - protocol: TCP
-          port: 8002
+          port: 8000
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

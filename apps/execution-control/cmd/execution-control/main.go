@@ -43,13 +43,6 @@ func run(logger *slog.Logger) error {
 	defer stopSignals()
 
 	handler := httpapi.NewServerWithDependencies(cfg, nil, logger)
-	adminHandler, err := httpapi.NewProviderConfigAdminServer(cfg)
-	if err != nil {
-		_ = handler.Shutdown(context.Background())
-		return fmt.Errorf("initialize provider config admin: %w", err)
-	}
-	defer adminHandler.Close()
-
 	runtime, err := runtimeassembly.StartRuntime(
 		runtimeContext,
 		cfg,
@@ -67,20 +60,8 @@ func run(logger *slog.Logger) error {
 		handler,
 		time.Duration(cfg.RequestTimeoutMS+2_000)*time.Millisecond,
 	)
-	adminServer := newHTTPServer(
-		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port+1),
-		adminHandler,
-		15*time.Second,
-	)
-	snapshotServer := newHTTPServer(
-		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port+2),
-		adminHandler.ProviderSnapshotHandler(),
-		15*time.Second,
-	)
-	serverErrors := make(chan error, 3)
+	serverErrors := make(chan error, 1)
 	startHTTPServer("execution-control", gatewayServer, serverErrors, logger)
-	startHTTPServer("provider-config-admin", adminServer, serverErrors, logger)
-	startHTTPServer("provider-config-snapshot", snapshotServer, serverErrors, logger)
 
 	var runtimeErr error
 	select {
@@ -105,12 +86,6 @@ func run(logger *slog.Logger) error {
 	defer cancel()
 	if err := gatewayServer.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
 		runtimeErr = fmt.Errorf("shutdown execution-control HTTP server: %w", err)
-	}
-	if err := adminServer.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
-		runtimeErr = fmt.Errorf("shutdown provider-config admin HTTP server: %w", err)
-	}
-	if err := snapshotServer.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
-		runtimeErr = fmt.Errorf("shutdown provider-config snapshot HTTP server: %w", err)
 	}
 	if err := handler.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
 		runtimeErr = fmt.Errorf("shutdown execution runtime: %w", err)

@@ -22,7 +22,8 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | --- | --- | --- |
 | `campus_agent` | 数据库 bootstrap 与显式 schema/publisher Job | schema 安装、授权和一次性规范化发布，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
-| `execution_control` | `apps/execution-control` | 执行投影和模型配置读写 |
+| `execution_control` | `apps/execution-control` | 执行投影和个人记忆状态读写 |
+| `model_config` | `apps/model-config` | 当前具名模型配置与加密凭据读写 |
 | `ingestion_control` | `apps/ingestion-control` | 内部门户凭据池读写 |
 | `notice_publisher` | 本地 `jobs/notice-publisher` | 本地规范化通知写入；部署环境不创建该角色 |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户 automation token 读写 |
@@ -43,7 +44,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `campus_groups.sections`、`campus_groups.groups` | App API 同好群模块 | App API、通过内部接口访问的 Ops Web |
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
-| `execution_control.model_settings` | execution-control 配置管理 | execution-control |
+| `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
 | `campus_docs_serving.current_index` | execution-control（由 Campus Docs 发布任务写入） | Campus Docs 发布任务；供后续在线知识能力使用 |
 | `ingestion_control.internal_portal_credentials` | ingestion-control | ingestion-control；Ops Web 与 internal-portal-collection 通过内部 API |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
@@ -74,6 +75,7 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
 | --- | --- | --- |
 | App API | `apps/app-api/src/db/schema/managed.ts` 与 `apps/app-api/drizzle/` | `drizzle.app_api_migrations` |
 | execution-control | `apps/execution-control/internal/schemamigrations/` | `public.execution_control_migrations` |
+| Model Config | `apps/model-config/internal/modelconfig/migration.go` | `model_config.schema_migrations` |
 | ingestion-control | `apps/ingestion-control/migrations/` | `ingestion_control.schema_migrations` |
 | 通知 | `jobs/notice-publisher/migrations/` | `notices.schema_migrations` |
 | Ops Web | `packages/domains/dining/src/schema.ts`、`apps/ops-web/ops/db/internal-portal-schema.ts` 与 `apps/ops-web/drizzle/` | `drizzle.ops_web_dining_migrations`（保留历史名称） |
@@ -82,8 +84,9 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
   journal 和 snapshot 必须成套提交，Goose 的 SQL 与 Go migration 版本同样只追加；
 - baseline 只描述工具接管前的已知结构，不是当前 schema。首次接管只能接受空库或经过测试的精确
   前置结构；没有 ledger 的未知部分状态必须失败，不能用 `IF NOT EXISTS` 拼成表面成功；
-- 自定义 migration 只用于普通 SQL 不能表达的数据转换。Provider legacy 转换因此由版本化 Goose
-  Go migration 执行；运行时 Store、Better Auth 和业务 bootstrap 不执行 DDL；
+- 自定义 migration 只用于普通 SQL 不能表达的数据转换。历史 Provider 密文先由冻结的 Goose
+  migration 规范化，再由 Model Config schema 命令完成跨所有者切换；运行时 Store、Better Auth
+  和业务 bootstrap 不执行 DDL；
 - grants 在 migration 成功后由 schema Job 独立应用，Dining 初始草稿在 schema 和 grants 完成后
   独立写入。重跑 grants 或 bootstrap 不得代替 migration；
 - `IF EXISTS`、`IF NOT EXISTS` 只用于 migration 已明确支持且由集成测试覆盖的前置状态，不作为
@@ -98,7 +101,7 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
 
 - 常驻运行时不使用 schema 管理或 migration 凭据；
 - 每个运行时只获得完成其职责所需的表、列和操作权限；
-- `run-projection-schema` 在执行投影、个人记忆状态表和模型配置全部安装后，将运行角色的
+- `run-projection-schema` 在执行投影和个人记忆状态表全部安装后，将运行角色的
   `execution_control` 权限收敛为 schema `USAGE`，以及所属表的 `SELECT`、`INSERT`、`UPDATE`、
   `DELETE`。该角色不获得 schema `CREATE`、表 `TRUNCATE`、`REFERENCES`、`TRIGGER`，也不能访问
   App API 所有的 `runtime.request_observability_fact`；
@@ -106,15 +109,16 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
   投影使用的精确列读取。Ops Web migration 不创建、扩大或收回 execution-control 表权限；
 - schema Job 必须校验上述固定角色的有效权限。常驻 execution-control 的运行投影和个人记忆
   状态健康检查必须实际读取所属表，不能用 PostgreSQL catalog 可见性代替运行角色的数据访问能力；
-- 在线模型配置只能通过 execution-control 管理接口修改，Ops Web 不直连其 schema；
+- 在线模型配置只能通过 Model Config 管理接口修改，Ops Web 不直连其 schema；
 - `execution_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
   但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；发布任务复用该身份，当前在线
   execution-control 不消费该表；
-- `execution_control.model_settings` 的首次安装由低 wave 的 `run-projection-schema` Job 执行。
-  该 Job 使用环境仓交付的 schema-install DSN、新的 `encryption.key`，以及仅在历史密文迁移时使用的
-  旧 provider keyring；常驻 runtime 只使用 `execution_control` DSN 和 `encryption.key`，不执行迁移。
-- `model_settings` 可以为空或只配置一个 kind；schema 安装不把业务配置完整性变成部署门禁。
-  `llm` 和 `embedding` 分别由消费它们的运行路径检查并失败。
+- `run-projection-schema` 仍顺序执行全部历史 Goose migration，并只把旧 Provider Config 密钥作为
+  历史 v8 输入。随后 `model-config-schema` 在同一事务中读取
+  `execution_control.model_settings`，使用旧密钥解密、校验目标冲突、以 Model Config 密钥重加密，
+  写入 `model_config.model_configs` 并删除旧表及兼容 view；不得双写或保留运行时 fallback。
+- `model_config.model_configs` 可以为空或只配置一个 name；schema 安装不把业务配置完整性
+  变成部署门禁。缺失 name 由其消费路径失败关闭。
 - Goose v4 将 execution-control 的 12 张运行表和 `model_settings` 原位移动到
   `execution_control`。`runtime` 与 `execution_config` 下的同名对象暂为不可写兼容视图，只支持
   切换期间的旧读取；旧 writer 不获得 DML。活跃环境完成停写迁移、同 revision 部署和读取验证后，
@@ -146,7 +150,8 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
 
 - App API schema：`apps/app-api/src/db/schema/`、`apps/app-api/ops/db/`、`apps/app-api/drizzle/`
 - 通知 schema 与授权：`jobs/notice-publisher/migrations/`
-- 执行投影与配置：`apps/execution-control/internal/schemamigrations/`
+- 执行投影：`apps/execution-control/internal/schemamigrations/`
+- 模型配置：`apps/model-config/internal/modelconfig/`
 - Ops Web schema：`packages/domains/dining/src/schema.ts`、
   `apps/ops-web/ops/db/internal-portal-schema.ts`、`apps/ops-web/drizzle/`
 - Ops Web 授权：`apps/ops-web/ops/db/`

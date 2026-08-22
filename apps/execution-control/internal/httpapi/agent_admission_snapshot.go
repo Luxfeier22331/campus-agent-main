@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
@@ -48,13 +47,13 @@ func (s *Server) buildAgentAdmissionSnapshot(
 		ToolRuntimeFingerprint:       toolRuntimeSnapshot,
 		ToolRuntimeFingerprintSHA256: hashAdmissionJSON(toolRuntimeSnapshot),
 	}
-	provider, providerErr := s.resolveProviderConfig(ctx, providerconfig.KindLLM)
-	if providerErr != nil {
+	target, targetErr := s.resolvePrimaryAgentTarget(ctx)
+	if targetErr != nil {
 		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
-			fmt.Errorf("resolve active llm setting: %w", providerErr),
+			fmt.Errorf("resolve primary agent model target: %w", targetErr),
 		)
 	}
-	snapshot.ProviderConfigSHA256 = providerconfig.AdmissionHash(provider)
+	snapshot.PrimaryAgentTargetSHA256 = target.TargetSHA256
 	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleToolNames); err != nil {
 		return temporalruntime.AgentAdmissionSnapshot{}, err
 	}
@@ -119,8 +118,8 @@ func validateAdmissionSnapshot(snapshot temporalruntime.AgentAdmissionSnapshot) 
 	if err := validateExecutionStrategy(snapshot.ExecutionStrategy); err != nil {
 		return err
 	}
-	if !validProviderConfigHash(snapshot.ProviderConfigSHA256) {
-		return errors.New("provider admission snapshot is invalid")
+	if !validModelTargetHash(snapshot.PrimaryAgentTargetSHA256) {
+		return errors.New("primary agent model target admission snapshot is invalid")
 	}
 	if err := validateToolRuntimeFingerprintSnapshot(snapshot.ToolRuntimeFingerprint); err != nil {
 		return err
@@ -186,8 +185,8 @@ func validateAdmissionSnapshotForVisibleTools(
 	return nil
 }
 
-func validProviderConfigHash(configSHA256 string) bool {
-	return lowercaseSHA256Pattern.MatchString(strings.TrimSpace(configSHA256))
+func validModelTargetHash(targetSHA256 string) bool {
+	return lowercaseSHA256Pattern.MatchString(strings.TrimSpace(targetSHA256))
 }
 
 func validateToolRuntimeFingerprintSnapshot(snapshot temporalruntime.ToolRuntimeFingerprintSnapshot) error {
@@ -235,23 +234,6 @@ func toolRuntimeFingerprintSnapshotMap(snapshot temporalruntime.ToolRuntimeFinge
 		"tools_registry_version":  snapshot.ToolsRegistryVersion,
 		"tools_schema_version":    snapshot.ToolsSchemaVersion,
 		"tools_sha256":            snapshot.ToolsSHA256,
-	}
-}
-
-type providerConfigAdmissionPin struct {
-	ConfigSHA256 string
-}
-
-func (pin providerConfigAdmissionPin) valid() bool {
-	return validProviderConfigHash(pin.ConfigSHA256)
-}
-
-func (pin providerConfigAdmissionPin) projectionPayload() map[string]any {
-	if !pin.valid() {
-		return nil
-	}
-	return map[string]any{
-		"config_sha256": pin.ConfigSHA256,
 	}
 }
 

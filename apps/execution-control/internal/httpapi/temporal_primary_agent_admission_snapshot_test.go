@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,7 +13,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission(t *testing.T) {
+func TestExecutePrimaryAgentActivityDelegatesPinnedTargetToAgentRuntime(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 7, 23, 8, 0, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -32,9 +31,12 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	requests := 0
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		requests++
-		var ignored map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&ignored); err != nil {
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode agent runtime request: %v", err)
+		}
+		if payload["expected_model_target_sha256"] != primaryAgentModelTargetSHA256ForTest {
+			t.Fatalf("expected target hash = %#v", payload["expected_model_target_sha256"])
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":                   "completed",
@@ -49,12 +51,6 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 	}))
 	defer agentRuntime.Close()
 
-	pinnedProvider := primaryAgentProviderConfigSnapshotForTest()
-	pinnedProvider.APIKey = "sk-pinned"
-	pinnedProvider.Model = "model-pinned"
-	activeProvider := pinnedProvider
-	activeProvider.APIKey = "sk-active"
-	activeProvider.Model = "model-active"
 	server := NewServer(config.Config{
 		AgentRuntimeBaseURL:          agentRuntime.URL,
 		AgentRuntimeSharedSecret:     "agent-secret",
@@ -65,16 +61,14 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 		TemporalWorkerIdentity:       "test:agent:admission-snapshot",
 	})
 	attachRunProjectionStoreForHandlerTest(server, store)
-	server.providerConfigResolver = staticProviderConfigResolver{
-		providerconfig.KindLLM: pinnedProvider,
+	server.primaryAgentTargetResolver = staticPrimaryAgentTargetResolver{
+		targetSHA256: primaryAgentModelTargetSHA256ForTest,
 	}
 	snapshot, err := server.buildAgentAdmissionSnapshot(context.Background(), false)
 	if err != nil {
 		t.Fatalf("build immutable admission snapshot: %v", err)
 	}
-	server.providerConfigResolver = staticProviderConfigResolver{
-		providerconfig.KindLLM: activeProvider,
-	}
+	server.primaryAgentTargetResolver = nil
 
 	input := temporalruntime.ExecutePrimaryAgentActivityInput{
 		AdmissionSnapshot: snapshot,
@@ -86,8 +80,8 @@ func TestExecutePrimaryAgentActivityRejectsProviderSettingRotationAfterAdmission
 		VisibleToolNames:  []string{},
 	}
 	_, err = server.ExecutePrimaryAgent(context.Background(), input)
-	if err == nil || requests != 0 {
-		t.Fatalf("rotated provider setting error = %v, agent runtime requests = %d", err, requests)
+	if err != nil || requests != 1 {
+		t.Fatalf("activity error = %v, agent runtime requests = %d", err, requests)
 	}
 }
 

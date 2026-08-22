@@ -1,0 +1,31 @@
+---
+doc_type: architecture
+owner_boundary: model-config
+status: active
+---
+
+# Model Config
+
+Model Config 是具名在线模型配置与 Provider API Key 的唯一所有者。单一 listener 默认监听 `8000`，
+同时提供内部读取和管理接口。浏览器、工作流载荷和运行投影都不携带 API key。
+
+消费链路为：
+
+1. execution-control 读取 `primary_agent` 的 `model_target.v1`，并把 Model Config 返回的 opaque hash
+   写入持久执行准入；
+2. Agent Runtime 携带该 hash 读取 `model_runtime_config.v1`，hash 不匹配时失败关闭；
+3. Campus Docs Embedding 与 Notice Classifier 等普通 Job 一次读取所属具名配置的完整
+   `model_runtime_config.v1` 并直接调用 Provider；
+4. Embedding Set 等需要记录目标身份的制品直接保存响应中的 target hash。
+
+Model Config 与调用方位于共同受信任的内部服务边界，不再建立 consumer token、注册表或按配置名的
+权限矩阵。能够访问 listener 的内部服务可以读取任意具名配置；新增 consumer 不需要修改 Model Config
+授权。Ops Web 自身的人员认证与 CSRF 校验保留，`X-Model-Config-Actor` 只作为审计来源。所有 consumer
+读取后直接调用 Provider，Model Config 不成为模型流量代理。当前仓库只提供 Campus Docs Reranker 的
+在线配置；离线 Ragas profile 保持独立。
+
+`name` 表达产品配置槽位，`api_protocol` 决定验证与调用方式；Model Config 不保存独立模型类型字段。
+数据库中只保存每个 name 的当前已验证配置和加密 API key。schema、migration ledger 和运行 role
+均属于 `model_config`；Ops Web 与 execution-control 没有该表的数据库权限。详细决定见
+[ADR-0093](../../decisions/adr-0093-model-config-boundary.md)，HTTP 管理投影见
+[Ops Web Provider 合同](../../contracts/ops-web/providers.md)。

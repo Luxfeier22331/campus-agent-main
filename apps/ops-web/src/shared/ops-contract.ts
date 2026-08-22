@@ -23,8 +23,15 @@ export const OpsRequestWindowSchema = z.enum(["15m", "1h", "6h", "24h", "7d"]);
 export const OpsHealthStatusSchema = z.enum(["HEALTHY", "DEGRADED", "OUTAGE", "UNKNOWN"]);
 export const OpsDataStateSchema = z.enum(["FRESH", "PARTIAL", "STALE", "NO_DATA", "UNAVAILABLE"]);
 
-export const ModelSettingKindSchema = z.enum(["llm", "embedding", "notice_classifier"]);
+export const ModelSettingKindSchema = z.enum(["llm", "embedding", "reranker", "notice_classifier"]);
 export type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
+
+export const ModelProviderSchema = z.enum([
+	"openai",
+	"openai-compatible",
+	"cohere",
+	"cohere-compatible",
+]);
 
 export const ModelSettingLatestValidationSchema = z.object({
 	errorCode: z.string().min(1).optional(),
@@ -43,7 +50,7 @@ export const ModelDiscoveryRequestSchema = z
 			.max(16 * 1024)
 			.optional(),
 		baseUrl: z.string().url(),
-		provider: z.enum(["openai", "openai-compatible"]),
+		provider: ModelProviderSchema,
 	})
 	.strict();
 export type ModelDiscoveryRequest = z.infer<typeof ModelDiscoveryRequestSchema>;
@@ -62,8 +69,8 @@ export const ExecutionModelSettingSchema = z.object({
 	kind: ModelSettingKindSchema,
 	latestValidation: ModelSettingLatestValidationSchema.nullable(),
 	model: z.string().min(1),
-	provider: z.enum(["openai", "openai-compatible"]),
-	transport: z.enum(["responses", "chat_completions", "embeddings"]),
+	provider: ModelProviderSchema,
+	transport: z.enum(["responses", "chat_completions", "embeddings", "rerank"]),
 	updatedAt: IsoDateTimeSchema,
 	updatedBy: z.string().min(1),
 });
@@ -83,6 +90,7 @@ export const ExecutionModelSettingsStatusSchema = z.object({
 	settings: z.object({
 		embedding: ExecutionModelSettingSchema.nullable(),
 		llm: ExecutionModelSettingSchema.nullable(),
+		reranker: ExecutionModelSettingSchema.nullable(),
 		notice_classifier: ExecutionModelSettingSchema.nullable(),
 	}),
 });
@@ -115,9 +123,22 @@ export const EmbeddingModelSettingUpdateSchema = z
 	})
 	.strict();
 
+export const RerankerModelSettingUpdateSchema = z
+	.object({
+		apiKey: z
+			.string()
+			.max(16 * 1024)
+			.optional(),
+		baseUrl: z.string().url(),
+		model: z.string().trim().min(1).max(256),
+		provider: z.enum(["cohere", "cohere-compatible"]),
+	})
+	.strict();
+
 export type ModelSettingUpdate =
 	| z.infer<typeof LLMModelSettingUpdateSchema>
-	| z.infer<typeof EmbeddingModelSettingUpdateSchema>;
+	| z.infer<typeof EmbeddingModelSettingUpdateSchema>
+	| z.infer<typeof RerankerModelSettingUpdateSchema>;
 
 export const InternalPortalAutomationTokenMetadataSchema = z
 	.object({

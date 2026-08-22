@@ -148,8 +148,12 @@ allowed_ops_web_peer_port(peer, allowed_port) if {
 
 allowed_ops_web_peer_port(peer, allowed_port) if {
 	exact_pod_peer(peer, "app.kubernetes.io/name", "execution-control")
-	port := {8000, 8001}[_]
-	exact_port(allowed_port, "TCP", port)
+	exact_port(allowed_port, "TCP", 8000)
+}
+
+allowed_ops_web_peer_port(peer, allowed_port) if {
+	exact_pod_peer(peer, "app.kubernetes.io/name", "model-config")
+	exact_port(allowed_port, "TCP", 8000)
 }
 
 allowed_ops_web_peer_port(peer, allowed_port) if {
@@ -206,7 +210,7 @@ ops_web_egress_allowlist_is_complete(egress) if {
 	allows_dns(egress, "TCP")
 	allows_pod(egress, "cnpg.io/cluster", "campus-agent-postgres", 5432)
 	allows_pod(egress, "app.kubernetes.io/name", "execution-control", 8000)
-	allows_pod(egress, "app.kubernetes.io/name", "execution-control", 8001)
+	allows_pod(egress, "app.kubernetes.io/name", "model-config", 8000)
 	allows_pod(egress, "app.kubernetes.io/name", "ingestion-control", 8000)
 	allows_pod(egress, "app.kubernetes.io/name", "object-store", 9000)
 	allows_pod(egress, "app.kubernetes.io/name", "agent-runtime", 27062)
@@ -327,8 +331,8 @@ violation contains msg if {
 	input.kind == "NetworkPolicy"
 	input.metadata.name == "ops-web-egress"
 	egress := object.get(input.spec, "egress", [])
-	not allows_pod(egress, "app.kubernetes.io/name", "execution-control", 8001)
-	msg := "NetworkPolicy ops-web-egress must allow execution-control admin on TCP 8001"
+	not allows_pod(egress, "app.kubernetes.io/name", "model-config", 8000)
+	msg := "NetworkPolicy ops-web-egress must allow model-config on TCP 8000"
 }
 
 violation contains msg if {

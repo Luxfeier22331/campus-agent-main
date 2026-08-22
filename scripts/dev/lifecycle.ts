@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { bootstrapLocalApplications } from "./application-bootstrap";
 import {
 	assertLocalEnvironmentFilesAreManaged,
-	ensureLocalProviderConfigEncryptionKey,
+	ensureLocalLegacyProviderConfigEncryptionKey,
+	ensureLocalModelConfigEncryptionKey,
 	type LocalDevEnvironmentTarget,
 	MANAGED_LOCAL_ENV_MARKER,
 	managedLocalEnvironmentPathsForTarget,
@@ -47,7 +48,8 @@ export function initializeLocalDevelopmentTarget(
 	const profile = ensureLocalDevProfile(repoRoot);
 	ensureLocalInstanceResources(profile);
 	if (target === "core") {
-		ensureLocalProviderConfigEncryptionKey(repoRoot);
+		ensureLocalLegacyProviderConfigEncryptionKey(repoRoot);
+		ensureLocalModelConfigEncryptionKey(repoRoot);
 	}
 	renderLocalEnvironmentFiles({ profile, repoRoot, target });
 	if (target === "core") {

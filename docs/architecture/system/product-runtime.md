@@ -19,7 +19,8 @@ status: active
 | `app-api` | 浏览器认证、聊天接收与终结、公开问答可用性信号和产品 API | 产品可用性状态快照、Temporal worker、内部检索、在线模型配置、通用运维数据 API |
 | `status-web` | 独立的产品可用性状态页、公共状态快照和第一方入口黑盒探测 | 校园业务状态、用户账号、聊天、内部运行时和观测平台原始数据 |
 | `ops-web` | 自托管运行记录、运行概况、在线模型配置和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或 Kubernetes 资源管理 |
-| `execution-control` | 持久运行准入、工作流业务逻辑、内部查询、执行投影和在线模型配置 | 浏览器认证和页面合同 |
+| `execution-control` | 持久运行准入、工作流业务逻辑、内部查询和执行投影 | 浏览器认证、页面合同和模型凭据所有权 |
+| `model-config` | 具名在线模型配置、Provider 凭据、验证和内部读取合同 | 模型流量代理、执行编排和产品页面 |
 | `agent-runtime` | 单次 Primary Agent SDK run 与获准工具调用 | 持久编排和产品数据持久化 |
 
 ## 浏览器路径
@@ -74,8 +75,10 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 
 ## 配置与运行记录
 
-- `ops-web -> execution-control` 通过同源 BFF 管理在线模型配置；浏览器不持有
-  execution-control credential。
+- `ops-web -> model-config` 通过同源 BFF 管理在线模型配置；浏览器不获得 Provider API Key。
+- execution-control 读取 `primary_agent` target 并冻结服务返回的 hash；Agent Runtime 按该 hash 读取完整
+  配置。普通 Job 直接读取所属具名配置。内部 consumer 位于共同受信任边界，不使用 Model Config
+  consumer token 或注册表；Reranker 的在线调用方尚未在本仓库实现。
 - `ops-web -> PostgreSQL/execution-control/Sentry` 提供有界运行摘要和 Sentry Issue。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开菜单并以受限权限处理学生评价和举报；校园地图由 campus-web 的静态资产直接提供。

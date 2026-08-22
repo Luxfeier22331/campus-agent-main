@@ -1,38 +1,43 @@
-import { EMBEDDING_SPACE } from "./definitions.ts";
+import { CANONICAL_EMBEDDING_MODEL, EMBEDDING_SPACE } from "./definitions.ts";
 import type { EmbeddingClient, EmbeddingConnection } from "./types.ts";
 
-export const EMBEDDING_PROVIDER_SNAPSHOT_URL =
-	"http://execution-control-provider-snapshot:8002/internal/provider-snapshots/embedding";
+export const EMBEDDING_MODEL_CONFIG_URL = "http://model-config:8000";
 export const EMBEDDING_BATCH_SIZE = 8;
 export const EMBEDDING_REQUEST_CONCURRENCY = 8;
 
 export async function fetchEmbeddingConnection(
 	fetchImpl: typeof fetch = fetch,
-	url = EMBEDDING_PROVIDER_SNAPSHOT_URL,
+	modelConfigUrl = process.env.MODEL_CONFIG_URL ?? EMBEDDING_MODEL_CONFIG_URL,
 ): Promise<EmbeddingConnection> {
-	const response = await fetchImpl(url, {
+	const baseUrl = modelConfigUrl.replace(/\/$/u, "");
+	const response = await fetchImpl(`${baseUrl}/internal/model-configs/campus_docs_embedding`, {
 		headers: { accept: "application/json" },
 		method: "GET",
 		redirect: "error",
 	});
 	if (!response.ok) {
-		throw new Error(`embedding provider snapshot returned HTTP ${response.status}`);
+		throw new Error(`embedding model config returned HTTP ${response.status}`);
 	}
 	const payload = (await response.json()) as unknown;
 	if (
 		!isRecord(payload) ||
-		payload.schema_version !== "embedding_provider_snapshot.v1" ||
-		(payload.provider !== "openai" && payload.provider !== "openai-compatible") ||
+		payload.schema_version !== "model_runtime_config.v1" ||
+		payload.name !== "campus_docs_embedding" ||
+		payload.provider !== "openai-compatible" ||
+		payload.api_protocol !== "openai.embeddings" ||
 		!nonEmptyString(payload.base_url) ||
-		!nonEmptyString(payload.model) ||
-		!nonEmptyString(payload.api_key)
+		payload.model !== CANONICAL_EMBEDDING_MODEL ||
+		!nonEmptyString(payload.api_key) ||
+		typeof payload.target_sha256 !== "string" ||
+		!/^[0-9a-f]{64}$/u.test(payload.target_sha256)
 	) {
-		throw new Error("embedding provider snapshot is invalid");
+		throw new Error("embedding model runtime config is invalid");
 	}
 	return createEmbeddingConnection({
 		apiKey: payload.api_key,
 		baseUrl: payload.base_url,
 		model: payload.model,
+		targetSha256: payload.target_sha256,
 	});
 }
 
@@ -40,14 +45,16 @@ export function createEmbeddingConnection(input: {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
+	targetSha256: string;
 }): EmbeddingConnection {
 	const apiKey = input.apiKey.trim();
 	const baseUrl = input.baseUrl.trim().replace(/\/+$/u, "");
 	const model = input.model.trim();
-	if (!apiKey || !baseUrl || !model) {
-		throw new Error("embedding connection requires base URL, model and API key");
+	const targetSha256 = input.targetSha256;
+	if (!apiKey || !baseUrl || !model || !/^[0-9a-f]{64}$/u.test(targetSha256)) {
+		throw new Error("embedding connection requires base URL, model, target hash and API key");
 	}
-	return { apiKey, baseUrl, model };
+	return { apiKey, baseUrl, model, targetSha256 };
 }
 
 export function createOpenAICompatibleEmbeddingClient(

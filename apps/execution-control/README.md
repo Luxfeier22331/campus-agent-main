@@ -1,14 +1,14 @@
 # execution-control
 
-Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流、在线供应商配置、个人记忆命令、
+Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流、个人记忆命令、
 终态校验和有界运行投影，不面向浏览器。
 
 ## 运行边界
 
 - `app-api` 负责浏览器认证、会话、请求提交和产品传输；
 - `agent-runtime` 在单个 Agent Activity 内运行 OpenAI Agents SDK 代理与工具循环；
-- `execution-control` 在同一进程中提供执行与模型配置 HTTP 接口，并轮询 workflow、core activity
-  和 agent activity 三类 Temporal 队列；
+- `model-config` 独立拥有模型目标、凭据和验证；`execution-control` 只读取 `primary_agent` target 并
+  冻结服务返回的 hash，同时轮询 workflow、core activity 和 agent activity 三类 Temporal 队列；
 - Temporal 保存 workflow history、重试、超时、heartbeat 和 cancellation；
 - PostgreSQL 保存产品、运维和评测需要的有界投影；Campus Docs publisher 单独使用 serving schema
   维护当前索引绑定；
@@ -35,18 +35,16 @@ HTTP API 也不拥有 worker 生命周期。
   Temporal activity 方法映射到对应业务 handler，不复制业务规则；
 - `internal/executionreconciler` 独立拥有启动、取消和终态收敛状态机，`internal/runtimeassembly`
   统一启动和停止 poller 与 reconciler；
-- `internal/execution` 拥有执行输入读取，`internal/providerconfig` 拥有在线配置解析；这些实现
-  不得回流到 `internal/httpapi`。
+- `internal/execution` 拥有执行输入读取；冻结的 `internal/providerconfig` 代码只服务历史 Goose
+  migration，不得重新进入常驻 runtime。
 
 ## 进程入口
 
-- `execution-control`：生产入口；`8000` 提供内部执行、查询、记忆和健康接口，`8001` 提供
-  Provider Config 管理接口，`8002` 提供 embedding 与通知分类 provider snapshot，同时运行三类
-  Temporal poller。本地宿主进程可通过标准 `HOST`、`PORT` 和
-  `PROVIDER_CONFIG_ENCRYPTION_KEY_FILE` 派生监听地址；默认值保持上述生产端口。
-- `run-projection-schema`：通过 Goose 安装和验证运行投影、个人记忆状态与 Provider Config
-  schema，再独立应用运行角色授权。常驻 runtime 使用单一 Provider Config 加密密钥；旧 keyring
-  仅作为历史 schema 迁移输入。
+- `execution-control`：生产入口；`8000` 提供内部执行、查询、记忆和健康接口，同时运行三类
+  Temporal poller。本地宿主进程通过标准 `HOST` 和 `PORT` 配置监听地址。
+- `run-projection-schema`：通过 Goose 安装和验证运行投影及个人记忆状态，再独立应用运行角色授权。
+  旧 Provider Config keyring/密钥仅作为冻结历史 migration 输入，随后由 Model Config schema job
+  完成所有权切换并删除旧表。
 
 Migration 位于 `internal/schemamigrations/`，统一记录在
 `public.execution_control_migrations`。运行时 Store 只连接和读写，不自动建表。普通结构变化新增
@@ -57,7 +55,8 @@ SQL migration；需要事务型数据转换时使用同一版本序列中的 Go 
 
 - 执行接口：`docs/contracts/tool-execution.md`；
 - 个人记忆：`docs/architecture/system/memory-plane.md` 与 `docs/contracts/app-api/memory.md`；
-- Provider Config：`docs/contracts/ops-web/providers.md` 与 `docs/environment/providers.md`。
+- Model Config：`apps/model-config/README.md`、`docs/contracts/ops-web/providers.md` 与
+  `docs/environment/providers.md`。
 
 ## 本地开发
 

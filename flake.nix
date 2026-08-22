@@ -29,28 +29,28 @@
           packageJson = builtins.fromJSON (builtins.readFile ./package.json);
           pnpmVersion = nixpkgs.lib.removePrefix "pnpm@" packageJson.packageManager;
           tools = import ./nix/tools.nix { inherit pkgs; };
-          goModLines = pkgs.lib.splitString "\n" (builtins.readFile ./apps/execution-control/go.mod);
+          goModLines = pkgs.lib.splitString "\n" (builtins.readFile ./go.work);
           goLanguageDirective = pkgs.lib.findFirst (line: pkgs.lib.hasPrefix "go " line) null goModLines;
           goToolchainDirective = pkgs.lib.findFirst (line: pkgs.lib.hasPrefix "toolchain go" line) null goModLines;
           goLanguageMatch =
             if goLanguageDirective == null then
-              throw "apps/execution-control/go.mod must declare a go language version"
+              throw "go.work must declare a go language version"
             else
               builtins.match "go ([0-9]+)[.]([0-9]+)" goLanguageDirective;
           goToolchainMatch =
             if goToolchainDirective == null then
-              throw "apps/execution-control/go.mod must declare a toolchain version"
+              throw "go.work must declare a toolchain version"
             else
               builtins.match "toolchain go([0-9]+)[.]([0-9]+)[.]([0-9]+)" goToolchainDirective;
           goLanguageMajor =
             if goLanguageMatch == null then
-              throw "apps/execution-control/go.mod has an invalid go language directive"
+              throw "go.work has an invalid go language directive"
             else
               builtins.elemAt goLanguageMatch 0;
           goLanguageMinor = builtins.elemAt goLanguageMatch 1;
           goToolchainMajor =
             if goToolchainMatch == null then
-              throw "apps/execution-control/go.mod has an invalid toolchain directive"
+              throw "go.work has an invalid toolchain directive"
             else
               builtins.elemAt goToolchainMatch 0;
           goToolchainMinor = builtins.elemAt goToolchainMatch 1;
@@ -59,7 +59,7 @@
           goPackageAttribute = "go_${goLanguageMajor}_${goLanguageMinor}";
           goBaseToolchain =
             if goLanguageMajor != goToolchainMajor || goLanguageMinor != goToolchainMinor then
-              throw "apps/execution-control/go.mod go and toolchain versions must share major/minor"
+              throw "go.work go and toolchain versions must share major/minor"
             else if builtins.hasAttr goPackageAttribute pkgs then
               builtins.getAttr goPackageAttribute pkgs
             else

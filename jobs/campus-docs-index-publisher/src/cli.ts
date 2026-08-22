@@ -44,6 +44,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 				artifactStore: store,
 				chunkSet: command.chunkSet,
 				embedding: createOpenAICompatibleEmbeddingClient(connection),
+				embeddingTargetSha256: connection.targetSha256,
 				onEmbeddingProgress(completedInputCount, totalInputCount) {
 					writeProgress({
 						completed_embedding_input_count: completedInputCount,

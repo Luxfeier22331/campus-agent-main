@@ -152,15 +152,16 @@ kubectl set env --local -f - \
 kubectl -n <namespace> create -f -
 ```
 
-Embedding Job 启动后从 `execution-control-provider-snapshot:8002` 读取一次当前 Embedding 连接，然后
-直接调用 provider。该连接由 Ops Web 管理并保存在 `execution_control.model_settings`；Job 不接收
-provider Base URL、model 或 API key 环境变量，也没有独立 provider Secret。每个请求固定发送 8 条
-文本，同时最多执行 8 个请求。
+Embedding Job 启动后从 `model-config:8000` 一次读取 `campus_docs_embedding` 完整配置并直接调用
+provider。该连接由 Ops Web 通过 Model Config 管理；Job 不接收 provider Base URL、model 或 API key
+环境变量，也没有独立 provider Secret。每个请求固定发送 8 条文本，同时最多执行 8 个请求。
 
 复用只按 `spaceId + dimensions + retrievalTextSha256` 从显式 embedding set 读取，不扫描 bucket，也
 不从 Qdrant 读取向量。Embedding Set 不保存 provider、endpoint、model alias 或调用参数。成功 JSON
 包含 `embedding_set`、`embedding_count`、
-`reused_embedding_input_count` 和 `generated_embedding_input_count`。Publisher 显式使用日志返回的
+`reused_embedding_input_count` 和 `generated_embedding_input_count`。Embedding Set v3 同时记录
+Model Target hash；该 hash 直接来自完整配置响应。只有 hash 与检索文本合同都匹配时才能复用。
+Publisher 显式使用日志返回的
 `embedding_set`。`campus_docs_embedding_set.v1` 已退役，不能作为 `--reuse-embedding-set` 输入。
 
 ### 3. 发布 Index

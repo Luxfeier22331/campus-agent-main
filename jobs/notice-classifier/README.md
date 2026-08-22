@@ -36,10 +36,10 @@ node jobs/notice-classifier/dist/cli.js \
 
 ## 模型配置
 
-在线 Job 启动分类阶段后，从 `execution-control-provider-snapshot:8002` 读取一次
-`notice_classifier_provider_snapshot.v1`。Base URL、API key、模型名和 transport 由 Ops Web 的通知分类
-模型设置管理；Job 不接收独立的模型 Secret，也不在源码中固定某个 provider 或模型。快照只在本次进程
-内存中使用，不写入对象存储或日志。
+在线 Job 启动分类阶段后，从 `model-config:8000` 一次读取 `notice_classification` 完整配置，并投影为
+`notice_classifier_runtime_config.v1`。Base URL、API key、模型名和 protocol 由 Ops Web 的通知分类模型
+设置管理；Job 不接收独立的模型 Secret，也不在源码中固定某个 provider 或模型。runtime config 只在
+本次进程内存中使用，不写入对象存储或日志。
 
 模型请求只包含标题：
 
@@ -52,8 +52,8 @@ node jobs/notice-classifier/dist/cli.js \
 ## 本地对应入口
 
 `pnpm notice:classify:job:local` 使用同一个 Job 实现和本地 RustFS 对象存储，模拟在线 Job 的来源读取、
-制品跳过和模型快照行为。它从本地端口转发的 execution-control 快照读取当前通知分类连接，不读取独立
-模型环境变量；本地 `.env.local` 只保存对象存储连接。
+制品跳过和模型配置行为。它从 `MODEL_CONFIG_URL` 指向的本地 Model Config 读取当前通知分类连接，不
+读取独立模型凭据；本地 `.env.local` 保存对象存储连接和非敏感的 Model Config URL。
 
 `pnpm notice:classify` 是保留给 JSONL stdout 交接和离线模型比较的显式命令，连接由调用进程显式提供，
 不代表在线 Job 的配置路径。生产形态的本地验证应使用 `notice:classify:job:local`。
@@ -64,27 +64,28 @@ node jobs/notice-classifier/dist/cli.js \
 ### 本地对象存储 Job 模拟
 
 `pnpm notice:classify:job:local` 使用同一个 Job 实现和本地 RustFS 模拟在线对象存储路径。`pnpm dev:init`
-会为 notice-classifier 目录生成受管的 `.env.local`，其中只有 source/derived bucket 和 RustFS 连接。先
-将集群 snapshot 服务转发到本地：
+会为 notice-classifier 目录生成受管的 `.env.local`，其中包含 source/derived bucket、RustFS 连接和
+当前 worktree 的 Model Config URL。若要改为读取集群配置，可显式转发服务并覆盖 URL：
 
 ```bash
-kubectl port-forward svc/execution-control-provider-snapshot 18002:8002
+kubectl port-forward svc/model-config 18003:8000
 
 pnpm notice:classify:job:local \
+  --model-config-url http://127.0.0.1:18003 \
   --notice-id 123456 \
   --concurrency 2
 ```
 
-该入口把分类制品写入当前 worktree 的 derived bucket，并通过 port-forward 读取一次 execution-control
-快照。重复默认扫描可验证合法制品跳过；使用 `--notice-id` 可验证强制重分类。API key 不写入本地受管
-环境文件、制品或输出。
+该入口把分类制品写入当前 worktree 的 derived bucket，并从 Model Config 读取一次完整配置。重复默认
+扫描可验证合法制品跳过；使用 `--notice-id` 可验证强制重分类。API key 不写入本地受管环境文件、制品
+或输出。
 
 ## Kubernetes 模板
 
 `infra/k8s/ingestion-runtime/base/runtime/notice-classifier.yaml` 提供一个默认
 `suspend: true` 的 CronJob 模板，仅用于人工创建一次性 Job，不启用自动调度。模板复用已有 source/derived
 对象存储 Secret，不增加数据库、角色或分类器专用 Secret。实际启用前仍需在所属环境确认 Job 到
-execution-control 快照端口的连通性；本仓库不把该环境事实伪装成源码验证结果。
+Model Config 的连通性；本仓库不把该环境事实伪装成源码验证结果。
 
 ## 验证
 

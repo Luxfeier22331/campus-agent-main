@@ -15,11 +15,14 @@ describe("local Campus docs embedding commands", () => {
 			chunkSet,
 			"--base-url",
 			"https://embedding.example/v1",
+			"--model-target-sha256",
+			"c".repeat(64),
 			"--reuse-embedding-set",
 			embeddingSet,
 		])).toEqual({
 			baseUrl: "https://embedding.example/v1",
 			chunkSet,
+			modelTargetSha256: "c".repeat(64),
 			reuseEmbeddingSet: embeddingSet,
 		});
 	});
