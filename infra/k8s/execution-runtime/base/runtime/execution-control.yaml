@@ -90,6 +90,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: OPS_WEB_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ops-web-internal-secrets
+                  key: OPS_WEB_INTERNAL_TOKEN
             - name: MODEL_CONFIG_URL
               value: http://model-config:8000
             - name: EXECUTION_CONTROL_DATABASE_URL
