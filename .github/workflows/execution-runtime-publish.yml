@@ -166,7 +166,7 @@ jobs:
       needs.release-plan.result == 'success' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
     runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write

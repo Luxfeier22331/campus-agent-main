@@ -142,10 +142,15 @@ test("reuses an existing immutable linux/arm64 image", async (t) => {
 		],
 	);
 	assert(calls.every((call) => call.nodeVersion === "99.88.77"));
+	assert(logs.some((line) => /stage=run state=start .*cache_mode=max/u.test(line)));
 	assert(logs.some((line) => /stage=inspect state=complete .*reused=true/u.test(line)));
 	assert(logs.some((line) => /stage=scan state=complete duration_ms=\d+/u.test(line)));
+	assert(logs.some((line) => /stage=run state=complete .*reused=1/u.test(line)));
 	assert(!logs.some((line) => line.includes("stage=build")));
 	const summary = await readFile(options.summaryFile, "utf8");
+	assert.match(summary, /Script duration: \d+\.\ds/u);
+	assert.match(summary, /Cache: registry with mode=max/u);
+	assert.match(summary, /Results: built=0 reused=1 failed=0 not-started=0/u);
 	assert.match(summary, /\| `agent-runtime` \| reused \|/u);
 	assert.match(summary, /\| \d+\.\d+s \| - \| \d+\.\d+s \| \d+\.\d+s \|/u);
 	assert(summary.includes(FIRST_DIGEST));
@@ -296,12 +301,32 @@ test("reads the pushed digest from Docker Bake metadata", async (t) => {
 	assert(build);
 	assert.equal(build.output, "stream");
 	assert(build.args.includes("--progress=plain"));
+	assert.equal(
+		build.args.find((argument) => argument.includes(".cache-from=")),
+		"agent-runtime.cache-from=type=registry,ref=ghcr.io/muc-wiki/campus-agent/agent-runtime:buildcache-arm64",
+	);
+	assert.equal(
+		build.args.find((argument) => argument.includes(".cache-to=")),
+		"agent-runtime.cache-to=type=registry,ref=ghcr.io/muc-wiki/campus-agent/agent-runtime:buildcache-arm64,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true",
+	);
 	assert.equal(calls.find((call) => call.args.includes("--print"))?.output, "capture");
 	assert.equal(calls.find((call) => call.args.includes("imagetools"))?.output, "capture");
-	assert(logs.some((line) => line.includes("stage=build state=start")));
+	assert(
+		logs.some(
+			(line) =>
+				/ stage=build state=start /u.test(line) &&
+				line.includes("cache_type=registry") &&
+				line.includes("cache_mode=max") &&
+				line.includes("duration_scope=build_push_cache_export"),
+		),
+	);
 	assert(logs.some((line) => /stage=build state=complete duration_ms=\d+/u.test(line)));
+	assert(logs.some((line) => /stage=run state=complete .*built=1/u.test(line)));
 	assert(logs.some((line) => line.includes("result=built")));
-	assert.match(await readFile(options.summaryFile, "utf8"), /\| `agent-runtime` \| built \|/u);
+	const summary = await readFile(options.summaryFile, "utf8");
+	assert.match(summary, /Build\/push\/cache export/u);
+	assert.match(summary, /Results: built=1 reused=0 failed=0 not-started=0/u);
+	assert.match(summary, /\| `agent-runtime` \| built \|/u);
 });
 
 test("records a build failure and leaves later images not started", async (t) => {
@@ -323,7 +348,9 @@ test("records a build failure and leaves later images not started", async (t) =>
 	await assert.rejects(publishImages(options, runner), /build failed/u);
 	assert(logs.some((line) => /image=agent-runtime stage=build state=failed/u.test(line)));
 	assert(logs.some((line) => /image=agent-runtime stage=total state=failed/u.test(line)));
+	assert(logs.some((line) => /stage=run state=failed .*failed=1 not_started=1/u.test(line)));
 	const summary = await readFile(options.summaryFile, "utf8");
+	assert.match(summary, /Results: built=0 reused=0 failed=1 not-started=1/u);
 	assert.match(summary, /\| `agent-runtime` \| failed \(build\) \|/u);
 	assert.match(summary, /\| `ops-web` \| not-started \|/u);
 });

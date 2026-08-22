@@ -11,6 +11,9 @@ const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const IMAGE_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const IMAGE_CACHE_TYPE = "registry";
+const IMAGE_CACHE_MODE = "max";
+const IMAGE_CACHE_TAG = "buildcache-arm64";
 
 export interface CommandResult {
 	code: number;
@@ -123,11 +126,42 @@ function logStage(
 	);
 }
 
+function logRun(
+	logger: (message: string) => void,
+	state: "complete" | "failed" | "start",
+	detail?: string,
+): void {
+	logger(`[release-images] stage=run state=${state}${detail ? ` ${detail}` : ""}\n`);
+}
+
 function durationCell(duration: number | undefined): string {
 	return duration === undefined ? "-" : `${(duration / 1_000).toFixed(1)}s`;
 }
 
-async function appendSummary(file: string, reports: ImageReport[]): Promise<void> {
+function resultCounts(reports: ImageReport[]): Record<ImageResult, number> {
+	return reports.reduce(
+		(counts, report) => {
+			counts[report.result] += 1;
+			return counts;
+		},
+		{
+			built: 0,
+			failed: 0,
+			"not-started": 0,
+			reused: 0,
+		},
+	);
+}
+
+function longestImage(reports: ImageReport[]): ImageReport | undefined {
+	return [...reports]
+		.filter((report) => report.totalMs !== undefined)
+		.sort((left, right) => (right.totalMs ?? 0) - (left.totalMs ?? 0))[0];
+}
+
+async function appendSummary(file: string, reports: ImageReport[], runMs: number): Promise<void> {
+	const counts = resultCounts(reports);
+	const longest = longestImage(reports);
 	const rows = reports.map((report) => {
 		const result = report.failedStage ? `failed (${report.failedStage})` : report.result;
 		return `| ${[
@@ -145,7 +179,13 @@ async function appendSummary(file: string, reports: ImageReport[]): Promise<void
 		[
 			"### Published image results",
 			"",
-			"| Image | Result | Inspect | Build/push | Scan | Total | Digest |",
+			`- Requested images: ${reports.length}`,
+			`- Script duration: ${durationCell(runMs)}`,
+			`- Cache: ${IMAGE_CACHE_TYPE} with mode=${IMAGE_CACHE_MODE}; per-image ref suffix=:${IMAGE_CACHE_TAG}`,
+			`- Results: built=${counts.built} reused=${counts.reused} failed=${counts.failed} not-started=${counts["not-started"]}`,
+			`- Longest image: ${longest ? `\`${longest.image}\` (${durationCell(longest.totalMs)})` : "-"}`,
+			"",
+			"| Image | Result | Inspect | Build/push/cache export | Scan | Total | Digest |",
 			"| --- | --- | ---: | ---: | ---: | ---: | --- |",
 			...rows,
 			"",
@@ -268,6 +308,12 @@ export async function publishImages(
 	validateOptions(options);
 	const images = normalizedImages(options.images);
 	const logger = options.logger ?? ((message: string) => process.stderr.write(message));
+	const runStartedAt = performance.now();
+	logRun(
+		logger,
+		"start",
+		`images_count=${images.length} cache_type=${IMAGE_CACHE_TYPE} cache_mode=${IMAGE_CACHE_MODE}`,
+	);
 	const root = path.resolve(options.repositoryRoot);
 	const environment = {
 		...process.env,
@@ -277,8 +323,15 @@ export async function publishImages(
 	};
 	const commandOptions = { cwd: root, env: environment, output: "capture" as const };
 	const printArguments = ["buildx", "bake", "--file", "docker-bake.hcl", "--print"];
-	const printed = await runner("docker", printArguments, commandOptions);
+	let printed: CommandResult;
+	try {
+		printed = await runner("docker", printArguments, commandOptions);
+	} catch (error) {
+		logRun(logger, "failed", `duration_ms=${elapsed(runStartedAt)} failed_stage=preflight`);
+		throw error;
+	}
 	if (printed.code !== 0) {
+		logRun(logger, "failed", `duration_ms=${elapsed(runStartedAt)} failed_stage=preflight`);
 		throw commandError("docker", printArguments, printed);
 	}
 	const targets = bakeTargets(printed.stdout);
@@ -352,6 +405,10 @@ export async function publishImages(
 					`duration_ms=${report.inspectMs} reused=false`,
 				);
 				const metadataFile = path.join(temporaryDirectory, `${image}.json`);
+				const cacheRef = `${repository}:${IMAGE_CACHE_TAG}`;
+				const cacheDetails =
+					`cache_type=${IMAGE_CACHE_TYPE} cache_mode=${IMAGE_CACHE_MODE} ` +
+					`cache_ref=${cacheRef} duration_scope=build_push_cache_export`;
 				const buildArguments = [
 					"buildx",
 					"bake",
@@ -365,12 +422,12 @@ export async function publishImages(
 					"--set",
 					`${image}.tags=${tag}`,
 					"--set",
-					`${image}.cache-from=type=registry,ref=${repository}:buildcache-arm64`,
+					`${image}.cache-from=type=${IMAGE_CACHE_TYPE},ref=${cacheRef}`,
 					"--set",
-					`${image}.cache-to=type=registry,ref=${repository}:buildcache-arm64,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true`,
+					`${image}.cache-to=type=${IMAGE_CACHE_TYPE},ref=${cacheRef},mode=${IMAGE_CACHE_MODE},image-manifest=true,oci-mediatypes=true,ignore-error=true`,
 					image,
 				];
-				logStage(logger, image, "build", "start");
+				logStage(logger, image, "build", "start", cacheDetails);
 				const buildStartedAt = performance.now();
 				let built: CommandResult;
 				try {
@@ -382,7 +439,13 @@ export async function publishImages(
 				} catch (error) {
 					report.failedStage = "build";
 					report.buildMs = elapsed(buildStartedAt);
-					logStage(logger, image, "build", "failed", `duration_ms=${report.buildMs}`);
+					logStage(
+						logger,
+						image,
+						"build",
+						"failed",
+						`duration_ms=${report.buildMs} ${cacheDetails}`,
+					);
 					throw error;
 				}
 				report.buildMs = elapsed(buildStartedAt);
@@ -393,7 +456,7 @@ export async function publishImages(
 						image,
 						"build",
 						"failed",
-						`duration_ms=${report.buildMs} exit_code=${built.code}`,
+						`duration_ms=${report.buildMs} exit_code=${built.code} ${cacheDetails}`,
 					);
 					throw commandError("docker", buildArguments, built);
 				}
@@ -401,11 +464,23 @@ export async function publishImages(
 					digest = buildDigest(await readFile(metadataFile, "utf8"), image);
 				} catch (error) {
 					report.failedStage = "build";
-					logStage(logger, image, "build", "failed", `duration_ms=${report.buildMs}`);
+					logStage(
+						logger,
+						image,
+						"build",
+						"failed",
+						`duration_ms=${report.buildMs} ${cacheDetails}`,
+					);
 					throw error;
 				}
 				report.result = "built";
-				logStage(logger, image, "build", "complete", `duration_ms=${report.buildMs}`);
+				logStage(
+					logger,
+					image,
+					"build",
+					"complete",
+					`duration_ms=${report.buildMs} ${cacheDetails}`,
+				);
 			}
 			report.digest = digest;
 
@@ -487,7 +562,7 @@ export async function publishImages(
 		}
 		if (options.summaryFile) {
 			try {
-				await appendSummary(options.summaryFile, reports);
+				await appendSummary(options.summaryFile, reports, elapsed(runStartedAt));
 			} catch (error) {
 				const originalError = failure !== undefined;
 				logger(
@@ -496,6 +571,19 @@ export async function publishImages(
 				failure ??= { error };
 			}
 		}
+		const counts = resultCounts(reports);
+		logRun(
+			logger,
+			failure ? "failed" : "complete",
+			[
+				`duration_ms=${elapsed(runStartedAt)}`,
+				`images_count=${reports.length}`,
+				`built=${counts.built}`,
+				`reused=${counts.reused}`,
+				`failed=${counts.failed}`,
+				`not_started=${counts["not-started"]}`,
+			].join(" "),
+		);
 		await rm(temporaryDirectory, { force: true, recursive: true });
 	}
 	if (failure) {

@@ -265,6 +265,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	const publishImages = workflowJob(workflow, "publish-images");
 	assert.equal(publishImages.needs, "release-plan");
 	assert.deepEqual(publishImages["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.equal(publishImages["timeout-minutes"], 60);
 	assert.deepEqual(publishImages.permissions, { contents: "read", packages: "write" });
 	assert.equal(namedStep(publishImages, "Install Nix").if, "runner.environment != 'self-hosted'");
 	const qemu = namedStep(publishImages, "Setup QEMU for ARM64");
