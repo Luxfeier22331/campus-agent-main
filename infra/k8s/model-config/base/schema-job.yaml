@@ -9,8 +9,8 @@ metadata:
     argocd.argoproj.io/sync-options: Force=true,Replace=true
     argocd.argoproj.io/sync-wave: "0"
 spec:
-  activeDeadlineSeconds: 180
-  backoffLimit: 1
+  activeDeadlineSeconds: 300
+  backoffLimit: 6
   template:
     metadata:
       labels:
