@@ -2,24 +2,17 @@
 
 import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
 import { describe, expect, it, vi } from "vitest";
-import { AxiomUnavailableError } from "../src/server/axiom-client";
 import { createUnavailableDiningStore } from "../src/server/dining-store";
 import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
 import { SentryUnavailableError } from "../src/server/sentry-client";
-import { opsLogObservabilityFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures";
+import { opsSentryIssuesFixture } from "../src/shared/ops-fixtures";
 import { createTestOpsApp } from "./helpers/ops-app";
 
-function createTestApp(options?: { queryFails?: boolean; sentryFails?: boolean }) {
+function createTestApp(options?: { sentryFails?: boolean }) {
 	const baseStore = createFixtureOpsStatusStore();
 	const store = baseStore;
-	const queryRequest = options?.queryFails
-		? vi.fn().mockRejectedValue(new AxiomUnavailableError("partial result"))
-		: vi.fn(async () => opsLogObservabilityFixture);
-	const axiom = {
-		queryRequest,
-	};
 	const overviewService = createOpsOverviewService({
 		now: () => new Date("2026-07-09T06:30:00.000Z"),
 		store,
@@ -33,14 +26,12 @@ function createTestApp(options?: { queryFails?: boolean; sentryFails?: boolean }
 			OPS_WEB_CAMPUS_WEB_URL: "https://campus.example.test",
 			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 		},
-		axiom,
 		overviewService,
 		sentry: { queryRequestIssues },
 		store,
 	});
 	return {
 		app,
-		queryRequest,
 		queryRequestIssues,
 	};
 }
@@ -244,44 +235,11 @@ describe("ops API", () => {
 		expect(campusGroupsClient.replaceCatalog).toHaveBeenCalledWith(catalog);
 	});
 
-	it("rejects all browser-supplied APL, dataset, window, limit, and trace parameters", async () => {
-		const { app, queryRequest } = createTestApp();
-		const response = await app.request(
-			"/api/ops/requests/req_ops_001/observability?kind=logs&apl=x&dataset=x&from=0&limit=1000&to=1&traceId=browser-trace",
-		);
-
-		expect(response.status).toBe(400);
-		expect(queryRequest).not.toHaveBeenCalled();
-	});
-
-	it("queries fixed Axiom logs by the stored request identity", async () => {
-		const { app, queryRequest } = createTestApp();
+	it("does not retain the retired request log endpoint", async () => {
+		const { app } = createTestApp();
 		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=logs");
 
-		expect(response.status).toBe(200);
-		expect(queryRequest).toHaveBeenCalledWith(
-			expect.objectContaining({
-				kind: "logs",
-				requestId: "req_ops_001",
-				signal: expect.any(AbortSignal),
-			}),
-		);
-		await expect(response.json()).resolves.toMatchObject({ source: "AXIOM" });
-	});
-
-	it("returns unavailable instead of partial Axiom records", async () => {
-		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-		const { app } = createTestApp({
-			queryFails: true,
-		});
-
-		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=logs");
-
-		expect(response.status).toBe(503);
-		await expect(response.json()).resolves.toMatchObject({
-			error: { code: "OPS_OBSERVABILITY_UNAVAILABLE" },
-		});
-		consoleError.mockRestore();
+		expect(response.status).toBe(404);
 	});
 
 	it("returns trusted Sentry issue summaries under unified Ops admission", async () => {

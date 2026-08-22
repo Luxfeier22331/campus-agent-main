@@ -4,7 +4,6 @@ import { normalizeAppApiRoute } from "./sentry";
 
 export function applyRequestTags(input: {
 	errorCode?: string | null;
-	principalType?: string | null;
 	requestId?: string | null;
 	route?: string | null;
 	status?: string | null;

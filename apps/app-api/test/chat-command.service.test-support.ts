@@ -466,10 +466,8 @@ export function createTelemetryMock(): AppTelemetry {
 		captureException: vi.fn(),
 		configureChatRequestScope: vi.fn(),
 		configureHttpRequestScope: vi.fn(),
+		configureRequestOutcome: vi.fn(),
 		markHttpResponseStatus: vi.fn(),
-		recordRequestAccepted: vi.fn(),
-		recordRequestFinalized: vi.fn(),
-		recordRequestTransportError: vi.fn(),
 	};
 }
 

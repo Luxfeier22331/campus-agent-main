@@ -392,7 +392,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 				status: "approval_required",
 			},
 		});
-		expect(approvalTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
+		expect(approvalTelemetry.configureRequestOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
 				status: "approval_required",
@@ -412,7 +412,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 				status: "rejected",
 			},
 		});
-		expect(rejectedTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
+		expect(rejectedTelemetry.configureRequestOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
 				status: "rejected",

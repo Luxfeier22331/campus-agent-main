@@ -15,12 +15,13 @@ status: active
 
 | 信号 | Producer | Consumer | 用途 | 可执行来源 |
 | --- | --- | --- | --- | --- |
-| 有界产品请求事件 | App API | Cloudflare log destination、Axiom、Ops Web 固定查询 | 请求接收、终态和传输失败摘要 | App API telemetry 模块及测试 |
 | 浏览器与边缘错误、采样性能 | Campus Web、App API | Sentry | 错误定位、release 和前端性能 | 应用 Sentry 初始化与测试 |
 | 受控 Agent trace | agent-runtime | Langfuse | 模型/工具调用关联、用量和评测 | Agent sanitizer、Langfuse 运行合同 |
 
 execution-control、ingestion-control、internal-portal-collection 和 Hindsight 不维护仓库自有 OTel exporter。
 它们的数据库投影、Temporal 状态、业务调用和普通进程日志不能改写成外部遥测合同。
+App API 的请求状态、阶段耗时和错误码属于 PostgreSQL 产品投影；它不再为日志供应商生产专用
+生命周期事件。
 
 ## 共同约束
 
@@ -36,6 +37,7 @@ execution-control、ingestion-control、internal-portal-collection 和 Hindsight
 ## 相关文档
 
 - `../decisions/adr-0081-observability-planes.md`
+- `../decisions/adr-0092-retire-axiom.md`
 - `../contracts/langfuse-runtime.md`
 - `../runbooks/otel.md`
 - `../runbooks/worker-otel.md`

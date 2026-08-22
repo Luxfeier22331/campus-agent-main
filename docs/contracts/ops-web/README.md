@@ -31,7 +31,6 @@ status: active
 - `GET /api/ops/overview`
 - `GET /api/ops/requests`
 - `GET /api/ops/requests/:requestId`
-- `GET /api/ops/requests/:requestId/observability`
 - `GET /api/ops/requests/:requestId/sentry-issues`
 
 模型配置：
@@ -94,7 +93,7 @@ status: active
   使用配置 origin、Bearer token 和自己的输入/CAS 合同，不接受人员 JWT。
 - Ops Web 使用既有 `OPS_WEB_INTERNAL_TOKEN` 调用 ingestion-control，不向浏览器或 automation 客户端
   暴露内部服务 token。
-- 浏览器不持有 PostgreSQL、Axiom、在线模型配置管理接口或外部平台凭据。
+- 浏览器不持有 PostgreSQL、在线模型配置管理接口或外部平台凭据。
 
 ### 响应和错误
 
@@ -138,7 +137,6 @@ status: active
 | 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
 | 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |
-| 503 | `OPS_OBSERVABILITY_UNAVAILABLE` | Axiom 查询未配置、失败、超时或响应无效 |
 | 503 | `OPS_SENTRY_UNAVAILABLE` | Sentry Issue 查询未配置、失败或响应无效 |
 | 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | execution-control admin 未配置或不可用 |
 | 503 | `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`、`OPS_INTERNAL_PORTAL_CHECK_FAILED`、`OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE` | 内部门户凭据服务、真实验证或候选池不可用 |
@@ -158,7 +156,7 @@ status: active
 `GET /healthz` 只证明 Node 进程可以响应，不访问依赖。
 
 `GET /readyz` 无需操作者身份，只检查 Ops Web 接受核心请求所需的公开 origin、请求状态数据库，
-以及非本地环境的 Access 配置。Axiom、Sentry、Langfuse、Temporal UI、在线模型配置、Dining 和
+以及非本地环境的 Access 配置。Sentry、Langfuse、Temporal UI、在线模型配置、Dining 和
 自动化机器入口不属于顶层就绪条件；它们在所属接口返回局部状态。
 
 ## 相关文档

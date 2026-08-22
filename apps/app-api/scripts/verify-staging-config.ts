@@ -46,11 +46,6 @@ async function main(): Promise<void> {
 		'DEPLOYMENT_ENVIRONMENT = "staging"',
 		"Missing DEPLOYMENT_ENVIRONMENT=staging.",
 	);
-	expectNotContains(
-		source,
-		"axiom-staging-traces",
-		"Native Worker trace destination must stay disabled.",
-	);
 	expectNotContains(source, "APP_API_OTEL_INGEST_", "Retired app-api OTLP ingest config remains.");
 	expectContains(source, 'binding = "APP_API_DB"', "Missing APP_API_DB Hyperdrive binding.");
 	expectNotContains(

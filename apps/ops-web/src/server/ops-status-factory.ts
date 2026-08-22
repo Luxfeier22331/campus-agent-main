@@ -16,7 +16,6 @@ export function createOpsStatusStore(input: {
 	return createPgOpsStatusStore({
 		db: createPgOpsStatusStoreDatabase(input.pool),
 		observabilityLinks: {
-			...(env.OPS_WEB_AXIOM_URL ? { axiom: env.OPS_WEB_AXIOM_URL } : {}),
 			...(env.OPS_WEB_LANGFUSE_URL ? { langfuse: env.OPS_WEB_LANGFUSE_URL } : {}),
 			...(sentry ? { sentry } : {}),
 			...(env.OPS_WEB_TEMPORAL_UI_URL ? { temporal: env.OPS_WEB_TEMPORAL_UI_URL } : {}),

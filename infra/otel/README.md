@@ -19,8 +19,8 @@ dataset、Secret、部署版本和启用状态。Cloudflare application logs、�
 - `collector-local-debug.yaml`：`traces/agent -> debug`；
 - `collector-local-prodlike.yaml`：`traces/agent -> Langfuse`。
 
-这里没有日志、指标、kubelet、execution-control 或 Hindsight pipeline，也不模拟 Axiom exporter、
-节点采集、集群网络隔离或供应商告警。Langfuse overlay 只用于开发者明确验证 Agent trace，不能
+这里没有日志、指标、kubelet、execution-control 或 Hindsight pipeline，也不模拟节点采集、集群
+网络隔离或供应商告警。Langfuse overlay 只用于开发者明确验证 Agent trace，不能
 作为线上配额或部署状态的证明。
 
 ## 验证

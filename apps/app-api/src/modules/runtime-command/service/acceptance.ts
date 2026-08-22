@@ -252,14 +252,7 @@ export async function acceptChatCommand(
 	});
 
 	telemetry?.configureChatRequestScope({
-		actor: {
-			principalType: input.principal.principal.type,
-			subject: input.principal.actor.userId,
-		},
-		conversationId: conversation.id,
-		principalType: input.principal.principal.type,
 		requestId,
-		safetyIdentifier,
 		surface,
 		traceId,
 	});
@@ -292,19 +285,6 @@ export async function acceptChatCommand(
 		throw error;
 	}
 
-	await telemetry?.recordRequestAccepted({
-		actor: {
-			principalType: input.principal.principal.type,
-			subject: input.principal.actor.userId,
-		},
-		conversationId: conversation.id,
-		principalType: input.principal.principal.type,
-		requestId,
-		safetyIdentifier,
-		status: "accepted",
-		surface,
-		traceId,
-	});
 	return {
 		kind: "accepted",
 		value: {

@@ -123,7 +123,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				safetyIdentifier: expectedSafetyIdentifier,
+				surface: "campus_web",
 				traceId: "trace_0001",
 			}),
 		);
@@ -221,23 +221,19 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			requestId: "req_0001",
 			traceId: "trace_0001",
 		});
-		expect(telemetry.recordRequestAccepted).toHaveBeenCalledWith(
+		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
-				conversationId: "conv_01HQ",
 				requestId: "req_0001",
-				safetyIdentifier: expectedSafetyIdentifier,
 				traceId: "trace_0001",
 			}),
 		);
-		expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
+		expect(telemetry.configureRequestOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({
+				errorCode: null,
 				requestId: "req_0001",
-				safetyIdentifier: expectedSafetyIdentifier,
-				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
 			}),
 		);
-		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
 	});
 
 	it("does not project PG profile memory during chat submit because execution-control owns memory recall", async () => {

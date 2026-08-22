@@ -75,21 +75,6 @@ spec:
                 configMapKeyRef:
                   name: ops-web-config
                   key: OPS_WEB_APP_API_URL
-            - name: OPS_WEB_AXIOM_EDGE_DOMAIN
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_AXIOM_EDGE_DOMAIN
-            - name: OPS_WEB_AXIOM_LOGS_DATASET
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_AXIOM_LOGS_DATASET
-            - name: OPS_WEB_AXIOM_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_AXIOM_URL
             - name: OPS_WEB_CAMPUS_WEB_URL
               valueFrom:
                 configMapKeyRef:
@@ -166,12 +151,6 @@ spec:
                 configMapKeyRef:
                   name: ops-web-config
                   key: ACCESS_POLICY_AUD
-            - name: AXIOM_QUERY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: observability-runtime-secrets
-                  key: AXIOM_RUNTIME_TOKEN
-                  optional: true
             - name: SENTRY_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:

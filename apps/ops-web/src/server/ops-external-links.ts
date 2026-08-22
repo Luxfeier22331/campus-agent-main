@@ -2,16 +2,9 @@ import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 
 export interface OpsObservabilityLinkAllowlist {
-	axiom?: string;
 	langfuse?: string;
 	sentry?: string;
 	temporal?: string;
-}
-
-export function toAxiomExternalLink(
-	allowlist: OpsObservabilityLinkAllowlist | undefined,
-): OpsRequestDetailResponse["technical"]["externalLinks"][number] | null {
-	return toConfiguredExternalLink(allowlist?.axiom, "Axiom", "AXIOM");
 }
 
 export function toTemporalExternalLink(
@@ -87,7 +80,7 @@ export async function toLangfuseExternalLink(
 function toConfiguredExternalLink(
 	href: string | undefined,
 	label: string,
-	source: "AXIOM" | "SENTRY",
+	source: "SENTRY",
 ): OpsRequestDetailResponse["technical"]["externalLinks"][number] | null {
 	const normalized = href?.trim();
 	if (!normalized) {

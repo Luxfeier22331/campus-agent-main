@@ -29,8 +29,7 @@ status: active
   `campus-web` 或 `app-api` 代理状态数据。
 - `status-web` Cron 通过 App API 的匿名 `GET /api/chat/availability` 探测问答，通过 Campus
   公开入口的 `/` 探测问答之外的整体站点；文档和地图等静态页面不单独探测。
-- 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant、PostgreSQL 或
-  Axiom。
+- 浏览器不直连 execution-control、Temporal、Hindsight、Qdrant、PostgreSQL 或外部观测平台。
 - `ops-web` 是独立受保护的自托管站点；其浏览器只调用同一进程的 `/api/ops/*`。
 
 ## 聊天路径
@@ -65,7 +64,6 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - 完整 Temporal history：Temporal；
 - Agent 模型和工具调用 trace：Langfuse；
 - 离线评测输入与结果：调用方和所属评分器；需要关联运行时再把 score 发布到 Langfuse；
-- 有界 application logs：Axiom；
 - browser/edge 错误、生产 browser 采样性能、release 和 source map：Sentry；
 - 个人记忆：Hindsight，仅由 execution-control Activity 调用；
 - 产品可用性快照和有限时间线：`status-web` 所属的 Cloudflare KV namespace；不写入原始探测
@@ -78,13 +76,12 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 
 - `ops-web -> execution-control` 通过同源 BFF 管理在线模型配置；浏览器不持有
   execution-control credential。
-- `ops-web -> PostgreSQL/execution-control/Axiom/Sentry` 提供有界运行摘要、application logs 和
-  Sentry Issue。
+- `ops-web -> PostgreSQL/execution-control/Sentry` 提供有界运行摘要和 Sentry Issue。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开菜单并以受限权限处理学生评价和举报；校园地图由 campus-web 的静态资产直接提供。
 - 在线模型配置不可用不阻断 Ops Web 的运行记录读取 readiness。
-- Temporal UI、Langfuse UI、Sentry 和 Axiom 保留各自完整能力；Ops Web 只提供跨系统关联、
-  固定 Axiom logs 查询和常用摘要。
+- Temporal UI、Langfuse UI 和 Sentry 保留各自完整能力；Ops Web 只提供跨系统关联、固定 Sentry
+  Issue 查询和常用摘要。
 
 ## 部署边界
 
@@ -93,7 +90,7 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 
 ## 架构约束
 
-- 不让 app-api 代理 Temporal、Langfuse、Axiom、Sentry 或数据库通用查询。
+- 不让 app-api 代理 Temporal、Langfuse、Sentry 或数据库通用查询。
 - 不让产品可用性状态页复用 `campus-web` 的校园业务状态语义，或把内部运行组件作为公共服务行。
 - 不让观测平台改写产品请求状态。
 - 不把离线采集职责混入在线回答路径。

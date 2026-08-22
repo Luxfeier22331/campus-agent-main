@@ -67,8 +67,8 @@ Ops Web 的主运行记录以 `chat.turn_dispatches` 和 execution-control 的 `
 - 模型：provider、model、prompt id/version 和 template hash；
 
 该表不保存 token 用量、caller 请求的 scope/version query、工具选择标签、answer eval fingerprint、
-LLM I/O fingerprint、debug trace ref 或请求级观测配置。token 用量只由 execution-control 执行投影、
-Langfuse 和现有遥测事件提供，不复制成 App API 产品数据。
+LLM I/O fingerprint、debug trace ref 或请求级观测配置。token 用量只由 execution-control 执行投影
+和 Langfuse 提供，不复制成 App API 产品数据。
 
 app-api 在接收 turn 的同一事务中以 `accepted` 状态创建记录。事件读取器收到首个实际
 `answer_delta` 时先把事件交给产品流，再异步写入 `stream.app_api_ttft_ms`，产品首段输出不等待
@@ -78,10 +78,6 @@ execution-control 返回的阶段时序，再在产品终结事务中更新同�
 基于合并结果派生 `stream.orchestration_overhead_ms`。因此该表是请求阶段耗时的最终可查询投影；
 如果 TTFT 晚于产品终态写入，最终记录仍会包含 TTFT 和可派生的 overhead。允许的状态与
 `chat.turn_dispatches` 保持一致。
-
-`request.finalized` 遥测事件只携带产品终态事务当时已经可用的阶段耗时快照。终态之后才完成的
-TTFT 回填不会补发或改写该事件，只进入本表；事件缺少该字段表示生产者在发出终态事件时尚未取得
-测量值，不表示最终数据库投影缺失。
 
 ## 索引
 

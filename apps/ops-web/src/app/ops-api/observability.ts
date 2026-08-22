@@ -5,7 +5,6 @@ import type {
 	OpsRequestWindow,
 } from "../../shared/ops-contract";
 import {
-	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
@@ -72,20 +71,6 @@ export async function fetchOpsOverview(
 	const query = new URLSearchParams({ window });
 	return OpsOverviewResponseSchema.parse(
 		await fetchJson(`/api/ops/overview?${query.toString()}`, { signal: input.signal }),
-	);
-}
-
-export async function fetchOpsObservability(
-	requestId: string,
-	kind: "logs",
-	input: { signal?: AbortSignal } = {},
-) {
-	const query = new URLSearchParams({ kind });
-	return OpsObservabilityResponseSchema.parse(
-		await fetchJson(
-			`/api/ops/requests/${encodeURIComponent(requestId)}/observability?${query.toString()}`,
-			{ signal: input.signal },
-		),
 	);
 }
 

@@ -255,14 +255,6 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			"request.completed",
 		]);
 		expect(finalWrites).toHaveLength(1);
-		expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
-			expect.objectContaining({
-				stageTiming: {
-					"agent.first_delta_ms": 600,
-					"request.total_ms": 3000,
-				},
-			}),
-		);
 		expect(requestStageTiming.get("req_0001")).toEqual({
 			"agent.first_delta_ms": 600,
 			"request.total_ms": 3000,
@@ -282,7 +274,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			"stream.app_api_ttft_ms": 1000,
 			"stream.orchestration_overhead_ms": 400,
 		});
-		expect(telemetry.recordRequestFinalized).toHaveBeenCalledTimes(1);
+		expect(telemetry.configureRequestOutcome).toHaveBeenCalledTimes(1);
 	});
 
 	it("keeps both frozen inputs recoverable when inline admission cannot be claimed", async () => {

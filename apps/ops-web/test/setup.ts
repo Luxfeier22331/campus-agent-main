@@ -4,11 +4,7 @@ import { afterEach, beforeEach, vi } from "vitest";
 import { createOpsApp } from "../src/server/app";
 import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
-import {
-	opsLogObservabilityFixture,
-	opsOverviewFixture,
-	opsSentryIssuesFixture,
-} from "../src/shared/ops-fixtures";
+import { opsOverviewFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures";
 
 if (typeof CSS !== "undefined" && typeof CSS.supports !== "function") {
 	Object.defineProperty(CSS, "supports", { configurable: true, value: () => false });
@@ -20,9 +16,6 @@ const app = createOpsApp({
 		OPS_WEB_AUTOMATION_ORIGIN: "https://ops-api.example.test",
 		OPS_WEB_CAMPUS_WEB_URL: "https://campus.example.test",
 		OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
-	},
-	axiom: {
-		queryRequest: vi.fn(async () => opsLogObservabilityFixture),
 	},
 	overviewService: {
 		getOverview: vi.fn(async () => opsOverviewFixture),

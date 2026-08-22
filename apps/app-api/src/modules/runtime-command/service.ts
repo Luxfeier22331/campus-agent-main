@@ -78,7 +78,6 @@ export function buildChatCommandService(
 	}): Promise<{
 		response: ToolExecutionResponse;
 		terminalObserved: boolean;
-		transportError: { code: string; retryable: boolean } | null;
 	}> {
 		const traceHeaders = await ensureLangfuseTraceParent(input.context.traceId);
 		try {
@@ -99,10 +98,6 @@ export function buildChatCommandService(
 			return {
 				response: handled,
 				terminalObserved: false,
-				transportError: {
-					code: handled.error.code,
-					retryable: handled.error.retryable,
-				},
 			};
 		}
 	}
@@ -186,7 +181,7 @@ export function buildChatCommandService(
 							? {
 									admissionFailureWorkflowId: durableRunCreate.admissionFailure.workflowId,
 									finalizationFingerprint: admissionFailureFinalizationFingerprint({
-										errorCode: durableRunCreate.transportError?.code ?? "internal_error",
+										errorCode: durableRunCreate.response.error?.code ?? "internal_error",
 										runId: accepted.value.runId ?? "",
 										workflowId: durableRunCreate.admissionFailure.workflowId,
 									}),
@@ -194,7 +189,6 @@ export function buildChatCommandService(
 							: {}),
 						context: accepted.value,
 						executionResponse: durableRunCreate.response,
-						transportError: durableRunCreate.transportError,
 					})
 				).response;
 			}
@@ -267,7 +261,7 @@ export function buildChatCommandService(
 							? {
 									admissionFailureWorkflowId: durableRunCreate.admissionFailure.workflowId,
 									finalizationFingerprint: admissionFailureFinalizationFingerprint({
-										errorCode: durableRunCreate.transportError?.code ?? "internal_error",
+										errorCode: durableRunCreate.response.error?.code ?? "internal_error",
 										runId: context.runId ?? "",
 										workflowId: durableRunCreate.admissionFailure.workflowId,
 									}),
@@ -275,7 +269,6 @@ export function buildChatCommandService(
 							: {}),
 						context,
 						executionResponse: durableRunCreate.response,
-						transportError: durableRunCreate.transportError,
 					});
 					yield toTerminalChatStreamEvent({
 						occurredAt: now().toISOString(),

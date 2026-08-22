@@ -9,12 +9,6 @@ import {
 	createAccountAdminClient,
 } from "./account-admin-client.ts";
 import {
-	type AxiomClient,
-	type AxiomEnv,
-	AxiomUnavailableError,
-	createAxiomClientFromEnv,
-} from "./axiom-client.ts";
-import {
 	type CampusGroupsAdminEnv,
 	CampusGroupsAdminResponseError,
 	CampusGroupsAdminUnavailableError,
@@ -112,7 +106,6 @@ interface OpsHealthEnv {
 
 type OpsAppEnv = OpsAdmissionEnv &
 	AccountAdminEnv &
-	AxiomEnv &
 	CampusGroupsAdminEnv &
 	DiningStoreEnv &
 	InternalPortalCredentialClientEnv &
@@ -126,7 +119,6 @@ type OpsAppEnv = OpsAdmissionEnv &
 interface OpsAppOptions {
 	accountAdminClient?: ReturnType<typeof createAccountAdminClient>;
 	admission?: OpsAdmission;
-	axiom?: AxiomClient;
 	env?: OpsAppEnv;
 	diningMapStore?: DiningMapStore;
 	diningMenuStore?: DiningMenuStore;
@@ -162,7 +154,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const admission = options.admission ?? createOpsAdmissionFromEnv(env);
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env, databasePool);
-	const axiom = options.axiom ?? createDefaultAxiomClient(env);
 	const sentry = options.sentry ?? createDefaultSentryClient(env);
 	const overviewService =
 		options.overviewService ??
@@ -222,9 +213,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 
 	app.onError((error) => {
 		logOpsError("ops_web.api_request", error, { source: "http" });
-		if (error instanceof AxiomUnavailableError) {
-			return jsonError("OPS_OBSERVABILITY_UNAVAILABLE", "Axiom 数据不可用。", 503);
-		}
 		if (error instanceof SentryUnavailableError) {
 			return jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503);
 		}
@@ -384,7 +372,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 	registerAccountAdminRoutes({ admission, app, client: accountAdminClient, publicOrigin });
 	registerEmailAccessRoutes({ admission, app, client: emailAccessClient, publicOrigin });
-	registerObservabilityRoutes({ admission, app, axiom, sentry, store });
+	registerObservabilityRoutes({ admission, app, sentry, store });
 	registerCampusGroupsRoutes({ admission, app, client: campusGroupsClient, publicOrigin });
 	registerDiningRoutes({
 		admission,
@@ -447,19 +435,6 @@ function createDatabaseUnavailableError(env: OpsWebDatabaseEnv): Error {
 			? "Ops Web database pool is unavailable."
 			: "OPS_WEB_DATABASE_URL is required.",
 	);
-}
-
-function createDefaultAxiomClient(env: AxiomEnv): AxiomClient {
-	try {
-		return createAxiomClientFromEnv(env);
-	} catch (error) {
-		const unavailable = async (): Promise<never> => {
-			throw error instanceof AxiomUnavailableError
-				? error
-				: new AxiomUnavailableError("Axiom client is unavailable.", { cause: error });
-		};
-		return { queryRequest: unavailable };
-	}
 }
 
 function createDefaultSentryClient(env: SentryEnv): SentryClient {

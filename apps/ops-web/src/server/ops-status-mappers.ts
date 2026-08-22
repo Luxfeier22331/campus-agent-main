@@ -7,7 +7,6 @@ import type {
 } from "../shared/ops-contract";
 import {
 	type OpsObservabilityLinkAllowlist,
-	toAxiomExternalLink,
 	toLangfuseExternalLink,
 	toSentryExternalLink,
 	toTemporalExternalLink,
@@ -585,12 +584,9 @@ async function normalizeExternalLinks(
 ): Promise<OpsRequestDetailResponse["technical"]["externalLinks"]> {
 	const temporalLink = toTemporalExternalLink(workflowId, allowlist);
 	const langfuseLink = await toLangfuseExternalLink(productTraceId, allowlist);
-	return [
-		temporalLink,
-		langfuseLink,
-		toSentryExternalLink(allowlist),
-		toAxiomExternalLink(allowlist),
-	].filter((link): link is NonNullable<typeof link> => link !== null);
+	return [temporalLink, langfuseLink, toSentryExternalLink(allowlist)].filter(
+		(link): link is NonNullable<typeof link> => link !== null,
+	);
 }
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };

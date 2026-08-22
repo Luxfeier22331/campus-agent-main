@@ -14,7 +14,6 @@ status: active
 
 - `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
 - `execution_control.agent_runs`：运行终态、`terminal_reason`、`fail_close_reason` 和 trace 关联；
-- Axiom：脱敏 application logs，不是限流状态依据；
 - Sentry：经过清理的应用异常，不是用户身份、请求正文或限流状态依据。
 
 `runtime.request_observability_fact` 是 App API 内部投影，Ops Web 当前没有列读取权限，不能作为本
@@ -31,15 +30,15 @@ abuse throttle 与 safety alert 阈值由
 1. 在 Ops Web 按时间、状态、requestId、traceId 或 safety 关联摘要定位请求。
 2. 确认 turn dispatch 的 terminal 状态和 `error_code`。
 3. 确认 Agent run 的 `terminal_reason`、`fail_close_reason` 和 trace 关联。
-4. 需要深入排查时由 Ops Web 按固定 `requestId` 和有界窗口读取 Axiom；partial response、查询
-   失败或审计失败时不返回原始记录。
+4. 需要深入排查错误时，由 Ops Web 按需读取固定范围的 Sentry Issue 摘要，或在 Sentry 通过已保存
+   的关联标识继续检查；不得用外部记录改写持久状态。
 5. 只记录 sanitized request/trace id、pattern code、时间窗口和结论。
 
-Cloudflare application console logs 绕过 Collector 白名单。若排查中发现 query、header、正文、
-用户标识或 credential，应立即停止对应 log destination 或 producer 输出，并按 observability
-canary 重新验证；若出现 invocation log/native trace，则先修复必须关闭这两类信号的配置漂移。
-若环境启用了 Agent Langfuse trace，可以使用 W3C context 做进一步关联；配额停收时不要求 trace
-存在。不得把泄漏字段复制进工单，也不得用 trace 缺失推断请求失败。
+若排查中发现 Sentry 或 Langfuse 含 query、header、正文、用户标识、memory 或 credential，应立即
+停止对应 producer 输出并按 observability canary 重新验证；若出现 invocation log/native trace 或
+application-log destination，则先修复必须关闭这些信号的配置漂移。若环境启用了 Agent Langfuse
+trace，可以使用 W3C context 做进一步关联；配额停收时不要求 trace 存在。不得把泄漏字段复制进
+工单，也不得用 trace 缺失推断请求失败。
 
 ## 禁止
 

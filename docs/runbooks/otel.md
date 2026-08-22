@@ -12,8 +12,8 @@ status: active
 pipeline 见 `../../infra/otel/README.md`；生产者字段见 `../reference/telemetry.md`。环境 endpoint、
 dataset、Secret、部署版本、保留期和启用状态由环境仓管理，源码检查不能证明远端状态。
 
-这里的 Collector 指 OpenTelemetry Collector，与 `jobs/internal-portal-collection` 无关。Cloudflare
-Worker application-log destination 不经过本 Collector，按 `worker-otel.md` 验证。
+这里的 Collector 指 OpenTelemetry Collector，与 `jobs/internal-portal-collection` 无关。Worker 的
+Sentry 错误链路不经过本 Collector，按 `worker-otel.md` 验证。
 
 ## 配置校验
 
@@ -57,12 +57,12 @@ Collector。它只输出 Agent trace。要验证 Langfuse 转发，使用
 1. 在 Agent Runtime 日志或本地 exporter 确认 trace 被生产；未配置 endpoint 时没有 trace 是预期
    行为。
 2. 在 Langfuse project 查询 Agent trace，核对 `request_id`、`run_id`、`trace_id`、`turn_id`、
-   environment、release 和有限的模型/用量字段。`traceId` 是关联标识，不是 Axiom 日志查询键。
+   environment、release 和有限的模型/用量字段。
 3. 使用合成哨兵覆盖 query、header、正文、用户标识和 credential 位置，确认 Langfuse trace 中
    不出现模型输入输出、对话、memory/retrieval 正文、工具原始载荷、Cookie、token、数据库地址
    或其他认证内容。
 4. 若环境因 Langfuse 配额或成本策略停止 trace ingestion，不应把“没有新 trace”当作在线业务故障；
-   改用 PostgreSQL 产品投影、Sentry 错误和 Axiom application logs 验证业务状态。
+   改用 PostgreSQL 产品投影与 Sentry 错误验证业务状态。
 
 合成哨兵只验证代表性路径，不构成内容级 DLP 承诺；producer 的
 `traceIncludeSensitiveData=false` 和字段白名单才是主要边界。正文规则以
@@ -93,11 +93,10 @@ Agent trace 到达 Langfuse 但查询不到时，依次检查：
 4. 环境仓是否选择了预期不可变版本和启用状态；
 5. Langfuse 是否处于配额暂停、异步延迟或保留期边界。
 
-Cloudflare application-log destination 问题按 `worker-otel.md` 排查，不能从 Collector 推断。任何
-观测输出失败都不得改写 PostgreSQL 产品状态。
+Worker Sentry 问题按 `worker-otel.md` 排查，不能从 Collector 推断。任何观测输出失败都不得改写
+PostgreSQL 产品状态。
 
 ## 参考
 
 - OpenTelemetry Collector 配置：<https://opentelemetry.io/docs/collector/configuration/>
-- Axiom OpenTelemetry ingest：<https://axiom.co/docs/send-data/opentelemetry>
 - Langfuse OpenTelemetry：<https://langfuse.com/integrations/native/opentelemetry>

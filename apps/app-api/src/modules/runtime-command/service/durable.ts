@@ -36,7 +36,6 @@ type DurableTerminalSourceEvent =
 interface DurableTerminalRunOutcome {
 	response: ToolExecutionResponse;
 	sourceEvent: DurableTerminalSourceEvent;
-	transportError: TransportErrorRecord | null;
 }
 
 function asJsonRecord(value: unknown): Record<string, unknown> | null {
@@ -325,7 +324,6 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 				traceId: context.traceId,
 			}),
 			sourceEvent: "execution.cancelled",
-			transportError: null,
 		};
 	}
 	if (event.eventType === "run.failed") {
@@ -386,10 +384,6 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 				traceId: context.traceId,
 			}),
 			sourceEvent: "execution.failed",
-			transportError: {
-				code,
-				retryable,
-			},
 		};
 	}
 	if (event.eventType !== "finalization.completed") {
@@ -431,7 +425,6 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 	return {
 		response: parseExecutionFinalizationResponsePayload(response),
 		sourceEvent: "execution.completed",
-		transportError: null,
 	};
 }
 
@@ -446,11 +439,6 @@ export function finalizationResponseFromDurableRunEvents(
 		}
 	}
 	return null;
-}
-
-interface TransportErrorRecord {
-	code: string;
-	retryable: boolean;
 }
 
 function validatePollingPolicy(
@@ -540,7 +528,6 @@ export async function waitForDurableFinalizationResponse<
 }): Promise<{
 	response: ToolExecutionResponse;
 	terminalObserved: boolean;
-	transportError: TransportErrorRecord | null;
 }> {
 	const polling = validatePollingPolicy(input.polling);
 	let lastSequence = 0;
@@ -560,7 +547,6 @@ export async function waitForDurableFinalizationResponse<
 				return {
 					response: terminalOutcome.response,
 					terminalObserved: true,
-					transportError: terminalOutcome.transportError,
 				};
 			}
 		}
@@ -570,10 +556,6 @@ export async function waitForDurableFinalizationResponse<
 	return {
 		response: durableEventWaitTimeoutResponse(input.context),
 		terminalObserved: false,
-		transportError: {
-			code: "execution_timeout",
-			retryable: true,
-		},
 	};
 }
 
@@ -586,7 +568,6 @@ export async function* streamDurableRunEventsUntilTerminal<
 		executionResponse: ToolExecutionResponse;
 		executionFinalizationReceivedAt?: string | null;
 		streamAppApiTtftMs?: number | null;
-		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
 	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEventPage>;
 	now: () => Date;
@@ -631,7 +612,6 @@ export async function* streamDurableRunEventsUntilTerminal<
 					executionResponse: terminalOutcome.response,
 					executionFinalizationReceivedAt: runEvent.occurredAt,
 					streamAppApiTtftMs,
-					transportError: terminalOutcome.transportError,
 				});
 				for (const event of chatStreamEventsForFinalized({
 					context,
@@ -653,10 +633,6 @@ export async function* streamDurableRunEventsUntilTerminal<
 			context,
 			executionResponse: handled,
 			streamAppApiTtftMs,
-			transportError: {
-				code: handled.error.code,
-				retryable: handled.error.retryable,
-			},
 		});
 		for (const event of chatStreamEventsForFinalized({
 			context,
@@ -672,10 +648,6 @@ export async function* streamDurableRunEventsUntilTerminal<
 		context,
 		executionResponse: durableEventWaitTimeoutResponse(context),
 		streamAppApiTtftMs,
-		transportError: {
-			code: "execution_timeout",
-			retryable: true,
-		},
 	});
 	for (const event of chatStreamEventsForFinalized({
 		context,
@@ -694,7 +666,6 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		executionResponse: ToolExecutionResponse;
 		executionFinalizationReceivedAt?: string | null;
 		streamAppApiTtftMs?: number | null;
-		transportError?: TransportErrorRecord | null;
 	}): Promise<ChatCommandResponse>;
 	listRunEvents(afterSequence: number, waitMs?: number): Promise<ExecutionControlRunEventPage>;
 	now: () => Date;
@@ -759,7 +730,6 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 					executionResponse: terminalOutcome.response,
 					executionFinalizationReceivedAt: runEvent.occurredAt,
 					streamAppApiTtftMs,
-					transportError: terminalOutcome.transportError,
 				});
 				for (const event of chatStreamEventsForFinalized({
 					context,

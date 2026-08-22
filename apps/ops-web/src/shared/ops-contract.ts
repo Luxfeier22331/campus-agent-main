@@ -210,7 +210,7 @@ const ExternalLinkSchema = z.object({
 	href: HttpsUrlSchema.nullable(),
 	isAvailable: z.boolean(),
 	label: z.string().min(1),
-	source: z.enum(["LANGFUSE", "TEMPORAL", "SENTRY", "AXIOM"]),
+	source: z.enum(["LANGFUSE", "TEMPORAL", "SENTRY"]),
 });
 
 export const OpsCorrelationIdsSchema = z.object({
@@ -376,37 +376,6 @@ export const OpsOverviewResponseSchema = z.object({
 	window: OpsOverviewWindowSchema,
 });
 
-const AxiomLogRecordSchema = z.object({
-	durationMs: z.number().nonnegative().nullable(),
-	errorCode: z.string().min(1).nullable(),
-	eventType: z.string().min(1).nullable(),
-	requestId: z.string().min(1),
-	serviceName: z.string().min(1).nullable(),
-	severityText: z.string().min(1).nullable(),
-	source: z.string().min(1).nullable(),
-	status: z.string().min(1).nullable(),
-	timestamp: IsoDateTimeSchema,
-});
-
-const ObservabilityBaseSchema = z.object({
-	dataState: OpsDataStateSchema,
-	from: IsoDateTimeSchema,
-	queryDurationMs: z.number().int().nonnegative(),
-	queriedAt: IsoDateTimeSchema,
-	requestId: z.string().min(1),
-	source: z.literal("AXIOM"),
-	to: IsoDateTimeSchema,
-	truncated: z.boolean(),
-});
-
-export const OpsObservabilityResponseSchema = z.discriminatedUnion("kind", [
-	ObservabilityBaseSchema.extend({
-		kind: z.literal("logs"),
-		limit: z.literal(200),
-		records: z.array(AxiomLogRecordSchema).max(200),
-	}),
-]);
-
 const SentryIssueSummarySchema = z.object({
 	eventCount: z.number().int().nonnegative(),
 	firstSeen: IsoDateTimeSchema,
@@ -436,7 +405,6 @@ export const OpsSentryIssuesResponseSchema = z.object({
 
 export type OpsDataState = z.infer<typeof OpsDataStateSchema>;
 export type OpsHealthStatus = z.infer<typeof OpsHealthStatusSchema>;
-export type OpsObservabilityResponse = z.infer<typeof OpsObservabilityResponseSchema>;
 export type OpsOverviewResponse = z.infer<typeof OpsOverviewResponseSchema>;
 export type OpsOverviewWindow = z.infer<typeof OpsOverviewWindowSchema>;
 export type OpsRequestDetailResponse = z.infer<typeof OpsRequestDetailResponseSchema>;

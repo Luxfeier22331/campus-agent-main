@@ -192,7 +192,6 @@ describe("status worker", () => {
 		const store = createMemorySnapshotStore();
 		const now = new Date("2026-08-07T00:05:00Z");
 		const requestedUrls: string[] = [];
-		const cycleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
 		const fetchFn = async (input: RequestInfo | URL) => {
 			const url = new URL(input.toString());
 			const pathname = url.pathname;
@@ -229,33 +228,6 @@ describe("status worker", () => {
 			"https://api.example.test/api/chat/availability",
 			"https://campus.example.test/",
 		]);
-		expect(cycleLog).toHaveBeenCalledTimes(1);
-		expect(cycleLog).toHaveBeenCalledWith({
-			environment: "staging",
-			event: "status.probe_cycle",
-			generated_at: "2026-08-07T00:05:00.000Z",
-			observations: [
-				{
-					error: null,
-					http: 200,
-					latency_ms: expect.any(Number),
-					probe: "campus-qa-availability",
-					result: "passed",
-					service: "campus.qa",
-				},
-				{
-					error: null,
-					http: 200,
-					latency_ms: expect.any(Number),
-					probe: "campus-web-shell",
-					result: "passed",
-					service: "campus.services",
-				},
-			],
-			source: "status-web.cron",
-		});
-		cycleLog.mockRestore();
-
 		const worker = createStatusWorker({ store, now: () => now });
 		const first = await worker.fetch(new Request("https://status.muc.wiki/api/status"), {
 			ASSETS: { fetch: assetResponse },
@@ -290,8 +262,7 @@ describe("status worker", () => {
 		expect(second.headers.get("cache-control")).toContain("must-revalidate");
 	});
 
-	it("logs a scheduled cycle failure and rethrows it", async () => {
-		const cycleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+	it("rethrows a scheduled cycle failure", async () => {
 		const worker = createStatusWorker();
 
 		await expect(
@@ -299,12 +270,6 @@ describe("status worker", () => {
 				DEPLOYMENT_ENVIRONMENT: "staging",
 			}),
 		).rejects.toThrow("STATUS_CAMPUS_ORIGIN");
-		expect(cycleError).toHaveBeenCalledWith({
-			error_type: "Error",
-			event: "status.probe_cycle_failed",
-			source: "status-web.cron",
-		});
-		cycleError.mockRestore();
 	});
 
 	it("marks an expired snapshot unknown while preserving its timeline", async () => {

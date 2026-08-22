@@ -71,7 +71,7 @@ export function createWorkerRuntime(
 	) {
 		throw new Error("Scheduled chat command and runtime run services must be configured together.");
 	}
-	const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
+	const telemetry = dependencies.telemetry ?? createAppTelemetry();
 	let profileMemoryService: ProfileMemoryService | null = dependencies.profileMemoryService ?? null;
 	let scheduledRuntimeServices: {
 		chatCommandService: ChatCommandService;

@@ -10,7 +10,7 @@ status: active
 `stage_timing.v1` 是在线回答请求的有界耗时投影。它规定哪些每请求耗时字段可以进入 app-api
 观测摘要、字段由哪个运行时产生，以及产品诊断与学习闭环如何消费。
 
-它不是 OpenAI Agents SDK trace、Langfuse OTLP payload、Sentry/Axiom/Collector schema 或
+它不是 OpenAI Agents SDK trace、Langfuse OTLP payload、Sentry/Collector schema 或
 Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.json` 拥有；环境告警的
 查询、阈值和投递由环境仓及所属观测平台拥有，不属于跨运行时合同。
 
@@ -59,7 +59,7 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 | `finalization.write_ms` | `apps/execution-control` | 写入有界 finalization projection 的耗时。 |
 | `projection.closeout_ms` | `apps/app-api` | 接收 execution finalization 到完成 app-api observability fact。 |
 
-不得增加供应商专用字段。只在 Langfuse、SDK trace、Sentry、Axiom 或 Temporal UI 有意义的
+不得增加供应商专用字段。只在 Langfuse、SDK trace、Sentry 或 Temporal UI 有意义的
 细节留在对应系统，产品投影只保留关联标识。
 
 `provider_queue_ms` 不是必需字段。provider 内部 queue 只有形成明确、稳定且安全的合同后才能
@@ -77,14 +77,8 @@ Temporal history 或复制下游 trace 响应来补耗时字段。
 - app-api 将有效 `stage_timing.v1` 写入 request observability fact；
 - Ops Web 与其他受控诊断面可以显示分组耗时和关联入口，不渲染原始 trace tree；
 - 评测和诊断可以按固定字段定位耗时异常，不复制 prompt、答案或供应商响应；
-- app-api 的 `request.finalized` event 使用相同的固定字段名发送有效耗时，并附带汇总 budget state
-  与已允许 correlation 字段。该事件是产品终态事务时点的不可变快照，晚于终态完成的
-  `stream.app_api_ttft_ms` 只回填 `runtime.request_observability_fact`，不补发第二条终态事件；
 - `runtime.request_observability_fact` 是 app-api 阶段耗时的最终可查询投影，允许通过独立的首次 TTFT
   写入与终态合并得到完整字段。
-
-因此 `request.finalized` 缺少可选 timing 字段仍遵循本合同的缺字段语义：生产者在事件发出时无法
-测得该阶段。消费者不得据此推断最终数据库投影也缺少该字段。
 
 未知耗时 key 不得展示或静默接受。未登记的 app-api 耗时字段必须拒绝。
 
@@ -94,7 +88,7 @@ Temporal history 或复制下游 trace 响应来补耗时字段。
 配置的观测系统。产品数据库只保存 correlation id 与有界 timing，不保存 sink URL、trace body
 或投递记录。
 
-OpenAI Agents SDK trace、Langfuse、Sentry 与 Axiom 可以提供进一步诊断，但不能替代本合同，
+OpenAI Agents SDK trace、Langfuse、Sentry 与 Temporal UI 可以提供进一步诊断，但不能替代本合同，
 也不能把 SDK span、provider payload、tool I/O、prompt、answer 或 memory text 写入
 `stage_timing.v1`。
 

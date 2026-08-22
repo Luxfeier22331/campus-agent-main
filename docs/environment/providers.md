@@ -76,18 +76,16 @@ PostgreSQL 角色按数据所有权、授权范围和迁移边界决定，不按
 
 ## 可观测性
 
-外部平台管理与运行时消费使用不同权限边界。Axiom 的 Worker application-log destination 和 Ops Web
-logs query 使用运行时 token，Terraform 使用平台管理身份。Sentry 的 source map 上传和 Ops Web Issue
-查询使用所属环境投递的 provider token。不同环境位置的变量名只是消费方投影，不代表独立的上游
-身份或轮换单元。完整理由见 ADR-0081。
+外部平台管理与运行时消费使用不同权限边界。Sentry 的 source map 上传和 Ops Web Issue 查询使用
+所属环境投递的 provider token；应用错误上报使用各应用的 DSN。不同环境位置的变量名只是消费方
+投影，不代表独立的上游身份或轮换单元。完整理由见 ADR-0081 与 ADR-0092。
 
-`AXIOM_RUNTIME_TOKEN` 是 `observability-runtime-secrets` 的运行时字段；Sentry 使用
-`SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_AUTH_TOKEN` 消费合同。
+Sentry provider 操作使用 `SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_AUTH_TOKEN` 消费合同。
 
-- app-api producer 在 Cloudflare log destination 前执行字段白名单，不依赖 Collector 清理；
-- Ops Web 只执行固定范围的 Axiom logs 查询和 Sentry Issue 读取；
-- Worker 日志目标和 source map 上传凭据只进入所属平台配置或受保护 CI 环境；
-- Langfuse Agent trace、Axiom application logs 和 Sentry 错误事件保持不同数据边界。
+- App API 与 Campus Web 只通过官方 SDK 上报已清理的错误和获准性能数据；
+- Ops Web 只执行固定范围的 Sentry Issue 读取；
+- source map 上传凭据只进入受保护 CI 环境；
+- Langfuse Agent trace 和 Sentry 错误事件保持不同数据边界。
 
 环境告警的查询、阈值、启用状态、notifier 和投递目标由环境仓及所属平台配置共同拥有，不进入
 `packages/contracts`，也不由 Ops Web 提供在线编辑。不得把源码中的 `page`、`ticket` 等通用等级名

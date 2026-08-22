@@ -27,27 +27,11 @@ import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-st
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 import type { DiningReleaseSummary } from "../src/shared/dining-contract.ts";
 import type { ExecutionModelSettingsStatus } from "../src/shared/ops-contract.ts";
-import {
-	opsLogObservabilityFixture,
-	opsOverviewFixture,
-	opsSentryIssuesFixture,
-} from "../src/shared/ops-fixtures.ts";
+import { opsOverviewFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures.ts";
 
 const browserTestPort = Number(process.env.OPS_WEB_BROWSER_TEST_PORT ?? "4178");
 const browserDiningStore = createBrowserDiningStore();
 const browserDiningContentStore = createBrowserDiningContentStore();
-const browserLogRecord = opsLogObservabilityFixture.records[0];
-if (!browserLogRecord) {
-	throw new Error("The browser observability fixture must contain a log record.");
-}
-const browserLogObservabilityFixture = {
-	...opsLogObservabilityFixture,
-	records: Array.from({ length: 30 }, (_, index) => ({
-		...browserLogRecord,
-		eventType: index === 0 ? "request.finalized" : `request.event.${index}`,
-	})),
-};
-
 const app = createOpsApp({
 	admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 	env: {
@@ -57,22 +41,6 @@ const app = createOpsApp({
 		OPS_WEB_CAMPUS_WEB_URL: "http://127.0.0.1:27014",
 		OPS_WEB_PUBLIC_ORIGIN:
 			process.env.OPS_WEB_PUBLIC_ORIGIN ?? `http://127.0.0.1:${browserTestPort}`,
-	},
-	axiom: {
-		queryRequest: async ({ completedAt, requestId, startedAt }) => {
-			if (requestId === "req_ops_001") {
-				return browserLogObservabilityFixture;
-			}
-			const fixture = opsLogObservabilityFixture;
-			return {
-				...fixture,
-				dataState: "NO_DATA" as const,
-				from: startedAt,
-				records: [],
-				requestId,
-				to: completedAt ?? startedAt,
-			};
-		},
 	},
 	overviewService: {
 		getOverview: async () => opsOverviewFixture,

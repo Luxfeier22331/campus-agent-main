@@ -6,7 +6,6 @@ import { ChatFinalizationConflict } from "../store-types";
 import type { ChatCommandServiceContext } from "./context";
 import { sha256Text } from "./durable-metadata";
 import { createPreAcceptError } from "./errors";
-import { extractSourceDocIds } from "./normalize";
 import { acceptedCloseoutContext } from "./product-finalization";
 import { executionFinalizationErrorResponse } from "./stream";
 import type { AcceptedChatCommandContext, ChatCommandResponse } from "./types";
@@ -31,7 +30,6 @@ export async function finalizeAcceptedCommand(
 		executionFinalizationReceivedAt?: string | null;
 		finalizationFingerprint?: string;
 		streamAppApiTtftMs?: number | null;
-		transportError?: { code: string; retryable: boolean } | null;
 	},
 ) {
 	const { dependencies, now, telemetry } = service;
@@ -87,22 +85,9 @@ export async function finalizeAcceptedCommand(
 
 	const result = await dependencies.commandStore.finalizeRequest(finalized.write);
 	if (result.outcome === "applied") {
-		await recordTransportError(service, {
-			context,
-			transportError: input.transportError ?? null,
-		});
-		const stageTiming = finalized.write.requestObservabilityFact.stageTiming;
-		await telemetry?.recordRequestFinalized({
-			conversationId: context.conversation.id,
-			durationMs,
+		telemetry?.configureRequestOutcome({
 			errorCode: finalized.write.turnDispatch.errorCode,
-			modelUsage: input.executionResponse.modelUsage,
-			principalType: context.input.principal.principal.type,
 			requestId: context.requestId,
-			retryable: finalized.write.assistantMessage.retryable,
-			safetyIdentifier: context.safetyIdentifier,
-			sourceDocIds: extractSourceDocIds(input.executionResponse.result),
-			...(stageTiming === undefined ? {} : { stageTiming }),
 			status: finalized.write.turnDispatch.status as
 				| "completed"
 				| "error"
@@ -225,7 +210,6 @@ export async function finalizeAdmissionFailure(
 		context: acceptedCloseoutContext(candidate),
 		executionResponse: response,
 		finalizationFingerprint,
-		transportError: { code: input.errorCode, retryable: false },
 	});
 }
 
@@ -334,27 +318,4 @@ function isExactFinalizationReplay(
 		throw new ChatFinalizationConflict();
 	}
 	return true;
-}
-
-async function recordTransportError(
-	service: ChatCommandServiceContext,
-	input: {
-		context: AcceptedChatCommandContext;
-		transportError: { code: string; retryable: boolean } | null;
-	},
-): Promise<void> {
-	if (!input.transportError) {
-		return;
-	}
-
-	await service.telemetry?.recordRequestTransportError({
-		conversationId: input.context.conversation.id,
-		errorCode: input.transportError.code,
-		principalType: input.context.input.principal.principal.type,
-		requestId: input.context.requestId,
-		safetyIdentifier: input.context.safetyIdentifier,
-		retryable: input.transportError.retryable,
-		surface: input.context.surface,
-		traceId: input.context.traceId,
-	});
 }

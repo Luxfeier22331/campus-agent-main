@@ -3,7 +3,6 @@
 import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
 import { describe, expect, it } from "vitest";
 import {
-	toAxiomExternalLink,
 	toLangfuseExternalLink,
 	toSentryExternalLink,
 	toTemporalExternalLink,
@@ -47,13 +46,10 @@ describe("Ops external links", () => {
 		});
 	});
 
-	it("keeps configured Axiom and Sentry links HTTPS-only", () => {
-		expect(toAxiomExternalLink({ axiom: "https://app.axiom.co/org/example" })).toMatchObject({
-			source: "AXIOM",
-		});
+	it("keeps the configured Sentry link HTTPS-only", () => {
 		expect(
 			toSentryExternalLink({ sentry: "https://sentry.example.test/explore/traces" }),
 		).toMatchObject({ source: "SENTRY" });
-		expect(toAxiomExternalLink({ axiom: "javascript:alert(1)" })).toBeNull();
+		expect(toSentryExternalLink({ sentry: "javascript:alert(1)" })).toBeNull();
 	});
 });

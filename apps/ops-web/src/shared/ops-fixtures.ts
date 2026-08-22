@@ -1,5 +1,4 @@
 import type {
-	OpsObservabilityResponse,
 	OpsOverviewResponse,
 	OpsRequestDetailResponse,
 	OpsRequestListResponse,
@@ -292,12 +291,6 @@ export const opsOverviewFixture = {
 			label: "Langfuse",
 			source: "LANGFUSE",
 		},
-		{
-			href: "https://axiom.example.test",
-			isAvailable: true,
-			label: "Axiom",
-			source: "AXIOM",
-		},
 	],
 	generatedAt: now,
 	health: {
@@ -364,32 +357,6 @@ export const opsOverviewFixture = {
 	},
 	window: "1h",
 } satisfies OpsOverviewResponse;
-
-export const opsLogObservabilityFixture = {
-	dataState: "FRESH",
-	from: "2026-07-09T06:24:00.000Z",
-	kind: "logs",
-	limit: 200,
-	queriedAt: now,
-	queryDurationMs: 42,
-	records: [
-		{
-			durationMs: 1430,
-			errorCode: null,
-			eventType: "request.finalized",
-			requestId: "req_ops_001",
-			serviceName: "app-api",
-			severityText: "INFO",
-			source: "app-api.runtime",
-			status: "completed",
-			timestamp: "2026-07-09T06:29:04.000Z",
-		},
-	],
-	requestId: "req_ops_001",
-	source: "AXIOM",
-	to: "2026-07-09T06:34:04.000Z",
-	truncated: false,
-} satisfies OpsObservabilityResponse;
 
 export const opsSentryIssuesFixture = {
 	dataState: "FRESH",

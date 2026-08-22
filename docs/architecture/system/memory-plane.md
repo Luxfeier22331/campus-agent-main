@@ -84,9 +84,9 @@ ID。`DeleteDocument` 同步删除来源文档及其 memory units；后续 conso
 
 ## 投影与数据最小化
 
-execution-control 可以保存 bank/document identity、generation fence 和 command receipt。浏览器、
-student run-step 和 Axiom application logs 不得保存原始 bank/document/operation ID、provider payload
-或 memory 正文；允许保存公共状态、计数、hash、timing 和 failure kind。
+execution-control 可以保存 bank/document identity、generation fence 和 command receipt。浏览器与
+student run-step 不得保存原始 bank/document/operation ID、provider payload 或 memory 正文；允许保存
+公共状态、计数、hash、timing 和 failure kind。
 
 Langfuse Agent trace 可以记录实际可见工具名和有界结果状态，但不记录 Hindsight metadata、
 `memory_text`、工具输入输出或模型输入输出。Hindsight 不发送新的 Langfuse trace；具体字段边界见

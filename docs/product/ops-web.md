@@ -13,7 +13,7 @@ status: active
 `dining.md`。本文不固定组件库、数据库结构、供应商配置或部署参数。
 共同的信息层级、状态、响应式和无障碍底线由 [ui.md](./ui.md) 维护。
 
-Ops Web 不替代 Temporal、Langfuse、Sentry、Axiom 的完整平台界面，也不是数据库浏览器、通用
+Ops Web 不替代 Temporal、Langfuse、Sentry 的完整平台界面，也不是数据库浏览器、通用
 Secret 管理器或任意工作流控制台。
 
 ## 查看运行概况
@@ -35,8 +35,8 @@ Secret 管理器或任意工作流控制台。
 - 查看失败、等待用户或终态缺少会话结果等需要关注的运行；
 - 按时间、状态、关键词和已知关联标识筛选，并通过 URL 保留查询；
 - 查看完整用户问题、产品结果、公开来源、阶段耗时、有限 Agent 用量和安全关联标识；
-- 按需加载固定范围的应用日志或 Sentry Issue；
-- 进入已配置的 Temporal、Langfuse、Sentry 或 Axiom 平台查看完整信息。
+- 按需加载固定范围的 Sentry Issue；
+- 进入已配置的 Temporal、Langfuse 或 Sentry 平台查看完整信息。
 
 运行详情先展示用户结果，再提供独立的系统记录区域。页面不能根据外部记录推断根因、自动生成结论，
 也不能用日志或 trace 改写持久产品状态。未加载的外部来源不自动查询；失败、无记录和部分响应分别

@@ -58,7 +58,6 @@ export {
 	putExecutionModelSetting,
 } from "./ops-api/model-settings";
 export {
-	fetchOpsObservability,
 	fetchOpsOverview,
 	fetchOpsRequestDetail,
 	fetchOpsRequests,

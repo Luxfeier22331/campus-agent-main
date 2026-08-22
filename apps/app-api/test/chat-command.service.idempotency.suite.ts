@@ -88,12 +88,13 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				status: "rejected",
 			},
 		});
-		expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
+		expect(telemetry.configureRequestOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({
 				errorCode: "rate_limit_exceeded",
 				requestId: "req_0001",
-				safetyIdentifier: expectedSafetyIdentifier,
 				status: "rejected",
+				surface: "campus_web",
+				traceId: "trace_0001",
 			}),
 		);
 	});
@@ -143,7 +144,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		expect(store.markAdmitted).toHaveBeenCalledOnce();
 		expect(store.releaseAdmission).not.toHaveBeenCalled();
 		expect(finalWrites).toHaveLength(0);
-		expect(telemetry.recordRequestFinalized).not.toHaveBeenCalled();
+		expect(telemetry.configureRequestOutcome).not.toHaveBeenCalled();
 	});
 
 	it("releases unexpected admission exceptions for idempotent retry", async () => {
@@ -173,7 +174,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 
 		expect(store.releaseAdmission).toHaveBeenCalledOnce();
 		expect(finalWrites).toHaveLength(0);
-		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
+		expect(telemetry.configureRequestOutcome).not.toHaveBeenCalled();
 	});
 
 	it("replays a completed idempotent request and blocks conflicts or in-flight duplicates", async () => {

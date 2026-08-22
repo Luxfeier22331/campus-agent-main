@@ -37,7 +37,7 @@ execution-control 不创建 OTel exporter、编排 span 或 runtime metric；Tem
 投影和 Hindsight 业务调用不依赖 trace export。Hindsight 不产生新的 Langfuse trace。
 
 源码本地 Collector 只有一个 Agent trace pipeline：debug 配置写 debug exporter，prodlike 配置写
-Langfuse。它不向 Axiom 复制 trace，也不接收 execution-control、Hindsight、日志或指标。环境部署
+Langfuse。它不接收 execution-control、Hindsight、日志或指标。环境部署
 是否使用 Collector 由环境仓决定，源码配置存在不证明某个环境已启用。
 
 ## Trace 数据
@@ -62,10 +62,8 @@ producer-side sanitizer 只允许严格的 `true`，拒绝其他值和其他 `la
 字段准入的可执行来源是 `apps/agent-runtime/src/telemetry-sanitizer.ts` 及其测试，不能通过 Collector
 transform 恢复 producer 已删除的内容。
 
-产品 `requestId` 是日志和产品投影的持久业务键；传输层 trace ID 不承担业务标识职责，产品
-`traceId` 只用于关联和展示。Langfuse trace
-是否存在、采样、延迟或保留状态都不能改写产品终态，也不能要求 Ops Web 同时用两个 ID 过滤 Axiom
-application logs。
+产品 `requestId` 是产品投影的持久业务键；传输层 trace ID 不承担业务标识职责，产品 `traceId`
+只用于关联和展示。Langfuse trace 是否存在、采样、延迟或保留状态都不能改写产品终态。
 
 ## 评测与评分
 

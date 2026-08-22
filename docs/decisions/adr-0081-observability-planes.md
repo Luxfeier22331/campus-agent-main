@@ -5,9 +5,14 @@ decision_id: ADR-0081
 status: accepted
 supersedes:
   - ADR-0067
+partially_superseded_by: ADR-0092
 ---
 
 # ADR-0081：可观测数据边界
+
+本 ADR 关于 Axiom application logs、Cloudflare log destination 和 Ops Web 固定日志查询的决定已由
+[ADR-0092](./adr-0092-retire-axiom.md) 取代；其余 PostgreSQL、Temporal、Sentry、Langfuse、数据最小化
+和无消费者信号删除原则继续有效。
 
 ## 背景
 

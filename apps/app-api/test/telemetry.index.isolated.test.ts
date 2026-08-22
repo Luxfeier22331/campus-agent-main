@@ -17,7 +17,6 @@ const sentryMocks = vi.hoisted(() => ({
 
 vi.mock("@sentry/cloudflare", () => sentryMocks);
 
-import * as telemetryModule from "../src/modules/telemetry";
 import { createAppTelemetry } from "../src/modules/telemetry";
 import {
 	applyTracePropagationHeaders,
@@ -31,8 +30,6 @@ interface LangfuseTraceIdVector {
 	product_trace_id: string;
 	traceparent: string;
 }
-
-const TEST_TELEMETRY_ENV = { DEPLOYMENT_ENVIRONMENT: "test" };
 
 function langfuseTraceIdVectors(): LangfuseTraceIdVector[] {
 	const fixturePath = resolve(
@@ -59,27 +56,54 @@ describe("app telemetry", () => {
 		);
 	});
 
-	it("keeps the request path non-blocking when configureChatRequestScope hits a sentry error", () => {
+	it("keeps request scope updates non-blocking when Sentry fails", () => {
 		sentryMocks.setTag.mockImplementation(() => {
 			throw new Error("sentry setTag failed");
 		});
-
-		const telemetry = createAppTelemetry(TEST_TELEMETRY_ENV, {
-			runtimeEventSink: { emit: vi.fn() },
-		});
+		const telemetry = createAppTelemetry();
 
 		expect(() =>
 			telemetry.configureChatRequestScope({
-				actor: {
-					principalType: "campus_member",
-					subject: "user_01",
-				},
-				conversationId: "conv_01",
 				requestId: "req_01",
 				surface: "campus_web",
 				traceId: "trace_01",
 			}),
 		).not.toThrow();
+		expect(() =>
+			telemetry.configureRequestOutcome({
+				errorCode: "execution_timeout",
+				requestId: "req_01",
+				status: "error",
+				surface: "campus_web",
+				traceId: "trace_01",
+			}),
+		).not.toThrow();
+	});
+
+	it("configures only bounded request and outcome tags in Sentry", () => {
+		const telemetry = createAppTelemetry();
+
+		telemetry.configureChatRequestScope({
+			requestId: "req_01",
+			surface: "campus_web",
+			traceId: "trace_01",
+		});
+		telemetry.configureRequestOutcome({
+			errorCode: "execution_timeout",
+			requestId: "req_01",
+			status: "error",
+			surface: "campus_web",
+			traceId: "trace_01",
+		});
+
+		expect(sentryMocks.setTag).toHaveBeenCalledWith("campus.request_id", "req_01");
+		expect(sentryMocks.setTag).toHaveBeenCalledWith("campus.trace_id", "trace_01");
+		expect(sentryMocks.setTag).toHaveBeenCalledWith("surface", "campus_web");
+		expect(sentryMocks.setTag).toHaveBeenCalledWith("status", "error");
+		expect(sentryMocks.setTag).toHaveBeenCalledWith("error_code", "execution_timeout");
+		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("principal_type", expect.anything());
+		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("safety_identifier", expect.anything());
+		expect(sentryMocks.setContext).not.toHaveBeenCalled();
 	});
 
 	it("derives deterministic Langfuse-compatible trace ids from product trace ids", async () => {
@@ -129,145 +153,5 @@ describe("app telemetry", () => {
 			applyTracePropagationHeaders(headers, { traceParent });
 			expect(headers.has("traceparent")).toBe(false);
 		}
-	});
-
-	it("keeps product identity out of Sentry while emitting the bounded runtime envelope", async () => {
-		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
-		const telemetry = createAppTelemetry(
-			{
-				DEPLOYMENT_ENVIRONMENT: "staging",
-				DEPLOYMENT_RELEASE: "app-api@2026.04.20",
-			},
-			{
-				runtimeEventSink,
-				now: () => new Date("2026-04-20T12:30:00.000Z"),
-			},
-		);
-		const safetyIdentifier = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-		telemetry.configureChatRequestScope({
-			actor: {
-				principalType: "campus_member",
-				subject: "user_01",
-			},
-			conversationId: "conv_01",
-			requestId: "req_01",
-			safetyIdentifier,
-			surface: "campus_web",
-			traceId: "trace_01",
-		});
-
-		await telemetry.recordRequestAccepted({
-			actor: {
-				principalType: "campus_member",
-				subject: "user_01",
-			},
-			conversationId: "conv_01",
-			requestId: "req_01",
-			safetyIdentifier,
-			status: "accepted",
-			surface: "campus_web",
-			traceId: "trace_01",
-		});
-
-		expect(sentryMocks.setTag).toHaveBeenCalledWith("campus.request_id", "req_01");
-		expect(sentryMocks.setTag).toHaveBeenCalledWith("campus.trace_id", "trace_01");
-		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("safety_identifier", safetyIdentifier);
-		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("principal_type", "campus_member");
-		expect(sentryMocks.setContext).not.toHaveBeenCalled();
-		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("correlation_hash", expect.any(String));
-		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
-			expect.objectContaining({
-				environment: "staging",
-				event_type: "request.accepted",
-				occurred_at: "2026-04-20T12:30:00.000Z",
-				principal_type: "campus_member",
-				"campus.request_id": "req_01",
-				"campus.trace_id": "trace_01",
-				release: "app-api@2026.04.20",
-			}),
-		);
-		expect(runtimeEventSink.emit).not.toHaveBeenCalledWith(
-			expect.objectContaining({ safety_identifier: safetyIdentifier }),
-		);
-	});
-
-	it("does not fail request-path telemetry when runtime event ingest fails", async () => {
-		const telemetry = createAppTelemetry(
-			{
-				DEPLOYMENT_ENVIRONMENT: "test",
-			},
-			{
-				runtimeEventSink: {
-					emit: vi.fn().mockRejectedValue(new Error("Network connection lost.")),
-				},
-			},
-		);
-
-		await expect(
-			telemetry.recordRequestAccepted({
-				actor: {
-					principalType: "campus_member",
-					subject: "user_01",
-				},
-				conversationId: "conv_01",
-				requestId: "req_01",
-				safetyIdentifier: "safety_01",
-				status: "accepted",
-				surface: "campus_web",
-				traceId: "trace_01",
-			}),
-		).resolves.toBeUndefined();
-	});
-
-	it("folds only canonical stage timing into the single finalization log", async () => {
-		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
-		const telemetry = createAppTelemetry(
-			{
-				DEPLOYMENT_ENVIRONMENT: "staging",
-				DEPLOYMENT_RELEASE: "app-api@2026.07.04",
-			},
-			{
-				runtimeEventSink,
-				now: () => new Date("2026-07-04T12:30:00.000Z"),
-			},
-		);
-
-		await telemetry.recordRequestFinalized({
-			conversationId: "conv_01",
-			durationMs: 5500,
-			errorCode: null,
-			modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
-			principalType: "campus_member",
-			requestId: "req_01",
-			retryable: null,
-			safetyIdentifier: null,
-			sourceDocIds: [],
-			stageTiming: {
-				"stream.app_api_ttft_ms": 5500,
-				"provider.queue_ms": 900,
-			},
-			status: "completed",
-			surface: "campus_web",
-			traceId: "trace_01",
-		});
-
-		expect(runtimeEventSink.emit).toHaveBeenCalledTimes(1);
-		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
-			expect.objectContaining({
-				duration_ms: 5500,
-				event_type: "request.finalized",
-				"campus.request_id": "req_01",
-				stage_timing_budget_state: "critical",
-				"stream.app_api_ttft_ms": 5500,
-			}),
-		);
-		expect(runtimeEventSink.emit.mock.calls[0]?.[0]).not.toHaveProperty("provider.queue_ms");
-	});
-
-	it("does not expose a direct Axiom REST ingest adapter from the telemetry module", () => {
-		expect("createAxiomRuntimeEventSink" in telemetryModule).toBe(false);
-		expect("sanitizeAxiomEventPayload" in telemetryModule).toBe(false);
-		expect("LEGACY_AXIOM_ALLOWED_EVENT_TYPES" in telemetryModule).toBe(false);
 	});
 });

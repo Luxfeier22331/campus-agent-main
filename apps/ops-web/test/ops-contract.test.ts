@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
 } from "../src/shared/ops-contract";
 import {
-	opsLogObservabilityFixture,
 	opsOverviewFixture,
 	opsRequestDetailFixture,
 	opsRequestListFixture,
@@ -46,15 +44,6 @@ describe("ops-web contract fixtures", () => {
 		expect(parsed).not.toHaveProperty("services");
 		expect(parsed).not.toHaveProperty("temporal");
 		expect(parsed).not.toHaveProperty("telemetry");
-	});
-
-	it("validates bounded Axiom log results", () => {
-		const logs = OpsObservabilityResponseSchema.parse(opsLogObservabilityFixture);
-		expect(logs).toMatchObject({ kind: "logs", limit: 200, source: "AXIOM" });
-		expect(logs.records[0]).toMatchObject({
-			eventType: "request.finalized",
-			requestId: "req_ops_001",
-		});
 	});
 
 	it("rejects non-HTTPS external links", () => {

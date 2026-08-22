@@ -15,7 +15,6 @@ export interface DurableRunCreateResult {
 	admissionFailure: { workflowId: string } | null;
 	pendingAdmission: boolean;
 	response: ToolExecutionResponse | null;
-	transportError: { code: string; retryable: boolean } | null;
 }
 
 export async function createDurableRunForAcceptedCommand(
@@ -28,7 +27,6 @@ export async function createDurableRunForAcceptedCommand(
 			admissionFailure: null,
 			pendingAdmission: false,
 			response: null,
-			transportError: null,
 		};
 	}
 	if (!(context.runId && context.turnId && context.frozenAdmission)) {
@@ -180,7 +178,6 @@ export async function createDurableRunForAcceptedCommand(
 					admissionFailure: null,
 					pendingAdmission: false,
 					response: null,
-					transportError: null,
 				};
 			}
 			await dependencies.admissionStore.releaseAdmission({
@@ -212,7 +209,6 @@ export async function createDurableRunForAcceptedCommand(
 			admissionFailure: null,
 			pendingAdmission: false,
 			response: null,
-			transportError: null,
 		};
 	} catch (error) {
 		const handled = toHandledErrorTransportOutcome(error);
@@ -229,10 +225,6 @@ export async function createDurableRunForAcceptedCommand(
 						traceId: context.traceId,
 					}
 				: null,
-			transportError: {
-				code: handled.error.code,
-				retryable: admissionFailure ? false : handled.error.retryable,
-			},
 		};
 	}
 }

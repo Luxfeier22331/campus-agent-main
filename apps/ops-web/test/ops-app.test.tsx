@@ -4,10 +4,10 @@ import { OpsApiError } from "../src/app/ops-api-client";
 import { CopyableValue, ErrorState, StatusBadge } from "../src/app/ops-display";
 import { OpsWebApp } from "../src/app/ops-web-app";
 import {
-	opsLogObservabilityFixture,
 	opsOverviewFixture,
 	opsRequestDetailFixture,
 	opsRequestListFixture,
+	opsSentryIssuesFixture,
 } from "../src/shared/ops-fixtures";
 
 describe("OpsWebApp", () => {
@@ -547,18 +547,11 @@ describe("OpsWebApp", () => {
 		expect(screen.getByText("trace_ops_001")).toHaveClass("truncate", "font-mono");
 		expect(screen.getByText("Agent 运行时")).toBeInTheDocument();
 		expect(await screen.findByText("openai_agents_sdk")).toBeInTheDocument();
-		expect(
-			screen.getByRole("heading", { name: "应用日志（Axiom）" }).closest('[data-slot="card"]'),
-		).toBeNull();
 		fireEvent.click(screen.getByRole("button", { name: "复制 requestId" }));
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("req_ops_001");
+		expect(screen.queryByRole("button", { name: /应用日志/u })).not.toBeInTheDocument();
 		expect(screen.queryByRole("list", { name: "应用日志" })).not.toBeInTheDocument();
-		fireEvent.click(await screen.findByRole("button", { name: "加载应用日志（Axiom）" }));
 		fireEvent.click(await screen.findByRole("button", { name: "加载 Sentry 错误记录" }));
-		expect(await screen.findByRole("list", { name: "应用日志" })).toHaveTextContent(
-			"request.finalized",
-		);
-		expect(screen.getByRole("list", { name: "应用日志" }).querySelector("pre")).toBeNull();
 		expect(await screen.findByRole("list", { name: "Sentry Issue 摘要" })).toHaveTextContent(
 			"Request execution failed",
 		);
@@ -566,9 +559,6 @@ describe("OpsWebApp", () => {
 			"href",
 			"https://sentry.example.test/organizations/campus/issues/450001/",
 		);
-		expect(screen.getByTestId("observability-record-viewport-logs")).toHaveStyle({
-			height: "160px",
-		});
 		expect(screen.getByRole("link", { name: "Temporal 工作流" })).toHaveAttribute(
 			"rel",
 			"noreferrer",
@@ -614,9 +604,9 @@ describe("OpsWebApp", () => {
 		}
 	});
 
-	it("loads each external record source only on demand", async () => {
+	it("loads and refreshes Sentry records only on demand", async () => {
 		const originalFetch = globalThis.fetch;
-		let observabilityCalls = 0;
+		let sentryCalls = 0;
 		let resolveRefresh!: (response: Response) => void;
 		const refreshResponse = new Promise<Response>((resolve) => {
 			resolveRefresh = resolve;
@@ -624,9 +614,9 @@ describe("OpsWebApp", () => {
 		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url =
 				typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-			if (url.includes("/api/ops/requests/req_ops_001/observability")) {
-				observabilityCalls += 1;
-				if (observabilityCalls === 2) {
+			if (url.includes("/api/ops/requests/req_ops_001/sentry-issues")) {
+				sentryCalls += 1;
+				if (sentryCalls === 2) {
 					return refreshResponse;
 				}
 			}
@@ -636,23 +626,23 @@ describe("OpsWebApp", () => {
 		try {
 			render(<OpsWebApp initialPath="/requests/req_ops_001/system" />);
 			expect(await screen.findByRole("heading", { name: "系统记录" })).toBeInTheDocument();
-			expect(observabilityCalls).toBe(0);
-			expect(screen.queryByText(/正在读取应用日志/u)).not.toBeInTheDocument();
-			fireEvent.click(await screen.findByRole("button", { name: "加载应用日志（Axiom）" }));
-			await waitFor(() => expect(observabilityCalls).toBe(1));
-			expect(await screen.findByRole("list", { name: "应用日志" })).toHaveTextContent(
-				"request.finalized",
+			expect(sentryCalls).toBe(0);
+			expect(screen.queryByText(/正在读取 Sentry/u)).not.toBeInTheDocument();
+			fireEvent.click(await screen.findByRole("button", { name: "加载 Sentry 错误记录" }));
+			await waitFor(() => expect(sentryCalls).toBe(1));
+			expect(await screen.findByRole("list", { name: "Sentry Issue 摘要" })).toHaveTextContent(
+				"Request execution failed",
 			);
-			expect(observabilityCalls).toBe(1);
+			expect(sentryCalls).toBe(1);
 
-			const refresh = screen.getByRole("button", { name: "刷新应用日志（Axiom）" });
+			const refresh = screen.getByRole("button", { name: "刷新错误记录（Sentry）" });
 			fireEvent.click(refresh);
-			await waitFor(() => expect(observabilityCalls).toBe(2));
+			await waitFor(() => expect(sentryCalls).toBe(2));
 			expect(refresh).toBeDisabled();
 			expect(refresh).toHaveAttribute("aria-busy", "true");
 			expect(refresh).toHaveTextContent("刷新中");
 
-			resolveRefresh(Response.json(opsLogObservabilityFixture));
+			resolveRefresh(Response.json(opsSentryIssuesFixture));
 			await waitFor(() => expect(refresh).toBeEnabled());
 			expect(refresh).toHaveAttribute("aria-busy", "false");
 			expect(refresh).toHaveTextContent("刷新");

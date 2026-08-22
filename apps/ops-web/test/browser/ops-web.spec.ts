@@ -186,10 +186,7 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	const externalRecordRequests: string[] = [];
 	page.on("request", (request) => {
 		const url = new URL(request.url());
-		if (
-			url.pathname === "/api/ops/requests/req_ops_001/observability" ||
-			url.pathname === "/api/ops/requests/req_ops_001/sentry-issues"
-		) {
+		if (url.pathname === "/api/ops/requests/req_ops_001/sentry-issues") {
 			externalRecordRequests.push(`${url.pathname}${url.search}`);
 		}
 	});
@@ -260,20 +257,11 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	await page.getByRole("link", { name: "系统记录" }).click();
 	await expect(page).toHaveURL(/\/requests\/req_ops_001\/system/u);
 	await expect(page.getByRole("heading", { name: "系统记录" })).toBeVisible();
-	await expect(page.getByRole("button", { name: "加载应用日志（Axiom）" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "加载 Sentry 错误记录" })).toBeVisible();
+	await expect(page.getByRole("button", { name: /应用日志/u })).toHaveCount(0);
 	await expect(page.getByText(/正在读取/u)).toHaveCount(0);
 	expect(externalRecordRequests).toEqual([]);
-	await page.getByRole("button", { name: "加载应用日志（Axiom）" }).click();
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
-	const logViewport = page.getByTestId("observability-record-viewport-logs");
-	const logList = page.getByRole("list", { name: "应用日志" });
-	await expect(logList).toContainText("request.finalized");
-	await logViewport.evaluate((element) => {
-		element.scrollTop = element.scrollHeight;
-		element.dispatchEvent(new Event("scroll"));
-	});
-	await expect(logList).toContainText("request.event.29");
 	const sentryIssues = page.getByRole("list", { name: "Sentry Issue 摘要" });
 	await expect(sentryIssues).toContainText("Request execution failed");
 	await expect(sentryIssues).toContainText("3 个事件");
@@ -287,12 +275,7 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	if (page.viewportSize()?.width === 320 || page.viewportSize()?.width === 1440) {
 		await expectNoAccessibilityViolations(page);
 	}
-	expect([...externalRecordRequests].sort()).toEqual(
-		[
-			"/api/ops/requests/req_ops_001/observability?kind=logs",
-			"/api/ops/requests/req_ops_001/sentry-issues",
-		].sort(),
-	);
+	expect(externalRecordRequests).toEqual(["/api/ops/requests/req_ops_001/sentry-issues"]);
 	await expectStableViewport(page, errors);
 });
 
@@ -340,26 +323,26 @@ test("六类运行记录保留产品状态、会话结果和 Agent 用量语义"
 	await expectStableViewport(page, errors);
 });
 
-test("单一观测来源失败时保留其他系统记录", async ({ page }) => {
+test("Sentry 读取失败时保留系统技术摘要", async ({ page }) => {
 	if (page.viewportSize()?.width !== 1440) {
 		return;
 	}
 	const errors = captureRuntimeErrors(page);
-	await page.route("**/api/ops/requests/req_ops_001/observability?kind=logs", async (route) => {
+	await page.route("**/api/ops/requests/req_ops_001/sentry-issues", async (route) => {
 		await route.fulfill({
-			body: JSON.stringify({ code: "AXIOM_UNAVAILABLE", message: "应用日志暂时不可用。" }),
+			body: JSON.stringify({
+				error: { code: "OPS_SENTRY_UNAVAILABLE", message: "Sentry 暂时不可用。" },
+			}),
 			contentType: "application/json",
 			status: 503,
 		});
 	});
 	await page.goto("/requests/req_ops_001/system");
 
-	await page.getByRole("button", { name: "加载应用日志（Axiom）" }).click();
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
-	await expect(page.getByText("应用日志（Axiom）读取失败")).toBeVisible();
-	await expect(page.getByRole("list", { name: "Sentry Issue 摘要" })).toContainText(
-		"Request execution failed",
-	);
+	await expect(page.getByText("Sentry 记录读取失败")).toBeVisible();
+	await expect(page.getByText("trace_ops_001")).toBeVisible();
+	await expect(page.getByText("Agent 运行时")).toBeVisible();
 	await expectStableViewport(page, errors, ["503 (Service Unavailable)"]);
 });
 
@@ -368,10 +351,8 @@ test("系统记录不会串到其他运行", async ({ page }) => {
 	await page.goto("/requests/req_ops_003/system");
 
 	await expect(page.getByRole("heading", { name: "系统记录" })).toBeVisible();
-	await page.getByRole("button", { name: "加载应用日志（Axiom）" }).click();
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
 	await expect(page.getByText("当前运行没有关联的 Sentry Issue。")).toBeVisible();
-	await expect(page.getByText("当前运行没有匹配的应用日志。")).toBeVisible();
 	await expect(page.getByText("req_ops_001")).toHaveCount(0);
 	await expect(page.getByText("trace_ops_001")).toHaveCount(0);
 	await expectStableViewport(page, errors);

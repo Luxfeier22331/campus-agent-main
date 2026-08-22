@@ -1,20 +1,11 @@
 import { Button } from "@campus-agent/ui";
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowLeft, ExternalLink, RefreshCw } from "lucide-react";
-import { useRef, useState } from "react";
-import type {
-	OpsObservabilityResponse,
-	OpsRequestDetailResponse,
-	OpsSentryIssuesResponse,
-} from "../shared/ops-contract";
+import { useState } from "react";
+import type { OpsRequestDetailResponse, OpsSentryIssuesResponse } from "../shared/ops-contract";
 import { formatDuration, formatTimestamp } from "./format";
-import {
-	fetchOpsObservability,
-	fetchOpsRequestDetail,
-	fetchOpsSentryIssues,
-} from "./ops-api/observability";
+import { fetchOpsRequestDetail, fetchOpsSentryIssues } from "./ops-api/observability";
 import {
 	CopyableKeyValue,
 	ErrorState,
@@ -26,8 +17,6 @@ import {
 import { formatOpsDomainValue } from "./ops-domain-labels";
 import { formatDataStateLabel } from "./ops-view-helpers";
 
-type SystemSource = "logs" | "sentry";
-
 export function RequestSystemPage({
 	from,
 	requestId,
@@ -35,8 +24,8 @@ export function RequestSystemPage({
 	from?: string | undefined;
 	requestId: string;
 }) {
-	const [sourceSelection, setSourceSelection] = useState({
-		loaded: { logs: false, sentry: false },
+	const [sentrySelection, setSentrySelection] = useState({
+		loaded: false,
 		requestId,
 	});
 	const detail = useQuery({
@@ -66,19 +55,7 @@ export function RequestSystemPage({
 		return <PageShell title="系统记录">正在读取系统记录...</PageShell>;
 	}
 
-	const loaded =
-		sourceSelection.requestId === requestId
-			? sourceSelection.loaded
-			: { logs: false, sentry: false };
-	const load = (source: SystemSource) => {
-		setSourceSelection((current) => ({
-			loaded: {
-				...(current.requestId === requestId ? current.loaded : { logs: false, sentry: false }),
-				[source]: true,
-			},
-			requestId,
-		}));
-	};
+	const sentryLoaded = sentrySelection.requestId === requestId && sentrySelection.loaded;
 
 	return (
 		<section>
@@ -112,15 +89,8 @@ export function RequestSystemPage({
 			<div className="mt-8 divide-y divide-border border-border border-y">
 				<SentryIssuesPanel
 					detail={detail.data}
-					enabled={loaded.sentry}
-					onLoad={() => load("sentry")}
-				/>
-				<ObservabilityPanel
-					detail={detail.data}
-					enabled={loaded.logs}
-					kind="logs"
-					onLoad={() => load("logs")}
-					title="应用日志（Axiom）"
+					enabled={sentryLoaded}
+					onLoad={() => setSentrySelection({ loaded: true, requestId })}
 				/>
 			</div>
 		</section>
@@ -286,52 +256,6 @@ function SentryIssueResults({ data, stale }: { data: OpsSentryIssuesResponse; st
 	);
 }
 
-function ObservabilityPanel({
-	detail,
-	enabled,
-	kind,
-	onLoad,
-	title,
-}: {
-	detail: OpsRequestDetailResponse;
-	enabled: boolean;
-	kind: "logs";
-	onLoad: () => void;
-	title: string;
-}) {
-	const query = useQuery({
-		enabled,
-		queryFn: ({ signal }) => fetchOpsObservability(detail.request.requestId, kind, { signal }),
-		queryKey: ["ops", "observability", detail.request.requestId, kind],
-		refetchInterval: detail.request.lifecyclePhase === "FINISHED" ? false : 30_000,
-		refetchIntervalInBackground: false,
-		staleTime: Number.POSITIVE_INFINITY,
-	});
-	return (
-		<RecordSourceSection
-			enabled={enabled}
-			loadLabel={`加载${title}`}
-			onLoad={onLoad}
-			onRefresh={() => void query.refetch()}
-			refreshing={query.isFetching}
-			title={title}
-		>
-			<ExternalQueryState query={query} title={title}>
-				{query.data ? (
-					<>
-						<RecordMetadata
-							count={query.data.records.length}
-							data={query.data}
-							stale={query.isRefetchError}
-						/>
-						<VirtualRecordList response={query.data} />
-					</>
-				) : null}
-			</ExternalQueryState>
-		</RecordSourceSection>
-	);
-}
-
 function RecordSourceSection({
 	children,
 	enabled,
@@ -421,7 +345,7 @@ function RecordMetadata({
 }: {
 	count: number;
 	data: Pick<
-		OpsObservabilityResponse | OpsSentryIssuesResponse,
+		OpsSentryIssuesResponse,
 		"dataState" | "from" | "queriedAt" | "queryDurationMs" | "to" | "truncated"
 	>;
 	stale: boolean;
@@ -443,87 +367,6 @@ function RecordMetadata({
 			<p>
 				时间范围：{formatTimestamp(data.from)} 至 {formatTimestamp(data.to)}
 			</p>
-		</div>
-	);
-}
-
-function VirtualRecordList({ response }: { response: OpsObservabilityResponse }) {
-	const parentRef = useRef<HTMLDivElement>(null);
-	const viewportHeight = Math.min(420, Math.max(160, response.records.length * 144));
-	const virtualizer = useVirtualizer({
-		count: response.records.length,
-		estimateSize: () => 144,
-		getScrollElement: () => parentRef.current,
-		initialRect: { height: viewportHeight, width: 720 },
-		overscan: 6,
-	});
-	const virtualItems = virtualizer.getVirtualItems();
-	if (response.records.length === 0) {
-		return (
-			<p className="border-border border-y bg-secondary p-4 text-muted-foreground text-sm">
-				当前运行没有匹配的应用日志。
-			</p>
-		);
-	}
-	return (
-		<div
-			className="overflow-auto border border-foreground bg-foreground text-background"
-			data-testid={`observability-record-viewport-${response.kind}`}
-			ref={parentRef}
-			style={{ height: `${viewportHeight}px` }}
-		>
-			<ul
-				aria-label="应用日志"
-				className="relative w-full"
-				style={{ height: `${virtualizer.getTotalSize()}px` }}
-			>
-				{virtualItems.length === 0 ? (
-					<li className="absolute left-0 top-0 w-full px-3 py-2">
-						<RecordRow index={0} response={response} />
-					</li>
-				) : (
-					virtualItems.map((item) => (
-						<li
-							className="absolute left-0 top-0 w-full px-3 py-2"
-							data-index={item.index}
-							key={item.key}
-							ref={virtualizer.measureElement}
-							style={{ transform: `translateY(${item.start}px)` }}
-						>
-							<RecordRow index={item.index} response={response} />
-						</li>
-					))
-				)}
-			</ul>
-		</div>
-	);
-}
-
-function RecordRow({ index, response }: { index: number; response: OpsObservabilityResponse }) {
-	const record = response.records[index];
-	return record ? <LogRecordRow record={record} /> : null;
-}
-
-type LogRecord = Extract<OpsObservabilityResponse, { kind: "logs" }>["records"][number];
-
-function LogRecordRow({ record }: { record: LogRecord }) {
-	return (
-		<div className="grid gap-2 border-background/20 border-b p-3 text-background/70 text-xs">
-			<div className="flex flex-wrap items-center gap-2">
-				<span className="font-medium text-background">{record.severityText ?? "UNKNOWN"}</span>
-				<span>{formatTimestamp(record.timestamp)}</span>
-				<span>{record.serviceName ?? "未知服务"}</span>
-			</div>
-			<p className="font-medium text-background">
-				{record.eventType ?? record.source ?? "未命名日志事件"}
-			</p>
-			<div className="flex flex-wrap gap-x-4 gap-y-1">
-				<span>状态：{record.status ?? "未记录"}</span>
-				<span>
-					耗时：{record.durationMs === null ? "未记录" : formatDuration(record.durationMs)}
-				</span>
-				<span>错误：{record.errorCode ?? "无"}</span>
-			</div>
 		</div>
 	);
 }

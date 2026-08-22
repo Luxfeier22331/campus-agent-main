@@ -136,24 +136,15 @@ export function createStatusWorker(dependencies: StatusWorkerDependencies = {}) 
 			});
 		},
 		async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-			try {
-				const config = resolveStatusRuntimeConfig(env);
-				const store = dependencies.store ?? resolveStore(env);
-				await runStatusCycle({
-					config,
-					fetchFn,
-					htmlParser: dependencies.htmlParser ?? parseCampusHtmlWithHtmlRewriter,
-					now: now(),
-					store,
-				});
-			} catch (error) {
-				console.error({
-					error_type: error instanceof Error ? error.name : "UnknownError",
-					event: "status.probe_cycle_failed",
-					source: "status-web.cron",
-				});
-				throw error;
-			}
+			const config = resolveStatusRuntimeConfig(env);
+			const store = dependencies.store ?? resolveStore(env);
+			await runStatusCycle({
+				config,
+				fetchFn,
+				htmlParser: dependencies.htmlParser ?? parseCampusHtmlWithHtmlRewriter,
+				now: now(),
+				store,
+			});
 		},
 	};
 }
@@ -214,20 +205,6 @@ export async function runStatusCycle(input: {
 		previous: await input.store.read(),
 	});
 	await input.store.write(snapshot);
-	console.log({
-		environment: input.config.environment,
-		event: "status.probe_cycle",
-		generated_at: snapshot.generatedAt,
-		observations: observations.map((observation) => ({
-			error: observation.errorKind,
-			http: observation.httpStatus,
-			latency_ms: observation.latencyMs,
-			probe: observation.probeId,
-			result: observation.status,
-			service: observation.serviceId,
-		})),
-		source: "status-web.cron",
-	});
 	return { observations, snapshot };
 }
 

@@ -1,7 +1,6 @@
 import type { Hono } from "hono";
 import { z } from "zod";
 import {
-	OpsObservabilityResponseSchema,
 	OpsOverviewResponseSchema,
 	OpsOverviewWindowSchema,
 	OpsRequestDetailResponseSchema,
@@ -10,7 +9,6 @@ import {
 	OpsRequestWindowSchema,
 	OpsSentryIssuesResponseSchema,
 } from "../../shared/ops-contract.ts";
-import type { AxiomClient } from "../axiom-client.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
 import type { OpsOverviewService } from "../ops-overview-service.ts";
 import { decodeRequestCursor } from "../ops-status-mappers.ts";
@@ -35,7 +33,6 @@ const RequestListQuerySchema = z
 	})
 	.strict();
 const OverviewQuerySchema = z.object({ window: OpsOverviewWindowSchema.default("1h") }).strict();
-const ObservabilityQuerySchema = z.object({ kind: z.literal("logs") }).strict();
 export function registerOverviewRoute(input: {
 	admission: OpsAdmission;
 	app: Hono;
@@ -62,11 +59,10 @@ export function registerOverviewRoute(input: {
 export function registerObservabilityRoutes(input: {
 	admission: OpsAdmission;
 	app: Hono;
-	axiom: AxiomClient;
 	sentry: SentryClient;
 	store: OpsStatusStore;
 }): void {
-	const { admission, app, axiom, sentry, store } = input;
+	const { admission, app, sentry, store } = input;
 	app.get("/api/ops/requests", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
@@ -112,32 +108,6 @@ export function registerObservabilityRoutes(input: {
 			return jsonError("OPS_REQUEST_NOT_FOUND", "未找到该请求。");
 		}
 		return context.json(OpsRequestDetailResponseSchema.parse(detail));
-	});
-
-	app.get("/api/ops/requests/:requestId/observability", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const requestId = context.req.param("requestId");
-		const parsedQuery = ObservabilityQuerySchema.safeParse(context.req.query());
-		if (!(OpsPathIdSchema.safeParse(requestId).success && parsedQuery.success)) {
-			return jsonError("OPS_INVALID_QUERY", "日志查询参数无效。", 400);
-		}
-		const detail = await store.getRequestDetail(requestId);
-		if (!detail) {
-			return jsonError("OPS_REQUEST_NOT_FOUND", "未找到该请求。");
-		}
-		const response = OpsObservabilityResponseSchema.parse(
-			await axiom.queryRequest({
-				completedAt: detail.request.completedAt,
-				kind: parsedQuery.data.kind,
-				requestId: detail.request.requestId,
-				signal: context.req.raw.signal,
-				startedAt: detail.request.startedAt,
-			}),
-		);
-		return context.json(response);
 	});
 
 	app.get("/api/ops/requests/:requestId/sentry-issues", async (context) => {

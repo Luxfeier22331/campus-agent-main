@@ -51,7 +51,6 @@ export class OpsStatusStoreUnavailableError extends Error {
 }
 
 export interface OpsStatusEnv {
-	OPS_WEB_AXIOM_URL?: string;
 	OPS_WEB_CAMPUS_WEB_URL?: string;
 	OPS_WEB_LANGFUSE_URL?: string;
 	OPS_WEB_SENTRY_BASE_URL?: string;

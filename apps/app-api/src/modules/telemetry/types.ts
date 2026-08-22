@@ -1,16 +1,17 @@
-export interface ActorTelemetrySummary {
-	principalType: string | null;
-	subject: string | null;
-}
-
 export interface BaseRequestTelemetry {
-	conversationId: string;
-	principalType?: string | null;
 	requestId: string;
-	safetyIdentifier?: string | null;
 	surface: string;
 	traceId: string;
 }
+
+export type RequestOutcomeStatus =
+	| "completed"
+	| "error"
+	| "needs_clarification"
+	| "no_answer"
+	| "approval_required"
+	| "rejected"
+	| "cancelled";
 
 export interface AppTelemetry {
 	captureException(
@@ -23,11 +24,7 @@ export interface AppTelemetry {
 			traceId?: string | null;
 		},
 	): void;
-	configureChatRequestScope(
-		input: BaseRequestTelemetry & {
-			actor: ActorTelemetrySummary;
-		},
-	): void;
+	configureChatRequestScope(input: BaseRequestTelemetry): void;
 	configureHttpRequestScope(input: {
 		requestId?: string | null;
 		route: string;
@@ -35,39 +32,10 @@ export interface AppTelemetry {
 		traceId?: string | null;
 	}): void;
 	markHttpResponseStatus(status: number): void;
-	recordRequestAccepted(
+	configureRequestOutcome(
 		input: BaseRequestTelemetry & {
-			actor: ActorTelemetrySummary;
-			status: "accepted";
-		},
-	): Promise<void>;
-	recordRequestFinalized(
-		input: BaseRequestTelemetry & {
-			durationMs: number;
 			errorCode: string | null;
-			modelUsage: {
-				cachedInputTokens: number;
-				inputTokens: number;
-				outputTokens: number;
-				totalTokens: number;
-			};
-			retryable: boolean | null;
-			sourceDocIds: string[];
-			stageTiming?: Record<string, unknown> | null;
-			status:
-				| "completed"
-				| "error"
-				| "needs_clarification"
-				| "no_answer"
-				| "approval_required"
-				| "rejected"
-				| "cancelled";
+			status: RequestOutcomeStatus;
 		},
-	): Promise<void>;
-	recordRequestTransportError(
-		input: BaseRequestTelemetry & {
-			errorCode: string;
-			retryable: boolean;
-		},
-	): Promise<void>;
+	): void;
 }

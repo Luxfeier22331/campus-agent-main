@@ -10,7 +10,7 @@ status: active
 
 本文规定在线模型当前设置中供应商密钥的首次配置、验证、替换、轮换和撤销。Provider 与环境
 所有权见 `../environment/providers.md`，接口边界见 `../contracts/ops-web/providers.md`。
-本文只负责 Ops Web 在线模型设置使用的 `llm`、`embedding` 和 `notice_classifier` 供应商密钥；Axiom、Sentry、
+本文只负责 Ops Web 在线模型设置使用的 `llm`、`embedding` 和 `notice_classifier` 供应商密钥；Sentry、
 Langfuse、Cloudflare 和其他环境运行凭据由环境仓及其所属交付入口负责，不在本文配置或轮换。
 
 固定边界：

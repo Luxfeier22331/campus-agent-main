@@ -28,10 +28,10 @@ status: active
   `dataState` 和 `reason` 说明趋势投影是否新鲜、缺失或不可用。
 - `externalLinks[]`：已配置系统的 `source`、`label`、`href` 和 `isAvailable`。
 
-外部系统类型为 `TEMPORAL`、`LANGFUSE`、`SENTRY` 和 `AXIOM`。
+外部系统类型为 `TEMPORAL`、`LANGFUSE` 和 `SENTRY`。
 
 服务端缓存概览 15 秒。PostgreSQL 读取失败且最近一次成功结果不超过五分钟时返回 `STALE`；否则
-请求与趋势标为 `UNAVAILABLE`。接口不查询服务 readiness、Temporal queue、Axiom logs/traces/metrics
+请求与趋势标为 `UNAVAILABLE`。接口不查询服务 readiness、Temporal queue、供应商 logs/traces/metrics
 或 Collector uptime，这些信号也不参与产品整体 `health`。
 
 ## `GET /api/ops/requests`
@@ -103,22 +103,6 @@ source kind、target kind、version ID、locator 或 trace card。
 完整模型输入输出、Generation 级 usage、费用、Agent Graph、原始执行步骤、记忆正文和检索候选统计
 仍不返回。精确字段由 `apps/ops-web/src/shared/ops-contract.ts` 维护。
 
-## `GET /api/ops/requests/:requestId/observability`
-
-该接口读取与已保存请求关联的 Axiom 脱敏 application logs。`kind` 是必填参数，只允许 `logs`。
-
-服务端完成统一人员准入后，从请求详情取得可信关联标识与时间，固定 dataset、查询条件、字段
-投影和排序。过滤只使用持久 `requestId`；`traceId` 只从持久请求详情读取并用于页面展示和人工
-关联，不能成为第二个必填过滤条件。查询窗口从请求开始前五分钟到完成后五分钟；未完成请求以
-当前时间为上限，实际窗口最多 30 分钟。浏览器不能提供 APL、dataset、`traceId`、起止时间、字段
-投影或记录上限。
-
-响应包含查询来源、类型、`requestId`、实际窗口、查询时间、耗时、数据状态、记录、截断状态和
-上限。日志上限为 200。响应不包含 `traceId`、OTel correlation、任意 `body` 或 attributes。
-
-Axiom 必须返回非 partial 的有效表格数据；部分响应、结构无效、字段重复、列长度错位、超时或
-非成功 HTTP 都返回 `503 OPS_OBSERVABILITY_UNAVAILABLE`。
-
 ## `GET /api/ops/requests/:requestId/sentry-issues`
 
 该接口返回与已保存请求关联的最多五条 Sentry Issue 摘要，不返回完整 event、stack、breadcrumb、
@@ -131,6 +115,6 @@ Issue 摘要，不包含 `traceId`、OTel correlation 或供应商 `searchQuery`
 
 通用鉴权、错误和禁止行为见 [README.md](./README.md)。
 
-“系统记录”页中的应用日志和 Sentry 记录按来源独立按需加载。打开运行详情或系统记录页
-不会自动发起外部记录查询；操作者点击某一来源的“加载”后只查询该来源，并可单独刷新。响应的
+“系统记录”页中的 Sentry 记录按需加载。打开运行详情或系统记录页不会自动发起外部记录查询；
+操作者点击“加载”后才查询，并可单独刷新。响应的
 `dataState`、记录数量、查询耗时和查询窗口使用普通文本展示，仅错误、过期和截断保留警告样式。

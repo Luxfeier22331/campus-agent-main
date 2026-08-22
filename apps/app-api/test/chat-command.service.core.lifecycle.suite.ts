@@ -170,7 +170,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				status: "error",
 			},
 		});
-		expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
+		expect(telemetry.configureRequestOutcome).toHaveBeenCalledWith(
 			expect.objectContaining({
 				errorCode: "execution_control_invalid_response",
 				status: "error",
