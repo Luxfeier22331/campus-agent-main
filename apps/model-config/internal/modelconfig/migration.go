@@ -27,7 +27,7 @@ func Install(ctx context.Context, databaseURL, newKeyPath, legacyKeyPath string)
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	if err := db.PingContext(ctx); err != nil {
+	if err := pingDatabase(ctx, db); err != nil {
 		return err
 	}
 	tx, err := db.BeginTx(ctx, nil)
@@ -85,6 +85,27 @@ func Install(ctx context.Context, databaseURL, newKeyPath, legacyKeyPath string)
 		return err
 	}
 	return tx.Commit()
+}
+
+func pingDatabase(ctx context.Context, db *sql.DB) error {
+	const retryInterval = 2 * time.Second
+
+	var lastErr error
+	ticker := time.NewTicker(retryInterval)
+	defer ticker.Stop()
+	for {
+		if err := db.PingContext(ctx); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			return lastErr
+		case <-ticker.C:
+		}
+	}
 }
 
 func checkColumns(ctx context.Context, tx *sql.Tx) error {
