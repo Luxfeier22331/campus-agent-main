@@ -21,6 +21,8 @@ apps/campus-web/**
 !apps/execution-control/**
 !apps/ingestion-control/
 !apps/ingestion-control/**
+!apps/model-config/
+!apps/model-config/**
 !apps/ops-web/
 !apps/ops-web/**
 !jobs/app-api-schema/

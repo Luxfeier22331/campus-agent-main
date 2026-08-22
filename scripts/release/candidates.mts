@@ -228,7 +228,7 @@ export async function planCandidates(
 	) {
 		images.add("execution-control");
 	}
-	if (files.includes("docker-bake.hcl")) {
+	if (files.some((file) => [".dockerignore", "docker-bake.hcl"].includes(file))) {
 		for (const image of ALL_IMAGES) {
 			images.add(image);
 		}

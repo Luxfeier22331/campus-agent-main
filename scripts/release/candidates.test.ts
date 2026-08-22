@@ -189,6 +189,25 @@ test("publishes the model-config image for source and Dockerfile changes", async
 	assert.deepEqual(plan.workers, []);
 });
 
+test("publishes all images when the shared Docker context changes", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(changed(".dockerignore"), []);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, [
+		"agent-runtime",
+		"app-api-schema",
+		"campus-docs-index-publisher",
+		"execution-control",
+		"ingestion-control",
+		"internal-portal-collection",
+		"model-config",
+		"notice-classifier",
+		"notice-publisher",
+		"ops-web",
+	]);
+	assert.deepEqual(plan.workers, []);
+});
+
 test("publishes the internal-portal-collection image for a Dockerfile-only change", async (t) => {
 	const root = await fixture(t);
 	const runner = syntheticScopeRunner(changed("jobs/internal-portal-collection/Dockerfile"), []);
