@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { type CommandRunner, resolveAffectedScope } from "../ci/scope.mts";
+import { readTopologyRetirements, type TopologyMigrationPlan } from "./topology-retirements.mts";
 import { type WorkerCandidate, workerCandidatesForPackage } from "./workers.mts";
 
 export type { CommandResult, CommandRunner } from "../ci/scope.mts";
@@ -49,6 +50,7 @@ export interface CandidatePlan {
 	images: string[];
 	sourceBases: string[];
 	workers: WorkerCandidate[];
+	topologyMigrations: TopologyMigrationPlan[];
 }
 
 export interface CandidatePlanOptions {
@@ -232,6 +234,7 @@ export async function planCandidates(
 		}
 	}
 	const sourceBases = affectedSourceBases(files);
+	const topologyMigrations = await readTopologyRetirements(options.repositoryRoot, base, runner);
 	if (options.refreshCampusWebDocs) {
 		workers.add(CAMPUS_WEB_WORKER);
 	}
@@ -241,6 +244,7 @@ export async function planCandidates(
 		images: [...images].sort(),
 		sourceBases,
 		workers: [...workers].sort(),
+		topologyMigrations,
 	};
 }
 

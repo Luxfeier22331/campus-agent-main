@@ -8,13 +8,13 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  activeDeadlineSeconds: 300
   schedule: "*/30 * * * *"
   concurrencyPolicy: Forbid
   failedJobsHistoryLimit: 1
   successfulJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 300
       backoffLimit: 0
       template:
         metadata:

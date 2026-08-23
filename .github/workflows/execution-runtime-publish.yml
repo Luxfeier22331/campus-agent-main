@@ -49,6 +49,7 @@ jobs:
       head: ${{ steps.plan.outputs.head }}
       images: ${{ steps.plan.outputs.images }}
       source_bases: ${{ steps.plan.outputs.source_bases }}
+      topology_migrations: ${{ steps.plan.outputs.topology_migrations }}
       workers: ${{ steps.plan.outputs.workers }}
     steps:
       - name: Checkout
@@ -122,6 +123,7 @@ jobs:
             echo "head=$(jq -r '.head' <<< "$plan")"
             echo "images=$(jq -c '.images' <<< "$plan")"
             echo "source_bases=$(jq -c '.sourceBases' <<< "$plan")"
+            echo "topology_migrations=$(jq -c '.topologyMigrations' <<< "$plan")"
             echo "workers=$(jq -c '.workers' <<< "$plan")"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
@@ -132,7 +134,8 @@ jobs:
           (
             steps.plan.outputs.images != '[]' ||
             steps.plan.outputs.workers != '[]' ||
-            steps.plan.outputs.source_bases != '[]'
+            steps.plan.outputs.source_bases != '[]' ||
+            steps.plan.outputs.topology_migrations != '[]'
           )
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -149,7 +152,8 @@ jobs:
           steps.plan.outcome == 'success' &&
           steps.plan.outputs.images == '[]' &&
           steps.plan.outputs.workers == '[]' &&
-          steps.plan.outputs.source_bases == '[]'
+          steps.plan.outputs.source_bases == '[]' &&
+          steps.plan.outputs.topology_migrations == '[]'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -430,7 +434,8 @@ jobs:
         needs.release-plan.result != 'success' ||
         needs.release-plan.outputs.images != '[]' ||
         needs.release-plan.outputs.workers != '[]' ||
-        needs.release-plan.outputs.source_bases != '[]'
+        needs.release-plan.outputs.source_bases != '[]' ||
+        needs.release-plan.outputs.topology_migrations != '[]'
       )
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 2
@@ -449,6 +454,7 @@ jobs:
           IMAGE_RESULT: ${{ needs.publish-images.result }}
           PLAN_RESULT: ${{ needs.release-plan.result }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TOPOLOGY_MIGRATIONS: ${{ needs.release-plan.outputs.topology_migrations || '[]' }}
           WORKERS: ${{ needs.release-plan.outputs.workers || '[]' }}
         run: |
           set -euo pipefail
@@ -471,7 +477,8 @@ jobs:
             state=success
             approved=true
             if jq -e 'length > 0' <<< "$IMAGES" >/dev/null || \
-              jq -e 'length > 0' <<< "$WORKERS" >/dev/null; then
+              jq -e 'length > 0' <<< "$WORKERS" >/dev/null || \
+              jq -e 'length > 0' <<< "$TOPOLOGY_MIGRATIONS" >/dev/null; then
               description='Selected artifacts were built and published; images were scanned'
             else
               description='No immutable artifact publication was required'
@@ -498,7 +505,8 @@ jobs:
       (
         needs.publish-images.result == 'success' ||
         needs.publish-workers.result == 'success' ||
-        needs.release-plan.outputs.source_bases != '[]'
+        needs.release-plan.outputs.source_bases != '[]' ||
+        needs.release-plan.outputs.topology_migrations != '[]'
       )
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
@@ -581,9 +589,22 @@ jobs:
         env:
           EXPECTED_WORKERS: ${{ needs.release-plan.outputs.workers }}
           SOURCE_BASES: ${{ needs.release-plan.outputs.source_bases }}
+          TOPOLOGY_MIGRATIONS: ${{ needs.release-plan.outputs.topology_migrations }}
         shell: nix develop ./gitops#ci-control --command bash -e {0}
         run: |
           set -euo pipefail
+          migration_args=()
+          if jq -e 'length > 0' <<< "$TOPOLOGY_MIGRATIONS" >/dev/null; then
+            jq -n \
+              --arg source_sha "${{ github.sha }}" \
+              --argjson retirements "$TOPOLOGY_MIGRATIONS" \
+              '{schemaVersion: 1, sourceSha: $source_sha, operations: ($retirements | map(.operations) | add)}' \
+              > "$GITHUB_WORKSPACE/topology-migration.json"
+            migration_args=(
+              --topology-migration-file "$GITHUB_WORKSPACE/topology-migration.json"
+              --topology-migration-path "releases/staging-migrations/${{ github.sha }}.json"
+            )
+          fi
           pnpm --dir gitops --silent gitops promote-source \
             --expected-source-sha "${{ needs.release-plan.outputs.base }}" \
             --expected-workers "$EXPECTED_WORKERS" \
@@ -593,10 +614,11 @@ jobs:
             --source-repository "$GITHUB_REPOSITORY" \
             --source-sha "$GITHUB_SHA" \
             --worker-candidates "$GITHUB_WORKSPACE/worker-candidates" \
+            "${migration_args[@]}" \
             > promotion-result.json
           jq -e --arg source_sha "$GITHUB_SHA" '
             type == "object" and
-            (keys_unsorted == ["disposition", "sourceSha", "changed", "expectedApplications", "missingImageConsumers"]) and
+            (keys_unsorted == ["disposition", "sourceSha", "changed", "expectedApplications", "missingImageConsumers", "topologyChanges"]) and
             (.disposition == "ready" or .disposition == "topology-required") and
             (.sourceSha | type == "string" and test("^[0-9a-f]{40}$")) and
             (.sourceSha == $source_sha) and
@@ -612,6 +634,7 @@ jobs:
             (.missingImageConsumers | type == "array") and
             (all(.missingImageConsumers[]; type == "string" and test("^[a-z0-9][a-z0-9-]*$"))) and
             ((.missingImageConsumers | sort) == .missingImageConsumers) and
+            (.topologyChanges | type == "array") and
             (if .disposition == "ready" then
               .missingImageConsumers == []
             else
@@ -644,6 +667,23 @@ jobs:
             jq . promotion-result.json
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Preflight GitOps promotion render
+        if: >-
+          steps.promotion.outputs.promotion_disposition == 'ready' &&
+          steps.promotion.outputs.changed == 'true'
+        env:
+          SOURCE_TOKEN: ${{ steps.gitops-token.outputs.token }}
+        shell: nix develop ./gitops#ci-infra --command bash -e {0}
+        run: |
+          set -euo pipefail
+          scope_file="${RUNNER_TEMP}/promotion-scope.json"
+          rendered="${RUNNER_TEMP}/promotion-rendered"
+          mkdir -p "$rendered"
+          jq -n '{bootstrap: false, helmApplications: [], terraformRoots: [], kustomizeRoots: ["clusters/staging/overlays/runtime"]}' > "$scope_file"
+          gitops/scripts/validate-kubernetes.sh "$scope_file" "$rendered"
+          pnpm --dir gitops exec tsx tools/gitops.ts validate-rendered --directory "$rendered"
+          pnpm --dir gitops exec tsx tools/gitops.ts validate-ops-web-promotion --directory "$rendered"
+
       - name: Open GitOps deployment pull request
         id: deployment-pr
         if: >-
@@ -670,6 +710,7 @@ jobs:
             - [x] 发布镜像（如有）均为单一 `linux/arm64` 索引并通过 Trivy 扫描
             - [x] Worker 候选通过 `versions upload` 产生，流量仍由 GitOps 选择
             - [x] `promote-source` 已校验候选身份和活跃消费者
+            - [x] 已在创建 PR 前渲染并验证最终 GitOps overlay
             - [ ] GitOps PR 的完整仓库与受影响 Kustomize、schema、策略、Terraform/Helm 检查
 
       - name: Mark staging promotion pending

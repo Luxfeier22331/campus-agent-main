@@ -303,10 +303,20 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.match(String(promote.if), /github\.ref == 'refs\/heads\/main'/u);
 	const plan = namedStep(releasePlan, "Select release candidates");
 	assert.match(String(plan.run), /\.sourceBases/u);
+	assert.match(String(plan.run), /\.topologyMigrations/u);
 	assert.doesNotMatch(String(plan.run), /\.kubernetes/u);
 	const promotion = namedStep(promote, "Update GitOps desired state");
 	assert.match(String(promotion.run), /--source-bases "\$SOURCE_BASES"/u);
+	assert.match(String(promotion.run), /--topology-migration-file/u);
+	assert.match(
+		String(promotion.run),
+		/--topology-migration-path "releases\/staging-migrations\/\$\{\{ github\.sha \}\}\.json"/u,
+	);
 	assert.doesNotMatch(String(promotion.run), /--kubernetes/u);
+	const preflight = namedStep(promote, "Preflight GitOps promotion render");
+	assert.match(String(preflight.run), /gitops\/scripts\/validate-kubernetes\.sh/u);
+	assert.match(String(preflight.run), /validate-rendered/u);
+	assert.match(String(preflight.run), /validate-ops-web-promotion/u);
 	const installGitOpsTooling = namedStep(promote, "Install GitOps tooling");
 	assert.equal(installGitOpsTooling.run, "pnpm --dir gitops install --frozen-lockfile");
 	assert(!String(installGitOpsTooling.run).includes("--ignore-workspace"));

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -104,6 +104,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 		head: HEAD,
 		images: ["agent-runtime", "internal-portal-collection"],
 		sourceBases: ["infra/k8s/execution-runtime/base/runtime"],
+		topologyMigrations: [],
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
 });
@@ -116,6 +117,60 @@ test("publishes collection image when a bundled workspace dependency changes", a
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, ["internal-portal-collection"]);
 	assert.deepEqual(plan.workers, []);
+});
+
+test("selects newly declared topology retirements without replaying old entries", async (t) => {
+	const root = await fixture(t);
+	await mkdir(path.join(root, "infra/k8s/topology"), { recursive: true });
+	await writeFile(
+		path.join(root, "infra/k8s/topology/retirements.json"),
+		`${JSON.stringify(
+			{
+				schemaVersion: 1,
+				retirements: [
+					{
+						id: "ingestion-control",
+						operations: [
+							{
+								action: "remove-image",
+								path: "clusters/staging/overlays/runtime/kustomization.yaml",
+								image: "ghcr.io/muc-wiki/campus-agent/ingestion-control",
+							},
+						],
+					},
+				],
+			},
+			null,
+			2,
+		)}\n`,
+	);
+	const runner: CommandRunner = (command, args) => {
+		if (command === "pnpm") {
+			return result({ stdout: JSON.stringify({ tasks: [] }) });
+		}
+		if (command === "git" && args[0] === "diff") {
+			return result({ stdout: changed("infra/k8s/topology/retirements.json") });
+		}
+		if (command === "git" && args[0] === "show") {
+			return result({
+				stdout: JSON.stringify({ schemaVersion: 1, retirements: [] }),
+			});
+		}
+		return result();
+	};
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.topologyMigrations, [
+		{
+			id: "ingestion-control",
+			operations: [
+				{
+					action: "remove-image",
+					path: "clusters/staging/overlays/runtime/kustomization.yaml",
+					image: "ghcr.io/muc-wiki/campus-agent/ingestion-control",
+				},
+			],
+		},
+	]);
 });
 
 test("publishes the first product availability candidate before GitOps selects it", async (t) => {
@@ -294,6 +349,7 @@ test("Campus Web docs refresh works when the GitOps cursor already equals head",
 		head: BASE,
 		images: [],
 		sourceBases: [],
+		topologyMigrations: [],
 		workers: ["campus-web-staging"],
 	});
 });
@@ -320,6 +376,7 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 		head: HEAD,
 		images: ["app-api-schema", "campus-docs-index-publisher", "execution-control"],
 		sourceBases: [],
+		topologyMigrations: [],
 		workers: [],
 	});
 });
@@ -385,6 +442,7 @@ test("an already selected Source revision has no automatic candidates", async (t
 		head: BASE,
 		images: [],
 		sourceBases: [],
+		topologyMigrations: [],
 		workers: [],
 	});
 	assert.equal(turboCalled, false);
@@ -408,6 +466,7 @@ test("an explicit PR base does not require a GitOps checkout", async (t) => {
 			head: BASE,
 			images: [],
 			sourceBases: [],
+			topologyMigrations: [],
 			workers: [],
 		},
 	);
