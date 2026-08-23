@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { createOpsApp } from "./app.ts";
 import { createOpsWebDatabasePool } from "./database.ts";
+import { assertInternalPortalCredentialSchema } from "./internal-portal-credential-store.ts";
 import { createOpsStatusStore } from "./ops-status-factory.ts";
 import { logOpsError, logOpsEvent } from "./safe-logging.ts";
 
@@ -11,6 +12,7 @@ async function startOpsWeb() {
 	try {
 		const store = createOpsStatusStore({ pool: databasePool });
 		await store.verifySchema();
+		await assertInternalPortalCredentialSchema(databasePool);
 		serve(
 			{
 				fetch: createOpsApp({ databasePool, store }).fetch,

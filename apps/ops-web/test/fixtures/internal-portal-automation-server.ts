@@ -141,6 +141,12 @@ function createFixtureCredentialService(): {
 			credential = { ...current, name, version: current.version + 1 };
 			return publicCredential(credential);
 		},
+		async resolve() {
+			const current = requireCredential(AUTOMATION_FIXTURE_CREDENTIAL_ID);
+			const ssoTgc = await checkFixtureCredential(current.ssoTgc);
+			credential = { ...current, ssoTgc };
+			return ssoTgc;
+		},
 		async reveal(credentialId) {
 			const current = requireCredential(credentialId);
 			return {

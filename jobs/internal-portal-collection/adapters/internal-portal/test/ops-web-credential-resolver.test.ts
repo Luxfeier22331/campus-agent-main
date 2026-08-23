@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	IngestionControlCredentialResolverError,
+	OpsWebCredentialResolverError,
 	resolveInternalPortalCredential,
 	resolveInternalPortalCredentialFromEnv,
-} from "../src/ingestion-control-credential-resolver.js";
+} from "../src/ops-web-credential-resolver.js";
 
-describe("ingestion-control internal portal credential resolver", () => {
+describe("Ops Web internal portal credential resolver", () => {
 	it("posts the shared internal token and parses the versioned response", async () => {
 		const request = vi.fn(async () =>
 			Response.json({
@@ -18,7 +18,7 @@ describe("ingestion-control internal portal credential resolver", () => {
 			resolveInternalPortalCredential({
 				fetch: request as typeof fetch,
 				token: "internal-token",
-				url: "http://ingestion-control:8000",
+				url: "http://ops-web:5178",
 			}),
 		).resolves.toEqual({
 			schemaVersion: "internal-portal-credential-resolution.v1",
@@ -26,7 +26,7 @@ describe("ingestion-control internal portal credential resolver", () => {
 		});
 		expect(request).toHaveBeenCalledWith(
 			new URL(
-				"http://ingestion-control:8000/internal/ingestion/internal-portal/credentials/resolve",
+				"http://ops-web:5178/internal/ops/internal-portal/credentials/resolve",
 			),
 			expect.objectContaining({
 				headers: {
@@ -42,7 +42,7 @@ describe("ingestion-control internal portal credential resolver", () => {
 		const error = await resolveInternalPortalCredential({
 			fetch: vi.fn(async () =>
 				Response.json(
-					{ error: { code: "INGESTION_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE" } },
+					{ error: { code: "OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE" } },
 					{ status: 503 },
 				),
 			) as typeof fetch,
@@ -50,9 +50,9 @@ describe("ingestion-control internal portal credential resolver", () => {
 			url: "http://127.0.0.1:8000",
 		}).catch((value: unknown) => value);
 
-		expect(error).toBeInstanceOf(IngestionControlCredentialResolverError);
+		expect(error).toBeInstanceOf(OpsWebCredentialResolverError);
 		expect(error).toMatchObject({
-			code: "INGESTION_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE",
+			code: "OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE",
 			status: 503,
 		});
 		expect(String(error)).not.toContain("internal-token");
@@ -60,21 +60,21 @@ describe("ingestion-control internal portal credential resolver", () => {
 
 	it("rejects invalid configuration and response bodies", async () => {
 		await expect(resolveInternalPortalCredentialFromEnv({})).rejects.toMatchObject({
-			code: "INGESTION_INTERNAL_PORTAL_CONFIG_INVALID",
+			code: "OPS_INTERNAL_PORTAL_CONFIG_INVALID",
 		});
 		await expect(
 			resolveInternalPortalCredential({
 				fetch: vi.fn(async () => Response.json({ ssoTgc: "TGT-missing-version" })) as typeof fetch,
 				token: "internal-token",
-				url: "https://ingestion.example.test/path",
+			url: "https://ops-web.example.test/path",
 			}),
-		).rejects.toMatchObject({ code: "INGESTION_INTERNAL_PORTAL_CONFIG_INVALID" });
+		).rejects.toMatchObject({ code: "OPS_INTERNAL_PORTAL_CONFIG_INVALID" });
 		await expect(
 			resolveInternalPortalCredential({
 				fetch: vi.fn(async () => Response.json({ ssoTgc: "TGT-missing-version" })) as typeof fetch,
 				token: "internal-token",
-				url: "https://ingestion.example.test",
+			url: "https://ops-web.example.test",
 			}),
-		).rejects.toMatchObject({ code: "INGESTION_INTERNAL_PORTAL_RESPONSE_INVALID" });
+		).rejects.toMatchObject({ code: "OPS_INTERNAL_PORTAL_RESPONSE_INVALID" });
 	});
 });

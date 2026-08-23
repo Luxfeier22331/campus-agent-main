@@ -52,7 +52,6 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	executionControl: "apps/execution-control/.env.local",
 	modelConfig: "apps/model-config/.env.local",
 	agentRuntime: "apps/agent-runtime/.env.local",
-	ingestionControl: "apps/ingestion-control/.env.local",
 	noticeClassifier: "jobs/notice-classifier/.env.local",
 	noticePublisher: "jobs/notice-publisher/.env.local",
 	opsWeb: "apps/ops-web/.env.local",
@@ -69,7 +68,6 @@ interface MainCheckoutExternalCredentials {
 export type LocalDevEnvironmentTarget =
 	| "core"
 	| "ops-web"
-	| "ingestion-control"
 	| "notice-publisher"
 	| "internal-portal-collection"
 	| "notice-classifier"
@@ -81,7 +79,6 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 > = {
 	core: ["appApi", "appApiVars", "campusWeb", "modelConfig", "executionControl", "agentRuntime"],
 	"ops-web": ["opsWeb"],
-	"ingestion-control": ["ingestionControl"],
 	"notice-publisher": ["noticePublisher"],
 	"internal-portal-collection": ["internalPortalCollection"],
 	"notice-classifier": ["noticeClassifier"],
@@ -91,7 +88,6 @@ const LOCAL_DATABASE_PASSWORDS = {
 	appApi: "campus-agent-local-app-api",
 	executionControl: "campus-agent-local-execution-control",
 	modelConfig: "campus-agent-local-model-config",
-	ingestionControl: "campus-agent-local-ingestion-control",
 	opsWeb: "campus-agent-local-ops-web",
 	noticePublisher: "campus-agent-local-notice-publisher",
 	owner: "campus-agent-local-owner",
@@ -160,7 +156,6 @@ export function localDatabaseUrls(profile: LocalDevProfileV1): {
 	appApi: string;
 	executionControl: string;
 	modelConfig: string;
-	ingestionControl: string;
 	opsWeb: string;
 	noticePublisher: string;
 	owner: string;
@@ -171,7 +166,6 @@ export function localDatabaseUrls(profile: LocalDevProfileV1): {
 		appApi: url("app_api", LOCAL_DATABASE_PASSWORDS.appApi),
 		executionControl: url("execution_control", LOCAL_DATABASE_PASSWORDS.executionControl),
 		modelConfig: url("model_config", LOCAL_DATABASE_PASSWORDS.modelConfig),
-		ingestionControl: url("ingestion_control", LOCAL_DATABASE_PASSWORDS.ingestionControl),
 		opsWeb: url("ops_web", LOCAL_DATABASE_PASSWORDS.opsWeb),
 		noticePublisher: url("notice_publisher", LOCAL_DATABASE_PASSWORDS.noticePublisher),
 		owner: url("campus_agent", LOCAL_DATABASE_PASSWORDS.owner),
@@ -284,16 +278,6 @@ export function renderLocalEnvironmentFiles(input: {
 			PORT: String(runtimePorts.agentRuntime),
 		});
 	}
-	if (shouldRender("ingestionControl")) {
-		writeManagedEnv(paths.ingestionControl, {
-			DEPLOYMENT_ENVIRONMENT: "local",
-			INGESTION_CONTROL_DATABASE_SSLMODE: "disable",
-			INGESTION_CONTROL_DATABASE_URL: database.ingestionControl,
-			INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: "disable",
-			INGESTION_CONTROL_SCHEMA_DATABASE_URL: database.owner,
-			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
-		});
-	}
 	if (shouldRender("opsWeb")) {
 		writeManagedEnv(paths.opsWeb, {
 			DEPLOYMENT_ENVIRONMENT: "local",
@@ -306,7 +290,6 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			INGESTION_CONTROL_INTERNAL_URL: `http://127.0.0.1:${runtimePorts.ingestionControl}`,
 			OPS_WEB_DATABASE_SSLMODE: "disable",
 			OPS_WEB_DATABASE_URL: database.opsWeb,
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
@@ -325,7 +308,7 @@ export function renderLocalEnvironmentFiles(input: {
 							existingInternalPortalCollectionEnvironment.INTERNAL_PORTAL_SSO_TGC,
 					}
 				: {}),
-			INGESTION_CONTROL_INTERNAL_URL: `http://127.0.0.1:${runtimePorts.ingestionControl}`,
+			OPS_WEB_INTERNAL_URL: `http://127.0.0.1:${profile.ports.opsWebApi}`,
 			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 			OBJECT_STORE_REGION: "us-east-1",

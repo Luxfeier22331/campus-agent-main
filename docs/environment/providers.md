@@ -70,7 +70,7 @@ PostgreSQL 角色按数据所有权、授权范围和迁移边界决定，不按
 | --- | --- | --- |
 | 身份与安全验证 | App API、Campus Web | 账号、session、邮件验证和反滥用 |
 | 邮件服务 | App API | 密码重置和账号通知 |
-| 内部门户认证 | ingestion-control、Ops Web、开发者程序、internal-portal-collection | ingestion-control 在所属 PostgreSQL 管理多条 TGC 并提供采集解析；Ops Web 保存 automation token 并代理人员/机器管理请求；采集任务不读数据库，本地通过 `internal-portal:auth:pull` 写入当前 worktree，Job 入口只在内存中消费解析结果 |
+| 内部门户认证 | Ops Web、开发者程序、internal-portal-collection | Ops Web 在 `internal_portal` schema 管理多条 TGC、真实验证、检查和采集解析；采集任务不读数据库，本地通过 `internal-portal:auth:pull` 写入当前 worktree，Job 入口只在内存中消费解析结果 |
 | Cloudflare Worker 平台 | App API、Campus Web、status-web | Worker 运行、公开配置和平台绑定 |
 
 来源凭据只进入所属采集器或任务，不进入在线问答、浏览器或通用仓库根环境。个人调试凭据不能
@@ -99,7 +99,7 @@ Sentry provider 操作使用 `SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_
 ## 交付规则
 
 - 本地 Secret 进入所属模块的忽略文件或开发者密钥管理器；`internal-portal:auth:pull` 使用当前
-  Kubernetes 权限读取既有 `OPS_WEB_INTERNAL_TOKEN`，通过临时 port-forward ingestion-control
+  Kubernetes 权限读取既有 `OPS_WEB_INTERNAL_TOKEN`，通过临时 port-forward Ops Web
   取得 TGC，只写入内部门户采集任务受 `dev:init` 管理的 `.env.local`，不创建机器级缓存或 TGC
   Secret；linked worktree 初始化时可从 main checkout 的同一受管文件首次导入已有 TGC，后续本地值
   优先；
@@ -117,8 +117,8 @@ Sentry provider 操作使用 `SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_
 - `OPS_WEB_AUTOMATION_ORIGIN` 是环境仓投递给 Ops Web 的非敏感机器端点配置；自动化 token 属于
   Ops Web PostgreSQL 数据，不进入 ConfigMap、GitOps Secret、内部门户采集任务或 URL。开发者程序
   只在请求时显式提供 `Authorization: Bearer <token>`。
-- `OPS_WEB_INTERNAL_TOKEN` 继续是既有服务间认证值。Ops Web BFF 和
-  `internal-portal-collection` Job 调用 ingestion-control 时复用该值，不新增 `NOTICE_*`、TGC 或采集
+- `OPS_WEB_INTERNAL_TOKEN` 继续是既有服务间认证值。`internal-portal-collection` Job 调用 Ops Web 时
+  复用该值，不新增 `NOTICE_*`、TGC 或采集
   专用 token；notice-classifier 只复用已有对象存储 Secret，模型设置从 Model Config 读取。
 
 环境文件和覆盖规则见 `env.md`，新增、轮换和撤销步骤见

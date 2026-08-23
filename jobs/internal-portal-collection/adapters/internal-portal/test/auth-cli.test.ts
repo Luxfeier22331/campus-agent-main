@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { pullInternalPortalAuth, type AuthPullDependencies } from "../src/auth-cli.js";
-import { resolveInternalPortalCredential } from "../src/ingestion-control-credential-resolver.js";
+import { resolveInternalPortalCredential } from "../src/ops-web-credential-resolver.js";
 
 const temporaryDirectories: string[] = [];
 const MANAGED_LOCAL_ENV_MARKER = "# Managed by pnpm dev:init. Do not edit.";

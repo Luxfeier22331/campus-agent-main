@@ -16,7 +16,7 @@ vi.mock("../src/collection-command.js", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../src/collection-command.js")>();
 	return { ...actual, runCollectionCommand: mocks.runCollectionCommand };
 });
-vi.mock("../src/ingestion-control-credential-resolver.js", () => ({
+vi.mock("../src/ops-web-credential-resolver.js", () => ({
 	resolveInternalPortalCredentialFromEnv: mocks.resolveCredential,
 }));
 

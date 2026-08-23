@@ -15,7 +15,7 @@ status: active
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| `apps/ingestion-control` | TGC 持久化、真实验证、定时检查、候选解析和内部凭据 API | 采集编排、Temporal、对象存储、通知发布 |
+| `apps/ops-web` | TGC 持久化、真实验证、定时检查、候选解析、人员管理和内部凭据 API | 采集编排、Temporal、对象存储、通知发布 |
 | `jobs/internal-portal-collection` | 以本地 CLI 或一次性 Job 采集通知、通知资源和文件发布原始对象 | TGC 持久化、常驻服务、清洗、分类、发布、PDF 解析 |
 | `jobs/notice-classifier` | 读取通知来源标题并写入单通知分类制品 | 正文清洗、门户栏目判断、数据库写入、自动调度 |
 | `jobs/notice-publisher` | 校验来源与分类库存、清洗正文、显式写入规范化通知和 derived 图片 | 定时采集、分类、在线读取 |
@@ -33,8 +33,8 @@ notice-sync / notice-backfill
 -> notice-publisher 显式清洗并写入 notices.*
 ```
 
-本地命令直接读取受管理 `.env.local` 的 TGC。线上入口先向 ingestion-control 解析一条当前可用 TGC，
-再调用相同采集实现。ingestion runtime base 为通知增量、通知回填和文件发布分别提供一个默认暂停的
+本地命令直接读取受管理 `.env.local` 的 TGC。线上入口先向 Ops Web 解析一条当前可用 TGC，再调用相同
+采集实现。ingestion runtime base 为通知增量、通知回填和文件发布分别提供一个默认暂停的
 CronJob 模板；维护者显式创建一次性 Job，不启用自动 schedule，也不与分类自动串联。notice-publisher
 同样只提供默认暂停的一次性 Job 模板；它默认消费 derived 分类制品，并复用数据库 owner 完成 schema
 安装和显式物化，不新增线上 publisher 身份。
@@ -54,13 +54,14 @@ file-sync
 
 ## 凭据
 
-ingestion-control 在 PostgreSQL 保存多条具名 TGC 和检查 metadata。Ops Web 的人员页面与 automation
-endpoint 通过内部 HTTP 管理这些记录；internal-portal-collection 只消费解析结果。定时检查 CronJob
-不触发采集，也不承诺续期。
+Ops Web 在 PostgreSQL 保存多条具名 TGC 和检查 metadata，并提供人员、automation 与内部解析接口；
+internal-portal-collection 只消费解析结果。`ops-web-internal-portal-check` 定时检查凭据，不触发采集，
+也不承诺续期。
 
 ## 状态分工
 
-- PostgreSQL：`ingestion_control.internal_portal_credentials` 和 `notices.*`，由不同角色所有；
+- PostgreSQL：`internal_portal.credentials`、`internal_portal.automation_tokens` 和 `notices.*`，由
+  Ops Web 与通知所有者分别维护；
 - source bucket：门户通知、资源、边界状态、文件发布原始文件和 `source.json`；
 - derived bucket：通知分类制品、通知清洗后的内容寻址资源和所属 Job 的不可变派生制品；
 - Temporal：只服务 execution-control 的在线执行，不再承载 ingestion 采集。
@@ -77,7 +78,7 @@ Campus Docs 所属的三个显式 Job 分别完成，并通过内容寻址制品
 
 - `docs/decisions/adr-0002-object-storage.md`
 - `docs/decisions/adr-0091-retire-document-chunking-stack.md`
-- `docs/decisions/adr-0089-internal-portal-credential-resolution.md`
+- `docs/decisions/adr-0089-internal-portal-credential-resolution.md`（历史决策，现行 owner 已迁移到 Ops Web）
 - `docs/data/internal-portal.md`
 - `docs/data/notices.md`
 - `docs/runbooks/ingestion.md`

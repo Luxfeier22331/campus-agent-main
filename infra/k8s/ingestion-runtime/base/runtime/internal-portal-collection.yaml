@@ -42,8 +42,8 @@ spec:
               args:
                 - notice-sync
               env:
-                - name: INGESTION_CONTROL_INTERNAL_URL
-                  value: http://ingestion-control:8000
+                - name: OPS_WEB_INTERNAL_URL
+                  value: http://ops-web:5178
                 - name: OPS_WEB_INTERNAL_TOKEN
                   valueFrom:
                     secretKeyRef:
@@ -129,8 +129,8 @@ spec:
               args:
                 - notice-backfill
               env:
-                - name: INGESTION_CONTROL_INTERNAL_URL
-                  value: http://ingestion-control:8000
+                - name: OPS_WEB_INTERNAL_URL
+                  value: http://ops-web:5178
                 - name: OPS_WEB_INTERNAL_TOKEN
                   valueFrom:
                     secretKeyRef:
@@ -216,8 +216,8 @@ spec:
               args:
                 - file-sync
               env:
-                - name: INGESTION_CONTROL_INTERNAL_URL
-                  value: http://ingestion-control:8000
+                - name: OPS_WEB_INTERNAL_URL
+                  value: http://ops-web:5178
                 - name: OPS_WEB_INTERNAL_TOKEN
                   valueFrom:
                     secretKeyRef:

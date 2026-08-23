@@ -100,7 +100,7 @@
             tools.conftest
             tools.kustomize
           ]) ++ [ goToolchain ];
-          ciCore = pkgs.mkShellNoCC { packages = corePackages; };
+          ciCore = pkgs.mkShellNoCC { packages = corePackages ++ [ goToolchain ]; };
           ciLight = pkgs.mkShellNoCC { packages = lightPackages; };
           ciRelease = pkgs.mkShellNoCC { packages = releasePackages; };
           ciFull = pkgs.mkShellNoCC {

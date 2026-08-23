@@ -57,7 +57,7 @@ const opsWebDiningPrivileges = {
 	canUseSchema: true,
 } as const;
 const opsWebInternalPortalPrivileges = {
-	canAccessCredentials: false,
+	canAccessCredentials: true,
 	canTokensDelete: true,
 	canTokensInsert: true,
 	canTokensSelect: true,
@@ -252,15 +252,16 @@ function installSuccessfulQueries() {
 			};
 		}
 		if (
-			sql.includes("to_regclass('ingestion_control.internal_portal_credentials')") &&
-			sql.includes('as "currentTable"')
+			sql.includes("to_regclass('internal_portal.credentials')") &&
+			sql.includes('as "currentTable"') &&
+			sql.includes('as "legacySchema"')
 		) {
 			return {
 				rowCount: 1,
 				rows: [
 					{
-						currentTable: "ingestion_control.internal_portal_credentials",
-						legacyTable: null,
+						currentTable: "internal_portal.credentials",
+						legacySchema: null,
 					},
 				],
 			};

@@ -48,8 +48,9 @@ kubectl -n <namespace> create job \
   --from=cronjob/file-sync <job-name>
 ```
 
-Job 入口通过 ingestion-control 解析第一条可用 TGC，只在当前进程内使用；采集会话可能取得的新 TGC
-也不会回写凭据池。通知和文件长任务每处理 100 项输出一次计数进度，最终结果不输出完整通知 ID 列表。
+Job 入口通过 `OPS_WEB_INTERNAL_URL` 调用 Ops Web 解析第一条可用 TGC，只在当前进程内使用；采集会话
+可能取得的新 TGC 也不会回写凭据池。通知和文件长任务每处理 100 项输出一次计数进度，最终结果不输出
+完整通知 ID 列表。
 
 ## 验证
 

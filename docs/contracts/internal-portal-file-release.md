@@ -19,7 +19,7 @@ kubectl -n <namespace> create job \
   --from=cronjob/file-sync <job-name>
 ```
 
-本地入口使用受管理环境中的直接 TGC。Job 入口先调用 ingestion-control 解析可用 TGC，再执行相同
+本地入口使用受管理环境中的直接 TGC。Job 入口先调用 Ops Web 解析可用 TGC，再执行相同
 实现。Kubernetes base 中的 `file-sync` 是默认暂停的完整模板；维护者显式创建一次性
 Job，不启用 schedule。
 
@@ -49,7 +49,7 @@ internal_portal/<site-id>/file-releases/<file-release-id>/source.json
 ## 所有者
 
 - 门户适配、分页和对象写入：`jobs/internal-portal-collection`；
-- 凭据解析：`apps/ingestion-control`；
+- 凭据解析：`apps/ops-web` 的内部解析接口；
 - 来源对象合同：`packages/ingestion-contracts`。
 
 ## 相关文档

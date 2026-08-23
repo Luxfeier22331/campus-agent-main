@@ -8,7 +8,7 @@
 - 读取固定范围的运行概况、运行记录和依赖状态；
 - 通过服务端固定查询访问 Sentry，不向浏览器提供任意供应商查询；
 - 执行明确准入的在线模型配置、食堂和同好群内容运营操作；
-- 通过 ingestion-control 管理、检查和按需显示多条内部门户 TGC；
+- 直接拥有内部门户凭据池，负责真实验证、定时检查、按需显示和采集解析；
 - 通过 Model Config 管理和验证在线模型当前设置；页面保留的 `execution` 路由名只是历史 URL，
   不表示 execution-control 拥有模型配置；
 - 通过 App API 管理邮箱准入、用户状态和会话，并在用户详情只读显示注销状态。
@@ -31,17 +31,16 @@
 
 `/internal-portal` 还管理多条开发者自动化 token。人工管理接口继续使用 Cloudflare Access；开发者
 程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，可以在名称不存在时创建一条具名
-凭据，或读取 metadata、按 `If-Match` 更新 `ssoTgc`、删除凭据。Ops Web 只作为 UI/BFF，把这些操作
-转发给 ingestion-control；TGC、检查结果和候选解析不存入 Ops Web 数据库。
-internal-portal-collection 直接调用 ingestion-control 的内部解析接口。
+凭据，或读取 metadata、按 `If-Match` 更新 `ssoTgc`、删除凭据。Ops Web 直接持久化 TGC、检查结果和
+候选解析，不通过另一个凭据服务转发。internal-portal-collection 通过 `OPS_WEB_INTERNAL_URL` 调用
+Ops Web 的内部解析接口。
 
 ## 内部边界
 
 - Ops Status 的合同、环境组装、不可用实现和 PostgreSQL adapter 分离；路由只依赖 store 合同，不
   反向拥有数据库或外部平台配置；
-- Node 服务内的 Ops Status、Dining 和自动化 token adapter 共享一个应用级 PostgreSQL Pool；
-  内部门户凭据 adapter 调用 ingestion-control，不访问 Ops Web 数据库；Dining 地图、菜单和评价仍
-  分别拥有具体 store，不互相导入具体实现；
+- Node 服务内的 Ops Status、Dining、内部门户凭据和自动化 token adapter 共享一个应用级 PostgreSQL
+  Pool；Dining 地图、菜单和评价仍分别拥有具体 store，不互相导入具体实现；
 - 页面负责 query、mutation 和用户交互编排；可独立验证的目录变换、拖拽规则和编辑器视图不与页面
   网络状态耦合；
 - 跨应用集成测试通过 HTTP、共享合同或明确的 `test-support` adapter，不直接导入另一应用的
@@ -74,8 +73,9 @@ pnpm --dir apps/ops-web db:generate
 `.env.local`。Ops Web 使用统一 `ops_web` 角色和 `object-store-secrets`；Dining 不创建专属
 角色、连接、桶或凭据。
 
-Ops Web 的 Dining 与 automation token 声明式 schema 位于 `packages/domains/dining/src/schema.ts` 和
-`apps/ops-web/ops/db/internal-portal-schema.ts`，生成的 migration 位于 `apps/ops-web/drizzle/`，并
+Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
+`packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，生成的
+migration 位于 `apps/ops-web/drizzle/`，并
 共用历史命名的 `drizzle.ops_web_dining_migrations`。结构变化先运行
 `db:generate` 并审查新增 SQL；不得修改已应用 migration。`db:apply-dining` 按顺序执行 migration
 和 Dining grants，完整部署使用 `db:apply` 安装 Ops Web schema 和授权；`db:bootstrap-dining`

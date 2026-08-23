@@ -51,13 +51,14 @@ import {
 	InternalPortalCandidateCheckFailedError,
 	InternalPortalCandidateInputError,
 	InternalPortalCandidateRejectedError,
-	type InternalPortalCredentialClientEnv,
 	InternalPortalCredentialConflictError,
 	InternalPortalCredentialNameConflictError,
 	InternalPortalCredentialNotFoundError,
+	InternalPortalCredentialResolutionUnavailableError,
 	type InternalPortalCredentialService,
 	InternalPortalCredentialStoreUnavailableError,
 } from "./internal-portal-credential-service.ts";
+import { createPgInternalPortalCredentialStore } from "./internal-portal-credential-store.ts";
 import {
 	createOpsAdmissionFromEnv,
 	getMissingAccessConfig,
@@ -85,7 +86,10 @@ import { CampusGroupsRequestError, registerCampusGroupsRoutes } from "./routes/c
 import { registerDiningRoutes } from "./routes/dining.ts";
 import { registerEmailAccessRoutes } from "./routes/email-access.ts";
 import { jsonError } from "./routes/http.ts";
-import { registerInternalPortalRoutes } from "./routes/internal-portal.ts";
+import {
+	registerInternalPortalInternalRoutes,
+	registerInternalPortalRoutes,
+} from "./routes/internal-portal.ts";
 import {
 	providerConfigAdminErrorResponse,
 	registerModelSettingsRoutes,
@@ -108,7 +112,6 @@ type OpsAppEnv = OpsAdmissionEnv &
 	AccountAdminEnv &
 	CampusGroupsAdminEnv &
 	DiningStoreEnv &
-	InternalPortalCredentialClientEnv &
 	OpsWebDatabaseEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
@@ -170,7 +173,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const accountAdminClient = options.accountAdminClient ?? createAccountAdminClient(env);
 	const emailAccessClient = options.emailAccessClient ?? createEmailAccessAdminClient(env);
 	const internalPortalCredentialService =
-		options.internalPortalCredentialService ?? createDefaultInternalPortalCredentialService(env);
+		options.internalPortalCredentialService ??
+		createDefaultInternalPortalCredentialService(databasePool, databaseUnavailable);
 	const internalPortalAutomationTokenService =
 		options.internalPortalAutomationTokenService ??
 		createDefaultInternalPortalAutomationTokenService(databasePool, databaseUnavailable);
@@ -278,6 +282,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (error instanceof InternalPortalCandidateCheckFailedError) {
 			return jsonError("OPS_INTERNAL_PORTAL_CHECK_FAILED", error.message, 503);
 		}
+		if (error instanceof InternalPortalCredentialResolutionUnavailableError) {
+			return jsonError("OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE", error.message, 503);
+		}
 		if (error instanceof DiningStoreUnavailableError) {
 			return jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503);
 		}
@@ -361,6 +368,13 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		credentialService: internalPortalCredentialService,
 		publicOrigin,
 	});
+	registerInternalPortalInternalRoutes({
+		app,
+		credentialService: internalPortalCredentialService,
+		...(env.OPS_WEB_INTERNAL_TOKEN === undefined
+			? {}
+			: { internalToken: env.OPS_WEB_INTERNAL_TOKEN }),
+	});
 	registerAutomationRoutes({
 		admission,
 		app,
@@ -396,10 +410,15 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 }
 
 function createDefaultInternalPortalCredentialService(
-	env: InternalPortalCredentialClientEnv,
+	pool: Pool | undefined,
+	databaseUnavailable: Error,
 ): InternalPortalCredentialService {
 	try {
-		return createInternalPortalCredentialService(env);
+		return pool
+			? createInternalPortalCredentialService({
+					store: createPgInternalPortalCredentialStore(pool),
+				})
+			: createUnavailableInternalPortalCredentialService(databaseUnavailable);
 	} catch (error) {
 		return createUnavailableInternalPortalCredentialService(error);
 	}

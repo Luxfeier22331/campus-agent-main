@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-owner_boundary: ingestion-control
+owner_boundary: ops-web
 status: active
 ---
 
@@ -8,9 +8,8 @@ status: active
 
 ## 运行模型
 
-ingestion-control 是 TGC、检查结果和 CAS 刷新值的唯一运行所有者。Ops Web 提供人员页面和 automation
-入口，但所有凭据操作都通过内部 HTTP 转发 ingestion-control。internal-portal-collection 不读取
-数据库，也不按名称选择记录。
+Ops Web 是 TGC、检查结果和 CAS 刷新值的唯一运行所有者，直接提供人员页面、automation endpoint
+和内部解析接口。internal-portal-collection 不读取数据库，也不按名称选择记录。
 
 系统允许多条具名凭据，不维护主凭据。消费解析排除 `credential_rejected`，按 `valid`、未检查、
 `check_failed` 逐条真实验证，返回第一条可用 TGC。采集会话随后得到的新 TGC 只在本次进程使用，不
@@ -41,7 +40,7 @@ ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或
 
 ## 定时检查
 
-`ingestion-control-internal-portal-check` 每 30 分钟顺序检查未暂停记录：
+`ops-web-internal-portal-check` 每 30 分钟顺序检查未暂停记录：
 
 - `valid`：更新最近成功时间，并保存 CAS 返回的当前 TGC；
 - `credential_rejected`：记录明确拒绝并暂停后续定时检查；
@@ -60,7 +59,7 @@ pnpm internal-portal:auth:check
 ```
 
 `internal-portal:auth:pull` 使用当前 kubectl context 和 namespace，从 `ops-web-internal-secrets` 读取既有
-`OPS_WEB_INTERNAL_TOKEN`，只为本次命令建立 `service/ingestion-control:8000` 的临时 port-forward。
+`OPS_WEB_INTERNAL_TOKEN`，只为本次命令建立 `service/ops-web:5178` 的临时 port-forward。
 解析成功后原子更新 internal-portal-collection 本地托管环境中的 `INTERNAL_PORTAL_SSO_TGC`，权限为
 `0600`；失败不改文件，命令不输出 token 或 TGC。
 
@@ -87,31 +86,31 @@ kubectl -n <namespace> create job \
   --from=cronjob/file-sync <job-name>
 ```
 
-这些模板读取 `INGESTION_CONTROL_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
+这些模板读取 `OPS_WEB_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
 与本地 CLI 相同的采集实现。Job 不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。Kubernetes
 base 为三种动作分别提供默认暂停的模板；它们没有 schedule，必须由维护者显式创建一次性 Job。
 
 自动化 endpoint 与 Bearer token 不改变上述边界：endpoint 只是环境配置，token 只授权 Ops Web 机器
-接口；internal-portal-collection 本地入口只读取拉取到托管环境的 TGC，Job 入口只调用
-ingestion-control 解析接口。需要在没有真实门户凭据时验证 HTTP 链路，可运行
+接口；internal-portal-collection 本地入口只读取拉取到托管环境的 TGC，Job 入口只调用 Ops Web 解析
+接口。需要在没有真实门户凭据时验证 HTTP 链路，可运行
 `pnpm --filter ops-web dev:fixture`；该 fixture 的 token 和 TGC 仅在本地进程生命周期内有效。
 
 ## 数据升级与保留
 
-Ops Web migration `0004_loud_loa.sql` 将旧 `internal_portal.credentials` 逐字段复制并双向比较到
-`ingestion_control.internal_portal_credentials`，随后删除旧表。automation token 仍留在 Ops Web
-schema。Pod 重启不会删除凭据；数据库或 schema 被重建后，GitOps 不会从 Secret 回填 TGC，必须重新
-录入。
+现有环境由 Ops Web migration `0005_melted_shatterstar.sql` 将旧
+`ingestion_control.internal_portal_credentials` 原位迁入 `internal_portal.credentials`，重命名约束和
+索引并清理旧 schema，不复制或双写数据。新数据库直接由 Ops Web final-schema baseline 创建最终表。
+Pod 重启不会删除凭据；数据库或 schema 被重建后，GitOps 不会从 Secret 回填 TGC，必须重新录入。
 
 ## 失败处理
 
-- `INGESTION_INTERNAL_PORTAL_CREDENTIAL_REJECTED`：重新取得 TGC 后再录入或轮换；
-- `INGESTION_INTERNAL_PORTAL_INPUT_INVALID`：检查 TGC/Cookie 格式；
-- `INGESTION_INTERNAL_PORTAL_CHECK_FAILED`：检查门户网络和依赖；
-- `INGESTION_INTERNAL_TOKEN_INVALID`：核对既有内部 token；
-- `INGESTION_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE`：池中没有当前可用记录；
-- `INGESTION_INTERNAL_PORTAL_CONFLICT`：刷新当前版本后重试；
-- `INGESTION_INTERNAL_PORTAL_STORE_UNAVAILABLE`：检查 migration、授权、连接和 CA。
+- `OPS_INTERNAL_PORTAL_CREDENTIAL_REJECTED`：重新取得 TGC 后再录入或轮换；
+- `OPS_INTERNAL_PORTAL_INPUT_INVALID`：检查 TGC/Cookie 格式；
+- `OPS_INTERNAL_PORTAL_CHECK_FAILED`：检查门户网络和依赖；
+- `OPS_INTERNAL_TOKEN_INVALID`：核对既有内部 token；
+- `OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE`：池中没有当前可用记录；
+- `OPS_INTERNAL_PORTAL_CONFLICT`：刷新当前版本后重试；
+- `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`：检查 migration、授权、连接和 CA。
 
 Ops Web 会把这些领域结果映射为对应的 `OPS_INTERNAL_PORTAL_*` 页面错误。
 

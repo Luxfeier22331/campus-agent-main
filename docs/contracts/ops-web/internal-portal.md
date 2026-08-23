@@ -8,9 +8,9 @@ status: active
 
 ## 边界
 
-Ops Web 提供人员页面和开发者 automation endpoint，但不保存 TGC 或执行门户验证。所有凭据管理请求
-通过 `INGESTION_CONTROL_INTERNAL_URL` 和既有 `OPS_WEB_INTERNAL_TOKEN` 转发 ingestion-control。
-Ops Web 只持久化 `internal_portal.automation_tokens`。
+Ops Web 直接提供人员页面、开发者 automation endpoint 和内部解析接口，并保存 TGC、检查结果与
+`internal_portal.credentials`。凭据管理与门户验证在 Ops Web 内完成；采集 Job 使用既有
+`OPS_WEB_INTERNAL_TOKEN` 调用内部解析接口。
 
 浏览器只调用同源 `/api/ops/internal-portal/credentials*`。Cloudflare Access 决定人员准入；写请求还
 要求同源、严格 JSON 和当前 `If-Match`。机器端点使用 `OPS_WEB_AUTOMATION_ORIGIN` 的 Host 与
@@ -25,8 +25,8 @@ automation Bearer token，不使用人员 JWT。所有响应为 `Cache-Control: 
 - `POST /api/ops/internal-portal/credentials/:credentialId/validate`：立即检查当前值；
 - `POST /api/ops/internal-portal/credentials/:credentialId/reveal`：返回当前 TGC 与版本。
 
-Ops Web 透传 ingestion-control 的领域结果，并映射为现有 `OPS_INTERNAL_PORTAL_*` 错误码。ingestion-control
-不可达、响应无效或数据库不可用统一视为 `503 OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`。
+Ops Web 将本地领域结果映射为现有 `OPS_INTERNAL_PORTAL_*` 错误码。凭据数据库或门户验证依赖不可用时，
+管理 API 返回对应的 `503` 错误；内部解析失败也保留有界的 `503` 语义。
 
 ## 自动化管理
 
@@ -50,14 +50,14 @@ Ops Web 透传 ingestion-control 的领域结果，并映射为现有 `OPS_INTER
 
 名称去除首尾空白后为 1 至 80 个字符且唯一。候选输入最多 16 KiB，可以是裸 TGC、
 `SSO_TGC=<value>`，或包含唯一 `SSO_TGC` 的 Cookie；不保存其他 Cookie。新增和轮换必须先通过真实
-CAS 验证，失败不能覆盖旧值。CAS 返回刷新值时 ingestion-control 保存新值并更新版本。
+CAS 验证，失败不能覆盖旧值。CAS 返回刷新值时 Ops Web 保存新值并更新版本。
 
 ## 明文生命周期
 
 TGC 不出现在列表、URL、ETag、错误正文或日志。人工 reveal 只写入当前对话框 state。采集消费者不
-经过 Ops Web；它们直接调用 ingestion-control 的
-`POST /internal/ingestion/internal-portal/credentials/resolve`。该接口以
-`apps/ingestion-control/openapi.yaml` 和 `campus-contracts/internal-portal-credential` 为准。
+读取数据库；它们使用 `OPS_WEB_INTERNAL_URL` 和共享 token 调用 Ops Web 的
+`POST /internal/ops/internal-portal/credentials/resolve`。响应以
+`campus-contracts/internal-portal-credential` 为准。
 
 ## 错误
 

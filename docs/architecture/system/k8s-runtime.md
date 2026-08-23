@@ -13,10 +13,10 @@ namespace、不可变镜像、环境配置、凭据对象和实际资源额度�
 
 ## 运行时基础
 
-`infra/k8s/execution-runtime/base`、`infra/k8s/model-config/base` 与
-`infra/k8s/ingestion-runtime/base` 分别提供 execution、模型配置和 ingestion 的源码期望状态。
-常驻 workload 位于各自 `runtime/` 或 base。内部门户凭据检查属于
-ingestion-control，由 `infra/k8s/ingestion-runtime/base` 中使用同一镜像的 CronJob 执行。
+`infra/k8s/execution-runtime/base`、`infra/k8s/model-config/base`、`infra/k8s/ops-web/base` 与
+`infra/k8s/ingestion-runtime/base` 分别提供 execution、模型配置、运维应用和采集 Job 的源码期望状态。
+常驻 workload 位于各自 `runtime/` 或 base。内部门户凭据 API 与检查由 Ops Web 及其
+`ops-web-internal-portal-check` CronJob 执行；ingestion runtime 只保留采集 Job 模板。
 
 精确资源、标签、探针和配置引用以 Kustomize 清单为准，不在架构文档维护副本。源码 base 不选择
 具体环境或可变镜像标签。子单元可以引用同 namespace 中由运行时或 foundation 唯一拥有的
@@ -28,8 +28,8 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 - `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；独立 schema Job
   在 execution-control 历史 Goose migration 之后完成数据库所有权切换；
 - `agent-runtime`：一个独立 Deployment；
-- `ingestion-control`：一个凭据 API Deployment；
-- `ingestion-control-internal-portal-check`：顺序检查凭据池的 CronJob；
+- `ops-web`：一个运维 API Deployment；
+- `ops-web-internal-portal-check`：使用 Ops Web 凭据 store 顺序检查凭据池的 CronJob；
 - `internal-portal-collection` 提供一个镜像和共用采集实现；ingestion runtime base 声明通知增量、通知
   回填和文件发布三个默认暂停的 CronJob 模板，每个模板固定一种动作，没有常驻 Deployment 或自动调度。
 
@@ -54,7 +54,7 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 - Argo CD 选择源码声明的基础资源、不可变镜像和环境配置；
 - Temporal 保存 workflow/activity history、任务投递、retry、timeout 和 cancellation；
 - Kubernetes Deployment 管理进程副本与滚动更新；
-- PostgreSQL 保存产品数据、执行投影、Model Config 当前配置和 ingestion-control 凭据池。
+- PostgreSQL 保存产品数据、执行投影、Model Config 当前配置和 Ops Web 所有的内部门户凭据池。
 
 workflow 代码不得部署、重启或修改自己的 Kubernetes 资源。
 

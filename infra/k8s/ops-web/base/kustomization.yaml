@@ -4,6 +4,7 @@ resources:
   - database-config.yaml
   - database-roles.yaml
   - database-grants-job.yaml
+  - internal-portal-check.yaml
   - network-policy.yaml
   - service-account.yaml
   - workload.yaml

@@ -14,7 +14,6 @@ on:
           - app-api-product-db
           - execution-control-postgres
           - model-config-postgres
-          - ingestion-control-postgres
           - ops-web-postgres
           - infra
           - otel

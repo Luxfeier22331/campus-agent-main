@@ -1,5 +1,5 @@
 import type { InternalPortalClientConfig } from "@campus-agent/internal-portal-client";
-import descriptor from "../../../configs/sources/internal-portal.json" with { type: "json" };
+import descriptor from "../../../../configs/sources/internal-portal.json" with { type: "json" };
 
 export function createInternalPortalClientConfig(ssoTgc: string): InternalPortalClientConfig {
 	return {

@@ -92,8 +92,8 @@ status: active
   拒绝 `sub` 为空的服务令牌，不复制人员、组或分接口白名单。
 - `/api/ops/*` 接口使用同一人员准入。写接口另外执行同源、正文、并发和领域校验；`/api/automation/*`
   使用配置 origin、Bearer token 和自己的输入/CAS 合同，不接受人员 JWT。
-- Ops Web 使用既有 `OPS_WEB_INTERNAL_TOKEN` 调用 ingestion-control，不向浏览器或 automation 客户端
-  暴露内部服务 token。
+- internal-portal-collection 使用既有 `OPS_WEB_INTERNAL_TOKEN` 调用 Ops Web 内部解析接口；该 token 不向
+  浏览器或 automation 客户端暴露。
 - 浏览器不持有 PostgreSQL、在线模型配置管理接口或外部平台凭据。
 
 ### 响应和错误

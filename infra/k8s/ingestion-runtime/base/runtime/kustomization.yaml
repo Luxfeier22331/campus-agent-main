@@ -3,13 +3,8 @@ kind: Kustomization
 resources:
   - service-account.yaml
   - database-config.yaml
-  - database-role.yaml
   - network-policy.yaml
-  - migration-job.yaml
   - notice-publisher-schema.yaml
-  - availability.yaml
-  - ingestion-control.yaml
-  - internal-portal-check.yaml
   - internal-portal-collection.yaml
   - notice-classifier.yaml
   - notice-publisher.yaml

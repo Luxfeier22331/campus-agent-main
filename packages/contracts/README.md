@@ -22,8 +22,8 @@
 - `src/campus-groups.ts`：同好群有序分组、条目与公开目录的 Zod 运行时合同，供 app-api、
   ops-web 和 campus-web 共同消费；公开目录 JSON Schema 生成到
   `schemas/campus-groups-catalog.v1.schema.json`；
-- `src/internal-portal-credential.ts`：Ops Web、ingestion-control 与 internal-portal-collection 共享的
-  内部门户凭据解析响应合同；
+- `src/internal-portal-credential.ts`：Ops Web 与 internal-portal-collection 共享的内部门户凭据解析响应
+  合同；
 - `schemas/contract-schema-registry.v1.json`：runtime catalog 与 contract check 使用的 schema
   registry；
 - `schemas/runtime-*.schema.json`：运行时工具注册表、function schema、execution config、延迟预算与

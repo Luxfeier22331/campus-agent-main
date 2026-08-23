@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	InternalPortalCandidateInputError,
 	InternalPortalCandidateRejectedError,
+	InternalPortalCredentialResolutionUnavailableError,
 } from "../src/server/internal-portal-credential-service.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 import { createTestOpsApp } from "./helpers/ops-app.ts";
@@ -32,6 +33,7 @@ function createTestApp() {
 			version: 1,
 		})),
 		rotate: vi.fn(async () => ({ ...credential, version: 2 })),
+		resolve: vi.fn(async () => "TGT-resolved"),
 		validate: vi.fn(async () => credential),
 	};
 	const app = createTestOpsApp({
@@ -58,6 +60,57 @@ describe("internal portal credential API", () => {
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		expect(body).toContain(CREDENTIAL_ID);
 		expect(body).not.toContain("TGT-");
+	});
+
+	it("resolves a credential only through the authenticated internal POST", async () => {
+		const { app, service } = createTestApp();
+		const path = "http://ops.test/internal/ops/internal-portal/credentials/resolve";
+		const missing = await app.request(path, { method: "POST" });
+		const invalid = await app.request(path, {
+			headers: { authorization: "Bearer wrong" },
+			method: "POST",
+		});
+		const wrongMethod = await app.request(path, {
+			headers: { authorization: "Bearer internal-token" },
+		});
+		const unexpectedBody = await app.request(path, {
+			body: "{}",
+			headers: { authorization: "Bearer internal-token" },
+			method: "POST",
+		});
+		const response = await app.request(path, {
+			headers: { authorization: "Bearer internal-token" },
+			method: "POST",
+		});
+
+		expect(missing.status).toBe(401);
+		expect(invalid.status).toBe(401);
+		expect(wrongMethod.status).toBe(404);
+		expect(unexpectedBody.status).toBe(400);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		await expect(response.json()).resolves.toEqual({
+			schemaVersion: "internal-portal-credential-resolution.v1",
+			ssoTgc: "TGT-resolved",
+		});
+		expect(service.resolve).toHaveBeenCalledWith(expect.any(AbortSignal));
+	});
+
+	it("reports an exhausted internal credential pool without exposing plaintext", async () => {
+		const { app, service } = createTestApp();
+		service.resolve.mockRejectedValueOnce(new InternalPortalCredentialResolutionUnavailableError());
+		const response = await app.request(
+			"http://ops.test/internal/ops/internal-portal/credentials/resolve",
+			{
+				headers: { authorization: "Bearer internal-token" },
+				method: "POST",
+			},
+		);
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toMatchObject({
+			error: { code: "OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE" },
+		});
 	});
 
 	it("validates a new candidate before returning credential metadata", async () => {

@@ -74,12 +74,12 @@ export async function assertInternalPortalCredentialSchema(
 		await pool.query(
 			`select credential_id, name, sso_tgc, version, created_at, updated_at,
 				last_attempt_at, last_successful_at, last_outcome
-			 from ingestion_control.internal_portal_credentials
+			 from internal_portal.credentials
 			 limit 0`,
 		);
 	} catch (error) {
 		throw new InternalPortalCredentialStoreUnavailableError(
-			"ingestion-control credential schema is not migrated.",
+			"internal portal credential schema is not migrated.",
 			{ cause: error },
 		);
 	}
@@ -91,7 +91,7 @@ export function createPgInternalPortalCredentialStore(pool: Pick<Pool, "query">)
 			return await withStoreErrors(async () => {
 				const result = await pool.query<CredentialRow>(
 					`with credentials as (
-						insert into ingestion_control.internal_portal_credentials (
+						insert into internal_portal.credentials (
 							credential_id, name, sso_tgc, version, created_at, updated_at,
 							last_attempt_at, last_successful_at, last_outcome
 						) values ($1, $2, $3, 1, $4, $4, $4, $4, 'valid')
@@ -107,7 +107,7 @@ export function createPgInternalPortalCredentialStore(pool: Pick<Pool, "query">)
 		async delete(credentialId, expectedVersion) {
 			await withStoreErrors(async () => {
 				const result = await pool.query(
-					`delete from ingestion_control.internal_portal_credentials
+					`delete from internal_portal.credentials
 					 where credential_id = $1 and version = $2`,
 					[credentialId, expectedVersion],
 				);
@@ -121,7 +121,7 @@ export function createPgInternalPortalCredentialStore(pool: Pick<Pool, "query">)
 			return await withStoreErrors(async () => {
 				const result = await pool.query<CredentialRow>(
 					`${CREDENTIAL_SELECT}
-					 from ingestion_control.internal_portal_credentials credentials
+					 from internal_portal.credentials credentials
 					 where credential_id = $1`,
 					[credentialId],
 				);
@@ -132,7 +132,7 @@ export function createPgInternalPortalCredentialStore(pool: Pick<Pool, "query">)
 		async list() {
 			return await withStoreErrors(async () => {
 				const result = await pool.query<CredentialRow>(`${CREDENTIAL_SELECT}
-					from ingestion_control.internal_portal_credentials credentials
+					from internal_portal.credentials credentials
 					order by created_at, credential_id`);
 				return result.rows.map(rowToCredential);
 			});
@@ -142,7 +142,7 @@ export function createPgInternalPortalCredentialStore(pool: Pick<Pool, "query">)
 			return await withStoreErrors(async () => {
 				const result = await pool.query<CredentialRow>(
 					`with credentials as (
-						update ingestion_control.internal_portal_credentials
+						update internal_portal.credentials
 						set sso_tgc = $3,
 							version = case when sso_tgc = $3 then version else version + 1 end,
 							updated_at = case when sso_tgc = $3 then updated_at else $4 end,
@@ -172,7 +172,7 @@ export function createPgInternalPortalCredentialStore(pool: Pick<Pool, "query">)
 			return await withStoreErrors(async () => {
 				const result = await pool.query<CredentialRow>(
 					`with credentials as (
-						update ingestion_control.internal_portal_credentials
+						update internal_portal.credentials
 						set name = $3, version = version + 1, updated_at = $4
 						where credential_id = $1 and version = $2
 						returning *
@@ -191,7 +191,7 @@ export function createPgInternalPortalCredentialStore(pool: Pick<Pool, "query">)
 			return await withStoreErrors(async () => {
 				const result = await pool.query<CredentialRow>(
 					`with credentials as (
-						update ingestion_control.internal_portal_credentials
+						update internal_portal.credentials
 						set sso_tgc = $3, version = version + 1, updated_at = $4,
 							last_attempt_at = $4, last_successful_at = $4, last_outcome = 'valid'
 						where credential_id = $1 and version = $2
@@ -256,7 +256,7 @@ function requireRow(row: CredentialRow | undefined): InternalPortalCredentialRec
 
 async function throwWriteMiss(pool: Pick<Pool, "query">, credentialId: string): Promise<never> {
 	const existing = await pool.query(
-		"select 1 from ingestion_control.internal_portal_credentials where credential_id = $1",
+		"select 1 from internal_portal.credentials where credential_id = $1",
 		[credentialId],
 	);
 	if (existing.rowCount === 0) {
@@ -293,6 +293,6 @@ function isCredentialNameConflict(error: unknown): boolean {
 		"code" in error &&
 		error.code === "23505" &&
 		"constraint" in error &&
-		error.constraint === "ingestion_control_internal_portal_credentials_name_uidx"
+		error.constraint === "internal_portal_credentials_name_uidx"
 	);
 }

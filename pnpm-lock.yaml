@@ -466,52 +466,6 @@ importers:
 
   apps/execution-control: {}
 
-  apps/ingestion-control:
-    dependencies:
-      '@campus-agent/internal-portal-client':
-        specifier: workspace:*
-        version: link:../../packages/internal-portal-client
-      campus-contracts:
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      cookie:
-        specifier: ^1.1.1
-        version: 1.1.1
-      pg:
-        specifier: ^8.23.0
-        version: 8.23.0
-      undici:
-        specifier: ^8.10.0
-        version: 8.10.0
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.1.0
-        version: 12.1.0(supports-color@10.2.2)
-      '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
-      '@types/pg':
-        specifier: ^8.21.0
-        version: 8.21.0
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
-      testcontainers:
-        specifier: 12.1.0
-        version: 12.1.0(supports-color@10.2.2)
-      tsx:
-        specifier: ^4.23.12
-        version: 4.23.12
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
-      yaml:
-        specifier: 2.9.0
-        version: 2.9.0
-
   apps/model-config: {}
 
   apps/ops-web:
@@ -519,6 +473,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1111.0
         version: 3.1111.0
+      '@campus-agent/internal-portal-client':
+        specifier: workspace:*
+        version: link:../../packages/internal-portal-client
       '@dnd-kit/core':
         specifier: 6.3.1
         version: 6.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)

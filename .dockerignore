@@ -19,8 +19,6 @@ apps/campus-web/**
 !apps/campus-web/src/docs-reader-build/**
 !apps/execution-control/
 !apps/execution-control/**
-!apps/ingestion-control/
-!apps/ingestion-control/**
 !apps/model-config/
 !apps/model-config/**
 !apps/ops-web/

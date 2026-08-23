@@ -11,7 +11,7 @@ import {
 	loadInternalPortalEnv,
 	resolveInternalPortalConfig,
 } from "./config.js";
-import { resolveInternalPortalCredential } from "./ingestion-control-credential-resolver.js";
+import { resolveInternalPortalCredential } from "./ops-web-credential-resolver.js";
 import { checkPortalAuthentication } from "./portal.js";
 import { formatSafeErrorMessage } from "./safe-error.js";
 
@@ -158,8 +158,8 @@ export async function startKubectlPortForward(input: {
 			input.namespace,
 			"port-forward",
 			"--address=127.0.0.1",
-			"service/ingestion-control",
-			":8000",
+			"service/ops-web",
+			":5178",
 		],
 		{ stdio: ["ignore", "pipe", "pipe"] },
 	);
@@ -215,7 +215,7 @@ async function waitForPortForward(child: ChildProcess): Promise<string> {
 		};
 		const onData = (chunk: Buffer | string) => {
 			output = `${output}${String(chunk)}`.slice(-16 * 1024);
-			const match = /Forwarding from 127\.0\.0\.1:([1-9][0-9]*) -> 8000/u.exec(output);
+			const match = /Forwarding from 127\.0\.0\.1:([1-9][0-9]*) -> 5178/u.exec(output);
 			if (match?.[1]) {
 				finish(undefined, `http://127.0.0.1:${match[1]}`);
 			}

@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+import { InternalPortalCredentialResolutionSchema } from "campus-contracts/internal-portal-credential";
 import type { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -15,7 +17,10 @@ import {
 	jsonError,
 	readBoundedJson,
 	requestHasConfiguredOrigin,
+	requestHasNonEmptyBody,
 } from "./http.ts";
+
+const INTERNAL_RESOLUTION_PATH = "/internal/ops/internal-portal/credentials/resolve";
 
 export function registerInternalPortalRoutes(input: {
 	admission: OpsAdmission;
@@ -169,6 +174,60 @@ export function registerInternalPortalRoutes(input: {
 		context.header("etag", formatCredentialEtag(revealed.version));
 		return context.json(revealed);
 	});
+}
+
+export function registerInternalPortalInternalRoutes(input: {
+	app: Hono;
+	credentialService: InternalPortalCredentialService;
+	internalToken?: string | undefined;
+}): void {
+	input.app.post(INTERNAL_RESOLUTION_PATH, async (context) => {
+		const authenticationError = requireInternalToken(
+			context.req.raw,
+			input.internalToken?.trim() || null,
+		);
+		if (authenticationError) {
+			return authenticationError;
+		}
+		if (
+			Object.keys(context.req.query()).length > 0 ||
+			(await requestHasNonEmptyBody(context.req.raw))
+		) {
+			return jsonError(
+				"OPS_INTERNAL_PORTAL_INPUT_INVALID",
+				"内部门户凭据解析不接受请求参数或正文。",
+				400,
+			);
+		}
+		context.header("cache-control", "no-store");
+		return context.json(
+			InternalPortalCredentialResolutionSchema.parse({
+				schemaVersion: "internal-portal-credential-resolution.v1",
+				ssoTgc: await input.credentialService.resolve(context.req.raw.signal),
+			}),
+		);
+	});
+	input.app.all("/internal/ops/internal-portal/*", () =>
+		jsonError("OPS_INTERNAL_ROUTE_NOT_FOUND", "未找到该内部运维接口。", 404),
+	);
+}
+
+function requireInternalToken(request: Request, configured: string | null): Response | null {
+	if (!configured) {
+		return jsonError("OPS_INTERNAL_TOKEN_NOT_CONFIGURED", "内部访问 token 未配置。", 503);
+	}
+	const match = /^Bearer[ \t]+([^\s]+)$/iu.exec(request.headers.get("authorization")?.trim() ?? "");
+	if (!(match?.[1] && constantTimeEqual(configured, match[1]))) {
+		return jsonError("OPS_INTERNAL_TOKEN_INVALID", "内部访问 token 无效。", 401);
+	}
+	return null;
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+	return timingSafeEqual(
+		createHash("sha256").update(left).digest(),
+		createHash("sha256").update(right).digest(),
+	);
 }
 
 export function validateInternalPortalWriteRequest(

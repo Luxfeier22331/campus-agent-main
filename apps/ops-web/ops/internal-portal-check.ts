@@ -1,15 +1,11 @@
-import { Pool } from "pg";
-import { runScheduledInternalPortalChecks } from "./internal-portal-credential-service.ts";
-import { createPgInternalPortalCredentialStore } from "./internal-portal-credential-store.ts";
-import { readPostgresConnectionConfig } from "./postgres-config.ts";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createOpsWebDatabasePool } from "../src/server/database.ts";
+import { runScheduledInternalPortalChecks } from "../src/server/internal-portal-credential-service.ts";
+import { createPgInternalPortalCredentialStore } from "../src/server/internal-portal-credential-store.ts";
 
-export async function main(env: Record<string, string | undefined> = process.env): Promise<void> {
-	const database = readPostgresConnectionConfig(env, {
-		caCertPath: "INGESTION_CONTROL_DATABASE_CA_CERT_PATH",
-		connectionString: "INGESTION_CONTROL_DATABASE_URL",
-		sslMode: "INGESTION_CONTROL_DATABASE_SSLMODE",
-	});
-	const pool = new Pool({ ...database, connectionTimeoutMillis: 10_000 });
+export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+	const pool = createOpsWebDatabasePool(env);
 	try {
 		const result = await runScheduledInternalPortalChecks({
 			store: createPgInternalPortalCredentialStore(pool),
@@ -27,7 +23,7 @@ export async function main(env: Record<string, string | undefined> = process.env
 	}
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
 	const startedAt = performance.now();
 	main().catch((error) => {
 		console.error(

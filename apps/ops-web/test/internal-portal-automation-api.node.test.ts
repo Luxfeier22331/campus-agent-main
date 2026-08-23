@@ -38,6 +38,7 @@ function createTestApp() {
 		rename: vi.fn(async () => ({ ...credential, version: 2 })),
 		reveal: vi.fn(async () => ({ credentialId: CREDENTIAL_ID, ssoTgc: "TGT-secret", version: 1 })),
 		rotate: vi.fn(async () => ({ ...credential, version: 2 })),
+		resolve: vi.fn(async () => "TGT-resolved"),
 		validate: vi.fn(async () => credential),
 	};
 	const tokenService = {

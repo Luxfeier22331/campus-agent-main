@@ -8,7 +8,7 @@ import {
 } from "./collection-command.js";
 import { parseNoticeStartDate } from "./notice-runner.js";
 import { loadInternalPortalEnv } from "./config.js";
-import { resolveInternalPortalCredentialFromEnv } from "./ingestion-control-credential-resolver.js";
+import { resolveInternalPortalCredentialFromEnv } from "./ops-web-credential-resolver.js";
 import { formatSafeErrorMessage } from "./safe-error.js";
 
 export async function main(

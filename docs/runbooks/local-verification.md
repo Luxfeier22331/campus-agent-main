@@ -84,8 +84,6 @@ pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
 pnpm --filter ops-web dev:init
 pnpm --filter ops-web dev:api
 pnpm --filter ops-web dev:web
-pnpm --filter ingestion-control dev:init
-pnpm --filter ingestion-control start:api
 pnpm --filter notice-publisher dev:init
 pnpm --filter internal-portal-collection dev:init
 pnpm --filter notice-classifier dev:init

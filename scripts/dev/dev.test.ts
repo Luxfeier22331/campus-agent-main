@@ -79,7 +79,6 @@ describe("local development profiles", () => {
 		assert.deepEqual(calculateLocalDevRuntimePorts(2), {
 			agentRuntime: 27262,
 			executionControl: 27251,
-			ingestionControl: 27261,
 			modelConfig: 27253,
 		});
 	});
@@ -268,9 +267,6 @@ describe("managed worktree environment", () => {
 		const modelConfigEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/model-config/.env.local"), "utf8"),
 		);
-		const ingestionControlEnvironment = parseEnv(
-			readFileSync(resolve(repoRoot, "apps/ingestion-control/.env.local"), "utf8"),
-		);
 		const campusWebEnvironment = parseEnv(
 			readFileSync(resolve(repoRoot, "apps/campus-web/.dev.vars.local"), "utf8"),
 		);
@@ -308,11 +304,6 @@ describe("managed worktree environment", () => {
 			"MODEL_CONFIG_PORT",
 		]);
 		assert.equal(
-			new URL(ingestionControlEnvironment.INGESTION_CONTROL_DATABASE_URL ?? "").username,
-			"ingestion_control",
-		);
-		assert.equal(ingestionControlEnvironment.OBJECT_STORE_BUCKET_SOURCE, undefined);
-		assert.equal(
 			internalPortalCollectionEnvironment.OBJECT_STORE_BUCKET_SOURCE,
 			"campus-agent-source",
 		);
@@ -321,6 +312,10 @@ describe("managed worktree environment", () => {
 			"http://127.0.0.1:9000",
 		);
 		assert.equal(internalPortalCollectionEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
+		assert.equal(
+			internalPortalCollectionEnvironment.OPS_WEB_INTERNAL_URL,
+			`http://127.0.0.1:${profile.ports.opsWebApi}`,
+		);
 		assert.equal(internalPortalCollectionEnvironment.INTERNAL_PORTAL_SSO_TGC, "TGT-local");
 		assert.equal(
 			noticeClassifierEnvironment.OBJECT_STORE_BUCKET_DERIVED,
@@ -671,8 +666,6 @@ describe("local development lifecycle guards", () => {
 				"app-api-seed-local-test-user",
 				"ops-web-schema",
 				"ops-web-dining-bootstrap",
-				"ingestion-control-schema",
-				"ingestion-control-migrate",
 				"notice-publisher-migrate",
 			],
 		);
@@ -689,8 +682,7 @@ describe("local development lifecycle guards", () => {
 			commands[3]?.args.join(" ") ?? "",
 			/--legacy-encryption-key-path \/repo\/var\/dev\/provider-config-encryption\.key/u,
 		);
-		assert.deepEqual(commands[7]?.args, ["--dir", "apps/ingestion-control", "schema:bootstrap"]);
-		assert.deepEqual(commands[8]?.args, ["--dir", "apps/ingestion-control", "migrate"]);
+		assert.deepEqual(commands[7]?.args, ["--dir", "jobs/notice-publisher", "migrate"]);
 	});
 
 	it("keeps the internal portal collection local loader inside its adapter", () => {
@@ -756,7 +748,6 @@ function createRepositoryShape(): string {
 		"execution-control",
 		"model-config",
 		"agent-runtime",
-		"ingestion-control",
 		"ops-web",
 	]) {
 		mkdirSync(resolve(repoRoot, "apps", app), { recursive: true });

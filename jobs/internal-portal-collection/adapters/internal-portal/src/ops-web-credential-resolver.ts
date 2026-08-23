@@ -3,20 +3,20 @@ import {
 	InternalPortalCredentialResolutionSchema,
 } from "campus-contracts/internal-portal-credential";
 
-const CREDENTIAL_RESOLUTION_PATH = "/internal/ingestion/internal-portal/credentials/resolve";
+const CREDENTIAL_RESOLUTION_PATH = "/internal/ops/internal-portal/credentials/resolve";
 
-export interface IngestionControlCredentialResolverEnv {
-	INGESTION_CONTROL_INTERNAL_URL?: string;
+export interface OpsWebCredentialResolverEnv {
+	OPS_WEB_INTERNAL_URL?: string;
 	OPS_WEB_INTERNAL_TOKEN?: string;
 }
 
-export class IngestionControlCredentialResolverError extends Error {
+export class OpsWebCredentialResolverError extends Error {
 	readonly code: string;
 	readonly status: number | null;
 
 	constructor(code: string, message: string, options: { cause?: unknown; status?: number } = {}) {
 		super(message, options.cause === undefined ? undefined : { cause: options.cause });
-		this.name = "IngestionControlCredentialResolverError";
+		this.name = "OpsWebCredentialResolverError";
 		this.code = code;
 		this.status = options.status ?? null;
 	}
@@ -28,7 +28,7 @@ export async function resolveInternalPortalCredential(input: {
 	token: string;
 	url: string;
 }): Promise<InternalPortalCredentialResolution> {
-	const url = resolveIngestionControlUrl(input.url);
+	const url = resolveOpsWebUrl(input.url);
 	const token = requiredValue(input.token, "OPS_WEB_INTERNAL_TOKEN");
 	let response: Response;
 	try {
@@ -41,17 +41,17 @@ export async function resolveInternalPortalCredential(input: {
 			...(input.abortSignal === undefined ? {} : { signal: input.abortSignal }),
 		});
 	} catch (error) {
-		throw new IngestionControlCredentialResolverError(
-			"INGESTION_INTERNAL_PORTAL_RESOLVER_UNREACHABLE",
-			"无法连接 ingestion-control 内部门户凭据解析接口。",
+		throw new OpsWebCredentialResolverError(
+			"OPS_INTERNAL_PORTAL_RESOLVER_UNREACHABLE",
+			"无法连接 Ops Web 内部门户凭据解析接口。",
 			{ cause: error },
 		);
 	}
 	if (!response.ok) {
 		const code = await readErrorCode(response);
-		throw new IngestionControlCredentialResolverError(
+		throw new OpsWebCredentialResolverError(
 			code,
-			`ingestion-control 内部门户凭据解析失败（HTTP ${response.status}）。`,
+			`Ops Web 内部门户凭据解析失败（HTTP ${response.status}）。`,
 			{ status: response.status },
 		);
 	}
@@ -59,17 +59,17 @@ export async function resolveInternalPortalCredential(input: {
 	try {
 		payload = await response.json();
 	} catch (error) {
-		throw new IngestionControlCredentialResolverError(
-			"INGESTION_INTERNAL_PORTAL_RESPONSE_INVALID",
-			"ingestion-control 内部门户凭据解析响应不是有效 JSON。",
+		throw new OpsWebCredentialResolverError(
+			"OPS_INTERNAL_PORTAL_RESPONSE_INVALID",
+			"Ops Web 内部门户凭据解析响应不是有效 JSON。",
 			{ cause: error, status: response.status },
 		);
 	}
 	const parsed = InternalPortalCredentialResolutionSchema.safeParse(payload);
 	if (!parsed.success) {
-		throw new IngestionControlCredentialResolverError(
-			"INGESTION_INTERNAL_PORTAL_RESPONSE_INVALID",
-			"ingestion-control 内部门户凭据解析响应不符合合同。",
+		throw new OpsWebCredentialResolverError(
+			"OPS_INTERNAL_PORTAL_RESPONSE_INVALID",
+			"Ops Web 内部门户凭据解析响应不符合合同。",
 			{ status: response.status },
 		);
 	}
@@ -77,26 +77,26 @@ export async function resolveInternalPortalCredential(input: {
 }
 
 export async function resolveInternalPortalCredentialFromEnv(
-	env: IngestionControlCredentialResolverEnv,
+	env: OpsWebCredentialResolverEnv,
 	options: { abortSignal?: AbortSignal; fetch?: typeof fetch } = {},
 ): Promise<InternalPortalCredentialResolution> {
 	return await resolveInternalPortalCredential({
 		...(options.abortSignal === undefined ? {} : { abortSignal: options.abortSignal }),
 		...(options.fetch === undefined ? {} : { fetch: options.fetch }),
 		token: requiredValue(env.OPS_WEB_INTERNAL_TOKEN, "OPS_WEB_INTERNAL_TOKEN"),
-		url: requiredValue(env.INGESTION_CONTROL_INTERNAL_URL, "INGESTION_CONTROL_INTERNAL_URL"),
+		url: requiredValue(env.OPS_WEB_INTERNAL_URL, "OPS_WEB_INTERNAL_URL"),
 	});
 }
 
-function resolveIngestionControlUrl(raw: string): URL {
-	const value = requiredValue(raw, "INGESTION_CONTROL_INTERNAL_URL");
+function resolveOpsWebUrl(raw: string): URL {
+	const value = requiredValue(raw, "OPS_WEB_INTERNAL_URL");
 	let url: URL;
 	try {
 		url = new URL(value);
 	} catch {
-		throw new IngestionControlCredentialResolverError(
-			"INGESTION_INTERNAL_PORTAL_CONFIG_INVALID",
-			"INGESTION_CONTROL_INTERNAL_URL 必须是 HTTP 或 HTTPS origin。",
+		throw new OpsWebCredentialResolverError(
+			"OPS_INTERNAL_PORTAL_CONFIG_INVALID",
+			"OPS_WEB_INTERNAL_URL 必须是 HTTP 或 HTTPS origin。",
 		);
 	}
 	if (
@@ -107,9 +107,9 @@ function resolveIngestionControlUrl(raw: string): URL {
 		url.search ||
 		url.hash
 	) {
-		throw new IngestionControlCredentialResolverError(
-			"INGESTION_INTERNAL_PORTAL_CONFIG_INVALID",
-			"INGESTION_CONTROL_INTERNAL_URL 必须是无凭据、无路径的 HTTP 或 HTTPS origin。",
+		throw new OpsWebCredentialResolverError(
+			"OPS_INTERNAL_PORTAL_CONFIG_INVALID",
+			"OPS_WEB_INTERNAL_URL 必须是无凭据、无路径的 HTTP 或 HTTPS origin。",
 		);
 	}
 	return url;
@@ -118,8 +118,8 @@ function resolveIngestionControlUrl(raw: string): URL {
 function requiredValue(value: string | undefined, key: string): string {
 	const normalized = value?.trim() ?? "";
 	if (!normalized) {
-		throw new IngestionControlCredentialResolverError(
-			"INGESTION_INTERNAL_PORTAL_CONFIG_INVALID",
+		throw new OpsWebCredentialResolverError(
+			"OPS_INTERNAL_PORTAL_CONFIG_INVALID",
 			`${key} is required.`,
 		);
 	}
@@ -144,5 +144,5 @@ async function readErrorCode(response: Response): Promise<string> {
 	} catch {
 		// The status remains enough to report a bounded failure.
 	}
-	return "INGESTION_INTERNAL_PORTAL_RESOLUTION_FAILED";
+	return "OPS_INTERNAL_PORTAL_RESOLUTION_FAILED";
 }

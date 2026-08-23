@@ -41,13 +41,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: ingestion-control
-      ports:
-        - protocol: TCP
-          port: 8000
-    - to:
-        - podSelector:
-            matchLabels:
               app.kubernetes.io/name: object-store
       ports:
         - protocol: TCP
@@ -59,6 +52,39 @@ spec:
       ports:
         - protocol: TCP
           port: 27062
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ops-web-internal-portal-check-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ops-web-internal-portal-check
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

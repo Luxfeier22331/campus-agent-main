@@ -96,15 +96,6 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresDocker: true,
 		requiresUv: false,
 	},
-	"ingestion-control-postgres": {
-		executor: {
-			commands: [turboCommand("ingestion-control", "test:database-integration")],
-			kind: "commands",
-		},
-		lane: "manual",
-		requiresDocker: true,
-		requiresUv: false,
-	},
 	"ops-web-postgres": {
 		executor: {
 			commands: [turboCommand("ops-web", "test:database-integration")],

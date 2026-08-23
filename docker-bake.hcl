@@ -14,7 +14,6 @@ group "default" {
     "app-api-schema",
     "campus-docs-index-publisher",
     "execution-control",
-    "ingestion-control",
     "model-config",
     "notice-classifier",
     "notice-publisher",
@@ -54,12 +53,6 @@ target "campus-docs-index-publisher" {
 target "execution-control" {
   inherits   = ["_common"]
   dockerfile = "apps/execution-control/Dockerfile"
-}
-
-target "ingestion-control" {
-  inherits   = ["_common"]
-  dockerfile = "apps/ingestion-control/Dockerfile"
-  target     = "api"
 }
 
 target "model-config" {

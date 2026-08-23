@@ -6,6 +6,8 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { Client } from "pg";
 
 const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
+const INTERNAL_PORTAL_HANDOFF_MIGRATION_MILLIS = 1787465168474;
+const FINAL_SCHEMA_BASELINE_MIGRATION_COUNT = 4;
 
 const PRE_DRIZZLE_COLUMNS = {
 	map_draft: ["bundle_json", "fingerprint", "revision", "scope", "updated_at", "updated_by"],
@@ -93,11 +95,26 @@ async function hasMigrationLedger(client: Client): Promise<boolean> {
 	return result.rows[0]?.present === true;
 }
 
-async function hasDiningObjects(client: Client): Promise<boolean> {
-	const result = await client.query<{ present: boolean }>(`
-		select to_regnamespace('dining') is not null as present
-	`);
-	return result.rows[0]?.present === true;
+async function ownedSchemaState(client: Client): Promise<{
+	dining: boolean;
+	ingestionControl: boolean;
+	internalPortal: boolean;
+}> {
+	const result = await client.query<{
+		dining: boolean;
+		ingestionControl: boolean;
+		internalPortal: boolean;
+	}>(`select
+		to_regnamespace('dining') is not null as dining,
+		to_regnamespace('ingestion_control') is not null as "ingestionControl",
+		to_regnamespace('internal_portal') is not null as "internalPortal"`);
+	return (
+		result.rows[0] ?? {
+			dining: false,
+			ingestionControl: false,
+			internalPortal: false,
+		}
+	);
 }
 
 async function preDrizzleSchemaMismatch(client: Client): Promise<string | undefined> {
@@ -157,25 +174,44 @@ async function preDrizzleSchemaMismatch(client: Client): Promise<string | undefi
 	return;
 }
 
-async function preparePreDrizzleBaseline(client: Client): Promise<void> {
+async function prepareFinalSchemaBaseline(client: Client): Promise<void> {
 	if (await hasMigrationLedger(client)) {
 		return;
 	}
-	if (!(await hasDiningObjects(client))) {
-		return;
-	}
-	const mismatch = await preDrizzleSchemaMismatch(client);
-	if (mismatch) {
+	const state = await ownedSchemaState(client);
+	if (state.ingestionControl || state.internalPortal) {
 		throw new Error(
-			`Dining schema has owned objects without drizzle.ops_web_dining_migrations; refusing an unknown partial bootstrap (${mismatch}).`,
+			"Ops Web schemas exist without drizzle.ops_web_dining_migrations; refusing an unknown partial bootstrap.",
 		);
 	}
-	const [initialMigration] = readMigrationFiles({ migrationsFolder });
-	if (!initialMigration) {
-		throw new Error("Ops Web Dining initial migration is missing.");
+	if (state.dining) {
+		const mismatch = await preDrizzleSchemaMismatch(client);
+		if (mismatch) {
+			throw new Error(
+				`Dining schema has owned objects without drizzle.ops_web_dining_migrations; refusing an unknown partial bootstrap (${mismatch}).`,
+			);
+		}
+	}
+	const migrations = readMigrationFiles({ migrationsFolder });
+	const baselineMigrations = migrations.filter(
+		(migration) => migration.folderMillis <= INTERNAL_PORTAL_HANDOFF_MIGRATION_MILLIS,
+	);
+	if (
+		baselineMigrations.length !== 6 ||
+		baselineMigrations.at(-1)?.folderMillis !== INTERNAL_PORTAL_HANDOFF_MIGRATION_MILLIS
+	) {
+		throw new Error("Ops Web final-schema baseline migrations are incomplete.");
 	}
 	await client.query("begin");
 	try {
+		for (const migration of baselineMigrations.slice(
+			state.dining ? 1 : 0,
+			FINAL_SCHEMA_BASELINE_MIGRATION_COUNT,
+		)) {
+			for (const statement of migration.sql) {
+				await client.query(statement);
+			}
+		}
 		await client.query("create schema if not exists drizzle");
 		await client.query(`
 			create table if not exists drizzle.ops_web_dining_migrations (
@@ -184,10 +220,12 @@ async function preparePreDrizzleBaseline(client: Client): Promise<void> {
 				created_at bigint
 			)
 		`);
-		await client.query(
-			"insert into drizzle.ops_web_dining_migrations (hash, created_at) values ($1, $2)",
-			[initialMigration.hash, initialMigration.folderMillis],
-		);
+		for (const migration of baselineMigrations) {
+			await client.query(
+				"insert into drizzle.ops_web_dining_migrations (hash, created_at) values ($1, $2)",
+				[migration.hash, migration.folderMillis],
+			);
+		}
 		await client.query("commit");
 	} catch (error) {
 		await client.query("rollback");
@@ -226,7 +264,7 @@ async function verifyAppliedMigrationHashes(client: Client): Promise<void> {
 }
 
 export async function migrateDiningSchema(client: Client): Promise<void> {
-	await preparePreDrizzleBaseline(client);
+	await prepareFinalSchemaBaseline(client);
 	await verifyAppliedMigrationHashes(client);
 	await migrate(drizzle(client), {
 		migrationsFolder,

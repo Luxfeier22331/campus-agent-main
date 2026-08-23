@@ -8,12 +8,12 @@ status: active
 
 ## 凭据池
 
-内部门户数据包含 ingestion-control 所有的认证凭据，以及 internal-portal-collection 产生的来源对象。
+内部门户数据包含 Ops Web 所有的认证凭据，以及 internal-portal-collection 产生的来源对象。
 凭据进入 PostgreSQL，来源对象只写 source bucket；两类数据不互相复制。通知来源与规范化投影由
 [通知数据](./notices.md) 维护。来源采集不会创建 Campus Web reader、derived 产物或 Campus Docs
 索引，也不替换当前索引绑定。
 
-ingestion-control 使用 `ingestion_control.internal_portal_credentials` 保存多条具名记录。每条记录包含
+Ops Web 使用 `internal_portal.credentials` 保存多条具名记录。每条记录包含
 `credential_id`、唯一名称、原始 `sso_tgc`、单调版本、创建和更新时间，以及最近尝试、最近成功与
 `valid`、`credential_rejected`、`check_failed` 三种结果。表不保存主凭据、用途、软删除或当前选中项。
 
@@ -22,18 +22,17 @@ ingestion-control 使用 `ingestion_control.internal_portal_credentials` 保存�
 `credential_rejected`，按 `valid`、未检查、`check_failed` 依次验证，返回第一条可用记录；名称不会
 暴露给采集器。
 
-Ops Web 列表只显示 metadata，人工 reveal 通过 BFF 调用 ingestion-control 的独立 `POST`。明文只进入
-当前对话框 state。`ingestion_control` 是凭据表唯一运行角色；`ops_web`、App API 和
-internal-portal-collection 都无数据库权限。
+Ops Web 列表只显示 metadata，人工 reveal 通过同一服务的独立 `POST`。明文只进入当前对话框 state。
+`ops_web` 是凭据表唯一运行角色；App API 和 internal-portal-collection 都无数据库权限。
 
 ## 自动化 token
 
 Ops Web 继续使用 `internal_portal.automation_tokens` 保存具名机器 token。明文用于人工重复 reveal，
 SHA-256 hash 用于 Bearer 查询；普通列表只返回 metadata。有效 token 可以通过 Ops Web automation
-endpoint 创建、读取 metadata、轮换或删除任一凭据，但实际 TGC 操作由 ingestion-control 执行。
+endpoint 创建、读取 metadata、轮换或删除任一凭据，TGC 操作由 Ops Web 直接执行。
 
-`ops_web` 是 automation token 表唯一运行角色。该 token 不参与采集消费；
-internal-portal-collection Job 使用既有 `OPS_WEB_INTERNAL_TOKEN` 调用 ingestion-control。
+`ops_web` 是 automation token 表和凭据表的唯一运行角色。该 token 不参与采集消费；
+internal-portal-collection Job 使用既有 `OPS_WEB_INTERNAL_TOKEN` 调用 Ops Web 内部解析接口。
 
 ## 文件发布来源
 

@@ -219,7 +219,6 @@ function ensureDatabaseRoles(): void {
 		["app_api", LOCAL_DEV_DATABASE_PASSWORDS.appApi, true],
 		["execution_control", LOCAL_DEV_DATABASE_PASSWORDS.executionControl, true],
 		["model_config", LOCAL_DEV_DATABASE_PASSWORDS.modelConfig, true],
-		["ingestion_control", LOCAL_DEV_DATABASE_PASSWORDS.ingestionControl, true],
 		["ops_web", LOCAL_DEV_DATABASE_PASSWORDS.opsWeb, true],
 		["notice_publisher", LOCAL_DEV_DATABASE_PASSWORDS.noticePublisher, true],
 	] as const;
@@ -239,14 +238,7 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 		runPsql(
 			[
 				`REVOKE ALL ON DATABASE ${quoteIdentifier(profile.databaseName)} FROM PUBLIC`,
-				...[
-					"app_api",
-					"execution_control",
-					"model_config",
-					"ingestion_control",
-					"ops_web",
-					"notice_publisher",
-				].map(
+				...["app_api", "execution_control", "model_config", "ops_web", "notice_publisher"].map(
 					(role) =>
 						`GRANT CONNECT ON DATABASE ${quoteIdentifier(profile.databaseName)} TO ${quoteIdentifier(role)}`,
 				),
@@ -267,7 +259,7 @@ function createIsolatedResources(profile: LocalDevProfileV1): void {
 
 function grantDatabaseConnect(databaseName: string): void {
 	runPsql(
-		["execution_control", "model_config", "ingestion_control", "notice_publisher"]
+		["execution_control", "model_config", "notice_publisher"]
 			.map(
 				(role) =>
 					`GRANT CONNECT ON DATABASE ${quoteIdentifier(databaseName)} TO ${quoteIdentifier(role)}`,

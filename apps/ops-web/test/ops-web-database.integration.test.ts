@@ -14,6 +14,11 @@ import {
 } from "../ops/db/ops-web-database.ts";
 import { hashAutomationToken } from "../src/server/internal-portal-automation-token-service.ts";
 import { createPgInternalPortalAutomationTokenStore } from "../src/server/internal-portal-automation-token-store.ts";
+import {
+	createPgInternalPortalCredentialStore,
+	InternalPortalCredentialConflictError,
+	InternalPortalCredentialNameConflictError,
+} from "../src/server/internal-portal-credential-store.ts";
 
 const postgres = inject("opsWebPostgres");
 const databaseEnv = {
@@ -108,13 +113,50 @@ describe("ops-web PostgreSQL grants", () => {
 		});
 	});
 
-	it("cannot access ingestion-control credentials after the handoff", async () => {
+	it("owns credentials through the Ops Web runtime role after the handoff", async () => {
 		const runtime = requiredClient(opsWeb, "ops_web");
-		expect(
-			await postgresErrorCode(
-				runtime.query("select credential_id from ingestion_control.internal_portal_credentials"),
-			),
-		).toBe("42501");
+		const store = createPgInternalPortalCredentialStore(runtime);
+		const credentialId = randomUUID();
+		try {
+			await expect(
+				store.create({
+					credentialId,
+					name: "Ops Web 数据库测试凭据",
+					now: new Date("2026-08-23T01:00:00.000Z"),
+					ssoTgc: "TGT-ops-web-database-test",
+				}),
+			).resolves.toMatchObject({ credentialId, version: 1 });
+			await expect(store.list()).resolves.toContainEqual(
+				expect.objectContaining({ credentialId, ssoTgc: "TGT-ops-web-database-test" }),
+			);
+			await expect(
+				store.create({
+					credentialId: randomUUID(),
+					name: "Ops Web 数据库测试凭据",
+					now: new Date("2026-08-23T01:05:00.000Z"),
+					ssoTgc: "TGT-duplicate",
+				}),
+			).rejects.toBeInstanceOf(InternalPortalCredentialNameConflictError);
+			await expect(
+				store.rotate({
+					attemptedAt: new Date("2026-08-23T01:10:00.000Z"),
+					credentialId,
+					expectedVersion: 2,
+					ssoTgc: "TGT-stale",
+				}),
+			).rejects.toBeInstanceOf(InternalPortalCredentialConflictError);
+		} finally {
+			await management.query("delete from internal_portal.credentials where credential_id = $1", [
+				credentialId,
+			]);
+		}
+		const retired = await management.query(`select
+			to_regnamespace('ingestion_control')::text as "legacySchema",
+			to_regclass('internal_portal.credentials')::text as "credentials"`);
+		expect(retired.rows[0]).toEqual({
+			credentials: "internal_portal.credentials",
+			legacySchema: null,
+		});
 	});
 
 	it("persists multiple automation tokens and rejects revoked token authentication", async () => {
@@ -242,6 +284,160 @@ describe("ops-web PostgreSQL grants", () => {
 			(select count(*)::int from dining.review_reports where report_id = 'drp_preserve') as reports,
 			(select count(*)::int from dining.review_edits where edit_id = 'dre_preserve') as edits`);
 		expect(counts.rows[0]).toEqual({ edits: 1, menu: 1, reports: 1, reviews: 1 });
+	});
+
+	it("moves the deployed ingestion-control credential table without changing rows", async () => {
+		await withIsolatedDatabase(management, async ({ env, managementUrl }) => {
+			const current = await connect(managementUrl);
+			const credentialId = "11111111-1111-4111-8111-111111111111";
+			try {
+				const migrations = readMigrationFiles({ migrationsFolder: diningMigrationsFolder });
+				for (const migration of migrations.slice(0, 4)) {
+					for (const statement of migration.sql) {
+						await current.query(statement);
+					}
+				}
+				await current.query(`
+					create schema chat;
+					create table chat.turn_dispatches (
+						admission_status text,
+						assistant_message_id text,
+						completed_at timestamptz,
+						conversation_id text,
+						created_at timestamptz,
+						error_code text,
+						request_id text,
+						run_id text,
+						status text,
+						surface text,
+						trace_id text,
+						turn_sequence integer,
+						updated_at timestamptz,
+						user_message_id text,
+						workflow_id text,
+						owner_user_id text
+					);
+					create table chat.messages (
+						conversation_id text,
+						id text,
+						kind text,
+						request_id text,
+						role text,
+						structured_parts_json jsonb,
+						text text
+					);
+					create schema runtime;
+					create table runtime.request_observability_fact (request_id text);
+					create schema execution_control;
+					create table execution_control.agent_runs (
+						completed_at timestamptz,
+						fail_close_reason text,
+						run_id text,
+						runtime_versions_json jsonb,
+						status text,
+						terminal_reason text,
+						trace_id text,
+						updated_at timestamptz
+					);
+					create table execution_control.agent_step_attempts (
+						cached_input_tokens integer,
+						input_tokens integer,
+						output_tokens integer,
+						run_id text,
+						step_id text,
+						usage_observed boolean
+					);
+					grant usage on schema execution_control to ops_web;
+					grant select on execution_control.agent_runs, execution_control.agent_step_attempts to ops_web;
+					create schema ingestion_control;
+					create table ingestion_control.internal_portal_credentials (
+						credential_id text primary key not null,
+						name text not null,
+						sso_tgc text not null,
+						version integer not null,
+						created_at timestamptz not null,
+						updated_at timestamptz not null,
+						last_attempt_at timestamptz,
+						last_successful_at timestamptz,
+						last_outcome text,
+						constraint ingestion_control_internal_portal_credentials_name_check
+							check (length(btrim(name)) between 1 and 80),
+						constraint ingestion_control_internal_portal_credentials_sso_tgc_check
+							check (length(sso_tgc) > 0),
+						constraint ingestion_control_internal_portal_credentials_version_check
+							check (version > 0),
+						constraint ingestion_control_internal_portal_credentials_outcome_check
+							check (last_outcome is null or last_outcome in ('valid', 'credential_rejected', 'check_failed'))
+					);
+					create unique index ingestion_control_internal_portal_credentials_name_uidx
+						on ingestion_control.internal_portal_credentials (name);
+					create table ingestion_control.schema_migrations (
+						migration_id text primary key,
+						content_sha256 text not null,
+						applied_at timestamptz not null default now()
+					);
+					drop table internal_portal.credentials;
+					create schema drizzle;
+					create table drizzle.ops_web_dining_migrations (
+						id serial primary key,
+						hash text not null,
+						created_at bigint
+					);
+				`);
+				await current.query(
+					`insert into ingestion_control.internal_portal_credentials (
+						credential_id, name, sso_tgc, version, created_at, updated_at,
+						last_attempt_at, last_successful_at, last_outcome
+					) values ($1, '协作者凭据', 'TGT-before-handoff', 3,
+						'2026-08-20T00:00:00Z', '2026-08-22T00:00:00Z',
+						'2026-08-22T00:00:00Z', '2026-08-22T00:00:00Z', 'valid')`,
+					[credentialId],
+				);
+				for (const migration of migrations.slice(0, 5)) {
+					await current.query(
+						"insert into drizzle.ops_web_dining_migrations (hash, created_at) values ($1, $2)",
+						[migration.hash, migration.folderMillis],
+					);
+				}
+			} finally {
+				await current.end();
+			}
+
+			await expect(applyOpsWebDatabaseGrants(env)).resolves.toMatchObject({
+				internalPortal: "ready",
+			});
+			const migrated = await connect(managementUrl);
+			try {
+				const rows = await migrated.query(`select
+					credential_id as "credentialId", name, sso_tgc as "ssoTgc", version,
+					created_at as "createdAt", updated_at as "updatedAt",
+					last_attempt_at as "lastAttemptAt", last_successful_at as "lastSuccessfulAt",
+					last_outcome as "lastOutcome"
+				from internal_portal.credentials`);
+				expect(rows.rows).toEqual([
+					{
+						createdAt: new Date("2026-08-20T00:00:00.000Z"),
+						credentialId,
+						lastAttemptAt: new Date("2026-08-22T00:00:00.000Z"),
+						lastOutcome: "valid",
+						lastSuccessfulAt: new Date("2026-08-22T00:00:00.000Z"),
+						name: "协作者凭据",
+						ssoTgc: "TGT-before-handoff",
+						updatedAt: new Date("2026-08-22T00:00:00.000Z"),
+						version: 3,
+					},
+				]);
+				const state = await migrated.query(`select
+					to_regnamespace('ingestion_control')::text as "legacySchema",
+					to_regclass('internal_portal.credentials')::text as "credentials"`);
+				expect(state.rows[0]).toEqual({
+					credentials: "internal_portal.credentials",
+					legacySchema: null,
+				});
+			} finally {
+				await migrated.end();
+			}
+		});
 	});
 
 	it("adopts the exact pre-Drizzle Dining schema", async () => {
@@ -374,10 +570,15 @@ describe("ops-web PostgreSQL grants", () => {
 		const privilege = await management.query<{
 			canReadModelConfigs: boolean;
 		}>(`select
-			has_table_privilege(
-				'ops_web', 'model_config.model_configs', 'SELECT'
-			) or has_any_column_privilege(
-				'ops_web', 'model_config.model_configs', 'SELECT'
+			coalesce(
+				(
+					select has_table_privilege('ops_web', relation.oid, 'SELECT')
+						or has_any_column_privilege('ops_web', relation.oid, 'SELECT')
+					from pg_catalog.pg_class relation
+					join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+					where namespace.nspname = 'model_config' and relation.relname = 'model_configs'
+				),
+				false
 			) as "canReadModelConfigs"`);
 		expect(privilege.rows[0]).toEqual({
 			canReadModelConfigs: false,

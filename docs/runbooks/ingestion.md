@@ -13,27 +13,24 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 
 ## 前置条件
 
-- ingestion-control bootstrap 和 migration 使用数据库 owner 连接；新环境不依赖 `campus_agent` 对
-  `ingestion_control` 的成员关系；仍由旧 runtime role 持有 schema 的历史环境，按迁移步骤先完成一次性
-  对象接管；
+- Ops Web schema bootstrap 和 migration 使用数据库 owner 连接；凭据表最终位于
+  `internal_portal.credentials`，历史环境由 Ops Web handoff migration 一次性接管；
 - source 与 derived bucket 使用各自对象存储凭据；
-- ingestion-control 与 internal-portal-collection 来自同一 source revision；
-- 使用本地命令时，已通过 `internal-portal:auth:pull` 从 ingestion-control 解析当前有效 TGC；使用 Job
-  入口时，已提供 ingestion-control 内部地址和既有内部 token。
+- Ops Web 与 internal-portal-collection 来自同一 source revision；
+- 使用本地命令时，已通过 `internal-portal:auth:pull` 从 Ops Web 解析当前有效 TGC；使用 Job 入口时，
+  已提供 `OPS_WEB_INTERNAL_URL` 和既有内部 token。
 
 ## 数据库与本地进程
 
 ```bash
-pnpm --filter ingestion-control schema:bootstrap
-pnpm --filter ingestion-control migrate
-pnpm --filter ingestion-control start:api
+pnpm --filter ops-web db:apply
+pnpm --filter ops-web dev:api
 ```
 
-数据库 TLS 与运行变量见 `env/commands/ingestion-control-runtime.env.example`。ingestion-control
-migration 使用 advisory lock，并在 `ingestion_control.schema_migrations` 校验已应用 SQL 的摘要；
-migration 7 删除已退役的 ingestion Temporal 任务表，并将历史 schema、journal 和当前凭据表接管给
-数据库 owner。execution-control 的历史通知分类模型设置只作为 Model Config 一次性迁移输入，不构成
-当前配置所有权。
+数据库 TLS 与运行变量见 Ops Web 的环境合同。凭据 schema 与 Dining 共用
+`drizzle.ops_web_dining_migrations`；现有环境的 handoff migration 原位移动旧凭据表并清理旧 schema，
+新环境直接创建最终 `internal_portal.credentials`。execution-control 的历史通知分类模型设置只作为
+Model Config 一次性迁移输入，不构成当前配置所有权。
 
 ## 文件发布
 
@@ -60,8 +57,8 @@ pnpm internal-portal:auth:check
 ```
 
 初始化命令启动或校验本地 RustFS、确保共享 source bucket 存在，并生成采集任务的对象存储配置。
-`internal-portal:auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用
-ingestion-control 凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
+`internal-portal:auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用 Ops Web
+凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
 本地通知命令随后直接使用拉取到的 TGC，不需要后台编排器。
 
 ### 小范围采集
@@ -222,9 +219,10 @@ pnpm --filter notice-publisher run publish \
 
 ## Kubernetes
 
-`infra/k8s/ingestion-runtime/base/runtime` 包含 ingestion-control API、schema Job、凭据检查 CronJob、
-三个默认暂停的内部门户采集模板、通知分类和通知发布 CronJob 模板，不包含自动采集或发布调度。
-internal-portal-collection 镜像的 Job 入口消费 `INGESTION_CONTROL_INTERNAL_URL`、既有
+`infra/k8s/ops-web/base` 提供 Ops Web API、数据库授权 Job 和 `ops-web-internal-portal-check` CronJob；
+`infra/k8s/ingestion-runtime/base/runtime` 只包含三个默认暂停的内部门户采集模板、通知分类和通知发布
+CronJob 模板，不包含自动采集或发布调度。internal-portal-collection 镜像的 Job 入口消费
+`OPS_WEB_INTERNAL_URL`、既有
 `OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；三种采集模式都只能由维护者显式创建一次性 Job：
 
 ```bash
@@ -246,7 +244,7 @@ kubectl -n <namespace> create job \
 采集每处理 100 项输出一次计数进度；最终通知摘要只输出数量，不输出完整 ID 列表。
 
 通知分类 Job 复用已有 source/derived 对象存储 Secret，不新增数据库或模型 Secret。运行一次性采集
-Job 前须在目标环境确认到 ingestion-control、source bucket 和门户 HTTPS 的连通性。
+Job 前须在目标环境确认到 Ops Web、source bucket 和门户 HTTPS 的连通性。
 
 通知 schema Job 在 Argo sync wave 0 使用既有数据库 owner Secret 和 PostgreSQL CA。发布模板同样复用
 owner 与 source/derived 对象存储 Secret，不新增线上 publisher Secret。全量发布直接创建一次性 Job：
@@ -280,8 +278,8 @@ kubectl -n <namespace> create -f -
 
 ```bash
 pnpm --dir packages/contracts check
-pnpm exec turbo run typecheck test --filter=ingestion-contracts --filter=ingestion-control --filter=internal-portal-collection --concurrency=1 --summarize
-pnpm --dir apps/ingestion-control test:database-integration
+pnpm exec turbo run typecheck test --filter=ops-web --filter=ingestion-contracts --filter=internal-portal-collection --concurrency=1 --summarize
+pnpm --dir apps/ops-web test:database-integration
 pnpm notice:classify:typecheck
 pnpm exec tsx --test scripts/notices/*.test.ts
 pnpm --filter notice-classifier typecheck

@@ -76,13 +76,12 @@ function readInitTarget(values: string[]): Parameters<typeof initializeLocalDeve
 	if (
 		value !== "core" &&
 		value !== "ops-web" &&
-		value !== "ingestion-control" &&
 		value !== "notice-publisher" &&
 		value !== "internal-portal-collection" &&
 		value !== "notice-classifier"
 	) {
 		throw new Error(
-			"Invalid init target. Expected core, ops-web, ingestion-control, notice-publisher, internal-portal-collection, or notice-classifier.",
+			"Invalid init target. Expected core, ops-web, notice-publisher, internal-portal-collection, or notice-classifier.",
 		);
 	}
 	return value;

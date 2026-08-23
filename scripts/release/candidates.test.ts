@@ -87,7 +87,6 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 						},
 						{ command: "vite build", package: "app-api", task: "build:worker" },
 						{ command: "vite build", package: "campus-web", task: "build:worker" },
-						{ command: "tsc", package: "ingestion-control", task: "build" },
 						{ command: "tsc", package: "internal-portal-collection", task: "build" },
 					],
 				}),
@@ -103,7 +102,7 @@ test("maps Turbo affected package tasks to release candidates", async (t) => {
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,
-		images: ["agent-runtime", "ingestion-control", "internal-portal-collection"],
+		images: ["agent-runtime", "internal-portal-collection"],
 		sourceBases: ["infra/k8s/execution-runtime/base/runtime"],
 		workers: ["app-api-staging", "campus-web-staging"],
 	});
@@ -170,14 +169,6 @@ test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit"
 	assert.deepEqual(plan.workers, []);
 });
 
-test("publishes the ingestion-control image for a Dockerfile-only change", async (t) => {
-	const root = await fixture(t);
-	const runner = syntheticScopeRunner(changed("apps/ingestion-control/Dockerfile"), []);
-	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["ingestion-control"]);
-	assert.deepEqual(plan.workers, []);
-});
-
 test("publishes the model-config image for source and Dockerfile changes", async (t) => {
 	const root = await fixture(t);
 	const runner = syntheticScopeRunner(
@@ -198,7 +189,6 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 		"app-api-schema",
 		"campus-docs-index-publisher",
 		"execution-control",
-		"ingestion-control",
 		"internal-portal-collection",
 		"model-config",
 		"notice-classifier",

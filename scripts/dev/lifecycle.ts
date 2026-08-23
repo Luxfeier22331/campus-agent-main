@@ -61,12 +61,7 @@ export function initializeLocalDevelopmentTarget(
 	if (target === "core") {
 		ensureLocalTemporalNamespace(repoRoot, profile);
 	}
-	if (
-		target === "core" ||
-		target === "ops-web" ||
-		target === "ingestion-control" ||
-		target === "notice-publisher"
-	) {
+	if (target === "core" || target === "ops-web" || target === "notice-publisher") {
 		bootstrapLocalApplications(repoRoot, profile, target);
 	}
 	console.log(formatProfileSummary(profile));

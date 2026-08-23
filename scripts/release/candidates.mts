@@ -14,7 +14,6 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["app-api-schema", ["app-api-schema"]],
 	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
 	["execution-control", ["execution-control"]],
-	["ingestion-control", ["ingestion-control"]],
 	["model-config", ["model-config"]],
 	["notice-classifier", ["notice-classifier"]],
 	["notice-publisher", ["notice-publisher"]],
@@ -24,7 +23,6 @@ const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["apps/execution-control/Dockerfile", ["execution-control"]],
-	["apps/ingestion-control/Dockerfile", ["ingestion-control"]],
 	["apps/model-config/Dockerfile", ["model-config"]],
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],

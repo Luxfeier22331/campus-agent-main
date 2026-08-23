@@ -1,87 +1,6 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: ingestion-runtime-ingress
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values:
-          - ingestion-control
-          - ingestion-control-schema
-          - ingestion-control-internal-portal-check
-  policyTypes: ["Ingress"]
-  ingress:
-    - from:
-        - podSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/name
-                operator: In
-                values:
-                  - ops-web
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: internal-portal-collection-ingestion-control
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: ingestion-control
-  policyTypes: ["Ingress"]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: internal-portal-collection
-      ports:
-        - protocol: TCP
-          port: 8000
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: ingestion-runtime-egress
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values:
-          - ingestion-control
-          - ingestion-control-schema
-          - ingestion-control-internal-portal-check
-  policyTypes: ["Egress"]
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - podSelector:
-            matchLabels:
-              cnpg.io/cluster: campus-agent-postgres
-      ports:
-        - protocol: TCP
-          port: 5432
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
   name: internal-portal-collection-egress
 spec:
   podSelector:
@@ -101,10 +20,10 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: ingestion-control
+              app.kubernetes.io/name: ops-web
       ports:
         - protocol: TCP
-          port: 8000
+          port: 5178
     - to:
         - podSelector:
             matchLabels:

@@ -10,7 +10,6 @@
 - `docker-compose.dev.yml`：共享本地 PostgreSQL、RustFS 与 Temporal；
 - `docker-compose.execution-runtime.yml`：按需启动本地 Hindsight 与 OTel 诊断依赖；
 - `docker-compose.execution-runtime.langfuse.yml`：将本地 Agent trace 转发至 Langfuse 的可选 OTel overlay；
-- `docker-compose.ingestion-control.yml`：本地 ingestion-control；
 - `docker-compose.qdrant.yml`：本地非 TLS Qdrant；
 - `docker-compose.qdrant-tls.yml`：只用于 TLS 检查的 Qdrant 环境。
 
@@ -37,9 +36,9 @@ worktree 不共享这两个宿主进程。Temporal 服务本身仍是机器级�
 
 根目录 `pnpm dev:init` 启动或校验共享 PostgreSQL、RustFS 与 Temporal，确保共享 source、Campus Web
 文档 bucket 和当前 worktree 的 derived bucket 存在，在固定文档来源缺失时写入确定性样例，安装 app-api
-和 execution-control schema，创建当前 worktree 的 Temporal namespace，并显式执行核心 dev seed。Ops Web、
-ingestion-control、notice-publisher、internal-portal-collection 和 notice-classifier 通过各自 package 的
-`dev:init` 按需准备。
+和 execution-control schema，创建当前 worktree 的 Temporal namespace，并显式执行核心 dev seed。Ops Web
+负责内部门户凭据 schema 和定时检查；notice-publisher、internal-portal-collection 和 notice-classifier
+通过各自 package 的 `dev:init` 按需准备。采集任务不由 Compose 常驻启动。
 `pnpm dev:destroy` 只删除确认的 worktree database、derived bucket、
 托管环境文件和注册记录，不会为了清理而启动或重建共享容器。依赖 compose 不负责启动 app-api、
 Campus Web、Ops Web、execution-control、agent-runtime 或同步任务，也不在容器启动时写入业务 seed。

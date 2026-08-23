@@ -24,9 +24,8 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影和个人记忆状态读写 |
 | `model_config` | `apps/model-config` | 当前具名模型配置与加密凭据读写 |
-| `ingestion_control` | `apps/ingestion-control` | 内部门户凭据池读写 |
 | `notice_publisher` | 本地 `jobs/notice-publisher` | 本地规范化通知写入；部署环境不创建该角色 |
-| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户 automation token 读写 |
+| `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户凭据及 automation token 读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
 观测平台不获得产品 PostgreSQL 角色。
@@ -46,10 +45,9 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
 | `campus_docs_serving.current_index` | execution-control（由 Campus Docs 发布任务写入） | Campus Docs 发布任务；供后续在线知识能力使用 |
-| `ingestion_control.internal_portal_credentials` | ingestion-control | ingestion-control；Ops Web 与 internal-portal-collection 通过内部 API |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
-| `internal_portal.automation_tokens` | Ops Web | Ops Web |
+| `internal_portal.credentials`、`internal_portal.automation_tokens` | Ops Web | Ops Web；internal-portal-collection 只通过内部解析 API 消费结果 |
 
 ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
 规则由所属数据文档或 schema 唯一维护。
@@ -76,7 +74,6 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
 | App API | `apps/app-api/src/db/schema/managed.ts` 与 `apps/app-api/drizzle/` | `drizzle.app_api_migrations` |
 | execution-control | `apps/execution-control/internal/schemamigrations/` | `public.execution_control_migrations` |
 | Model Config | `apps/model-config/internal/modelconfig/migration.go` | `model_config.schema_migrations` |
-| ingestion-control | `apps/ingestion-control/migrations/` | `ingestion_control.schema_migrations` |
 | 通知 | `jobs/notice-publisher/migrations/` | `notices.schema_migrations` |
 | Ops Web | `packages/domains/dining/src/schema.ts`、`apps/ops-web/ops/db/internal-portal-schema.ts` 与 `apps/ops-web/drizzle/` | `drizzle.ops_web_dining_migrations`（保留历史名称） |
 
@@ -134,11 +131,10 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和分类业务表，不能读取
   `notices.schema_migrations` 或写入该 schema；
 - Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
-- ingestion-control runtime 只获得 `ingestion_control.internal_portal_credentials` 的 DML 权限，
-  不获得 schema `CREATE` 或 migration journal 读取权限；schema 安装和 migration 使用既有数据库
-  bootstrap 角色，并在历史升级时把 runtime-owned schema、journal 和当前表接管给该角色；
-- Ops Web 使用 `ops_web` 角色读写 `internal_portal.automation_tokens`，不能读取 ingestion-control
-  凭据表。token 明文保留是为满足 Ops Web 的重复 reveal 合同，不作为通用 Secret 管理能力；
+- Ops Web 使用 `ops_web` 角色读写 `internal_portal.credentials` 和
+  `internal_portal.automation_tokens`；token 明文保留是为满足 Ops Web 的重复 reveal 合同，不作为通用
+  Secret 管理能力。历史环境中的 `ingestion_control.internal_portal_credentials` 由 Ops Web 的一次性
+  handoff migration 原位迁入并清理旧 schema；当前运行时不再创建或使用旧角色；
 - 不同所有者不共享 migration journal，也不通过双写复制同一事实；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 

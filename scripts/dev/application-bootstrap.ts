@@ -17,8 +17,6 @@ export type LocalApplicationBootstrapStep =
 	| "app-api-seed-local-test-user"
 	| "ops-web-schema"
 	| "ops-web-dining-bootstrap"
-	| "ingestion-control-schema"
-	| "ingestion-control-migrate"
 	| "notice-publisher-migrate";
 
 export interface LocalApplicationBootstrapCommand {
@@ -57,14 +55,6 @@ export function localApplicationBootstrapCommands(
 		OPS_WEB_DATABASE_URL: database.opsWeb,
 		OPS_WEB_SCHEMA_DATABASE_SSLMODE: "disable",
 		OPS_WEB_SCHEMA_DATABASE_URL: database.owner,
-	};
-	const ingestionControlEnv = {
-		...process.env,
-		DEPLOYMENT_ENVIRONMENT: "local",
-		INGESTION_CONTROL_DATABASE_SSLMODE: "disable",
-		INGESTION_CONTROL_DATABASE_URL: database.ingestionControl,
-		INGESTION_CONTROL_SCHEMA_DATABASE_SSLMODE: "disable",
-		INGESTION_CONTROL_SCHEMA_DATABASE_URL: database.owner,
 	};
 	const appApiCommand = (step: LocalApplicationBootstrapStep, script: string) => ({
 		args: [
@@ -144,18 +134,6 @@ export function localApplicationBootstrapCommands(
 			step: "ops-web-dining-bootstrap",
 		},
 		{
-			args: ["--dir", "apps/ingestion-control", "schema:bootstrap"],
-			command: pnpm,
-			options: { cwd: repoRoot, env: ingestionControlEnv },
-			step: "ingestion-control-schema",
-		},
-		{
-			args: ["--dir", "apps/ingestion-control", "migrate"],
-			command: pnpm,
-			options: { cwd: repoRoot, env: ingestionControlEnv },
-			step: "ingestion-control-migrate",
-		},
-		{
 			args: ["--dir", "jobs/notice-publisher", "migrate"],
 			command: pnpm,
 			options: {
@@ -180,7 +158,6 @@ export function localApplicationBootstrapCommands(
 			"app-api-seed-local-test-user",
 		],
 		"ops-web": ["ops-web-schema", "ops-web-dining-bootstrap"],
-		"ingestion-control": ["ingestion-control-schema", "ingestion-control-migrate"],
 		"notice-publisher": ["notice-publisher-migrate"],
 	};
 	const allowed = new Set(targetSteps[target]);

@@ -43,16 +43,30 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "internal_portal" FROM PUBLIC, "ops_web", "app_api"`,
 	`GRANT USAGE ON SCHEMA "internal_portal" TO "ops_web"`,
 	`GRANT SELECT, INSERT, UPDATE, DELETE
-	 ON TABLE "internal_portal"."automation_tokens"
+	 ON TABLE
+		"internal_portal"."automation_tokens",
+		"internal_portal"."credentials"
 	 TO "ops_web"`,
-	`DO $ops_web_ingestion_control_revoke$
+	`DO $ops_web_ingestion_control_cleanup$
+	DECLARE
+		unexpected_objects text;
 	BEGIN
 		IF pg_catalog.to_regnamespace('ingestion_control') IS NOT NULL THEN
-			EXECUTE 'REVOKE ALL PRIVILEGES ON SCHEMA "ingestion_control" FROM "ops_web", "app_api"';
-			EXECUTE 'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "ingestion_control" FROM "ops_web", "app_api"';
+			SELECT pg_catalog.string_agg(class.relname, ', ' ORDER BY class.relname)
+			INTO unexpected_objects
+			FROM pg_catalog.pg_class class
+			JOIN pg_catalog.pg_namespace namespace ON namespace.oid = class.relnamespace
+			WHERE namespace.nspname = 'ingestion_control'
+				AND class.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+				AND class.relname <> 'schema_migrations';
+			IF unexpected_objects IS NOT NULL THEN
+				RAISE EXCEPTION
+					'ingestion_control contains unexpected objects: %', unexpected_objects;
+			END IF;
+			EXECUTE 'DROP SCHEMA "ingestion_control" CASCADE';
 		END IF;
 	END
-	$ops_web_ingestion_control_revoke$`,
+	$ops_web_ingestion_control_cleanup$`,
 	`GRANT USAGE ON SCHEMA "chat" TO "ops_web"`,
 	`REVOKE ALL PRIVILEGES ON TABLE
 		"chat"."turn_dispatches",
@@ -133,6 +147,15 @@ const REQUIRED_SELECTS = [
 		sql: `
 			select "token_id", "name", "token_value", "token_hash", "created_at", "revoked_at"
 			from "internal_portal"."automation_tokens"
+			limit 0
+		`,
+	},
+	{
+		label: "internal_portal.credentials",
+		sql: `
+			select "credential_id", "name", "sso_tgc", "version", "created_at", "updated_at",
+				"last_attempt_at", "last_successful_at", "last_outcome"
+			from "internal_portal"."credentials"
 			limit 0
 		`,
 	},
@@ -464,8 +487,8 @@ async function verifyOpsWebInternalPortalPrivileges(client: Client): Promise<voi
 			select 1
 			from pg_catalog.pg_class class
 			join pg_catalog.pg_namespace namespace on namespace.oid = class.relnamespace
-			where namespace.nspname = 'ingestion_control'
-				and class.relname = 'internal_portal_credentials'
+			where namespace.nspname = 'internal_portal'
+				and class.relname = 'credentials'
 				and class.relkind in ('r', 'p', 'v', 'm', 'f')
 				and (
 					has_table_privilege(current_user, class.oid, 'SELECT')
@@ -489,7 +512,7 @@ async function verifyOpsWebInternalPortalPrivileges(client: Client): Promise<voi
 			access.canTokensInsert &&
 			access.canTokensUpdate &&
 			access.canTokensDelete &&
-			!access.canAccessCredentials
+			access.canAccessCredentials
 		)
 	) {
 		throw new Error("ops_web internal portal privileges do not match automation-token ownership.");
@@ -517,28 +540,24 @@ async function verifyInternalPortalSchemaBoundary(config: DatabaseConnectionConf
 		}
 		const credentialHandoff = await client.query<{
 			currentTable: string | null;
-			legacyTable: string | null;
+			legacySchema: string | null;
 		}>(`select
-			to_regclass('ingestion_control.internal_portal_credentials')::text as "currentTable",
-			to_regclass('internal_portal.credentials')::text as "legacyTable"`);
+			to_regclass('internal_portal.credentials')::text as "currentTable",
+			to_regnamespace('ingestion_control')::text as "legacySchema"`);
 		if (
-			credentialHandoff.rows[0]?.currentTable !== "ingestion_control.internal_portal_credentials" ||
-			credentialHandoff.rows[0]?.legacyTable !== null
+			credentialHandoff.rows[0]?.currentTable !== "internal_portal.credentials" ||
+			credentialHandoff.rows[0]?.legacySchema !== null
 		) {
-			throw new Error("internal portal credential ownership handoff is incomplete.");
+			throw new Error(
+				"internal portal credential ownership handoff or legacy schema cleanup is incomplete.",
+			);
 		}
 		const privileges = await client.query<{
 			appApiCanAccess: boolean;
 		}>(`select
 			has_schema_privilege('app_api', 'internal_portal', 'USAGE')
 				or has_table_privilege('app_api', 'internal_portal.automation_tokens', 'SELECT,INSERT,UPDATE,DELETE')
-				or coalesce(has_schema_privilege(
-					'app_api', to_regnamespace('ingestion_control'), 'USAGE'
-				), false)
-				or coalesce(has_table_privilege(
-					'app_api', to_regclass('ingestion_control.internal_portal_credentials'),
-					'SELECT,INSERT,UPDATE,DELETE'
-				), false)
+				or has_table_privilege('app_api', 'internal_portal.credentials', 'SELECT,INSERT,UPDATE,DELETE')
 				as "appApiCanAccess"`);
 		if (privileges.rows[0]?.appApiCanAccess) {
 			throw new Error("app_api must not access internal portal operational data.");
