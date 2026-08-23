@@ -12,6 +12,7 @@ const assistantUiMock = vi.hoisted(() => ({
 		onEdit?: (message: {
 			content: { text: string; type: "text" }[];
 			parentId?: string;
+			sourceId?: string | null;
 		}) => Promise<void>;
 		onNew: (message: { content: { text: string; type: "text" }[] }) => Promise<void>;
 		onReload?: (parentId: string | null) => Promise<void>;

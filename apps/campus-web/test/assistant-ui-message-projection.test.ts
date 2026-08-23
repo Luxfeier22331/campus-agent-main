@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	localUserMessage,
 	provisionalAssistantMessage,
 	removeMessagesById,
 	upsertAssistantTextMessage,
@@ -28,12 +29,31 @@ describe("assistant-ui message projection", () => {
 		expect(updated[0]?.createdAt).toEqual(first[0]?.createdAt);
 	});
 
+	it("marks a streamed answer as optimistic when no provisional shell exists", () => {
+		const updated = upsertAssistantTextMessage([], {
+			messageId: "run:answer",
+			occurredAt: "2026-06-24T01:00:00.000Z",
+			optimistic: true,
+			text: "流式回答",
+		});
+
+		expect(updated[0]?.metadata?.isOptimistic).toBe(true);
+	});
+
 	it("removes only provisional message ids", () => {
 		const messages = [
 			{ content: [], id: "canonical", role: "assistant" as const },
 			{ content: [], id: "provisional", role: "assistant" as const },
 		];
 		expect(removeMessagesById(messages, new Set(["provisional"]))).toEqual([messages[0]]);
+	});
+
+	it("marks the local user message as optimistic until the server message replaces it", () => {
+		expect(localUserMessage([{ text: "测试", type: "text" }], "local-user")).toMatchObject({
+			id: "local-user",
+			metadata: { isOptimistic: true },
+			role: "user",
+		});
 	});
 
 	it("migrates a provisional assistant message to the durable answer id", () => {
@@ -49,11 +69,13 @@ describe("assistant-ui message projection", () => {
 			text: "回答正文",
 		});
 
+		expect(provisional.metadata?.isOptimistic).toBe(true);
 		expect(updated).toHaveLength(1);
 		expect(updated[0]).toMatchObject({
 			content: [{ text: "回答正文", type: "text" }],
 			id: "msg_answer",
 			role: "assistant",
 		});
+		expect(updated[0]?.metadata?.isOptimistic).toBeUndefined();
 	});
 });

@@ -12,12 +12,9 @@ import {
 	CommandList,
 } from "@/components/ui/command";
 import { CampusMotionProvider, contentSwap, stateSwap } from "@/components/ui/motion";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { searchConversations } from "@/features/conversation/api";
 import type { ConversationSearchResult } from "@/features/conversation/model";
 import { UnauthorizedError } from "@/platform/api/client";
-
-type ConversationSearchView = "active" | "archived";
 
 export function ThreadHistorySearchPanel({
 	initialQuery = "",
@@ -41,7 +38,6 @@ export function ThreadHistorySearchPanel({
 	search?: typeof searchConversations;
 }) {
 	const [query, setQuery] = useState(initialQuery);
-	const [view, setView] = useState<ConversationSearchView>("active");
 	const [results, setResults] = useState<ConversationSearchResult[]>([]);
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [retryAttempt, setRetryAttempt] = useState(0);
@@ -76,7 +72,7 @@ export function ThreadHistorySearchPanel({
 		const controller = new AbortController();
 		setStatus("loading");
 		const timeout = window.setTimeout(() => {
-			search({ limit: 10, query: trimmedQuery, signal: controller.signal, view })
+			search({ limit: 10, query: trimmedQuery, signal: controller.signal })
 				.then((payload) => {
 					if (controller.signal.aborted) {
 						return;
@@ -102,7 +98,7 @@ export function ThreadHistorySearchPanel({
 			controller.abort();
 			window.clearTimeout(timeout);
 		};
-	}, [onHandoff, onLoginRequired, onOpenChange, open, retryAttempt, search, trimmedQuery, view]);
+	}, [onHandoff, onLoginRequired, onOpenChange, open, retryAttempt, search, trimmedQuery]);
 
 	return (
 		<CampusMotionProvider>
@@ -124,33 +120,6 @@ export function ThreadHistorySearchPanel({
 					ref={inputRef}
 					value={query}
 				/>
-				<div className="border-b px-3 py-2">
-					<ToggleGroup
-						aria-label="聊天记录范围"
-						className="justify-start"
-						onValueChange={(value) => {
-							if (value === "active" || value === "archived") {
-								setView(value);
-								setStatus(trimmedQuery ? "loading" : "idle");
-							}
-						}}
-						type="single"
-						value={view}
-					>
-						<ToggleGroupItem
-							className="aui-thread-history-scope min-h-11 sm:min-h-9"
-							value="active"
-						>
-							当前
-						</ToggleGroupItem>
-						<ToggleGroupItem
-							className="aui-thread-history-scope min-h-11 sm:min-h-9"
-							value="archived"
-						>
-							已归档
-						</ToggleGroupItem>
-					</ToggleGroup>
-				</div>
 				<CommandList aria-busy={status === "loading" || undefined}>
 					<LayoutGroup>
 						<motion.div layout>
@@ -188,8 +157,8 @@ export function ThreadHistorySearchPanel({
 								)}
 							</CommandEmpty>
 							{results.length > 0 ? (
-								<motion.div key={`${view}:${trimmedQuery}`} layout {...contentSwap}>
-									<CommandGroup heading={view === "archived" ? "已归档" : "当前"}>
+								<motion.div key={trimmedQuery} layout {...contentSwap}>
+									<CommandGroup heading="当前">
 										{results.map((conversation) => (
 											<motion.div key={conversation.id} layout {...contentSwap}>
 												<CommandItem

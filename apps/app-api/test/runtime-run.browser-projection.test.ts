@@ -8,6 +8,51 @@ import { createPrincipal } from "./chat-command.service.test-support";
 import { durableEvent, durableRun, eventPage, runtimeStore } from "./runtime-run.test-support";
 
 describe("runtime run browser projection", () => {
+	it("projects the browser-visible run completion as a product completion", async () => {
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(durableRun({ status: "completed" })),
+			listRunEvents: vi.fn().mockResolvedValue(
+				eventPage([
+					durableEvent({
+						eventType: "run.completed",
+						payload: {
+							request_id: "req_01HQ",
+							status: "completed",
+							terminal_reason: "answer_completed",
+							trace_id: "trace_01HQ",
+						},
+						sequence: 3,
+					}),
+				]),
+			),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
+		};
+		const service = buildRuntimeRunService({
+			executionRuntime,
+			store: runtimeStore(),
+		});
+
+		const result = await service.listEvents({
+			afterSequence: 2,
+			principal: createPrincipal(),
+			runId: "run_01HQ",
+		});
+
+		expect(result.events).toEqual([
+			expect.objectContaining({
+				eventType: "request.completed",
+				payload: {
+					request_id: "req_01HQ",
+					status: "completed",
+					terminal_reason: "answer_completed",
+					trace_id: "trace_01HQ",
+				},
+			}),
+		]);
+	});
+
 	it("strips internal finalization payload from student-visible run events", async () => {
 		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),

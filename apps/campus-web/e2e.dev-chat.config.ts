@@ -16,12 +16,21 @@ const executionControlFixtureOrigin = `http://127.0.0.1:${executionControlFixtur
 const appApiDevVarsPath = resolve(appRoot, "../app-api/.dev.vars.local");
 const appApiEnvironment = parseEnv(readFileSync(resolve(appRoot, "../app-api/.env.local"), "utf8"));
 const campusWebDevVarsPath = resolve(appRoot, ".dev.vars.local");
+const localProxyEnvironmentKeys = new Set([
+	"ALL_PROXY",
+	"HTTP_PROXY",
+	"HTTPS_PROXY",
+	"all_proxy",
+	"http_proxy",
+	"https_proxy",
+]);
 
 function processEnvironment(overrides: Record<string, string>): Record<string, string> {
 	return {
 		...Object.fromEntries(
 			Object.entries(process.env).filter(
-				(entry): entry is [string, string] => typeof entry[1] === "string",
+				(entry): entry is [string, string] =>
+					typeof entry[1] === "string" && !localProxyEnvironmentKeys.has(entry[0]),
 			),
 		),
 		...overrides,

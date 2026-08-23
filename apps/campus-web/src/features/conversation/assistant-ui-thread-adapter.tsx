@@ -35,6 +35,7 @@ export function toAssistantThreadMetadata(
 		remoteId: conversation.id,
 		status: conversation.archivedAt ? "archived" : "regular",
 		title: conversation.title,
+		custom: { pinnedAt: conversation.pinnedAt },
 	};
 }
 
@@ -68,12 +69,12 @@ export function createCampusAssistantThreadListAdapter(input: {
 			if (!input.enableRemoteHistory) {
 				return { threads: [] };
 			}
-			const [active, archived] = await Promise.all([
-				listConversationsForOptionalSession({ limit: THREAD_LIST_LIMIT, view: "active" }),
-				listConversationsForOptionalSession({ limit: THREAD_LIST_LIMIT, view: "archived" }),
-			]);
+			const active = await listConversationsForOptionalSession({
+				limit: THREAD_LIST_LIMIT,
+				view: "active",
+			});
 			return {
-				threads: [...active, ...archived].map(toAssistantThreadMetadata),
+				threads: active.map(toAssistantThreadMetadata),
 			};
 		},
 		async rename(remoteId, newTitle) {

@@ -90,11 +90,11 @@ export function useConversationRunCoordinator({
 		clearProvisionalAssistantMessages,
 		flushAssistantFrame,
 		messages,
-		migrateProvisionalAssistantMessage,
 		removeMessage,
 		replaceWithCanonicalMessages,
 		revealAccumulatedAssistantText,
 		scheduleAssistantFrame,
+		setRuntimeMessages,
 		truncateMessagesFrom,
 		updateAssistantRunView,
 	} = useAssistantUiMessageProjection();
@@ -385,18 +385,9 @@ export function useConversationRunCoordinator({
 			) {
 				return;
 			}
-			migrateProvisionalAssistantMessage({
-				messageId,
-				occurredAt: event.data.occurredAt,
-			});
 			scheduleAssistantFrame(messageId, event.data.occurredAt);
 		},
-		[
-			appendAssistantDelta,
-			migrateProvisionalAssistantMessage,
-			ownsOperation,
-			scheduleAssistantFrame,
-		],
+		[appendAssistantDelta, ownsOperation, scheduleAssistantFrame],
 	);
 
 	const applyTerminalRunStatus = useCallback(
@@ -634,12 +625,6 @@ export function useConversationRunCoordinator({
 						throw streamRecoveryExhausted(run);
 					}
 				}
-				applyRunViewAction({
-					connection: "reconnecting",
-					operationId: input.operation.id,
-					runId: run.runId,
-					type: "connection",
-				});
 				await waitForResumeDelay(delayMs, input.controller.signal);
 				events = resumeRunEventsStream({
 					...(run.sequence === undefined ? {} : { afterSequence: run.sequence }),
@@ -1258,5 +1243,6 @@ export function useConversationRunCoordinator({
 		onResume,
 		requiresConversationInitialization,
 		runPrompt,
+		setMessages: setRuntimeMessages,
 	};
 }

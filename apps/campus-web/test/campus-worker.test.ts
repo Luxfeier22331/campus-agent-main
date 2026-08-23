@@ -185,6 +185,7 @@ describe("campus worker boundary", () => {
 			"/api/chat/runs/run_1",
 			"/api/chat/runs/run_1/events",
 			"/api/chat/runs/run_1/events/stream",
+			"/api/chat/runs/run_1/steps",
 			"/api/chat/runs/run_1/cancel",
 			"/api/dining",
 			`/api/dining/floorplans/${"a".repeat(64)}.svg`,

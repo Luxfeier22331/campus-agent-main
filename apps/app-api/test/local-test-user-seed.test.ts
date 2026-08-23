@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { assertLocalTestUserDatabaseUrl, LOCAL_TEST_USER } from "../ops/db/seed-local-test-user.ts";
+import {
+	assertLocalTestUserDatabaseUrl,
+	LOCAL_ADMIN_TEST_USER,
+	LOCAL_TEST_USER,
+} from "../ops/db/seed-local-test-user.ts";
 
 describe("local test user seed", () => {
 	it("uses the fixed development credentials", () => {
@@ -8,6 +12,11 @@ describe("local test user seed", () => {
 			email: "test@muc.edu.cn",
 			name: "本地测试用户",
 			password: "password123",
+		});
+		expect(LOCAL_ADMIN_TEST_USER).toEqual({
+			email: "admin@muc.edu.cn",
+			name: "admin",
+			password: "admin123",
 		});
 	});
 

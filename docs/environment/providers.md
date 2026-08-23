@@ -101,7 +101,10 @@ Sentry provider 操作使用 `SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_
 - 本地 Secret 进入所属模块的忽略文件或开发者密钥管理器；`internal-portal:auth:pull` 使用当前
   Kubernetes 权限读取既有 `OPS_WEB_INTERNAL_TOKEN`，通过临时 port-forward ingestion-control
   取得 TGC，只写入内部门户采集任务受 `dev:init` 管理的 `.env.local`，不创建机器级缓存或 TGC
-  Secret；
+  Secret；linked worktree 初始化时可从 main checkout 的同一受管文件首次导入已有 TGC，后续本地值
+  优先；
+- main checkout 根 `.env` 中白名单化的 provider 外部开发连接可由 `dev:init` 补充到 linked worktree；
+  不复制整份环境文件、数据库连接、观测配置或 provider 配置加密 key；
 - Kubernetes 非敏感启动值使用 ConfigMap，敏感材料使用 Secret 交付机制；
 - Cloudflare 应用分别维护自己的 Worker vars 和 secrets；
 - 跨平台共享认证值属于同一轮换单元，但由各平台独立投递，不能互相充当同步源；

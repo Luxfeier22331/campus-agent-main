@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import attachmentSource from "../src/components/assistant-ui/attachment.tsx?raw";
 import threadSource from "../src/components/assistant-ui/thread.tsx?raw";
 import { TooltipIconButton } from "../src/components/assistant-ui/tooltip-icon-button";
 import tooltipIconButtonSource from "../src/components/assistant-ui/tooltip-icon-button.tsx?raw";
@@ -8,20 +7,17 @@ import { AssistantConversationSurface } from "../src/components/conversation/ass
 
 vi.mock("@/components/assistant-ui/thread", () => ({
 	Thread: ({
-		allowAttachments,
 		assistantAvatarFallback,
 		components,
 		composerPlaceholder,
 		welcomeMessage,
 	}: {
-		allowAttachments?: boolean;
 		assistantAvatarFallback?: string;
 		components?: { Registrations?: unknown; ToolFallback?: unknown };
 		composerPlaceholder?: string;
 		welcomeMessage?: string;
 	}) => (
 		<div
-			data-allow-attachments={String(allowAttachments ?? false)}
 			data-assistant-avatar={assistantAvatarFallback ?? ""}
 			data-has-tool-fallback={String(Boolean(components?.ToolFallback))}
 			data-has-registrations={String(Boolean(components?.Registrations))}
@@ -49,7 +45,6 @@ describe("AssistantConversationSurface", () => {
 		expect(thread).toHaveAttribute("data-assistant-avatar", "问");
 		expect(thread).toHaveAttribute("data-has-tool-fallback", "true");
 		expect(thread).toHaveAttribute("data-has-registrations", "true");
-		expect(thread).toHaveAttribute("data-allow-attachments", "false");
 	});
 
 	it("names the new-message and edit-message composer fields", () => {
@@ -59,7 +54,7 @@ describe("AssistantConversationSurface", () => {
 		expect(threadSource).toContain('name="edited-message"');
 	});
 
-	it("keeps compact icon visuals inside non-overlapping 44px hit areas", () => {
+	it("keeps message actions compact and composer actions inside 44px hit areas", () => {
 		const defaultControl = render(
 			<TooltipIconButton tooltip="消息操作">
 				<span aria-hidden />
@@ -74,31 +69,32 @@ describe("AssistantConversationSurface", () => {
 		defaultControl.unmount();
 
 		render(
-			<TooltipIconButton className="size-7 after:-inset-x-2 after:-inset-y-2" tooltip="输入操作">
+			<TooltipIconButton className="size-9 after:-inset-1" tooltip="输入操作">
 				<span aria-hidden />
 			</TooltipIconButton>,
 		);
 		expect(screen.getByRole("button", { name: "输入操作" })).toHaveClass(
-			"size-7",
-			"after:-inset-x-2",
-			"after:-inset-y-2",
+			"size-9",
+			"after:-inset-1",
 		);
 		expect(tooltipIconButtonSource).toContain("relative size-6");
 		expect(tooltipIconButtonSource).toContain("after:-inset-y-2.5");
 		expect(tooltipIconButtonSource).toContain("after:content-['']");
-		expect(threadSource).toMatch(/aui-composer-send[^"]*size-7/);
-		expect(threadSource).toMatch(/aui-composer-cancel[^"]*size-7/);
+		expect(threadSource).toMatch(/aui-composer-send[^"]*size-9[^"]*after:-inset-1/);
+		expect(threadSource).toMatch(/aui-composer-cancel[^"]*size-9[^"]*after:-inset-1/);
 		expect(threadSource).not.toMatch(/aui-composer-(?:dictate|send|cancel)[^"]*size-11/);
-		expect(threadSource).toContain('className="flex items-center gap-4"');
+		expect(threadSource).toContain(
+			' className="aui-composer-action-wrapper relative flex shrink-0 items-center gap-1 pb-1"'.trimStart(),
+		);
 		expect(threadSource).toContain("flex gap-5 duration-200");
-		expect(threadSource).toContain('className={cn("ms-2 flex items-center gap-5"');
+		expect(threadSource).toContain('className={cn("ms-1 flex items-center gap-5 sm:ms-2"');
 		expect(threadSource).toContain('const ACTION_BAR_HEIGHT = "-mb-5 min-h-11"');
-		expect(threadSource).toContain('className="mb-14 flex flex-col gap-y-5 empty:hidden"');
-		expect(threadSource).toContain("content-start gap-y-2.5 px-2");
+		expect(threadSource).toContain('className="mb-14 flex flex-col gap-y-7 empty:hidden sm:mb-16"');
+		expect(threadSource).toContain("flex flex-col items-end gap-y-2.5 px-1");
 		expect(threadSource).toContain("-translate-y-1/2 pe-2.5 peer-empty:hidden");
-		expect(attachmentSource).toContain('isComposer && "flex items-center gap-2.5 pe-2.5"');
-		expect(attachmentSource).toMatch(/aui-attachment-tile-remove[^"]*size-6/);
-		expect(attachmentSource).not.toMatch(/aui-attachment-tile-remove[^"]*absolute/);
-		expect(attachmentSource).toMatch(/aui-composer-add-attachment[^"]*size-7/);
+		expect(threadSource).not.toContain("allowAttachments");
+		expect(threadSource).not.toContain("AttachmentDropzone");
+		expect(threadSource).not.toContain("ComposerAddAttachment");
+		expect(threadSource).not.toContain("UserMessageAttachments");
 	});
 });

@@ -136,7 +136,7 @@ function ThreadExample() {
 	return (
 		<StyleDevAssistantRuntime initialMessages={initialMessages}>
 			<CampusRunStatusRuntimeProvider runtime={statusRuntime}>
-				<Thread allowAttachments={false} composerPlaceholder="输入校园问题" />
+				<Thread composerPlaceholder="输入校园问题" />
 			</CampusRunStatusRuntimeProvider>
 		</StyleDevAssistantRuntime>
 	);

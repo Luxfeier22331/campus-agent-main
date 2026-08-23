@@ -29,7 +29,11 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 	switch target.APIProtocol {
 	case "openai.responses":
 		endpoint = target.BaseURL + "/responses"
-		body = map[string]any{"model": target.Model, "input": "model-config validation"}
+		body = map[string]any{
+			"model":             target.Model,
+			"input":             "model-config validation",
+			"max_output_tokens": 1,
+		}
 	case "openai.chat_completions":
 		endpoint = target.BaseURL + "/chat/completions"
 		body = map[string]any{"model": target.Model, "messages": []map[string]string{{"role": "user", "content": "model-config validation"}}, "max_tokens": 1}
@@ -138,7 +142,7 @@ func DiscoverModels(ctx context.Context, name ConfigName, provider, baseURL, api
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		return nil, Validation{Status: "failed", ErrorCode: "invalid_response", Message: "provider model response is invalid"}
 	}
-	items := []string{}
+	var items []string
 	switch provider {
 	case "cohere", "cohere-compatible":
 		if decoded.Models == nil {

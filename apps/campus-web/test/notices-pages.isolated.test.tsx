@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NoticeDetailPageContent } from "../src/app/routes/notice-detail-page";
 import { NoticesPageContent } from "../src/app/routes/notices-page";
@@ -60,7 +61,6 @@ describe("notice pages", () => {
 		}
 		routeSearch.page = 1;
 		routeSearch.stream = "notices";
-		mockFilterViewport(false);
 	});
 
 	it("renders internal rows as router links and external rows as new-tab links", async () => {
@@ -145,12 +145,12 @@ describe("notice pages", () => {
 		expect(within(external).queryByText("未分类")).toBeNull();
 	});
 
-	it("keeps advanced filters collapsed on mobile and counts only active advanced filters", async () => {
-		mockFilterViewport(true);
+	it("renders core filters without secondary filter controls", async () => {
 		Object.assign(routeSearch, {
 			category: "procurement",
-			is_external: true,
+			from: "2026-08-01",
 			q: "采购",
+			to: "2026-08-20",
 		});
 		api.listNotices.mockResolvedValue({
 			filters: {
@@ -164,18 +164,18 @@ describe("notice pages", () => {
 
 		renderWithQuery(<NoticesPageContent />);
 
-		const trigger = await screen.findByRole("button", { name: "筛选条件（2）" });
-		expect(trigger).toHaveAttribute("aria-expanded", "false");
+		expect(screen.queryByRole("button", { name: /筛选条件/u })).toBeNull();
 		expect(screen.getByLabelText("标题或正文关键词")).toHaveValue("采购");
-		expect(screen.queryByLabelText("分类")).toBeNull();
+		await waitFor(() => expect(screen.getByLabelText("业务分类")).toHaveTextContent("采购招标"));
+		expect(screen.queryByLabelText("开始")).toBeNull();
+		expect(screen.queryByLabelText("结束")).toBeNull();
 
-		fireEvent.click(trigger);
-
-		expect(trigger).toHaveAttribute("aria-expanded", "true");
-		expect(screen.getByLabelText("分类")).toHaveValue("procurement");
-		expect(screen.getByRole("radio", { name: "外部链接" })).toBeChecked();
-		expect(screen.getByRole("radio", { name: "全部" })).not.toBeChecked();
-		expect(screen.getByLabelText("发布部门")).toBeVisible();
+		fireEvent.click(screen.getByRole("button", { name: "发布日期：2026年8月1日 - 2026年8月20日" }));
+		expect(await screen.findByLabelText("开始")).toHaveValue("2026-08-01");
+		expect(screen.getByLabelText("结束")).toHaveValue("2026-08-20");
+		expect(screen.queryByLabelText("正文来源")).toBeNull();
+		expect(screen.queryByLabelText("门户栏目")).toBeNull();
+		expect(screen.queryByLabelText("发布部门")).toBeNull();
 	});
 
 	it("switches between notification and campus news streams and clears category", async () => {
@@ -201,9 +201,9 @@ describe("notice pages", () => {
 		expect(await screen.findByRole("heading", { name: "校园动态" })).toBeVisible();
 		expect(screen.getByRole("form", { name: "校园动态筛选" })).toBeVisible();
 		expect(screen.getByRole("button", { name: "搜索校园动态" })).toBeVisible();
-		expect(screen.queryByLabelText("分类")).toBeNull();
+		expect(screen.queryByLabelText("业务分类")).toBeNull();
 		expect(await screen.findByRole("heading", { name: "没有符合条件的校园动态" })).toBeVisible();
-		expect(await screen.findByText("调整关键词、来源或日期范围后再试。")).toBeVisible();
+		expect(await screen.findByText("调整关键词或日期范围后再试。")).toBeVisible();
 	});
 
 	it("uses campus news wording while the independent view is loading", () => {
@@ -225,29 +225,6 @@ describe("notice pages", () => {
 		expect(screen.getByRole("alert")).toHaveTextContent("校园动态暂时无法读取，请稍后重试。");
 	});
 
-	it("maps source segments to the existing query and resets pagination", async () => {
-		Object.assign(routeSearch, { is_external: true, page: 4 });
-		api.listNotices.mockResolvedValue(emptyNoticeList());
-
-		renderWithQuery(<NoticesPageContent />);
-
-		const external = await screen.findByRole("radio", { name: "外部链接" });
-		expect(external).toBeChecked();
-		expect(screen.getByRole("radiogroup", { name: "正文来源" })).toBeVisible();
-
-		fireEvent.click(screen.getByRole("radio", { name: "站内正文" }));
-		expect(lastSearchUpdate({ is_external: true, page: 4 })).toEqual({
-			is_external: false,
-			page: 1,
-		});
-
-		fireEvent.click(screen.getByRole("radio", { name: "全部" }));
-		expect(lastSearchUpdate({ is_external: true, page: 4 })).toEqual({
-			is_external: undefined,
-			page: 1,
-		});
-	});
-
 	it("restores the date range, constrains both inputs, and resets pagination on change", async () => {
 		Object.assign(routeSearch, {
 			from: "2026-03-01",
@@ -258,6 +235,7 @@ describe("notice pages", () => {
 
 		renderWithQuery(<NoticesPageContent />);
 
+		fireEvent.click(screen.getByRole("button", { name: "发布日期：2026年3月1日 - 2026年8月13日" }));
 		const from = await screen.findByLabelText("开始");
 		const to = screen.getByLabelText("结束");
 		expect(screen.getByRole("group", { name: "发布日期" })).toBeVisible();
@@ -274,14 +252,15 @@ describe("notice pages", () => {
 		});
 	});
 
-	it("updates text and select filters through the existing URL query", async () => {
+	it("updates text and business category through the existing URL query", async () => {
+		const user = userEvent.setup();
 		Object.assign(routeSearch, { page: 5, q: "旧关键词" });
 		api.listNotices.mockResolvedValue(emptyNoticeList());
 
 		renderWithQuery(<NoticesPageContent />);
 
 		const title = await screen.findByLabelText("标题或正文关键词");
-		expect(title).toHaveAttribute("placeholder", "搜索标题或正文");
+		expect(title).toHaveAttribute("placeholder", "搜索通知");
 		fireEvent.change(title, { target: { value: "开放安排" } });
 		fireEvent.submit(screen.getByRole("form", { name: "通知筛选" }));
 		expect(lastSearchUpdate({ page: 5, q: "旧关键词" })).toEqual({
@@ -289,26 +268,17 @@ describe("notice pages", () => {
 			q: "开放安排",
 		});
 
-		fireEvent.change(screen.getByLabelText("分类"), { target: { value: "procurement" } });
+		const category = screen.getByLabelText("业务分类");
+		category.focus();
+		await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
 		expect(lastSearchUpdate({ page: 5, q: "旧关键词" })).toEqual({
 			category: "procurement",
 			page: 1,
 			q: "旧关键词",
 		});
-
-		fireEvent.change(screen.getByLabelText("门户栏目"), { target: { value: "36" } });
-		expect(lastSearchUpdate({ page: 5, q: "旧关键词" })).toEqual({
-			notice_type: 36,
-			page: 1,
-			q: "旧关键词",
-		});
-
-		fireEvent.change(screen.getByLabelText("发布部门"), { target: { value: "org-2" } });
-		expect(lastSearchUpdate({ page: 5, q: "旧关键词" })).toEqual({
-			organization_id: "org-2",
-			page: 1,
-			q: "旧关键词",
-		});
+		expect(screen.queryByLabelText("门户栏目")).toBeNull();
+		expect(screen.queryByLabelText("发布部门")).toBeNull();
+		expect(screen.queryByLabelText("正文来源")).toBeNull();
 	});
 
 	it("clears the URL filters and the local title draft together", async () => {
@@ -461,17 +431,4 @@ function lastSearchUpdate(previous: Record<string, unknown>): Record<string, unk
 		throw new Error("Expected navigation with a search updater.");
 	}
 	return input.search(previous);
-}
-
-function mockFilterViewport(matches: boolean): void {
-	window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-		addEventListener: vi.fn(),
-		addListener: vi.fn(),
-		dispatchEvent: vi.fn().mockReturnValue(false),
-		matches: query === "(max-width: 767px)" ? matches : false,
-		media: query,
-		onchange: null,
-		removeEventListener: vi.fn(),
-		removeListener: vi.fn(),
-	}));
 }

@@ -17,7 +17,9 @@ vi.mock("../src/features/conversation/run-client", () => ({
 }));
 
 import {
+	CampusRunDuration,
 	CampusRunStatus,
+	CampusRunStatusRuntimeProvider,
 	formatCampusRunTimestamp,
 } from "../src/components/conversation/campus-run-status";
 import {
@@ -70,8 +72,28 @@ describe("CampusRunStatus", () => {
 
 		expect(formatCampusRunTimestamp("2026-06-18T09:05:00", now)).toBe("09:05");
 		expect(formatCampusRunTimestamp("2025-06-18T09:05:00", now)).toBe("2025年6月18日 09:05");
-		expect(formatRunDuration(0)).toBe("<1秒");
+		expect(formatRunDuration(0)).toBe("0秒");
+		expect(formatRunDuration(1_499)).toBe("1秒");
+		expect(formatRunDuration(1_999)).toBe("1秒");
 		expect(formatRunDuration(65_000)).toBe("1分5秒");
+	});
+
+	it("uses the live elapsed time instead of a stale duration snapshot", () => {
+		const now = Date.parse("2026-08-18T07:00:10.000Z");
+		render(
+			<CampusRunStatusRuntimeProvider
+				runtime={{
+					loadSteps: vi.fn(),
+					now: () => now,
+					resume: vi.fn(),
+				}}
+			>
+				<CampusRunDuration run={{ ...RUN, durationMs: 7_000 }} />
+			</CampusRunStatusRuntimeProvider>,
+		);
+
+		expect(screen.getByText("10秒")).toBeInTheDocument();
+		expect(screen.queryByText("7秒")).not.toBeInTheDocument();
 	});
 
 	it("projects the queued runtime fact into the preparing phase", () => {
@@ -159,6 +181,8 @@ describe("CampusRunStatus", () => {
 		expect(process.querySelectorAll("li")).toHaveLength(3);
 		expect(screen.getAllByText("准备回答")).toHaveLength(1);
 		expect(screen.queryByText("排队")).not.toBeInTheDocument();
+		expect(screen.queryByText("开始")).not.toBeInTheDocument();
+		expect(screen.queryByText("完成")).not.toBeInTheDocument();
 	});
 
 	it("offers retry when the process disclosure fails to load", async () => {
@@ -192,6 +216,7 @@ describe("CampusRunStatus", () => {
 	it("reconnects a disconnected active run through assistant-ui", async () => {
 		render(<CampusRunStatus run={{ ...RUN, connection: "disconnected" }} />);
 
+		expect(screen.getByText("连接已断开")).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "重新连接" }));
 		await waitFor(() => expect(testMocks.resumeRun).toHaveBeenCalledWith({ parentId: null }));
 	});

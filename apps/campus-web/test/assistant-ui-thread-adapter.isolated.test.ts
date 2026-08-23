@@ -81,6 +81,7 @@ describe("assistant-ui thread adapter", () => {
 				summary({
 					archivedAt: "2026-06-21T02:00:00.000Z",
 					id: "conv_archived",
+					pinnedAt: "2026-06-21T02:01:00.000Z",
 					title: "已归档",
 				}),
 			),
@@ -90,35 +91,26 @@ describe("assistant-ui thread adapter", () => {
 			remoteId: "conv_archived",
 			status: "archived",
 			title: "已归档",
+			custom: { pinnedAt: "2026-06-21T02:01:00.000Z" },
 		});
 	});
 
-	it("lists active and archived conversations through the remote thread adapter", async () => {
-		conversationApiMock.listConversations
-			.mockResolvedValueOnce([summary({ id: "conv_active", title: "进行中" })])
-			.mockResolvedValueOnce([
-				summary({
-					archivedAt: "2026-06-21T02:00:00.000Z",
-					id: "conv_archived",
-					title: "已归档",
-				}),
-			]);
+	it("lists only active conversations through the remote thread adapter", async () => {
+		conversationApiMock.listConversations.mockResolvedValueOnce([
+			summary({ id: "conv_active", title: "进行中" }),
+		]);
 
 		const adapter = createCampusAssistantThreadListAdapter({ enableRemoteHistory: true });
 		const response = await adapter.list();
 
-		expect(conversationApiMock.listConversations).toHaveBeenNthCalledWith(1, {
+		expect(conversationApiMock.listConversations).toHaveBeenCalledOnce();
+		expect(conversationApiMock.listConversations).toHaveBeenCalledWith({
 			limit: 50,
 			view: "active",
-		});
-		expect(conversationApiMock.listConversations).toHaveBeenNthCalledWith(2, {
-			limit: 50,
-			view: "archived",
 		});
 		expect(response.nextCursor).toBeUndefined();
 		expect(response.threads.map((thread) => [thread.remoteId, thread.status])).toEqual([
 			["conv_active", "regular"],
-			["conv_archived", "archived"],
 		]);
 	});
 

@@ -70,11 +70,11 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
 			expect.objectContaining({ role: "user" }),
 			expect.objectContaining({
-				metadata: {
+				metadata: expect.objectContaining({
 					custom: {
 						campusRun: expect.objectContaining({ provisional: true, status: "queued" }),
 					},
-				},
+				}),
 				role: "assistant",
 			}),
 		]);
@@ -136,11 +136,11 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
 			expect.objectContaining({ role: "user" }),
 			expect.objectContaining({
-				metadata: {
+				metadata: expect.objectContaining({
 					custom: {
 						campusRun: expect.objectContaining({ provisional: true, status: "queued" }),
 					},
-				},
+				}),
 				role: "assistant",
 			}),
 		]);

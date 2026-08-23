@@ -158,7 +158,7 @@ export function CampusChatWorkspace({
 				<div className="flex min-h-dvh flex-col bg-background text-foreground">
 					<CampusTopNav
 						activePath={activePath}
-						contextLabel={topTitle}
+						brandLabel={topTitle}
 						density="compact"
 						leadingAction={<ChatSidebarTrigger />}
 						mobileAccountAction={(openMobileAuthDialog) => (

@@ -42,6 +42,13 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/internal/ops/campus-groups/state")).toBe(false);
 	});
 
+	it("allows chat run status and step routes", () => {
+		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01/events")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01/steps")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01/steps/extra")).toBe(false);
+	});
+
 	it("allows only the notice catalog, decimal details, and image ordinals", () => {
 		expect(isAllowedCampusAppApiRequest("/api/notices")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/notices/358159")).toBe(true);

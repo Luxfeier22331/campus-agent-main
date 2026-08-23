@@ -73,9 +73,6 @@ function phaseLabel(phase: CampusRunPhase): string {
 }
 
 function statusLabel(run: CampusRunViewState): string {
-	if (run.connection === "reconnecting") {
-		return "正在恢复连接";
-	}
 	if (run.connection === "disconnected") {
 		return "连接已断开";
 	}
@@ -144,15 +141,15 @@ function fullLocalTimestamp(value: string | null): string | undefined {
 }
 
 function elapsedDurationMs(run: CampusRunViewState, nowMs: number): number | null {
+	const acceptedAt = parseTimestamp(run.acceptedAt ?? run.startedAt);
+	const completedAt = parseTimestamp(run.completedAt);
+	if (acceptedAt !== null) {
+		return Math.max(0, (completedAt ?? nowMs) - acceptedAt);
+	}
 	if (run.durationMs !== null && Number.isFinite(run.durationMs)) {
 		return Math.max(0, run.durationMs);
 	}
-	const acceptedAt = parseTimestamp(run.acceptedAt ?? run.startedAt);
-	if (acceptedAt === null) {
-		return null;
-	}
-	const completedAt = parseTimestamp(run.completedAt);
-	return Math.max(0, (completedAt ?? nowMs) - acceptedAt);
+	return null;
 }
 
 function summaryTimestamp(run: CampusRunViewState): string | null {
@@ -173,14 +170,6 @@ function statusTextClass(run: CampusRunViewState): string {
 }
 
 function RunStatusIcon({ run }: { run: CampusRunViewState }) {
-	if (run.connection === "reconnecting") {
-		return (
-			<RefreshCwIcon
-				aria-hidden
-				className="motion-safe:animate-spin motion-reduce:animate-none size-3.5 shrink-0"
-			/>
-		);
-	}
 	if (run.connection === "disconnected") {
 		return <WifiOffIcon aria-hidden className="size-3.5 shrink-0" />;
 	}
@@ -205,21 +194,17 @@ function RunStatusIcon({ run }: { run: CampusRunViewState }) {
 }
 
 function RunSummary({
-	durationLabel,
 	run,
 	showChevron,
 	stepsOpen,
 }: {
-	durationLabel: string;
 	run: CampusRunViewState;
 	showChevron: boolean;
 	stepsOpen: boolean;
 }) {
-	const running = !isTerminal(run.status);
-	const timestamp = running ? null : summaryTimestamp(run);
+	const timestamp = isTerminal(run.status) ? summaryTimestamp(run) : null;
 	const timestampLabel = formatCampusRunTimestamp(timestamp);
 	const hasTimestamp = timestamp !== null && parseTimestamp(timestamp) !== null;
-	const hasDuration = durationLabel !== "未记录";
 
 	return (
 		<>
@@ -234,20 +219,11 @@ function RunSummary({
 			>
 				{statusLabel(run)}
 			</span>
-			{hasTimestamp || hasDuration ? (
+			{hasTimestamp ? (
 				<span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs tabular-nums">
-					{hasTimestamp ? (
-						<time dateTime={timestamp ?? undefined} title={fullLocalTimestamp(timestamp)}>
-							{timestampLabel}
-						</time>
-					) : null}
-					{hasTimestamp && hasDuration ? <span aria-hidden>·</span> : null}
-					{hasDuration ? (
-						<span>
-							<span className="sr-only">耗时 </span>
-							{durationLabel}
-						</span>
-					) : null}
+					<time dateTime={timestamp ?? undefined} title={fullLocalTimestamp(timestamp)}>
+						{timestampLabel}
+					</time>
 				</span>
 			) : null}
 			{showChevron ? (
@@ -263,38 +239,34 @@ function RunSummary({
 	);
 }
 
-function RunTiming({ durationLabel, run }: { durationLabel: string; run: CampusRunViewState }) {
-	const startedAt = run.startedAt ?? run.acceptedAt;
-	const completedAt = run.completedAt;
+export function CampusRunDuration({ run }: { run: CampusRunViewState }) {
+	const statusRuntime = useContext(CampusRunStatusRuntimeContext);
+	const now = statusRuntime?.now ?? Date.now;
+	const [nowMs, setNowMs] = useState(() => now());
+	const running = !isTerminal(run.status);
+
+	useEffect(() => {
+		setNowMs(now());
+		if (!running) {
+			return;
+		}
+		const intervalId = globalThis.setInterval(() => setNowMs(now()), 1_000);
+		return () => globalThis.clearInterval(intervalId);
+	}, [now, running]);
+
+	const durationLabel = formatRunDuration(elapsedDurationMs(run, nowMs));
+	if (durationLabel === "未记录") {
+		return null;
+	}
+
 	return (
-		<dl className="text-muted-foreground mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
-			{startedAt && parseTimestamp(startedAt) !== null ? (
-				<div className="flex items-baseline gap-1.5">
-					<dt>开始</dt>
-					<dd>
-						<time dateTime={startedAt} title={fullLocalTimestamp(startedAt)}>
-							{formatCampusRunTimestamp(startedAt, new Date(), true)}
-						</time>
-					</dd>
-				</div>
-			) : null}
-			{completedAt && parseTimestamp(completedAt) !== null ? (
-				<div className="flex items-baseline gap-1.5">
-					<dt>完成</dt>
-					<dd>
-						<time dateTime={completedAt} title={fullLocalTimestamp(completedAt)}>
-							{formatCampusRunTimestamp(completedAt, new Date(), true)}
-						</time>
-					</dd>
-				</div>
-			) : null}
-			{durationLabel === "未记录" ? null : (
-				<div className="flex items-baseline gap-1.5">
-					<dt>耗时</dt>
-					<dd>{durationLabel}</dd>
-				</div>
-			)}
-		</dl>
+		<span
+			className="text-muted-foreground shrink-0 text-xs tabular-nums"
+			data-slot="campus-run-duration"
+		>
+			<span className="sr-only">耗时 </span>
+			{durationLabel}
+		</span>
 	);
 }
 
@@ -344,8 +316,6 @@ export function CampusRunStatus({
 }) {
 	const aui = useAui();
 	const statusRuntime = useContext(CampusRunStatusRuntimeContext);
-	const now = statusRuntime?.now ?? Date.now;
-	const [nowMs, setNowMs] = useState(() => now());
 	const [stepsOpen, setStepsOpen] = useState(() => defaultStepsOpen);
 	const [stepsState, setStepsState] = useState<StepsState>({ kind: "idle", steps: [] });
 	const [isResuming, setIsResuming] = useState(false);
@@ -355,17 +325,7 @@ export function CampusRunStatus({
 	const wasTerminalRef = useRef(isTerminal(run.status));
 
 	const running = !isTerminal(run.status);
-	const elapsedMs = elapsedDurationMs(run, nowMs);
-	const durationLabel = formatRunDuration(elapsedMs);
 	const hasRunId = Boolean(run.runId);
-
-	useEffect(() => {
-		if (!running) {
-			return;
-		}
-		const intervalId = globalThis.setInterval(() => setNowMs(now()), 1_000);
-		return () => globalThis.clearInterval(intervalId);
-	}, [now, running]);
 
 	useEffect(() => {
 		if (renderedRunIdRef.current === run.runId) {
@@ -489,22 +449,12 @@ export function CampusRunStatus({
 								type="button"
 							>
 								<span className="sr-only">{stepsOpen ? "收起回答过程" : "查看回答过程"}，</span>
-								<RunSummary
-									durationLabel={durationLabel}
-									run={run}
-									showChevron
-									stepsOpen={stepsOpen}
-								/>
+								<RunSummary run={run} showChevron stepsOpen={stepsOpen} />
 							</button>
 						</CollapsibleTrigger>
 					) : (
 						<div className="flex min-h-7 min-w-0 flex-1 items-center gap-1.5 py-0.5">
-							<RunSummary
-								durationLabel={durationLabel}
-								run={run}
-								showChevron={false}
-								stepsOpen={false}
-							/>
+							<RunSummary run={run} showChevron={false} stepsOpen={false} />
 						</div>
 					)}
 					{showResume ? (
@@ -541,7 +491,6 @@ export function CampusRunStatus({
 									steps={displayedSteps}
 								/>
 							)}
-							<RunTiming durationLabel={durationLabel} run={run} />
 						</div>
 					</CollapsibleContent>
 				) : null}

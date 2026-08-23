@@ -22,6 +22,7 @@ export type CampusTopNavDensity = "default" | "compact";
 export interface CampusTopNavProps {
 	accountAction?: ReactNode;
 	activePath?: string;
+	brandLabel?: string;
 	contextLabel?: string;
 	density?: CampusTopNavDensity;
 	leadingAction?: ReactNode;
@@ -36,6 +37,7 @@ export interface CampusTopNavProps {
 export function CampusTopNav({
 	accountAction,
 	activePath = "/",
+	brandLabel,
 	contextLabel,
 	density = "default",
 	leadingAction,
@@ -85,7 +87,13 @@ export function CampusTopNav({
 				) : immersive ? null : (
 					<div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
 						{leadingAction}
-						<ProductBrandLink className="h-full" linkMode={linkMode} subtitle={contextLabel} />
+						<ProductBrandLink
+							className="h-full"
+							compactLabel={brandLabel}
+							desktopLabel={brandLabel}
+							linkMode={linkMode}
+							subtitle={contextLabel}
+						/>
 					</div>
 				)}
 				{focused ? null : (

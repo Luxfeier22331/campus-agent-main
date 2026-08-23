@@ -17,8 +17,10 @@ status: active
 
 ### 仓库根环境
 
-根 `.env` 不属于 worktree 本地开发合同，仓库命令和应用入口都不得读取或复制它。根 checkout
-中已有的被忽略文件同样不是任何当前入口的配置源，也不能作为 linked worktree 的兜底配置源。
+根 `.env` 只保存维护者共享的外部开发连接，不是应用运行时配置。linked worktree 执行 `dev:init` 时，
+从 main checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离线通知分类 provider 连接；
+只补充当前 worktree 尚不存在的字段，不覆盖已有值，也不复制数据库 DSN、对象存储身份、观测配置或
+整份环境文件。应用仍不得直接读取根 `.env`；需要这些外部连接时，由调用 shell 或命令入口显式加载。
 
 ### 应用本地环境
 
@@ -52,7 +54,9 @@ internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的本�
 `internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令保留其他托管
 字段、原子替换该值并设置 `0600`；失败不改文件，后续 `dev:init` 保留已有 TGC。adapter 目录下未跟踪
 的 `.env` 只维护可选门户代理或不使用托管本地环境的对象存储配置，不作为长期 TGC 来源。进程环境仍
-具有最高优先级。
+具有最高优先级。linked worktree 首次初始化时，如果 main checkout 当前或已退役采集目录的托管
+`.env.local` 已有 TGC，则将它导入该文件；之后 worktree 自己通过 `auth:pull` 更新的值优先，不被再次
+初始化覆盖。
 
 notice-classifier 的托管 `.env.local` 保存本 worktree 的 derived bucket、本地 source bucket、RustFS
 连接和非敏感 `MODEL_CONFIG_URL`。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类
@@ -144,17 +148,22 @@ PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGE
 ## Worktree
 
 Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次显式运行 `pnpm dev:init` 时获得独立
-profile、核心应用文件、端口、PostgreSQL database、derived bucket、
-Temporal namespace 和 provider 配置加密密钥；PostgreSQL、RustFS 与 Temporal 容器、网络和数据卷由同一
-机器上的 worktree 共享。主 checkout 是共享依赖的 bootstrap/reconcile owner，linked worktree 不会
-重新执行 Compose reconcile，只在共享依赖 ready 时复用。execution-control 与 agent-runtime 从当前
-worktree 源码独立启动，不共享其他 worktree 的宿主进程。应用仍只消费
+profile、核心应用文件、端口、PostgreSQL database、derived bucket、Temporal namespace 和 provider
+配置加密密钥；同时按上述白名单从 main checkout 补充维护者共享的外部开发凭据。PostgreSQL、RustFS 与
+Temporal 容器、网络和数据卷由同一机器上的 worktree 共享。主 checkout 是共享依赖的
+bootstrap/reconcile owner，linked worktree 不会重新执行 Compose reconcile，只在共享依赖 ready 时
+复用。execution-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享其他 worktree 的宿主
+进程。应用仍只消费
 `OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入应用环境合同。
 Campus Web 文档合同固定使用共享 `campus-agent-derived`；`dev:init` 只在
 `campus-docs/source.json` 缺失时写入确定性开发样例，不覆盖已有文档来源。worktree profile 中的
 独立 derived bucket 仍只服务 Dining 等实例数据。
 
-profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于 `${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存外部凭据。使用 `pnpm dev:instances` 查看分配和 stale/partial 状态，使用 `pnpm dev:doctor` 检查完整性。`pnpm dev` 只读取这份就绪状态，不执行初始化、迁移或 seed。共享依赖不可探测时，诊断结果为 `unknown`，不会据此自动创建或删除实例资源。
+profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于
+`${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存
+外部凭据；导入值只进入当前 worktree 被忽略的所属环境文件。使用 `pnpm dev:instances` 查看分配和
+stale/partial 状态，使用 `pnpm dev:doctor` 检查完整性。`pnpm dev` 只读取这份就绪状态，不执行初始化、
+迁移或 seed。共享依赖不可探测时，诊断结果为 `unknown`，不会据此自动创建或删除实例资源。
 
 `pnpm dev:destroy` 默认只打印影响范围。只有同时提供同一个实例 ID 才会删除该实例的 database、bucket、托管环境文件和注册记录；它不会启动或重建共享容器，也不会删除共享 source/docs bucket、网络或数据卷：
 

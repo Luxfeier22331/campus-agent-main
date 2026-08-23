@@ -154,9 +154,9 @@ export function formatRunDuration(durationMs: number | null): string {
 		return "未记录";
 	}
 	if (durationMs < 1_000) {
-		return "<1秒";
+		return "0秒";
 	}
-	const totalSeconds = Math.round(durationMs / 1_000);
+	const totalSeconds = Math.floor(durationMs / 1_000);
 	const minutes = Math.floor(totalSeconds / 60);
 	const seconds = totalSeconds % 60;
 	if (minutes === 0) {

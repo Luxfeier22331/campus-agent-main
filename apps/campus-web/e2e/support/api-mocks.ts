@@ -51,6 +51,11 @@ const libraryConversation = {
 	title: "图书馆开放时间",
 	updatedAt: now,
 };
+const longTitleConversation = {
+	...historyConversation,
+	id: "conv_long_title_e2e",
+	title: "关于2026年度国家自然科学基金项目申请与结题等事项的校内组织安排通知",
+};
 const archivedConversation = {
 	archivedAt: now,
 	createdAt: now,
@@ -190,8 +195,10 @@ interface CampusApiMockOptions {
 		archiveFailure?: boolean;
 		deleteFailure?: boolean;
 		detailUnauthorized?: boolean;
+		pinFailure?: boolean;
 		renameFailure?: boolean;
 		searchUnauthorized?: boolean;
+		unpinFailure?: boolean;
 	};
 	diningFailures?: {
 		floorplanFailure?: boolean;
@@ -205,6 +212,8 @@ interface CampusApiMockOptions {
 	mapPlacesFailure?: boolean;
 	requests?: CampusApiRequestRecord[];
 	sessionState?: CampusApiSessionState;
+	includeLongTitleConversation?: boolean;
+	pinnedConversation?: boolean;
 }
 
 export interface CampusApiRequestRecord {
@@ -528,7 +537,16 @@ function routeMocks(input: {
 			path: "/api/chat/conversations",
 			response: (route) => {
 				const view = new URL(route.request().url()).searchParams.get("view");
-				const conversations = view === "archived" ? [archivedConversation] : [historyConversation];
+				const activeConversation = options.pinnedConversation
+					? { ...historyConversation, pinnedAt: now }
+					: historyConversation;
+				const conversations =
+					view === "archived"
+						? [archivedConversation]
+						: [
+								activeConversation,
+								...(options.includeLongTitleConversation ? [longTitleConversation] : []),
+							];
 				return route.fulfill({
 					contentType: "application/json",
 					json: sessionState.authenticated
@@ -659,21 +677,33 @@ function routeMocks(input: {
 			method: "POST",
 			path: /^\/api\/chat\/conversations\/[^/]+\/pin$/,
 			response: (route) =>
-				route.fulfill({
-					contentType: "application/json",
-					json: { conversation: toConversationSummary(historyConversation) },
-					status: 200,
-				}),
+				options.conversationFailures?.pinFailure
+					? route.fulfill({
+							contentType: "application/json",
+							json: { error: { code: "pin_failed", message: "置顶失败。" } },
+							status: 500,
+						})
+					: route.fulfill({
+							contentType: "application/json",
+							json: { conversation: toConversationSummary(historyConversation) },
+							status: 200,
+						}),
 		},
 		{
 			method: "DELETE",
 			path: /^\/api\/chat\/conversations\/[^/]+\/pin$/,
 			response: (route) =>
-				route.fulfill({
-					contentType: "application/json",
-					json: { conversation: toConversationSummary(historyConversation) },
-					status: 200,
-				}),
+				options.conversationFailures?.unpinFailure
+					? route.fulfill({
+							contentType: "application/json",
+							json: { error: { code: "unpin_failed", message: "取消置顶失败。" } },
+							status: 500,
+						})
+					: route.fulfill({
+							contentType: "application/json",
+							json: { conversation: toConversationSummary(historyConversation) },
+							status: 200,
+						}),
 		},
 		{
 			method: "POST",

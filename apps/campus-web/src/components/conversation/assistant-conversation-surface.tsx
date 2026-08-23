@@ -14,7 +14,6 @@ export function AssistantConversationSurface({
 	return (
 		<section aria-label="校园问答" className={cn("h-full min-h-0 bg-background", className)}>
 			<Thread
-				allowAttachments={false}
 				assistantAvatarFallback="问"
 				components={{ Registrations: ConversationDataRegistrations, ToolFallback }}
 				composerPlaceholder="输入校园问题"

@@ -237,6 +237,7 @@ function toRuntimeRunProductEventType(eventType: string): RuntimeRunProductEvent
 		case "run.answer_delta":
 			return "answer.delta";
 		case "finalization.completed":
+		case "run.completed":
 			return "request.completed";
 		case "run.canceled":
 			return "request.cancelled";

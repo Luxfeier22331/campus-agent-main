@@ -250,8 +250,7 @@ describe("campus routes", () => {
 	it("renders the assistant Q&A home shell without app launcher debt", async () => {
 		render(<HomePage />);
 
-		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
-		expect(screen.getAllByText("新对话").length).toBeGreaterThanOrEqual(1);
+		expect((await screen.findAllByText("新对话")).length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByRole("button", { name: "新对话" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "校园问答" })).toBeInTheDocument();
@@ -385,7 +384,7 @@ describe("campus routes", () => {
 
 		const assistantChat = await screen.findByTestId("assistant-chat");
 
-		expect(within(assistantChat).getByText("中央民族大学校园问答")).toBeInTheDocument();
+		expect(within(assistantChat).getAllByText("新对话").length).toBeGreaterThanOrEqual(1);
 		expect(within(assistantChat).getByRole("region", { name: "校园问答" })).toBeInTheDocument();
 		expect(within(assistantChat).queryByRole("heading", { name: "聊天记录" })).toBeNull();
 	});
@@ -426,7 +425,10 @@ describe("campus routes", () => {
 		mockMapWorkspaceWidth(true, vi.fn);
 		render(<HomePage />);
 
-		expect(await screen.findByRole("button", { name: "登录" })).toHaveClass("min-h-[52px]");
+		expect(await screen.findByRole("button", { name: "登录" })).toHaveClass(
+			"min-h-11",
+			"lg:min-h-10",
+		);
 	});
 
 	it("does not wrap the map route in the generic support page header", () => {
@@ -658,9 +660,8 @@ describe("campus routes", () => {
 	it("renders the assistant conversation shell as the thread surface", async () => {
 		render(<ConversationPage />);
 
-		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
-		expect(screen.getAllByText("会话")).not.toHaveLength(0);
-		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
+		const assistantChat = await screen.findByTestId("assistant-chat");
+		expect(within(assistantChat).getAllByText("会话").length).toBeGreaterThanOrEqual(1);
 		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});
 

@@ -3,7 +3,7 @@ import type { ChatRunStatus } from "./run-client";
 
 export type CampusRunPhase = "queued" | "preparing" | "generating" | "finalizing";
 export type CampusRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
-export type CampusRunConnection = "live" | "reconnecting" | "disconnected";
+export type CampusRunConnection = "live" | "disconnected";
 
 export interface CampusRunViewState {
 	acceptedAt: string | null;
@@ -131,7 +131,14 @@ function acceptsEvent(
 	if (state.runId && runId && state.runId !== runId) {
 		return false;
 	}
-	if (event.data.sequence !== undefined && event.data.sequence <= state.sequence) {
+	if (
+		event.data.sequence !== undefined &&
+		(event.data.sequence < state.sequence ||
+			(event.data.sequence === state.sequence &&
+				event.event !== "request.completed" &&
+				event.event !== "request.failed" &&
+				event.event !== "request.cancelled"))
+	) {
 		return false;
 	}
 	if (isTerminalStatus(state.status)) {
@@ -274,7 +281,7 @@ export function reduceCampusRunViewState(
 			}
 			return {
 				...state,
-				acceptedAt: action.run.acceptedAt,
+				acceptedAt: state.acceptedAt ?? action.run.acceptedAt,
 				completedAt: action.run.completedAt,
 				connection: "live",
 				durationMs: action.run.durationMs,
@@ -296,7 +303,6 @@ export function reduceCampusRunViewState(
 			}
 			return {
 				...state,
-				connection: "reconnecting",
 				operationId: action.operationId,
 				...(action.runId === undefined ? {} : { runId: action.runId }),
 			};
@@ -345,10 +351,7 @@ export function readCampusRunViewMetadata(value: unknown): CampusRunViewState | 
 		...EMPTY_CAMPUS_RUN_VIEW,
 		acceptedAt: typeof record.acceptedAt === "string" ? record.acceptedAt : null,
 		completedAt: typeof record.completedAt === "string" ? record.completedAt : null,
-		connection:
-			record.connection === "reconnecting" || record.connection === "disconnected"
-				? record.connection
-				: "live",
+		connection: record.connection === "disconnected" ? "disconnected" : "live",
 		durationMs: typeof record.durationMs === "number" ? record.durationMs : null,
 		phase: record.phase,
 		provisional: record.provisional === true,

@@ -103,10 +103,6 @@ function ThreadHistorySearchPending() {
 			role="status"
 		>
 			<Skeleton className="h-12 w-full motion-reduce:animate-none" />
-			<div aria-hidden="true" className="flex gap-2">
-				<Skeleton className="h-9 w-16 motion-reduce:animate-none" />
-				<Skeleton className="h-9 w-20 motion-reduce:animate-none" />
-			</div>
 			<Skeleton aria-hidden="true" className="h-4 w-2/3 motion-reduce:animate-none" />
 		</div>
 	);

@@ -205,7 +205,6 @@ describe("Q&A product interactions", () => {
 					limit: 10,
 					query: "图书馆",
 					signal: expect.any(AbortSignal),
-					view: "active",
 				}),
 			);
 		});

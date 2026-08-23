@@ -254,9 +254,9 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					expect.objectContaining({
 						id: "msg_answer",
 						metadata: {
-							custom: {
+							custom: expect.objectContaining({
 								campusRun: expect.objectContaining({ status: "failed" }),
-							},
+							}),
 						},
 					}),
 				]),
@@ -704,7 +704,6 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 
 		expect(observedSignal?.aborted).toBe(false);
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
-		expect(readMessageText("msg_cancel_failure")).toBe("取消期间累计的回答");
 		expect(readAssistantText()).toBe("取消期间累计的回答");
 		expect(conversationApiMock.cancelRun).toHaveBeenNthCalledWith(1, "run_01");
 
@@ -713,7 +712,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			await visibleDeltaConsumed;
 			await vi.advanceTimersByTimeAsync(16);
 		});
-		expect(readMessageText("msg_cancel_failure")).toBe("取消期间累计的回答，恢复后继续。");
+		expect(readAssistantText()).toBe("取消期间累计的回答，恢复后继续。");
 		expect(observedSignal?.aborted).toBe(false);
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 

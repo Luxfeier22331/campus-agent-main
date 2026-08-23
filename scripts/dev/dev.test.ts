@@ -5,6 +5,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	statSync,
 	writeFileSync,
@@ -18,12 +19,14 @@ import { localApplicationBootstrapCommands } from "./application-bootstrap";
 import {
 	ensureLocalLegacyProviderConfigEncryptionKey,
 	ensureLocalModelConfigEncryptionKey,
+	importMainCheckoutExternalCredentials,
 	MANAGED_LOCAL_ENV_MARKER,
 	managedLocalEnvironmentPaths,
 	removeLocalEnvironmentFiles,
 	renderLocalEnvironmentFiles,
 	resolveLocalLegacyProviderConfigEncryptionKeyPath,
 	resolveLocalModelConfigEncryptionKeyPath,
+	resolveMainCheckoutRoot,
 } from "./environment";
 import {
 	assertDestroyConfirmation,
@@ -119,6 +122,7 @@ describe("local development profiles", () => {
 			const worktree = ensureLocalDevProfile(linked);
 			assert.equal(isMainWorktree(repository), true);
 			assert.equal(isMainWorktree(linked), false);
+			assert.equal(resolveMainCheckoutRoot(linked), realpathSync(repository));
 			assert.equal(main.slot, 0);
 			assert.equal(worktree.slot, 1);
 			assert.notEqual(main.databaseName, worktree.databaseName);
@@ -140,6 +144,83 @@ describe("local development profiles", () => {
 });
 
 describe("managed worktree environment", () => {
+	it("imports only missing external credentials from the main checkout", () => {
+		const mainCheckoutRoot = createRepositoryShape();
+		const repoRoot = createRepositoryShape();
+		writeFileSync(
+			resolve(mainCheckoutRoot, ".env"),
+			[
+				"LLM_BASE_URL=https://provider.example/v1",
+				"LLM_API_KEY=main-key",
+				"EMBEDDING_API_KEY=embedding-key",
+				"CAMPUS_SHARED_POSTGRES_URL=postgresql://must-not-copy",
+				"SENTRY_API_TOKEN=must-not-copy",
+				"",
+			].join("\n"),
+		);
+		writeFileSync(
+			resolve(repoRoot, ".env"),
+			"LLM_API_KEY=worktree-key\nWORKTREE_ONLY=preserved\n",
+			{ mode: 0o644 },
+		);
+		const mainPortalEnvironment = resolve(
+			mainCheckoutRoot,
+			"jobs/internal-portal-collection/adapters/internal-portal/.env.local",
+		);
+		writeFileSync(
+			mainPortalEnvironment,
+			`${MANAGED_LOCAL_ENV_MARKER}\nINTERNAL_PORTAL_SSO_TGC="TGT-main"\n`,
+		);
+
+		importMainCheckoutExternalCredentials({ mainCheckoutRoot, repoRoot });
+
+		const imported = parseEnv(readFileSync(resolve(repoRoot, ".env"), "utf8"));
+		assert.equal(imported.LLM_BASE_URL, "https://provider.example/v1");
+		assert.equal(imported.LLM_API_KEY, "worktree-key");
+		assert.equal(imported.EMBEDDING_API_KEY, "embedding-key");
+		assert.equal(imported.WORKTREE_ONLY, "preserved");
+		assert.equal(imported.CAMPUS_SHARED_POSTGRES_URL, undefined);
+		assert.equal(imported.SENTRY_API_TOKEN, undefined);
+		assert.equal(statSync(resolve(repoRoot, ".env")).mode & 0o777, 0o600);
+		const portalEnvironment = parseEnv(
+			readFileSync(
+				resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal/.env.local"),
+				"utf8",
+			),
+		);
+		assert.equal(portalEnvironment.INTERNAL_PORTAL_SSO_TGC, "TGT-main");
+	});
+
+	it("preserves worktree credentials and accepts the retired main collector path", () => {
+		const mainCheckoutRoot = createRepositoryShape();
+		const repoRoot = createRepositoryShape();
+		const retiredPortalEnvironment = resolve(
+			mainCheckoutRoot,
+			"apps/source-collector/adapters/internal-portal/.env.local",
+		);
+		mkdirSync(resolve(retiredPortalEnvironment, ".."), { recursive: true });
+		writeFileSync(
+			retiredPortalEnvironment,
+			`${MANAGED_LOCAL_ENV_MARKER}\nINTERNAL_PORTAL_SSO_TGC="TGT-main"\n`,
+		);
+		const targetPortalEnvironment = resolve(
+			repoRoot,
+			"jobs/internal-portal-collection/adapters/internal-portal/.env.local",
+		);
+		writeFileSync(
+			targetPortalEnvironment,
+			`${MANAGED_LOCAL_ENV_MARKER}\nINTERNAL_PORTAL_SSO_TGC="TGT-worktree"\n`,
+		);
+
+		importMainCheckoutExternalCredentials({ mainCheckoutRoot, repoRoot });
+
+		assert.equal(
+			parseEnv(readFileSync(targetPortalEnvironment, "utf8")).INTERNAL_PORTAL_SSO_TGC,
+			"TGT-worktree",
+		);
+		assert.equal(existsSync(resolve(repoRoot, ".env")), false);
+	});
+
 	it("renders isolated endpoints and preserves generated secrets", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
@@ -639,6 +720,11 @@ describe("local development lifecycle guards", () => {
 		) as { scripts?: { dev?: string } };
 		const opsWebPackage = readPackageJson("apps/ops-web/package.json");
 		assert.match(appApiPackage.scripts?.dev ?? "", /exec wrangler dev/u);
+		assert.match(appApiPackage.scripts?.dev ?? "", /\. \.\/\.dev\.vars\.local/u);
+		assert.match(
+			appApiPackage.scripts?.dev ?? "",
+			/--var "EXECUTION_CONTROL_BASE_URL:\$EXECUTION_CONTROL_BASE_URL"/u,
+		);
 		assert.match(campusWebPackage.scripts?.dev ?? "", /\bvite\b/u);
 		assert.match(executionPackage.scripts?.dev ?? "", /exec go run/u);
 		assert.match(agentPackage.scripts?.dev ?? "", /--experimental-strip-types src\/server\.ts/u);

@@ -7,9 +7,20 @@ import {
 	useAuiState,
 } from "@assistant-ui/react";
 import { Button, Input, Skeleton } from "@campus-agent/ui";
-import { ArchiveIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	MoreHorizontalIcon,
+	PencilIcon,
+	PinIcon,
+	PinOffIcon,
+	SquarePen,
+	TrashIcon,
+} from "lucide-react";
 import { type FC, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { pinConversation, unpinConversation } from "@/features/conversation/api";
+import { formatThreadListTime } from "./thread-list-time";
 
 export const ThreadList: FC<{
 	accountLoading: boolean;
@@ -85,19 +96,20 @@ export const ThreadListNewButton: FC<{ onNavigate?: (() => void) | undefined }> 
 }) => (
 	<ThreadListPrimitive.New asChild>
 		<SidebarMenuButton
-			className="h-11 px-2.5 group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
+			className="h-11 px-2.5 lg:h-9 group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
 			onClick={onNavigate}
 			tooltip="新对话"
 			type="button"
 		>
-			<PlusIcon aria-hidden="true" />
+			<SquarePen aria-hidden="true" />
 			<span>新对话</span>
 		</SidebarMenuButton>
 	</ThreadListPrimitive.New>
 );
 
-const DAY_IN_MS = 86_400_000;
 const SKELETON_THREAD_IDS = ["thread-1", "thread-2", "thread-3", "thread-4", "thread-5"] as const;
+
+const DAY_IN_MS = 86_400_000;
 
 const dateGroupLabel = (date: Date | undefined, startOfToday: number): string => {
 	if (!date || date.getTime() >= startOfToday) {
@@ -112,6 +124,12 @@ const dateGroupLabel = (date: Date | undefined, startOfToday: number): string =>
 interface ThreadListGroup {
 	label: string;
 	indices: number[];
+}
+
+export function readPinnedAt(custom: Record<string, unknown> | undefined): string | null {
+	return typeof custom?.pinnedAt === "string" && custom.pinnedAt.length > 0
+		? custom.pinnedAt
+		: null;
 }
 
 interface ThreadListActionErrorProps {
@@ -129,17 +147,33 @@ const ThreadListItems: FC<ThreadListItemsProps> = ({ onActionError, onNavigate }
 	const groups = useMemo<ThreadListGroup[] | null>(() => {
 		const itemsById = new Map(threadItems.map((item) => [item.id, item]));
 		const dates = threadIds.map((id) => itemsById.get(id)?.lastMessageAt);
-		if (!dates.some(Boolean)) {
+		if (threadIds.length === 0) {
 			return null;
 		}
 
 		const now = new Date();
 		const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+		const itemAt = (index: number) => {
+			const id = threadIds[index];
+			return id ? itemsById.get(id) : undefined;
+		};
 		const time = (index: number) => dates[index]?.getTime() ?? Number.MAX_SAFE_INTEGER;
-		const indices = threadIds.map((_, index) => index).sort((a, b) => time(b) - time(a));
+		const indices = threadIds
+			.map((_, index) => index)
+			.sort((a, b) => {
+				const pinnedDelta =
+					Number(Boolean(readPinnedAt(itemAt(b)?.custom))) -
+					Number(Boolean(readPinnedAt(itemAt(a)?.custom)));
+				return pinnedDelta || time(b) - time(a);
+			});
+		const pinnedIndices = indices.filter((index) => Boolean(readPinnedAt(itemAt(index)?.custom)));
+		const unpinnedIndices = indices.filter((index) => !readPinnedAt(itemAt(index)?.custom));
 
 		const result: ThreadListGroup[] = [];
-		for (const index of indices) {
+		if (pinnedIndices.length > 0) {
+			result.push({ indices: pinnedIndices, label: "置顶" });
+		}
+		for (const index of unpinnedIndices) {
 			const label = dateGroupLabel(dates[index], startOfToday);
 			const lastGroup = result.at(-1);
 			if (lastGroup?.label === label) {
@@ -165,7 +199,7 @@ const ThreadListItems: FC<ThreadListItemsProps> = ({ onActionError, onNavigate }
 
 	return groups.map((group) => (
 		<Fragment key={group.label}>
-			<div className="aui-thread-list-group-label text-muted-foreground px-2.5 pt-3 pb-1 text-xs font-medium">
+			<div className="aui-thread-list-group-label text-muted-foreground px-2.5 pb-1 pt-3 text-xs font-medium">
 				{group.label}
 			</div>
 			{group.indices.map((index) => (
@@ -190,9 +224,12 @@ const ThreadListSkeleton: FC = () => (
 			<div
 				aria-hidden="true"
 				key={id}
-				className="aui-thread-list-skeleton-wrapper flex h-11 items-center px-2.5 lg:h-9"
+				className="aui-thread-list-skeleton-wrapper flex h-14 items-center px-2.5 lg:h-12"
 			>
-				<Skeleton className="aui-thread-list-skeleton h-3.5 w-full" />
+				<div className="flex min-w-0 flex-1 flex-col gap-1">
+					<Skeleton className="aui-thread-list-skeleton h-3.5 w-full" />
+					<Skeleton className="aui-thread-list-skeleton h-2.5 w-16" />
+				</div>
 			</div>
 		))}
 	</div>
@@ -201,6 +238,8 @@ const ThreadListSkeleton: FC = () => (
 const ThreadListItem: FC<ThreadListItemsProps> = ({ onActionError, onNavigate }) => {
 	const runtime = useAui().threadListItem;
 	const title = useAuiState((state) => state.threadListItem.title) || "新对话";
+	const lastMessageAt = useAuiState((state) => state.threadListItem.lastMessageAt);
+	const isPinned = useAuiState((state) => Boolean(readPinnedAt(state.threadListItem.custom)));
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [draftTitle, setDraftTitle] = useState(title);
 	const [isEditing, setIsEditing] = useState(false);
@@ -245,13 +284,16 @@ const ThreadListItem: FC<ThreadListItemsProps> = ({ onActionError, onNavigate })
 	};
 
 	return (
-		<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-surface-hover data-active:bg-chat-accent-subtle data-active:text-chat-accent-text relative flex h-11 items-center rounded-md transition-colors lg:h-9">
+		<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-surface-hover data-active:bg-selected data-active:text-selected-foreground relative grid min-h-14 grid-cols-[minmax(0,1fr)_4.5rem] items-stretch rounded-lg transition-colors lg:min-h-12">
 			{isEditing ? (
-				<form className="min-w-0 flex-1 px-1" onSubmit={(event) => void submitRename(event)}>
+				<form
+					className="flex min-w-0 items-center px-1"
+					onSubmit={(event) => void submitRename(event)}
+				>
 					<Input
 						aria-label={`重命名 ${title}`}
 						aria-busy={isRenamePending || undefined}
-						className="h-9 w-full px-2 text-sm lg:h-7"
+						className="h-9 w-full px-2 text-sm lg:h-8"
 						onBlur={() => {
 							if (!isRenamePending) {
 								setIsEditing(false);
@@ -272,18 +314,74 @@ const ThreadListItem: FC<ThreadListItemsProps> = ({ onActionError, onNavigate })
 				</form>
 			) : (
 				<ThreadListItemPrimitive.Trigger
-					className="aui-thread-list-item-trigger flex h-full min-w-0 flex-1 items-center px-2.5 pe-12 text-start text-sm lg:pe-2.5 lg:group-hover:pe-10 lg:group-has-data-[state=open]:pe-10 lg:group-data-active:pe-10"
+					aria-label={title}
+					className="aui-thread-list-item-trigger flex min-w-0 items-center gap-1.5 px-2.5 py-1 text-start text-sm"
 					onClick={onNavigate}
 				>
-					<span className="aui-thread-list-item-title min-w-0 flex-1 truncate">
-						<ThreadListItemPrimitive.Title fallback="新对话" />
+					{isPinned ? <PinIcon aria-hidden="true" className="me-1.5 size-3.5 shrink-0" /> : null}
+					<span className="flex min-w-0 flex-1 flex-col justify-center">
+						<span className="aui-thread-list-item-title min-w-0 truncate leading-5" title={title}>
+							<ThreadListItemPrimitive.Title fallback="新对话" />
+						</span>
+						<time
+							className="aui-thread-list-item-time truncate text-muted-foreground text-xs leading-4"
+							dateTime={lastMessageAt?.toISOString()}
+						>
+							{formatThreadListTime(lastMessageAt)}
+						</time>
 					</span>
 				</ThreadListItemPrimitive.Trigger>
 			)}
-			{isEditing ? null : (
-				<ThreadListItemMore onActionError={onActionError} onRename={beginRename} />
-			)}
+			<div className="flex w-[4.5rem] shrink-0 items-center justify-end gap-0.5 pe-1">
+				{isEditing ? null : (
+					<>
+						<ThreadListItemPin onActionError={onActionError} />
+						<ThreadListItemMore onActionError={onActionError} onRename={beginRename} />
+					</>
+				)}
+			</div>
 		</ThreadListItemPrimitive.Root>
+	);
+};
+
+const ThreadListItemPin: FC<ThreadListActionErrorProps> = ({ onActionError }) => {
+	const aui = useAui();
+	const remoteId = useAuiState((state) => state.threadListItem.remoteId);
+	const isPinned = useAuiState((state) => Boolean(readPinnedAt(state.threadListItem.custom)));
+	const [isPending, setIsPending] = useState(false);
+	const label = isPinned ? "取消置顶" : "置顶";
+
+	const togglePin = async () => {
+		if (!remoteId) {
+			return;
+		}
+		onActionError(null);
+		setIsPending(true);
+		try {
+			await (isPinned ? unpinConversation(remoteId) : pinConversation(remoteId));
+			await aui.threads.reload();
+		} catch {
+			onActionError(isPinned ? "取消置顶失败，请稍后重试。" : "置顶失败，请稍后重试。");
+		} finally {
+			setIsPending(false);
+		}
+	};
+
+	return (
+		<TooltipIconButton
+			aria-pressed={isPinned}
+			aria-label={label}
+			className={isPinned ? "text-primary" : "text-muted-foreground"}
+			disabled={isPending || !remoteId}
+			onClick={() => void togglePin()}
+			tooltip={label}
+		>
+			{isPinned ? (
+				<PinOffIcon aria-hidden="true" className="size-3.5" />
+			) : (
+				<PinIcon aria-hidden="true" className="size-3.5" />
+			)}
+		</TooltipIconButton>
 	);
 };
 
@@ -291,7 +389,8 @@ const ThreadListItemMore: FC<ThreadListActionErrorProps & { onRename: () => void
 	onActionError,
 	onRename,
 }) => {
-	const runtime = useAui().threadListItem;
+	const aui = useAui();
+	const runtime = aui.threadListItem;
 	const [isActionPending, setIsActionPending] = useState(false);
 
 	const runThreadAction = async (action: () => Promise<void> | void, failureMessage: string) => {
@@ -305,14 +404,15 @@ const ThreadListItemMore: FC<ThreadListActionErrorProps & { onRename: () => void
 			setIsActionPending(false);
 		}
 	};
-
 	return (
 		<ThreadListItemMorePrimitive.Root>
 			<ThreadListItemMorePrimitive.Trigger asChild>
 				<Button
+					aria-label="更多操作"
 					variant="ghost"
 					size="icon"
-					className="aui-thread-list-item-more data-[state=open]:bg-selected absolute end-0 top-0 z-10 size-11 p-0 opacity-100 lg:end-1 lg:top-1 lg:size-7 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 lg:group-data-active:opacity-100 data-[state=open]:opacity-100"
+					className="aui-thread-list-item-more data-[state=open]:bg-selected size-8 p-0 lg:size-7"
+					title="更多操作"
 				>
 					<MoreHorizontalIcon className="size-3.5" />
 					<span className="sr-only">更多操作</span>

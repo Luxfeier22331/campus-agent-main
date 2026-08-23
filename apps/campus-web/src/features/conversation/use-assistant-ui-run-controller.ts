@@ -30,6 +30,7 @@ export function useAssistantUiRunController({
 		onResume,
 		requiresConversationInitialization,
 		runPrompt,
+		setMessages,
 	} = useConversationRunCoordinator({
 		loginRequired,
 		onLoginRequired,
@@ -73,7 +74,7 @@ export function useAssistantUiRunController({
 
 	const onEdit = useCallback(
 		async (message: AppendMessage) => {
-			const truncateFromMessageId = message.parentId;
+			const truncateFromMessageId = message.sourceId;
 			if (!isPersistedConversationMessageId(truncateFromMessageId)) {
 				return;
 			}
@@ -117,5 +118,6 @@ export function useAssistantUiRunController({
 		onNew,
 		onReload,
 		onResume,
+		setMessages,
 	};
 }

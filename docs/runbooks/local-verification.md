@@ -15,7 +15,10 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.e
 未配置 Hindsight 时，execution-control 不向模型暴露 `personal_memory_recall`，普通对话仍使用真实
 模型链路；验证个人记忆时再显式启动并配置 Hindsight。
 
-产品页面本地开发使用 worktree profile 和应用本地托管环境文件，不读取根 `.env`。仓库只生成 loopback 数据库凭据和应用本地随机 secret；Provider、Qdrant、Temporal、Hindsight 与其他外部凭据仍由开发者进程环境显式提供。
+产品页面本地开发使用 worktree profile 和应用本地托管环境文件，不读取根 `.env`。仓库生成 loopback
+数据库凭据和应用本地随机 secret；linked worktree 的 `dev:init` 还从 main checkout 按字段白名单补充
+尚未存在的 provider 外部开发连接，并在 main 已有时导入门户 TGC。数据库、对象存储资源、应用内部
+secret 和 provider 配置加密 key 仍按 worktree 独立。其他外部凭据由开发者进程环境显式提供。
 
 默认诊断 compose 使用 debug OTel Collector。只有验证本地 Agent trace 到 Langfuse 的转发时加入
 `docker-compose.execution-runtime.langfuse.yml`。
@@ -123,6 +126,8 @@ pnpm --filter ops-web dev:fixture
 在线配置由当前 worktree 的独立 Model Config 数据库、role 和 `model-config-encryption.key` 持有。需要修改时
 启动本地 `pnpm dev` 与 `pnpm --filter ops-web dev:api`、`pnpm --filter ops-web dev:web`，按
 `provider-secrets.md` 保存并验证 LLM、Embedding 或通知分类当前值；应用启动不能静默 seed 在线配置。
+main checkout 导入的 provider 字段只作为当前 worktree 的外部开发连接，不自动覆盖模型配置数据库，
+也不把通用 LLM 连接映射为通知分类设置。
 `pnpm dev:init` 先运行 execution-control 历史 Goose migration，再运行 Model Config 事务切换。前者使用
 `provider-config-encryption.key` 作为冻结历史 migration 输入，后者使用它解密旧行并以
 `model-config-encryption.key` 重加密。启动前会验证当前 Model Config 密文可解密；失败说明数据库和 key

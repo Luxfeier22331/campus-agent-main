@@ -58,6 +58,11 @@ revision、bundle、activation、history、fallback 或在线 rollback。不同�
 Model Config 和所有内部 consumer 生成同一 worktree 的 `MODEL_CONFIG_URL`；不生成 Model Config 调用
 token。两个加密密钥文件不得打印、复制到其他 worktree 或提交。
 
+linked worktree 首次运行 `pnpm dev:init` 时，会从 main checkout 根 `.env` 按白名单导入尚未存在的
+provider 外部连接字段，并导入可用的门户 TGC。它不复制数据库连接、在线配置密文或任一 encryption key；
+导入值也不会自动写入 Model Config，仍需通过 Ops Web 保存并验证。两个加密密钥文件不得打印、复制到
+其他 worktree 或提交。
+
 ## 轮换
 
 Provider API key 可通过保存同一目标的新 key 完成，验证通过后撤销旧 key。Model Config 数据加密

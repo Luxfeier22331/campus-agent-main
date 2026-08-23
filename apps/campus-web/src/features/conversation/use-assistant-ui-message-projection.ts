@@ -7,7 +7,6 @@ import {
 	localUserMessage,
 	provisionalAssistantMessage,
 	type RuntimeMessages,
-	removeMessagesById,
 	updateAssistantRunMetadata,
 	upsertAssistantTextMessage,
 } from "./assistant-ui-message-projection";
@@ -24,7 +23,8 @@ export function useAssistantUiMessageProjection() {
 				const provisionalMessageId = provisionalAssistantMessageIdRef.current;
 				return upsertAssistantTextMessage(current, {
 					...input,
-					...(provisionalMessageId ? { provisionalMessageId } : {}),
+					messageId: provisionalMessageId ?? input.messageId,
+					optimistic: true,
 				});
 			});
 		},
@@ -46,7 +46,14 @@ export function useAssistantUiMessageProjection() {
 			provisionalAssistantMessageIdRef.current = null;
 		}
 		if (provisionalIds.size > 0) {
-			setMessages((current) => removeMessagesById(current, provisionalIds));
+			setMessages((current) =>
+				current.filter(
+					(message) =>
+						message.metadata?.isOptimistic !== true ||
+						!message.id ||
+						!provisionalIds.has(message.id),
+				),
+			);
 		}
 	}, []);
 
@@ -59,31 +66,14 @@ export function useAssistantUiMessageProjection() {
 		[],
 	);
 
+	const setRuntimeMessages = useCallback((nextMessages: readonly RuntimeMessages[number][]) => {
+		setMessages([...nextMessages]);
+	}, []);
+
 	const appendProvisionalAssistantMessage = useCallback(
 		(input: { messageId: string; occurredAt: string; runView: CampusRunViewState }) => {
 			provisionalAssistantMessageIdRef.current = input.messageId;
 			setMessages((current) => [...current, provisionalAssistantMessage(input)]);
-		},
-		[],
-	);
-
-	const migrateProvisionalAssistantMessage = useCallback(
-		(input: { messageId: string; occurredAt: string }) => {
-			const provisionalId = provisionalAssistantMessageIdRef.current;
-			if (!provisionalId || provisionalId === input.messageId) {
-				return;
-			}
-			setMessages((current) => {
-				if (current.some((message) => message.id === input.messageId)) {
-					return current.filter((message) => message.id !== provisionalId);
-				}
-				return current.map((message) =>
-					message.id === provisionalId
-						? { ...message, createdAt: new Date(input.occurredAt), id: input.messageId }
-						: message,
-				);
-			});
-			provisionalAssistantMessageIdRef.current = input.messageId;
 		},
 		[],
 	);
@@ -134,6 +124,15 @@ export function useAssistantUiMessageProjection() {
 				content: [{ text, type: "text" }],
 				createdAt: new Date(),
 				id: messageId,
+				metadata: {
+					custom: {
+						campusMessage: {
+							kind: "error",
+							requestId: error.requestId,
+							retryable: error.retryable,
+						},
+					},
+				},
 				role: "assistant",
 			},
 		]);
@@ -202,11 +201,11 @@ export function useAssistantUiMessageProjection() {
 		clearProvisionalAssistantMessages,
 		flushAssistantFrame,
 		messages,
-		migrateProvisionalAssistantMessage,
 		removeMessage,
 		replaceWithCanonicalMessages,
 		revealAccumulatedAssistantText,
 		scheduleAssistantFrame,
+		setRuntimeMessages,
 		truncateMessagesFrom,
 		updateAssistantRunView,
 	};

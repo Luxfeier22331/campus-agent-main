@@ -144,6 +144,16 @@ describe("campus run view state", () => {
 		});
 	});
 
+	it("preserves the local start time when hydrating a run", () => {
+		const hydrated = reduceCampusRunViewState(acceptedState(), {
+			operationId: 7,
+			run: run({ acceptedAt: "2026-06-18T01:00:02.000Z" }),
+			type: "hydrate",
+		});
+
+		expect(hydrated.acceptedAt).toBe(RUN_TIMES.acceptedAt);
+	});
+
 	it("locks a terminal state against later non-terminal hydration or events", () => {
 		const completed = reduceCampusRunViewState(acceptedState(), {
 			event: event("request.completed", {
@@ -173,7 +183,38 @@ describe("campus run view state", () => {
 		expect(lateFailure).toEqual(completed);
 	});
 
-	it("rebinds the same run as reconnecting and rejects another run", () => {
+	it("accepts a terminal event sharing the answer delta sequence", () => {
+		const state = reduceCampusRunViewState(acceptedState(), {
+			event: event("answer.delta", {
+				delta: "完整回答",
+				messageId: "msg_answer",
+				occurredAt: RUN_TIMES.startedAt,
+				sequence: 2,
+				status: "streaming",
+			}),
+			operationId: 7,
+			type: "event",
+		});
+
+		const completed = reduceCampusRunViewState(state, {
+			event: event("request.completed", {
+				occurredAt: RUN_TIMES.completedAt,
+				sequence: 2,
+				status: "completed",
+			}),
+			operationId: 7,
+			type: "event",
+		});
+
+		expect(completed).toMatchObject({
+			completedAt: RUN_TIMES.completedAt,
+			phase: "finalizing",
+			sequence: 2,
+			status: "completed",
+		});
+	});
+
+	it("keeps a disconnected run disconnected until recovery produces an event", () => {
 		const disconnected = reduceCampusRunViewState(
 			{ ...acceptedState(), connection: "disconnected" },
 			{ operationId: 8, runId: "run_01", type: "rebind" },
@@ -185,10 +226,17 @@ describe("campus run view state", () => {
 		});
 
 		expect(disconnected).toMatchObject({
-			connection: "reconnecting",
+			connection: "disconnected",
 			operationId: 8,
 			runId: "run_01",
 		});
 		expect(mismatched).toEqual(disconnected);
+
+		const recovered = reduceCampusRunViewState(disconnected, {
+			event: event("execution.running", { sequence: 2 }),
+			operationId: 8,
+			type: "event",
+		});
+		expect(recovered.connection).toBe("live");
 	});
 });

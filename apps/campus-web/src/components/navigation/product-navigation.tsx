@@ -13,11 +13,13 @@ export type ProductNavigationLinkMode = ProductNavItemLinkMode;
 export function ProductBrandLink({
 	className,
 	compactLabel,
+	desktopLabel = "中央民族大学校园问答",
 	linkMode = "anchor",
 	subtitle = "",
 }: {
 	className?: string;
-	compactLabel?: string;
+	compactLabel?: string | undefined;
+	desktopLabel?: string | undefined;
 	linkMode?: ProductNavigationLinkMode;
 	subtitle?: string | undefined;
 }) {
@@ -29,7 +31,7 @@ export function ProductBrandLink({
 				{mobileLabel}
 			</span>
 			<span className="hidden whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:block">
-				中央民族大学校园问答
+				{desktopLabel}
 			</span>
 			{subtitle ? (
 				<span className="hidden truncate text-xs text-[var(--sys-text-subtle)] lg:block">

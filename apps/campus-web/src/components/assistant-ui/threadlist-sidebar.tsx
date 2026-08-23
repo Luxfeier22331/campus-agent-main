@@ -1,6 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@campus-agent/ui";
 import { Link } from "@tanstack/react-router";
-import { MessagesSquare, SearchIcon } from "lucide-react";
+import { MessageCircle, SearchIcon } from "lucide-react";
 import type * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -91,7 +91,7 @@ export function ThreadListSidebar({
 	return (
 		<>
 			<Sidebar {...props}>
-				<SidebarHeader className="aui-sidebar-header h-[var(--layout-chat-topnav-height)] shrink-0 justify-center gap-0 border-b p-1">
+				<SidebarHeader className="aui-sidebar-header h-[var(--layout-chat-topnav-height)] shrink-0 justify-center gap-0 px-1.5 py-1">
 					{compact ? (
 						<SidebarToggle />
 					) : (
@@ -105,7 +105,7 @@ export function ThreadListSidebar({
 						</div>
 					)}
 				</SidebarHeader>
-				<div className="aui-sidebar-primary-actions shrink-0 p-1.5">
+				<div className="aui-sidebar-primary-actions shrink-0 px-1.5 pb-1.5 pt-1">
 					<SidebarMenu>
 						{compact ? (
 							<SidebarMenuItem>
@@ -118,7 +118,7 @@ export function ThreadListSidebar({
 						<SidebarMenuItem>
 							<SidebarMenuButton
 								aria-label="搜索聊天"
-								className="h-11 px-2.5 group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
+								className="h-11 px-2.5 lg:h-9 group-data-[collapsible=icon]:!size-11 group-data-[collapsible=icon]:!p-3"
 								onClick={(event) => openSearch(event.currentTarget)}
 								onFocus={preloadThreadHistorySearchPanel}
 								onPointerEnter={preloadThreadHistorySearchPanel}
@@ -142,7 +142,7 @@ export function ThreadListSidebar({
 						retryingAccountStatus={retryingAccountStatus}
 					/>
 				</SidebarContent>
-				<SidebarFooter className="aui-sidebar-footer mt-auto shrink-0 overflow-visible border-t p-1">
+				<SidebarFooter className="aui-sidebar-footer mt-auto shrink-0 overflow-visible p-1.5">
 					<SidebarAccountEntry compact={compact} onLoginRequired={handleLoginRequired} />
 				</SidebarFooter>
 			</Sidebar>
@@ -167,7 +167,7 @@ function SidebarBrandLink({ onNavigate }: { onNavigate: () => void }) {
 			tooltip="校园问答"
 		>
 			<Link onClick={onNavigate} to="/">
-				<MessagesSquare aria-hidden="true" />
+				<MessageCircle aria-hidden="true" />
 				<span>校园问答</span>
 			</Link>
 		</SidebarMenuButton>
@@ -180,7 +180,7 @@ function SidebarToggle() {
 		<SidebarTrigger
 			aria-controls="campus-chat-sidebar"
 			aria-label={open ? "收起聊天记录" : "展开聊天记录"}
-			className="size-11 shrink-0"
+			className="size-11 shrink-0 lg:size-9"
 		/>
 	);
 }
@@ -201,7 +201,7 @@ function SidebarAccountEntry({
 			}
 		>
 			<AccountEntry
-				className={compact ? "size-11" : "min-h-[52px] w-full"}
+				className={compact ? "size-11" : "min-h-11 w-full lg:min-h-10"}
 				menuPlacement={compact ? "right-end" : "top-start"}
 				onLogin={onLoginRequired}
 				presentation={compact ? "icon" : "label"}

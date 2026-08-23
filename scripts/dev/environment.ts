@@ -1,9 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
 	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
+	realpathSync,
 	renameSync,
 	rmSync,
 	writeFileSync,
@@ -17,6 +19,31 @@ import { calculateLocalDevRuntimePorts } from "./profile";
 export const MANAGED_LOCAL_ENV_MARKER = "# Managed by pnpm dev:init. Do not edit.";
 const LOCAL_MODEL_CONFIG_ENCRYPTION_KEY_PATH = "var/dev/model-config-encryption.key";
 const LOCAL_LEGACY_PROVIDER_CONFIG_ENCRYPTION_KEY_PATH = "var/dev/provider-config-encryption.key";
+const IMPORTED_EXTERNAL_ENV_MARKER =
+	"# External development credentials imported from the main checkout by pnpm dev:init.";
+
+const SHARED_EXTERNAL_PROVIDER_ENV_KEYS = [
+	"LLM_BASE_URL",
+	"LLM_API_KEY",
+	"LLM_MODEL",
+	"RAG_SYNTHESIS_MODEL",
+	"EMBEDDING_BASE_URL",
+	"EMBEDDING_API_KEY",
+	"EMBEDDING_MODEL",
+	"EMBEDDING_DIMENSIONS",
+	"RERANK_BASE_URL",
+	"RERANK_API_KEY",
+	"RERANK_MODEL",
+	"RERANK_PATH",
+	"INTERNAL_NOTICE_CLASSIFIER_OPENAI_BASE_URL",
+	"INTERNAL_NOTICE_CLASSIFIER_OPENAI_API_KEY",
+	"INTERNAL_NOTICE_CLASSIFIER_OPENAI_MODEL",
+] as const;
+
+const MAIN_INTERNAL_PORTAL_ENV_PATHS = [
+	"jobs/internal-portal-collection/adapters/internal-portal/.env.local",
+	"apps/source-collector/adapters/internal-portal/.env.local",
+] as const;
 
 export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	appApi: "apps/app-api/.env.local",
@@ -33,6 +60,11 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 } as const;
 
 type ManagedLocalEnvironment = keyof typeof MANAGED_LOCAL_ENVIRONMENT_PATHS;
+
+interface MainCheckoutExternalCredentials {
+	internalPortalSsoTgc?: string;
+	provider: Record<string, string>;
+}
 
 export type LocalDevEnvironmentTarget =
 	| "core"
@@ -86,6 +118,42 @@ export function managedLocalEnvironmentPathsForTarget(
 			? (Object.keys(paths) as ManagedLocalEnvironment[])
 			: LOCAL_DEV_ENVIRONMENT_TARGETS[target];
 	return names.map((name) => paths[name]);
+}
+
+export function resolveMainCheckoutRoot(repoRoot: string): string {
+	const commonDirectory = realpathSync(
+		resolve(
+			repoRoot,
+			execFileSync("git", ["rev-parse", "--git-common-dir"], {
+				cwd: repoRoot,
+				encoding: "utf8",
+			}).trim(),
+		),
+	);
+	return realpathSync(dirname(commonDirectory));
+}
+
+export function importMainCheckoutExternalCredentials(input: {
+	mainCheckoutRoot: string;
+	repoRoot: string;
+}): void {
+	if (realpathSync(input.mainCheckoutRoot) === realpathSync(input.repoRoot)) {
+		return;
+	}
+	const credentials = readMainCheckoutExternalCredentials(input.mainCheckoutRoot);
+	appendMissingEnvValues(resolve(input.repoRoot, ".env"), credentials.provider);
+	if (!credentials.internalPortalSsoTgc) {
+		return;
+	}
+	const path = managedLocalEnvironmentPaths(input.repoRoot).internalPortalCollection;
+	const existing = readManagedEnv(path);
+	if (Object.hasOwn(existing, "INTERNAL_PORTAL_SSO_TGC")) {
+		return;
+	}
+	writeManagedEnv(path, {
+		...existing,
+		INTERNAL_PORTAL_SSO_TGC: credentials.internalPortalSsoTgc,
+	});
 }
 
 export function localDatabaseUrls(profile: LocalDevProfileV1): {
@@ -355,6 +423,47 @@ function readManagedEnv(path: string): Record<string, string> {
 	return parseEnv(readFileSync(path, "utf8"));
 }
 
+function readMainCheckoutExternalCredentials(
+	mainCheckoutRoot: string,
+): MainCheckoutExternalCredentials {
+	const rootEnvironment = readOptionalEnv(resolve(mainCheckoutRoot, ".env"));
+	const provider = Object.fromEntries(
+		SHARED_EXTERNAL_PROVIDER_ENV_KEYS.flatMap((key) => {
+			const value = rootEnvironment[key]?.trim();
+			return value ? [[key, value]] : [];
+		}),
+	);
+	const internalPortalSsoTgc = MAIN_INTERNAL_PORTAL_ENV_PATHS.map((relativePath) =>
+		readOptionalEnv(resolve(mainCheckoutRoot, relativePath)).INTERNAL_PORTAL_SSO_TGC?.trim(),
+	).find(Boolean);
+	return {
+		...(internalPortalSsoTgc ? { internalPortalSsoTgc } : {}),
+		provider,
+	};
+}
+
+function readOptionalEnv(path: string): Record<string, string> {
+	return existsSync(path) ? parseEnv(readFileSync(path, "utf8")) : {};
+}
+
+function appendMissingEnvValues(path: string, values: Record<string, string>): void {
+	const current = existsSync(path) ? readFileSync(path, "utf8") : "";
+	const parsed = current ? parseEnv(current) : {};
+	const missing = Object.entries(values).filter(([key]) => !Object.hasOwn(parsed, key));
+	if (missing.length === 0) {
+		return;
+	}
+	const prefix = current.trimEnd();
+	const body = [
+		...(prefix ? [prefix] : [IMPORTED_EXTERNAL_ENV_MARKER]),
+		...missing
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([key, value]) => `${key}=${JSON.stringify(value)}`),
+		"",
+	].join("\n");
+	writePrivateFileAtomic(path, body);
+}
+
 function writeManagedEnv(path: string, values: Record<string, string>): void {
 	if (existsSync(path)) {
 		assertManagedFile(path);
@@ -366,6 +475,10 @@ function writeManagedEnv(path: string, values: Record<string, string>): void {
 			.map(([key, value]) => `${key}=${JSON.stringify(value)}`),
 		"",
 	].join("\n");
+	writePrivateFileAtomic(path, body);
+}
+
+function writePrivateFileAtomic(path: string, body: string): void {
 	const temporaryPath = resolve(dirname(path), `.${randomBytes(8).toString("hex")}.tmp`);
 	writeFileSync(temporaryPath, body, { mode: 0o600 });
 	renameSync(temporaryPath, path);

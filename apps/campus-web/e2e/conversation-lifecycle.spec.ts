@@ -16,29 +16,20 @@ test.describe("conversation lifecycle browser flow", () => {
 		await expect(page.getByText("历史记录中的国家奖学金回答。")).toHaveCount(0);
 	});
 
-	test("searches archived conversations and opens the selected result", async ({ page }) => {
-		await mockCampusApi(page);
+	test("searches only active conversations without an archived scope", async ({ page }) => {
+		const requests: Array<{ path: string; search: string }> = [];
+		await mockCampusApi(page, { requests });
 		await page.goto("/");
 
 		await page.getByRole("button", { name: "搜索聊天" }).click();
-		await page.getByRole("radio", { name: "已归档" }).click();
-		await page.getByPlaceholder("搜索历史会话").fill("奖学金");
-		await page.getByText("归档奖学金材料").click();
+		await expect(page.getByRole("radio", { name: "已归档" })).toHaveCount(0);
+		await page.getByPlaceholder("搜索历史会话").fill("图书馆");
+		await expect(page.getByText("图书馆开放时间")).toBeVisible();
 
-		await expect(page).toHaveURL(/\/c\/conv_archived_e2e$/);
-		await expect(page.getByText("已归档会话中的奖学金材料回答。")).toBeVisible();
-	});
-
-	test("opens login when archived search requires a session", async ({ page }) => {
-		await mockCampusApi(page, {
-			conversationFailures: { searchUnauthorized: true },
-		});
-		await page.goto("/");
-
-		await page.getByRole("button", { name: "搜索聊天" }).click();
-		await page.getByPlaceholder("搜索历史会话").fill("奖学金");
-
-		await expect(page.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeVisible();
+		const searchRequest = requests.find(
+			(request) => request.path === "/api/chat/conversations/search",
+		);
+		expect(searchRequest?.search).toContain("view=active");
 	});
 
 	test("opens login when a historical conversation can no longer be loaded", async ({ page }) => {

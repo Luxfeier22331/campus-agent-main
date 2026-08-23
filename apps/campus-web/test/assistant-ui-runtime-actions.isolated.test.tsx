@@ -12,9 +12,11 @@ const assistantUiMock = vi.hoisted(() => ({
 		isRunning: boolean;
 		messages: unknown[];
 		onCancel: () => Promise<void>;
+		setMessages?: (messages: readonly unknown[]) => void;
 		onEdit?: (message: {
 			content: { text: string; type: "text" }[];
 			parentId?: string;
+			sourceId?: string | null;
 		}) => Promise<void>;
 		onNew: (message: { content: { text: string; type: "text" }[] }) => Promise<void>;
 		onReload?: (parentId: string | null) => Promise<void>;
@@ -215,7 +217,7 @@ describe("assistant-ui runtime message actions", () => {
 		await act(async () => {
 			await assistantUiMock.externalStoreInput?.onEdit?.({
 				content: [{ text: " 编辑后的问题 ", type: "text" }],
-				parentId: "msg_user",
+				sourceId: "msg_user",
 			});
 		});
 
@@ -310,5 +312,30 @@ describe("assistant-ui runtime message actions", () => {
 
 		expect(conversationApiMock.deleteTrailingMessages).not.toHaveBeenCalled();
 		expect(conversationApiMock.submitChatRequestStream).not.toHaveBeenCalled();
+	});
+
+	it("applies messages supplied by assistant-ui when switching branches", async () => {
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+		await waitFor(() =>
+			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
+				"conv_history",
+				expect.any(AbortSignal),
+			),
+		);
+
+		const branchMessages = [
+			{ content: [{ text: "分支问题", type: "text" }], id: "branch-user", role: "user" },
+			{
+				content: [{ text: "分支回答", type: "text" }],
+				id: "branch-answer",
+				role: "assistant",
+			},
+		] as const;
+
+		await act(async () => {
+			assistantUiMock.externalStoreInput?.setMessages?.(branchMessages);
+		});
+
+		expect(assistantUiMock.externalStoreInput?.messages).toEqual(branchMessages);
 	});
 });

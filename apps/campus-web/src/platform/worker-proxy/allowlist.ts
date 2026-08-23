@@ -54,6 +54,7 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/chat\/runs\/[^/]+$/.test(pathname) ||
 		/^\/api\/chat\/runs\/[^/]+\/events$/.test(pathname) ||
 		/^\/api\/chat\/runs\/[^/]+\/events\/stream$/.test(pathname) ||
+		/^\/api\/chat\/runs\/[^/]+\/steps$/.test(pathname) ||
 		/^\/api\/chat\/runs\/[^/]+\/cancel$/.test(pathname) ||
 		/^\/api\/me\/profile-memory\/items\/[^/]+$/.test(pathname) ||
 		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname) ||

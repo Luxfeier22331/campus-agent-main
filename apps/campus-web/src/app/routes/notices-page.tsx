@@ -1,11 +1,12 @@
 import {
 	Button,
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
 	Input,
 	Label,
-	NativeSelect,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
 	Skeleton,
 } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -21,7 +22,7 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	ArrowUpRight,
-	ChevronDown,
+	CalendarDays,
 	ChevronRight,
 	FileText,
 	Globe2,
@@ -30,10 +31,10 @@ import {
 	Newspaper,
 	School,
 	Search,
-	SlidersHorizontal,
 	X,
 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StateMessage } from "@/components/ui/state-message";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { NoticeCategoryBadge } from "@/features/notices/category-badge";
@@ -53,7 +54,12 @@ const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat("sv-SE", {
 	timeZone: "Asia/Shanghai",
 	year: "numeric",
 });
-const MOBILE_FILTER_QUERY = "(max-width: 767px)";
+const FILTER_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+	day: "numeric",
+	month: "long",
+	timeZone: "Asia/Shanghai",
+	year: "numeric",
+});
 
 export function NoticesPage() {
 	return (
@@ -68,14 +74,7 @@ export function NoticesPageContent() {
 	const search = useSearch({ from: "/notices" });
 	const notices = useQuery(noticeListQueryOptions(search));
 	const [queryDraft, setQueryDraft] = useState(search.q ?? "");
-	const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(() => !isMobileFilterViewport());
 	useEffect(() => setQueryDraft(search.q ?? ""), [search.q]);
-	useEffect(() => {
-		const media = window.matchMedia(MOBILE_FILTER_QUERY);
-		const syncOpenState = () => setAdvancedFiltersOpen(!media.matches);
-		media.addEventListener("change", syncOpenState);
-		return () => media.removeEventListener("change", syncOpenState);
-	}, []);
 
 	function updateSearch(patch: Partial<NoticeListRequestQuery>, resetPage = true): void {
 		void navigate({
@@ -112,154 +111,118 @@ export function NoticesPageContent() {
 			search.from ||
 			search.to,
 	);
-	const advancedFilterCount = [
-		search.category,
-		search.organization_id,
-		search.notice_type,
-		search.is_external,
-		search.from,
-		search.to,
-	].filter((value) => value !== undefined).length;
 	const isCampusNews = search.stream === "campus_news";
 	const itemLabel = isCampusNews ? "校园动态" : "通知";
 
 	return (
-		<section className="mx-auto w-full max-w-[var(--layout-page-workspace-width)] px-4 py-6 pb-20 sm:px-5 lg:px-6">
-			<header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-5">
-				<div>
-					<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
-						{isCampusNews ? "校园动态" : "通知目录"}
-					</h1>
-					<p className="mt-1 text-sm text-[var(--sys-text-muted)]">
-						{notices.data
-							? `已收录 ${notices.data.pagination.totalItems} 条符合条件的${itemLabel}`
-							: `查询已收录${itemLabel}`}
-					</p>
-				</div>
-				{hasFilters ? (
-					<Button
-						onClick={() => {
-							setQueryDraft("");
-							void navigate({ search: { page: 1, stream: search.stream } });
+		<section className="mx-auto w-full max-w-[var(--layout-page-form-width)] px-4 pb-20 pt-7 sm:px-6 sm:pt-9">
+			<header>
+				<div className="flex min-w-0 flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
+							{isCampusNews ? "校园动态" : "通知目录"}
+						</h1>
+						<p className="mt-1 text-sm text-[var(--sys-text-muted)]">
+							{notices.data
+								? `${notices.data.pagination.totalItems} 条${itemLabel}`
+								: `正在读取${itemLabel}`}
+						</p>
+					</div>
+					<ToggleGroup
+						aria-label="通知视图"
+						className="shrink-0 rounded-lg bg-surface-muted p-1"
+						onValueChange={(value) => {
+							if (value === "notices" || value === "campus_news") {
+								updateStream(value);
+							}
 						}}
 						size="sm"
-						variant="ghost"
+						type="single"
+						value={search.stream}
 					>
-						<X />
-						清除筛选
-					</Button>
-				) : null}
+						<ToggleGroupItem
+							className="min-w-16 rounded-md px-3 data-[state=on]:bg-background data-[state=on]:shadow-[var(--shadow-xs)] sm:min-w-20"
+							value="notices"
+						>
+							通知
+						</ToggleGroupItem>
+						<ToggleGroupItem
+							className="min-w-20 rounded-md px-3 data-[state=on]:bg-background data-[state=on]:shadow-[var(--shadow-xs)]"
+							value="campus_news"
+						>
+							校园动态
+						</ToggleGroupItem>
+					</ToggleGroup>
+				</div>
 			</header>
 
-			<ToggleGroup
-				aria-label="通知视图"
-				className="mt-5 w-full justify-start sm:w-auto"
-				onValueChange={(value) => {
-					if (value === "notices" || value === "campus_news") {
-						updateStream(value);
-					}
-				}}
-				type="single"
-				value={search.stream}
-				variant="outline"
-			>
-				<ToggleGroupItem className="min-w-24" value="notices">
-					通知
-				</ToggleGroupItem>
-				<ToggleGroupItem className="min-w-24" value="campus_news">
-					校园动态
-				</ToggleGroupItem>
-			</ToggleGroup>
-
-			<form
-				aria-label={`${itemLabel}筛选`}
-				className="grid gap-x-3 gap-y-4 border-b border-border py-5 md:grid-cols-2 xl:grid-cols-12"
-				onSubmit={submitSearch}
-			>
-				<div className="md:col-span-2 xl:col-span-12">
-					<Label htmlFor="notice-search">标题或正文关键词</Label>
-					<div className="mt-1.5 flex gap-2">
-						<Input
-							id="notice-search"
-							maxLength={100}
-							onChange={(event) => setQueryDraft(event.target.value)}
-							placeholder="搜索标题或正文"
-							value={queryDraft}
-						/>
-						<Button aria-label={`搜索${itemLabel}`} className="shrink-0" size="icon" type="submit">
-							<Search />
-						</Button>
-					</div>
+			<form aria-label={`${itemLabel}筛选`} className="mt-6" onSubmit={submitSearch}>
+				<Label className="sr-only" htmlFor="notice-search">
+					标题或正文关键词
+				</Label>
+				<div className="relative rounded-xl border border-input bg-background shadow-[var(--shadow-xs)] transition-shadow focus-within:ring-2 focus-within:ring-ring">
+					<Search
+						aria-hidden="true"
+						className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[var(--sys-text-muted)]"
+					/>
+					<Input
+						className="min-h-12 rounded-xl border-0 bg-transparent pl-11 pr-12 shadow-none focus-visible:ring-0"
+						id="notice-search"
+						maxLength={100}
+						onChange={(event) => setQueryDraft(event.target.value)}
+						placeholder={`搜索${itemLabel}`}
+						value={queryDraft}
+					/>
+					<Button
+						aria-label={`搜索${itemLabel}`}
+						className="absolute right-0.5 top-1/2 size-11 min-h-0 -translate-y-1/2 rounded-[10px] p-0"
+						size="icon"
+						type="submit"
+					>
+						<Search />
+					</Button>
 				</div>
-				<Collapsible
-					className="contents"
-					onOpenChange={setAdvancedFiltersOpen}
-					open={advancedFiltersOpen}
-				>
-					<div className="md:hidden">
-						<CollapsibleTrigger asChild>
-							<Button className="group w-full justify-start" variant="outline">
-								<SlidersHorizontal />
-								筛选条件{advancedFilterCount > 0 ? `（${advancedFilterCount}）` : ""}
-								<ChevronDown className="ml-auto transition-transform group-data-[state=open]:rotate-180" />
-							</Button>
-						</CollapsibleTrigger>
-					</div>
-					<CollapsibleContent className="grid gap-4 md:contents">
-						{isCampusNews ? null : (
-							<FilterSelect
-								className="min-w-0 xl:col-span-3"
-								id="notice-category"
-								label="分类"
-								onChange={(value) =>
-									updateSearch({ category: value as NoticeFilterCategory | undefined })
-								}
-								options={(notices.data?.filters.categories ?? []).map((option) => ({
-									label: option.label,
-									value: option.value,
-								}))}
-								value={search.category}
-							/>
-						)}
-						<SourceFilter
-							className="min-w-0 xl:col-span-3"
-							onChange={(value) => updateSearch({ is_external: value })}
-							value={search.is_external}
-						/>
+				<div className="mt-3 flex min-h-9 flex-wrap items-center gap-2">
+					{isCampusNews ? null : (
 						<FilterSelect
-							className="min-w-0 xl:col-span-3"
-							id="notice-type"
-							label="门户栏目"
-							onChange={(value) => updateSearch({ notice_type: value ? Number(value) : undefined })}
-							options={(notices.data?.filters.noticeTypes ?? []).map((option) => ({
-								label: option.label,
-								value: String(option.value),
-							}))}
-							value={search.notice_type === undefined ? undefined : String(search.notice_type)}
-						/>
-						<FilterSelect
-							className="min-w-0 md:col-span-2 xl:col-span-6"
-							id="notice-organization"
-							label="发布部门"
-							onChange={(value) => updateSearch({ organization_id: value })}
-							options={(notices.data?.filters.organizations ?? []).map((option) => ({
+							id="notice-category"
+							label="业务分类"
+							onChange={(value) =>
+								updateSearch({ category: value as NoticeFilterCategory | undefined })
+							}
+							options={(notices.data?.filters.categories ?? []).map((option) => ({
 								label: option.label,
 								value: option.value,
 							}))}
-							value={search.organization_id}
+							value={search.category}
 						/>
-						<DateRangeFilter
-							className="min-w-0 md:col-span-2 xl:col-span-6"
-							from={search.from}
-							onFromChange={(value) => updateSearch({ from: value })}
-							onToChange={(value) => updateSearch({ to: value })}
-							to={search.to}
-						/>
-					</CollapsibleContent>
-				</Collapsible>
+					)}
+					<DateRangeFilter
+						from={search.from}
+						onClear={() => updateSearch({ from: undefined, to: undefined })}
+						onFromChange={(value) => updateSearch({ from: value })}
+						onToChange={(value) => updateSearch({ to: value })}
+						to={search.to}
+					/>
+					{hasFilters ? (
+						<Button
+							aria-label="清除筛选"
+							className="ml-auto rounded-lg px-2.5 text-[var(--sys-text-muted)]"
+							onClick={() => {
+								setQueryDraft("");
+								void navigate({ search: { page: 1, stream: search.stream } });
+							}}
+							size="sm"
+							variant="ghost"
+						>
+							<X />
+							清除
+						</Button>
+					) : null}
+				</div>
 			</form>
 
-			<div className="min-h-80">
+			<div className="mt-5 min-h-80 border-t border-border pt-1">
 				{notices.isPending ? <NoticeListSkeleton itemLabel={itemLabel} /> : null}
 				{notices.isError ? (
 					<StateMessage
@@ -274,11 +237,11 @@ export function NoticesPageContent() {
 				) : null}
 				{notices.data && notices.data.items.length === 0 ? (
 					<StateMessage
-						className="mt-6 border-dashed"
+						className="mt-2"
 						description={
 							isCampusNews
-								? "调整关键词、来源或日期范围后再试。"
-								: "调整关键词、分类、来源或日期范围后再试。"
+								? "调整关键词或日期范围后再试。"
+								: "调整关键词、业务分类或日期范围后再试。"
 						}
 						layout="section"
 						title={`没有符合条件的${itemLabel}`}
@@ -297,7 +260,6 @@ export function NoticesPageContent() {
 }
 
 function FilterSelect(props: {
-	className?: string;
 	id: string;
 	label: string;
 	onChange: (value: string | undefined) => void;
@@ -305,140 +267,129 @@ function FilterSelect(props: {
 	value: string | undefined;
 }) {
 	return (
-		<div className={props.className}>
-			<Label htmlFor={props.id}>{props.label}</Label>
-			<NativeSelect
-				className="mt-1.5"
-				id={props.id}
-				onChange={(event) => props.onChange(event.target.value || undefined)}
-				value={props.value ?? ""}
+		<div>
+			<Label className="sr-only" htmlFor={props.id}>
+				{props.label}
+			</Label>
+			<Select
+				onValueChange={(value) => props.onChange(value === "all" ? undefined : value)}
+				value={props.value ?? "all"}
 			>
-				<option value="">全部</option>
-				{props.options.map((option) => (
-					<option key={option.value} value={option.value}>
-						{option.label}
-					</option>
-				))}
-			</NativeSelect>
-		</div>
-	);
-}
-
-function SourceFilter(props: {
-	className?: string;
-	onChange: (value: boolean | undefined) => void;
-	value: boolean | undefined;
-}) {
-	const options = [
-		{ label: "全部", value: "all" },
-		{ label: "站内正文", value: "internal" },
-		{ label: "外部链接", value: "external" },
-	] as const;
-	const selectedValue =
-		props.value === true ? "external" : props.value === false ? "internal" : "all";
-
-	return (
-		<div className={props.className}>
-			<div>
-				<span className="text-sm font-medium leading-none" id="notice-source-label">
-					正文来源
-				</span>
-			</div>
-			<div
-				aria-labelledby="notice-source-label"
-				className="mt-1.5 grid min-h-[var(--ui-control-height)] grid-cols-3 gap-1 rounded-md border border-input bg-background p-1 shadow-[var(--shadow-xs)]"
-				role="radiogroup"
-			>
-				{options.map((option) => (
-					<label className="relative min-w-0" key={option.value}>
-						<input
-							checked={selectedValue === option.value}
-							className="peer sr-only"
-							name="notice-source"
-							onChange={() =>
-								props.onChange(
-									option.value === "external"
-										? true
-										: option.value === "internal"
-											? false
-											: undefined,
-								)
-							}
-							type="radio"
-							value={option.value}
-						/>
-						<span className="flex h-full min-h-8 items-center justify-center rounded-sm px-2 text-center text-sm text-[var(--sys-text-muted)] transition-[color,background-color,box-shadow] hover:bg-surface-hover hover:text-foreground peer-checked:bg-[var(--sys-bg-muted)] peer-checked:text-[var(--sys-text-strong)] peer-checked:shadow-[var(--shadow-xs)] peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
+				<SelectTrigger
+					aria-label={props.label}
+					className="min-h-9 w-auto max-w-56 gap-2 rounded-lg border-border bg-transparent px-3 py-1.5 shadow-none"
+					id={props.id}
+				>
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent align="start">
+					<SelectItem value="all">全部分类</SelectItem>
+					{props.options.map((option) => (
+						<SelectItem key={option.value} value={option.value}>
 							{option.label}
-						</span>
-					</label>
-				))}
-			</div>
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 		</div>
 	);
 }
 
 function DateRangeFilter(props: {
-	className?: string;
 	from: string | undefined;
+	onClear: () => void;
 	onFromChange: (value: string | undefined) => void;
 	onToChange: (value: string | undefined) => void;
 	to: string | undefined;
 }) {
+	const label = formatDateRangeLabel(props.from, props.to);
 	return (
-		<fieldset className={`${props.className ?? ""} m-0 border-0 p-0`}>
-			<legend className="sr-only">发布日期</legend>
-			<div>
-				<span aria-hidden="true" className="text-sm font-medium leading-none">
-					发布日期
-				</span>
-			</div>
-			<div className="mt-1.5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-				<div>
-					<Label
-						className="mb-1.5 block text-xs text-[var(--sys-text-muted)] sm:sr-only"
-						htmlFor="notice-from"
-					>
-						开始
-					</Label>
-					<Input
-						className={
-							props.from
-								? "min-w-0 tabular-nums"
-								: "min-w-0 tabular-nums text-[var(--sys-text-muted)]"
-						}
-						id="notice-from"
-						max={props.to}
-						onChange={(event) => props.onFromChange(event.target.value || undefined)}
-						type="date"
-						value={props.from ?? ""}
-					/>
-				</div>
-				<span aria-hidden="true" className="hidden text-sm text-[var(--sys-text-muted)] sm:block">
-					至
-				</span>
-				<div>
-					<Label
-						className="mb-1.5 block text-xs text-[var(--sys-text-muted)] sm:sr-only"
-						htmlFor="notice-to"
-					>
-						结束
-					</Label>
-					<Input
-						className={
-							props.to
-								? "min-w-0 tabular-nums"
-								: "min-w-0 tabular-nums text-[var(--sys-text-muted)]"
-						}
-						id="notice-to"
-						min={props.from}
-						onChange={(event) => props.onToChange(event.target.value || undefined)}
-						type="date"
-						value={props.to ?? ""}
-					/>
-				</div>
-			</div>
-		</fieldset>
+		<Popover>
+			<PopoverTrigger asChild>
+				<Button
+					aria-label={`发布日期：${label}`}
+					className={
+						props.from || props.to
+							? "max-w-full rounded-lg border-[var(--campus-selected-border)] bg-selected px-3 text-selected-foreground shadow-none"
+							: "max-w-full rounded-lg border-border bg-transparent px-3 shadow-none"
+					}
+					size="sm"
+					variant="outline"
+				>
+					<CalendarDays />
+					<span className="truncate">{label}</span>
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="start"
+				className="w-[min(22rem,calc(100vw-2rem))] border-border-default bg-surface-raised p-4 shadow-lg"
+				sideOffset={8}
+			>
+				<fieldset className="m-0 border-0 p-0">
+					<legend className="text-sm font-medium text-[var(--sys-text-strong)]">发布日期</legend>
+					<div className="mt-3 grid gap-3 sm:grid-cols-2">
+						<div>
+							<Label
+								className="mb-1.5 block text-xs text-[var(--sys-text-muted)]"
+								htmlFor="notice-from"
+							>
+								开始
+							</Label>
+							<Input
+								className="min-w-0 tabular-nums"
+								id="notice-from"
+								max={props.to}
+								onChange={(event) => props.onFromChange(event.target.value || undefined)}
+								type="date"
+								value={props.from ?? ""}
+							/>
+						</div>
+						<div>
+							<Label
+								className="mb-1.5 block text-xs text-[var(--sys-text-muted)]"
+								htmlFor="notice-to"
+							>
+								结束
+							</Label>
+							<Input
+								className="min-w-0 tabular-nums"
+								id="notice-to"
+								min={props.from}
+								onChange={(event) => props.onToChange(event.target.value || undefined)}
+								type="date"
+								value={props.to ?? ""}
+							/>
+						</div>
+					</div>
+					{props.from || props.to ? (
+						<Button
+							className="mt-3 px-2 text-[var(--sys-text-muted)]"
+							onClick={props.onClear}
+							size="sm"
+							variant="ghost"
+						>
+							<X />
+							清除日期
+						</Button>
+					) : null}
+				</fieldset>
+			</PopoverContent>
+		</Popover>
 	);
+}
+
+function formatDateRangeLabel(from: string | undefined, to: string | undefined): string {
+	if (!(from || to)) {
+		return "发布日期";
+	}
+	if (from && to) {
+		return `${formatFilterDate(from)} - ${formatFilterDate(to)}`;
+	}
+	return from ? `${formatFilterDate(from)}起` : `${formatFilterDate(to as string)}前`;
+}
+
+function formatFilterDate(value: string): string {
+	return FILTER_DATE_FORMATTER.format(new Date(`${value}T00:00:00+08:00`));
 }
 
 function NoticeResults({
@@ -453,7 +404,7 @@ function NoticeResults({
 	const navigate = useNavigate({ from: "/notices" });
 	return (
 		<div className={pending ? "opacity-60" : undefined}>
-			<ul className="divide-y divide-border" data-testid="notice-list">
+			<ul className="space-y-1 py-1" data-testid="notice-list">
 				{data.items.map((item) => (
 					<li key={item.noticeId}>
 						<NoticeRow item={item} />
@@ -462,12 +413,12 @@ function NoticeResults({
 			</ul>
 			<nav
 				aria-label={`${itemLabel}分页`}
-				className="flex min-h-16 items-center justify-between gap-4 border-t border-border"
+				className="mt-2 flex min-h-14 items-center justify-between gap-4 border-t border-border"
 			>
 				<p className="text-sm tabular-nums text-[var(--sys-text-muted)]">
 					第 {data.pagination.page} / {data.pagination.totalPages} 页
 				</p>
-				<div className="flex gap-2">
+				<div className="flex gap-1">
 					<Button
 						disabled={pending || data.pagination.page <= 1}
 						onClick={() =>
@@ -476,7 +427,7 @@ function NoticeResults({
 							})
 						}
 						size="sm"
-						variant="outline"
+						variant="ghost"
 					>
 						<ArrowLeft />
 						上一页
@@ -489,7 +440,7 @@ function NoticeResults({
 							})
 						}
 						size="sm"
-						variant="outline"
+						variant="ghost"
 					>
 						下一页
 						<ArrowRight />
@@ -509,38 +460,38 @@ function NoticeRow({ item }: { item: NoticeListItem }) {
 			}
 		: { kind: "campus" as const, label: "校内门户", title: "通知来源：校内门户" };
 	const content = (
-		<div className="grid min-h-28 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:gap-x-6">
-			<div className="flex min-w-0 flex-wrap gap-2">
-				<NoticeCategoryBadge category={item.category} />
-			</div>
-			<div className="flex min-h-[22px] items-center justify-end gap-2 text-sm text-[var(--sys-text-muted)] sm:grid sm:grid-cols-[9rem_1rem] sm:gap-3">
+		<div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 px-3 py-3.5">
+			<h2 className="min-w-0 break-words text-[15px] font-medium leading-6 tracking-normal text-[var(--sys-text-strong)] group-hover:text-link sm:text-base">
+				{item.title}
+			</h2>
+			<span
+				aria-hidden="true"
+				className="mt-1 flex size-4 items-center justify-center text-[var(--sys-text-muted)]"
+			>
+				{item.isExternal ? (
+					<ArrowUpRight className="size-4" />
+				) : (
+					<ChevronRight className="size-4" />
+				)}
+			</span>
+			<div className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+				<NoticeCategoryBadge category={item.category} className="font-medium" />
 				<time
-					className="whitespace-nowrap text-right tabular-nums sm:w-36"
+					className="whitespace-nowrap text-xs tabular-nums text-[var(--sys-text-muted)]"
 					dateTime={item.releasedAt}
 				>
 					{RELEASE_DATE_FORMATTER.format(new Date(item.releasedAt))}
 				</time>
-				<span aria-hidden="true" className="flex size-4 items-center justify-center">
-					{item.isExternal ? (
-						<ArrowUpRight className="size-4" />
-					) : (
-						<ChevronRight className="size-4" />
-					)}
-				</span>
+				<NoticeMetadata
+					organization={item.organization?.name ?? "发布部门未标注"}
+					source={source}
+					type={item.noticeType.name}
+				/>
 			</div>
-			<h2 className="col-span-2 break-words text-base font-semibold leading-6 tracking-normal text-[var(--sys-text-strong)] group-hover:text-link">
-				{item.title}
-			</h2>
-			<NoticeMetadata
-				className="col-span-2"
-				organization={item.organization?.name ?? "发布部门未标注"}
-				source={source}
-				type={item.noticeType.name}
-			/>
 		</div>
 	);
 	const className =
-		"group block rounded-sm px-2 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+		"group block rounded-lg transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 	if (item.isExternal) {
 		return (
 			<a className={className} href={item.externalUrl} rel="noopener noreferrer" target="_blank">
@@ -565,33 +516,32 @@ const NOTICE_SOURCE_ICONS = {
 } as const satisfies Record<ExternalNoticeSourceKind, typeof Globe2>;
 
 function NoticeMetadata({
-	className,
 	organization,
 	source,
 	type,
 }: {
-	className?: string;
 	organization: string;
 	source: { kind: ExternalNoticeSourceKind; label: string; title: string };
 	type: string;
 }) {
 	const SourceIcon = NOTICE_SOURCE_ICONS[source.kind];
 	return (
-		<p
-			className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--sys-text-muted)] ${className ?? ""}`}
-		>
+		<p className="contents text-xs text-[var(--sys-text-muted)]">
 			<span className="inline-flex min-w-0 max-w-full items-center gap-1.5" title={source.title}>
+				<span aria-hidden="true" className="text-border">
+					·
+				</span>
 				<SourceIcon aria-hidden="true" className="size-3.5 shrink-0" />
 				<span className="truncate">{source.label}</span>
 			</span>
-			<span className="inline-flex min-w-0 max-w-full items-center gap-2">
-				<span aria-hidden="true" className="hidden text-border sm:inline">
+			<span className="inline-flex min-w-0 max-w-full items-center gap-2 text-xs text-[var(--sys-text-muted)]">
+				<span aria-hidden="true" className="text-border">
 					·
 				</span>
 				<span className="break-words">{organization}</span>
 			</span>
-			<span className="inline-flex min-w-0 max-w-full items-center gap-2">
-				<span aria-hidden="true" className="hidden text-border sm:inline">
+			<span className="inline-flex min-w-0 max-w-full items-center gap-2 text-xs text-[var(--sys-text-muted)]">
+				<span aria-hidden="true" className="text-border">
 					·
 				</span>
 				<span className="break-words">门户栏目：{type}</span>
@@ -600,23 +550,18 @@ function NoticeMetadata({
 	);
 }
 
-function isMobileFilterViewport(): boolean {
-	return typeof window !== "undefined" && window.matchMedia(MOBILE_FILTER_QUERY).matches;
-}
-
 function NoticeListSkeleton(props: { itemLabel: string }) {
 	const rows = ["first", "second", "third", "fourth", "fifth", "sixth"];
 	return (
-		<div aria-label={`正在读取${props.itemLabel}`} className="divide-y divide-border" role="status">
+		<div aria-label={`正在读取${props.itemLabel}`} className="space-y-1 py-1" role="status">
 			{rows.map((row) => (
 				<div
-					className="grid min-h-28 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 px-2 py-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:gap-x-6"
+					className="grid min-h-20 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 rounded-lg px-3 py-3.5"
 					key={row}
 				>
-					<Skeleton className="h-5 w-20" />
-					<Skeleton className="h-4 w-40 justify-self-end" />
-					<Skeleton className="col-span-2 h-5 w-4/5" />
-					<Skeleton className="col-span-2 h-3 w-64 max-w-full" />
+					<Skeleton className="h-5 w-4/5" />
+					<Skeleton className="size-4" />
+					<Skeleton className="col-span-2 h-4 w-72 max-w-full" />
 				</div>
 			))}
 		</div>

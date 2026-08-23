@@ -83,21 +83,21 @@
 }
 
 .aui-thread-list-item[data-active] {
-	background: var(--chat-accent-subtle);
-	color: var(--chat-accent-text);
+	background: var(--campus-selected-bg);
+	color: var(--campus-selected-foreground);
 }
 
 .aui-thread-list-item[data-active]:hover {
-	background: var(--chat-accent-subtle-hover);
+	background: var(--campus-selected-hover);
 }
 
 .aui-thread-history-scope[data-state="on"] {
-	background: var(--chat-accent-subtle);
-	color: var(--chat-accent-text);
+	background: var(--campus-selected-bg);
+	color: var(--campus-selected-foreground);
 }
 
 .aui-thread-history-scope[data-state="on"]:hover {
-	background: var(--chat-accent-subtle-hover);
+	background: var(--campus-selected-hover);
 }
 
 .campus-map-marker {

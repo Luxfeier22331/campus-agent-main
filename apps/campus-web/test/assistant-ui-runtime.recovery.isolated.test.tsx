@@ -831,20 +831,18 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(16);
 			});
-			expect(hasMessageId("msg_resume_draft")).toBe(true);
+			expect(readAssistantText()).toBe("不完整草稿");
 
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(250);
 				await submitPromise;
 			});
 
-			expect(hasMessageId("msg_resume_draft")).toBe(true);
-			expect(readMessageText("msg_resume_draft")).toBe("不完整草稿");
 			expect(readMessageText("local-error-req_resume_failed")).toBe("恢复回答失败。");
 			expect(assistantUiMock.externalStoreInput?.messages).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						id: "msg_resume_draft",
+						content: [{ text: "不完整草稿", type: "text" }],
 						metadata: {
 							custom: {
 								campusRun: expect.objectContaining({
@@ -852,7 +850,9 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 									runId: "run_resume_failed",
 								}),
 							},
+							isOptimistic: true,
 						},
+						role: "assistant",
 					}),
 				]),
 			);
@@ -1024,12 +1024,12 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				expect.objectContaining({
 					id: "msg_answer",
 					metadata: {
-						custom: {
+						custom: expect.objectContaining({
 							campusRun: expect.objectContaining({
 								runId: "run_failed",
 								status: "failed",
 							}),
-						},
+						}),
 					},
 				}),
 			]),

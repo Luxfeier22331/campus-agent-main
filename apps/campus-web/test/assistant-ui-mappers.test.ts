@@ -74,8 +74,58 @@ describe("assistant-ui conversation mappers", () => {
 				],
 				createdAt: new Date("2026-06-21T01:00:02.000Z"),
 				id: "msg_assistant",
+				metadata: {
+					custom: {
+						campusMessage: {
+							kind: "answer",
+							requestId: "req_01HQ",
+							retryable: false,
+						},
+					},
+				},
 				role: "assistant",
 			},
 		]);
+	});
+
+	it("projects message status, request identity, and existing feedback", () => {
+		const conversation: ConversationDetail = {
+			archivedAt: null,
+			activeRunId: null,
+			createdAt: "2026-06-21T01:00:00.000Z",
+			id: "conv_01HQ",
+			messages: [
+				{
+					conversationId: "conv_01HQ",
+					createdAt: "2026-06-21T01:00:02.000Z",
+					feedback: {
+						feedbackId: "feedback_01HQ",
+						vote: "unhelpful",
+					},
+					id: "msg_clarification",
+					kind: "clarification",
+					requestId: "req_01HQ",
+					retryable: null,
+					role: "assistant",
+					text: "请补充校区。",
+				},
+			],
+			pinnedAt: null,
+			title: "校园问题",
+			updatedAt: "2026-06-21T01:00:02.000Z",
+		};
+
+		expect(toAssistantThreadMessages(conversation)[0]).toMatchObject({
+			metadata: {
+				custom: {
+					campusMessage: {
+						kind: "clarification",
+						requestId: "req_01HQ",
+						retryable: null,
+					},
+				},
+				submittedFeedback: { type: "negative" },
+			},
+		});
 	});
 });

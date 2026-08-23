@@ -5,11 +5,13 @@ import {
 	assertLocalEnvironmentFilesAreManaged,
 	ensureLocalLegacyProviderConfigEncryptionKey,
 	ensureLocalModelConfigEncryptionKey,
+	importMainCheckoutExternalCredentials,
 	type LocalDevEnvironmentTarget,
 	MANAGED_LOCAL_ENV_MARKER,
 	managedLocalEnvironmentPathsForTarget,
 	removeLocalEnvironmentFiles,
 	renderLocalEnvironmentFiles,
+	resolveMainCheckoutRoot,
 } from "./environment";
 import {
 	assertDestroyConfirmation,
@@ -47,6 +49,10 @@ export function initializeLocalDevelopmentTarget(
 	ensureSharedInfrastructure(repoRoot);
 	const profile = ensureLocalDevProfile(repoRoot);
 	ensureLocalInstanceResources(profile);
+	importMainCheckoutExternalCredentials({
+		mainCheckoutRoot: resolveMainCheckoutRoot(repoRoot),
+		repoRoot,
+	});
 	if (target === "core") {
 		ensureLocalLegacyProviderConfigEncryptionKey(repoRoot);
 		ensureLocalModelConfigEncryptionKey(repoRoot);
