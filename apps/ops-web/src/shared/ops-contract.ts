@@ -23,6 +23,55 @@ export const OpsRequestWindowSchema = z.enum(["15m", "1h", "6h", "24h", "7d"]);
 export const OpsHealthStatusSchema = z.enum(["HEALTHY", "DEGRADED", "OUTAGE", "UNKNOWN"]);
 export const OpsDataStateSchema = z.enum(["FRESH", "PARTIAL", "STALE", "NO_DATA", "UNAVAILABLE"]);
 
+export const NoticePipelineOperationSchema = z.enum([
+	"notice-sync",
+	"notice-backfill",
+	"notice-classify-missing",
+	"notice-classify-one",
+	"notice-publish-all",
+	"notice-publish-one",
+]);
+export type NoticePipelineOperation = z.infer<typeof NoticePipelineOperationSchema>;
+
+const NoticeIdSchema = z.number().int().positive();
+const NoticeStartDateSchema = z
+	.string()
+	.regex(/^\d{4}-\d{2}-\d{2}$/u)
+	.refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), "invalid start date");
+
+export const NoticePipelineJobCreateSchema = z.discriminatedUnion("operation", [
+	z.object({ operation: z.literal("notice-sync") }).strict(),
+	z.object({ operation: z.literal("notice-backfill"), startDate: NoticeStartDateSchema }).strict(),
+	z.object({ operation: z.literal("notice-classify-missing") }).strict(),
+	z.object({ operation: z.literal("notice-classify-one"), noticeId: NoticeIdSchema }).strict(),
+	z.object({ operation: z.literal("notice-publish-all") }).strict(),
+	z.object({ operation: z.literal("notice-publish-one"), noticeId: NoticeIdSchema }).strict(),
+]);
+export type NoticePipelineJobCreate = z.infer<typeof NoticePipelineJobCreateSchema>;
+
+export const NoticePipelineJobStatusSchema = z.enum(["pending", "running", "succeeded", "failed"]);
+export const NoticePipelineJobSummarySchema = z.record(
+	z.string().min(1),
+	z.union([z.number().int().nonnegative(), z.string().max(200), z.boolean()]),
+);
+export const NoticePipelineJobSchema = z
+	.object({
+		completedAt: IsoDateTimeSchema.nullable(),
+		createdAt: IsoDateTimeSchema,
+		error: z.string().max(500).nullable(),
+		jobName: z.string().min(1),
+		operation: NoticePipelineOperationSchema,
+		startedAt: IsoDateTimeSchema.nullable(),
+		status: NoticePipelineJobStatusSchema,
+		summary: NoticePipelineJobSummarySchema.nullable(),
+	})
+	.strict();
+export type NoticePipelineJob = z.infer<typeof NoticePipelineJobSchema>;
+export const NoticePipelineJobResponseSchema = z.object({ job: NoticePipelineJobSchema }).strict();
+export const NoticePipelineJobListResponseSchema = z
+	.object({ jobs: z.array(NoticePipelineJobSchema).max(50) })
+	.strict();
+
 export const ModelSettingKindSchema = z.enum(["llm", "embedding", "reranker", "notice_classifier"]);
 export type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
 

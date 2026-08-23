@@ -11,6 +11,7 @@ status: active
 - [runtime.md](./runtime.md)：运行概况、运行记录和按需系统记录；
 - [providers.md](./providers.md)：在线模型配置；
 - [internal-portal.md](./internal-portal.md)：内部门户凭据与自动化 token；
+- [notice-pipeline.md](./notice-pipeline.md)：固定通知采集、分类和发布 Job 操作入口；
 - [access.md](./access.md)：非校园邮箱准入；
 - [users.md](./users.md)：用户、会话、账号操作记录和只读注销状态。
 
@@ -77,6 +78,12 @@ status: active
 
 - `GET /api/ops/groups/catalog`
 - `PUT /api/ops/groups/catalog`
+
+通知管线：
+
+- `POST /api/ops/notice-pipeline/jobs`
+- `GET /api/ops/notice-pipeline/jobs`
+- `GET /api/ops/notice-pipeline/jobs/:jobName`
 
 健康检查：
 

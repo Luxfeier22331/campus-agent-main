@@ -6,5 +6,6 @@ resources:
   - database-grants-job.yaml
   - internal-portal-check.yaml
   - network-policy.yaml
+  - notice-pipeline-rbac.yaml
   - service-account.yaml
   - workload.yaml

@@ -66,18 +66,33 @@ export async function runCollectionCommand(
 			env,
 			...(options.ssoTgc === undefined ? {} : { ssoTgc: options.ssoTgc }),
 		});
-		console.log(JSON.stringify(summary, null, 2));
+		const { failures: _failures, ...counts } = summary;
+		console.log(JSON.stringify({ summary: { ...counts, mode: "file-sync" } }));
 		return summary.failed > 0 ? 1 : 0;
 	}
-	await runNoticeCommand(
+	const noticeSummary = await runNoticeCommand(
 		command.mode === "notice-sync"
 			? { name: "sync" }
 			: {
 					name: "backfill",
 					startDate: command.startDate,
-				},
+		},
 		options,
 	);
+	const { state: _state, ...counts } = noticeSummary;
+	console.log(JSON.stringify({
+		summary: {
+			attachmentsDownloaded: counts.resources.attachmentsDownloaded,
+			attachmentsReused: counts.resources.attachmentsReused,
+			imagesDownloaded: counts.resources.imagesDownloaded,
+			imagesReused: counts.resources.imagesReused,
+			mode: noticeSummary.mode,
+			noticesProcessed: counts.noticesProcessed,
+			objectsReused: counts.objectsReused,
+			objectsWritten: counts.objectsWritten,
+			pagesFetched: counts.pagesFetched,
+		},
+	}));
 	return 0;
 }
 

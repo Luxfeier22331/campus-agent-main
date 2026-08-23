@@ -60,6 +60,14 @@ import {
 } from "./internal-portal-credential-service.ts";
 import { createPgInternalPortalCredentialStore } from "./internal-portal-credential-store.ts";
 import {
+	createKubernetesNoticePipelineJobStore,
+	createNoticePipelineJobService,
+	NoticePipelineConflictError,
+	NoticePipelineJobNotFoundError,
+	type NoticePipelineJobService,
+	NoticePipelineUnavailableError,
+} from "./notice-pipeline-jobs.ts";
+import {
 	createOpsAdmissionFromEnv,
 	getMissingAccessConfig,
 	isLocalOpsEnvironment,
@@ -94,6 +102,7 @@ import {
 	providerConfigAdminErrorResponse,
 	registerModelSettingsRoutes,
 } from "./routes/model-settings.ts";
+import { registerNoticePipelineRoutes } from "./routes/notice-pipeline.ts";
 import { registerObservabilityRoutes, registerOverviewRoute } from "./routes/observability.ts";
 import { logOpsError } from "./safe-logging.ts";
 import {
@@ -104,6 +113,7 @@ import {
 } from "./sentry-client.ts";
 
 interface OpsHealthEnv {
+	OPS_WEB_KUBERNETES_NAMESPACE?: string;
 	OPS_WEB_AUTOMATION_ORIGIN?: string;
 	OPS_WEB_PUBLIC_ORIGIN?: string;
 }
@@ -130,6 +140,7 @@ interface OpsAppOptions {
 	internalPortalCredentialService?: InternalPortalCredentialService;
 	internalPortalAutomationTokenService?: InternalPortalAutomationTokenService;
 	overviewService?: OpsOverviewService;
+	noticePipelineJobService?: NoticePipelineJobService;
 	sentry?: SentryClient;
 	staticRoot?: string;
 	store?: OpsStatusStore;
@@ -163,6 +174,11 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		createOpsOverviewService({
 			store,
 		});
+	const noticePipelineJobService =
+		options.noticePipelineJobService ??
+		createNoticePipelineJobService(
+			createKubernetesNoticePipelineJobStore(env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default"),
+		);
 	const providerConfigClient = options.providerConfigClient ?? createProviderConfigAdminClient(env);
 	const campusGroupsClient =
 		options.campusGroupsClient ??
@@ -246,6 +262,17 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		}
 		if (error instanceof CampusGroupsRequestError) {
 			return jsonError("OPS_CAMPUS_GROUPS_REQUEST_INVALID", error.message, 400);
+		}
+		if (error instanceof NoticePipelineConflictError) {
+			return jsonError("OPS_NOTICE_JOB_CONFLICT", error.message, 409, {
+				runningJobName: error.runningJobName,
+			});
+		}
+		if (error instanceof NoticePipelineJobNotFoundError) {
+			return jsonError("OPS_NOTICE_JOB_NOT_FOUND", error.message, 404);
+		}
+		if (error instanceof NoticePipelineUnavailableError) {
+			return jsonError("OPS_NOTICE_JOB_UNAVAILABLE", error.message, 503);
 		}
 		if (error instanceof InternalPortalCredentialStoreUnavailableError) {
 			return jsonError(
@@ -388,6 +415,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	registerEmailAccessRoutes({ admission, app, client: emailAccessClient, publicOrigin });
 	registerObservabilityRoutes({ admission, app, sentry, store });
 	registerCampusGroupsRoutes({ admission, app, client: campusGroupsClient, publicOrigin });
+	registerNoticePipelineRoutes({ admission, app, service: noticePipelineJobService });
 	registerDiningRoutes({
 		admission,
 		app,

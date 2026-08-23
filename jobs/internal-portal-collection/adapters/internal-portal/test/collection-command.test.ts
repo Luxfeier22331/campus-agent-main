@@ -2,7 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	runFileSync: vi.fn(),
-	runNoticeCommand: vi.fn(async () => undefined),
+	runNoticeCommand: vi.fn(async () => ({
+		mode: "sync" as const,
+		noticesProcessed: 0,
+		objectsReused: 0,
+		objectsWritten: 0,
+		pagesFetched: 0,
+		resources: {
+			attachmentsDownloaded: 0,
+			attachmentsReused: 0,
+			imagesDownloaded: 0,
+			imagesReused: 0,
+		},
+		state: { headNoticeId: null, historyCoveredFrom: null, updatedAt: "2026-08-23T00:00:00.000Z" },
+	})),
 }));
 
 vi.mock("../src/file-sync.js", () => ({

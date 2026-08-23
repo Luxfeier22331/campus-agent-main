@@ -28,7 +28,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 			...(options.noticeIds ? { noticeIds: options.noticeIds } : {}),
 			objectStore,
 		});
-		process.stdout.write(`${JSON.stringify(result)}\n`);
+		process.stdout.write(`${JSON.stringify({ summary: result })}\n`);
 	} finally {
 		objectStore.close();
 	}

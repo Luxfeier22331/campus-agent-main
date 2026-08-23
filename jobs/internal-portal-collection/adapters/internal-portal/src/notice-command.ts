@@ -5,6 +5,7 @@ import { createInternalPortalNoticeMetaStore } from "./notice-meta-store.js";
 import {
 	backfillInternalPortalNotices,
 	isNoticeHistoryCovered,
+	type NoticeRunnerResult,
 	parseNoticeStartDate,
 	syncInternalPortalNotices,
 } from "./notice-runner.js";
@@ -26,7 +27,7 @@ export interface NoticeCommandOptions {
 export async function runNoticeCommand(
 	command: NoticeCommand,
 	options: NoticeCommandOptions = {},
-): Promise<void> {
+): Promise<NoticeRunnerResult> {
 	const env = options.env ?? process.env;
 	const objectStore = createInternalPortalCollectionObjectStoreFromEnv(env);
 	const stateStore = createObjectStoreInternalPortalNoticeSyncStateStore({ objectStore });
@@ -34,27 +35,20 @@ export async function runNoticeCommand(
 		if (command.name === "backfill") {
 			const state = await stateStore.load();
 			if (state && isNoticeHistoryCovered(state, command.startDate)) {
-				console.log(
-					JSON.stringify(
-						{
-							mode: "backfill",
-							noticesProcessed: 0,
-							objectsReused: 0,
-							objectsWritten: 0,
-							pagesFetched: 0,
-							resources: {
-								attachmentsDownloaded: 0,
-								attachmentsReused: 0,
-								imagesDownloaded: 0,
-								imagesReused: 0,
-							},
-							state,
-						},
-						null,
-						2,
-					),
-				);
-				return;
+				return {
+					mode: "backfill",
+					noticesProcessed: 0,
+					objectsReused: 0,
+					objectsWritten: 0,
+					pagesFetched: 0,
+					resources: {
+						attachmentsDownloaded: 0,
+						attachmentsReused: 0,
+						imagesDownloaded: 0,
+						imagesReused: 0,
+					},
+					state,
+				};
 			}
 		}
 
@@ -74,14 +68,14 @@ export async function runNoticeCommand(
 				sourceStore: createInternalPortalNoticeSourceStore({ objectStore }),
 				stateStore,
 			};
-			const result =
+			return await (
 				command.name === "sync"
-					? await syncInternalPortalNotices(runnerInput)
-					: await backfillInternalPortalNotices({
+					? syncInternalPortalNotices(runnerInput)
+					: backfillInternalPortalNotices({
 							...runnerInput,
 							startDate: command.startDate,
-						});
-			console.log(JSON.stringify(result, null, 2));
+						})
+			);
 		} finally {
 			await apiContext.dispose();
 		}

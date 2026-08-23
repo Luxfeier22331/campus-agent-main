@@ -20,6 +20,7 @@ import {
 	ClipboardList,
 	History,
 	KeyRound,
+	ListRestart,
 	ServerCog,
 	UserRoundCheck,
 	UsersRound,
@@ -36,6 +37,7 @@ import { EmailAccessPage } from "./email-access-page";
 import { GroupsPage } from "./groups-page";
 import { InternalPortalPage } from "./internal-portal-page";
 import { NotFoundPage } from "./not-found-page";
+import { NoticePipelinePage } from "./notice-pipeline-page";
 import {
 	ignoredRequestSearchParamNames,
 	optionalBoundedSearchString,
@@ -150,6 +152,12 @@ const internalPortalRoute = createRoute({
 	component: InternalPortalPage,
 });
 
+const noticePipelineRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/notice-pipeline",
+	component: NoticePipelinePage,
+});
+
 const usersRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/users",
@@ -225,6 +233,7 @@ const routeTree = rootRoute.addChildren([
 	requestDetailRoute,
 	providerConfigRoute,
 	internalPortalRoute,
+	noticePipelineRoute,
 	emailAccessRoute,
 	usersRoute,
 	accountEventsRoute,
@@ -264,6 +273,7 @@ function RootLayout() {
 				{ href: "/requests", icon: ClipboardList, label: "运行记录" },
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
 				{ href: "/internal-portal", icon: KeyRound, label: "内部门户凭据" },
+				{ href: "/notice-pipeline", icon: ListRestart, label: "通知管线" },
 				{ href: "/email-access", icon: UserRoundCheck, label: "账号准入" },
 				{ href: "/users", icon: UsersRound, label: "用户管理" },
 				{ href: "/users/activity", icon: History, label: "账号操作记录" },

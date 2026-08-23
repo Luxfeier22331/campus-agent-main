@@ -25,9 +25,18 @@
 - `/email-access`、`/users`、`/users/:userId`、`/users/activity`：账号管理；
 - `/dining`：食堂内容维护；
 - `/groups`：同好群目录维护。
+- `/notice-pipeline`：从现有暂停 CronJob 模板启动通知采集、分类和发布 Job，并查看近期状态。
 
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器 DTO 位于 `src/shared/`，HTTP 入口位于
 `src/server/app.ts`。
+
+通知管线页面只暴露六个固定操作：增量采集、按日期回填、分类缺失通知、分类单条通知、发布全部通知和
+发布单条通知。服务端从同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能
+提交任意 command、image、environment、namespace 或 Secret。每个采集、分类和发布操作族同时只允许
+一个待运行或运行中的 Job，不排队、不自动串联、不自动重试。
+
+Job 的最终 stdout 必须是结构化 JSON。Ops Web 只读取最近一条结构化摘要中的标量字段，并返回 Kubernetes
+状态、有限错误和摘要；没有摘要时保持 `summary: null`，不从日志推测处理数量。
 
 `/internal-portal` 还管理多条开发者自动化 token。人工管理接口继续使用 Cloudflare Access；开发者
 程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，可以在名称不存在时创建一条具名

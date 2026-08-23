@@ -18,7 +18,7 @@ status: active
 | `campus-web` | 学生问答、账号、文档、地图、食堂和校园业务状态页面 | 产品可用性状态页、运维运行记录、数据库或内部运行时访问 |
 | `app-api` | 浏览器认证、聊天接收与终结、公开问答可用性信号和产品 API | 产品可用性状态快照、Temporal worker、内部检索、在线模型配置、通用运维数据 API |
 | `status-web` | 独立的产品可用性状态页、公共状态快照和第一方入口黑盒探测 | 校园业务状态、用户账号、聊天、内部运行时和观测平台原始数据 |
-| `ops-web` | 自托管运行记录、运行概况、在线模型配置和 Dining 内容运营 | 学生账号、聊天和请求写入，任意工作流控制或 Kubernetes 资源管理 |
+| `ops-web` | 自托管运行记录、运行概况、在线模型配置、Dining 内容运营和固定通知 Job 操作入口 | 学生账号、聊天和请求写入，任意工作流控制或通用 Kubernetes 资源管理 |
 | `execution-control` | 持久运行准入、工作流业务逻辑、内部查询和执行投影 | 浏览器认证、页面合同和模型凭据所有权 |
 | `model-config` | 具名在线模型配置、Provider 凭据、验证和内部读取合同 | 模型流量代理、执行编排和产品页面 |
 | `agent-runtime` | 单次 Primary Agent SDK run 与获准工具调用 | 持久编排和产品数据持久化 |
@@ -82,6 +82,8 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - `ops-web -> PostgreSQL/execution-control/Sentry` 提供有界运行摘要和 Sentry Issue。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开菜单并以受限权限处理学生评价和举报；校园地图由 campus-web 的静态资产直接提供。
+- `ops-web -> Kubernetes API` 只读取通知管线的暂停 CronJob 模板，创建一次性 Job，并读取由该入口创建的
+  Job、Pod 状态和有限结构化日志摘要；不读取 Secret，不接受任意 Kubernetes 资源参数。
 - 在线模型配置不可用不阻断 Ops Web 的运行记录读取 readiness。
 - Temporal UI、Langfuse UI 和 Sentry 保留各自完整能力；Ops Web 只提供跨系统关联、固定 Sentry
   Issue 查询和常用摘要。

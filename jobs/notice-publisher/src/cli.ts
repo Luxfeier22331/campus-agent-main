@@ -61,7 +61,7 @@ async function main(): Promise<void> {
 				objectStore: store,
 				portalHost: internalPortalHost(),
 			});
-			console.log(JSON.stringify(result));
+			console.log(JSON.stringify({ summary: result }));
 		} finally { store.close(); }
 	} finally { client.release(); await pool.end(); }
 }
