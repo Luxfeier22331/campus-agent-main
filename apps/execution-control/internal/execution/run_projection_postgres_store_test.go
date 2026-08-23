@@ -41,6 +41,12 @@ func TestPostgresRunProjectionStoreDefersConnectivityToHealthCheck(t *testing.T)
 
 func TestPostgresRunProjectionHealthCheckInspectsRequiredSchemaShape(t *testing.T) {
 	requiredSnippets := []string{
+		"('owner_deletion_fences', 'owner_user_id', 'text', true, '')",
+		"('owner_deletion_fences', 'p', array['owner_user_id']::text[]",
+		"expected_check_constraints(table_name, constraint_name, expression)",
+		"owner_deletion_fences_state_check",
+		"pg_get_constraintdef(constraint_metadata.oid, true)",
+		"'owner_deletion_fences_state_idx'",
 		"join pg_attribute as attribute",
 		"left join pg_attrdef as attribute_default",
 		"pg_get_expr(attribute_default.adbin, attribute_default.adrelid)",

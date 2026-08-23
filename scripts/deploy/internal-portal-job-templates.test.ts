@@ -27,9 +27,11 @@ test("internal portal manual Job templates express one fixed operation each", ()
 		const manifest = requiredManifest(byName, name);
 		const spec = record(manifest.spec, `${name} spec`);
 		assert.equal(spec.suspend, true);
+		assert.equal(spec.concurrencyPolicy, "Forbid");
 		const jobTemplate = record(spec.jobTemplate, `${name} job template`);
 		const jobSpec = record(jobTemplate.spec, `${name} Job spec`);
 		assert.equal(jobSpec.ttlSecondsAfterFinished, 86_400);
+		assert.equal(jobSpec.activeDeadlineSeconds, 3_600);
 		assert.equal(jobSpec.backoffLimit, 0);
 		const template = record(jobSpec.template, `${name} pod template`);
 		const podMetadata = record(template.metadata, `${name} pod metadata`);

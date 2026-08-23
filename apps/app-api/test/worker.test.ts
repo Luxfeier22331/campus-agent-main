@@ -71,6 +71,11 @@ describe("app-api worker foundation", () => {
 		expect(parsedWranglerConfig.env?.staging).not.toHaveProperty("observability");
 	});
 
+	it("leaves scheduled trigger ownership to GitOps", () => {
+		expect(parsedWranglerConfig).not.toHaveProperty("triggers");
+		expect(parsedWranglerConfig.env?.staging).not.toHaveProperty("triggers");
+	});
+
 	it("keeps traffic out of Wrangler and declares staging bindings", () => {
 		const staging = parsedWranglerConfig.env?.staging;
 		expect(staging).toBeDefined();

@@ -6,6 +6,7 @@ package execution
 const runProjectionSchemaHealthSQL = `
 with expected_tables(table_name) as (
 	values
+		('owner_deletion_fences'),
 		('agent_runs'),
 		('agent_run_events'),
 		('agent_run_steps'),
@@ -25,6 +26,10 @@ actual_tables as (
 ),
 expected_columns(table_name, column_name, data_type, not_null, default_expression) as (
 	values
+		('owner_deletion_fences', 'owner_user_id', 'text', true, ''),
+		('owner_deletion_fences', 'state', 'text', true, ''),
+		('owner_deletion_fences', 'started_at', 'timestamp with time zone', true, ''),
+		('owner_deletion_fences', 'deleted_at', 'timestamp with time zone', false, ''),
 		('agent_runs', 'request_fingerprint_sha256', 'text', true, $$''::text$$),
 		('agent_run_steps', 'activity_attempt', 'integer', true, '0'),
 		('agent_step_attempts', 'activity_attempt', 'integer', true, '0'),
@@ -100,6 +105,7 @@ expected_constraints(
 	delete_action
 ) as (
 		values
+			('owner_deletion_fences', 'p', array['owner_user_id']::text[], '', '', array[]::text[], ''),
 			('agent_run_steps', 'p', array['run_id', 'step_id']::text[], '', '', array[]::text[], ''),
 			('agent_run_steps', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
 			('agent_step_attempts', 'p', array['attempt_id']::text[], '', '', array[]::text[], ''),
@@ -149,8 +155,37 @@ actual_constraints as (
 	where namespace.nspname = 'execution_control'
 		and constraint_metadata.convalidated
 ),
+expected_check_constraints(table_name, constraint_name, expression) as (
+	values
+		('owner_deletion_fences', 'owner_deletion_fences_state_check', 'checkstate=anyarray[''draining''::text,''deleted''::text]')
+),
+actual_check_constraints as (
+	select
+		relation.relname::text as table_name,
+		constraint_metadata.conname::text as constraint_name,
+		regexp_replace(
+			lower(pg_get_constraintdef(constraint_metadata.oid, true)),
+			'[[:space:]()]',
+			'',
+			'g'
+		) as expression
+	from pg_constraint as constraint_metadata
+	join pg_class as relation on relation.oid = constraint_metadata.conrelid
+	join pg_namespace as namespace on namespace.oid = relation.relnamespace
+	where namespace.nspname = 'execution_control'
+		and constraint_metadata.contype = 'c'
+		and constraint_metadata.convalidated
+),
 expected_indexes(table_name, index_name, unique_index, columns, method, predicate) as (
 	values
+		(
+			'owner_deletion_fences',
+			'owner_deletion_fences_state_idx',
+			false,
+			array['state', 'started_at']::text[],
+			'btree',
+			''
+		),
 		(
 			'agent_runs',
 			'agent_runs_active_conversation_idx',
@@ -246,6 +281,25 @@ schema_issues(issue) as (
 				and actual.referenced_table = expected.referenced_table
 				and actual.referenced_columns = expected.referenced_columns
 				and actual.delete_action = expected.delete_action
+		)
+
+	union all
+
+	select format(
+		'check constraint execution_control.%I.%I does not match required definition',
+		expected.table_name,
+		expected.constraint_name
+	)
+	from expected_check_constraints as expected
+	where exists (
+		select 1 from actual_tables as actual where actual.table_name = expected.table_name
+	)
+		and not exists (
+			select 1
+			from actual_check_constraints as actual
+			where actual.table_name = expected.table_name
+				and actual.constraint_name = expected.constraint_name
+				and actual.expression = expected.expression
 		)
 
 	union all

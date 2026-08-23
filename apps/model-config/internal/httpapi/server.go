@@ -201,8 +201,18 @@ func (s *Server) serveModels(w http.ResponseWriter, r *http.Request, name modelc
 	apiKey := ""
 	if input.APIKey != nil {
 		apiKey = strings.TrimSpace(*input.APIKey)
-	} else if current, err := s.store.Resolve(r.Context(), name, ""); err == nil {
-		apiKey = current.APIKey
+	} else {
+		current, err := s.store.Resolve(r.Context(), name, "")
+		if err != nil {
+			if errors.Is(err, modelconfig.ErrNotFound) {
+				apiKey = ""
+			} else {
+				writeStoreError(w, err)
+				return
+			}
+		} else {
+			apiKey = current.APIKey
+		}
 	}
 	models, validation := modelconfig.DiscoverModels(r.Context(), name, input.Provider, input.BaseURL, apiKey)
 	if validation.Status != "passed" {

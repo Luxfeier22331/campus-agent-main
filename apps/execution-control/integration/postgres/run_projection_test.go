@@ -176,6 +176,11 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 				wantErrorPart: "constraint execution_control.agent_step_attempts (u run_id,step_id,attempt)",
 			},
 			{
+				name:          "missing owner deletion state check",
+				mutationSQL:   "alter table execution_control.owner_deletion_fences drop constraint owner_deletion_fences_state_check",
+				wantErrorPart: "check constraint execution_control.owner_deletion_fences.owner_deletion_fences_state_check",
+			},
+			{
 				name:          "missing lifecycle lease index",
 				mutationSQL:   "drop index execution_control.agent_workflow_starts_lease_idx",
 				wantErrorPart: "index execution_control.agent_workflow_starts_lease_idx",
@@ -204,6 +209,116 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 					t.Fatalf("schema health error = %v, want part %q", err, testCase.wantErrorPart)
 				}
 			})
+		}
+	})
+
+	t.Run("owner deletion drains and removes the PostgreSQL projection", func(t *testing.T) {
+		_, databaseURL := harness.ownerDatabase(t)
+		store := newRunProjectionStore(t, databaseURL, true)
+		now := time.Date(2026, 7, 31, 8, 0, 0, 0, time.UTC)
+		ownerUserID := "user:postgres-owner-deletion"
+		run := durableRun("run-owner-deletion-postgres", "conversation-owner-deletion-postgres", now)
+		run.OwnerUserID = ownerUserID
+		created, err := store.CreateRun(t.Context(), run)
+		if err != nil {
+			t.Fatalf("create owner deletion run: %v", err)
+		}
+		for index, status := range []execution.DurableRunStatus{
+			execution.DurableRunStatusQueued,
+			execution.DurableRunStatusAdmitted,
+			execution.DurableRunStatusRunning,
+		} {
+			created, err = store.TransitionRun(
+				t.Context(), created.RunID, status, "", now.Add(time.Duration(index+1)*time.Second),
+			)
+			if err != nil {
+				t.Fatalf("transition owner deletion run to %s: %v", status, err)
+			}
+		}
+		step := execution.RunStepProjection{
+			StepID: "agent.primary", RunID: created.RunID, ConversationID: created.ConversationID,
+			StepKind: "agent", Status: "running", UpdatedAt: now.Add(4 * time.Second),
+			PayloadSchemaVersion: "run-step-v1", SanitizedPayload: map[string]any{"phase": "running"},
+		}
+		if _, err := store.UpsertRunStep(t.Context(), step); err != nil {
+			t.Fatalf("insert owner deletion step: %v", err)
+		}
+		attempt := execution.StepAttemptProjection{
+			AttemptID: "owner-deletion-attempt", StepID: step.StepID, RunID: created.RunID,
+			Attempt: 1, Status: "running", UpdatedAt: now.Add(4 * time.Second),
+			PayloadSchemaVersion: "step-attempt-v1", SanitizedPayload: map[string]any{"phase": "running"},
+		}
+		if _, err := store.UpsertStepAttempt(t.Context(), attempt); err != nil {
+			t.Fatalf("insert owner deletion attempt: %v", err)
+		}
+		if _, err := store.UpsertStepResult(t.Context(), execution.StepResultProjection{
+			ResultID: "owner-deletion-result", StepID: step.StepID, RunID: created.RunID,
+			AttemptID: attempt.AttemptID, Status: "completed", ResultKind: "answer",
+			ProjectionRef: "projection://owner-deletion", CreatedAt: now.Add(4 * time.Second),
+			PayloadSchemaVersion: "step-result-v1", SanitizedPayload: map[string]any{"status": "completed"},
+		}); err != nil {
+			t.Fatalf("insert owner deletion result: %v", err)
+		}
+
+		status, err := store.BeginOwnerDeletion(t.Context(), ownerUserID, now.Add(5*time.Second))
+		if err != nil || status.State != execution.OwnerDeletionStateDraining || status.ActiveRuns != 1 {
+			t.Fatalf("begin owner deletion status = %#v, err=%v", status, err)
+		}
+		commands, err := store.LeaseRunCancellationCommands(t.Context(), execution.LifecycleLeaseRequest{
+			LeaseToken: "owner-deletion-cancel-lease", Now: now.Add(6 * time.Second),
+			LeaseUntil: now.Add(time.Minute), Limit: 1,
+		})
+		if err != nil || len(commands) != 1 || commands[0].Reason != "account_deletion" {
+			t.Fatalf("owner deletion cancellation command = %#v, err=%v", commands, err)
+		}
+		if err := store.ConfirmRunCancellationCommand(t.Context(), execution.RunCancellationCommandResult{
+			RunID: created.RunID, LeaseToken: commands[0].LeaseToken, Now: now.Add(7 * time.Second),
+		}); err != nil {
+			t.Fatalf("confirm owner deletion cancellation: %v", err)
+		}
+		if _, err := store.FinalizeOwnerDeletion(t.Context(), execution.OwnerDeletionFinalizeRequest{
+			OwnerUserID: ownerUserID, Now: now.Add(8 * time.Second),
+		}); !errors.Is(err, execution.ErrOwnerDeletionNotDrained) {
+			t.Fatalf("finalize before terminal run error = %v, want ErrOwnerDeletionNotDrained", err)
+		}
+		if _, err := store.CancelRunProjection(t.Context(), execution.DurableRunCancelRequest{
+			RunID: created.RunID, Reason: "account_deletion", Now: now.Add(9 * time.Second),
+		}); err != nil {
+			t.Fatalf("cancel owner deletion run: %v", err)
+		}
+		status, err = store.FinalizeOwnerDeletion(t.Context(), execution.OwnerDeletionFinalizeRequest{
+			OwnerUserID: ownerUserID, Now: now.Add(10 * time.Second),
+		})
+		if err != nil || status.State != execution.OwnerDeletionStateDeleted || status.ActiveRuns != 0 {
+			t.Fatalf("finalize owner deletion status = %#v, err=%v", status, err)
+		}
+		conn := connect(t, databaseURL)
+		defer closeConn(t, conn)
+		for _, table := range []string{
+			"agent_runs", "agent_run_events", "agent_run_steps", "agent_step_attempts",
+			"agent_step_results", "agent_workflow_starts", "agent_run_cancellations",
+		} {
+			var count int
+			if err := conn.QueryRow(t.Context(), "select count(*)::int from execution_control."+table+" where run_id = $1", created.RunID).Scan(&count); err != nil {
+				t.Fatalf("count deleted %s rows: %v", table, err)
+			}
+			if count != 0 {
+				t.Fatalf("deleted %s rows = %d, want 0", table, count)
+			}
+		}
+		var fenceState string
+		if err := conn.QueryRow(t.Context(), `
+			select state from execution_control.owner_deletion_fences where owner_user_id = $1
+		`, ownerUserID).Scan(&fenceState); err != nil {
+			t.Fatalf("read owner deletion tombstone: %v", err)
+		}
+		if fenceState != string(execution.OwnerDeletionStateDeleted) {
+			t.Fatalf("owner deletion fence state = %q, want deleted", fenceState)
+		}
+		createdAfterDeletion := durableRun("run-owner-deletion-after", "conversation-owner-deletion-after", now.Add(11*time.Second))
+		createdAfterDeletion.OwnerUserID = ownerUserID
+		if _, err := store.CreateRun(t.Context(), createdAfterDeletion); !errors.Is(err, execution.ErrOwnerDeleted) {
+			t.Fatalf("create run after owner deletion error = %v, want ErrOwnerDeleted", err)
 		}
 	})
 

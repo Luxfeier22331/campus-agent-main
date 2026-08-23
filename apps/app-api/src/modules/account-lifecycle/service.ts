@@ -65,6 +65,18 @@ export function buildAccountLifecycleService(
 					);
 				};
 				try {
+					const executionDeletion = await dependencies.executionController.beginOwnerDeletion({
+						ownerUserId: request.ownerUserId,
+					});
+					if (executionDeletion.state === "draining" && executionDeletion.activeRunCount > 0) {
+						const deferredAt = new Date();
+						await dependencies.store.defer(
+							request,
+							new Date(deferredAt.getTime() + ACCOUNT_DELETION_PENDING_DELAY_MS),
+							deferredAt,
+						);
+						continue;
+					}
 					await dependencies.profileMemoryService.eraseForAccountDeletion({
 						principal: internalDeletionPrincipal(request.ownerUserId),
 						requestId: request.requestId,
@@ -74,6 +86,20 @@ export function buildAccountLifecycleService(
 						continue;
 					}
 					if (await dependencies.store.isMemoryErased(request.ownerUserId)) {
+						const finalizedExecution = await dependencies.executionController.finalizeOwnerDeletion(
+							{
+								ownerUserId: request.ownerUserId,
+							},
+						);
+						if (finalizedExecution.state !== "deleted" || finalizedExecution.activeRunCount > 0) {
+							const deferredAt = new Date();
+							await dependencies.store.defer(
+								request,
+								new Date(deferredAt.getTime() + ACCOUNT_DELETION_PENDING_DELAY_MS),
+								deferredAt,
+							);
+							continue;
+						}
 						if (!(await renewLease())) {
 							continue;
 						}

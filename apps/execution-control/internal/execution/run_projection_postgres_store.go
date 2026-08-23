@@ -14,6 +14,7 @@ import (
 var ErrInvalidRunProjectionStore = errors.New("invalid run projection store")
 
 var runProjectionRuntimeTables = []string{
+	"execution_control.owner_deletion_fences",
 	"execution_control.agent_runs",
 	"execution_control.agent_run_events",
 	"execution_control.agent_run_steps",

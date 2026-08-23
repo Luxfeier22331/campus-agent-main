@@ -1,6 +1,7 @@
 export { buildRuntimeRunService } from "./service";
 export { createPgRuntimeRunStore } from "./store";
 export {
+	type RuntimeRunCancellationClaim,
 	type RuntimeRunEventProjection,
 	type RuntimeRunOwnershipRecord,
 	type RuntimeRunPhase,

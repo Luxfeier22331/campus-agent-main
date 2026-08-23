@@ -8,9 +8,11 @@ metadata:
 spec:
   schedule: "0 0 1 1 *"
   suspend: true
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 3600
       backoffLimit: 0
       template:
         metadata:
@@ -95,9 +97,11 @@ metadata:
 spec:
   schedule: "0 0 1 1 *"
   suspend: true
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 3600
       backoffLimit: 0
       template:
         metadata:
@@ -182,9 +186,11 @@ metadata:
 spec:
   schedule: "0 0 1 1 *"
   suspend: true
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 3600
       backoffLimit: 0
       template:
         metadata:

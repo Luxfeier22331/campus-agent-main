@@ -49,6 +49,14 @@ internal_portal/<site-id>/file-releases/<file-release-id>/source.json
 
 当前不保存 workflow result，不解析 PDF，不执行 OCR、清洗、分类或发布。
 
+## 来源对象生命周期
+
+`internal-portal-collection` 是门户 source 对象的生产者，来源数据面拥有以下对象：原始 `file`、对应
+的 `source.json` 以及仍被来源清单或后续规范化流程引用的历史版本。采集 Job 不负责删除对象，也不对
+Campus Docs 的 normalized reader、chunk、embedding 或 Qdrant collection 负责。清理前必须由来源 owner
+依据完整 reader/补充资产引用重新计算存活 key 集合，并按[Campus Docs runbook](../runbooks/campus-docs.md)
+中的核对步骤执行；本合同不引入宽泛 TTL 或自动回收任务。
+
 ## 认证生命周期
 
 Service Ticket、`JSESSIONID` 和 `nginx` Cookie 只存在于当前 HTTP 会话。采集器建立业务会话时得到的新

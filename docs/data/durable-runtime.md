@@ -53,6 +53,19 @@ start。只有 recovery root 通过 exact/latest 身份校验后，存储才允�
 Temporal Run ID；之后取消继续使用该精确绑定。recovery 失败或身份未知时仍保持 pending，
 不得用 latest Run ID 补写绑定。
 
+### 账号删除
+
+`execution_control.agent_*` 是按 `owner_user_id` 维护的账号可删除 projection。App API 接受账号删除后，
+先调用 execution-control 建立 owner deletion fence；fence 使新 run 失败关闭，并让活动 run 进入取消排空。
+活动 run 全部进入终态、且 Hindsight 已确认个人记忆清除后，execution-control 在一个事务中删除该 owner
+的 run 及其 event、step、attempt、result、workflow-start、cancellation 和 invocation receipt projection，
+依赖外键 cascade 完成关联清理。
+
+删除完成后保留 `execution_control.owner_deletion_fences` 中的 `state=deleted` tombstone。它只用于拒绝
+旧 workflow、重放请求和同 owner 的新 run，不保存用户输入或执行正文。Temporal history 不属于这次投影
+删除事务，按 Temporal/platform retention 合同独立保留或过期；App API 仍负责删除自己的完整执行输入和
+账号产品数据。
+
 ### Step、Attempt 与 Result
 
 step 投影描述持久运行架构中的稳定阶段。阶段语义由

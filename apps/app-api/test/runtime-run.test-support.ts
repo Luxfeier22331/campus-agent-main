@@ -6,6 +6,7 @@ import type {
 } from "../src/modules/integration/execution-control";
 import {
 	createPgRuntimeRunStore,
+	type RuntimeRunCancellationClaim,
 	type RuntimeRunOwnershipRecord,
 	type RuntimeRunStore,
 } from "../src/modules/runtime-run";
@@ -77,8 +78,9 @@ export function ownedRun(
 
 export function runtimeStore(overrides: Partial<RuntimeRunStore> = {}): RuntimeRunStore {
 	return {
+		claimCancellation: vi.fn().mockResolvedValue(null),
+		claimPendingCancellations: vi.fn().mockResolvedValue([] as RuntimeRunCancellationClaim[]),
 		getOwnedRun: vi.fn().mockResolvedValue(ownedRun()),
-		listPendingCancellations: vi.fn().mockResolvedValue([]),
 		markCancellationDelivered: vi.fn().mockResolvedValue(true),
 		recordCancellationFailure: vi.fn().mockResolvedValue(true),
 		requestCancellation: vi.fn().mockResolvedValue(null),
@@ -91,6 +93,8 @@ export function pgRuntimeRunStoreHarness(admissionStatus: "dispatching" | "pendi
 		actorUserId: "user_01HQ",
 		admissionStatus,
 		cancelOutboxStatus: "not_requested",
+		cancelLeaseToken: null,
+		cancelLeaseUntil: null,
 		cancelReason: null,
 		cancelRequestedAt: null,
 		completedAt: null,

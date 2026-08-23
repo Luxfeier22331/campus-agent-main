@@ -29,11 +29,13 @@ Model Config 位于共同受信任的内部服务边界，不再执行第二次�
 边界执行人员认证和 CSRF 校验；`X-Model-Config-Actor` 只用于审计来源。所有配置响应都使用
 `Cache-Control: no-store`。
 
-Schema 由 `model-config-schema` 安装，常驻进程不执行 DDL。PostgreSQL owner 是 `model_config`，负责
-`model_config.model_configs` 和 `model_config.schema_migrations`；Provider API Key 加密保存在
-`encrypted_api_key`。一次性切换期间，schema command 使用旧 execution-control 加密密钥，事务性迁移
-`execution_control.model_settings` 中已验证的数据并删除旧表。必须先运行 execution-control 历史
-migration。
+Schema 由 `model-config-schema` 安装，常驻进程不执行 DDL。Schema Job 使用既有 `campus_agent`
+bootstrap 身份拥有并校验 `model_config` schema、`model_configs` 表和 migration ledger；常驻进程使用
+`model_config` runtime role，只获得 schema usage 以及所属表的明确读写权限。Migration 会拒绝未知列、
+relation、constraint、index、owner 或 grant，不用 `IF NOT EXISTS` 把漂移伪装成成功。Provider API Key
+加密保存在 `encrypted_api_key`。一次性切换期间，schema command 使用旧 execution-control 加密密钥，
+事务性迁移 `execution_control.model_settings` 中已验证的数据并删除旧表。必须先运行 execution-control
+历史 migration。
 
 详见 [ADR-0093](../../docs/decisions/adr-0093-model-config-boundary.md) 和
 [密钥 runbook](../../docs/runbooks/provider-secrets.md)。

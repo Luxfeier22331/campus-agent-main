@@ -122,32 +122,86 @@ describe("app-api worker scheduled recovery", () => {
 		expect(dispatchPendingDeletions).not.toHaveBeenCalled();
 	});
 
-	it("fails closed when the product admission finalizer is missing", async () => {
-		const runtime = createWorkerRuntime(
-			env,
-			scheduledServices({ dispatchPendingCancellations: vi.fn() }),
-		);
-
-		await expect(runtime.scheduled()).rejects.toThrow(
-			"Chat admission product finalization is not configured.",
-		);
-	});
-
-	it("fails closed when the run cancellation dispatcher is missing", async () => {
+	it("continues later sweeps when an earlier sweep fails", async () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const dispatchPendingCancellations = vi.fn(async () => ({
+			delivered: 0,
+			failed: 0,
+			finalized: 0,
+			processed: 0,
+		}));
+		const dispatchPendingMemoryCommands = vi.fn(async () => ({
+			admitted: 0,
+			failed: 0,
+			processed: 0,
+		}));
+		const dispatchPendingDeletions = vi.fn(async () => ({
+			completed: 0,
+			failed: 0,
+			processed: 0,
+		}));
 		const runtime = createWorkerRuntime(
 			env,
 			scheduledServices({
-				dispatchPendingAdmissions: vi.fn(async () => ({
-					admitted: 0,
-					failed: 0,
-					processed: 0,
-				})),
+				dispatchPendingAdmissions: vi.fn(async () => {
+					throw new Error("admission unavailable");
+				}),
+				dispatchPendingCancellations,
+				dispatchPendingDeletions,
+				dispatchPendingMemoryCommands,
 			}),
 		);
 
-		await expect(runtime.scheduled()).rejects.toThrow(
-			"Run cancellation dispatcher is not configured.",
+		await expect(runtime.scheduled()).resolves.toBeUndefined();
+		expect(dispatchPendingCancellations).toHaveBeenCalledTimes(1);
+		expect(dispatchPendingMemoryCommands).toHaveBeenCalledTimes(1);
+		expect(dispatchPendingDeletions).toHaveBeenCalledTimes(1);
+		expect(error).toHaveBeenCalledWith(
+			expect.objectContaining({
+				source: "app-api.scheduled",
+				task: "chat.admission",
+			}),
 		);
+		error.mockRestore();
+	});
+
+	it("continues later sweeps when the cancellation dispatcher is missing", async () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const dispatchPendingAdmissions = vi.fn(async () => ({
+			admitted: 0,
+			failed: 0,
+			processed: 0,
+		}));
+		const dispatchPendingMemoryCommands = vi.fn(async () => ({
+			admitted: 0,
+			failed: 0,
+			processed: 0,
+		}));
+		const dispatchPendingDeletions = vi.fn(async () => ({
+			completed: 0,
+			failed: 0,
+			processed: 0,
+		}));
+		const runtime = createWorkerRuntime(
+			env,
+			scheduledServices({
+				dispatchPendingAdmissions,
+				dispatchPendingDeletions,
+				dispatchPendingMemoryCommands,
+			}),
+		);
+
+		await expect(runtime.scheduled()).resolves.toBeUndefined();
+		expect(dispatchPendingAdmissions).toHaveBeenCalledTimes(1);
+		expect(dispatchPendingMemoryCommands).toHaveBeenCalledTimes(1);
+		expect(dispatchPendingDeletions).toHaveBeenCalledTimes(1);
+		expect(error).toHaveBeenCalledWith(
+			expect.objectContaining({
+				source: "app-api.scheduled",
+				task: "runtime-run.cancellation",
+			}),
+		);
+		error.mockRestore();
 	});
 
 	it("rejects a partial scheduled service injection at the composition root", () => {

@@ -1,9 +1,10 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import { turnDispatches } from "../../db/schema";
 import type {
+	RuntimeRunCancellationClaim,
 	RuntimeRunCancellationRecord,
 	RuntimeRunOwnershipRecord,
 	RuntimeRunStore,
@@ -39,6 +40,30 @@ function toCancellationRecord(record: RuntimeRunOwnershipRecord): RuntimeRunCanc
 	return { ...record, requestedAt: record.cancelRequestedAt };
 }
 
+function toCancellationClaim(
+	row: typeof turnDispatches.$inferSelect | undefined,
+	leaseToken: string,
+): RuntimeRunCancellationClaim | null {
+	const record = toRuntimeRunOwnershipRecord(row);
+	if (!record?.cancelRequestedAt) {
+		return null;
+	}
+	if (
+		record.cancelOutboxStatus !== "local_finalization_pending" &&
+		record.cancelOutboxStatus !== "pending_delivery"
+	) {
+		return null;
+	}
+	return {
+		kind:
+			record.cancelOutboxStatus === "local_finalization_pending"
+				? "local_finalization"
+				: "remote_delivery",
+		leaseToken,
+		run: toCancellationRecord(record),
+	};
+}
+
 export function createPgRuntimeRunStore(
 	env: Env,
 	input: {
@@ -63,34 +88,76 @@ export function createPgRuntimeRunStore(
 			return toRuntimeRunOwnershipRecord(rows[0]);
 		},
 
-		async listPendingCancellations(input = {}) {
+		async claimCancellation(input) {
 			const db = await getDb();
-			const limit = Math.max(1, Math.min(input.limit ?? 25, 100));
-			const rows = await db
-				.select()
-				.from(turnDispatches)
-				.where(
-					inArray(turnDispatches.cancelOutboxStatus, [
-						"local_finalization_pending",
-						"pending_delivery",
-					]),
-				)
-				.orderBy(asc(turnDispatches.updatedAt))
-				.limit(limit);
-			return rows.flatMap((row) => {
-				const record = toRuntimeRunOwnershipRecord(row);
-				if (!record?.cancelRequestedAt) {
-					return [];
-				}
-				return [
-					{
-						kind:
-							row.cancelOutboxStatus === "local_finalization_pending"
-								? ("local_finalization" as const)
-								: ("remote_delivery" as const),
-						run: toCancellationRecord(record),
-					},
-				];
+			return db.transaction(async (tx) => {
+				const candidates = tx
+					.select({ requestId: turnDispatches.requestId })
+					.from(turnDispatches)
+					.where(
+						and(
+							eq(turnDispatches.runId, input.runId),
+							inArray(turnDispatches.cancelOutboxStatus, [
+								"local_finalization_pending",
+								"pending_delivery",
+							]),
+							or(
+								isNull(turnDispatches.cancelLeaseUntil),
+								lte(turnDispatches.cancelLeaseUntil, input.now),
+							),
+						),
+					)
+					.orderBy(asc(turnDispatches.updatedAt), asc(turnDispatches.requestId))
+					.limit(1)
+					.for("update", { skipLocked: true });
+				const rows = await tx
+					.update(turnDispatches)
+					.set({
+						cancelLeaseToken: input.leaseToken,
+						cancelLeaseUntil: input.leaseExpiresAt,
+						updatedAt: input.now,
+					})
+					.where(inArray(turnDispatches.requestId, candidates))
+					.returning();
+				return toCancellationClaim(rows[0], input.leaseToken);
+			});
+		},
+
+		async claimPendingCancellations(input) {
+			const db = await getDb();
+			const limit = Math.max(1, Math.min(input.limit, 100));
+			return db.transaction(async (tx) => {
+				const candidates = tx
+					.select({ requestId: turnDispatches.requestId })
+					.from(turnDispatches)
+					.where(
+						and(
+							inArray(turnDispatches.cancelOutboxStatus, [
+								"local_finalization_pending",
+								"pending_delivery",
+							]),
+							or(
+								isNull(turnDispatches.cancelLeaseUntil),
+								lte(turnDispatches.cancelLeaseUntil, input.now),
+							),
+						),
+					)
+					.orderBy(asc(turnDispatches.updatedAt), asc(turnDispatches.requestId))
+					.limit(limit)
+					.for("update", { skipLocked: true });
+				const rows = await tx
+					.update(turnDispatches)
+					.set({
+						cancelLeaseToken: input.leaseToken,
+						cancelLeaseUntil: input.leaseExpiresAt,
+						updatedAt: input.now,
+					})
+					.where(inArray(turnDispatches.requestId, candidates))
+					.returning();
+				return rows.flatMap((row) => {
+					const claim = toCancellationClaim(row, input.leaseToken);
+					return claim ? [claim] : [];
+				});
 			});
 		},
 
@@ -105,12 +172,15 @@ export function createPgRuntimeRunStore(
 					cancelLastAttemptAt: deliveredAt,
 					cancelLastErrorCode: null,
 					cancelOutboxStatus: "delivered",
+					cancelLeaseToken: null,
+					cancelLeaseUntil: null,
 					updatedAt: deliveredAt,
 				})
 				.where(
 					and(
 						eq(turnDispatches.runId, input.runId),
 						eq(turnDispatches.cancelOutboxStatus, "pending_delivery"),
+						eq(turnDispatches.cancelLeaseToken, input.leaseToken),
 					),
 				)
 				.returning({ runId: turnDispatches.runId });
@@ -126,12 +196,18 @@ export function createPgRuntimeRunStore(
 					cancelAttemptCount: sql<number>`${turnDispatches.cancelAttemptCount} + 1`,
 					cancelLastAttemptAt: failedAt,
 					cancelLastErrorCode: input.errorCode.slice(0, 64),
+					cancelLeaseToken: null,
+					cancelLeaseUntil: null,
 					updatedAt: failedAt,
 				})
 				.where(
 					and(
 						eq(turnDispatches.runId, input.runId),
-						eq(turnDispatches.cancelOutboxStatus, "pending_delivery"),
+						inArray(turnDispatches.cancelOutboxStatus, [
+							"local_finalization_pending",
+							"pending_delivery",
+						]),
+						eq(turnDispatches.cancelLeaseToken, input.leaseToken),
 					),
 				)
 				.returning({ runId: turnDispatches.runId });
@@ -190,6 +266,8 @@ export function createPgRuntimeRunStore(
 						cancelOutboxStatus: local ? "local_finalization_pending" : "pending_delivery",
 						cancelReason: input.reason,
 						cancelRequestedAt: requestedAt,
+						cancelLeaseToken: null,
+						cancelLeaseUntil: null,
 						updatedAt: requestedAt,
 					})
 					.where(eq(turnDispatches.requestId, current.requestId))

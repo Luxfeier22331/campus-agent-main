@@ -259,6 +259,10 @@ describe("account journeys PostgreSQL integration", () => {
 		});
 		const database = drizzle(pool, { schema: appApiSchema });
 		lifecycle = buildAccountLifecycleService({
+			executionController: {
+				beginOwnerDeletion: async () => ({ activeRunCount: 0, state: "draining" as const }),
+				finalizeOwnerDeletion: async () => ({ activeRunCount: 0, state: "deleted" as const }),
+			},
 			profileMemoryService: {
 				eraseForAccountDeletion: async ({
 					principal,

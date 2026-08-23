@@ -49,6 +49,24 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 修改所属 Deployment 的副本与资源；Temporal task queue backlog 只作为运行观测，不进入应用
 数据库或自研扩缩器。
 
+## Job 运行合同
+
+一次性 schema/bootstrap Job 必须有 `activeDeadlineSeconds`、CPU/memory requests 和 limits；
+数据库迁移连接使用显式单连接上限。需要访问同一外部资源或同一数据边界的 CronJob 必须声明
+`concurrencyPolicy: Forbid`，并设置足以终止卡住执行的 active deadline。
+
+当前合同中的代表性规则是：
+
+- `model-config-schema`、`execution-run-projection-schema`、`ops-web-bootstrap` 和
+  `notice-publisher-schema` 有 active deadline 与 resources；
+- internal-portal collection/check 和 Campus Docs 三个阶段 Job 使用 `Forbid`，并有 active
+  deadline 与 resources；
+- Campus Docs 三个阶段和 internal-portal 三个模板默认 `suspend: true`，不因源码存在而自动运行；
+- Job 的 `ttlSecondsAfterFinished` 只负责完成后的 Job 对象回收，不替代数据 retention 或备份。
+
+这些是 desired-state 合同。清单通过测试只证明仓库期望状态可检查，不能证明某个环境已经启用模板、
+控制器已经创建 Job，或 Job 实际获得了相应资源。
+
 ## 状态职责
 
 - Argo CD 选择源码声明的基础资源、不可变镜像和环境配置；

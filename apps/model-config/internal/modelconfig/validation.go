@@ -102,7 +102,40 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 			return Validation{Status: "failed", ErrorCode: "invalid_provider_response", Message: "rerank provider response is invalid"}
 		}
 	}
+	if target.APIProtocol == "openai.responses" || target.APIProtocol == "openai.chat_completions" {
+		if err := validateTextProviderResponse(target.APIProtocol, raw); err != nil {
+			return Validation{Status: "failed", ErrorCode: "invalid_provider_response", Message: "model provider response is invalid"}
+		}
+	}
 	return Validation{Status: "passed", Message: "model provider validation passed"}
+}
+
+func validateTextProviderResponse(protocol string, raw []byte) error {
+	switch protocol {
+	case "openai.responses":
+		var response struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(raw, &response); err != nil || strings.TrimSpace(response.ID) == "" {
+			return errors.New("responses response id is missing")
+		}
+	case "openai.chat_completions":
+		var response struct {
+			Choices []struct {
+				Message json.RawMessage `json:"message"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal(raw, &response); err != nil || len(response.Choices) == 0 {
+			return errors.New("chat completion message is missing")
+		}
+		message := bytes.TrimSpace(response.Choices[0].Message)
+		if len(message) == 0 || message[0] != '{' {
+			return errors.New("chat completion message is missing")
+		}
+	default:
+		return errors.New("unsupported text provider protocol")
+	}
+	return nil
 }
 
 func DiscoverModels(ctx context.Context, name ConfigName, provider, baseURL, apiKey string) ([]string, Validation) {

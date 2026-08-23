@@ -83,7 +83,7 @@ export async function bootstrapDiningMap(
 		databaseUrl: "OPS_WEB_DATABASE_URL",
 		sslMode: "OPS_WEB_DATABASE_SSLMODE",
 	});
-	const pool = new pg.Pool(config);
+	const pool = new pg.Pool({ ...config, max: 1 });
 	try {
 		return await bootstrapDiningPublication({
 			database: pool,

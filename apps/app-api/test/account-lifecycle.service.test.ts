@@ -23,12 +23,20 @@ function principal(): ResolvedAppPrincipal {
 	};
 }
 
+function executionController() {
+	return {
+		beginOwnerDeletion: vi.fn(async () => ({ activeRunCount: 0, state: "draining" as const })),
+		finalizeOwnerDeletion: vi.fn(async () => ({ activeRunCount: 0, state: "deleted" as const })),
+	};
+}
+
 describe("account lifecycle service", () => {
 	it("creates a deletion request after route-level reauthentication", async () => {
 		const requestDeletion = vi
 			.fn()
 			.mockResolvedValue({ requestId: "acctdel_1", status: "deleting" });
 		const service = buildAccountLifecycleService({
+			executionController: executionController(),
 			profileMemoryService: {} as never,
 			removeAuthUser: vi.fn(),
 			safetyIdentifierForUser: () => null,
@@ -66,6 +74,7 @@ describe("account lifecycle service", () => {
 			.mockResolvedValue([]);
 		const defer = vi.fn().mockResolvedValue(true);
 		const service = buildAccountLifecycleService({
+			executionController: executionController(),
 			profileMemoryService: { dispatchPending, eraseForAccountDeletion },
 			removeAuthUser,
 			safetyIdentifierForUser: () => "safety-user-1",
@@ -107,6 +116,7 @@ describe("account lifecycle service", () => {
 		const recordFailure = vi.fn();
 		const completeDeletion = vi.fn();
 		const service = buildAccountLifecycleService({
+			executionController: executionController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
 				eraseForAccountDeletion: vi.fn().mockRejectedValue(new Error("downstream unavailable")),
@@ -145,6 +155,7 @@ describe("account lifecycle service", () => {
 		const removeAuthUser = vi.fn();
 		const completeDeletion = vi.fn();
 		const service = buildAccountLifecycleService({
+			executionController: executionController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
 				eraseForAccountDeletion: vi.fn(),
@@ -194,6 +205,7 @@ describe("account lifecycle service", () => {
 			];
 		});
 		const service = buildAccountLifecycleService({
+			executionController: executionController(),
 			profileMemoryService: {
 				dispatchPending: vi.fn(),
 				eraseForAccountDeletion: vi.fn(),

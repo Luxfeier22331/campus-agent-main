@@ -37,7 +37,9 @@ status: active
 ## `POST /api/account/delete`
 
 已登录用户提交当前密码申请注销。App API 验证密码后创建异步注销任务并撤销当前账号的
-会话。任务依次清理个人记忆和账号关联数据，完成后删除 Better Auth 用户。
+会话。任务先要求 execution-control 建立 owner deletion fence、取消并排空活动 run，再清理
+Hindsight 个人记忆；确认记忆已清除后删除 execution-control projection、App API 账号关联数据，
+最后删除 Better Auth 用户。Temporal history 由其平台 retention 负责，不在该任务中同步删除。
 接口不接受用户 ID、立即删除选项或恢复参数。
 
 请求正文：

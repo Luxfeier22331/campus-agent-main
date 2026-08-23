@@ -426,6 +426,8 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 								then 'not_requested'
 							else 'closed'
 						end`,
+						cancelLeaseToken: null,
+						cancelLeaseUntil: null,
 						finalizationFingerprint: input.finalizationFingerprint ?? null,
 					})
 					.where(

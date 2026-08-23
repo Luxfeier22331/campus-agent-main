@@ -35,6 +35,7 @@ var (
 )
 
 type RunProjectionStore interface {
+	OwnerDeletionStore
 	CreateRun(context.Context, DurableRun) (DurableRun, error)
 	CreateRunWithStartIntent(context.Context, DurableRunCreateIntent) (DurableRunCreateResult, error)
 	DeleteRun(context.Context, string) error
@@ -88,6 +89,7 @@ type InMemoryRunProjectionStore struct {
 	cancellationCommands    map[string]RunCancellationCommand
 	agentInvocationReceipts map[string]AgentInvocationReceipt
 	runEventWaiters         map[string]map[chan struct{}]struct{}
+	ownerDeletionFences     map[string]OwnerDeletionState
 }
 
 func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
@@ -102,5 +104,6 @@ func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
 		cancellationCommands:    map[string]RunCancellationCommand{},
 		agentInvocationReceipts: map[string]AgentInvocationReceipt{},
 		runEventWaiters:         map[string]map[chan struct{}]struct{}{},
+		ownerDeletionFences:     map[string]OwnerDeletionState{},
 	}
 }

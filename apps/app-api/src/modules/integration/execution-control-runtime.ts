@@ -64,6 +64,12 @@ export interface ExecutionControlRunCancelInput {
 	traceId?: string | null;
 }
 
+export interface ExecutionControlOwnerDeletion {
+	activeRunCount: number;
+	ownerUserId: string;
+	state: "draining" | "deleted";
+}
+
 export interface ExecutionControlRun {
 	admittedAt: string;
 	completedAt: string;
@@ -183,6 +189,11 @@ export interface ExecutionControlRuntimeClient {
 	listRunSteps(input: ExecutionControlRunQuery): Promise<ExecutionControlRunStepTrajectory>;
 }
 
+export interface ExecutionControlOwnerDeletionClient {
+	beginOwnerDeletion(input: { ownerUserId: string }): Promise<ExecutionControlOwnerDeletion>;
+	finalizeOwnerDeletion(input: { ownerUserId: string }): Promise<ExecutionControlOwnerDeletion>;
+}
+
 export interface ExecutionControlPersonalMemoryClient {
 	admit(
 		input: import("../profile-memory").ProfileMemoryCommandPayload,
@@ -203,13 +214,20 @@ export function createExecutionControlRuntimeClient(
 	input: {
 		fetchImplementation?: typeof fetch;
 	} = {},
-): ExecutionControlRuntimeClient {
+): ExecutionControlRuntimeClient & ExecutionControlOwnerDeletionClient {
 	const fetchImplementation = input.fetchImplementation ?? defaultRuntimeFetch;
 	const requestExecutionControl = createExecutionControlRequester(env, {
 		fetchImplementation,
 	});
 
 	return {
+		async beginOwnerDeletion(input): Promise<ExecutionControlOwnerDeletion> {
+			const parsed = await requestExecutionControl(
+				`/internal/owners/${encodeURIComponent(input.ownerUserId)}/deletion/begin`,
+				{ expectedStatus: 200, method: "POST" },
+			);
+			return parseOwnerDeletion(parsed);
+		},
 		async cancelRun(cancelInput: ExecutionControlRunCancelInput): Promise<ExecutionControlRun> {
 			const parsed = await requestExecutionControl(
 				`/internal/execution/runs/${cancelInput.runId}/cancel`,
@@ -234,6 +252,17 @@ export function createExecutionControlRuntimeClient(
 				...(createInput.traceId === undefined ? {} : { traceId: createInput.traceId }),
 			});
 			return parseDurableRun(parsed);
+		},
+		async finalizeOwnerDeletion(input): Promise<ExecutionControlOwnerDeletion> {
+			const parsed = await requestExecutionControl(
+				`/internal/owners/${encodeURIComponent(input.ownerUserId)}/deletion/finalize`,
+				{
+					body: { memory_erased: true },
+					expectedStatus: 200,
+					method: "POST",
+				},
+			);
+			return parseOwnerDeletion(parsed);
 		},
 		async getRun(query: ExecutionControlRunQuery): Promise<ExecutionControlRun> {
 			const parsed = await requestExecutionControl(`/internal/execution/runs/${query.runId}`, {
@@ -516,6 +545,29 @@ function parseDurableRun(payload: JsonRecord): ExecutionControlRun {
 		traceId: readRequiredString(payload, "trace_id"),
 		turnId: readRequiredString(payload, "turn_id"),
 		updatedAt: readRequiredString(payload, "updated_at"),
+	};
+}
+
+function parseOwnerDeletion(payload: JsonRecord): ExecutionControlOwnerDeletion {
+	const state = readRequiredString(payload, "state");
+	const activeRunCount = payload.active_run_count;
+	if (
+		(state !== "draining" && state !== "deleted") ||
+		typeof activeRunCount !== "number" ||
+		!Number.isInteger(activeRunCount) ||
+		activeRunCount < 0
+	) {
+		throw new ExecutionControlTransportError({
+			code: "execution_control_invalid_response",
+			message: "Execution control returned an invalid owner deletion response.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	return {
+		activeRunCount,
+		ownerUserId: readRequiredString(payload, "owner_user_id"),
+		state,
 	};
 }
 

@@ -61,6 +61,28 @@ interface WorkerRuntime {
 	scheduled(): Promise<void>;
 }
 
+function scheduledErrorDetails(error: unknown): Record<string, string> {
+	if (error instanceof Error) {
+		return {
+			message: error.message,
+			name: error.name,
+		};
+	}
+	return { message: String(error), name: "UnknownError" };
+}
+
+async function runScheduledSweep(name: string, sweep: () => Promise<void>): Promise<void> {
+	try {
+		await sweep();
+	} catch (error) {
+		console.error({
+			error: scheduledErrorDetails(error),
+			source: "app-api.scheduled",
+			task: name,
+		});
+	}
+}
+
 export function createWorkerRuntime(
 	env: Env,
 	dependencies: WorkerRuntimeDependencies = {},
@@ -140,6 +162,7 @@ export function createWorkerRuntime(
 			return accountLifecycleService;
 		}
 		accountLifecycleService = buildAccountLifecycleService({
+			executionController: createExecutionControlRuntimeClient(env),
 			profileMemoryService: resolveProfileMemoryService(),
 			removeAuthUser: async (userId) => {
 				const auth = await getAppAuth(env);
@@ -175,35 +198,56 @@ export function createWorkerRuntime(
 			);
 		},
 		async scheduled(): Promise<void> {
-			if (isDeployedEnvironment(resolveEnvironment(env))) {
+			const deployed = isDeployedEnvironment(resolveEnvironment(env));
+			const executionConfigured = isExecutionControlRuntimeConfigured(env);
+
+			await runScheduledSweep("account-admin.stale-commands", async () => {
+				if (!deployed) {
+					return;
+				}
 				const indeterminate = await createPgAccountAdminStore(env).markStaleCommandsIndeterminate(
 					new Date(Date.now() - 5 * 60_000),
 				);
 				if (indeterminate > 0) {
 					console.error({ indeterminate, source: "app-api.account-admin-reconciler" });
 				}
-			}
-			if (isDeployedEnvironment(resolveEnvironment(env)) || dependencies.emailAccessService) {
+			});
+
+			await runScheduledSweep("email-access.expire", async () => {
+				if (!(deployed || dependencies.emailAccessService)) {
+					return;
+				}
 				await resolveEmailAccessService().expire();
-			}
-			if (isExecutionControlRuntimeConfigured(env)) {
-				const executionRuntime = createExecutionControlRuntimeClient(env);
-				const { chatCommandService, runtimeRunService } =
-					resolveScheduledRuntimeServices(executionRuntime);
-				if (!chatCommandService.dispatchPendingAdmissions) {
-					throw new Error("Chat admission product finalization is not configured.");
-				}
-				await chatCommandService.dispatchPendingAdmissions();
-				if (!runtimeRunService.dispatchPendingCancellations) {
-					throw new Error("Run cancellation dispatcher is not configured.");
-				}
-				await runtimeRunService.dispatchPendingCancellations();
-			}
-			if (isExecutionControlRuntimeConfigured(env)) {
-				await resolveProfileMemoryService().dispatchPending();
-			}
-			if (isExecutionControlRuntimeConfigured(env)) {
-				await resolveAccountLifecycleService().dispatchPending();
+			});
+
+			if (executionConfigured) {
+				await runScheduledSweep("chat.admission", async () => {
+					const { chatCommandService } = resolveScheduledRuntimeServices(
+						createExecutionControlRuntimeClient(env),
+					);
+					if (!chatCommandService.dispatchPendingAdmissions) {
+						throw new Error("Chat admission product finalization is not configured.");
+					}
+					await chatCommandService.dispatchPendingAdmissions();
+				});
+
+				await runScheduledSweep("runtime-run.cancellation", async () => {
+					const { runtimeRunService } = resolveScheduledRuntimeServices(
+						createExecutionControlRuntimeClient(env),
+					);
+					if (!runtimeRunService.dispatchPendingCancellations) {
+						throw new Error("Run cancellation dispatcher is not configured.");
+					}
+					await runtimeRunService.dispatchPendingCancellations();
+				});
+
+				await runScheduledSweep("profile-memory.dispatch", async () => {
+					await resolveProfileMemoryService().dispatchPending();
+				});
+
+				await runScheduledSweep("account-lifecycle.dispatch", async () => {
+					await resolveAccountLifecycleService().dispatchPending();
+				});
 			}
 		},
 	};

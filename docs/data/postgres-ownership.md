@@ -42,9 +42,9 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `profile.*` | App API 账号设置 | App API |
 | `campus_groups.sections`、`campus_groups.groups` | App API 同好群模块 | App API、通过内部接口访问的 Ops Web |
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
-| `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*` | execution-control | execution-control、获准 Ops Web 投影 |
+| `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影 |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
-| `campus_docs_serving.current_index` | execution-control（由 Campus Docs 发布任务写入） | Campus Docs 发布任务；供后续在线知识能力使用 |
+| `campus_docs_serving.current_index` | Campus Docs serving（当前 publisher 复用 `execution_control` 技术身份写入） | Campus Docs publisher；供后续在线知识能力使用 |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `internal_portal.credentials`、`internal_portal.automation_tokens` | Ops Web | Ops Web；internal-portal-collection 只通过内部解析 API 消费结果 |
@@ -57,9 +57,9 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 `drizzle.app_api_migrations` 这一条 ledger 迁移；Better Auth 运行时不执行 DDL，也不维护第二条
 migration 记录。
 
-Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs 发布任务复用
-`execution_control` 数据库身份替换 `campus_docs_serving.current_index` 单行绑定。当前在线
-execution-control 不读取该表；发布任务不创建独立数据库角色、连接字符串或 Secret。
+Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs serving 逻辑上拥有
+`campus_docs_serving.current_index` 单行绑定；当前 publisher 继续复用 `execution_control` 数据库身份
+写入。当前在线 execution-control 不读取该表；发布任务不创建独立数据库角色、连接字符串或 Secret。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 通知 schema 与显式发布 Job 同样复用既有 `campus_agent` owner Secret，不创建线上
 `notice_publisher` 登录或密码。`notice_publisher` 只保留为本地 worktree 的开发角色；通知 migration
@@ -73,7 +73,7 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
 | --- | --- | --- |
 | App API | `apps/app-api/src/db/schema/managed.ts` 与 `apps/app-api/drizzle/` | `drizzle.app_api_migrations` |
 | execution-control | `apps/execution-control/internal/schemamigrations/` | `public.execution_control_migrations` |
-| Model Config | `apps/model-config/internal/modelconfig/migration.go` | `model_config.schema_migrations` |
+| Model Config | `apps/model-config/internal/modelconfig/migration.go`（schema Job 以 `campus_agent` 执行） | `model_config.schema_migrations` |
 | 通知 | `jobs/notice-publisher/migrations/` | `notices.schema_migrations` |
 | Ops Web | `packages/domains/dining/src/schema.ts`、`apps/ops-web/ops/db/internal-portal-schema.ts` 与 `apps/ops-web/drizzle/` | `drizzle.ops_web_dining_migrations`（保留历史名称） |
 
@@ -88,11 +88,71 @@ execution-control 不读取该表；发布任务不创建独立数据库角色�
   独立写入。重跑 grants 或 bootstrap 不得代替 migration；
 - `IF EXISTS`、`IF NOT EXISTS` 只用于 migration 已明确支持且由集成测试覆盖的前置状态，不作为
   未知结构、缺失对象或失败 migration 的 fallback；
+- Model Config schema Job 必须拒绝 `model_config` schema、表、列、constraint、index、owner、ledger
+  或 grant 的未知/漂移状态；`campus_agent` 是 DDL owner，`model_config` 只作为常驻 runtime role，
+  不新增或拆分数据库角色；
 - 修改 migration 时必须运行所属 PostgreSQL Testcontainers 套件，至少覆盖空库、受支持历史升级、
   未知部分状态、重复执行及运行角色权限；Drizzle 所有者还要覆盖已应用 hash 校验。
 
 `campus_docs_serving` 的 DDL 和授权属于 execution-control 的 migration ledger；publisher 只写业务
 记录，不执行 DDL 或维护第二条 migration ledger。
+
+## 数据生命周期
+
+| 数据 | 逻辑 owner | 生命周期与清理责任 |
+| --- | --- | --- |
+| 用户、会话、原始执行输入 | App API | 账号生命周期；由 App API 删除任务清理 |
+| execution run/event/step/attempt/result projection | execution-control | 账号删除完成前保留，删除时 cascade 清理 |
+| `owner_deletion_fences(state=deleted)` | execution-control | 保留最小 tombstone，阻止 owner 复活；不含用户内容 |
+| Temporal history | Temporal/platform | 按平台 retention；不由 PostgreSQL 删除任务即时清理 |
+| Hindsight personal memory | Hindsight；execution-control 推进删除命令 | 账号清除合同；execution-control 不保存正文 |
+| 门户原始 source/file/source.json | 采集/来源数据面 | 按来源清单和业务引用决定；由来源 owner 人工核对清理 |
+| normalized reader/source manifest | Campus Docs/Campus Web 数据面 | 当前及仍被清单引用的历史对象保留 |
+| chunk/embedding 内容寻址制品 | Campus Docs retrieval serving | 由显式引用或人工清单治理，不加宽泛 TTL |
+| 当前索引及旧 Qdrant collection | Campus Docs serving | 当前 collection 保留；旧 collection 人工核对后删除 |
+| logs/traces/evaluation records | 各观测/评测系统 | 各系统自己的 retention 合同 |
+
+对象存储 lifecycle 只表达已确认的阶段性规则，不替代数据 owner 对 source、normalized、chunk 和
+embedding 制品的存活判断。未有明确引用或删除清单时，本仓库不自动增加通用 TTL 或清理器。
+
+## 连接预算
+
+连接上限是部署容量合同，不能从“当前没有报错”推断出来。常驻 workload 和一次性 Job 必须把
+连接池上限、最大副本数和最大 Job 重叠数一起纳入环境仓的容量计算。
+
+当前源码可确认的单实例上限如下：
+
+| 消费方 | 单实例上限 | 说明 |
+| --- | ---: | --- |
+| execution-control projection | 8 | `pgxpool` runtime pool |
+| execution-control personal memory state | 4 | 与 projection 分开的 pool |
+| Model Config runtime | 4 | 只供在线配置服务 |
+| Ops Web runtime | 4 | internal-portal check 也复用该 pool 上限 |
+| App API Node runtime | 4 | 部署环境的 Node pool；Cloudflare Worker 使用 Hyperdrive，不建立该 pool |
+| execution-control schema migrator | 1 | `database/sql` migration connection |
+| Model Config schema installer | 1 | `database/sql` migration connection |
+| Ops Web bootstrap/dining | 1 | bootstrap 进程显式使用单连接 pool |
+| notice-publisher | 1 | Job 进程显式使用单连接 pool |
+| Campus Docs publisher | 1 | 使用单个 PostgreSQL client |
+
+`providerconfig.Store` 只保留为历史迁移和测试辅助，不是当前常驻运行时消费者，不计入常驻预算。
+`ingestion-control` 已退役，也不计入当前预算。App API Worker 的 Hyperdrive 连接数由 Cloudflare
+平台和环境仓配置拥有，源码仓不能给它假定一个本地 pool 上限。
+
+每个环境必须使用以下不变量核对，而不是把某个单独的默认值当作安全结论：
+
+```text
+常驻 Pod 副本 × 各自 pool 上限
+集群内最大重叠的 schema/bootstrap/publisher/check Job 连接
+Cloudflare Hyperdrive 平台预算
+CNPG、Temporal、Hindsight 及其他平台保留连接
+安全余量
+<= PostgreSQL max_connections
+```
+
+当前 CNPG 清单没有声明 `max_connections`、备份保留或平台侧 Hyperdrive 预算；因此仓库只能声明
+上述计算方法和应用侧上限，不能声称当前环境已经满足该不变量。环境仓在调整副本、启用暂停的 Job
+或改变数据库规格时，必须重新计算并记录结果。
 
 ## 访问规则
 

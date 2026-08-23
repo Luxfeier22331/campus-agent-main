@@ -54,6 +54,17 @@ App API 只通过私有绑定读取 `campus-agent-derived/dining/floorplans/`。
   通用 artifact core。
 - Qdrant vector 和原生 snapshot 不是采集对象存储事实。
 
+## 生命周期与恢复
+
+对象存储数据按逻辑 owner 管理：来源 owner 负责门户原始对象和 `source.json` 引用关系，Campus Docs
+serving 负责 chunk/embedding 内容寻址制品与当前索引发布，Campus Web/Campus Docs 数据面负责仍被公开
+来源清单引用的 reader 和补充资产。当前及历史仍被清单引用的对象不得由通用 TTL 删除；未被引用的对象
+只能在人工重新计算存活集合并核对后清理。
+
+bucket versioning 只提供对象版本操作能力，不等于独立备份。备份目的地、保留期、RPO/RTO 和恢复演练
+由环境 owner 提供；应用仓库不因使用 RustFS 自动声称已有备份。恢复应先写入隔离目标，再按来源摘要、
+对象 checksum、当前索引绑定和 Qdrant collection 进行核对。
+
 ## 相关文档
 
 - `docs/architecture/system/data-plane.md`

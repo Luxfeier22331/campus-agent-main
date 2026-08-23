@@ -49,7 +49,18 @@ Campus Web 使用 App API 的认证接口和当前用户投影组合登录、注
 状态，不直连 Better Auth 表，也不能模拟登录或直接删除用户。
 
 临时密码只在签发响应中出现一次，并要求用户登录后修改。注销先建立 App API 所有的异步任务，
-清理个人记忆和账号关联数据后再删除认证账号；任务状态不是 execution-control 或 Temporal 的
+再按以下顺序收敛账号生命周期：
+
+1. App API 接受删除请求并撤销会话；
+2. execution-control 为 `owner_user_id` 建立 deletion fence，阻止新 run，并为活动 run 写入或复用取消命令；
+3. 等待活动 run 进入终态；
+4. Hindsight 清除 bank 和 memory，并确认个人记忆调用与命令已排空；
+5. execution-control 删除该 owner 的 execution projection；
+6. App API 清理自己的账号关联数据，最后删除 Better Auth user。
+
+execution-control 保留 `owner_deletion_fences(state=deleted)` 这一条最小 tombstone，用于阻止旧 workflow
+或旧请求使 owner 复活；它不保存用户内容。Temporal history 不在账号删除事务中即时删除，由 Temporal
+或平台 retention 合同负责。任务状态仍由 App API 生命周期拥有，不是 execution-control 或 Temporal 的
 产品工作流状态。
 
 MUC Wiki 是独立服务，只通过明确的联邦协议关联账号。两个系统不共享 Cookie、密码、会话表或

@@ -19,6 +19,12 @@ export interface RuntimeRunCancellationRecord extends RuntimeRunOwnershipRecord 
 	requestedAt: string;
 }
 
+export interface RuntimeRunCancellationClaim {
+	kind: "local_finalization" | "remote_delivery";
+	leaseToken: string;
+	run: RuntimeRunCancellationRecord;
+}
+
 export type RuntimeRunCancellationDecision =
 	| { kind: "local_finalization"; run: RuntimeRunCancellationRecord }
 	| { kind: "remote_delivery"; run: RuntimeRunCancellationRecord }
@@ -30,16 +36,27 @@ export interface RuntimeRunStore {
 		ownerUserId: string;
 		runId: string;
 	}): Promise<RuntimeRunOwnershipRecord | null>;
-	listPendingCancellations(input?: { limit?: number }): Promise<
-		Array<{
-			kind: "local_finalization" | "remote_delivery";
-			run: RuntimeRunCancellationRecord;
-		}>
-	>;
-	markCancellationDelivered(input: { deliveredAt: string; runId: string }): Promise<boolean>;
+	claimCancellation(input: {
+		leaseExpiresAt: Date;
+		leaseToken: string;
+		now: Date;
+		runId: string;
+	}): Promise<RuntimeRunCancellationClaim | null>;
+	claimPendingCancellations(input: {
+		leaseExpiresAt: Date;
+		leaseToken: string;
+		limit: number;
+		now: Date;
+	}): Promise<RuntimeRunCancellationClaim[]>;
+	markCancellationDelivered(input: {
+		deliveredAt: string;
+		leaseToken: string;
+		runId: string;
+	}): Promise<boolean>;
 	recordCancellationFailure(input: {
 		errorCode: string;
 		failedAt: string;
+		leaseToken: string;
 		runId: string;
 	}): Promise<boolean>;
 	requestCancellation(input: {

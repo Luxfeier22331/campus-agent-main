@@ -124,6 +124,7 @@ export function createRequestScopeFactory(input: {
 					})),
 				resolveAccountLifecycleService: () =>
 					(accountLifecycle ??= buildAccountLifecycleService({
+						executionController: executionRuntime ?? createExecutionControlRuntimeClient(input.env),
 						profileMemoryService: resolveProfileMemoryService(),
 						removeAuthUser: async (userId) => {
 							const auth = await getAppAuth();

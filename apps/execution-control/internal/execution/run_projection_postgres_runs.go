@@ -36,6 +36,21 @@ func (s *PostgresRunProjectionStore) CreateRun(
 		return DurableRun{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockOwnerDeletionInTx(ctx, tx, run.OwnerUserID); err != nil {
+		return DurableRun{}, err
+	}
+	var ownerDeletionState string
+	ownerDeletionErr := tx.QueryRow(ctx, `
+		select state from execution_control.owner_deletion_fences where owner_user_id = $1`, run.OwnerUserID).Scan(&ownerDeletionState)
+	if ownerDeletionErr == nil {
+		if OwnerDeletionState(ownerDeletionState) == OwnerDeletionStateDeleted {
+			return DurableRun{}, ErrOwnerDeleted
+		}
+		return DurableRun{}, ErrOwnerDeletionNotDrained
+	}
+	if !errors.Is(ownerDeletionErr, pgx.ErrNoRows) {
+		return DurableRun{}, ownerDeletionErr
+	}
 	_, err = tx.Exec(
 		ctx,
 		`insert into execution_control.agent_runs (

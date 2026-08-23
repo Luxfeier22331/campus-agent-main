@@ -16,6 +16,7 @@ import (
 var (
 	ErrMemoryFenceConflict           = errors.New("personal memory fence conflict")
 	ErrMemoryReceiptBlocked          = errors.New("personal memory command is blocked by an earlier unresolved receipt")
+	ErrMemoryOwnerNotDrained         = errors.New("personal memory owner has not drained")
 	ErrMemoryStateStoreNotConfigured = errors.New("personal memory state store not configured")
 )
 
@@ -39,6 +40,7 @@ type StateStore interface {
 	EndCall(context.Context, string, string) error
 	FinalizeCommand(context.Context, string, string, string, string, string, string) (CommandReceipt, error)
 	GenerationDrained(context.Context, string, int64) (bool, error)
+	MarkOwnerDeleted(context.Context, string) error
 	MarkCommandRetryable(context.Context, string, string) error
 	SubjectDrained(context.Context, string, int64, string, int64) (bool, error)
 }
@@ -117,6 +119,44 @@ func (s *InMemoryStateStore) GenerationDrained(_ context.Context, ownerHash stri
 		}
 	}
 	return true, nil
+}
+
+func (s *InMemoryStateStore) MarkOwnerDeleted(_ context.Context, ownerHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for callID, lease := range s.leases {
+		if now.After(lease.ExpiresAt) {
+			delete(s.leases, callID)
+		}
+	}
+	for _, lease := range s.leases {
+		if lease.OwnerScopeHash == ownerHash {
+			return ErrMemoryOwnerNotDrained
+		}
+	}
+	for _, receipt := range s.receipts {
+		if receipt.OwnerScopeHash == ownerHash && !commandReceiptTerminal(receipt.Status) {
+			return ErrMemoryOwnerNotDrained
+		}
+	}
+	fence := s.fences[ownerHash]
+	if fence.Generation < 1 {
+		fence.Generation = 1
+	}
+	fence.Lifecycle = "deleted"
+	s.fences[ownerHash] = fence
+	for callID, lease := range s.leases {
+		if lease.OwnerScopeHash == ownerHash {
+			delete(s.leases, callID)
+		}
+	}
+	for commandID, receipt := range s.receipts {
+		if receipt.OwnerScopeHash == ownerHash {
+			delete(s.receipts, commandID)
+		}
+	}
+	return nil
 }
 
 func (s *InMemoryStateStore) SubjectDrained(_ context.Context, ownerHash string, generation int64, subjectHash string, beforeSequence int64) (bool, error) {
@@ -301,6 +341,53 @@ func (s *PostgresStateStore) GenerationDrained(ctx context.Context, ownerHash st
 	return !active, err
 }
 
+func (s *PostgresStateStore) MarkOwnerDeleted(ctx context.Context, ownerHash string) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+		insert into execution_control.personal_memory_owner_fences
+			(owner_scope_hash, generation, lifecycle_state, last_owner_sequence, updated_at)
+		values ($1, 1, 'active', 0, now())
+		on conflict (owner_scope_hash) do nothing`, ownerHash); err != nil {
+		return err
+	}
+	var lifecycle string
+	if err := tx.QueryRow(ctx, `
+		select lifecycle_state
+		from execution_control.personal_memory_owner_fences
+		where owner_scope_hash = $1
+		for update`, ownerHash).Scan(&lifecycle); err != nil {
+		return err
+	}
+	var active bool
+	if err := tx.QueryRow(ctx, `select
+		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash = $1 and expires_at > now())
+		or exists(select 1 from execution_control.personal_memory_command_receipts where owner_scope_hash = $1 and status not in ('succeeded', 'failed'))`, ownerHash).Scan(&active); err != nil {
+		return err
+	}
+	if active {
+		return ErrMemoryOwnerNotDrained
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into execution_control.personal_memory_owner_fences
+			(owner_scope_hash, generation, lifecycle_state, last_owner_sequence, updated_at)
+		values ($1, 1, 'deleted', 0, now())
+		on conflict (owner_scope_hash) do update
+		set lifecycle_state = 'deleted', updated_at = now()`, ownerHash); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `delete from execution_control.personal_memory_call_leases where owner_scope_hash = $1`, ownerHash); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `delete from execution_control.personal_memory_command_receipts where owner_scope_hash = $1`, ownerHash); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *PostgresStateStore) SubjectDrained(ctx context.Context, ownerHash string, generation int64, subjectHash string, beforeSequence int64) (bool, error) {
 	var active bool
 	err := s.pool.QueryRow(ctx, `select
@@ -456,6 +543,9 @@ func (s *PostgresStateStore) Close() {
 }
 
 func applyFenceCommand(fence *memoryFence, command PersonalMemoryCommandRequest) error {
+	if fence.Lifecycle == "deleted" {
+		return fmt.Errorf("%w: owner is deleted", ErrMemoryFenceConflict)
+	}
 	switch command.CommandKind {
 	case "owner_erase":
 		if command.OwnerSequence <= fence.Sequence {

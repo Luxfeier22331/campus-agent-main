@@ -213,6 +213,28 @@ func TestAdminPutRequiresCredentialForInitialConfig(t *testing.T) {
 	}
 }
 
+func TestAdminModelsPropagatesResolveFailure(t *testing.T) {
+	store := &fakeStore{resolveErr: errors.New("database connection lost")}
+	request := httptest.NewRequest(http.MethodPost, "/internal/admin/model-configs/primary_agent/models", strings.NewReader(`{"provider":"openai-compatible","base_url":"https://provider.example/v1"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	New(store).ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Error.Code != "model_config_unavailable" {
+		t.Fatalf("error code = %q, want model_config_unavailable", payload.Error.Code)
+	}
+}
+
 func TestAdminPutRejectsTrailingJSONValue(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPut, "/internal/admin/model-configs/primary_agent", strings.NewReader(`{"provider":"openai"} {}`))
 	request.Header.Set("Content-Type", "application/json")

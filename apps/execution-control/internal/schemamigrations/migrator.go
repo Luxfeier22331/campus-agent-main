@@ -26,6 +26,7 @@ const (
 )
 
 var executionControlTables = []string{
+	"execution_control.owner_deletion_fences",
 	"execution_control.agent_runs",
 	"execution_control.agent_run_events",
 	"execution_control.agent_run_steps",
@@ -156,6 +157,7 @@ grant usage on schema execution_control to execution_control, ops_web;
 revoke create on schema runtime from execution_control, ops_web;
 grant usage on schema runtime to execution_control, ops_web;
 revoke all privileges on table
+	execution_control.owner_deletion_fences,
 	execution_control.agent_runs,
 	execution_control.agent_run_events,
 	execution_control.agent_run_steps,
@@ -231,6 +233,7 @@ end
 $revoke_column_privileges$;
 
 grant select, insert, update, delete on table
+	execution_control.owner_deletion_fences,
 	execution_control.agent_runs,
 	execution_control.agent_run_events,
 	execution_control.agent_run_steps,
@@ -393,6 +396,8 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("open schema migration database: %w", err)
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(0)
 	migrations, err := fs.Sub(migrationFiles, "migrations")
 	if err != nil {
 		_ = db.Close()

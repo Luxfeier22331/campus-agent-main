@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+
+import { EXECUTION_CONTROL_TIMEOUT_MS } from "../../config";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
@@ -7,7 +10,7 @@ import {
 } from "../integration";
 import { toBrowserRunEvent } from "./browser-projection";
 import type {
-	RuntimeRunCancellationRecord,
+	RuntimeRunCancellationClaim,
 	RuntimeRunEventProjection,
 	RuntimeRunEventSubscriptionPolicy,
 	RuntimeRunOwnershipRecord,
@@ -25,6 +28,8 @@ const DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY = {
 	maxAttempts: 180,
 	waitMs: 25_000,
 } as const;
+
+const CANCELLATION_LEASE_MS = EXECUTION_CONTROL_TIMEOUT_MS + 30_000;
 
 const RUNTIME_RUN_STEP_PHASES: RuntimeRunStepPhase[] = [
 	"queued",
@@ -245,6 +250,20 @@ export function buildRuntimeRunService(input: {
 	store: RuntimeRunStore;
 }): RuntimeRunService {
 	const now = input.now ?? (() => new Date());
+
+	function newCancellationLeaseToken(): string {
+		return `cancel_lease_${randomUUID().replace(/-/g, "")}`;
+	}
+
+	async function claimCancellation(runId: string): Promise<RuntimeRunCancellationClaim | null> {
+		const claimedAt = now();
+		return input.store.claimCancellation({
+			leaseExpiresAt: new Date(claimedAt.getTime() + CANCELLATION_LEASE_MS),
+			leaseToken: newCancellationLeaseToken(),
+			now: claimedAt,
+			runId,
+		});
+	}
 	function validateSubscriptionPolicy(
 		policy?: RuntimeRunEventSubscriptionPolicy,
 	): Required<RuntimeRunEventSubscriptionPolicy> {
@@ -357,7 +376,7 @@ export function buildRuntimeRunService(input: {
 		if (!status) {
 			switch (run.status) {
 				case "accepted":
-					status = "pending_admission";
+					status = run.admissionStatus === "admitted" ? "accepted" : "pending_admission";
 					break;
 				case "completed":
 				case "needs_clarification":
@@ -388,7 +407,9 @@ export function buildRuntimeRunService(input: {
 					? "completed"
 					: status === "failed"
 						? "failed"
-						: "queued";
+						: status === "accepted"
+							? "admitted"
+							: "queued";
 		const acceptedAt = normalizeRunTimestamp(run.acceptedAt) ?? run.acceptedAt;
 		const completedAt = isTerminalExecutionStatus(status)
 			? normalizeRunTimestamp(run.completedAt)
@@ -411,29 +432,44 @@ export function buildRuntimeRunService(input: {
 	}
 
 	async function finalizeLocalCancellation(
-		run: RuntimeRunCancellationRecord,
+		claim: RuntimeRunCancellationClaim,
 	): Promise<RuntimeRunSummary> {
-		if (!input.finalizeLocalCancellation) {
-			throw new ExecutionControlTransportError({
-				code: "dependency_not_ready",
-				message: "Local run cancellation finalization is not configured.",
-				retryable: true,
-				status: 503,
+		const run = claim.run;
+		try {
+			if (!input.finalizeLocalCancellation) {
+				throw new ExecutionControlTransportError({
+					code: "dependency_not_ready",
+					message: "Local run cancellation finalization is not configured.",
+					retryable: true,
+					status: 503,
+				});
+			}
+			await input.finalizeLocalCancellation({
+				completedAt: run.requestedAt,
+				runId: run.runId,
 			});
+			return toLocalRunSummary(run, {
+				status: "canceled",
+				terminalReason: run.cancelReason ?? "user_requested",
+			});
+		} catch (error) {
+			await input.store.recordCancellationFailure({
+				errorCode:
+					error instanceof ExecutionControlTransportError
+						? error.code
+						: "local_cancellation_finalization_failed",
+				failedAt: now().toISOString(),
+				leaseToken: claim.leaseToken,
+				runId: run.runId,
+			});
+			throw error;
 		}
-		await input.finalizeLocalCancellation({
-			completedAt: run.requestedAt,
-			runId: run.runId,
-		});
-		return toLocalRunSummary(run, {
-			status: "canceled",
-			terminalReason: run.cancelReason ?? "user_requested",
-		});
 	}
 
 	async function deliverRemoteCancellation(
-		run: RuntimeRunCancellationRecord,
+		claim: RuntimeRunCancellationClaim,
 	): Promise<ExecutionControlRun> {
+		const run = claim.run;
 		try {
 			const remote = await input.executionRuntime.cancelRun({
 				reason: run.cancelReason ?? "user_requested",
@@ -443,6 +479,7 @@ export function buildRuntimeRunService(input: {
 			assertRunMatchesOwnership(run, remote);
 			await input.store.markCancellationDelivered({
 				deliveredAt: now().toISOString(),
+				leaseToken: claim.leaseToken,
 				runId: run.runId,
 			});
 			return remote;
@@ -453,6 +490,7 @@ export function buildRuntimeRunService(input: {
 						? error.code
 						: "execution_control_unavailable",
 				failedAt: now().toISOString(),
+				leaseToken: claim.leaseToken,
 				runId: run.runId,
 			});
 			throw error;
@@ -597,9 +635,6 @@ export function buildRuntimeRunService(input: {
 					status: 404,
 				});
 			}
-			if (decision.kind === "local_finalization") {
-				return { run: await finalizeLocalCancellation(decision.run) };
-			}
 			if (decision.kind === "terminal") {
 				throw new AppApiRouteError({
 					code: "run_already_terminal",
@@ -616,29 +651,47 @@ export function buildRuntimeRunService(input: {
 				assertRunMatchesOwnership(decision.run, remote);
 				return { run: toRunSummary(remote) };
 			}
-			return { run: toRunSummary(await deliverRemoteCancellation(decision.run)) };
+			const claim = await claimCancellation(decision.run.runId);
+			if (!claim) {
+				return { run: toLocalRunSummary(decision.run) };
+			}
+			if (claim.kind === "local_finalization") {
+				return { run: await finalizeLocalCancellation(claim) };
+			}
+			return { run: toRunSummary(await deliverRemoteCancellation(claim)) };
 		},
 		async dispatchPendingCancellations(dispatchInput = {}) {
-			const candidates = await input.store.listPendingCancellations({
-				limit: dispatchInput.limit ?? 25,
-			});
+			const limit = Math.max(1, Math.min(dispatchInput.limit ?? 25, 100));
 			let delivered = 0;
 			let failed = 0;
 			let finalized = 0;
-			for (const candidate of candidates) {
+			let processed = 0;
+			for (let index = 0; index < limit; index += 1) {
+				const claimedAt = now();
+				const candidates = await input.store.claimPendingCancellations({
+					leaseExpiresAt: new Date(claimedAt.getTime() + CANCELLATION_LEASE_MS),
+					leaseToken: newCancellationLeaseToken(),
+					limit: 1,
+					now: claimedAt,
+				});
+				const candidate = candidates[0];
+				if (!candidate) {
+					break;
+				}
+				processed += 1;
 				try {
 					if (candidate.kind === "local_finalization") {
-						await finalizeLocalCancellation(candidate.run);
+						await finalizeLocalCancellation(candidate);
 						finalized += 1;
 					} else {
-						await deliverRemoteCancellation(candidate.run);
+						await deliverRemoteCancellation(candidate);
 						delivered += 1;
 					}
 				} catch {
 					failed += 1;
 				}
 			}
-			return { delivered, failed, finalized, processed: candidates.length };
+			return { delivered, failed, finalized, processed };
 		},
 		async getStatus(statusInput) {
 			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);

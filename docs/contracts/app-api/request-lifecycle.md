@@ -77,6 +77,10 @@ app-api 取消发件箱，再由 reconciler 幂等投递 execution-control。
 conversation detail 的 `activeRunId` 是浏览器刷新恢复入口。客户端必须先读取 run 摘要，再从持久事件
 游标恢复当前消息与状态；恢复流程不得重新提交 prompt，也不得生成新的 idempotency key 或第二个 run。
 
+账号删除期间，execution-control 的 owner deletion fence 拒绝该 owner 的新 run；已存在的活动 run
+由删除任务通过持久取消命令排空。App API 不把取消请求的 HTTP 返回顺序当作删除完成证明，只有 memory
+清除、execution projection 清理和自身账号数据清理全部成功后才删除 Better Auth user。
+
 ## 最终事务
 
 收到 terminal event 后，app-api 在同一事务内：

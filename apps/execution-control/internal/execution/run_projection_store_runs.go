@@ -26,6 +26,12 @@ func (s *InMemoryRunProjectionStore) CreateRun(
 	if _, exists := s.runs[run.RunID]; exists {
 		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunExists, run.RunID)
 	}
+	if state := s.ownerDeletionFences[run.OwnerUserID]; state == OwnerDeletionStateDeleted {
+		return DurableRun{}, ErrOwnerDeleted
+	}
+	if state := s.ownerDeletionFences[run.OwnerUserID]; state == OwnerDeletionStateDraining {
+		return DurableRun{}, ErrOwnerDeletionNotDrained
+	}
 	if existingRunID, exists := s.activeRunByConversation[run.ConversationID]; exists {
 		return DurableRun{}, fmt.Errorf(
 			"%w: conversation_id=%s active_run_id=%s",

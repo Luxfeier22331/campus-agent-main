@@ -50,6 +50,12 @@ spec:
                 secretKeyRef:
                   name: campus-agent-postgres-campus-agent-owner
                   key: password
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

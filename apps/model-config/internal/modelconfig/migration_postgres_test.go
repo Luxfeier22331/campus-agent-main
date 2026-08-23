@@ -32,8 +32,13 @@ func TestPostgresMigration(t *testing.T) {
 	}
 	admin := connectPostgres(t, adminURL)
 	defer admin.Close(ctx)
-	if _, err := admin.Exec(ctx, "create role model_config login password 'model-config-password'"); err != nil {
-		t.Fatal(err)
+	for _, statement := range []string{
+		"create role campus_agent login password 'campus-agent-password'",
+		"create role model_config login password 'model-config-password'",
+	} {
+		if _, err := admin.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	t.Run("fresh install is idempotent and grants the runtime role", func(t *testing.T) {
@@ -53,6 +58,28 @@ func TestPostgresMigration(t *testing.T) {
 		}
 		if versionCount != 1 {
 			t.Fatalf("migration rows = %d", versionCount)
+		}
+		for _, object := range []string{"model_config", "model_config.model_configs", "model_config.schema_migrations"} {
+			var objectOwner string
+			query := "select pg_get_userbyid(nspowner) from pg_namespace where nspname='model_config'"
+			args := []any{}
+			if object != "model_config" {
+				query = "select pg_get_userbyid(relowner) from pg_class where oid=$1::regclass"
+				args = append(args, object)
+			}
+			if err := owner.QueryRow(ctx, query, args...).Scan(&objectOwner); err != nil {
+				t.Fatal(err)
+			}
+			if objectOwner != schemaOwnerRole {
+				t.Fatalf("%s owner = %s, want %s", object, objectOwner, schemaOwnerRole)
+			}
+		}
+		var runtimeUsage, runtimeCreate bool
+		if err := owner.QueryRow(ctx, "select has_schema_privilege('model_config','model_config','USAGE'), has_schema_privilege('model_config','model_config','CREATE')").Scan(&runtimeUsage, &runtimeCreate); err != nil {
+			t.Fatal(err)
+		}
+		if !runtimeUsage || runtimeCreate {
+			t.Fatalf("runtime schema privileges usage=%t create=%t", runtimeUsage, runtimeCreate)
 		}
 		for _, privilege := range []string{"SELECT", "INSERT", "UPDATE"} {
 			var granted bool
@@ -103,6 +130,106 @@ func TestPostgresMigration(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects schema drift instead of repairing it implicitly", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			database  string
+			mutate    func(*testing.T, string)
+			wantError string
+		}{
+			{
+				name:     "unknown column",
+				database: "model_config_drift_column",
+				mutate: func(t *testing.T, databaseURL string) {
+					conn := connectPostgres(t, databaseURL)
+					defer conn.Close(t.Context())
+					if _, err := conn.Exec(t.Context(), "alter table model_config.model_configs add column drift text"); err != nil {
+						t.Fatal(err)
+					}
+				},
+				wantError: "unexpected columns",
+			},
+			{
+				name:     "unknown relation",
+				database: "model_config_drift_relation",
+				mutate: func(t *testing.T, databaseURL string) {
+					conn := connectPostgres(t, databaseURL)
+					defer conn.Close(t.Context())
+					if _, err := conn.Exec(t.Context(), "create table model_config.drift(id integer)"); err != nil {
+						t.Fatal(err)
+					}
+				},
+				wantError: "unexpected relations",
+			},
+			{
+				name:     "unknown constraint",
+				database: "model_config_drift_constraint",
+				mutate: func(t *testing.T, databaseURL string) {
+					conn := connectPostgres(t, databaseURL)
+					defer conn.Close(t.Context())
+					if _, err := conn.Exec(t.Context(), "alter table model_config.model_configs drop constraint model_configs_name_check"); err != nil {
+						t.Fatal(err)
+					}
+				},
+				wantError: "unexpected constraints",
+			},
+			{
+				name:     "unknown index",
+				database: "model_config_drift_index",
+				mutate: func(t *testing.T, databaseURL string) {
+					conn := connectPostgres(t, databaseURL)
+					defer conn.Close(t.Context())
+					if _, err := conn.Exec(t.Context(), "create index model_configs_drift_idx on model_config.model_configs(provider)"); err != nil {
+						t.Fatal(err)
+					}
+				},
+				wantError: "unexpected indexes",
+			},
+			{
+				name:     "extra runtime grant",
+				database: "model_config_drift_grant",
+				mutate: func(t *testing.T, databaseURL string) {
+					conn := connectPostgres(t, databaseURL)
+					defer conn.Close(t.Context())
+					if _, err := conn.Exec(t.Context(), "grant delete on table model_config.model_configs to model_config"); err != nil {
+						t.Fatal(err)
+					}
+				},
+				wantError: "DELETE",
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				ownerURL := createDatabase(t, adminURL, test.database)
+				key := writeKey(t, "01234567890123456789012345678901")
+				if err := Install(ctx, ownerURL, key, ""); err != nil {
+					t.Fatal(err)
+				}
+				test.mutate(t, ownerURL)
+				if err := Install(ctx, ownerURL, key, ""); err == nil || !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("Install() error = %v, want substring %q", err, test.wantError)
+				}
+			})
+		}
+	})
+
+	t.Run("rejects a table with the wrong owner", func(t *testing.T) {
+		ownerURL := createDatabase(t, adminURL, "model_config_drift_owner")
+		key := writeKey(t, "01234567890123456789012345678901")
+		if err := Install(ctx, ownerURL, key, ""); err != nil {
+			t.Fatal(err)
+		}
+		adminDatabaseURL := databaseURLForUser(t, adminURL, "model_config_drift_owner", "postgres", "postgres-integration-admin")
+		adminDatabase := connectPostgres(t, adminDatabaseURL)
+		if _, err := adminDatabase.Exec(ctx, "alter table model_config.model_configs owner to model_config"); err != nil {
+			t.Fatal(err)
+		}
+		adminDatabase.Close(ctx)
+		if err := Install(ctx, ownerURL, key, ""); err == nil || !strings.Contains(err.Error(), "owner/kind") {
+			t.Fatalf("Install() error = %v, want owner drift", err)
+		}
+	})
+
 	t.Run("conflicting target rolls back and preserves the legacy source", func(t *testing.T) {
 		ownerURL := createDatabase(t, adminURL, "model_config_conflict")
 		currentKey := writeKey(t, "01234567890123456789012345678901")
@@ -150,14 +277,20 @@ func createDatabase(t *testing.T, adminURL, name string) string {
 	t.Helper()
 	conn := connectPostgres(t, adminURL)
 	defer conn.Close(t.Context())
-	if _, err := conn.Exec(t.Context(), "create database "+pgx.Identifier{name}.Sanitize()); err != nil {
+	if _, err := conn.Exec(t.Context(), "create database "+pgx.Identifier{name}.Sanitize()+" owner campus_agent"); err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := url.Parse(adminURL)
+	return databaseURLForUser(t, adminURL, name, "campus_agent", "campus-agent-password")
+}
+
+func databaseURLForUser(t *testing.T, baseURL, database, user, password string) string {
+	t.Helper()
+	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed.Path = "/" + name
+	parsed.User = url.UserPassword(user, password)
+	parsed.Path = "/" + database
 	return parsed.String()
 }
 

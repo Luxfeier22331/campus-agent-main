@@ -21,8 +21,9 @@ Primary Agent 的持久执行采用 target → expected target hash →完整 co
 运行目标身份。普通 Job 直接读取一次完整配置，不执行 descriptor/resolve 往返；需要记录目标身份的
 制品直接使用响应中的 hash。
 
-Model Config 使用独立 `model_config` PostgreSQL role 与 `model_config.*` schema。Ops Web
-不直连数据库。Model Config 与 consumer 位于共同受信任的内部服务边界：服务不建立第二次服务间认证、
+Model Config 使用 `model_config.*` schema；schema Job 复用既有 `campus_agent` bootstrap role 安装、拥有
+并校验该 schema，常驻服务使用独立的 `model_config` runtime role。Ops Web 不直连数据库。Model Config
+与 consumer 位于共同受信任的内部服务边界：服务不建立第二次服务间认证、
 consumer token、consumer 注册或 name 权限矩阵。任意能够访问 listener 的内部服务都可以读取任意
 具名配置，新 consumer 不需要修改 Model Config 授权。Ops Web 自身的人员认证与 CSRF 校验保留；其
 传递的 actor 只用于审计。Provider API Key 是该边界内唯一的外部模型凭据。

@@ -109,6 +109,30 @@ func TestValidateRerankerRejectsIncompleteResponse(t *testing.T) {
 	}
 }
 
+func TestValidateTextProviderResponses(t *testing.T) {
+	tests := []struct {
+		name     string
+		protocol string
+		body     string
+		wantPass bool
+	}{
+		{name: "responses valid", protocol: "openai.responses", body: `{"id":"resp_123","output":[]}`, wantPass: true},
+		{name: "responses missing id", protocol: "openai.responses", body: `{"output":[]}`},
+		{name: "responses malformed", protocol: "openai.responses", body: `{"id":`},
+		{name: "chat valid", protocol: "openai.chat_completions", body: `{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`, wantPass: true},
+		{name: "chat missing choices", protocol: "openai.chat_completions", body: `{"id":"chatcmpl_123"}`},
+		{name: "chat null message", protocol: "openai.chat_completions", body: `{"choices":[{"message":null}]}`},
+		{name: "chat non-object message", protocol: "openai.chat_completions", body: `{"choices":[{"message":"ok"}]}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := validateTextProviderResponse(test.protocol, []byte(test.body)); (err == nil) != test.wantPass {
+				t.Fatalf("validateTextProviderResponse() error = %v, want pass = %t", err, test.wantPass)
+			}
+		})
+	}
+}
+
 func TestDiscoverModels(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/models" || r.Header.Get("Authorization") != "Bearer secret" {

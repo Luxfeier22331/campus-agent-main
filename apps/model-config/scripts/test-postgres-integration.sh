@@ -21,4 +21,4 @@ docker tag "${RYUK_IMAGE}" "${RYUK_TAG}"
 
 export TESTCONTAINERS_RYUK_DISABLED=false
 cd "$app_root"
-go test -count=1 -p=1 -tags=postgres_integration ./internal/modelconfig
+go test -count=1 -p=1 -tags=postgres_integration ./internal/modelconfig ./internal/httpapi

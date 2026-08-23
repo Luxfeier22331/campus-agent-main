@@ -22,6 +22,10 @@ status: active
 新增或修订对象先上传，再通过来源更新命令写入固定键；删除通过完整清单移除。RAG 只索引当前 reader，
 历史 reader 只要仍被清单引用就不能清理。
 
+生命周期 owner 也按阶段区分：来源 owner 管理门户原始对象和来源清单，Campus Web/Campus Docs 数据面
+管理仍被清单引用的 normalized reader 与补充资产，Campus Docs serving 管理 chunk/embedding 制品和
+当前 Qdrant collection。对象是否存在于 bucket 不等于仍可删除；本手册中的清理都是人工核对的明确集合。
+
 ## 更新来源
 
 1. 从当前 `campus-docs/source.json` 制作完整候选清单，不从 bucket 列表、修改时间或文件名推断内容。

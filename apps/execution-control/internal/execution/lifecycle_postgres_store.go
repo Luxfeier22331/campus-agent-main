@@ -39,6 +39,9 @@ func (s *PostgresRunProjectionStore) CreateRunWithStartIntent(
 		return DurableRunCreateResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockOwnerDeletionInTx(ctx, tx, run.OwnerUserID); err != nil {
+		return DurableRunCreateResult{}, err
+	}
 	existing, err := scanDurableRun(tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", run.RunID))
 	if err == nil {
 		if existing.RequestFingerprintSHA256 == run.RequestFingerprintSHA256 {
@@ -48,6 +51,18 @@ func (s *PostgresRunProjectionStore) CreateRunWithStartIntent(
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return DurableRunCreateResult{}, err
+	}
+	var ownerDeletionState string
+	ownerDeletionErr := tx.QueryRow(ctx, `
+		select state from execution_control.owner_deletion_fences where owner_user_id = $1`, run.OwnerUserID).Scan(&ownerDeletionState)
+	if ownerDeletionErr == nil {
+		if OwnerDeletionState(ownerDeletionState) == OwnerDeletionStateDeleted {
+			return DurableRunCreateResult{}, ErrOwnerDeleted
+		}
+		return DurableRunCreateResult{}, ErrOwnerDeletionNotDrained
+	}
+	if !errors.Is(ownerDeletionErr, pgx.ErrNoRows) {
+		return DurableRunCreateResult{}, ownerDeletionErr
 	}
 
 	_, err = tx.Exec(ctx, `insert into execution_control.agent_runs (

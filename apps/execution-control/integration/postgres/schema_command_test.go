@@ -344,6 +344,21 @@ func testExecutionControlSchemaDown(t *testing.T, harness *postgresHarness) {
 	t.Helper()
 	_, ownerURL := harness.ownerDatabase(t)
 	requireSchema(t, ownerURL, nil)
+	ownerDeletionPath := filepath.Join(
+		harness.moduleDir,
+		"internal",
+		"schemamigrations",
+		"migrations",
+		"00010_account_deletion_fence.sql",
+	)
+	ownerDeletionRaw, err := os.ReadFile(ownerDeletionPath)
+	if err != nil {
+		t.Fatalf("read owner deletion migration: %v", err)
+	}
+	_, ownerDeletionDownSQL, found := strings.Cut(string(ownerDeletionRaw), "-- +goose Down")
+	if !found {
+		t.Fatal("owner deletion migration has no down section")
+	}
 	path := filepath.Join(
 		harness.moduleDir,
 		"internal",
@@ -361,6 +376,9 @@ func testExecutionControlSchemaDown(t *testing.T, harness *postgresHarness) {
 	}
 	conn := connect(t, ownerURL)
 	defer closeConn(t, conn)
+	if _, err := conn.Exec(t.Context(), ownerDeletionDownSQL); err != nil {
+		t.Fatalf("apply owner deletion down migration before v4 down: %v", err)
+	}
 	if _, err := conn.Exec(t.Context(), downSQL); err != nil {
 		t.Fatalf("apply execution-control schema down migration: %v", err)
 	}
@@ -509,12 +527,12 @@ func assertAppliedExecutionControlMigrations(t *testing.T, databaseURL string) {
 	if err := conn.QueryRow(t.Context(), `
 		select count(*)::int
 		from public.execution_control_migrations
-		where version_id in (1, 2, 3, 4, 5, 6, 7, 8, 9) and is_applied
+		where version_id in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) and is_applied
 	`).Scan(&applied); err != nil {
 		t.Fatalf("inspect execution-control migration ledger: %v", err)
 	}
-	if applied != 9 {
-		t.Fatalf("applied execution-control migrations = %d, want 9", applied)
+	if applied != 10 {
+		t.Fatalf("applied execution-control migrations = %d, want 10", applied)
 	}
 }
 
@@ -562,6 +580,7 @@ func assertExecutionControlSchemaConsolidated(t *testing.T, databaseURL string) 
 		"agent_workflow_starts",
 		"conversation_run_locks",
 		"model_settings",
+		"owner_deletion_fences",
 		"personal_memory_call_leases",
 		"personal_memory_command_receipts",
 		"personal_memory_owner_fences",
@@ -718,6 +737,7 @@ func assertExecutionControlRuntimeAccess(t *testing.T, runtimeURL string) {
 		name         string
 		updateColumn string
 	}{
+		{name: "execution_control.owner_deletion_fences", updateColumn: "owner_user_id"},
 		{name: "execution_control.agent_runs", updateColumn: "run_id"},
 		{name: "execution_control.agent_run_events", updateColumn: "event_id"},
 		{name: "execution_control.agent_run_steps", updateColumn: "step_id"},

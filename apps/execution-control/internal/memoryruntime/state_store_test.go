@@ -168,6 +168,38 @@ func TestInMemoryStateStoreGenerationDrainIncludesProcessingReceipts(t *testing.
 	}
 }
 
+func TestInMemoryStateStoreMarkOwnerDeletedRequiresDrainAndFencesFutureWork(t *testing.T) {
+	store := NewInMemoryStateStore()
+	ctx := context.Background()
+	if err := store.BeginCall(ctx, "owner-deleted", "run-1:recall", 1, 0, "subject", "recall", time.Minute); err != nil {
+		t.Fatalf("begin active call: %v", err)
+	}
+	if err := store.MarkOwnerDeleted(ctx, "owner-deleted"); !errors.Is(err, ErrMemoryOwnerNotDrained) {
+		t.Fatalf("mark owner deleted with active call error=%v, want ErrMemoryOwnerNotDrained", err)
+	}
+	if err := store.EndCall(ctx, "owner-deleted", "run-1:recall"); err != nil {
+		t.Fatalf("end active call: %v", err)
+	}
+	if err := store.MarkOwnerDeleted(ctx, "owner-deleted"); err != nil {
+		t.Fatalf("mark drained owner deleted: %v", err)
+	}
+	if err := store.MarkOwnerDeleted(ctx, "owner-deleted"); err != nil {
+		t.Fatalf("replay mark owner deleted: %v", err)
+	}
+	if err := store.BeginCall(ctx, "owner-deleted", "run-2:recall", 1, 0, "subject", "recall", time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
+		t.Fatalf("begin call after owner deletion error=%v, want ErrMemoryFenceConflict", err)
+	}
+	command := PersonalMemoryCommandRequest{
+		CommandID: "cmd-after-owner-deletion", CommandKind: "item_delete",
+		OwnerGeneration: 1, OwnerSequence: 1, SchemaVersion: PersonalMemoryCommandSchemaVersion,
+		SubjectID: "memory-1", SubjectScopeHash: "subject-hash",
+		SupersessionScope: "item:memory-1",
+	}
+	if _, _, err := store.BeginCommand(ctx, "owner-deleted", command, time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
+		t.Fatalf("begin command after owner deletion error=%v, want ErrMemoryFenceConflict", err)
+	}
+}
+
 func TestInMemoryStateStoreBlocksLaterOwnerSequenceUntilEarlierReceiptIsTerminal(t *testing.T) {
 	store := NewInMemoryStateStore()
 	ctx := context.Background()

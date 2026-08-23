@@ -27,6 +27,8 @@ describe("pg runtime run store", () => {
 			admissionInputSha256: null,
 			admissionStatus: "cancelled",
 			cancelOutboxStatus: "local_finalization_pending",
+			cancelLeaseToken: null,
+			cancelLeaseUntil: null,
 			cancelReason: "user_requested",
 			cancelRequestedAt: new Date(requestedAt),
 			updatedAt: new Date(requestedAt),
@@ -53,6 +55,8 @@ describe("pg runtime run store", () => {
 		});
 		expect(set).toHaveBeenCalledWith({
 			cancelOutboxStatus: "pending_delivery",
+			cancelLeaseToken: null,
+			cancelLeaseUntil: null,
 			cancelReason: "user_requested",
 			cancelRequestedAt: new Date(requestedAt),
 			updatedAt: new Date(requestedAt),

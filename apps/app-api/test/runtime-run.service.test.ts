@@ -197,6 +197,11 @@ describe("runtime run service", () => {
 				kind: "local_finalization",
 				run: cancellationRun,
 			}),
+			claimCancellation: vi.fn().mockResolvedValue({
+				kind: "local_finalization",
+				leaseToken: "cancel_lease_test",
+				run: cancellationRun,
+			}),
 		});
 		const service = buildRuntimeRunService({
 			executionRuntime: {
@@ -240,10 +245,13 @@ describe("runtime run service", () => {
 			requestedAt: "2026-06-04T01:02:05.000Z",
 		};
 		const markCancellationDelivered = vi.fn().mockResolvedValue(true);
+		const leaseToken = "cancel_lease_test";
+		const claimPendingCancellations = vi
+			.fn()
+			.mockResolvedValueOnce([{ kind: "remote_delivery", leaseToken, run: cancellationRun }])
+			.mockResolvedValueOnce([]);
 		const store = runtimeStore({
-			listPendingCancellations: vi
-				.fn()
-				.mockResolvedValue([{ kind: "remote_delivery", run: cancellationRun }]),
+			claimPendingCancellations,
 			markCancellationDelivered,
 		});
 		const cancelRun = vi.fn().mockResolvedValue(
@@ -272,10 +280,57 @@ describe("runtime run service", () => {
 			processed: 1,
 		});
 		expect(cancelRun).toHaveBeenCalledTimes(1);
+		expect(claimPendingCancellations).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ limit: 1 }),
+		);
 		expect(markCancellationDelivered).toHaveBeenCalledWith({
 			deliveredAt: "2026-06-04T01:02:06.000Z",
+			leaseToken,
 			runId: "run_01HQ",
 		});
+	});
+
+	it("does not send an HTTP cancellation when another worker owns the claim", async () => {
+		const cancelRun = vi.fn();
+		const cancellationRun = {
+			...ownedRun({
+				cancelOutboxStatus: "pending_delivery",
+				cancelReason: "user_requested",
+				cancelRequestedAt: "2026-06-04T01:02:05.000Z",
+			}),
+			requestedAt: "2026-06-04T01:02:05.000Z",
+		};
+		const service = buildRuntimeRunService({
+			executionRuntime: {
+				cancelRun,
+				createRun: vi.fn(),
+				getRun: vi.fn(),
+				listRunEvents: vi.fn(),
+				listRunSteps: vi.fn(),
+			},
+			store: runtimeStore({
+				requestCancellation: vi.fn().mockResolvedValue({
+					kind: "remote_delivery",
+					run: cancellationRun,
+				}),
+				claimCancellation: vi.fn().mockResolvedValue(null),
+			}),
+		});
+
+		await expect(
+			service.cancel({
+				principal: createPrincipal(),
+				reason: "user_requested",
+				runId: "run_01HQ",
+			}),
+		).resolves.toMatchObject({
+			run: {
+				phase: "admitted",
+				status: "accepted",
+			},
+		});
+		expect(cancelRun).not.toHaveBeenCalled();
 	});
 
 	it("projects durable run statuses into product runtime phases", async () => {

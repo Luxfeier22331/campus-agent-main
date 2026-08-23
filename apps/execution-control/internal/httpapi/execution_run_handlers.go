@@ -112,6 +112,14 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		},
 	)
 	if err != nil {
+		if errors.Is(err, execution.ErrOwnerDeleted) {
+			writeError(response, http.StatusGone, "owner_deleted", "Owner has been deleted.", false)
+			return
+		}
+		if errors.Is(err, execution.ErrOwnerDeletionNotDrained) {
+			writeError(response, http.StatusConflict, "owner_deleting", "Owner deletion is in progress.", false)
+			return
+		}
 		if errors.Is(err, execution.ErrConversationActiveRun) {
 			writeError(
 				response,

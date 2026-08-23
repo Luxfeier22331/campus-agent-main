@@ -257,6 +257,10 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleReadyz(response, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/runs":
 		s.handleExecutionRunCreate(response, request)
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/owners/") && strings.HasSuffix(path, "/deletion/begin"):
+		s.handleOwnerDeletionBegin(response, request, ownerUserIDFromDeletionPath(path, "/deletion/begin"))
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/owners/") && strings.HasSuffix(path, "/deletion/finalize"):
+		s.handleOwnerDeletionFinalize(response, request, ownerUserIDFromDeletionPath(path, "/deletion/finalize"))
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/") &&
 		strings.HasSuffix(path, "/steps"):
 		if runID, ok := executionRunIDFromPath(path, "/steps"); ok {

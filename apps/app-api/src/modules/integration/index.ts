@@ -1,4 +1,5 @@
 export type {
+	ExecutionControlOwnerDeletionClient,
 	ExecutionControlPersonalMemoryClient,
 	ExecutionControlRun,
 	ExecutionControlRunCancelInput,

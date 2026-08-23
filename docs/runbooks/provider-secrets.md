@@ -36,7 +36,7 @@ revision、bundle、activation、history、fallback 或在线 rollback。不同�
 
 1. `run-projection-schema --mode install` 完成 execution-control 的全部历史 Goose migration，并在
    需要时使用旧 Provider Config keyring/密钥处理历史版本；
-2. `model-config-schema` 使用数据库 owner、新 Model Config 加密密钥和旧
+2. `model-config-schema` 使用既有 `campus_agent` 数据库 owner、新 Model Config 加密密钥和旧
    `execution-provider-config-encryption` 密钥；
 3. 同一事务读取旧 `execution_control.model_settings`，解密并映射为稳定 name，检查已存在新 config
    是否与旧目标冲突，以新 AAD/密钥重加密后写入 `model_config.model_configs`；

@@ -2,7 +2,6 @@ package modelconfig
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,18 +15,30 @@ var ErrNotFound = errors.New("model config not found")
 var ErrInitialAPIKeyRequired = errors.New("api key is required for the initial model config")
 var ErrTargetMismatch = errors.New("model target hash mismatch")
 
+const maxPoolConns = 4
+
 type Store struct {
 	pool   *pgxpool.Pool
 	cipher *Cipher
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
 }
 
 func NewStore(ctx context.Context, databaseURL string, cipher *Cipher) (*Store, error) {
 	if strings.TrimSpace(databaseURL) == "" || cipher == nil {
 		return nil, errors.New("model config store is not configured")
 	}
-	pool, err := pgxpool.New(ctx, databaseURL)
+	config, err := pgxpool.ParseConfig(strings.TrimSpace(databaseURL))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse model config database URL: %w", err)
+	}
+	config.MaxConns = maxPoolConns
+	config.MinConns = 0
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("create model config pool: %w", err)
 	}
 	return &Store{pool: pool, cipher: cipher}, nil
 }
@@ -131,27 +142,10 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var view ConfigView
-		if err := rows.Scan(
-			&view.Name,
-			&view.Provider,
-			&view.APIProtocol,
-			&view.BaseURL,
-			&view.Model,
-			&view.CredentialConfigured,
-			&view.Validation.Status,
-			&view.Validation.ErrorCode,
-			&view.Validation.Message,
-			&view.Validation.ObservedDimensions,
-			&view.ValidatedAt,
-			&view.ValidatedBy,
-			&view.UpdatedAt,
-			&view.UpdatedBy,
-		); err != nil {
+		view, err := scanConfigView(rows)
+		if err != nil {
 			return Status{}, err
 		}
-		view.SchemaVersion = "model_target.v1"
-		view.TargetSHA256 = TargetHash(view.Target)
 		status.Configs[view.Name] = &view
 	}
 	return status, rows.Err()
@@ -204,7 +198,7 @@ func (s *Store) Put(ctx context.Context, actor string, input ConfigInput, valida
 		return ConfigView{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	_, err = tx.Exec(ctx, `insert into model_config.model_configs(name,provider,api_protocol,base_url,model,encrypted_api_key,validation_status,validation_error_code,validation_message,validation_observed_dimensions,validated_at,validated_by,updated_at,updated_by) values($1,$2,$3,$4,$5,$6,$7,$8,$9,nullif($10,0),$11,$12,$11,$12) on conflict(name) do update set provider=excluded.provider,api_protocol=excluded.api_protocol,base_url=excluded.base_url,model=excluded.model,encrypted_api_key=excluded.encrypted_api_key,validation_status=excluded.validation_status,validation_error_code=excluded.validation_error_code,validation_message=excluded.validation_message,validation_observed_dimensions=excluded.validation_observed_dimensions,validated_at=excluded.validated_at,validated_by=excluded.validated_by,updated_at=excluded.updated_at,updated_by=excluded.updated_by`,
+	view, err := scanConfigView(tx.QueryRow(ctx, `insert into model_config.model_configs(name,provider,api_protocol,base_url,model,encrypted_api_key,validation_status,validation_error_code,validation_message,validation_observed_dimensions,validated_at,validated_by,updated_at,updated_by) values($1,$2,$3,$4,$5,$6,$7,$8,$9,nullif($10,0),$11,$12,$11,$12) on conflict(name) do update set provider=excluded.provider,api_protocol=excluded.api_protocol,base_url=excluded.base_url,model=excluded.model,encrypted_api_key=excluded.encrypted_api_key,validation_status=excluded.validation_status,validation_error_code=excluded.validation_error_code,validation_message=excluded.validation_message,validation_observed_dimensions=excluded.validation_observed_dimensions,validated_at=excluded.validated_at,validated_by=excluded.validated_by,updated_at=excluded.updated_at,updated_by=excluded.updated_by returning name,provider,api_protocol,base_url,model,(length(encrypted_api_key)>0),validation_status,validation_error_code,validation_message,coalesce(validation_observed_dimensions,0),validated_at,validated_by,updated_at,updated_by`,
 		name,
 		target.Provider,
 		target.APIProtocol,
@@ -217,19 +211,37 @@ func (s *Store) Put(ctx context.Context, actor string, input ConfigInput, valida
 		validation.ObservedDimensions,
 		now,
 		actor,
-	)
+	))
 	if err != nil {
 		return ConfigView{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ConfigView{}, err
 	}
-	status, err := s.Status(ctx)
-	if err != nil {
+	return view, nil
+}
+
+func scanConfigView(scanner rowScanner) (ConfigView, error) {
+	var view ConfigView
+	if err := scanner.Scan(
+		&view.Name,
+		&view.Provider,
+		&view.APIProtocol,
+		&view.BaseURL,
+		&view.Model,
+		&view.CredentialConfigured,
+		&view.Validation.Status,
+		&view.Validation.ErrorCode,
+		&view.Validation.Message,
+		&view.Validation.ObservedDimensions,
+		&view.ValidatedAt,
+		&view.ValidatedBy,
+		&view.UpdatedAt,
+		&view.UpdatedBy,
+	); err != nil {
 		return ConfigView{}, err
 	}
-	if view := status.Configs[name]; view != nil {
-		return *view, nil
-	}
-	return ConfigView{}, sql.ErrNoRows
+	view.SchemaVersion = "model_target.v1"
+	view.TargetSHA256 = TargetHash(view.Target)
+	return view, nil
 }

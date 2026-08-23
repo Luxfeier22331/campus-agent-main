@@ -94,4 +94,31 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 	if _, _, err := store.BeginCommand(t.Context(), "owner-gap", stale, time.Minute); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
 		t.Fatalf("stale lower sequence error=%v", err)
 	}
+	if err := store.BeginCall(t.Context(), "owner-deleted", "run-1:recall", 1, 0, "subject", "recall", time.Minute); err != nil {
+		t.Fatalf("begin active owner deletion call: %v", err)
+	}
+	if err := store.MarkOwnerDeleted(t.Context(), "owner-deleted"); !errors.Is(err, memoryruntime.ErrMemoryOwnerNotDrained) {
+		t.Fatalf("mark owner deleted with active call error=%v", err)
+	}
+	if err := store.EndCall(t.Context(), "owner-deleted", "run-1:recall"); err != nil {
+		t.Fatalf("end active owner deletion call: %v", err)
+	}
+	if err := store.MarkOwnerDeleted(t.Context(), "owner-deleted"); err != nil {
+		t.Fatalf("mark drained owner deleted: %v", err)
+	}
+	if err := store.MarkOwnerDeleted(t.Context(), "owner-deleted"); err != nil {
+		t.Fatalf("replay mark owner deleted: %v", err)
+	}
+	if err := store.BeginCall(t.Context(), "owner-deleted", "run-2:recall", 1, 0, "subject", "recall", time.Minute); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
+		t.Fatalf("begin call after owner deletion error=%v", err)
+	}
+	afterDeletion := memoryruntime.PersonalMemoryCommandRequest{
+		CommandID: "cmd-after-owner-deletion", CommandKind: "item_delete",
+		OwnerGeneration: 1, OwnerSequence: 1, SchemaVersion: memoryruntime.PersonalMemoryCommandSchemaVersion,
+		SubjectID: "memory-after-deletion", SubjectScopeHash: "subject-after-deletion",
+		SupersessionScope: "item:memory-after-deletion",
+	}
+	if _, _, err := store.BeginCommand(t.Context(), "owner-deleted", afterDeletion, time.Minute); !errors.Is(err, memoryruntime.ErrMemoryFenceConflict) {
+		t.Fatalf("begin command after owner deletion error=%v", err)
+	}
 }

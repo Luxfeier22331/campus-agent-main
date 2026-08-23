@@ -130,6 +130,8 @@ export const turnDispatches = chat.table(
 		cancelLastAttemptAt: timestamp("cancel_last_attempt_at", { withTimezone: true }),
 		cancelLastErrorCode: text("cancel_last_error_code"),
 		cancelDeliveredAt: timestamp("cancel_delivered_at", { withTimezone: true }),
+		cancelLeaseToken: text("cancel_lease_token"),
+		cancelLeaseUntil: timestamp("cancel_lease_until", { withTimezone: true }),
 		finalizationFingerprint: text("finalization_fingerprint"),
 		safetyIdentifier: text("safety_identifier"),
 		status: text("status").notNull(),
@@ -232,6 +234,11 @@ export const turnDispatches = chat.table(
 		),
 		cancelOutboxIndex: index("chat_turn_dispatches_cancel_outbox_idx").on(
 			table.cancelOutboxStatus,
+			table.updatedAt,
+		),
+		cancelLeaseIndex: index("chat_turn_dispatches_cancel_lease_idx").on(
+			table.cancelOutboxStatus,
+			table.cancelLeaseUntil,
 			table.updatedAt,
 		),
 		conversationTurnSequenceIndex: index("chat_turn_dispatches_conversation_turn_sequence_idx").on(

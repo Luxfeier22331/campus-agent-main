@@ -151,6 +151,18 @@ func publicErrorMessage(code string, _ string) string {
 		return "Execution run cancellation could not be recorded."
 	case "execution_run_not_found", "durable_run_not_found":
 		return "Execution run was not found."
+	case "owner_deletion_not_drained":
+		return "Owner deletion is still draining."
+	case "owner_deletion_begin_failed", "owner_deletion_finalize_failed":
+		return "Owner deletion could not be completed."
+	case "owner_deletion_not_started":
+		return "Owner deletion was not started."
+	case "owner_deleting":
+		return "Owner deletion is in progress."
+	case "owner_deleted":
+		return "Owner has been deleted."
+	case "personal_memory_state_unavailable", "personal_memory_state_delete_failed":
+		return "Personal memory state is temporarily unavailable."
 	case "run_context_conflict":
 		return "Execution run context is invalid."
 	case "profile_memory_recall_failed":

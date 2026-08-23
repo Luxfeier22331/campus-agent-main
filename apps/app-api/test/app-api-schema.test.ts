@@ -78,6 +78,7 @@ describe("app-api schema installer", () => {
 			{ idx: 13, tag: "0013_drop_supporting_sources", version: "7" },
 			{ idx: 14, tag: "0014_sad_rictor", version: "7" },
 			{ idx: 15, tag: "0015_tough_nova", version: "7" },
+			{ idx: 16, tag: "0016_gray_scarlet_spider", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,

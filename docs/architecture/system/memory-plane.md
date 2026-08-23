@@ -78,6 +78,12 @@ app-api 在 PostgreSQL 中维护 lifecycle、item desired state 和 command outb
 - 账号全量清除会递增代次、拒绝旧代次、等待在途调用排空并删除上一代 bank；
 - retired bank 删除并确认不存在后，产品 lifecycle 才能从 `erasing` 进入 `erased`。
 
+账号注销由 App API 编排，但不会绕过上述 memory fence：execution-control 先冻结该 owner 的新 run，
+App API 推进 owner erase 并等待 Hindsight 清除及在途调用排空，随后由 execution-control 将个人记忆状态
+标记为 `deleted`。标记后旧 generation、旧 command 和旧 workflow 不能再次创建 memory call；Hindsight
+bank 和 memory 内容由 Hindsight 所有并按本合同清除，execution-control 只保留必要的生命周期 fence，
+不复制 memory 正文。
+
 conversation prune/delete 在删除产品 message 前捕获 message ID，并派生与 retain 相同的 document
 ID。`DeleteDocument` 同步删除来源文档及其 memory units；后续 consolidation 由 Hindsight 内部维护，
 仓库不轮询该内部过程。

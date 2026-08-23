@@ -1,6 +1,8 @@
 export {
 	createExecutionControlPersonalMemoryClient,
 	createExecutionControlRuntimeClient,
+	type ExecutionControlOwnerDeletion,
+	type ExecutionControlOwnerDeletionClient,
 	type ExecutionControlPersonalMemoryClient,
 	type ExecutionControlRun,
 	type ExecutionControlRunCancelInput,

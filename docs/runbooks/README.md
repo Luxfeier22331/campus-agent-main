@@ -6,6 +6,7 @@ status: active
 # 操作手册
 
 - 发布与环境交接：[release.md](./release.md)；
+- 数据恢复：[data-recovery.md](./data-recovery.md)；
 - 运行时：[execution.md](./execution.md)、[temporal.md](./temporal.md)、
   [hindsight.md](./hindsight.md)；
 - 采集、文档、通知发布与知识：[ingestion.md](./ingestion.md)、

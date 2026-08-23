@@ -27,6 +27,7 @@ test("Campus Docs manual Job templates are complete and suspended", () => {
 		const manifest = requiredManifest(byName, name);
 		const spec = record(manifest.spec, `${name} spec`);
 		assert.equal(spec.suspend, true);
+		assert.equal(spec.concurrencyPolicy, "Forbid");
 		const jobTemplate = record(spec.jobTemplate, `${name} jobTemplate`);
 		const jobSpec = record(jobTemplate.spec, `${name} Job spec`);
 		assert.equal(jobSpec.ttlSecondsAfterFinished, 86_400);

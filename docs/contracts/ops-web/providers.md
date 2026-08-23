@@ -48,7 +48,8 @@ provider 固定为 `openai-compatible`，model 固定为 `Qwen3-Embedding-4B`，
 该供应商 Base URL 下的 `/models`，只返回去重、排序后的模型 ID 和采样时间，最多 500 条。供应商响应
 正文和 API key 不返回浏览器，也不保存本次候选连接。
 
-保存前 Model Config 对候选设置执行真实供应商调用；验证失败不会覆盖当前值。未提交 API key
+保存前 Model Config 对候选设置执行真实供应商调用，并按 `api_protocol` 校验响应结构；只有 HTTP
+成功且响应符合对应协议时才通过。验证失败不会覆盖当前值。未提交 API key
 表示保留现有值，首次配置时必须提供；显式空 API key 无效。没有独立的重新验证接口；需要重新验证时
 再次保存同一设置。Embedding 验证调用 `/embeddings` 时固定提交 model 和 `dimensions=2560`，且只在
 返回一个由 2560 个有限数值组成的向量时通过。`observedDimensions` 是验证证据，不是可编辑配置。
