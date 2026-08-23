@@ -135,6 +135,14 @@ allows_external_https(egress) if {
 	exact_port(allowed_port, "TCP", 443)
 }
 
+allows_kubernetes_api(egress) if {
+	some rule in egress
+	some peer in object.get(rule, "to", [])
+	exact_ip_block_peer(peer, "0.0.0.0/0")
+	some allowed_port in object.get(rule, "ports", [])
+	exact_port(allowed_port, "TCP", 6443)
+}
+
 allowed_ops_web_peer_port(peer, allowed_port) if {
 	exact_namespace_peer(peer, "kubernetes.io/metadata.name", "kube-system")
 	protocol := {"TCP", "UDP"}[_]
@@ -169,6 +177,11 @@ allowed_ops_web_peer_port(peer, allowed_port) if {
 allowed_ops_web_peer_port(peer, allowed_port) if {
 	exact_ip_block_peer(peer, "0.0.0.0/0")
 	exact_port(allowed_port, "TCP", 443)
+}
+
+allowed_ops_web_peer_port(peer, allowed_port) if {
+	exact_ip_block_peer(peer, "0.0.0.0/0")
+	exact_port(allowed_port, "TCP", 6443)
 }
 
 network_policy_has_allow_rules(spec) if {
@@ -209,6 +222,7 @@ ops_web_egress_allowlist_is_complete(egress) if {
 	allows_pod(egress, "app.kubernetes.io/name", "object-store", 9000)
 	allows_pod(egress, "app.kubernetes.io/name", "agent-runtime", 27062)
 	allows_external_https(egress)
+	allows_kubernetes_api(egress)
 }
 
 validated_ops_web_egress_policy(policy) if {
@@ -351,4 +365,12 @@ violation contains msg if {
 	egress := object.get(input.spec, "egress", [])
 	not allows_external_https(egress)
 	msg := "NetworkPolicy ops-web-egress must allow external HTTPS on TCP 443"
+}
+
+violation contains msg if {
+	input.kind == "NetworkPolicy"
+	input.metadata.name == "ops-web-egress"
+	egress := object.get(input.spec, "egress", [])
+	not allows_kubernetes_api(egress)
+	msg := "NetworkPolicy ops-web-egress must allow the Kubernetes API backend on TCP 6443"
 }

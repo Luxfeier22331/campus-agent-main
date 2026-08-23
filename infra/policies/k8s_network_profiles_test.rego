@@ -78,7 +78,10 @@ valid_ops_web_egress_policy := {
 			},
 			{
 				"to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
-				"ports": [{"protocol": "TCP", "port": 443}],
+				"ports": [
+					{"protocol": "TCP", "port": 443},
+					{"protocol": "TCP", "port": 6443},
+				],
 			},
 		],
 	},
@@ -316,6 +319,22 @@ test_ops_web_external_egress_is_required if {
 	})
 	violations := violation with input as policy
 	"NetworkPolicy ops-web-egress must allow external HTTPS on TCP 443" in violations
+}
+
+test_ops_web_kubernetes_api_egress_is_required if {
+	policy := object.union(valid_ops_web_egress_policy, {
+		"spec": object.union(valid_ops_web_egress_policy.spec, {
+			"egress": array.concat(
+				array.slice(valid_ops_web_egress_policy.spec.egress, 0, 6),
+				[{
+					"to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
+					"ports": [{"protocol": "TCP", "port": 443}],
+				}],
+			),
+		}),
+	})
+	violations := violation with input as policy
+	"NetworkPolicy ops-web-egress must allow the Kubernetes API backend on TCP 6443" in violations
 }
 
 test_ops_web_agent_runtime_egress_is_required if {
