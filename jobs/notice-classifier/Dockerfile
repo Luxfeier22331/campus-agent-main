@@ -9,6 +9,7 @@ COPY jobs/notice-classifier/package.json ./jobs/notice-classifier/package.json
 COPY packages/notice-classifier-core/package.json ./packages/notice-classifier-core/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
+COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
@@ -20,6 +21,7 @@ COPY jobs/notice-classifier/src ./jobs/notice-classifier/src
 COPY packages/notice-classifier-core/src ./packages/notice-classifier-core/src
 COPY packages/contracts/src ./packages/contracts/src
 COPY packages/domains/notices/src ./packages/domains/notices/src
+COPY packages/ingestion-contracts/src ./packages/ingestion-contracts/src
 
 RUN pnpm --filter notice-classifier build
 
@@ -32,6 +34,7 @@ COPY jobs/notice-classifier/package.json ./jobs/notice-classifier/package.json
 COPY packages/notice-classifier-core/package.json ./packages/notice-classifier-core/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
+COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
