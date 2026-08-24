@@ -250,7 +250,9 @@ describe("app-api migration upgrade", () => {
 	let executionPredecessorMigrationsFolder = "";
 	let docsRetirementPredecessorMigrationsFolder = "";
 	let memoryContractPredecessorMigrationsFolder = "";
+	let deployedMigrationsFolder = "";
 	let fullMigrationCount = 0;
+	let deployedMigrationCount = 0;
 	let ownershipPredecessorMigrationCount = 0;
 	let executionPredecessorMigrationCount = 0;
 	let docsRetirementPredecessorMigrationCount = 0;
@@ -288,6 +290,7 @@ describe("app-api migration upgrade", () => {
 			journal,
 			"0014_sad_rictor",
 		);
+		deployedMigrationCount = migrationEntryCountThrough(journal, "0016_gray_scarlet_spider");
 		initialMigrationsFolder = await createMigrationFolderThrough(initialMigrationCount, journal);
 		mainMigrationsFolder = await createMigrationFolderThrough(mainMigrationCount, journal);
 		ownershipPredecessorMigrationsFolder = await createMigrationFolderThrough(
@@ -306,6 +309,7 @@ describe("app-api migration upgrade", () => {
 			memoryContractPredecessorMigrationCount,
 			journal,
 		);
+		deployedMigrationsFolder = await createMigrationFolderThrough(deployedMigrationCount, journal);
 	}, 180_000);
 
 	afterAll(async () => {
@@ -336,6 +340,9 @@ describe("app-api migration upgrade", () => {
 					force: true,
 					recursive: true,
 				});
+			}
+			if (deployedMigrationsFolder) {
+				await rm(deployedMigrationsFolder, { force: true, recursive: true });
 			}
 		} finally {
 			if (container) {
@@ -980,6 +987,126 @@ describe("app-api migration upgrade", () => {
 				set name = excluded.name
 			`),
 		).resolves.toMatchObject({ rowCount: 1 });
+	});
+
+	it("appends the current migration after the deployed 0016 ledger", async () => {
+		const migrationOptions = {
+			migrationsSchema: "drizzle",
+			migrationsTable: "app_api_migrations",
+		};
+		await resetDisposableDatabase(pool);
+		await applyLegacyBetterAuthBaseline(pool);
+		await applyLegacyChatBaseline(pool);
+		await migrate(drizzle(pool), {
+			...migrationOptions,
+			migrationsFolder: deployedMigrationsFolder,
+		});
+
+		const journal = await readMigrationJournal();
+		const deployedMigration = journal.entries.find(
+			(entry) => entry.tag === "0016_gray_scarlet_spider",
+		);
+		const currentMigration = journal.entries.find((entry) => entry.tag === "0017_safe_nicolaos");
+		expect(deployedMigration?.when).toBe(1787488814226);
+		expect(currentMigration?.when).toBeGreaterThan(deployedMigration?.when ?? 0);
+		const deployedLedger = await pool.query<{ created_at: string; hash: string }>(`
+				select created_at::text, hash
+				from "drizzle"."app_api_migrations"
+				order by created_at, id
+			`);
+		expect(deployedLedger.rows).toHaveLength(deployedMigrationCount);
+		expect(deployedLedger.rows.at(-1)?.created_at).toBe(String(deployedMigration?.when));
+
+		await pool.query(`
+				insert into "chat"."conversations"
+					("id", "owner_user_id", "title", "created_at", "updated_at")
+				values ('conversation-deployed-0016', 'user-deployed-0016', 'Deployed 0016', now(), now());
+				insert into "chat"."messages"
+					("id", "conversation_id", "role", "kind", "text", "created_at", "turn_sequence")
+				values
+					('message-deployed-user', 'conversation-deployed-0016', 'user', null, 'test', now(), 1),
+					('message-deployed-assistant', 'conversation-deployed-0016', 'assistant', 'no_answer', 'test', now(), 1);
+				insert into "chat"."turn_dispatches"
+					("request_id", "conversation_id", "user_message_id", "assistant_message_id",
+					 "turn_sequence", "surface", "owner_user_id", "actor_user_id",
+					 "principal_snapshot_json", "trace_id", "run_id", "workflow_id",
+					 "admission_status", "execution_input_json", "execution_input_sha256",
+					 "cancel_lease_token", "cancel_lease_until", "status", "created_at", "completed_at", "updated_at")
+				values
+					('request-deployed-0016', 'conversation-deployed-0016', 'message-deployed-user',
+					 'message-deployed-assistant', 1, 'web', 'user-deployed-0016', 'user-deployed-0016',
+					 '{}'::jsonb, 'trace-deployed-0016', 'run-deployed-0016', 'workflow-deployed-0016',
+					 'admitted', '{"goal":"test"}', repeat('a', 64), 'lease-deployed-0016', now(),
+					 'no_answer', now(), now(), now());
+				insert into "runtime"."request_observability_fact"
+					("request_id", "trace_id", "conversation_id", "surface", "principal_type", "status",
+					 "refusal_class", "semantic_outcome", "fail_closed", "started_at", "measured_at", "updated_at")
+				values
+					('request-deployed-0016', 'trace-deployed-0016', 'conversation-deployed-0016',
+					 'web', 'user', 'needs_clarification', 'policy', 'no_answer', true, now(), now(), now());
+			`);
+
+		await installAppApiSchema({
+			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
+			APP_API_SCHEMA_DATABASE_URL: container.getConnectionUri(),
+		});
+
+		const upgradedLedger = await pool.query<{ created_at: string; hash: string }>(`
+				select created_at::text, hash
+				from "drizzle"."app_api_migrations"
+				order by created_at, id
+			`);
+		expect(upgradedLedger.rows.slice(0, deployedMigrationCount)).toEqual(deployedLedger.rows);
+		expect(upgradedLedger.rows).toHaveLength(fullMigrationCount);
+		expect(upgradedLedger.rows.at(-1)?.created_at).toBe(String(currentMigration?.when));
+
+		const upgradedData = await pool.query<{
+			assistant_kind: string | null;
+			execution_input_json: string | null;
+			fail_closed: boolean | null;
+			run_id: string | null;
+			status: string;
+			turn_id: string | null;
+		}>(`
+				select dispatch.status, dispatch.run_id, dispatch.turn_id, dispatch.execution_input_json,
+				       message.kind as assistant_kind, fact.fail_closed
+				from "chat"."turn_dispatches" dispatch
+				join "chat"."messages" message on message.id = dispatch.assistant_message_id
+				join "runtime"."request_observability_fact" fact
+				  on fact.request_id = dispatch.request_id
+				where dispatch.request_id = 'request-deployed-0016'
+			`);
+		expect(upgradedData.rows).toEqual([
+			{
+				assistant_kind: "answer",
+				execution_input_json: null,
+				fail_closed: false,
+				run_id: null,
+				status: "completed",
+				turn_id: null,
+			},
+		]);
+		const retiredShape = await pool.query<{
+			cancel_lease_index: string | null;
+			retired_column_count: string;
+		}>(`
+				select
+					to_regclass('chat.chat_turn_dispatches_cancel_lease_idx')::text as cancel_lease_index,
+					(select count(*)::text
+					 from information_schema.columns
+					 where (table_schema, table_name) in (
+					         ('chat', 'turn_dispatches'),
+					         ('runtime', 'request_observability_fact')
+					       )
+					   and column_name in (
+					     'admission_status', 'workflow_id', 'admission_input_json', 'admission_input_sha256',
+					     'admitted_at', 'cancel_outbox_status', 'cancel_reason', 'cancel_requested_at',
+					     'cancel_attempt_count', 'cancel_last_attempt_at', 'cancel_last_error_code',
+					     'cancel_delivered_at', 'cancel_lease_token', 'cancel_lease_until',
+					     'refusal_class', 'semantic_outcome'
+					   )) as retired_column_count
+			`);
+		expect(retiredShape.rows).toEqual([{ cancel_lease_index: null, retired_column_count: "0" }]);
 	});
 
 	it("rejects app-owned partial state before creating a migration ledger", async () => {

@@ -1,5 +1,5 @@
 {
-  "id": "06d5a5a7-d153-428d-9a9a-26aa4c11b3e4",
+  "id": "77216fd8-fbef-4242-bc9b-f9eeced937cc",
   "prevId": "1edb9b35-5e4b-442a-a1d3-997811f0558c",
   "version": "7",
   "dialect": "postgresql",
@@ -2537,6 +2537,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "cancel_lease_token": {
+          "name": "cancel_lease_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_lease_until": {
+          "name": "cancel_lease_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "finalization_fingerprint": {
           "name": "finalization_fingerprint",
           "type": "text",
@@ -2607,6 +2619,33 @@
           "columns": [
             {
               "expression": "cancel_outbox_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "chat_turn_dispatches_cancel_lease_idx": {
+          "name": "chat_turn_dispatches_cancel_lease_idx",
+          "columns": [
+            {
+              "expression": "cancel_outbox_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "cancel_lease_until",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2797,7 +2836,7 @@
         },
         "chat_turn_dispatches_input_lifecycle_check": {
           "name": "chat_turn_dispatches_input_lifecycle_check",
-          "value": "(\n\t\t\t\t\t\"chat\".\"turn_dispatches\".\"status\" = 'accepted'\n\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"run_id\" is not null\n\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"workflow_id\" is not null\n\t\t\t\t\tand (\n\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"admission_status\" in ('pending_admission', 'dispatching')\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_sha256\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is not null\n\t\t\t\t\t\t)\n\t\t\t\t\t\tor (\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"admission_status\" = 'admitted'\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_json\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_sha256\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is not null\n\t\t\t\t\t\t)\n\t\t\t\t\t\tor (\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"admission_status\" = 'cancelled'\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"cancel_outbox_status\" = 'local_finalization_pending'\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_json\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_sha256\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is not null\n\t\t\t\t\t\t)\n\t\t\t\t\t)\n\t\t\t\t)\n\t\t\t\tor (\n\t\t\t\t\t\"chat\".\"turn_dispatches\".\"status\" in (\n\t\t\t\t\t\t'completed',\n\t\t\t\t\t\t'error',\n\t\t\t\t\t\t'approval_required',\n\t\t\t\t\t\t'rejected',\n\t\t\t\t\t\t'cancelled'\n\t\t\t\t\t)\n\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_json\" is null\n\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_sha256\" is null\n\t\t\t\t\tand (\n\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"run_id\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"workflow_id\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is null\n\t\t\t\t\t\t)\n\t\t\t\t\t\tor (\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"run_id\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"workflow_id\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is not null\n\t\t\t\t\t\t)\n\t\t\t\t\t)\n\t\t\t\t)"
+          "value": "(\n\t\t\t\t\t\"chat\".\"turn_dispatches\".\"status\" = 'accepted'\n\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"run_id\" is not null\n\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"workflow_id\" is not null\n\t\t\t\t\tand (\n\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"admission_status\" in ('pending_admission', 'dispatching')\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_sha256\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is not null\n\t\t\t\t\t\t)\n\t\t\t\t\t\tor (\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"admission_status\" = 'admitted'\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_json\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_sha256\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is not null\n\t\t\t\t\t\t)\n\t\t\t\t\t\tor (\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"admission_status\" = 'cancelled'\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"cancel_outbox_status\" = 'local_finalization_pending'\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_json\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_sha256\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is not null\n\t\t\t\t\t\t)\n\t\t\t\t\t)\n\t\t\t\t)\n\t\t\t\tor (\n\t\t\t\t\t\"chat\".\"turn_dispatches\".\"status\" in (\n\t\t\t\t\t\t'completed',\n\t\t\t\t\t\t'needs_clarification',\n\t\t\t\t\t\t'no_answer',\n\t\t\t\t\t\t'error',\n\t\t\t\t\t\t'approval_required',\n\t\t\t\t\t\t'rejected',\n\t\t\t\t\t\t'cancelled'\n\t\t\t\t\t)\n\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_json\" is null\n\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"admission_input_sha256\" is null\n\t\t\t\t\tand (\n\t\t\t\t\t\t(\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"run_id\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"workflow_id\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is null\n\t\t\t\t\t\t)\n\t\t\t\t\t\tor (\n\t\t\t\t\t\t\t\"chat\".\"turn_dispatches\".\"run_id\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"workflow_id\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_json\" is not null\n\t\t\t\t\t\t\tand \"chat\".\"turn_dispatches\".\"execution_input_sha256\" is not null\n\t\t\t\t\t\t)\n\t\t\t\t\t)\n\t\t\t\t)"
         }
       },
       "isRLSEnabled": false
@@ -3895,6 +3934,18 @@
         "duration_ms": {
           "name": "duration_ms",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refusal_class": {
+          "name": "refusal_class",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "semantic_outcome": {
+          "name": "semantic_outcome",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

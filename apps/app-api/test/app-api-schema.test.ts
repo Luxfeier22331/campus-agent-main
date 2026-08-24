@@ -78,8 +78,8 @@ describe("app-api schema installer", () => {
 			{ idx: 13, tag: "0013_drop_supporting_sources", version: "7" },
 			{ idx: 14, tag: "0014_sad_rictor", version: "7" },
 			{ idx: 15, tag: "0015_tough_nova", version: "7" },
-			{ idx: 16, tag: "0016_known_aaron_stack", version: "7" },
-			{ idx: 17, tag: "0017_pretty_red_shift", version: "7" },
+			{ idx: 16, tag: "0016_gray_scarlet_spider", version: "7" },
+			{ idx: 17, tag: "0017_safe_nicolaos", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,
@@ -151,20 +151,28 @@ describe("app-api schema installer", () => {
 		expect(readAppFile("drizzle/0013_drop_supporting_sources.sql").trim()).toBe(
 			'ALTER TABLE "runtime"."request_observability_fact" DROP COLUMN "supporting_sources_json";',
 		);
-		const terminalStatusCleanup = readAppFile("drizzle/0016_known_aaron_stack.sql");
-		expect(terminalStatusCleanup).toContain(
-			"WHERE \"status\" IN ('needs_clarification', 'no_answer')",
+		expect(readAppFile("drizzle/0016_gray_scarlet_spider.sql").trim()).toBe(
+			[
+				'ALTER TABLE "chat"."turn_dispatches" ADD COLUMN "cancel_lease_token" text;--> statement-breakpoint',
+				'ALTER TABLE "chat"."turn_dispatches" ADD COLUMN "cancel_lease_until" timestamp with time zone;--> statement-breakpoint',
+				'CREATE INDEX "chat_turn_dispatches_cancel_lease_idx" ON "chat"."turn_dispatches" USING btree ("cancel_outbox_status","cancel_lease_until","updated_at");',
+			].join("\n"),
 		);
-		expect(terminalStatusCleanup).toContain(
+		const runtimeStateCleanup = readAppFile("drizzle/0017_safe_nicolaos.sql");
+		expect(runtimeStateCleanup).toContain("requires no accepted chat turns");
+		expect(runtimeStateCleanup).toContain(
+			"WHEN \"status\" IN ('needs_clarification', 'no_answer') THEN 'completed'",
+		);
+		expect(runtimeStateCleanup).toContain(
 			"WHERE \"role\" = 'assistant' AND \"kind\" IN ('clarification', 'no_answer')",
 		);
-		expect(terminalStatusCleanup).toContain('DROP COLUMN "refusal_class"');
-		expect(terminalStatusCleanup).toContain('DROP COLUMN "semantic_outcome"');
-		const runtimeStateCleanup = readAppFile("drizzle/0017_pretty_red_shift.sql");
-		expect(runtimeStateCleanup).toContain("requires no accepted chat turns");
+		expect(runtimeStateCleanup).toContain('DROP COLUMN "refusal_class"');
+		expect(runtimeStateCleanup).toContain('DROP COLUMN "semantic_outcome"');
 		expect(runtimeStateCleanup).toContain('ADD COLUMN "turn_id" text');
 		expect(runtimeStateCleanup).toContain('"run_id" = NULL');
 		expect(runtimeStateCleanup).toContain('DROP COLUMN "cancel_outbox_status"');
+		expect(runtimeStateCleanup).toContain('DROP COLUMN "cancel_lease_token"');
+		expect(runtimeStateCleanup).toContain('DROP COLUMN "cancel_lease_until"');
 		for (const schema of [
 			"campus_services_ops",
 			"identity",
