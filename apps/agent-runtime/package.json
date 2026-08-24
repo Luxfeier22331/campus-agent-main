@@ -11,10 +11,10 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@arizeai/openinference-instrumentation-openai-agents": "^0.2.6",
-		"@langfuse/otel": "^5.10.0",
-		"@langfuse/tracing": "^5.10.0",
-		"@openai/agents": "0.15.0",
+		"@arizeai/openinference-instrumentation-openai-agents": "^0.2.7",
+		"@langfuse/otel": "^5.10.1",
+		"@langfuse/tracing": "^5.10.1",
+		"@openai/agents": "0.17.0",
 		"@opentelemetry/api": "^1.9.1",
 		"@opentelemetry/core": "^2.10.0",
 		"@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
@@ -29,7 +29,7 @@
 		"@types/node": "^24.13.3",
 		"tsx": "^4.23.12",
 		"typescript": "^7.0.2",
-		"vitest": "^4.1.10"
+		"vitest": "^4.1.11"
 	},
 	"license": "Apache-2.0"
 }

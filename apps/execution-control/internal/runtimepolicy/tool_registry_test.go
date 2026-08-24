@@ -21,13 +21,17 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	if registry.SchemaVersion != ToolRegistrySchemaVersion {
 		t.Fatalf("schema_version = %q, want %q", registry.SchemaVersion, ToolRegistrySchemaVersion)
 	}
-	if got := registry.ModelVisibleToolNames(); !sameStrings(got, []string{"personal_memory_recall"}) {
-		t.Fatalf("model-visible tools = %#v, want personal_memory_recall", got)
+	if got := registry.ModelVisibleToolNames(); !sameStrings(got, []string{"campus_search", "personal_memory_recall"}) {
+		t.Fatalf("model-visible tools = %#v, want campus_search and personal_memory_recall", got)
 	}
 	wantTools := map[string]struct {
 		endpoint string
 		exposure string
 	}{
+		"campus_search": {
+			endpoint: "/internal/campus/search",
+			exposure: "model_visible",
+		},
 		"personal_memory_recall": {
 			endpoint: "/internal/memory/personal/recall",
 			exposure: "model_visible",

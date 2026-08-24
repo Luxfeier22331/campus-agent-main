@@ -65,19 +65,36 @@ task-queue 字段。
 `configs/runtime/tools.v6.json` 与
 `configs/runtime/tool-function-schemas.v3.json` 是运行时工具事实。当前登记的内部合同为：
 
+- `campus_search`：按当前 Campus Docs 绑定检索中央民族大学 Campus Web 文档，返回有界 evidence。
 - `personal_memory_recall`：按当前 run 绑定的用户身份读取有界个人记忆。
 
-`personal_memory_recall` 的 exposure 登记为 `model_visible`，但注册表本身不会自动向 Agent Runtime
-开放工具：
+两个工具的 exposure 都登记为 `model_visible`，但注册表本身不会自动向 Agent Runtime 开放工具。
+execution-control 根据当前能力状态生成本轮工具集合：
 
-- `personal_memory_recall_allowed=false` 时使用 `memory_recall=disabled`、`max_model_turns=1`、
-  `max_tool_calls=0` 和空 `visible_tool_names`；
-- `personal_memory_recall_allowed=true` 时使用 `memory_recall=model_optional`、`max_model_turns=2`、
-  `max_tool_calls=1`，并只开放 `personal_memory_recall`。
+- `visible_tool_names` 是名称唯一的集合，数组顺序没有路由语义；
+- 个人记忆不可用时，`max_model_turns=2`、`max_tool_calls=1`，只开放 `campus_search`；
+- 个人记忆可用时，`max_model_turns=3`、`max_tool_calls=2`，开放 `campus_search` 和
+  `personal_memory_recall`。工具预算独立于集合大小，不从数组顺序推导调用顺序。
 
 `personal_memory_recall_allowed` 是当前 v5 私有 wire 字段，表示由个人记忆生命周期和就绪状态派生、
 随本轮冻结的内部可用性，不表示用户同意状态或逐次读取授权。浏览器和用户文案不得暴露该字段、
 recall 工具或执行结果。matched personal memory 只支持用户自身事实或偏好，不推导机构事实。
+
+`campus_search` 不接收 collection、索引版本、provider、top-k 或 vector-store 字段。handler 在调用
+时读取当前 `campus_docs_serving.current_index` 和 embedding provider。handler 内部先取得最多 24 个
+hybrid 候选，再调用同一 provider 的固定 `Qwen3-Reranker-4B` 排序并保留
+`relevance_score >= 0.5` 的候选。成功结果只包含 `outcome` 与最多 5 条 evidence；过滤后无候选返回
+`no_match`。阈值只判断文本相关性，不判断学校、人群或规则适用主体；reranker 失败不得回退到未排序
+候选。
+
+Primary Agent 的固定角色是中央民族大学校园问答助手，未明确指定机构的校内问题默认指中央民族
+大学。工具定义声明各自能够提供的事实范围；Primary Agent 根据问题所需事实选择工具，不使用机构或
+其他实体名称级路由特判。问题有部分事实被成功工具 evidence 支持时，只回答有依据的部分；完全没有
+本轮成功 evidence 支持所需机构事实时，在正常助手正文中说明资料边界。
+
+`campus_search` evidence 按返回顺序对应正文中的 Markdown 引用 `[1]` 到 `[5]`。Finalization 只从
+同一次 run 的成功工具结果中解析实际出现的引用并派生公开来源；失败工具、越界编号和未被正文引用的
+evidence 不贡献来源。
 
 ## 工具运行时指纹
 
@@ -100,6 +117,9 @@ StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memo
 或独立 payload。它的完整结果只进入有界 Agent result；Primary Agent invocation receipt 约束整个 SDK
 run 不得因 Activity 重投递而再次执行。已有 `started` 或 `completed` receipt 而没有可用 Activity result
 时，必须以 `agent_attempt_uncertain` 失败关闭。
+
+`campus_search` 也在同一次 SDK run 内执行，不创建独立 Temporal Activity。它的 evidence 只在本次
+Agent result 内有效，不能跨 run 或从模型输出中重新构造。
 
 ## Temporal 与终态处理
 
@@ -132,12 +152,13 @@ Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_
 属于 unauthorized successor：只以 `workflow_successor_without_authorization` 失败关闭产品 root run，
 不得将 successor Run ID 写入 start binding，也不得向 successor 发送取消。
 
-`ExecutionFinalizationResponse` 包含状态、答案、追问、置信度、模型用量、结果、错误和
-trace 标识；可选字段包括观测摘要、工作流调用链摘要和阶段耗时。它不返回路由标签、外部平台引用
+`ExecutionFinalizationResponse` 包含状态、答案、模型用量、结果、错误和 trace 标识；可选字段包括
+观测摘要、工作流调用链摘要和阶段耗时。追问、资料不足和范围说明都是 `completed` 助手正文。它不返回路由标签、外部平台引用
 或逐请求遥测控制项。
 
-当前在线链路不生成机构知识来源；若终态携带未接入能力的来源引用，Finalization 拒绝该终态。
-未来来源能力接入时，必须由对应可执行合同定义来源校验和公开字段。
+当前在线链路只有 `campus_search` 注册了机构知识 evidence adapter。Finalization 按成功工具 adapter
+校验引用并派生公开来源；没有 adapter、来自失败工具或不属于同一次运行的引用均被拒绝。新的来源能力
+接入时，必须由对应可执行合同定义来源校验和公开字段。
 
 Finalization Activity 必须通过一次 `FinalizeRunProjection` 提交 completed Step、Attempt、Result 与
 run 四元组；不得拆成独立投影写入与 run completion。存储以单次 CAS 原子提交四元组、释放

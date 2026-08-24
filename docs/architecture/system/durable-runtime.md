@@ -29,8 +29,8 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 ## 执行阶段
 
 1. **Agent Activity**：在 agent queue 只调用一次 `apps/agent-runtime`，完成 Primary Agent、可选的
-   单次个人记忆工具调用和结构化终态输出。
-2. **Finalization**：在 core queue 校验终态输出、生成终态投影并写入
+   函数工具调用和原生文本输出。
+2. **Finalization**：在 core queue 校验 Agent 结果、生成终态投影并写入
    最终投影。
 3. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
 
@@ -83,7 +83,7 @@ exact-run 取消路径。延迟只为绑定和取消保留窗口，不能把 rec
 启动命令一致时才确认已有执行；visibility 暂不可读、Memo 缺失或尚不可解码都保持可重试。明确
 不一致时，run 与启动命令失败关闭，且不得取消该未知所有权的 Temporal execution。
 
-取消由 app-api 先提交产品侧取消发件箱，再投递 execution-control。execution-control 将
+取消由 app-api 校验归属后调用 execution-control。execution-control 将
 `cancel_requested` 与 Temporal 取消命令持久化后由 reconciler 投递；临时网络错误只推进命令重试，
 不丢失用户意图，也不直接伪造已取消终态。取消投递同样先校验上述 Memo：身份暂不可确认时重试；
 明确冲突时只完成本地产品取消，不向不属于该 run 的 execution 发送取消。reconciler 每次操作已绑定
@@ -144,7 +144,7 @@ receipt 为 `started` 或 `completed` 时都不能重放模型调用或从 Postg
 事务。
 
 provider invocation envelope 的摘要是 receipt 的输入 fingerprint。它绑定 execution input、完整
-admission snapshot、可见工具、最终模型上下文，以及实际发送给 agent-runtime 的精确 HTTP body；请求
+执行身份与授权投影、可见工具、最终模型上下文，以及实际发送给 agent-runtime 的精确 HTTP body；请求
 摘要和网络发送复用同一份编码 bytes。completed receipt 只保存该输入摘要、Agent result ref 和 schema
 version，不保存模型结果。`agent.primary` StepResult 保存有界摘要和正文 hash；完整 Agent result 仅由
 workflow 的 Activity result 交给 Finalization。
@@ -179,7 +179,7 @@ Memo 一致、reset state 已知且没有 reset evidence，并确认该 executio
 
 Finalization 执行确定性校验：
 
-- 校验 workflow 传入的 Agent result、冻结准入快照和完整有界 payload；
+- 校验 workflow 传入的 Agent result、执行输入摘要和完整有界 payload；
 - 校验终态 schema 和允许的结果；
 - 拒绝不属于当前终态合同的来源引用；
 - 通过一次 `FinalizeRunProjection` CAS 提交 completed `finalization.write` Step、Attempt、Result 与

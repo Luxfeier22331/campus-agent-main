@@ -36,13 +36,22 @@ function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
 	return (
 		<div className="border-border/70 bg-surface-muted/20 rounded-md border px-3 py-2">
 			<div className="flex min-w-0 items-start justify-between gap-3">
-				<div className="min-w-0">
-					<p className="text-foreground line-clamp-2 text-sm font-medium">{sourceItem.title}</p>
-					{metadata.length > 0 ? (
-						<p className="text-muted-foreground mt-1 line-clamp-1 text-xs">
-							{metadata.join(" · ")}
-						</p>
-					) : null}
+				<div className="flex min-w-0 items-start gap-2">
+					<span
+						aria-label={`引用 ${sourceItem.citationIndexes.join("、")}`}
+						className="text-muted-foreground shrink-0 text-sm font-medium"
+						role="img"
+					>
+						{sourceItem.citationIndexes.map((index) => `[${index}]`).join(" ")}
+					</span>
+					<div className="min-w-0">
+						<p className="text-foreground line-clamp-2 text-sm font-medium">{sourceItem.title}</p>
+						{metadata.length > 0 ? (
+							<p className="text-muted-foreground mt-1 line-clamp-1 text-xs">
+								{metadata.join(" · ")}
+							</p>
+						) : null}
+					</div>
 				</div>
 				<SourceItemAction sourceItem={sourceItem} />
 			</div>

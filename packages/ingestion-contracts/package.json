@@ -5,7 +5,8 @@
 	"description": "Shared ingestion task contracts for campus-agent data plane.",
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./job-error": "./src/job-error.ts"
 	},
 	"scripts": {
 		"test": "vitest run",

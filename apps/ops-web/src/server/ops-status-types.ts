@@ -93,7 +93,6 @@ export interface OpsRequestTrendRow {
 }
 
 export interface OpsRequestRow {
-	admissionStatus: string;
 	assistantKind: string | null;
 	assistantMessagePresent: boolean;
 	attentionReason: string | null;

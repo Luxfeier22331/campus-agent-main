@@ -61,6 +61,25 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		t.Fatalf("upsert agent result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             "sdk_tool.execute.campus_search.1:result:1",
+		StepID:               "sdk_tool.execute.campus_search.1",
+		RunID:                run.RunID,
+		AttemptID:            temporalStepAttemptID(run.RunID, "sdk_tool.execute.campus_search.1", 1),
+		Status:               "completed",
+		ResultKind:           "typed_tool_result",
+		ProjectionRef:        "projection://runs/run-temporal-derived-eval/sdk-tools/campus_search/1",
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload: map[string]any{
+			"result": campusSearchResult([]campusSearchEvidence{
+				{EvidenceRef: "evidence://" + strings.Repeat("a", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility", SectionTitle: "申请条件", RootUnitIDs: []string{"scholarship-eligibility"}, VersionID: "version-scholarship-2026", VersionLabel: "2026 版", VersionSlug: "2026-current", Text: "国家奖学金评审需要满足学习成绩和综合测评要求。"},
+				{EvidenceRef: "evidence://" + strings.Repeat("b", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026-current#award", SectionTitle: "奖励标准", RootUnitIDs: []string{"scholarship-award"}, VersionID: "version-scholarship-2026", VersionLabel: "2026 版", VersionSlug: "2026-current", Text: "国家奖学金奖励标准按照学校当年评审办法执行。"},
+			}),
+		},
+	}); err != nil {
+		t.Fatalf("upsert campus search result: %v", err)
+	}
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "finalization.write:result:1",
 		StepID:               "finalization.write",
 		RunID:                run.RunID,
@@ -77,11 +96,26 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 					"sources": []any{
 						map[string]any{
 							"document_id":   "handbook:scholarship-policy",
+							"evidence_ref":  "evidence://" + strings.Repeat("a", 64),
+							"kind":          "campus_document",
 							"root_unit_ids": []any{"scholarship-eligibility"},
 							"section_ref":   "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility",
 							"section_title": "申请条件",
 							"snippet":       "国家奖学金评审需要满足学习成绩和综合测评要求。",
 							"source_body":   "must not leak",
+							"title":         "本科生国家奖学金评审办法",
+							"version_id":    "version-scholarship-2026",
+							"version_label": "2026 版",
+							"version_slug":  "2026-current",
+						},
+						map[string]any{
+							"document_id":   "handbook:scholarship-policy",
+							"evidence_ref":  "evidence://" + strings.Repeat("b", 64),
+							"kind":          "campus_document",
+							"root_unit_ids": []any{"scholarship-award"},
+							"section_ref":   "/docs/regulations/student_rules/scholarship/v/2026-current#award",
+							"section_title": "奖励标准",
+							"snippet":       "国家奖学金奖励标准按照学校当年评审办法执行。",
 							"title":         "本科生国家奖学金评审办法",
 							"version_id":    "version-scholarship-2026",
 							"version_label": "2026 版",
@@ -121,29 +155,42 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		t.Fatalf("eval projection leaked retrieval internals: %#v", evalProjection)
 	}
 	contexts, _ := rag["retrieved_contexts"].([]any)
-	if len(contexts) != 1 || contexts[0] != "国家奖学金评审需要满足学习成绩和综合测评要求。" {
+	if len(contexts) != 2 ||
+		contexts[0] != "国家奖学金评审需要满足学习成绩和综合测评要求。" ||
+		contexts[1] != "国家奖学金奖励标准按照学校当年评审办法执行。" {
 		t.Fatalf("rag.retrieved_contexts = %#v", rag["retrieved_contexts"])
 	}
 	contextIDs, _ := rag["retrieved_context_ids"].([]any)
-	if len(contextIDs) != 1 || contextIDs[0] != "handbook:scholarship-policy" {
+	if len(contextIDs) != 2 ||
+		contextIDs[0] != "evidence://"+strings.Repeat("a", 64) ||
+		contextIDs[1] != "evidence://"+strings.Repeat("b", 64) {
 		t.Fatalf("rag.retrieved_context_ids = %#v", rag["retrieved_context_ids"])
 	}
 	sourceRefs, _ := rag["source_refs"].([]any)
-	if len(sourceRefs) != 1 {
+	if len(sourceRefs) != 2 {
 		t.Fatalf("rag.source_refs = %#v", rag["source_refs"])
 	}
 	sourceRef := expectRecord(t, sourceRefs[0], "agent_runtime_eval_projection.rag.source_refs[0]")
 	if sourceRef["document_id"] != "handbook:scholarship-policy" ||
-		sourceRef["title"] != "本科生国家奖学金评审办法" || len(sourceRef) != 2 {
+		sourceRef["evidence_ref"] != "evidence://"+strings.Repeat("a", 64) ||
+		sourceRef["source_kind"] != "campus_document" ||
+		sourceRef["title"] != "本科生国家奖学金评审办法" || len(sourceRef) != 4 {
 		t.Fatalf("rag.source_refs[0] = %#v", sourceRef)
+	}
+	secondSourceRef := expectRecord(t, sourceRefs[1], "agent_runtime_eval_projection.rag.source_refs[1]")
+	if secondSourceRef["document_id"] != "handbook:scholarship-policy" ||
+		secondSourceRef["evidence_ref"] != "evidence://"+strings.Repeat("b", 64) ||
+		secondSourceRef["source_kind"] != "campus_document" ||
+		secondSourceRef["title"] != "本科生国家奖学金评审办法" || len(secondSourceRef) != 4 {
+		t.Fatalf("rag.source_refs[1] = %#v", secondSourceRef)
 	}
 	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
 	toolSequence, _ := planning["tool_sequence"].([]any)
-	if len(toolSequence) != 0 {
-		t.Fatalf("tool sequence = %#v, want no tool calls", planning["tool_sequence"])
+	if len(toolSequence) != 1 {
+		t.Fatalf("tool sequence = %#v, want campus search", planning["tool_sequence"])
 	}
-	if steps, _ := planning["planned_steps"].([]any); len(steps) != 2 ||
-		steps[0] != "agent.primary" || steps[1] != "finalization.write" {
+	if steps, _ := planning["planned_steps"].([]any); len(steps) != 3 ||
+		steps[0] != "agent.primary" || steps[1] != "sdk_tool.execute" || steps[2] != "finalization.write" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 	memory := expectRecord(t, evalProjection["memory"], "agent_runtime_eval_projection.memory")

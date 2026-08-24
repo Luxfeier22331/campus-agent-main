@@ -38,6 +38,7 @@ function turnDispatchWrite(overrides: Partial<TurnDispatchWrite> = {}): TurnDisp
 		surface: "campus_web",
 		traceId: "trace_001",
 		turnSequence: 1,
+		turnId: "turn_001",
 		updatedAt: "2026-06-04T01:02:03.000Z",
 		userMessageId: "msg_user_001",
 		...overrides,
@@ -55,18 +56,13 @@ describe("runtime command mutations", () => {
 				recallEnabled: false,
 			},
 			{
-				admissionInputJson: '{"runId":"run_001"}',
-				admissionInputSha256: "a".repeat(64),
 				executionInputJson: '{"request_id":"req_001"}',
 				executionInputSha256: "b".repeat(64),
-				workflowId: "campus-agent.chat.run_001",
+				turnId: "turn_001",
 			},
 		);
 
 		expect(values).toMatchObject({
-			admissionInputJson: '{"runId":"run_001"}',
-			admissionInputSha256: "a".repeat(64),
-			admissionStatus: "pending_admission",
 			executionInputJson: '{"request_id":"req_001"}',
 			executionInputSha256: "b".repeat(64),
 			memoryAppendEnabled: true,
@@ -76,8 +72,8 @@ describe("runtime command mutations", () => {
 			requestId: "req_001",
 			runId: "run_001",
 			status: "accepted",
+			turnId: "turn_001",
 			turnSequence: 1,
-			workflowId: "campus-agent.chat.run_001",
 		});
 	});
 });

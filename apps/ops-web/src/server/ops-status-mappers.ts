@@ -1,10 +1,11 @@
 import { z } from "zod";
-import type {
-	OpsRequestDetailResponse,
-	OpsRequestListResponse,
-	OpsRequestListView,
-	OpsRequestSummary,
-} from "../shared/ops-contract";
+import {
+	CitationIndexesSchema,
+	type OpsRequestDetailResponse,
+	type OpsRequestListResponse,
+	type OpsRequestListView,
+	type OpsRequestSummary,
+} from "../shared/ops-contract.ts";
 import {
 	type OpsObservabilityLinkAllowlist,
 	toLangfuseExternalLink,
@@ -27,17 +28,17 @@ const TERMINAL_STATUSES = new Set<OpsRequestSummary["status"]>([
 ]);
 
 const ProductSourceActionSchema = z.object({
-	disabledReason: z.string().nullable(),
-	external: z.boolean(),
-	href: z.string().nullable(),
-	label: z.string().min(1),
+	disabledReason: z.null(),
+	external: z.literal(false),
+	href: z.string().min(1),
+	label: z.literal("查看文档"),
 });
 
 const ProductSourceItemSchema = z.object({
+	citationIndexes: CitationIndexesSchema,
 	collectionLabel: z.string(),
-	pageLabel: z.string(),
+	kind: z.literal("campus_document"),
 	primaryAction: ProductSourceActionSchema,
-	publisherLabel: z.string(),
 	sectionTitle: z.string(),
 	snippet: z.string().nullable(),
 	title: z.string().min(1),
@@ -279,7 +280,7 @@ export function normalizeStatusToDbValues(value: string | undefined): string[] {
 		return ["completed"];
 	}
 	if (value === "FAILED") {
-		return ["error", "rejected", "no_answer"];
+		return ["error", "rejected"];
 	}
 	if (value === "CANCELLED") {
 		return ["cancelled"];
@@ -288,7 +289,7 @@ export function normalizeStatusToDbValues(value: string | undefined): string[] {
 		return ["accepted"];
 	}
 	if (value === "ACTION_REQUIRED") {
-		return ["approval_required", "needs_clarification"];
+		return ["approval_required"];
 	}
 	if (value === "RUNNING") {
 		return ["running"];
@@ -304,10 +305,8 @@ export function normalizeDbStatusToSummaryKey(
 		cancelled: "cancelled",
 		completed: "completed",
 		error: "failed",
-		no_answer: "failed",
 		accepted: "pending",
 		approval_required: "actionRequired",
-		needs_clarification: "actionRequired",
 		rejected: "failed",
 		running: "running",
 	} as const;
@@ -369,14 +368,11 @@ function toProductResult(
 function normalizeProductSourceAction(
 	action: z.infer<typeof ProductSourceActionSchema>,
 	campusWebPublicOrigin?: string,
-): z.infer<typeof ProductSourceActionSchema> {
-	const href = action.href?.trim();
-	if (!href) {
-		return action;
-	}
-	if (action.external) {
-		return isSafeExternalSourceUrl(href) ? { ...action, href } : invalidSourceAction(action);
-	}
+): Extract<
+	OpsRequestDetailResponse["result"],
+	{ state: "WRITTEN" }
+>["sources"][number]["primaryAction"] {
+	const href = action.href.trim();
 	if (!campusWebPublicOrigin) {
 		return invalidSourceAction(action, "Campus Web 地址未配置。");
 	}
@@ -400,17 +396,11 @@ function normalizeProductSourceAction(
 function invalidSourceAction(
 	action: z.infer<typeof ProductSourceActionSchema>,
 	disabledReason = "来源链接地址无效。",
-): z.infer<typeof ProductSourceActionSchema> {
+): Extract<
+	OpsRequestDetailResponse["result"],
+	{ state: "WRITTEN" }
+>["sources"][number]["primaryAction"] {
 	return { ...action, disabledReason, href: null };
-}
-
-function isSafeExternalSourceUrl(value: string) {
-	try {
-		const parsed = new URL(value);
-		return parsed.protocol === "https:" && !parsed.username && !parsed.password;
-	} catch {
-		return false;
-	}
 }
 
 function normalizeProductSources(
@@ -420,7 +410,7 @@ function normalizeProductSources(
 	if (!Array.isArray(value)) {
 		return [];
 	}
-	const sources: z.infer<typeof ProductSourceItemSchema>[] = [];
+	const sources: Extract<OpsRequestDetailResponse["result"], { state: "WRITTEN" }>["sources"] = [];
 	for (const part of value) {
 		const parsed = ProductSourcePartSchema.safeParse(part);
 		if (!parsed.success) {
@@ -493,12 +483,7 @@ function readDbInteger(value: number | string | null, field: string): number {
 }
 
 function normalizeAssistantKind(value: unknown) {
-	if (
-		value === "answer" ||
-		value === "clarification" ||
-		value === "no_answer" ||
-		value === "error"
-	) {
+	if (value === "answer" || value === "error") {
 		return value;
 	}
 	throw new Error("Assistant message kind is invalid");
@@ -526,13 +511,13 @@ function normalizeRequestStatus(value: string): OpsRequestSummary["status"] {
 	if (normalized === "PENDING") {
 		return "PENDING";
 	}
-	if (normalized === "ERROR" || normalized === "REJECTED" || normalized === "NO_ANSWER") {
+	if (normalized === "ERROR" || normalized === "REJECTED") {
 		return "FAILED";
 	}
 	if (normalized === "ACCEPTED") {
 		return "PENDING";
 	}
-	if (normalized === "APPROVAL_REQUIRED" || normalized === "NEEDS_CLARIFICATION") {
+	if (normalized === "APPROVAL_REQUIRED") {
 		return "ACTION_REQUIRED";
 	}
 	if (normalized === "COMPLETED" || normalized === "COMPLETE") {
@@ -564,17 +549,7 @@ function deriveRequestLifecyclePhase(
 	if (runStatus && ["created", "queued", "admitted"].includes(runStatus)) {
 		return "QUEUED";
 	}
-	const admissionStatus = row.admissionStatus.trim().toLowerCase();
-	if (admissionStatus === "pending_input") {
-		return "PREPARING";
-	}
-	if (admissionStatus === "pending_admission") {
-		return "WAITING_ADMISSION";
-	}
-	if (admissionStatus === "admitted") {
-		return "QUEUED";
-	}
-	return status === "RUNNING" ? "RUNNING" : "PREPARING";
+	return status === "PENDING" ? "QUEUED" : "RUNNING";
 }
 
 async function normalizeExternalLinks(

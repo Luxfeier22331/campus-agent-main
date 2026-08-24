@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpsWebApp } from "../src/app/ops-web-app";
 
 describe("notice pipeline page", () => {
 	afterEach(() => vi.unstubAllGlobals());
 
-	it("starts only the fixed notice operations and shows recent summaries", async () => {
+	it("starts only the fixed notice operations and separates active jobs from history", async () => {
 		const requests: unknown[] = [];
 		vi.stubGlobal(
 			"fetch",
@@ -23,7 +23,13 @@ describe("notice pipeline page", () => {
 				}
 				if (url.pathname === "/api/ops/notice-pipeline/jobs") {
 					return Response.json({
-						jobs: [job("notice-sync", "succeeded", { noticesProcessed: 8, objectsWritten: 8 })],
+						jobs: [
+							job("notice-classify-one", "running", null),
+							job("notice-sync", "succeeded", {
+								noticesProcessed: 8,
+								objectsWritten: 8,
+							}),
+						],
 					});
 				}
 				return new Response(null, { status: 404 });
@@ -33,7 +39,18 @@ describe("notice pipeline page", () => {
 		render(<OpsWebApp initialPath="/notice-pipeline" />);
 
 		expect(await screen.findByRole("heading", { name: "通知管线" })).toBeInTheDocument();
-		expect(await screen.findByText("noticesProcessed: 8 · objectsWritten: 8")).toBeInTheDocument();
+		const activeJobs = (await screen.findByRole("heading", { name: "活动任务" })).closest(
+			"section",
+		);
+		const history = (await screen.findByRole("heading", { name: "历史结果" })).closest("section");
+		expect(activeJobs).not.toBeNull();
+		expect(history).not.toBeNull();
+		expect(
+			within(activeJobs as HTMLElement).getByText("notice-classify-one-abc12"),
+		).toBeInTheDocument();
+		expect(
+			within(history as HTMLElement).getByText("noticesProcessed: 8 · objectsWritten: 8"),
+		).toBeInTheDocument();
 		fireEvent.change(screen.getByRole("spinbutton", { name: "分类通知 ID" }), {
 			target: { value: "354516" },
 		});
@@ -47,11 +64,11 @@ describe("notice pipeline page", () => {
 
 function job(
 	operation: "notice-sync" | "notice-classify-one",
-	status: "pending" | "succeeded",
+	status: "pending" | "running" | "succeeded" | "failed",
 	summary: Record<string, number> | null,
 ) {
 	return {
-		completedAt: status === "succeeded" ? "2026-08-23T10:01:00.000Z" : null,
+		completedAt: status === "succeeded" || status === "failed" ? "2026-08-23T10:01:00.000Z" : null,
 		createdAt: "2026-08-23T10:00:00.000Z",
 		error: null,
 		jobName: `${operation}-abc12`,

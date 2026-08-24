@@ -132,10 +132,9 @@ func TestExecutePrimaryAgentActivitySendsConversationContextAndProjectsRuntimeUs
 			},
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
-			"terminal_envelope":    map[string]any{"kind": "unsupported_by_evidence", "answer_text": "当前证据不足。"},
 			"provider_response_id": "resp-primary-agent-context",
 			"tool_results":         []any{},
-			"terminal_reason":      "unsupported_by_evidence",
+			"terminal_reason":      "answer_completed",
 			"usage":                map[string]any{"input_tokens": 12, "output_tokens": 8},
 		})
 	}))

@@ -30,27 +30,30 @@ Temporal history。
 
 v3 只接受当前注册表中的名称：
 
+- `campus_search`；
 - `personal_memory_recall`。
 
-`personal_memory_recall` 只有在本轮冻结的个人记忆状态可用时才进入 `available_tools`，
-并且最多产生一次调用。
+`available_tools` 表示本轮冻结的名称唯一工具集合，数组顺序没有选择或调用语义。集合始终包含
+`campus_search`；`personal_memory_recall` 只有在本轮冻结的个人记忆状态可用时才出现。每个工具在一次
+SDK run 内最多产生一次调用，`tool_calls[]` 才按真实发生顺序记录。
 
-当前在线链路没有机构知识检索工具；未来非工具能力不得派生工具调用、`tool_name`、`eval_safe_args`
-或 `selected_tool`。
+非工具能力不得派生工具调用、`tool_name`、`eval_safe_args` 或 `selected_tool`。
 
 ## 工具调用
 
 每次调用可以携带 tool call id、tool name、status、result kind、duration、argument shape/hash、失败
 关闭原因和允许公开的 Provider/model 标识。
 
-个人记忆 query、`memory_text`、Hindsight 标识和原始结果均不属于轨迹。记忆工具只保留参数 hash、
-状态、结果种类、调用标识和耗时。
+Campus Search query、evidence 正文、collection 标识、provider 凭据和原始结果均不属于轨迹；个人
+记忆 query、`memory_text`、Hindsight 标识和原始结果也不属于轨迹。轨迹只保留参数 hash、状态、结果
+种类、调用标识和耗时。
 
 ## 决策语义
 
 - `direct_answer`：没有执行模型可见工具；
 - `tool_assisted`：至少一个已准入 SDK function tool 已执行；
-- `fail_closed`：合同、配置、策略或执行条件拒绝了本次 run。
+- `fail_closed`：合同、配置、策略或执行条件拒绝了本次 run。普通工具失败本身不要求整轮
+  `fail_closed`；只要剩余事实足以形成合法终态，轨迹仍可为 `tool_assisted`。
 
 澄清、拒绝和普通直接回答不得伪装成工具。
 

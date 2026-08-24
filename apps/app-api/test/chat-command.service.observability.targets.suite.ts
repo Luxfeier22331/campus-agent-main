@@ -22,7 +22,6 @@ export function registerChatCommandServiceObservabilitySupportingSourcesSuite():
 				execute: vi.fn().mockResolvedValue({
 					answerText: "民族学本科人才培养方案总学分要求以培养方案正文为准。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -36,7 +35,9 @@ export function registerChatCommandServiceObservabilitySupportingSourcesSuite():
 					result: {
 						sources: [
 							{
+								citation_index: 1,
 								document_id: "curriculum_plan/ethnology",
+								kind: "campus_document",
 								root_unit_ids: ["ethnology-credits"],
 								section_ref: "/docs/curriculum/curriculum_plan/ethnology/v/2026-current#credits",
 								section_title: "学分要求",

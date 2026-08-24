@@ -247,8 +247,6 @@ const OpsStatusSchema = z.enum([
 	"ACTION_REQUIRED",
 ]);
 const OpsRequestLifecyclePhaseSchema = z.enum([
-	"PREPARING",
-	"WAITING_ADMISSION",
 	"QUEUED",
 	"RUNNING",
 	"STREAMING",
@@ -264,7 +262,12 @@ const AgentUsageStateSchema = z.enum([
 ]);
 
 const OpsJourneyEntrySchema = z.enum(["CAMPUS_WEB", "OTHER"]);
-const OpsAssistantMessageKindSchema = z.enum(["answer", "clarification", "no_answer", "error"]);
+const OpsAssistantMessageKindSchema = z.enum(["answer", "error"]);
+export const CitationIndexesSchema = z
+	.array(z.number().int().min(1).max(5))
+	.min(1)
+	.max(5)
+	.refine((values) => new Set(values).size === values.length, "citation indexes must be unique");
 const OpsJourneyResultSchema = z.discriminatedUnion("state", [
 	z.object({ kind: z.null(), state: z.literal("PENDING") }),
 	z.object({ kind: OpsAssistantMessageKindSchema, state: z.literal("WRITTEN") }),
@@ -332,15 +335,15 @@ export const OpsRequestListResponseSchema = z.object({
 });
 
 const OpsProductSourceSchema = z.object({
+	citationIndexes: CitationIndexesSchema,
 	collectionLabel: z.string(),
-	pageLabel: z.string(),
+	kind: z.literal("campus_document"),
 	primaryAction: z.object({
 		disabledReason: z.string().min(1).nullable(),
-		external: z.boolean(),
+		external: z.literal(false),
 		href: z.string().min(1).nullable(),
-		label: z.string().min(1),
+		label: z.literal("查看文档"),
 	}),
-	publisherLabel: z.string(),
 	sectionTitle: z.string(),
 	snippet: z.string().nullable(),
 	title: z.string().min(1),

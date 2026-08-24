@@ -21,7 +21,6 @@ export interface AgentToolEvalCase extends JsonObject {
 	argument_mode: AgentToolEvalArgumentMode;
 	case_family?: string;
 	case_id: string;
-	expected_outcome?: "answer" | "clarification" | "no_answer";
 	forbidden_context_ids: string[];
 	query: string;
 	reference?: string;
@@ -96,7 +95,6 @@ function parseCase(
 		}
 	}
 	const caseFamily = optionalString(item.case_family);
-	const expectedOutcome = parseExpectedOutcome(item.expected_outcome, caseId);
 	const reference = optionalString(item.reference);
 	const split = optionalString(item.split);
 	const surfaceKey = optionalString(item.surface_key) ?? defaultSurfaceKey;
@@ -104,7 +102,6 @@ function parseCase(
 		argument_mode: argumentMode,
 		...(caseFamily ? { case_family: caseFamily } : {}),
 		case_id: caseId,
-		...(expectedOutcome ? { expected_outcome: expectedOutcome } : {}),
 		forbidden_context_ids: stringList(item.forbidden_context_ids),
 		query: stringField(item.query ?? item.user_input, `${caseId}.query`),
 		...(reference ? { reference } : {}),
@@ -115,20 +112,6 @@ function parseCase(
 		...(split ? { split } : {}),
 		...(surfaceKey ? { surface_key: surfaceKey } : {}),
 	};
-}
-
-function parseExpectedOutcome(
-	value: unknown,
-	caseId: string,
-): AgentToolEvalCase["expected_outcome"] {
-	const outcome = optionalString(value);
-	if (!outcome) {
-		return;
-	}
-	if (outcome === "answer" || outcome === "clarification" || outcome === "no_answer") {
-		return outcome;
-	}
-	throw new Error(`${caseId}.expected_outcome must be answer, clarification, or no_answer`);
 }
 
 function parseSetupTurns(value: unknown, caseId: string): string[] {

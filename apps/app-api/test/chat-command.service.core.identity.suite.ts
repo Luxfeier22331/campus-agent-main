@@ -70,10 +70,24 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
-				followUpQuestion: "",
 				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {
-					sources: [{ doc_id: "handbook:library-hours" }],
+					sources: [
+						{
+							citation_index: 1,
+							document_id: "student_rules/library-hours",
+							kind: "campus_document",
+							root_unit_ids: ["library-hours"],
+							section_ref:
+								"/docs/regulations/student_rules/library-hours/v/2026-current#opening-hours",
+							section_title: "开放时间",
+							snippet: "图书馆开放到 22:00。",
+							title: "图书馆开放时间",
+							version_id: "version-library-hours-2026",
+							version_label: "2026 版",
+							version_slug: "2026-current",
+						},
+					],
 				},
 				status: "completed",
 				traceId: "trace_0001",
@@ -243,7 +257,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "可以，先看培养方案和学院通知。",
 				error: null,
-				followUpQuestion: "",
 				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {},
 				status: "completed",

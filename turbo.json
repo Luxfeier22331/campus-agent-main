@@ -183,6 +183,9 @@
 				"HTTP_PROXY",
 				"HTTPS_PROXY",
 				"NO_PROXY",
+				"QDRANT_READ_ONLY_API_KEY",
+				"QDRANT_TLS_CA_CERT_PATH",
+				"QDRANT_URL",
 				"XDG_STATE_HOME",
 				"HINDSIGHT_*",
 				"OTEL_*"

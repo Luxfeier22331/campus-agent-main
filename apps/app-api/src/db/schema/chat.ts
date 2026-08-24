@@ -116,22 +116,9 @@ export const turnDispatches = chat.table(
 		requestFingerprintSha256: text("request_fingerprint_sha256"),
 		traceId: text("trace_id").notNull(),
 		runId: text("run_id"),
-		admissionStatus: text("admission_status").notNull().default("pending_admission"),
-		workflowId: text("workflow_id"),
-		admissionInputJson: text("admission_input_json"),
-		admissionInputSha256: text("admission_input_sha256"),
+		turnId: text("turn_id"),
 		executionInputJson: text("execution_input_json"),
 		executionInputSha256: text("execution_input_sha256"),
-		admittedAt: timestamp("admitted_at", { withTimezone: true }),
-		cancelOutboxStatus: text("cancel_outbox_status").notNull().default("not_requested"),
-		cancelReason: text("cancel_reason"),
-		cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true }),
-		cancelAttemptCount: integer("cancel_attempt_count").notNull().default(0),
-		cancelLastAttemptAt: timestamp("cancel_last_attempt_at", { withTimezone: true }),
-		cancelLastErrorCode: text("cancel_last_error_code"),
-		cancelDeliveredAt: timestamp("cancel_delivered_at", { withTimezone: true }),
-		cancelLeaseToken: text("cancel_lease_token"),
-		cancelLeaseUntil: timestamp("cancel_lease_until", { withTimezone: true }),
 		finalizationFingerprint: text("finalization_fingerprint"),
 		safetyIdentifier: text("safety_identifier"),
 		status: text("status").notNull(),
@@ -141,30 +128,6 @@ export const turnDispatches = chat.table(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
-		cancelOutboxStatusCheck: check(
-			"chat_turn_dispatches_cancel_outbox_status_check",
-			sql`${table.cancelOutboxStatus} in (
-				'not_requested',
-				'local_finalization_pending',
-				'pending_delivery',
-				'delivered',
-				'closed'
-			)`,
-		),
-		admissionStatusCheck: check(
-			"chat_turn_dispatches_admission_status_check",
-			sql`${table.admissionStatus} in (
-				'pending_admission',
-				'dispatching',
-				'admitted',
-				'admission_failed',
-				'cancelled'
-			)`,
-		),
-		admissionInputPairCheck: check(
-			"chat_turn_dispatches_admission_input_pair_check",
-			sql`(${table.admissionInputJson} is null) = (${table.admissionInputSha256} is null)`,
-		),
 		executionInputPairCheck: check(
 			"chat_turn_dispatches_execution_input_pair_check",
 			sql`(${table.executionInputJson} is null) = (${table.executionInputSha256} is null)`,
@@ -174,54 +137,30 @@ export const turnDispatches = chat.table(
 			sql`(
 					${table.status} = 'accepted'
 					and ${table.runId} is not null
-					and ${table.workflowId} is not null
+					and ${table.turnId} is not null
 					and (
-						(
-							${table.admissionStatus} in ('pending_admission', 'dispatching')
-							and ${table.admissionInputJson} is not null
-							and ${table.admissionInputSha256} is not null
-							and ${table.executionInputJson} is not null
-							and ${table.executionInputSha256} is not null
-						)
-						or (
-							${table.admissionStatus} = 'admitted'
-							and ${table.admissionInputJson} is null
-							and ${table.admissionInputSha256} is null
-							and ${table.executionInputJson} is not null
-							and ${table.executionInputSha256} is not null
-						)
-						or (
-							${table.admissionStatus} = 'cancelled'
-							and ${table.cancelOutboxStatus} = 'local_finalization_pending'
-							and ${table.admissionInputJson} is null
-							and ${table.admissionInputSha256} is null
-							and ${table.executionInputJson} is not null
-							and ${table.executionInputSha256} is not null
-						)
+						${table.executionInputJson} is not null
+						and ${table.executionInputSha256} is not null
 					)
 				)
 				or (
 					${table.status} in (
 						'completed',
-						'needs_clarification',
-						'no_answer',
 						'error',
 						'approval_required',
 						'rejected',
 						'cancelled'
 					)
-					and ${table.admissionInputJson} is null
-					and ${table.admissionInputSha256} is null
 					and (
 						(
 							${table.runId} is null
-							and ${table.workflowId} is null
+							and ${table.turnId} is null
 							and ${table.executionInputJson} is null
 							and ${table.executionInputSha256} is null
 						)
 						or (
 							${table.runId} is not null
-							and ${table.workflowId} is not null
+						and ${table.turnId} is not null
 							and ${table.executionInputJson} is not null
 							and ${table.executionInputSha256} is not null
 						)
@@ -231,15 +170,6 @@ export const turnDispatches = chat.table(
 		actorIdempotencyUnique: uniqueIndex("chat_turn_dispatches_actor_idempotency_uidx").on(
 			table.actorUserId,
 			table.idempotencyKey,
-		),
-		cancelOutboxIndex: index("chat_turn_dispatches_cancel_outbox_idx").on(
-			table.cancelOutboxStatus,
-			table.updatedAt,
-		),
-		cancelLeaseIndex: index("chat_turn_dispatches_cancel_lease_idx").on(
-			table.cancelOutboxStatus,
-			table.cancelLeaseUntil,
-			table.updatedAt,
 		),
 		conversationTurnSequenceIndex: index("chat_turn_dispatches_conversation_turn_sequence_idx").on(
 			table.conversationId,

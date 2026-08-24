@@ -3,8 +3,8 @@
 	"tools": [
 		{
 			"type": "function",
-			"name": "personal_memory_recall",
-			"description": "Recall private user memory only when it can help answer or disambiguate the current request.",
+			"name": "campus_search",
+			"description": "检索中央民族大学当前 Campus Web 文档中的校内事实、政策和办事流程。",
 			"strict": true,
 			"parameters": {
 				"type": "object",
@@ -12,7 +12,26 @@
 				"properties": {
 					"query": {
 						"type": "string",
-						"description": "A focused memory query derived from the current user request.",
+						"description": "根据用户当前问题整理出的、面向中央民族大学校内资料的聚焦查询。",
+						"minLength": 1,
+						"maxLength": 400
+					}
+				},
+				"required": ["query"]
+			}
+		},
+		{
+			"type": "function",
+			"name": "personal_memory_recall",
+			"description": "仅在有助于回答或消除当前问题歧义时，检索用户的私有个人记忆。",
+			"strict": true,
+			"parameters": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"query": {
+						"type": "string",
+						"description": "根据用户当前问题整理出的聚焦个人记忆查询。",
 						"minLength": 1,
 						"maxLength": 400
 					}

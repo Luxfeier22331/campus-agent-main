@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { formatNoticeJobError } from "ingestion-contracts/job-error";
 
 import {
 	type CollectionCommand,
@@ -9,7 +10,6 @@ import {
 import { parseNoticeStartDate } from "./notice-runner.js";
 import { loadInternalPortalEnv } from "./config.js";
 import { resolveInternalPortalCredentialFromEnv } from "./ops-web-credential-resolver.js";
-import { formatSafeErrorMessage } from "./safe-error.js";
 
 export async function main(
 	argv: string[] = process.argv.slice(2),
@@ -53,7 +53,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
 			process.exitCode = status;
 		})
 		.catch((error) => {
-			console.error(formatSafeErrorMessage(error));
+			console.error(formatNoticeJobError(error));
 			process.exitCode = 1;
 		});
 }

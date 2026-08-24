@@ -64,6 +64,10 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 - Campus Docs 三个阶段和 internal-portal 三个模板默认 `suspend: true`，不因源码存在而自动运行；
 - Job 的 `ttlSecondsAfterFinished` 只负责完成后的 Job 对象回收，不替代数据 retention 或备份。
 
+Ops Web 按需从暂停的通知 CronJob 模板创建 Job。GitOps 只管理 CronJob 模板；动态 Job 通过
+`ownerReference` 归属来源模板，不构成独立 desired state 或顶层 orphan。动态 Job 固定不重试并在完成
+24 小时后回收，成功和失败状态只作为该窗口内的运行历史，不参与 Argo CD 或服务健康判断。
+
 这些是 desired-state 合同。清单通过测试只证明仓库期望状态可检查，不能证明某个环境已经启用模板、
 控制器已经创建 Job，或 Job 实际获得了相应资源。
 

@@ -5,6 +5,7 @@ import {
 	dedupeStable,
 	isRecord,
 	normalizeOptionalString,
+	recordNumber,
 	recordString,
 	recordStringArray,
 } from "./normalize-record-utils";
@@ -58,6 +59,8 @@ function parseSectionRef(value: string): { anchor: string | null; basePath: stri
 interface NormalizedSource {
 	anchor: string | null;
 	basePath: string;
+	citationIndexes: number[];
+	kind: "campus_document";
 	rootUnitIds: string[];
 	sectionTitle: string;
 	snippet: string | null;
@@ -82,12 +85,16 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 		return null;
 	}
 	const title = recordString(source, "title", "title");
+	const kind = recordString(source, "kind", "kind");
 	const sectionRef = recordString(source, "section_ref", "section_ref");
 	const versionLabel = recordString(source, "version_label", "versionLabel");
 	const versionSlug = recordString(source, "version_slug", "versionSlug");
+	const citationIndex = recordNumber(source, "citation_index", "citationIndex");
 	const parsedRef = sectionRef ? parseSectionRef(sectionRef) : null;
 	if (
-		!(parsedRef && title && versionLabel && versionSlug) ||
+		kind !== "campus_document" ||
+		!(parsedRef && title && versionLabel && versionSlug && citationIndex !== null) ||
+		citationIndex > 5 ||
 		versionSlugFromReaderPath(parsedRef.basePath) !== versionSlug
 	) {
 		return null;
@@ -95,6 +102,8 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 	return {
 		anchor: parsedRef.anchor,
 		basePath: parsedRef.basePath,
+		citationIndexes: [citationIndex],
+		kind: "campus_document",
 		rootUnitIds: dedupeStable(recordStringArray(source, "root_unit_ids", "rootUnitIds")),
 		sectionTitle: recordString(source, "section_title", "section_title") ?? "",
 		snippet: normalizeSnippet(source.snippet),
@@ -105,6 +114,8 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 
 function sourceItemFromNormalized(source: NormalizedSource): ChatSourceItem {
 	return {
+		citationIndexes: source.citationIndexes,
+		kind: source.kind,
 		title: source.title,
 		snippet: source.snippet,
 		primaryAction: {
@@ -143,14 +154,18 @@ export function normalizeSourceItemsPart(input: {
 	}
 	const normalizedSources: NormalizedSource[] = [];
 	const sourcesByKey = new Map<string, NormalizedSource>();
-	for (const source of resultSources(input.result)) {
+	for (const [index, source] of resultSources(input.result).entries()) {
 		const normalized = normalizeSource(source);
 		if (!normalized) {
-			continue;
+			throw new Error(`Execution source item ${index} is invalid.`);
 		}
 		const key = normalizedSourceKey(normalized);
 		const existing = sourcesByKey.get(key);
 		if (existing) {
+			existing.citationIndexes = dedupeStableNumbers([
+				...existing.citationIndexes,
+				...normalized.citationIndexes,
+			]);
 			existing.rootUnitIds = dedupeStable([...existing.rootUnitIds, ...normalized.rootUnitIds]);
 			continue;
 		}
@@ -166,4 +181,17 @@ export function normalizeSourceItemsPart(input: {
 				},
 			]
 		: [];
+}
+
+function dedupeStableNumbers(values: number[]): number[] {
+	const seen = new Set<number>();
+	const deduped: number[] = [];
+	for (const value of values) {
+		if (seen.has(value)) {
+			continue;
+		}
+		seen.add(value);
+		deduped.push(value);
+	}
+	return deduped;
 }

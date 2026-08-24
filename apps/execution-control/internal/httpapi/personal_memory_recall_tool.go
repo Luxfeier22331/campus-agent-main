@@ -110,8 +110,7 @@ func (s *Server) executePersonalMemoryRecallTool(
 		return nil, agentToolConflictError{message: err.Error()}
 	}
 	strategy := workflowInput.AdmissionSnapshot.ExecutionStrategy
-	if strategy.MemoryRecall != "model_optional" || strategy.MaxToolCalls != 1 ||
-		len(strategy.VisibleToolNames) != 1 || strategy.VisibleToolNames[0] != personalMemoryRecallToolName {
+	if !containsString(strategy.VisibleToolNames, personalMemoryRecallToolName) {
 		return nil, agentToolConflictError{message: "personal memory recall is not available for this run"}
 	}
 	payload, err := s.loadExecutionPayload(ctx, run)

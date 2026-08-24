@@ -3,7 +3,6 @@ import {
 	isSafeExecutionControlErrorCode,
 } from "./execution-control-transport";
 import {
-	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
 	EXECUTION_FINALIZATION_STATUSES,
 	type ExecutionFinalizationResponseWire,
 	STAGE_TIMING_FIELDS,
@@ -33,9 +32,7 @@ const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
 
 const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"answer_text",
-	"confidence",
 	"error",
-	"follow_up_question",
 	"model_usage",
 	"observability",
 	"result",
@@ -47,9 +44,7 @@ const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 
 const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"answer_text",
-	"confidence",
 	"error",
-	"follow_up_question",
 	"model_usage",
 	"result",
 	"status",
@@ -129,9 +124,6 @@ function assertExecutionFinalizationResponseWire(
 	if (!(typeof record.answer_text === "string")) {
 		throw new ExecutionFinalizationResponseContractError("answer_text must be a string");
 	}
-	if (!(typeof record.follow_up_question === "string")) {
-		throw new ExecutionFinalizationResponseContractError("follow_up_question must be a string");
-	}
 	if (!(typeof record.trace_id === "string")) {
 		throw new ExecutionFinalizationResponseContractError("trace_id must be a string");
 	}
@@ -139,13 +131,6 @@ function assertExecutionFinalizationResponseWire(
 		throw new ExecutionFinalizationResponseContractError(
 			"status must be a known execution finalization status",
 		);
-	}
-	if (
-		!(EXECUTION_FINALIZATION_CONFIDENCE_LEVELS as readonly string[]).includes(
-			String(record.confidence),
-		)
-	) {
-		throw new ExecutionFinalizationResponseContractError("confidence must be high, medium, or low");
 	}
 	assertModelUsage(record.model_usage);
 	if (!(record.result === null || getRecord(record.result))) {
@@ -364,14 +349,7 @@ function parseWorkflowTraceSummary(value: unknown): ToolExecutionWorkflowTraceSu
 		);
 	}
 	const executionPath = normalizeNullableString(record.execution_path);
-	if (
-		!(
-			executionPath &&
-			["direct", "tool_assisted", "clarification", "rejected", "unsupported"].includes(
-				executionPath,
-			)
-		)
-	) {
+	if (!(executionPath && ["direct", "tool_assisted"].includes(executionPath))) {
 		throw new ExecutionFinalizationResponseContractError(
 			"workflow_trace_summary.execution_path is invalid",
 		);
@@ -431,7 +409,6 @@ export function parseExecutionFinalizationResponsePayload(
 						retryable: (parsed.error as { retryable: boolean }).retryable,
 					}
 				: null,
-		followUpQuestion: parsed.follow_up_question,
 		modelUsage: {
 			cachedInputTokens: parsed.model_usage.cached_input_tokens,
 			inputTokens: parsed.model_usage.input_tokens,

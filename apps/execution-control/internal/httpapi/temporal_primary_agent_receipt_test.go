@@ -80,7 +80,6 @@ func TestExecutePrimaryAgentActivityFailsClosedAfterCompletedReceiptWithoutSecon
 					"final_output":         "已完成。",
 					"model_name":           "gpt-test",
 					"model_provider":       "openai",
-					"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "已完成。"},
 					"provider_response_id": "resp-" + runID,
 					"tool_results":         []any{},
 					"terminal_reason":      "answer_completed",
@@ -152,7 +151,6 @@ func TestExecutePrimaryAgentActivityReceiptStoresNoModelResult(t *testing.T) {
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status": "completed", "run_id": runID, "final_output": "only-in-temporal-history",
 			"model_name": "gpt-test", "model_provider": "openai",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "only-in-temporal-history"},
 			"provider_response_id": "resp-" + runID,
 			"tool_results":         []any{}, "terminal_reason": "answer_completed",
 			"usage": map[string]any{"input_tokens": 1, "output_tokens": 1, "cached_input_tokens": 0},

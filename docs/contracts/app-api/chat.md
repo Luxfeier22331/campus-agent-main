@@ -27,8 +27,7 @@ type ChatAvailabilityResponse = {
 ```
 
 接口读取最近 15 分钟内按 `created_at desc, request_id desc` 排序的最新一条
-`chat.turn_dispatches`：`completed`、`needs_clarification`、`no_answer`、
-`approval_required`、`rejected`、`cancelled` 映射为 `operational`，`error` 映射为
+`chat.turn_dispatches`：`completed`、`approval_required`、`rejected`、`cancelled` 映射为 `operational`，`error` 映射为
 `outage`，`accepted` 或没有记录映射为 `unknown`。数据库读取失败或出现合同外状态时返回共享
 `500 internal_error`，不返回旧结果或模拟正常。
 
@@ -86,6 +85,11 @@ pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`�
 - `GET /api/chat/conversations/:conversationId` 返回未删除详情、message 和 feedback 状态。
 - `activeRunId` 只标识该会话当前仍需恢复的持久 run；浏览器刷新后以它读取 run 摘要和事件，不能据此
   重新提交原 prompt。
+
+assistant message 的 `source_items` structured part 只包含当前产品来源卡片。每个来源卡片的
+`citationIndexes` 是正文中对应的 `[n]` 编号数组，数组保持正文首次引用顺序，值必须是 `1..5` 的唯一
+整数。同一阅读目标的多个 evidence 会合并到同一卡片；App API 不从正文推导编号。历史 structured
+part 缺少该字段时不生成来源卡片，正文仍保留。
 
 ### 重命名、删除和状态
 

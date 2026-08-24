@@ -595,7 +595,7 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{
 		ContextUsage:           cloneAnyMapFromMetadata(response.ContextUsage),
-		FinalOutput:            strings.TrimSpace(response.FinalOutput),
+		FinalOutput:            response.FinalOutput,
 		ModelName:              strings.TrimSpace(response.ModelName),
 		ModelProvider:          strings.TrimSpace(response.ModelProvider),
 		PromptTrace:            cloneAnyMapFromMetadata(response.PromptTrace),
@@ -603,7 +603,6 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 		RunID:                  strings.TrimSpace(response.RunID),
 		StageTiming:            cloneAnyMapFromMetadata(response.StageTiming),
 		Status:                 strings.TrimSpace(response.Status),
-		TerminalEnvelope:       cloneAnyMapFromMetadata(response.TerminalEnvelope),
 		TerminalReason:         strings.TrimSpace(response.TerminalReason),
 		ToolResults:            toolResults,
 		ToolRuntimeFingerprint: cloneAnyMapFromMetadata(response.ToolRuntimeFingerprint),

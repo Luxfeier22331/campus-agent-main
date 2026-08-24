@@ -104,7 +104,6 @@ export interface ToolExecutionResponse {
 		message: string;
 		retryable: boolean;
 	} | null;
-	followUpQuestion: string;
 	modelUsage: ToolExecutionModelUsage;
 	observability?: ToolExecutionObservability | null;
 	result: unknown;

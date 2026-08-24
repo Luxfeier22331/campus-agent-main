@@ -54,7 +54,6 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 			"final_output":         "你好，我是校园问答助手。",
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-001",
 			"stage_timing": map[string]any{
 				"agent.runtime_ms": 42,
@@ -116,8 +115,8 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if output.StageTiming["agent.runtime_ms"] != float64(42) {
 		t.Fatalf("stage timing = %#v", output.StageTiming)
 	}
-	if output.TerminalEnvelope["kind"] != "answer" || output.TerminalEnvelope["answer_text"] != "你好，我是校园问答助手。" {
-		t.Fatalf("terminal envelope = %#v", output.TerminalEnvelope)
+	if output.FinalOutput != "你好，我是校园问答助手。" {
+		t.Fatalf("final output = %#v", output.FinalOutput)
 	}
 	run, err := store.GetRun(context.Background(), "run-primary-agent-001")
 	if err != nil {
@@ -164,7 +163,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if output.ContextUsage["context_chars"] != float64(64) {
 		t.Fatalf("workflow agent output lost context usage: %#v", output.ContextUsage)
 	}
-	if output.TerminalEnvelope["kind"] != "answer" || output.PromptTrace["prompt_id"] != "primary_agent" {
+	if output.FinalOutput == "" || output.PromptTrace["prompt_id"] != "primary_agent" {
 		t.Fatalf("workflow agent output is incomplete: %#v", output)
 	}
 	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-001")
@@ -180,7 +179,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if _, exists := steps[0].SanitizedPayload["memory_context_summary"]; exists {
 		t.Fatalf("agent step payload contains retired memory_context_summary: %#v", steps[0].SanitizedPayload)
 	}
-	for _, field := range []string{"final_output", "terminal_envelope", "tool_results", "prompt_trace"} {
+	for _, field := range []string{"final_output", "tool_results", "prompt_trace"} {
 		if _, exists := steps[0].SanitizedPayload[field]; exists {
 			t.Fatalf("agent step payload must not contain workflow result %s: %#v", field, steps[0].SanitizedPayload)
 		}
@@ -240,7 +239,6 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 			"final_output":         "你好，我是校园问答助手。",
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-streaming",
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
@@ -362,7 +360,6 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 			"final_output":         "你好",
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好"},
 			"provider_response_id": "resp-primary-agent-live-streaming",
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
@@ -465,7 +462,6 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 			"status":               "completed",
 			"run_id":               "run-primary-agent-empty-memory",
 			"final_output":         "你好，我是校园问答助手。",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-empty-memory",
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",

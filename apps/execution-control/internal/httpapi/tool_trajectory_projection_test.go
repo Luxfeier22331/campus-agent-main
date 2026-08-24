@@ -9,6 +9,32 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
+func TestProjectedAvailableToolsExcludesInternalSteps(t *testing.T) {
+	steps := []execution.RunStepProjection{
+		{StepID: "agent.primary", Tool: "memory"},
+		{StepID: "sdk_tool.execute.campus_search.1", Tool: campusSearchToolName},
+		{StepID: "memory.append", Tool: "memory"},
+		{StepID: "agent.primary.retry", SanitizedPayload: map[string]any{
+			"visible_tool_names": []any{
+				"memory",
+				personalMemoryRecallToolName,
+				campusSearchToolName,
+			},
+		}},
+	}
+
+	got := projectedAvailableTools(steps, nil)
+	want := []string{campusSearchToolName, personalMemoryRecallToolName}
+	if len(got) != len(want) {
+		t.Fatalf("projected available tools = %#v, want %#v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("projected available tools = %#v, want %#v", got, want)
+		}
+	}
+}
+
 func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 	now := time.Date(2026, 7, 3, 10, 0, 0, 0, time.UTC)
 	projection := buildAgentRuntimeEvalProjection(
@@ -157,6 +183,29 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 		personalMemoryEvalResultForAttempt(run.RunID, 1),
 		personalMemoryEvalResultForAttempt(run.RunID, 2),
 		{
+			ResultID:   "sdk_tool.execute.campus_search.1:result:2",
+			StepID:     "sdk_tool.execute.campus_search.1",
+			RunID:      run.RunID,
+			AttemptID:  temporalStepAttemptID(run.RunID, "sdk_tool.execute.campus_search.1", 2),
+			Status:     "completed",
+			ResultKind: "typed_tool_result",
+			SanitizedPayload: map[string]any{
+				"result": campusSearchResult([]campusSearchEvidence{{
+					EvidenceRef:  "evidence://" + strings.Repeat("c", 64),
+					SourceKind:   "document",
+					DocumentID:   "curriculum-document",
+					Title:        "培养方案",
+					SectionRef:   "/docs/regulations/student_rules/curriculum/v/current#requirements",
+					SectionTitle: "毕业要求",
+					RootUnitIDs:  []string{"requirements"},
+					VersionID:    "curriculum-current",
+					VersionLabel: "当前版本",
+					VersionSlug:  "current",
+					Text:         "successful context",
+				}}),
+			},
+		},
+		{
 			ResultID:   "finalization.write:result:1",
 			StepID:     "finalization.write",
 			RunID:      run.RunID,
@@ -166,8 +215,10 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 				"finalized_response": map[string]any{
 					"result": map[string]any{
 						"sources": []any{map[string]any{
-							"document_id": "curriculum-document",
-							"snippet":     "successful context",
+							"document_id":  "curriculum-document",
+							"evidence_ref": "evidence://successful-context",
+							"kind":         "campus_document",
+							"snippet":      "successful context",
 						}},
 					},
 				},
@@ -177,7 +228,9 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 	projection := buildAgentRuntimeEvalProjection(run, nil, nil, results)
 	planning := expectRecord(t, projection["planning"], "planning")
 	toolSequence, _ := planning["tool_sequence"].([]any)
-	if len(toolSequence) != 1 || expectRecord(t, toolSequence[0], "planning.tool_sequence[0]")["tool_name"] != "personal_memory_recall" {
+	if len(toolSequence) != 2 ||
+		expectRecord(t, toolSequence[0], "planning.tool_sequence[0]")["tool_name"] != "personal_memory_recall" ||
+		expectRecord(t, toolSequence[1], "planning.tool_sequence[1]")["tool_name"] != "campus_search" {
 		t.Fatalf("planning.tool_sequence = %#v", planning["tool_sequence"])
 	}
 	rag := expectRecord(t, projection["rag"], "rag")
@@ -187,7 +240,7 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 	}
 	trajectory := expectRecord(t, projection["tool_trajectory"], "tool_trajectory")
 	calls, _ := trajectory["tool_calls"].([]map[string]any)
-	if len(calls) != 1 {
+	if len(calls) != 2 {
 		t.Fatalf("tool_calls = %#v", trajectory["tool_calls"])
 	}
 	if _, exists := calls[0]["eval_safe_args"]; exists {

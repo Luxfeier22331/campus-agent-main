@@ -14,7 +14,7 @@ status: active
 ## 数据所有者
 
 - `chat.conversations` 和 `chat.messages` 保存用户可见会话。
-- `chat.turn_dispatches` 保存一次 turn 的 admission、关联标识、幂等键和最终状态。
+- `chat.turn_dispatches` 保存一次 turn 的稳定运行身份、执行输入、幂等键和最终状态。
 - `runtime.request_observability_fact` 保存受控诊断摘要。
 - execution-control 使用同一个 `run_id` 在 `execution_control.agent_*` 中保存 workflow projection。
 - Temporal 保存完整 workflow history。
@@ -29,15 +29,13 @@ status: active
 
 - `accepted`
 - `completed`
-- `needs_clarification`
-- `no_answer`
 - `error`
 - `approval_required`
 - `rejected`
 - `cancelled`
 
 只有 `accepted` 可以原子推进到终态。队列和执行中的细粒度状态来自 durable run event，
-不写入 turn dispatch 状态列。
+不写入 turn dispatch 状态列。追问、资料不足和范围说明是 `completed` 助手正文，不建立独立产品状态。
 
 ## 接收事务
 
@@ -45,18 +43,19 @@ app-api 完成身份、授权、输入和幂等检查后，在同一事务内：
 
 1. 创建或确认 conversation；
 2. 写入 user message；
-3. 以 `status=accepted, admission_status=pending_admission` 写入 `chat.turn_dispatches`；
+3. 以 `status=accepted`、`run_id`、`turn_id` 和完整 execution input 写入 `chat.turn_dispatches`；
 4. 写入 accepted observability fact；
 5. 推进 conversation active turn/run 指针。
 
 事务先锁定并核对 conversation 的 active branch/message/run/turn 基线，再读取一次 memory settings
 快照；基线已经变化时整个接收事务以冲突回滚，不使用旧上下文静默生成新 turn。同一事务使用这份
-memory 快照冻结准入命令和执行输入的原始 UTF-8 JSON 文本及其 SHA-256。冻结失败会回滚 user
+memory 快照冻结执行输入的原始 UTF-8 JSON 文本及其 SHA-256。冻结失败会回滚 user
 message、turn dispatch 和 observability fact。事务提交后才调用
 execution-control 创建持久 run；数据库使用 `text` 保留参与 hash 的精确字节，不能经 PostgreSQL
-`jsonb` 规范化后再验证。可重试的创建失败保留为待准入状态，由幂等 dispatcher 使用已冻结且
-校验 hash 的同一输入重试；身份冲突、合同拒绝等可确定的永久失败必须通过产品终结事务持久化为
-`admission_failed`，不能归还 claim 或形成热重试。任何路径都不能创建第二个 turn 或丢失关联标识。
+`jsonb` 规范化后再验证。创建结果不确定时，客户端使用同一 `Idempotency-Key` 重试；app-api
+重新读取已冻结输入并以同一 `run_id` 调用 execution-control 的幂等创建接口。身份冲突、合同拒绝
+等确定性失败通过产品终结事务持久化为普通执行错误。app-api 不维护后台 admission 状态机、dispatcher
+或恢复队列。任何路径都不能创建第二个 turn 或丢失关联标识。
 
 ## 持久运行
 
@@ -66,16 +65,17 @@ execution-control 通过带独立认证且禁止缓存的内部接口按 ref 读
 document scope、collection 或检索控制参数。关联标识必须在后续事件中保持一致；
 不一致的事件以验证错误拒绝。
 
-stream 请求在产品事务持久化且稳定 `run_id` 可供查询、恢复和取消后发送
+stream 请求在 execution-control 确认同一 `run_id` 后发送
 `request.accepted`。该事件不表示 Temporal 已排队或 worker 已开始，app-api 不合成未由持久事件
 证明的 `execution.queued`。随后只转发受类型约束的 `execution.queued`、`execution.running`、
 `execution.phase`、`answer.delta` 和请求终态事件；`execution.phase` 只允许
 `preparing|generating|finalizing`。app-api 使用 execution-control 返回的
-`next_sequence` 跨过不可见内部事件。客户端断开只停止当前连接消费，不自动取消运行；显式取消先写入
-app-api 取消发件箱，再由 reconciler 幂等投递 execution-control。
+`next_sequence` 跨过不可见内部事件。客户端断开只停止当前连接消费，不自动取消运行；显式取消由
+app-api 校验归属后直接调用 execution-control。
 
 conversation detail 的 `activeRunId` 是浏览器刷新恢复入口。客户端必须先读取 run 摘要，再从持久事件
-游标恢复当前消息与状态；恢复流程不得重新提交 prompt，也不得生成新的 idempotency key 或第二个 run。
+游标恢复当前消息与状态；恢复流程使用原始 prompt 对应的同一个 `Idempotency-Key`，不得生成新的 key
+或第二个 run。
 
 账号删除期间，execution-control 的 owner deletion fence 拒绝该 owner 的新 run；已存在的活动 run
 由删除任务通过持久取消命令排空。App API 不把取消请求的 HTTP 返回顺序当作删除完成证明，只有 memory
@@ -95,10 +95,9 @@ conversation detail 的 `activeRunId` 是浏览器刷新恢复入口。客户端
 branch/head。
 
 最终事务先锁定 turn dispatch。execution-control 的 durable product finalization 明确确认 run 已被
-持久执行；它先于 `markAdmitted` 到达，或本地确认失败后 claim 已归还 `pending_admission` 时，锁内均将
-准入状态归一化为 `admitted` 后提交终态。本地取消已经取得的 `cancelled` 不得被覆盖，尚未发生 durable
-admission 的本地终态归为 `admission_failed`。这样 callback、admission 确认和取消竞争只由同一产品行
-裁决，不依赖调用返回顺序。
+持久执行后，app-api 只提交产品终态、assistant message 和 observability fact；execution-control
+负责 run 的启动、重试、取消和 workflow history。这样产品终态与运行终态各由所属系统裁决，不依赖
+一次跨系统调用的返回顺序。
 
 产品终态的 replay 身份是 `(finalization_fingerprint, canonical completed_at)`。两项都与已提交值
 表示同一 fingerprint 和同一时刻时为精确 replay，必须零写入并返回 `replayed`；fingerprint 或时刻
@@ -106,8 +105,9 @@ admission 的本地终态归为 `admission_failed`。这样 callback、admission
 写 assistant message、observability fact、session slots，并发送 finalized 或 transport-error
 telemetry；精确 replay 不重复发送遥测。
 
-取消只有在该产品终态已持久化后才能作为 `run.canceled` 向浏览器发布；执行输入只在终态完成后
-通过幂等内部删除接口释放。
+取消由 app-api 校验产品归属后直接调用 execution-control；不写 app-api cancellation outbox，也不由
+app-api scheduled job 后台投递。浏览器只发布 execution-control 返回并通过事件确认的取消状态；执行
+输入随产品数据生命周期管理。
 
 execution-control 提交产品终态时，内部回调正文使用 `completed_at`、
 `finalization_fingerprint` 和 `response_json`。`response_json` 是发送端对最终响应执行 Go

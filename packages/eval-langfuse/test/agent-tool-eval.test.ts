@@ -38,7 +38,7 @@ function runStepsResponse(input: {
 		trace_id: input.traceId,
 	};
 	return jsonResponse({
-		agentRuntimeEvalProjection: {
+		agent_runtime_eval_projection: {
 			rag: {
 				...(input.answer === undefined ? {} : { answer: input.answer }),
 				retrieved_context_ids: input.retrievedContextIds ?? [],
@@ -57,7 +57,6 @@ function casesPayload(): JsonObject {
 			{
 				argument_mode: "name_only",
 				case_id: "case-001",
-				expected_outcome: "answer",
 				forbidden_context_ids: [],
 				query: "图书馆几点开门？",
 				reference: "应依据本轮文档回答。",
@@ -78,10 +77,21 @@ describe("agent eval cases", () => {
 			resolve(import.meta.dirname, "../assets/agent/routing/cases.v1.json"),
 		);
 
-		expect(result.case_count).toBe(10);
+		expect(result.case_count).toBe(14);
+		expect(result.tool_counts).toEqual({ campus_search: 6, direct_answer: 8 });
+		const ragCases = result.cases.filter((item) => item.reference_context_ids.length > 0);
+		expect(ragCases).toHaveLength(6);
+		expect(ragCases.every((item) => item.reference_context_ids[0]?.startsWith("evidence://"))).toBe(
+			true,
+		);
 		expect(result.cases[0]).toMatchObject({
 			case_id: "routing-direct-greeting",
 			surface_key: "app-api.chat",
+		});
+		expect(
+			result.cases.find((item) => item.case_id === "routing-other-institution-policy"),
+		).toMatchObject({
+			reference_tool_calls: [],
 		});
 	});
 
@@ -130,14 +140,14 @@ describe("agent product eval runner", () => {
 			const casesPath = join(directory, "cases.json");
 			const outputPath = join(directory, "product-result.json");
 			writeFileSync(casesPath, JSON.stringify(casesPayload()), "utf-8");
-			const requests: Array<{ body: unknown; url: string }> = [];
+			const requests: Array<{ body: unknown; headers: Headers; url: string }> = [];
 			let streamCount = 0;
 
 			const fetchImpl: typeof fetch = async (input, init) => {
 				const url = String(input);
 				if (url.endsWith("/api/chat/requests/stream")) {
 					const body = init?.body ? (JSON.parse(String(init.body)) as unknown) : null;
-					requests.push({ body, url });
+					requests.push({ body, headers: new Headers(init?.headers), url });
 					streamCount += 1;
 					const setup = streamCount === 1;
 					const requestId = setup ? "request-setup" : "request-001";
@@ -162,7 +172,8 @@ describe("agent product eval runner", () => {
 						{ headers: { "content-type": "text/event-stream" } },
 					);
 				}
-				if (url.endsWith("/api/chat/runs/run-001/steps")) {
+				if (url.endsWith("/internal/execution/runs/run-001/steps")) {
+					requests.push({ body: null, headers: new Headers(init?.headers), url });
 					return runStepsResponse({
 						answer: "图书馆 8 点开门。",
 						conversationId: "conversation-001",
@@ -170,13 +181,15 @@ describe("agent product eval runner", () => {
 						traceId: "trace-001",
 					});
 				}
-				throw new Error(`unexpected App API request: ${url}`);
+				throw new Error(`unexpected product eval request: ${url}`);
 			};
 
 			const summary = await runAgentToolEval({
 				appApiBaseUrl: "https://app-api.example",
 				casesPath,
 				cookieHeader: "session=test",
+				executionControlAuthSecret: "execution-secret",
+				executionControlBaseUrl: "https://execution-control.example",
 				fetchImpl,
 				outputPath,
 			});
@@ -187,7 +200,15 @@ describe("agent product eval runner", () => {
 			expect(requests.map((request) => request.body)).toEqual([
 				{ prompt: "请准备查询图书馆信息。" },
 				{ conversationId: "conversation-001", prompt: "图书馆几点开门？" },
+				null,
 			]);
+			expect(requests[0]?.url).toBe("https://app-api.example/api/chat/requests/stream");
+			expect(requests[1]?.url).toBe("https://app-api.example/api/chat/requests/stream");
+			expect(requests[2]?.url).toBe(
+				"https://execution-control.example/internal/execution/runs/run-001/steps",
+			);
+			expect(requests[2]?.headers.get("x-worker-origin-auth")).toBe("execution-secret");
+			expect(requests[2]?.headers.has("cookie")).toBe(false);
 			const result = loadAgentProductEvalResult(outputPath);
 			expect(result.items[0]).toMatchObject({
 				case: { case_id: "case-001" },
@@ -199,6 +220,114 @@ describe("agent product eval runner", () => {
 				terminal: { answer: "图书馆 8 点开门。", runId: "run-001" },
 			});
 			expect(readFileSync(outputPath, "utf-8")).toContain("agent_product_eval_result.v1");
+		} finally {
+			rmSync(directory, { force: true, recursive: true });
+		}
+	});
+
+	it("recovers a run when the initial stream ends after acceptance", async () => {
+		const directory = mkdtempSync(join(tmpdir(), "agent-product-eval-recovery-test-"));
+		try {
+			const casesPath = join(directory, "cases.json");
+			const outputPath = join(directory, "product-result.json");
+			writeFileSync(casesPath, JSON.stringify(casesPayload()), "utf-8");
+			const seen: Array<{ headers: Headers; url: string }> = [];
+
+			const fetchImpl: typeof fetch = async (input, init) => {
+				const url = String(input);
+				const headers = new Headers(init?.headers);
+				seen.push({ headers, url });
+				if (url.endsWith("/api/chat/requests/stream")) {
+					return new Response(
+						sse("request.accepted", {
+							requestId: "request-001",
+							runId: "run-001",
+							status: "accepted",
+							traceId: "trace-001",
+						}),
+						{ headers: { "content-type": "text/event-stream" } },
+					);
+				}
+				if (url.includes("/api/chat/runs/run-001/events")) {
+					return jsonResponse({
+						events: [
+							{
+								eventType: "request.completed",
+								occurredAt: "2026-08-22T00:00:01.000Z",
+								payload: {},
+								runId: "run-001",
+								sequence: 2,
+							},
+						],
+						nextSequence: 3,
+						run: {
+							acceptedAt: "2026-08-22T00:00:00.000Z",
+							completedAt: "2026-08-22T00:00:01.000Z",
+							conversationId: "conversation-001",
+							durationMs: 1_000,
+							phase: "completed",
+							requestId: "request-001",
+							runId: "run-001",
+							startedAt: "2026-08-22T00:00:00.000Z",
+							status: "completed",
+							traceId: "trace-001",
+						},
+					});
+				}
+				if (url.endsWith("/api/chat/conversations/conversation-001")) {
+					return jsonResponse({
+						conversation: {
+							messages: [
+								{
+									kind: "answer",
+									requestId: "request-001",
+									role: "assistant",
+									text: "图书馆 8 点开门。",
+									runId: "run-001",
+								},
+							],
+						},
+					});
+				}
+				if (url.endsWith("/internal/execution/runs/run-001/steps")) {
+					return runStepsResponse({
+						answer: "图书馆 8 点开门。",
+						conversationId: "conversation-001",
+						runId: "run-001",
+						traceId: "trace-001",
+					});
+				}
+				throw new Error(`unexpected recovery request: ${url}`);
+			};
+
+			const summary = await runAgentToolEval({
+				appApiBaseUrl: "https://app-api.example",
+				casesPath,
+				cookieHeader: "session=test",
+				executionControlAuthSecret: "execution-secret",
+				executionControlBaseUrl: "https://execution-control.example",
+				fetchImpl,
+				outputPath,
+			});
+
+			expect(summary).toMatchObject({ case_count: 1 });
+			const result = loadAgentProductEvalResult(outputPath);
+			expect(result.items[0]).toMatchObject({
+				projection: { runId: "run-001", traceId: "trace-001" },
+				terminal: {
+					answer: "图书馆 8 点开门。",
+					conversationId: "conversation-001",
+					resultKind: "answer",
+				},
+			});
+			const eventRequest = seen.find((request) =>
+				request.url.includes("/api/chat/runs/run-001/events"),
+			);
+			const conversationRequest = seen.find((request) =>
+				request.url.endsWith("/api/chat/conversations/conversation-001"),
+			);
+			expect(eventRequest?.headers.get("cookie")).toBe("session=test");
+			expect(conversationRequest?.headers.get("cookie")).toBe("session=test");
 		} finally {
 			rmSync(directory, { force: true, recursive: true });
 		}

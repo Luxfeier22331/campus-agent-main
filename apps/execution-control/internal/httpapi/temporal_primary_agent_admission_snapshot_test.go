@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,7 +45,6 @@ func TestExecutePrimaryAgentActivityDelegatesPinnedTargetToAgentRuntime(t *testi
 			"final_output":             "snapshot answer",
 			"tool_results":             []any{},
 			"terminal_reason":          "answer_completed",
-			"terminal_envelope":        map[string]any{"kind": "answer", "answer_text": "snapshot answer"},
 			"provider_response_id":     "resp-admission-snapshot",
 			"tool_runtime_fingerprint": toolRuntime.toMap(),
 		})
@@ -77,7 +77,7 @@ func TestExecutePrimaryAgentActivityDelegatesPinnedTargetToAgentRuntime(t *testi
 		RunID:             "run-admission-snapshot",
 		TraceID:           "trace-executor-001",
 		TurnID:            "turn-admission-snapshot",
-		VisibleToolNames:  []string{},
+		VisibleToolNames:  append([]string{}, snapshot.ExecutionStrategy.VisibleToolNames...),
 	}
 	_, err = server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil || requests != 1 {
@@ -101,6 +101,42 @@ func TestValidateAdmissionSnapshotRejectsMissingProviderHash(t *testing.T) {
 	}
 	if err := validateAdmissionSnapshot(snapshot); err == nil {
 		t.Fatal("provider identity without fingerprint was accepted")
+	}
+}
+
+func TestValidateExecutionStrategyAllowsIndependentBudgetAndToolOrder(t *testing.T) {
+	strategy := executionStrategyForAdmission(true)
+	strategy.VisibleToolNames = []string{personalMemoryRecallToolName, campusSearchToolName}
+	strategy.MaxToolCalls = 1
+	strategy.MaxModelTurns = 2
+	if err := validateExecutionStrategy(strategy); err != nil {
+		t.Fatalf("validate independent strategy: %v", err)
+	}
+	toolRuntime, err := buildToolRuntimeFingerprint("")
+	if err != nil {
+		t.Fatalf("build tool runtime fingerprint: %v", err)
+	}
+	toolRuntimeSnapshot := toolRuntime.toAdmissionSnapshot()
+	snapshot := temporalruntime.AgentAdmissionSnapshot{
+		AgentLimits:                  temporalruntime.AgentRuntimeLimitsSnapshot{AgentDeadlineMS: 1, ContextCharLimit: 1, CurrentInputCharLimit: 1, MaxOutputTokens: 1},
+		ExecutionStrategy:            strategy,
+		ExecutionStrategySHA256:      hashAdmissionJSON(strategy),
+		PrimaryAgentTargetSHA256:     strings.Repeat("a", 64),
+		ToolRuntimeFingerprint:       toolRuntimeSnapshot,
+		ToolRuntimeFingerprintSHA256: hashAdmissionJSON(toolRuntimeSnapshot),
+	}
+	snapshot.AgentLimitsSHA256 = hashAdmissionJSON(snapshot.AgentLimits)
+	if err := validateAdmissionSnapshotForVisibleTools(
+		snapshot,
+		[]string{campusSearchToolName, personalMemoryRecallToolName},
+	); err != nil {
+		t.Fatalf("validate reordered visible tools: %v", err)
+	}
+	if err := validateAdmissionSnapshotForVisibleTools(
+		snapshot,
+		[]string{campusSearchToolName, campusSearchToolName},
+	); err == nil {
+		t.Fatal("validate visible tools accepted duplicate caller names")
 	}
 }
 

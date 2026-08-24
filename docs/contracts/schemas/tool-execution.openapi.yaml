@@ -559,24 +559,18 @@ components:
     ToolID:
       type: string
       enum:
+        - campus_search
         - personal_memory_recall
     ModelVisibleToolName:
       type: string
       description: Current model-visible tool-name vocabulary; registered closed tools remain in ToolID only.
       enum:
+        - campus_search
         - personal_memory_recall
-    ConfidenceLevel:
-      type: string
-      enum:
-        - high
-        - medium
-        - low
     ExecutionStatus:
       type: string
       enum:
         - completed
-        - needs_clarification
-        - no_answer
         - error
         - rejected
         - approval_required
@@ -592,9 +586,6 @@ components:
       enum:
         - direct
         - tool_assisted
-        - clarification
-        - rejected
-        - unsupported
     AnswerArtifactKind:
       type: string
       enum:
@@ -837,8 +828,6 @@ components:
       required:
         - status
         - answer_text
-        - follow_up_question
-        - confidence
         - result
         - error
         - model_usage
@@ -848,10 +837,6 @@ components:
           $ref: "#/components/schemas/ExecutionStatus"
         answer_text:
           type: string
-        follow_up_question:
-          type: string
-        confidence:
-          $ref: "#/components/schemas/ConfidenceLevel"
         result:
           oneOf:
             - $ref: "#/components/schemas/SafeObject"

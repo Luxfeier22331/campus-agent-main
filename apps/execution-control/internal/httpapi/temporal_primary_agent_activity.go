@@ -169,27 +169,6 @@ func (s *Server) ExecutePrimaryAgent(
 	}
 	output.RunID = run.RunID
 	output.AgentResultRef = agentResultRef
-	if toolName, failCloseReason, failed := primaryAgentFailedToolResult(output); failed {
-		completedAt := time.Now().UTC()
-		if err := s.projectPrimaryAgentToolResults(
-			ctx,
-			run,
-			startedAt,
-			completedAt,
-			attempt,
-			visibleToolNames,
-			output,
-		); err != nil {
-			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
-		}
-		return s.failPrimaryAgentActivity(
-			ctx,
-			run,
-			"tool_execution_failed",
-			primaryAgentToolFailureError{ToolName: toolName, FailCloseReason: failCloseReason},
-			output,
-		)
-	}
 	if strings.TrimSpace(output.Status) != "completed" {
 		completedAt := time.Now().UTC()
 		if err := s.projectPrimaryAgentToolResults(
@@ -212,14 +191,14 @@ func (s *Server) ExecutePrimaryAgent(
 		)
 	}
 	if output.TerminalReason == "" {
-		output.TerminalReason = primaryAgentActivityTerminalReason(output)
+		output.TerminalReason = string(execution.DurableTerminalReasonAnswerCompleted)
 	}
-	if !validPrimaryAgentTerminalEnvelope(output.TerminalEnvelope) {
+	if strings.TrimSpace(output.FinalOutput) == "" {
 		return s.failPrimaryAgentActivity(
 			ctx,
 			run,
-			"agent_runtime_missing_terminal_envelope",
-			fmt.Errorf("agent runtime terminal_envelope is required"),
+			"agent_runtime_missing_final_output",
+			fmt.Errorf("agent runtime final_output is required"),
 			output,
 		)
 	}
@@ -582,6 +561,9 @@ func (s *Server) projectPrimaryAgentToolResults(
 			"tool_name":                toolName,
 			"tool_status":              status,
 		}
+		if toolName == campusSearchToolName && status == "completed" {
+			payload["result"] = cloneAnyMapFromMetadata(resultPayload)
+		}
 		// The raw tool result stays in the bounded Temporal Activity result.
 		// Step and event projections carry hashes and bounded outcomes.
 		if err := s.projectTemporalStep(ctx, identity.apply(temporalStepProjection{
@@ -728,7 +710,16 @@ func sdkToolResultEnvelopeForProjection(
 		}
 		return nil, nil
 	}
-	return nil, nil
+	if toolName == campusSearchToolName {
+		if status != "completed" {
+			return nil, nil
+		}
+		if _, _, err := decodeCampusSearchResult(result); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	return nil, fmt.Errorf("agent runtime tool %s has no result validator", toolName)
 }
 
 func validatePersonalMemoryRecallToolResult(result map[string]any) error {
@@ -782,10 +773,6 @@ func (s *Server) failPrimaryAgentActivity(
 	case "agent_runtime_unauthorized":
 		failCloseReason = "agent_runtime_unauthorized"
 	}
-	var toolFailure primaryAgentToolFailureError
-	if errors.As(cause, &toolFailure) {
-		failCloseReason = toolFailure.FailCloseReason
-	}
 	summary := summarizeTemporalFailure(failureKind, "", cause)
 	payload := map[string]any{
 		"failure_hash": summary.Hash,
@@ -794,9 +781,6 @@ func (s *Server) failPrimaryAgentActivity(
 	}
 	if failCloseReason != "" {
 		payload["fail_close_reason"] = failCloseReason
-	}
-	if toolFailure.ToolName != "" {
-		payload["tool_name"] = toolFailure.ToolName
 	}
 	var runtimeHTTPError agentRuntimeHTTPError
 	if errors.As(cause, &runtimeHTTPError) {
@@ -838,64 +822,4 @@ func (s *Server) failPrimaryAgentActivity(
 		)
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, temporalApplicationError(summary, true)
-}
-
-type primaryAgentToolFailureError struct {
-	FailCloseReason string
-	ToolName        string
-}
-
-func (e primaryAgentToolFailureError) Error() string {
-	return fmt.Sprintf(
-		"agent runtime tool %s failed with fail_close_reason=%s",
-		e.ToolName,
-		e.FailCloseReason,
-	)
-}
-
-func primaryAgentFailedToolResult(
-	output temporalruntime.ExecutePrimaryAgentActivityOutput,
-) (string, string, bool) {
-	for _, result := range output.ToolResults {
-		if strings.TrimSpace(result.Status) != "failed" {
-			continue
-		}
-		reason := strings.TrimSpace(result.FailCloseReason)
-		if reason == "" {
-			reason = "tool_execution_failed"
-		}
-		return strings.TrimSpace(result.ToolName), reason, true
-	}
-	return "", "", false
-}
-
-func validPrimaryAgentTerminalEnvelope(envelope map[string]any) bool {
-	kind := strings.TrimSpace(stringValue(envelope["kind"]))
-	switch kind {
-	case "answer":
-		return strings.TrimSpace(stringValue(envelope["answer_text"])) != ""
-	case "clarification_required":
-		return strings.TrimSpace(stringValue(envelope["follow_up_question"])) != "" ||
-			strings.TrimSpace(stringValue(envelope["answer_text"])) != ""
-	case "out_of_scope", "policy_refusal", "unsupported_by_evidence":
-		return strings.TrimSpace(stringValue(envelope["reason"])) != "" ||
-			strings.TrimSpace(stringValue(envelope["answer_text"])) != ""
-	default:
-		return false
-	}
-}
-
-func primaryAgentActivityTerminalReason(output temporalruntime.ExecutePrimaryAgentActivityOutput) string {
-	switch primaryAgentTerminalKind(output.TerminalEnvelope) {
-	case "clarification_required":
-		return "clarification_required"
-	case "out_of_scope":
-		return "out_of_scope"
-	case "policy_refusal":
-		return "policy_refusal"
-	case "unsupported_by_evidence":
-		return "unsupported_by_evidence"
-	default:
-		return string(execution.DurableTerminalReasonAnswerCompleted)
-	}
 }

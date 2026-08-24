@@ -178,7 +178,7 @@ func TestInMemoryFinalizeRunProjectionRejectsCompletedIdentityDrift(t *testing.T
 		{
 			name: "terminal reason",
 			mutate: func(request *RunProjectionFinalizeRequest) {
-				request.Completion.TerminalReason = DurableTerminalReasonClarificationRequired
+				request.Completion.TerminalReason = DurableTerminalReasonToolClosed
 			},
 		},
 		{

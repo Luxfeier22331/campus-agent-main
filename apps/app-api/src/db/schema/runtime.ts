@@ -19,8 +19,6 @@ export const requestObservabilityFact = runtime.table(
 		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
 		completedAt: timestamp("completed_at", { withTimezone: true }),
 		durationMs: integer("duration_ms"),
-		refusalClass: text("refusal_class"),
-		semanticOutcome: text("semantic_outcome"),
 		aclDecision: text("acl_decision"),
 		aclAnomalyCode: text("acl_anomaly_code"),
 		failClosed: boolean("fail_closed"),

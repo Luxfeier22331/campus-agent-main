@@ -7,7 +7,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	"strings"
 	"testing"
 	"time"
 )
@@ -438,7 +437,7 @@ func TestTemporalReconcilerDoesNotStartSupersededLease(t *testing.T) {
 	}
 }
 
-func TestDecodeWorkflowStartInputRejectsClosedToolStrategy(t *testing.T) {
+func TestDecodeWorkflowStartInputAllowsToolBudgetIndependentOfVisibility(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
 	run, err := store.GetRun(t.Context(), intent.RunID)
 	if err != nil {
@@ -448,7 +447,7 @@ func TestDecodeWorkflowStartInputRejectsClosedToolStrategy(t *testing.T) {
 	if err := json.Unmarshal(intent.WorkflowInputJSON, &input); err != nil {
 		t.Fatal(err)
 	}
-	input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames = []string{personalMemoryRecallToolName}
+	input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames = []string{campusSearchToolName, personalMemoryRecallToolName}
 	input.AdmissionSnapshot.ExecutionStrategySHA256 = hashAdmissionJSON(
 		input.AdmissionSnapshot.ExecutionStrategy,
 	)
@@ -457,8 +456,7 @@ func TestDecodeWorkflowStartInputRejectsClosedToolStrategy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := decodeAndValidateWorkflowStartInput(intent, run); err == nil ||
-		!strings.Contains(err.Error(), "disabled memory execution strategy budget is invalid") {
-		t.Fatalf("closed tool strategy error = %v", err)
+	if _, err := decodeAndValidateWorkflowStartInput(intent, run); err != nil {
+		t.Fatalf("decode strategy with independent tool budget: %v", err)
 	}
 }

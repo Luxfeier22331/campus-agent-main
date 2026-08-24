@@ -487,14 +487,7 @@ const AssistantMessage: FC = () => {
 const AssistantMessageStatus: FC<{
 	kind: ReturnType<typeof readCampusMessageMetadata>["kind"];
 }> = ({ kind }) => {
-	const label =
-		kind === "clarification"
-			? "需要补充信息"
-			: kind === "error"
-				? "回答失败"
-				: kind === "no_answer"
-					? "暂未找到答案"
-					: null;
+	const label = kind === "error" ? "回答失败" : null;
 	if (!label) {
 		return null;
 	}

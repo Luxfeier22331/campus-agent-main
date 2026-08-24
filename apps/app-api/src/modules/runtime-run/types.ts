@@ -3,10 +3,6 @@ import { ExecutionControlTransportError } from "../integration";
 
 export interface RuntimeRunOwnershipRecord {
 	acceptedAt: string;
-	admissionStatus: string;
-	cancelOutboxStatus: string;
-	cancelReason: string | null;
-	cancelRequestedAt: string | null;
 	completedAt: string | null;
 	conversationId: string;
 	requestId: string;
@@ -15,56 +11,11 @@ export interface RuntimeRunOwnershipRecord {
 	traceId: string;
 }
 
-export interface RuntimeRunCancellationRecord extends RuntimeRunOwnershipRecord {
-	requestedAt: string;
-}
-
-export interface RuntimeRunCancellationClaim {
-	kind: "local_finalization" | "remote_delivery";
-	leaseToken: string;
-	run: RuntimeRunCancellationRecord;
-}
-
-export type RuntimeRunCancellationDecision =
-	| { kind: "local_finalization"; run: RuntimeRunCancellationRecord }
-	| { kind: "remote_delivery"; run: RuntimeRunCancellationRecord }
-	| { kind: "remote_delivered"; run: RuntimeRunCancellationRecord }
-	| { kind: "terminal"; run: RuntimeRunCancellationRecord };
-
 export interface RuntimeRunStore {
 	getOwnedRun(input: {
 		ownerUserId: string;
 		runId: string;
 	}): Promise<RuntimeRunOwnershipRecord | null>;
-	claimCancellation(input: {
-		leaseExpiresAt: Date;
-		leaseToken: string;
-		now: Date;
-		runId: string;
-	}): Promise<RuntimeRunCancellationClaim | null>;
-	claimPendingCancellations(input: {
-		leaseExpiresAt: Date;
-		leaseToken: string;
-		limit: number;
-		now: Date;
-	}): Promise<RuntimeRunCancellationClaim[]>;
-	markCancellationDelivered(input: {
-		deliveredAt: string;
-		leaseToken: string;
-		runId: string;
-	}): Promise<boolean>;
-	recordCancellationFailure(input: {
-		errorCode: string;
-		failedAt: string;
-		leaseToken: string;
-		runId: string;
-	}): Promise<boolean>;
-	requestCancellation(input: {
-		ownerUserId: string;
-		reason: string;
-		requestedAt: string;
-		runId: string;
-	}): Promise<RuntimeRunCancellationDecision | null>;
 }
 
 export interface RuntimeRunSummary {
@@ -171,12 +122,6 @@ export interface RuntimeRunService {
 		reason: string;
 		runId: string;
 	}): Promise<{ run: RuntimeRunSummary }>;
-	dispatchPendingCancellations?(input?: { limit?: number }): Promise<{
-		delivered: number;
-		failed: number;
-		finalized: number;
-		processed: number;
-	}>;
 	getStatus(input: {
 		principal: ResolvedAppPrincipal;
 		runId: string;

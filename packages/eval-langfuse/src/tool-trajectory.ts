@@ -1,6 +1,6 @@
 import { isRecord, type JsonObject, mapping, optionalString, stringField } from "./json";
 
-export const AGENT_RUNTIME_TOOL_NAMES = ["personal_memory_recall"] as const;
+export const AGENT_RUNTIME_TOOL_NAMES = ["campus_search", "personal_memory_recall"] as const;
 
 export type AgentRuntimeToolName = (typeof AGENT_RUNTIME_TOOL_NAMES)[number];
 export type ToolDecisionKind = "direct_answer" | "fail_closed" | "tool_assisted";

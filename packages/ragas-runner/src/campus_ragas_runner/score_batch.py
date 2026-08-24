@@ -113,43 +113,53 @@ def run_ragas_score_batch(
 
 
 def build_ragas_scorer(settings: RagasRunnerSettings) -> RagasScorer:
-    from openai import AsyncOpenAI
+    from openai import AsyncOpenAI, OpenAI
     from ragas.embeddings.base import embedding_factory
-    from ragas.llms import llm_factory
+
+    from campus_ragas_runner.responses_llm import RAGAS_USER_AGENT, ResponsesRagasLLM
 
     def _score(projection: RagasProjection) -> tuple[RagasResult, ...]:
         async def _score_in_one_event_loop() -> tuple[RagasResult, ...]:
-            async with (
-                AsyncOpenAI(
-                    api_key=settings.llm_api_key,
-                    base_url=settings.llm_base_url,
-                    max_retries=0,
-                    timeout=settings.timeout_seconds,
-                ) as llm_client,
-                AsyncOpenAI(
-                    api_key=settings.embedding_api_key,
-                    base_url=settings.embedding_base_url,
-                    max_retries=0,
-                    timeout=settings.timeout_seconds,
-                ) as embedding_client,
-            ):
-                llm = llm_factory(
-                    settings.llm_model,
-                    client=llm_client,
-                    temperature=0,
-                )
-                embeddings = embedding_factory(
-                    provider="openai",
-                    model=settings.embedding_model,
-                    client=embedding_client,
-                    interface="modern",
-                )
-                return await _score_with_official_ragas_metrics(
-                    projection,
-                    metric_names=RAGAS_METRIC_NAMES,
-                    llm=llm,
-                    embeddings=embeddings,
-                )
+            with OpenAI(
+                api_key=settings.llm_api_key,
+                base_url=settings.llm_base_url,
+                default_headers={"User-Agent": RAGAS_USER_AGENT},
+                max_retries=0,
+                timeout=settings.timeout_seconds,
+            ) as llm_sync_client:
+                async with (
+                    AsyncOpenAI(
+                        api_key=settings.llm_api_key,
+                        base_url=settings.llm_base_url,
+                        default_headers={"User-Agent": RAGAS_USER_AGENT},
+                        max_retries=0,
+                        timeout=settings.timeout_seconds,
+                    ) as llm_client,
+                    AsyncOpenAI(
+                        api_key=settings.embedding_api_key,
+                        base_url=settings.embedding_base_url,
+                        default_headers={"User-Agent": RAGAS_USER_AGENT},
+                        max_retries=0,
+                        timeout=settings.timeout_seconds,
+                    ) as embedding_client,
+                ):
+                    llm = ResponsesRagasLLM(
+                        client=llm_sync_client,
+                        async_client=llm_client,
+                        model=settings.llm_model,
+                    )
+                    embeddings = embedding_factory(
+                        provider="openai",
+                        model=settings.embedding_model,
+                        client=embedding_client,
+                        interface="modern",
+                    )
+                    return await _score_with_official_ragas_metrics(
+                        projection,
+                        metric_names=RAGAS_METRIC_NAMES,
+                        llm=llm,
+                        embeddings=embeddings,
+                    )
 
         return tuple(asyncio.run(_score_in_one_event_loop()))
 

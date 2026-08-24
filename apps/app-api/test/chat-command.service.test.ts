@@ -67,12 +67,13 @@ describe("chat command service", () => {
 			.mockResolvedValueOnce({
 				answerText: "国家奖学金要求学习成绩排名和综合测评排名均在前10%。",
 				error: null,
-				followUpQuestion: "",
 				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {
 					sources: [
 						{
+							citation_index: 1,
 							document_id: "student_rules/scholarship",
+							kind: "campus_document",
 							root_unit_ids: ["scholarship-eligibility"],
 							section_ref: "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility",
 							section_title: "申请条件",
@@ -90,7 +91,6 @@ describe("chat command service", () => {
 			.mockResolvedValueOnce({
 				answerText: "第二条指单科成绩不能低于80分。",
 				error: null,
-				followUpQuestion: "",
 				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {},
 				status: "completed",
@@ -127,6 +127,7 @@ describe("chat command service", () => {
 			{
 				sourceItems: [
 					expect.objectContaining({
+						kind: "campus_document",
 						primaryAction: expect.objectContaining({
 							href: "/docs/regulations/student_rules/scholarship/v/2026-current?hl=scholarship-eligibility#eligibility",
 						}),

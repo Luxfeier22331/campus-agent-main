@@ -43,7 +43,6 @@ describe("app-api module ownership boundary", () => {
 		const commands = read("src/modules/runtime-command/store-commands.ts");
 		const profileMemorySnapshot = read("src/modules/profile-memory/snapshot.ts");
 
-		expect(assembly).toContain("createPgChatAdmissionStore");
 		expect(assembly).toContain("createPgAcceptedChatCommandStore");
 		expect(assembly).toContain("createPgChatCommandObservabilityStore");
 		expect(assembly).not.toContain("../../db/schema");
@@ -58,7 +57,7 @@ describe("app-api module ownership boundary", () => {
 		const source = read("src/modules/runtime-command/service.ts");
 
 		expect(source).toContain('from "./service/acceptance"');
-		expect(source).toContain('from "./service/durable-admission"');
+		expect(source).toContain('from "./service/durable-run"');
 		expect(source).toContain('from "./service/finalization"');
 		expect(source).not.toContain("buildAcceptedWrite");
 		expect(source).not.toContain("buildFinalizedWrite");

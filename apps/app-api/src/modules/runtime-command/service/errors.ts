@@ -31,7 +31,6 @@ export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionRes
 				message: failure.message,
 				retryable: error.retryable,
 			},
-			followUpQuestion: "",
 			modelUsage: zeroModelUsage(),
 			result: null,
 			status: "error",
@@ -46,7 +45,6 @@ export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionRes
 			message: "Unexpected execution failure.",
 			retryable: false,
 		},
-		followUpQuestion: "",
 		modelUsage: zeroModelUsage(),
 		result: null,
 		status: "error",
@@ -64,7 +62,6 @@ export function buildAbuseThrottleRejectedResponse(input: {
 			message: "Too many requests. Please wait a few minutes and try again.",
 			retryable: false,
 		},
-		followUpQuestion: "",
 		observability: {
 			agentRuntime: null,
 			modelName: null,

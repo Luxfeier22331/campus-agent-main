@@ -4,12 +4,7 @@ import type {
 	ExecutionControlRun,
 	ExecutionControlRunEvent,
 } from "../src/modules/integration/execution-control";
-import {
-	createPgRuntimeRunStore,
-	type RuntimeRunCancellationClaim,
-	type RuntimeRunOwnershipRecord,
-	type RuntimeRunStore,
-} from "../src/modules/runtime-run";
+import type { RuntimeRunOwnershipRecord, RuntimeRunStore } from "../src/modules/runtime-run";
 
 export function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
 	return {
@@ -62,10 +57,6 @@ export function ownedRun(
 ): RuntimeRunOwnershipRecord {
 	return {
 		acceptedAt: "2026-06-04T01:02:03.000Z",
-		admissionStatus: "admitted",
-		cancelOutboxStatus: "not_requested",
-		cancelReason: null,
-		cancelRequestedAt: null,
 		completedAt: null,
 		conversationId: "conv_01HQ",
 		requestId: "req_01HQ",
@@ -78,54 +69,9 @@ export function ownedRun(
 
 export function runtimeStore(overrides: Partial<RuntimeRunStore> = {}): RuntimeRunStore {
 	return {
-		claimCancellation: vi.fn().mockResolvedValue(null),
-		claimPendingCancellations: vi.fn().mockResolvedValue([] as RuntimeRunCancellationClaim[]),
 		getOwnedRun: vi.fn().mockResolvedValue(ownedRun()),
-		markCancellationDelivered: vi.fn().mockResolvedValue(true),
-		recordCancellationFailure: vi.fn().mockResolvedValue(true),
-		requestCancellation: vi.fn().mockResolvedValue(null),
 		...overrides,
 	};
-}
-
-export function pgRuntimeRunStoreHarness(admissionStatus: "dispatching" | "pending_admission") {
-	const currentRow = {
-		actorUserId: "user_01HQ",
-		admissionStatus,
-		cancelOutboxStatus: "not_requested",
-		cancelLeaseToken: null,
-		cancelLeaseUntil: null,
-		cancelReason: null,
-		cancelRequestedAt: null,
-		completedAt: null,
-		conversationId: "conv_01HQ",
-		createdAt: new Date("2026-06-04T01:02:03.000Z"),
-		requestId: "req_01HQ",
-		runId: "run_01HQ",
-		status: "accepted",
-		traceId: "trace_01HQ",
-	};
-	let updateValues: Record<string, unknown> = {};
-	const returning = vi.fn(async () => [{ ...currentRow, ...updateValues }]);
-	const updateWhere = vi.fn(() => ({ returning }));
-	const set = vi.fn((values: Record<string, unknown>) => {
-		updateValues = values;
-		return { where: updateWhere };
-	});
-	const update = vi.fn(() => ({ set }));
-	const forUpdate = vi.fn(async () => [currentRow]);
-	const limit = vi.fn(() => ({ for: forUpdate }));
-	const selectWhere = vi.fn(() => ({ limit }));
-	const from = vi.fn(() => ({ where: selectWhere }));
-	const select = vi.fn(() => ({ from }));
-	const transactionClient = { select, update };
-	const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) =>
-		callback(transactionClient),
-	);
-	const store = createPgRuntimeRunStore({} as never, {
-		getDb: async () => ({ transaction }) as never,
-	});
-	return { set, store };
 }
 
 export function eventPage(events: ExecutionControlRunEvent[], nextSequence?: number) {

@@ -38,7 +38,6 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 		map[string]any{
 			"agent_result_ref":      agentResultRef,
 			"final_output":          "你好，我是校园问答助手。",
-			"terminal_envelope":     map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id":  "resp-primary-agent-finalization",
 			"model_name":            "gpt-4.1",
 			"model_provider":        "openai",
@@ -130,7 +129,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 		t.Fatalf("workflow_trace_summary = %#v", finalizationResponse["workflow_trace_summary"])
 	}
 	if workflowTrace["execution_path"] != "tool_assisted" ||
-		workflowTrace["terminal_reason"] != "answer" {
+		workflowTrace["terminal_reason"] != "answer_completed" {
 		t.Fatalf("workflow trace = %#v", workflowTrace)
 	}
 	if _, exists := workflowTrace["tool_call_summaries"]; exists {
@@ -160,7 +159,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	}
 }
 
-func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.T) {
+func TestWriteFinalizationActivityCompletesClarificationTextAsAnswer(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -183,14 +182,13 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 		map[string]any{
 			"agent_result_ref":     agentResultRef,
 			"final_output":         "请问你要办理哪一类申请？",
-			"terminal_envelope":    map[string]any{"kind": "clarification_required", "follow_up_question": "请问你要办理哪一类申请？"},
 			"provider_response_id": "resp-primary-agent-clarification",
 			"model_name":           "gpt-4.1",
 			"model_provider":       "openai",
 			"prompt_trace":         primaryAgentPromptTraceForFinalizationTest(),
 			"status":               "completed",
 			"tool_results":         []map[string]any{},
-			"terminal_reason":      "clarification_required",
+			"terminal_reason":      "answer_completed",
 			"usage": map[string]any{
 				"input_tokens":        10,
 				"output_tokens":       9,
@@ -210,7 +208,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 	if err != nil {
 		t.Fatalf("get completed run: %v", err)
 	}
-	if completedRun.TerminalReason != execution.DurableTerminalReasonClarificationRequired {
+	if completedRun.TerminalReason != execution.DurableTerminalReasonAnswerCompleted {
 		t.Fatalf("terminal reason = %q", completedRun.TerminalReason)
 	}
 	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-clarification")
@@ -218,20 +216,20 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 		t.Fatalf("list events: %v", err)
 	}
 	finalizationResponse := expectInternalFinalizationResponseForTest(t, events)
-	if finalizationResponse["status"] != "needs_clarification" {
+	if finalizationResponse["status"] != "completed" {
 		t.Fatalf("status = %#v", finalizationResponse["status"])
 	}
-	if finalizationResponse["follow_up_question"] != "请问你要办理哪一类申请？" {
-		t.Fatalf("follow_up_question = %#v", finalizationResponse["follow_up_question"])
+	if finalizationResponse["answer_text"] != "请问你要办理哪一类申请？" {
+		t.Fatalf("answer_text = %#v", finalizationResponse["answer_text"])
 	}
 	traceSummary, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if !ok || traceSummary["execution_path"] != "clarification" ||
-		traceSummary["terminal_reason"] != "clarification_required" {
+	if !ok || traceSummary["execution_path"] != "direct" ||
+		traceSummary["terminal_reason"] != "answer_completed" {
 		t.Fatalf("workflow trace summary = %#v", finalizationResponse["workflow_trace_summary"])
 	}
 }
 
-func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.T) {
+func TestWriteFinalizationActivityCompletesWithFailedAgentToolResult(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 12, 30, 0, 0, time.UTC)
 	const runID = "run-primary-agent-failed-tool-finalization"
@@ -247,11 +245,10 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
-		"agent_result_ref":  agentResultRef,
-		"final_output":      "不应完成此答案。",
-		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "不应完成此答案。"},
-		"terminal_reason":   "answer_completed",
+		"agent_result_ref": agentResultRef,
+		"final_output":     "可以完成此答案。",
+		"status":           "completed",
+		"terminal_reason":  "answer_completed",
 		"tool_results": []map[string]any{{
 			"fail_close_reason": "tool_handler_failed",
 			"status":            "failed",
@@ -259,33 +256,19 @@ func TestWriteFinalizationActivityFailsClosedOnFailedAgentToolResult(t *testing.
 		}},
 	})
 
-	_, err := server.WriteFinalization(context.Background(), input)
-	assertTemporalFailureSanitized(t, err, "agent_tool_result_failed", true)
-	failedRun, getErr := store.GetRun(context.Background(), runID)
+	output, err := server.WriteFinalization(context.Background(), input)
+	if err != nil {
+		t.Fatalf("write finalization: %v", err)
+	}
+	if output.Status != string(execution.DurableRunStatusCompleted) {
+		t.Fatalf("finalization status = %q", output.Status)
+	}
+	completedRun, getErr := store.GetRun(context.Background(), runID)
 	if getErr != nil {
-		t.Fatalf("get failed run: %v", getErr)
+		t.Fatalf("get completed run: %v", getErr)
 	}
-	if failedRun.Status != execution.DurableRunStatusRunning {
-		t.Fatalf("run status = %q, want workflow-owned active state", failedRun.Status)
-	}
-	results, listErr := store.ListStepResults(context.Background(), runID)
-	if listErr != nil {
-		t.Fatalf("list step results: %v", listErr)
-	}
-	var finalizationResult *execution.StepResultProjection
-	for index := range results {
-		if results[index].StepID == "finalization.write" {
-			finalizationResult = &results[index]
-		}
-	}
-	if finalizationResult == nil {
-		t.Fatalf("failed finalization result missing: %#v", results)
-		return
-	}
-	if finalizationResult.ResultKind != "activity_failure" ||
-		finalizationResult.SanitizedPayload["failure_kind"] != "agent_tool_result_failed" ||
-		finalizationResult.SanitizedPayload["fail_close_reason"] != "tool_handler_failed" {
-		t.Fatalf("failed finalization result = %#v", finalizationResult)
+	if completedRun.Status != execution.DurableRunStatusCompleted {
+		t.Fatalf("run status = %q, want completed", completedRun.Status)
 	}
 }
 
@@ -305,12 +288,11 @@ func TestWriteFinalizationActivityRetryKeepsProductCallbackStable(t *testing.T) 
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
-		"agent_result_ref":  agentResultRef,
-		"final_output":      "你偏好先看结论。",
-		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "你偏好先看结论。"},
-		"terminal_reason":   "answer_completed",
-		"tool_results":      []map[string]any{},
+		"agent_result_ref": agentResultRef,
+		"final_output":     "你偏好先看结论。",
+		"status":           "completed",
+		"terminal_reason":  "answer_completed",
+		"tool_results":     []map[string]any{},
 	})
 	var callbackTimes []time.Time
 	var callbackResponses []map[string]any
@@ -371,12 +353,11 @@ func TestWriteFinalizationActivityRepairsCompletedRunEventWithVerifiedStep(t *te
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
-		"agent_result_ref":  agentResultRef,
-		"final_output":      "你偏好先看结论。",
-		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "你偏好先看结论。"},
-		"terminal_reason":   "answer_completed",
-		"tool_results":      []map[string]any{},
+		"agent_result_ref": agentResultRef,
+		"final_output":     "你偏好先看结论。",
+		"status":           "completed",
+		"terminal_reason":  "answer_completed",
+		"tool_results":     []map[string]any{},
 	})
 	finalizedAt := input.FinalizedAt
 	run, err := store.GetRun(context.Background(), runID)
@@ -468,12 +449,11 @@ func TestWriteFinalizationActivityKeepsRunActiveWhenStepProjectionFails(t *testi
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
-		"agent_result_ref":  agentResultRef,
-		"final_output":      "你偏好先看结论。",
-		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "你偏好先看结论。"},
-		"terminal_reason":   "answer_completed",
-		"tool_results":      []map[string]any{},
+		"agent_result_ref": agentResultRef,
+		"final_output":     "你偏好先看结论。",
+		"status":           "completed",
+		"terminal_reason":  "answer_completed",
+		"tool_results":     []map[string]any{},
 	})
 	_, err := server.WriteFinalization(context.Background(), input)
 	if err == nil || !strings.Contains(err.Error(), "finalization result storage unavailable") {
@@ -516,12 +496,11 @@ func TestWriteFinalizationActivityRepairsTransientInternalProjectionFailure(t *t
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, baseStore, runID, now, map[string]any{
-		"agent_result_ref":  agentResultRef,
-		"final_output":      "你偏好先看结论。",
-		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "你偏好先看结论。"},
-		"terminal_reason":   "answer_completed",
-		"tool_results":      []map[string]any{},
+		"agent_result_ref": agentResultRef,
+		"final_output":     "你偏好先看结论。",
+		"status":           "completed",
+		"terminal_reason":  "answer_completed",
+		"tool_results":     []map[string]any{},
 	})
 	callbackCount := 0
 	server.productFinalizationWriter = func(

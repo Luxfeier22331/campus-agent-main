@@ -28,7 +28,6 @@ function createPgProfileMemoryStore(...args: Parameters<typeof createPgProfileMe
 function createPgChatCommandStore(...args: Parameters<typeof createPgChatCommandPersistence>) {
 	const persistence = createPgChatCommandPersistence(...args);
 	return {
-		...persistence.admission,
 		...persistence.commands,
 		...persistence.observability,
 	};
@@ -470,7 +469,6 @@ describe("app-api shared product DB integration", () => {
 			const requestId = `timing-request-${suffix}`;
 			const runId = `timing-run-${suffix}`;
 			const traceId = `timing-trace-${suffix}`;
-			const workflowId = `campus-agent.chat.${runId}`;
 			const conversation = {
 				activeBranchId: "branch_active",
 				activeMessageId: null,
@@ -496,12 +494,10 @@ describe("app-api shared product DB integration", () => {
 					updatedAt: acceptedAt,
 				},
 				conversationTitle: conversation.title,
-				freezeDurableAdmission: () => ({
-					admissionInputJson: JSON.stringify({ requestId, runId }),
-					admissionInputSha256: "a".repeat(64),
+				freezeDurableRun: () => ({
 					executionInputJson: JSON.stringify({ requestId, runId }),
 					executionInputSha256: "b".repeat(64),
-					workflowId,
+					turnId: `turn-${runId}`,
 				}),
 				idempotencyKey: null,
 				now: acceptedAt,
@@ -515,24 +511,10 @@ describe("app-api shared product DB integration", () => {
 				surface: "campus_web",
 				traceId,
 				turnSequence: 1,
+				turnId: `turn-${runId}`,
 				userMessageId: `timing-user-${suffix}`,
 			});
 			await store.acceptRequest(acceptedWrite);
-			expect(
-				await store.claimAdmission({
-					requestId,
-					updatedAt: "2026-07-16T04:00:00.100Z",
-					workflowId,
-				}),
-			).toBe(true);
-			expect(
-				await store.markAdmitted({
-					admittedAt: "2026-07-16T04:00:00.200Z",
-					requestId,
-					workflowId,
-				}),
-			).toBe(true);
-
 			const recordTtft = () =>
 				store.recordStreamAppApiTtft({
 					durationMs: 1000,
@@ -559,7 +541,6 @@ describe("app-api shared product DB integration", () => {
 					response: {
 						answerText: "国家奖学金每学年评审一次。",
 						error: null,
-						followUpQuestion: "",
 						modelUsage: {
 							cachedInputTokens: 0,
 							inputTokens: 1,

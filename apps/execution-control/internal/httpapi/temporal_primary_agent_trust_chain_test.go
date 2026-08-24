@@ -163,12 +163,11 @@ func primaryAgentFinalizationTrustChainFixture(
 	attachRunProjectionStoreForHandlerTest(server, store)
 	agentResultRef := temporalProjectionRef(runID, "agent/primary/result")
 	input := preparePrimaryAgentFinalizationRunForTest(t, server, store, runID, now, map[string]any{
-		"agent_result_ref":  agentResultRef,
-		"final_output":      "这是受信任的最终答案。",
-		"status":            "completed",
-		"terminal_envelope": map[string]any{"kind": "answer", "answer_text": "这是受信任的最终答案。"},
-		"terminal_reason":   "answer_completed",
-		"tool_results":      []map[string]any{},
+		"agent_result_ref": agentResultRef,
+		"final_output":     "这是受信任的最终答案。",
+		"status":           "completed",
+		"terminal_reason":  "answer_completed",
+		"tool_results":     []map[string]any{},
 	})
 	server.productFinalizationWriter = func(
 		context.Context,

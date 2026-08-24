@@ -133,10 +133,14 @@ function checkWorkflowTraceSummary(): void {
 }
 
 function checkRuntimeBoundaries(): void {
-	expectEqualJson(schema("ToolID").enum, ["personal_memory_recall"], "tool id enum");
+	expectEqualJson(
+		schema("ToolID").enum,
+		["campus_search", "personal_memory_recall"],
+		"tool id enum",
+	);
 	expectEqualJson(
 		schema("ModelVisibleToolName").enum,
-		["personal_memory_recall"],
+		["campus_search", "personal_memory_recall"],
 		"model-visible tool vocabulary enum",
 	);
 	const payload = schema("ExecutionPayload");

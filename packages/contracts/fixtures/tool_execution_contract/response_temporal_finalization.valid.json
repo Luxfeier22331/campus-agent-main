@@ -2,8 +2,6 @@
 	"status": "completed",
 	"answer_text": "示例奖学金按照现行评审办法执行。",
 	"error": null,
-	"follow_up_question": "",
-	"confidence": "high",
 	"model_usage": {
 		"input_tokens": 510,
 		"cached_input_tokens": 100,

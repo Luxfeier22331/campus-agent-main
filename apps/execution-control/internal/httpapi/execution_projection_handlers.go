@@ -484,8 +484,7 @@ func buildToolTrajectoryProjection(
 	toolCalls []map[string]any,
 ) map[string]any {
 	decisionKind := "direct_answer"
-	if run.FailCloseReason != "" || run.TerminalReason == execution.DurableTerminalReasonPolicyRejected ||
-		run.TerminalReason == execution.DurableTerminalReasonToolClosed ||
+	if run.FailCloseReason != "" || run.TerminalReason == execution.DurableTerminalReasonToolClosed ||
 		run.TerminalReason == execution.DurableTerminalReasonRuntimeInvariant {
 		decisionKind = "fail_closed"
 	} else if len(toolCalls) > 0 {
@@ -580,7 +579,10 @@ func toolNameFromSDKStepID(stepID string) string {
 }
 
 func appendPublicProjectionTool(values *[]string, tool string) {
-	appendUniqueProjectionString(values, strings.TrimSpace(tool))
+	switch strings.TrimSpace(tool) {
+	case campusSearchToolName, personalMemoryRecallToolName:
+		appendUniqueProjectionString(values, strings.TrimSpace(tool))
+	}
 }
 
 func stringFromProjectionPayload(payload map[string]any, key string) string {

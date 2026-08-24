@@ -104,8 +104,11 @@ uv run --package campus-ragas-runner python -m campus_ragas_runner rag \
 }
 ```
 
-文件不声明 `schema_version`、`provider` 或 `transport`；`rag` 评分命令固定使用 OpenAI-compatible
-客户端和对应的 LLM/Embedding 调用方式。`eval_ragas_reranker` 只作为离线检索实验的独立本地
+文件不声明 `schema_version`、`provider` 或 `transport`；`rag` 评分命令的 LLM 固定使用
+`openai.responses` 的 `text.format.json_schema` 结构化输出路径，不调用工具或设置 `tool_choice`；
+embedding 继续使用 OpenAI-compatible embeddings 客户端。runner 为所有 OpenAI-compatible client 使用固定
+的 `campus-ragas-runner/0.1` User-Agent。
+`eval_ragas_reranker` 只作为离线检索实验的独立本地
 provider profile，由调用方显式使用；它不从在线 Model Config 获取，也不改变
 `ragas_sample_batch.v2` 的 `retrieved_contexts`。
 
@@ -120,15 +123,19 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   agent-eval \
   --app-api-base-url <app-api-url> \
   --cookie-header '<cookie-header>' \
+  --execution-control-base-url <execution-control-url> \
+  --execution-control-auth-secret '<execution-control-auth-secret>' \
   --cases <cases.v1.json> \
   --output .tmp/product-result.json \
   --limit <count> \
   --json
 ```
 
-`--app-api-base-url`、`--cookie-header`、`--cases` 和 `--output` 是该命令的显式输入。setup turn
-与目标 turn 使用同一 conversation。产品结果包含实际答案、检索上下文、工具轨迹和 trace 关联，
-也不包含 Langfuse 平台身份。
+`--app-api-base-url`、`--cookie-header`、`--execution-control-base-url`、
+`--execution-control-auth-secret`、`--cases` 和 `--output` 是该命令的显式输入。setup turn 与目标
+turn 使用同一 conversation。对话通过 App API 执行；检索上下文和工具轨迹从 execution-control 的
+受认证内部投影接口读取，不从学生可见的 run steps 响应读取。产品结果包含实际答案、检索上下文、
+工具轨迹和 trace 关联，也不包含 Langfuse 平台身份。
 
 随后单独运行 Ragas 评分：
 

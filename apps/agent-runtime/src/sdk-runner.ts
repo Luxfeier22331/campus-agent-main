@@ -2,7 +2,6 @@ import { isDeepStrictEqual } from "node:util";
 import {
 	Agent,
 	type AgentInputItem,
-	type AgentOutputType,
 	type ModelProvider,
 	Runner,
 	type Tool,
@@ -18,10 +17,6 @@ import type {
 	ToolExecutionResult,
 	UntimedToolExecutionResult,
 } from "./agent-run-contract.ts";
-import {
-	finalOutputFromTerminalEnvelope,
-	terminalEnvelopeFromUnknown,
-} from "./terminal-envelope.ts";
 import type { JsonObjectSchema } from "./tool-catalog.ts";
 
 const emptyParametersSchema = {
@@ -31,32 +26,6 @@ const emptyParametersSchema = {
 	required: [],
 };
 
-const primaryAgentTerminalOutputSchema = {
-	type: "json_schema",
-	name: "primary_agent_terminal_output",
-	strict: true,
-	schema: {
-		type: "object",
-		additionalProperties: false,
-		properties: {
-			kind: {
-				type: "string",
-				enum: [
-					"answer",
-					"clarification_required",
-					"out_of_scope",
-					"policy_refusal",
-					"unsupported_by_evidence",
-				],
-			},
-			answerText: { type: "string" },
-			followUpQuestion: { type: "string" },
-			reason: { type: "string" },
-		},
-		required: ["kind", "answerText", "followUpQuestion", "reason"],
-	},
-} as const satisfies AgentOutputType;
-
 interface AgentSdkContext {
 	runId: string;
 	requestId: string;
@@ -64,6 +33,7 @@ interface AgentSdkContext {
 	toolBudget: {
 		limit: number;
 		reserved: number;
+		usedToolNames: Set<string>;
 	};
 }
 
@@ -77,8 +47,8 @@ export interface OpenAIAgentsRunnerOptions {
 	) => Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">;
 }
 
-export type OpenAIAgentsRunFunction = <TOutput extends AgentOutputType>(
-	agent: Agent<AgentSdkContext, TOutput>,
+export type OpenAIAgentsRunFunction = (
+	agent: Agent<AgentSdkContext, "text">,
 	input: AgentInputItem[],
 	options: {
 		context: AgentSdkContext;
@@ -91,8 +61,8 @@ export type OpenAIAgentsRunFunction = <TOutput extends AgentOutputType>(
 	},
 ) => Promise<OpenAIAgentsRunResultLike>;
 
-export type OpenAIAgentsStreamRunFunction = <TOutput extends AgentOutputType>(
-	agent: Agent<AgentSdkContext, TOutput>,
+export type OpenAIAgentsStreamRunFunction = (
+	agent: Agent<AgentSdkContext, "text">,
 	input: AgentInputItem[],
 	options: {
 		context: AgentSdkContext;
@@ -181,49 +151,25 @@ export function createStreamingOpenAIAgentsRunner(
 			traceIncludeSensitiveData: false,
 			...(input.signal ? { signal: input.signal } : {}),
 		});
-		let rawOutputText = "";
-		let accumulatedVisibleText = "";
+		let accumulatedText = "";
 		let chunkIndex = 0;
 		for await (const delta of result.toTextStream()) {
 			if (delta === "") {
 				continue;
 			}
-			rawOutputText += delta;
-			const nextVisibleText = visibleTextFromPartialTerminalOutput(rawOutputText);
-			if (nextVisibleText === accumulatedVisibleText) {
-				continue;
-			}
-			if (!nextVisibleText.startsWith(accumulatedVisibleText)) {
-				throw new Error("streamed terminal output visible text drifted");
-			}
-			const visibleDelta = nextVisibleText.slice(accumulatedVisibleText.length);
-			accumulatedVisibleText = nextVisibleText;
-			if (visibleDelta.trim() === "" || nextVisibleText.trim() === "") {
-				continue;
-			}
+			accumulatedText += delta;
 			chunkIndex += 1;
 			yield {
-				accumulatedText: accumulatedVisibleText,
+				accumulatedText,
 				chunkIndex,
-				delta: visibleDelta,
+				delta,
 			} satisfies AgentRunnerAnswerDelta;
 		}
 		await result.completed;
 		throwIfStreamRunDidNotComplete(result, input.signal);
 		const finalResult = agentRunnerResultFromSDKResult(result);
-		if (accumulatedVisibleText !== "") {
-			if (!finalResult.finalOutput.startsWith(accumulatedVisibleText)) {
-				throw new Error("streamed answer text drifted from final output");
-			}
-			const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
-			if (tail.trim() !== "") {
-				chunkIndex += 1;
-				yield {
-					accumulatedText: finalResult.finalOutput,
-					chunkIndex,
-					delta: tail,
-				} satisfies AgentRunnerAnswerDelta;
-			}
+		if (finalResult.finalOutput !== accumulatedText) {
+			throw new Error("streamed answer text does not match final output");
 		}
 		yield finalResult;
 	};
@@ -253,6 +199,7 @@ function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 		toolBudget: {
 			limit: input.limits.maxToolCalls,
 			reserved: 0,
+			usedToolNames: new Set(),
 		},
 	};
 	const sdkTools = input.tools.map((runtimeTool) => sdkTool(runtimeTool));
@@ -261,10 +208,9 @@ function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 		instructions: input.instructions,
 		...(model ? { model } : {}),
 		modelSettings: { maxTokens: input.limits.maxOutputTokens },
-		outputType: primaryAgentTerminalOutputSchema,
 		// Agent.create in SDK 0.13.0 hard-codes unknown context.
 		tools: sdkTools as unknown as Tool<unknown>[],
-	}) as Agent<AgentSdkContext, typeof primaryAgentTerminalOutputSchema>;
+	}) as Agent<AgentSdkContext, "text">;
 	return { agent, context };
 }
 
@@ -275,7 +221,8 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 		parameters: runtimeTool.parameters ?? emptyParametersSchema,
 		strict: true,
 		isEnabled: ({ runContext }) =>
-			runContext.context.toolBudget.reserved < runContext.context.toolBudget.limit,
+			runContext.context.toolBudget.reserved < runContext.context.toolBudget.limit &&
+			!runContext.context.toolBudget.usedToolNames.has(runtimeTool.name),
 		async execute(argumentsJson, runContext, details) {
 			const startedAt = performance.now();
 			const complete = (result: UntimedToolExecutionResult): ToolExecutionResult => ({
@@ -290,7 +237,11 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 			if (context.toolBudget.reserved >= context.toolBudget.limit) {
 				return complete(toolCallBudgetExhaustedResult(runtimeTool.name, parsedArguments, context));
 			}
+			if (context.toolBudget.usedToolNames.has(runtimeTool.name)) {
+				return complete(toolCallAlreadyUsedResult(runtimeTool.name, parsedArguments, context));
+			}
 			context.toolBudget.reserved += 1;
+			context.toolBudget.usedToolNames.add(runtimeTool.name);
 			const invocationId = details?.toolCall?.callId;
 			const result = await runtimeTool.execute(
 				parsedArguments,
@@ -299,6 +250,22 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 			return complete(result);
 		},
 	});
+}
+
+function toolCallAlreadyUsedResult(
+	toolName: string,
+	argumentsJson: Record<string, unknown>,
+	context: AgentSdkContext,
+): UntimedToolExecutionResult {
+	return {
+		status: "failed",
+		toolName,
+		payloadKind: toolName,
+		argumentsJson,
+		failCloseReason: "tool_call_already_used",
+		result: { error: "The admitted tool may be called at most once per run." },
+		resultRef: `agent-runtime://${context.runId}/tools/${toolName}/already-used`,
+	};
 }
 
 function toolCallBudgetExhaustedResult(
@@ -352,129 +319,13 @@ const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, 
 };
 
 function agentRunnerResultFromSDKResult(result: OpenAIAgentsRunResultLike) {
-	const terminalEnvelope = terminalEnvelopeFromUnknown(result.finalOutput);
 	const toolCalls = toolCallsFromItems(result.newItems ?? []);
 	return {
-		finalOutput:
-			terminalEnvelope === undefined
-				? String(result.finalOutput ?? "")
-				: finalOutputFromTerminalEnvelope(terminalEnvelope),
+		finalOutput: String(result.finalOutput ?? ""),
 		providerResponseId: providerResponseIDFromResult(result),
-		terminalEnvelope,
 		toolCalls,
 		usage: usageFromResult(result),
 	};
-}
-
-function visibleTextFromPartialTerminalOutput(value: string): string {
-	try {
-		const envelope = terminalEnvelopeFromUnknown(JSON.parse(value));
-		return envelope === undefined ? "" : finalOutputFromTerminalEnvelope(envelope);
-	} catch {
-		// Continue with bounded partial extraction below.
-	}
-	const kind = extractJsonStringFieldPrefix(value, ["kind"]).value;
-	if (kind === undefined) {
-		return "";
-	}
-	switch (kind) {
-		case "answer":
-			return trimStringValue(extractJsonStringFieldPrefix(value, ["answerText"]).value);
-		case "clarification_required":
-			return trimStringValue(extractJsonStringFieldPrefix(value, ["followUpQuestion"]).value);
-		case "out_of_scope":
-		case "policy_refusal":
-		case "unsupported_by_evidence":
-			return trimStringValue(extractJsonStringFieldPrefix(value, ["answerText"]).value);
-		default:
-			return "";
-	}
-}
-
-function trimStringValue(value: string | undefined): string {
-	return value?.trim() ?? "";
-}
-
-function extractJsonStringFieldPrefix(
-	value: string,
-	fieldNames: string[],
-): { complete: boolean; value?: string } {
-	for (const fieldName of fieldNames) {
-		const match = new RegExp(`"${fieldName}"\\s*:`).exec(value);
-		if (!match) {
-			continue;
-		}
-		let index = match.index + match[0].length;
-		while (index < value.length && /\s/.test(value[index] ?? "")) {
-			index += 1;
-		}
-		if (value[index] !== '"') {
-			continue;
-		}
-		return extractJsonStringPrefix(value, index + 1);
-	}
-	return { complete: false };
-}
-
-function extractJsonStringPrefix(
-	value: string,
-	startIndex: number,
-): { complete: boolean; value: string } {
-	let decoded = "";
-	for (let index = startIndex; index < value.length; index += 1) {
-		const char = value[index];
-		if (char === '"') {
-			return { complete: true, value: decoded };
-		}
-		if (char !== "\\") {
-			decoded += char;
-			continue;
-		}
-		const escaped = value[index + 1];
-		if (escaped === undefined) {
-			break;
-		}
-		switch (escaped) {
-			case '"':
-			case "\\":
-			case "/":
-				decoded += escaped;
-				index += 1;
-				continue;
-			case "b":
-				decoded += "\b";
-				index += 1;
-				continue;
-			case "f":
-				decoded += "\f";
-				index += 1;
-				continue;
-			case "n":
-				decoded += "\n";
-				index += 1;
-				continue;
-			case "r":
-				decoded += "\r";
-				index += 1;
-				continue;
-			case "t":
-				decoded += "\t";
-				index += 1;
-				continue;
-			case "u": {
-				const hex = value.slice(index + 2, index + 6);
-				if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
-					return { complete: false, value: decoded };
-				}
-				decoded += String.fromCharCode(Number.parseInt(hex, 16));
-				index += 5;
-				continue;
-			}
-			default:
-				return { complete: false, value: decoded };
-		}
-	}
-	return { complete: false, value: decoded };
 }
 
 function providerResponseIDFromResult(result: OpenAIAgentsRunResultLike): string {

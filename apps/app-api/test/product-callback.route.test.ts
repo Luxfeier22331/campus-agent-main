@@ -19,9 +19,7 @@ function sha256(value: string): string {
 function finalizationResponse() {
 	return {
 		answer_text: "Answer",
-		confidence: "medium",
 		error: null,
-		follow_up_question: "",
 		model_usage: {
 			cached_input_tokens: 10,
 			input_tokens: 120,

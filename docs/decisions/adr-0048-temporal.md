@@ -24,9 +24,8 @@ Temporal 命令与查询、有界投影和确定性终态处理；Agents SDK 负
 当前阶段、worker 池与终态校验见持久运行架构，不在 ADR 中重复。
 
 创建 run 与启动命令必须在 execution-control 的同一事务提交，由 reconciler 幂等启动固定
-Workflow ID；同步 HTTP 返回不是“Temporal 一定已启动”的证据。取消也先在 app-api 和
-execution-control 各自提交持久命令，再由 reconciler 投递，不能依赖一次跨系统 HTTP 调用同时
-改变两套状态。
+Workflow ID；同步 HTTP 返回不是“Temporal 一定已启动”的证据。取消由 app-api 校验归属后调用
+execution-control，由 execution-control 持久化并投递；app-api 不复制取消命令或维护本地 outbox。
 
 原始执行输入由 app-api 以精确文本和 hash 拥有。Temporal 输入/history 与 execution-control
 投影只保存 ref/hash 和有界标识，不能复制 prompt、会话或认证正文。
@@ -42,7 +41,8 @@ invocation receipt 支持完整结果的只读恢复；已经开始却没有完�
 ## 后果
 
 - 浏览器流式传输订阅持久的有界 event。
-- API 接受只证明 run 与命令已持久化，不把命令投递伪装成 queue 状态。
+- API 接受只证明产品请求和稳定运行输入已持久化；只有 execution-control 确认同一 run 后才发送
+  `request.accepted`，不把命令投递伪装成 queue 状态。
 - workflow、core activity 和 agent activity worker 可以独立扩缩容，不改变语义所有权。
 - SDK `maxTurns` 是单次 run 内预算，不增加 workflow 阶段。
 - SDK 工具调用可以投影为诊断轨迹，但不成为第二张 workflow graph。

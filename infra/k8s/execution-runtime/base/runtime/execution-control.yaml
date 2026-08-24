@@ -86,6 +86,21 @@ spec:
                 configMapKeyRef:
                   name: execution-runtime-rendered-config
                   key: HINDSIGHT_API_BASE_URL
+            - name: QDRANT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: QDRANT_URL
+            - name: QDRANT_READ_ONLY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-server-secrets
+                  key: QDRANT_READ_ONLY_API_KEY
+            - name: QDRANT_TLS_CA_CERT_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: execution-runtime-rendered-config
+                  key: QDRANT_TLS_CA_CERT_PATH
             - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
               valueFrom:
                 fieldRef:
@@ -126,6 +141,9 @@ spec:
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres
               readOnly: true
+            - name: qdrant-tls-ca
+              mountPath: /etc/campus-agent/qdrant/tls
+              readOnly: true
           readinessProbe:
             exec:
               command:
@@ -160,3 +178,6 @@ spec:
             items:
               - key: ca.crt
                 path: ca.crt
+        - name: qdrant-tls-ca
+          configMap:
+            name: execution-runtime-qdrant-tls-ca

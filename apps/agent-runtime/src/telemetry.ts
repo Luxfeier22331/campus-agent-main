@@ -35,6 +35,9 @@ export function startAgentRuntimeTelemetry(
 	if (activeTelemetry) {
 		return activeTelemetry;
 	}
+	// The SDK installs its OpenAI exporter during module initialization. This service
+	// owns the OTLP/Langfuse path below, so the SDK exporter must stay disabled.
+	agents.setTracingDisabled(true);
 	if (!(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || env.OTEL_EXPORTER_OTLP_ENDPOINT)) {
 		activeTelemetry = noopTelemetryController();
 		return activeTelemetry;

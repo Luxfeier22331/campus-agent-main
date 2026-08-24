@@ -9,7 +9,7 @@ import {
 describe("tool trajectory projection", () => {
 	it("parses the ordered public tool trajectory and scores the complete sequence", () => {
 		const trajectory = parseToolTrajectory({
-			available_tools: ["personal_memory_recall"],
+			available_tools: ["campus_search", "personal_memory_recall"],
 			conversation_id: "conv_1",
 			decision_kind: "tool_assisted",
 			environment: "staging",
@@ -39,7 +39,7 @@ describe("tool trajectory projection", () => {
 	it("rejects retired routing fields and tools", () => {
 		expect(() =>
 			parseToolTrajectory({
-				available_tools: ["personal_memory_recall"],
+				available_tools: ["campus_search", "personal_memory_recall"],
 				decision_kind: "tool_assisted",
 				request_id: "req_1",
 				run_id: "run_1",
@@ -64,7 +64,7 @@ describe("tool trajectory projection", () => {
 
 	it("does not count fail closed as a direct answer", () => {
 		const trajectory = parseToolTrajectory({
-			available_tools: ["personal_memory_recall"],
+			available_tools: ["campus_search", "personal_memory_recall"],
 			decision_kind: "fail_closed",
 			fail_close_reason: "tool_contract_missing",
 			request_id: "req_1",
@@ -80,7 +80,7 @@ describe("tool trajectory projection", () => {
 
 	it("parses a bounded personal memory call without accepting memory content", () => {
 		const trajectory = parseToolTrajectory({
-			available_tools: ["personal_memory_recall"],
+			available_tools: ["campus_search", "personal_memory_recall"],
 			decision_kind: "tool_assisted",
 			request_id: "req_memory",
 			run_id: "run_memory",

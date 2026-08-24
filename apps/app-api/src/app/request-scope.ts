@@ -1,4 +1,5 @@
 import { type Env, readAppAuthConfig, resolveEnvironment } from "../config";
+import { isAbuseThrottleEnabled } from "../modules/abuse-throttle-policy";
 import { buildAccountAdminService, createPgAccountAdminStore } from "../modules/account-admin";
 import {
 	buildAccountLifecycleService,
@@ -33,6 +34,7 @@ import {
 	createPgChatCommandPersistence,
 	deriveSafetyIdentifierForUser,
 } from "../modules/runtime-command";
+import { ensureDurableRunForStoredInput } from "../modules/runtime-command/service/durable-run";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
 import { createRequestRuntimeScope } from "../request-runtime-scope";
 import type { AppDependencies, AppRequestScope } from "./types";
@@ -99,7 +101,7 @@ export function createRequestScopeFactory(input: {
 				}
 				const persistence = chatCommandPersistence;
 				command = buildChatCommandService({
-					admissionStore: persistence.admission,
+					abuseThrottleEnabled: isAbuseThrottleEnabled(resolveEnvironment(input.env)),
 					commandStore: persistence.commands,
 					conversationStore: createPgChatConversationStore(input.env, {
 						getDb: runtime.getDb,
@@ -168,17 +170,28 @@ export function createRequestScopeFactory(input: {
 					})),
 				resolveProfileMemoryService,
 				resolveRuntimeRunService: () =>
-					(runtimeRuns ??= buildRuntimeRunService({
-						executionRuntime: createExecutionControlRuntimeClient(input.env),
-						finalizeLocalCancellation: async (cancellation) => {
-							const service = resolveChatCommandService();
-							if (!service.finalizeLocalCancellation) {
-								throw new Error("Local chat cancellation finalization is not configured.");
-							}
-							await service.finalizeLocalCancellation(cancellation);
-						},
-						store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
-					})),
+					(runtimeRuns ??= (() => {
+						const runtimeClient =
+							executionRuntime ?? createExecutionControlRuntimeClient(input.env);
+						return buildRuntimeRunService({
+							executionRuntime: runtimeClient,
+							ensureRun: ({ runId, traceId }) => {
+								if (!chatCommandPersistence) {
+									chatCommandPersistence = createPgChatCommandPersistence(input.env, {
+										getDb: runtime.getDb,
+									});
+								}
+								const persistence = chatCommandPersistence;
+								return ensureDurableRunForStoredInput({
+									commandStore: persistence.commands,
+									executionRuntime: runtimeClient,
+									runId,
+									traceId,
+								});
+							},
+							store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
+						});
+					})()),
 				telemetry: input.telemetry,
 			};
 		},

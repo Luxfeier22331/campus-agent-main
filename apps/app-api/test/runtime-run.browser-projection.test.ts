@@ -72,10 +72,6 @@ describe("runtime run browser projection", () => {
 							request_id: "req_01HQ",
 							response: {
 								result: {
-									terminal_envelope: {
-										kind: "answer",
-										text: "internal final response",
-									},
 									tool_results: [{ raw: "hidden" }],
 								},
 							},

@@ -37,6 +37,7 @@ func withAgentAdmissionSnapshotForTest(
 		t.Fatalf("build agent admission snapshot: %v", err)
 	}
 	input.AdmissionSnapshot = snapshot
+	input.VisibleToolNames = append([]string{}, snapshot.ExecutionStrategy.VisibleToolNames...)
 	return input
 }
 

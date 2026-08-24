@@ -95,7 +95,8 @@ usage 次要查询失败时返回 `UNAVAILABLE` 和 `null` token，不影响请�
 
 响应包含服务端生成时间、请求状态和时间、完整用户问题及轮次、产品旅途、产品结果、token 明细和
 次级技术信息。产品结果为 `WRITTEN`、`PENDING` 或 `MISSING` 联合类型；`WRITTEN` 返回 app-api 已净化并
-写入会话的完整文本、消息类型和 Campus Web 实际展示的最多五项 `source_items`。来源不返回内部
+写入会话的完整文本、消息类型和 Campus Web 实际展示的最多五项 `source_items`。每项来源包含与正文
+对应的 `citationIndexes`，保持正文首次引用顺序。来源不返回内部
 source kind、target kind、version ID、locator 或 trace card。
 
 详情 `usage` 返回 `state`、`inputTokens`、`cachedInputTokens`、`outputTokens` 和 `totalTokens`，不返回

@@ -9,7 +9,6 @@ export function requestSql(suffix: string): string {
 	return `
 			${requestRowsCte()}
 			select
-				"admission_status" as "admissionStatus",
 				"assistant_kind" as "assistantKind",
 				"assistant_message_present" as "assistantMessagePresent",
 				"attention_reason" as "attentionReason",
@@ -41,7 +40,6 @@ export function requestDetailSql(suffix: string): string {
 	return `
 			${requestRowsCte()}
 			select
-				"admission_status" as "admissionStatus",
 				"assistant_kind" as "assistantKind",
 				"assistant_message_present" as "assistantMessagePresent",
 				"assistant_message_text" as "assistantMessageText",
@@ -76,8 +74,7 @@ export function requestRowsCte(): string {
 	return `
 		with request_rows as (
 			select
-				dispatch.admission_status as "admission_status",
-					dispatch.completed_at as "completed_at",
+				dispatch.completed_at as "completed_at",
 				dispatch.conversation_id as "conversation_id",
 				case
 					when dispatch.completed_at is null then null
@@ -115,27 +112,28 @@ export function requestRowsCte(): string {
 					end as "status",
 					case
 						when dispatch.status in (
-							'completed', 'error', 'rejected', 'no_answer', 'approval_required',
-							'needs_clarification', 'cancelled'
+							'completed', 'error', 'rejected', 'approval_required', 'cancelled'
 						) and assistant_message.id is null then 0
-						when dispatch.status in ('error', 'rejected', 'no_answer') then 1
-						when dispatch.status in ('approval_required', 'needs_clarification') then 2
+						when dispatch.status in ('error', 'rejected') then 1
+						when dispatch.status = 'approval_required' then 2
 						else null
 					end as "attention_priority",
 					case
 						when dispatch.status in (
-							'completed', 'error', 'rejected', 'no_answer', 'approval_required',
-							'needs_clarification', 'cancelled'
+							'completed', 'error', 'rejected', 'approval_required', 'cancelled'
 						) and assistant_message.id is null then 'RESULT_MISSING'
-						when dispatch.status in ('error', 'rejected', 'no_answer') then 'REQUEST_FAILED'
-						when dispatch.status in ('approval_required', 'needs_clarification') then 'WAITING_USER'
+						when dispatch.status in ('error', 'rejected') then 'REQUEST_FAILED'
+						when dispatch.status = 'approval_required' then 'WAITING_USER'
 						else null
 					end as "attention_reason",
 				dispatch.surface as "surface",
 					nullif(agent_run.terminal_reason, '') as "terminal_reason",
 					coalesce(nullif(agent_run.trace_id, ''), dispatch.trace_id) as "trace_id",
 					dispatch.turn_sequence as "turn_sequence",
-					nullif(dispatch.workflow_id, '') as "workflow_id"
+					case
+						when coalesce(nullif(agent_run.run_id, ''), dispatch.run_id) is null then null
+						else 'campus-agent.chat.' || coalesce(nullif(agent_run.run_id, ''), dispatch.run_id)
+					end as "workflow_id"
 			from "chat"."turn_dispatches" as dispatch
 			join "chat"."messages" as user_message
 				on user_message.id = dispatch.user_message_id

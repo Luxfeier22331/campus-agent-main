@@ -374,14 +374,12 @@ func productTerminalErrorResponse(
 	retryable bool,
 ) map[string]any {
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		AnswerText:       "",
-		Confidence:       "low",
-		Error:            map[string]any{"code": code, "message": message, "retryable": retryable},
-		FollowUpQuestion: "",
-		ModelUsage:       ModelUsageWire{},
-		Observability:    nil,
-		Result:           nil,
-		Status:           status,
-		TraceID:          run.TraceID,
+		AnswerText:    "",
+		Error:         map[string]any{"code": code, "message": message, "retryable": retryable},
+		ModelUsage:    ModelUsageWire{},
+		Observability: nil,
+		Result:        nil,
+		Status:        status,
+		TraceID:       run.TraceID,
 	})
 }

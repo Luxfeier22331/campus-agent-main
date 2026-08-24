@@ -29,7 +29,6 @@ import { ChatFinalizationConflict } from "../src/modules/runtime-command/store-t
 function createPgChatCommandStore(...args: Parameters<typeof createPgChatCommandPersistence>) {
 	const persistence = createPgChatCommandPersistence(...args);
 	return {
-		...persistence.admission,
 		...persistence.commands,
 		...persistence.observability,
 	};
@@ -54,7 +53,6 @@ function finalizedWrite(): FinalizeRequestWrite {
 			turnSequence: 1,
 		},
 		conversationTitle: "示例大学本科学生国家奖学金评审办法",
-		durableAdmissionConfirmed: false,
 		ownerUserId: "user_01HQ",
 		turnDispatch: {
 			completedAt: "2026-06-04T01:02:06.000Z",
@@ -83,10 +81,8 @@ function finalizedWrite(): FinalizeRequestWrite {
 			projectionLagMs: null,
 			promptId: null,
 			promptVersion: null,
-			refusalClass: null,
 			requestId: "req_01HQ",
 			safetyIdentifier: "safety_01HQ",
-			semanticOutcome: null,
 			startedAt: "2026-06-04T01:02:03.000Z",
 			status: "completed",
 			surface: "campus_web",
@@ -150,7 +146,7 @@ describe("pg chat command store", () => {
 			callback({ insert, select, update }),
 		);
 		createRuntimeDatabase.mockResolvedValue({ transaction });
-		const freezeDurableAdmission = vi.fn();
+		const freezeDurableRun = vi.fn();
 		const store = createPgChatCommandStore({} as never);
 
 		await expect(
@@ -163,13 +159,13 @@ describe("pg chat command store", () => {
 					activeTurnSequence: 1,
 					updatedAt: "2026-06-04T01:02:03.000Z",
 				},
-				freezeDurableAdmission,
+				freezeDurableRun,
 				ownerUserId: "user_01HQ",
 				turnDispatch: { idempotencyKey: null },
 				userMessage: { conversationId: "conv_01HQ" },
 			} as unknown as AcceptRequestWrite),
 		).rejects.toBeInstanceOf(ChatAcceptanceConversationConflict);
-		expect(freezeDurableAdmission).not.toHaveBeenCalled();
+		expect(freezeDurableRun).not.toHaveBeenCalled();
 		expect(insert).not.toHaveBeenCalled();
 		expect(update).not.toHaveBeenCalled();
 	});
@@ -203,7 +199,7 @@ describe("pg chat command store", () => {
 			callback({ insert, select, update }),
 		);
 		createRuntimeDatabase.mockResolvedValue({ transaction });
-		const freezeDurableAdmission = vi.fn();
+		const freezeDurableRun = vi.fn();
 		const store = createPgChatCommandStore({} as never);
 
 		await expect(
@@ -223,7 +219,7 @@ describe("pg chat command store", () => {
 					activeTurnSequence: 1,
 					updatedAt: "2026-06-04T01:02:03.000Z",
 				},
-				freezeDurableAdmission,
+				freezeDurableRun,
 				ownerUserId: "user_01HQ",
 				turnDispatch: {
 					actorUserId: "user_01HQ",
@@ -234,7 +230,7 @@ describe("pg chat command store", () => {
 		).rejects.toBeInstanceOf(ChatAcceptanceIdempotencyConflict);
 		expect(seedOnConflictDoNothing).toHaveBeenCalledWith({ target: conversations.id });
 		expect(winnerLimit).toHaveBeenCalledWith(1);
-		expect(freezeDurableAdmission).not.toHaveBeenCalled();
+		expect(freezeDurableRun).not.toHaveBeenCalled();
 		expect(insert).toHaveBeenCalledTimes(1);
 		expect(update).not.toHaveBeenCalled();
 	});
@@ -253,7 +249,7 @@ describe("pg chat command store", () => {
 			callback({ insert, select, update }),
 		);
 		createRuntimeDatabase.mockResolvedValue({ transaction });
-		const freezeDurableAdmission = vi.fn();
+		const freezeDurableRun = vi.fn();
 		const store = createPgChatCommandStore({} as never);
 
 		await expect(
@@ -273,14 +269,14 @@ describe("pg chat command store", () => {
 					activeTurnSequence: 0,
 					updatedAt: "2026-06-04T01:02:03.000Z",
 				},
-				freezeDurableAdmission,
+				freezeDurableRun,
 				ownerUserId: "user_01HQ",
 				turnDispatch: { idempotencyKey: "idem-race" },
 				userMessage: { conversationId: "conv_01HQ" },
 			} as unknown as AcceptRequestWrite),
 		).rejects.toBeInstanceOf(ChatAcceptanceConversationConflict);
 		expect(seedOnConflictDoNothing).toHaveBeenCalledWith({ target: conversations.id });
-		expect(freezeDurableAdmission).not.toHaveBeenCalled();
+		expect(freezeDurableRun).not.toHaveBeenCalled();
 		expect(insert).toHaveBeenCalledTimes(1);
 		expect(update).not.toHaveBeenCalled();
 	});
@@ -489,64 +485,6 @@ describe("pg chat command store", () => {
 
 		await expect(store.finalizeRequest(write)).rejects.toBeInstanceOf(ChatFinalizationConflict);
 		expect(update).not.toHaveBeenCalled();
-	});
-
-	it("distinguishes durable finalization from local and explicit admission failures", async () => {
-		const lockedDispatch = (admissionStatus: string) => [
-			{
-				admissionStatus,
-				finalizationFingerprint: null,
-				status: "accepted",
-				workflowId: "campus-agent.chat.run_01HQ",
-			},
-		];
-		const forUpdate = vi
-			.fn()
-			.mockResolvedValueOnce(lockedDispatch("dispatching"))
-			.mockResolvedValueOnce(lockedDispatch("pending_admission"))
-			.mockResolvedValueOnce(lockedDispatch("pending_admission"))
-			.mockResolvedValueOnce(lockedDispatch("cancelled"));
-		const selectLimit = vi.fn(() => ({ for: forUpdate }));
-		const selectWhere = vi.fn(() => ({ limit: selectLimit }));
-		const selectFrom = vi.fn(() => ({ where: selectWhere }));
-		const select = vi.fn(() => ({ from: selectFrom }));
-		const stopAfterDispatchUpdate = new Error("captured dispatch update");
-		const set = vi.fn((_values: unknown) => {
-			throw stopAfterDispatchUpdate;
-		});
-		const update = vi.fn(() => ({ set }));
-		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
-			callback({ select, update }),
-		);
-		createRuntimeDatabase.mockResolvedValue({ transaction });
-		const write = finalizedWrite();
-		write.admissionFailure = { workflowId: "campus-agent.chat.run_01HQ" };
-		const store = createPgChatCommandStore({} as never);
-
-		await expect(store.finalizeRequest(write)).rejects.toBe(stopAfterDispatchUpdate);
-		expect(set).toHaveBeenCalledWith(
-			expect.objectContaining({ admissionStatus: "admission_failed" }),
-		);
-
-		set.mockClear();
-		const ordinaryWrite = finalizedWrite();
-		await expect(store.finalizeRequest(ordinaryWrite)).rejects.toBe(stopAfterDispatchUpdate);
-		expect(set).toHaveBeenCalledOnce();
-		expect(set).toHaveBeenCalledWith(
-			expect.objectContaining({ admissionStatus: "admission_failed" }),
-		);
-
-		set.mockClear();
-		const durableWrite = finalizedWrite();
-		durableWrite.durableAdmissionConfirmed = true;
-		await expect(store.finalizeRequest(durableWrite)).rejects.toBe(stopAfterDispatchUpdate);
-		expect(set).toHaveBeenCalledOnce();
-		expect(set).toHaveBeenCalledWith(expect.objectContaining({ admissionStatus: "admitted" }));
-
-		set.mockClear();
-		await expect(store.finalizeRequest(durableWrite)).rejects.toBe(stopAfterDispatchUpdate);
-		expect(set).toHaveBeenCalledOnce();
-		expect(set).toHaveBeenCalledWith(expect.objectContaining({ admissionStatus: "cancelled" }));
 	});
 
 	it("backfills terminal TTFT once with derived overhead and a monotonic update time", async () => {

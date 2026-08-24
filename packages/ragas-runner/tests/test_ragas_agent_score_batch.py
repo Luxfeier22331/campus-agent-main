@@ -224,11 +224,24 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
             argument_mode="name_only",
             reference="The library is open from 08:00 to 22:00.",
         )
-        clients: list[FakeAsyncOpenAI] = []
+        clients: list[object] = []
+
+        class FakeOpenAI:
+            def __init__(self, **_kwargs: object) -> None:
+                self.closed = False
+                self.kwargs = _kwargs
+                clients.append(self)
+
+            def __enter__(self) -> FakeOpenAI:
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                self.closed = True
 
         class FakeAsyncOpenAI:
             def __init__(self, **_kwargs: object) -> None:
                 self.closed = False
+                self.kwargs = _kwargs
                 clients.append(self)
 
             async def __aenter__(self) -> FakeAsyncOpenAI:
@@ -241,8 +254,8 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
             return (RagasAgentResult(metric_name="agent_goal_accuracy.with_reference", score=1),)
 
         with (
+            patch("openai.OpenAI", FakeOpenAI),
             patch("openai.AsyncOpenAI", FakeAsyncOpenAI),
-            patch("ragas.llms.llm_factory", return_value=object()),
             patch(
                 "campus_ragas_runner.agent_score_batch._score_with_official_ragas_metrics",
                 new=fake_metrics,
@@ -252,8 +265,14 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
             scorer(projection)
             scorer(projection)
 
-        self.assertEqual(len(clients), 2)
+        self.assertEqual(len(clients), 4)
         self.assertTrue(all(client.closed for client in clients))
+        self.assertTrue(
+            all(
+                client.kwargs["default_headers"] == {"User-Agent": "campus-ragas-runner/0.1"}
+                for client in clients
+            )
+        )
 
     def test_agent_cli_mode_uses_provider_config(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:

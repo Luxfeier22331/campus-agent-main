@@ -71,11 +71,11 @@ describe("contract schema registry", () => {
 			.map((tool) => String(tool.name))
 			.sort();
 		const functionSchemaNames = functionSchemas.map((tool) => String(tool.name)).sort();
-		const expectedRegisteredTools = ["personal_memory_recall"];
+		const expectedRegisteredTools = ["campus_search", "personal_memory_recall"];
 
 		expect(catalogNames).toEqual(expectedRegisteredTools);
 		expect(toolIds.sort()).toEqual(catalogNames);
-		expect(modelVisibleNames).toEqual(["personal_memory_recall"]);
+		expect(modelVisibleNames).toEqual(["campus_search", "personal_memory_recall"]);
 		expect(modelVisibleToolNames.sort()).toEqual(modelVisibleNames);
 		expect(functionSchemaNames).toEqual(catalogNames);
 	});

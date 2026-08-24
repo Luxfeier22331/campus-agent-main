@@ -1,7 +1,9 @@
-export type ChatMessageKind = "answer" | "clarification" | "error" | "no_answer";
+export type ChatMessageKind = "answer" | "error";
 
 export interface SourceItemPayload {
+	citationIndexes: number[];
 	collectionLabel: string;
+	kind: "campus_document";
 	primaryAction: {
 		disabledReason: null;
 		external: false;
@@ -78,7 +80,7 @@ export interface ConversationDetail extends ConversationSummary {
 
 export type ChatCommandResult =
 	| {
-			kind: "answer" | "clarification" | "no_answer";
+			kind: "answer";
 			requestId: string;
 			text: string;
 			traceId: string;

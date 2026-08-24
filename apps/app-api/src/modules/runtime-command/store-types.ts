@@ -10,8 +10,6 @@ export type { TurnDispatchPrincipalSnapshot } from "../turn-dispatch-types";
 export type TurnDispatchStatus =
 	| "accepted"
 	| "completed"
-	| "needs_clarification"
-	| "no_answer"
 	| "error"
 	| "approval_required"
 	| "rejected"
@@ -24,12 +22,10 @@ export interface TurnDispatchMemorySnapshot {
 	recallEnabled: boolean;
 }
 
-export interface FrozenChatAdmissionWrite {
-	admissionInputJson: string;
-	admissionInputSha256: string;
+export interface FrozenDurableRunWrite {
 	executionInputJson: string;
 	executionInputSha256: string;
-	workflowId: string;
+	turnId: string;
 }
 
 export interface TurnDispatchWrite {
@@ -46,6 +42,7 @@ export interface TurnDispatchWrite {
 	requestFingerprintSha256: string | null;
 	traceId: string;
 	runId: string | null;
+	turnId: string | null;
 	safetyIdentifier?: string | null;
 	status: TurnDispatchStatus;
 	errorCode: string | null;
@@ -85,8 +82,6 @@ export interface RequestObservabilityFactWrite {
 	startedAt: string;
 	completedAt: string | null;
 	durationMs: number | null;
-	refusalClass: string | null;
-	semanticOutcome: string | null;
 	aclDecision: string | null;
 	aclAnomalyCode: string | null;
 	failClosed: boolean | null;
@@ -119,9 +114,7 @@ export interface AcceptRequestWrite {
 		updatedAt: string;
 	};
 	conversationTitle: string;
-	freezeDurableAdmission: (
-		memorySnapshot: TurnDispatchMemorySnapshot | null,
-	) => FrozenChatAdmissionWrite;
+	freezeDurableRun: (memorySnapshot: TurnDispatchMemorySnapshot | null) => FrozenDurableRunWrite;
 	ownerUserId: string;
 	requestObservabilityFact: RequestObservabilityFactWrite;
 	requestKind: ChatCommandRequestKind;
@@ -130,17 +123,12 @@ export interface AcceptRequestWrite {
 }
 
 export interface AcceptRequestResult {
-	frozenAdmission: FrozenChatAdmissionWrite;
 	memorySnapshot: TurnDispatchMemorySnapshot | null;
 }
 
 export interface FinalizeRequestWrite {
-	admissionFailure?: {
-		workflowId: string;
-	};
 	assistantMessage: ChatMessage;
 	conversationTitle: string;
-	durableAdmissionConfirmed: boolean;
 	ownerUserId: string;
 	requestObservabilityFact: RequestObservabilityFactWrite;
 	turnDispatch: FinalizeTurnDispatchWrite;
@@ -189,37 +177,6 @@ export interface AbuseControlState {
 	throttleReason: AbuseThrottleReason;
 }
 
-export interface PendingChatAdmission {
-	admissionInputJson: string;
-	admissionInputSha256: string;
-	requestId: string;
-	runId: string;
-	workflowId: string;
-}
-
-export interface ChatAdmissionStore {
-	listPendingAdmissions(input?: {
-		limit?: number;
-		staleBefore?: string;
-	}): Promise<PendingChatAdmission[]>;
-	claimAdmission(input: {
-		requestId: string;
-		staleBefore?: string;
-		updatedAt: string;
-		workflowId: string;
-	}): Promise<boolean>;
-	releaseAdmission(input: {
-		requestId: string;
-		updatedAt: string;
-		workflowId: string;
-	}): Promise<boolean>;
-	markAdmitted(input: {
-		admittedAt: string;
-		requestId: string;
-		workflowId: string;
-	}): Promise<boolean>;
-}
-
 export interface AcceptedChatCommandStore {
 	findIdempotentRequest(input: {
 		actorUserId: string;
@@ -237,12 +194,18 @@ export interface AcceptedChatCommandStore {
 		runId?: string;
 		startedBefore?: string;
 	}): Promise<AcceptedDurableRequestCloseout[]>;
-	readExecutionInput(runId: string): Promise<{
+	readDurableRunInput(runId: string): Promise<{
+		conversationId: string;
 		executionInputSha256: string | null;
 		executionInputJson: string | null;
+		memoryRecallEnabled: boolean | null;
+		ownerUserId: string;
 		requestId: string;
 		runId: string;
+		surface: string;
 		status: TurnDispatchStatus;
+		traceId: string;
+		turnId: string | null;
 	} | null>;
 }
 
@@ -256,7 +219,6 @@ export interface ChatCommandObservabilityStore {
 }
 
 export interface ChatCommandPersistence {
-	admission: ChatAdmissionStore;
 	commands: AcceptedChatCommandStore;
 	observability: ChatCommandObservabilityStore;
 }

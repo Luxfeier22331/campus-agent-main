@@ -5,9 +5,7 @@ import type { RuntimeRunPhase, RuntimeRunProductPhase } from "../../runtime-run"
 import type { AppTelemetry } from "../../telemetry";
 import type {
 	AcceptedChatCommandStore,
-	ChatAdmissionStore,
 	ChatCommandObservabilityStore,
-	FrozenChatAdmissionWrite,
 	TurnDispatchMemorySnapshot,
 } from "../store-types";
 
@@ -24,7 +22,7 @@ export type ChatCommandRequestKind = "public_chat" | "internal_eval";
 
 export type ChatCommandResult =
 	| {
-			kind: "answer" | "clarification" | "no_answer";
+			kind: "answer";
 			requestId: string;
 			text: string;
 			traceId: string;
@@ -94,7 +92,6 @@ export interface AcceptedChatCommandContext {
 	branchId: string;
 	conversation: ChatConversation;
 	conversationTitle: string;
-	frozenAdmission: FrozenChatAdmissionWrite | null;
 	idempotencyKey: string | null;
 	input: ChatCommandSubmitInput;
 	memorySnapshot: TurnDispatchMemorySnapshot | null;
@@ -118,16 +115,10 @@ export interface ChatCommandService {
 		response: ToolExecutionResponse;
 		runId: string;
 	}): Promise<{ outcome: "applied" | "replayed" }>;
-	finalizeLocalCancellation?(input: {
-		completedAt: string;
-		runId: string;
-	}): Promise<{ outcome: "applied" | "replayed" }>;
-	dispatchPendingAdmissions?(): Promise<{
-		admitted: number;
-		failed: number;
-		processed: number;
-	}>;
-	readExecutionInput?(runId: string): ReturnType<AcceptedChatCommandStore["readExecutionInput"]>;
+	readExecutionInput?(runId: string): Promise<{
+		executionInputJson: string | null;
+		executionInputSha256: string | null;
+	} | null>;
 	submit(input: ChatCommandSubmitInput): Promise<ChatCommandResponse>;
 	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;
 }
@@ -138,9 +129,9 @@ export interface DurableEventPollingPolicy {
 }
 
 export interface ChatCommandServiceDependencies {
+	abuseThrottleEnabled: boolean;
 	computeFingerprint?: (input: { conversationDiscriminator: string; prompt: string }) => string;
 	conversationStore: ChatConversationStore;
-	admissionStore: ChatAdmissionStore;
 	commandStore: AcceptedChatCommandStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
 	generateId?: (prefix: string) => string;

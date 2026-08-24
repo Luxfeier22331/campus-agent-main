@@ -11,7 +11,9 @@ describe("chat structured parts", () => {
 			result: {
 				sources: [
 					{
+						citation_index: 1,
 						document_id: "curriculum_plan/computer-science",
+						kind: "campus_document",
 						root_unit_ids: ["curriculum-root-001", "curriculum-root-002"],
 						section_ref:
 							"/docs/curriculum/curriculum_plan/computer-science/v/2026-current#graduation-requirements",
@@ -31,7 +33,9 @@ describe("chat structured parts", () => {
 			{
 				sourceItems: [
 					{
+						citationIndexes: [1],
 						collectionLabel: "培养方案",
+						kind: "campus_document",
 						primaryAction: {
 							disabledReason: null,
 							external: false,
@@ -49,11 +53,12 @@ describe("chat structured parts", () => {
 		]);
 	});
 
-	it("ignores legacy source metadata when rebuilding persisted document items", () => {
+	it("drops persisted source items that do not use the current source contract", () => {
 		const parts = normalizeChatStructuredParts([
 			{
 				sourceItems: [
 					{
+						citationIndexes: [1],
 						legacyRouting: "ignored",
 						primaryAction: {
 							external: true,
@@ -70,37 +75,24 @@ describe("chat structured parts", () => {
 			},
 		]);
 
-		expect(parts).toMatchObject([
-			{
-				sourceItems: [
-					{
-						primaryAction: {
-							external: false,
-							href: "/docs/regulations/student_rules/student-handbook/v/2026-current#network-use",
-							label: "查看文档",
-						},
-						title: "学生手册",
-					},
-				],
-				type: "source_items",
-			},
-		]);
-		const encoded = JSON.stringify(parts);
-		expect(encoded).not.toContain("legacyRouting");
+		expect(parts).toEqual([]);
 	});
 
 	it("drops non-document and malformed source references", () => {
-		const runtimeParts = normalizeSourceItemsPart({
-			result: {
-				sources: [
-					{ section_ref: "https://muc.edu.cn/news/1#details", title: "公开网页" },
-					{ section_ref: "s3://bucket/private.json#unit", title: "内部对象" },
-					{ section_ref: "/docs/../private#unit", title: "越界路径" },
-					{ section_ref: "", title: "无效来源" },
-				],
-			},
-			status: "completed",
-		});
+		expect(() =>
+			normalizeSourceItemsPart({
+				result: {
+					sources: [
+						{
+							kind: "campus_document",
+							section_ref: "https://muc.edu.cn/news/1#details",
+							title: "公开网页",
+						},
+					],
+				},
+				status: "completed",
+			}),
+		).toThrow("Execution source item 0 is invalid.");
 		const persistedParts = normalizeChatStructuredParts([
 			{
 				sourceItems: [
@@ -113,7 +105,95 @@ describe("chat structured parts", () => {
 			},
 		]);
 
-		expect(runtimeParts).toEqual([]);
 		expect(persistedParts).toEqual([]);
+	});
+
+	it("preserves citation order and merges duplicate source cards", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				sources: [
+					{
+						citation_index: 4,
+						kind: "campus_document",
+						root_unit_ids: ["root-4"],
+						section_ref: "/docs/regulations/student_rules/handbook/v/2026-current#rules",
+						section_title: "管理规定",
+						title: "学生手册",
+						version_label: "2026 版",
+						version_slug: "2026-current",
+					},
+					{
+						citation_index: 1,
+						kind: "campus_document",
+						root_unit_ids: ["root-1"],
+						section_ref: "/docs/regulations/student_rules/handbook/v/2026-current#rules",
+						section_title: "管理规定",
+						title: "学生手册",
+						version_label: "2026 版",
+						version_slug: "2026-current",
+					},
+				],
+			},
+			status: "completed",
+		});
+
+		expect(parts[0]).toMatchObject({
+			sourceItems: [
+				{
+					citationIndexes: [4, 1],
+					primaryAction: {
+						href: "/docs/regulations/student_rules/handbook/v/2026-current?hl=root-4%2Croot-1#rules",
+					},
+				},
+			],
+		});
+	});
+
+	it.each([
+		["missing", undefined],
+		["zero", 0],
+		["six", 6],
+		["fraction", 1.5],
+	] as const)("rejects invalid citation index: %s", (_name, citationIndex) => {
+		expect(() =>
+			normalizeSourceItemsPart({
+				result: {
+					sources: [
+						{
+							...(citationIndex === undefined ? {} : { citation_index: citationIndex }),
+							kind: "campus_document",
+							section_ref: "/docs/regulations/student_rules/handbook/v/2026-current#rules",
+							title: "学生手册",
+							version_label: "2026 版",
+							version_slug: "2026-current",
+						},
+					],
+				},
+				status: "completed",
+			}),
+		).toThrow("Execution source item 0 is invalid.");
+	});
+
+	it("drops persisted source cards with duplicate citation indexes", () => {
+		expect(
+			normalizeChatStructuredParts([
+				{
+					sourceItems: [
+						{
+							citationIndexes: [1, 1],
+							kind: "campus_document",
+							primaryAction: {
+								external: false,
+								href: "/docs/regulations/student_rules/handbook/v/2026-current#rules",
+								label: "查看文档",
+							},
+							title: "学生手册",
+							versionLabel: "2026 版",
+						},
+					],
+					type: "source_items",
+				},
+			]),
+		).toEqual([]);
 	});
 });

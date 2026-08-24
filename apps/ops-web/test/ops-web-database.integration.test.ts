@@ -300,7 +300,6 @@ describe("ops-web PostgreSQL grants", () => {
 				await current.query(`
 					create schema chat;
 					create table chat.turn_dispatches (
-						admission_status text,
 						assistant_message_id text,
 						completed_at timestamptz,
 						conversation_id text,
@@ -311,10 +310,10 @@ describe("ops-web PostgreSQL grants", () => {
 						status text,
 						surface text,
 						trace_id text,
+						turn_id text,
 						turn_sequence integer,
 						updated_at timestamptz,
 						user_message_id text,
-						workflow_id text,
 						owner_user_id text
 					);
 					create table chat.messages (
@@ -517,9 +516,9 @@ describe("ops-web PostgreSQL grants", () => {
 		const runtime = requiredClient(opsWeb, "ops_web");
 		await expect(
 			runtime.query(
-				`select admission_status, assistant_message_id, completed_at, conversation_id,
+				`select assistant_message_id, completed_at, conversation_id,
 					created_at, error_code, request_id, run_id, status, surface, trace_id,
-					turn_sequence, updated_at, user_message_id, workflow_id
+					turn_sequence, updated_at, user_message_id
 				 from chat.turn_dispatches limit 0`,
 			),
 		).resolves.toBeDefined();

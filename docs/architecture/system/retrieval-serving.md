@@ -11,8 +11,9 @@ status: active
 本文定义 Campus Web 当前文档如何形成不可变 Campus Docs 索引，以及发布器如何验证和激活索引。
 它不负责来源采集、文档清洗、Campus Web 页面构建、在线答案生成、个人记忆或通知检索。
 
-发布链把所有纳入清单的文档写入不可变 Qdrant collection，不按领域 scope 拆分。当前在线 Agent
-不会读取该 collection，也不选择 collection、索引版本或查询配置。
+发布链把所有纳入清单的文档写入不可变 Qdrant collection，不按领域 scope 拆分。在线 Agent 不直接
+选择 collection、索引版本或查询配置；`campus_search` handler 在工具调用时读取当前绑定并执行
+固定查询。
 
 ## 输入与索引身份
 
@@ -87,12 +88,23 @@ Publisher 在激活前完整核对 collection 配置、point 数、point 身份�
 
 ## 在线消费边界
 
-`campus_docs_serving.current_index` 是发布器维护的当前激活记录，不是当前在线 Agent 的准入输入。
-execution-control 当前不会读取该记录、生成查询或访问 Qdrant；索引制品、schema、Job 模板和当前指针
-存在，也不表示在线 RAG 能力已经开放。
+`campus_docs_serving.current_index` 是发布器维护的单一当前绑定，不是当前在线 Agent 的准入输入。
+`campus_search` 被 Primary Agent 按需调用后，execution-control 从同一个 execution-control 数据库读取
+该绑定，从 Model Config 读取 `campus_docs_embedding` 和 `campus_docs_reranker` 连接，向对应 collection 发起 dense/sparse hybrid
+查询。工具不接受客户端或模型传入 collection、provider、vector name、top-k 或版本字段。
 
-未来在线消费必须另行定义请求输入、工具/能力合同、来源校验、评测和观测字段。本文件只维护离线
-索引的构建与激活语义，不预先规定在线检索次数或调用链路。
+当前查询先从 dense/sparse hybrid RRF 取得最多 24 个候选，再使用当前 `campus_docs_reranker`
+连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选，最终返回
+最多 5 条 evidence，正文总字符预算为 4000。execution-control 校验 point schema、文本 hash、section
+URL、版本字段和 `root_unit_ids` 后才把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
+score 必须是有限数值；调用或校验失败直接使检索失败，不回退到未重排候选。过滤后无结果返回成功的
+`no_match`。该阈值只判断查询与候选文本的相关性，不判断学校、人群或规则适用主体。
+当前 collection 只包含中央民族大学 Campus Web 文档。Primary Agent 根据问题所需事实与工具声明范围
+决定是否检索，不通过实体名称特判、Qdrant filter、rerank 阈值或 collection 字段实现路由。
+
+Agent 正文中的 `[1]` 到 `[5]` 只对应本次成功工具结果按顺序返回的 evidence；当前 Campus Docs 来源由
+`campus_search` adapter 校验。Finalization 忽略越界编号和未引用 evidence，并从有效引用派生公开
+source cards。检索失败不会回退到其他数据源，也不会改变当前索引绑定。
 
 ## 相关文档
 

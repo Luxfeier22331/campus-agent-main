@@ -60,15 +60,15 @@ const knowledgeDetail = {
 		kind: "answer",
 		sources: [
 			{
+				citationIndexes: [1],
 				collectionLabel: "学生规定",
-				pageLabel: "运行状态",
+				kind: "campus_document",
 				primaryAction: {
 					disabledReason: null,
 					external: false,
-					href: "/documents/student-rules",
-					label: "查看学生规定",
+					href: "/docs/regulations/student_rules/student-rules/v/2026-current#deferred-exam",
+					label: "查看文档",
 				},
-				publisherLabel: "校园服务中心",
 				sectionTitle: "缓考申请",
 				snippet: "申请人应在规定期限内提交书面材料并说明原因。",
 				title: "学生管理规定",
@@ -179,17 +179,17 @@ const clarificationDetail = {
 		lifecyclePhase: "FINISHED",
 		requestId: "req_ops_005",
 		startedAt: "2026-07-09T06:26:00.000Z",
-		status: "ACTION_REQUIRED",
+		status: "COMPLETED",
 	},
 	result: {
-		kind: "clarification",
+		kind: "answer",
 		sources: [],
 		state: "WRITTEN",
 		text: "请说明你要办理的具体事项和已经了解的条件，我再继续帮你查询。",
 	},
 	technical: {
 		...technical("req_ops_005", 5),
-		terminalReason: "needs_clarification",
+		terminalReason: "answer_completed",
 	},
 	usage: {
 		cachedInputTokens: null,

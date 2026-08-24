@@ -105,17 +105,30 @@ def run_ragas_agent_score_batch(
 def build_ragas_agent_scorer(settings: RagasAgentRunnerSettings) -> RagasAgentScorer:
     def _score(projection: RagasAgentProjection) -> tuple[RagasAgentResult, ...]:
         async def _score_in_one_event_loop() -> tuple[RagasAgentResult, ...]:
-            from openai import AsyncOpenAI
-            from ragas.llms import llm_factory
+            from openai import AsyncOpenAI, OpenAI
 
-            async with AsyncOpenAI(
+            from campus_ragas_runner.responses_llm import RAGAS_USER_AGENT, ResponsesRagasLLM
+
+            with OpenAI(
                 api_key=settings.llm_api_key,
                 base_url=settings.llm_base_url,
+                default_headers={"User-Agent": RAGAS_USER_AGENT},
                 max_retries=0,
                 timeout=settings.timeout_seconds,
-            ) as client:
-                llm = llm_factory(settings.llm_model, client=client, temperature=0)
-                return await _score_with_official_ragas_metrics(projection, llm=llm)
+            ) as sync_client:
+                async with AsyncOpenAI(
+                    api_key=settings.llm_api_key,
+                    base_url=settings.llm_base_url,
+                    default_headers={"User-Agent": RAGAS_USER_AGENT},
+                    max_retries=0,
+                    timeout=settings.timeout_seconds,
+                ) as async_client:
+                    llm = ResponsesRagasLLM(
+                        client=sync_client,
+                        async_client=async_client,
+                        model=settings.llm_model,
+                    )
+                    return await _score_with_official_ragas_metrics(projection, llm=llm)
 
         return tuple(asyncio.run(_score_in_one_event_loop()))
 

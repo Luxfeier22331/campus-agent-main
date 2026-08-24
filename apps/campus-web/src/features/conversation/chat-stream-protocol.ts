@@ -17,7 +17,7 @@ const answerPayload = z
 		conversation: z.object({ id: nonEmptyString }).passthrough(),
 		result: z
 			.object({
-				kind: z.enum(["answer", "clarification", "error", "no_answer"]),
+				kind: z.enum(["answer", "error"]),
 				requestId: nonEmptyString,
 				traceId: nonEmptyString,
 			})

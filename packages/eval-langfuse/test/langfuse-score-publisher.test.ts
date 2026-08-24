@@ -23,7 +23,6 @@ function productResult(): AgentProductEvalResult {
 			{
 				argument_mode: "name_only",
 				case_id: "case-001",
-				expected_outcome: "answer",
 				forbidden_context_ids: [],
 				query: "你好",
 				reference_context_ids: [],
@@ -86,7 +85,6 @@ describe("Langfuse score publisher", () => {
 						case_id: "case-001",
 						errors: [],
 						scores: {
-							"execution.outcome_match": 1,
 							"ragas.faithfulness": 0.75,
 						},
 					},
@@ -115,19 +113,16 @@ describe("Langfuse score publisher", () => {
 				settings,
 			});
 
-			expect(summary).toMatchObject({ published: 2, run_id: "eval-001" });
+			expect(summary).toMatchObject({ published: 1, run_id: "eval-001" });
 			expect(flushCount).toBe(1);
-			expect(created.map((item) => item.name).sort()).toEqual([
-				"execution.outcome_match",
-				"ragas.faithfulness",
-			]);
+			expect(created.map((item) => item.name)).toEqual(["ragas.faithfulness"]);
 			expect(created).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						dataType: "BOOLEAN",
+						dataType: "NUMERIC",
 						metadata: { case_id: "case-001" },
 						traceId: await deriveLangfuseTraceId("trace-product-001"),
-						value: 1,
+						value: 0.75,
 					}),
 				]),
 			);

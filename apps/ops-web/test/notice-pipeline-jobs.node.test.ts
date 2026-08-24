@@ -43,6 +43,20 @@ describe("notice pipeline Kubernetes jobs", () => {
 				"campus-agent.muc.wiki/managed-by": "ops-web",
 				"campus-agent.muc.wiki/notice-operation": "notice-backfill",
 			},
+			ownerReferences: [
+				{
+					apiVersion: "batch/v1",
+					blockOwnerDeletion: false,
+					controller: false,
+					kind: "CronJob",
+					name: "notice-backfill",
+					uid: "notice-backfill-template-uid",
+				},
+			],
+		});
+		expect(request?.body.spec).toMatchObject({
+			backoffLimit: 0,
+			ttlSecondsAfterFinished: 86_400,
 		});
 		expect(request?.body.spec?.template.spec?.containers[0]).toMatchObject({
 			args: ["notice-backfill"],
@@ -52,6 +66,23 @@ describe("notice pipeline Kubernetes jobs", () => {
 			]),
 			image: "collector:test",
 		});
+	});
+
+	it("rejects a CronJob template without an owner UID", async () => {
+		const template = collectionTemplate();
+		delete template.metadata?.uid;
+		const batch = {
+			createNamespacedJob: vi.fn(),
+			listNamespacedJob: vi.fn(),
+			readNamespacedCronJob: vi.fn(async () => template),
+			readNamespacedJob: vi.fn(),
+		};
+		const store = new KubernetesNoticePipelineJobStore("campus-agent", batch as never, {} as never);
+
+		await expect(
+			store.create({ operation: "notice-backfill", startDate: "2026-08-01" }),
+		).rejects.toThrow("通知任务模板不完整");
+		expect(batch.createNamespacedJob).not.toHaveBeenCalled();
 	});
 
 	it("maps one-notice operations to the existing classifier and publisher arguments", async () => {
@@ -96,6 +127,26 @@ describe("notice pipeline Kubernetes jobs", () => {
 		expect(store.create).not.toHaveBeenCalled();
 	});
 
+	it("does not treat a failed job as active", async () => {
+		const failed = job({
+			jobName: "notice-classify-missing-failed",
+			operation: "notice-classify-missing",
+			status: "failed",
+		});
+		const created = job({ operation: "notice-classify-one" });
+		const store = {
+			create: vi.fn(async () => created),
+			get: vi.fn(),
+			list: vi.fn(async () => [failed]),
+		};
+		const service = createNoticePipelineJobService(store);
+
+		await expect(
+			service.create({ noticeId: 354516, operation: "notice-classify-one" }),
+		).resolves.toEqual(created);
+		expect(store.create).toHaveBeenCalledOnce();
+	});
+
 	it("extracts only bounded scalar fields from the final structured log line", () => {
 		expect(
 			parseNoticePipelineSummary(
@@ -114,7 +165,9 @@ describe("notice pipeline Kubernetes jobs", () => {
 
 function collectionTemplate(): V1CronJob {
 	return {
-		metadata: { name: "notice-backfill" },
+		apiVersion: "batch/v1",
+		kind: "CronJob",
+		metadata: { name: "notice-backfill", uid: "notice-backfill-template-uid" },
 		spec: {
 			jobTemplate: {
 				spec: {
@@ -143,7 +196,9 @@ function collectionTemplate(): V1CronJob {
 function jobTemplate(name: string): V1CronJob {
 	const classifier = name === "notice-classifier";
 	return {
-		metadata: { name },
+		apiVersion: "batch/v1",
+		kind: "CronJob",
+		metadata: { name, uid: `${name}-template-uid` },
 		spec: {
 			jobTemplate: {
 				spec: {

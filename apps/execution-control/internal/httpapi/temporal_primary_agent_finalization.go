@@ -640,21 +640,6 @@ func validatePrimaryAgentResultSucceeded(agentResult map[string]any) (string, st
 			)
 		}
 	}
-	for _, toolResult := range primaryAgentToolResultMaps(agentResult["tool_results"]) {
-		if primaryAgentToolResultStatus(toolResult) != "failed" {
-			continue
-		}
-		toolName := strings.TrimSpace(stringValue(toolResult["tool_name"]))
-		reason := strings.TrimSpace(stringValue(toolResult["fail_close_reason"]))
-		if reason == "" {
-			reason = "tool_execution_failed"
-		}
-		return toolName, reason, fmt.Errorf(
-			"agent tool result %s failed with fail_close_reason=%s",
-			toolName,
-			reason,
-		)
-	}
 	return "", "", nil
 }
 
@@ -664,17 +649,14 @@ func (s *Server) primaryAgentFinalizedResponse(
 	agentResult map[string]any,
 	additionalStageTiming ...stageTimingDuration,
 ) (map[string]any, error) {
-	envelope := cloneAnyMapFromMetadata(agentResult["terminal_envelope"])
-	if !validPrimaryAgentTerminalEnvelope(envelope) {
-		return nil, fmt.Errorf("agent terminal_envelope is required")
+	answerText, ok := agentResult["final_output"].(string)
+	if !ok || strings.TrimSpace(answerText) == "" {
+		return nil, fmt.Errorf("agent final_output is required")
 	}
-	evidenceClosure, err := s.primaryAgentEvidenceClosureForFinalization(envelope)
+	evidenceClosure, err := s.primaryAgentEvidenceClosureForFinalization(agentResult, answerText)
 	if err != nil {
 		return nil, err
 	}
-	terminalKind := primaryAgentTerminalKind(envelope)
-	answerText := primaryAgentEnvelopeAnswerText(envelope)
-	status, followUpQuestion, confidence := primaryAgentResponseFields(terminalKind, answerText)
 	stageTiming, err := s.stageTimingForRun(
 		ctx,
 		run,
@@ -686,8 +668,8 @@ func (s *Server) primaryAgentFinalizedResponse(
 	}
 	toolAssisted := len(primaryAgentToolResultMaps(agentResult["tool_results"])) > 0
 	workflowTraceSummary := map[string]any{
-		"execution_path":       primaryAgentExecutionPath(terminalKind, toolAssisted),
-		"terminal_reason":      terminalKind,
+		"execution_path":       primaryAgentExecutionPath(toolAssisted),
+		"terminal_reason":      string(execution.DurableTerminalReasonAnswerCompleted),
 		"answer_artifact_refs": []string{temporalProjectionRef(run.RunID, "finalization/write")},
 		"runtime_versions":     map[string]any{"agent_runtime": "openai_agents_sdk"},
 	}
@@ -695,22 +677,20 @@ func (s *Server) primaryAgentFinalizedResponse(
 		"agent_runtime":   "openai_agents_sdk",
 		"model_name":      agentResult["model_name"],
 		"model_provider":  agentResult["model_provider"],
-		"terminal_reason": terminalKind,
+		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	result := map[string]any{
 		"sources":         evidenceClosure.Sources,
-		"terminal_reason": terminalKind,
+		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	modelUsage, err := primaryAgentModelUsage(agentResult)
 	if err != nil {
 		return nil, err
 	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		Status:               status,
-		AnswerText:           primaryAgentAnswerText(status, answerText),
-		Error:                primaryAgentErrorBody(status, terminalKind),
-		FollowUpQuestion:     followUpQuestion,
-		Confidence:           confidence,
+		Status:               "completed",
+		AnswerText:           answerText,
+		Error:                nil,
 		ModelUsage:           modelUsage,
 		StageTiming:          stageTiming,
 		Result:               result,
@@ -720,20 +700,11 @@ func (s *Server) primaryAgentFinalizedResponse(
 	}), nil
 }
 
-func primaryAgentExecutionPath(terminalReason string, toolAssisted bool) string {
-	switch terminalReason {
-	case "clarification_required":
-		return "clarification"
-	case "out_of_scope", "policy_refusal":
-		return "rejected"
-	case "unsupported_by_evidence":
-		return "unsupported"
-	default:
-		if toolAssisted {
-			return "tool_assisted"
-		}
-		return "direct"
+func primaryAgentExecutionPath(toolAssisted bool) string {
+	if toolAssisted {
+		return "tool_assisted"
 	}
+	return "direct"
 }
 
 func primaryAgentModelUsage(agentResult map[string]any) (ModelUsageWire, error) {
@@ -752,78 +723,7 @@ func primaryAgentModelUsage(agentResult map[string]any) (ModelUsageWire, error) 
 }
 
 func primaryAgentTerminalReason(agentResult map[string]any) execution.DurableTerminalReason {
-	switch primaryAgentTerminalKind(cloneAnyMapFromMetadata(agentResult["terminal_envelope"])) {
-	case "clarification_required":
-		return execution.DurableTerminalReasonClarificationRequired
-	case "out_of_scope", "policy_refusal":
-		return execution.DurableTerminalReasonPolicyRejected
-	case "unsupported_by_evidence":
-		return execution.DurableTerminalReasonUnsupportedByEvidence
-	default:
-		return execution.DurableTerminalReasonAnswerCompleted
-	}
-}
-
-func primaryAgentResponseFields(terminalReason string, answerText string) (string, string, string) {
-	switch terminalReason {
-	case "clarification_required":
-		return "needs_clarification", answerText, "medium"
-	case "out_of_scope", "policy_refusal":
-		return "rejected", "", "low"
-	case "unsupported_by_evidence":
-		return "no_answer", "", "low"
-	default:
-		return "completed", "", "medium"
-	}
-}
-
-func primaryAgentErrorBody(status string, terminalReason string) any {
-	if status != "rejected" {
-		return nil
-	}
-	code := "request_rejected"
-	message := "The request was rejected by execution policy."
-	if strings.TrimSpace(terminalReason) == "out_of_scope" {
-		message = "The request is outside the current campus assistant scope."
-	}
-	return map[string]any{
-		"code":      code,
-		"message":   message,
-		"retryable": false,
-	}
-}
-
-func primaryAgentAnswerText(status string, answerText string) string {
-	if status == "needs_clarification" {
-		return ""
-	}
-	return answerText
-}
-
-func primaryAgentTerminalKind(envelope map[string]any) string {
-	kind := strings.TrimSpace(stringValue(envelope["kind"]))
-	if kind == "" {
-		return "answer"
-	}
-	return kind
-}
-
-func primaryAgentEnvelopeAnswerText(envelope map[string]any) string {
-	kind := primaryAgentTerminalKind(envelope)
-	switch kind {
-	case "clarification_required":
-		if followUp := strings.TrimSpace(stringValue(envelope["follow_up_question"])); followUp != "" {
-			return followUp
-		}
-		return strings.TrimSpace(stringValue(envelope["answer_text"]))
-	case "answer":
-		return strings.TrimSpace(stringValue(envelope["answer_text"]))
-	default:
-		if answerText := strings.TrimSpace(stringValue(envelope["answer_text"])); answerText != "" {
-			return answerText
-		}
-		return strings.TrimSpace(stringValue(envelope["reason"]))
-	}
+	return execution.DurableTerminalReasonAnswerCompleted
 }
 
 func primaryAgentToolResultMaps(value any) []map[string]any {
@@ -842,14 +742,6 @@ func primaryAgentToolResultMaps(value any) []map[string]any {
 	default:
 		return []map[string]any{}
 	}
-}
-
-func primaryAgentToolResultStatus(toolResult map[string]any) string {
-	result := cloneAnyMapFromMetadata(toolResult["result"])
-	if outcome := strings.TrimSpace(stringValue(result["outcome"])); outcome != "" {
-		return outcome
-	}
-	return strings.TrimSpace(stringValue(toolResult["status"]))
 }
 
 func stringSliceFromAny(value any) []string {

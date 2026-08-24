@@ -28,10 +28,17 @@ export function parseExecutionRunEvalProjection(value: unknown): ExecutionRunEva
 		throw new Error("tool trajectory identity does not match agent runtime eval projection run");
 	}
 	const answer = optionalString(rag.answer);
+	const retrievedContextIds = stringList(rag.retrieved_context_ids);
+	const retrievedContexts = stringList(rag.retrieved_contexts);
+	if (retrievedContextIds.length !== retrievedContexts.length) {
+		throw new Error(
+			"agent runtime eval projection retrieved context ids and contexts must have equal length",
+		);
+	}
 	return {
 		...(answer ? { answer } : {}),
-		retrievedContextIds: stringList(rag.retrieved_context_ids),
-		retrievedContexts: stringList(rag.retrieved_contexts),
+		retrievedContextIds,
+		retrievedContexts,
 		runId,
 		toolTrajectory,
 		traceId,

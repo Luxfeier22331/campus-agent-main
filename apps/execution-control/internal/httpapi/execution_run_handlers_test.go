@@ -78,8 +78,9 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)
 	}
-	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames) != 0 {
-		t.Fatalf("visible tools = %#v, want none", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
+	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames) != 1 ||
+		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames[0] != campusSearchToolName {
+		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
 	}
 	snapshot := starter.input.AdmissionSnapshot
 	if snapshot.ToolRuntimeFingerprintSHA256 == "" ||
@@ -113,8 +114,10 @@ func TestExecutionRunCreateHidesPersonalMemoryToolWhenRuntimeIsUnavailable(t *te
 	}
 	server.ReconcileTemporalRunsOnce(context.Background())
 	strategy := starter.input.AdmissionSnapshot.ExecutionStrategy
-	if strategy.MemoryRecall != "disabled" || strategy.MaxToolCalls != 0 || len(strategy.VisibleToolNames) != 0 {
-		t.Fatalf("execution strategy = %#v, want memory disabled", strategy)
+	if !containsString(strategy.VisibleToolNames, campusSearchToolName) ||
+		containsString(strategy.VisibleToolNames, personalMemoryRecallToolName) ||
+		strategy.MaxToolCalls != 1 || strategy.MaxModelTurns != 2 {
+		t.Fatalf("execution strategy = %#v, want campus search only", strategy)
 	}
 }
 
@@ -427,8 +430,9 @@ func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
 	server.ReconcileTemporalRunsOnce(context.Background())
-	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames) != 0 {
-		t.Fatalf("visible tools = %#v, want none", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
+	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames) != 1 ||
+		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames[0] != campusSearchToolName {
+		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
 	}
 }
 

@@ -1,4 +1,4 @@
-export type AssistantMessageKind = "answer" | "clarification" | "no_answer" | "error";
+export type AssistantMessageKind = "answer" | "error";
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageFeedbackVote = "helpful" | "unhelpful";
 export type ChatMessageFeedbackReasonCode =
@@ -18,6 +18,8 @@ export interface ChatSourceAction {
 }
 
 export interface ChatSourceItem {
+	citationIndexes: number[];
+	kind: "campus_document";
 	title: string;
 	snippet: string | null;
 	primaryAction: ChatSourceAction;
@@ -211,7 +213,8 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 
 	const title = normalizeOptionalString(value.title);
 	const versionLabel = normalizeOptionalString(value.versionLabel);
-	if (!(title && versionLabel)) {
+	const citationIndexes = normalizeCitationIndexes(value.citationIndexes);
+	if (value.kind !== "campus_document" || !(title && versionLabel && citationIndexes)) {
 		return null;
 	}
 
@@ -221,6 +224,8 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 	}
 
 	return {
+		citationIndexes,
+		kind: "campus_document",
 		title,
 		snippet: normalizeOptionalString(value.snippet),
 		primaryAction,
@@ -228,6 +233,20 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 		collectionLabel: normalizeOptionalString(value.collectionLabel) ?? "",
 		versionLabel,
 	};
+}
+
+function normalizeCitationIndexes(value: unknown): number[] | null {
+	if (!Array.isArray(value) || value.length === 0 || value.length > 5) {
+		return null;
+	}
+	const indexes = value.filter(
+		(item): item is number =>
+			typeof item === "number" && Number.isInteger(item) && item >= 1 && item <= 5,
+	);
+	if (indexes.length !== value.length || new Set(indexes).size !== indexes.length) {
+		return null;
+	}
+	return indexes;
 }
 
 function normalizeSourceItems(value: unknown): ChatSourceItem[] {

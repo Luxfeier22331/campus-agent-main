@@ -9,7 +9,6 @@ import {
 } from "./modules/account-lifecycle";
 import { getAppAuth } from "./modules/auth";
 import { getOpsAccountAdminApi } from "./modules/auth/ops-account-admin-plugin";
-import { createPgChatConversationStore } from "./modules/chat";
 import {
 	buildEmailAccessService,
 	createPgEmailAccessGrantStore,
@@ -25,32 +24,14 @@ import {
 	createPgProfileMemoryPersistence,
 	type ProfileMemoryService,
 } from "./modules/profile-memory";
-import {
-	buildChatCommandService,
-	type ChatCommandService,
-	createPgChatCommandPersistence,
-	deriveSafetyIdentifierForUser,
-} from "./modules/runtime-command";
-import {
-	buildRuntimeRunService,
-	createPgRuntimeRunStore,
-	type RuntimeRunService,
-} from "./modules/runtime-run";
+import { deriveSafetyIdentifierForUser } from "./modules/runtime-command";
 import { createAppTelemetry } from "./modules/telemetry";
 import { createAppApiSentryOptions } from "./modules/telemetry/sentry";
 import { runWithAppApiExecutionContext } from "./request-execution-context";
 
 export type { Env } from "./config";
 
-type ScheduledRuntimeDependencies =
-	| { chatCommandService?: undefined; runtimeRunService?: undefined }
-	| { chatCommandService: ChatCommandService; runtimeRunService: RuntimeRunService };
-
-export type WorkerRuntimeDependencies = Omit<
-	AppDependencies,
-	"chatCommandService" | "runtimeRunService"
-> &
-	ScheduledRuntimeDependencies;
+export type WorkerRuntimeDependencies = AppDependencies;
 
 interface WaitUntilContext {
 	waitUntil(promise: Promise<unknown>): void;
@@ -61,44 +42,12 @@ interface WorkerRuntime {
 	scheduled(): Promise<void>;
 }
 
-function scheduledErrorDetails(error: unknown): Record<string, string> {
-	if (error instanceof Error) {
-		return {
-			message: error.message,
-			name: error.name,
-		};
-	}
-	return { message: String(error), name: "UnknownError" };
-}
-
-async function runScheduledSweep(name: string, sweep: () => Promise<void>): Promise<void> {
-	try {
-		await sweep();
-	} catch (error) {
-		console.error({
-			error: scheduledErrorDetails(error),
-			source: "app-api.scheduled",
-			task: name,
-		});
-	}
-}
-
 export function createWorkerRuntime(
 	env: Env,
 	dependencies: WorkerRuntimeDependencies = {},
 ): WorkerRuntime {
-	if (
-		(dependencies.chatCommandService === undefined) !==
-		(dependencies.runtimeRunService === undefined)
-	) {
-		throw new Error("Scheduled chat command and runtime run services must be configured together.");
-	}
 	const telemetry = dependencies.telemetry ?? createAppTelemetry();
 	let profileMemoryService: ProfileMemoryService | null = dependencies.profileMemoryService ?? null;
-	let scheduledRuntimeServices: {
-		chatCommandService: ChatCommandService;
-		runtimeRunService: RuntimeRunService;
-	} | null = null;
 	let accountLifecycleService:
 		| import("./modules/account-lifecycle").AccountLifecycleService
 		| null = dependencies.accountLifecycleService ?? null;
@@ -115,47 +64,6 @@ export function createWorkerRuntime(
 			readStore: persistence.reads,
 		});
 		return profileMemoryService;
-	}
-	function resolveScheduledRuntimeServices(
-		executionRuntime: ReturnType<typeof createExecutionControlRuntimeClient>,
-	) {
-		if (scheduledRuntimeServices) {
-			return scheduledRuntimeServices;
-		}
-		if (dependencies.chatCommandService && dependencies.runtimeRunService) {
-			scheduledRuntimeServices = {
-				chatCommandService: dependencies.chatCommandService,
-				runtimeRunService: dependencies.runtimeRunService,
-			};
-			return scheduledRuntimeServices;
-		}
-		const commandPersistence = createPgChatCommandPersistence(env);
-		const chatCommandService = buildChatCommandService({
-			admissionStore: commandPersistence.admission,
-			commandStore: commandPersistence.commands,
-			conversationStore: createPgChatConversationStore(env),
-			executionRuntime,
-			isExecutionRuntimeConfigured: true,
-			observabilityStore: commandPersistence.observability,
-			...(env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET
-				? { safetyIdentifierHmacSecret: env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET }
-				: {}),
-			telemetry,
-		});
-		scheduledRuntimeServices = {
-			chatCommandService,
-			runtimeRunService: buildRuntimeRunService({
-				executionRuntime,
-				finalizeLocalCancellation: async (cancellation) => {
-					if (!chatCommandService.finalizeLocalCancellation) {
-						throw new Error("Local chat cancellation finalization is not configured.");
-					}
-					await chatCommandService.finalizeLocalCancellation(cancellation);
-				},
-				store: createPgRuntimeRunStore(env),
-			}),
-		};
-		return scheduledRuntimeServices;
 	}
 	function resolveAccountLifecycleService() {
 		if (accountLifecycleService) {
@@ -198,56 +106,22 @@ export function createWorkerRuntime(
 			);
 		},
 		async scheduled(): Promise<void> {
-			const deployed = isDeployedEnvironment(resolveEnvironment(env));
-			const executionConfigured = isExecutionControlRuntimeConfigured(env);
-
-			await runScheduledSweep("account-admin.stale-commands", async () => {
-				if (!deployed) {
-					return;
-				}
+			if (isDeployedEnvironment(resolveEnvironment(env))) {
 				const indeterminate = await createPgAccountAdminStore(env).markStaleCommandsIndeterminate(
 					new Date(Date.now() - 5 * 60_000),
 				);
 				if (indeterminate > 0) {
 					console.error({ indeterminate, source: "app-api.account-admin-reconciler" });
 				}
-			});
-
-			await runScheduledSweep("email-access.expire", async () => {
-				if (!(deployed || dependencies.emailAccessService)) {
-					return;
-				}
+			}
+			if (isDeployedEnvironment(resolveEnvironment(env)) || dependencies.emailAccessService) {
 				await resolveEmailAccessService().expire();
-			});
-
-			if (executionConfigured) {
-				await runScheduledSweep("chat.admission", async () => {
-					const { chatCommandService } = resolveScheduledRuntimeServices(
-						createExecutionControlRuntimeClient(env),
-					);
-					if (!chatCommandService.dispatchPendingAdmissions) {
-						throw new Error("Chat admission product finalization is not configured.");
-					}
-					await chatCommandService.dispatchPendingAdmissions();
-				});
-
-				await runScheduledSweep("runtime-run.cancellation", async () => {
-					const { runtimeRunService } = resolveScheduledRuntimeServices(
-						createExecutionControlRuntimeClient(env),
-					);
-					if (!runtimeRunService.dispatchPendingCancellations) {
-						throw new Error("Run cancellation dispatcher is not configured.");
-					}
-					await runtimeRunService.dispatchPendingCancellations();
-				});
-
-				await runScheduledSweep("profile-memory.dispatch", async () => {
-					await resolveProfileMemoryService().dispatchPending();
-				});
-
-				await runScheduledSweep("account-lifecycle.dispatch", async () => {
-					await resolveAccountLifecycleService().dispatchPending();
-				});
+			}
+			if (isExecutionControlRuntimeConfigured(env)) {
+				await resolveProfileMemoryService().dispatchPending();
+			}
+			if (isExecutionControlRuntimeConfigured(env)) {
+				await resolveAccountLifecycleService().dispatchPending();
 			}
 		},
 	};

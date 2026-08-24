@@ -27,21 +27,19 @@ status: accepted
 - 用户正文、历史会话、检索内容、记忆和工具返回值始终作为明确标注的不可信数据。
 - 不可信正文不得拼入 developer instructions，也不得以指令语气覆盖运行时边界。
 
-### 工具和终态使用可执行 schema
+### 工具使用可执行 schema，回答使用原生文本
 
 - 模型可见工具通过 function/tool schema 描述用途、参数和副作用；跨工具规则才进入
   developer instructions。
-- 直接路径和工具路径使用同一类 typed terminal
-  contract，不以自由文本或消费端默认值表示成功。
-- evidence-backed 结果必须携带可由代码核验的 evidence refs；终态校验不得再调用模型
-  补齐或改写答案。
+- 直接路径和工具路径都使用 Agents SDK 原生文本作为回答，不要求模型生成自定义终态对象。
+- evidence-backed 回答使用有界正文引用；Finalization 从本轮真实成功工具结果中确定性派生来源，
+  不得再调用模型补齐或改写答案。
 
 ### 不完整输出必须失败关闭
 
-- provider failure、refusal、incomplete、缺少结构化结果、schema 错误和伪造证据引用都
-  产生明确失败结果。
-- 消费端不得用空答案、默认置信度或通用 no-answer 掩盖这些状态。
-- JSON、streaming 和持久化投影必须保留同一终态语义。
+- provider failure、incomplete、空 `final_output`、工具合同错误和运行时错误都产生明确失败结果。
+- 追问、资料不足和范围说明是普通回答正文；消费端不得为它们再造模型 outcome。
+- JSON、streaming 和持久化投影必须保留同一回答正文与运行状态。
 
 具体 packet 字段、终态枚举、错误码和 prompt trace 由 executable contract 与所属运行时
 文档维护，本 ADR 不复制动态清单。
@@ -49,13 +47,13 @@ status: accepted
 ## 后果
 
 - prompt 变更不能放宽代码拥有的能力、数据或证据边界。
-- 新 Agent 路径必须复用终态和证据合同，除非新的 ADR 接受独立语义。
+- 新 Agent 路径必须复用文本输出和证据合同，除非新的 ADR 接受独立语义。
 - prompt registry、管理后台或托管模板不是可靠性的前置条件；出现真实治理需求后再决策。
 
 ## 未采用方案
 
 - **单一大型 system prompt**：无法可靠执行认证、工具开放和 schema 校验。
-- **为不同执行路径保留自由文本结果**：会产生第二套不可验证的终态。
+- **自定义模型终态对象**：把回答语义和运行状态耦合，并要求每个消费者重复解释。
 - **消费端修补模型输出**：会掩盖 provider 和合同失败。
 
 ## 相关文档

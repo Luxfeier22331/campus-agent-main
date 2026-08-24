@@ -1,8 +1,6 @@
 {
 	"status": "error",
 	"answer_text": "",
-	"follow_up_question": "",
-	"confidence": "low",
 	"model_usage": {
 		"input_tokens": 0,
 		"cached_input_tokens": 0,
@@ -16,7 +14,7 @@
 		"retryable": true
 	},
 	"workflow_trace_summary": {
-		"execution_path": "rejected",
+		"execution_path": "direct",
 		"terminal_reason": "execution_timeout",
 		"answer_artifact_refs": [],
 		"runtime_versions": {}

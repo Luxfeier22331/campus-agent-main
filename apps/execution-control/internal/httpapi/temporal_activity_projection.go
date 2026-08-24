@@ -269,7 +269,6 @@ func temporalFailureFailCloseReason(projection temporalStepFailureProjection) st
 		"agent_runtime_unauthorized",
 		"source_conflict",
 		"temporal_scope_ambiguous",
-		"clarification_required",
 		"not_found":
 		return strings.TrimSpace(projection.FailureKind)
 	default:

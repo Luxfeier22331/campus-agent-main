@@ -3,8 +3,6 @@ import { AppApiRouteError } from "../../../http";
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ToolExecutionResponse } from "../../integration";
 import { createPreAcceptError } from "./errors";
-import { isRecord, normalizeOptionalString } from "./normalize-record-utils";
-import { resultSources } from "./normalize-source-items";
 import type {
 	ChatCommandPayload,
 	InternalEvalChatCommandPayload,
@@ -136,29 +134,6 @@ export function deriveSafetyIdentifierForUser(userId: string, secret: string): s
 	return createHmac("sha256", requireSafetyIdentifierSecret(secret))
 		.update(`principal:${normalizedUserId}`)
 		.digest("hex");
-}
-
-export function extractSourceDocIds(result: unknown): string[] {
-	if (!isRecord(result)) {
-		return [];
-	}
-
-	const sources = resultSources(result);
-	if (sources.length === 0) {
-		return [];
-	}
-
-	const sourceDocIds = sources
-		.map((source) =>
-			isRecord(source)
-				? normalizeOptionalString(
-						source.source_document_id ?? source.sourceDocumentId ?? source.doc_id,
-					)
-				: null,
-		)
-		.filter((sourceDocumentId): sourceDocumentId is string => Boolean(sourceDocumentId));
-
-	return Array.from(new Set(sourceDocIds));
 }
 
 export function resolveValidatedPayload(

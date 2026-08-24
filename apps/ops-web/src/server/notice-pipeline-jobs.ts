@@ -236,7 +236,9 @@ function buildJob(
 	definition: OperationDefinition,
 ): V1Job {
 	const spec = structuredClone(template.spec?.jobTemplate.spec);
-	if (!spec?.template.spec) {
+	const templateName = template.metadata?.name;
+	const templateUid = template.metadata?.uid;
+	if (!(spec?.template.spec && templateName && templateUid)) {
 		throw new NoticePipelineUnavailableError("通知任务模板不完整。");
 	}
 	const labels = {
@@ -255,10 +257,25 @@ function buildJob(
 	return {
 		apiVersion: "batch/v1",
 		kind: "Job",
-		metadata: { generateName: `${input.operation}-`, labels },
+		metadata: {
+			generateName: `${input.operation}-`,
+			labels,
+			ownerReferences: [
+				{
+					apiVersion: template.apiVersion ?? "batch/v1",
+					blockOwnerDeletion: false,
+					controller: false,
+					kind: template.kind ?? "CronJob",
+					name: templateName,
+					uid: templateUid,
+				},
+			],
+		},
 		spec: {
 			...spec,
+			backoffLimit: 0,
 			template: { ...spec.template, metadata: { ...(spec.template.metadata ?? {}), labels } },
+			ttlSecondsAfterFinished: 86_400,
 		},
 	};
 }

@@ -144,20 +144,6 @@ export interface RunnerToolCall {
 	result: ToolExecutionResult | undefined;
 }
 
-export type PrimaryAgentTerminalKind =
-	| "answer"
-	| "clarification_required"
-	| "out_of_scope"
-	| "policy_refusal"
-	| "unsupported_by_evidence";
-
-export interface PrimaryAgentTerminalEnvelope {
-	answerText?: string;
-	followUpQuestion?: string;
-	kind: PrimaryAgentTerminalKind;
-	reason?: string;
-}
-
 export interface AgentRunnerInput {
 	activityAttempt?: number;
 	input: AgentInputItem[];
@@ -174,7 +160,6 @@ export interface AgentRunnerInput {
 export interface AgentRunnerResult {
 	finalOutput: string;
 	providerResponseId: string;
-	terminalEnvelope?: PrimaryAgentTerminalEnvelope | undefined;
 	toolCalls: RunnerToolCall[];
 	usage: UsageSummary;
 }
@@ -195,16 +180,9 @@ export interface PrimaryAgentRunResult {
 	promptTrace: PromptTrace;
 	providerResponseId: string;
 	stageTiming: Record<string, number>;
-	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
 	toolRuntimeFingerprint: ToolRuntimeFingerprint;
 	toolResults: ToolExecutionResult[];
-	terminalReason:
-		| "answer_completed"
-		| "agent_runtime_failed"
-		| "clarification_required"
-		| "out_of_scope"
-		| "policy_refusal"
-		| "unsupported_by_evidence";
+	terminalReason: "answer_completed" | "agent_runtime_failed";
 	usage: UsageSummary;
 }
 

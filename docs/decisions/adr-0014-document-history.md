@@ -18,8 +18,8 @@ status: accepted
 - 阅读器可以按明确版本展示已发布历史内容；
 - Campus Docs publisher 只把来源清单当前 reader 构建的索引写入
   `campus_docs_serving.current_index`；
-- 当前在线 Agent 不消费该索引；历史、截至日期和版本比较问题在当前 Agent 能力中返回无法支持；
-- 若未来开放历史检索，必须另行定义精确版本选择、引用呈现和评测合同；
+- 当前在线 Agent 通过只读 `campus_search` 消费该索引；历史、截至日期和版本比较问题在当前 Agent 能力中返回无法支持；
+- 若开放历史检索，必须另行定义精确版本选择、引用呈现和评测合同；
 - 保留来源版本不会自动把它加入当前检索索引；只有 `source.json` 选中的当前 reader 进入 publisher。
 
 阅读器的版本字段由文档阅读合同维护；Agent 当前没有历史模式字段。

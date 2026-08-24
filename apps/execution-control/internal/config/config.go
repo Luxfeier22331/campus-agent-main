@@ -58,6 +58,9 @@ type Config struct {
 	ProductCallbackBaseURL                  string
 	ProductCallbackTimeoutMS                int
 	ModelConfigBaseURL                      string
+	QdrantURL                               string
+	QdrantReadOnlyAPIKey                    string
+	QdrantTLSCACertPath                     string
 	WorkerProfiles                          map[string]WorkerProfile
 	PersonalMemoryBaseURL                   string
 	PersonalMemoryAPISecret                 string
@@ -92,6 +95,9 @@ type envValues struct {
 	AgentRuntimeSharedSecret    string `env:"EXECUTION_AGENT_RUNTIME_SHARED_SECRET"`
 	ModelConfigBaseURL          string `env:"MODEL_CONFIG_URL"`
 	ProductCallbackBaseURL      string `env:"EXECUTION_CONTROL_PRODUCT_CALLBACK_BASE_URL"`
+	QdrantURL                   string `env:"QDRANT_URL"`
+	QdrantReadOnlyAPIKey        string `env:"QDRANT_READ_ONLY_API_KEY"`
+	QdrantTLSCACertPath         string `env:"QDRANT_TLS_CA_CERT_PATH"`
 	PersonalMemoryBaseURL       string `env:"HINDSIGHT_API_BASE_URL"`
 	PersonalMemoryAPISecret     string `env:"HINDSIGHT_API_TENANT_API_KEY"`
 	PersonalMemoryOwnerSalt     string `env:"HINDSIGHT_OWNER_SALT"`
@@ -156,6 +162,9 @@ func loadFromEnv() (Config, error) {
 		ProductCallbackBaseURL:                  strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
 		ProductCallbackTimeoutMS:                1_000,
 		ModelConfigBaseURL:                      strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
+		QdrantURL:                               strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
+		QdrantReadOnlyAPIKey:                    strings.TrimSpace(values.QdrantReadOnlyAPIKey),
+		QdrantTLSCACertPath:                     strings.TrimSpace(values.QdrantTLSCACertPath),
 		WorkerProfiles:                          defaultWorkerProfiles(),
 		PersonalMemoryBaseURL:                   strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
 		PersonalMemoryAPISecret:                 strings.TrimSpace(values.PersonalMemoryAPISecret),
@@ -186,6 +195,9 @@ func validateDeployedRuntime(values envValues) error {
 		{"EXECUTION_AGENT_RUNTIME_SHARED_SECRET", values.AgentRuntimeSharedSecret},
 		{"OPS_WEB_INTERNAL_TOKEN", values.OpsWebInternalToken},
 		{"MODEL_CONFIG_URL", values.ModelConfigBaseURL},
+		{"QDRANT_URL", values.QdrantURL},
+		{"QDRANT_READ_ONLY_API_KEY", values.QdrantReadOnlyAPIKey},
+		{"QDRANT_TLS_CA_CERT_PATH", values.QdrantTLSCACertPath},
 	}
 	for _, item := range required {
 		if strings.TrimSpace(item.value) == "" {

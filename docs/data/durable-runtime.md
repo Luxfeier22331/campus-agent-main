@@ -40,8 +40,9 @@ run 与 workflow 启动命令在一个事务写入。启动命令固定 Workflow
 reconciler 在外部 RPC 前用 lease token 原子置位 dispatch fence，重复执行不能创建第二个 workflow。
 升级前已有命令迁移为 `dispatch_attempted=true`，不能从租约次数反推从未投递。
 
-execution-control 的取消命令与 `cancel_requested` 一起持久化，再由 reconciler 幂等投递。它与
-app-api 自己的取消发件箱是两个所有者各自的提交点，不以一次 HTTP 成功假装跨库事务。只要启动命令
+execution-control 的取消命令与 `cancel_requested` 一起持久化，再由 reconciler 幂等投递。app-api
+只负责归属校验并调用 execution-control，不维护自己的取消发件箱，也不以一次 HTTP 成功假装跨库事务。
+只要启动命令
 已经置位 `dispatch_attempted`，Describe 的 `NotFound` 就不能作为未投递证明；取消命令以
 `temporal_start_identity_unresolved` 保持 pending，直到绑定并校验精确 Temporal Run ID，或确认存在
 不属于该 run 的身份冲突。只有未置位 dispatch fence 且没有 Temporal Run ID 的启动命令可以直接
@@ -108,13 +109,13 @@ Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 
 - SDK function-tool 调用摘要；
 - provider response id 与 model/provider 标识；
 - input、output 与 cached token 数量、模型请求数与 usage 是否已观测；
-- 结构化终态结果。
+- `final_output` 摘要和运行终态原因。
 
 正式投影不存储 SDK state、raw message 或 raw function payload。
 
 Primary Agent 在供应商调用前构造 canonical provider invocation envelope。envelope 的规范 JSON
 SHA-256 是 invocation receipt 的 `InputSHA256`，绑定 run、invocation、Activity attempt、完整
-Activity input SHA、execution input SHA、完整 admission snapshot 及其 SHA、模型可见工具，以及实际
+Activity input SHA、execution input SHA、完整执行身份与授权投影及其 SHA、模型可见工具，以及实际
 发送给 Agent Runtime 的 HTTP body SHA。HTTP 调用必须发送计算 request SHA 时的
 同一份编码 bytes，不能在计算摘要后重新编码。envelope 只在本次 Activity 内存中用于生成 receipt
 fingerprint，不持久化为单独载荷。
@@ -132,14 +133,15 @@ provider/model 与有界用量摘要保存于正式投影中。已开始或已�
 
 ## Finalization 投影
 
-Finalization 保存 SDK 终态答案和确定性校验结果。当前在线链路不生成机构知识 source；未来来源能力
-接入时必须由对应合同定义来源校验和公开字段。
+Finalization 保存 SDK 终态答案和确定性校验结果。机构知识 source 只能来自同一次运行中成功工具的
+真实 evidence，并通过该工具对应 adapter 校验；当前只有 `campus_search` 注册 Campus Docs 来源 adapter。
+其他来源能力接入时必须由对应合同定义来源校验和公开字段。
 
-Finalization 可以拒绝格式错误或不受支持的 output，但不会创建或改写答案。app-api 可以在
+Finalization 可以拒绝空正文、无效工具结果或不满足执行合同的 output，但不会创建或改写答案。app-api 可以在
 保留答案原文的前提下，把已验证 source 转换为产品 source-item 结构。相同 fingerprint 的完成
 可以幂等重放；不同 fingerprint 与已提交的产品终态冲突，execution-control 不得用较晚结果覆盖。
 
-Finalization 读取 workflow 传入的 Agent result，验证身份、冻结准入快照和终态 schema。
+Finalization 读取 workflow 传入的 Agent result，验证身份、执行输入摘要和终态 schema。
 `finalization.write` 的 completed StepResult 保存由 agent result
 ref、最终响应、request/trace 生成的 `finalization_fingerprint_sha256`。
 `FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的

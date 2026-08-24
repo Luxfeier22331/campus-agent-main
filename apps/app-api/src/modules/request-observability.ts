@@ -86,39 +86,7 @@ function normalizeFailClosed(input: { status: TurnDispatchStatus }): boolean | n
 	if (input.status === "accepted") {
 		return null;
 	}
-	return !["completed", "needs_clarification"].includes(input.status);
-}
-
-function normalizeRefusalClass(status: TurnDispatchStatus): string | null {
-	if (
-		status === "needs_clarification" ||
-		status === "no_answer" ||
-		status === "approval_required" ||
-		status === "rejected"
-	) {
-		return status;
-	}
-
-	return status === "error" || status === "cancelled" ? status : null;
-}
-
-function normalizeSemanticOutcome(status: TurnDispatchStatus): string | null {
-	if (status === "completed") {
-		return "answer";
-	}
-	if (status === "needs_clarification") {
-		return "needs_clarification";
-	}
-	if (status === "approval_required") {
-		return "approval_required";
-	}
-	if (status === "rejected") {
-		return "policy_refusal";
-	}
-	if (status === "no_answer") {
-		return "no_answer";
-	}
-	return status === "accepted" ? null : status;
+	return input.status !== "completed";
 }
 
 function normalizePolicyReason(input: { status: TurnDispatchStatus }): string | null {
@@ -158,8 +126,6 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
 		requestId: input.requestId,
-		refusalClass: null,
-		semanticOutcome: null,
 		safetyIdentifier: input.safetyIdentifier ?? null,
 		templateSha256: null,
 		startedAt: input.startedAt,
@@ -212,8 +178,6 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
 		requestId: input.requestId,
-		refusalClass: normalizeRefusalClass(input.status),
-		semanticOutcome: normalizeSemanticOutcome(input.status),
 		safetyIdentifier: input.safetyIdentifier ?? null,
 		templateSha256: promptTrace?.promptTemplateSha256 ?? null,
 		startedAt: input.startedAt,

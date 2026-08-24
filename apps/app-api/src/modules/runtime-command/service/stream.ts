@@ -276,7 +276,6 @@ export function executionFinalizationErrorResponse(input: {
 			message: input.message,
 			retryable: input.retryable,
 		},
-		followUpQuestion: "",
 		modelUsage: { cachedInputTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
 		result: null,
 		status: input.status ?? "error",
@@ -295,7 +294,7 @@ export function toTerminalChatStreamEvent(input: {
 	let event: ChatCommandStreamEventName = "request.failed";
 	if (input.sourceEvent === "execution.cancelled" || status === "cancelled") {
 		event = "request.cancelled";
-	} else if (status === "completed" || status === "needs_clarification" || status === "no_answer") {
+	} else if (status === "completed") {
 		event = "request.completed";
 	}
 

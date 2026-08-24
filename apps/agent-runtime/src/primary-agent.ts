@@ -12,7 +12,6 @@ import type {
 	PrimaryAgentRunInput,
 	PrimaryAgentRunResult,
 	PrimaryAgentRuntime,
-	PrimaryAgentTerminalEnvelope,
 	PromptTrace,
 	SdkToolRuntime,
 	ToolExecutionRequest,
@@ -21,20 +20,27 @@ import type {
 	UntimedToolExecutionResult,
 } from "./agent-run-contract.ts";
 import { AgentRuntimeError } from "./runtime-errors.ts";
-import { finalOutputFromTerminalEnvelope } from "./terminal-envelope.ts";
 import type { ToolCatalog, ToolCatalogEntry, ToolRuntimeFingerprint } from "./tool-catalog.ts";
 import { buildVisibleToolDefinitions } from "./tool-catalog.ts";
 
 const defaultInstructions = [
-	"You are the campus-agent primary assistant.",
-	"When asked about your identity or capabilities, identify only as the campus question-answering assistant and describe only campus-information help; do not claim coding, workspace, file, browser, or system-control capabilities.",
-	"Answer the latest user's request directly and concisely, using the language of that request unless the user asks otherwise.",
-	"The latest user request takes priority over conversation history, session state, and personal memory.",
-	"Use only the function tools made available in this run.",
-	"When personal_memory_recall is available, use it when the latest request depends on saved personal facts or preferences.",
-	"Do not invent facts that are not present in the request, conversation context, or available tool results.",
-	"Do not expose internal execution details in the user-facing answer.",
-	"Ask one concise clarification question only when the user's intent is genuinely ambiguous.",
+	"你是中央民族大学（Minzu University of China）校园问答助手。",
+	"当用户询问你的身份或能力时，只说明你是中央民族大学校园问答助手以及你能提供的校园信息帮助；不要声称具有编程、工作区、文件、浏览器或系统控制能力。",
+	"直接、简洁地回答用户当前的问题；除非用户另有要求，使用用户当前使用的语言。",
+	"用户当前的问题优先于会话历史、会话状态和个人记忆。",
+	"只使用本次运行提供的函数工具。",
+	"用户未明确指定机构时，所说的学校、本校和校园默认指中央民族大学。",
+	"工具定义描述其能够提供的事实范围；根据当前问题所需事实与工具范围选择工具，不要按具体机构、地点或实体名称建立固定路由特判。",
+	"机构名称本身既不强制也不禁止工具调用；只有工具声明的资料范围和本轮真实返回的证据能够支持事实回答。",
+	"personal_memory_recall 可用时，仅在当前问题依赖已保存的用户个人事实或偏好时使用。个人记忆不是学校事实的依据。",
+	"将成功工具返回的证据视为该次调用完整且有界的上下文；不要要求更大的 top-k，也不要提及未返回的候选。",
+	"回答机构事实时，只使用本轮成功工具结果中的证据。一个工具失败时不得使用其结果；如果其他成功工具的证据足以支持答案，可以继续回答。",
+	"证据只支持问题的一部分时，只回答有证据的部分并清楚说明资料边界；不要补全、推断或伪造未获支持的部分。",
+	"没有本轮证据支持所需机构事实时，直接说明当前资料无法支持答案；不要使用模型记忆补全。",
+	"campus_search 返回的 evidence 按顺序对应 [1] 到 [5]。使用其中的事实时，在相关陈述后写对应的 Markdown 引用标记 [n]；不要写 evidence_ref 或其他内部 locator。",
+	"不要编造用户输入、会话上下文或可用工具结果中不存在的事实。",
+	"不要在面向用户的回答中暴露内部执行细节。",
+	"只有用户意图确实不明确时，才提出一个简短的澄清问题。",
 ].join("\n");
 
 export function createPrimaryAgentRuntime(
@@ -205,26 +211,7 @@ function primaryAgentRunResultFromRunnerResult(args: {
 	const toolResults = result.toolCalls
 		.map((call) => call.result)
 		.filter((value): value is ToolExecutionResult => value !== undefined);
-	const failedToolResult = toolResults.find((toolResult) => toolResult.status === "failed");
-	if (failedToolResult !== undefined) {
-		return {
-			status: "failed",
-			runId: input.runId,
-			contextUsage,
-			finalOutput: result.finalOutput,
-			modelName: input.providerConfig.model,
-			modelProvider: input.providerConfig.provider,
-			promptTrace,
-			providerResponseId: result.providerResponseId,
-			stageTiming: timing,
-			toolRuntimeFingerprint,
-			toolResults,
-			terminalReason: "agent_runtime_failed",
-			usage: result.usage,
-		};
-	}
-	const terminalReason = terminalReasonFromEnvelope(result.terminalEnvelope);
-	if (result.terminalEnvelope === undefined) {
+	if (result.finalOutput.trim() === "") {
 		return {
 			status: "failed",
 			runId: input.runId,
@@ -245,19 +232,15 @@ function primaryAgentRunResultFromRunnerResult(args: {
 		status: "completed",
 		runId: input.runId,
 		contextUsage,
-		finalOutput:
-			result.terminalEnvelope === undefined
-				? result.finalOutput
-				: finalOutputFromTerminalEnvelope(result.terminalEnvelope),
+		finalOutput: result.finalOutput,
 		modelName: input.providerConfig.model,
 		modelProvider: input.providerConfig.provider,
 		promptTrace,
 		providerResponseId: result.providerResponseId,
 		stageTiming: timing,
-		terminalEnvelope: result.terminalEnvelope,
 		toolRuntimeFingerprint,
 		toolResults,
-		terminalReason,
+		terminalReason: "answer_completed",
 		usage: result.usage,
 	};
 }
@@ -410,20 +393,6 @@ function requireCatalogEntry(catalog: ToolCatalog, name: string): ToolCatalogEnt
 		throw new Error(`tool ${name} missing from catalog`);
 	}
 	return tool;
-}
-
-function terminalReasonFromEnvelope(
-	envelope: PrimaryAgentTerminalEnvelope | undefined,
-): PrimaryAgentRunResult["terminalReason"] {
-	switch (envelope?.kind) {
-		case "clarification_required":
-		case "out_of_scope":
-		case "policy_refusal":
-		case "unsupported_by_evidence":
-			return envelope.kind;
-		default:
-			return "answer_completed";
-	}
 }
 
 async function defaultToolExecutor(

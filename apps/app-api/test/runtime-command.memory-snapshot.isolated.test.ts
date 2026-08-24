@@ -22,12 +22,10 @@ import { createConversation, createPrincipal } from "./chat-command.service.test
 
 function createAcceptanceHarness(requestKind: "internal_eval" | "public_chat") {
 	const conversation = createConversation();
-	const freezeDurableAdmission = vi.fn(() => ({
-		admissionInputJson: '{"runId":"run_01HQ"}',
-		admissionInputSha256: "a".repeat(64),
+	const freezeDurableRun = vi.fn(() => ({
 		executionInputJson: '{"requestId":"req_01HQ"}',
 		executionInputSha256: "b".repeat(64),
-		workflowId: "campus-agent.chat.run_01HQ",
+		turnId: "turn_01HQ",
 	}));
 	const conversationForUpdate = vi.fn().mockResolvedValue([
 		{
@@ -79,7 +77,7 @@ function createAcceptanceHarness(requestKind: "internal_eval" | "public_chat") {
 		branchId: "branch_active",
 		conversation,
 		conversationTitle: conversation.title,
-		freezeDurableAdmission,
+		freezeDurableRun,
 		idempotencyKey: null,
 		now: "2026-08-17T08:00:00.000Z",
 		principal: createPrincipal(),
@@ -92,9 +90,10 @@ function createAcceptanceHarness(requestKind: "internal_eval" | "public_chat") {
 		surface: requestKind === "public_chat" ? "campus_web" : "eval_benchmark",
 		traceId: "trace_01HQ",
 		turnSequence: 1,
+		turnId: "turn_01HQ",
 		userMessageId: "msg_user_01HQ",
 	});
-	return { conversationForUpdate, freezeDurableAdmission, store, tx, write };
+	return { conversationForUpdate, freezeDurableRun, store, tx, write };
 }
 
 describe("runtime command profile memory snapshot boundary", () => {
@@ -121,7 +120,7 @@ describe("runtime command profile memory snapshot boundary", () => {
 		expect(harness.conversationForUpdate.mock.invocationCallOrder[0]).toBeLessThan(
 			captureMemorySnapshot.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
 		);
-		expect(harness.freezeDurableAdmission).toHaveBeenCalledWith(snapshot);
+		expect(harness.freezeDurableRun).toHaveBeenCalledWith(snapshot);
 	});
 
 	it("does not capture memory for internal evaluation", async () => {
@@ -132,6 +131,6 @@ describe("runtime command profile memory snapshot boundary", () => {
 		});
 
 		expect(captureMemorySnapshot).not.toHaveBeenCalled();
-		expect(harness.freezeDurableAdmission).toHaveBeenCalledWith(null);
+		expect(harness.freezeDurableRun).toHaveBeenCalledWith(null);
 	});
 });

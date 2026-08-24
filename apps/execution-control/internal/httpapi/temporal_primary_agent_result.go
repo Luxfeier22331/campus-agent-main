@@ -94,7 +94,6 @@ func primaryAgentResultPayload(
 		"provider_response_id":      output.ProviderResponseID,
 		"stage_timing":              cloneAnyMapFromMetadata(output.StageTiming),
 		"status":                    output.Status,
-		"terminal_envelope":         cloneAnyMapFromMetadata(output.TerminalEnvelope),
 		"terminal_reason":           output.TerminalReason,
 		"tool_results":              toolResults,
 		"tool_runtime_fingerprint": cloneAnyMapFromMetadata(
@@ -144,7 +143,6 @@ func primaryAgentFinalizationResultMap(
 		"provider_response_id":      output.ProviderResponseID,
 		"stage_timing":              cloneAnyMapFromMetadata(output.StageTiming),
 		"status":                    output.Status,
-		"terminal_envelope":         cloneAnyMapFromMetadata(output.TerminalEnvelope),
 		"terminal_reason":           output.TerminalReason,
 		"tool_results":              toolResults,
 		"tool_runtime_fingerprint":  cloneAnyMapFromMetadata(output.ToolRuntimeFingerprint),
@@ -181,9 +179,6 @@ func primaryAgentResultProjectionPayload(raw map[string]any) map[string]any {
 	result["temporal_result"] = true
 	if finalOutput, ok := raw["final_output"].(string); ok {
 		result["final_output_sha256"] = sha256AnyValue(finalOutput)
-	}
-	if envelope, ok := raw["terminal_envelope"]; ok {
-		result["terminal_envelope_sha256"] = sha256AnyValue(envelope)
 	}
 	if tools, ok := raw["tool_results"]; ok {
 		result["tool_results_sha256"] = sha256AnyValue(tools)

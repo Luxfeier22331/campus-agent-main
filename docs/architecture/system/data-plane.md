@@ -70,7 +70,8 @@ internal-portal-collection 只消费解析结果。`ops-web-internal-portal-chec
 
 当前 Campus Docs 索引只消费 Campus Web 已清洗的 `campus-docs/source.json` 和当前 reader。通知来源
 对象、内部门户文件和其他采集产物都不能绕过该输入边界直接进入索引。分块、Embedding 和索引发布由
-Campus Docs 所属的三个显式 Job 分别完成，并通过内容寻址制品交接。当前在线 Agent 不消费该索引。
+Campus Docs 所属的三个显式 Job 分别完成，并通过内容寻址制品交接。在线 Agent 只通过
+`campus_search` 读取已发布的当前 collection。
 
 部署清单存在只表示期望状态；实际运行以环境仓选择和控制器状态为准。
 

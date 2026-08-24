@@ -45,9 +45,16 @@ run_check "GitHub Actions security lint" zizmor --min-severity=medium .github
 
 run_check "Node tests, typechecks, and worker tests" pnpm exec turbo run \
 	test test:worker typecheck --summarize
-run_check "native and evaluation tests" pnpm exec turbo run \
-	native:format native:lint native:typecheck native:test test:eval \
-	--summarize
+run_check "native format" pnpm exec turbo run \
+	native:format --concurrency=1 --summarize
+run_check "native lint" pnpm exec turbo run \
+	native:lint --concurrency=1 --summarize
+run_check "native typecheck" pnpm exec turbo run \
+	native:typecheck --concurrency=1 --summarize
+run_check "native tests" pnpm exec turbo run \
+	native:test --concurrency=1 --summarize
+run_check "Ragas runner unit tests" pnpm exec turbo run \
+	test:eval --filter=ragas-runner --concurrency=1 --summarize
 run_check "database integration tests" pnpm exec turbo run \
 	test:migration-integration test:database-integration test:shared-db-integration \
 	--concurrency=1 --summarize

@@ -16,7 +16,6 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 		const invalidResponse = {
 			answerText: "图书馆开放到 22:00。",
 			error: null,
-			followUpQuestion: "",
 			modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 			result: {
 				evidence: {
@@ -70,7 +69,6 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,

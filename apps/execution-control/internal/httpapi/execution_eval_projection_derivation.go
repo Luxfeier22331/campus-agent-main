@@ -80,14 +80,27 @@ func projectedRAGAnswer(results []execution.StepResultProjection) string {
 func projectedRAGRetrievedContexts(results []execution.StepResultProjection) ([]string, []string) {
 	contexts := []string{}
 	contextIDs := []string{}
+	seen := map[string]struct{}{}
 	for _, result := range results {
-		if result.StepID != "finalization.write" || result.Status != "completed" {
+		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.campus_search.") ||
+			result.Status != "completed" {
 			continue
 		}
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
-		for _, source := range projectedRAGSourcesFromPayload(payload) {
-			appendUniqueProjectionString(&contexts, firstNonEmptyText(source["snippet"]))
-			appendUniqueProjectionString(&contextIDs, firstNonEmptyText(source["document_id"]))
+		_, evidence, err := decodeCampusSearchResult(cloneAnyMapFromMetadata(payload["result"]))
+		if err != nil {
+			continue
+		}
+		for _, item := range evidence {
+			if item.Text == "" || item.EvidenceRef == "" {
+				continue
+			}
+			if _, duplicate := seen[item.EvidenceRef]; duplicate {
+				continue
+			}
+			seen[item.EvidenceRef] = struct{}{}
+			contexts = append(contexts, item.Text)
+			contextIDs = append(contextIDs, item.EvidenceRef)
 		}
 	}
 	return contexts, contextIDs
@@ -109,7 +122,6 @@ func projectedRAGSourceTitles(results []execution.StepResultProjection) []any {
 
 func projectedRAGSourceRefs(results []execution.StepResultProjection) []any {
 	values := []map[string]any{}
-	seen := map[string]struct{}{}
 	for _, result := range results {
 		if result.StepID != "finalization.write" {
 			continue
@@ -117,16 +129,13 @@ func projectedRAGSourceRefs(results []execution.StepResultProjection) []any {
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		for _, source := range projectedRAGSourcesFromPayload(payload) {
 			ref := map[string]any{}
+			copyProjectionString(ref, source, "evidence_ref", "evidence_ref")
+			copyProjectionString(ref, source, "source_kind", "kind")
 			copyProjectionString(ref, source, "document_id", "document_id")
 			copyProjectionString(ref, source, "title", "title")
-			key := firstNonEmptyText(ref["document_id"], ref["title"])
-			if key == "" {
+			if firstNonEmptyText(ref["evidence_ref"]) == "" {
 				continue
 			}
-			if _, exists := seen[key]; exists {
-				continue
-			}
-			seen[key] = struct{}{}
 			values = append(values, ref)
 		}
 	}

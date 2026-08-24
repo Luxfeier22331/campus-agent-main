@@ -66,7 +66,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 	}
 
 	const persistence = {
-		async readExecutionInput(runId) {
+		async readDurableRunInput(runId) {
 			const normalizedRunId = runId.trim();
 			if (!normalizedRunId) {
 				return null;
@@ -74,11 +74,17 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 			const db = await getDb();
 			const rows = await db
 				.select({
+					conversationId: turnDispatches.conversationId,
 					executionInputJson: turnDispatches.executionInputJson,
 					executionInputSha256: turnDispatches.executionInputSha256,
+					memoryRecallEnabled: turnDispatches.memoryRecallEnabled,
+					ownerUserId: turnDispatches.ownerUserId,
 					requestId: turnDispatches.requestId,
 					runId: turnDispatches.runId,
+					surface: turnDispatches.surface,
 					status: turnDispatches.status,
+					traceId: turnDispatches.traceId,
+					turnId: turnDispatches.turnId,
 				})
 				.from(turnDispatches)
 				.where(eq(turnDispatches.runId, normalizedRunId))
@@ -88,11 +94,17 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 				return null;
 			}
 			return {
+				conversationId: row.conversationId,
 				executionInputJson: row.executionInputJson,
 				executionInputSha256: row.executionInputSha256,
+				memoryRecallEnabled: row.memoryRecallEnabled,
+				ownerUserId: row.ownerUserId,
 				requestId: row.requestId,
 				runId: row.runId,
+				surface: row.surface,
 				status: row.status as import("./store-types").TurnDispatchStatus,
+				traceId: row.traceId,
+				turnId: row.turnId,
 			};
 		},
 
@@ -298,7 +310,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 					input.requestKind === "public_chat"
 						? await captureProfileMemorySnapshotForUpdate(tx, input.ownerUserId)
 						: null;
-				const frozenAdmission = input.freezeDurableAdmission(memorySnapshot);
+				const frozenRun = input.freezeDurableRun(memorySnapshot);
 
 				await tx
 					.update(messages)
@@ -316,11 +328,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 				const acceptedDispatchRows = await tx
 					.insert(turnDispatches)
 					.values(
-						buildAcceptTurnDispatchInsertValues(
-							input.turnDispatch,
-							memorySnapshot,
-							frozenAdmission,
-						),
+						buildAcceptTurnDispatchInsertValues(input.turnDispatch, memorySnapshot, frozenRun),
 					)
 					.onConflictDoNothing({
 						target: [turnDispatches.actorUserId, turnDispatches.idempotencyKey],
@@ -357,7 +365,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 				if (updatedConversations.length !== 1) {
 					throw new Error("Conversation changed while accepting the request.");
 				}
-				return { frozenAdmission, memorySnapshot };
+				return { memorySnapshot };
 			});
 		},
 
@@ -368,11 +376,9 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 			await db.transaction(async (tx) => {
 				const existingRows = await tx
 					.select({
-						admissionStatus: turnDispatches.admissionStatus,
 						completedAt: turnDispatches.completedAt,
 						finalizationFingerprint: turnDispatches.finalizationFingerprint,
 						status: turnDispatches.status,
-						workflowId: turnDispatches.workflowId,
 					})
 					.from(turnDispatches)
 					.where(eq(turnDispatches.requestId, input.turnDispatch.requestId))
@@ -397,51 +403,16 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 					replayed = true;
 					return;
 				}
-				const finalizedAdmissionStatus = input.admissionFailure
-					? "admission_failed"
-					: existing?.admissionStatus === "cancelled"
-						? "cancelled"
-						: input.durableAdmissionConfirmed ||
-								existing?.admissionStatus === "dispatching" ||
-								existing?.admissionStatus === "admitted"
-							? "admitted"
-							: "admission_failed";
 				const finalizedDispatchRows = await tx
 					.update(turnDispatches)
 					.set({
 						...buildFinalizeTurnDispatchUpdateValues(input.turnDispatch),
-						admissionStatus: finalizedAdmissionStatus,
-						...(input.admissionFailure
-							? {
-									workflowId: sql<string>`coalesce(
-										${turnDispatches.workflowId},
-										${input.admissionFailure.workflowId}
-										)`,
-								}
-							: {}),
-						admissionInputJson: null,
-						admissionInputSha256: null,
-						cancelOutboxStatus: sql<string>`case
-							when ${turnDispatches.cancelOutboxStatus} = 'not_requested'
-								then 'not_requested'
-							else 'closed'
-						end`,
-						cancelLeaseToken: null,
-						cancelLeaseUntil: null,
 						finalizationFingerprint: input.finalizationFingerprint ?? null,
 					})
 					.where(
 						and(
 							eq(turnDispatches.requestId, input.turnDispatch.requestId),
 							eq(turnDispatches.status, "accepted"),
-							...(input.admissionFailure
-								? [
-										and(
-											eq(turnDispatches.admissionStatus, "dispatching"),
-											eq(turnDispatches.workflowId, input.admissionFailure.workflowId),
-										),
-									]
-								: []),
 						),
 					)
 					.returning({ requestId: turnDispatches.requestId });

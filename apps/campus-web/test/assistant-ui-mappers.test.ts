@@ -8,7 +8,9 @@ describe("assistant-ui conversation mappers", () => {
 		const structuredPart: ChatStructuredPart = {
 			sourceItems: [
 				{
+					citationIndexes: [1],
 					collectionLabel: "学生手册",
+					kind: "campus_document",
 					primaryAction: {
 						disabledReason: null,
 						external: false,
@@ -102,12 +104,12 @@ describe("assistant-ui conversation mappers", () => {
 						feedbackId: "feedback_01HQ",
 						vote: "unhelpful",
 					},
-					id: "msg_clarification",
-					kind: "clarification",
+					id: "msg_error",
+					kind: "error",
 					requestId: "req_01HQ",
-					retryable: null,
+					retryable: true,
 					role: "assistant",
-					text: "请补充校区。",
+					text: "请求失败，请重试。",
 				},
 			],
 			pinnedAt: null,
@@ -119,9 +121,9 @@ describe("assistant-ui conversation mappers", () => {
 			metadata: {
 				custom: {
 					campusMessage: {
-						kind: "clarification",
+						kind: "error",
 						requestId: "req_01HQ",
-						retryable: null,
+						retryable: true,
 					},
 				},
 				submittedFeedback: { type: "negative" },

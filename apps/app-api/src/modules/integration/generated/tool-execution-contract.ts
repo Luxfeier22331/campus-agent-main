@@ -6,25 +6,16 @@ export const TOOL_EXECUTION_CONTRACT = {
 	workflowTraceSummaryVersion: "workflow-trace-summary-v7",
 } as const;
 
-export const TOOL_IDS = ["personal_memory_recall"] as const;
-export const MODEL_VISIBLE_TOOL_NAMES = ["personal_memory_recall"] as const;
-export const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
+export const TOOL_IDS = ["campus_search", "personal_memory_recall"] as const;
+export const MODEL_VISIBLE_TOOL_NAMES = ["campus_search", "personal_memory_recall"] as const;
 export const EXECUTION_STATUSES = [
 	"completed",
-	"needs_clarification",
-	"no_answer",
 	"error",
 	"rejected",
 	"approval_required",
 	"cancelled",
 ] as const;
-export const EXECUTION_PATHS = [
-	"direct",
-	"tool_assisted",
-	"clarification",
-	"rejected",
-	"unsupported",
-] as const;
+export const EXECUTION_PATHS = ["direct", "tool_assisted"] as const;
 export const STAGE_TIMING_FIELDS = [
 	"request.total_ms",
 	"execution.dispatch_ms",
@@ -44,7 +35,6 @@ export const STAGE_TIMING_FIELDS = [
 
 export type ToolID = (typeof TOOL_IDS)[number];
 export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];
-export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export type ExecutionPath = (typeof EXECUTION_PATHS)[number];
 
@@ -114,8 +104,6 @@ export interface ModelUsageWire {
 export interface ToolExecutionResponseWire {
 	status: ExecutionStatus;
 	answer_text: string;
-	follow_up_question: string;
-	confidence: ConfidenceLevel;
 	model_usage: ModelUsageWire;
 	result: SafeRecord | null;
 	error: { code: string; message: string; retryable: boolean } | null;

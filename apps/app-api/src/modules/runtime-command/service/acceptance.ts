@@ -7,7 +7,7 @@ import {
 	ChatAcceptanceIdempotencyConflict,
 } from "../store-types";
 import type { ChatCommandServiceContext } from "./context";
-import { freezeToolExecutionRunInput, sha256Text } from "./durable-metadata";
+import { freezeToolExecutionRunInput } from "./durable-metadata";
 import { createPreAcceptError } from "./errors";
 import { resolveValidatedPayload } from "./normalize";
 import {
@@ -81,6 +81,14 @@ export async function acceptChatCommand(
 	}
 
 	const idempotencyKey = input.idempotencyKey?.trim() || null;
+	if (!idempotencyKey) {
+		throw createPreAcceptError({
+			code: "idempotency_key_required",
+			message: "Idempotency-Key is required for chat requests.",
+			retryable: false,
+			status: 400,
+		});
+	}
 	const requestFingerprintSha256 = idempotencyKey
 		? computeFingerprint({
 				conversationDiscriminator,
@@ -175,14 +183,13 @@ export async function acceptChatCommand(
 		Math.max(conversation.activeTurnSequence ?? 0, conversation.messages.length) + 1;
 	const conversationTitle = buildConversationTitle(conversation.title, validatedPayload.prompt);
 	const traceHeaders = await ensureLangfuseTraceParent(traceId);
-	const workflowId = `campus-agent.chat.${runId}`;
 	const acceptedWrite = buildAcceptedWrite({
 		assistantMessageId,
 		branchId,
 		conversation,
 		...(conversationSeed ? { conversationSeed } : {}),
 		conversationTitle,
-		freezeDurableAdmission(memorySnapshot) {
+		freezeDurableRun(memorySnapshot) {
 			const executionInput: ToolExecutionInput = {
 				context: buildToolExecutionContextProjection({
 					actor: input.principal.actor,
@@ -212,28 +219,10 @@ export async function acceptChatCommand(
 				userGoal: validatedPayload.prompt,
 			};
 			const frozenInput = freezeToolExecutionRunInput(executionInput, runId);
-			const admissionInput = {
-				conversationId: conversation.id,
-				metadata: { ...frozenInput.metadata },
-				ownerUserId: input.principal.actor.userId,
-				personalMemoryRecallAllowed: memorySnapshot?.recallEnabled ?? false,
-				requestId,
-				runId,
-				runtimeVersions: {
-					contract: "durable-agent-runtime-contract-v1",
-				},
-				surface,
-				traceHeaders,
-				traceId,
-				turnId,
-			};
-			const admissionInputJson = JSON.stringify(admissionInput);
 			return {
-				admissionInputJson,
-				admissionInputSha256: sha256Text(admissionInputJson),
 				executionInputJson: frozenInput.executionInputJson,
 				executionInputSha256: frozenInput.executionInputSha256,
-				workflowId,
+				turnId,
 			};
 		},
 		idempotencyKey,
@@ -247,6 +236,7 @@ export async function acceptChatCommand(
 		safetyIdentifier,
 		surface,
 		traceId,
+		turnId,
 		turnSequence,
 		userMessageId,
 	});
@@ -293,7 +283,6 @@ export async function acceptChatCommand(
 			branchId,
 			conversation,
 			conversationTitle,
-			frozenAdmission: acceptedState.frozenAdmission,
 			idempotencyKey,
 			input,
 			memorySnapshot: acceptedState.memorySnapshot,

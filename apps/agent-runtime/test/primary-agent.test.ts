@@ -88,10 +88,6 @@ describe("primary agent runtime", () => {
 					: "";
 			return {
 				finalOutput: `我是校园问答助手。收到：${currentText}`,
-				terminalEnvelope: {
-					kind: "answer",
-					answerText: `我是校园问答助手。收到：${currentText}`,
-				},
 				providerResponseId: "resp_1",
 				toolCalls: [],
 				usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
@@ -116,12 +112,7 @@ describe("primary agent runtime", () => {
 
 		expect(result.status).toBe("completed");
 		expect(result.finalOutput).toContain("校园问答助手");
-		expect(
-			(result as { terminalEnvelope?: { kind?: string; answerText?: string } }).terminalEnvelope,
-		).toEqual({
-			kind: "answer",
-			answerText: "我是校园问答助手。收到：hi 你是谁",
-		});
+		expect(result.terminalReason).toBe("answer_completed");
 		expect(result.toolResults).toEqual([]);
 		expect(result.stageTiming).toEqual(
 			expect.objectContaining({
@@ -143,10 +134,6 @@ describe("primary agent runtime", () => {
 				observedToolNames = tools.map((tool) => tool.name);
 				return {
 					finalOutput: "当前没有可用的校园事实工具。",
-					terminalEnvelope: {
-						kind: "unsupported_by_evidence",
-						answerText: "当前没有可用的校园事实工具。",
-					},
 					providerResponseId: "resp_closed_tools",
 					toolCalls: [],
 					usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
@@ -169,23 +156,28 @@ describe("primary agent runtime", () => {
 		expect(observedToolNames).toEqual([]);
 		expect(observedInstructions).not.toContain("test_lookup");
 		expect(observedInstructions).toContain(
-			"Use only the function tools made available in this run.",
+			"你是中央民族大学（Minzu University of China）校园问答助手。",
 		);
 		expect(observedInstructions).toContain(
-			"identify only as the campus question-answering assistant and describe only campus-information help",
+			"用户未明确指定机构时，所说的学校、本校和校园默认指中央民族大学。",
 		);
 		expect(observedInstructions).toContain(
-			"using the language of that request unless the user asks otherwise.",
+			"工具定义描述其能够提供的事实范围；根据当前问题所需事实与工具范围选择工具，不要按具体机构、地点或实体名称建立固定路由特判。",
 		);
 		expect(observedInstructions).toContain(
-			"When personal_memory_recall is available, use it when the latest request depends on saved personal facts or preferences.",
+			"机构名称本身既不强制也不禁止工具调用；只有工具声明的资料范围和本轮真实返回的证据能够支持事实回答。",
 		);
 		expect(observedInstructions).toContain(
-			"Do not invent facts that are not present in the request, conversation context, or available tool results.",
+			"证据只支持问题的一部分时，只回答有证据的部分并清楚说明资料边界；不要补全、推断或伪造未获支持的部分。",
 		);
+		expect(observedInstructions).toContain(
+			"不要编造用户输入、会话上下文或可用工具结果中不存在的事实。",
+		);
+		expect(observedInstructions).not.toContain("You are the campus-agent primary assistant.");
+		expect(observedInstructions).not.toContain("北京大学");
 	});
 
-	it("fails closed when a no-tool final answer has no typed terminal envelope", async () => {
+	it("accepts a plain-text no-tool final answer", async () => {
 		const runner: AgentRunner = async () => ({
 			finalOutput: "我是校园问答助手。",
 			providerResponseId: "resp_missing_envelope",
@@ -206,9 +198,9 @@ describe("primary agent runtime", () => {
 			visibleToolNames: ["test_lookup"],
 		});
 
-		expect(result.status).toBe("failed");
-		expect(result.terminalReason).toBe("agent_runtime_failed");
-		expect(result.finalOutput).toBe("");
+		expect(result.status).toBe("completed");
+		expect(result.terminalReason).toBe("answer_completed");
+		expect(result.finalOutput).toBe("我是校园问答助手。");
 	});
 
 	it("fails closed when the streaming runtime has no streaming runner", async () => {
@@ -217,10 +209,6 @@ describe("primary agent runtime", () => {
 			runner: async () => ({
 				finalOutput: "blocking result must not be used for stream",
 				providerResponseId: "resp_blocking",
-				terminalEnvelope: {
-					answerText: "blocking result must not be used for stream",
-					kind: "answer",
-				},
 				toolCalls: [],
 				usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 			}),
@@ -261,7 +249,6 @@ describe("primary agent runtime", () => {
 					yield {
 						finalOutput: "最终答案",
 						providerResponseId: "resp-stream-terminal",
-						terminalEnvelope: { kind: "answer", answerText: "最终答案" },
 						toolCalls: [],
 						usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 					};
@@ -355,10 +342,10 @@ describe("primary agent runtime", () => {
 		expect(observedTools).toEqual(["personal_memory_recall"]);
 		expect(observedInstructions).not.toContain("用户偏好回答先给结论");
 		expect(observedInstructions).toContain(
-			"When personal_memory_recall is available, use it when the latest request depends on saved personal facts or preferences.",
+			"personal_memory_recall 可用时，仅在当前问题依赖已保存的用户个人事实或偏好时使用。",
 		);
 		expect(observedInstructions).toContain(
-			"Do not invent facts that are not present in the request, conversation context, or available tool results.",
+			"不要编造用户输入、会话上下文或可用工具结果中不存在的事实。",
 		);
 		expect(observedInstructions).not.toContain("personal memory authorization");
 		expect(observedInput).toEqual([{ role: "user", content: "之后回答能不能先给结论？" }]);
@@ -373,7 +360,6 @@ describe("primary agent runtime", () => {
 			observedInput = input;
 			return {
 				finalOutput: "我会先给结论。",
-				terminalEnvelope: { kind: "answer", answerText: "我会先给结论。" },
 				providerResponseId: "resp_prompt_trace",
 				toolCalls: [],
 				usage: { modelRequestCount: 1, inputTokens: 18, outputTokens: 8, usageObserved: true },
@@ -417,10 +403,6 @@ describe("primary agent runtime", () => {
 			observedInstructions = instructions;
 			return {
 				finalOutput: "大一是否可申请需要看转专业办法的年级条件。",
-				terminalEnvelope: {
-					kind: "answer",
-					answerText: "大一是否可申请需要看转专业办法的年级条件。",
-				},
 				providerResponseId: "resp_context",
 				toolCalls: [],
 				usage: { modelRequestCount: 1, inputTokens: 32, outputTokens: 12, usageObserved: true },
@@ -488,7 +470,6 @@ describe("primary agent runtime", () => {
 				observedInput = input;
 				return {
 					finalOutput: "你好。",
-					terminalEnvelope: { kind: "answer", answerText: "你好。" },
 					providerResponseId: "resp_empty_session_state",
 					toolCalls: [],
 					usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 4, usageObserved: true },
@@ -531,7 +512,6 @@ describe("primary agent runtime", () => {
 			);
 			return {
 				finalOutput: "通知查询完成。",
-				terminalEnvelope: { kind: "answer", answerText: "通知查询完成。" },
 				providerResponseId: "resp_2",
 				toolCalls: [
 					{
@@ -628,7 +608,7 @@ describe("primary agent runtime", () => {
 		]);
 	});
 
-	it("fails the primary agent run when a selected tool fails closed", async () => {
+	it("keeps a valid terminal result when a selected tool fails", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
 			const toolResult = timedToolResult(
 				await tools[0]?.execute({
@@ -676,8 +656,8 @@ describe("primary agent runtime", () => {
 			visibleToolNames: ["test_lookup"],
 		});
 
-		expect(result.status).toBe("failed");
-		expect(result.terminalReason).toBe("agent_runtime_failed");
+		expect(result.status).toBe("completed");
+		expect(result.terminalReason).toBe("answer_completed");
 		expect(result.finalOutput).toBe("通知查询失败。");
 		expect(result.toolResults[0]?.failCloseReason).toBe("source_truth_unavailable");
 		expect(result.toolResults[0]?.durationMs).toBe(12);
@@ -702,7 +682,6 @@ describe("primary agent runtime", () => {
 				yield {
 					finalOutput: "通知查询失败。",
 					providerResponseId: "resp-stream-failed-tool",
-					terminalEnvelope: { kind: "answer", answerText: "通知查询失败。" },
 					toolCalls: [
 						{
 							name: "test_lookup",
@@ -743,9 +722,9 @@ describe("primary agent runtime", () => {
 		expect(events[1]).toMatchObject({
 			event: "completed",
 			data: {
-				status: "failed",
+				status: "completed",
 				finalOutput: "通知查询失败。",
-				terminalReason: "agent_runtime_failed",
+				terminalReason: "answer_completed",
 			},
 		});
 	});
@@ -763,7 +742,6 @@ describe("primary agent runtime", () => {
 			);
 			return {
 				finalOutput: "通知查询完成。",
-				terminalEnvelope: { kind: "answer", answerText: "通知查询完成。" },
 				providerResponseId: "resp_signal",
 				toolCalls: [
 					{

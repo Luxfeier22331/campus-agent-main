@@ -18,14 +18,7 @@ export interface ChatAvailabilityService {
 	getAvailability(): Promise<ChatAvailabilityResponse>;
 }
 
-const OPERATIONAL_STATUSES = new Set([
-	"completed",
-	"needs_clarification",
-	"no_answer",
-	"approval_required",
-	"rejected",
-	"cancelled",
-]);
+const OPERATIONAL_STATUSES = new Set(["completed", "approval_required", "rejected", "cancelled"]);
 
 function toAvailabilityStatus(status: string | null): ChatAvailabilityStatus {
 	if (status === null || status === "accepted") {

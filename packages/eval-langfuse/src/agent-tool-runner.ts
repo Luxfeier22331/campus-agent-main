@@ -18,10 +18,30 @@ interface ProductStreamEvent {
 	event: string;
 }
 
+interface ProductRunSummary {
+	conversationId: string;
+	phase: string;
+	requestId: string;
+	runId: string;
+	status: string;
+	traceId: string;
+}
+
+interface ProductRunEventPage {
+	events: JsonObject[];
+	nextSequence: number;
+	run: ProductRunSummary;
+}
+
+const ACCEPTED_RUN_RECOVERY_TIMEOUT_MS = 180_000;
+const ACCEPTED_RUN_RECOVERY_POLL_MS = 500;
+
 export interface AgentToolEvalInput {
 	appApiBaseUrl: string;
 	casesPath: string;
 	cookieHeader: string;
+	executionControlAuthSecret: string;
+	executionControlBaseUrl: string;
 	fetchImpl?: typeof fetch;
 	limit?: number;
 	outputPath: string;
@@ -30,9 +50,14 @@ export interface AgentToolEvalInput {
 export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonObject> {
 	const fetchImpl = input.fetchImpl ?? fetch;
 	const appApiBaseUrl = input.appApiBaseUrl.replace(/\/+$/u, "");
+	const executionControlBaseUrl = input.executionControlBaseUrl.replace(/\/+$/u, "");
 	const validation = loadAgentToolEvalCases(input.casesPath);
 	const cases = validation.cases.slice(0, input.limit ?? validation.cases.length);
 	const cookieHeader = stringField(input.cookieHeader, "cookieHeader");
+	const executionControlAuthSecret = stringField(
+		input.executionControlAuthSecret,
+		"executionControlAuthSecret",
+	);
 	const evalRunId = stableId("agent-eval", randomUUID());
 	const items: AgentProductEvalItem[] = [];
 
@@ -56,8 +81,8 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 			prompt: caseItem.query,
 		});
 		const projection = await fetchExecutionProjection({
-			baseUrl: appApiBaseUrl,
-			cookieHeader,
+			authSecret: executionControlAuthSecret,
+			baseUrl: executionControlBaseUrl,
 			fetchImpl,
 			runId: terminal.runId,
 			terminal,
@@ -102,9 +127,13 @@ async function submitChatStream(input: {
 	}
 
 	let acceptedRunId: string | null = null;
+	let acceptedRequestId: string | null = null;
+	let acceptedTraceId: string | null = null;
 	for await (const event of parseSse(response)) {
 		if (event.event === "request.accepted") {
 			acceptedRunId = optionalString(event.data.runId);
+			acceptedRequestId = optionalString(event.data.requestId);
+			acceptedTraceId = optionalString(event.data.traceId);
 			continue;
 		}
 		if (event.event === "request.failed" || event.event === "request.cancelled") {
@@ -114,7 +143,170 @@ async function submitChatStream(input: {
 			return terminalAnswer(event, acceptedRunId);
 		}
 	}
+	if (acceptedRunId) {
+		return recoverAcceptedRun({
+			acceptedRequestId,
+			acceptedTraceId,
+			baseUrl: input.baseUrl,
+			cookieHeader: input.cookieHeader,
+			fetchImpl: input.fetchImpl,
+			runId: acceptedRunId,
+		});
+	}
 	throw new Error("chat stream ended before request.completed");
+}
+
+async function recoverAcceptedRun(input: {
+	acceptedRequestId: string | null;
+	acceptedTraceId: string | null;
+	baseUrl: string;
+	cookieHeader: string;
+	fetchImpl: typeof fetch;
+	runId: string;
+}): Promise<AgentTerminalResult> {
+	const deadline = Date.now() + ACCEPTED_RUN_RECOVERY_TIMEOUT_MS;
+	let afterSequence = 0;
+	let lastRun: ProductRunSummary | null = null;
+	while (Date.now() < deadline) {
+		const page = await fetchProductRunEvents({
+			afterSequence,
+			baseUrl: input.baseUrl,
+			cookieHeader: input.cookieHeader,
+			fetchImpl: input.fetchImpl,
+			runId: input.runId,
+		});
+		lastRun = page.run;
+		afterSequence = Math.max(afterSequence, page.nextSequence);
+		if (isTerminalProductRun(page.run)) {
+			const terminal = await fetchConversationTerminal({
+				baseUrl: input.baseUrl,
+				cookieHeader: input.cookieHeader,
+				fetchImpl: input.fetchImpl,
+				run: page.run,
+			});
+			if (terminal) {
+				return terminal;
+			}
+		}
+		await waitForAcceptedRunRecovery(ACCEPTED_RUN_RECOVERY_POLL_MS);
+	}
+	throw new Error(
+		`accepted chat run did not reach a terminal product result within ${ACCEPTED_RUN_RECOVERY_TIMEOUT_MS}ms: ${JSON.stringify(
+			{
+				runId: input.runId,
+				requestId: lastRun?.requestId ?? input.acceptedRequestId,
+				traceId: lastRun?.traceId ?? input.acceptedTraceId,
+				status: lastRun?.status ?? "unknown",
+			},
+		)}`,
+	);
+}
+
+async function fetchProductRunEvents(input: {
+	afterSequence: number;
+	baseUrl: string;
+	cookieHeader: string;
+	fetchImpl: typeof fetch;
+	runId: string;
+}): Promise<ProductRunEventPage> {
+	const url = new URL(`/api/chat/runs/${encodeURIComponent(input.runId)}/events`, input.baseUrl);
+	url.searchParams.set("after_sequence", String(input.afterSequence));
+	const response = await input.fetchImpl(url, {
+		headers: { accept: "application/json", cookie: input.cookieHeader },
+		method: "GET",
+		signal: AbortSignal.timeout(30_000),
+	});
+	if (!response.ok) {
+		throw new Error(`run events failed (${response.status}): ${await response.text()}`);
+	}
+	const payload = mapping((await response.json()) as unknown, "run events response");
+	const events = Array.isArray(payload.events)
+		? payload.events.filter(
+				(event): event is JsonObject =>
+					event !== null && typeof event === "object" && !Array.isArray(event),
+			)
+		: null;
+	if (!events) {
+		throw new Error("run events response events must be a list");
+	}
+	const nextSequence = Number(payload.nextSequence);
+	if (!Number.isInteger(nextSequence) || nextSequence < 0) {
+		throw new Error("run events response nextSequence must be a non-negative integer");
+	}
+	return {
+		events,
+		nextSequence,
+		run: parseProductRunSummary(payload.run),
+	};
+}
+
+function parseProductRunSummary(value: unknown): ProductRunSummary {
+	const run = mapping(value, "run events response run");
+	return {
+		conversationId: stringField(run.conversationId, "run.conversationId"),
+		phase: stringField(run.phase, "run.phase"),
+		requestId: stringField(run.requestId, "run.requestId"),
+		runId: stringField(run.runId, "run.runId"),
+		status: stringField(run.status, "run.status"),
+		traceId: stringField(run.traceId, "run.traceId"),
+	};
+}
+
+function isTerminalProductRun(run: ProductRunSummary): boolean {
+	return (
+		["completed", "failed", "canceled", "expired"].includes(run.phase) ||
+		["completed", "error", "rejected", "approval_required", "cancelled"].includes(run.status)
+	);
+}
+
+async function fetchConversationTerminal(input: {
+	baseUrl: string;
+	cookieHeader: string;
+	fetchImpl: typeof fetch;
+	run: ProductRunSummary;
+}): Promise<AgentTerminalResult | null> {
+	const response = await input.fetchImpl(
+		new URL(
+			`/api/chat/conversations/${encodeURIComponent(input.run.conversationId)}`,
+			input.baseUrl,
+		),
+		{
+			headers: { accept: "application/json", cookie: input.cookieHeader },
+			method: "GET",
+			signal: AbortSignal.timeout(30_000),
+		},
+	);
+	if (!response.ok) {
+		throw new Error(`conversation read failed (${response.status}): ${await response.text()}`);
+	}
+	const payload = mapping((await response.json()) as unknown, "conversation response");
+	const conversation = mapping(payload.conversation, "conversation response conversation");
+	const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+	const message = messages
+		.slice()
+		.reverse()
+		.map((value) => (value && typeof value === "object" && !Array.isArray(value) ? value : null))
+		.find((value) => {
+			if (value?.role !== "assistant" || value.runId !== input.run.runId) {
+				return false;
+			}
+			return !input.run.requestId || value.requestId === input.run.requestId;
+		});
+	if (!message) {
+		return null;
+	}
+	return {
+		answer: typeof message.text === "string" ? message.text : "",
+		conversationId: input.run.conversationId,
+		requestId: input.run.requestId,
+		resultKind: stringField(message.kind ?? input.run.status, "assistant message kind"),
+		runId: input.run.runId,
+		traceId: input.run.traceId,
+	};
+}
+
+async function waitForAcceptedRunRecovery(delayMs: number): Promise<void> {
+	await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
 }
 
 async function* parseSse(response: Response): AsyncIterable<ProductStreamEvent> {
@@ -186,25 +378,27 @@ function terminalAnswer(event: ProductStreamEvent, runId: string | null): AgentT
 }
 
 async function fetchExecutionProjection(input: {
+	authSecret: string;
 	baseUrl: string;
-	cookieHeader: string;
 	fetchImpl: typeof fetch;
 	runId: string;
 	terminal: AgentTerminalResult;
 }): Promise<ExecutionRunEvalProjection> {
 	const response = await input.fetchImpl(
-		new URL(`/api/chat/runs/${encodeURIComponent(input.runId)}/steps`, input.baseUrl),
+		new URL(`/internal/execution/runs/${encodeURIComponent(input.runId)}/steps`, input.baseUrl),
 		{
 			headers: {
 				accept: "application/json",
-				cookie: input.cookieHeader,
+				"x-worker-origin-auth": input.authSecret,
 			},
 			method: "GET",
 			signal: AbortSignal.timeout(60_000),
 		},
 	);
 	if (!response.ok) {
-		throw new Error(`run steps failed (${response.status}): ${await response.text()}`);
+		throw new Error(
+			`execution projection request failed (${response.status}): ${await response.text()}`,
+		);
 	}
 	const projection = parseExecutionRunEvalProjection((await response.json()) as unknown);
 	assertToolTrajectoryMatchesTerminal(projection, input.terminal);

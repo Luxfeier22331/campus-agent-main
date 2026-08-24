@@ -23,7 +23,6 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 				execute: vi.fn().mockResolvedValue({
 					answerText: "第四学期有合同法、人格权法、侵权责任法。\n\n课程以培养方案原文为准。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -33,7 +32,9 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 					result: {
 						sources: [
 							{
+								citation_index: 1,
 								document_id: "curriculum/law",
+								kind: "campus_document",
 								root_unit_ids: ["law-semester-four"],
 								section_ref: "/docs/curriculum/curriculum_plan/law/v/2026-current#semester-four",
 								section_title: "第四学期",
@@ -82,6 +83,8 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 			{
 				sourceItems: [
 					{
+						citationIndexes: [1],
+						kind: "campus_document",
 						primaryAction: {
 							href: "/docs/curriculum/curriculum_plan/law/v/2026-current?hl=law-semester-four#semester-four",
 						},

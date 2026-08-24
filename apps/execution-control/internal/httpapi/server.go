@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -34,12 +35,16 @@ type Server struct {
 	personalMemoryErr          error
 	personalMemoryStateStore   memoryruntime.StateStore
 	personalMemoryStateErr     error
-	primaryAgentTargetResolver modelconfigclient.PrimaryAgentTargetResolver
-	primaryAgentTargetErr      error
+	campusDocsIndexStore       campusdocs.IndexStore
+	campusDocsIndexStoreErr    error
+	campusDocsQdrant           campusDocsQdrantClient
+	campusDocsQdrantErr        error
 	temporalStarter            temporalruntime.ChatWorkflowStarter
 	temporalStarterErr         error
 	executionReconciler        *executionreconciler.Reconciler
 	productFinalizationWriter  func(context.Context, execution.DurableRun, time.Time, map[string]any) error
+	primaryAgentTargetResolver modelconfigclient.PrimaryAgentTargetResolver
+	primaryAgentTargetErr      error
 }
 
 type errorInfo struct {
@@ -68,11 +73,18 @@ func NewServerWithDependencies(
 	}
 	registry := lifecycle.NewRegistry()
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
-	var primaryAgentTargetResolver modelconfigclient.PrimaryAgentTargetResolver
-	var primaryAgentTargetErr error
+	var modelConfigResolver *modelconfigclient.Client
+	var modelConfigErr error
 	if strings.TrimSpace(cfg.ModelConfigBaseURL) != "" {
-		primaryAgentTargetResolver, primaryAgentTargetErr = modelconfigclient.New(cfg.ModelConfigBaseURL)
+		modelConfigResolver, modelConfigErr = modelconfigclient.New(cfg.ModelConfigBaseURL)
 	}
+	campusDocsIndexStore, campusDocsIndexStoreErr := newCampusDocsIndexStore(cfg)
+	campusDocsQdrant, campusDocsQdrantErr := newCampusDocsQdrantClient(cfg, modelConfigResolver)
+	var primaryAgentTargetResolver modelconfigclient.PrimaryAgentTargetResolver
+	if modelConfigResolver != nil {
+		primaryAgentTargetResolver = modelConfigResolver
+	}
+	primaryAgentTargetErr := modelConfigErr
 	personalMemoryExecutor, personalMemoryErr := newHindsightMemoryExecutor(cfg)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(cfg)
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
@@ -94,10 +106,14 @@ func NewServerWithDependencies(
 		personalMemoryErr:          personalMemoryErr,
 		personalMemoryStateStore:   personalMemoryStateStore,
 		personalMemoryStateErr:     personalMemoryStateErr,
-		primaryAgentTargetResolver: primaryAgentTargetResolver,
-		primaryAgentTargetErr:      primaryAgentTargetErr,
+		campusDocsIndexStore:       campusDocsIndexStore,
+		campusDocsIndexStoreErr:    campusDocsIndexStoreErr,
+		campusDocsQdrant:           campusDocsQdrant,
+		campusDocsQdrantErr:        campusDocsQdrantErr,
 		temporalStarter:            temporalStarter,
 		temporalStarterErr:         temporalStarterErr,
+		primaryAgentTargetResolver: primaryAgentTargetResolver,
+		primaryAgentTargetErr:      primaryAgentTargetErr,
 	}
 	server.executionReconciler = server.newExecutionReconciler()
 	return server
@@ -175,6 +191,10 @@ func normalizeServerConfig(cfg config.Config) config.Config {
 	return cfg
 }
 
+func newCampusDocsIndexStore(cfg config.Config) (campusdocs.IndexStore, error) {
+	return campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
+}
+
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
 	if strings.TrimSpace(cfg.TemporalAddress) == "" && strings.TrimSpace(cfg.TemporalNamespace) == "" {
 		return nil, temporalruntime.ErrTemporalStarterNotConfigured
@@ -231,6 +251,9 @@ func (s *Server) StartDraining() {
 }
 
 func (s *Server) Shutdown(_ context.Context) error {
+	if closer, ok := s.campusDocsIndexStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
 	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
@@ -292,6 +315,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handlePersonalMemoryCommand(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/recall":
 		s.handlePersonalMemoryRecallTool(response, request)
+	case request.Method == http.MethodPost && path == "/internal/campus/search":
+		s.handleCampusSearchTool(response, request)
 	default:
 		writeError(
 			response,

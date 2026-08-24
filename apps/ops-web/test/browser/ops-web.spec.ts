@@ -248,6 +248,8 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 		"缓考申请需要在规定期限内提交书面材料并说明原因。",
 	);
 	await expect(page.getByTestId("request-sources")).toContainText("学生管理规定");
+	await expect(page.getByTestId("request-sources")).toContainText("[1]");
+	await expect(page.getByTestId("request-sources").getByLabel("引用 1")).toBeVisible();
 	await expect(page.getByTestId("request-usage")).toContainText("2,400");
 	await expect(page.getByTestId("request-usage")).toContainText("Token 只统计主 Agent");
 	await expect(page.getByText(/执行步骤|模型请求|工具调用|已解析目标/u)).toHaveCount(0);

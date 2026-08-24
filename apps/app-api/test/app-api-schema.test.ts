@@ -78,7 +78,8 @@ describe("app-api schema installer", () => {
 			{ idx: 13, tag: "0013_drop_supporting_sources", version: "7" },
 			{ idx: 14, tag: "0014_sad_rictor", version: "7" },
 			{ idx: 15, tag: "0015_tough_nova", version: "7" },
-			{ idx: 16, tag: "0016_gray_scarlet_spider", version: "7" },
+			{ idx: 16, tag: "0016_known_aaron_stack", version: "7" },
+			{ idx: 17, tag: "0017_pretty_red_shift", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,
@@ -150,6 +151,20 @@ describe("app-api schema installer", () => {
 		expect(readAppFile("drizzle/0013_drop_supporting_sources.sql").trim()).toBe(
 			'ALTER TABLE "runtime"."request_observability_fact" DROP COLUMN "supporting_sources_json";',
 		);
+		const terminalStatusCleanup = readAppFile("drizzle/0016_known_aaron_stack.sql");
+		expect(terminalStatusCleanup).toContain(
+			"WHERE \"status\" IN ('needs_clarification', 'no_answer')",
+		);
+		expect(terminalStatusCleanup).toContain(
+			"WHERE \"role\" = 'assistant' AND \"kind\" IN ('clarification', 'no_answer')",
+		);
+		expect(terminalStatusCleanup).toContain('DROP COLUMN "refusal_class"');
+		expect(terminalStatusCleanup).toContain('DROP COLUMN "semantic_outcome"');
+		const runtimeStateCleanup = readAppFile("drizzle/0017_pretty_red_shift.sql");
+		expect(runtimeStateCleanup).toContain("requires no accepted chat turns");
+		expect(runtimeStateCleanup).toContain('ADD COLUMN "turn_id" text');
+		expect(runtimeStateCleanup).toContain('"run_id" = NULL');
+		expect(runtimeStateCleanup).toContain('DROP COLUMN "cancel_outbox_status"');
 		for (const schema of [
 			"campus_services_ops",
 			"identity",

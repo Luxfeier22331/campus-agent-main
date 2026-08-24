@@ -30,8 +30,9 @@ alias。
 checked-in alias 配置在有已开放运行时消费前只是 offline data；文件存在不代表能力已经
 产品化。
 
-本决策不为 Campus Docs 离线索引增加 entity 字段。当前在线 Agent 没有机构知识检索能力；未来领域
-resolver 如需新的运行参数，必须先引入可执行合同和评测，不能以别名配置存在推断在线能力。
+本决策不为 Campus Docs 离线索引增加 entity 字段。当前在线 Agent 通过 `campus_search` 消费机构知识，
+但该工具不提供 alias resolver 或实体解析参数；未来领域 resolver 如需新的运行参数，必须先引入可执行
+合同和评测，不能以别名配置存在推断在线能力。
 
 ## 后果
 

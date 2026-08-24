@@ -23,7 +23,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 					[
 						'event: execution.queued\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"queued","occurred_at":"2026-03-28T08:00:00.500Z"}',
 						'event: execution.running\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"running","occurred_at":"2026-03-28T08:00:01.000Z"}',
-						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","confidence":"high","error":null,"follow_up_question":"","model_usage":{"cached_input_tokens":10,"input_tokens":120,"output_tokens":42,"total_tokens":162},"result":{"sources":[]},"status":"completed","trace_id":"trace_0001"}}',
+						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","error":null,"model_usage":{"cached_input_tokens":10,"input_tokens":120,"output_tokens":42,"total_tokens":162},"result":{"sources":[]},"status":"completed","trace_id":"trace_0001"}}',
 					].join("\n\n"),
 					{
 						headers: {
@@ -185,7 +185,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "学校官网显示图书馆位于海淀校区主教学区西侧。",
 				error: null,
-				followUpQuestion: "",
 				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {
 					outcome: "resolved_current",

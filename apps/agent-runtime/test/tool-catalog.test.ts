@@ -178,16 +178,32 @@ describe("tool catalog", () => {
 		).toThrow("tool runtime fingerprint is required");
 	});
 
-	it("exposes the registered personal memory tool", () => {
+	it("exposes the registered model-visible tools", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tools.v6.json");
 
-		expect(catalog.tools.map((tool) => tool.name)).toEqual(["personal_memory_recall"]);
+		expect(catalog.tools.map((tool) => tool.name)).toEqual([
+			"campus_search",
+			"personal_memory_recall",
+		]);
 		expect(Object.fromEntries(catalog.tools.map((tool) => [tool.name, tool.exposure]))).toEqual({
+			campus_search: "model_visible",
 			personal_memory_recall: "model_visible",
 		});
 		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
+			"campus_search",
 			"personal_memory_recall",
 		]);
+		expect(catalog.registryVersion).toBe("2026-08-22");
+		expect(catalog.tools.find((tool) => tool.name === "campus_search")).toMatchObject({
+			description: "检索中央民族大学当前 Campus Web 文档中的校内事实、政策和办事流程。",
+			parameterSchema: {
+				properties: {
+					query: {
+						description: "根据用户当前问题整理出的、面向中央民族大学校内资料的聚焦查询。",
+					},
+				},
+			},
+		});
 	});
 
 	it("keeps every registered tool on a canonical execution-control endpoint", () => {

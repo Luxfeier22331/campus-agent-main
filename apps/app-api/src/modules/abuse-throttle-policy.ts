@@ -1,3 +1,5 @@
+import type { AppApiEnvironment } from "../config";
+
 export const ABUSE_THROTTLE_REQUESTS_PER_MINUTE = 8;
 export const ABUSE_THROTTLE_REQUESTS_PER_TEN_MINUTES = 30;
 export const ABUSE_THROTTLE_ACTIVE_WINDOW_MS = 5 * 60_000;
@@ -9,3 +11,7 @@ export type AbuseThrottleReason =
 	| "requests_per_minute"
 	| "requests_per_ten_minutes"
 	| null;
+
+export function isAbuseThrottleEnabled(environment: AppApiEnvironment): boolean {
+	return environment !== "development";
+}

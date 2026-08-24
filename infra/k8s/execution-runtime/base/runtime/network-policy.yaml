@@ -102,6 +102,13 @@ spec:
         - protocol: TCP
           port: 5432
     - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
+    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:

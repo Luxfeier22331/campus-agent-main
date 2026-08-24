@@ -7,12 +7,7 @@ export interface AssistantCampusMessageMetadata {
 	retryable: boolean | null;
 }
 
-const CHAT_MESSAGE_KINDS: readonly ChatMessageKind[] = [
-	"answer",
-	"clarification",
-	"error",
-	"no_answer",
-];
+const CHAT_MESSAGE_KINDS: readonly ChatMessageKind[] = ["answer", "error"];
 
 export function readCampusMessageMetadata(custom: unknown): AssistantCampusMessageMetadata {
 	if (!(isRecord(custom) && isRecord(custom.campusMessage))) {

@@ -79,26 +79,12 @@ export function buildStoredIdempotentRequest(input: {
 					requestId: input.dispatchRow.requestId,
 					traceId: input.dispatchRow.traceId,
 				})
-			: assistantMessage?.kind === "clarification"
-				? {
-						kind: "clarification" as const,
-						text: assistantMessage.text,
-						requestId: input.dispatchRow.requestId,
-						traceId: input.dispatchRow.traceId,
-					}
-				: assistantMessage?.kind === "no_answer"
-					? {
-							kind: "no_answer" as const,
-							text: assistantMessage.text,
-							requestId: input.dispatchRow.requestId,
-							traceId: input.dispatchRow.traceId,
-						}
-					: {
-							kind: "answer" as const,
-							text: assistantMessage?.text ?? "",
-							requestId: input.dispatchRow.requestId,
-							traceId: input.dispatchRow.traceId,
-						};
+			: {
+					kind: "answer" as const,
+					text: assistantMessage?.text ?? "",
+					requestId: input.dispatchRow.requestId,
+					traceId: input.dispatchRow.traceId,
+				};
 
 	return {
 		acceptedAt: toIsoString(input.dispatchRow.createdAt),

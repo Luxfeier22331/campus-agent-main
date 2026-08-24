@@ -55,7 +55,6 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 	return {
 		answerText: "国家奖学金每学年评审一次。",
 		error: null,
-		followUpQuestion: "",
 		observability: null,
 		result: null,
 		status: "completed",

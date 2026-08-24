@@ -8,7 +8,6 @@ import { loadAgentProductEvalResult } from "./product-result";
 import { assertCompleteSettings, type LangfuseSettings } from "./settings";
 
 const SCORE_DATA_TYPES = {
-	"execution.outcome_match": "BOOLEAN",
 	"ragas.agent_goal_accuracy.with_reference": "NUMERIC",
 	"ragas.answer_relevancy": "NUMERIC",
 	"ragas.context_precision": "NUMERIC",

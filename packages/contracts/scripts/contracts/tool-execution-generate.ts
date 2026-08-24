@@ -130,7 +130,6 @@ function generateTs(contract: Record<string, unknown>): string {
 		"} as const;\n\n" +
 		tsConstArray("TOOL_IDS", enumValues(contract, "ToolID")) +
 		tsConstArray("MODEL_VISIBLE_TOOL_NAMES", enumValues(contract, "ModelVisibleToolName")) +
-		tsConstArray("CONFIDENCE_LEVELS", enumValues(contract, "ConfidenceLevel")) +
 		tsConstArray("EXECUTION_STATUSES", enumValues(contract, "ExecutionStatus")) +
 		tsConstArray("EXECUTION_PATHS", enumValues(contract, "ExecutionPath")) +
 		tsConstArray("STAGE_TIMING_FIELDS", stageTimingFields(contract)) +
@@ -142,7 +141,6 @@ function tsWireTypes(): string {
 	return `
 export type ToolID = (typeof TOOL_IDS)[number];
 export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];
-export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export type ExecutionPath = (typeof EXECUTION_PATHS)[number];
 
@@ -212,8 +210,6 @@ export interface ModelUsageWire {
 export interface ToolExecutionResponseWire {
 \tstatus: ExecutionStatus;
 \tanswer_text: string;
-\tfollow_up_question: string;
-\tconfidence: ConfidenceLevel;
 \tmodel_usage: ModelUsageWire;
 \tresult: SafeRecord | null;
 \terror: { code: string; message: string; retryable: boolean } | null;
@@ -254,13 +250,13 @@ function generateGo(contract: Record<string, unknown>): string {
 			"}\n\n" +
 			goStringType("ToolID", toolIds) +
 			goStringType("ModelVisibleToolName", enumValues(contract, "ModelVisibleToolName")) +
-			goStringType("ConfidenceLevel", enumValues(contract, "ConfidenceLevel")) +
 			goStringType("ExecutionStatus", enumValues(contract, "ExecutionStatus")) +
 			goStringType("ExecutionPath", executionPaths) +
 			goStringType("StageTimingField", stageFields) +
 			goWireTypes() +
 			goDecodeHelpers({
 				executionPaths,
+				executionStatuses: enumValues(contract, "ExecutionStatus"),
 				toolIds,
 				stageTimingFields: stageFields,
 			}),
@@ -333,8 +329,6 @@ type StageTimingWire map[StageTimingField]float64
 type ToolExecutionResponseWire struct {
 \tStatus ExecutionStatus \`json:"status"\`
 \tAnswerText string \`json:"answer_text"\`
-\tFollowUpQuestion string \`json:"follow_up_question"\`
-\tConfidence ConfidenceLevel \`json:"confidence"\`
 \tModelUsage ModelUsageWire \`json:"model_usage"\`
 \tResult map[string]any \`json:"result"\`
 \tError map[string]any \`json:"error"\`

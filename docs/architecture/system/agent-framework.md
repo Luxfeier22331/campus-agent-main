@@ -9,7 +9,7 @@ status: active
 ## 边界
 
 `apps/agent-runtime` 负责面向模型的 OpenAI Agents SDK run，包括 instruction、模型输入装配、模型
-调用、可选函数调用、结构化终态和 SDK trace。它不负责产品认证、Temporal 生命周期、知识检索、
+调用、可选函数调用、原生文本回答和 SDK trace。它不负责产品认证、Temporal 生命周期、知识检索、
 工具开放、个人记忆存储或最终投影持久化。
 
 ## 运行形态
@@ -17,11 +17,16 @@ status: active
 每个在线回答只有一个 Primary Agent 和一个最终答案所有者。execution-control 通过
 `ExecutePrimaryAgentActivity` 启动一个 SDK run。
 系统不存在 Knowledge Agent、handoff、第二次答案合成或终态后的模型反思。
+Primary Agent 的固定角色指令使用简体中文，并明确产品服务中央民族大学。未明确指定机构时，学校、
+本校和校园均按中央民族大学理解；这属于单校产品身份，不由请求或环境变量动态选择。
 
-当前执行策略为 `execution_strategy.v2` 的 `kind=direct`：
+当前执行策略为 `execution_strategy.v3` 的 `kind=direct`：
 
-- 个人记忆不可用时，最多一次模型调用且没有模型工具；
-- 个人记忆可用时，最多两次模型调用和一次 `personal_memory_recall`；
+- 本轮工具集合始终包含 `campus_search`，个人记忆可用时还包含 `personal_memory_recall`；集合顺序没有
+  路由语义；
+- 个人记忆不可用时，最多两次模型 turn，最多一次 `campus_search`；
+- 个人记忆可用时，最多三次模型 turn、两次工具调用，每个可见工具最多调用一次；
+- 问候、改写等不需要机构事实的请求可以直接回答，不强制调用 `campus_search`；
 
 重复 Activity 投递受 execution-control 的 invocation receipt 约束。供应商调用已经开始但完整结果
 尚未落盘时必须返回 `agent_attempt_uncertain`，不得再次调用供应商。Agent Runtime 不实现自己的
@@ -33,6 +38,8 @@ execution-control 冻结本轮 `primary_agent` 的 `model_target.v1` hash 和工
 只接收预期目标 hash、会话上下文和本轮开放的工具，再从共同受信任的 Model Config 读取仍匹配该
 hash 的 `model_runtime_config.v1`；它不接收或持久化工作流提供的 Provider API key，也不读取索引目录或调用
 知识 Provider。
+`campus_search` 仍由 execution-control handler 读取当前 Campus Docs collection、解析 embedding
+配置并生成查询向量；Agent Runtime 只通过工具调用协议消费结果。
 
 Agent Runtime 在模型调用前要求 Model Config 返回相同目标 hash；execution-control 在结果持久化和
 Finalization 前继续校验该 hash。目标缺失或不一致都失败关闭，不使用旧配置或备用模型。API key
@@ -51,15 +58,21 @@ Agent Runtime 在创建真实 `AgentInputItem[]` 时组装：
 不保留脱离对应用户问题的 Assistant 消息。Agent Runtime 在结果中返回实际 `context_usage`，
 execution-control 不预先构造另一份模型上下文摘要。
 
-用户文本、对话、记忆和工具结果都是不可信数据，不能拼入 developer instruction。当前在线合同
-没有向 Agent Runtime 提供机构知识证据，也不包含来源引用字段。匹配的个人记忆只能支持用户自身事实
-或偏好，不能被当作机构事实来源。未来 RAG 接入时，输入、工具和来源校验必须由新的可执行合同同时
-定义。
+用户文本、对话、记忆和工具结果都是不可信数据，不能拼入 developer instruction。匹配的个人记忆只能
+支持用户自身事实或偏好，不能被当作机构事实来源。`campus_search` 结果作为本轮工具结果进入 SDK
+上下文；来源公开字段由 execution-control 在 Finalization 中从真实工具结果派生。
+
+Agent 根据问题所需事实与工具声明范围选择工具，不按机构、地点或其他实体名称建立固定路由。问题
+同时包含已覆盖和未覆盖事实时，只回答本轮成功 evidence 支持的部分并说明资料边界；已有有效部分
+答案时仍生成普通正文。所需机构事实完全没有本轮成功 evidence 支持时直接说明资料不足。普通工具
+失败可以与合法答案并存，但失败工具结果不得成为答案依据；合同、
+身份、运行指纹和结果结构错误继续失败关闭。
 
 ## 输出与终态
 
-Agent Runtime 返回严格结构化终态、有序真实工具调用摘要、模型用量、`context_usage`、运行指纹和
-trace 关联。execution-control 校验终态和工具结果并写入 `execution_finalization_response_v6`。
+Agent Runtime 使用 Agents SDK 原生文本输出，返回非空 `final_output`、有序真实工具调用摘要、模型
+用量、`context_usage`、运行指纹和 trace 关联。execution-control 校验文本与工具结果并写入
+`execution_finalization_response_v6`；追问、资料不足和范围说明都作为 `completed` 正文保存。
 
 `AppendConversationMemoryActivity` 是产品终态成功后的独立副作用，只追加已完成对话；它不是 Agent
 反思步骤，失败不会改写已完成的产品终态。

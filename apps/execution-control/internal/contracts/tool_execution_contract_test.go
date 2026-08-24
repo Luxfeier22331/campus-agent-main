@@ -242,8 +242,6 @@ func TestDecodeToolExecutionResponseWireJSONRejectsErrorWithoutRetryable(t *test
 	payload := map[string]any{
 		"status":                 "error",
 		"answer_text":            "",
-		"follow_up_question":     "",
-		"confidence":             "low",
 		"model_usage":            map[string]any{"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
 		"result":                 nil,
 		"error":                  map[string]any{"code": "activity_failed", "message": "activity failed"},
@@ -319,8 +317,6 @@ func canonicalToolExecutionResponsePayload() map[string]any {
 	return map[string]any{
 		"status":                 "completed",
 		"answer_text":            "ok",
-		"follow_up_question":     "",
-		"confidence":             "high",
 		"model_usage":            map[string]any{"input_tokens": 8, "cached_input_tokens": 2, "output_tokens": 3, "total_tokens": 11},
 		"result":                 map[string]any{},
 		"error":                  nil,

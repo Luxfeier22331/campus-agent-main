@@ -105,7 +105,8 @@ Langfuse Agent trace 可以记录实际可见工具名和有界结果状态，�
 - append 位于 core activity queue，其 heartbeat、retry 和 non-retryable error 由明确 activity policy 管理；
 - deterministic config、request、bank policy 和 projection error 不 retry；
 - Temporal 不充当 memory database，也不保存 raw recall/retain payload；
-- recall 工具失败形成失败的 SDK tool result，当前 Agent run 和 workflow 失败关闭；
+- recall 工具业务失败形成失败的 SDK tool result，不得贡献个人事实；其他证据足以形成合法终态时
+  Agent run 可以继续完成。参数、结果、身份或运行合同错误仍失败关闭；
 - append 是回答完成后的 side effect，失败不回滚回答。
 
 ## 数据边界

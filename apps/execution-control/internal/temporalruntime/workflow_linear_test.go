@@ -366,10 +366,6 @@ func TestToolExecutionWorkflowCompletesDurableLifecycleInOrder(t *testing.T) {
 			AgentResultRef: agentResultRef,
 			RunID:          runID,
 			Status:         "completed",
-			TerminalEnvelope: map[string]any{
-				"answer_text": "本地测试回答。",
-				"kind":        "answer",
-			},
 			TerminalReason: "answer_completed",
 		}, nil)
 	env.OnActivity(

@@ -152,7 +152,6 @@ type agentRuntimeResponse struct {
 	ProviderResponseID     string            `json:"provider_response_id"`
 	StageTiming            map[string]any    `json:"stage_timing"`
 	ToolResults            []agentToolResult `json:"tool_results"`
-	TerminalEnvelope       map[string]any    `json:"terminal_envelope"`
 	TerminalReason         string            `json:"terminal_reason"`
 	ToolRuntimeFingerprint map[string]any    `json:"tool_runtime_fingerprint"`
 	Usage                  agentRuntimeUsage `json:"usage"`

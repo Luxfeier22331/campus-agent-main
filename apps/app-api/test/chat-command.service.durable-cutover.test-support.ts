@@ -41,9 +41,7 @@ export function emptyRunStepTrajectory(): ExecutionControlRunStepTrajectory {
 export function answerResponsePayload(text = "国家奖学金每学年评审一次。") {
 	return {
 		answer_text: text,
-		confidence: "high",
 		error: null,
-		follow_up_question: "",
 		model_usage: {
 			cached_input_tokens: 10,
 			input_tokens: 120,
@@ -57,7 +55,9 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 		result: {
 			sources: [
 				{
+					citation_index: 1,
 					document_id: "student_rules/national-scholarship",
+					kind: "campus_document",
 					root_unit_ids: ["national-scholarship-review"],
 					section_ref: "/docs/regulations/student_rules/national-scholarship/v/2026-current#review",
 					section_title: "评审规则",

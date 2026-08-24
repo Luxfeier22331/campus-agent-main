@@ -232,29 +232,15 @@ describe("OpsWebApp", () => {
 		}
 	});
 
-	it("shows runs waiting for user input as a completed attention journey", async () => {
-		render(<OpsWebApp initialPath="/requests?view=attention" />);
-
-		const [requestLink] = await screen.findAllByRole("link", { name: "请帮我查询申请条件" });
-		if (!requestLink) {
-			throw new Error("ACTION_REQUIRED fixture link is missing");
-		}
-		expect(screen.getAllByText("等待用户补充信息").length).toBeGreaterThan(0);
-		expect(screen.getAllByText("等待用户").length).toBeGreaterThan(0);
-		fireEvent.click(requestLink);
-
+	it("shows a follow-up question as a completed answer", async () => {
+		render(<OpsWebApp initialPath="/requests/req_ops_005" />);
 		expect(await screen.findByText("请帮我查询申请条件")).toBeInTheDocument();
 		expect(
-			within(await screen.findByTestId("request-context")).getByText("等待用户"),
+			within(await screen.findByTestId("request-context")).getByText("已完成"),
 		).toBeInTheDocument();
 		expect(await screen.findByText(/请说明你要办理的具体事项/)).toBeInTheDocument();
 		expect(await screen.findByText("回答已写入会话")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "返回运行记录" })).toHaveAttribute(
-			"href",
-			"/requests?view=attention",
-		);
 		expect(screen.queryByText("agent.primary")).not.toBeInTheDocument();
-		expect(screen.queryByText("needs_clarification")).not.toBeInTheDocument();
 	});
 
 	it("flags a missing conversation result without rewriting the product status", async () => {

@@ -111,9 +111,9 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	END
 	$ops_web_read_model_column_revoke$`,
 	`GRANT SELECT (
-		"admission_status", "assistant_message_id", "completed_at", "conversation_id", "created_at",
-		"error_code", "request_id", "run_id", "status", "surface", "trace_id", "turn_sequence",
-		"updated_at", "user_message_id", "workflow_id"
+		"assistant_message_id", "completed_at", "conversation_id", "created_at", "error_code",
+		"request_id", "run_id", "status", "surface", "trace_id", "turn_sequence", "updated_at",
+		"user_message_id"
 	) ON TABLE "chat"."turn_dispatches" TO "ops_web"`,
 	`GRANT SELECT (
 		"conversation_id", "id", "kind", "request_id", "role", "structured_parts_json", "text"
@@ -226,21 +226,19 @@ const REQUIRED_SELECTS = [
 		label: "chat.turn_dispatches",
 		sql: `
 			select
-					"admission_status",
 					"assistant_message_id",
 					"completed_at",
 				"conversation_id",
 				"created_at",
 				"error_code",
-					"request_id",
-					"run_id",
+				"request_id",
+				"run_id",
 				"status",
 				"surface",
-					"trace_id",
-					"turn_sequence",
+				"trace_id",
+				"turn_sequence",
 				"updated_at",
-				"user_message_id",
-				"workflow_id"
+				"user_message_id"
 			from "chat"."turn_dispatches"
 			limit 0
 		`,

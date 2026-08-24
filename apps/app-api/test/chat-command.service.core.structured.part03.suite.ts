@@ -23,7 +23,6 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 				execute: vi.fn().mockResolvedValue({
 					answerText: "计算机类培养方案要求学生完成对应课程模块和毕业要求。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -33,7 +32,9 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 					result: {
 						sources: [
 							{
+								citation_index: 1,
 								document_id: "curriculum_plan/computer-science",
+								kind: "campus_document",
 								root_unit_ids: ["curriculum-root-001"],
 								section_ref:
 									"/docs/curriculum/curriculum_plan/computer-science/v/2026-current#graduation-requirements",
@@ -45,7 +46,9 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 								version_slug: "2026-current",
 							},
 							{
+								citation_index: 2,
 								document_id: "curriculum_plan/computer-science",
+								kind: "campus_document",
 								root_unit_ids: ["curriculum-root-002"],
 								section_ref:
 									"/docs/curriculum/curriculum_plan/computer-science/v/2026-current#graduation-requirements",
@@ -55,10 +58,6 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 								version_id: "version-computer-science-2026",
 								version_label: "2026 版",
 								version_slug: "2026-current",
-							},
-							{
-								section_ref: "https://muc.edu.cn/news/open-day#details",
-								title: "公开网页",
 							},
 						],
 					},
@@ -83,7 +82,9 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 		expect(writtenSourcePart).toEqual({
 			sourceItems: [
 				expect.objectContaining({
+					citationIndexes: [1, 2],
 					collectionLabel: "培养方案",
+					kind: "campus_document",
 					primaryAction: {
 						disabledReason: null,
 						external: false,
@@ -119,7 +120,6 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 				execute: vi.fn().mockResolvedValue({
 					answerText: "转专业申请需要按规定提交材料并完成审核。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -129,7 +129,9 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 					result: {
 						sources: [
 							{
+								citation_index: 1,
 								document_id: "student_rules/student-status",
+								kind: "campus_document",
 								root_unit_ids: ["transfer-major-root"],
 								section_ref:
 									"/docs/regulations/student_rules/student-status/v/2026-current#transfer-major",
@@ -160,7 +162,9 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 					{
 						sourceItems: [
 							{
+								citationIndexes: [1],
 								collectionLabel: "学生手册",
+								kind: "campus_document",
 								primaryAction: {
 									href: "/docs/regulations/student_rules/student-status/v/2026-current?hl=transfer-major-root#transfer-major",
 									label: "查看文档",

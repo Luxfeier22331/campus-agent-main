@@ -9,11 +9,11 @@ status: active
 ## 边界
 
 本文说明如何把整理后的 Campus Web 文档更新到对象存储、刷新静态文档候选，并按三个独立阶段手动
-构建 Campus Docs 离线检索索引。它不负责来源采集、正文清洗方法、普通运行时发布或环境 Secret 创建。
+构建 Campus Docs 检索索引。它不负责来源采集、正文清洗方法、普通运行时发布或环境 Secret 创建。
 
 共享输入只有对象存储中的 `campus-docs/source.json` 及其引用对象。Campus Web 静态构建和 Campus Docs
-离线 RAG 制品是两个独立消费者，各自产生不可变产物并独立失败；二者之间没有跨系统事务或第二个
-文档版本指针。当前在线 Agent 不消费这些索引制品。
+RAG 制品和 Campus Web 静态站是两个独立消费者，各自产生不可变产物并独立失败；二者之间没有跨系统
+事务或第二个文档版本指针。在线 Agent 只通过 `campus_search` 读取已发布的当前 collection。
 
 ## 维护规则
 
@@ -220,7 +220,7 @@ CronJob 的任务历史设置不管理由上述命令创建的独立 Job。
 
 Embedding 设置可以在首次索引发布前保存和验证。配置验证使用固定 Embedding 合同并记录 provider
 返回的观测维度。离线分块、向量和 collection 定义发生变化时，必须用同一版本重新生成并发布
-collection；当前不提供在线查询消费者。
+collection；已发布的当前 collection 由 `campus_search` 按需消费。
 
 ## Reader 清理
 

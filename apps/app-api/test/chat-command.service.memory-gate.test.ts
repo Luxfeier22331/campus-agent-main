@@ -17,7 +17,6 @@ function createCompletedExecutionClient(): ToolExecutionClient {
 		execute: vi.fn().mockResolvedValue({
 			answerText: "可以，先看培养方案和学院通知。",
 			error: null,
-			followUpQuestion: "",
 			modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 			result: {},
 			status: "completed",
@@ -28,7 +27,7 @@ function createCompletedExecutionClient(): ToolExecutionClient {
 
 describe("chat command service memory gate projection", () => {
 	it("projects the immutable memory snapshot returned by accept", async () => {
-		const { acceptedWrites, frozenAdmissionMemorySnapshots, store } = createCommandStore({
+		const { acceptedWrites, frozenMemorySnapshots, store } = createCommandStore({
 			memorySnapshot: {
 				appendEnabled: true,
 				ownerGeneration: 3,
@@ -55,7 +54,7 @@ describe("chat command service memory gate projection", () => {
 			principal: createPrincipal(),
 			requestKind: "public_chat",
 		});
-		expect(frozenAdmissionMemorySnapshots).toEqual([
+		expect(frozenMemorySnapshots).toEqual([
 			{
 				appendEnabled: true,
 				ownerGeneration: 3,

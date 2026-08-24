@@ -1,26 +1,24 @@
-import type { ToolExecutionResponse } from "../integration";
+import { ExecutionControlTransportError, type ToolExecutionResponse } from "../integration";
+import { runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 import { ensureLangfuseTraceParent } from "../telemetry/trace";
-import { dispatchPendingChatAdmissions } from "./admission-dispatcher";
 import { acceptChatCommand } from "./service/acceptance";
 import { createChatCommandServiceContext } from "./service/context";
 import {
 	startDurableFinalizationCloseout,
 	waitForDurableFinalizationResponse,
 } from "./service/durable";
-import { createDurableRunForAcceptedCommand } from "./service/durable-admission";
+import { ensureDurableRunForAcceptedCommand } from "./service/durable-run";
 import {
 	buildAbuseThrottleRejectedResponse,
 	createPreAcceptError,
 	toHandledErrorTransportOutcome,
 } from "./service/errors";
 import {
-	admissionFailureFinalizationFingerprint,
 	applyProductFinalization,
 	finalizeAcceptedCommand,
-	finalizeAdmissionFailure,
-	finalizeLocalCancellation,
 	readProductFinalizedCommand,
 } from "./service/finalization";
+import { acceptedCloseoutContext } from "./service/product-finalization";
 import { toTerminalChatStreamEvent } from "./service/stream";
 import type {
 	AcceptedChatCommandContext,
@@ -105,6 +103,9 @@ export function buildChatCommandService(
 	async function buildThrottleResponseIfNeeded(
 		context: AcceptedChatCommandContext,
 	): Promise<ToolExecutionResponse | null> {
+		if (!dependencies.abuseThrottleEnabled) {
+			return null;
+		}
 		const abuseControlState = context.safetyIdentifier
 			? await dependencies.commandStore.getAbuseControlState({
 					now: context.acceptedAt,
@@ -120,22 +121,49 @@ export function buildChatCommandService(
 		return null;
 	}
 
+	async function contextForAcceptedReplay(input: {
+		acceptedAt: string;
+		requestId: string;
+		runId: string;
+		traceId: string;
+	}): Promise<AcceptedChatCommandContext> {
+		const candidate = (
+			await dependencies.commandStore.listAcceptedDurableRequestsForCloseout({
+				limit: 1,
+				runId: input.runId,
+			})
+		).find((item) => item.requestId === input.requestId && item.traceId === input.traceId);
+		if (!candidate) {
+			throw new ExecutionControlTransportError({
+				code: "runtime_invariant_failed",
+				message: "Accepted chat request could not be reconstructed for retry.",
+				retryable: false,
+				status: 500,
+			});
+		}
+		return {
+			...acceptedCloseoutContext(candidate),
+			acceptedAt: input.acceptedAt,
+		};
+	}
+
+	async function ensureDurableRun(context: AcceptedChatCommandContext) {
+		const result = await ensureDurableRunForAcceptedCommand(service, context);
+		if (result.run) {
+			context.runPhase = runtimeRunPhaseFromExecutionStatus(result.run.status);
+		}
+		return result;
+	}
+
 	return {
 		async readExecutionInput(runId) {
-			return dependencies.commandStore.readExecutionInput(runId);
-		},
-		async dispatchPendingAdmissions() {
-			if (!dependencies.executionRuntime) {
-				return { admitted: 0, failed: 0, processed: 0 };
-			}
-			return dispatchPendingChatAdmissions({
-				executionRuntime: dependencies.executionRuntime,
-				finalizeAdmissionFailure: (input) => finalizeAdmissionFailure(service, input),
-				store: dependencies.admissionStore,
-			});
-		},
-		async finalizeLocalCancellation(input) {
-			return finalizeLocalCancellation(service, input);
+			const stored = await dependencies.commandStore.readDurableRunInput(runId);
+			return stored
+				? {
+						executionInputJson: stored.executionInputJson,
+						executionInputSha256: stored.executionInputSha256,
+					}
+				: null;
 		},
 		async applyProductFinalization(input) {
 			return applyProductFinalization(service, input);
@@ -145,49 +173,26 @@ export function buildChatCommandService(
 			if (accepted.kind === "existing") {
 				return accepted.response;
 			}
-			if (accepted.kind === "accepted_replay") {
-				throw createPreAcceptError({
-					code: "request_in_progress",
-					details: { requestId: accepted.requestId, runId: accepted.runId },
-					message: "A matching request is still in progress.",
-					retryable: true,
-					status: 409,
-				});
-			}
+			const context =
+				accepted.kind === "accepted_replay"
+					? await contextForAcceptedReplay(accepted)
+					: accepted.value;
 
-			const throttleResponse = await buildThrottleResponseIfNeeded(accepted.value);
+			const throttleResponse =
+				accepted.kind === "accepted" ? await buildThrottleResponseIfNeeded(context) : null;
 			if (throttleResponse) {
 				return (
 					await finalizeAcceptedCommand(service, {
-						context: accepted.value,
+						context,
 						executionResponse: throttleResponse,
 					})
 				).response;
 			}
-			const durableRunCreate = await createDurableRunForAcceptedCommand(service, accepted.value);
-			if (durableRunCreate.pendingAdmission) {
-				throw createPreAcceptError({
-					code: "admission_pending",
-					details: { requestId: accepted.value.requestId, runId: accepted.value.runId },
-					message: "The request was accepted and is waiting for execution admission.",
-					retryable: true,
-					status: 503,
-				});
-			}
+			const durableRunCreate = await ensureDurableRun(context);
 			if (durableRunCreate.response) {
 				return (
 					await finalizeAcceptedCommand(service, {
-						...(durableRunCreate.admissionFailure
-							? {
-									admissionFailureWorkflowId: durableRunCreate.admissionFailure.workflowId,
-									finalizationFingerprint: admissionFailureFinalizationFingerprint({
-										errorCode: durableRunCreate.response.error?.code ?? "internal_error",
-										runId: accepted.value.runId ?? "",
-										workflowId: durableRunCreate.admissionFailure.workflowId,
-									}),
-								}
-							: {}),
-						context: accepted.value,
+						context,
 						executionResponse: durableRunCreate.response,
 					})
 				).response;
@@ -195,20 +200,20 @@ export function buildChatCommandService(
 			const executionRuntime = dependencies.executionRuntime;
 			if (executionRuntime) {
 				const execution = await executeDurableBlocking({
-					context: accepted.value,
+					context,
 					executionRuntime,
 				});
 				if (!execution.terminalObserved) {
 					throw createPreAcceptError({
 						code: "execution_status_pending",
-						details: { requestId: accepted.value.requestId, runId: accepted.value.runId },
+						details: { requestId: context.requestId, runId: context.runId },
 						message: "The request is still running and can be resumed.",
 						retryable: true,
 						status: 504,
 					});
 				}
 				return readProductFinalizedCommand(service, {
-					context: accepted.value,
+					context,
 					executionResponse: execution.response,
 				});
 			}
@@ -226,16 +231,12 @@ export function buildChatCommandService(
 				yield terminalStreamEventForExisting(accepted.response);
 				return;
 			}
-			if (accepted.kind === "accepted_replay") {
-				yield acceptedStreamEvent({
-					...accepted,
-					runPhase: null,
-				});
-				return;
-			}
-
-			const context = accepted.value;
-			const throttleResponse = await buildThrottleResponseIfNeeded(context);
+			const context =
+				accepted.kind === "accepted_replay"
+					? await contextForAcceptedReplay(accepted)
+					: accepted.value;
+			const throttleResponse =
+				accepted.kind === "accepted" ? await buildThrottleResponseIfNeeded(context) : null;
 			if (throttleResponse) {
 				const finalized = await finalizeAcceptedCommand(service, {
 					context,
@@ -250,23 +251,9 @@ export function buildChatCommandService(
 
 			const executionRuntime = dependencies.executionRuntime;
 			if (executionRuntime) {
-				const durableRunCreate = await createDurableRunForAcceptedCommand(service, context);
-				if (durableRunCreate.pendingAdmission) {
-					yield acceptedStreamEvent(context);
-					return;
-				}
+				const durableRunCreate = await ensureDurableRun(context);
 				if (durableRunCreate.response) {
 					const finalized = await finalizeAcceptedCommand(service, {
-						...(durableRunCreate.admissionFailure
-							? {
-									admissionFailureWorkflowId: durableRunCreate.admissionFailure.workflowId,
-									finalizationFingerprint: admissionFailureFinalizationFingerprint({
-										errorCode: durableRunCreate.response.error?.code ?? "internal_error",
-										runId: context.runId ?? "",
-										workflowId: durableRunCreate.admissionFailure.workflowId,
-									}),
-								}
-							: {}),
 						context,
 						executionResponse: durableRunCreate.response,
 					});

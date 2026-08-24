@@ -1,31 +1,18 @@
 import { toConversationResponse } from "../../chat";
 import type { ToolExecutionResponse } from "../../integration";
-import type { ChatAdmissionFailureFinalization } from "../admission-dispatcher";
 import type { AcceptedDurableRequestCloseout } from "../store-types";
 import { ChatFinalizationConflict } from "../store-types";
 import type { ChatCommandServiceContext } from "./context";
-import { sha256Text } from "./durable-metadata";
 import { createPreAcceptError } from "./errors";
 import { acceptedCloseoutContext } from "./product-finalization";
-import { executionFinalizationErrorResponse } from "./stream";
 import type { AcceptedChatCommandContext, ChatCommandResponse } from "./types";
 import { buildFinalizedWrite } from "./writes";
-
-export function admissionFailureFinalizationFingerprint(input: {
-	errorCode: string;
-	runId: string;
-	workflowId: string;
-}): string {
-	return sha256Text(`${input.runId}\0admission_failed\0${input.workflowId}\0${input.errorCode}`);
-}
 
 export async function finalizeAcceptedCommand(
 	service: ChatCommandServiceContext,
 	input: {
-		admissionFailureWorkflowId?: string;
 		completedAt?: string;
 		context: AcceptedChatCommandContext;
-		durableAdmissionConfirmed?: boolean;
 		executionResponse: ToolExecutionResponse;
 		executionFinalizationReceivedAt?: string | null;
 		finalizationFingerprint?: string;
@@ -54,9 +41,6 @@ export async function finalizeAcceptedCommand(
 		completedAt,
 		conversation: context.conversation,
 		conversationTitle: context.conversationTitle,
-		...(input.durableAdmissionConfirmed === undefined
-			? {}
-			: { durableAdmissionConfirmed: input.durableAdmissionConfirmed }),
 		durationMs,
 		principal: context.input.principal,
 		projectionCloseoutMs,
@@ -77,12 +61,6 @@ export async function finalizeAcceptedCommand(
 	if (input.finalizationFingerprint) {
 		finalized.write.finalizationFingerprint = input.finalizationFingerprint;
 	}
-	if (input.admissionFailureWorkflowId) {
-		finalized.write.admissionFailure = {
-			workflowId: input.admissionFailureWorkflowId,
-		};
-	}
-
 	const result = await dependencies.commandStore.finalizeRequest(finalized.write);
 	if (result.outcome === "applied") {
 		telemetry?.configureRequestOutcome({
@@ -91,8 +69,6 @@ export async function finalizeAcceptedCommand(
 			status: finalized.write.turnDispatch.status as
 				| "completed"
 				| "error"
-				| "needs_clarification"
-				| "no_answer"
 				| "approval_required"
 				| "rejected"
 				| "cancelled",
@@ -172,90 +148,6 @@ export async function readProductFinalizedCommand(
 	};
 }
 
-export async function finalizeAdmissionFailure(
-	service: ChatCommandServiceContext,
-	input: ChatAdmissionFailureFinalization,
-): Promise<void> {
-	const { dependencies, now } = service;
-	const candidates = await dependencies.commandStore.listAcceptedDurableRequestsForCloseout({
-		limit: 1,
-		runId: input.runId,
-	});
-	const candidate = candidates[0];
-	if (
-		!candidate ||
-		candidate.requestId !== input.requestId ||
-		candidate.runId !== input.runId ||
-		input.workflowId !== `campus-agent.chat.${input.runId}`
-	) {
-		throw new ChatFinalizationConflict();
-	}
-	const response = executionFinalizationErrorResponse({
-		code: input.errorCode,
-		message: "The request could not be admitted for durable execution.",
-		retryable: false,
-		traceId: candidate.traceId,
-	});
-	const finalizationFingerprint = admissionFailureFinalizationFingerprint(input);
-	if (candidate.finalizationFingerprint || candidate.completedAt) {
-		isExactFinalizationReplay(candidate, {
-			completedAt: candidate.completedAt ?? "",
-			finalizationFingerprint,
-		});
-		return;
-	}
-	await finalizeAcceptedCommand(service, {
-		admissionFailureWorkflowId: input.workflowId,
-		completedAt: now().toISOString(),
-		context: acceptedCloseoutContext(candidate),
-		executionResponse: response,
-		finalizationFingerprint,
-	});
-}
-
-export async function finalizeLocalCancellation(
-	service: ChatCommandServiceContext,
-	input: { completedAt: string; runId: string },
-): Promise<{ outcome: "applied" | "replayed" }> {
-	const { dependencies } = service;
-	const candidates = await dependencies.commandStore.listAcceptedDurableRequestsForCloseout({
-		limit: 1,
-		runId: input.runId,
-		startedBefore: input.completedAt,
-	});
-	const candidate = candidates[0];
-	if (!candidate) {
-		throw createPreAcceptError({
-			code: "request_not_found",
-			message: "Accepted chat request was not found for local cancellation.",
-			status: 404,
-		});
-	}
-	const response = executionFinalizationErrorResponse({
-		code: "execution_cancelled",
-		message: "The request was cancelled.",
-		retryable: false,
-		status: "cancelled",
-		traceId: candidate.traceId,
-	});
-	const finalizationFingerprint = sha256Text(`${candidate.runId}\0${JSON.stringify(response)}`);
-	if (
-		isExactFinalizationReplay(candidate, {
-			completedAt: input.completedAt,
-			finalizationFingerprint,
-		})
-	) {
-		return { outcome: "replayed" };
-	}
-	const finalized = await finalizeAcceptedCommand(service, {
-		completedAt: input.completedAt,
-		context: acceptedCloseoutContext(candidate),
-		executionResponse: response,
-		finalizationFingerprint,
-	});
-	return { outcome: finalized.outcome };
-}
-
 export async function applyProductFinalization(
 	service: ChatCommandServiceContext,
 	input: {
@@ -288,7 +180,6 @@ export async function applyProductFinalization(
 	const finalized = await finalizeAcceptedCommand(service, {
 		completedAt: input.completedAt,
 		context: acceptedCloseoutContext(candidate),
-		durableAdmissionConfirmed: true,
 		executionResponse: input.response,
 		finalizationFingerprint: input.finalizationFingerprint,
 	});

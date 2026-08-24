@@ -10,6 +10,41 @@ import (
 	"testing"
 )
 
+func TestValidateResponsesLimitsOutput(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/responses" || r.Header.Get("Authorization") != "Bearer secret" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		var body struct {
+			Input           string `json:"input"`
+			MaxOutputTokens int    `json:"max_output_tokens"`
+			Model           string `json:"model"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode validation request: %v", err)
+		}
+		if body.Model != "reasoning-model" || body.Input != "model-config validation" || body.MaxOutputTokens != 1 {
+			t.Fatalf("validation request = %#v", body)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "resp_model_config_validation", "status": "incomplete"})
+	}))
+	defer server.Close()
+	previous := http.DefaultTransport
+	http.DefaultTransport = server.Client().Transport
+	defer func() { http.DefaultTransport = previous }()
+
+	validation := Validate(context.Background(), Target{
+		Name:        ConfigPrimaryAgent,
+		Provider:    "openai-compatible",
+		APIProtocol: "openai.responses",
+		BaseURL:     server.URL + "/v1",
+		Model:       "reasoning-model",
+	}, "secret")
+	if validation.Status != "passed" {
+		t.Fatalf("Validate() = %#v", validation)
+	}
+}
+
 func TestValidateEmbeddingRequestsCanonicalDimensions(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/v1/embeddings" || r.Header.Get("Authorization") != "Bearer secret" {

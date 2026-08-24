@@ -17,6 +17,28 @@ function turboCommand(packageName: string, ...tasks: string[]): ValidationComman
 	return ["pnpm", "exec", "turbo", "run", ...tasks, `--filter=${packageName}`, "--summarize"];
 }
 
+function serializedTurboCommand(packageName: string, task: string): ValidationCommand {
+	return [
+		"pnpm",
+		"exec",
+		"turbo",
+		"run",
+		task,
+		`--filter=${packageName}`,
+		"--concurrency=1",
+		"--summarize",
+	];
+}
+
+function nativeCommands(packageName: string): ValidationCommand[] {
+	return [
+		serializedTurboCommand(packageName, "native:format"),
+		serializedTurboCommand(packageName, "native:lint"),
+		serializedTurboCommand(packageName, "native:typecheck"),
+		serializedTurboCommand(packageName, "native:test"),
+	];
+}
+
 export const VALIDATION_PROFILE_REGISTRY = {
 	"affected-node": {
 		executor: { kind: "affected-node" },
@@ -26,22 +48,7 @@ export const VALIDATION_PROFILE_REGISTRY = {
 	},
 	go: {
 		executor: {
-			commands: [
-				turboCommand(
-					"execution-control",
-					"native:format",
-					"native:lint",
-					"native:typecheck",
-					"native:test",
-				),
-				turboCommand(
-					"model-config",
-					"native:format",
-					"native:lint",
-					"native:typecheck",
-					"native:test",
-				),
-			],
+			commands: [...nativeCommands("execution-control"), ...nativeCommands("model-config")],
 			kind: "commands",
 		},
 		lane: "manual",
@@ -52,7 +59,7 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		executor: {
 			commands: [
 				turboCommand("eval-langfuse", "typecheck", "test"),
-				turboCommand("ragas-runner", "test:eval"),
+				serializedTurboCommand("ragas-runner", "test:eval"),
 			],
 			kind: "commands",
 		},

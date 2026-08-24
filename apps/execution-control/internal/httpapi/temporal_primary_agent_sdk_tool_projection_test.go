@@ -76,9 +76,9 @@ func TestExecutePrimaryAgentActivityProjectsPersonalMemoryToolResult(t *testing.
 
 }
 
-func TestExecutePrimaryAgentActivityProjectsFailedPersonalMemoryToolResult(t *testing.T) {
+func TestExecutePrimaryAgentActivityCompletesWithFailedPersonalMemoryToolResult(t *testing.T) {
 	runID := "run-primary-agent-memory-tool-failed"
-	store, err := executePrimaryAgentSDKToolFixture(t, runID, "failed", map[string]any{
+	store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
 		"status":            "failed",
 		"tool_name":         personalMemoryRecallToolName,
 		"payload_kind":      personalMemoryRecallToolName,
@@ -87,14 +87,13 @@ func TestExecutePrimaryAgentActivityProjectsFailedPersonalMemoryToolResult(t *te
 		"fail_close_reason": "tool_handler_failed",
 		"result":            map[string]any{"error": map[string]any{"code": "memory_unavailable"}},
 	})
-	if err == nil {
-		t.Fatal("expected failed SDK tool to fail primary agent activity")
+	if err != nil {
+		t.Fatalf("execute primary agent with failed SDK tool: %v", err)
 	}
-	assertTemporalFailureSanitized(t, err, "tool_execution_failed", true)
 
-	steps, listErr := store.ListRunSteps(context.Background(), runID)
-	if listErr != nil {
-		t.Fatalf("list run steps: %v", listErr)
+	steps, err := store.ListRunSteps(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list run steps: %v", err)
 	}
 	for _, step := range steps {
 		if step.StepID == "sdk_tool.execute.personal_memory_recall.1" {
@@ -202,6 +201,19 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSDKToolResult(t *testing.T)
 	}
 }
 
+func TestSDKToolResultEnvelopeRejectsRegisteredToolWithoutResultValidator(t *testing.T) {
+	_, err := sdkToolResultEnvelopeForProjection(
+		"unregistered_fixture_tool",
+		"unregistered_fixture_tool",
+		"completed",
+		map[string]any{},
+		"projection://fixture",
+	)
+	if err == nil || !strings.Contains(err.Error(), "has no result validator") {
+		t.Fatalf("missing result validator error = %v", err)
+	}
+}
+
 func executePrimaryAgentSDKToolFixture(
 	t *testing.T,
 	runID string,
@@ -231,11 +243,7 @@ func executePrimaryAgentSDKToolFixture(
 				"input_tokens": 12, "output_tokens": 6, "cached_input_tokens": 0,
 			},
 		}
-		if runtimeStatus == "completed" {
-			payload["terminal_envelope"] = map[string]any{
-				"kind": "answer", "answer_text": "你之前提到喜欢一食堂。",
-			}
-		} else {
+		if runtimeStatus != "completed" {
 			payload["final_output"] = ""
 			payload["terminal_reason"] = "agent_runtime_failed"
 		}

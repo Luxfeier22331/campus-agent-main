@@ -12,21 +12,18 @@ import {
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceObservabilityStatusSuite(): void {
-	it("maps clarification and no-answer statuses into chat-visible result kinds", async () => {
-		const clarificationStore = createCommandStore();
-		const noAnswerStore = createCommandStore();
-		const clarificationConversationStore = createConversationStore();
-		const noAnswerConversationStore = createConversationStore();
-		const clarificationService = buildChatCommandService({
+	it("persists follow-up questions and insufficient-evidence replies as completed answers", async () => {
+		const followUpStore = createCommandStore();
+		const insufficientEvidenceStore = createCommandStore();
+		const followUpService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
-			conversationStore: clarificationConversationStore.store,
-			store: clarificationStore.store,
+			conversationStore: createConversationStore().store,
+			store: followUpStore.store,
 			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
-					answerText: "",
+					answerText: "你要问哪个校区？",
 					error: null,
-					followUpQuestion: "你要问哪个校区？",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -34,21 +31,20 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: null,
-					status: "needs_clarification",
+					status: "completed",
 					traceId: "trace_0001",
 				}),
 			}),
 		});
-		const noAnswerService = buildChatCommandService({
+		const insufficientEvidenceService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
-			conversationStore: noAnswerConversationStore.store,
-			store: noAnswerStore.store,
+			conversationStore: createConversationStore().store,
+			store: insufficientEvidenceStore.store,
 			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "当前没有足够依据回答这个问题。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -56,20 +52,20 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: null,
-					status: "no_answer",
+					status: "completed",
 					traceId: "trace_0001",
 				}),
 			}),
 		});
 
-		const clarification = await clarificationService.submit({
+		const followUp = await followUpService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "开放时间？",
 			},
 			principal: createPrincipal(),
 		});
-		const noAnswer = await noAnswerService.submit({
+		const insufficientEvidence = await insufficientEvidenceService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "这个规定适用于所有学院吗？",
@@ -77,45 +73,44 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			principal: createPrincipal(),
 		});
 
-		expect(clarification.answer.result).toEqual({
-			kind: "clarification",
+		expect(followUp.answer.result).toEqual({
+			kind: "answer",
 			requestId: "req_0001",
 			text: "你要问哪个校区？",
 			traceId: "trace_0001",
 		});
-		expect(clarificationStore.finalWrites[0]).toMatchObject({
+		expect(followUpStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				status: "needs_clarification",
+				status: "completed",
 			},
 		});
-		expect(noAnswer.answer.result).toEqual({
-			kind: "no_answer",
+		expect(insufficientEvidence.answer.result).toEqual({
+			kind: "answer",
 			requestId: "req_0001",
 			text: "当前没有足够依据回答这个问题。",
 			traceId: "trace_0001",
 		});
-		expect(noAnswerStore.finalWrites[0]).toMatchObject({
+		expect(insufficientEvidenceStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				status: "no_answer",
+				status: "completed",
 			},
 		});
 	});
 
-	it("passes through public guardrail text for clarification, fail-close, and no-action statuses", async () => {
-		const clarificationStore = createCommandStore();
-		const noAnswerStore = createCommandStore();
+	it("passes through public informational limits as answer text", async () => {
+		const followUpStore = createCommandStore();
+		const insufficientEvidenceStore = createCommandStore();
 		const approvalStore = createCommandStore();
 		const rejectedStore = createCommandStore();
-		const clarificationService = buildChatCommandService({
+		const followUpService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
-			store: clarificationStore.store,
+			store: followUpStore.store,
 			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "请说明学生规定方向。当前可查询：缓考申请、转专业申请。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -126,25 +121,22 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						payload_kind: "knowledge_query",
 						tool_result: {
 							candidate_routes: [{ display_name: "缓考申请" }, { display_name: "转专业申请" }],
-							clarification_reason: "route_direction_required",
-							outcome: "clarification_required",
 						},
 					},
-					status: "needs_clarification",
+					status: "completed",
 					traceId: "trace_0001",
 				}),
 			}),
 		});
-		const noAnswerService = buildChatCommandService({
+		const insufficientEvidenceService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore: createConversationStore().store,
-			store: noAnswerStore.store,
+			store: insufficientEvidenceStore.store,
 			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认学生规定临时变更。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -159,7 +151,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 							query_text: "学生规定临时变更",
 						},
 					},
-					status: "no_answer",
+					status: "completed",
 					traceId: "trace_0001",
 				}),
 			}),
@@ -174,7 +166,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					answerText:
 						"不能代你预约、提交、打电话或发邮件；如需继续，请先进入对应官方入口完成人工确认。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -206,7 +197,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						message: "不能代你预约、提交、打电话或发邮件；当前请求已被策略拒绝。",
 						retryable: false,
 					},
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -226,14 +216,14 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			}),
 		});
 
-		const clarification = await clarificationService.submit({
+		const followUp = await followUpService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "学生规定最早几点发车",
 			},
 			principal: createPrincipal(),
 		});
-		const noAnswer = await noAnswerService.submit({
+		const insufficientEvidence = await insufficientEvidenceService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "学生规定临时变更",
@@ -255,30 +245,30 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			principal: createPrincipal(),
 		});
 
-		expect(clarification.answer.result.kind).toBe("clarification");
-		if (clarification.answer.result.kind !== "clarification") {
-			throw new Error("expected clarification result");
+		expect(followUp.answer.result.kind).toBe("answer");
+		if (followUp.answer.result.kind !== "answer") {
+			throw new Error("expected answer result");
 		}
-		expect(clarification.answer.result.text).toContain("请说明学生规定方向");
-		expect(clarification.answer.result.text).toContain("缓考申请");
-		expectNoInternalLocators(clarification.answer.result.text);
-		expect(clarificationStore.finalWrites[0]).toMatchObject({
+		expect(followUp.answer.result.text).toContain("请说明学生规定方向");
+		expect(followUp.answer.result.text).toContain("缓考申请");
+		expectNoInternalLocators(followUp.answer.result.text);
+		expect(followUpStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				status: "needs_clarification",
+				status: "completed",
 			},
 		});
 
-		expect(noAnswer.answer.result.kind).toBe("no_answer");
-		if (noAnswer.answer.result.kind !== "no_answer") {
-			throw new Error("expected no_answer result");
+		expect(insufficientEvidence.answer.result.kind).toBe("answer");
+		if (insufficientEvidence.answer.result.kind !== "answer") {
+			throw new Error("expected answer result");
 		}
-		expect(noAnswer.answer.result.text).toContain("为避免误导");
-		expect(noAnswer.answer.result.text).toContain("来源信息存在冲突");
-		expect(noAnswer.answer.result.text).toContain("学生规定临时变更");
-		expectNoInternalLocators(noAnswer.answer.result.text);
-		expect(noAnswerStore.finalWrites[0]).toMatchObject({
+		expect(insufficientEvidence.answer.result.text).toContain("为避免误导");
+		expect(insufficientEvidence.answer.result.text).toContain("来源信息存在冲突");
+		expect(insufficientEvidence.answer.result.text).toContain("学生规定临时变更");
+		expectNoInternalLocators(insufficientEvidence.answer.result.text);
+		expect(insufficientEvidenceStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
-				status: "no_answer",
+				status: "completed",
 			},
 		});
 
@@ -322,7 +312,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 				execute: vi.fn().mockResolvedValue({
 					answerText: "该请求涉及需要人工确认的操作，必须先经过审批。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -349,7 +338,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						message: "postgres://user:secret@internal-db/runtime",
 						retryable: false,
 					},
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,

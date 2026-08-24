@@ -3,11 +3,9 @@ import type { OpsRequestSummary } from "../shared/ops-contract";
 const LIFECYCLE_LABELS: Record<OpsRequestSummary["lifecyclePhase"], string> = {
 	FINALIZING: "写入结果",
 	FINISHED: "已结束",
-	PREPARING: "准备请求",
 	QUEUED: "已排队",
 	RUNNING: "执行中",
 	STREAMING: "输出中",
-	WAITING_ADMISSION: "等待准入",
 };
 
 const VALUE_LABELS: Record<string, string> = {
@@ -33,8 +31,6 @@ const VALUE_LABELS: Record<string, string> = {
 	error: "错误",
 	executionControl: "执行编排",
 	failed: "失败",
-	needs_clarification: "需要补充信息",
-	no_answer: "未生成回答",
 	open: "未解决",
 	primary_agent: "主 Agent",
 	primary_agent_completed: "主 Agent 已完成",

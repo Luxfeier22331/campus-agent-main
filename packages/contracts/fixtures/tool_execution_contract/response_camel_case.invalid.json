@@ -2,8 +2,6 @@
 	"selectedTool": "knowledge_query",
 	"status": "completed",
 	"answerText": "This is not canonical tool execution wire.",
-	"followUpQuestion": "",
-	"confidence": "high",
 	"result": null,
 	"error": null,
 	"traceId": "trace-contract-camel"

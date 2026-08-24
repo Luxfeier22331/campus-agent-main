@@ -119,6 +119,9 @@ func setRuntimeEnv(t *testing.T) {
 	t.Setenv("APP_API_EXECUTION_SHARED_SECRET", "app-api-secret")
 	t.Setenv("EXECUTION_AGENT_RUNTIME_SHARED_SECRET", "agent-secret")
 	t.Setenv("OPS_WEB_INTERNAL_TOKEN", "ops-token")
+	t.Setenv("QDRANT_URL", "https://qdrant:6333")
+	t.Setenv("QDRANT_READ_ONLY_API_KEY", "qdrant-read-only-key")
+	t.Setenv("QDRANT_TLS_CA_CERT_PATH", "/etc/campus-agent/qdrant/tls/ca.crt")
 	t.Setenv("MODEL_CONFIG_URL", "http://model-config:8000")
 }
 

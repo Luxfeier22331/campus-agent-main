@@ -32,10 +32,9 @@ func TestExecutePrimaryAgentActivityPassesCurrentEmptyToolSet(t *testing.T) {
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-institutional-account",
-			"final_output":         "",
+			"final_output":         "需要查询学校账号规则。",
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "需要查询学校账号规则。"},
 			"provider_response_id": "resp-primary-agent-institutional-account",
 		})
 	}))
@@ -65,8 +64,8 @@ func TestExecutePrimaryAgentActivityPassesCurrentEmptyToolSet(t *testing.T) {
 	if !ok {
 		t.Fatalf("visible_tool_names missing or wrong type: %#v", seenBody)
 	}
-	if len(visible) != 0 {
-		t.Fatalf("visible_tool_names = %#v, want none", visible)
+	if len(visible) != 1 || visible[0] != campusSearchToolName {
+		t.Fatalf("visible_tool_names = %#v, want campus search", visible)
 	}
 }
 
@@ -90,7 +89,6 @@ func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testin
 			"status":               "completed",
 			"run_id":               "run-primary-agent-personal-memory",
 			"final_output":         "你之前提到喜欢一食堂。",
-			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你之前提到喜欢一食堂。"},
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
 			"provider_response_id": "resp-primary-agent-personal-memory",
@@ -119,11 +117,11 @@ func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testin
 		t.Fatalf("execute primary agent: %v", err)
 	}
 	visible, ok := seenBody["visible_tool_names"].([]any)
-	if !ok || len(visible) != 1 || visible[0] != personalMemoryRecallToolName {
-		t.Fatalf("visible_tool_names = %#v, want personal memory recall", seenBody["visible_tool_names"])
+	if !ok || len(visible) != 2 || visible[0] != campusSearchToolName || visible[1] != personalMemoryRecallToolName {
+		t.Fatalf("visible_tool_names = %#v, want campus search and personal memory recall", seenBody["visible_tool_names"])
 	}
 	limits := cloneAnyMapFromMetadata(seenBody["limits"])
-	if limits["max_turns"] != float64(2) || limits["max_tool_calls"] != float64(1) {
+	if limits["max_turns"] != float64(3) || limits["max_tool_calls"] != float64(2) {
 		t.Fatalf("limits = %#v, want bounded personal memory strategy", limits)
 	}
 	targets, _ := seenBody["document_scopes"].([]any)

@@ -14,7 +14,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-const executionStrategySchemaVersion = "execution_strategy.v2"
+const executionStrategySchemaVersion = "execution_strategy.v3"
 
 var lowercaseSHA256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var sha256RefPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
@@ -61,19 +61,20 @@ func (s *Server) buildAgentAdmissionSnapshot(
 }
 
 func executionStrategyForAdmission(personalMemoryRecallAvailable bool) temporalruntime.ExecutionStrategySnapshot {
+	visibleToolNames := []string{campusSearchToolName}
+	maxModelTurns := 2
+	maxToolCalls := 1
+	if personalMemoryRecallAvailable {
+		visibleToolNames = append(visibleToolNames, personalMemoryRecallToolName)
+		maxModelTurns = 3
+		maxToolCalls = 2
+	}
 	strategy := temporalruntime.ExecutionStrategySnapshot{
 		Kind:             "direct",
-		MaxModelTurns:    1,
-		MaxToolCalls:     0,
-		MemoryRecall:     "disabled",
+		MaxModelTurns:    maxModelTurns,
+		MaxToolCalls:     maxToolCalls,
 		SchemaVersion:    executionStrategySchemaVersion,
-		VisibleToolNames: []string{},
-	}
-	if personalMemoryRecallAvailable {
-		strategy.MaxModelTurns = 2
-		strategy.MaxToolCalls = 1
-		strategy.MemoryRecall = "model_optional"
-		strategy.VisibleToolNames = []string{personalMemoryRecallToolName}
+		VisibleToolNames: visibleToolNames,
 	}
 	return strategy
 }
@@ -83,7 +84,6 @@ func executionStrategyProjectionPayload(strategy temporalruntime.ExecutionStrate
 		"kind":               strategy.Kind,
 		"max_model_turns":    strategy.MaxModelTurns,
 		"max_tool_calls":     strategy.MaxToolCalls,
-		"memory_recall":      strategy.MemoryRecall,
 		"schema_version":     strategy.SchemaVersion,
 		"visible_tool_names": append([]string{}, strategy.VisibleToolNames...),
 	}
@@ -146,25 +146,21 @@ func validateExecutionStrategy(strategy temporalruntime.ExecutionStrategySnapsho
 	if strategy.SchemaVersion != executionStrategySchemaVersion || strategy.Kind != "direct" {
 		return errors.New("execution strategy identity is invalid")
 	}
-	visible := canonicalStringSlice(strategy.VisibleToolNames)
-	if !equalStringSlices(visible, strategy.VisibleToolNames) {
-		return errors.New("execution strategy visible tools are not canonical")
+	if strategy.MaxToolCalls < 0 || strategy.MaxModelTurns < 1 {
+		return errors.New("execution strategy tool budget is invalid")
 	}
-	switch strategy.MemoryRecall {
-	case "disabled":
-		if strategy.MaxModelTurns != 1 || strategy.MaxToolCalls != 0 || len(visible) != 0 {
-			return errors.New("disabled memory execution strategy budget is invalid")
+	seen := map[string]struct{}{}
+	for _, name := range strategy.VisibleToolNames {
+		if strings.TrimSpace(name) != name || name == "" {
+			return errors.New("execution strategy visible tools are not canonical")
 		}
-	case "model_optional":
-		if strategy.MaxModelTurns != 2 || strategy.MaxToolCalls != 1 ||
-			len(visible) != 1 || visible[0] != "personal_memory_recall" {
-			return errors.New("optional memory execution strategy budget is invalid")
+		if _, exists := seen[name]; exists {
+			return errors.New("execution strategy contains duplicate visible tools")
 		}
-		if _, ok := runtimepolicy.ModelVisibleToolByName("personal_memory_recall"); !ok {
-			return errors.New("personal memory recall tool is not registered as model visible")
+		seen[name] = struct{}{}
+		if _, ok := runtimepolicy.ModelVisibleToolByName(name); !ok {
+			return fmt.Errorf("execution strategy tool %s is not registered as model visible", name)
 		}
-	default:
-		return errors.New("execution strategy memory_recall is invalid")
 	}
 	return nil
 }
@@ -176,11 +172,18 @@ func validateAdmissionSnapshotForVisibleTools(
 	if err := validateAdmissionSnapshot(snapshot); err != nil {
 		return err
 	}
-	if !equalStringSlices(
-		canonicalStringSlice(snapshot.ExecutionStrategy.VisibleToolNames),
-		canonicalStringSlice(visibleToolNames),
-	) {
+	frozen := stringSet(snapshot.ExecutionStrategy.VisibleToolNames)
+	visible := stringSet(visibleToolNames)
+	if len(visible) != len(visibleToolNames) || len(frozen) != len(visible) {
 		return errors.New("visible tools differ from the frozen execution strategy")
+	}
+	for _, name := range visibleToolNames {
+		if strings.TrimSpace(name) != name || name == "" {
+			return errors.New("visible tools differ from the frozen execution strategy")
+		}
+		if _, ok := frozen[name]; !ok {
+			return errors.New("visible tools differ from the frozen execution strategy")
+		}
 	}
 	return nil
 }

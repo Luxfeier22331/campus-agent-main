@@ -62,7 +62,9 @@ describe("chat command context envelope assembly", () => {
 							type: "source_items" as const,
 							sourceItems: [
 								{
+									citationIndexes: [1],
 									collectionLabel: "学生管理制度",
+									kind: "campus_document",
 									primaryAction: {
 										disabledReason: null,
 										external: false,

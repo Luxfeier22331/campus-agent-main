@@ -18,11 +18,16 @@ timeout 由以下可执行注册表维护：
 
 ## 当前状态
 
-当前注册表只有 `personal_memory_recall`，其 exposure 登记为 `model_visible`。注册表、handler 和
-内部可用性字段的存在不会单独开放工具；execution-control 根据冻结的准入策略决定本轮工具集合。
+当前注册表中的 model-visible 工具为 `campus_search` 和 `personal_memory_recall`。二者都是只读
+function tool；注册表、handler 和内部可用性字段的存在不会单独开放工具，execution-control 根据
+准入时的可用性决定本轮工具集合。
+模型可见的工具名称保持代码标识，description 与参数说明使用简体中文。`campus_search` 的 description
+明确其唯一机构范围是中央民族大学当前 Campus Web 文档。
 
-当前没有向 Primary Agent 开放的机构知识检索能力。系统没有客户端指定工具、Knowledge Agent、
-handoff 或文档类别路由；未来 RAG 能力需先定义独立的工具合同，再接入本路由边界。
+`visible_tool_names` 表示本轮工具集合，数组顺序没有路由语义；准入校验要求名称唯一并按集合核对。
+当前集合始终包含 `campus_search`，个人记忆可用时还包含 `personal_memory_recall`。模型是否调用以及
+调用顺序由 Primary Agent 根据问题所需事实和工具声明范围决定。系统没有客户端指定工具、Knowledge
+Agent、handoff 或文档类别路由。
 
 ## 职责
 
@@ -37,15 +42,24 @@ handoff 或文档类别路由；未来 RAG 能力需先定义独立的工具合�
 
 ## 执行方式
 
-Primary Agent 消费对话并生成一份结构化终态。个人记忆可用时，SDK
-可以按当前请求执行一次 `personal_memory_recall`；matched memory 只支持用户自身事实和偏好，不能
-推导机构事实。
+Primary Agent 消费对话并生成原生文本回答。问题所需事实落在中央民族大学当前 Campus Web 文档
+范围时可以调用一次 `campus_search`；问题依赖用户自身事实或偏好时可以调用一次
+`personal_memory_recall`。两个工具在同一次 SDK run 内各最多调用一次，彼此没有固定先后关系。实体名称
+本身不决定路由；模型比较问题所需事实和每个工具声明的事实范围。
+`campus_search` 的 no-match 是成功的有界结果，不等于机构事实不存在；模型应在正文中说明资料不足，
+或在用户意图不明确时提出简短追问，而不是使用模型记忆补全。
+
+`campus_search` handler 在调用时读取当前 Campus Docs collection，并从 Model Config 读取当前
+embedding 和 reranker 连接，执行 dense/sparse hybrid 查询并只返回有界 evidence。它不接收 collection、
+provider、top-k 或向量参数。
+正文中的 `[1]` 到 `[5]` 只对应本次成功工具结果中按顺序返回的 evidence。
 
 `execution_control_internal_query` handler 在同一个 Agent Activity 内调用 execution-control 的有界
 读取接口。个人记忆 handler 重新校验冻结策略和运行身份后调用 Hindsight，只向 Agent 返回受限结果；
 它不创建额外 Temporal Activity，也不把记忆正文写入普通投影。
 
-工具失败不得回退到未注册数据源。
+普通工具失败不得贡献 evidence，也不得回退到未注册数据源、强制预检索或旧工具；其他成功工具或
+非机构事实已经足以支持回答时，整轮仍可完成。合同、身份、运行指纹或结果结构错误继续失败关闭。
 
 ## 投影
 

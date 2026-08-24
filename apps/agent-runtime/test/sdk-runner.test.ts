@@ -210,18 +210,14 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(observedModelProvider).toBe(modelProvider);
 	});
 
-	it("configures typed terminal output and preserves the SDK structured final output", async () => {
+	it("uses the SDK default text output and preserves the final text", async () => {
 		let observedOutputType: unknown;
-		const structuredOutput = {
-			kind: "answer",
-			answerText: "我是校园问答助手。",
-		};
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async (agent) => {
 				observedOutputType = (agent as { outputType?: unknown }).outputType;
 				return {
-					finalOutput: structuredOutput,
-					lastResponseId: "resp-sdk-structured-output",
+					finalOutput: "我是校园问答助手。",
+					lastResponseId: "resp-sdk-text-output",
 					newItems: [],
 				};
 			},
@@ -231,35 +227,23 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: [{ role: "user", content: "hi 你是谁" }],
 			instructions: "Answer directly.",
 			tools: [],
-			requestId: "req-sdk-structured-output",
-			runId: "run-sdk-structured-output",
-			traceId: "trace-run-sdk-structured-output",
+			requestId: "req-sdk-text-output",
+			runId: "run-sdk-text-output",
+			traceId: "trace-run-sdk-text-output",
 			limits,
 			providerConfig,
 		});
 
-		expect(observedOutputType).toMatchObject({
-			type: "json_schema",
-			name: "primary_agent_terminal_output",
-			strict: true,
-			schema: {
-				additionalProperties: false,
-				required: ["kind", "answerText", "followUpQuestion", "reason"],
-			},
-		});
-		expect((result as { terminalEnvelope?: unknown }).terminalEnvelope).toEqual(structuredOutput);
+		expect(observedOutputType).toBe("text");
 		expect(result.finalOutput).toBe("我是校园问答助手。");
 	});
 
-	it("accepts empty optional follow-up fields from structured SDK output", async () => {
+	it("does not reinterpret JSON-looking text as a terminal protocol", async () => {
+		const jsonLookingText = '{"kind":"answer","answerText":"我是校园问答助手。"}';
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async () => ({
-				finalOutput: {
-					kind: "answer",
-					answerText: "我是校园问答助手。",
-					followUpQuestion: "",
-				},
-				lastResponseId: "resp-sdk-empty-follow-up",
+				finalOutput: jsonLookingText,
+				lastResponseId: "resp-sdk-json-looking-text",
 				newItems: [],
 			}),
 		});
@@ -268,18 +252,14 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			input: [{ role: "user", content: "hi 你是谁" }],
 			instructions: "Answer directly.",
 			tools: [],
-			requestId: "req-sdk-empty-follow-up",
-			runId: "run-sdk-empty-follow-up",
-			traceId: "trace-run-sdk-empty-follow-up",
+			requestId: "req-sdk-json-looking-text",
+			runId: "run-sdk-json-looking-text",
+			traceId: "trace-run-sdk-json-looking-text",
 			limits,
 			providerConfig,
 		});
 
-		expect((result as { terminalEnvelope?: unknown }).terminalEnvelope).toEqual({
-			kind: "answer",
-			answerText: "我是校园问答助手。",
-		});
-		expect(result.finalOutput).toBe("我是校园问答助手。");
+		expect(result.finalOutput).toBe(jsonLookingText);
 	});
 
 	it("projects tool calls, provider response IDs, and usage from SDK run results", async () => {
@@ -734,7 +714,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(observedTraceIncludeSensitiveData).toBe(false);
 	});
 
-	it("streams terminal-envelope visible text before yielding the final structured SDK result", async () => {
+	it("streams SDK text deltas before yielding the final result", async () => {
 		let observedOutputType: unknown;
 		let observedTraceIncludeSensitiveData: boolean | undefined;
 		const runner = createStreamingOpenAIAgentsRunner({
@@ -745,18 +725,14 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					cancelled: false,
 					completed: Promise.resolve(),
 					error: null,
-					finalOutput: {
-						kind: "answer",
-						answerText: "国家奖学金每学年评审一次。",
-					},
+					finalOutput: "国家奖学金每学年评审一次。",
 					lastResponseId: "resp-sdk-stream",
 					newItems: [],
 					toTextStream: () =>
 						new ReadableStream<string>({
 							start(controller) {
-								controller.enqueue('{"kind":"answer","answerText":"国家奖学金');
+								controller.enqueue("国家奖学金");
 								controller.enqueue("每学年评审一次。");
-								controller.enqueue('"}');
 								controller.close();
 							},
 						}),
@@ -783,7 +759,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			events.push(event);
 		}
 
-		expect(observedOutputType).toBeDefined();
+		expect(observedOutputType).toBe("text");
 		expect(observedTraceIncludeSensitiveData).toBe(false);
 		expect(events).toEqual([
 			{
@@ -799,38 +775,26 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			expect.objectContaining({
 				finalOutput: "国家奖学金每学年评审一次。",
 				providerResponseId: "resp-sdk-stream",
-				terminalEnvelope: {
-					kind: "answer",
-					answerText: "国家奖学金每学年评审一次。",
-				},
 			}),
 		]);
 	});
 
-	it("accepts empty placeholders for fields unused by the selected terminal kind", async () => {
-		const transportOutput = {
-			answerText: "",
-			followUpQuestion: "",
-			kind: "unsupported_by_evidence" as const,
-			reason: "The request is not supported by the available evidence.",
-		};
+	it("streams a plain-text evidence limitation response", async () => {
+		const output = "当前资料无法支持这个答案。";
 		const runner = createStreamingOpenAIAgentsRunner({
 			runSdkStream: async (agent) => {
-				expect((agent as { outputType?: unknown }).outputType).toMatchObject({
-					type: "json_schema",
-					strict: true,
-				});
+				expect((agent as { outputType?: unknown }).outputType).toBe("text");
 				return {
 					cancelled: false,
 					completed: Promise.resolve(),
 					error: null,
-					finalOutput: transportOutput,
+					finalOutput: output,
 					lastResponseId: "resp-sdk-unsupported",
 					newItems: [],
 					toTextStream: () =>
 						new ReadableStream<string>({
 							start(controller) {
-								controller.enqueue(JSON.stringify(transportOutput));
+								controller.enqueue(output);
 								controller.close();
 							},
 						}),
@@ -841,7 +805,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		const events: unknown[] = [];
 		for await (const event of runner({
 			input: [{ role: "user", content: "What is the current campus tuition fee?" }],
-			instructions: "Return unsupported_by_evidence when evidence is unavailable.",
+			instructions: "Explain in plain text when evidence is unavailable.",
 			tools: [],
 			requestId: "req-sdk-unsupported",
 			runId: "run-sdk-unsupported",
@@ -854,16 +818,12 @@ describe("OpenAI Agents SDK runner adapter", () => {
 
 		expect(events).toEqual([
 			{
-				accumulatedText: transportOutput.reason,
+				accumulatedText: output,
 				chunkIndex: 1,
-				delta: transportOutput.reason,
+				delta: output,
 			},
 			expect.objectContaining({
-				finalOutput: transportOutput.reason,
-				terminalEnvelope: {
-					kind: "unsupported_by_evidence",
-					reason: transportOutput.reason,
-				},
+				finalOutput: output,
 			}),
 		]);
 	});
@@ -879,7 +839,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				toTextStream: () =>
 					new ReadableStream<string>({
 						start(controller) {
-							controller.enqueue('{"kind":"answer","answerText":"partial');
+							controller.enqueue("partial");
 						},
 						cancel() {
 							textStreamCancelled = true;
@@ -961,22 +921,19 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		await expect(pending).rejects.toBe(cancellation);
 	});
 
-	it("does not emit whitespace-only visible text deltas", async () => {
+	it("preserves whitespace emitted by the SDK text stream", async () => {
 		const runner = createStreamingOpenAIAgentsRunner({
 			runSdkStream: async () => ({
 				completed: Promise.resolve(),
-				finalOutput: {
-					kind: "answer",
-					answerText: "  国家奖学金每学年评审一次。",
-				},
+				finalOutput: "  国家奖学金每学年评审一次。",
 				lastResponseId: "resp-sdk-stream-whitespace",
 				newItems: [],
 				toTextStream: () =>
 					new ReadableStream<string>({
 						start(controller) {
-							controller.enqueue('{"kind":"answer","answerText":"  ');
+							controller.enqueue("  ");
 							controller.enqueue("国家奖学金");
-							controller.enqueue('每学年评审一次。"}');
+							controller.enqueue("每学年评审一次。");
 							controller.close();
 						},
 					}),
@@ -1004,41 +961,41 @@ describe("OpenAI Agents SDK runner adapter", () => {
 
 		expect(events).toEqual([
 			{
-				accumulatedText: "国家奖学金",
+				accumulatedText: "  ",
 				chunkIndex: 1,
+				delta: "  ",
+			},
+			{
+				accumulatedText: "  国家奖学金",
+				chunkIndex: 2,
 				delta: "国家奖学金",
 			},
 			{
-				accumulatedText: "国家奖学金每学年评审一次。",
-				chunkIndex: 2,
+				accumulatedText: "  国家奖学金每学年评审一次。",
+				chunkIndex: 3,
 				delta: "每学年评审一次。",
 			},
 			expect.objectContaining({
-				finalOutput: "国家奖学金每学年评审一次。",
+				finalOutput: "  国家奖学金每学年评审一次。",
 				providerResponseId: "resp-sdk-stream-whitespace",
 			}),
 		]);
 	});
 
-	it("does not accept retired snake-case terminal fields", async () => {
+	it("preserves JSON-looking snake-case text without interpreting it", async () => {
+		const jsonLookingText = '{"kind":"answer","answer_text":"毕业最低学分要求为 160 学分。"}';
 		const runner = createStreamingOpenAIAgentsRunner({
 			runSdkStream: async () => ({
 				completed: Promise.resolve(),
 				currentAgent: { name: "Campus primary assistant" },
-				finalOutput: {
-					kind: "answer",
-					answer_text: "毕业最低学分要求为 160 学分。",
-					follow_up_question: null,
-					reason: null,
-					session_update: null,
-				},
+				finalOutput: jsonLookingText,
 				lastAgent: { name: "Campus primary assistant" },
 				lastResponseId: "resp-sdk-knowledge-stream",
 				newItems: [],
 				toTextStream: () =>
 					new ReadableStream<string>({
 						start(controller) {
-							controller.enqueue('{"kind":"answer","answer_text":"毕业最低学分要求为 160 学分。"}');
+							controller.enqueue(jsonLookingText);
 							controller.close();
 						},
 					}),
@@ -1061,28 +1018,29 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		}
 
 		expect(events).toEqual([
+			{
+				accumulatedText: jsonLookingText,
+				chunkIndex: 1,
+				delta: jsonLookingText,
+			},
 			expect.objectContaining({
-				finalOutput: "[object Object]",
+				finalOutput: jsonLookingText,
 				providerResponseId: "resp-sdk-knowledge-stream",
-				terminalEnvelope: undefined,
 			}),
 		]);
 	});
 
-	it("fails closed when streamed visible text drifts from the final structured output", async () => {
+	it("fails when streamed text differs from the SDK final text", async () => {
 		const runner = createStreamingOpenAIAgentsRunner({
 			runSdkStream: async () => ({
 				completed: Promise.resolve(),
-				finalOutput: {
-					kind: "answer",
-					answerText: "最终答案。",
-				},
+				finalOutput: "最终答案。",
 				lastResponseId: "resp-sdk-stream-drift",
 				newItems: [],
 				toTextStream: () =>
 					new ReadableStream<string>({
 						start(controller) {
-							controller.enqueue('{"kind":"answer","answerText":"错误答案。"}');
+							controller.enqueue("错误答案。");
 							controller.close();
 						},
 					}),
@@ -1108,7 +1066,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			})) {
 				events.push(event);
 			}
-		}).rejects.toThrow("streamed answer text drifted from final output");
+		}).rejects.toThrow("streamed answer text does not match final output");
 		expect(events).toEqual([
 			{
 				accumulatedText: "错误答案。",

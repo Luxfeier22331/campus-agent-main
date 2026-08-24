@@ -15,7 +15,7 @@ import { buildExecutionSessionProjection } from "../curriculum-session";
 import type {
 	AcceptRequestWrite,
 	FinalizeRequestWrite,
-	FrozenChatAdmissionWrite,
+	FrozenDurableRunWrite,
 	TurnDispatchMemorySnapshot,
 	TurnDispatchStatus,
 } from "../store";
@@ -100,9 +100,6 @@ function buildConversationContextProjection(input: {
 
 const BOUNDED_EXECUTION_ERROR_CODE = /^[a-z0-9_-]{1,64}$/u;
 const PUBLIC_EXECUTION_ERROR_CODES = new Set([
-	"admission_confirmation_uncertain",
-	"admission_identity_conflict",
-	"admission_pending",
 	"agent_deadline_exceeded",
 	"agent_runtime_failed",
 	"agent_runtime_timeout",
@@ -127,7 +124,6 @@ const PUBLIC_EXECUTION_ERROR_CODES = new Set([
 	"provider_config_missing",
 	"provider_unavailable",
 	"rate_limit_exceeded",
-	"request_in_progress",
 	"request_not_found",
 	"request_rejected",
 	"run_expired",
@@ -203,9 +199,7 @@ export function buildAcceptedWrite(input: {
 		updatedAt: string;
 	};
 	conversationTitle: string;
-	freezeDurableAdmission: (
-		memorySnapshot: TurnDispatchMemorySnapshot | null,
-	) => FrozenChatAdmissionWrite;
+	freezeDurableRun: (memorySnapshot: TurnDispatchMemorySnapshot | null) => FrozenDurableRunWrite;
 	idempotencyKey: string | null;
 	now: string;
 	principal: ResolvedAppPrincipal;
@@ -217,6 +211,7 @@ export function buildAcceptedWrite(input: {
 	safetyIdentifier: string | null;
 	surface: string;
 	traceId: string;
+	turnId: string;
 	turnSequence: number;
 	userMessageId: string;
 }): AcceptRequestWrite {
@@ -248,7 +243,7 @@ export function buildAcceptedWrite(input: {
 		},
 		...(input.conversationSeed ? { conversationSeed: input.conversationSeed } : {}),
 		conversationTitle: input.conversationTitle,
-		freezeDurableAdmission: input.freezeDurableAdmission,
+		freezeDurableRun: input.freezeDurableRun,
 		ownerUserId: input.conversation.ownerUserId,
 		userMessage,
 		turnDispatch: {
@@ -273,6 +268,7 @@ export function buildAcceptedWrite(input: {
 			requestFingerprintSha256: input.requestFingerprintSha256,
 			traceId: input.traceId,
 			runId: input.runId,
+			turnId: input.turnId,
 			safetyIdentifier: input.safetyIdentifier,
 			status: "accepted",
 			errorCode: null,
@@ -329,7 +325,6 @@ export function buildFinalizedWrite(input: {
 	conversation: ChatConversation;
 	conversationTitle: string;
 	completedAt: string;
-	durableAdmissionConfirmed?: boolean;
 	durationMs: number;
 	principal: ResolvedAppPrincipal;
 	projectionCloseoutMs?: number | null;
@@ -369,27 +364,7 @@ export function buildFinalizedWrite(input: {
 	let result: ChatCommandResult;
 	let status: TurnDispatchStatus;
 
-	if (input.response.status === "needs_clarification") {
-		assistantKind = "clarification";
-		assistantText = input.response.followUpQuestion || input.response.answerText;
-		result = {
-			kind: "clarification",
-			requestId: input.requestId,
-			text: assistantText,
-			traceId: normalizedTraceId,
-		};
-		status = "needs_clarification";
-	} else if (input.response.status === "no_answer") {
-		assistantKind = "no_answer";
-		assistantText = input.response.answerText;
-		result = {
-			kind: "no_answer",
-			requestId: input.requestId,
-			text: assistantText,
-			traceId: normalizedTraceId,
-		};
-		status = "no_answer";
-	} else if (
+	if (
 		input.response.status === "error" ||
 		input.response.status === "approval_required" ||
 		input.response.status === "rejected" ||
@@ -460,7 +435,6 @@ export function buildFinalizedWrite(input: {
 	const write: FinalizeRequestWrite = {
 		assistantMessage,
 		conversationTitle: input.conversationTitle,
-		durableAdmissionConfirmed: input.durableAdmissionConfirmed ?? false,
 		ownerUserId: input.conversation.ownerUserId,
 		turnDispatch: {
 			requestId: input.requestId,

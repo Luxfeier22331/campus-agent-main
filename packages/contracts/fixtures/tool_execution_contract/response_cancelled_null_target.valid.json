@@ -1,8 +1,6 @@
 {
 	"status": "cancelled",
 	"answer_text": "",
-	"follow_up_question": "",
-	"confidence": "low",
 	"model_usage": {
 		"input_tokens": 0,
 		"cached_input_tokens": 0,
@@ -17,7 +15,7 @@
 	},
 	"observability": null,
 	"workflow_trace_summary": {
-		"execution_path": "rejected",
+		"execution_path": "direct",
 		"terminal_reason": "execution_cancelled",
 		"answer_artifact_refs": [],
 		"runtime_versions": {}

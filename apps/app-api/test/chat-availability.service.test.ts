@@ -17,8 +17,6 @@ function createStore(status: string | null): ChatAvailabilityStore {
 describe("chat availability service", () => {
 	it.each([
 		["completed", "operational"],
-		["needs_clarification", "operational"],
-		["no_answer", "operational"],
 		["approval_required", "operational"],
 		["rejected", "operational"],
 		["cancelled", "operational"],

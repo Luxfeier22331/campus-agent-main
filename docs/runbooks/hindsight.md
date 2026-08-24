@@ -71,7 +71,7 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 | `/version` 或 health 失败 | 服务地址、tenant API secret、网络和实际镜像版本 |
 | bank bootstrap 失败 | observations、consolidation、Memory Defense 配置和 provider 可用性 |
 | recall/append timeout | recall 对应 Agent Activity 与 SDK tool attempt；append 对应 core Activity；同时检查 Hindsight provider latency 和 worker backlog |
-| item 长期 `saving`/`deleting` | app-api outbox、execution-control command admission 和 receipt callback |
+| item 长期 `saving`/`deleting` | app-api profile-memory command outbox、execution-control command admission 和 receipt callback |
 | 账号长期 `erasing` | 代次租约、retired bank 删除和 receipt callback |
 | 已删来源仍被 recall | document identity 是否一致、DeleteDocument 结果和 Hindsight 内部状态 |
 | 外部观测平台出现记忆正文 | 立即停止对应 producer，并按 Langfuse 或 Sentry 字段合同检查清理边界 |

@@ -224,7 +224,6 @@ describe("agent runtime HTTP handler", () => {
 				rendered_prompt_sha256?: string;
 				schema_version?: string;
 			};
-			terminal_envelope?: { kind?: string; answer_text?: string };
 			tool_runtime_fingerprint?: {
 				combined_sha256?: string;
 				schema_version?: string;
@@ -243,10 +242,6 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.final_output).toBe("我是校园问答助手。");
 		expect(body.model_name).toBe("gpt-5-mini");
 		expect(body.model_provider).toBe("openai");
-		expect(body.terminal_envelope).toEqual({
-			kind: "answer",
-			answer_text: "我是校园问答助手。",
-		});
 		expect(body.prompt_trace).toMatchObject({
 			prompt_id: "primary_agent",
 			schema_version: "agent_runtime_prompt_trace.v1",
@@ -367,10 +362,6 @@ describe("agent runtime HTTP handler", () => {
 								modelName: input.providerConfig.model,
 								modelProvider: input.providerConfig.provider,
 								promptTrace: testPromptTrace(),
-								terminalEnvelope: {
-									kind: "answer",
-									answerText: "国家奖学金每学年评审一次。",
-								},
 								providerResponseId: "resp_stream",
 								stageTiming: {
 									"agent.runtime_ms": 12,
@@ -434,10 +425,6 @@ describe("agent runtime HTTP handler", () => {
 			stage_timing: {
 				"agent.runtime_ms": 12,
 				"agent.first_delta_ms": 4,
-			},
-			terminal_envelope: {
-				answer_text: "国家奖学金每学年评审一次。",
-				kind: "answer",
 			},
 		});
 		expect(JSON.stringify(events[2]?.data)).not.toMatch(
@@ -610,7 +597,6 @@ describe("agent runtime HTTP handler", () => {
 						modelName: "gpt-test",
 						modelProvider: "openai",
 						promptTrace: testPromptTrace(),
-						terminalEnvelope: { kind: "answer", answerText: "ok" },
 						providerResponseId: "resp_signal",
 						stageTiming: {},
 						toolRuntimeFingerprint: testToolRuntimeFingerprint(),
@@ -645,7 +631,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(observedSignal?.aborted).toBe(true);
 	});
 
-	it("returns a failed runtime result when a selected tool fails closed", async () => {
+	it("returns a completed runtime result when a selected tool reports failure", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
 			const result = await tools[0]?.execute({ query_text: "通知" });
 			return {
@@ -698,9 +684,9 @@ describe("agent runtime HTTP handler", () => {
 				fail_close_reason?: string;
 			}>;
 		};
-		expect(body.status).toBe("failed");
+		expect(body.status).toBe("completed");
 		expect(body.final_output).toBe("工具失败。");
-		expect(body.terminal_reason).toBe("agent_runtime_failed");
+		expect(body.terminal_reason).toBe("answer_completed");
 		expect(body.tool_results?.[0]?.fail_close_reason).toBe("source_truth_unavailable");
 		expect(body.tool_results?.[0]?.arguments_json).toEqual({ query_text: "通知" });
 		expect(body.tool_results?.[0]?.duration_ms).toBe(12);
@@ -935,7 +921,6 @@ describe("agent runtime HTTP handler", () => {
 const noToolRunner: AgentRunner = async () =>
 	({
 		finalOutput: "我是校园问答助手。",
-		terminalEnvelope: { kind: "answer", answerText: "我是校园问答助手。" },
 		providerResponseId: "resp_test",
 		toolCalls: [],
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },

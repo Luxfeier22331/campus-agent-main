@@ -114,7 +114,6 @@ function validAttentionReason(
 
 export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsRequestDetailRow {
 	return {
-		admissionStatus: "accepted",
 		assistantKind: "answer",
 		assistantMessagePresent: true,
 		assistantMessageText: "缓考申请需提交书面材料。",
@@ -122,15 +121,15 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 			{
 				sourceItems: [
 					{
+						citationIndexes: [1],
 						collectionLabel: "学生规定",
-						pageLabel: "运行状态",
+						kind: "campus_document",
 						primaryAction: {
 							disabledReason: null,
 							external: false,
-							href: "/documents/student-rules",
-							label: "查看学生规定",
+							href: "/docs/regulations/student_rules/student-rules/v/2026-current#deferred-exam",
+							label: "查看文档",
 						},
-						publisherLabel: "校园服务中心",
 						sectionTitle: "缓考申请",
 						snippet: "申请人需提交书面材料。",
 						title: "学生管理规定",
@@ -190,10 +189,10 @@ function filterRequestRows(
 			}
 			if (query.status) {
 				const statuses = {
-					ACTION_REQUIRED: ["approval_required", "needs_clarification"],
+					ACTION_REQUIRED: ["approval_required"],
 					CANCELLED: ["cancelled"],
 					COMPLETED: ["completed"],
-					FAILED: ["error", "rejected", "no_answer"],
+					FAILED: ["error", "rejected"],
 					PENDING: ["accepted"],
 					RUNNING: ["running"],
 				}[query.status];
@@ -249,9 +248,9 @@ function summarizeRows(rows: OpsRequestRow[]) {
 			summary.completed += 1;
 		} else if (row.status === "cancelled") {
 			summary.cancelled += 1;
-		} else if (["error", "rejected", "no_answer"].includes(row.status)) {
+		} else if (["error", "rejected"].includes(row.status)) {
 			summary.failed += 1;
-		} else if (["approval_required", "needs_clarification"].includes(row.status)) {
+		} else if (row.status === "approval_required") {
 			summary.actionRequired += 1;
 		} else if (row.status === "accepted") {
 			summary.pending += 1;

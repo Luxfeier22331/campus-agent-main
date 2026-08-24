@@ -27,43 +27,32 @@ func ValidExecutionRunID(value string) bool {
 type ToolID string
 
 const (
+	ToolIDCampusSearch         ToolID = "campus_search"
 	ToolIDPersonalMemoryRecall ToolID = "personal_memory_recall"
 )
 
 type ModelVisibleToolName string
 
 const (
+	ModelVisibleToolNameCampusSearch         ModelVisibleToolName = "campus_search"
 	ModelVisibleToolNamePersonalMemoryRecall ModelVisibleToolName = "personal_memory_recall"
-)
-
-type ConfidenceLevel string
-
-const (
-	ConfidenceLevelHigh   ConfidenceLevel = "high"
-	ConfidenceLevelMedium ConfidenceLevel = "medium"
-	ConfidenceLevelLow    ConfidenceLevel = "low"
 )
 
 type ExecutionStatus string
 
 const (
-	ExecutionStatusCompleted          ExecutionStatus = "completed"
-	ExecutionStatusNeedsClarification ExecutionStatus = "needs_clarification"
-	ExecutionStatusNoAnswer           ExecutionStatus = "no_answer"
-	ExecutionStatusError              ExecutionStatus = "error"
-	ExecutionStatusRejected           ExecutionStatus = "rejected"
-	ExecutionStatusApprovalRequired   ExecutionStatus = "approval_required"
-	ExecutionStatusCancelled          ExecutionStatus = "cancelled"
+	ExecutionStatusCompleted        ExecutionStatus = "completed"
+	ExecutionStatusError            ExecutionStatus = "error"
+	ExecutionStatusRejected         ExecutionStatus = "rejected"
+	ExecutionStatusApprovalRequired ExecutionStatus = "approval_required"
+	ExecutionStatusCancelled        ExecutionStatus = "cancelled"
 )
 
 type ExecutionPath string
 
 const (
-	ExecutionPathDirect        ExecutionPath = "direct"
-	ExecutionPathToolAssisted  ExecutionPath = "tool_assisted"
-	ExecutionPathClarification ExecutionPath = "clarification"
-	ExecutionPathRejected      ExecutionPath = "rejected"
-	ExecutionPathUnsupported   ExecutionPath = "unsupported"
+	ExecutionPathDirect       ExecutionPath = "direct"
+	ExecutionPathToolAssisted ExecutionPath = "tool_assisted"
 )
 
 type StageTimingField string
@@ -149,8 +138,6 @@ type StageTimingWire map[StageTimingField]float64
 type ToolExecutionResponseWire struct {
 	Status               ExecutionStatus           `json:"status"`
 	AnswerText           string                    `json:"answer_text"`
-	FollowUpQuestion     string                    `json:"follow_up_question"`
-	Confidence           ConfidenceLevel           `json:"confidence"`
 	ModelUsage           ModelUsageWire            `json:"model_usage"`
 	Result               map[string]any            `json:"result"`
 	Error                map[string]any            `json:"error"`
@@ -190,8 +177,6 @@ func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire
 	if err := requireJSONObjectFields(data, []string{
 		"status",
 		"answer_text",
-		"follow_up_question",
-		"confidence",
 		"result",
 		"error",
 		"model_usage",
@@ -342,9 +327,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 	if !wire.Status.Valid() {
 		return fmt.Errorf("status is invalid")
 	}
-	if !wire.Confidence.Valid() {
-		return fmt.Errorf("confidence is invalid")
-	}
 	if wire.TraceID == "" {
 		return fmt.Errorf("trace_id is required")
 	}
@@ -392,16 +374,7 @@ func (wire StageTimingWire) Validate() error {
 
 func (value ToolID) Valid() bool {
 	switch value {
-	case ToolIDPersonalMemoryRecall:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value ConfidenceLevel) Valid() bool {
-	switch value {
-	case ConfidenceLevelHigh, ConfidenceLevelMedium, ConfidenceLevelLow:
+	case ToolIDCampusSearch, ToolIDPersonalMemoryRecall:
 		return true
 	default:
 		return false
@@ -410,7 +383,7 @@ func (value ConfidenceLevel) Valid() bool {
 
 func (value ExecutionStatus) Valid() bool {
 	switch value {
-	case ExecutionStatusCompleted, ExecutionStatusNeedsClarification, ExecutionStatusNoAnswer, ExecutionStatusError, ExecutionStatusRejected, ExecutionStatusApprovalRequired, ExecutionStatusCancelled:
+	case ExecutionStatusCompleted, ExecutionStatusError, ExecutionStatusRejected, ExecutionStatusApprovalRequired, ExecutionStatusCancelled:
 		return true
 	default:
 		return false
@@ -419,7 +392,7 @@ func (value ExecutionStatus) Valid() bool {
 
 func (value ExecutionPath) Valid() bool {
 	switch value {
-	case ExecutionPathDirect, ExecutionPathToolAssisted, ExecutionPathClarification, ExecutionPathRejected, ExecutionPathUnsupported:
+	case ExecutionPathDirect, ExecutionPathToolAssisted:
 		return true
 	default:
 		return false

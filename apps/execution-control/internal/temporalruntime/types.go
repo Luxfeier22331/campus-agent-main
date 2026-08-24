@@ -40,7 +40,6 @@ type ExecutionStrategySnapshot struct {
 	Kind             string   `json:"kind"`
 	MaxModelTurns    int      `json:"max_model_turns"`
 	MaxToolCalls     int      `json:"max_tool_calls"`
-	MemoryRecall     string   `json:"memory_recall"`
 	SchemaVersion    string   `json:"schema_version"`
 	VisibleToolNames []string `json:"visible_tool_names"`
 }
@@ -122,7 +121,6 @@ type ExecutePrimaryAgentActivityOutput struct {
 	RunID                  string            `json:"run_id"`
 	StageTiming            map[string]any    `json:"stage_timing,omitempty"`
 	Status                 string            `json:"status"`
-	TerminalEnvelope       map[string]any    `json:"terminal_envelope"`
 	TerminalReason         string            `json:"terminal_reason"`
 	ToolResults            []AgentToolResult `json:"tool_results"`
 	ToolRuntimeFingerprint map[string]any    `json:"tool_runtime_fingerprint"`

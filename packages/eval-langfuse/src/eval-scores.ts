@@ -180,10 +180,6 @@ function ragRagasSample(item: AgentProductEvalItem): JsonObject {
 
 function deterministicScores(item: AgentProductEvalItem): Record<string, number> {
 	const scores: Record<string, number> = {};
-	if (item.case.expected_outcome) {
-		scores["execution.outcome_match"] =
-			item.terminal.resultKind === item.case.expected_outcome ? 1 : 0;
-	}
 	if (expectsRetrievedContext(item.case)) {
 		scores["retrieval.context_present"] = item.projection.retrievedContexts.length > 0 ? 1 : 0;
 	}

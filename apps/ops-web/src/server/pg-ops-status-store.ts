@@ -143,10 +143,10 @@ export function createPgOpsStatusStoreDatabase(
 				const result = await pool.query(
 					`${requestRowsCte()}
 						select
-							count(*) filter (where "status" in ('approval_required', 'needs_clarification'))::int as "actionRequired",
+							count(*) filter (where "status" = 'approval_required')::int as "actionRequired",
 							count(*) filter (where "status" = 'cancelled')::int as "cancelled",
 							count(*) filter (where "status" = 'completed')::int as "completed",
-							count(*) filter (where "status" in ('error', 'rejected', 'no_answer'))::int as "failed",
+							count(*) filter (where "status" in ('error', 'rejected'))::int as "failed",
 							count(*) filter (where "status" = 'accepted')::int as "pending",
 							count(*) filter (where "status" = 'running')::int as "running",
 							count(*)::int as "total",
@@ -175,7 +175,7 @@ export function createPgOpsStatusStoreDatabase(
 						select
 							date_bin($2::interval, "started_at", timestamptz '1970-01-01') as "bucketStart",
 							count(*) filter (where "status" = 'completed')::int as "completed",
-							count(*) filter (where "status" in ('error', 'rejected', 'no_answer'))::int as "failed",
+							count(*) filter (where "status" in ('error', 'rejected'))::int as "failed",
 							count(*)::int as "total",
 							round(percentile_cont(0.95) within group (order by "duration_ms"))::int as "p95DurationMs"
 						from request_rows

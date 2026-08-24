@@ -28,6 +28,7 @@ func TestCheckedInExecutionControlToolsRetainCurrentExposure(t *testing.T) {
 	}
 	registeredEndpoints := executionControlToolEndpointsByPath()
 	wantEndpoints := map[string]string{
+		"campus_search":          "/internal/campus/search",
 		"personal_memory_recall": "/internal/memory/personal/recall",
 	}
 
@@ -159,6 +160,7 @@ func isObjectOrNullableObject(value any) bool {
 
 func executionControlToolEndpointsByPath() map[string]string {
 	return map[string]string{
+		"/internal/campus/search":          campusSearchToolName,
 		"/internal/memory/personal/recall": personalMemoryRecallToolName,
 	}
 }

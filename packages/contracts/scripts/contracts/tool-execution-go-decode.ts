@@ -1,15 +1,20 @@
 export function goDecodeHelpers({
 	executionPaths,
+	executionStatuses,
 	stageTimingFields,
 	toolIds,
 }: {
 	executionPaths: string[];
+	executionStatuses: string[];
 	stageTimingFields: string[];
 	toolIds: string[];
 }): string {
 	const toolIdCases = toolIds.map((value) => `ToolID${goConstSuffix(value)}`).join(", ");
 	const executionPathCases = executionPaths
 		.map((value) => `ExecutionPath${goConstSuffix(value)}`)
+		.join(", ");
+	const executionStatusCases = executionStatuses
+		.map((value) => `ExecutionStatus${goConstSuffix(value)}`)
 		.join(", ");
 	const stageTimingFieldCases = stageTimingFields
 		.map((value) => `StageTimingField${goConstSuffix(value)}`)
@@ -45,8 +50,6 @@ func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire
 \tif err := requireJSONObjectFields(data, []string{
 \t\t"status",
 \t\t"answer_text",
-\t\t"follow_up_question",
-\t\t"confidence",
 \t\t"result",
 \t\t"error",
 \t\t"model_usage",
@@ -197,9 +200,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \tif !wire.Status.Valid() {
 \t\treturn fmt.Errorf("status is invalid")
 \t}
-\tif !wire.Confidence.Valid() {
-\t\treturn fmt.Errorf("confidence is invalid")
-\t}
 \tif wire.TraceID == "" {
 \t\treturn fmt.Errorf("trace_id is required")
 \t}
@@ -254,18 +254,9 @@ func (value ToolID) Valid() bool {
 \t}
 }
 
-func (value ConfidenceLevel) Valid() bool {
-\tswitch value {
-\tcase ConfidenceLevelHigh, ConfidenceLevelMedium, ConfidenceLevelLow:
-\t\treturn true
-\tdefault:
-\t\treturn false
-\t}
-}
-
 func (value ExecutionStatus) Valid() bool {
 \tswitch value {
-\tcase ExecutionStatusCompleted, ExecutionStatusNeedsClarification, ExecutionStatusNoAnswer, ExecutionStatusError, ExecutionStatusRejected, ExecutionStatusApprovalRequired, ExecutionStatusCancelled:
+\tcase __EXECUTION_STATUS_CASES__:
 \t\treturn true
 \tdefault:
 \t\treturn false
@@ -293,6 +284,7 @@ func (value StageTimingField) Valid() bool {
 `;
 	const result = template
 		.replace("__TOOL_ID_CASES__", toolIdCases)
+		.replace("__EXECUTION_STATUS_CASES__", executionStatusCases)
 		.replace("__EXECUTION_PATH_CASES__", executionPathCases)
 		.replace("__STAGE_TIMING_FIELD_CASES__", stageTimingFieldCases);
 	return result;

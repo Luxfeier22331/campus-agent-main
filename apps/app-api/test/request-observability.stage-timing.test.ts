@@ -42,10 +42,9 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 	return {
 		answerText: "当前没有足够依据回答这个问题。",
 		error: null,
-		followUpQuestion: "",
 		observability: null,
 		result: null,
-		status: "no_answer",
+		status: "completed",
 		traceId: "trace_01HQ",
 		...overrides,
 		modelUsage: overrides.modelUsage ?? {

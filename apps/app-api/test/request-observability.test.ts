@@ -45,10 +45,9 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 	return {
 		answerText: "当前没有足够依据回答这个问题。",
 		error: null,
-		followUpQuestion: "",
 		observability: null,
 		result: null,
-		status: "no_answer",
+		status: "completed",
 		traceId: "trace_01HQ",
 		...overrides,
 		modelUsage: overrides.modelUsage ?? {
@@ -74,7 +73,7 @@ function buildFinalizedFact(
 		runId: "run_01HQ",
 		safetyIdentifier: null,
 		startedAt: "2026-04-05T08:00:00.000Z",
-		status: "no_answer",
+		status: "completed",
 		surface: "campus_web",
 		traceId: "trace_01HQ",
 		...overrides,
@@ -107,7 +106,6 @@ describe("request observability", () => {
 			aclDecision: "allowed",
 			failClosed: false,
 			safetyIdentifier,
-			semanticOutcome: "answer",
 			status: "completed",
 		});
 		expect(finalized).not.toHaveProperty("inputTokens");
@@ -116,27 +114,27 @@ describe("request observability", () => {
 		expect(finalized).not.toHaveProperty("totalTokens");
 	});
 
-	it("derives terminal policy facts from the final status", () => {
-		const noAnswer = buildFinalizedFact();
+	it("derives policy facts from the final status", () => {
+		const completed = buildFinalizedFact();
 		const rejected = buildFinalizedFact({
 			errorCode: "request_rejected",
 			response: createResponse({ status: "rejected" }),
 			status: "rejected",
 		});
 
-		expect(noAnswer).toMatchObject({
+		expect(completed).toMatchObject({
 			aclDecision: "allowed",
-			failClosed: true,
-			refusalClass: "no_answer",
-			semanticOutcome: "no_answer",
+			failClosed: false,
 		});
 		expect(rejected).toMatchObject({
 			aclDecision: "denied",
 			failClosed: true,
 			policyReason: "request_rejected",
-			refusalClass: "rejected",
-			semanticOutcome: "policy_refusal",
 		});
+		expect(completed).not.toHaveProperty("refusalClass");
+		expect(completed).not.toHaveProperty("semanticOutcome");
+		expect(rejected).not.toHaveProperty("refusalClass");
+		expect(rejected).not.toHaveProperty("semanticOutcome");
 	});
 
 	it("persists official workflow and trace projections without raw runtime payloads", () => {

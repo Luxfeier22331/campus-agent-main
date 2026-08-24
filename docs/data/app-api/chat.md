@@ -24,8 +24,8 @@ status: active
 
 保存会话中的用户与助手消息，并通过可选 `request_id` 关联产生助手消息的请求。
 
-助手消息类型当前包括 `answer`、`clarification`、`no_answer` 和 `error`。用户消息不写助手
-消息类型。
+助手消息类型当前只包括 `answer` 和 `error`。追问、资料不足和范围说明都属于正常助手正文，写为
+`answer`；用户消息不写助手消息类型。
 
 `structured_parts_json` 只保存已经进入产品合同的结构化展示内容。app-api 必须把执行侧数据
 转换为浏览器合同，不保存供应商原始响应、内部工具参数或内部标识。`trace_id` 通过请求关联

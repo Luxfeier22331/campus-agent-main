@@ -102,6 +102,14 @@
 			"notes": "Bounded model-facing personal memory recall request and result contract."
 		},
 		{
+			"id": "campus-search-tool-contracts.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Bounded model-facing Campus Docs search request, evidence and result contract."
+		},
+		{
 			"id": "runtime-tool-function-schemas.v3",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v3.schema.json",

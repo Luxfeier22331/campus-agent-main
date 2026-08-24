@@ -40,7 +40,7 @@ func TestBuildAgentAdmissionSnapshotResolvesPrimaryAgentTargetOnce(t *testing.T)
 	if snapshot.PrimaryAgentTargetSHA256 != primaryAgentModelTargetSHA256ForTest {
 		t.Fatalf("provider admission hashes = %#v", snapshot)
 	}
-	if snapshot.ExecutionStrategy.MemoryRecall != "model_optional" {
+	if !containsString(snapshot.ExecutionStrategy.VisibleToolNames, personalMemoryRecallToolName) {
 		t.Fatalf("execution strategy = %#v", snapshot.ExecutionStrategy)
 	}
 	snapshot.ExecutionStrategy.MaxToolCalls++

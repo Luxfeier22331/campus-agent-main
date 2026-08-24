@@ -303,9 +303,7 @@ async function readFrozenInput(
 function finalizationResponse(input: CreateRunInput, answerNumber: number): JsonRecord {
 	return {
 		answer_text: `本地测试回答 #${answerNumber}`,
-		confidence: "high",
 		error: null,
-		follow_up_question: "",
 		model_usage: {
 			cached_input_tokens: 0,
 			input_tokens: 0,

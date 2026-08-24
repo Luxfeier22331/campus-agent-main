@@ -108,10 +108,6 @@ func (Activities) ExecutePrimaryAgentActivity(
 		FinalOutput:    "你好，我是校园问答助手。",
 		RunID:          input.RunID,
 		Status:         "completed",
-		TerminalEnvelope: map[string]any{
-			"answer_text": "你好，我是校园问答助手。",
-			"kind":        "answer",
-		},
 		TerminalReason: "answer_completed",
 	}, nil
 }

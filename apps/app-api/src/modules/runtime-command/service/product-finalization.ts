@@ -10,7 +10,6 @@ export function acceptedCloseoutContext(
 		branchId: candidate.conversation.activeBranchId ?? "branch_active",
 		conversation: candidate.conversation,
 		conversationTitle: candidate.conversationTitle,
-		frozenAdmission: null,
 		idempotencyKey: candidate.idempotencyKey,
 		input: {
 			payload: {

@@ -39,8 +39,8 @@ blockquote 和 table。publisher 只消费来源清单选中的当前 reader。
 
 ### 模型可见工具
 
-当前运行中通过 `tools.v6.json` 和冻结准入策略向 Primary Agent 暴露的函数工具。当前没有机构知识
-检索工具；离线索引存在不表示模型已经获得知识上下文。
+当前运行中通过 `tools.v6.json` 和冻结准入策略向 Primary Agent 暴露的函数工具。当前机构知识通过只读
+`campus_search` 按需检索；离线索引存在不表示模型已经获得知识上下文。
 
 ### 工具调用上限
 

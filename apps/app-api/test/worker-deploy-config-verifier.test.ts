@@ -1,15 +1,12 @@
 // @vitest-environment node
 
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { main as verifyWorkerDeployConfig } from "../../../scripts/deploy/verify-worker-deploy-config.ts";
 
-const testDir = resolve(fileURLToPath(import.meta.url), "..");
-const repoRoot = resolve(testDir, "../../..");
-const verifierScript = resolve(repoRoot, "scripts/deploy/verify-worker-deploy-config.ts");
+afterEach(() => vi.restoreAllMocks());
 
 function writeConfig(payload: unknown) {
 	const workDir = mkdtempSync(join(tmpdir(), "worker-deploy-config-"));
@@ -19,37 +16,37 @@ function writeConfig(payload: unknown) {
 }
 
 describe("worker deploy config verifier", () => {
-	it("requires ROUTE assertions to be custom domain routes", () => {
+	it("requires ROUTE assertions to be custom domain routes", async () => {
 		const configPath = writeConfig({
 			routes: [{ pattern: "campus-staging.mucwiki-edge.link" }],
 			services: [],
 			vars: {},
 		});
 
-		const result = spawnSync(
-			"pnpm",
-			["exec", "tsx", verifierScript, configPath, "ROUTE:campus-staging.mucwiki-edge.link"],
-			{ encoding: "utf8" },
-		);
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const status = await verifyWorkerDeployConfig([
+			configPath,
+			"ROUTE:campus-staging.mucwiki-edge.link",
+		]);
 
-		expect(result.status).toBe(1);
-		expect(result.stderr).toContain("custom domain route campus-staging.mucwiki-edge.link");
+		expect(status).toBe(1);
+		expect(errorSpy).toHaveBeenCalledWith(
+			expect.stringContaining("custom domain route campus-staging.mucwiki-edge.link"),
+		);
 	});
 
-	it("accepts ROUTE assertions for custom domain routes", () => {
+	it("accepts ROUTE assertions for custom domain routes", async () => {
 		const configPath = writeConfig({
 			routes: [{ custom_domain: true, pattern: "campus-staging.mucwiki-edge.link" }],
 			services: [],
 			vars: {},
 		});
 
-		const result = spawnSync(
-			"pnpm",
-			["exec", "tsx", verifierScript, configPath, "ROUTE:campus-staging.mucwiki-edge.link"],
-			{ encoding: "utf8" },
-		);
+		const status = await verifyWorkerDeployConfig([
+			configPath,
+			"ROUTE:campus-staging.mucwiki-edge.link",
+		]);
 
-		expect(result.status).toBe(0);
-		expect(result.stderr).toBe("");
+		expect(status).toBe(0);
 	});
 });

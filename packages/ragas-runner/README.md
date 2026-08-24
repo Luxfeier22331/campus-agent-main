@@ -15,9 +15,11 @@ runner 不连接 Langfuse、不选择数据集、不从 trace 读取正文、不
 `eval_judge_llm`、`eval_ragas_llm`、`eval_ragas_embedding` 和独立的
 `eval_ragas_reranker`。它不是跨服务合同，也不由 `packages/contracts` 注册。
 
-`rag` 评分命令只使用 `eval_ragas_llm` 和 `eval_ragas_embedding` 调用 Ragas 官方指标。需要在检索
-实验中显式调用 Cohere Rerank 的调用方可以复用同一文件中的 `eval_ragas_reranker`；该配置不会被
-自动解析为在线 Model Config 的 `campus_docs_reranker`，也不会改变 native Ragas 样本的最终
+`rag` 评分命令只使用 `eval_ragas_llm` 和 `eval_ragas_embedding` 调用 Ragas 官方指标。LLM 评分固定
+使用 `openai.responses` 的 `text.format.json_schema` 结构化输出路径，不调用工具或设置 `tool_choice`；
+embedding 继续使用 OpenAI-compatible embeddings 接口。
+需要在检索实验中显式调用 Cohere Rerank 的调用方可以复用同一文件中的 `eval_ragas_reranker`；该配置
+不会被自动解析为在线 Model Config 的 `campus_docs_reranker`，也不会改变 native Ragas 样本的最终
 `retrieved_contexts`。
 
 ```bash

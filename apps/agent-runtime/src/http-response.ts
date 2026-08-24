@@ -121,7 +121,6 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 			prompt_template_sha256: result.promptTrace.promptTemplateSha256,
 			rendered_prompt_sha256: result.promptTrace.renderedPromptSha256,
 		},
-		terminal_envelope: terminalEnvelopeWire(result.terminalEnvelope),
 		provider_response_id: result.providerResponseId,
 		stage_timing: result.stageTiming,
 		tool_results: result.toolResults.map((toolResult) => ({
@@ -181,16 +180,4 @@ export function errorMessage(error: unknown): string {
 
 function encodeSseEvent(event: string, data: unknown): Uint8Array {
 	return new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-}
-
-function terminalEnvelopeWire(envelope: PrimaryAgentRunResult["terminalEnvelope"]) {
-	if (envelope === undefined) {
-		return;
-	}
-	return {
-		kind: envelope.kind,
-		answer_text: envelope.answerText,
-		follow_up_question: envelope.followUpQuestion,
-		reason: envelope.reason,
-	};
 }

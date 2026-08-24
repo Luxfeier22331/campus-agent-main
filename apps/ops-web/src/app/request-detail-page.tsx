@@ -6,7 +6,6 @@ import {
 	Bot,
 	CheckCircle2,
 	CircleAlert,
-	ExternalLink,
 	Globe2,
 	MessageSquareText,
 	RefreshCw,
@@ -323,9 +322,7 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 						key={[
 							source.title,
 							source.collectionLabel,
-							source.publisherLabel,
 							source.sectionTitle,
-							source.pageLabel,
 							source.versionLabel,
 							source.primaryAction.href,
 							source.primaryAction.label,
@@ -334,11 +331,23 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 						].join(":")}
 					>
 						<div className="flex flex-wrap items-start justify-between gap-3">
-							<div className="min-w-0">
-								<p className="font-medium text-foreground">{source.title}</p>
-								<p className="mt-1 text-muted-foreground text-xs">
-									{[source.collectionLabel, source.publisherLabel].filter(Boolean).join(" · ")}
-								</p>
+							<div className="flex min-w-0 items-start gap-2">
+								<span
+									aria-label={`引用 ${source.citationIndexes.join("、")}`}
+									className="text-muted-foreground shrink-0 text-sm font-medium"
+									role="img"
+								>
+									{source.citationIndexes.map((index) => `[${index}]`).join(" ")}
+								</span>
+								<div className="min-w-0">
+									<p className="font-medium text-foreground">{source.title}</p>
+									{source.sectionTitle ? (
+										<p className="mt-1 text-muted-foreground text-xs">{source.sectionTitle}</p>
+									) : null}
+									<p className="mt-1 text-muted-foreground text-xs">
+										{[source.collectionLabel, source.versionLabel].filter(Boolean).join(" · ")}
+									</p>
+								</div>
 							</div>
 							<SourceAction source={source} />
 						</div>
@@ -367,11 +376,8 @@ function SourceAction({
 		<a
 			className="inline-flex min-h-10 items-center gap-2 font-medium text-info text-sm hover:underline"
 			href={action.href}
-			rel={action.external ? "noreferrer" : undefined}
-			target={action.external ? "_blank" : undefined}
 		>
 			{action.label}
-			{action.external ? <ExternalLink className="size-4" /> : null}
 		</a>
 	);
 }

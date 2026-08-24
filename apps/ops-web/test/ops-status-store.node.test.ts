@@ -135,7 +135,9 @@ describe("PostgreSQL ops status store", () => {
 		expect(detail.result.state === "WRITTEN" ? detail.result.sources : []).toHaveLength(1);
 		expect(
 			detail.result.state === "WRITTEN" ? detail.result.sources[0]?.primaryAction.href : null,
-		).toBe("https://campus.example.test/documents/student-rules");
+		).toBe(
+			"https://campus.example.test/docs/regulations/student_rules/student-rules/v/2026-current#deferred-exam",
+		);
 		expect(detail.usage).toEqual({
 			cachedInputTokens: 200,
 			inputTokens: 1_200,
@@ -181,63 +183,63 @@ describe("PostgreSQL ops status store", () => {
 			{
 				sourceItems: [
 					{
+						citationIndexes: [1],
 						collectionLabel: "校园服务",
-						pageLabel: "页面",
+						kind: "campus_document",
 						primaryAction: {
 							disabledReason: null,
 							external: false,
-							href: "/documents/student-rules",
-							label: "打开",
+							href: "/docs/regulations/student_rules/student-rules/v/2026-current#status",
+							label: "查看文档",
 						},
-						publisherLabel: "校园服务中心",
 						sectionTitle: "状态",
 						snippet: null,
 						title: "校园信息",
 						versionLabel: "当前",
 					},
 					{
-						collectionLabel: "外部来源",
-						pageLabel: "来源",
-						primaryAction: {
-							disabledReason: null,
-							external: true,
-							href: "https://source.example.test/page",
-							label: "查看来源",
-						},
-						publisherLabel: "来源方",
-						sectionTitle: "正文",
-						snippet: null,
-						title: "外部页面",
-						versionLabel: "当前",
-					},
-					{
+						citationIndexes: [2],
 						collectionLabel: "错误来源",
-						pageLabel: "来源",
+						kind: "campus_document",
 						primaryAction: {
 							disabledReason: null,
-							external: true,
+							external: false,
 							href: "javascript:alert(1)",
-							label: "错误链接",
+							label: "查看文档",
 						},
-						publisherLabel: "来源方",
 						sectionTitle: "正文",
 						snippet: null,
 						title: "错误页面",
 						versionLabel: "当前",
 					},
 					{
+						citationIndexes: [3],
 						collectionLabel: "明文来源",
-						pageLabel: "来源",
+						kind: "campus_document",
 						primaryAction: {
 							disabledReason: null,
-							external: true,
+							external: false,
 							href: "http://source.example.test/page",
-							label: "错误链接",
+							label: "查看文档",
 						},
-						publisherLabel: "来源方",
 						sectionTitle: "正文",
 						snippet: null,
 						title: "明文页面",
+						versionLabel: "当前",
+					},
+					{
+						citationIndexes: [4],
+						collectionLabel: "协议来源",
+						kind: "campus_document",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: "//source.example.test/page",
+							label: "查看文档",
+						},
+						sectionTitle: "正文",
+						snippet: null,
+						title: "协议页面",
 						versionLabel: "当前",
 					},
 				],
@@ -259,12 +261,27 @@ describe("PostgreSQL ops status store", () => {
 			disabledReason: "Campus Web 地址未配置。",
 			href: null,
 		});
-		expect(detail.result.sources[1]?.primaryAction.href).toBe("https://source.example.test/page");
-		expect(detail.result.sources[2]?.primaryAction).toMatchObject({
+
+		const withOrigin = createPgOpsStatusStore({
+			campusWebPublicOrigin: "https://campus.example.test",
+			db: createFakeOpsDb({ requestRows: [request] }),
+			now: () => now,
+		});
+		const detailWithOrigin = OpsRequestDetailResponseSchema.parse(
+			await withOrigin.getRequestDetail(request.requestId),
+		);
+		if (detailWithOrigin.result.state !== "WRITTEN") {
+			throw new Error("expected written result");
+		}
+		expect(detailWithOrigin.result.sources[1]?.primaryAction).toMatchObject({
 			disabledReason: "来源链接地址无效。",
 			href: null,
 		});
-		expect(detail.result.sources[3]?.primaryAction).toMatchObject({
+		expect(detailWithOrigin.result.sources[2]?.primaryAction).toMatchObject({
+			disabledReason: "来源链接地址无效。",
+			href: null,
+		});
+		expect(detailWithOrigin.result.sources[3]?.primaryAction).toMatchObject({
 			disabledReason: "来源链接地址无效。",
 			href: null,
 		});
@@ -468,10 +485,10 @@ describe("PostgreSQL ops status store", () => {
 			requestRow({
 				attentionPriority: 2,
 				attentionReason: "WAITING_USER",
-				assistantKind: "clarification",
+				assistantKind: "error",
 				requestId: "req_waiting_user",
 				startedAt: new Date("2026-07-09T07:29:40.000Z"),
-				status: "needs_clarification",
+				status: "approval_required",
 			}),
 			requestRow({
 				assistantKind: null,
@@ -510,24 +527,21 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
-	it("derives lifecycle phases from admission and agent run facts", async () => {
+	it("derives lifecycle phases from dispatch and agent run facts", async () => {
 		const requestRows = [
 			requestRow({
-				admissionStatus: "pending_admission",
 				completedAt: null,
 				requestId: "req_waiting",
 				runStatus: null,
 				status: "accepted",
 			}),
 			requestRow({
-				admissionStatus: "admitted",
 				completedAt: null,
 				requestId: "req_streaming",
 				runStatus: "streaming",
 				status: "running",
 			}),
 			requestRow({
-				admissionStatus: "admitted",
 				completedAt: null,
 				requestId: "req_finalizing",
 				runStatus: "completed",
@@ -546,7 +560,7 @@ describe("PostgreSQL ops status store", () => {
 		).toEqual(
 			expect.arrayContaining([
 				{ lifecyclePhase: "STREAMING", requestId: "req_streaming" },
-				{ lifecyclePhase: "WAITING_ADMISSION", requestId: "req_waiting" },
+				{ lifecyclePhase: "QUEUED", requestId: "req_waiting" },
 				{ lifecyclePhase: "FINALIZING", requestId: "req_finalizing" },
 			]),
 		);

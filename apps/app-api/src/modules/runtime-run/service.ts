@@ -1,6 +1,3 @@
-import { randomUUID } from "node:crypto";
-
-import { EXECUTION_CONTROL_TIMEOUT_MS } from "../../config";
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
 import {
@@ -10,7 +7,6 @@ import {
 } from "../integration";
 import { toBrowserRunEvent } from "./browser-projection";
 import type {
-	RuntimeRunCancellationClaim,
 	RuntimeRunEventProjection,
 	RuntimeRunEventSubscriptionPolicy,
 	RuntimeRunOwnershipRecord,
@@ -28,8 +24,6 @@ const DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY = {
 	maxAttempts: 180,
 	waitMs: 25_000,
 } as const;
-
-const CANCELLATION_LEASE_MS = EXECUTION_CONTROL_TIMEOUT_MS + 30_000;
 
 const RUNTIME_RUN_STEP_PHASES: RuntimeRunStepPhase[] = [
 	"queued",
@@ -245,25 +239,24 @@ function deriveRunSteps(
 
 export function buildRuntimeRunService(input: {
 	executionRuntime: ExecutionControlRuntimeClient;
-	finalizeLocalCancellation?: (input: { completedAt: string; runId: string }) => Promise<void>;
-	now?: () => Date;
+	ensureRun?: (input: { runId: string; traceId: string }) => Promise<ExecutionControlRun>;
 	store: RuntimeRunStore;
 }): RuntimeRunService {
-	const now = input.now ?? (() => new Date());
-
-	function newCancellationLeaseToken(): string {
-		return `cancel_lease_${randomUUID().replace(/-/g, "")}`;
+	function ensureMissingRun(error: unknown, owned: RuntimeRunOwnershipRecord) {
+		if (
+			owned.status === "accepted" &&
+			error instanceof ExecutionControlTransportError &&
+			error.status === 404 &&
+			(error.code === "durable_run_not_found" || error.code === "execution_run_not_found")
+		) {
+			if (!input.ensureRun) {
+				throw error;
+			}
+			return input.ensureRun;
+		}
+		throw error;
 	}
 
-	async function claimCancellation(runId: string): Promise<RuntimeRunCancellationClaim | null> {
-		const claimedAt = now();
-		return input.store.claimCancellation({
-			leaseExpiresAt: new Date(claimedAt.getTime() + CANCELLATION_LEASE_MS),
-			leaseToken: newCancellationLeaseToken(),
-			now: claimedAt,
-			runId,
-		});
-	}
 	function validateSubscriptionPolicy(
 		policy?: RuntimeRunEventSubscriptionPolicy,
 	): Required<RuntimeRunEventSubscriptionPolicy> {
@@ -368,135 +361,6 @@ export function buildRuntimeRunService(input: {
 		};
 	}
 
-	function toLocalRunSummary(
-		run: RuntimeRunOwnershipRecord,
-		override: { status?: string; terminalReason?: string } = {},
-	): RuntimeRunSummary {
-		let status = override.status;
-		if (!status) {
-			switch (run.status) {
-				case "accepted":
-					status = run.admissionStatus === "admitted" ? "accepted" : "pending_admission";
-					break;
-				case "completed":
-				case "needs_clarification":
-				case "no_answer":
-				case "approval_required":
-				case "rejected":
-					status = "completed";
-					break;
-				case "error":
-					status = "failed";
-					break;
-				case "cancelled":
-					status = "canceled";
-					break;
-				default:
-					throw new ExecutionControlTransportError({
-						code: "runtime_invariant_failed",
-						message: "Product run status is not supported.",
-						retryable: false,
-						status: 500,
-					});
-			}
-		}
-		const phase: RuntimeRunPhase =
-			status === "canceled"
-				? "canceled"
-				: status === "completed"
-					? "completed"
-					: status === "failed"
-						? "failed"
-						: status === "accepted"
-							? "admitted"
-							: "queued";
-		const acceptedAt = normalizeRunTimestamp(run.acceptedAt) ?? run.acceptedAt;
-		const completedAt = isTerminalExecutionStatus(status)
-			? normalizeRunTimestamp(run.completedAt)
-			: null;
-		return {
-			acceptedAt,
-			completedAt,
-			conversationId: run.conversationId,
-			durationMs: completedAt ? durationMsBetween(acceptedAt, completedAt) : null,
-			phase,
-			requestId: run.requestId,
-			runId: run.runId,
-			startedAt: null,
-			status,
-			...(override.terminalReason || run.cancelReason
-				? { terminalReason: override.terminalReason ?? run.cancelReason ?? "" }
-				: {}),
-			traceId: run.traceId,
-		};
-	}
-
-	async function finalizeLocalCancellation(
-		claim: RuntimeRunCancellationClaim,
-	): Promise<RuntimeRunSummary> {
-		const run = claim.run;
-		try {
-			if (!input.finalizeLocalCancellation) {
-				throw new ExecutionControlTransportError({
-					code: "dependency_not_ready",
-					message: "Local run cancellation finalization is not configured.",
-					retryable: true,
-					status: 503,
-				});
-			}
-			await input.finalizeLocalCancellation({
-				completedAt: run.requestedAt,
-				runId: run.runId,
-			});
-			return toLocalRunSummary(run, {
-				status: "canceled",
-				terminalReason: run.cancelReason ?? "user_requested",
-			});
-		} catch (error) {
-			await input.store.recordCancellationFailure({
-				errorCode:
-					error instanceof ExecutionControlTransportError
-						? error.code
-						: "local_cancellation_finalization_failed",
-				failedAt: now().toISOString(),
-				leaseToken: claim.leaseToken,
-				runId: run.runId,
-			});
-			throw error;
-		}
-	}
-
-	async function deliverRemoteCancellation(
-		claim: RuntimeRunCancellationClaim,
-	): Promise<ExecutionControlRun> {
-		const run = claim.run;
-		try {
-			const remote = await input.executionRuntime.cancelRun({
-				reason: run.cancelReason ?? "user_requested",
-				runId: run.runId,
-				traceId: run.traceId,
-			});
-			assertRunMatchesOwnership(run, remote);
-			await input.store.markCancellationDelivered({
-				deliveredAt: now().toISOString(),
-				leaseToken: claim.leaseToken,
-				runId: run.runId,
-			});
-			return remote;
-		} catch (error) {
-			await input.store.recordCancellationFailure({
-				errorCode:
-					error instanceof ExecutionControlTransportError
-						? error.code
-						: "execution_control_unavailable",
-				failedAt: now().toISOString(),
-				leaseToken: claim.leaseToken,
-				runId: run.runId,
-			});
-			throw error;
-		}
-	}
-
 	function isTerminalRunEvent(event: RuntimeRunEventProjection): boolean {
 		return (
 			event.eventType === "request.cancelled" ||
@@ -509,10 +373,6 @@ export function buildRuntimeRunService(input: {
 		return (
 			phase === "completed" || phase === "failed" || phase === "canceled" || phase === "expired"
 		);
-	}
-
-	function hasDurableProjection(owned: RuntimeRunOwnershipRecord): boolean {
-		return owned.admissionStatus === "admitted";
 	}
 
 	function assertSequenceAdvances(
@@ -594,18 +454,22 @@ export function buildRuntimeRunService(input: {
 		run: RuntimeRunSummary;
 	}> {
 		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
-		if (!hasDurableProjection(owned)) {
-			return {
-				events: [],
-				nextSequence: eventsInput.afterSequence ?? 0,
-				run: toLocalRunSummary(owned),
-			};
+		let run: ExecutionControlRun;
+		try {
+			run = await input.executionRuntime.getRun({
+				runId: owned.runId,
+				...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
+				traceId: owned.traceId,
+			});
+		} catch (error) {
+			run = await ensureMissingRun(
+				error,
+				owned,
+			)({
+				runId: owned.runId,
+				traceId: owned.traceId,
+			});
 		}
-		const run = await input.executionRuntime.getRun({
-			runId: owned.runId,
-			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
-			traceId: owned.traceId,
-		});
 		assertRunMatchesOwnership(owned, run);
 		return listDurableEventPage({
 			...(eventsInput.afterSequence === undefined
@@ -620,22 +484,24 @@ export function buildRuntimeRunService(input: {
 
 	return {
 		async cancel(cancelInput) {
-			await requireOwnedRun(cancelInput.principal, cancelInput.runId);
-			const decision = await input.store.requestCancellation({
-				ownerUserId: cancelInput.principal.actor.userId,
-				reason: cancelInput.reason.trim(),
-				requestedAt: now().toISOString(),
-				runId: cancelInput.runId.trim(),
-			});
-			if (!decision) {
-				throw new AppApiRouteError({
-					code: "run_not_found",
-					message: "Run not found.",
-					retryable: false,
-					status: 404,
+			const owned = await requireOwnedRun(cancelInput.principal, cancelInput.runId);
+			let current: ExecutionControlRun;
+			try {
+				current = await input.executionRuntime.getRun({
+					runId: owned.runId,
+					traceId: owned.traceId,
+				});
+			} catch (error) {
+				current = await ensureMissingRun(
+					error,
+					owned,
+				)({
+					runId: owned.runId,
+					traceId: owned.traceId,
 				});
 			}
-			if (decision.kind === "terminal") {
+			assertRunMatchesOwnership(owned, current);
+			if (isTerminalExecutionStatus(current.status)) {
 				throw new AppApiRouteError({
 					code: "run_already_terminal",
 					message: "Run is already terminal.",
@@ -643,87 +509,52 @@ export function buildRuntimeRunService(input: {
 					status: 409,
 				});
 			}
-			if (decision.kind === "remote_delivered") {
-				const remote = await input.executionRuntime.getRun({
-					runId: decision.run.runId,
-					traceId: decision.run.traceId,
-				});
-				assertRunMatchesOwnership(decision.run, remote);
-				return { run: toRunSummary(remote) };
-			}
-			const claim = await claimCancellation(decision.run.runId);
-			if (!claim) {
-				return { run: toLocalRunSummary(decision.run) };
-			}
-			if (claim.kind === "local_finalization") {
-				return { run: await finalizeLocalCancellation(claim) };
-			}
-			return { run: toRunSummary(await deliverRemoteCancellation(claim)) };
-		},
-		async dispatchPendingCancellations(dispatchInput = {}) {
-			const limit = Math.max(1, Math.min(dispatchInput.limit ?? 25, 100));
-			let delivered = 0;
-			let failed = 0;
-			let finalized = 0;
-			let processed = 0;
-			for (let index = 0; index < limit; index += 1) {
-				const claimedAt = now();
-				const candidates = await input.store.claimPendingCancellations({
-					leaseExpiresAt: new Date(claimedAt.getTime() + CANCELLATION_LEASE_MS),
-					leaseToken: newCancellationLeaseToken(),
-					limit: 1,
-					now: claimedAt,
-				});
-				const candidate = candidates[0];
-				if (!candidate) {
-					break;
-				}
-				processed += 1;
-				try {
-					if (candidate.kind === "local_finalization") {
-						await finalizeLocalCancellation(candidate);
-						finalized += 1;
-					} else {
-						await deliverRemoteCancellation(candidate);
-						delivered += 1;
-					}
-				} catch {
-					failed += 1;
-				}
-			}
-			return { delivered, failed, finalized, processed };
-		},
-		async getStatus(statusInput) {
-			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);
-			if (owned.status !== "accepted" || !hasDurableProjection(owned)) {
-				return { run: toLocalRunSummary(owned) };
-			}
-			const run = await input.executionRuntime.getRun({
+			const remote = await input.executionRuntime.cancelRun({
+				reason: cancelInput.reason.trim() || "user_requested",
 				runId: owned.runId,
 				traceId: owned.traceId,
 			});
+			assertRunMatchesOwnership(owned, remote);
+			return { run: toRunSummary(remote) };
+		},
+		async getStatus(statusInput) {
+			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);
+			let run: ExecutionControlRun;
+			try {
+				run = await input.executionRuntime.getRun({
+					runId: owned.runId,
+					traceId: owned.traceId,
+				});
+			} catch (error) {
+				run = await ensureMissingRun(
+					error,
+					owned,
+				)({
+					runId: owned.runId,
+					traceId: owned.traceId,
+				});
+			}
 			assertRunMatchesOwnership(owned, run);
 			return { run: toRunSummary(run) };
 		},
 		listEvents,
 		async listSteps(stepsInput) {
 			const owned = await requireOwnedRun(stepsInput.principal, stepsInput.runId);
-			if (!hasDurableProjection(owned)) {
-				return {
-					run: toLocalRunSummary(owned),
-					steps: RUNTIME_RUN_STEP_PHASES.map((phase) => ({
-						completedAt: null,
-						durationMs: null,
-						phase,
-						startedAt: null,
-						status: "pending",
-					})),
-				};
+			let run: ExecutionControlRun;
+			try {
+				run = await input.executionRuntime.getRun({
+					runId: owned.runId,
+					traceId: owned.traceId,
+				});
+			} catch (error) {
+				run = await ensureMissingRun(
+					error,
+					owned,
+				)({
+					runId: owned.runId,
+					traceId: owned.traceId,
+				});
 			}
-			const run = await input.executionRuntime.getRun({
-				runId: owned.runId,
-				traceId: owned.traceId,
-			});
 			assertRunMatchesOwnership(owned, run);
 			const eventTimeline = await listDurableEventPage({
 				afterSequence: 0,
@@ -755,9 +586,6 @@ export function buildRuntimeRunService(input: {
 					if (isTerminalRunEvent(event)) {
 						return;
 					}
-				}
-				if (result.run.status === "pending_admission") {
-					return;
 				}
 				if (isTerminalRunPhase(result.run.phase)) {
 					return;

@@ -22,7 +22,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
-					followUpQuestion: "",
 					modelUsage: {
 						cachedInputTokens: 10,
 						inputTokens: 120,
@@ -36,7 +35,9 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 					result: {
 						sources: [
 							{
+								citation_index: 1,
 								document_id: "student_rules/library-hours",
+								kind: "campus_document",
 								root_unit_ids: ["library-hours-default"],
 								section_ref:
 									"/docs/regulations/student_rules/library-hours/v/2026-current#default-hours",
@@ -48,7 +49,9 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 								version_slug: "2026-current",
 							},
 							{
+								citation_index: 2,
 								document_id: "student_rules/holiday-hours",
+								kind: "campus_document",
 								root_unit_ids: ["library-hours-holiday"],
 								section_ref:
 									"/docs/regulations/student_rules/holiday-hours/v/2026-current#holiday-hours",

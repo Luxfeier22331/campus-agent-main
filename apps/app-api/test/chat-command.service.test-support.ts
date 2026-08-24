@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { vi } from "vitest";
 
 import type {
@@ -18,13 +19,12 @@ import { parseExecutionFinalizationResponsePayload } from "../src/modules/integr
 import type {
 	AcceptedChatCommandStore,
 	AcceptRequestWrite,
-	ChatAdmissionStore,
 	ChatCommandObservabilityStore,
 	ChatCommandService,
 	ChatCommandServiceDependencies,
 	ChatConversationStore,
 	FinalizeRequestWrite,
-	FrozenChatAdmissionWrite,
+	FrozenDurableRunWrite,
 } from "../src/modules/runtime-command";
 import { buildChatCommandService as buildProductionChatCommandService } from "../src/modules/runtime-command";
 import { ChatFinalizationConflict } from "../src/modules/runtime-command/store-types";
@@ -32,9 +32,7 @@ import type { AppTelemetry } from "../src/modules/telemetry";
 
 export { createHmac } from "node:crypto";
 export type { ResolvedAppPrincipal } from "../src/modules/auth";
-export type ChatCommandStore = AcceptedChatCommandStore &
-	ChatAdmissionStore &
-	ChatCommandObservabilityStore;
+export type ChatCommandStore = AcceptedChatCommandStore & ChatCommandObservabilityStore;
 export interface ToolExecutionClient {
 	execute(input: ToolExecutionInput): Promise<ToolExecutionResponse>;
 	executeStream?(input: ToolExecutionInput): Promise<Response>;
@@ -61,21 +59,16 @@ const pendingProductCallbacks = new Map<
 	string,
 	(response: ToolExecutionResponse, completedAt: string) => Promise<void>
 >();
-// Durable admission now carries only a reference to the frozen execution input.
 // Keep the test transport's copy keyed by run id so the fake execution worker
-// exercises the same v3 boundary as production.
+// exercises the same frozen-input boundary as production.
 const frozenExecutionInputsByRun = new Map<string, string>();
 const finalizedConversations = new Map<string, ChatConversation>();
 const testServicesByStore = new WeakMap<ChatCommandStore, ChatCommandService>();
 const runtimeHandlesProductCallback = Symbol("runtimeHandlesProductCallback");
 const TEST_SAFETY_IDENTIFIER_HMAC_SECRET = "test-safety-identifier-secret";
 
-function rememberFrozenExecutionInput(input: {
-	admissionInputJson: string;
-	executionInputJson: string;
-}): void {
-	const admissionInput = JSON.parse(input.admissionInputJson) as Record<string, unknown>;
-	const runId = typeof admissionInput.runId === "string" ? admissionInput.runId : "";
+function rememberFrozenExecutionInput(input: { executionInputJson: string; runId: string }): void {
+	const runId = input.runId;
 	if (runId) {
 		frozenExecutionInputsByRun.set(runId, input.executionInputJson);
 	}
@@ -93,18 +86,34 @@ export function getFrozenExecutionPayload(runId: string): Record<string, unknown
 export function buildChatCommandService(
 	dependencies: Omit<
 		ChatCommandServiceDependencies,
-		"admissionStore" | "commandStore" | "observabilityStore"
-	> & { store: ChatCommandStore },
+		"abuseThrottleEnabled" | "commandStore" | "observabilityStore"
+	> & { abuseThrottleEnabled?: boolean; store: ChatCommandStore },
 ): ChatCommandService {
 	const { store, ...serviceDependencies } = dependencies;
-	const service = buildProductionChatCommandService({
+	const productionService = buildProductionChatCommandService({
 		...serviceDependencies,
-		admissionStore: store,
+		abuseThrottleEnabled: dependencies.abuseThrottleEnabled ?? true,
 		commandStore: store,
 		observabilityStore: store,
 		safetyIdentifierHmacSecret:
 			dependencies.safetyIdentifierHmacSecret ?? TEST_SAFETY_IDENTIFIER_HMAC_SECRET,
 	});
+	const testIdempotencyKey = (input: Parameters<ChatCommandService["submit"]>[0]) =>
+		input.idempotencyKey ??
+		`test:${input.requestKind ?? "public_chat"}:${JSON.stringify(input.payload)}`;
+	const service: ChatCommandService = {
+		...productionService,
+		submit: (input) =>
+			productionService.submit({ ...input, idempotencyKey: testIdempotencyKey(input) }),
+	};
+	const productionSubmitStream = productionService.submitStream;
+	if (productionSubmitStream) {
+		service.submitStream = (input) =>
+			productionSubmitStream({
+				...input,
+				idempotencyKey: testIdempotencyKey(input),
+			});
+	}
 	testServicesByStore.set(store, service);
 	const runtime = dependencies.executionRuntime as
 		| (ExecutionControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean })
@@ -241,32 +250,42 @@ export function createCommandStore(options?: {
 	const acceptedWrites: AcceptRequestWrite[] = [];
 	const finalWrites: FinalizeRequestWrite[] = [];
 	const requestStageTiming = new Map<string, Record<string, unknown>>();
-	const frozenAdmissions: FrozenChatAdmissionWrite[] = [];
-	const frozenAdmissionMemorySnapshots: Parameters<
-		AcceptRequestWrite["freezeDurableAdmission"]
-	>[0][] = [];
+	const frozenRuns: FrozenDurableRunWrite[] = [];
+	const frozenRunIds = new Map<string, string>();
+	const frozenMemorySnapshots: Parameters<AcceptRequestWrite["freezeDurableRun"]>[0][] = [];
 	finalizedConversations.delete(conversation.id);
 	let store: ChatCommandStore;
 	store = {
-		listPendingAdmissions: vi.fn(async () => []),
-		claimAdmission: vi.fn(async () => true),
-		releaseAdmission: vi.fn(async () => true),
-		markAdmitted: vi.fn(async () => true),
-		readExecutionInput: vi.fn(async () => null),
+		readDurableRunInput: vi.fn(async (runId: string) => {
+			const executionInputJson = frozenRunIds.get(runId);
+			return executionInputJson
+				? {
+						conversationId: conversation.id,
+						executionInputSha256: createHash("sha256")
+							.update(executionInputJson, "utf8")
+							.digest("hex"),
+						executionInputJson,
+						memoryRecallEnabled: options?.memorySnapshot?.recallEnabled ?? null,
+						ownerUserId: conversation.ownerUserId,
+						requestId: "req_0001",
+						runId,
+						surface: "campus_web",
+						status: "accepted" as const,
+						traceId: "trace_0001",
+						turnId: "turn_0001",
+					}
+				: null;
+		}),
 		acceptRequest: vi.fn(async (input) => {
 			const memorySnapshot =
 				input.requestKind === "public_chat" ? (options?.memorySnapshot ?? null) : null;
-			frozenAdmissionMemorySnapshots.push(memorySnapshot ? { ...memorySnapshot } : null);
-			const frozenAdmission = input.freezeDurableAdmission(memorySnapshot);
-			const admissionInput = JSON.parse(frozenAdmission.admissionInputJson) as Record<
-				string,
-				unknown
-			>;
-			const runId = typeof admissionInput.runId === "string" ? admissionInput.runId : "";
-			if (!runId) {
-				throw new Error("Frozen admission is missing its run id.");
+			frozenMemorySnapshots.push(memorySnapshot ? { ...memorySnapshot } : null);
+			const frozenRun = input.freezeDurableRun(memorySnapshot);
+			const runId = input.turnDispatch.runId ?? "";
+			if (!(runId && frozenRun.turnId)) {
+				throw new Error("Frozen run is missing its identity.");
 			}
-			rememberFrozenExecutionInput(frozenAdmission);
+			rememberFrozenExecutionInput({ ...frozenRun, runId });
 			pendingProductCallbacks.set(runId, async (response, completedAt) => {
 				const service = testServicesByStore.get(store);
 				if (!service?.applyProductFinalization) {
@@ -280,7 +299,8 @@ export function createCommandStore(options?: {
 				});
 				finalizedConversations.set(conversation.id, structuredClone(conversation));
 			});
-			frozenAdmissions.push(frozenAdmission);
+			frozenRuns.push(frozenRun);
+			frozenRunIds.set(runId, frozenRun.executionInputJson);
 			acceptedWrites.push(input);
 			requestStageTiming.set(input.turnDispatch.requestId, {
 				...(input.requestObservabilityFact.stageTiming ?? {}),
@@ -308,7 +328,7 @@ export function createCommandStore(options?: {
 				retryable: null,
 				structuredParts: [],
 			});
-			return { frozenAdmission, memorySnapshot };
+			return { memorySnapshot };
 		}),
 		finalizeRequest: vi.fn(async (input: FinalizeRequestWrite) => {
 			const existing = finalWrites.find(
@@ -454,8 +474,7 @@ export function createCommandStore(options?: {
 		acceptedWrites,
 		conversation,
 		finalWrites,
-		frozenAdmissionMemorySnapshots,
-		frozenAdmissions,
+		frozenMemorySnapshots,
 		requestStageTiming,
 		store,
 	};
@@ -928,7 +947,6 @@ function baseRunEvent(
 function responseWireFromToolResponse(response: ToolExecutionResponse): Record<string, unknown> {
 	return {
 		answer_text: response.answerText,
-		confidence: "high",
 		error: response.error
 			? {
 					code: response.error.code,
@@ -936,7 +954,6 @@ function responseWireFromToolResponse(response: ToolExecutionResponse): Record<s
 					retryable: response.error.retryable,
 				}
 			: null,
-		follow_up_question: response.followUpQuestion,
 		model_usage: {
 			cached_input_tokens: response.modelUsage.cachedInputTokens,
 			input_tokens: response.modelUsage.inputTokens,
@@ -990,7 +1007,6 @@ function executionErrorResponse(input: {
 			message: input.message,
 			retryable: input.retryable,
 		},
-		followUpQuestion: "",
 		modelUsage: { cachedInputTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
 		result: null,
 		status: input.status ?? "error",

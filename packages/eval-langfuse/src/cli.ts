@@ -36,6 +36,8 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			appApiBaseUrl: stringArg(args, "app-api-base-url"),
 			casesPath: stringArg(args, "cases"),
 			cookieHeader: stringArg(args, "cookie-header"),
+			executionControlAuthSecret: stringArg(args, "execution-control-auth-secret"),
+			executionControlBaseUrl: stringArg(args, "execution-control-base-url"),
 			...(limit === null ? {} : { limit }),
 			outputPath: stringArg(args, "output"),
 		});

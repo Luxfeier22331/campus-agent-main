@@ -37,6 +37,11 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/me/authorized-apps")).toBe(false);
 	});
 
+	it("allows the run steps route used by the chat status surface", () => {
+		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01HQ/steps")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01HQ/steps/raw")).toBe(false);
+	});
+
 	it("allows only the public campus groups catalog", () => {
 		expect(isAllowedCampusAppApiRequest("/api/campus-groups/catalog")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/internal/ops/campus-groups/state")).toBe(false);

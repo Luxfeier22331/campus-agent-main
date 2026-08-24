@@ -75,8 +75,7 @@ export function NoticePipelinePage() {
 				</div>
 			) : null}
 			<div className="mt-6">
-				<div className="mb-3 flex items-center justify-between gap-3">
-					<h2 className="font-semibold text-foreground text-lg">近期任务</h2>
+				<div className="mb-3 flex justify-end">
 					<Button
 						aria-label="刷新任务"
 						disabled={jobs.isFetching}
@@ -91,7 +90,7 @@ export function NoticePipelinePage() {
 				{jobs.isError && !jobs.data ? (
 					<ErrorState error={jobs.error} onRetry={() => jobs.refetch()} title="任务读取失败" />
 				) : null}
-				{jobs.data ? <JobList jobs={jobs.data.jobs} /> : null}
+				{jobs.data ? <JobGroups jobs={jobs.data.jobs} /> : null}
 			</div>
 		</section>
 	);
@@ -175,11 +174,32 @@ function OperationCard({
 	);
 }
 
-function JobList({ jobs }: { jobs: NoticePipelineJob[] }) {
+function JobGroups({ jobs }: { jobs: NoticePipelineJob[] }) {
+	const activeJobs = jobs.filter((job) => isActiveJob(job));
+	const historicalJobs = jobs.filter((job) => !isActiveJob(job));
+	return (
+		<>
+			<section aria-labelledby="notice-active-jobs-heading">
+				<h2 className="mb-3 font-semibold text-foreground text-lg" id="notice-active-jobs-heading">
+					活动任务
+				</h2>
+				<JobList emptyMessage="当前没有活动任务。" jobs={activeJobs} />
+			</section>
+			<section className="mt-6" aria-labelledby="notice-job-history-heading">
+				<h2 className="mb-3 font-semibold text-foreground text-lg" id="notice-job-history-heading">
+					历史结果
+				</h2>
+				<JobList emptyMessage="暂无历史结果。" jobs={historicalJobs} />
+			</section>
+		</>
+	);
+}
+
+function JobList({ emptyMessage, jobs }: { emptyMessage: string; jobs: NoticePipelineJob[] }) {
 	if (jobs.length === 0) {
 		return (
 			<p className="rounded-md border border-border p-5 text-muted-foreground text-sm">
-				暂无由 Ops Web 启动的通知任务。
+				{emptyMessage}
 			</p>
 		);
 	}
@@ -190,6 +210,10 @@ function JobList({ jobs }: { jobs: NoticePipelineJob[] }) {
 			))}
 		</div>
 	);
+}
+
+function isActiveJob(job: NoticePipelineJob): boolean {
+	return job.status === "pending" || job.status === "running";
 }
 
 function JobRow({ job }: { job: NoticePipelineJob }) {
