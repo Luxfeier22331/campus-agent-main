@@ -1,3 +1,4 @@
+import { CAMPUS_PASSWORD_MAX_LENGTH } from "campus-contracts/auth";
 import type { Hono } from "hono";
 
 import { type Env, readAuthShellOrigin } from "../../config";
@@ -201,7 +202,7 @@ export function registerAuthRoutes(input: {
 		}
 		const payload = await readJsonRequestBody(c.req.raw);
 		const password = typeof payload.password === "string" ? payload.password : "";
-		if (password.length === 0 || password.length > 128) {
+		if (password.length === 0 || password.length > CAMPUS_PASSWORD_MAX_LENGTH) {
 			throw new AppApiRouteError({
 				code: "REAUTHENTICATION_REQUIRED",
 				message: "Current password is required.",

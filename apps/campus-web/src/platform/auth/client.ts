@@ -1,6 +1,7 @@
 import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
+import { CAMPUS_PASSWORD_MAX_LENGTH, CAMPUS_PASSWORD_MIN_LENGTH } from "campus-contracts/auth";
 
 import {
 	buildSignupLegalConsentHeaders,
@@ -94,8 +95,8 @@ const USER_FACING_AUTH_ERROR_MESSAGES = {
 	missingCaptcha: "安全验证还没有完成，请稍后再试。",
 	captchaUnavailable: "安全验证服务暂时不可用，请稍后再试。",
 	captchaVerificationFailed: "安全验证未通过，请重新完成验证。",
-	passwordTooLong: "密码不能超过 128 个字符。",
-	passwordTooShort: "密码至少需要 10 个字符。",
+	passwordTooLong: `密码不能超过 ${CAMPUS_PASSWORD_MAX_LENGTH} 个字符。`,
+	passwordTooShort: `密码至少需要 ${CAMPUS_PASSWORD_MIN_LENGTH} 个字符。`,
 	temporaryPasswordExpired: "临时密码已经过期，请联系维护者重新签发。",
 } as const;
 

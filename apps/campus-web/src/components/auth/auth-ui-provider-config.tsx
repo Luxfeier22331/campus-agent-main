@@ -1,4 +1,5 @@
 import type { AuthProvider } from "@better-auth-ui/heroui";
+import { CAMPUS_PASSWORD_MAX_LENGTH, CAMPUS_PASSWORD_MIN_LENGTH } from "campus-contracts/auth";
 import type { ComponentProps } from "react";
 
 import { profileMemoryPlugin } from "@/features/profile-memory/auth-plugin";
@@ -26,8 +27,8 @@ export function createCampusSettingsProviderProps({
 			confirmPassword: true,
 			enabled: true,
 			forgotPassword: true,
-			maxPasswordLength: 128,
-			minPasswordLength: 10,
+			maxPasswordLength: CAMPUS_PASSWORD_MAX_LENGTH,
+			minPasswordLength: CAMPUS_PASSWORD_MIN_LENGTH,
 			name: true,
 			requireEmailVerification: true,
 			rememberMe: true,

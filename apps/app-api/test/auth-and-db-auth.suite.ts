@@ -1,3 +1,4 @@
+import { CAMPUS_PASSWORD_MAX_LENGTH, CAMPUS_PASSWORD_MIN_LENGTH } from "campus-contracts/auth";
 import { describe, expect, it, vi } from "vitest";
 import { appApiSchema } from "../src/db/schema";
 import {
@@ -41,8 +42,8 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.emailAndPassword).toMatchObject({
 				autoSignIn: false,
 				enabled: true,
-				maxPasswordLength: 128,
-				minPasswordLength: 10,
+				maxPasswordLength: CAMPUS_PASSWORD_MAX_LENGTH,
+				minPasswordLength: CAMPUS_PASSWORD_MIN_LENGTH,
 				password: expect.objectContaining({
 					hash: hashAppPassword,
 					verify: expect.any(Function),
@@ -371,6 +372,105 @@ export function registerAppApiAuthConfigSuite() {
 					user: { email: "jane@muc.edu.cn", id: "user_01HQ", name: "Jane" },
 				}),
 			).rejects.toThrow("Resend rate limit exceeded");
+		});
+
+		it("keeps primary authentication email actions failed when delivery is rejected", async () => {
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				emailSender: {
+					send: vi.fn().mockRejectedValue(new Error("Resend unavailable")),
+				},
+				readAuthEmailConfig,
+				database: {} as never,
+			} as never);
+
+			await expect(
+				config.emailAndPassword.sendResetPassword?.({
+					token: "reset_token_01HQ",
+					url: "https://campus.muc.wiki/reset-password/reset_token_01HQ?callbackURL=%2Faccount%2Freset-password",
+					user: { email: "jane@muc.edu.cn", name: "Jane Doe" },
+				}),
+			).rejects.toThrow("Resend unavailable");
+
+			await expect(
+				config.user.changeEmail.sendChangeEmailConfirmation?.({
+					newEmail: "jane-new@muc.edu.cn",
+					token: "change_token_01HQ",
+					url: "https://campus.muc.wiki/verify-email?token=change_token_01HQ&callbackURL=%2Faccount%2Fsettings%2Faccount",
+					user: { email: "jane@muc.edu.cn", name: "Jane Doe" },
+				}),
+			).rejects.toThrow("Resend unavailable");
+		});
+
+		it("keeps temporary password cleanup as part of the password reset result", async () => {
+			const clearTemporaryPasswordState = vi
+				.fn()
+				.mockRejectedValue(new Error("temporary password state unavailable"));
+			const send = vi.fn();
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				emailSender: { send },
+				readAuthEmailConfig,
+				clearTemporaryPasswordState,
+				database: {} as never,
+			} as never);
+
+			await expect(
+				config.emailAndPassword.onPasswordReset?.({
+					user: {
+						email: "jane@muc.edu.cn",
+						id: "user_01HQ",
+						name: "Jane Doe",
+					},
+				}),
+			).rejects.toThrow("temporary password state unavailable");
+			expect(send).not.toHaveBeenCalled();
+		});
+
+		it("does not turn a password reset into a failure when notification mail is rejected", async () => {
+			const clearTemporaryPasswordState = vi.fn().mockResolvedValue(undefined);
+			const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://campus.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				emailSender: {
+					send: vi.fn().mockRejectedValue(new Error("Resend unavailable")),
+				},
+				readAuthEmailConfig,
+				clearTemporaryPasswordState,
+				database: {} as never,
+			} as never);
+
+			try {
+				await expect(
+					config.emailAndPassword.onPasswordReset?.({
+						user: {
+							email: "jane@muc.edu.cn",
+							id: "user_01HQ",
+							name: "Jane Doe",
+						},
+					}),
+				).resolves.toBeUndefined();
+				expect(clearTemporaryPasswordState).toHaveBeenCalledWith("user_01HQ");
+				expect(consoleError).toHaveBeenCalledWith({
+					error_code: "password_changed_notification_failed",
+					error_type: "Error",
+					source: "app-api.auth",
+				});
+			} finally {
+				consoleError.mockRestore();
+			}
 		});
 
 		it("freezes reset redirect targets to /account/reset-password on the auth shell origin", () => {

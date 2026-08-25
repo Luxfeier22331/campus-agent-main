@@ -184,25 +184,50 @@ describe("campus-owned authentication journeys", () => {
 		expect(screen.queryByText(/管理员|邀请|已获邀请/u)).not.toBeInTheDocument();
 	});
 
-	it("allows a presentation-only password description without lowering sign-up validation", async () => {
+	it("accepts the eight-character password minimum used by sign-up", async () => {
 		const user = userEvent.setup();
-		const targetDescription = "至少 8 个字符，最多 128 个字符。可使用字母、数字、空格和符号。";
-		render(
-			<SignUpForm
-				{...sharedFormProps}
-				defaultEmail="student@muc.edu.cn"
-				passwordDescription={targetDescription}
-			/>,
-		);
+		render(<SignUpForm {...sharedFormProps} defaultEmail="student@muc.edu.cn" />);
 
-		expect(screen.getByText(targetDescription)).toBeVisible();
+		expect(screen.getByText("可使用字母、数字、空格和符号。")).toBeVisible();
 		await user.type(screen.getByLabelText("姓名"), "测试用户");
 		await user.type(screen.getByLabelText("密码", { exact: true }), "abcd1234");
 		await user.type(screen.getByLabelText("确认密码"), "abcd1234");
 		await user.click(screen.getByRole("checkbox"));
 		await user.click(screen.getByRole("button", { name: "创建账号" }));
 
-		expect(await screen.findByText("密码至少需要 10 个字符。")).toBeVisible();
+		expect(authClient.signUpEmail).toHaveBeenCalledWith(
+			expect.objectContaining({ password: "abcd1234" }),
+		);
+	});
+
+	it("rejects a seven-character sign-up password", async () => {
+		const user = userEvent.setup();
+		render(<SignUpForm {...sharedFormProps} defaultEmail="student@muc.edu.cn" />);
+
+		await user.type(screen.getByLabelText("姓名"), "测试用户");
+		await user.type(screen.getByLabelText("邮箱"), "student@muc.edu.cn");
+		await user.type(screen.getByLabelText("密码", { exact: true }), "abcd123");
+		await user.type(screen.getByLabelText("确认密码"), "abcd123");
+		await user.click(screen.getByRole("checkbox"));
+		await user.click(screen.getByRole("button", { name: "创建账号" }));
+
+		expect(await screen.findByText("密码至少需要 8 个字符。" as string)).toBeVisible();
+		expect(authClient.signUpEmail).not.toHaveBeenCalled();
+	});
+
+	it("rejects a 129-character sign-up password", async () => {
+		const user = userEvent.setup();
+		const password = "a".repeat(129);
+		render(<SignUpForm {...sharedFormProps} defaultEmail="student@muc.edu.cn" />);
+
+		await user.type(screen.getByLabelText("姓名"), "测试用户");
+		await user.type(screen.getByLabelText("邮箱"), "student@muc.edu.cn");
+		await user.type(screen.getByLabelText("密码", { exact: true }), password);
+		await user.type(screen.getByLabelText("确认密码"), password);
+		await user.click(screen.getByRole("checkbox"));
+		await user.click(screen.getByRole("button", { name: "创建账号" }));
+
+		expect(await screen.findByText("密码不能超过 128 个字符。" as string)).toBeVisible();
 		expect(authClient.signUpEmail).not.toHaveBeenCalled();
 	});
 

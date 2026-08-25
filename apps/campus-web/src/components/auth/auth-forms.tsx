@@ -8,6 +8,7 @@ import {
 	Input,
 } from "@campus-agent/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { CAMPUS_PASSWORD_MAX_LENGTH, CAMPUS_PASSWORD_MIN_LENGTH } from "campus-contracts/auth";
 import { CircleAlert, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -42,7 +43,10 @@ interface SharedAuthFormProps {
 
 const signInSchema = z.object({
 	email: z.string().trim().email("请输入有效的邮箱地址。"),
-	password: z.string().min(1, "请输入密码。").max(128, "密码不能超过 128 个字符。"),
+	password: z
+		.string()
+		.min(1, "请输入密码。")
+		.max(CAMPUS_PASSWORD_MAX_LENGTH, `密码不能超过 ${CAMPUS_PASSWORD_MAX_LENGTH} 个字符。`),
 	rememberMe: z.boolean(),
 });
 
@@ -56,7 +60,10 @@ const signUpSchema = z
 			.trim()
 			.min(1, "请输入姓名或昵称。")
 			.max(128, "姓名或昵称不能超过 128 个字符。"),
-		password: z.string().min(10, "密码至少需要 10 个字符。").max(128, "密码不能超过 128 个字符。"),
+		password: z
+			.string()
+			.min(CAMPUS_PASSWORD_MIN_LENGTH, `密码至少需要 ${CAMPUS_PASSWORD_MIN_LENGTH} 个字符。`)
+			.max(CAMPUS_PASSWORD_MAX_LENGTH, `密码不能超过 ${CAMPUS_PASSWORD_MAX_LENGTH} 个字符。`),
 	})
 	.refine((values) => values.password === values.confirmPassword, {
 		message: "两次输入的密码不一致。",
@@ -202,7 +209,7 @@ export function SignInForm(props: SharedAuthFormProps) {
 
 export function SignUpForm({
 	defaultEmail = "",
-	passwordDescription = "使用 10 至 128 个字符。",
+	passwordDescription = "可使用字母、数字、空格和符号。",
 	...props
 }: SharedAuthFormProps & {
 	defaultEmail?: string;

@@ -1,5 +1,6 @@
 import { Alert, AlertDescription, Button, Field, FieldGroup, Input } from "@campus-agent/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { CAMPUS_PASSWORD_MAX_LENGTH, CAMPUS_PASSWORD_MIN_LENGTH } from "campus-contracts/auth";
 import { CheckCircle2, CircleAlert, LoaderCircle, LogOut, Mail } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -36,7 +37,10 @@ const emailSchema = z.object({
 const resetPasswordSchema = z
 	.object({
 		confirmPassword: z.string(),
-		password: z.string().min(10, "密码至少需要 10 个字符。").max(128, "密码不能超过 128 个字符。"),
+		password: z
+			.string()
+			.min(CAMPUS_PASSWORD_MIN_LENGTH, `密码至少需要 ${CAMPUS_PASSWORD_MIN_LENGTH} 个字符。`)
+			.max(CAMPUS_PASSWORD_MAX_LENGTH, `密码不能超过 ${CAMPUS_PASSWORD_MAX_LENGTH} 个字符。`),
 	})
 	.refine((values) => values.password === values.confirmPassword, {
 		message: "两次输入的密码不一致。",
@@ -49,8 +53,8 @@ const changePasswordSchema = z
 		currentPassword: z.string().min(1, "请输入当前密码。"),
 		newPassword: z
 			.string()
-			.min(10, "密码至少需要 10 个字符。")
-			.max(128, "密码不能超过 128 个字符。"),
+			.min(CAMPUS_PASSWORD_MIN_LENGTH, `密码至少需要 ${CAMPUS_PASSWORD_MIN_LENGTH} 个字符。`)
+			.max(CAMPUS_PASSWORD_MAX_LENGTH, `密码不能超过 ${CAMPUS_PASSWORD_MAX_LENGTH} 个字符。`),
 	})
 	.refine((values) => values.newPassword === values.confirmPassword, {
 		message: "两次输入的新密码不一致。",
@@ -495,7 +499,7 @@ export function ResetPasswordForm({
 	}
 
 	return (
-		<AuthFormFrame description="设置一个 10 至 128 个字符的新密码。" title="设置新密码">
+		<AuthFormFrame description="可使用字母、数字、空格和符号。" title="设置新密码">
 			<form className="space-y-5" noValidate onSubmit={form.handleSubmit(submit)}>
 				<FieldGroup>
 					<PasswordField
@@ -642,7 +646,7 @@ export function RequiredPasswordChange({
 					/>
 					<PasswordField
 						autoComplete="new-password"
-						description="使用 10 至 128 个字符。"
+						description="可使用字母、数字、空格和符号。"
 						error={form.formState.errors.newPassword?.message}
 						label="新密码"
 						registration={form.register("newPassword")}

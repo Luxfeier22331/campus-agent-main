@@ -5,6 +5,7 @@
 	"type": "module",
 	"exports": {
 		"./account-admin": "./src/account-admin.ts",
+		"./auth": "./src/auth.ts",
 		"./campus-groups": "./src/campus-groups.ts",
 		"./email-access": "./src/email-access.ts",
 		"./internal-portal-credential": "./src/internal-portal-credential.ts",

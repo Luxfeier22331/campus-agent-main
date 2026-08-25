@@ -4,6 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { admin, captcha, jwt } from "better-auth/plugins";
+import { CAMPUS_PASSWORD_MAX_LENGTH, CAMPUS_PASSWORD_MIN_LENGTH } from "campus-contracts/auth";
 import { and, eq } from "drizzle-orm";
 import {
 	type AppApiEnvironment,
@@ -282,8 +283,8 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				id,
 			}),
 			enabled: true,
-			maxPasswordLength: 128,
-			minPasswordLength: 10,
+			maxPasswordLength: CAMPUS_PASSWORD_MAX_LENGTH,
+			minPasswordLength: CAMPUS_PASSWORD_MIN_LENGTH,
 			password: {
 				hash: hashAppPassword,
 				verify: verifyAppPassword,
@@ -312,7 +313,16 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 				user: { email?: string | null; id: string; name?: string | null };
 			}) => {
 				await input.clearTemporaryPasswordState?.(user.id);
-				await runBackgroundOrAwait(sendPasswordChangedEmail(createAuthMailConfig(), { user }));
+				const notification = sendPasswordChangedEmail(createAuthMailConfig(), { user }).catch(
+					(error: unknown) => {
+						console.error({
+							error_code: "password_changed_notification_failed",
+							error_type: error instanceof Error ? error.name : "UnknownError",
+							source: "app-api.auth",
+						});
+					},
+				);
+				await runBackgroundOrAwait(notification);
 			},
 		},
 		user: {
