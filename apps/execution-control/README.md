@@ -46,6 +46,11 @@ HTTP API 也不拥有 worker 生命周期。
   旧 Provider Config keyring/密钥仅作为冻结历史 migration 输入，随后由 Model Config schema job
   完成所有权切换并删除旧表。
 
+收到 SIGTERM 或运行时致命错误时，`execution-control` 先将 HTTP 准入置为 draining，停止新的业务请求，
+并在 `ShutdownGraceMS` 窗口内等待已进入的请求完成。HTTP 阶段结束后才停止 reconciler 和 Temporal
+poller，最后关闭运行投影、个人记忆状态和 Temporal starter。超时请求会先收到 context cancellation；
+若仍有 handler 不退出，进程不会提前关闭其共享 store，持久化的 start/cancel intent 由下一实例继续收敛。
+
 Migration 位于 `internal/schemamigrations/`，统一记录在
 `public.execution_control_migrations`。运行时 Store 只连接和读写，不自动建表。普通结构变化新增
 SQL migration；需要事务型数据转换时使用同一版本序列中的 Go migration。修改后运行

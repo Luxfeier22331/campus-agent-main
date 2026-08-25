@@ -26,6 +26,13 @@ status: active
 
 PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执行队列或 Temporal history 副本。
 
+## 进程停机
+
+`execution-control` 收到停机信号后先进入 draining，禁止新的 HTTP 业务请求；已进入的请求在有界的
+`ShutdownGraceMS` 窗口内继续使用尚未关闭的 runtime 和 store。HTTP listener 完成 shutdown 或超时
+强制关闭后，进程才停止 reconciler 与 Temporal poller，最后关闭共享数据库和 Temporal client。
+停机不会删除或伪造已持久化的 workflow start/cancellation intent；未完成命令由下一实例继续租约和收敛。
+
 ## 执行阶段
 
 1. **Agent Activity**：在 agent queue 只调用一次 `apps/agent-runtime`，完成 Primary Agent、可选的

@@ -35,15 +35,18 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("load runtime config: %w", err)
 	}
 
-	runtimeContext, stopSignals := signal.NotifyContext(
+	signalContext, stopSignals := signal.NotifyContext(
 		context.Background(),
 		syscall.SIGINT,
 		syscall.SIGTERM,
 	)
 	defer stopSignals()
+	runtimeContext, cancelRuntime := context.WithCancel(context.Background())
+	defer cancelRuntime()
 
 	handler := httpapi.NewServerWithDependencies(cfg, nil, logger)
 	runtime, err := runtimeassembly.StartRuntime(
+		signalContext,
 		runtimeContext,
 		cfg,
 		handler,
@@ -54,10 +57,10 @@ func run(logger *slog.Logger) error {
 		_ = handler.Shutdown(context.Background())
 		return err
 	}
-	defer runtime.Stop()
+	requestTracker := newRequestTracker(handler)
 	gatewayServer := newHTTPServer(
 		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		handler,
+		requestTracker,
 		time.Duration(cfg.RequestTimeoutMS+2_000)*time.Millisecond,
 	)
 	serverErrors := make(chan error, 1)
@@ -65,7 +68,7 @@ func run(logger *slog.Logger) error {
 
 	var runtimeErr error
 	select {
-	case <-runtimeContext.Done():
+	case <-signalContext.Done():
 		logger.Info(
 			"execution_control.runtime_draining",
 			"event_type", "execution_control.runtime_draining",
@@ -76,19 +79,15 @@ func run(logger *slog.Logger) error {
 	case runtimeErr = <-serverErrors:
 	}
 
-	handler.StartDraining()
-	runtime.Stop()
-
-	shutdownContext, cancel := context.WithTimeout(
-		context.Background(),
+	if err := shutdownExecutionRuntime(
+		gatewayServer,
+		requestTracker,
+		runtime,
+		handler,
+		cancelRuntime,
 		time.Duration(cfg.ShutdownGraceMS)*time.Millisecond,
-	)
-	defer cancel()
-	if err := gatewayServer.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
-		runtimeErr = fmt.Errorf("shutdown execution-control HTTP server: %w", err)
-	}
-	if err := handler.Shutdown(shutdownContext); err != nil && runtimeErr == nil {
-		runtimeErr = fmt.Errorf("shutdown execution runtime: %w", err)
+	); err != nil && runtimeErr == nil {
+		runtimeErr = err
 	}
 	return runtimeErr
 }

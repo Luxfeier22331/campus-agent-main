@@ -51,15 +51,21 @@ type Options struct {
 
 type Reconciler struct {
 	activeWorkflowCursor string
-	cancel               context.CancelFunc
 	finalizer            Finalizer
 	logger               *slog.Logger
 	mu                   sync.Mutex
 	operationTimeout     time.Duration
 	projectionStore      execution.RunProjectionStore
+	run                  *reconcilerRun
 	starter              temporalruntime.ChatWorkflowStarter
-	wake                 chan struct{}
-	wg                   sync.WaitGroup
+	stopDone             chan struct{}
+	stopping             bool
+}
+
+type reconcilerRun struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+	wake   chan struct{}
 }
 
 func New(options Options) *Reconciler {
@@ -80,19 +86,23 @@ func (r *Reconciler) Start(parent context.Context) {
 	if r == nil || r.projectionStore == nil || r.starter == nil {
 		return
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.cancel != nil {
-		return
-	}
 	if parent == nil {
 		parent = context.Background()
 	}
+	r.mu.Lock()
+	if r.run != nil || r.stopping {
+		r.mu.Unlock()
+		return
+	}
 	ctx, cancel := context.WithCancel(parent)
-	r.cancel = cancel
-	r.wake = make(chan struct{}, 1)
-	r.wg.Add(1)
-	go r.loop(ctx)
+	current := &reconcilerRun{
+		cancel: cancel,
+		done:   make(chan struct{}),
+		wake:   make(chan struct{}, 1),
+	}
+	r.run = current
+	r.mu.Unlock()
+	go r.loop(ctx, current)
 }
 
 func (r *Reconciler) Stop() {
@@ -100,15 +110,29 @@ func (r *Reconciler) Stop() {
 		return
 	}
 	r.mu.Lock()
-	cancel := r.cancel
-	r.cancel = nil
-	r.wake = nil
-	r.mu.Unlock()
-	if cancel == nil {
+	current := r.run
+	if current == nil {
+		stopDone := r.stopDone
+		r.mu.Unlock()
+		if stopDone != nil {
+			<-stopDone
+		}
 		return
 	}
-	cancel()
-	r.wg.Wait()
+	r.run = nil
+	r.stopping = true
+	stopDone := make(chan struct{})
+	r.stopDone = stopDone
+	r.mu.Unlock()
+
+	current.cancel()
+	<-current.done
+
+	r.mu.Lock()
+	r.stopping = false
+	r.stopDone = nil
+	close(stopDone)
+	r.mu.Unlock()
 }
 
 func (r *Reconciler) ReconcileOnce(ctx context.Context) {
@@ -126,18 +150,19 @@ func (r *Reconciler) Wake() {
 		return
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.wake == nil {
+	current := r.run
+	r.mu.Unlock()
+	if current == nil {
 		return
 	}
 	select {
-	case r.wake <- struct{}{}:
+	case current.wake <- struct{}{}:
 	default:
 	}
 }
 
-func (r *Reconciler) loop(ctx context.Context) {
-	defer r.wg.Done()
+func (r *Reconciler) loop(ctx context.Context, current *reconcilerRun) {
+	defer close(current.done)
 	r.reconcile(ctx)
 	ticker := time.NewTicker(temporalReconcileInterval)
 	defer ticker.Stop()
@@ -145,7 +170,7 @@ func (r *Reconciler) loop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-r.wake:
+		case <-current.wake:
 			r.reconcile(ctx)
 		case <-ticker.C:
 			r.reconcile(ctx)

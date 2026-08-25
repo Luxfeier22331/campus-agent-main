@@ -58,7 +58,8 @@ func NewActivitySets(handlers ActivityHandlers) ActivitySets {
 }
 
 func StartRuntime(
-	ctx context.Context,
+	startupContext context.Context,
+	lifetimeContext context.Context,
 	cfg config.Config,
 	activityHandlers ActivityHandlers,
 	reconciler *executionreconciler.Reconciler,
@@ -70,11 +71,17 @@ func StartRuntime(
 	if reconciler == nil {
 		return nil, fmt.Errorf("execution reconciler is required for the combined runtime")
 	}
+	if startupContext == nil {
+		startupContext = context.Background()
+	}
+	if lifetimeContext == nil {
+		lifetimeContext = startupContext
+	}
 	activitySets := NewActivitySets(activityHandlers)
 	if logger == nil {
 		logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	}
-	temporalClient, err := client.DialContext(ctx, temporalClientOptions(cfg))
+	temporalClient, err := client.DialContext(startupContext, temporalClientOptions(cfg))
 	if err != nil {
 		return nil, fmt.Errorf("connect temporal client: %w", err)
 	}
@@ -122,7 +129,7 @@ func StartRuntime(
 			"role", string(role),
 		)
 	}
-	reconciler.Start(ctx)
+	reconciler.Start(lifetimeContext)
 	return runtime, nil
 }
 
