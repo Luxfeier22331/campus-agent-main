@@ -308,6 +308,9 @@ export function renderLocalEnvironmentFiles(input: {
 							existingInternalPortalCollectionEnvironment.INTERNAL_PORTAL_SSO_TGC,
 					}
 				: {}),
+			DEPLOYMENT_ENVIRONMENT: "local",
+			NOTICES_DATABASE_SSLMODE: "disable",
+			NOTICES_DATABASE_URL: database.noticePublisher,
 			OPS_WEB_INTERNAL_URL: `http://127.0.0.1:${profile.ports.opsWebApi}`,
 			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
@@ -319,15 +322,10 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("noticeClassifier")) {
 		writeManagedEnv(paths.noticeClassifier, {
-			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
-			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
-			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
-			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			OBJECT_STORE_REGION: "us-east-1",
-			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
-			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+			DEPLOYMENT_ENVIRONMENT: "local",
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
+			NOTICES_DATABASE_SSLMODE: "disable",
+			NOTICES_DATABASE_URL: database.noticePublisher,
 		});
 	}
 	if (shouldRender("noticePublisher")) {

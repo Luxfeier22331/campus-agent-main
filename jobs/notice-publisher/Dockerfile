@@ -9,6 +9,7 @@ COPY jobs/notice-publisher/package.json ./jobs/notice-publisher/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
 COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
+COPY packages/notice-database/package.json ./packages/notice-database/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
@@ -21,6 +22,7 @@ COPY packages/contracts/src ./packages/contracts/src
 COPY packages/domains/notices/src ./packages/domains/notices/src
 COPY packages/ingestion-contracts/schemas ./packages/ingestion-contracts/schemas
 COPY packages/ingestion-contracts/src ./packages/ingestion-contracts/src
+COPY packages/notice-database/src ./packages/notice-database/src
 
 RUN pnpm --filter notice-publisher build
 
@@ -33,6 +35,7 @@ COPY jobs/notice-publisher/package.json ./jobs/notice-publisher/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
 COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
+COPY packages/notice-database/package.json ./packages/notice-database/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \

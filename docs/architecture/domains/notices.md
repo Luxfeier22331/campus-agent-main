@@ -15,27 +15,27 @@ status: active
 ```text
 来源系统
 -> internal-portal-collection
--> 来源对象
--> 模型生成单一用户分类
--> 分类 derived 制品
+-> 来源对象与数据库通知登记
+-> 模型或维护者写入单一用户分类
 -> notice-publisher
--> notices.* 与 derived 资源
+-> 已发布正文与 derived 资源
 -> App API
 -> Campus Web
 ```
 
-internal-portal-collection 只产生来源对象和原始资源。分类使用一个 `category` 表示标题表达的主要用途，
-不再把业务领域和内容形态拆成两个相互竞争的筛选维度。例如基金申报归
+internal-portal-collection 在通知模式中写入来源对象和原始资源，并在资源齐备后登记数据库库存；
+文件发布模式只写入来源对象。分类使用一个 `category` 表示标题表达的主要用途，不再把业务领域和
+内容形态拆成两个相互竞争的筛选维度。例如基金申报归
 `research_affairs`，没有更强业务流程的学术讲座预告归 `lectures_forums`，楼宇开放关闭归
 `campus_operations`。分类不表示领域处理、对外发布或用户阅读已经完成。
 
-采集同时提供本地 CLI 和复用同一实现的一次性 Job 入口。ingestion runtime base 的单一采集模板默认暂停，通过
-模式参数执行通知增量、通知回填或文件发布采集，不提供自动调度；通知分类同时提供本地 CLI 和默认
-暂停的在线 Job：两者只消费标题，Job 将结果写入 derived 分类制品。凭据由 Ops Web 候选池解析，本地
+采集同时提供本地 CLI 和复用同一实现的一次性 Job 入口。ingestion runtime base 为通知增量、通知回填和
+文件发布分别提供一个固定动作、默认暂停的模板，不提供自动调度；通知分类同时提供本地 CLI 和默认
+暂停的在线 Job：两者只消费标题，在线 Job 将结果写回通知数据库。凭据由 Ops Web 候选池解析，本地
 写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内使用，不形成 TGC Secret。
 
-notice-publisher 在资源齐备且分类库存完整性校验通过后显式物化规范化投影；本地 CLI 与默认暂停的
-Kubernetes Job 模板使用同一实现，不提供自动 schedule。App API 和 Campus Web 只读取该投影。完整
+notice-publisher 读取数据库中已有分类且未发布的通知，显式物化正文与资源并打开学生端可见边界；本地 CLI 与默认暂停的
+Kubernetes Job 模板使用同一实现，不提供自动 schedule。App API 和 Campus Web 只读取 `is_published=true` 的投影。完整
 数据结构和操作顺序分别由 `../../data/notices.md` 和
 `../../runbooks/ingestion.md` 维护。
 
@@ -62,3 +62,4 @@ PostgreSQL，也不提供通知结构化查询、附件解析、embedding 或 RA
 - `../../decisions/adr-0024-authenticated-notice.md`
 - `../../decisions/adr-0087-internal-portal-notice-source.md`
 - `../../decisions/adr-0088-normalized-notice-storage.md`
+- `../../decisions/adr-0094-notice-maintenance-state.md`

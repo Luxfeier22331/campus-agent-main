@@ -1,0 +1,175 @@
+import type { NoticeCategory } from "campus-contracts/notices";
+import type { Pool } from "pg";
+import type { NoticeDetail, NoticeState, NoticeSummary } from "../shared/ops-contract.ts";
+
+const PAGE_SIZE = 30;
+
+export interface NoticeListInput {
+	category?: NoticeCategory;
+	page: number;
+	q?: string;
+	state?: NoticeState;
+}
+
+export interface NoticeStore {
+	get(noticeId: number): Promise<NoticeDetail | null>;
+	list(input: NoticeListInput): Promise<{
+		items: NoticeSummary[];
+		page: number;
+		totalItems: number;
+		totalPages: number;
+	}>;
+	updateCategory(noticeId: number, category: NoticeCategory): Promise<NoticeDetail>;
+}
+
+export class NoticeNotFoundError extends Error {
+	constructor() {
+		super("通知不存在。");
+		this.name = "NoticeNotFoundError";
+	}
+}
+
+export class NoticeStoreUnavailableError extends Error {
+	constructor(message = "通知数据库暂不可用。", options?: ErrorOptions) {
+		super(message, options);
+		this.name = "NoticeStoreUnavailableError";
+	}
+}
+
+interface NoticeRow extends Record<string, unknown> {
+	category: string | null;
+	external_url: string | null;
+	is_external: boolean;
+	is_published: boolean;
+	notice_id: string;
+	notice_type: number;
+	notice_type_name: string;
+	organization_id: string | null;
+	organization_name: string | null;
+	released_at: Date | string;
+	title: string;
+}
+
+const NOTICE_SELECT = `
+	n.notice_id::text, n.notice_type, t.name AS notice_type_name,
+	n.organization_id, o.name AS organization_name, n.title, n.released_at,
+	n.is_external, n.external_url, n.category, n.is_published`;
+
+export function createPgNoticeStore(pool: Pick<Pool, "query">): NoticeStore {
+	return {
+		async get(noticeId) {
+			return withDatabaseError(async () => {
+				const result = await pool.query<NoticeRow>(
+					`SELECT ${NOTICE_SELECT}
+					 FROM notices.notices AS n
+					 JOIN notices.notice_types AS t ON t.notice_type=n.notice_type
+					 LEFT JOIN notices.organizations AS o ON o.organization_id=n.organization_id
+					 WHERE n.notice_id=$1`,
+					[noticeId],
+				);
+				return result.rows[0] ? toNotice(result.rows[0]) : null;
+			});
+		},
+		async list(input) {
+			return withDatabaseError(async () => {
+				const values: unknown[] = [];
+				const conditions: string[] = [];
+				if (input.q) {
+					values.push(`%${input.q}%`);
+					conditions.push(
+						`(n.title ILIKE $${values.length} OR n.notice_id::text = $${values.length + 1})`,
+					);
+					values.push(input.q);
+				}
+				if (input.category) {
+					values.push(input.category);
+					conditions.push(`n.category = $${values.length}`);
+				}
+				if (input.state === "needs_classification") {
+					conditions.push("n.category IS NULL");
+				} else if (input.state === "needs_publication") {
+					conditions.push("n.category IS NOT NULL AND NOT n.is_published");
+				} else if (input.state === "published") {
+					conditions.push("n.is_published");
+				}
+				const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+				const count = await pool.query<{ count: string }>(
+					`SELECT count(*)::text AS count FROM notices.notices AS n ${where}`,
+					values,
+				);
+				const totalItems = Number(count.rows[0]?.count ?? "0");
+				values.push(PAGE_SIZE, (input.page - 1) * PAGE_SIZE);
+				const rows = await pool.query<NoticeRow>(
+					`SELECT ${NOTICE_SELECT}
+					 FROM notices.notices AS n
+					 JOIN notices.notice_types AS t ON t.notice_type=n.notice_type
+					 LEFT JOIN notices.organizations AS o ON o.organization_id=n.organization_id
+					 ${where}
+					 ORDER BY n.released_at DESC, n.notice_id DESC
+					 LIMIT $${values.length - 1} OFFSET $${values.length}`,
+					values,
+				);
+				return {
+					items: rows.rows.map(toNotice),
+					page: input.page,
+					totalItems,
+					totalPages: Math.ceil(totalItems / PAGE_SIZE),
+				};
+			});
+		},
+		async updateCategory(noticeId, category) {
+			return withDatabaseError(async () => {
+				const updated = await pool.query(
+					"UPDATE notices.notices SET category=$2 WHERE notice_id=$1 RETURNING notice_id",
+					[noticeId, category],
+				);
+				if (updated.rowCount !== 1) {
+					throw new NoticeNotFoundError();
+				}
+				const notice = await this.get(noticeId);
+				if (!notice) {
+					throw new NoticeNotFoundError();
+				}
+				return notice;
+			});
+		},
+	};
+}
+
+export function createUnavailableNoticeStore(cause: unknown): NoticeStore {
+	const fail = () => Promise.reject(new NoticeStoreUnavailableError(undefined, { cause }));
+	return { get: fail, list: fail, updateCategory: fail };
+}
+
+function toNotice(row: NoticeRow): NoticeSummary {
+	return {
+		category: row.category as NoticeCategory | null,
+		externalUrl: row.external_url,
+		isExternal: row.is_external,
+		noticeId: Number(row.notice_id),
+		noticeType: { id: row.notice_type, name: row.notice_type_name },
+		organization:
+			row.organization_id && row.organization_name
+				? { id: row.organization_id, name: row.organization_name }
+				: null,
+		releasedAt: new Date(row.released_at).toISOString(),
+		state:
+			row.category === null
+				? "needs_classification"
+				: row.is_published
+					? "published"
+					: "needs_publication",
+		title: row.title,
+	};
+}
+
+async function withDatabaseError<T>(operation: () => Promise<T>): Promise<T> {
+	try {
+		return await operation();
+	} catch (error) {
+		if (error instanceof NoticeNotFoundError || error instanceof NoticeStoreUnavailableError) {
+			throw error;
+		}
+		throw new NoticeStoreUnavailableError(undefined, { cause: error });
+	}
+}

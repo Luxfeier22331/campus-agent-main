@@ -15,6 +15,8 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 
 - Ops Web schema bootstrap 和 migration 使用数据库 owner 连接；凭据表最终位于
   `internal_portal.credentials`，历史环境由 Ops Web handoff migration 一次性接管；
+- 通知采集、分类和发布共享 `notices.*`；本地由 `notice-publisher dev:init` 安装，集群由通知 schema
+  Job 安装；
 - source 与 derived bucket 使用各自对象存储凭据；
 - Ops Web 与 internal-portal-collection 来自同一 source revision；
 - 使用本地命令时，已通过 `internal-portal:auth:pull` 从 Ops Web 解析当前有效 TGC；使用 Job 入口时，
@@ -23,14 +25,18 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 ## 数据库与本地进程
 
 ```bash
+pnpm --filter notice-publisher dev:init
+pnpm --filter internal-portal-collection dev:init
+pnpm --filter notice-classifier dev:init
 pnpm --filter ops-web db:apply
 pnpm --filter ops-web dev:api
 ```
 
 数据库 TLS 与运行变量见 Ops Web 的环境合同。凭据 schema 与 Dining 共用
 `drizzle.ops_web_dining_migrations`；现有环境的 handoff migration 原位移动旧凭据表并清理旧 schema，
-新环境直接创建最终 `internal_portal.credentials`。execution-control 的历史通知分类模型设置只作为
-Model Config 一次性迁移输入，不构成当前配置所有权。
+新环境直接创建最终 `internal_portal.credentials`。`notice-publisher dev:init` 是本地通知 schema 的安装
+入口；internal-portal-collection 和 notice-classifier 的初始化只生成各自运行环境，不执行 DDL。
+execution-control 的历史通知分类模型设置只作为 Model Config 一次性迁移输入，不构成当前配置所有权。
 
 ## 文件发布
 
@@ -51,12 +57,15 @@ source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同�
 ### 初始化与认证
 
 ```bash
+pnpm --filter notice-publisher dev:init
 pnpm --filter internal-portal-collection dev:init
+pnpm --filter notice-classifier dev:init
 pnpm internal-portal:auth:pull
 pnpm internal-portal:auth:check
 ```
 
-初始化命令启动或校验本地 RustFS、确保共享 source bucket 存在，并生成采集任务的对象存储配置。
+先由 notice-publisher 初始化当前 worktree 的通知 schema，再为采集器和分类器生成各自环境。采集器环境
+包含 source bucket 与通知数据库连接；分类器环境包含通知数据库连接和 Model Config URL。
 `internal-portal:auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用 Ops Web
 凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
 本地通知命令随后直接使用拉取到的 TGC，不需要后台编排器。
@@ -76,8 +85,9 @@ pnpm internal-portal:collect -- --mode notice-backfill \
 首次 sync 只建立全局列表 head；后续 sync 采集新通知，历史内容必须显式 backfill。sync 与 backfill
 不得并发执行。后续 sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查 source bucket 包含
 `internal_portal/meta.json`、通知对象、
-资源对象和 `_state.json`，并确认状态中的历史边界已经覆盖 `NOTICE_START_DATE`。来源对象必须通过版本化
-schema，内部通知与外链字段必须成对合法；任一 source、资源或 metadata 失败时状态不能推进。附件
+资源对象和 `_state.json`，确认状态中的历史边界已经覆盖 `NOTICE_START_DATE`，并确认对应通知已登记到
+`notices.notices`。来源对象必须通过版本化 schema，内部通知与外链字段必须成对合法；任一 source、
+资源、metadata 或库存登记失败时状态不能推进。附件
 请求按门户附件 ID 和通知 ID 构造，单个图片或附件上限为 100 MiB；外链通知不会触发外部正文或图片
 抓取。仓库不提供独立的资源维护或状态查看命令。通知数据结构见 `../data/notices.md`。
 
@@ -102,7 +112,7 @@ NOTICE_CLASSIFICATIONS=/absolute/path/to/classifications.jsonl
 分类文件不保存理由、置信度、模型名称或原始响应，也不写入对象存储或 PostgreSQL。
 具体脚本输入和平衡模型评估见 `../../scripts/notices/README.md`。
 
-需要在本地验证在线 Job 的对象存储行为时，使用独立的 Job 模拟入口，不改变上述 JSONL 交接：
+需要在本地验证在线 Job 时，使用同一数据库实现：
 
 ```bash
 kubectl port-forward svc/model-config 18003:8000
@@ -113,14 +123,14 @@ pnpm notice:classify:job:local \
   --concurrency 2
 ```
 
-该入口读取 `campus-agent-source`，并将 `notices/classifications/<notice-id>.json` 写入当前 worktree 的
-derived bucket。它通过 port-forward 从 Model Config 读取一次当前通知分类完整配置；重复默认运行时
-应跳过合法制品，`--notice-id` 始终强制重分类。它不读取独立模型凭据，也不把 API key 写入本地文件。
+该入口从当前 worktree 的通知数据库读取 ID 与标题，并写回 `category`。默认运行只分类
+`category IS NULL` 的通知；`--notice-id` 明确覆盖指定通知的当前分类。它不读取独立模型凭据，也不把
+API key 写入本地文件。
 
 ### 在线分类 Job
 
-在线分类使用独立的 `notice-classifier` 一次性 Job。它从 source bucket 读取全部通知，跳过已有合法
-分类制品，只处理缺失或无效制品；传入 `--notice-id` 时只处理指定通知并强制重分类。Job 只向模型发送
+在线分类使用独立的 `notice-classifier` 一次性 Job。它从数据库读取待分类通知；传入 `--notice-id` 时
+只处理指定通知并强制重分类。Job 只向模型发送
 原始标题，不消费正文、门户栏目或清洗结果：
 
 ```bash
@@ -129,57 +139,43 @@ kubectl create job \
   notice-classifier-$(date +%Y%m%d%H%M%S)
 ```
 
-默认并发为 2，单条最多三次尝试，失败以非零状态结束。已完成的在途制品会保留，重跑会按固定键复用；
-不会自动继续下一阶段，也不会写 PostgreSQL。Job 启动分类阶段后从 `model-config:8000` 一次读取
+默认并发为 2，单条最多三次尝试，失败以非零状态结束。默认批量更新不会覆盖分类期间发生的人工修改；
+不会自动继续下一阶段。Job 启动分类阶段后从 `model-config:8000` 一次读取
 `notice_classification` 完整配置，模型名和 provider 由 Ops Web 配置，不在镜像或 Kubernetes Secret
 中固定。
 
 ### 通知 schema
 
-`dev:init` 创建本地 `notice_publisher` 角色，并使用数据库 owner 安装 `notices.*`。资源齐备且分类制品
-已完成后，先确认当前 migration：
+`pnpm --filter notice-publisher dev:init` 创建本地 `notice_publisher` 角色，并使用数据库 owner 安装
+`notices.*`。该命令可安全重跑，并会应用当前尚未安装的 migration：
 
 ```bash
-set -a
-. apps/app-api/.env.local
-set +a
-NOTICES_DATABASE_URL="$APP_API_SCHEMA_DATABASE_URL" pnpm --filter notice-publisher migrate
+pnpm --filter notice-publisher dev:init
 ```
 
-Migration 5 会删除旧领域集合和列，并增加非空 `category`，只接受空的 `notices.notices` 投影。已有
-本地旧投影不能原地推断或迁移；先停止本地 publisher，清空通知与资源投影，再运行 migration：
+Migration 6 将 `category` 改为可空，增加 `is_published`，并把迁移前已有通知标记为已发布。新采集通知
+默认未分类、未发布，直接在既有库存上迁移，不清空通知或资源表。
 
-```bash
-set -a
-. apps/app-api/.env.local
-set +a
-psql "$APP_API_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -c 'TRUNCATE notices.notice_assets, notices.notices;'
-NOTICES_DATABASE_URL="$APP_API_SCHEMA_DATABASE_URL" pnpm --filter notice-publisher migrate
-```
-
-随后只能使用新 taxonomy 的模型分类重新发布。来源对象和 derived 内容寻址资源可以保留；旧分类文件
-不能作为新 schema 输入。该操作只适用于本地投影；线上由 wave 0 的 schema Job 使用既有
-`campus_agent` owner Secret 执行相同 migration，不创建线上 `notice_publisher` 角色。
+线上由 wave -1 的 schema Job 使用既有 `campus_agent` owner Secret 执行相同 migration，不创建线上
+`notice_publisher` 角色。
 
 ### 单条与批量发布
 
-默认入口读取 derived bucket 的单通知分类制品。先发布一个通知：
+默认入口读取数据库中的待发布通知。先发布一个通知：
 
 ```bash
 pnpm --filter notice-publisher run publish --notice-id "$NOTICE_ID"
 ```
 
-核对正文、外链、图片和附件后，省略 `--notice-id` 发布 source 与分类制品的完整库存：
+核对正文、外链、图片和附件后，省略 `--notice-id` 发布所有已分类且未发布的通知：
 
 ```bash
 pnpm --filter notice-publisher run publish
 ```
 
-离线模型比较产生的 JSONL 仍可通过 `--classifications "$NOTICE_CLASSIFICATIONS"` 显式传入；全量运行
-同样要求它与 source 通知库存完全一致。publisher 在数据库事务前完成来源与分类读取、正文清洗和资源
+离线模型比较产生的 JSONL 不进入发布链路。publisher 在数据库事务前完成来源读取、正文清洗和资源
 摘要计算；图片立即写入 derived 内容寻址对象，附件只读取校验并留在 source bucket。随后用单一事务写
-映射、通知和资源 metadata。任一来源缺失、库存不一致、合同无效或已有投影冲突都会以非零状态停止；
+正文、资源 metadata 和发布状态。任一来源缺失、合同无效或已有投影冲突都会以非零状态停止；
 数据库不留部分批次，已验证的内容寻址图片可在重跑时复用。相同输入必须幂等。
 
 ### 产品验收
@@ -196,23 +192,12 @@ pnpm --filter notice-publisher run publish
 先完成一个站内通知、一个外链通知和一个含资源通知的浏览器验收，再扩大数据范围。本地对象和
 PostgreSQL 结果不表示集群环境已经采集、发布或部署。
 
-### 本地重建
+### 本地重新验证
 
-正文清洗合同变化后，已有投影会按不可变校验明确冲突。本地验证可以只清空通知和资源投影，再从
-保留的 source 对象和同一份模型分类清单完整重建：
-
-```bash
-set -a
-. apps/app-api/.env.local
-set +a
-psql "$APP_API_SCHEMA_DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -c 'TRUNCATE notices.notice_assets, notices.notices;'
-pnpm --filter notice-publisher run publish \
-  --classifications "$NOTICE_CLASSIFICATIONS"
-```
-
-该步骤只适用于已经安装 classification V2 的 `dev:init` 本地数据库，不是集群迁移或 publisher 自动
-更新模式。类型、组织、分类和 source bucket 保持不变。
+通知数据库是采集库存和分类的当前事实，不从 source bucket 隐式重建。未发布通知可以直接重新运行
+publisher；已发布内容与新清洗结果冲突时，由引入清洗合同变化的任务提供明确的数据迁移。需要验证一套
+全新的端到端结果时，创建新的本地实例并依次执行通知 schema 初始化、采集、分类和发布，不在现有实例
+中清空 `notices.notices` 或 `notices.notice_assets`。
 
 该流程没有自动分类、定时发布或自动双写。集群回填和发布必须由对应环境配置明确执行，本地验证结果不表示集群
 已经更新。App API 与 Campus Web 的读取路径也不表示任一环境已经完成写入或部署。
@@ -223,7 +208,8 @@ pnpm --filter notice-publisher run publish \
 `infra/k8s/ingestion-runtime/base/runtime` 只包含三个默认暂停的内部门户采集模板、通知分类和通知发布
 CronJob 模板，不包含自动采集或发布调度。internal-portal-collection 镜像的 Job 入口消费
 `OPS_WEB_INTERNAL_URL`、既有
-`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；三种采集模式都只能由维护者显式创建一次性 Job：
+`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还使用既有数据库 owner 连接登记通知
+库存。三种采集模式都只能由维护者显式创建一次性 Job：
 
 ```bash
 kubectl -n <namespace> create job \
@@ -243,10 +229,11 @@ kubectl -n <namespace> create job \
 三个模板各自固定一种动作，不接收 `mode`。回填日期只属于本次 Job，不写入长期环境配置。通知与文件
 采集每处理 100 项输出一次计数进度；最终通知摘要只输出数量，不输出完整 ID 列表。
 
-通知分类 Job 复用已有 source/derived 对象存储 Secret，不新增数据库或模型 Secret。运行一次性采集
-Job 前须在目标环境确认到 Ops Web、source bucket 和门户 HTTPS 的连通性。
+通知分类 Job 复用既有数据库 owner Secret、PostgreSQL CA 和 Model Config，不读取对象存储，也不新增
+分类器专用数据库身份或模型 Secret。运行一次性采集 Job 前须在目标环境确认到 Ops Web、source bucket、
+PostgreSQL 和门户 HTTPS 的连通性。
 
-通知 schema Job 在 Argo sync wave 0 使用既有数据库 owner Secret 和 PostgreSQL CA。发布模板同样复用
+通知 schema Job 在 Argo sync wave -1 使用既有数据库 owner Secret 和 PostgreSQL CA。发布模板同样复用
 owner 与 source/derived 对象存储 Secret，不新增线上 publisher Secret。全量发布直接创建一次性 Job：
 
 ```bash

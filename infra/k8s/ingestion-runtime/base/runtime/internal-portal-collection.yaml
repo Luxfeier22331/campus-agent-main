@@ -43,7 +43,22 @@ spec:
                 - /workspace/jobs/internal-portal-collection/dist/collection-job.js
               args:
                 - notice-sync
+              envFrom:
+                - configMapRef:
+                    name: ingestion-schema-database-config
               env:
+                - name: DEPLOYMENT_ENVIRONMENT
+                  value: production
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: password
                 - name: OPS_WEB_INTERNAL_URL
                   value: http://ops-web:5178
                 - name: OPS_WEB_INTERNAL_TOKEN
@@ -80,9 +95,18 @@ spec:
                 limits:
                   memory: 1Gi
               volumeMounts:
+                - name: postgres-ca
+                  mountPath: /etc/campus-agent/postgres
+                  readOnly: true
                 - name: tmp
                   mountPath: /tmp
           volumes:
+            - name: postgres-ca
+              secret:
+                secretName: campus-agent-postgres-origin-server
+                items:
+                  - key: ca.crt
+                    path: ca.crt
             - name: tmp
               emptyDir:
                 sizeLimit: 512Mi
@@ -132,7 +156,22 @@ spec:
                 - /workspace/jobs/internal-portal-collection/dist/collection-job.js
               args:
                 - notice-backfill
+              envFrom:
+                - configMapRef:
+                    name: ingestion-schema-database-config
               env:
+                - name: DEPLOYMENT_ENVIRONMENT
+                  value: production
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: campus-agent-postgres-campus-agent-owner
+                      key: password
                 - name: OPS_WEB_INTERNAL_URL
                   value: http://ops-web:5178
                 - name: OPS_WEB_INTERNAL_TOKEN
@@ -169,9 +208,18 @@ spec:
                 limits:
                   memory: 1Gi
               volumeMounts:
+                - name: postgres-ca
+                  mountPath: /etc/campus-agent/postgres
+                  readOnly: true
                 - name: tmp
                   mountPath: /tmp
           volumes:
+            - name: postgres-ca
+              secret:
+                secretName: campus-agent-postgres-origin-server
+                items:
+                  - key: ca.crt
+                    path: ca.crt
             - name: tmp
               emptyDir:
                 sizeLimit: 512Mi

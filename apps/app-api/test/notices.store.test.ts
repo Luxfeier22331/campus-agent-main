@@ -137,7 +137,7 @@ describe("pg notice store", () => {
 		]);
 		const organizationQuery = queries.find((query) => query.includes("FROM notices.organizations"));
 		expect(organizationQuery).toMatch(
-			/WHERE EXISTS \(\s*SELECT 1\s*FROM notices\.notices AS n\s*WHERE n\.organization_id = o\.organization_id\s*\)/u,
+			/WHERE EXISTS \(\s*SELECT 1\s*FROM notices\.notices AS n\s*WHERE n\.organization_id = o\.organization_id AND n\.is_published\s*\)/u,
 		);
 	});
 });

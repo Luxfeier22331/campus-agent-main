@@ -3,7 +3,9 @@ import { extname } from "node:path";
 
 import {
 	normalizeNoticeContent,
+	parsePortalReleaseTime,
 	type NoticeAssetKind,
+	type NoticeCategory,
 } from "@campus-agent/notices";
 import {
 	type InternalPortalMeta,
@@ -13,15 +15,7 @@ import {
 } from "ingestion-contracts";
 import type { PoolClient } from "pg";
 
-import {
-	type Classification,
-	parseClassifications,
-	resolvePublishClassifications,
-} from "./classifications.ts";
 import type { PublisherObjectStore } from "./store.ts";
-import { parsePortalReleaseTime } from "./time.ts";
-
-export { parseClassifications } from "./classifications.ts";
 
 interface AssetRow {
 	assetKind: NoticeAssetKind;
@@ -33,13 +27,11 @@ interface AssetRow {
 	portalAnnexId: string | null;
 }
 
-interface PublishedNotice {
-	assets: AssetRow[];
-	category: Classification["category"];
-	contentHtml: string | null;
-	contentText: string | null;
+interface DatabaseNotice {
+	category: NoticeCategory | null;
 	externalUrl: string | null;
 	isExternal: boolean;
+	isPublished: boolean;
 	noticeId: number;
 	noticeType: number;
 	organizationId: string | null;
@@ -47,27 +39,38 @@ interface PublishedNotice {
 	title: string;
 }
 
+interface RegisteredNotice extends Omit<DatabaseNotice, "category"> {
+	category: NoticeCategory;
+}
+
+interface PublishedNotice extends RegisteredNotice {
+	assets: AssetRow[];
+	contentHtml: string | null;
+	contentText: string | null;
+}
+
 export async function publishNotices(input: {
-	classifications?: readonly Classification[];
 	client: PoolClient;
 	noticeIds?: readonly number[];
 	objectStore: PublisherObjectStore;
 	portalHost: string;
 }): Promise<{ assets: number; notices: number }> {
-	const classifications = await resolvePublishClassifications(input);
+	const candidates = await loadCandidates(input.client, input.noticeIds);
+	if (candidates.length === 0) {
+		return { assets: 0, notices: 0 };
+	}
 	const meta = await loadMeta(input.objectStore);
 	const records: PublishedNotice[] = [];
-	for (const classification of classifications) {
+	for (const candidate of candidates) {
 		records.push(
-			await loadRecord(input.objectStore, meta, classification, input.portalHost),
+			await loadRecord(input.objectStore, meta, candidate, input.portalHost),
 		);
 	}
 
 	await input.client.query("BEGIN");
 	try {
-		await upsertMappings(input.client, meta);
 		for (const record of records) {
-			await insertOrVerify(input.client, record);
+			await publishOrVerify(input.client, record);
 		}
 		await input.client.query("COMMIT");
 	} catch (error) {
@@ -77,6 +80,68 @@ export async function publishNotices(input: {
 	return {
 		assets: records.reduce((sum, item) => sum + item.assets.length, 0),
 		notices: records.length,
+	};
+}
+
+async function loadCandidates(
+	client: PoolClient,
+	noticeIds?: readonly number[],
+): Promise<RegisteredNotice[]> {
+	const explicit = noticeIds !== undefined && noticeIds.length > 0;
+	const result = explicit
+		? await client.query(
+				`SELECT notice_id::text, notice_type, organization_id, title, released_at,
+				        is_external, external_url, category, is_published
+				 FROM notices.notices
+				 WHERE notice_id = ANY($1::bigint[])
+				 ORDER BY notice_id`,
+				[[...noticeIds]],
+			)
+		: await client.query(
+				`SELECT notice_id::text, notice_type, organization_id, title, released_at,
+				        is_external, external_url, category, is_published
+				 FROM notices.notices
+				 WHERE category IS NOT NULL AND NOT is_published
+				 ORDER BY notice_id`,
+			);
+	const rows = result.rows.map(toDatabaseNotice);
+	if (explicit) {
+		const byId = new Map(rows.map((row) => [row.noticeId, row]));
+		for (const noticeId of noticeIds) {
+			const row = byId.get(noticeId);
+			if (!row) {
+				throw new Error(`notice does not exist: ${noticeId}`);
+			}
+			if (row.category === null) {
+				throw new Error(`notice ${noticeId} has no category`);
+			}
+		}
+	}
+	return rows.map((row) => {
+		if (row.category === null) {
+			throw new Error(`notice ${row.noticeId} has no category`);
+		}
+		return { ...row, category: row.category };
+	});
+}
+
+function toDatabaseNotice(row: Record<string, unknown>): DatabaseNotice {
+	return {
+		...registeredNoticeFields(row),
+		category: row.category === null ? null : String(row.category) as NoticeCategory,
+	};
+}
+
+function registeredNoticeFields(row: Record<string, unknown>) {
+	return {
+		externalUrl: row.external_url === null ? null : String(row.external_url),
+		isExternal: Boolean(row.is_external),
+		isPublished: Boolean(row.is_published),
+		noticeId: Number(row.notice_id),
+		noticeType: Number(row.notice_type),
+		organizationId: row.organization_id === null ? null : String(row.organization_id),
+		releasedAt: new Date(String(row.released_at)).toISOString(),
+		title: String(row.title),
 	};
 }
 
@@ -117,13 +182,13 @@ export function parseNoticeSource(
 async function loadRecord(
 	store: PublisherObjectStore,
 	meta: InternalPortalMeta,
-	classification: Classification,
+	registered: RegisteredNotice,
 	portalHost: string,
 ): Promise<PublishedNotice> {
-	const key = `internal_portal/notices/${classification.noticeId}.json`;
+	const key = `internal_portal/notices/${registered.noticeId}.json`;
 	const stored = await store.getSource(key);
 	const source = parseNoticeSource(stored.body, key);
-	if (source.notice_id !== classification.noticeId) {
+	if (source.notice_id !== registered.noticeId) {
 		throw new Error(`${key} has mismatched notice_id`);
 	}
 	if (!meta.notice_types[String(source.notice_type)]) {
@@ -132,6 +197,7 @@ async function loadRecord(
 	if (source.organization_id !== null && !meta.organizations[source.organization_id]) {
 		throw new Error(`${key} references unknown organization_id ${source.organization_id}`);
 	}
+	assertRegisteredSourceMatches(registered, source, key);
 	if (!source.is_external) {
 		for (const [ordinal, attachment] of source.attachments.entries()) {
 			if (!attachment.notice_annex_id) {
@@ -182,18 +248,39 @@ async function loadRecord(
 	}
 
 	return {
+		...registered,
 		assets,
-		category: classification.category,
 		contentHtml: content.contentHtml,
 		contentText: content.contentText,
-		externalUrl: source.external_url,
-		isExternal: source.is_external,
-		noticeId: source.notice_id,
-		noticeType: source.notice_type,
-		organizationId: source.organization_id,
-		releasedAt: parsePortalReleaseTime(source.notice_release_time, key),
-		title: source.notice_title,
 	};
+}
+
+function assertRegisteredSourceMatches(
+	registered: RegisteredNotice,
+	source: InternalPortalNoticeSource,
+	key: string,
+): void {
+	const actual = [
+		source.notice_id,
+		source.notice_type,
+		source.organization_id,
+		source.notice_title,
+		parsePortalReleaseTime(source.notice_release_time, key),
+		source.is_external,
+		source.external_url,
+	];
+	const expected = [
+		registered.noticeId,
+		registered.noticeType,
+		registered.organizationId,
+		registered.title,
+		registered.releasedAt,
+		registered.isExternal,
+		registered.externalUrl,
+	];
+	if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+		throw new Error(`registered notice conflicts with source: ${registered.noticeId}`);
+	}
 }
 
 export function normalizePublishedNoticeContent(input: {
@@ -250,77 +337,49 @@ async function loadAsset(input: {
 	};
 }
 
-async function upsertMappings(
+async function publishOrVerify(
 	client: PoolClient,
-	meta: InternalPortalMeta,
+	record: PublishedNotice,
 ): Promise<void> {
-	for (const [id, name] of Object.entries(meta.notice_types)) {
-		await client.query(
-			"INSERT INTO notices.notice_types(notice_type, name) VALUES ($1, $2) ON CONFLICT (notice_type) DO UPDATE SET name = EXCLUDED.name",
-			[Number(id), name],
+	if (record.isPublished) {
+		await verifyPublishedContent(client, record);
+	} else {
+		const updated = await client.query(
+			`UPDATE notices.notices
+			 SET content_html=$2, content_text=$3, is_published=true
+			 WHERE notice_id=$1 AND NOT is_published`,
+			[record.noticeId, record.contentHtml, record.contentText],
 		);
+		if (updated.rowCount !== 1) {
+			await verifyPublishedContent(client, record);
+		}
 	}
-	for (const [id, name] of Object.entries(meta.organizations)) {
-		await client.query(
-			"INSERT INTO notices.organizations(organization_id, name) VALUES ($1, $2) ON CONFLICT (organization_id) DO UPDATE SET name = EXCLUDED.name",
-			[id, name],
-		);
-	}
+	await insertOrVerifyAssets(client, record);
 }
 
-async function insertOrVerify(
+async function verifyPublishedContent(
 	client: PoolClient,
 	record: PublishedNotice,
 ): Promise<void> {
 	const existing = await client.query(
-		"SELECT notice_type, organization_id, title, released_at, is_external, external_url, category, content_html, content_text FROM notices.notices WHERE notice_id=$1",
+		"SELECT content_html, content_text, is_published FROM notices.notices WHERE notice_id=$1",
 		[record.noticeId],
 	);
-	if (existing.rows.length) {
-		const row = existing.rows[0] as Record<string, unknown>;
-		const comparable = [
-			Number(row.notice_type),
-			row.organization_id ?? null,
-			row.title,
-			new Date(String(row.released_at)).toISOString(),
-			row.is_external,
-			row.external_url ?? null,
-			row.category,
-			row.content_html ?? null,
-			row.content_text ?? null,
-		];
-		const expected = [
-			record.noticeType,
-			record.organizationId,
-			record.title,
-			record.releasedAt,
-			record.isExternal,
-			record.externalUrl,
-			record.category,
-			record.contentHtml,
-			record.contentText,
-		];
-		if (JSON.stringify(comparable) !== JSON.stringify(expected)) {
-			throw new Error(`published notice conflicts: ${record.noticeId}`);
-		}
-	} else {
-		await client.query(
-			"INSERT INTO notices.notices(notice_id, notice_type, organization_id, title, released_at, is_external, external_url, category, content_html, content_text) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-			[
-				record.noticeId,
-				record.noticeType,
-				record.organizationId,
-				record.title,
-				record.releasedAt,
-				record.isExternal,
-				record.externalUrl,
-				record.category,
-				record.contentHtml,
-				record.contentText,
-			],
-		);
+	const row = existing.rows[0] as Record<string, unknown> | undefined;
+	if (
+		!row ||
+		row.is_published !== true ||
+		(row.content_html ?? null) !== record.contentHtml ||
+		(row.content_text ?? null) !== record.contentText
+	) {
+		throw new Error(`published notice conflicts: ${record.noticeId}`);
 	}
+}
 
+async function insertOrVerifyAssets(
+	client: PoolClient,
+	record: PublishedNotice,
+): Promise<void> {
 	const storedAssets = await client.query(
 		"SELECT asset_kind, ordinal, original_name, content_type, byte_size, content_sha256, portal_annex_id FROM notices.notice_assets WHERE notice_id=$1 ORDER BY asset_kind, ordinal",
 		[record.noticeId],

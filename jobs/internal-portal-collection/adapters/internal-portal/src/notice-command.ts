@@ -1,7 +1,9 @@
 import { createInternalPortalCollectionObjectStoreFromEnv } from "../../../src/object-store.js";
+import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { fetchNoticeDetail, fetchNoticeMetadata, fetchNoticePage } from "./api.js";
 import { resolveInternalPortalConfig } from "./config.js";
 import { createInternalPortalNoticeMetaStore } from "./notice-meta-store.js";
+import { createNoticeInventoryStore } from "./notice-inventory-store.js";
 import {
 	backfillInternalPortalNotices,
 	isNoticeHistoryCovered,
@@ -30,6 +32,7 @@ export async function runNoticeCommand(
 ): Promise<NoticeRunnerResult> {
 	const env = options.env ?? process.env;
 	const objectStore = createInternalPortalCollectionObjectStoreFromEnv(env);
+	const databasePool = createNoticeDatabasePool(env, { max: 1 });
 	const stateStore = createObjectStoreInternalPortalNoticeSyncStateStore({ objectStore });
 	try {
 		if (command.name === "backfill") {
@@ -62,6 +65,7 @@ export async function runNoticeCommand(
 				fetchNoticeDetail,
 				fetchNoticeMetadata,
 				fetchNoticePage,
+				inventoryStore: createNoticeInventoryStore(databasePool),
 				metaStore: createInternalPortalNoticeMetaStore({ objectStore }),
 				objectStore,
 				portalHost: new URL(config.portalBaseUrl).hostname,
@@ -81,6 +85,7 @@ export async function runNoticeCommand(
 		}
 	} finally {
 		await objectStore.close?.();
+		await databasePool.end();
 	}
 }
 

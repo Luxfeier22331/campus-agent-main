@@ -51,7 +51,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 						{
 							Key:
 								command.input.Bucket === "campus-agent-derived"
-									? "notices/classifications/358159.json"
+									? "notices/assets/sha256/missing"
 									: "internal_portal/meta.json",
 						},
 					],
@@ -103,28 +103,13 @@ describe("publisher object store identities", () => {
 			body,
 			contentType: "application/json",
 		});
-		await expect(store.listSource("internal_portal/")).resolves.toEqual([
-			"internal_portal/meta.json",
-		]);
-		await expect(store.getDerived("notices/classifications/358159.json")).resolves.toEqual({
-			body: new Uint8Array([4, 5, 6]),
-			contentType: "application/json",
-		});
-		await expect(store.listDerived("notices/classifications/")).resolves.toEqual([
-			"notices/classifications/358159.json",
-		]);
 		await store.createOrVerifyDerived({ body, contentType: "image/png", digest });
 		store.close();
 
 		const source = s3.clients.find((client) => client.accessKeyId === "source-access");
 		const derived = s3.clients.find((client) => client.accessKeyId === "derived-access");
-		expect(source?.commands.map((command) => command.name)).toEqual([
-			"GetObjectCommand",
-			"ListObjectsV2Command",
-		]);
+		expect(source?.commands.map((command) => command.name)).toEqual(["GetObjectCommand"]);
 		expect(derived?.commands.map((command) => command.name)).toEqual([
-			"GetObjectCommand",
-			"ListObjectsV2Command",
 			"GetObjectCommand",
 			"PutObjectCommand",
 		]);

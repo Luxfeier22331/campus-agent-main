@@ -94,7 +94,6 @@ function fakeStore(sources: Record<number, unknown>): PublisherObjectStore {
 	return {
 		close: vi.fn(),
 		createOrVerifyDerived: vi.fn(),
-		getDerived: vi.fn(async () => null),
 		getSource: vi.fn(async (key: string) => {
 			const match = /internal_portal\/notices\/([1-9][0-9]*)\.json$/u.exec(key);
 			const value = match ? sources[Number(match[1])] : undefined;
@@ -104,8 +103,6 @@ function fakeStore(sources: Record<number, unknown>): PublisherObjectStore {
 				contentType: "application/json",
 			};
 		}),
-		listDerived: vi.fn(async () => []),
-		listSource: vi.fn(async () => []),
 	};
 }
 

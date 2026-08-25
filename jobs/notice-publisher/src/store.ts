@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import {
 	GetObjectCommand,
-	ListObjectsV2Command,
 	PutObjectCommand,
 	S3Client,
 } from "@aws-sdk/client-s3";
@@ -13,10 +12,7 @@ export interface PublisherObjectStore {
 		contentType: string;
 		digest: string;
 	}): Promise<void>;
-	getDerived(key: string): Promise<{ body: Uint8Array; contentType: string | null } | null>;
 	getSource(key: string): Promise<{ body: Uint8Array; contentType: string | null }>;
-	listDerived(prefix: string): Promise<string[]>;
-	listSource(prefix: string): Promise<string[]>;
 }
 
 export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): PublisherObjectStore {
@@ -79,41 +75,7 @@ export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): Publi
 		async getSource(key) {
 			return getObject(sourceClient, sourceBucket, key);
 		},
-		async getDerived(key) {
-			try {
-				return await getObject(derivedClient, derivedBucket, key);
-			} catch (error) {
-				if (isNotFound(error)) return null;
-				throw error;
-			}
-		},
-		listDerived(prefix) {
-			return listObjectKeys(derivedClient, derivedBucket, prefix);
-		},
-		async listSource(prefix) {
-			return listObjectKeys(sourceClient, sourceBucket, prefix);
-		},
 	};
-}
-
-async function listObjectKeys(client: S3Client, bucket: string, prefix: string): Promise<string[]> {
-	const keys: string[] = [];
-	let token: string | undefined;
-	do {
-		const page = await client.send(
-			new ListObjectsV2Command({
-				Bucket: bucket,
-				ContinuationToken: token,
-				Prefix: prefix,
-			}),
-		);
-		keys.push(...(page.Contents ?? []).flatMap((item) => (item.Key ? [item.Key] : [])));
-		if (page.IsTruncated && !page.NextContinuationToken) {
-			throw new Error(`object listing is truncated without continuation token: ${prefix}`);
-		}
-		token = page.IsTruncated ? page.NextContinuationToken : undefined;
-	} while (token);
-	return keys;
 }
 
 async function getBytes(client: S3Client, bucket: string, key: string): Promise<Uint8Array> {

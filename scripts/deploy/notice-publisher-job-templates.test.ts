@@ -17,6 +17,10 @@ const networkPolicyManifestPath = resolve(
 	import.meta.dirname,
 	"../../infra/k8s/ingestion-runtime/base/runtime/network-policy.yaml",
 );
+const bootstrapManifestPath = resolve(
+	import.meta.dirname,
+	"../../infra/k8s/ops-web/base/database-grants-job.yaml",
+);
 
 test("notice publisher manual Job template is suspended and non-retrying", () => {
 	const manifest = singleManifest(publisherManifestPath);
@@ -35,7 +39,7 @@ test("notice publisher schema Job uses the existing owner identity", () => {
 	assert.equal(nameOf(manifest), "notice-publisher-schema");
 	const metadata = record(manifest.metadata, "metadata");
 	const annotations = record(metadata.annotations, "annotations");
-	assert.equal(annotations["argocd.argoproj.io/sync-wave"], "0");
+	assert.equal(annotations["argocd.argoproj.io/sync-wave"], "-1");
 	const spec = record(manifest.spec, "Job spec");
 	assert.equal(spec.backoffLimit, 0);
 	const migrate = container(manifest, "notice-publisher-schema");
@@ -44,6 +48,16 @@ test("notice publisher schema Job uses the existing owner identity", () => {
 		"campus-agent-postgres-campus-agent-owner",
 		"campus-agent-postgres-campus-agent-owner",
 	]);
+});
+
+test("notice schema migration runs before the Ops Web bootstrap Job", () => {
+	const schema = syncWave(singleManifest(schemaManifestPath));
+	const bootstrap = syncWave(singleManifest(bootstrapManifestPath));
+	assert.ok(
+		schema < bootstrap,
+		`schema wave ${schema} must be earlier than bootstrap wave ${bootstrap}`,
+	);
+	assert.equal(bootstrap, 0);
 });
 
 test("notice publisher workloads can reach their required services", () => {
@@ -109,6 +123,15 @@ function nameOf(manifest: Record<string, unknown>): string {
 		throw new Error("manifest name is invalid");
 	}
 	return name;
+}
+
+function syncWave(manifest: Record<string, unknown>): number {
+	const annotations = record(record(manifest.metadata, "metadata").annotations, "annotations");
+	const value = annotations["argocd.argoproj.io/sync-wave"];
+	if (typeof value !== "string" || !/^-?\d+$/u.test(value)) {
+		throw new Error("manifest sync wave is invalid");
+	}
+	return Number(value);
 }
 
 function container(manifest: Record<string, unknown>, name: string): Record<string, unknown> {

@@ -59,7 +59,7 @@ export function createPgNoticeStore(
 				FROM notices.notices AS n
 				JOIN notices.notice_types AS t ON t.notice_type = n.notice_type
 				LEFT JOIN notices.organizations AS o ON o.organization_id = n.organization_id
-				WHERE n.notice_id = ${noticeId}::bigint AND NOT n.is_external
+				WHERE n.notice_id = ${noticeId}::bigint AND n.is_published AND NOT n.is_external
 			`);
 			const row = noticeResult.rows[0];
 			if (!row) {
@@ -100,6 +100,7 @@ export function createPgNoticeStore(
 					a.notice_id = ${noticeId}::bigint
 					AND a.asset_kind = 'image'
 					AND a.ordinal = ${ordinal}
+					AND n.is_published
 					AND NOT n.is_external
 			`);
 			const row = result.rows[0];
@@ -149,7 +150,7 @@ export function createPgNoticeStore(
 					WHERE EXISTS (
 						SELECT 1
 						FROM notices.notices AS n
-						WHERE n.organization_id = o.organization_id
+						WHERE n.organization_id = o.organization_id AND n.is_published
 					)
 					ORDER BY o.name, o.organization_id
 				`),
@@ -168,7 +169,7 @@ export function createPgNoticeStore(
 }
 
 function noticeWhere(input: NoticeListRequestQuery): SQL {
-	const conditions: SQL[] = [];
+	const conditions: SQL[] = [sql`n.is_published`];
 	if (input.q) {
 		const pattern = containsPattern(input.q);
 		conditions.push(

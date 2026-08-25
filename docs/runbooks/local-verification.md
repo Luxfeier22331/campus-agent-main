@@ -74,7 +74,9 @@ pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
 
 删除 linked worktree 前，先运行上述销毁命令；不要在任一 worktree 执行共享 compose 的 `down` 或
 `down -v`。source bucket 与 Campus Web 文档 bucket 是共享资源，不能作为单个实例销毁目标。
-单独启动核心应用要求当前 worktree 已执行根 `pnpm dev:init`；可选应用要求先执行各自 package 的 `dev:init`。
+单独启动核心应用要求当前 worktree 已执行根 `pnpm dev:init`；可选应用要求先执行各自 package 的
+`dev:init`。internal-portal-collection 的通知模式和 notice-classifier 还要求当前 profile 已执行
+`pnpm --filter notice-publisher dev:init`，由 schema owner 安装 `notices.*`。
 
 ## 可选应用
 
@@ -88,6 +90,9 @@ pnpm --filter notice-publisher dev:init
 pnpm --filter internal-portal-collection dev:init
 pnpm --filter notice-classifier dev:init
 ```
+
+`notice-publisher dev:init` 是通知 schema 的本地安装入口；internal-portal-collection 和
+notice-classifier 的初始化只生成自身环境文件，不重复执行 DDL。
 
 ## Ops Web API
 

@@ -283,6 +283,18 @@ test("publishes the notice publisher image for its source or Dockerfile change",
 	assert.deepEqual(plan.workers, []);
 });
 
+test("publishes all notice jobs when the shared notice database package changes", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(changed("packages/notice-database/src/index.ts"), []);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, [
+		"internal-portal-collection",
+		"notice-classifier",
+		"notice-publisher",
+	]);
+	assert.deepEqual(plan.workers, []);
+});
+
 test("promotion planning remains diff-based", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {

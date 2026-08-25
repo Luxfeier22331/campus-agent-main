@@ -25,13 +25,13 @@
 - `/email-access`、`/users`、`/users/:userId`、`/users/activity`：账号管理；
 - `/dining`：食堂内容维护；
 - `/groups`：同好群目录维护。
-- `/notice-pipeline`：从现有暂停 CronJob 模板启动通知采集、分类和发布 Job，并查看近期状态。
+- `/notices`：查看通知库存、维护分类，并启动固定的采集、分类和发布任务。
 
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器 DTO 位于 `src/shared/`，HTTP 入口位于
 `src/server/app.ts`。
 
-通知管线页面只暴露六个固定操作：增量采集、按日期回填、分类缺失通知、分类单条通知、发布全部通知和
-发布单条通知。服务端从同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能
+通知维护页面只暴露六个固定操作：增量采集、按日期回填、分类缺失通知、分类单条通知、发布待发布通知和
+发布单条通知。分类编辑直接更新通知数据库中的唯一分类字段。服务端从同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能
 提交任意 command、image、environment、namespace 或 Secret。每个采集、分类和发布操作族同时只允许
 一个待运行或运行中的 Job，不排队、不自动串联、不自动重试。GitOps 只管理暂停的 CronJob 模板；动态
 Job 引用来源 CronJob 作为 owner，固定零重试，并在完成 24 小时后回收。

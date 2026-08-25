@@ -2,6 +2,7 @@ import type { InternalPortalNoticeSource } from "ingestion-contracts";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
 import type { InternalPortalNoticeMetaStore } from "./notice-meta-store.js";
+import type { NoticeInventoryStore } from "./notice-inventory-store.js";
 import { ensureNoticeResources, type NoticeResourceEnsureResult } from "./notice-resources.js";
 import {
 	buildInternalPortalNoticeSource,
@@ -36,6 +37,7 @@ export interface NoticeRunnerInput {
 		startDate: string;
 	}) => Promise<NoticeListResponse>;
 	metaStore: InternalPortalNoticeMetaStore;
+	inventoryStore: NoticeInventoryStore;
 	now?: () => string;
 	objectStore: InternalPortalCollectionObjectStore;
 	portalHost: string;
@@ -88,15 +90,19 @@ export async function syncInternalPortalNotices(
 		parseTotalPages(page);
 		const items = parseNoticeItems(page.datas?.tables ?? [], allowedTypes);
 		const updatedAt = now(input);
-		await saveMappings(input, mappings, updatedAt);
+		const completeMappings = withObservedOrganizations(mappings, items.candidates);
+		await input.inventoryStore.upsertMappings(completeMappings);
+		await saveMappings(input, completeMappings, updatedAt);
 		const state = await saveState(input, stateWith(null, items.firstObservedId), updatedAt);
 		return result("sync", state, 1);
 	}
 	if (current.headNoticeId === null) {
 		const scan = await scanBackfillNotices(input, "", allowedTypes);
+		const completeMappings = withObservedOrganizations(mappings, scan.candidates);
+		await input.inventoryStore.upsertMappings(completeMappings);
 		const counts = await writeCandidates(input, scan.candidates);
 		const updatedAt = now(input);
-		await saveMappings(input, withObservedOrganizations(mappings, scan.candidates), updatedAt);
+		await saveMappings(input, completeMappings, updatedAt);
 		if (scan.firstObservedId === null) {
 			return result("sync", current, scan.pagesFetched, counts);
 		}
@@ -109,9 +115,11 @@ export async function syncInternalPortalNotices(
 	}
 
 	const scan = await scanIncrementalNotices(input, current.headNoticeId, allowedTypes);
+	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
+	await input.inventoryStore.upsertMappings(completeMappings);
 	const counts = await writeCandidates(input, scan.candidates);
 	const updatedAt = now(input);
-	await saveMappings(input, withObservedOrganizations(mappings, scan.candidates), updatedAt);
+	await saveMappings(input, completeMappings, updatedAt);
 	if (scan.firstObservedId === null || scan.firstObservedId === current.headNoticeId) {
 		return result("sync", current, scan.pagesFetched, counts);
 	}
@@ -143,9 +151,11 @@ export async function backfillInternalPortalNotices(
 		headNoticeId = parseNoticeItems(baselinePage.datas?.tables ?? [], allowedTypes).firstObservedId;
 		pagesFetched += 1;
 	}
+	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
+	await input.inventoryStore.upsertMappings(completeMappings);
 	const counts = await writeCandidates(input, scan.candidates);
 	const updatedAt = now(input);
-	await saveMappings(input, withObservedOrganizations(mappings, scan.candidates), updatedAt);
+	await saveMappings(input, completeMappings, updatedAt);
 	let updated: InternalPortalNoticeSyncState = {
 		...stateWith(current, headNoticeId),
 		historyCoveredFrom: earlierDate(current?.historyCoveredFrom ?? null, startDate),
@@ -381,6 +391,7 @@ async function writeCandidates(
 			objectStore: input.objectStore,
 			portalHost: input.portalHost,
 		});
+		await input.inventoryStore.register(source);
 		noticesProcessed += 1;
 		addResourceCounts(resources, resourceResult);
 		if (noticesProcessed % 100 === 0) {

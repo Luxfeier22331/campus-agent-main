@@ -2,6 +2,10 @@ import type { InternalPortalNoticeSource } from "ingestion-contracts";
 import { describe, expect, it, vi } from "vitest";
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
 import type { InternalPortalNoticeMetaStore } from "../src/notice-meta-store.js";
+import type {
+	NoticeInventoryMappings,
+	NoticeInventoryStore,
+} from "../src/notice-inventory-store.js";
 import {
 	backfillInternalPortalNotices,
 	type NoticeRunnerInput,
@@ -425,6 +429,20 @@ class MemoryMetaStore implements InternalPortalNoticeMetaStore {
 	}
 }
 
+class MemoryInventoryStore implements NoticeInventoryStore {
+	readonly mappings: NoticeInventoryMappings[] = [];
+	readonly sources: InternalPortalNoticeSource[] = [];
+
+	async register(source: InternalPortalNoticeSource): Promise<"written"> {
+		this.sources.push(source);
+		return "written";
+	}
+
+	async upsertMappings(mappings: NoticeInventoryMappings): Promise<void> {
+		this.mappings.push(mappings);
+	}
+}
+
 class MemorySourceStore implements InternalPortalNoticeSourceStore {
 	readonly sources: InternalPortalNoticeSource[];
 
@@ -496,6 +514,7 @@ function runnerInput(overrides: Partial<NoticeRunnerInput> = {}): NoticeRunnerIn
 		fetchNoticeDetail: detailFetcher(),
 		fetchNoticeMetadata: async () => metadata(),
 		fetchNoticePage: async () => page([], 0),
+		inventoryStore: new MemoryInventoryStore(),
 		metaStore: new MemoryMetaStore(),
 		now: () => now,
 		objectStore: memoryObjectStore(),

@@ -2,16 +2,16 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { formatNoticeJobError } from "ingestion-contracts/job-error";
+import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 
 import { runNoticeClassificationJob } from "./job.ts";
 import { createNoticeClassifierFromRuntimeConfig, resolveNoticeClassifierRuntimeConfig } from "./model.ts";
-import { createNoticeClassifierObjectStoreFromEnv } from "./object-store.ts";
 export { parseNoticeClassifierOptions, type NoticeClassifierCliOptions } from "./options.ts";
 import { parseNoticeClassifierOptions } from "./options.ts";
 
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
 	const options = parseNoticeClassifierOptions(argv);
-	const objectStore = createNoticeClassifierObjectStoreFromEnv();
+	const database = createNoticeDatabasePool(process.env, { max: options.concurrency });
 	try {
 		let runtimeConfigPromise: ReturnType<typeof resolveNoticeClassifierRuntimeConfig> | undefined;
 		let modelClassifier: ReturnType<typeof createNoticeClassifierFromRuntimeConfig> | undefined;
@@ -26,12 +26,12 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 				);
 				return modelClassifier(input);
 			},
+			database,
 			...(options.noticeIds ? { noticeIds: options.noticeIds } : {}),
-			objectStore,
 		});
 		process.stdout.write(`${JSON.stringify({ summary: result })}\n`);
 	} finally {
-		objectStore.close();
+		await database.end();
 	}
 }
 

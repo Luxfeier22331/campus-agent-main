@@ -60,13 +60,20 @@ import {
 } from "./internal-portal-credential-service.ts";
 import { createPgInternalPortalCredentialStore } from "./internal-portal-credential-store.ts";
 import {
-	createKubernetesNoticePipelineJobStore,
-	createNoticePipelineJobService,
-	NoticePipelineConflictError,
-	NoticePipelineJobNotFoundError,
-	type NoticePipelineJobService,
-	NoticePipelineUnavailableError,
-} from "./notice-pipeline-jobs.ts";
+	createKubernetesNoticeJobStore,
+	createNoticeJobService,
+	NoticeJobConflictError,
+	NoticeJobNotFoundError,
+	type NoticeJobService,
+	NoticeJobUnavailableError,
+} from "./notice-jobs.ts";
+import {
+	createPgNoticeStore,
+	createUnavailableNoticeStore,
+	NoticeNotFoundError,
+	type NoticeStore,
+	NoticeStoreUnavailableError,
+} from "./notice-store.ts";
 import {
 	createOpsAdmissionFromEnv,
 	getMissingAccessConfig,
@@ -102,7 +109,7 @@ import {
 	providerConfigAdminErrorResponse,
 	registerModelSettingsRoutes,
 } from "./routes/model-settings.ts";
-import { registerNoticePipelineRoutes } from "./routes/notice-pipeline.ts";
+import { registerNoticeRoutes } from "./routes/notices.ts";
 import { registerObservabilityRoutes, registerOverviewRoute } from "./routes/observability.ts";
 import { logOpsError } from "./safe-logging.ts";
 import {
@@ -140,7 +147,8 @@ interface OpsAppOptions {
 	internalPortalCredentialService?: InternalPortalCredentialService;
 	internalPortalAutomationTokenService?: InternalPortalAutomationTokenService;
 	overviewService?: OpsOverviewService;
-	noticePipelineJobService?: NoticePipelineJobService;
+	noticeJobService?: NoticeJobService;
+	noticeStore?: NoticeStore;
 	sentry?: SentryClient;
 	staticRoot?: string;
 	store?: OpsStatusStore;
@@ -174,11 +182,16 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		createOpsOverviewService({
 			store,
 		});
-	const noticePipelineJobService =
-		options.noticePipelineJobService ??
-		createNoticePipelineJobService(
-			createKubernetesNoticePipelineJobStore(env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default"),
+	const noticeJobService =
+		options.noticeJobService ??
+		createNoticeJobService(
+			createKubernetesNoticeJobStore(env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default"),
 		);
+	const noticeStore =
+		options.noticeStore ??
+		(databasePool
+			? createPgNoticeStore(databasePool)
+			: createUnavailableNoticeStore(databaseUnavailable));
 	const providerConfigClient = options.providerConfigClient ?? createProviderConfigAdminClient(env);
 	const campusGroupsClient =
 		options.campusGroupsClient ??
@@ -263,16 +276,22 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		if (error instanceof CampusGroupsRequestError) {
 			return jsonError("OPS_CAMPUS_GROUPS_REQUEST_INVALID", error.message, 400);
 		}
-		if (error instanceof NoticePipelineConflictError) {
+		if (error instanceof NoticeJobConflictError) {
 			return jsonError("OPS_NOTICE_JOB_CONFLICT", error.message, 409, {
 				runningJobName: error.runningJobName,
 			});
 		}
-		if (error instanceof NoticePipelineJobNotFoundError) {
+		if (error instanceof NoticeJobNotFoundError) {
 			return jsonError("OPS_NOTICE_JOB_NOT_FOUND", error.message, 404);
 		}
-		if (error instanceof NoticePipelineUnavailableError) {
+		if (error instanceof NoticeJobUnavailableError) {
 			return jsonError("OPS_NOTICE_JOB_UNAVAILABLE", error.message, 503);
+		}
+		if (error instanceof NoticeNotFoundError) {
+			return jsonError("OPS_NOTICE_NOT_FOUND", error.message, 404);
+		}
+		if (error instanceof NoticeStoreUnavailableError) {
+			return jsonError("OPS_NOTICE_STORE_UNAVAILABLE", error.message, 503);
 		}
 		if (error instanceof InternalPortalCredentialStoreUnavailableError) {
 			return jsonError(
@@ -415,7 +434,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	registerEmailAccessRoutes({ admission, app, client: emailAccessClient, publicOrigin });
 	registerObservabilityRoutes({ admission, app, sentry, store });
 	registerCampusGroupsRoutes({ admission, app, client: campusGroupsClient, publicOrigin });
-	registerNoticePipelineRoutes({ admission, app, service: noticePipelineJobService });
+	registerNoticeRoutes({ admission, app, jobService: noticeJobService, store: noticeStore });
 	registerDiningRoutes({
 		admission,
 		app,

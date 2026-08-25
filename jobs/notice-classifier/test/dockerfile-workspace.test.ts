@@ -6,7 +6,7 @@ const repoRoot = join(import.meta.dirname, "../../..");
 const dockerfile = readFileSync(join(repoRoot, "jobs/notice-classifier/Dockerfile"), "utf8");
 
 describe("notice-classifier Dockerfile workspace inputs", () => {
-	it("includes ingestion-contracts in dependency installation and build inputs", () => {
+	it("includes workspace dependencies in installation and build inputs", () => {
 		const manifest =
 			"COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json";
 		const source =
@@ -24,5 +24,7 @@ describe("notice-classifier Dockerfile workspace inputs", () => {
 		);
 		expect(dockerfile).toContain(source);
 		expect(dockerfile.indexOf(source)).toBeLessThan(dockerfile.indexOf(build));
+		expect(dockerfile.split("COPY packages/notice-database/package.json").length - 1).toBe(2);
+		expect(dockerfile).toContain("COPY packages/notice-database/src ./packages/notice-database/src");
 	});
 });

@@ -3,16 +3,16 @@
 import type { V1CronJob, V1Job } from "@kubernetes/client-node";
 import { describe, expect, it, vi } from "vitest";
 import {
-	createNoticePipelineJobService,
-	KubernetesNoticePipelineJobStore,
-	NoticePipelineConflictError,
-	parseNoticePipelineSummary,
-} from "../src/server/notice-pipeline-jobs";
-import type { NoticePipelineJob } from "../src/shared/ops-contract";
+	createNoticeJobService,
+	KubernetesNoticeJobStore,
+	NoticeJobConflictError,
+	parseNoticeJobSummary,
+} from "../src/server/notice-jobs";
+import type { NoticeJob } from "../src/shared/ops-contract";
 
 const createdAt = new Date("2026-08-23T10:00:00.000Z");
 
-describe("notice pipeline Kubernetes jobs", () => {
+describe("notice Kubernetes jobs", () => {
 	it("clones the fixed backfill template and only injects its start date", async () => {
 		const createNamespacedJob = vi.fn(async ({ body }: { body: V1Job }) => ({
 			...body,
@@ -24,7 +24,7 @@ describe("notice pipeline Kubernetes jobs", () => {
 			readNamespacedCronJob: vi.fn(async () => collectionTemplate()),
 			readNamespacedJob: vi.fn(),
 		};
-		const store = new KubernetesNoticePipelineJobStore(
+		const store = new KubernetesNoticeJobStore(
 			"campus-agent",
 			batch as never,
 			{
@@ -77,7 +77,7 @@ describe("notice pipeline Kubernetes jobs", () => {
 			readNamespacedCronJob: vi.fn(async () => template),
 			readNamespacedJob: vi.fn(),
 		};
-		const store = new KubernetesNoticePipelineJobStore("campus-agent", batch as never, {} as never);
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, {} as never);
 
 		await expect(
 			store.create({ operation: "notice-backfill", startDate: "2026-08-01" }),
@@ -99,7 +99,7 @@ describe("notice pipeline Kubernetes jobs", () => {
 			readNamespacedCronJob: vi.fn(async ({ name }: { name: string }) => jobTemplate(name)),
 			readNamespacedJob: vi.fn(),
 		};
-		const store = new KubernetesNoticePipelineJobStore("campus-agent", batch as never, {} as never);
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, {} as never);
 
 		await store.create({ noticeId: 354516, operation: "notice-classify-one" });
 		await store.create({ noticeId: 354516, operation: "notice-publish-one" });
@@ -119,11 +119,11 @@ describe("notice pipeline Kubernetes jobs", () => {
 			status: "running",
 		});
 		const store = { create: vi.fn(), get: vi.fn(), list: vi.fn(async () => [running]) };
-		const service = createNoticePipelineJobService(store);
+		const service = createNoticeJobService(store);
 
 		await expect(
 			service.create({ noticeId: 354516, operation: "notice-classify-one" }),
-		).rejects.toEqual(expect.any(NoticePipelineConflictError));
+		).rejects.toEqual(expect.any(NoticeJobConflictError));
 		expect(store.create).not.toHaveBeenCalled();
 	});
 
@@ -139,7 +139,7 @@ describe("notice pipeline Kubernetes jobs", () => {
 			get: vi.fn(),
 			list: vi.fn(async () => [failed]),
 		};
-		const service = createNoticePipelineJobService(store);
+		const service = createNoticeJobService(store);
 
 		await expect(
 			service.create({ noticeId: 354516, operation: "notice-classify-one" }),
@@ -149,17 +149,15 @@ describe("notice pipeline Kubernetes jobs", () => {
 
 	it("extracts only bounded scalar fields from the final structured log line", () => {
 		expect(
-			parseNoticePipelineSummary(
+			parseNoticeJobSummary(
 				[
 					"plain progress line",
 					JSON.stringify({ summary: { classified: 4, nested: { hidden: true }, skipped: 8 } }),
 				].join("\n"),
 			),
 		).toEqual({ classified: 4, skipped: 8 });
-		expect(parseNoticePipelineSummary("unstructured output")).toBeNull();
-		expect(
-			parseNoticePipelineSummary(JSON.stringify({ processed: 4, status: "running" })),
-		).toBeNull();
+		expect(parseNoticeJobSummary("unstructured output")).toBeNull();
+		expect(parseNoticeJobSummary(JSON.stringify({ processed: 4, status: "running" }))).toBeNull();
 	});
 });
 
@@ -221,7 +219,7 @@ function jobTemplate(name: string): V1CronJob {
 	};
 }
 
-function job(overrides: Partial<NoticePipelineJob> = {}): NoticePipelineJob {
+function job(overrides: Partial<NoticeJob> = {}): NoticeJob {
 	return {
 		completedAt: null,
 		createdAt: createdAt.toISOString(),

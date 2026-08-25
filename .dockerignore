@@ -55,6 +55,8 @@ configs/sources/**
 !packages/contracts/**
 !packages/notice-classifier-core/
 !packages/notice-classifier-core/**
+!packages/notice-database/
+!packages/notice-database/**
 !packages/eval-langfuse/
 !packages/eval-langfuse/**
 !packages/ingestion-contracts/

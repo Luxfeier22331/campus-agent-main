@@ -32,6 +32,13 @@ spec:
         - protocol: TCP
           port: 9000
     - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: campus-agent-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:
@@ -60,10 +67,10 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: object-store
+              cnpg.io/cluster: campus-agent-postgres
       ports:
         - protocol: TCP
-          port: 9000
+          port: 5432
     - to:
         - podSelector:
             matchLabels:

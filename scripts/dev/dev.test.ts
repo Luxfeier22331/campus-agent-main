@@ -317,20 +317,24 @@ describe("managed worktree environment", () => {
 			`http://127.0.0.1:${profile.ports.opsWebApi}`,
 		);
 		assert.equal(internalPortalCollectionEnvironment.INTERNAL_PORTAL_SSO_TGC, "TGT-local");
-		assert.equal(
-			noticeClassifierEnvironment.OBJECT_STORE_BUCKET_DERIVED,
-			"campus-agent-derived-wt-1-deadbeef",
-		);
-		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_BUCKET_SOURCE, "campus-agent-source");
-		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
-		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_REGION, "us-east-1");
-		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
-		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "minioadmin");
+		assert.equal(internalPortalCollectionEnvironment.NOTICES_DATABASE_SSLMODE, "disable");
+		assert.equal(internalPortalCollectionEnvironment.DEPLOYMENT_ENVIRONMENT, "local");
+		assert.equal(noticeClassifierEnvironment.DEPLOYMENT_ENVIRONMENT, "local");
+		assert.equal(noticeClassifierEnvironment.NOTICES_DATABASE_SSLMODE, "disable");
+		assert.equal(noticeClassifierEnvironment.OBJECT_STORE_ENDPOINT, undefined);
 		assert.equal(noticeClassifierEnvironment.INTERNAL_NOTICE_CLASSIFIER_OPENAI_API_KEY, undefined);
 		const modelConfigUrl = `http://127.0.0.1:${calculateLocalDevRuntimePorts(profile.slot).modelConfig}`;
 		assert.equal(executionControlEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
 		assert.equal(agentRuntimeEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
 		assert.equal(noticeClassifierEnvironment.MODEL_CONFIG_URL, modelConfigUrl);
+		assert.equal(
+			noticeClassifierEnvironment.NOTICES_DATABASE_URL,
+			noticePublisherEnvironment.NOTICES_DATABASE_URL,
+		);
+		assert.equal(
+			internalPortalCollectionEnvironment.NOTICES_DATABASE_URL,
+			noticePublisherEnvironment.NOTICES_DATABASE_URL,
+		);
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_ACCESS_KEY, "minioadmin");
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_SOURCE_SECRET_KEY, "minioadmin");
 		assert.equal(noticePublisherEnvironment.OBJECT_STORE_DERIVED_ACCESS_KEY, "minioadmin");

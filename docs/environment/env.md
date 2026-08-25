@@ -40,6 +40,10 @@ status: active
 - `pnpm --filter internal-portal-collection dev:init`：internal-portal-collection adapter；
 - `pnpm --filter notice-classifier dev:init`：notice-classifier。
 
+`notice-publisher dev:init` 还使用数据库 owner 安装当前 `notices.*` migration。新的本地 profile 在运行
+internal-portal-collection 通知模式或 notice-classifier 前先执行该命令；后两者的 `dev:init` 只生成
+各自环境文件，不执行通知 DDL。
+
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
 `dev:init` 还为当前 worktree 创建两个 `0600` 文件：`var/dev/provider-config-encryption.key`
@@ -49,17 +53,17 @@ Config 当前密文使用。两者不进入 profile、其他 worktree 或部署�
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实际选择决定。
 
-internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的本地对象存储配置，以及
-`internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令保留其他托管
-字段、原子替换该值并设置 `0600`；失败不改文件，后续 `dev:init` 保留已有 TGC。adapter 目录下未跟踪
-的 `.env` 只维护可选门户代理或不使用托管本地环境的对象存储配置，不作为长期 TGC 来源。进程环境仍
-具有最高优先级。linked worktree 首次初始化时，如果 main checkout 当前或已退役采集目录的托管
-`.env.local` 已有 TGC，则将它导入该文件；之后 worktree 自己通过 `auth:pull` 更新的值优先，不被再次
-初始化覆盖。
+internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的 source bucket、通知数据库和 Ops Web
+内部接口配置，以及 `internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令
+保留其他托管字段、原子替换该值并设置 `0600`；失败不改文件，后续 `dev:init` 保留已有 TGC。adapter
+目录下未跟踪的 `.env` 只维护可选门户代理或不使用托管本地环境的对象存储配置，不作为长期 TGC 来源。
+进程环境仍具有最高优先级。linked worktree 首次初始化时，如果 main checkout 当前或已退役采集目录的
+托管 `.env.local` 已有 TGC，则将它导入该文件；之后 worktree 自己通过 `auth:pull` 更新的值优先，不被
+再次初始化覆盖。
 
-notice-classifier 的托管 `.env.local` 保存本 worktree 的 derived bucket、本地 source bucket、RustFS
-连接和非敏感 `MODEL_CONFIG_URL`。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类
-阶段时从 Model Config 一次读取当前完整配置。
+notice-classifier 的托管 `.env.local` 保存本 worktree 的通知数据库连接和非敏感 `MODEL_CONFIG_URL`，
+不再包含对象存储配置。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时从
+Model Config 一次读取当前完整配置。
 
 Ops Web 的托管 `.env.local` 保存本 worktree 的数据库连接和本地 source bucket 连接。notice-publisher 的
 托管 `.env.local` 保存本地 `notice_publisher` 数据库连接、明确禁用 TLS
@@ -90,8 +94,12 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 且字段全部由该 Job 消费的专用 ConfigMap 可以整体注入。
 
 内部门户采集使用三个默认暂停的 CronJob 模板，分别固定执行通知增量、通知回填和文件发布采集。
-它们读取 `OPS_WEB_INTERNAL_URL`、`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；回填日期
-只在创建该次 Job 时写入。模板默认暂停，只用于显式创建一次性 Job；不得新增 TGC Secret。
+它们读取 `OPS_WEB_INTERNAL_URL`、`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还
+读取既有数据库 owner 连接并登记通知库存。回填日期只在创建该次 Job 时写入。模板默认暂停，只用于
+显式创建一次性 Job；不得新增 TGC Secret。
+
+notice-classifier 读取既有数据库 owner 连接和 Model Config，不读取 source/derived bucket，也不创建
+分类器专用数据库身份或模型 Secret。
 
 notice-publisher 的 schema Job 和默认暂停的发布模板复用既有 `campus_agent` owner Secret、PostgreSQL
 CA 与 source/derived 对象存储 Secret。部署环境不创建 `notice_publisher` 角色、专用密码或自动 schedule；

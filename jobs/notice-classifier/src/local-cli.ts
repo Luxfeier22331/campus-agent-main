@@ -2,13 +2,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 
 import { runNoticeClassificationJob } from "./job.ts";
 import {
 	createNoticeClassifierFromRuntimeConfig,
 	resolveNoticeClassifierRuntimeConfig,
 } from "./model.ts";
-import { createNoticeClassifierObjectStoreFromEnv } from "./object-store.ts";
 import { parseNoticeClassifierOptions } from "./options.ts";
 
 export const LOCAL_NOTICE_CLASSIFIER_ENV_PATH = path.resolve(
@@ -16,17 +16,6 @@ export const LOCAL_NOTICE_CLASSIFIER_ENV_PATH = path.resolve(
 	"../.env.local",
 );
 export const LOCAL_NOTICE_CLASSIFIER_MODEL_CONFIG_URL = "http://127.0.0.1:18003";
-
-const LOCAL_OBJECT_STORE_ENV_KEYS = [
-	"OBJECT_STORE_ENDPOINT",
-	"OBJECT_STORE_REGION",
-	"OBJECT_STORE_BUCKET_SOURCE",
-	"OBJECT_STORE_BUCKET_DERIVED",
-	"OBJECT_STORE_SOURCE_ACCESS_KEY",
-	"OBJECT_STORE_SOURCE_SECRET_KEY",
-	"OBJECT_STORE_DERIVED_ACCESS_KEY",
-	"OBJECT_STORE_DERIVED_SECRET_KEY",
-] as const;
 
 export function loadLocalNoticeClassifierEnvironment(
 	environmentPath = LOCAL_NOTICE_CLASSIFIER_ENV_PATH,
@@ -39,19 +28,10 @@ export function loadLocalNoticeClassifierEnvironment(
 	process.loadEnvFile(environmentPath);
 }
 
-export function assertLocalNoticeClassifierObjectStoreEnvironment(
-	env: NodeJS.ProcessEnv = process.env,
-): void {
-	for (const key of LOCAL_OBJECT_STORE_ENV_KEYS) {
-		if (!env[key]?.trim()) throw new Error(`${key} is required`);
-	}
-}
-
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
 	loadLocalNoticeClassifierEnvironment();
-	assertLocalNoticeClassifierObjectStoreEnvironment();
 	const options = parseNoticeClassifierOptions(argv);
-	const objectStore = createNoticeClassifierObjectStoreFromEnv();
+	const database = createNoticeDatabasePool(process.env, { max: options.concurrency });
 	try {
 		let runtimeConfigPromise: ReturnType<typeof resolveNoticeClassifierRuntimeConfig> | undefined;
 		let modelClassifier: ReturnType<typeof createNoticeClassifierFromRuntimeConfig> | undefined;
@@ -68,12 +48,12 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 				);
 				return modelClassifier(input);
 			},
+			database,
 			...(options.noticeIds ? { noticeIds: options.noticeIds } : {}),
-			objectStore,
 		});
 		process.stdout.write(`${JSON.stringify(result)}\n`);
 	} finally {
-		objectStore.close();
+		await database.end();
 	}
 }
 

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { Pool, type PoolConfig } from "pg";
 
 export interface NoticeDatabaseConfig {
 	connectionString: string;
@@ -7,11 +8,17 @@ export interface NoticeDatabaseConfig {
 
 const TLS_QUERY_PARAMETERS = ["ssl", "sslcert", "sslkey", "sslmode", "sslrootcert"] as const;
 
+export function createNoticeDatabasePool(
+	env: Record<string, string | undefined>,
+	options: Pick<PoolConfig, "max"> = {},
+): Pool {
+	return new Pool({ ...readNoticeDatabaseConfig(env), ...options });
+}
+
 export function readNoticeDatabaseConfig(
 	env: Record<string, string | undefined>,
 ): NoticeDatabaseConfig {
-	const connectionString =
-		env.NOTICES_DATABASE_URL?.trim() || postgresEnvironmentUrl(env);
+	const connectionString = env.NOTICES_DATABASE_URL?.trim() || postgresEnvironmentUrl(env);
 	let url: URL;
 	try {
 		url = new URL(connectionString);
@@ -69,6 +76,8 @@ function postgresEnvironmentUrl(env: Record<string, string | undefined>): string
 
 function required(env: Record<string, string | undefined>, key: string): string {
 	const value = env[key]?.trim();
-	if (!value) throw new Error(`${key} is required`);
+	if (!value) {
+		throw new Error(`${key} is required`);
+	}
 	return value;
 }

@@ -5,7 +5,6 @@ import {
 	NOTICE_CONTENT_ALIGNMENTS,
 	NOTICE_CONTENT_ALLOWED_ATTRIBUTES,
 	NOTICE_CONTENT_ALLOWED_TAGS,
-	NoticeClassificationArtifactSchema,
 	NoticeDetailResponseSchema,
 	NoticeListRequestQuerySchema,
 	NoticeListResponseSchema,
@@ -135,24 +134,6 @@ describe("notice contracts", () => {
 				externalUrl: null,
 				images: [],
 				isExternal: false,
-			}).success,
-		).toBe(false);
-	});
-
-	it("parses one derived classification artifact without model metadata", () => {
-		expect(
-			NoticeClassificationArtifactSchema.safeParse({
-				category: "campus_operations",
-				notice_id: 358159,
-				schema_version: "notice_classification.v1",
-			}).success,
-		).toBe(true);
-		expect(
-			NoticeClassificationArtifactSchema.safeParse({
-				category: "campus_operations",
-				notice_id: 358159,
-				model: "provider-model",
-				schema_version: "notice_classification.v1",
 			}).success,
 		).toBe(false);
 	});

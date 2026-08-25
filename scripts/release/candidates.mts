@@ -188,15 +188,25 @@ export async function planCandidates(
 	}
 	if (
 		changesPath(files, "jobs/notice-classifier") ||
-		changesPath(files, "packages/notice-classifier-core")
+		changesPath(files, "packages/notice-classifier-core") ||
+		changesPath(files, "packages/domains/notices") ||
+		changesPath(files, "packages/notice-database")
 	) {
 		images.add("notice-classifier");
+	}
+	if (
+		changesPath(files, "jobs/internal-portal-collection") ||
+		changesPath(files, "packages/domains/notices") ||
+		changesPath(files, "packages/notice-database")
+	) {
+		images.add("internal-portal-collection");
 	}
 	if (
 		changesPath(files, "jobs/notice-publisher") ||
 		changesPath(files, "configs/sources/internal-portal.json") ||
 		changesPath(files, "packages/domains/notices") ||
 		changesPath(files, "packages/ingestion-contracts") ||
+		changesPath(files, "packages/notice-database") ||
 		files.includes("packages/contracts/src/notices.ts")
 	) {
 		images.add("notice-publisher");

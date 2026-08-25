@@ -31,6 +31,12 @@ const MIGRATIONS = [
 		),
 		version: 5,
 	},
+	{
+		path: fileURLToPath(
+			new URL("../migrations/0006_notice_maintenance.sql", import.meta.url),
+		),
+		version: 6,
+	},
 ] as const;
 
 const REQUIRED_BASE_TABLES = [
@@ -74,7 +80,8 @@ export async function migrateNotices(client: PoolClient): Promise<"applied" | "c
 				JSON.stringify(versions) === "[1,2]" ||
 				JSON.stringify(versions) === "[1,2,3]" ||
 				JSON.stringify(versions) === "[1,2,3,4]" ||
-				JSON.stringify(versions) === "[1,2,3,4,5]"
+				JSON.stringify(versions) === "[1,2,3,4,5]" ||
+				JSON.stringify(versions) === "[1,2,3,4,5,6]"
 			)
 		) {
 			throw new Error("notices schema migration state is unsupported");

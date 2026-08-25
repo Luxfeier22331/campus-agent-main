@@ -39,6 +39,17 @@ const DINING_GRANT_STATEMENTS = [
 ] as const;
 
 const OPS_WEB_GRANT_STATEMENTS = [
+	`GRANT USAGE ON SCHEMA "notices" TO "ops_web"`,
+	`GRANT SELECT ON TABLE
+		"notices"."notice_types",
+		"notices"."organizations",
+		"notices"."categories"
+	 TO "ops_web"`,
+	`GRANT SELECT (
+		"notice_id", "notice_type", "organization_id", "title", "released_at",
+		"is_external", "external_url", "category", "is_published"
+	 ) ON TABLE "notices"."notices" TO "ops_web"`,
+	`GRANT UPDATE ("category") ON TABLE "notices"."notices" TO "ops_web"`,
 	`REVOKE ALL PRIVILEGES ON SCHEMA "internal_portal" FROM PUBLIC, "ops_web", "app_api"`,
 	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "internal_portal" FROM PUBLIC, "ops_web", "app_api"`,
 	`GRANT USAGE ON SCHEMA "internal_portal" TO "ops_web"`,
@@ -142,6 +153,23 @@ interface DatabaseConnectionConfig {
 	ssl: DatabaseSslConfig;
 }
 const REQUIRED_SELECTS = [
+	{
+		label: "notices.notices",
+		sql: `
+			select "notice_id", "notice_type", "organization_id", "title", "released_at",
+				"is_external", "external_url", "category", "is_published"
+			from "notices"."notices"
+			limit 0
+		`,
+	},
+	{
+		label: "notices mappings",
+		sql: `
+			select "notice_type", "name" from "notices"."notice_types" limit 0;
+			select "organization_id", "name" from "notices"."organizations" limit 0;
+			select "category" from "notices"."categories" limit 0
+		`,
+	},
 	{
 		label: "internal_portal.automation_tokens",
 		sql: `

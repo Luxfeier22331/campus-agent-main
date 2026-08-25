@@ -1,14 +1,12 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { formatNoticeJobError } from "ingestion-contracts/job-error";
-import { Pool } from "pg";
 import { backfillAttachmentLinks } from "./backfill.ts";
-import { readNoticeDatabaseConfig } from "./database.ts";
 import { migrateNotices } from "./migrate.ts";
 import { internalPortalHost } from "./portal.ts";
-import { parseClassifications, publishNotices } from "./publisher.ts";
+import { publishNotices } from "./publisher.ts";
 import { createPublisherObjectStoreFromEnv } from "./store.ts";
 
 try {
@@ -19,8 +17,7 @@ try {
 
 async function main(): Promise<void> {
 	const [command, ...args] = process.argv.slice(2);
-	const database = readNoticeDatabaseConfig(process.env);
-	const pool = new Pool({ ...database, max: 1 });
+	const pool = createNoticeDatabasePool(process.env, { max: 1 });
 	const client = await pool.connect();
 	try {
 		if (command === "migrate") {
@@ -50,13 +47,6 @@ async function main(): Promise<void> {
 		const store = createPublisherObjectStoreFromEnv(process.env);
 		try {
 			const result = await publishNotices({
-				...(parsed.classifications
-					? {
-						classifications: parseClassifications(
-							await readFile(parsed.classifications, "utf8"),
-						),
-					}
-					: {}),
 				client,
 				noticeIds: parsed.noticeIds.length ? parsed.noticeIds : undefined,
 				objectStore: store,
@@ -87,16 +77,19 @@ function parseBackfillArgs(args: string[]): { dryRun: boolean; noticeIds: number
 
 export function parsePublishArgs(
 	args: string[],
-): { classifications: string | null; noticeIds: number[] } {
-	let classifications: string | null = null;
+): { noticeIds: number[] } {
 	const noticeIds: number[] = [];
 	for (let index = 0; index < args.length; index += 1) {
 		const value = args[index + 1];
-		if (args[index] === "--classifications" && value) { classifications = value; index += 1; }
-		else if (args[index] === "--notice-id" && value && /^[1-9][0-9]*$/u.test(value)) { noticeIds.push(Number(value)); index += 1; }
+		if (args[index] === "--notice-id" && value && /^[1-9][0-9]*$/u.test(value)) {
+			const noticeId = Number(value);
+			if (noticeIds.includes(noticeId)) throw new Error(`duplicate notice id: ${noticeId}`);
+			noticeIds.push(noticeId);
+			index += 1;
+		}
 		else throw new Error(`unknown or invalid argument: ${args[index]}`);
 	}
-	return { classifications, noticeIds };
+	return { noticeIds };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

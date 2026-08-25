@@ -31,6 +31,7 @@ describe("notice schema migration", () => {
 		pool = new Pool({ connectionString: container.getConnectionUri() });
 		await pool.query("CREATE ROLE campus_agent NOLOGIN");
 		await pool.query("CREATE ROLE app_api NOLOGIN");
+		await pool.query("CREATE ROLE ops_web NOLOGIN");
 	}, 120_000);
 
 	beforeEach(async () => {
@@ -49,7 +50,7 @@ describe("notice schema migration", () => {
 	it("installs an empty database and grants only business-table reads to app_api", async () => {
 		await withClient(pool, async (client) => {
 			await expect(migrateNotices(client)).resolves.toBe("applied");
-			await expect(readVersions(client)).resolves.toEqual([1, 2, 3, 4, 5]);
+			await expect(readVersions(client)).resolves.toEqual([1, 2, 3, 4, 5, 6]);
 			await expect(readTaxonomy(client)).resolves.toEqual([...NOTICE_CATEGORIES].sort());
 			await assertAppApiReadOnly(client);
 		});
@@ -74,7 +75,7 @@ describe("notice schema migration", () => {
 		await withClient(pool, async (client) => {
 			await client.query(await readFile(resolve(jobRoot, "migrations/0001_notices.sql"), "utf8"));
 			await expect(migrateNotices(client)).resolves.toBe("applied");
-			await expect(readVersions(client)).resolves.toEqual([1, 2, 3, 4, 5]);
+			await expect(readVersions(client)).resolves.toEqual([1, 2, 3, 4, 5, 6]);
 			await expect(migrateNotices(client)).resolves.toBe("current");
 			await assertAppApiReadOnly(client);
 		});
@@ -88,6 +89,32 @@ describe("notice schema migration", () => {
 					"SELECT data_type FROM information_schema.columns WHERE table_schema='notices' AND table_name='notice_assets' AND column_name='portal_annex_id'",
 				),
 			).resolves.toMatchObject({ rows: [{ data_type: "text" }] });
+		});
+	});
+
+	it("adds maintenance state and grants ops_web only safe notice columns", async () => {
+		await withClient(pool, async (client) => {
+			await expect(migrateNotices(client)).resolves.toBe("applied");
+			await client.query("INSERT INTO notices.notice_types(notice_type, name) VALUES (5, '办公通知')");
+			await client.query("INSERT INTO notices.notices(notice_id, notice_type, title, released_at, is_external, external_url) VALUES (1, 5, '待分类', now(), false, null)");
+			await expect(client.query("SELECT category, is_published FROM notices.notices WHERE notice_id=1"))
+				.resolves.toMatchObject({ rows: [{ category: null, is_published: false }] });
+			await expect(client.query("UPDATE notices.notices SET is_published=true WHERE notice_id=1"))
+				.rejects.toThrow(/notices_published_category_check/u);
+
+			await client.query("SET ROLE ops_web");
+			try {
+				await expect(client.query("SELECT notice_id, title, category, is_published FROM notices.notices"))
+					.resolves.toBeDefined();
+				await expect(client.query("UPDATE notices.notices SET category='campus_news' WHERE notice_id=1"))
+					.resolves.toMatchObject({ rowCount: 1 });
+				await expect(client.query("SELECT content_html FROM notices.notices"))
+					.rejects.toThrow(/permission denied/u);
+				await expect(client.query("UPDATE notices.notices SET title='blocked' WHERE notice_id=1"))
+					.rejects.toThrow(/permission denied/u);
+			} finally {
+				await client.query("RESET ROLE");
+			}
 		});
 	});
 
@@ -159,7 +186,7 @@ describe("notice schema migration", () => {
 			await expect(migrateNotices(client)).rejects.toThrow(
 				"notices schema migration state is unsupported",
 			);
-			await expect(readVersions(client)).resolves.toEqual([1, 2, 3, 4, 5, 99]);
+			await expect(readVersions(client)).resolves.toEqual([1, 2, 3, 4, 5, 6, 99]);
 		});
 	});
 

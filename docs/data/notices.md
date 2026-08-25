@@ -10,9 +10,9 @@ status: active
 本文统一维护通知来源对象、规范化投影和资源的长期数据语义。HTTP 响应由
 `../contracts/app-api/notices.md` 维护，采集和发布步骤由 `../runbooks/ingestion.md` 维护。
 
-来源对象存在只表示采集成功；分类制品存在只表示标题分类完成；`notices.*` 记录存在只表示 publisher
-已完成规范化写入。三者都不表示领域处理器、Agent、RAG 或用户已经消费。通知数据不保存采集批次、模型理由、置信度、原始模型响应、
-阅读状态、对外发布状态或下游处理状态。
+来源对象保存门户原始数据；采集器在来源和资源齐备后同时登记 `notices.notices`。数据库中的
+`category` 是唯一分类状态，`is_published` 是学生端可见边界。通知数据不保存采集批次、模型理由、
+置信度、原始模型响应、阅读状态或下游处理状态。
 
 ## 来源对象
 
@@ -71,28 +71,28 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 
 ## 分类交接
 
-本地 `scripts/notices` 和在线 `jobs/notice-classifier` 都只读来源对象的最小分类输入。分类入口只要求来源
-对象具有 `schema_version`、`notice_id` 和非空 `notice_title`；完整门户来源合同仍由采集和 publisher 所属
-模块校验。`category` 表示标题所表达的
+本地 `scripts/notices` 继续读取来源对象用于离线模型比较；在线 `jobs/notice-classifier` 直接读取数据库中
+待分类通知的 ID 与标题。`category` 表示标题所表达的
 通知主要用途，不根据运行日期或标题所述事项是否已过改变。人物、综合宣传、成果展示，以及没有办理、
 参与、权威状态、后续动作或可复用服务信息的纯叙事报道归 `campus_news`；正式竞赛流程、业务办理和
 权威状态按对应分类处理。标题不足以判断唯一分类时才使用 `unclassified`。
 
 当前每条通知都调用模型分类，不使用标题规则；模型只接收来源对象中的原始 `notice_title`。门户栏目、
 正文、外链标记和 URL 仍按来源、API 与发布合同保存，但不作为分类证据，也不是分类入口的必需字段。
-在线 Job 和本地 Job 模拟入口将结果写入
-`notices/classifications/<notice-id>.json`；publisher 默认读取这些单通知制品，全量运行要求来源通知与
-分类制品 ID 集合完全相同。`unclassified` 是合法发布值，不会被发布器跳过。本地 JSONL 命令仍把结果
-输出为 JSONL，作为开发和模型比较时的显式 publisher 输入。三者都不保存分类模型 metadata。分类完成
-不表示任何下游已经消费。
+在线 Job 把结果写回同一通知行。默认批量分类只更新仍为空的分类，不覆盖分类期间发生的人工修改；
+显式单条分类可以覆盖已有值。`unclassified` 是合法分类，不等于待分类。本地 JSONL 输出只用于开发和
+模型比较，不作为 publisher 输入。分类完成不表示通知已发布。
 
 ## 规范化投影
 
 ### PostgreSQL
 
 `notices.notice_types` 和 `notices.organizations` 保存门户 ID 与名称映射，`notices.categories` 保存允许的
-单一分类。`notices.notices` 保存通知 ID、类型、可空组织 ID、原始标题、发布时间、外链标记与 URL、
-`category` 以及清洗后的 `content_html`、`content_text`。
+单一分类。`notices.notices` 从采集完成后即存在，保存通知 ID、类型、可空组织 ID、原始标题、发布时间、
+外链标记与 URL、可空 `category`、`is_published` 以及发布后写入的 `content_html`、`content_text`。
+
+状态只由现有字段推导：`category IS NULL` 为待分类；已有分类且 `is_published=false` 为待发布；
+`is_published=true` 为已发布。已发布行必须具有分类，不增加独立工作流、审计历史或派生库存表。
 
 单分类 migration 5 不把旧分类值映射到新 taxonomy，也不保留兼容列。它只接受空的
 `notices.notices` 投影；已有本地旧投影必须清空后用新 taxonomy 的模型分类结果重新物化。
@@ -125,8 +125,8 @@ notices/assets/sha256/<digest>
 ```
 
 附件原始字节继续保留在 source bucket；publisher 读取附件以确认字节数、媒体类型和 SHA-256，但不把
-附件复制到 derived bucket。source bucket 由 internal-portal-collection 写入，分类 Job 和显式 publisher
-按各自权限读取，不向 Worker 或浏览器开放。App API 当前只按数据库摘要读取通知图片并通过通知所属
+附件复制到 derived bucket。source bucket 由 internal-portal-collection 写入，publisher 按权限读取，
+不向 Worker 或浏览器开放。App API 当前只按数据库摘要读取通知图片并通过通知所属
 的同源接口返回字节；
 浏览器不接收 bucket key、摘要或对象存储凭据。附件 metadata 包含门户资源身份，App API 即时构造
 门户 URL，附件字节继续由门户响应。
@@ -136,16 +136,16 @@ notices/assets/sha256/<digest>
 
 ## 所有权
 
-- `internal-portal-collection` 只写 source bucket；
-- `notice-classifier` 只读 source bucket，并写入 derived bucket 中的分类制品；
-- `notice-publisher` 校验来源、读取分类制品、写 derived 图片，并以事务写入 `notices.*`；
+- `internal-portal-collection` 写 source bucket，并在资源齐备后登记通知与来源映射；
+- `notice-classifier` 读取数据库中的 ID 与标题，并更新同一行的 `category`；
+- `notice-publisher` 读取数据库中的待发布项、校验来源、写 derived 图片和正文，并设置 `is_published`；
 - App API 只获得五张通知业务表的读取权限，并读取获准图片对象；不读取 migration ledger 或写入通知；
 - Campus Web 只通过 App API 读取规范化通知；
-- Ops Web 拥有内部门户凭据，execution-control、Agent 与 RAG 不连接通知来源或 schema。
+- Ops Web 拥有内部门户凭据，并只读取通知安全 metadata、更新 `category`；execution-control、Agent 与 RAG 不连接通知来源或 schema。
 
 通知 publisher 同时提供本地 CLI 和默认暂停的 Kubernetes Job 模板，只能由维护者显式创建一次性
 Job，不提供自动 schedule。线上 schema 与发布复用既有数据库 owner 身份，不创建专用 publisher
-Secret。分类制品或本地投影结果都不表示任一环境已经完成后续发布或开放这套数据。
+Secret。本地模型比较结果不表示任一环境已经完成后续发布或开放这套数据。
 
 ## 相关文档
 
@@ -154,3 +154,4 @@ Secret。分类制品或本地投影结果都不表示任一环境已经完成�
 - `../runbooks/ingestion.md`
 - `../decisions/adr-0087-internal-portal-notice-source.md`
 - `../decisions/adr-0088-normalized-notice-storage.md`
+- `../decisions/adr-0094-notice-maintenance-state.md`

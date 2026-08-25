@@ -1,21 +1,17 @@
-import {
-	readNoticeClassificationArtifact,
-	writeNoticeClassificationArtifact,
-} from "./artifacts.ts";
+import type { NoticeClassificationTask } from "notice-classifier-core/batch";
+import type { Pool } from "pg";
+
 import {
 	classifyNotice,
 	type NoticeModelClassifier,
 } from "./classifier.ts";
-import type { NoticeClassificationTask } from "notice-classifier-core/batch";
 import { mapWithConcurrency } from "./concurrency.ts";
-import type { NoticeClassifierObjectStore } from "./object-store.ts";
-import { loadNoticeClassificationInputs } from "./source.ts";
 
 export interface NoticeClassificationJobOptions {
 	concurrency?: number;
 	createModelClassifier: () => NoticeModelClassifier;
+	database: Pick<Pool, "query">;
 	noticeIds?: readonly number[];
-	objectStore: NoticeClassifierObjectStore;
 }
 
 export interface NoticeClassificationJobResult {
@@ -41,32 +37,39 @@ export async function runNoticeClassificationJob(
 	if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
 		throw new Error("classification concurrency must be a positive integer");
 	}
-	const explicitNoticeIds = options.noticeIds !== undefined;
-	const inputs = await loadNoticeClassificationInputs(options.objectStore, options.noticeIds, {
-		concurrency,
-	});
-	const pending = explicitNoticeIds
-		? inputs
-		: await selectMissingArtifacts(inputs, options.objectStore, concurrency);
-	if (pending.length === 0) {
-		return { classified: 0, requested: inputs.length, skipped: inputs.length };
+	const explicit = options.noticeIds !== undefined;
+	const inputs = await loadInputs(options.database, options.noticeIds);
+	if (inputs.length === 0) {
+		return { classified: 0, requested: 0, skipped: 0 };
 	}
 
 	const modelClassifier = options.createModelClassifier();
 	let classified = 0;
+	let skipped = 0;
 	try {
-		await mapWithConcurrency(pending, concurrency, async (input) => {
+		await mapWithConcurrency(inputs, concurrency, async (input) => {
 			const category = await classifyNotice(input.noticeTitle, modelClassifier).catch((error) => {
 				throw new NoticeClassificationJobError(
 					`notice ${input.noticeId} model classification failed: ${classificationErrorMessage(error)}`,
 					{ cause: error, noticeId: input.noticeId },
 				);
 			});
-			await writeNoticeClassificationArtifact(options.objectStore, {
-				category,
-				noticeId: input.noticeId,
-			});
-			classified += 1;
+			const updated = explicit
+				? await options.database.query(
+						"UPDATE notices.notices SET category=$2 WHERE notice_id=$1",
+						[input.noticeId, category],
+					)
+				: await options.database.query(
+						"UPDATE notices.notices SET category=$2 WHERE notice_id=$1 AND category IS NULL",
+						[input.noticeId, category],
+					);
+			if (updated.rowCount === 1) {
+				classified += 1;
+			} else if (explicit) {
+				throw new Error(`notice does not exist: ${input.noticeId}`);
+			} else {
+				skipped += 1;
+			}
 			return category;
 		});
 	} catch (error) {
@@ -78,23 +81,41 @@ export async function runNoticeClassificationJob(
 			{ cause: error, noticeId: noticeIdFromError(error) },
 		);
 	}
-	return {
-		classified,
-		requested: inputs.length,
-		skipped: inputs.length - pending.length,
-	};
+	return { classified, requested: inputs.length, skipped };
 }
 
-async function selectMissingArtifacts(
-	inputs: readonly NoticeClassificationTask[],
-	objectStore: Pick<NoticeClassifierObjectStore, "getDerived">,
-	concurrency: number,
+async function loadInputs(
+	database: Pick<Pool, "query">,
+	noticeIds?: readonly number[],
 ): Promise<NoticeClassificationTask[]> {
-	const states = await mapWithConcurrency(inputs, concurrency, async (input) => ({
-		input,
-		valid: (await readNoticeClassificationArtifact(objectStore, input.noticeId)) !== null,
+	const explicit = noticeIds !== undefined;
+	const result = explicit
+		? await database.query(
+				`SELECT notice_id::text, title
+				 FROM notices.notices
+				 WHERE notice_id = ANY($1::bigint[])
+				 ORDER BY notice_id`,
+				[[...noticeIds]],
+			)
+		: await database.query(
+				`SELECT notice_id::text, title
+				 FROM notices.notices
+				 WHERE category IS NULL
+				 ORDER BY notice_id`,
+			);
+	const inputs = result.rows.map((row) => ({
+		noticeId: Number(row.notice_id),
+		noticeTitle: String(row.title),
 	}));
-	return states.filter((state) => !state.valid).map((state) => state.input);
+	if (explicit) {
+		const found = new Set(inputs.map((input) => input.noticeId));
+		for (const noticeId of noticeIds) {
+			if (!found.has(noticeId)) {
+				throw new Error(`notice does not exist: ${noticeId}`);
+			}
+		}
+	}
+	return inputs;
 }
 
 function classificationErrorMessage(error: unknown): string {

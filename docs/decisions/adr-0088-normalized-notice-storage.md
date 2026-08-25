@@ -4,6 +4,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0088
 status: accepted
 partially_supersedes: ADR-0087
+partially_superseded_by: ADR-0094
 ---
 # ADR-0088 规范化通知存储
 
