@@ -22,8 +22,11 @@ const REQUIRED_ENDPOINTS = [
 const REQUIRED_SCHEMA_TABLES = [
 	"oauthAccessToken",
 	"oauthClient",
+	"oauthClientAssertion",
+	"oauthClientResource",
 	"oauthConsent",
 	"oauthRefreshToken",
+	"oauthResource",
 ] as const;
 
 export interface FederationProviderRuntimeReadinessReport {

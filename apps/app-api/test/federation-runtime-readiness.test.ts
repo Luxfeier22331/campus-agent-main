@@ -29,8 +29,11 @@ describe("federation runtime readiness", () => {
 			expect.arrayContaining([
 				"oauthAccessToken",
 				"oauthClient",
+				"oauthClientAssertion",
+				"oauthClientResource",
 				"oauthConsent",
 				"oauthRefreshToken",
+				"oauthResource",
 			]),
 		);
 		expect(report.endpoints.verified).toBe(true);

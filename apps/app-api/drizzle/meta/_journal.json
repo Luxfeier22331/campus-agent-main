@@ -127,6 +127,13 @@
       "when": 1787544000000,
       "tag": "0017_safe_nicolaos",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787643293840,
+      "tag": "0018_ancient_ultragirl",
+      "breakpoints": true
     }
   ]
 }

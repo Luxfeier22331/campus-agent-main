@@ -120,11 +120,13 @@ export const oauthClient = auth.table(
 		id: text("id").primaryKey(),
 		clientId: text("clientId").notNull(),
 		clientSecret: text("clientSecret"),
+		clientDiscoveryId: text("clientDiscoveryId"),
 		disabled: boolean("disabled").default(false),
 		skipConsent: boolean("skipConsent"),
 		enableEndSession: boolean("enableEndSession"),
 		subjectType: text("subjectType"),
 		scopes: jsonb("scopes"),
+		clientCredentialsScopes: jsonb("clientCredentialsScopes").default([]),
 		userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
 		createdAt: timestamp("createdAt", { withTimezone: true }),
 		updatedAt: timestamp("updatedAt", { withTimezone: true }),
@@ -139,12 +141,18 @@ export const oauthClient = auth.table(
 		softwareStatement: text("softwareStatement"),
 		redirectUris: jsonb("redirectUris").notNull(),
 		postLogoutRedirectUris: jsonb("postLogoutRedirectUris"),
+		backchannelLogoutUri: text("backchannelLogoutUri"),
+		backchannelLogoutSessionRequired: boolean("backchannelLogoutSessionRequired"),
 		tokenEndpointAuthMethod: text("tokenEndpointAuthMethod"),
+		applicationType: text("applicationType"),
+		jwks: text("jwks"),
+		jwksUri: text("jwksUri"),
 		grantTypes: jsonb("grantTypes"),
 		responseTypes: jsonb("responseTypes"),
 		public: boolean("public"),
 		type: text("type"),
 		requirePKCE: boolean("requirePKCE"),
+		dpopBoundAccessTokens: boolean("dpopBoundAccessTokens").default(false),
 		referenceId: text("referenceId"),
 		metadata: jsonb("metadata"),
 	},
@@ -167,15 +175,25 @@ export const oauthRefreshToken = auth.table(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		referenceId: text("referenceId"),
+		authorizationCodeId: text("authorizationCodeId"),
+		resources: jsonb("resources"),
+		requestedUserInfoClaims: jsonb("requestedUserInfoClaims"),
 		expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
 		createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
 		revoked: timestamp("revoked", { withTimezone: true }),
+		rotatedAt: timestamp("rotatedAt", { withTimezone: true }),
+		rotationReplayResponse: text("rotationReplayResponse"),
+		rotationReplayExpiresAt: timestamp("rotationReplayExpiresAt", { withTimezone: true }),
 		authTime: timestamp("authTime", { withTimezone: true }),
+		confirmation: jsonb("confirmation"),
 		scopes: jsonb("scopes").notNull(),
 	},
 	(table) => ({
 		tokenUnique: uniqueIndex("oauthRefreshToken_token_uidx").on(table.token),
 		clientIdIndex: index("oauthRefreshToken_clientId_idx").on(table.clientId),
+		authorizationCodeIdIndex: index("oauthRefreshToken_authorizationCodeId_idx").on(
+			table.authorizationCodeId,
+		),
 		sessionIdIndex: index("oauthRefreshToken_sessionId_idx").on(table.sessionId),
 		userIdIndex: index("oauthRefreshToken_userId_idx").on(table.userId),
 	}),
@@ -192,16 +210,24 @@ export const oauthAccessToken = auth.table(
 		sessionId: text("sessionId").references(() => session.id, { onDelete: "set null" }),
 		userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
 		referenceId: text("referenceId"),
+		authorizationCodeId: text("authorizationCodeId"),
+		resources: jsonb("resources"),
+		requestedUserInfoClaims: jsonb("requestedUserInfoClaims"),
 		refreshId: text("refreshId").references(() => oauthRefreshToken.id, {
 			onDelete: "cascade",
 		}),
 		expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
 		createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+		revoked: timestamp("revoked", { withTimezone: true }),
+		confirmation: jsonb("confirmation"),
 		scopes: jsonb("scopes").notNull(),
 	},
 	(table) => ({
 		tokenUnique: uniqueIndex("oauthAccessToken_token_uidx").on(table.token),
 		clientIdIndex: index("oauthAccessToken_clientId_idx").on(table.clientId),
+		authorizationCodeIdIndex: index("oauthAccessToken_authorizationCodeId_idx").on(
+			table.authorizationCodeId,
+		),
 		sessionIdIndex: index("oauthAccessToken_sessionId_idx").on(table.sessionId),
 		userIdIndex: index("oauthAccessToken_userId_idx").on(table.userId),
 		refreshIdIndex: index("oauthAccessToken_refreshId_idx").on(table.refreshId),
@@ -217,6 +243,8 @@ export const oauthConsent = auth.table(
 			.references(() => oauthClient.clientId, { onDelete: "cascade" }),
 		userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
 		referenceId: text("referenceId"),
+		resources: jsonb("resources"),
+		requestedUserInfoClaims: jsonb("requestedUserInfoClaims"),
 		scopes: jsonb("scopes").notNull(),
 		createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
@@ -226,6 +254,58 @@ export const oauthConsent = auth.table(
 		userIdIndex: index("oauthConsent_userId_idx").on(table.userId),
 	}),
 );
+
+export const oauthResource = auth.table(
+	"oauthResource",
+	{
+		id: text("id").primaryKey(),
+		identifier: text("identifier").notNull(),
+		name: text("name").notNull(),
+		accessTokenTtl: integer("accessTokenTtl"),
+		refreshTokenTtl: integer("refreshTokenTtl"),
+		signingAlgorithm: text("signingAlgorithm"),
+		signingKeyId: text("signingKeyId"),
+		allowedScopes: jsonb("allowedScopes"),
+		customClaims: jsonb("customClaims"),
+		dpopBoundAccessTokensRequired: boolean("dpopBoundAccessTokensRequired").default(false),
+		disabled: boolean("disabled").default(false),
+		createdAt: timestamp("createdAt", { withTimezone: true }),
+		updatedAt: timestamp("updatedAt", { withTimezone: true }),
+		policyVersion: integer("policyVersion").default(1),
+		metadata: jsonb("metadata"),
+	},
+	(table) => ({
+		identifierUnique: uniqueIndex("oauthResource_identifier_uidx").on(table.identifier),
+	}),
+);
+
+export const oauthClientResource = auth.table(
+	"oauthClientResource",
+	{
+		id: text("id").primaryKey(),
+		clientId: text("clientId")
+			.notNull()
+			.references(() => oauthClient.clientId, { onDelete: "cascade" }),
+		resourceId: text("resourceId")
+			.notNull()
+			.references(() => oauthResource.identifier, { onDelete: "cascade" }),
+		metadata: jsonb("metadata"),
+		createdAt: timestamp("createdAt", { withTimezone: true }),
+	},
+	(table) => ({
+		clientResourceUnique: uniqueIndex("oauthClientResource_clientId_resourceId_uidx").on(
+			table.clientId,
+			table.resourceId,
+		),
+		clientIdIndex: index("oauthClientResource_clientId_idx").on(table.clientId),
+		resourceIdIndex: index("oauthClientResource_resourceId_idx").on(table.resourceId),
+	}),
+);
+
+export const oauthClientAssertion = auth.table("oauthClientAssertion", {
+	id: text("id").primaryKey(),
+	expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
+});
 
 export const jwks = auth.table("jwks", {
 	id: text("id").primaryKey(),
@@ -245,5 +325,8 @@ export const appAuthSchema = {
 	oauthRefreshToken,
 	oauthAccessToken,
 	oauthConsent,
+	oauthResource,
+	oauthClientResource,
+	oauthClientAssertion,
 	jwks,
 };

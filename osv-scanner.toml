@@ -12,11 +12,6 @@ ignoreUntil = 2026-10-01
 reason = "diskcache is a transitive dependency of the retained Ragas eval island; no fixed release is available, and the runner does not expose untrusted cache or pickle payload ingestion as a product/runtime path."
 
 [[IgnoredVulns]]
-id = "GHSA-p2fr-6hmx-4528"
-ignoreUntil = 2026-10-01
-reason = "Better Auth oauth-provider 1.6.29 is the latest stable release but the 1.6.x line is not patched; 1.7.0-rc.6 passes app-api typecheck, Worker bundling, and auth/federation tests, but makes campus-web typecheck reject its additional passwordChangeRequired user field against @better-auth-ui 1.6.45's authClient contract. Do not add a cast or compatibility wrapper for an RC; revisit when a compatible fixed line is available."
-
-[[IgnoredVulns]]
 id = "RUSTSEC-2024-0436"
 ignoreUntil = 2026-10-01
 reason = "paste is an unmaintained compile-time proc-macro dependency of the latest tokenizers release; no fixed tokenizers release or maintained drop-in replacement is currently available, so revisit the upstream dependency before this exception expires."
@@ -25,13 +20,3 @@ reason = "paste is an unmaintained compile-time proc-macro dependency of the lat
 id = "GO-2026-5932"
 ignoreUntil = 2026-10-16
 reason = "Testcontainers uses golang.org/x/crypto/ssh only in the explicitly tagged PostgreSQL test lane; campus-agent does not import the unmaintained openpgp package covered by this module-level advisory, and upstream provides no fixed version."
-
-[[IgnoredVulns]]
-id = "GHSA-5p2g-fcmc-qvqq"
-ignoreUntil = 2026-10-01
-reason = "Campus Web uses image-size only while building course-map assets and explicitly disables the vulnerable HEIF, JXL, and JXL stream parsers before reading dimensions; upstream has no fixed release yet."
-
-[[IgnoredVulns]]
-id = "GHSA-w3rx-r6r6-pgpr"
-ignoreUntil = 2026-10-01
-reason = "Campus Web uses image-size only while building course-map assets and explicitly disables the vulnerable ICNS parser before reading dimensions; upstream has no fixed release yet."

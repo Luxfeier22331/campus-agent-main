@@ -80,6 +80,7 @@ describe("app-api schema installer", () => {
 			{ idx: 15, tag: "0015_tough_nova", version: "7" },
 			{ idx: 16, tag: "0016_gray_scarlet_spider", version: "7" },
 			{ idx: 17, tag: "0017_safe_nicolaos", version: "7" },
+			{ idx: 18, tag: "0018_ancient_ultragirl", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,

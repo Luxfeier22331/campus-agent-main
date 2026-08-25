@@ -19,14 +19,14 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@better-auth/core": "1.6.29",
-		"@better-auth/oauth-provider": "1.6.29",
+		"@better-auth/core": "1.7.1",
+		"@better-auth/oauth-provider": "1.7.1",
 		"@campus-agent/dining": "workspace:*",
 		"@campus-agent/langfuse-identity": "workspace:*",
 		"@hono/zod-openapi": "^1.6.0",
 		"@sentry/cloudflare": "10.70.0",
 		"aws4fetch": "1.0.20",
-		"better-auth": "1.6.29",
+		"better-auth": "1.7.1",
 		"better-call": "1.4.0",
 		"campus-contracts": "workspace:*",
 		"drizzle-orm": "^0.45.2",

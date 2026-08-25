@@ -1,7 +1,5 @@
 import { createHash } from "node:crypto";
-
-import { disableTypes, imageSize } from "image-size";
-
+import { readPngDimensions } from "./png-dimensions.ts";
 import type {
 	DocsCourseMaps,
 	DocsReader,
@@ -11,8 +9,6 @@ import type {
 
 const MAX_HORIZONTAL_GAP = 24;
 const MIN_VERTICAL_OVERLAP = 0.8;
-
-disableTypes(["heif", "icns", "jxl", "jxl-stream"]);
 
 interface SourceCourseMapBlock {
 	bbox: readonly [number, number, number, number];
@@ -59,7 +55,7 @@ export function materializeDocsCourseMaps(input: {
 				if (!imageBytes) {
 					throw new Error(`course map image is missing from source assets: ${part.imagePath}`);
 				}
-				const dimensions = imageSize(imageBytes);
+				const dimensions = readPngDimensions(imageBytes);
 				if (!(dimensions.width && dimensions.height)) {
 					throw new Error(`course map image dimensions are unavailable: ${part.imagePath}`);
 				}
@@ -124,7 +120,7 @@ export function verifyDocsCourseMaps(input: {
 			if (!imageBytes) {
 				throw new Error(`course map image is missing from published assets: ${part.imagePath}`);
 			}
-			const dimensions = imageSize(imageBytes);
+			const dimensions = readPngDimensions(imageBytes);
 			if (dimensions.width !== part.width || dimensions.height !== part.height) {
 				throw new Error(`course map image dimensions do not match: ${part.imagePath}`);
 			}
