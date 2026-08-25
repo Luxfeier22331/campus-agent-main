@@ -109,6 +109,18 @@ jobs:
         continue-on-error: true
         run: pnpm test
 
+      - name: Check App API migration history
+        id: app_api_migrations
+        if: always() && steps.plan.outcome == 'success'
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ steps.plan.outputs.base }}
+          HEAD_SHA: ${{ steps.plan.outputs.head }}
+        run: >-
+          pnpm check:app-api-migrations
+          --base "$BASE_SHA"
+          --head "$HEAD_SHA"
+
       - name: Check executable contracts
         id: contracts
         if: always() && contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts')
@@ -242,6 +254,7 @@ jobs:
           RESULTS: >-
             {
               "affected-node":"${{ steps.affected_node.outcome }}",
+              "app-api-migrations":"${{ steps.app_api_migrations.outcome }}",
               "contracts":"${{ steps.contracts.outcome }}",
               "github-actions":"${{ steps.github_actions.outcome }}",
               "install-affected":"${{ steps.install_affected.outcome }}",

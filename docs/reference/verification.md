@@ -47,6 +47,7 @@ runner、工具版本、缓存和发布实现由可执行配置维护；本文�
 | `pnpm lint` | Biome、Markdownlint 与 EditorConfig | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
 | `pnpm test` | 仓库开发、验证和发布脚本测试 | package test、镜像构建或外部服务 |
+| `pnpm check:app-api-migrations --base <base> --head <head>` | App API Drizzle 历史只追加且旧 SQL、snapshot 不变 | 迁移能在真实数据库完成 |
 | `pnpm --dir packages/contracts check` | JSON Schema/OpenAPI 同步和合同不变量 | consumer runtime 行为 |
 | `scripts/dependencies/scan.sh` | 已锁定依赖的漏洞扫描 | 应用行为或镜像漏洞 |
 | `scripts/infra/validate.sh` | Kustomize render 与基础设施 policy | 集群已应用或 workload 健康 |

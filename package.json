@@ -6,6 +6,7 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
+		"check:app-api-migrations": "node --experimental-strip-types scripts/ci/app-api-migration-history.mts",
 		"lint": "pnpm exec biome check . && pnpm exec markdownlint-cli2 \"*.md\" \".github/*.md\" \".github/ISSUE_TEMPLATE/**/*.md\" \"docs/**/*.md\" \"apps/**/*.md\" \"jobs/**/*.md\" \"packages/**/*.md\" \"scripts/**/*.md\" \"configs/**/*.md\" \"infra/**/*.md\" \"#apps/campus-web/.generated/**\" \"#**/node_modules/**\" && pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size -exclude '(^|/)(dist|node_modules|\\.tmp|drizzle/meta)(/|$)'",
 		"docs:check": "pnpm exec tsx scripts/docs/check-frontmatter.ts && pnpm exec tsx scripts/docs/check-adr-ids.ts && pnpm exec tsx scripts/docs/check-links.ts && pnpm exec tsx scripts/docs/check-language.ts",
 		"test": "pnpm exec tsx --test scripts/ci/*.test.ts scripts/deploy/*.test.ts scripts/dev/*.test.ts scripts/docs/*.test.ts scripts/notices/*.test.ts scripts/release/*.test.ts scripts/release/*.test.mjs",
