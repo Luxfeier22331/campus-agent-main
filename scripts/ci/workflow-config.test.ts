@@ -10,7 +10,7 @@ import { MANUAL_VALIDATION_PROFILES } from "./validation-profiles.mts";
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
 const ENVIRONMENT_PREFIXED_CONFIG = /\b(?:STAGING|DEV|DEVELOPMENT|PROD|PRODUCTION)_[A-Z0-9_]+\b/u;
-const TEMPORARY_SELF_HOSTED_RUNNER = ["self-hosted", "Linux", "X64"];
+const TEMPORARY_SELF_HOSTED_RUNNER = ["self-hosted", "Linux", "ARM64"];
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -174,7 +174,9 @@ test("pull request validation keeps one bounded temporary self-hosted gate", asy
 	assert.deepEqual(repoChecks["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
 	assert.equal(repoChecks["timeout-minutes"], 30);
 	assert.equal(namedStep(repoChecks, "Install Nix").if, "runner.environment != 'self-hosted'");
-	assert.equal(namedStep(repoChecks, "Lint repository").run, "pnpm lint");
+	const repositoryLint = namedStep(repoChecks, "Lint repository");
+	assert.equal(repositoryLint.run, "pnpm lint");
+	assert.deepEqual(repositoryLint.env, { GITHUB_TOKEN: githubExpression("github.token") });
 	assert.equal(namedStep(repoChecks, "Test repository scripts").run, "pnpm test");
 	assert.equal(namedStep(repoChecks, "Summarize repository evidence").shell, "bash -e {0}");
 	assert.throws(() => namedStep(repoChecks, "Check documentation"), /missing workflow step/u);
@@ -268,10 +270,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.equal(publishImages["timeout-minutes"], 60);
 	assert.deepEqual(publishImages.permissions, { contents: "read", packages: "write" });
 	assert.equal(namedStep(publishImages, "Install Nix").if, "runner.environment != 'self-hosted'");
-	const qemu = namedStep(publishImages, "Setup QEMU for ARM64");
-	assert.equal(qemu.uses, "docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130");
-	assert(isObject(qemu.with));
-	assert.equal(qemu.with.platforms, "arm64");
+	assert.throws(() => namedStep(publishImages, "Setup QEMU for ARM64"), /missing workflow step/u);
 	const buildx = namedStep(publishImages, "Setup Docker Buildx");
 	assert(isObject(buildx.with));
 	assert.equal(buildx.with["cache-binary"], false);
