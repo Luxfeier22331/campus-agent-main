@@ -197,9 +197,9 @@ test("pull request validation keeps one bounded temporary self-hosted gate", asy
 });
 
 test("Source diff consumers check out complete immutable history", async () => {
-	for (const [workflowName, jobName] of [
-		["pr.yml", "repo-checks"],
-		["execution-runtime-publish.yml", "release-plan"],
+	for (const [workflowName, jobName, persistCredentials] of [
+		["pr.yml", "repo-checks", false],
+		["execution-runtime-publish.yml", "release-plan", true],
 	] as const) {
 		const workflow = await loadWorkflow(workflowName);
 		const checkouts = sourceCheckouts(workflow, jobName);
@@ -208,7 +208,7 @@ test("Source diff consumers check out complete immutable history", async () => {
 		assert(checkout);
 		assert(isObject(checkout.with));
 		assert.equal(checkout.with["fetch-depth"], 0);
-		assert.equal(checkout.with["persist-credentials"], false);
+		assert.equal(checkout.with["persist-credentials"], persistCredentials);
 		assert.equal(checkout.with.filter, undefined);
 	}
 });
