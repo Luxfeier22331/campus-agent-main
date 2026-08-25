@@ -33,7 +33,7 @@ env:
 
 jobs:
   evidence:
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, campus-ci]
     timeout-minutes: 90
     defaults:
       run:

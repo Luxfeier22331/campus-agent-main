@@ -10,7 +10,7 @@ import { MANUAL_VALIDATION_PROFILES } from "./validation-profiles.mts";
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
 const ENVIRONMENT_PREFIXED_CONFIG = /\b(?:STAGING|DEV|DEVELOPMENT|PROD|PRODUCTION)_[A-Z0-9_]+\b/u;
-const TEMPORARY_SELF_HOSTED_RUNNER = ["self-hosted", "Linux", "ARM64"];
+const SHARED_SELF_HOSTED_RUNNER = ["self-hosted", "Linux", "campus-ci"];
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -150,7 +150,42 @@ test("GitHub workflows use environment-neutral configuration names", async () =>
 	assert.deepEqual(failures, []);
 });
 
-test("pull request validation keeps one bounded temporary self-hosted gate", async () => {
+test("self-hosted workflows route through the shared runner capability label", async () => {
+	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
+	const workflows = (await readdir(workflowRoot, { withFileTypes: true }))
+		.filter(
+			(entry) => entry.isFile() && (entry.name.endsWith(".yml") || entry.name.endsWith(".yaml")),
+		)
+		.map((entry) => entry.name)
+		.sort();
+	for (const workflowName of workflows) {
+		const workflow = await loadWorkflow(workflowName);
+		for (const [jobName, jobValue] of Object.entries(workflowJobs(workflow))) {
+			assert(isObject(jobValue));
+			assert.deepEqual(
+				jobValue["runs-on"],
+				SHARED_SELF_HOSTED_RUNNER,
+				`${workflowName}:${jobName}`,
+			);
+		}
+	}
+});
+
+test("runner workflows use the host-owned Buildx builder", async () => {
+	const workflowRoot = path.join(REPOSITORY_ROOT, ".github/workflows");
+	const workflows = (await readdir(workflowRoot, { withFileTypes: true }))
+		.filter(
+			(entry) => entry.isFile() && (entry.name.endsWith(".yml") || entry.name.endsWith(".yaml")),
+		)
+		.map((entry) => entry.name)
+		.sort();
+	for (const workflowName of workflows) {
+		const source = await readFile(path.join(workflowRoot, workflowName), "utf8");
+		assert.doesNotMatch(source, /ARM64|X64|setup-buildx-action|setup-qemu-action/u, workflowName);
+	}
+});
+
+test("pull request validation keeps one bounded shared self-hosted gate", async () => {
 	const workflow = await loadWorkflow("pr.yml");
 	assert.deepEqual(workflow.permissions, { contents: "read", "pull-requests": "read" });
 	assert.deepEqual(workflow.concurrency, {
@@ -171,7 +206,7 @@ test("pull request validation keeps one bounded temporary self-hosted gate", asy
 
 	const repoChecks = workflowJob(workflow, "repo-checks");
 	assert.equal(repoChecks.if, "github.event.pull_request.draft == false");
-	assert.deepEqual(repoChecks["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.deepEqual(repoChecks["runs-on"], SHARED_SELF_HOSTED_RUNNER);
 	assert.equal(repoChecks["timeout-minutes"], 30);
 	assert.equal(namedStep(repoChecks, "Install Nix").if, "runner.environment != 'self-hosted'");
 	const repositoryLint = namedStep(repoChecks, "Lint repository");
@@ -223,7 +258,7 @@ test("manual evidence derives its choices and dependencies from the profile regi
 	assert.deepEqual(profile.options, MANUAL_VALIDATION_PROFILES);
 
 	const evidence = workflowJob(workflow, "evidence");
-	assert.deepEqual(evidence["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.deepEqual(evidence["runs-on"], SHARED_SELF_HOSTED_RUNNER);
 	assert.equal(evidence["timeout-minutes"], 90);
 	assert.equal(namedStep(evidence, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.equal(namedStep(evidence, "Resolve profile requirements").id, "profile");
@@ -245,7 +280,7 @@ test("scheduled dependency evidence has a bounded read-only lane", async () => {
 	assert.deepEqual(workflow.permissions, { contents: "read" });
 	assert.deepEqual(workflow.concurrency, { "cancel-in-progress": true, group: "dependencies" });
 	const scan = workflowJob(workflow, "scan");
-	assert.deepEqual(scan["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.deepEqual(scan["runs-on"], SHARED_SELF_HOSTED_RUNNER);
 	assert.equal(scan["timeout-minutes"], 15);
 	assert.equal(namedStep(scan, "Install Nix").if, "runner.environment != 'self-hosted'");
 });
@@ -259,32 +294,29 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	});
 
 	const releasePlan = workflowJob(workflow, "release-plan");
-	assert.deepEqual(releasePlan["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.deepEqual(releasePlan["runs-on"], SHARED_SELF_HOSTED_RUNNER);
 	assert.equal(releasePlan.environment, "staging");
 	assert.deepEqual(releasePlan.permissions, { contents: "read", statuses: "write" });
 	assert.equal(namedStep(releasePlan, "Install Nix").if, "runner.environment != 'self-hosted'");
 
 	const publishImages = workflowJob(workflow, "publish-images");
 	assert.equal(publishImages.needs, "release-plan");
-	assert.deepEqual(publishImages["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.deepEqual(publishImages["runs-on"], SHARED_SELF_HOSTED_RUNNER);
 	assert.equal(publishImages["timeout-minutes"], 60);
 	assert.deepEqual(publishImages.permissions, { contents: "read", packages: "write" });
 	assert.equal(namedStep(publishImages, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.throws(() => namedStep(publishImages, "Setup QEMU for ARM64"), /missing workflow step/u);
-	const buildx = namedStep(publishImages, "Setup Docker Buildx");
-	assert(isObject(buildx.with));
-	assert.equal(buildx.with["cache-binary"], false);
-	assert.match(String(buildx.with["driver-opts"]), /^memory=3g\s*$/u);
+	assert.throws(() => namedStep(publishImages, "Setup Docker Buildx"), /missing workflow step/u);
 
 	const publishWorkers = workflowJob(workflow, "publish-workers");
 	assert.equal(publishWorkers.needs, "release-plan");
-	assert.deepEqual(publishWorkers["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.deepEqual(publishWorkers["runs-on"], SHARED_SELF_HOSTED_RUNNER);
 	assert.equal(publishWorkers.environment, "staging");
 	assert.equal(namedStep(publishWorkers, "Install Nix").if, "runner.environment != 'self-hosted'");
 
 	const candidateStatus = workflowJob(workflow, "candidate-status");
 	assert.deepEqual(candidateStatus.needs, ["release-plan", "publish-images", "publish-workers"]);
-	assert.deepEqual(candidateStatus["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.deepEqual(candidateStatus["runs-on"], SHARED_SELF_HOSTED_RUNNER);
 	assert.deepEqual(candidateStatus.permissions, { contents: "read", statuses: "write" });
 	assert.match(String(candidateStatus.if), /^always\(\)/u);
 
@@ -295,7 +327,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 		"publish-images",
 		"publish-workers",
 	]);
-	assert.deepEqual(promote["runs-on"], TEMPORARY_SELF_HOSTED_RUNNER);
+	assert.deepEqual(promote["runs-on"], SHARED_SELF_HOSTED_RUNNER);
 	assert.equal(promote.environment, "staging");
 	assert.equal(namedStep(promote, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.match(String(promote.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);

@@ -20,7 +20,7 @@ env:
 
 jobs:
   scan:
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, campus-ci]
     timeout-minutes: 15
     defaults:
       run:
