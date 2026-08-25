@@ -288,7 +288,7 @@ func checkColumns(ctx context.Context, tx *sql.Tx, table string, want []expected
 }
 
 func checkConstraints(ctx context.Context, tx *sql.Tx, table string, want []expectedConstraint) error {
-	rows, err := tx.QueryContext(ctx, `select constraint_metadata.conname, constraint_metadata.contype, pg_get_constraintdef(constraint_metadata.oid, true), constraint_metadata.convalidated from pg_constraint as constraint_metadata where constraint_metadata.conrelid=to_regclass($1) order by constraint_metadata.conname`, "model_config."+table)
+	rows, err := tx.QueryContext(ctx, `select constraint_metadata.conname, constraint_metadata.contype, pg_get_constraintdef(constraint_metadata.oid, true), constraint_metadata.convalidated from pg_constraint as constraint_metadata where constraint_metadata.conrelid=to_regclass($1) and constraint_metadata.contype in ('c','p') order by constraint_metadata.conname`, "model_config."+table)
 	if err != nil {
 		return fmt.Errorf("inspect model_config.%s constraints: %w", table, err)
 	}
