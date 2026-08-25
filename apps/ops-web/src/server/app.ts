@@ -1,5 +1,6 @@
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
+import { routePath } from "hono/route";
 import { secureHeaders } from "hono/secure-headers";
 import type { Pool } from "pg";
 import {
@@ -244,48 +245,88 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		return next();
 	});
 
-	app.onError((error) => {
-		logOpsError("ops_web.api_request", error, { source: "http" });
+	app.onError((error, context) => {
+		const respond = (response: Response, failureKind: string) => {
+			const requestId = normalizeLogRequestId(
+				context.req.header("x-request-id") ?? context.req.param("requestId"),
+			);
+			logOpsError("ops_web.api_request", error, {
+				failure_kind: failureKind,
+				http_method: context.req.method,
+				http_status_class: `${Math.floor(response.status / 100)}xx`,
+				request_id: requestId,
+				route_template: routePath(context),
+				source: "http",
+			});
+			return response;
+		};
 		if (error instanceof SentryUnavailableError) {
-			return jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503);
+			return respond(
+				jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503),
+				"sentry_unavailable",
+			);
 		}
 		if (error instanceof AccountAdminUnavailableError) {
-			return jsonError("OPS_ACCOUNT_ADMIN_UNAVAILABLE", "用户管理后端不可用。", 503);
+			return respond(
+				jsonError("OPS_ACCOUNT_ADMIN_UNAVAILABLE", "用户管理后端不可用。", 503),
+				"account_admin_unavailable",
+			);
 		}
 		if (error instanceof AccountAdminResponseError) {
-			return error.response;
+			return respond(error.response, "account_admin_response");
 		}
 		if (error instanceof ProviderConfigAdminUnavailableError) {
-			return jsonError("OPS_PROVIDER_CONFIG_UNAVAILABLE", "在线模型配置服务暂不可用。", 503);
+			return respond(
+				jsonError("OPS_PROVIDER_CONFIG_UNAVAILABLE", "在线模型配置服务暂不可用。", 503),
+				"provider_config_unavailable",
+			);
 		}
 		if (error instanceof ProviderConfigAdminResponseError) {
-			return providerConfigAdminErrorResponse(error);
+			return respond(providerConfigAdminErrorResponse(error), "provider_config_response");
 		}
 		if (error instanceof EmailAccessAdminUnavailableError) {
-			return jsonError("OPS_EMAIL_ACCESS_UNAVAILABLE", "账号准入后端不可用。", 503);
+			return respond(
+				jsonError("OPS_EMAIL_ACCESS_UNAVAILABLE", "账号准入后端不可用。", 503),
+				"email_access_unavailable",
+			);
 		}
 		if (error instanceof EmailAccessAdminResponseError) {
-			return error.response;
+			return respond(error.response, "email_access_response");
 		}
 		if (error instanceof CampusGroupsAdminUnavailableError) {
-			return jsonError("OPS_CAMPUS_GROUPS_UNAVAILABLE", "同好群内容服务不可用。", 503);
+			return respond(
+				jsonError("OPS_CAMPUS_GROUPS_UNAVAILABLE", "同好群内容服务不可用。", 503),
+				"campus_groups_unavailable",
+			);
 		}
 		if (error instanceof CampusGroupsAdminResponseError) {
-			return error.response;
+			return respond(error.response, "campus_groups_response");
 		}
 		if (error instanceof CampusGroupsRequestError) {
-			return jsonError("OPS_CAMPUS_GROUPS_REQUEST_INVALID", error.message, 400);
+			return respond(
+				jsonError("OPS_CAMPUS_GROUPS_REQUEST_INVALID", error.message, 400),
+				"campus_groups_request_invalid",
+			);
 		}
 		if (error instanceof NoticeJobConflictError) {
-			return jsonError("OPS_NOTICE_JOB_CONFLICT", error.message, 409, {
-				runningJobName: error.runningJobName,
-			});
+			return respond(
+				jsonError("OPS_NOTICE_JOB_CONFLICT", error.message, 409, {
+					runningJobName: error.runningJobName,
+				}),
+				"notice_job_conflict",
+			);
 		}
 		if (error instanceof NoticeJobNotFoundError) {
-			return jsonError("OPS_NOTICE_JOB_NOT_FOUND", error.message, 404);
+			return respond(
+				jsonError("OPS_NOTICE_JOB_NOT_FOUND", error.message, 404),
+				"notice_job_not_found",
+			);
 		}
 		if (error instanceof NoticeJobUnavailableError) {
-			return jsonError("OPS_NOTICE_JOB_UNAVAILABLE", error.message, 503);
+			return respond(
+				jsonError("OPS_NOTICE_JOB_UNAVAILABLE", error.message, 503),
+				"notice_job_unavailable",
+			);
 		}
 		if (error instanceof NoticeNotFoundError) {
 			return jsonError("OPS_NOTICE_NOT_FOUND", error.message, 404);
@@ -294,62 +335,100 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			return jsonError("OPS_NOTICE_STORE_UNAVAILABLE", error.message, 503);
 		}
 		if (error instanceof InternalPortalCredentialStoreUnavailableError) {
-			return jsonError(
-				"OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE",
-				"内部门户凭据数据库暂不可用。",
-				503,
+			return respond(
+				jsonError("OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE", "内部门户凭据数据库暂不可用。", 503),
+				"internal_portal_store_unavailable",
 			);
 		}
 		if (error instanceof InternalPortalAutomationTokenStoreUnavailableError) {
-			return jsonError(
-				"OPS_AUTOMATION_TOKEN_STORE_UNAVAILABLE",
-				"自动化访问 token 数据库暂不可用。",
-				503,
+			return respond(
+				jsonError(
+					"OPS_AUTOMATION_TOKEN_STORE_UNAVAILABLE",
+					"自动化访问 token 数据库暂不可用。",
+					503,
+				),
+				"automation_token_store_unavailable",
 			);
 		}
 		if (error instanceof InternalPortalAutomationTokenNotFoundError) {
-			return jsonError("OPS_AUTOMATION_TOKEN_NOT_FOUND", error.message, 404);
+			return respond(
+				jsonError("OPS_AUTOMATION_TOKEN_NOT_FOUND", error.message, 404),
+				"automation_token_not_found",
+			);
 		}
 		if (error instanceof InternalPortalCredentialNotFoundError) {
-			return jsonError("OPS_INTERNAL_PORTAL_NOT_FOUND", error.message, 404);
+			return respond(
+				jsonError("OPS_INTERNAL_PORTAL_NOT_FOUND", error.message, 404),
+				"internal_portal_not_found",
+			);
 		}
 		if (error instanceof InternalPortalCredentialConflictError) {
-			return jsonError("OPS_INTERNAL_PORTAL_CONFLICT", error.message, 409);
+			return respond(
+				jsonError("OPS_INTERNAL_PORTAL_CONFLICT", error.message, 409),
+				"internal_portal_conflict",
+			);
 		}
 		if (error instanceof InternalPortalCredentialNameConflictError) {
-			return jsonError("OPS_INTERNAL_PORTAL_NAME_CONFLICT", error.message, 409);
+			return respond(
+				jsonError("OPS_INTERNAL_PORTAL_NAME_CONFLICT", error.message, 409),
+				"internal_portal_name_conflict",
+			);
 		}
 		if (error instanceof InternalPortalCandidateInputError) {
-			return jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", error.message, 400);
+			return respond(
+				jsonError("OPS_INTERNAL_PORTAL_INPUT_INVALID", error.message, 400),
+				"internal_portal_input_invalid",
+			);
 		}
 		if (error instanceof InternalPortalCandidateRejectedError) {
-			return jsonError("OPS_INTERNAL_PORTAL_CREDENTIAL_REJECTED", error.message, 422);
+			return respond(
+				jsonError("OPS_INTERNAL_PORTAL_CREDENTIAL_REJECTED", error.message, 422),
+				"internal_portal_credential_rejected",
+			);
 		}
 		if (error instanceof InternalPortalCandidateCheckFailedError) {
-			return jsonError("OPS_INTERNAL_PORTAL_CHECK_FAILED", error.message, 503);
+			return respond(
+				jsonError("OPS_INTERNAL_PORTAL_CHECK_FAILED", error.message, 503),
+				"internal_portal_check_failed",
+			);
 		}
 		if (error instanceof InternalPortalCredentialResolutionUnavailableError) {
-			return jsonError("OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE", error.message, 503);
+			return respond(
+				jsonError("OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE", error.message, 503),
+				"internal_portal_credential_unavailable",
+			);
 		}
 		if (error instanceof DiningStoreUnavailableError) {
-			return jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503);
+			return respond(
+				jsonError("OPS_DINING_STORE_UNAVAILABLE", "食堂管理数据库不可用。", 503),
+				"dining_store_unavailable",
+			);
 		}
 		if (error instanceof DiningStoreNotFoundError) {
-			return jsonError("OPS_DINING_NOT_FOUND", error.message, 404);
+			return respond(jsonError("OPS_DINING_NOT_FOUND", error.message, 404), "dining_not_found");
 		}
 		if (error instanceof DiningStoreConflictError) {
-			return jsonError("OPS_DINING_CONFLICT", error.message, 409, error.details);
+			return respond(
+				jsonError("OPS_DINING_CONFLICT", error.message, 409, error.details),
+				"dining_conflict",
+			);
 		}
 		if (error instanceof DiningStoreValidationError) {
-			return jsonError("OPS_DINING_INVALID", error.message, 400);
+			return respond(jsonError("OPS_DINING_INVALID", error.message, 400), "dining_invalid");
 		}
 		const storeUnavailableReasonCode = classifyStoreUnavailableError(error);
 		if (storeUnavailableReasonCode) {
-			return jsonError("OPS_STATUS_STORE_UNAVAILABLE", "请求状态数据库不可用。", 503, {
-				reasonCode: storeUnavailableReasonCode,
-			});
+			return respond(
+				jsonError("OPS_STATUS_STORE_UNAVAILABLE", "请求状态数据库不可用。", 503, {
+					reasonCode: storeUnavailableReasonCode,
+				}),
+				storeUnavailableReasonCode.toLowerCase(),
+			);
 		}
-		return jsonError("OPS_API_INTERNAL_ERROR", "运维接口请求失败。", 500);
+		return respond(
+			jsonError("OPS_API_INTERNAL_ERROR", "运维接口请求失败。", 500),
+			"unhandled_error",
+		);
 	});
 
 	app.get("/healthz", (context) => context.json({ ok: true, service: "ops-web" }));
@@ -526,6 +605,11 @@ function classifyReadinessError(error: unknown) {
 
 function classifyStoreUnavailableError(error: unknown) {
 	return error instanceof OpsStatusStoreUnavailableError ? error.reasonCode : null;
+}
+
+function normalizeLogRequestId(value: string | undefined): string | null {
+	const normalized = value?.trim();
+	return normalized && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(normalized) ? normalized : null;
 }
 
 function isStaticAssetPath(path: string) {

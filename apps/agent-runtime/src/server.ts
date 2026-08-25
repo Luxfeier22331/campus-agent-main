@@ -40,7 +40,7 @@ const telemetry = (() => {
 	}
 })();
 
-const catalog = loadToolCatalog(catalogPath, { runtimeRelease: deploymentRelease });
+const catalog = loadToolCatalog(catalogPath);
 const runtime = createPrimaryAgentRuntime({
 	catalog,
 	runner: createRequestScopedOpenAIAgentsRunner(),
@@ -51,11 +51,16 @@ const runtime = createPrimaryAgentRuntime({
 	}),
 });
 const handler = createAgentRuntimeHandler({
-	onStreamError: (error) =>
+	onStreamError: (error, context) =>
 		logAgentRuntimeEvent("error", "agent_runtime.stream", "failed", {
 			error_code: safeAgentRuntimeErrorCode(error),
+			request_id: context.requestId,
+			run_id: context.runId,
+			runtime_release: deploymentRelease,
 			source: "stream",
+			trace_id: context.traceId,
 		}),
+	runtimeRelease: deploymentRelease,
 	sharedSecret: executionAgentRuntimeSharedSecret,
 	runtime,
 	modelConfig: { baseUrl: modelConfigBaseUrl },

@@ -6,9 +6,15 @@ import {
 	resolveCampusWebPublicOrigin,
 } from "../src/server/ops-status-factory";
 import { createPgOpsStatusStore } from "../src/server/pg-ops-status-store";
-import { agentUsageSql, requestRowsCte } from "../src/server/pg-request-query";
+import { requestRowsCte, runAttemptsSql, runStepsSql } from "../src/server/pg-request-query";
 import { OpsRequestDetailResponseSchema } from "../src/shared/ops-contract";
-import { agentUsageRow, createFakeOpsDb, requestRow } from "./ops-status-store-test-helpers";
+import {
+	createFakeOpsDb,
+	requestRow,
+	runAttemptRow,
+	runDiagnostics,
+	runStepRow,
+} from "./ops-status-store-test-helpers";
 
 const now = new Date("2026-07-09T07:30:00.000Z");
 
@@ -50,11 +56,13 @@ describe("PostgreSQL ops status store", () => {
 	});
 
 	it("reads execution projections from the owning schema", () => {
-		const sql = `${requestRowsCte()}\n${agentUsageSql("and false")}`;
+		const sql = `${requestRowsCte()}\n${runStepsSql()}\n${runAttemptsSql()}`;
 
 		expect(sql).toContain('"execution_control"."agent_runs"');
+		expect(sql).toContain('"execution_control"."agent_run_steps"');
 		expect(sql).toContain('"execution_control"."agent_step_attempts"');
 		expect(sql).not.toContain('"runtime"."agent_runs"');
+		expect(sql).not.toContain('"runtime"."agent_run_steps"');
 		expect(sql).not.toContain('"runtime"."agent_step_attempts"');
 	});
 
@@ -115,7 +123,7 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
-	it("projects a product journey, conversation result, sources, usage, and technical context", async () => {
+	it("projects the conversation result, execution diagnostics, and technical context", async () => {
 		const store = createPgOpsStatusStore({
 			campusWebPublicOrigin: "https://campus.example.test",
 			db: createFakeOpsDb(),
@@ -124,9 +132,6 @@ describe("PostgreSQL ops status store", () => {
 		const detail = OpsRequestDetailResponseSchema.parse(await store.getRequestDetail("req_pg_001"));
 
 		expect(detail.question).toEqual({ text: "缓考申请需要哪些材料？", turnSequence: 3 });
-		expect(detail.journey).toEqual({
-			entry: "CAMPUS_WEB",
-		});
 		expect(detail.result).toMatchObject({
 			kind: "answer",
 			state: "WRITTEN",
@@ -138,12 +143,28 @@ describe("PostgreSQL ops status store", () => {
 		).toBe(
 			"https://campus.example.test/docs/regulations/student_rules/student-rules/v/2026-current#deferred-exam",
 		);
-		expect(detail.usage).toEqual({
-			cachedInputTokens: 200,
-			inputTokens: 1_200,
-			outputTokens: 240,
-			state: "COMPLETE",
-			totalTokens: 1_440,
+		expect(detail.execution).toMatchObject({
+			failure: {
+				agentRuntimeHttpStatus: null,
+				kind: null,
+				runtimeErrorCode: null,
+			},
+			releases: {
+				agentRuntime: "agent-runtime@899f251",
+				executionControl: "execution-control@a77a046",
+			},
+		});
+		expect(detail.execution.steps).toHaveLength(1);
+		expect(detail.execution.steps[0]).toMatchObject({
+			kind: "agent",
+			status: "completed",
+			stepId: "agent.primary",
+		});
+		expect(detail.execution.steps[0]?.attempts[0]).toMatchObject({
+			modelName: "deepseek-v4-flash-0731",
+			modelProvider: "openai-compatible",
+			modelRequestCount: 1,
+			tokens: { cachedInput: 200, input: 1_200, output: 240 },
 		});
 		expect(detail.technical.correlationIds).toMatchObject({
 			runId: "run_pg_001",
@@ -153,29 +174,27 @@ describe("PostgreSQL ops status store", () => {
 			agentRuntime: "openai_agents_sdk",
 		});
 		expect(detail).not.toHaveProperty("externalEvidenceRefs");
-		expect(detail).not.toHaveProperty("executionSteps");
+		expect(detail).not.toHaveProperty("journey");
+		expect(detail).not.toHaveProperty("usage");
 		expect(detail).not.toHaveProperty("memorySummary");
 		expect(detail).not.toHaveProperty("modelSummary");
 		expect(detail).not.toHaveProperty("policySummary");
 		expect(detail).not.toHaveProperty("retrievalSummary");
 	});
 
-	it("keeps request detail when Agent usage projection fails", async () => {
-		const usageUnavailable = createPgOpsStatusStore({
+	it("does not hide a durable diagnostics query failure", async () => {
+		const diagnosticsUnavailable = createPgOpsStatusStore({
 			db: {
 				...createFakeOpsDb(),
-				getAgentUsages: async () => {
-					throw new Error("usage unavailable");
+				getRunDiagnostics: async () => {
+					throw new Error("diagnostics unavailable");
 				},
 			},
 			now: () => now,
 		});
-		const withoutUsage = await usageUnavailable.getRequestDetail("req_pg_001");
-		expect(withoutUsage).toMatchObject({
-			journey: { entry: "CAMPUS_WEB" },
-			request: { requestId: "req_pg_001" },
-			usage: { state: "UNAVAILABLE", totalTokens: null },
-		});
+		await expect(diagnosticsUnavailable.getRequestDetail("req_pg_001")).rejects.toThrow(
+			"diagnostics unavailable",
+		);
 	});
 
 	it("does not emit unsafe or unresolved product source links", async () => {
@@ -287,80 +306,83 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
-	it("keeps partial and unavailable Agent usage distinct from explicit zero", async () => {
-		const partialStore = createPgOpsStatusStore({
-			db: createFakeOpsDb({
-				usageRows: [
-					agentUsageRow({
-						cachedInputTokens: 0,
-						inputTokens: 400,
-						observedAttemptCount: 1,
-						outputTokens: 120,
-						totalAttemptCount: 2,
+	it("projects attempt-level failures without inventing model activity", async () => {
+		const db = createFakeOpsDb({
+			diagnostics: runDiagnostics({
+				attempts: [
+					runAttemptRow({
+						failCloseReason: "tool_contract_mismatch",
+						modelName: "",
+						modelProvider: "",
+						modelRequestCount: 0,
+						providerResponseId: "",
+						sanitizedPayloadJson: {
+							agent_runtime_error_code: "tool_contract_mismatch",
+							agent_runtime_http_status: 409,
+							agent_runtime_release: "agent-runtime@new",
+							execution_control_release: "execution-control@old",
+							failure_kind: "runtime_invariant_failed",
+						},
+						status: "failed",
+						terminalReason: "runtime_invariant_failed",
+						usageObserved: false,
+					}),
+				],
+				steps: [
+					runStepRow({
+						sanitizedPayloadJson: { failure_kind: "runtime_invariant_failed" },
+						status: "failed",
 					}),
 				],
 			}),
-			now: () => now,
+			requestRows: [
+				requestRow({
+					assistantKind: "error",
+					errorCode: "runtime_invariant_failed",
+					executionFailureKind: "runtime_invariant_failed",
+					executionStepStatus: "failed",
+					failCloseReason: "tool_contract_mismatch",
+					status: "error",
+					terminalReason: "runtime_invariant_failed",
+				}),
+			],
 		});
-		const partial = await partialStore.listRequests({ window: "1h" });
+		const detail = await createPgOpsStatusStore({ db, now: () => now }).getRequestDetail(
+			"req_pg_001",
+		);
 
-		expect(partial.data[0]?.usage).toEqual({ state: "PARTIAL", totalTokens: 520 });
-		expect((await partialStore.getRequestDetail("req_pg_001"))?.usage).toEqual({
-			cachedInputTokens: 0,
-			inputTokens: 400,
-			outputTokens: 120,
-			state: "PARTIAL",
-			totalTokens: 520,
+		expect(detail?.execution.failure).toEqual({
+			agentRuntimeHttpStatus: 409,
+			failCloseReason: "tool_contract_mismatch",
+			kind: "runtime_invariant_failed",
+			runtimeErrorCode: "tool_contract_mismatch",
+			terminalReason: "runtime_invariant_failed",
 		});
-
-		const unavailableStore = createPgOpsStatusStore({
-			db: createFakeOpsDb({
-				usageRows: [
-					agentUsageRow({
-						cachedInputTokens: null,
-						inputTokens: null,
-						observedAttemptCount: 0,
-						outputTokens: null,
-					}),
-				],
-			}),
-			now: () => now,
+		expect(detail?.execution.releases).toEqual({
+			agentRuntime: "agent-runtime@new",
+			executionControl: "execution-control@old",
 		});
-		const unavailable = await unavailableStore.listRequests({ window: "1h" });
-
-		expect(unavailable.data[0]?.usage).toEqual({ state: "UNAVAILABLE", totalTokens: null });
-
-		const zeroStore = createPgOpsStatusStore({
-			db: createFakeOpsDb({
-				usageRows: [
-					agentUsageRow({
-						cachedInputTokens: 0,
-						inputTokens: 0,
-						outputTokens: 0,
-					}),
-				],
-			}),
-			now: () => now,
+		expect(detail?.execution.steps[0]?.attempts[0]).toMatchObject({
+			modelName: null,
+			modelProvider: null,
+			modelRequestCount: 0,
+			providerResponseId: null,
+			tokens: { cachedInput: null, input: null, output: null },
 		});
-		const explicitZero = await zeroStore.listRequests({ window: "1h" });
-
-		expect(explicitZero.data[0]?.usage).toEqual({ state: "COMPLETE", totalTokens: 0 });
 	});
 
-	it("keeps list rows when Agent usage projection fails", async () => {
+	it("does not load attempt diagnostics for request lists", async () => {
 		const db = createFakeOpsDb({
 			requestRows: [
 				requestRow(),
 				requestRow({ requestId: "req_pg_without_run", runId: null, workflowId: null }),
 			],
 		});
+		const getRunDiagnostics = vi.fn(async () => {
+			throw new Error("list must not load diagnostics");
+		});
 		const store = createPgOpsStatusStore({
-			db: {
-				...db,
-				getAgentUsages: async () => {
-					throw new Error("usage unavailable");
-				},
-			},
+			db: { ...db, getRunDiagnostics },
 			now: () => now,
 		});
 
@@ -368,16 +390,10 @@ describe("PostgreSQL ops status store", () => {
 
 		expect(result.data).toHaveLength(2);
 		expect(result.data.find((request) => request.requestId === "req_pg_001")).toMatchObject({
-			journey: { entry: "CAMPUS_WEB" },
+			executionStage: { kind: "agent", status: "completed", stepId: "agent.primary" },
 			requestId: "req_pg_001",
-			usage: { state: "UNAVAILABLE", totalTokens: null },
 		});
-		expect(result.data.find((request) => request.requestId === "req_pg_without_run")).toMatchObject(
-			{
-				journey: { entry: "CAMPUS_WEB" },
-				usage: { state: "NOT_STARTED", totalTokens: null },
-			},
-		);
+		expect(getRunDiagnostics).not.toHaveBeenCalled();
 	});
 
 	it("returns the selected request window with list results", async () => {

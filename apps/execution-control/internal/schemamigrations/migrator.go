@@ -65,15 +65,20 @@ var opsWebReadColumns = map[string][]string{
 		"completed_at", "fail_close_reason", "run_id", "runtime_versions_json",
 		"status", "terminal_reason", "trace_id", "updated_at",
 	},
+	"execution_control.agent_run_steps": {
+		"activity_attempt", "completed_at", "conversation_id", "created_at", "parent_step_id",
+		"payload_schema_version", "run_id", "sanitized_payload_json", "started_at", "status",
+		"step_id", "step_kind", "task_queue", "tool", "updated_at", "worker_id",
+	},
 	"execution_control.agent_step_attempts": {
-		"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed",
-	},
-	"runtime.agent_runs": {
-		"completed_at", "fail_close_reason", "run_id", "runtime_versions_json",
-		"status", "terminal_reason", "trace_id", "updated_at",
-	},
-	"runtime.agent_step_attempts": {
-		"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed",
+		"activity_attempt", "activity_id", "activity_type", "attempt", "attempt_id",
+		"cached_input_tokens", "cancel_outcome", "completed_at", "created_at", "duration_ms",
+		"fail_close_reason", "input_tokens", "late_completion_outcome", "model_name",
+		"model_provider", "model_request_count", "output_tokens", "payload_schema_version",
+		"provider_request_ref", "provider_response_id", "run_id", "sanitized_payload_json",
+		"schedule_to_start_ms", "scheduled_at", "started_at", "status", "step_id", "task_queue",
+		"temporal_run_id", "terminal_reason", "timeout_outcome", "updated_at", "usage_observed",
+		"worker_id", "workflow_id",
 	},
 }
 
@@ -268,15 +273,19 @@ grant select (
 	terminal_reason, trace_id, updated_at
 ) on table execution_control.agent_runs to ops_web;
 grant select (
-	cached_input_tokens, input_tokens, output_tokens, run_id, step_id, usage_observed
+	step_id, run_id, conversation_id, step_kind, tool, parent_step_id, status,
+	activity_attempt, task_queue, worker_id, started_at, completed_at, updated_at,
+	payload_schema_version, sanitized_payload_json, created_at
+) on table execution_control.agent_run_steps to ops_web;
+grant select (
+	attempt_id, step_id, run_id, attempt, status, task_queue, worker_id, workflow_id,
+	temporal_run_id, activity_id, activity_type, activity_attempt, scheduled_at, started_at,
+	completed_at, schedule_to_start_ms, duration_ms, provider_request_ref,
+	provider_response_id, model_provider, model_name, model_request_count, input_tokens,
+	output_tokens, cached_input_tokens, usage_observed, cancel_outcome, timeout_outcome,
+	late_completion_outcome, fail_close_reason, terminal_reason, updated_at,
+	payload_schema_version, sanitized_payload_json, created_at
 ) on table execution_control.agent_step_attempts to ops_web;
-grant select (
-	completed_at, fail_close_reason, run_id, runtime_versions_json, status,
-	terminal_reason, trace_id, updated_at
-) on table runtime.agent_runs to ops_web;
-grant select (
-	cached_input_tokens, input_tokens, output_tokens, run_id, step_id, usage_observed
-) on table runtime.agent_step_attempts to ops_web;
 
 do $$
 begin

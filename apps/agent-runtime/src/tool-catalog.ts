@@ -60,18 +60,13 @@ export interface ToolCatalogEntry {
 export interface ToolCatalog {
 	schemaVersion: "tool-registry-v6";
 	registryVersion: string;
-	runtimeFingerprint: ToolRuntimeFingerprint;
+	contractFingerprint: ToolContractFingerprint;
 	tools: ToolCatalogEntry[];
 }
 
-export interface ToolRuntimeFingerprint {
-	combinedSha256: string;
+export interface ToolContractFingerprint {
 	functionSchemaSha256: string;
-	functionSchemaVersion: "tool-function-schemas-v3";
-	runtimeRelease: string;
-	schemaVersion: "tool_runtime_fingerprint.v2";
-	toolsRegistryVersion: string;
-	toolsSchemaVersion: "tool-registry-v6";
+	schemaVersion: "tool_contract_fingerprint.v1";
 	toolsSha256: string;
 }
 
@@ -112,10 +107,7 @@ export function isCanonicalExecutionControlInternalEndpoint(value: string): bool
 
 export function loadToolCatalog(
 	path: string,
-	options: {
-		runtimeRelease?: string;
-		toolFunctionSchemaPath?: string;
-	} = {},
+	options: { toolFunctionSchemaPath?: string } = {},
 ): ToolCatalog {
 	const rawToolCatalog = readFileSync(path, "utf8");
 	const toolFunctionSchemaPath =
@@ -125,13 +117,9 @@ export function loadToolCatalog(
 		"tool function schema config",
 	);
 	return loadToolCatalogFromObject(JSON.parse(rawToolCatalog), {
-		runtimeFingerprint: buildToolRuntimeFingerprint({
-			runtimeRelease: normalizedRuntimeRelease(
-				options.runtimeRelease ?? process.env.DEPLOYMENT_RELEASE,
-			),
+		contractFingerprint: buildToolContractFingerprint({
 			toolCatalogRaw: rawToolCatalog,
 			toolFunctionSchemaRaw,
-			toolsRegistryVersion: registryVersionFromRawToolCatalog(rawToolCatalog),
 		}),
 		...(toolFunctionSchemaPath ? { toolFunctionSchemaPath } : {}),
 	});
@@ -139,7 +127,7 @@ export function loadToolCatalog(
 
 export function loadToolCatalogFromObject(
 	value: unknown,
-	options: { runtimeFingerprint?: ToolRuntimeFingerprint; toolFunctionSchemaPath?: string } = {},
+	options: { contractFingerprint?: ToolContractFingerprint; toolFunctionSchemaPath?: string } = {},
 ): ToolCatalog {
 	const parsed = rawCatalogSchema.parse(value);
 	const seen = new Set<string>();
@@ -178,7 +166,7 @@ export function loadToolCatalogFromObject(
 	return {
 		schemaVersion: parsed.schema_version,
 		registryVersion: parsed.registry_version,
-		runtimeFingerprint: requireToolRuntimeFingerprint(options.runtimeFingerprint),
+		contractFingerprint: requireToolContractFingerprint(options.contractFingerprint),
 		tools,
 	};
 }
@@ -248,52 +236,24 @@ function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObje
 	return result;
 }
 
-function buildToolRuntimeFingerprint(input: {
-	runtimeRelease: string;
+function buildToolContractFingerprint(input: {
 	toolCatalogRaw: string;
 	toolFunctionSchemaRaw: string;
-	toolsRegistryVersion: string;
-}): ToolRuntimeFingerprint {
-	const toolsSha256 = sha256CanonicalJson(input.toolCatalogRaw);
-	const functionSchemaSha256 = sha256CanonicalJson(input.toolFunctionSchemaRaw);
+}): ToolContractFingerprint {
 	return {
-		combinedSha256: sha256(
-			JSON.stringify({
-				function_schema_sha256: functionSchemaSha256,
-				function_schema_version: "tool-function-schemas-v3",
-				runtime_release: input.runtimeRelease,
-				schema_version: "tool_runtime_fingerprint.v2",
-				tools_registry_version: input.toolsRegistryVersion,
-				tools_schema_version: "tool-registry-v6",
-				tools_sha256: toolsSha256,
-			}),
-		),
-		functionSchemaSha256,
-		functionSchemaVersion: "tool-function-schemas-v3",
-		runtimeRelease: input.runtimeRelease,
-		schemaVersion: "tool_runtime_fingerprint.v2",
-		toolsRegistryVersion: input.toolsRegistryVersion,
-		toolsSchemaVersion: "tool-registry-v6",
-		toolsSha256,
+		functionSchemaSha256: sha256CanonicalJson(input.toolFunctionSchemaRaw),
+		schemaVersion: "tool_contract_fingerprint.v1",
+		toolsSha256: sha256CanonicalJson(input.toolCatalogRaw),
 	};
 }
 
-function normalizedRuntimeRelease(value: string | undefined): string {
-	const release = value?.trim();
-	return release ? release : "unversioned-local";
-}
-
-function requireToolRuntimeFingerprint(
-	fingerprint: ToolRuntimeFingerprint | undefined,
-): ToolRuntimeFingerprint {
+function requireToolContractFingerprint(
+	fingerprint: ToolContractFingerprint | undefined,
+): ToolContractFingerprint {
 	if (fingerprint === undefined) {
-		throw new Error("tool runtime fingerprint is required");
+		throw new Error("tool contract fingerprint is required");
 	}
 	return fingerprint;
-}
-
-function registryVersionFromRawToolCatalog(raw: string): string {
-	return rawCatalogSchema.parse(JSON.parse(raw)).registry_version;
 }
 
 function readRequiredRuntimeArtifact(path: string | undefined, label: string): string {
@@ -323,10 +283,19 @@ function stableJsonStringify(value: unknown): string {
 			left < right ? -1 : left > right ? 1 : 0,
 		);
 		return `{${entries
-			.map(([key, child]) => `${JSON.stringify(key)}:${stableJsonStringify(child)}`)
+			.map(([key, child]) => `${canonicalJSONString(key)}:${stableJsonStringify(child)}`)
 			.join(",")}}`;
 	}
-	return JSON.stringify(value);
+	return typeof value === "string" ? canonicalJSONString(value) : JSON.stringify(value);
+}
+
+function canonicalJSONString(value: string): string {
+	return JSON.stringify(value)
+		.replaceAll("<", "\\u003c")
+		.replaceAll(">", "\\u003e")
+		.replaceAll("&", "\\u0026")
+		.replaceAll("\u2028", "\\u2028")
+		.replaceAll("\u2029", "\\u2029");
 }
 
 function defaultToolFunctionSchemaPath(toolCatalogPath: string): string | undefined {

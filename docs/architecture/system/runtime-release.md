@@ -62,10 +62,10 @@ Worker 还必须记录数据 release identity 和二者组合的 build identity�
 已选择 Source SHA 作为下一次候选计算基线；Argo CD 和 Cloudflare 状态写回该 Source SHA，分别表达
 对应部署单元的结果。
 
-`DEPLOYMENT_RELEASE` 是 execution runtime 的非密发布身份，并进入
-`tool_runtime_fingerprint.v2` 的 `runtime_release`。在每个已启用环境内，execution-control 和
-agent-runtime 必须取得环境仓选择的同一非空值；任一进程缺失时启动失败，不能以本地默认值或环境
-名称补齐。精确指纹合同见 `../../contracts/tool-execution.md`。
+`DEPLOYMENT_RELEASE` 是单个 execution runtime 的非密发布身份。execution-control 和 agent-runtime
+分别记录自己的 release，允许独立发布且不要求值相同；release 只用于诊断和变更关联，不进入工具
+兼容性判断。已部署进程必须取得自身的非空发布标识，不能以本地默认值或环境名称补齐。工具兼容性
+只由 `tool_contract_fingerprint.v1` 判断，精确合同见 `../../contracts/tool-execution.md`。
 
 ## 配置与密钥
 

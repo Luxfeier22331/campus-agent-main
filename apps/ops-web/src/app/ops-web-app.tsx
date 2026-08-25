@@ -49,7 +49,6 @@ import {
 import { OverviewPage } from "./overview-page";
 import { ProviderConfigPage } from "./provider-config-page";
 import { RequestDetailPage } from "./request-detail-page";
-import { RequestSystemPage } from "./request-system-page";
 import { RequestsPage as RequestsPageView } from "./requests-page";
 import { SidebarLayout } from "./ui/sidebar-layout";
 import { UserDetailPage } from "./user-detail-page";
@@ -123,15 +122,6 @@ const requestDetailRoute = createRoute({
 		from: optionalSearchString(search.from),
 	}),
 	component: RequestDetailRoute,
-});
-
-const requestSystemRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/requests/$requestId/system",
-	validateSearch: (search: Record<string, unknown>) => ({
-		from: optionalSearchString(search.from),
-	}),
-	component: RequestSystemRoute,
 });
 
 const providerConfigRoute = createRoute({
@@ -229,7 +219,6 @@ const routeTree = rootRoute.addChildren([
 	indexRoute,
 	overviewRoute,
 	requestsRoute,
-	requestSystemRoute,
 	requestDetailRoute,
 	providerConfigRoute,
 	internalPortalRoute,
@@ -304,12 +293,6 @@ function RequestDetailRoute() {
 	const { requestId } = requestDetailRoute.useParams();
 	const { from } = requestDetailRoute.useSearch();
 	return <RequestDetailPage from={from} requestId={requestId} />;
-}
-
-function RequestSystemRoute() {
-	const { requestId } = requestSystemRoute.useParams();
-	const { from } = requestSystemRoute.useSearch();
-	return <RequestSystemPage from={from} requestId={requestId} />;
 }
 
 function ProviderConfigRoute() {

@@ -651,30 +651,30 @@ func addDefaultAgentRuntimeAttestationForTest(payload map[string]any) {
 			"rendered_prompt_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 		}
 	}
-	if _, exists := payload["tool_runtime_fingerprint"]; !exists {
-		payload["tool_runtime_fingerprint"] = testToolRuntimeFingerprintMap()
+	if _, exists := payload["tool_contract_fingerprint"]; !exists {
+		payload["tool_contract_fingerprint"] = testToolContractFingerprintMap()
 	}
 }
 
-func testToolRuntimeFingerprintMap() map[string]any {
-	fingerprint, err := buildToolRuntimeFingerprint("")
+func testToolContractFingerprintMap() map[string]any {
+	fingerprint, err := buildToolContractFingerprint()
 	if err != nil {
-		panic(fmt.Sprintf("build test tool runtime fingerprint: %v", err))
+		panic(fmt.Sprintf("build test tool contract fingerprint: %v", err))
 	}
 	return fingerprint.toMap()
 }
 
-func TestValidatePrimaryAgentResultRejectsToolRuntimeFingerprintDrift(t *testing.T) {
-	expected := testToolRuntimeFingerprintMap()
+func TestValidatePrimaryAgentResultRejectsToolContractMismatch(t *testing.T) {
+	expected := testToolContractFingerprintMap()
 	actual := cloneAnyMapFromMetadata(expected)
-	actual["combined_sha256"] = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+	actual["function_schema_sha256"] = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 	_, failCloseReason, err := validatePrimaryAgentResultSucceeded(map[string]any{
-		"admitted_tool_runtime_fingerprint": expected,
-		"status":                            "completed",
-		"tool_results":                      []any{},
-		"tool_runtime_fingerprint":          actual,
+		"admitted_tool_contract_fingerprint": expected,
+		"status":                             "completed",
+		"tool_results":                       []any{},
+		"tool_contract_fingerprint":          actual,
 	})
-	if err == nil || failCloseReason != "agent_runtime_fingerprint_mismatch" {
+	if err == nil || failCloseReason != "tool_contract_mismatch" {
 		t.Fatalf("fingerprint validation = (%q, %v), want fail closed", failCloseReason, err)
 	}
 }

@@ -59,9 +59,9 @@ export interface OpsStatusEnv {
 }
 
 export interface PgOpsStatusStoreDatabase {
-	getAgentUsages(runIds: string[]): Promise<OpsAgentUsageRow[]>;
 	getRequestOverview(since: Date): Promise<OpsRequestOverviewRow>;
 	getRequest(requestId: string): Promise<OpsRequestDetailRow | null>;
+	getRunDiagnostics(runId: string): Promise<OpsRunDiagnosticsRows>;
 	getRequestTrends(since: Date, bucketMinutes: number): Promise<OpsRequestTrendRow[]>;
 	listRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestRow[]>;
 	summarizeRequests(query: OpsRequestListQuery, since: Date): Promise<OpsRequestSummaryTotals>;
@@ -100,6 +100,11 @@ export interface OpsRequestRow {
 	conversationId: string;
 	durationMs: number | null;
 	errorCode: string | null;
+	executionFailureKind: string | null;
+	executionStepId: string | null;
+	executionStepKind: string | null;
+	executionStepStatus: string | null;
+	failCloseReason: string | null;
 	dataUpdatedAt: Date;
 	questionPreview: string;
 	questionTruncated: boolean;
@@ -123,11 +128,49 @@ export interface OpsRequestDetailRow extends OpsRequestRow {
 	questionText: string;
 }
 
-export interface OpsAgentUsageRow {
-	cachedInputTokens: number | string | null;
-	inputTokens: number | string | null;
-	observedAttemptCount: number | string;
-	outputTokens: number | string | null;
+export interface OpsRunStepRow {
+	completedAt: Date | null;
+	parentStepId: string;
 	runId: string;
-	totalAttemptCount: number | string;
+	sanitizedPayloadJson: unknown;
+	startedAt: Date | null;
+	status: string;
+	stepId: string;
+	stepKind: string;
+	taskQueue: string;
+	tool: string;
+	updatedAt: Date;
+	workerId: string;
+}
+
+export interface OpsRunAttemptRow {
+	activityAttempt: number;
+	activityType: string;
+	attempt: number;
+	cachedInputTokens: number | string | null;
+	completedAt: Date | null;
+	durationMs: number | string;
+	failCloseReason: string;
+	inputTokens: number | string | null;
+	modelName: string;
+	modelProvider: string;
+	modelRequestCount: number | string;
+	outputTokens: number | string | null;
+	providerResponseId: string;
+	runId: string;
+	sanitizedPayloadJson: unknown;
+	scheduleToStartMs: number | string;
+	scheduledAt: Date | null;
+	startedAt: Date | null;
+	status: string;
+	stepId: string;
+	taskQueue: string;
+	terminalReason: string;
+	usageObserved: boolean;
+	workerId: string;
+}
+
+export interface OpsRunDiagnosticsRows {
+	attempts: OpsRunAttemptRow[];
+	steps: OpsRunStepRow[];
 }

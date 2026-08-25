@@ -13,11 +13,11 @@ import {
 	toTemporalExternalLink,
 } from "./ops-external-links.ts";
 import type {
-	OpsAgentUsageRow,
 	OpsRequestDetailRow,
 	OpsRequestListQuery,
 	OpsRequestRow,
 	OpsRequestSummaryTotals,
+	OpsRunDiagnosticsRows,
 } from "./ops-status-types.ts";
 
 const TERMINAL_STATUSES = new Set<OpsRequestSummary["status"]>([
@@ -52,7 +52,7 @@ const ProductSourcePartSchema = z.object({
 
 export async function toRequestDetail(
 	row: OpsRequestDetailRow,
-	usageRow: OpsAgentUsageRow | null | undefined,
+	diagnostics: OpsRunDiagnosticsRows,
 	observabilityLinks?: OpsObservabilityLinkAllowlist,
 	generatedAt = new Date(),
 	campusWebPublicOrigin?: string,
@@ -60,10 +60,8 @@ export async function toRequestDetail(
 	const status = normalizeRequestStatus(row.status);
 	const runId = normalizeNullableString(row.runId);
 	return {
+		execution: toExecutionDiagnostics(row, diagnostics),
 		generatedAt: generatedAt.toISOString(),
-		journey: {
-			entry: normalizeJourneyEntry(row.surface),
-		},
 		question: {
 			text: row.questionText,
 			turnSequence: row.turnSequence,
@@ -85,45 +83,40 @@ export async function toRequestDetail(
 				traceId: row.traceId,
 				workflowId: normalizeNullableString(row.workflowId),
 			},
-			errorCode: normalizeNullableString(row.errorCode),
 			externalLinks: await normalizeExternalLinks(
 				observabilityLinks,
 				row.traceId,
 				normalizeNullableString(row.workflowId),
 			),
 			runtimeVersions: normalizeJsonRecord(row.runtimeVersionsJson),
-			terminalReason: normalizeNullableString(row.terminalReason),
 		},
-		usage: usageRow === undefined ? emptyUsage("UNAVAILABLE") : toAgentUsage(usageRow, status),
 	};
 }
 
-export function toRequestSummary(
-	row: OpsRequestRow,
-	usageRow: OpsAgentUsageRow | null | undefined,
-): OpsRequestSummary {
+export function toRequestSummary(row: OpsRequestRow): OpsRequestSummary {
 	const status = normalizeRequestStatus(row.status);
-	const usage = usageRow === undefined ? emptyUsage("UNAVAILABLE") : toAgentUsage(usageRow, status);
 	return {
 		attentionReason: normalizeAttentionReason(row.attentionReason),
 		completedAt: row.completedAt?.toISOString() ?? null,
 		durationMs: row.durationMs ?? null,
-		journey: {
-			entry: normalizeJourneyEntry(row.surface),
-			result: toJourneyResult(row, status),
-		},
+		executionStage:
+			row.executionStepId && row.executionStepKind && row.executionStepStatus
+				? {
+						kind: row.executionStepKind,
+						status: row.executionStepStatus,
+						stepId: row.executionStepId,
+					}
+				: null,
+		failureKind: normalizeNullableString(row.executionFailureKind),
 		lifecyclePhase: deriveRequestLifecyclePhase(row, status),
 		question: {
 			preview: row.questionPreview,
 			truncated: row.questionTruncated,
 		},
 		requestId: row.requestId,
+		result: toResultSummary(row, status),
 		startedAt: row.startedAt.toISOString(),
 		status,
-		usage: {
-			state: usage.state,
-			totalTokens: usage.totalTokens,
-		},
 	};
 }
 
@@ -332,10 +325,10 @@ export function readMetricCount(value: unknown, key: string) {
 	return readNonNegativeInteger(value[key], 0);
 }
 
-function toJourneyResult(
+function toResultSummary(
 	row: Pick<OpsRequestRow, "assistantKind" | "assistantMessagePresent">,
 	status: OpsRequestSummary["status"],
-): OpsRequestSummary["journey"]["result"] {
+): OpsRequestSummary["result"] {
 	if (row.assistantMessagePresent) {
 		return { kind: normalizeAssistantKind(row.assistantKind), state: "WRITTEN" };
 	}
@@ -429,55 +422,128 @@ function normalizeProductSources(
 	return sources;
 }
 
-function toAgentUsage(
-	row: OpsAgentUsageRow | null,
-	status: OpsRequestSummary["status"],
-): OpsRequestDetailResponse["usage"] {
-	if (!row) {
-		return emptyUsage("NOT_STARTED");
+function toExecutionDiagnostics(
+	row: OpsRequestDetailRow,
+	diagnostics: OpsRunDiagnosticsRows,
+): OpsRequestDetailResponse["execution"] {
+	const attemptsByStep = new Map<
+		string,
+		OpsRequestDetailResponse["execution"]["steps"][number]["attempts"]
+	>();
+	for (const attempt of diagnostics.attempts) {
+		const attempts = attemptsByStep.get(attempt.stepId) ?? [];
+		const payload = isRecord(attempt.sanitizedPayloadJson) ? attempt.sanitizedPayloadJson : {};
+		attempts.push({
+			activityAttempt: readDbInteger(attempt.activityAttempt, "activityAttempt"),
+			activityType: normalizeNullableString(attempt.activityType),
+			attempt: readDbInteger(attempt.attempt, "attempt"),
+			completedAt: attempt.completedAt?.toISOString() ?? null,
+			durationMs: readDbInteger(attempt.durationMs, "durationMs"),
+			failure: {
+				agentRuntimeHttpStatus: readHTTPStatus(payload.agent_runtime_http_status),
+				failCloseReason: normalizeNullableString(attempt.failCloseReason),
+				kind: normalizeNullableString(payload.failure_kind),
+				runtimeErrorCode: normalizeNullableString(payload.agent_runtime_error_code),
+				terminalReason: normalizeNullableString(attempt.terminalReason),
+			},
+			modelName: normalizeNullableString(attempt.modelName),
+			modelProvider: normalizeNullableString(attempt.modelProvider),
+			modelRequestCount: readDbInteger(attempt.modelRequestCount, "modelRequestCount"),
+			providerResponseId: normalizeNullableString(attempt.providerResponseId),
+			scheduleToStartMs: readDbInteger(attempt.scheduleToStartMs, "scheduleToStartMs"),
+			scheduledAt: attempt.scheduledAt?.toISOString() ?? null,
+			startedAt: attempt.startedAt?.toISOString() ?? null,
+			status: attempt.status,
+			taskQueue: normalizeNullableString(attempt.taskQueue),
+			tokens: attempt.usageObserved
+				? {
+						cachedInput: readDbInteger(attempt.cachedInputTokens, "cachedInputTokens"),
+						input: readDbInteger(attempt.inputTokens, "inputTokens"),
+						output: readDbInteger(attempt.outputTokens, "outputTokens"),
+					}
+				: { cachedInput: null, input: null, output: null },
+			workerId: normalizeNullableString(attempt.workerId),
+		});
+		attemptsByStep.set(attempt.stepId, attempts);
 	}
-	const totalAttemptCount = readDbInteger(row.totalAttemptCount, "totalAttemptCount");
-	const observedAttemptCount = readDbInteger(row.observedAttemptCount, "observedAttemptCount");
-	if (observedAttemptCount > totalAttemptCount) {
-		throw new Error("Agent usage observed attempt count exceeds total attempt count");
-	}
-	if (observedAttemptCount === 0) {
-		return emptyUsage(TERMINAL_STATUSES.has(status) ? "UNAVAILABLE" : "IN_PROGRESS");
-	}
-	const inputTokens = readDbInteger(row.inputTokens, "inputTokens");
-	const cachedInputTokens = readDbInteger(row.cachedInputTokens, "cachedInputTokens");
-	const outputTokens = readDbInteger(row.outputTokens, "outputTokens");
-	const totalTokens = inputTokens + outputTokens;
-	if (!Number.isSafeInteger(totalTokens)) {
-		throw new Error("Agent usage totalTokens exceeds Number.MAX_SAFE_INTEGER");
-	}
+
+	const steps = diagnostics.steps.map((step) => {
+		const payload = isRecord(step.sanitizedPayloadJson) ? step.sanitizedPayloadJson : {};
+		return {
+			attempts: attemptsByStep.get(step.stepId) ?? [],
+			completedAt: step.completedAt?.toISOString() ?? null,
+			failureKind: normalizeNullableString(payload.failure_kind),
+			kind: step.stepKind,
+			parentStepId: normalizeNullableString(step.parentStepId),
+			startedAt: step.startedAt?.toISOString() ?? null,
+			status: step.status,
+			stepId: step.stepId,
+			taskQueue: normalizeNullableString(step.taskQueue),
+			tool: normalizeNullableString(step.tool),
+			workerId: normalizeNullableString(step.workerId),
+		};
+	});
+	const failedAttempt = [...steps]
+		.reverse()
+		.flatMap((step) => [...step.attempts].reverse())
+		.find(
+			(attempt) =>
+				attempt.status === "failed" ||
+				attempt.failure.kind !== null ||
+				attempt.failure.runtimeErrorCode !== null,
+		);
+	const failedStep = [...steps]
+		.reverse()
+		.find((step) => step.status === "failed" || step.failureKind !== null);
+
 	return {
-		cachedInputTokens,
-		inputTokens,
-		outputTokens,
-		state: TERMINAL_STATUSES.has(status)
-			? observedAttemptCount === totalAttemptCount
-				? "COMPLETE"
-				: "PARTIAL"
-			: "IN_PROGRESS",
-		totalTokens,
+		failure: {
+			agentRuntimeHttpStatus: failedAttempt?.failure.agentRuntimeHttpStatus ?? null,
+			failCloseReason:
+				failedAttempt?.failure.failCloseReason ?? normalizeNullableString(row.failCloseReason),
+			kind:
+				failedAttempt?.failure.kind ??
+				failedStep?.failureKind ??
+				normalizeNullableString(row.executionFailureKind) ??
+				normalizeNullableString(row.errorCode),
+			runtimeErrorCode: failedAttempt?.failure.runtimeErrorCode ?? null,
+			terminalReason:
+				failedAttempt?.failure.terminalReason ?? normalizeNullableString(row.terminalReason),
+		},
+		releases: {
+			agentRuntime: diagnosticPayloadString(diagnostics, "agent_runtime_release"),
+			executionControl: diagnosticPayloadString(diagnostics, "execution_control_release"),
+		},
+		steps,
 	};
 }
 
-function emptyUsage(state: "IN_PROGRESS" | "NOT_STARTED" | "UNAVAILABLE") {
-	return {
-		cachedInputTokens: null,
-		inputTokens: null,
-		outputTokens: null,
-		state,
-		totalTokens: null,
-	} as const;
+function diagnosticPayloadString(
+	diagnostics: OpsRunDiagnosticsRows,
+	field: "agent_runtime_release" | "execution_control_release",
+): string | null {
+	for (const record of [...diagnostics.attempts, ...diagnostics.steps].reverse()) {
+		if (!isRecord(record.sanitizedPayloadJson)) {
+			continue;
+		}
+		const value = normalizeNullableString(record.sanitizedPayloadJson[field]);
+		if (value) {
+			return value;
+		}
+	}
+	return null;
+}
+
+function readHTTPStatus(value: unknown): number | null {
+	return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599
+		? value
+		: null;
 }
 
 function readDbInteger(value: number | string | null, field: string): number {
 	const normalized = typeof value === "string" && value.trim() ? Number(value) : value;
 	if (!(typeof normalized === "number" && Number.isSafeInteger(normalized) && normalized >= 0)) {
-		throw new Error(`Agent usage ${field} must be a non-negative safe integer`);
+		throw new Error(`Execution diagnostic ${field} must be a non-negative safe integer`);
 	}
 	return normalized;
 }
@@ -493,11 +559,6 @@ function normalizeAttentionReason(value: unknown): OpsRequestSummary["attentionR
 	return value === "RESULT_MISSING" || value === "REQUEST_FAILED" || value === "WAITING_USER"
 		? value
 		: null;
-}
-
-function normalizeJourneyEntry(value: unknown): OpsRequestSummary["journey"]["entry"] {
-	const normalized = normalizeNullableString(value)?.toLowerCase();
-	return normalized === "campus-web" || normalized === "campus_web" ? "CAMPUS_WEB" : "OTHER";
 }
 
 function normalizeRequestStatus(value: string): OpsRequestSummary["status"] {

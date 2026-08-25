@@ -12,7 +12,7 @@ import type { PrimaryAgentRuntime } from "../src/agent-run-contract.ts";
 import { createAgentRuntimeHandler } from "../src/http-server.ts";
 import { isAgentLangfuseSpan } from "../src/telemetry.ts";
 import { createSafeSpanProcessor } from "../src/telemetry-sanitizer.ts";
-import { testToolRuntimeFingerprint } from "./helpers/runtime-fingerprint.ts";
+import { testToolContractFingerprint } from "./helpers/runtime-contract.ts";
 
 const agentScope = "@arizeai/openinference-instrumentation-openai-agents";
 const exporter = new InMemorySpanExporter();
@@ -216,6 +216,7 @@ describe("agent runtime Langfuse telemetry", () => {
 					}),
 			},
 			runtime,
+			runtimeRelease: "test-release",
 			sharedSecret: "secret",
 		});
 		const response = await handler(
@@ -265,15 +266,10 @@ function validRunBody() {
 		turn_id: "turn-1",
 		user_id: "user-1",
 		visible_tool_names: [],
-		expected_tool_runtime_fingerprint: {
-			combined_sha256: testToolRuntimeFingerprint().combinedSha256,
-			function_schema_sha256: testToolRuntimeFingerprint().functionSchemaSha256,
-			function_schema_version: testToolRuntimeFingerprint().functionSchemaVersion,
-			runtime_release: testToolRuntimeFingerprint().runtimeRelease,
-			schema_version: testToolRuntimeFingerprint().schemaVersion,
-			tools_registry_version: testToolRuntimeFingerprint().toolsRegistryVersion,
-			tools_schema_version: testToolRuntimeFingerprint().toolsSchemaVersion,
-			tools_sha256: testToolRuntimeFingerprint().toolsSha256,
+		expected_tool_contract_fingerprint: {
+			function_schema_sha256: testToolContractFingerprint().functionSchemaSha256,
+			schema_version: testToolContractFingerprint().schemaVersion,
+			tools_sha256: testToolContractFingerprint().toolsSha256,
 		},
 	};
 }
@@ -300,7 +296,7 @@ function completedResult(runId: string) {
 		status: "completed" as const,
 		terminalReason: "answer_completed" as const,
 		toolResults: [],
-		toolRuntimeFingerprint: testToolRuntimeFingerprint(),
+		toolContractFingerprint: testToolContractFingerprint(),
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 	};
 }

@@ -141,20 +141,21 @@ func intFromAny(value any) int {
 }
 
 type agentRuntimeResponse struct {
-	Status                 string            `json:"status"`
-	Error                  agentRuntimeError `json:"error"`
-	RunID                  string            `json:"run_id"`
-	ContextUsage           map[string]any    `json:"context_usage"`
-	FinalOutput            string            `json:"final_output"`
-	ModelName              string            `json:"model_name"`
-	ModelProvider          string            `json:"model_provider"`
-	PromptTrace            map[string]any    `json:"prompt_trace"`
-	ProviderResponseID     string            `json:"provider_response_id"`
-	StageTiming            map[string]any    `json:"stage_timing"`
-	ToolResults            []agentToolResult `json:"tool_results"`
-	TerminalReason         string            `json:"terminal_reason"`
-	ToolRuntimeFingerprint map[string]any    `json:"tool_runtime_fingerprint"`
-	Usage                  agentRuntimeUsage `json:"usage"`
+	Status                  string            `json:"status"`
+	Error                   agentRuntimeError `json:"error"`
+	RunID                   string            `json:"run_id"`
+	ContextUsage            map[string]any    `json:"context_usage"`
+	FinalOutput             string            `json:"final_output"`
+	ModelName               string            `json:"model_name"`
+	ModelProvider           string            `json:"model_provider"`
+	PromptTrace             map[string]any    `json:"prompt_trace"`
+	ProviderResponseID      string            `json:"provider_response_id"`
+	StageTiming             map[string]any    `json:"stage_timing"`
+	ToolResults             []agentToolResult `json:"tool_results"`
+	TerminalReason          string            `json:"terminal_reason"`
+	ToolContractFingerprint map[string]any    `json:"tool_contract_fingerprint"`
+	RuntimeRelease          string            `json:"runtime_release"`
+	Usage                   agentRuntimeUsage `json:"usage"`
 }
 
 type agentToolResult struct {
@@ -182,8 +183,9 @@ type agentRuntimeError struct {
 }
 
 type agentRuntimeHTTPError struct {
-	StatusCode int
-	Code       string
+	StatusCode     int
+	Code           string
+	RuntimeRelease string
 }
 
 func (err agentRuntimeHTTPError) Error() string {
@@ -194,10 +196,21 @@ func (err agentRuntimeHTTPError) Error() string {
 		return "The agent runtime could not complete the request."
 	case "tool_execution_failed":
 		return "A runtime tool could not complete."
+	case "tool_contract_mismatch":
+		return "The admitted tool contract does not match the agent runtime."
 	default:
 		if err.StatusCode >= http.StatusInternalServerError {
 			return fmt.Sprintf("agent runtime returned HTTP %d", err.StatusCode)
 		}
 		return "The agent runtime request was rejected."
 	}
+}
+
+type agentRuntimeApplicationError struct {
+	Code           string
+	RuntimeRelease string
+}
+
+func (err agentRuntimeApplicationError) Error() string {
+	return agentRuntimeHTTPError{Code: err.Code}.Error()
 }

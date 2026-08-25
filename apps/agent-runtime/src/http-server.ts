@@ -25,7 +25,11 @@ import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
 
 export interface AgentRuntimeHandlerOptions {
-	onStreamError?: (error: unknown) => void;
+	onStreamError?: (
+		error: unknown,
+		context: { requestId: string; runId: string; traceId: string },
+	) => void;
+	runtimeRelease: string;
 	sharedSecret: string;
 	runtime: PrimaryAgentRuntime;
 	modelConfig: ModelConfigClientOptions;
@@ -43,7 +47,7 @@ export function createAgentRuntimeHandler(
 		}
 		if (request.method === "GET" && url.pathname === "/readyz") {
 			return options.sharedSecret
-				? jsonResponse(200, { status: "ready" })
+				? jsonResponse(200, { runtime_release: options.runtimeRelease, status: "ready" })
 				: jsonResponse(503, {
 						error: {
 							code: "dependency_not_ready",
@@ -55,7 +59,7 @@ export function createAgentRuntimeHandler(
 			if (!authorized(request, options.sharedSecret)) {
 				return unauthorizedResponse();
 			}
-			return jsonResponse(200, { status: "ready" });
+			return jsonResponse(200, { runtime_release: options.runtimeRelease, status: "ready" });
 		}
 		if (request.method === "POST" && url.pathname === "/internal/agent-runs") {
 			if (!authorized(request, options.sharedSecret)) {
@@ -78,11 +82,15 @@ export function createAgentRuntimeHandler(
 					),
 				);
 			} catch (error) {
-				return jsonResponse(500, {
-					error: agentRuntimeErrorPayload(error, { deadlineSignal: signals.deadlineSignal }),
+				const runtimeError = agentRuntimeErrorPayload(error, {
+					deadlineSignal: signals.deadlineSignal,
+				});
+				return jsonResponse(runtimeError.code === "tool_contract_mismatch" ? 409 : 500, {
+					error: runtimeError,
+					runtime_release: options.runtimeRelease,
 				});
 			}
-			return jsonResponse(200, agentRunResultWire(result));
+			return jsonResponse(200, agentRunResultWire(result, options.runtimeRelease));
 		}
 		if (request.method === "POST" && url.pathname === "/internal/agent-runs/stream") {
 			if (!authorized(request, options.sharedSecret)) {
@@ -106,7 +114,17 @@ export function createAgentRuntimeHandler(
 					),
 					{
 						deadlineSignal: signals.deadlineSignal,
-						...(options.onStreamError ? { onError: options.onStreamError } : {}),
+						runtimeRelease: options.runtimeRelease,
+						...(options.onStreamError
+							? {
+									onError: (error: unknown) =>
+										options.onStreamError?.(error, {
+											requestId: parsed.request_id,
+											runId: parsed.run_id,
+											traceId: parsed.trace_id,
+										}),
+								}
+							: {}),
 					},
 				),
 			);

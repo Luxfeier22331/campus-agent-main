@@ -3,7 +3,7 @@ import type {
 	JsonObjectSchema,
 	ToolCatalog,
 	ToolCatalogEntry,
-	ToolRuntimeFingerprint,
+	ToolContractFingerprint,
 } from "./tool-catalog.ts";
 
 export interface PrimaryAgentRunInput {
@@ -16,7 +16,7 @@ export interface PrimaryAgentRunInput {
 	input: string;
 	visibleToolNames: string[];
 	conversationContext?: AgentConversationContext;
-	expectedToolRuntimeFingerprint?: ToolRuntimeFingerprint;
+	expectedToolContractFingerprint?: ToolContractFingerprint;
 	providerConfig: PromptProviderRuntimeConfig;
 	limits: AgentRuntimeLimits;
 	signal?: AbortSignal;
@@ -180,7 +180,7 @@ export interface PrimaryAgentRunResult {
 	promptTrace: PromptTrace;
 	providerResponseId: string;
 	stageTiming: Record<string, number>;
-	toolRuntimeFingerprint: ToolRuntimeFingerprint;
+	toolContractFingerprint: ToolContractFingerprint;
 	toolResults: ToolExecutionResult[];
 	terminalReason: "answer_completed" | "agent_runtime_failed";
 	usage: UsageSummary;

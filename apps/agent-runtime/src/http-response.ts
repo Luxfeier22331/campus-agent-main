@@ -4,7 +4,11 @@ import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
 export function agentRunStreamResponse(
 	events: ReturnType<PrimaryAgentRuntime["stream"]>,
-	options: { deadlineSignal?: AbortSignal; onError?: (error: unknown) => void } = {},
+	options: {
+		deadlineSignal?: AbortSignal;
+		onError?: (error: unknown) => void;
+		runtimeRelease: string;
+	},
 ): Response {
 	const iterator = events[Symbol.asyncIterator]();
 	let cancelled = false;
@@ -47,20 +51,22 @@ export function agentRunStreamResponse(
 						);
 						continue;
 					}
-					controller.enqueue(encodeSseEvent("completed", agentRunResultWire(event.data)));
+					controller.enqueue(
+						encodeSseEvent("completed", agentRunResultWire(event.data, options.runtimeRelease)),
+					);
 					return;
 				}
 			} catch (error) {
 				options.onError?.(error);
 				if (!cancelled) {
 					controller.enqueue(
-						encodeSseEvent(
-							"error",
-							agentRuntimeErrorPayload(
+						encodeSseEvent("error", {
+							...agentRuntimeErrorPayload(
 								error,
 								options.deadlineSignal ? { deadlineSignal: options.deadlineSignal } : {},
 							),
-						),
+							runtime_release: options.runtimeRelease,
+						}),
 					);
 				}
 			} finally {
@@ -87,10 +93,11 @@ export function agentRunStreamResponse(
 	});
 }
 
-export function agentRunResultWire(result: PrimaryAgentRunResult) {
+export function agentRunResultWire(result: PrimaryAgentRunResult, runtimeRelease: string) {
 	return {
 		status: result.status,
 		run_id: result.runId,
+		runtime_release: runtimeRelease,
 		context_usage: {
 			context_chars: result.contextUsage.contextChars,
 			current_input_chars: result.contextUsage.currentInputChars,
@@ -133,15 +140,10 @@ export function agentRunResultWire(result: PrimaryAgentRunResult) {
 			result_ref: toolResult.resultRef,
 			fail_close_reason: toolResult.failCloseReason,
 		})),
-		tool_runtime_fingerprint: {
-			schema_version: result.toolRuntimeFingerprint.schemaVersion,
-			tools_schema_version: result.toolRuntimeFingerprint.toolsSchemaVersion,
-			tools_registry_version: result.toolRuntimeFingerprint.toolsRegistryVersion,
-			tools_sha256: result.toolRuntimeFingerprint.toolsSha256,
-			function_schema_version: result.toolRuntimeFingerprint.functionSchemaVersion,
-			function_schema_sha256: result.toolRuntimeFingerprint.functionSchemaSha256,
-			runtime_release: result.toolRuntimeFingerprint.runtimeRelease,
-			combined_sha256: result.toolRuntimeFingerprint.combinedSha256,
+		tool_contract_fingerprint: {
+			schema_version: result.toolContractFingerprint.schemaVersion,
+			tools_sha256: result.toolContractFingerprint.toolsSha256,
+			function_schema_sha256: result.toolContractFingerprint.functionSchemaSha256,
 		},
 		terminal_reason: result.terminalReason,
 		usage: {

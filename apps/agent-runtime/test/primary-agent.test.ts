@@ -53,7 +53,7 @@ const transportResultSchemaRef = schemaRef(
 const catalog: ToolCatalog = {
 	schemaVersion: "tool-registry-v6",
 	registryVersion: "test",
-	runtimeFingerprint: testToolRuntimeFingerprint(),
+	contractFingerprint: testToolContractFingerprint(),
 	tools: [
 		{
 			name: "test_lookup",
@@ -390,7 +390,7 @@ describe("primary agent runtime", () => {
 			promptTemplateSha256: sha256(customInstructions),
 			renderedPromptSha256: sha256(observedInstructions),
 		});
-		expect(result.toolRuntimeFingerprint).toEqual(catalog.runtimeFingerprint);
+		expect(result.toolContractFingerprint).toEqual(catalog.contractFingerprint);
 		expect(JSON.stringify(observedInput)).toContain("之后回答能不能先给结论？");
 		expect(JSON.stringify(result.promptTrace)).not.toContain(observedInstructions);
 	});
@@ -799,15 +799,10 @@ function sha256(value: string): string {
 	return `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
-function testToolRuntimeFingerprint() {
+function testToolContractFingerprint() {
 	return {
-		combinedSha256: sha256("combined-tool-runtime"),
 		functionSchemaSha256: sha256("function-schema"),
-		functionSchemaVersion: "tool-function-schemas-v3" as const,
-		runtimeRelease: "test-release",
-		schemaVersion: "tool_runtime_fingerprint.v2" as const,
-		toolsRegistryVersion: "test",
-		toolsSchemaVersion: "tool-registry-v6" as const,
+		schemaVersion: "tool_contract_fingerprint.v1" as const,
 		toolsSha256: sha256("tool-registry"),
 	};
 }

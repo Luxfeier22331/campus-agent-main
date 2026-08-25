@@ -20,7 +20,7 @@ import type {
 	UntimedToolExecutionResult,
 } from "./agent-run-contract.ts";
 import { AgentRuntimeError } from "./runtime-errors.ts";
-import type { ToolCatalog, ToolCatalogEntry, ToolRuntimeFingerprint } from "./tool-catalog.ts";
+import type { ToolCatalog, ToolCatalogEntry, ToolContractFingerprint } from "./tool-catalog.ts";
 import { buildVisibleToolDefinitions } from "./tool-catalog.ts";
 
 const defaultInstructions = [
@@ -65,7 +65,7 @@ export function createPrimaryAgentRuntime(
 			),
 			result,
 			timing: stageTiming(startedAt, new Date()),
-			toolRuntimeFingerprint: options.catalog.runtimeFingerprint,
+			toolContractFingerprint: options.catalog.contractFingerprint,
 		});
 	};
 	return {
@@ -94,7 +94,7 @@ export function createPrimaryAgentRuntime(
 							promptTrace,
 							result: item,
 							timing: stageTiming(startedAt, new Date(), firstDeltaAt),
-							toolRuntimeFingerprint: options.catalog.runtimeFingerprint,
+							toolContractFingerprint: options.catalog.contractFingerprint,
 						}),
 					};
 					return;
@@ -116,9 +116,9 @@ function primaryAgentRunnerInput(
 	executor: ToolExecutor,
 	instructions: string,
 ): { contextUsage: ModelContextUsage; runnerInput: AgentRunnerInput } {
-	validateExpectedToolRuntimeFingerprint(
-		input.expectedToolRuntimeFingerprint,
-		catalog.runtimeFingerprint,
+	validateExpectedToolContractFingerprint(
+		input.expectedToolContractFingerprint,
+		catalog.contractFingerprint,
 	);
 	validateCurrentInput(input);
 	const modelInput = modelInputItems(input);
@@ -171,30 +171,25 @@ function primaryAgentRunnerInput(
 	};
 }
 
-function validateExpectedToolRuntimeFingerprint(
-	expected: ToolRuntimeFingerprint | undefined,
-	actual: ToolRuntimeFingerprint,
+function validateExpectedToolContractFingerprint(
+	expected: ToolContractFingerprint | undefined,
+	actual: ToolContractFingerprint,
 ): void {
 	if (expected === undefined) {
 		return;
 	}
 	if (stableFingerprintJSON(expected) !== stableFingerprintJSON(actual)) {
 		throw new AgentRuntimeError(
-			"invalid_request",
-			"Admitted tool runtime fingerprint does not match this agent runtime.",
+			"tool_contract_mismatch",
+			"Admitted tool contract fingerprint does not match this agent runtime.",
 		);
 	}
 }
 
-function stableFingerprintJSON(fingerprint: ToolRuntimeFingerprint): string {
+function stableFingerprintJSON(fingerprint: ToolContractFingerprint): string {
 	return JSON.stringify({
-		combinedSha256: fingerprint.combinedSha256,
 		functionSchemaSha256: fingerprint.functionSchemaSha256,
-		functionSchemaVersion: fingerprint.functionSchemaVersion,
-		runtimeRelease: fingerprint.runtimeRelease,
 		schemaVersion: fingerprint.schemaVersion,
-		toolsRegistryVersion: fingerprint.toolsRegistryVersion,
-		toolsSchemaVersion: fingerprint.toolsSchemaVersion,
 		toolsSha256: fingerprint.toolsSha256,
 	});
 }
@@ -205,9 +200,9 @@ function primaryAgentRunResultFromRunnerResult(args: {
 	promptTrace: PromptTrace;
 	result: AgentRunnerResult;
 	timing: Record<string, number>;
-	toolRuntimeFingerprint: ToolRuntimeFingerprint;
+	toolContractFingerprint: ToolContractFingerprint;
 }): PrimaryAgentRunResult {
-	const { contextUsage, input, promptTrace, result, timing, toolRuntimeFingerprint } = args;
+	const { contextUsage, input, promptTrace, result, timing, toolContractFingerprint } = args;
 	const toolResults = result.toolCalls
 		.map((call) => call.result)
 		.filter((value): value is ToolExecutionResult => value !== undefined);
@@ -222,7 +217,7 @@ function primaryAgentRunResultFromRunnerResult(args: {
 			promptTrace,
 			providerResponseId: result.providerResponseId,
 			stageTiming: timing,
-			toolRuntimeFingerprint,
+			toolContractFingerprint,
 			toolResults,
 			terminalReason: "agent_runtime_failed",
 			usage: result.usage,
@@ -238,7 +233,7 @@ function primaryAgentRunResultFromRunnerResult(args: {
 		promptTrace,
 		providerResponseId: result.providerResponseId,
 		stageTiming: timing,
-		toolRuntimeFingerprint,
+		toolContractFingerprint,
 		toolResults,
 		terminalReason: "answer_completed",
 		usage: result.usage,

@@ -7,15 +7,10 @@ export function testPromptTrace() {
 	};
 }
 
-export function testToolRuntimeFingerprint() {
+export function testToolContractFingerprint() {
 	return {
-		combinedSha256: "sha256:9999999999999999999999999999999999999999999999999999999999999999",
 		functionSchemaSha256: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		functionSchemaVersion: "tool-function-schemas-v3" as const,
-		runtimeRelease: "test-release",
-		schemaVersion: "tool_runtime_fingerprint.v2" as const,
-		toolsRegistryVersion: "test",
-		toolsSchemaVersion: "tool-registry-v6" as const,
+		schemaVersion: "tool_contract_fingerprint.v1" as const,
 		toolsSha256: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 	};
 }

@@ -303,10 +303,30 @@ const REQUIRED_SELECTS = [
 		`,
 	},
 	{
+		label: "execution_control.agent_run_steps",
+		sql: `
+			select
+				"step_id", "run_id", "conversation_id", "step_kind", "tool",
+				"parent_step_id", "status", "activity_attempt", "task_queue", "worker_id",
+				"started_at", "completed_at", "updated_at", "payload_schema_version",
+				"sanitized_payload_json", "created_at"
+			from "execution_control"."agent_run_steps"
+			limit 0
+		`,
+	},
+	{
 		label: "execution_control.agent_step_attempts",
 		sql: `
 			select
-					"cached_input_tokens", "input_tokens", "output_tokens", "run_id", "step_id", "usage_observed"
+				"attempt_id", "step_id", "run_id", "attempt", "status", "task_queue",
+				"worker_id", "workflow_id", "temporal_run_id", "activity_id", "activity_type",
+				"activity_attempt", "scheduled_at", "started_at", "completed_at",
+				"schedule_to_start_ms", "duration_ms", "provider_request_ref",
+				"provider_response_id", "model_provider", "model_name", "model_request_count",
+				"input_tokens", "output_tokens", "cached_input_tokens", "usage_observed",
+				"cancel_outcome", "timeout_outcome", "late_completion_outcome",
+				"fail_close_reason", "terminal_reason", "updated_at", "payload_schema_version",
+				"sanitized_payload_json", "created_at"
 			from "execution_control"."agent_step_attempts"
 			limit 0
 		`,

@@ -61,7 +61,7 @@ describe("tool catalog", () => {
 				],
 			},
 			{
-				runtimeFingerprint: testToolRuntimeFingerprint(),
+				contractFingerprint: testToolContractFingerprint(),
 				toolFunctionSchemaPath: testSchemaPath("test_lookup", "internal_fixture_tool"),
 			},
 		);
@@ -157,7 +157,7 @@ describe("tool catalog", () => {
 						tools: [tool],
 					},
 					{
-						runtimeFingerprint: testToolRuntimeFingerprint(),
+						contractFingerprint: testToolContractFingerprint(),
 						toolFunctionSchemaPath: testSchemaPath("test_lookup"),
 					},
 				),
@@ -165,7 +165,7 @@ describe("tool catalog", () => {
 		}
 	});
 
-	it("requires explicit runtime attestation when loading a catalog from an object", () => {
+	it("requires an explicit contract fingerprint when loading a catalog from an object", () => {
 		expect(() =>
 			loadToolCatalogFromObject(
 				{
@@ -175,7 +175,7 @@ describe("tool catalog", () => {
 				},
 				{ toolFunctionSchemaPath: testSchemaPath("test_lookup") },
 			),
-		).toThrow("tool runtime fingerprint is required");
+		).toThrow("tool contract fingerprint is required");
 	});
 
 	it("exposes the registered model-visible tools", () => {
@@ -256,30 +256,11 @@ describe("tool catalog", () => {
 		writeFileSync(toolRegistryPath, JSON.stringify(toolRegistry), "utf8");
 		writeFileSync(toolFunctionSchemaPath, JSON.stringify(functionSchemas), "utf8");
 
-		const catalog = loadToolCatalog(toolRegistryPath, {
-			runtimeRelease: "test-release",
-			toolFunctionSchemaPath,
-		});
-		const expectedCombined = sha256(
-			JSON.stringify({
-				function_schema_sha256: sha256CanonicalJson(functionSchemas),
-				function_schema_version: "tool-function-schemas-v3",
-				runtime_release: "test-release",
-				schema_version: "tool_runtime_fingerprint.v2",
-				tools_registry_version: "attestation-test",
-				tools_schema_version: "tool-registry-v6",
-				tools_sha256: sha256CanonicalJson(toolRegistry),
-			}),
-		);
+		const catalog = loadToolCatalog(toolRegistryPath, { toolFunctionSchemaPath });
 
-		expect(catalog.runtimeFingerprint).toEqual({
-			combinedSha256: expectedCombined,
+		expect(catalog.contractFingerprint).toEqual({
 			functionSchemaSha256: sha256CanonicalJson(functionSchemas),
-			functionSchemaVersion: "tool-function-schemas-v3",
-			runtimeRelease: "test-release",
-			schemaVersion: "tool_runtime_fingerprint.v2",
-			toolsRegistryVersion: "attestation-test",
-			toolsSchemaVersion: "tool-registry-v6",
+			schemaVersion: "tool_contract_fingerprint.v1",
 			toolsSha256: sha256CanonicalJson(toolRegistry),
 		});
 	});
@@ -306,7 +287,31 @@ describe("tool catalog", () => {
 			toolFunctionSchemaPath,
 		});
 
-		expect(prettyCatalog.runtimeFingerprint).toEqual(compactCatalog.runtimeFingerprint);
+		expect(prettyCatalog.contractFingerprint).toEqual(compactCatalog.contractFingerprint);
+	});
+
+	it("uses the cross-runtime JSON string escaping contract", () => {
+		const dir = mkdtempSync(join(tmpdir(), "agent-runtime-tool-cross-runtime-"));
+		const toolRegistryPath = join(dir, "tools.v6.json");
+		const toolFunctionSchemaPath = join(dir, "tool-function-schemas.v3.json");
+		const tool = { ...rawTestLookupTool(), description: "<>&\u2028\u2029" };
+		const toolRegistry = {
+			schema_version: "tool-registry-v6",
+			registry_version: "cross-runtime-test",
+			tools: [tool],
+		};
+		const functionSchemas = strictFunctionSchemaConfig("test_lookup");
+		writeFileSync(toolRegistryPath, JSON.stringify(toolRegistry), "utf8");
+		writeFileSync(toolFunctionSchemaPath, JSON.stringify(functionSchemas), "utf8");
+
+		const catalog = loadToolCatalog(toolRegistryPath, { toolFunctionSchemaPath });
+
+		expect(catalog.contractFingerprint).toEqual({
+			functionSchemaSha256:
+				"sha256:b74ac66eac83ebbd15f12d1a0fd0298630577eb3643d8458d00faca8a63f1b47",
+			schemaVersion: "tool_contract_fingerprint.v1",
+			toolsSha256: "sha256:11f6ec67cee0783810b09f0a3fd6a633e5adf2ee242f94807d59a8a3cb9963bc",
+		});
 	});
 });
 
@@ -406,15 +411,10 @@ function stableJsonStringify(value: unknown): string {
 	return JSON.stringify(value);
 }
 
-function testToolRuntimeFingerprint() {
+function testToolContractFingerprint() {
 	return {
-		combinedSha256: sha256("combined-tool-runtime"),
 		functionSchemaSha256: sha256("function-schema"),
-		functionSchemaVersion: "tool-function-schemas-v3" as const,
-		runtimeRelease: "test-release",
-		schemaVersion: "tool_runtime_fingerprint.v2" as const,
-		toolsRegistryVersion: "test",
-		toolsSchemaVersion: "tool-registry-v6" as const,
+		schemaVersion: "tool_contract_fingerprint.v1" as const,
 		toolsSha256: sha256("tool-registry"),
 	};
 }

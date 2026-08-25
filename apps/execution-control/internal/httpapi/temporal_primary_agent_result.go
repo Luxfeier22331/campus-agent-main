@@ -35,9 +35,10 @@ func boundedToolOutcome(value any) string {
 }
 
 type primaryAgentResultInput struct {
-	activityAttempt int
-	activityInput   temporalruntime.ExecutePrimaryAgentActivityInput
-	run             execution.DurableRun
+	activityAttempt         int
+	activityInput           temporalruntime.ExecutePrimaryAgentActivityInput
+	executionControlRelease string
+	run                     execution.DurableRun
 }
 
 func primaryAgentResultPayload(
@@ -86,7 +87,9 @@ func primaryAgentResultPayload(
 		"activity_attempt":          input.activityAttempt,
 		"admission_snapshot_sha256": sha256JSONRef(input.activityInput.AdmissionSnapshot),
 		"agent_result_ref":          output.AgentResultRef,
+		"agent_runtime_release":     output.RuntimeRelease,
 		"context_usage":             cloneAnyMapFromMetadata(output.ContextUsage),
+		"execution_control_release": input.executionControlRelease,
 		"final_output":              output.FinalOutput,
 		"model_name":                output.ModelName,
 		"model_provider":            output.ModelProvider,
@@ -96,8 +99,8 @@ func primaryAgentResultPayload(
 		"status":                    output.Status,
 		"terminal_reason":           output.TerminalReason,
 		"tool_results":              toolResults,
-		"tool_runtime_fingerprint": cloneAnyMapFromMetadata(
-			output.ToolRuntimeFingerprint,
+		"tool_contract_fingerprint": cloneAnyMapFromMetadata(
+			output.ToolContractFingerprint,
 		),
 		"usage": map[string]any{
 			"model_request_count": output.Usage.ModelRequestCount,
@@ -107,10 +110,10 @@ func primaryAgentResultPayload(
 			"usage_observed":      output.Usage.UsageObserved,
 		},
 	}
-	if expected := toolRuntimeFingerprintSnapshotMap(
-		input.activityInput.AdmissionSnapshot.ToolRuntimeFingerprint,
+	if expected := toolContractFingerprintSnapshotMap(
+		input.activityInput.AdmissionSnapshot.ToolContractFingerprint,
 	); expected != nil {
-		payload["admitted_tool_runtime_fingerprint"] = expected
+		payload["admitted_tool_contract_fingerprint"] = expected
 	}
 	return payload, nil
 }
@@ -135,6 +138,7 @@ func primaryAgentFinalizationResultMap(
 	result := map[string]any{
 		"admission_snapshot_sha256": sha256JSONRef(input.AdmissionSnapshot),
 		"agent_result_ref":          output.AgentResultRef,
+		"agent_runtime_release":     output.RuntimeRelease,
 		"context_usage":             cloneAnyMapFromMetadata(output.ContextUsage),
 		"final_output":              output.FinalOutput,
 		"model_name":                output.ModelName,
@@ -145,7 +149,7 @@ func primaryAgentFinalizationResultMap(
 		"status":                    output.Status,
 		"terminal_reason":           output.TerminalReason,
 		"tool_results":              toolResults,
-		"tool_runtime_fingerprint":  cloneAnyMapFromMetadata(output.ToolRuntimeFingerprint),
+		"tool_contract_fingerprint": cloneAnyMapFromMetadata(output.ToolContractFingerprint),
 		"usage": map[string]any{
 			"model_request_count": output.Usage.ModelRequestCount,
 			"cached_input_tokens": output.Usage.CachedInputTokens,
@@ -154,8 +158,8 @@ func primaryAgentFinalizationResultMap(
 			"usage_observed":      output.Usage.UsageObserved,
 		},
 	}
-	if expected := toolRuntimeFingerprintSnapshotMap(input.AdmissionSnapshot.ToolRuntimeFingerprint); expected != nil {
-		result["admitted_tool_runtime_fingerprint"] = expected
+	if expected := toolContractFingerprintSnapshotMap(input.AdmissionSnapshot.ToolContractFingerprint); expected != nil {
+		result["admitted_tool_contract_fingerprint"] = expected
 	}
 	return result
 }
@@ -169,7 +173,8 @@ func primaryAgentResultProjectionPayload(raw map[string]any) map[string]any {
 		"activity_attempt", "agent_result_ref", "model_name", "model_provider",
 		"admission_snapshot_sha256", "context_usage",
 		"provider_response_id", "stage_timing", "status",
-		"terminal_reason", "tool_runtime_fingerprint", "admitted_tool_runtime_fingerprint",
+		"agent_runtime_release", "execution_control_release", "terminal_reason",
+		"tool_contract_fingerprint", "admitted_tool_contract_fingerprint",
 		"usage", "provider_invocation_sha256",
 	} {
 		if value, ok := raw[key]; ok {

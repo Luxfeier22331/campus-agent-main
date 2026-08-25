@@ -178,12 +178,6 @@ test("pull request validation keeps one bounded temporary self-hosted gate", asy
 	assert.equal(repositoryLint.run, "pnpm lint");
 	assert.deepEqual(repositoryLint.env, { GITHUB_TOKEN: githubExpression("github.token") });
 	assert.equal(namedStep(repoChecks, "Test repository scripts").run, "pnpm test");
-	const migrationHistory = namedStep(repoChecks, "Check App API migration history");
-	assert.equal(migrationHistory.if, "always() && steps.plan.outcome == 'success'");
-	assert.equal(
-		migrationHistory.run,
-		'pnpm check:app-api-migrations --base "$BASE_SHA" --head "$HEAD_SHA"',
-	);
 	assert.equal(namedStep(repoChecks, "Summarize repository evidence").shell, "bash -e {0}");
 	assert.throws(() => namedStep(repoChecks, "Check documentation"), /missing workflow step/u);
 	assert.equal(

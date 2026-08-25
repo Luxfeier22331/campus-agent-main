@@ -103,7 +103,7 @@ describe("ops-web database verification", () => {
 		expect(allQueries).toContain('from "dining"."reviews"');
 		expect(allQueries).toContain('from "internal_portal"."automation_tokens"');
 		expect(allQueries).toContain('from "chat"."turn_dispatches"');
-		expect(allQueries).not.toContain('from "execution_control"."agent_run_steps"');
+		expect(allQueries).toContain('from "execution_control"."agent_run_steps"');
 		expect(allQueries).toContain('from "execution_control"."agent_step_attempts"');
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain('"owner_user_id"');

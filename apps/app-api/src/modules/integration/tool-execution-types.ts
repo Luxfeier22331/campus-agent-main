@@ -5,17 +5,6 @@ import type { ExecutionFinalizationStatus } from "./execution-finalization-contr
 
 export type { ToolExecutionWorkflowTraceSummary } from "../request-observability-types";
 
-export interface ToolRuntimeFingerprint {
-	combinedSha256: string;
-	functionSchemaSha256: string;
-	functionSchemaVersion: string;
-	runtimeRelease: string;
-	schemaVersion: "tool_runtime_fingerprint.v2";
-	toolsRegistryVersion: string;
-	toolsSchemaVersion: string;
-	toolsSha256: string;
-}
-
 export interface ToolExecutionPromptTrace {
 	promptId: string;
 	promptTemplateSha256: string;

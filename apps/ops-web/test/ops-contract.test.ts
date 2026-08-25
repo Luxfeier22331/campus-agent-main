@@ -15,11 +15,12 @@ describe("ops-web contract fixtures", () => {
 		const parsed = OpsRequestListResponseSchema.parse(opsRequestListFixture);
 		expect(parsed.window).toBe("1h");
 		expect(parsed.data[0]).toMatchObject({
-			journey: { entry: "CAMPUS_WEB", result: { state: "WRITTEN" } },
+			executionStage: { kind: "agent", status: "completed", stepId: "agent.primary" },
 			requestId: "req_ops_001",
-			usage: { state: "COMPLETE", totalTokens: 2_400 },
+			result: { kind: "answer", state: "WRITTEN" },
 		});
-		expect(parsed.data[0]).not.toHaveProperty("executionSummary");
+		expect(parsed.data[0]).not.toHaveProperty("journey");
+		expect(parsed.data[0]).not.toHaveProperty("usage");
 		expect(parsed.data[0]).not.toHaveProperty("principalType");
 	});
 
@@ -27,10 +28,16 @@ describe("ops-web contract fixtures", () => {
 		const parsed = OpsRequestDetailResponseSchema.parse(opsRequestDetailFixture);
 		expect(parsed.request.requestId).toBe(parsed.technical.correlationIds.requestId);
 		expect(parsed.result).toMatchObject({ state: "WRITTEN" });
+		expect(parsed.execution.steps[0]?.attempts[0]).toMatchObject({
+			modelName: "deepseek-v4-flash-0731",
+			modelRequestCount: 1,
+			tokens: { cachedInput: 320, input: 2_000, output: 400 },
+		});
 		expect(parsed).not.toHaveProperty("externalEvidenceRefs");
 		expect(parsed).not.toHaveProperty("evidenceAvailability");
 		expect(parsed.technical.correlationIds).not.toHaveProperty("externalEvidenceRef");
-		expect(parsed).not.toHaveProperty("executionSteps");
+		expect(parsed).not.toHaveProperty("journey");
+		expect(parsed).not.toHaveProperty("usage");
 		expect(parsed).not.toHaveProperty("outcomeSummary");
 	});
 

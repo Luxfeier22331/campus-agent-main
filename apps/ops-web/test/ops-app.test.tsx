@@ -66,9 +66,8 @@ describe("OpsWebApp", () => {
 		expect(screen.getByRole("navigation", { name: "运维导航" })).toBeInTheDocument();
 		expect((await screen.findAllByText("req_ops_001")).length).toBeGreaterThan(0);
 		expect((await screen.findAllByText("缓考申请需要哪些材料？")).length).toBeGreaterThan(0);
-		expect(
-			(await screen.findAllByText("产品处理：Campus Web，在线问答 Agent，回答已写入会话")).length,
-		).toBeGreaterThan(0);
+		expect((await screen.findAllByText("Agent · 已完成")).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText("回答已写入会话")).length).toBeGreaterThan(0);
 		expect(screen.getByRole("link", { name: "最近运行" })).toHaveAttribute("aria-current", "page");
 		expect(screen.getByRole("link", { name: "需要关注" })).toHaveAttribute(
 			"href",
@@ -79,8 +78,8 @@ describe("OpsWebApp", () => {
 		expect(requestTable).toBeInTheDocument();
 		expect(screen.getByRole("columnheader", { name: "用户问题" })).toHaveAttribute("scope", "col");
 		expect(screen.getByRole("columnheader", { name: "状态" })).toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "产品处理" })).toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "Token" })).toBeInTheDocument();
+		expect(screen.getByRole("columnheader", { name: "执行阶段" })).toBeInTheDocument();
+		expect(screen.queryByRole("columnheader", { name: "Token" })).not.toBeInTheDocument();
 		expect(screen.getByRole("columnheader", { name: "发起时间" })).toBeInTheDocument();
 		expect(screen.getByRole("columnheader", { name: "耗时" })).toBeInTheDocument();
 		expect(
@@ -113,18 +112,17 @@ describe("OpsWebApp", () => {
 			within(completedRequestCard as HTMLElement).queryByText("trace_ops_001"),
 		).not.toBeInTheDocument();
 		expect(
-			within(completedRequestCard as HTMLElement).getByText("Token：2,400"),
+			within(completedRequestCard as HTMLElement).getByText("回答已写入会话"),
 		).toBeInTheDocument();
 		expect(within(completedRequestCard as HTMLElement).getByText("4.28 秒")).toBeInTheDocument();
-		const partialRequestCard = requestMobileCards.find((card) =>
+		const failedRequestCard = requestMobileCards.find((card) =>
 			card.textContent?.includes("req_ops_004"),
 		);
-		expect(partialRequestCard).toBeDefined();
-		expect(within(partialRequestCard as HTMLElement).getByText("Token：512")).toBeInTheDocument();
+		expect(failedRequestCard).toBeDefined();
 		expect(
-			within(partialRequestCard as HTMLElement).getByText("仅记录部分用量"),
+			within(failedRequestCard as HTMLElement).getByText("失败类型：模型服务不可用"),
 		).toBeInTheDocument();
-		expect(within(requestTable).getByText("仅记录部分用量")).toBeInTheDocument();
+		expect(within(requestTable).getAllByText(/模型服务不可用/u).length).toBeGreaterThan(0);
 		expect(
 			within(completedRequestCard as HTMLElement).queryByText(/步骤|模型请求|工具调用/u),
 		).not.toBeInTheDocument();
@@ -239,8 +237,8 @@ describe("OpsWebApp", () => {
 			within(await screen.findByTestId("request-context")).getByText("已完成"),
 		).toBeInTheDocument();
 		expect(await screen.findByText(/请说明你要办理的具体事项/)).toBeInTheDocument();
-		expect(await screen.findByText("回答已写入会话")).toBeInTheDocument();
-		expect(screen.queryByText("agent.primary")).not.toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "执行过程" })).toBeInTheDocument();
+		expect(screen.getByText("agent.primary")).toBeInTheDocument();
 	});
 
 	it("flags a missing conversation result without rewriting the product status", async () => {
@@ -250,7 +248,7 @@ describe("OpsWebApp", () => {
 		expect(within(screen.getByTestId("request-context")).getByText("已完成")).toBeInTheDocument();
 		const result = screen.getByTestId("request-result");
 		expect(within(result).getByRole("alert")).toHaveTextContent("会话结果缺失");
-		expect(within(result).getByText(/产品状态保持为已完成/u)).toBeInTheDocument();
+		expect(within(result).getByText(/产品状态为 已完成/u)).toBeInTheDocument();
 	});
 
 	it("supports skip navigation without stealing focus after desktop route changes", async () => {
@@ -501,7 +499,7 @@ describe("OpsWebApp", () => {
 		}
 	});
 
-	it("presents a continuous product journey and keeps system records secondary", async () => {
+	it("presents product results and durable execution diagnostics together", async () => {
 		render(
 			<OpsWebApp initialPath="/requests/req_ops_001?from=%2Frequests%3Fstatus%3DRUNNING%26q%3Dtrace_ops_003" />,
 		);
@@ -512,27 +510,23 @@ describe("OpsWebApp", () => {
 			"href",
 			"/requests?status=RUNNING&q=trace_ops_003",
 		);
-		expect(screen.getByRole("link", { name: "系统记录" })).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: "系统记录" })).not.toBeInTheDocument();
 		expect(
 			within(screen.getByTestId("request-context")).queryByText("已结束"),
 		).not.toBeInTheDocument();
-		expect(await screen.findByRole("heading", { name: "产品处理" })).toBeInTheDocument();
-		expect(screen.getByText("在线问答 Agent")).toBeInTheDocument();
-		expect(screen.getByText("回答已写入会话")).toBeInTheDocument();
-		expect(screen.queryByText("查询校园信息")).not.toBeInTheDocument();
 		expect(screen.getByText(/缓考申请需要在规定期限内/u)).toBeInTheDocument();
 		expect(await screen.findByText("学生管理规定")).toBeInTheDocument();
-		expect(screen.getByTestId("request-usage")).toHaveTextContent("2,400");
-		expect(screen.getByTestId("request-usage")).toHaveTextContent("缓存输入 token");
-		expect(screen.queryByText("用量已完整记录")).not.toBeInTheDocument();
-		expect(screen.queryByText(/执行步骤|模型请求|工具调用|已解析目标/u)).not.toBeInTheDocument();
-		expect(screen.queryByText("agent.primary")).not.toBeInTheDocument();
-
-		fireEvent.click(screen.getByRole("link", { name: "系统记录" }));
-		expect(await screen.findByRole("heading", { name: "系统记录" })).toBeInTheDocument();
+		const execution = screen.getByTestId("request-execution");
+		expect(within(execution).getByText("agent.primary")).toBeInTheDocument();
+		expect(within(execution).getByText("deepseek-v4-flash-0731")).toBeInTheDocument();
+		expect(within(execution).getByText("2,000")).toBeInTheDocument();
+		expect(within(execution).getByText("320")).toBeInTheDocument();
+		expect(within(execution).getByText("400")).toBeInTheDocument();
+		expect(screen.getByText("agent-runtime@899f251")).toBeInTheDocument();
+		expect(screen.getByText("execution-control@a77a046")).toBeInTheDocument();
 		expect(screen.getByText("trace_ops_001")).toHaveClass("truncate", "font-mono");
 		expect(screen.getByText("Agent 运行时")).toBeInTheDocument();
-		expect(await screen.findByText("openai_agents_sdk")).toBeInTheDocument();
+		expect(screen.getByText("openai_agents_sdk")).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "复制 requestId" }));
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("req_ops_001");
 		expect(screen.queryByRole("button", { name: /应用日志/u })).not.toBeInTheDocument();
@@ -610,8 +604,8 @@ describe("OpsWebApp", () => {
 		}) as typeof fetch;
 
 		try {
-			render(<OpsWebApp initialPath="/requests/req_ops_001/system" />);
-			expect(await screen.findByRole("heading", { name: "系统记录" })).toBeInTheDocument();
+			render(<OpsWebApp initialPath="/requests/req_ops_001" />);
+			expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
 			expect(sentryCalls).toBe(0);
 			expect(screen.queryByText(/正在读取 Sentry/u)).not.toBeInTheDocument();
 			fireEvent.click(await screen.findByRole("button", { name: "加载 Sentry 错误记录" }));
@@ -647,16 +641,16 @@ describe("OpsWebApp", () => {
 		);
 	});
 
-	it("shows a running product journey without internal steps", async () => {
+	it("shows a running result and its current execution step", async () => {
 		render(<OpsWebApp initialPath="/requests/req_ops_003" />);
 
 		expect(await screen.findByText("帮我查一下最近的校园通知")).toBeInTheDocument();
 		const requestContext = await screen.findByTestId("request-context");
 		expect(within(requestContext).getByText("运行中")).toBeInTheDocument();
 		expect(within(requestContext).getByText("输出中")).toBeInTheDocument();
-		expect(screen.getByTestId("request-journey")).toHaveTextContent("等待会话结果");
 		expect(screen.getByTestId("request-result")).toHaveTextContent("请求仍在处理中");
-		expect(screen.queryByText("agent.primary")).not.toBeInTheDocument();
+		expect(screen.getByTestId("request-execution")).toHaveTextContent("agent.primary");
+		expect(screen.getByTestId("request-execution")).toHaveTextContent("执行中");
 	});
 
 	it("refreshes running request details while they are still active", async () => {

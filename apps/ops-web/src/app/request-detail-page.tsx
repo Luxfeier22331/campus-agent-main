@@ -1,16 +1,6 @@
 import { Button, cn } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import {
-	ArrowLeft,
-	Bot,
-	CheckCircle2,
-	CircleAlert,
-	Globe2,
-	MessageSquareText,
-	RefreshCw,
-	ServerCog,
-} from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
@@ -18,11 +8,8 @@ import { formatTimestamp } from "./format";
 import { fetchOpsRequestDetail } from "./ops-api/observability";
 import { ErrorState, PageHeader, PageShell, StaleDataWarning, StatusBadge } from "./ops-display";
 import { formatLifecyclePhase, formatOpsDomainValue } from "./ops-domain-labels";
-import {
-	formatRequestCompletedAt,
-	formatRequestDuration,
-	normalizeRequestListReturnPath,
-} from "./ops-view-helpers";
+import { formatRequestDuration, normalizeRequestListReturnPath } from "./ops-view-helpers";
+import { RequestDiagnostics } from "./request-diagnostics";
 
 export function RequestDetailPage({ from, requestId }: { from?: string; requestId: string }) {
 	const detail = useQuery({
@@ -59,25 +46,17 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 			<BackToRequests href={returnPath} />
 			<PageHeader
 				actions={
-					<div className="flex flex-wrap gap-2">
-						<Button
-							aria-busy={detail.isFetching}
-							disabled={detail.isFetching}
-							onClick={() => void detail.refetch()}
-							variant="outline"
-						>
-							<RefreshCw className="size-4" />
-							{detail.isFetching ? "刷新中" : "刷新"}
-						</Button>
-						<Button asChild variant="outline">
-							<Link params={{ requestId }} search={{ from }} to="/requests/$requestId/system">
-								<ServerCog className="size-4" />
-								系统记录
-							</Link>
-						</Button>
-					</div>
+					<Button
+						aria-busy={detail.isFetching}
+						disabled={detail.isFetching}
+						onClick={() => void detail.refetch()}
+						variant="outline"
+					>
+						<RefreshCw className="size-4" />
+						{detail.isFetching ? "刷新中" : "刷新"}
+					</Button>
 				}
-				description="查看本轮用户请求如何形成会话结果。"
+				description="查看用户结果、执行过程和可用于定位失败的运行事实。"
 				title="运行详情"
 			/>
 			{detail.isRefetchError ? (
@@ -91,10 +70,9 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 			<RequestSummary detail={detail.data} />
 			<div className="grid gap-10 py-6">
 				<QuestionSection detail={detail.data} />
-				<JourneySection detail={detail.data} />
 				<ResultSection detail={detail.data} />
 				<SourcesSection detail={detail.data} />
-				<UsageSection detail={detail.data} />
+				<RequestDiagnostics detail={detail.data} />
 			</div>
 			{detail.data.request.lifecyclePhase === "FINISHED" ? null : (
 				<p className="border-border border-t pt-4 text-muted-foreground text-xs">
@@ -155,101 +133,33 @@ function QuestionSection({ detail }: { detail: OpsRequestDetailResponse }) {
 	);
 }
 
-function JourneySection({ detail }: { detail: OpsRequestDetailResponse }) {
-	const nodes: JourneyNodeData[] = [
-		{
-			detail: "用户从产品界面发起本轮问题",
-			icon: Globe2,
-			key: `entry:${detail.journey.entry}`,
-			label: formatOpsDomainValue(detail.journey.entry),
-		},
-		{
-			detail: "理解问题并组织回答",
-			icon: Bot,
-			key: "agent:online-qa",
-			label: "在线问答 Agent",
-		},
-		journeyResultNode(detail.result),
-	];
-	return (
-		<section aria-labelledby="request-journey-title" data-testid="request-journey">
-			<h2 className="mb-4 font-semibold text-foreground text-lg" id="request-journey-title">
-				产品处理
-			</h2>
-			<ol className="grid max-w-3xl gap-0">
-				{nodes.map((node, index) => (
-					<li
-						className="relative grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0"
-						key={node.key}
-					>
-						{index < nodes.length - 1 ? (
-							<span
-								aria-hidden
-								className="absolute left-[1.125rem] top-8 h-[calc(100%-1rem)] border-border border-l"
-							/>
-						) : null}
-						<span className="z-10 grid size-9 place-items-center rounded-full border border-border bg-background text-muted-foreground">
-							<node.icon className="size-4" />
-						</span>
-						<div className="min-w-0 pt-1">
-							<p className="font-medium text-foreground">{node.label}</p>
-							<p className="mt-1 text-muted-foreground text-sm">{node.detail}</p>
-						</div>
-					</li>
-				))}
-			</ol>
-		</section>
-	);
-}
-
-interface JourneyNodeData {
-	detail: string;
-	icon: typeof Bot;
-	key: string;
-	label: string;
-}
-
-function journeyResultNode(result: OpsRequestDetailResponse["result"]): JourneyNodeData {
-	if (result.state === "WRITTEN") {
-		return {
-			detail: "产品回答已经写入本轮会话",
-			icon: CheckCircle2,
-			key: "result:written",
-			label: "回答已写入会话",
-		};
-	}
-	if (result.state === "MISSING") {
-		return {
-			detail: "产品已进入终态，但没有找到对应的助手消息",
-			icon: CircleAlert,
-			key: "result:missing",
-			label: "会话结果缺失",
-		};
-	}
-	return {
-		detail: "本轮请求尚未形成会话结果",
-		icon: MessageSquareText,
-		key: "result:pending",
-		label: "等待会话结果",
-	};
-}
-
 function ResultSection({ detail }: { detail: OpsRequestDetailResponse }) {
 	return (
 		<section aria-labelledby="request-result-title" data-testid="request-result">
 			<h2 className="mb-4 font-semibold text-foreground text-lg" id="request-result-title">
-				会话回答
+				会话结果
 			</h2>
 			{detail.result.state === "WRITTEN" ? (
-				<div className="border-border border-y py-5">
+				<div
+					className={cn(
+						"border-y py-5",
+						detail.result.kind === "error"
+							? "border-danger/30 bg-danger-subtle px-4 text-danger"
+							: "border-border",
+					)}
+					role={detail.result.kind === "error" ? "alert" : undefined}
+				>
+					{detail.result.kind === "error" ? (
+						<p className="mb-2 font-semibold">错误结果已写入会话</p>
+					) : null}
 					<SafeMarkdown>{detail.result.text}</SafeMarkdown>
 				</div>
 			) : detail.result.state === "MISSING" ? (
 				<div className="border border-danger/30 bg-danger-subtle p-4 text-danger" role="alert">
 					<p className="font-semibold">会话结果缺失</p>
 					<p className="mt-1 text-sm">
-						产品状态保持为{formatOpsDomainValue(detail.request.status)}
-						，但没有找到与本次请求和会话匹配的助手消息。
+						产品状态为 {formatOpsDomainValue(detail.request.status)}
+						，但没有找到与本次请求匹配的助手消息。
 					</p>
 				</div>
 			) : (
@@ -380,77 +290,4 @@ function SourceAction({
 			{action.label}
 		</a>
 	);
-}
-
-function UsageSection({ detail }: { detail: OpsRequestDetailResponse }) {
-	const usage = detail.usage;
-	return (
-		<section aria-labelledby="request-usage-title" data-testid="request-usage">
-			<div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-				<h2 className="font-semibold text-foreground text-lg" id="request-usage-title">
-					Agent 用量与时间
-				</h2>
-				{usage.state === "COMPLETE" ? null : (
-					<span
-						className={cn(
-							"text-sm",
-							usage.state === "PARTIAL" || usage.state === "UNAVAILABLE"
-								? "text-warning"
-								: "text-muted-foreground",
-						)}
-					>
-						{usageStateLabel(usage.state)}
-					</span>
-				)}
-			</div>
-			<div className="grid border-border border-y sm:grid-cols-2 lg:grid-cols-4">
-				<TokenMetric label="输入 token" value={usage.inputTokens} />
-				<TokenMetric label="缓存输入 token" value={usage.cachedInputTokens} />
-				<TokenMetric label="输出 token" value={usage.outputTokens} />
-				<TokenMetric emphasis label="总 token" value={usage.totalTokens} />
-			</div>
-			<div className="mt-3 grid gap-x-8 gap-y-2 text-muted-foreground text-sm sm:grid-cols-3">
-				<p>开始：{formatTimestamp(detail.request.startedAt)}</p>
-				<p>完成：{formatRequestCompletedAt(detail.request)}</p>
-				<p>耗时：{formatRequestDuration(detail.request, detail.generatedAt)}</p>
-			</div>
-			<p className="mt-3 text-muted-foreground text-xs">
-				Token 只统计主 Agent；缓存输入已包含在输入 token 中，不重复计入总量。
-			</p>
-		</section>
-	);
-}
-
-function TokenMetric({
-	emphasis = false,
-	label,
-	value,
-}: {
-	emphasis?: boolean;
-	label: string;
-	value: number | null;
-}) {
-	return (
-		<div className="grid gap-1 border-border border-b px-3 py-4 last:border-b-0 sm:border-r sm:border-b-0 sm:last:border-r-0">
-			<span className="text-muted-foreground text-xs">{label}</span>
-			<span
-				className={cn(
-					"tabular-nums text-foreground",
-					emphasis ? "font-semibold text-xl" : "font-medium text-lg",
-				)}
-			>
-				{value === null ? "不可用" : new Intl.NumberFormat("zh-CN").format(value)}
-			</span>
-		</div>
-	);
-}
-
-function usageStateLabel(state: OpsRequestDetailResponse["usage"]["state"]) {
-	return {
-		COMPLETE: "用量已完整记录",
-		IN_PROGRESS: "当前为运行快照",
-		NOT_STARTED: "Agent 尚未开始",
-		PARTIAL: "仅包含已上报用量",
-		UNAVAILABLE: "未取得用量数据",
-	}[state];
 }

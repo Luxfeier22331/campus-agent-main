@@ -1,16 +1,11 @@
 import { z } from "zod";
 import type { PrimaryAgentRunInput, PromptProviderRuntimeConfig } from "./agent-run-contract.ts";
-import type { ToolRuntimeFingerprint } from "./tool-catalog.ts";
+import type { ToolContractFingerprint } from "./tool-catalog.ts";
 
-const toolRuntimeFingerprintSchema = z
+const toolContractFingerprintSchema = z
 	.object({
-		combined_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 		function_schema_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
-		function_schema_version: z.string().min(1),
-		runtime_release: z.string().min(1),
-		schema_version: z.literal("tool_runtime_fingerprint.v2"),
-		tools_registry_version: z.string().min(1),
-		tools_schema_version: z.string().min(1),
+		schema_version: z.literal("tool_contract_fingerprint.v1"),
 		tools_sha256: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 	})
 	.strict();
@@ -63,7 +58,7 @@ export const agentRunRequestSchema = z
 		trace_id: z.string().min(1),
 		input: z.string().min(1),
 		visible_tool_names: z.array(z.string().min(1)).default([]),
-		expected_tool_runtime_fingerprint: toolRuntimeFingerprintSchema,
+		expected_tool_contract_fingerprint: toolContractFingerprintSchema,
 		expected_model_target_sha256: z.string().regex(/^[0-9a-f]{64}$/),
 		limits: runtimeLimitsSchema,
 		conversation_context: conversationContextSchema.optional(),
@@ -81,19 +76,12 @@ export const agentRunRequestSchema = z
 
 export type AgentRunRequest = z.infer<typeof agentRunRequestSchema>;
 
-function mapToolRuntimeFingerprint(
-	fingerprint: z.infer<typeof toolRuntimeFingerprintSchema>,
-): ToolRuntimeFingerprint {
+function mapToolContractFingerprint(
+	fingerprint: z.infer<typeof toolContractFingerprintSchema>,
+): ToolContractFingerprint {
 	return {
-		combinedSha256: fingerprint.combined_sha256,
 		functionSchemaSha256: fingerprint.function_schema_sha256,
-		functionSchemaVersion:
-			fingerprint.function_schema_version as ToolRuntimeFingerprint["functionSchemaVersion"],
-		runtimeRelease: fingerprint.runtime_release,
 		schemaVersion: fingerprint.schema_version,
-		toolsRegistryVersion: fingerprint.tools_registry_version,
-		toolsSchemaVersion:
-			fingerprint.tools_schema_version as ToolRuntimeFingerprint["toolsSchemaVersion"],
 		toolsSha256: fingerprint.tools_sha256,
 	};
 }
@@ -111,8 +99,8 @@ export function runtimeInputFromAgentRunRequest(
 		traceId: parsed.trace_id,
 		input: parsed.input,
 		visibleToolNames: parsed.visible_tool_names,
-		expectedToolRuntimeFingerprint: mapToolRuntimeFingerprint(
-			parsed.expected_tool_runtime_fingerprint,
+		expectedToolContractFingerprint: mapToolContractFingerprint(
+			parsed.expected_tool_contract_fingerprint,
 		),
 		providerConfig,
 		limits: {

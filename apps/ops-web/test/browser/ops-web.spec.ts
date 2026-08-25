@@ -181,7 +181,7 @@ test("总览在各宽度下保持可读", async ({ page }) => {
 	await expectStableViewport(page, errors);
 });
 
-test("运行记录沿用户旅途进入详情和独立系统记录", async ({ page }) => {
+test("运行记录进入同页产品结果和执行诊断", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	const externalRecordRequests: string[] = [];
 	page.on("request", (request) => {
@@ -201,13 +201,12 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	const completedRequest = recentResults
 		.getByRole("link", { name: "缓考申请需要哪些材料？" })
 		.locator(compactLayout ? "xpath=ancestor::article[1]" : "xpath=ancestor::tr[1]");
-	await expect(completedRequest).toContainText(
-		"产品处理：Campus Web，在线问答 Agent，回答已写入会话",
-	);
-	await expect(recentResults).toContainText("2,400");
-	await expect(recentResults).not.toContainText("执行步骤");
-	await expect(recentResults).not.toContainText("模型请求");
-	await expect(recentResults).not.toContainText("工具调用");
+	await expect(completedRequest).toContainText("Agent · 已完成");
+	await expect(completedRequest).toContainText("回答已写入会话");
+	await expect(recentResults).not.toContainText("agent.primary");
+	await expect(recentResults).not.toContainText("模型请求数");
+	await expect(recentResults).not.toContainText("输入 Token");
+	await expect(recentResults).not.toContainText("Task Queue");
 	if (page.viewportSize()?.width === 320 || page.viewportSize()?.width === 1440) {
 		await expectNoAccessibilityViolations(page);
 	}
@@ -242,27 +241,27 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	await page.getByRole("link", { name: "缓考申请需要哪些材料？" }).first().click();
 	await expect(page.getByRole("heading", { name: "运行详情" })).toBeVisible();
 	await expect(page.getByTestId("request-question")).toContainText("缓考申请需要哪些材料？");
-	await expect(page.getByTestId("request-journey")).not.toContainText("查询校园信息");
-	await expect(page.getByTestId("request-journey")).toContainText("回答已写入会话");
 	await expect(page.getByTestId("request-result")).toContainText(
 		"缓考申请需要在规定期限内提交书面材料并说明原因。",
 	);
 	await expect(page.getByTestId("request-sources")).toContainText("学生管理规定");
 	await expect(page.getByTestId("request-sources")).toContainText("[1]");
 	await expect(page.getByTestId("request-sources").getByLabel("引用 1")).toBeVisible();
-	await expect(page.getByTestId("request-usage")).toContainText("2,400");
-	await expect(page.getByTestId("request-usage")).toContainText("Token 只统计主 Agent");
-	await expect(page.getByText(/执行步骤|模型请求|工具调用|已解析目标/u)).toHaveCount(0);
-	await expect(page.getByText("agent.primary")).toHaveCount(0);
-	expect(externalRecordRequests).toEqual([]);
-
-	await page.getByRole("link", { name: "系统记录" }).click();
-	await expect(page).toHaveURL(/\/requests\/req_ops_001\/system/u);
-	await expect(page.getByRole("heading", { name: "系统记录" })).toBeVisible();
+	const execution = page.getByTestId("request-execution");
+	await expect(execution).toContainText("agent.primary");
+	await expect(execution).toContainText("deepseek-v4-flash-0731");
+	await expect(execution).toContainText("2,000");
+	await expect(execution).toContainText("320");
+	await expect(execution).toContainText("400");
+	await expect(execution).toContainText("campus-agent-agent");
+	await expect(page.getByTestId("request-technical")).toContainText("agent-runtime@899f251");
+	await expect(page.getByTestId("request-technical")).toContainText("execution-control@a77a046");
+	await expect(page.getByRole("link", { name: "系统记录" })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "加载 Sentry 错误记录" })).toBeVisible();
 	await expect(page.getByRole("button", { name: /应用日志/u })).toHaveCount(0);
 	await expect(page.getByText(/正在读取/u)).toHaveCount(0);
 	expect(externalRecordRequests).toEqual([]);
+
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
 	const sentryIssues = page.getByRole("list", { name: "Sentry Issue 摘要" });
 	await expect(sentryIssues).toContainText("Request execution failed");
@@ -281,47 +280,43 @@ test("运行记录沿用户旅途进入详情和独立系统记录", async ({ pa
 	await expectStableViewport(page, errors);
 });
 
-test("六类运行记录保留产品状态、会话结果和 Agent 用量语义", async ({ page }) => {
+test("六类运行记录保留产品结果和执行诊断语义", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 
 	await page.goto("/requests/req_ops_002");
 	await expect(page.getByTestId("request-question")).toContainText("你好，你能帮我做什么？");
-	await expect(page.getByTestId("request-journey")).toContainText("回答已写入会话");
-	await expect(page.getByTestId("request-journey")).not.toContainText("查询校园信息");
 	await expect(page.getByTestId("request-result")).toContainText("我可以帮助查询校园通知");
-	await expect(page.getByTestId("request-usage")).toContainText("486");
+	await expect(page.getByTestId("request-execution")).toContainText("agent.primary");
 
 	await page.goto("/requests/req_ops_003");
 	await expect(page.getByTestId("request-question")).toContainText("帮我查一下最近的校园通知");
 	await expect(page.getByTestId("request-context")).toContainText("运行中");
 	await expect(page.getByTestId("request-context")).toContainText("输出中");
-	await expect(page.getByTestId("request-journey")).toContainText("等待会话结果");
 	await expect(page.getByTestId("request-result")).toContainText("请求仍在处理中");
-	await expect(page.getByTestId("request-usage")).toContainText("当前为运行快照");
-	await expect(page.getByTestId("request-usage")).toContainText("1,130");
+	await expect(page.getByTestId("request-execution")).toContainText("执行中");
 
 	await page.goto("/requests/req_ops_004");
 	await expect(page.getByTestId("request-question")).toContainText("帮我看看本周有哪些重要通知");
 	await expect(page.getByTestId("request-context")).toContainText("失败");
+	await expect(page.getByTestId("request-result")).toContainText("错误结果已写入会话");
 	await expect(page.getByTestId("request-result")).toContainText("当前暂时无法完成查询");
-	await expect(page.getByTestId("request-usage")).toContainText("仅包含已上报用量");
-	await expect(page.getByTestId("request-usage")).toContainText("512");
-	await expect(page.getByText("模型服务超时")).toHaveCount(0);
+	await expect(page.getByTestId("request-failure")).toContainText("模型服务不可用");
+	await expect(page.getByTestId("request-failure")).toContainText("provider_unavailable");
+	await expect(page.getByTestId("request-failure")).toContainText("503");
+	await expect(page.getByTestId("request-execution")).toContainText("失败");
 
 	await page.goto("/requests/req_ops_005");
 	await expect(page.getByTestId("request-question")).toContainText("请帮我查询申请条件");
-	await expect(page.getByTestId("request-context")).toContainText("等待用户");
-	await expect(page.getByTestId("request-journey")).toContainText("回答已写入会话");
+	await expect(page.getByTestId("request-context")).toContainText("已完成");
 	await expect(page.getByTestId("request-result")).toContainText("请说明你要办理的具体事项");
-	await expect(page.getByTestId("request-usage")).toContainText("未取得用量数据");
+	await expect(page.getByTestId("request-execution")).toContainText("已完成");
 
 	await page.goto("/requests/req_ops_006");
 	await expect(page.getByTestId("request-question")).toContainText("奖学金申请截止到哪一天？");
 	await expect(page.getByTestId("request-context")).toContainText("已完成");
-	await expect(page.getByTestId("request-journey")).toContainText("会话结果缺失");
-	await expect(page.getByTestId("request-result")).toContainText("产品状态保持为已完成");
-	await expect(page.getByTestId("request-usage")).toContainText("775");
-	await expect(page.getByText(/执行步骤|模型请求|工具调用|已解析目标/u)).toHaveCount(0);
+	await expect(page.getByTestId("request-result")).toContainText("会话结果缺失");
+	await expect(page.getByTestId("request-result")).toContainText("产品状态为 已完成");
+	await expect(page.getByTestId("request-execution")).toContainText("agent.primary");
 	await expectStableViewport(page, errors);
 });
 
@@ -339,7 +334,7 @@ test("Sentry 读取失败时保留系统技术摘要", async ({ page }) => {
 			status: 503,
 		});
 	});
-	await page.goto("/requests/req_ops_001/system");
+	await page.goto("/requests/req_ops_001");
 
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
 	await expect(page.getByText("Sentry 记录读取失败")).toBeVisible();
@@ -348,11 +343,11 @@ test("Sentry 读取失败时保留系统技术摘要", async ({ page }) => {
 	await expectStableViewport(page, errors, ["503 (Service Unavailable)"]);
 });
 
-test("系统记录不会串到其他运行", async ({ page }) => {
+test("按需 Sentry 记录不会串到其他运行", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
-	await page.goto("/requests/req_ops_003/system");
+	await page.goto("/requests/req_ops_003");
 
-	await expect(page.getByRole("heading", { name: "系统记录" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "运行详情" })).toBeVisible();
 	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
 	await expect(page.getByText("当前运行没有关联的 Sentry Issue。")).toBeVisible();
 	await expect(page.getByText("req_ops_001")).toHaveCount(0);

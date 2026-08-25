@@ -8,7 +8,7 @@ status: active
 
 本目录定义 Ops Web 服务端提供给自身页面的 HTTP 接口：
 
-- [runtime.md](./runtime.md)：运行概况、运行记录和按需系统记录；
+- [runtime.md](./runtime.md)：运行概况、运行记录和运行详情中的按需 Sentry 记录；
 - [providers.md](./providers.md)：在线模型配置；
 - [internal-portal.md](./internal-portal.md)：内部门户凭据与自动化 token；
 - [notices.md](./notices.md)：通知库存、分类维护和固定 Job 操作入口；

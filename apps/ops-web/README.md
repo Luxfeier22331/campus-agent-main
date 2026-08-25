@@ -5,7 +5,7 @@
 ## 职责
 
 - 关联 PostgreSQL 有界投影、Temporal、Sentry 和 Langfuse 跳转信息；
-- 读取固定范围的运行概况、运行记录和依赖状态；
+- 读取固定范围的运行概况、运行记录，以及 execution-control 持久化的净化步骤和尝试；
 - 通过服务端固定查询访问 Sentry，不向浏览器提供任意供应商查询；
 - 执行明确准入的在线模型配置、食堂和同好群内容运营操作；
 - 直接拥有内部门户凭据池，负责真实验证、定时检查、按需显示和采集解析；
@@ -51,6 +51,8 @@ Ops Web 的内部解析接口。
 
 - Ops Status 的合同、环境组装、不可用实现和 PostgreSQL adapter 分离；路由只依赖 store 合同，不
   反向拥有数据库或外部平台配置；
+- 运行列表只读取产品摘要和最新执行阶段，详情才读取完整净化步骤与尝试；Ops Web 不能读取
+  `agent_run_events`、`agent_step_results` 或旧 `runtime.*` 视图；
 - Node 服务内的 Ops Status、Dining、内部门户凭据和自动化 token adapter 共享一个应用级 PostgreSQL
   Pool；Dining 地图、菜单和评价仍分别拥有具体 store，不互相导入具体实现；
 - 页面负责 query、mutation 和用户交互编排；可独立验证的目录变换、拖拽规则和编辑器视图不与页面

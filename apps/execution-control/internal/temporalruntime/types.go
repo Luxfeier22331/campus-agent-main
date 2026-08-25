@@ -31,9 +31,9 @@ type AgentAdmissionSnapshot struct {
 	ExecutionStrategySHA256 string                     `json:"execution_strategy_sha256"`
 	// PrimaryAgentTargetSHA256 is the opaque Model Config target hash frozen
 	// for this run. The JSON name stays stable for persisted Temporal history.
-	PrimaryAgentTargetSHA256     string                         `json:"provider_config_sha256"`
-	ToolRuntimeFingerprint       ToolRuntimeFingerprintSnapshot `json:"tool_runtime_fingerprint"`
-	ToolRuntimeFingerprintSHA256 string                         `json:"tool_runtime_fingerprint_sha256"`
+	PrimaryAgentTargetSHA256      string                          `json:"provider_config_sha256"`
+	ToolContractFingerprint       ToolContractFingerprintSnapshot `json:"tool_contract_fingerprint"`
+	ToolContractFingerprintSHA256 string                          `json:"tool_contract_fingerprint_sha256"`
 }
 
 type ExecutionStrategySnapshot struct {
@@ -44,18 +44,13 @@ type ExecutionStrategySnapshot struct {
 	VisibleToolNames []string `json:"visible_tool_names"`
 }
 
-// ToolRuntimeFingerprintSnapshot binds an admitted run to the exact tool
+// ToolContractFingerprintSnapshot binds an admitted run to the exact tool
 // registry and function schemas expected from agent-runtime. It contains no
 // credentials or model data.
-type ToolRuntimeFingerprintSnapshot struct {
-	CombinedSHA256        string `json:"combined_sha256"`
-	FunctionSchemaSHA256  string `json:"function_schema_sha256"`
-	FunctionSchemaVersion string `json:"function_schema_version"`
-	SchemaVersion         string `json:"schema_version"`
-	ToolsRegistryVersion  string `json:"tools_registry_version"`
-	ToolsSchemaVersion    string `json:"tools_schema_version"`
-	ToolsSHA256           string `json:"tools_sha256"`
-	RuntimeRelease        string `json:"runtime_release"`
+type ToolContractFingerprintSnapshot struct {
+	FunctionSchemaSHA256 string `json:"function_schema_sha256"`
+	SchemaVersion        string `json:"schema_version"`
+	ToolsSHA256          string `json:"tools_sha256"`
 }
 
 type AgentRuntimeLimitsSnapshot struct {
@@ -111,20 +106,21 @@ type AgentToolResult struct {
 }
 
 type ExecutePrimaryAgentActivityOutput struct {
-	AgentResultRef         string            `json:"agent_result_ref"`
-	ContextUsage           map[string]any    `json:"context_usage"`
-	FinalOutput            string            `json:"final_output"`
-	ModelName              string            `json:"model_name"`
-	ModelProvider          string            `json:"model_provider"`
-	PromptTrace            map[string]any    `json:"prompt_trace"`
-	ProviderResponseID     string            `json:"provider_response_id"`
-	RunID                  string            `json:"run_id"`
-	StageTiming            map[string]any    `json:"stage_timing,omitempty"`
-	Status                 string            `json:"status"`
-	TerminalReason         string            `json:"terminal_reason"`
-	ToolResults            []AgentToolResult `json:"tool_results"`
-	ToolRuntimeFingerprint map[string]any    `json:"tool_runtime_fingerprint"`
-	Usage                  AgentUsageSummary `json:"usage"`
+	AgentResultRef          string            `json:"agent_result_ref"`
+	ContextUsage            map[string]any    `json:"context_usage"`
+	FinalOutput             string            `json:"final_output"`
+	ModelName               string            `json:"model_name"`
+	ModelProvider           string            `json:"model_provider"`
+	PromptTrace             map[string]any    `json:"prompt_trace"`
+	ProviderResponseID      string            `json:"provider_response_id"`
+	RunID                   string            `json:"run_id"`
+	StageTiming             map[string]any    `json:"stage_timing,omitempty"`
+	Status                  string            `json:"status"`
+	TerminalReason          string            `json:"terminal_reason"`
+	ToolResults             []AgentToolResult `json:"tool_results"`
+	ToolContractFingerprint map[string]any    `json:"tool_contract_fingerprint"`
+	RuntimeRelease          string            `json:"runtime_release"`
+	Usage                   AgentUsageSummary `json:"usage"`
 }
 
 type AgentUsageSummary struct {

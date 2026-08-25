@@ -4,25 +4,23 @@ import {
 	requestListView,
 } from "../src/server/ops-status-mappers";
 import type {
-	OpsAgentUsageRow,
 	OpsRequestDetailRow,
 	OpsRequestListQuery,
 	OpsRequestRow,
+	OpsRunAttemptRow,
+	OpsRunDiagnosticsRows,
+	OpsRunStepRow,
 	PgOpsStatusStoreDatabase,
 } from "../src/server/ops-status-types";
 import { OPS_REQUEST_PAGE_SIZE } from "../src/server/ops-status-types";
 
 export function createFakeOpsDb(
-	overrides: { requestRows?: OpsRequestDetailRow[]; usageRows?: OpsAgentUsageRow[] } = {},
+	overrides: { diagnostics?: OpsRunDiagnosticsRows; requestRows?: OpsRequestDetailRow[] } = {},
 ): PgOpsStatusStoreDatabase {
 	const requestRows = overrides.requestRows ?? [requestRow()];
-	const usageRows = overrides.usageRows ?? [agentUsageRow()];
+	const diagnostics = overrides.diagnostics ?? runDiagnostics();
 
 	return {
-		async getAgentUsages(runIds) {
-			const runIdSet = new Set(runIds);
-			return usageRows.filter((row) => runIdSet.has(row.runId));
-		},
 		async getRequestOverview(since) {
 			const visible = requestRows.filter((row) => row.startedAt >= since);
 			const summary = summarizeRows(visible);
@@ -41,6 +39,12 @@ export function createFakeOpsDb(
 		},
 		async getRequest(requestId) {
 			return requestRows.find((row) => row.requestId === requestId) ?? null;
+		},
+		async getRunDiagnostics(runId) {
+			return {
+				attempts: diagnostics.attempts.filter((row) => row.runId === runId),
+				steps: diagnostics.steps.filter((row) => row.runId === runId),
+			};
 		},
 		async getRequestTrends(since) {
 			const visible = requestRows.filter((row) => row.startedAt >= since);
@@ -146,6 +150,11 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 		dataUpdatedAt: new Date("2026-07-09T07:29:05.000Z"),
 		durationMs: 4_200,
 		errorCode: null,
+		executionFailureKind: null,
+		executionStepId: "agent.primary",
+		executionStepKind: "agent",
+		executionStepStatus: "completed",
+		failCloseReason: null,
 		questionPreview: "缓考申请需要哪些材料？",
 		questionText: "缓考申请需要哪些材料？",
 		questionTruncated: false,
@@ -164,14 +173,65 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 	};
 }
 
-export function agentUsageRow(overrides: Partial<OpsAgentUsageRow> = {}): OpsAgentUsageRow {
+export function runDiagnostics(
+	overrides: { attempts?: OpsRunAttemptRow[]; steps?: OpsRunStepRow[] } = {},
+): OpsRunDiagnosticsRows {
 	return {
-		cachedInputTokens: 200,
-		inputTokens: 1_200,
-		observedAttemptCount: 1,
-		outputTokens: 240,
+		attempts: overrides.attempts ?? [runAttemptRow()],
+		steps: overrides.steps ?? [runStepRow()],
+	};
+}
+
+export function runStepRow(overrides: Partial<OpsRunStepRow> = {}): OpsRunStepRow {
+	return {
+		completedAt: new Date("2026-07-09T07:29:03.800Z"),
+		parentStepId: "",
 		runId: "run_pg_001",
-		totalAttemptCount: 1,
+		sanitizedPayloadJson: {
+			agent_runtime_release: "agent-runtime@899f251",
+			execution_control_release: "execution-control@a77a046",
+		},
+		startedAt: new Date("2026-07-09T07:29:00.700Z"),
+		status: "completed",
+		stepId: "agent.primary",
+		stepKind: "agent",
+		taskQueue: "campus-agent-agent",
+		tool: "",
+		updatedAt: new Date("2026-07-09T07:29:03.800Z"),
+		workerId: "agent-worker-01",
+		...overrides,
+	};
+}
+
+export function runAttemptRow(overrides: Partial<OpsRunAttemptRow> = {}): OpsRunAttemptRow {
+	return {
+		activityAttempt: 1,
+		activityType: "ExecutePrimaryAgent",
+		attempt: 1,
+		cachedInputTokens: 200,
+		completedAt: new Date("2026-07-09T07:29:03.800Z"),
+		durationMs: 3_100,
+		failCloseReason: "",
+		inputTokens: 1_200,
+		modelName: "deepseek-v4-flash-0731",
+		modelProvider: "openai-compatible",
+		modelRequestCount: 1,
+		outputTokens: 240,
+		providerResponseId: "resp_pg_001",
+		runId: "run_pg_001",
+		sanitizedPayloadJson: {
+			agent_runtime_release: "agent-runtime@899f251",
+			execution_control_release: "execution-control@a77a046",
+		},
+		scheduleToStartMs: 12,
+		scheduledAt: new Date("2026-07-09T07:29:00.500Z"),
+		startedAt: new Date("2026-07-09T07:29:00.700Z"),
+		status: "completed",
+		stepId: "agent.primary",
+		taskQueue: "campus-agent-agent",
+		terminalReason: "",
+		usageObserved: true,
+		workerId: "agent-worker-01",
 		...overrides,
 	};
 }

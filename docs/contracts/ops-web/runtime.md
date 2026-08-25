@@ -64,27 +64,17 @@ SQL 片段。
   等待用户排序，再按 `startedAt desc, requestId desc` 排序。
 
 两种视图使用 `v2` 游标；游标包含所属视图，不能跨视图复用。每条摘要只包含请求 ID、问题预览及
-截断事实、产品状态和生命周期、开始完成时间、一次总耗时、产品旅途、关注原因以及列表级 token
-用量。接口不返回原始用户 ID、关联 ID、原始工具 ID、解析目标、执行计数或技术错误。
+截断事实、产品状态和生命周期、开始完成时间、一次总耗时、产品结果状态、当前执行阶段、失败类型和
+关注原因。接口不返回原始用户 ID、关联 ID、模型活动、token、完整步骤、执行尝试或技术错误明细。
 
-`journey` 只包含产品入口和会话结果状态。它不投影 Agent 内部的工具调用、步骤或重试；完整执行
-轨迹由 Langfuse、Temporal 等所属平台展示。结果状态为：
+`result` 的状态为：
 
 - `PENDING`：产品尚未进入终态，助手消息可以尚未写入；
-- `WRITTEN`：对应助手消息已经写入会话；
+- `WRITTEN`：对应 `answer` 或 `error` 助手消息已经写入会话；
 - `MISSING`：产品已进入终态，但没有满足 request、conversation 和 role 关联的助手消息。
 
-列表 `usage` 只包含 `state` 和 `totalTokens`。`state` 允许：
-
-- `NOT_STARTED`：尚无 `agent.primary` attempt；
-- `IN_PROGRESS`：Agent 步骤或产品运行尚未终止，当前数值只是快照；
-- `COMPLETE`：终态运行的所有 Agent attempt 均显式上报 usage；
-- `PARTIAL`：终态运行只有部分 Agent attempt 上报 usage；
-- `UNAVAILABLE`：终态运行存在 Agent attempt，但没有可用 usage。
-
-没有任何已观测 usage 时 token 字段为 `null`；`0` 只表示供应商或 SDK 明确上报为零。
-`totalTokens` 固定为 `inputTokens + outputTokens`，`cachedInputTokens` 是 input 的子集，不再加入总量。
-usage 次要查询失败时返回 `UNAVAILABLE` 和 `null` token，不影响请求主体，也不能显示为零消耗。
+`executionStage` 是当前 run 最近保存步骤的 `stepId`、`kind` 和 `status`，没有步骤时为 `null`；
+`failureKind` 是持久运行事实中的有界失败分类。列表查询不读取 attempt 诊断。
 活动请求的展示耗时由服务端 `generatedAt - startedAt` 计算；终态使用产品完成时间计算的持久耗时。
 接口不伪造心跳或阶段开始时间。
 
@@ -93,16 +83,27 @@ usage 次要查询失败时返回 `UNAVAILABLE` 和 `null` token，不影响请�
 `requestId` 只允许字母、数字、点、下划线、冒号和连字符，最长 128 字符。无效 ID 返回
 `400 OPS_INVALID_REQUEST_ID`，不存在返回 `404 OPS_REQUEST_NOT_FOUND`。
 
-响应包含服务端生成时间、请求状态和时间、完整用户问题及轮次、产品旅途、产品结果、token 明细和
-次级技术信息。产品结果为 `WRITTEN`、`PENDING` 或 `MISSING` 联合类型；`WRITTEN` 返回 app-api 已净化并
-写入会话的完整文本、消息类型和 Campus Web 实际展示的最多五项 `source_items`。每项来源包含与正文
-对应的 `citationIndexes`，保持正文首次引用顺序。来源不返回内部
+响应包含服务端生成时间、请求状态和时间、完整用户问题及轮次、产品结果、持久执行诊断和次级技术
+信息。产品结果为 `WRITTEN`、`PENDING` 或 `MISSING` 联合类型；`WRITTEN` 返回 app-api 已净化并写入
+会话的完整文本、`answer` 或 `error` 消息类型，以及 Campus Web 实际展示的最多五项
+`source_items`。每项来源包含与正文对应的 `citationIndexes`，保持正文首次引用顺序。来源不返回内部
 source kind、target kind、version ID、locator 或 trace card。
 
-详情 `usage` 返回 `state`、`inputTokens`、`cachedInputTokens`、`outputTokens` 和 `totalTokens`，不返回
-模型请求数或 attempt 数。技术信息只包含可信关联标识、已保存错误、运行版本和服务端生成的外部入口。
-完整模型输入输出、Generation 级 usage、费用、Agent Graph、原始执行步骤、记忆正文和检索候选统计
-仍不返回。精确字段由 `apps/ops-web/src/shared/ops-contract.ts` 维护。
+`execution` 返回：
+
+- `failure`：有界失败类型、Agent Runtime 错误代码和 HTTP 状态、fail-close 与终止原因；
+- `releases`：本次运行实际记录的 execution-control 与 agent-runtime release，二者只用于诊断；
+- `steps[]`：步骤 ID、类型、工具、父步骤、状态、起止时间、Task Queue、Worker 和失败类型；
+- `steps[].attempts[]`：Activity 与尝试编号、排队和执行耗时、Task Queue、Worker、模型与 provider、
+  模型请求数、provider 响应 ID、已观测 token 和有界失败字段。
+
+历史运行没有某个诊断字段时返回 `null`，没有持久步骤时返回空数组，不从日志或外部 trace 推导。
+技术信息只包含可信关联标识、运行版本和服务端生成的外部入口。Ops Web 只读取
+`execution_control.agent_runs`、`agent_run_steps` 和 `agent_step_attempts` 的固定净化投影；不能读取
+`agent_run_events`、`agent_step_results` 或旧 `runtime.*` 视图。
+
+接口不返回完整模型输入输出、供应商原始响应、费用、Temporal history、完整 Langfuse trace、记忆正文
+或检索候选正文。精确字段由 `apps/ops-web/src/shared/ops-contract.ts` 维护。
 
 ## `GET /api/ops/requests/:requestId/sentry-issues`
 
@@ -116,6 +117,6 @@ Issue 摘要，不包含 `traceId`、OTel correlation 或供应商 `searchQuery`
 
 通用鉴权、错误和禁止行为见 [README.md](./README.md)。
 
-“系统记录”页中的 Sentry 记录按需加载。打开运行详情或系统记录页不会自动发起外部记录查询；
-操作者点击“加载”后才查询，并可单独刷新。响应的
+运行详情中的 Sentry 记录按需加载。打开详情不会自动发起外部记录查询；操作者点击“加载”后才查询，
+并可单独刷新。响应的
 `dataState`、记录数量、查询耗时和查询窗口使用普通文本展示，仅错误、过期和截断保留警告样式。

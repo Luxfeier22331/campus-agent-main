@@ -4,7 +4,7 @@ import { createAgentRuntimeHandler as createAgentRuntimeHandlerBase } from "../s
 import type { ModelConfigClientOptions } from "../src/model-config-client.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
-import { testPromptTrace, testToolRuntimeFingerprint } from "./helpers/runtime-fingerprint.ts";
+import { testPromptTrace, testToolContractFingerprint } from "./helpers/runtime-contract.ts";
 
 const testParameterSchema = {
 	type: "object" as const,
@@ -27,7 +27,7 @@ const transportResultSchemaRef = schemaRef(
 const catalog: ToolCatalog = {
 	schemaVersion: "tool-registry-v6",
 	registryVersion: "test",
-	runtimeFingerprint: testToolRuntimeFingerprint(),
+	contractFingerprint: testToolContractFingerprint(),
 	tools: [
 		{
 			name: "test_lookup",
@@ -80,7 +80,7 @@ describe("agent runtime HTTP handler", () => {
 		);
 
 		expect(ready.status).toBe(200);
-		expect(await ready.json()).toEqual({ status: "ready" });
+		expect(await ready.json()).toEqual({ runtime_release: "test-release", status: "ready" });
 		expect(unavailable.status).toBe(503);
 		expect(await unavailable.json()).toEqual({
 			error: {
@@ -111,7 +111,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(missing.status).toBe(401);
 		expect(wrong.status).toBe(401);
 		expect(ready.status).toBe(200);
-		expect(await ready.json()).toEqual({ status: "ready" });
+		expect(await ready.json()).toEqual({ runtime_release: "test-release", status: "ready" });
 	});
 
 	it("rejects missing worker authorization", async () => {
@@ -133,7 +133,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(response.status).toBe(401);
 	});
 
-	it("rejects an admitted tool runtime fingerprint before invoking the model", async () => {
+	it("rejects an admitted tool contract fingerprint before invoking the model", async () => {
 		let modelInvoked = false;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -146,9 +146,9 @@ describe("agent runtime HTTP handler", () => {
 			}),
 		});
 		const body = validRunBody();
-		body.expected_tool_runtime_fingerprint = {
-			...wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
-			combined_sha256: `sha256:${"0".repeat(64)}`,
+		body.expected_tool_contract_fingerprint = {
+			...wireToolContractFingerprint(catalog.contractFingerprint),
+			tools_sha256: `sha256:${"0".repeat(64)}`,
 		};
 
 		const response = await handler(
@@ -159,9 +159,10 @@ describe("agent runtime HTTP handler", () => {
 			}),
 		);
 
-		expect(response.status).toBe(500);
+		expect(response.status).toBe(409);
 		expect(await response.json()).toMatchObject({
-			error: { code: "invalid_request", retryable: false },
+			error: { code: "tool_contract_mismatch", retryable: false },
+			runtime_release: "test-release",
 		});
 		expect(modelInvoked).toBe(false);
 	});
@@ -224,11 +225,11 @@ describe("agent runtime HTTP handler", () => {
 				rendered_prompt_sha256?: string;
 				schema_version?: string;
 			};
-			tool_runtime_fingerprint?: {
-				combined_sha256?: string;
+			tool_contract_fingerprint?: {
 				schema_version?: string;
-				tools_registry_version?: string;
+				tools_sha256?: string;
 			};
+			runtime_release?: string;
 			usage?: {
 				model_request_count?: number;
 				usage_observed?: boolean;
@@ -247,12 +248,11 @@ describe("agent runtime HTTP handler", () => {
 			schema_version: "agent_runtime_prompt_trace.v1",
 			rendered_prompt_sha256: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
 		});
-		expect(body.tool_runtime_fingerprint).toMatchObject({
-			combined_sha256: catalog.runtimeFingerprint.combinedSha256,
-			runtime_release: "test-release",
-			schema_version: "tool_runtime_fingerprint.v2",
-			tools_registry_version: "test",
+		expect(body.tool_contract_fingerprint).toMatchObject({
+			schema_version: "tool_contract_fingerprint.v1",
+			tools_sha256: catalog.contractFingerprint.toolsSha256,
 		});
+		expect(body.runtime_release).toBe("test-release");
 		expect(body.usage).toMatchObject({
 			model_request_count: 1,
 			usage_observed: true,
@@ -368,7 +368,7 @@ describe("agent runtime HTTP handler", () => {
 									"agent.first_delta_ms": 4,
 								},
 								selectedTools: [],
-								toolRuntimeFingerprint: testToolRuntimeFingerprint(),
+								toolContractFingerprint: testToolContractFingerprint(),
 								toolResults: [],
 								terminalReason: "answer_completed",
 								usage: {
@@ -599,7 +599,7 @@ describe("agent runtime HTTP handler", () => {
 						promptTrace: testPromptTrace(),
 						providerResponseId: "resp_signal",
 						stageTiming: {},
-						toolRuntimeFingerprint: testToolRuntimeFingerprint(),
+						toolContractFingerprint: testToolContractFingerprint(),
 						toolResults: [],
 						terminalReason: "answer_completed",
 						usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
@@ -790,6 +790,7 @@ describe("agent runtime HTTP handler", () => {
 					code: "agent_deadline_exceeded",
 					message: "Agent run exceeded its configured deadline.",
 					retryable: false,
+					runtime_release: "test-release",
 				},
 			},
 		]);
@@ -836,6 +837,7 @@ describe("agent runtime HTTP handler", () => {
 					code: "run_failed",
 					message: "The agent runtime could not complete the request.",
 					retryable: false,
+					runtime_release: "test-release",
 				},
 			},
 		]);
@@ -870,6 +872,7 @@ describe("agent runtime HTTP handler", () => {
 					code: "run_failed",
 					message: "The agent runtime could not complete the request.",
 					retryable: false,
+					runtime_release: "test-release",
 				},
 			},
 		]);
@@ -877,7 +880,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(onStreamError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
 	});
 
-	it("rejects tool runtime drift on the streaming route before invoking the model", async () => {
+	it("rejects tool contract drift on the streaming route before invoking the model", async () => {
 		let modelInvoked = false;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -891,9 +894,9 @@ describe("agent runtime HTTP handler", () => {
 			}),
 		});
 		const body = validRunBody();
-		body.expected_tool_runtime_fingerprint = {
-			...wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
-			combined_sha256: `sha256:${"0".repeat(64)}`,
+		body.expected_tool_contract_fingerprint = {
+			...wireToolContractFingerprint(catalog.contractFingerprint),
+			tools_sha256: `sha256:${"0".repeat(64)}`,
 		};
 
 		const response = await handler(
@@ -908,9 +911,10 @@ describe("agent runtime HTTP handler", () => {
 			{
 				event: "error",
 				data: {
-					code: "invalid_request",
-					message: "The agent runtime request is invalid.",
+					code: "tool_contract_mismatch",
+					message: "The admitted tool contract does not match this agent runtime.",
 					retryable: false,
+					runtime_release: "test-release",
 				},
 			},
 		]);
@@ -961,21 +965,16 @@ function validRunBody(): Record<string, unknown> {
 		trace_id: "trace-1",
 		input: "hi 你是谁",
 		visible_tool_names: ["test_lookup"],
-		expected_tool_runtime_fingerprint: wireToolRuntimeFingerprint(catalog.runtimeFingerprint),
+		expected_tool_contract_fingerprint: wireToolContractFingerprint(catalog.contractFingerprint),
 		expected_model_target_sha256: PRIMARY_AGENT_TARGET_SHA256,
 		limits: validRuntimeLimits(),
 	};
 }
 
-function wireToolRuntimeFingerprint(fingerprint: ToolCatalog["runtimeFingerprint"]) {
+function wireToolContractFingerprint(fingerprint: ToolCatalog["contractFingerprint"]) {
 	return {
-		combined_sha256: fingerprint.combinedSha256,
 		function_schema_sha256: fingerprint.functionSchemaSha256,
-		function_schema_version: fingerprint.functionSchemaVersion,
-		runtime_release: fingerprint.runtimeRelease,
 		schema_version: fingerprint.schemaVersion,
-		tools_registry_version: fingerprint.toolsRegistryVersion,
-		tools_schema_version: fingerprint.toolsSchemaVersion,
 		tools_sha256: fingerprint.toolsSha256,
 	};
 }
@@ -1002,13 +1001,18 @@ function validPromptProviderConfig(): Record<string, unknown> {
 }
 
 function createAgentRuntimeHandler(
-	options: Omit<Parameters<typeof createAgentRuntimeHandlerBase>[0], "modelConfig"> & {
+	options: Omit<
+		Parameters<typeof createAgentRuntimeHandlerBase>[0],
+		"modelConfig" | "runtimeRelease"
+	> & {
 		modelConfig?: ModelConfigClientOptions;
+		runtimeRelease?: string;
 	},
 ) {
 	return createAgentRuntimeHandlerBase({
 		...options,
 		modelConfig: options.modelConfig ?? modelConfigClient(),
+		runtimeRelease: options.runtimeRelease ?? "test-release",
 	});
 }
 

@@ -989,7 +989,7 @@ describe("app-api migration upgrade", () => {
 		).resolves.toMatchObject({ rowCount: 1 });
 	});
 
-	it("appends the current migration after the deployed 0016 ledger", async () => {
+	it("applies all current migrations after the deployed 0016 ledger", async () => {
 		const migrationOptions = {
 			migrationsSchema: "drizzle",
 			migrationsTable: "app_api_migrations",
@@ -1006,9 +1006,9 @@ describe("app-api migration upgrade", () => {
 		const deployedMigration = journal.entries.find(
 			(entry) => entry.tag === "0016_gray_scarlet_spider",
 		);
-		const currentMigration = journal.entries.find((entry) => entry.tag === "0017_safe_nicolaos");
+		const latestMigration = journal.entries.at(-1);
 		expect(deployedMigration?.when).toBe(1787488814226);
-		expect(currentMigration?.when).toBeGreaterThan(deployedMigration?.when ?? 0);
+		expect(latestMigration?.when).toBeGreaterThan(deployedMigration?.when ?? 0);
 		const deployedLedger = await pool.query<{ created_at: string; hash: string }>(`
 				select created_at::text, hash
 				from "drizzle"."app_api_migrations"
@@ -1058,7 +1058,37 @@ describe("app-api migration upgrade", () => {
 			`);
 		expect(upgradedLedger.rows.slice(0, deployedMigrationCount)).toEqual(deployedLedger.rows);
 		expect(upgradedLedger.rows).toHaveLength(fullMigrationCount);
-		expect(upgradedLedger.rows.at(-1)?.created_at).toBe(String(currentMigration?.when));
+		expect(upgradedLedger.rows.at(-1)?.created_at).toBe(String(latestMigration?.when));
+
+		const oauthResourceShape = await pool.query<{
+			client_assertion_table: boolean;
+			client_resource_table: boolean;
+			identifier_unique_index: boolean;
+			resource_foreign_key: boolean;
+			resource_table: boolean;
+		}>(`
+				select
+					to_regclass('app_auth."oauthClientAssertion"') is not null as client_assertion_table,
+					to_regclass('app_auth."oauthClientResource"') is not null as client_resource_table,
+					to_regclass('app_auth."oauthResource"') is not null as resource_table,
+					to_regclass('app_auth."oauthResource_identifier_uidx"') is not null
+						as identifier_unique_index,
+					exists (
+						select 1
+						from pg_constraint
+						where conrelid = 'app_auth."oauthClientResource"'::regclass
+						  and conname = 'oauthClientResource_resourceId_oauthResource_identifier_fk'
+					) as resource_foreign_key
+			`);
+		expect(oauthResourceShape.rows).toEqual([
+			{
+				client_assertion_table: true,
+				client_resource_table: true,
+				identifier_unique_index: true,
+				resource_foreign_key: true,
+				resource_table: true,
+			},
+		]);
 
 		const upgradedData = await pool.query<{
 			assistant_kind: string | null;

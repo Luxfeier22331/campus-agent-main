@@ -64,25 +64,25 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
-	expectedToolRuntime := cloneAnyMapFromMetadata(agentResult["admitted_tool_runtime_fingerprint"])
-	if len(expectedToolRuntime) == 0 && activity.IsActivity(ctx) {
+	expectedToolContract := cloneAnyMapFromMetadata(agentResult["admitted_tool_contract_fingerprint"])
+	if len(expectedToolContract) == 0 && activity.IsActivity(ctx) {
 		return s.failFinalizationActivity(
 			ctx,
 			run,
 			"",
-			"agent_runtime_fingerprint_mismatch",
-			"agent_runtime_fingerprint_mismatch",
-			errors.New("admitted tool runtime fingerprint is unavailable"),
+			"tool_contract_mismatch",
+			"tool_contract_mismatch",
+			errors.New("admitted tool contract fingerprint is unavailable"),
 		)
 	}
-	if len(expectedToolRuntime) > 0 {
-		if err := s.validateLocalToolRuntimeFingerprintMap(expectedToolRuntime); err != nil {
+	if len(expectedToolContract) > 0 {
+		if err := s.validateLocalToolContractFingerprintMap(expectedToolContract); err != nil {
 			return s.failFinalizationActivity(
 				ctx,
 				run,
 				"",
-				"agent_runtime_fingerprint_mismatch",
-				"agent_runtime_fingerprint_mismatch",
+				"tool_contract_mismatch",
+				"tool_contract_mismatch",
 				err,
 			)
 		}
@@ -630,13 +630,13 @@ func validatePrimaryAgentResultSucceeded(agentResult map[string]any) (string, st
 	if status != "completed" {
 		return "", "agent_runtime_incomplete", fmt.Errorf("agent result status is %q", status)
 	}
-	expectedFingerprint := cloneAnyMapFromMetadata(agentResult["admitted_tool_runtime_fingerprint"])
+	expectedFingerprint := cloneAnyMapFromMetadata(agentResult["admitted_tool_contract_fingerprint"])
 	if len(expectedFingerprint) > 0 {
-		actualFingerprint := cloneAnyMapFromMetadata(agentResult["tool_runtime_fingerprint"])
+		actualFingerprint := cloneAnyMapFromMetadata(agentResult["tool_contract_fingerprint"])
 		if len(actualFingerprint) == 0 ||
 			hashAdmissionJSON(expectedFingerprint) != hashAdmissionJSON(actualFingerprint) {
-			return "", "agent_runtime_fingerprint_mismatch", errors.New(
-				"persisted agent runtime tool fingerprint does not match admission",
+			return "", "tool_contract_mismatch", errors.New(
+				"persisted agent runtime tool contract does not match admission",
 			)
 		}
 	}

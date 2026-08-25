@@ -413,6 +413,7 @@ func temporalFailureTerminalReason(
 		"workflow_canceled_without_terminal_projection",
 		"workflow_terminated_without_terminal_projection",
 		"agent_runtime_unauthorized",
+		"tool_contract_mismatch",
 		"workflow_successor_without_authorization":
 		return execution.DurableTerminalReasonRuntimeInvariant
 	default:

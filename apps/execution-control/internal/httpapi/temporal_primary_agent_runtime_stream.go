@@ -62,8 +62,8 @@ func primaryAgentRuntimeRequestPayload(
 		"limits":                       primaryAgentRuntimeLimitsPayload(limits),
 		"expected_model_target_sha256": input.AdmissionSnapshot.PrimaryAgentTargetSHA256,
 	}
-	if expected := toolRuntimeFingerprintSnapshotMap(input.AdmissionSnapshot.ToolRuntimeFingerprint); expected != nil {
-		payload["expected_tool_runtime_fingerprint"] = expected
+	if expected := toolContractFingerprintSnapshotMap(input.AdmissionSnapshot.ToolContractFingerprint); expected != nil {
+		payload["expected_tool_contract_fingerprint"] = expected
 	}
 	if len(conversationContext) > 0 {
 		payload["conversation_context"] = conversationContext
@@ -108,7 +108,7 @@ func (s *Server) callAgentRuntimeRequest(
 		_ = json.NewDecoder(response.Body).Decode(&decoded)
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, agentRuntimeFailureFromResponse(
 			response.StatusCode,
-			decoded.Error,
+			decoded,
 		)
 	}
 	return s.consumeAgentRuntimeStream(ctx, run, response.Body)
@@ -240,13 +240,16 @@ func (s *Server) consumeAgentRuntimeStream(
 			if err := flushPendingDelta(); err != nil {
 				return err
 			}
-			var runtimeErr agentRuntimeError
+			var runtimeErr struct {
+				agentRuntimeError
+				RuntimeRelease string `json:"runtime_release"`
+			}
 			if err := json.Unmarshal(event.Data, &runtimeErr); err != nil {
 				return fmt.Errorf("decode agent runtime error event: %w", err)
 			}
-			streamError = agentRuntimeHTTPError{
-				StatusCode: http.StatusBadGateway,
-				Code:       strings.TrimSpace(runtimeErr.Code),
+			streamError = agentRuntimeApplicationError{
+				Code:           strings.TrimSpace(runtimeErr.Code),
+				RuntimeRelease: strings.TrimSpace(runtimeErr.RuntimeRelease),
 			}
 			state.terminalEvent = "error"
 		default:
@@ -520,11 +523,12 @@ func (s *Server) projectPrimaryAgentAnswerCompleted(
 
 func agentRuntimeFailureFromResponse(
 	statusCode int,
-	runtimeError agentRuntimeError,
+	response agentRuntimeResponse,
 ) error {
 	return agentRuntimeHTTPError{
-		StatusCode: statusCode,
-		Code:       strings.TrimSpace(runtimeError.Code),
+		StatusCode:     statusCode,
+		Code:           strings.TrimSpace(response.Error.Code),
+		RuntimeRelease: strings.TrimSpace(response.RuntimeRelease),
 	}
 }
 
@@ -545,8 +549,24 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 			"max_turns_exceeded",
 			"provider_unavailable",
 			"tool_execution_failed",
+			"tool_contract_mismatch",
 			"run_failed":
 			return strings.TrimSpace(runtimeError.Code)
+		}
+		return "agent_runtime_request_failed"
+	}
+	var applicationError agentRuntimeApplicationError
+	if errors.As(cause, &applicationError) {
+		switch strings.TrimSpace(applicationError.Code) {
+		case "invalid_request",
+			"context_budget_exceeded",
+			"agent_deadline_exceeded",
+			"max_turns_exceeded",
+			"provider_unavailable",
+			"tool_execution_failed",
+			"tool_contract_mismatch",
+			"run_failed":
+			return strings.TrimSpace(applicationError.Code)
 		}
 		return "agent_runtime_request_failed"
 	}
@@ -594,18 +614,19 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 		})
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{
-		ContextUsage:           cloneAnyMapFromMetadata(response.ContextUsage),
-		FinalOutput:            response.FinalOutput,
-		ModelName:              strings.TrimSpace(response.ModelName),
-		ModelProvider:          strings.TrimSpace(response.ModelProvider),
-		PromptTrace:            cloneAnyMapFromMetadata(response.PromptTrace),
-		ProviderResponseID:     strings.TrimSpace(response.ProviderResponseID),
-		RunID:                  strings.TrimSpace(response.RunID),
-		StageTiming:            cloneAnyMapFromMetadata(response.StageTiming),
-		Status:                 strings.TrimSpace(response.Status),
-		TerminalReason:         strings.TrimSpace(response.TerminalReason),
-		ToolResults:            toolResults,
-		ToolRuntimeFingerprint: cloneAnyMapFromMetadata(response.ToolRuntimeFingerprint),
+		ContextUsage:            cloneAnyMapFromMetadata(response.ContextUsage),
+		FinalOutput:             response.FinalOutput,
+		ModelName:               strings.TrimSpace(response.ModelName),
+		ModelProvider:           strings.TrimSpace(response.ModelProvider),
+		PromptTrace:             cloneAnyMapFromMetadata(response.PromptTrace),
+		ProviderResponseID:      strings.TrimSpace(response.ProviderResponseID),
+		RunID:                   strings.TrimSpace(response.RunID),
+		StageTiming:             cloneAnyMapFromMetadata(response.StageTiming),
+		Status:                  strings.TrimSpace(response.Status),
+		TerminalReason:          strings.TrimSpace(response.TerminalReason),
+		ToolResults:             toolResults,
+		ToolContractFingerprint: cloneAnyMapFromMetadata(response.ToolContractFingerprint),
+		RuntimeRelease:          strings.TrimSpace(response.RuntimeRelease),
 		Usage: temporalruntime.AgentUsageSummary{
 			ModelRequestCount: response.Usage.ModelRequestCount,
 			CachedInputTokens: response.Usage.CachedInputTokens,

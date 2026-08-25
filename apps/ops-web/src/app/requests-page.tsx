@@ -17,7 +17,7 @@ import {
 	StaleDataWarning,
 	StatusBadge,
 } from "./ops-display";
-import { formatOpsDomainValue } from "./ops-domain-labels";
+import { formatLifecyclePhase, formatOpsDomainValue } from "./ops-domain-labels";
 import {
 	cleanRequestSearch,
 	formatRequestDuration,
@@ -311,10 +311,9 @@ function RequestMobileList({
 					>
 						{questionPreview(request)}
 					</Link>
-					<ProductJourney request={request} />
+					<RequestExecutionStage request={request} />
 					{view === "attention" ? <RequestAttentionReason request={request} /> : null}
-					<div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-						<AgentTokenUsage mobile request={request} />
+					<div className="flex justify-end text-xs">
 						<span className="font-medium text-foreground">
 							{formatRequestDuration(request, generatedAt)}
 						</span>
@@ -378,8 +377,10 @@ function createRequestColumns(
 			rowHeader: true,
 		},
 		{
-			cell: (row: OpsRequestSummary) => <ProductJourney className="min-w-[280px]" request={row} />,
-			header: "产品处理",
+			cell: (row: OpsRequestSummary) => (
+				<RequestExecutionStage className="min-w-[220px]" request={row} />
+			),
+			header: "执行阶段",
 		},
 		{
 			cell: (row: OpsRequestSummary) => (
@@ -389,10 +390,6 @@ function createRequestColumns(
 				</div>
 			),
 			header: "状态",
-		},
-		{
-			cell: (row: OpsRequestSummary) => <AgentTokenUsage request={row} />,
-			header: "Token",
 		},
 		{
 			cell: (row: OpsRequestSummary) => (
@@ -409,91 +406,36 @@ function questionPreview(request: OpsRequestSummary) {
 	return `${request.question.preview}${request.question.truncated ? "…" : ""}`;
 }
 
-function productJourneyNodes(request: OpsRequestSummary) {
-	const result =
-		request.journey.result.state === "WRITTEN"
-			? "回答已写入会话"
-			: request.journey.result.state === "MISSING"
-				? "会话结果缺失"
-				: "处理中";
-	return [
-		{
-			key: `entry:${request.journey.entry}`,
-			label: formatOpsDomainValue(request.journey.entry),
-		},
-		{ key: "agent:online-qa", label: "在线问答 Agent" },
-		{ key: `result:${request.journey.result.state}`, label: result },
-	];
-}
-
-function ProductJourney({
+function RequestExecutionStage({
 	className,
 	request,
 }: {
 	className?: string;
 	request: OpsRequestSummary;
 }) {
-	const nodes = productJourneyNodes(request);
+	const stage = request.executionStage;
 	return (
-		<div className={cn("flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm", className)}>
-			<span className="sr-only">产品处理：{nodes.map((node) => node.label).join("，")}</span>
-			{nodes.map((node, index) => (
-				<span className="contents" key={node.key}>
-					{index > 0 ? (
-						<span aria-hidden className="text-muted-foreground">
-							→
-						</span>
-					) : null}
-					<span
-						aria-hidden
-						className={cn(
-							index === 0 || index === nodes.length - 1
-								? "text-muted-foreground"
-								: "font-medium text-foreground",
-						)}
-					>
-						{node.label}
-					</span>
+		<div className={cn("grid gap-1 text-sm", className)}>
+			<span className="font-medium text-foreground">
+				{stage
+					? `${formatOpsDomainValue(stage.kind)} · ${formatOpsDomainValue(stage.status)}`
+					: formatLifecyclePhase(request.lifecyclePhase)}
+			</span>
+			<span className="text-muted-foreground text-xs">{formatResultSummary(request)}</span>
+			{request.failureKind ? (
+				<span className="text-danger text-xs">
+					失败类型：{formatOpsDomainValue(request.failureKind)}
 				</span>
-			))}
+			) : null}
 		</div>
 	);
 }
 
-function formatAgentTokenUsage(request: OpsRequestSummary) {
-	if (request.usage.totalTokens !== null) {
-		return new Intl.NumberFormat("zh-CN").format(request.usage.totalTokens);
+function formatResultSummary(request: OpsRequestSummary) {
+	if (request.result.state === "WRITTEN") {
+		return request.result.kind === "error" ? "错误结果已写入会话" : "回答已写入会话";
 	}
-	return request.usage.state === "NOT_STARTED"
-		? "尚未开始"
-		: request.usage.state === "IN_PROGRESS"
-			? "暂未记录"
-			: "不可用";
-}
-
-function AgentTokenUsage({
-	mobile = false,
-	request,
-}: {
-	mobile?: boolean;
-	request: OpsRequestSummary;
-}) {
-	return (
-		<span
-			className={cn(
-				"grid min-w-[90px] justify-items-start gap-0.5 tabular-nums",
-				mobile && "text-muted-foreground",
-			)}
-		>
-			<span>
-				{mobile ? "Token：" : ""}
-				{formatAgentTokenUsage(request)}
-			</span>
-			{request.usage.state === "PARTIAL" ? (
-				<span className="text-warning text-xs">仅记录部分用量</span>
-			) : null}
-		</span>
-	);
+	return request.result.state === "MISSING" ? "会话结果缺失" : "尚未写入会话结果";
 }
 
 function RequestAttentionReason({ request }: { request: OpsRequestSummary }) {

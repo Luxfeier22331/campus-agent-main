@@ -29,6 +29,7 @@ CREATE TABLE "app_auth"."oauthResource" (
 	"metadata" jsonb
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "oauthResource_identifier_uidx" ON "app_auth"."oauthResource" USING btree ("identifier");--> statement-breakpoint
 ALTER TABLE "app_auth"."oauthAccessToken" ADD COLUMN "authorizationCodeId" text;--> statement-breakpoint
 ALTER TABLE "app_auth"."oauthAccessToken" ADD COLUMN "resources" jsonb;--> statement-breakpoint
 ALTER TABLE "app_auth"."oauthAccessToken" ADD COLUMN "requestedUserInfoClaims" jsonb;--> statement-breakpoint
@@ -56,6 +57,5 @@ ALTER TABLE "app_auth"."oauthClientResource" ADD CONSTRAINT "oauthClientResource
 CREATE UNIQUE INDEX "oauthClientResource_clientId_resourceId_uidx" ON "app_auth"."oauthClientResource" USING btree ("clientId","resourceId");--> statement-breakpoint
 CREATE INDEX "oauthClientResource_clientId_idx" ON "app_auth"."oauthClientResource" USING btree ("clientId");--> statement-breakpoint
 CREATE INDEX "oauthClientResource_resourceId_idx" ON "app_auth"."oauthClientResource" USING btree ("resourceId");--> statement-breakpoint
-CREATE UNIQUE INDEX "oauthResource_identifier_uidx" ON "app_auth"."oauthResource" USING btree ("identifier");--> statement-breakpoint
 CREATE INDEX "oauthAccessToken_authorizationCodeId_idx" ON "app_auth"."oauthAccessToken" USING btree ("authorizationCodeId");--> statement-breakpoint
 CREATE INDEX "oauthRefreshToken_authorizationCodeId_idx" ON "app_auth"."oauthRefreshToken" USING btree ("authorizationCodeId");

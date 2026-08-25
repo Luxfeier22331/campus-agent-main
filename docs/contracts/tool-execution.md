@@ -96,17 +96,27 @@ Primary Agent 的固定角色是中央民族大学校园问答助手，未明确
 同一次 run 的成功工具结果中解析实际出现的引用并派生公开来源；失败工具、越界编号和未被正文引用的
 evidence 不贡献来源。
 
-## 工具运行时指纹
+## 工具合同指纹
 
-Agent 准入使用 `tool_runtime_fingerprint.v2` 绑定工具注册表与函数 schema
-注册表及实际运行发布。指纹包含两类产物的 schema/registry version 与规范化 JSON SHA-256、
-`runtime_release` 和覆盖全部字段的 `combined_sha256`；`runtime_release` 来自同一部署选择的
-`DEPLOYMENT_RELEASE`，不能用可变环境名称代替。
+Agent 准入使用 `tool_contract_fingerprint.v1` 绑定工具注册表与函数 schema 注册表。指纹只包含两份
+规范化 JSON 的 SHA-256：
 
-execution-control 在调用 agent-runtime 前校验本地指纹并把完整准入指纹发送给它；agent-runtime
-必须在 SDK 或模型调用开始前拒绝不匹配请求。execution-control 在保存 Agent 结果前校验返回指纹，
-并在 Finalization 前同时核对准入、已保存结果和本地指纹。任一阶段不匹配都以
-`agent_runtime_fingerprint_mismatch` 失败关闭，不能调用模型、持久化成功结果或发布产品终态。
+```json
+{
+  "schema_version": "tool_contract_fingerprint.v1",
+  "tools_sha256": "sha256:<hex>",
+  "function_schema_sha256": "sha256:<hex>"
+}
+```
+
+execution-control 在调用 agent-runtime 前校验本地合同并发送准入指纹；agent-runtime 必须在 SDK 或
+模型调用开始前拒绝不匹配请求。execution-control 在保存 Agent 结果前校验返回指纹，并在
+Finalization 前同时核对准入、已保存结果和本地合同。任一阶段不匹配都以
+`tool_contract_mismatch` 失败关闭；agent-runtime 的非流式 HTTP 接口返回 `409`，execution-control
+对产品投影使用 `runtime_invariant_failed`。不匹配运行不能持久化成功 Agent 结果或发布成功产品终态。
+
+`DEPLOYMENT_RELEASE` 不进入合同指纹。execution-control 和 agent-runtime 可以独立发布，只要两端工具
+合同一致；各自 release 作为诊断事实分别保存和展示，不能用来判定兼容性。
 
 ## Agent 结果传递
 

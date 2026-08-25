@@ -83,9 +83,9 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
 	}
 	snapshot := starter.input.AdmissionSnapshot
-	if snapshot.ToolRuntimeFingerprintSHA256 == "" ||
-		validateToolRuntimeFingerprintSnapshot(snapshot.ToolRuntimeFingerprint) != nil {
-		t.Fatalf("tool runtime admission snapshot = %#v", snapshot)
+	if snapshot.ToolContractFingerprintSHA256 == "" ||
+		validateToolContractFingerprintSnapshot(snapshot.ToolContractFingerprint) != nil {
+		t.Fatalf("tool contract admission snapshot = %#v", snapshot)
 	}
 }
 

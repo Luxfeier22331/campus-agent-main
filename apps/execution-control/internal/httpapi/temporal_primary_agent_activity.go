@@ -58,7 +58,7 @@ func (s *Server) ExecutePrimaryAgent(
 	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleToolNames); err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_invalid", err)
 	}
-	if err := s.validateLocalToolRuntimeFingerprint(snapshot.ToolRuntimeFingerprint); err != nil {
+	if err := s.validateLocalToolContractFingerprint(snapshot.ToolContractFingerprint); err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_mismatch", err)
 	}
 	limits = limitsFromAdmissionSnapshot(snapshot.AgentLimits)
@@ -136,9 +136,10 @@ func (s *Server) ExecutePrimaryAgent(
 		UpdatedAt:     startedAt,
 		ProjectionRef: agentResultRef,
 		Payload: map[string]any{
-			"execution_strategy":       executionStrategyProjectionPayload(snapshot.ExecutionStrategy),
-			"tool_runtime_fingerprint": toolRuntimeFingerprintSnapshotMap(snapshot.ToolRuntimeFingerprint),
-			"visible_tool_names":       append([]string{}, visibleToolNames...),
+			"execution_control_release": strings.TrimSpace(s.config.DeploymentRelease),
+			"execution_strategy":        executionStrategyProjectionPayload(snapshot.ExecutionStrategy),
+			"tool_contract_fingerprint": toolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint),
+			"visible_tool_names":        append([]string{}, visibleToolNames...),
 		},
 	}, attempt)
 	attempt = startedProjection.Attempt
@@ -159,12 +160,12 @@ func (s *Server) ExecutePrimaryAgent(
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, primaryAgentRuntimeFailureKind(err), err)
 	}
-	if snapshot.ToolRuntimeFingerprintSHA256 != "" {
-		if err := validateAgentRuntimeToolFingerprint(
-			snapshot.ToolRuntimeFingerprint,
-			output.ToolRuntimeFingerprint,
+	if snapshot.ToolContractFingerprintSHA256 != "" {
+		if err := validateAgentRuntimeToolContract(
+			snapshot.ToolContractFingerprint,
+			output.ToolContractFingerprint,
 		); err != nil {
-			return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_fingerprint_mismatch", err, output)
+			return s.failPrimaryAgentActivity(ctx, run, "tool_contract_mismatch", err, output)
 		}
 	}
 	output.RunID = run.RunID
@@ -203,9 +204,10 @@ func (s *Server) ExecutePrimaryAgent(
 		)
 	}
 	payload, err := primaryAgentResultPayload(primaryAgentResultInput{
-		activityAttempt: attempt,
-		activityInput:   input,
-		run:             run,
+		activityAttempt:         attempt,
+		activityInput:           input,
+		executionControlRelease: strings.TrimSpace(s.config.DeploymentRelease),
+		run:                     run,
 	}, output)
 	if err != nil {
 		projectionErr := s.projectPrimaryAgentToolResults(
@@ -775,9 +777,10 @@ func (s *Server) failPrimaryAgentActivity(
 	}
 	summary := summarizeTemporalFailure(failureKind, "", cause)
 	payload := map[string]any{
-		"failure_hash": summary.Hash,
-		"failure_kind": summary.Kind,
-		"message":      summary.Message,
+		"execution_control_release": strings.TrimSpace(s.config.DeploymentRelease),
+		"failure_hash":              summary.Hash,
+		"failure_kind":              summary.Kind,
+		"message":                   summary.Message,
 	}
 	if failCloseReason != "" {
 		payload["fail_close_reason"] = failCloseReason
@@ -785,13 +788,28 @@ func (s *Server) failPrimaryAgentActivity(
 	var runtimeHTTPError agentRuntimeHTTPError
 	if errors.As(cause, &runtimeHTTPError) {
 		payload["agent_runtime_http_status"] = runtimeHTTPError.StatusCode
+		if release := strings.TrimSpace(runtimeHTTPError.RuntimeRelease); release != "" {
+			payload["agent_runtime_release"] = release
+		}
 		if stableCode := primaryAgentRuntimeFailureKind(runtimeHTTPError); stableCode == strings.TrimSpace(runtimeHTTPError.Code) {
+			payload["agent_runtime_error_code"] = stableCode
+		}
+	}
+	var runtimeApplicationError agentRuntimeApplicationError
+	if errors.As(cause, &runtimeApplicationError) {
+		if release := strings.TrimSpace(runtimeApplicationError.RuntimeRelease); release != "" {
+			payload["agent_runtime_release"] = release
+		}
+		if stableCode := primaryAgentRuntimeFailureKind(runtimeApplicationError); stableCode == strings.TrimSpace(runtimeApplicationError.Code) {
 			payload["agent_runtime_error_code"] = stableCode
 		}
 	}
 	var output temporalruntime.ExecutePrimaryAgentActivityOutput
 	if len(outputs) > 0 {
 		output = outputs[0]
+	}
+	if release := strings.TrimSpace(output.RuntimeRelease); release != "" {
+		payload["agent_runtime_release"] = release
 	}
 	err := s.projectTemporalFailureStep(ctx, run, temporalStepFailureProjection{
 		Tool:               "",

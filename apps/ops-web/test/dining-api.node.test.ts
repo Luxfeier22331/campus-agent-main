@@ -163,7 +163,9 @@ describe("Ops Web Dining API", () => {
 				},
 				store: createFixtureOpsStatusStore(),
 			});
-			const response = await app.request("/api/ops/dining");
+			const response = await app.request("/api/ops/dining/reviews?q=query-secret", {
+				headers: { "x-request-id": "req_ops_log_001" },
+			});
 
 			expect(response.status).toBe(503);
 			const event = errorLog.mock.calls
@@ -173,11 +175,17 @@ describe("Ops Web Dining API", () => {
 			expect(JSON.parse(event ?? "{}")).toEqual({
 				error_code: "OPS_DINING_STORE_UNAVAILABLE",
 				event_type: "ops_web.api_request",
+				failure_kind: "dining_store_unavailable",
+				http_method: "GET",
+				http_status_class: "5xx",
 				level: "error",
+				request_id: "req_ops_log_001",
+				route_template: "/api/ops/dining/reviews",
 				source: "http",
 				status: "failed",
 			});
 			expect(event).not.toContain("dining unavailable");
+			expect(event).not.toContain("query-secret");
 		} finally {
 			errorLog.mockRestore();
 		}

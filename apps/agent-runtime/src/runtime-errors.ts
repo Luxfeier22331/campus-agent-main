@@ -7,6 +7,7 @@ export type AgentRuntimeErrorCode =
 	| "max_turns_exceeded"
 	| "provider_unavailable"
 	| "tool_execution_failed"
+	| "tool_contract_mismatch"
 	| "run_failed";
 
 export class AgentRuntimeError extends Error {
@@ -96,6 +97,8 @@ function publicAgentRuntimeErrorMessage(code: AgentRuntimeErrorCode): string {
 			return "The answer provider is temporarily unavailable.";
 		case "tool_execution_failed":
 			return "A runtime tool could not complete.";
+		case "tool_contract_mismatch":
+			return "The admitted tool contract does not match this agent runtime.";
 		default:
 			return "The agent runtime could not complete the request.";
 	}

@@ -16,6 +16,11 @@ export function requestSql(suffix: string): string {
 			"conversation_id" as "conversationId",
 			"duration_ms" as "durationMs",
 			"error_code" as "errorCode",
+			"execution_failure_kind" as "executionFailureKind",
+			"execution_step_id" as "executionStepId",
+			"execution_step_kind" as "executionStepKind",
+			"execution_step_status" as "executionStepStatus",
+			"fail_close_reason" as "failCloseReason",
 				"projected_at" as "dataUpdatedAt",
 				"question_preview" as "questionPreview",
 				"question_truncated" as "questionTruncated",
@@ -49,6 +54,11 @@ export function requestDetailSql(suffix: string): string {
 				"conversation_id" as "conversationId",
 				"duration_ms" as "durationMs",
 				"error_code" as "errorCode",
+				"execution_failure_kind" as "executionFailureKind",
+				"execution_step_id" as "executionStepId",
+				"execution_step_kind" as "executionStepKind",
+				"execution_step_status" as "executionStepStatus",
+				"fail_close_reason" as "failCloseReason",
 				"projected_at" as "dataUpdatedAt",
 				"question_preview" as "questionPreview",
 				"question_text" as "questionText",
@@ -88,6 +98,15 @@ export function requestRowsCte(): string {
 							then nullif(agent_run.terminal_reason, '')
 					end
 				) as "error_code",
+				coalesce(
+					nullif(latest_step.sanitized_payload_json ->> 'failure_kind', ''),
+					nullif(agent_run.fail_close_reason, ''),
+					nullif(dispatch.error_code, '')
+				) as "execution_failure_kind",
+				latest_step.step_id as "execution_step_id",
+				latest_step.step_kind as "execution_step_kind",
+				latest_step.status as "execution_step_status",
+				nullif(agent_run.fail_close_reason, '') as "fail_close_reason",
 					greatest(
 					dispatch.updated_at,
 					coalesce(agent_run.updated_at, dispatch.updated_at)
@@ -139,6 +158,13 @@ export function requestRowsCte(): string {
 				on user_message.id = dispatch.user_message_id
 				left join "execution_control"."agent_runs" as agent_run
 					on agent_run.run_id = dispatch.run_id
+				left join lateral (
+					select step.step_id, step.step_kind, step.status, step.sanitized_payload_json
+					from "execution_control"."agent_run_steps" as step
+					where step.run_id = coalesce(nullif(agent_run.run_id, ''), dispatch.run_id)
+					order by coalesce(step.started_at, step.updated_at) desc, step.step_id desc
+					limit 1
+				) as latest_step on true
 				left join "chat"."messages" as assistant_message
 					on assistant_message.id = dispatch.assistant_message_id
 					and assistant_message.request_id = dispatch.request_id
@@ -180,19 +206,58 @@ export function buildRequestFilter(
 	};
 }
 
-export function agentUsageSql(suffix: string): string {
+export function runStepsSql(): string {
 	return `
-			select
-				"run_id" as "runId",
-				count(*)::int as "totalAttemptCount",
-				count(*) filter (where "usage_observed")::int as "observedAttemptCount",
-				sum("input_tokens") filter (where "usage_observed") as "inputTokens",
-				sum("cached_input_tokens") filter (where "usage_observed") as "cachedInputTokens",
-				sum("output_tokens") filter (where "usage_observed") as "outputTokens"
-			from "execution_control"."agent_step_attempts"
-			where "step_id" = 'agent.primary' ${suffix}
-			group by "run_id"
+		select
+			"completed_at" as "completedAt",
+			"parent_step_id" as "parentStepId",
+			"run_id" as "runId",
+			"sanitized_payload_json" as "sanitizedPayloadJson",
+			"started_at" as "startedAt",
+			"status",
+			"step_id" as "stepId",
+			"step_kind" as "stepKind",
+			"task_queue" as "taskQueue",
+			"tool",
+			"updated_at" as "updatedAt",
+			"worker_id" as "workerId"
+		from "execution_control"."agent_run_steps"
+		where "run_id" = $1
+		order by coalesce("started_at", "updated_at") asc, "step_id" asc
 		`;
+}
+
+export function runAttemptsSql(): string {
+	return `
+		select
+			"activity_attempt" as "activityAttempt",
+			"activity_type" as "activityType",
+			"attempt",
+			"cached_input_tokens" as "cachedInputTokens",
+			"completed_at" as "completedAt",
+			"duration_ms" as "durationMs",
+			"fail_close_reason" as "failCloseReason",
+			"input_tokens" as "inputTokens",
+			"model_name" as "modelName",
+			"model_provider" as "modelProvider",
+			"model_request_count" as "modelRequestCount",
+			"output_tokens" as "outputTokens",
+			"provider_response_id" as "providerResponseId",
+			"run_id" as "runId",
+			"sanitized_payload_json" as "sanitizedPayloadJson",
+			"schedule_to_start_ms" as "scheduleToStartMs",
+			"scheduled_at" as "scheduledAt",
+			"started_at" as "startedAt",
+			"status",
+			"step_id" as "stepId",
+			"task_queue" as "taskQueue",
+			"terminal_reason" as "terminalReason",
+			"usage_observed" as "usageObserved",
+			"worker_id" as "workerId"
+		from "execution_control"."agent_step_attempts"
+		where "run_id" = $1
+		order by "step_id" asc, "attempt" asc
+	`;
 }
 
 export function summarizeStatusCounts(

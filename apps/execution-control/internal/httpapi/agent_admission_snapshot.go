@@ -32,20 +32,20 @@ func (s *Server) buildAgentAdmissionSnapshot(
 		CurrentInputCharLimit: limits.CurrentInputCharLimit,
 		MaxOutputTokens:       limits.MaxOutputTokens,
 	}
-	toolRuntime, err := buildToolRuntimeFingerprint(s.config.DeploymentRelease)
+	toolContract, err := buildToolContractFingerprint()
 	if err != nil {
 		return temporalruntime.AgentAdmissionSnapshot{}, executionDependencyNotReady(
-			fmt.Errorf("build tool runtime admission snapshot: %w", err),
+			fmt.Errorf("build tool contract admission snapshot: %w", err),
 		)
 	}
-	toolRuntimeSnapshot := toolRuntime.toAdmissionSnapshot()
+	toolContractSnapshot := toolContract.toAdmissionSnapshot()
 	snapshot := temporalruntime.AgentAdmissionSnapshot{
-		AgentLimits:                  limitSnapshot,
-		AgentLimitsSHA256:            hashAdmissionJSON(limitSnapshot),
-		ExecutionStrategy:            strategy,
-		ExecutionStrategySHA256:      hashAdmissionJSON(strategy),
-		ToolRuntimeFingerprint:       toolRuntimeSnapshot,
-		ToolRuntimeFingerprintSHA256: hashAdmissionJSON(toolRuntimeSnapshot),
+		AgentLimits:                   limitSnapshot,
+		AgentLimitsSHA256:             hashAdmissionJSON(limitSnapshot),
+		ExecutionStrategy:             strategy,
+		ExecutionStrategySHA256:       hashAdmissionJSON(strategy),
+		ToolContractFingerprint:       toolContractSnapshot,
+		ToolContractFingerprintSHA256: hashAdmissionJSON(toolContractSnapshot),
 	}
 	target, targetErr := s.resolvePrimaryAgentTarget(ctx)
 	if targetErr != nil {
@@ -121,12 +121,12 @@ func validateAdmissionSnapshot(snapshot temporalruntime.AgentAdmissionSnapshot) 
 	if !validModelTargetHash(snapshot.PrimaryAgentTargetSHA256) {
 		return errors.New("primary agent model target admission snapshot is invalid")
 	}
-	if err := validateToolRuntimeFingerprintSnapshot(snapshot.ToolRuntimeFingerprint); err != nil {
+	if err := validateToolContractFingerprintSnapshot(snapshot.ToolContractFingerprint); err != nil {
 		return err
 	}
-	if snapshot.ToolRuntimeFingerprintSHA256 == "" ||
-		hashAdmissionJSON(snapshot.ToolRuntimeFingerprint) != snapshot.ToolRuntimeFingerprintSHA256 {
-		return errors.New("tool runtime admission snapshot hash mismatch")
+	if snapshot.ToolContractFingerprintSHA256 == "" ||
+		hashAdmissionJSON(snapshot.ToolContractFingerprint) != snapshot.ToolContractFingerprintSHA256 {
+		return errors.New("tool contract admission snapshot hash mismatch")
 	}
 	limits := limitsFromAdmissionSnapshot(snapshot.AgentLimits)
 	for name, value := range map[string]int{
@@ -192,91 +192,69 @@ func validModelTargetHash(targetSHA256 string) bool {
 	return lowercaseSHA256Pattern.MatchString(strings.TrimSpace(targetSHA256))
 }
 
-func validateToolRuntimeFingerprintSnapshot(snapshot temporalruntime.ToolRuntimeFingerprintSnapshot) error {
-	if snapshot.SchemaVersion != toolRuntimeFingerprintSchemaVersion ||
-		strings.TrimSpace(snapshot.ToolsSchemaVersion) == "" ||
-		strings.TrimSpace(snapshot.ToolsRegistryVersion) == "" ||
-		strings.TrimSpace(snapshot.FunctionSchemaVersion) == "" ||
-		strings.TrimSpace(snapshot.RuntimeRelease) == "" {
-		return errors.New("tool runtime admission snapshot identity is invalid")
+func validateToolContractFingerprintSnapshot(snapshot temporalruntime.ToolContractFingerprintSnapshot) error {
+	if snapshot.SchemaVersion != toolContractFingerprintSchemaVersion {
+		return errors.New("tool contract admission snapshot identity is invalid")
 	}
 	for _, value := range []string{
 		snapshot.ToolsSHA256,
 		snapshot.FunctionSchemaSHA256,
-		snapshot.CombinedSHA256,
 	} {
 		if !sha256RefPattern.MatchString(value) {
-			return errors.New("tool runtime admission snapshot hash is invalid")
+			return errors.New("tool contract admission snapshot hash is invalid")
 		}
-	}
-	wantCombined := sha256JSONRef(map[string]any{
-		"function_schema_sha256":  snapshot.FunctionSchemaSHA256,
-		"function_schema_version": snapshot.FunctionSchemaVersion,
-		"runtime_release":         snapshot.RuntimeRelease,
-		"schema_version":          snapshot.SchemaVersion,
-		"tools_registry_version":  snapshot.ToolsRegistryVersion,
-		"tools_schema_version":    snapshot.ToolsSchemaVersion,
-		"tools_sha256":            snapshot.ToolsSHA256,
-	})
-	if snapshot.CombinedSHA256 != wantCombined {
-		return errors.New("tool runtime admission snapshot combined hash mismatch")
 	}
 	return nil
 }
 
-func toolRuntimeFingerprintSnapshotMap(snapshot temporalruntime.ToolRuntimeFingerprintSnapshot) map[string]any {
+func toolContractFingerprintSnapshotMap(snapshot temporalruntime.ToolContractFingerprintSnapshot) map[string]any {
 	if strings.TrimSpace(snapshot.SchemaVersion) == "" {
 		return nil
 	}
 	return map[string]any{
-		"combined_sha256":         snapshot.CombinedSHA256,
-		"function_schema_sha256":  snapshot.FunctionSchemaSHA256,
-		"function_schema_version": snapshot.FunctionSchemaVersion,
-		"runtime_release":         snapshot.RuntimeRelease,
-		"schema_version":          snapshot.SchemaVersion,
-		"tools_registry_version":  snapshot.ToolsRegistryVersion,
-		"tools_schema_version":    snapshot.ToolsSchemaVersion,
-		"tools_sha256":            snapshot.ToolsSHA256,
+		"function_schema_sha256": snapshot.FunctionSchemaSHA256,
+		"schema_version":         snapshot.SchemaVersion,
+		"tools_sha256":           snapshot.ToolsSHA256,
 	}
 }
 
-func validateAgentRuntimeToolFingerprint(
-	expected temporalruntime.ToolRuntimeFingerprintSnapshot,
+func validateAgentRuntimeToolContract(
+	expected temporalruntime.ToolContractFingerprintSnapshot,
 	actual map[string]any,
 ) error {
-	if err := validateToolRuntimeFingerprintSnapshot(expected); err != nil {
+	if err := validateToolContractFingerprintSnapshot(expected); err != nil {
 		return err
 	}
-	expectedPayload := toolRuntimeFingerprintSnapshotMap(expected)
+	expectedPayload := toolContractFingerprintSnapshotMap(expected)
 	if len(actual) == 0 || hashAdmissionJSON(expectedPayload) != hashAdmissionJSON(actual) {
-		return errors.New("agent runtime tool fingerprint does not match admission")
+		return errors.New("agent runtime tool contract does not match admission")
 	}
 	return nil
 }
 
-func (s *Server) validateLocalToolRuntimeFingerprint(
-	expected temporalruntime.ToolRuntimeFingerprintSnapshot,
+func (s *Server) validateLocalToolContractFingerprint(
+	expected temporalruntime.ToolContractFingerprintSnapshot,
 ) error {
-	local, err := buildToolRuntimeFingerprint(s.config.DeploymentRelease)
+	local, err := buildToolContractFingerprint()
 	if err != nil {
-		return fmt.Errorf("build local tool runtime fingerprint: %w", err)
+		return fmt.Errorf("build local tool contract fingerprint: %w", err)
 	}
-	if err := validateAgentRuntimeToolFingerprint(expected, local.toMap()); err != nil {
-		return fmt.Errorf("local execution-control tool runtime fingerprint: %w", err)
+	if err := validateAgentRuntimeToolContract(expected, local.toMap()); err != nil {
+		return fmt.Errorf("local execution-control tool contract fingerprint: %w", err)
 	}
 	return nil
 }
 
-func (s *Server) validateLocalToolRuntimeFingerprintMap(expected map[string]any) error {
+func (s *Server) validateLocalToolContractFingerprintMap(expected map[string]any) error {
 	if len(expected) == 0 {
-		return errors.New("admitted tool runtime fingerprint is unavailable")
+		return errors.New("admitted tool contract fingerprint is unavailable")
 	}
-	local, err := buildToolRuntimeFingerprint(s.config.DeploymentRelease)
+	local, err := buildToolContractFingerprint()
 	if err != nil {
-		return fmt.Errorf("build local tool runtime fingerprint: %w", err)
+		return fmt.Errorf("build local tool contract fingerprint: %w", err)
 	}
 	if hashAdmissionJSON(expected) != hashAdmissionJSON(local.toMap()) {
-		return errors.New("local execution-control tool runtime fingerprint does not match admission")
+		return errors.New("local execution-control tool contract fingerprint does not match admission")
 	}
 	return nil
 }

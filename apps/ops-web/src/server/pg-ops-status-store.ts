@@ -12,21 +12,23 @@ import {
 	toRequestSummary,
 } from "./ops-status-mappers.ts";
 import type {
-	OpsAgentUsageRow,
 	OpsRequestDetailRow,
 	OpsRequestOverviewRow,
 	OpsRequestRow,
 	OpsRequestTrendRow,
+	OpsRunAttemptRow,
+	OpsRunStepRow,
 	OpsStatusStore,
 	PgOpsStatusStoreDatabase,
 } from "./ops-status-types.ts";
 import { OPS_REQUEST_PAGE_SIZE, OpsStatusStoreUnavailableError } from "./ops-status-types.ts";
 import {
-	agentUsageSql,
 	buildRequestFilter,
 	requestDetailSql,
 	requestRowsCte,
 	requestSql,
+	runAttemptsSql,
+	runStepsSql,
 	summarizeStatusCounts,
 } from "./pg-request-query.ts";
 
@@ -66,11 +68,12 @@ export function createPgOpsStatusStore(input: {
 			if (!request) {
 				return null;
 			}
-			const runIds = request.runId ? [request.runId] : [];
-			const [usagesResult] = await Promise.allSettled([input.db.getAgentUsages(runIds)]);
+			const diagnostics = request.runId
+				? await input.db.getRunDiagnostics(request.runId)
+				: { attempts: [], steps: [] };
 			return await toRequestDetail(
 				request,
-				usagesResult.status === "fulfilled" ? (usagesResult.value[0] ?? null) : undefined,
+				diagnostics,
 				input.observabilityLinks,
 				generatedAt,
 				input.campusWebPublicOrigin,
@@ -82,22 +85,7 @@ export function createPgOpsStatusStore(input: {
 			const since = subtractWindow(generatedAt, query.window);
 			const rows = await input.db.listRequests(query, since);
 			const visibleRows = rows.slice(0, OPS_REQUEST_PAGE_SIZE);
-			const runIds = [...new Set(visibleRows.flatMap((row) => (row.runId ? [row.runId] : [])))];
-			const [usageRowsResult] = await Promise.allSettled([input.db.getAgentUsages(runIds)]);
-			const usageByRun =
-				usageRowsResult.status === "fulfilled"
-					? new Map(usageRowsResult.value.map((row) => [row.runId, row]))
-					: null;
-			const data = visibleRows.map((row) =>
-				toRequestSummary(
-					row,
-					row.runId
-						? usageByRun === null
-							? undefined
-							: (usageByRun.get(row.runId) ?? null)
-						: null,
-				),
-			);
+			const data = visibleRows.map(toRequestSummary);
 			const lastVisibleRequest = data.at(-1);
 			return {
 				data,
@@ -129,15 +117,6 @@ export function createPgOpsStatusStoreDatabase(
 	pool: Pick<Pool, "query">,
 ): PgOpsStatusStoreDatabase {
 	return {
-		async getAgentUsages(runIds) {
-			if (runIds.length === 0) {
-				return [];
-			}
-			return classifyDbError(async () => {
-				const result = await pool.query(agentUsageSql('and "run_id" = any($1::text[])'), [runIds]);
-				return result.rows as OpsAgentUsageRow[];
-			});
-		},
 		async getRequestOverview(since) {
 			return classifyDbError(async () => {
 				const result = await pool.query(
@@ -166,6 +145,18 @@ export function createPgOpsStatusStoreDatabase(
 					requestId,
 				]);
 				return (result.rows[0] as OpsRequestDetailRow | undefined) ?? null;
+			});
+		},
+		async getRunDiagnostics(runId) {
+			return classifyDbError(async () => {
+				const [steps, attempts] = await Promise.all([
+					pool.query(runStepsSql(), [runId]),
+					pool.query(runAttemptsSql(), [runId]),
+				]);
+				return {
+					attempts: attempts.rows as OpsRunAttemptRow[],
+					steps: steps.rows as OpsRunStepRow[],
+				};
 			});
 		},
 		async getRequestTrends(since, bucketMinutes) {
@@ -245,7 +236,8 @@ export function createPgOpsStatusStoreDatabase(
 				await Promise.all([
 					pool.query(requestSql("limit 0")),
 					pool.query(requestDetailSql("limit 0")),
-					pool.query(agentUsageSql("and false")),
+					pool.query(runStepsSql(), ["__schema_check__"]),
+					pool.query(runAttemptsSql(), ["__schema_check__"]),
 				]);
 			});
 		},
