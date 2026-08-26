@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatNoticeJobError } from "ingestion-contracts/job-error";
+import { formatRawError } from "ingestion-contracts/raw-error";
 
 import {
 	type CollectionCommand,
@@ -53,7 +53,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
 			process.exitCode = status;
 		})
 		.catch((error) => {
-			console.error(formatNoticeJobError(error));
+			console.error(formatRawError(error));
 			process.exitCode = 1;
 		});
 }

@@ -20,6 +20,7 @@ export interface FetchNoticePageInput {
 	apiContext: ApiRequestContextLike;
 	currentPage: number;
 	startDate: string;
+	endDate?: string;
 }
 
 export interface FetchNoticeDetailInput {
@@ -72,7 +73,7 @@ export async function fetchNoticePage(input: FetchNoticePageInput): Promise<Noti
 			type: "",
 			searchDepartment: "",
 			start_date: input.startDate,
-			end_date: "",
+			end_date: input.endDate ?? "",
 			new_total: "",
 			comsys_random_t: String(Math.random()),
 		},
@@ -265,15 +266,31 @@ export async function fetchFileReleaseDownloadUrl(
 
 async function throwRequestError(response: ApiResponseLike, operation: string): Promise<never> {
 	const status = response.status();
+	const statusText = response.statusText();
+	let body = "";
+	try {
+		body = (await response.text()).trim();
+	} catch {
+		// Keep the HTTP status as the primary error when the body cannot be read.
+	}
 	await cancelResponseBody(response, `${operation} request failed`);
-	throw buildRequestError(status, operation);
+	throw buildRequestError(status, statusText, body, operation);
 }
 
-function buildRequestError(status: number, operation: string): Error {
+function buildRequestError(
+	status: number,
+	statusText: string,
+	body: string,
+	operation: string,
+): Error {
 	if (status === 401 || status === 403) {
-		return new PortalSessionExpiredError("Internal portal session expired.");
+		return new PortalSessionExpiredError(
+			`Internal portal ${portalOperationLabel(operation)} request failed: HTTP ${status} ${statusText}${body ? `: ${body}` : ""}`,
+		);
 	}
-	return new Error(`Internal portal ${portalOperationLabel(operation)} request failed.`);
+	return new Error(
+		`Internal portal ${portalOperationLabel(operation)} request failed: HTTP ${status} ${statusText}${body ? `: ${body}` : ""}`,
+	);
 }
 
 async function parseJsonResponse<T extends object>(

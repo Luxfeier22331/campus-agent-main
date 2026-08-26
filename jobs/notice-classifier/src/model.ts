@@ -39,12 +39,15 @@ export async function resolveNoticeClassifierRuntimeConfig(
 ): Promise<NoticeClassifierRuntimeConfig> {
 	try {
 		const baseUrl = url.replace(/\/$/u, "");
-		const response = await fetchImplementation(`${baseUrl}/internal/model-configs/notice_classification`, {
-			headers: { accept: "application/json" },
-			method: "GET",
-			redirect: "error",
-			signal: AbortSignal.timeout(15_000),
-		});
+		const response = await fetchImplementation(
+			`${baseUrl}/internal/model-configs/notice_classification`,
+			{
+				headers: { accept: "application/json" },
+				method: "GET",
+				redirect: "error",
+				signal: AbortSignal.timeout(15_000),
+			},
+		);
 		if (!response.ok) throw new Error(`runtime config returned HTTP ${response.status}`);
 		const runtime = (await response.json()) as unknown;
 		if (
@@ -93,37 +96,37 @@ async function requestClassification(
 	const endpoint = isChatCompletions ? "/chat/completions" : "/responses";
 	const payload = isChatCompletions
 		? {
-			messages: [
-				{ content: NOTICE_CLASSIFIER_SYSTEM_PROMPT, role: "system" },
-				{ content: JSON.stringify(toModelInput(noticeTitle)), role: "user" },
-			],
-			model: runtimeConfig.model,
-			response_format: {
-				type: "json_schema",
-				json_schema: {
-					name: "notice_classification",
-					schema: CLASSIFICATION_SCHEMA,
-					strict: true,
-				},
-			},
-			temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-		}
-		: {
-			input: [
-				{ content: NOTICE_CLASSIFIER_SYSTEM_PROMPT, role: "system" },
-				{ content: JSON.stringify(toModelInput(noticeTitle)), role: "user" },
-			],
-			model: runtimeConfig.model,
-			temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-			text: {
-				format: {
-					name: "notice_classification",
-					schema: CLASSIFICATION_SCHEMA,
-					strict: true,
+				messages: [
+					{ content: NOTICE_CLASSIFIER_SYSTEM_PROMPT, role: "system" },
+					{ content: JSON.stringify(toModelInput(noticeTitle)), role: "user" },
+				],
+				model: runtimeConfig.model,
+				response_format: {
 					type: "json_schema",
+					json_schema: {
+						name: "notice_classification",
+						schema: CLASSIFICATION_SCHEMA,
+						strict: true,
+					},
 				},
-			},
-		};
+				temperature: NOTICE_CLASSIFIER_TEMPERATURE,
+			}
+		: {
+				input: [
+					{ content: NOTICE_CLASSIFIER_SYSTEM_PROMPT, role: "system" },
+					{ content: JSON.stringify(toModelInput(noticeTitle)), role: "user" },
+				],
+				model: runtimeConfig.model,
+				temperature: NOTICE_CLASSIFIER_TEMPERATURE,
+				text: {
+					format: {
+						name: "notice_classification",
+						schema: CLASSIFICATION_SCHEMA,
+						strict: true,
+						type: "json_schema",
+					},
+				},
+			};
 	let response: Response;
 	try {
 		response = await fetchImplementation(`${runtimeConfig.baseUrl}${endpoint}`, {
@@ -143,7 +146,11 @@ async function requestClassification(
 		});
 	}
 	if (!response.ok) {
+		const body = (await response.text()).trim();
 		throw new NoticeClassificationProviderError("model provider request failed", {
+			cause: new Error(
+				`model provider returned HTTP ${response.status} ${response.statusText}${body ? `: ${body}` : ""}`,
+			),
 			retryable: isRetryableStatus(response.status),
 		});
 	}
@@ -182,10 +189,12 @@ function chatCompletionText(value: unknown): string | null {
 	const content = first.message.content;
 	if (typeof content === "string") return content;
 	if (!Array.isArray(content)) return null;
-	return content
-		.filter((item): item is Record<string, unknown> => isRecord(item))
-		.map((item) => (typeof item.text === "string" ? item.text : ""))
-		.join("") || null;
+	return (
+		content
+			.filter((item): item is Record<string, unknown> => isRecord(item))
+			.map((item) => (typeof item.text === "string" ? item.text : ""))
+			.join("") || null
+	);
 }
 
 function isRetryableStatus(status: number): boolean {

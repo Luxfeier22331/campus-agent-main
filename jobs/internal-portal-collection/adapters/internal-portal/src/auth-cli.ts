@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { formatRawError } from "ingestion-contracts/raw-error";
 
 import {
 	type InternalPortalConfig,
@@ -13,7 +14,6 @@ import {
 } from "./config.js";
 import { resolveInternalPortalCredential } from "./ops-web-credential-resolver.js";
 import { checkPortalAuthentication } from "./portal.js";
-import { formatSafeErrorMessage } from "./safe-error.js";
 
 const execFile = promisify(execFileCallback);
 const MANAGED_LOCAL_ENV_MARKER = "# Managed by pnpm dev:init. Do not edit.";
@@ -337,7 +337,7 @@ function usageError(): Error {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
 	main().catch((error) => {
-		console.error(formatSafeErrorMessage(error));
+		console.error(formatRawError(error));
 		process.exitCode = 1;
 	});
 }

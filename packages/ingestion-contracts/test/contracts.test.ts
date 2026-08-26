@@ -4,6 +4,7 @@ import {
 	validateInternalPortalMeta,
 	validateInternalPortalNoticeSource,
 	validateInternalPortalNoticeSyncState,
+	validateLegacyInternalPortalNoticeSyncState,
 } from "../src/index.ts";
 
 const digest = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
@@ -93,19 +94,45 @@ describe("ingestion task contracts", () => {
 		expect(validateInternalPortalFileReleaseSource({ ...source, request: {} }).ok).toBe(false);
 	});
 
-	it("validates the notice incremental and history boundaries", () => {
+	it("validates the notice half-open maintenance boundaries", () => {
 		const state = {
-			head_notice_id: 355119,
-			history_covered_from: "2026-01-01",
-			schema_version: "internal_portal_notice_sync_state.v2",
+			covered_from: "2026-01-01",
+			covered_until: "2026-07-26",
+			schema_version: "internal_portal_notice_sync_state.v3",
 			updated_at: "2026-07-25T09:00:00.000Z",
 		};
 
 		expect(validateInternalPortalNoticeSyncState(state).ok).toBe(true);
 		expect(
-			validateInternalPortalNoticeSyncState({ ...state, history_covered_from: "2026/01/01" }).ok,
+			validateInternalPortalNoticeSyncState({ ...state, covered_until: "2026/07/26" }).ok,
 		).toBe(false);
+		expect(
+			validateInternalPortalNoticeSyncState({ ...state, covered_until: "2025-12-31" }).ok,
+		).toBe(false);
+		expect(
+			validateInternalPortalNoticeSyncState({
+				...state,
+				covered_from: "2026-01-01",
+				covered_until: "2026-01-01",
+			}).ok,
+		).toBe(true);
+		expect(
+			validateInternalPortalNoticeSyncState({
+				...state,
+				covered_from: null,
+				covered_until: null,
+			}).ok,
+		).toBe(true);
+		expect(validateInternalPortalNoticeSyncState({ ...state, covered_until: null }).ok).toBe(false);
 		expect(validateInternalPortalNoticeSyncState({ ...state, notice_type: "5" }).ok).toBe(false);
+		expect(
+			validateLegacyInternalPortalNoticeSyncState({
+				head_notice_id: 355119,
+				history_covered_from: "2026-01-01",
+				schema_version: "internal_portal_notice_sync_state.v2",
+				updated_at: "2026-07-25T09:00:00.000Z",
+			}).ok,
+		).toBe(true);
 	});
 
 	it("validates the portal-wide type and organization mappings", () => {

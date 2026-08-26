@@ -36,11 +36,11 @@
 一个待运行或运行中的 Job，不排队、不自动串联、不自动重试。GitOps 只管理暂停的 CronJob 模板；动态
 Job 引用来源 CronJob 作为 owner，固定零重试，并在完成 24 小时后回收。
 
-Job 的最终 stdout 必须是结构化 JSON。Ops Web 只读取最近一条结构化摘要中的标量字段，并返回 Kubernetes
-状态、有限错误、摘要和单条任务的通知 ID label；没有摘要时保持 `summary: null`，不从日志或 Job
-名称推测处理数量及通知归属。页面分别显示活动任务
-与成功或失败的历史结果，历史结果不参与任务互斥。Job 只保留短期排障证据，当前不持久化超过 24 小时的
-执行历史。
+Job 的 stdout 使用结构化 JSON。Ops Web 读取运行中、成功和失败 Job 的 Pod 输出，返回 Kubernetes
+状态、有效维护区间、最近阶段/进度、原始应用错误、controller condition、摘要和单条任务的通知 ID label；
+没有对应日志字段时保持 `range`、`progress`、`error` 或 `controllerError` 为 `null`，不从日志或 Job
+名称推测处理数量及通知归属。页面分别显示活动任务与成功或失败的历史结果，历史结果不参与任务互斥。
+Job 只保留短期排障证据，当前不持久化超过 24 小时的执行历史。调试阶段错误不做泛化、脱敏或截断。
 
 `/internal-portal` 还管理多条开发者自动化 token。人工管理接口继续使用 Cloudflare Access；开发者
 程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，可以在名称不存在时创建一条具名

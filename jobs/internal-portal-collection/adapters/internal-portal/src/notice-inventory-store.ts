@@ -12,7 +12,7 @@ export interface NoticeInventoryStore {
 	upsertMappings(mappings: NoticeInventoryMappings): Promise<void>;
 }
 
-export function createNoticeInventoryStore(pool: Pool): NoticeInventoryStore {
+export function createNoticeInventoryStore(pool: Pick<Pool, "query">): NoticeInventoryStore {
 	return {
 		async upsertMappings(mappings) {
 			for (const [id, name] of Object.entries(mappings.noticeTypes)) {

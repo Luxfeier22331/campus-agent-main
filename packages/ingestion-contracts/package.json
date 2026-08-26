@@ -6,7 +6,7 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./job-error": "./src/job-error.ts"
+		"./raw-error": "./src/raw-error.ts"
 	},
 	"scripts": {
 		"test": "vitest run",

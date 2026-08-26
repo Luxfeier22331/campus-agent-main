@@ -206,10 +206,13 @@ function createBrowserNoticeJobStore(): NoticeJobStore & { reset(): void } {
 			const job: NoticeJob = {
 				completedAt: null,
 				createdAt: new Date(now.valueOf() + sequence++).toISOString(),
+				controllerError: null,
 				error: null,
 				jobName: `${input.operation}-browser-${String(sequence)}`,
 				noticeId: "noticeId" in input ? input.noticeId : null,
 				operation: input.operation,
+				progress: null,
+				range: null,
 				startedAt: null,
 				status: "pending",
 				summary: null,

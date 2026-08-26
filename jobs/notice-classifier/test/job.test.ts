@@ -17,12 +17,29 @@ describe("notice classification job", () => {
 		);
 	});
 
+	it("reports processing, writing, and finalizing progress", async () => {
+		const progress: unknown[] = [];
+		await runNoticeClassificationJob({
+			createModelClassifier: () => async () => "campus_operations",
+			database: fakeDatabase([{ notice_id: "1", title: "临时关闭校园南门" }]),
+			onProgress: (value) => progress.push(value),
+		});
+
+		expect(progress).toEqual([
+			{ phase: "processing", processed: 0, total: 1 },
+			{ phase: "writing", processed: 1, total: 1 },
+			{ phase: "finalizing", processed: 1, total: 1 },
+		]);
+	});
+
 	it("counts a concurrent manual classification as skipped", async () => {
 		const database = fakeDatabase([{ notice_id: "1", title: "测试通知" }], 0);
-		await expect(runNoticeClassificationJob({
-			createModelClassifier: () => async () => "campus_news",
-			database,
-		})).resolves.toEqual({ classified: 0, requested: 1, skipped: 1 });
+		await expect(
+			runNoticeClassificationJob({
+				createModelClassifier: () => async () => "campus_news",
+				database,
+			}),
+		).resolves.toEqual({ classified: 0, requested: 1, skipped: 1 });
 	});
 
 	it("explicitly reclassifies an existing notice", async () => {
@@ -39,34 +56,40 @@ describe("notice classification job", () => {
 	});
 
 	it("fails when an explicitly requested notice does not exist", async () => {
-		await expect(runNoticeClassificationJob({
-			createModelClassifier: () => async () => "campus_news",
-			database: fakeDatabase([]),
-			noticeIds: [9],
-		})).rejects.toThrow("notice does not exist: 9");
+		await expect(
+			runNoticeClassificationJob({
+				createModelClassifier: () => async () => "campus_news",
+				database: fakeDatabase([]),
+				noticeIds: [9],
+			}),
+		).rejects.toThrow("notice does not exist: 9");
 	});
 
 	it("keeps classification concurrency at two and stops scheduling after a failure", async () => {
-		const database = fakeDatabase([1, 2, 3, 4].map((id) => ({ notice_id: String(id), title: `通知 ${id}` })));
+		const database = fakeDatabase(
+			[1, 2, 3, 4].map((id) => ({ notice_id: String(id), title: `通知 ${id}` })),
+		);
 		let active = 0;
 		let maximum = 0;
 		const started: string[] = [];
-		await expect(runNoticeClassificationJob({
-			concurrency: 2,
-			createModelClassifier: () => async (title) => {
-				started.push(title);
-				active += 1;
-				maximum = Math.max(maximum, active);
-				if (title === "通知 1") {
+		await expect(
+			runNoticeClassificationJob({
+				concurrency: 2,
+				createModelClassifier: () => async (title) => {
+					started.push(title);
+					active += 1;
+					maximum = Math.max(maximum, active);
+					if (title === "通知 1") {
+						active -= 1;
+						throw new Error("provider failure");
+					}
+					await new Promise((resolve) => setTimeout(resolve, 10));
 					active -= 1;
-					throw new Error("provider failure");
-				}
-				await new Promise((resolve) => setTimeout(resolve, 10));
-				active -= 1;
-				return "campus_operations";
-			},
-			database,
-		})).rejects.toBeInstanceOf(NoticeClassificationJobError);
+					return "campus_operations";
+				},
+				database,
+			}),
+		).rejects.toBeInstanceOf(NoticeClassificationJobError);
 		expect(maximum).toBeLessThanOrEqual(2);
 		expect(started).toEqual(["通知 1", "通知 2"]);
 	});

@@ -9,10 +9,13 @@ import { createTestOpsApp } from "./helpers/ops-app";
 const fixture: NoticeJob = {
 	completedAt: null,
 	createdAt: "2026-08-23T10:00:00.000Z",
+	controllerError: null,
 	error: null,
 	jobName: "notice-backfill-abc12",
 	noticeId: null,
 	operation: "notice-backfill",
+	progress: null,
+	range: null,
 	startedAt: null,
 	status: "pending",
 	summary: null,

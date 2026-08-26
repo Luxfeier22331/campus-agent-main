@@ -52,35 +52,51 @@ interface PublishedNotice extends RegisteredNotice {
 export async function publishNotices(input: {
 	client: PoolClient;
 	noticeIds?: readonly number[];
+	onProgress?: (progress: NoticePublicationProgress) => void;
 	objectStore: PublisherObjectStore;
 	portalHost: string;
 }): Promise<{ assets: number; notices: number }> {
 	const candidates = await loadCandidates(input.client, input.noticeIds);
 	if (candidates.length === 0) {
+		input.onProgress?.({ phase: "finalizing", processed: 0, total: 0 });
 		return { assets: 0, notices: 0 };
 	}
 	const meta = await loadMeta(input.objectStore);
 	const records: PublishedNotice[] = [];
+	input.onProgress?.({ phase: "processing", processed: 0, total: candidates.length });
 	for (const candidate of candidates) {
-		records.push(
-			await loadRecord(input.objectStore, meta, candidate, input.portalHost),
-		);
+		records.push(await loadRecord(input.objectStore, meta, candidate, input.portalHost));
+		input.onProgress?.({
+			phase: "processing",
+			processed: records.length,
+			total: candidates.length,
+		});
 	}
 
 	await input.client.query("BEGIN");
 	try {
-		for (const record of records) {
+		for (const [index, record] of records.entries()) {
+			input.onProgress?.({ phase: "writing", processed: index, total: records.length });
 			await publishOrVerify(input.client, record);
+			input.onProgress?.({ phase: "writing", processed: index + 1, total: records.length });
 		}
 		await input.client.query("COMMIT");
 	} catch (error) {
 		await input.client.query("ROLLBACK");
 		throw error;
 	}
-	return {
+	const result = {
 		assets: records.reduce((sum, item) => sum + item.assets.length, 0),
 		notices: records.length,
 	};
+	input.onProgress?.({ phase: "finalizing", processed: result.notices, total: result.notices });
+	return result;
+}
+
+export interface NoticePublicationProgress {
+	phase: "processing" | "writing" | "finalizing";
+	processed: number;
+	total: number;
 }
 
 async function loadCandidates(
@@ -128,7 +144,7 @@ async function loadCandidates(
 function toDatabaseNotice(row: Record<string, unknown>): DatabaseNotice {
 	return {
 		...registeredNoticeFields(row),
-		category: row.category === null ? null : String(row.category) as NoticeCategory,
+		category: row.category === null ? null : (String(row.category) as NoticeCategory),
 	};
 }
 
@@ -155,17 +171,12 @@ async function loadMeta(store: PublisherObjectStore): Promise<InternalPortalMeta
 	}
 	const valid = validateInternalPortalMeta(value);
 	if (!valid.ok) {
-		throw new Error(
-			`internal_portal/meta.json violates its contract: ${valid.errors.join("; ")}`,
-		);
+		throw new Error(`internal_portal/meta.json violates its contract: ${valid.errors.join("; ")}`);
 	}
 	return value as InternalPortalMeta;
 }
 
-export function parseNoticeSource(
-	body: Uint8Array,
-	key: string,
-): InternalPortalNoticeSource {
+export function parseNoticeSource(body: Uint8Array, key: string): InternalPortalNoticeSource {
 	let value: unknown;
 	try {
 		value = JSON.parse(Buffer.from(body).toString("utf8"));
@@ -201,9 +212,7 @@ async function loadRecord(
 	if (!source.is_external) {
 		for (const [ordinal, attachment] of source.attachments.entries()) {
 			if (!attachment.notice_annex_id) {
-				throw new Error(
-					`notice ${source.notice_id} attachment ${ordinal} has no notice_annex_id`,
-				);
+				throw new Error(`notice ${source.notice_id} attachment ${ordinal} has no notice_annex_id`);
 			}
 		}
 	}
@@ -233,8 +242,7 @@ async function loadRecord(
 		for (const [ordinal, attachment] of source.attachments.entries()) {
 			assets.push(
 				await loadAsset({
-					contentTypeSource:
-						attachment.notice_annex_name ?? attachment.notice_annex_path,
+					contentTypeSource: attachment.notice_annex_name ?? attachment.notice_annex_path,
 					kind: "attachment",
 					noticeId: source.notice_id,
 					ordinal,
@@ -315,10 +323,7 @@ async function loadAsset(input: {
 		}/${input.sourceOrdinal}`,
 	);
 	const contentSha256 = createHash("sha256").update(source.body).digest("hex");
-	const contentType = resolveAssetContentType(
-		source.contentType,
-		input.contentTypeSource,
-	);
+	const contentType = resolveAssetContentType(source.contentType, input.contentTypeSource);
 	if (input.kind === "image") {
 		await input.store.createOrVerifyDerived({
 			body: source.body,
@@ -337,10 +342,7 @@ async function loadAsset(input: {
 	};
 }
 
-async function publishOrVerify(
-	client: PoolClient,
-	record: PublishedNotice,
-): Promise<void> {
+async function publishOrVerify(client: PoolClient, record: PublishedNotice): Promise<void> {
 	if (record.isPublished) {
 		await verifyPublishedContent(client, record);
 	} else {
@@ -357,10 +359,7 @@ async function publishOrVerify(
 	await insertOrVerifyAssets(client, record);
 }
 
-async function verifyPublishedContent(
-	client: PoolClient,
-	record: PublishedNotice,
-): Promise<void> {
+async function verifyPublishedContent(client: PoolClient, record: PublishedNotice): Promise<void> {
 	const existing = await client.query(
 		"SELECT content_html, content_text, is_published FROM notices.notices WHERE notice_id=$1",
 		[record.noticeId],
@@ -376,10 +375,7 @@ async function verifyPublishedContent(
 	}
 }
 
-async function insertOrVerifyAssets(
-	client: PoolClient,
-	record: PublishedNotice,
-): Promise<void> {
+async function insertOrVerifyAssets(client: PoolClient, record: PublishedNotice): Promise<void> {
 	const storedAssets = await client.query(
 		"SELECT asset_kind, ordinal, original_name, content_type, byte_size, content_sha256, portal_annex_id FROM notices.notice_assets WHERE notice_id=$1 ORDER BY asset_kind, ordinal",
 		[record.noticeId],
@@ -428,20 +424,14 @@ async function insertOrVerifyAssets(
 }
 
 function compareAssetRows(left: unknown[], right: unknown[]): number {
-	return (
-		String(left[0]).localeCompare(String(right[0])) ||
-		Number(left[1]) - Number(right[1])
-	);
+	return String(left[0]).localeCompare(String(right[0])) || Number(left[1]) - Number(right[1]);
 }
 
 export function resolveAssetContentType(
 	sourceContentType: string | null,
 	value: string | null,
 ): string {
-	const normalizedSourceType = sourceContentType
-		?.split(";", 1)[0]
-		?.trim()
-		.toLowerCase();
+	const normalizedSourceType = sourceContentType?.split(";", 1)[0]?.trim().toLowerCase();
 	if (normalizedSourceType && normalizedSourceType !== "application/octet-stream") {
 		return normalizedSourceType;
 	}
@@ -453,23 +443,23 @@ function guessContentType(value: string | null): string {
 		new URL(value ?? "file", "https://local.invalid").pathname,
 	).toLowerCase();
 	return (
-		({
-			".bmp": "image/bmp",
-			".doc": "application/msword",
-			".docx":
-				"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-			".gif": "image/gif",
-			".jpeg": "image/jpeg",
-			".jpg": "image/jpeg",
-			".pdf": "application/pdf",
-			".png": "image/png",
-			".ppt": "application/vnd.ms-powerpoint",
-			".pptx":
-				"application/vnd.openxmlformats-officedocument.presentationml.presentation",
-			".rar": "application/vnd.rar",
-			".xls": "application/vnd.ms-excel",
-			".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-			".zip": "application/zip",
-		} as Record<string, string>)[extension] ?? "application/octet-stream"
+		(
+			{
+				".bmp": "image/bmp",
+				".doc": "application/msword",
+				".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+				".gif": "image/gif",
+				".jpeg": "image/jpeg",
+				".jpg": "image/jpeg",
+				".pdf": "application/pdf",
+				".png": "image/png",
+				".ppt": "application/vnd.ms-powerpoint",
+				".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+				".rar": "application/vnd.rar",
+				".xls": "application/vnd.ms-excel",
+				".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				".zip": "application/zip",
+			} as Record<string, string>
+		)[extension] ?? "application/octet-stream"
 	);
 }

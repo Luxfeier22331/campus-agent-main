@@ -35,7 +35,22 @@ Ops Web 提供通知安全 metadata 的查看与分类维护，并复用暂停�
 
 允许操作为 `notice-sync`、`notice-backfill`、`notice-classify-missing`、`notice-classify-one`、
 `notice-publish-pending` 和 `notice-publish-one`。采集、分类和发布各自构成一个互斥操作族；已有活动 Job
-时返回 `409 OPS_NOTICE_JOB_CONFLICT`。Job 固定零重试，完成 24 小时后回收，仅保留有限状态、错误和
-结构化摘要，不承担长期审计。单条分类和发布 Job 使用
+时返回 `409 OPS_NOTICE_JOB_CONFLICT`。Job 固定零重试，完成 24 小时后回收，不承担长期审计。单条分类和发布 Job 使用
 `campus-agent.muc.wiki/notice-id` label 持久表达通知归属，任务响应通过 `noticeId` 返回该值；批量任务
 以及部署前创建且没有该 label 的单条任务返回 `noticeId: null`。
+
+每个 Job 还返回以下诊断字段：
+
+- `range`：有效的维护日期半开区间 `{ "from": "YYYY-MM-DD", "to": "YYYY-MM-DD" }`；仅采集 Job
+  有值，尚未开始或没有有效范围时为 `null`；
+- `progress`：最近一次结构化进度 `{ "phase": "scanning|processing|writing|finalizing",
+  "processed": number, "total": number|null }`；
+- `error`：应用进程从 Pod 输出的原始错误文本，包括 stack、cause、HTTP 状态和响应体，不做错误码泛化、
+  脱敏或 500 字符截断；
+- `controllerError`：Kubernetes Job condition 的原始 reason/message，例如
+  `BackoffLimitExceeded: Job has reached the specified backoff limit`。它描述控制器观测到的结果，不能替代
+  应用错误。
+
+Ops Web 会读取成功、失败和运行中 Job 的 Pod 输出。若 Job 已失败但 Pod 输出不可用，`error` 为 `null`，
+`controllerError` 仍单独返回；任务中心分别展示两者。采集的 sync 和 backfill 是两个独立 Job，页面只显示
+实际创建的 Job，不自动补建或串联另一条。

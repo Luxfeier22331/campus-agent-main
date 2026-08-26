@@ -94,9 +94,10 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 且字段全部由该 Job 消费的专用 ConfigMap 可以整体注入。
 
 内部门户采集使用三个默认暂停的 CronJob 模板，分别固定执行通知增量、通知回填和文件发布采集。
-它们读取 `OPS_WEB_INTERNAL_URL`、`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还
-读取既有数据库 owner 连接并登记通知库存。回填日期只在创建该次 Job 时写入。模板默认暂停，只用于
-显式创建一次性 Job；不得新增 TGC Secret。
+通知维护状态是 `[covered_from, covered_until)` 半开区间；sync 和 backfill 是两个独立 Job，回填日期只在
+创建该次 Job 时写入，首次初始化使用 `2025-12-01`。模板读取 `OPS_WEB_INTERNAL_URL`、
+`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还读取既有数据库 owner 连接并登记
+通知库存。模板默认暂停，只用于显式创建一次性 Job；不得新增 TGC Secret。
 
 notice-classifier 读取既有数据库 owner 连接和 Model Config，不读取 source/derived bucket，也不创建
 分类器专用数据库身份或模型 Secret。

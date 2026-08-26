@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	NoticeJobRangeSchema,
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
@@ -77,5 +78,15 @@ describe("ops-web contract fixtures", () => {
 		});
 		expect(serialized).not.toContain("request completed");
 		expect(serialized).not.toContain("service_name");
+	});
+
+	it("accepts an empty half-open notice range and rejects a reversed range", () => {
+		expect(NoticeJobRangeSchema.parse({ from: "2026-08-26", to: "2026-08-26" })).toEqual({
+			from: "2026-08-26",
+			to: "2026-08-26",
+		});
+		expect(NoticeJobRangeSchema.safeParse({ from: "2026-08-27", to: "2026-08-26" }).success).toBe(
+			false,
+		);
 	});
 });

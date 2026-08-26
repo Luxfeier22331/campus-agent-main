@@ -1,10 +1,7 @@
 import type { NoticeClassificationTask } from "notice-classifier-core/batch";
 import type { Pool } from "pg";
 
-import {
-	classifyNotice,
-	type NoticeModelClassifier,
-} from "./classifier.ts";
+import { classifyNotice, type NoticeModelClassifier } from "./classifier.ts";
 import { mapWithConcurrency } from "./concurrency.ts";
 
 export interface NoticeClassificationJobOptions {
@@ -12,6 +9,13 @@ export interface NoticeClassificationJobOptions {
 	createModelClassifier: () => NoticeModelClassifier;
 	database: Pick<Pool, "query">;
 	noticeIds?: readonly number[];
+	onProgress?: (progress: NoticeClassificationProgress) => void;
+}
+
+export interface NoticeClassificationProgress {
+	phase: "processing" | "writing" | "finalizing";
+	processed: number;
+	total: number;
 }
 
 export interface NoticeClassificationJobResult {
@@ -40,12 +44,15 @@ export async function runNoticeClassificationJob(
 	const explicit = options.noticeIds !== undefined;
 	const inputs = await loadInputs(options.database, options.noticeIds);
 	if (inputs.length === 0) {
+		emitProgress(options, { phase: "finalizing", processed: 0, total: 0 });
 		return { classified: 0, requested: 0, skipped: 0 };
 	}
 
 	const modelClassifier = options.createModelClassifier();
 	let classified = 0;
 	let skipped = 0;
+	let processed = 0;
+	emitProgress(options, { phase: "processing", processed: 0, total: inputs.length });
 	try {
 		await mapWithConcurrency(inputs, concurrency, async (input) => {
 			const category = await classifyNotice(input.noticeTitle, modelClassifier).catch((error) => {
@@ -70,6 +77,8 @@ export async function runNoticeClassificationJob(
 			} else {
 				skipped += 1;
 			}
+			processed += 1;
+			emitProgress(options, { phase: "writing", processed, total: inputs.length });
 			return category;
 		});
 	} catch (error) {
@@ -81,7 +90,15 @@ export async function runNoticeClassificationJob(
 			{ cause: error, noticeId: noticeIdFromError(error) },
 		);
 	}
+	emitProgress(options, { phase: "finalizing", processed, total: inputs.length });
 	return { classified, requested: inputs.length, skipped };
+}
+
+function emitProgress(
+	options: NoticeClassificationJobOptions,
+	progress: NoticeClassificationProgress,
+): void {
+	options.onProgress?.(progress);
 }
 
 async function loadInputs(

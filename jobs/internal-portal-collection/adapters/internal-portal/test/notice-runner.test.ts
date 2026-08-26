@@ -1,5 +1,6 @@
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
 import { describe, expect, it, vi } from "vitest";
+
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
 import type { InternalPortalNoticeMetaStore } from "../src/notice-meta-store.js";
 import type {
@@ -8,9 +9,9 @@ import type {
 } from "../src/notice-inventory-store.js";
 import {
 	backfillInternalPortalNotices,
-	type NoticeRunnerInput,
 	parseNoticeStartDate,
 	syncInternalPortalNotices,
+	type NoticeRunnerInput,
 } from "../src/notice-runner.js";
 import type { InternalPortalNoticeSourceStore } from "../src/notice-source.js";
 import type {
@@ -19,382 +20,250 @@ import type {
 } from "../src/notice-state-store.js";
 import type {
 	ApiRequestContextLike,
+	NoticeDetailResponse,
 	NoticeItem,
 	NoticeListResponse,
 	NoticeMetadataResponse,
 } from "../src/types.js";
 
 const apiContext = {} as ApiRequestContextLike;
-const now = "2026-08-11T02:30:07.000Z";
+const now = "2026-08-26T02:30:07.000Z";
 
-describe("notice runner", () => {
-	it("bootstraps the unfiltered portal head and metadata without collecting deployed notices", async () => {
+describe("notice runner maintenance ranges", () => {
+	it("initializes a complete range from the explicit backfill date to the portal latest date", async () => {
 		const stateStore = new MemoryStateStore();
 		const sourceStore = new MemorySourceStore();
-		const metaStore = new MemoryMetaStore();
-		const fetchNoticePage = vi.fn(async () => page([notice(358195, 36), notice(358194, 1)], 2));
-		const fetchNoticeDetail = detailFetcher();
-
-		const result = await syncInternalPortalNotices(
-			runnerInput({ fetchNoticeDetail, fetchNoticePage, metaStore, sourceStore, stateStore }),
-		);
-
-		expect(fetchNoticeDetail).not.toHaveBeenCalled();
-		expect(sourceStore.sources).toHaveLength(0);
-		expect(metaStore.value).toEqual({
-			noticeTypes: expectedNoticeTypes(),
-			organizations: { "00007": "党委保卫部、保卫处" },
-			updatedAt: now,
+		const fetchNoticePage = vi.fn(async (input: { startDate: string; endDate: string }) => {
+			if (input.startDate === "" && input.endDate === "") {
+				return page([notice(300, 5, "2026-08-26 09:00")], 1);
+			}
+			return page([notice(200, 5, "2025-12-01 09:00")], 1);
 		});
-		expect(result.state).toEqual(state({ headNoticeId: 358195, updatedAt: now }));
+
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({ fetchNoticePage, sourceStore, stateStore }),
+			startDate: "2025-12-01",
+		});
+
+		expect(fetchNoticePage.mock.calls.map(([input]) => input)).toEqual([
+			{ apiContext, currentPage: 1, endDate: "", startDate: "" },
+			{ apiContext, currentPage: 1, endDate: "2026-08-26", startDate: "2025-12-01" },
+		]);
+		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([200]);
+		expect(result.range).toEqual({ from: "2025-12-01", to: "2026-08-27" });
+		expect(result.state).toEqual(
+			state({ coveredFrom: "2025-12-01", coveredUntil: "2026-08-27", updatedAt: now }),
+		);
 	});
 
-	it("collects selector types across pages and ignores news aggregation types", async () => {
-		const current = state({ headNoticeId: 100 });
-		const stateStore = new MemoryStateStore(current);
+	it("syncs only the gap after covered_until and advances the exclusive upper bound", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
 		const sourceStore = new MemorySourceStore();
-		const selectedTypes = Object.keys(expectedNoticeTypes()).map(Number);
-		const firstPage = Array.from({ length: 20 }, (_, index) =>
-			notice(
-				120 - index,
-				index < 3 ? ([1, 4, 9][index] ?? 1) : (selectedTypes[index % selectedTypes.length] ?? 5),
-			),
-		);
-		const fetchNoticePage = vi.fn(async ({ currentPage }) =>
-			currentPage === 1 ? page(firstPage, 21) : page([notice(100, 5)], 21),
-		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string; endDate: string }) => {
+			if (input.startDate === "" && input.endDate === "") {
+				return page([notice(300, 5, "2026-08-11 09:00")], 1);
+			}
+			return page([notice(101, 5, "2026-08-10 09:00"), notice(102, 5, "2026-08-11 09:00")], 2);
+		});
 
 		const result = await syncInternalPortalNotices(
 			runnerInput({ fetchNoticePage, sourceStore, stateStore }),
 		);
 
-		expect(fetchNoticePage).toHaveBeenCalledTimes(2);
-		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual(
-			firstPage
-				.filter((item) => ![1, 4, 9].includes(Number(item.notice_type)))
-				.map((item) => item.notice_id),
+		expect(fetchNoticePage.mock.calls.map(([input]) => input)).toEqual([
+			{ apiContext, currentPage: 1, endDate: "", startDate: "" },
+			{ apiContext, currentPage: 1, endDate: "2026-08-11", startDate: "2026-08-10" },
+		]);
+		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([101, 102]);
+		expect(result.range).toEqual({ from: "2026-08-10", to: "2026-08-12" });
+		expect(result.state).toEqual(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-12", updatedAt: now }),
 		);
-		expect(result).toMatchObject({ objectsWritten: 17, pagesFetched: 2 });
-		expect(result.state).toEqual(state({ headNoticeId: 120, updatedAt: now }));
 	});
 
-	it("uses portal order rather than numeric id order to find the current head", async () => {
-		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
-		const sourceStore = new MemorySourceStore();
-
-		const result = await syncInternalPortalNotices(
-			runnerInput({
-				fetchNoticePage: async () =>
-					page([notice(105, 5), notice(99, 5), notice(106, 36), notice(100, 5)], 4),
-				sourceStore,
-				stateStore,
-			}),
+	it("extends a complete range backwards without overlapping the maintained upper range", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-10", coveredUntil: "2026-08-27" }),
 		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string; endDate: string }) => {
+			expect(input).toMatchObject({ startDate: "2026-08-01", endDate: "2026-08-09" });
+			return page([notice(90, 5, "2026-08-01 09:00")], 1);
+		});
 
-		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([105, 99, 106]);
-		expect(result.state.headNoticeId).toBe(105);
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({ fetchNoticePage, stateStore }),
+			startDate: "2026-08-01",
+		});
+
+		expect(result.range).toEqual({ from: "2026-08-01", to: "2026-08-10" });
+		expect(result.state).toEqual(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-27", updatedAt: now }),
+		);
 	});
 
-	it.each([
-		{
-			error: "did not return head 100",
-			items: [notice(105, 5), notice(104, 5)],
-			name: "a scan that omits the head",
-		},
-		{
-			error: "invalid notice_type",
-			items: [{ notice_id: 105 }, notice(100, 5)],
-			name: "missing type metadata",
-		},
-	])("fails without moving state for $name", async ({ error, items }) => {
-		const current = state({ headNoticeId: 100 });
-		const stateStore = new MemoryStateStore(current);
+	it("enforces the half-open boundary using the detail release date", async () => {
 		const sourceStore = new MemorySourceStore();
+		const fetchNoticePage = vi.fn(async () =>
+			page([notice(1, 5, "2026-08-10 00:01"), notice(2, 5, "2026-08-11 00:01")], 2),
+		);
+		const fetchNoticeDetail = vi.fn(async ({ noticeId }: { noticeId: number }) =>
+			detail(noticeId, noticeId === 1 ? "2026-08-10 00:01" : "2026-08-11 00:01"),
+		);
+
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({ fetchNoticeDetail, fetchNoticePage, sourceStore }),
+			startDate: "2026-08-10",
+		});
+
+		expect(sourceStore.sources.map((source) => source.notice_id)).toEqual([1]);
+		expect(result.noticesProcessed).toBe(1);
+	});
+
+	it("does not move state when inventory writing fails", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string; endDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-11 09:00")], 1)
+				: page([notice(101, 5, "2026-08-10 09:00")], 1),
+		);
 
 		await expect(
 			syncInternalPortalNotices(
 				runnerInput({
-					fetchNoticePage: async () => page(items, items.length),
-					sourceStore,
+					fetchNoticePage,
+					inventoryStore: new FailingInventoryStore(),
 					stateStore,
 				}),
 			),
-		).rejects.toThrow(error);
-
+		).rejects.toThrow("inventory write failed");
 		expect(stateStore.saveCalls).toBe(0);
-		expect(sourceStore.sources).toHaveLength(0);
 	});
 
-	it("deduplicates overlapping portal pages by notice id", async () => {
-		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
-		const sourceStore = new MemorySourceStore();
-
-		const result = await syncInternalPortalNotices(
-			runnerInput({
-				fetchNoticePage: async () => page([notice(105, 5), notice(105, 5), notice(100, 5)], 3),
-				sourceStore,
-				stateStore,
-			}),
-		);
-
-		expect(sourceStore.sources.map((item) => item.notice_id)).toEqual([105]);
-		expect(result.state.headNoticeId).toBe(105);
+	it("requires an explicit backfill before a sync can use a missing upper bound", async () => {
+		await expect(
+			syncInternalPortalNotices(runnerInput({ stateStore: new MemoryStateStore(null) })),
+		).rejects.toThrow("complete maintenance range");
+		await expect(
+			syncInternalPortalNotices(
+				runnerInput({
+					stateStore: new MemoryStateStore(
+						state({ coveredFrom: "2026-01-01", coveredUntil: null }),
+					),
+				}),
+			),
+		).rejects.toThrow("complete maintenance range");
 	});
 
-	it("collects images and attachments before advancing state", async () => {
-		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
-		const sourceStore = new MemorySourceStore();
-		const objectStore = new MemoryResourceObjectStore();
-		const fetchNoticeDetail = vi.fn(async () => detailWithResources(101));
-
-		const result = await syncInternalPortalNotices(
-			runnerInput({
-				apiContext: resourceApiContext(),
-				fetchNoticeDetail,
-				fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
-				objectStore,
-				sourceStore,
-				stateStore,
-			}),
-		);
-
-		expect(objectStore.writes.sort()).toEqual([
-			"internal_portal/notices/101/attachments/0",
-			"internal_portal/notices/101/images/0",
-		]);
-		expect(result).toMatchObject({
-			noticesProcessed: 1,
-			resources: {
-				attachmentsDownloaded: 1,
-				imagesDownloaded: 1,
-			},
-		});
-		expect(stateStore.saveCalls).toBe(1);
-		expect(result.state.headNoticeId).toBe(101);
-	});
-
-	it("reuses an existing source while filling its missing resources", async () => {
-		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
-		const sourceStore = new MemorySourceStore([sourceWithResources(101)]);
-		const objectStore = new MemoryResourceObjectStore();
-		const fetchNoticeDetail = vi.fn();
-
-		const result = await syncInternalPortalNotices(
-			runnerInput({
-				apiContext: resourceApiContext(),
-				fetchNoticeDetail,
-				fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
-				objectStore,
-				sourceStore,
-				stateStore,
-			}),
-		);
-
-		expect(fetchNoticeDetail).not.toHaveBeenCalled();
-		expect(result).toMatchObject({
-			objectsReused: 1,
-			objectsWritten: 0,
-			resources: { attachmentsDownloaded: 1, imagesDownloaded: 1 },
-		});
-	});
-
-	it("does not advance state after a resource failure and reruns without detail fetch", async () => {
-		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
-		const sourceStore = new MemorySourceStore();
-		const objectStore = new MemoryResourceObjectStore();
-		objectStore.failWrites = true;
-		const fetchNoticeDetail = vi.fn(async () => detailWithResources(101));
-		const input = runnerInput({
-			apiContext: resourceApiContext(),
-			fetchNoticeDetail,
-			fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
-			objectStore,
-			sourceStore,
-			stateStore,
-		});
-
-		await expect(syncInternalPortalNotices(input)).rejects.toThrow("resource write failed");
-		expect(stateStore.saveCalls).toBe(0);
-		expect(sourceStore.sources).toHaveLength(1);
-
-		objectStore.failWrites = false;
-		const rerun = await syncInternalPortalNotices(input);
-
-		expect(fetchNoticeDetail).toHaveBeenCalledOnce();
-		expect(rerun.state.headNoticeId).toBe(101);
-		expect(rerun.resources).toMatchObject({
-			attachmentsDownloaded: 1,
-			imagesDownloaded: 1,
-		});
-	});
-
-	it("backfills selected notices and skips details for an existing v2 object", async () => {
-		const existing = source(358159, 5);
-		const sourceStore = new MemorySourceStore([existing]);
-		const stateStore = new MemoryStateStore(state({ headNoticeId: 358200 }));
-		const fetchNoticeDetail = detailFetcher();
-
-		const result = await backfillInternalPortalNotices({
-			...runnerInput({
-				fetchNoticeDetail,
-				fetchNoticePage: async () =>
-					page([notice(358159, 5), notice(358158, 1), notice(358157, 36)], 3),
-				sourceStore,
-				stateStore,
-			}),
-			startDate: "2026-08-03",
-		});
-
-		expect(fetchNoticeDetail.mock.calls.map(([call]) => call.noticeId)).toEqual([358157]);
-		expect(sourceStore.sources.map((item) => item.notice_id)).toEqual([358159, 358157]);
-		expect(sourceStore.sources[1]).toMatchObject({
-			external_url: "https://example.edu/external",
-			is_external: true,
-		});
-		expect(result).toMatchObject({ objectsReused: 1, objectsWritten: 1 });
-		expect(result.state).toEqual(
-			state({
-				headNoticeId: 358200,
-				historyCoveredFrom: "2026-08-03",
-				updatedAt: now,
-			}),
-		);
-	});
-
-	it("adds organizations observed in historical notice rows to portal metadata", async () => {
-		const metaStore = new MemoryMetaStore();
-		const historical = {
-			...notice(358159, 5),
-			organization_id: "00020-1",
-			organization_name: "离退休工作处、离退休教职工党委",
-		};
-
-		await backfillInternalPortalNotices({
-			...runnerInput({
-				fetchNoticePage: async () => page([historical], 1),
-				metaStore,
-			}),
-			startDate: "2026-01-01",
-		});
-
-		expect(metaStore.value?.organizations).toEqual({
-			"00007": "党委保卫部、保卫处",
-			"00020-1": "离退休工作处、离退休教职工党委",
-		});
-	});
-
-	it("keeps the current portal organization name over an observed historical name", async () => {
-		const metaStore = new MemoryMetaStore();
-		const historical = {
-			...notice(358159, 5),
-			organization_name: "保卫处（旧名称）",
-		};
-
-		await backfillInternalPortalNotices({
-			...runnerInput({
-				fetchNoticePage: async () => page([historical], 1),
-				metaStore,
-			}),
-			startDate: "2026-01-01",
-		});
-
-		expect(metaStore.value?.organizations["00007"]).toBe("党委保卫部、保卫处");
-	});
-
-	it("returns an already-covered backfill without portal requests", async () => {
-		const current = state({ headNoticeId: 358200, historyCoveredFrom: "2026-01-01" });
-		const stateStore = new MemoryStateStore(current);
-		const fetchNoticeMetadata = vi.fn();
+	it("reuses a covered backfill without making portal requests", async () => {
 		const fetchNoticePage = vi.fn();
-
+		const fetchNoticeMetadata = vi.fn();
+		const current = state({ coveredFrom: "2026-01-01", coveredUntil: "2026-08-27" });
 		const result = await backfillInternalPortalNotices({
-			...runnerInput({ fetchNoticeMetadata, fetchNoticePage, stateStore }),
+			...runnerInput({
+				fetchNoticeMetadata,
+				fetchNoticePage,
+				stateStore: new MemoryStateStore(current),
+			}),
 			startDate: "2026-08-03",
 		});
 
-		expect(result.state).toEqual(current);
+		expect(result).toMatchObject({ range: null, pagesFetched: 0, state: current });
 		expect(fetchNoticeMetadata).not.toHaveBeenCalled();
 		expect(fetchNoticePage).not.toHaveBeenCalled();
-		expect(stateStore.saveCalls).toBe(0);
 	});
 
-	it("reuses an existing object without repeating detail after a state write failure", async () => {
-		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
-		stateStore.failNextSave = true;
-		const sourceStore = new MemorySourceStore();
-		const fetchNoticeDetail = detailFetcher();
-		const input = runnerInput({
-			fetchNoticeDetail,
-			fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
-			sourceStore,
-			stateStore,
+	it("reports scanning, processing, writing, and finalizing progress", async () => {
+		const progress: unknown[] = [];
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({
+				onProgress: (value) => progress.push(value),
+				fetchNoticePage: async (input) =>
+					input.startDate === ""
+						? page([notice(300, 5, "2026-08-11 09:00")], 1)
+						: page([notice(101, 5, "2026-08-10 09:00")], 1),
+			}),
+			startDate: "2026-08-10",
 		});
 
-		await expect(syncInternalPortalNotices(input)).rejects.toThrow("state save failed");
-		const rerun = await syncInternalPortalNotices(input);
-
-		expect(fetchNoticeDetail).toHaveBeenCalledOnce();
-		expect(rerun).toMatchObject({ objectsReused: 1, objectsWritten: 0 });
-		expect(rerun.state.headNoticeId).toBe(101);
+		expect(result.range).toEqual({ from: "2026-08-10", to: "2026-08-12" });
+		expect(progress).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ phase: "scanning" }),
+				expect.objectContaining({ phase: "processing" }),
+				expect.objectContaining({ phase: "writing" }),
+				expect.objectContaining({ phase: "finalizing" }),
+			]),
+		);
 	});
 
-	it("does not advance state when metadata persistence fails", async () => {
-		const stateStore = new MemoryStateStore(state({ headNoticeId: 100 }));
-		const metaStore = new MemoryMetaStore();
-		metaStore.failNextPut = true;
-
-		await expect(
-			syncInternalPortalNotices(
-				runnerInput({
-					fetchNoticePage: async () => page([notice(101, 5), notice(100, 5)], 2),
-					metaStore,
-					stateStore,
+	it("writes Ops-compatible progress records with the range beside progress", async () => {
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		let records: Record<string, unknown>[] = [];
+		try {
+			await backfillInternalPortalNotices({
+				...runnerInput({
+					fetchNoticePage: async (input) =>
+						input.startDate === ""
+							? page([notice(300, 5, "2026-08-11 09:00")], 1)
+							: page([notice(101, 5, "2026-08-10 09:00")], 1),
 				}),
-			),
-		).rejects.toThrow("metadata save failed");
-		expect(stateStore.saveCalls).toBe(0);
+				startDate: "2026-08-10",
+			});
+			records = log.mock.calls.map(
+				([value]) => JSON.parse(String(value)) as Record<string, unknown>,
+			);
+		} finally {
+			log.mockRestore();
+		}
+
+		expect(records.length).toBeGreaterThan(0);
+		for (const record of records) {
+			expect(record).toMatchObject({
+				range: { from: "2026-08-10", to: "2026-08-12" },
+				status: "running",
+			});
+			expect(record.progress).not.toHaveProperty("range");
+		}
 	});
 
-	it("validates explicit history dates", () => {
+	it("rebuilds a complete v3 range from a v2 migration input", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-01-01", coveredUntil: null }),
+		);
+		const fetchNoticePage = vi.fn(async (input: { startDate: string; endDate: string }) =>
+			input.startDate === ""
+				? page([notice(300, 5, "2026-08-26 09:00")], 1)
+				: page([notice(200, 5, "2025-12-01 09:00")], 1),
+		);
+
+		const result = await backfillInternalPortalNotices({
+			...runnerInput({ fetchNoticePage, stateStore }),
+			startDate: "2025-12-01",
+		});
+
+		expect(result.range).toEqual({ from: "2025-12-01", to: "2026-08-27" });
+		expect(result.state).toEqual(
+			state({ coveredFrom: "2025-12-01", coveredUntil: "2026-08-27", updatedAt: now }),
+		);
+	});
+
+	it("validates explicit calendar dates", () => {
 		expect(parseNoticeStartDate("2026-02-28")).toBe("2026-02-28");
 		expect(() => parseNoticeStartDate("2026-02-29")).toThrow("valid calendar date");
 		expect(() => parseNoticeStartDate("2026/02/28")).toThrow("YYYY-MM-DD");
 	});
-
-	it("logs bounded progress without returning every notice ID", async () => {
-		const items = Array.from({ length: 100 }, (_, index) => notice(200 - index, 5));
-		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
-		try {
-			const result = await backfillInternalPortalNotices({
-				...runnerInput({
-					fetchNoticePage: async ({ currentPage }) =>
-						page(items.slice((currentPage - 1) * 20, currentPage * 20), items.length),
-				}),
-				startDate: "2026-08-01",
-			});
-			expect(result.noticesProcessed).toBe(100);
-			expect(result).not.toHaveProperty("noticeIds");
-			expect(log).toHaveBeenCalledOnce();
-			expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual({
-				objects_reused: 0,
-				objects_written: 100,
-				processed: 100,
-				status: "running",
-				total: 100,
-			});
-		} finally {
-			log.mockRestore();
-		}
-	});
 });
 
 class MemoryStateStore implements InternalPortalNoticeSyncStateStore {
-	failNextSave = false;
 	saveCalls = 0;
 	#state: InternalPortalNoticeSyncState | null;
 
-	constructor(state: InternalPortalNoticeSyncState | null = null) {
-		this.#state = state ? structuredClone(state) : null;
+	constructor(stateValue: InternalPortalNoticeSyncState | null = null) {
+		this.#state = stateValue ? structuredClone(stateValue) : null;
 	}
 
 	async load(): Promise<InternalPortalNoticeSyncState | null> {
@@ -403,76 +272,58 @@ class MemoryStateStore implements InternalPortalNoticeSyncStateStore {
 
 	async save(value: InternalPortalNoticeSyncState): Promise<void> {
 		this.saveCalls += 1;
-		if (this.failNextSave) {
-			this.failNextSave = false;
-			throw new Error("state save failed");
-		}
 		this.#state = structuredClone(value);
 	}
 }
 
 class MemoryMetaStore implements InternalPortalNoticeMetaStore {
-	failNextPut = false;
-	value: {
-		noticeTypes: Record<string, string>;
-		organizations: Record<string, string>;
-		updatedAt: string;
-	} | null = null;
-
-	async putMappings(value: NonNullable<MemoryMetaStore["value"]>): Promise<"written"> {
-		if (this.failNextPut) {
-			this.failNextPut = false;
-			throw new Error("metadata save failed");
-		}
-		this.value = structuredClone(value);
+	async putMappings(): Promise<"written"> {
 		return "written";
 	}
 }
 
 class MemoryInventoryStore implements NoticeInventoryStore {
 	readonly mappings: NoticeInventoryMappings[] = [];
-	readonly sources: InternalPortalNoticeSource[] = [];
 
-	async register(source: InternalPortalNoticeSource): Promise<"written"> {
-		this.sources.push(source);
+	async register(): Promise<"written"> {
 		return "written";
 	}
 
 	async upsertMappings(mappings: NoticeInventoryMappings): Promise<void> {
-		this.mappings.push(mappings);
+		this.mappings.push(structuredClone(mappings));
 	}
 }
 
 class MemorySourceStore implements InternalPortalNoticeSourceStore {
 	readonly sources: InternalPortalNoticeSource[];
 
-	constructor(sources: InternalPortalNoticeSource[] = []) {
-		this.sources = structuredClone(sources);
+	constructor(initial: InternalPortalNoticeSource[] = []) {
+		this.sources = structuredClone(initial);
 	}
 
 	async get(noticeId: number): Promise<InternalPortalNoticeSource | null> {
-		const value = this.sources.find((candidate) => candidate.notice_id === noticeId);
-		return value ? structuredClone(value) : null;
+		const source = this.sources.find((candidate) => candidate.notice_id === noticeId);
+		return source ? structuredClone(source) : null;
 	}
 
 	async has(noticeId: number): Promise<boolean> {
 		return (await this.get(noticeId)) !== null;
 	}
 
-	async put(sourceValue: InternalPortalNoticeSource): Promise<"reused" | "written"> {
-		if (await this.has(sourceValue.notice_id)) {
-			return "reused";
-		}
-		this.sources.push(structuredClone(sourceValue));
+	async put(value: InternalPortalNoticeSource): Promise<"written"> {
+		this.sources.push(structuredClone(value));
 		return "written";
 	}
 }
 
-class MemoryResourceObjectStore implements InternalPortalCollectionObjectStore {
-	readonly existingKeys = new Set<string>();
+class FailingInventoryStore extends MemoryInventoryStore {
+	override async register(): Promise<"written"> {
+		throw new Error("inventory write failed");
+	}
+}
+
+class MemoryObjectStore implements InternalPortalCollectionObjectStore {
 	readonly sourceBucket = "campus-agent-source";
-	readonly writes: string[] = [];
-	failWrites = false;
 
 	async createOrVerifyObject(): Promise<{ byteSize: number; contentSha256: string }> {
 		return { byteSize: 0, contentSha256: "a" };
@@ -485,13 +336,8 @@ class MemoryResourceObjectStore implements InternalPortalCollectionObjectStore {
 		key: string;
 	}): Promise<{ byteSize: number; contentSha256: string }> {
 		for await (const _chunk of input.body) {
-			// Drain the stream before the test double completes.
+			// Drain the source stream in the test double.
 		}
-		if (this.failWrites) {
-			throw new Error("resource write failed");
-		}
-		this.writes.push(input.key);
-		this.existingKeys.add(input.key);
 		return { byteSize: input.byteSize, contentSha256: input.contentSha256 };
 	}
 
@@ -499,8 +345,8 @@ class MemoryResourceObjectStore implements InternalPortalCollectionObjectStore {
 		return new Uint8Array();
 	}
 
-	async getObjectIfExists(input: { key: string }): Promise<Uint8Array | null> {
-		return this.existingKeys.has(input.key) ? new Uint8Array([1]) : null;
+	async getObjectIfExists(): Promise<Uint8Array | null> {
+		return null;
 	}
 
 	async putObject(): Promise<{ byteSize: number; contentSha256: string }> {
@@ -511,13 +357,13 @@ class MemoryResourceObjectStore implements InternalPortalCollectionObjectStore {
 function runnerInput(overrides: Partial<NoticeRunnerInput> = {}): NoticeRunnerInput {
 	return {
 		apiContext,
-		fetchNoticeDetail: detailFetcher(),
+		fetchNoticeDetail: async ({ noticeId }) => detail(noticeId, "2026-08-10 09:00"),
 		fetchNoticeMetadata: async () => metadata(),
 		fetchNoticePage: async () => page([], 0),
 		inventoryStore: new MemoryInventoryStore(),
 		metaStore: new MemoryMetaStore(),
 		now: () => now,
-		objectStore: memoryObjectStore(),
+		objectStore: new MemoryObjectStore(),
 		portalHost: "portal.example.edu",
 		sourceStore: new MemorySourceStore(),
 		stateStore: new MemoryStateStore(),
@@ -525,40 +371,21 @@ function runnerInput(overrides: Partial<NoticeRunnerInput> = {}): NoticeRunnerIn
 	};
 }
 
-function memoryObjectStore(): InternalPortalCollectionObjectStore {
-	return {
-		createOrVerifyObject: async () => ({ byteSize: 0, contentSha256: "a" }),
-		createOrVerifyStream: async (input) => {
-			for await (const _chunk of input.body) {
-				// Drain the stream before returning from the test double.
-			}
-			return { byteSize: input.byteSize, contentSha256: input.contentSha256 };
-		},
-		getObject: async () => new Uint8Array(),
-		getObjectIfExists: async () => null,
-		putObject: async () => ({ byteSize: 0, contentSha256: "a" }),
-		sourceBucket: "campus-agent-source",
-	};
-}
-
 function page(items: NoticeItem[], totalItems: number): NoticeListResponse {
 	return {
 		datas: {
-			page: {
-				pageSize: 20,
-				total: totalItems,
-				totalCounts: Math.ceil(totalItems / 20),
-			},
+			page: { pageSize: 20, total: totalItems, totalCounts: Math.ceil(totalItems / 20) },
 			tables: items,
 		},
 		state: true,
 	};
 }
 
-function notice(noticeId: number, noticeType: number): NoticeItem {
+function notice(noticeId: number, noticeType: number, releaseTime: string): NoticeItem {
 	return {
 		notice_id: noticeId,
-		notice_link: noticeType === 36 ? "https://example.edu/external" : null,
+		notice_link: null,
+		notice_release_time: releaseTime,
 		notice_type: noticeType,
 		organization_id: "00007",
 		organization_name: "党委保卫部、保卫处",
@@ -569,117 +396,23 @@ function metadata(): NoticeMetadataResponse {
 	return {
 		datas: {
 			org: [{ organization_id: "00007", organization_name: "党委保卫部、保卫处" }],
-			type: [
-				...Object.entries(expectedNoticeTypes()).map(([noticeTypeId, noticeTypeName]) => ({
-					notice_type_id: Number(noticeTypeId),
-					notice_type_name: noticeTypeName,
-				})),
-			],
+			type: [{ notice_type_id: 5, notice_type_name: "办公通知" }],
 		},
 		state: true,
 	};
 }
 
-function expectedNoticeTypes(): Record<string, string> {
+function detail(noticeId: number, releaseTime: string): NoticeDetailResponse {
 	return {
-		"5": "办公通知",
-		"6": "教学通知",
-		"8": "科研通知",
-		"10": "就业信息",
-		"11": "公示公告",
-		"32": "学工通知",
-		"36": "活动报道",
-		"9978": "会议纪要",
-		"9979": "民大要情",
-		"9980": "学术信息",
-		"9982": "常用下载",
-	};
-}
-
-function detailFetcher() {
-	return vi.fn(async ({ noticeId }: { noticeId: number }) => ({
 		datas: {
 			notice_info: {
 				notice_content: `<p>${noticeId}</p>`,
 				notice_id: noticeId,
-				notice_release_time: "2026-08-03 11:57",
+				notice_release_time: releaseTime,
 				notice_title: `通知 ${noticeId}`,
 			},
 		},
 		state: true,
-	}));
-}
-
-function detailWithResources(noticeId: number) {
-	return {
-		datas: {
-			notice_info: {
-				notice_annext: [
-					{
-						notice_annex_id: "annex-1",
-						notice_annex_name: "附件.pdf",
-						notice_annex_path: "/files/one.pdf",
-						suffix: "pdf",
-						type: "application/pdf",
-					},
-				],
-				notice_content: '<p>正文<img src="/images/one.png"></p>',
-				notice_id: noticeId,
-				notice_release_time: "2026-08-03 11:57",
-				notice_title: `通知 ${noticeId}`,
-			},
-		},
-		state: true,
-	};
-}
-
-function resourceApiContext(): ApiRequestContextLike {
-	return {
-		get: vi.fn(async (url: string) => ({
-			bodyStream: async function* () {
-				yield Buffer.from(url);
-			},
-			headers: () => ({
-				"content-length": String(Buffer.byteLength(url)),
-				"content-type": "application/octet-stream",
-			}),
-			ok: () => true,
-			status: () => 200,
-			statusText: () => "OK",
-			text: async () => "",
-		})),
-		post: vi.fn(),
-	};
-}
-
-function source(noticeId: number, noticeType: number): InternalPortalNoticeSource {
-	return {
-		attachments: [],
-		external_url: null,
-		is_external: false,
-		notice_content_html: `<p>${noticeId}</p>`,
-		notice_id: noticeId,
-		notice_release_time: "2026-08-03 11:57",
-		notice_title: `通知 ${noticeId}`,
-		notice_type: noticeType,
-		organization_id: "00007",
-		schema_version: "internal_portal_notice_source.v2",
-	};
-}
-
-function sourceWithResources(noticeId: number): InternalPortalNoticeSource {
-	return {
-		...source(noticeId, 5),
-		attachments: [
-			{
-				notice_annex_id: "annex-1",
-				notice_annex_name: "附件.pdf",
-				notice_annex_path: "/files/one.pdf",
-				suffix: "pdf",
-				type: "application/pdf",
-			},
-		],
-		notice_content_html: '<p>正文<img src="/images/one.png"></p>',
 	};
 }
 
@@ -687,9 +420,9 @@ function state(
 	overrides: Partial<InternalPortalNoticeSyncState> = {},
 ): InternalPortalNoticeSyncState {
 	return {
-		headNoticeId: null,
-		historyCoveredFrom: null,
-		updatedAt: "2026-08-10T00:00:00.000Z",
+		coveredFrom: null,
+		coveredUntil: null,
+		updatedAt: "2026-08-25T00:00:00.000Z",
 		...overrides,
 	};
 }

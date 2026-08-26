@@ -4,6 +4,7 @@ import {
 	createNoticeClassifierFromRuntimeConfig,
 	resolveNoticeClassifierRuntimeConfig,
 } from "../src/model.ts";
+import { NoticeClassificationProviderError } from "../src/classifier.ts";
 
 describe("notice classifier provider client", () => {
 	it.each(["responses", "chat_completions"] as const)(
@@ -34,9 +35,7 @@ describe("notice classifier provider client", () => {
 				},
 			);
 
-			expect(
-				await classifier("关于临时关闭校园南门的通知"),
-			).toBe("campus_operations");
+			expect(await classifier("关于临时关闭校园南门的通知")).toBe("campus_operations");
 			expect(requestHeaders?.get("user-agent")).toBeNull();
 			expect(requestHeaders?.get("authorization")).toBe("Bearer secret");
 			const serialized = JSON.stringify(requestBody);
@@ -67,7 +66,9 @@ describe("notice classifier provider client", () => {
 			});
 		});
 		expect(result).toMatchObject({ apiKey: "secret", model: "classifier-model" });
-		expect(calls).toEqual(["https://model-config.example/internal/model-configs/notice_classification"]);
+		expect(calls).toEqual([
+			"https://model-config.example/internal/model-configs/notice_classification",
+		]);
 	});
 
 	it.each(["provider", "api_protocol", "name"] as const)(
@@ -95,10 +96,42 @@ describe("notice classifier provider client", () => {
 
 	it("rejects an invalid Model Config response", async () => {
 		await expect(
-			importedSnapshot(async () =>
-				new Response(JSON.stringify({ schema_version: "wrong" }), { status: 200 }),
+			importedSnapshot(
+				async () => new Response(JSON.stringify({ schema_version: "wrong" }), { status: 200 }),
 			),
 		).rejects.toThrow("Model Config is unavailable");
+	});
+
+	it("keeps the provider HTTP status and response body in the error cause", async () => {
+		const classifier = createNoticeClassifierFromRuntimeConfig(
+			{
+				apiKey: "secret",
+				baseUrl: "https://provider.example/v1",
+				model: "classifier-model",
+				provider: "openai-compatible",
+				schemaVersion: "notice_classifier_runtime_config.v1",
+				transport: "responses",
+			},
+			async () =>
+				new Response("upstream response body", {
+					status: 429,
+					statusText: "Too Many Requests",
+				}),
+		);
+
+		let failure: unknown;
+		try {
+			await classifier("测试通知");
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(NoticeClassificationProviderError);
+		expect((failure as Error).cause).toEqual(
+			expect.objectContaining({
+				message: "model provider returned HTTP 429 Too Many Requests: upstream response body",
+			}),
+		);
 	});
 });
 

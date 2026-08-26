@@ -5,8 +5,18 @@ import {
 	type V1Container,
 	type V1CronJob,
 	type V1Job,
+	type V1Pod,
 } from "@kubernetes/client-node";
-import type { NoticeJob, NoticeJobCreate, NoticeJobOperation } from "../shared/ops-contract.ts";
+import {
+	type NoticeJob,
+	type NoticeJobCreate,
+	type NoticeJobOperation,
+	type NoticeJobProgress,
+	NoticeJobProgressSchema,
+	type NoticeJobRange,
+	NoticeJobRangeSchema,
+	NoticeJobSummarySchema,
+} from "../shared/ops-contract.ts";
 
 const MANAGED_BY_LABEL = "campus-agent.muc.wiki/managed-by";
 const OPERATION_LABEL = "campus-agent.muc.wiki/notice-operation";
@@ -187,43 +197,56 @@ export class KubernetesNoticeJobStore implements NoticeJobStore {
 			? parseNoticeId(job.metadata?.labels?.[NOTICE_ID_LABEL])
 			: null;
 		const status = jobStatus(job);
-		const condition = job.status?.conditions?.find((entry) => entry.status === "True");
+		const failureCondition = job.status?.conditions?.find(
+			(entry) => entry.type === "Failed" && entry.status === "True",
+		);
+		const diagnostics = await this.readDiagnostics(jobName, OPERATIONS[operation].container);
 		return {
 			completedAt: iso(job.status?.completionTime),
 			createdAt,
-			error:
-				status === "failed"
-					? bounded(condition?.message ?? condition?.reason ?? "任务执行失败。")
-					: null,
+			controllerError: status === "failed" ? controllerError(failureCondition) : null,
+			error: status === "failed" ? diagnostics.error : null,
 			jobName,
 			noticeId,
 			operation,
+			progress: diagnostics.progress,
+			range: diagnostics.range,
 			startedAt: iso(job.status?.startTime),
 			status,
-			summary: status === "succeeded" ? await this.readSummary(jobName) : null,
+			summary: diagnostics.summary,
 		};
 	}
 
-	private async readSummary(jobName: string): Promise<NoticeJob["summary"]> {
+	private async readDiagnostics(
+		jobName: string,
+		containerName: string,
+	): Promise<NoticeJobDiagnostics> {
 		const pods = await this.core.listNamespacedPod({
 			labelSelector: `job-name=${jobName}`,
-			limit: 1,
 			namespace: this.namespace,
 		});
-		const pod = pods.items[0];
+		const pod = [...pods.items]
+			.sort((left, right) => podCreationTime(right) - podCreationTime(left))
+			.find((entry) => hasReadableContainerLog(entry, containerName));
 		const podName = pod?.metadata?.name;
-		const container = pod?.spec?.containers[0]?.name;
-		if (!(podName && container)) {
-			return null;
+		if (!podName) {
+			return emptyDiagnostics();
 		}
-		const logs = await this.core.readNamespacedPodLog({
-			container,
-			limitBytes: 32_768,
-			name: podName,
-			namespace: this.namespace,
-			tailLines: 40,
-		});
-		return parseNoticeJobSummary(logs);
+		let logs: string;
+		try {
+			logs = await this.core.readNamespacedPodLog({
+				container: containerName,
+				name: podName,
+				namespace: this.namespace,
+			});
+		} catch (error) {
+			const status = kubernetesStatus(error);
+			if (status === 400 || status === 404) {
+				return emptyDiagnostics();
+			}
+			throw error;
+		}
+		return parseNoticeJobDiagnostics(logs);
 	}
 }
 
@@ -305,34 +328,120 @@ function jobStatus(job: V1Job): NoticeJob["status"] {
 	return job.status?.active || job.status?.startTime ? "running" : "pending";
 }
 
-export function parseNoticeJobSummary(logs: string): NoticeJob["summary"] {
-	for (const line of logs.trim().split("\n").reverse()) {
+export interface NoticeJobDiagnostics {
+	error: string | null;
+	progress: NoticeJobProgress | null;
+	range: NoticeJobRange | null;
+	summary: NoticeJob["summary"];
+}
+
+export function parseNoticeJobDiagnostics(logs: string): NoticeJobDiagnostics {
+	let progress: NoticeJobProgress | null = null;
+	let range: NoticeJobRange | null = null;
+	let summary: NoticeJob["summary"] = null;
+	let explicitError: string | null = null;
+	const rawLines: string[] = [];
+	for (const line of logs.split("\n")) {
+		const trimmed = line.trim();
+		if (!trimmed) {
+			continue;
+		}
+		let parsed: unknown;
 		try {
-			const parsed = JSON.parse(line) as unknown;
-			if (
-				!parsed ||
-				typeof parsed !== "object" ||
-				Array.isArray(parsed) ||
-				!("summary" in parsed)
-			) {
-				continue;
-			}
-			const source = (parsed as { summary?: unknown }).summary;
-			if (!source || typeof source !== "object" || Array.isArray(source)) {
-				continue;
-			}
-			const entries = Object.entries(source).filter(
-				([, value]) =>
-					(typeof value === "number" && Number.isSafeInteger(value) && value >= 0) ||
-					typeof value === "boolean" ||
-					(typeof value === "string" && value.length <= 200),
-			);
-			return entries.length > 0 ? Object.fromEntries(entries.slice(0, 20)) : null;
+			parsed = JSON.parse(trimmed) as unknown;
 		} catch {
-			// Ignore non-JSON progress lines and continue looking for the summary.
+			rawLines.push(line);
+			continue;
+		}
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			rawLines.push(line);
+			continue;
+		}
+		const record = parsed as Record<string, unknown>;
+		const progressValue = NoticeJobProgressSchema.safeParse(record.progress);
+		if (progressValue.success) {
+			progress = progressValue.data;
+		}
+		const rangeValue = NoticeJobRangeSchema.safeParse(record.range);
+		if (rangeValue.success) {
+			range = rangeValue.data;
+		}
+		const summaryValue = parseScalarSummary(record.summary);
+		if (summaryValue) {
+			summary = summaryValue;
+		}
+		if (typeof record.error === "string" && record.error.length > 0) {
+			explicitError = record.error;
+		}
+		const structured = ["error", "progress", "range", "status", "summary"].some((key) =>
+			Object.hasOwn(record, key),
+		);
+		if (!structured) {
+			rawLines.push(line);
 		}
 	}
-	return null;
+	return {
+		error: explicitError ?? (rawLines.length > 0 ? rawLines.join("\n").trim() || null : null),
+		progress,
+		range,
+		summary,
+	};
+}
+
+function parseScalarSummary(value: unknown): NoticeJob["summary"] {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+	const scalarEntries = Object.entries(value).filter(
+		([key, entry]) =>
+			key.length > 0 &&
+			((typeof entry === "number" && Number.isSafeInteger(entry) && entry >= 0) ||
+				typeof entry === "boolean" ||
+				(typeof entry === "string" && entry.length <= 200)),
+	);
+	if (scalarEntries.length === 0) {
+		return null;
+	}
+	const parsed = NoticeJobSummarySchema.safeParse(Object.fromEntries(scalarEntries.slice(0, 20)));
+	return parsed.success ? parsed.data : null;
+}
+
+export function parseNoticeJobSummary(logs: string): NoticeJob["summary"] {
+	return parseNoticeJobDiagnostics(logs).summary;
+}
+
+function emptyDiagnostics(): NoticeJobDiagnostics {
+	return { error: null, progress: null, range: null, summary: null };
+}
+
+function hasReadableContainerLog(pod: V1Pod, containerName: string): boolean {
+	if (!pod.spec?.containers.some((entry) => entry.name === containerName)) {
+		return false;
+	}
+	const state = pod.status?.containerStatuses?.find((entry) => entry.name === containerName)?.state;
+	return Boolean(state?.running || state?.terminated);
+}
+
+function podCreationTime(pod: V1Pod): number {
+	const value = pod.metadata?.creationTimestamp;
+	if (!value) {
+		return 0;
+	}
+	return value instanceof Date ? value.valueOf() : new Date(value).valueOf();
+}
+
+function controllerError(
+	condition: { message?: string; reason?: string } | undefined,
+): string | null {
+	if (!condition) {
+		return null;
+	}
+	const reason = condition.reason?.trim();
+	const message = condition.message?.trim();
+	if (reason && message && reason !== message) {
+		return `${reason}: ${message}`;
+	}
+	return reason || message || null;
 }
 
 function iso(value: Date | string | undefined): string | null {
@@ -342,9 +451,6 @@ function iso(value: Date | string | undefined): string | null {
 	return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
-function bounded(value: string): string {
-	return value.slice(0, 500);
-}
 function isActive(status: NoticeJob["status"]): boolean {
 	return status === "pending" || status === "running";
 }

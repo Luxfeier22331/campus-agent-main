@@ -2,7 +2,7 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
-import { formatNoticeJobError } from "ingestion-contracts/job-error";
+import { formatRawError } from "ingestion-contracts/raw-error";
 import { backfillAttachmentLinks } from "./backfill.ts";
 import { migrateNotices } from "./migrate.ts";
 import { internalPortalHost } from "./portal.ts";
@@ -49,12 +49,19 @@ async function main(): Promise<void> {
 			const result = await publishNotices({
 				client,
 				noticeIds: parsed.noticeIds.length ? parsed.noticeIds : undefined,
+				onProgress: (progress) =>
+					console.log(JSON.stringify({ progress, range: null, status: "running" })),
 				objectStore: store,
 				portalHost: internalPortalHost(),
 			});
 			console.log(JSON.stringify({ summary: result }));
-		} finally { store.close(); }
-	} finally { client.release(); await pool.end(); }
+		} finally {
+			store.close();
+		}
+	} finally {
+		client.release();
+		await pool.end();
+	}
 }
 
 function parseBackfillArgs(args: string[]): { dryRun: boolean; noticeIds: number[] } {
@@ -75,9 +82,7 @@ function parseBackfillArgs(args: string[]): { dryRun: boolean; noticeIds: number
 	return { dryRun, noticeIds };
 }
 
-export function parsePublishArgs(
-	args: string[],
-): { noticeIds: number[] } {
+export function parsePublishArgs(args: string[]): { noticeIds: number[] } {
 	const noticeIds: number[] = [];
 	for (let index = 0; index < args.length; index += 1) {
 		const value = args[index + 1];
@@ -86,15 +91,14 @@ export function parsePublishArgs(
 			if (noticeIds.includes(noticeId)) throw new Error(`duplicate notice id: ${noticeId}`);
 			noticeIds.push(noticeId);
 			index += 1;
-		}
-		else throw new Error(`unknown or invalid argument: ${args[index]}`);
+		} else throw new Error(`unknown or invalid argument: ${args[index]}`);
 	}
 	return { noticeIds };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
 	void main().catch((error) => {
-		console.error(formatNoticeJobError(error));
+		console.error(formatRawError(error));
 		process.exitCode = 1;
 	});
 }

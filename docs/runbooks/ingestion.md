@@ -72,20 +72,26 @@ pnpm internal-portal:auth:check
 
 ### 小范围采集
 
-根据目标数据范围明确日期边界，先完成小范围验证，再扩大同一来源范围：
+通知维护状态是日期半开区间 `M=[start,end)`：`start` 包含，`end` 排除。两个采集 Job 各自只负责一侧：
+
+- `notice-sync` 发现门户最新边界 `P`，采集 `[end,P)`，成功后把状态推进到 `[start,P)`；
+- `notice-backfill --start-date S` 采集 `[S,start)`，成功后把状态扩展到 `[S,end)`。
+
+首次初始化必须先从约定起点 `2025-12-01` 回填，再运行 sync。根据目标数据范围明确日期边界，先完成
+小范围验证，再扩大同一来源范围：
 
 ```bash
-NOTICE_START_DATE=YYYY-MM-DD
+NOTICE_START_DATE=2025-12-01
+pnpm internal-portal:collect -- --mode notice-backfill --start-date "$NOTICE_START_DATE"
 pnpm internal-portal:collect -- --mode notice-sync
-pnpm internal-portal:collect -- --mode notice-backfill \
-  --start-date "$NOTICE_START_DATE"
 ```
 
-运行前必须把 `YYYY-MM-DD` 替换为本次任务明确选择的日期；仓库不提供跨环境固定默认值。
-首次 sync 只建立全局列表 head；后续 sync 采集新通知，历史内容必须显式 backfill。sync 与 backfill
-不得并发执行。后续 sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查 source bucket 包含
+回填起点必须是本次明确选择的日期；当前首次初始化约定为 `2025-12-01`。没有完整 v3 区间时，sync
+会拒绝运行。适配器把内部排他上界转换为门户闭区间 `end_date` 的前一天，并用详情发布时间再次执行
+`[start,end)` 校验。sync 与 backfill 通过 PostgreSQL advisory lock 串行执行，不能并发运行。后续
+sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查 source bucket 包含
 `internal_portal/meta.json`、通知对象、
-资源对象和 `_state.json`，确认状态中的历史边界已经覆盖 `NOTICE_START_DATE`，并确认对应通知已登记到
+资源对象和 `_state.json`，确认 v3 状态中的 `covered_from/covered_until` 区间符合本次 Job，且对应通知已登记到
 `notices.notices`。来源对象必须通过版本化 schema，内部通知与外链字段必须成对合法；任一 source、
 资源、metadata 或库存登记失败时状态不能推进。附件
 请求按门户附件 ID 和通知 ID 构造，单个图片或附件上限为 100 MiB；外链通知不会触发外部正文或图片
@@ -226,8 +232,9 @@ kubectl -n <namespace> create job \
   --from=cronjob/file-sync <job-name>
 ```
 
-三个模板各自固定一种动作，不接收 `mode`。回填日期只属于本次 Job，不写入长期环境配置。通知与文件
-采集每处理 100 项输出一次计数进度；最终通知摘要只输出数量，不输出完整 ID 列表。
+三个模板各自固定一种动作，不接收 `mode`。回填日期只属于本次 Job，不写入长期环境配置。通知 Job
+在 stdout 输出有效区间和 `scanning/processing/writing/finalizing` 结构化进度；最终通知摘要只输出数量，
+不输出完整 ID 列表。sync 和 backfill 是两个独立 Job，任务中心只显示实际创建的 Job，不自动创建另一条。
 
 通知分类 Job 复用既有数据库 owner Secret、PostgreSQL CA 和 Model Config，不读取对象存储，也不新增
 分类器专用数据库身份或模型 Secret。运行一次性采集 Job 前须在目标环境确认到 Ops Web、source bucket、
@@ -256,7 +263,11 @@ kubectl -n <namespace> create -f -
 ## 排查
 
 文件发布先检查分页响应、逐项错误摘要、门户响应及两个固定 source 对象。通知先查看命令错误、
-通知对象和 `_state.json`，不要手工推进边界来伪装成功。
+Job 的 range/progress、原始应用错误、controllerError、通知对象和 `_state.json`，不要手工推进边界来伪装成功。
+
+Kubernetes 的 `BackoffLimitExceeded` 表示 Job 控制器观察到 Pod 失败次数达到 `backoffLimit`；本项目固定
+`backoffLimit: 0`，所以它不是应用根因。应用根因应从任务的 Pod 原始输出中读取，Ops Web 会把它放在
+`error`，并把 controller reason/message 单独放在 `controllerError`。调试阶段两者均不脱敏、不泛化、不截断。
 
 认证错误按 `portal-auth.md` 替换 TGC。对象摘要或 schema 不一致时保留明确失败，不能改写为部分
 成功。

@@ -8,7 +8,7 @@ import {
 	runCollectionCommand,
 } from "./collection-command.js";
 import { loadInternalPortalEnv } from "./config.js";
-import { formatSafeErrorMessage } from "./safe-error.js";
+import { formatRawError } from "ingestion-contracts/raw-error";
 
 export async function main(
 	argv: string[] = process.argv.slice(2),
@@ -28,7 +28,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
 			process.exitCode = status;
 		})
 		.catch((error) => {
-			console.error(formatSafeErrorMessage(error));
+			console.error(formatRawError(error));
 			process.exitCode = 1;
 		});
 }

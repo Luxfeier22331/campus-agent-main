@@ -39,16 +39,19 @@ describe("internal portal collection api", () => {
 			fetchNoticePage({
 				apiContext,
 				currentPage: 1,
+				endDate: "2026-04-30",
 				startDate: "2026-04-01",
 			}),
-		).rejects.toThrow("Internal portal notice list request failed.");
+		).rejects.toThrow(
+			"Internal portal notice list request failed: HTTP 500 server error: server error",
+		);
 
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.path).toBe("/comsys-portal-notice-web/getNoticeByPage");
 		expect(calls[0]?.form.type).toBe("");
 		expect(calls[0]?.form.currentPage).toBe("1");
 		expect(calls[0]?.form.pageSize).toBe("20");
-		expect(calls[0]?.form.end_date).toBe("");
+		expect(calls[0]?.form.end_date).toBe("2026-04-30");
 	});
 
 	it("reads the complete notice selector mappings", async () => {
@@ -235,7 +238,9 @@ describe("internal portal collection api", () => {
 				currentPage: 1,
 				startDate: "2026-04-01",
 			}),
-		).rejects.toThrow("Internal portal notice list request failed.");
+		).rejects.toThrow(
+			"Internal portal notice list request failed: HTTP 429 Too Many Requests: rate limited",
+		);
 		expect(cancelBody).toHaveBeenCalledOnce();
 	});
 

@@ -35,14 +35,32 @@ export const NoticeJobOperationSchema = z.enum([
 export type NoticeJobOperation = z.infer<typeof NoticeJobOperationSchema>;
 
 const NoticeIdSchema = z.number().int().positive();
-const NoticeStartDateSchema = z
+const NoticeDateSchema = z
 	.string()
 	.regex(/^\d{4}-\d{2}-\d{2}$/u)
-	.refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), "invalid start date");
+	.refine((value) => {
+		const date = new Date(`${value}T00:00:00.000Z`);
+		return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+	}, "invalid date");
+
+export const NoticeJobRangeSchema = z
+	.object({ from: NoticeDateSchema, to: NoticeDateSchema })
+	.strict()
+	.refine((value) => value.from <= value.to, "notice job range must use [from, to)");
+export type NoticeJobRange = z.infer<typeof NoticeJobRangeSchema>;
+
+export const NoticeJobProgressSchema = z
+	.object({
+		phase: z.enum(["scanning", "processing", "writing", "finalizing"]),
+		processed: z.number().int().nonnegative(),
+		total: z.number().int().nonnegative().nullable(),
+	})
+	.strict();
+export type NoticeJobProgress = z.infer<typeof NoticeJobProgressSchema>;
 
 export const NoticeJobCreateSchema = z.discriminatedUnion("operation", [
 	z.object({ operation: z.literal("notice-sync") }).strict(),
-	z.object({ operation: z.literal("notice-backfill"), startDate: NoticeStartDateSchema }).strict(),
+	z.object({ operation: z.literal("notice-backfill"), startDate: NoticeDateSchema }).strict(),
 	z.object({ operation: z.literal("notice-classify-missing") }).strict(),
 	z.object({ operation: z.literal("notice-classify-one"), noticeId: NoticeIdSchema }).strict(),
 	z.object({ operation: z.literal("notice-publish-pending") }).strict(),
@@ -59,10 +77,13 @@ export const NoticeJobSchema = z
 	.object({
 		completedAt: IsoDateTimeSchema.nullable(),
 		createdAt: IsoDateTimeSchema,
-		error: z.string().max(500).nullable(),
+		controllerError: z.string().nullable(),
+		error: z.string().nullable(),
 		jobName: z.string().min(1),
 		noticeId: NoticeIdSchema.nullable(),
 		operation: NoticeJobOperationSchema,
+		progress: NoticeJobProgressSchema.nullable(),
+		range: NoticeJobRangeSchema.nullable(),
 		startedAt: IsoDateTimeSchema.nullable(),
 		status: NoticeJobStatusSchema,
 		summary: NoticeJobSummarySchema.nullable(),

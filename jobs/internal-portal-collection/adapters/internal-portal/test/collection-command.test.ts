@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NoticeRunnerResult } from "../src/notice-runner.js";
 
 const mocks = vi.hoisted(() => ({
 	runFileSync: vi.fn(),
-	runNoticeCommand: vi.fn(async () => ({
+	runNoticeCommand: vi.fn(async (): Promise<NoticeRunnerResult> => ({
 		mode: "sync" as const,
 		noticesProcessed: 0,
 		objectsReused: 0,
@@ -14,7 +15,8 @@ const mocks = vi.hoisted(() => ({
 			imagesDownloaded: 0,
 			imagesReused: 0,
 		},
-		state: { headNoticeId: null, historyCoveredFrom: null, updatedAt: "2026-08-23T00:00:00.000Z" },
+		range: null,
+		state: { coveredFrom: null, coveredUntil: null, updatedAt: "2026-08-23T00:00:00.000Z" },
 	})),
 }));
 
@@ -49,12 +51,10 @@ describe("collection command", () => {
 	});
 
 	it("rejects parameters that do not belong to the selected mode", () => {
-		expect(() =>
-			parseCollectionCommand(["--mode", "file-sync", "--concurrency", "2"]),
-		).toThrow("Usage:");
-		expect(() => parseCollectionCommand(["--mode", "notice-backfill"])).toThrow(
+		expect(() => parseCollectionCommand(["--mode", "file-sync", "--concurrency", "2"])).toThrow(
 			"Usage:",
 		);
+		expect(() => parseCollectionCommand(["--mode", "notice-backfill"])).toThrow("Usage:");
 	});
 
 	it("passes the same explicit credential to notice and file collection", async () => {
@@ -85,6 +85,39 @@ describe("collection command", () => {
 		});
 		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 		await expect(runCollectionCommand({ mode: "file-sync" })).resolves.toBe(1);
+		log.mockRestore();
+	});
+
+	it("prints the effective notice maintenance range beside the final summary", async () => {
+		mocks.runNoticeCommand.mockResolvedValueOnce({
+			mode: "backfill",
+			noticesProcessed: 4,
+			objectsReused: 1,
+			objectsWritten: 3,
+			pagesFetched: 2,
+			range: { from: "2025-12-01", to: "2026-08-27" },
+			resources: {
+				attachmentsDownloaded: 2,
+				attachmentsReused: 0,
+				imagesDownloaded: 1,
+				imagesReused: 0,
+			},
+			state: {
+				coveredFrom: "2025-12-01",
+				coveredUntil: "2026-08-27",
+				updatedAt: "2026-08-26T02:30:07.000Z",
+			},
+		});
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+		await expect(
+			runCollectionCommand({ mode: "notice-backfill", startDate: "2025-12-01" }),
+		).resolves.toBe(0);
+
+		expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+			range: { from: "2025-12-01", to: "2026-08-27" },
+			summary: { mode: "backfill", noticesProcessed: 4, pagesFetched: 2 },
+		});
 		log.mockRestore();
 	});
 });

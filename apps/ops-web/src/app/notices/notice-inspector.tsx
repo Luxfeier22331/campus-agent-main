@@ -9,6 +9,7 @@ import type { NoticeJob, NoticeJobCreate, NoticeSummary } from "../../shared/ops
 import { formatTimestamp } from "../format";
 import { ErrorState, InlineError } from "../ops-display";
 import { getNoticeActionState } from "./notice-actions";
+import { NoticeJobDiagnostics } from "./notice-job-diagnostics";
 import type { NoticeJobFamily } from "./notice-status";
 import {
 	NoticeCategoryBadge,
@@ -267,9 +268,7 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 								{noticeJobSummaryLabel(latestJob.summary) ? (
 									<p className="mt-2 text-xs">{noticeJobSummaryLabel(latestJob.summary)}</p>
 								) : null}
-								{latestJob.error ? (
-									<p className="mt-2 text-danger text-xs">{latestJob.error}</p>
-								) : null}
+								<NoticeJobDiagnostics job={latestJob} />
 							</div>
 						) : null}
 						{createJobError ? <InlineError error={createJobError} title="任务启动失败" /> : null}

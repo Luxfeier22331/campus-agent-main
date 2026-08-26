@@ -163,6 +163,64 @@ describe("notice maintenance page", () => {
 		expect(screen.getByRole("list", { name: "最近任务记录" })).toHaveTextContent("发布待发布通知");
 	});
 
+	it("shows the initial backfill date and complete job diagnostics", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({
+						jobs: [
+							job({
+								completedAt: "2026-08-26T02:31:00.000Z",
+								controllerError:
+									"BackoffLimitExceeded: Job has reached the specified backoff limit",
+								error: "Error: portal returned HTTP 500: upstream response body",
+								jobName: "notice-backfill-failed",
+								noticeId: null,
+								operation: "notice-backfill",
+								progress: { phase: "writing", processed: 3, total: 4 },
+								range: { from: "2025-12-01", to: "2026-08-27" },
+								status: "failed",
+							}),
+						],
+					});
+				}
+				if (url.pathname === "/api/ops/notices") {
+					return Response.json({
+						counts: { all: 0, needsClassification: 0, needsPublication: 0, published: 0 },
+						items: [],
+						page: 1,
+						totalItems: 0,
+						totalPages: 0,
+					});
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click(await screen.findByRole("button", { name: "任务中心" }));
+		const taskCenter = await screen.findByRole("dialog", { name: "通知任务中心" });
+		fireEvent.click(within(taskCenter).getAllByText("历史回填")[0] as HTMLElement);
+
+		expect(within(taskCenter).getByLabelText("起始日期")).toHaveValue("2025-12-01");
+		const recentJobs = within(taskCenter).getByRole("list", { name: "最近任务记录" });
+		expect(recentJobs).toHaveTextContent("维护区间 [2025-12-01, 2026-08-27)");
+		expect(recentJobs).toHaveTextContent("阶段：写入");
+		expect(within(recentJobs).getByRole("progressbar", { name: "任务进度" })).toHaveAttribute(
+			"value",
+			"3",
+		);
+		expect(recentJobs).toHaveTextContent("Error: portal returned HTTP 500: upstream response body");
+		expect(recentJobs).toHaveTextContent(
+			"Kubernetes 控制器：BackoffLimitExceeded: Job has reached the specified backoff limit",
+		);
+	});
+
 	it("only locks the operation family whose create request is pending", async () => {
 		let resolveCreate: ((response: Response) => void) | undefined;
 		vi.stubGlobal(
@@ -342,10 +400,13 @@ function job(overrides: Record<string, unknown> = {}) {
 	return {
 		completedAt: null,
 		createdAt: "2026-08-23T10:00:00.000Z",
+		controllerError: null,
 		error: null,
 		jobName: "notice-classify-one-abc12",
 		noticeId: 354516,
 		operation: "notice-classify-one",
+		progress: null,
+		range: null,
 		startedAt: null,
 		status: "pending",
 		summary: null,

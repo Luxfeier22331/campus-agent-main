@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
+import { formatRawError } from "ingestion-contracts/raw-error";
 
 import { runNoticeClassificationJob } from "./job.ts";
 import {
@@ -11,10 +12,7 @@ import {
 } from "./model.ts";
 import { parseNoticeClassifierOptions } from "./options.ts";
 
-export const LOCAL_NOTICE_CLASSIFIER_ENV_PATH = path.resolve(
-	import.meta.dirname,
-	"../.env.local",
-);
+export const LOCAL_NOTICE_CLASSIFIER_ENV_PATH = path.resolve(import.meta.dirname, "../.env.local");
 export const LOCAL_NOTICE_CLASSIFIER_MODEL_CONFIG_URL = "http://127.0.0.1:18003";
 
 export function loadLocalNoticeClassifierEnvironment(
@@ -50,6 +48,8 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 			},
 			database,
 			...(options.noticeIds ? { noticeIds: options.noticeIds } : {}),
+			onProgress: (progress) =>
+				console.log(JSON.stringify({ progress, range: null, status: "running" })),
 		});
 		process.stdout.write(`${JSON.stringify(result)}\n`);
 	} finally {
@@ -59,7 +59,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
 	main().catch((error) => {
-		console.error(error instanceof Error ? error.message : String(error));
+		console.error(formatRawError(error));
 		process.exitCode = 1;
 	});
 }

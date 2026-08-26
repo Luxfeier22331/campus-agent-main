@@ -9,7 +9,10 @@ import internalPortalMetaSchema from "../schemas/internal-portal-meta.v1.schema.
 import internalPortalNoticeSourceSchema from "../schemas/internal-portal-notice-source.v2.schema.json" with {
 	type: "json",
 };
-import internalPortalNoticeSyncStateSchema from "../schemas/internal-portal-notice-sync-state.v2.schema.json" with {
+import internalPortalNoticeSyncStateV2Schema from "../schemas/internal-portal-notice-sync-state.v2.schema.json" with {
+	type: "json",
+};
+import internalPortalNoticeSyncStateV3Schema from "../schemas/internal-portal-notice-sync-state.v3.schema.json" with {
 	type: "json",
 };
 
@@ -37,7 +40,15 @@ interface InternalPortalNoticeSourceBase {
 export type InternalPortalNoticeSource = InternalPortalNoticeSourceBase &
 	({ is_external: false; external_url: null } | { is_external: true; external_url: string });
 
-export interface InternalPortalNoticeSyncState {
+interface InternalPortalNoticeSyncStateBase {
+	schema_version: "internal_portal_notice_sync_state.v3";
+	updated_at: string;
+}
+
+export type InternalPortalNoticeSyncState = InternalPortalNoticeSyncStateBase &
+	({ covered_from: null; covered_until: null } | { covered_from: string; covered_until: string });
+
+export interface LegacyInternalPortalNoticeSyncState {
 	schema_version: "internal_portal_notice_sync_state.v2";
 	head_notice_id: number | null;
 	history_covered_from: string | null;
@@ -84,8 +95,11 @@ const internalPortalFileReleaseSourceValidator = ajv.compile(
 const internalPortalNoticeSourceValidator = ajv.compile(
 	internalPortalNoticeSourceSchema,
 ) as ValidateFunction<InternalPortalNoticeSource>;
-const internalPortalNoticeSyncStateValidator = ajv.compile(
-	internalPortalNoticeSyncStateSchema,
+const internalPortalNoticeSyncStateV2Validator = ajv.compile(
+	internalPortalNoticeSyncStateV2Schema,
+) as ValidateFunction<LegacyInternalPortalNoticeSyncState>;
+const internalPortalNoticeSyncStateV3Validator = ajv.compile(
+	internalPortalNoticeSyncStateV3Schema,
 ) as ValidateFunction<InternalPortalNoticeSyncState>;
 const internalPortalMetaValidator = ajv.compile(
 	internalPortalMetaSchema,
@@ -96,7 +110,23 @@ export function validateInternalPortalNoticeSource(value: unknown): ValidationRe
 }
 
 export function validateInternalPortalNoticeSyncState(value: unknown): ValidationResult {
-	return validateWith(internalPortalNoticeSyncStateValidator, value);
+	const validation = validateWith(internalPortalNoticeSyncStateV3Validator, value);
+	if (!validation.ok) {
+		return validation;
+	}
+	const state = value as InternalPortalNoticeSyncState;
+	if (
+		state.covered_from !== null &&
+		state.covered_until !== null &&
+		state.covered_from > state.covered_until
+	) {
+		return { ok: false, errors: ["covered_until must be on or after covered_from"] };
+	}
+	return validation;
+}
+
+export function validateLegacyInternalPortalNoticeSyncState(value: unknown): ValidationResult {
+	return validateWith(internalPortalNoticeSyncStateV2Validator, value);
 }
 
 export function validateInternalPortalMeta(value: unknown): ValidationResult {

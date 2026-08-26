@@ -1,3 +1,4 @@
+import { parsePortalReleaseTime } from "@campus-agent/notices";
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
@@ -21,6 +22,19 @@ import type {
 } from "./types.js";
 
 const NOTICE_PAGE_SIZE = 20;
+const PORTAL_TIME_ZONE_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+export interface NoticeMaintenanceRange {
+	from: string;
+	to: string;
+}
+
+export interface NoticeRunnerProgress {
+	phase: "scanning" | "processing" | "writing" | "finalizing";
+	processed: number;
+	range: NoticeMaintenanceRange;
+	total: number | null;
+}
 
 export interface NoticeRunnerInput {
 	apiContext: ApiRequestContextLike;
@@ -34,11 +48,13 @@ export interface NoticeRunnerInput {
 	fetchNoticePage: (input: {
 		apiContext: ApiRequestContextLike;
 		currentPage: number;
+		endDate: string;
 		startDate: string;
 	}) => Promise<NoticeListResponse>;
 	metaStore: InternalPortalNoticeMetaStore;
 	inventoryStore: NoticeInventoryStore;
 	now?: () => string;
+	onProgress?: (progress: NoticeRunnerProgress) => void;
 	objectStore: InternalPortalCollectionObjectStore;
 	portalHost: string;
 	sourceStore: InternalPortalNoticeSourceStore;
@@ -58,6 +74,7 @@ export interface NoticeRunnerResult {
 	objectsReused: number;
 	objectsWritten: number;
 	pagesFetched: number;
+	range: NoticeMaintenanceRange | null;
 	resources: NoticeRunnerResourceCounts;
 	state: InternalPortalNoticeSyncState;
 }
@@ -75,7 +92,6 @@ interface NoticeMappings {
 
 interface NoticeScan {
 	candidates: NoticeCandidate[];
-	firstObservedId: number | null;
 	pagesFetched: number;
 }
 
@@ -83,52 +99,32 @@ export async function syncInternalPortalNotices(
 	input: NoticeRunnerInput,
 ): Promise<NoticeRunnerResult> {
 	const current = await input.stateStore.load();
+	if (!hasCompleteRange(current)) {
+		throw new Error(
+			"notice sync requires a complete maintenance range; run notice-backfill --start-date YYYY-MM-DD first",
+		);
+	}
+	const latestEnd = await discoverPortalLatestEnd(input);
+	if (latestEnd <= current.coveredUntil) {
+		return result("sync", current, null, 1);
+	}
+	const range = noticeRange(current.coveredUntil, latestEnd);
 	const mappings = await fetchMappings(input);
 	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
-	if (!current) {
-		const page = await fetchPage(input, 1, "");
-		parseTotalPages(page);
-		const items = parseNoticeItems(page.datas?.tables ?? [], allowedTypes);
-		const updatedAt = now(input);
-		const completeMappings = withObservedOrganizations(mappings, items.candidates);
-		await input.inventoryStore.upsertMappings(completeMappings);
-		await saveMappings(input, completeMappings, updatedAt);
-		const state = await saveState(input, stateWith(null, items.firstObservedId), updatedAt);
-		return result("sync", state, 1);
-	}
-	if (current.headNoticeId === null) {
-		const scan = await scanBackfillNotices(input, "", allowedTypes);
-		const completeMappings = withObservedOrganizations(mappings, scan.candidates);
-		await input.inventoryStore.upsertMappings(completeMappings);
-		const counts = await writeCandidates(input, scan.candidates);
-		const updatedAt = now(input);
-		await saveMappings(input, completeMappings, updatedAt);
-		if (scan.firstObservedId === null) {
-			return result("sync", current, scan.pagesFetched, counts);
-		}
-		const state = await saveState(
-			input,
-			{ ...current, headNoticeId: scan.firstObservedId },
-			updatedAt,
-		);
-		return result("sync", state, scan.pagesFetched, counts);
-	}
-
-	const scan = await scanIncrementalNotices(input, current.headNoticeId, allowedTypes);
+	const scan = await scanNotices(input, range, allowedTypes);
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
-	const counts = await writeCandidates(input, scan.candidates);
+	const counts = await writeCandidates(input, scan.candidates, range);
 	const updatedAt = now(input);
+	emitProgress(input, {
+		phase: "finalizing",
+		processed: counts.noticesProcessed,
+		range,
+		total: counts.noticesProcessed,
+	});
 	await saveMappings(input, completeMappings, updatedAt);
-	if (scan.firstObservedId === null || scan.firstObservedId === current.headNoticeId) {
-		return result("sync", current, scan.pagesFetched, counts);
-	}
-	const state = await saveState(
-		input,
-		{ ...current, headNoticeId: scan.firstObservedId },
-		updatedAt,
-	);
-	return result("sync", state, scan.pagesFetched, counts);
+	const state = await saveState(input, { ...current, coveredUntil: range.to }, updatedAt);
+	return result("sync", state, range, scan.pagesFetched + 1, counts);
 }
 
 export async function backfillInternalPortalNotices(
@@ -137,42 +133,45 @@ export async function backfillInternalPortalNotices(
 	const startDate = parseNoticeStartDate(input.startDate);
 	const current = await input.stateStore.load();
 	if (current && isNoticeHistoryCovered(current, startDate)) {
-		return result("backfill", current, 0);
+		return result("backfill", current, null, 0);
 	}
+	const completeCurrent = hasCompleteRange(current) ? current : null;
+	const range = noticeRange(
+		startDate,
+		completeCurrent?.coveredFrom ?? (await discoverPortalLatestEnd(input)),
+	);
 
 	const mappings = await fetchMappings(input);
 	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
-	const scan = await scanBackfillNotices(input, startDate, allowedTypes);
-	let pagesFetched = scan.pagesFetched;
-	let headNoticeId = current?.headNoticeId ?? scan.firstObservedId;
-	if (!current && headNoticeId === null) {
-		const baselinePage = await fetchPage(input, 1, "");
-		parseTotalPages(baselinePage);
-		headNoticeId = parseNoticeItems(baselinePage.datas?.tables ?? [], allowedTypes).firstObservedId;
-		pagesFetched += 1;
-	}
+	const scan = await scanNotices(input, range, allowedTypes);
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
-	const counts = await writeCandidates(input, scan.candidates);
+	const counts = await writeCandidates(input, scan.candidates, range);
 	const updatedAt = now(input);
+	emitProgress(input, {
+		phase: "finalizing",
+		processed: counts.noticesProcessed,
+		range,
+		total: counts.noticesProcessed,
+	});
 	await saveMappings(input, completeMappings, updatedAt);
-	let updated: InternalPortalNoticeSyncState = {
-		...stateWith(current, headNoticeId),
-		historyCoveredFrom: earlierDate(current?.historyCoveredFrom ?? null, startDate),
-	};
-	if (!(current && sameState(current, updated))) {
-		updated = await saveState(input, updated, updatedAt);
-	}
-	return result("backfill", updated, pagesFetched, counts);
+	const updated = await saveState(
+		input,
+		{
+			coveredFrom: range.from,
+			coveredUntil: completeCurrent?.coveredUntil ?? range.to,
+			updatedAt: current?.updatedAt ?? "",
+		},
+		updatedAt,
+	);
+	return result("backfill", updated, range, scan.pagesFetched + (completeCurrent ? 0 : 1), counts);
 }
 
 export function isNoticeHistoryCovered(
 	state: InternalPortalNoticeSyncState | null,
 	startDate: string,
 ): boolean {
-	return state?.historyCoveredFrom !== null && state?.historyCoveredFrom !== undefined
-		? state.historyCoveredFrom <= startDate
-		: false;
+	return hasCompleteRange(state) && state.coveredFrom <= startDate;
 }
 
 export function parseNoticeStartDate(value: string): string {
@@ -186,98 +185,43 @@ export function parseNoticeStartDate(value: string): string {
 	return value;
 }
 
-async function scanIncrementalNotices(
+async function scanNotices(
 	input: NoticeRunnerInput,
-	currentHeadId: number,
+	range: NoticeMaintenanceRange,
 	allowedTypes: Set<number>,
 ): Promise<NoticeScan> {
 	const candidates: NoticeCandidate[] = [];
-	let foundHead = false;
-	let firstObservedId: number | null = null;
 	let pagesFetched = 0;
+	let scanned = 0;
 	const seenIds = new Set<number>();
 	let totalPages: number | null = null;
+	let totalItems: number | null = null;
+	if (range.from === range.to) {
+		emitProgress(input, { phase: "scanning", processed: 0, range, total: 0 });
+		return { candidates, pagesFetched };
+	}
 
 	for (let currentPage = 1; totalPages === null || currentPage <= totalPages; currentPage += 1) {
-		const page = await fetchPage(input, currentPage, "");
+		const page = await fetchPage(input, currentPage, range.from, previousDate(range.to));
 		pagesFetched += 1;
-		totalPages ??= parseTotalPages(page);
+		const pagination = parsePagination(page);
+		totalPages ??= pagination.totalPages;
+		totalItems ??= pagination.totalItems;
 		for (const item of page.datas?.tables ?? []) {
 			const candidate = parseNoticeItem(item);
 			if (seenIds.has(candidate.noticeId)) {
 				continue;
 			}
 			seenIds.add(candidate.noticeId);
-			firstObservedId ??= candidate.noticeId;
-			if (candidate.noticeId === currentHeadId) {
-				foundHead = true;
-				break;
-			}
+			scanned += 1;
 			if (allowedTypes.has(candidate.noticeType)) {
 				candidates.push(candidate);
 			}
 		}
-		if (foundHead) {
-			break;
-		}
+		emitProgress(input, { phase: "scanning", processed: scanned, range, total: totalItems });
 	}
 
-	if (!foundHead) {
-		throw new Error(`internal portal notice list did not return head ${currentHeadId}`);
-	}
-	return { candidates, firstObservedId, pagesFetched };
-}
-
-async function scanBackfillNotices(
-	input: NoticeRunnerInput,
-	startDate: string,
-	allowedTypes: Set<number>,
-): Promise<NoticeScan> {
-	const candidates: NoticeCandidate[] = [];
-	let firstObservedId: number | null = null;
-	let pagesFetched = 0;
-	const seenIds = new Set<number>();
-	let totalPages: number | null = null;
-
-	for (let currentPage = 1; totalPages === null || currentPage <= totalPages; currentPage += 1) {
-		const page = await fetchPage(input, currentPage, startDate);
-		pagesFetched += 1;
-		totalPages ??= parseTotalPages(page);
-		for (const item of page.datas?.tables ?? []) {
-			const candidate = parseNoticeItem(item);
-			if (seenIds.has(candidate.noticeId)) {
-				continue;
-			}
-			seenIds.add(candidate.noticeId);
-			firstObservedId ??= candidate.noticeId;
-			if (allowedTypes.has(candidate.noticeType)) {
-				candidates.push(candidate);
-			}
-		}
-	}
-
-	return { candidates, firstObservedId, pagesFetched };
-}
-
-function parseNoticeItems(
-	items: NoticeItem[],
-	allowedTypes: Set<number>,
-): { candidates: NoticeCandidate[]; firstObservedId: number | null } {
-	const candidates: NoticeCandidate[] = [];
-	const seenIds = new Set<number>();
-	let firstObservedId: number | null = null;
-	for (const item of items) {
-		const candidate = parseNoticeItem(item);
-		if (seenIds.has(candidate.noticeId)) {
-			continue;
-		}
-		seenIds.add(candidate.noticeId);
-		firstObservedId ??= candidate.noticeId;
-		if (allowedTypes.has(candidate.noticeType)) {
-			candidates.push(candidate);
-		}
-	}
-	return { candidates, firstObservedId };
+	return { candidates, pagesFetched };
 }
 
 function parseNoticeItem(item: NoticeItem): NoticeCandidate {
@@ -292,8 +236,36 @@ async function fetchPage(
 	input: NoticeRunnerInput,
 	currentPage: number,
 	startDate: string,
+	endDate: string,
 ): Promise<NoticeListResponse> {
-	return await input.fetchNoticePage({ apiContext: input.apiContext, currentPage, startDate });
+	return await input.fetchNoticePage({
+		apiContext: input.apiContext,
+		currentPage,
+		endDate,
+		startDate,
+	});
+}
+
+async function discoverPortalLatestEnd(input: NoticeRunnerInput): Promise<string> {
+	const page = await fetchPage(input, 1, "", "");
+	parsePagination(page);
+	const firstItem = page.datas?.tables?.[0];
+	if (!firstItem) {
+		return nextDate(portalDateFromInstant(now(input)));
+	}
+	const listReleaseTime = normalizeOptionalText(firstItem.notice_release_time);
+	if (listReleaseTime) {
+		return nextDate(portalReleaseDate(listReleaseTime, "latest portal notice"));
+	}
+	const noticeId = parsePositiveInteger(firstItem.notice_id, "notice_id");
+	const detail = await input.fetchNoticeDetail({ apiContext: input.apiContext, noticeId });
+	const detailInfo = detail.datas?.notice_info;
+	if (!detailInfo) {
+		throw new Error(`notice ${noticeId} detail is missing notice_info`);
+	}
+	return nextDate(
+		portalReleaseDate(detailInfo.notice_release_time, `latest portal notice ${noticeId}`),
+	);
 }
 
 async function fetchMappings(input: NoticeRunnerInput): Promise<NoticeMappings> {
@@ -346,6 +318,7 @@ function withObservedOrganizations(
 async function writeCandidates(
 	input: NoticeRunnerInput,
 	candidates: NoticeCandidate[],
+	range: NoticeMaintenanceRange,
 ): Promise<{
 	noticesProcessed: number;
 	objectsReused: number;
@@ -355,13 +328,14 @@ async function writeCandidates(
 	let objectsReused = 0;
 	let objectsWritten = 0;
 	let noticesProcessed = 0;
+	let candidatesProcessed = 0;
 	const resources = emptyResourceCounts();
+	emitProgress(input, { phase: "processing", processed: 0, range, total: candidates.length });
 	for (const candidate of candidates) {
 		const existing = await input.sourceStore.get(candidate.noticeId);
 		let source: InternalPortalNoticeSource;
 		if (existing) {
 			source = existing;
-			objectsReused += 1;
 		} else {
 			const detail = await input.fetchNoticeDetail({
 				apiContext: input.apiContext,
@@ -377,6 +351,20 @@ async function writeCandidates(
 				noticeId: candidate.noticeId,
 				noticeType: candidate.noticeType,
 			});
+		}
+		candidatesProcessed += 1;
+		emitProgress(input, {
+			phase: "processing",
+			processed: candidatesProcessed,
+			range,
+			total: candidates.length,
+		});
+		if (!isSourceInRange(source, range)) {
+			continue;
+		}
+		if (existing) {
+			objectsReused += 1;
+		} else {
 			const outcome = await input.sourceStore.put(source);
 			if (outcome === "reused") {
 				objectsReused += 1;
@@ -384,6 +372,12 @@ async function writeCandidates(
 				objectsWritten += 1;
 			}
 		}
+		emitProgress(input, {
+			phase: "writing",
+			processed: noticesProcessed,
+			range,
+			total: candidates.length,
+		});
 		const resourceResult = await ensureNoticeResources({
 			apiContext: input.apiContext,
 			dryRun: false,
@@ -394,15 +388,12 @@ async function writeCandidates(
 		await input.inventoryStore.register(source);
 		noticesProcessed += 1;
 		addResourceCounts(resources, resourceResult);
-		if (noticesProcessed % 100 === 0) {
-			console.log(JSON.stringify({
-				objects_reused: objectsReused,
-				objects_written: objectsWritten,
-				processed: noticesProcessed,
-				status: "running",
-				total: candidates.length,
-			}));
-		}
+		emitProgress(input, {
+			phase: "writing",
+			processed: noticesProcessed,
+			range,
+			total: candidates.length,
+		});
 	}
 	return { noticesProcessed, objectsReused, objectsWritten, resources };
 }
@@ -425,17 +416,6 @@ async function saveState(
 	return updated;
 }
 
-function stateWith(
-	current: InternalPortalNoticeSyncState | null,
-	headNoticeId: number | null,
-): InternalPortalNoticeSyncState {
-	return {
-		headNoticeId,
-		historyCoveredFrom: current?.historyCoveredFrom ?? null,
-		updatedAt: current?.updatedAt ?? "",
-	};
-}
-
 function parsePositiveInteger(value: number | string | null | undefined, field: string): number {
 	const normalized =
 		typeof value === "number"
@@ -449,7 +429,10 @@ function parsePositiveInteger(value: number | string | null | undefined, field: 
 	return normalized;
 }
 
-function parseTotalPages(response: NoticeListResponse): number {
+function parsePagination(response: NoticeListResponse): {
+	totalItems: number;
+	totalPages: number;
+} {
 	const page = response.datas?.page;
 	const totalItems = parseNonNegativeInteger(page?.total);
 	const totalPages = parseNonNegativeInteger(page?.totalCounts);
@@ -461,7 +444,7 @@ function parseTotalPages(response: NoticeListResponse): number {
 	) {
 		throw new Error("internal portal notice list returned invalid pagination metadata");
 	}
-	return totalPages;
+	return { totalItems, totalPages };
 }
 
 function parseNonNegativeInteger(value: number | string | undefined): number {
@@ -490,19 +473,6 @@ function normalizeOptionalText(value: string | null | undefined): string | null 
 	return normalized || null;
 }
 
-function earlierDate(current: string | null, next: string): string {
-	return current === null || next < current ? next : current;
-}
-
-function sameState(
-	left: InternalPortalNoticeSyncState,
-	right: InternalPortalNoticeSyncState,
-): boolean {
-	return (
-		left.historyCoveredFrom === right.historyCoveredFrom && left.headNoticeId === right.headNoticeId
-	);
-}
-
 function now(input: NoticeRunnerInput): string {
 	return (input.now ?? (() => new Date().toISOString()))();
 }
@@ -510,6 +480,7 @@ function now(input: NoticeRunnerInput): string {
 function result(
 	mode: NoticeRunnerResult["mode"],
 	state: InternalPortalNoticeSyncState,
+	range: NoticeMaintenanceRange | null,
 	pagesFetched: number,
 	counts: Pick<
 		NoticeRunnerResult,
@@ -521,7 +492,77 @@ function result(
 		resources: emptyResourceCounts(),
 	},
 ): NoticeRunnerResult {
-	return { mode, pagesFetched, state, ...counts };
+	return { mode, pagesFetched, range, state, ...counts };
+}
+
+function hasCompleteRange(
+	state: InternalPortalNoticeSyncState | null,
+): state is InternalPortalNoticeSyncState & { coveredFrom: string; coveredUntil: string } {
+	if (!(state?.coveredFrom && state.coveredUntil)) {
+		return false;
+	}
+	if (state.coveredFrom > state.coveredUntil) {
+		throw new Error("internal portal notice sync state has an invalid maintenance range");
+	}
+	return true;
+}
+
+function noticeRange(from: string, to: string): NoticeMaintenanceRange {
+	parseNoticeStartDate(from);
+	parseNoticeStartDate(to);
+	if (from > to) {
+		throw new Error(`notice maintenance range is invalid: [${from}, ${to})`);
+	}
+	return { from, to };
+}
+
+function portalReleaseDate(value: string | null | undefined, key: string): string {
+	const normalized = normalizeOptionalText(value);
+	parsePortalReleaseTime(normalized, key);
+	return normalized?.slice(0, 10) ?? "";
+}
+
+function isSourceInRange(
+	source: InternalPortalNoticeSource,
+	range: NoticeMaintenanceRange,
+): boolean {
+	const releasedOn = portalReleaseDate(
+		source.notice_release_time,
+		`internal_portal/notices/${source.notice_id}.json`,
+	);
+	return releasedOn >= range.from && releasedOn < range.to;
+}
+
+function portalDateFromInstant(value: string): string {
+	const instant = new Date(value);
+	if (Number.isNaN(instant.valueOf())) {
+		throw new Error("notice runner now() returned an invalid date-time");
+	}
+	return new Date(instant.getTime() + PORTAL_TIME_ZONE_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function nextDate(value: string): string {
+	return shiftDate(value, 1);
+}
+
+function previousDate(value: string): string {
+	return shiftDate(value, -1);
+}
+
+function shiftDate(value: string, days: number): string {
+	parseNoticeStartDate(value);
+	const date = new Date(`${value}T00:00:00.000Z`);
+	date.setUTCDate(date.getUTCDate() + days);
+	return date.toISOString().slice(0, 10);
+}
+
+function emitProgress(input: NoticeRunnerInput, progress: NoticeRunnerProgress): void {
+	if (input.onProgress) {
+		input.onProgress(progress);
+		return;
+	}
+	const { range, ...jobProgress } = progress;
+	console.log(JSON.stringify({ progress: jobProgress, range, status: "running" }));
 }
 
 function emptyResourceCounts(): NoticeRunnerResourceCounts {

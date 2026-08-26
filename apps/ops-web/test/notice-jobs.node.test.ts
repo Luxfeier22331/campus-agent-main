@@ -6,6 +6,7 @@ import {
 	createNoticeJobService,
 	KubernetesNoticeJobStore,
 	NoticeJobConflictError,
+	parseNoticeJobDiagnostics,
 	parseNoticeJobSummary,
 } from "../src/server/notice-jobs";
 import type { NoticeJob } from "../src/shared/ops-contract";
@@ -24,14 +25,7 @@ describe("notice Kubernetes jobs", () => {
 			readNamespacedCronJob: vi.fn(async () => collectionTemplate()),
 			readNamespacedJob: vi.fn(),
 		};
-		const store = new KubernetesNoticeJobStore(
-			"campus-agent",
-			batch as never,
-			{
-				listNamespacedPod: vi.fn(),
-				readNamespacedPodLog: vi.fn(),
-			} as never,
-		);
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, emptyCore());
 
 		const result = await store.create({
 			operation: "notice-backfill",
@@ -85,7 +79,7 @@ describe("notice Kubernetes jobs", () => {
 			readNamespacedCronJob: vi.fn(async () => template),
 			readNamespacedJob: vi.fn(),
 		};
-		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, {} as never);
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, emptyCore());
 
 		await expect(
 			store.create({ operation: "notice-backfill", startDate: "2026-08-01" }),
@@ -107,7 +101,7 @@ describe("notice Kubernetes jobs", () => {
 			readNamespacedCronJob: vi.fn(async ({ name }: { name: string }) => jobTemplate(name)),
 			readNamespacedJob: vi.fn(),
 		};
-		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, {} as never);
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, emptyCore());
 
 		const classified = await store.create({
 			noticeId: 354516,
@@ -158,7 +152,7 @@ describe("notice Kubernetes jobs", () => {
 				}),
 			),
 		};
-		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, {} as never);
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, emptyCore());
 
 		await expect(store.list()).resolves.toEqual([
 			expect.objectContaining({ jobName: "notice-publish-one-owned", noticeId: 354516 }),
@@ -216,6 +210,163 @@ describe("notice Kubernetes jobs", () => {
 		).toEqual({ classified: 4, skipped: 8 });
 		expect(parseNoticeJobSummary("unstructured output")).toBeNull();
 		expect(parseNoticeJobSummary(JSON.stringify({ processed: 4, status: "running" }))).toBeNull();
+	});
+
+	it("does not report a structured summary without scalar fields as an application error", () => {
+		expect(
+			parseNoticeJobDiagnostics(
+				JSON.stringify({ summary: { failures: [{ noticeId: 1, reason: "failed" }] } }),
+			),
+		).toEqual({ error: null, progress: null, range: null, summary: null });
+	});
+
+	it("reads failed pod output and separates application and controller errors", async () => {
+		const batch = {
+			createNamespacedJob: vi.fn(),
+			listNamespacedJob: vi.fn(),
+			readNamespacedCronJob: vi.fn(),
+			readNamespacedJob: vi.fn(async () => ({
+				metadata: {
+					creationTimestamp: createdAt,
+					labels: {
+						"campus-agent.muc.wiki/managed-by": "ops-web",
+						"campus-agent.muc.wiki/notice-operation": "notice-classify-missing",
+					},
+					name: "notice-classify-missing-failed",
+				},
+				status: {
+					conditions: [
+						{
+							message: "Job has reached the specified backoff limit",
+							reason: "BackoffLimitExceeded",
+							status: "True",
+							type: "Failed",
+						},
+					],
+				},
+			})),
+		};
+		const core = {
+			listNamespacedPod: vi.fn(async () => ({
+				items: [
+					{
+						metadata: {
+							creationTimestamp: new Date("2026-08-26T02:30:00.000Z"),
+							name: "failed-pod-old",
+						},
+						spec: { containers: [{ name: "classifier" }] },
+						status: {
+							containerStatuses: [{ name: "classifier", state: { terminated: { exitCode: 1 } } }],
+						},
+					},
+					{
+						metadata: {
+							creationTimestamp: new Date("2026-08-26T02:31:00.000Z"),
+							name: "failed-pod-latest",
+						},
+						spec: { containers: [{ name: "classifier" }] },
+						status: {
+							containerStatuses: [{ name: "classifier", state: { terminated: { exitCode: 1 } } }],
+						},
+					},
+				],
+			})),
+			readNamespacedPodLog: vi.fn(async ({ name }: { name: string }) =>
+				[
+					JSON.stringify({
+						progress: { phase: "processing", processed: 1, total: 4 },
+						range: null,
+						status: "running",
+					}),
+					`Error: ${name} model provider returned HTTP 502: upstream response body`,
+					"    at requestClassification (model.ts:1:1)",
+				].join("\n"),
+			),
+		};
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, core as never);
+
+		await expect(store.get("notice-classify-missing-failed")).resolves.toMatchObject({
+			controllerError: "BackoffLimitExceeded: Job has reached the specified backoff limit",
+			error: expect.stringContaining(
+				"failed-pod-latest model provider returned HTTP 502: upstream response body",
+			),
+			progress: { phase: "processing", processed: 1, total: 4 },
+		});
+		expect(core.readNamespacedPodLog).toHaveBeenCalledWith(
+			expect.objectContaining({ name: "failed-pod-latest" }),
+		);
+	});
+
+	it("keeps a running job readable while its container is still waiting", async () => {
+		const batch = {
+			createNamespacedJob: vi.fn(),
+			listNamespacedJob: vi.fn(),
+			readNamespacedCronJob: vi.fn(),
+			readNamespacedJob: vi.fn(async () => ({
+				metadata: {
+					creationTimestamp: createdAt,
+					labels: {
+						"campus-agent.muc.wiki/managed-by": "ops-web",
+						"campus-agent.muc.wiki/notice-operation": "notice-classify-missing",
+					},
+					name: "notice-classify-missing-running",
+				},
+				status: { active: 1, startTime: createdAt },
+			})),
+		};
+		const core = {
+			listNamespacedPod: vi.fn(async () => ({
+				items: [
+					{
+						metadata: { creationTimestamp: createdAt, name: "waiting-pod" },
+						spec: { containers: [{ name: "classifier" }] },
+						status: {
+							containerStatuses: [
+								{
+									name: "classifier",
+									state: { waiting: { reason: "ContainerCreating" } },
+								},
+							],
+						},
+					},
+				],
+			})),
+			readNamespacedPodLog: vi.fn(),
+		};
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, core as never);
+
+		await expect(store.get("notice-classify-missing-running")).resolves.toMatchObject({
+			error: null,
+			progress: null,
+			status: "running",
+		});
+		expect(core.readNamespacedPodLog).not.toHaveBeenCalled();
+	});
+
+	it("parses the latest range, progress, summary, and raw output", () => {
+		expect(
+			parseNoticeJobDiagnostics(
+				[
+					JSON.stringify({
+						progress: { phase: "scanning", processed: 2, total: 10 },
+						range: { from: "2026-08-01", to: "2026-08-27" },
+						status: "running",
+					}),
+					JSON.stringify({
+						progress: { phase: "writing", processed: 3, total: 4 },
+						range: { from: "2026-08-01", to: "2026-08-27" },
+						status: "running",
+					}),
+					JSON.stringify({ summary: { noticesProcessed: 4 } }),
+					"raw application line",
+				].join("\n"),
+			),
+		).toEqual({
+			error: "raw application line",
+			progress: { phase: "writing", processed: 3, total: 4 },
+			range: { from: "2026-08-01", to: "2026-08-27" },
+			summary: { noticesProcessed: 4 },
+		});
 	});
 });
 
@@ -281,15 +432,25 @@ function job(overrides: Partial<NoticeJob> = {}): NoticeJob {
 	return {
 		completedAt: null,
 		createdAt: createdAt.toISOString(),
+		controllerError: null,
 		error: null,
 		jobName: "notice-sync-test",
 		noticeId: null,
 		operation: "notice-sync",
+		progress: null,
+		range: null,
 		startedAt: null,
 		status: "pending",
 		summary: null,
 		...overrides,
 	};
+}
+
+function emptyCore() {
+	return {
+		listNamespacedPod: vi.fn(async () => ({ items: [] })),
+		readNamespacedPodLog: vi.fn(),
+	} as never;
 }
 
 function managedJob(input: {

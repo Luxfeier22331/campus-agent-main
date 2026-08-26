@@ -44,11 +44,26 @@ internal_portal/meta.json
 internal_portal/notices/_state.json
 ```
 
-`internal_portal_notice_sync_state.v2` 只记录全局 `head_notice_id`、`history_covered_from` 和更新时间。
-`head_notice_id` 可以指向采集范围外的全局列表条目，因此不保证存在同 ID 通知对象。全局列表顺序用于
-识别增量，不能根据通知 ID 数值推断新旧。通知对象、其引用的图片和附件、以及 `meta.json` 全部成功后
-才推进状态；已有合法 source 对象仍会检查并补齐缺失资源。增量同步与历史回填必须串行执行。通知独立、
-随机消费，不创建 `captures/` 批次。
+`internal_portal_notice_sync_state.v3` 记录通知维护的半开日期区间和更新时间：
+
+```text
+[covered_from, covered_until)
+```
+
+`covered_from` 包含，`covered_until` 排除。区间是通知维护范围的唯一边界，不根据通知 ID 数值推断新旧。
+`notice-sync` 发现门户最新边界 `P` 后只采集 `[covered_until, P)`，成功后推进到 `[covered_from, P)`；
+`notice-backfill --start-date S` 只采集 `[S, covered_from)`，成功后推进到
+`[S, covered_until)`。首次初始化必须显式回填（当前约定起点为 `2025-12-01`），不能用一次 sync 只记录
+一个不完整的 head。
+
+门户列表的 `end_date` 是闭区间参数，适配器把内部排他上界转换为前一天；详情中的门户发布时间会再次按
+`[start,end)` 校验，以排除边界泄漏。门户最新边界由未过滤列表第一条通知的发布时间，或其详情发布时间，
+推导为该日期的下一天；空门户使用运行时的门户日期下一天。
+
+通知对象、其引用的图片和附件、以及 `meta.json` 全部成功后才推进状态；已有合法 source 对象仍会检查并
+补齐缺失资源。增量同步与历史回填通过 PostgreSQL advisory lock 串行执行。旧
+`internal_portal_notice_sync_state.v2` 只作为迁移输入读取；它没有可靠的排他上界，下一次 backfill 会重新
+建立完整 v3 区间，sync 在此之前拒绝运行。通知独立、随机消费，不创建 `captures/` 批次。
 
 跨运行时字段和校验规则以 `packages/ingestion-contracts/schemas/` 中登记的 JSON Schema 为可执行来源。
 

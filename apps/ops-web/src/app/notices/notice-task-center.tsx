@@ -13,6 +13,7 @@ import { useState } from "react";
 import type { NoticeJob, NoticeJobCreate } from "../../shared/ops-contract";
 import { formatTimestamp } from "../format";
 import { InlineError } from "../ops-display";
+import { NoticeJobDiagnostics } from "./notice-job-diagnostics";
 import type { NoticeJobFamily } from "./notice-status";
 import {
 	isActiveNoticeJob,
@@ -21,6 +22,8 @@ import {
 	noticeJobSummaryLabel,
 	noticeOperationLabel,
 } from "./notice-status";
+
+const INITIAL_NOTICE_BACKFILL_DATE = "2025-12-01";
 
 export function NoticeTaskCenter({
 	createError,
@@ -41,7 +44,7 @@ export function NoticeTaskCenter({
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 }) {
-	const [startDate, setStartDate] = useState("");
+	const [startDate, setStartDate] = useState(INITIAL_NOTICE_BACKFILL_DATE);
 	const activeJobs = jobs.filter(isActiveNoticeJob);
 	const recentJobs = jobs.filter((job) => !isActiveNoticeJob(job));
 
@@ -100,7 +103,7 @@ export function NoticeTaskCenter({
 												}
 											}}
 										>
-											<Field label="起始日期">
+											<Field description="首次初始化使用 2025-12-01。" label="起始日期">
 												<Input
 													onChange={(event) => setStartDate(event.target.value)}
 													required
@@ -271,7 +274,7 @@ function TaskList({ ariaLabel, jobs }: { ariaLabel: string; jobs: NoticeJob[] })
 							{job.completedAt ? <span>完成于 {formatTimestamp(job.completedAt)}</span> : null}
 						</div>
 						{summary ? <p className="mt-2 text-xs">{summary}</p> : null}
-						{job.error ? <p className="mt-2 text-danger text-xs">{job.error}</p> : null}
+						<NoticeJobDiagnostics job={job} />
 					</li>
 				);
 			})}

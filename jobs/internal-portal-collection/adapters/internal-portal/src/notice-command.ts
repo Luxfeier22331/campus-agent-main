@@ -1,5 +1,6 @@
 import { createInternalPortalCollectionObjectStoreFromEnv } from "../../../src/object-store.js";
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
+import type { PoolClient } from "pg";
 import { fetchNoticeDetail, fetchNoticeMetadata, fetchNoticePage } from "./api.js";
 import { resolveInternalPortalConfig } from "./config.js";
 import { createInternalPortalNoticeMetaStore } from "./notice-meta-store.js";
@@ -12,14 +13,13 @@ import {
 	syncInternalPortalNotices,
 } from "./notice-runner.js";
 import { createInternalPortalNoticeSourceStore } from "./notice-source.js";
-import {
-	createObjectStoreInternalPortalNoticeSyncStateStore,
-} from "./notice-state-store.js";
+import { createObjectStoreInternalPortalNoticeSyncStateStore } from "./notice-state-store.js";
 import { createPortalApiContext } from "./portal.js";
 
-export type NoticeCommand =
-	| { name: "backfill"; startDate: string }
-	| { name: "sync" };
+const NOTICE_MAINTENANCE_LOCK_NAMESPACE = 1_315_928_137;
+const NOTICE_MAINTENANCE_LOCK_ID = 1;
+
+export type NoticeCommand = { name: "backfill"; startDate: string } | { name: "sync" };
 
 export interface NoticeCommandOptions {
 	env?: NodeJS.ProcessEnv;
@@ -34,7 +34,19 @@ export async function runNoticeCommand(
 	const objectStore = createInternalPortalCollectionObjectStoreFromEnv(env);
 	const databasePool = createNoticeDatabasePool(env, { max: 1 });
 	const stateStore = createObjectStoreInternalPortalNoticeSyncStateStore({ objectStore });
+	let databaseClient: PoolClient | null = null;
+	let lockAcquired = false;
+	let operationFailed = false;
 	try {
+		databaseClient = await databasePool.connect();
+		const lock = await databaseClient.query<{ acquired: boolean }>(
+			"SELECT pg_try_advisory_lock($1, $2) AS acquired",
+			[NOTICE_MAINTENANCE_LOCK_NAMESPACE, NOTICE_MAINTENANCE_LOCK_ID],
+		);
+		lockAcquired = lock.rows[0]?.acquired === true;
+		if (!lockAcquired) {
+			throw new Error("another notice maintenance collection is already running");
+		}
 		if (command.name === "backfill") {
 			const state = await stateStore.load();
 			if (state && isNoticeHistoryCovered(state, command.startDate)) {
@@ -44,6 +56,7 @@ export async function runNoticeCommand(
 					objectsReused: 0,
 					objectsWritten: 0,
 					pagesFetched: 0,
+					range: null,
 					resources: {
 						attachmentsDownloaded: 0,
 						attachmentsReused: 0,
@@ -65,27 +78,55 @@ export async function runNoticeCommand(
 				fetchNoticeDetail,
 				fetchNoticeMetadata,
 				fetchNoticePage,
-				inventoryStore: createNoticeInventoryStore(databasePool),
+				inventoryStore: createNoticeInventoryStore(databaseClient),
 				metaStore: createInternalPortalNoticeMetaStore({ objectStore }),
 				objectStore,
 				portalHost: new URL(config.portalBaseUrl).hostname,
 				sourceStore: createInternalPortalNoticeSourceStore({ objectStore }),
 				stateStore,
 			};
-			return await (
-				command.name === "sync"
-					? syncInternalPortalNotices(runnerInput)
-					: backfillInternalPortalNotices({
-							...runnerInput,
-							startDate: command.startDate,
-						})
-			);
+			return await (command.name === "sync"
+				? syncInternalPortalNotices(runnerInput)
+				: backfillInternalPortalNotices({
+						...runnerInput,
+						startDate: command.startDate,
+					}));
 		} finally {
 			await apiContext.dispose();
 		}
+	} catch (error) {
+		operationFailed = true;
+		throw error;
 	} finally {
-		await objectStore.close?.();
-		await databasePool.end();
+		let cleanupError: unknown;
+		let unlockError: unknown;
+		if (lockAcquired && databaseClient) {
+			try {
+				await databaseClient.query("SELECT pg_advisory_unlock($1, $2)", [
+					NOTICE_MAINTENANCE_LOCK_NAMESPACE,
+					NOTICE_MAINTENANCE_LOCK_ID,
+				]);
+			} catch (error) {
+				unlockError = error;
+				cleanupError = error;
+			}
+		}
+		databaseClient?.release(
+			unlockError === undefined ? undefined : unlockError instanceof Error ? unlockError : true,
+		);
+		try {
+			await objectStore.close?.();
+		} catch (error) {
+			cleanupError ??= error;
+		}
+		try {
+			await databasePool.end();
+		} catch (error) {
+			cleanupError ??= error;
+		}
+		if (!operationFailed && cleanupError !== undefined) {
+			throw cleanupError;
+		}
 	}
 }
 
@@ -103,7 +144,9 @@ export function parseNoticeCommand(argv: string[]): NoticeCommand {
 			const startDate = parseNoticeStartDate(args[1] ?? "");
 			return { name, startDate };
 		}
-		throw new Error("notice backfill requires --start-date YYYY-MM-DD and accepts no other arguments");
+		throw new Error(
+			"notice backfill requires --start-date YYYY-MM-DD and accepts no other arguments",
+		);
 	}
 	throw new Error("notice command must be sync or backfill");
 }

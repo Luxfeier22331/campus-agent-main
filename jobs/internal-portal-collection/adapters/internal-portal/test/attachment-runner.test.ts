@@ -39,7 +39,9 @@ describe("file-release attachment downloader", () => {
 				},
 				attachmentUrl: "/files/missing.pdf",
 			}),
-		).rejects.toThrow("Internal portal attachment download request failed.");
+		).rejects.toThrow(
+			"Internal portal attachment download request failed: HTTP 404 Not Found: Not Found",
+		);
 	});
 });
 

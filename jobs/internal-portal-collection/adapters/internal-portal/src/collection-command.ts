@@ -76,23 +76,26 @@ export async function runCollectionCommand(
 			: {
 					name: "backfill",
 					startDate: command.startDate,
-		},
+				},
 		options,
 	);
 	const { state: _state, ...counts } = noticeSummary;
-	console.log(JSON.stringify({
-		summary: {
-			attachmentsDownloaded: counts.resources.attachmentsDownloaded,
-			attachmentsReused: counts.resources.attachmentsReused,
-			imagesDownloaded: counts.resources.imagesDownloaded,
-			imagesReused: counts.resources.imagesReused,
-			mode: noticeSummary.mode,
-			noticesProcessed: counts.noticesProcessed,
-			objectsReused: counts.objectsReused,
-			objectsWritten: counts.objectsWritten,
-			pagesFetched: counts.pagesFetched,
-		},
-	}));
+	console.log(
+		JSON.stringify({
+			range: noticeSummary.range,
+			summary: {
+				attachmentsDownloaded: counts.resources.attachmentsDownloaded,
+				attachmentsReused: counts.resources.attachmentsReused,
+				imagesDownloaded: counts.resources.imagesDownloaded,
+				imagesReused: counts.resources.imagesReused,
+				mode: noticeSummary.mode,
+				noticesProcessed: counts.noticesProcessed,
+				objectsReused: counts.objectsReused,
+				objectsWritten: counts.objectsWritten,
+				pagesFetched: counts.pagesFetched,
+			},
+		}),
+	);
 	return 0;
 }
 

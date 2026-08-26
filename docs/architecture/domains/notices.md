@@ -29,10 +29,12 @@ internal-portal-collection 在通知模式中写入来源对象和原始资源�
 `research_affairs`，没有更强业务流程的学术讲座预告归 `lectures_forums`，楼宇开放关闭归
 `campus_operations`。分类不表示领域处理、对外发布或用户阅读已经完成。
 
-采集同时提供本地 CLI 和复用同一实现的一次性 Job 入口。ingestion runtime base 为通知增量、通知回填和
-文件发布分别提供一个固定动作、默认暂停的模板，不提供自动调度；通知分类同时提供本地 CLI 和默认
-暂停的在线 Job：两者只消费标题，在线 Job 将结果写回通知数据库。凭据由 Ops Web 候选池解析，本地
-写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内使用，不形成 TGC Secret。
+采集同时提供本地 CLI 和复用同一实现的一次性 Job 入口。通知维护状态使用
+`[covered_from, covered_until)` 半开区间：notice-sync 只推进排他上界，notice-backfill 只扩展包含下界。
+ingestion runtime base 为通知增量、通知回填和文件发布分别提供一个固定动作、默认暂停的模板，不提供
+自动调度；通知分类同时提供本地 CLI 和默认暂停的在线 Job：两者只消费标题，在线 Job 将结果写回通知
+数据库。凭据由 Ops Web 候选池解析，本地写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内
+使用，不形成 TGC Secret。
 
 notice-publisher 读取数据库中已有分类且未发布的通知，显式物化正文与资源并打开学生端可见边界；本地 CLI 与默认暂停的
 Kubernetes Job 模板使用同一实现，不提供自动 schedule。App API 和 Campus Web 只读取 `is_published=true` 的投影。完整
