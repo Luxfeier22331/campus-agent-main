@@ -33,7 +33,10 @@ describe("notice Kubernetes jobs", () => {
 			} as never,
 		);
 
-		await store.create({ operation: "notice-backfill", startDate: "2026-08-01" });
+		const result = await store.create({
+			operation: "notice-backfill",
+			startDate: "2026-08-01",
+		});
 
 		const request = createNamespacedJob.mock.calls[0]?.[0];
 		expect((request as { namespace?: string } | undefined)?.namespace).toBe("campus-agent");
@@ -66,6 +69,11 @@ describe("notice Kubernetes jobs", () => {
 			]),
 			image: "collector:test",
 		});
+		expect(request?.body.metadata?.labels).not.toHaveProperty("campus-agent.muc.wiki/notice-id");
+		expect(request?.body.spec?.template.metadata?.labels).not.toHaveProperty(
+			"campus-agent.muc.wiki/notice-id",
+		);
+		expect(result.noticeId).toBeNull();
 	});
 
 	it("rejects a CronJob template without an owner UID", async () => {
@@ -101,8 +109,11 @@ describe("notice Kubernetes jobs", () => {
 		};
 		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, {} as never);
 
-		await store.create({ noticeId: 354516, operation: "notice-classify-one" });
-		await store.create({ noticeId: 354516, operation: "notice-publish-one" });
+		const classified = await store.create({
+			noticeId: 354516,
+			operation: "notice-classify-one",
+		});
+		const published = await store.create({ noticeId: 354516, operation: "notice-publish-one" });
 
 		expect(created[0]?.spec?.template.spec?.containers[0]?.args).toEqual(["--notice-id", "354516"]);
 		expect(created[1]?.spec?.template.spec?.containers[0]?.args).toEqual([
@@ -110,6 +121,53 @@ describe("notice Kubernetes jobs", () => {
 			"--notice-id",
 			"354516",
 		]);
+		for (const job of created) {
+			expect(job.metadata?.labels).toMatchObject({
+				"campus-agent.muc.wiki/notice-id": "354516",
+			});
+			expect(job.spec?.template.metadata?.labels).toMatchObject({
+				"campus-agent.muc.wiki/notice-id": "354516",
+			});
+		}
+		expect(classified.noticeId).toBe(354516);
+		expect(published.noticeId).toBe(354516);
+	});
+
+	it("reads persisted notice ownership and keeps legacy one-notice jobs unassociated", async () => {
+		const batch = {
+			createNamespacedJob: vi.fn(),
+			listNamespacedJob: vi.fn(async () => ({
+				items: [
+					managedJob({
+						name: "notice-publish-one-owned",
+						noticeId: "354516",
+						operation: "notice-publish-one",
+					}),
+					managedJob({
+						name: "notice-classify-one-legacy",
+						operation: "notice-classify-one",
+					}),
+					managedJob({ name: "notice-sync-batch", operation: "notice-sync" }),
+				],
+			})),
+			readNamespacedCronJob: vi.fn(),
+			readNamespacedJob: vi.fn(async () =>
+				managedJob({
+					name: "notice-classify-one-legacy",
+					operation: "notice-classify-one",
+				}),
+			),
+		};
+		const store = new KubernetesNoticeJobStore("campus-agent", batch as never, {} as never);
+
+		await expect(store.list()).resolves.toEqual([
+			expect.objectContaining({ jobName: "notice-publish-one-owned", noticeId: 354516 }),
+			expect.objectContaining({ jobName: "notice-classify-one-legacy", noticeId: null }),
+			expect.objectContaining({ jobName: "notice-sync-batch", noticeId: null }),
+		]);
+		await expect(store.get("notice-classify-one-legacy")).resolves.toEqual(
+			expect.objectContaining({ noticeId: null }),
+		);
 	});
 
 	it("rejects a second active job in the same operation family", async () => {
@@ -225,10 +283,29 @@ function job(overrides: Partial<NoticeJob> = {}): NoticeJob {
 		createdAt: createdAt.toISOString(),
 		error: null,
 		jobName: "notice-sync-test",
+		noticeId: null,
 		operation: "notice-sync",
 		startedAt: null,
 		status: "pending",
 		summary: null,
 		...overrides,
+	};
+}
+
+function managedJob(input: {
+	name: string;
+	noticeId?: string;
+	operation: NoticeJob["operation"];
+}): V1Job {
+	return {
+		metadata: {
+			creationTimestamp: createdAt,
+			labels: {
+				"campus-agent.muc.wiki/managed-by": "ops-web",
+				"campus-agent.muc.wiki/notice-operation": input.operation,
+				...(input.noticeId ? { "campus-agent.muc.wiki/notice-id": input.noticeId } : {}),
+			},
+			name: input.name,
+		},
 	};
 }

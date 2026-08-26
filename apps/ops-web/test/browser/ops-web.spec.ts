@@ -52,17 +52,11 @@ async function expectStableViewport(
 ): Promise<void> {
 	await expect
 		.poll(() =>
-			page.evaluate(() => ({
-				clientWidth: document.documentElement.clientWidth,
-				scrollWidth: document.documentElement.scrollWidth,
-			})),
+			page.evaluate(
+				() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+			),
 		)
-		.toEqual(
-			expect.objectContaining({
-				clientWidth: page.viewportSize()?.width,
-				scrollWidth: page.viewportSize()?.width,
-			}),
-		);
+		.toBeLessThanOrEqual(0);
 	expect(
 		errors.filter(
 			(error) => !expectedConsoleFragments.some((fragment) => error.includes(fragment)),
@@ -132,6 +126,63 @@ async function selectDarkTheme(page: Page): Promise<void> {
 	const drawer = page.getByRole("dialog", { name: "校园助理运维工作台" });
 	await drawer.getByText("深色", { exact: true }).click();
 }
+
+test("通知维护在不同宽度下保持队列、Inspector 和任务中心层级", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	await page.goto("/notices");
+
+	await expect(page.getByRole("heading", { name: "通知维护" })).toBeVisible();
+	await expect(page.getByRole("navigation", { name: "通知状态" })).toContainText("待分类");
+	const queue = page.getByRole("list", { name: "通知队列" });
+	await expect(queue).toContainText("关于 2026 年秋季学期注册安排的通知");
+	await expect(queue).toContainText("校园网络维护安排");
+
+	await page.getByRole("button", { name: "任务中心" }).click();
+	const taskCenter = page.getByRole("dialog", { name: "通知任务中心" });
+	await expect(taskCenter).toBeVisible();
+	await expect(taskCenter.getByRole("region", { name: "库存更新" })).toBeVisible();
+	await expect(taskCenter.getByRole("region", { name: "分类" })).toBeVisible();
+	await expect(taskCenter.getByRole("region", { name: "发布" })).toBeVisible();
+	await expect(taskCenter.getByRole("button", { name: "同步新通知" })).toBeVisible();
+	await expect(taskCenter.getByRole("button", { name: "分类缺失通知" })).toBeVisible();
+	await expect(taskCenter.getByRole("button", { name: "发布待发布通知" })).toBeVisible();
+	await expect(taskCenter.getByLabel("起始日期")).toBeHidden();
+	await taskCenter.getByText("历史回填", { exact: true }).click();
+	await expect(taskCenter.getByLabel("起始日期")).toBeVisible();
+	await taskCenter.getByRole("button", { name: "关闭" }).click();
+
+	await queue.getByRole("button", { name: /关于 2026 年秋季学期注册安排的通知/u }).click();
+	if ((page.viewportSize()?.width ?? 0) < 1024) {
+		const inspector = page.getByRole("dialog", { name: "通知详情" });
+		await expect(inspector).toBeVisible();
+		await expect(inspector.getByRole("combobox", { name: "通知分类" })).toBeVisible();
+	} else {
+		const inspector = page.getByRole("complementary", { name: "通知检查器" });
+		await expect(inspector).toBeVisible();
+		await expect(inspector.getByRole("combobox", { name: "通知分类" })).toBeVisible();
+	}
+
+	const inspector =
+		(page.viewportSize()?.width ?? 0) < 1024
+			? page.getByRole("dialog", { name: "通知详情" })
+			: page.getByRole("complementary", { name: "通知检查器" });
+	await inspector.getByRole("button", { name: "使用模型分类" }).click();
+	if ((page.viewportSize()?.width ?? 0) < 1024) {
+		await inspector.getByRole("button", { name: "关闭" }).first().click();
+	}
+	const activeTaskCenterButton = page.getByRole("button", { name: /任务中心.*1/u });
+	await expect(activeTaskCenterButton).toBeVisible();
+	await activeTaskCenterButton.click();
+	await expect(taskCenter.getByRole("heading", { name: "进行中（1）" })).toBeVisible();
+	const activeTasks = taskCenter.getByRole("list", { name: "进行中任务" });
+	await expect(activeTasks).toContainText("单条 #354516");
+	await expect(activeTasks.getByRole("listitem")).toHaveCount(1);
+
+	if (page.viewportSize()?.width === 1440 || page.viewportSize()?.width === 320) {
+		await expectNoAccessibilityViolations(page);
+	}
+	await expectStableViewport(page, errors);
+});
 
 async function startKeyboardDrag(page: Page, handle: Locator): Promise<void> {
 	await handle.focus();

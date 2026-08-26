@@ -11,6 +11,7 @@ const fixture: NoticeJob = {
 	createdAt: "2026-08-23T10:00:00.000Z",
 	error: null,
 	jobName: "notice-backfill-abc12",
+	noticeId: null,
 	operation: "notice-backfill",
 	startedAt: null,
 	status: "pending",
@@ -20,6 +21,7 @@ const fixture: NoticeJob = {
 describe("notice API", () => {
 	it("lists safe notice metadata and updates the authoritative category", async () => {
 		const list = vi.fn(async () => ({
+			counts: { all: 1, needsClassification: 1, needsPublication: 0, published: 0 },
 			items: [noticeFixture],
 			page: 1,
 			totalItems: 1,

@@ -15,7 +15,10 @@ Ops Web 提供通知安全 metadata 的查看与分类维护，并复用暂停�
 - `GET /api/ops/notices/:noticeId`
 - `PUT /api/ops/notices/:noticeId/category`
 
-列表和详情只返回通知 ID、标题、发布时间、类型、组织、外链 metadata、分类和推导状态。状态为：
+列表和详情只返回通知 ID、标题、发布时间、类型、组织、外链 metadata、分类和推导状态。列表响应还返回
+`counts`，它按当前 `q` 和 `category` 筛选统计四类数量，并忽略当前 `state` 筛选：`all`、
+`needsClassification`、`needsPublication` 和 `published`。`items`、`totalItems` 和 `totalPages` 仍按当前
+全部筛选条件返回。状态为：
 
 - `needs_classification`：`category IS NULL`；
 - `needs_publication`：已有分类且 `is_published=false`；
@@ -33,4 +36,6 @@ Ops Web 提供通知安全 metadata 的查看与分类维护，并复用暂停�
 允许操作为 `notice-sync`、`notice-backfill`、`notice-classify-missing`、`notice-classify-one`、
 `notice-publish-pending` 和 `notice-publish-one`。采集、分类和发布各自构成一个互斥操作族；已有活动 Job
 时返回 `409 OPS_NOTICE_JOB_CONFLICT`。Job 固定零重试，完成 24 小时后回收，仅保留有限状态、错误和
-结构化摘要，不承担长期审计。
+结构化摘要，不承担长期审计。单条分类和发布 Job 使用
+`campus-agent.muc.wiki/notice-id` label 持久表达通知归属，任务响应通过 `noticeId` 返回该值；批量任务
+以及部署前创建且没有该 label 的单条任务返回 `noticeId: null`。

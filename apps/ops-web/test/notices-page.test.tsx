@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpsWebApp } from "../src/app/ops-web-app";
 
@@ -28,7 +28,13 @@ describe("notice maintenance page", () => {
 					return Response.json({ notice: notice() });
 				}
 				if (url.pathname === "/api/ops/notices") {
-					return Response.json({ items: [notice()], page: 1, totalItems: 1, totalPages: 1 });
+					return Response.json({
+						counts: { all: 1, needsClassification: 1, needsPublication: 0, published: 0 },
+						items: [notice()],
+						page: 1,
+						totalItems: 1,
+						totalPages: 1,
+					});
 				}
 				return new Response(null, { status: 404 });
 			}),
@@ -43,6 +49,175 @@ describe("notice maintenance page", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "使用模型分类" }));
 		await waitFor(() =>
 			expect(requests).toContainEqual({ noticeId: 354516, operation: "notice-classify-one" }),
+		);
+	});
+
+	it("restores single-notice task ownership from the server response", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({
+						jobs: [
+							job({
+								completedAt: "2026-08-23T10:01:00.000Z",
+								jobName: "notice-classify-one-current",
+								status: "succeeded",
+								summary: { classified: 1 },
+							}),
+							job({
+								completedAt: "2026-08-23T10:01:00.000Z",
+								jobName: "notice-publish-one-other",
+								noticeId: 354517,
+								operation: "notice-publish-one",
+								status: "succeeded",
+								summary: { published: 1 },
+							}),
+							job({
+								error: "旧任务没有通知归属",
+								jobName: "notice-classify-one-legacy",
+								noticeId: null,
+								status: "failed",
+							}),
+						],
+					});
+				}
+				if (url.pathname === "/api/ops/notices/354516") {
+					return Response.json({ notice: notice() });
+				}
+				if (url.pathname === "/api/ops/notices") {
+					return Response.json({
+						counts: { all: 1, needsClassification: 1, needsPublication: 0, published: 0 },
+						items: [notice()],
+						page: 1,
+						totalItems: 1,
+						totalPages: 1,
+					});
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+
+		expect(await screen.findByText("classified: 1")).toBeInTheDocument();
+		expect(screen.queryByText("published: 1")).not.toBeInTheDocument();
+		expect(screen.queryByText("旧任务没有通知归属")).not.toBeInTheDocument();
+	});
+
+	it("shows every active manual task in the task center count", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({
+						jobs: [
+							job({ jobName: "notice-classify-one-active", status: "running" }),
+							job({
+								jobName: "notice-sync-active",
+								noticeId: null,
+								operation: "notice-sync",
+								status: "pending",
+							}),
+							job({
+								completedAt: "2026-08-23T10:01:00.000Z",
+								jobName: "notice-publish-pending-complete",
+								noticeId: null,
+								operation: "notice-publish-pending",
+								status: "succeeded",
+							}),
+						],
+					});
+				}
+				if (url.pathname === "/api/ops/notices") {
+					return Response.json({
+						counts: { all: 0, needsClassification: 0, needsPublication: 0, published: 0 },
+						items: [],
+						page: 1,
+						totalItems: 0,
+						totalPages: 0,
+					});
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		const taskCenterButton = await screen.findByRole("button", { name: /任务中心.*2/u });
+		fireEvent.click(taskCenterButton);
+
+		expect(await screen.findByRole("heading", { name: "进行中（2）" })).toBeInTheDocument();
+		const activeList = screen.getByRole("list", { name: "进行中任务" });
+		expect(within(activeList).getAllByRole("listitem")).toHaveLength(2);
+		expect(activeList).toHaveTextContent("单条 #354516");
+		expect(activeList).toHaveTextContent("批量");
+		expect(screen.getByRole("list", { name: "最近任务记录" })).toHaveTextContent("发布待发布通知");
+	});
+
+	it("only locks the operation family whose create request is pending", async () => {
+		let resolveCreate: ((response: Response) => void) | undefined;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs" && init?.method === "POST") {
+					return await new Promise<Response>((resolve) => {
+						resolveCreate = resolve;
+					});
+				}
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({ jobs: [] });
+				}
+				if (url.pathname === "/api/ops/notices") {
+					return Response.json({
+						counts: { all: 0, needsClassification: 0, needsPublication: 0, published: 0 },
+						items: [],
+						page: 1,
+						totalItems: 0,
+						totalPages: 0,
+					});
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click(await screen.findByRole("button", { name: "任务中心" }));
+		const taskCenter = await screen.findByRole("dialog", { name: "通知任务中心" });
+		fireEvent.click(within(taskCenter).getByRole("button", { name: "分类缺失通知" }));
+
+		await waitFor(() =>
+			expect(within(taskCenter).getByRole("button", { name: "分类缺失通知" })).toBeDisabled(),
+		);
+		expect(within(taskCenter).getByRole("button", { name: "同步新通知" })).toBeEnabled();
+		expect(within(taskCenter).getByRole("button", { name: "发布待发布通知" })).toBeEnabled();
+
+		resolveCreate?.(
+			Response.json(
+				{
+					job: job({
+						jobName: "notice-classify-missing-created",
+						noticeId: null,
+						operation: "notice-classify-missing",
+					}),
+				},
+				{ status: 201 },
+			),
+		);
+		await waitFor(() =>
+			expect(within(taskCenter).getByRole("button", { name: "分类缺失通知" })).toBeEnabled(),
 		);
 	});
 
@@ -73,11 +248,21 @@ describe("notice maintenance page", () => {
 											status: terminalStatus,
 											summary: terminalStatus === "succeeded" ? { classified: 1 } : null,
 										}),
-										job({ jobName: "notice-publish-pending-active", status: "running" }),
+										job({
+											jobName: "notice-publish-pending-active",
+											noticeId: null,
+											operation: "notice-publish-pending",
+											status: "running",
+										}),
 									]
 								: [
 										job({ jobName: "notice-classify-one-active", status: "running" }),
-										job({ jobName: "notice-publish-pending-active", status: "pending" }),
+										job({
+											jobName: "notice-publish-pending-active",
+											noticeId: null,
+											operation: "notice-publish-pending",
+											status: "pending",
+										}),
 									],
 						});
 					}
@@ -92,6 +277,12 @@ describe("notice maintenance page", () => {
 					if (url.pathname === "/api/ops/notices") {
 						noticesRequests += 1;
 						return Response.json({
+							counts: {
+								all: 1,
+								needsClassification: jobFinished ? 0 : 1,
+								needsPublication: jobFinished ? 1 : 0,
+								published: 0,
+							},
 							items: [
 								jobFinished
 									? notice({ category: "campus_operations", state: "needs_publication" })
@@ -153,6 +344,7 @@ function job(overrides: Record<string, unknown> = {}) {
 		createdAt: "2026-08-23T10:00:00.000Z",
 		error: null,
 		jobName: "notice-classify-one-abc12",
+		noticeId: 354516,
 		operation: "notice-classify-one",
 		startedAt: null,
 		status: "pending",

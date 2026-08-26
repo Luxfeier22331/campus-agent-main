@@ -11,6 +11,7 @@ import type { NoticeJob, NoticeJobCreate, NoticeJobOperation } from "../shared/o
 const MANAGED_BY_LABEL = "campus-agent.muc.wiki/managed-by";
 const OPERATION_LABEL = "campus-agent.muc.wiki/notice-operation";
 const FAMILY_LABEL = "campus-agent.muc.wiki/notice-operation-family";
+const NOTICE_ID_LABEL = "campus-agent.muc.wiki/notice-id";
 const MANAGED_BY_VALUE = "ops-web";
 
 type OperationFamily = "collection" | "classification" | "publication";
@@ -182,6 +183,9 @@ export class KubernetesNoticeJobStore implements NoticeJobStore {
 		if (!(jobName && operation && operation in OPERATIONS && createdAt)) {
 			throw new NoticeJobUnavailableError("Kubernetes 返回了无效的通知任务。");
 		}
+		const noticeId = singleNoticeOperation(operation)
+			? parseNoticeId(job.metadata?.labels?.[NOTICE_ID_LABEL])
+			: null;
 		const status = jobStatus(job);
 		const condition = job.status?.conditions?.find((entry) => entry.status === "True");
 		return {
@@ -192,6 +196,7 @@ export class KubernetesNoticeJobStore implements NoticeJobStore {
 					? bounded(condition?.message ?? condition?.reason ?? "任务执行失败。")
 					: null,
 			jobName,
+			noticeId,
 			operation,
 			startedAt: iso(job.status?.startTime),
 			status,
@@ -238,6 +243,7 @@ function buildJob(
 		[FAMILY_LABEL]: definition.family,
 		[MANAGED_BY_LABEL]: MANAGED_BY_VALUE,
 		[OPERATION_LABEL]: input.operation,
+		...("noticeId" in input ? { [NOTICE_ID_LABEL]: String(input.noticeId) } : {}),
 	};
 	const container = spec.template.spec.containers.find(
 		(entry) => entry.name === definition.container,
@@ -341,6 +347,21 @@ function bounded(value: string): string {
 }
 function isActive(status: NoticeJob["status"]): boolean {
 	return status === "pending" || status === "running";
+}
+
+function singleNoticeOperation(operation: NoticeJobOperation): boolean {
+	return operation === "notice-classify-one" || operation === "notice-publish-one";
+}
+
+function parseNoticeId(value: string | undefined): number | null {
+	if (value === undefined) {
+		return null;
+	}
+	const noticeId = Number(value);
+	if (!(Number.isSafeInteger(noticeId) && noticeId > 0)) {
+		throw new NoticeJobUnavailableError("Kubernetes 返回了无效的通知任务。");
+	}
+	return noticeId;
 }
 
 function kubernetesStatus(error: unknown): number | null {

@@ -61,6 +61,7 @@ export const NoticeJobSchema = z
 		createdAt: IsoDateTimeSchema,
 		error: z.string().max(500).nullable(),
 		jobName: z.string().min(1),
+		noticeId: NoticeIdSchema.nullable(),
 		operation: NoticeJobOperationSchema,
 		startedAt: IsoDateTimeSchema.nullable(),
 		status: NoticeJobStatusSchema,
@@ -93,8 +94,18 @@ export const NoticeSummarySchema = z
 export type NoticeSummary = z.infer<typeof NoticeSummarySchema>;
 export const NoticeDetailSchema = NoticeSummarySchema;
 export type NoticeDetail = z.infer<typeof NoticeDetailSchema>;
+export const NoticeListCountsSchema = z
+	.object({
+		all: z.number().int().nonnegative(),
+		needsClassification: z.number().int().nonnegative(),
+		needsPublication: z.number().int().nonnegative(),
+		published: z.number().int().nonnegative(),
+	})
+	.strict();
+export type NoticeListCounts = z.infer<typeof NoticeListCountsSchema>;
 export const NoticeListResponseSchema = z
 	.object({
+		counts: NoticeListCountsSchema,
 		items: z.array(NoticeSummarySchema),
 		page: z.number().int().positive(),
 		totalItems: z.number().int().nonnegative(),

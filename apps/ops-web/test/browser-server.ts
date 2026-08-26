@@ -24,14 +24,22 @@ import {
 	DiningStoreNotFoundError,
 } from "../src/server/dining-store-errors.ts";
 import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store.ts";
+import { createNoticeJobService, type NoticeJobStore } from "../src/server/notice-jobs.ts";
+import type { NoticeStore } from "../src/server/notice-store.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
 import type { DiningReleaseSummary } from "../src/shared/dining-contract.ts";
-import type { ExecutionModelSettingsStatus } from "../src/shared/ops-contract.ts";
+import type {
+	ExecutionModelSettingsStatus,
+	NoticeJob,
+	NoticeSummary,
+} from "../src/shared/ops-contract.ts";
 import { opsOverviewFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures.ts";
 
 const browserTestPort = Number(process.env.OPS_WEB_BROWSER_TEST_PORT ?? "4178");
 const browserDiningStore = createBrowserDiningStore();
 const browserDiningContentStore = createBrowserDiningContentStore();
+const browserNoticeStore = createBrowserNoticeStore();
+const browserNoticeJobStore = createBrowserNoticeJobStore();
 const app = createOpsApp({
 	admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 	env: {
@@ -61,6 +69,8 @@ const app = createOpsApp({
 	diningMapStore: browserDiningStore,
 	diningMenuStore: browserDiningContentStore,
 	diningReviewStore: browserDiningContentStore,
+	noticeJobService: createNoticeJobService(browserNoticeJobStore),
+	noticeStore: browserNoticeStore,
 	providerConfigClient: fixtureProviderConfigClient(),
 	staticRoot: "dist",
 	store: createFixtureOpsStatusStore(),
@@ -72,11 +82,150 @@ serve({
 			browserDiningStore.reset();
 			browserDiningContentStore.reset();
 		}
+		if (request.method === "GET" && new URL(request.url).pathname === "/notices") {
+			browserNoticeStore.reset();
+			browserNoticeJobStore.reset();
+		}
 		return app.fetch(request);
 	},
 	hostname: "127.0.0.1",
 	port: browserTestPort,
 });
+
+function createBrowserNoticeStore(): NoticeStore & { reset(): void } {
+	let notices: NoticeSummary[] = [];
+
+	function reset() {
+		notices = [
+			{
+				category: null,
+				externalUrl: null,
+				isExternal: false,
+				noticeId: 354516,
+				noticeType: { id: 5, name: "办公通知" },
+				organization: { id: "org-1", name: "教务处" },
+				releasedAt: "2026-08-23T10:00:00.000Z",
+				state: "needs_classification",
+				title: "关于 2026 年秋季学期注册安排的通知",
+			},
+			{
+				category: "campus_operations",
+				externalUrl: "https://campus.example.test/notices/354517",
+				isExternal: true,
+				noticeId: 354517,
+				noticeType: { id: 7, name: "校园服务" },
+				organization: { id: "org-2", name: "后勤处" },
+				releasedAt: "2026-08-22T08:30:00.000Z",
+				state: "needs_publication",
+				title: "校园网络维护安排",
+			},
+			{
+				category: "campus_news",
+				externalUrl: null,
+				isExternal: false,
+				noticeId: 354518,
+				noticeType: { id: 3, name: "校园动态" },
+				organization: null,
+				releasedAt: "2026-08-21T06:15:00.000Z",
+				state: "published",
+				title: "校园开放日活动回顾",
+			},
+		];
+	}
+
+	reset();
+	return {
+		reset,
+		async get(noticeId) {
+			const notice = notices.find((candidate) => candidate.noticeId === noticeId);
+			return notice ? structuredClone(notice) : null;
+		},
+		async list(input) {
+			const base = notices.filter((notice) => {
+				if (input.category && notice.category !== input.category) {
+					return false;
+				}
+				if (
+					input.q &&
+					!notice.title.toLocaleLowerCase().includes(input.q.toLocaleLowerCase()) &&
+					String(notice.noticeId) !== input.q
+				) {
+					return false;
+				}
+				return true;
+			});
+			const counts = {
+				all: base.length,
+				needsClassification: base.filter((notice) => notice.state === "needs_classification")
+					.length,
+				needsPublication: base.filter((notice) => notice.state === "needs_publication").length,
+				published: base.filter((notice) => notice.state === "published").length,
+			};
+			const filtered = input.state ? base.filter((notice) => notice.state === input.state) : base;
+			const start = (input.page - 1) * 30;
+			const items = filtered.slice(start, start + 30);
+			return {
+				counts,
+				items: structuredClone(items),
+				page: input.page,
+				totalItems: filtered.length,
+				totalPages: Math.ceil(filtered.length / 30),
+			};
+		},
+		async updateCategory(noticeId, category) {
+			const index = notices.findIndex((notice) => notice.noticeId === noticeId);
+			const current = notices[index];
+			if (!current) {
+				throw new Error("Notice not found.");
+			}
+			const next = {
+				...current,
+				category,
+				state: current.state === "published" ? "published" : "needs_publication",
+			} satisfies NoticeSummary;
+			notices[index] = next;
+			return structuredClone(next);
+		},
+	};
+}
+
+function createBrowserNoticeJobStore(): NoticeJobStore & { reset(): void } {
+	let sequence = 0;
+	let jobs: NoticeJob[] = [];
+
+	function reset() {
+		sequence = 0;
+		jobs = [];
+	}
+
+	reset();
+	return {
+		reset,
+		async create(input) {
+			const now = new Date("2026-08-26T06:00:00.000Z");
+			const job: NoticeJob = {
+				completedAt: null,
+				createdAt: new Date(now.valueOf() + sequence++).toISOString(),
+				error: null,
+				jobName: `${input.operation}-browser-${String(sequence)}`,
+				noticeId: "noticeId" in input ? input.noticeId : null,
+				operation: input.operation,
+				startedAt: null,
+				status: "pending",
+				summary: null,
+			};
+			jobs = [job, ...jobs];
+			return structuredClone(job);
+		},
+		async get(jobName) {
+			const job = jobs.find((candidate) => candidate.jobName === jobName);
+			return job ? structuredClone(job) : null;
+		},
+		async list() {
+			return structuredClone(jobs);
+		},
+	};
+}
 
 function createBrowserDiningContentStore(): DiningMenuStore &
 	DiningReviewStore & { reset(): void } {
