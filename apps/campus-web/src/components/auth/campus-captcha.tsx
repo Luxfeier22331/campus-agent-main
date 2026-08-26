@@ -62,7 +62,7 @@ export const CampusCaptcha = forwardRef<CampusCaptchaHandle>(function CampusCapt
 			options={{
 				appearance: config.turnstileAppearance,
 				execution: config.turnstileExecution,
-				language: "zh-CN",
+				language: "zh-cn",
 				size: "flexible",
 				theme: "auto",
 			}}

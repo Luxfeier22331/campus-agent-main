@@ -997,6 +997,7 @@ describe("app-api migration upgrade", () => {
 		await resetDisposableDatabase(pool);
 		await applyLegacyBetterAuthBaseline(pool);
 		await applyLegacyChatBaseline(pool);
+		await seedLegacyBetterAuthData(pool);
 		await migrate(drizzle(pool), {
 			...migrationOptions,
 			migrationsFolder: deployedMigrationsFolder,
@@ -1059,6 +1060,65 @@ describe("app-api migration upgrade", () => {
 		expect(upgradedLedger.rows.slice(0, deployedMigrationCount)).toEqual(deployedLedger.rows);
 		expect(upgradedLedger.rows).toHaveLength(fullMigrationCount);
 		expect(upgradedLedger.rows.at(-1)?.created_at).toBe(String(latestMigration?.when));
+
+		const authIdentityShape = await pool.query<{
+			account_issuer_account_id_index: boolean;
+			account_issuer_not_null: boolean;
+			account_issuer: string;
+			account_id: string;
+			jwks_alg: boolean;
+			jwks_crv: boolean;
+		}>(`
+				select
+					exists (
+						select 1
+						from pg_indexes
+						where schemaname = 'app_auth'
+						  and tablename = 'account'
+						  and indexname = 'account_issuer_accountId_uidx'
+					) as account_issuer_account_id_index,
+					(
+						select is_nullable = 'NO'
+						from information_schema.columns
+						where table_schema = 'app_auth'
+						  and table_name = 'account'
+						  and column_name = 'issuer'
+					) as account_issuer_not_null,
+					(
+						select "issuer"
+						from "app_auth"."account"
+						where "id" = 'legacy-account'
+					) as account_issuer,
+					(
+						select "accountId"
+						from "app_auth"."account"
+						where "id" = 'legacy-account'
+					) as account_id,
+					exists (
+						select 1
+						from information_schema.columns
+						where table_schema = 'app_auth'
+						  and table_name = 'jwks'
+						  and column_name = 'alg'
+					) as jwks_alg,
+					exists (
+						select 1
+						from information_schema.columns
+						where table_schema = 'app_auth'
+						  and table_name = 'jwks'
+						  and column_name = 'crv'
+					) as jwks_crv
+			`);
+		expect(authIdentityShape.rows).toEqual([
+			{
+				account_issuer_account_id_index: true,
+				account_issuer_not_null: true,
+				account_issuer: "local:credential",
+				account_id: "legacy-user",
+				jwks_alg: true,
+				jwks_crv: true,
+			},
+		]);
 
 		const oauthResourceShape = await pool.query<{
 			client_assertion_table: boolean;

@@ -81,6 +81,7 @@ describe("app-api schema installer", () => {
 			{ idx: 16, tag: "0016_gray_scarlet_spider", version: "7" },
 			{ idx: 17, tag: "0017_safe_nicolaos", version: "7" },
 			{ idx: 18, tag: "0018_ancient_ultragirl", version: "7" },
+			{ idx: 19, tag: "0019_superb_morbius", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,
@@ -185,6 +186,20 @@ describe("app-api schema installer", () => {
 		]) {
 			expect(productionization).toContain(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
 		}
+		const authIdentityMigration = readAppFile("drizzle/0019_superb_morbius.sql");
+		expect(authIdentityMigration).toContain(
+			'ALTER TABLE "app_auth"."account" ADD COLUMN "issuer" text',
+		);
+		expect(authIdentityMigration).toContain(
+			'UPDATE "app_auth"."account"\nSET "issuer" = \'local:credential\'',
+		);
+		expect(authIdentityMigration).toContain(
+			'ALTER TABLE "app_auth"."account" ALTER COLUMN "issuer" SET NOT NULL',
+		);
+		expect(authIdentityMigration).toContain('CREATE UNIQUE INDEX "account_issuer_accountId_uidx"');
+		expect(authIdentityMigration).toContain('ALTER TABLE "app_auth"."jwks" ADD COLUMN "alg" text');
+		expect(authIdentityMigration).toContain('ALTER TABLE "app_auth"."jwks" ADD COLUMN "crv" text');
+		expect(authIdentityMigration).not.toContain("RAISE EXCEPTION");
 	});
 
 	it("uses Drizzle as the only app-api schema migration source", () => {

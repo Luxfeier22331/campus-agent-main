@@ -548,6 +548,21 @@ describe("account journeys PostgreSQL integration", () => {
 			`temporary-${Date.now()}`,
 		);
 		expect(issue.status).toBe(200);
+		expect(
+			(
+				await client.query<{ accountId: string; issuer: string; providerId: string }>(
+					`select "accountId", "issuer", "providerId"
+					 from "app_auth"."account" where "userId" = $1`,
+					[userId],
+				)
+			).rows,
+		).toEqual([
+			{
+				accountId: userId,
+				issuer: "local:credential",
+				providerId: "credential",
+			},
+		]);
 		const issued = (await issue.json()) as { temporaryPassword: string };
 		const temporarySignIn = await signIn(email, issued.temporaryPassword);
 		expect(temporarySignIn.status).toBe(200);

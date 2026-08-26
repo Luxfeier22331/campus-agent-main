@@ -160,6 +160,7 @@ function sameFileContents(left: string, right: string): boolean {
 }
 
 function checkBundleBudgets(): void {
+	assertHtmlAssetReferences(CLIENT_OUTPUT_ROOT);
 	const checks: BundleCheckResult[] = [
 		checkClientBundle(CLIENT_OUTPUT_ROOT, APP_BUNDLE_GRAPH_PATH),
 		checkDocsClientBundle(CLIENT_OUTPUT_ROOT, DOCS_BUNDLE_GRAPH_PATH),
@@ -182,6 +183,58 @@ function checkBundleBudgets(): void {
 		console.error(`- ${failure}`);
 	}
 	throw new Error("campus-web client bundle integrity check failed.");
+}
+
+function assertHtmlAssetReferences(root: string): void {
+	const missing: string[] = [];
+	const stack = [root];
+	while (stack.length > 0) {
+		const current = stack.pop();
+		if (!current) {
+			continue;
+		}
+		for (const entry of readdirSync(current, { withFileTypes: true })) {
+			const filePath = resolve(current, entry.name);
+			if (entry.isDirectory()) {
+				stack.push(filePath);
+				continue;
+			}
+			if (!(entry.isFile() && entry.name.endsWith(".html"))) {
+				continue;
+			}
+			const html = readFileSync(filePath, "utf8");
+			for (const match of html.matchAll(/(?:src|href)="([^"]+)"/gu)) {
+				const reference = match[1];
+				if (
+					!reference ||
+					reference.startsWith("#") ||
+					reference.startsWith("data:") ||
+					reference.startsWith("http://") ||
+					reference.startsWith("https://") ||
+					!isCampusHtmlAssetReference(reference)
+				) {
+					continue;
+				}
+				const target = resolve(root, reference.replace(/^\//u, ""));
+				if (!(existsSync(target) && statSync(target).isFile())) {
+					missing.push(`${filePath}: ${reference}`);
+				}
+			}
+		}
+	}
+	if (missing.length > 0) {
+		throw new Error(`Campus Web HTML references missing assets:\n${missing.join("\n")}`);
+	}
+}
+
+function isCampusHtmlAssetReference(reference: string): boolean {
+	return (
+		reference.startsWith("/assets/") ||
+		reference.startsWith("/campus-map/") ||
+		reference.startsWith("/vendor/") ||
+		reference === "/favicon.ico" ||
+		reference === "/theme-bootstrap.js"
+	);
 }
 
 function appendBundleSummary(input: BundleCheckResult): void {

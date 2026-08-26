@@ -1,6 +1,6 @@
 export const SECURITY_HEADERS = {
 	"content-security-policy":
-		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' https://p.qlogo.cn data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io; worker-src 'self' blob:",
+		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' https://p.qlogo.cn data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io https://cloudflareinsights.com; worker-src 'self' blob:",
 	"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 	"referrer-policy": "strict-origin-when-cross-origin",
 	"x-content-type-options": "nosniff",

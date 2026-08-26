@@ -79,6 +79,7 @@ export const account = auth.table(
 	"account",
 	{
 		id: text("id").primaryKey(),
+		issuer: text("issuer").notNull(),
 		accountId: text("accountId").notNull(),
 		providerId: text("providerId").notNull(),
 		userId: text("userId")
@@ -95,6 +96,10 @@ export const account = auth.table(
 		updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
 	},
 	(table) => ({
+		issuerAccountIdUnique: uniqueIndex("account_issuer_accountId_uidx").on(
+			table.issuer,
+			table.accountId,
+		),
 		userIdIndex: index("account_userId_idx").on(table.userId),
 	}),
 );
@@ -313,6 +318,8 @@ export const jwks = auth.table("jwks", {
 	privateKey: text("privateKey").notNull(),
 	createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
 	expiresAt: timestamp("expiresAt", { withTimezone: true }),
+	alg: text("alg"),
+	crv: text("crv"),
 });
 
 export const appAuthSchema = {

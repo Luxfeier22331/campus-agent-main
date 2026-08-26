@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,6 +7,11 @@ import {
 	LOCAL_ADMIN_TEST_USER,
 	LOCAL_TEST_USER,
 } from "../ops/db/seed-local-test-user.ts";
+
+const seedSource = readFileSync(
+	resolve(import.meta.dirname, "../ops/db/seed-local-test-user.ts"),
+	"utf8",
+);
 
 describe("local test user seed", () => {
 	it("uses the fixed development credentials", () => {
@@ -36,5 +43,16 @@ describe("local test user seed", () => {
 				"postgresql://campus_agent:password@127.0.0.1:5432/campus_agent",
 			),
 		).toThrow(/isolated local database/u);
+	});
+
+	it("seeds credential accounts with the Better Auth issuer", () => {
+		expect(seedSource).toContain('set "accountId" = $1, "issuer" = \'local:credential\'');
+		expect(seedSource).toContain(
+			'("id", "accountId", "issuer", "providerId", "userId", "password", "createdAt", "updatedAt")',
+		);
+		expect(seedSource).toContain(
+			"values ($1, $2, 'local:credential', 'credential', $2, $3, now(), now())",
+		);
+		expect(seedSource).toContain('"issuer" = excluded."issuer"');
 	});
 });

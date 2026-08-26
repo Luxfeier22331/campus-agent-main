@@ -1,3 +1,4 @@
+import { createLocalAccountIssuer } from "@better-auth/core/db";
 import {
 	and,
 	count,
@@ -249,7 +250,14 @@ export function createPgAccountAdminStore(
 				db
 					.select({ id: account.id })
 					.from(account)
-					.where(and(eq(account.userId, userId), eq(account.providerId, "credential")))
+					.where(
+						and(
+							eq(account.userId, userId),
+							eq(account.providerId, "credential"),
+							eq(account.issuer, createLocalAccountIssuer("credential")),
+							eq(account.accountId, userId),
+						),
+					)
 					.limit(1),
 				db
 					.select()

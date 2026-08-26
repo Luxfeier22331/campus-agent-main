@@ -1,3 +1,4 @@
+import { createLocalAccountIssuer } from "@better-auth/core/db";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -553,6 +554,8 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 							and(
 								eq(account.userId, temporaryPassword.userId),
 								eq(account.providerId, "credential"),
+								eq(account.issuer, createLocalAccountIssuer("credential")),
+								eq(account.accountId, temporaryPassword.userId),
 							),
 						)
 						.limit(1)
@@ -570,6 +573,7 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 							accountId: temporaryPassword.userId,
 							createdAt: temporaryPassword.issuedAt,
 							id: temporaryPassword.accountId,
+							issuer: createLocalAccountIssuer("credential"),
 							password: temporaryPassword.passwordHash,
 							providerId: "credential",
 							updatedAt: temporaryPassword.issuedAt,

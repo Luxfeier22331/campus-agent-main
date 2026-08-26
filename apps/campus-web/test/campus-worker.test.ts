@@ -358,8 +358,13 @@ describe("campus worker boundary", () => {
 		);
 
 		const csp = response.headers.get("content-security-policy") ?? "";
-		expect(csp).toContain("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com");
+		expect(csp).toContain(
+			"script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
+		);
 		expect(csp).toContain("frame-src 'self' https://challenges.cloudflare.com");
+		expect(csp).toContain(
+			"connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io https://cloudflareinsights.com",
+		);
 		expect(csp).toContain("img-src 'self' https://p.qlogo.cn data: blob:");
 		expect(csp).not.toContain("https://cdn.platform.openai.com");
 	});
