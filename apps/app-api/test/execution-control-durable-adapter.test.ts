@@ -9,8 +9,8 @@ import {
 } from "../src/modules/integration/execution-control";
 
 const EXECUTION_RUN_METADATA = {
-	execution_contract_version: "tool_execution_v5",
-	execution_input_ref: "app-api://execution-inputs/run_durable_001",
+	execution_contract_version: "tool_execution_v6",
+	execution_input_ref: "app-api://execution-inputs/req_durable_001",
 	execution_input_sha256: "a".repeat(64),
 } as const;
 
@@ -33,90 +33,14 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 		owner_user_id: "user_001",
 		queued_at: "2026-06-04T01:02:03Z",
 		request_id: "req_durable_001",
-		run_id: "run_durable_001",
 		started_at: "",
 		status: "queued",
 		streaming_started_at: "",
 		surface: "campus-web",
 		task_queue: "campus-agent.workflow",
 		terminal_reason: "",
-		trace_id: "trace_durable_001",
-		turn_id: "turn_durable_001",
 		updated_at: "2026-06-04T01:02:04Z",
 		...overrides,
-	};
-}
-
-function durableRunStepsPayload(
-	attemptOverrides: Record<string, unknown> = {},
-): Record<string, unknown> {
-	return {
-		agent_runtime_eval_projection: {
-			schema_version: "agent_runtime_eval_projection.v3",
-			run: {
-				run_id: "run_durable_001",
-				request_id: "req_durable_001",
-				trace_id: "trace_durable_001",
-				status: "completed",
-			},
-			trajectory: {},
-		},
-		attempts: [
-			{
-				activity_attempt: 1,
-				activity_id: "activity-agent-1",
-				activity_type: "ExecutePrimaryAgentActivity",
-				attempt: 1,
-				attempt_id: "agent.primary:attempt:1",
-				cached_input_tokens: 10,
-				cancel_outcome: "not_requested",
-				completed_at: "2026-06-04T01:02:04.100Z",
-				duration_ms: 100,
-				fail_close_reason: "current_state_unverifiable",
-				input_tokens: 120,
-				late_completion_outcome: "ignored_after_timeout",
-				model_name: "gpt-5-mini",
-				model_provider: "openai",
-				output_tokens: 42,
-				payload_schema_version: "step-attempt-projection-v1",
-				provider_request_ref: "provider://requests/req_001",
-				provider_response_id: "resp_001",
-				run_id: "run_durable_001",
-				sanitized_payload: {},
-				schedule_to_start_ms: 25,
-				scheduled_at: "2026-06-04T01:02:03.975Z",
-				started_at: "2026-06-04T01:02:04.000Z",
-				status: "completed",
-				step_id: "agent.primary",
-				task_queue: "campus-agent.activity.agent",
-				temporal_run_id: "temporal-run-001",
-				terminal_reason: "answer_completed",
-				timeout_outcome: "not_timed_out",
-				updated_at: "2026-06-04T01:02:04.100Z",
-				worker_id: "staging:agent:worker-1",
-				workflow_id: "campus-agent.chat.run_durable_001",
-				...attemptOverrides,
-			},
-		],
-		results: [],
-		steps: [
-			{
-				tool: "",
-				completed_at: "2026-06-04T01:02:04.100Z",
-				conversation_id: "conv_durable_001",
-				parent_step_id: "",
-				payload_schema_version: "run-step-projection-v1",
-				run_id: "run_durable_001",
-				sanitized_payload: {},
-				started_at: "2026-06-04T01:02:04.000Z",
-				status: "completed",
-				step_id: "agent.primary",
-				step_kind: "agent",
-				task_queue: "campus-agent.activity.agent",
-				updated_at: "2026-06-04T01:02:04.100Z",
-				worker_id: "staging:agent:worker-1",
-			},
-		],
 	};
 }
 
@@ -172,21 +96,17 @@ describe("execution control runtime adapter", () => {
 			ownerUserId: "user_001",
 			personalMemoryRecallAllowed: false,
 			requestId: "req_durable_001",
-			runId: "run_durable_001",
 			runtimeVersions: {
 				contract: "durable-agent-runtime-contract-v1",
 			},
 			surface: "campus-web",
-			traceId: "trace_durable_001",
-			turnId: "turn_durable_001",
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/execution/runs",
+			"https://execution-control.internal/internal/execution/requests",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
-					"x-trace-id": "trace_durable_001",
 					"x-worker-origin-auth": "shared-secret",
 				},
 				method: "POST",
@@ -198,13 +118,10 @@ describe("execution control runtime adapter", () => {
 			owner_user_id: "user_001",
 			personal_memory_recall_allowed: false,
 			request_id: "req_durable_001",
-			run_id: "run_durable_001",
 			runtime_versions: {
 				contract: "durable-agent-runtime-contract-v1",
 			},
 			surface: "campus-web",
-			trace_id: "trace_durable_001",
-			turn_id: "turn_durable_001",
 		});
 		expect(result).toEqual({
 			admittedAt: "",
@@ -217,14 +134,11 @@ describe("execution control runtime adapter", () => {
 			ownerUserId: "user_001",
 			queuedAt: "2026-06-04T01:02:03Z",
 			requestId: "req_durable_001",
-			runId: "run_durable_001",
 			startedAt: "",
 			status: "queued",
 			streamingStartedAt: "",
 			surface: "campus-web",
 			terminalReason: "",
-			traceId: "trace_durable_001",
-			turnId: "turn_durable_001",
 			updatedAt: "2026-06-04T01:02:04Z",
 		});
 	});
@@ -246,7 +160,7 @@ describe("execution control runtime adapter", () => {
 								occurred_at: "2026-06-04T01:02:03Z",
 								payload: { status: "created" },
 								payload_schema_version: "run-event-v1",
-								run_id: "run_durable_001",
+								request_id: "req_durable_001",
 								sequence: 1,
 								visibility: "internal",
 							},
@@ -266,21 +180,18 @@ describe("execution control runtime adapter", () => {
 		);
 
 		const run = await client.getRun({
-			runId: "run_durable_001",
-			traceId: "trace_query_001",
+			requestId: "req_durable_001",
 		});
 		const events = await client.listRunEvents({
-			runId: "run_durable_001",
-			traceId: "trace_query_001",
+			requestId: "req_durable_001",
 		});
 
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			1,
-			"https://execution-control.internal/internal/execution/runs/run_durable_001",
+			"https://execution-control.internal/internal/execution/requests/req_durable_001",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
-					"x-trace-id": "trace_query_001",
 					"x-worker-origin-auth": "shared-secret",
 				},
 				method: "GET",
@@ -288,11 +199,10 @@ describe("execution control runtime adapter", () => {
 		);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			2,
-			"https://execution-control.internal/internal/execution/runs/run_durable_001/events",
+			"https://execution-control.internal/internal/execution/requests/req_durable_001/events",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
-					"x-trace-id": "trace_query_001",
 					"x-worker-origin-auth": "shared-secret",
 				},
 				method: "GET",
@@ -308,7 +218,7 @@ describe("execution control runtime adapter", () => {
 					occurredAt: "2026-06-04T01:02:03Z",
 					payload: { status: "created" },
 					payloadSchemaVersion: "run-event-v1",
-					runId: "run_durable_001",
+					requestId: "req_durable_001",
 					sequence: 1,
 					visibility: "internal",
 				},
@@ -334,12 +244,11 @@ describe("execution control runtime adapter", () => {
 
 		await client.listRunEvents({
 			afterSequence: 7,
-			runId: "run_durable_001",
-			traceId: "trace_query_001",
+			requestId: "req_durable_001",
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/execution/runs/run_durable_001/events?after_sequence=7",
+			"https://execution-control.internal/internal/execution/requests/req_durable_001/events?after_sequence=7",
 			expect.objectContaining({
 				method: "GET",
 			}),
@@ -363,13 +272,12 @@ describe("execution control runtime adapter", () => {
 
 		await client.listRunEvents({
 			afterSequence: 7,
-			runId: "run_durable_001",
-			traceId: "trace_query_001",
+			requestId: "req_durable_001",
 			waitMs: 25_000,
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/execution/runs/run_durable_001/events?after_sequence=7&wait_ms=25000",
+			"https://execution-control.internal/internal/execution/requests/req_durable_001/events?after_sequence=7&wait_ms=25000",
 			expect.objectContaining({
 				method: "GET",
 			}),
@@ -400,7 +308,7 @@ describe("execution control runtime adapter", () => {
 		const controller = new AbortController();
 
 		const request = client.listRunEvents({
-			runId: "run_durable_001",
+			requestId: "req_durable_001",
 			signal: controller.signal,
 			waitMs: 25_000,
 		});
@@ -432,7 +340,7 @@ describe("execution control runtime adapter", () => {
 		);
 
 		try {
-			const request = client.listRunEvents({ runId: "run_durable_001" });
+			const request = client.listRunEvents({ requestId: "req_durable_001" });
 			const rejection = expect(request).rejects.toMatchObject({
 				code: "execution_timeout",
 				status: 504,
@@ -453,79 +361,10 @@ describe("execution control runtime adapter", () => {
 
 		await expect(
 			client.listRunEvents({
-				runId: "run_durable_001",
+				requestId: "req_durable_001",
 				waitMs: -1,
 			}),
 		).rejects.toThrow("waitMs must be a non-negative integer.");
-	});
-
-	it("parses durable run step attempt diagnostic spine fields", async () => {
-		const fetchImplementation = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify(durableRunStepsPayload()), {
-				status: 200,
-			}),
-		);
-		const client = createExecutionControlRuntimeClient(
-			{
-				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
-			},
-			{ fetchImplementation },
-		);
-
-		const trajectory = await client.listRunSteps({
-			runId: "run_durable_001",
-			traceId: "trace_query_001",
-		});
-
-		expect(trajectory.attempts[0]).toEqual(
-			expect.objectContaining({
-				failCloseReason: "current_state_unverifiable",
-				lateCompletionOutcome: "ignored_after_timeout",
-			}),
-		);
-		expect(trajectory.agentRuntimeEvalProjection).toMatchObject({
-			schema_version: "agent_runtime_eval_projection.v3",
-			run: {
-				run_id: "run_durable_001",
-				status: "completed",
-			},
-			trajectory: {},
-		});
-	});
-
-	it("rejects durable run step attempts missing diagnostic spine fields", async () => {
-		const attemptWithoutLateOutcome = durableRunStepsPayload();
-		const [firstAttempt] = attemptWithoutLateOutcome.attempts as Record<string, unknown>[];
-		if (!firstAttempt) {
-			throw new Error("The durable run fixture must contain an attempt.");
-		}
-		delete firstAttempt.late_completion_outcome;
-		const fetchImplementation = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify(attemptWithoutLateOutcome), {
-				status: 200,
-			}),
-		);
-		const client = createExecutionControlRuntimeClient(
-			{
-				DEPLOYMENT_ENVIRONMENT: "test",
-				EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
-				APP_API_EXECUTION_SHARED_SECRET: "shared-secret",
-			},
-			{ fetchImplementation },
-		);
-
-		await expect(
-			client.listRunSteps({
-				runId: "run_durable_001",
-				traceId: "trace_query_001",
-			}),
-		).rejects.toMatchObject({
-			code: "execution_control_invalid_response",
-			retryable: true,
-			status: 502,
-		});
 	});
 
 	it("cancels durable runs through an explicit cancel command", async () => {
@@ -545,16 +384,14 @@ describe("execution control runtime adapter", () => {
 
 		const run = await client.cancelRun({
 			reason: "user_requested",
-			runId: "run_durable_001",
-			traceId: "trace_cancel_001",
+			requestId: "req_durable_001",
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://execution-control.internal/internal/execution/runs/run_durable_001/cancel",
+			"https://execution-control.internal/internal/execution/requests/req_durable_001/cancel",
 			expect.objectContaining({
 				headers: {
 					"content-type": "application/json",
-					"x-trace-id": "trace_cancel_001",
 					"x-worker-origin-auth": "shared-secret",
 				},
 				method: "POST",
@@ -568,7 +405,7 @@ describe("execution control runtime adapter", () => {
 
 	it("sends source-document deletion commands through the command endpoint", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValueOnce(
-			new Response(JSON.stringify({ workflow_id: "campus-agent.memory.command.memcmd_01HQ" }), {
+			new Response(JSON.stringify({}), {
 				status: 202,
 			}),
 		);
@@ -581,7 +418,7 @@ describe("execution control runtime adapter", () => {
 			{ fetchImplementation },
 		);
 
-		const result = await client.admit({
+		await client.admit({
 			commandId: "memcmd_01HQ",
 			commandKind: "conversation_prune",
 			item: null,
@@ -597,8 +434,6 @@ describe("execution control runtime adapter", () => {
 			subjectRevision: null,
 			supersessionScope: "source_batch:memcmd_01HQ",
 		});
-		expect(result.workflowId).toBe("campus-agent.memory.command.memcmd_01HQ");
-
 		expect(fetchImplementation).toHaveBeenCalledWith(
 			"https://execution-control.internal/internal/memory/personal/commands",
 			expect.objectContaining({
@@ -622,7 +457,6 @@ describe("execution control runtime adapter", () => {
 			tenant_id: "tenant-main",
 			user_id: "user_01HQ",
 		});
-		expect(result).toEqual({ workflowId: "campus-agent.memory.command.memcmd_01HQ" });
 	});
 
 	it("fails closed when durable runtime configuration is missing", async () => {
@@ -630,8 +464,7 @@ describe("execution control runtime adapter", () => {
 
 		await expect(
 			client.getRun({
-				runId: "run_durable_001",
-				traceId: "trace_query_001",
+				requestId: "req_durable_001",
 			}),
 		).rejects.toMatchObject({
 			code: "dependency_not_ready",
@@ -669,9 +502,7 @@ describe("execution control runtime adapter", () => {
 				ownerUserId: "user_001",
 				personalMemoryRecallAllowed: false,
 				requestId: "req_durable_001",
-				runId: "run_durable_001",
 				surface: "campus-web",
-				turnId: "turn_durable_001",
 			}),
 		).rejects.toMatchObject({
 			code: "conversation_active_run",
@@ -685,7 +516,7 @@ describe("execution control runtime adapter", () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(
 				JSON.stringify({
-					run_id: "run_durable_001",
+					request_id: "req_durable_001",
 					status: "queued",
 				}),
 				{ status: 202 },
@@ -707,9 +538,7 @@ describe("execution control runtime adapter", () => {
 				ownerUserId: "user_001",
 				personalMemoryRecallAllowed: false,
 				requestId: "req_durable_001",
-				runId: "run_durable_001",
 				surface: "campus-web",
-				turnId: "turn_durable_001",
 			}),
 		).rejects.toMatchObject({
 			code: "execution_control_invalid_response",

@@ -60,8 +60,8 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 			results[0].Result.ResultID != requests[1].Result.ResultID {
 			t.Fatalf("canonical result_id = %q, want one candidate", results[0].Result.ResultID)
 		}
-		assertPostgresFinalizationCardinality(t, store, run.RunID, 1, 1, 1)
-		storedRun, err := store.GetRun(t.Context(), run.RunID)
+		assertPostgresFinalizationCardinality(t, store, run.RequestID, 1, 1, 1)
+		storedRun, err := store.GetRun(t.Context(), run.RequestID)
 		if err != nil || storedRun.Status != execution.DurableRunStatusCompleted {
 			t.Fatalf("completed run = %#v, err=%v", storedRun, err)
 		}
@@ -86,7 +86,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 			repaired.Result.ResultID != legacy.Result.ResultID {
 			t.Fatalf("repaired canonical records = %#v", repaired)
 		}
-		assertPostgresFinalizationCardinality(t, store, run.RunID, 1, 1, 1)
+		assertPostgresFinalizationCardinality(t, store, run.RequestID, 1, 1, 1)
 	})
 
 	t.Run("global attempt and result identities fail closed", func(t *testing.T) {
@@ -104,7 +104,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 				now.Add(5*time.Second),
 			)
 			foreignAttempt := candidate.Attempt
-			foreignAttempt.RunID = owner.RunID
+			foreignAttempt.RequestID = owner.RequestID
 			foreignAttempt.StepID = "foreign.step"
 			if _, err := store.UpsertStepAttempt(t.Context(), foreignAttempt); err != nil {
 				t.Fatalf("seed foreign attempt identity: %v", err)
@@ -114,7 +114,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 			if !errors.Is(err, execution.ErrRunFinalizationConflict) {
 				t.Fatalf("attempt identity conflict error = %v", err)
 			}
-			assertPostgresFinalizationRollback(t, store, candidateRun.RunID)
+			assertPostgresFinalizationRollback(t, store, candidateRun.RequestID)
 		})
 
 		t.Run("result id", func(t *testing.T) {
@@ -127,7 +127,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 				now.Add(5*time.Second),
 			)
 			foreignResult := candidate.Result
-			foreignResult.RunID = owner.RunID
+			foreignResult.RequestID = owner.RequestID
 			foreignResult.StepID = "foreign.step"
 			foreignResult.AttemptID = "foreign-attempt"
 			foreignResult.ResultKind = "foreign_result"
@@ -140,7 +140,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 			if !errors.Is(err, execution.ErrRunFinalizationConflict) {
 				t.Fatalf("result identity conflict error = %v", err)
 			}
-			assertPostgresFinalizationRollback(t, store, candidateRun.RunID)
+			assertPostgresFinalizationRollback(t, store, candidateRun.RequestID)
 		})
 	})
 
@@ -162,7 +162,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 				runID := "run-finalization-cancellation-" + string(state)
 				run := createPostgresFinalizationRun(t, store, runID, now.Add(time.Duration(index)*time.Minute))
 				if _, err := store.RequestRunCancellation(t.Context(), execution.DurableRunCancellationRequest{
-					RunID: run.RunID, Reason: "user_requested", Now: run.StartedAt.Add(time.Second),
+					RequestID: run.RequestID, Reason: "user_requested", Now: run.StartedAt.Add(time.Second),
 				}); err != nil {
 					t.Fatalf("request cancellation: %v", err)
 				}
@@ -174,13 +174,13 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 						LeaseUntil: run.StartedAt.Add(time.Minute),
 						Limit:      1,
 					})
-					if err != nil || len(leased) != 1 || leased[0].RunID != run.RunID {
+					if err != nil || len(leased) != 1 || leased[0].RequestID != run.RequestID {
 						t.Fatalf("lease cancellation = %#v, err=%v", leased, err)
 					}
 				}
 				if state == execution.LifecycleIntentStateConfirmed {
 					if err := store.ConfirmRunCancellationCommand(t.Context(), execution.RunCancellationCommandResult{
-						RunID: run.RunID, LeaseToken: leaseToken, Now: run.StartedAt.Add(3 * time.Second),
+						RequestID: run.RequestID, LeaseToken: leaseToken, Now: run.StartedAt.Add(3 * time.Second),
 					}); err != nil {
 						t.Fatalf("confirm cancellation: %v", err)
 					}
@@ -189,7 +189,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 					if _, err := conn.Exec(t.Context(), `update execution_control.agent_run_cancellations
 						set state = 'permanent_failed', lease_token = 'stale-lease',
 							lease_until = $2, last_error_code = 'dispatch_exhausted', updated_at = $2
-						where run_id = $1`, run.RunID, run.StartedAt.Add(3*time.Second)); err != nil {
+						where request_id = $1`, run.RequestID, run.StartedAt.Add(3*time.Second)); err != nil {
 						t.Fatalf("set permanent failed cancellation: %v", err)
 					}
 				}
@@ -214,7 +214,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 				var updatedAt time.Time
 				if err := conn.QueryRow(t.Context(), `select state, next_attempt_at, lease_token,
 					lease_until, last_error_code, updated_at
-					from execution_control.agent_run_cancellations where run_id = $1`, run.RunID).Scan(
+					from execution_control.agent_run_cancellations where request_id = $1`, run.RequestID).Scan(
 					&storedState,
 					&nextAttemptAt,
 					&storedLeaseToken,
@@ -249,12 +249,12 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 		now := time.Date(2026, 7, 24, 9, 40, 0, 0, time.UTC)
 		run := createPostgresFinalizationRun(t, store, "run-finalization-rollback", now)
 		if _, err := store.RequestRunCancellation(t.Context(), execution.DurableRunCancellationRequest{
-			RunID: run.RunID, Reason: "user_requested", Now: now.Add(time.Second),
+			RequestID: run.RequestID, Reason: "user_requested", Now: now.Add(time.Second),
 		}); err != nil {
 			t.Fatalf("request cancellation: %v", err)
 		}
 		if _, err := conn.Exec(t.Context(), `update execution_control.agent_run_cancellations
-			set state = 'superseded', updated_at = $2 where run_id = $1`, run.RunID, now.Add(2*time.Second)); err != nil {
+			set state = 'superseded', updated_at = $2 where request_id = $1`, run.RequestID, now.Add(2*time.Second)); err != nil {
 			t.Fatalf("set incompatible cancellation state: %v", err)
 		}
 
@@ -268,11 +268,11 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 		if !errors.Is(err, execution.ErrRunFinalizationConflict) {
 			t.Fatalf("late cancellation conflict error = %v", err)
 		}
-		assertPostgresFinalizationRollback(t, store, run.RunID)
+		assertPostgresFinalizationRollback(t, store, run.RequestID)
 		var cancellationState string
 		if err := conn.QueryRow(t.Context(),
-			`select state from execution_control.agent_run_cancellations where run_id = $1`,
-			run.RunID,
+			`select state from execution_control.agent_run_cancellations where request_id = $1`,
+			run.RequestID,
 		).Scan(&cancellationState); err != nil {
 			t.Fatalf("read rolled back cancellation: %v", err)
 		}
@@ -305,24 +305,24 @@ func postgresFinalizationRequest(
 	candidateID string,
 	completedAt time.Time,
 ) execution.RunProjectionFinalizeRequest {
-	projectionRef := "projection://runs/" + run.RunID + "/finalization/write"
+	projectionRef := "projection://runs/" + run.RequestID + "/finalization/write"
 	payload := func() map[string]any {
 		return map[string]any{
 			"finalization_fingerprint_sha256": fingerprint,
 			"answer":                          "canonical final answer",
 		}
 	}
-	attemptID := run.RunID + ":finalization.write:attempt:" + candidateID
+	attemptID := run.RequestID + ":finalization.write:attempt:" + candidateID
 	return execution.RunProjectionFinalizeRequest{
 		Completion: execution.DurableRunCompleteRequest{
-			RunID:            run.RunID,
+			RequestID:        run.RequestID,
 			TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 			FinalResponseRef: projectionRef,
 			Now:              completedAt,
 		},
 		Step: execution.RunStepProjection{
 			StepID:               "finalization.write",
-			RunID:                run.RunID,
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			StepKind:             "finalization",
 			Status:               "completed",
@@ -338,7 +338,7 @@ func postgresFinalizationRequest(
 		Attempt: execution.StepAttemptProjection{
 			AttemptID:            attemptID,
 			StepID:               "finalization.write",
-			RunID:                run.RunID,
+			RequestID:            run.RequestID,
 			Attempt:              1,
 			Status:               "completed",
 			TaskQueue:            "campus-agent.activities.core",
@@ -351,9 +351,9 @@ func postgresFinalizationRequest(
 			SanitizedPayload:     payload(),
 		},
 		Result: execution.StepResultProjection{
-			ResultID:             run.RunID + ":finalization.write:result:" + candidateID,
+			ResultID:             run.RequestID + ":finalization.write:result:" + candidateID,
 			StepID:               "finalization.write",
-			RunID:                run.RunID,
+			RequestID:            run.RequestID,
 			AttemptID:            attemptID,
 			Status:               "completed",
 			ResultKind:           "final_answer_projection",

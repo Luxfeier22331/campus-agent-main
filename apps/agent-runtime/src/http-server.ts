@@ -25,10 +25,7 @@ import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
 
 export interface AgentRuntimeHandlerOptions {
-	onStreamError?: (
-		error: unknown,
-		context: { requestId: string; runId: string; traceId: string },
-	) => void;
+	onStreamError?: (error: unknown, context: { requestId: string }) => void;
 	runtimeRelease: string;
 	sharedSecret: string;
 	runtime: PrimaryAgentRuntime;
@@ -61,7 +58,7 @@ export function createAgentRuntimeHandler(
 			}
 			return jsonResponse(200, { runtime_release: options.runtimeRelease, status: "ready" });
 		}
-		if (request.method === "POST" && url.pathname === "/internal/agent-runs") {
+		if (request.method === "POST" && url.pathname === "/internal/agent-requests") {
 			if (!authorized(request, options.sharedSecret)) {
 				return unauthorizedResponse();
 			}
@@ -92,7 +89,7 @@ export function createAgentRuntimeHandler(
 			}
 			return jsonResponse(200, agentRunResultWire(result, options.runtimeRelease));
 		}
-		if (request.method === "POST" && url.pathname === "/internal/agent-runs/stream") {
+		if (request.method === "POST" && url.pathname === "/internal/agent-requests/stream") {
 			if (!authorized(request, options.sharedSecret)) {
 				return unauthorizedResponse();
 			}
@@ -120,8 +117,6 @@ export function createAgentRuntimeHandler(
 									onError: (error: unknown) =>
 										options.onStreamError?.(error, {
 											requestId: parsed.request_id,
-											runId: parsed.run_id,
-											traceId: parsed.trace_id,
 										}),
 								}
 							: {}),
@@ -181,9 +176,6 @@ function withAgentTraceAttributes<T>(parsed: AgentRunRequest, callback: () => T)
 			asBaggage: false,
 			metadata: {
 				request_id: parsed.request_id,
-				run_id: parsed.run_id,
-				trace_id: parsed.trace_id,
-				turn_id: parsed.turn_id,
 			},
 			sessionId: parsed.conversation_id,
 			tags: ["surface:agent-runtime"],

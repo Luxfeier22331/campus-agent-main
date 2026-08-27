@@ -27,9 +27,7 @@ const emptyParametersSchema = {
 };
 
 interface AgentSdkContext {
-	runId: string;
 	requestId: string;
-	traceId: string;
 	toolBudget: {
 		limit: number;
 		reserved: number;
@@ -54,7 +52,6 @@ export type OpenAIAgentsRunFunction = (
 		context: AgentSdkContext;
 		maxTurns: number;
 		modelProvider?: ModelProvider;
-		traceId: string;
 		workflowName: string;
 		traceIncludeSensitiveData: boolean;
 		signal?: AbortSignal;
@@ -68,7 +65,6 @@ export type OpenAIAgentsStreamRunFunction = (
 		context: AgentSdkContext;
 		maxTurns: number;
 		modelProvider?: ModelProvider;
-		traceId: string;
 		workflowName: string;
 		traceIncludeSensitiveData: boolean;
 		signal?: AbortSignal;
@@ -121,7 +117,6 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 			context: runtime.context,
 			maxTurns: input.limits.maxTurns,
 			...(requestOptions.modelProvider ? { modelProvider: requestOptions.modelProvider } : {}),
-			traceId: input.traceId,
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,
 			...(input.signal ? { signal: input.signal } : {}),
@@ -146,7 +141,6 @@ export function createStreamingOpenAIAgentsRunner(
 			context: runtime.context,
 			maxTurns: input.limits.maxTurns,
 			...(requestOptions.modelProvider ? { modelProvider: requestOptions.modelProvider } : {}),
-			traceId: input.traceId,
 			workflowName: "campus-agent.primary-agent",
 			traceIncludeSensitiveData: false,
 			...(input.signal ? { signal: input.signal } : {}),
@@ -193,9 +187,7 @@ function throwIfStreamRunDidNotComplete(
 
 function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 	const context: AgentSdkContext = {
-		runId: input.runId,
 		requestId: input.requestId,
-		traceId: input.traceId,
 		toolBudget: {
 			limit: input.limits.maxToolCalls,
 			reserved: 0,
@@ -264,7 +256,7 @@ function toolCallAlreadyUsedResult(
 		argumentsJson,
 		failCloseReason: "tool_call_already_used",
 		result: { error: "The admitted tool may be called at most once per run." },
-		resultRef: `agent-runtime://${context.runId}/tools/${toolName}/already-used`,
+		resultRef: `agent-runtime://${context.requestId}/tools/${toolName}/already-used`,
 	};
 }
 
@@ -280,7 +272,7 @@ function toolCallBudgetExhaustedResult(
 		argumentsJson,
 		failCloseReason: "tool_call_budget_exhausted",
 		result: { error: "The admitted tool call budget is exhausted." },
-		resultRef: `agent-runtime://${context.runId}/tools/${toolName}/budget-exhausted`,
+		resultRef: `agent-runtime://${context.requestId}/tools/${toolName}/budget-exhausted`,
 	};
 }
 
@@ -292,7 +284,6 @@ function recordFromToolArguments(value: unknown): Record<string, unknown> {
 const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => {
 	const runner = new Runner({
 		...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-		traceId: options.traceId,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
 	});
@@ -306,7 +297,6 @@ const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => 
 const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, options) => {
 	const runner = new Runner({
 		...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-		traceId: options.traceId,
 		workflowName: options.workflowName,
 		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
 	});

@@ -35,7 +35,7 @@ const SAFE_ATTRIBUTE_KEYS = new Set([
 	"openinference.span.kind",
 ]);
 
-const SAFE_LANGFUSE_METADATA_KEYS = new Set(["request_id", "run_id", "trace_id", "turn_id"]);
+const SAFE_LANGFUSE_METADATA_KEYS = new Set(["request_id"]);
 const LANGFUSE_APP_ROOT_ATTRIBUTE = "langfuse.internal.is_app_root";
 
 const SAFE_RESOURCE_KEYS = new Set([

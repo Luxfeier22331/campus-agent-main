@@ -80,26 +80,26 @@ export function useAssistantUiMessageProjection() {
 
 	const updateAssistantRunView = useCallback((runView: CampusRunViewState) => {
 		setMessages((current) => {
-			const targetId = provisionalAssistantMessageIdRef.current ?? runView.runId;
+			const targetId = provisionalAssistantMessageIdRef.current ?? runView.requestId;
 			if (targetId) {
 				const direct = updateAssistantRunMetadata(current, { messageId: targetId, runView });
 				if (direct.some((message, index) => message !== current[index])) {
 					return direct;
 				}
 			}
-			if (!runView.runId) {
+			if (!runView.requestId) {
 				return current;
 			}
 			const index = current.findIndex((message) => {
 				if (message.role !== "assistant") {
 					return false;
 				}
-				const metadata = message.metadata?.custom?.campusRun;
+				const metadata = message.metadata?.custom?.campusRequest;
 				return Boolean(
 					metadata &&
 						typeof metadata === "object" &&
 						!Array.isArray(metadata) &&
-						(metadata as Record<string, unknown>).runId === runView.runId,
+						(metadata as Record<string, unknown>).requestId === runView.requestId,
 				);
 			});
 			if (index < 0) {

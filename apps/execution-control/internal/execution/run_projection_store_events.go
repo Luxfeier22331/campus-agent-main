@@ -11,9 +11,9 @@ func (s *InMemoryRunProjectionStore) AppendRunEvent(
 ) (DurableRunEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[event.RunID]
+	run, exists := s.runs[event.RequestID]
 	if !exists {
-		return DurableRunEvent{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, event.RunID)
+		return DurableRunEvent{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, event.RequestID)
 	}
 	if event.ConversationID != run.ConversationID {
 		return DurableRunEvent{}, fmt.Errorf(
@@ -23,7 +23,7 @@ func (s *InMemoryRunProjectionStore) AppendRunEvent(
 			run.ConversationID,
 		)
 	}
-	events := s.runEvents[event.RunID]
+	events := s.runEvents[event.RequestID]
 	expectedSequence := int64(len(events) + 1)
 	if event.Sequence == 0 {
 		event.Sequence = expectedSequence
@@ -49,8 +49,8 @@ func (s *InMemoryRunProjectionStore) AppendRunEvent(
 		}
 	}
 	eventClone := cloneDurableRunEvent(event)
-	s.runEvents[event.RunID] = append(events, eventClone)
-	s.notifyRunEventWaitersLocked(event.RunID)
+	s.runEvents[event.RequestID] = append(events, eventClone)
+	s.notifyRunEventWaitersLocked(event.RequestID)
 	return cloneDurableRunEvent(eventClone), nil
 }
 
@@ -58,7 +58,7 @@ func (s *InMemoryRunProjectionStore) appendRunEventLocked(
 	run DurableRun,
 	event DurableRunEvent,
 ) error {
-	events := s.runEvents[run.RunID]
+	events := s.runEvents[run.RequestID]
 	event.Sequence = int64(len(events) + 1)
 	if event.ConversationID != run.ConversationID {
 		return fmt.Errorf(
@@ -76,29 +76,29 @@ func (s *InMemoryRunProjectionStore) appendRunEventLocked(
 			return fmt.Errorf("%w: event_id %s already exists", ErrInvalidRunEvent, event.EventID)
 		}
 	}
-	s.runEvents[run.RunID] = append(events, cloneDurableRunEvent(event))
-	s.notifyRunEventWaitersLocked(run.RunID)
+	s.runEvents[run.RequestID] = append(events, cloneDurableRunEvent(event))
+	s.notifyRunEventWaitersLocked(run.RequestID)
 	return nil
 }
 
 func (s *InMemoryRunProjectionStore) ListRunEvents(
 	_ context.Context,
-	runID string,
+	requestID string,
 ) ([]DurableRunEvent, error) {
-	return s.ListRunEventsAfter(context.Background(), runID, 0)
+	return s.ListRunEventsAfter(context.Background(), requestID, 0)
 }
 
 func (s *InMemoryRunProjectionStore) ListRunEventsAfter(
 	_ context.Context,
-	runID string,
+	requestID string,
 	afterSequence int64,
 ) ([]DurableRunEvent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if _, exists := s.runs[runID]; !exists {
-		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	if _, exists := s.runs[requestID]; !exists {
+		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
-	events := s.runEvents[runID]
+	events := s.runEvents[requestID]
 	cloned := make([]DurableRunEvent, 0, len(events))
 	for _, event := range events {
 		if event.Sequence <= afterSequence {
@@ -111,29 +111,29 @@ func (s *InMemoryRunProjectionStore) ListRunEventsAfter(
 
 func (s *InMemoryRunProjectionStore) WaitForRunEventsAfter(
 	ctx context.Context,
-	runID string,
+	requestID string,
 	afterSequence int64,
 ) ([]DurableRunEvent, error) {
 	waiter := make(chan struct{}, 1)
 	s.mu.Lock()
-	if _, exists := s.runs[runID]; !exists {
+	if _, exists := s.runs[requestID]; !exists {
 		s.mu.Unlock()
-		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
-	if events := cloneRunEventsAfter(s.runEvents[runID], afterSequence); len(events) > 0 {
+	if events := cloneRunEventsAfter(s.runEvents[requestID], afterSequence); len(events) > 0 {
 		s.mu.Unlock()
 		return events, nil
 	}
-	if s.runEventWaiters[runID] == nil {
-		s.runEventWaiters[runID] = map[chan struct{}]struct{}{}
+	if s.runEventWaiters[requestID] == nil {
+		s.runEventWaiters[requestID] = map[chan struct{}]struct{}{}
 	}
-	s.runEventWaiters[runID][waiter] = struct{}{}
+	s.runEventWaiters[requestID][waiter] = struct{}{}
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
-		delete(s.runEventWaiters[runID], waiter)
-		if len(s.runEventWaiters[runID]) == 0 {
-			delete(s.runEventWaiters, runID)
+		delete(s.runEventWaiters[requestID], waiter)
+		if len(s.runEventWaiters[requestID]) == 0 {
+			delete(s.runEventWaiters, requestID)
 		}
 		s.mu.Unlock()
 	}()
@@ -143,7 +143,7 @@ func (s *InMemoryRunProjectionStore) WaitForRunEventsAfter(
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-waiter:
-			events, err := s.ListRunEventsAfter(ctx, runID, afterSequence)
+			events, err := s.ListRunEventsAfter(ctx, requestID, afterSequence)
 			if err != nil || len(events) > 0 {
 				return events, err
 			}
@@ -161,8 +161,8 @@ func cloneRunEventsAfter(events []DurableRunEvent, afterSequence int64) []Durabl
 	return cloned
 }
 
-func (s *InMemoryRunProjectionStore) notifyRunEventWaitersLocked(runID string) {
-	for waiter := range s.runEventWaiters[runID] {
+func (s *InMemoryRunProjectionStore) notifyRunEventWaitersLocked(requestID string) {
+	for waiter := range s.runEventWaiters[requestID] {
 		select {
 		case waiter <- struct{}{}:
 		default:

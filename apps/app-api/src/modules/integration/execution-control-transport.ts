@@ -1,7 +1,4 @@
 import { type Env, isDeployedEnvironment, resolveEnvironment } from "../../config";
-import { applyTracePropagationHeaders } from "../telemetry/trace";
-
-import type { ToolExecutionInput } from "./tool-execution-types";
 
 export const EXECUTION_CONTROL_FAILURE_MESSAGE = "Execution-control request failed.";
 
@@ -96,20 +93,15 @@ export function isSafeExecutionControlErrorCode(value: string): boolean {
 }
 
 export function createExecutionControlRequestHeaders(input: {
-	payload: Pick<ToolExecutionInput, "traceHeaders" | "traceId">;
 	sharedSecret: string;
 	accept?: string;
 }): Record<string, string> {
 	const headers = new Headers({
 		"content-type": "application/json",
-		"x-trace-id": input.payload.traceId,
 		"x-worker-origin-auth": input.sharedSecret,
 	});
 	if (input.accept) {
 		headers.set("accept", input.accept);
-	}
-	if (input.payload.traceHeaders) {
-		applyTracePropagationHeaders(headers, input.payload.traceHeaders);
 	}
 	return Object.fromEntries(headers.entries());
 }

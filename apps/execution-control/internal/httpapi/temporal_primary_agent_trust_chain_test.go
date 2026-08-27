@@ -39,9 +39,9 @@ func TestWriteFinalizationActivityRejectsInvalidWorkflowAgentResult(t *testing.T
 			},
 		},
 		{
-			name: "agent run id drift",
+			name: "agent request id drift",
 			mutate: func(input *temporalruntime.WriteFinalizationActivityInput) {
-				input.AgentResult.RunID = "other-run"
+				input.AgentResult.RequestID = "other-request"
 			},
 		},
 	}
@@ -53,7 +53,7 @@ func TestWriteFinalizationActivityRejectsInvalidWorkflowAgentResult(t *testing.T
 			if _, err := server.WriteFinalization(context.Background(), input); err == nil {
 				t.Fatal("finalization unexpectedly accepted invalid workflow agent result")
 			}
-			run, err := store.GetRun(context.Background(), input.RunID)
+			run, err := store.GetRun(context.Background(), input.RequestID)
 			if err != nil {
 				t.Fatalf("get run after rejected finalization: %v", err)
 			}
@@ -121,7 +121,7 @@ func TestCompletedFinalizationReplayOnlyValidatesCanonicalResult(t *testing.T) {
 			if _, err := server.WriteFinalization(context.Background(), input); err != nil {
 				t.Fatalf("seed completed finalization: %v", err)
 			}
-			before, err := baseStore.ListStepResults(context.Background(), input.RunID)
+			before, err := baseStore.ListStepResults(context.Background(), input.RequestID)
 			if err != nil {
 				t.Fatalf("list finalization results before replay: %v", err)
 			}
@@ -132,7 +132,7 @@ func TestCompletedFinalizationReplayOnlyValidatesCanonicalResult(t *testing.T) {
 			if _, err := server.WriteFinalization(context.Background(), input); err == nil {
 				t.Fatal("completed finalization replay unexpectedly accepted invalid result")
 			}
-			after, err := baseStore.ListStepResults(context.Background(), input.RunID)
+			after, err := baseStore.ListStepResults(context.Background(), input.RequestID)
 			if err != nil {
 				t.Fatalf("list finalization results after replay: %v", err)
 			}

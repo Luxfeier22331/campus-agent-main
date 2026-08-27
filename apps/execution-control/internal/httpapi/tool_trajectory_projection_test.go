@@ -9,40 +9,12 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func TestProjectedAvailableToolsExcludesInternalSteps(t *testing.T) {
-	steps := []execution.RunStepProjection{
-		{StepID: "agent.primary", Tool: "memory"},
-		{StepID: "sdk_tool.execute.campus_search.1", Tool: campusSearchToolName},
-		{StepID: "memory.append", Tool: "memory"},
-		{StepID: "agent.primary.retry", SanitizedPayload: map[string]any{
-			"visible_tool_names": []any{
-				"memory",
-				personalMemoryRecallToolName,
-				campusSearchToolName,
-			},
-		}},
-	}
-
-	got := projectedAvailableTools(steps, nil)
-	want := []string{campusSearchToolName, personalMemoryRecallToolName}
-	if len(got) != len(want) {
-		t.Fatalf("projected available tools = %#v, want %#v", got, want)
-	}
-	for index := range want {
-		if got[index] != want[index] {
-			t.Fatalf("projected available tools = %#v, want %#v", got, want)
-		}
-	}
-}
-
 func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 	now := time.Date(2026, 7, 3, 10, 0, 0, 0, time.UTC)
 	projection := buildAgentRuntimeEvalProjection(
 		execution.DurableRun{
-			RunID:          "run-tool-trajectory",
 			ConversationID: "conv-tool-trajectory",
 			RequestID:      "req-tool-trajectory",
-			TraceID:        "trace-tool-trajectory",
 			Surface:        "campus-web",
 			Status:         execution.DurableRunStatusCompleted,
 			TerminalReason: execution.DurableTerminalReasonAnswerCompleted,
@@ -52,7 +24,7 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 		},
 		[]execution.RunStepProjection{{
 			StepID:         "agent.primary",
-			RunID:          "run-tool-trajectory",
+			RequestID:      "req-tool-trajectory",
 			ConversationID: "conv-tool-trajectory",
 			StepKind:       "agent",
 			Status:         "completed",
@@ -66,9 +38,9 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 		}},
 		[]execution.StepAttemptProjection{
 			{
-				AttemptID:       temporalStepAttemptID("run-tool-trajectory", "agent.primary", 1),
+				AttemptID:       temporalStepAttemptID("req-tool-trajectory", "agent.primary", 1),
 				StepID:          "agent.primary",
-				RunID:           "run-tool-trajectory",
+				RequestID:       "req-tool-trajectory",
 				Status:          "completed",
 				Attempt:         1,
 				ActivityAttempt: 1,
@@ -77,9 +49,9 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 				ModelName:       "gpt-5-mini",
 			},
 			{
-				AttemptID:       temporalStepAttemptID("run-tool-trajectory", "sdk_tool.execute.personal_memory_recall.1", 1),
+				AttemptID:       temporalStepAttemptID("req-tool-trajectory", "sdk_tool.execute.personal_memory_recall.1", 1),
 				StepID:          "sdk_tool.execute.personal_memory_recall.1",
-				RunID:           "run-tool-trajectory",
+				RequestID:       "req-tool-trajectory",
 				Status:          "completed",
 				Attempt:         1,
 				ActivityAttempt: 1,
@@ -90,8 +62,8 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 			{
 				ResultID:      "agent.primary:result:1",
 				StepID:        "agent.primary",
-				RunID:         "run-tool-trajectory",
-				AttemptID:     temporalStepAttemptID("run-tool-trajectory", "agent.primary", 1),
+				RequestID:     "req-tool-trajectory",
+				AttemptID:     temporalStepAttemptID("req-tool-trajectory", "agent.primary", 1),
 				Status:        "completed",
 				ResultKind:    "agent_final_output",
 				ProjectionRef: "projection://runs/run-tool-trajectory/agent/primary/result",
@@ -104,8 +76,8 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 			{
 				ResultID:      "sdk_tool.execute.personal_memory_recall.1:result:1",
 				StepID:        "sdk_tool.execute.personal_memory_recall.1",
-				RunID:         "run-tool-trajectory",
-				AttemptID:     temporalStepAttemptID("run-tool-trajectory", "sdk_tool.execute.personal_memory_recall.1", 1),
+				RequestID:     "req-tool-trajectory",
+				AttemptID:     temporalStepAttemptID("req-tool-trajectory", "sdk_tool.execute.personal_memory_recall.1", 1),
 				Status:        "completed",
 				ResultKind:    "typed_tool_result",
 				ProjectionRef: "projection://runs/run-tool-trajectory/sdk-tools/personal_memory_recall/1",
@@ -122,34 +94,22 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 	)
 
 	trajectory := expectRecord(t, projection["tool_trajectory"], "tool_trajectory")
-	if trajectory["schema_version"] != "tool_trajectory.v3" ||
-		trajectory["decision_kind"] != "tool_assisted" ||
-		trajectory["request_id"] != "req-tool-trajectory" ||
-		trajectory["run_id"] != "run-tool-trajectory" ||
-		trajectory["trace_id"] != "trace-tool-trajectory" ||
-		trajectory["conversation_id"] != "conv-tool-trajectory" ||
-		trajectory["surface"] != "campus-web" ||
-		trajectory["release"] != "staging-2026-07-03" {
+	if trajectory["schema_version"] != "tool_trajectory.v4" ||
+		trajectory["decision_kind"] != "tool_assisted" {
 		t.Fatalf("tool trajectory = %#v", trajectory)
 	}
 	calls, ok := trajectory["tool_calls"].([]map[string]any)
 	if !ok || len(calls) != 1 {
 		t.Fatalf("tool calls = %#v, want one typed call", trajectory["tool_calls"])
 	}
-	if calls[0]["tool_name"] != "personal_memory_recall" ||
-		calls[0]["status"] != "completed" ||
-		calls[0]["result_kind"] != "typed_tool_result" ||
-		calls[0]["duration_ms"] != int64(40) {
+	if calls[0]["tool_name"] != "personal_memory_recall" {
 		t.Fatalf("tool call = %#v", calls[0])
 	}
 	if _, exists := calls[0]["eval_safe_args"]; exists {
 		t.Fatalf("personal memory call must not expose eval_safe_args: %#v", calls[0])
 	}
-	if _, exists := trajectory["selected_tool"]; exists {
-		t.Fatalf("tool trajectory still publishes selected_tool: %#v", trajectory)
-	}
-	if _, exists := trajectory["internal_tool_calls"]; exists {
-		t.Fatalf("tool trajectory still publishes internal_tool_calls: %#v", trajectory)
+	if len(calls[0]) != 1 {
+		t.Fatalf("tool call contains non-eval fields: %#v", calls[0])
 	}
 	serialized := stringifyForTest(projection)
 	for _, forbidden := range []string{"must not leak", "raw_prompt", "raw_provider_result", "authorization"} {
@@ -161,10 +121,8 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 
 func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing.T) {
 	run := execution.DurableRun{
-		RunID:          "run-retried-agent",
 		ConversationID: "conv-retried-agent",
 		RequestID:      "req-retried-agent",
-		TraceID:        "trace-retried-agent",
 		Status:         execution.DurableRunStatusCompleted,
 		TerminalReason: execution.DurableTerminalReasonAnswerCompleted,
 	}
@@ -172,21 +130,21 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 		{
 			ResultID:   "agent.primary:result:2",
 			StepID:     "agent.primary",
-			RunID:      run.RunID,
-			AttemptID:  temporalStepAttemptID(run.RunID, "agent.primary", 2),
+			RequestID:  run.RequestID,
+			AttemptID:  temporalStepAttemptID(run.RequestID, "agent.primary", 2),
 			Status:     "completed",
 			ResultKind: "agent_final_output",
 			SanitizedPayload: map[string]any{
 				"activity_attempt": 2,
 			},
 		},
-		personalMemoryEvalResultForAttempt(run.RunID, 1),
-		personalMemoryEvalResultForAttempt(run.RunID, 2),
+		personalMemoryEvalResultForAttempt(run.RequestID, 1),
+		personalMemoryEvalResultForAttempt(run.RequestID, 2),
 		{
 			ResultID:   "sdk_tool.execute.campus_search.1:result:2",
 			StepID:     "sdk_tool.execute.campus_search.1",
-			RunID:      run.RunID,
-			AttemptID:  temporalStepAttemptID(run.RunID, "sdk_tool.execute.campus_search.1", 2),
+			RequestID:  run.RequestID,
+			AttemptID:  temporalStepAttemptID(run.RequestID, "sdk_tool.execute.campus_search.1", 2),
 			Status:     "completed",
 			ResultKind: "typed_tool_result",
 			SanitizedPayload: map[string]any{
@@ -208,7 +166,7 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 		{
 			ResultID:   "finalization.write:result:1",
 			StepID:     "finalization.write",
-			RunID:      run.RunID,
+			RequestID:  run.RequestID,
 			Status:     "completed",
 			ResultKind: "final_answer_projection",
 			SanitizedPayload: map[string]any{
@@ -226,17 +184,9 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 		},
 	}
 	projection := buildAgentRuntimeEvalProjection(run, nil, nil, results)
-	planning := expectRecord(t, projection["planning"], "planning")
-	toolSequence, _ := planning["tool_sequence"].([]any)
-	if len(toolSequence) != 2 ||
-		expectRecord(t, toolSequence[0], "planning.tool_sequence[0]")["tool_name"] != "personal_memory_recall" ||
-		expectRecord(t, toolSequence[1], "planning.tool_sequence[1]")["tool_name"] != "campus_search" {
-		t.Fatalf("planning.tool_sequence = %#v", planning["tool_sequence"])
-	}
-	rag := expectRecord(t, projection["rag"], "rag")
-	contexts, _ := rag["retrieved_contexts"].([]any)
+	contexts, _ := projection["retrieved_contexts"].([]any)
 	if len(contexts) != 1 || contexts[0] != "successful context" {
-		t.Fatalf("rag.retrieved_contexts = %#v", rag["retrieved_contexts"])
+		t.Fatalf("retrieved_contexts = %#v", projection["retrieved_contexts"])
 	}
 	trajectory := expectRecord(t, projection["tool_trajectory"], "tool_trajectory")
 	calls, _ := trajectory["tool_calls"].([]map[string]any)
@@ -249,14 +199,14 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 }
 
 func personalMemoryEvalResultForAttempt(
-	runID string,
+	requestID string,
 	activityAttempt int,
 ) execution.StepResultProjection {
 	return execution.StepResultProjection{
 		ResultID:   "sdk_tool.execute.personal_memory_recall.1:result:" + string(rune('0'+activityAttempt)),
 		StepID:     "sdk_tool.execute.personal_memory_recall.1",
-		RunID:      runID,
-		AttemptID:  temporalStepAttemptID(runID, "sdk_tool.execute.personal_memory_recall.1", activityAttempt),
+		RequestID:  requestID,
+		AttemptID:  temporalStepAttemptID(requestID, "sdk_tool.execute.personal_memory_recall.1", activityAttempt),
 		Status:     "completed",
 		ResultKind: "typed_tool_result",
 		SanitizedPayload: map[string]any{
@@ -270,10 +220,8 @@ func personalMemoryEvalResultForAttempt(
 func TestBuildToolTrajectoryProjectionClassifiesDirectAnswerAndFailClosed(t *testing.T) {
 	direct := buildAgentRuntimeEvalProjection(
 		execution.DurableRun{
-			RunID:          "run-direct",
 			ConversationID: "conv-direct",
 			RequestID:      "req-direct",
-			TraceID:        "trace-direct",
 			Surface:        "campus-web",
 			Status:         execution.DurableRunStatusCompleted,
 			TerminalReason: execution.DurableTerminalReasonAnswerCompleted,
@@ -283,7 +231,7 @@ func TestBuildToolTrajectoryProjectionClassifiesDirectAnswerAndFailClosed(t *tes
 		[]execution.StepResultProjection{{
 			ResultID:   "finalization.write:result:1",
 			StepID:     "finalization.write",
-			RunID:      "run-direct",
+			RequestID:  "req-direct",
 			Status:     "completed",
 			ResultKind: "final_response",
 			SanitizedPayload: map[string]any{
@@ -301,10 +249,8 @@ func TestBuildToolTrajectoryProjectionClassifiesDirectAnswerAndFailClosed(t *tes
 
 	failClosed := buildAgentRuntimeEvalProjection(
 		execution.DurableRun{
-			RunID:           "run-fail-closed",
 			ConversationID:  "conv-fail-closed",
 			RequestID:       "req-fail-closed",
-			TraceID:         "trace-fail-closed",
 			Surface:         "campus-web",
 			Status:          execution.DurableRunStatusFailed,
 			TerminalReason:  execution.DurableTerminalReasonToolClosed,
@@ -315,8 +261,7 @@ func TestBuildToolTrajectoryProjectionClassifiesDirectAnswerAndFailClosed(t *tes
 		nil,
 	)
 	failClosedTrajectory := expectRecord(t, failClosed["tool_trajectory"], "fail_closed.tool_trajectory")
-	if failClosedTrajectory["decision_kind"] != "fail_closed" ||
-		failClosedTrajectory["fail_close_reason"] != "unsupported_tool_hint" {
+	if failClosedTrajectory["decision_kind"] != "fail_closed" {
 		t.Fatalf("fail-closed tool trajectory = %#v", failClosedTrajectory)
 	}
 }

@@ -20,7 +20,6 @@ const FORWARDED_HEADERS = [
 	"idempotency-key",
 	"sentry-trace",
 	"traceparent",
-	"x-trace-id",
 ] as const;
 const AUTH_FORWARDED_HEADERS = [
 	...FORWARDED_HEADERS,
@@ -46,12 +45,8 @@ export function applyUpstreamCorrelationTags(
 	setTag: (key: string, value: string) => void = Sentry.setTag,
 ): void {
 	const requestId = normalizeUpstreamCorrelationId(response.headers.get("x-request-id"), 128);
-	const traceId = normalizeUpstreamCorrelationId(response.headers.get("x-trace-id"), 128);
 	if (requestId) {
 		setTag("campus.request_id", requestId);
-	}
-	if (traceId) {
-		setTag("campus.trace_id", traceId);
 	}
 }
 

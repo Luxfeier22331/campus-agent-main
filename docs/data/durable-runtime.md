@@ -15,7 +15,7 @@ app-api 产品读模型、Ops Web 运行记录、诊断和评测消费，并保�
 
 ### 运行
 
-run 关联 conversation、turn、request、trace、`owner_user_id`、`surface`、生命周期、运行版本、
+run 以 `request_id` 为主键，并关联 conversation、`owner_user_id`、`surface`、生命周期、运行版本、
 终态原因与 finalization ref。具体工具调用属于 step/result 轨迹，不压缩为单个“所选工具”。
 
 内部状态依次使用 `created`、`queued`、`admitted`、`running` 和可选的 `streaming`；持久取消
@@ -25,13 +25,14 @@ run 关联 conversation、turn、request、trace、`owner_user_id`、`surface`�
 
 ### 运行事件
 
-run event 按顺序记录有界生命周期与 streaming 事实。同一 run 内 event sequence 单调递增。
+run event 按顺序记录有界生命周期与 streaming 事实。同一 request 内 event sequence 单调递增。
 payload 只能包含 ref 和 summary，不得包含原始 prompt、transcript、provider response 或
 source body。
 
 内部与浏览器事件共享同一序列。事件查询的 `next_sequence` 是服务端已检查到的前向游标，可能
 大于本次返回的最后一个浏览器事件，也可能在返回空数组时前进；消费者不能从过滤后的事件自行
-推导游标。`run.canceled` 是浏览器事件，`run.cancel_requested` 只用于内部协调。
+推导游标。`run.canceled` 由 app-api 转换为浏览器 `request.cancelled`，`run.cancel_requested` 只用于
+内部协调。
 
 ### 生命周期命令
 
@@ -143,7 +144,7 @@ Finalization 可以拒绝空正文、无效工具结果或不满足执行合同�
 
 Finalization 读取 workflow 传入的 Agent result，验证身份、执行输入摘要和终态 schema。
 `finalization.write` 的 completed StepResult 保存由 agent result
-ref、最终响应、request/trace 生成的 `finalization_fingerprint_sha256`。
+ref、最终响应和 request 生成的 `finalization_fingerprint_sha256`。
 `FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的
 单个事务中，校验并提交 completed `finalization.write` Step、Attempt、Result 与 completed run 四元组，
 同时释放 conversation active-run lock。已经存在的 pending 或 leased cancellation 在同一 CAS 中改为
@@ -173,15 +174,15 @@ run 或阶段结果。
 - 原始 source body、Qdrant point 或 object-store bytes；
 - 本地文件路径。
 
-完整 `tool_execution_v5` 输入由 app-api 以精确 UTF-8 文本拥有，execution-control 只持久化
+完整 `tool_execution_v6` 输入由 app-api 以精确 UTF-8 文本拥有，execution-control 只持久化
 `execution_input_ref` 和 `execution_input_sha256`；ref 指向的数据也不得
-复制到上述投影。已经分配 run 的输入在产品终态后仍由 app-api 保留，随 app-api 的会话和用户数据
+复制到上述投影。已经分配 request 的输入在产品终态后仍由 app-api 保留，随 app-api 的会话和用户数据
 生命周期删除；execution-control 不维护对应清理记录。
 
 ## 消费
 
 app-api 从这些投影生成学生产品 read model。学生浏览器响应只接收 final answer、已批准 source item
-和公开 status/error 字段。Ops Web 通过列级只读权限按可信 `run_id` 聚合运行步骤、重试和 Agent
+和公开 status/error 字段。Ops Web 通过列级只读权限按可信 `request_id` 聚合运行阶段和 Agent
 模型用量，不经 app-api 复制到 `runtime.request_observability_fact`。Ops Web 与评测均不读取原始执行
 payload。
 

@@ -9,7 +9,7 @@ import { authorizedBearerValue, jsonResponse } from "./http-response.ts";
 
 export const AGENT_RUNTIME_MAX_REQUEST_BODY_BYTES = 1 << 20;
 
-const BODY_ROUTES = new Set(["/internal/agent-runs", "/internal/agent-runs/stream"]);
+const BODY_ROUTES = new Set(["/internal/agent-requests", "/internal/agent-requests/stream"]);
 
 export interface AgentRuntimeNodeServerOptions {
 	handler(request: Request): Promise<Response>;

@@ -51,11 +51,11 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/chat\/conversations\/[^/]+\/pin$/.test(pathname) ||
 		/^\/api\/chat\/conversations\/[^/]+\/messages\/[^/]+\/feedback$/.test(pathname) ||
 		/^\/api\/chat\/conversations\/[^/]+\/messages\/[^/]+\/trailing$/.test(pathname) ||
-		/^\/api\/chat\/runs\/[^/]+$/.test(pathname) ||
-		/^\/api\/chat\/runs\/[^/]+\/events$/.test(pathname) ||
-		/^\/api\/chat\/runs\/[^/]+\/events\/stream$/.test(pathname) ||
-		/^\/api\/chat\/runs\/[^/]+\/steps$/.test(pathname) ||
-		/^\/api\/chat\/runs\/[^/]+\/cancel$/.test(pathname) ||
+		/^\/api\/chat\/requests\/[^/]+$/.test(pathname) ||
+		/^\/api\/chat\/requests\/[^/]+\/events$/.test(pathname) ||
+		/^\/api\/chat\/requests\/[^/]+\/events\/stream$/.test(pathname) ||
+		/^\/api\/chat\/requests\/[^/]+\/steps$/.test(pathname) ||
+		/^\/api\/chat\/requests\/[^/]+\/cancel$/.test(pathname) ||
 		/^\/api\/me\/profile-memory\/items\/[^/]+$/.test(pathname) ||
 		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname) ||
 		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||

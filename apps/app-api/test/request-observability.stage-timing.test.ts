@@ -45,7 +45,6 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		observability: null,
 		result: null,
 		status: "completed",
-		traceId: "trace_01HQ",
 		...overrides,
 		modelUsage: overrides.modelUsage ?? {
 			cachedInputTokens: 10,
@@ -79,8 +78,6 @@ describe("request observability stage timing", () => {
 			status: "completed",
 			streamAppApiTtftMs: 420,
 			surface: "campus_web",
-			traceId: "trace_stage_timing_01HQ",
-			runId: "run_01HQ",
 		});
 
 		expect(fact.stageTiming).toEqual({
@@ -111,8 +108,6 @@ describe("request observability stage timing", () => {
 			status: "completed",
 			streamAppApiTtftMs: 420,
 			surface: "campus_web",
-			traceId: "trace_stage_timing_clock_01HQ",
-			runId: "run_01HQ",
 		});
 
 		expect(fact.stageTiming).toMatchObject({
@@ -141,8 +136,6 @@ describe("request observability stage timing", () => {
 			},
 			streamAppApiTtftMs: 2200,
 			surface: "campus_web",
-			traceId: "trace_stage_timing_first_value_01HQ",
-			runId: "run_01HQ",
 		});
 
 		expect(fact.stageTiming).toMatchObject({
@@ -174,8 +167,6 @@ describe("request observability stage timing", () => {
 					"app_api.synthetic_ms": 1,
 				},
 				surface: "campus_web",
-				traceId: "trace_stage_timing_invalid_01HQ",
-				runId: "run_01HQ",
 			}),
 		).toThrow("stage_timing.app_api.synthetic_ms is not an allowed stage timing field");
 	});

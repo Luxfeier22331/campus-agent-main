@@ -10,7 +10,6 @@ const generatedGoPath = "apps/execution-control/internal/contracts/tool_executio
 
 export function runToolExecutionSelfTest(): void {
 	checkOpenApiMetadata();
-	checkWorkflowTraceSummary();
 	checkRuntimeBoundaries();
 	checkExecutionResponseDiagnostics();
 	checkGeneratedArtifacts();
@@ -26,43 +25,39 @@ function checkOpenApiMetadata(): void {
 		"dialect mismatch",
 	);
 	const meta = asRecord(openapi["x-campus-contract"], "x-campus-contract");
-	expect(meta.execution_contract_version === "tool_execution_v5", "execution contract mismatch");
+	expect(meta.execution_contract_version === "tool_execution_v6", "execution contract mismatch");
 	expect(
-		meta.response_contract === "execution_finalization_response_v6",
+		meta.response_contract === "execution_finalization_response_v7",
 		"response contract mismatch",
-	);
-	expect(
-		meta.workflow_trace_summary_version === "workflow-trace-summary-v7",
-		"workflow trace version mismatch",
 	);
 	const policy = asRecord(meta.versioning_policy, "versioning_policy");
 	expectEqualJson(
 		new Set(Object.keys(policy)),
-		new Set(["execution_contract_version", "response_contract", "workflow_trace_summary_version"]),
+		new Set(["execution_contract_version", "response_contract"]),
 		"version policy keys",
 	);
 	const components = asRecord(openapi.components, "components");
 	const componentSchemas = asRecord(components.schemas, "components.schemas");
-	const executionRunId = asRecord(componentSchemas.ExecutionRunId, "ExecutionRunId");
-	expect(executionRunId.type === "string", "ExecutionRunId must be a string");
+	const executionRequestId = asRecord(componentSchemas.ExecutionRequestId, "ExecutionRequestId");
+	expect(executionRequestId.type === "string", "ExecutionRequestId must be a string");
 	expect(
-		executionRunId.pattern === "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
-		"ExecutionRunId pattern mismatch",
+		executionRequestId.pattern === "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+		"ExecutionRequestId pattern mismatch",
 	);
 	const parameters = asRecord(components.parameters, "components.parameters");
-	const runIdParameter = asRecord(parameters.RunId, "RunId parameter");
+	const requestIdParameter = asRecord(parameters.RequestId, "RequestId parameter");
 	expectEqualJson(
-		asRecord(runIdParameter.schema, "RunId parameter schema"),
-		{ $ref: "#/components/schemas/ExecutionRunId" },
-		"RunId parameter schema ref",
+		asRecord(requestIdParameter.schema, "RequestId parameter schema"),
+		{ $ref: "#/components/schemas/ExecutionRequestId" },
+		"RequestId parameter schema ref",
 	);
 	expectEqualJson(
 		properties(
 			asRecord(componentSchemas.ExecutionRunCreateRequest, "ExecutionRunCreateRequest"),
 			"ExecutionRunCreateRequest",
-		).run_id,
-		{ $ref: "#/components/schemas/ExecutionRunId" },
-		"execution run create run_id ref",
+		).request_id,
+		{ $ref: "#/components/schemas/ExecutionRequestId" },
+		"execution run create request_id ref",
 	);
 	const componentResponses = asRecord(components.responses, "components.responses");
 	const appApiErrorResponse = asRecord(
@@ -88,7 +83,7 @@ function checkOpenApiMetadata(): void {
 	);
 	const paths = asRecord(openapi.paths, "paths");
 	const inputPath = asRecord(
-		paths["/api/internal/execution/runs/{runId}/input"],
+		paths["/api/internal/execution/requests/{requestId}/input"],
 		"execution input path",
 	);
 	expect(inputPath.delete === undefined, "execution input must not expose a DELETE operation");
@@ -112,24 +107,6 @@ function checkOpenApiMetadata(): void {
 			`execution input get ${status} error response ref`,
 		);
 	}
-}
-
-function checkWorkflowTraceSummary(): void {
-	const summary = schema("WorkflowTraceSummary");
-	const summaryProperties = properties(summary, "WorkflowTraceSummary");
-	for (const field of [
-		"execution_path",
-		"terminal_reason",
-		"answer_artifact_refs",
-		"runtime_versions",
-	]) {
-		expectIncludes(summary.required, field, `${field} required`);
-	}
-	expectEqualJson(
-		summaryProperties.execution_path,
-		{ $ref: "#/components/schemas/ExecutionPath" },
-		"execution path ref",
-	);
 }
 
 function checkRuntimeBoundaries(): void {
@@ -156,7 +133,6 @@ function checkRuntimeBoundaries(): void {
 			"request_id",
 			"tenant_id",
 			"safety_identifier",
-			"trace",
 			"context",
 		]),
 		"execution payload fields",
@@ -169,7 +145,6 @@ function checkRuntimeBoundaries(): void {
 			"user_goal",
 			"conversation_id",
 			"request_id",
-			"trace",
 			"context",
 		]),
 		"execution payload required fields",
@@ -207,11 +182,8 @@ function checkRuntimeBoundaries(): void {
 	expectEqualJson(
 		new Set(Object.keys(runCreateProperties)),
 		new Set([
-			"run_id",
 			"conversation_id",
-			"turn_id",
 			"request_id",
-			"trace_id",
 			"owner_user_id",
 			"personal_memory_recall_allowed",
 			"surface",
@@ -246,7 +218,7 @@ function checkRuntimeBoundaries(): void {
 		asRecord(
 			asRecord(
 				asRecord(
-					asRecord(loadOpenApi().paths, "paths")["/internal/execution/runs/{runId}/events"],
+					asRecord(loadOpenApi().paths, "paths")["/internal/execution/requests/{requestId}/events"],
 					"events path",
 				).get,
 				"events get",
@@ -314,12 +286,7 @@ function checkGeneratedArtifacts(): void {
 			"generated marker missing",
 		);
 	}
-	expect(
-		tsContract.includes("interface ToolExecutionWorkflowTraceSummaryWire"),
-		"TS workflow summary missing",
-	);
 	for (const requiredType of [
-		"interface TraceContextWire",
 		"interface ExecutionPayloadWire",
 		"interface ExecutionRunMetadataWire",
 		"interface ExecutionRunCreateRequestWire",
@@ -331,18 +298,14 @@ function checkGeneratedArtifacts(): void {
 		"TS stage timing missing",
 	);
 	expect(
-		goContract.includes("type WorkflowTraceSummaryWire struct"),
-		"Go workflow summary missing",
-	);
-	expect(
 		goContract.includes("type StageTimingWire map[StageTimingField]float64"),
 		"Go stage timing missing",
 	);
 	for (const requiredSymbol of [
 		"type ExecutionPayloadWire struct",
 		"type ExecutionRunCreateRequestWire struct",
-		"ExecutionRunIDPattern",
-		"func ValidExecutionRunID",
+		"ExecutionRequestIDPattern",
+		"func ValidExecutionRequestID",
 		"func DecodeExecutionPayloadWireJSON",
 		"func DecodeExecutionRunCreateRequestWireJSON",
 	]) {
@@ -353,11 +316,11 @@ function checkGeneratedArtifacts(): void {
 function checkFixtureMatrix(): void {
 	const delegate = loadFixture("execution_payload.valid.json");
 	expect(
-		delegate.execution_contract_version === "tool_execution_v5",
+		delegate.execution_contract_version === "tool_execution_v6",
 		"delegate execution contract",
 	);
 	expect(
-		delegate.response_contract === "execution_finalization_response_v6",
+		delegate.response_contract === "execution_finalization_response_v7",
 		"delegate response contract",
 	);
 	expectFixtureValidity("execution_payload.valid.json", "ExecutionPayload", true);
@@ -372,7 +335,7 @@ function checkFixtureMatrix(): void {
 	for (const fixtureName of [
 		"execution_run_create_raw_payload.invalid.json",
 		"execution_run_create_ref.invalid.json",
-		"execution_run_create_run_id.invalid.json",
+		"execution_run_create_request_id.invalid.json",
 		"execution_run_create_sha.invalid.json",
 	]) {
 		expectFixtureValidity(fixtureName, "ExecutionRunCreateRequest", false);
@@ -383,7 +346,7 @@ function checkFixtureMatrix(): void {
 		"execution_payload_invalid_version.invalid.json",
 		"execution_run_create_raw_payload.invalid.json",
 		"execution_run_create_ref.invalid.json",
-		"execution_run_create_run_id.invalid.json",
+		"execution_run_create_request_id.invalid.json",
 		"execution_run_create_sha.invalid.json",
 		"execution_run_create.valid.json",
 		"response_camel_case.invalid.json",
@@ -399,10 +362,7 @@ function checkFixtureMatrix(): void {
 	})) {
 		const response = loadFixture(fixtureName);
 		expect(response.status === expectedStatus, `${fixtureName} status mismatch`);
-		expect(
-			String(response.trace_id).startsWith("trace-contract-"),
-			`${fixtureName} trace id mismatch`,
-		);
+		expect(!("trace_id" in response), `${fixtureName} must not expose a product trace id`);
 	}
 }
 

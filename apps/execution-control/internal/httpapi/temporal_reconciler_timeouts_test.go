@@ -22,7 +22,7 @@ func TestTemporalReconcilerConvergesWorkflowTimeoutBeforePublishingExpired(t *te
 	}
 	markReconcilerStartDispatchForTest(t, store, leased[0], intent.CreatedAt)
 	if err := store.ConfirmWorkflowStartIntent(context.Background(), execution.WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: leased[0].LeaseToken, TemporalRunID: "temporal-timeout", Now: intent.CreatedAt.Add(time.Second),
+		RequestID: intent.RequestID, LeaseToken: leased[0].LeaseToken, TemporalRunID: "temporal-timeout", Now: intent.CreatedAt.Add(time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -49,26 +49,26 @@ func TestTemporalReconcilerConvergesWorkflowTimeoutBeforePublishingExpired(t *te
 	}
 	reconciler := &temporalReconciler{server: server}
 	reconciler.reconcileWorkflowTimeouts(context.Background())
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || run.Status != execution.DurableRunStatusQueued {
 		t.Fatalf("run became terminal before callback succeeded: %#v err=%v", run, err)
 	}
-	for _, event := range mustListRunEvents(t, store, intent.RunID) {
+	for _, event := range mustListRunEvents(t, store, intent.RequestID) {
 		if event.EventType == execution.DurableRunEventTypeRunExpired {
 			t.Fatal("run.expired published before callback succeeded")
 		}
 	}
 	reconciler.reconcileWorkflowTimeouts(context.Background())
-	run, err = store.GetRun(context.Background(), intent.RunID)
+	run, err = store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || run.Status != execution.DurableRunStatusExpired ||
 		run.TerminalReason != execution.DurableTerminalReasonRunTimeout || !run.CompletedAt.Equal(closedAt) {
 		t.Fatalf("expired run = %#v err=%v", run, err)
 	}
-	events := mustListRunEvents(t, store, intent.RunID)
+	events := mustListRunEvents(t, store, intent.RequestID)
 	if events[len(events)-1].EventType != execution.DurableRunEventTypeRunExpired {
 		t.Fatalf("terminal event = %#v", events[len(events)-1])
 	}
-	attempts, err := store.ListStepAttempts(context.Background(), intent.RunID)
+	attempts, err := store.ListStepAttempts(context.Background(), intent.RequestID)
 	if err != nil || len(attempts) != 1 || attempts[0].TimeoutOutcome != execution.TimeoutOutcomeWorkflowTimeout {
 		t.Fatalf("timeout attempts = %#v, err=%v", attempts, err)
 	}
@@ -101,22 +101,22 @@ func TestTemporalReconcilerConvergesTerminatedWorkflowBeforePublishingFailed(t *
 	reconciler := &temporalReconciler{server: server}
 
 	reconciler.reconcileWorkflowTimeouts(context.Background())
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || run.Status != execution.DurableRunStatusRunning {
 		t.Fatalf("run became terminal before termination callback succeeded: %#v err=%v", run, err)
 	}
 	reconciler.reconcileWorkflowTimeouts(context.Background())
-	run, err = store.GetRun(context.Background(), intent.RunID)
+	run, err = store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || run.Status != execution.DurableRunStatusFailed ||
 		run.TerminalReason != execution.DurableTerminalReasonRuntimeInvariant ||
 		run.FailCloseReason != workflowExecutionTerminatedFailure || !run.CompletedAt.Equal(closedAt) {
 		t.Fatalf("terminated run = %#v err=%v", run, err)
 	}
-	events := mustListRunEvents(t, store, intent.RunID)
+	events := mustListRunEvents(t, store, intent.RequestID)
 	if events[len(events)-1].EventType != execution.DurableRunEventTypeRunFailed {
 		t.Fatalf("terminal event = %#v", events[len(events)-1])
 	}
-	attempts, err := store.ListStepAttempts(context.Background(), intent.RunID)
+	attempts, err := store.ListStepAttempts(context.Background(), intent.RequestID)
 	if err != nil || len(attempts) != 1 || attempts[0].StepID != "workflow.execution" ||
 		attempts[0].FailCloseReason != workflowExecutionTerminatedFailure {
 		t.Fatalf("termination attempts = %#v, err=%v", attempts, err)
@@ -173,7 +173,7 @@ func TestTemporalReconcilerFailClosesClosedWorkflowWithoutProductTerminalProject
 
 			(&temporalReconciler{server: server}).reconcileWorkflowTimeouts(context.Background())
 
-			run, err := store.GetRun(context.Background(), intent.RunID)
+			run, err := store.GetRun(context.Background(), intent.RequestID)
 			if err != nil || run.Status != execution.DurableRunStatusFailed ||
 				run.TerminalReason != execution.DurableTerminalReasonRuntimeInvariant ||
 				run.FailCloseReason != test.failureKind || !run.CompletedAt.Equal(closedAt) {
@@ -197,16 +197,16 @@ func TestTemporalReconcilerTimeoutScanPaginatesPastFailedBatchAndWraps(t *testin
 	}
 	markReconcilerStartDispatchForTest(t, base, leased[0], intent.CreatedAt)
 	if err := base.ConfirmWorkflowStartIntent(context.Background(), execution.WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: leased[0].LeaseToken,
+		RequestID: intent.RequestID, LeaseToken: leased[0].LeaseToken,
 		TemporalRunID: "temporal-paginated-timeout", Now: intent.CreatedAt.Add(time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
-	confirmedIntent, err := base.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	confirmedIntent, err := base.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := base.GetRun(context.Background(), intent.RunID)
+	run, err := base.GetRun(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,9 +214,9 @@ func TestTemporalReconcilerTimeoutScanPaginatesPastFailedBatchAndWraps(t *testin
 	for index := range temporalReconcileBatch {
 		runID := fmt.Sprintf("run-%03d", index)
 		bindings = append(bindings, execution.ActiveWorkflowRun{
-			Run: execution.DurableRun{RunID: runID},
+			Run: execution.DurableRun{RequestID: runID},
 			StartIntent: execution.WorkflowStartIntent{
-				RunID: runID, WorkflowInputJSON: json.RawMessage(`{}`),
+				RequestID: runID, WorkflowInputJSON: json.RawMessage(`{}`),
 			},
 		})
 	}
@@ -240,12 +240,12 @@ func TestTemporalReconcilerTimeoutScanPaginatesPastFailedBatchAndWraps(t *testin
 	reconciler := &temporalReconciler{server: server}
 
 	reconciler.reconcileWorkflowTimeouts(context.Background())
-	if firstPageRun, err := base.GetRun(context.Background(), intent.RunID); err != nil ||
+	if firstPageRun, err := base.GetRun(context.Background(), intent.RequestID); err != nil ||
 		firstPageRun.Status != execution.DurableRunStatusQueued {
 		t.Fatalf("later-page run changed during first page: %#v err=%v", firstPageRun, err)
 	}
 	reconciler.reconcileWorkflowTimeouts(context.Background())
-	expired, err := base.GetRun(context.Background(), intent.RunID)
+	expired, err := base.GetRun(context.Background(), intent.RequestID)
 	if err != nil || expired.Status != execution.DurableRunStatusExpired || !expired.CompletedAt.Equal(closedAt) {
 		t.Fatalf("later-page timeout did not converge: %#v err=%v", expired, err)
 	}

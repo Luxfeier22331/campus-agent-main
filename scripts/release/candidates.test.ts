@@ -242,6 +242,7 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 	assert.deepEqual(plan.images, [
 		"agent-runtime",
 		"app-api-schema",
+		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"execution-control",
 		"internal-portal-collection",
@@ -258,6 +259,20 @@ test("publishes the internal-portal-collection image for a Dockerfile-only chang
 	const runner = syntheticScopeRunner(changed("jobs/internal-portal-collection/Dockerfile"), []);
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, ["internal-portal-collection"]);
+	assert.deepEqual(plan.workers, []);
+});
+
+test("publishes the unified schema image for a schema job change", async (t) => {
+	const root = await fixture(t);
+	const runner = syntheticScopeRunner(
+		changed(
+			"jobs/campus-agent-schema/src/migrate.ts",
+			"jobs/campus-agent-schema/migrations/0000_campus_agent_baseline.sql",
+		),
+		[],
+	);
+	const plan = await planCandidates(options(root), runner);
+	assert.deepEqual(plan.images, ["campus-agent-schema"]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -429,6 +444,7 @@ test("a Node lockfile change selects Node one-shot images but not the independen
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, [
 		"app-api-schema",
+		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"internal-portal-collection",
 		"notice-publisher",

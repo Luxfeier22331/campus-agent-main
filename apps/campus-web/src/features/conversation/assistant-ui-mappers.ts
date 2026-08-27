@@ -49,8 +49,8 @@ export function toAssistantThreadMessages(conversation: ConversationDetail): Thr
 
 function buildMessageMetadata(message: ChatMessage): ThreadMessageLike["metadata"] | undefined {
 	const custom: Record<string, unknown> = {};
-	if (message.runId) {
-		custom.campusRun = { runId: message.runId };
+	if (message.requestId) {
+		custom.campusRequest = { requestId: message.requestId };
 	}
 	if (
 		message.role === "assistant" &&

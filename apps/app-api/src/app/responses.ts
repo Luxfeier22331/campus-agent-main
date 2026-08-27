@@ -48,7 +48,6 @@ export function routeErrorResponseWithRouteErrorCorrelation(
 	error: AppApiRouteError,
 	correlation: {
 		requestId: string;
-		traceId: string;
 	},
 ): Response {
 	return routeErrorResponse(
@@ -59,7 +58,6 @@ export function routeErrorResponseWithRouteErrorCorrelation(
 			requestId: error.requestId ?? correlation.requestId,
 			retryable: error.retryable,
 			status: error.status,
-			traceId: error.traceId ?? correlation.traceId,
 		}),
 	);
 }

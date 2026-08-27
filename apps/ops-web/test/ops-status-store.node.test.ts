@@ -6,7 +6,11 @@ import {
 	resolveCampusWebPublicOrigin,
 } from "../src/server/ops-status-factory";
 import { createPgOpsStatusStore } from "../src/server/pg-ops-status-store";
-import { requestRowsCte, runAttemptsSql, runStepsSql } from "../src/server/pg-request-query";
+import {
+	requestModelAttemptsSql,
+	requestRowsCte,
+	requestStagesSql,
+} from "../src/server/pg-request-query";
 import { OpsRequestDetailResponseSchema } from "../src/shared/ops-contract";
 import {
 	createFakeOpsDb,
@@ -56,7 +60,7 @@ describe("PostgreSQL ops status store", () => {
 	});
 
 	it("reads execution projections from the owning schema", () => {
-		const sql = `${requestRowsCte()}\n${runStepsSql()}\n${runAttemptsSql()}`;
+		const sql = `${requestRowsCte()}\n${requestStagesSql()}\n${requestModelAttemptsSql()}`;
 
 		expect(sql).toContain('"execution_control"."agent_runs"');
 		expect(sql).toContain('"execution_control"."agent_run_steps"');
@@ -123,7 +127,7 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
-	it("projects the conversation result, execution diagnostics, and technical context", async () => {
+	it("projects the product result and request-level execution diagnostics", async () => {
 		const store = createPgOpsStatusStore({
 			campusWebPublicOrigin: "https://campus.example.test",
 			db: createFakeOpsDb(),
@@ -131,7 +135,7 @@ describe("PostgreSQL ops status store", () => {
 		});
 		const detail = OpsRequestDetailResponseSchema.parse(await store.getRequestDetail("req_pg_001"));
 
-		expect(detail.question).toEqual({ text: "缓考申请需要哪些材料？", turnSequence: 3 });
+		expect(detail.question).toEqual({ text: "缓考申请需要哪些材料？" });
 		expect(detail.result).toMatchObject({
 			kind: "answer",
 			state: "WRITTEN",
@@ -154,24 +158,16 @@ describe("PostgreSQL ops status store", () => {
 				executionControl: "execution-control@a77a046",
 			},
 		});
-		expect(detail.execution.steps).toHaveLength(1);
-		expect(detail.execution.steps[0]).toMatchObject({
+		expect(detail.execution.stages).toHaveLength(1);
+		expect(detail.execution.stages[0]).toMatchObject({
 			kind: "agent",
 			status: "completed",
-			stepId: "agent.primary",
 		});
-		expect(detail.execution.steps[0]?.attempts[0]).toMatchObject({
-			modelName: "deepseek-v4-flash-0731",
-			modelProvider: "openai-compatible",
-			modelRequestCount: 1,
-			tokens: { cachedInput: 200, input: 1_200, output: 240 },
-		});
-		expect(detail.technical.correlationIds).toMatchObject({
-			runId: "run_pg_001",
-			workflowId: "campus-agent.chat.run_pg_001",
-		});
-		expect(detail.technical.runtimeVersions).toEqual({
-			agentRuntime: "openai_agents_sdk",
+		expect(detail.execution.model).toEqual({
+			name: "deepseek-v4-flash-0731",
+			provider: "openai-compatible",
+			requestCount: 1,
+			tokens: { cachedInput: 200, input: 1_200, output: 240, total: 1_440 },
 		});
 		expect(detail).not.toHaveProperty("externalEvidenceRefs");
 		expect(detail).not.toHaveProperty("journey");
@@ -186,7 +182,7 @@ describe("PostgreSQL ops status store", () => {
 		const diagnosticsUnavailable = createPgOpsStatusStore({
 			db: {
 				...createFakeOpsDb(),
-				getRunDiagnostics: async () => {
+				getRequestDiagnostics: async () => {
 					throw new Error("diagnostics unavailable");
 				},
 			},
@@ -315,7 +311,6 @@ describe("PostgreSQL ops status store", () => {
 						modelName: "",
 						modelProvider: "",
 						modelRequestCount: 0,
-						providerResponseId: "",
 						sanitizedPayloadJson: {
 							agent_runtime_error_code: "tool_contract_mismatch",
 							agent_runtime_http_status: 409,
@@ -362,27 +357,23 @@ describe("PostgreSQL ops status store", () => {
 			agentRuntime: "agent-runtime@new",
 			executionControl: "execution-control@old",
 		});
-		expect(detail?.execution.steps[0]?.attempts[0]).toMatchObject({
-			modelName: null,
-			modelProvider: null,
-			modelRequestCount: 0,
-			providerResponseId: null,
-			tokens: { cachedInput: null, input: null, output: null },
+		expect(detail?.execution.model).toEqual({
+			name: null,
+			provider: null,
+			requestCount: 0,
+			tokens: { cachedInput: null, input: null, output: null, total: null },
 		});
 	});
 
 	it("does not load attempt diagnostics for request lists", async () => {
 		const db = createFakeOpsDb({
-			requestRows: [
-				requestRow(),
-				requestRow({ requestId: "req_pg_without_run", runId: null, workflowId: null }),
-			],
+			requestRows: [requestRow(), requestRow({ requestId: "req_pg_without_diagnostics" })],
 		});
-		const getRunDiagnostics = vi.fn(async () => {
+		const getRequestDiagnostics = vi.fn(async () => {
 			throw new Error("list must not load diagnostics");
 		});
 		const store = createPgOpsStatusStore({
-			db: { ...db, getRunDiagnostics },
+			db: { ...db, getRequestDiagnostics },
 			now: () => now,
 		});
 
@@ -390,10 +381,10 @@ describe("PostgreSQL ops status store", () => {
 
 		expect(result.data).toHaveLength(2);
 		expect(result.data.find((request) => request.requestId === "req_pg_001")).toMatchObject({
-			executionStage: { kind: "agent", status: "completed", stepId: "agent.primary" },
+			executionStage: { kind: "agent", status: "completed" },
 			requestId: "req_pg_001",
 		});
-		expect(getRunDiagnostics).not.toHaveBeenCalled();
+		expect(getRequestDiagnostics).not.toHaveBeenCalled();
 	});
 
 	it("returns the selected request window with list results", async () => {
@@ -456,29 +447,17 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
-	it("filters exact run and workflow IDs and projects their real values", async () => {
-		const target = requestRow({
-			requestId: "req_target",
-			runId: "run_exact",
-			workflowId: "workflow/exact",
-		});
+	it("filters exact request IDs", async () => {
+		const target = requestRow({ requestId: "req_target" });
 		const store = createPgOpsStatusStore({
 			db: createFakeOpsDb({ requestRows: [requestRow(), target] }),
 			now: () => now,
 		});
 
-		const byRun = await store.listRequests({ runId: "run_exact", window: "1h" });
-		const byWorkflow = await store.listRequests({ workflowId: "workflow/exact", window: "1h" });
+		const result = await store.listRequests({ requestId: "req_target", window: "1h" });
 
-		expect(byRun.data).toHaveLength(1);
-		expect(byWorkflow.data).toHaveLength(1);
-		expect(byWorkflow.data[0]).toMatchObject({ requestId: "req_target" });
-		expect(byWorkflow.data[0]).not.toHaveProperty("runId");
-		const detail = await store.getRequestDetail("req_target");
-		expect(detail?.technical.correlationIds).toMatchObject({
-			runId: "run_exact",
-			workflowId: "workflow/exact",
-		});
+		expect(result.data).toHaveLength(1);
+		expect(result.data[0]).toMatchObject({ requestId: "req_target" });
 	});
 
 	it("keeps recent runs chronological and prioritizes missing results in attention view", async () => {

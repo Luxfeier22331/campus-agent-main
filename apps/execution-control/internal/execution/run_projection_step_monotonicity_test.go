@@ -15,10 +15,10 @@ func TestInMemoryRunStepProjectionTerminalAttemptIsImmutable(t *testing.T) {
 		t.Run(status, func(t *testing.T) {
 			store := NewInMemoryRunProjectionStore()
 			now := time.Date(2026, 7, 23, 1, index, 0, 0, time.UTC)
-			runID := "run-step-terminal-" + status
-			createRunProjectionForTest(t, store, runID, "conv-step-terminal-"+status, now)
+			requestID := "run-step-terminal-" + status
+			createRunProjectionForTest(t, store, requestID, "conv-step-terminal-"+status, now)
 
-			started := monotonicRunStepForTest(runID, "started", 1, now.Add(time.Second), "started")
+			started := monotonicRunStepForTest(requestID, "started", 1, now.Add(time.Second), "started")
 			if _, err := store.UpsertRunStep(context.Background(), started); err != nil {
 				t.Fatalf("seed started step: %v", err)
 			}
@@ -38,7 +38,7 @@ func TestInMemoryRunStepProjectionTerminalAttemptIsImmutable(t *testing.T) {
 			if _, err := store.UpsertRunStep(context.Background(), late); !errors.Is(err, ErrStaleRunStepProjection) {
 				t.Fatalf("late terminal overwrite error = %v, want ErrStaleRunStepProjection", err)
 			}
-			steps, err := store.ListRunSteps(context.Background(), runID)
+			steps, err := store.ListRunSteps(context.Background(), requestID)
 			if err != nil || len(steps) != 1 {
 				t.Fatalf("stored steps = %#v, error = %v", steps, err)
 			}
@@ -78,7 +78,7 @@ func TestInMemoryRunStepProjectionAllowsHigherAttemptAndRejectsLowerAttempt(t *t
 	if _, err := store.UpsertRunStep(context.Background(), lateFirst); !errors.Is(err, ErrStaleRunStepProjection) {
 		t.Fatalf("lower attempt overwrite error = %v, want ErrStaleRunStepProjection", err)
 	}
-	steps, err := store.ListRunSteps(context.Background(), first.RunID)
+	steps, err := store.ListRunSteps(context.Background(), first.RequestID)
 	if err != nil || len(steps) != 1 {
 		t.Fatalf("stored steps = %#v, error = %v", steps, err)
 	}
@@ -94,10 +94,10 @@ func TestInMemoryStepAttemptProjectionTerminalRecordIsImmutable(t *testing.T) {
 		t.Run(status, func(t *testing.T) {
 			store := NewInMemoryRunProjectionStore()
 			now := time.Date(2026, 7, 23, 3, index, 0, 0, time.UTC)
-			runID := "run-attempt-terminal-" + status
-			createRunProjectionForTest(t, store, runID, "conv-attempt-terminal-"+status, now)
+			requestID := "run-attempt-terminal-" + status
+			createRunProjectionForTest(t, store, requestID, "conv-attempt-terminal-"+status, now)
 
-			started := monotonicStepAttemptForTest(runID, 1, "started", now.Add(time.Second), "started")
+			started := monotonicStepAttemptForTest(requestID, 1, "started", now.Add(time.Second), "started")
 			if _, err := store.UpsertStepAttempt(context.Background(), started); err != nil {
 				t.Fatalf("seed started attempt: %v", err)
 			}
@@ -117,7 +117,7 @@ func TestInMemoryStepAttemptProjectionTerminalRecordIsImmutable(t *testing.T) {
 			if _, err := store.UpsertStepAttempt(context.Background(), late); !errors.Is(err, ErrStaleStepAttemptProjection) {
 				t.Fatalf("late attempt overwrite error = %v, want ErrStaleStepAttemptProjection", err)
 			}
-			attempts, err := store.ListStepAttempts(context.Background(), runID)
+			attempts, err := store.ListStepAttempts(context.Background(), requestID)
 			if err != nil || len(attempts) != 1 {
 				t.Fatalf("stored attempts = %#v, error = %v", attempts, err)
 			}
@@ -150,7 +150,7 @@ func TestInMemoryStepAttemptProjectionAllowsStartedToTerminalAndNewRetryRecord(t
 		t.Fatalf("write second attempt: %v", err)
 	}
 
-	attempts, err := store.ListStepAttempts(context.Background(), first.RunID)
+	attempts, err := store.ListStepAttempts(context.Background(), first.RequestID)
 	if err != nil || len(attempts) != 2 {
 		t.Fatalf("stored attempts = %#v, error = %v", attempts, err)
 	}
@@ -175,7 +175,7 @@ func TestInMemoryStepAttemptProjectionRejectsActivityAttemptRegression(t *testin
 	if _, err := store.UpsertStepAttempt(context.Background(), regressed); !errors.Is(err, ErrStaleStepAttemptProjection) {
 		t.Fatalf("activity attempt regression error = %v, want ErrStaleStepAttemptProjection", err)
 	}
-	attempts, err := store.ListStepAttempts(context.Background(), current.RunID)
+	attempts, err := store.ListStepAttempts(context.Background(), current.RequestID)
 	if err != nil || len(attempts) != 1 {
 		t.Fatalf("stored attempts = %#v, error = %v", attempts, err)
 	}
@@ -270,7 +270,7 @@ func assertSingleStepProjectionWinner(t *testing.T, results <-chan error, staleE
 }
 
 func monotonicRunStepForTest(
-	runID string,
+	requestID string,
 	status string,
 	activityAttempt int,
 	updatedAt time.Time,
@@ -278,8 +278,8 @@ func monotonicRunStepForTest(
 ) RunStepProjection {
 	return RunStepProjection{
 		StepID:               "agent.primary",
-		RunID:                runID,
-		ConversationID:       "conv-" + runID,
+		RequestID:            requestID,
+		ConversationID:       "conv-" + requestID,
 		StepKind:             "agent",
 		Status:               status,
 		ActivityAttempt:      activityAttempt,
@@ -291,16 +291,16 @@ func monotonicRunStepForTest(
 }
 
 func monotonicStepAttemptForTest(
-	runID string,
+	requestID string,
 	activityAttempt int,
 	status string,
 	updatedAt time.Time,
 	marker string,
 ) StepAttemptProjection {
 	return StepAttemptProjection{
-		AttemptID:            fmt.Sprintf("%s:agent.primary:attempt-%d", runID, activityAttempt),
+		AttemptID:            fmt.Sprintf("%s:agent.primary:attempt-%d", requestID, activityAttempt),
 		StepID:               "agent.primary",
-		RunID:                runID,
+		RequestID:            requestID,
 		Attempt:              activityAttempt,
 		Status:               status,
 		ActivityAttempt:      activityAttempt,

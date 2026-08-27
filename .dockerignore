@@ -25,6 +25,8 @@ apps/campus-web/**
 !apps/ops-web/**
 !jobs/app-api-schema/
 !jobs/app-api-schema/**
+!jobs/campus-agent-schema/
+!jobs/campus-agent-schema/**
 !jobs/campus-docs-index-publisher/
 !jobs/campus-docs-index-publisher/**
 !jobs/internal-portal-collection/

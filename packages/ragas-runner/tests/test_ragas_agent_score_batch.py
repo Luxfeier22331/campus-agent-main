@@ -33,8 +33,7 @@ def sample_payload(**item_overrides: object) -> dict[str, object]:
     item.update(item_overrides)
     return {
         "items": [item],
-        "run_id": "agent-eval-001",
-        "schema_version": "ragas_agent_sample_batch.v2",
+        "schema_version": "ragas_agent_sample_batch.v3",
     }
 
 
@@ -99,8 +98,8 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
             self.assertEqual(summary["items"], 1)
             self.assertEqual(captured[0].case_id, "case-001")
             payload = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["schema_version"], "ragas_agent_score_batch.v2")
-            self.assertEqual(payload["run_id"], "agent-eval-001")
+            self.assertEqual(payload["schema_version"], "ragas_agent_score_batch.v3")
+            self.assertNotIn("run_id", payload)
             self.assertEqual(payload["items"][0]["scores"]["ragas.tool_call_f1.name_only"], 1.0)
             self.assertNotIn("trace_id", payload["items"][0])
             self.assertNotIn("dataset_run_id", payload["items"][0])
@@ -148,9 +147,19 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
             provider_config(config_path)
 
             legacy = sample_payload()
-            legacy["schema_version"] = "ragas_agent_sample_batch.v1"
+            legacy["schema_version"] = "ragas_agent_sample_batch.v2"
             input_path.write_text(json.dumps(legacy), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "ragas_agent_sample_batch.v2"):
+            with self.assertRaisesRegex(ValueError, "ragas_agent_sample_batch.v3"):
+                run_ragas_agent_score_batch(
+                    input_path=input_path,
+                    output_path=output_path,
+                    provider_config_path=config_path,
+                )
+
+            forbidden_batch = sample_payload()
+            forbidden_batch["run_id"] = "must-not-cross-boundary"
+            input_path.write_text(json.dumps(forbidden_batch), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "run_id"):
                 run_ragas_agent_score_batch(
                     input_path=input_path,
                     output_path=output_path,

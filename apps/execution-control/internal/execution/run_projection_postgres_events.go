@@ -20,11 +20,11 @@ func (s *PostgresRunProjectionStore) AppendRunEvent(
 		_ = tx.Rollback(ctx)
 	}()
 	run, err := scanDurableRun(
-		tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", event.RunID),
+		tx.QueryRow(ctx, durableRunSelectSQL+" where request_id = $1 for update", event.RequestID),
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return DurableRunEvent{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, event.RunID)
+			return DurableRunEvent{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, event.RequestID)
 		}
 		return DurableRunEvent{}, err
 	}
@@ -39,8 +39,8 @@ func (s *PostgresRunProjectionStore) AppendRunEvent(
 	var nextSequence int64
 	if err := tx.QueryRow(
 		ctx,
-		`select coalesce(max(sequence), 0) + 1 from execution_control.agent_run_events where run_id = $1`,
-		event.RunID,
+		`select coalesce(max(sequence), 0) + 1 from execution_control.agent_run_events where request_id = $1`,
+		event.RequestID,
 	).Scan(&nextSequence); err != nil {
 		return DurableRunEvent{}, err
 	}
@@ -65,11 +65,11 @@ func (s *PostgresRunProjectionStore) AppendRunEvent(
 	_, err = tx.Exec(
 		ctx,
 		`insert into execution_control.agent_run_events (
-			event_id, run_id, conversation_id, sequence, event_type, visibility,
+			event_id, request_id, conversation_id, sequence, event_type, visibility,
 			payload_schema_version, payload_json, occurred_at
 		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
 		event.EventID,
-		event.RunID,
+		event.RequestID,
 		event.ConversationID,
 		event.Sequence,
 		string(event.EventType),
@@ -84,7 +84,7 @@ func (s *PostgresRunProjectionStore) AppendRunEvent(
 		}
 		return DurableRunEvent{}, err
 	}
-	if err := notifyRunEventInTx(ctx, tx, event.RunID); err != nil {
+	if err := notifyRunEventInTx(ctx, tx, event.RequestID); err != nil {
 		return DurableRunEvent{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -95,27 +95,27 @@ func (s *PostgresRunProjectionStore) AppendRunEvent(
 
 func (s *PostgresRunProjectionStore) ListRunEvents(
 	ctx context.Context,
-	runID string,
+	requestID string,
 ) ([]DurableRunEvent, error) {
-	return s.ListRunEventsAfter(ctx, runID, 0)
+	return s.ListRunEventsAfter(ctx, requestID, 0)
 }
 
 func (s *PostgresRunProjectionStore) ListRunEventsAfter(
 	ctx context.Context,
-	runID string,
+	requestID string,
 	afterSequence int64,
 ) ([]DurableRunEvent, error) {
-	if _, err := s.GetRun(ctx, runID); err != nil {
+	if _, err := s.GetRun(ctx, requestID); err != nil {
 		return nil, err
 	}
 	rows, err := s.pool.Query(
 		ctx,
-		`select event_id, run_id, conversation_id, sequence, event_type, visibility,
+		`select event_id, request_id, conversation_id, sequence, event_type, visibility,
 			payload_schema_version, payload_json, occurred_at
 		from execution_control.agent_run_events
-		where run_id = $1 and sequence > $2
+		where request_id = $1 and sequence > $2
 		order by sequence asc`,
-		runID,
+		requestID,
 		afterSequence,
 	)
 	if err != nil {
@@ -143,7 +143,7 @@ func scanDurableRunEvent(row pgx.Row) (DurableRunEvent, error) {
 	var payloadRaw []byte
 	if err := row.Scan(
 		&event.EventID,
-		&event.RunID,
+		&event.RequestID,
 		&event.ConversationID,
 		&event.Sequence,
 		&eventType,

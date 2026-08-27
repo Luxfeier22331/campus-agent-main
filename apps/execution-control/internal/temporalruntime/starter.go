@@ -130,7 +130,7 @@ func (s *Starter) startToolExecutionWorkflow(
 	}
 	workflowID := strings.TrimSpace(input.WorkflowID)
 	if workflowID == "" {
-		workflowID = "campus-agent.chat." + strings.TrimSpace(input.RunID)
+		workflowID = "campus-agent.chat." + strings.TrimSpace(input.RequestID)
 	}
 	taskQueue := strings.TrimSpace(input.TaskQueue)
 	if taskQueue == "" {
@@ -156,7 +156,7 @@ func (s *Starter) startToolExecutionWorkflow(
 			WorkflowExecutionTimeout: workflowExecutionTimeout,
 			StartDelay:               startDelay,
 			Memo: map[string]interface{}{
-				workflowMemoRunIDKey:      identity.RunID,
+				workflowMemoRequestIDKey:  identity.RequestID,
 				workflowMemoWorkflowIDKey: identity.WorkflowID,
 				workflowMemoPayloadSHAKey: identity.PayloadSHA256,
 				workflowMemoInputSHAKey:   identity.WorkflowInputSHA256,
@@ -263,7 +263,7 @@ func (s *Starter) CancelToolExecutionWorkflow(
 	}
 	workflowID := strings.TrimSpace(input.WorkflowID)
 	if workflowID == "" {
-		workflowID = "campus-agent.chat." + strings.TrimSpace(input.RunID)
+		workflowID = "campus-agent.chat." + strings.TrimSpace(input.RequestID)
 	}
 	temporalRunID := strings.TrimSpace(input.TemporalRunID)
 	if temporalRunID == "" {

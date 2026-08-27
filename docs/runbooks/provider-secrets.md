@@ -30,38 +30,27 @@ revision、bundle、activation、history、fallback 或在线 rollback。不同�
 
 尚未配置某个 name 时，Ops Web 自身仍可进入修复页；读取该配置的 consumer 必须失败关闭。
 
-## Schema 切换
+## 数据库入口状态
 
-切换在维护窗口中按固定顺序执行：
+新建或重建的本地数据库由 `campus-agent-schema` 直接安装最终 `model_config` 结构和授权，不再经过
+execution-control Goose 与 `model-config-schema` 的双阶段切换。统一 Job 会拒绝带旧 migration ledger
+或 `execution_config` 的数据库，不提供原位兼容路径。
 
-1. `run-projection-schema --mode install` 完成 execution-control 的全部历史 Goose migration，并在
-   需要时使用旧 Provider Config keyring/密钥处理历史版本；
-2. `model-config-schema` 使用既有 `campus_agent` 数据库 owner、新 Model Config 加密密钥和旧
-   `execution-provider-config-encryption` 密钥；
-3. 同一事务读取旧 `execution_control.model_settings`，解密并映射为稳定 name，检查已存在新 config
-   是否与旧目标冲突，以新 AAD/密钥重加密后写入 `model_config.model_configs`；
-4. 所有行成功后删除旧 table 与 compatibility view，安装 `model_config` role grants；任何失败
-   都回滚。
-
-不得手工复制、双写、保留兼容读取或让 consumer 回退旧表。新环境也按同一顺序安装，旧表为空时
-迁移后得到空 configs。源码仓只交付命令与 desired state；环境仓负责实际 Secret、镜像选择和维护
-窗口执行。
+现有部署环境的 GitOps schema Job 本次没有切换，旧 runner 和密钥合同暂作为不可变历史保留。后续
+在线 cutover 必须单独完成停写、备份、数据迁入统一结构和 GitOps 替换；在这些步骤得到验证前，不能
+把 `campus-agent-schema` 指向现有数据库，也不能同时运行新旧 ledger。
 
 ## 本地开发
 
-`pnpm dev:init` 为每个 worktree 维护两个不同的私有文件：
-
-- `var/dev/provider-config-encryption.key`：只供 execution-control 历史 migration 与一次性切换读取；
-- `var/dev/model-config-encryption.key`：Model Config 当前密文使用。
-
-本地 bootstrap 先运行 execution-control schema，再运行 Model Config schema。`pnpm dev:init` 为
-Model Config 和所有内部 consumer 生成同一 worktree 的 `MODEL_CONFIG_URL`；不生成 Model Config 调用
-token。两个加密密钥文件不得打印、复制到其他 worktree 或提交。
+`pnpm dev:init` 为每个 worktree 维护 `var/dev/model-config-encryption.key`，供 Model Config 当前密文
+使用；它不再生成 `var/dev/provider-config-encryption.key`。后者只在显式验证保留的历史切换 runner 时
+由调用者单独准备。`pnpm dev:init` 为 Model Config 和所有内部 consumer 生成同一 worktree 的
+`MODEL_CONFIG_URL`，不生成 Model Config 调用 token。加密密钥文件不得打印、复制到其他 worktree
+或提交。
 
 linked worktree 首次运行 `pnpm dev:init` 时，会从 main checkout 根 `.env` 按白名单导入尚未存在的
-provider 外部连接字段，并导入可用的门户 TGC。它不复制数据库连接、在线配置密文或任一 encryption key；
-导入值也不会自动写入 Model Config，仍需通过 Ops Web 保存并验证。两个加密密钥文件不得打印、复制到
-其他 worktree 或提交。
+provider 外部连接字段，并导入可用的门户 TGC。它不复制数据库连接、在线配置密文或 encryption key；
+导入值也不会自动写入 Model Config，仍需通过 Ops Web 保存并验证。
 
 ## 轮换
 

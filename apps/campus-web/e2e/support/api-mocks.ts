@@ -315,15 +315,12 @@ export async function fulfillChatStream(
 							message: "The request was cancelled.",
 							requestId: "req_e2e",
 							retryable: false,
-							traceId: "trace_e2e",
 						},
 					},
 					occurredAt: now,
 					requestId: "req_e2e",
-					runId: "run_e2e",
 					sequence: 3,
 					status: "cancelled",
-					traceId: "trace_e2e",
 				})
 			: sse("request.completed", {
 					answer: {
@@ -341,35 +338,28 @@ export async function fulfillChatStream(
 							kind: "answer",
 							requestId: "req_e2e",
 							text: answerText,
-							traceId: "trace_e2e",
 						},
 					},
 					occurredAt: now,
 					requestId: "req_e2e",
-					runId: "run_e2e",
 					sequence: 3,
 					status: "completed",
-					traceId: "trace_e2e",
 				});
 	await route.fulfill({
 		body: [
 			sse("request.accepted", {
 				occurredAt: now,
 				requestId: "req_e2e",
-				runId: "run_e2e",
 				sequence: 1,
 				status: "accepted",
-				traceId: "trace_e2e",
 			}),
 			sse("answer.delta", {
 				delta: answerText,
 				messageId: "msg_assistant_e2e",
 				occurredAt: now,
 				requestId: "req_e2e",
-				runId: "run_e2e",
 				sequence: 2,
 				status: "running",
-				traceId: "trace_e2e",
 			}),
 			terminalEvent,
 		].join(""),
@@ -384,10 +374,8 @@ export async function fulfillChatFailedStream(route: Route) {
 			sse("request.accepted", {
 				occurredAt: now,
 				requestId: "req_failed_e2e",
-				runId: "run_failed_e2e",
 				sequence: 1,
 				status: "accepted",
-				traceId: "trace_failed_e2e",
 			}),
 			sse("request.failed", {
 				error: {
@@ -397,10 +385,8 @@ export async function fulfillChatFailedStream(route: Route) {
 				},
 				occurredAt: now,
 				requestId: "req_failed_e2e",
-				runId: "run_failed_e2e",
 				sequence: 2,
 				status: "failed",
-				traceId: "trace_failed_e2e",
 			}),
 		].join(""),
 		contentType: "text/event-stream",

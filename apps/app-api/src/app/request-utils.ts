@@ -3,7 +3,6 @@ import { AppApiRouteError } from "../http";
 export function createRouteErrorCorrelation() {
 	return {
 		requestId: `req_${crypto.randomUUID().replace(/-/g, "")}`,
-		traceId: `trace_${crypto.randomUUID().replace(/-/g, "")}`,
 	};
 }
 

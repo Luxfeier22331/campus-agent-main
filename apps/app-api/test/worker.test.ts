@@ -171,7 +171,6 @@ describe("app-api worker foundation", () => {
 				code: "dependency_not_ready",
 				message: "Runtime configuration is incomplete.",
 				retryable: true,
-				traceId: null,
 				requestId: null,
 				details: {
 					missing: [
@@ -210,7 +209,6 @@ describe("app-api worker foundation", () => {
 				code: "dependency_not_ready",
 				message: "Runtime dependencies are not ready.",
 				retryable: true,
-				traceId: null,
 				requestId: null,
 				details: {
 					failed: {

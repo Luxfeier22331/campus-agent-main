@@ -10,7 +10,7 @@ type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 function toRuntimeRunOwnershipRecord(
 	row: typeof turnDispatches.$inferSelect | undefined,
 ): RuntimeRunOwnershipRecord | null {
-	if (!(row?.runId && row.conversationId && row.requestId && row.traceId)) {
+	if (!(row?.conversationId && row.requestId)) {
 		return null;
 	}
 	return {
@@ -18,9 +18,7 @@ function toRuntimeRunOwnershipRecord(
 		completedAt: row.completedAt?.toISOString() ?? null,
 		conversationId: row.conversationId,
 		requestId: row.requestId,
-		runId: row.runId,
 		status: row.status,
-		traceId: row.traceId,
 	};
 }
 export function createPgRuntimeRunStore(
@@ -40,7 +38,7 @@ export function createPgRuntimeRunStore(
 				.where(
 					and(
 						eq(turnDispatches.actorUserId, query.ownerUserId),
-						eq(turnDispatches.runId, query.runId),
+						eq(turnDispatches.requestId, query.requestId),
 					),
 				)
 				.limit(1);

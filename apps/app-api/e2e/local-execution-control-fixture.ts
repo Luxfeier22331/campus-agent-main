@@ -18,10 +18,7 @@ interface CreateRunInput {
 	executionInputSha256: string;
 	ownerUserId: string;
 	requestId: string;
-	runId: string;
 	surface: string;
-	traceId: string;
-	turnId: string;
 }
 
 interface DurableRunEventWire {
@@ -31,7 +28,7 @@ interface DurableRunEventWire {
 	occurred_at: string;
 	payload: JsonRecord;
 	payload_schema_version: string;
-	run_id: string;
+	request_id: string;
 	sequence: number;
 	visibility: "browser" | "internal";
 }
@@ -46,15 +43,12 @@ interface DurableRunWire {
 	owner_user_id: string;
 	queued_at: string;
 	request_id: string;
-	run_id: string;
 	started_at: string;
 	status: string;
 	streaming_started_at: string;
 	surface: string;
 	task_queue: string;
 	terminal_reason: string;
-	trace_id: string;
-	turn_id: string;
 	updated_at: string;
 }
 
@@ -139,10 +133,14 @@ function parseCreateRunInput(body: JsonRecord): CreateRunInput {
 	if (!isRecord(metadata)) {
 		throw new FixtureHttpError(400, "invalid_request", "metadata must be an object.");
 	}
-	const runId = readString(body, "run_id");
+	const requestId = readString(body, "request_id");
 	const executionInputRef = readString(metadata, "execution_input_ref");
-	if (executionInputRef !== `app-api://execution-inputs/${runId}`) {
-		throw new FixtureHttpError(400, "invalid_request", "execution_input_ref must match run_id.");
+	if (executionInputRef !== `app-api://execution-inputs/${requestId}`) {
+		throw new FixtureHttpError(
+			400,
+			"invalid_request",
+			"execution_input_ref must match request_id.",
+		);
 	}
 	const executionInputSha256 = readString(metadata, "execution_input_sha256");
 	if (!/^[a-f0-9]{64}$/u.test(executionInputSha256)) {
@@ -152,11 +150,8 @@ function parseCreateRunInput(body: JsonRecord): CreateRunInput {
 		conversationId: readString(body, "conversation_id"),
 		executionInputSha256,
 		ownerUserId: readString(body, "owner_user_id"),
-		requestId: readString(body, "request_id"),
-		runId,
+		requestId,
 		surface: readString(body, "surface"),
-		traceId: readString(body, "trace_id"),
-		turnId: readString(body, "turn_id"),
 	};
 }
 
@@ -171,15 +166,12 @@ function createRunProjection(input: CreateRunInput, timestamp: string): DurableR
 		owner_user_id: input.ownerUserId,
 		queued_at: timestamp,
 		request_id: input.requestId,
-		run_id: input.runId,
 		started_at: "",
 		status: "queued",
 		streaming_started_at: "",
 		surface: input.surface,
 		task_queue: "campus-agent.workflow",
 		terminal_reason: "",
-		trace_id: input.traceId,
-		turn_id: input.turnId,
 		updated_at: timestamp,
 	};
 }
@@ -194,12 +186,12 @@ function createEvent(
 ): DurableRunEventWire {
 	return {
 		conversation_id: input.conversationId,
-		event_id: `${input.runId}:event:${sequence}`,
+		event_id: `${input.requestId}:event:${sequence}`,
 		event_type: eventType,
 		occurred_at: occurredAt,
 		payload,
 		payload_schema_version: "run-event-v1",
-		run_id: input.runId,
+		request_id: input.requestId,
 		sequence,
 		visibility,
 	};
@@ -277,7 +269,7 @@ async function readFrozenInput(
 	sharedSecret: string,
 ): Promise<void> {
 	const url = new URL(
-		`/api/internal/execution/runs/${encodeURIComponent(input.runId)}/input`,
+		`/api/internal/execution/requests/${encodeURIComponent(input.requestId)}/input`,
 		appApiOrigin,
 	);
 	const response = await fetch(url, {
@@ -300,7 +292,7 @@ async function readFrozenInput(
 	}
 }
 
-function finalizationResponse(input: CreateRunInput, answerNumber: number): JsonRecord {
+function finalizationResponse(answerNumber: number): JsonRecord {
 	return {
 		answer_text: `本地测试回答 #${answerNumber}`,
 		error: null,
@@ -312,7 +304,6 @@ function finalizationResponse(input: CreateRunInput, answerNumber: number): Json
 		},
 		result: null,
 		status: "completed",
-		trace_id: input.traceId,
 	};
 }
 
@@ -323,11 +314,11 @@ async function finalizeRun(
 	sharedSecret: string,
 ): Promise<void> {
 	const completedAt = new Date().toISOString();
-	const response = finalizationResponse(input, run.answerNumber);
+	const response = finalizationResponse(run.answerNumber);
 	const responseJson = JSON.stringify(response);
-	const fingerprint = sha256(Buffer.from(`${input.runId}\0${responseJson}`, "utf8"));
+	const fingerprint = sha256(Buffer.from(`${input.requestId}\0${responseJson}`, "utf8"));
 	const callbackUrl = new URL(
-		`/api/internal/execution/runs/${encodeURIComponent(input.runId)}/product-finalization`,
+		`/api/internal/execution/requests/${encodeURIComponent(input.requestId)}/product-finalization`,
 		appApiOrigin,
 	);
 	const callback = await fetch(callbackUrl, {
@@ -353,7 +344,7 @@ async function finalizeRun(
 	run.projection = {
 		...run.projection,
 		completed_at: completedAt,
-		final_response_ref: `app-api://finalizations/${input.runId}`,
+		final_response_ref: `app-api://finalizations/${input.requestId}`,
 		status: "completed",
 		terminal_reason: "answer_completed",
 		updated_at: completedAt,
@@ -367,7 +358,6 @@ async function finalizeRun(
 			{
 				request_id: input.requestId,
 				response,
-				trace_id: input.traceId,
 			},
 			"internal",
 			completedAt,
@@ -383,7 +373,6 @@ async function finalizeRun(
 				request_id: input.requestId,
 				status: "completed",
 				terminal_reason: "answer_completed",
-				trace_id: input.traceId,
 			},
 			"browser",
 			completedAt,
@@ -413,7 +402,6 @@ function recordFailedRun(run: FixtureRun, input: CreateRunInput, occurredAt: str
 					retryable: true,
 				},
 				request_id: input.requestId,
-				trace_id: input.traceId,
 			},
 			"browser",
 			occurredAt,
@@ -485,20 +473,10 @@ async function startFixture(input: {
 				);
 			}
 
-			if (req.method === "POST" && url.pathname === "/internal/execution/runs") {
+			if (req.method === "POST" && url.pathname === "/internal/execution/requests") {
 				const parsed = parseCreateRunInput(await readJsonBody(req));
-				const existing = runs.get(parsed.runId);
+				const existing = runs.get(parsed.requestId);
 				if (existing) {
-					if (
-						existing.projection.request_id !== parsed.requestId ||
-						existing.projection.trace_id !== parsed.traceId
-					) {
-						throw new FixtureHttpError(
-							409,
-							"run_conflict",
-							"Run identity conflicts with the fixture.",
-						);
-					}
 					writeJson(res, 202, existing.projection);
 					return;
 				}
@@ -511,7 +489,7 @@ async function startFixture(input: {
 					waiters: new Set(),
 				};
 				nextAnswerNumber += 1;
-				runs.set(parsed.runId, run);
+				runs.set(parsed.requestId, run);
 				appendEvent(
 					run,
 					createEvent(
@@ -521,7 +499,6 @@ async function startFixture(input: {
 						{
 							request_id: parsed.requestId,
 							status: "queued",
-							trace_id: parsed.traceId,
 						},
 						"browser",
 						timestamp,
@@ -542,7 +519,7 @@ async function startFixture(input: {
 				return;
 			}
 
-			const eventsMatch = url.pathname.match(/^\/internal\/execution\/runs\/([^/]+)\/events$/u);
+			const eventsMatch = url.pathname.match(/^\/internal\/execution\/requests\/([^/]+)\/events$/u);
 			if (req.method === "GET" && eventsMatch) {
 				const run = runs.get(decodeURIComponent(eventsMatch[1] ?? ""));
 				if (!run) {
@@ -565,7 +542,7 @@ async function startFixture(input: {
 				return;
 			}
 
-			const runMatch = url.pathname.match(/^\/internal\/execution\/runs\/([^/]+)$/u);
+			const runMatch = url.pathname.match(/^\/internal\/execution\/requests\/([^/]+)$/u);
 			if (req.method === "GET" && runMatch) {
 				const run = runs.get(decodeURIComponent(runMatch[1] ?? ""));
 				if (!run) {

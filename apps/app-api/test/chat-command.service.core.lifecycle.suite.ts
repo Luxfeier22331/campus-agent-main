@@ -21,9 +21,9 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
 					[
-						'event: execution.queued\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"queued","occurred_at":"2026-03-28T08:00:00.500Z"}',
-						'event: execution.running\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"running","occurred_at":"2026-03-28T08:00:01.000Z"}',
-						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","error":null,"model_usage":{"cached_input_tokens":10,"input_tokens":120,"output_tokens":42,"total_tokens":162},"result":{"sources":[]},"status":"completed","trace_id":"trace_0001"}}',
+						'event: execution.queued\ndata: {"request_id":"req_0001","status":"queued","occurred_at":"2026-03-28T08:00:00.500Z"}',
+						'event: execution.running\ndata: {"request_id":"req_0001","status":"running","occurred_at":"2026-03-28T08:00:01.000Z"}',
+						'event: execution.completed\ndata: {"request_id":"req_0001","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","error":null,"model_usage":{"cached_input_tokens":10,"input_tokens":120,"output_tokens":42,"total_tokens":162},"result":{"sources":[]},"status":"completed"}}',
 					].join("\n\n"),
 					{
 						headers: {
@@ -67,7 +67,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			expect.objectContaining({
 				conversationId: "conv_01HQ",
 				requestId: "req_0001",
-				traceId: "trace_0001",
 				userGoal: "图书馆开放到几点？",
 			}),
 		);
@@ -104,7 +103,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				kind: "answer",
 				requestId: "req_0001",
 				text: "图书馆开放到 22:00。",
-				traceId: "trace_0001",
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
@@ -112,9 +110,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				requestId: "req_0001",
 				status: "completed",
 			},
-			requestObservabilityFact: {
-				traceId: "trace_0001",
-			},
+			requestObservabilityFact: { requestId: "req_0001" },
 		});
 	});
 	it("finalizes invalid execution stream terminal errors without defaulting missing fields", async () => {
@@ -125,7 +121,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
-					'event: execution.failed\ndata: {"request_id":"req_0001","trace_id":"trace_0001","occurred_at":"2026-03-28T08:00:02.000Z","error":{}}\n\n',
+					'event: execution.failed\ndata: {"request_id":"req_0001","occurred_at":"2026-03-28T08:00:02.000Z","error":{}}\n\n',
 					{
 						headers: {
 							"content-type": "text/event-stream; charset=utf-8",
@@ -191,7 +187,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 					query_text: "图书馆在哪里",
 				},
 				status: "completed",
-				traceId: "trace_0001",
 			}),
 		};
 		const service = buildChatCommandService({

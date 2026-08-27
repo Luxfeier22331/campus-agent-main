@@ -32,8 +32,7 @@ def sample_payload(**item_overrides: object) -> dict[str, object]:
     }
     item.update(item_overrides)
     return {
-        "schema_version": "ragas_sample_batch.v2",
-        "run_id": "ragas-smoke-001",
+        "schema_version": "ragas_sample_batch.v3",
         "items": [item],
     }
 
@@ -57,13 +56,13 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                 scorer_factory=lambda: fake_scorer,
             )
 
-            self.assertEqual(output["schema_version"], "ragas_score_batch.v2")
-            self.assertEqual(output["run_id"], "ragas-smoke-001")
+            self.assertEqual(output["schema_version"], "ragas_score_batch.v3")
+            self.assertNotIn("run_id", output)
             self.assertEqual(captured[0].user_input, "图书馆开放时间是什么？")
             self.assertEqual(captured[0].retrieved_contexts, ("图书馆开放时间为 08:00-22:00。",))
             self.assertEqual(captured[0].metadata, {"surface_key": "app-api.chat"})
             payload = json.loads(output_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["schema_version"], "ragas_score_batch.v2")
+            self.assertEqual(payload["schema_version"], "ragas_score_batch.v3")
             self.assertEqual(payload["items"][0]["scores"]["ragas.faithfulness"], 0.91)
             self.assertNotIn("trace_id", payload["items"][0])
             self.assertNotIn("observation_id", payload["items"][0])
@@ -123,14 +122,22 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             input_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": "ragas_sample_batch.v1",
-                        "run_id": "legacy",
+                        "schema_version": "ragas_sample_batch.v2",
                         "items": [],
                     }
                 ),
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(ValueError, "ragas_sample_batch.v2"):
+            with self.assertRaisesRegex(ValueError, "ragas_sample_batch.v3"):
+                run_ragas_score_batch(
+                    input_path=input_path,
+                    scorer_factory=lambda: lambda _projection: (),
+                )
+
+            forbidden_batch = sample_payload()
+            forbidden_batch["run_id"] = "must-not-cross-boundary"
+            input_path.write_text(json.dumps(forbidden_batch), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "run_id"):
                 run_ragas_score_batch(
                     input_path=input_path,
                     scorer_factory=lambda: lambda _projection: (),
@@ -154,8 +161,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                 patch(
                     "campus_ragas_runner.score_batch.run_ragas_score_batch",
                     return_value={
-                        "schema_version": "ragas_score_batch.v2",
-                        "run_id": "run-001",
+                        "schema_version": "ragas_score_batch.v3",
                         "items": [],
                     },
                 ),
@@ -173,7 +179,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                     0,
                 )
             printed = printer.call_args.args[0]
-            self.assertEqual(json.loads(printed)["schema_version"], "ragas_score_batch.v2")
+            self.assertEqual(json.loads(printed)["schema_version"], "ragas_score_batch.v3")
 
     def test_closes_async_clients_inside_each_scoring_event_loop(self) -> None:
         settings = RagasRunnerSettings(
@@ -393,8 +399,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             input_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": "ragas_sample_batch.v2",
-                        "run_id": "ragas-smoke-001",
+                        "schema_version": "ragas_sample_batch.v3",
                         "items": [empty_item, {**normal_item, "case_id": "case-002"}],
                     }
                 ),

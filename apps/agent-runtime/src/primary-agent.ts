@@ -140,8 +140,7 @@ function primaryAgentRunnerInput(
 					activityAttempt: input.activityAttempt ?? 1,
 					tool: catalogEntry,
 					argumentsJson,
-					runId: input.runId,
-					traceId: input.traceId,
+					requestId: input.requestId,
 					...(context?.invocationId ? { invocationId: context.invocationId } : {}),
 					...(context?.searchOrdinal === undefined ? {} : { searchOrdinal: context.searchOrdinal }),
 					...(input.signal ? { signal: input.signal } : {}),
@@ -163,8 +162,6 @@ function primaryAgentRunnerInput(
 			limits: input.limits,
 			tools,
 			requestId: input.requestId,
-			runId: input.runId,
-			traceId: input.traceId,
 			providerConfig: input.providerConfig,
 			...(input.signal ? { signal: input.signal } : {}),
 		},
@@ -209,7 +206,7 @@ function primaryAgentRunResultFromRunnerResult(args: {
 	if (result.finalOutput.trim() === "") {
 		return {
 			status: "failed",
-			runId: input.runId,
+			requestId: input.requestId,
 			contextUsage,
 			finalOutput: "",
 			modelName: input.providerConfig.model,
@@ -225,7 +222,7 @@ function primaryAgentRunResultFromRunnerResult(args: {
 	}
 	return {
 		status: "completed",
-		runId: input.runId,
+		requestId: input.requestId,
 		contextUsage,
 		finalOutput: result.finalOutput,
 		modelName: input.providerConfig.model,
@@ -401,7 +398,7 @@ async function defaultToolExecutor(
 		result: {
 			error: "tool executor is not configured",
 		},
-		resultRef: `agent-runtime://${request.runId}/tools/${request.tool.name}/failed`,
+		resultRef: `agent-runtime://${request.requestId}/tools/${request.tool.name}/failed`,
 		failCloseReason: "tool_executor_not_configured",
 	};
 }

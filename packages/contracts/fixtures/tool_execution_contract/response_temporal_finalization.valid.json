@@ -9,7 +9,6 @@
 		"total_tokens": 620
 	},
 	"result": {
-		"provider_response_id": "resp_temporal_finalization",
 		"sources": [
 			{
 				"document_id": "student_rules/national-scholarship",
@@ -28,14 +27,5 @@
 	"observability": {
 		"agent_runtime": "openai_agents_sdk",
 		"terminal_reason": "answer"
-	},
-	"workflow_trace_summary": {
-		"execution_path": "tool_assisted",
-		"terminal_reason": "answer",
-		"answer_artifact_refs": ["projection://runs/run_temporal_finalization/agent/primary/result"],
-		"runtime_versions": {
-			"agent_runtime": "openai_agents_sdk"
-		}
-	},
-	"trace_id": "trace-temporal-finalization"
+	}
 }

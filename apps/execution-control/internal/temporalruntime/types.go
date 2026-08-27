@@ -14,11 +14,8 @@ type ToolExecutionWorkflowInput struct {
 	PayloadSHA256                string                 `json:"payload_sha256"`
 	PersonalMemoryTimeoutSeconds float64                `json:"personal_memory_timeout_seconds"`
 	RequestID                    string                 `json:"request_id"`
-	RunID                        string                 `json:"run_id"`
 	TaskQueue                    string                 `json:"task_queue"`
-	TraceID                      string                 `json:"trace_id"`
 	TraceParent                  string                 `json:"traceparent,omitempty"`
-	TurnID                       string                 `json:"turn_id"`
 	WorkflowID                   string                 `json:"workflow_id"`
 }
 
@@ -63,19 +60,17 @@ type AgentRuntimeLimitsSnapshot struct {
 type ToolExecutionWorkflowResult struct {
 	CompletedAt   time.Time `json:"completed_at"`
 	ProjectionRef string    `json:"projection_ref"`
-	RunID         string    `json:"run_id"`
+	RequestID     string    `json:"request_id"`
 	Status        string    `json:"status"`
 }
 
 type AppendConversationMemoryActivityInput struct {
 	RequestID string `json:"request_id"`
-	RunID     string `json:"run_id"`
-	TraceID   string `json:"trace_id"`
 }
 
 type AppendConversationMemoryActivityOutput struct {
 	AppendedMessageCount int      `json:"appended_message_count"`
-	RunID                string   `json:"run_id"`
+	RequestID            string   `json:"request_id"`
 	SchemaVersion        string   `json:"schema_version"`
 	SkipReasons          []string `json:"skip_reasons"`
 	SkippedCount         int      `json:"skipped_count"`
@@ -87,10 +82,7 @@ type ExecutePrimaryAgentActivityInput struct {
 	AdmissionSnapshot AgentAdmissionSnapshot `json:"admission_snapshot"`
 	ConversationID    string                 `json:"conversation_id"`
 	RequestID         string                 `json:"request_id"`
-	RunID             string                 `json:"run_id"`
-	TraceID           string                 `json:"trace_id"`
 	TraceParent       string                 `json:"traceparent,omitempty"`
-	TurnID            string                 `json:"turn_id"`
 	VisibleToolNames  []string               `json:"visible_tool_names"`
 }
 
@@ -113,7 +105,7 @@ type ExecutePrimaryAgentActivityOutput struct {
 	ModelProvider           string            `json:"model_provider"`
 	PromptTrace             map[string]any    `json:"prompt_trace"`
 	ProviderResponseID      string            `json:"provider_response_id"`
-	RunID                   string            `json:"run_id"`
+	RequestID               string            `json:"request_id"`
 	StageTiming             map[string]any    `json:"stage_timing,omitempty"`
 	Status                  string            `json:"status"`
 	TerminalReason          string            `json:"terminal_reason"`
@@ -135,32 +127,30 @@ type WriteFinalizationActivityInput struct {
 	AgentResult       ExecutePrimaryAgentActivityOutput `json:"agent_result"`
 	AdmissionSnapshot AgentAdmissionSnapshot            `json:"admission_snapshot"`
 	FinalizedAt       time.Time                         `json:"finalized_at"`
-	RunID             string                            `json:"run_id"`
-	TraceID           string                            `json:"trace_id"`
+	RequestID         string                            `json:"request_id"`
 }
 
 type WriteFinalizationActivityOutput struct {
 	CompletedAt   time.Time `json:"completed_at"`
 	ProjectionRef string    `json:"projection_ref"`
-	RunID         string    `json:"run_id"`
+	RequestID     string    `json:"request_id"`
 	Status        string    `json:"status"`
 }
 
 type FinalizeExecutionCancellationActivityOutput struct {
-	RunID  string `json:"run_id"`
-	Status string `json:"status"`
+	RequestID string `json:"request_id"`
+	Status    string `json:"status"`
 }
 
 type FinalizeExecutionCancellationActivityInput struct {
 	CanceledAt time.Time `json:"canceled_at"`
 	Reason     string    `json:"reason"`
-	RunID      string    `json:"run_id"`
-	TraceID    string    `json:"trace_id"`
+	RequestID  string    `json:"request_id"`
 }
 
 type ToolExecutionWorkflowCancelInput struct {
 	Reason        string `json:"reason"`
-	RunID         string `json:"run_id"`
+	RequestID     string `json:"request_id"`
 	TemporalRunID string `json:"temporal_run_id"`
 	WorkflowID    string `json:"workflow_id"`
 }
@@ -186,14 +176,13 @@ type FinalizeExecutionFailureActivityInput struct {
 	FailureHash string    `json:"failure_hash"`
 	FailureKind string    `json:"failure_kind"`
 	FailedAt    time.Time `json:"failed_at"`
-	RunID       string    `json:"run_id"`
+	RequestID   string    `json:"request_id"`
 	Stage       string    `json:"stage"`
-	TraceID     string    `json:"trace_id"`
 }
 
 type FinalizeExecutionFailureActivityOutput struct {
 	CompletedAt time.Time `json:"completed_at"`
-	RunID       string    `json:"run_id"`
+	RequestID   string    `json:"request_id"`
 	Status      string    `json:"status"`
 }
 

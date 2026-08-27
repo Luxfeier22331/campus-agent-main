@@ -45,8 +45,7 @@ func ToolExecutionWorkflow(
 		AgentResult:       agent,
 		AdmissionSnapshot: input.AdmissionSnapshot,
 		FinalizedAt:       workflow.Now(ctx).UTC(),
-		RunID:             input.RunID,
-		TraceID:           input.TraceID,
+		RequestID:         input.RequestID,
 	})
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
@@ -197,9 +196,8 @@ func finalizeExecutionFailure(
 		FailureHash: workflowFailureHash(cause),
 		FailureKind: workflowFailureKind(cause, fallbackKind),
 		FailedAt:    workflow.Now(ctx).UTC(),
-		RunID:       input.RunID,
+		RequestID:   input.RequestID,
 		Stage:       stage,
-		TraceID:     input.TraceID,
 	}).Get(ctx, nil)
 }
 
@@ -230,8 +228,7 @@ func finalizeWorkflowCancellation(
 		FinalizeExecutionCancellationActivityInput{
 			CanceledAt: workflow.Now(disconnectedCtx).UTC(),
 			Reason:     reason,
-			RunID:      input.RunID,
-			TraceID:    input.TraceID,
+			RequestID:  input.RequestID,
 		},
 	).Get(disconnectedCtx, nil)
 	if err != nil {
@@ -307,10 +304,7 @@ func executePrimaryAgent(
 		AdmissionSnapshot: input.AdmissionSnapshot,
 		ConversationID:    input.ConversationID,
 		RequestID:         input.RequestID,
-		RunID:             input.RunID,
-		TraceID:           input.TraceID,
 		TraceParent:       input.TraceParent,
-		TurnID:            input.TurnID,
 		VisibleToolNames:  append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
 	}
 	var agent ExecutePrimaryAgentActivityOutput
@@ -346,8 +340,6 @@ func executeMemoryAppend(
 		AppendConversationMemoryActivityName,
 		AppendConversationMemoryActivityInput{
 			RequestID: input.RequestID,
-			RunID:     input.RunID,
-			TraceID:   input.TraceID,
 		},
 	).Get(ctx, &appendResult)
 }

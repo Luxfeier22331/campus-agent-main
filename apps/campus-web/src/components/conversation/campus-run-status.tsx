@@ -30,7 +30,7 @@ const TERMINAL_STATUSES: readonly CampusRunStatusValue[] = ["completed", "failed
 
 export interface CampusRunStatusRuntime {
 	loadSteps(input: {
-		runId: string;
+		requestId: string;
 		signal: AbortSignal;
 	}): Promise<{ steps: readonly ChatRunStep[] }>;
 	resume(): Promise<void>;
@@ -321,23 +321,23 @@ export function CampusRunStatus({
 	const [isResuming, setIsResuming] = useState(false);
 	const [resumeError, setResumeError] = useState<string | null>(null);
 	const requestControllerRef = useRef<AbortController | null>(null);
-	const renderedRunIdRef = useRef(run.runId);
+	const renderedRequestIdRef = useRef(run.requestId);
 	const wasTerminalRef = useRef(isTerminal(run.status));
 
 	const running = !isTerminal(run.status);
-	const hasRunId = Boolean(run.runId);
+	const hasRequestId = Boolean(run.requestId);
 
 	useEffect(() => {
-		if (renderedRunIdRef.current === run.runId) {
+		if (renderedRequestIdRef.current === run.requestId) {
 			return;
 		}
-		renderedRunIdRef.current = run.runId;
+		renderedRequestIdRef.current = run.requestId;
 		requestControllerRef.current?.abort();
 		requestControllerRef.current = null;
 		setStepsOpen(defaultStepsOpen);
 		setStepsState({ kind: "idle", steps: [] });
 		setResumeError(null);
-	}, [defaultStepsOpen, run.runId]);
+	}, [defaultStepsOpen, run.requestId]);
 
 	useEffect(() => {
 		const terminal = isTerminal(run.status);
@@ -355,7 +355,7 @@ export function CampusRunStatus({
 	);
 
 	const loadSteps = useCallback(async () => {
-		if (!run.runId || stepsState.kind === "loading") {
+		if (!run.requestId || stepsState.kind === "loading") {
 			return;
 		}
 		requestControllerRef.current?.abort();
@@ -364,8 +364,8 @@ export function CampusRunStatus({
 		setStepsState((current) => ({ kind: "loading", steps: current.steps }));
 		try {
 			const result = statusRuntime
-				? await statusRuntime.loadSteps({ runId: run.runId, signal: controller.signal })
-				: await getRunSteps({ runId: run.runId, signal: controller.signal });
+				? await statusRuntime.loadSteps({ requestId: run.requestId, signal: controller.signal })
+				: await getRunSteps({ requestId: run.requestId, signal: controller.signal });
 			if (!controller.signal.aborted) {
 				setStepsState({ kind: "ready", steps: result.steps });
 			}
@@ -383,7 +383,7 @@ export function CampusRunStatus({
 				requestControllerRef.current = null;
 			}
 		}
-	}, [run.runId, statusRuntime, stepsState.kind]);
+	}, [run.requestId, statusRuntime, stepsState.kind]);
 
 	const handleStepsOpenChange = useCallback(
 		(open: boolean) => {
@@ -411,7 +411,7 @@ export function CampusRunStatus({
 	}, [defaultStepsOpen, loadSteps, run.status, stepsState.kind]);
 
 	const resume = useCallback(async () => {
-		if (!run.runId || isResuming) {
+		if (!run.requestId || isResuming) {
 			return;
 		}
 		setIsResuming(true);
@@ -427,9 +427,9 @@ export function CampusRunStatus({
 		} finally {
 			setIsResuming(false);
 		}
-	}, [aui.thread, isResuming, run.runId, statusRuntime]);
+	}, [aui.thread, isResuming, run.requestId, statusRuntime]);
 
-	const showResume = run.connection === "disconnected" && running && hasRunId;
+	const showResume = run.connection === "disconnected" && running && hasRequestId;
 	const displayedSteps = running ? liveSteps(run) : stepsState.steps;
 
 	return (
@@ -442,7 +442,7 @@ export function CampusRunStatus({
 		>
 			<Collapsible open={stepsOpen} onOpenChange={handleStepsOpenChange}>
 				<div className="flex min-h-7 min-w-0 items-center gap-1">
-					{hasRunId ? (
+					{hasRequestId ? (
 						<CollapsibleTrigger asChild>
 							<button
 								className="group/run-trigger hover:bg-surface-muted/55 focus-visible:bg-surface-muted/55 -ms-1 flex min-h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md border-0 bg-transparent px-1 py-0.5 text-left outline-none transition-colors active:translate-y-px motion-reduce:transition-none"
@@ -479,7 +479,7 @@ export function CampusRunStatus({
 
 				{resumeError ? <p className="text-danger ms-5 mt-1 text-xs">{resumeError}</p> : null}
 
-				{hasRunId ? (
+				{hasRequestId ? (
 					<CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down motion-reduce:animate-none">
 						<div className="border-border/70 ms-2 mt-1 border-s ps-4 pb-1">
 							{!running && stepsState.kind === "loading" ? (

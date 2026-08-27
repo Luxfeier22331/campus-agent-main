@@ -44,32 +44,21 @@ Job，最后启动依赖它们的 workload。两个 Job 分别使用同 revision
 私有连接器、暂停新的产品请求准入的维护窗口执行。Schema Job 仍是唯一的 DDL 入口；不得通过
 常驻进程、手工数据库命令或伪造 migration ledger 绕过该合同。
 
-## execution_control 历史 schema 与 Model Config 切换
+## 数据库迁移边界
 
-Goose v4 至 v9 是不可改写的 execution-control 历史：它们曾把运行表与 `model_settings` 移到
-`execution_control`，并演进 Campus Docs 当前索引合同。这些 migration 在新数据库也必须先完整执行；
-它们不表示当前常驻 execution-control 仍拥有模型配置。随后 Model Config schema 命令接管当前 config，
-因此首次切换不能按普通无停写滚动升级处理。
+新建或重建的本地数据库由 `campus-agent-schema` 一次安装 execution-control、Model Config 和其他产品
+schema 的最终结构。旧 Goose migration 与 `model-config-schema` 暂作为现有部署数据库的不可变历史
+保留，不再由标准本地 bootstrap 执行。
 
-环境交付按以下顺序执行：
+统一 Job 不接管包含旧 ledger 或 `execution_config` 的数据库。现有部署环境切换时必须另行完成：
 
-1. 暂停新的产品请求准入，等待 execution-control PostgreSQL 写入排空；Temporal 服务和 workflow
-   history 保持可用，不删除或重置开放 workflow；
-2. 在旧 writer 已停止后运行新 image 的 `run-projection-schema --mode install`，确认全部历史 Goose
-   migration 已应用、execution-control 投影保留已有行、外键和索引；该 Job 只把旧 Provider Config
-   密钥作为历史 migration 输入；
-3. 运行同一 revision 的 `model-config-schema`，使用新 Model Config 密钥和旧 Provider Config 密钥，
-   事务性解密、冲突校验、重加密并写入 `model_config.model_configs`，成功后删除旧
-   `execution_control.model_settings` 及兼容 view；任一步失败都保持旧数据不变；
-4. 部署 Model Config、execution-control、Agent Runtime、Ops Web 和其他受影响 consumer，确认各自
-   readiness、target/hash/完整配置读取、start/cancel reconciler、个人记忆状态和 Ops Web 精确列读取；
-5. 恢复产品准入，并观察新写入只进入所属 schema；不得恢复旧模型配置 writer、双写或兼容读取；
-6. 只有所有活跃环境都完成上述切换且查询证据不再引用旧运行投影视图后，才追加 migration 删除兼容
-   视图及空的 `execution_config` schema。删除兼容对象不能与首次切换放在同一发布中。
+1. 暂停 PostgreSQL writer，并保留 Temporal history；
+2. 对目标数据库做可恢复备份；
+3. 在隔离数据库验证业务数据迁入统一 baseline，核对行数、外键、owner 和运行角色 ACL；
+4. 使用同一 revision 替换 GitOps schema Job 与应用镜像，再恢复写入。
 
-迁移事务失败时保持准入暂停并修复后重跑所属 schema Job。切换成功且新 writer 已恢复后，按新
-schema 向前修复；不能把旧构建当作应用回滚。旧 `model_settings` 密文的 AAD 只用于切换时解密，
-Model Config 会使用自己的 AAD 与密钥重加密。
+本次源码变化没有执行上述在线 cutover。旧 migration 不得改写，也不能通过双写、兼容 view 或第二条
+新 ledger 延长过渡期；具体数据转换 SQL 必须在实施 cutover 时基于实际备份设计和验证。
 
 ## 配置和 Secret
 

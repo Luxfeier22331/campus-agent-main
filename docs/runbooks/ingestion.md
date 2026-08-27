@@ -13,10 +13,10 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 
 ## 前置条件
 
-- Ops Web schema bootstrap 和 migration 使用数据库 owner 连接；凭据表最终位于
+- 统一 schema bootstrap 使用数据库 owner 连接；Ops Web 凭据表最终位于
   `internal_portal.credentials`，历史环境由 Ops Web handoff migration 一次性接管；
-- 通知采集、分类和发布共享 `notices.*`；本地由 `notice-publisher dev:init` 安装，集群由通知 schema
-  Job 安装；
+- 通知采集、分类和发布共享 `notices.*`；本地由 `campus-agent-schema` 安装，集群仍使用现有通知
+  schema Job，直到后续 GitOps cutover；
 - source 与 derived bucket 使用各自对象存储凭据；
 - Ops Web 与 internal-portal-collection 来自同一 source revision；
 - 使用本地命令时，已通过 `internal-portal:auth:pull` 从 Ops Web 解析当前有效 TGC；使用 Job 入口时，
@@ -28,14 +28,13 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 pnpm --filter notice-publisher dev:init
 pnpm --filter internal-portal-collection dev:init
 pnpm --filter notice-classifier dev:init
-pnpm --filter ops-web db:apply
 pnpm --filter ops-web dev:api
 ```
 
-数据库 TLS 与运行变量见 Ops Web 的环境合同。凭据 schema 与 Dining 共用
-`drizzle.ops_web_dining_migrations`；现有环境的 handoff migration 原位移动旧凭据表并清理旧 schema，
-新环境直接创建最终 `internal_portal.credentials`。`notice-publisher dev:init` 是本地通知 schema 的安装
-入口；internal-portal-collection 和 notice-classifier 的初始化只生成各自运行环境，不执行 DDL。
+数据库 TLS 与运行变量见 Ops Web 的环境合同。新建本地数据库使用
+`drizzle.campus_agent_migrations`；现有部署环境的旧 ledger 和 handoff migration 原样保留，且不会被
+统一 Job 自动接管。`notice-publisher dev:init` 运行统一 schema Job 并写入本地通知分类 seed；
+internal-portal-collection 和 notice-classifier 的初始化只生成各自运行环境，不执行 DDL。
 execution-control 的历史通知分类模型设置只作为 Model Config 一次性迁移输入，不构成当前配置所有权。
 
 ## 文件发布
@@ -64,7 +63,7 @@ pnpm internal-portal:auth:pull
 pnpm internal-portal:auth:check
 ```
 
-先由 notice-publisher 初始化当前 worktree 的通知 schema，再为采集器和分类器生成各自环境。采集器环境
+先由 notice-publisher 初始化当前 worktree 的统一 schema 与通知分类 seed，再为采集器和分类器生成各自环境。采集器环境
 包含 source bucket 与通知数据库连接；分类器环境包含通知数据库连接和 Model Config URL。
 `internal-portal:auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用 Ops Web
 凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。

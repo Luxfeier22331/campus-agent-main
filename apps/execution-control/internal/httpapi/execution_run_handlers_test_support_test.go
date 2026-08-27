@@ -25,10 +25,10 @@ type mapExecutionInputLoader struct{}
 
 func (mapExecutionInputLoader) Load(_ context.Context, run execution.DurableRun) (contracts.ExecutionPayloadWire, error) {
 	testExecutionInputs.RLock()
-	wire, ok := testExecutionInputs.values[run.RunID]
+	wire, ok := testExecutionInputs.values[run.RequestID]
 	testExecutionInputs.RUnlock()
 	if !ok {
-		return contracts.ExecutionPayloadWire{}, fmt.Errorf("test execution input %s not found", run.RunID)
+		return contracts.ExecutionPayloadWire{}, fmt.Errorf("test execution input %s not found", run.RequestID)
 	}
 	return wire, nil
 }
@@ -73,7 +73,7 @@ func (f *fakeTemporalStarter) CancelToolExecutionWorkflow(
 	_ context.Context,
 	input temporalruntime.ToolExecutionWorkflowCancelInput,
 ) error {
-	f.cancelRunID = input.RunID
+	f.cancelRunID = input.RequestID
 	f.cancelReason = input.Reason
 	return f.cancelErr
 }
@@ -104,21 +104,18 @@ func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.Ru
 	}
 }
 
-func v3ExecutionMetadataForHTTPTest(runID, _ string) map[string]any {
+func v3ExecutionMetadataForHTTPTest(requestID string) map[string]any {
 	return map[string]any{
 		"execution_contract_version": contracts.ExecutionContractVersion,
-		"execution_input_ref":        "app-api://execution-inputs/" + runID,
+		"execution_input_ref":        "app-api://execution-inputs/" + requestID,
 		"execution_input_sha256":     strings.Repeat("a", 64),
 	}
 }
 
 func executionPayloadWireForHTTPTest(
-	runID string,
-	conversationID string,
 	requestID string,
-	traceID string,
+	conversationID string,
 	userGoal string,
-	_ string,
 	contextProjection map[string]any,
 ) contracts.ExecutionPayloadWire {
 	if contextProjection == nil {
@@ -130,7 +127,6 @@ func executionPayloadWireForHTTPTest(
 		UserGoal:                 userGoal,
 		ConversationID:           conversationID,
 		RequestID:                requestID,
-		Trace:                    contracts.TraceContextWire{TraceID: traceID},
 		Context:                  cloneAnyMapFromMetadata(contextProjection),
 	}
 }
@@ -178,10 +174,7 @@ func durableRunCreateBodyWithToolForTest(
 	wire := executionPayloadWireForHTTPTest(
 		runID,
 		conversationID,
-		"req-"+runID,
-		"trace-"+runID,
 		"学生请假手续是什么？",
-		"",
 		map[string]any{
 			"actor":         map[string]any{"user_id": "user-executor"},
 			"authorization": map[string]any{"entitlement_groups": []string{"students"}},
@@ -196,11 +189,8 @@ func durableRunCreateBodyWithToolForTest(
 	testExecutionInputs.values[runID] = wire
 	testExecutionInputs.Unlock()
 	body := map[string]any{
-		"run_id":                         runID,
 		"conversation_id":                conversationID,
-		"turn_id":                        "turn-" + runID,
-		"request_id":                     "req-" + runID,
-		"trace_id":                       "trace-" + runID,
+		"request_id":                     runID,
 		"owner_user_id":                  "user-executor",
 		"personal_memory_recall_allowed": false,
 		"surface":                        "campus-web",
@@ -208,7 +198,7 @@ func durableRunCreateBodyWithToolForTest(
 			"contract": "durable-agent-runtime-contract-v1",
 		},
 		"metadata": map[string]any{
-			"execution_contract_version": "tool_execution_v5",
+			"execution_contract_version": "tool_execution_v6",
 			"execution_input_ref":        "app-api://execution-inputs/" + runID,
 			"execution_input_sha256":     hex.EncodeToString(digest[:]),
 		},
@@ -238,32 +228,21 @@ func createHTTPAPIQueuedDurableRunForTest(
 			userGoal = firstNonEmptyText(payload["query_text"], userGoal)
 		}
 	}
-	metadata := v3ExecutionMetadataForHTTPTest(runID, "")
-	executionPayload := map[string]any{
-		"execution_contract_version": contracts.ExecutionContractVersion,
-		"response_contract":          contracts.ResponseContract,
-		"user_goal":                  userGoal,
-		"request_id":                 "req-executor-001",
-		"conversation_id":            conversationID,
-		"trace":                      map[string]any{"trace_id": "trace-executor-001"},
-		"context": map[string]any{
-			"actor":         map[string]any{"user_id": "user-executor"},
-			"authorization": map[string]any{"entitlement_groups": []string{"students"}},
-			"conversation": map[string]any{
-				"current_user_message": map[string]any{
-					"created_at": now.UTC().Format(time.RFC3339),
-				},
+	metadata := v3ExecutionMetadataForHTTPTest(runID)
+	contextProjection := map[string]any{
+		"actor":         map[string]any{"user_id": "user-executor"},
+		"authorization": map[string]any{"entitlement_groups": []string{"students"}},
+		"conversation": map[string]any{
+			"current_user_message": map[string]any{
+				"created_at": now.UTC().Format(time.RFC3339),
 			},
 		},
 	}
 	wire := executionPayloadWireForHTTPTest(
 		runID,
 		conversationID,
-		"req-executor-001",
-		"trace-executor-001",
 		userGoal,
-		"",
-		executionPayload["context"].(map[string]any),
+		contextProjection,
 	)
 	encodedWire, err := json.Marshal(wire)
 	if err != nil {
@@ -272,11 +251,8 @@ func createHTTPAPIQueuedDurableRunForTest(
 	digest := sha256.Sum256(encodedWire)
 	metadata["execution_input_sha256"] = hex.EncodeToString(digest[:])
 	if _, err := store.CreateRun(context.Background(), execution.DurableRun{
-		RunID:          runID,
+		RequestID:      runID,
 		ConversationID: conversationID,
-		TurnID:         "turn-" + runID,
-		RequestID:      "req-executor-001",
-		TraceID:        "trace-executor-001",
 		OwnerUserID:    "user-executor",
 		Surface:        "campus-web",
 		TaskQueue:      "campus-agent.workflow.v3",
@@ -286,7 +262,7 @@ func createHTTPAPIQueuedDurableRunForTest(
 	}); err != nil {
 		t.Fatalf("create run projection: %v", err)
 	}
-	registerTestExecutionInput(t, store, execution.DurableRun{RunID: runID}, wire)
+	registerTestExecutionInput(t, store, execution.DurableRun{RequestID: runID}, wire)
 	if _, err := store.TransitionRun(
 		context.Background(),
 		runID,
@@ -322,15 +298,15 @@ func registerTestExecutionInput(
 	}
 	digest := sha256.Sum256(encoded)
 	testExecutionInputs.Lock()
-	testExecutionInputs.values[run.RunID] = wire
+	testExecutionInputs.values[run.RequestID] = wire
 	testExecutionInputs.Unlock()
-	latest, err := store.GetRun(context.Background(), run.RunID)
+	latest, err := store.GetRun(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("get run for execution input registration: %v", err)
 	}
 	metadata := cloneAnyMapFromMetadata(latest.Metadata)
 	metadata["execution_input_sha256"] = hex.EncodeToString(digest[:])
-	if err := store.ReplaceRunMetadata(context.Background(), run.RunID, metadata); err != nil {
+	if err := store.ReplaceRunMetadata(context.Background(), run.RequestID, metadata); err != nil {
 		t.Fatalf("update execution input digest: %v", err)
 	}
 }

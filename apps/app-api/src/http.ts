@@ -26,7 +26,6 @@ export class AppApiRouteError extends Error {
 	readonly requestId: string | null;
 	readonly retryable: boolean;
 	readonly status: number;
-	readonly traceId: string | null;
 
 	constructor(input: {
 		code: string;
@@ -35,7 +34,6 @@ export class AppApiRouteError extends Error {
 		requestId?: string | null;
 		retryable: boolean;
 		status: number;
-		traceId?: string | null;
 	}) {
 		super(input.message);
 		this.name = "AppApiRouteError";
@@ -44,7 +42,6 @@ export class AppApiRouteError extends Error {
 		this.requestId = input.requestId ?? null;
 		this.retryable = input.retryable;
 		this.status = input.status;
-		this.traceId = input.traceId ?? null;
 	}
 }
 
@@ -52,7 +49,6 @@ export function errorEnvelope(input: {
 	code: string;
 	message: string;
 	retryable: boolean;
-	traceId?: string | null;
 	requestId?: string | null;
 	details?: unknown;
 }) {
@@ -61,7 +57,6 @@ export function errorEnvelope(input: {
 			code: input.code,
 			message: input.message,
 			retryable: input.retryable,
-			traceId: input.traceId ?? null,
 			requestId: input.requestId ?? null,
 			details: input.details ?? null,
 		},
@@ -73,10 +68,6 @@ export function routeErrorResponse(error: AppApiRouteError): Response {
 	if (error.requestId) {
 		headers["x-request-id"] = error.requestId;
 	}
-	if (error.traceId) {
-		headers["x-trace-id"] = error.traceId;
-	}
-
 	return jsonResponse(
 		errorEnvelope({
 			code: error.code,
@@ -84,7 +75,6 @@ export function routeErrorResponse(error: AppApiRouteError): Response {
 			message: error.message,
 			requestId: error.requestId,
 			retryable: error.retryable,
-			traceId: error.traceId,
 		}),
 		{ headers, status: error.status },
 	);

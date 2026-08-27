@@ -32,7 +32,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					result: null,
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -53,7 +52,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					result: null,
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -77,7 +75,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			kind: "answer",
 			requestId: "req_0001",
 			text: "你要问哪个校区？",
-			traceId: "trace_0001",
 		});
 		expect(followUpStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
@@ -88,7 +85,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			kind: "answer",
 			requestId: "req_0001",
 			text: "当前没有足够依据回答这个问题。",
-			traceId: "trace_0001",
 		});
 		expect(insufficientEvidenceStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
@@ -124,7 +120,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						},
 					},
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -152,7 +147,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						},
 					},
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -180,7 +174,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						},
 					},
 					status: "approval_required",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -211,7 +204,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						},
 					},
 					status: "rejected",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -320,7 +312,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					result: null,
 					status: "approval_required",
-					traceId: "trace_0001",
 				}),
 			}),
 			telemetry: approvalTelemetry,
@@ -346,7 +337,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					result: null,
 					status: "rejected",
-					traceId: "trace_0001",
 				}),
 			}),
 			telemetry: rejectedTelemetry,
@@ -373,7 +363,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			message: "The request requires approval before it can continue.",
 			requestId: "req_0001",
 			retryable: false,
-			traceId: "trace_0001",
 		});
 		expect(approvalStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
@@ -392,7 +381,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			message: "The request was rejected by execution policy.",
 			requestId: "req_0001",
 			retryable: false,
-			traceId: "trace_0001",
 		});
 		expect(rejectedStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {

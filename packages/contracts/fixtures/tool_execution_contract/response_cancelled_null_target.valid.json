@@ -13,12 +13,5 @@
 		"message": "Execution was cancelled by the user.",
 		"retryable": false
 	},
-	"observability": null,
-	"workflow_trace_summary": {
-		"execution_path": "direct",
-		"terminal_reason": "execution_cancelled",
-		"answer_artifact_refs": [],
-		"runtime_versions": {}
-	},
-	"trace_id": "trace-contract-cancelled"
+	"observability": null
 }

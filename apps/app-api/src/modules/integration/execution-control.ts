@@ -11,11 +11,7 @@ export {
 	type ExecutionControlRunEventPage,
 	type ExecutionControlRunEventQuery,
 	type ExecutionControlRunQuery,
-	type ExecutionControlRunStep,
-	type ExecutionControlRunStepTrajectory,
 	type ExecutionControlRuntimeClient,
-	type ExecutionControlStepAttempt,
-	type ExecutionControlStepResult,
 	isExecutionControlRuntimeConfigured,
 } from "./execution-control-runtime";
 export {
@@ -33,5 +29,4 @@ export type {
 	ToolExecutionResponse,
 	ToolExecutionSessionSlot,
 	ToolExecutionSessionSummary,
-	ToolExecutionWorkflowTraceSummary,
 } from "./tool-execution-types";

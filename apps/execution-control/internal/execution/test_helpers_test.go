@@ -8,21 +8,21 @@ import (
 
 // executionMetadataForTest mirrors the production input reference without
 // putting the payload itself in the run projection.
-func executionMetadataForTest(runID string, _ string) map[string]any {
+func executionMetadataForTest(requestID string, _ string) map[string]any {
 	return map[string]any{
-		"execution_contract_version": "tool_execution_v5",
-		"execution_input_ref":        "app-api://execution-inputs/" + runID,
+		"execution_contract_version": "tool_execution_v6",
+		"execution_input_ref":        "app-api://execution-inputs/" + requestID,
 		"execution_input_sha256":     strings.Repeat("a", 64),
 	}
 }
 
 func storeFinalizationResultForTest(
 	store *InMemoryRunProjectionStore,
-	runID string,
+	requestID string,
 	projectionRef string,
 	createdAt time.Time,
 ) error {
-	results, err := store.ListStepResults(context.Background(), runID)
+	results, err := store.ListStepResults(context.Background(), requestID)
 	if err != nil {
 		return err
 	}
@@ -33,10 +33,10 @@ func storeFinalizationResultForTest(
 		}
 	}
 	_, err = store.UpsertStepResult(context.Background(), StepResultProjection{
-		ResultID:             runID + ":finalization.write:result-1",
+		ResultID:             requestID + ":finalization.write:result-1",
 		StepID:               "finalization.write",
-		RunID:                runID,
-		AttemptID:            runID + ":finalization.write:attempt-1",
+		RequestID:            requestID,
+		AttemptID:            requestID + ":finalization.write:attempt-1",
 		Status:               "completed",
 		ResultKind:           "final_answer_projection",
 		ProjectionRef:        projectionRef,

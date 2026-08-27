@@ -51,11 +51,8 @@ export const agentRunRequestSchema = z
 	.object({
 		activity_attempt: z.number().int().positive(),
 		user_id: z.string().min(1),
-		run_id: z.string().min(1),
 		request_id: z.string().min(1),
 		conversation_id: z.string().min(1),
-		turn_id: z.string().min(1),
-		trace_id: z.string().min(1),
 		input: z.string().min(1),
 		visible_tool_names: z.array(z.string().min(1)).default([]),
 		expected_tool_contract_fingerprint: toolContractFingerprintSchema,
@@ -92,11 +89,8 @@ export function runtimeInputFromAgentRunRequest(
 ): PrimaryAgentRunInput {
 	return {
 		activityAttempt: parsed.activity_attempt,
-		runId: parsed.run_id,
 		requestId: parsed.request_id,
 		conversationId: parsed.conversation_id,
-		turnId: parsed.turn_id,
-		traceId: parsed.trace_id,
 		input: parsed.input,
 		visibleToolNames: parsed.visible_tool_names,
 		expectedToolContractFingerprint: mapToolContractFingerprint(

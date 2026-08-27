@@ -100,19 +100,19 @@ func (loader *appAPIInputLoader) Load(
 	ctx context.Context,
 	run DurableRun,
 ) (contracts.ExecutionPayloadWire, error) {
-	if !contracts.ValidExecutionRunID(run.RunID) {
+	if !contracts.ValidExecutionRequestID(run.RequestID) {
 		return contracts.ExecutionPayloadWire{}, NewInputError(
 			"load",
-			"execution_input_run_id_invalid",
+			"execution_input_request_id_invalid",
 			false,
-			errors.New("run_id is invalid"),
+			errors.New("request_id is invalid"),
 		)
 	}
 	metadata, err := InputMetadata(run)
 	if err != nil {
 		return contracts.ExecutionPayloadWire{}, NewInputError("load", "execution_input_metadata_invalid", false, err)
 	}
-	response, err := loader.do(ctx, run.RunID)
+	response, err := loader.do(ctx, run.RequestID)
 	if err != nil {
 		return contracts.ExecutionPayloadWire{}, NewInputError("load", "execution_input_unavailable", true, err)
 	}
@@ -163,9 +163,9 @@ func (loader *appAPIInputLoader) Load(
 
 func (loader *appAPIInputLoader) do(
 	ctx context.Context,
-	runID string,
+	requestID string,
 ) (*http.Response, error) {
-	requestURL := loader.baseURL + "/api/internal/execution/runs/" + url.PathEscape(runID) + "/input"
+	requestURL := loader.baseURL + "/api/internal/execution/requests/" + url.PathEscape(requestID) + "/input"
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return nil, err
@@ -184,8 +184,8 @@ func (loader *appAPIInputLoader) do(
 }
 
 func InputMetadata(run DurableRun) (contracts.ExecutionRunMetadataWire, error) {
-	if strings.TrimSpace(run.RunID) == "" {
-		return contracts.ExecutionRunMetadataWire{}, errors.New("run_id is required")
+	if strings.TrimSpace(run.RequestID) == "" {
+		return contracts.ExecutionRunMetadataWire{}, errors.New("request_id is required")
 	}
 	contractVersion, ok := run.Metadata["execution_contract_version"].(string)
 	if !ok {
@@ -204,7 +204,7 @@ func InputMetadata(run DurableRun) (contracts.ExecutionRunMetadataWire, error) {
 		ExecutionInputRef:        inputRef,
 		ExecutionInputSHA256:     inputSHA256,
 	}
-	if err := metadata.Validate(run.RunID); err != nil {
+	if err := metadata.Validate(run.RequestID); err != nil {
 		return contracts.ExecutionRunMetadataWire{}, err
 	}
 	return metadata, nil
@@ -220,9 +220,6 @@ func validateExecutionInputBinding(
 	}
 	if wire.RequestID != run.RequestID {
 		return errors.New("request_id does not match the run")
-	}
-	if wire.Trace.TraceID != run.TraceID {
-		return errors.New("trace.trace_id does not match the run")
 	}
 	return nil
 }

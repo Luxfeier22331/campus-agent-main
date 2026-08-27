@@ -82,7 +82,6 @@ export function createOpsOverviewService(input: {
 					ageMs: status.ageMs,
 					status: status.stale ? "STALE" : "FRESH",
 				},
-				externalLinks: status.value.externalLinks,
 				generatedAt: requestedAt.toISOString(),
 				health: summarizeHealth(status.value),
 				issues: collectIssues(status.value),
@@ -182,7 +181,6 @@ function aggregateDataState(states: OpsDataState[]): OpsDataState {
 
 function unavailableStatusOverview(): OpsStatusOverview {
 	return {
-		externalLinks: [],
 		requests: {
 			actionRequired: 0,
 			cancelled: 0,

@@ -15,7 +15,6 @@ func TestExtractIncomingContextAcceptsTraceParent(t *testing.T) {
 	traceHeaders := InjectExecutionTraceHeaders(
 		ExtractIncomingContext(context.Background(), headers),
 		"req-001",
-		"trace-001",
 	)
 
 	if traceHeaders["traceparent"] != traceParent {
@@ -23,9 +22,6 @@ func TestExtractIncomingContextAcceptsTraceParent(t *testing.T) {
 	}
 	if traceHeaders["x-request-id"] != "req-001" {
 		t.Fatalf("x-request-id = %q", traceHeaders["x-request-id"])
-	}
-	if traceHeaders["x-trace-id"] != "trace-001" {
-		t.Fatalf("x-trace-id = %q", traceHeaders["x-trace-id"])
 	}
 }
 
@@ -54,11 +50,9 @@ func TestExtractIncomingContextIgnoresBaggageAndSentryTrace(t *testing.T) {
 			traceHeaders := InjectExecutionTraceHeaders(
 				ExtractIncomingContext(ambientContext, headers),
 				"req-001",
-				"trace-001",
 			)
 			want := map[string]string{
 				"x-request-id": "req-001",
-				"x-trace-id":   "trace-001",
 			}
 			if !reflect.DeepEqual(traceHeaders, want) {
 				t.Fatalf("trace headers = %#v, want %#v", traceHeaders, want)
@@ -80,11 +74,9 @@ func TestExtractTraceParentRejectsInvalidAndClearsExistingContext(t *testing.T) 
 			traceHeaders := InjectExecutionTraceHeaders(
 				ExtractTraceParent(ambientContext, traceParent),
 				"req-001",
-				"trace-001",
 			)
 			want := map[string]string{
 				"x-request-id": "req-001",
-				"x-trace-id":   "trace-001",
 			}
 			if !reflect.DeepEqual(traceHeaders, want) {
 				t.Fatalf("trace headers = %#v, want %#v", traceHeaders, want)

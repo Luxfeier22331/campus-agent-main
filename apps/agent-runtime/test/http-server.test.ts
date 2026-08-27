@@ -121,7 +121,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				body: JSON.stringify({
 					...validRunBody(),
@@ -152,7 +152,7 @@ describe("agent runtime HTTP handler", () => {
 		};
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify(body),
@@ -185,7 +185,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -304,7 +304,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -352,7 +352,7 @@ describe("agent runtime HTTP handler", () => {
 							event: "completed",
 							data: {
 								status: "completed",
-								runId: input.runId,
+								requestId: input.requestId,
 								contextUsage: {
 									contextChars: 48,
 									currentInputChars: 6,
@@ -396,7 +396,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs/stream", {
+			new Request("http://agent-runtime/internal/agent-requests/stream", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -441,7 +441,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -466,7 +466,7 @@ describe("agent runtime HTTP handler", () => {
 		delete body.input;
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify(body),
@@ -486,7 +486,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify(validRunBody()),
@@ -503,7 +503,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -526,7 +526,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -550,7 +550,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -587,7 +587,7 @@ describe("agent runtime HTTP handler", () => {
 					observedSignal = input.signal;
 					return {
 						status: "completed",
-						runId: input.runId,
+						requestId: input.requestId,
 						contextUsage: {
 							contextChars: 48,
 							currentInputChars: 6,
@@ -612,7 +612,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -664,7 +664,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -704,7 +704,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -735,7 +735,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs", {
+			new Request("http://agent-runtime/internal/agent-requests", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -773,7 +773,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs/stream", {
+			new Request("http://agent-runtime/internal/agent-requests/stream", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -813,7 +813,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs/stream", {
+			new Request("http://agent-runtime/internal/agent-requests/stream", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
@@ -857,7 +857,7 @@ describe("agent runtime HTTP handler", () => {
 		});
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs/stream", {
+			new Request("http://agent-runtime/internal/agent-requests/stream", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify(validRunBody()),
@@ -900,7 +900,7 @@ describe("agent runtime HTTP handler", () => {
 		};
 
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs/stream", {
+			new Request("http://agent-runtime/internal/agent-requests/stream", {
 				method: "POST",
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify(body),
@@ -959,10 +959,7 @@ function validRunBody(): Record<string, unknown> {
 		activity_attempt: 1,
 		user_id: "user-1",
 		request_id: "req-1",
-		run_id: "run-1",
 		conversation_id: "conversation-1",
-		turn_id: "turn-1",
-		trace_id: "trace-1",
 		input: "hi 你是谁",
 		visible_tool_names: ["test_lookup"],
 		expected_tool_contract_fingerprint: wireToolContractFingerprint(catalog.contractFingerprint),

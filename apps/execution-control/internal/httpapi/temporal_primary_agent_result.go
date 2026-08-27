@@ -61,7 +61,7 @@ func primaryAgentResultPayload(
 			result.PayloadKind,
 			result.Status,
 			resultBody,
-			primaryAgentSDKToolProjectionRef(input.run.RunID, result.ToolName, index+1),
+			primaryAgentSDKToolProjectionRef(input.run.RequestID, result.ToolName, index+1),
 		)
 		if err != nil {
 			return nil, err

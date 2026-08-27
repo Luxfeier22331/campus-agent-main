@@ -62,7 +62,7 @@ function createConversationService() {
 		matchSnippet: null,
 	}));
 	const conversation: ChatConversationResponse = {
-		activeRunId: null,
+		activeRequestId: null,
 		createdAt: "2026-03-28T08:00:00.000Z",
 		id: "conv_01HQ",
 		messages: [
@@ -565,7 +565,6 @@ describe("chat conversation routes", () => {
 				message: "Sign in required.",
 				requestId: null,
 				retryable: false,
-				traceId: null,
 			},
 		});
 	});
@@ -597,7 +596,6 @@ describe("chat conversation routes", () => {
 				message: "Conversation not found.",
 				requestId: null,
 				retryable: false,
-				traceId: null,
 			},
 		});
 	});

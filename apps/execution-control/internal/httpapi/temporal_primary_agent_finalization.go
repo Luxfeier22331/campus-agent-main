@@ -32,8 +32,8 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		)
 	}
 	agentResult := primaryAgentFinalizationResultMap(input)
-	if strings.TrimSpace(input.AgentResult.AgentResultRef) != temporalProjectionRef(input.RunID, "agent/primary/result") ||
-		strings.TrimSpace(input.AgentResult.RunID) != strings.TrimSpace(input.RunID) {
+	if strings.TrimSpace(input.AgentResult.AgentResultRef) != temporalProjectionRef(input.RequestID, "agent/primary/result") ||
+		strings.TrimSpace(input.AgentResult.RequestID) != strings.TrimSpace(input.RequestID) {
 		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_input_invalid",
 			errors.New("agent result identity is invalid"),
@@ -42,8 +42,7 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	run, err := s.temporalActivityRunAllowCompletedAgentFinalization(
 		ctx,
-		input.RunID,
-		input.TraceID,
+		input.RequestID,
 	)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -100,7 +99,7 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	if replayEvidence != nil {
 		finalizationStartedAt = replayEvidence.StartedAt
 	}
-	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
+	finalizationRef := temporalProjectionRef(run.RequestID, "finalization/write")
 	completedAt := finalizedAt
 	finalizedResponse, err := s.primaryAgentFinalizedResponse(
 		ctx,
@@ -120,7 +119,6 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, completedAt, finalizedResponse, map[string]any{
 		"agent_result_ref": input.AgentResult.AgentResultRef,
 		"request_id":       run.RequestID,
-		"trace_id":         run.TraceID,
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
@@ -150,8 +148,8 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	return temporalruntime.WriteFinalizationActivityOutput{
 		CompletedAt:   completedAt,
-		ProjectionRef: temporalProjectionRef(completedRun.RunID, "finalization/write"),
-		RunID:         completedRun.RunID,
+		ProjectionRef: temporalProjectionRef(completedRun.RequestID, "finalization/write"),
+		RequestID:     completedRun.RequestID,
 		Status:        string(completedRun.Status),
 	}, nil
 }
@@ -195,7 +193,7 @@ func (s *Server) commitPrimaryAgentFinalizationStep(
 	if updatedAt.IsZero() {
 		updatedAt = time.Now().UTC()
 	}
-	attemptID := temporalStepAttemptID(run.RunID, projection.StepID, attempt)
+	attemptID := temporalStepAttemptID(run.RequestID, projection.StepID, attempt)
 	finalizationFingerprint := strings.TrimSpace(
 		stringValue(projection.Payload["finalization_fingerprint_sha256"]),
 	)
@@ -205,12 +203,12 @@ func (s *Server) commitPrimaryAgentFinalizationStep(
 			Completion: execution.DurableRunCompleteRequest{
 				FinalResponseRef: run.FinalResponseRef,
 				Now:              runCompletedAt,
-				RunID:            run.RunID,
+				RequestID:        run.RequestID,
 				TerminalReason:   run.TerminalReason,
 			},
 			Step: execution.RunStepProjection{
 				StepID:               projection.StepID,
-				RunID:                run.RunID,
+				RequestID:            run.RequestID,
 				ConversationID:       run.ConversationID,
 				StepKind:             projection.StepKind,
 				Tool:                 projection.Tool,
@@ -227,7 +225,7 @@ func (s *Server) commitPrimaryAgentFinalizationStep(
 			Attempt: execution.StepAttemptProjection{
 				AttemptID:             attemptID,
 				StepID:                projection.StepID,
-				RunID:                 run.RunID,
+				RequestID:             run.RequestID,
 				Attempt:               attempt,
 				Status:                projection.Status,
 				TaskQueue:             projection.TaskQueue,
@@ -259,9 +257,9 @@ func (s *Server) commitPrimaryAgentFinalizationStep(
 				SanitizedPayload:      projection.Payload,
 			},
 			Result: execution.StepResultProjection{
-				ResultID:             temporalStepResultID(run.RunID, projection.StepID, attempt),
+				ResultID:             temporalStepResultID(run.RequestID, projection.StepID, attempt),
 				StepID:               projection.StepID,
-				RunID:                run.RunID,
+				RequestID:            run.RequestID,
 				AttemptID:            attemptID,
 				Status:               projection.Status,
 				ResultKind:           projection.ResultKind,
@@ -357,7 +355,7 @@ func (s *Server) completedFinalizationProjectionEvidence(
 	ctx context.Context,
 	run execution.DurableRun,
 ) (*finalizationProjectionEvidence, error) {
-	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RunID)
+	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RequestID)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +369,7 @@ func (s *Server) completedFinalizationProjectionEvidence(
 	if activityAttempt <= 0 {
 		return nil, nil
 	}
-	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RunID)
+	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RequestID)
 	if err != nil {
 		return nil, err
 	}
@@ -483,7 +481,7 @@ func (s *Server) repairCompletedPrimaryAgentFinalization(
 	return temporalruntime.WriteFinalizationActivityOutput{
 		CompletedAt:   completedAt,
 		ProjectionRef: canonicalRun.FinalResponseRef,
-		RunID:         canonicalRun.RunID,
+		RequestID:     canonicalRun.RequestID,
 		Status:        string(canonicalRun.Status),
 	}, nil
 }
@@ -494,8 +492,8 @@ func (s *Server) appendPrimaryAgentRunCompletedEvent(
 	completedAt time.Time,
 ) error {
 	expected := execution.DurableRunEvent{
-		EventID:              run.RunID + ":run-completed",
-		RunID:                run.RunID,
+		EventID:              run.RequestID + ":run-completed",
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeRunCompleted,
 		OccurredAt:           completedAt,
@@ -510,7 +508,7 @@ func (s *Server) appendPrimaryAgentRunCompletedEvent(
 	if err := s.appendTemporalRunEvent(ctx, expected); err != nil {
 		return err
 	}
-	events, err := s.runProjectionStore.ListRunEvents(ctx, run.RunID)
+	events, err := s.runProjectionStore.ListRunEvents(ctx, run.RequestID)
 	if err != nil {
 		return err
 	}
@@ -518,7 +516,7 @@ func (s *Server) appendPrimaryAgentRunCompletedEvent(
 		if existing.EventID != expected.EventID {
 			continue
 		}
-		if existing.RunID == expected.RunID &&
+		if existing.RequestID == expected.RequestID &&
 			existing.ConversationID == expected.ConversationID &&
 			existing.EventType == expected.EventType &&
 			existing.Visibility == expected.Visibility &&
@@ -542,7 +540,7 @@ func (s *Server) validateCompletedPrimaryAgentFinalizationStep(
 	input temporalruntime.WriteFinalizationActivityInput,
 	finalizedResponse map[string]any,
 ) error {
-	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
+	finalizationRef := temporalProjectionRef(run.RequestID, "finalization/write")
 	if run.FinalResponseRef != finalizationRef || strings.TrimSpace(input.AgentResult.AgentResultRef) == "" {
 		return sanitizedTemporalApplicationError(
 			"finalization_replay_conflict",
@@ -550,7 +548,7 @@ func (s *Server) validateCompletedPrimaryAgentFinalizationStep(
 			true,
 		)
 	}
-	results, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
+	results, err := s.runProjectionStore.ListStepResults(ctx, run.RequestID)
 	if err != nil {
 		return err
 	}
@@ -569,9 +567,9 @@ func (s *Server) validateCompletedPrimaryAgentFinalizationStep(
 		}
 		completedResults++
 		activityAttempt, valid := positiveIntValue(result.SanitizedPayload["activity_attempt"])
-		if !valid || result.ResultID != temporalStepResultID(run.RunID, result.StepID, activityAttempt) ||
-			result.AttemptID != temporalStepAttemptID(run.RunID, result.StepID, activityAttempt) ||
-			result.RunID != run.RunID || result.ResultKind != "final_answer_projection" ||
+		if !valid || result.ResultID != temporalStepResultID(run.RequestID, result.StepID, activityAttempt) ||
+			result.AttemptID != temporalStepAttemptID(run.RequestID, result.StepID, activityAttempt) ||
+			result.RequestID != run.RequestID || result.ResultKind != "final_answer_projection" ||
 			result.ProjectionRef != finalizationRef ||
 			result.PayloadSchemaVersion != "step-result-projection-v1" {
 			return sanitizedTemporalApplicationError(
@@ -604,12 +602,12 @@ func (s *Server) completedPrimaryAgentFinalizedResponse(
 	ctx context.Context,
 	run execution.DurableRun,
 ) (map[string]any, error) {
-	events, err := s.runProjectionStore.ListRunEvents(ctx, run.RunID)
+	events, err := s.runProjectionStore.ListRunEvents(ctx, run.RequestID)
 	if err != nil {
 		return nil, err
 	}
 	for _, event := range events {
-		if event.EventID != run.RunID+":finalization-completed-internal" {
+		if event.EventID != run.RequestID+":finalization-completed-internal" {
 			continue
 		}
 		response := cloneAnyMapFromMetadata(event.Payload["response"])
@@ -666,13 +664,6 @@ func (s *Server) primaryAgentFinalizedResponse(
 	if err != nil {
 		return nil, err
 	}
-	toolAssisted := len(primaryAgentToolResultMaps(agentResult["tool_results"])) > 0
-	workflowTraceSummary := map[string]any{
-		"execution_path":       primaryAgentExecutionPath(toolAssisted),
-		"terminal_reason":      string(execution.DurableTerminalReasonAnswerCompleted),
-		"answer_artifact_refs": []string{temporalProjectionRef(run.RunID, "finalization/write")},
-		"runtime_versions":     map[string]any{"agent_runtime": "openai_agents_sdk"},
-	}
 	observability := map[string]any{
 		"agent_runtime":   "openai_agents_sdk",
 		"model_name":      agentResult["model_name"],
@@ -688,23 +679,14 @@ func (s *Server) primaryAgentFinalizedResponse(
 		return nil, err
 	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		Status:               "completed",
-		AnswerText:           answerText,
-		Error:                nil,
-		ModelUsage:           modelUsage,
-		StageTiming:          stageTiming,
-		Result:               result,
-		Observability:        observability,
-		WorkflowTraceSummary: workflowTraceSummary,
-		TraceID:              run.TraceID,
+		Status:        "completed",
+		AnswerText:    answerText,
+		Error:         nil,
+		ModelUsage:    modelUsage,
+		StageTiming:   stageTiming,
+		Result:        result,
+		Observability: observability,
 	}), nil
-}
-
-func primaryAgentExecutionPath(toolAssisted bool) string {
-	if toolAssisted {
-		return "tool_assisted"
-	}
-	return "direct"
 }
 
 func primaryAgentModelUsage(agentResult map[string]any) (ModelUsageWire, error) {

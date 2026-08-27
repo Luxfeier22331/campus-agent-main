@@ -37,6 +37,7 @@ const VALUE_LABELS: Record<string, string> = {
 	provider_unavailable: "模型服务不可用",
 	resolved: "已解决",
 	responses: "Responses API",
+	running: "执行中",
 	runtime_error: "运行时错误",
 	single_step: "单步执行",
 	staff: "教职工",

@@ -50,7 +50,7 @@ func TestStarterUsesExistingWorkflowForOpenIDAndRejectsClosedReuse(t *testing.T)
 	if fake.startOptions.StartDelay != 0 {
 		t.Fatalf("ordinary workflow start delay = %s, want zero", fake.startOptions.StartDelay)
 	}
-	if fake.startOptions.Memo[workflowMemoRunIDKey] != input.RunID ||
+	if fake.startOptions.Memo[workflowMemoRequestIDKey] != input.RequestID ||
 		fake.startOptions.Memo[workflowMemoPayloadSHAKey] != input.PayloadSHA256 {
 		t.Fatalf("workflow identity memo = %#v", fake.startOptions.Memo)
 	}
@@ -311,7 +311,7 @@ func TestStarterCancellationTargetsVerifiedTemporalRun(t *testing.T) {
 	fake := &captureTemporalClient{}
 	starter := &Starter{client: fake, startTimeout: time.Second}
 	input := ToolExecutionWorkflowCancelInput{
-		RunID:      "run-cancel-exact",
+		RequestID:  "run-cancel-exact",
 		WorkflowID: "campus-agent.chat.run-cancel-exact",
 	}
 	if err := starter.CancelToolExecutionWorkflow(context.Background(), input); err == nil {

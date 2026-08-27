@@ -61,15 +61,14 @@ func decodeCampusSearchToolEnvelope(body json.RawMessage) (campusSearchToolEnvel
 		return envelope, errors.New("campus_search request has trailing JSON content")
 	}
 	envelope.Payload.Query = strings.TrimSpace(envelope.Payload.Query)
-	envelope.AccessContext.RunID = strings.TrimSpace(envelope.AccessContext.RunID)
-	envelope.AccessContext.TraceID = strings.TrimSpace(envelope.AccessContext.TraceID)
+	envelope.AccessContext.RequestID = strings.TrimSpace(envelope.AccessContext.RequestID)
 	envelope.AccessContext.InvocationID = strings.TrimSpace(envelope.AccessContext.InvocationID)
 	if envelope.Payload.Query == "" || len([]rune(envelope.Payload.Query)) > 400 {
 		return envelope, errors.New("payload.query must contain between 1 and 400 characters")
 	}
-	if envelope.AccessContext.RunID == "" || envelope.AccessContext.TraceID == "" ||
+	if envelope.AccessContext.RequestID == "" ||
 		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.ActivityAttempt <= 0 {
-		return envelope, errors.New("access_context.run_id, trace_id, invocation_id, and activity_attempt are required")
+		return envelope, errors.New("access_context.request_id, invocation_id, and activity_attempt are required")
 	}
 	return envelope, nil
 }

@@ -32,13 +32,10 @@ function turnDispatchWrite(overrides: Partial<TurnDispatchWrite> = {}): TurnDisp
 		},
 		requestFingerprintSha256: "f".repeat(64),
 		requestId: "req_001",
-		runId: "run_001",
 		safetyIdentifier: "safety_001",
 		status: "accepted",
 		surface: "campus_web",
-		traceId: "trace_001",
 		turnSequence: 1,
-		turnId: "turn_001",
 		updatedAt: "2026-06-04T01:02:03.000Z",
 		userMessageId: "msg_user_001",
 		...overrides,
@@ -58,7 +55,6 @@ describe("runtime command mutations", () => {
 			{
 				executionInputJson: '{"request_id":"req_001"}',
 				executionInputSha256: "b".repeat(64),
-				turnId: "turn_001",
 			},
 		);
 
@@ -70,9 +66,7 @@ describe("runtime command mutations", () => {
 			memoryOwnerSequence: 7,
 			memoryRecallEnabled: false,
 			requestId: "req_001",
-			runId: "run_001",
 			status: "accepted",
-			turnId: "turn_001",
 			turnSequence: 1,
 		});
 	});

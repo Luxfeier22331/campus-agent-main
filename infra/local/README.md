@@ -35,10 +35,12 @@ worktree 不共享这两个宿主进程。Temporal 服务本身仍是机器级�
 ## 产品本地准备
 
 根目录 `pnpm dev:init` 启动或校验共享 PostgreSQL、RustFS 与 Temporal，确保共享 source、Campus Web
-文档 bucket 和当前 worktree 的 derived bucket 存在，在固定文档来源缺失时写入确定性样例，安装 app-api
-和 execution-control schema，创建当前 worktree 的 Temporal namespace，并显式执行核心 dev seed。Ops Web
-负责内部门户凭据 schema 和定时检查；notice-publisher、internal-portal-collection 和 notice-classifier
-通过各自 package 的 `dev:init` 按需准备。采集任务不由 Compose 常驻启动。
+文档 bucket 和当前 worktree 的 derived bucket 存在，在固定文档来源缺失时写入确定性样例，然后运行
+`campus-agent-schema` 安装统一数据库 baseline。核心初始化随后写入校园群组和本地测试用户，并创建
+当前 worktree 的 Temporal namespace。`notice-publisher dev:init` 复用同一 schema Job 后写入通知分类；
+`ops-web dev:init` 再写入 Dining 基线。seed 不创建表，也不维护 migration ledger。
+internal-portal-collection 和 notice-classifier 通过各自 package 的 `dev:init` 按需生成运行环境；采集
+任务不由 Compose 常驻启动。
 `pnpm dev:destroy` 只删除确认的 worktree database、derived bucket、
 托管环境文件和注册记录，不会为了清理而启动或重建共享容器。依赖 compose 不负责启动 app-api、
 Campus Web、Ops Web、execution-control、agent-runtime 或同步任务，也不在容器启动时写入业务 seed。

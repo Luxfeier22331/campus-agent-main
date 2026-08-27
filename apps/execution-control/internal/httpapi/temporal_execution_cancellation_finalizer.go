@@ -19,7 +19,7 @@ func (s *Server) FinalizeExecutionCancellation(
 	ctx context.Context,
 	input temporalruntime.FinalizeExecutionCancellationActivityInput,
 ) (temporalruntime.FinalizeExecutionCancellationActivityOutput, error) {
-	if strings.TrimSpace(input.RunID) == "" || strings.TrimSpace(input.TraceID) == "" || input.CanceledAt.IsZero() {
+	if strings.TrimSpace(input.RequestID) == "" || input.CanceledAt.IsZero() {
 		return temporalruntime.FinalizeExecutionCancellationActivityOutput{}, temporal.NewNonRetryableApplicationError(
 			"execution cancellation finalizer identity is invalid",
 			"execution_cancellation_finalizer_invalid",
@@ -29,19 +29,12 @@ func (s *Server) FinalizeExecutionCancellation(
 	if s == nil || s.runProjectionStore == nil {
 		return temporalruntime.FinalizeExecutionCancellationActivityOutput{}, execution.ErrRunProjectionStoreNotConfigured
 	}
-	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, input.RunID, true); err != nil {
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, input.RequestID, true); err != nil {
 		return temporalruntime.FinalizeExecutionCancellationActivityOutput{}, err
 	}
-	run, err := s.runProjectionStore.GetRun(ctx, strings.TrimSpace(input.RunID))
+	run, err := s.runProjectionStore.GetRun(ctx, strings.TrimSpace(input.RequestID))
 	if err != nil {
 		return temporalruntime.FinalizeExecutionCancellationActivityOutput{}, err
-	}
-	if run.TraceID != strings.TrimSpace(input.TraceID) {
-		return temporalruntime.FinalizeExecutionCancellationActivityOutput{}, temporal.NewNonRetryableApplicationError(
-			"execution cancellation finalizer identity mismatch",
-			"execution_cancellation_finalizer_invalid",
-			nil,
-		)
 	}
 	canceledAt := input.CanceledAt.UTC()
 	if run.Status != execution.DurableRunStatusCanceled {
@@ -77,9 +70,9 @@ func (s *Server) FinalizeExecutionCancellation(
 			return temporalruntime.FinalizeExecutionCancellationActivityOutput{}, err
 		}
 		canceled, err := s.runProjectionStore.CancelRunProjection(ctx, execution.DurableRunCancelRequest{
-			RunID:  run.RunID,
-			Reason: firstNonEmptyText(strings.TrimSpace(input.Reason), "user_requested"),
-			Now:    canceledAt,
+			RequestID: run.RequestID,
+			Reason:    firstNonEmptyText(strings.TrimSpace(input.Reason), "user_requested"),
+			Now:       canceledAt,
 		})
 		if err != nil {
 			if errors.Is(err, execution.ErrDurableRunTerminalConflict) {
@@ -94,8 +87,8 @@ func (s *Server) FinalizeExecutionCancellation(
 		run = canceled
 	}
 	return temporalruntime.FinalizeExecutionCancellationActivityOutput{
-		RunID:  run.RunID,
-		Status: string(run.Status),
+		RequestID: run.RequestID,
+		Status:    string(run.Status),
 	}, nil
 }
 

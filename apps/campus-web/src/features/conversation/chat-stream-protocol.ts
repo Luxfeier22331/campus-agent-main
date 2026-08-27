@@ -9,7 +9,6 @@ const streamBase = z
 		occurredAt: nonEmptyString,
 		requestId: nonEmptyString,
 		status: nonEmptyString,
-		traceId: nonEmptyString,
 	})
 	.passthrough();
 const answerPayload = z
@@ -19,50 +18,36 @@ const answerPayload = z
 			.object({
 				kind: z.enum(["answer", "error"]),
 				requestId: nonEmptyString,
-				traceId: nonEmptyString,
 			})
 			.passthrough(),
 	})
 	.passthrough();
-const optionalRunCursor = {
-	runId: nonEmptyString.nullable().optional(),
-	sequence: sequence.optional(),
-};
-const acceptedEventData = streamBase.extend({ runId: nonEmptyString });
-const queuedEventData = streamBase.extend(optionalRunCursor);
-const runningEventData = streamBase.extend(optionalRunCursor);
+const acceptedEventData = streamBase;
+const queuedEventData = streamBase.extend({ sequence: sequence.optional() });
+const runningEventData = streamBase.extend({ sequence: sequence.optional() });
 const phaseEventData = streamBase.extend({
 	phase: z.enum(["finalizing", "generating", "preparing"]),
-	runId: nonEmptyString,
 	sequence,
 });
 const deltaEventData = streamBase.extend({
 	delta: z.string().min(1),
 	messageId: nonEmptyString,
-	runId: nonEmptyString,
 	sequence,
 });
-const completedEventData = streamBase
-	.extend({
-		answer: answerPayload.optional(),
-		runId: nonEmptyString.nullable().optional(),
-		sequence: sequence.optional(),
-	})
-	.refine((value) => value.answer !== undefined || value.runId !== undefined);
+const completedEventData = streamBase.extend({
+	answer: answerPayload.optional(),
+	sequence: sequence.optional(),
+});
 const failedEventData = streamBase.extend({
 	error: z
 		.object({ code: nonEmptyString, message: nonEmptyString, retryable: z.boolean().optional() })
 		.passthrough(),
-	runId: nonEmptyString.optional(),
 	sequence: sequence.optional(),
 });
-const cancelledEventData = streamBase
-	.extend({
-		answer: answerPayload.optional(),
-		runId: nonEmptyString.nullable().optional(),
-		sequence: sequence.optional(),
-	})
-	.refine((value) => value.answer !== undefined || value.runId !== undefined);
+const cancelledEventData = streamBase.extend({
+	answer: answerPayload.optional(),
+	sequence: sequence.optional(),
+});
 
 export async function* readProductSse(
 	response: Response,

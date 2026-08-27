@@ -15,8 +15,8 @@ describe("conversation run operation machine", () => {
 	it("invalidates active state atomically", () => {
 		const machine = new RunOperationMachine();
 		const operation = machine.start();
-		machine.activeRun = { requestId: "req", runId: "run", traceId: "trace" };
-		machine.cancellation = { operationId: operation.id, phase: "awaiting_run_id" };
+		machine.activeRun = { requestId: "req" };
+		machine.cancellation = { operationId: operation.id, phase: "awaiting_request_id" };
 
 		machine.invalidate();
 

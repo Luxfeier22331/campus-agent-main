@@ -13,22 +13,22 @@ status: active
 
 ## 持久执行协调
 
-`chat.turn_dispatches` 是产品请求、稳定运行身份和终态的 app-api 提交点。接收事务为同一 request
-冻结完整的 `tool_execution_v5` 输入，并写入 `execution_input_json text`、
-`execution_input_sha256` 和 `turn_id`，供 execution-control 按
-`app-api://execution-inputs/{runId}` 读取。
+`chat.turn_dispatches` 是产品请求身份和终态的 app-api 提交点。接收事务为同一 request
+冻结完整的 `tool_execution_v6` 输入，并写入 `execution_input_json text` 和
+`execution_input_sha256`，供 execution-control 按
+`app-api://execution-inputs/{requestId}` 读取。
 
 两份内容都使用 PostgreSQL `text` 保存，hash 必须对保存的同一 UTF-8 字节计算。不得使用
 `jsonb` 保存后再序列化校验，因为 key 规范化会改变字节序列。完整执行输入最多 1 MiB，只能由
 execution-control 通过内部 `x-app-execution-auth` 读取；该 header 使用双方共享的
 `APP_API_EXECUTION_SHARED_SECRET`，只授予 execution-control 与 app-api 之间的执行输入读取
 方向性权限，不用于浏览器或其他内部接口。响应禁止缓存，不进入普通 app-api、Ops Web 或浏览器读取
-路径。已经分配 `run_id` 的记录在产品终态后继续保留完整执行输入与 hash；输入随所属会话和用户数据
-生命周期删除，不存在按 run 的释放接口或额外释放状态。
+路径。已经分配 `request_id` 的记录在产品终态后继续保留完整执行输入与 hash；输入随所属会话和用户数据
+生命周期删除，不存在按 request 的释放接口或额外释放状态。
 
 app-api 不维护执行 admission 状态机、dispatcher、cancellation outbox 或后台恢复队列。事务提交后
 由当前请求使用同一 `Idempotency-Key` 继续 handoff；创建结果不确定时，app-api 从本行重读输入并
-调用 execution-control 的幂等 run 创建接口。execution-control/Temporal 负责 run projection、
+调用 execution-control 的幂等 request 创建接口。execution-control/Temporal 负责 run projection、
 workflow start、重试、取消和恢复。
 
 显式取消先校验产品归属，再直接调用 execution-control；取消意图和取消投递状态由 execution-control
@@ -44,12 +44,12 @@ Ops Web 的主运行记录以 `chat.turn_dispatches` 和 execution-control 的 `
 
 主要字段分组：
 
-- 关联：`request_id`、`trace_id`、`conversation_id`、`safety_identifier`；
+- 关联：`request_id`、`conversation_id`、`safety_identifier`；
 - 请求：`surface` 和 principal 类型；
 - 结果：`status`、`error_code` 和 ACL 结果；
-- 时序：started/completed/measured/updated 时间、总耗时和 projection lag；
-- 诊断：来源摘要、stage timing 和 workflow trace summary；
-- 模型：provider、model、prompt id/version 和 template hash；
+- 时序：started/completed/measured/updated 时间和总耗时；
+- 诊断：stage timing；
+- 模型：provider 和 model；
 
 该表不保存 token 用量、caller 请求的 scope/version query、工具选择标签、answer eval fingerprint、
 LLM I/O fingerprint、debug trace ref 或请求级观测配置。token 用量只由 execution-control 执行投影
@@ -83,7 +83,7 @@ Ops Web 也没有该表的列读取权限。它不能成为新的跨所有者接
 
 `execution_control.agent_*` 由 `apps/execution-control` 的 schema installer 管理。`app_api` 角色不能读取
 这些表，`ops_web` 仅获得合同列的读取权限。chat dispatch、agent run 和 observability fact
-直接通过 `request_id`、`run_id` 与 `trace_id` 关联。
+直接通过 `request_id` 关联。
 
 ## 可执行来源
 

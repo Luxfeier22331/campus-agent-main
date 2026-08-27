@@ -86,7 +86,6 @@ describe("chat command service", () => {
 					],
 				},
 				status: "completed",
-				traceId: "trace_0001",
 			})
 			.mockResolvedValueOnce({
 				answerText: "第二条指单科成绩不能低于80分。",
@@ -94,7 +93,6 @@ describe("chat command service", () => {
 				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {},
 				status: "completed",
-				traceId: "trace_0002",
 			});
 		const executionRuntime = createExecutionRuntimeFromToolClient({ execute });
 		const service = buildChatCommandService({
@@ -138,7 +136,9 @@ describe("chat command service", () => {
 			},
 		]);
 		const secondCreateRunInput = vi.mocked(executionRuntime.createRun).mock.calls[1]?.[0];
-		const executionPayload = getFrozenExecutionPayload(secondCreateRunInput?.runId ?? "run_0002");
+		const executionPayload = getFrozenExecutionPayload(
+			secondCreateRunInput?.requestId ?? "req_0002",
+		);
 		const context = executionPayload.context as Record<string, unknown>;
 		const conversationPayload = context.conversation as Record<string, unknown>;
 		expect(conversationPayload).not.toHaveProperty("previous_evidence_refs");

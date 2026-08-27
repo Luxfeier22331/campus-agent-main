@@ -1,40 +1,9 @@
-import type { ExecutionControlRunEvent, ExecutionControlRunStepTrajectory } from "../integration";
+import type { ExecutionControlRunEvent } from "../integration";
 import type {
 	RuntimeRunEventProjection,
 	RuntimeRunProductEventName,
 	RuntimeRunProductPhase,
 } from "./types";
-
-const STUDENT_FORBIDDEN_MEMORY_REF_KEYS = new Set([
-	"bank_id",
-	"bankId",
-	"operation_id",
-	"operationId",
-	"operation_ref",
-	"operationRef",
-	"operation_status_ref",
-	"operationStatusRef",
-	"result_metadata_shape",
-	"resultMetadataShape",
-	"runtime_document_ref",
-	"runtimeDocumentRef",
-]);
-
-const STUDENT_FORBIDDEN_MEMORY_REF_TOKENS = [
-	"hindsight_bank_",
-	"memory/documents",
-	"memory/operations",
-] as const;
-
-function isHindsightMemoryDocumentID(value: string): boolean {
-	return /^conversation:[a-f0-9]{32}$/i.test(value) || /^profile:[A-Za-z0-9_-]{3,128}$/.test(value);
-}
-
-export function sanitizeStudentRunStepTrajectory(
-	trajectory: ExecutionControlRunStepTrajectory,
-): ExecutionControlRunStepTrajectory {
-	return sanitizeStudentRuntimeValue(trajectory) as ExecutionControlRunStepTrajectory;
-}
 
 function getStringPayloadField(payload: Record<string, unknown>, key: string): string | undefined {
 	const value = payload[key];
@@ -86,18 +55,13 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 		case "run.queued":
 		case "run.started":
 		case "run.running":
-			return pickStringPayloadFields(payload, ["request_id", "status", "trace_id"]);
+			return pickStringPayloadFields(payload, ["status"]);
 		case "run.answer_started":
-			return pickStringPayloadFields(payload, ["request_id", "trace_id"]);
+			return {};
 		case "run.progress":
-			return pickStringPayloadFields(payload, ["phase", "request_id", "trace_id"]);
+			return pickStringPayloadFields(payload, ["phase"]);
 		case "run.answer_delta": {
-			const result = pickStringPayloadFields(payload, [
-				"delta",
-				"message_id",
-				"request_id",
-				"trace_id",
-			]);
+			const result = pickStringPayloadFields(payload, ["delta", "message_id"]);
 			const chunkIndex = getNumberPayloadField(payload, "chunk_index");
 			if (chunkIndex !== undefined) {
 				result.chunk_index = chunkIndex;
@@ -105,31 +69,19 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 			return result;
 		}
 		case "run.answer_completed":
-			return pickStringPayloadFields(payload, ["request_id", "trace_id"]);
+			return {};
 		case "finalization.completed":
-			return pickStringPayloadFields(payload, ["request_id", "trace_id"]);
+			return {};
 		case "run.completed":
-			return pickStringPayloadFields(payload, [
-				"request_id",
-				"status",
-				"terminal_reason",
-				"trace_id",
-			]);
+			return pickStringPayloadFields(payload, ["status", "terminal_reason"]);
 		case "run.canceled":
-			return pickStringPayloadFields(payload, [
-				"request_id",
-				"status",
-				"terminal_reason",
-				"trace_id",
-			]);
+			return pickStringPayloadFields(payload, ["status", "terminal_reason"]);
 		case "run.failed":
 		case "run.expired": {
 			const result = pickStringPayloadFields(payload, [
 				"failure_kind",
-				"request_id",
 				"status",
 				"terminal_reason",
-				"trace_id",
 			]);
 			const error = getRecordPayloadField(payload, "error");
 			if (error) {
@@ -145,35 +97,6 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 		default:
 			return {};
 	}
-}
-
-function sanitizeStudentRuntimeValue(value: unknown): unknown {
-	if (Array.isArray(value)) {
-		return value
-			.map((item) => sanitizeStudentRuntimeValue(item))
-			.filter((item) => item !== undefined);
-	}
-	if (value && typeof value === "object") {
-		const sanitized: Record<string, unknown> = {};
-		for (const [key, nested] of Object.entries(value)) {
-			if (STUDENT_FORBIDDEN_MEMORY_REF_KEYS.has(key)) {
-				continue;
-			}
-			const nextValue = sanitizeStudentRuntimeValue(nested);
-			if (nextValue !== undefined) {
-				sanitized[key] = nextValue;
-			}
-		}
-		return sanitized;
-	}
-	if (
-		typeof value === "string" &&
-		(STUDENT_FORBIDDEN_MEMORY_REF_TOKENS.some((token) => value.includes(token)) ||
-			isHindsightMemoryDocumentID(value))
-	) {
-		return;
-	}
-	return value;
 }
 
 export function toBrowserRunEvent(
@@ -198,26 +121,19 @@ export function toBrowserRunEvent(
 			return null;
 		}
 		return {
-			eventId: event.eventId,
 			eventType: productEventType,
 			occurredAt: event.occurredAt,
-			payload: {
-				phase,
-				...pickStringPayloadFields(payload, ["request_id", "trace_id"]),
-			},
-			runId: event.runId,
+			payload: { phase },
+			requestId: event.requestId,
 			sequence: event.sequence,
-			visibility: event.visibility,
 		};
 	}
 	return {
-		eventId: event.eventId,
 		eventType: productEventType,
 		occurredAt: event.occurredAt,
 		payload,
-		runId: event.runId,
+		requestId: event.requestId,
 		sequence: event.sequence,
-		visibility: event.visibility,
 	};
 }
 

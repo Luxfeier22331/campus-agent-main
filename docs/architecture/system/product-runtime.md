@@ -54,7 +54,7 @@ flowchart LR
   Control --> RunDB
 ```
 
-app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal 推进执行并写入
+app-api 保存用户轮次并创建持久 request；execution-control 和 Temporal 推进执行并写入
 `execution_control.agent_*`；app-api 消费有界事件并保存产品终态。事务与幂等规则只在
 `docs/contracts/app-api/request-lifecycle.md` 维护。
 
@@ -70,8 +70,9 @@ app-api 保存用户轮次并创建持久 run；execution-control 和 Temporal �
 - 产品可用性快照和有限时间线：`status-web` 所属的 Cloudflare KV namespace；不写入原始探测
   响应、Langfuse trace 或数据库记录。
 
-这些数据通过 `request_id`、`run_id`、`trace_id` 和 `conversation_id` 关联，不建立第二套请求
-关联投影。
+产品和跨服务诊断统一通过 `request_id` 关联，`conversation_id` 只用于产品会话。workflow、Temporal
+run、step、attempt、result 和 provider response ID 仅属于 execution-control 内部；OTel、Sentry 和
+Langfuse 的原生 trace ID 只在各自技术系统内存在，不进入产品 API 或持久业务投影。
 
 ## 配置与运行记录
 

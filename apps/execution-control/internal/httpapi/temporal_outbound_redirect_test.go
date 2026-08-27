@@ -35,14 +35,12 @@ func TestCallAgentRuntimeDoesNotFollowRedirect(t *testing.T) {
 		AgentRuntimeDeadlineMS:   1000,
 	})
 	run := execution.DurableRun{
-		RunID:     "run-agent-runtime-redirect",
-		RequestID: "req-agent-runtime-redirect",
-		TraceID:   "trace-agent-runtime-redirect",
+		RequestID: "run-agent-runtime-redirect",
 	}
 	_, err := server.callAgentRuntime(
 		context.Background(),
 		run,
-		temporalruntime.ExecutePrimaryAgentActivityInput{RunID: run.RunID},
+		temporalruntime.ExecutePrimaryAgentActivityInput{RequestID: run.RequestID},
 		"private prompt",
 		nil,
 		server.primaryAgentRuntimeLimits(),
@@ -113,7 +111,7 @@ func TestWriteChatProductFinalizationDoesNotFollowRedirect(t *testing.T) {
 	})
 	err := server.writeChatProductFinalization(
 		context.Background(),
-		execution.DurableRun{RunID: "run-product-finalization-redirect"},
+		execution.DurableRun{RequestID: "run-product-finalization-redirect"},
 		time.Date(2026, 7, 23, 0, 0, 0, 0, time.UTC),
 		map[string]any{"answer": "private final answer"},
 	)

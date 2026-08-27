@@ -258,7 +258,7 @@ func (r *Reconciler) logWarn(_ string, args ...any) {
 		"source", "temporal_reconciler",
 	}
 	for index := 0; index+1 < len(args); index += 2 {
-		if key, ok := args[index].(string); ok && key == "run_id" {
+		if key, ok := args[index].(string); ok && key == "request_id" {
 			attributes = append(attributes, key, args[index+1])
 		}
 	}

@@ -8,38 +8,6 @@ const now = "2026-07-09T06:30:00.000Z";
 
 type AttentionReason = OpsRequestListResponse["data"][number]["attentionReason"];
 
-function technical(requestId: string, index: number) {
-	const runId = `run_ops_00${index}`;
-	const workflowId = `campus-agent.chat.${runId}`;
-	return {
-		correlationIds: {
-			conversationId: `conv_ops_00${index}`,
-			requestId,
-			runId,
-			traceId: `trace_ops_00${index}`,
-			workflowId,
-		},
-		externalLinks: [
-			{
-				href: `https://langfuse.example.test/project/project-001/traces/trace_ops_00${index}`,
-				isAvailable: true,
-				label: "Langfuse Trace",
-				source: "LANGFUSE" as const,
-			},
-			{
-				href: `https://temporal.example.test/namespaces/default/workflows/${workflowId}`,
-				isAvailable: true,
-				label: "Temporal 工作流",
-				source: "TEMPORAL" as const,
-			},
-		],
-		runtimeVersions: {
-			agentRuntime: "openai_agents_sdk",
-			executionControl: "temporal",
-		},
-	};
-}
-
 function execution(
 	status: "completed" | "failed" | "running",
 ): OpsRequestDetailResponse["execution"] {
@@ -52,49 +20,24 @@ function execution(
 			runtimeErrorCode: failed ? "provider_unavailable" : null,
 			terminalReason: failed ? "provider_unavailable" : null,
 		},
+		model: {
+			name: "deepseek-v4-flash-0731",
+			provider: "openai-compatible",
+			requestCount: 1,
+			tokens: { cachedInput: 320, input: 2_000, output: 400, total: 2_400 },
+		},
 		releases: {
 			agentRuntime: "agent-runtime@899f251",
 			executionControl: "execution-control@a77a046",
 		},
-		steps: [
+		stages: [
 			{
-				attempts: [
-					{
-						activityAttempt: 1,
-						activityType: "ExecutePrimaryAgent",
-						attempt: 1,
-						completedAt: status === "running" ? null : "2026-07-09T06:29:03.800Z",
-						durationMs: status === "running" ? 0 : 3_100,
-						failure: {
-							agentRuntimeHttpStatus: failed ? 503 : null,
-							failCloseReason: failed ? "provider_unavailable" : null,
-							kind: failed ? "provider_unavailable" : null,
-							runtimeErrorCode: failed ? "provider_unavailable" : null,
-							terminalReason: failed ? "provider_unavailable" : null,
-						},
-						modelName: "deepseek-v4-flash-0731",
-						modelProvider: "openai-compatible",
-						modelRequestCount: 1,
-						providerResponseId: failed ? null : "resp_fixture_001",
-						scheduleToStartMs: 12,
-						scheduledAt: "2026-07-09T06:29:00.500Z",
-						startedAt: "2026-07-09T06:29:00.700Z",
-						status,
-						taskQueue: "campus-agent-agent",
-						tokens: { cachedInput: 320, input: 2_000, output: 400 },
-						workerId: "agent-worker-01",
-					},
-				],
 				completedAt: status === "running" ? null : "2026-07-09T06:29:03.800Z",
+				durationMs: status === "running" ? null : 3_100,
 				failureKind: failed ? "provider_unavailable" : null,
 				kind: "agent",
-				parentStepId: null,
 				startedAt: "2026-07-09T06:29:00.700Z",
 				status,
-				stepId: "agent.primary",
-				taskQueue: "campus-agent-agent",
-				tool: null,
-				workerId: "agent-worker-01",
 			},
 		],
 	};
@@ -103,7 +46,7 @@ function execution(
 const knowledgeDetail = {
 	execution: execution("completed"),
 	generatedAt: now,
-	question: { text: "缓考申请需要哪些材料？", turnSequence: 3 },
+	question: { text: "缓考申请需要哪些材料？" },
 	request: {
 		completedAt: "2026-07-09T06:29:04.280Z",
 		durationMs: 4_280,
@@ -134,13 +77,12 @@ const knowledgeDetail = {
 		state: "WRITTEN",
 		text: "缓考申请需要在规定期限内提交书面材料并说明原因。",
 	},
-	technical: technical("req_ops_001", 1),
 } satisfies OpsRequestDetailResponse;
 
 const directDetail = {
 	execution: execution("completed"),
 	generatedAt: now,
-	question: { text: "你好，你能帮我做什么？", turnSequence: 1 },
+	question: { text: "你好，你能帮我做什么？" },
 	request: {
 		completedAt: "2026-07-09T06:28:43.600Z",
 		durationMs: 3_600,
@@ -155,13 +97,12 @@ const directDetail = {
 		state: "WRITTEN",
 		text: "我可以帮助查询校园通知、校园信息、办事规则等信息，也可以结合当前对话继续回答。你可以直接告诉我想了解什么。",
 	},
-	technical: technical("req_ops_002", 2),
 } satisfies OpsRequestDetailResponse;
 
 const runningDetail = {
 	execution: execution("running"),
 	generatedAt: now,
-	question: { text: "帮我查一下最近的校园通知", turnSequence: 5 },
+	question: { text: "帮我查一下最近的校园通知" },
 	request: {
 		completedAt: null,
 		durationMs: null,
@@ -171,13 +112,12 @@ const runningDetail = {
 		status: "RUNNING",
 	},
 	result: { state: "PENDING" },
-	technical: technical("req_ops_003", 3),
 } satisfies OpsRequestDetailResponse;
 
 const failedDetail = {
 	execution: execution("failed"),
 	generatedAt: now,
-	question: { text: "帮我看看本周有哪些重要通知", turnSequence: 2 },
+	question: { text: "帮我看看本周有哪些重要通知" },
 	request: {
 		completedAt: "2026-07-09T06:27:43.320Z",
 		durationMs: 3_320,
@@ -192,13 +132,12 @@ const failedDetail = {
 		state: "WRITTEN",
 		text: "当前暂时无法完成查询，请稍后重试。",
 	},
-	technical: technical("req_ops_004", 4),
 } satisfies OpsRequestDetailResponse;
 
 const clarificationDetail = {
 	execution: execution("completed"),
 	generatedAt: now,
-	question: { text: "请帮我查询申请条件", turnSequence: 4 },
+	question: { text: "请帮我查询申请条件" },
 	request: {
 		completedAt: "2026-07-09T06:26:04.100Z",
 		durationMs: 4_100,
@@ -213,13 +152,12 @@ const clarificationDetail = {
 		state: "WRITTEN",
 		text: "请说明你要办理的具体事项和已经了解的条件，我再继续帮你查询。",
 	},
-	technical: technical("req_ops_005", 5),
 } satisfies OpsRequestDetailResponse;
 
 const missingResultDetail = {
 	execution: execution("completed"),
 	generatedAt: now,
-	question: { text: "奖学金申请截止到哪一天？", turnSequence: 6 },
+	question: { text: "奖学金申请截止到哪一天？" },
 	request: {
 		completedAt: "2026-07-09T06:25:05.200Z",
 		durationMs: 5_200,
@@ -229,7 +167,6 @@ const missingResultDetail = {
 		status: "COMPLETED",
 	},
 	result: { reasonCode: "ASSISTANT_MESSAGE_MISSING", state: "MISSING" },
-	technical: technical("req_ops_006", 6),
 } satisfies OpsRequestDetailResponse;
 
 export const opsRequestDetailFixtures = [
@@ -253,11 +190,10 @@ function requestSummary(
 		attentionReason,
 		completedAt: detail.request.completedAt,
 		durationMs: detail.request.durationMs,
-		executionStage: detail.execution.steps.at(-1)
+		executionStage: detail.execution.stages.at(-1)
 			? {
-					kind: detail.execution.steps.at(-1)?.kind ?? "unknown",
-					status: detail.execution.steps.at(-1)?.status ?? "unknown",
-					stepId: detail.execution.steps.at(-1)?.stepId ?? "unknown",
+					kind: detail.execution.stages.at(-1)?.kind ?? "unknown",
+					status: detail.execution.stages.at(-1)?.status ?? "unknown",
 				}
 			: null,
 		failureKind: detail.execution.failure.kind,
@@ -298,14 +234,6 @@ export const opsRequestDetailFixture = knowledgeDetail;
 
 export const opsOverviewFixture = {
 	cache: { ageMs: 0, status: "FRESH" },
-	externalLinks: [
-		{
-			href: "https://langfuse.example.test/project",
-			isAvailable: true,
-			label: "Langfuse",
-			source: "LANGFUSE",
-		},
-	],
 	generatedAt: now,
 	health: {
 		dataState: "FRESH",
@@ -374,27 +302,15 @@ export const opsOverviewFixture = {
 
 export const opsSentryIssuesFixture = {
 	dataState: "FRESH",
-	from: "2026-07-09T06:24:00.000Z",
 	issues: [
 		{
 			eventCount: 3,
 			firstSeen: "2026-07-09T06:29:04.000Z",
-			issueId: "450001",
 			lastSeen: "2026-07-09T06:29:06.000Z",
 			level: "error",
-			permalink: "https://sentry.example.test/organizations/campus/issues/450001/",
-			projectName: "campus-agent-workers",
-			projectSlug: "campus-agent-workers",
-			shortId: "APP-API-1",
 			status: "unresolved",
 			title: "Request execution failed",
 		},
 	],
-	limit: 5,
 	queriedAt: now,
-	queryDurationMs: 38,
-	requestId: "req_ops_001",
-	source: "SENTRY",
-	to: "2026-07-09T06:34:04.000Z",
-	truncated: false,
 } satisfies import("./ops-contract").OpsSentryIssuesResponse;

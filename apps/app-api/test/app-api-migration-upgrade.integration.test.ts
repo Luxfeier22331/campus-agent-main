@@ -1154,11 +1154,9 @@ describe("app-api migration upgrade", () => {
 			assistant_kind: string | null;
 			execution_input_json: string | null;
 			fail_closed: boolean | null;
-			run_id: string | null;
 			status: string;
-			turn_id: string | null;
 		}>(`
-				select dispatch.status, dispatch.run_id, dispatch.turn_id, dispatch.execution_input_json,
+				select dispatch.status, dispatch.execution_input_json,
 				       message.kind as assistant_kind, fact.fail_closed
 				from "chat"."turn_dispatches" dispatch
 				join "chat"."messages" message on message.id = dispatch.assistant_message_id
@@ -1171,17 +1169,21 @@ describe("app-api migration upgrade", () => {
 				assistant_kind: "answer",
 				execution_input_json: null,
 				fail_closed: false,
-				run_id: null,
 				status: "completed",
-				turn_id: null,
 			},
 		]);
 		const retiredShape = await pool.query<{
 			cancel_lease_index: string | null;
+			profile_workflow_id_count: string;
 			retired_column_count: string;
 		}>(`
 				select
 					to_regclass('chat.chat_turn_dispatches_cancel_lease_idx')::text as cancel_lease_index,
+					(select count(*)::text
+					 from information_schema.columns
+					 where table_schema = 'profile'
+					   and table_name = 'memory_commands'
+					   and column_name = 'workflow_id') as profile_workflow_id_count,
 					(select count(*)::text
 					 from information_schema.columns
 					 where (table_schema, table_name) in (
@@ -1193,10 +1195,16 @@ describe("app-api migration upgrade", () => {
 					     'admitted_at', 'cancel_outbox_status', 'cancel_reason', 'cancel_requested_at',
 					     'cancel_attempt_count', 'cancel_last_attempt_at', 'cancel_last_error_code',
 					     'cancel_delivered_at', 'cancel_lease_token', 'cancel_lease_until',
-					     'refusal_class', 'semantic_outcome'
+					     'refusal_class', 'run_id', 'semantic_outcome', 'trace_id', 'turn_id'
 					   )) as retired_column_count
 			`);
-		expect(retiredShape.rows).toEqual([{ cancel_lease_index: null, retired_column_count: "0" }]);
+		expect(retiredShape.rows).toEqual([
+			{
+				cancel_lease_index: null,
+				profile_workflow_id_count: "0",
+				retired_column_count: "0",
+			},
+		]);
 	});
 
 	it("rejects app-owned partial state before creating a migration ledger", async () => {

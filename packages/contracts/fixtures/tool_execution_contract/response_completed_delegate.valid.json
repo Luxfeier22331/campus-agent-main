@@ -8,7 +8,6 @@
 		"total_tokens": 516
 	},
 	"result": {
-		"provider_response_id": "resp_contract_completed",
 		"sources": [
 			{
 				"document_id": "student_rules/leave-policy",
@@ -28,14 +27,5 @@
 	"observability": {
 		"agent_runtime": "openai_agents_sdk",
 		"terminal_reason": "answer"
-	},
-	"workflow_trace_summary": {
-		"execution_path": "tool_assisted",
-		"terminal_reason": "answer",
-		"answer_artifact_refs": ["projection://runs/run_contract_completed/agent/primary/result"],
-		"runtime_versions": {
-			"agent_runtime": "openai_agents_sdk"
-		}
-	},
-	"trace_id": "trace-contract-completed"
+	}
 }

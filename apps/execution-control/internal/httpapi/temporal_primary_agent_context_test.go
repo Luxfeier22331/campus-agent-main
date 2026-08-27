@@ -123,7 +123,7 @@ func TestExecutePrimaryAgentActivitySendsConversationContextAndProjectsRuntimeUs
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":       "completed",
-			"run_id":       "run-primary-agent-context",
+			"request_id":   "run-primary-agent-context",
 			"final_output": "当前证据不足。",
 			"context_usage": map[string]any{
 				"context_chars":            320,
@@ -149,10 +149,7 @@ func TestExecutePrimaryAgentActivitySendsConversationContextAndProjectsRuntimeUs
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-context",
-		RequestID:        "req-primary-agent-context",
-		RunID:            "run-primary-agent-context",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-context",
+		RequestID:        "run-primary-agent-context",
 		VisibleToolNames: []string{},
 	})
 	output, err := server.ExecutePrimaryAgent(context.Background(), input)

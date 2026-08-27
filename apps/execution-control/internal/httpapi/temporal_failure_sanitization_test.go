@@ -87,7 +87,7 @@ func TestProductCallbackRejectionDoesNotPersistResponseBody(t *testing.T) {
 
 	chatErr := server.writeChatProductFinalization(
 		context.Background(),
-		execution.DurableRun{RunID: "run-callback-sanitized"},
+		execution.DurableRun{RequestID: "run-callback-sanitized"},
 		time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC),
 		map[string]any{"status": "error"},
 	)

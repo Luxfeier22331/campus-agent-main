@@ -175,7 +175,7 @@ export function createRequestScopeFactory(input: {
 							executionRuntime ?? createExecutionControlRuntimeClient(input.env);
 						return buildRuntimeRunService({
 							executionRuntime: runtimeClient,
-							ensureRun: ({ runId, traceId }) => {
+							ensureRun: ({ requestId }) => {
 								if (!chatCommandPersistence) {
 									chatCommandPersistence = createPgChatCommandPersistence(input.env, {
 										getDb: runtime.getDb,
@@ -185,8 +185,7 @@ export function createRequestScopeFactory(input: {
 								return ensureDurableRunForStoredInput({
 									commandStore: persistence.commands,
 									executionRuntime: runtimeClient,
-									runId,
-									traceId,
+									requestId,
 								});
 							},
 							store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),

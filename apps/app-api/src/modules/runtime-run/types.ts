@@ -6,15 +6,13 @@ export interface RuntimeRunOwnershipRecord {
 	completedAt: string | null;
 	conversationId: string;
 	requestId: string;
-	runId: string;
 	status: string;
-	traceId: string;
 }
 
 export interface RuntimeRunStore {
 	getOwnedRun(input: {
 		ownerUserId: string;
-		runId: string;
+		requestId: string;
 	}): Promise<RuntimeRunOwnershipRecord | null>;
 }
 
@@ -25,11 +23,9 @@ export interface RuntimeRunSummary {
 	durationMs: number | null;
 	phase: RuntimeRunPhase;
 	requestId: string;
-	runId: string;
 	startedAt: string | null;
 	status: string;
 	terminalReason?: string;
-	traceId: string;
 }
 
 export type RuntimeRunPhase =
@@ -74,13 +70,11 @@ export function runtimeRunPhaseFromExecutionStatus(status: string): RuntimeRunPh
 }
 
 export interface RuntimeRunEventProjection {
-	eventId: string;
 	eventType: RuntimeRunProductEventName;
 	occurredAt: string;
 	payload: Record<string, unknown>;
-	runId: string;
+	requestId: string;
 	sequence: number;
-	visibility: string;
 }
 
 export type RuntimeRunProductEventName =
@@ -120,16 +114,16 @@ export interface RuntimeRunService {
 	cancel(input: {
 		principal: ResolvedAppPrincipal;
 		reason: string;
-		runId: string;
+		requestId: string;
 	}): Promise<{ run: RuntimeRunSummary }>;
 	getStatus(input: {
 		principal: ResolvedAppPrincipal;
-		runId: string;
+		requestId: string;
 	}): Promise<{ run: RuntimeRunSummary }>;
 	listEvents(input: {
 		afterSequence?: number;
 		principal: ResolvedAppPrincipal;
-		runId: string;
+		requestId: string;
 		signal?: AbortSignal;
 	}): Promise<{
 		events: RuntimeRunEventProjection[];
@@ -138,13 +132,13 @@ export interface RuntimeRunService {
 	}>;
 	listSteps(input: {
 		principal: ResolvedAppPrincipal;
-		runId: string;
+		requestId: string;
 	}): Promise<RuntimeRunStepTrajectory>;
 	subscribeEvents(input: {
 		afterSequence?: number;
 		polling?: RuntimeRunEventSubscriptionPolicy;
 		principal: ResolvedAppPrincipal;
-		runId: string;
+		requestId: string;
 		signal?: AbortSignal;
 	}): AsyncIterable<RuntimeRunEventProjection>;
 }

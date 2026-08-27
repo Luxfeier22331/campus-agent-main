@@ -33,7 +33,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 	it("restores an active durable run after refresh without submitting the prompt again", async () => {
 		assistantUiMock.remoteId = "conv_created";
 		conversationApiMock.getConversationDetail.mockResolvedValue({
-			activeRunId: "run_01",
+			activeRequestId: "req_01",
 			archivedAt: null,
 			createdAt: "2026-06-24T01:00:00.000Z",
 			id: "conv_created",
@@ -49,10 +49,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			durationMs: null,
 			phase: "running",
 			requestId: "req_01",
-			runId: "run_01",
 			startedAt: "2026-06-24T01:00:01.000Z",
 			status: "running",
-			traceId: "trace_01",
 		});
 		conversationApiMock.getRunEvents.mockResolvedValue({
 			events: [completedTerminalEvent("刷新后恢复的完整答案。")],
@@ -64,10 +62,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				durationMs: null,
 				phase: "running",
 				requestId: "req_01",
-				runId: "run_01",
 				startedAt: "2026-06-24T01:00:01.000Z",
 				status: "running",
-				traceId: "trace_01",
 			},
 		});
 
@@ -79,12 +75,12 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		});
 		expect(conversationApiMock.submitChatRequestStream).not.toHaveBeenCalled();
 		expect(conversationApiMock.getRunStatus).toHaveBeenCalledWith({
-			runId: "run_01",
+			requestId: "req_01",
 			signal: expect.any(AbortSignal),
 		});
 		expect(conversationApiMock.getRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
-			runId: "run_01",
+			requestId: "req_01",
 			signal: expect.any(AbortSignal),
 		});
 	});
@@ -96,10 +92,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_01",
-						runId: "run_01",
 						sequence: 1,
 						status: "accepted",
-						traceId: "trace_01",
 					},
 					event: "request.accepted",
 				},
@@ -108,7 +102,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						answer: {
 							conversation: {
 								archivedAt: null,
-								activeRunId: null,
+								activeRequestId: null,
 								createdAt: "2026-06-24T01:00:00.000Z",
 								id: "conv_created",
 								messages: [
@@ -143,15 +137,12 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 								kind: "answer",
 								requestId: "req_01",
 								text: "按学校奖学金通知提交材料。",
-								traceId: "trace_01",
 							},
 						},
 						occurredAt: "2026-06-24T01:00:02.000Z",
 						requestId: "req_01",
-						runId: "run_01",
 						sequence: 3,
 						status: "completed",
-						traceId: "trace_01",
 					},
 					event: "request.completed",
 				},
@@ -201,7 +192,6 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			message: "请求失败。",
 			requestId: "req_01",
 			retryable: true,
-			traceId: "trace_01",
 		};
 		const assistantMessage = canonical.data.answer.conversation.messages[1];
 		if (!assistantMessage) {
@@ -218,10 +208,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_01",
-						runId: "run_01",
 						sequence: 1,
 						status: "accepted",
-						traceId: "trace_01",
 					},
 					event: "request.accepted",
 				},
@@ -254,10 +242,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						data: {
 							occurredAt: "2026-06-24T01:00:00.000Z",
 							requestId: "req_replay",
-							runId: "run_replay",
 							sequence: 1,
 							status: "accepted",
-							traceId: "trace_replay",
 						},
 						event: "request.accepted",
 					},
@@ -270,10 +256,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 							},
 							occurredAt: "2026-06-24T01:00:01.000Z",
 							requestId: "req_replay",
-							runId: "run_replay",
 							sequence: 2,
 							status: "failed",
-							traceId: "trace_replay",
 						},
 						event: "request.failed",
 					},
@@ -318,10 +302,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_resume",
-						runId: "run_resume",
 						sequence: 7,
 						status: "accepted",
-						traceId: "trace_resume",
 					},
 					event: "request.accepted",
 				},
@@ -338,10 +320,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						},
 						occurredAt: "2026-06-24T01:00:01.000Z",
 						requestId: "req_resume",
-						runId: "run_resume",
 						sequence: 9,
 						status: "failed",
-						traceId: "trace_resume",
 					},
 					event: "request.failed",
 				},
@@ -372,7 +352,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 
 			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledWith({
 				afterSequence: 7,
-				runId: "run_resume",
+				requestId: "req_resume",
 				signal: expect.any(AbortSignal),
 			});
 			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
@@ -389,10 +369,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_status_terminal",
-						runId: "run_status_terminal",
 						sequence: 4,
 						status: "accepted",
-						traceId: "trace_status_terminal",
 					},
 					event: "request.accepted",
 				},
@@ -402,10 +380,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						messageId: "msg_status_draft",
 						occurredAt: "2026-06-24T01:00:01.000Z",
 						requestId: "req_status_terminal",
-						runId: "run_status_terminal",
 						sequence: 5,
 						status: "streaming",
-						traceId: "trace_status_terminal",
 					},
 					event: "answer.delta",
 				},
@@ -415,10 +391,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			conversationId: "conv_created",
 			phase: "completed",
 			requestId: "req_status_terminal",
-			runId: "run_status_terminal",
 			status: "completed",
 			terminalReason: "answer_completed",
-			traceId: "trace_status_terminal",
 		});
 		const terminal = completedTerminalEvent("规范回答");
 		conversationApiMock.getConversationDetail.mockResolvedValue(terminal.data.answer?.conversation);
@@ -432,7 +406,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		});
 
 		expect(conversationApiMock.getRunStatus).toHaveBeenCalledWith({
-			runId: "run_status_terminal",
+			requestId: "req_status_terminal",
 			signal: expect.any(AbortSignal),
 		});
 		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
@@ -485,10 +459,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_recovery_lost",
-						runId: "run_recovery_lost",
 						sequence: 1,
 						status: "accepted",
-						traceId: "trace_recovery_lost",
 					},
 					event: "request.accepted",
 				},
@@ -554,10 +526,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 							answer: canonicalAnswer("恢复后的规范回答"),
 							occurredAt: "2026-06-24T01:00:05.000Z",
 							requestId: "req_recovery_lost",
-							runId: "run_recovery_lost",
 							sequence: 2,
 							status: "completed",
-							traceId: "trace_recovery_lost",
 						},
 						event: "request.completed",
 					},
@@ -568,7 +538,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			});
 			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenLastCalledWith({
 				afterSequence: 1,
-				runId: "run_recovery_lost",
+				requestId: "req_recovery_lost",
 				signal: expect.any(AbortSignal),
 			});
 			expect(readAssistantText()).toBe("恢复后的规范回答");
@@ -585,10 +555,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_recovery_reset",
-						runId: "run_recovery_reset",
 						sequence: 1,
 						status: "accepted",
-						traceId: "trace_recovery_reset",
 					},
 					event: "request.accepted",
 				},
@@ -607,9 +575,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				conversationId: "conv_created",
 				phase: "running",
 				requestId: "req_recovery_reset",
-				runId: "run_recovery_reset",
 				status: "running",
-				traceId: "trace_recovery_reset",
 			})
 			.mockRejectedValue(retryableStatusError);
 
@@ -646,10 +612,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_manual_resume",
-						runId: "run_manual_resume",
 						sequence: 4,
 						status: "accepted",
-						traceId: "trace_manual_resume",
 					},
 					event: "request.accepted",
 				},
@@ -663,10 +627,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						messageId: "msg_manual_resume",
 						occurredAt: "2026-06-24T01:00:01.000Z",
 						requestId: "req_manual_resume",
-						runId: "run_manual_resume",
 						sequence: 5,
 						status: "streaming",
-						traceId: "trace_manual_resume",
 					},
 					event: "answer.delta",
 				},
@@ -679,10 +641,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						},
 						occurredAt: "2026-06-24T01:00:02.000Z",
 						requestId: "req_manual_resume",
-						runId: "run_manual_resume",
 						sequence: 6,
 						status: "failed",
-						traceId: "trace_manual_resume",
 					},
 					event: "request.failed",
 				},
@@ -710,7 +670,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 
 			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledWith({
 				afterSequence: 4,
-				runId: "run_manual_resume",
+				requestId: "req_manual_resume",
 				signal: expect.any(AbortSignal),
 			});
 		} finally {
@@ -726,10 +686,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_manual_resume_failed",
-						runId: "run_manual_resume_failed",
 						sequence: 4,
 						status: "accepted",
-						traceId: "trace_manual_resume_failed",
 					},
 					event: "request.accepted",
 				},
@@ -742,7 +700,6 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				message: "手动恢复失败。",
 				requestId: "req_manual_resume_failed",
 				retryable: false,
-				traceId: "trace_manual_resume_failed",
 			});
 		});
 
@@ -782,10 +739,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_resume_failed",
-					runId: "run_resume_failed",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_resume_failed",
 				},
 				event: "request.accepted",
 			};
@@ -795,10 +750,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					messageId: "msg_resume_draft",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_resume_failed",
-					runId: "run_resume_failed",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_resume_failed",
 				},
 				event: "answer.delta",
 			};
@@ -811,7 +764,6 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				message: "恢复回答失败。",
 				requestId: "req_resume_failed",
 				retryable: false,
-				traceId: "trace_resume_failed",
 			});
 		});
 
@@ -845,9 +797,9 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						content: [{ text: "不完整草稿", type: "text" }],
 						metadata: {
 							custom: {
-								campusRun: expect.objectContaining({
+								campusRequest: expect.objectContaining({
 									connection: "disconnected",
-									runId: "run_resume_failed",
+									requestId: "req_resume_failed",
 								}),
 							},
 							isOptimistic: true,
@@ -889,10 +841,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -934,7 +884,6 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				message: "请求失败。",
 				requestId: "req_failed",
 				retryable: false,
-				traceId: "trace_failed",
 			});
 		});
 
@@ -978,10 +927,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_failed",
-						runId: "run_failed",
 						sequence: 1,
 						status: "accepted",
-						traceId: "trace_failed",
 					},
 					event: "request.accepted",
 				},
@@ -994,10 +941,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						},
 						occurredAt: "2026-06-24T01:00:01.000Z",
 						requestId: "req_failed",
-						runId: "run_failed",
 						sequence: 2,
 						status: "failed",
-						traceId: "trace_failed",
 					},
 					event: "request.failed",
 				},
@@ -1025,8 +970,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 					id: "msg_answer",
 					metadata: {
 						custom: expect.objectContaining({
-							campusRun: expect.objectContaining({
-								runId: "run_failed",
+							campusRequest: expect.objectContaining({
+								requestId: "req_failed",
 								status: "failed",
 							}),
 						}),

@@ -35,7 +35,7 @@ function summary(input: Partial<ConversationSummary> = {}): ConversationSummary 
 function detail(input: Partial<ConversationDetail> = {}): ConversationDetail {
 	return {
 		...summary(input),
-		activeRunId: null,
+		activeRequestId: null,
 		messages: [],
 		...input,
 	};

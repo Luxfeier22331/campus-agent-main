@@ -50,7 +50,6 @@ export function createChatSseResponse(input: {
 			"content-type": "text/event-stream; charset=utf-8",
 			"x-accel-buffering": "no",
 			"x-request-id": input.first.data.requestId,
-			"x-trace-id": input.first.data.traceId,
 		},
 		status: 200,
 	});

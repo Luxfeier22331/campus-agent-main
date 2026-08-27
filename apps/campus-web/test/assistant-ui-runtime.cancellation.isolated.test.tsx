@@ -25,10 +25,8 @@ function runningCancellationStatus(): ChatRunStatus {
 		durationMs: null,
 		phase: "running",
 		requestId: "req_01",
-		runId: "run_01",
 		startedAt: "2026-06-24T01:00:01.000Z",
 		status: "running",
-		traceId: "trace_01",
 	};
 }
 
@@ -46,10 +44,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -59,10 +55,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_answer",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_01",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -74,7 +68,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					answer: {
 						conversation: {
 							archivedAt: null,
-							activeRunId: null,
+							activeRequestId: null,
 							createdAt: "2026-06-24T01:00:00.000Z",
 							id: "conv_created",
 							messages: [
@@ -109,15 +103,12 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 							kind: "answer",
 							requestId: "req_01",
 							text: finalAnswer,
-							traceId: "trace_01",
 						},
 					},
 					occurredAt: "2026-06-24T01:00:02.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 3,
 					status: "completed",
-					traceId: "trace_01",
 				},
 				event: "request.completed",
 			} satisfies ChatRequestStreamEvent;
@@ -169,10 +160,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_delta",
-					runId: "run_delta",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_delta",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -182,10 +171,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_delta",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_delta",
-					runId: "run_delta",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_delta",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -195,10 +182,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_delta",
 					occurredAt: "2026-06-24T01:00:02.000Z",
 					requestId: "req_delta",
-					runId: "run_delta",
 					sequence: 3,
 					status: "streaming",
-					traceId: "trace_delta",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -210,10 +195,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					error: { code: "execution_failed", message: "测试结束。", retryable: false },
 					occurredAt: "2026-06-24T01:00:03.000Z",
 					requestId: "req_delta",
-					runId: "run_delta",
 					sequence: 4,
 					status: "failed",
-					traceId: "trace_delta",
 				},
 				event: "request.failed",
 			} satisfies ChatRequestStreamEvent;
@@ -255,7 +238,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 						id: "msg_answer",
 						metadata: {
 							custom: expect.objectContaining({
-								campusRun: expect.objectContaining({ status: "failed" }),
+								campusRequest: expect.objectContaining({ status: "failed" }),
 							}),
 						},
 					}),
@@ -275,10 +258,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:00.000Z",
 						requestId: "req_terminal_flush",
-						runId: "run_terminal_flush",
 						sequence: 1,
 						status: "accepted",
-						traceId: "trace_terminal_flush",
 					},
 					event: "request.accepted",
 				},
@@ -288,10 +269,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 						messageId: "msg_terminal_flush",
 						occurredAt: "2026-06-24T01:00:01.000Z",
 						requestId: "req_terminal_flush",
-						runId: "run_terminal_flush",
 						sequence: 2,
 						status: "streaming",
-						traceId: "trace_terminal_flush",
 					},
 					event: "answer.delta",
 				},
@@ -299,10 +278,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					data: {
 						occurredAt: "2026-06-24T01:00:02.000Z",
 						requestId: "req_terminal_flush",
-						runId: "run_terminal_flush",
 						sequence: 3,
 						status: "completed",
-						traceId: "trace_terminal_flush",
 					},
 					event: "request.completed",
 				},
@@ -361,10 +338,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -377,10 +352,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_cancel_frame",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_01",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -394,10 +367,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_cancel_frame",
 					occurredAt: "2026-06-24T01:00:01.500Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 3,
 					status: "streaming",
-					traceId: "trace_01",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -461,10 +432,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_unmount_frame",
-					runId: "run_unmount_frame",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_unmount_frame",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -474,10 +443,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_unmount_frame",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_unmount_frame",
-					runId: "run_unmount_frame",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_unmount_frame",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -525,10 +492,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -567,7 +532,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		});
 
 		expect(observedSignal?.aborted).toBe(false);
-		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("req_01");
 		expect(conversationApiMock.cancelRun).toHaveBeenCalledTimes(1);
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 
@@ -622,10 +587,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -638,10 +601,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_cancel_failure",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_01",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -655,10 +616,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_cancel_failure",
 					occurredAt: "2026-06-24T01:00:01.500Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 3,
 					status: "streaming",
-					traceId: "trace_01",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -705,7 +664,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		expect(observedSignal?.aborted).toBe(false);
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 		expect(readAssistantText()).toBe("取消期间累计的回答");
-		expect(conversationApiMock.cancelRun).toHaveBeenNthCalledWith(1, "run_01");
+		expect(conversationApiMock.cancelRun).toHaveBeenNthCalledWith(1, "req_01");
 
 		await act(async () => {
 			releaseVisibleDelta();
@@ -740,10 +699,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -756,10 +713,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					messageId: "msg_answer",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_01",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -823,10 +778,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -842,18 +795,16 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					},
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 2,
 					status: "failed",
-					traceId: "trace_01",
 				},
 				event: "request.failed",
 			} satisfies ChatRequestStreamEvent;
 		});
 		conversationApiMock.cancelRun.mockRejectedValue(
 			new ChatStreamRequestError({
-				code: "run_already_terminal",
-				message: "Run is already terminal.",
+				code: "request_already_terminal",
+				message: "Request is already terminal.",
 				retryable: false,
 			}),
 		);
@@ -903,10 +854,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -918,10 +867,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					error: { code: "execution_failed", message: "运行已结束。", retryable: false },
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 2,
 					status: "failed",
-					traceId: "trace_01",
 				},
 				event: "request.failed",
 			} satisfies ChatRequestStreamEvent;
@@ -973,10 +920,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -1014,7 +959,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			await Promise.resolve();
 		});
 
-		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("req_01");
 		expect(observedSignal?.aborted).toBe(false);
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 
@@ -1044,10 +989,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -1059,10 +1002,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 					error: { code: "execution_failed", message: "运行已结束。", retryable: false },
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 2,
 					status: "failed",
-					traceId: "trace_01",
 				},
 				event: "request.failed",
 			} satisfies ChatRequestStreamEvent;
@@ -1086,7 +1027,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			await Promise.resolve();
 		});
 
-		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("req_01");
 		expect(onLoginRequired).toHaveBeenCalledTimes(1);
 		expect(observedSignal?.aborted).toBe(false);
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);

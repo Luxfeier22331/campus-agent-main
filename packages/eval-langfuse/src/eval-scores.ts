@@ -18,7 +18,7 @@ import {
 import { type AgentProductEvalItem, loadAgentProductEvalResult } from "./product-result";
 import type { ToolTrajectory } from "./tool-trajectory";
 
-export const AGENT_EVAL_SCORE_BATCH_SCHEMA_VERSION = "agent_eval_score_batch.v1";
+export const AGENT_EVAL_SCORE_BATCH_SCHEMA_VERSION = "agent_eval_score_batch.v2";
 
 export interface AgentEvalScoreError extends JsonObject {
 	metric_name: string;
@@ -33,7 +33,6 @@ export interface AgentEvalScoreItem extends JsonObject {
 
 export interface AgentEvalScoreBatch {
 	items: AgentEvalScoreItem[];
-	runId: string;
 }
 
 export interface ScoreAgentProductResultInput {
@@ -53,8 +52,7 @@ export function scoreAgentProductResult(input: ScoreAgentProductResultInput): Js
 	try {
 		writeJsonObject(agentInputPath, {
 			items: productResult.items.map(agentRagasSample),
-			run_id: productResult.evalRunId,
-			schema_version: "ragas_agent_sample_batch.v2",
+			schema_version: "ragas_agent_sample_batch.v3",
 		});
 		input.runPythonAgent({ inputPath: agentInputPath, outputPath: agentOutputPath });
 
@@ -65,9 +63,8 @@ export function scoreAgentProductResult(input: ScoreAgentProductResultInput): Js
 			errorsByCase.set(item.case.case_id, []);
 		}
 		mergeRagasScoreBatch({
-			expectedRunId: productResult.evalRunId,
 			payload: loadJsonObject(agentOutputPath),
-			schemaVersion: "ragas_agent_score_batch.v2",
+			schemaVersion: "ragas_agent_score_batch.v3",
 			expectedCaseIds: new Set(productResult.items.map((item) => item.case.case_id)),
 			scoresByCase,
 			errorsByCase,
@@ -77,14 +74,12 @@ export function scoreAgentProductResult(input: ScoreAgentProductResultInput): Js
 		if (ragItems.length > 0) {
 			writeJsonObject(ragInputPath, {
 				items: ragItems.map(ragRagasSample),
-				run_id: productResult.evalRunId,
-				schema_version: "ragas_sample_batch.v2",
+				schema_version: "ragas_sample_batch.v3",
 			});
 			input.runPythonRag({ inputPath: ragInputPath, outputPath: ragOutputPath });
 			mergeRagasScoreBatch({
-				expectedRunId: productResult.evalRunId,
 				payload: loadJsonObject(ragOutputPath),
-				schemaVersion: "ragas_score_batch.v2",
+				schemaVersion: "ragas_score_batch.v3",
 				expectedCaseIds: new Set(ragItems.map((item) => item.case.case_id)),
 				scoresByCase,
 				errorsByCase,
@@ -98,14 +93,13 @@ export function scoreAgentProductResult(input: ScoreAgentProductResultInput): Js
 		}));
 		writeJsonObject(input.outputPath, {
 			items: outputItems,
-			run_id: productResult.evalRunId,
 			schema_version: AGENT_EVAL_SCORE_BATCH_SCHEMA_VERSION,
 		});
 		return {
 			case_count: outputItems.length,
+			eval_run_id: productResult.evalRunId,
 			error_count: outputItems.reduce((total, item) => total + item.errors.length, 0),
 			output_path: input.outputPath,
-			run_id: productResult.evalRunId,
 			score_count: outputItems.reduce((total, item) => total + Object.keys(item.scores).length, 0),
 		};
 	} finally {
@@ -118,7 +112,6 @@ export function loadAgentEvalScoreBatch(path: string): AgentEvalScoreBatch {
 	if (payload.schema_version !== AGENT_EVAL_SCORE_BATCH_SCHEMA_VERSION) {
 		throw new Error(`score batch schema_version must be ${AGENT_EVAL_SCORE_BATCH_SCHEMA_VERSION}`);
 	}
-	const runId = stringField(payload.run_id, "run_id");
 	const seenCaseIds = new Set<string>();
 	const items = mappingList(payload.items, "items").map((item, index) => {
 		const caseId = stringField(item.case_id, `items[${index}].case_id`);
@@ -141,18 +134,17 @@ export function loadAgentEvalScoreBatch(path: string): AgentEvalScoreBatch {
 		}));
 		return { case_id: caseId, errors, scores };
 	});
-	return { items, runId };
+	return { items };
 }
 
 function agentRagasSample(item: AgentProductEvalItem): JsonObject {
 	return {
-		answer: item.terminal.answer,
+		answer: item.answer,
 		argument_mode: item.case.argument_mode,
 		case_id: item.case.case_id,
 		metadata: {
 			...(item.case.case_family ? { case_family: item.case.case_family } : {}),
-			surface_key:
-				item.case.surface_key ?? item.projection.toolTrajectory.surface ?? "app-api.chat",
+			surface_key: item.case.surface_key ?? "app-api.chat",
 		},
 		query: item.case.query,
 		...(item.case.reference ? { reference: item.case.reference } : {}),
@@ -160,20 +152,17 @@ function agentRagasSample(item: AgentProductEvalItem): JsonObject {
 			item.case.reference_tool_calls,
 			item.case.argument_mode,
 		),
-		tool_calls: observedToolCalls(item.projection.toolTrajectory, item.case.argument_mode),
+		tool_calls: observedToolCalls(item.toolTrajectory, item.case.argument_mode),
 	};
 }
 
 function ragRagasSample(item: AgentProductEvalItem): JsonObject {
 	return {
 		case_id: item.case.case_id,
-		metadata: {
-			surface_key:
-				item.case.surface_key ?? item.projection.toolTrajectory.surface ?? "app-api.chat",
-		},
+		metadata: { surface_key: item.case.surface_key ?? "app-api.chat" },
 		...(item.case.reference ? { reference: item.case.reference } : {}),
-		response: item.projection.answer ?? item.terminal.answer,
-		retrieved_contexts: item.projection.retrievedContexts,
+		response: item.answer,
+		retrieved_contexts: item.retrievedContexts,
 		user_input: item.case.query,
 	};
 }
@@ -181,10 +170,10 @@ function ragRagasSample(item: AgentProductEvalItem): JsonObject {
 function deterministicScores(item: AgentProductEvalItem): Record<string, number> {
 	const scores: Record<string, number> = {};
 	if (expectsRetrievedContext(item.case)) {
-		scores["retrieval.context_present"] = item.projection.retrievedContexts.length > 0 ? 1 : 0;
+		scores["retrieval.context_present"] = item.retrievedContexts.length > 0 ? 1 : 0;
 	}
 	if (item.case.forbidden_context_ids.length > 0) {
-		const retrieved = new Set(item.projection.retrievedContextIds);
+		const retrieved = new Set(item.retrievedContextIds);
 		scores["retrieval.forbidden_context_absent"] = item.case.forbidden_context_ids.every(
 			(contextId) => !retrieved.has(contextId),
 		)
@@ -196,7 +185,6 @@ function deterministicScores(item: AgentProductEvalItem): Record<string, number>
 
 function mergeRagasScoreBatch(input: {
 	errorsByCase: Map<string, AgentEvalScoreError[]>;
-	expectedRunId: string;
 	expectedCaseIds: Set<string>;
 	payload: JsonObject;
 	schemaVersion: string;
@@ -204,9 +192,6 @@ function mergeRagasScoreBatch(input: {
 }): void {
 	if (input.payload.schema_version !== input.schemaVersion) {
 		throw new Error(`Ragas score schema_version must be ${input.schemaVersion}`);
-	}
-	if (stringField(input.payload.run_id, "Ragas score run_id") !== input.expectedRunId) {
-		throw new Error("Ragas score run_id does not match product result");
 	}
 	const seenCaseIds = new Set<string>();
 	for (const item of mappingList(input.payload.items, "Ragas score items")) {

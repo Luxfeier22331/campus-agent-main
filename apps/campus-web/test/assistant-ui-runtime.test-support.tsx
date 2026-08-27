@@ -30,21 +30,18 @@ const conversationApiMock = vi.hoisted(() => ({
 		code: string;
 		requestId: string | undefined;
 		retryable: boolean;
-		traceId: string | undefined;
 
 		constructor(input: {
 			code: string;
 			message: string;
 			requestId?: string;
 			retryable: boolean;
-			traceId?: string;
 		}) {
 			super(input.message);
 			this.name = "ChatStreamRequestError";
 			this.code = input.code;
 			this.requestId = input.requestId;
 			this.retryable = input.retryable;
-			this.traceId = input.traceId;
 		}
 	},
 	deleteTrailingMessages: vi.fn(),
@@ -114,7 +111,7 @@ export function cancellationTerminalEvent(): ChatRequestStreamEvent {
 			answer: {
 				conversation: {
 					archivedAt: null,
-					activeRunId: null,
+					activeRequestId: null,
 					createdAt: "2026-06-24T01:00:00.000Z",
 					id: "conv_created",
 					messages: [],
@@ -128,15 +125,12 @@ export function cancellationTerminalEvent(): ChatRequestStreamEvent {
 					message: "The request was cancelled.",
 					requestId: "req_01",
 					retryable: false,
-					traceId: "trace_01",
 				},
 			},
 			occurredAt: "2026-06-24T01:00:02.000Z",
 			requestId: "req_01",
-			runId: "run_01",
 			sequence: 2,
 			status: "cancelled",
-			traceId: "trace_01",
 		},
 		event: "request.cancelled",
 	};
@@ -148,7 +142,7 @@ export function completedTerminalEvent(answerText: string): ChatRequestStreamEve
 			answer: {
 				conversation: {
 					archivedAt: null,
-					activeRunId: null,
+					activeRequestId: null,
 					createdAt: "2026-06-24T01:00:00.000Z",
 					id: "conv_created",
 					messages: [
@@ -183,15 +177,12 @@ export function completedTerminalEvent(answerText: string): ChatRequestStreamEve
 					kind: "answer",
 					requestId: "req_01",
 					text: answerText,
-					traceId: "trace_01",
 				},
 			},
 			occurredAt: "2026-06-24T01:00:02.000Z",
 			requestId: "req_01",
-			runId: "run_01",
 			sequence: 3,
 			status: "completed",
-			traceId: "trace_01",
 		},
 		event: "request.completed",
 	};
@@ -270,10 +261,8 @@ export function installAssistantUiRuntimeTestHarness() {
 			durationMs: null,
 			phase: "running",
 			requestId: "req_01",
-			runId: "run_01",
 			startedAt: "2026-06-24T01:00:01.000Z",
 			status: "running",
-			traceId: "trace_01",
 		});
 		conversationApiMock.resumeRunEventsStream.mockReset();
 		conversationApiMock.submitChatRequestStream.mockReset();

@@ -81,29 +81,6 @@ func writeError(
 	})
 }
 
-func writeRuntimeFailure(
-	response http.ResponseWriter,
-	status int,
-	code string,
-	message string,
-	retryable bool,
-	requestID string,
-	traceID string,
-	failureKind string,
-) {
-	code = safeErrorCode(code)
-	writeJSON(response, status, map[string]any{
-		"error": errorInfo{
-			Code:      code,
-			Message:   publicErrorMessage(code, message),
-			Retryable: retryable,
-		},
-		"failure_kind": failureKind,
-		"request_id":   requestID,
-		"trace_id":     traceID,
-	})
-}
-
 func safeErrorCode(code string) string {
 	code = strings.TrimSpace(code)
 	if len(code) == 0 || len(code) > 80 {
@@ -217,15 +194,6 @@ func writeRawJSON(response http.ResponseWriter, status int, body []byte) {
 	response.Header().Set("content-type", "application/json")
 	response.WriteHeader(status)
 	_, _ = response.Write(body)
-}
-
-func injectTraceID(rawBody []byte, traceID string) ([]byte, error) {
-	body, err := decodeJSONObject(rawBody)
-	if err != nil {
-		return nil, err
-	}
-	body["trace_id"] = traceID
-	return json.Marshal(body)
 }
 
 func normalizeJSONObjectJSON(rawBody []byte) ([]byte, error) {

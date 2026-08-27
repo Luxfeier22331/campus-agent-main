@@ -1,32 +1,16 @@
 import { type AgentToolEvalCase, validateAgentToolEvalCases } from "./agent-tool-eval";
-import {
-	type ExecutionRunEvalProjection,
-	parseExecutionRunEvalProjection,
-} from "./execution-projection";
-import {
-	loadJsonObject,
-	mapping,
-	mappingList,
-	stringField,
-	stringList,
-	writeJsonObject,
-} from "./json";
+import { loadJsonObject, mappingList, stringField, stringList, writeJsonObject } from "./json";
+import { parseToolTrajectory, type ToolTrajectory } from "./tool-trajectory";
 
-export const AGENT_PRODUCT_EVAL_RESULT_SCHEMA_VERSION = "agent_product_eval_result.v1";
-
-export interface AgentTerminalResult {
-	answer: string;
-	conversationId: string;
-	requestId: string;
-	resultKind: string;
-	runId: string;
-	traceId: string;
-}
+export const AGENT_PRODUCT_EVAL_RESULT_SCHEMA_VERSION = "agent_product_eval_result.v2";
 
 export interface AgentProductEvalItem {
+	answer: string;
 	case: AgentToolEvalCase;
-	projection: ExecutionRunEvalProjection;
-	terminal: AgentTerminalResult;
+	requestId: string;
+	retrievedContextIds: string[];
+	retrievedContexts: string[];
+	toolTrajectory: ToolTrajectory;
 }
 
 export interface AgentProductEvalResult {
@@ -52,10 +36,10 @@ export function parseAgentProductEvalResult(
 		throw new Error("product result items must not be empty");
 	}
 	const seenCaseIds = new Set<string>();
+	const seenRequestIds = new Set<string>();
 	const items = rawItems.map((item, index) => {
-		const casePayload = mapping(item.case, `items[${index}].case`);
 		const validation = validateAgentToolEvalCases({
-			cases: [casePayload],
+			cases: [item.case],
 			schema_version: "agent_routing_eval_cases.v1",
 		});
 		const caseItem = validation.cases[0];
@@ -66,12 +50,24 @@ export function parseAgentProductEvalResult(
 			throw new Error(`product result case_id is duplicated: ${caseItem.case_id}`);
 		}
 		seenCaseIds.add(caseItem.case_id);
-		const terminal = parseTerminal(item.terminal, caseItem.case_id);
-		const projection = parseProductProjection(item.projection, caseItem.case_id);
-		if (terminal.runId !== projection.runId || terminal.traceId !== projection.traceId) {
-			throw new Error(`${caseItem.case_id} terminal and projection identity do not match`);
+		const requestId = stringField(item.request_id, `${caseItem.case_id}.request_id`);
+		if (seenRequestIds.has(requestId)) {
+			throw new Error(`product result request_id is duplicated: ${requestId}`);
 		}
-		return { case: caseItem, projection, terminal };
+		seenRequestIds.add(requestId);
+		const retrievedContextIds = stringList(item.retrieved_context_ids);
+		const retrievedContexts = stringList(item.retrieved_contexts);
+		if (retrievedContextIds.length !== retrievedContexts.length) {
+			throw new Error(`${caseItem.case_id} retrieved context ids and contexts must align`);
+		}
+		return {
+			answer: stringField(item.answer, `${caseItem.case_id}.answer`),
+			case: caseItem,
+			requestId,
+			retrievedContextIds,
+			retrievedContexts,
+			toolTrajectory: parseToolTrajectory(item.tool_trajectory),
+		};
 	});
 	return { evalRunId, items };
 }
@@ -80,62 +76,13 @@ export function writeAgentProductEvalResult(path: string, input: AgentProductEva
 	writeJsonObject(path, {
 		eval_run_id: input.evalRunId,
 		items: input.items.map((item) => ({
+			answer: item.answer,
 			case: item.case,
-			projection: {
-				...(item.projection.answer === undefined ? {} : { answer: item.projection.answer }),
-				retrieved_context_ids: item.projection.retrievedContextIds,
-				retrieved_contexts: item.projection.retrievedContexts,
-				run_id: item.projection.runId,
-				tool_trajectory: item.projection.toolTrajectory,
-				trace_id: item.projection.traceId,
-			},
-			terminal: {
-				answer: item.terminal.answer,
-				conversation_id: item.terminal.conversationId,
-				request_id: item.terminal.requestId,
-				result_kind: item.terminal.resultKind,
-				run_id: item.terminal.runId,
-				trace_id: item.terminal.traceId,
-			},
+			request_id: item.requestId,
+			retrieved_context_ids: item.retrievedContextIds,
+			retrieved_contexts: item.retrievedContexts,
+			tool_trajectory: item.toolTrajectory,
 		})),
 		schema_version: AGENT_PRODUCT_EVAL_RESULT_SCHEMA_VERSION,
 	});
-}
-
-function parseTerminal(value: unknown, caseId: string): AgentTerminalResult {
-	const terminal = mapping(value, `${caseId}.terminal`);
-	return {
-		answer: stringValue(terminal.answer, `${caseId}.terminal.answer`),
-		conversationId: stringField(terminal.conversation_id, `${caseId}.terminal.conversation_id`),
-		requestId: stringField(terminal.request_id, `${caseId}.terminal.request_id`),
-		resultKind: stringField(terminal.result_kind, `${caseId}.terminal.result_kind`),
-		runId: stringField(terminal.run_id, `${caseId}.terminal.run_id`),
-		traceId: stringField(terminal.trace_id, `${caseId}.terminal.trace_id`),
-	};
-}
-
-function parseProductProjection(value: unknown, caseId: string): ExecutionRunEvalProjection {
-	const projection = mapping(value, `${caseId}.projection`);
-	return parseExecutionRunEvalProjection({
-		agentRuntimeEvalProjection: {
-			rag: {
-				...(projection.answer === undefined ? {} : { answer: projection.answer }),
-				retrieved_context_ids: stringList(projection.retrieved_context_ids),
-				retrieved_contexts: stringList(projection.retrieved_contexts),
-			},
-			run: {
-				run_id: stringField(projection.run_id, `${caseId}.projection.run_id`),
-				trace_id: stringField(projection.trace_id, `${caseId}.projection.trace_id`),
-			},
-			schema_version: "agent_runtime_eval_projection.v3",
-			tool_trajectory: projection.tool_trajectory,
-		},
-	});
-}
-
-function stringValue(value: unknown, field: string): string {
-	if (typeof value !== "string") {
-		throw new Error(`${field} must be a string`);
-	}
-	return value;
 }

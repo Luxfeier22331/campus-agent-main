@@ -50,8 +50,8 @@ func (s *PostgresRunProjectionStore) BeginOwnerDeletion(
 	if err != nil {
 		return OwnerDeletionStatus{}, err
 	}
-	for _, runID := range runIDs {
-		run, err := scanDurableRun(tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", runID))
+	for _, requestID := range runIDs {
+		run, err := scanDurableRun(tx.QueryRow(ctx, durableRunSelectSQL+" where request_id = $1 for update", requestID))
 		if err != nil {
 			return OwnerDeletionStatus{}, err
 		}
@@ -160,20 +160,20 @@ func ownerDeletionStateInTx(ctx context.Context, tx pgx.Tx, ownerUserID string) 
 
 func ownerActiveRunIDsInTx(ctx context.Context, tx pgx.Tx, ownerUserID string) ([]string, error) {
 	rows, err := tx.Query(ctx, `
-		select run_id from execution_control.agent_runs
+		select request_id from execution_control.agent_runs
 		where owner_user_id = $1 and status in `+ownerDeletionActiveRunStatuses+
-		` order by created_at, run_id for update`, ownerUserID)
+		` order by created_at, request_id for update`, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	runIDs := []string{}
 	for rows.Next() {
-		var runID string
-		if err := rows.Scan(&runID); err != nil {
+		var requestID string
+		if err := rows.Scan(&requestID); err != nil {
 			return nil, err
 		}
-		runIDs = append(runIDs, runID)
+		runIDs = append(runIDs, requestID)
 	}
 	return runIDs, rows.Err()
 }
@@ -195,16 +195,16 @@ func ownerDeletionStatusInTx(ctx context.Context, tx pgx.Tx, ownerUserID string)
 func requestOwnerRunCancellationInTx(ctx context.Context, tx pgx.Tx, run DurableRun, now time.Time) error {
 	var ignoredReason string
 	err := tx.QueryRow(ctx, `
-		select reason from execution_control.agent_run_cancellations where run_id = $1 for update`, run.RunID).Scan(&ignoredReason)
+		select reason from execution_control.agent_run_cancellations where request_id = $1 for update`, run.RequestID).Scan(&ignoredReason)
 	if err == nil {
-		return supersedeWorkflowStartIntentInTx(ctx, tx, run.RunID, now)
+		return supersedeWorkflowStartIntentInTx(ctx, tx, run.RequestID, now)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	if err := insertDurableRunEventInTx(ctx, tx, run, DurableRunEvent{
-		EventID:              run.RunID + ":run-cancel-requested",
-		RunID:                run.RunID,
+		EventID:              run.RequestID + ":run-cancel-requested",
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            DurableRunEventTypeRunCancelRequested,
 		OccurredAt:           now,
@@ -216,10 +216,10 @@ func requestOwnerRunCancellationInTx(ctx context.Context, tx pgx.Tx, run Durable
 	}
 	if _, err := tx.Exec(ctx, `
 		insert into execution_control.agent_run_cancellations (
-			run_id, workflow_id, reason, state, next_attempt_at, created_at, updated_at
+			request_id, workflow_id, reason, state, next_attempt_at, created_at, updated_at
 		) values ($1, $2, $3, 'pending', $4, $4, $4)`,
-		run.RunID, "campus-agent.chat."+run.RunID, "account_deletion", now); err != nil {
+		run.RequestID, "campus-agent.chat."+run.RequestID, "account_deletion", now); err != nil {
 		return err
 	}
-	return supersedeWorkflowStartIntentInTx(ctx, tx, run.RunID, now)
+	return supersedeWorkflowStartIntentInTx(ctx, tx, run.RequestID, now)
 }

@@ -259,7 +259,7 @@ describe("profile memory service", () => {
 			},
 		]);
 		const commandAdmitter: ProfileMemoryCommandAdmitter = {
-			admit: vi.fn(async () => ({ workflowId: "campus-agent.memory.command.memcmd_01HQ" })),
+			admit: vi.fn(async () => undefined),
 		};
 		const service = buildProfileMemoryService({
 			...serviceStores(store),
@@ -276,7 +276,6 @@ describe("profile memory service", () => {
 		expect(store.markCommandAdmitted).toHaveBeenCalledWith({
 			admittedAt: "2026-04-27T08:00:00.000Z",
 			commandId: "memcmd_01HQ",
-			workflowId: "campus-agent.memory.command.memcmd_01HQ",
 		});
 	});
 

@@ -46,7 +46,6 @@ export async function finalizeAcceptedCommand(
 		projectionCloseoutMs,
 		requestId: context.requestId,
 		response: input.executionResponse,
-		runId: context.runId,
 		safetyIdentifier: context.safetyIdentifier,
 		...(appApiStageTiming === undefined ? {} : { stageTiming: appApiStageTiming }),
 		surface: context.surface,
@@ -54,7 +53,6 @@ export async function finalizeAcceptedCommand(
 		...(input.streamAppApiTtftMs === undefined
 			? {}
 			: { streamAppApiTtftMs: input.streamAppApiTtftMs }),
-		traceId: context.traceId,
 		turnSequence: context.turnSequence,
 		userMessageId: context.userMessageId,
 	});
@@ -73,7 +71,6 @@ export async function finalizeAcceptedCommand(
 				| "rejected"
 				| "cancelled",
 			surface: context.surface,
-			traceId: context.traceId,
 		});
 	}
 
@@ -112,11 +109,9 @@ export async function readProductFinalizedCommand(
 		principal: context.input.principal,
 		requestId: context.requestId,
 		response: input.executionResponse,
-		runId: context.runId,
 		safetyIdentifier: context.safetyIdentifier,
 		surface: context.surface,
 		startedAt: context.acceptedAt,
-		traceId: context.traceId,
 		turnSequence: context.turnSequence,
 		userMessageId: context.userMessageId,
 	});
@@ -126,10 +121,7 @@ export async function readProductFinalizedCommand(
 	);
 	if (
 		!conversation?.messages.some(
-			(message) =>
-				message.role === "assistant" &&
-				message.requestId === context.requestId &&
-				message.runId === context.runId,
+			(message) => message.role === "assistant" && message.requestId === context.requestId,
 		)
 	) {
 		throw createPreAcceptError({
@@ -154,13 +146,13 @@ export async function applyProductFinalization(
 		completedAt: string;
 		finalizationFingerprint: string;
 		response: ToolExecutionResponse;
-		runId: string;
+		requestId: string;
 	},
 ): Promise<{ outcome: "applied" | "replayed" }> {
 	const { dependencies } = service;
 	const candidates = await dependencies.commandStore.listAcceptedDurableRequestsForCloseout({
 		limit: 1,
-		runId: input.runId,
+		requestId: input.requestId,
 		startedBefore: input.completedAt,
 	});
 	const candidate = candidates[0];
@@ -170,9 +162,6 @@ export async function applyProductFinalization(
 			message: "Accepted chat request was not found for product finalization.",
 			status: 404,
 		});
-	}
-	if (input.response.traceId !== candidate.traceId) {
-		throw new ChatFinalizationConflict();
 	}
 	if (isExactFinalizationReplay(candidate, input)) {
 		return { outcome: "replayed" };

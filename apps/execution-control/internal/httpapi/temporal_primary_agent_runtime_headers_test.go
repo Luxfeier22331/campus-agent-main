@@ -28,7 +28,7 @@ func TestCallAgentRuntimeExecutionTraceHeaders(t *testing.T) {
 				seenHeaders = request.Header.Clone()
 				writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 					"status":       "completed",
-					"run_id":       "run-trace-propagation-001",
+					"request_id":   "run-trace-propagation-001",
 					"final_output": "ok",
 					"tool_results": []any{},
 				})
@@ -41,15 +41,13 @@ func TestCallAgentRuntimeExecutionTraceHeaders(t *testing.T) {
 				AgentRuntimeDeadlineMS:   1000,
 			})
 			run := execution.DurableRun{
-				RunID:     "run-trace-propagation-001",
-				RequestID: "req-trace-propagation-001",
-				TraceID:   "trace-trace-propagation-001",
+				RequestID: "run-trace-propagation-001",
 			}
 			_, err := server.callAgentRuntime(
 				context.Background(),
 				run,
 				temporalruntime.ExecutePrimaryAgentActivityInput{
-					RunID:       run.RunID,
+					RequestID:   run.RequestID,
 					TraceParent: testCase.traceParent,
 				},
 				"hello",
@@ -64,7 +62,6 @@ func TestCallAgentRuntimeExecutionTraceHeaders(t *testing.T) {
 			assertions := map[string]string{
 				"traceparent":  testCase.wantTraceParent,
 				"x-request-id": run.RequestID,
-				"x-trace-id":   run.TraceID,
 			}
 			for name, want := range assertions {
 				if got := seenHeaders.Get(name); got != want {
@@ -76,6 +73,9 @@ func TestCallAgentRuntimeExecutionTraceHeaders(t *testing.T) {
 			}
 			if got := seenHeaders.Get("sentry-trace"); got != "" {
 				t.Errorf("agent runtime sentry-trace header = %q, want empty", got)
+			}
+			if got := seenHeaders.Get("x-trace-id"); got != "" {
+				t.Errorf("agent runtime x-trace-id header = %q, want empty", got)
 			}
 		})
 	}

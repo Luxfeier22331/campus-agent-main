@@ -21,7 +21,7 @@ func (s *Server) AppendConversationMemory(
 	stopHeartbeat := startTemporalActivityHeartbeat(ctx, "memory.append", 10*time.Second)
 	defer stopHeartbeat()
 	recordTemporalActivityHeartbeat(ctx, "memory.append.started")
-	run, err := s.temporalCompletedFinalizationRun(ctx, input.RunID, input.TraceID)
+	run, err := s.temporalCompletedFinalizationRun(ctx, input.RequestID)
 	if err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
 	}
@@ -32,20 +32,23 @@ func (s *Server) AppendConversationMemory(
 	}
 	enabled, known := memoryEnabledFromExecutionPayload(payload)
 	if !known {
-		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_enabled_unknown"))
+		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RequestID, "memory_enabled_unknown"))
 	}
 	if !enabled {
-		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RunID, "memory_disabled"))
+		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RequestID, "memory_disabled"))
 	}
 	if s.personalMemoryErr != nil {
-		return s.projectMemoryAppendFailure(ctx, run, "personal_memory_not_configured", s.personalMemoryErr)
-	}
-	if s.personalMemoryExecutor == nil {
-		return s.projectMemoryAppendFailure(
+		return s.projectMemoryAppendResult(
 			ctx,
 			run,
-			"personal_memory_not_configured",
-			errors.New("personal memory executor is not configured"),
+			skippedMemoryAppendOutput(run.RequestID, "personal_memory_not_configured"),
+		)
+	}
+	if s.personalMemoryExecutor == nil {
+		return s.projectMemoryAppendResult(
+			ctx,
+			run,
+			skippedMemoryAppendOutput(run.RequestID, "personal_memory_not_configured"),
 		)
 	}
 	request, err := memoryAppendRequestForRun(run, payload)
@@ -63,7 +66,7 @@ func (s *Server) AppendConversationMemory(
 	recordTemporalActivityHeartbeat(ctx, "memory.append.project_result")
 	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: result.AppendedMessageCount,
-		RunID:                run.RunID,
+		RequestID:            run.RequestID,
 		SchemaVersion:        "memory_conversation_append_result_v3",
 		Status:               "completed",
 		ThreadID:             run.ConversationID,
@@ -80,7 +83,7 @@ func (s *Server) projectMemoryAppendFailure(
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	summary := summarizeTemporalFailure(failureKind, "", cause)
 	output := temporalruntime.AppendConversationMemoryActivityOutput{
-		RunID:         run.RunID,
+		RequestID:     run.RequestID,
 		SchemaVersion: "memory_conversation_append_result_v3",
 		SkipReasons:   []string{failureKind},
 		Status:        "failed",
@@ -110,7 +113,7 @@ func (s *Server) projectMemoryAppendFailure(
 		CompletedAt:   now,
 		UpdatedAt:     now,
 		ResultKind:    "memory_conversation_append_result",
-		ProjectionRef: temporalProjectionRef(run.RunID, "memory/append"),
+		ProjectionRef: temporalProjectionRef(run.RequestID, "memory/append"),
 		Payload:       payload,
 	}); err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, sanitizedTemporalApplicationError(
@@ -149,7 +152,7 @@ func memoryAppendRequestForRun(
 	request := memoryruntime.AppendConversationTurnRequest{
 		OwnerGeneration:      ownerGeneration,
 		OwnerSequence:        ownerSequence,
-		RunID:                run.RunID,
+		RequestID:            run.RequestID,
 		TenantID:             tenantID,
 		ThreadID:             run.ConversationID,
 		UserID:               userID,
@@ -170,11 +173,11 @@ func memoryEnabledFromExecutionPayload(payload map[string]any) (bool, bool) {
 }
 
 func skippedMemoryAppendOutput(
-	runID string,
+	requestID string,
 	reason string,
 ) temporalruntime.AppendConversationMemoryActivityOutput {
 	return temporalruntime.AppendConversationMemoryActivityOutput{
-		RunID:         strings.TrimSpace(runID),
+		RequestID:     strings.TrimSpace(requestID),
 		SchemaVersion: "memory_conversation_append_result_v3",
 		SkipReasons:   []string{reason},
 		SkippedCount:  1,
@@ -215,7 +218,7 @@ func (s *Server) projectMemoryAppendResult(
 		CompletedAt:   now,
 		UpdatedAt:     now,
 		ResultKind:    "memory_conversation_append_result",
-		ProjectionRef: temporalProjectionRef(run.RunID, "memory/append"),
+		ProjectionRef: temporalProjectionRef(run.RequestID, "memory/append"),
 		Payload:       payload,
 	})
 	if err != nil {
@@ -226,25 +229,17 @@ func (s *Server) projectMemoryAppendResult(
 
 func (s *Server) temporalCompletedFinalizationRun(
 	ctx context.Context,
-	runID string,
-	traceID string,
+	requestID string,
 ) (execution.DurableRun, error) {
 	if s == nil || s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
 	}
-	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, runID, false); err != nil {
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, requestID, false); err != nil {
 		return execution.DurableRun{}, err
 	}
-	run, err := s.runProjectionStore.GetRun(ctx, strings.TrimSpace(runID))
+	run, err := s.runProjectionStore.GetRun(ctx, strings.TrimSpace(requestID))
 	if err != nil {
 		return execution.DurableRun{}, err
-	}
-	if run.TraceID != traceID {
-		return execution.DurableRun{}, fmt.Errorf(
-			"activity trace_id %s does not match run trace_id %s",
-			traceID,
-			run.TraceID,
-		)
 	}
 	if run.Status != execution.DurableRunStatusCompleted {
 		if temporalRunTerminal(run.Status) {
@@ -256,7 +251,7 @@ func (s *Server) temporalCompletedFinalizationRun(
 		}
 		return execution.DurableRun{}, errors.New("post-finalization activity cannot run before completed projection")
 	}
-	results, err := s.runProjectionStore.ListStepResults(ctx, run.RunID)
+	results, err := s.runProjectionStore.ListStepResults(ctx, run.RequestID)
 	if err != nil {
 		return execution.DurableRun{}, err
 	}

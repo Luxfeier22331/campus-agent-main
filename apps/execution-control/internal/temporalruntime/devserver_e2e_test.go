@@ -67,7 +67,7 @@ func TestTemporalDevServerRunsToolExecutionWorkflowAndReplaysHistory(t *testing.
 	if err := workflowRun.Get(ctx, &result); err != nil {
 		t.Fatalf("get workflow result: %v", err)
 	}
-	if result.RunID != runID || result.Status != "completed" {
+	if result.RequestID != runID || result.Status != "completed" {
 		t.Fatalf("unexpected workflow result: %#v", result)
 	}
 	readiness := (&Starter{
@@ -146,7 +146,7 @@ func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughLinearWorkflow(t *te
 	if err := workflowRun.Get(ctx, &result); err != nil {
 		t.Fatalf("get workflow result: %v", err)
 	}
-	if result.RunID != runID || result.Status != "completed" {
+	if result.RequestID != runID || result.Status != "completed" {
 		t.Fatalf("unexpected workflow result: %#v", result)
 	}
 
@@ -378,7 +378,7 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 		startTimeout: 5 * time.Second,
 	}
 	if err := starter.CancelToolExecutionWorkflow(ctx, ToolExecutionWorkflowCancelInput{
-		RunID:         runID,
+		RequestID:     runID,
 		TemporalRunID: workflowRun.GetRunID(),
 		WorkflowID:    input.WorkflowID,
 	}); err != nil {
@@ -445,13 +445,10 @@ func versionedPersonalMemoryCommandWorkflow(
 	return result, nil
 }
 
-func devServerWorkflowInput(runID string) ToolExecutionWorkflowInput {
+func devServerWorkflowInput(requestID string) ToolExecutionWorkflowInput {
 	return ToolExecutionWorkflowInput{
-		ConversationID: "conversation-" + runID,
-		RequestID:      "request-" + runID,
-		RunID:          runID,
-		TraceID:        "trace-" + runID,
-		TurnID:         "turn-" + runID,
+		ConversationID: "conversation-" + requestID,
+		RequestID:      requestID,
 	}
 }
 

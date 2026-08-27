@@ -100,8 +100,8 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 			TaskQueue:                workflowInput.TaskQueue,
 			WorkflowInputJSON:        workflowInputJSON,
 			CreatedEvent: execution.DurableRunEvent{
-				EventID:              run.RunID + ":run-created",
-				RunID:                run.RunID,
+				EventID:              run.RequestID + ":run-created",
+				RequestID:            run.RequestID,
 				ConversationID:       run.ConversationID,
 				EventType:            execution.DurableRunEventTypeRunCreated,
 				OccurredAt:           run.CreatedAt,
@@ -135,7 +135,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 				response,
 				http.StatusConflict,
 				"execution_run_fingerprint_conflict",
-				"run_id is already bound to a different request fingerprint.",
+				"request_id is already bound to a different request fingerprint.",
 				false,
 			)
 			return
@@ -152,7 +152,7 @@ func (s *Server) workflowInputForRun(
 	run execution.DurableRun,
 	personalMemoryRecallAllowed bool,
 ) (temporalruntime.ToolExecutionWorkflowInput, error) {
-	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
+	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RequestID)
 	inputMetadata, err := execution.InputMetadata(run)
 	if err != nil {
 		return temporalruntime.ToolExecutionWorkflowInput{}, err
@@ -175,11 +175,8 @@ func (s *Server) workflowInputForRun(
 		PayloadSHA256:                inputMetadata.ExecutionInputSHA256,
 		PersonalMemoryTimeoutSeconds: s.config.PersonalMemoryTimeoutSeconds,
 		RequestID:                    run.RequestID,
-		RunID:                        run.RunID,
 		TaskQueue:                    defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
-		TraceID:                      run.TraceID,
-		TraceParent:                  telemetry.InjectExecutionTraceHeaders(ctx, run.RequestID, run.TraceID)["traceparent"],
-		TurnID:                       run.TurnID,
+		TraceParent:                  telemetry.InjectExecutionTraceHeaders(ctx, "")["traceparent"],
 		WorkflowID:                   workflowID,
 	}, nil
 }
@@ -191,22 +188,16 @@ func durableRunCreateFingerprint(run execution.DurableRun, personalMemoryRecallA
 		OwnerUserID                 string         `json:"owner_user_id"`
 		PersonalMemoryRecallAllowed bool           `json:"personal_memory_recall_allowed"`
 		RequestID                   string         `json:"request_id"`
-		RunID                       string         `json:"run_id"`
 		RuntimeVersions             map[string]any `json:"runtime_versions"`
 		Surface                     string         `json:"surface"`
-		TraceID                     string         `json:"trace_id"`
-		TurnID                      string         `json:"turn_id"`
 	}{
 		ConversationID:              run.ConversationID,
 		Metadata:                    cloneAnyMapFromMetadata(run.Metadata),
 		OwnerUserID:                 run.OwnerUserID,
 		PersonalMemoryRecallAllowed: personalMemoryRecallAvailable,
 		RequestID:                   run.RequestID,
-		RunID:                       run.RunID,
 		RuntimeVersions:             cloneAnyMapFromMetadata(run.RuntimeVersions),
 		Surface:                     run.Surface,
-		TraceID:                     run.TraceID,
-		TurnID:                      run.TurnID,
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
@@ -251,7 +242,7 @@ func (s *Server) handleExecutionRunCancel(
 	}
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
-		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
+		writeError(response, http.StatusBadRequest, "invalid_request", "request_id is required.", false)
 		return
 	}
 	// PostgreSQL timestamptz stores microsecond precision. Persist and reuse one
@@ -260,9 +251,9 @@ func (s *Server) handleExecutionRunCancel(
 	requested, err := s.runProjectionStore.RequestRunCancellation(
 		request.Context(),
 		execution.DurableRunCancellationRequest{
-			RunID:  runID,
-			Reason: reason,
-			Now:    canceledAt,
+			RequestID: runID,
+			Reason:    reason,
+			Now:       canceledAt,
 		},
 	)
 	if err != nil {
@@ -287,7 +278,7 @@ func (s *Server) projectCanceledRunSteps(
 	reason string,
 	canceledAt time.Time,
 ) error {
-	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RunID)
+	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RequestID)
 	if err != nil {
 		return err
 	}
@@ -311,7 +302,7 @@ func (s *Server) projectCanceledRunSteps(
 			return err
 		}
 	}
-	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RunID)
+	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RequestID)
 	if err != nil {
 		return err
 	}
@@ -355,8 +346,8 @@ func requiredRunCancelReason(payload map[string]any) (string, error) {
 	return reason, nil
 }
 
-func executionRunIDFromPath(path string, suffix string) (string, bool) {
-	const prefix = "/internal/execution/runs/"
+func executionRequestIDFromPath(path string, suffix string) (string, bool) {
+	const prefix = "/internal/execution/requests/"
 	if !strings.HasPrefix(path, prefix) {
 		return "", false
 	}

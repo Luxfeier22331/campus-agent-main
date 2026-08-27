@@ -31,7 +31,7 @@ func (s *Server) FailWorkflowStart(
 		FailedAt:        now,
 		FailureHash:     reconciliationFailureHash(failureKind),
 		FailureKind:     failureKind,
-		ProjectionRef:   temporalProjectionRef(run.RunID, "workflow/start"),
+		ProjectionRef:   temporalProjectionRef(run.RequestID, "workflow/start"),
 		ResultKind:      "activity_failure",
 		StepID:          "workflow.start",
 		StepKind:        "workflow",
@@ -50,14 +50,14 @@ func (s *Server) FinalizeWorkflowTimeout(
 	run execution.DurableRun,
 	closedAt time.Time,
 ) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
+	latest, err := s.runProjectionStore.GetRun(ctx, run.RequestID)
 	if err != nil {
 		return err
 	}
 	if temporalRunTerminal(latest.Status) {
 		return nil
 	}
-	if latest.TraceID != run.TraceID || latest.ConversationID != run.ConversationID {
+	if latest.RequestID != run.RequestID || latest.ConversationID != run.ConversationID {
 		return errors.New("workflow timeout durable identity changed")
 	}
 	expiredAt := closedAt.UTC().Truncate(time.Microsecond)
@@ -67,7 +67,7 @@ func (s *Server) FinalizeWorkflowTimeout(
 		FailureHash:     reconciliationFailureHash(failureKind),
 		FailureKind:     failureKind,
 		FailCloseReason: failureKind,
-		ProjectionRef:   temporalProjectionRef(run.RunID, "workflow/execution"),
+		ProjectionRef:   temporalProjectionRef(run.RequestID, "workflow/execution"),
 		ResultKind:      "workflow_timeout",
 		StepID:          "workflow.execution",
 		StepKind:        "workflow",
@@ -91,8 +91,8 @@ func (s *Server) FinalizeWorkflowTimeout(
 		return err
 	}
 	_, err = s.runProjectionStore.ExpireRunProjection(ctx, execution.DurableRunExpireRequest{
-		RunID: latest.RunID,
-		Now:   expiredAt,
+		RequestID: latest.RequestID,
+		Now:       expiredAt,
 	})
 	return err
 }
@@ -103,11 +103,11 @@ func (s *Server) FinalizeWorkflowClosure(
 	closedAt time.Time,
 	failureKind string,
 ) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
+	latest, err := s.runProjectionStore.GetRun(ctx, run.RequestID)
 	if err != nil {
 		return err
 	}
-	if latest.TraceID != run.TraceID || latest.ConversationID != run.ConversationID {
+	if latest.RequestID != run.RequestID || latest.ConversationID != run.ConversationID {
 		return errors.New("workflow termination durable identity changed")
 	}
 	failedAt := closedAt.UTC().Truncate(time.Microsecond)
@@ -116,7 +116,7 @@ func (s *Server) FinalizeWorkflowClosure(
 		FailureHash:     reconciliationFailureHash(failureKind),
 		FailureKind:     failureKind,
 		FailCloseReason: failureKind,
-		ProjectionRef:   temporalProjectionRef(run.RunID, "workflow/execution"),
+		ProjectionRef:   temporalProjectionRef(run.RequestID, "workflow/execution"),
 		ResultKind:      "activity_failure",
 		StepID:          "workflow.execution",
 		StepKind:        "workflow",

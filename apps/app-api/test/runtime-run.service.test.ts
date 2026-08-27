@@ -12,7 +12,6 @@ function runtime() {
 		createRun: vi.fn(),
 		getRun: vi.fn().mockResolvedValue(durableRun({ status: "queued" })),
 		listRunEvents: vi.fn().mockResolvedValue(eventPage([])),
-		listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
 	};
 }
 
@@ -22,11 +21,10 @@ describe("runtime run service", () => {
 		const service = buildRuntimeRunService({ executionRuntime, store: runtimeStore() });
 
 		await expect(
-			service.getStatus({ principal: createPrincipal(), runId: "run_01HQ" }),
+			service.getStatus({ principal: createPrincipal(), requestId: "req_01HQ" }),
 		).resolves.toMatchObject({ run: { phase: "queued", status: "queued" } });
 		expect(executionRuntime.getRun).toHaveBeenCalledWith({
-			runId: "run_01HQ",
-			traceId: "trace_01HQ",
+			requestId: "req_01HQ",
 		});
 	});
 
@@ -38,13 +36,12 @@ describe("runtime run service", () => {
 			service.cancel({
 				principal: createPrincipal(),
 				reason: "user_requested",
-				runId: "run_01HQ",
+				requestId: "req_01HQ",
 			}),
 		).resolves.toMatchObject({ run: { status: "canceled" } });
 		expect(executionRuntime.cancelRun).toHaveBeenCalledWith({
 			reason: "user_requested",
-			runId: "run_01HQ",
-			traceId: "trace_01HQ",
+			requestId: "req_01HQ",
 		});
 	});
 
@@ -62,9 +59,9 @@ describe("runtime run service", () => {
 		const service = buildRuntimeRunService({ executionRuntime, ensureRun, store: runtimeStore() });
 
 		await expect(
-			service.getStatus({ principal: createPrincipal(), runId: "run_01HQ" }),
+			service.getStatus({ principal: createPrincipal(), requestId: "req_01HQ" }),
 		).resolves.toMatchObject({ run: { status: "queued" } });
-		expect(ensureRun).toHaveBeenCalledWith({ runId: "run_01HQ", traceId: "trace_01HQ" });
+		expect(ensureRun).toHaveBeenCalledWith({ requestId: "req_01HQ" });
 	});
 
 	it("does not reconstruct an accepted run on an upstream failure", async () => {
@@ -80,7 +77,7 @@ describe("runtime run service", () => {
 		const service = buildRuntimeRunService({ executionRuntime, ensureRun, store: runtimeStore() });
 
 		await expect(
-			service.getStatus({ principal: createPrincipal(), runId: "run_01HQ" }),
+			service.getStatus({ principal: createPrincipal(), requestId: "req_01HQ" }),
 		).rejects.toBe(error);
 		expect(ensureRun).not.toHaveBeenCalled();
 	});
@@ -91,8 +88,12 @@ describe("runtime run service", () => {
 		const service = buildRuntimeRunService({ executionRuntime, store: runtimeStore() });
 
 		await expect(
-			service.cancel({ principal: createPrincipal(), reason: "user_requested", runId: "run_01HQ" }),
-		).rejects.toMatchObject({ code: "run_already_terminal", status: 409 });
+			service.cancel({
+				principal: createPrincipal(),
+				reason: "user_requested",
+				requestId: "req_01HQ",
+			}),
+		).rejects.toMatchObject({ code: "request_already_terminal", status: 409 });
 		expect(executionRuntime.cancelRun).not.toHaveBeenCalled();
 	});
 });

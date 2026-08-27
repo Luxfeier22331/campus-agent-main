@@ -13,16 +13,12 @@ import {
 import { fetchJson } from "./core";
 
 export interface OpsRequestListParams {
-	conversationId?: string | undefined;
 	cursor?: string | undefined;
 	q?: string | undefined;
 	requestId?: string | undefined;
-	runId?: string | undefined;
 	status?: OpsRequestSummary["status"] | undefined;
-	traceId?: string | undefined;
 	view?: OpsRequestListView | undefined;
 	window?: OpsRequestWindow | undefined;
-	workflowId?: string | undefined;
 }
 
 export async function fetchOpsRequests(
@@ -31,16 +27,12 @@ export async function fetchOpsRequests(
 ) {
 	const query = new URLSearchParams();
 	const apiParams = {
-		conversationId: params.conversationId,
 		cursor: params.cursor,
 		q: params.q,
 		requestId: params.requestId,
-		runId: params.runId,
 		status: params.status,
-		traceId: params.traceId,
 		view: params.view === "attention" ? params.view : undefined,
 		window: params.window,
-		workflowId: params.workflowId,
 	};
 	for (const [key, value] of Object.entries(apiParams)) {
 		if (value !== undefined && value !== "") {

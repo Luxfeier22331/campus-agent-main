@@ -15,8 +15,6 @@
 				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
-				"$TURBO_ROOT$/packages/langfuse-identity/package.json",
-				"$TURBO_ROOT$/packages/langfuse-identity/src/**",
 				"$TURBO_ROOT$/scripts/deploy/run-wrangler-command.ts",
 				"$TURBO_ROOT$/scripts/deploy/staging-release.mts",
 				"$TURBO_ROOT$/scripts/deploy/worker-version.ts"
@@ -34,7 +32,6 @@
 				"$TURBO_ROOT$/jobs/app-api-schema/**",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/packages/contracts/fixtures/**",
-				"$TURBO_ROOT$/packages/eval-langfuse/test/fixtures/langfuse_trace_id_vectors.json",
 				"$TURBO_ROOT$/scripts/deploy/**",
 				"$TURBO_ROOT$/turbo.json"
 			]

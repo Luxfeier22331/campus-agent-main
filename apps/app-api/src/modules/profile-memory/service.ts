@@ -52,7 +52,7 @@ export interface ProfileMemoryService {
 }
 
 export interface ProfileMemoryCommandAdmitter {
-	admit(command: ProfileMemoryCommandPayload): Promise<{ workflowId: string }>;
+	admit(command: ProfileMemoryCommandPayload): Promise<void>;
 }
 
 export interface ProfileMemoryServiceDependencies {
@@ -279,12 +279,11 @@ export function buildProfileMemoryService(
 			let admitted = 0;
 			for (const command of commands) {
 				try {
-					const outcome = await dependencies.commandAdmitter.admit(command);
+					await dependencies.commandAdmitter.admit(command);
 					if (
 						await dependencies.commandStore.markCommandAdmitted({
 							commandId: command.commandId,
 							admittedAt: now().toISOString(),
-							workflowId: outcome.workflowId,
 						})
 					) {
 						admitted += 1;

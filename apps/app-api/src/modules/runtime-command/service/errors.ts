@@ -34,7 +34,6 @@ export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionRes
 			modelUsage: zeroModelUsage(),
 			result: null,
 			status: "error",
-			traceId: "",
 		};
 	}
 
@@ -48,13 +47,10 @@ export function toHandledErrorTransportOutcome(error: unknown): ToolExecutionRes
 		modelUsage: zeroModelUsage(),
 		result: null,
 		status: "error",
-		traceId: "",
 	};
 }
 
-export function buildAbuseThrottleRejectedResponse(input: {
-	traceId: string;
-}): ToolExecutionResponse {
+export function buildAbuseThrottleRejectedResponse(): ToolExecutionResponse {
 	return {
 		answerText: "Too many requests. Please wait a few minutes and try again.",
 		error: {
@@ -72,7 +68,6 @@ export function buildAbuseThrottleRejectedResponse(input: {
 		modelUsage: zeroModelUsage(),
 		result: null,
 		status: "rejected",
-		traceId: input.traceId,
 	};
 }
 

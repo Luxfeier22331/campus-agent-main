@@ -49,7 +49,7 @@ func TestExecutionRunCancelPersistsCommandBeforeTemporalFinalization(t *testing.
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs/run-callback-before-cancel/cancel",
+		"/internal/execution/requests/run-callback-before-cancel/cancel",
 		strings.NewReader(`{"reason":"user_requested"}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -98,7 +98,7 @@ func TestExecutionRunCancelDefersCancellationUntilReconcilerCanVerifyIdentity(t 
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs/run-temporal-cancel/cancel",
+		"/internal/execution/requests/run-temporal-cancel/cancel",
 		strings.NewReader(`{"reason":"user_requested"}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -136,7 +136,7 @@ func TestExecutionRunCancelRejectsUnsupportedReasonCodes(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs/run-temporal-cancel-invalid-reason/cancel",
+		"/internal/execution/requests/run-temporal-cancel-invalid-reason/cancel",
 		strings.NewReader(`{"reason":"operator typed free text"}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -175,7 +175,7 @@ func TestExecutionRunCancelRetriesWhenTemporalIdentityIsUnavailable(t *testing.T
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs/run-temporal-cancel-fail/cancel",
+		"/internal/execution/requests/run-temporal-cancel-fail/cancel",
 		strings.NewReader(`{"reason":"user_requested"}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -222,7 +222,7 @@ func TestExecutionRunCancelDoesNotDependOnStaleGetRunSnapshot(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs/run-cancel-atomic-store/cancel",
+		"/internal/execution/requests/run-cancel-atomic-store/cancel",
 		strings.NewReader(`{"reason":"user_requested"}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")

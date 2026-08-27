@@ -39,9 +39,5 @@ func (s *Server) handlePersonalMemoryCommand(response http.ResponseWriter, reque
 		writeError(response, http.StatusServiceUnavailable, "temporal_admission_failed", "Personal memory workflow admission failed.", true)
 		return
 	}
-	writeJSON(response, http.StatusAccepted, map[string]any{
-		"command_id":  command.CommandID,
-		"status":      "admitted",
-		"workflow_id": workflowID,
-	})
+	writeJSON(response, http.StatusAccepted, map[string]any{})
 }

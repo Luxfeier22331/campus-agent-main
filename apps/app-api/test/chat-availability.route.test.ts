@@ -42,7 +42,6 @@ describe("GET /api/chat/availability", () => {
 				message: "Unexpected app-api failure.",
 				requestId: null,
 				retryable: true,
-				traceId: null,
 			},
 		});
 		consoleError.mockRestore();

@@ -31,8 +31,8 @@ Agent Runtime 只在进程启动时存在 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` �
 span 后强制 flush。
 
 浏览器和 Sentry 的追踪上下文只服务 App API 入站错误观测，到 durable execution 边界即终止。
-Source 使用产品 `traceId` 生成该次 durable execution 唯一允许的 W3C `traceparent`；
-execution-control 只提取和转发这个上下文，不转换 `sentry-trace`，也不传播 `baggage`。
+execution-control 只提取和转发入站请求已有的可选 W3C `traceparent`，不从产品标识派生 trace，
+不转换 `sentry-trace`，也不传播 `baggage`。
 execution-control 不创建 OTel exporter、编排 span 或 runtime metric；Temporal history、PostgreSQL
 投影和 Hindsight 业务调用不依赖 trace export。Hindsight 不产生新的 Langfuse trace。
 
@@ -49,7 +49,7 @@ Agent/OpenInference/Langfuse 所需字段，并删除未知属性、links、异�
 允许的内容限于：
 
 - `user.id`、`session.id`、environment、release、固定 trace name/tag；
-- `request_id`、`run_id`、`trace_id`、`turn_id` 四个关联 metadata；
+- 唯一的产品关联 metadata `request_id`；
 - model/provider 标识、token usage、Agent/tool 名称和有界阶段结果；
 - 安全错误类型，不包含原始错误正文。
 
@@ -62,8 +62,9 @@ producer-side sanitizer 只允许严格的 `true`，拒绝其他值和其他 `la
 字段准入的可执行来源是 `apps/agent-runtime/src/telemetry-sanitizer.ts` 及其测试，不能通过 Collector
 transform 恢复 producer 已删除的内容。
 
-产品 `requestId` 是产品投影的持久业务键；传输层 trace ID 不承担业务标识职责，产品 `traceId`
-只用于关联和展示。Langfuse trace 是否存在、采样、延迟或保留状态都不能改写产品终态。
+产品 `requestId` 是产品投影的持久业务键。W3C trace context 和 Langfuse 原生 trace ID 只承担技术
+观测职责，不进入产品 API 或持久业务投影。Langfuse trace 是否存在、采样、延迟或保留状态都不能
+改写产品终态。
 
 ## 评测与评分
 
@@ -74,15 +75,15 @@ transform 恢复 producer 已删除的内容。
 产品路径评测分为三个显式阶段：
 
 1. `agent-eval` 读取调用方提供的 cases 文件，可选执行 setup turn，通过真实 App API 执行目标 turn，
-   读取完成 run 的 `agent_runtime_eval_projection.v3`，写出 `agent_product_eval_result.v1`；
-2. `score-ragas` 读取该产品结果，在本地临时构造 Agent sample 和 `ragas_sample_batch.v2`，调用
+   按 `requestId` 读取 `agent_runtime_eval_projection.v4`，写出 `agent_product_eval_result.v2`；
+2. `score-ragas` 读取该产品结果，在本地临时构造 Agent sample 和 `ragas_sample_batch.v3`，调用
    Ragas runner，写出最终 score 文件；
-3. `publish-scores` 按 `case_id` 将 score 与产品结果中的 trace 关联，并通过官方 SDK 的
-   `score.create` 和一次 `score.flush` 发布可选 Langfuse score。
+3. `publish-scores` 按 `case_id` 使用调用方显式提供的原生 Langfuse trace ID 映射，并通过官方 SDK
+   的 `score.create` 和一次 `score.flush` 发布可选 Langfuse score。
 
 第一阶段不访问 Langfuse；第二阶段不访问 Langfuse；第三阶段只发布 score，不创建第二条产品 trace，
-也不创建或维护 Dataset Run。`packages/eval-langfuse` 验证在线 trace 时要求唯一的 `request_id`、
-`run_id`、`trace_id` 和 `turn_id`，不要求 execution-control workflow metadata。
+也不创建或维护 Dataset Run。`packages/eval-langfuse` 验证在线 trace 时只要求 metadata 中唯一的
+产品 `request_id`，不要求 execution-control workflow metadata。
 
 Ragas runner 不连接 Langfuse、不选择平台数据、不从 trace 读取正文，也不携带 trace、observation 或
 平台运行字段。未知 score 名称、缺失 case 关联、非有限数值或 Langfuse 写入失败必须使发布命令失败；

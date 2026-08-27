@@ -9,7 +9,7 @@ import (
 
 func (s *PostgresRunProjectionStore) WaitForRunEventsAfter(
 	ctx context.Context,
-	runID string,
+	requestID string,
 	afterSequence int64,
 ) ([]DurableRunEvent, error) {
 	if err := s.ensureRunEventListener(ctx); err != nil {
@@ -26,15 +26,15 @@ func (s *PostgresRunProjectionStore) WaitForRunEventsAfter(
 		s.eventMu.Unlock()
 		return nil, err
 	}
-	if s.eventWaiters[runID] == nil {
-		s.eventWaiters[runID] = map[chan struct{}]struct{}{}
+	if s.eventWaiters[requestID] == nil {
+		s.eventWaiters[requestID] = map[chan struct{}]struct{}{}
 	}
-	s.eventWaiters[runID][waiter] = struct{}{}
+	s.eventWaiters[requestID][waiter] = struct{}{}
 	s.eventMu.Unlock()
-	defer s.removeRunEventWaiter(runID, waiter)
+	defer s.removeRunEventWaiter(requestID, waiter)
 
 	for {
-		events, err := s.ListRunEventsAfter(ctx, runID, afterSequence)
+		events, err := s.ListRunEventsAfter(ctx, requestID, afterSequence)
 		if err != nil || len(events) > 0 {
 			return events, err
 		}
@@ -115,14 +115,14 @@ func (s *PostgresRunProjectionStore) listenForRunEvents(
 	}
 }
 
-func (s *PostgresRunProjectionStore) notifyPostgresRunEventWaitersLocked(runID string) {
-	if runID == "" {
+func (s *PostgresRunProjectionStore) notifyPostgresRunEventWaitersLocked(requestID string) {
+	if requestID == "" {
 		for waiterRunID := range s.eventWaiters {
 			s.notifyPostgresRunEventWaitersLocked(waiterRunID)
 		}
 		return
 	}
-	for waiter := range s.eventWaiters[runID] {
+	for waiter := range s.eventWaiters[requestID] {
 		select {
 		case waiter <- struct{}{}:
 		default:
@@ -130,11 +130,11 @@ func (s *PostgresRunProjectionStore) notifyPostgresRunEventWaitersLocked(runID s
 	}
 }
 
-func (s *PostgresRunProjectionStore) removeRunEventWaiter(runID string, waiter chan struct{}) {
+func (s *PostgresRunProjectionStore) removeRunEventWaiter(requestID string, waiter chan struct{}) {
 	s.eventMu.Lock()
 	defer s.eventMu.Unlock()
-	delete(s.eventWaiters[runID], waiter)
-	if len(s.eventWaiters[runID]) == 0 {
-		delete(s.eventWaiters, runID)
+	delete(s.eventWaiters[requestID], waiter)
+	if len(s.eventWaiters[requestID]) == 0 {
+		delete(s.eventWaiters, requestID)
 	}
 }

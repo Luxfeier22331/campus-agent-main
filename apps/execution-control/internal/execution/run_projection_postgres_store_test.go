@@ -64,18 +64,18 @@ func TestPostgresRunProjectionHealthCheckInspectsRequiredSchemaShape(t *testing.
 		"('agent_run_steps', 'activity_attempt', 'integer', true, '0')",
 		"('agent_step_attempts', 'activity_attempt', 'integer', true, '0')",
 		"('agent_workflow_starts', 'dispatch_attempted', 'boolean', true, 'false')",
-		"('agent_run_steps', 'p', array['run_id', 'step_id']::text[]",
-		"('agent_run_steps', 'f', array['run_id']::text[], 'execution_control', 'agent_runs'",
+		"('agent_run_steps', 'p', array['request_id', 'step_id']::text[]",
+		"('agent_run_steps', 'f', array['request_id']::text[], 'execution_control', 'agent_runs'",
 		"('agent_step_attempts', 'p', array['attempt_id']::text[]",
-		"('agent_step_attempts', 'u', array['run_id', 'step_id', 'attempt']::text[]",
-		"('agent_step_attempts', 'f', array['run_id']::text[], 'execution_control', 'agent_runs'",
+		"('agent_step_attempts', 'u', array['request_id', 'step_id', 'attempt']::text[]",
+		"('agent_step_attempts', 'f', array['request_id']::text[], 'execution_control', 'agent_runs'",
 		"('agent_step_results', 'p', array['result_id']::text[]",
-		"('agent_step_results', 'f', array['run_id']::text[], 'execution_control', 'agent_runs'",
+		"('agent_step_results', 'f', array['request_id']::text[], 'execution_control', 'agent_runs'",
 		"('agent_workflow_starts', 'u', array['workflow_id']::text[]",
 		"'agent_runs_active_conversation_idx'",
 		"'agent_workflow_starts_lease_idx'",
 		"'agent_run_cancellations_lease_idx'",
-		"'agent_invocation_receipts_run_idx'",
+		"'agent_invocation_receipts_request_idx'",
 		"status=anyarray['created'::text,'queued'::text,'admitted'::text,'running'::text,'streaming'::text]",
 	}
 	for _, snippet := range requiredSnippets {
@@ -130,7 +130,7 @@ func TestFinalizationAttemptSelectIncludesUsageFields(t *testing.T) {
 
 func TestPostgresRunStepUpsertSQLFencesAttemptAndTerminalState(t *testing.T) {
 	requiredSnippets := []string{
-		"on conflict (run_id, step_id) do update set",
+		"on conflict (request_id, step_id) do update set",
 		"execution_control.agent_run_steps.activity_attempt <= excluded.activity_attempt",
 		"execution_control.agent_run_steps.activity_attempt = excluded.activity_attempt",
 		"lower(btrim(execution_control.agent_run_steps.status)) in ('completed', 'failed', 'blocked', 'canceled', 'expired', 'skipped')",
@@ -144,7 +144,7 @@ func TestPostgresRunStepUpsertSQLFencesAttemptAndTerminalState(t *testing.T) {
 
 func TestPostgresStepAttemptUpsertSQLFencesIdentityAttemptAndTerminalState(t *testing.T) {
 	requiredSnippets := []string{
-		"execution_control.agent_step_attempts.run_id = excluded.run_id",
+		"execution_control.agent_step_attempts.request_id = excluded.request_id",
 		"execution_control.agent_step_attempts.step_id = excluded.step_id",
 		"execution_control.agent_step_attempts.attempt = excluded.attempt",
 		"execution_control.agent_step_attempts.activity_attempt <= excluded.activity_attempt",

@@ -1,6 +1,5 @@
 import { ExecutionControlTransportError, type ToolExecutionResponse } from "../integration";
 import { runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
-import { ensureLangfuseTraceParent } from "../telemetry/trace";
 import { acceptChatCommand } from "./service/acceptance";
 import { createChatCommandServiceContext } from "./service/context";
 import {
@@ -45,19 +44,14 @@ export function buildChatCommandService(
 	const { now } = service;
 
 	function acceptedStreamEvent(
-		context: Pick<
-			AcceptedChatCommandContext,
-			"acceptedAt" | "requestId" | "runId" | "runPhase" | "traceId"
-		>,
+		context: Pick<AcceptedChatCommandContext, "acceptedAt" | "requestId" | "runPhase">,
 	): ChatCommandStreamEvent {
 		return {
 			data: {
 				occurredAt: context.acceptedAt,
 				requestId: context.requestId,
-				runId: context.runId,
 				...(context.runPhase ? { runPhase: context.runPhase } : {}),
 				status: "accepted",
-				traceId: context.traceId,
 			},
 			event: "request.accepted",
 		};
@@ -77,16 +71,13 @@ export function buildChatCommandService(
 		response: ToolExecutionResponse;
 		terminalObserved: boolean;
 	}> {
-		const traceHeaders = await ensureLangfuseTraceParent(input.context.traceId);
 		try {
 			return await waitForDurableFinalizationResponse({
 				context: input.context,
 				listRunEvents: (afterSequence, waitMs) =>
 					input.executionRuntime.listRunEvents({
 						afterSequence,
-						runId: input.context.runId ?? "",
-						traceHeaders,
-						traceId: input.context.traceId,
+						requestId: input.context.requestId,
 						...(waitMs === undefined ? {} : { waitMs }),
 					}),
 				...(dependencies.durableEventPolling ? { polling: dependencies.durableEventPolling } : {}),
@@ -114,9 +105,7 @@ export function buildChatCommandService(
 				})
 			: null;
 		if (abuseControlState?.shouldThrottle) {
-			return buildAbuseThrottleRejectedResponse({
-				traceId: context.traceId,
-			});
+			return buildAbuseThrottleRejectedResponse();
 		}
 		return null;
 	}
@@ -124,15 +113,13 @@ export function buildChatCommandService(
 	async function contextForAcceptedReplay(input: {
 		acceptedAt: string;
 		requestId: string;
-		runId: string;
-		traceId: string;
 	}): Promise<AcceptedChatCommandContext> {
 		const candidate = (
 			await dependencies.commandStore.listAcceptedDurableRequestsForCloseout({
 				limit: 1,
-				runId: input.runId,
+				requestId: input.requestId,
 			})
-		).find((item) => item.requestId === input.requestId && item.traceId === input.traceId);
+		).find((item) => item.requestId === input.requestId);
 		if (!candidate) {
 			throw new ExecutionControlTransportError({
 				code: "runtime_invariant_failed",
@@ -156,8 +143,8 @@ export function buildChatCommandService(
 	}
 
 	return {
-		async readExecutionInput(runId) {
-			const stored = await dependencies.commandStore.readDurableRunInput(runId);
+		async readExecutionInput(requestId) {
+			const stored = await dependencies.commandStore.readDurableRunInput(requestId);
 			return stored
 				? {
 						executionInputJson: stored.executionInputJson,
@@ -206,7 +193,7 @@ export function buildChatCommandService(
 				if (!execution.terminalObserved) {
 					throw createPreAcceptError({
 						code: "execution_status_pending",
-						details: { requestId: context.requestId, runId: context.runId },
+						details: { requestId: context.requestId },
 						message: "The request is still running and can be resumed.",
 						retryable: true,
 						status: 504,
@@ -264,7 +251,6 @@ export function buildChatCommandService(
 					return;
 				}
 
-				const traceHeaders = await ensureLangfuseTraceParent(context.traceId);
 				const closeout = startDurableFinalizationCloseout({
 					context,
 					finalizeAcceptedCommand: ({ context: closeoutContext, executionResponse }) =>
@@ -275,9 +261,7 @@ export function buildChatCommandService(
 					listRunEvents: (afterSequence, waitMs) =>
 						executionRuntime.listRunEvents({
 							afterSequence,
-							runId: context.runId ?? "",
-							traceHeaders,
-							traceId: context.traceId,
+							requestId: context.requestId,
 							...(waitMs === undefined ? {} : { waitMs }),
 						}),
 					now,

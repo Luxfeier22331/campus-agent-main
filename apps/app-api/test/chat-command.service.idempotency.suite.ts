@@ -69,7 +69,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			message: "Too many requests. Please wait a few minutes and try again.",
 			requestId: "req_0001",
 			retryable: false,
-			traceId: "trace_0001",
 		});
 		expect(finalWrites[0]).toMatchObject({
 			turnDispatch: {
@@ -90,7 +89,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				requestId: "req_0001",
 				status: "rejected",
 				surface: "campus_web",
-				traceId: "trace_0001",
 			}),
 		);
 	});
@@ -119,7 +117,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				},
 				result: { sources: [] },
 				status: "completed",
-				traceId: "trace_0001",
 			}),
 		};
 		const service = buildChatCommandService({
@@ -191,8 +188,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 
 		expect(executionRuntime.getRun).toHaveBeenCalledWith(
 			expect.objectContaining({
-				runId: "run_0001",
-				traceId: "trace_0001",
+				requestId: "req_0001",
 			}),
 		);
 		expect(finalWrites).toHaveLength(0);
@@ -233,11 +229,9 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 					kind: "answer" as const,
 					requestId: "req_prev",
 					text: "图书馆开放到 22:00。",
-					traceId: "trace_prev",
 				},
 			},
 			requestId: "req_prev",
-			traceId: "trace_prev",
 		};
 
 		const { store } = createCommandStore();
@@ -250,14 +244,12 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				acceptedAt: "2026-03-28T07:59:00.000Z",
 				requestFingerprintSha256: "fingerprint:图书馆开放到几点？",
 				response: replayResponse,
-				runId: "run_prev",
 				status: "completed",
 			})
 			.mockResolvedValueOnce({
 				acceptedAt: "2026-03-28T07:59:00.000Z",
 				requestFingerprintSha256: "fingerprint:other",
 				response: replayResponse,
-				runId: "run_prev",
 				status: "completed",
 			});
 		store.findIdempotentRequest = findIdempotentRequest;
@@ -316,13 +308,10 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 							kind: "answer",
 							requestId: "req_winner",
 							text: "",
-							traceId: "trace_winner",
 						},
 					},
 					requestId: "req_winner",
-					traceId: "trace_winner",
 				},
-				runId: "run_winner",
 				status: "accepted",
 			});
 		store.acceptRequest = vi.fn().mockRejectedValue(new ChatAcceptanceIdempotencyConflict());
@@ -383,7 +372,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 					},
 				},
 				status: "completed",
-				traceId: "trace_0001",
 			}),
 		};
 		const service = buildChatCommandService({
@@ -443,7 +431,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 					},
 				},
 				status: "completed",
-				traceId: "trace_0001",
 			}),
 		};
 		const service = buildChatCommandService({
@@ -508,13 +495,10 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 						kind: "answer",
 						requestId: "req_prev",
 						text: "图书馆开放到 22:00。",
-						traceId: "trace_prev",
 					},
 				},
 				requestId: "req_prev",
-				traceId: "trace_prev",
 			},
-			runId: "run_prev",
 			status: "completed",
 		});
 		const service = buildChatCommandService({

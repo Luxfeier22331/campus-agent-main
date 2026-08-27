@@ -298,7 +298,7 @@ describe("chat conversation service", () => {
 
 		await expect(service.createDraft({ principal: createPrincipal() })).resolves.toEqual({
 			conversation: {
-				activeRunId: null,
+				activeRequestId: null,
 				createdAt: "2026-03-28T08:00:00.000Z",
 				id: "conv_0001",
 				messages: [],
@@ -339,7 +339,7 @@ describe("chat conversation service", () => {
 			}),
 		).resolves.toEqual({
 			conversation: {
-				activeRunId: null,
+				activeRequestId: null,
 				createdAt: "2026-03-28T08:00:00.000Z",
 				id: "conv_01HQ",
 				messages: [],

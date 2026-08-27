@@ -55,7 +55,6 @@ export interface ChatMessage {
 	parentMessageId?: string | null;
 	requestId: string | null;
 	retryable: boolean | null;
-	runId?: string | null;
 	structuredParts: ChatMessageStructuredPart[];
 	turnSequence?: number;
 }
@@ -77,7 +76,7 @@ export interface ChatConversation {
 	updatedAt: string;
 	activeBranchId?: string;
 	activeMessageId?: string | null;
-	activeRunId?: string | null;
+	activeRequestId?: string | null;
 	activeTurnSequence?: number;
 	sessionSlots: ChatSessionSlot[];
 	messages: ChatMessage[];
@@ -97,7 +96,7 @@ export interface ChatConversationSearchResult extends ChatConversationSummary {
 }
 
 export interface ChatConversationResponse {
-	activeRunId: string | null;
+	activeRequestId: string | null;
 	id: string;
 	title: string;
 	createdAt: string;
@@ -133,7 +132,7 @@ export interface VendorChatHistoryPageResponse {
 
 export function toConversationResponse(conversation: ChatConversation): ChatConversationResponse {
 	return {
-		activeRunId: conversation.activeRunId ?? null,
+		activeRequestId: conversation.activeRequestId ?? null,
 		id: conversation.id,
 		title: conversation.title,
 		createdAt: conversation.createdAt,

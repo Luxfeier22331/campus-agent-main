@@ -5,17 +5,17 @@ import {
 } from "../src/server/ops-status-mappers";
 import type {
 	OpsRequestDetailRow,
+	OpsRequestDiagnosticsRows,
 	OpsRequestListQuery,
+	OpsRequestModelAttemptRow,
 	OpsRequestRow,
-	OpsRunAttemptRow,
-	OpsRunDiagnosticsRows,
-	OpsRunStepRow,
+	OpsRequestStageRow,
 	PgOpsStatusStoreDatabase,
 } from "../src/server/ops-status-types";
 import { OPS_REQUEST_PAGE_SIZE } from "../src/server/ops-status-types";
 
 export function createFakeOpsDb(
-	overrides: { diagnostics?: OpsRunDiagnosticsRows; requestRows?: OpsRequestDetailRow[] } = {},
+	overrides: { diagnostics?: OpsRequestDiagnosticsRows; requestRows?: OpsRequestDetailRow[] } = {},
 ): PgOpsStatusStoreDatabase {
 	const requestRows = overrides.requestRows ?? [requestRow()];
 	const diagnostics = overrides.diagnostics ?? runDiagnostics();
@@ -40,11 +40,8 @@ export function createFakeOpsDb(
 		async getRequest(requestId) {
 			return requestRows.find((row) => row.requestId === requestId) ?? null;
 		},
-		async getRunDiagnostics(runId) {
-			return {
-				attempts: diagnostics.attempts.filter((row) => row.runId === runId),
-				steps: diagnostics.steps.filter((row) => row.runId === runId),
-			};
+		async getRequestDiagnostics(_requestId) {
+			return diagnostics;
 		},
 		async getRequestTrends(since) {
 			const visible = requestRows.filter((row) => row.startedAt >= since);
@@ -146,12 +143,10 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 		attentionPriority: null,
 		attentionReason: null,
 		completedAt: new Date("2026-07-09T07:29:04.000Z"),
-		conversationId: "conv_pg_001",
 		dataUpdatedAt: new Date("2026-07-09T07:29:05.000Z"),
 		durationMs: 4_200,
 		errorCode: null,
 		executionFailureKind: null,
-		executionStepId: "agent.primary",
 		executionStepKind: "agent",
 		executionStepStatus: "completed",
 		failCloseReason: null,
@@ -159,55 +154,42 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 		questionText: "缓考申请需要哪些材料？",
 		questionTruncated: false,
 		requestId: "req_pg_001",
-		runId: "run_pg_001",
 		runStatus: "completed",
-		runtimeVersionsJson: { agentRuntime: "openai_agents_sdk" },
 		startedAt: new Date("2026-07-09T07:29:00.000Z"),
 		status: "completed",
-		surface: "campus_web",
 		terminalReason: "answer",
-		traceId: "trace_pg_001",
-		turnSequence: 3,
-		workflowId: "campus-agent.chat.run_pg_001",
 		...overrides,
 	};
 }
 
 export function runDiagnostics(
-	overrides: { attempts?: OpsRunAttemptRow[]; steps?: OpsRunStepRow[] } = {},
-): OpsRunDiagnosticsRows {
+	overrides: { attempts?: OpsRequestModelAttemptRow[]; steps?: OpsRequestStageRow[] } = {},
+): OpsRequestDiagnosticsRows {
 	return {
-		attempts: overrides.attempts ?? [runAttemptRow()],
-		steps: overrides.steps ?? [runStepRow()],
+		modelAttempts: overrides.attempts ?? [runAttemptRow()],
+		stages: overrides.steps ?? [runStepRow()],
 	};
 }
 
-export function runStepRow(overrides: Partial<OpsRunStepRow> = {}): OpsRunStepRow {
+export function runStepRow(overrides: Partial<OpsRequestStageRow> = {}): OpsRequestStageRow {
 	return {
 		completedAt: new Date("2026-07-09T07:29:03.800Z"),
-		parentStepId: "",
-		runId: "run_pg_001",
 		sanitizedPayloadJson: {
 			agent_runtime_release: "agent-runtime@899f251",
 			execution_control_release: "execution-control@a77a046",
 		},
 		startedAt: new Date("2026-07-09T07:29:00.700Z"),
 		status: "completed",
-		stepId: "agent.primary",
 		stepKind: "agent",
-		taskQueue: "campus-agent-agent",
-		tool: "",
 		updatedAt: new Date("2026-07-09T07:29:03.800Z"),
-		workerId: "agent-worker-01",
 		...overrides,
 	};
 }
 
-export function runAttemptRow(overrides: Partial<OpsRunAttemptRow> = {}): OpsRunAttemptRow {
+export function runAttemptRow(
+	overrides: Partial<OpsRequestModelAttemptRow> = {},
+): OpsRequestModelAttemptRow {
 	return {
-		activityAttempt: 1,
-		activityType: "ExecutePrimaryAgent",
-		attempt: 1,
 		cachedInputTokens: 200,
 		completedAt: new Date("2026-07-09T07:29:03.800Z"),
 		durationMs: 3_100,
@@ -217,21 +199,14 @@ export function runAttemptRow(overrides: Partial<OpsRunAttemptRow> = {}): OpsRun
 		modelProvider: "openai-compatible",
 		modelRequestCount: 1,
 		outputTokens: 240,
-		providerResponseId: "resp_pg_001",
-		runId: "run_pg_001",
 		sanitizedPayloadJson: {
 			agent_runtime_release: "agent-runtime@899f251",
 			execution_control_release: "execution-control@a77a046",
 		},
-		scheduleToStartMs: 12,
-		scheduledAt: new Date("2026-07-09T07:29:00.500Z"),
 		startedAt: new Date("2026-07-09T07:29:00.700Z"),
 		status: "completed",
-		stepId: "agent.primary",
-		taskQueue: "campus-agent-agent",
 		terminalReason: "",
 		usageObserved: true,
-		workerId: "agent-worker-01",
 		...overrides,
 	};
 }
@@ -260,31 +235,11 @@ function filterRequestRows(
 					return false;
 				}
 			}
-			if (query.conversationId && row.conversationId !== query.conversationId) {
-				return false;
-			}
 			if (query.requestId && row.requestId !== query.requestId) {
 				return false;
 			}
-			if (query.runId && row.runId !== query.runId) {
-				return false;
-			}
-			if (query.traceId && row.traceId !== query.traceId) {
-				return false;
-			}
-			if (query.workflowId && row.workflowId !== query.workflowId) {
-				return false;
-			}
 			if (query.q) {
-				const text = [
-					row.conversationId,
-					row.errorCode,
-					row.questionPreview,
-					row.requestId,
-					row.runId,
-					row.traceId,
-					row.workflowId,
-				].join(" ");
+				const text = [row.errorCode, row.questionPreview, row.requestId].join(" ");
 				if (!text.toLowerCase().includes(query.q.toLowerCase())) {
 					return false;
 				}

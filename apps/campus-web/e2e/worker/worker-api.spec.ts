@@ -95,7 +95,7 @@ test.describe("campus web worker app-api boundary", () => {
 			{ method: "POST", path: "/api/chat/conversations/conv_e2e/messages/msg_e2e/feedback" },
 			{ method: "DELETE", path: "/api/chat/conversations/conv_e2e/messages/msg_e2e/trailing" },
 			{ method: "POST", path: "/api/chat/requests/stream" },
-			{ method: "POST", path: "/api/chat/runs/run_e2e/cancel" },
+			{ method: "POST", path: "/api/chat/requests/req_e2e/cancel" },
 		]) {
 			const response = await request.fetch(path, {
 				data: method === "GET" ? undefined : {},

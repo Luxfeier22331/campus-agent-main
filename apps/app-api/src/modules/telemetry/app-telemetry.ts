@@ -22,9 +22,6 @@ export function createAppTelemetry(): AppTelemetry {
 					if (detail?.requestId) {
 						scope.setTag("campus.request_id", detail.requestId);
 					}
-					if (detail?.traceId) {
-						scope.setTag("campus.trace_id", detail.traceId);
-					}
 
 					Sentry.captureException(error);
 				});
@@ -37,7 +34,6 @@ export function createAppTelemetry(): AppTelemetry {
 					requestId: input.requestId,
 					status: "accepted",
 					surface: input.surface,
-					traceId: input.traceId,
 				});
 			});
 		},
@@ -48,7 +44,6 @@ export function createAppTelemetry(): AppTelemetry {
 					...(input.requestId === undefined ? {} : { requestId: input.requestId }),
 					route: input.route,
 					surface: input.surface,
-					...(input.traceId === undefined ? {} : { traceId: input.traceId }),
 				});
 			});
 		},
@@ -66,7 +61,6 @@ export function createAppTelemetry(): AppTelemetry {
 					requestId: input.requestId,
 					status: input.status,
 					surface: input.surface,
-					traceId: input.traceId,
 				});
 			});
 		},

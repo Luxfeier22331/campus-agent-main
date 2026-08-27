@@ -21,7 +21,7 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/internal/execution/runs/:runId/input",
+		path: "/api/internal/execution/requests/:requestId/input",
 		callerClass: "machine-internal",
 		admission: "x-app-execution-auth from execution-control",
 	},
@@ -33,7 +33,7 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "PUT",
-		path: "/api/internal/execution/runs/:runId/product-finalization",
+		path: "/api/internal/execution/requests/:requestId/product-finalization",
 		callerClass: "machine-internal",
 		admission: "x-app-product-callback-auth from execution-control",
 	},

@@ -35,26 +35,24 @@ describe("app-api Sentry privacy boundary", () => {
 				headers: { authorization: "Bearer secret" },
 				method: "GET",
 				query_string: "token=secret",
-				url: "https://app-api.internal/api/chat/runs/run_secret?token=secret",
+				url: "https://app-api.internal/api/chat/requests/req_secret?token=secret",
 			},
 			tags: {
 				app: "app-api",
 				"campus.request_id": "req_secret",
-				"campus.trace_id": "trace_secret",
 				surface: "app_api",
 			},
 			type: undefined,
 			user: { email: "student@example.edu", id: "user_secret", ip_address: "127.0.0.1" },
 		} satisfies ErrorEvent);
 
-		expect(event.request).toEqual({ method: "GET", url: "/api/chat/runs/:runId" });
+		expect(event.request).toEqual({ method: "GET", url: "/api/chat/requests/:requestId" });
 		expect(event.breadcrumbs).toEqual([]);
 		expect(event.extra).toBeUndefined();
 		expect(event.user).toBeUndefined();
 		expect(event.tags).toEqual({
 			app: "app-api",
 			"campus.request_id": "req_secret",
-			"campus.trace_id": "trace_secret",
 			surface: "app_api",
 		});
 		expect(event.exception?.values?.[0]?.value).toBe("ProviderError");
@@ -79,7 +77,7 @@ describe("app-api Sentry privacy boundary", () => {
 				},
 				method: "GET",
 				query_string: `query=${rawSentinels[0]}`,
-				url: `/api/chat/runs/run_private?token=${rawSentinels[0]}`,
+				url: `/api/chat/requests/req_private?token=${rawSentinels[0]}`,
 			},
 			tags: {
 				correlation_hash: "a".repeat(64),
@@ -91,7 +89,7 @@ describe("app-api Sentry privacy boundary", () => {
 
 		expect(event.request).toEqual({
 			method: "GET",
-			url: "/api/chat/runs/:runId",
+			url: "/api/chat/requests/:requestId",
 		});
 		expect(event.tags).toEqual({});
 		const serialized = JSON.stringify(event);
@@ -105,18 +103,18 @@ describe("app-api Sentry privacy boundary", () => {
 			data: {
 				"http.request.header.authorization": "Bearer secret",
 				"http.request.method": "GET",
-				"url.full": "https://app-api.internal/api/chat/runs/run_secret?token=secret",
+				"url.full": "https://app-api.internal/api/chat/requests/req_secret?token=secret",
 			},
-			description: "GET https://app-api.internal/api/chat/runs/run_secret?token=secret",
+			description: "GET https://app-api.internal/api/chat/requests/req_secret?token=secret",
 			span_id: "0123456789abcdef",
 			start_timestamp: 1,
 			trace_id: "0123456789abcdef0123456789abcdef",
 		} satisfies SentrySpan);
 
-		expect(span.description).toBe("GET /api/chat/runs/:runId");
+		expect(span.description).toBe("GET /api/chat/requests/:requestId");
 		expect(span.data).toEqual({
 			"http.request.method": "GET",
-			"http.route": "/api/chat/runs/:runId",
+			"http.route": "/api/chat/requests/:requestId",
 		});
 	});
 });

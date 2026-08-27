@@ -69,8 +69,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 					payload: request.argumentsJson,
 					access_context: {
 						activity_attempt: request.activityAttempt ?? 1,
-						run_id: request.runId,
-						trace_id: request.traceId,
+						request_id: request.requestId,
 						invocation_id: request.invocationId,
 					},
 				}),
@@ -152,8 +151,8 @@ function failedToolResult(
 function toolResultRef(request: ToolExecutionRequest): string {
 	const invocation = request.invocationId?.trim();
 	return invocation
-		? `agent-runtime://${request.runId}/tools/${request.tool.name}/${encodeURIComponent(invocation)}`
-		: `agent-runtime://${request.runId}/tools/${request.tool.name}`;
+		? `agent-runtime://${request.requestId}/tools/${request.tool.name}/${encodeURIComponent(invocation)}`
+		: `agent-runtime://${request.requestId}/tools/${request.tool.name}`;
 }
 
 function throwIfRunAborted(signal: AbortSignal | undefined, fallback: unknown): void {

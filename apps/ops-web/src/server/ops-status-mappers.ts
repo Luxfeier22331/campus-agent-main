@@ -6,18 +6,12 @@ import {
 	type OpsRequestListView,
 	type OpsRequestSummary,
 } from "../shared/ops-contract.ts";
-import {
-	type OpsObservabilityLinkAllowlist,
-	toLangfuseExternalLink,
-	toSentryExternalLink,
-	toTemporalExternalLink,
-} from "./ops-external-links.ts";
 import type {
 	OpsRequestDetailRow,
+	OpsRequestDiagnosticsRows,
 	OpsRequestListQuery,
 	OpsRequestRow,
 	OpsRequestSummaryTotals,
-	OpsRunDiagnosticsRows,
 } from "./ops-status-types.ts";
 
 const TERMINAL_STATUSES = new Set<OpsRequestSummary["status"]>([
@@ -50,21 +44,18 @@ const ProductSourcePartSchema = z.object({
 	type: z.literal("source_items"),
 });
 
-export async function toRequestDetail(
+export function toRequestDetail(
 	row: OpsRequestDetailRow,
-	diagnostics: OpsRunDiagnosticsRows,
-	observabilityLinks?: OpsObservabilityLinkAllowlist,
+	diagnostics: OpsRequestDiagnosticsRows,
 	generatedAt = new Date(),
 	campusWebPublicOrigin?: string,
-): Promise<OpsRequestDetailResponse> {
+): OpsRequestDetailResponse {
 	const status = normalizeRequestStatus(row.status);
-	const runId = normalizeNullableString(row.runId);
 	return {
 		execution: toExecutionDiagnostics(row, diagnostics),
 		generatedAt: generatedAt.toISOString(),
 		question: {
 			text: row.questionText,
-			turnSequence: row.turnSequence,
 		},
 		request: {
 			completedAt: row.completedAt?.toISOString() ?? null,
@@ -75,21 +66,6 @@ export async function toRequestDetail(
 			status,
 		},
 		result: toProductResult(row, status, campusWebPublicOrigin),
-		technical: {
-			correlationIds: {
-				conversationId: row.conversationId,
-				requestId: row.requestId,
-				runId,
-				traceId: row.traceId,
-				workflowId: normalizeNullableString(row.workflowId),
-			},
-			externalLinks: await normalizeExternalLinks(
-				observabilityLinks,
-				row.traceId,
-				normalizeNullableString(row.workflowId),
-			),
-			runtimeVersions: normalizeJsonRecord(row.runtimeVersionsJson),
-		},
 	};
 }
 
@@ -100,11 +76,10 @@ export function toRequestSummary(row: OpsRequestRow): OpsRequestSummary {
 		completedAt: row.completedAt?.toISOString() ?? null,
 		durationMs: row.durationMs ?? null,
 		executionStage:
-			row.executionStepId && row.executionStepKind && row.executionStepStatus
+			row.executionStepKind && row.executionStepStatus
 				? {
 						kind: row.executionStepKind,
 						status: row.executionStepStatus,
-						stepId: row.executionStepId,
 					}
 				: null,
 		failureKind: normalizeNullableString(row.executionFailureKind),
@@ -120,11 +95,7 @@ export function toRequestSummary(row: OpsRequestRow): OpsRequestSummary {
 	};
 }
 
-export function matchesRequestQuery(
-	request: OpsRequestSummary,
-	query: OpsRequestListQuery,
-	correlationIds?: OpsRequestDetailResponse["technical"]["correlationIds"],
-) {
+export function matchesRequestQuery(request: OpsRequestSummary, query: OpsRequestListQuery) {
 	if (requestListView(query) === "attention" && request.attentionReason === null) {
 		return false;
 	}
@@ -134,19 +105,7 @@ export function matchesRequestQuery(
 	if (query.requestId && request.requestId !== query.requestId) {
 		return false;
 	}
-	if (query.conversationId && correlationIds?.conversationId !== query.conversationId) {
-		return false;
-	}
-	if (query.runId && correlationIds?.runId !== query.runId) {
-		return false;
-	}
-	if (query.traceId && correlationIds?.traceId !== query.traceId) {
-		return false;
-	}
-	if (query.workflowId && correlationIds?.workflowId !== query.workflowId) {
-		return false;
-	}
-	if (query.q && !requestSearchText(request, correlationIds).includes(query.q.toLowerCase())) {
+	if (query.q && !requestSearchText(request).includes(query.q.toLowerCase())) {
 		return false;
 	}
 	return true;
@@ -424,105 +383,88 @@ function normalizeProductSources(
 
 function toExecutionDiagnostics(
 	row: OpsRequestDetailRow,
-	diagnostics: OpsRunDiagnosticsRows,
+	diagnostics: OpsRequestDiagnosticsRows,
 ): OpsRequestDetailResponse["execution"] {
-	const attemptsByStep = new Map<
-		string,
-		OpsRequestDetailResponse["execution"]["steps"][number]["attempts"]
-	>();
-	for (const attempt of diagnostics.attempts) {
-		const attempts = attemptsByStep.get(attempt.stepId) ?? [];
-		const payload = isRecord(attempt.sanitizedPayloadJson) ? attempt.sanitizedPayloadJson : {};
-		attempts.push({
-			activityAttempt: readDbInteger(attempt.activityAttempt, "activityAttempt"),
-			activityType: normalizeNullableString(attempt.activityType),
-			attempt: readDbInteger(attempt.attempt, "attempt"),
-			completedAt: attempt.completedAt?.toISOString() ?? null,
-			durationMs: readDbInteger(attempt.durationMs, "durationMs"),
-			failure: {
-				agentRuntimeHttpStatus: readHTTPStatus(payload.agent_runtime_http_status),
-				failCloseReason: normalizeNullableString(attempt.failCloseReason),
-				kind: normalizeNullableString(payload.failure_kind),
-				runtimeErrorCode: normalizeNullableString(payload.agent_runtime_error_code),
-				terminalReason: normalizeNullableString(attempt.terminalReason),
-			},
-			modelName: normalizeNullableString(attempt.modelName),
-			modelProvider: normalizeNullableString(attempt.modelProvider),
-			modelRequestCount: readDbInteger(attempt.modelRequestCount, "modelRequestCount"),
-			providerResponseId: normalizeNullableString(attempt.providerResponseId),
-			scheduleToStartMs: readDbInteger(attempt.scheduleToStartMs, "scheduleToStartMs"),
-			scheduledAt: attempt.scheduledAt?.toISOString() ?? null,
-			startedAt: attempt.startedAt?.toISOString() ?? null,
-			status: attempt.status,
-			taskQueue: normalizeNullableString(attempt.taskQueue),
-			tokens: attempt.usageObserved
-				? {
-						cachedInput: readDbInteger(attempt.cachedInputTokens, "cachedInputTokens"),
-						input: readDbInteger(attempt.inputTokens, "inputTokens"),
-						output: readDbInteger(attempt.outputTokens, "outputTokens"),
-					}
-				: { cachedInput: null, input: null, output: null },
-			workerId: normalizeNullableString(attempt.workerId),
-		});
-		attemptsByStep.set(attempt.stepId, attempts);
-	}
-
-	const steps = diagnostics.steps.map((step) => {
-		const payload = isRecord(step.sanitizedPayloadJson) ? step.sanitizedPayloadJson : {};
+	const stages = diagnostics.stages.map((stage) => {
+		const payload = isRecord(stage.sanitizedPayloadJson) ? stage.sanitizedPayloadJson : {};
 		return {
-			attempts: attemptsByStep.get(step.stepId) ?? [],
-			completedAt: step.completedAt?.toISOString() ?? null,
+			completedAt: stage.completedAt?.toISOString() ?? null,
+			durationMs: stageDurationMs(stage.startedAt, stage.completedAt),
 			failureKind: normalizeNullableString(payload.failure_kind),
-			kind: step.stepKind,
-			parentStepId: normalizeNullableString(step.parentStepId),
-			startedAt: step.startedAt?.toISOString() ?? null,
-			status: step.status,
-			stepId: step.stepId,
-			taskQueue: normalizeNullableString(step.taskQueue),
-			tool: normalizeNullableString(step.tool),
-			workerId: normalizeNullableString(step.workerId),
+			kind: stage.stepKind,
+			startedAt: stage.startedAt?.toISOString() ?? null,
+			status: stage.status,
 		};
 	});
-	const failedAttempt = [...steps]
+	const failedAttempt = [...diagnostics.modelAttempts].reverse().find((attempt) => {
+		const payload = isRecord(attempt.sanitizedPayloadJson) ? attempt.sanitizedPayloadJson : {};
+		return (
+			attempt.status === "failed" ||
+			normalizeNullableString(payload.failure_kind) !== null ||
+			normalizeNullableString(payload.agent_runtime_error_code) !== null
+		);
+	});
+	const failedAttemptPayload = isRecord(failedAttempt?.sanitizedPayloadJson)
+		? failedAttempt.sanitizedPayloadJson
+		: {};
+	const failedStage = [...stages]
 		.reverse()
-		.flatMap((step) => [...step.attempts].reverse())
+		.find((stage) => stage.status === "failed" || stage.failureKind !== null);
+	const modelAttempt = [...diagnostics.modelAttempts]
+		.reverse()
 		.find(
 			(attempt) =>
-				attempt.status === "failed" ||
-				attempt.failure.kind !== null ||
-				attempt.failure.runtimeErrorCode !== null,
+				normalizeNullableString(attempt.modelName) !== null ||
+				normalizeNullableString(attempt.modelProvider) !== null,
 		);
-	const failedStep = [...steps]
-		.reverse()
-		.find((step) => step.status === "failed" || step.failureKind !== null);
+	const usageAttempts = diagnostics.modelAttempts.filter((attempt) => attempt.usageObserved);
+	const inputTokens = sumAttemptField(usageAttempts, "inputTokens");
+	const cachedInputTokens = sumAttemptField(usageAttempts, "cachedInputTokens");
+	const outputTokens = sumAttemptField(usageAttempts, "outputTokens");
 
 	return {
 		failure: {
-			agentRuntimeHttpStatus: failedAttempt?.failure.agentRuntimeHttpStatus ?? null,
+			agentRuntimeHttpStatus: readHTTPStatus(failedAttemptPayload.agent_runtime_http_status),
 			failCloseReason:
-				failedAttempt?.failure.failCloseReason ?? normalizeNullableString(row.failCloseReason),
+				normalizeNullableString(failedAttempt?.failCloseReason) ??
+				normalizeNullableString(row.failCloseReason),
 			kind:
-				failedAttempt?.failure.kind ??
-				failedStep?.failureKind ??
+				normalizeNullableString(failedAttemptPayload.failure_kind) ??
+				failedStage?.failureKind ??
 				normalizeNullableString(row.executionFailureKind) ??
 				normalizeNullableString(row.errorCode),
-			runtimeErrorCode: failedAttempt?.failure.runtimeErrorCode ?? null,
+			runtimeErrorCode: normalizeNullableString(failedAttemptPayload.agent_runtime_error_code),
 			terminalReason:
-				failedAttempt?.failure.terminalReason ?? normalizeNullableString(row.terminalReason),
+				normalizeNullableString(failedAttempt?.terminalReason) ??
+				normalizeNullableString(row.terminalReason),
+		},
+		model: {
+			name: normalizeNullableString(modelAttempt?.modelName),
+			provider: normalizeNullableString(modelAttempt?.modelProvider),
+			requestCount: diagnostics.modelAttempts.reduce(
+				(total, attempt) => total + readDbInteger(attempt.modelRequestCount, "modelRequestCount"),
+				0,
+			),
+			tokens: {
+				cachedInput: usageAttempts.length > 0 ? cachedInputTokens : null,
+				input: usageAttempts.length > 0 ? inputTokens : null,
+				output: usageAttempts.length > 0 ? outputTokens : null,
+				total: usageAttempts.length > 0 ? inputTokens + outputTokens : null,
+			},
 		},
 		releases: {
 			agentRuntime: diagnosticPayloadString(diagnostics, "agent_runtime_release"),
 			executionControl: diagnosticPayloadString(diagnostics, "execution_control_release"),
 		},
-		steps,
+		stages,
 	};
 }
 
 function diagnosticPayloadString(
-	diagnostics: OpsRunDiagnosticsRows,
+	diagnostics: OpsRequestDiagnosticsRows,
 	field: "agent_runtime_release" | "execution_control_release",
 ): string | null {
-	for (const record of [...diagnostics.attempts, ...diagnostics.steps].reverse()) {
+	for (const record of [...diagnostics.modelAttempts, ...diagnostics.stages].reverse()) {
 		if (!isRecord(record.sanitizedPayloadJson)) {
 			continue;
 		}
@@ -532,6 +474,24 @@ function diagnosticPayloadString(
 		}
 	}
 	return null;
+}
+
+function stageDurationMs(startedAt: Date | null, completedAt: Date | null): number | null {
+	if (!(startedAt && completedAt)) {
+		return null;
+	}
+	const durationMs = completedAt.getTime() - startedAt.getTime();
+	if (durationMs < 0) {
+		throw new Error("Execution stage completed before it started");
+	}
+	return durationMs;
+}
+
+function sumAttemptField(
+	attempts: OpsRequestDiagnosticsRows["modelAttempts"],
+	field: "cachedInputTokens" | "inputTokens" | "outputTokens",
+): number {
+	return attempts.reduce((total, attempt) => total + readDbInteger(attempt[field], field), 0);
 }
 
 function readHTTPStatus(value: unknown): number | null {
@@ -613,47 +573,8 @@ function deriveRequestLifecyclePhase(
 	return status === "PENDING" ? "QUEUED" : "RUNNING";
 }
 
-async function normalizeExternalLinks(
-	allowlist: OpsObservabilityLinkAllowlist | undefined,
-	productTraceId: string,
-	workflowId: string | null,
-): Promise<OpsRequestDetailResponse["technical"]["externalLinks"]> {
-	const temporalLink = toTemporalExternalLink(workflowId, allowlist);
-	const langfuseLink = await toLangfuseExternalLink(productTraceId, allowlist);
-	return [temporalLink, langfuseLink, toSentryExternalLink(allowlist)].filter(
-		(link): link is NonNullable<typeof link> => link !== null,
-	);
-}
-
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-function normalizeJsonRecord(value: unknown): Record<string, JsonValue> {
-	if (!isRecord(value)) {
-		return {};
-	}
-	try {
-		const normalized = JSON.parse(JSON.stringify(value)) as unknown;
-		return isRecord(normalized) ? (normalized as Record<string, JsonValue>) : {};
-	} catch {
-		return {};
-	}
-}
-
-function requestSearchText(
-	request: OpsRequestSummary,
-	correlationIds?: OpsRequestDetailResponse["technical"]["correlationIds"],
-) {
-	return [
-		request.requestId,
-		request.question.preview,
-		correlationIds?.traceId,
-		correlationIds?.runId,
-		correlationIds?.workflowId,
-		correlationIds?.conversationId,
-	]
-		.filter(Boolean)
-		.join(" ")
-		.toLowerCase();
+function requestSearchText(request: OpsRequestSummary) {
+	return [request.requestId, request.question.preview].join(" ").toLowerCase();
 }
 
 function normalizeNullableString(value: unknown) {

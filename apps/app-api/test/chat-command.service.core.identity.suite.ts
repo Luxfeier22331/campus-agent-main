@@ -13,8 +13,6 @@ import {
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
-const EXPECTED_LANGFUSE_TRACE_PARENT = "00-5f8392c82813604cd79a0f7eb8b7306a-0000000000000001-01";
-
 export function registerChatCommandServiceCoreIdentitySuite(): void {
 	it("derives safety identifier from principal first, then app-owned session id, else null", () => {
 		const principal = createPrincipal();
@@ -90,7 +88,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 					],
 				},
 				status: "completed",
-				traceId: "trace_0001",
 			}),
 		};
 
@@ -129,8 +126,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				safetyIdentifier: expectedSafetyIdentifier,
 				surface: "campus_web",
 				tenantId: "tenant-main",
-				traceHeaders: { traceParent: EXPECTED_LANGFUSE_TRACE_PARENT },
-				traceId: "trace_0001",
 				userGoal: "图书馆开放到几点？",
 			}),
 		);
@@ -138,7 +133,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			expect.objectContaining({
 				requestId: "req_0001",
 				surface: "campus_web",
-				traceId: "trace_0001",
 			}),
 		);
 		expect(acceptedWrites).toHaveLength(1);
@@ -170,7 +164,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
 				status: "accepted",
-				traceId: "trace_0001",
 			},
 			requestObservabilityFact: {
 				requestId: "req_0001",
@@ -229,16 +222,13 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 					kind: "answer",
 					requestId: "req_0001",
 					text: "图书馆开放到 22:00。",
-					traceId: "trace_0001",
 				},
 			},
 			requestId: "req_0001",
-			traceId: "trace_0001",
 		});
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				traceId: "trace_0001",
 			}),
 		);
 		expect(telemetry.configureRequestOutcome).toHaveBeenCalledWith(
@@ -260,7 +250,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 				result: {},
 				status: "completed",
-				traceId: "trace_0001",
 			}),
 		};
 

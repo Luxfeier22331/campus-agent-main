@@ -8,17 +8,13 @@ describe("chat run routes", () => {
 	it("maps durable queued events into resume stream queued events", () => {
 		const event = __chatRunRoutesTestables.toChatRunResumeStreamEvent({
 			event: {
-				eventId: "event-run-queued",
 				eventType: "execution.queued",
 				occurredAt: "2026-06-04T01:02:03.000Z",
 				payload: {
-					request_id: "req_0001",
 					status: "queued",
-					trace_id: "trace_0001",
 				},
-				runId: "run_0001",
+				requestId: "req_0001",
 				sequence: 1,
-				visibility: "browser",
 			},
 			run: {
 				acceptedAt: "2026-06-04T01:02:03.000Z",
@@ -28,19 +24,15 @@ describe("chat run routes", () => {
 				startedAt: null,
 				phase: "queued",
 				requestId: "req_0001",
-				runId: "run_0001",
 				status: "queued",
-				traceId: "trace_0001",
 			},
 		});
 
 		expect(event).toMatchObject({
 			data: {
 				requestId: "req_0001",
-				runId: "run_0001",
 				sequence: 1,
 				status: "queued",
-				traceId: "trace_0001",
 			},
 			event: "execution.queued",
 		});
@@ -49,24 +41,15 @@ describe("chat run routes", () => {
 	it("maps durable answer deltas into resume stream answer delta events", () => {
 		const event = __chatRunRoutesTestables.toChatRunResumeStreamEvent({
 			event: {
-				eventId: "event-answer-delta",
 				eventType: "answer.delta",
 				occurredAt: "2026-06-04T01:02:04.000Z",
 				payload: {
-					accumulated_text: "国家奖学金每学年评审一次。",
 					chunk_index: 2,
 					delta: "每学年评审一次。",
 					message_id: "msg_answer_stream",
-					model_name: "gpt-5.5",
-					model_provider: "openai",
-					provider_request_ref: "provider://requests/run_0001/answer-writer",
-					request_id: "req_0001",
-					schema_version: "run_answer_delta.v1",
-					trace_id: "trace_0001",
 				},
-				runId: "run_0001",
+				requestId: "req_0001",
 				sequence: 2,
-				visibility: "browser",
 			},
 			run: {
 				acceptedAt: "2026-06-04T01:02:03.000Z",
@@ -76,9 +59,7 @@ describe("chat run routes", () => {
 				startedAt: "2026-06-04T01:02:04.000Z",
 				phase: "running",
 				requestId: "req_0001",
-				runId: "run_0001",
 				status: "streaming",
-				traceId: "trace_0001",
 			},
 		});
 
@@ -87,10 +68,8 @@ describe("chat run routes", () => {
 				delta: "每学年评审一次。",
 				messageId: "msg_answer_stream",
 				requestId: "req_0001",
-				runId: "run_0001",
 				sequence: 2,
 				status: "streaming",
-				traceId: "trace_0001",
 			},
 			event: "answer.delta",
 		});
@@ -99,7 +78,6 @@ describe("chat run routes", () => {
 	it("maps durable run failed nested terminal errors into resume stream events", () => {
 		const event = __chatRunRoutesTestables.toChatRunResumeStreamEvent({
 			event: {
-				eventId: "event-run-failed",
 				eventType: "request.failed",
 				occurredAt: "2026-06-04T01:02:06.000Z",
 				payload: {
@@ -109,14 +87,11 @@ describe("chat run routes", () => {
 						retryable: true,
 					},
 					failure_kind: "agent_runtime_timeout",
-					request_id: "req_0001",
 					status: "failed",
 					terminal_reason: "worker_unavailable",
-					trace_id: "trace_0001",
 				},
-				runId: "run_0001",
+				requestId: "req_0001",
 				sequence: 3,
-				visibility: "browser",
 			},
 			run: {
 				acceptedAt: "2026-06-04T01:02:03.000Z",
@@ -126,10 +101,8 @@ describe("chat run routes", () => {
 				startedAt: "2026-06-04T01:02:04.000Z",
 				phase: "failed",
 				requestId: "req_0001",
-				runId: "run_0001",
 				status: "failed",
 				terminalReason: "worker_unavailable",
-				traceId: "trace_0001",
 			},
 		});
 
@@ -141,9 +114,7 @@ describe("chat run routes", () => {
 					retryable: true,
 				},
 				requestId: "req_0001",
-				runId: "run_0001",
 				status: "failed",
-				traceId: "trace_0001",
 			},
 			event: "request.failed",
 		});

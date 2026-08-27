@@ -21,7 +21,6 @@ HTTP 错误统一返回：
     "code": "validation_failed",
     "message": "prompt is required.",
     "retryable": false,
-    "traceId": "trace_01",
     "requestId": null,
     "details": null
   }
@@ -33,7 +32,6 @@ HTTP 错误统一返回：
 | `code` | 稳定、使用 `snake_case` 的机器可读分类 |
 | `message` | 面向调用方的简短说明，不包含内部响应或凭据 |
 | `retryable` | 调用方是否可以在不修改请求的情况下重试 |
-| `traceId` | 已建立请求 trace 时返回的关联标识 |
 | `requestId` | 已分配产品请求标识时返回，否则为 `null` |
 | `details` | 可选的有界结构化信息，不接受任意异常对象 |
 
@@ -59,7 +57,7 @@ HTTP 错误统一返回：
 
 - 准入前失败使用非 `2xx` HTTP 错误结构，不创建产品请求；
 - 准入后的运行失败属于已存在请求的终态，通过同步答案结果或 SSE `request.failed` 表达；
-- 已创建的请求保留 `requestId`、`traceId` 与 run 关联，不能改写为新的 HTTP 请求；
+- 已创建的请求保留同一个 `requestId`，不能改写为新的 HTTP 请求；
 - 追问和资料边界说明是正常助手正文，不自动等于 HTTP 错误；执行层审批、拒绝和失败使用各自终态。
 
 ## 可执行来源

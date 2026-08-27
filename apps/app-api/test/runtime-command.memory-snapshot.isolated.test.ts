@@ -25,13 +25,12 @@ function createAcceptanceHarness(requestKind: "internal_eval" | "public_chat") {
 	const freezeDurableRun = vi.fn(() => ({
 		executionInputJson: '{"requestId":"req_01HQ"}',
 		executionInputSha256: "b".repeat(64),
-		turnId: "turn_01HQ",
 	}));
 	const conversationForUpdate = vi.fn().mockResolvedValue([
 		{
 			activeBranchId: conversation.activeBranchId,
 			activeMessageId: conversation.activeMessageId,
-			activeRunId: conversation.activeRunId,
+			activeRequestId: conversation.activeRequestId,
 			activeTurnSequence: conversation.activeTurnSequence,
 			id: conversation.id,
 			updatedAt: new Date(conversation.updatedAt),
@@ -85,12 +84,9 @@ function createAcceptanceHarness(requestKind: "internal_eval" | "public_chat") {
 		requestFingerprintSha256: null,
 		requestId: "req_01HQ",
 		requestKind,
-		runId: "run_01HQ",
 		safetyIdentifier: "safety_01HQ",
 		surface: requestKind === "public_chat" ? "campus_web" : "eval_benchmark",
-		traceId: "trace_01HQ",
 		turnSequence: 1,
-		turnId: "turn_01HQ",
 		userMessageId: "msg_user_01HQ",
 	});
 	return { conversationForUpdate, freezeDurableRun, store, tx, write };

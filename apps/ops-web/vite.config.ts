@@ -23,13 +23,7 @@ export default defineConfig({
 		},
 	},
 	ssr: {
-		noExternal: [
-			"@campus-agent/dining",
-			"@campus-agent/langfuse-identity",
-			"@campus-agent/ui",
-			"campus-contracts",
-			"fast-xml-parser",
-		],
+		noExternal: ["@campus-agent/dining", "@campus-agent/ui", "campus-contracts", "fast-xml-parser"],
 	},
 });
 

@@ -44,12 +44,11 @@ describe("campus Sentry privacy boundary", () => {
 				headers: { authorization: "Bearer secret" },
 				method: "POST",
 				query_string: "token=secret",
-				url: "https://campus.muc.wiki/api/chat/runs/run_secret/cancel?token=secret",
+				url: "https://campus.muc.wiki/api/chat/requests/req_secret/cancel?token=secret",
 			},
 			tags: {
 				app: "campus-web",
 				"campus.request_id": "req_secret",
-				"campus.trace_id": "trace_secret",
 				message_id: "msg_secret",
 				surface: "campus-web",
 			},
@@ -57,13 +56,12 @@ describe("campus Sentry privacy boundary", () => {
 			user: { email: "student@example.edu", id: "user_secret" },
 		} satisfies ErrorEvent);
 
-		expect(event.request).toEqual({ method: "POST", url: "/api/chat/runs/:runId/cancel" });
+		expect(event.request).toEqual({ method: "POST", url: "/api/chat/requests/:requestId/cancel" });
 		expect(event.extra).toBeUndefined();
 		expect(event.user).toBeUndefined();
 		expect(event.tags).toEqual({
 			app: "campus-web",
 			"campus.request_id": "req_secret",
-			"campus.trace_id": "trace_secret",
 			surface: "campus-web",
 		});
 		expect(event.exception?.values?.[0]?.value).toBe("ProviderError");
@@ -88,7 +86,7 @@ describe("campus Sentry privacy boundary", () => {
 				},
 				method: "POST",
 				query_string: `query=${rawSentinels[0]}`,
-				url: `/api/chat/runs/run_private/cancel?token=${rawSentinels[0]}`,
+				url: `/api/chat/requests/req_private/cancel?token=${rawSentinels[0]}`,
 			},
 			tags: {
 				correlation_hash: "a".repeat(64),
@@ -100,7 +98,7 @@ describe("campus Sentry privacy boundary", () => {
 
 		expect(event.request).toEqual({
 			method: "POST",
-			url: "/api/chat/runs/:runId/cancel",
+			url: "/api/chat/requests/:requestId/cancel",
 		});
 		expect(event.tags).toEqual({});
 		const serialized = JSON.stringify(event);

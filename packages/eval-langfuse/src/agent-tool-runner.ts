@@ -7,11 +7,7 @@ import {
 } from "./execution-projection";
 import { stableId } from "./identifiers";
 import { type JsonObject, mapping, optionalString, stringField } from "./json";
-import {
-	type AgentProductEvalItem,
-	type AgentTerminalResult,
-	writeAgentProductEvalResult,
-} from "./product-result";
+import { type AgentProductEvalItem, writeAgentProductEvalResult } from "./product-result";
 
 interface ProductStreamEvent {
 	data: JsonObject;
@@ -22,9 +18,13 @@ interface ProductRunSummary {
 	conversationId: string;
 	phase: string;
 	requestId: string;
-	runId: string;
 	status: string;
-	traceId: string;
+}
+
+interface AgentTerminalResult {
+	answer: string;
+	conversationId: string;
+	requestId: string;
 }
 
 interface ProductRunEventPage {
@@ -84,10 +84,12 @@ export async function runAgentToolEval(input: AgentToolEvalInput): Promise<JsonO
 			authSecret: executionControlAuthSecret,
 			baseUrl: executionControlBaseUrl,
 			fetchImpl,
-			runId: terminal.runId,
-			terminal,
+			requestId: terminal.requestId,
 		});
-		items.push({ case: caseItem, projection, terminal });
+		if (projection.answer !== terminal.answer) {
+			throw new Error("execution eval projection answer does not match the product result");
+		}
+		items.push({ case: caseItem, ...projection });
 	}
 
 	writeAgentProductEvalResult(input.outputPath, { evalRunId, items });
@@ -126,43 +128,35 @@ async function submitChatStream(input: {
 		throw new Error("chat stream response must be text/event-stream");
 	}
 
-	let acceptedRunId: string | null = null;
 	let acceptedRequestId: string | null = null;
-	let acceptedTraceId: string | null = null;
 	for await (const event of parseSse(response)) {
 		if (event.event === "request.accepted") {
-			acceptedRunId = optionalString(event.data.runId);
 			acceptedRequestId = optionalString(event.data.requestId);
-			acceptedTraceId = optionalString(event.data.traceId);
 			continue;
 		}
 		if (event.event === "request.failed" || event.event === "request.cancelled") {
 			throw new Error(`chat stream reached ${event.event}: ${JSON.stringify(event.data)}`);
 		}
 		if (event.event === "request.completed") {
-			return terminalAnswer(event, acceptedRunId);
+			return terminalAnswer(event, acceptedRequestId);
 		}
 	}
-	if (acceptedRunId) {
+	if (acceptedRequestId) {
 		return recoverAcceptedRun({
-			acceptedRequestId,
-			acceptedTraceId,
 			baseUrl: input.baseUrl,
 			cookieHeader: input.cookieHeader,
 			fetchImpl: input.fetchImpl,
-			runId: acceptedRunId,
+			requestId: acceptedRequestId,
 		});
 	}
 	throw new Error("chat stream ended before request.completed");
 }
 
 async function recoverAcceptedRun(input: {
-	acceptedRequestId: string | null;
-	acceptedTraceId: string | null;
 	baseUrl: string;
 	cookieHeader: string;
 	fetchImpl: typeof fetch;
-	runId: string;
+	requestId: string;
 }): Promise<AgentTerminalResult> {
 	const deadline = Date.now() + ACCEPTED_RUN_RECOVERY_TIMEOUT_MS;
 	let afterSequence = 0;
@@ -173,7 +167,7 @@ async function recoverAcceptedRun(input: {
 			baseUrl: input.baseUrl,
 			cookieHeader: input.cookieHeader,
 			fetchImpl: input.fetchImpl,
-			runId: input.runId,
+			requestId: input.requestId,
 		});
 		lastRun = page.run;
 		afterSequence = Math.max(afterSequence, page.nextSequence);
@@ -193,9 +187,7 @@ async function recoverAcceptedRun(input: {
 	throw new Error(
 		`accepted chat run did not reach a terminal product result within ${ACCEPTED_RUN_RECOVERY_TIMEOUT_MS}ms: ${JSON.stringify(
 			{
-				runId: input.runId,
-				requestId: lastRun?.requestId ?? input.acceptedRequestId,
-				traceId: lastRun?.traceId ?? input.acceptedTraceId,
+				requestId: lastRun?.requestId ?? input.requestId,
 				status: lastRun?.status ?? "unknown",
 			},
 		)}`,
@@ -207,9 +199,12 @@ async function fetchProductRunEvents(input: {
 	baseUrl: string;
 	cookieHeader: string;
 	fetchImpl: typeof fetch;
-	runId: string;
+	requestId: string;
 }): Promise<ProductRunEventPage> {
-	const url = new URL(`/api/chat/runs/${encodeURIComponent(input.runId)}/events`, input.baseUrl);
+	const url = new URL(
+		`/api/chat/requests/${encodeURIComponent(input.requestId)}/events`,
+		input.baseUrl,
+	);
 	url.searchParams.set("after_sequence", String(input.afterSequence));
 	const response = await input.fetchImpl(url, {
 		headers: { accept: "application/json", cookie: input.cookieHeader },
@@ -246,9 +241,7 @@ function parseProductRunSummary(value: unknown): ProductRunSummary {
 		conversationId: stringField(run.conversationId, "run.conversationId"),
 		phase: stringField(run.phase, "run.phase"),
 		requestId: stringField(run.requestId, "run.requestId"),
-		runId: stringField(run.runId, "run.runId"),
 		status: stringField(run.status, "run.status"),
-		traceId: stringField(run.traceId, "run.traceId"),
 	};
 }
 
@@ -286,12 +279,7 @@ async function fetchConversationTerminal(input: {
 		.slice()
 		.reverse()
 		.map((value) => (value && typeof value === "object" && !Array.isArray(value) ? value : null))
-		.find((value) => {
-			if (value?.role !== "assistant" || value.runId !== input.run.runId) {
-				return false;
-			}
-			return !input.run.requestId || value.requestId === input.run.requestId;
-		});
+		.find((value) => value?.role === "assistant" && value.requestId === input.run.requestId);
 	if (!message) {
 		return null;
 	}
@@ -299,9 +287,6 @@ async function fetchConversationTerminal(input: {
 		answer: typeof message.text === "string" ? message.text : "",
 		conversationId: input.run.conversationId,
 		requestId: input.run.requestId,
-		resultKind: stringField(message.kind ?? input.run.status, "assistant message kind"),
-		runId: input.run.runId,
-		traceId: input.run.traceId,
 	};
 }
 
@@ -363,17 +348,22 @@ function parseSseBlock(block: string): ProductStreamEvent | null {
 	return { data: mapping(data, "sse.data"), event };
 }
 
-function terminalAnswer(event: ProductStreamEvent, runId: string | null): AgentTerminalResult {
+function terminalAnswer(
+	event: ProductStreamEvent,
+	acceptedRequestId: string | null,
+): AgentTerminalResult {
 	const answer = mapping(event.data.answer, "request.completed.answer");
 	const conversation = mapping(answer.conversation, "request.completed.answer.conversation");
 	const result = mapping(answer.result, "request.completed.answer.result");
+	const requestId =
+		optionalString(result.requestId) ?? stringField(event.data.requestId, "requestId");
+	if (acceptedRequestId && acceptedRequestId !== requestId) {
+		throw new Error("request.completed requestId does not match request.accepted");
+	}
 	return {
 		answer: typeof result.text === "string" ? result.text : "",
 		conversationId: stringField(conversation.id, "conversation.id"),
-		requestId: optionalString(result.requestId) ?? stringField(event.data.requestId, "requestId"),
-		resultKind: stringField(result.kind, "result.kind"),
-		runId: stringField(runId, "request.accepted.runId"),
-		traceId: optionalString(result.traceId) ?? stringField(event.data.traceId, "traceId"),
+		requestId,
 	};
 }
 
@@ -381,11 +371,13 @@ async function fetchExecutionProjection(input: {
 	authSecret: string;
 	baseUrl: string;
 	fetchImpl: typeof fetch;
-	runId: string;
-	terminal: AgentTerminalResult;
+	requestId: string;
 }): Promise<ExecutionRunEvalProjection> {
 	const response = await input.fetchImpl(
-		new URL(`/internal/execution/runs/${encodeURIComponent(input.runId)}/steps`, input.baseUrl),
+		new URL(
+			`/internal/execution/requests/${encodeURIComponent(input.requestId)}/steps`,
+			input.baseUrl,
+		),
 		{
 			headers: {
 				accept: "application/json",
@@ -401,25 +393,8 @@ async function fetchExecutionProjection(input: {
 		);
 	}
 	const projection = parseExecutionRunEvalProjection((await response.json()) as unknown);
-	assertToolTrajectoryMatchesTerminal(projection, input.terminal);
+	if (projection.requestId !== input.requestId) {
+		throw new Error("execution eval projection request_id does not match the product request");
+	}
 	return projection;
-}
-
-function assertToolTrajectoryMatchesTerminal(
-	projection: ExecutionRunEvalProjection,
-	terminal: AgentTerminalResult,
-): void {
-	const trajectory = projection.toolTrajectory;
-	if (trajectory.run_id !== terminal.runId || projection.runId !== terminal.runId) {
-		throw new Error("tool trajectory run_id does not match accepted runId");
-	}
-	if (trajectory.request_id !== terminal.requestId) {
-		throw new Error("tool trajectory request_id does not match terminal answer");
-	}
-	if (trajectory.trace_id !== terminal.traceId || projection.traceId !== terminal.traceId) {
-		throw new Error("tool trajectory trace_id does not match terminal answer");
-	}
-	if (trajectory.conversation_id && trajectory.conversation_id !== terminal.conversationId) {
-		throw new Error("tool trajectory conversation_id does not match terminal answer");
-	}
 }

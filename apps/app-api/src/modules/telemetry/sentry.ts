@@ -7,7 +7,6 @@ import { type Env, resolveAppName, resolveEnvironment } from "../../config";
 const SAFE_TAGS = new Set([
 	"app",
 	"campus.request_id",
-	"campus.trace_id",
 	"error_code",
 	"route",
 	"runtime",

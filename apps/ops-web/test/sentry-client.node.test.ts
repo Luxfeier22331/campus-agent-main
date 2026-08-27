@@ -5,7 +5,6 @@ import {
 	createSentryClient,
 	createSentryClientFromEnv,
 	SentryUnavailableError,
-	sentryTraceExplorerUrl,
 } from "../src/server/sentry-client";
 
 const input = {
@@ -65,15 +64,11 @@ describe("Sentry client", () => {
 		expect(init.signal).toBeInstanceOf(AbortSignal);
 		expect(response).toMatchObject({
 			dataState: "FRESH",
-			issues: [{ issueId: "450000", projectSlug: "campus-agent-workers" }],
-			limit: 5,
-			requestId: "req_ops_001",
-			source: "SENTRY",
-			truncated: false,
+			issues: [{ eventCount: 1, title: "Issue 0" }],
 		});
 	});
 
-	it("returns five issue summaries and marks a sixth result as truncated", async () => {
+	it("returns at most five error summaries", async () => {
 		const fetchFn = vi
 			.fn()
 			.mockResolvedValue(
@@ -82,7 +77,6 @@ describe("Sentry client", () => {
 		const response = await client(fetchFn).queryRequestIssues(input);
 
 		expect(response.issues).toHaveLength(5);
-		expect(response.truncated).toBe(true);
 	});
 
 	it("represents an empty successful query as no data", async () => {
@@ -107,14 +101,6 @@ describe("Sentry client", () => {
 		);
 	});
 
-	it("rejects issue links from another origin", async () => {
-		const invalid = { ...issue(0), permalink: "https://attacker.example.test/issues/1" };
-		const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify([invalid])));
-		await expect(client(fetchFn).queryRequestIssues(input)).rejects.toBeInstanceOf(
-			SentryUnavailableError,
-		);
-	});
-
 	it("rejects malformed issue event counts", async () => {
 		const invalid = { ...issue(0), count: "3 events" };
 		const fetchFn = vi.fn().mockResolvedValue(new Response(JSON.stringify([invalid])));
@@ -132,14 +118,5 @@ describe("Sentry client", () => {
 
 	it("requires complete environment configuration", () => {
 		expect(() => createSentryClientFromEnv({})).toThrow(SentryUnavailableError);
-	});
-
-	it("builds the official Trace Explorer redirect URL", () => {
-		expect(
-			sentryTraceExplorerUrl({ baseUrl: "https://sentry.example.test", orgSlug: "campus" }),
-		).toBe("https://sentry.example.test/orgredirect/organizations/campus/traces/");
-		expect(
-			sentryTraceExplorerUrl({ baseUrl: "http://sentry.example.test", orgSlug: "campus" }),
-		).toBeNull();
 	});
 });

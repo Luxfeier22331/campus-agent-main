@@ -24,8 +24,6 @@ export const DEFAULT_DURABLE_EVENT_POLLING_POLICY = {
 interface DurableRunEventContext {
 	acceptedAt: string;
 	requestId: string;
-	runId: string | null;
-	traceId: string;
 }
 
 type DurableTerminalSourceEvent =
@@ -75,10 +73,8 @@ function answerDeltaEvent(input: {
 			messageId: assistantMessage.id,
 			occurredAt: input.occurredAt,
 			requestId: input.context.requestId,
-			runId: input.context.runId,
 			...(input.sequence === undefined ? {} : { sequence: input.sequence }),
 			status: "streaming",
-			traceId: input.context.traceId,
 		},
 		event: "answer.delta",
 	};
@@ -95,7 +91,6 @@ function chatStreamEventsForFinalized(input: {
 	const terminal = toTerminalChatStreamEvent({
 		occurredAt: input.occurredAt,
 		response: input.finalized,
-		runId: input.context.runId,
 		...(input.sequence === undefined ? {} : { sequence: input.sequence }),
 		...(input.sourceEvent ? { sourceEvent: input.sourceEvent } : {}),
 	});
@@ -121,28 +116,16 @@ function answerDeltaEventFromDurableRunEvent(
 	assertDurableEventRunMatches(
 		context,
 		event,
-		"Durable answer delta event run_id does not match the accepted run.",
+		"Durable answer delta event request_id does not match the accepted request.",
 	);
 	const requestId =
 		typeof event.payload.request_id === "string" && event.payload.request_id.trim()
 			? event.payload.request_id.trim()
 			: context.requestId;
-	const traceId =
-		typeof event.payload.trace_id === "string" && event.payload.trace_id.trim()
-			? event.payload.trace_id.trim()
-			: context.traceId;
 	if (requestId !== context.requestId) {
 		throw new ExecutionControlTransportError({
 			code: "execution_control_invalid_response",
 			message: "Durable answer delta event request_id does not match the accepted request.",
-			retryable: true,
-			status: 502,
-		});
-	}
-	if (traceId !== context.traceId) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
-			message: "Durable answer delta event trace_id does not match the accepted request.",
 			retryable: true,
 			status: 502,
 		});
@@ -167,10 +150,8 @@ function answerDeltaEventFromDurableRunEvent(
 			messageId,
 			occurredAt: event.occurredAt,
 			requestId: context.requestId,
-			runId: context.runId,
 			sequence: event.sequence,
 			status: "streaming",
-			traceId: context.traceId,
 		},
 		event: "answer.delta",
 	};
@@ -211,7 +192,7 @@ function assertDurableEventRunMatches(
 	event: ExecutionControlRunEvent,
 	message: string,
 ) {
-	if (event.runId !== context.runId) {
+	if (event.requestId !== context.requestId) {
 		throw new ExecutionControlTransportError({
 			code: "execution_control_invalid_response",
 			message,
@@ -228,14 +209,12 @@ export function lifecycleEventFromDurableRunEvent(
 	assertDurableEventRunMatches(
 		context,
 		event,
-		"Durable run event run_id does not match the accepted run.",
+		"Durable request event request_id does not match the accepted request.",
 	);
 	const baseData = {
 		occurredAt: event.occurredAt,
 		requestId: context.requestId,
-		runId: context.runId,
 		sequence: event.sequence,
-		traceId: context.traceId,
 	};
 	if (event.eventType === "run.queued") {
 		return {
@@ -313,7 +292,7 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 		assertDurableEventRunMatches(
 			context,
 			event,
-			"Durable run canceled event run_id does not match the accepted run.",
+			"Durable request canceled event request_id does not match the accepted request.",
 		);
 		return {
 			response: executionFinalizationErrorResponse({
@@ -321,7 +300,6 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 				message: "The request was cancelled.",
 				retryable: false,
 				status: "cancelled",
-				traceId: context.traceId,
 			}),
 			sourceEvent: "execution.cancelled",
 		};
@@ -330,20 +308,12 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 		assertDurableEventRunMatches(
 			context,
 			event,
-			"Durable run failed event run_id does not match the accepted run.",
+			"Durable request failed event request_id does not match the accepted request.",
 		);
 		if (event.payload.request_id !== context.requestId) {
 			throw new ExecutionControlTransportError({
 				code: "execution_control_invalid_response",
 				message: "Durable run failed event request_id does not match the accepted request.",
-				retryable: true,
-				status: 502,
-			});
-		}
-		if (event.payload.trace_id !== context.traceId) {
-			throw new ExecutionControlTransportError({
-				code: "execution_control_invalid_response",
-				message: "Durable run failed event trace_id does not match the accepted request.",
 				retryable: true,
 				status: 502,
 			});
@@ -381,7 +351,6 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 				code,
 				message: EXECUTION_CONTROL_FAILURE_MESSAGE,
 				retryable,
-				traceId: context.traceId,
 			}),
 			sourceEvent: "execution.failed",
 		};
@@ -392,7 +361,7 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 	assertDurableEventRunMatches(
 		context,
 		event,
-		"Durable finalization event run_id does not match the accepted run.",
+		"Durable finalization event request_id does not match the accepted request.",
 	);
 	if (event.visibility !== "internal") {
 		return null;
@@ -401,14 +370,6 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 		throw new ExecutionControlTransportError({
 			code: "execution_control_invalid_response",
 			message: "Durable finalization event request_id does not match the accepted request.",
-			retryable: true,
-			status: 502,
-		});
-	}
-	if (event.payload.trace_id !== context.traceId) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
-			message: "Durable finalization event trace_id does not match the accepted request.",
 			retryable: true,
 			status: 502,
 		});
@@ -476,7 +437,7 @@ function updateLastSequence(
 	assertDurableEventRunMatches(
 		context,
 		runEvent,
-		"Durable run event run_id does not match the accepted run.",
+		"Durable request event request_id does not match the accepted request.",
 	);
 	if (!Number.isInteger(runEvent.sequence) || runEvent.sequence <= lastSequence) {
 		throw new ExecutionControlTransportError({
@@ -501,12 +462,11 @@ function nextSequenceFromPage(lastSequence: number, page: ExecutionControlRunEve
 	return page.nextSequence;
 }
 
-function durableEventWaitTimeoutResponse(context: DurableRunEventContext): ToolExecutionResponse {
+function durableEventWaitTimeoutResponse(): ToolExecutionResponse {
 	return executionFinalizationErrorResponse({
 		code: "execution_timeout",
 		message: "Durable run event polling budget expired before terminal finalization.",
 		retryable: true,
-		traceId: context.traceId,
 	});
 }
 
@@ -554,7 +514,7 @@ export async function waitForDurableFinalizationResponse<
 	}
 
 	return {
-		response: durableEventWaitTimeoutResponse(input.context),
+		response: durableEventWaitTimeoutResponse(),
 		terminalObserved: false,
 	};
 }
@@ -646,7 +606,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 	}
 	const finalized = await input.finalizeAcceptedCommand({
 		context,
-		executionResponse: durableEventWaitTimeoutResponse(context),
+		executionResponse: durableEventWaitTimeoutResponse(),
 		streamAppApiTtftMs,
 	});
 	for (const event of chatStreamEventsForFinalized({

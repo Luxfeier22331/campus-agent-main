@@ -21,8 +21,8 @@ from campus_ragas_runner.score_batch import (
     _scalar_or_none,
 )
 
-AGENT_SAMPLE_BATCH_SCHEMA_VERSION = "ragas_agent_sample_batch.v2"
-AGENT_SCORE_BATCH_SCHEMA_VERSION = "ragas_agent_score_batch.v2"
+AGENT_SAMPLE_BATCH_SCHEMA_VERSION = "ragas_agent_sample_batch.v3"
+AGENT_SCORE_BATCH_SCHEMA_VERSION = "ragas_agent_score_batch.v3"
 AGENT_METRIC_NAMES = (
     "tool_call_accuracy",
     "tool_call_f1",
@@ -83,15 +83,24 @@ def run_ragas_agent_score_batch(
     payload = _load_json_object(input_path)
     if payload.get("schema_version") != AGENT_SAMPLE_BATCH_SCHEMA_VERSION:
         raise ValueError(f"schema_version must be {AGENT_SAMPLE_BATCH_SCHEMA_VERSION}")
-    run_id = _required_str(payload.get("run_id"), "run_id")
+    unknown_batch_fields = sorted(set(payload) - {"items", "schema_version"})
+    if unknown_batch_fields:
+        raise ValueError(f"batch contains unsupported fields: {', '.join(unknown_batch_fields)}")
     items = _required_list(payload.get("items"), "items")
+    seen_case_ids: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("items entries must be objects")
+        case_id = _required_str(item.get("case_id"), "items[].case_id")
+        if case_id in seen_case_ids:
+            raise ValueError(f"case_id is duplicated: {case_id}")
+        seen_case_ids.add(case_id)
     scorer = build_ragas_agent_scorer(
         RagasAgentRunnerSettings.from_sources(provider_config_path=provider_config_path)
     )
     scored_items = [_score_agent_item(item, scorer=scorer) for item in items]
     output = {
         "schema_version": AGENT_SCORE_BATCH_SCHEMA_VERSION,
-        "run_id": run_id,
         "items": scored_items,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)

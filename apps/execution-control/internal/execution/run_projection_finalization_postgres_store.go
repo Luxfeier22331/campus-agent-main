@@ -24,14 +24,14 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	run, err := scanDurableRun(
-		tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", request.Completion.RunID),
+		tx.QueryRow(ctx, durableRunSelectSQL+" where request_id = $1 for update", request.Completion.RequestID),
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, ErrInvalidRunStep) {
 			return RunProjectionFinalizeResult{}, fmt.Errorf(
 				"%w: %s",
 				ErrDurableRunNotFound,
-				request.Completion.RunID,
+				request.Completion.RequestID,
 			)
 		}
 		return RunProjectionFinalizeResult{}, err
@@ -44,14 +44,14 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 		)
 	}
 
-	results, err := finalizationResultsInTx(ctx, tx, run.RunID)
+	results, err := finalizationResultsInTx(ctx, tx, run.RequestID)
 	if err != nil {
 		return RunProjectionFinalizeResult{}, err
 	}
 	if len(results) > 1 {
 		return RunProjectionFinalizeResult{}, runFinalizationConflict(
 			"run %s has %d finalization results",
-			run.RunID,
+			run.RequestID,
 			len(results),
 		)
 	}
@@ -92,7 +92,7 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 		if err := completionWinsCancellationInTx(
 			ctx,
 			tx,
-			run.RunID,
+			run.RequestID,
 			request.Completion.Now,
 		); err != nil {
 			return RunProjectionFinalizeResult{}, err
@@ -148,7 +148,7 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 	if err := completionWinsCancellationInTx(
 		ctx,
 		tx,
-		run.RunID,
+		run.RequestID,
 		request.Completion.Now,
 	); err != nil {
 		return RunProjectionFinalizeResult{}, err
@@ -165,13 +165,13 @@ func (s *PostgresRunProjectionStore) FinalizeRunProjection(
 func finalizationResultsInTx(
 	ctx context.Context,
 	tx pgx.Tx,
-	runID string,
+	requestID string,
 ) ([]StepResultProjection, error) {
 	rows, err := tx.Query(
 		ctx,
-		finalizationResultSelectSQL+` where run_id = $1 and step_id = $2
+		finalizationResultSelectSQL+` where request_id = $1 and step_id = $2
 		order by created_at, result_id for update`,
-		runID,
+		requestID,
 		finalizationStepID,
 	)
 	if err != nil {
@@ -200,8 +200,8 @@ func canonicalFinalizationRecordsInTx(
 ) (RunStepProjection, StepAttemptProjection, StepResultProjection, error) {
 	step, err := scanRunStepProjection(tx.QueryRow(
 		ctx,
-		finalizationStepSelectSQL+" where run_id = $1 and step_id = $2 for update",
-		run.RunID,
+		finalizationStepSelectSQL+" where request_id = $1 and step_id = $2 for update",
+		run.RequestID,
 		result.StepID,
 	))
 	if err != nil {
@@ -239,7 +239,7 @@ func upsertFinalizationStepInTx(
 		ctx,
 		runProjectionPostgresRunStepUpsertSQL,
 		step.StepID,
-		step.RunID,
+		step.RequestID,
 		step.ConversationID,
 		step.StepKind,
 		step.Tool,
@@ -262,8 +262,8 @@ func upsertFinalizationStepInTx(
 	}
 	stored, err := scanRunStepProjection(tx.QueryRow(
 		ctx,
-		finalizationStepSelectSQL+" where run_id = $1 and step_id = $2 for update",
-		step.RunID,
+		finalizationStepSelectSQL+" where request_id = $1 and step_id = $2 for update",
+		step.RequestID,
 		step.StepID,
 	))
 	if err != nil {
@@ -294,7 +294,7 @@ func upsertFinalizationAttemptInTx(
 		runProjectionPostgresStepAttemptUpsertSQL,
 		attempt.AttemptID,
 		attempt.StepID,
-		attempt.RunID,
+		attempt.RequestID,
 		attempt.Attempt,
 		attempt.Status,
 		attempt.TaskQueue,
@@ -359,9 +359,9 @@ func validateFinalizationAttemptNumberInTx(
 	rows, err := tx.Query(
 		ctx,
 		`select attempt_id from execution_control.agent_step_attempts
-		where run_id = $1 and step_id = $2 and attempt = $3
+		where request_id = $1 and step_id = $2 and attempt = $3
 		for update`,
-		attempt.RunID,
+		attempt.RequestID,
 		attempt.StepID,
 		attempt.Attempt,
 	)
@@ -396,12 +396,12 @@ func insertFinalizationResultInTx(
 	_, err = tx.Exec(
 		ctx,
 		`insert into execution_control.agent_step_results (
-			result_id, step_id, run_id, attempt_id, status, result_kind, projection_ref,
+			result_id, step_id, request_id, attempt_id, status, result_kind, projection_ref,
 			created_at, payload_schema_version, sanitized_payload_json
 		) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 		result.ResultID,
 		result.StepID,
-		result.RunID,
+		result.RequestID,
 		result.AttemptID,
 		result.Status,
 		result.ResultKind,
@@ -440,8 +440,8 @@ func updateFinalizedRunInTx(ctx context.Context, tx pgx.Tx, run DurableRun) erro
 		`update execution_control.agent_runs
 		set status = $2, terminal_reason = $3, completed_at = $4, updated_at = $5,
 			final_response_ref = $6
-		where run_id = $1`,
-		run.RunID,
+		where request_id = $1`,
+		run.RequestID,
 		string(run.Status),
 		string(run.TerminalReason),
 		run.CompletedAt,
@@ -452,7 +452,7 @@ func updateFinalizedRunInTx(ctx context.Context, tx pgx.Tx, run DurableRun) erro
 		return err
 	}
 	if tag.RowsAffected() != 1 {
-		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, run.RunID)
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, run.RequestID)
 	}
 	return nil
 }
@@ -460,14 +460,14 @@ func updateFinalizedRunInTx(ctx context.Context, tx pgx.Tx, run DurableRun) erro
 func completionWinsCancellationInTx(
 	ctx context.Context,
 	tx pgx.Tx,
-	runID string,
+	requestID string,
 	now time.Time,
 ) error {
 	var state string
 	err := tx.QueryRow(
 		ctx,
-		`select state from execution_control.agent_run_cancellations where run_id = $1 for update`,
-		runID,
+		`select state from execution_control.agent_run_cancellations where request_id = $1 for update`,
+		requestID,
 	).Scan(&state)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
@@ -488,8 +488,8 @@ func completionWinsCancellationInTx(
 		`update execution_control.agent_run_cancellations
 		set state = $2, next_attempt_at = $3, lease_token = '', lease_until = null,
 			last_error_code = $4, updated_at = $3
-		where run_id = $1`,
-		runID,
+		where request_id = $1`,
+		requestID,
 		string(LifecycleIntentStateConfirmed),
 		now,
 		finalizationCompletionWonErrorCode,
@@ -504,21 +504,21 @@ func deleteConversationRunLockInTx(
 ) error {
 	_, err := tx.Exec(
 		ctx,
-		`delete from execution_control.conversation_run_locks where conversation_id = $1 and run_id = $2`,
+		`delete from execution_control.conversation_run_locks where conversation_id = $1 and request_id = $2`,
 		run.ConversationID,
-		run.RunID,
+		run.RequestID,
 	)
 	return err
 }
 
 const finalizationStepSelectSQL = `select
-	step_id, run_id, conversation_id, step_kind, tool, parent_step_id,
+	step_id, request_id, conversation_id, step_kind, tool, parent_step_id,
 	status, activity_attempt, task_queue, worker_id, started_at, completed_at, updated_at,
 	payload_schema_version, sanitized_payload_json
 from execution_control.agent_run_steps`
 
 const finalizationAttemptSelectSQL = `select
-	attempt_id, step_id, run_id, attempt, status, task_queue, worker_id,
+	attempt_id, step_id, request_id, attempt, status, task_queue, worker_id,
 	workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
 	scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 	provider_request_ref, provider_response_id, model_provider, model_name,
@@ -529,6 +529,6 @@ const finalizationAttemptSelectSQL = `select
 from execution_control.agent_step_attempts`
 
 const finalizationResultSelectSQL = `select
-	result_id, step_id, run_id, attempt_id, status, result_kind, projection_ref,
+	result_id, step_id, request_id, attempt_id, status, result_kind, projection_ref,
 	created_at, payload_schema_version, sanitized_payload_json
 from execution_control.agent_step_results`

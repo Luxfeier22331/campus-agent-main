@@ -26,8 +26,6 @@
 				"$TURBO_ROOT$/packages/contracts/src/**",
 				"$TURBO_ROOT$/packages/domains/dining/package.json",
 				"$TURBO_ROOT$/packages/domains/dining/src/**",
-				"$TURBO_ROOT$/packages/langfuse-identity/package.json",
-				"$TURBO_ROOT$/packages/langfuse-identity/src/**",
 				"$TURBO_ROOT$/packages/internal-portal-client/package.json",
 				"$TURBO_ROOT$/packages/internal-portal-client/src/**",
 				"$TURBO_ROOT$/packages/ui/package.json",

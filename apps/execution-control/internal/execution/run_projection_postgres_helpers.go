@@ -14,8 +14,8 @@ func updateDurableRunStatusInTx(ctx context.Context, tx pgx.Tx, run DurableRun) 
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
 			retryable = $10
-		where run_id = $1`,
-		run.RunID,
+		where request_id = $1`,
+		run.RequestID,
 		string(run.Status),
 		string(run.TerminalReason),
 		nullableTime(run.QueuedAt),
@@ -38,8 +38,8 @@ func insertDurableRunEventInTx(
 	var nextSequence int64
 	if err := tx.QueryRow(
 		ctx,
-		`select coalesce(max(sequence), 0) + 1 from execution_control.agent_run_events where run_id = $1`,
-		run.RunID,
+		`select coalesce(max(sequence), 0) + 1 from execution_control.agent_run_events where request_id = $1`,
+		run.RequestID,
 	).Scan(&nextSequence); err != nil {
 		return err
 	}
@@ -62,11 +62,11 @@ func insertDurableRunEventInTx(
 	_, err = tx.Exec(
 		ctx,
 		`insert into execution_control.agent_run_events (
-			event_id, run_id, conversation_id, sequence, event_type, visibility,
+			event_id, request_id, conversation_id, sequence, event_type, visibility,
 			payload_schema_version, payload_json, occurred_at
 		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
 		event.EventID,
-		event.RunID,
+		event.RequestID,
 		event.ConversationID,
 		event.Sequence,
 		string(event.EventType),
@@ -81,13 +81,13 @@ func insertDurableRunEventInTx(
 	if err != nil {
 		return err
 	}
-	return notifyRunEventInTx(ctx, tx, run.RunID)
+	return notifyRunEventInTx(ctx, tx, run.RequestID)
 }
 
 const runEventNotificationChannel = "campus_agent_run_events"
 
-func notifyRunEventInTx(ctx context.Context, tx pgx.Tx, runID string) error {
-	_, err := tx.Exec(ctx, `select pg_notify($1, $2)`, runEventNotificationChannel, runID)
+func notifyRunEventInTx(ctx context.Context, tx pgx.Tx, requestID string) error {
+	_, err := tx.Exec(ctx, `select pg_notify($1, $2)`, runEventNotificationChannel, requestID)
 	return err
 }
 
@@ -98,7 +98,7 @@ func durableRunEventByIDInTx(
 ) (DurableRunEvent, error) {
 	return scanDurableRunEvent(tx.QueryRow(
 		ctx,
-		`select event_id, run_id, conversation_id, sequence, event_type, visibility,
+		`select event_id, request_id, conversation_id, sequence, event_type, visibility,
 			payload_schema_version, payload_json, occurred_at
 		from execution_control.agent_run_events
 		where event_id = $1`,
@@ -106,15 +106,15 @@ func durableRunEventByIDInTx(
 	))
 }
 
-func runCancellationRequestedInTx(ctx context.Context, tx pgx.Tx, runID string) (bool, error) {
+func runCancellationRequestedInTx(ctx context.Context, tx pgx.Tx, requestID string) (bool, error) {
 	var requested bool
 	err := tx.QueryRow(
 		ctx,
 		`select exists(
 			select 1 from execution_control.agent_run_cancellations
-			where run_id = $1 and state <> 'confirmed'
+			where request_id = $1 and state <> 'confirmed'
 		)`,
-		runID,
+		requestID,
 	).Scan(&requested)
 	return requested, err
 }

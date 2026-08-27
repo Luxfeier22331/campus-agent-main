@@ -103,7 +103,6 @@ const workspaceSourceInputs = [
 	"packages/domains/notices",
 	"packages/ingestion-contracts",
 	"packages/internal-portal-client",
-	"packages/langfuse-identity",
 	"packages/ui",
 ] as const;
 

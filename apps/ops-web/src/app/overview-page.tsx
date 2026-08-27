@@ -1,7 +1,7 @@
 import { Button, Field, NativeSelect } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import {
 	CartesianGrid,
 	Legend,
@@ -185,31 +185,6 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 							))}
 						</ul>
 					)}
-				</section>
-			</div>
-
-			<div className="mt-8 border-border border-t pt-8">
-				<section className="min-w-0">
-					<h2 className="mb-4 font-semibold text-lg">相关系统</h2>
-					<div className="grid gap-2 text-sm">
-						{data.externalLinks.length === 0 ? (
-							<p className="text-muted-foreground">暂无已配置入口。</p>
-						) : null}
-						{data.externalLinks.map((link) =>
-							link.href && link.isAvailable ? (
-								<a
-									className="inline-flex min-h-11 items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-foreground hover:bg-secondary"
-									href={link.href}
-									key={link.source}
-									rel="noreferrer"
-									target="_blank"
-								>
-									<span>{link.label}</span>
-									<ExternalLink className="size-4" />
-								</a>
-							) : null,
-						)}
-					</div>
 				</section>
 			</div>
 		</section>

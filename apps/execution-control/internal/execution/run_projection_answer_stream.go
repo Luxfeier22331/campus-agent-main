@@ -13,12 +13,12 @@ func (s *InMemoryRunProjectionStore) StartRunAnswerStream(
 	_ context.Context,
 	request RunAnswerStreamStartRequest,
 ) (DurableRun, error) {
-	request.RunID = strings.TrimSpace(request.RunID)
+	request.RequestID = strings.TrimSpace(request.RequestID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[request.RunID]
+	run, exists := s.runs[request.RequestID]
 	if !exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RequestID)
 	}
 	if run.Status != DurableRunStatusRunning {
 		return DurableRun{}, fmt.Errorf(
@@ -39,14 +39,14 @@ func (s *InMemoryRunProjectionStore) StartRunAnswerStream(
 	if err := validateDurableRun(updated); err != nil {
 		return DurableRun{}, err
 	}
-	events := append([]DurableRunEvent{}, s.runEvents[run.RunID]...)
+	events := append([]DurableRunEvent{}, s.runEvents[run.RequestID]...)
 	prepared, err := prepareAnswerStreamEvents(events, request)
 	if err != nil {
 		return DurableRun{}, err
 	}
-	s.runs[run.RunID] = cloneDurableRun(updated)
-	s.runEvents[run.RunID] = append(events, prepared...)
-	s.notifyRunEventWaitersLocked(run.RunID)
+	s.runs[run.RequestID] = cloneDurableRun(updated)
+	s.runEvents[run.RequestID] = append(events, prepared...)
+	s.notifyRunEventWaitersLocked(run.RequestID)
 	return cloneDurableRun(updated), nil
 }
 
@@ -54,18 +54,18 @@ func (s *PostgresRunProjectionStore) StartRunAnswerStream(
 	ctx context.Context,
 	request RunAnswerStreamStartRequest,
 ) (DurableRun, error) {
-	request.RunID = strings.TrimSpace(request.RunID)
+	request.RequestID = strings.TrimSpace(request.RequestID)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return DurableRun{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	run, err := scanDurableRun(
-		tx.QueryRow(ctx, durableRunSelectSQL+" where run_id = $1 for update", request.RunID),
+		tx.QueryRow(ctx, durableRunSelectSQL+" where request_id = $1 for update", request.RequestID),
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+			return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RequestID)
 		}
 		return DurableRun{}, err
 	}
@@ -102,12 +102,12 @@ func (s *PostgresRunProjectionStore) StartRunAnswerStream(
 }
 
 func validateRunAnswerStreamStartRequest(run DurableRun, request RunAnswerStreamStartRequest) error {
-	if request.RunID == "" || request.RunID != run.RunID || request.Now.IsZero() {
+	if request.RequestID == "" || request.RequestID != run.RequestID || request.Now.IsZero() {
 		return fmt.Errorf("%w: answer stream identity is invalid", ErrInvalidRunEvent)
 	}
 	started := request.AnswerStartedEvent
 	delta := request.FirstDeltaEvent
-	if started.RunID != run.RunID || delta.RunID != run.RunID ||
+	if started.RequestID != run.RequestID || delta.RequestID != run.RequestID ||
 		started.ConversationID != run.ConversationID || delta.ConversationID != run.ConversationID ||
 		started.EventType != DurableRunEventTypeRunAnswerStarted ||
 		delta.EventType != DurableRunEventTypeRunAnswerDelta ||

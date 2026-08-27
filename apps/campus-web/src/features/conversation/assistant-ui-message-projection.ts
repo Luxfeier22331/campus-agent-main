@@ -1,5 +1,5 @@
 import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
-import { type CampusRunViewState, campusRunViewToMetadata } from "./run-view-state";
+import { type CampusRunViewState, campusRequestViewToMetadata } from "./run-view-state";
 
 export type RuntimeMessages = ThreadMessageLike[];
 
@@ -31,7 +31,7 @@ export function upsertAssistantTextMessage(
 		? messages.findIndex((message) => message.id === input.provisionalMessageId)
 		: -1;
 	const runMetadata = input.runView
-		? { custom: { campusRun: campusRunViewToMetadata(input.runView) } }
+		? { custom: { campusRequest: campusRequestViewToMetadata(input.runView) } }
 		: undefined;
 	const optimisticMetadata = input.optimistic ? { isOptimistic: true } : undefined;
 	if (existingIndex < 0) {
@@ -86,7 +86,7 @@ export function provisionalAssistantMessage(input: {
 		createdAt: new Date(input.occurredAt),
 		id: input.messageId,
 		metadata: {
-			custom: { campusRun: campusRunViewToMetadata(input.runView) },
+			custom: { campusRequest: campusRequestViewToMetadata(input.runView) },
 			isOptimistic: true,
 		},
 		role: "assistant",
@@ -97,7 +97,7 @@ export function updateAssistantRunMetadata(
 	messages: RuntimeMessages,
 	input: { messageId?: string | null; runView: CampusRunViewState },
 ): RuntimeMessages {
-	const targetId = input.messageId ?? input.runView.runId;
+	const targetId = input.messageId ?? input.runView.requestId;
 	if (!targetId) {
 		return messages;
 	}
@@ -111,7 +111,7 @@ export function updateAssistantRunMetadata(
 				...message.metadata,
 				custom: {
 					...message.metadata?.custom,
-					campusRun: campusRunViewToMetadata(input.runView),
+					campusRequest: campusRequestViewToMetadata(input.runView),
 				},
 			},
 		};
@@ -122,19 +122,19 @@ export function attachAssistantRunMetadata(
 	messages: RuntimeMessages,
 	runView: CampusRunViewState,
 ): RuntimeMessages {
-	if (!runView.runId) {
+	if (!runView.requestId) {
 		return messages;
 	}
 	const matchingIndex = messages.reduce((found, message, index) => {
 		if (message.role !== "assistant") {
 			return found;
 		}
-		const metadata = message.metadata?.custom?.campusRun;
+		const metadata = message.metadata?.custom?.campusRequest;
 		if (
 			metadata &&
 			typeof metadata === "object" &&
 			!Array.isArray(metadata) &&
-			(metadata as Record<string, unknown>).runId === runView.runId
+			(metadata as Record<string, unknown>).requestId === runView.requestId
 		) {
 			return index;
 		}
@@ -158,7 +158,7 @@ export function attachAssistantRunMetadata(
 						...message.metadata,
 						custom: {
 							...message.metadata?.custom,
-							campusRun: campusRunViewToMetadata(runView),
+							campusRequest: campusRequestViewToMetadata(runView),
 						},
 					},
 				}

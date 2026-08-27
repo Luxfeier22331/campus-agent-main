@@ -138,7 +138,7 @@ func TestShutdownExecutionRuntimeForcesHTTPCloseBeforeStoppingRuntime(t *testing
 	}))
 	go tracker.ServeHTTP(
 		http.ResponseWriter(httptest.NewRecorder()),
-		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/internal/execution/runs", nil),
+		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/internal/execution/requests", nil),
 	)
 	select {
 	case <-entered:
@@ -182,7 +182,7 @@ func TestShutdownExecutionRuntimeDoesNotCloseStoresBehindStuckRequest(t *testing
 	}))
 	go tracker.ServeHTTP(
 		http.ResponseWriter(httptest.NewRecorder()),
-		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/internal/execution/runs", nil),
+		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/internal/execution/requests", nil),
 	)
 	select {
 	case <-entered:

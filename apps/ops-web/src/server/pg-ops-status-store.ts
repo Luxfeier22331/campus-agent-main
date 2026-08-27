@@ -13,11 +13,11 @@ import {
 } from "./ops-status-mappers.ts";
 import type {
 	OpsRequestDetailRow,
+	OpsRequestModelAttemptRow,
 	OpsRequestOverviewRow,
 	OpsRequestRow,
+	OpsRequestStageRow,
 	OpsRequestTrendRow,
-	OpsRunAttemptRow,
-	OpsRunStepRow,
 	OpsStatusStore,
 	PgOpsStatusStoreDatabase,
 } from "./ops-status-types.ts";
@@ -25,21 +25,16 @@ import { OPS_REQUEST_PAGE_SIZE, OpsStatusStoreUnavailableError } from "./ops-sta
 import {
 	buildRequestFilter,
 	requestDetailSql,
+	requestModelAttemptsSql,
 	requestRowsCte,
 	requestSql,
-	runAttemptsSql,
-	runStepsSql,
+	requestStagesSql,
 	summarizeStatusCounts,
 } from "./pg-request-query.ts";
 
 export function createPgOpsStatusStore(input: {
 	db: PgOpsStatusStoreDatabase;
 	now?: () => Date;
-	observabilityLinks?: {
-		langfuse?: string;
-		sentry?: string;
-		temporal?: string;
-	};
 	campusWebPublicOrigin?: string;
 }): OpsStatusStore {
 	const now = input.now ?? (() => new Date());
@@ -57,7 +52,6 @@ export function createPgOpsStatusStore(input: {
 					? toRequestOverview(requestsResult.value)
 					: unavailableRequestOverview();
 			return {
-				externalLinks: normalizeOverviewLinks(input.observabilityLinks),
 				requests: requestOverview,
 				trends: toRequestTrends(trendsResult),
 			};
@@ -68,16 +62,8 @@ export function createPgOpsStatusStore(input: {
 			if (!request) {
 				return null;
 			}
-			const diagnostics = request.runId
-				? await input.db.getRunDiagnostics(request.runId)
-				: { attempts: [], steps: [] };
-			return await toRequestDetail(
-				request,
-				diagnostics,
-				input.observabilityLinks,
-				generatedAt,
-				input.campusWebPublicOrigin,
-			);
+			const diagnostics = await input.db.getRequestDiagnostics(requestId);
+			return toRequestDetail(request, diagnostics, generatedAt, input.campusWebPublicOrigin);
 		},
 		async listRequests(query) {
 			const view = requestListView(query);
@@ -147,15 +133,15 @@ export function createPgOpsStatusStoreDatabase(
 				return (result.rows[0] as OpsRequestDetailRow | undefined) ?? null;
 			});
 		},
-		async getRunDiagnostics(runId) {
+		async getRequestDiagnostics(requestId) {
 			return classifyDbError(async () => {
-				const [steps, attempts] = await Promise.all([
-					pool.query(runStepsSql(), [runId]),
-					pool.query(runAttemptsSql(), [runId]),
+				const [stages, modelAttempts] = await Promise.all([
+					pool.query(requestStagesSql(), [requestId]),
+					pool.query(requestModelAttemptsSql(), [requestId]),
 				]);
 				return {
-					attempts: attempts.rows as OpsRunAttemptRow[],
-					steps: steps.rows as OpsRunStepRow[],
+					modelAttempts: modelAttempts.rows as OpsRequestModelAttemptRow[],
+					stages: stages.rows as OpsRequestStageRow[],
 				};
 			});
 		},
@@ -236,8 +222,8 @@ export function createPgOpsStatusStoreDatabase(
 				await Promise.all([
 					pool.query(requestSql("limit 0")),
 					pool.query(requestDetailSql("limit 0")),
-					pool.query(runStepsSql(), ["__schema_check__"]),
-					pool.query(runAttemptsSql(), ["__schema_check__"]),
+					pool.query(requestStagesSql(), ["__schema_check__"]),
+					pool.query(requestModelAttemptsSql(), ["__schema_check__"]),
 				]);
 			});
 		},
@@ -304,27 +290,6 @@ function toRequestTrends(
 	};
 }
 
-function normalizeOverviewLinks(
-	links: Parameters<typeof createPgOpsStatusStore>[0]["observabilityLinks"],
-): OpsOverviewResponse["externalLinks"] {
-	return [
-		["LANGFUSE", "Langfuse", links?.langfuse],
-		["SENTRY", "Sentry", links?.sentry],
-	].flatMap(([source, label, value]) => {
-		const href = normalizeHttpsUrl(value);
-		return href
-			? [
-					{
-						href,
-						isAvailable: true,
-						label: String(label),
-						source: source as OpsOverviewResponse["externalLinks"][number]["source"],
-					},
-				]
-			: [];
-	});
-}
-
 function unavailableRequestOverview(): OpsOverviewResponse["requests"] {
 	return {
 		actionRequired: 0,
@@ -341,18 +306,6 @@ function unavailableRequestOverview(): OpsOverviewResponse["requests"] {
 		total: 0,
 		updatedAt: null,
 	};
-}
-
-function normalizeHttpsUrl(value: unknown): string | null {
-	if (typeof value !== "string" || !value.trim()) {
-		return null;
-	}
-	try {
-		const url = new URL(value);
-		return url.protocol === "https:" ? url.toString() : null;
-	} catch {
-		return null;
-	}
 }
 
 function normalizeOverviewRow(value: unknown): OpsRequestOverviewRow {

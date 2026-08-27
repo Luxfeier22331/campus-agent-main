@@ -148,10 +148,6 @@ export function mapExecutionLifecycleEvent(input: {
 	if (!requestId) {
 		throw new ExecutionLifecycleContractError("lifecycle event missing request_id");
 	}
-	const traceId = getString(record, "trace_id");
-	if (!traceId) {
-		throw new ExecutionLifecycleContractError("lifecycle event missing trace_id");
-	}
 	const occurredAt = getString(record, "occurred_at");
 	if (!occurredAt) {
 		throw new ExecutionLifecycleContractError("lifecycle event missing occurred_at");
@@ -170,10 +166,8 @@ export function mapExecutionLifecycleEvent(input: {
 			occurredAt,
 			requestId,
 			...(phaseData ?? {}),
-			...(getString(record, "run_id") ? { runId: getString(record, "run_id") } : {}),
 			...(typeof record.sequence === "number" ? { sequence: record.sequence } : {}),
 			status,
-			traceId,
 		},
 		event: input.event,
 	};
@@ -188,7 +182,6 @@ export function parseExecutionTerminalResponse(input: {
 	requestId: string;
 	response: ToolExecutionResponse;
 	sourceEvent: string;
-	traceId: string;
 } | null {
 	if (
 		input.event !== "execution.completed" &&
@@ -206,10 +199,6 @@ export function parseExecutionTerminalResponse(input: {
 	if (!requestId) {
 		throw new ExecutionLifecycleContractError("terminal event missing request_id");
 	}
-	const traceId = getString(record, "trace_id");
-	if (!traceId) {
-		throw new ExecutionLifecycleContractError("terminal event missing trace_id");
-	}
 	const occurredAt = getString(record, "occurred_at");
 	if (!occurredAt) {
 		throw new ExecutionLifecycleContractError("terminal event missing occurred_at");
@@ -226,10 +215,8 @@ export function parseExecutionTerminalResponse(input: {
 					message: "Execution stream completed without a response payload.",
 					retryable: true,
 					status: "error",
-					traceId,
 				}),
 				sourceEvent: "execution.failed",
-				traceId,
 			};
 		}
 
@@ -238,7 +225,6 @@ export function parseExecutionTerminalResponse(input: {
 			requestId,
 			response: parseExecutionFinalizationResponsePayload(responseRecord),
 			sourceEvent: input.event,
-			traceId,
 		};
 	}
 
@@ -255,10 +241,8 @@ export function parseExecutionTerminalResponse(input: {
 			message: failure.message,
 			retryable: error.retryable,
 			status: input.event === "execution.cancelled" ? "cancelled" : "error",
-			traceId,
 		}),
 		sourceEvent: input.event,
-		traceId,
 	};
 }
 
@@ -267,7 +251,6 @@ export function executionFinalizationErrorResponse(input: {
 	message: string;
 	retryable: boolean;
 	status?: "error" | "cancelled";
-	traceId: string;
 }): ToolExecutionResponse {
 	return {
 		answerText: "",
@@ -279,14 +262,12 @@ export function executionFinalizationErrorResponse(input: {
 		modelUsage: { cachedInputTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
 		result: null,
 		status: input.status ?? "error",
-		traceId: input.traceId,
 	};
 }
 
 export function toTerminalChatStreamEvent(input: {
 	occurredAt: string;
 	response: ChatCommandResponse;
-	runId?: string | null;
 	sequence?: number;
 	sourceEvent?: string;
 }): ChatCommandStreamEvent {
@@ -312,10 +293,8 @@ export function toTerminalChatStreamEvent(input: {
 				: {}),
 			occurredAt: input.occurredAt,
 			requestId: input.response.requestId,
-			runId: input.runId ?? null,
 			...(input.sequence === undefined ? {} : { sequence: input.sequence }),
 			status,
-			traceId: input.response.traceId,
 		},
 		event,
 	};

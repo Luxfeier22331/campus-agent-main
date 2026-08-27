@@ -95,16 +95,12 @@ const requestsRoute = createRoute({
 	validateSearch: (search: Record<string, unknown>) => {
 		const view = optionalRequestListView(search.view);
 		const parsed = {
-			conversationId: optionalBoundedSearchString(search.conversationId, 128),
 			cursor: optionalBoundedSearchString(search.cursor, 512),
 			q: optionalBoundedSearchString(search.q, 256),
 			requestId: optionalBoundedSearchString(search.requestId, 128),
-			runId: optionalBoundedSearchString(search.runId, 128),
 			status: optionalStatus(search.status),
-			traceId: optionalBoundedSearchString(search.traceId, 128),
 			view,
 			window: optionalRequestWindow(search.window),
-			workflowId: optionalBoundedSearchString(search.workflowId, 128),
 		};
 		const ignored = ignoredRequestSearchParamNames(search, parsed);
 		return {

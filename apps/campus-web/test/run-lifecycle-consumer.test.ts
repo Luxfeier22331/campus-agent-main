@@ -18,7 +18,6 @@ function event(
 			occurredAt: "2026-08-16T00:00:00.000Z",
 			requestId: "request-1",
 			status: "running",
-			traceId: "trace-1",
 			...data,
 		},
 	};
@@ -31,9 +30,9 @@ describe("run lifecycle consumer", () => {
 		const onTerminal = vi.fn();
 		const result = await consumeRunLifecycleEvents({
 			events: events([
-				event("request.accepted", { runId: "run-1" }),
-				event("answer.delta", { delta: "A", messageId: "message-1", runId: "run-1" }),
-				event("request.completed", { runId: "run-1" }),
+				event("request.accepted", { requestId: "run-1" }),
+				event("answer.delta", { delta: "A", messageId: "message-1", requestId: "run-1" }),
+				event("request.completed", { requestId: "run-1" }),
 			]),
 			isCurrent: () => true,
 			onAccepted,
@@ -53,7 +52,7 @@ describe("run lifecycle consumer", () => {
 		const onEvent = vi.fn();
 		await expect(
 			consumeRunLifecycleEvents({
-				events: events([event("request.accepted", { runId: "run-1" })]),
+				events: events([event("request.accepted", { requestId: "run-1" })]),
 				isCurrent: () => false,
 				onAccepted: vi.fn(),
 				onAnswerDelta: vi.fn(),

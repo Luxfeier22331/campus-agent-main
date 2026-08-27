@@ -20,7 +20,6 @@ function createCompletedExecutionClient(): ToolExecutionClient {
 			modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
 			result: {},
 			status: "completed",
-			traceId: "trace_0001",
 		}),
 	};
 }

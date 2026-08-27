@@ -3,6 +3,5 @@
 	"status": "completed",
 	"answerText": "This is not canonical tool execution wire.",
 	"result": null,
-	"error": null,
-	"traceId": "trace-contract-camel"
+	"error": null
 }

@@ -42,15 +42,6 @@ var executionControlTables = []string{
 }
 
 var compatibilityViews = []string{
-	"runtime.agent_runs",
-	"runtime.agent_run_events",
-	"runtime.agent_run_steps",
-	"runtime.agent_step_attempts",
-	"runtime.agent_step_results",
-	"runtime.conversation_run_locks",
-	"runtime.agent_workflow_starts",
-	"runtime.agent_run_cancellations",
-	"runtime.agent_invocation_receipts",
 	"runtime.personal_memory_owner_fences",
 	"runtime.personal_memory_call_leases",
 	"runtime.personal_memory_command_receipts",
@@ -62,23 +53,17 @@ var campusDocsReadTables = []string{
 
 var opsWebReadColumns = map[string][]string{
 	"execution_control.agent_runs": {
-		"completed_at", "fail_close_reason", "run_id", "runtime_versions_json",
-		"status", "terminal_reason", "trace_id", "updated_at",
+		"completed_at", "fail_close_reason", "request_id", "status", "terminal_reason", "updated_at",
 	},
 	"execution_control.agent_run_steps": {
-		"activity_attempt", "completed_at", "conversation_id", "created_at", "parent_step_id",
-		"payload_schema_version", "run_id", "sanitized_payload_json", "started_at", "status",
-		"step_id", "step_kind", "task_queue", "tool", "updated_at", "worker_id",
+		"completed_at", "request_id", "sanitized_payload_json", "started_at", "status", "step_id",
+		"step_kind", "updated_at",
 	},
 	"execution_control.agent_step_attempts": {
-		"activity_attempt", "activity_id", "activity_type", "attempt", "attempt_id",
-		"cached_input_tokens", "cancel_outcome", "completed_at", "created_at", "duration_ms",
-		"fail_close_reason", "input_tokens", "late_completion_outcome", "model_name",
-		"model_provider", "model_request_count", "output_tokens", "payload_schema_version",
-		"provider_request_ref", "provider_response_id", "run_id", "sanitized_payload_json",
-		"schedule_to_start_ms", "scheduled_at", "started_at", "status", "step_id", "task_queue",
-		"temporal_run_id", "terminal_reason", "timeout_outcome", "updated_at", "usage_observed",
-		"worker_id", "workflow_id",
+		"attempt", "cached_input_tokens", "completed_at", "duration_ms", "fail_close_reason",
+		"input_tokens", "model_name", "model_provider", "model_request_count", "output_tokens",
+		"request_id", "sanitized_payload_json", "started_at", "status", "step_id",
+		"terminal_reason", "usage_observed",
 	},
 }
 
@@ -178,15 +163,6 @@ revoke all privileges on table
 from public, app_api, execution_control, ops_web;
 
 revoke all privileges on table
-	runtime.agent_runs,
-	runtime.agent_run_events,
-	runtime.agent_run_steps,
-	runtime.agent_step_attempts,
-	runtime.agent_step_results,
-	runtime.conversation_run_locks,
-	runtime.agent_workflow_starts,
-	runtime.agent_run_cancellations,
-	runtime.agent_invocation_receipts,
 	runtime.personal_memory_owner_fences,
 	runtime.personal_memory_call_leases,
 	runtime.personal_memory_command_receipts
@@ -208,9 +184,6 @@ begin
 			where class.relkind in ('r', 'p', 'v', 'm', 'f')
 				and ((namespace.nspname = 'execution_control')
 				or (namespace.nspname = 'runtime' and class.relname in (
-					'agent_runs', 'agent_run_events', 'agent_run_steps', 'agent_step_attempts',
-					'agent_step_results', 'conversation_run_locks', 'agent_workflow_starts',
-					'agent_run_cancellations', 'agent_invocation_receipts',
 					'personal_memory_owner_fences', 'personal_memory_call_leases',
 					'personal_memory_command_receipts'
 				))
@@ -254,37 +227,23 @@ grant select, insert, update, delete on table
 to execution_control;
 
 grant select on table
-	runtime.agent_runs,
-	runtime.agent_run_events,
-	runtime.agent_run_steps,
-	runtime.agent_step_attempts,
-	runtime.agent_step_results,
-	runtime.conversation_run_locks,
-	runtime.agent_workflow_starts,
-	runtime.agent_run_cancellations,
-	runtime.agent_invocation_receipts,
 	runtime.personal_memory_owner_fences,
 	runtime.personal_memory_call_leases,
 	runtime.personal_memory_command_receipts
 to execution_control;
 
 grant select (
-	completed_at, fail_close_reason, run_id, runtime_versions_json, status,
-	terminal_reason, trace_id, updated_at
+	completed_at, fail_close_reason, request_id, status, terminal_reason, updated_at
 ) on table execution_control.agent_runs to ops_web;
 grant select (
-	step_id, run_id, conversation_id, step_kind, tool, parent_step_id, status,
-	activity_attempt, task_queue, worker_id, started_at, completed_at, updated_at,
-	payload_schema_version, sanitized_payload_json, created_at
+	step_id, request_id, step_kind, status, started_at, completed_at, updated_at,
+	sanitized_payload_json
 ) on table execution_control.agent_run_steps to ops_web;
 grant select (
-	attempt_id, step_id, run_id, attempt, status, task_queue, worker_id, workflow_id,
-	temporal_run_id, activity_id, activity_type, activity_attempt, scheduled_at, started_at,
-	completed_at, schedule_to_start_ms, duration_ms, provider_request_ref,
-	provider_response_id, model_provider, model_name, model_request_count, input_tokens,
-	output_tokens, cached_input_tokens, usage_observed, cancel_outcome, timeout_outcome,
-	late_completion_outcome, fail_close_reason, terminal_reason, updated_at,
-	payload_schema_version, sanitized_payload_json, created_at
+	step_id, request_id, attempt, status, started_at, completed_at, duration_ms,
+	model_provider, model_name, model_request_count, input_tokens, output_tokens,
+	cached_input_tokens, usage_observed, fail_close_reason, terminal_reason,
+	sanitized_payload_json
 ) on table execution_control.agent_step_attempts to ops_web;
 
 do $$

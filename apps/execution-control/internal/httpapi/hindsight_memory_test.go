@@ -11,7 +11,7 @@ func TestHindsightAppendRetainsOneSynchronousUserMessageDocument(t *testing.T) {
 	client := &fakeHindsightClient{}
 	executor := hindsightExecutor{client: client, ownerSalt: "test-salt", recallLimit: 8, recallMaxTokens: 2500, contextCharBudget: 2500}
 	result, err := executor.AppendConversationTurn(context.Background(), memoryruntime.AppendConversationTurnRequest{
-		OwnerGeneration: 1, OwnerSequence: 0, RunID: "run-hindsight-append", TenantID: "tenant-main",
+		OwnerGeneration: 1, OwnerSequence: 0, RequestID: "req-hindsight-append", TenantID: "tenant-main",
 		ThreadID: "conv-hindsight-append", UserID: "user-executor", UserMessage: "我之后主要关注保研材料",
 		UserMessageCreatedAt: "2026-06-16T10:03:04Z", UserMessageID: "msg-user-hindsight-append",
 	})
@@ -41,7 +41,7 @@ func TestHindsightAppendUsesExistingBankWithoutReconfiguringIt(t *testing.T) {
 	executor := hindsightExecutor{client: client, ownerSalt: "test-salt"}
 
 	_, err := executor.AppendConversationTurn(context.Background(), memoryruntime.AppendConversationTurnRequest{
-		OwnerGeneration: 1, OwnerSequence: 0, RunID: "run-hindsight-append-existing", TenantID: "tenant-main",
+		OwnerGeneration: 1, OwnerSequence: 0, RequestID: "req-hindsight-append-existing", TenantID: "tenant-main",
 		ThreadID: "conv-hindsight-append-existing", UserID: "user-executor", UserMessage: "我偏好先看结论",
 		UserMessageCreatedAt: "2026-06-16T10:03:04Z", UserMessageID: "msg-user-hindsight-append-existing",
 	})

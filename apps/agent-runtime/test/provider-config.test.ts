@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { ModelProvider } from "@openai/agents";
 import { describe, expect, it } from "vitest";
 import {
+	fetchWithoutRedirects,
 	normalizeProviderBaseURL,
 	openAIAgentsRunnerOptionsFromProviderConfig,
 } from "../src/provider-config.ts";
@@ -138,6 +139,7 @@ describe("agent runtime provider config", () => {
 
 	it("does not follow a provider redirect to another origin", async () => {
 		let targetRequests = 0;
+		let providerUserAgent = "";
 		const target = createServer((_request, response) => {
 			targetRequests += 1;
 			response.writeHead(500, { "content-type": "application/json" });
@@ -145,7 +147,8 @@ describe("agent runtime provider config", () => {
 		});
 		await listen(target);
 		const targetAddress = target.address() as { port: number };
-		const redirect = createServer((_request, response) => {
+		const redirect = createServer((request, response) => {
+			providerUserAgent = request.headers["user-agent"] ?? "";
 			response.writeHead(307, { location: `http://127.0.0.1:${targetAddress.port}/v1/responses` });
 			response.end();
 		});
@@ -153,28 +156,15 @@ describe("agent runtime provider config", () => {
 
 		try {
 			const redirectAddress = redirect.address() as { port: number };
-			const options = openAIAgentsRunnerOptionsFromProviderConfig({
-				apiKey: "provider-key",
-				baseUrl: `http://127.0.0.1:${redirectAddress.port}/v1`,
-				model: "test-model",
-				provider: "openai",
-				transport: "responses",
-			});
-			const modelProvider = options.modelProvider;
-			if (modelProvider === undefined) {
-				throw new Error("agent runtime test provider was not configured");
-			}
-			const model = await modelProvider.getModel(options.model);
-			await expect(
-				model.getResponse({
-					handoffs: [],
-					input: "sensitive prompt",
-					modelSettings: {},
-					outputType: "text",
-					tools: [],
-					tracing: false,
-				}),
-			).rejects.toThrow();
+			const response = await fetchWithoutRedirects(
+				`http://127.0.0.1:${redirectAddress.port}/v1/responses`,
+				{
+					headers: { "user-agent": "OpenAI/JS 7.4.0" },
+				},
+			);
+			expect(response.status).toBe(307);
+			await response.body?.cancel();
+			expect(providerUserAgent).toBe("campus-agent");
 			expect(targetRequests).toBe(0);
 		} finally {
 			await close(redirect);

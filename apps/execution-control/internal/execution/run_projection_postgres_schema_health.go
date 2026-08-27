@@ -30,11 +30,17 @@ expected_columns(table_name, column_name, data_type, not_null, default_expressio
 		('owner_deletion_fences', 'state', 'text', true, ''),
 		('owner_deletion_fences', 'started_at', 'timestamp with time zone', true, ''),
 		('owner_deletion_fences', 'deleted_at', 'timestamp with time zone', false, ''),
+		('agent_runs', 'request_id', 'text', true, ''),
 		('agent_runs', 'request_fingerprint_sha256', 'text', true, $$''::text$$),
+		('agent_run_events', 'request_id', 'text', true, ''),
+		('agent_run_steps', 'request_id', 'text', true, ''),
 		('agent_run_steps', 'activity_attempt', 'integer', true, '0'),
+		('agent_step_attempts', 'request_id', 'text', true, ''),
 		('agent_step_attempts', 'activity_attempt', 'integer', true, '0'),
+		('agent_step_results', 'request_id', 'text', true, ''),
+		('conversation_run_locks', 'request_id', 'text', true, ''),
 
-		('agent_workflow_starts', 'run_id', 'text', true, ''),
+		('agent_workflow_starts', 'request_id', 'text', true, ''),
 		('agent_workflow_starts', 'workflow_id', 'text', true, ''),
 		('agent_workflow_starts', 'payload_sha256', 'text', true, ''),
 		('agent_workflow_starts', 'task_queue', 'text', true, ''),
@@ -50,7 +56,7 @@ expected_columns(table_name, column_name, data_type, not_null, default_expressio
 		('agent_workflow_starts', 'created_at', 'timestamp with time zone', true, ''),
 		('agent_workflow_starts', 'updated_at', 'timestamp with time zone', true, ''),
 
-		('agent_run_cancellations', 'run_id', 'text', true, ''),
+		('agent_run_cancellations', 'request_id', 'text', true, ''),
 		('agent_run_cancellations', 'workflow_id', 'text', true, ''),
 		('agent_run_cancellations', 'reason', 'text', true, ''),
 		('agent_run_cancellations', 'state', 'text', true, ''),
@@ -63,7 +69,7 @@ expected_columns(table_name, column_name, data_type, not_null, default_expressio
 		('agent_run_cancellations', 'updated_at', 'timestamp with time zone', true, ''),
 
 		('agent_invocation_receipts', 'invocation_id', 'text', true, ''),
-		('agent_invocation_receipts', 'run_id', 'text', true, ''),
+		('agent_invocation_receipts', 'request_id', 'text', true, ''),
 		('agent_invocation_receipts', 'input_sha256', 'text', true, ''),
 		('agent_invocation_receipts', 'state', 'text', true, ''),
 		('agent_invocation_receipts', 'output_json', 'jsonb', false, ''),
@@ -95,6 +101,20 @@ actual_columns as (
 		and attribute.attnum > 0
 		and not attribute.attisdropped
 ),
+forbidden_columns(table_name, column_name) as (
+	values
+		('agent_runs', 'run_id'),
+		('agent_runs', 'turn_id'),
+		('agent_runs', 'trace_id'),
+		('agent_run_events', 'run_id'),
+		('agent_run_steps', 'run_id'),
+		('agent_step_attempts', 'run_id'),
+		('agent_step_results', 'run_id'),
+		('conversation_run_locks', 'run_id'),
+		('agent_workflow_starts', 'run_id'),
+		('agent_run_cancellations', 'run_id'),
+		('agent_invocation_receipts', 'run_id')
+),
 expected_constraints(
 	table_name,
 	constraint_type,
@@ -104,22 +124,26 @@ expected_constraints(
 	referenced_columns,
 	delete_action
 ) as (
-		values
+	values
 			('owner_deletion_fences', 'p', array['owner_user_id']::text[], '', '', array[]::text[], ''),
-			('agent_run_steps', 'p', array['run_id', 'step_id']::text[], '', '', array[]::text[], ''),
-			('agent_run_steps', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
+			('agent_runs', 'p', array['request_id']::text[], '', '', array[]::text[], ''),
+			('agent_runs', 'u', array['request_id']::text[], '', '', array[]::text[], ''),
+			('agent_run_events', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+			('agent_run_steps', 'p', array['request_id', 'step_id']::text[], '', '', array[]::text[], ''),
+			('agent_run_steps', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
 			('agent_step_attempts', 'p', array['attempt_id']::text[], '', '', array[]::text[], ''),
-			('agent_step_attempts', 'u', array['run_id', 'step_id', 'attempt']::text[], '', '', array[]::text[], ''),
-			('agent_step_attempts', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
+			('agent_step_attempts', 'u', array['request_id', 'step_id', 'attempt']::text[], '', '', array[]::text[], ''),
+			('agent_step_attempts', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
 			('agent_step_results', 'p', array['result_id']::text[], '', '', array[]::text[], ''),
-			('agent_step_results', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
-		('agent_workflow_starts', 'p', array['run_id']::text[], '', '', array[]::text[], ''),
+			('agent_step_results', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+			('conversation_run_locks', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+		('agent_workflow_starts', 'p', array['request_id']::text[], '', '', array[]::text[], ''),
 		('agent_workflow_starts', 'u', array['workflow_id']::text[], '', '', array[]::text[], ''),
-		('agent_workflow_starts', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
-		('agent_run_cancellations', 'p', array['run_id']::text[], '', '', array[]::text[], ''),
-		('agent_run_cancellations', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c'),
+		('agent_workflow_starts', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
+		('agent_run_cancellations', 'p', array['request_id']::text[], '', '', array[]::text[], ''),
+		('agent_run_cancellations', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c'),
 		('agent_invocation_receipts', 'p', array['invocation_id']::text[], '', '', array[]::text[], ''),
-		('agent_invocation_receipts', 'f', array['run_id']::text[], 'execution_control', 'agent_runs', array['run_id']::text[], 'c')
+		('agent_invocation_receipts', 'f', array['request_id']::text[], 'execution_control', 'agent_runs', array['request_id']::text[], 'c')
 ),
 actual_constraints as (
 	select
@@ -194,9 +218,13 @@ expected_indexes(table_name, index_name, unique_index, columns, method, predicat
 			'btree',
 			$$status=anyarray['created'::text,'queued'::text,'admitted'::text,'running'::text,'streaming'::text]$$
 		),
+		('agent_run_events', 'agent_run_events_request_sequence_idx', true, array['request_id', 'sequence']::text[], 'btree', ''),
+		('agent_run_events', 'agent_run_events_request_occurred_idx', false, array['request_id', 'occurred_at']::text[], 'btree', ''),
+		('agent_run_steps', 'agent_run_steps_request_updated_idx', false, array['request_id', 'updated_at']::text[], 'btree', ''),
+		('agent_step_results', 'agent_step_results_request_step_idx', false, array['request_id', 'step_id', 'created_at']::text[], 'btree', ''),
 		('agent_workflow_starts', 'agent_workflow_starts_lease_idx', false, array['state', 'next_attempt_at', 'lease_until']::text[], 'btree', ''),
 		('agent_run_cancellations', 'agent_run_cancellations_lease_idx', false, array['state', 'next_attempt_at', 'lease_until']::text[], 'btree', ''),
-		('agent_invocation_receipts', 'agent_invocation_receipts_run_idx', false, array['run_id', 'created_at']::text[], 'btree', '')
+		('agent_invocation_receipts', 'agent_invocation_receipts_request_idx', false, array['request_id', 'created_at']::text[], 'btree', '')
 ),
 actual_indexes as (
 	select
@@ -258,6 +286,21 @@ schema_issues(issue) as (
 				and actual.not_null = expected.not_null
 				and actual.default_expression = expected.default_expression
 		)
+
+	union all
+
+	select format(
+		'column execution_control.%I.%I must not exist',
+		forbidden.table_name,
+		forbidden.column_name
+	)
+	from forbidden_columns as forbidden
+	where exists (
+		select 1
+		from actual_columns as actual
+		where actual.table_name = forbidden.table_name
+			and actual.column_name = forbidden.column_name
+	)
 
 	union all
 

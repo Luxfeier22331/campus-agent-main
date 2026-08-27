@@ -32,7 +32,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	var seenBodyBytes []byte
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		seenAuthorization = request.Header.Get("authorization")
-		if request.URL.Path != "/internal/agent-runs/stream" {
+		if request.URL.Path != "/internal/agent-requests/stream" {
 			t.Fatalf("agent runtime path = %q", request.URL.Path)
 		}
 		var err error
@@ -44,8 +44,8 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status": "completed",
-			"run_id": "run-primary-agent-001",
+			"status":     "completed",
+			"request_id": "run-primary-agent-001",
 			"context_usage": map[string]any{
 				"context_chars":            64,
 				"current_input_chars":      7,
@@ -78,10 +78,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-001",
-		RequestID:        "req-primary-agent-001",
-		RunID:            "run-primary-agent-001",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-001",
+		RequestID:        "run-primary-agent-001",
 		VisibleToolNames: []string{},
 	})
 	output, err := server.ExecutePrimaryAgent(context.Background(), input)
@@ -91,8 +88,11 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if seenAuthorization != "Bearer agent-secret" {
 		t.Fatalf("authorization = %q", seenAuthorization)
 	}
-	if seenBody["run_id"] != "run-primary-agent-001" {
+	if seenBody["request_id"] != "run-primary-agent-001" {
 		t.Fatalf("agent runtime request = %#v", seenBody)
+	}
+	if seenBody["conversation_id"] != "conv-primary-agent-001" {
+		t.Fatalf("agent runtime conversation_id = %#v", seenBody["conversation_id"])
 	}
 	if seenBody["expected_model_target_sha256"] != input.AdmissionSnapshot.PrimaryAgentTargetSHA256 {
 		t.Fatalf("expected_model_target_sha256 = %#v, want %s", seenBody["expected_model_target_sha256"], input.AdmissionSnapshot.PrimaryAgentTargetSHA256)
@@ -128,7 +128,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if run.AdmittedAt.IsZero() || run.StartedAt.IsZero() {
 		t.Fatalf("run admission timestamps were not projected: %#v", run)
 	}
-	receipt, err := store.GetAgentInvocationReceipt(context.Background(), run.RunID+":agent.primary")
+	receipt, err := store.GetAgentInvocationReceipt(context.Background(), run.RequestID+":agent.primary")
 	if err != nil {
 		t.Fatalf("get provider invocation receipt: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 		agentRequestForDurableWorkerTest("hi 你是谁"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/internal/agent-runs/stream" {
+		if request.URL.Path != "/internal/agent-requests/stream" {
 			t.Fatalf("agent runtime path = %q", request.URL.Path)
 		}
 		writeAgentRuntimeSSEEvent(t, response, "answer_delta", map[string]any{
@@ -235,7 +235,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 		})
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
-			"run_id":               "run-primary-agent-streaming",
+			"request_id":           "run-primary-agent-streaming",
 			"final_output":         "你好，我是校园问答助手。",
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
@@ -261,10 +261,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-streaming",
-		RequestID:        "req-primary-agent-streaming",
-		RunID:            "run-primary-agent-streaming",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-streaming",
+		RequestID:        "run-primary-agent-streaming",
 		VisibleToolNames: []string{},
 	})
 	output, err := server.ExecutePrimaryAgent(context.Background(), input)
@@ -304,8 +301,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 	}
 	startedEvent := events[3]
 	if startedEvent.Visibility != execution.DurableRunEventVisibilityBrowser ||
-		startedEvent.Payload["request_id"] != "req-executor-001" ||
-		startedEvent.Payload["trace_id"] != "trace-executor-001" ||
+		startedEvent.Payload["request_id"] != "run-primary-agent-streaming" ||
 		startedEvent.Payload["message_id"] != "run-primary-agent-streaming:answer" {
 		t.Fatalf("answer_started event = %#v", startedEvent)
 	}
@@ -344,7 +340,7 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 		})
 	}
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/internal/agent-runs/stream" {
+		if request.URL.Path != "/internal/agent-requests/stream" {
 			t.Fatalf("agent runtime path = %q", request.URL.Path)
 		}
 		writeAgentRuntimeSSEEvent(t, response, "answer_delta", map[string]any{
@@ -356,7 +352,7 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 		<-completeRuntime
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
-			"run_id":               "run-primary-agent-live-streaming",
+			"request_id":           "run-primary-agent-live-streaming",
 			"final_output":         "你好",
 			"model_name":           "gpt-test",
 			"model_provider":       "openai",
@@ -382,10 +378,7 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-live-streaming",
-		RequestID:        "req-primary-agent-live-streaming",
-		RunID:            "run-primary-agent-live-streaming",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-live-streaming",
+		RequestID:        "run-primary-agent-live-streaming",
 		VisibleToolNames: []string{},
 	})
 	done := make(chan error, 1)
@@ -460,7 +453,7 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
-			"run_id":               "run-primary-agent-empty-memory",
+			"request_id":           "run-primary-agent-empty-memory",
 			"final_output":         "你好，我是校园问答助手。",
 			"provider_response_id": "resp-primary-agent-empty-memory",
 			"tool_results":         []any{},
@@ -484,10 +477,7 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-empty-memory",
-		RequestID:        "req-primary-agent-empty-memory",
-		RunID:            "run-primary-agent-empty-memory",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-empty-memory",
+		RequestID:        "run-primary-agent-empty-memory",
 		VisibleToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
@@ -523,8 +513,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testi
 	}
 
 	_, err := server.ExecutePrimaryAgent(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		RunID:   "run-primary-agent-missing",
-		TraceID: "trace-executor-001",
+		RequestID: "run-primary-agent-missing",
 	})
 	if err == nil {
 		t.Fatal("expected missing agent runtime config to fail")
@@ -564,8 +553,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWithoutAdmissionSnapshot(t *testi
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgent(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		RunID:            "run-primary-agent-admission-missing",
-		TraceID:          "trace-executor-001",
+		RequestID:        "run-primary-agent-admission-missing",
 		VisibleToolNames: []string{},
 	})
 	if err == nil {
@@ -611,8 +599,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		RunID:            "run-primary-agent-runtime-diagnostic",
-		TraceID:          "trace-executor-001",
+		RequestID:        "run-primary-agent-runtime-diagnostic",
 		VisibleToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
@@ -685,14 +672,13 @@ func TestExecutePrimaryAgentActivityClassifiesUnauthorizedRuntimeAsNonRetryable(
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		RunID:            "run-primary-agent-runtime-unauthorized",
-		TraceID:          "trace-executor-001",
+		RequestID:        "run-primary-agent-runtime-unauthorized",
 		VisibleToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 
 	assertTemporalFailureSanitized(t, err, "agent_runtime_unauthorized", true)
-	steps, listErr := store.ListRunSteps(context.Background(), input.RunID)
+	steps, listErr := store.ListRunSteps(context.Background(), input.RequestID)
 	if listErr != nil {
 		t.Fatalf("list run steps: %v", listErr)
 	}
@@ -702,7 +688,7 @@ func TestExecutePrimaryAgentActivityClassifiesUnauthorizedRuntimeAsNonRetryable(
 	if _, exposed := steps[0].SanitizedPayload["agent_runtime_error_code"]; exposed {
 		t.Fatalf("unauthorized internal code must not enter the public payload: %#v", steps[0])
 	}
-	attempts, listErr := store.ListStepAttempts(context.Background(), input.RunID)
+	attempts, listErr := store.ListStepAttempts(context.Background(), input.RequestID)
 	if listErr != nil {
 		t.Fatalf("list step attempts: %v", listErr)
 	}
@@ -736,8 +722,7 @@ func TestExecutePrimaryAgentActivityLeavesAgentRuntimeTimeoutTerminalStateToWork
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		RunID:            "run-primary-agent-runtime-timeout",
-		TraceID:          "trace-executor-001",
+		RequestID:        "run-primary-agent-runtime-timeout",
 		VisibleToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)

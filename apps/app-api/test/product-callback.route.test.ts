@@ -29,8 +29,6 @@ function finalizationResponse() {
 		observability: null,
 		result: null,
 		status: "completed",
-		trace_id: "trace_1",
-		workflow_trace_summary: null,
 	};
 }
 
@@ -74,23 +72,26 @@ describe("product callback routes", () => {
 	it("validates exact Go response JSON bytes before applying a chat finalization", async () => {
 		const applyProductFinalization = vi.fn(async () => ({ outcome: "applied" as const }));
 		const app = appWithCallbacks({ applyProductFinalization });
-		const runId = "run_1";
+		const requestId = "req_1";
 		const responseJson = goEscapedFinalizationResponseJson();
 		expect(responseJson).toContain("\\u003c\\u003e\\u0026\\u2028\\u2029");
-		const fingerprint = sha256(`${runId}\0${responseJson}`);
+		const fingerprint = sha256(`${requestId}\0${responseJson}`);
 
-		const result = await app.request(`/api/internal/execution/runs/${runId}/product-finalization`, {
-			body: JSON.stringify({
-				completed_at: "2026-07-15T08:00:00.000Z",
-				finalization_fingerprint: fingerprint,
-				response_json: responseJson,
-			}),
-			headers: {
-				"content-type": "application/json",
-				"x-app-product-callback-auth": callbackSecret,
+		const result = await app.request(
+			`/api/internal/execution/requests/${requestId}/product-finalization`,
+			{
+				body: JSON.stringify({
+					completed_at: "2026-07-15T08:00:00.000Z",
+					finalization_fingerprint: fingerprint,
+					response_json: responseJson,
+				}),
+				headers: {
+					"content-type": "application/json",
+					"x-app-product-callback-auth": callbackSecret,
+				},
+				method: "PUT",
 			},
-			method: "PUT",
-		});
+		);
 
 		expect(result.status).toBe(200);
 		expect(await result.json()).toEqual({ outcome: "applied" });
@@ -101,7 +102,7 @@ describe("product callback routes", () => {
 					answerText: "escaped <>&\u2028\u2029",
 					result: { nested: { count: 7.25 } },
 				}),
-				runId,
+				requestId,
 			}),
 		);
 	});
@@ -109,23 +110,26 @@ describe("product callback routes", () => {
 	it("rejects a fingerprint computed from parsed and reserialized response JSON", async () => {
 		const applyProductFinalization = vi.fn(async () => ({ outcome: "applied" as const }));
 		const app = appWithCallbacks({ applyProductFinalization });
-		const runId = "run_1";
+		const requestId = "req_1";
 		const responseJson = goEscapedFinalizationResponseJson();
 		const reserialized = JSON.stringify(JSON.parse(responseJson));
 		expect(reserialized).not.toBe(responseJson);
 
-		const result = await app.request(`/api/internal/execution/runs/${runId}/product-finalization`, {
-			body: JSON.stringify({
-				completed_at: "2026-07-15T08:00:00.000Z",
-				finalization_fingerprint: sha256(`${runId}\0${reserialized}`),
-				response_json: responseJson,
-			}),
-			headers: {
-				"content-type": "application/json",
-				"x-app-product-callback-auth": callbackSecret,
+		const result = await app.request(
+			`/api/internal/execution/requests/${requestId}/product-finalization`,
+			{
+				body: JSON.stringify({
+					completed_at: "2026-07-15T08:00:00.000Z",
+					finalization_fingerprint: sha256(`${requestId}\0${reserialized}`),
+					response_json: responseJson,
+				}),
+				headers: {
+					"content-type": "application/json",
+					"x-app-product-callback-auth": callbackSecret,
+				},
+				method: "PUT",
 			},
-			method: "PUT",
-		});
+		);
 
 		expect(result.status).toBe(400);
 		expect(applyProductFinalization).not.toHaveBeenCalled();
@@ -135,11 +139,11 @@ describe("product callback routes", () => {
 		const applyProductFinalization = vi.fn(async () => ({ outcome: "applied" as const }));
 		const app = appWithCallbacks({ applyProductFinalization });
 		const response = finalizationResponse();
-		const runId = "run_1";
+		const requestId = "req_1";
 		const responseJson = JSON.stringify(response);
 		const sharedFields = {
 			completed_at: "2026-07-15T08:00:00.000Z",
-			finalization_fingerprint: sha256(`${runId}\0${responseJson}`),
+			finalization_fingerprint: sha256(`${requestId}\0${responseJson}`),
 		};
 
 		for (const body of [
@@ -154,7 +158,7 @@ describe("product callback routes", () => {
 			},
 		]) {
 			const result = await app.request(
-				`/api/internal/execution/runs/${runId}/product-finalization`,
+				`/api/internal/execution/requests/${requestId}/product-finalization`,
 				{
 					body: JSON.stringify(body),
 					headers: {
@@ -176,35 +180,41 @@ describe("product callback routes", () => {
 		});
 		const app = appWithCallbacks({ applyProductFinalization });
 		const response = finalizationResponse();
-		const invalid = await app.request("/api/internal/execution/runs/run_1/product-finalization", {
-			body: JSON.stringify({
-				completed_at: "2026-07-15T08:00:00.000Z",
-				finalization_fingerprint: "changed",
-				response_json: JSON.stringify(response),
-			}),
-			headers: {
-				"content-type": "application/json",
-				"x-app-product-callback-auth": callbackSecret,
+		const invalid = await app.request(
+			"/api/internal/execution/requests/req_1/product-finalization",
+			{
+				body: JSON.stringify({
+					completed_at: "2026-07-15T08:00:00.000Z",
+					finalization_fingerprint: "changed",
+					response_json: JSON.stringify(response),
+				}),
+				headers: {
+					"content-type": "application/json",
+					"x-app-product-callback-auth": callbackSecret,
+				},
+				method: "PUT",
 			},
-			method: "PUT",
-		});
+		);
 		expect(invalid.status).toBe(400);
 		expect(applyProductFinalization).not.toHaveBeenCalled();
 
 		const responseJson = JSON.stringify(response);
-		const fingerprint = sha256(`run_1\0${responseJson}`);
-		const conflict = await app.request("/api/internal/execution/runs/run_1/product-finalization", {
-			body: JSON.stringify({
-				completed_at: "2026-07-15T08:00:00.000Z",
-				finalization_fingerprint: fingerprint,
-				response_json: responseJson,
-			}),
-			headers: {
-				"content-type": "application/json",
-				"x-app-product-callback-auth": callbackSecret,
+		const fingerprint = sha256(`req_1\0${responseJson}`);
+		const conflict = await app.request(
+			"/api/internal/execution/requests/req_1/product-finalization",
+			{
+				body: JSON.stringify({
+					completed_at: "2026-07-15T08:00:00.000Z",
+					finalization_fingerprint: fingerprint,
+					response_json: responseJson,
+				}),
+				headers: {
+					"content-type": "application/json",
+					"x-app-product-callback-auth": callbackSecret,
+				},
+				method: "PUT",
 			},
-			method: "PUT",
-		});
+		);
 		expect(conflict.status).toBe(409);
 	});
 

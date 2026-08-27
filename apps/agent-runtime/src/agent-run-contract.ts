@@ -8,11 +8,8 @@ import type {
 
 export interface PrimaryAgentRunInput {
 	activityAttempt?: number;
-	runId: string;
 	requestId: string;
 	conversationId: string;
-	turnId: string;
-	traceId: string;
 	input: string;
 	visibleToolNames: string[];
 	conversationContext?: AgentConversationContext;
@@ -102,8 +99,7 @@ export interface ToolExecutionRequest {
 	activityAttempt?: number;
 	tool: ToolCatalogEntry;
 	argumentsJson: Record<string, unknown>;
-	runId: string;
-	traceId: string;
+	requestId: string;
 	invocationId?: string;
 	searchOrdinal?: number;
 	signal?: AbortSignal;
@@ -151,8 +147,6 @@ export interface AgentRunnerInput {
 	limits: AgentRuntimeLimits;
 	tools: SdkToolRuntime[];
 	requestId: string;
-	runId: string;
-	traceId: string;
 	providerConfig: PromptProviderRuntimeConfig;
 	signal?: AbortSignal;
 }
@@ -172,7 +166,7 @@ export type ToolExecutor = (request: ToolExecutionRequest) => Promise<UntimedToo
 
 export interface PrimaryAgentRunResult {
 	status: "completed" | "failed";
-	runId: string;
+	requestId: string;
 	contextUsage: ModelContextUsage;
 	finalOutput: string;
 	modelName: string;

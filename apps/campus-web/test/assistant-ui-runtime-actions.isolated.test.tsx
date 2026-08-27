@@ -31,21 +31,18 @@ const conversationApiMock = vi.hoisted(() => ({
 		code: string;
 		requestId: string | undefined;
 		retryable: boolean;
-		traceId: string | undefined;
 
 		constructor(input: {
 			code: string;
 			message: string;
 			requestId?: string;
 			retryable: boolean;
-			traceId?: string;
 		}) {
 			super(input.message);
 			this.name = "ChatStreamRequestError";
 			this.code = input.code;
 			this.requestId = input.requestId;
 			this.retryable = input.retryable;
-			this.traceId = input.traceId;
 		}
 	},
 	deleteTrailingMessages: vi.fn(),
@@ -103,7 +100,7 @@ function historicalConversation(input: {
 	const answerText = input.answerText ?? "原回答";
 	return {
 		archivedAt: null,
-		activeRunId: null,
+		activeRequestId: null,
 		createdAt: "2026-06-24T01:00:00.000Z",
 		id: "conv_history",
 		messages: [
@@ -140,7 +137,6 @@ function completedConversationEvent(input: {
 	answerId: string;
 	answerText: string;
 	requestId: string;
-	traceId: string;
 	userText: string;
 }): ChatRequestStreamEvent {
 	return {
@@ -155,15 +151,12 @@ function completedConversationEvent(input: {
 					kind: "answer",
 					requestId: input.requestId,
 					text: input.answerText,
-					traceId: input.traceId,
 				},
 			},
 			occurredAt: "2026-06-24T01:00:02.000Z",
 			requestId: input.requestId,
-			runId: "run_02",
 			sequence: 2,
 			status: "completed",
-			traceId: input.traceId,
 		},
 		event: "request.completed",
 	};
@@ -184,9 +177,7 @@ describe("assistant-ui runtime message actions", () => {
 			conversationId: "conv_history",
 			phase: "running",
 			requestId: "req_01",
-			runId: "run_02",
 			status: "running",
-			traceId: "trace_01",
 		});
 		conversationApiMock.resumeRunEventsStream.mockReset();
 		conversationApiMock.submitChatRequestStream.mockReset();
@@ -200,7 +191,6 @@ describe("assistant-ui runtime message actions", () => {
 					answerId: "msg_answer_new",
 					answerText: "编辑后的回答",
 					requestId: "req_02",
-					traceId: "trace_02",
 					userText: "编辑后的问题",
 				}),
 			]),
@@ -247,7 +237,6 @@ describe("assistant-ui runtime message actions", () => {
 					answerId: "msg_answer_new",
 					answerText: "重新生成回答",
 					requestId: "req_02",
-					traceId: "trace_02",
 					userText: "原问题",
 				}),
 			]),

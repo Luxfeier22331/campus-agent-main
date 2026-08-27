@@ -1,9 +1,8 @@
 /* AUTO-GENERATED FROM tool-execution.openapi.yaml. Do not edit by hand. */
 
 export const TOOL_EXECUTION_CONTRACT = {
-	executionContractVersion: "tool_execution_v5",
-	responseContract: "execution_finalization_response_v6",
-	workflowTraceSummaryVersion: "workflow-trace-summary-v7",
+	executionContractVersion: "tool_execution_v6",
+	responseContract: "execution_finalization_response_v7",
 } as const;
 
 export const TOOL_IDS = ["campus_search", "personal_memory_recall"] as const;
@@ -15,7 +14,6 @@ export const EXECUTION_STATUSES = [
 	"approval_required",
 	"cancelled",
 ] as const;
-export const EXECUTION_PATHS = ["direct", "tool_assisted"] as const;
 export const STAGE_TIMING_FIELDS = [
 	"request.total_ms",
 	"execution.dispatch_ms",
@@ -36,7 +34,6 @@ export const STAGE_TIMING_FIELDS = [
 export type ToolID = (typeof TOOL_IDS)[number];
 export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
-export type ExecutionPath = (typeof EXECUTION_PATHS)[number];
 
 export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
 export type StageTimingWire = Partial<Record<StageTimingField, number>>;
@@ -52,10 +49,6 @@ export interface ConversationContextWire {
 	session_state: SafeRecord;
 }
 
-export interface TraceContextWire {
-	trace_id: string;
-}
-
 export interface ExecutionPayloadWire {
 	execution_contract_version: typeof TOOL_EXECUTION_CONTRACT.executionContractVersion;
 	response_contract: typeof TOOL_EXECUTION_CONTRACT.responseContract;
@@ -64,7 +57,6 @@ export interface ExecutionPayloadWire {
 	tenant_id?: string;
 	request_id: string;
 	safety_identifier?: string | null;
-	trace: TraceContextWire;
 	context: SafeRecord;
 }
 
@@ -75,23 +67,13 @@ export interface ExecutionRunMetadataWire {
 }
 
 export interface ExecutionRunCreateRequestWire {
-	run_id: string;
 	conversation_id: string;
-	turn_id: string;
 	request_id: string;
-	trace_id?: string;
 	owner_user_id: string;
 	personal_memory_recall_allowed: boolean;
 	surface: string;
 	runtime_versions?: SafeRecord;
 	metadata: ExecutionRunMetadataWire;
-}
-
-export interface ToolExecutionWorkflowTraceSummaryWire {
-	execution_path: ExecutionPath;
-	terminal_reason: string;
-	answer_artifact_refs: string[];
-	runtime_versions: SafeRecord;
 }
 
 export interface ModelUsageWire {
@@ -108,7 +90,5 @@ export interface ToolExecutionResponseWire {
 	result: SafeRecord | null;
 	error: { code: string; message: string; retryable: boolean } | null;
 	observability?: SafeRecord | null;
-	workflow_trace_summary?: ToolExecutionWorkflowTraceSummaryWire | null;
 	stage_timing?: StageTimingWire | null;
-	trace_id: string;
 }

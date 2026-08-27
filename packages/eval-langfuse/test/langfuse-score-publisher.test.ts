@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
 import type { LangfuseClient } from "@langfuse/client";
 import { describe, expect, it } from "vitest";
 
@@ -36,37 +35,21 @@ function productResult(): AgentProductEvalResult {
 	if (!firstCase) {
 		throw new Error("expected one eval case");
 	}
-	const runId = "run-001";
-	const traceId = "trace-product-001";
 	const toolTrajectory = {
-		available_tools: [],
 		decision_kind: "direct_answer" as const,
-		request_id: "request-001",
-		run_id: runId,
-		schema_version: "tool_trajectory.v3" as const,
+		schema_version: "tool_trajectory.v4" as const,
 		tool_calls: [],
-		trace_id: traceId,
 	};
 	return {
 		evalRunId: "eval-001",
 		items: [
 			{
+				answer: "你好！",
 				case: firstCase,
-				projection: {
-					retrievedContextIds: [],
-					retrievedContexts: [],
-					runId,
-					toolTrajectory,
-					traceId,
-				},
-				terminal: {
-					answer: "你好！",
-					conversationId: "conversation-001",
-					requestId: "request-001",
-					resultKind: "answer",
-					runId,
-					traceId,
-				},
+				requestId: "request-001",
+				retrievedContextIds: [],
+				retrievedContexts: [],
+				toolTrajectory,
 			},
 		],
 	};
@@ -78,7 +61,9 @@ describe("Langfuse score publisher", () => {
 		try {
 			const productPath = join(directory, "product.json");
 			const scorePath = join(directory, "scores.json");
+			const traceMapPath = join(directory, "trace-map.json");
 			writeAgentProductEvalResult(productPath, productResult());
+			writeJsonObject(traceMapPath, { "case-001": "0f5f3f3f3f3f3f3f3f3f3f3f3f3f3f3f" });
 			writeJsonObject(scorePath, {
 				items: [
 					{
@@ -89,8 +74,7 @@ describe("Langfuse score publisher", () => {
 						},
 					},
 				],
-				run_id: "eval-001",
-				schema_version: "agent_eval_score_batch.v1",
+				schema_version: "agent_eval_score_batch.v2",
 			});
 
 			const created: Record<string, unknown>[] = [];
@@ -111,9 +95,10 @@ describe("Langfuse score publisher", () => {
 				productResultPath: productPath,
 				scorePath,
 				settings,
+				traceMapPath,
 			});
 
-			expect(summary).toMatchObject({ published: 1, run_id: "eval-001" });
+			expect(summary).toMatchObject({ eval_run_id: "eval-001", published: 1 });
 			expect(flushCount).toBe(1);
 			expect(created.map((item) => item.name)).toEqual(["ragas.faithfulness"]);
 			expect(created).toEqual(
@@ -121,7 +106,7 @@ describe("Langfuse score publisher", () => {
 					expect.objectContaining({
 						dataType: "NUMERIC",
 						metadata: { case_id: "case-001" },
-						traceId: await deriveLangfuseTraceId("trace-product-001"),
+						traceId: "0f5f3f3f3f3f3f3f3f3f3f3f3f3f3f3f",
 						value: 0.75,
 					}),
 				]),
@@ -140,7 +125,9 @@ describe("Langfuse score publisher", () => {
 		try {
 			const productPath = join(directory, "product.json");
 			const scorePath = join(directory, "scores.json");
+			const traceMapPath = join(directory, "trace-map.json");
 			writeAgentProductEvalResult(productPath, productResult());
+			writeJsonObject(traceMapPath, { "case-001": "0f5f3f3f3f3f3f3f3f3f3f3f3f3f3f3f" });
 			writeJsonObject(scorePath, {
 				items: [
 					{
@@ -149,8 +136,7 @@ describe("Langfuse score publisher", () => {
 						scores: { "ragas.context_precision_without_reference": 0.5 },
 					},
 				],
-				run_id: "eval-001",
-				schema_version: "agent_eval_score_batch.v1",
+				schema_version: "agent_eval_score_batch.v2",
 			});
 
 			await expect(
@@ -161,6 +147,7 @@ describe("Langfuse score publisher", () => {
 					productResultPath: productPath,
 					scorePath,
 					settings,
+					traceMapPath,
 				}),
 			).rejects.toThrow("unsupported Langfuse score name");
 		} finally {

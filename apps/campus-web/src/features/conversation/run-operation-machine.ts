@@ -1,9 +1,7 @@
 export interface ActiveRun {
 	conversationId?: string | undefined;
 	requestId: string;
-	runId: string;
 	sequence?: number | undefined;
-	traceId: string;
 }
 
 export interface RuntimeOperationIdentity {
@@ -14,9 +12,9 @@ export interface RuntimeOperationIdentity {
 export type RunCancellationState =
 	| { phase: "idle" }
 	| { localMessageId: string; operationId: number; phase: "initializing" }
-	| { operationId: number; phase: "awaiting_run_id" }
-	| { operationId: number; phase: "requesting"; promise: Promise<void>; runId: string }
-	| { operationId: number; phase: "acknowledged"; runId: string };
+	| { operationId: number; phase: "awaiting_request_id" }
+	| { operationId: number; phase: "requesting"; promise: Promise<void>; requestId: string }
+	| { operationId: number; phase: "acknowledged"; requestId: string };
 
 export class RunOperationMachine {
 	activeRun: ActiveRun | null = null;

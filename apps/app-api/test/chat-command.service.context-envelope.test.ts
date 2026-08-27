@@ -9,7 +9,6 @@ import {
 	durableEvent,
 	durableEventPage,
 	durableRun,
-	emptyRunStepTrajectory,
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
@@ -100,14 +99,12 @@ describe("chat command context envelope assembly", () => {
 						payload: {
 							request_id: "req_0001",
 							response: answerResponsePayload("大一是否可申请需要看转专业办法的年级条件。"),
-							trace_id: "trace_0001",
 						},
 						sequence: 1,
 						visibility: "internal",
 					}),
 				]),
 			),
-			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -137,11 +134,11 @@ describe("chat command context envelope assembly", () => {
 			userMessage: {
 				branchId: "branch_active",
 				parentMessageId: "msg_assistant_0002",
-				runId: "run_0001",
+				requestId: "req_0001",
 				turnSequence: 3,
 			},
 		});
-		const executionPayload = getFrozenExecutionPayload(createRunInput?.runId ?? "run_0001");
+		const executionPayload = getFrozenExecutionPayload(createRunInput?.requestId ?? "req_0001");
 		const context = executionPayload.context as Record<string, unknown>;
 
 		expect(context).not.toHaveProperty("profile_memory");
@@ -189,7 +186,7 @@ describe("chat command context envelope assembly", () => {
 			updatedAt: "2026-06-21T00:00:08.000Z",
 			activeBranchId: "branch_active",
 			activeMessageId: "msg_assistant_0002",
-			activeRunId: "run_previous",
+			activeRequestId: "req_previous",
 			activeTurnSequence: 2,
 			sessionSlots: [],
 			messages: [
@@ -204,7 +201,6 @@ describe("chat command context envelope assembly", () => {
 					retryable: null,
 					structuredParts: [],
 					branchId: "branch_active",
-					runId: "run_previous",
 					turnSequence: 1,
 				},
 				{
@@ -218,7 +214,6 @@ describe("chat command context envelope assembly", () => {
 					retryable: null,
 					structuredParts: [],
 					branchId: "branch_active",
-					runId: "run_previous",
 					turnSequence: 2,
 				},
 			],
@@ -241,14 +236,12 @@ describe("chat command context envelope assembly", () => {
 						payload: {
 							request_id: "req_0001",
 							response: answerResponsePayload("闭馆前半小时不能入馆。"),
-							trace_id: "trace_0001",
 						},
 						sequence: 1,
 						visibility: "internal",
 					}),
 				]),
 			),
-			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -270,7 +263,7 @@ describe("chat command context envelope assembly", () => {
 
 		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0];
-		const executionPayload = getFrozenExecutionPayload(createRunInput?.runId ?? "run_0001");
+		const executionPayload = getFrozenExecutionPayload(createRunInput?.requestId ?? "req_0001");
 		const context = executionPayload.context as Record<string, unknown>;
 		expect(context.conversation).not.toHaveProperty("previous_tool_results");
 		expect(context.conversation).not.toHaveProperty("previous_evidence_refs");

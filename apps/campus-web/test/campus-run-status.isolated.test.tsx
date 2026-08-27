@@ -36,7 +36,6 @@ const RUN: CampusRunViewState = {
 	phase: "generating",
 	provisional: false,
 	requestId: "req_01",
-	runId: "run_01",
 	sequence: 4,
 	startedAt: "2026-08-18T07:00:01.000Z",
 	status: "running",
@@ -173,7 +172,7 @@ describe("CampusRunStatus", () => {
 		fireEvent.click(screen.getByRole("button", { name: /查看回答过程/u }));
 		await waitFor(() =>
 			expect(testMocks.getRunSteps).toHaveBeenCalledWith({
-				runId: "run_01",
+				requestId: "req_01",
 				signal: expect.any(AbortSignal),
 			}),
 		);

@@ -40,36 +40,18 @@ function productResult(): AgentProductEvalResult {
 	return {
 		evalRunId: "eval-001",
 		items: validation.cases.map((caseItem, index) => {
-			const runId = `run-${index + 1}`;
-			const traceId = `trace-${index + 1}`;
 			const toolTrajectory: ToolTrajectory = {
-				available_tools: [],
-				conversation_id: `conversation-${index + 1}`,
 				decision_kind: "direct_answer",
-				request_id: `request-${index + 1}`,
-				run_id: runId,
-				schema_version: "tool_trajectory.v3",
+				schema_version: "tool_trajectory.v4",
 				tool_calls: [],
-				trace_id: traceId,
 			};
 			return {
+				answer: index === 0 ? "没有召回到上下文。" : "你好！",
 				case: caseItem,
-				projection: {
-					answer: index === 0 ? "没有召回到上下文。" : "你好！",
-					retrievedContextIds: [],
-					retrievedContexts: [],
-					runId,
-					toolTrajectory,
-					traceId,
-				},
-				terminal: {
-					answer: index === 0 ? "没有召回到上下文。" : "你好！",
-					conversationId: `conversation-${index + 1}`,
-					requestId: `request-${index + 1}`,
-					resultKind: "answer",
-					runId,
-					traceId,
-				},
+				requestId: `request-${index + 1}`,
+				retrievedContextIds: [],
+				retrievedContexts: [],
+				toolTrajectory,
 			};
 		}),
 	};
@@ -83,8 +65,7 @@ function writeAgentScores(inputPath: string, outputPath: string): void {
 			errors: [],
 			scores: { "ragas.tool_call_f1.name_only": 0.5 },
 		})),
-		run_id: input.run_id,
-		schema_version: "ragas_agent_score_batch.v2",
+		schema_version: "ragas_agent_score_batch.v3",
 	});
 }
 
@@ -112,8 +93,7 @@ describe("product result scoring adapter", () => {
 								scores: { "ragas.faithfulness": 0.25 },
 							},
 						],
-						run_id: input.run_id,
-						schema_version: "ragas_score_batch.v2",
+						schema_version: "ragas_score_batch.v3",
 					});
 				},
 			});
@@ -127,7 +107,7 @@ describe("product result scoring adapter", () => {
 						retrieved_contexts: [],
 					},
 				],
-				schema_version: "ragas_sample_batch.v2",
+				schema_version: "ragas_sample_batch.v3",
 			});
 			const scores = loadAgentEvalScoreBatch(scoresPath);
 			expect(scores.items).toHaveLength(2);
@@ -158,8 +138,7 @@ describe("product result scoring adapter", () => {
 					runPythonAgent: ({ outputPath }) =>
 						writeJsonObject(outputPath, {
 							items: [{ case_id: "case-with-rag", errors: [], scores: {} }],
-							run_id: "eval-001",
-							schema_version: "ragas_agent_score_batch.v2",
+							schema_version: "ragas_agent_score_batch.v3",
 						}),
 					runPythonRag: () => {
 						throw new Error("RAG runner must not run after incomplete agent batch");

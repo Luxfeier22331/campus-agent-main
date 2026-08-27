@@ -124,8 +124,14 @@ function isLoopbackHostname(hostname: string): boolean {
 	return (family === 4 && normalized.startsWith("127.")) || (family === 6 && normalized === "::1");
 }
 
-const fetchWithoutRedirects: typeof fetch = (input, init) =>
-	globalThis.fetch(input, { ...init, redirect: "manual" });
+export const fetchWithoutRedirects: typeof fetch = (input, init) => {
+	const headers = new Headers(input instanceof Request ? input.headers : undefined);
+	for (const [name, value] of new Headers(init?.headers)) {
+		headers.set(name, value);
+	}
+	headers.set("user-agent", "campus-agent");
+	return globalThis.fetch(input, { ...init, headers, redirect: "manual" });
+};
 
 function trimmed(value: string | undefined): string | undefined {
 	const result = value?.trim();

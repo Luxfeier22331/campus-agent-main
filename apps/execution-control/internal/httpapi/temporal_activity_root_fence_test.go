@@ -45,7 +45,7 @@ func TestTemporalActivityRootFenceAcceptsConfirmedRootExecution(t *testing.T) {
 	confirmTemporalActivityRootFenceIntentForTest(t, store, intent, temporalActivityTestRunID)
 	server := &Server{runProjectionStore: store}
 
-	if err := executeTemporalActivityRootFenceProbe(t, server, intent.RunID, false); err != nil {
+	if err := executeTemporalActivityRootFenceProbe(t, server, intent.RequestID, false); err != nil {
 		t.Fatalf("root execution fence error: %v", err)
 	}
 }
@@ -54,7 +54,7 @@ func TestTemporalActivityRootFenceRetriesUntilRootBindingIsConfirmed(t *testing.
 	store, intent := createTemporalActivityRootFenceIntentForTest(t, "run-root-pending")
 	server := &Server{runProjectionStore: store}
 
-	err := executeTemporalActivityRootFenceProbe(t, server, intent.RunID, false)
+	err := executeTemporalActivityRootFenceProbe(t, server, intent.RequestID, false)
 	assertTemporalActivityRootFenceError(
 		t,
 		err,
@@ -68,7 +68,7 @@ func TestTemporalActivityRootFenceRejectsResetSuccessorRunID(t *testing.T) {
 	confirmTemporalActivityRootFenceIntentForTest(t, store, intent, "original-root-run-id")
 	server := &Server{runProjectionStore: store}
 
-	err := executeTemporalActivityRootFenceProbe(t, server, intent.RunID, false)
+	err := executeTemporalActivityRootFenceProbe(t, server, intent.RequestID, false)
 	assertTemporalActivityRootFenceError(
 		t,
 		err,
@@ -81,20 +81,20 @@ func TestTemporalActivityRootFenceAllowsOnlyCancellationForSupersededStart(t *te
 	store, intent := createTemporalActivityRootFenceIntentForTest(t, "run-root-superseded")
 	leased := leaseTemporalActivityRootFenceIntentForTest(t, store, intent)
 	if err := store.MarkWorkflowStartDispatchAttempt(context.Background(), execution.WorkflowStartIntentResult{
-		RunID:      intent.RunID,
+		RequestID:  intent.RequestID,
 		LeaseToken: leased.LeaseToken,
 		Now:        intent.CreatedAt.Add(time.Second),
 	}); err != nil {
 		t.Fatalf("mark workflow start dispatch: %v", err)
 	}
 	if _, err := store.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-		RunID:  intent.RunID,
-		Reason: "user_requested",
-		Now:    intent.CreatedAt.Add(2 * time.Second),
+		RequestID: intent.RequestID,
+		Reason:    "user_requested",
+		Now:       intent.CreatedAt.Add(2 * time.Second),
 	}); err != nil {
 		t.Fatalf("request run cancellation: %v", err)
 	}
-	superseded, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	superseded, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatalf("get superseded workflow start intent: %v", err)
 	}
@@ -107,14 +107,14 @@ func TestTemporalActivityRootFenceAllowsOnlyCancellationForSupersededStart(t *te
 		intent:                     superseded,
 	}}
 
-	err = executeTemporalActivityRootFenceProbe(t, server, intent.RunID, false)
+	err = executeTemporalActivityRootFenceProbe(t, server, intent.RequestID, false)
 	assertTemporalActivityRootFenceError(
 		t,
 		err,
 		"temporal_execution_cancellation_pending",
 		false,
 	)
-	if err := executeTemporalActivityRootFenceProbe(t, server, intent.RunID, true); err != nil {
+	if err := executeTemporalActivityRootFenceProbe(t, server, intent.RequestID, true); err != nil {
 		t.Fatalf("cancellation finalizer root fence error: %v", err)
 	}
 }
@@ -166,14 +166,13 @@ func createTemporalActivityRootFenceIntentForTest(
 	store := execution.NewInMemoryRunProjectionStore()
 	request := execution.DurableRunCreateIntent{
 		Run: execution.DurableRun{
-			RunID: runID, ConversationID: conversationID, TurnID: "turn-" + runID,
-			RequestID: "request-" + runID, TraceID: "trace-" + runID,
+			RequestID: runID, ConversationID: conversationID,
 			OwnerUserID: "user-root-fence", Surface: "campus-web",
 			TaskQueue: temporalruntime.WorkflowTaskQueue,
 			Status:    execution.DurableRunStatusCreated,
 			CreatedAt: now, UpdatedAt: now,
 			Metadata: map[string]any{
-				"execution_contract_version": "tool_execution_v5",
+				"execution_contract_version": "tool_execution_v6",
 				"execution_input_ref":        "app-api://execution-inputs/" + runID,
 				"execution_input_sha256":     payloadSHA256,
 			},
@@ -182,9 +181,9 @@ func createTemporalActivityRootFenceIntentForTest(
 		WorkflowID:               temporalActivityTestWorkflowID,
 		PayloadSHA256:            payloadSHA256,
 		TaskQueue:                temporalruntime.WorkflowTaskQueue,
-		WorkflowInputJSON:        json.RawMessage(`{"run_id":"` + runID + `"}`),
+		WorkflowInputJSON:        json.RawMessage(`{"request_id":"` + runID + `"}`),
 		CreatedEvent: execution.DurableRunEvent{
-			EventID: runID + ":run-created", RunID: runID, ConversationID: conversationID,
+			EventID: runID + ":run-created", RequestID: runID, ConversationID: conversationID,
 			EventType: execution.DurableRunEventTypeRunCreated, OccurredAt: now,
 			Visibility:           execution.DurableRunEventVisibilityInternal,
 			PayloadSchemaVersion: "run-event-v1",
@@ -228,14 +227,14 @@ func confirmTemporalActivityRootFenceIntentForTest(
 	t.Helper()
 	leased := leaseTemporalActivityRootFenceIntentForTest(t, store, intent)
 	if err := store.MarkWorkflowStartDispatchAttempt(context.Background(), execution.WorkflowStartIntentResult{
-		RunID:      intent.RunID,
+		RequestID:  intent.RequestID,
 		LeaseToken: leased.LeaseToken,
 		Now:        intent.CreatedAt.Add(time.Second),
 	}); err != nil {
 		t.Fatalf("mark workflow start dispatch: %v", err)
 	}
 	if err := store.ConfirmWorkflowStartIntent(context.Background(), execution.WorkflowStartIntentResult{
-		RunID:         intent.RunID,
+		RequestID:     intent.RequestID,
 		LeaseToken:    leased.LeaseToken,
 		TemporalRunID: temporalRunID,
 		Now:           intent.CreatedAt.Add(2 * time.Second),

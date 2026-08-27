@@ -14,8 +14,8 @@ func (s *Server) appendTemporalRunProgress(
 	occurredAt time.Time,
 ) error {
 	return s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":progress:" + string(phase),
-		RunID:                run.RunID,
+		EventID:              run.RequestID + ":progress:" + string(phase),
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeRunProgress,
 		OccurredAt:           occurredAt,
@@ -24,7 +24,6 @@ func (s *Server) appendTemporalRunProgress(
 		Payload: map[string]any{
 			"phase":      string(phase),
 			"request_id": run.RequestID,
-			"trace_id":   run.TraceID,
 		},
 	})
 }

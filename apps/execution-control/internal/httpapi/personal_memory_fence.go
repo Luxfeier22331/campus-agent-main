@@ -27,7 +27,7 @@ func newFencedPersonalMemoryExecutor(executor personalMemoryExecutor, state memo
 }
 
 func (e fencedPersonalMemoryExecutor) Recall(ctx context.Context, request memoryruntime.RecallRequest) (memoryruntime.RecallResult, error) {
-	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RunID, request.ThreadID, request.OwnerGeneration, request.OwnerSequence, "recall")
+	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RequestID, request.ThreadID, request.OwnerGeneration, request.OwnerSequence, "recall")
 	if err != nil {
 		return memoryruntime.RecallResult{}, err
 	}
@@ -36,7 +36,7 @@ func (e fencedPersonalMemoryExecutor) Recall(ctx context.Context, request memory
 }
 
 func (e fencedPersonalMemoryExecutor) AppendConversationTurn(ctx context.Context, request memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendConversationTurnResult, error) {
-	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RunID, request.ThreadID, request.OwnerGeneration, request.OwnerSequence, "append")
+	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RequestID, request.ThreadID, request.OwnerGeneration, request.OwnerSequence, "append")
 	if err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}

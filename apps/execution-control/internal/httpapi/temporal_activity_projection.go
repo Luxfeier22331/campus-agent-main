@@ -16,7 +16,7 @@ import (
 
 func (s *Server) ensureTemporalActivityOwnsRootExecution(
 	ctx context.Context,
-	runID string,
+	requestID string,
 	allowSuperseded bool,
 ) error {
 	if !activity.IsActivity(ctx) {
@@ -25,7 +25,7 @@ func (s *Server) ensureTemporalActivityOwnsRootExecution(
 	if s == nil || s.runProjectionStore == nil {
 		return execution.ErrRunProjectionStoreNotConfigured
 	}
-	intent, err := s.runProjectionStore.GetWorkflowStartIntent(ctx, strings.TrimSpace(runID))
+	intent, err := s.runProjectionStore.GetWorkflowStartIntent(ctx, strings.TrimSpace(requestID))
 	if err != nil {
 		return sanitizedTemporalApplicationError(
 			"temporal_execution_binding_unavailable",
@@ -78,59 +78,43 @@ func (s *Server) ensureTemporalActivityOwnsRootExecution(
 
 func (s *Server) temporalActivityRun(
 	ctx context.Context,
-	runID string,
-	traceID string,
+	requestID string,
 ) (execution.DurableRun, error) {
 	if s == nil || s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
 	}
-	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, runID, false); err != nil {
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, requestID, false); err != nil {
 		return execution.DurableRun{}, err
 	}
-	run, err := s.runProjectionStore.GetRun(ctx, runID)
+	run, err := s.runProjectionStore.GetRun(ctx, requestID)
 	if err != nil {
 		return execution.DurableRun{}, err
 	}
-	if run.TraceID != traceID {
-		return execution.DurableRun{}, fmt.Errorf(
-			"activity trace_id %s does not match run trace_id %s",
-			traceID,
-			run.TraceID,
-		)
-	}
 	if temporalRunTerminal(run.Status) {
-		return execution.DurableRun{}, fmt.Errorf("run %s is already terminal: %s", run.RunID, run.Status)
+		return execution.DurableRun{}, fmt.Errorf("request %s is already terminal: %s", run.RequestID, run.Status)
 	}
 	return run, nil
 }
 
 func (s *Server) temporalActivityRunAllowCompletedAgentFinalization(
 	ctx context.Context,
-	runID string,
-	traceID string,
+	requestID string,
 ) (execution.DurableRun, error) {
 	if s == nil || s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
 	}
-	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, runID, false); err != nil {
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, requestID, false); err != nil {
 		return execution.DurableRun{}, err
 	}
-	run, err := s.runProjectionStore.GetRun(ctx, runID)
+	run, err := s.runProjectionStore.GetRun(ctx, requestID)
 	if err != nil {
 		return execution.DurableRun{}, err
-	}
-	if run.TraceID != traceID {
-		return execution.DurableRun{}, fmt.Errorf(
-			"activity trace_id %s does not match run trace_id %s",
-			traceID,
-			run.TraceID,
-		)
 	}
 	if run.Status == execution.DurableRunStatusCompleted {
 		return run, nil
 	}
 	if temporalRunTerminal(run.Status) {
-		return execution.DurableRun{}, fmt.Errorf("run %s is already terminal: %s", run.RunID, run.Status)
+		return execution.DurableRun{}, fmt.Errorf("request %s is already terminal: %s", run.RequestID, run.Status)
 	}
 	return run, nil
 }
@@ -160,7 +144,7 @@ func (s *Server) failFinalizationActivity(
 		Tool:            tool,
 		FailureHash:     summary.Hash,
 		FailureKind:     summary.Kind,
-		ProjectionRef:   temporalProjectionRef(run.RunID, "finalization/write"),
+		ProjectionRef:   temporalProjectionRef(run.RequestID, "finalization/write"),
 		ResultKind:      "activity_failure",
 		StepID:          "finalization.write",
 		StepKind:        "finalization",
@@ -324,8 +308,8 @@ func (s *Server) failTemporalRun(
 	terminalReason := temporalFailureTerminalReason(projection, failureKind)
 	if run.Status != execution.DurableRunStatusFailed {
 		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-			EventID:              run.RunID + ":activity-failed:" + failureKind,
-			RunID:                run.RunID,
+			EventID:              run.RequestID + ":activity-failed:" + failureKind,
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			EventType:            execution.DurableRunEventTypeActivityFailed,
 			OccurredAt:           failedAt,
@@ -362,12 +346,12 @@ func (s *Server) failTemporalRun(
 		ctx,
 		execution.DurableRunFailRequest{
 			Now:             failedAt,
-			RunID:           run.RunID,
+			RequestID:       run.RequestID,
 			FailCloseReason: temporalFailureFailCloseReason(projection),
 			TerminalReason:  terminalReason,
 			TerminalEvent: execution.DurableRunEvent{
-				EventID:              run.RunID + ":run-failed",
-				RunID:                run.RunID,
+				EventID:              run.RequestID + ":run-failed",
+				RequestID:            run.RequestID,
 				ConversationID:       run.ConversationID,
 				EventType:            execution.DurableRunEventTypeRunFailed,
 				OccurredAt:           failedAt,
@@ -378,7 +362,6 @@ func (s *Server) failTemporalRun(
 					"request_id":      run.RequestID,
 					"status":          string(execution.DurableRunStatusFailed),
 					"terminal_reason": string(terminalReason),
-					"trace_id":        run.TraceID,
 					"error":           terminalError,
 				},
 			},
@@ -440,7 +423,7 @@ func (s *Server) appendTemporalRunEvent(ctx context.Context, event execution.Dur
 		if !errors.Is(err, execution.ErrInvalidRunEvent) {
 			return err
 		}
-		events, listErr := s.runProjectionStore.ListRunEvents(ctx, event.RunID)
+		events, listErr := s.runProjectionStore.ListRunEvents(ctx, event.RequestID)
 		if listErr != nil {
 			return err
 		}

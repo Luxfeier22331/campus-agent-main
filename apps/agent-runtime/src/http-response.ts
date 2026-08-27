@@ -96,7 +96,7 @@ export function agentRunStreamResponse(
 export function agentRunResultWire(result: PrimaryAgentRunResult, runtimeRelease: string) {
 	return {
 		status: result.status,
-		run_id: result.runId,
+		request_id: result.requestId,
 		runtime_release: runtimeRelease,
 		context_usage: {
 			context_chars: result.contextUsage.contextChars,

@@ -40,15 +40,19 @@ status: active
 - `pnpm --filter internal-portal-collection dev:init`：internal-portal-collection adapter；
 - `pnpm --filter notice-classifier dev:init`：notice-classifier。
 
-`notice-publisher dev:init` 还使用数据库 owner 安装当前 `notices.*` migration。新的本地 profile 在运行
-internal-portal-collection 通知模式或 notice-classifier 前先执行该命令；后两者的 `dev:init` 只生成
-各自环境文件，不执行通知 DDL。
+`notice-publisher dev:init` 先通过 `campus-agent-schema` 安装统一 baseline，再写入本地通知分类 seed。
+新的本地 profile 在运行 internal-portal-collection 通知模式或 notice-classifier 前先执行该命令；
+后两者的 `dev:init` 只生成各自环境文件，不执行 DDL。
+
+`ops-web dev:init` 使用同一个 `campus-agent-schema` 入口安装全部 schema 和授权，再写入通知分类与
+Dining 本地 seed，使运行记录与通知页面可以在新的本地 profile 中直接启动。
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
-`dev:init` 还为当前 worktree 创建两个 `0600` 文件：`var/dev/provider-config-encryption.key`
-只供历史 execution-control migration 和切换读取；`var/dev/model-config-encryption.key` 供 Model
-Config 当前密文使用。两者不进入 profile、其他 worktree 或部署环境。
+`dev:init` 还为当前 worktree 创建 `0600` 的 `var/dev/model-config-encryption.key`，供 Model Config
+当前密文使用。`var/dev/provider-config-encryption.key` 只属于保留的历史切换 runner，标准本地
+bootstrap 不再隐式生成；显式验证旧切换路径时由调用者单独准备。密钥不进入 profile、其他 worktree
+或部署环境。
 
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实际选择决定。

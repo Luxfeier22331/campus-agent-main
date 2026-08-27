@@ -36,7 +36,7 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs",
+		"/internal/execution/requests",
 		strings.NewReader(durableRunCreateBodyForTest("run-temporal-001", "conv-temporal-001")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -57,14 +57,14 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	if run.Status != execution.DurableRunStatusCreated {
 		t.Fatalf("projection status = %q, want created before reconciliation", run.Status)
 	}
-	if starter.input.RunID != "" {
+	if starter.input.RequestID != "" {
 		t.Fatalf("Temporal start must be deferred to the reconciler: %#v", starter.input)
 	}
 
 	server.ReconcileTemporalRunsOnce(context.Background())
 
-	if starter.input.RunID != "run-temporal-001" {
-		t.Fatalf("workflow input run id = %q", starter.input.RunID)
+	if starter.input.RequestID != "run-temporal-001" {
+		t.Fatalf("workflow input request id = %q", starter.input.RequestID)
 	}
 	if starter.input.WorkflowID != "campus-agent.chat.run-temporal-001" {
 		t.Fatalf("workflow id = %q", starter.input.WorkflowID)
@@ -104,7 +104,7 @@ func TestExecutionRunCreateHidesPersonalMemoryToolWhenRuntimeIsUnavailable(t *te
 		1,
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
@@ -159,7 +159,7 @@ func TestExecutionRunCreateClassifiesExecutionInputErrors(t *testing.T) {
 			response := httptest.NewRecorder()
 			request := newTestRequest(
 				http.MethodPost,
-				"/internal/execution/runs",
+				"/internal/execution/requests",
 				strings.NewReader(durableRunCreateBodyForTest(test.runID, "conv-"+test.runID)),
 			)
 			request.Header.Set("x-worker-origin-auth", "secret")
@@ -211,7 +211,7 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 			response := httptest.NewRecorder()
 			request := newTestRequest(
 				http.MethodPost,
-				"/internal/execution/runs",
+				"/internal/execution/requests",
 				strings.NewReader(durableRunCreateBodyForTest(test.runID, "conv-"+test.runID)),
 			)
 			request.Header.Set("x-worker-origin-auth", "secret")
@@ -258,7 +258,7 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForToolRuntimeRegistry(t *te
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs",
+		"/internal/execution/requests",
 		strings.NewReader(durableRunCreateBodyForTest(runID, "conv-"+runID)),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -290,7 +290,7 @@ func TestExecutionRunCreateRejectsUnknownMetadataField(t *testing.T) {
 		1,
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
@@ -313,7 +313,7 @@ func TestExecutionRunCreateRejectsUnknownExecutionPayloadField(t *testing.T) {
 		1,
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
@@ -337,13 +337,13 @@ func TestExecutionRunCreateRejectsCallerToolHint(t *testing.T) {
 		"unpublished_tool",
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
 
 	assertError(t, response, http.StatusBadRequest, "invalid_request")
-	if starter.input.RunID != "" {
+	if starter.input.RequestID != "" {
 		t.Fatalf("caller tool hint must not start workflow: %#v", starter.input)
 	}
 	if _, err := store.GetRun(context.Background(), "run-campus-closed"); err == nil {
@@ -365,13 +365,13 @@ func TestExecutionRunCreateRejectsKnownCallerToolHint(t *testing.T) {
 		"personal_memory_recall",
 	)
 	response := httptest.NewRecorder()
-	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request := newTestRequest(http.MethodPost, "/internal/execution/requests", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
 
 	assertError(t, response, http.StatusBadRequest, "invalid_request")
-	if starter.input.RunID != "" {
+	if starter.input.RequestID != "" {
 		t.Fatalf("caller tool hint must not start workflow: %#v", starter.input)
 	}
 }
@@ -387,7 +387,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs",
+		"/internal/execution/requests",
 		strings.NewReader(durableRunCreateBodyForTest("run-traceparent-001", "conv-traceparent-001")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -399,7 +399,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
 	server.ReconcileTemporalRunsOnce(context.Background())
-	traceHeaders := telemetry.InjectExecutionTraceHeaders(starter.ctx, "req-traceparent-001", "trace-traceparent-001")
+	traceHeaders := telemetry.InjectExecutionTraceHeaders(starter.ctx, "req-traceparent-001")
 	if traceHeaders["traceparent"] != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
 		t.Fatalf("Temporal starter context traceparent = %q", traceHeaders["traceparent"])
 	}
@@ -416,7 +416,7 @@ func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs",
+		"/internal/execution/requests",
 		strings.NewReader(durableRunCreateBodyForTest(
 			"run-temporal-neutral",
 			"conv-temporal-neutral",
@@ -445,7 +445,7 @@ func TestExecutionRunCreateAcceptsWhenTemporalStarterMissing(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs",
+		"/internal/execution/requests",
 		strings.NewReader(durableRunCreateBodyForTest("run-temporal-missing", "conv-temporal-missing")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -481,7 +481,7 @@ func TestExecutionRunCreateRetriesWhenTemporalStartFails(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs",
+		"/internal/execution/requests",
 		strings.NewReader(durableRunCreateBodyForTest("run-temporal-fail", "conv-temporal-fail")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -519,7 +519,7 @@ func TestExecutionRunEventsWaitsForNewEventsWithinBoundedBudget(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/runs/run-events-wait/events?after_sequence=0&wait_ms=100",
+		"/internal/execution/requests/run-events-wait/events?after_sequence=0&wait_ms=100",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -528,12 +528,12 @@ func TestExecutionRunEventsWaitsForNewEventsWithinBoundedBudget(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 		_, _ = store.AppendRunEvent(context.Background(), execution.DurableRunEvent{
 			EventID:              "event-final",
-			RunID:                "run-events-wait",
+			RequestID:            "run-events-wait",
 			ConversationID:       "conv-events-wait",
 			EventType:            execution.DurableRunEventTypeFinalizationCompleted,
 			OccurredAt:           now.Add(2 * time.Second),
 			Visibility:           execution.DurableRunEventVisibilityBrowser,
-			Payload:              map[string]any{"request_id": "req-executor-001", "trace_id": "trace-executor-001"},
+			Payload:              map[string]any{"request_id": "run-events-wait"},
 			PayloadSchemaVersion: "run-event-v1",
 		})
 	}()
@@ -566,7 +566,7 @@ func TestExecutionRunEventsRejectsInvalidWaitBudget(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/runs/run-events-invalid-wait/events?wait_ms=60000",
+		"/internal/execution/requests/run-events-invalid-wait/events?wait_ms=60000",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -625,7 +625,7 @@ func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T)
 		}
 		if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
 			StepID:               stepID,
-			RunID:                runID,
+			RequestID:            runID,
 			ConversationID:       conversationID,
 			StepKind:             stepKind,
 			Tool:                 tool,
@@ -643,7 +643,7 @@ func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T)
 		if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
 			AttemptID:             stepID + ":attempt:1",
 			StepID:                stepID,
-			RunID:                 runID,
+			RequestID:             runID,
 			Attempt:               1,
 			Status:                status,
 			TaskQueue:             taskQueue,
@@ -678,7 +678,7 @@ func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T)
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs/"+runID+"/cancel",
+		"/internal/execution/requests/"+runID+"/cancel",
 		strings.NewReader(`{"reason":"user_requested"}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -744,7 +744,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	)
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
 		StepID:               "agent.primary",
-		RunID:                "run-temporal-trajectory",
+		RequestID:            "run-temporal-trajectory",
 		ConversationID:       "conv-temporal-trajectory",
 		StepKind:             "agent",
 		Status:               "completed",
@@ -765,7 +765,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
 		AttemptID:             temporalStepAttemptID("run-temporal-trajectory", "agent.primary", 1),
 		StepID:                "agent.primary",
-		RunID:                 "run-temporal-trajectory",
+		RequestID:             "run-temporal-trajectory",
 		Attempt:               1,
 		Status:                "completed",
 		TaskQueue:             temporalruntime.ActivityTaskQueueAgent,
@@ -804,7 +804,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "agent.primary:result:1",
 		StepID:               "agent.primary",
-		RunID:                "run-temporal-trajectory",
+		RequestID:            "run-temporal-trajectory",
 		AttemptID:            temporalStepAttemptID("run-temporal-trajectory", "agent.primary", 1),
 		Status:               "completed",
 		ResultKind:           "agent_final_output",
@@ -838,7 +838,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/runs/run-temporal-trajectory/steps",
+		"/internal/execution/requests/run-temporal-trajectory/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -892,19 +892,13 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("results = %#v, want one result", body["results"])
 	}
 	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
-	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v3" {
+	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v4" {
 		t.Fatalf("eval projection schema = %#v", evalProjection["schema_version"])
 	}
-	evalRun := expectRecord(t, evalProjection["run"], "agent_runtime_eval_projection.run")
-	if evalRun["run_id"] != "run-temporal-trajectory" ||
-		evalRun["request_id"] != "req-executor-001" ||
-		evalRun["trace_id"] != "trace-executor-001" {
-		t.Fatalf("eval projection run identity = %#v", evalRun)
+	if evalProjection["request_id"] != "run-temporal-trajectory" {
+		t.Fatalf("eval projection request identity = %#v", evalProjection)
 	}
-	evalTrajectory := expectRecord(t, evalProjection["trajectory"], "agent_runtime_eval_projection.trajectory")
-	if _, exists := evalTrajectory["selected_tool"]; exists {
-		t.Fatalf("eval trajectory must not expose selected_tool: %#v", evalTrajectory)
-	}
+	evalTrajectory := expectRecord(t, evalProjection["tool_trajectory"], "agent_runtime_eval_projection.tool_trajectory")
 	toolCalls, ok := evalTrajectory["tool_calls"].([]any)
 	if !ok || len(toolCalls) != 0 {
 		t.Fatalf("eval tool calls = %#v, want only durable SDK tool projections", evalTrajectory["tool_calls"])

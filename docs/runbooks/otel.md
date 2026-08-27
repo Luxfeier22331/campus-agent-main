@@ -52,12 +52,12 @@ Collector。它只输出 Agent trace。要验证 Langfuse 转发，使用
 
 ## 真实信号验证
 
-发起不包含真实认证材料的受控请求，记录产品 `requestId`、`runId` 和 `traceId`：
+发起不包含真实认证材料的受控请求，记录产品 `requestId`：
 
 1. 在 Agent Runtime 日志或本地 exporter 确认 trace 被生产；未配置 endpoint 时没有 trace 是预期
    行为。
-2. 在 Langfuse project 查询 Agent trace，核对 `request_id`、`run_id`、`trace_id`、`turn_id`、
-   environment、release 和有限的模型/用量字段。
+2. 在 Langfuse project 查询 Agent trace，核对唯一产品 metadata `request_id`、environment、release
+   和有限的模型/用量字段。Langfuse 原生 trace ID 只用于本次平台查询。
 3. 使用合成哨兵覆盖 query、header、正文、用户标识和 credential 位置，确认 Langfuse trace 中
    不出现模型输入输出、对话、memory/retrieval 正文、工具原始载荷、Cookie、token、数据库地址
    或其他认证内容。
@@ -72,12 +72,8 @@ Collector。它只输出 Agent trace。要验证 Langfuse 转发，使用
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts verify-trace \
-  --product-trace-id <product-trace-id> \
+  --trace-id <langfuse-trace-id> \
   --request-id <request-id> \
-  --run-id <run-id> \
-  --session-id <conversation-id> \
-  --user-id <stable-user-id> \
-  --release <runtime-release> \
   --json
 ```
 

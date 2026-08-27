@@ -20,7 +20,7 @@ func (s *Server) ExecutePrimaryAgent(
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	stopHeartbeat := startTemporalActivityHeartbeat(ctx, "agent.primary", 10*time.Second)
 	defer stopHeartbeat()
-	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
+	run, err := s.temporalActivityRun(ctx, input.RequestID)
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
@@ -28,7 +28,7 @@ func (s *Server) ExecutePrimaryAgent(
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "execution_input_metadata_invalid", err)
 	}
-	invocationID := run.RunID + ":agent.primary"
+	invocationID := run.RequestID + ":agent.primary"
 	executionPayload, err := s.loadExecutionPayload(ctx, run)
 	if err != nil {
 		return s.failPrimaryAgentActivity(
@@ -64,7 +64,7 @@ func (s *Server) ExecutePrimaryAgent(
 	limits = limitsFromAdmissionSnapshot(snapshot.AgentLimits)
 	limits.MaxTurns = snapshot.ExecutionStrategy.MaxModelTurns
 	limits.MaxToolCalls = snapshot.ExecutionStrategy.MaxToolCalls
-	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
+	agentResultRef := temporalProjectionRef(run.RequestID, "agent/primary/result")
 	attempt := temporalActivityAttempt(ctx)
 	conversationContext, err := primaryAgentConversationContextForRun(executionPayload, limits)
 	if err != nil {
@@ -99,7 +99,7 @@ func (s *Server) ExecutePrimaryAgent(
 		ctx,
 		execution.AgentInvocationReceipt{
 			InvocationID: invocationID,
-			RunID:        run.RunID,
+			RequestID:    run.RequestID,
 			InputSHA256:  invocationSHA256,
 			CreatedAt:    receiptNow,
 			UpdatedAt:    receiptNow,
@@ -168,7 +168,7 @@ func (s *Server) ExecutePrimaryAgent(
 			return s.failPrimaryAgentActivity(ctx, run, "tool_contract_mismatch", err, output)
 		}
 	}
-	output.RunID = run.RunID
+	output.RequestID = run.RequestID
 	output.AgentResultRef = agentResultRef
 	if strings.TrimSpace(output.Status) != "completed" {
 		completedAt := time.Now().UTC()
@@ -245,7 +245,7 @@ func (s *Server) ExecutePrimaryAgent(
 	outputDigest := sha256Bytes(outputSummary)
 	if _, err := s.runProjectionStore.CompleteAgentInvocation(ctx, execution.AgentInvocationReceipt{
 		InvocationID: invocationID,
-		RunID:        run.RunID,
+		RequestID:    run.RequestID,
 		InputSHA256:  invocationSHA256,
 		State:        execution.AgentInvocationReceiptStateCompleted,
 		OutputJSON:   outputSummary,
@@ -313,8 +313,8 @@ func (s *Server) ExecutePrimaryAgent(
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":agent-completed",
-		RunID:                run.RunID,
+		EventID:              run.RequestID + ":agent-completed",
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeAgentCompleted,
 		OccurredAt:           completedAt,
@@ -350,7 +350,7 @@ func (s *Server) beginPrimaryAgentRun(
 	case execution.DurableRunStatusQueued:
 		admitted, err := s.runProjectionStore.TransitionRun(
 			ctx,
-			run.RunID,
+			run.RequestID,
 			execution.DurableRunStatusAdmitted,
 			"",
 			startedAt,
@@ -359,8 +359,8 @@ func (s *Server) beginPrimaryAgentRun(
 			return execution.DurableRun{}, err
 		}
 		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-			EventID:              run.RunID + ":run-admitted",
-			RunID:                run.RunID,
+			EventID:              run.RequestID + ":run-admitted",
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			EventType:            execution.DurableRunEventTypeRunAdmitted,
 			OccurredAt:           startedAt,
@@ -376,15 +376,15 @@ func (s *Server) beginPrimaryAgentRun(
 		execution.DurableRunStatusStreaming:
 	default:
 		return execution.DurableRun{}, fmt.Errorf(
-			"run %s status %s cannot execute primary agent",
-			run.RunID,
+			"request %s status %s cannot execute primary agent",
+			run.RequestID,
 			run.Status,
 		)
 	}
 	if run.Status == execution.DurableRunStatusAdmitted {
 		running, err := s.runProjectionStore.TransitionRun(
 			ctx,
-			run.RunID,
+			run.RequestID,
 			execution.DurableRunStatusRunning,
 			"",
 			startedAt,
@@ -393,8 +393,8 @@ func (s *Server) beginPrimaryAgentRun(
 			return execution.DurableRun{}, err
 		}
 		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-			EventID:              run.RunID + ":run-started",
-			RunID:                run.RunID,
+			EventID:              run.RequestID + ":run-started",
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			EventType:            execution.DurableRunEventTypeRunStarted,
 			OccurredAt:           startedAt,
@@ -462,7 +462,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 		}
 		callIndex := index + 1
 		stepID := fmt.Sprintf("sdk_tool.execute.%s.%d", toolName, callIndex)
-		resultRef := primaryAgentSDKToolProjectionRef(run.RunID, toolName, callIndex)
+		resultRef := primaryAgentSDKToolProjectionRef(run.RequestID, toolName, callIndex)
 		argumentMetadata, err := validateSDKToolArguments(toolName, result.ArgumentsJSON)
 		if err != nil {
 			validationFailure := summarizeTemporalFailure("tool_argument_invalid", "", err)
@@ -823,7 +823,7 @@ func (s *Server) failPrimaryAgentActivity(
 		CachedInputTokens:  output.Usage.CachedInputTokens,
 		UsageObserved:      output.Usage.UsageObserved,
 		ProviderResponseID: output.ProviderResponseID,
-		ProjectionRef:      temporalProjectionRef(run.RunID, "agent/primary/result"),
+		ProjectionRef:      temporalProjectionRef(run.RequestID, "agent/primary/result"),
 		ResultKind:         "activity_failure",
 		StepID:             "agent.primary",
 		StepKind:           "agent",

@@ -1,9 +1,8 @@
-import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
 import { LangfuseClient } from "@langfuse/client";
 
 import { loadAgentEvalScoreBatch } from "./eval-scores";
 import { stableId } from "./identifiers";
-import type { JsonObject } from "./json";
+import { type JsonObject, loadJsonObject, stringField } from "./json";
 import { loadAgentProductEvalResult } from "./product-result";
 import { assertCompleteSettings, type LangfuseSettings } from "./settings";
 
@@ -26,13 +25,12 @@ export async function publishLangfuseScores(input: {
 	productResultPath: string;
 	scorePath: string;
 	settings: LangfuseSettings;
+	traceMapPath: string;
 }): Promise<JsonObject> {
 	assertCompleteSettings(input.settings);
 	const productResult = loadAgentProductEvalResult(input.productResultPath);
 	const scoreBatch = loadAgentEvalScoreBatch(input.scorePath);
-	if (scoreBatch.runId !== productResult.evalRunId) {
-		throw new Error("score batch run_id does not match product result");
-	}
+	const traceIdsByCase = loadTraceIdsByCase(input.traceMapPath);
 	const productByCase = new Map(
 		productResult.items.map((item) => [item.case.case_id, item] as const),
 	);
@@ -52,16 +50,18 @@ export async function publishLangfuseScores(input: {
 	let published = 0;
 	let errorCount = 0;
 	for (const item of scoreBatch.items) {
-		const productItem = productByCase.get(item.case_id);
-		if (!productItem) {
+		if (!productByCase.has(item.case_id)) {
 			throw new Error(`score batch contains unknown case_id: ${item.case_id}`);
 		}
-		const traceId = await deriveLangfuseTraceId(productItem.terminal.traceId);
+		const traceId = traceIdsByCase.get(item.case_id);
+		if (!traceId) {
+			throw new Error(`trace map is missing case_id: ${item.case_id}`);
+		}
 		for (const [name, value] of Object.entries(item.scores)) {
 			const dataType = scoreDataType(name, value);
 			client.score.create({
 				dataType,
-				id: stableId("lfscore", scoreBatch.runId, item.case_id, name),
+				id: stableId("lfscore", productResult.evalRunId, item.case_id, name),
 				metadata: { case_id: item.case_id },
 				name,
 				traceId,
@@ -71,16 +71,29 @@ export async function publishLangfuseScores(input: {
 		}
 		errorCount += item.errors.length;
 		productByCase.delete(item.case_id);
+		traceIdsByCase.delete(item.case_id);
 	}
 	if (productByCase.size > 0) {
 		throw new Error("score batch is missing product cases");
 	}
+	if (traceIdsByCase.size > 0) {
+		throw new Error(`trace map contains unknown case_id: ${[...traceIdsByCase.keys()].join(", ")}`);
+	}
 	await client.score.flush();
 	return {
 		error_count: errorCount,
+		eval_run_id: productResult.evalRunId,
 		published,
-		run_id: scoreBatch.runId,
 	};
+}
+
+function loadTraceIdsByCase(path: string): Map<string, string> {
+	return new Map(
+		Object.entries(loadJsonObject(path)).map(([caseId, traceId]) => [
+			stringField(caseId, "trace map case_id"),
+			stringField(traceId, `trace map ${caseId}`),
+		]),
+	);
 }
 
 function scoreDataType(

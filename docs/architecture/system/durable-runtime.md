@@ -57,7 +57,7 @@ execution-control 的创建事务同时写入 run 与 workflow 启动命令，�
 app-api。后台 reconciler 租约并幂等投递命令，因此 API 响应、进程退出或 Temporal 返回不确定时
 都不会要求删除 run 或猜测 workflow 是否已启动。
 
-每个在线回答固定使用 `campus-agent.chat.{runId}` 作为 Workflow ID。与仍开放的同 ID workflow
+每个在线回答固定使用 `campus-agent.chat.{requestId}` 作为 Workflow ID。与仍开放的同 ID workflow
 冲突时使用 `USE_EXISTING`，关闭后重放使用 `REJECT_DUPLICATE`；reconciler 读取已有执行并确认
 Temporal Run ID，而不是创建第二个 workflow。Workflow 输入只包含关联标识、输入 ref/hash、有界
 策略版本和执行预算，不包含 prompt、会话正文、认证投影或完整工具载荷。

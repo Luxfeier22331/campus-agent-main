@@ -149,7 +149,7 @@ describe("agent runtime node HTTP server", () => {
 					"content-length": String(AGENT_RUNTIME_MAX_REQUEST_BODY_BYTES + 1),
 				},
 				method: "POST",
-				path: "/internal/agent-runs",
+				path: "/internal/agent-requests",
 			});
 
 			expect(response.status).toBe(401);
@@ -167,7 +167,7 @@ describe("agent runtime node HTTP server", () => {
 					"content-length": String(AGENT_RUNTIME_MAX_REQUEST_BODY_BYTES + 1),
 				},
 				method: "POST",
-				path: "/internal/agent-runs",
+				path: "/internal/agent-requests",
 			});
 			expect(declared.status).toBe(413);
 
@@ -176,7 +176,7 @@ describe("agent runtime node HTTP server", () => {
 				chunked: true,
 				headers: { authorization: "Bearer test-secret" },
 				method: "POST",
-				path: "/internal/agent-runs/stream",
+				path: "/internal/agent-requests/stream",
 			});
 			expect(chunked.status).toBe(413);
 			expect(JSON.parse(chunked.body)).toMatchObject({
@@ -223,7 +223,7 @@ describe("agent runtime node HTTP server", () => {
 					body: Buffer.alloc(AGENT_RUNTIME_MAX_REQUEST_BODY_BYTES, "a"),
 					headers: { authorization: "Bearer test-secret" },
 					method: "POST",
-					path: "/internal/agent-runs",
+					path: "/internal/agent-requests",
 				});
 
 				expect(response.status).toBe(200);
@@ -246,7 +246,7 @@ describe("agent runtime node HTTP server", () => {
 					body: "{}",
 					headers: { authorization: "Bearer test-secret" },
 					method: "POST",
-					path: "/internal/agent-runs",
+					path: "/internal/agent-requests",
 				});
 				expect(failed.status).toBe(500);
 				expect(failed.body).not.toContain("private failure detail");

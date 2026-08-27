@@ -241,6 +241,8 @@ func scanConfigView(scanner rowScanner) (ConfigView, error) {
 	); err != nil {
 		return ConfigView{}, err
 	}
+	view.ValidatedAt = view.ValidatedAt.UTC()
+	view.UpdatedAt = view.UpdatedAt.UTC()
 	view.SchemaVersion = "model_target.v1"
 	view.TargetSHA256 = TargetHash(view.Target)
 	return view, nil

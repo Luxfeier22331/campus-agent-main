@@ -7,9 +7,10 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { Client } from "pg";
+import { Client, Pool } from "pg";
 import { Wait } from "testcontainers";
 import type { TestProject } from "vitest/node";
+import { migrateNotices } from "../../../jobs/notice-publisher/src/migrate.ts";
 import { installAppApiSchema } from "../../app-api/ops/db/schema.ts";
 
 const execFileAsync = promisify(execFile);
@@ -21,7 +22,7 @@ const DATABASE_NAME = "campus_agent";
 const SCHEMA_OWNER = "ops_web_schema_owner";
 const OPS_WEB_ROLE = "ops_web";
 const APP_API_ROLE = "app_api";
-const NOLOGIN_ROLES = ["execution_control"] as const;
+const NOLOGIN_ROLES = ["campus_agent", "execution_control"] as const;
 const executionControlRoot = fileURLToPath(new URL("../../execution-control", import.meta.url));
 
 export interface OpsWebPostgresContext {
@@ -67,6 +68,17 @@ async function installExecutionControlSchema(connectionString: string): Promise<
 	}
 }
 
+export async function installNoticeSchema(connectionString: string): Promise<void> {
+	const pool = new Pool({ connectionString, max: 1, ssl: false });
+	const client = await pool.connect();
+	try {
+		await migrateNotices(client);
+	} finally {
+		client.release();
+		await pool.end();
+	}
+}
+
 async function provisionDatabase(
 	container: StartedPostgreSqlContainer,
 ): Promise<OpsWebPostgresContext> {
@@ -85,6 +97,7 @@ async function provisionDatabase(
 		for (const role of NOLOGIN_ROLES) {
 			await admin.query(`create role "${role}" nologin`);
 		}
+		await admin.query(`grant "campus_agent" to "${SCHEMA_OWNER}"`);
 		await admin.query(`alter database "${DATABASE_NAME}" owner to "${SCHEMA_OWNER}"`);
 	} finally {
 		await admin.end();
@@ -111,6 +124,7 @@ async function provisionDatabase(
 		AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 		BETTER_AUTH_SECRET: "testcontainers-ops-web-product-database-secret",
 	});
+	await installNoticeSchema(managementConnectionString);
 	await installExecutionControlSchema(managementConnectionString);
 
 	return {

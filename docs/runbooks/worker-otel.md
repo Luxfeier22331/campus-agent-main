@@ -12,9 +12,9 @@ status: active
 exporter，也不维护 application-log destination。
 
 Cloudflare invocation logs 与 native traces 必须关闭，不能作为证据。浏览器和 Sentry 的追踪上下文
-只服务 App API 入站错误观测，到 durable execution 边界即终止。Source 使用产品 `traceId` 生成
-W3C `traceparent`，由 execution-control 传播到 Agent Runtime；若环境启用 Agent trace，可在
-Langfuse 关联。环境 destination、Worker version/traffic、Sentry DSN 和 CI source map credential
+只服务 App API 入站错误观测，到 durable execution 边界即终止。execution-control 只转发已有的可选
+W3C `traceparent`，不从 `requestId` 派生 trace；若环境启用 Agent trace，Langfuse metadata 使用
+`request_id` 关联。环境 destination、Worker version/traffic、Sentry DSN 和 CI source map credential
 由环境仓与受保护 GitHub Environment 拥有。
 
 ## 部署前检查
@@ -41,7 +41,7 @@ sampling、`persist=false`、`invocation_logs=false` 和
 3. 在 Ops Web 确认成功和错误请求的 PostgreSQL 产品状态与关联标识可见。
 4. 在 Sentry 分别确认 campus-web browser、campus-web edge 与 app-api error，release 正确且
    stack frame 能映射到上传 source map。
-5. 若环境启用了 Agent Langfuse trace，确认产品关联标识可用于人工跳转；环境因
+5. 若环境启用了 Agent Langfuse trace，确认 trace metadata 中的 `request_id` 与产品请求一致；环境因
    配额停收时不要求 trace 存在，也不接受 Cloudflare native span 作为替代。
 6. 用合成值覆盖 OAuth/reset query、request header、body、用户标识、prompt、answer、memory
    和 credential 位置，在 Sentry 搜索所有哨兵。
@@ -52,15 +52,15 @@ sampling、`persist=false`、`invocation_logs=false` 和
 - `invocation_logs=false` 且 native traces 关闭；
 - Sentry 不包含 Cookie、header、query、body、用户、breadcrumb、GenAI 输入输出或 replay；
 - browser、edge 与 app-api 使用 canonical Sentry project/DSN，release/environment 正确，source map 可解析；
-- 产品请求状态来自 PostgreSQL，`traceId` 只用于展示和外部关联；
+- 产品请求状态来自 PostgreSQL，跨服务业务关联只使用 `requestId`；
 - Sentry 或可选 Agent trace 出口故障没有改写请求终态。
 
 ## 失败处理
 
 - Sentry 无错误或 stack 未映射：检查 runtime DSN、release 一致性和 source map upload job。
-- correlation 断裂：检查 PostgreSQL 产品投影的 `requestId`/`traceId`，以及 Source 生成的 W3C
-  `traceparent` 是否经 execution-control 传播到 Agent Runtime；`baggage` 和 `sentry-trace` 不得跨
-  durable execution 边界。
+- correlation 断裂：检查 PostgreSQL 产品投影、Sentry tag 和 Langfuse metadata 的 `requestId`；若
+  本次调用本来携带 W3C `traceparent`，再检查 execution-control 是否原样传播。`baggage` 和
+  `sentry-trace` 不得跨 durable execution 边界。
 - 任一禁止字段出现：立即关闭对应 Sentry path；出现 invocation log/native trace 或新的 log
   destination 时先修复配置漂移，再执行完整哨兵检查。
 

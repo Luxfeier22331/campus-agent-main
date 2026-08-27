@@ -100,10 +100,7 @@ describe("primary agent runtime", () => {
 
 		const result = await runtime.run({
 			requestId: "req-no-tool",
-			runId: "run-no-tool",
 			conversationId: "conversation-1",
-			turnId: "turn-1",
-			traceId: "trace-1",
 			input: "hi 你是谁",
 			providerConfig,
 			limits,
@@ -143,10 +140,7 @@ describe("primary agent runtime", () => {
 
 		await runtime.run({
 			requestId: "req-closed-tools",
-			runId: "run-closed-tools",
 			conversationId: "conversation-1",
-			turnId: "turn-closed-tools",
-			traceId: "trace-closed-tools",
 			input: "今天下一班通知几点发？",
 			providerConfig,
 			limits,
@@ -188,10 +182,7 @@ describe("primary agent runtime", () => {
 
 		const result = await runtime.run({
 			requestId: "req-missing-envelope",
-			runId: "run-missing-envelope",
 			conversationId: "conversation-1",
-			turnId: "turn-1",
-			traceId: "trace-1",
 			input: "hi 你是谁",
 			providerConfig,
 			limits,
@@ -216,10 +207,7 @@ describe("primary agent runtime", () => {
 
 		const events = runtime.stream({
 			requestId: "req-stream-missing-runner",
-			runId: "run-stream-missing-runner",
 			conversationId: "conversation-1",
-			turnId: "turn-1",
-			traceId: "trace-1",
 			input: "hi",
 			providerConfig,
 			limits,
@@ -267,10 +255,7 @@ describe("primary agent runtime", () => {
 		const events: PrimaryAgentStreamEvent[] = [];
 		for await (const event of runtime.stream({
 			requestId: "req-stream-terminal",
-			runId: "run-stream-terminal",
 			conversationId: "conversation-1",
-			turnId: "turn-1",
-			traceId: "trace-1",
 			input: "hi",
 			providerConfig,
 			limits,
@@ -328,10 +313,7 @@ describe("primary agent runtime", () => {
 
 		await runtime.run({
 			requestId: "req-memory",
-			runId: "run-memory",
 			conversationId: "conversation-1",
-			turnId: "turn-memory",
-			traceId: "trace-memory",
 			input: "之后回答能不能先给结论？",
 			providerConfig,
 			limits,
@@ -373,10 +355,7 @@ describe("primary agent runtime", () => {
 
 		const result = await runtime.run({
 			requestId: "req-prompt-trace",
-			runId: "run-prompt-trace",
 			conversationId: "conversation-1",
-			turnId: "turn-prompt-trace",
-			traceId: "trace-prompt-trace",
 			input: "之后回答能不能先给结论？",
 			providerConfig,
 			limits,
@@ -411,10 +390,7 @@ describe("primary agent runtime", () => {
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
 		const runInput = {
 			requestId: "req-context",
-			runId: "run-context",
 			conversationId: "conversation-1",
-			turnId: "turn-context",
-			traceId: "trace-context",
 			input: "那大一能不能申请？",
 			providerConfig,
 			limits,
@@ -479,10 +455,7 @@ describe("primary agent runtime", () => {
 
 		await runtime.run({
 			requestId: "req-empty-session-state",
-			runId: "run-empty-session-state",
 			conversationId: "conversation-1",
-			turnId: "turn-empty-session-state",
-			traceId: "trace-empty-session-state",
 			input: "你好",
 			providerConfig,
 			limits,
@@ -534,16 +507,13 @@ describe("primary agent runtime", () => {
 					outcome: "resolved_current",
 					echo: argumentsJson,
 				},
-				resultRef: "agent-runtime://run-tool/tools/test_lookup",
+				resultRef: "agent-runtime://req-tool/tools/test_lookup",
 			}),
 		});
 
 		const result = await runtime.run({
 			requestId: "req-tool",
-			runId: "run-tool",
 			conversationId: "conversation-1",
-			turnId: "turn-2",
-			traceId: "trace-2",
 			input: "通知今天几点",
 			providerConfig,
 			limits,
@@ -552,7 +522,7 @@ describe("primary agent runtime", () => {
 
 		expect(result.status).toBe("completed");
 		expect(result.terminalReason).toBe("answer_completed");
-		expect(result.toolResults[0]?.resultRef).toBe("agent-runtime://run-tool/tools/test_lookup");
+		expect(result.toolResults[0]?.resultRef).toBe("agent-runtime://req-tool/tools/test_lookup");
 		expect(result.toolResults[0]?.argumentsJson).toEqual({
 			query_text: "通知今天几点",
 			intent: "next_departure",
@@ -581,10 +551,7 @@ describe("primary agent runtime", () => {
 
 		const result = await runtime.run({
 			requestId: "req-missing-tool-executor",
-			runId: "run-missing-tool-executor",
 			conversationId: "conversation-1",
-			turnId: "turn-4",
-			traceId: "trace-4",
 			input: "通知今天几点",
 			providerConfig,
 			limits,
@@ -601,7 +568,7 @@ describe("primary agent runtime", () => {
 				payloadKind: "test_lookup",
 				argumentsJson: { query_text: "通知今天几点" },
 				result: { error: "tool executor is not configured" },
-				resultRef: "agent-runtime://run-missing-tool-executor/tools/test_lookup/failed",
+				resultRef: "agent-runtime://req-missing-tool-executor/tools/test_lookup/failed",
 				failCloseReason: "tool_executor_not_configured",
 				durationMs: 12,
 			},
@@ -639,17 +606,14 @@ describe("primary agent runtime", () => {
 				result: {
 					error: "source truth unavailable",
 				},
-				resultRef: "agent-runtime://run-tool/tools/test_lookup/failed",
+				resultRef: "agent-runtime://req-tool/tools/test_lookup/failed",
 				failCloseReason: "source_truth_unavailable",
 			}),
 		});
 
 		const result = await runtime.run({
 			requestId: "req-tool-failed",
-			runId: "run-tool-failed",
 			conversationId: "conversation-1",
-			turnId: "turn-3",
-			traceId: "trace-3",
 			input: "通知今天几点",
 			providerConfig,
 			limits,
@@ -692,7 +656,7 @@ describe("primary agent runtime", () => {
 								payloadKind: "test_lookup",
 								argumentsJson: { query_text: "通知" },
 								result: { error: "source truth unavailable" },
-								resultRef: "agent-runtime://run-stream-failed-tool/tools/test_lookup/failed",
+								resultRef: "agent-runtime://req-stream-failed-tool/tools/test_lookup/failed",
 								failCloseReason: "source_truth_unavailable",
 								durationMs: 12,
 							},
@@ -706,10 +670,7 @@ describe("primary agent runtime", () => {
 		const events: PrimaryAgentStreamEvent[] = [];
 		for await (const event of runtime.stream({
 			requestId: "req-stream-failed-tool",
-			runId: "run-stream-failed-tool",
 			conversationId: "conversation-1",
-			turnId: "turn-stream-failed-tool",
-			traceId: "trace-stream-failed-tool",
 			input: "通知",
 			providerConfig,
 			limits,
@@ -764,17 +725,14 @@ describe("primary agent runtime", () => {
 					payloadKind: tool.name,
 					argumentsJson,
 					result: { outcome: "resolved_current" },
-					resultRef: "agent-runtime://run-tool/tools/test_lookup",
+					resultRef: "agent-runtime://req-tool/tools/test_lookup",
 				};
 			},
 		});
 
 		const result = await runtime.run({
 			requestId: "req-signal",
-			runId: "run-signal",
 			conversationId: "conversation-1",
-			turnId: "turn-signal",
-			traceId: "trace-signal",
 			input: "通知今天几点",
 			providerConfig,
 			limits,

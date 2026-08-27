@@ -42,19 +42,17 @@ HTTP API 也不拥有 worker 生命周期。
 
 - `execution-control`：生产入口；`8000` 提供内部执行、查询、记忆和健康接口，同时运行三类
   Temporal poller。本地宿主进程通过标准 `HOST` 和 `PORT` 配置监听地址。
-- `run-projection-schema`：通过 Goose 安装和验证运行投影及个人记忆状态，再独立应用运行角色授权。
-  旧 Provider Config keyring/密钥仅作为冻结历史 migration 输入，随后由 Model Config schema job
-  完成所有权切换并删除旧表。
+- `run-projection-schema`：现有部署数据库保留的历史 Goose runner，不再由标准本地 bootstrap 调用。
+  新建或重建的本地数据库由 `campus-agent-schema` 直接安装最终结构和授权。
 
 收到 SIGTERM 或运行时致命错误时，`execution-control` 先将 HTTP 准入置为 draining，停止新的业务请求，
 并在 `ShutdownGraceMS` 窗口内等待已进入的请求完成。HTTP 阶段结束后才停止 reconciler 和 Temporal
 poller，最后关闭运行投影、个人记忆状态和 Temporal starter。超时请求会先收到 context cancellation；
 若仍有 handler 不退出，进程不会提前关闭其共享 store，持久化的 start/cancel intent 由下一实例继续收敛。
 
-Migration 位于 `internal/schemamigrations/`，统一记录在
-`public.execution_control_migrations`。运行时 Store 只连接和读写，不自动建表。普通结构变化新增
-SQL migration；需要事务型数据转换时使用同一版本序列中的 Go migration。修改后运行
-`pnpm --dir apps/execution-control test:database-integration`。
+`internal/schemamigrations/` 与 `public.execution_control_migrations` 是现有部署路径的不可变历史。
+新的共享数据库 migration 位于 `jobs/campus-agent-schema/`，统一记录在
+`drizzle.campus_agent_migrations`。运行时 Store 只连接和读写，不自动建表。
 
 具体 HTTP 路径、字段和枚举不在 README 复制：
 

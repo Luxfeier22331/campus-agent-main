@@ -14,7 +14,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *http.Request, runID string) {
+func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *http.Request, requestID string) {
 	if !s.internalWorkerAuthorized(request) {
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
@@ -29,11 +29,11 @@ func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *ht
 		)
 		return
 	}
-	if strings.TrimSpace(runID) == "" {
-		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
+	if strings.TrimSpace(requestID) == "" {
+		writeError(response, http.StatusBadRequest, "invalid_request", "request_id is required.", false)
 		return
 	}
-	run, err := s.runProjectionStore.GetRun(request.Context(), strings.TrimSpace(runID))
+	run, err := s.runProjectionStore.GetRun(request.Context(), strings.TrimSpace(requestID))
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
 			writeError(response, http.StatusNotFound, "durable_run_not_found", "Durable run not found.", false)
@@ -45,7 +45,7 @@ func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *ht
 	writeJSON(response, http.StatusOK, durableRunResponse(run))
 }
 
-func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request *http.Request, runID string) {
+func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request *http.Request, requestID string) {
 	if !s.internalWorkerAuthorized(request) {
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
@@ -60,8 +60,8 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 		)
 		return
 	}
-	if strings.TrimSpace(runID) == "" {
-		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
+	if strings.TrimSpace(requestID) == "" {
+		writeError(response, http.StatusBadRequest, "invalid_request", "request_id is required.", false)
 		return
 	}
 	afterSequence, err := readAfterSequenceQuery(request)
@@ -76,7 +76,7 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 	}
 	events, err := s.listRunEventsAfterWithOptionalWait(
 		request.Context(),
-		strings.TrimSpace(runID),
+		strings.TrimSpace(requestID),
 		afterSequence,
 		waitBudget,
 	)
@@ -110,24 +110,24 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 
 func (s *Server) listRunEventsAfterWithOptionalWait(
 	ctx context.Context,
-	runID string,
+	requestID string,
 	afterSequence int64,
 	waitBudget time.Duration,
 ) ([]execution.DurableRunEvent, error) {
-	events, err := s.runProjectionStore.ListRunEventsAfter(ctx, runID, afterSequence)
+	events, err := s.runProjectionStore.ListRunEventsAfter(ctx, requestID, afterSequence)
 	if err != nil || len(events) > 0 || waitBudget <= 0 {
 		return events, err
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, waitBudget)
 	defer cancel()
-	events, err = s.runProjectionStore.WaitForRunEventsAfter(waitCtx, runID, afterSequence)
+	events, err = s.runProjectionStore.WaitForRunEventsAfter(waitCtx, requestID, afterSequence)
 	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 		return []execution.DurableRunEvent{}, nil
 	}
 	return events, err
 }
 
-func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *http.Request, runID string) {
+func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *http.Request, requestID string) {
 	if !s.internalWorkerAuthorized(request) {
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
@@ -142,35 +142,35 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 		)
 		return
 	}
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		writeError(response, http.StatusBadRequest, "invalid_request", "request_id is required.", false)
 		return
 	}
-	run, err := s.runProjectionStore.GetRun(request.Context(), runID)
+	run, err := s.runProjectionStore.GetRun(request.Context(), requestID)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
-			writeError(response, http.StatusNotFound, "execution_run_not_found", "Execution run not found.", false)
+			writeError(response, http.StatusNotFound, "execution_request_not_found", "Execution request not found.", false)
 			return
 		}
 		writeError(response, http.StatusInternalServerError, "execution_run_query_failed", err.Error(), true)
 		return
 	}
-	steps, err := s.runProjectionStore.ListRunSteps(request.Context(), runID)
+	steps, err := s.runProjectionStore.ListRunSteps(request.Context(), requestID)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
-			writeError(response, http.StatusNotFound, "execution_run_not_found", "Execution run not found.", false)
+			writeError(response, http.StatusNotFound, "execution_request_not_found", "Execution request not found.", false)
 			return
 		}
 		writeError(response, http.StatusInternalServerError, "execution_run_steps_query_failed", err.Error(), true)
 		return
 	}
-	attempts, err := s.runProjectionStore.ListStepAttempts(request.Context(), runID)
+	attempts, err := s.runProjectionStore.ListStepAttempts(request.Context(), requestID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "execution_step_attempts_query_failed", err.Error(), true)
 		return
 	}
-	results, err := s.runProjectionStore.ListStepResults(request.Context(), runID)
+	results, err := s.runProjectionStore.ListStepResults(request.Context(), requestID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "execution_step_results_query_failed", err.Error(), true)
 		return
@@ -236,11 +236,8 @@ func durableRunFromCreateBody(
 		return execution.DurableRun{}, false, errors.New("execution task queue is not configured")
 	}
 	return execution.DurableRun{
-		RunID:           wire.RunID,
-		ConversationID:  wire.ConversationID,
-		TurnID:          wire.TurnID,
 		RequestID:       wire.RequestID,
-		TraceID:         wire.TraceID,
+		ConversationID:  wire.ConversationID,
 		OwnerUserID:     wire.OwnerUserID,
 		Surface:         wire.Surface,
 		Status:          execution.DurableRunStatusCreated,
@@ -258,11 +255,8 @@ func durableRunFromCreateBody(
 
 func durableRunResponse(run execution.DurableRun) map[string]any {
 	return map[string]any{
-		"run_id":               run.RunID,
 		"conversation_id":      run.ConversationID,
-		"turn_id":              run.TurnID,
 		"request_id":           run.RequestID,
-		"trace_id":             run.TraceID,
 		"owner_user_id":        run.OwnerUserID,
 		"surface":              run.Surface,
 		"status":               string(run.Status),
@@ -283,7 +277,7 @@ func durableRunResponse(run execution.DurableRun) map[string]any {
 func durableRunEventResponse(event execution.DurableRunEvent) map[string]any {
 	return map[string]any{
 		"event_id":               event.EventID,
-		"run_id":                 event.RunID,
+		"request_id":             event.RequestID,
 		"conversation_id":        event.ConversationID,
 		"event_type":             string(event.EventType),
 		"sequence":               event.Sequence,
@@ -297,7 +291,7 @@ func durableRunEventResponse(event execution.DurableRunEvent) map[string]any {
 func runStepProjectionResponse(step execution.RunStepProjection) map[string]any {
 	return map[string]any{
 		"step_id":                step.StepID,
-		"run_id":                 step.RunID,
+		"request_id":             step.RequestID,
 		"conversation_id":        step.ConversationID,
 		"step_kind":              step.StepKind,
 		"tool":                   step.Tool,
@@ -317,7 +311,7 @@ func stepAttemptProjectionResponse(attempt execution.StepAttemptProjection) map[
 	return map[string]any{
 		"attempt_id":              attempt.AttemptID,
 		"step_id":                 attempt.StepID,
-		"run_id":                  attempt.RunID,
+		"request_id":              attempt.RequestID,
 		"attempt":                 attempt.Attempt,
 		"status":                  attempt.Status,
 		"task_queue":              attempt.TaskQueue,
@@ -356,7 +350,7 @@ func stepResultProjectionResponse(result execution.StepResultProjection) map[str
 	return map[string]any{
 		"result_id":              result.ResultID,
 		"step_id":                result.StepID,
-		"run_id":                 result.RunID,
+		"request_id":             result.RequestID,
 		"attempt_id":             result.AttemptID,
 		"status":                 result.Status,
 		"result_kind":            result.ResultKind,
@@ -373,29 +367,16 @@ func buildAgentRuntimeEvalProjection(
 	attempts []execution.StepAttemptProjection,
 	results []execution.StepResultProjection,
 ) map[string]any {
-	results, attempts = successfulPrimaryAgentActivityProjections(steps, results, attempts)
-	toolCalls := projectedPublicToolCalls(results, attempts)
-	projection := map[string]any{
-		"schema_version": "agent_runtime_eval_projection.v3",
-		"run": map[string]any{
-			"run_id":            run.RunID,
-			"request_id":        run.RequestID,
-			"trace_id":          run.TraceID,
-			"status":            string(run.Status),
-			"terminal_reason":   string(run.TerminalReason),
-			"fail_close_reason": run.FailCloseReason,
-		},
-		"trajectory": map[string]any{
-			"tool_calls":             toolCalls,
-			"direct_answer":          projectedBoolFromResults(results, "direct_answer"),
-			"requires_clarification": projectedBoolFromResults(results, "requires_clarification"),
-		},
-		"tool_trajectory": buildToolTrajectoryProjection(run, steps, results, toolCalls),
-		"planning":        projectedPlanningForEval(results),
-		"rag":             projectedRAGForEval(results),
-		"memory":          projectedMemoryForEval(results),
+	results, _ = successfulPrimaryAgentActivityProjections(steps, results, attempts)
+	rag := projectedRAGForEval(results)
+	return map[string]any{
+		"schema_version":        "agent_runtime_eval_projection.v4",
+		"request_id":            run.RequestID,
+		"answer":                rag["answer"],
+		"retrieved_context_ids": rag["retrieved_context_ids"],
+		"retrieved_contexts":    rag["retrieved_contexts"],
+		"tool_trajectory":       buildToolTrajectoryProjection(run, projectedEvalToolCalls(results)),
 	}
-	return projection
 }
 
 func successfulPrimaryAgentActivityProjections(
@@ -410,7 +391,7 @@ func successfulPrimaryAgentActivityProjections(
 			continue
 		}
 		activityAttempt, ok := positiveIntValue(result.SanitizedPayload["activity_attempt"])
-		if !ok || result.AttemptID != temporalStepAttemptID(result.RunID, result.StepID, activityAttempt) {
+		if !ok || result.AttemptID != temporalStepAttemptID(result.RequestID, result.StepID, activityAttempt) {
 			continue
 		}
 		if activityAttempt > successfulAttempt {
@@ -428,7 +409,7 @@ func successfulPrimaryAgentActivityProjections(
 			continue
 		}
 		if successfulAttempt > 0 &&
-			result.AttemptID == temporalStepAttemptID(result.RunID, result.StepID, successfulAttempt) {
+			result.AttemptID == temporalStepAttemptID(result.RequestID, result.StepID, successfulAttempt) {
 			filteredResults = append(filteredResults, result)
 		}
 	}
@@ -479,8 +460,6 @@ func projectionActivityAttempt(attempt execution.StepAttemptProjection) int {
 
 func buildToolTrajectoryProjection(
 	run execution.DurableRun,
-	steps []execution.RunStepProjection,
-	results []execution.StepResultProjection,
 	toolCalls []map[string]any,
 ) map[string]any {
 	decisionKind := "direct_answer"
@@ -490,55 +469,15 @@ func buildToolTrajectoryProjection(
 	} else if len(toolCalls) > 0 {
 		decisionKind = "tool_assisted"
 	}
-	projection := map[string]any{
-		"schema_version":  "tool_trajectory.v3",
-		"request_id":      run.RequestID,
-		"run_id":          run.RunID,
-		"trace_id":        run.TraceID,
-		"conversation_id": run.ConversationID,
-		"surface":         run.Surface,
-		"environment":     firstNonEmptyText(run.Metadata["environment"], run.RuntimeVersions["environment"]),
-		"release":         firstNonEmptyText(run.Metadata["release"], run.RuntimeVersions["release"]),
-		"available_tools": projectedAvailableTools(steps, results),
-		"decision_kind":   decisionKind,
-		"tool_calls":      toolCalls,
+	return map[string]any{
+		"schema_version": "tool_trajectory.v4",
+		"decision_kind":  decisionKind,
+		"tool_calls":     toolCalls,
 	}
-	if run.FailCloseReason != "" {
-		projection["fail_close_reason"] = run.FailCloseReason
-	}
-	return sanitizeProjectionPayload(projection)
 }
 
-func projectedAvailableTools(
-	steps []execution.RunStepProjection,
-	results []execution.StepResultProjection,
-) []string {
-	values := []string{}
-	for _, step := range steps {
-		appendPublicProjectionTool(&values, step.Tool)
-		payload := sanitizeProjectionPayload(step.SanitizedPayload)
-		for _, tool := range stringSliceFromAny(payload["visible_tool_names"]) {
-			appendPublicProjectionTool(&values, tool)
-		}
-	}
-	return values
-}
-
-func projectedPublicToolCalls(
-	results []execution.StepResultProjection,
-	attempts []execution.StepAttemptProjection,
-) []map[string]any {
+func projectedEvalToolCalls(results []execution.StepResultProjection) []map[string]any {
 	calls := []map[string]any{}
-	attemptByID := map[string]execution.StepAttemptProjection{}
-	for _, attempt := range attempts {
-		attemptByID[attempt.AttemptID] = attempt
-	}
-	resultAttemptByProjectionRef := map[string]execution.StepAttemptProjection{}
-	for _, result := range results {
-		if attempt, ok := attemptByID[result.AttemptID]; ok && strings.TrimSpace(result.ProjectionRef) != "" {
-			resultAttemptByProjectionRef[strings.TrimSpace(result.ProjectionRef)] = attempt
-		}
-	}
 	for _, result := range results {
 		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.") {
 			continue
@@ -548,22 +487,9 @@ func projectedPublicToolCalls(
 		if toolName == "" {
 			continue
 		}
-		call := map[string]any{
-			"tool_name":    toolName,
-			"tool_call_id": firstNonEmptyText(result.ProjectionRef, result.ResultID),
-			"status":       result.Status,
-			"result_kind":  result.ResultKind,
-		}
-		if argumentsHash := firstNonEmptyText(payload["arguments_json_sha256"]); argumentsHash != "" {
-			call["arguments_hash"] = argumentsHash
-		}
-		if reason := firstNonEmptyText(payload["fail_close_reason"]); reason != "" {
-			call["fail_close_reason"] = reason
-		}
-		if toolAttempt, ok := resultAttemptByProjectionRef[result.ProjectionRef]; ok && toolAttempt.DurationMS > 0 {
-			call["duration_ms"] = toolAttempt.DurationMS
-		} else if attempt, ok := attemptByID[result.AttemptID]; ok && attempt.DurationMS > 0 {
-			call["duration_ms"] = attempt.DurationMS
+		call := map[string]any{"tool_name": toolName}
+		if evalSafeArgs, ok := payload["eval_safe_args"].(map[string]any); ok && len(evalSafeArgs) > 0 {
+			call["eval_safe_args"] = sanitizeProjectionPayload(evalSafeArgs)
 		}
 		calls = append(calls, sanitizeProjectionPayload(call))
 	}
@@ -576,38 +502,6 @@ func toolNameFromSDKStepID(stepID string) string {
 		return ""
 	}
 	return strings.TrimSpace(parts[2])
-}
-
-func appendPublicProjectionTool(values *[]string, tool string) {
-	switch strings.TrimSpace(tool) {
-	case campusSearchToolName, personalMemoryRecallToolName:
-		appendUniqueProjectionString(values, strings.TrimSpace(tool))
-	}
-}
-
-func stringFromProjectionPayload(payload map[string]any, key string) string {
-	value, _ := sanitizeProjectionPayload(payload)[key].(string)
-	return strings.TrimSpace(value)
-}
-
-func projectedBoolFromResults(results []execution.StepResultProjection, key string) bool {
-	for _, result := range results {
-		value, ok := sanitizeProjectionPayload(result.SanitizedPayload)[key].(bool)
-		if ok {
-			return value
-		}
-	}
-	return false
-}
-
-func projectedRecordFromResults(results []execution.StepResultProjection, key string) map[string]any {
-	for _, result := range results {
-		record, ok := sanitizeProjectionPayload(result.SanitizedPayload)[key].(map[string]any)
-		if ok {
-			return sanitizeProjectionPayload(record)
-		}
-	}
-	return map[string]any{}
 }
 
 func sanitizeProjectionPayload(payload map[string]any) map[string]any {

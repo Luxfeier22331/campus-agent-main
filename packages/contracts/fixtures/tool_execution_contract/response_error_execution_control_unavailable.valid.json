@@ -12,12 +12,5 @@
 		"code": "execution_control_unavailable",
 		"message": "Execution control is unavailable.",
 		"retryable": true
-	},
-	"workflow_trace_summary": {
-		"execution_path": "direct",
-		"terminal_reason": "execution_control_unavailable",
-		"answer_artifact_refs": [],
-		"runtime_versions": {}
-	},
-	"trace_id": "trace-contract-execution-unavailable"
+	}
 }

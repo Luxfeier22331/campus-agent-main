@@ -22,8 +22,7 @@ type personalMemoryRecallToolEnvelope struct {
 
 type agentToolAccessContext struct {
 	ActivityAttempt int    `json:"activity_attempt"`
-	RunID           string `json:"run_id"`
-	TraceID         string `json:"trace_id"`
+	RequestID       string `json:"request_id"`
 	InvocationID    string `json:"invocation_id"`
 }
 
@@ -80,15 +79,14 @@ func decodePersonalMemoryRecallToolEnvelope(body json.RawMessage) (personalMemor
 		return envelope, errors.New("personal_memory_recall request has trailing JSON content")
 	}
 	envelope.Payload.Query = strings.TrimSpace(envelope.Payload.Query)
-	envelope.AccessContext.RunID = strings.TrimSpace(envelope.AccessContext.RunID)
-	envelope.AccessContext.TraceID = strings.TrimSpace(envelope.AccessContext.TraceID)
+	envelope.AccessContext.RequestID = strings.TrimSpace(envelope.AccessContext.RequestID)
 	envelope.AccessContext.InvocationID = strings.TrimSpace(envelope.AccessContext.InvocationID)
 	if envelope.Payload.Query == "" || len([]rune(envelope.Payload.Query)) > 400 {
 		return envelope, errors.New("payload.query must contain between 1 and 400 characters")
 	}
-	if envelope.AccessContext.RunID == "" || envelope.AccessContext.TraceID == "" ||
+	if envelope.AccessContext.RequestID == "" ||
 		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.ActivityAttempt <= 0 {
-		return envelope, errors.New("access_context.run_id, trace_id, invocation_id, and activity_attempt are required")
+		return envelope, errors.New("access_context.request_id, invocation_id, and activity_attempt are required")
 	}
 	return envelope, nil
 }
@@ -101,7 +99,7 @@ func (s *Server) executePersonalMemoryRecallTool(
 	if err != nil {
 		return nil, err
 	}
-	intent, err := s.runProjectionStore.GetWorkflowStartIntent(ctx, run.RunID)
+	intent, err := s.runProjectionStore.GetWorkflowStartIntent(ctx, run.RequestID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,17 +146,14 @@ func (s *Server) validateAgentToolRun(
 	if s.runProjectionStore == nil {
 		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
 	}
-	run, err := s.runProjectionStore.GetRun(ctx, access.RunID)
+	run, err := s.runProjectionStore.GetRun(ctx, access.RequestID)
 	if err != nil {
 		return execution.DurableRun{}, err
-	}
-	if run.TraceID != access.TraceID {
-		return execution.DurableRun{}, agentToolConflictError{message: "agent tool trace_id does not match run"}
 	}
 	if run.Status != execution.DurableRunStatusRunning {
 		return execution.DurableRun{}, agentToolConflictError{message: "agent tool run is not running"}
 	}
-	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RunID)
+	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RequestID)
 	if err != nil {
 		return execution.DurableRun{}, err
 	}

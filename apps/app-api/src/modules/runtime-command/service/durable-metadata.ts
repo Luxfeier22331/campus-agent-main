@@ -21,17 +21,17 @@ export function sha256Text(value: string): string {
 	return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-export function executionInputRef(runId: string): string {
-	const normalizedRunId = runId.trim();
-	if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(normalizedRunId)) {
-		throw new Error("Durable execution input requires a contract-safe run id.");
+export function executionInputRef(requestId: string): string {
+	const normalizedRequestId = requestId.trim();
+	if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(normalizedRequestId)) {
+		throw new Error("Durable execution input requires a contract-safe request id.");
 	}
-	return `app-api://execution-inputs/${normalizedRunId}`;
+	return `app-api://execution-inputs/${normalizedRequestId}`;
 }
 
 export function freezeToolExecutionRunInput(
 	executionInput: ToolExecutionInput,
-	runId: string,
+	requestId: string,
 ): FrozenToolExecutionRunInput {
 	const queryText = executionInput.userGoal.trim();
 	if (!queryText) {
@@ -47,9 +47,6 @@ export function freezeToolExecutionRunInput(
 		response_contract: TOOL_EXECUTION_CONTRACT.responseContract,
 		safety_identifier: executionInput.safetyIdentifier ?? null,
 		tenant_id: executionInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
-		trace: {
-			trace_id: executionInput.traceId,
-		},
 		user_goal: queryText,
 	};
 	const executionInputJson = JSON.stringify(executionPayload);
@@ -64,7 +61,7 @@ export function freezeToolExecutionRunInput(
 		executionInputJson,
 		metadata: {
 			execution_contract_version: TOOL_EXECUTION_CONTRACT.executionContractVersion,
-			execution_input_ref: executionInputRef(runId),
+			execution_input_ref: executionInputRef(requestId),
 			execution_input_sha256: executionInputSha256,
 		},
 	};

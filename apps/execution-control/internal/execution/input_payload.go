@@ -16,10 +16,7 @@ func PayloadMap(wire contracts.ExecutionPayloadWire) map[string]any {
 		"request_id":                 wire.RequestID,
 		"response_contract":          wire.ResponseContract,
 		"tenant_id":                  wire.TenantID,
-		"trace": map[string]any{
-			"trace_id": wire.Trace.TraceID,
-		},
-		"user_goal": wire.UserGoal,
+		"user_goal":                  wire.UserGoal,
 	}
 	if wire.SafetyIdentifier != nil {
 		result["safety_identifier"] = *wire.SafetyIdentifier

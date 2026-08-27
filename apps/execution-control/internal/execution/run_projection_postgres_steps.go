@@ -24,7 +24,7 @@ func (s *PostgresRunProjectionStore) UpsertRunStep(
 		ctx,
 		runProjectionPostgresRunStepUpsertSQL,
 		step.StepID,
-		step.RunID,
+		step.RequestID,
 		step.ConversationID,
 		step.StepKind,
 		step.Tool,
@@ -43,7 +43,7 @@ func (s *PostgresRunProjectionStore) UpsertRunStep(
 		return RunStepProjection{}, err
 	}
 	if commandTag.RowsAffected() == 0 {
-		steps, listErr := s.ListRunSteps(ctx, step.RunID)
+		steps, listErr := s.ListRunSteps(ctx, step.RequestID)
 		if listErr == nil {
 			for _, current := range steps {
 				if current.StepID == step.StepID && runStepProjectionEquivalent(current, step) {
@@ -54,7 +54,7 @@ func (s *PostgresRunProjectionStore) UpsertRunStep(
 		return RunStepProjection{}, fmt.Errorf(
 			"%w: run=%s step=%s activity_attempt=%d",
 			ErrStaleRunStepProjection,
-			step.RunID,
+			step.RequestID,
 			step.StepID,
 			step.ActivityAttempt,
 		)
@@ -63,11 +63,11 @@ func (s *PostgresRunProjectionStore) UpsertRunStep(
 }
 
 const runProjectionPostgresRunStepUpsertSQL = `insert into execution_control.agent_run_steps (
-	step_id, run_id, conversation_id, step_kind, tool, parent_step_id,
+	step_id, request_id, conversation_id, step_kind, tool, parent_step_id,
 	status, activity_attempt, task_queue, worker_id, started_at, completed_at, updated_at,
 	payload_schema_version, sanitized_payload_json
 ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-on conflict (run_id, step_id) do update set
+on conflict (request_id, step_id) do update set
 	conversation_id = excluded.conversation_id,
 	step_kind = excluded.step_kind,
 	tool = excluded.tool,
@@ -104,7 +104,7 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 		runProjectionPostgresStepAttemptUpsertSQL,
 		attempt.AttemptID,
 		attempt.StepID,
-		attempt.RunID,
+		attempt.RequestID,
 		attempt.Attempt,
 		attempt.Status,
 		attempt.TaskQueue,
@@ -141,7 +141,7 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 		return StepAttemptProjection{}, err
 	}
 	if commandTag.RowsAffected() == 0 {
-		attempts, listErr := s.ListStepAttempts(ctx, attempt.RunID)
+		attempts, listErr := s.ListStepAttempts(ctx, attempt.RequestID)
 		if listErr == nil {
 			for _, current := range attempts {
 				if current.AttemptID == attempt.AttemptID && stepAttemptProjectionEquivalent(current, attempt) {
@@ -152,7 +152,7 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 		return StepAttemptProjection{}, fmt.Errorf(
 			"%w: run=%s step=%s attempt_id=%s status=%s activity_attempt=%d",
 			ErrStaleStepAttemptProjection,
-			attempt.RunID,
+			attempt.RequestID,
 			attempt.StepID,
 			attempt.AttemptID,
 			attempt.Status,
@@ -163,7 +163,7 @@ func (s *PostgresRunProjectionStore) UpsertStepAttempt(
 }
 
 const runProjectionPostgresStepAttemptUpsertSQL = `insert into execution_control.agent_step_attempts (
-	attempt_id, step_id, run_id, attempt, status, task_queue, worker_id,
+	attempt_id, step_id, request_id, attempt, status, task_queue, worker_id,
 	workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
 	scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 	provider_request_ref, provider_response_id, model_provider, model_name,
@@ -182,7 +182,7 @@ const runProjectionPostgresStepAttemptUpsertSQL = `insert into execution_control
 )
 on conflict (attempt_id) do update set
 	step_id = excluded.step_id,
-	run_id = excluded.run_id,
+	request_id = excluded.request_id,
 	attempt = excluded.attempt,
 	status = excluded.status,
 	task_queue = excluded.task_queue,
@@ -226,7 +226,7 @@ on conflict (attempt_id) do update set
 	updated_at = excluded.updated_at,
 	payload_schema_version = excluded.payload_schema_version,
 	sanitized_payload_json = excluded.sanitized_payload_json
-where execution_control.agent_step_attempts.run_id = excluded.run_id
+where execution_control.agent_step_attempts.request_id = excluded.request_id
 	and execution_control.agent_step_attempts.step_id = excluded.step_id
 	and execution_control.agent_step_attempts.attempt = excluded.attempt
 	and (execution_control.agent_step_attempts.activity_attempt = 0
@@ -257,11 +257,11 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 	var runStatus string
 	if err := tx.QueryRow(
 		ctx,
-		`select status from execution_control.agent_runs where run_id = $1 for update`,
-		result.RunID,
+		`select status from execution_control.agent_runs where request_id = $1 for update`,
+		result.RequestID,
 	).Scan(&runStatus); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return StepResultProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, result.RunID)
+			return StepResultProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, result.RequestID)
 		}
 		return StepResultProjection{}, err
 	}
@@ -269,20 +269,20 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 		return StepResultProjection{}, fmt.Errorf(
 			"%w: run=%s status=%s",
 			ErrDurableRunTerminalConflict,
-			result.RunID,
+			result.RequestID,
 			runStatus,
 		)
 	}
 	commandTag, err := tx.Exec(
 		ctx,
 		`insert into execution_control.agent_step_results (
-			result_id, step_id, run_id, attempt_id, status, result_kind, projection_ref,
+			result_id, step_id, request_id, attempt_id, status, result_kind, projection_ref,
 			created_at, payload_schema_version, sanitized_payload_json
 		) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		on conflict (result_id) do nothing`,
 		result.ResultID,
 		result.StepID,
-		result.RunID,
+		result.RequestID,
 		result.AttemptID,
 		result.Status,
 		result.ResultKind,
@@ -302,7 +302,7 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 	}
 	existing, err := scanStepResultProjection(tx.QueryRow(
 		ctx,
-		`select result_id, step_id, run_id, attempt_id, status, result_kind, projection_ref,
+		`select result_id, step_id, request_id, attempt_id, status, result_kind, projection_ref,
 			created_at, payload_schema_version, sanitized_payload_json
 		from execution_control.agent_step_results
 		where result_id = $1
@@ -334,7 +334,7 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 		return existing, fmt.Errorf(
 			"%w: run=%s result=%s",
 			ErrStepResultProjectionConflict,
-			result.RunID,
+			result.RequestID,
 			result.ResultID,
 		)
 	}
@@ -346,17 +346,17 @@ func (s *PostgresRunProjectionStore) UpsertStepResult(
 
 func (s *PostgresRunProjectionStore) ListRunSteps(
 	ctx context.Context,
-	runID string,
+	requestID string,
 ) ([]RunStepProjection, error) {
 	rows, err := s.pool.Query(
 		ctx,
-		`select step_id, run_id, conversation_id, step_kind, tool, parent_step_id,
+		`select step_id, request_id, conversation_id, step_kind, tool, parent_step_id,
 			status, activity_attempt, task_queue, worker_id, started_at, completed_at, updated_at,
 			payload_schema_version, sanitized_payload_json
 		from execution_control.agent_run_steps
-		where run_id = $1
+		where request_id = $1
 		order by started_at nulls last, step_id`,
-		runID,
+		requestID,
 	)
 	if err != nil {
 		return nil, err
@@ -374,7 +374,7 @@ func (s *PostgresRunProjectionStore) ListRunSteps(
 		return nil, err
 	}
 	if len(steps) == 0 {
-		if _, err := s.GetRun(ctx, runID); err != nil {
+		if _, err := s.GetRun(ctx, requestID); err != nil {
 			return nil, err
 		}
 	}
@@ -383,11 +383,11 @@ func (s *PostgresRunProjectionStore) ListRunSteps(
 
 func (s *PostgresRunProjectionStore) ListStepAttempts(
 	ctx context.Context,
-	runID string,
+	requestID string,
 ) ([]StepAttemptProjection, error) {
 	rows, err := s.pool.Query(
 		ctx,
-		`select attempt_id, step_id, run_id, attempt, status, task_queue, worker_id,
+		`select attempt_id, step_id, request_id, attempt, status, task_queue, worker_id,
 			workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
 			scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
 			provider_request_ref, provider_response_id, model_provider, model_name,
@@ -396,9 +396,9 @@ func (s *PostgresRunProjectionStore) ListStepAttempts(
 			fail_close_reason, terminal_reason, updated_at,
 			payload_schema_version, sanitized_payload_json
 		from execution_control.agent_step_attempts
-		where run_id = $1
+		where request_id = $1
 		order by started_at nulls last, attempt_id`,
-		runID,
+		requestID,
 	)
 	if err != nil {
 		return nil, err
@@ -416,7 +416,7 @@ func (s *PostgresRunProjectionStore) ListStepAttempts(
 		return nil, err
 	}
 	if len(attempts) == 0 {
-		if _, err := s.GetRun(ctx, runID); err != nil {
+		if _, err := s.GetRun(ctx, requestID); err != nil {
 			return nil, err
 		}
 	}
@@ -425,16 +425,16 @@ func (s *PostgresRunProjectionStore) ListStepAttempts(
 
 func (s *PostgresRunProjectionStore) ListStepResults(
 	ctx context.Context,
-	runID string,
+	requestID string,
 ) ([]StepResultProjection, error) {
 	rows, err := s.pool.Query(
 		ctx,
-		`select result_id, step_id, run_id, attempt_id, status, result_kind, projection_ref,
+		`select result_id, step_id, request_id, attempt_id, status, result_kind, projection_ref,
 			created_at, payload_schema_version, sanitized_payload_json
 		from execution_control.agent_step_results
-		where run_id = $1
+		where request_id = $1
 		order by created_at, result_id`,
-		runID,
+		requestID,
 	)
 	if err != nil {
 		return nil, err
@@ -452,7 +452,7 @@ func (s *PostgresRunProjectionStore) ListStepResults(
 		return nil, err
 	}
 	if len(results) == 0 {
-		if _, err := s.GetRun(ctx, runID); err != nil {
+		if _, err := s.GetRun(ctx, requestID); err != nil {
 			return nil, err
 		}
 	}
@@ -466,7 +466,7 @@ func scanRunStepProjection(row pgx.Row) (RunStepProjection, error) {
 	var completedAt *time.Time
 	if err := row.Scan(
 		&step.StepID,
-		&step.RunID,
+		&step.RequestID,
 		&step.ConversationID,
 		&step.StepKind,
 		&step.Tool,
@@ -512,7 +512,7 @@ func scanStepAttemptProjection(row pgx.Row) (StepAttemptProjection, error) {
 	if err := row.Scan(
 		&attempt.AttemptID,
 		&attempt.StepID,
-		&attempt.RunID,
+		&attempt.RequestID,
 		&attempt.Attempt,
 		&attempt.Status,
 		&attempt.TaskQueue,
@@ -573,7 +573,7 @@ func scanStepResultProjection(row pgx.Row) (StepResultProjection, error) {
 	if err := row.Scan(
 		&result.ResultID,
 		&result.StepID,
-		&result.RunID,
+		&result.RequestID,
 		&result.AttemptID,
 		&result.Status,
 		&result.ResultKind,

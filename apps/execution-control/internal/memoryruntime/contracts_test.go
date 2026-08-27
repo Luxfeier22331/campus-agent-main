@@ -86,7 +86,7 @@ func validRecallRequestForTest() RecallRequest {
 		OwnerGeneration: 1,
 		OwnerSequence:   0,
 		QueryTimestamp:  "2026-06-16T10:00:00Z",
-		RunID:           "run-memory-test",
+		RequestID:       "req-memory-test",
 		TenantID:        "tenant-main",
 		ThreadID:        "conv-memory-test",
 		UserGoal:        "我如何准备保研材料？",
@@ -98,7 +98,7 @@ func validAppendConversationTurnRequestForTest() AppendConversationTurnRequest {
 	return AppendConversationTurnRequest{
 		OwnerGeneration:      1,
 		OwnerSequence:        0,
-		RunID:                "run-memory-test",
+		RequestID:            "req-memory-test",
 		TenantID:             "tenant-main",
 		ThreadID:             "conv-memory-test",
 		UserID:               "user-memory-test",

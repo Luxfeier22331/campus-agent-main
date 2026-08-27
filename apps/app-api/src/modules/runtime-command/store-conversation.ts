@@ -24,7 +24,6 @@ export function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
 		retryable: row.retryable ?? null,
 		branchId: row.branchId ?? "branch_active",
 		turnSequence: row.turnSequence ?? 0,
-		runId: row.runId ?? null,
 		isActiveBranchHead: row.isActiveBranchHead ?? false,
 		structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
 	};
@@ -43,7 +42,7 @@ export function toChatConversation(
 		updatedAt: toIsoString(row.updatedAt),
 		activeBranchId: row.activeBranchId ?? "branch_active",
 		activeMessageId: row.activeMessageId ?? null,
-		activeRunId: row.activeRunId ?? null,
+		activeRequestId: row.activeRequestId ?? null,
 		activeTurnSequence: row.activeTurnSequence ?? 0,
 		sessionSlots: sessionSlotRows.map((slot) => ({
 			confirmed: slot.confirmed,
@@ -77,13 +76,11 @@ export function buildStoredIdempotentRequest(input: {
 					assistantMessage,
 					errorCode: input.dispatchRow.errorCode,
 					requestId: input.dispatchRow.requestId,
-					traceId: input.dispatchRow.traceId,
 				})
 			: {
 					kind: "answer" as const,
 					text: assistantMessage?.text ?? "",
 					requestId: input.dispatchRow.requestId,
-					traceId: input.dispatchRow.traceId,
 				};
 
 	return {
@@ -95,9 +92,7 @@ export function buildStoredIdempotentRequest(input: {
 				result,
 			},
 			requestId: input.dispatchRow.requestId,
-			traceId: input.dispatchRow.traceId,
 		},
-		runId: input.dispatchRow.runId,
 		status: input.dispatchRow.status as TurnDispatchStatus,
 	};
 }
@@ -106,7 +101,6 @@ function buildStoredErrorReplayResult(input: {
 	assistantMessage: ChatMessage;
 	errorCode: string | null;
 	requestId: string;
-	traceId: string;
 }) {
 	if (input.assistantMessage.retryable === null) {
 		throw new Error("idempotent replay error message is missing retryable");
@@ -117,6 +111,5 @@ function buildStoredErrorReplayResult(input: {
 		errorCode: input.errorCode ?? "internal_error",
 		retryable: input.assistantMessage.retryable,
 		requestId: input.requestId,
-		traceId: input.traceId,
 	};
 }

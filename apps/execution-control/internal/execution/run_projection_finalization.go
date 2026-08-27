@@ -17,14 +17,14 @@ const (
 func canonicalizeRunProjectionFinalizeRequest(
 	request RunProjectionFinalizeRequest,
 ) (RunProjectionFinalizeRequest, error) {
-	request.Completion.RunID = strings.TrimSpace(request.Completion.RunID)
+	request.Completion.RequestID = strings.TrimSpace(request.Completion.RequestID)
 	request.Completion.TerminalReason = DurableTerminalReason(
 		strings.TrimSpace(string(request.Completion.TerminalReason)),
 	)
 	request.Completion.FinalResponseRef = strings.TrimSpace(request.Completion.FinalResponseRef)
 	request.Completion.Now = canonicalProjectionTime(request.Completion.Now)
 
-	request.Step.RunID = strings.TrimSpace(request.Step.RunID)
+	request.Step.RequestID = strings.TrimSpace(request.Step.RequestID)
 	request.Step.StepID = strings.TrimSpace(request.Step.StepID)
 	request.Step.ConversationID = strings.TrimSpace(request.Step.ConversationID)
 	request.Step.StepKind = strings.TrimSpace(request.Step.StepKind)
@@ -34,7 +34,7 @@ func canonicalizeRunProjectionFinalizeRequest(
 	request.Step.UpdatedAt = canonicalProjectionTime(request.Step.UpdatedAt)
 	request.Step = cloneRunStepProjection(request.Step)
 
-	request.Attempt.RunID = strings.TrimSpace(request.Attempt.RunID)
+	request.Attempt.RequestID = strings.TrimSpace(request.Attempt.RequestID)
 	request.Attempt.StepID = strings.TrimSpace(request.Attempt.StepID)
 	request.Attempt.AttemptID = strings.TrimSpace(request.Attempt.AttemptID)
 	request.Attempt.Status = strings.TrimSpace(request.Attempt.Status)
@@ -44,7 +44,7 @@ func canonicalizeRunProjectionFinalizeRequest(
 	request.Attempt.UpdatedAt = canonicalProjectionTime(request.Attempt.UpdatedAt)
 	request.Attempt = cloneStepAttemptProjection(request.Attempt)
 
-	request.Result.RunID = strings.TrimSpace(request.Result.RunID)
+	request.Result.RequestID = strings.TrimSpace(request.Result.RequestID)
 	request.Result.StepID = strings.TrimSpace(request.Result.StepID)
 	request.Result.ResultID = strings.TrimSpace(request.Result.ResultID)
 	request.Result.AttemptID = strings.TrimSpace(request.Result.AttemptID)
@@ -88,10 +88,10 @@ func validateRunProjectionFinalizeRequest(request RunProjectionFinalizeRequest) 
 		return runFinalizationConflict("attempt sanitized_payload is not valid JSON: %v", err)
 	}
 
-	if request.Step.RunID != request.Completion.RunID ||
-		request.Attempt.RunID != request.Completion.RunID ||
-		request.Result.RunID != request.Completion.RunID {
-		return runFinalizationConflict("completion, step, attempt, and result run_id must match")
+	if request.Step.RequestID != request.Completion.RequestID ||
+		request.Attempt.RequestID != request.Completion.RequestID ||
+		request.Result.RequestID != request.Completion.RequestID {
+		return runFinalizationConflict("completion, step, attempt, and result request_id must match")
 	}
 	if request.Step.StepID != finalizationStepID ||
 		request.Attempt.StepID != finalizationStepID ||

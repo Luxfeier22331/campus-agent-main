@@ -7,7 +7,6 @@ import { opsOverviewFixture } from "../src/shared/ops-fixtures";
 
 function statusOverview(requestTotal = opsOverviewFixture.requests.total): OpsStatusOverview {
 	return {
-		externalLinks: opsOverviewFixture.externalLinks,
 		requests: { ...opsOverviewFixture.requests, total: requestTotal },
 		trends: opsOverviewFixture.trends,
 	};

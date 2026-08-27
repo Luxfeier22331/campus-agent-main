@@ -2,7 +2,6 @@ import type {
 	ExecutionControlRun,
 	ExecutionControlRunEvent,
 	ExecutionControlRunEventPage,
-	ExecutionControlRunStepTrajectory,
 } from "../src/modules/integration/execution-control";
 
 export function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
@@ -17,24 +16,13 @@ export function durableRun(overrides: Partial<ExecutionControlRun> = {}): Execut
 		ownerUserId: "user_01HQ",
 		queuedAt: "2026-06-04T01:02:04Z",
 		requestId: "req_0001",
-		runId: "run_0001",
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
 		surface: "campus_web",
 		terminalReason: "",
-		traceId: "trace_0001",
-		turnId: "turn_0001",
 		updatedAt: "2026-06-04T01:02:04Z",
 		...overrides,
-	};
-}
-
-export function emptyRunStepTrajectory(): ExecutionControlRunStepTrajectory {
-	return {
-		attempts: [],
-		results: [],
-		steps: [],
 	};
 }
 
@@ -70,13 +58,6 @@ export function answerResponsePayload(text = "国家奖学金每学年评审一�
 			],
 		},
 		status: "completed",
-		trace_id: "trace_0001",
-		workflow_trace_summary: {
-			execution_path: "tool_assisted",
-			terminal_reason: "answer",
-			answer_artifact_refs: ["projection://runs/run_0001/agent/primary/result"],
-			runtime_versions: { agent_runtime: "openai_agents_sdk" },
-		},
 	};
 }
 
@@ -94,7 +75,7 @@ export function durableEvent(
 		occurredAt: "2026-06-04T01:02:04.000Z",
 		payload: {},
 		payloadSchemaVersion: "run-event-v1",
-		runId: "run_0001",
+		requestId: "req_0001",
 		sequence,
 		visibility: "browser",
 		...rest,

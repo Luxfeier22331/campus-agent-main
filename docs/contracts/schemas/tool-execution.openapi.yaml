@@ -1,18 +1,16 @@
 openapi: 3.1.1
 info:
   title: campus-agent tool execution contract
-  version: tool-execution-v5
+  version: tool-execution-v6
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
-  execution_contract_version: tool_execution_v5
-  response_contract: execution_finalization_response_v6
-  workflow_trace_summary_version: workflow-trace-summary-v7
+  execution_contract_version: tool_execution_v6
+  response_contract: execution_finalization_response_v7
   versioning_policy:
     execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
     response_contract: ExecutionFinalizationResponse wire contract changes must bump response_contract
-    workflow_trace_summary_version: operator-visible workflow trace summary changes must bump workflow_trace_summary_version
 paths:
-  /internal/execution/runs:
+  /internal/execution/requests:
     post:
       summary: Start a Temporal-backed execution run.
       requestBody:
@@ -28,11 +26,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunResponse"
-  /internal/execution/runs/{runId}:
+  /internal/execution/requests/{requestId}:
     get:
       summary: Read sanitized execution run projection.
       parameters:
-        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/RequestId"
       responses:
         "200":
           description: Execution run projection.
@@ -40,11 +38,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunResponse"
-  /internal/execution/runs/{runId}/events:
+  /internal/execution/requests/{requestId}/events:
     get:
       summary: Read sanitized execution run events after an optional sequence.
       parameters:
-        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/RequestId"
         - name: after_sequence
           in: query
           required: false
@@ -76,11 +74,11 @@ paths:
                   next_sequence:
                     type: integer
                     minimum: 0
-  /internal/execution/runs/{runId}/steps:
+  /internal/execution/requests/{requestId}/steps:
     get:
       summary: Read sanitized execution run step trajectory projection.
       parameters:
-        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/RequestId"
       responses:
         "200":
           description: Execution run step trajectory projection.
@@ -88,11 +86,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunStepTrajectory"
-  /internal/execution/runs/{runId}/cancel:
+  /internal/execution/requests/{requestId}/cancel:
     post:
       summary: Cancel a Temporal-backed execution run.
       parameters:
-        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/RequestId"
       requestBody:
         required: true
         content:
@@ -110,11 +108,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionRunResponse"
-  /api/internal/execution/runs/{runId}/input:
+  /api/internal/execution/requests/{requestId}/input:
     get:
       summary: Read the immutable execution input owned by app-api.
       parameters:
-        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/RequestId"
         - $ref: "#/components/parameters/ExecutionAuth"
       responses:
         "200":
@@ -150,12 +148,12 @@ components:
           schema:
             $ref: "#/components/schemas/AppApiErrorEnvelope"
   parameters:
-    RunId:
-      name: runId
+    RequestId:
+      name: requestId
       in: path
       required: true
       schema:
-        $ref: "#/components/schemas/ExecutionRunId"
+        $ref: "#/components/schemas/ExecutionRequestId"
     ExecutionAuth:
       name: x-app-execution-auth
       in: header
@@ -179,7 +177,6 @@ components:
         - code
         - message
         - retryable
-        - traceId
         - requestId
         - details
       properties:
@@ -189,16 +186,12 @@ components:
           type: string
         retryable:
           type: boolean
-        traceId:
-          oneOf:
-            - type: string
-            - type: "null"
         requestId:
           oneOf:
             - type: string
             - type: "null"
         details: {}
-    ExecutionRunId:
+    ExecutionRequestId:
       type: string
       pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     ExecutionRunStatus:
@@ -217,25 +210,17 @@ components:
       type: object
       additionalProperties: false
       required:
-        - run_id
         - conversation_id
-        - turn_id
         - request_id
         - owner_user_id
         - personal_memory_recall_allowed
         - surface
         - metadata
       properties:
-        run_id:
-          $ref: "#/components/schemas/ExecutionRunId"
         conversation_id:
           type: string
-        turn_id:
-          type: string
         request_id:
-          type: string
-        trace_id:
-          type: string
+          $ref: "#/components/schemas/ExecutionRequestId"
         owner_user_id:
           type: string
         personal_memory_recall_allowed:
@@ -256,7 +241,7 @@ components:
         - execution_input_sha256
       properties:
         execution_contract_version:
-          const: tool_execution_v5
+          const: tool_execution_v6
         execution_input_ref:
           type: string
           pattern: "^app-api://execution-inputs/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
@@ -267,25 +252,17 @@ components:
       type: object
       additionalProperties: false
       required:
-        - run_id
         - conversation_id
-        - turn_id
         - request_id
         - owner_user_id
         - surface
         - task_queue
         - status
       properties:
-        run_id:
-          type: string
         conversation_id:
           type: string
-        turn_id:
-          type: string
         request_id:
-          type: string
-        trace_id:
-          type: string
+          $ref: "#/components/schemas/ExecutionRequestId"
         owner_user_id:
           type: string
         surface:
@@ -319,7 +296,7 @@ components:
       additionalProperties: false
       required:
         - event_id
-        - run_id
+        - request_id
         - conversation_id
         - event_type
         - sequence
@@ -330,8 +307,8 @@ components:
       properties:
         event_id:
           type: string
-        run_id:
-          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
         conversation_id:
           type: string
         event_type:
@@ -375,7 +352,7 @@ components:
         - conversation_id
         - parent_step_id
         - payload_schema_version
-        - run_id
+        - request_id
         - sanitized_payload
         - started_at
         - status
@@ -395,8 +372,8 @@ components:
           type: string
         payload_schema_version:
           type: string
-        run_id:
-          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
         sanitized_payload:
           $ref: "#/components/schemas/SafeObject"
         started_at:
@@ -435,7 +412,7 @@ components:
         - payload_schema_version
         - provider_request_ref
         - provider_response_id
-        - run_id
+        - request_id
         - sanitized_payload
         - schedule_to_start_ms
         - scheduled_at
@@ -492,8 +469,8 @@ components:
           type: string
         provider_response_id:
           type: string
-        run_id:
-          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
         sanitized_payload:
           $ref: "#/components/schemas/SafeObject"
         schedule_to_start_ms:
@@ -531,7 +508,7 @@ components:
         - projection_ref
         - result_id
         - result_kind
-        - run_id
+        - request_id
         - sanitized_payload
         - status
         - step_id
@@ -548,8 +525,8 @@ components:
           type: string
         result_kind:
           type: string
-        run_id:
-          type: string
+        request_id:
+          $ref: "#/components/schemas/ExecutionRequestId"
         sanitized_payload:
           $ref: "#/components/schemas/SafeObject"
         status:
@@ -581,11 +558,6 @@ components:
         - terminal
         - single_step
         - multi_step
-    ExecutionPath:
-      type: string
-      enum:
-        - direct
-        - tool_assisted
     AnswerArtifactKind:
       type: string
       enum:
@@ -653,14 +625,6 @@ components:
         projection.closeout_ms:
           type: number
           minimum: 0
-    TraceContext:
-      type: object
-      additionalProperties: false
-      required:
-        - trace_id
-      properties:
-        trace_id:
-          type: string
     ActorContext:
       type: object
       additionalProperties: true
@@ -750,13 +714,12 @@ components:
         - user_goal
         - conversation_id
         - request_id
-        - trace
         - context
       properties:
         execution_contract_version:
-          const: tool_execution_v5
+          const: tool_execution_v6
         response_contract:
-          const: execution_finalization_response_v6
+          const: execution_finalization_response_v7
         user_goal:
           type: string
         conversation_id:
@@ -769,8 +732,6 @@ components:
           oneOf:
             - type: string
             - type: "null"
-        trace:
-          $ref: "#/components/schemas/TraceContext"
         context:
           $ref: "#/components/schemas/ExecutionRequestContext"
     ExecutionRequestContext:
@@ -782,25 +743,6 @@ components:
       not:
         required:
           - profile_memory
-    WorkflowTraceSummary:
-      type: object
-      additionalProperties: false
-      required:
-        - execution_path
-        - terminal_reason
-        - answer_artifact_refs
-        - runtime_versions
-      properties:
-        execution_path:
-          $ref: "#/components/schemas/ExecutionPath"
-        terminal_reason:
-          type: string
-        answer_artifact_refs:
-          type: array
-          items:
-            type: string
-        runtime_versions:
-          $ref: "#/components/schemas/SafeObject"
     ModelUsage:
       type: object
       additionalProperties: false
@@ -831,7 +773,6 @@ components:
         - result
         - error
         - model_usage
-        - trace_id
       properties:
         status:
           $ref: "#/components/schemas/ExecutionStatus"
@@ -851,13 +792,7 @@ components:
             - type: "null"
         model_usage:
           $ref: "#/components/schemas/ModelUsage"
-        workflow_trace_summary:
-          oneOf:
-            - $ref: "#/components/schemas/WorkflowTraceSummary"
-            - type: "null"
         stage_timing:
           oneOf:
             - $ref: "#/components/schemas/StageTiming"
             - type: "null"
-        trace_id:
-          type: string

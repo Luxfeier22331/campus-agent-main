@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,7 +11,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRuntimePayloads(t *testing.T) {
+func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -47,8 +46,8 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "agent.primary:result:1",
 		StepID:               "agent.primary",
-		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "agent.primary", 1),
+		RequestID:            run.RequestID,
+		AttemptID:            temporalStepAttemptID(run.RequestID, "agent.primary", 1),
 		Status:               "completed",
 		ResultKind:           "agent_final_output",
 		ProjectionRef:        "projection://runs/run-temporal-derived-eval/agent/primary/result",
@@ -63,8 +62,8 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "sdk_tool.execute.campus_search.1:result:1",
 		StepID:               "sdk_tool.execute.campus_search.1",
-		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "sdk_tool.execute.campus_search.1", 1),
+		RequestID:            run.RequestID,
+		AttemptID:            temporalStepAttemptID(run.RequestID, "sdk_tool.execute.campus_search.1", 1),
 		Status:               "completed",
 		ResultKind:           "typed_tool_result",
 		ProjectionRef:        "projection://runs/run-temporal-derived-eval/sdk-tools/campus_search/1",
@@ -82,7 +81,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "finalization.write:result:1",
 		StepID:               "finalization.write",
-		RunID:                run.RunID,
+		RequestID:            run.RequestID,
 		AttemptID:            "finalization.write:attempt:1",
 		Status:               "completed",
 		ResultKind:           "final_answer_projection",
@@ -132,7 +131,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/runs/run-temporal-derived-eval/steps",
+		"/internal/execution/requests/run-temporal-derived-eval/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -144,58 +143,30 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	}
 	body := decodeBody(t, response)
 	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
-	rag := expectRecord(t, evalProjection["rag"], "agent_runtime_eval_projection.rag")
-	if titles, _ := rag["source_titles"].([]any); len(titles) != 1 || titles[0] != "本科生国家奖学金评审办法" {
-		t.Fatalf("rag.source_titles = %#v", rag["source_titles"])
+	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v4" ||
+		evalProjection["request_id"] != "run-temporal-derived-eval" {
+		t.Fatalf("eval projection identity = %#v", evalProjection)
 	}
-	if rag["answer"] != "学习成绩、综合测评和奖励标准都需要满足。" {
-		t.Fatalf("rag.answer = %#v", rag["answer"])
+	if evalProjection["answer"] != "学习成绩、综合测评和奖励标准都需要满足。" {
+		t.Fatalf("answer = %#v", evalProjection["answer"])
 	}
-	if _, exists := evalProjection["campus_docs_retrieval"]; exists {
-		t.Fatalf("eval projection leaked retrieval internals: %#v", evalProjection)
-	}
-	contexts, _ := rag["retrieved_contexts"].([]any)
+	contexts, _ := evalProjection["retrieved_contexts"].([]any)
 	if len(contexts) != 2 ||
 		contexts[0] != "国家奖学金评审需要满足学习成绩和综合测评要求。" ||
 		contexts[1] != "国家奖学金奖励标准按照学校当年评审办法执行。" {
-		t.Fatalf("rag.retrieved_contexts = %#v", rag["retrieved_contexts"])
+		t.Fatalf("retrieved_contexts = %#v", evalProjection["retrieved_contexts"])
 	}
-	contextIDs, _ := rag["retrieved_context_ids"].([]any)
+	contextIDs, _ := evalProjection["retrieved_context_ids"].([]any)
 	if len(contextIDs) != 2 ||
 		contextIDs[0] != "evidence://"+strings.Repeat("a", 64) ||
 		contextIDs[1] != "evidence://"+strings.Repeat("b", 64) {
-		t.Fatalf("rag.retrieved_context_ids = %#v", rag["retrieved_context_ids"])
+		t.Fatalf("retrieved_context_ids = %#v", evalProjection["retrieved_context_ids"])
 	}
-	sourceRefs, _ := rag["source_refs"].([]any)
-	if len(sourceRefs) != 2 {
-		t.Fatalf("rag.source_refs = %#v", rag["source_refs"])
-	}
-	sourceRef := expectRecord(t, sourceRefs[0], "agent_runtime_eval_projection.rag.source_refs[0]")
-	if sourceRef["document_id"] != "handbook:scholarship-policy" ||
-		sourceRef["evidence_ref"] != "evidence://"+strings.Repeat("a", 64) ||
-		sourceRef["source_kind"] != "campus_document" ||
-		sourceRef["title"] != "本科生国家奖学金评审办法" || len(sourceRef) != 4 {
-		t.Fatalf("rag.source_refs[0] = %#v", sourceRef)
-	}
-	secondSourceRef := expectRecord(t, sourceRefs[1], "agent_runtime_eval_projection.rag.source_refs[1]")
-	if secondSourceRef["document_id"] != "handbook:scholarship-policy" ||
-		secondSourceRef["evidence_ref"] != "evidence://"+strings.Repeat("b", 64) ||
-		secondSourceRef["source_kind"] != "campus_document" ||
-		secondSourceRef["title"] != "本科生国家奖学金评审办法" || len(secondSourceRef) != 4 {
-		t.Fatalf("rag.source_refs[1] = %#v", secondSourceRef)
-	}
-	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
-	toolSequence, _ := planning["tool_sequence"].([]any)
-	if len(toolSequence) != 1 {
-		t.Fatalf("tool sequence = %#v, want campus search", planning["tool_sequence"])
-	}
-	if steps, _ := planning["planned_steps"].([]any); len(steps) != 3 ||
-		steps[0] != "agent.primary" || steps[1] != "sdk_tool.execute" || steps[2] != "finalization.write" {
-		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
-	}
-	memory := expectRecord(t, evalProjection["memory"], "agent_runtime_eval_projection.memory")
-	if len(memory) != 0 {
-		t.Fatalf("memory projection inferred retired evidence reuse: %#v", memory)
+	trajectory := expectRecord(t, evalProjection["tool_trajectory"], "tool_trajectory")
+	calls, _ := trajectory["tool_calls"].([]any)
+	if trajectory["decision_kind"] != "tool_assisted" || len(calls) != 1 ||
+		expectRecord(t, calls[0], "tool_calls[0]")["tool_name"] != "campus_search" {
+		t.Fatalf("tool trajectory = %#v", trajectory)
 	}
 	if strings.Contains(response.Body.String(), "must not leak") ||
 		strings.Contains(response.Body.String(), "source_body") {
@@ -203,7 +174,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 	}
 }
 
-func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsRetrievalOutOfToolTrajectory(t *testing.T) {
+func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsDirectAnswer(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -238,8 +209,8 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsRetrievalOutOfToolTraje
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "agent.primary:result:1",
 		StepID:               "agent.primary",
-		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "agent.primary", 1),
+		RequestID:            run.RequestID,
+		AttemptID:            temporalStepAttemptID(run.RequestID, "agent.primary", 1),
 		Status:               "completed",
 		ResultKind:           "agent_final_output",
 		ProjectionRef:        "projection://runs/run-temporal-derived-history-eval/agent/primary/result",
@@ -254,7 +225,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsRetrievalOutOfToolTraje
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/runs/run-temporal-derived-history-eval/steps",
+		"/internal/execution/requests/run-temporal-derived-history-eval/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -266,18 +237,14 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionKeepsRetrievalOutOfToolTraje
 	}
 	body := decodeBody(t, response)
 	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
-	planning := expectRecord(t, evalProjection["planning"], "agent_runtime_eval_projection.planning")
-	toolSequence, _ := planning["tool_sequence"].([]any)
-	if len(toolSequence) != 0 {
-		t.Fatalf("tool sequence = %#v, want no tool calls", planning["tool_sequence"])
-	}
-	steps, _ := planning["planned_steps"].([]any)
-	if len(steps) != 1 || steps[0] != "agent.primary" {
-		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
+	trajectory := expectRecord(t, evalProjection["tool_trajectory"], "tool_trajectory")
+	calls, _ := trajectory["tool_calls"].([]any)
+	if trajectory["decision_kind"] != "direct_answer" || len(calls) != 0 {
+		t.Fatalf("tool trajectory = %#v", trajectory)
 	}
 }
 
-func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesSanitizedPersonalMemoryToolSignals(t *testing.T) {
+func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsPersonalMemoryToolCall(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -310,10 +277,10 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesSanitizedPersonalMemo
 		t.Fatalf("start run: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             temporalStepResultID(run.RunID, "agent.primary", 1),
+		ResultID:             temporalStepResultID(run.RequestID, "agent.primary", 1),
 		StepID:               "agent.primary",
-		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "agent.primary", 1),
+		RequestID:            run.RequestID,
+		AttemptID:            temporalStepAttemptID(run.RequestID, "agent.primary", 1),
 		Status:               "completed",
 		ResultKind:           "agent_final_output",
 		ProjectionRef:        "projection://runs/run-temporal-memory-derived-eval/agent/primary/result",
@@ -326,10 +293,10 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesSanitizedPersonalMemo
 		t.Fatalf("upsert primary agent result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             temporalStepResultID(run.RunID, "sdk_tool.execute.personal_memory_recall.1", 1),
+		ResultID:             temporalStepResultID(run.RequestID, "sdk_tool.execute.personal_memory_recall.1", 1),
 		StepID:               "sdk_tool.execute.personal_memory_recall.1",
-		RunID:                run.RunID,
-		AttemptID:            temporalStepAttemptID(run.RunID, "sdk_tool.execute.personal_memory_recall.1", 1),
+		RequestID:            run.RequestID,
+		AttemptID:            temporalStepAttemptID(run.RequestID, "sdk_tool.execute.personal_memory_recall.1", 1),
 		Status:               "completed",
 		ResultKind:           "typed_tool_result",
 		ProjectionRef:        "projection://runs/run-temporal-memory-derived-eval/sdk-tools/personal_memory_recall/1",
@@ -350,7 +317,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesSanitizedPersonalMemo
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodGet,
-		"/internal/execution/runs/run-temporal-memory-derived-eval/steps",
+		"/internal/execution/requests/run-temporal-memory-derived-eval/steps",
 		nil,
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -362,33 +329,23 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesSanitizedPersonalMemo
 	}
 	body := decodeBody(t, response)
 	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
-	memory := expectRecord(t, evalProjection["memory"], "agent_runtime_eval_projection.memory")
-	if memory["behavior"] != "personal_memory_recall" {
-		t.Fatalf("memory.behavior = %#v", memory["behavior"])
+	trajectory := expectRecord(t, evalProjection["tool_trajectory"], "tool_trajectory")
+	calls, _ := trajectory["tool_calls"].([]any)
+	if trajectory["decision_kind"] != "tool_assisted" || len(calls) != 1 {
+		t.Fatalf("tool trajectory = %#v", trajectory)
 	}
-	if memory["recall_status"] != "completed" || memory["recall_outcome"] != "matched" {
-		t.Fatalf("memory recall summary = %#v", memory)
+	call := expectRecord(t, calls[0], "tool_calls[0]")
+	if call["tool_name"] != "personal_memory_recall" || len(call) != 1 {
+		t.Fatalf("tool call = %#v", call)
 	}
-	if _, exists := memory["selected_memory_count"]; exists {
-		t.Fatalf("memory eval projection must not recreate retired selection counts: %#v", memory)
-	}
-	observedTokens, _ := memory["observed_tokens"].([]any)
-	if len(observedTokens) != 2 ||
-		observedTokens[0] != "memory_recall" ||
-		observedTokens[1] != "selected_memory" {
-		t.Fatalf("memory.observed_tokens = %#v", memory["observed_tokens"])
-	}
-	memoryProjection, err := json.Marshal(memory)
-	if err != nil {
-		t.Fatalf("marshal memory projection: %v", err)
-	}
+	serialized := stringifyForTest(trajectory)
 	for _, forbidden := range []string{
 		"agent-runtime://run-temporal-memory-derived-eval/tools/personal_memory_recall/1",
 		"sha256:memory-query",
 		"sha256:memory-result",
 	} {
-		if strings.Contains(string(memoryProjection), forbidden) {
-			t.Fatalf("derived eval projection leaked forbidden memory payload %q: %s", forbidden, string(memoryProjection))
+		if strings.Contains(serialized, forbidden) {
+			t.Fatalf("tool trajectory leaked %q: %s", forbidden, serialized)
 		}
 	}
 }

@@ -6,7 +6,14 @@ import remarkGfm from "remark-gfm";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 import { formatTimestamp } from "./format";
 import { fetchOpsRequestDetail } from "./ops-api/observability";
-import { ErrorState, PageHeader, PageShell, StaleDataWarning, StatusBadge } from "./ops-display";
+import {
+	CopyableValue,
+	ErrorState,
+	PageHeader,
+	PageShell,
+	StaleDataWarning,
+	StatusBadge,
+} from "./ops-display";
 import { formatLifecyclePhase, formatOpsDomainValue } from "./ops-domain-labels";
 import { formatRequestDuration, normalizeRequestListReturnPath } from "./ops-view-helpers";
 import { RequestDiagnostics } from "./request-diagnostics";
@@ -102,6 +109,7 @@ function RequestSummary({ detail }: { detail: OpsRequestDetailResponse }) {
 			data-testid="request-context"
 		>
 			<StatusBadge status={detail.request.status} />
+			<CopyableValue compact label="请求 ID" value={detail.request.requestId} />
 			{detail.request.lifecyclePhase === "FINISHED" ? null : (
 				<span className="text-muted-foreground">
 					{formatLifecyclePhase(detail.request.lifecyclePhase)}
@@ -118,14 +126,9 @@ function RequestSummary({ detail }: { detail: OpsRequestDetailResponse }) {
 function QuestionSection({ detail }: { detail: OpsRequestDetailResponse }) {
 	return (
 		<section aria-labelledby="request-question-title" data-testid="request-question">
-			<div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-				<h2 className="font-semibold text-foreground text-lg" id="request-question-title">
-					用户问题
-				</h2>
-				<span className="text-muted-foreground text-sm">
-					会话第 {detail.question.turnSequence} 轮
-				</span>
-			</div>
+			<h2 className="mb-3 font-semibold text-foreground text-lg" id="request-question-title">
+				用户问题
+			</h2>
 			<p className="whitespace-pre-wrap break-words border-border border-l-2 pl-4 text-base text-foreground leading-7">
 				{detail.question.text}
 			</p>

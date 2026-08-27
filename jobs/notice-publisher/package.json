@@ -10,6 +10,7 @@
 		"build": "esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:@aws-sdk/client-s3 --external:jsdom --external:pg && node --input-type=module -e \"import('./dist/cli.js')\"",
 		"migrate": "tsx src/cli.ts migrate",
 		"publish": "tsx src/cli.ts publish",
+		"seed-local": "tsx src/seed-local.ts",
 		"test": "vitest run --exclude 'test/**/*.integration.test.ts'",
 		"test:migration-integration": "vitest run -c vitest.migration-integration.config.mts",
 		"typecheck": "tsc --noEmit"

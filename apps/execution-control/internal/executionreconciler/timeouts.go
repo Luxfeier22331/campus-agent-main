@@ -43,7 +43,7 @@ func (r *Reconciler) ReconcileWorkflowTimeouts(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		r.activeWorkflowCursor = binding.Run.RunID
+		r.activeWorkflowCursor = binding.Run.RequestID
 	}
 	if len(bindings) < temporalReconcileBatch {
 		r.activeWorkflowCursor = ""
@@ -58,7 +58,7 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 ) {
 	input, decodeErr := r.DecodeAndValidateWorkflowStartInput(binding.StartIntent, binding.Run)
 	if decodeErr != nil {
-		r.logWarn("confirmed Temporal workflow identity is invalid", "run_id", binding.Run.RunID, "error", decodeErr)
+		r.logWarn("confirmed Temporal workflow identity is invalid", "request_id", binding.Run.RequestID, "error", decodeErr)
 		return
 	}
 	expected, identityErr := temporalruntime.ToolExecutionWorkflowIdentityForInput(input)
@@ -96,7 +96,7 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 			)
 		}
 		if errors.Is(identityErr, temporalruntime.ErrWorkflowIdentityConflict) {
-			r.logWarn("confirmed Temporal workflow identity conflict", "run_id", binding.Run.RunID)
+			r.logWarn("confirmed Temporal workflow identity conflict", "request_id", binding.Run.RequestID)
 		}
 		return
 	}
@@ -130,14 +130,14 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 			return
 		}
 		if err := r.finalizeTimedOutWorkflow(ctx, store, binding.Run, info.CloseTime); err != nil && ctx.Err() == nil {
-			r.logWarn("Temporal workflow timeout finalization failed", "run_id", binding.Run.RunID, "error", err)
+			r.logWarn("Temporal workflow timeout finalization failed", "request_id", binding.Run.RequestID, "error", err)
 		}
 	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
 		if info.CloseTime.IsZero() {
 			return
 		}
 		if err := r.finalizeTerminatedWorkflow(ctx, store, binding.Run, info.CloseTime); err != nil && ctx.Err() == nil {
-			r.logWarn("Temporal workflow termination finalization failed", "run_id", binding.Run.RunID, "error", err)
+			r.logWarn("Temporal workflow termination finalization failed", "request_id", binding.Run.RequestID, "error", err)
 		}
 	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED,
 		enumspb.WORKFLOW_EXECUTION_STATUS_FAILED,
@@ -152,7 +152,7 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 		if err := r.finalizeClosedWorkflowFailure(ctx, store, binding.Run, info.CloseTime, failureKind); err != nil && ctx.Err() == nil {
 			r.logWarn(
 				"closed Temporal workflow terminal projection repair failed",
-				"run_id", binding.Run.RunID,
+				"request_id", binding.Run.RequestID,
 				"status", info.Status.String(),
 				"error", err,
 			)

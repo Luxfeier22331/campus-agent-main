@@ -1,7 +1,6 @@
 import type { Pool } from "pg";
 import type { OpsStatusEnv, OpsStatusStore } from "./ops-status-types.ts";
 import { createPgOpsStatusStore, createPgOpsStatusStoreDatabase } from "./pg-ops-status-store.ts";
-import { sentryTraceExplorerUrl } from "./sentry-client.ts";
 
 export function createOpsStatusStore(input: {
 	env?: OpsStatusEnv;
@@ -9,17 +8,8 @@ export function createOpsStatusStore(input: {
 }): OpsStatusStore {
 	const env = input.env ?? process.env;
 	const campusWebPublicOrigin = resolveCampusWebPublicOrigin(env.OPS_WEB_CAMPUS_WEB_URL);
-	const sentry = sentryTraceExplorerUrl({
-		...(env.OPS_WEB_SENTRY_BASE_URL ? { baseUrl: env.OPS_WEB_SENTRY_BASE_URL } : {}),
-		...(env.SENTRY_ORG_SLUG ? { orgSlug: env.SENTRY_ORG_SLUG } : {}),
-	});
 	return createPgOpsStatusStore({
 		db: createPgOpsStatusStoreDatabase(input.pool),
-		observabilityLinks: {
-			...(env.OPS_WEB_LANGFUSE_URL ? { langfuse: env.OPS_WEB_LANGFUSE_URL } : {}),
-			...(sentry ? { sentry } : {}),
-			...(env.OPS_WEB_TEMPORAL_UI_URL ? { temporal: env.OPS_WEB_TEMPORAL_UI_URL } : {}),
-		},
 		...(campusWebPublicOrigin ? { campusWebPublicOrigin } : {}),
 	});
 }

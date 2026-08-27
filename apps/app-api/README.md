@@ -81,8 +81,8 @@ pnpm --dir apps/app-api db:check
 ```
 
 `pnpm dev:init` 为当前 worktree 生成隔离的本地配置和数据库。数据库结构变化通过声明式 schema 和
-新增 migration 完成；不得修改已应用 SQL。本地数据库脚本位于 `ops/db/`，安装与部署顺序见 schema
-Job README 和发布手册。
+`jobs/campus-agent-schema` 中新增的统一 migration 完成；不得修改已应用 SQL。`ops/db/` 只保留显式
+seed、授权来源和历史 runner 所需代码，业务 seed 不进入 migration。
 
 ## 相关文档
 
@@ -92,4 +92,4 @@ Job README 和发布手册。
 - `docs/data/app-api/README.md`
 - `docs/data/postgres-ownership.md`
 - `docs/runbooks/release.md`
-- `jobs/app-api-schema/README.md`
+- `jobs/campus-agent-schema/README.md`

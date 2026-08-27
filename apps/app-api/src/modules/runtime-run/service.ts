@@ -239,7 +239,7 @@ function deriveRunSteps(
 
 export function buildRuntimeRunService(input: {
 	executionRuntime: ExecutionControlRuntimeClient;
-	ensureRun?: (input: { runId: string; traceId: string }) => Promise<ExecutionControlRun>;
+	ensureRun?: (input: { requestId: string }) => Promise<ExecutionControlRun>;
 	store: RuntimeRunStore;
 }): RuntimeRunService {
 	function ensureMissingRun(error: unknown, owned: RuntimeRunOwnershipRecord) {
@@ -286,7 +286,7 @@ export function buildRuntimeRunService(input: {
 
 	async function requireOwnedRun(
 		principal: ResolvedAppPrincipal,
-		runId: string,
+		requestId: string,
 	): Promise<RuntimeRunOwnershipRecord> {
 		if (!principal.permissions.chat) {
 			throw new AppApiRouteError({
@@ -296,11 +296,11 @@ export function buildRuntimeRunService(input: {
 				status: 403,
 			});
 		}
-		const normalizedRunId = runId.trim();
-		if (!normalizedRunId) {
+		const normalizedRequestId = requestId.trim();
+		if (!normalizedRequestId) {
 			throw new AppApiRouteError({
 				code: "invalid_request",
-				message: "run_id is required.",
+				message: "request_id is required.",
 				retryable: false,
 				status: 400,
 			});
@@ -308,12 +308,12 @@ export function buildRuntimeRunService(input: {
 
 		const owned = await input.store.getOwnedRun({
 			ownerUserId: principal.actor.userId,
-			runId: normalizedRunId,
+			requestId: normalizedRequestId,
 		});
 		if (!owned) {
 			throw new AppApiRouteError({
-				code: "run_not_found",
-				message: "Run not found.",
+				code: "request_not_found",
+				message: "Request not found.",
 				retryable: false,
 				status: 404,
 			});
@@ -325,12 +325,7 @@ export function buildRuntimeRunService(input: {
 		owned: RuntimeRunOwnershipRecord,
 		run: ExecutionControlRun,
 	): void {
-		if (
-			run.runId !== owned.runId ||
-			run.requestId !== owned.requestId ||
-			run.conversationId !== owned.conversationId ||
-			run.traceId !== owned.traceId
-		) {
+		if (run.requestId !== owned.requestId || run.conversationId !== owned.conversationId) {
 			throw new ExecutionControlTransportError({
 				code: "execution_control_invalid_response",
 				message: "Execution durable run identity does not match app-api request ownership.",
@@ -353,11 +348,9 @@ export function buildRuntimeRunService(input: {
 			durationMs: completedAt ? durationMsBetween(acceptedAt, completedAt) : null,
 			phase: runtimeRunPhaseFromExecutionStatus(run.status),
 			requestId: run.requestId,
-			runId: run.runId,
 			startedAt,
 			status: run.status,
 			...(run.terminalReason ? { terminalReason: run.terminalReason } : {}),
-			traceId: run.traceId,
 		};
 	}
 
@@ -405,18 +398,17 @@ export function buildRuntimeRunService(input: {
 			...(eventsInput.afterSequence === undefined
 				? {}
 				: { afterSequence: eventsInput.afterSequence }),
-			runId: eventsInput.owned.runId,
+			requestId: eventsInput.owned.requestId,
 			...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
-			traceId: eventsInput.owned.traceId,
 			...(eventsInput.waitMs === undefined ? {} : { waitMs: eventsInput.waitMs }),
 		});
 		let lastSequence = eventsInput.afterSequence ?? 0;
 		const browserEvents: RuntimeRunEventProjection[] = [];
 		for (const event of page.events) {
-			if (event.runId !== eventsInput.owned.runId) {
+			if (event.requestId !== eventsInput.owned.requestId) {
 				throw new ExecutionControlTransportError({
 					code: "execution_control_invalid_response",
-					message: "Execution durable run event identity does not match requested run.",
+					message: "Execution durable request event identity does not match requested request.",
 					retryable: true,
 					status: 502,
 				});
@@ -445,7 +437,7 @@ export function buildRuntimeRunService(input: {
 	async function listEvents(eventsInput: {
 		afterSequence?: number;
 		principal: ResolvedAppPrincipal;
-		runId: string;
+		requestId: string;
 		signal?: AbortSignal;
 		waitMs?: number;
 	}): Promise<{
@@ -453,21 +445,19 @@ export function buildRuntimeRunService(input: {
 		nextSequence: number;
 		run: RuntimeRunSummary;
 	}> {
-		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.runId);
+		const owned = await requireOwnedRun(eventsInput.principal, eventsInput.requestId);
 		let run: ExecutionControlRun;
 		try {
 			run = await input.executionRuntime.getRun({
-				runId: owned.runId,
+				requestId: owned.requestId,
 				...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
-				traceId: owned.traceId,
 			});
 		} catch (error) {
 			run = await ensureMissingRun(
 				error,
 				owned,
 			)({
-				runId: owned.runId,
-				traceId: owned.traceId,
+				requestId: owned.requestId,
 			});
 		}
 		assertRunMatchesOwnership(owned, run);
@@ -484,54 +474,49 @@ export function buildRuntimeRunService(input: {
 
 	return {
 		async cancel(cancelInput) {
-			const owned = await requireOwnedRun(cancelInput.principal, cancelInput.runId);
+			const owned = await requireOwnedRun(cancelInput.principal, cancelInput.requestId);
 			let current: ExecutionControlRun;
 			try {
 				current = await input.executionRuntime.getRun({
-					runId: owned.runId,
-					traceId: owned.traceId,
+					requestId: owned.requestId,
 				});
 			} catch (error) {
 				current = await ensureMissingRun(
 					error,
 					owned,
 				)({
-					runId: owned.runId,
-					traceId: owned.traceId,
+					requestId: owned.requestId,
 				});
 			}
 			assertRunMatchesOwnership(owned, current);
 			if (isTerminalExecutionStatus(current.status)) {
 				throw new AppApiRouteError({
-					code: "run_already_terminal",
-					message: "Run is already terminal.",
+					code: "request_already_terminal",
+					message: "Request is already terminal.",
 					retryable: false,
 					status: 409,
 				});
 			}
 			const remote = await input.executionRuntime.cancelRun({
 				reason: cancelInput.reason.trim() || "user_requested",
-				runId: owned.runId,
-				traceId: owned.traceId,
+				requestId: owned.requestId,
 			});
 			assertRunMatchesOwnership(owned, remote);
 			return { run: toRunSummary(remote) };
 		},
 		async getStatus(statusInput) {
-			const owned = await requireOwnedRun(statusInput.principal, statusInput.runId);
+			const owned = await requireOwnedRun(statusInput.principal, statusInput.requestId);
 			let run: ExecutionControlRun;
 			try {
 				run = await input.executionRuntime.getRun({
-					runId: owned.runId,
-					traceId: owned.traceId,
+					requestId: owned.requestId,
 				});
 			} catch (error) {
 				run = await ensureMissingRun(
 					error,
 					owned,
 				)({
-					runId: owned.runId,
-					traceId: owned.traceId,
+					requestId: owned.requestId,
 				});
 			}
 			assertRunMatchesOwnership(owned, run);
@@ -539,20 +524,18 @@ export function buildRuntimeRunService(input: {
 		},
 		listEvents,
 		async listSteps(stepsInput) {
-			const owned = await requireOwnedRun(stepsInput.principal, stepsInput.runId);
+			const owned = await requireOwnedRun(stepsInput.principal, stepsInput.requestId);
 			let run: ExecutionControlRun;
 			try {
 				run = await input.executionRuntime.getRun({
-					runId: owned.runId,
-					traceId: owned.traceId,
+					requestId: owned.requestId,
 				});
 			} catch (error) {
 				run = await ensureMissingRun(
 					error,
 					owned,
 				)({
-					runId: owned.runId,
-					traceId: owned.traceId,
+					requestId: owned.requestId,
 				});
 			}
 			assertRunMatchesOwnership(owned, run);
@@ -576,7 +559,7 @@ export function buildRuntimeRunService(input: {
 				const result = await listEvents({
 					afterSequence: lastSequence,
 					principal: eventsInput.principal,
-					runId: eventsInput.runId,
+					requestId: eventsInput.requestId,
 					...(eventsInput.signal ? { signal: eventsInput.signal } : {}),
 					waitMs: polling.waitMs,
 				});

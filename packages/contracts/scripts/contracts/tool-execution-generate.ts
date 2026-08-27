@@ -55,10 +55,10 @@ function schemas(contract: Record<string, unknown>): Record<string, unknown> {
 	return contract.components.schemas;
 }
 
-function executionRunIdPattern(contract: Record<string, unknown>): string {
-	const schema = schemas(contract).ExecutionRunId;
+function executionRequestIdPattern(contract: Record<string, unknown>): string {
+	const schema = schemas(contract).ExecutionRequestId;
 	if (!(isRecord(schema) && schema.type === "string" && typeof schema.pattern === "string")) {
-		throw new Error("ExecutionRunId must define a string pattern");
+		throw new Error("ExecutionRequestId must define a string pattern");
 	}
 	return schema.pattern;
 }
@@ -105,11 +105,7 @@ function contractMeta(contract: Record<string, unknown>): Record<string, string>
 		throw new Error("x-campus-contract metadata is required");
 	}
 	const result: Record<string, string> = {};
-	for (const key of [
-		"execution_contract_version",
-		"response_contract",
-		"workflow_trace_summary_version",
-	]) {
+	for (const key of ["execution_contract_version", "response_contract"]) {
 		const value = meta[key];
 		if (typeof value !== "string" || value === "") {
 			throw new Error(`x-campus-contract.${key} must be a non-empty string`);
@@ -126,12 +122,10 @@ function generateTs(contract: Record<string, unknown>): string {
 		"export const TOOL_EXECUTION_CONTRACT = {\n" +
 		`\texecutionContractVersion: ${quote(meta.execution_contract_version)},\n` +
 		`\tresponseContract: ${quote(meta.response_contract)},\n` +
-		`\tworkflowTraceSummaryVersion: ${quote(meta.workflow_trace_summary_version)},\n` +
 		"} as const;\n\n" +
 		tsConstArray("TOOL_IDS", enumValues(contract, "ToolID")) +
 		tsConstArray("MODEL_VISIBLE_TOOL_NAMES", enumValues(contract, "ModelVisibleToolName")) +
 		tsConstArray("EXECUTION_STATUSES", enumValues(contract, "ExecutionStatus")) +
-		tsConstArray("EXECUTION_PATHS", enumValues(contract, "ExecutionPath")) +
 		tsConstArray("STAGE_TIMING_FIELDS", stageTimingFields(contract)) +
 		tsWireTypes()
 	);
@@ -142,7 +136,6 @@ function tsWireTypes(): string {
 export type ToolID = (typeof TOOL_IDS)[number];
 export type ModelVisibleToolName = (typeof MODEL_VISIBLE_TOOL_NAMES)[number];
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
-export type ExecutionPath = (typeof EXECUTION_PATHS)[number];
 
 export type StageTimingField = (typeof STAGE_TIMING_FIELDS)[number];
 export type StageTimingWire = Partial<Record<StageTimingField, number>>;
@@ -158,10 +151,6 @@ export interface ConversationContextWire {
 \tsession_state: SafeRecord;
 }
 
-export interface TraceContextWire {
-\ttrace_id: string;
-}
-
 export interface ExecutionPayloadWire {
 \texecution_contract_version: typeof TOOL_EXECUTION_CONTRACT.executionContractVersion;
 \tresponse_contract: typeof TOOL_EXECUTION_CONTRACT.responseContract;
@@ -170,7 +159,6 @@ export interface ExecutionPayloadWire {
 \ttenant_id?: string;
 \trequest_id: string;
 \tsafety_identifier?: string | null;
-\ttrace: TraceContextWire;
 \tcontext: SafeRecord;
 }
 
@@ -181,23 +169,13 @@ export interface ExecutionRunMetadataWire {
 }
 
 export interface ExecutionRunCreateRequestWire {
-\trun_id: string;
 \tconversation_id: string;
-\tturn_id: string;
 \trequest_id: string;
-\ttrace_id?: string;
 \towner_user_id: string;
 \tpersonal_memory_recall_allowed: boolean;
 \tsurface: string;
 \truntime_versions?: SafeRecord;
 \tmetadata: ExecutionRunMetadataWire;
-}
-
-export interface ToolExecutionWorkflowTraceSummaryWire {
-\texecution_path: ExecutionPath;
-\tterminal_reason: string;
-\tanswer_artifact_refs: string[];
-\truntime_versions: SafeRecord;
 }
 
 export interface ModelUsageWire {
@@ -214,18 +192,15 @@ export interface ToolExecutionResponseWire {
 \tresult: SafeRecord | null;
 \terror: { code: string; message: string; retryable: boolean } | null;
 \tobservability?: SafeRecord | null;
-\tworkflow_trace_summary?: ToolExecutionWorkflowTraceSummaryWire | null;
 \tstage_timing?: StageTimingWire | null;
-\ttrace_id: string;
 }
 `;
 }
 
 function generateGo(contract: Record<string, unknown>): string {
 	const meta = contractMeta(contract);
-	const runIdPattern = executionRunIdPattern(contract);
+	const requestIdPattern = executionRequestIdPattern(contract);
 	const toolIds = enumValues(contract, "ToolID");
-	const executionPaths = enumValues(contract, "ExecutionPath");
 	const stageFields = stageTimingFields(contract);
 	return gofmt(
 		`// ${header}. Do not edit by hand.\n\n` +
@@ -240,22 +215,19 @@ function generateGo(contract: Record<string, unknown>): string {
 			")\n\n" +
 			"const (\n" +
 			`\tExecutionContractVersion = ${quote(meta.execution_contract_version)}\n` +
-			`\tExecutionRunIDPattern = ${quote(runIdPattern)}\n` +
+			`\tExecutionRequestIDPattern = ${quote(requestIdPattern)}\n` +
 			`\tResponseContract = ${quote(meta.response_contract)}\n` +
-			`\tWorkflowTraceSummaryVersion = ${quote(meta.workflow_trace_summary_version)}\n` +
 			")\n\n" +
-			"var executionRunIDRegexp = regexp.MustCompile(ExecutionRunIDPattern)\n\n" +
-			"func ValidExecutionRunID(value string) bool {\n" +
-			"\treturn executionRunIDRegexp.MatchString(value)\n" +
+			"var executionRequestIDRegexp = regexp.MustCompile(ExecutionRequestIDPattern)\n\n" +
+			"func ValidExecutionRequestID(value string) bool {\n" +
+			"\treturn executionRequestIDRegexp.MatchString(value)\n" +
 			"}\n\n" +
 			goStringType("ToolID", toolIds) +
 			goStringType("ModelVisibleToolName", enumValues(contract, "ModelVisibleToolName")) +
 			goStringType("ExecutionStatus", enumValues(contract, "ExecutionStatus")) +
-			goStringType("ExecutionPath", executionPaths) +
 			goStringType("StageTimingField", stageFields) +
 			goWireTypes() +
 			goDecodeHelpers({
-				executionPaths,
 				executionStatuses: enumValues(contract, "ExecutionStatus"),
 				toolIds,
 				stageTimingFields: stageFields,
@@ -275,10 +247,6 @@ type ConversationContextWire struct {
 \tSessionState map[string]any \`json:"session_state"\`
 }
 
-type TraceContextWire struct {
-\tTraceID string \`json:"trace_id"\`
-}
-
 type ExecutionPayloadWire struct {
 \tExecutionContractVersion string \`json:"execution_contract_version"\`
 \tResponseContract string \`json:"response_contract"\`
@@ -287,7 +255,6 @@ type ExecutionPayloadWire struct {
 \tTenantID string \`json:"tenant_id,omitempty"\`
 \tRequestID string \`json:"request_id"\`
 \tSafetyIdentifier *string \`json:"safety_identifier,omitempty"\`
-\tTrace TraceContextWire \`json:"trace"\`
 \tContext map[string]any \`json:"context"\`
 }
 
@@ -298,23 +265,13 @@ type ExecutionRunMetadataWire struct {
 }
 
 type ExecutionRunCreateRequestWire struct {
-\tRunID string \`json:"run_id"\`
 \tConversationID string \`json:"conversation_id"\`
-\tTurnID string \`json:"turn_id"\`
 \tRequestID string \`json:"request_id"\`
-\tTraceID string \`json:"trace_id,omitempty"\`
 \tOwnerUserID string \`json:"owner_user_id"\`
 \tPersonalMemoryRecallAllowed bool \`json:"personal_memory_recall_allowed"\`
 \tSurface string \`json:"surface"\`
 \tRuntimeVersions map[string]any \`json:"runtime_versions,omitempty"\`
 \tMetadata ExecutionRunMetadataWire \`json:"metadata"\`
-}
-
-type WorkflowTraceSummaryWire struct {
-\tExecutionPath ExecutionPath \`json:"execution_path"\`
-\tTerminalReason string \`json:"terminal_reason"\`
-\tAnswerArtifactRefs []string \`json:"answer_artifact_refs"\`
-\tRuntimeVersions map[string]any \`json:"runtime_versions"\`
 }
 
 type ModelUsageWire struct {
@@ -333,9 +290,7 @@ type ToolExecutionResponseWire struct {
 \tResult map[string]any \`json:"result"\`
 \tError map[string]any \`json:"error"\`
 \tObservability map[string]any \`json:"observability,omitempty"\`
-\tWorkflowTraceSummary *WorkflowTraceSummaryWire \`json:"workflow_trace_summary,omitempty"\`
 \tStageTiming StageTimingWire \`json:"stage_timing,omitempty"\`
-\tTraceID string \`json:"trace_id"\`
 }
 `;
 }

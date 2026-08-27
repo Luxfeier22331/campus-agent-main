@@ -18,12 +18,12 @@ func (s *InMemoryRunProjectionStore) FinalizeRunProjection(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	run, exists := s.runs[request.Completion.RunID]
+	run, exists := s.runs[request.Completion.RequestID]
 	if !exists {
 		return RunProjectionFinalizeResult{}, fmt.Errorf(
 			"%w: %s",
 			ErrDurableRunNotFound,
-			request.Completion.RunID,
+			request.Completion.RequestID,
 		)
 	}
 	if durableRunStatusIsTerminal(run.Status) && run.Status != DurableRunStatusCompleted {
@@ -34,11 +34,11 @@ func (s *InMemoryRunProjectionStore) FinalizeRunProjection(
 		)
 	}
 
-	results := s.finalizationResultsLocked(run.RunID)
+	results := s.finalizationResultsLocked(run.RequestID)
 	if len(results) > 1 {
 		return RunProjectionFinalizeResult{}, runFinalizationConflict(
 			"run %s has %d finalization results",
-			run.RunID,
+			run.RequestID,
 			len(results),
 		)
 	}
@@ -67,7 +67,7 @@ func (s *InMemoryRunProjectionStore) FinalizeRunProjection(
 		}
 
 		completionWonCommand, hasCancellation, err := s.completionWonCancellationLocked(
-			run.RunID,
+			run.RequestID,
 			request.Completion.Now,
 		)
 		if err != nil {
@@ -77,9 +77,9 @@ func (s *InMemoryRunProjectionStore) FinalizeRunProjection(
 		if err != nil {
 			return RunProjectionFinalizeResult{}, err
 		}
-		s.runs[run.RunID] = cloneDurableRun(completedRun)
+		s.runs[run.RequestID] = cloneDurableRun(completedRun)
 		if hasCancellation {
-			s.cancellationCommands[run.RunID] = completionWonCommand
+			s.cancellationCommands[run.RequestID] = completionWonCommand
 		}
 		delete(s.activeRunByConversation, run.ConversationID)
 		return cloneRunProjectionFinalizeResult(completedRun, step, attempt, result), nil
@@ -99,7 +99,7 @@ func (s *InMemoryRunProjectionStore) FinalizeRunProjection(
 		return RunProjectionFinalizeResult{}, err
 	}
 	completionWonCommand, hasCancellation, err := s.completionWonCancellationLocked(
-		run.RunID,
+		run.RequestID,
 		request.Completion.Now,
 	)
 	if err != nil {
@@ -110,16 +110,16 @@ func (s *InMemoryRunProjectionStore) FinalizeRunProjection(
 		return RunProjectionFinalizeResult{}, err
 	}
 
-	s.runSteps[runStepKey(run.RunID, request.Step.StepID)] = cloneRunStepProjection(request.Step)
-	s.stepAttempts[stepAttemptKey(run.RunID, request.Attempt.AttemptID)] = cloneStepAttemptProjection(
+	s.runSteps[runStepKey(run.RequestID, request.Step.StepID)] = cloneRunStepProjection(request.Step)
+	s.stepAttempts[stepAttemptKey(run.RequestID, request.Attempt.AttemptID)] = cloneStepAttemptProjection(
 		request.Attempt,
 	)
-	s.stepResults[stepResultKey(run.RunID, request.Result.ResultID)] = cloneStepResultProjection(
+	s.stepResults[stepResultKey(run.RequestID, request.Result.ResultID)] = cloneStepResultProjection(
 		request.Result,
 	)
-	s.runs[run.RunID] = cloneDurableRun(completedRun)
+	s.runs[run.RequestID] = cloneDurableRun(completedRun)
 	if hasCancellation {
-		s.cancellationCommands[run.RunID] = completionWonCommand
+		s.cancellationCommands[run.RequestID] = completionWonCommand
 	}
 	delete(s.activeRunByConversation, run.ConversationID)
 	return cloneRunProjectionFinalizeResult(
@@ -130,10 +130,10 @@ func (s *InMemoryRunProjectionStore) FinalizeRunProjection(
 	), nil
 }
 
-func (s *InMemoryRunProjectionStore) finalizationResultsLocked(runID string) []StepResultProjection {
+func (s *InMemoryRunProjectionStore) finalizationResultsLocked(requestID string) []StepResultProjection {
 	results := make([]StepResultProjection, 0, 1)
 	for _, result := range s.stepResults {
-		if result.RunID == runID && result.StepID == finalizationStepID {
+		if result.RequestID == requestID && result.StepID == finalizationStepID {
 			results = append(results, result)
 		}
 	}
@@ -144,34 +144,34 @@ func (s *InMemoryRunProjectionStore) canonicalFinalizationRecordsLocked(
 	run DurableRun,
 	result StepResultProjection,
 ) (RunStepProjection, StepAttemptProjection, StepResultProjection, error) {
-	step, exists := s.runSteps[runStepKey(run.RunID, result.StepID)]
+	step, exists := s.runSteps[runStepKey(run.RequestID, result.StepID)]
 	if !exists {
 		return RunStepProjection{}, StepAttemptProjection{}, StepResultProjection{},
 			runFinalizationConflict("canonical finalization step is missing")
 	}
-	attempt, exists := s.stepAttempts[stepAttemptKey(run.RunID, result.AttemptID)]
+	attempt, exists := s.stepAttempts[stepAttemptKey(run.RequestID, result.AttemptID)]
 	if !exists {
 		return RunStepProjection{}, StepAttemptProjection{}, StepResultProjection{},
 			runFinalizationConflict("canonical finalization attempt is missing")
 	}
 	for _, current := range s.stepAttempts {
 		if current.AttemptID == attempt.AttemptID &&
-			(current.RunID != attempt.RunID || current.StepID != attempt.StepID) {
+			(current.RequestID != attempt.RequestID || current.StepID != attempt.StepID) {
 			return RunStepProjection{}, StepAttemptProjection{}, StepResultProjection{},
 				runFinalizationConflict(
 					"canonical attempt_id is also bound to run %s step %s",
-					current.RunID,
+					current.RequestID,
 					current.StepID,
 				)
 		}
 	}
 	for _, current := range s.stepResults {
 		if current.ResultID == result.ResultID &&
-			(current.RunID != result.RunID || current.StepID != result.StepID) {
+			(current.RequestID != result.RequestID || current.StepID != result.StepID) {
 			return RunStepProjection{}, StepAttemptProjection{}, StepResultProjection{},
 				runFinalizationConflict(
 					"canonical result_id is also bound to run %s step %s",
-					current.RunID,
+					current.RequestID,
 					current.StepID,
 				)
 		}
@@ -180,10 +180,10 @@ func (s *InMemoryRunProjectionStore) canonicalFinalizationRecordsLocked(
 }
 
 func (s *InMemoryRunProjectionStore) completionWonCancellationLocked(
-	runID string,
+	requestID string,
 	now time.Time,
 ) (RunCancellationCommand, bool, error) {
-	command, exists := s.cancellationCommands[runID]
+	command, exists := s.cancellationCommands[requestID]
 	if !exists {
 		return RunCancellationCommand{}, false, nil
 	}
@@ -197,7 +197,7 @@ func (s *InMemoryRunProjectionStore) completionWonCancellationLocked(
 func (s *InMemoryRunProjectionStore) validateCandidateFinalizationWritesLocked(
 	request RunProjectionFinalizeRequest,
 ) error {
-	stepKey := runStepKey(request.Step.RunID, request.Step.StepID)
+	stepKey := runStepKey(request.Step.RequestID, request.Step.StepID)
 	if current, exists := s.runSteps[stepKey]; exists &&
 		!runStepProjectionUpdateAllowed(current, request.Step) {
 		return runFinalizationConflict("candidate finalization step conflicts with the canonical step")
@@ -205,14 +205,14 @@ func (s *InMemoryRunProjectionStore) validateCandidateFinalizationWritesLocked(
 
 	for _, current := range s.stepAttempts {
 		if current.AttemptID == request.Attempt.AttemptID &&
-			(current.RunID != request.Attempt.RunID || current.StepID != request.Attempt.StepID) {
+			(current.RequestID != request.Attempt.RequestID || current.StepID != request.Attempt.StepID) {
 			return runFinalizationConflict(
 				"candidate attempt_id is already bound to run %s step %s",
-				current.RunID,
+				current.RequestID,
 				current.StepID,
 			)
 		}
-		if current.RunID == request.Attempt.RunID &&
+		if current.RequestID == request.Attempt.RequestID &&
 			current.StepID == request.Attempt.StepID &&
 			current.Attempt == request.Attempt.Attempt &&
 			current.AttemptID != request.Attempt.AttemptID {
@@ -222,7 +222,7 @@ func (s *InMemoryRunProjectionStore) validateCandidateFinalizationWritesLocked(
 			)
 		}
 	}
-	attemptKey := stepAttemptKey(request.Attempt.RunID, request.Attempt.AttemptID)
+	attemptKey := stepAttemptKey(request.Attempt.RequestID, request.Attempt.AttemptID)
 	if current, exists := s.stepAttempts[attemptKey]; exists &&
 		!stepAttemptProjectionUpdateAllowed(current, request.Attempt) {
 		return runFinalizationConflict("candidate finalization attempt conflicts with the canonical attempt")
@@ -232,7 +232,7 @@ func (s *InMemoryRunProjectionStore) validateCandidateFinalizationWritesLocked(
 		if current.ResultID == request.Result.ResultID {
 			return runFinalizationConflict(
 				"candidate result_id is already bound to run %s step %s",
-				current.RunID,
+				current.RequestID,
 				current.StepID,
 			)
 		}

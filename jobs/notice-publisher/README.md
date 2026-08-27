@@ -5,10 +5,14 @@
 中写入正文、资源 metadata，并设置 `is_published=true`。分类由数据库维护，publisher 不修改分类。
 
 ```bash
-pnpm --filter notice-publisher migrate
+pnpm --filter notice-publisher dev:init
 pnpm --filter notice-publisher publish
 pnpm --filter notice-publisher publish -- --notice-id 123456
 ```
+
+通知 schema 与授权由 `campus-agent-schema` 安装。`dev:init` 在生成托管 `.env.local` 后调用
+`seed-local`，后者只向隔离的本地数据库写入通知分类，不创建表，也不维护 migration ledger。
+`migrate` 和 `migrations/` 暂作为现有部署数据库的不可变历史入口保留，不参与新的本地 bootstrap。
 
 显式指定已发布通知时会重新校验来源正文和资源；来源 metadata 或已发布内容冲突时失败。外链通知只
 发布来源 metadata 和 URL。图片写入 derived bucket，附件字节继续保留在 source bucket。

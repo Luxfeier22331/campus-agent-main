@@ -78,8 +78,8 @@ func TestDecodeExecutionPayloadWireJSONRejectsUnknownTraceField(t *testing.T) {
 	}
 
 	if _, err := DecodeExecutionPayloadWireJSON(body); err == nil ||
-		!strings.Contains(err.Error(), `unknown field "unexpected"`) {
-		t.Fatalf("error = %v, want unknown trace field rejection", err)
+		!strings.Contains(err.Error(), `unknown field "trace"`) {
+		t.Fatalf("error = %v, want retired trace field rejection", err)
 	}
 }
 
@@ -130,7 +130,6 @@ func canonicalExecutionPayload() map[string]any {
 		"conversation_id":            "conv-contract-runtime-neutral",
 		"request_id":                 "req-contract-runtime-neutral",
 		"safety_identifier":          nil,
-		"trace":                      map[string]any{"trace_id": "trace-contract-runtime-neutral"},
 		"context": map[string]any{
 			"session_slots": map[string]any{},
 		},
@@ -139,11 +138,8 @@ func canonicalExecutionPayload() map[string]any {
 
 func canonicalExecutionRunCreateRequestPayload() map[string]any {
 	return map[string]any{
-		"run_id":                         "run-contract-runtime-neutral",
 		"conversation_id":                "conv-contract-runtime-neutral",
-		"turn_id":                        "turn-contract-runtime-neutral",
 		"request_id":                     "req-contract-runtime-neutral",
-		"trace_id":                       "trace-contract-runtime-neutral",
 		"owner_user_id":                  "user-contract-runtime-neutral",
 		"personal_memory_recall_allowed": false,
 		"surface":                        "internal_eval",
@@ -152,7 +148,7 @@ func canonicalExecutionRunCreateRequestPayload() map[string]any {
 		},
 		"metadata": map[string]any{
 			"execution_contract_version": ExecutionContractVersion,
-			"execution_input_ref":        "app-api://execution-inputs/run-contract-runtime-neutral",
+			"execution_input_ref":        "app-api://execution-inputs/req-contract-runtime-neutral",
 			"execution_input_sha256":     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
 	}
@@ -169,11 +165,11 @@ func TestDecodeExecutionRunCreateRequestWireJSONRejectsInvalidFixtures(t *testin
 		},
 		{
 			fixtureName: "execution_run_create_ref.invalid.json",
-			wantError:   "execution_input_ref must be app-api://execution-inputs/run-contract-invalid-ref",
+			wantError:   "execution_input_ref must be app-api://execution-inputs/req-contract-invalid-ref",
 		},
 		{
-			fixtureName: "execution_run_create_run_id.invalid.json",
-			wantError:   "run_id must match",
+			fixtureName: "execution_run_create_request_id.invalid.json",
+			wantError:   "request_id must match",
 		},
 		{
 			fixtureName: "execution_run_create_sha.invalid.json",
@@ -240,14 +236,12 @@ func TestDecodeToolExecutionResponseWireJSONRejectsNonCanonicalFixtures(t *testi
 
 func TestDecodeToolExecutionResponseWireJSONRejectsErrorWithoutRetryable(t *testing.T) {
 	payload := map[string]any{
-		"status":                 "error",
-		"answer_text":            "",
-		"model_usage":            map[string]any{"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
-		"result":                 nil,
-		"error":                  map[string]any{"code": "activity_failed", "message": "activity failed"},
-		"observability":          map[string]any{},
-		"workflow_trace_summary": nil,
-		"trace_id":               "trace-missing-retryable",
+		"status":        "error",
+		"answer_text":   "",
+		"model_usage":   map[string]any{"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+		"result":        nil,
+		"error":         map[string]any{"code": "activity_failed", "message": "activity failed"},
+		"observability": map[string]any{},
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -315,14 +309,12 @@ func TestDecodeToolExecutionResponseWireJSONRejectsRetiredSessionUpdate(t *testi
 
 func canonicalToolExecutionResponsePayload() map[string]any {
 	return map[string]any{
-		"status":                 "completed",
-		"answer_text":            "ok",
-		"model_usage":            map[string]any{"input_tokens": 8, "cached_input_tokens": 2, "output_tokens": 3, "total_tokens": 11},
-		"result":                 map[string]any{},
-		"error":                  nil,
-		"observability":          map[string]any{},
-		"workflow_trace_summary": nil,
-		"trace_id":               "trace-contract-response",
+		"status":        "completed",
+		"answer_text":   "ok",
+		"model_usage":   map[string]any{"input_tokens": 8, "cached_input_tokens": 2, "output_tokens": 3, "total_tokens": 11},
+		"result":        map[string]any{},
+		"error":         nil,
+		"observability": map[string]any{},
 	}
 }
 

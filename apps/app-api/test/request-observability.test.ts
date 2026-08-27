@@ -48,7 +48,6 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		observability: null,
 		result: null,
 		status: "completed",
-		traceId: "trace_01HQ",
 		...overrides,
 		modelUsage: overrides.modelUsage ?? {
 			cachedInputTokens: 10,
@@ -70,12 +69,10 @@ function buildFinalizedFact(
 		principal: createPrincipal(),
 		requestId: "req_01HQ",
 		response: createResponse(),
-		runId: "run_01HQ",
 		safetyIdentifier: null,
 		startedAt: "2026-04-05T08:00:00.000Z",
 		status: "completed",
 		surface: "campus_web",
-		traceId: "trace_01HQ",
 		...overrides,
 	});
 }
@@ -90,7 +87,6 @@ describe("request observability", () => {
 			safetyIdentifier,
 			startedAt: "2026-04-05T08:00:00.000Z",
 			surface: "campus_web",
-			traceId: "trace_01HQ",
 		});
 		const finalized = buildFinalizedFact({
 			response: createResponse({ status: "completed" }),
@@ -135,25 +131,5 @@ describe("request observability", () => {
 		expect(completed).not.toHaveProperty("semanticOutcome");
 		expect(rejected).not.toHaveProperty("refusalClass");
 		expect(rejected).not.toHaveProperty("semanticOutcome");
-	});
-
-	it("persists official workflow and trace projections without raw runtime payloads", () => {
-		const workflowTraceSummary = {
-			answerArtifactRefs: ["projection://run_01HQ/agent/final"],
-			executionPath: "tool_assisted" as const,
-			runtimeVersions: { agentRuntime: "openai_agents_sdk" },
-			terminalReason: "answer",
-		};
-		const fact = buildFinalizedFact({
-			response: createResponse({
-				status: "completed",
-				workflowTraceSummary,
-			}),
-			status: "completed",
-		});
-
-		expect(fact.workflowTraceSummary).toEqual(workflowTraceSummary);
-		expect(JSON.stringify(fact)).not.toContain("raw_prompt");
-		expect(JSON.stringify(fact)).not.toContain("raw_answer");
 	});
 });

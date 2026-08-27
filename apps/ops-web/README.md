@@ -77,6 +77,9 @@ pnpm --dir apps/ops-web db:check
 pnpm --dir apps/ops-web db:generate
 ```
 
+`ops-web dev:init` 会先通过 `campus-agent-schema` 安装统一 schema 和授权，再写入通知分类与 Dining
+本地 seed；新的本地 profile 不需要单独初始化 notice-publisher。
+
 `dev:api` 和 `dev:web` 分别启动 Node API 与 Vite 页面；`dev:fixture` 只监听 loopback，使用内存凭据服务
 和固定 fixture token，启动时打印 endpoint、token 与测试凭据 ID。它不读取本地真实凭据，也不会改变
 生产代码或配置。
@@ -90,16 +93,13 @@ pnpm --dir apps/ops-web db:generate
 
 Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
 `packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，生成的
-migration 位于 `apps/ops-web/drizzle/`，并
-共用历史命名的 `drizzle.ops_web_dining_migrations`。结构变化先运行
-`db:generate` 并审查新增 SQL；不得修改已应用 migration。`db:apply-dining` 按顺序执行 migration
-和 Dining grants，完整部署使用 `db:apply` 安装 Ops Web schema 和授权；`db:bootstrap-dining`
-只在空库写入基线草稿，并通过正式 publisher 上传 SVG、原子写入 release 和当前 publication。
-已有有效发布时该命令不修改数据；异常的部分初始化状态会明确失败。授权和 bootstrap 不建表，也不
-维护第二份 schema。
+migration 与其他产品 schema 一起由 `jobs/campus-agent-schema/` 管理，并记录在
+`drizzle.campus_agent_migrations`。`apps/ops-web/drizzle/`、`db:apply-dining` 和 `db:apply` 暂作为现有
+部署环境的不可变历史入口保留，不再参与新建本地数据库 bootstrap。`db:bootstrap-dining` 只写入
+Dining 基线草稿，并通过正式 publisher 上传 SVG、原子写入 release 和当前 publication；已有有效
+发布时不修改数据。授权和 bootstrap 不建表，也不维护 migration ledger。
 
 ```bash
-pnpm --dir apps/ops-web db:apply-dining
 pnpm --dir apps/ops-web db:bootstrap-dining
 ```
 

@@ -664,29 +664,33 @@ describe("local development lifecycle guards", () => {
 			commands.map(({ step }) => step),
 			[
 				"campus-web-docs",
-				"app-api-schema",
-				"execution-control-schema",
-				"model-config-schema",
+				"campus-agent-schema",
+				"app-api-seed-local-campus-groups",
 				"app-api-seed-local-test-user",
-				"ops-web-schema",
+				"notice-publisher-seed-local",
 				"ops-web-dining-bootstrap",
-				"notice-publisher-migrate",
 			],
 		);
 		assert.doesNotMatch(commands[1]?.args.join(" ") ?? "", /\.dev\.vars/u);
-		assert.match(
-			commands[2]?.args.join(" ") ?? "",
-			/--provider-config-encryption-key-path \/repo\/var\/dev\/provider-config-encryption\.key/u,
+		assert.match(commands[2]?.args.join(" ") ?? "", /seed-local-campus-groups\.ts/u);
+		assert.match(commands[3]?.args.join(" ") ?? "", /seed-local-test-user\.ts/u);
+		assert.deepEqual(commands[4]?.args, ["--dir", "jobs/notice-publisher", "seed-local"]);
+		assert.equal(commands[4]?.options.env?.DEPLOYMENT_ENVIRONMENT, "local");
+		assert.equal(commands[4]?.options.env?.NOTICES_DATABASE_SSLMODE, "disable");
+		assert.deepEqual(
+			localApplicationBootstrapCommands("/repo", createProfile("/repo"), "ops-web").map(
+				({ step }) => step,
+			),
+			["campus-agent-schema", "notice-publisher-seed-local", "ops-web-dining-bootstrap"],
 		);
-		assert.match(
-			commands[3]?.args.join(" ") ?? "",
-			/--encryption-key-path \/repo\/var\/dev\/model-config-encryption\.key/u,
+		assert.equal(
+			commands.some(({ step }) => step === "notice-publisher-migrate"),
+			false,
 		);
-		assert.match(
-			commands[3]?.args.join(" ") ?? "",
-			/--legacy-encryption-key-path \/repo\/var\/dev\/provider-config-encryption\.key/u,
+		assert.equal(
+			commands.some(({ step }) => step === "ops-web-schema"),
+			false,
 		);
-		assert.deepEqual(commands[7]?.args, ["--dir", "jobs/notice-publisher", "migrate"]);
 	});
 
 	it("keeps the internal portal collection local loader inside its adapter", () => {

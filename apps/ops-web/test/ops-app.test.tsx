@@ -133,7 +133,7 @@ describe("OpsWebApp", () => {
 		expect(within(requestTable).queryByText("workflowId")).not.toBeInTheDocument();
 		expect(await screen.findByText("共 6 条，当前显示 6 条")).toBeInTheDocument();
 		expect(await screen.findByRole("combobox", { name: "时间范围" })).toHaveValue("1h");
-		expect(await screen.findByPlaceholderText("搜索问题、ID 或错误码")).toBeInTheDocument();
+		expect(await screen.findByPlaceholderText("搜索问题、请求 ID 或错误码")).toBeInTheDocument();
 		expect(await screen.findAllByPlaceholderText("精确 requestId")).toHaveLength(1);
 		expect(await screen.findByTestId("request-exact-filters")).not.toHaveAttribute("open");
 		expect(screen.queryByRole("button", { name: "已到末页" })).not.toBeInTheDocument();
@@ -237,8 +237,8 @@ describe("OpsWebApp", () => {
 			within(await screen.findByTestId("request-context")).getByText("已完成"),
 		).toBeInTheDocument();
 		expect(await screen.findByText(/请说明你要办理的具体事项/)).toBeInTheDocument();
-		expect(await screen.findByRole("heading", { name: "执行过程" })).toBeInTheDocument();
-		expect(screen.getByText("agent.primary")).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "执行摘要" })).toBeInTheDocument();
+		expect(screen.getByText("Agent")).toBeInTheDocument();
 	});
 
 	it("flags a missing conversation result without rewriting the product status", async () => {
@@ -272,13 +272,13 @@ describe("OpsWebApp", () => {
 	it("uses explicit missing labels and 44px controls", async () => {
 		render(
 			<>
-				<CopyableValue label="workflowId" value={null} />
+				<CopyableValue label="请求 ID" value={null} />
 				<OpsWebApp initialPath="/requests" />
 			</>,
 		);
 
 		expect(screen.getByText("未关联")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "复制 workflowId" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "复制 请求 ID" })).toBeDisabled();
 		expect(await screen.findByRole("button", { name: /应用/u })).toHaveClass("min-h-11");
 		expect(screen.getByRole("combobox", { name: "时间范围" })).toHaveClass("min-h-11");
 	});
@@ -332,9 +332,9 @@ describe("OpsWebApp", () => {
 
 	it("shows visible feedback when copying fails", async () => {
 		vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("clipboard denied"));
-		render(<CopyableValue label="traceId" value="trace_ops_001" />);
+		render(<CopyableValue label="请求 ID" value="req_ops_001" />);
 
-		const copyButton = screen.getByRole("button", { name: "复制 traceId" });
+		const copyButton = screen.getByRole("button", { name: "复制 请求 ID" });
 		fireEvent.click(copyButton);
 
 		await waitFor(() => expect(copyButton).toHaveAttribute("data-copy-status", "failed"));
@@ -362,14 +362,14 @@ describe("OpsWebApp", () => {
 	});
 
 	it("filters requests from URL search params", async () => {
-		render(<OpsWebApp initialPath="/requests?status=RUNNING&q=trace_ops_003" />);
+		render(<OpsWebApp initialPath="/requests?status=RUNNING&q=req_ops_003" />);
 
 		expect((await screen.findAllByText("req_ops_003")).length).toBeGreaterThan(0);
 		expect(screen.queryAllByText("req_ops_001")).toHaveLength(0);
 		expect(screen.getByRole("combobox", { name: "状态" })).toHaveValue("RUNNING");
 		expect(await screen.findByText(/已应用：/)).toBeInTheDocument();
 		expect(await screen.findByText(/状态 运行中/)).toBeInTheDocument();
-		expect(await screen.findByText(/关键词搜索 trace_ops_003/)).toBeInTheDocument();
+		expect(await screen.findByText(/关键词搜索 req_ops_003/)).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "重置" }));
 		await waitFor(() => expect(screen.getAllByText("req_ops_001").length).toBeGreaterThan(0), {
@@ -501,14 +501,14 @@ describe("OpsWebApp", () => {
 
 	it("presents product results and durable execution diagnostics together", async () => {
 		render(
-			<OpsWebApp initialPath="/requests/req_ops_001?from=%2Frequests%3Fstatus%3DRUNNING%26q%3Dtrace_ops_003" />,
+			<OpsWebApp initialPath="/requests/req_ops_001?from=%2Frequests%3Fstatus%3DRUNNING%26q%3Dreq_ops_003" />,
 		);
 
 		expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
 		expect(await screen.findByText("缓考申请需要哪些材料？")).toBeInTheDocument();
 		expect(await screen.findByRole("link", { name: "返回运行记录" })).toHaveAttribute(
 			"href",
-			"/requests?status=RUNNING&q=trace_ops_003",
+			"/requests?status=RUNNING&q=req_ops_003",
 		);
 		expect(screen.queryByRole("link", { name: "系统记录" })).not.toBeInTheDocument();
 		expect(
@@ -517,32 +517,22 @@ describe("OpsWebApp", () => {
 		expect(screen.getByText(/缓考申请需要在规定期限内/u)).toBeInTheDocument();
 		expect(await screen.findByText("学生管理规定")).toBeInTheDocument();
 		const execution = screen.getByTestId("request-execution");
-		expect(within(execution).getByText("agent.primary")).toBeInTheDocument();
+		expect(within(execution).getByText("Agent")).toBeInTheDocument();
 		expect(within(execution).getByText("deepseek-v4-flash-0731")).toBeInTheDocument();
 		expect(within(execution).getByText("2,000")).toBeInTheDocument();
 		expect(within(execution).getByText("320")).toBeInTheDocument();
 		expect(within(execution).getByText("400")).toBeInTheDocument();
 		expect(screen.getByText("agent-runtime@899f251")).toBeInTheDocument();
 		expect(screen.getByText("execution-control@a77a046")).toBeInTheDocument();
-		expect(screen.getByText("trace_ops_001")).toHaveClass("truncate", "font-mono");
-		expect(screen.getByText("Agent 运行时")).toBeInTheDocument();
-		expect(screen.getByText("openai_agents_sdk")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "复制 requestId" }));
+		fireEvent.click(screen.getByRole("button", { name: "复制 请求 ID" }));
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("req_ops_001");
 		expect(screen.queryByRole("button", { name: /应用日志/u })).not.toBeInTheDocument();
 		expect(screen.queryByRole("list", { name: "应用日志" })).not.toBeInTheDocument();
-		fireEvent.click(await screen.findByRole("button", { name: "加载 Sentry 错误记录" }));
-		expect(await screen.findByRole("list", { name: "Sentry Issue 摘要" })).toHaveTextContent(
+		fireEvent.click(await screen.findByRole("button", { name: "加载错误记录" }));
+		expect(await screen.findByRole("list", { name: "错误摘要" })).toHaveTextContent(
 			"Request execution failed",
 		);
-		expect(screen.getByRole("link", { name: "在 Sentry 查看" })).toHaveAttribute(
-			"href",
-			"https://sentry.example.test/organizations/campus/issues/450001/",
-		);
-		expect(screen.getByRole("link", { name: "Temporal 工作流" })).toHaveAttribute(
-			"rel",
-			"noreferrer",
-		);
+		expect(screen.queryByRole("link", { name: /Sentry|Temporal/u })).not.toBeInTheDocument();
 	}, 10_000);
 
 	it("renders duplicate source metadata without duplicate React keys", async () => {
@@ -608,14 +598,14 @@ describe("OpsWebApp", () => {
 			expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
 			expect(sentryCalls).toBe(0);
 			expect(screen.queryByText(/正在读取 Sentry/u)).not.toBeInTheDocument();
-			fireEvent.click(await screen.findByRole("button", { name: "加载 Sentry 错误记录" }));
+			fireEvent.click(await screen.findByRole("button", { name: "加载错误记录" }));
 			await waitFor(() => expect(sentryCalls).toBe(1));
-			expect(await screen.findByRole("list", { name: "Sentry Issue 摘要" })).toHaveTextContent(
+			expect(await screen.findByRole("list", { name: "错误摘要" })).toHaveTextContent(
 				"Request execution failed",
 			);
 			expect(sentryCalls).toBe(1);
 
-			const refresh = screen.getByRole("button", { name: "刷新错误记录（Sentry）" });
+			const refresh = screen.getByRole("button", { name: "刷新错误记录" });
 			fireEvent.click(refresh);
 			await waitFor(() => expect(sentryCalls).toBe(2));
 			expect(refresh).toBeDisabled();
@@ -649,7 +639,7 @@ describe("OpsWebApp", () => {
 		expect(within(requestContext).getByText("运行中")).toBeInTheDocument();
 		expect(within(requestContext).getByText("输出中")).toBeInTheDocument();
 		expect(screen.getByTestId("request-result")).toHaveTextContent("请求仍在处理中");
-		expect(screen.getByTestId("request-execution")).toHaveTextContent("agent.primary");
+		expect(screen.getByTestId("request-execution")).toHaveTextContent("Agent");
 		expect(screen.getByTestId("request-execution")).toHaveTextContent("执行中");
 	});
 

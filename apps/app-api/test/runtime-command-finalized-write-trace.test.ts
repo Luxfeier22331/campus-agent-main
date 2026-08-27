@@ -58,7 +58,6 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 		observability: null,
 		result: null,
 		status: "completed",
-		traceId: "trace_accepted",
 		...overrides,
 		modelUsage: overrides.modelUsage ?? {
 			cachedInputTokens: 10,
@@ -69,34 +68,32 @@ function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExe
 	};
 }
 
-describe("buildFinalizedWrite trace integrity", () => {
-	it("rejects finalization responses that drift from the accepted request trace", () => {
-		expect(() =>
-			buildFinalizedWrite({
-				assistantMessageId: "msg_assistant_01HQ",
-				branchId: "branch_active",
-				completedAt: "2026-06-04T01:02:03.000Z",
-				conversation: createConversation(),
-				conversationTitle: "示例问题",
-				durationMs: 3000,
-				principal: createPrincipal(),
+describe("buildFinalizedWrite request identity", () => {
+	it("builds the final write from the accepted request identity", () => {
+		const result = buildFinalizedWrite({
+			assistantMessageId: "msg_assistant_01HQ",
+			branchId: "branch_active",
+			completedAt: "2026-06-04T01:02:03.000Z",
+			conversation: createConversation(),
+			conversationTitle: "示例问题",
+			durationMs: 3000,
+			principal: createPrincipal(),
+			requestId: "req_01HQ",
+			response: createResponse({}),
+			safetyIdentifier: "safety_01HQ",
+			startedAt: "2026-06-04T01:02:00.000Z",
+			surface: "campus_web",
+			turnSequence: 1,
+			userMessageId: "msg_user_01HQ",
+		});
+		expect(result).toMatchObject({
+			responseBody: {
 				requestId: "req_01HQ",
-				response: createResponse({
-					traceId: "trace_drifted",
-				}),
-				runId: "run_01HQ",
-				safetyIdentifier: "safety_01HQ",
-				startedAt: "2026-06-04T01:02:00.000Z",
-				surface: "campus_web",
-				traceId: "trace_accepted",
-				turnSequence: 1,
-				userMessageId: "msg_user_01HQ",
-			}),
-		).toThrowError(
-			expect.objectContaining({
-				code: "validation_failed",
-				status: 422,
-			}),
-		);
+				answer: { result: { requestId: "req_01HQ" } },
+			},
+			write: {
+				turnDispatch: { requestId: "req_01HQ" },
+			},
+		});
 	});
 });

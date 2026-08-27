@@ -52,11 +52,8 @@ func primaryAgentRuntimeRequestPayload(
 	payload := map[string]any{
 		"activity_attempt":             activityAttempt,
 		"user_id":                      run.OwnerUserID,
-		"run_id":                       input.RunID,
 		"request_id":                   run.RequestID,
-		"conversation_id":              input.ConversationID,
-		"turn_id":                      input.TurnID,
-		"trace_id":                     input.TraceID,
+		"conversation_id":              run.ConversationID,
 		"input":                        strings.TrimSpace(inputText),
 		"visible_tool_names":           append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
 		"limits":                       primaryAgentRuntimeLimitsPayload(limits),
@@ -82,14 +79,14 @@ func (s *Server) callAgentRuntimeRequest(
 	traceContext := telemetry.ExtractTraceParent(ctx, traceParent)
 	requestCtx, cancel := context.WithTimeout(traceContext, timeout)
 	defer cancel()
-	url := strings.TrimRight(s.config.AgentRuntimeBaseURL, "/") + "/internal/agent-runs/stream"
+	url := strings.TrimRight(s.config.AgentRuntimeBaseURL, "/") + "/internal/agent-requests/stream"
 	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, agentRuntimeRequestBuildError{cause: err}
 	}
 	request.Header.Set("authorization", "Bearer "+s.config.AgentRuntimeSharedSecret)
 	request.Header.Set("content-type", "application/json")
-	for key, value := range telemetry.InjectExecutionTraceHeaders(requestCtx, run.RequestID, run.TraceID) {
+	for key, value := range telemetry.InjectExecutionTraceHeaders(requestCtx, run.RequestID) {
 		request.Header.Set(key, value)
 	}
 	response, err := noRedirectHTTPClient(http.DefaultClient).Do(request)
@@ -136,7 +133,7 @@ func (s *Server) consumeAgentRuntimeStream(
 		deltaFlushBytes          = 1024
 		deltaFlushInterval       = 50 * time.Millisecond
 	)
-	messageID := run.RunID + ":answer"
+	messageID := run.RequestID + ":answer"
 	var completed *agentRuntimeResponse
 	state := agentRuntimeStreamState{}
 	var streamError error
@@ -356,14 +353,14 @@ func (state agentRuntimeStreamState) validateCompleted(
 	run execution.DurableRun,
 	response agentRuntimeResponse,
 ) error {
-	if strings.TrimSpace(response.RunID) == "" {
-		return fmt.Errorf("agent runtime completed run_id is required")
+	if strings.TrimSpace(response.RequestID) == "" {
+		return fmt.Errorf("agent runtime completed request_id is required")
 	}
-	if strings.TrimSpace(response.RunID) != strings.TrimSpace(run.RunID) {
+	if strings.TrimSpace(response.RequestID) != strings.TrimSpace(run.RequestID) {
 		return fmt.Errorf(
-			"agent runtime completed run_id %q does not match run %q",
-			strings.TrimSpace(response.RunID),
-			strings.TrimSpace(run.RunID),
+			"agent runtime completed request_id %q does not match request %q",
+			strings.TrimSpace(response.RequestID),
+			strings.TrimSpace(run.RequestID),
 		)
 	}
 	if state.lastChunkIndex > 0 && response.FinalOutput != state.accumulatedText {
@@ -446,8 +443,8 @@ func (s *Server) projectPrimaryAgentAnswerDelta(
 	}
 	now := time.Now().UTC()
 	deltaEvent := execution.DurableRunEvent{
-		EventID:              fmt.Sprintf("%s:answer-delta:%d", run.RunID, delta.ChunkIndex),
-		RunID:                run.RunID,
+		EventID:              fmt.Sprintf("%s:answer-delta:%d", run.RequestID, delta.ChunkIndex),
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeRunAnswerDelta,
 		OccurredAt:           now,
@@ -458,16 +455,15 @@ func (s *Server) projectPrimaryAgentAnswerDelta(
 			"delta":       delta.Delta,
 			"message_id":  messageID,
 			"request_id":  run.RequestID,
-			"trace_id":    run.TraceID,
 		},
 	}
 	if delta.ChunkIndex == 1 {
 		_, err := s.runProjectionStore.StartRunAnswerStream(ctx, execution.RunAnswerStreamStartRequest{
-			RunID: run.RunID,
-			Now:   now,
+			RequestID: run.RequestID,
+			Now:       now,
 			AnswerStartedEvent: execution.DurableRunEvent{
-				EventID:              run.RunID + ":answer-started",
-				RunID:                run.RunID,
+				EventID:              run.RequestID + ":answer-started",
+				RequestID:            run.RequestID,
 				ConversationID:       run.ConversationID,
 				EventType:            execution.DurableRunEventTypeRunAnswerStarted,
 				OccurredAt:           now,
@@ -477,19 +473,18 @@ func (s *Server) projectPrimaryAgentAnswerDelta(
 					"message_id": messageID,
 					"request_id": run.RequestID,
 					"status":     string(execution.DurableRunStatusStreaming),
-					"trace_id":   run.TraceID,
 				},
 			},
 			FirstDeltaEvent: deltaEvent,
 		})
 		return err
 	}
-	latest, err := s.runProjectionStore.GetRun(ctx, run.RunID)
+	latest, err := s.runProjectionStore.GetRun(ctx, run.RequestID)
 	if err != nil {
 		return err
 	}
 	if latest.Status != execution.DurableRunStatusStreaming {
-		return fmt.Errorf("run %s status %s cannot project answer delta", run.RunID, latest.Status)
+		return fmt.Errorf("request %s status %s cannot project answer delta", run.RequestID, latest.Status)
 	}
 	_, err = s.runProjectionStore.AppendRunEvent(ctx, deltaEvent)
 	return err
@@ -505,8 +500,8 @@ func (s *Server) projectPrimaryAgentAnswerCompleted(
 		return fmt.Errorf("agent runtime answer_completed accumulated_text is required")
 	}
 	return s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":answer-completed",
-		RunID:                run.RunID,
+		EventID:              run.RequestID + ":answer-completed",
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeRunAnswerCompleted,
 		OccurredAt:           time.Now().UTC(),
@@ -516,7 +511,6 @@ func (s *Server) projectPrimaryAgentAnswerCompleted(
 			"accumulated_text": accumulatedText,
 			"message_id":       messageID,
 			"request_id":       run.RequestID,
-			"trace_id":         run.TraceID,
 		},
 	})
 }
@@ -620,7 +614,7 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 		ModelProvider:           strings.TrimSpace(response.ModelProvider),
 		PromptTrace:             cloneAnyMapFromMetadata(response.PromptTrace),
 		ProviderResponseID:      strings.TrimSpace(response.ProviderResponseID),
-		RunID:                   strings.TrimSpace(response.RunID),
+		RequestID:               strings.TrimSpace(response.RequestID),
 		StageTiming:             cloneAnyMapFromMetadata(response.StageTiming),
 		Status:                  strings.TrimSpace(response.Status),
 		TerminalReason:          strings.TrimSpace(response.TerminalReason),

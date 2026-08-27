@@ -79,40 +79,28 @@ export function requestFilterLabels(search: Partial<RequestSearchLike>) {
 		search.status ? `状态 ${formatStatusLabel(search.status)}` : null,
 		search.q ? `关键词搜索 ${search.q}` : null,
 		search.requestId ? `requestId 精确 ${formatId(search.requestId)}` : null,
-		search.runId ? `runId 精确 ${formatId(search.runId)}` : null,
-		search.traceId ? `traceId 精确 ${formatId(search.traceId)}` : null,
-		search.workflowId ? `workflowId 精确 ${formatId(search.workflowId)}` : null,
-		search.conversationId ? `conversationId 精确 ${formatId(search.conversationId)}` : null,
 		search.window ? `时间范围 ${formatRequestWindowLabel(search.window)}` : null,
 	].filter((item): item is string => Boolean(item));
 }
 
 export function requestSearchDraftFromSearch(search: Partial<RequestSearchLike>) {
 	return {
-		conversationId: search.conversationId ?? "",
 		q: search.q ?? "",
 		requestId: search.requestId ?? "",
-		runId: search.runId ?? "",
 		status: search.status ?? "",
-		traceId: search.traceId ?? "",
 		view: search.view ?? "recent",
 		window: search.window ?? "1h",
-		workflowId: search.workflowId ?? "",
 	};
 }
 
 export function cleanRequestSearch<T extends Partial<RequestSearchLike>>(search: T): T {
 	return {
-		...(search.conversationId ? { conversationId: search.conversationId } : {}),
 		...(search.cursor ? { cursor: search.cursor } : {}),
 		...(search.q ? { q: search.q } : {}),
 		...(search.requestId ? { requestId: search.requestId } : {}),
-		...(search.runId ? { runId: search.runId } : {}),
 		...(search.status ? { status: search.status } : {}),
-		...(search.traceId ? { traceId: search.traceId } : {}),
 		...(search.view && search.view !== "recent" ? { view: search.view } : {}),
 		...(search.window && search.window !== "1h" ? { window: search.window } : {}),
-		...(search.workflowId ? { workflowId: search.workflowId } : {}),
 	} as T;
 }
 
@@ -169,10 +157,6 @@ export function ignoredRequestSearchParamNames(
 		isIgnoredParam(rawSearch, parsedSearch, "status"),
 		isIgnoredParam(rawSearch, parsedSearch, "q"),
 		isIgnoredParam(rawSearch, parsedSearch, "requestId"),
-		isIgnoredParam(rawSearch, parsedSearch, "runId"),
-		isIgnoredParam(rawSearch, parsedSearch, "traceId"),
-		isIgnoredParam(rawSearch, parsedSearch, "workflowId"),
-		isIgnoredParam(rawSearch, parsedSearch, "conversationId"),
 		isIgnoredParam(rawSearch, parsedSearch, "cursor"),
 		isIgnoredParam(rawSearch, parsedSearch, "view"),
 		isIgnoredParam(rawSearch, parsedSearch, "window"),
@@ -230,15 +214,11 @@ export function formatRequestWindowLabel(value: OpsRequestWindow) {
 }
 
 export interface RequestSearchLike {
-	conversationId?: string | undefined;
 	cursor?: string | undefined;
 	ignored?: string | undefined;
 	q?: string | undefined;
 	requestId?: string | undefined;
-	runId?: string | undefined;
 	status?: OpsRequestSummary["status"] | undefined;
-	traceId?: string | undefined;
 	view?: OpsRequestListView | undefined;
 	window?: OpsRequestWindow | undefined;
-	workflowId?: string | undefined;
 }

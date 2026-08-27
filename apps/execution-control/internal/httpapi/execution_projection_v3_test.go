@@ -11,17 +11,14 @@ import (
 
 func TestDurableRunFromCreateBodyPersistsOnlyV5InputReferenceMetadata(t *testing.T) {
 	body, err := json.Marshal(map[string]any{
-		"run_id":                         "run-v3-metadata-001",
 		"conversation_id":                "conversation-v3-metadata-001",
-		"turn_id":                        "turn-v3-metadata-001",
 		"request_id":                     "request-v3-metadata-001",
-		"trace_id":                       "trace-v3-metadata-001",
 		"owner_user_id":                  "user-v3-metadata-001",
 		"personal_memory_recall_allowed": false,
 		"surface":                        "campus-web",
 		"metadata": map[string]any{
 			"execution_contract_version": contracts.ExecutionContractVersion,
-			"execution_input_ref":        "app-api://execution-inputs/run-v3-metadata-001",
+			"execution_input_ref":        "app-api://execution-inputs/request-v3-metadata-001",
 			"execution_input_sha256":     strings.Repeat("a", 64),
 		},
 	})
@@ -38,7 +35,7 @@ func TestDurableRunFromCreateBodyPersistsOnlyV5InputReferenceMetadata(t *testing
 	}
 	want := map[string]any{
 		"execution_contract_version": contracts.ExecutionContractVersion,
-		"execution_input_ref":        "app-api://execution-inputs/run-v3-metadata-001",
+		"execution_input_ref":        "app-api://execution-inputs/request-v3-metadata-001",
 		"execution_input_sha256":     strings.Repeat("a", 64),
 	}
 	for key, value := range want {

@@ -123,8 +123,7 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	$ops_web_read_model_column_revoke$`,
 	`GRANT SELECT (
 		"assistant_message_id", "completed_at", "conversation_id", "created_at", "error_code",
-		"request_id", "run_id", "status", "surface", "trace_id", "turn_sequence", "updated_at",
-		"user_message_id"
+		"request_id", "status", "updated_at", "user_message_id"
 	) ON TABLE "chat"."turn_dispatches" TO "ops_web"`,
 	`GRANT SELECT (
 		"conversation_id", "id", "kind", "request_id", "role", "structured_parts_json", "text"
@@ -254,17 +253,13 @@ const REQUIRED_SELECTS = [
 		label: "chat.turn_dispatches",
 		sql: `
 			select
-					"assistant_message_id",
-					"completed_at",
+				"assistant_message_id",
+				"completed_at",
 				"conversation_id",
 				"created_at",
 				"error_code",
 				"request_id",
-				"run_id",
 				"status",
-				"surface",
-				"trace_id",
-				"turn_sequence",
 				"updated_at",
 				"user_message_id"
 			from "chat"."turn_dispatches"
@@ -292,11 +287,9 @@ const REQUIRED_SELECTS = [
 			select
 				"completed_at",
 				"fail_close_reason",
-					"run_id",
-					"runtime_versions_json",
+				"request_id",
 				"status",
 				"terminal_reason",
-				"trace_id",
 				"updated_at"
 			from "execution_control"."agent_runs"
 			limit 0
@@ -306,10 +299,8 @@ const REQUIRED_SELECTS = [
 		label: "execution_control.agent_run_steps",
 		sql: `
 			select
-				"step_id", "run_id", "conversation_id", "step_kind", "tool",
-				"parent_step_id", "status", "activity_attempt", "task_queue", "worker_id",
-				"started_at", "completed_at", "updated_at", "payload_schema_version",
-				"sanitized_payload_json", "created_at"
+				"step_id", "request_id", "step_kind", "status", "started_at",
+				"completed_at", "updated_at", "sanitized_payload_json"
 			from "execution_control"."agent_run_steps"
 			limit 0
 		`,
@@ -318,15 +309,10 @@ const REQUIRED_SELECTS = [
 		label: "execution_control.agent_step_attempts",
 		sql: `
 			select
-				"attempt_id", "step_id", "run_id", "attempt", "status", "task_queue",
-				"worker_id", "workflow_id", "temporal_run_id", "activity_id", "activity_type",
-				"activity_attempt", "scheduled_at", "started_at", "completed_at",
-				"schedule_to_start_ms", "duration_ms", "provider_request_ref",
-				"provider_response_id", "model_provider", "model_name", "model_request_count",
+				"step_id", "request_id", "attempt", "status", "started_at", "completed_at",
+				"duration_ms", "model_provider", "model_name", "model_request_count",
 				"input_tokens", "output_tokens", "cached_input_tokens", "usage_observed",
-				"cancel_outcome", "timeout_outcome", "late_completion_outcome",
-				"fail_close_reason", "terminal_reason", "updated_at", "payload_schema_version",
-				"sanitized_payload_json", "created_at"
+				"fail_close_reason", "terminal_reason", "sanitized_payload_json"
 			from "execution_control"."agent_step_attempts"
 			limit 0
 		`,

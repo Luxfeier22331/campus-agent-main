@@ -184,11 +184,11 @@ describe("campus app-api client", () => {
 		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
 			new Response(
 				[
-					'event: request.accepted\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":1,"status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
-					'event: execution.queued\ndata: {"requestId":"req_01","traceId":"trace_01","status":"queued","occurredAt":"2026-06-08T00:00:00.250Z"}',
-					'event: execution.running\ndata: {"requestId":"req_01","traceId":"trace_01","status":"running","occurredAt":"2026-06-08T00:00:00.500Z"}',
-					'event: answer.delta\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":2,"status":"streaming","occurredAt":"2026-06-08T00:00:01.000Z","messageId":"msg_answer","delta":"图书馆开放到"}',
-					'event: request.completed\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":3,"status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}',
+					'event: request.accepted\ndata: {"requestId":"req_01","sequence":1,"status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
+					'event: execution.queued\ndata: {"requestId":"req_01","status":"queued","occurredAt":"2026-06-08T00:00:00.250Z"}',
+					'event: execution.running\ndata: {"requestId":"req_01","status":"running","occurredAt":"2026-06-08T00:00:00.500Z"}',
+					'event: answer.delta\ndata: {"requestId":"req_01","sequence":2,"status":"streaming","occurredAt":"2026-06-08T00:00:01.000Z","messageId":"msg_answer","delta":"图书馆开放到"}',
+					'event: request.completed\ndata: {"requestId":"req_01","sequence":3,"status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}',
 					"",
 				].join("\n\n"),
 				{
@@ -239,7 +239,7 @@ describe("campus app-api client", () => {
 			start(controller) {
 				controller.enqueue(
 					new TextEncoder().encode(
-						'event: request.accepted\ndata: {"runId":"run_eof","requestId":"req_eof","traceId":"trace_eof","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
+						'event: request.accepted\ndata: {"requestId":"req_eof","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
 					),
 				);
 				controller.close();
@@ -287,7 +287,7 @@ describe("campus app-api client", () => {
 			start(controller) {
 				controller.enqueue(
 					new TextEncoder().encode(
-						'event: request.accepted\ndata: {"runId":"run_break","requestId":"req_break","traceId":"trace_break","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
+						'event: request.accepted\ndata: {"requestId":"req_break","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
 					),
 				);
 			},
@@ -312,7 +312,6 @@ describe("campus app-api client", () => {
 						message: "请求失败。",
 						requestId: "req_failed",
 						retryable: true,
-						traceId: "trace_failed",
 					},
 				}),
 				{
@@ -340,7 +339,6 @@ describe("campus app-api client", () => {
 			message: "请求失败。",
 			requestId: "req_failed",
 			retryable: true,
-			traceId: "trace_failed",
 		});
 	});
 
@@ -349,8 +347,8 @@ describe("campus app-api client", () => {
 			new Response(
 				JSON.stringify({
 					error: {
-						code: "run_already_terminal",
-						message: "Run is already terminal.",
+						code: "request_already_terminal",
+						message: "Request is already terminal.",
 						retryable: false,
 					},
 				}),
@@ -362,9 +360,9 @@ describe("campus app-api client", () => {
 			),
 		);
 
-		await expect(cancelRun("run_terminal")).rejects.toMatchObject({
-			code: "run_already_terminal",
-			message: "Run is already terminal.",
+		await expect(cancelRun("req_terminal")).rejects.toMatchObject({
+			code: "request_already_terminal",
+			message: "Request is already terminal.",
 			retryable: false,
 			status: 409,
 		});
@@ -382,31 +380,29 @@ describe("campus app-api client", () => {
 						durationMs: 5_000,
 						phase: "failed",
 						requestId: "req_01",
-						runId: "run_01",
 						startedAt: "2026-06-08T00:00:01.000Z",
 						status: "failed",
 						terminalReason: "runtime_invariant_failed",
-						traceId: "trace_01",
 					},
 				}),
 				{ headers: { "content-type": "application/json" } },
 			),
 		);
 
-		await expect(getRunStatus({ runId: "run_01", signal: controller.signal })).resolves.toEqual({
-			acceptedAt: "2026-06-08T00:00:00.000Z",
-			completedAt: "2026-06-08T00:00:05.000Z",
-			conversationId: "conv_01",
-			durationMs: 5_000,
-			phase: "failed",
-			requestId: "req_01",
-			runId: "run_01",
-			startedAt: "2026-06-08T00:00:01.000Z",
-			status: "failed",
-			terminalReason: "runtime_invariant_failed",
-			traceId: "trace_01",
-		});
-		expect(fetchMock).toHaveBeenCalledWith("/api/chat/runs/run_01", {
+		await expect(getRunStatus({ requestId: "req_01", signal: controller.signal })).resolves.toEqual(
+			{
+				acceptedAt: "2026-06-08T00:00:00.000Z",
+				completedAt: "2026-06-08T00:00:05.000Z",
+				conversationId: "conv_01",
+				durationMs: 5_000,
+				phase: "failed",
+				requestId: "req_01",
+				startedAt: "2026-06-08T00:00:01.000Z",
+				status: "failed",
+				terminalReason: "runtime_invariant_failed",
+			},
+		);
+		expect(fetchMock).toHaveBeenCalledWith("/api/chat/requests/req_01", {
 			credentials: "same-origin",
 			headers: { accept: "application/json" },
 			method: "GET",
@@ -429,9 +425,9 @@ describe("campus app-api client", () => {
 		);
 
 		try {
-			const statusPromise = getRunStatus({ runId: "run_stalled" });
+			const statusPromise = getRunStatus({ requestId: "req_stalled" });
 			const expectation = expect(statusPromise).rejects.toMatchObject({
-				code: "run_status_timeout",
+				code: "request_status_timeout",
 				retryable: true,
 			});
 			await vi.advanceTimersByTimeAsync(5_000);
@@ -456,12 +452,12 @@ describe("campus app-api client", () => {
 			}
 		}).rejects.toBeInstanceOf(UnauthorizedError);
 		await expect(async () => {
-			for await (const _event of resumeRunEventsStream({ runId: "run_01" })) {
+			for await (const _event of resumeRunEventsStream({ requestId: "req_01" })) {
 				throw new Error("unauthorized resume must not yield events");
 			}
 		}).rejects.toBeInstanceOf(UnauthorizedError);
-		await expect(getRunStatus({ runId: "run_01" })).rejects.toBeInstanceOf(UnauthorizedError);
-		await expect(cancelRun("run_01")).rejects.toBeInstanceOf(UnauthorizedError);
+		await expect(getRunStatus({ requestId: "req_01" })).rejects.toBeInstanceOf(UnauthorizedError);
+		await expect(cancelRun("req_01")).rejects.toBeInstanceOf(UnauthorizedError);
 		expect(fetchMock).toHaveBeenCalledTimes(4);
 	});
 
@@ -479,7 +475,7 @@ describe("campus app-api client", () => {
 			)
 			.mockResolvedValueOnce(
 				new Response(
-					'event: request.completed\ndata: {"requestId":"req_01","traceId":"trace_01","status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}\n\n',
+					'event: request.completed\ndata: {"status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}\n\n',
 					{ headers: { "content-type": "text/event-stream" } },
 				),
 			);
@@ -500,8 +496,8 @@ describe("campus app-api client", () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
 			new Response(
 				[
-					'event: request.accepted\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
-					'event: request.completed\ndata: {"runId":"run_01","requestId":"req_01"',
+					'event: request.accepted\ndata: {"requestId":"req_01","status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
+					'event: request.completed\ndata: {"requestId":"req_01"',
 				].join("\n\n"),
 				{ headers: { "content-type": "text/event-stream" } },
 			),
@@ -514,7 +510,7 @@ describe("campus app-api client", () => {
 
 		expect(events).toHaveLength(1);
 		expect(events[0]).toMatchObject({
-			data: { runId: "run_01" },
+			data: { requestId: "req_01" },
 			event: "request.accepted",
 		});
 	});
@@ -550,15 +546,15 @@ describe("campus app-api client", () => {
 						{
 							eventType: "execution.phase",
 							occurredAt: "2026-06-08T00:00:01.000Z",
-							payload: { phase: "generating", request_id: "req_01" },
-							runId: "run_01",
+							payload: { phase: "generating" },
+							requestId: "req_01",
 							sequence: 7,
 						},
 						{
 							eventType: "answer.delta",
 							occurredAt: "2026-06-08T00:00:02.000Z",
 							payload: { delta: "校园资料", message_id: "msg_01" },
-							runId: "run_01",
+							requestId: "req_01",
 							sequence: 8,
 						},
 					],
@@ -570,19 +566,17 @@ describe("campus app-api client", () => {
 						durationMs: null,
 						phase: "streaming",
 						requestId: "req_01",
-						runId: "run_01",
 						startedAt: "2026-06-08T00:00:01.000Z",
 						status: "streaming",
-						traceId: "trace_01",
 					},
 				}),
 				{ headers: { "content-type": "application/json" } },
 			),
 		);
 
-		await expect(getRunEvents({ afterSequence: 6, runId: "run_01" })).resolves.toMatchObject({
+		await expect(getRunEvents({ afterSequence: 6, requestId: "req_01" })).resolves.toMatchObject({
 			nextSequence: 9,
-			run: { runId: "run_01", status: "streaming" },
+			run: { requestId: "req_01", status: "streaming" },
 			events: [
 				{ event: "execution.phase", data: { phase: "generating", sequence: 7 } },
 				{
@@ -591,7 +585,7 @@ describe("campus app-api client", () => {
 				},
 			],
 		});
-		expect(fetchMock).toHaveBeenCalledWith("/api/chat/runs/run_01/events?after_sequence=6", {
+		expect(fetchMock).toHaveBeenCalledWith("/api/chat/requests/req_01/events?after_sequence=6", {
 			credentials: "same-origin",
 			headers: { accept: "application/json" },
 			method: "GET",
@@ -609,10 +603,8 @@ describe("campus app-api client", () => {
 						durationMs: null,
 						phase: "running",
 						requestId: "req_01",
-						runId: "run_01",
 						startedAt: "2026-06-08T00:00:01.000Z",
 						status: "running",
-						traceId: "trace_01",
 					},
 					steps: [
 						{
@@ -635,7 +627,7 @@ describe("campus app-api client", () => {
 			),
 		);
 
-		await expect(getRunSteps({ runId: "run_01" })).resolves.toMatchObject({
+		await expect(getRunSteps({ requestId: "req_01" })).resolves.toMatchObject({
 			steps: [
 				expect.objectContaining({ phase: "queued" }),
 				expect.objectContaining({ phase: "preparing" }),
@@ -658,10 +650,8 @@ describe("campus app-api client", () => {
 							durationMs: null,
 							phase: "running",
 							requestId: "req_01",
-							runId: "run_01",
 							startedAt: "2026-06-08T00:00:01.000Z",
 							status: "running",
-							traceId: "trace_01",
 						},
 					}),
 					{
@@ -674,15 +664,15 @@ describe("campus app-api client", () => {
 			.mockResolvedValueOnce(new Response(null, { status: 204 }))
 			.mockResolvedValueOnce(
 				new Response(
-					'event: execution.running\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","status":"running","sequence":4,"occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
+					'event: execution.running\ndata: {"requestId":"req_01","status":"running","sequence":4,"occurredAt":"2026-06-08T00:00:00.000Z"}\n\n',
 					{
 						headers: { "content-type": "text/event-stream" },
 					},
 				),
 			);
 
-		await expect(cancelRun("run_01")).resolves.toMatchObject({
-			runId: "run_01",
+		await expect(cancelRun("req_01")).resolves.toMatchObject({
+			requestId: "req_01",
 			status: "running",
 		});
 		await expect(
@@ -690,16 +680,16 @@ describe("campus app-api client", () => {
 		).resolves.toBeUndefined();
 		await expect(deleteConversation("conv_01")).resolves.toBeUndefined();
 		const events: ChatRequestStreamEvent[] = [];
-		for await (const event of resumeRunEventsStream({ afterSequence: 3, runId: "run_01" })) {
+		for await (const event of resumeRunEventsStream({ afterSequence: 3, requestId: "req_01" })) {
 			events.push(event);
 		}
 		expect(events).toHaveLength(1);
 
 		expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.method ?? "GET"])).toEqual([
-			["/api/chat/runs/run_01/cancel", "POST"],
+			["/api/chat/requests/req_01/cancel", "POST"],
 			["/api/chat/conversations/conv_01/messages/msg_01/trailing", "DELETE"],
 			["/api/chat/conversations/conv_01", "DELETE"],
-			["/api/chat/runs/run_01/events/stream?after_sequence=3", "GET"],
+			["/api/chat/requests/req_01/events/stream?after_sequence=3", "GET"],
 		]);
 	});
 });

@@ -128,9 +128,6 @@ importers:
       '@campus-agent/dining':
         specifier: workspace:*
         version: link:../../packages/domains/dining
-      '@campus-agent/langfuse-identity':
-        specifier: workspace:*
-        version: link:../../packages/langfuse-identity
       '@hono/zod-openapi':
         specifier: ^1.6.0
         version: 1.6.0(hono@4.13.1)(zod@4.4.3)
@@ -576,9 +573,6 @@ importers:
       '@campus-agent/dining':
         specifier: workspace:*
         version: link:../../packages/domains/dining
-      '@campus-agent/langfuse-identity':
-        specifier: workspace:*
-        version: link:../../packages/langfuse-identity
       '@campus-agent/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -692,6 +686,31 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+
+  jobs/campus-agent-schema:
+    dependencies:
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@cloudflare/workers-types@5.20260815.1)(@opentelemetry/api@1.9.1)(@types/pg@8.21.0)(kysely@0.29.5)(pg@8.23.0)
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+      '@types/pg':
+        specifier: ^8.21.0
+        version: 8.21.0
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   jobs/campus-docs-index-publisher:
     dependencies:
@@ -954,9 +973,6 @@ importers:
 
   packages/eval-langfuse:
     dependencies:
-      '@campus-agent/langfuse-identity':
-        specifier: workspace:*
-        version: link:../langfuse-identity
       '@langfuse/client':
         specifier: ^5.10.0
         version: 5.10.0(@opentelemetry/api@1.9.1)
@@ -1001,22 +1017,6 @@ importers:
       undici:
         specifier: ^8.10.0
         version: 8.10.0
-    devDependencies:
-      '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/langfuse-identity:
-    dependencies:
-      '@langfuse/tracing':
-        specifier: ^5.10.0
-        version: 5.10.0(@opentelemetry/api@1.9.1)
     devDependencies:
       '@types/node':
         specifier: ^24.13.3

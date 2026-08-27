@@ -92,8 +92,8 @@ describe("campus worker boundary", () => {
 			}),
 			setTag,
 		);
+		expect(setTag).toHaveBeenCalledOnce();
 		expect(setTag).toHaveBeenCalledWith("campus.request_id", "req_01HQ");
-		expect(setTag).toHaveBeenCalledWith("campus.trace_id", "trace_01HQ");
 
 		setTag.mockClear();
 		applyUpstreamCorrelationTags(
@@ -182,11 +182,11 @@ describe("campus worker boundary", () => {
 			"/api/chat/conversations/conv_1/messages/msg_1/trailing",
 			"/api/chat/requests",
 			"/api/chat/requests/stream",
-			"/api/chat/runs/run_1",
-			"/api/chat/runs/run_1/events",
-			"/api/chat/runs/run_1/events/stream",
-			"/api/chat/runs/run_1/steps",
-			"/api/chat/runs/run_1/cancel",
+			"/api/chat/requests/req_1",
+			"/api/chat/requests/req_1/events",
+			"/api/chat/requests/req_1/events/stream",
+			"/api/chat/requests/req_1/steps",
+			"/api/chat/requests/req_1/cancel",
 			"/api/dining",
 			`/api/dining/floorplans/${"a".repeat(64)}.svg`,
 			"/api/feedback",
@@ -432,7 +432,7 @@ describe("campus worker boundary", () => {
 			"0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 		);
 		expect(forwarded.headers.get("baggage")).toBe("sentry-environment=staging");
-		expect(forwarded.headers.get("x-trace-id")).toBe("trace_01HQ");
+		expect(forwarded.headers.get("x-trace-id")).toBeNull();
 	});
 
 	it("forwards sign-up legal consent only on auth requests", async () => {

@@ -12,16 +12,15 @@ import (
 )
 
 const (
-	ExecutionContractVersion    = "tool_execution_v5"
-	ExecutionRunIDPattern       = "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-	ResponseContract            = "execution_finalization_response_v6"
-	WorkflowTraceSummaryVersion = "workflow-trace-summary-v7"
+	ExecutionContractVersion  = "tool_execution_v6"
+	ExecutionRequestIDPattern = "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+	ResponseContract          = "execution_finalization_response_v7"
 )
 
-var executionRunIDRegexp = regexp.MustCompile(ExecutionRunIDPattern)
+var executionRequestIDRegexp = regexp.MustCompile(ExecutionRequestIDPattern)
 
-func ValidExecutionRunID(value string) bool {
-	return executionRunIDRegexp.MatchString(value)
+func ValidExecutionRequestID(value string) bool {
+	return executionRequestIDRegexp.MatchString(value)
 }
 
 type ToolID string
@@ -46,13 +45,6 @@ const (
 	ExecutionStatusRejected         ExecutionStatus = "rejected"
 	ExecutionStatusApprovalRequired ExecutionStatus = "approval_required"
 	ExecutionStatusCancelled        ExecutionStatus = "cancelled"
-)
-
-type ExecutionPath string
-
-const (
-	ExecutionPathDirect       ExecutionPath = "direct"
-	ExecutionPathToolAssisted ExecutionPath = "tool_assisted"
 )
 
 type StageTimingField string
@@ -84,20 +76,15 @@ type ConversationContextWire struct {
 	SessionState       map[string]any   `json:"session_state"`
 }
 
-type TraceContextWire struct {
-	TraceID string `json:"trace_id"`
-}
-
 type ExecutionPayloadWire struct {
-	ExecutionContractVersion string           `json:"execution_contract_version"`
-	ResponseContract         string           `json:"response_contract"`
-	UserGoal                 string           `json:"user_goal"`
-	ConversationID           string           `json:"conversation_id"`
-	TenantID                 string           `json:"tenant_id,omitempty"`
-	RequestID                string           `json:"request_id"`
-	SafetyIdentifier         *string          `json:"safety_identifier,omitempty"`
-	Trace                    TraceContextWire `json:"trace"`
-	Context                  map[string]any   `json:"context"`
+	ExecutionContractVersion string         `json:"execution_contract_version"`
+	ResponseContract         string         `json:"response_contract"`
+	UserGoal                 string         `json:"user_goal"`
+	ConversationID           string         `json:"conversation_id"`
+	TenantID                 string         `json:"tenant_id,omitempty"`
+	RequestID                string         `json:"request_id"`
+	SafetyIdentifier         *string        `json:"safety_identifier,omitempty"`
+	Context                  map[string]any `json:"context"`
 }
 
 type ExecutionRunMetadataWire struct {
@@ -107,23 +94,13 @@ type ExecutionRunMetadataWire struct {
 }
 
 type ExecutionRunCreateRequestWire struct {
-	RunID                       string                   `json:"run_id"`
 	ConversationID              string                   `json:"conversation_id"`
-	TurnID                      string                   `json:"turn_id"`
 	RequestID                   string                   `json:"request_id"`
-	TraceID                     string                   `json:"trace_id,omitempty"`
 	OwnerUserID                 string                   `json:"owner_user_id"`
 	PersonalMemoryRecallAllowed bool                     `json:"personal_memory_recall_allowed"`
 	Surface                     string                   `json:"surface"`
 	RuntimeVersions             map[string]any           `json:"runtime_versions,omitempty"`
 	Metadata                    ExecutionRunMetadataWire `json:"metadata"`
-}
-
-type WorkflowTraceSummaryWire struct {
-	ExecutionPath      ExecutionPath  `json:"execution_path"`
-	TerminalReason     string         `json:"terminal_reason"`
-	AnswerArtifactRefs []string       `json:"answer_artifact_refs"`
-	RuntimeVersions    map[string]any `json:"runtime_versions"`
 }
 
 type ModelUsageWire struct {
@@ -136,15 +113,13 @@ type ModelUsageWire struct {
 type StageTimingWire map[StageTimingField]float64
 
 type ToolExecutionResponseWire struct {
-	Status               ExecutionStatus           `json:"status"`
-	AnswerText           string                    `json:"answer_text"`
-	ModelUsage           ModelUsageWire            `json:"model_usage"`
-	Result               map[string]any            `json:"result"`
-	Error                map[string]any            `json:"error"`
-	Observability        map[string]any            `json:"observability,omitempty"`
-	WorkflowTraceSummary *WorkflowTraceSummaryWire `json:"workflow_trace_summary,omitempty"`
-	StageTiming          StageTimingWire           `json:"stage_timing,omitempty"`
-	TraceID              string                    `json:"trace_id"`
+	Status        ExecutionStatus `json:"status"`
+	AnswerText    string          `json:"answer_text"`
+	ModelUsage    ModelUsageWire  `json:"model_usage"`
+	Result        map[string]any  `json:"result"`
+	Error         map[string]any  `json:"error"`
+	Observability map[string]any  `json:"observability,omitempty"`
+	StageTiming   StageTimingWire `json:"stage_timing,omitempty"`
 }
 
 func DecodeExecutionPayloadWireJSON(data []byte) (ExecutionPayloadWire, error) {
@@ -180,7 +155,6 @@ func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire
 		"result",
 		"error",
 		"model_usage",
-		"trace_id",
 	}); err != nil {
 		return wire, err
 	}
@@ -238,9 +212,6 @@ func (wire ExecutionPayloadWire) Validate() error {
 	if wire.ConversationID == "" {
 		return fmt.Errorf("conversation_id is required")
 	}
-	if wire.Trace.TraceID == "" {
-		return fmt.Errorf("trace.trace_id is required")
-	}
 	if wire.Context == nil {
 		return fmt.Errorf("context is required")
 	}
@@ -251,20 +222,14 @@ func (wire ExecutionPayloadWire) Validate() error {
 }
 
 func (wire ExecutionRunCreateRequestWire) Validate() error {
-	if wire.RunID == "" {
-		return fmt.Errorf("run_id is required")
-	}
-	if !ValidExecutionRunID(wire.RunID) {
-		return fmt.Errorf("run_id must match %s", ExecutionRunIDPattern)
-	}
 	if wire.ConversationID == "" {
 		return fmt.Errorf("conversation_id is required")
 	}
-	if wire.TurnID == "" {
-		return fmt.Errorf("turn_id is required")
-	}
 	if wire.RequestID == "" {
 		return fmt.Errorf("request_id is required")
+	}
+	if !ValidExecutionRequestID(wire.RequestID) {
+		return fmt.Errorf("request_id must match %s", ExecutionRequestIDPattern)
 	}
 	if wire.OwnerUserID == "" {
 		return fmt.Errorf("owner_user_id is required")
@@ -272,20 +237,20 @@ func (wire ExecutionRunCreateRequestWire) Validate() error {
 	if wire.Surface == "" {
 		return fmt.Errorf("surface is required")
 	}
-	if err := wire.Metadata.Validate(wire.RunID); err != nil {
+	if err := wire.Metadata.Validate(wire.RequestID); err != nil {
 		return fmt.Errorf("metadata: %w", err)
 	}
 	return nil
 }
 
-func (wire ExecutionRunMetadataWire) Validate(runID string) error {
-	if !ValidExecutionRunID(runID) {
-		return fmt.Errorf("run_id must match %s", ExecutionRunIDPattern)
+func (wire ExecutionRunMetadataWire) Validate(requestID string) error {
+	if !ValidExecutionRequestID(requestID) {
+		return fmt.Errorf("request_id must match %s", ExecutionRequestIDPattern)
 	}
 	if wire.ExecutionContractVersion != ExecutionContractVersion {
 		return fmt.Errorf("execution_contract_version must be %s", ExecutionContractVersion)
 	}
-	expectedRef := "app-api://execution-inputs/" + runID
+	expectedRef := "app-api://execution-inputs/" + requestID
 	if wire.ExecutionInputRef != expectedRef {
 		return fmt.Errorf("execution_input_ref must be %s", expectedRef)
 	}
@@ -307,28 +272,9 @@ func isLowerHexSHA256(value string) bool {
 	return true
 }
 
-func (wire WorkflowTraceSummaryWire) Validate() error {
-	if !wire.ExecutionPath.Valid() {
-		return fmt.Errorf("execution_path is invalid")
-	}
-	if wire.TerminalReason == "" {
-		return fmt.Errorf("terminal_reason is required")
-	}
-	if wire.AnswerArtifactRefs == nil {
-		return fmt.Errorf("answer_artifact_refs is required")
-	}
-	if wire.RuntimeVersions == nil {
-		return fmt.Errorf("runtime_versions is required")
-	}
-	return nil
-}
-
 func (wire ToolExecutionResponseWire) Validate() error {
 	if !wire.Status.Valid() {
 		return fmt.Errorf("status is invalid")
-	}
-	if wire.TraceID == "" {
-		return fmt.Errorf("trace_id is required")
 	}
 	if wire.ModelUsage.InputTokens < 0 || wire.ModelUsage.CachedInputTokens < 0 ||
 		wire.ModelUsage.OutputTokens < 0 || wire.ModelUsage.TotalTokens < 0 ||
@@ -345,11 +291,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 		}
 		if _, ok := wire.Error["retryable"].(bool); !ok {
 			return fmt.Errorf("error.retryable is required")
-		}
-	}
-	if wire.WorkflowTraceSummary != nil {
-		if err := wire.WorkflowTraceSummary.Validate(); err != nil {
-			return fmt.Errorf("workflow_trace_summary: %w", err)
 		}
 	}
 	if wire.StageTiming != nil {
@@ -384,15 +325,6 @@ func (value ToolID) Valid() bool {
 func (value ExecutionStatus) Valid() bool {
 	switch value {
 	case ExecutionStatusCompleted, ExecutionStatusError, ExecutionStatusRejected, ExecutionStatusApprovalRequired, ExecutionStatusCancelled:
-		return true
-	default:
-		return false
-	}
-}
-
-func (value ExecutionPath) Valid() bool {
-	switch value {
-	case ExecutionPathDirect, ExecutionPathToolAssisted:
 		return true
 	default:
 		return false

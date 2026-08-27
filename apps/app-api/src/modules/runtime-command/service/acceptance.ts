@@ -1,7 +1,6 @@
 import { type ChatConversation, DRAFT_CONVERSATION_TITLE } from "../../chat";
 import type { ToolExecutionInput } from "../../integration";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../../personalization/tenant";
-import { ensureLangfuseTraceParent } from "../../telemetry/trace";
 import {
 	ChatAcceptanceConversationConflict,
 	ChatAcceptanceIdempotencyConflict,
@@ -28,8 +27,6 @@ export type AcceptChatCommandResult =
 			acceptedAt: string;
 			kind: "accepted_replay";
 			requestId: string;
-			runId: string;
-			traceId: string;
 	  }
 	| { kind: "existing"; response: ChatCommandResponse };
 
@@ -109,15 +106,10 @@ export async function acceptChatCommand(
 		}
 
 		if (existing.status === "accepted") {
-			if (!existing.runId) {
-				throw new Error("Accepted idempotent replay is missing its durable run id.");
-			}
 			return {
 				acceptedAt: existing.acceptedAt,
 				kind: "accepted_replay",
 				requestId: existing.response.requestId,
-				runId: existing.runId,
-				traceId: existing.response.traceId,
 			};
 		}
 
@@ -135,9 +127,6 @@ export async function acceptChatCommand(
 	}
 
 	const requestId = generateId("req");
-	const traceId = generateId("trace");
-	const runId = generateId("run");
-	const turnId = generateId("turn");
 	const safetyIdentifier = deriveSafetyIdentifierForPrincipal(input.principal);
 	const acceptedAt = now().toISOString();
 	const userMessageId = generateId("msg");
@@ -172,7 +161,7 @@ export async function acceptChatCommand(
 			updatedAt: acceptedAt,
 			activeBranchId: branchId,
 			activeMessageId: null,
-			activeRunId: null,
+			activeRequestId: null,
 			activeTurnSequence: 0,
 			sessionSlots: [],
 			messages: [],
@@ -182,7 +171,6 @@ export async function acceptChatCommand(
 	const turnSequence =
 		Math.max(conversation.activeTurnSequence ?? 0, conversation.messages.length) + 1;
 	const conversationTitle = buildConversationTitle(conversation.title, validatedPayload.prompt);
-	const traceHeaders = await ensureLangfuseTraceParent(traceId);
 	const acceptedWrite = buildAcceptedWrite({
 		assistantMessageId,
 		branchId,
@@ -214,15 +202,12 @@ export async function acceptChatCommand(
 				safetyIdentifier,
 				surface,
 				tenantId: DEFAULT_PERSONAL_MEMORY_TENANT_ID,
-				traceHeaders,
-				traceId,
 				userGoal: validatedPayload.prompt,
 			};
-			const frozenInput = freezeToolExecutionRunInput(executionInput, runId);
+			const frozenInput = freezeToolExecutionRunInput(executionInput, requestId);
 			return {
 				executionInputJson: frozenInput.executionInputJson,
 				executionInputSha256: frozenInput.executionInputSha256,
-				turnId,
 			};
 		},
 		idempotencyKey,
@@ -232,11 +217,8 @@ export async function acceptChatCommand(
 		requestFingerprintSha256,
 		requestId,
 		requestKind,
-		runId,
 		safetyIdentifier,
 		surface,
-		traceId,
-		turnId,
 		turnSequence,
 		userMessageId,
 	});
@@ -244,7 +226,6 @@ export async function acceptChatCommand(
 	telemetry?.configureChatRequestScope({
 		requestId,
 		surface,
-		traceId,
 	});
 
 	let acceptedState: Awaited<ReturnType<typeof dependencies.commandStore.acceptRequest>>;
@@ -288,12 +269,9 @@ export async function acceptChatCommand(
 			memorySnapshot: acceptedState.memorySnapshot,
 			requestFingerprintSha256,
 			requestId,
-			runId,
 			runPhase: null,
 			safetyIdentifier,
 			surface,
-			traceId,
-			turnId,
 			turnSequence,
 			userMessageId,
 			validatedPayload,

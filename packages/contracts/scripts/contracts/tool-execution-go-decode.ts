@@ -1,18 +1,13 @@
 export function goDecodeHelpers({
-	executionPaths,
 	executionStatuses,
 	stageTimingFields,
 	toolIds,
 }: {
-	executionPaths: string[];
 	executionStatuses: string[];
 	stageTimingFields: string[];
 	toolIds: string[];
 }): string {
 	const toolIdCases = toolIds.map((value) => `ToolID${goConstSuffix(value)}`).join(", ");
-	const executionPathCases = executionPaths
-		.map((value) => `ExecutionPath${goConstSuffix(value)}`)
-		.join(", ");
 	const executionStatusCases = executionStatuses
 		.map((value) => `ExecutionStatus${goConstSuffix(value)}`)
 		.join(", ");
@@ -53,7 +48,6 @@ func DecodeToolExecutionResponseWireJSON(data []byte) (ToolExecutionResponseWire
 \t\t"result",
 \t\t"error",
 \t\t"model_usage",
-\t\t"trace_id",
 \t}); err != nil {
 \t\treturn wire, err
 \t}
@@ -111,9 +105,6 @@ func (wire ExecutionPayloadWire) Validate() error {
 \tif wire.ConversationID == "" {
 \t\treturn fmt.Errorf("conversation_id is required")
 \t}
-\tif wire.Trace.TraceID == "" {
-\t\treturn fmt.Errorf("trace.trace_id is required")
-\t}
 \tif wire.Context == nil {
 \t\treturn fmt.Errorf("context is required")
 \t}
@@ -124,20 +115,14 @@ func (wire ExecutionPayloadWire) Validate() error {
 }
 
 func (wire ExecutionRunCreateRequestWire) Validate() error {
-\tif wire.RunID == "" {
-\t\treturn fmt.Errorf("run_id is required")
-\t}
-\tif !ValidExecutionRunID(wire.RunID) {
-\t\treturn fmt.Errorf("run_id must match %s", ExecutionRunIDPattern)
-\t}
 \tif wire.ConversationID == "" {
 \t\treturn fmt.Errorf("conversation_id is required")
 \t}
-\tif wire.TurnID == "" {
-\t\treturn fmt.Errorf("turn_id is required")
-\t}
 \tif wire.RequestID == "" {
 \t\treturn fmt.Errorf("request_id is required")
+\t}
+\tif !ValidExecutionRequestID(wire.RequestID) {
+\t\treturn fmt.Errorf("request_id must match %s", ExecutionRequestIDPattern)
 \t}
 \tif wire.OwnerUserID == "" {
 \t\treturn fmt.Errorf("owner_user_id is required")
@@ -145,20 +130,20 @@ func (wire ExecutionRunCreateRequestWire) Validate() error {
 \tif wire.Surface == "" {
 \t\treturn fmt.Errorf("surface is required")
 \t}
-\tif err := wire.Metadata.Validate(wire.RunID); err != nil {
+\tif err := wire.Metadata.Validate(wire.RequestID); err != nil {
 \t\treturn fmt.Errorf("metadata: %w", err)
 \t}
 \treturn nil
 }
 
-func (wire ExecutionRunMetadataWire) Validate(runID string) error {
-\tif !ValidExecutionRunID(runID) {
-\t\treturn fmt.Errorf("run_id must match %s", ExecutionRunIDPattern)
+func (wire ExecutionRunMetadataWire) Validate(requestID string) error {
+\tif !ValidExecutionRequestID(requestID) {
+\t\treturn fmt.Errorf("request_id must match %s", ExecutionRequestIDPattern)
 \t}
 \tif wire.ExecutionContractVersion != ExecutionContractVersion {
 \t\treturn fmt.Errorf("execution_contract_version must be %s", ExecutionContractVersion)
 \t}
-\texpectedRef := "app-api://execution-inputs/" + runID
+\texpectedRef := "app-api://execution-inputs/" + requestID
 \tif wire.ExecutionInputRef != expectedRef {
 \t\treturn fmt.Errorf("execution_input_ref must be %s", expectedRef)
 \t}
@@ -180,28 +165,9 @@ func isLowerHexSHA256(value string) bool {
 \treturn true
 }
 
-func (wire WorkflowTraceSummaryWire) Validate() error {
-\tif !wire.ExecutionPath.Valid() {
-\t\treturn fmt.Errorf("execution_path is invalid")
-\t}
-\tif wire.TerminalReason == "" {
-\t\treturn fmt.Errorf("terminal_reason is required")
-\t}
-\tif wire.AnswerArtifactRefs == nil {
-\t\treturn fmt.Errorf("answer_artifact_refs is required")
-\t}
-\tif wire.RuntimeVersions == nil {
-\t\treturn fmt.Errorf("runtime_versions is required")
-\t}
-\treturn nil
-}
-
 func (wire ToolExecutionResponseWire) Validate() error {
 \tif !wire.Status.Valid() {
 \t\treturn fmt.Errorf("status is invalid")
-\t}
-\tif wire.TraceID == "" {
-\t\treturn fmt.Errorf("trace_id is required")
 \t}
 \tif wire.ModelUsage.InputTokens < 0 || wire.ModelUsage.CachedInputTokens < 0 ||
 \t\twire.ModelUsage.OutputTokens < 0 || wire.ModelUsage.TotalTokens < 0 ||
@@ -218,11 +184,6 @@ func (wire ToolExecutionResponseWire) Validate() error {
 \t\t}
 \t\tif _, ok := wire.Error["retryable"].(bool); !ok {
 \t\t\treturn fmt.Errorf("error.retryable is required")
-\t\t}
-\t}
-\tif wire.WorkflowTraceSummary != nil {
-\t\tif err := wire.WorkflowTraceSummary.Validate(); err != nil {
-\t\t\treturn fmt.Errorf("workflow_trace_summary: %w", err)
 \t\t}
 \t}
 \tif wire.StageTiming != nil {
@@ -263,15 +224,6 @@ func (value ExecutionStatus) Valid() bool {
 \t}
 }
 
-func (value ExecutionPath) Valid() bool {
-\tswitch value {
-\tcase __EXECUTION_PATH_CASES__:
-\t\treturn true
-\tdefault:
-\t\treturn false
-\t}
-}
-
 func (value StageTimingField) Valid() bool {
 \tswitch value {
 \tcase __STAGE_TIMING_FIELD_CASES__:
@@ -285,7 +237,6 @@ func (value StageTimingField) Valid() bool {
 	const result = template
 		.replace("__TOOL_ID_CASES__", toolIdCases)
 		.replace("__EXECUTION_STATUS_CASES__", executionStatusCases)
-		.replace("__EXECUTION_PATH_CASES__", executionPathCases)
 		.replace("__STAGE_TIMING_FIELD_CASES__", stageTimingFieldCases);
 	return result;
 }

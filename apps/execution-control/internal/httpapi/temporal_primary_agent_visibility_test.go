@@ -31,7 +31,7 @@ func TestExecutePrimaryAgentActivityPassesCurrentEmptyToolSet(t *testing.T) {
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
-			"run_id":               "run-primary-agent-institutional-account",
+			"request_id":           "run-primary-agent-institutional-account",
 			"final_output":         "需要查询学校账号规则。",
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
@@ -50,10 +50,7 @@ func TestExecutePrimaryAgentActivityPassesCurrentEmptyToolSet(t *testing.T) {
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-institutional-account",
-		RequestID:        "req-primary-agent-institutional-account",
-		RunID:            "run-primary-agent-institutional-account",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-institutional-account",
+		RequestID:        "run-primary-agent-institutional-account",
 		VisibleToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
@@ -87,7 +84,7 @@ func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testin
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
-			"run_id":               "run-primary-agent-personal-memory",
+			"request_id":           "run-primary-agent-personal-memory",
 			"final_output":         "你之前提到喜欢一食堂。",
 			"tool_results":         []any{},
 			"terminal_reason":      "answer_completed",
@@ -106,10 +103,7 @@ func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testin
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-personal-memory",
-		RequestID:        "req-primary-agent-personal-memory",
-		RunID:            "run-primary-agent-personal-memory",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-personal-memory",
+		RequestID:        "run-primary-agent-personal-memory",
 		VisibleToolNames: []string{personalMemoryRecallToolName},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
@@ -157,10 +151,7 @@ func TestExecutePrimaryAgentActivityRejectsMismatchedVisibleToolSet(t *testing.T
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-visible-tool-mismatch",
-		RequestID:        "req-primary-agent-visible-tool-mismatch",
-		RunID:            "run-primary-agent-visible-tool-mismatch",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-explicit-services",
+		RequestID:        "run-primary-agent-visible-tool-mismatch",
 		VisibleToolNames: []string{},
 	})
 	input.VisibleToolNames = []string{personalMemoryRecallToolName}

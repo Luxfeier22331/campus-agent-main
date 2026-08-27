@@ -10,54 +10,7 @@ import {
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
-	it("rejects finalized responses when execution omits the accepted traceId", async () => {
-		const { store, finalWrites } = createCommandStore();
-		const { store: conversationStore } = createConversationStore();
-		const invalidResponse = {
-			answerText: "图书馆开放到 22:00。",
-			error: null,
-			modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
-			result: {
-				evidence: {
-					sources: [{ doc_id: "handbook:library-hours" }],
-				},
-			},
-			status: "completed" as const,
-			traceId: "",
-		};
-		const service = buildChatCommandService({
-			generateId: createDeterministicIdGenerator(),
-			now: () => new Date("2026-03-28T08:00:00.000Z"),
-			conversationStore,
-			store,
-			executionRuntime: createExecutionRuntimeFromToolClient(
-				{ execute: vi.fn().mockResolvedValue(invalidResponse) },
-				{ skipProductCallback: true },
-			),
-		});
-
-		await expect(
-			service.submit({
-				payload: {
-					conversationId: "conv_01HQ",
-					prompt: "图书馆开放到几点？",
-				},
-				principal: createPrincipal(),
-				requestKind: "internal_eval",
-			}),
-		).rejects.toMatchObject({ code: "validation_failed", status: 422 });
-		await expect(
-			service.applyProductFinalization?.({
-				completedAt: "2026-03-28T08:00:02.000Z",
-				finalizationFingerprint: "trace-mismatch",
-				response: invalidResponse,
-				runId: "run_0001",
-			}),
-		).rejects.toMatchObject({ name: "ChatFinalizationConflict" });
-		expect(finalWrites).toHaveLength(0);
-	});
-
-	it("keeps the accepted traceId on finalized responses when execution echoes it", async () => {
+	it("keeps the request identity on the finalized product response", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({
@@ -81,7 +34,6 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 						},
 					},
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -95,17 +47,79 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			requestKind: "internal_eval",
 		});
 
-		expect(response.traceId).toBe("trace_0001");
-		expect(response.answer.result.traceId).toBe("trace_0001");
-		expect(response.execution).toMatchObject({
-			status: "completed",
-			traceId: "trace_0001",
+		expect(response.requestId).toBe("req_0001");
+		expect(response.answer.result).toEqual({
+			kind: "answer",
+			requestId: "req_0001",
+			text: "图书馆开放到 22:00。",
 		});
-		expect(finalWrites[0]).toMatchObject({
-			requestObservabilityFact: {
-				surface: "eval_benchmark",
-				traceId: "trace_0001",
-			},
+		expect(response).not.toHaveProperty("traceId");
+		expect(response.answer.result).not.toHaveProperty("traceId");
+		expect(finalWrites[0]?.turnDispatch.requestId).toBe("req_0001");
+		expect(finalWrites[0]?.requestObservabilityFact).not.toHaveProperty("traceId");
+	});
+
+	it("rejects a finalization replay with a different fingerprint for the same request", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-03-28T08:00:00.000Z"),
+			conversationStore,
+			store,
+			executionRuntime: createExecutionRuntimeFromToolClient(
+				{
+					execute: vi.fn().mockResolvedValue({
+						answerText: "图书馆开放到 22:00。",
+						error: null,
+						modelUsage: {
+							cachedInputTokens: 10,
+							inputTokens: 120,
+							outputTokens: 42,
+							totalTokens: 162,
+						},
+						result: {},
+						status: "completed",
+					}),
+				},
+				{ skipProductCallback: true },
+			),
 		});
+
+		await expect(
+			service.submit({
+				payload: {
+					conversationId: "conv_01HQ",
+					prompt: "图书馆开放到几点？",
+				},
+				principal: createPrincipal(),
+				requestKind: "internal_eval",
+			}),
+		).rejects.toMatchObject({ code: "product_finalization_missing" });
+
+		const response = {
+			answerText: "图书馆开放到 22:00。",
+			error: null,
+			modelUsage: { cachedInputTokens: 10, inputTokens: 120, outputTokens: 42, totalTokens: 162 },
+			result: {},
+			status: "completed" as const,
+		};
+		await expect(
+			service.applyProductFinalization?.({
+				completedAt: "2026-03-28T08:00:02.000Z",
+				finalizationFingerprint: "fingerprint-1",
+				requestId: "req_0001",
+				response,
+			}),
+		).resolves.toEqual({ outcome: "applied" });
+		await expect(
+			service.applyProductFinalization?.({
+				completedAt: "2026-03-28T08:00:02.000Z",
+				finalizationFingerprint: "fingerprint-2",
+				requestId: "req_0001",
+				response,
+			}),
+		).rejects.toMatchObject({ name: "ChatFinalizationConflict" });
+		expect(finalWrites).toHaveLength(1);
 	});
 }

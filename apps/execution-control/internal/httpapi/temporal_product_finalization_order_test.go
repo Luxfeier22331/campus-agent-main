@@ -34,7 +34,7 @@ func TestFailedRunPublishesBrowserTerminalEventOnlyAfterProductCallback(t *testi
 		if response["status"] != "error" {
 			t.Fatalf("product callback status = %#v, want error", response["status"])
 		}
-		events, err := store.ListRunEvents(context.Background(), run.RunID)
+		events, err := store.ListRunEvents(context.Background(), run.RequestID)
 		if err != nil {
 			t.Fatalf("list events in product callback: %v", err)
 		}
@@ -55,7 +55,7 @@ func TestFailedRunPublishesBrowserTerminalEventOnlyAfterProductCallback(t *testi
 	if err == nil || err.Error() != "callback unavailable" {
 		t.Fatalf("failure result error = %v, want callback unavailable", err)
 	}
-	latest, err := store.GetRun(context.Background(), run.RunID)
+	latest, err := store.GetRun(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("get run after callback failure: %v", err)
 	}

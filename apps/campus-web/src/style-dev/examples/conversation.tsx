@@ -10,7 +10,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import type { ChatRunStep } from "@/features/conversation/run-client";
 import {
 	type CampusRunViewState,
-	campusRunViewToMetadata,
+	campusRequestViewToMetadata,
 } from "@/features/conversation/run-view-state";
 import { CampusSessionValueProvider } from "@/platform/auth/session";
 import type { StyleDevStory } from "../contracts";
@@ -33,7 +33,6 @@ const COMPLETED_RUN: CampusRunViewState = {
 	phase: "finalizing",
 	provisional: false,
 	requestId: "req_style_dev",
-	runId: "run_style_dev",
 	sequence: 8,
 	startedAt: "2026-08-19T20:30:01+08:00",
 	status: "completed",
@@ -81,7 +80,9 @@ const RUN_STEPS: readonly ChatRunStep[] = [
 function useStaticRunStatusRuntime() {
 	return useMemo(
 		() => ({
-			loadSteps: async (_input: { runId: string; signal: AbortSignal }) => ({ steps: RUN_STEPS }),
+			loadSteps: async (_input: { requestId: string; signal: AbortSignal }) => ({
+				steps: RUN_STEPS,
+			}),
 			now: () => RUN_NOW,
 			resume: async () => undefined,
 		}),
@@ -126,7 +127,7 @@ function ThreadExample() {
 					},
 				],
 				id: "style-dev-assistant-message",
-				metadata: { custom: { campusRun: campusRunViewToMetadata(COMPLETED_RUN) } },
+				metadata: { custom: { campusRequest: campusRequestViewToMetadata(COMPLETED_RUN) } },
 				role: "assistant" as const,
 				status: { reason: "stop" as const, type: "complete" as const },
 			},

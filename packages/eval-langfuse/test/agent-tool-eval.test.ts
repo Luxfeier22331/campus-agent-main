@@ -20,32 +20,23 @@ function jsonResponse(payload: unknown): Response {
 }
 
 function runStepsResponse(input: {
-	answer?: string;
-	conversationId: string;
+	answer: string;
+	requestId: string;
 	retrievedContextIds?: string[];
 	retrievedContexts?: string[];
-	runId: string;
-	traceId: string;
 }): Response {
 	const trajectory = {
-		available_tools: [],
-		conversation_id: input.conversationId,
 		decision_kind: "direct_answer",
-		request_id: "request-001",
-		run_id: input.runId,
-		schema_version: "tool_trajectory.v3",
+		schema_version: "tool_trajectory.v4",
 		tool_calls: [],
-		trace_id: input.traceId,
 	};
 	return jsonResponse({
 		agent_runtime_eval_projection: {
-			rag: {
-				...(input.answer === undefined ? {} : { answer: input.answer }),
-				retrieved_context_ids: input.retrievedContextIds ?? [],
-				retrieved_contexts: input.retrievedContexts ?? [],
-			},
-			run: { run_id: input.runId, trace_id: input.traceId },
-			schema_version: "agent_runtime_eval_projection.v3",
+			answer: input.answer,
+			request_id: input.requestId,
+			retrieved_context_ids: input.retrievedContextIds ?? [],
+			retrieved_contexts: input.retrievedContexts ?? [],
+			schema_version: "agent_runtime_eval_projection.v4",
 			tool_trajectory: trajectory,
 		},
 	});
@@ -151,10 +142,8 @@ describe("agent product eval runner", () => {
 					streamCount += 1;
 					const setup = streamCount === 1;
 					const requestId = setup ? "request-setup" : "request-001";
-					const runId = setup ? "run-setup" : "run-001";
-					const traceId = setup ? "trace-setup" : "trace-001";
 					return new Response(
-						sse("request.accepted", { requestId, runId, status: "accepted", traceId }) +
+						sse("request.accepted", { requestId, status: "accepted" }) +
 							sse("request.completed", {
 								answer: {
 									conversation: { id: "conversation-001", messages: [] },
@@ -162,23 +151,19 @@ describe("agent product eval runner", () => {
 										kind: "answer",
 										requestId,
 										text: setup ? "准备查询。" : "图书馆 8 点开门。",
-										traceId,
 									},
 								},
 								requestId,
 								status: "completed",
-								traceId,
 							}),
 						{ headers: { "content-type": "text/event-stream" } },
 					);
 				}
-				if (url.endsWith("/internal/execution/runs/run-001/steps")) {
+				if (url.endsWith("/internal/execution/requests/request-001/steps")) {
 					requests.push({ body: null, headers: new Headers(init?.headers), url });
 					return runStepsResponse({
 						answer: "图书馆 8 点开门。",
-						conversationId: "conversation-001",
-						runId: "run-001",
-						traceId: "trace-001",
+						requestId: "request-001",
 					});
 				}
 				throw new Error(`unexpected product eval request: ${url}`);
@@ -205,21 +190,19 @@ describe("agent product eval runner", () => {
 			expect(requests[0]?.url).toBe("https://app-api.example/api/chat/requests/stream");
 			expect(requests[1]?.url).toBe("https://app-api.example/api/chat/requests/stream");
 			expect(requests[2]?.url).toBe(
-				"https://execution-control.example/internal/execution/runs/run-001/steps",
+				"https://execution-control.example/internal/execution/requests/request-001/steps",
 			);
 			expect(requests[2]?.headers.get("x-worker-origin-auth")).toBe("execution-secret");
 			expect(requests[2]?.headers.has("cookie")).toBe(false);
 			const result = loadAgentProductEvalResult(outputPath);
 			expect(result.items[0]).toMatchObject({
+				answer: "图书馆 8 点开门。",
 				case: { case_id: "case-001" },
-				projection: {
-					retrievedContexts: [],
-					runId: "run-001",
-					traceId: "trace-001",
-				},
-				terminal: { answer: "图书馆 8 点开门。", runId: "run-001" },
+				requestId: "request-001",
+				retrievedContexts: [],
+				toolTrajectory: { decision_kind: "direct_answer", tool_calls: [] },
 			});
-			expect(readFileSync(outputPath, "utf-8")).toContain("agent_product_eval_result.v1");
+			expect(readFileSync(outputPath, "utf-8")).toContain("agent_product_eval_result.v2");
 		} finally {
 			rmSync(directory, { force: true, recursive: true });
 		}
@@ -241,21 +224,18 @@ describe("agent product eval runner", () => {
 					return new Response(
 						sse("request.accepted", {
 							requestId: "request-001",
-							runId: "run-001",
 							status: "accepted",
-							traceId: "trace-001",
 						}),
 						{ headers: { "content-type": "text/event-stream" } },
 					);
 				}
-				if (url.includes("/api/chat/runs/run-001/events")) {
+				if (url.includes("/api/chat/requests/request-001/events")) {
 					return jsonResponse({
 						events: [
 							{
 								eventType: "request.completed",
 								occurredAt: "2026-08-22T00:00:01.000Z",
 								payload: {},
-								runId: "run-001",
 								sequence: 2,
 							},
 						],
@@ -267,10 +247,8 @@ describe("agent product eval runner", () => {
 							durationMs: 1_000,
 							phase: "completed",
 							requestId: "request-001",
-							runId: "run-001",
 							startedAt: "2026-08-22T00:00:00.000Z",
 							status: "completed",
-							traceId: "trace-001",
 						},
 					});
 				}
@@ -283,18 +261,15 @@ describe("agent product eval runner", () => {
 									requestId: "request-001",
 									role: "assistant",
 									text: "图书馆 8 点开门。",
-									runId: "run-001",
 								},
 							],
 						},
 					});
 				}
-				if (url.endsWith("/internal/execution/runs/run-001/steps")) {
+				if (url.endsWith("/internal/execution/requests/request-001/steps")) {
 					return runStepsResponse({
 						answer: "图书馆 8 点开门。",
-						conversationId: "conversation-001",
-						runId: "run-001",
-						traceId: "trace-001",
+						requestId: "request-001",
 					});
 				}
 				throw new Error(`unexpected recovery request: ${url}`);
@@ -313,15 +288,11 @@ describe("agent product eval runner", () => {
 			expect(summary).toMatchObject({ case_count: 1 });
 			const result = loadAgentProductEvalResult(outputPath);
 			expect(result.items[0]).toMatchObject({
-				projection: { runId: "run-001", traceId: "trace-001" },
-				terminal: {
-					answer: "图书馆 8 点开门。",
-					conversationId: "conversation-001",
-					resultKind: "answer",
-				},
+				answer: "图书馆 8 点开门。",
+				requestId: "request-001",
 			});
 			const eventRequest = seen.find((request) =>
-				request.url.includes("/api/chat/runs/run-001/events"),
+				request.url.includes("/api/chat/requests/request-001/events"),
 			);
 			const conversationRequest = seen.find((request) =>
 				request.url.endsWith("/api/chat/conversations/conversation-001"),

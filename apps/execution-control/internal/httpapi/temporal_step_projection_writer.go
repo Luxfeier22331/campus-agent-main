@@ -84,7 +84,7 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	if completionErr == nil {
 		if _, err := s.runProjectionStore.UpsertRunStep(ctx, execution.RunStepProjection{
 			StepID:               projection.StepID,
-			RunID:                projection.Run.RunID,
+			RequestID:            projection.Run.RequestID,
 			ConversationID:       projection.Run.ConversationID,
 			StepKind:             projection.StepKind,
 			Tool:                 projection.Tool,
@@ -112,11 +112,11 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 			}
 		}
 	}
-	attemptID := temporalStepAttemptID(projection.Run.RunID, projection.StepID, attempt)
+	attemptID := temporalStepAttemptID(projection.Run.RequestID, projection.StepID, attempt)
 	if _, err := s.runProjectionStore.UpsertStepAttempt(ctx, execution.StepAttemptProjection{
 		AttemptID:             attemptID,
 		StepID:                projection.StepID,
-		RunID:                 projection.Run.RunID,
+		RequestID:             projection.Run.RequestID,
 		Attempt:               attempt,
 		Status:                projection.Status,
 		TaskQueue:             projection.TaskQueue,
@@ -166,9 +166,9 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	}
 	if completionErr == nil && strings.TrimSpace(projection.ResultKind) != "" {
 		if _, err := s.runProjectionStore.UpsertStepResult(ctx, execution.StepResultProjection{
-			ResultID:             temporalStepResultID(projection.Run.RunID, projection.StepID, attempt),
+			ResultID:             temporalStepResultID(projection.Run.RequestID, projection.StepID, attempt),
 			StepID:               projection.StepID,
-			RunID:                projection.Run.RunID,
+			RequestID:            projection.Run.RequestID,
 			AttemptID:            attemptID,
 			Status:               projection.Status,
 			ResultKind:           projection.ResultKind,
@@ -207,7 +207,7 @@ func (s *Server) ensureTemporalStepCompletionAllowed(
 	ctx context.Context,
 	projection *temporalStepProjection,
 ) error {
-	latest, err := s.runProjectionStore.GetRun(ctx, projection.Run.RunID)
+	latest, err := s.runProjectionStore.GetRun(ctx, projection.Run.RequestID)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (s *Server) ensureTemporalStepCompletionAllowed(
 	)
 	return fmt.Errorf(
 		"run %s is already terminal before %s completion projection: %s",
-		latest.RunID,
+		latest.RequestID,
 		projection.StepID,
 		latest.Status,
 	)
@@ -231,7 +231,7 @@ func (s *Server) ensureTemporalStepNotTerminal(
 	ctx context.Context,
 	projection *temporalStepProjection,
 ) error {
-	steps, err := s.runProjectionStore.ListRunSteps(ctx, projection.Run.RunID)
+	steps, err := s.runProjectionStore.ListRunSteps(ctx, projection.Run.RequestID)
 	if err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func (s *Server) ensureTemporalStepNotTerminal(
 			step.ActivityAttempt == projection.ActivityAttempt {
 			return nil
 		}
-		attempts, err := s.runProjectionStore.ListStepAttempts(ctx, projection.Run.RunID)
+		attempts, err := s.runProjectionStore.ListStepAttempts(ctx, projection.Run.RequestID)
 		if err != nil {
 			return err
 		}
@@ -358,7 +358,7 @@ func (s *Server) withTemporalActivityEvidence(
 		}
 	}
 	if projection.WorkflowID == "" {
-		projection.WorkflowID = "campus-agent.chat." + projection.Run.RunID
+		projection.WorkflowID = "campus-agent.chat." + projection.Run.RequestID
 	}
 	if projection.ActivityAttempt <= 0 {
 		projection.ActivityAttempt = attempt

@@ -50,7 +50,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 	store execution.RunProjectionStore,
 	command execution.RunCancellationCommand,
 ) {
-	run, err := store.GetRun(ctx, command.RunID)
+	run, err := store.GetRun(ctx, command.RequestID)
 	if err != nil {
 		r.retryCancellation(ctx, store, command, "run_unavailable")
 		return
@@ -72,7 +72,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 		r.retryCancellation(ctx, store, command, "temporal_cancel_identity_unavailable")
 		return
 	}
-	startIntent, err := reader.GetWorkflowStartIntent(ctx, command.RunID)
+	startIntent, err := reader.GetWorkflowStartIntent(ctx, command.RequestID)
 	if err != nil {
 		r.retryCancellation(ctx, store, command, "workflow_start_intent_unavailable")
 		return
@@ -187,7 +187,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 		bound, bindErr := store.BindSupersededWorkflowStartExecution(
 			ctx,
 			execution.WorkflowStartExecutionBinding{
-				RunID: command.RunID, WorkflowID: command.WorkflowID,
+				RequestID: command.RequestID, WorkflowID: command.WorkflowID,
 				TemporalRunID: temporalRunID, Now: LifecycleNow(),
 			},
 		)
@@ -249,7 +249,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 
 	cancelCtx, cancel := context.WithTimeout(ctx, r.operationTimeout)
 	err = r.starter.CancelToolExecutionWorkflow(cancelCtx, temporalruntime.ToolExecutionWorkflowCancelInput{
-		Reason: command.Reason, RunID: command.RunID, TemporalRunID: temporalRunID, WorkflowID: command.WorkflowID,
+		Reason: command.Reason, RequestID: command.RequestID, TemporalRunID: temporalRunID, WorkflowID: command.WorkflowID,
 	})
 	cancel()
 	if err == nil {
@@ -313,7 +313,7 @@ func (r *Reconciler) cancellationStillOwnsActiveRun(
 	startIntent execution.WorkflowStartIntent,
 	temporalRunID string,
 ) bool {
-	latestRun, err := store.GetRun(ctx, command.RunID)
+	latestRun, err := store.GetRun(ctx, command.RequestID)
 	if err != nil {
 		r.retryCancellation(ctx, store, command, "run_unavailable")
 		return false
@@ -324,7 +324,7 @@ func (r *Reconciler) cancellationStillOwnsActiveRun(
 		r.confirmCancellation(ctx, store, command)
 		return false
 	}
-	if latestRun.TraceID != run.TraceID || latestRun.ConversationID != run.ConversationID {
+	if latestRun.ConversationID != run.ConversationID {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_identity_unavailable")
 		return false
 	}
@@ -333,7 +333,7 @@ func (r *Reconciler) cancellationStillOwnsActiveRun(
 		r.retryCancellation(ctx, store, command, "temporal_cancel_identity_unavailable")
 		return false
 	}
-	currentStart, err := reader.GetWorkflowStartIntent(ctx, command.RunID)
+	currentStart, err := reader.GetWorkflowStartIntent(ctx, command.RequestID)
 	if err != nil {
 		r.retryCancellation(ctx, store, command, "workflow_start_intent_unavailable")
 		return false
@@ -368,7 +368,7 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_start_unavailable")
 		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
 	}
-	latestRun, err := store.GetRun(ctx, command.RunID)
+	latestRun, err := store.GetRun(ctx, command.RequestID)
 	if err != nil {
 		r.retryCancellation(ctx, store, command, "run_unavailable")
 		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
@@ -377,7 +377,7 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 		r.confirmCancellation(ctx, store, command)
 		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
 	}
-	if latestRun.TraceID != run.TraceID || latestRun.ConversationID != run.ConversationID {
+	if latestRun.ConversationID != run.ConversationID {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_identity_invalid")
 		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
 	}
@@ -454,7 +454,7 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
 	}
 	bound, bindErr := store.BindSupersededWorkflowStartExecution(ctx, execution.WorkflowStartExecutionBinding{
-		RunID:         command.RunID,
+		RequestID:     command.RequestID,
 		WorkflowID:    startIntent.WorkflowID,
 		TemporalRunID: temporalRunID,
 		Now:           LifecycleNow(),
@@ -493,7 +493,7 @@ func (r *Reconciler) reconcileClosedWorkflowCancellation(
 			return true
 		}
 		if err := r.finalizeTimedOutWorkflow(ctx, store, run, info.CloseTime); err != nil && ctx.Err() == nil {
-			r.logWarn("Temporal workflow timeout finalization failed", "run_id", run.RunID, "error", err)
+			r.logWarn("Temporal workflow timeout finalization failed", "request_id", run.RequestID, "error", err)
 		}
 	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
 		if info.CloseTime.IsZero() {
@@ -504,7 +504,7 @@ func (r *Reconciler) reconcileClosedWorkflowCancellation(
 			return true
 		}
 		if err := r.finalizeTerminatedWorkflow(ctx, store, run, info.CloseTime); err != nil && ctx.Err() == nil {
-			r.logWarn("Temporal workflow termination finalization failed", "run_id", run.RunID, "error", err)
+			r.logWarn("Temporal workflow termination finalization failed", "request_id", run.RequestID, "error", err)
 		}
 	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED,
 		enumspb.WORKFLOW_EXECUTION_STATUS_FAILED:
@@ -525,7 +525,7 @@ func (r *Reconciler) finalizeCancellationLocally(
 ) {
 	// Re-read immediately before local closeout. A completed/failed/expired
 	// durable projection that committed first wins without a stale callback.
-	latestRun, latestErr := store.GetRun(ctx, command.RunID)
+	latestRun, latestErr := store.GetRun(ctx, command.RequestID)
 	if latestErr != nil {
 		r.retryCancellation(ctx, store, command, "run_unavailable")
 		return
@@ -538,14 +538,13 @@ func (r *Reconciler) finalizeCancellationLocally(
 	_, finalizeErr := r.finalizer.FinalizeExecutionCancellation(finalizeCtx, temporalruntime.FinalizeExecutionCancellationActivityInput{
 		CanceledAt: command.CreatedAt.UTC().Truncate(time.Microsecond),
 		Reason:     command.Reason,
-		RunID:      command.RunID,
-		TraceID:    latestRun.TraceID,
+		RequestID:  command.RequestID,
 	})
 	finalizeCancel()
 	if finalizeErr != nil {
 		// The finalizer deliberately rejects a completed/failed run. Treat that
 		// race as a projection win rather than retrying a cancellation forever.
-		if projectedRun, readErr := store.GetRun(ctx, command.RunID); readErr == nil && temporalRunTerminal(projectedRun.Status) {
+		if projectedRun, readErr := store.GetRun(ctx, command.RequestID); readErr == nil && temporalRunTerminal(projectedRun.Status) {
 			r.confirmCancellation(ctx, store, command)
 			return
 		}
@@ -561,10 +560,10 @@ func (r *Reconciler) confirmCancellation(
 	command execution.RunCancellationCommand,
 ) bool {
 	err := store.ConfirmRunCancellationCommand(ctx, execution.RunCancellationCommandResult{
-		RunID: command.RunID, LeaseToken: command.LeaseToken, Now: LifecycleNow(),
+		RequestID: command.RequestID, LeaseToken: command.LeaseToken, Now: LifecycleNow(),
 	})
 	if err != nil && !errors.Is(err, execution.ErrLifecycleLeaseConflict) {
-		r.logWarn("temporal cancellation confirmation failed", "run_id", command.RunID, "error", err)
+		r.logWarn("temporal cancellation confirmation failed", "request_id", command.RequestID, "error", err)
 	}
 	return err == nil
 }
@@ -577,9 +576,9 @@ func (r *Reconciler) retryCancellation(
 ) {
 	now := LifecycleNow()
 	if err := store.RetryRunCancellationCommand(ctx, execution.RunCancellationCommandResult{
-		RunID: command.RunID, LeaseToken: command.LeaseToken, ErrorCode: boundedLifecycleErrorCode(code),
+		RequestID: command.RequestID, LeaseToken: command.LeaseToken, ErrorCode: boundedLifecycleErrorCode(code),
 		Now: now, NextAttemptAt: now.Add(lifecycleRetryDelay(command.AttemptCount)),
 	}); err != nil && !errors.Is(err, execution.ErrLifecycleLeaseConflict) {
-		r.logWarn("temporal cancellation retry persistence failed", "run_id", command.RunID, "error", err)
+		r.logWarn("temporal cancellation retry persistence failed", "request_id", command.RequestID, "error", err)
 	}
 }

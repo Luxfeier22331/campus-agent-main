@@ -4,7 +4,6 @@ import {
 	PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
 } from "../../config";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
-import type { TracePropagationHeaders } from "../telemetry/trace";
 import {
 	assertExecutionControlResponseNotRedirect,
 	createExecutionControlRequestHeaders,
@@ -33,35 +32,25 @@ export interface ExecutionControlRunCreateInput {
 	ownerUserId: string;
 	personalMemoryRecallAllowed: boolean;
 	requestId: string;
-	runId: string;
 	runtimeVersions?: JsonRecord | null;
 	surface: string;
-	traceHeaders?: TracePropagationHeaders;
-	traceId?: string | null;
-	turnId: string;
 }
 
 export interface ExecutionControlRunQuery {
-	runId: string;
+	requestId: string;
 	signal?: AbortSignal;
-	traceHeaders?: TracePropagationHeaders;
-	traceId?: string | null;
 }
 
 export interface ExecutionControlRunEventQuery {
 	afterSequence?: number;
-	runId: string;
+	requestId: string;
 	signal?: AbortSignal;
-	traceHeaders?: TracePropagationHeaders;
-	traceId?: string | null;
 	waitMs?: number;
 }
 
 export interface ExecutionControlRunCancelInput {
 	reason: string;
-	runId: string;
-	traceHeaders?: TracePropagationHeaders;
-	traceId?: string | null;
+	requestId: string;
 }
 
 export interface ExecutionControlOwnerDeletion {
@@ -80,15 +69,12 @@ export interface ExecutionControlRun {
 	ownerUserId: string;
 	queuedAt: string;
 	requestId: string;
-	runId: string;
 	startedAt: string;
 	status: string;
 	streamingStartedAt: string;
 	surface: string;
 	taskQueue: string;
 	terminalReason: string;
-	traceId: string;
-	turnId: string;
 	updatedAt: string;
 }
 
@@ -99,7 +85,7 @@ export interface ExecutionControlRunEvent {
 	occurredAt: string;
 	payload: JsonRecord;
 	payloadSchemaVersion: string;
-	runId: string;
+	requestId: string;
 	sequence: number;
 	visibility: string;
 }
@@ -109,84 +95,11 @@ export interface ExecutionControlRunEventPage {
 	nextSequence: number;
 }
 
-export interface ExecutionControlRunStep {
-	tool: string;
-	completedAt: string;
-	conversationId: string;
-	parentStepId: string;
-	payloadSchemaVersion: string;
-	runId: string;
-	sanitizedPayload: JsonRecord;
-	startedAt: string;
-	status: string;
-	stepId: string;
-	stepKind: string;
-	taskQueue: string;
-	updatedAt: string;
-	workerId: string;
-}
-
-export interface ExecutionControlStepAttempt {
-	activityAttempt: number;
-	activityId: string;
-	activityType: string;
-	attempt: number;
-	attemptId: string;
-	cachedInputTokens: number;
-	cancelOutcome: string;
-	completedAt: string;
-	durationMs: number;
-	failCloseReason: string;
-	inputTokens: number;
-	lateCompletionOutcome: string;
-	modelName: string;
-	modelProvider: string;
-	outputTokens: number;
-	payloadSchemaVersion: string;
-	providerRequestRef: string;
-	providerResponseId: string;
-	runId: string;
-	sanitizedPayload: JsonRecord;
-	scheduleToStartMs: number;
-	scheduledAt: string;
-	startedAt: string;
-	status: string;
-	stepId: string;
-	taskQueue: string;
-	temporalRunId: string;
-	terminalReason: string;
-	timeoutOutcome: string;
-	updatedAt: string;
-	workerId: string;
-	workflowId: string;
-}
-
-export interface ExecutionControlStepResult {
-	attemptId: string;
-	createdAt: string;
-	payloadSchemaVersion: string;
-	projectionRef: string;
-	resultId: string;
-	resultKind: string;
-	runId: string;
-	sanitizedPayload: JsonRecord;
-	status: string;
-	stepId: string;
-}
-
-export interface ExecutionControlRunStepTrajectory {
-	agentRuntimeEvalProjection?: JsonRecord | null;
-	attempts: ExecutionControlStepAttempt[];
-	results: ExecutionControlStepResult[];
-	steps: ExecutionControlRunStep[];
-}
-
 export interface ExecutionControlRuntimeClient {
 	cancelRun(input: ExecutionControlRunCancelInput): Promise<ExecutionControlRun>;
 	createRun(input: ExecutionControlRunCreateInput): Promise<ExecutionControlRun>;
 	getRun(input: ExecutionControlRunQuery): Promise<ExecutionControlRun>;
 	listRunEvents(input: ExecutionControlRunEventQuery): Promise<ExecutionControlRunEventPage>;
-	listRunSteps(input: ExecutionControlRunQuery): Promise<ExecutionControlRunStepTrajectory>;
 }
 
 export interface ExecutionControlOwnerDeletionClient {
@@ -195,9 +108,7 @@ export interface ExecutionControlOwnerDeletionClient {
 }
 
 export interface ExecutionControlPersonalMemoryClient {
-	admit(
-		input: import("../profile-memory").ProfileMemoryCommandPayload,
-	): Promise<{ workflowId: string }>;
+	admit(input: import("../profile-memory").ProfileMemoryCommandPayload): Promise<void>;
 }
 
 export function isExecutionControlRuntimeConfigured(env: ExecutionControlRuntimeEnv): boolean {
@@ -230,26 +141,22 @@ export function createExecutionControlRuntimeClient(
 		},
 		async cancelRun(cancelInput: ExecutionControlRunCancelInput): Promise<ExecutionControlRun> {
 			const parsed = await requestExecutionControl(
-				`/internal/execution/runs/${cancelInput.runId}/cancel`,
+				`/internal/execution/requests/${cancelInput.requestId}/cancel`,
 				{
 					body: {
 						reason: cancelInput.reason,
 					},
 					expectedStatus: 202,
 					method: "POST",
-					...(cancelInput.traceHeaders ? { traceHeaders: cancelInput.traceHeaders } : {}),
-					...(cancelInput.traceId === undefined ? {} : { traceId: cancelInput.traceId }),
 				},
 			);
 			return parseDurableRun(parsed);
 		},
 		async createRun(createInput: ExecutionControlRunCreateInput): Promise<ExecutionControlRun> {
-			const parsed = await requestExecutionControl("/internal/execution/runs", {
+			const parsed = await requestExecutionControl("/internal/execution/requests", {
 				body: toDurableRunCreateBody(createInput),
 				expectedStatus: 202,
 				method: "POST",
-				...(createInput.traceHeaders ? { traceHeaders: createInput.traceHeaders } : {}),
-				...(createInput.traceId === undefined ? {} : { traceId: createInput.traceId }),
 			});
 			return parseDurableRun(parsed);
 		},
@@ -265,13 +172,14 @@ export function createExecutionControlRuntimeClient(
 			return parseOwnerDeletion(parsed);
 		},
 		async getRun(query: ExecutionControlRunQuery): Promise<ExecutionControlRun> {
-			const parsed = await requestExecutionControl(`/internal/execution/runs/${query.runId}`, {
-				expectedStatus: 200,
-				method: "GET",
-				...(query.signal ? { signal: query.signal } : {}),
-				...(query.traceHeaders ? { traceHeaders: query.traceHeaders } : {}),
-				...(query.traceId === undefined ? {} : { traceId: query.traceId }),
-			});
+			const parsed = await requestExecutionControl(
+				`/internal/execution/requests/${query.requestId}`,
+				{
+					expectedStatus: 200,
+					method: "GET",
+					...(query.signal ? { signal: query.signal } : {}),
+				},
+			);
 			return parseDurableRun(parsed);
 		},
 		async listRunEvents(
@@ -284,24 +192,8 @@ export function createExecutionControlRuntimeClient(
 				...(query.waitMs === undefined
 					? {}
 					: { timeoutMs: Math.max(EXECUTION_CONTROL_TIMEOUT_MS, query.waitMs + 5_000) }),
-				...(query.traceHeaders ? { traceHeaders: query.traceHeaders } : {}),
-				...(query.traceId === undefined ? {} : { traceId: query.traceId }),
 			});
 			return parseDurableRunEvents(parsed);
-		},
-		async listRunSteps(
-			query: ExecutionControlRunQuery,
-		): Promise<ExecutionControlRunStepTrajectory> {
-			const parsed = await requestExecutionControl(
-				`/internal/execution/runs/${query.runId}/steps`,
-				{
-					expectedStatus: 200,
-					method: "GET",
-					...(query.traceHeaders ? { traceHeaders: query.traceHeaders } : {}),
-					...(query.traceId === undefined ? {} : { traceId: query.traceId }),
-				},
-			);
-			return parseRunStepTrajectory(parsed);
 		},
 	};
 }
@@ -318,7 +210,7 @@ export function createExecutionControlPersonalMemoryClient(
 
 	return {
 		async admit(command) {
-			const parsed = await requestExecutionControl("/internal/memory/personal/commands", {
+			await requestExecutionControl("/internal/memory/personal/commands", {
 				body: {
 					schema_version: command.schemaVersion,
 					command_id: command.commandId,
@@ -339,7 +231,6 @@ export function createExecutionControlPersonalMemoryClient(
 				method: "POST",
 				timeoutMs: PROFILE_MEMORY_COMMAND_TIMEOUT_MS,
 			});
-			return { workflowId: readRequiredString(parsed, "workflow_id") };
 		},
 	};
 }
@@ -358,8 +249,6 @@ export function createExecutionControlRequester(
 		expectedStatus: number;
 		method: "GET" | "POST";
 		signal?: AbortSignal;
-		traceHeaders?: TracePropagationHeaders;
-		traceId?: string | null;
 		timeoutMs?: number;
 	},
 ) => Promise<JsonRecord> {
@@ -370,8 +259,6 @@ export function createExecutionControlRequester(
 			expectedStatus: number;
 			method: "GET" | "POST";
 			signal?: AbortSignal;
-			traceHeaders?: TracePropagationHeaders;
-			traceId?: string | null;
 			timeoutMs?: number;
 		},
 	): Promise<JsonRecord> {
@@ -426,13 +313,7 @@ export function createExecutionControlRequester(
 
 					fetchImplementation(`${upstream.baseUrl}${path}`, {
 						...(options.body ? { body: JSON.stringify(options.body) } : {}),
-						headers: createExecutionControlRequestHeaders({
-							payload: {
-								...(options.traceHeaders ? { traceHeaders: options.traceHeaders } : {}),
-								traceId: options.traceId?.trim() || "",
-							},
-							sharedSecret,
-						}),
+						headers: createExecutionControlRequestHeaders({ sharedSecret }),
 						method: options.method,
 						redirect: "manual",
 						signal: controller.signal,
@@ -476,7 +357,7 @@ export function createExecutionControlRequester(
 }
 
 function durableRunEventsPath(query: ExecutionControlRunEventQuery): string {
-	const path = `/internal/execution/runs/${query.runId}/events`;
+	const path = `/internal/execution/requests/${query.requestId}/events`;
 	const params = new URLSearchParams();
 	if (query.afterSequence !== undefined) {
 		if (
@@ -516,11 +397,8 @@ function toDurableRunCreateBody(input: ExecutionControlRunCreateInput): JsonReco
 		owner_user_id: input.ownerUserId,
 		personal_memory_recall_allowed: input.personalMemoryRecallAllowed,
 		request_id: input.requestId,
-		run_id: input.runId,
 		runtime_versions: input.runtimeVersions ?? {},
 		surface: input.surface,
-		trace_id: input.traceId ?? "",
-		turn_id: input.turnId,
 	};
 }
 
@@ -535,15 +413,12 @@ function parseDurableRun(payload: JsonRecord): ExecutionControlRun {
 		ownerUserId: readRequiredString(payload, "owner_user_id"),
 		queuedAt: readRequiredString(payload, "queued_at"),
 		requestId: readRequiredString(payload, "request_id"),
-		runId: readRequiredString(payload, "run_id"),
 		startedAt: readRequiredString(payload, "started_at"),
 		status: readRequiredString(payload, "status"),
 		streamingStartedAt: readRequiredString(payload, "streaming_started_at"),
 		surface: readRequiredString(payload, "surface"),
 		taskQueue: readRequiredString(payload, "task_queue"),
 		terminalReason: readRequiredString(payload, "terminal_reason"),
-		traceId: readRequiredString(payload, "trace_id"),
-		turnId: readRequiredString(payload, "turn_id"),
 		updatedAt: readRequiredString(payload, "updated_at"),
 	};
 }
@@ -593,115 +468,13 @@ function parseDurableRunEvents(payload: JsonRecord): ExecutionControlRunEventPag
 				occurredAt: readRequiredString(record, "occurred_at"),
 				payload: readRequiredRecord(record, "payload"),
 				payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
-				runId: readRequiredString(record, "run_id"),
+				requestId: readRequiredString(record, "request_id"),
 				sequence: readRequiredNumber(record, "sequence"),
 				visibility: readRequiredString(record, "visibility"),
 			};
 		}),
 		nextSequence,
 	};
-}
-
-function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTrajectory {
-	const steps = readRequiredArray(payload, "steps");
-	const attempts = readRequiredArray(payload, "attempts");
-	const results = readRequiredArray(payload, "results");
-	const agentRuntimeEvalProjection = readOptionalRecord(payload, "agent_runtime_eval_projection");
-	return {
-		agentRuntimeEvalProjection,
-		attempts: attempts.map((attempt, index) => parseStepAttempt(attempt, index)),
-		results: results.map((result, index) => parseStepResult(result, index)),
-		steps: steps.map((step, index) => parseRunStep(step, index)),
-	};
-}
-
-function parseRunStep(value: unknown, index: number): ExecutionControlRunStep {
-	const record = readArrayRecord(value, `steps[${index}]`);
-	return {
-		tool: readRequiredString(record, "tool"),
-		completedAt: readRequiredString(record, "completed_at"),
-		conversationId: readRequiredString(record, "conversation_id"),
-		parentStepId: readRequiredString(record, "parent_step_id"),
-		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
-		runId: readRequiredString(record, "run_id"),
-		sanitizedPayload: readRequiredRecord(record, "sanitized_payload"),
-		startedAt: readRequiredString(record, "started_at"),
-		status: readRequiredString(record, "status"),
-		stepId: readRequiredString(record, "step_id"),
-		stepKind: readRequiredString(record, "step_kind"),
-		taskQueue: readRequiredString(record, "task_queue"),
-		updatedAt: readRequiredString(record, "updated_at"),
-		workerId: readRequiredString(record, "worker_id"),
-	};
-}
-
-function parseStepAttempt(value: unknown, index: number): ExecutionControlStepAttempt {
-	const record = readArrayRecord(value, `attempts[${index}]`);
-	return {
-		activityAttempt: readRequiredNumber(record, "activity_attempt"),
-		activityId: readRequiredString(record, "activity_id"),
-		activityType: readRequiredString(record, "activity_type"),
-		attempt: readRequiredNumber(record, "attempt"),
-		attemptId: readRequiredString(record, "attempt_id"),
-		cachedInputTokens: readRequiredNumber(record, "cached_input_tokens"),
-		cancelOutcome: readRequiredString(record, "cancel_outcome"),
-		completedAt: readRequiredString(record, "completed_at"),
-		durationMs: readRequiredNumber(record, "duration_ms"),
-		failCloseReason: readRequiredString(record, "fail_close_reason"),
-		inputTokens: readRequiredNumber(record, "input_tokens"),
-		lateCompletionOutcome: readRequiredString(record, "late_completion_outcome"),
-		modelName: readRequiredString(record, "model_name"),
-		modelProvider: readRequiredString(record, "model_provider"),
-		outputTokens: readRequiredNumber(record, "output_tokens"),
-		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
-		providerRequestRef: readRequiredString(record, "provider_request_ref"),
-		providerResponseId: readRequiredString(record, "provider_response_id"),
-		runId: readRequiredString(record, "run_id"),
-		sanitizedPayload: readRequiredRecord(record, "sanitized_payload"),
-		scheduleToStartMs: readRequiredNumber(record, "schedule_to_start_ms"),
-		scheduledAt: readRequiredString(record, "scheduled_at"),
-		startedAt: readRequiredString(record, "started_at"),
-		status: readRequiredString(record, "status"),
-		stepId: readRequiredString(record, "step_id"),
-		taskQueue: readRequiredString(record, "task_queue"),
-		temporalRunId: readRequiredString(record, "temporal_run_id"),
-		terminalReason: readRequiredString(record, "terminal_reason"),
-		timeoutOutcome: readRequiredString(record, "timeout_outcome"),
-		updatedAt: readRequiredString(record, "updated_at"),
-		workerId: readRequiredString(record, "worker_id"),
-		workflowId: readRequiredString(record, "workflow_id"),
-	};
-}
-
-function parseStepResult(value: unknown, index: number): ExecutionControlStepResult {
-	const record = readArrayRecord(value, `results[${index}]`);
-	return {
-		attemptId: readRequiredString(record, "attempt_id"),
-		createdAt: readRequiredString(record, "created_at"),
-		payloadSchemaVersion: readRequiredString(record, "payload_schema_version"),
-		projectionRef: readRequiredString(record, "projection_ref"),
-		resultId: readRequiredString(record, "result_id"),
-		resultKind: readRequiredString(record, "result_kind"),
-		runId: readRequiredString(record, "run_id"),
-		sanitizedPayload: readRequiredRecord(record, "sanitized_payload"),
-		status: readRequiredString(record, "status"),
-		stepId: readRequiredString(record, "step_id"),
-	};
-}
-
-function readRequiredArray(payload: JsonRecord, key: string): unknown[] {
-	const value = payload[key];
-	if (!Array.isArray(value)) {
-		throw invalidDurableResponse(`${key} must be an array.`);
-	}
-	return value;
-}
-
-function readArrayRecord(value: unknown, label: string): JsonRecord {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw invalidDurableResponse(`${label} must be an object.`);
-	}
-	return value as JsonRecord;
 }
 
 function readRequiredString(payload: JsonRecord, key: string): string {
@@ -724,17 +497,6 @@ function readRequiredRecord(payload: JsonRecord, key: string): JsonRecord {
 	const value = payload[key];
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		throw invalidDurableResponse(`${key} must be an object.`);
-	}
-	return value as JsonRecord;
-}
-
-function readOptionalRecord(payload: JsonRecord, key: string): JsonRecord | null {
-	const value = payload[key];
-	if (value === undefined || value === null) {
-		return null;
-	}
-	if (typeof value !== "object" || Array.isArray(value)) {
-		throw invalidDurableResponse(`${key} must be an object when present.`);
 	}
 	return value as JsonRecord;
 }

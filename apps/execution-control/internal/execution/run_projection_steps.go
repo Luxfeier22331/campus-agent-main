@@ -19,15 +19,15 @@ func (s *InMemoryRunProjectionStore) UpsertRunStep(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.runs[step.RunID]; !exists {
-		return RunStepProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, step.RunID)
+	if _, exists := s.runs[step.RequestID]; !exists {
+		return RunStepProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, step.RequestID)
 	}
-	key := runStepKey(step.RunID, step.StepID)
+	key := runStepKey(step.RequestID, step.StepID)
 	if current, exists := s.runSteps[key]; exists && !runStepProjectionUpdateAllowed(current, step) {
 		return cloneRunStepProjection(current), fmt.Errorf(
 			"%w: run=%s step=%s status=%s activity_attempt=%d current_status=%s current_activity_attempt=%d",
 			ErrStaleRunStepProjection,
-			step.RunID,
+			step.RequestID,
 			step.StepID,
 			step.Status,
 			step.ActivityAttempt,
@@ -48,38 +48,38 @@ func (s *InMemoryRunProjectionStore) UpsertStepAttempt(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.runs[attempt.RunID]; !exists {
-		return StepAttemptProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, attempt.RunID)
+	if _, exists := s.runs[attempt.RequestID]; !exists {
+		return StepAttemptProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, attempt.RequestID)
 	}
 	for _, current := range s.stepAttempts {
 		if current.AttemptID == attempt.AttemptID &&
-			(current.RunID != attempt.RunID || current.StepID != attempt.StepID) {
+			(current.RequestID != attempt.RequestID || current.StepID != attempt.StepID) {
 			return StepAttemptProjection{}, fmt.Errorf(
 				"%w: attempt_id=%s is already bound to run=%s step=%s",
 				ErrStaleStepAttemptProjection,
 				attempt.AttemptID,
-				current.RunID,
+				current.RequestID,
 				current.StepID,
 			)
 		}
-		if current.RunID == attempt.RunID && current.StepID == attempt.StepID &&
+		if current.RequestID == attempt.RequestID && current.StepID == attempt.StepID &&
 			current.Attempt == attempt.Attempt && current.AttemptID != attempt.AttemptID {
 			return StepAttemptProjection{}, fmt.Errorf(
 				"%w: run=%s step=%s attempt=%d is already bound to attempt_id=%s",
 				ErrStaleStepAttemptProjection,
-				attempt.RunID,
+				attempt.RequestID,
 				attempt.StepID,
 				attempt.Attempt,
 				current.AttemptID,
 			)
 		}
 	}
-	key := stepAttemptKey(attempt.RunID, attempt.AttemptID)
+	key := stepAttemptKey(attempt.RequestID, attempt.AttemptID)
 	if current, exists := s.stepAttempts[key]; exists && !stepAttemptProjectionUpdateAllowed(current, attempt) {
 		return cloneStepAttemptProjection(current), fmt.Errorf(
 			"%w: run=%s step=%s attempt_id=%s status=%s activity_attempt=%d current_status=%s current_activity_attempt=%d",
 			ErrStaleStepAttemptProjection,
-			attempt.RunID,
+			attempt.RequestID,
 			attempt.StepID,
 			attempt.AttemptID,
 			attempt.Status,
@@ -104,7 +104,7 @@ func runStepProjectionUpdateAllowed(current RunStepProjection, incoming RunStepP
 }
 
 func stepAttemptProjectionUpdateAllowed(current StepAttemptProjection, incoming StepAttemptProjection) bool {
-	if current.RunID != incoming.RunID ||
+	if current.RequestID != incoming.RequestID ||
 		current.StepID != incoming.StepID ||
 		current.AttemptID != incoming.AttemptID ||
 		current.Attempt != incoming.Attempt ||
@@ -116,7 +116,7 @@ func stepAttemptProjectionUpdateAllowed(current StepAttemptProjection, incoming 
 }
 
 func runStepProjectionEquivalent(left RunStepProjection, right RunStepProjection) bool {
-	return left.StepID == right.StepID && left.RunID == right.RunID &&
+	return left.StepID == right.StepID && left.RequestID == right.RequestID &&
 		left.ConversationID == right.ConversationID && left.StepKind == right.StepKind &&
 		left.Tool == right.Tool && left.ParentStepID == right.ParentStepID &&
 		left.Status == right.Status && left.ActivityAttempt == right.ActivityAttempt &&
@@ -127,7 +127,7 @@ func runStepProjectionEquivalent(left RunStepProjection, right RunStepProjection
 }
 
 func stepAttemptProjectionEquivalent(left StepAttemptProjection, right StepAttemptProjection) bool {
-	return left.AttemptID == right.AttemptID && left.StepID == right.StepID && left.RunID == right.RunID &&
+	return left.AttemptID == right.AttemptID && left.StepID == right.StepID && left.RequestID == right.RequestID &&
 		left.Attempt == right.Attempt && left.Status == right.Status && left.TaskQueue == right.TaskQueue &&
 		left.WorkerID == right.WorkerID && left.WorkflowID == right.WorkflowID &&
 		left.TemporalRunID == right.TemporalRunID && left.ActivityID == right.ActivityID &&
@@ -174,31 +174,31 @@ func (s *InMemoryRunProjectionStore) UpsertStepResult(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[result.RunID]
+	run, exists := s.runs[result.RequestID]
 	if !exists {
-		return StepResultProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, result.RunID)
+		return StepResultProjection{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, result.RequestID)
 	}
 	if !stepResultProjectionWriteAllowed(run.Status, result) {
 		return StepResultProjection{}, fmt.Errorf(
 			"%w: run=%s status=%s",
 			ErrDurableRunTerminalConflict,
-			result.RunID,
+			result.RequestID,
 			run.Status,
 		)
 	}
 	for _, current := range s.stepResults {
 		if current.ResultID == result.ResultID &&
-			(current.RunID != result.RunID || current.StepID != result.StepID) {
+			(current.RequestID != result.RequestID || current.StepID != result.StepID) {
 			return StepResultProjection{}, fmt.Errorf(
 				"%w: result_id=%s is already bound to run=%s step=%s",
 				ErrStepResultProjectionConflict,
 				result.ResultID,
-				current.RunID,
+				current.RequestID,
 				current.StepID,
 			)
 		}
 	}
-	key := stepResultKey(result.RunID, result.ResultID)
+	key := stepResultKey(result.RequestID, result.ResultID)
 	if current, exists := s.stepResults[key]; exists {
 		if stepResultProjectionEquivalent(current, result) {
 			return cloneStepResultProjection(current), nil
@@ -206,7 +206,7 @@ func (s *InMemoryRunProjectionStore) UpsertStepResult(
 		return cloneStepResultProjection(current), fmt.Errorf(
 			"%w: run=%s result=%s",
 			ErrStepResultProjectionConflict,
-			result.RunID,
+			result.RequestID,
 			result.ResultID,
 		)
 	}
@@ -232,7 +232,7 @@ func stepResultProjectionEquivalent(left StepResultProjection, right StepResultP
 }
 
 func stepResultProjectionFieldsEquivalent(left StepResultProjection, right StepResultProjection) bool {
-	return left.ResultID == right.ResultID && left.StepID == right.StepID && left.RunID == right.RunID &&
+	return left.ResultID == right.ResultID && left.StepID == right.StepID && left.RequestID == right.RequestID &&
 		left.AttemptID == right.AttemptID && left.Status == right.Status &&
 		left.ResultKind == right.ResultKind && left.ProjectionRef == right.ProjectionRef &&
 		left.CreatedAt.Equal(right.CreatedAt) && left.PayloadSchemaVersion == right.PayloadSchemaVersion
@@ -251,15 +251,15 @@ func stepResultProjectionWriteAllowed(status DurableRunStatus, result StepResult
 
 func (s *InMemoryRunProjectionStore) ListRunSteps(
 	_ context.Context,
-	runID string,
+	requestID string,
 ) ([]RunStepProjection, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if _, exists := s.runs[runID]; !exists {
-		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	if _, exists := s.runs[requestID]; !exists {
+		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
 	steps := []RunStepProjection{}
-	prefix := strings.TrimSpace(runID) + "\x00"
+	prefix := strings.TrimSpace(requestID) + "\x00"
 	for key, step := range s.runSteps {
 		if strings.HasPrefix(key, prefix) {
 			steps = append(steps, cloneRunStepProjection(step))
@@ -276,15 +276,15 @@ func (s *InMemoryRunProjectionStore) ListRunSteps(
 
 func (s *InMemoryRunProjectionStore) ListStepAttempts(
 	_ context.Context,
-	runID string,
+	requestID string,
 ) ([]StepAttemptProjection, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if _, exists := s.runs[runID]; !exists {
-		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	if _, exists := s.runs[requestID]; !exists {
+		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
 	attempts := []StepAttemptProjection{}
-	prefix := strings.TrimSpace(runID) + "\x00"
+	prefix := strings.TrimSpace(requestID) + "\x00"
 	for key, attempt := range s.stepAttempts {
 		if strings.HasPrefix(key, prefix) {
 			attempts = append(attempts, cloneStepAttemptProjection(attempt))
@@ -301,15 +301,15 @@ func (s *InMemoryRunProjectionStore) ListStepAttempts(
 
 func (s *InMemoryRunProjectionStore) ListStepResults(
 	_ context.Context,
-	runID string,
+	requestID string,
 ) ([]StepResultProjection, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if _, exists := s.runs[runID]; !exists {
-		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+	if _, exists := s.runs[requestID]; !exists {
+		return nil, fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
 	results := []StepResultProjection{}
-	prefix := strings.TrimSpace(runID) + "\x00"
+	prefix := strings.TrimSpace(requestID) + "\x00"
 	for key, result := range s.stepResults {
 		if strings.HasPrefix(key, prefix) {
 			results = append(results, cloneStepResultProjection(result))
@@ -326,8 +326,8 @@ func (s *InMemoryRunProjectionStore) ListStepResults(
 
 func validateRunStepProjection(step RunStepProjection) error {
 	switch {
-	case strings.TrimSpace(step.RunID) == "":
-		return fmt.Errorf("%w: run_id is required", ErrInvalidRunStep)
+	case strings.TrimSpace(step.RequestID) == "":
+		return fmt.Errorf("%w: request_id is required", ErrInvalidRunStep)
 	case strings.TrimSpace(step.StepID) == "":
 		return fmt.Errorf("%w: step_id is required", ErrInvalidRunStep)
 	case strings.TrimSpace(step.ConversationID) == "":
@@ -348,8 +348,8 @@ func validateRunStepProjection(step RunStepProjection) error {
 
 func validateStepAttemptProjection(attempt StepAttemptProjection) error {
 	switch {
-	case strings.TrimSpace(attempt.RunID) == "":
-		return fmt.Errorf("%w: run_id is required", ErrInvalidStepAttempt)
+	case strings.TrimSpace(attempt.RequestID) == "":
+		return fmt.Errorf("%w: request_id is required", ErrInvalidStepAttempt)
 	case strings.TrimSpace(attempt.StepID) == "":
 		return fmt.Errorf("%w: step_id is required", ErrInvalidStepAttempt)
 	case strings.TrimSpace(attempt.AttemptID) == "":
@@ -438,8 +438,8 @@ func validateLateCompletionOutcome(value LateCompletionOutcome) error {
 
 func validateStepResultProjection(result StepResultProjection) error {
 	switch {
-	case strings.TrimSpace(result.RunID) == "":
-		return fmt.Errorf("%w: run_id is required", ErrInvalidStepResult)
+	case strings.TrimSpace(result.RequestID) == "":
+		return fmt.Errorf("%w: request_id is required", ErrInvalidStepResult)
 	case strings.TrimSpace(result.StepID) == "":
 		return fmt.Errorf("%w: step_id is required", ErrInvalidStepResult)
 	case strings.TrimSpace(result.ResultID) == "":
@@ -458,16 +458,16 @@ func validateStepResultProjection(result StepResultProjection) error {
 	return nil
 }
 
-func runStepKey(runID string, stepID string) string {
-	return strings.TrimSpace(runID) + "\x00" + strings.TrimSpace(stepID)
+func runStepKey(requestID string, stepID string) string {
+	return strings.TrimSpace(requestID) + "\x00" + strings.TrimSpace(stepID)
 }
 
-func stepAttemptKey(runID string, attemptID string) string {
-	return strings.TrimSpace(runID) + "\x00" + strings.TrimSpace(attemptID)
+func stepAttemptKey(requestID string, attemptID string) string {
+	return strings.TrimSpace(requestID) + "\x00" + strings.TrimSpace(attemptID)
 }
 
-func stepResultKey(runID string, resultID string) string {
-	return strings.TrimSpace(runID) + "\x00" + strings.TrimSpace(resultID)
+func stepResultKey(requestID string, resultID string) string {
+	return strings.TrimSpace(requestID) + "\x00" + strings.TrimSpace(resultID)
 }
 
 func cloneRunStepProjection(step RunStepProjection) RunStepProjection {

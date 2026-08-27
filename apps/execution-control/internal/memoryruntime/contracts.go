@@ -16,7 +16,7 @@ type RecallRequest struct {
 	OwnerGeneration int64             `json:"owner_generation"`
 	OwnerSequence   int64             `json:"owner_sequence"`
 	QueryTimestamp  string            `json:"query_timestamp"`
-	RunID           string            `json:"run_id"`
+	RequestID       string            `json:"request_id"`
 	SessionSlots    map[string]string `json:"session_slots,omitempty"`
 	TenantID        string            `json:"tenant_id"`
 	ThreadID        string            `json:"thread_id"`
@@ -31,7 +31,7 @@ type RecallResult struct {
 type AppendConversationTurnRequest struct {
 	OwnerGeneration      int64  `json:"owner_generation"`
 	OwnerSequence        int64  `json:"owner_sequence"`
-	RunID                string `json:"run_id"`
+	RequestID            string `json:"request_id"`
 	TenantID             string `json:"tenant_id,omitempty"`
 	ThreadID             string `json:"thread_id"`
 	UserID               string `json:"user_id"`
@@ -151,8 +151,8 @@ func ValidateRecallRequest(request RecallRequest) error {
 	if request.OwnerGeneration < 1 || request.OwnerSequence < 0 {
 		return fmt.Errorf("%w: valid owner generation and sequence are required", ErrInvalidMemoryProjection)
 	}
-	if strings.TrimSpace(request.RunID) == "" {
-		return fmt.Errorf("%w: run_id is required", ErrInvalidMemoryProjection)
+	if strings.TrimSpace(request.RequestID) == "" {
+		return fmt.Errorf("%w: request_id is required", ErrInvalidMemoryProjection)
 	}
 	if strings.TrimSpace(request.UserID) == "" {
 		return fmt.Errorf("%w: user_id is required", ErrInvalidMemoryProjection)
@@ -174,7 +174,7 @@ func ValidateAppendConversationTurnRequest(request AppendConversationTurnRequest
 		return fmt.Errorf("%w: valid owner generation and sequence are required", ErrInvalidMemoryProjection)
 	}
 	required := map[string]string{
-		"run_id":                  request.RunID,
+		"request_id":              request.RequestID,
 		"thread_id":               request.ThreadID,
 		"user_id":                 request.UserID,
 		"user_message":            request.UserMessage,

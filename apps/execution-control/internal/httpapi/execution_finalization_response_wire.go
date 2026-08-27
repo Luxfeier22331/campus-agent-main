@@ -3,15 +3,13 @@ package httpapi
 import "encoding/json"
 
 type ExecutionFinalizationResponseWire struct {
-	AnswerText           string         `json:"answer_text"`
-	Error                any            `json:"error"`
-	ModelUsage           ModelUsageWire `json:"model_usage"`
-	Observability        map[string]any `json:"observability"`
-	Result               map[string]any `json:"result"`
-	StageTiming          map[string]any `json:"stage_timing,omitempty"`
-	Status               string         `json:"status"`
-	TraceID              string         `json:"trace_id"`
-	WorkflowTraceSummary map[string]any `json:"workflow_trace_summary"`
+	AnswerText    string         `json:"answer_text"`
+	Error         any            `json:"error"`
+	ModelUsage    ModelUsageWire `json:"model_usage"`
+	Observability map[string]any `json:"observability"`
+	Result        map[string]any `json:"result"`
+	StageTiming   map[string]any `json:"stage_timing,omitempty"`
+	Status        string         `json:"status"`
 }
 
 type ModelUsageWire struct {

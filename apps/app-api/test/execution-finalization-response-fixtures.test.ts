@@ -58,15 +58,6 @@ describe("execution finalization canonical response fixtures", () => {
 				totalTokens: 516,
 			},
 			status: "completed",
-			traceId: "trace-contract-completed",
-			workflowTraceSummary: {
-				answerArtifactRefs: ["projection://runs/run_contract_completed/agent/primary/result"],
-				executionPath: "tool_assisted",
-				runtimeVersions: {
-					agent_runtime: "openai_agents_sdk",
-				},
-				terminalReason: "answer",
-			},
 		});
 		expect(
 			parseExecutionFinalizationResponsePayload(
@@ -76,7 +67,6 @@ describe("execution finalization canonical response fixtures", () => {
 			answerText: "示例奖学金按照现行评审办法执行。",
 			error: null,
 			status: "completed",
-			traceId: "trace-temporal-finalization",
 		});
 		expect(
 			parseExecutionFinalizationResponsePayload(
@@ -124,7 +114,6 @@ describe("execution finalization canonical response fixtures", () => {
 			data: {
 				occurred_at: "2026-07-26T08:00:00.000Z",
 				request_id: "request-1",
-				trace_id: "trace-1",
 				error: {
 					code: "provider_unavailable",
 					message: "postgres://runtime:secret@db.internal/runtime",

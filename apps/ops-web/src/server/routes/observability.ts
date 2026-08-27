@@ -18,18 +18,14 @@ import { admitOpsApiRequest, jsonError, OpsPathIdSchema } from "./http.ts";
 
 const RequestListQuerySchema = z
 	.object({
-		conversationId: z.string().trim().min(1).max(128).optional(),
 		cursor: z.string().trim().min(1).max(512).optional(),
 		q: z.string().trim().min(1).max(256).optional(),
 		requestId: z.string().trim().min(1).max(128).optional(),
-		runId: z.string().trim().min(1).max(128).optional(),
 		status: z
 			.enum(["COMPLETED", "FAILED", "CANCELLED", "RUNNING", "PENDING", "ACTION_REQUIRED"])
 			.optional(),
-		traceId: z.string().trim().min(1).max(128).optional(),
 		view: OpsRequestListViewSchema.default("recent"),
 		window: OpsRequestWindowSchema.default("1h"),
-		workflowId: z.string().trim().min(1).max(128).optional(),
 	})
 	.strict();
 const OverviewQuerySchema = z.object({ window: OpsOverviewWindowSchema.default("1h") }).strict();
@@ -79,16 +75,12 @@ export function registerObservabilityRoutes(input: {
 		return context.json(
 			OpsRequestListResponseSchema.parse(
 				await store.listRequests({
-					...(query.conversationId ? { conversationId: query.conversationId } : {}),
 					...(query.cursor ? { cursor: query.cursor } : {}),
 					...(query.q ? { q: query.q } : {}),
 					...(query.requestId ? { requestId: query.requestId } : {}),
-					...(query.runId ? { runId: query.runId } : {}),
 					...(query.status ? { status: query.status } : {}),
-					...(query.traceId ? { traceId: query.traceId } : {}),
 					view: query.view,
 					window: query.window,
-					...(query.workflowId ? { workflowId: query.workflowId } : {}),
 				}),
 			),
 		);

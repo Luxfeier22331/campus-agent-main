@@ -47,7 +47,6 @@ function finalizedWrite(): FinalizeRequestWrite {
 			requestId: "req_01HQ",
 			retryable: null,
 			role: "assistant",
-			runId: "run_01HQ",
 			structuredParts: [],
 			text: "国家奖学金每学年评审一次。",
 			turnSequence: 1,
@@ -58,7 +57,6 @@ function finalizedWrite(): FinalizeRequestWrite {
 			completedAt: "2026-06-04T01:02:06.000Z",
 			errorCode: null,
 			requestId: "req_01HQ",
-			runId: "run_01HQ",
 			safetyIdentifier: "safety_01HQ",
 			status: "completed",
 			turnSequence: 1,
@@ -78,17 +76,11 @@ function finalizedWrite(): FinalizeRequestWrite {
 			modelProvider: null,
 			policyReason: null,
 			principalType: "student",
-			projectionLagMs: null,
-			promptId: null,
-			promptVersion: null,
 			requestId: "req_01HQ",
 			safetyIdentifier: "safety_01HQ",
 			startedAt: "2026-06-04T01:02:03.000Z",
 			status: "completed",
 			surface: "campus_web",
-			templateSha256: null,
-			traceAvailable: true,
-			traceId: "trace_01HQ",
 			stageTiming: {
 				"agent.runtime_ms": 320,
 			},
@@ -103,7 +95,7 @@ function conversationReadSelect() {
 		{
 			activeBranchId: "branch_active",
 			activeMessageId: "msg_assistant_01HQ",
-			activeRunId: "run_01HQ",
+			activeRequestId: "req_01HQ",
 			activeTurnSequence: 1,
 			createdAt: new Date("2026-06-04T01:02:00.000Z"),
 			id: "conv_01HQ",
@@ -130,7 +122,7 @@ describe("pg chat command store", () => {
 			{
 				activeBranchId: "branch_active",
 				activeMessageId: "msg_newer",
-				activeRunId: "run_newer",
+				activeRequestId: "req_newer",
 				activeTurnSequence: 2,
 				id: "conv_01HQ",
 				updatedAt: new Date("2026-06-04T01:02:04.000Z"),
@@ -155,7 +147,7 @@ describe("pg chat command store", () => {
 				conversationBaseline: {
 					activeBranchId: "branch_active",
 					activeMessageId: null,
-					activeRunId: null,
+					activeRequestId: null,
 					activeTurnSequence: 1,
 					updatedAt: "2026-06-04T01:02:03.000Z",
 				},
@@ -177,7 +169,7 @@ describe("pg chat command store", () => {
 			{
 				activeBranchId: "branch_active",
 				activeMessageId: "msg_winner",
-				activeRunId: "run_winner",
+				activeRequestId: "req_winner",
 				activeTurnSequence: 2,
 				id: "conv_01HQ",
 				updatedAt: new Date("2026-06-04T01:02:04.000Z"),
@@ -215,7 +207,7 @@ describe("pg chat command store", () => {
 				conversationBaseline: {
 					activeBranchId: "branch_active",
 					activeMessageId: null,
-					activeRunId: null,
+					activeRequestId: null,
 					activeTurnSequence: 1,
 					updatedAt: "2026-06-04T01:02:03.000Z",
 				},
@@ -265,7 +257,7 @@ describe("pg chat command store", () => {
 				conversationBaseline: {
 					activeBranchId: "branch_active",
 					activeMessageId: null,
-					activeRunId: null,
+					activeRequestId: null,
 					activeTurnSequence: 0,
 					updatedAt: "2026-06-04T01:02:03.000Z",
 				},
@@ -567,7 +559,7 @@ describe("pg chat command store", () => {
 			{
 				activeBranchId: "branch_active",
 				activeMessageId: "msg_newer",
-				activeRunId: "run_newer",
+				activeRequestId: "req_newer",
 				activeTurnSequence: 2,
 				createdAt: new Date("2026-06-04T01:02:00.000Z"),
 				id: "conv_01HQ",
@@ -604,7 +596,7 @@ describe("pg chat command store", () => {
 			outcome: "applied",
 			conversation: {
 				activeMessageId: "msg_newer",
-				activeRunId: "run_newer",
+				activeRequestId: "req_newer",
 				activeTurnSequence: 2,
 				sessionSlots: [
 					expect.objectContaining({
@@ -621,7 +613,7 @@ describe("pg chat command store", () => {
 			expect.objectContaining({
 				isActiveBranchHead: false,
 				id: "msg_assistant_01HQ",
-				runId: "run_01HQ",
+				requestId: "req_01HQ",
 				turnSequence: 1,
 			}),
 		);

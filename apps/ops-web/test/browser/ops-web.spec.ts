@@ -305,25 +305,19 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 	await expect(execution).toContainText("320");
 	await expect(execution).toContainText("400");
 	await expect(execution).toContainText("campus-agent-agent");
-	await expect(page.getByTestId("request-technical")).toContainText("agent-runtime@899f251");
-	await expect(page.getByTestId("request-technical")).toContainText("execution-control@a77a046");
+	await expect(execution).toContainText("agent-runtime@899f251");
+	await expect(execution).toContainText("execution-control@a77a046");
 	await expect(page.getByRole("link", { name: "系统记录" })).toHaveCount(0);
-	await expect(page.getByRole("button", { name: "加载 Sentry 错误记录" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "加载错误记录" })).toBeVisible();
 	await expect(page.getByRole("button", { name: /应用日志/u })).toHaveCount(0);
 	await expect(page.getByText(/正在读取/u)).toHaveCount(0);
 	expect(externalRecordRequests).toEqual([]);
 
-	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
-	const sentryIssues = page.getByRole("list", { name: "Sentry Issue 摘要" });
+	await page.getByRole("button", { name: "加载错误记录" }).click();
+	const sentryIssues = page.getByRole("list", { name: "错误摘要" });
 	await expect(sentryIssues).toContainText("Request execution failed");
 	await expect(sentryIssues).toContainText("3 个事件");
-	const sentryLink = page.getByRole("link", { name: "在 Sentry 查看" });
-	await expect(sentryLink).toHaveAttribute(
-		"href",
-		"https://sentry.example.test/organizations/campus/issues/450001/",
-	);
-	await expect(sentryLink).toHaveAttribute("target", "_blank");
-	await expect(sentryLink).toHaveAttribute("rel", "noreferrer");
+	await expect(page.getByRole("link", { name: "在 Sentry 查看" })).toHaveCount(0);
 	if (page.viewportSize()?.width === 320 || page.viewportSize()?.width === 1440) {
 		await expectNoAccessibilityViolations(page);
 	}
@@ -371,7 +365,7 @@ test("六类运行记录保留产品结果和执行诊断语义", async ({ page 
 	await expectStableViewport(page, errors);
 });
 
-test("Sentry 读取失败时保留系统技术摘要", async ({ page }) => {
+test("错误记录读取失败时保留请求诊断摘要", async ({ page }) => {
 	if (page.viewportSize()?.width !== 1440) {
 		return;
 	}
@@ -387,20 +381,20 @@ test("Sentry 读取失败时保留系统技术摘要", async ({ page }) => {
 	});
 	await page.goto("/requests/req_ops_001");
 
-	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
-	await expect(page.getByText("Sentry 记录读取失败")).toBeVisible();
-	await expect(page.getByText("trace_ops_001")).toBeVisible();
-	await expect(page.getByText("Agent 运行时")).toBeVisible();
+	await page.getByRole("button", { name: "加载错误记录" }).click();
+	await expect(page.getByText("错误记录读取失败")).toBeVisible();
+	await expect(page.getByText("req_ops_001")).toBeVisible();
+	await expect(page.getByText("agent-runtime@899f251")).toBeVisible();
 	await expectStableViewport(page, errors, ["503 (Service Unavailable)"]);
 });
 
-test("按需 Sentry 记录不会串到其他运行", async ({ page }) => {
+test("按需错误记录不会串到其他请求", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/requests/req_ops_003");
 
 	await expect(page.getByRole("heading", { name: "运行详情" })).toBeVisible();
-	await page.getByRole("button", { name: "加载 Sentry 错误记录" }).click();
-	await expect(page.getByText("当前运行没有关联的 Sentry Issue。")).toBeVisible();
+	await page.getByRole("button", { name: "加载错误记录" }).click();
+	await expect(page.getByText("当前请求没有关联的错误记录。")).toBeVisible();
 	await expect(page.getByText("req_ops_001")).toHaveCount(0);
 	await expect(page.getByText("trace_ops_001")).toHaveCount(0);
 	await expectStableViewport(page, errors);

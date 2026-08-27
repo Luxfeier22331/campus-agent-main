@@ -1,9 +1,5 @@
 import type { ExecutionActorContext, ExecutionAuthorizationContext } from "../auth";
-import type { ToolExecutionWorkflowTraceSummary } from "../request-observability-types";
-import type { TracePropagationHeaders } from "../telemetry/trace";
 import type { ExecutionFinalizationStatus } from "./execution-finalization-contract";
-
-export type { ToolExecutionWorkflowTraceSummary } from "../request-observability-types";
 
 export interface ToolExecutionPromptTrace {
 	promptId: string;
@@ -66,8 +62,6 @@ export interface ToolExecutionInput {
 	safetyIdentifier?: string | null;
 	surface?: string;
 	tenantId?: string | null;
-	traceHeaders?: TracePropagationHeaders;
-	traceId: string;
 	userGoal: string;
 }
 
@@ -98,8 +92,6 @@ export interface ToolExecutionResponse {
 	result: unknown;
 	stageTiming?: Record<string, unknown>;
 	status: ExecutionFinalizationStatus;
-	traceId: string;
-	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;
 }
 
 export interface ToolExecutionClient {

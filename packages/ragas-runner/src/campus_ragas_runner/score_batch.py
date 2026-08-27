@@ -13,8 +13,8 @@ os.environ.setdefault("RAGAS_DO_NOT_TRACK", "true")
 
 from campus_ragas_runner.provider_config import load_provider_profiles
 
-SAMPLE_BATCH_SCHEMA_VERSION = "ragas_sample_batch.v2"
-SCORE_BATCH_SCHEMA_VERSION = "ragas_score_batch.v2"
+SAMPLE_BATCH_SCHEMA_VERSION = "ragas_sample_batch.v3"
+SCORE_BATCH_SCHEMA_VERSION = "ragas_score_batch.v3"
 RAGAS_METRIC_NAMES = (
     "faithfulness",
     "answer_relevancy",
@@ -87,8 +87,18 @@ def run_ragas_score_batch(
     payload = _load_json_object(input_path)
     if payload.get("schema_version") != SAMPLE_BATCH_SCHEMA_VERSION:
         raise ValueError(f"schema_version must be {SAMPLE_BATCH_SCHEMA_VERSION}")
-    run_id = _required_str(payload.get("run_id"), "run_id")
+    unknown_batch_fields = sorted(set(payload) - {"items", "schema_version"})
+    if unknown_batch_fields:
+        raise ValueError(f"batch contains unsupported fields: {', '.join(unknown_batch_fields)}")
     items = _required_list(payload.get("items"), "items")
+    seen_case_ids: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("items entries must be objects")
+        case_id = _required_str(item.get("case_id"), "items[].case_id")
+        if case_id in seen_case_ids:
+            raise ValueError(f"case_id is duplicated: {case_id}")
+        seen_case_ids.add(case_id)
     scorer = (
         scorer_factory()
         if scorer_factory is not None
@@ -100,7 +110,6 @@ def run_ragas_score_batch(
     )
     output = {
         "schema_version": SCORE_BATCH_SCHEMA_VERSION,
-        "run_id": run_id,
         "items": [_score_item(item, scorer=scorer) for item in items],
     }
     if output_path is not None:

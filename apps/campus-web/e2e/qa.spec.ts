@@ -121,7 +121,7 @@ test.describe("Q&A browser flow", () => {
 				terminal: "cancelled",
 			}),
 		);
-		await page.route("**/api/chat/runs/*/cancel", async (route) => {
+		await page.route("**/api/chat/requests/*/cancel", async (route) => {
 			cancelCalled = true;
 			await route.fulfill({ contentType: "application/json", json: { ok: true }, status: 202 });
 		});

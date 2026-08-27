@@ -143,7 +143,7 @@ func intFromAny(value any) int {
 type agentRuntimeResponse struct {
 	Status                  string            `json:"status"`
 	Error                   agentRuntimeError `json:"error"`
-	RunID                   string            `json:"run_id"`
+	RequestID               string            `json:"request_id"`
 	ContextUsage            map[string]any    `json:"context_usage"`
 	FinalOutput             string            `json:"final_output"`
 	ModelName               string            `json:"model_name"`

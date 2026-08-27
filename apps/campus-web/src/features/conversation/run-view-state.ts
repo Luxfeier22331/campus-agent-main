@@ -14,7 +14,6 @@ export interface CampusRunViewState {
 	phase: CampusRunPhase;
 	provisional: boolean;
 	requestId: string | null;
-	runId: string | null;
 	sequence: number;
 	startedAt: string | null;
 	status: CampusRunStatus;
@@ -29,7 +28,6 @@ export const EMPTY_CAMPUS_RUN_VIEW: CampusRunViewState = {
 	phase: "queued",
 	provisional: false,
 	requestId: null,
-	runId: null,
 	sequence: 0,
 	startedAt: null,
 	status: "queued",
@@ -42,7 +40,7 @@ export type CampusRunViewAction =
 			operationId: number;
 	  }
 	| {
-			runId?: string | null;
+			requestId?: string | null;
 			type: "reset";
 			operationId: number;
 	  }
@@ -54,7 +52,7 @@ export type CampusRunViewAction =
 	| {
 			connection: CampusRunConnection;
 			operationId: number;
-			runId?: string | null;
+			requestId?: string | null;
 			type: "connection";
 	  }
 	| {
@@ -65,7 +63,7 @@ export type CampusRunViewAction =
 	  }
 	| {
 			operationId: number;
-			runId?: string | null;
+			requestId?: string | null;
 			type: "rebind";
 	  };
 
@@ -113,9 +111,9 @@ function durationBetween(startedAt: string | null, completedAt: string | null): 
 		: null;
 }
 
-function eventRunId(event: ChatRequestStreamEvent): string | null {
-	return typeof event.data.runId === "string" && event.data.runId.trim()
-		? event.data.runId.trim()
+function eventRequestId(event: ChatRequestStreamEvent): string | null {
+	return typeof event.data.requestId === "string" && event.data.requestId.trim()
+		? event.data.requestId.trim()
 		: null;
 }
 
@@ -127,8 +125,8 @@ function acceptsEvent(
 	if (state.operationId !== operationId) {
 		return false;
 	}
-	const runId = eventRunId(event);
-	if (state.runId && runId && state.runId !== runId) {
+	const requestId = eventRequestId(event);
+	if (state.requestId && requestId && state.requestId !== requestId) {
 		return false;
 	}
 	if (
@@ -160,14 +158,13 @@ function applyEvent(
 		return state;
 	}
 	const occurredAt = event.data.occurredAt || null;
-	const runId = eventRunId(event) ?? state.runId;
+	const requestId = eventRequestId(event) ?? state.requestId;
 	const base = {
 		...state,
 		connection: "live" as const,
 		operationId,
-		provisional: state.provisional && !runId,
-		requestId: event.data.requestId || state.requestId,
-		runId,
+		provisional: state.provisional && !requestId,
+		requestId,
 		sequence: updateSequence(state, event),
 	};
 
@@ -250,7 +247,7 @@ export function reduceCampusRunViewState(
 			return {
 				...EMPTY_CAMPUS_RUN_VIEW,
 				operationId: action.operationId,
-				runId: action.runId ?? null,
+				requestId: action.requestId ?? null,
 			};
 		case "start":
 			return {
@@ -262,7 +259,7 @@ export function reduceCampusRunViewState(
 		case "connection":
 			if (
 				state.operationId !== action.operationId ||
-				(action.runId !== undefined && action.runId !== state.runId)
+				(action.requestId !== undefined && action.requestId !== state.requestId)
 			) {
 				return state;
 			}
@@ -270,7 +267,7 @@ export function reduceCampusRunViewState(
 		case "hydrate": {
 			if (
 				state.operationId !== action.operationId ||
-				(state.runId && state.runId !== action.run.runId) ||
+				(state.requestId && state.requestId !== action.run.requestId) ||
 				(action.sequence !== undefined && action.sequence < state.sequence)
 			) {
 				return state;
@@ -288,7 +285,6 @@ export function reduceCampusRunViewState(
 				phase: phaseFromRunStatus(action.run),
 				provisional: false,
 				requestId: action.run.requestId,
-				runId: action.run.runId,
 				sequence: action.sequence ?? state.sequence,
 				startedAt: action.run.startedAt,
 				status,
@@ -298,13 +294,17 @@ export function reduceCampusRunViewState(
 			if (state.operationId === action.operationId) {
 				return state;
 			}
-			if (action.runId !== undefined && state.runId && state.runId !== action.runId) {
+			if (
+				action.requestId !== undefined &&
+				state.requestId &&
+				state.requestId !== action.requestId
+			) {
 				return state;
 			}
 			return {
 				...state,
 				operationId: action.operationId,
-				...(action.runId === undefined ? {} : { runId: action.runId }),
+				...(action.requestId === undefined ? {} : { requestId: action.requestId }),
 			};
 		case "event":
 			return applyEvent(state, action.operationId, action.event);
@@ -313,7 +313,7 @@ export function reduceCampusRunViewState(
 	}
 }
 
-export function campusRunViewToMetadata(state: CampusRunViewState): Record<string, unknown> {
+export function campusRequestViewToMetadata(state: CampusRunViewState): Record<string, unknown> {
 	return {
 		acceptedAt: state.acceptedAt,
 		completedAt: state.completedAt,
@@ -322,7 +322,6 @@ export function campusRunViewToMetadata(state: CampusRunViewState): Record<strin
 		phase: state.phase,
 		provisional: state.provisional,
 		requestId: state.requestId,
-		runId: state.runId,
 		sequence: state.sequence,
 		startedAt: state.startedAt,
 		status: state.status,
@@ -356,7 +355,6 @@ export function readCampusRunViewMetadata(value: unknown): CampusRunViewState | 
 		phase: record.phase,
 		provisional: record.provisional === true,
 		requestId: typeof record.requestId === "string" ? record.requestId : null,
-		runId: typeof record.runId === "string" ? record.runId : null,
 		sequence: typeof record.sequence === "number" ? record.sequence : 0,
 		startedAt: typeof record.startedAt === "string" ? record.startedAt : null,
 		status: record.status,

@@ -252,7 +252,9 @@ describe("ops API", () => {
 				requestId: "req_ops_001",
 			}),
 		);
-		await expect(response.json()).resolves.toMatchObject({ source: "SENTRY" });
+		await expect(response.json()).resolves.toMatchObject({
+			dataState: "FRESH",
+		});
 	});
 
 	it("rejects browser-supplied Sentry query controls", async () => {

@@ -14,10 +14,6 @@ export {
 } from "campus-contracts/internal-portal-credential";
 
 const IsoDateTimeSchema = z.string().datetime();
-const HttpsUrlSchema = z
-	.string()
-	.url()
-	.refine((value) => new URL(value).protocol === "https:", "external links must use HTTPS");
 
 export const OpsOverviewWindowSchema = z.enum(["15m", "1h", "6h", "24h"]);
 export const OpsRequestWindowSchema = z.enum(["15m", "1h", "6h", "24h", "7d"]);
@@ -330,21 +326,6 @@ const OpsRequestResultSummarySchema = z.discriminatedUnion("state", [
 	z.object({ kind: z.null(), state: z.literal("MISSING") }),
 ]);
 
-const ExternalLinkSchema = z.object({
-	href: HttpsUrlSchema.nullable(),
-	isAvailable: z.boolean(),
-	label: z.string().min(1),
-	source: z.enum(["LANGFUSE", "TEMPORAL", "SENTRY"]),
-});
-
-export const OpsCorrelationIdsSchema = z.object({
-	conversationId: z.string().min(1),
-	requestId: z.string().min(1),
-	runId: z.string().min(1).nullable(),
-	traceId: z.string().min(1),
-	workflowId: z.string().min(1).nullable(),
-});
-
 export const OpsRequestSummarySchema = z.object({
 	attentionReason: z.enum(["RESULT_MISSING", "REQUEST_FAILED", "WAITING_USER"]).nullable(),
 	completedAt: IsoDateTimeSchema.nullable(),
@@ -353,7 +334,6 @@ export const OpsRequestSummarySchema = z.object({
 		.object({
 			kind: z.string().min(1),
 			status: z.string().min(1),
-			stepId: z.string().min(1),
 		})
 		.nullable(),
 	failureKind: z.string().min(1).nullable(),
@@ -424,57 +404,38 @@ const OpsExecutionFailureSchema = z.object({
 	terminalReason: z.string().min(1).nullable(),
 });
 
-const OpsExecutionAttemptSchema = z.object({
-	activityAttempt: z.number().int().nonnegative(),
-	activityType: z.string().min(1).nullable(),
-	attempt: z.number().int().positive(),
+const OpsExecutionStageSchema = z.object({
 	completedAt: IsoDateTimeSchema.nullable(),
-	durationMs: z.number().int().nonnegative(),
-	failure: OpsExecutionFailureSchema,
-	modelName: z.string().min(1).nullable(),
-	modelProvider: z.string().min(1).nullable(),
-	modelRequestCount: z.number().int().nonnegative(),
-	providerResponseId: z.string().min(1).nullable(),
-	scheduleToStartMs: z.number().int().nonnegative(),
-	scheduledAt: IsoDateTimeSchema.nullable(),
-	startedAt: IsoDateTimeSchema.nullable(),
-	status: z.string().min(1),
-	taskQueue: z.string().min(1).nullable(),
-	tokens: z.object({
-		cachedInput: z.number().int().nonnegative().nullable(),
-		input: z.number().int().nonnegative().nullable(),
-		output: z.number().int().nonnegative().nullable(),
-	}),
-	workerId: z.string().min(1).nullable(),
-});
-
-const OpsExecutionStepSchema = z.object({
-	completedAt: IsoDateTimeSchema.nullable(),
+	durationMs: z.number().int().nonnegative().nullable(),
 	failureKind: z.string().min(1).nullable(),
 	kind: z.string().min(1),
-	parentStepId: z.string().min(1).nullable(),
 	startedAt: IsoDateTimeSchema.nullable(),
 	status: z.string().min(1),
-	stepId: z.string().min(1),
-	taskQueue: z.string().min(1).nullable(),
-	tool: z.string().min(1).nullable(),
-	workerId: z.string().min(1).nullable(),
-	attempts: z.array(OpsExecutionAttemptSchema),
 });
 
 export const OpsRequestDetailResponseSchema = z.object({
 	execution: z.object({
 		failure: OpsExecutionFailureSchema,
+		model: z.object({
+			name: z.string().min(1).nullable(),
+			provider: z.string().min(1).nullable(),
+			requestCount: z.number().int().nonnegative(),
+			tokens: z.object({
+				cachedInput: z.number().int().nonnegative().nullable(),
+				input: z.number().int().nonnegative().nullable(),
+				output: z.number().int().nonnegative().nullable(),
+				total: z.number().int().nonnegative().nullable(),
+			}),
+		}),
 		releases: z.object({
 			agentRuntime: z.string().min(1).nullable(),
 			executionControl: z.string().min(1).nullable(),
 		}),
-		steps: z.array(OpsExecutionStepSchema),
+		stages: z.array(OpsExecutionStageSchema),
 	}),
 	generatedAt: IsoDateTimeSchema,
 	question: z.object({
 		text: z.string().min(1),
-		turnSequence: z.number().int().nonnegative(),
 	}),
 	request: z.object({
 		completedAt: IsoDateTimeSchema.nullable(),
@@ -485,11 +446,6 @@ export const OpsRequestDetailResponseSchema = z.object({
 		status: OpsStatusSchema,
 	}),
 	result: OpsProductResultSchema,
-	technical: z.object({
-		correlationIds: OpsCorrelationIdsSchema,
-		externalLinks: z.array(ExternalLinkSchema),
-		runtimeVersions: z.record(z.string(), z.json()),
-	}),
 });
 
 const SourceStatusSchema = z.object({
@@ -504,7 +460,6 @@ export const OpsOverviewResponseSchema = z.object({
 		ageMs: z.number().int().nonnegative(),
 		status: z.enum(["FRESH", "STALE"]),
 	}),
-	externalLinks: z.array(ExternalLinkSchema),
 	generatedAt: IsoDateTimeSchema,
 	health: z.object({
 		dataState: OpsDataStateSchema,
@@ -549,28 +504,16 @@ export const OpsOverviewResponseSchema = z.object({
 const SentryIssueSummarySchema = z.object({
 	eventCount: z.number().int().nonnegative(),
 	firstSeen: IsoDateTimeSchema,
-	issueId: z.string().min(1),
 	lastSeen: IsoDateTimeSchema,
 	level: z.string().min(1).nullable(),
-	permalink: HttpsUrlSchema,
-	projectName: z.string().min(1),
-	projectSlug: z.string().min(1),
-	shortId: z.string().min(1),
 	status: z.string().min(1),
 	title: z.string().min(1),
 });
 
 export const OpsSentryIssuesResponseSchema = z.object({
 	dataState: OpsDataStateSchema,
-	from: IsoDateTimeSchema,
 	issues: z.array(SentryIssueSummarySchema).max(5),
-	limit: z.literal(5),
 	queriedAt: IsoDateTimeSchema,
-	queryDurationMs: z.number().int().nonnegative(),
-	requestId: z.string().min(1),
-	source: z.literal("SENTRY"),
-	to: IsoDateTimeSchema,
-	truncated: z.boolean(),
 });
 
 export type OpsDataState = z.infer<typeof OpsDataStateSchema>;

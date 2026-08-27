@@ -27,7 +27,7 @@ func TestExecutePrimaryAgentActivityAcceptsPlainTextFinalOutput(t *testing.T) {
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
-			"run_id":               "run-primary-agent-plain-text",
+			"request_id":           "run-primary-agent-plain-text",
 			"final_output":         "你好，我是校园问答助手。",
 			"provider_response_id": "resp-primary-agent-plain-text",
 			"tool_results":         []any{},
@@ -52,10 +52,7 @@ func TestExecutePrimaryAgentActivityAcceptsPlainTextFinalOutput(t *testing.T) {
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-primary-agent-plain-text",
-		RequestID:        "req-primary-agent-plain-text",
-		RunID:            "run-primary-agent-plain-text",
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-primary-agent-plain-text",
+		RequestID:        "run-primary-agent-plain-text",
 		VisibleToolNames: []string{},
 	})
 	output, err := server.ExecutePrimaryAgent(context.Background(), input)
@@ -77,7 +74,7 @@ func preparePrimaryAgentFinalizationRunForTest(
 	agentMetadata map[string]any,
 ) temporalruntime.WriteFinalizationActivityInput {
 	t.Helper()
-	run, err := store.GetRun(context.Background(), runID)
+	_, err := store.GetRun(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
@@ -90,7 +87,7 @@ func preparePrimaryAgentFinalizationRunForTest(
 		ModelProvider:      firstNonEmptyText(stringValue(agentMetadata["model_provider"]), "openai"),
 		PromptTrace:        cloneAnyMapFromMetadata(agentMetadata["prompt_trace"]),
 		ProviderResponseID: strings.TrimSpace(stringValue(agentMetadata["provider_response_id"])),
-		RunID:              runID,
+		RequestID:          runID,
 		StageTiming:        cloneAnyMapFromMetadata(agentMetadata["stage_timing"]),
 		Status:             firstNonEmptyText(stringValue(agentMetadata["status"]), "completed"),
 		TerminalReason:     strings.TrimSpace(stringValue(agentMetadata["terminal_reason"])),
@@ -128,7 +125,6 @@ func preparePrimaryAgentFinalizationRunForTest(
 		AdmissionSnapshot: snapshot,
 		AgentResult:       output,
 		FinalizedAt:       now.Add(4 * time.Second),
-		RunID:             runID,
-		TraceID:           run.TraceID,
+		RequestID:         runID,
 	}
 }

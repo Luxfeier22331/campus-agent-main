@@ -23,7 +23,7 @@ func TestExecutionInputLoaderLoadsAndValidatesFrozenBytes(t *testing.T) {
 		if request.Method != http.MethodGet {
 			t.Fatalf("method = %s, want GET", request.Method)
 		}
-		if request.URL.Path != "/api/internal/execution/runs/run-input-001/input" {
+		if request.URL.Path != "/api/internal/execution/requests/request-input-001/input" {
 			t.Fatalf("path = %q", request.URL.Path)
 		}
 		if request.Header.Get("x-app-execution-auth") != "input-secret" {
@@ -43,14 +43,14 @@ func TestExecutionInputLoaderLoadsAndValidatesFrozenBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if wire.RequestID != run.RequestID || wire.ConversationID != run.ConversationID || wire.Trace.TraceID != run.TraceID {
+	if wire.RequestID != run.RequestID || wire.ConversationID != run.ConversationID {
 		t.Fatalf("loaded input is not bound to the run: %#v", wire)
 	}
 }
 
-func TestExecutionInputLoaderRejectsInvalidRunIDBeforeRequest(t *testing.T) {
+func TestExecutionInputLoaderRejectsInvalidRequestIDBeforeRequest(t *testing.T) {
 	run, _ := executionInputTestRun(t)
-	run.RunID = "run/invalid"
+	run.RequestID = "request/invalid"
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		requests.Add(1)
@@ -59,9 +59,9 @@ func TestExecutionInputLoaderRejectsInvalidRunIDBeforeRequest(t *testing.T) {
 	loader := executionInputTestLoader(t, server.URL)
 
 	_, err := loader.Load(context.Background(), run)
-	if err == nil || execution.InputErrorKind(err) != "execution_input_run_id_invalid" ||
+	if err == nil || execution.InputErrorKind(err) != "execution_input_request_id_invalid" ||
 		execution.InputErrorIsRetryable(err) {
-		t.Fatalf("error = %v, want non-retryable run_id rejection", err)
+		t.Fatalf("error = %v, want non-retryable request_id rejection", err)
 	}
 	if requests.Load() != 0 {
 		t.Fatalf("HTTP requests = %d, want 0", requests.Load())
@@ -271,13 +271,11 @@ func executionInputTestLoader(t *testing.T, baseURL string) execution.InputLoade
 func executionInputTestRun(t *testing.T) (execution.DurableRun, []byte) {
 	t.Helper()
 	run := execution.DurableRun{
-		RunID:          "run-input-001",
-		ConversationID: "conversation-input-001",
 		RequestID:      "request-input-001",
-		TraceID:        "trace-input-001",
+		ConversationID: "conversation-input-001",
 		Metadata: map[string]any{
 			"execution_contract_version": contracts.ExecutionContractVersion,
-			"execution_input_ref":        "app-api://execution-inputs/run-input-001",
+			"execution_input_ref":        "app-api://execution-inputs/request-input-001",
 		},
 	}
 	body := executionInputTestBody(t, run, run.RequestID)
@@ -293,7 +291,6 @@ func executionInputTestBody(t *testing.T, run execution.DurableRun, requestID st
 		UserGoal:                 "Find the next campus bus.",
 		ConversationID:           run.ConversationID,
 		RequestID:                requestID,
-		Trace:                    contracts.TraceContextWire{TraceID: run.TraceID},
 		Context:                  map[string]any{},
 	})
 	if err != nil {

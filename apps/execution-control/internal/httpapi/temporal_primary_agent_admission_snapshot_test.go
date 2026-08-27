@@ -41,7 +41,7 @@ func TestExecutePrimaryAgentActivityDelegatesPinnedTargetToAgentRuntime(t *testi
 		}
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":                    "completed",
-			"run_id":                    "run-admission-snapshot",
+			"request_id":                "run-admission-snapshot",
 			"final_output":              "snapshot answer",
 			"tool_results":              []any{},
 			"terminal_reason":           "answer_completed",
@@ -75,10 +75,7 @@ func TestExecutePrimaryAgentActivityDelegatesPinnedTargetToAgentRuntime(t *testi
 	input := temporalruntime.ExecutePrimaryAgentActivityInput{
 		AdmissionSnapshot: snapshot,
 		ConversationID:    "conv-admission-snapshot",
-		RequestID:         "req-admission-snapshot",
-		RunID:             "run-admission-snapshot",
-		TraceID:           "trace-executor-001",
-		TurnID:            "turn-admission-snapshot",
+		RequestID:         "run-admission-snapshot",
 		VisibleToolNames:  append([]string{}, snapshot.ExecutionStrategy.VisibleToolNames...),
 	}
 	_, err = server.ExecutePrimaryAgent(context.Background(), input)

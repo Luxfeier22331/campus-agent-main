@@ -326,7 +326,7 @@ func (s *Server) writeChatProductFinalization(
 	if err != nil {
 		return sanitizedTemporalApplicationError("product_callback_invalid", err, true)
 	}
-	sum := sha256.Sum256(append([]byte(strings.TrimSpace(run.RunID)+"\x00"), responseJSON...))
+	sum := sha256.Sum256(append([]byte(strings.TrimSpace(run.RequestID)+"\x00"), responseJSON...))
 	payload, err := json.Marshal(map[string]any{
 		"completed_at":             completedAt.UTC().Format(time.RFC3339Nano),
 		"finalization_fingerprint": hex.EncodeToString(sum[:]),
@@ -335,7 +335,7 @@ func (s *Server) writeChatProductFinalization(
 	if err != nil {
 		return sanitizedTemporalApplicationError("product_callback_invalid", err, true)
 	}
-	callbackURL := baseURL + "/api/internal/execution/runs/" + url.PathEscape(run.RunID) + "/product-finalization"
+	callbackURL := baseURL + "/api/internal/execution/requests/" + url.PathEscape(run.RequestID) + "/product-finalization"
 	request, err := http.NewRequestWithContext(ctx, http.MethodPut, callbackURL, bytes.NewReader(payload))
 	if err != nil {
 		return sanitizedTemporalApplicationError("product_callback_invalid", err, true)
@@ -380,6 +380,5 @@ func productTerminalErrorResponse(
 		Observability: nil,
 		Result:        nil,
 		Status:        status,
-		TraceID:       run.TraceID,
 	})
 }

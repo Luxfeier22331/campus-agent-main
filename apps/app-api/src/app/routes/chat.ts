@@ -118,7 +118,6 @@ function routeChatErrorResponse(
 	error: unknown,
 	routeErrorCorrelation: {
 		requestId: string;
-		traceId: string;
 	},
 ): Response | null {
 	if (error instanceof AppApiRouteError) {
@@ -186,7 +185,6 @@ export function registerChatRoutes(input: {
 				{
 					headers: {
 						"x-request-id": response.requestId,
-						"x-trace-id": response.traceId,
 					},
 					status: 200,
 				},
@@ -634,7 +632,6 @@ export function registerChatRoutes(input: {
 						message: "Conversation id is required.",
 						requestId: null,
 						retryable: false,
-						traceId: null,
 					},
 				},
 				{ status: 400 },

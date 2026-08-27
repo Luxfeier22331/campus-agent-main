@@ -29,7 +29,6 @@ const (
 
 type Metadata struct {
 	RequestID string
-	TraceID   string
 }
 
 type Execution struct {
@@ -39,7 +38,6 @@ type Execution struct {
 
 type CancelResult struct {
 	RequestID string `json:"request_id"`
-	TraceID   string `json:"trace_id"`
 	Status    string `json:"status"`
 }
 
@@ -138,7 +136,6 @@ func (r *Registry) Cancel(requestID string, reason string) (CancelResult, error)
 	record.cancel(ErrExecutionCanceled)
 	return CancelResult{
 		RequestID: record.metadata.RequestID,
-		TraceID:   record.metadata.TraceID,
 		Status:    string(StateCancelRequested),
 	}, nil
 }

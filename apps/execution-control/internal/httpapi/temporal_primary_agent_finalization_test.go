@@ -124,17 +124,6 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	if _, ok := stageTiming["finalization.write_ms"]; ok {
 		t.Fatalf("stage_timing must not contain an unmeasured finalization.write_ms placeholder: %#v", stageTiming)
 	}
-	workflowTrace, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if !ok {
-		t.Fatalf("workflow_trace_summary = %#v", finalizationResponse["workflow_trace_summary"])
-	}
-	if workflowTrace["execution_path"] != "tool_assisted" ||
-		workflowTrace["terminal_reason"] != "answer_completed" {
-		t.Fatalf("workflow trace = %#v", workflowTrace)
-	}
-	if _, exists := workflowTrace["tool_call_summaries"]; exists {
-		t.Fatalf("product workflow trace must not copy tool details: %#v", workflowTrace)
-	}
 	results, err := store.ListStepResults(context.Background(), "run-primary-agent-finalization")
 	if err != nil {
 		t.Fatalf("list step results: %v", err)
@@ -153,8 +142,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	if !ok {
 		t.Fatalf("finalization result payload = %#v", finalizationResult.SanitizedPayload)
 	}
-	if projectedResponse["answer_text"] != finalizationResponse["answer_text"] ||
-		projectedResponse["trace_id"] != finalizationResponse["trace_id"] {
+	if projectedResponse["answer_text"] != finalizationResponse["answer_text"] {
 		t.Fatalf("projected response drifted from event: %#v", projectedResponse)
 	}
 }
@@ -221,11 +209,6 @@ func TestWriteFinalizationActivityCompletesClarificationTextAsAnswer(t *testing.
 	}
 	if finalizationResponse["answer_text"] != "请问你要办理哪一类申请？" {
 		t.Fatalf("answer_text = %#v", finalizationResponse["answer_text"])
-	}
-	traceSummary, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if !ok || traceSummary["execution_path"] != "direct" ||
-		traceSummary["terminal_reason"] != "answer_completed" {
-		t.Fatalf("workflow trace summary = %#v", finalizationResponse["workflow_trace_summary"])
 	}
 }
 
@@ -364,13 +347,13 @@ func TestWriteFinalizationActivityRepairsCompletedRunEventWithVerifiedStep(t *te
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
-	finalizedResponse := map[string]any{"status": "completed", "trace_id": run.TraceID}
+	finalizedResponse := map[string]any{"status": "completed"}
 	if err := server.appendTemporalFinalizationCompletedEvents(
 		context.Background(),
 		run,
 		finalizedAt,
 		finalizedResponse,
-		map[string]any{"agent_result_ref": agentResultRef, "request_id": run.RequestID, "trace_id": run.TraceID},
+		map[string]any{"agent_result_ref": agentResultRef, "request_id": run.RequestID},
 	); err != nil {
 		t.Fatalf("append finalization events: %v", err)
 	}
@@ -389,7 +372,7 @@ func TestWriteFinalizationActivityRepairsCompletedRunEventWithVerifiedStep(t *te
 	completedRun, err := store.CompleteRunProjection(context.Background(), execution.DurableRunCompleteRequest{
 		FinalResponseRef: temporalProjectionRef(runID, "finalization/write"),
 		Now:              finalizedAt,
-		RunID:            runID,
+		RequestID:        runID,
 		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 	})
 	if err != nil {
@@ -553,7 +536,7 @@ func storeFinalizationCompletionProofForTest(
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             temporalStepResultID(runID, "finalization.write", 1),
 		StepID:               "finalization.write",
-		RunID:                runID,
+		RequestID:            runID,
 		AttemptID:            temporalStepAttemptID(runID, "finalization.write", 1),
 		Status:               "completed",
 		ResultKind:           "final_answer_projection",

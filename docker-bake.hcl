@@ -11,6 +11,7 @@ variable "IMAGE_SOURCE" {
 group "default" {
   targets = [
     "agent-runtime",
+    "campus-agent-schema",
     "app-api-schema",
     "campus-docs-index-publisher",
     "execution-control",
@@ -38,6 +39,11 @@ target "_common" {
 target "agent-runtime" {
   inherits   = ["_common"]
   dockerfile = "apps/agent-runtime/Dockerfile"
+}
+
+target "campus-agent-schema" {
+  inherits   = ["_common"]
+  dockerfile = "jobs/campus-agent-schema/Dockerfile"
 }
 
 target "app-api-schema" {

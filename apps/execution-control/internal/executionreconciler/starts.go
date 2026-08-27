@@ -44,7 +44,7 @@ func (r *Reconciler) ReconcileStartIntent(
 	store execution.RunProjectionStore,
 	intent execution.WorkflowStartIntent,
 ) {
-	run, err := store.GetRun(ctx, intent.RunID)
+	run, err := store.GetRun(ctx, intent.RequestID)
 	if err != nil {
 		r.retryStart(ctx, store, intent, "run_unavailable")
 		return
@@ -64,9 +64,9 @@ func (r *Reconciler) ReconcileStartIntent(
 			failureKind = WorkflowStartRemoteConflictFailure
 		}
 		if err := store.FailWorkflowStartIntent(ctx, execution.WorkflowStartIntentResult{
-			RunID: intent.RunID, LeaseToken: intent.LeaseToken, ErrorCode: failureKind, Now: LifecycleNow(),
+			RequestID: intent.RequestID, LeaseToken: intent.LeaseToken, ErrorCode: failureKind, Now: LifecycleNow(),
 		}); err != nil && !errors.Is(err, execution.ErrLifecycleLeaseConflict) {
-			r.logWarn("terminal start intent retirement failed", "run_id", intent.RunID, "error", err)
+			r.logWarn("terminal start intent retirement failed", "request_id", intent.RequestID, "error", err)
 		}
 		return
 	}
@@ -84,7 +84,7 @@ func (r *Reconciler) ReconcileStartIntent(
 	// previously leased snapshot. Re-read the durable intent immediately before
 	// the external RPC so a cancellation committed first cannot start a workflow.
 	if reader, ok := store.(workflowStartIntentReader); ok {
-		current, readErr := reader.GetWorkflowStartIntent(ctx, intent.RunID)
+		current, readErr := reader.GetWorkflowStartIntent(ctx, intent.RequestID)
 		if readErr != nil {
 			if errors.Is(readErr, execution.ErrLifecycleLeaseConflict) {
 				return
@@ -98,7 +98,7 @@ func (r *Reconciler) ReconcileStartIntent(
 		}
 	}
 	if err := store.MarkWorkflowStartDispatchAttempt(ctx, execution.WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: intent.LeaseToken, Now: LifecycleNow(),
+		RequestID: intent.RequestID, LeaseToken: intent.LeaseToken, Now: LifecycleNow(),
 	}); err != nil {
 		if !errors.Is(err, execution.ErrLifecycleLeaseConflict) {
 			r.retryStart(ctx, store, intent, "workflow_start_dispatch_fence_failed")
@@ -133,13 +133,13 @@ func (r *Reconciler) ReconcileStartIntent(
 		return
 	}
 	if err := store.ConfirmWorkflowStartIntent(ctx, execution.WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: intent.LeaseToken, TemporalRunID: temporalRunID, Now: LifecycleNow(),
+		RequestID: intent.RequestID, LeaseToken: intent.LeaseToken, TemporalRunID: temporalRunID, Now: LifecycleNow(),
 	}); err != nil {
 		if errors.Is(err, execution.ErrLifecycleLeaseConflict) {
 			r.compensateSupersededStart(ctx, store, intent, run, input, expectedIdentity, temporalRunID)
 			return
 		}
-		r.logWarn("temporal start intent confirmation failed", "run_id", intent.RunID, "error", err)
+		r.logWarn("temporal start intent confirmation failed", "request_id", intent.RequestID, "error", err)
 	}
 }
 
@@ -163,7 +163,7 @@ func (r *Reconciler) compensateSupersededStart(
 	if !ok {
 		return
 	}
-	current, err := reader.GetWorkflowStartIntent(ctx, leased.RunID)
+	current, err := reader.GetWorkflowStartIntent(ctx, leased.RequestID)
 	if err != nil || current.State != execution.LifecycleIntentStateSuperseded {
 		return
 	}
@@ -177,28 +177,28 @@ func (r *Reconciler) compensateSupersededStart(
 	}
 	now := LifecycleNow()
 	if _, err := store.BindSupersededWorkflowStartExecution(ctx, execution.WorkflowStartExecutionBinding{
-		RunID: leased.RunID, WorkflowID: input.WorkflowID, TemporalRunID: temporalRunID, Now: now,
+		RequestID: leased.RequestID, WorkflowID: input.WorkflowID, TemporalRunID: temporalRunID, Now: now,
 	}); err != nil {
-		r.logWarn("late workflow start identity binding failed", "run_id", leased.RunID, "error", err)
+		r.logWarn("late workflow start identity binding failed", "request_id", leased.RequestID, "error", err)
 		return
 	}
 	if _, err := store.RequestRunCancellation(ctx, execution.DurableRunCancellationRequest{
-		RunID: leased.RunID, Reason: "user_requested", Now: now,
+		RequestID: leased.RequestID, Reason: "user_requested", Now: now,
 	}); errors.Is(err, execution.ErrDurableRunTerminalConflict) {
 		return
 	} else if err != nil {
-		r.logWarn("late workflow start cancellation requeue failed", "run_id", leased.RunID, "error", err)
+		r.logWarn("late workflow start cancellation requeue failed", "request_id", leased.RequestID, "error", err)
 		return
 	}
-	latestRun, err := store.GetRun(ctx, leased.RunID)
+	latestRun, err := store.GetRun(ctx, leased.RequestID)
 	if err != nil {
 		// The durable cancellation command remains pending and will retry after a
 		// readable projection is available. Never send from the stale snapshot.
-		r.logWarn("late workflow start pre-cancel projection read failed", "run_id", leased.RunID, "error", err)
+		r.logWarn("late workflow start pre-cancel projection read failed", "request_id", leased.RequestID, "error", err)
 		return
 	}
-	if latestRun.TraceID != run.TraceID || latestRun.ConversationID != run.ConversationID {
-		r.logWarn("late workflow start pre-cancel identity changed", "run_id", leased.RunID)
+	if latestRun.ConversationID != run.ConversationID {
+		r.logWarn("late workflow start pre-cancel identity changed", "request_id", leased.RequestID)
 		return
 	}
 	if temporalRunTerminal(latestRun.Status) && latestRun.Status != execution.DurableRunStatusCanceled {
@@ -208,11 +208,11 @@ func (r *Reconciler) compensateSupersededStart(
 	}
 	cancelCtx, cancel := context.WithTimeout(ctx, r.operationTimeout)
 	err = r.starter.CancelToolExecutionWorkflow(cancelCtx, temporalruntime.ToolExecutionWorkflowCancelInput{
-		Reason: "user_requested", RunID: leased.RunID, TemporalRunID: temporalRunID, WorkflowID: input.WorkflowID,
+		Reason: "user_requested", RequestID: leased.RequestID, TemporalRunID: temporalRunID, WorkflowID: input.WorkflowID,
 	})
 	cancel()
 	if err != nil && ctx.Err() == nil {
-		r.logWarn("late workflow start cancellation delivery failed", "run_id", leased.RunID, "error", err)
+		r.logWarn("late workflow start cancellation delivery failed", "request_id", leased.RequestID, "error", err)
 	}
 }
 
@@ -224,10 +224,10 @@ func (r *Reconciler) retryStart(
 ) {
 	now := LifecycleNow()
 	if err := store.RetryWorkflowStartIntent(ctx, execution.WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: intent.LeaseToken, ErrorCode: boundedLifecycleErrorCode(code),
+		RequestID: intent.RequestID, LeaseToken: intent.LeaseToken, ErrorCode: boundedLifecycleErrorCode(code),
 		Now: now, NextAttemptAt: now.Add(lifecycleRetryDelay(intent.AttemptCount)),
 	}); err != nil && !errors.Is(err, execution.ErrLifecycleLeaseConflict) {
-		r.logWarn("temporal start intent retry persistence failed", "run_id", intent.RunID, "error", err)
+		r.logWarn("temporal start intent retry persistence failed", "request_id", intent.RequestID, "error", err)
 	}
 }
 
@@ -249,10 +249,10 @@ func (r *Reconciler) PermanentlyFailStartIntent(
 		}
 	}
 	if err := store.FailWorkflowStartIntent(ctx, execution.WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: intent.LeaseToken, ErrorCode: failureKind, Now: now,
+		RequestID: intent.RequestID, LeaseToken: intent.LeaseToken, ErrorCode: failureKind, Now: now,
 	}); err != nil {
 		if !errors.Is(err, execution.ErrLifecycleLeaseConflict) {
-			r.logWarn("permanent workflow start failure persistence failed", "run_id", intent.RunID, "error", err)
+			r.logWarn("permanent workflow start failure persistence failed", "request_id", intent.RequestID, "error", err)
 		}
 		return
 	}

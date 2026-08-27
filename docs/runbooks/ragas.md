@@ -27,12 +27,11 @@ pnpm --dir packages/ragas-runner test:eval
 
 ## Native Ragas 批次
 
-RAG 样本使用 `ragas_sample_batch.v2`：
+RAG 样本使用 `ragas_sample_batch.v3`：
 
 ```json
 {
-  "schema_version": "ragas_sample_batch.v2",
-  "run_id": "local-rag-2026-08-18",
+  "schema_version": "ragas_sample_batch.v3",
   "items": [
     {
       "case_id": "library-hours",
@@ -59,9 +58,8 @@ uv run --package campus-ragas-runner python -m campus_ragas_runner rag \
   --provider-config .tmp/ragas-provider-config.json
 ```
 
-省略 `--output` 或传入 `-` 时，完整的 `ragas_score_batch.v2` JSON 输出到 stdout。输出包含
-`run_id`、每个 `case_id` 的 `scores` 和实际评分错误；缺少 reference 时不运行需要 reference 的指标，
-不伪造零分。
+省略 `--output` 或传入 `-` 时，完整的 `ragas_score_batch.v3` JSON 输出到 stdout。输出只包含
+每个 `case_id` 的 `scores` 和实际评分错误；缺少 reference 时不运行需要 reference 的指标，不伪造零分。
 
 默认指标是 `faithfulness` 和 `answer_relevancy`。`context_precision`、`context_recall` 只有在
 样本提供 `reference` 时才适用；不使用 `context_precision_without_reference`。
@@ -110,13 +108,13 @@ embedding 继续使用 OpenAI-compatible embeddings 客户端。runner 为所有
 的 `campus-ragas-runner/0.1` User-Agent。
 `eval_ragas_reranker` 只作为离线检索实验的独立本地
 provider profile，由调用方显式使用；它不从在线 Model Config 获取，也不改变
-`ragas_sample_batch.v2` 的 `retrieved_contexts`。
+`ragas_sample_batch.v3` 的 `retrieved_contexts`。
 
 ## 手动执行产品路径
 
 需要验证真实 Agent 行为时，手动运行 `agent-eval`。这不是在线服务、定时任务或 Ragas 输入发现
 机制；它读取调用方提供的 cases 文件，通过 App API 产生目标 turn，并写出一个
-`agent_product_eval_result.v1` 产品结果文件。该阶段不访问 Langfuse、不调用 Ragas。
+`agent_product_eval_result.v2` 产品结果文件。该阶段不访问 Langfuse、不调用 Ragas。
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
@@ -134,8 +132,8 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
 `--app-api-base-url`、`--cookie-header`、`--execution-control-base-url`、
 `--execution-control-auth-secret`、`--cases` 和 `--output` 是该命令的显式输入。setup turn 与目标
 turn 使用同一 conversation。对话通过 App API 执行；检索上下文和工具轨迹从 execution-control 的
-受认证内部投影接口读取，不从学生可见的 run steps 响应读取。产品结果包含实际答案、检索上下文、
-工具轨迹和 trace 关联，也不包含 Langfuse 平台身份。
+受认证内部投影接口按 `requestId` 读取。产品结果包含 case、`requestId`、实际答案、检索上下文和
+工具轨迹，不包含 Langfuse 平台身份。
 
 随后单独运行 Ragas 评分：
 
@@ -158,11 +156,13 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
   publish-scores \
   --product-result .tmp/product-result.json \
   --scores .tmp/eval-scores.json \
+  --trace-map .tmp/trace-map.json \
   --json
 ```
 
-发布阶段用 `case_id` 关联产品结果和 score，并通过 SDK `score.create` 后一次 `score.flush` 写入
-真实 trace。Python runner 不接触 Langfuse 身份。发布失败即命令失败，不产生额外报告或数据库。
+`trace-map.json` 是调用方显式准备的 `{ "case-id": "native-langfuse-trace-id" }` 映射。发布阶段用
+`case_id` 关联产品结果、score 和真实 trace，并通过 SDK `score.create` 后一次 `score.flush` 写入。
+Python runner 不接触 Langfuse 身份。发布失败即命令失败，不产生额外报告或数据库。
 
 ## 不支持的路径
 

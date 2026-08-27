@@ -234,7 +234,7 @@ func executePrimaryAgentSDKToolFixture(
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		payload := map[string]any{
 			"status":               runtimeStatus,
-			"run_id":               runID,
+			"request_id":           runID,
 			"final_output":         "你之前提到喜欢一食堂。",
 			"provider_response_id": "resp-" + runID,
 			"tool_results":         []map[string]any{toolResult},
@@ -260,10 +260,7 @@ func executePrimaryAgentSDKToolFixture(
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:   "conv-" + runID,
-		RequestID:        "req-" + runID,
-		RunID:            runID,
-		TraceID:          "trace-executor-001",
-		TurnID:           "turn-" + runID,
+		RequestID:        runID,
 		VisibleToolNames: []string{personalMemoryRecallToolName},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)

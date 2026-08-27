@@ -26,7 +26,7 @@ func TestTemporalReconcilerRepairsMissingCanceledWorkflowProjection(t *testing.T
 	markReconcilerStartDispatchForTest(t, store, leasedStarts[0], intent.CreatedAt)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	if _, err := store.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-		RunID: intent.RunID, Reason: "user_requested", Now: now,
+		RequestID: intent.RequestID, Reason: "user_requested", Now: now,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestTemporalReconcilerRepairsMissingCanceledWorkflowProjection(t *testing.T
 	}
 	(&temporalReconciler{server: server}).reconcileCancellationCommand(context.Background(), store, commands[0])
 
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestTemporalReconcilerAllowsCompletionAfterCancellationRequest(t *testing.T
 		t.Run(test.name, func(t *testing.T) {
 			store, intent := createReconcilerStartIntentForTest(t)
 			now := confirmAndStartReconcilerRunForTest(t, store, intent, "temporal-completed")
-			command := requestAndLeaseReconcilerCancellationForTest(t, store, intent.RunID, now, "cancel-terminal-completed")
+			command := requestAndLeaseReconcilerCancellationForTest(t, store, intent.RequestID, now, "cancel-terminal-completed")
 
 			completedInfo := reconcilerWorkflowInfoForIntent(t, intent, "temporal-completed")
 			completedInfo.Status = enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED
@@ -105,24 +105,24 @@ func TestTemporalReconcilerAllowsCompletionAfterCancellationRequest(t *testing.T
 			if starter.cancellations() != test.wantCancellationCalls {
 				t.Fatalf("cancellation calls = %d, want %d", starter.cancellations(), test.wantCancellationCalls)
 			}
-			run, err := store.GetRun(context.Background(), intent.RunID)
+			run, err := store.GetRun(context.Background(), intent.RequestID)
 			if err != nil || run.Status != execution.DurableRunStatusRunning {
 				t.Fatalf("completed Temporal workflow was projected as cancellation: run=%#v err=%v", run, err)
 			}
-			assertReconcilerCancellationConfirmedForTest(t, store, intent.RunID, now)
+			assertReconcilerCancellationConfirmedForTest(t, store, intent.RequestID, now)
 
-			finalizationRef := temporalProjectionRef(intent.RunID, "finalization/write")
+			finalizationRef := temporalProjectionRef(intent.RequestID, "finalization/write")
 			storeFinalizationCompletionProofForTest(
 				t,
 				store,
-				intent.RunID,
+				intent.RequestID,
 				finalizationRef,
 				now.Add(4*time.Second),
 			)
 			completed, err := store.CompleteRunProjection(context.Background(), execution.DurableRunCompleteRequest{
 				FinalResponseRef: finalizationRef,
 				Now:              now.Add(4 * time.Second),
-				RunID:            intent.RunID,
+				RequestID:        intent.RequestID,
 				TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 			})
 			if err != nil || completed.Status != execution.DurableRunStatusCompleted {
@@ -150,7 +150,7 @@ func TestTemporalReconcilerDoesNotSynthesizeCancellationForOtherClosedWorkflows(
 			}
 			markReconcilerStartDispatchForTest(t, store, leasedStarts[0], intent.CreatedAt)
 			now := time.Now().UTC().Truncate(time.Microsecond)
-			command := requestAndLeaseReconcilerCancellationForTest(t, store, intent.RunID, now, "cancel-terminal-"+strings.ReplaceAll(test.name, " ", "-"))
+			command := requestAndLeaseReconcilerCancellationForTest(t, store, intent.RequestID, now, "cancel-terminal-"+strings.ReplaceAll(test.name, " ", "-"))
 			info := reconcilerWorkflowInfoForIntent(t, intent, "temporal-"+strings.ReplaceAll(test.name, " ", "-"))
 			info.Status = test.status
 			starter := &reconcilerStarterForTest{describe: info}
@@ -165,11 +165,11 @@ func TestTemporalReconcilerDoesNotSynthesizeCancellationForOtherClosedWorkflows(
 			if starter.cancellations() != 0 {
 				t.Fatalf("closed status %s delivered %d cancellation calls", test.status, starter.cancellations())
 			}
-			run, err := store.GetRun(context.Background(), intent.RunID)
+			run, err := store.GetRun(context.Background(), intent.RequestID)
 			if err != nil || run.Status != execution.DurableRunStatusCreated {
 				t.Fatalf("closed status %s synthesized cancellation: run=%#v err=%v", test.status, run, err)
 			}
-			assertReconcilerCancellationConfirmedForTest(t, store, intent.RunID, now)
+			assertReconcilerCancellationConfirmedForTest(t, store, intent.RequestID, now)
 		})
 	}
 }
@@ -180,7 +180,7 @@ func TestTemporalReconcilerProjectsTerminatedWorkflowAfterCancellationRequest(t 
 	command := requestAndLeaseReconcilerCancellationForTest(
 		t,
 		store,
-		intent.RunID,
+		intent.RequestID,
 		now,
 		"cancel-terminal-terminated",
 	)
@@ -204,18 +204,18 @@ func TestTemporalReconcilerProjectsTerminatedWorkflowAfterCancellationRequest(t 
 	if starter.cancellations() != 0 {
 		t.Fatalf("terminated workflow delivered %d cancellation calls", starter.cancellations())
 	}
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || run.Status != execution.DurableRunStatusFailed ||
 		run.FailCloseReason != workflowExecutionTerminatedFailure || !run.CompletedAt.Equal(closedAt) {
 		t.Fatalf("terminated run = %#v, err=%v", run, err)
 	}
-	assertReconcilerCancellationConfirmedForTest(t, store, intent.RunID, now)
+	assertReconcilerCancellationConfirmedForTest(t, store, intent.RequestID, now)
 }
 
 func TestTemporalReconcilerProjectsTimedOutWorkflowAfterCancellationRequest(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
 	now := confirmAndStartReconcilerRunForTest(t, store, intent, "temporal-timed-out")
-	command := requestAndLeaseReconcilerCancellationForTest(t, store, intent.RunID, now, "cancel-terminal-timed-out")
+	command := requestAndLeaseReconcilerCancellationForTest(t, store, intent.RequestID, now, "cancel-terminal-timed-out")
 	closedAt := now.Add(2 * time.Second)
 	info := reconcilerWorkflowInfoForIntent(t, intent, "temporal-timed-out")
 	info.Status = enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT
@@ -232,11 +232,11 @@ func TestTemporalReconcilerProjectsTimedOutWorkflowAfterCancellationRequest(t *t
 	if starter.cancellations() != 0 {
 		t.Fatalf("timed-out workflow delivered %d cancellation calls", starter.cancellations())
 	}
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || run.Status != execution.DurableRunStatusExpired || !run.CompletedAt.Equal(closedAt) {
 		t.Fatalf("timed-out run = %#v, err=%v", run, err)
 	}
-	assertReconcilerCancellationConfirmedForTest(t, store, intent.RunID, now)
+	assertReconcilerCancellationConfirmedForTest(t, store, intent.RequestID, now)
 }
 
 func TestTemporalReconcilerEnsuresAndCancelsMissingDispatchedStart(t *testing.T) {
@@ -252,7 +252,7 @@ func TestTemporalReconcilerEnsuresAndCancelsMissingDispatchedStart(t *testing.T)
 
 	cancelRequestedAt := intent.CreatedAt.Add(time.Second)
 	if _, err := store.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-		RunID: intent.RunID, Reason: "user_requested", Now: cancelRequestedAt,
+		RequestID: intent.RequestID, Reason: "user_requested", Now: cancelRequestedAt,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -283,11 +283,11 @@ func TestTemporalReconcilerEnsuresAndCancelsMissingDispatchedStart(t *testing.T)
 		t.Fatalf("recovered start cancellation calls = %d, want 1", starter.cancellations())
 	}
 	target := starter.cancellationInput()
-	if target.WorkflowID != intent.WorkflowID || target.RunID != intent.RunID ||
+	if target.WorkflowID != intent.WorkflowID || target.RequestID != intent.RequestID ||
 		target.TemporalRunID != recoveredRun.RunID {
 		t.Fatalf("recovered cancellation target = %#v", target)
 	}
-	boundStart, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	boundStart, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil || boundStart.State != execution.LifecycleIntentStateSuperseded ||
 		boundStart.TemporalRunID != target.TemporalRunID {
 		t.Fatalf("recovered start binding = %#v, err=%v", boundStart, err)
@@ -322,7 +322,7 @@ func TestTemporalReconcilerFinalizesUndispatchedCancellationWithoutTemporalExecu
 	}
 	cancelRequestedAt := intent.CreatedAt.Add(time.Second)
 	if _, err := store.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-		RunID: intent.RunID, Reason: "user_requested", Now: cancelRequestedAt,
+		RequestID: intent.RequestID, Reason: "user_requested", Now: cancelRequestedAt,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -344,11 +344,11 @@ func TestTemporalReconcilerFinalizesUndispatchedCancellationWithoutTemporalExecu
 	if starter.cancellations() != 0 {
 		t.Fatalf("undispatched start delivered %d cancellation calls", starter.cancellations())
 	}
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || run.Status != execution.DurableRunStatusCanceled {
 		t.Fatalf("undispatched cancellation run = %#v, err=%v", run, err)
 	}
-	assertReconcilerCancellationConfirmedForTest(t, store, intent.RunID, cancelRequestedAt)
+	assertReconcilerCancellationConfirmedForTest(t, store, intent.RequestID, cancelRequestedAt)
 }
 
 func TestTemporalReconcilerDoesNotCancelBeforeLateExecutionBindingCommits(t *testing.T) {
@@ -363,7 +363,7 @@ func TestTemporalReconcilerDoesNotCancelBeforeLateExecutionBindingCommits(t *tes
 	markReconcilerStartDispatchForTest(t, base, leasedStarts[0], intent.CreatedAt)
 	cancelRequestedAt := intent.CreatedAt.Add(time.Second)
 	if _, err := base.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-		RunID: intent.RunID, Reason: "user_requested", Now: cancelRequestedAt,
+		RequestID: intent.RequestID, Reason: "user_requested", Now: cancelRequestedAt,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestTemporalReconcilerDoesNotCancelBeforeLateExecutionBindingCommits(t *tes
 	if starter.cancellations() != 0 {
 		t.Fatalf("binding failure delivered %d cancellation calls", starter.cancellations())
 	}
-	start, err := base.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	start, err := base.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil || start.TemporalRunID != "" {
 		t.Fatalf("failed binding changed start = %#v, err=%v", start, err)
 	}
@@ -408,7 +408,7 @@ func TestTemporalCancellationRechecksTerminalWinnerBeforeExternalRPC(t *testing.
 	command := requestAndLeaseReconcilerCancellationForTest(
 		t,
 		base,
-		intent.RunID,
+		intent.RequestID,
 		now,
 		"cancel-stale-worker",
 	)
@@ -428,14 +428,14 @@ func TestTemporalCancellationRechecksTerminalWinnerBeforeExternalRPC(t *testing.
 	if starter.cancellations() != 0 {
 		t.Fatalf("stale cancellation worker sent %d external RPCs", starter.cancellations())
 	}
-	assertReconcilerCancellationConfirmedForTest(t, base, intent.RunID, now)
+	assertReconcilerCancellationConfirmedForTest(t, base, intent.RequestID, now)
 }
 
 func TestTemporalCancellationReadFailureCannotSendUsingStaleState(t *testing.T) {
 	base, intent := createReconcilerStartIntentForTest(t)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	if _, err := base.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-		RunID: intent.RunID, Reason: "user_requested", Now: now,
+		RequestID: intent.RequestID, Reason: "user_requested", Now: now,
 	}); err != nil {
 		t.Fatal(err)
 	}

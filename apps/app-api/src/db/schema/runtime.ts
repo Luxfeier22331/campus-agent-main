@@ -1,5 +1,4 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
-import type { ToolExecutionWorkflowTraceSummary } from "../../modules/request-observability-types";
 
 const runtime = pgSchema("runtime");
 
@@ -7,7 +6,6 @@ export const requestObservabilityFact = runtime.table(
 	"request_observability_fact",
 	{
 		requestId: text("request_id").primaryKey(),
-		traceId: text("trace_id").notNull(),
 		safetyIdentifier: text("safety_identifier"),
 		conversationId: text("conversation_id").notNull(),
 		surface: text("surface").notNull(),
@@ -22,20 +20,12 @@ export const requestObservabilityFact = runtime.table(
 		aclDecision: text("acl_decision"),
 		aclAnomalyCode: text("acl_anomaly_code"),
 		failClosed: boolean("fail_closed"),
-		workflowTraceSummaryJson: jsonb(
-			"workflow_trace_summary_json",
-		).$type<ToolExecutionWorkflowTraceSummary | null>(),
 		stageTimingJson: jsonb("stage_timing_json")
 			.$type<Record<string, unknown>>()
 			.notNull()
 			.default({}),
 		modelProvider: text("model_provider"),
 		modelName: text("model_name"),
-		promptId: text("prompt_id"),
-		promptVersion: text("prompt_version"),
-		templateSha256: text("template_sha256"),
-		traceAvailable: boolean("trace_available").notNull().default(false),
-		projectionLagMs: integer("projection_lag_ms"),
 		measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

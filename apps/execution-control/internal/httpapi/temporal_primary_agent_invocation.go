@@ -19,7 +19,7 @@ type primaryAgentProviderInvocationEnvelope struct {
 	ConversationContextSHA256 string                                 `json:"conversation_context_sha256"`
 	InvocationID              string                                 `json:"invocation_id"`
 	ProviderRequestSHA256     string                                 `json:"provider_request_sha256"`
-	RunID                     string                                 `json:"run_id"`
+	RequestID                 string                                 `json:"request_id"`
 	SchemaVersion             string                                 `json:"schema_version"`
 }
 
@@ -39,9 +39,9 @@ func newPrimaryAgentProviderInvocationEnvelope(
 		ExecutionInputSHA256:      strings.TrimSpace(executionInputSHA256),
 		ExecutionStrategySHA256:   input.AdmissionSnapshot.ExecutionStrategySHA256,
 		ConversationContextSHA256: sha256AnyValue(conversationContext),
-		InvocationID:              run.RunID + ":agent.primary",
+		InvocationID:              run.RequestID + ":agent.primary",
 		ProviderRequestSHA256:     sha256Bytes(providerRequestBody),
-		RunID:                     run.RunID,
+		RequestID:                 run.RequestID,
 		SchemaVersion:             primaryAgentProviderInvocationEnvelopeSchemaVersion,
 	}
 	if err := validatePrimaryAgentProviderInvocationEnvelope(envelope); err != nil {
@@ -54,8 +54,8 @@ func validatePrimaryAgentProviderInvocationEnvelope(
 	envelope primaryAgentProviderInvocationEnvelope,
 ) error {
 	if envelope.SchemaVersion != primaryAgentProviderInvocationEnvelopeSchemaVersion ||
-		envelope.ActivityAttempt <= 0 || strings.TrimSpace(envelope.RunID) == "" ||
-		envelope.InvocationID != strings.TrimSpace(envelope.RunID)+":agent.primary" {
+		envelope.ActivityAttempt <= 0 || strings.TrimSpace(envelope.RequestID) == "" ||
+		envelope.InvocationID != strings.TrimSpace(envelope.RequestID)+":agent.primary" {
 		return receiptIntegrityError("provider invocation envelope identity is invalid")
 	}
 	for _, digest := range []string{

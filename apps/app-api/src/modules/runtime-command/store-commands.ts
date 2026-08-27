@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 
 import type { RuntimeDbGetter } from "../../db/runtime";
 import {
@@ -66,9 +66,9 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 	}
 
 	const persistence = {
-		async readDurableRunInput(runId) {
-			const normalizedRunId = runId.trim();
-			if (!normalizedRunId) {
+		async readDurableRunInput(requestId) {
+			const normalizedRequestId = requestId.trim();
+			if (!normalizedRequestId) {
 				return null;
 			}
 			const db = await getDb();
@@ -80,17 +80,14 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 					memoryRecallEnabled: turnDispatches.memoryRecallEnabled,
 					ownerUserId: turnDispatches.ownerUserId,
 					requestId: turnDispatches.requestId,
-					runId: turnDispatches.runId,
 					surface: turnDispatches.surface,
 					status: turnDispatches.status,
-					traceId: turnDispatches.traceId,
-					turnId: turnDispatches.turnId,
 				})
 				.from(turnDispatches)
-				.where(eq(turnDispatches.runId, normalizedRunId))
+				.where(eq(turnDispatches.requestId, normalizedRequestId))
 				.limit(1);
 			const row = rows[0];
-			if (!row?.runId) {
+			if (!row) {
 				return null;
 			}
 			return {
@@ -100,11 +97,8 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 				memoryRecallEnabled: row.memoryRecallEnabled,
 				ownerUserId: row.ownerUserId,
 				requestId: row.requestId,
-				runId: row.runId,
 				surface: row.surface,
 				status: row.status as import("./store-types").TurnDispatchStatus,
-				traceId: row.traceId,
-				turnId: row.turnId,
 			};
 		},
 
@@ -112,25 +106,21 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 			const db = await getDb();
 			const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
 			const startedBefore = input.startedBefore ? new Date(input.startedBefore) : new Date();
-			const runId = input.runId?.trim();
+			const requestId = input.requestId?.trim();
 			const dispatchRows = await db
 				.select()
 				.from(turnDispatches)
 				.where(
 					and(
-						...(runId ? [] : [eq(turnDispatches.status, "accepted")]),
-						isNotNull(turnDispatches.runId),
+						...(requestId ? [] : [eq(turnDispatches.status, "accepted")]),
 						lte(turnDispatches.createdAt, startedBefore),
-						...(runId ? [eq(turnDispatches.runId, runId)] : []),
+						...(requestId ? [eq(turnDispatches.requestId, requestId)] : []),
 					),
 				)
 				.orderBy(asc(turnDispatches.createdAt))
 				.limit(limit);
 			const candidates: AcceptedDurableRequestCloseout[] = [];
 			for (const row of dispatchRows) {
-				if (!row.runId) {
-					continue;
-				}
 				const conversation = await loadConversation(row.ownerUserId, row.conversationId);
 				if (!conversation) {
 					continue;
@@ -168,10 +158,8 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 					questionPreview: userMessage.text,
 					requestFingerprintSha256: row.requestFingerprintSha256,
 					requestId: row.requestId,
-					runId: row.runId,
 					safetyIdentifier: row.safetyIdentifier,
 					surface: row.surface,
-					traceId: row.traceId,
 					turnSequence: row.turnSequence,
 					userMessageId: row.userMessageId,
 					finalizationFingerprint: row.finalizationFingerprint,
@@ -262,7 +250,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 					.select({
 						activeBranchId: conversations.activeBranchId,
 						activeMessageId: conversations.activeMessageId,
-						activeRunId: conversations.activeRunId,
+						activeRequestId: conversations.activeRequestId,
 						activeTurnSequence: conversations.activeTurnSequence,
 						id: conversations.id,
 						updatedAt: conversations.updatedAt,
@@ -284,7 +272,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 				if (
 					lockedConversation.activeBranchId !== input.conversationBaseline.activeBranchId ||
 					lockedConversation.activeMessageId !== input.conversationBaseline.activeMessageId ||
-					lockedConversation.activeRunId !== input.conversationBaseline.activeRunId ||
+					lockedConversation.activeRequestId !== input.conversationBaseline.activeRequestId ||
 					lockedConversation.activeTurnSequence !== input.conversationBaseline.activeTurnSequence ||
 					lockedConversation.updatedAt.toISOString() !== input.conversationBaseline.updatedAt
 				) {
@@ -351,7 +339,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 						}),
 						activeBranchId: input.userMessage.branchId ?? "branch_active",
 						activeMessageId: input.userMessage.id,
-						activeRunId: input.userMessage.runId ?? null,
+						activeRequestId: input.turnDispatch.requestId,
 						activeTurnSequence: input.turnDispatch.turnSequence,
 					})
 					.where(
@@ -431,7 +419,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 						}),
 						activeBranchId: input.assistantMessage.branchId ?? "branch_active",
 						activeMessageId: input.assistantMessage.id,
-						activeRunId: input.assistantMessage.runId ?? null,
+						activeRequestId: input.turnDispatch.requestId,
 						activeTurnSequence: input.turnDispatch.turnSequence,
 					})
 					.where(
@@ -439,9 +427,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 							eq(conversations.id, input.assistantMessage.conversationId),
 							eq(conversations.ownerUserId, input.ownerUserId),
 							eq(conversations.activeTurnSequence, input.turnDispatch.turnSequence),
-							input.turnDispatch.runId
-								? eq(conversations.activeRunId, input.turnDispatch.runId)
-								: isNull(conversations.activeRunId),
+							eq(conversations.activeRequestId, input.turnDispatch.requestId),
 						),
 					)
 					.returning({ id: conversations.id });

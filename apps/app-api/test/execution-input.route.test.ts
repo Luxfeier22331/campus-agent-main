@@ -39,26 +39,23 @@ describe("execution input routes", () => {
 		const readExecutionInput = vi.fn(async () => ({
 			executionInputJson,
 			executionInputSha256: sha256(executionInputJson),
-			requestId: "req_1",
-			runId: "run_1",
-			status: "accepted" as const,
 		}));
 		const app = appWithExecutionInput({ readExecutionInput });
 
-		const denied = await app.request("/api/internal/execution/runs/run_1/input", {
+		const denied = await app.request("/api/internal/execution/requests/req_1/input", {
 			headers: { "x-app-execution-auth": wrongExecutionSecret },
 		});
 		expect(denied.status).toBe(401);
 		expect(denied.headers.get("cache-control")).toBe("no-store");
 
-		const response = await app.request("/api/internal/execution/runs/run_1/input", {
+		const response = await app.request("/api/internal/execution/requests/req_1/input", {
 			headers: { "x-app-execution-auth": executionInputSecret },
 		});
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		expect(response.headers.get("content-type")).toContain("application/json");
 		expect(await response.text()).toBe(executionInputJson);
-		expect(readExecutionInput).toHaveBeenCalledWith("run_1");
+		expect(readExecutionInput).toHaveBeenCalledWith("req_1");
 	});
 
 	it("fails closed for absent, inconsistent, or oversized input", async () => {
@@ -70,9 +67,6 @@ describe("execution input routes", () => {
 				frozen: {
 					executionInputJson: "{}",
 					executionInputSha256: "0".repeat(64),
-					requestId: "req_1",
-					runId: "run_1",
-					status: "accepted" as const,
 				},
 			},
 			{
@@ -80,9 +74,6 @@ describe("execution input routes", () => {
 				frozen: {
 					executionInputJson: oversized,
 					executionInputSha256: sha256(oversized),
-					requestId: "req_1",
-					runId: "run_1",
-					status: "accepted" as const,
 				},
 			},
 		];
@@ -90,7 +81,7 @@ describe("execution input routes", () => {
 			const app = appWithExecutionInput({
 				readExecutionInput: vi.fn(async () => testCase.frozen),
 			});
-			const response = await app.request("/api/internal/execution/runs/run_1/input", {
+			const response = await app.request("/api/internal/execution/requests/req_1/input", {
 				headers: { "x-app-execution-auth": executionInputSecret },
 			});
 			expect(response.status).toBe(testCase.expected);

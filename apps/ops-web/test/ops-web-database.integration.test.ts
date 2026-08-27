@@ -19,6 +19,7 @@ import {
 	InternalPortalCredentialConflictError,
 	InternalPortalCredentialNameConflictError,
 } from "../src/server/internal-portal-credential-store.ts";
+import { installNoticeSchema } from "./ops-web-postgres.global-setup.ts";
 
 const postgres = inject("opsWebPostgres");
 const databaseEnv = {
@@ -68,6 +69,7 @@ async function withIsolatedDatabase(
 	await management.query(`create database "${databaseName}"`);
 	const managementUrl = databaseUrl(postgres.managementConnectionString, databaseName);
 	try {
+		await installNoticeSchema(managementUrl);
 		await run({
 			env: {
 				...databaseEnv,
@@ -306,10 +308,8 @@ describe("ops-web PostgreSQL grants", () => {
 						created_at timestamptz,
 						error_code text,
 						request_id text,
-						run_id text,
 						status text,
 						surface text,
-						trace_id text,
 						turn_id text,
 						turn_sequence integer,
 						updated_at timestamptz,
@@ -331,21 +331,20 @@ describe("ops-web PostgreSQL grants", () => {
 					create table execution_control.agent_runs (
 						completed_at timestamptz,
 						fail_close_reason text,
-						run_id text,
+						request_id text,
 						runtime_versions_json jsonb,
 						status text,
 						terminal_reason text,
-						trace_id text,
 						updated_at timestamptz
 					);
 					create table execution_control.agent_run_events (
 						event_id text,
-						run_id text,
+						request_id text,
 						payload_json jsonb
 					);
 					create table execution_control.agent_run_steps (
 						step_id text,
-						run_id text,
+						request_id text,
 						conversation_id text,
 						step_kind text,
 						tool text,
@@ -364,7 +363,7 @@ describe("ops-web PostgreSQL grants", () => {
 					create table execution_control.agent_step_attempts (
 						attempt_id text,
 						step_id text,
-						run_id text,
+						request_id text,
 						attempt integer,
 						status text,
 						task_queue text,
@@ -400,28 +399,22 @@ describe("ops-web PostgreSQL grants", () => {
 					);
 					create table execution_control.agent_step_results (
 						result_id text,
-						run_id text,
+						request_id text,
 						sanitized_payload_json jsonb
 					);
 					grant usage on schema execution_control to ops_web;
 					grant select (
-						completed_at, fail_close_reason, run_id, runtime_versions_json, status,
-						terminal_reason, trace_id, updated_at
+						completed_at, fail_close_reason, request_id, status, terminal_reason, updated_at
 					) on execution_control.agent_runs to ops_web;
 					grant select (
-						step_id, run_id, conversation_id, step_kind, tool, parent_step_id, status,
-						activity_attempt, task_queue, worker_id, started_at, completed_at, updated_at,
-						payload_schema_version, sanitized_payload_json, created_at
+						step_id, request_id, step_kind, status, started_at, completed_at, updated_at,
+						sanitized_payload_json
 					) on execution_control.agent_run_steps to ops_web;
 					grant select (
-						attempt_id, step_id, run_id, attempt, status, task_queue, worker_id, workflow_id,
-						temporal_run_id, activity_id, activity_type, activity_attempt, scheduled_at,
-						started_at, completed_at, schedule_to_start_ms, duration_ms,
-						provider_request_ref, provider_response_id, model_provider, model_name,
-						model_request_count, input_tokens, output_tokens, cached_input_tokens,
-						usage_observed, cancel_outcome, timeout_outcome, late_completion_outcome,
-						fail_close_reason, terminal_reason, updated_at, payload_schema_version,
-						sanitized_payload_json, created_at
+						step_id, request_id, attempt, status, started_at, completed_at, duration_ms,
+						model_provider, model_name, model_request_count, input_tokens, output_tokens,
+						cached_input_tokens, usage_observed, fail_close_reason, terminal_reason,
+						sanitized_payload_json
 					) on execution_control.agent_step_attempts to ops_web;
 					create schema ingestion_control;
 					create table ingestion_control.internal_portal_credentials (
@@ -592,8 +585,7 @@ describe("ops-web PostgreSQL grants", () => {
 		await expect(
 			runtime.query(
 				`select assistant_message_id, completed_at, conversation_id,
-					created_at, error_code, request_id, run_id, status, surface, trace_id,
-					turn_sequence, updated_at, user_message_id
+					created_at, error_code, request_id, status, updated_at, user_message_id
 				 from chat.turn_dispatches limit 0`,
 			),
 		).resolves.toBeDefined();
@@ -602,29 +594,23 @@ describe("ops-web PostgreSQL grants", () => {
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
-				`select completed_at, fail_close_reason, run_id, runtime_versions_json,
-					status, terminal_reason, trace_id, updated_at
+				`select completed_at, fail_close_reason, request_id, status, terminal_reason, updated_at
 				 from execution_control.agent_runs limit 0`,
 			),
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
-				`select step_id, run_id, conversation_id, step_kind, tool, parent_step_id,
-					status, activity_attempt, task_queue, worker_id, started_at, completed_at,
-					updated_at, payload_schema_version, sanitized_payload_json, created_at
+				`select step_id, request_id, step_kind, status, started_at, completed_at,
+					updated_at, sanitized_payload_json
 				 from execution_control.agent_run_steps limit 0`,
 			),
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
-				`select attempt_id, step_id, run_id, attempt, status, task_queue, worker_id,
-					workflow_id, temporal_run_id, activity_id, activity_type, activity_attempt,
-					scheduled_at, started_at, completed_at, schedule_to_start_ms, duration_ms,
-					provider_request_ref, provider_response_id, model_provider, model_name,
-					model_request_count, input_tokens, output_tokens, cached_input_tokens,
-					usage_observed, cancel_outcome, timeout_outcome, late_completion_outcome,
-					fail_close_reason, terminal_reason, updated_at, payload_schema_version,
-					sanitized_payload_json, created_at
+				`select step_id, request_id, attempt, status, started_at, completed_at, duration_ms,
+					model_provider, model_name, model_request_count, input_tokens, output_tokens,
+					cached_input_tokens, usage_observed, fail_close_reason, terminal_reason,
+					sanitized_payload_json
 				 from execution_control.agent_step_attempts limit 0`,
 			),
 		).resolves.toBeDefined();
@@ -634,6 +620,9 @@ describe("ops-web PostgreSQL grants", () => {
 			"select owner_user_id from chat.turn_dispatches limit 0",
 			"select * from chat.messages limit 0",
 			"select * from execution_control.agent_runs limit 0",
+			"select runtime_versions_json from execution_control.agent_runs limit 0",
+			"select workflow_id from execution_control.agent_step_attempts limit 0",
+			"select provider_response_id from execution_control.agent_step_attempts limit 0",
 			"select event_id from execution_control.agent_run_events limit 0",
 			"select result_id from execution_control.agent_step_results limit 0",
 		]) {

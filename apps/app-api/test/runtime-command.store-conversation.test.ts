@@ -27,7 +27,6 @@ function dispatchRow(overrides: Partial<DispatchRow> = {}): DispatchRow {
 		requestFingerprintSha256: "fingerprint:图书馆开放到几点？",
 		requestId: "req_prev",
 		status: "error",
-		traceId: "trace_prev",
 		...overrides,
 	} as DispatchRow;
 }

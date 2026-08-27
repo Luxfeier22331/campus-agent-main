@@ -5,7 +5,6 @@ export class ChatStreamRequestError extends Error {
 	requestId: string | undefined;
 	retryable: boolean;
 	status: number | undefined;
-	traceId: string | undefined;
 
 	constructor(input: {
 		code: string;
@@ -13,7 +12,6 @@ export class ChatStreamRequestError extends Error {
 		requestId?: string | undefined;
 		retryable: boolean;
 		status?: number;
-		traceId?: string | undefined;
 	}) {
 		super(input.message);
 		this.name = "ChatStreamRequestError";
@@ -21,7 +19,6 @@ export class ChatStreamRequestError extends Error {
 		this.requestId = input.requestId;
 		this.retryable = input.retryable;
 		this.status = input.status;
-		this.traceId = input.traceId;
 	}
 }
 
@@ -35,7 +32,7 @@ export function invalidProductStreamEvent(): ChatStreamRequestError {
 
 export function invalidRunStatusResponse(status: number): ChatStreamRequestError {
 	return new ChatStreamRequestError({
-		code: "invalid_run_status_response",
+		code: "invalid_request_status_response",
 		message: "回答状态返回了无效数据。",
 		retryable: false,
 		status,
@@ -66,9 +63,6 @@ export async function createChatStreamRequestError(
 			: {}),
 		retryable: readBooleanField(errorPayload, "retryable") ?? response.status >= 500,
 		status: response.status,
-		...(readStringField(errorPayload, "traceId")
-			? { traceId: readStringField(errorPayload, "traceId") }
-			: {}),
 	});
 }
 

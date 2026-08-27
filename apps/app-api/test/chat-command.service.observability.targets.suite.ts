@@ -50,7 +50,6 @@ export function registerChatCommandServiceObservabilitySupportingSourcesSuite():
 						],
 					},
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});

@@ -18,14 +18,11 @@ export function durableRun(overrides: Partial<ExecutionControlRun> = {}): Execut
 		ownerUserId: "user_01HQ",
 		queuedAt: "2026-06-04T01:02:03.500Z",
 		requestId: "req_01HQ",
-		runId: "run_01HQ",
 		startedAt: "",
 		status: "running",
 		streamingStartedAt: "",
 		surface: "campus_web",
 		terminalReason: "",
-		traceId: "trace_01HQ",
-		turnId: "turn_01HQ",
 		updatedAt: "2026-06-04T01:02:04.000Z",
 		...overrides,
 	};
@@ -45,7 +42,7 @@ export function durableEvent(
 		occurredAt: "2026-06-04T01:02:06.000Z",
 		payload: {},
 		payloadSchemaVersion: "run-event-v1",
-		runId: "run_01HQ",
+		requestId: "req_01HQ",
 		sequence,
 		visibility: "browser",
 		...rest,
@@ -60,9 +57,7 @@ export function ownedRun(
 		completedAt: null,
 		conversationId: "conv_01HQ",
 		requestId: "req_01HQ",
-		runId: "run_01HQ",
 		status: "accepted",
-		traceId: "trace_01HQ",
 		...overrides,
 	};
 }

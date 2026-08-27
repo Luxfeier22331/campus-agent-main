@@ -65,14 +65,13 @@ describe("account lifecycle PostgreSQL integration", () => {
 		const safetyIdentifier = `safety-${suffix}`;
 		await client.query(
 			`insert into "runtime"."request_observability_fact"
-				("request_id", "trace_id", "safety_identifier", "conversation_id", "surface",
+				("request_id", "safety_identifier", "conversation_id", "surface",
 				 "principal_type", "status", "started_at", "measured_at", "updated_at")
 			 values
-				($1, $2, 'other-user', $3, 'campus-web', 'campus_member', 'completed', $5, $5, $5),
-				($4, $2, $6, 'other-conversation', 'campus-web', 'campus_member', 'completed', $5, $5, $5)`,
+				($1, 'other-user', $2, 'campus-web', 'campus_member', 'completed', $4, $4, $4),
+				($3, $5, 'other-conversation', 'campus-web', 'campus_member', 'completed', $4, $4, $4)`,
 			[
 				`request-conversation-${suffix}`,
-				`trace-${suffix}`,
 				`conversation-${suffix}`,
 				`request-safety-${suffix}`,
 				now,
@@ -346,10 +345,10 @@ describe("account lifecycle PostgreSQL integration", () => {
 		);
 		await client.query(
 			`insert into "runtime"."request_observability_fact"
-				("request_id", "trace_id", "conversation_id", "surface", "principal_type", "status",
+				("request_id", "conversation_id", "surface", "principal_type", "status",
 				 "started_at", "measured_at", "updated_at")
-			 values ($1, $2, $3, 'campus-web', 'campus_member', 'completed', $4, $4, $4)`,
-			[`request-${suffix}`, `trace-${suffix}`, conversationId, now],
+			 values ($1, $2, 'campus-web', 'campus_member', 'completed', $3, $3, $3)`,
+			[`request-${suffix}`, conversationId, now],
 		);
 		const database = drizzle(pool, { schema: appApiSchema });
 		const store = createPgAccountLifecycleStore({} as Env, { getDb: async () => database });

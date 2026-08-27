@@ -50,10 +50,8 @@ describe("assistant-ui recovery policy", () => {
 					durationMs: 2_000,
 					phase,
 					requestId: "req_01",
-					runId: "run_01",
 					startedAt: "2026-06-24T01:00:01.000Z",
 					status: phase,
-					traceId: "trace_01",
 				}),
 			).toBe(true);
 		},
@@ -65,11 +63,10 @@ describe("assistant-ui recovery policy", () => {
 	});
 
 	it("preserves request identity in exhausted recovery errors", () => {
-		expect(streamRecoveryExhausted({ requestId: "req_01", traceId: "trace_01" })).toMatchObject({
+		expect(streamRecoveryExhausted({ requestId: "req_01" })).toMatchObject({
 			code: "chat_stream_connection_lost",
 			requestId: "req_01",
 			retryable: true,
-			traceId: "trace_01",
 		});
 	});
 });

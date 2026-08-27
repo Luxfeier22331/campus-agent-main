@@ -25,8 +25,9 @@ Model Config 与调用方位于共同受信任的内部服务边界，不再建�
 profile 保持独立。
 
 `name` 表达产品配置槽位，`api_protocol` 决定验证与调用方式；Model Config 不保存独立模型类型字段。
-数据库中只保存每个 name 的当前已验证配置和加密 API key。`model-config-schema` 使用既有
-`campus_agent` bootstrap 身份安装并拥有 `model_config` schema 与 migration ledger，常驻服务使用
-`model_config` runtime role；后者不执行 DDL。Ops Web 与 execution-control 没有该表的数据库权限。详细决定见
+数据库中只保存每个 name 的当前已验证配置和加密 API key。新建或重建数据库由
+`campus-agent-schema` 使用既有 `campus_agent` owner 安装并拥有 `model_config` schema，与其他产品
+schema 共用 `drizzle.campus_agent_migrations`；常驻服务使用 `model_config` runtime role，后者不执行
+DDL。Ops Web 与 execution-control 没有该表的数据库权限。详细决定见
 [ADR-0093](../../decisions/adr-0093-model-config-boundary.md)，HTTP 管理投影见
 [Ops Web Provider 合同](../../contracts/ops-web/providers.md)。

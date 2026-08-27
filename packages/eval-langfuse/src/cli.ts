@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 
-import { deriveLangfuseTraceId } from "@campus-agent/langfuse-identity";
-
 import { runAgentToolEval } from "./agent-tool-runner";
 import { scoreAgentProductResult } from "./eval-scores";
 import type { JsonObject } from "./json";
@@ -10,7 +8,7 @@ import { publishLangfuseScores } from "./score-publisher";
 import { settingsFromEnv } from "./settings";
 import { verifyLangfuseOnlineTraceEvidence } from "./trace-evidence";
 
-type ParsedArgs = Record<string, string | string[] | boolean>;
+type ParsedArgs = Record<string, string | boolean>;
 
 export async function main(argv: string[]): Promise<number> {
 	const [command, ...rest] = argv;
@@ -65,22 +63,14 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			productResultPath: stringArg(args, "product-result"),
 			scorePath: stringArg(args, "scores"),
 			settings: settingsFromArgs(args),
+			traceMapPath: stringArg(args, "trace-map"),
 		});
 	}
 	if (command === "verify-trace") {
-		const productTraceId = optionalArg(args, "product-trace-id");
-		const traceId =
-			optionalArg(args, "trace-id") ??
-			(await deriveLangfuseTraceId(required(productTraceId, "product-trace-id")));
 		return verifyLangfuseOnlineTraceEvidence({
-			expectedRelease: stringArg(args, "release"),
-			expectedRequestId: optionalArg(args, "request-id"),
-			expectedRunId: optionalArg(args, "run-id"),
-			expectedSessionId: stringArg(args, "session-id"),
-			expectedTags: arrayArg(args, "tag"),
-			expectedUserId: stringArg(args, "user-id"),
+			expectedRequestId: stringArg(args, "request-id"),
 			settings: settingsFromArgs(args),
-			traceId,
+			traceId: stringArg(args, "trace-id"),
 		});
 	}
 	throw new Error(`Unknown command: ${command}`);
@@ -137,11 +127,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 		if (!value || value.startsWith("--")) {
 			throw new Error(`${token} requires a value`);
 		}
-		if (key === "tag") {
-			parsed[key] = [...arrayArg(parsed, key), value];
-		} else {
-			parsed[key] = value;
-		}
+		parsed[key] = value;
 		index += 1;
 	}
 	return parsed;
@@ -154,17 +140,6 @@ function stringArg(args: ParsedArgs, key: string): string {
 function optionalArg(args: ParsedArgs, key: string): string | null {
 	const value = args[key];
 	return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function arrayArg(args: ParsedArgs, key: string): string[] {
-	const value = args[key];
-	if (Array.isArray(value)) {
-		return value;
-	}
-	if (typeof value === "string") {
-		return [value];
-	}
-	return [];
 }
 
 function numberArg(args: ParsedArgs, key: string): number | null {

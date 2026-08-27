@@ -47,10 +47,8 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 						error: { code: "execution_failed", message: "初始化后提交。", retryable: false },
 						occurredAt: "2026-06-24T01:00:01.000Z",
 						requestId: "req_initialized",
-						runId: "run_initialized",
 						sequence: 1,
 						status: "failed",
-						traceId: "trace_initialized",
 					},
 					event: "request.failed",
 				},
@@ -72,7 +70,7 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 			expect.objectContaining({
 				metadata: expect.objectContaining({
 					custom: {
-						campusRun: expect.objectContaining({ provisional: true, status: "queued" }),
+						campusRequest: expect.objectContaining({ provisional: true, status: "queued" }),
 					},
 				}),
 				role: "assistant",
@@ -107,10 +105,8 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 						error: { code: "execution_failed", message: "提交完成。", retryable: false },
 						occurredAt: "2026-06-24T01:00:01.000Z",
 						requestId: "req_remote_id_race",
-						runId: "run_remote_id_race",
 						sequence: 1,
 						status: "failed",
-						traceId: "trace_remote_id_race",
 					},
 					event: "request.failed",
 				},
@@ -138,7 +134,7 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 			expect.objectContaining({
 				metadata: expect.objectContaining({
 					custom: {
-						campusRun: expect.objectContaining({ provisional: true, status: "queued" }),
+						campusRequest: expect.objectContaining({ provisional: true, status: "queued" }),
 					},
 				}),
 				role: "assistant",
@@ -258,10 +254,8 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_reused_initialization",
-					runId: "run_reused_initialization",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_reused_initialization",
 				},
 				event: "request.accepted",
 			};
@@ -273,10 +267,8 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 					error: { code: "execution_failed", message: "提交完成。", retryable: false },
 					occurredAt: "2026-06-24T01:00:02.000Z",
 					requestId: "req_reused_initialization",
-					runId: "run_reused_initialization",
 					sequence: 2,
 					status: "failed",
-					traceId: "trace_reused_initialization",
 				},
 				event: "request.failed",
 			};
@@ -372,10 +364,8 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_01",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -385,10 +375,8 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 					messageId: "msg_answer",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_01",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
@@ -401,7 +389,7 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 					answer: {
 						conversation: {
 							archivedAt: null,
-							activeRunId: null,
+							activeRequestId: null,
 							createdAt: "2026-06-24T01:00:00.000Z",
 							id: "conv_created",
 							messages: [
@@ -436,15 +424,12 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 							kind: "answer",
 							requestId: "req_01",
 							text: finalAnswer,
-							traceId: "trace_01",
 						},
 					},
 					occurredAt: "2026-06-24T01:00:02.000Z",
 					requestId: "req_01",
-					runId: "run_01",
 					sequence: 3,
 					status: "completed",
-					traceId: "trace_01",
 				},
 				event: "request.completed",
 			} satisfies ChatRequestStreamEvent;
@@ -511,10 +496,8 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
 					requestId: "req_switch_back",
-					runId: "run_switch_back",
 					sequence: 1,
 					status: "accepted",
-					traceId: "trace_switch_back",
 				},
 				event: "request.accepted",
 			} satisfies ChatRequestStreamEvent;
@@ -527,10 +510,8 @@ describe("assistant-ui runtime initialization and thread ownership", () => {
 					messageId: "msg_late_switch",
 					occurredAt: "2026-06-24T01:00:01.000Z",
 					requestId: "req_switch_back",
-					runId: "run_switch_back",
 					sequence: 2,
 					status: "streaming",
-					traceId: "trace_switch_back",
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;

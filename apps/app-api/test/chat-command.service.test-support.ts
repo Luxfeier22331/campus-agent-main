@@ -59,25 +59,28 @@ const pendingProductCallbacks = new Map<
 	string,
 	(response: ToolExecutionResponse, completedAt: string) => Promise<void>
 >();
-// Keep the test transport's copy keyed by run id so the fake execution worker
+// Keep the test transport's copy keyed by request id so the fake execution worker
 // exercises the same frozen-input boundary as production.
-const frozenExecutionInputsByRun = new Map<string, string>();
+const frozenExecutionInputsByRequest = new Map<string, string>();
 const finalizedConversations = new Map<string, ChatConversation>();
 const testServicesByStore = new WeakMap<ChatCommandStore, ChatCommandService>();
 const runtimeHandlesProductCallback = Symbol("runtimeHandlesProductCallback");
 const TEST_SAFETY_IDENTIFIER_HMAC_SECRET = "test-safety-identifier-secret";
 
-function rememberFrozenExecutionInput(input: { executionInputJson: string; runId: string }): void {
-	const runId = input.runId;
-	if (runId) {
-		frozenExecutionInputsByRun.set(runId, input.executionInputJson);
+function rememberFrozenExecutionInput(input: {
+	executionInputJson: string;
+	requestId: string;
+}): void {
+	const requestId = input.requestId;
+	if (requestId) {
+		frozenExecutionInputsByRequest.set(requestId, input.executionInputJson);
 	}
 }
 
-export function getFrozenExecutionPayload(runId: string): Record<string, unknown> {
-	const frozenJson = frozenExecutionInputsByRun.get(runId);
+export function getFrozenExecutionPayload(requestId: string): Record<string, unknown> {
+	const frozenJson = frozenExecutionInputsByRequest.get(requestId);
 	if (!frozenJson) {
-		throw new Error(`Missing frozen execution input for ${runId}.`);
+		throw new Error(`Missing frozen execution input for ${requestId}.`);
 	}
 	const parsed = JSON.parse(frozenJson) as unknown;
 	return getRecordOrThrow(parsed, "frozen execution payload");
@@ -122,7 +125,7 @@ export function buildChatCommandService(
 		const listRunEvents = runtime.listRunEvents.bind(runtime);
 		runtime.listRunEvents = vi.fn(async (input) => {
 			const page = await listRunEvents(input);
-			await applyTestProductCallback(input.runId, input.traceId, page.events);
+			await applyTestProductCallback(input.requestId, page.events);
 			return page;
 		});
 	}
@@ -177,7 +180,7 @@ export function createConversation(): ChatConversation {
 		updatedAt: "2026-03-28T07:59:00.000Z",
 		activeBranchId: "branch_active",
 		activeMessageId: null,
-		activeRunId: null,
+		activeRequestId: null,
 		activeTurnSequence: 0,
 		sessionSlots: [] as Array<{
 			confirmed: boolean;
@@ -251,13 +254,13 @@ export function createCommandStore(options?: {
 	const finalWrites: FinalizeRequestWrite[] = [];
 	const requestStageTiming = new Map<string, Record<string, unknown>>();
 	const frozenRuns: FrozenDurableRunWrite[] = [];
-	const frozenRunIds = new Map<string, string>();
+	const frozenRequestIds = new Map<string, string>();
 	const frozenMemorySnapshots: Parameters<AcceptRequestWrite["freezeDurableRun"]>[0][] = [];
 	finalizedConversations.delete(conversation.id);
 	let store: ChatCommandStore;
 	store = {
-		readDurableRunInput: vi.fn(async (runId: string) => {
-			const executionInputJson = frozenRunIds.get(runId);
+		readDurableRunInput: vi.fn(async (requestId: string) => {
+			const executionInputJson = frozenRequestIds.get(requestId);
 			return executionInputJson
 				? {
 						conversationId: conversation.id,
@@ -267,12 +270,9 @@ export function createCommandStore(options?: {
 						executionInputJson,
 						memoryRecallEnabled: options?.memorySnapshot?.recallEnabled ?? null,
 						ownerUserId: conversation.ownerUserId,
-						requestId: "req_0001",
-						runId,
+						requestId,
 						surface: "campus_web",
 						status: "accepted" as const,
-						traceId: "trace_0001",
-						turnId: "turn_0001",
 					}
 				: null;
 		}),
@@ -281,26 +281,26 @@ export function createCommandStore(options?: {
 				input.requestKind === "public_chat" ? (options?.memorySnapshot ?? null) : null;
 			frozenMemorySnapshots.push(memorySnapshot ? { ...memorySnapshot } : null);
 			const frozenRun = input.freezeDurableRun(memorySnapshot);
-			const runId = input.turnDispatch.runId ?? "";
-			if (!(runId && frozenRun.turnId)) {
-				throw new Error("Frozen run is missing its identity.");
+			const requestId = input.turnDispatch.requestId ?? "";
+			if (!requestId) {
+				throw new Error("Frozen request is missing its identity.");
 			}
-			rememberFrozenExecutionInput({ ...frozenRun, runId });
-			pendingProductCallbacks.set(runId, async (response, completedAt) => {
+			rememberFrozenExecutionInput({ ...frozenRun, requestId });
+			pendingProductCallbacks.set(requestId, async (response, completedAt) => {
 				const service = testServicesByStore.get(store);
 				if (!service?.applyProductFinalization) {
-					throw new Error(`Missing product finalization callback for ${runId}.`);
+					throw new Error(`Missing product finalization callback for ${requestId}.`);
 				}
 				await service.applyProductFinalization({
 					completedAt,
-					finalizationFingerprint: `test:${runId}`,
+					finalizationFingerprint: `test:${requestId}`,
 					response,
-					runId,
+					requestId,
 				});
 				finalizedConversations.set(conversation.id, structuredClone(conversation));
 			});
 			frozenRuns.push(frozenRun);
-			frozenRunIds.set(runId, frozenRun.executionInputJson);
+			frozenRequestIds.set(requestId, frozenRun.executionInputJson);
 			acceptedWrites.push(input);
 			requestStageTiming.set(input.turnDispatch.requestId, {
 				...(input.requestObservabilityFact.stageTiming ?? {}),
@@ -314,7 +314,7 @@ export function createCommandStore(options?: {
 			conversation.updatedAt = input.userMessage.createdAt;
 			conversation.activeBranchId = input.userMessage.branchId ?? "branch_active";
 			conversation.activeMessageId = input.userMessage.id;
-			conversation.activeRunId = input.userMessage.runId ?? null;
+			conversation.activeRequestId = input.turnDispatch.requestId;
 			conversation.activeTurnSequence = input.turnDispatch.turnSequence;
 			for (const message of conversation.messages) {
 				if (message.branchId === conversation.activeBranchId) {
@@ -359,15 +359,15 @@ export function createCommandStore(options?: {
 			requestStageTiming.set(input.turnDispatch.requestId, {
 				...(input.requestObservabilityFact.stageTiming ?? {}),
 			});
-			const isActiveRun =
-				conversation.activeRunId === input.turnDispatch.runId &&
+			const isActiveRequest =
+				conversation.activeRequestId === input.turnDispatch.requestId &&
 				conversation.activeTurnSequence === input.turnDispatch.turnSequence;
-			if (isActiveRun) {
+			if (isActiveRequest) {
 				conversation.title = input.conversationTitle;
 				conversation.updatedAt = input.assistantMessage.createdAt;
 				conversation.activeBranchId = input.assistantMessage.branchId ?? "branch_active";
 				conversation.activeMessageId = input.assistantMessage.id;
-				conversation.activeRunId = input.assistantMessage.runId ?? null;
+				conversation.activeRequestId = null;
 				conversation.activeTurnSequence = input.turnDispatch.turnSequence;
 				for (const message of conversation.messages) {
 					if (message.branchId === conversation.activeBranchId) {
@@ -375,7 +375,7 @@ export function createCommandStore(options?: {
 					}
 				}
 			}
-			if (isActiveRun && input.sessionSlots.length > 0) {
+			if (isActiveRequest && input.sessionSlots.length > 0) {
 				const updatedNames = new Set(input.sessionSlots.map((slot) => slot.name));
 				conversation.sessionSlots = conversation.sessionSlots
 					.filter((slot) => !updatedNames.has(slot.name))
@@ -383,7 +383,7 @@ export function createCommandStore(options?: {
 			}
 			conversation.messages.push({
 				...input.assistantMessage,
-				isActiveBranchHead: isActiveRun,
+				isActiveBranchHead: isActiveRequest,
 			});
 			return { conversation: structuredClone(conversation), outcome: "applied" as const };
 		}),
@@ -431,14 +431,15 @@ export function createCommandStore(options?: {
 				.reverse()
 				.find(
 					(write) =>
-						write.turnDispatch.runId && (!input?.runId || write.turnDispatch.runId === input.runId),
+						write.turnDispatch.requestId &&
+						(!input?.requestId || write.turnDispatch.requestId === input.requestId),
 				);
-			if (!accepted?.turnDispatch.runId) {
+			if (!accepted?.turnDispatch.requestId) {
 				return [];
 			}
 			const snapshot = accepted.turnDispatch.principalSnapshot;
 			const finalized = finalWrites.find(
-				(write) => write.turnDispatch.runId === accepted.turnDispatch.runId,
+				(write) => write.turnDispatch.requestId === accepted.turnDispatch.requestId,
 			);
 			return [
 				{
@@ -459,10 +460,8 @@ export function createCommandStore(options?: {
 					questionPreview: accepted.userMessage.text,
 					requestFingerprintSha256: accepted.turnDispatch.requestFingerprintSha256,
 					requestId: accepted.turnDispatch.requestId,
-					runId: accepted.turnDispatch.runId,
 					safetyIdentifier: accepted.turnDispatch.safetyIdentifier ?? null,
 					surface: accepted.turnDispatch.surface,
-					traceId: accepted.turnDispatch.traceId,
 					turnSequence: accepted.turnDispatch.turnSequence,
 					userMessageId: accepted.turnDispatch.userMessageId,
 				},
@@ -504,62 +503,51 @@ export function expectNoInternalLocators(text: string) {
 export function createExecutionRuntimeFromToolClient(
 	client: ToolExecutionClient,
 	options: {
-		loadExecutionInput?: (runId: string) => Promise<string | null>;
+		loadExecutionInput?: (requestId: string) => Promise<string | null>;
 		onProductFinalization?: (input: {
 			completedAt: string;
 			response: ToolExecutionResponse;
-			runId: string;
-			traceId: string;
+			requestId: string;
 		}) => Promise<void>;
 		skipProductCallback?: boolean;
 	} = {},
 ): ExecutionControlRuntimeClient {
-	const eventsByRun = new Map<string, ExecutionControlRunEvent[]>();
-	const runsById = new Map<string, ExecutionControlRun>();
+	const eventsByRequest = new Map<string, ExecutionControlRunEvent[]>();
+	const requestsById = new Map<string, ExecutionControlRun>();
 
 	async function createRun(input: ExecutionControlRunCreateInput): Promise<ExecutionControlRun> {
-		if (!frozenExecutionInputsByRun.has(input.runId) && options.loadExecutionInput) {
-			const frozenExecutionInput = await options.loadExecutionInput(input.runId);
+		if (!frozenExecutionInputsByRequest.has(input.requestId) && options.loadExecutionInput) {
+			const frozenExecutionInput = await options.loadExecutionInput(input.requestId);
 			if (frozenExecutionInput) {
-				frozenExecutionInputsByRun.set(input.runId, frozenExecutionInput);
+				frozenExecutionInputsByRequest.set(input.requestId, frozenExecutionInput);
 			}
 		}
 		const executionInput = toolExecutionInputFromRunCreate(input);
 		const run = durableRunFromCreateInput(input);
-		runsById.set(input.runId, run);
+		requestsById.set(input.requestId, run);
 		if (client.executeStream) {
 			const response = await client.executeStream(executionInput);
 			const events = await durableEventsFromExecutionSse(input, response);
 			if (!options.skipProductCallback) {
-				await applyTestProductCallback(
-					input.runId,
-					input.traceId ?? "",
-					events,
-					options.onProductFinalization,
-				);
+				await applyTestProductCallback(input.requestId, events, options.onProductFinalization);
 			}
-			eventsByRun.set(input.runId, events);
+			eventsByRequest.set(input.requestId, events);
 			return run;
 		}
 		const response = await client.execute(executionInput);
 		const events = [finalizationEventFromResponse(input, response, 1)];
 		if (!options.skipProductCallback) {
-			await applyTestProductCallback(
-				input.runId,
-				input.traceId ?? "",
-				events,
-				options.onProductFinalization,
-			);
+			await applyTestProductCallback(input.requestId, events, options.onProductFinalization);
 		}
-		eventsByRun.set(input.runId, events);
+		eventsByRequest.set(input.requestId, events);
 		return run;
 	}
 
 	const runtime: ExecutionControlRuntimeClient & { [runtimeHandlesProductCallback]?: boolean } = {
 		cancelRun: vi.fn(async (input) => {
-			const existing = runsById.get(input.runId);
+			const existing = requestsById.get(input.requestId);
 			if (!existing) {
-				throw new Error(`Unknown durable run: ${input.runId}`);
+				throw new Error(`Unknown durable run: ${input.requestId}`);
 			}
 			const cancelled = {
 				...existing,
@@ -567,19 +555,19 @@ export function createExecutionRuntimeFromToolClient(
 				status: "cancelled",
 				terminalReason: input.reason,
 			};
-			runsById.set(input.runId, cancelled);
+			requestsById.set(input.requestId, cancelled);
 			return cancelled;
 		}),
 		createRun: vi.fn(createRun),
 		getRun: vi.fn(async (input) => {
-			const existing = runsById.get(input.runId);
+			const existing = requestsById.get(input.requestId);
 			if (!existing) {
-				throw new Error(`Unknown durable run: ${input.runId}`);
+				throw new Error(`Unknown durable run: ${input.requestId}`);
 			}
 			return existing;
 		}),
 		listRunEvents: vi.fn(async (input) => {
-			const events = (eventsByRun.get(input.runId) ?? []).filter(
+			const events = (eventsByRequest.get(input.requestId) ?? []).filter(
 				(event) => event.sequence > (input.afterSequence ?? 0),
 			);
 			return {
@@ -587,28 +575,21 @@ export function createExecutionRuntimeFromToolClient(
 				nextSequence: events.at(-1)?.sequence ?? input.afterSequence ?? 0,
 			};
 		}),
-		listRunSteps: vi.fn(async () => ({
-			attempts: [],
-			results: [],
-			steps: [],
-		})),
 	};
 	runtime[runtimeHandlesProductCallback] = true;
 	return runtime;
 }
 
 async function applyTestProductCallback(
-	runId: string,
-	traceId: string,
+	requestId: string,
 	events: ExecutionControlRunEvent[],
 	directCallback?: (input: {
 		completedAt: string;
 		response: ToolExecutionResponse;
-		runId: string;
-		traceId: string;
+		requestId: string;
 	}) => Promise<void>,
 ): Promise<void> {
-	const callback = pendingProductCallbacks.get(runId);
+	const callback = pendingProductCallbacks.get(requestId);
 	if (!(callback || directCallback)) {
 		return;
 	}
@@ -634,7 +615,6 @@ async function applyTestProductCallback(
 			code: getString(error?.code) ?? "execution_failed",
 			message: getString(error?.message) ?? "Execution failed.",
 			retryable: typeof error?.retryable === "boolean" ? error.retryable : true,
-			traceId,
 		});
 	} else {
 		response = executionErrorResponse({
@@ -642,15 +622,13 @@ async function applyTestProductCallback(
 			message: "The request was cancelled.",
 			retryable: false,
 			status: "cancelled",
-			traceId,
 		});
 	}
 	if (directCallback) {
 		await directCallback({
 			completedAt: terminal.occurredAt,
 			response,
-			runId,
-			traceId,
+			requestId,
 		});
 		return;
 	}
@@ -660,9 +638,9 @@ async function applyTestProductCallback(
 function toolExecutionInputFromRunCreate(
 	input: ExecutionControlRunCreateInput,
 ): ToolExecutionInput {
-	const frozenJson = frozenExecutionInputsByRun.get(input.runId);
+	const frozenJson = frozenExecutionInputsByRequest.get(input.requestId);
 	if (!frozenJson) {
-		throw new Error(`Missing frozen execution input for ${input.runId}.`);
+		throw new Error(`Missing frozen execution input for ${input.requestId}.`);
 	}
 	const payload = getRecordOrThrow(JSON.parse(frozenJson), "frozen execution payload");
 	const context = internalContextFromWire(
@@ -675,8 +653,6 @@ function toolExecutionInputFromRunCreate(
 		safetyIdentifier: getString(payload.safety_identifier),
 		surface: input.surface,
 		tenantId: getString(payload.tenant_id),
-		...(input.traceHeaders ? { traceHeaders: input.traceHeaders } : {}),
-		traceId: getTraceId(payload) ?? input.traceId ?? "",
 		userGoal: getString(payload.user_goal) ?? "",
 	};
 }
@@ -742,9 +718,9 @@ function internalActorFromWire(
 
 function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): ExecutionControlRun {
 	const now = "2026-06-04T01:02:03.000Z";
-	const frozenJson = frozenExecutionInputsByRun.get(input.runId);
+	const frozenJson = frozenExecutionInputsByRequest.get(input.requestId);
 	if (!frozenJson) {
-		throw new Error(`Missing frozen execution input for ${input.runId}.`);
+		throw new Error(`Missing frozen execution input for ${input.requestId}.`);
 	}
 	getRecordOrThrow(JSON.parse(frozenJson), "frozen execution payload");
 	return {
@@ -757,15 +733,12 @@ function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): Execu
 		ownerUserId: input.ownerUserId,
 		queuedAt: now,
 		requestId: input.requestId,
-		runId: input.runId,
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
 		surface: input.surface,
 		taskQueue: "campus-agent.workflow",
 		terminalReason: "",
-		traceId: input.traceId ?? "",
-		turnId: input.turnId,
 		updatedAt: now,
 	};
 }
@@ -849,10 +822,8 @@ function durableEventFromExecutionLifecycle(
 							code: "execution_control_invalid_response",
 							message: "Execution stream completed without a response payload.",
 							retryable: true,
-							traceId: input.traceId ?? "",
 						}),
 					),
-					trace_id: input.traceId ?? "",
 				},
 				sequence,
 				visibility: "internal",
@@ -865,7 +836,6 @@ function durableEventFromExecutionLifecycle(
 			payload: {
 				request_id: getString(parsed.data.request_id) ?? input.requestId,
 				response,
-				trace_id: input.traceId ?? "",
 			},
 			sequence,
 			visibility: "internal",
@@ -883,7 +853,6 @@ function durableEventFromExecutionLifecycle(
 				payload: {
 					error: { code, message, retryable },
 					request_id: getString(parsed.data.request_id) ?? input.requestId,
-					trace_id: input.traceId ?? "",
 				},
 				sequence,
 			});
@@ -892,7 +861,6 @@ function durableEventFromExecutionLifecycle(
 			code,
 			message,
 			retryable,
-			traceId: input.traceId ?? "",
 		});
 		return baseRunEvent(input, {
 			eventType: "finalization.completed",
@@ -900,7 +868,6 @@ function durableEventFromExecutionLifecycle(
 			payload: {
 				request_id: getString(parsed.data.request_id) ?? input.requestId,
 				response: responseWireFromToolResponse(response),
-				trace_id: input.traceId ?? "",
 			},
 			sequence,
 			visibility: "internal",
@@ -919,7 +886,6 @@ function finalizationEventFromResponse(
 		payload: {
 			request_id: input.requestId,
 			response: responseWireFromToolResponse(response),
-			trace_id: input.traceId ?? "",
 		},
 		sequence,
 		visibility: "internal",
@@ -933,12 +899,12 @@ function baseRunEvent(
 ): ExecutionControlRunEvent {
 	return {
 		conversationId: input.conversationId,
-		eventId: `${input.runId}:event:${overrides.sequence}`,
+		eventId: `${input.requestId}:event:${overrides.sequence}`,
 		eventType: overrides.eventType,
 		occurredAt: overrides.occurredAt || "2026-06-04T01:02:04.000Z",
 		payload: overrides.payload,
 		payloadSchemaVersion: "run-event-v1",
-		runId: input.runId,
+		requestId: input.requestId,
 		sequence: overrides.sequence,
 		visibility: overrides.visibility ?? "browser",
 	};
@@ -965,10 +931,6 @@ function responseWireFromToolResponse(response: ToolExecutionResponse): Record<s
 			: {}),
 		result: response.result ?? null,
 		status: response.status,
-		trace_id: response.traceId,
-		...(response.workflowTraceSummary
-			? { workflow_trace_summary: response.workflowTraceSummary }
-			: {}),
 	};
 }
 
@@ -998,7 +960,6 @@ function executionErrorResponse(input: {
 	message: string;
 	retryable: boolean;
 	status?: "error" | "cancelled";
-	traceId: string;
 }): ToolExecutionResponse {
 	return {
 		answerText: "",
@@ -1010,7 +971,6 @@ function executionErrorResponse(input: {
 		modelUsage: { cachedInputTokens: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
 		result: null,
 		status: input.status ?? "error",
-		traceId: input.traceId,
 	};
 }
 
@@ -1045,11 +1005,6 @@ function getRecordArray(value: unknown): Record<string, unknown>[] {
 				return record ? [record] : [];
 			})
 		: [];
-}
-
-function getTraceId(payload: Record<string, unknown>): string | null {
-	const trace = getRecord(payload.trace);
-	return trace ? getString(trace.trace_id) : null;
 }
 
 function authorizationProjectionSource(value: unknown): AuthorizationProjectionSource {

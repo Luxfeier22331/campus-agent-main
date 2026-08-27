@@ -130,8 +130,6 @@ function createRunEventsSseResponse(input: {
 			"content-type": "text/event-stream; charset=utf-8",
 			"x-accel-buffering": "no",
 			"x-request-id": input.run.requestId,
-			"x-run-id": input.run.runId,
-			"x-trace-id": input.run.traceId,
 		},
 		status: 200,
 	});
@@ -157,32 +155,14 @@ function getPayloadRecordValue(
 		: null;
 }
 
-function resolveRunEventRequestId(input: {
-	event: RuntimeRunEventProjection;
-	run: RuntimeRunSummary;
-}): string {
-	return getStringPayloadValue(input.event.payload, "request_id") ?? input.run.requestId;
-}
-
-function resolveRunEventTraceId(input: {
-	event: RuntimeRunEventProjection;
-	run: RuntimeRunSummary;
-}): string {
-	return getStringPayloadValue(input.event.payload, "trace_id") ?? input.run.traceId;
-}
-
 function toChatRunResumeStreamEvent(input: {
 	event: RuntimeRunEventProjection;
 	run: RuntimeRunSummary;
 }): ChatCommandStreamEvent | null {
-	const requestId = resolveRunEventRequestId(input);
-	const traceId = resolveRunEventTraceId(input);
 	const baseData = {
 		occurredAt: input.event.occurredAt,
-		requestId,
-		runId: input.run.runId,
+		requestId: input.event.requestId,
 		sequence: input.event.sequence,
-		traceId,
 	};
 	if (input.event.eventType === "execution.queued") {
 		return {
@@ -294,11 +274,10 @@ export function registerChatRunRoutes(input: {
 		error: unknown,
 		routeErrorCorrelation: {
 			requestId: string;
-			traceId: string;
 		},
 	): Response | null;
 }) {
-	input.app.get("/api/chat/runs/:runId", async (c) => {
+	input.app.get("/api/chat/requests/:requestId", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({
 			env: input.env,
@@ -314,7 +293,7 @@ export function registerChatRunRoutes(input: {
 		try {
 			const response = await scope.resolveRuntimeRunService().getStatus({
 				principal: resolved.principal,
-				runId: c.req.param("runId"),
+				requestId: c.req.param("requestId"),
 			});
 			return jsonResponse(response);
 		} catch (error) {
@@ -326,7 +305,7 @@ export function registerChatRunRoutes(input: {
 		}
 	});
 
-	input.app.get("/api/chat/runs/:runId/events", async (c) => {
+	input.app.get("/api/chat/requests/:requestId/events", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({
 			env: input.env,
@@ -344,7 +323,7 @@ export function registerChatRunRoutes(input: {
 			const response = await scope.resolveRuntimeRunService().listEvents({
 				...(afterSequence === undefined ? {} : { afterSequence }),
 				principal: resolved.principal,
-				runId: c.req.param("runId"),
+				requestId: c.req.param("requestId"),
 				signal: c.req.raw.signal,
 			});
 			return jsonResponse(response);
@@ -357,7 +336,7 @@ export function registerChatRunRoutes(input: {
 		}
 	});
 
-	input.app.get("/api/chat/runs/:runId/events/stream", async (c) => {
+	input.app.get("/api/chat/requests/:requestId/events/stream", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({
 			env: input.env,
@@ -374,14 +353,14 @@ export function registerChatRunRoutes(input: {
 			const runtimeRunService = scope.resolveRuntimeRunService();
 			const runStatus = await runtimeRunService.getStatus({
 				principal: resolved.principal,
-				runId: c.req.param("runId"),
+				requestId: c.req.param("requestId"),
 			});
 			const abortController = new AbortController();
 			const afterSequence = readAfterSequenceQuery(c.req.query("after_sequence"));
 			const events = runtimeRunService.subscribeEvents({
 				...(afterSequence === undefined ? {} : { afterSequence }),
 				principal: resolved.principal,
-				runId: c.req.param("runId"),
+				requestId: c.req.param("requestId"),
 				signal: abortController.signal,
 			});
 			return createRunEventsSseResponse({
@@ -398,7 +377,7 @@ export function registerChatRunRoutes(input: {
 		}
 	});
 
-	input.app.get("/api/chat/runs/:runId/steps", async (c) => {
+	input.app.get("/api/chat/requests/:requestId/steps", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({
 			env: input.env,
@@ -414,7 +393,7 @@ export function registerChatRunRoutes(input: {
 		try {
 			const response = await scope.resolveRuntimeRunService().listSteps({
 				principal: resolved.principal,
-				runId: c.req.param("runId"),
+				requestId: c.req.param("requestId"),
 			});
 			return jsonResponse(response);
 		} catch (error) {
@@ -426,7 +405,7 @@ export function registerChatRunRoutes(input: {
 		}
 	});
 
-	input.app.post("/api/chat/runs/:runId/cancel", async (c) => {
+	input.app.post("/api/chat/requests/:requestId/cancel", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireSessionPrincipal({
 			env: input.env,
@@ -444,7 +423,7 @@ export function registerChatRunRoutes(input: {
 			const response = await scope.resolveRuntimeRunService().cancel({
 				principal: resolved.principal,
 				reason: readRunCancelReason(body),
-				runId: c.req.param("runId"),
+				requestId: c.req.param("requestId"),
 			});
 			return jsonResponse(response, { status: 202 });
 		} catch (error) {

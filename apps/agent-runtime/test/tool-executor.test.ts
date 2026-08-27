@@ -399,8 +399,7 @@ describe("execution-control tool executor", () => {
 function toolRequest(): ToolExecutionRequest {
 	return {
 		activityAttempt: 1,
-		runId: "run-tool-executor",
-		traceId: "trace-tool-executor",
+		requestId: "request-tool-executor",
 		argumentsJson: { query_text: "通知下一班几点", intent: "next_departure" },
 		tool: {
 			name: "test_lookup",

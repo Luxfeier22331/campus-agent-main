@@ -1,23 +1,16 @@
 import type { SpawnSyncOptions } from "node:child_process";
-import { resolve } from "node:path";
 import type { LocalDevEnvironmentTarget } from "./environment";
-import {
-	localDatabaseUrls,
-	resolveLocalLegacyProviderConfigEncryptionKeyPath,
-	resolveLocalModelConfigEncryptionKeyPath,
-} from "./environment";
+import { localDatabaseUrls } from "./environment";
 import { runCommand } from "./process";
 import type { LocalDevProfileV1 } from "./profile";
 
 export type LocalApplicationBootstrapStep =
 	| "campus-web-docs"
-	| "app-api-schema"
-	| "execution-control-schema"
-	| "model-config-schema"
+	| "campus-agent-schema"
+	| "app-api-seed-local-campus-groups"
 	| "app-api-seed-local-test-user"
-	| "ops-web-schema"
-	| "ops-web-dining-bootstrap"
-	| "notice-publisher-migrate";
+	| "notice-publisher-seed-local"
+	| "ops-web-dining-bootstrap";
 
 export interface LocalApplicationBootstrapCommand {
 	args: string[];
@@ -38,9 +31,6 @@ export function localApplicationBootstrapCommands(
 ): LocalApplicationBootstrapCommand[] {
 	const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 	const database = localDatabaseUrls(profile);
-	const modelConfigEncryptionKeyPath = resolveLocalModelConfigEncryptionKeyPath(repoRoot);
-	const legacyProviderConfigEncryptionKeyPath =
-		resolveLocalLegacyProviderConfigEncryptionKeyPath(repoRoot);
 	const opsWebEnv = {
 		...process.env,
 		DEPLOYMENT_ENVIRONMENT: "local",
@@ -53,8 +43,6 @@ export function localApplicationBootstrapCommands(
 		OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 		OPS_WEB_DATABASE_SSLMODE: "disable",
 		OPS_WEB_DATABASE_URL: database.opsWeb,
-		OPS_WEB_SCHEMA_DATABASE_SSLMODE: "disable",
-		OPS_WEB_SCHEMA_DATABASE_URL: database.owner,
 	};
 	const appApiCommand = (step: LocalApplicationBootstrapStep, script: string) => ({
 		args: [
@@ -87,60 +75,40 @@ export function localApplicationBootstrapCommands(
 			},
 			step: "campus-web-docs",
 		},
-		appApiCommand("app-api-schema", "./ops/db/schema.ts"),
 		{
-			args: [
-				"run",
-				"./cmd/run-projection-schema",
-				"--mode",
-				"install",
-				"--database-url",
-				database.owner,
-				"--evidence-path",
-				resolve(repoRoot, "var/dev/execution-control-schema.json"),
-				"--provider-config-encryption-key-path",
-				legacyProviderConfigEncryptionKeyPath,
-			],
-			command: "go",
-			options: { cwd: resolve(repoRoot, "apps/execution-control") },
-			step: "execution-control-schema",
+			args: ["--dir", "jobs/campus-agent-schema", "migrate"],
+			command: pnpm,
+			options: {
+				cwd: repoRoot,
+				env: {
+					...process.env,
+					...postgresEnvironment(database.owner),
+					PGSSLMODE: "disable",
+				},
+			},
+			step: "campus-agent-schema",
 		},
-		{
-			args: [
-				"run",
-				"./cmd/model-config-schema",
-				"--database-url",
-				database.owner,
-				"--encryption-key-path",
-				modelConfigEncryptionKeyPath,
-				"--legacy-encryption-key-path",
-				legacyProviderConfigEncryptionKeyPath,
-			],
-			command: "go",
-			options: { cwd: resolve(repoRoot, "apps/model-config") },
-			step: "model-config-schema",
-		},
+		appApiCommand("app-api-seed-local-campus-groups", "./ops/db/seed-local-campus-groups.ts"),
 		appApiCommand("app-api-seed-local-test-user", "./ops/db/seed-local-test-user.ts"),
 		{
-			args: ["--dir", "apps/ops-web", "db:apply"],
+			args: ["--dir", "jobs/notice-publisher", "seed-local"],
 			command: pnpm,
-			options: { cwd: repoRoot, env: opsWebEnv },
-			step: "ops-web-schema",
+			options: {
+				cwd: repoRoot,
+				env: {
+					...process.env,
+					DEPLOYMENT_ENVIRONMENT: "local",
+					NOTICES_DATABASE_SSLMODE: "disable",
+					NOTICES_DATABASE_URL: database.noticePublisher,
+				},
+			},
+			step: "notice-publisher-seed-local",
 		},
 		{
 			args: ["--dir", "apps/ops-web", "db:bootstrap-dining"],
 			command: pnpm,
 			options: { cwd: repoRoot, env: opsWebEnv },
 			step: "ops-web-dining-bootstrap",
-		},
-		{
-			args: ["--dir", "jobs/notice-publisher", "migrate"],
-			command: pnpm,
-			options: {
-				cwd: repoRoot,
-				env: { ...process.env, NOTICES_DATABASE_URL: database.owner },
-			},
-			step: "notice-publisher-migrate",
 		},
 	];
 	if (target === "all") {
@@ -152,13 +120,12 @@ export function localApplicationBootstrapCommands(
 	> = {
 		core: [
 			"campus-web-docs",
-			"app-api-schema",
-			"execution-control-schema",
-			"model-config-schema",
+			"campus-agent-schema",
+			"app-api-seed-local-campus-groups",
 			"app-api-seed-local-test-user",
 		],
-		"ops-web": ["ops-web-schema", "ops-web-dining-bootstrap"],
-		"notice-publisher": ["notice-publisher-migrate"],
+		"ops-web": ["campus-agent-schema", "notice-publisher-seed-local", "ops-web-dining-bootstrap"],
+		"notice-publisher": ["campus-agent-schema", "notice-publisher-seed-local"],
 	};
 	const allowed = new Set(targetSteps[target]);
 	return commands.filter(({ step }) => allowed.has(step));
@@ -176,4 +143,15 @@ export function bootstrapLocalApplications(
 	)) {
 		runCommand(command, args, options);
 	}
+}
+
+function postgresEnvironment(connectionString: string): NodeJS.ProcessEnv {
+	const url = new URL(connectionString);
+	return {
+		PGDATABASE: decodeURIComponent(url.pathname.slice(1)),
+		PGHOST: url.hostname,
+		PGPASSWORD: decodeURIComponent(url.password),
+		PGPORT: url.port || "5432",
+		PGUSER: decodeURIComponent(url.username),
+	};
 }

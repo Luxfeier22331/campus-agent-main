@@ -33,7 +33,6 @@ function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecut
 		},
 		conversationId: "conv-001",
 		requestId: "req-001",
-		traceId: "trace-001",
 		userGoal: "你记得我的回答偏好吗？",
 		...overrides,
 	};
@@ -41,7 +40,7 @@ function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecut
 
 describe("durable run metadata", () => {
 	it("freezes the user goal without local tool routing hints", () => {
-		const frozen = freezeToolExecutionRunInput(executionInput(), "run-001");
+		const frozen = freezeToolExecutionRunInput(executionInput(), "req-001");
 
 		const payload = JSON.parse(frozen.executionInputJson) as Record<string, unknown>;
 
@@ -49,8 +48,8 @@ describe("durable run metadata", () => {
 		expect(payload.tenant_id).toBe("tenant-main");
 		expect(frozen.executionInputSha256).toBe(sha256Text(frozen.executionInputJson));
 		expect(frozen.metadata).toEqual({
-			execution_contract_version: "tool_execution_v5",
-			execution_input_ref: "app-api://execution-inputs/run-001",
+			execution_contract_version: "tool_execution_v6",
+			execution_input_ref: "app-api://execution-inputs/req-001",
 			execution_input_sha256: frozen.executionInputSha256,
 		});
 		expect(Object.keys(payload).sort()).toEqual([
@@ -61,7 +60,6 @@ describe("durable run metadata", () => {
 			"response_contract",
 			"safety_identifier",
 			"tenant_id",
-			"trace",
 			"user_goal",
 		]);
 	});
@@ -77,7 +75,7 @@ describe("durable run metadata", () => {
 					},
 				},
 			}),
-			"run-001",
+			"req-001",
 		);
 
 		const payload = JSON.parse(frozen.executionInputJson) as Record<string, unknown>;
@@ -93,7 +91,7 @@ describe("durable run metadata", () => {
 		expect(() =>
 			freezeToolExecutionRunInput(
 				executionInput({ userGoal: "x".repeat(MAX_EXECUTION_INPUT_BYTES) }),
-				"run-oversized",
+				"req-oversized",
 			),
 		).toThrow("exceeds the 1048576-byte limit");
 	});

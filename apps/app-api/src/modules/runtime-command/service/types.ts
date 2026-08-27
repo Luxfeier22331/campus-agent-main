@@ -25,7 +25,6 @@ export type ChatCommandResult =
 			kind: "answer";
 			requestId: string;
 			text: string;
-			traceId: string;
 	  }
 	| {
 			errorCode: string;
@@ -33,7 +32,6 @@ export type ChatCommandResult =
 			message: string;
 			requestId: string;
 			retryable: boolean;
-			traceId: string;
 	  };
 
 export interface ChatCommandResponse {
@@ -43,7 +41,6 @@ export interface ChatCommandResponse {
 	};
 	execution?: ToolExecutionResponse;
 	requestId: string;
-	traceId: string;
 }
 
 export type ChatCommandStreamEventName =
@@ -68,12 +65,10 @@ export interface ChatCommandStreamEvent {
 		messageId?: string;
 		occurredAt: string;
 		requestId: string;
-		runId?: string | null;
 		phase?: RuntimeRunProductPhase;
 		runPhase?: RuntimeRunPhase;
 		sequence?: number;
 		status: string;
-		traceId: string;
 	};
 	event: ChatCommandStreamEventName;
 }
@@ -97,12 +92,9 @@ export interface AcceptedChatCommandContext {
 	memorySnapshot: TurnDispatchMemorySnapshot | null;
 	requestFingerprintSha256: string | null;
 	requestId: string;
-	runId: string | null;
 	runPhase: RuntimeRunPhase | null;
 	safetyIdentifier: string | null;
 	surface: string;
-	traceId: string;
-	turnId: string | null;
 	turnSequence: number;
 	userMessageId: string;
 	validatedPayload: ValidatedChatCommandPayload;
@@ -113,9 +105,9 @@ export interface ChatCommandService {
 		completedAt: string;
 		finalizationFingerprint: string;
 		response: ToolExecutionResponse;
-		runId: string;
+		requestId: string;
 	}): Promise<{ outcome: "applied" | "replayed" }>;
-	readExecutionInput?(runId: string): Promise<{
+	readExecutionInput?(requestId: string): Promise<{
 		executionInputJson: string | null;
 		executionInputSha256: string | null;
 	} | null>;

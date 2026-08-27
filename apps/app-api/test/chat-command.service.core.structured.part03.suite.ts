@@ -62,7 +62,6 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 						],
 					},
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -145,7 +144,6 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 						],
 					},
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});

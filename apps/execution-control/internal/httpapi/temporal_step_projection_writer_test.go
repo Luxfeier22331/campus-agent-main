@@ -44,7 +44,7 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 	}
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
 		StepID:               "agent.primary",
-		RunID:                "run-step-terminal-late",
+		RequestID:            "run-step-terminal-late",
 		ConversationID:       "conv-step-terminal-late",
 		StepKind:             "agent",
 		Tool:                 "",
@@ -64,7 +64,7 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		ActivityAttempt:      1,
 		Attempt:              1,
 		AttemptID:            temporalStepAttemptID("run-step-terminal-late", "agent.primary", 1),
-		RunID:                "run-step-terminal-late",
+		RequestID:            "run-step-terminal-late",
 		StepID:               "agent.primary",
 		Status:               "failed",
 		PayloadSchemaVersion: "step-attempt-projection-v1",
@@ -92,7 +92,7 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		CompletedAt:     now.Add(5 * time.Second),
 		UpdatedAt:       now.Add(5 * time.Second),
 		ResultKind:      "agent_final_output",
-		ProjectionRef:   temporalProjectionRef(run.RunID, "agent/primary/result"),
+		ProjectionRef:   temporalProjectionRef(run.RequestID, "agent/primary/result"),
 		Payload:         map[string]any{"provider_response": "late"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "already terminal before agent.primary completion projection") {
@@ -163,7 +163,7 @@ func TestProjectTemporalStepAllowsEquivalentTerminalReplay(t *testing.T) {
 		ModelName:          "test-model",
 		ModelProvider:      "test-provider",
 		Payload:            map[string]any{"provider_response": "stable"},
-		ProjectionRef:      temporalProjectionRef(run.RunID, "agent/primary/result"),
+		ProjectionRef:      temporalProjectionRef(run.RequestID, "agent/primary/result"),
 		ProviderRequestRef: "provider-request-stable",
 		ProviderResponseID: "provider-response-stable",
 		ResultKind:         "agent_final_output",
@@ -187,21 +187,21 @@ func TestProjectTemporalStepAllowsEquivalentTerminalReplay(t *testing.T) {
 		t.Fatalf("replay equivalent terminal step: %v", err)
 	}
 
-	steps, err := store.ListRunSteps(context.Background(), run.RunID)
+	steps, err := store.ListRunSteps(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list steps: %v", err)
 	}
 	if len(steps) != 1 || steps[0].Status != "completed" || steps[0].ActivityAttempt != 1 {
 		t.Fatalf("steps = %#v, want one completed attempt-1 step", steps)
 	}
-	attempts, err := store.ListStepAttempts(context.Background(), run.RunID)
+	attempts, err := store.ListStepAttempts(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list attempts: %v", err)
 	}
 	if len(attempts) != 1 || attempts[0].Status != "completed" || attempts[0].ActivityAttempt != 1 {
 		t.Fatalf("attempts = %#v, want one completed attempt-1 projection", attempts)
 	}
-	results, err := store.ListStepResults(context.Background(), run.RunID)
+	results, err := store.ListStepResults(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list results: %v", err)
 	}
@@ -260,18 +260,18 @@ func TestProjectTemporalStepAllowsHigherActivityAttemptToReplaceTerminalStep(t *
 	base.UpdatedAt = now.Add(5 * time.Second)
 	base.Payload = map[string]any{"provider_response": "retry-success"}
 	base.ResultKind = "agent_final_output"
-	base.ProjectionRef = temporalProjectionRef(run.RunID, "agent/primary/result")
+	base.ProjectionRef = temporalProjectionRef(run.RequestID, "agent/primary/result")
 	if err := server.projectTemporalStep(context.Background(), base); err != nil {
 		t.Fatalf("project attempt 2 completion: %v", err)
 	}
-	steps, err := store.ListRunSteps(context.Background(), run.RunID)
+	steps, err := store.ListRunSteps(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list steps: %v", err)
 	}
 	if len(steps) != 1 || steps[0].Status != "completed" {
 		t.Fatalf("steps = %#v, want attempt 2 completion", steps)
 	}
-	attempts, err := store.ListStepAttempts(context.Background(), run.RunID)
+	attempts, err := store.ListStepAttempts(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list attempts: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestProjectTemporalStepAllowsHigherActivityAttemptToReplaceTerminalStep(t *
 	if err := server.projectTemporalStep(context.Background(), base); err == nil {
 		t.Fatal("stale attempt 1 completion should be rejected")
 	}
-	steps, err = store.ListRunSteps(context.Background(), run.RunID)
+	steps, err = store.ListRunSteps(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list steps after stale completion: %v", err)
 	}
@@ -345,19 +345,19 @@ func TestProjectTemporalStepPreservesCancellationFinalizerTerminalProjection(t *
 	lateFailure.CompletedAt = now.Add(3 * time.Second)
 	lateFailure.UpdatedAt = lateFailure.CompletedAt
 	lateFailure.ResultKind = "activity_failure"
-	lateFailure.ProjectionRef = temporalProjectionRef(run.RunID, "agent/primary/result")
+	lateFailure.ProjectionRef = temporalProjectionRef(run.RequestID, "agent/primary/result")
 	lateFailure.Payload = map[string]any{"marker": "late-failure"}
 	if err := server.projectTemporalStep(context.Background(), lateFailure); !errors.Is(err, execution.ErrStaleRunStepProjection) {
 		t.Fatalf("late failure error = %v, want ErrStaleRunStepProjection", err)
 	}
-	steps, err := store.ListRunSteps(context.Background(), run.RunID)
+	steps, err := store.ListRunSteps(context.Background(), run.RequestID)
 	if err != nil || len(steps) != 1 {
 		t.Fatalf("steps = %#v, error = %v", steps, err)
 	}
 	if steps[0].Status != "canceled" || steps[0].SanitizedPayload["cancel_reason"] != "user_requested" {
 		t.Fatalf("step = %#v, want cancellation finalizer projection", steps[0])
 	}
-	attempts, err := store.ListStepAttempts(context.Background(), run.RunID)
+	attempts, err := store.ListStepAttempts(context.Background(), run.RequestID)
 	if err != nil || len(attempts) != 1 {
 		t.Fatalf("attempts = %#v, error = %v", attempts, err)
 	}
@@ -365,7 +365,7 @@ func TestProjectTemporalStepPreservesCancellationFinalizerTerminalProjection(t *
 		attempts[0].CancelOutcome != execution.CancelOutcomeActivityContextCanceled {
 		t.Fatalf("attempt = %#v, want cancellation finalizer projection", attempts[0])
 	}
-	results, err := store.ListStepResults(context.Background(), run.RunID)
+	results, err := store.ListStepResults(context.Background(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list results: %v", err)
 	}

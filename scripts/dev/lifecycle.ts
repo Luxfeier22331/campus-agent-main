@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { bootstrapLocalApplications } from "./application-bootstrap";
 import {
 	assertLocalEnvironmentFilesAreManaged,
-	ensureLocalLegacyProviderConfigEncryptionKey,
 	ensureLocalModelConfigEncryptionKey,
 	importMainCheckoutExternalCredentials,
 	type LocalDevEnvironmentTarget,
@@ -54,7 +53,6 @@ export function initializeLocalDevelopmentTarget(
 		repoRoot,
 	});
 	if (target === "core") {
-		ensureLocalLegacyProviderConfigEncryptionKey(repoRoot);
 		ensureLocalModelConfigEncryptionKey(repoRoot);
 	}
 	renderLocalEnvironmentFiles({ profile, repoRoot, target });

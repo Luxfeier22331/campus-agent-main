@@ -110,11 +110,7 @@ export interface ProfileMemoryCommandStore {
 		updatedAt: string;
 	}): Promise<"applied" | "conflict" | "not_found" | "replayed" | "superseded">;
 	listPendingAdmissions(input: { limit: number }): Promise<ProfileMemoryCommandPayload[]>;
-	markCommandAdmitted(input: {
-		admittedAt: string;
-		commandId: string;
-		workflowId: string;
-	}): Promise<boolean>;
+	markCommandAdmitted(input: { admittedAt: string; commandId: string }): Promise<boolean>;
 }
 
 export interface ProfileMemoryReadStore {
@@ -784,7 +780,6 @@ export function createPgProfileMemoryPersistence(
 					admittedAt: new Date(input.admittedAt),
 					status: "admitted",
 					updatedAt: new Date(input.admittedAt),
-					workflowId: input.workflowId,
 				})
 				.where(
 					and(

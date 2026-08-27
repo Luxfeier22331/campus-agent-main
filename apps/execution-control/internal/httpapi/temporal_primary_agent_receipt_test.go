@@ -76,7 +76,7 @@ func TestExecutePrimaryAgentActivityFailsClosedAfterCompletedReceiptWithoutSecon
 				calls.Add(1)
 				payload := map[string]any{
 					"status":               "completed",
-					"run_id":               runID,
+					"request_id":           runID,
 					"final_output":         "已完成。",
 					"model_name":           "gpt-test",
 					"model_provider":       "openai",
@@ -113,10 +113,7 @@ func TestExecutePrimaryAgentActivityFailsClosedAfterCompletedReceiptWithoutSecon
 			attachRunProjectionStoreForHandlerTest(server, store)
 			input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
 				ConversationID:   "conv-" + runID,
-				RequestID:        "req-executor-001",
-				RunID:            runID,
-				TraceID:          "trace-executor-001",
-				TurnID:           "turn-" + runID,
+				RequestID:        runID,
 				VisibleToolNames: []string{personalMemoryRecallToolName},
 			})
 
@@ -149,7 +146,7 @@ func TestExecutePrimaryAgentActivityReceiptStoresNoModelResult(t *testing.T) {
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
-			"status": "completed", "run_id": runID, "final_output": "only-in-temporal-history",
+			"status": "completed", "request_id": runID, "final_output": "only-in-temporal-history",
 			"model_name": "gpt-test", "model_provider": "openai",
 			"provider_response_id": "resp-" + runID,
 			"tool_results":         []any{}, "terminal_reason": "answer_completed",
@@ -164,8 +161,7 @@ func TestExecutePrimaryAgentActivityReceiptStoresNoModelResult(t *testing.T) {
 	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID: "conv-" + runID, RequestID: "req-executor-001", RunID: runID,
-		TraceID: "trace-executor-001", TurnID: "turn-" + runID,
+		ConversationID: "conv-" + runID, RequestID: runID,
 	})
 	if _, err := server.ExecutePrimaryAgent(context.Background(), input); err != nil {
 		t.Fatalf("execute primary agent: %v", err)

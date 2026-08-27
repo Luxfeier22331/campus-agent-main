@@ -67,7 +67,7 @@ func (Activities) FinalizeExecutionCancellationActivity(
 	_ context.Context,
 	input FinalizeExecutionCancellationActivityInput,
 ) (FinalizeExecutionCancellationActivityOutput, error) {
-	return FinalizeExecutionCancellationActivityOutput{RunID: input.RunID, Status: "canceled"}, nil
+	return FinalizeExecutionCancellationActivityOutput{RequestID: input.RequestID, Status: "canceled"}, nil
 }
 
 func (Activities) ExecutePersonalMemoryCommandActivity(
@@ -93,7 +93,7 @@ func (Activities) AppendConversationMemoryActivity(
 ) (AppendConversationMemoryActivityOutput, error) {
 	return AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: 1,
-		RunID:                input.RunID,
+		RequestID:            input.RequestID,
 		SchemaVersion:        "memory_conversation_append_result_v3",
 		Status:               "completed",
 	}, nil
@@ -104,9 +104,9 @@ func (Activities) ExecutePrimaryAgentActivity(
 	input ExecutePrimaryAgentActivityInput,
 ) (ExecutePrimaryAgentActivityOutput, error) {
 	return ExecutePrimaryAgentActivityOutput{
-		AgentResultRef: "projection://runs/" + input.RunID + "/agent/primary/result",
+		AgentResultRef: "projection://runs/" + input.RequestID + "/agent/primary/result",
 		FinalOutput:    "你好，我是校园问答助手。",
-		RunID:          input.RunID,
+		RequestID:      input.RequestID,
 		Status:         "completed",
 		TerminalReason: "answer_completed",
 	}, nil
@@ -118,8 +118,8 @@ func (Activities) WriteFinalizationActivity(
 ) (WriteFinalizationActivityOutput, error) {
 	return WriteFinalizationActivityOutput{
 		CompletedAt:   time.Now().UTC(),
-		ProjectionRef: "projection://runs/" + input.RunID + "/finalization/write",
-		RunID:         input.RunID,
+		ProjectionRef: "projection://runs/" + input.RequestID + "/finalization/write",
+		RequestID:     input.RequestID,
 		Status:        "completed",
 	}, nil
 }

@@ -196,7 +196,7 @@ func (e hindsightExecutor) AppendConversationTurn(
 			Context:    "campus assistant user message",
 			DocumentID: documentID,
 			Metadata: map[string]string{
-				"run_id":            strings.TrimSpace(request.RunID),
+				"request_id":        strings.TrimSpace(request.RequestID),
 				"source":            "user_message",
 				"source_message_id": strings.TrimSpace(request.UserMessageID),
 				"thread_id":         strings.TrimSpace(request.ThreadID),

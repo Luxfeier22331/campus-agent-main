@@ -21,11 +21,10 @@ func (r *Reconciler) DecodeAndValidateWorkflowStartInput(
 	if err := json.Unmarshal(intent.WorkflowInputJSON, &input); err != nil {
 		return input, fmt.Errorf("workflow input JSON is invalid: %w", err)
 	}
-	if input.RunID != run.RunID || input.RequestID != run.RequestID || input.TraceID != run.TraceID ||
-		input.TurnID != run.TurnID || input.ConversationID != run.ConversationID {
+	if input.RequestID != run.RequestID || input.ConversationID != run.ConversationID {
 		return input, errors.New("workflow input identity does not match durable run")
 	}
-	wantWorkflowID := "campus-agent.chat." + run.RunID
+	wantWorkflowID := "campus-agent.chat." + run.RequestID
 	if input.WorkflowID != wantWorkflowID || intent.WorkflowID != wantWorkflowID {
 		return input, errors.New("workflow identity is not canonical")
 	}
@@ -104,7 +103,7 @@ func (r *Reconciler) failCloseUnauthorizedWorkflowSuccessor(
 		exact.CloseTime,
 		WorkflowUnauthorizedSuccessorFailure,
 	); err != nil && ctx.Err() == nil {
-		r.logWarn("unauthorized Temporal workflow successor fail-close failed", "run_id", run.RunID, "error", err)
+		r.logWarn("unauthorized Temporal workflow successor fail-close failed", "request_id", run.RequestID, "error", err)
 	}
 	return true
 }

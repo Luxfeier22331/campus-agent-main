@@ -131,7 +131,6 @@ function toChatMessage(
 		retryable: row.retryable ?? null,
 		branchId: row.branchId ?? "branch_active",
 		turnSequence: row.turnSequence ?? 0,
-		runId: row.runId ?? null,
 		isActiveBranchHead: row.isActiveBranchHead ?? false,
 		structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
 	};
@@ -215,7 +214,7 @@ function toChatConversation(
 		updatedAt: toIsoString(row.updatedAt),
 		activeBranchId: row.activeBranchId ?? "branch_active",
 		activeMessageId: row.activeMessageId ?? null,
-		activeRunId: row.activeRunId ?? null,
+		activeRequestId: row.activeRequestId ?? null,
 		activeTurnSequence: row.activeTurnSequence ?? 0,
 		sessionSlots: sessionSlotRows.map(
 			(slot): ChatSessionSlot => ({

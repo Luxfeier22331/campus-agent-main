@@ -221,7 +221,7 @@ func (s *pagedActiveWorkflowStore) ListActiveWorkflowRuns(
 	s.cursors = append(s.cursors, afterRunID)
 	page := make([]execution.ActiveWorkflowRun, 0, limit)
 	for _, binding := range s.bindings {
-		if binding.Run.RunID <= afterRunID {
+		if binding.Run.RequestID <= afterRunID {
 			continue
 		}
 		page = append(page, binding)
@@ -306,13 +306,13 @@ func confirmAndStartReconcilerRunForTest(
 	markReconcilerStartDispatchForTest(t, store, leased[0], intent.CreatedAt)
 	queuedAt := intent.CreatedAt.Add(time.Second)
 	if err := store.ConfirmWorkflowStartIntent(ctx, execution.WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: leased[0].LeaseToken, TemporalRunID: temporalRunID, Now: queuedAt,
+		RequestID: intent.RequestID, LeaseToken: leased[0].LeaseToken, TemporalRunID: temporalRunID, Now: queuedAt,
 	}); err != nil {
 		t.Fatalf("confirm workflow start intent: %v", err)
 	}
 	if _, err := store.TransitionRun(
 		ctx,
-		intent.RunID,
+		intent.RequestID,
 		execution.DurableRunStatusAdmitted,
 		"",
 		queuedAt.Add(time.Second),
@@ -321,7 +321,7 @@ func confirmAndStartReconcilerRunForTest(
 	}
 	if _, err := store.TransitionRun(
 		ctx,
-		intent.RunID,
+		intent.RequestID,
 		execution.DurableRunStatusRunning,
 		"",
 		queuedAt.Add(2*time.Second),
@@ -341,7 +341,7 @@ func requestAndLeaseReconcilerCancellationForTest(
 	t.Helper()
 	ctx := context.Background()
 	if _, err := store.RequestRunCancellation(ctx, execution.DurableRunCancellationRequest{
-		RunID: runID, Reason: "user_requested", Now: now,
+		RequestID: runID, Reason: "user_requested", Now: now,
 	}); err != nil {
 		t.Fatalf("request run cancellation: %v", err)
 	}
@@ -390,11 +390,8 @@ func createReconcilerStartIntentForTest(t *testing.T) (*execution.InMemoryRunPro
 		AdmissionSnapshotSHA256: sha256JSONRef(snapshot),
 		ConversationID:          conversationID,
 		PayloadSHA256:           payloadHash,
-		RequestID:               "request-reconciler-test",
-		RunID:                   runID,
+		RequestID:               runID,
 		TaskQueue:               temporalruntime.WorkflowTaskQueue,
-		TraceID:                 "trace-reconciler-test",
-		TurnID:                  "turn-reconciler-test",
 		WorkflowID:              "campus-agent.chat." + runID,
 	}
 	inputJSON, err := json.Marshal(input)
@@ -403,12 +400,11 @@ func createReconcilerStartIntentForTest(t *testing.T) (*execution.InMemoryRunPro
 	}
 	request := execution.DurableRunCreateIntent{
 		Run: execution.DurableRun{
-			RunID: runID, ConversationID: conversationID, TurnID: input.TurnID,
-			RequestID: input.RequestID, TraceID: input.TraceID, OwnerUserID: "user-reconciler-test",
+			RequestID: runID, ConversationID: conversationID, OwnerUserID: "user-reconciler-test",
 			Surface: "campus-web", TaskQueue: temporalruntime.WorkflowTaskQueue,
 			Status: execution.DurableRunStatusCreated, CreatedAt: now, UpdatedAt: now,
 			Metadata: map[string]any{
-				"execution_contract_version": "tool_execution_v5",
+				"execution_contract_version": "tool_execution_v6",
 				"execution_input_ref":        "app-api://execution-inputs/" + runID,
 				"execution_input_sha256":     payloadHash,
 			},
@@ -419,7 +415,7 @@ func createReconcilerStartIntentForTest(t *testing.T) (*execution.InMemoryRunPro
 		TaskQueue:                input.TaskQueue,
 		WorkflowInputJSON:        inputJSON,
 		CreatedEvent: execution.DurableRunEvent{
-			EventID: "run-reconciler-test:run-created", RunID: runID, ConversationID: conversationID,
+			EventID: "run-reconciler-test:run-created", RequestID: runID, ConversationID: conversationID,
 			EventType: execution.DurableRunEventTypeRunCreated, OccurredAt: now,
 			Visibility: execution.DurableRunEventVisibilityInternal, PayloadSchemaVersion: "run-event-v1",
 			Payload: map[string]any{"status": "created"},
@@ -465,7 +461,7 @@ func markReconcilerStartDispatchForTest(
 ) {
 	t.Helper()
 	if err := store.MarkWorkflowStartDispatchAttempt(context.Background(), execution.WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: intent.LeaseToken, Now: now,
+		RequestID: intent.RequestID, LeaseToken: intent.LeaseToken, Now: now,
 	}); err != nil {
 		t.Fatal(err)
 	}

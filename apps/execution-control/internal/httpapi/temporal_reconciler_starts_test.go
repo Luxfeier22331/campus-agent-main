@@ -24,14 +24,14 @@ func TestTemporalReconcilerConfirmsStartAndQueuesRunAtomically(t *testing.T) {
 	if starter.calls() != 1 {
 		t.Fatalf("start calls = %d, want 1", starter.calls())
 	}
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if run.Status != execution.DurableRunStatusQueued {
 		t.Fatalf("run status = %q, want queued", run.Status)
 	}
-	events, err := store.ListRunEvents(context.Background(), intent.RunID)
+	events, err := store.ListRunEvents(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,14 +55,14 @@ func TestTemporalReconcilerDoesNotConfirmStartWithoutWorkflowIdentityControl(t *
 	if delegate.calls() != 1 {
 		t.Fatalf("start calls = %d, want 1", delegate.calls())
 	}
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if run.Status != execution.DurableRunStatusCreated {
 		t.Fatalf("unverified start changed run = %#v", run)
 	}
-	retry, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	retry, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,13 +77,13 @@ func TestTemporalReconcilerCancelsOnlyIdentityVerifiedLateStartAfterSupersession
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	starter := &reconcilerStarterForTest{describe: reconcilerWorkflowInfoForIntent(t, intent, "temporal-run-late-start")}
 	starter.onStart = func() {
-		current, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
+		current, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 		if err != nil || !current.DispatchAttempted {
 			t.Errorf("workflow start RPC ran without durable dispatch fence: intent=%#v err=%v", current, err)
 			return
 		}
 		if _, err := store.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-			RunID: intent.RunID, Reason: "user_requested", Now: now,
+			RequestID: intent.RequestID, Reason: "user_requested", Now: now,
 		}); err != nil {
 			t.Errorf("request racing cancellation: %v", err)
 			return
@@ -96,13 +96,13 @@ func TestTemporalReconcilerCancelsOnlyIdentityVerifiedLateStartAfterSupersession
 			return
 		}
 		if _, err := store.CancelRunProjection(context.Background(), execution.DurableRunCancelRequest{
-			RunID: intent.RunID, Reason: "user_requested", Now: now,
+			RequestID: intent.RequestID, Reason: "user_requested", Now: now,
 		}); err != nil {
 			t.Errorf("project racing cancellation: %v", err)
 			return
 		}
 		if err := store.ConfirmRunCancellationCommand(context.Background(), execution.RunCancellationCommandResult{
-			RunID: intent.RunID, LeaseToken: commands[0].LeaseToken, Now: now,
+			RequestID: intent.RequestID, LeaseToken: commands[0].LeaseToken, Now: now,
 		}); err != nil {
 			t.Errorf("confirm racing cancellation: %v", err)
 		}
@@ -133,7 +133,7 @@ func TestTemporalReconcilerLateStartCompensationRechecksTerminalWinnerBeforeExte
 	}
 	starter.onStart = func() {
 		if _, err := base.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-			RunID: intent.RunID, Reason: "user_requested", Now: now,
+			RequestID: intent.RequestID, Reason: "user_requested", Now: now,
 		}); err != nil {
 			t.Errorf("request racing cancellation: %v", err)
 		}
@@ -151,7 +151,7 @@ func TestTemporalReconcilerLateStartCompensationRechecksTerminalWinnerBeforeExte
 	if starter.cancellations() != 0 {
 		t.Fatalf("late start compensation sent %d external RPCs after terminal winner", starter.cancellations())
 	}
-	bound, err := base.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	bound, err := base.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil || bound.TemporalRunID != "temporal-run-late-terminal-winner" {
 		t.Fatalf("late start binding = %#v, err=%v", bound, err)
 	}
@@ -165,7 +165,7 @@ func TestTemporalReconcilerLateStartCompensationReadFailureKeepsCancellationRetr
 	}
 	starter.onStart = func() {
 		if _, err := base.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-			RunID: intent.RunID, Reason: "user_requested", Now: now,
+			RequestID: intent.RequestID, Reason: "user_requested", Now: now,
 		}); err != nil {
 			t.Errorf("request racing cancellation: %v", err)
 		}
@@ -189,7 +189,7 @@ func TestTemporalReconcilerLateStartCompensationReadFailureKeepsCancellationRetr
 	commands, err := base.LeaseRunCancellationCommands(context.Background(), execution.LifecycleLeaseRequest{
 		LeaseToken: "late-start-read-retry", Now: now.Add(time.Second), LeaseUntil: now.Add(time.Minute), Limit: 1,
 	})
-	if err != nil || len(commands) != 1 || commands[0].RunID != intent.RunID {
+	if err != nil || len(commands) != 1 || commands[0].RequestID != intent.RequestID {
 		t.Fatalf("retryable late-start cancellation = %#v, err=%v", commands, err)
 	}
 }
@@ -203,7 +203,7 @@ func TestTemporalReconcilerMarksLocalStartValidationFailureAsNotDispatched(t *te
 	if err != nil || len(leased) != 1 {
 		t.Fatalf("lease = %#v, err=%v", leased, err)
 	}
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,12 +229,12 @@ func TestTemporalReconcilerMarksLocalStartValidationFailureAsNotDispatched(t *te
 		errors.New("workflow input is invalid"),
 	)
 
-	failedRun, err := store.GetRun(context.Background(), intent.RunID)
+	failedRun, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || failedRun.Status != execution.DurableRunStatusFailed ||
 		failedRun.FailCloseReason != workflowStartNotDispatchedFailure {
 		t.Fatalf("local validation failure run = %#v, err=%v", failedRun, err)
 	}
-	failedIntent, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	failedIntent, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil || failedIntent.State != execution.LifecycleIntentStatePermanentFailed ||
 		failedIntent.LastErrorCode != workflowStartNotDispatchedFailure {
 		t.Fatalf("local validation failure intent = %#v, err=%v", failedIntent, err)
@@ -252,7 +252,7 @@ func TestTemporalReconcilerRetainsPayloadAfterPostDispatchValidationFailure(t *t
 	}
 	markReconcilerStartDispatchForTest(t, store, leased[0], intent.CreatedAt)
 	leased[0].DispatchAttempted = true
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,12 +280,12 @@ func TestTemporalReconcilerRetainsPayloadAfterPostDispatchValidationFailure(t *t
 		failureKind,
 		errors.New("workflow input became invalid after an ambiguous dispatch"),
 	)
-	failedRun, err := store.GetRun(context.Background(), intent.RunID)
+	failedRun, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || failedRun.Status != execution.DurableRunStatusFailed ||
 		failedRun.FailCloseReason != workflowStartPostDispatchFailure {
 		t.Fatalf("post-dispatch validation failure run = %#v, err=%v", failedRun, err)
 	}
-	failedIntent, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	failedIntent, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil || !failedIntent.DispatchAttempted ||
 		failedIntent.LastErrorCode != workflowStartPostDispatchFailure {
 		t.Fatalf("post-dispatch validation failure intent = %#v, err=%v", failedIntent, err)
@@ -302,7 +302,7 @@ func TestTemporalReconcilerRecoversNotDispatchedStartRetirementAfterLeaseExpiry(
 	if err != nil || len(leased) != 1 {
 		t.Fatalf("first lease = %#v, err=%v", leased, err)
 	}
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestTemporalReconcilerRecoversNotDispatchedStartRetirementAfterLeaseExpiry(
 		workflowStartNotDispatchedFailure,
 		errors.New("workflow input is invalid"),
 	)
-	failedRun, err := store.GetRun(context.Background(), intent.RunID)
+	failedRun, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || failedRun.Status != execution.DurableRunStatusFailed ||
 		failedRun.FailCloseReason != workflowStartNotDispatchedFailure {
 		t.Fatalf("failed run before retirement recovery = %#v, err=%v", failedRun, err)
@@ -341,7 +341,7 @@ func TestTemporalReconcilerRecoversNotDispatchedStartRetirementAfterLeaseExpiry(
 		t.Fatalf("recovered lease = %#v, err=%v", recovered, err)
 	}
 	reconciler.reconcileStartIntent(context.Background(), store, recovered[0])
-	retired, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	retired, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil || retired.State != execution.LifecycleIntentStatePermanentFailed ||
 		retired.LastErrorCode != workflowStartNotDispatchedFailure {
 		t.Fatalf("recovered start retirement = %#v, err=%v", retired, err)
@@ -358,14 +358,14 @@ func TestTemporalReconcilerRetriesUncertainStartWithoutQueueing(t *testing.T) {
 	}
 
 	server.ReconcileTemporalRunsOnce(context.Background())
-	run, err := store.GetRun(context.Background(), intent.RunID)
+	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if run.Status != execution.DurableRunStatusCreated {
 		t.Fatalf("uncertain start changed run status to %q", run.Status)
 	}
-	recovered, err := store.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	recovered, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,7 +403,7 @@ func TestTemporalReconcilerRunReadFailureCannotStartWorkflow(t *testing.T) {
 	if starter.cancellations() != 0 {
 		t.Fatalf("cancellation calls after GetRun failure = %d", starter.cancellations())
 	}
-	retry, err := base.GetWorkflowStartIntent(context.Background(), intent.RunID)
+	retry, err := base.GetWorkflowStartIntent(context.Background(), intent.RequestID)
 	if err != nil || retry.State != execution.LifecycleIntentStatePending || retry.LastErrorCode != "run_unavailable" {
 		t.Fatalf("retried intent = %#v, err=%v", retry, err)
 	}
@@ -421,7 +421,7 @@ func TestTemporalReconcilerDoesNotStartSupersededLease(t *testing.T) {
 		t.Fatalf("lease = %#v, err=%v", leased, err)
 	}
 	if _, err := store.RequestRunCancellation(context.Background(), execution.DurableRunCancellationRequest{
-		RunID: intent.RunID, Reason: "user_requested", Now: intent.CreatedAt.Add(time.Second),
+		RequestID: intent.RequestID, Reason: "user_requested", Now: intent.CreatedAt.Add(time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +439,7 @@ func TestTemporalReconcilerDoesNotStartSupersededLease(t *testing.T) {
 
 func TestDecodeWorkflowStartInputAllowsToolBudgetIndependentOfVisibility(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
-	run, err := store.GetRun(t.Context(), intent.RunID)
+	run, err := store.GetRun(t.Context(), intent.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}

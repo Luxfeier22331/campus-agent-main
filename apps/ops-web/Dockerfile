@@ -13,7 +13,6 @@ COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
 COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
 COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
 COPY packages/internal-portal-client/package.json ./packages/internal-portal-client/package.json
-COPY packages/langfuse-identity/package.json ./packages/langfuse-identity/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY scripts/release/check-ops-web-artifact.mjs ./scripts/release/check-ops-web-artifact.mjs
 
@@ -29,7 +28,6 @@ COPY packages/domains/dining ./packages/domains/dining
 COPY packages/domains/notices ./packages/domains/notices
 COPY packages/ingestion-contracts ./packages/ingestion-contracts
 COPY packages/internal-portal-client ./packages/internal-portal-client
-COPY packages/langfuse-identity ./packages/langfuse-identity
 COPY packages/ui ./packages/ui
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \

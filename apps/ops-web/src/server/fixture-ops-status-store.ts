@@ -17,13 +17,9 @@ import { OPS_REQUEST_PAGE_SIZE, type OpsStatusStore } from "./ops-status-types.t
 export function createFixtureOpsStatusStore(): OpsStatusStore {
 	const requestDetails = opsRequestDetailFixtures;
 	const requests = opsRequestListFixture.data;
-	const correlationIdsFor = (requestId: string) =>
-		requestDetails.find((detail) => detail.request.requestId === requestId)?.technical
-			.correlationIds;
 	return {
 		async getOverview(_window) {
 			return {
-				externalLinks: opsOverviewFixture.externalLinks,
 				requests: opsOverviewFixture.requests,
 				trends: opsOverviewFixture.trends,
 			};
@@ -34,9 +30,7 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 		async listRequests(query) {
 			const view = requestListView(query);
 			const filtered = requests
-				.filter((request) =>
-					matchesRequestQuery(request, query, correlationIdsFor(request.requestId)),
-				)
+				.filter((request) => matchesRequestQuery(request, query))
 				.sort((left, right) => compareRequestsForView(left, right, view));
 			const cursor = decodeRequestCursor(query.cursor, view);
 			const start = cursor
@@ -64,7 +58,6 @@ export function createFixtureOpsStatusStore(): OpsStatusStore {
 						matchesRequestQuery(
 							request,
 							(({ cursor: _cursor, status: _status, ...summaryQuery }) => summaryQuery)(query),
-							correlationIdsFor(request.requestId),
 						),
 					),
 				),

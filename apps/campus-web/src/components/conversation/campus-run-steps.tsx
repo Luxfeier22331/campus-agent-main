@@ -262,4 +262,4 @@ export function CampusRunSteps({ error, onRetry, steps }: CampusRunStepsProps) {
 	);
 }
 
-export { STEP_LABELS as campusRunStepLabels, stepStateLabel as campusRunStepStateLabel };
+export { STEP_LABELS as campusRequestStepLabels, stepStateLabel as campusRequestStepStateLabel };

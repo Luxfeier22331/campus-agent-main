@@ -103,22 +103,22 @@ func TestAgentRuntimeStreamStateBindsCompletedResultToRunAndAnswer(t *testing.T)
 		t.Fatalf("validate first delta: %v", err)
 	}
 	state.recordDelta(first)
-	run := execution.DurableRun{RunID: "run-1"}
+	run := execution.DurableRun{RequestID: "run-1"}
 
 	if err := state.validateCompleted(run, agentRuntimeResponse{
-		RunID:       "run-other",
+		RequestID:   "run-other",
 		FinalOutput: "answer",
-	}); err == nil || !strings.Contains(err.Error(), "does not match run") {
+	}); err == nil || !strings.Contains(err.Error(), "does not match request") {
 		t.Fatalf("run binding error = %v", err)
 	}
 	if err := state.validateCompleted(run, agentRuntimeResponse{
-		RunID:       "run-1",
+		RequestID:   "run-1",
 		FinalOutput: "tampered",
 	}); err == nil || !strings.Contains(err.Error(), "final_output") {
 		t.Fatalf("final output drift error = %v", err)
 	}
 	if err := state.validateCompleted(run, agentRuntimeResponse{
-		RunID:       "run-1",
+		RequestID:   "run-1",
 		FinalOutput: "answer",
 	}); err != nil {
 		t.Fatalf("validate completed result: %v", err)

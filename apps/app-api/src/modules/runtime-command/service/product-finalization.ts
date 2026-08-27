@@ -22,12 +22,9 @@ export function acceptedCloseoutContext(
 		memorySnapshot: null,
 		requestFingerprintSha256: candidate.requestFingerprintSha256,
 		requestId: candidate.requestId,
-		runId: candidate.runId,
 		runPhase: null,
 		safetyIdentifier: candidate.safetyIdentifier,
 		surface: candidate.surface,
-		traceId: candidate.traceId,
-		turnId: null,
 		turnSequence: candidate.turnSequence,
 		userMessageId: candidate.userMessageId,
 		validatedPayload: {

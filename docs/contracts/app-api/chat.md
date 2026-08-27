@@ -8,11 +8,11 @@ status: active
 
 ## 边界
 
-`apps/app-api` 负责 conversation、message、run 关联、archive/pin/delete、答案反馈和编辑截断。
+`apps/app-api` 负责 conversation、message、request 关联、archive/pin/delete、答案反馈和编辑截断。
 campus-web 只渲染投影并通过本文接口发送命令。
 
-默认问答使用 app-api 持久生命周期 SSE：`POST /api/chat/requests/stream` 创建或继续 run，
-`GET /api/chat/runs/:runId/events/stream` 恢复事件消费。本文不定义 provider raw token stream、
+默认问答使用 app-api 持久生命周期 SSE：`POST /api/chat/requests/stream` 创建请求，
+`GET /api/chat/requests/:requestId/events/stream` 恢复事件消费。本文不定义 provider raw token stream、
 分享导出、附件上传、批处理或浏览器本地会话状态。
 
 ## 公开问答可用性
@@ -34,7 +34,7 @@ type ChatAvailabilityResponse = {
 ## 鉴权
 
 - 除 `GET /api/chat/availability` 外，所有接口要求具有 chat access 的 end-user session principal；
-- conversation 和 run 只能由当前用户访问；
+- conversation 和 request 只能由当前用户访问；
 - soft-deleted conversation 不进入列表、搜索或详情；
 - 搜索不匹配 raw trace、source ref、provider internal 或内部错误；
 - 错误使用 `error.md` 的共享 envelope。
@@ -56,7 +56,7 @@ type ConversationSearchResult = ConversationSummary & {
 };
 
 type ConversationDetail = ConversationSummary & {
-  activeRunId: string | null;
+  activeRequestId: string | null;
   messages: ChatMessage[];
 };
 ```
@@ -83,7 +83,7 @@ pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`�
 
 - `POST /api/chat/conversations` 创建显式 draft；浏览器也可以跳过该接口，直接提交首个 prompt；
 - `GET /api/chat/conversations/:conversationId` 返回未删除详情、message 和 feedback 状态。
-- `activeRunId` 只标识该会话当前仍需恢复的持久 run；浏览器刷新后以它读取 run 摘要和事件，不能据此
+- `activeRequestId` 只标识该会话当前仍需恢复的请求；浏览器刷新后以它读取请求摘要和事件，不能据此
   重新提交原 prompt。
 
 assistant message 的 `source_items` structured part 只包含当前产品来源卡片。每个来源卡片的
@@ -121,8 +121,8 @@ part 缺少该字段时不生成来源卡片，正文仍保留。
 
 ## 提交问答
 
-两个提交接口都接受 `Idempotency-Key` 请求头。`requestId` 是业务请求关联标识，`traceId`
-是运行轨迹关联标识；成功响应通过 `x-request-id` 和 `x-trace-id` 返回二者。
+两个提交接口都接受 `Idempotency-Key` 请求头。`requestId` 是产品请求和跨服务业务关联标识；成功
+响应通过 `x-request-id` 返回该标识。
 
 ### `POST /api/chat/requests`
 
@@ -140,7 +140,7 @@ type ChatRequest = {
 - public chat 不接受 routing 字段；
 - execution-control 提供已准入 tool catalog，Primary Agent 决定是否调用；
 - 当前评测运行器使用同一公开产品路径，不强制指定工具；
-- accept 后的执行失败保留 request/run 关联并返回 chat-visible error；accept 前拒绝使用共享错误
+- accept 后的执行失败保留 request 关联并返回 chat-visible error；accept 前拒绝使用共享错误
   envelope。
 
 ### `POST /api/chat/requests/stream`
@@ -161,31 +161,33 @@ type ChatRequest = {
 
 规则：
 
-- 产品 accept transaction 提交并取得可管理的稳定 `runId` 后发送 `request.accepted`；该事件不
+- 产品 accept transaction 提交并取得可管理的稳定 `requestId` 后发送 `request.accepted`；该事件不
   表示 Temporal 已排队，app-api 只把持久 `run.queued` 证据转换为 `execution.queued`，不能自行
   合成排队状态；
 - `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不代表最终答案；
 - `execution.phase` 的 `phase` 只允许 `preparing|generating|finalizing`，用于显示受控产品阶段，
   不暴露 Temporal Activity、SDK tool call 或内部重试；
+- 每个产品事件只在事件数据顶层携带一次 `requestId`；不返回 execution-control `eventId`、
+  `visibility`，也不在 payload 中重复 `request_id`；
 - finalization transaction 完成后才能发送 terminal event；
 - execution-control 的浏览器 `run.canceled` 只有在产品取消终态提交后才转换为
   `request.cancelled`；
 - 浏览器断开只停止消费，不取消 finalization；
 - 已发送 delta 后，终态不得再次把完整答案伪造成 delta。
 
-## Run 命令与读取
+## 请求命令与读取
 
 ### 取消
 
-`POST /api/chat/runs/:runId/cancel` 只允许当前用户取消未终态 run。终态返回
-`run_already_terminal` 类型化、不可重试错误；成功固定返回 `202`，只表示取消命令已被产品侧持久
-接收，并返回当前 `{ run: RunSummary }`，不表示 run 已取消。客户端必须保留 active run 与事件订阅，只有
+`POST /api/chat/requests/:requestId/cancel` 只允许当前用户取消未终态请求。终态返回
+`request_already_terminal` 类型化、不可重试错误；成功固定返回 `202`，只表示取消命令已被执行侧持久
+接收，并返回当前 `{ run: RunSummary }`，不表示请求已取消。客户端必须保留 active request 与事件订阅，只有
 `request.cancelled`、`request.completed` 或 `request.failed` 才能结束本地运行状态；成功请求不生成
 答案。
 
 ### 摘要
 
-`GET /api/chat/runs/:runId` 返回当前用户可见的产品 run 摘要，不暴露 execution-control 原始
+`GET /api/chat/requests/:requestId` 返回当前用户可见的产品执行摘要，不暴露 execution-control 原始
 存储。
 
 ```ts
@@ -196,8 +198,6 @@ type RunSummary = {
   durationMs: number | null;
   conversationId: string;
   requestId: string;
-  runId: string;
-  traceId: string;
   phase:
     | "created"
     | "queued"
@@ -218,13 +218,13 @@ type RunSummary = {
 
 ### 事件列表
 
-`GET /api/chat/runs/:runId/events?after_sequence=<n>` 返回 cursor 后 browser-visible 持久事件，
+`GET /api/chat/requests/:requestId/events?after_sequence=<n>` 返回 cursor 后 browser-visible 持久事件，
 不创建请求或重新执行。app-api 使用 execution-control 的 `next_sequence` 推进内部读取位置，
 不能以过滤后最后一个 browser event 的 sequence 代替。
 
 ### 事件续传
 
-`GET /api/chat/runs/:runId/events/stream?after_sequence=<n>` 对既有 run 建立有界连续订阅：
+`GET /api/chat/requests/:requestId/events/stream?after_sequence=<n>` 对既有请求建立有界连续订阅：
 
 - 不创建请求、不重新执行或重新 finalization；
 - 浏览器从服务端返回的持久 sequence 恢复；
@@ -233,7 +233,7 @@ type RunSummary = {
 
 ### 回答过程
 
-`GET /api/chat/runs/:runId/steps` 返回 `{ run, steps }`。接口保留一个调度事实和三个用户可感知阶段，
+`GET /api/chat/requests/:requestId/steps` 返回 `{ run, steps }`。接口保留一个调度事实和三个用户可感知阶段，
 固定按以下顺序排序：
 
 1. `queued`（内部调度事实，Campus Web 映射到准备阶段，不单独展示）

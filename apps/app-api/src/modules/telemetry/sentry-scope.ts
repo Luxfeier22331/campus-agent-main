@@ -8,13 +8,9 @@ export function applyRequestTags(input: {
 	route?: string | null;
 	status?: string | null;
 	surface?: string | null;
-	traceId?: string | null;
 }): void {
 	if (input.requestId) {
 		Sentry.setTag("campus.request_id", input.requestId);
-	}
-	if (input.traceId) {
-		Sentry.setTag("campus.trace_id", input.traceId);
 	}
 	if (input.surface) {
 		Sentry.setTag("surface", input.surface);

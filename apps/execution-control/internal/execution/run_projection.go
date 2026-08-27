@@ -70,11 +70,8 @@ const (
 )
 
 type DurableRun struct {
-	RunID                    string
 	ConversationID           string
-	TurnID                   string
 	RequestID                string
-	TraceID                  string
 	OwnerUserID              string
 	Surface                  string
 	TaskQueue                string
@@ -97,7 +94,7 @@ type DurableRun struct {
 
 type DurableRunEvent struct {
 	EventID              string
-	RunID                string
+	RequestID            string
 	ConversationID       string
 	EventType            DurableRunEventType
 	Sequence             int64
@@ -108,7 +105,7 @@ type DurableRunEvent struct {
 }
 
 type RunAnswerStreamStartRequest struct {
-	RunID              string
+	RequestID          string
 	Now                time.Time
 	AnswerStartedEvent DurableRunEvent
 	FirstDeltaEvent    DurableRunEvent
@@ -116,7 +113,7 @@ type RunAnswerStreamStartRequest struct {
 
 type RunStepProjection struct {
 	StepID               string
-	RunID                string
+	RequestID            string
 	ConversationID       string
 	StepKind             string
 	Tool                 string
@@ -135,7 +132,7 @@ type RunStepProjection struct {
 type StepAttemptProjection struct {
 	AttemptID             string
 	StepID                string
-	RunID                 string
+	RequestID             string
 	Attempt               int
 	Status                string
 	TaskQueue             string
@@ -172,7 +169,7 @@ type StepAttemptProjection struct {
 type StepResultProjection struct {
 	ResultID             string
 	StepID               string
-	RunID                string
+	RequestID            string
 	AttemptID            string
 	Status               string
 	ResultKind           string
@@ -183,19 +180,19 @@ type StepResultProjection struct {
 }
 
 type DurableRunCancelRequest struct {
-	RunID  string
-	Reason string
-	Now    time.Time
+	RequestID string
+	Reason    string
+	Now       time.Time
 }
 
 type DurableRunCancellationRequest struct {
-	RunID  string
-	Reason string
-	Now    time.Time
+	RequestID string
+	Reason    string
+	Now       time.Time
 }
 
 type DurableRunCompleteRequest struct {
-	RunID            string
+	RequestID        string
 	TerminalReason   DurableTerminalReason
 	FinalResponseRef string
 	Now              time.Time
@@ -217,7 +214,7 @@ type RunProjectionFinalizeResult struct {
 }
 
 type DurableRunFailRequest struct {
-	RunID           string
+	RequestID       string
 	TerminalReason  DurableTerminalReason
 	FailCloseReason string
 	Now             time.Time
@@ -225,8 +222,8 @@ type DurableRunFailRequest struct {
 }
 
 type DurableRunExpireRequest struct {
-	RunID string
-	Now   time.Time
+	RequestID string
+	Now       time.Time
 }
 
 type CancelOutcome string

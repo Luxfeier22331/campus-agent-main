@@ -36,7 +36,7 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 		upsertStageTimingAttemptWithSchedule(
 			t,
 			store,
-			run.RunID,
+			run.RequestID,
 			index+1,
 			attempt.stepID,
 			attempt.durationMS,
@@ -72,7 +72,7 @@ func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
 
 	now := time.Date(2026, 7, 4, 10, 30, 0, 0, time.UTC)
 	run := createStageTimingRun(t, store, now)
-	upsertStageTimingAttempt(t, store, run.RunID, 1, "agent.primary", 120, nil, now)
+	upsertStageTimingAttempt(t, store, run.RequestID, 1, "agent.primary", 120, nil, now)
 
 	timing, err := server.stageTimingForRun(context.Background(), run, nil)
 	if err != nil {
@@ -108,31 +108,28 @@ func createStageTimingRun(
 ) execution.DurableRun {
 	t.Helper()
 	run, err := store.CreateRun(context.Background(), execution.DurableRun{
-		RunID:          "run-stage-timing",
+		RequestID:      "run-stage-timing",
 		ConversationID: "conv-stage-timing",
-		TurnID:         "turn-stage-timing",
-		RequestID:      "req-stage-timing",
-		TraceID:        "trace-stage-timing",
 		OwnerUserID:    "user-stage-timing",
 		Surface:        "campus-web",
 		TaskQueue:      "campus-agent.workflow",
 		CreatedAt:      now,
-		Metadata:       v3ExecutionMetadataForHTTPTest("run-stage-timing", ""),
+		Metadata:       v3ExecutionMetadataForHTTPTest("run-stage-timing"),
 	})
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	queued, err := store.TransitionRun(context.Background(), run.RunID, execution.DurableRunStatusQueued, "", now.Add(100*time.Millisecond))
+	queued, err := store.TransitionRun(context.Background(), run.RequestID, execution.DurableRunStatusQueued, "", now.Add(100*time.Millisecond))
 	if err != nil {
 		t.Fatalf("queue run: %v", err)
 	}
-	admitted, err := store.TransitionRun(context.Background(), queued.RunID, execution.DurableRunStatusAdmitted, "", now.Add(300*time.Millisecond))
+	admitted, err := store.TransitionRun(context.Background(), queued.RequestID, execution.DurableRunStatusAdmitted, "", now.Add(300*time.Millisecond))
 	if err != nil {
 		t.Fatalf("admit run: %v", err)
 	}
 	running, err := store.TransitionRun(
 		context.Background(),
-		admitted.RunID,
+		admitted.RequestID,
 		execution.DurableRunStatusRunning,
 		"",
 		now.Add(400*time.Millisecond),
@@ -143,10 +140,10 @@ func createStageTimingRun(
 	streaming, err := store.StartRunAnswerStream(
 		context.Background(),
 		execution.RunAnswerStreamStartRequest{
-			RunID: running.RunID,
-			Now:   now.Add(900 * time.Millisecond),
+			RequestID: running.RequestID,
+			Now:       now.Add(900 * time.Millisecond),
 			AnswerStartedEvent: execution.DurableRunEvent{
-				EventID: running.RunID + ":answer-started", RunID: running.RunID,
+				EventID: running.RequestID + ":answer-started", RequestID: running.RequestID,
 				ConversationID:       running.ConversationID,
 				EventType:            execution.DurableRunEventTypeRunAnswerStarted,
 				OccurredAt:           now.Add(900 * time.Millisecond),
@@ -155,7 +152,7 @@ func createStageTimingRun(
 				Payload:              map[string]any{"status": "streaming"},
 			},
 			FirstDeltaEvent: execution.DurableRunEvent{
-				EventID: running.RunID + ":answer-delta:1", RunID: running.RunID,
+				EventID: running.RequestID + ":answer-delta:1", RequestID: running.RequestID,
 				ConversationID:       running.ConversationID,
 				EventType:            execution.DurableRunEventTypeRunAnswerDelta,
 				OccurredAt:           now.Add(900 * time.Millisecond),
@@ -213,7 +210,7 @@ func upsertStageTimingAttemptWithSchedule(
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
 		AttemptID:             fmt.Sprintf("%s:attempt:%02d", stepID, index),
 		StepID:                stepID,
-		RunID:                 runID,
+		RequestID:             runID,
 		Attempt:               1,
 		Status:                "completed",
 		TaskQueue:             "campus-agent.activity",

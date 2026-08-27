@@ -4,7 +4,6 @@ import {
 	ExecutionControlTransportError,
 } from "../../integration";
 import { TOOL_EXECUTION_CONTRACT } from "../../integration/generated/tool-execution-contract";
-import { ensureLangfuseTraceParent } from "../../telemetry/trace";
 import type { AcceptedChatCommandStore } from "../store-types";
 import type { ChatCommandServiceContext } from "./context";
 import { executionInputRef, sha256Text } from "./durable-metadata";
@@ -23,41 +22,27 @@ export interface DurableRunEnsureResult {
 export async function ensureDurableRunForStoredInput(input: {
 	commandStore: AcceptedChatCommandStore;
 	executionRuntime: NonNullable<ChatCommandServiceContext["dependencies"]["executionRuntime"]>;
-	runId: string;
-	traceId: string;
+	requestId: string;
 }): Promise<ExecutionControlRun> {
-	const stored = await input.commandStore.readDurableRunInput(input.runId);
+	const stored = await input.commandStore.readDurableRunInput(input.requestId);
 	if (stored?.status !== "accepted") {
 		throw new ExecutionControlTransportError({
 			code: "runtime_invariant_failed",
-			message: "Accepted chat request does not have a durable run record.",
-			retryable: false,
-			status: 500,
-		});
-	}
-	if (stored.traceId !== input.traceId) {
-		throw new ExecutionControlTransportError({
-			code: "execution_control_invalid_response",
-			message: "Stored durable run trace identity does not match the request.",
+			message: "Accepted chat request does not have a durable execution record.",
 			retryable: false,
 			status: 500,
 		});
 	}
 	const createInput = createInputFromStoredRun(stored);
-	const traceHeaders = await ensureLangfuseTraceParent(stored.traceId);
 	try {
-		const run = await input.executionRuntime.createRun({ ...createInput, traceHeaders });
+		const run = await input.executionRuntime.createRun(createInput);
 		assertRunMatchesStoredInput(createInput, run);
 		return run;
 	} catch (error) {
 		if (!isAmbiguousCreateFailure(error)) {
 			throw error;
 		}
-		const run = await input.executionRuntime.getRun({
-			runId: stored.runId,
-			traceHeaders,
-			traceId: stored.traceId,
-		});
+		const run = await input.executionRuntime.getRun({ requestId: stored.requestId });
 		assertRunMatchesStoredInput(createInput, run);
 		return run;
 	}
@@ -70,13 +55,10 @@ function createInputFromStoredRun(input: {
 	memoryRecallEnabled: boolean | null;
 	ownerUserId: string;
 	requestId: string;
-	runId: string;
 	surface: string;
-	traceId: string;
-	turnId: string | null;
 }): ExecutionControlRunCreateInput {
 	if (
-		!(input.executionInputJson && input.executionInputSha256 && input.turnId) ||
+		!(input.executionInputJson && input.executionInputSha256) ||
 		sha256Text(input.executionInputJson) !== input.executionInputSha256
 	) {
 		throw new ExecutionControlTransportError({
@@ -91,17 +73,14 @@ function createInputFromStoredRun(input: {
 		conversationId: input.conversationId,
 		metadata: {
 			execution_contract_version: TOOL_EXECUTION_CONTRACT.executionContractVersion,
-			execution_input_ref: executionInputRef(input.runId),
+			execution_input_ref: executionInputRef(input.requestId),
 			execution_input_sha256: input.executionInputSha256,
 		},
 		ownerUserId: input.ownerUserId,
 		personalMemoryRecallAllowed: input.memoryRecallEnabled ?? false,
 		requestId: input.requestId,
-		runId: input.runId,
 		runtimeVersions: DURABLE_RUNTIME_VERSIONS,
 		surface: input.surface,
-		traceId: input.traceId,
-		turnId: input.turnId,
 	};
 }
 
@@ -110,17 +89,14 @@ function assertRunMatchesStoredInput(
 	run: ExecutionControlRun,
 ): void {
 	if (
-		run.runId !== input.runId ||
 		run.requestId !== input.requestId ||
 		run.conversationId !== input.conversationId ||
 		run.ownerUserId !== input.ownerUserId ||
-		run.surface !== input.surface ||
-		run.traceId !== (input.traceId ?? "") ||
-		run.turnId !== input.turnId
+		run.surface !== input.surface
 	) {
 		throw new ExecutionControlTransportError({
 			code: "execution_control_invalid_response",
-			message: "Execution durable run identity does not match the product request.",
+			message: "Execution identity does not match the product request.",
 			retryable: true,
 			status: 502,
 		});
@@ -136,7 +112,7 @@ export async function ensureDurableRunForAcceptedCommand(
 	context: AcceptedChatCommandContext,
 ): Promise<DurableRunEnsureResult> {
 	const executionRuntime = service.dependencies.executionRuntime;
-	if (!(executionRuntime && context.runId)) {
+	if (!executionRuntime) {
 		throw new ExecutionControlTransportError({
 			code: "execution_runtime_required",
 			message: "Execution runtime is required for durable chat execution.",
@@ -149,8 +125,7 @@ export async function ensureDurableRunForAcceptedCommand(
 		const run = await ensureDurableRunForStoredInput({
 			commandStore: service.dependencies.commandStore,
 			executionRuntime,
-			runId: context.runId,
-			traceId: context.traceId,
+			requestId: context.requestId,
 		});
 		return { response: null, run };
 	} catch (error) {
@@ -158,10 +133,7 @@ export async function ensureDurableRunForAcceptedCommand(
 			throw error;
 		}
 		return {
-			response: {
-				...toHandledErrorTransportOutcome(error),
-				traceId: context.traceId,
-			},
+			response: toHandledErrorTransportOutcome(error),
 			run: null,
 		};
 	}

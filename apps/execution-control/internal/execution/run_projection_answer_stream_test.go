@@ -22,7 +22,7 @@ func TestInMemoryRunProjectionStoreStartsAnswerStreamAtomically(t *testing.T) {
 		!streaming.StreamingStartedAt.Equal(request.Now) {
 		t.Fatalf("streaming run = %#v", streaming)
 	}
-	events, err := store.ListRunEvents(t.Context(), run.RunID)
+	events, err := store.ListRunEvents(t.Context(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list answer stream events: %v", err)
 	}
@@ -43,14 +43,14 @@ func TestInMemoryRunProjectionStoreRejectsInvalidFirstDeltaWithoutMutation(t *te
 	if _, err := store.StartRunAnswerStream(t.Context(), request); !errors.Is(err, ErrInvalidRunEvent) {
 		t.Fatalf("start answer stream error = %v, want ErrInvalidRunEvent", err)
 	}
-	loaded, err := store.GetRun(t.Context(), run.RunID)
+	loaded, err := store.GetRun(t.Context(), run.RequestID)
 	if err != nil {
 		t.Fatalf("get unchanged run: %v", err)
 	}
 	if loaded.Status != DurableRunStatusRunning || !loaded.StreamingStartedAt.IsZero() {
 		t.Fatalf("run changed after rejected first delta: %#v", loaded)
 	}
-	events, err := store.ListRunEvents(t.Context(), run.RunID)
+	events, err := store.ListRunEvents(t.Context(), run.RequestID)
 	if err != nil {
 		t.Fatalf("list unchanged events: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestInMemoryRunProjectionStoreWaitForRunEventsWakesAndHonorsDeadline(t *tes
 
 	appended, err := store.AppendRunEvent(t.Context(), DurableRunEvent{
 		EventID:              "run-event-wait:created",
-		RunID:                "run-event-wait",
+		RequestID:            "run-event-wait",
 		ConversationID:       "conv-event-wait",
 		EventType:            DurableRunEventTypeRunCreated,
 		OccurredAt:           now,
@@ -114,11 +114,11 @@ func TestInMemoryRunProjectionStoreWaitForRunEventsWakesAndHonorsDeadline(t *tes
 func createRunningRunForAnswerStreamTest(
 	t *testing.T,
 	store *InMemoryRunProjectionStore,
-	runID string,
+	requestID string,
 	now time.Time,
 ) DurableRun {
 	t.Helper()
-	createRunProjectionForTest(t, store, runID, "conv-"+runID, now)
+	createRunProjectionForTest(t, store, requestID, "conv-"+requestID, now)
 	for index, status := range []DurableRunStatus{
 		DurableRunStatusQueued,
 		DurableRunStatusAdmitted,
@@ -126,7 +126,7 @@ func createRunningRunForAnswerStreamTest(
 	} {
 		updated, err := store.TransitionRun(
 			t.Context(),
-			runID,
+			requestID,
 			status,
 			"",
 			now.Add(time.Duration(index+1)*time.Second),
@@ -144,11 +144,11 @@ func createRunningRunForAnswerStreamTest(
 
 func answerStreamStartRequestForTest(run DurableRun, now time.Time) RunAnswerStreamStartRequest {
 	return RunAnswerStreamStartRequest{
-		RunID: run.RunID,
-		Now:   now,
+		RequestID: run.RequestID,
+		Now:       now,
 		AnswerStartedEvent: DurableRunEvent{
-			EventID:              run.RunID + ":answer-started",
-			RunID:                run.RunID,
+			EventID:              run.RequestID + ":answer-started",
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			EventType:            DurableRunEventTypeRunAnswerStarted,
 			OccurredAt:           now,
@@ -157,8 +157,8 @@ func answerStreamStartRequestForTest(run DurableRun, now time.Time) RunAnswerStr
 			Payload:              map[string]any{"status": "streaming"},
 		},
 		FirstDeltaEvent: DurableRunEvent{
-			EventID:              run.RunID + ":answer-delta:1",
-			RunID:                run.RunID,
+			EventID:              run.RequestID + ":answer-delta:1",
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			EventType:            DurableRunEventTypeRunAnswerDelta,
 			OccurredAt:           now,
@@ -172,13 +172,13 @@ func answerStreamStartRequestForTest(run DurableRun, now time.Time) RunAnswerStr
 func waitForInMemoryRunEventWaiter(
 	t *testing.T,
 	store *InMemoryRunProjectionStore,
-	runID string,
+	requestID string,
 ) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for {
 		store.mu.RLock()
-		registered := len(store.runEventWaiters[runID]) > 0
+		registered := len(store.runEventWaiters[requestID]) > 0
 		store.mu.RUnlock()
 		if registered {
 			return

@@ -16,7 +16,7 @@ describe("ops-web contract fixtures", () => {
 		const parsed = OpsRequestListResponseSchema.parse(opsRequestListFixture);
 		expect(parsed.window).toBe("1h");
 		expect(parsed.data[0]).toMatchObject({
-			executionStage: { kind: "agent", status: "completed", stepId: "agent.primary" },
+			executionStage: { kind: "agent", status: "completed" },
 			requestId: "req_ops_001",
 			result: { kind: "answer", state: "WRITTEN" },
 		});
@@ -25,21 +25,17 @@ describe("ops-web contract fixtures", () => {
 		expect(parsed.data[0]).not.toHaveProperty("principalType");
 	});
 
-	it("keeps request detail free of the retired evidence store", () => {
+	it("keeps request detail request-centric", () => {
 		const parsed = OpsRequestDetailResponseSchema.parse(opsRequestDetailFixture);
-		expect(parsed.request.requestId).toBe(parsed.technical.correlationIds.requestId);
+		expect(parsed.request.requestId).toBe("req_ops_001");
 		expect(parsed.result).toMatchObject({ state: "WRITTEN" });
-		expect(parsed.execution.steps[0]?.attempts[0]).toMatchObject({
-			modelName: "deepseek-v4-flash-0731",
-			modelRequestCount: 1,
-			tokens: { cachedInput: 320, input: 2_000, output: 400 },
+		expect(parsed.execution.model).toMatchObject({
+			name: "deepseek-v4-flash-0731",
+			requestCount: 1,
+			tokens: { cachedInput: 320, input: 2_000, output: 400, total: 2_400 },
 		});
-		expect(parsed).not.toHaveProperty("externalEvidenceRefs");
-		expect(parsed).not.toHaveProperty("evidenceAvailability");
-		expect(parsed.technical.correlationIds).not.toHaveProperty("externalEvidenceRef");
-		expect(parsed).not.toHaveProperty("journey");
-		expect(parsed).not.toHaveProperty("usage");
-		expect(parsed).not.toHaveProperty("outcomeSummary");
+		expect(parsed).not.toHaveProperty("technical");
+		expect(parsed.execution.stages[0]).not.toHaveProperty("stepId");
 	});
 
 	it("validates the product request overview contract", () => {
@@ -52,22 +48,6 @@ describe("ops-web contract fixtures", () => {
 		expect(parsed).not.toHaveProperty("services");
 		expect(parsed).not.toHaveProperty("temporal");
 		expect(parsed).not.toHaveProperty("telemetry");
-	});
-
-	it("rejects non-HTTPS external links", () => {
-		expect(
-			OpsOverviewResponseSchema.safeParse({
-				...opsOverviewFixture,
-				externalLinks: [
-					{
-						href: "javascript:alert(document.domain)",
-						isAvailable: true,
-						label: "unsafe",
-						source: "LANGFUSE",
-					},
-				],
-			}).success,
-		).toBe(false);
 	});
 
 	it("keeps default responses free of raw telemetry bodies", () => {

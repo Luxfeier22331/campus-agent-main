@@ -65,7 +65,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 						],
 					},
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});
@@ -85,8 +84,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				failClosed: null,
 				requestId: "req_0001",
 				status: "accepted",
-				traceAvailable: true,
-				traceId: "trace_0001",
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
@@ -95,8 +92,6 @@ export function registerChatCommandServiceObservabilityRuntimeFactsSuite(): void
 				failClosed: false,
 				requestId: "req_0001",
 				status: "completed",
-				traceAvailable: true,
-				traceId: "trace_0001",
 			},
 		});
 	});

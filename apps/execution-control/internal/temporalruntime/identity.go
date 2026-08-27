@@ -21,7 +21,7 @@ var (
 )
 
 const (
-	workflowMemoRunIDKey      = "campus_agent_run_id"
+	workflowMemoRequestIDKey  = "campus_agent_request_id"
 	workflowMemoWorkflowIDKey = "campus_agent_workflow_id"
 	workflowMemoPayloadSHAKey = "campus_agent_payload_sha256"
 	workflowMemoInputSHAKey   = "campus_agent_input_sha256"
@@ -50,7 +50,7 @@ const (
 )
 
 type ToolExecutionWorkflowIdentity struct {
-	RunID               string
+	RequestID           string
 	WorkflowID          string
 	PayloadSHA256       string
 	WorkflowInputSHA256 string
@@ -63,12 +63,12 @@ func ToolExecutionWorkflowIdentityForInput(input ToolExecutionWorkflowInput) (To
 	}
 	digest := sha256.Sum256(encoded)
 	identity := ToolExecutionWorkflowIdentity{
-		RunID:               strings.TrimSpace(input.RunID),
+		RequestID:           strings.TrimSpace(input.RequestID),
 		WorkflowID:          strings.TrimSpace(input.WorkflowID),
 		PayloadSHA256:       strings.TrimSpace(input.PayloadSHA256),
 		WorkflowInputSHA256: hex.EncodeToString(digest[:]),
 	}
-	if identity.RunID == "" || identity.WorkflowID == "" ||
+	if identity.RequestID == "" || identity.WorkflowID == "" ||
 		!validWorkflowIdentitySHA(identity.PayloadSHA256) ||
 		!validWorkflowIdentitySHA(identity.WorkflowInputSHA256) {
 		return ToolExecutionWorkflowIdentity{}, errors.New("workflow input identity is incomplete")
@@ -112,7 +112,7 @@ func toolExecutionWorkflowIdentityFromMemo(memo *commonpb.Memo) (ToolExecutionWo
 		return ToolExecutionWorkflowIdentity{}, WorkflowIdentityUnknown
 	}
 	fields := memo.GetFields()
-	keys := []string{workflowMemoRunIDKey, workflowMemoWorkflowIDKey, workflowMemoPayloadSHAKey, workflowMemoInputSHAKey}
+	keys := []string{workflowMemoRequestIDKey, workflowMemoWorkflowIDKey, workflowMemoPayloadSHAKey, workflowMemoInputSHAKey}
 	present := 0
 	values := make([]string, len(keys))
 	for index, key := range keys {
@@ -130,9 +130,9 @@ func toolExecutionWorkflowIdentityFromMemo(memo *commonpb.Memo) (ToolExecutionWo
 		return ToolExecutionWorkflowIdentity{}, WorkflowIdentityUnknown
 	}
 	identity := ToolExecutionWorkflowIdentity{
-		RunID: values[0], WorkflowID: values[1], PayloadSHA256: values[2], WorkflowInputSHA256: values[3],
+		RequestID: values[0], WorkflowID: values[1], PayloadSHA256: values[2], WorkflowInputSHA256: values[3],
 	}
-	if present != len(keys) || identity.RunID == "" || identity.WorkflowID == "" ||
+	if present != len(keys) || identity.RequestID == "" || identity.WorkflowID == "" ||
 		!validWorkflowIdentitySHA(identity.PayloadSHA256) ||
 		!validWorkflowIdentitySHA(identity.WorkflowInputSHA256) {
 		return ToolExecutionWorkflowIdentity{}, WorkflowIdentityInvalid

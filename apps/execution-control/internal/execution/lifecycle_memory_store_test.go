@@ -26,7 +26,7 @@ func TestInMemoryCreateRunWithStartIntentIsAtomicAndFingerprintIdempotent(t *tes
 	if err != nil {
 		t.Fatalf("replay run with same fingerprint: %v", err)
 	}
-	if replay.Created || replay.Run.RunID != created.Run.RunID {
+	if replay.Created || replay.Run.RequestID != created.Run.RequestID {
 		t.Fatalf("replay result = %#v", replay)
 	}
 
@@ -35,7 +35,7 @@ func TestInMemoryCreateRunWithStartIntentIsAtomicAndFingerprintIdempotent(t *tes
 	if _, err := store.CreateRunWithStartIntent(context.Background(), conflict); !errors.Is(err, ErrDurableRunFingerprintConflict) {
 		t.Fatalf("different fingerprint error = %v", err)
 	}
-	events, err := store.ListRunEvents(context.Background(), created.Run.RunID)
+	events, err := store.ListRunEvents(context.Background(), created.Run.RequestID)
 	if err != nil || len(events) != 1 || events[0].EventType != DurableRunEventTypeRunCreated {
 		t.Fatalf("atomic create events = %#v, err=%v", events, err)
 	}
@@ -79,19 +79,19 @@ func TestInMemoryWorkflowStartDispatchFenceIsDurableAndTokenBound(t *testing.T) 
 		t.Fatalf("initial dispatch lease = %#v, err=%v", leased, err)
 	}
 	if err := store.ConfirmWorkflowStartIntent(context.Background(), WorkflowStartIntentResult{
-		RunID: leased[0].RunID, LeaseToken: leased[0].LeaseToken,
+		RequestID: leased[0].RequestID, LeaseToken: leased[0].LeaseToken,
 		TemporalRunID: "temporal-without-dispatch", Now: now.Add(time.Second),
 	}); !errors.Is(err, ErrLifecycleLeaseConflict) {
 		t.Fatalf("unfenced confirmation error = %v, want lifecycle conflict", err)
 	}
 	if err := store.MarkWorkflowStartDispatchAttempt(context.Background(), WorkflowStartIntentResult{
-		RunID: leased[0].RunID, LeaseToken: "wrong-token", Now: now.Add(time.Second),
+		RequestID: leased[0].RequestID, LeaseToken: "wrong-token", Now: now.Add(time.Second),
 	}); !errors.Is(err, ErrLifecycleLeaseConflict) {
 		t.Fatalf("wrong-token dispatch fence error = %v, want lifecycle conflict", err)
 	}
 	markWorkflowStartDispatchForTest(t, store, leased[0], now.Add(2*time.Second))
 	if err := store.RetryWorkflowStartIntent(context.Background(), WorkflowStartIntentResult{
-		RunID: leased[0].RunID, LeaseToken: leased[0].LeaseToken,
+		RequestID: leased[0].RequestID, LeaseToken: leased[0].LeaseToken,
 		Now: now.Add(3 * time.Second), NextAttemptAt: now.Add(4 * time.Second),
 	}); err != nil {
 		t.Fatal(err)
@@ -108,24 +108,24 @@ func TestInMemoryWorkflowStartDispatchFenceIsDurableAndTokenBound(t *testing.T) 
 func TestInMemoryListActiveWorkflowRunsUsesBoundedCursorPages(t *testing.T) {
 	store := NewInMemoryRunProjectionStore()
 	for index := range 35 {
-		runID := fmt.Sprintf("run-active-%03d", index)
-		store.runs[runID] = DurableRun{RunID: runID, Status: DurableRunStatusQueued}
-		store.workflowStartIntents[runID] = WorkflowStartIntent{
-			RunID: runID, State: LifecycleIntentStateConfirmed,
+		requestID := fmt.Sprintf("run-active-%03d", index)
+		store.runs[requestID] = DurableRun{RequestID: requestID, Status: DurableRunStatusQueued}
+		store.workflowStartIntents[requestID] = WorkflowStartIntent{
+			RequestID: requestID, State: LifecycleIntentStateConfirmed,
 		}
 	}
 	first, err := store.ListActiveWorkflowRuns(context.Background(), "", 32)
-	if err != nil || len(first) != 32 || first[0].Run.RunID != "run-active-000" ||
-		first[len(first)-1].Run.RunID != "run-active-031" {
+	if err != nil || len(first) != 32 || first[0].Run.RequestID != "run-active-000" ||
+		first[len(first)-1].Run.RequestID != "run-active-031" {
 		t.Fatalf("first active page = %#v, err=%v", first, err)
 	}
-	second, err := store.ListActiveWorkflowRuns(context.Background(), first[len(first)-1].Run.RunID, 32)
-	if err != nil || len(second) != 3 || second[0].Run.RunID != "run-active-032" ||
-		second[len(second)-1].Run.RunID != "run-active-034" {
+	second, err := store.ListActiveWorkflowRuns(context.Background(), first[len(first)-1].Run.RequestID, 32)
+	if err != nil || len(second) != 3 || second[0].Run.RequestID != "run-active-032" ||
+		second[len(second)-1].Run.RequestID != "run-active-034" {
 		t.Fatalf("second active page = %#v, err=%v", second, err)
 	}
 	wrapped, err := store.ListActiveWorkflowRuns(context.Background(), "", 32)
-	if err != nil || len(wrapped) != len(first) || wrapped[0].Run.RunID != first[0].Run.RunID {
+	if err != nil || len(wrapped) != len(first) || wrapped[0].Run.RequestID != first[0].Run.RequestID {
 		t.Fatalf("wrapped active page = %#v, err=%v", wrapped, err)
 	}
 }
@@ -143,22 +143,22 @@ func TestInMemoryCancellationSupersedesStartIntentAndFencesOldWorker(t *testing.
 		t.Fatalf("lease start intent = %#v, err=%v", leased, err)
 	}
 	if _, err := store.RequestRunCancellation(context.Background(), DurableRunCancellationRequest{
-		RunID: atomicRunCreateRequestForTest(now).Run.RunID, Reason: "user_requested", Now: now.Add(time.Second),
+		RequestID: atomicRunCreateRequestForTest(now).Run.RequestID, Reason: "user_requested", Now: now.Add(time.Second),
 	}); err != nil {
 		t.Fatalf("request cancellation: %v", err)
 	}
 
-	intent := store.workflowStartIntents[leased[0].RunID]
+	intent := store.workflowStartIntents[leased[0].RequestID]
 	if intent.State != LifecycleIntentStateSuperseded || intent.LeaseToken != "" || !intent.LeaseUntil.IsZero() {
 		t.Fatalf("superseded intent = %#v", intent)
 	}
 	if err := store.MarkWorkflowStartDispatchAttempt(context.Background(), WorkflowStartIntentResult{
-		RunID: leased[0].RunID, LeaseToken: "start-lease", Now: now.Add(2 * time.Second),
+		RequestID: leased[0].RequestID, LeaseToken: "start-lease", Now: now.Add(2 * time.Second),
 	}); !errors.Is(err, ErrLifecycleLeaseConflict) {
 		t.Fatalf("superseded dispatch fence error = %v, want lease conflict", err)
 	}
 	if err := store.ConfirmWorkflowStartIntent(context.Background(), WorkflowStartIntentResult{
-		RunID: leased[0].RunID, LeaseToken: "start-lease", TemporalRunID: "temporal-run", Now: now.Add(2 * time.Second),
+		RequestID: leased[0].RequestID, LeaseToken: "start-lease", TemporalRunID: "temporal-run", Now: now.Add(2 * time.Second),
 	}); !errors.Is(err, ErrLifecycleLeaseConflict) {
 		t.Fatalf("stale confirmation error = %v, want lease conflict", err)
 	}
@@ -171,18 +171,18 @@ func TestInMemoryCancellationSupersedesStartIntentAndFencesOldWorker(t *testing.
 	// An idempotent cancellation request must re-apply the fence if a stale
 	// worker left an inconsistent leased snapshot behind.
 	store.mu.Lock()
-	stale := store.workflowStartIntents[leased[0].RunID]
+	stale := store.workflowStartIntents[leased[0].RequestID]
 	stale.State = LifecycleIntentStateLeased
 	stale.LeaseToken = "stale-after-cancel"
 	stale.LeaseUntil = now.Add(time.Hour)
-	store.workflowStartIntents[leased[0].RunID] = stale
+	store.workflowStartIntents[leased[0].RequestID] = stale
 	store.mu.Unlock()
 	if _, err := store.RequestRunCancellation(context.Background(), DurableRunCancellationRequest{
-		RunID: leased[0].RunID, Reason: "user_requested", Now: now.Add(3 * time.Second),
+		RequestID: leased[0].RequestID, Reason: "user_requested", Now: now.Add(3 * time.Second),
 	}); err != nil {
 		t.Fatalf("idempotent cancellation: %v", err)
 	}
-	intent = store.workflowStartIntents[leased[0].RunID]
+	intent = store.workflowStartIntents[leased[0].RequestID]
 	if intent.State != LifecycleIntentStateSuperseded || intent.LeaseToken != "" || !intent.LeaseUntil.IsZero() {
 		t.Fatalf("idempotent cancellation did not re-fence intent = %#v", intent)
 	}
@@ -197,7 +197,7 @@ func TestInMemorySupersededWorkflowExecutionBindingIsIdentityCheckedAndImmutable
 		t.Fatal(err)
 	}
 	if _, err := store.BindSupersededWorkflowStartExecution(ctx, WorkflowStartExecutionBinding{
-		RunID: request.Run.RunID, WorkflowID: request.WorkflowID,
+		RequestID: request.Run.RequestID, WorkflowID: request.WorkflowID,
 		TemporalRunID: "temporal-before-supersession", Now: now,
 	}); !errors.Is(err, ErrWorkflowStartExecutionBindingConflict) {
 		t.Fatalf("pending start binding error = %v, want binding conflict", err)
@@ -210,19 +210,19 @@ func TestInMemorySupersededWorkflowExecutionBindingIsIdentityCheckedAndImmutable
 	}
 	markWorkflowStartDispatchForTest(t, store, leased[0], now.Add(time.Second))
 	if _, err := store.RequestRunCancellation(ctx, DurableRunCancellationRequest{
-		RunID: request.Run.RunID, Reason: "user_requested", Now: now.Add(2 * time.Second),
+		RequestID: request.Run.RequestID, Reason: "user_requested", Now: now.Add(2 * time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.BindSupersededWorkflowStartExecution(ctx, WorkflowStartExecutionBinding{
-		RunID: request.Run.RunID, WorkflowID: "campus-agent.chat.foreign",
+		RequestID: request.Run.RequestID, WorkflowID: "campus-agent.chat.foreign",
 		TemporalRunID: "temporal-bound", Now: now.Add(3 * time.Second),
 	}); !errors.Is(err, ErrWorkflowStartExecutionBindingConflict) {
 		t.Fatalf("foreign workflow binding error = %v, want binding conflict", err)
 	}
 	boundAt := now.Add(3 * time.Second)
 	bound, err := store.BindSupersededWorkflowStartExecution(ctx, WorkflowStartExecutionBinding{
-		RunID: request.Run.RunID, WorkflowID: request.WorkflowID,
+		RequestID: request.Run.RequestID, WorkflowID: request.WorkflowID,
 		TemporalRunID: "temporal-bound", Now: boundAt,
 	})
 	if err != nil {
@@ -233,19 +233,19 @@ func TestInMemorySupersededWorkflowExecutionBindingIsIdentityCheckedAndImmutable
 		t.Fatalf("bound start = %#v", bound)
 	}
 	replayed, err := store.BindSupersededWorkflowStartExecution(ctx, WorkflowStartExecutionBinding{
-		RunID: request.Run.RunID, WorkflowID: request.WorkflowID,
+		RequestID: request.Run.RequestID, WorkflowID: request.WorkflowID,
 		TemporalRunID: "temporal-bound", Now: boundAt.Add(time.Minute),
 	})
 	if err != nil || !replayed.UpdatedAt.Equal(boundAt) {
 		t.Fatalf("idempotent binding = %#v, err=%v", replayed, err)
 	}
 	if _, err := store.BindSupersededWorkflowStartExecution(ctx, WorkflowStartExecutionBinding{
-		RunID: request.Run.RunID, WorkflowID: request.WorkflowID,
+		RequestID: request.Run.RequestID, WorkflowID: request.WorkflowID,
 		TemporalRunID: "temporal-conflict", Now: boundAt.Add(time.Minute),
 	}); !errors.Is(err, ErrWorkflowStartExecutionBindingConflict) {
 		t.Fatalf("conflicting Temporal Run ID error = %v, want binding conflict", err)
 	}
-	stored, err := store.GetWorkflowStartIntent(ctx, request.Run.RunID)
+	stored, err := store.GetWorkflowStartIntent(ctx, request.Run.RequestID)
 	if err != nil || stored.TemporalRunID != "temporal-bound" {
 		t.Fatalf("immutable stored binding = %#v, err=%v", stored, err)
 	}
@@ -260,12 +260,12 @@ func TestInMemoryUndispatchedSupersededStartRejectsExecutionBinding(t *testing.T
 		t.Fatal(err)
 	}
 	if _, err := store.RequestRunCancellation(ctx, DurableRunCancellationRequest{
-		RunID: request.Run.RunID, Reason: "user_requested", Now: now.Add(time.Second),
+		RequestID: request.Run.RequestID, Reason: "user_requested", Now: now.Add(time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.BindSupersededWorkflowStartExecution(ctx, WorkflowStartExecutionBinding{
-		RunID: request.Run.RunID, WorkflowID: request.WorkflowID,
+		RequestID: request.Run.RequestID, WorkflowID: request.WorkflowID,
 		TemporalRunID: "temporal-without-dispatch", Now: now.Add(2 * time.Second),
 	}); !errors.Is(err, ErrWorkflowStartExecutionBindingConflict) {
 		t.Fatalf("undispatched binding error = %v, want binding conflict", err)
@@ -287,11 +287,11 @@ func TestInMemoryStartConfirmationRequiresTemporalRunID(t *testing.T) {
 	}
 	markWorkflowStartDispatchForTest(t, store, leased[0], now.Add(time.Second))
 	if err := store.ConfirmWorkflowStartIntent(context.Background(), WorkflowStartIntentResult{
-		RunID: leased[0].RunID, LeaseToken: "start-lease", Now: now.Add(time.Second),
+		RequestID: leased[0].RequestID, LeaseToken: "start-lease", Now: now.Add(time.Second),
 	}); !errors.Is(err, ErrLifecycleLeaseConflict) {
 		t.Fatalf("empty Temporal Run ID confirmation error = %v, want lease conflict", err)
 	}
-	intent, err := store.GetWorkflowStartIntent(context.Background(), leased[0].RunID)
+	intent, err := store.GetWorkflowStartIntent(context.Background(), leased[0].RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,22 +316,22 @@ func TestInMemoryConfirmCreatedStartQueuesRunAndAppendsOrderedEvents(t *testing.
 	markWorkflowStartDispatchForTest(t, store, leased[0], now.Add(time.Second))
 	confirmedAt := now.Add(2 * time.Second)
 	if err := store.ConfirmWorkflowStartIntent(context.Background(), WorkflowStartIntentResult{
-		RunID: leased[0].RunID, LeaseToken: leased[0].LeaseToken, TemporalRunID: "temporal-run-1", Now: confirmedAt,
+		RequestID: leased[0].RequestID, LeaseToken: leased[0].LeaseToken, TemporalRunID: "temporal-run-1", Now: confirmedAt,
 	}); err != nil {
 		t.Fatalf("confirm start intent: %v", err)
 	}
-	run, err := store.GetRun(context.Background(), leased[0].RunID)
+	run, err := store.GetRun(context.Background(), leased[0].RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if run.Status != DurableRunStatusQueued || !run.QueuedAt.Equal(confirmedAt) {
 		t.Fatalf("confirmed run = %#v, want queued at %s", run, confirmedAt)
 	}
-	intent := store.workflowStartIntents[leased[0].RunID]
+	intent := store.workflowStartIntents[leased[0].RequestID]
 	if intent.State != LifecycleIntentStateConfirmed || intent.TemporalRunID != "temporal-run-1" || intent.LeaseToken != "" || !intent.LeaseUntil.IsZero() {
 		t.Fatalf("confirmed intent = %#v", intent)
 	}
-	events, err := store.ListRunEvents(context.Background(), leased[0].RunID)
+	events, err := store.ListRunEvents(context.Background(), leased[0].RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func TestInMemoryConfirmCreatedStartQueuesRunAndAppendsOrderedEvents(t *testing.
 	// A worker can crash after the durable transaction commits and retry its
 	// confirmation. The same confirmation must remain idempotent.
 	if err := store.ConfirmWorkflowStartIntent(context.Background(), WorkflowStartIntentResult{
-		RunID: leased[0].RunID, LeaseToken: "stale-or-empty", TemporalRunID: "temporal-run-1", Now: confirmedAt.Add(time.Second),
+		RequestID: leased[0].RequestID, LeaseToken: "stale-or-empty", TemporalRunID: "temporal-run-1", Now: confirmedAt.Add(time.Second),
 	}); err != nil {
 		t.Fatalf("idempotent confirmation: %v", err)
 	}
@@ -363,28 +363,28 @@ func TestInMemoryConfirmQueuedOrCanceledStartDoesNotDuplicateQueueEvents(t *test
 	}{
 		{
 			name: "queued",
-			prepareRun: func(t *testing.T, store *InMemoryRunProjectionStore, now time.Time, runID string) {
-				if _, err := store.TransitionRun(context.Background(), runID, DurableRunStatusQueued, "", now.Add(time.Second)); err != nil {
+			prepareRun: func(t *testing.T, store *InMemoryRunProjectionStore, now time.Time, requestID string) {
+				if _, err := store.TransitionRun(context.Background(), requestID, DurableRunStatusQueued, "", now.Add(time.Second)); err != nil {
 					t.Fatal(err)
 				}
 			},
 		},
 		{
 			name: "canceled",
-			prepareRun: func(t *testing.T, store *InMemoryRunProjectionStore, now time.Time, runID string) {
+			prepareRun: func(t *testing.T, store *InMemoryRunProjectionStore, now time.Time, requestID string) {
 				if _, err := store.CancelRunProjection(context.Background(), DurableRunCancelRequest{
-					RunID: runID, Reason: "user_requested", Now: now.Add(time.Second),
+					RequestID: requestID, Reason: "user_requested", Now: now.Add(time.Second),
 				}); err != nil {
 					t.Fatal(err)
 				}
 				// A legacy/stale lease may exist even though new leases are filtered.
 				store.mu.Lock()
-				intent := store.workflowStartIntents[runID]
+				intent := store.workflowStartIntents[requestID]
 				intent.State = LifecycleIntentStateLeased
 				intent.LeaseToken = "start-lease"
 				intent.LeaseUntil = now.Add(time.Minute)
 				intent.DispatchAttempted = true
-				store.workflowStartIntents[runID] = intent
+				store.workflowStartIntents[requestID] = intent
 				store.mu.Unlock()
 			},
 		},
@@ -397,7 +397,7 @@ func TestInMemoryConfirmQueuedOrCanceledStartDoesNotDuplicateQueueEvents(t *test
 			if _, err := store.CreateRunWithStartIntent(context.Background(), request); err != nil {
 				t.Fatal(err)
 			}
-			test.prepareRun(t, store, now, request.Run.RunID)
+			test.prepareRun(t, store, now, request.Run.RequestID)
 			leased, err := store.LeaseWorkflowStartIntents(context.Background(), LifecycleLeaseRequest{
 				LeaseToken: "start-lease", Now: now.Add(2 * time.Second), LeaseUntil: now.Add(time.Minute), Limit: 1,
 			})
@@ -414,11 +414,11 @@ func TestInMemoryConfirmQueuedOrCanceledStartDoesNotDuplicateQueueEvents(t *test
 				markWorkflowStartDispatchForTest(t, store, leased[0], now.Add(2*time.Second))
 			}
 			if err := store.ConfirmWorkflowStartIntent(context.Background(), WorkflowStartIntentResult{
-				RunID: request.Run.RunID, LeaseToken: "start-lease", TemporalRunID: "temporal-run", Now: now.Add(3 * time.Second),
+				RequestID: request.Run.RequestID, LeaseToken: "start-lease", TemporalRunID: "temporal-run", Now: now.Add(3 * time.Second),
 			}); err != nil {
 				t.Fatal(err)
 			}
-			events, err := store.ListRunEvents(context.Background(), request.Run.RunID)
+			events, err := store.ListRunEvents(context.Background(), request.Run.RequestID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -440,7 +440,7 @@ func TestInMemoryCancellationCommandWinsTerminalArbitrationWithoutChangingActive
 		t.Fatal(err)
 	}
 	run, err := store.RequestRunCancellation(context.Background(), DurableRunCancellationRequest{
-		RunID: "run-cancel-arbitration", Reason: "user_requested", Now: now.Add(2 * time.Second),
+		RequestID: "run-cancel-arbitration", Reason: "user_requested", Now: now.Add(2 * time.Second),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -449,7 +449,7 @@ func TestInMemoryCancellationCommandWinsTerminalArbitrationWithoutChangingActive
 		t.Fatalf("run status = %q, want queued until cancellation finalizer", run.Status)
 	}
 	_, err = store.CompleteRunProjection(context.Background(), DurableRunCompleteRequest{
-		RunID: run.RunID, TerminalReason: DurableTerminalReasonAnswerCompleted,
+		RequestID: run.RequestID, TerminalReason: DurableTerminalReasonAnswerCompleted,
 		FinalResponseRef: "projection://answer", Now: now.Add(3 * time.Second),
 	})
 	if !errors.Is(err, ErrDurableRunTerminalConflict) {
@@ -466,12 +466,12 @@ func TestInMemoryConfirmedCancellationYieldsToObservedTerminalProjection(t *test
 		{
 			name:       "completed",
 			wantStatus: DurableRunStatusCompleted,
-			finalize: func(store *InMemoryRunProjectionStore, runID, _ string, now time.Time) (DurableRun, error) {
-				if err := storeFinalizationResultForTest(store, runID, "projection://answer", now); err != nil {
+			finalize: func(store *InMemoryRunProjectionStore, requestID, _ string, now time.Time) (DurableRun, error) {
+				if err := storeFinalizationResultForTest(store, requestID, "projection://answer", now); err != nil {
 					return DurableRun{}, err
 				}
 				return store.CompleteRunProjection(context.Background(), DurableRunCompleteRequest{
-					RunID: runID, TerminalReason: DurableTerminalReasonAnswerCompleted,
+					RequestID: requestID, TerminalReason: DurableTerminalReasonAnswerCompleted,
 					FinalResponseRef: "projection://answer", Now: now,
 				})
 			},
@@ -479,11 +479,11 @@ func TestInMemoryConfirmedCancellationYieldsToObservedTerminalProjection(t *test
 		{
 			name:       "failed",
 			wantStatus: DurableRunStatusFailed,
-			finalize: func(store *InMemoryRunProjectionStore, runID, conversationID string, now time.Time) (DurableRun, error) {
+			finalize: func(store *InMemoryRunProjectionStore, requestID, conversationID string, now time.Time) (DurableRun, error) {
 				return store.FailRunProjection(context.Background(), DurableRunFailRequest{
-					RunID: runID, TerminalReason: DurableTerminalReasonProviderUnavailable, Now: now,
+					RequestID: requestID, TerminalReason: DurableTerminalReasonProviderUnavailable, Now: now,
 					TerminalEvent: failedRunTerminalEventForTest(
-						runID,
+						requestID,
 						conversationID,
 						now,
 						map[string]any{"failure_kind": "provider_unavailable", "status": "failed"},
@@ -494,10 +494,10 @@ func TestInMemoryConfirmedCancellationYieldsToObservedTerminalProjection(t *test
 		{
 			name:       "expired",
 			wantStatus: DurableRunStatusExpired,
-			finalize: func(store *InMemoryRunProjectionStore, runID, _ string, now time.Time) (DurableRun, error) {
+			finalize: func(store *InMemoryRunProjectionStore, requestID, _ string, now time.Time) (DurableRun, error) {
 				return store.ExpireRunProjection(context.Background(), DurableRunExpireRequest{
-					RunID: runID,
-					Now:   now,
+					RequestID: requestID,
+					Now:       now,
 				})
 			},
 		},
@@ -507,9 +507,9 @@ func TestInMemoryConfirmedCancellationYieldsToObservedTerminalProjection(t *test
 		t.Run(test.name, func(t *testing.T) {
 			store := NewInMemoryRunProjectionStore()
 			now := time.Date(2026, 7, 23, 11, 0, 0, 0, time.UTC)
-			runID := "run-confirmed-cancel-" + test.name
+			requestID := "run-confirmed-cancel-" + test.name
 			conversationID := "conv-confirmed-cancel-" + test.name
-			createRunProjectionForTest(t, store, runID, conversationID, now)
+			createRunProjectionForTest(t, store, requestID, conversationID, now)
 			for index, status := range []DurableRunStatus{
 				DurableRunStatusQueued,
 				DurableRunStatusAdmitted,
@@ -517,7 +517,7 @@ func TestInMemoryConfirmedCancellationYieldsToObservedTerminalProjection(t *test
 			} {
 				if _, err := store.TransitionRun(
 					context.Background(),
-					runID,
+					requestID,
 					status,
 					"",
 					now.Add(time.Duration(index+1)*time.Second),
@@ -526,12 +526,12 @@ func TestInMemoryConfirmedCancellationYieldsToObservedTerminalProjection(t *test
 				}
 			}
 			if _, err := store.RequestRunCancellation(context.Background(), DurableRunCancellationRequest{
-				RunID: runID, Reason: "user_requested", Now: now.Add(4 * time.Second),
+				RequestID: requestID, Reason: "user_requested", Now: now.Add(4 * time.Second),
 			}); err != nil {
 				t.Fatalf("request cancellation: %v", err)
 			}
 
-			if _, err := test.finalize(store, runID, conversationID, now.Add(5*time.Second)); !errors.Is(err, ErrDurableRunTerminalConflict) {
+			if _, err := test.finalize(store, requestID, conversationID, now.Add(5*time.Second)); !errors.Is(err, ErrDurableRunTerminalConflict) {
 				t.Fatalf("terminal projection before cancellation confirmation error = %v", err)
 			}
 			commands, err := store.LeaseRunCancellationCommands(context.Background(), LifecycleLeaseRequest{
@@ -542,12 +542,12 @@ func TestInMemoryConfirmedCancellationYieldsToObservedTerminalProjection(t *test
 				t.Fatalf("lease cancellation command = %#v, err=%v", commands, err)
 			}
 			if err := store.ConfirmRunCancellationCommand(context.Background(), RunCancellationCommandResult{
-				RunID: runID, LeaseToken: commands[0].LeaseToken, Now: now.Add(6 * time.Second),
+				RequestID: requestID, LeaseToken: commands[0].LeaseToken, Now: now.Add(6 * time.Second),
 			}); err != nil {
 				t.Fatalf("confirm cancellation command: %v", err)
 			}
 
-			finalized, err := test.finalize(store, runID, conversationID, now.Add(7*time.Second))
+			finalized, err := test.finalize(store, requestID, conversationID, now.Add(7*time.Second))
 			if err != nil {
 				t.Fatalf("terminal projection after cancellation confirmation: %v", err)
 			}
@@ -565,15 +565,15 @@ func TestInMemoryActiveWorkflowScanOnlyFencesUnresolvedCancellation(t *testing.T
 		LifecycleIntentStateLeased,
 		LifecycleIntentStateConfirmed,
 	} {
-		runID := "run-cancellation-" + string(state)
-		store.runs[runID] = DurableRun{RunID: runID, Status: DurableRunStatusRunning}
-		store.workflowStartIntents[runID] = WorkflowStartIntent{
-			RunID: runID,
-			State: LifecycleIntentStateConfirmed,
+		requestID := "run-cancellation-" + string(state)
+		store.runs[requestID] = DurableRun{RequestID: requestID, Status: DurableRunStatusRunning}
+		store.workflowStartIntents[requestID] = WorkflowStartIntent{
+			RequestID: requestID,
+			State:     LifecycleIntentStateConfirmed,
 		}
-		store.cancellationCommands[runID] = RunCancellationCommand{
-			RunID: runID,
-			State: state,
+		store.cancellationCommands[requestID] = RunCancellationCommand{
+			RequestID: requestID,
+			State:     state,
 		}
 	}
 
@@ -581,7 +581,7 @@ func TestInMemoryActiveWorkflowScanOnlyFencesUnresolvedCancellation(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(active) != 1 || active[0].Run.RunID != "run-cancellation-confirmed" {
+	if len(active) != 1 || active[0].Run.RequestID != "run-cancellation-confirmed" {
 		t.Fatalf("active workflows = %#v, want only confirmed cancellation", active)
 	}
 }
@@ -591,7 +591,7 @@ func TestInMemoryAgentInvocationReceiptFailsClosedOnAmbiguousReplay(t *testing.T
 	now := time.Date(2026, 7, 23, 1, 2, 3, 0, time.UTC)
 	createRunProjectionForTest(t, store, "run-1", "conv-agent-receipt", now)
 	receipt := AgentInvocationReceipt{
-		InvocationID: "run-1:agent-primary", RunID: "run-1",
+		InvocationID: "run-1:agent-primary", RequestID: "run-1",
 		InputSHA256: strings.Repeat("a", 64), CreatedAt: now, UpdatedAt: now,
 	}
 	_, disposition, err := store.BeginAgentInvocation(context.Background(), receipt)
@@ -602,7 +602,7 @@ func TestInMemoryAgentInvocationReceiptFailsClosedOnAmbiguousReplay(t *testing.T
 	if err != nil || disposition != AgentInvocationDispositionAmbiguous {
 		t.Fatalf("ambiguous invocation disposition=%q err=%v", disposition, err)
 	}
-	receipt.OutputJSON = json.RawMessage(`{"run_id":"run-1","status":"completed"}`)
+	receipt.OutputJSON = json.RawMessage(`{"request_id":"run-1","status":"completed"}`)
 	receipt.OutputSHA256 = strings.Repeat("b", 64)
 	receipt.CompletedAt = now.Add(time.Second)
 	receipt.UpdatedAt = receipt.CompletedAt
@@ -618,12 +618,11 @@ func TestInMemoryAgentInvocationReceiptFailsClosedOnAmbiguousReplay(t *testing.T
 func atomicRunCreateRequestForTest(now time.Time) DurableRunCreateIntent {
 	return DurableRunCreateIntent{
 		Run: DurableRun{
-			RunID: "run-atomic", ConversationID: "conv-atomic", TurnID: "turn-atomic",
-			RequestID: "req-atomic", TraceID: "trace-atomic", OwnerUserID: "user-atomic",
+			RequestID: "run-atomic", ConversationID: "conv-atomic", OwnerUserID: "user-atomic",
 			Surface: "campus-web", TaskQueue: "campus-agent.workflow.v3",
 			Status: DurableRunStatusCreated, CreatedAt: now, UpdatedAt: now,
 			Metadata: map[string]any{
-				"execution_contract_version": "tool_execution_v5",
+				"execution_contract_version": "tool_execution_v6",
 				"execution_input_ref":        "app-api://execution-inputs/run-atomic",
 				"execution_input_sha256":     strings.Repeat("c", 64),
 			},
@@ -631,9 +630,9 @@ func atomicRunCreateRequestForTest(now time.Time) DurableRunCreateIntent {
 		RequestFingerprintSHA256: strings.Repeat("a", 64),
 		WorkflowID:               "campus-agent.chat.run-atomic", PayloadSHA256: strings.Repeat("a", 64),
 		TaskQueue:         "campus-agent.workflow.v3",
-		WorkflowInputJSON: json.RawMessage(`{"run_id":"run-atomic"}`),
+		WorkflowInputJSON: json.RawMessage(`{"request_id":"run-atomic"}`),
 		CreatedEvent: DurableRunEvent{
-			EventID: "run-atomic:run-created", RunID: "run-atomic", ConversationID: "conv-atomic",
+			EventID: "run-atomic:run-created", RequestID: "run-atomic", ConversationID: "conv-atomic",
 			EventType: DurableRunEventTypeRunCreated, OccurredAt: now,
 			Visibility: DurableRunEventVisibilityInternal, PayloadSchemaVersion: "run-event-v1",
 			Payload: map[string]any{"status": "created"},
@@ -649,7 +648,7 @@ func markWorkflowStartDispatchForTest(
 ) {
 	t.Helper()
 	if err := store.MarkWorkflowStartDispatchAttempt(context.Background(), WorkflowStartIntentResult{
-		RunID: intent.RunID, LeaseToken: intent.LeaseToken, Now: now,
+		RequestID: intent.RequestID, LeaseToken: intent.LeaseToken, Now: now,
 	}); err != nil {
 		t.Fatal(err)
 	}

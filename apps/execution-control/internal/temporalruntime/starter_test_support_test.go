@@ -86,7 +86,7 @@ func (c *captureTemporalClient) CancelWorkflow(
 
 func starterWorkflowInputForTest(runID string) ToolExecutionWorkflowInput {
 	return ToolExecutionWorkflowInput{
-		RunID: runID, WorkflowID: "campus-agent.chat." + runID,
+		RequestID: runID, WorkflowID: "campus-agent.chat." + runID,
 		TaskQueue: WorkflowTaskQueue, PayloadSHA256: strings.Repeat("a", 64),
 	}
 }
@@ -99,7 +99,7 @@ func workflowDescriptionForTest(
 	t.Helper()
 	fields := map[string]*commonpb.Payload{}
 	for key, value := range map[string]string{
-		workflowMemoRunIDKey: identity.RunID, workflowMemoWorkflowIDKey: identity.WorkflowID,
+		workflowMemoRequestIDKey: identity.RequestID, workflowMemoWorkflowIDKey: identity.WorkflowID,
 		workflowMemoPayloadSHAKey: identity.PayloadSHA256, workflowMemoInputSHAKey: identity.WorkflowInputSHA256,
 	} {
 		payload, err := converter.GetDefaultDataConverter().ToPayload(value)

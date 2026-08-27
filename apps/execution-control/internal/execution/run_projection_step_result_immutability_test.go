@@ -91,14 +91,14 @@ func TestInMemoryStepResultProjectionRejectsConflictingReplayWithoutOverwrite(t 
 		t.Run(name, func(t *testing.T) {
 			store := NewInMemoryRunProjectionStore()
 			ctx := context.Background()
-			const runID = "run-step-result-conflict"
-			createRunProjectionForTest(t, store, runID, "conv-step-result-conflict", now)
-			want := stepResultProjectionForImmutabilityTest(runID, now.Add(time.Second))
+			const requestID = "run-step-result-conflict"
+			createRunProjectionForTest(t, store, requestID, "conv-step-result-conflict", now)
+			want := stepResultProjectionForImmutabilityTest(requestID, now.Add(time.Second))
 			if _, err := store.UpsertStepResult(ctx, want); err != nil {
 				t.Fatalf("create step result: %v", err)
 			}
 
-			conflict := stepResultProjectionForImmutabilityTest(runID, now.Add(time.Second))
+			conflict := stepResultProjectionForImmutabilityTest(requestID, now.Add(time.Second))
 			mutate(&conflict)
 			if _, err := store.UpsertStepResult(ctx, conflict); !errors.Is(err, ErrStepResultProjectionConflict) {
 				t.Fatalf("conflicting replay error = %v, want ErrStepResultProjectionConflict", err)
@@ -113,14 +113,14 @@ func TestInMemoryStepResultProjectionRejectsNonJSONPayload(t *testing.T) {
 	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	now := time.Date(2026, 7, 23, 14, 15, 0, 0, time.UTC)
-	const runID = "run-step-result-invalid-json"
-	createRunProjectionForTest(t, store, runID, "conv-step-result-invalid-json", now)
-	result := stepResultProjectionForImmutabilityTest(runID, now.Add(time.Second))
+	const requestID = "run-step-result-invalid-json"
+	createRunProjectionForTest(t, store, requestID, "conv-step-result-invalid-json", now)
+	result := stepResultProjectionForImmutabilityTest(requestID, now.Add(time.Second))
 	result.SanitizedPayload["invalid"] = make(chan struct{})
 	if _, err := store.UpsertStepResult(ctx, result); !errors.Is(err, ErrInvalidStepResult) {
 		t.Fatalf("invalid JSON payload error = %v, want ErrInvalidStepResult", err)
 	}
-	results, err := store.ListStepResults(ctx, runID)
+	results, err := store.ListStepResults(ctx, requestID)
 	if err != nil || len(results) != 0 {
 		t.Fatalf("results after invalid payload = %#v, error = %v", results, err)
 	}
@@ -130,18 +130,18 @@ func TestInMemoryStepResultProjectionRejectsWritesAfterRunTerminal(t *testing.T)
 	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	now := time.Date(2026, 7, 23, 14, 20, 0, 0, time.UTC)
-	const runID = "run-step-result-terminal"
-	createRunProjectionForTest(t, store, runID, "conv-step-result-terminal", now)
-	want := stepResultProjectionForImmutabilityTest(runID, now.Add(time.Second))
+	const requestID = "run-step-result-terminal"
+	createRunProjectionForTest(t, store, requestID, "conv-step-result-terminal", now)
+	want := stepResultProjectionForImmutabilityTest(requestID, now.Add(time.Second))
 	if _, err := store.UpsertStepResult(ctx, want); err != nil {
 		t.Fatalf("create step result: %v", err)
 	}
-	transitionRunToCompletedForStepResultTest(t, store, runID, now.Add(2*time.Second))
+	transitionRunToCompletedForStepResultTest(t, store, requestID, now.Add(2*time.Second))
 
-	if _, err := store.UpsertStepResult(ctx, stepResultProjectionForImmutabilityTest(runID, now.Add(time.Second))); !errors.Is(err, ErrDurableRunTerminalConflict) {
+	if _, err := store.UpsertStepResult(ctx, stepResultProjectionForImmutabilityTest(requestID, now.Add(time.Second))); !errors.Is(err, ErrDurableRunTerminalConflict) {
 		t.Fatalf("terminal exact replay error = %v, want ErrDurableRunTerminalConflict", err)
 	}
-	newResult := stepResultProjectionForImmutabilityTest(runID, now.Add(6*time.Second))
+	newResult := stepResultProjectionForImmutabilityTest(requestID, now.Add(6*time.Second))
 	newResult.ResultID = "result-agent-2"
 	if _, err := store.UpsertStepResult(ctx, newResult); !errors.Is(err, ErrDurableRunTerminalConflict) {
 		t.Fatalf("terminal new result error = %v, want ErrDurableRunTerminalConflict", err)
@@ -167,11 +167,11 @@ func TestInMemoryStepResultProjectionAllowsOnlyPostCompletionMemoryAppend(t *tes
 		t.Run(testCase.name, func(t *testing.T) {
 			store := NewInMemoryRunProjectionStore()
 			ctx := context.Background()
-			runID := "run-post-completion-" + testCase.stepID
-			createRunProjectionForTest(t, store, runID, "conv-"+runID, now)
-			transitionRunToCompletedForStepResultTest(t, store, runID, now.Add(time.Second))
+			requestID := "run-post-completion-" + testCase.stepID
+			createRunProjectionForTest(t, store, requestID, "conv-"+requestID, now)
+			transitionRunToCompletedForStepResultTest(t, store, requestID, now.Add(time.Second))
 			result := postCompletionMemoryResultForTest(
-				runID,
+				requestID,
 				testCase.stepID,
 				testCase.resultKind,
 				now.Add(6*time.Second),
@@ -246,13 +246,13 @@ func TestInMemoryStepResultProjectionAllowsOnlyPostCompletionMemoryAppend(t *tes
 		t.Run(testCase.name, func(t *testing.T) {
 			store := NewInMemoryRunProjectionStore()
 			ctx := context.Background()
-			runID := "run-disallowed-" + testCase.id
-			createRunProjectionForTest(t, store, runID, "conv-"+runID, now)
+			requestID := "run-disallowed-" + testCase.id
+			createRunProjectionForTest(t, store, requestID, "conv-"+requestID, now)
 			if testCase.status == DurableRunStatusCompleted {
-				transitionRunToCompletedForStepResultTest(t, store, runID, now.Add(time.Second))
+				transitionRunToCompletedForStepResultTest(t, store, requestID, now.Add(time.Second))
 			} else if _, err := store.TransitionRun(
 				ctx,
-				runID,
+				requestID,
 				testCase.status,
 				testCase.terminalReason,
 				now.Add(time.Second),
@@ -260,7 +260,7 @@ func TestInMemoryStepResultProjectionAllowsOnlyPostCompletionMemoryAppend(t *tes
 				t.Fatalf("transition run to %s: %v", testCase.status, err)
 			}
 			result := postCompletionMemoryResultForTest(
-				runID,
+				requestID,
 				testCase.stepID,
 				testCase.resultKind,
 				now.Add(6*time.Second),
@@ -275,11 +275,11 @@ func TestInMemoryStepResultProjectionAllowsOnlyPostCompletionMemoryAppend(t *tes
 	}
 }
 
-func stepResultProjectionForImmutabilityTest(runID string, createdAt time.Time) StepResultProjection {
+func stepResultProjectionForImmutabilityTest(requestID string, createdAt time.Time) StepResultProjection {
 	return StepResultProjection{
 		ResultID:             "result-agent-1",
 		StepID:               "agent.primary",
-		RunID:                runID,
+		RequestID:            requestID,
 		AttemptID:            "attempt-agent-1",
 		Status:               "completed",
 		ResultKind:           "agent_final_output",
@@ -303,19 +303,19 @@ func stepResultProjectionForImmutabilityTest(runID string, createdAt time.Time) 
 }
 
 func postCompletionMemoryResultForTest(
-	runID string,
+	requestID string,
 	stepID string,
 	resultKind string,
 	createdAt time.Time,
 ) StepResultProjection {
 	return StepResultProjection{
-		ResultID:             runID + ":" + stepID + ":result:1",
+		ResultID:             requestID + ":" + stepID + ":result:1",
 		StepID:               stepID,
-		RunID:                runID,
-		AttemptID:            runID + ":" + stepID + ":attempt:1",
+		RequestID:            requestID,
+		AttemptID:            requestID + ":" + stepID + ":attempt:1",
 		Status:               "completed",
 		ResultKind:           resultKind,
-		ProjectionRef:        "projection://runs/" + runID + "/" + stepID,
+		ProjectionRef:        "projection://runs/" + requestID + "/" + stepID,
 		CreatedAt:            createdAt,
 		PayloadSchemaVersion: "step-result-v1",
 		SanitizedPayload:     map[string]any{"status": "completed"},
@@ -325,7 +325,7 @@ func postCompletionMemoryResultForTest(
 func transitionRunToCompletedForStepResultTest(
 	t *testing.T,
 	store *InMemoryRunProjectionStore,
-	runID string,
+	requestID string,
 	now time.Time,
 ) {
 	t.Helper()
@@ -342,7 +342,7 @@ func transitionRunToCompletedForStepResultTest(
 	for index, transition := range transitions {
 		if _, err := store.TransitionRun(
 			ctx,
-			runID,
+			requestID,
 			transition.status,
 			transition.reason,
 			now.Add(time.Duration(index)*time.Second),
@@ -358,7 +358,7 @@ func assertStoredStepResultForImmutabilityTest(
 	want StepResultProjection,
 ) {
 	t.Helper()
-	results, err := store.ListStepResults(context.Background(), want.RunID)
+	results, err := store.ListStepResults(context.Background(), want.RequestID)
 	if err != nil {
 		t.Fatalf("list step results: %v", err)
 	}
@@ -376,7 +376,7 @@ func assertStepResultProjectionForImmutabilityTest(
 	t.Helper()
 	if got.ResultID != want.ResultID ||
 		got.StepID != want.StepID ||
-		got.RunID != want.RunID ||
+		got.RequestID != want.RequestID ||
 		got.AttemptID != want.AttemptID ||
 		got.Status != want.Status ||
 		got.ResultKind != want.ResultKind ||

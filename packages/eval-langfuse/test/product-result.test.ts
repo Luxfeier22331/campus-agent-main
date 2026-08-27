@@ -7,6 +7,7 @@ function payload(): Record<string, unknown> {
 		eval_run_id: "eval-001",
 		items: [
 			{
+				answer: "你好！",
 				case: {
 					argument_mode: "name_only",
 					case_id: "case-001",
@@ -16,46 +17,33 @@ function payload(): Record<string, unknown> {
 					reference_contexts: [],
 					reference_tool_calls: [],
 				},
-				projection: {
-					retrieved_context_ids: [],
-					retrieved_contexts: [],
-					run_id: "run-001",
-					trace_id: "trace-001",
-					tool_trajectory: {
-						available_tools: [],
-						decision_kind: "direct_answer",
-						request_id: "request-001",
-						run_id: "run-001",
-						schema_version: "tool_trajectory.v3",
-						tool_calls: [],
-						trace_id: "trace-001",
-					},
-				},
-				terminal: {
-					answer: "你好！",
-					conversation_id: "conversation-001",
-					request_id: "request-001",
-					result_kind: "answer",
-					run_id: "run-001",
-					trace_id: "trace-001",
+				request_id: "request-001",
+				retrieved_context_ids: [],
+				retrieved_contexts: [],
+				tool_trajectory: {
+					decision_kind: "direct_answer",
+					schema_version: "tool_trajectory.v4",
+					tool_calls: [],
 				},
 			},
 		],
-		schema_version: "agent_product_eval_result.v1",
+		schema_version: "agent_product_eval_result.v2",
 	};
 }
 
 describe("agent product result contract", () => {
 	it("parses a product result with empty retrieval", () => {
 		const result = parseAgentProductEvalResult(payload());
-		expect(result.items[0]?.projection.retrievedContexts).toEqual([]);
+		expect(result.items[0]?.retrievedContexts).toEqual([]);
 	});
 
-	it("rejects mismatched terminal and projection identity", () => {
+	it("rejects duplicate request identity", () => {
 		const value = payload();
-		const item = (value.items as Record<string, unknown>[])[0];
-		const terminal = item?.terminal as Record<string, unknown>;
-		terminal.trace_id = "trace-other";
-		expect(() => parseAgentProductEvalResult(value)).toThrow("identity do not match");
+		const first = (value.items as Record<string, unknown>[])[0];
+		(value.items as Record<string, unknown>[]).push({
+			...first,
+			case: { ...(first?.case as Record<string, unknown>), case_id: "case-002" },
+		});
+		expect(() => parseAgentProductEvalResult(value)).toThrow("request_id is duplicated");
 	});
 });

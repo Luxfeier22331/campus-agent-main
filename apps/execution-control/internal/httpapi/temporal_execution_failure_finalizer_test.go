@@ -53,9 +53,8 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		FailureHash: strings.Repeat("a", 64),
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
-		RunID:       "run-agent-failed",
+		RequestID:   "run-agent-failed",
 		Stage:       "agent.primary",
-		TraceID:     "trace-executor-001",
 	})
 	if err != nil {
 		t.Fatalf("finalize execution failure: %v", err)
@@ -83,9 +82,8 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		FailureHash: strings.Repeat("a", 64),
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
-		RunID:       "run-agent-failed",
+		RequestID:   "run-agent-failed",
 		Stage:       "agent.primary",
-		TraceID:     "trace-executor-001",
 	})
 	if err != nil || replay.Status != string(execution.DurableRunStatusFailed) {
 		t.Fatalf("idempotent finalization = %#v err=%v", replay, err)
@@ -99,9 +97,8 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 			FailureHash: strings.Repeat("b", 64),
 			FailureKind: "agent_runtime_failed",
 			FailedAt:    now.Add(3 * time.Second),
-			RunID:       "run-agent-failed",
+			RequestID:   "run-agent-failed",
 			Stage:       "agent.primary",
-			TraceID:     "trace-executor-001",
 		},
 	)
 	assertTemporalFailureSanitized(t, conflictErr, "execution_failure_terminal_conflict", true)
@@ -157,9 +154,8 @@ func TestFinalizeExecutionFailureActivityOwnsAllPreAnswerFailureStages(t *testin
 					FailureHash: strings.Repeat("c", 64),
 					FailureKind: test.failureKind,
 					FailedAt:    now.Add(time.Second),
-					RunID:       runID,
+					RequestID:   runID,
 					Stage:       test.stage,
-					TraceID:     "trace-executor-001",
 				},
 			)
 			if err != nil || output.Status != string(execution.DurableRunStatusFailed) {
@@ -206,9 +202,8 @@ func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailu
 			FailureHash: strings.Repeat("d", 64),
 			FailureKind: "agent_runtime_unauthorized",
 			FailedAt:    now.Add(time.Second),
-			RunID:       "run-runtime-unauthorized",
+			RequestID:   "run-runtime-unauthorized",
 			Stage:       "agent.primary",
-			TraceID:     "trace-executor-001",
 		},
 	)
 	if err != nil {
@@ -227,8 +222,8 @@ func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailu
 
 func TestTemporalFailureProjectionRejectsRetiredMemoryRecallStage(t *testing.T) {
 	_, ok := temporalFailureProjectionForStage(temporalruntime.FinalizeExecutionFailureActivityInput{
-		RunID: "run-retired-memory-recall",
-		Stage: "memory.recall",
+		RequestID: "run-retired-memory-recall",
+		Stage:     "memory.recall",
 	})
 	if ok {
 		t.Fatal("retired memory.recall workflow stage must not be accepted")
@@ -256,9 +251,8 @@ func TestFinalizeExecutionFailureActivityKeepsRunActiveUntilCallbackSucceeds(t *
 			FailureHash: strings.Repeat("d", 64),
 			FailureKind: "agent_runtime_failed",
 			FailedAt:    now.Add(time.Second),
-			RunID:       "run-callback-pending",
+			RequestID:   "run-callback-pending",
 			Stage:       "agent.primary",
-			TraceID:     "trace-executor-001",
 		},
 	)
 	assertTemporalFailureSanitized(t, err, "execution_failure_finalizer_failed", false)
@@ -266,7 +260,7 @@ func TestFinalizeExecutionFailureActivityKeepsRunActiveUntilCallbackSucceeds(t *
 	if readErr != nil || run.Status != execution.DurableRunStatusQueued {
 		t.Fatalf("run after callback failure = %#v err=%v", run, readErr)
 	}
-	events, readErr := store.ListRunEvents(context.Background(), run.RunID)
+	events, readErr := store.ListRunEvents(context.Background(), run.RequestID)
 	if readErr != nil {
 		t.Fatalf("list events: %v", readErr)
 	}

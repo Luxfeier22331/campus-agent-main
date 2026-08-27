@@ -28,11 +28,9 @@ const runSummarySchema = z.object({
 		"expired",
 	]),
 	requestId: nonEmptyString,
-	runId: nonEmptyString,
 	startedAt: nullableTimestamp.optional(),
 	status: nonEmptyString,
 	terminalReason: nonEmptyString.optional(),
-	traceId: nonEmptyString,
 });
 const runStatusResponseSchema = z.object({
 	run: runSummarySchema,
@@ -60,7 +58,7 @@ const productRunEventSchema = z.object({
 	]),
 	occurredAt: nonEmptyString,
 	payload: z.record(z.string(), z.unknown()),
-	runId: nonEmptyString,
+	requestId: nonEmptyString,
 	sequence: z.number().int().positive(),
 });
 const runEventsResponseSchema = z.object({
@@ -87,11 +85,9 @@ export interface ChatRunStatus {
 	durationMs: number | null;
 	phase: ChatRunPhase;
 	requestId: string;
-	runId: string;
 	startedAt: string | null;
 	status: string;
 	terminalReason?: string;
-	traceId: string;
 }
 
 export type ChatRunProductPhase = "preparing" | "generating" | "finalizing";
@@ -112,8 +108,8 @@ export interface ChatRunSteps {
 	steps: ChatRunStep[];
 }
 
-export async function cancelRun(runId: string): Promise<ChatRunStatus> {
-	const response = await fetch(`/api/chat/runs/${encodeURIComponent(runId)}/cancel`, {
+export async function cancelRun(requestId: string): Promise<ChatRunStatus> {
+	const response = await fetch(`/api/chat/requests/${encodeURIComponent(requestId)}/cancel`, {
 		body: JSON.stringify({ reason: "user_requested" }),
 		credentials: "same-origin",
 		headers: {
@@ -137,7 +133,7 @@ export async function cancelRun(runId: string): Promise<ChatRunStatus> {
 }
 
 export async function getRunStatus(input: {
-	runId: string;
+	requestId: string;
 	signal?: AbortSignal;
 }): Promise<ChatRunStatus> {
 	const requestController = new AbortController();
@@ -153,7 +149,7 @@ export async function getRunStatus(input: {
 		requestController.abort(new DOMException("Run status request timed out.", "TimeoutError"));
 	}, RUN_STATUS_REQUEST_TIMEOUT_MS);
 	try {
-		const response = await fetch(`/api/chat/runs/${encodeURIComponent(input.runId)}`, {
+		const response = await fetch(`/api/chat/requests/${encodeURIComponent(input.requestId)}`, {
 			credentials: "same-origin",
 			headers: { accept: "application/json" },
 			method: "GET",
@@ -182,7 +178,7 @@ export async function getRunStatus(input: {
 	} catch (error) {
 		if (timedOut) {
 			throw new ChatStreamRequestError({
-				code: "run_status_timeout",
+				code: "request_status_timeout",
 				message: "回答状态查询超时。",
 				retryable: true,
 			});
@@ -202,33 +198,20 @@ function normalizeRunStatus(run: z.infer<typeof runSummarySchema>): ChatRunStatu
 		durationMs: run.durationMs ?? null,
 		phase: run.phase,
 		requestId: run.requestId,
-		runId: run.runId,
 		startedAt: run.startedAt ?? null,
 		status: run.status,
 		...(run.terminalReason ? { terminalReason: run.terminalReason } : {}),
-		traceId: run.traceId,
 	};
 }
 
 function productEventToStreamEvent(
 	event: z.infer<typeof productRunEventSchema>,
-	run: ChatRunStatus,
 ): ChatRequestStreamEvent | null {
 	const payload = event.payload;
-	const requestId =
-		typeof payload.request_id === "string" && payload.request_id.trim()
-			? payload.request_id
-			: run.requestId;
-	const traceId =
-		typeof payload.trace_id === "string" && payload.trace_id.trim()
-			? payload.trace_id
-			: run.traceId;
 	const base = {
 		occurredAt: event.occurredAt,
-		requestId,
-		runId: event.runId,
+		requestId: event.requestId,
 		sequence: event.sequence,
-		traceId,
 	};
 	switch (event.eventType) {
 		case "execution.queued":
@@ -294,7 +277,7 @@ function productEventToStreamEvent(
 
 export async function getRunEvents(input: {
 	afterSequence?: number;
-	runId: string;
+	requestId: string;
 	signal?: AbortSignal;
 }): Promise<{ events: ChatRequestStreamEvent[]; nextSequence: number; run: ChatRunStatus }> {
 	const params = new URLSearchParams();
@@ -303,7 +286,7 @@ export async function getRunEvents(input: {
 	}
 	const suffix = params.size > 0 ? `?${params.toString()}` : "";
 	const response = await fetch(
-		`/api/chat/runs/${encodeURIComponent(input.runId)}/events${suffix}`,
+		`/api/chat/requests/${encodeURIComponent(input.requestId)}/events${suffix}`,
 		{
 			credentials: "same-origin",
 			headers: { accept: "application/json" },
@@ -325,7 +308,7 @@ export async function getRunEvents(input: {
 	const run = normalizeRunStatus(parsed.data.run);
 	return {
 		events: parsed.data.events
-			.map((event) => productEventToStreamEvent(event, run))
+			.map((event) => productEventToStreamEvent(event))
 			.filter((event): event is ChatRequestStreamEvent => event !== null),
 		nextSequence: parsed.data.nextSequence,
 		run,
@@ -333,10 +316,10 @@ export async function getRunEvents(input: {
 }
 
 export async function getRunSteps(input: {
-	runId: string;
+	requestId: string;
 	signal?: AbortSignal;
 }): Promise<ChatRunSteps> {
-	const response = await fetch(`/api/chat/runs/${encodeURIComponent(input.runId)}/steps`, {
+	const response = await fetch(`/api/chat/requests/${encodeURIComponent(input.requestId)}/steps`, {
 		credentials: "same-origin",
 		headers: { accept: "application/json" },
 		method: "GET",
@@ -399,7 +382,7 @@ export async function* submitChatRequestStream(input: {
 
 export async function* resumeRunEventsStream(input: {
 	afterSequence?: number;
-	runId: string;
+	requestId: string;
 	signal?: AbortSignal;
 }): AsyncIterable<ChatRequestStreamEvent> {
 	const params = new URLSearchParams();
@@ -408,7 +391,7 @@ export async function* resumeRunEventsStream(input: {
 	}
 	const suffix = params.size > 0 ? `?${params.toString()}` : "";
 	const response = await fetch(
-		`/api/chat/runs/${encodeURIComponent(input.runId)}/events/stream${suffix}`,
+		`/api/chat/requests/${encodeURIComponent(input.requestId)}/events/stream${suffix}`,
 		{
 			credentials: "same-origin",
 			headers: {

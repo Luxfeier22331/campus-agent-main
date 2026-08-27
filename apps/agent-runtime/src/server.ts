@@ -55,10 +55,8 @@ const handler = createAgentRuntimeHandler({
 		logAgentRuntimeEvent("error", "agent_runtime.stream", "failed", {
 			error_code: safeAgentRuntimeErrorCode(error),
 			request_id: context.requestId,
-			run_id: context.runId,
 			runtime_release: deploymentRelease,
 			source: "stream",
-			trace_id: context.traceId,
 		}),
 	runtimeRelease: deploymentRelease,
 	sharedSecret: executionAgentRuntimeSharedSecret,

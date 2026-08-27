@@ -12,12 +12,5 @@
 		"code": "execution_timeout",
 		"message": "Execution control timed out.",
 		"retryable": true
-	},
-	"workflow_trace_summary": {
-		"execution_path": "direct",
-		"terminal_reason": "execution_timeout",
-		"answer_artifact_refs": [],
-		"runtime_versions": {}
-	},
-	"trace_id": "trace-contract-timeout"
+	}
 }

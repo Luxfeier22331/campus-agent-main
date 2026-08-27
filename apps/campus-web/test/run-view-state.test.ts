@@ -21,10 +21,8 @@ function run(overrides: Partial<ChatRunStatus> = {}): ChatRunStatus {
 		durationMs: null,
 		phase: "running",
 		requestId: "req_01",
-		runId: "run_01",
 		startedAt: RUN_TIMES.startedAt,
 		status: "running",
-		traceId: "trace_01",
 		...overrides,
 	};
 }
@@ -37,10 +35,8 @@ function event(
 		data: {
 			occurredAt: RUN_TIMES.startedAt,
 			requestId: "req_01",
-			runId: "run_01",
 			sequence: 1,
 			status: "running",
-			traceId: "trace_01",
 			...overrides,
 		},
 		event: eventName,
@@ -107,7 +103,7 @@ describe("campus run view state", () => {
 			event: event("answer.delta", {
 				delta: "错误运行",
 				messageId: "msg_01",
-				runId: "run_other",
+				requestId: "req_other",
 				sequence: 4,
 			}),
 			operationId: 7,
@@ -217,18 +213,18 @@ describe("campus run view state", () => {
 	it("keeps a disconnected run disconnected until recovery produces an event", () => {
 		const disconnected = reduceCampusRunViewState(
 			{ ...acceptedState(), connection: "disconnected" },
-			{ operationId: 8, runId: "run_01", type: "rebind" },
+			{ operationId: 8, requestId: "req_01", type: "rebind" },
 		);
 		const mismatched = reduceCampusRunViewState(disconnected, {
 			operationId: 9,
-			runId: "run_other",
+			requestId: "req_other",
 			type: "rebind",
 		});
 
 		expect(disconnected).toMatchObject({
 			connection: "disconnected",
 			operationId: 8,
-			runId: "run_01",
+			requestId: "req_01",
 		});
 		expect(mismatched).toEqual(disconnected);
 

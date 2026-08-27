@@ -12,6 +12,7 @@ const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SOURCE_REPOSITORY = "MUC-WIKI/campus-agent";
 const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["agent-runtime", ["agent-runtime"]],
+	["campus-agent-schema", ["campus-agent-schema"]],
 	["app-api-schema", ["app-api-schema"]],
 	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
 	["execution-control", ["execution-control"]],
@@ -25,6 +26,7 @@ const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
 const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["apps/execution-control/Dockerfile", ["execution-control"]],
 	["apps/model-config/Dockerfile", ["model-config"]],
+	["jobs/campus-agent-schema/Dockerfile", ["campus-agent-schema"]],
 	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
 	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
@@ -160,6 +162,9 @@ export async function planCandidates(
 	const sharedNodeRelease = files.some((file) =>
 		["pnpm-lock.yaml", "pnpm-workspace.yaml"].includes(file),
 	);
+	if (sharedNodeRelease || changesPath(files, "jobs/campus-agent-schema")) {
+		images.add("campus-agent-schema");
+	}
 	if (
 		sharedNodeRelease ||
 		changesPath(files, "jobs/app-api-schema") ||

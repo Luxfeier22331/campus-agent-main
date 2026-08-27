@@ -38,8 +38,8 @@ describe("campus worker app-api proxy allowlist", () => {
 	});
 
 	it("allows the run steps route used by the chat status surface", () => {
-		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01HQ/steps")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01HQ/steps/raw")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/chat/requests/req_01HQ/steps")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/chat/requests/req_01HQ/steps/raw")).toBe(false);
 	});
 
 	it("allows only the public campus groups catalog", () => {
@@ -48,10 +48,10 @@ describe("campus worker app-api proxy allowlist", () => {
 	});
 
 	it("allows chat run status and step routes", () => {
-		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01/events")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01/steps")).toBe(true);
-		expect(isAllowedCampusAppApiRequest("/api/chat/runs/run_01/steps/extra")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/chat/requests/req_01")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/chat/requests/req_01/events")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/chat/requests/req_01/steps")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/chat/requests/req_01/steps/extra")).toBe(false);
 	});
 
 	it("allows only the notice catalog, decimal details, and image ordinals", () => {

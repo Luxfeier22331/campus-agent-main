@@ -29,23 +29,19 @@ partially_superseded_by: ADR-0092
 
 - PostgreSQL 保存产品状态和有界运行投影；
 - Temporal 保存 workflow history、task routing、retry、timeout 和 cancellation；
-- Axiom 只保存 producer 已清理的 Cloudflare Worker application logs；
 - Sentry 通过官方 SDK 保存浏览器和边缘错误、release、source map，以及生产 browser 的采样性能 trace；
 - Langfuse 保存可选 Agent/LLM trace，并接收调用方按需发布的 score；仓库不把平台数据作为评测输入
   控制面；
-- Ops Web 读取 PostgreSQL，并按需查询固定 Axiom logs 与 Sentry Issues；它只生成 Temporal 和
-  Langfuse 外部入口；
+- Ops Web 读取 PostgreSQL，并按需查询固定 Sentry Issues；
 - 任何观测平台都不能改写产品状态、workflow 状态或个人记忆状态。
 
-`requestId` 是 Axiom application-log 查询的 durable business key。`traceId` 保留为产品关联和
-外部跳转标识，但不与 requestId 组成强制双条件查询。
+`requestId` 是产品 API、跨服务诊断、Sentry tag 和 Langfuse metadata 的唯一 durable business key。
+W3C、Sentry 和 Langfuse 原生 trace ID 只属于各自技术系统，不进入产品 API 或持久业务投影。
 
 ### 保留的信号路径
 
-App API 只发送由运行时合同定义、且已有消费者的结构化 application events。Cloudflare
-application-log destination 直接把这些事件送到 Axiom；具体事件名称、字段和清理规则由所属合同与
-生产者实现维护，不在本 ADR 复制。Cloudflare native invocation logs 和 native traces 保持关闭，
-不能作为替代。
+Cloudflare native invocation logs 和 native traces 保持关闭，不能作为 Sentry 或持久产品状态的替代。
+App API 不生产供应商专用请求生命周期日志；该决定由 ADR-0092 维护。
 
 Agent Runtime 是唯一可选 OTel trace producer。它使用 SDK/OpenInference instrumentation、
 producer-side allowlist 和 OTLP/HTTP exporter 发送到环境选择的 Langfuse 路径。execution-control
@@ -71,8 +67,8 @@ producer-side allowlist 和 OTLP/HTTP exporter 发送到环境选择的 Langfuse
 
 ### 数据最小化
 
-Agent trace 只允许 user/session 关联、model/provider、Agent/tool 名称、usage、阶段结果以及
-`request_id`、`run_id`、`trace_id`、`turn_id`。prompt、模型输入输出、对话、工具原始载荷、
+Agent trace 只允许 user/session 关联、model/provider、Agent/tool 名称、usage、阶段结果以及唯一产品
+metadata `request_id`。prompt、模型输入输出、对话、工具原始载荷、
 memory/retrieval 正文、provider 原始响应和认证材料不得进入运行 trace。
 
 评测输入由调用方显式提供，不能从生产 trace 正文自动生成。运行 trace 已在 producer 侧排除对话、
@@ -84,12 +80,11 @@ memory/retrieval 正文、provider 原始响应和认证材料不得进入运行
 数据集、消费者、运行时或 API 操作继续拆分 provider 身份。不同 Secret 名称只表示交付位置，是否
 映射到同一上游身份由环境仓决定。
 
-Agent Runtime 的 Langfuse trace 凭据只由 trace producer 消费；Axiom、Sentry 和其他平台凭据不进入
+Agent Runtime 的 Langfuse trace 凭据只由 trace producer 消费；Sentry 和其他平台凭据不进入
 产品数据库、观测事件正文或 `packages/contracts`。
 
 ## 后果
 
-- Axiom 成本只随有业务价值的 application events 增长，不再随节点数量和 scrape 周期增长；
 - Langfuse 配额停收只降低 Agent trace 可见性，不影响在线业务、readiness 或产品终态；
 - Ops Web 概览只回答产品请求状态，不把外部信号缺失推断成系统故障；
 - Source 只维护 Agent trace producer 合同和本地 Collector，环境是否启用由环境仓决定；
@@ -98,8 +93,8 @@ Agent Runtime 的 Langfuse trace 凭据只由 trace producer 消费；Axiom、Se
 ## 未采用方案
 
 - **保留无消费者 metrics/traces 以备未来使用**：持续产生供应商成本和错误告警语义。
-- **让 Ops Web 成为通用 Axiom 或 Temporal 代理**：扩大高权限查询面并复制成熟平台。
-- **要求 requestId 与 traceId 同时匹配日志**：会丢失只有 durable request key 的合法记录。
+- **让 Ops Web 成为通用日志、trace 或 Temporal 代理**：扩大高权限查询面并复制成熟平台。
+- **从 trace ID 派生产品关联标识**：把可选、供应商所有的技术标识错误提升为业务主键。
 - **为每个数据集或消费者新建 token**：没有新的信任边界，只增加交付和轮换故障面。
 - **用第二套存储作为观测故障回退**：重新引入重复数据路径和不一致状态。
 

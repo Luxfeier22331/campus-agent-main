@@ -12,7 +12,6 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@campus-agent/langfuse-identity": "workspace:*",
 		"@langfuse/client": "^5.10.0"
 	},
 	"devDependencies": {

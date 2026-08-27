@@ -31,7 +31,7 @@ type DurableRunCreateResult struct {
 }
 
 type WorkflowStartIntent struct {
-	RunID             string
+	RequestID         string
 	WorkflowID        string
 	PayloadSHA256     string
 	TaskQueue         string
@@ -56,7 +56,7 @@ type LifecycleLeaseRequest struct {
 }
 
 type WorkflowStartIntentResult struct {
-	RunID         string
+	RequestID     string
 	LeaseToken    string
 	TemporalRunID string
 	Now           time.Time
@@ -65,7 +65,7 @@ type WorkflowStartIntentResult struct {
 }
 
 type WorkflowStartExecutionBinding struct {
-	RunID         string
+	RequestID     string
 	WorkflowID    string
 	TemporalRunID string
 	Now           time.Time
@@ -77,7 +77,7 @@ type ActiveWorkflowRun struct {
 }
 
 type RunCancellationCommand struct {
-	RunID         string
+	RequestID     string
 	WorkflowID    string
 	Reason        string
 	State         LifecycleIntentState
@@ -91,7 +91,7 @@ type RunCancellationCommand struct {
 }
 
 type RunCancellationCommandResult struct {
-	RunID         string
+	RequestID     string
 	LeaseToken    string
 	Now           time.Time
 	NextAttemptAt time.Time
@@ -115,7 +115,7 @@ const (
 
 type AgentInvocationReceipt struct {
 	InvocationID string
-	RunID        string
+	RequestID    string
 	InputSHA256  string
 	State        AgentInvocationReceiptState
 	OutputJSON   json.RawMessage

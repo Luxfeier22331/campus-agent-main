@@ -27,14 +27,14 @@ func (s *InMemoryRunProjectionStore) CreateRunWithStartIntent(
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if existing, exists := s.runs[run.RunID]; exists {
+	if existing, exists := s.runs[run.RequestID]; exists {
 		if existing.RequestFingerprintSHA256 == run.RequestFingerprintSHA256 {
 			return DurableRunCreateResult{Run: cloneDurableRun(existing)}, nil
 		}
 		return DurableRunCreateResult{}, fmt.Errorf(
-			"%w: run_id=%s",
+			"%w: request_id=%s",
 			ErrDurableRunFingerprintConflict,
-			run.RunID,
+			run.RequestID,
 		)
 	}
 	if state := s.ownerDeletionFences[run.OwnerUserID]; state == OwnerDeletionStateDeleted {
@@ -54,7 +54,7 @@ func (s *InMemoryRunProjectionStore) CreateRunWithStartIntent(
 	event := cloneDurableRunEvent(request.CreatedEvent)
 	event.Sequence = 1
 	intent := WorkflowStartIntent{
-		RunID:             run.RunID,
+		RequestID:         run.RequestID,
 		WorkflowID:        strings.TrimSpace(request.WorkflowID),
 		PayloadSHA256:     strings.TrimSpace(request.PayloadSHA256),
 		TaskQueue:         strings.TrimSpace(request.TaskQueue),
@@ -64,10 +64,10 @@ func (s *InMemoryRunProjectionStore) CreateRunWithStartIntent(
 		CreatedAt:         run.CreatedAt,
 		UpdatedAt:         run.CreatedAt,
 	}
-	s.runs[run.RunID] = cloneDurableRun(run)
-	s.runEvents[run.RunID] = []DurableRunEvent{event}
-	s.workflowStartIntents[run.RunID] = cloneWorkflowStartIntent(intent)
-	s.activeRunByConversation[run.ConversationID] = run.RunID
+	s.runs[run.RequestID] = cloneDurableRun(run)
+	s.runEvents[run.RequestID] = []DurableRunEvent{event}
+	s.workflowStartIntents[run.RequestID] = cloneWorkflowStartIntent(intent)
+	s.activeRunByConversation[run.ConversationID] = run.RequestID
 	return DurableRunCreateResult{Run: cloneDurableRun(run), Created: true}, nil
 }
 
@@ -93,7 +93,7 @@ func validateDurableRunCreateIntent(run DurableRun, request DurableRunCreateInte
 		return fmt.Errorf("%w: run.created sequence must be store-assigned", ErrInvalidRunEvent)
 	}
 	event.Sequence = 1
-	if event.RunID != run.RunID || event.ConversationID != run.ConversationID ||
+	if event.RequestID != run.RequestID || event.ConversationID != run.ConversationID ||
 		event.EventType != DurableRunEventTypeRunCreated {
 		return fmt.Errorf("%w: run.created identity is invalid", ErrInvalidRunEvent)
 	}
@@ -117,11 +117,11 @@ func (s *InMemoryRunProjectionStore) LeaseWorkflowStartIntents(
 	leased := make([]WorkflowStartIntent, 0, request.Limit)
 	for _, key := range keys {
 		intent := s.workflowStartIntents[key]
-		run, runExists := s.runs[intent.RunID]
+		run, runExists := s.runs[intent.RequestID]
 		if !runExists {
 			continue
 		}
-		if _, cancellationRequested := s.cancellationCommands[intent.RunID]; cancellationRequested && !durableRunStatusIsTerminal(run.Status) {
+		if _, cancellationRequested := s.cancellationCommands[intent.RequestID]; cancellationRequested && !durableRunStatusIsTerminal(run.Status) {
 			continue
 		}
 		if !lifecycleIntentLeaseable(intent.State, intent.NextAttemptAt, intent.LeaseUntil, request.Now) {
@@ -145,13 +145,13 @@ func (s *InMemoryRunProjectionStore) LeaseWorkflowStartIntents(
 // stale leased snapshot before performing an external Temporal call.
 func (s *InMemoryRunProjectionStore) GetWorkflowStartIntent(
 	_ context.Context,
-	runID string,
+	requestID string,
 ) (WorkflowStartIntent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	intent, exists := s.workflowStartIntents[strings.TrimSpace(runID)]
+	intent, exists := s.workflowStartIntents[strings.TrimSpace(requestID)]
 	if !exists {
-		return WorkflowStartIntent{}, fmt.Errorf("%w: workflow start run_id=%s", ErrLifecycleLeaseConflict, runID)
+		return WorkflowStartIntent{}, fmt.Errorf("%w: workflow start request_id=%s", ErrLifecycleLeaseConflict, requestID)
 	}
 	return cloneWorkflowStartIntent(intent), nil
 }
@@ -160,9 +160,9 @@ func (s *InMemoryRunProjectionStore) MarkWorkflowStartDispatchAttempt(
 	_ context.Context,
 	result WorkflowStartIntentResult,
 ) error {
-	result.RunID = strings.TrimSpace(result.RunID)
+	result.RequestID = strings.TrimSpace(result.RequestID)
 	result.LeaseToken = strings.TrimSpace(result.LeaseToken)
-	if result.RunID == "" || result.LeaseToken == "" || result.Now.IsZero() {
+	if result.RequestID == "" || result.LeaseToken == "" || result.Now.IsZero() {
 		return fmt.Errorf("%w: invalid workflow start dispatch fence", ErrLifecycleLeaseConflict)
 	}
 	s.mu.Lock()
@@ -171,19 +171,19 @@ func (s *InMemoryRunProjectionStore) MarkWorkflowStartDispatchAttempt(
 	if err != nil {
 		return err
 	}
-	run, exists := s.runs[intent.RunID]
+	run, exists := s.runs[intent.RequestID]
 	if !exists {
-		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, intent.RunID)
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, intent.RequestID)
 	}
 	if !durableRunStatusIsActive(run.Status) {
-		return fmt.Errorf("%w: workflow start run_id=%s is not active", ErrLifecycleLeaseConflict, intent.RunID)
+		return fmt.Errorf("%w: workflow start request_id=%s is not active", ErrLifecycleLeaseConflict, intent.RequestID)
 	}
-	if _, cancellationRequested := s.cancellationCommands[intent.RunID]; cancellationRequested {
-		return fmt.Errorf("%w: workflow start run_id=%s was canceled", ErrLifecycleLeaseConflict, intent.RunID)
+	if _, cancellationRequested := s.cancellationCommands[intent.RequestID]; cancellationRequested {
+		return fmt.Errorf("%w: workflow start request_id=%s was canceled", ErrLifecycleLeaseConflict, intent.RequestID)
 	}
 	intent.DispatchAttempted = true
 	intent.UpdatedAt = result.Now
-	s.workflowStartIntents[intent.RunID] = cloneWorkflowStartIntent(intent)
+	s.workflowStartIntents[intent.RequestID] = cloneWorkflowStartIntent(intent)
 	return nil
 }
 
@@ -197,52 +197,52 @@ func (s *InMemoryRunProjectionStore) BindSupersededWorkflowStartExecution(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.runs[binding.RunID]; !exists {
-		return WorkflowStartIntent{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, binding.RunID)
+	if _, exists := s.runs[binding.RequestID]; !exists {
+		return WorkflowStartIntent{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, binding.RequestID)
 	}
-	intent, exists := s.workflowStartIntents[binding.RunID]
-	if !exists || intent.RunID != binding.RunID || intent.WorkflowID != binding.WorkflowID ||
+	intent, exists := s.workflowStartIntents[binding.RequestID]
+	if !exists || intent.RequestID != binding.RequestID || intent.WorkflowID != binding.WorkflowID ||
 		intent.State != LifecycleIntentStateSuperseded || !intent.DispatchAttempted {
 		return WorkflowStartIntent{}, fmt.Errorf(
-			"%w: workflow start run_id=%s",
+			"%w: workflow start request_id=%s",
 			ErrWorkflowStartExecutionBindingConflict,
-			binding.RunID,
+			binding.RequestID,
 		)
 	}
-	command, exists := s.cancellationCommands[binding.RunID]
-	if !exists || command.RunID != binding.RunID || command.WorkflowID != binding.WorkflowID {
+	command, exists := s.cancellationCommands[binding.RequestID]
+	if !exists || command.RequestID != binding.RequestID || command.WorkflowID != binding.WorkflowID {
 		return WorkflowStartIntent{}, fmt.Errorf(
-			"%w: cancellation identity run_id=%s",
+			"%w: cancellation identity request_id=%s",
 			ErrWorkflowStartExecutionBindingConflict,
-			binding.RunID,
+			binding.RequestID,
 		)
 	}
 	existingRunID := strings.TrimSpace(intent.TemporalRunID)
 	if existingRunID != "" {
 		if existingRunID != binding.TemporalRunID {
 			return WorkflowStartIntent{}, fmt.Errorf(
-				"%w: temporal run id differs for run_id=%s",
+				"%w: temporal run id differs for request_id=%s",
 				ErrWorkflowStartExecutionBindingConflict,
-				binding.RunID,
+				binding.RequestID,
 			)
 		}
 		return cloneWorkflowStartIntent(intent), nil
 	}
 	intent.TemporalRunID = binding.TemporalRunID
 	intent.UpdatedAt = binding.Now
-	s.workflowStartIntents[binding.RunID] = cloneWorkflowStartIntent(intent)
+	s.workflowStartIntents[binding.RequestID] = cloneWorkflowStartIntent(intent)
 	return cloneWorkflowStartIntent(intent), nil
 }
 
 func canonicalWorkflowStartExecutionBinding(binding WorkflowStartExecutionBinding) WorkflowStartExecutionBinding {
-	binding.RunID = strings.TrimSpace(binding.RunID)
+	binding.RequestID = strings.TrimSpace(binding.RequestID)
 	binding.WorkflowID = strings.TrimSpace(binding.WorkflowID)
 	binding.TemporalRunID = strings.TrimSpace(binding.TemporalRunID)
 	return binding
 }
 
 func validateWorkflowStartExecutionBinding(binding WorkflowStartExecutionBinding) error {
-	if binding.RunID == "" || binding.WorkflowID == "" || binding.TemporalRunID == "" || binding.Now.IsZero() {
+	if binding.RequestID == "" || binding.WorkflowID == "" || binding.TemporalRunID == "" || binding.Now.IsZero() {
 		return fmt.Errorf("%w: invalid workflow start execution binding", ErrWorkflowStartExecutionBindingConflict)
 	}
 	return nil
@@ -259,21 +259,21 @@ func (s *InMemoryRunProjectionStore) ListActiveWorkflowRuns(
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	keys := make([]string, 0, len(s.workflowStartIntents))
-	for runID := range s.workflowStartIntents {
-		keys = append(keys, runID)
+	for requestID := range s.workflowStartIntents {
+		keys = append(keys, requestID)
 	}
 	sort.Strings(keys)
 	result := make([]ActiveWorkflowRun, 0, limit)
-	for _, runID := range keys {
-		if runID <= strings.TrimSpace(afterRunID) {
+	for _, requestID := range keys {
+		if requestID <= strings.TrimSpace(afterRunID) {
 			continue
 		}
-		intent := s.workflowStartIntents[runID]
-		run, exists := s.runs[runID]
+		intent := s.workflowStartIntents[requestID]
+		run, exists := s.runs[requestID]
 		if !exists || intent.State != LifecycleIntentStateConfirmed || !durableRunStatusIsActive(run.Status) {
 			continue
 		}
-		if command, cancellationRequested := s.cancellationCommands[runID]; cancellationRequested && command.State != LifecycleIntentStateConfirmed {
+		if command, cancellationRequested := s.cancellationCommands[requestID]; cancellationRequested && command.State != LifecycleIntentStateConfirmed {
 			continue
 		}
 		result = append(result, ActiveWorkflowRun{Run: cloneDurableRun(run), StartIntent: cloneWorkflowStartIntent(intent)})
@@ -293,50 +293,50 @@ func (s *InMemoryRunProjectionStore) ConfirmWorkflowStartIntent(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	intent, exists := s.workflowStartIntents[result.RunID]
+	intent, exists := s.workflowStartIntents[result.RequestID]
 	if !exists {
-		return fmt.Errorf("%w: workflow start run_id=%s", ErrLifecycleLeaseConflict, result.RunID)
+		return fmt.Errorf("%w: workflow start request_id=%s", ErrLifecycleLeaseConflict, result.RequestID)
 	}
 	if intent.State == LifecycleIntentStateConfirmed {
 		if !intent.DispatchAttempted {
-			return fmt.Errorf("%w: workflow start run_id=%s lacks dispatch proof", ErrLifecycleLeaseConflict, result.RunID)
+			return fmt.Errorf("%w: workflow start request_id=%s lacks dispatch proof", ErrLifecycleLeaseConflict, result.RequestID)
 		}
 		if strings.TrimSpace(result.TemporalRunID) != "" &&
 			strings.TrimSpace(result.TemporalRunID) != intent.TemporalRunID {
-			return fmt.Errorf("%w: confirmed temporal run id differs for run_id=%s", ErrLifecycleLeaseConflict, result.RunID)
+			return fmt.Errorf("%w: confirmed temporal run id differs for request_id=%s", ErrLifecycleLeaseConflict, result.RequestID)
 		}
 		return nil
 	}
 	if intent.State == LifecycleIntentStateSuperseded {
-		return fmt.Errorf("%w: workflow start run_id=%s", ErrLifecycleLeaseConflict, result.RunID)
+		return fmt.Errorf("%w: workflow start request_id=%s", ErrLifecycleLeaseConflict, result.RequestID)
 	}
 	if intent.State != LifecycleIntentStateLeased || intent.LeaseToken != result.LeaseToken {
-		return fmt.Errorf("%w: workflow start run_id=%s", ErrLifecycleLeaseConflict, result.RunID)
+		return fmt.Errorf("%w: workflow start request_id=%s", ErrLifecycleLeaseConflict, result.RequestID)
 	}
 	if !intent.DispatchAttempted {
-		return fmt.Errorf("%w: workflow start run_id=%s lacks dispatch proof", ErrLifecycleLeaseConflict, result.RunID)
+		return fmt.Errorf("%w: workflow start request_id=%s lacks dispatch proof", ErrLifecycleLeaseConflict, result.RequestID)
 	}
-	run, exists := s.runs[intent.RunID]
+	run, exists := s.runs[intent.RequestID]
 	if !exists {
-		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, intent.RunID)
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, intent.RequestID)
 	}
-	if _, cancellationRequested := s.cancellationCommands[intent.RunID]; cancellationRequested {
+	if _, cancellationRequested := s.cancellationCommands[intent.RequestID]; cancellationRequested {
 		intent.State = LifecycleIntentStateSuperseded
 		intent.LeaseToken = ""
 		intent.LeaseUntil = time.Time{}
 		intent.UpdatedAt = result.Now
-		s.workflowStartIntents[intent.RunID] = cloneWorkflowStartIntent(intent)
-		return fmt.Errorf("%w: workflow start run_id=%s", ErrLifecycleLeaseConflict, intent.RunID)
+		s.workflowStartIntents[intent.RequestID] = cloneWorkflowStartIntent(intent)
+		return fmt.Errorf("%w: workflow start request_id=%s", ErrLifecycleLeaseConflict, intent.RequestID)
 	}
 
 	// Keep the run transition, its lifecycle events, and the intent update in
 	// one critical section. A cancellation request takes this same lock and
 	// therefore cannot leave a stale start lease able to win afterwards.
 	originalRun := cloneDurableRun(run)
-	originalEvents := append([]DurableRunEvent(nil), s.runEvents[intent.RunID]...)
+	originalEvents := append([]DurableRunEvent(nil), s.runEvents[intent.RequestID]...)
 	rollback := func() {
-		s.runs[intent.RunID] = originalRun
-		s.runEvents[intent.RunID] = originalEvents
+		s.runs[intent.RequestID] = originalRun
+		s.runEvents[intent.RequestID] = originalEvents
 	}
 	if run.Status == DurableRunStatusCreated {
 		queuedAt := result.Now
@@ -348,8 +348,8 @@ func (s *InMemoryRunProjectionStore) ConfirmWorkflowStartIntent(
 			return err
 		}
 		if err := s.appendRunEventLocked(run, DurableRunEvent{
-			EventID:              run.RunID + ":workflow-started",
-			RunID:                run.RunID,
+			EventID:              run.RequestID + ":workflow-started",
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			EventType:            DurableRunEventTypeWorkflowStarted,
 			OccurredAt:           result.Now,
@@ -366,8 +366,8 @@ func (s *InMemoryRunProjectionStore) ConfirmWorkflowStartIntent(
 			return err
 		}
 		if err := s.appendRunEventLocked(run, DurableRunEvent{
-			EventID:              run.RunID + ":run-queued",
-			RunID:                run.RunID,
+			EventID:              run.RequestID + ":run-queued",
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			EventType:            DurableRunEventTypeRunQueued,
 			OccurredAt:           queuedAt,
@@ -378,7 +378,7 @@ func (s *InMemoryRunProjectionStore) ConfirmWorkflowStartIntent(
 			rollback()
 			return err
 		}
-		s.runs[intent.RunID] = cloneDurableRun(run)
+		s.runs[intent.RequestID] = cloneDurableRun(run)
 	}
 	intent.State = LifecycleIntentStateConfirmed
 	intent.TemporalRunID = strings.TrimSpace(result.TemporalRunID)
@@ -386,7 +386,7 @@ func (s *InMemoryRunProjectionStore) ConfirmWorkflowStartIntent(
 	intent.LeaseToken = ""
 	intent.LeaseUntil = time.Time{}
 	intent.UpdatedAt = result.Now
-	s.workflowStartIntents[intent.RunID] = cloneWorkflowStartIntent(intent)
+	s.workflowStartIntents[intent.RequestID] = cloneWorkflowStartIntent(intent)
 	return nil
 }
 
@@ -406,7 +406,7 @@ func (s *InMemoryRunProjectionStore) RetryWorkflowStartIntent(
 	intent.LeaseToken = ""
 	intent.LeaseUntil = time.Time{}
 	intent.UpdatedAt = result.Now
-	s.workflowStartIntents[intent.RunID] = cloneWorkflowStartIntent(intent)
+	s.workflowStartIntents[intent.RequestID] = cloneWorkflowStartIntent(intent)
 	return nil
 }
 
@@ -425,7 +425,7 @@ func (s *InMemoryRunProjectionStore) FailWorkflowStartIntent(
 	intent.LeaseToken = ""
 	intent.LeaseUntil = time.Time{}
 	intent.UpdatedAt = result.Now
-	s.workflowStartIntents[intent.RunID] = cloneWorkflowStartIntent(intent)
+	s.workflowStartIntents[intent.RequestID] = cloneWorkflowStartIntent(intent)
 	return nil
 }
 
@@ -438,29 +438,29 @@ func (s *InMemoryRunProjectionStore) RequestRunCancellation(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[request.RunID]
+	run, exists := s.runs[request.RequestID]
 	if !exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RequestID)
 	}
 	if run.Status == DurableRunStatusCanceled {
-		s.supersedeWorkflowStartIntentLocked(run.RunID, request.Now)
-		s.requeueConfirmedCancellationLocked(run.RunID, request.Now)
+		s.supersedeWorkflowStartIntentLocked(run.RequestID, request.Now)
+		s.requeueConfirmedCancellationLocked(run.RequestID, request.Now)
 		return cloneDurableRun(run), nil
 	}
 	if durableRunStatusIsTerminal(run.Status) {
 		return DurableRun{}, fmt.Errorf("%w: run status is %s", ErrDurableRunTerminalConflict, run.Status)
 	}
-	if command, requested := s.cancellationCommands[run.RunID]; requested {
+	if command, requested := s.cancellationCommands[run.RequestID]; requested {
 		if command.Reason != request.Reason {
 			return DurableRun{}, fmt.Errorf("%w: cancellation reason differs", ErrDurableRunTerminalConflict)
 		}
-		s.supersedeWorkflowStartIntentLocked(run.RunID, request.Now)
-		s.requeueConfirmedCancellationLocked(run.RunID, request.Now)
+		s.supersedeWorkflowStartIntentLocked(run.RequestID, request.Now)
+		s.requeueConfirmedCancellationLocked(run.RequestID, request.Now)
 		return cloneDurableRun(run), nil
 	}
 	run.UpdatedAt = request.Now
 	event := DurableRunEvent{
-		EventID: run.RunID + ":run-cancel-requested", RunID: run.RunID,
+		EventID: run.RequestID + ":run-cancel-requested", RequestID: run.RequestID,
 		ConversationID: run.ConversationID, EventType: DurableRunEventTypeRunCancelRequested,
 		OccurredAt: request.Now, Visibility: DurableRunEventVisibilityInternal,
 		PayloadSchemaVersion: "run-event-v1",
@@ -469,18 +469,18 @@ func (s *InMemoryRunProjectionStore) RequestRunCancellation(
 	if err := s.appendRunEventLocked(run, event); err != nil {
 		return DurableRun{}, err
 	}
-	s.runs[run.RunID] = cloneDurableRun(run)
-	s.supersedeWorkflowStartIntentLocked(run.RunID, request.Now)
-	s.cancellationCommands[run.RunID] = RunCancellationCommand{
-		RunID: run.RunID, WorkflowID: "campus-agent.chat." + run.RunID,
+	s.runs[run.RequestID] = cloneDurableRun(run)
+	s.supersedeWorkflowStartIntentLocked(run.RequestID, request.Now)
+	s.cancellationCommands[run.RequestID] = RunCancellationCommand{
+		RequestID: run.RequestID, WorkflowID: "campus-agent.chat." + run.RequestID,
 		Reason: request.Reason, State: LifecycleIntentStatePending,
 		NextAttemptAt: request.Now, CreatedAt: request.Now, UpdatedAt: request.Now,
 	}
 	return cloneDurableRun(run), nil
 }
 
-func (s *InMemoryRunProjectionStore) requeueConfirmedCancellationLocked(runID string, now time.Time) {
-	command, exists := s.cancellationCommands[runID]
+func (s *InMemoryRunProjectionStore) requeueConfirmedCancellationLocked(requestID string, now time.Time) {
+	command, exists := s.cancellationCommands[requestID]
 	if !exists || command.State != LifecycleIntentStateConfirmed {
 		return
 	}
@@ -490,11 +490,11 @@ func (s *InMemoryRunProjectionStore) requeueConfirmedCancellationLocked(runID st
 	command.LeaseUntil = time.Time{}
 	command.LastErrorCode = "late_workflow_start"
 	command.UpdatedAt = now
-	s.cancellationCommands[runID] = command
+	s.cancellationCommands[requestID] = command
 }
 
-func (s *InMemoryRunProjectionStore) supersedeWorkflowStartIntentLocked(runID string, now time.Time) {
-	intent, exists := s.workflowStartIntents[runID]
+func (s *InMemoryRunProjectionStore) supersedeWorkflowStartIntentLocked(requestID string, now time.Time) {
+	intent, exists := s.workflowStartIntents[requestID]
 	if !exists {
 		return
 	}
@@ -505,7 +505,7 @@ func (s *InMemoryRunProjectionStore) supersedeWorkflowStartIntentLocked(runID st
 	intent.LeaseToken = ""
 	intent.LeaseUntil = time.Time{}
 	intent.UpdatedAt = now
-	s.workflowStartIntents[runID] = cloneWorkflowStartIntent(intent)
+	s.workflowStartIntents[requestID] = cloneWorkflowStartIntent(intent)
 }
 
 func (s *InMemoryRunProjectionStore) LeaseRunCancellationCommands(
@@ -562,9 +562,9 @@ func (s *InMemoryRunProjectionStore) updateCancellationCommand(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	command, exists := s.cancellationCommands[result.RunID]
+	command, exists := s.cancellationCommands[result.RequestID]
 	if !exists || command.State != LifecycleIntentStateLeased || command.LeaseToken != result.LeaseToken {
-		return fmt.Errorf("%w: cancellation command run_id=%s", ErrLifecycleLeaseConflict, result.RunID)
+		return fmt.Errorf("%w: cancellation command request_id=%s", ErrLifecycleLeaseConflict, result.RequestID)
 	}
 	command.State = state
 	command.LastErrorCode = strings.TrimSpace(result.ErrorCode)
@@ -572,7 +572,7 @@ func (s *InMemoryRunProjectionStore) updateCancellationCommand(
 	command.LeaseToken = ""
 	command.LeaseUntil = time.Time{}
 	command.UpdatedAt = result.Now
-	s.cancellationCommands[result.RunID] = command
+	s.cancellationCommands[result.RequestID] = command
 	return nil
 }
 
@@ -585,8 +585,8 @@ func (s *InMemoryRunProjectionStore) BeginAgentInvocation(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.runs[receipt.RunID]; !exists {
-		return AgentInvocationReceipt{}, "", fmt.Errorf("%w: %s", ErrDurableRunNotFound, receipt.RunID)
+	if _, exists := s.runs[receipt.RequestID]; !exists {
+		return AgentInvocationReceipt{}, "", fmt.Errorf("%w: %s", ErrDurableRunNotFound, receipt.RequestID)
 	}
 	existing, exists := s.agentInvocationReceipts[receipt.InvocationID]
 	if !exists {
@@ -596,7 +596,7 @@ func (s *InMemoryRunProjectionStore) BeginAgentInvocation(
 		s.agentInvocationReceipts[receipt.InvocationID] = cloneAgentInvocationReceipt(receipt)
 		return cloneAgentInvocationReceipt(receipt), AgentInvocationDispositionClaimed, nil
 	}
-	if existing.RunID != receipt.RunID || existing.InputSHA256 != receipt.InputSHA256 {
+	if existing.RequestID != receipt.RequestID || existing.InputSHA256 != receipt.InputSHA256 {
 		return AgentInvocationReceipt{}, "", fmt.Errorf("%w: invocation identity differs", ErrAgentInvocationConflict)
 	}
 	if existing.State == AgentInvocationReceiptStateCompleted {
@@ -632,7 +632,7 @@ func (s *InMemoryRunProjectionStore) CompleteAgentInvocation(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	existing, exists := s.agentInvocationReceipts[receipt.InvocationID]
-	if !exists || existing.RunID != receipt.RunID || existing.InputSHA256 != receipt.InputSHA256 {
+	if !exists || existing.RequestID != receipt.RequestID || existing.InputSHA256 != receipt.InputSHA256 {
 		return AgentInvocationReceipt{}, fmt.Errorf("%w: invocation identity differs", ErrAgentInvocationConflict)
 	}
 	if existing.State == AgentInvocationReceiptStateCompleted {
@@ -675,22 +675,22 @@ func leasedWorkflowStartIntent(
 	intents map[string]WorkflowStartIntent,
 	result WorkflowStartIntentResult,
 ) (WorkflowStartIntent, error) {
-	intent, exists := intents[result.RunID]
+	intent, exists := intents[result.RequestID]
 	if !exists || intent.State != LifecycleIntentStateLeased || intent.LeaseToken != result.LeaseToken {
-		return WorkflowStartIntent{}, fmt.Errorf("%w: workflow start run_id=%s", ErrLifecycleLeaseConflict, result.RunID)
+		return WorkflowStartIntent{}, fmt.Errorf("%w: workflow start request_id=%s", ErrLifecycleLeaseConflict, result.RequestID)
 	}
 	return intent, nil
 }
 
 func validateDurableRunCancellationRequest(request DurableRunCancellationRequest) error {
-	if strings.TrimSpace(request.RunID) == "" || request.Reason != "user_requested" || request.Now.IsZero() {
+	if strings.TrimSpace(request.RequestID) == "" || request.Reason != "user_requested" || request.Now.IsZero() {
 		return fmt.Errorf("%w: invalid cancellation request", ErrInvalidDurableRunCancel)
 	}
 	return nil
 }
 
 func validateAgentInvocationReceipt(receipt AgentInvocationReceipt, completed bool) error {
-	if strings.TrimSpace(receipt.InvocationID) == "" || strings.TrimSpace(receipt.RunID) == "" ||
+	if strings.TrimSpace(receipt.InvocationID) == "" || strings.TrimSpace(receipt.RequestID) == "" ||
 		!validLowerHexSHA256(receipt.InputSHA256) || receipt.CreatedAt.IsZero() || receipt.UpdatedAt.IsZero() {
 		return fmt.Errorf("%w: invalid invocation receipt", ErrAgentInvocationConflict)
 	}

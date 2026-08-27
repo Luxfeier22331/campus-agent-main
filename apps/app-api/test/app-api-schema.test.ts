@@ -82,6 +82,7 @@ describe("app-api schema installer", () => {
 			{ idx: 17, tag: "0017_safe_nicolaos", version: "7" },
 			{ idx: 18, tag: "0018_ancient_ultragirl", version: "7" },
 			{ idx: 19, tag: "0019_superb_morbius", version: "7" },
+			{ idx: 20, tag: "0020_drop_product_execution_ids", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,
@@ -200,6 +201,66 @@ describe("app-api schema installer", () => {
 		expect(authIdentityMigration).toContain('ALTER TABLE "app_auth"."jwks" ADD COLUMN "alg" text');
 		expect(authIdentityMigration).toContain('ALTER TABLE "app_auth"."jwks" ADD COLUMN "crv" text');
 		expect(authIdentityMigration).not.toContain("RAISE EXCEPTION");
+		const productIdentityMigration = readAppFile("drizzle/0020_drop_product_execution_ids.sql");
+		expect(productIdentityMigration).toContain(
+			'RENAME COLUMN "active_run_id" TO "active_request_id"',
+		);
+		expect(productIdentityMigration).toContain(
+			'ALTER TABLE "chat"."messages" DROP COLUMN "run_id"',
+		);
+		expect(productIdentityMigration).toContain(
+			'ALTER TABLE "chat"."turn_dispatches" DROP COLUMN "trace_id"',
+		);
+		expect(productIdentityMigration).toContain(
+			'ALTER TABLE "chat"."turn_dispatches" DROP COLUMN "run_id"',
+		);
+		expect(productIdentityMigration).toContain(
+			'ALTER TABLE "chat"."turn_dispatches" DROP COLUMN "turn_id"',
+		);
+		expect(productIdentityMigration).toContain(
+			'ALTER TABLE "profile"."memory_commands" DROP COLUMN "workflow_id"',
+		);
+		for (const column of [
+			"trace_id",
+			"workflow_trace_summary_json",
+			"prompt_id",
+			"prompt_version",
+			"template_sha256",
+			"trace_available",
+			"projection_lag_ms",
+		]) {
+			expect(productIdentityMigration).toContain(
+				`ALTER TABLE "runtime"."request_observability_fact" DROP COLUMN "${column}"`,
+			);
+		}
+		const currentSnapshot = JSON.parse(readAppFile("drizzle/meta/0020_snapshot.json")) as {
+			tables: Record<string, { columns: Record<string, unknown> }>;
+		};
+		expect(Object.keys(currentSnapshot.tables["chat.conversations"]?.columns ?? {})).toContain(
+			"active_request_id",
+		);
+		expect(Object.keys(currentSnapshot.tables["chat.conversations"]?.columns ?? {})).not.toContain(
+			"active_run_id",
+		);
+		for (const [table, columns] of Object.entries({
+			"chat.messages": ["run_id"],
+			"chat.turn_dispatches": ["run_id", "trace_id", "turn_id"],
+			"profile.memory_commands": ["workflow_id"],
+			"runtime.request_observability_fact": [
+				"trace_id",
+				"workflow_trace_summary_json",
+				"prompt_id",
+				"prompt_version",
+				"template_sha256",
+				"trace_available",
+				"projection_lag_ms",
+			],
+		})) {
+			const snapshotColumns = Object.keys(currentSnapshot.tables[table]?.columns ?? {});
+			for (const column of columns) {
+				expect(snapshotColumns, `${table}.${column}`).not.toContain(column);
+			}
+		}
 	});
 
 	it("uses Drizzle as the only app-api schema migration source", () => {

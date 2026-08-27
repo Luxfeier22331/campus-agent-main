@@ -26,20 +26,20 @@ func (s *InMemoryRunProjectionStore) BeginOwnerDeletion(
 		return s.ownerDeletionStatusLocked(ownerUserID), nil
 	}
 	s.ownerDeletionFences[ownerUserID] = OwnerDeletionStateDraining
-	for runID, run := range s.runs {
+	for requestID, run := range s.runs {
 		if run.OwnerUserID != ownerUserID || !durableRunStatusIsActive(run.Status) {
 			continue
 		}
-		if _, exists := s.cancellationCommands[runID]; exists {
+		if _, exists := s.cancellationCommands[requestID]; exists {
 			// Reuse the existing cancellation command, but still fence a
 			// leased workflow start against the deletion owner fence.
-			s.supersedeWorkflowStartIntentLocked(runID, now)
+			s.supersedeWorkflowStartIntentLocked(requestID, now)
 			continue
 		}
 		run.UpdatedAt = now
 		event := DurableRunEvent{
-			EventID:              run.RunID + ":run-cancel-requested",
-			RunID:                run.RunID,
+			EventID:              run.RequestID + ":run-cancel-requested",
+			RequestID:            run.RequestID,
 			ConversationID:       run.ConversationID,
 			EventType:            DurableRunEventTypeRunCancelRequested,
 			OccurredAt:           now,
@@ -50,11 +50,11 @@ func (s *InMemoryRunProjectionStore) BeginOwnerDeletion(
 		if err := s.appendRunEventLocked(run, event); err != nil {
 			return OwnerDeletionStatus{}, err
 		}
-		s.runs[runID] = cloneDurableRun(run)
-		s.supersedeWorkflowStartIntentLocked(runID, now)
-		s.cancellationCommands[runID] = RunCancellationCommand{
-			RunID:         runID,
-			WorkflowID:    "campus-agent.chat." + runID,
+		s.runs[requestID] = cloneDurableRun(run)
+		s.supersedeWorkflowStartIntentLocked(requestID, now)
+		s.cancellationCommands[requestID] = RunCancellationCommand{
+			RequestID:     requestID,
+			WorkflowID:    "campus-agent.chat." + requestID,
 			Reason:        "account_deletion",
 			State:         LifecycleIntentStatePending,
 			NextAttemptAt: now,
@@ -102,11 +102,11 @@ func (s *InMemoryRunProjectionStore) FinalizeOwnerDeletion(
 	if status.ActiveRuns > 0 {
 		return status, ErrOwnerDeletionNotDrained
 	}
-	for runID, run := range s.runs {
+	for requestID, run := range s.runs {
 		if run.OwnerUserID != ownerUserID {
 			continue
 		}
-		s.deleteRunLocked(runID, run)
+		s.deleteRunLocked(requestID, run)
 	}
 	s.ownerDeletionFences[ownerUserID] = OwnerDeletionStateDeleted
 	return s.ownerDeletionStatusLocked(ownerUserID), nil
@@ -125,34 +125,34 @@ func (s *InMemoryRunProjectionStore) ownerDeletionStatusLocked(ownerUserID strin
 	return status
 }
 
-func (s *InMemoryRunProjectionStore) deleteRunLocked(runID string, run DurableRun) {
-	delete(s.runs, runID)
-	delete(s.runEvents, runID)
-	delete(s.workflowStartIntents, runID)
-	delete(s.cancellationCommands, runID)
+func (s *InMemoryRunProjectionStore) deleteRunLocked(requestID string, run DurableRun) {
+	delete(s.runs, requestID)
+	delete(s.runEvents, requestID)
+	delete(s.workflowStartIntents, requestID)
+	delete(s.cancellationCommands, requestID)
 	delete(s.activeRunByConversation, run.ConversationID)
 	for key, projection := range s.runSteps {
-		if projection.RunID == runID {
+		if projection.RequestID == requestID {
 			delete(s.runSteps, key)
 		}
 	}
 	for key, projection := range s.stepAttempts {
-		if projection.RunID == runID {
+		if projection.RequestID == requestID {
 			delete(s.stepAttempts, key)
 		}
 	}
 	for key, projection := range s.stepResults {
-		if projection.RunID == runID {
+		if projection.RequestID == requestID {
 			delete(s.stepResults, key)
 		}
 	}
 	for invocationID, receipt := range s.agentInvocationReceipts {
-		if receipt.RunID == runID {
+		if receipt.RequestID == requestID {
 			delete(s.agentInvocationReceipts, invocationID)
 		}
 	}
-	for waiter := range s.runEventWaiters[runID] {
+	for waiter := range s.runEventWaiters[requestID] {
 		close(waiter)
 	}
-	delete(s.runEventWaiters, runID)
+	delete(s.runEventWaiters, requestID)
 }

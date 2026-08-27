@@ -11,7 +11,6 @@ import type {
 	ToolExecutionObservability,
 	ToolExecutionPromptTrace,
 	ToolExecutionResponse,
-	ToolExecutionWorkflowTraceSummary,
 } from "./tool-execution-types";
 
 const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
@@ -38,8 +37,6 @@ const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"result",
 	"stage_timing",
 	"status",
-	"trace_id",
-	"workflow_trace_summary",
 ]);
 
 const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
@@ -48,7 +45,6 @@ const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"model_usage",
 	"result",
 	"status",
-	"trace_id",
 ] as const;
 
 const STAGE_TIMING_FIELD_SET = new Set<string>(STAGE_TIMING_FIELDS);
@@ -124,9 +120,6 @@ function assertExecutionFinalizationResponseWire(
 	if (!(typeof record.answer_text === "string")) {
 		throw new ExecutionFinalizationResponseContractError("answer_text must be a string");
 	}
-	if (!(typeof record.trace_id === "string")) {
-		throw new ExecutionFinalizationResponseContractError("trace_id must be a string");
-	}
 	if (!isExecutionFinalizationStatus(record.status)) {
 		throw new ExecutionFinalizationResponseContractError(
 			"status must be a known execution finalization status",
@@ -162,14 +155,6 @@ function assertExecutionFinalizationResponseWire(
 		!(record.observability === null || getRecord(record.observability))
 	) {
 		throw new ExecutionFinalizationResponseContractError("observability must be an object or null");
-	}
-	if (
-		"workflow_trace_summary" in record &&
-		!(record.workflow_trace_summary === null || getRecord(record.workflow_trace_summary))
-	) {
-		throw new ExecutionFinalizationResponseContractError(
-			"workflow_trace_summary must be an object or null",
-		);
 	}
 	assertStageTiming(record.stage_timing);
 }
@@ -234,14 +219,6 @@ function normalizeWorkflowTraceKeyToken(value: string): string {
 		.trim()
 		.toLowerCase()
 		.replace(/[^a-z0-9]/g, "");
-}
-
-function normalizeWorkflowRecord(value: unknown): Record<string, unknown> {
-	const record = getRecord(value);
-	if (!record || containsForbiddenWorkflowTraceKey(record)) {
-		return {};
-	}
-	return record;
 }
 
 function parsePromptTrace(value: unknown): ToolExecutionPromptTrace | null {
@@ -320,71 +297,6 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 	return parsed;
 }
 
-function parseWorkflowTraceSummary(value: unknown): ToolExecutionWorkflowTraceSummary | null {
-	if (value === null || value === undefined) {
-		return null;
-	}
-	const record = getRecord(value);
-	if (!record || containsForbiddenWorkflowTraceKey(record)) {
-		throw new ExecutionFinalizationResponseContractError(
-			"workflow_trace_summary must be a safe object or null",
-		);
-	}
-	const allowedKeys = new Set([
-		"answer_artifact_refs",
-		"execution_path",
-		"runtime_versions",
-		"terminal_reason",
-	]);
-	for (const key of Object.keys(record)) {
-		if (!allowedKeys.has(key)) {
-			throw new ExecutionFinalizationResponseContractError(
-				`workflow_trace_summary.${key} is not allowed`,
-			);
-		}
-	}
-	if ([...allowedKeys].some((key) => !(key in record))) {
-		throw new ExecutionFinalizationResponseContractError(
-			"workflow_trace_summary is missing required fields",
-		);
-	}
-	const executionPath = normalizeNullableString(record.execution_path);
-	if (!(executionPath && ["direct", "tool_assisted"].includes(executionPath))) {
-		throw new ExecutionFinalizationResponseContractError(
-			"workflow_trace_summary.execution_path is invalid",
-		);
-	}
-	const terminalReason = normalizeNullableString(record.terminal_reason);
-	if (!terminalReason) {
-		throw new ExecutionFinalizationResponseContractError(
-			"workflow_trace_summary.terminal_reason is required",
-		);
-	}
-	if (!Array.isArray(record.answer_artifact_refs)) {
-		throw new ExecutionFinalizationResponseContractError(
-			"workflow_trace_summary.answer_artifact_refs must be an array",
-		);
-	}
-	const answerArtifactRefs = stringArray(record.answer_artifact_refs);
-	if (answerArtifactRefs.length !== record.answer_artifact_refs.length) {
-		throw new ExecutionFinalizationResponseContractError(
-			"workflow_trace_summary.answer_artifact_refs must contain non-empty strings",
-		);
-	}
-	return {
-		answerArtifactRefs,
-		executionPath: executionPath as ToolExecutionWorkflowTraceSummary["executionPath"],
-		runtimeVersions: normalizeWorkflowRecord(record.runtime_versions),
-		terminalReason,
-	};
-}
-
-function stringArray(value: unknown): string[] {
-	return Array.isArray(value)
-		? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-		: [];
-}
-
 function parseStageTiming(value: unknown): Record<string, number> | null {
 	const record = getRecord(value) as Record<string, number> | null;
 	if (!record) {
@@ -397,7 +309,6 @@ export function parseExecutionFinalizationResponsePayload(
 	parsed: (Partial<ExecutionFinalizationResponseWire> & Record<string, unknown>) | null | undefined,
 ): ToolExecutionResponse {
 	assertExecutionFinalizationResponseWire(parsed);
-	const workflowTraceSummary = parseWorkflowTraceSummary(parsed.workflow_trace_summary);
 	const stageTiming = parseStageTiming(parsed.stage_timing);
 	return {
 		answerText: parsed.answer_text,
@@ -419,7 +330,5 @@ export function parseExecutionFinalizationResponsePayload(
 		result: parsed.result ?? null,
 		...(stageTiming ? { stageTiming } : {}),
 		status: parsed.status,
-		traceId: parsed.trace_id,
-		...(workflowTraceSummary ? { workflowTraceSummary } : {}),
 	};
 }

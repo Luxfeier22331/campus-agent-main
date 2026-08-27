@@ -15,24 +15,24 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 	if _, err := store.CreateRunWithStartIntent(ctx, request); err != nil {
 		t.Fatal(err)
 	}
-	runID := request.Run.RunID
+	requestID := request.Run.RequestID
 
 	if _, err := store.RequestRunCancellation(ctx, DurableRunCancellationRequest{
-		RunID: runID, Reason: "user_requested", Now: now.Add(time.Second),
+		RequestID: requestID, Reason: "user_requested", Now: now.Add(time.Second),
 	}); err != nil {
 		t.Fatalf("request existing cancellation: %v", err)
 	}
 
 	store.mu.Lock()
-	intent := store.workflowStartIntents[runID]
+	intent := store.workflowStartIntents[requestID]
 	intent.State = LifecycleIntentStateLeased
 	intent.LeaseToken = "stale-start-lease"
 	intent.LeaseUntil = now.Add(time.Hour)
-	store.workflowStartIntents[runID] = intent
-	store.runSteps["step-1"] = RunStepProjection{RunID: runID}
-	store.stepAttempts["attempt-1"] = StepAttemptProjection{RunID: runID}
-	store.stepResults["result-1"] = StepResultProjection{RunID: runID}
-	store.agentInvocationReceipts["invocation-1"] = AgentInvocationReceipt{RunID: runID}
+	store.workflowStartIntents[requestID] = intent
+	store.runSteps["step-1"] = RunStepProjection{RequestID: requestID}
+	store.stepAttempts["attempt-1"] = StepAttemptProjection{RequestID: requestID}
+	store.stepResults["result-1"] = StepResultProjection{RequestID: requestID}
+	store.agentInvocationReceipts["invocation-1"] = AgentInvocationReceipt{RequestID: requestID}
 	store.mu.Unlock()
 
 	status, err := store.BeginOwnerDeletion(ctx, request.Run.OwnerUserID, now.Add(2*time.Second))
@@ -42,14 +42,14 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 	if status.State != OwnerDeletionStateDraining || status.ActiveRuns != 1 {
 		t.Fatalf("begin owner deletion status = %#v", status)
 	}
-	if got := store.cancellationCommands[runID].Reason; got != "user_requested" {
+	if got := store.cancellationCommands[requestID].Reason; got != "user_requested" {
 		t.Fatalf("existing cancellation reason = %q, want it to be reused", got)
 	}
-	intent = store.workflowStartIntents[runID]
+	intent = store.workflowStartIntents[requestID]
 	if intent.State != LifecycleIntentStateSuperseded || intent.LeaseToken != "" || !intent.LeaseUntil.IsZero() {
 		t.Fatalf("owner deletion did not re-fence existing start intent = %#v", intent)
 	}
-	events, err := store.ListRunEvents(ctx, runID)
+	events, err := store.ListRunEvents(ctx, requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 		t.Fatalf("finalize before run drains error = %v, want ErrOwnerDeletionNotDrained", err)
 	}
 	if _, err := store.CancelRunProjection(ctx, DurableRunCancelRequest{
-		RunID: runID, Reason: "user_requested", Now: now.Add(4 * time.Second),
+		RequestID: requestID, Reason: "user_requested", Now: now.Add(4 * time.Second),
 	}); err != nil {
 		t.Fatalf("observe canceled run projection: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 	if status.State != OwnerDeletionStateDeleted || status.ActiveRuns != 0 {
 		t.Fatalf("finalize owner deletion status = %#v", status)
 	}
-	if _, err := store.GetRun(ctx, runID); !errors.Is(err, ErrDurableRunNotFound) {
+	if _, err := store.GetRun(ctx, requestID); !errors.Is(err, ErrDurableRunNotFound) {
 		t.Fatalf("deleted run lookup error = %v, want ErrDurableRunNotFound", err)
 	}
 	if len(store.runEvents) != 0 || len(store.runSteps) != 0 || len(store.stepAttempts) != 0 ||
@@ -90,10 +90,8 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 			len(store.agentInvocationReceipts), len(store.workflowStartIntents), len(store.cancellationCommands))
 	}
 	if _, err := store.CreateRun(ctx, DurableRun{
-		RunID:          "run-after-deletion",
+		RequestID:      "run-after-deletion",
 		ConversationID: "conv-after-deletion",
-		TurnID:         "turn-after-deletion",
-		RequestID:      "request-after-deletion",
 		OwnerUserID:    request.Run.OwnerUserID,
 		Surface:        "campus-web",
 		TaskQueue:      "campus-agent.workflow",

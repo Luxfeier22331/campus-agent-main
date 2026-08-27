@@ -12,7 +12,6 @@ import (
 const (
 	headerTraceParent = "traceparent"
 	headerRequestID   = "x-request-id"
-	headerTraceID     = "x-trace-id"
 )
 
 var runtimeTextMapPropagator propagation.TextMapPropagator = propagation.TraceContext{}
@@ -30,7 +29,7 @@ func ExtractTraceParent(ctx context.Context, traceParent string) context.Context
 	return runtimeTextMapPropagator.Extract(cleanContext, carrier)
 }
 
-func InjectExecutionTraceHeaders(ctx context.Context, requestID string, traceID string) map[string]string {
+func InjectExecutionTraceHeaders(ctx context.Context, requestID string) map[string]string {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -43,9 +42,6 @@ func InjectExecutionTraceHeaders(ctx context.Context, requestID string, traceID 
 	}
 	if value := strings.TrimSpace(requestID); value != "" {
 		traceHeaders[headerRequestID] = value
-	}
-	if value := strings.TrimSpace(traceID); value != "" {
-		traceHeaders[headerTraceID] = value
 	}
 	return traceHeaders
 }

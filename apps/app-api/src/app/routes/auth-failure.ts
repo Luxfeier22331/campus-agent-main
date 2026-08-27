@@ -28,7 +28,6 @@ export function authenticationDependencyFailure(input: {
 		route,
 		status: 503,
 		surface: AUTH_SURFACE,
-		traceId: input.request.headers.get("x-trace-id"),
 	});
 
 	return jsonResponse(

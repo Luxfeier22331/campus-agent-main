@@ -467,12 +467,10 @@ describe("app-api shared product DB integration", () => {
 				order === "ttft_first" ? "2026-07-16T04:00:01.000Z" : "2026-07-16T04:00:04.000Z";
 			const conversationId = `timing-conversation-${suffix}`;
 			const requestId = `timing-request-${suffix}`;
-			const runId = `timing-run-${suffix}`;
-			const traceId = `timing-trace-${suffix}`;
 			const conversation = {
 				activeBranchId: "branch_active",
 				activeMessageId: null,
-				activeRunId: null,
+				activeRequestId: null,
 				activeTurnSequence: 0,
 				createdAt: acceptedAt,
 				id: conversationId,
@@ -495,9 +493,8 @@ describe("app-api shared product DB integration", () => {
 				},
 				conversationTitle: conversation.title,
 				freezeDurableRun: () => ({
-					executionInputJson: JSON.stringify({ requestId, runId }),
+					executionInputJson: JSON.stringify({ requestId }),
 					executionInputSha256: "b".repeat(64),
-					turnId: `turn-${runId}`,
 				}),
 				idempotencyKey: null,
 				now: acceptedAt,
@@ -506,12 +503,9 @@ describe("app-api shared product DB integration", () => {
 				requestFingerprintSha256: null,
 				requestId,
 				requestKind: "internal_eval",
-				runId,
 				safetyIdentifier: null,
 				surface: "campus_web",
-				traceId,
 				turnSequence: 1,
-				turnId: `turn-${runId}`,
 				userMessageId: `timing-user-${suffix}`,
 			});
 			await store.acceptRequest(acceptedWrite);
@@ -529,7 +523,7 @@ describe("app-api shared product DB integration", () => {
 					conversation: {
 						...conversation,
 						activeMessageId: acceptedWrite.userMessage.id,
-						activeRunId: runId,
+						activeRequestId: requestId,
 						activeTurnSequence: 1,
 						messages: [acceptedWrite.userMessage],
 						updatedAt: acceptedAt,
@@ -550,14 +544,11 @@ describe("app-api shared product DB integration", () => {
 						result: null,
 						stageTiming: { "agent.first_delta_ms": 600 },
 						status: "completed",
-						traceId,
 					},
-					runId,
 					safetyIdentifier: null,
 					stageTiming: await store.readRequestStageTiming(requestId),
 					startedAt: acceptedAt,
 					surface: "campus_web",
-					traceId,
 					turnSequence: 1,
 					userMessageId: acceptedWrite.userMessage.id,
 				});
@@ -695,7 +686,6 @@ describe("app-api shared product DB integration", () => {
 		await firstStore.markCommandAdmitted({
 			admittedAt: "2026-07-16T01:01:10.000Z",
 			commandId: `command-update-1-${suffix}`,
-			workflowId: `memory-workflow-1-${suffix}`,
 		});
 		await firstStore.updateItem({
 			commandId: `command-update-2-${suffix}`,
@@ -925,7 +915,6 @@ describe("app-api shared product DB integration", () => {
 		await store.markCommandAdmitted({
 			admittedAt: "2026-07-16T05:00:02.000Z",
 			commandId: `erase-first-${suffix}`,
-			workflowId: `erase-workflow-${suffix}`,
 		});
 		await expect(
 			store.erase({
@@ -1167,7 +1156,6 @@ describe("app-api shared product DB integration", () => {
 			await memoryStore.markCommandAdmitted({
 				admittedAt: "2026-07-16T03:01:30.000Z",
 				commandId,
-				workflowId: `prune-workflow-${suffix}`,
 			}),
 		).toBe(true);
 		expect(

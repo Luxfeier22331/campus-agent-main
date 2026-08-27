@@ -23,8 +23,8 @@ func (s *InMemoryRunProjectionStore) CreateRun(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.runs[run.RunID]; exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunExists, run.RunID)
+	if _, exists := s.runs[run.RequestID]; exists {
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunExists, run.RequestID)
 	}
 	if state := s.ownerDeletionFences[run.OwnerUserID]; state == OwnerDeletionStateDeleted {
 		return DurableRun{}, ErrOwnerDeleted
@@ -40,26 +40,26 @@ func (s *InMemoryRunProjectionStore) CreateRun(
 			existingRunID,
 		)
 	}
-	s.runs[run.RunID] = cloneDurableRun(run)
+	s.runs[run.RequestID] = cloneDurableRun(run)
 	if durableRunStatusIsActive(run.Status) {
-		s.activeRunByConversation[run.ConversationID] = run.RunID
+		s.activeRunByConversation[run.ConversationID] = run.RequestID
 	}
 	return cloneDurableRun(run), nil
 }
 
-func (s *InMemoryRunProjectionStore) DeleteRun(_ context.Context, runID string) error {
+func (s *InMemoryRunProjectionStore) DeleteRun(_ context.Context, requestID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[runID]
+	run, exists := s.runs[requestID]
 	if !exists {
-		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
-	delete(s.runs, runID)
-	delete(s.runEvents, runID)
-	delete(s.workflowStartIntents, runID)
-	delete(s.cancellationCommands, runID)
+	delete(s.runs, requestID)
+	delete(s.runEvents, requestID)
+	delete(s.workflowStartIntents, requestID)
+	delete(s.cancellationCommands, requestID)
 	for invocationID, receipt := range s.agentInvocationReceipts {
-		if receipt.RunID == runID {
+		if receipt.RequestID == requestID {
 			delete(s.agentInvocationReceipts, invocationID)
 		}
 	}
@@ -67,47 +67,47 @@ func (s *InMemoryRunProjectionStore) DeleteRun(_ context.Context, runID string) 
 	return nil
 }
 
-func (s *InMemoryRunProjectionStore) GetRun(_ context.Context, runID string) (DurableRun, error) {
+func (s *InMemoryRunProjectionStore) GetRun(_ context.Context, requestID string) (DurableRun, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	run, exists := s.runs[runID]
+	run, exists := s.runs[requestID]
 	if !exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
 	return cloneDurableRun(run), nil
 }
 
 func (s *InMemoryRunProjectionStore) ReplaceRunMetadata(
 	_ context.Context,
-	runID string,
+	requestID string,
 	metadata map[string]any,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[runID]
+	run, exists := s.runs[requestID]
 	if !exists {
-		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+		return fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
 	run.Metadata = cloneAnyMap(metadata)
 	if err := validateDurableRun(run); err != nil {
 		return err
 	}
-	s.runs[runID] = cloneDurableRun(run)
+	s.runs[requestID] = cloneDurableRun(run)
 	return nil
 }
 
 func (s *InMemoryRunProjectionStore) TransitionRun(
 	_ context.Context,
-	runID string,
+	requestID string,
 	status DurableRunStatus,
 	terminalReason DurableTerminalReason,
 	now time.Time,
 ) (DurableRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[runID]
+	run, exists := s.runs[requestID]
 	if !exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, runID)
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, requestID)
 	}
 	if !durableRunTransitionAllowed(run.Status, status) {
 		return DurableRun{}, fmt.Errorf(
@@ -124,7 +124,7 @@ func (s *InMemoryRunProjectionStore) TransitionRun(
 	if err := validateDurableRun(run); err != nil {
 		return DurableRun{}, err
 	}
-	s.runs[runID] = cloneDurableRun(run)
+	s.runs[requestID] = cloneDurableRun(run)
 	if durableRunStatusIsTerminal(status) {
 		delete(s.activeRunByConversation, run.ConversationID)
 	}
@@ -141,15 +141,15 @@ func (s *InMemoryRunProjectionStore) FailRunProjection(
 	request = canonicalizeDurableRunFailRequest(request)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[request.RunID]
+	run, exists := s.runs[request.RequestID]
 	if !exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RequestID)
 	}
 	if err := validateDurableRunFailureEventForRun(run, request.TerminalEvent); err != nil {
 		return DurableRun{}, err
 	}
 	if run.Status == DurableRunStatusFailed {
-		for _, event := range s.runEvents[run.RunID] {
+		for _, event := range s.runEvents[run.RequestID] {
 			if event.EventID != request.TerminalEvent.EventID {
 				continue
 			}
@@ -167,7 +167,7 @@ func (s *InMemoryRunProjectionStore) FailRunProjection(
 	if durableRunStatusIsTerminal(run.Status) {
 		return DurableRun{}, fmt.Errorf("%w: run status is %s", ErrDurableRunTerminalConflict, run.Status)
 	}
-	if command, requested := s.cancellationCommands[run.RunID]; requested && command.State != LifecycleIntentStateConfirmed {
+	if command, requested := s.cancellationCommands[run.RequestID]; requested && command.State != LifecycleIntentStateConfirmed {
 		return DurableRun{}, fmt.Errorf("%w: cancellation was requested", ErrDurableRunTerminalConflict)
 	}
 	if !durableRunTransitionAllowed(run.Status, DurableRunStatusFailed) {
@@ -192,7 +192,7 @@ func (s *InMemoryRunProjectionStore) FailRunProjection(
 		}
 		return DurableRun{}, err
 	}
-	s.runs[request.RunID] = cloneDurableRun(run)
+	s.runs[request.RequestID] = cloneDurableRun(run)
 	delete(s.activeRunByConversation, run.ConversationID)
 	return cloneDurableRun(run), nil
 }
@@ -204,17 +204,17 @@ func (s *InMemoryRunProjectionStore) ExpireRunProjection(
 	if err := validateDurableRunExpireRequest(request); err != nil {
 		return DurableRun{}, err
 	}
-	request.RunID = strings.TrimSpace(request.RunID)
+	request.RequestID = strings.TrimSpace(request.RequestID)
 	request.Now = request.Now.UTC().Truncate(time.Microsecond)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[request.RunID]
+	run, exists := s.runs[request.RequestID]
 	if !exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RequestID)
 	}
 	if run.Status == DurableRunStatusExpired {
-		for _, event := range s.runEvents[run.RunID] {
-			if event.EventID == run.RunID+":run-expired" {
+		for _, event := range s.runEvents[run.RequestID] {
+			if event.EventID == run.RequestID+":run-expired" {
 				if err := validateDurableRunExpiryReplay(run, request, event); err != nil {
 					return DurableRun{}, err
 				}
@@ -226,7 +226,7 @@ func (s *InMemoryRunProjectionStore) ExpireRunProjection(
 	if durableRunStatusIsTerminal(run.Status) {
 		return DurableRun{}, fmt.Errorf("%w: run status is %s", ErrDurableRunTerminalConflict, run.Status)
 	}
-	if command, requested := s.cancellationCommands[run.RunID]; requested && command.State != LifecycleIntentStateConfirmed {
+	if command, requested := s.cancellationCommands[run.RequestID]; requested && command.State != LifecycleIntentStateConfirmed {
 		return DurableRun{}, fmt.Errorf("%w: cancellation was requested", ErrDurableRunTerminalConflict)
 	}
 	if !durableRunTransitionAllowed(run.Status, DurableRunStatusExpired) {
@@ -243,7 +243,7 @@ func (s *InMemoryRunProjectionStore) ExpireRunProjection(
 	if err := s.appendRunEventLocked(run, durableRunExpiredEvent(run, request.Now)); err != nil {
 		return DurableRun{}, fmt.Errorf("%w: %v", ErrDurableRunExpiryConflict, err)
 	}
-	s.runs[run.RunID] = cloneDurableRun(run)
+	s.runs[run.RequestID] = cloneDurableRun(run)
 	delete(s.activeRunByConversation, run.ConversationID)
 	return cloneDurableRun(run), nil
 }
@@ -257,9 +257,9 @@ func (s *InMemoryRunProjectionStore) CompleteRunProjection(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[request.RunID]
+	run, exists := s.runs[request.RequestID]
 	if !exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RequestID)
 	}
 	if run.Status == DurableRunStatusCompleted &&
 		run.TerminalReason == request.TerminalReason &&
@@ -275,7 +275,7 @@ func (s *InMemoryRunProjectionStore) CompleteRunProjection(
 	if durableRunStatusIsTerminal(run.Status) {
 		return DurableRun{}, fmt.Errorf("%w: run status is %s", ErrDurableRunTerminalConflict, run.Status)
 	}
-	if command, requested := s.cancellationCommands[run.RunID]; requested && command.State != LifecycleIntentStateConfirmed {
+	if command, requested := s.cancellationCommands[run.RequestID]; requested && command.State != LifecycleIntentStateConfirmed {
 		return DurableRun{}, fmt.Errorf("%w: cancellation was requested", ErrDurableRunTerminalConflict)
 	}
 	if !durableRunTransitionAllowed(run.Status, DurableRunStatusCompleted) {
@@ -300,7 +300,7 @@ func (s *InMemoryRunProjectionStore) CompleteRunProjection(
 	if err := validateDurableRun(run); err != nil {
 		return DurableRun{}, err
 	}
-	s.runs[request.RunID] = cloneDurableRun(run)
+	s.runs[request.RequestID] = cloneDurableRun(run)
 	delete(s.activeRunByConversation, run.ConversationID)
 	return cloneDurableRun(run), nil
 }
@@ -310,7 +310,7 @@ func matchingFinalizationResultExists(
 	request DurableRunCompleteRequest,
 ) bool {
 	for _, result := range results {
-		if result.RunID == request.RunID && result.StepID == "finalization.write" &&
+		if result.RequestID == request.RequestID && result.StepID == "finalization.write" &&
 			result.Status == "completed" && result.ResultKind == "final_answer_projection" &&
 			result.ProjectionRef == request.FinalResponseRef {
 			return true
@@ -328,9 +328,9 @@ func (s *InMemoryRunProjectionStore) CancelRunProjection(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	run, exists := s.runs[request.RunID]
+	run, exists := s.runs[request.RequestID]
 	if !exists {
-		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RunID)
+		return DurableRun{}, fmt.Errorf("%w: %s", ErrDurableRunNotFound, request.RequestID)
 	}
 	if run.Status == DurableRunStatusCanceled {
 		return cloneDurableRun(run), nil
@@ -354,8 +354,8 @@ func (s *InMemoryRunProjectionStore) CancelRunProjection(
 		return DurableRun{}, err
 	}
 	if err := s.appendRunEventLocked(run, DurableRunEvent{
-		EventID:              run.RunID + ":run-canceled",
-		RunID:                run.RunID,
+		EventID:              run.RequestID + ":run-canceled",
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            DurableRunEventTypeRunCanceled,
 		OccurredAt:           request.Now,
@@ -363,14 +363,13 @@ func (s *InMemoryRunProjectionStore) CancelRunProjection(
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
 			"request_id":      run.RequestID,
-			"trace_id":        run.TraceID,
 			"status":          string(DurableRunStatusCanceled),
 			"terminal_reason": string(DurableTerminalReasonUserCanceled),
 		},
 	}); err != nil {
 		return DurableRun{}, err
 	}
-	s.runs[run.RunID] = cloneDurableRun(run)
+	s.runs[run.RequestID] = cloneDurableRun(run)
 	delete(s.activeRunByConversation, run.ConversationID)
 	return cloneDurableRun(run), nil
 }

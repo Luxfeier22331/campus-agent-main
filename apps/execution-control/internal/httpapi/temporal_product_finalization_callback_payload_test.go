@@ -68,14 +68,14 @@ func TestWriteChatProductFinalizationBindsFingerprintToExactResponseJSON(t *test
 
 	if err := server.writeChatProductFinalization(
 		context.Background(),
-		execution.DurableRun{RunID: runID},
+		execution.DurableRun{RequestID: runID},
 		completedAt,
 		finalizedResponse,
 	); err != nil {
 		t.Fatalf("write chat product finalization: %v", err)
 	}
 	request := <-captured
-	if request.method != http.MethodPut || request.path != "/api/internal/execution/runs/"+runID+"/product-finalization" {
+	if request.method != http.MethodPut || request.path != "/api/internal/execution/requests/"+runID+"/product-finalization" {
 		t.Fatalf("callback request = %s %s", request.method, request.path)
 	}
 	if request.contentType != "application/json" || request.secret != "callback-secret" {

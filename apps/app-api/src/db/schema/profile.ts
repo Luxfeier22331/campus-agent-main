@@ -107,7 +107,6 @@ export const profileMemoryCommands = profile.table(
 		acceptedLifecycleState: text("accepted_lifecycle_state").notNull(),
 		sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }).notNull(),
 		status: text("status").notNull().default("pending_admission"),
-		workflowId: text("workflow_id"),
 		admittedAt: timestamp("admitted_at", { withTimezone: true }),
 		lastErrorCode: text("last_error_code"),
 		resultFingerprint: text("result_fingerprint"),

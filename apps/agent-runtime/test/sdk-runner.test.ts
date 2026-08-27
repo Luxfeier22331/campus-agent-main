@@ -99,8 +99,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				},
 			],
 			requestId: "req-sdk-memory",
-			runId: "run-sdk-memory",
-			traceId: "trace-sdk-memory",
 			limits,
 			providerConfig,
 		});
@@ -158,8 +156,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				},
 			],
 			requestId: "req-sdk-budget",
-			runId: "run-sdk-budget",
-			traceId: "trace-sdk-budget",
 			limits: { ...limits, maxToolCalls: 1 },
 			providerConfig,
 		});
@@ -200,8 +196,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-provider",
-			runId: "run-sdk-provider",
-			traceId: "trace-run-sdk-provider",
 			limits,
 			providerConfig,
 		});
@@ -228,8 +222,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-text-output",
-			runId: "run-sdk-text-output",
-			traceId: "trace-run-sdk-text-output",
 			limits,
 			providerConfig,
 		});
@@ -253,8 +245,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-json-looking-text",
-			runId: "run-sdk-json-looking-text",
-			traceId: "trace-run-sdk-json-looking-text",
 			limits,
 			providerConfig,
 		});
@@ -270,7 +260,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			payloadKind: "test_lookup",
 			argumentsJson: { intent: "next_departure" },
 			result: { outcome: "resolved_current" },
-			resultRef: "agent-runtime://run-sdk/tools/test_lookup",
+			resultRef: "agent-runtime://req-sdk/tools/test_lookup",
 		};
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async (_agent, input) => {
@@ -321,8 +311,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				},
 			],
 			requestId: "req-sdk",
-			runId: "run-sdk",
-			traceId: "trace-run-sdk",
 			limits,
 			providerConfig,
 		});
@@ -361,8 +349,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-usage",
-			runId: "run-sdk-usage",
-			traceId: "trace-sdk-usage",
 			limits,
 			providerConfig,
 		};
@@ -383,7 +369,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			payloadKind: "fixture_lookup",
 			argumentsJson: { query_text: "校内通知" },
 			result: { outcome: "resolved_current" },
-			resultRef: "agent-runtime://run-sdk/tools/fixture_lookup",
+			resultRef: "agent-runtime://req-sdk/tools/fixture_lookup",
 		};
 		const secondResult: ToolExecutionResult = {
 			durationMs: 13,
@@ -392,7 +378,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			payloadKind: "test_lookup",
 			argumentsJson: { intent: "next_departure" },
 			result: { outcome: "next_departure" },
-			resultRef: "agent-runtime://run-sdk/tools/test_lookup",
+			resultRef: "agent-runtime://req-sdk/tools/test_lookup",
 		};
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async () => ({
@@ -438,8 +424,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Use tools.",
 			tools: [],
 			requestId: "req-sdk-interleaved",
-			runId: "run-sdk",
-			traceId: "trace-run-sdk",
 			limits,
 			providerConfig,
 		});
@@ -458,7 +442,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			payloadKind: "test_lookup",
 			argumentsJson: { intent: "next_departure" },
 			result: { outcome: "next_departure" },
-			resultRef: "agent-runtime://run-sdk/tools/test_lookup/call-transport",
+			resultRef: "agent-runtime://req-sdk/tools/test_lookup/call-transport",
 		};
 		const runner = createOpenAIAgentsRunner({
 			runSdk: async () => ({
@@ -490,8 +474,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				instructions: "Use tools.",
 				tools: [],
 				requestId: "req-sdk-missing-output",
-				runId: "run-sdk",
-				traceId: "trace-run-sdk",
 				limits,
 				providerConfig,
 			}),
@@ -523,7 +505,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 								payloadKind: "test_lookup",
 								argumentsJson: { query_text: "校内通知" },
 								result: { outcome: "resolved_current" },
-								resultRef: "agent-runtime://run-sdk/tools/test_lookup",
+								resultRef: "agent-runtime://req-sdk/tools/test_lookup",
 							},
 						},
 					},
@@ -537,8 +519,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				instructions: "Use tools.",
 				tools: [],
 				requestId: "req-sdk-mismatched-output",
-				runId: "run-sdk",
-				traceId: "trace-run-sdk",
 				limits,
 				providerConfig,
 			}),
@@ -559,7 +539,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			payloadKind: "fixture_lookup",
 			argumentsJson: { query_text: "校内通知" },
 			result: { outcome: "resolved_current" },
-			resultRef: "agent-runtime://run-sdk/tools/fixture_lookup",
+			resultRef: "agent-runtime://req-sdk/tools/fixture_lookup",
 		};
 		if (durationMs !== undefined) {
 			output.durationMs = durationMs;
@@ -591,8 +571,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				instructions: "Use tools.",
 				tools: [],
 				requestId: "req-sdk-invalid-duration",
-				runId: "run-sdk",
-				traceId: "trace-run-sdk",
 				limits,
 				providerConfig,
 			}),
@@ -636,13 +614,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 						toolName: "test_lookup",
 						payloadKind: "test_lookup",
 						result: { outcome: "resolved_current" },
-						resultRef: "agent-runtime://run-sdk/tools/test_lookup",
+						resultRef: "agent-runtime://req-sdk/tools/test_lookup",
 					}),
 				},
 			],
 			requestId: "req-sdk-schema",
-			runId: "run-sdk",
-			traceId: "trace-run-sdk",
 			limits,
 			providerConfig,
 		});
@@ -673,8 +649,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-signal",
-			runId: "run-sdk-signal",
-			traceId: "trace-run-sdk-signal",
 			limits,
 			providerConfig,
 			signal: controller.signal,
@@ -705,8 +679,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-debug-trace",
-			runId: "run-sdk-debug-trace",
-			traceId: "trace-debug-sdk",
 			limits,
 			providerConfig,
 		});
@@ -751,8 +723,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-stream",
-			runId: "run-sdk-stream",
-			traceId: "trace-run-sdk-stream",
 			limits,
 			providerConfig,
 		})) {
@@ -808,8 +778,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Explain in plain text when evidence is unavailable.",
 			tools: [],
 			requestId: "req-sdk-unsupported",
-			runId: "run-sdk-unsupported",
-			traceId: "trace-sdk-unsupported",
 			limits,
 			providerConfig,
 		})) {
@@ -852,8 +820,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-stream-cancel",
-			runId: "run-sdk-stream-cancel",
-			traceId: "trace-run-sdk-stream-cancel",
 			limits,
 			providerConfig,
 		})[Symbol.asyncIterator]();
@@ -908,8 +874,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-stream-aborted",
-			runId: "run-sdk-stream-aborted",
-			traceId: "trace-run-sdk-stream-aborted",
 			limits,
 			providerConfig,
 			signal: controller.signal,
@@ -951,8 +915,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Answer directly.",
 			tools: [],
 			requestId: "req-sdk-stream-whitespace",
-			runId: "run-sdk-stream-whitespace",
-			traceId: "trace-run-sdk-stream-whitespace",
 			limits,
 			providerConfig,
 		})) {
@@ -1009,8 +971,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			instructions: "Use formal campus tools when needed.",
 			tools: [],
 			requestId: "req-sdk-knowledge-stream",
-			runId: "run-sdk-knowledge-stream",
-			traceId: "trace-sdk-knowledge-stream",
 			limits,
 			providerConfig,
 		})) {
@@ -1059,8 +1019,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				instructions: "Answer directly.",
 				tools: [],
 				requestId: "req-sdk-stream-drift",
-				runId: "run-sdk-stream-drift",
-				traceId: "trace-run-sdk-stream-drift",
 				limits,
 				providerConfig,
 			})) {

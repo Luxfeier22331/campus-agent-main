@@ -29,7 +29,7 @@ export const conversations = chat.table(
 		titleUpdatedAt: timestamp("title_updated_at", { withTimezone: true }),
 		activeBranchId: text("active_branch_id").notNull().default("branch_active"),
 		activeMessageId: text("active_message_id"),
-		activeRunId: text("active_run_id"),
+		activeRequestId: text("active_request_id"),
 		activeTurnSequence: integer("active_turn_sequence").notNull().default(0),
 	},
 	(table) => ({
@@ -72,7 +72,6 @@ export const messages = chat.table(
 		parentMessageId: text("parent_message_id"),
 		branchId: text("branch_id").notNull().default("branch_active"),
 		turnSequence: integer("turn_sequence").notNull().default(0),
-		runId: text("run_id"),
 		isActiveBranchHead: boolean("is_active_branch_head").notNull().default(false),
 	},
 	(table) => ({
@@ -86,7 +85,6 @@ export const messages = chat.table(
 			table.branchId,
 			table.turnSequence,
 		),
-		runIdIndex: index("chat_messages_run_id_idx").on(table.runId),
 	}),
 );
 
@@ -114,9 +112,6 @@ export const turnDispatches = chat.table(
 		memoryOwnerSequence: bigint("memory_owner_sequence", { mode: "number" }),
 		idempotencyKey: text("idempotency_key"),
 		requestFingerprintSha256: text("request_fingerprint_sha256"),
-		traceId: text("trace_id").notNull(),
-		runId: text("run_id"),
-		turnId: text("turn_id"),
 		executionInputJson: text("execution_input_json"),
 		executionInputSha256: text("execution_input_sha256"),
 		finalizationFingerprint: text("finalization_fingerprint"),
@@ -136,8 +131,6 @@ export const turnDispatches = chat.table(
 			"chat_turn_dispatches_input_lifecycle_check",
 			sql`(
 					${table.status} = 'accepted'
-					and ${table.runId} is not null
-					and ${table.turnId} is not null
 					and (
 						${table.executionInputJson} is not null
 						and ${table.executionInputSha256} is not null
@@ -153,15 +146,11 @@ export const turnDispatches = chat.table(
 					)
 					and (
 						(
-							${table.runId} is null
-							and ${table.turnId} is null
-							and ${table.executionInputJson} is null
+							${table.executionInputJson} is null
 							and ${table.executionInputSha256} is null
 						)
 						or (
-							${table.runId} is not null
-						and ${table.turnId} is not null
-							and ${table.executionInputJson} is not null
+							${table.executionInputJson} is not null
 							and ${table.executionInputSha256} is not null
 						)
 					)
@@ -179,19 +168,12 @@ export const turnDispatches = chat.table(
 			table.createdAt.desc(),
 			table.requestId.desc(),
 		),
-		runIdUnique: uniqueIndex("chat_turn_dispatches_run_id_uidx")
-			.on(table.runId)
-			.where(sql`${table.runId} is not null`),
 		safetyIdentifierCreatedAtIndex: index(
 			"chat_turn_dispatches_safety_identifier_created_at_idx",
 		).on(table.safetyIdentifier, table.createdAt),
 		statusCreatedAtIndex: index("chat_turn_dispatches_status_created_at_idx").on(
 			table.status,
 			table.createdAt,
-		),
-		traceIdCreatedAtIndex: index("chat_turn_dispatches_trace_id_created_at_idx").on(
-			table.traceId,
-			table.createdAt.desc(),
 		),
 	}),
 );

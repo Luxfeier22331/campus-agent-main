@@ -1,4 +1,3 @@
-import { AppApiRouteError } from "../../../http";
 import { buildExecutionAuthorizationContext, type ResolvedAppPrincipal } from "../../auth";
 import {
 	type ChatConversation,
@@ -207,11 +206,8 @@ export function buildAcceptedWrite(input: {
 	requestFingerprintSha256: string | null;
 	requestId: string;
 	requestKind: ChatCommandRequestKind;
-	runId: string | null;
 	safetyIdentifier: string | null;
 	surface: string;
-	traceId: string;
-	turnId: string;
 	turnSequence: number;
 	userMessageId: string;
 }): AcceptRequestWrite {
@@ -226,9 +222,8 @@ export function buildAcceptedWrite(input: {
 		text: input.prompt,
 		createdAt: input.now,
 		parentMessageId,
-		requestId: null,
+		requestId: input.requestId,
 		retryable: null,
-		runId: input.runId,
 		structuredParts: [],
 		turnSequence: input.turnSequence,
 	};
@@ -237,7 +232,7 @@ export function buildAcceptedWrite(input: {
 		conversationBaseline: {
 			activeBranchId: input.conversation.activeBranchId ?? "branch_active",
 			activeMessageId: input.conversation.activeMessageId ?? null,
-			activeRunId: input.conversation.activeRunId ?? null,
+			activeRequestId: input.conversation.activeRequestId ?? null,
 			activeTurnSequence: input.conversation.activeTurnSequence ?? 0,
 			updatedAt: input.conversation.updatedAt,
 		},
@@ -266,9 +261,6 @@ export function buildAcceptedWrite(input: {
 			},
 			idempotencyKey: input.idempotencyKey,
 			requestFingerprintSha256: input.requestFingerprintSha256,
-			traceId: input.traceId,
-			runId: input.runId,
-			turnId: input.turnId,
 			safetyIdentifier: input.safetyIdentifier,
 			status: "accepted",
 			errorCode: null,
@@ -283,40 +275,9 @@ export function buildAcceptedWrite(input: {
 			safetyIdentifier: input.safetyIdentifier,
 			startedAt: input.now,
 			surface: input.surface,
-			traceId: input.traceId,
 		}),
 		requestKind: input.requestKind,
 	};
-}
-
-function requireFinalizationRunId(value: string | null): string {
-	if (typeof value === "string" && value.trim()) {
-		return value.trim();
-	}
-	throw new AppApiRouteError({
-		code: "validation_failed",
-		message: "request finalization requires run_id for observability projection.",
-		retryable: false,
-		status: 422,
-	});
-}
-
-function requireFinalizationTraceMatch(input: {
-	acceptedTraceId: string;
-	requestId: string;
-	responseTraceId: string;
-}): string {
-	if (input.responseTraceId === input.acceptedTraceId) {
-		return input.acceptedTraceId;
-	}
-	throw new AppApiRouteError({
-		code: "validation_failed",
-		details: { field: "trace_id", requestId: input.requestId },
-		message: "request finalization trace_id must match the accepted request trace_id.",
-		retryable: false,
-		status: 422,
-		traceId: input.acceptedTraceId,
-	});
 }
 
 export function buildFinalizedWrite(input: {
@@ -330,29 +291,18 @@ export function buildFinalizedWrite(input: {
 	projectionCloseoutMs?: number | null;
 	requestId: string;
 	response: ToolExecutionResponse;
-	runId: string | null;
 	safetyIdentifier: string | null;
 	stageTiming?: Record<string, unknown> | null;
 	surface: string;
 	startedAt: string;
 	streamAppApiTtftMs?: number | null;
-	traceId: string;
 	turnSequence: number;
 	userMessageId: string;
 }): {
 	responseBody: ChatCommandResponse;
 	write: FinalizeRequestWrite;
 } {
-	const normalizedTraceId = requireFinalizationTraceMatch({
-		acceptedTraceId: input.traceId,
-		requestId: input.requestId,
-		responseTraceId: input.response.traceId,
-	});
-	const runId = requireFinalizationRunId(input.runId);
-	const normalizedExecutionResponse = {
-		...input.response,
-		traceId: normalizedTraceId,
-	} satisfies ToolExecutionResponse;
+	const normalizedExecutionResponse = input.response;
 	const structuredParts = normalizeChatResponseStructuredParts({
 		result: input.response.result,
 		status: input.response.status,
@@ -384,7 +334,6 @@ export function buildFinalizedWrite(input: {
 			errorCode,
 			requestId: input.requestId,
 			retryable,
-			traceId: normalizedTraceId,
 		};
 		status = input.response.status;
 	} else {
@@ -394,7 +343,6 @@ export function buildFinalizedWrite(input: {
 			kind: "answer",
 			requestId: input.requestId,
 			text: assistantText,
-			traceId: normalizedTraceId,
 		};
 		status = "completed";
 	}
@@ -427,7 +375,6 @@ export function buildFinalizedWrite(input: {
 		parentMessageId: input.userMessageId,
 		requestId: input.requestId,
 		retryable,
-		runId,
 		structuredParts,
 		turnSequence: input.turnSequence,
 	};
@@ -438,7 +385,6 @@ export function buildFinalizedWrite(input: {
 		ownerUserId: input.conversation.ownerUserId,
 		turnDispatch: {
 			requestId: input.requestId,
-			runId,
 			safetyIdentifier: input.safetyIdentifier,
 			status,
 			errorCode,
@@ -457,7 +403,6 @@ export function buildFinalizedWrite(input: {
 				: { projectionCloseoutMs: input.projectionCloseoutMs }),
 			requestId: input.requestId,
 			response: normalizedExecutionResponse,
-			runId,
 			safetyIdentifier: input.safetyIdentifier,
 			startedAt: input.startedAt,
 			...(input.stageTiming === undefined ? {} : { stageTiming: input.stageTiming }),
@@ -466,7 +411,6 @@ export function buildFinalizedWrite(input: {
 				? {}
 				: { streamAppApiTtftMs: input.streamAppApiTtftMs }),
 			surface: input.surface,
-			traceId: normalizedTraceId,
 		}),
 		sessionSlots: [],
 	};
@@ -479,7 +423,6 @@ export function buildFinalizedWrite(input: {
 			},
 			execution: normalizedExecutionResponse,
 			requestId: input.requestId,
-			traceId: normalizedTraceId,
 		},
 		write,
 	};

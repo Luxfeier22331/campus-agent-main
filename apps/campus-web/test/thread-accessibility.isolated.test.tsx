@@ -36,7 +36,7 @@ const RunStatusRuntimeProvider: FC<PropsWithChildren> = ({ children }) => {
 				content: [{ text: "完整回答", type: "text" }],
 				metadata: {
 					custom: {
-						campusRun: {
+						campusRequest: {
 							acceptedAt: "2026-08-18T07:00:00.000Z",
 							completedAt: "2026-08-18T07:00:05.000Z",
 							connection: "live",
@@ -44,7 +44,6 @@ const RunStatusRuntimeProvider: FC<PropsWithChildren> = ({ children }) => {
 							phase: "finalizing",
 							provisional: false,
 							requestId: "req_accessibility",
-							runId: "run_accessibility",
 							sequence: 8,
 							startedAt: "2026-08-18T07:00:01.000Z",
 							status: "completed",

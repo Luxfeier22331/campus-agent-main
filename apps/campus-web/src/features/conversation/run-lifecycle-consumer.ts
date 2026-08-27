@@ -19,11 +19,11 @@ export async function consumeRunLifecycleEvents(input: {
 		}
 		eventCount += 1;
 		await input.onEvent(event);
-		if (event.event === "request.accepted" && event.data.runId) {
+		if (event.event === "request.accepted" && event.data.requestId) {
 			await input.onAccepted(event);
 			continue;
 		}
-		if (event.data.runId) {
+		if (event.data.requestId) {
 			await input.onRunEvent(event);
 		}
 		if (event.event === "answer.delta") {

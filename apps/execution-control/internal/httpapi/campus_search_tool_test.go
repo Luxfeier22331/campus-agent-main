@@ -16,12 +16,12 @@ import (
 )
 
 func TestDecodeCampusSearchToolEnvelopeAndRejectsUnauthenticatedRequests(t *testing.T) {
-	valid := `{"access_context":{"activity_attempt":1,"run_id":"run-1","trace_id":"trace-1","invocation_id":"call-1"},"payload":{"query":"学籍规定"}}`
+	valid := `{"access_context":{"activity_attempt":1,"request_id":"request-1","invocation_id":"call-1"},"payload":{"query":"学籍规定"}}`
 	envelope, err := decodeCampusSearchToolEnvelope([]byte(valid))
 	if err != nil {
 		t.Fatalf("decode valid campus search envelope: %v", err)
 	}
-	if envelope.Payload.Query != "学籍规定" || envelope.AccessContext.RunID != "run-1" {
+	if envelope.Payload.Query != "学籍规定" || envelope.AccessContext.RequestID != "request-1" {
 		t.Fatalf("decoded envelope = %#v", envelope)
 	}
 	if _, err := decodeCampusSearchToolEnvelope([]byte(strings.Replace(valid, `"payload"`, `"unexpected"`, 1))); err == nil {

@@ -29,13 +29,14 @@ Model Config 位于共同受信任的内部服务边界，不再执行第二次�
 边界执行人员认证和 CSRF 校验；`X-Model-Config-Actor` 只用于审计来源。所有配置响应都使用
 `Cache-Control: no-store`。
 
-Schema 由 `model-config-schema` 安装，常驻进程不执行 DDL。Schema Job 使用既有 `campus_agent`
-bootstrap 身份拥有并校验 `model_config` schema、`model_configs` 表和 migration ledger；常驻进程使用
-`model_config` runtime role，只获得 schema usage 以及所属表的明确读写权限。Migration 会拒绝未知列、
-relation、constraint、index、owner 或 grant，不用 `IF NOT EXISTS` 把漂移伪装成成功。Provider API Key
-加密保存在 `encrypted_api_key`。一次性切换期间，schema command 使用旧 execution-control 加密密钥，
-事务性迁移 `execution_control.model_settings` 中已验证的数据并删除旧表。必须先运行 execution-control
-历史 migration。
+新建或重建数据库的 Schema 由 `campus-agent-schema` 安装，常驻进程不执行 DDL。Job 使用既有
+`campus_agent` owner 创建 `model_config` schema、`model_configs` 表和运行角色授权，并与其他产品
+schema 共用 `drizzle.campus_agent_migrations`。常驻进程使用 `model_config` runtime role，只获得
+schema usage 和所属表的明确读写权限。Provider API Key 加密保存在 `encrypted_api_key`。
+
+`model-config-schema` 与 execution-control 旧 Goose runner 暂作为现有部署数据库的不可变历史入口
+保留；标准本地 bootstrap 不再运行它们，也不生成旧 Provider Config key。在线环境切换统一入口属于
+后续带备份和维护窗口的 GitOps 任务，本次源码变更不执行该切换。
 
 详见 [ADR-0093](../../docs/decisions/adr-0093-model-config-boundary.md) 和
 [密钥 runbook](../../docs/runbooks/provider-secrets.md)。

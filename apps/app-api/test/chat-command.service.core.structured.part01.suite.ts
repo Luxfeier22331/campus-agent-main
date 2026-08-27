@@ -47,7 +47,6 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 						],
 					},
 					status: "completed",
-					traceId: "trace_0001",
 				}),
 			}),
 		});

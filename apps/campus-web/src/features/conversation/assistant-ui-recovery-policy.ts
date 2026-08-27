@@ -5,9 +5,8 @@ export const RESUME_MAX_DELAY_MS = 5_000;
 export const MAX_INITIAL_STREAM_REPLAYS = 3;
 export const MAX_CONSECUTIVE_RECOVERY_FAILURES = 3;
 
-interface RecoveryRunIdentity {
+interface RecoveryRequestIdentity {
 	requestId: string;
-	traceId: string;
 }
 
 export function nextResumeDelay(delayMs: number): number {
@@ -27,13 +26,12 @@ export function isTerminalRunStatus(status: ChatRunStatus): boolean {
 	);
 }
 
-export function streamRecoveryExhausted(run?: RecoveryRunIdentity): ChatStreamRequestError {
+export function streamRecoveryExhausted(run?: RecoveryRequestIdentity): ChatStreamRequestError {
 	return new ChatStreamRequestError({
 		code: "chat_stream_connection_lost",
 		message: "回答连接已中断，请重试。",
 		...(run?.requestId ? { requestId: run.requestId } : {}),
 		retryable: true,
-		...(run?.traceId ? { traceId: run.traceId } : {}),
 	});
 }
 
@@ -42,7 +40,7 @@ export function isStreamRecoveryExhausted(error: unknown): boolean {
 }
 
 export function isRunAlreadyTerminalError(error: unknown): boolean {
-	return error instanceof ChatStreamRequestError && error.code === "run_already_terminal";
+	return error instanceof ChatStreamRequestError && error.code === "request_already_terminal";
 }
 
 export function isPersistedConversationMessageId(

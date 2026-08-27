@@ -8,11 +8,7 @@ export type {
 	ExecutionControlRunEventPage,
 	ExecutionControlRunEventQuery,
 	ExecutionControlRunQuery,
-	ExecutionControlRunStep,
-	ExecutionControlRunStepTrajectory,
 	ExecutionControlRuntimeClient,
-	ExecutionControlStepAttempt,
-	ExecutionControlStepResult,
 	ToolExecutionContextProjection,
 	ToolExecutionConversationContext,
 	ToolExecutionInput,
@@ -21,7 +17,6 @@ export type {
 	ToolExecutionResponse,
 	ToolExecutionSessionSlot,
 	ToolExecutionSessionSummary,
-	ToolExecutionWorkflowTraceSummary,
 } from "./execution-control";
 export {
 	createExecutionControlPersonalMemoryClient,

@@ -16,15 +16,8 @@ const SentryIssueSchema = z
 	.object({
 		count: z.union([z.string(), z.number()]),
 		firstSeen: z.string().datetime(),
-		id: z.string().min(1),
 		lastSeen: z.string().datetime(),
 		level: z.string().min(1).nullable().optional(),
-		permalink: z.string().url(),
-		project: z.object({
-			name: z.string().min(1),
-			slug: z.string().min(1),
-		}),
-		shortId: z.string().min(1),
 		status: z.string().min(1),
 		title: z.string().min(1),
 	})
@@ -98,7 +91,6 @@ export function createSentryClient(input: {
 			url.searchParams.set("sort", "date");
 			url.searchParams.set("limit", String(SENTRY_FETCH_LIMIT));
 
-			const startedAt = Date.now();
 			let response: Response;
 			try {
 				const timeoutSignal = AbortSignal.timeout(SENTRY_QUERY_TIMEOUT_MS);
@@ -131,27 +123,15 @@ export function createSentryClient(input: {
 			const issues = parsed.data.slice(0, SENTRY_QUERY_LIMIT).map((issue) => ({
 				eventCount: normalizeEventCount(issue.count),
 				firstSeen: issue.firstSeen,
-				issueId: issue.id,
 				lastSeen: issue.lastSeen,
 				level: issue.level ?? null,
-				permalink: normalizePermalink(issue.permalink, baseUrl),
-				projectName: issue.project.name,
-				projectSlug: issue.project.slug,
-				shortId: issue.shortId,
 				status: issue.status,
 				title: issue.title,
 			}));
 			return OpsSentryIssuesResponseSchema.parse({
 				dataState: issues.length === 0 ? "NO_DATA" : "FRESH",
-				from: window.from.toISOString(),
 				issues,
-				limit: SENTRY_QUERY_LIMIT,
 				queriedAt: now.toISOString(),
-				queryDurationMs: Math.max(0, Date.now() - startedAt),
-				requestId,
-				source: "SENTRY",
-				to: window.to.toISOString(),
-				truncated: parsed.data.length > SENTRY_QUERY_LIMIT || window.clamped,
 			});
 		},
 	};
@@ -178,22 +158,6 @@ export function createSentryClientFromEnv(env: SentryEnv = process.env): SentryC
 		projectSlugs: (required.OPS_WEB_SENTRY_PROJECT_SLUGS as string).split(","),
 		token: required.SENTRY_AUTH_TOKEN as string,
 	});
-}
-
-export function sentryTraceExplorerUrl(input: { baseUrl?: string; orgSlug?: string }) {
-	if (!(input.baseUrl?.trim() && input.orgSlug?.trim())) {
-		return null;
-	}
-	try {
-		const baseUrl = normalizeSentryBaseUrl(input.baseUrl);
-		const orgSlug = normalizeSlug(input.orgSlug, "organization");
-		return new URL(
-			`/orgredirect/organizations/${encodeURIComponent(orgSlug)}/traces/`,
-			baseUrl,
-		).toString();
-	} catch {
-		return null;
-	}
 }
 
 function normalizeSentryBaseUrl(value: string) {
@@ -262,12 +226,4 @@ function normalizeEventCount(value: string | number) {
 		throw new SentryUnavailableError("Sentry returned an invalid issue event count.");
 	}
 	return parsed;
-}
-
-function normalizePermalink(value: string, baseUrl: string) {
-	const parsed = new URL(value);
-	if (parsed.protocol !== "https:" || parsed.origin !== new URL(baseUrl).origin) {
-		throw new SentryUnavailableError("Sentry returned an invalid issue permalink.");
-	}
-	return parsed.toString();
 }

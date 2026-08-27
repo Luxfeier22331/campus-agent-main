@@ -26,10 +26,6 @@ import {
 
 const exactIdFields = [
 	{ label: "请求 ID", name: "requestId", placeholder: "精确 requestId" },
-	{ label: "运行 ID", name: "runId", placeholder: "精确 runId" },
-	{ label: "工作流 ID", name: "workflowId", placeholder: "精确 workflowId" },
-	{ label: "调用链 ID", name: "traceId", placeholder: "精确 traceId" },
-	{ label: "会话 ID", name: "conversationId", placeholder: "精确 conversationId" },
 ] as const;
 
 type ExactIdFieldName = (typeof exactIdFields)[number]["name"];
@@ -39,23 +35,19 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 	const formRef = useRef<HTMLFormElement>(null);
 	const mobileFiltersTriggerRef = useRef<HTMLButtonElement>(null);
 	const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-	const { conversationId, q, requestId, runId, status, traceId, view, window, workflowId } = search;
+	const { q, requestId, status, view, window } = search;
 	const [draft, setDraft] = useState(() => requestSearchDraftFromSearch(search));
 	useEffect(() => {
 		setDraft(
 			requestSearchDraftFromSearch({
-				conversationId,
 				q,
 				requestId,
-				runId,
 				status,
-				traceId,
 				view,
 				window,
-				workflowId,
 			}),
 		);
-	}, [conversationId, q, requestId, runId, status, traceId, view, window, workflowId]);
+	}, [q, requestId, status, view, window]);
 
 	const hasExactFilter = exactIdFields.some((field) => Boolean(draft[field.name]));
 	const appliedFilterCount =
@@ -94,7 +86,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 						maxLength={256}
 						name="q"
 						onChange={(name, value) => setDraft((previous) => ({ ...previous, [name]: value }))}
-						placeholder="搜索问题、ID 或错误码"
+						placeholder="搜索问题、请求 ID 或错误码"
 						value={draft.q}
 					/>
 					<div className="hidden md:block">
@@ -306,15 +298,11 @@ function SearchInput({
 
 function requestSearchFromForm(formData: FormData): RequestSearchLike {
 	return cleanRequestSearch({
-		conversationId: optionalBoundedSearchString(formData.get("conversationId"), 128),
 		cursor: undefined,
 		q: optionalBoundedSearchString(formData.get("q"), 256),
 		requestId: optionalBoundedSearchString(formData.get("requestId"), 128),
-		runId: optionalBoundedSearchString(formData.get("runId"), 128),
 		status: optionalStatus(formData.get("status")) as OpsRequestSummary["status"] | undefined,
-		traceId: optionalBoundedSearchString(formData.get("traceId"), 128),
 		view: optionalRequestListView(formData.get("view")),
 		window: optionalRequestWindow(formData.get("window")),
-		workflowId: optionalBoundedSearchString(formData.get("workflowId"), 128),
 	});
 }

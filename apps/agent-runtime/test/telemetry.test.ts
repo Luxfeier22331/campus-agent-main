@@ -195,7 +195,7 @@ describe("agent runtime Langfuse telemetry", () => {
 					provider.getTracer(agentScope).startSpan("stream-model-call").end();
 					yield {
 						event: "completed" as const,
-						data: completedResult(input.runId),
+						data: completedResult(input.requestId),
 					};
 				})();
 			},
@@ -220,7 +220,7 @@ describe("agent runtime Langfuse telemetry", () => {
 			sharedSecret: "secret",
 		});
 		const response = await handler(
-			new Request("http://agent-runtime/internal/agent-runs/stream", {
+			new Request("http://agent-runtime/internal/agent-requests/stream", {
 				body: JSON.stringify(validRunBody()),
 				headers: { authorization: "Bearer secret" },
 				method: "POST",
@@ -234,9 +234,6 @@ describe("agent runtime Langfuse telemetry", () => {
 		expect(span?.attributes).toMatchObject({
 			"session.id": "conversation-1",
 			"langfuse.trace.metadata.request_id": "request-1",
-			"langfuse.trace.metadata.run_id": "run-1",
-			"langfuse.trace.metadata.trace_id": "trace-1",
-			"langfuse.trace.metadata.turn_id": "turn-1",
 			"langfuse.trace.name": "online-answer",
 			"langfuse.trace.tags": ["surface:agent-runtime"],
 			"user.id": "user-1",
@@ -261,9 +258,6 @@ function validRunBody() {
 		expected_model_target_sha256:
 			"5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
 		request_id: "request-1",
-		run_id: "run-1",
-		trace_id: "trace-1",
-		turn_id: "turn-1",
 		user_id: "user-1",
 		visible_tool_names: [],
 		expected_tool_contract_fingerprint: {
@@ -274,7 +268,7 @@ function validRunBody() {
 	};
 }
 
-function completedResult(runId: string) {
+function completedResult(requestId: string) {
 	return {
 		contextUsage: {
 			contextChars: 44,
@@ -291,7 +285,7 @@ function completedResult(runId: string) {
 			schemaVersion: "agent_runtime_prompt_trace.v1" as const,
 		},
 		providerResponseId: "response-1",
-		runId,
+		requestId,
 		stageTiming: {},
 		status: "completed" as const,
 		terminalReason: "answer_completed" as const,

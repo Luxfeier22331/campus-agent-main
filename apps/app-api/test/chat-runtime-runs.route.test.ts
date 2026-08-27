@@ -50,25 +50,18 @@ describe("chat durable run routes", () => {
 			listEvents: vi.fn().mockResolvedValue({
 				events: [
 					{
-						eventId: "event-final",
-						eventType: "finalization.completed",
+						eventType: "request.completed",
 						occurredAt: "2026-06-04T01:02:06.000Z",
-						payload: {
-							request_id: "req_01HQ",
-							trace_id: "trace_01HQ",
-						},
-						runId: "run_01HQ",
+						payload: {},
+						requestId: "req_01HQ",
 						sequence: 3,
-						visibility: "browser",
 					},
 				],
 				run: {
 					conversationId: "conv_01HQ",
 					phase: "completed",
 					requestId: "req_01HQ",
-					runId: "run_01HQ",
 					status: "completed",
-					traceId: "trace_01HQ",
 				},
 			}),
 			listSteps: vi.fn(),
@@ -80,7 +73,7 @@ describe("chat durable run routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/chat/runs/run_01HQ/events?after_sequence=2", {
+			new Request("https://app-api.internal/api/chat/requests/req_01HQ/events?after_sequence=2", {
 				method: "GET",
 			}),
 		);
@@ -90,25 +83,18 @@ describe("chat durable run routes", () => {
 		expect(responseBody).toEqual({
 			events: [
 				{
-					eventId: "event-final",
-					eventType: "finalization.completed",
+					eventType: "request.completed",
 					occurredAt: "2026-06-04T01:02:06.000Z",
-					payload: {
-						request_id: "req_01HQ",
-						trace_id: "trace_01HQ",
-					},
-					runId: "run_01HQ",
+					payload: {},
+					requestId: "req_01HQ",
 					sequence: 3,
-					visibility: "browser",
 				},
 			],
 			run: {
 				conversationId: "conv_01HQ",
 				phase: "completed",
 				requestId: "req_01HQ",
-				runId: "run_01HQ",
 				status: "completed",
-				traceId: "trace_01HQ",
 			},
 		});
 		expect(runtimeRunService.listEvents).toHaveBeenCalledWith({
@@ -116,7 +102,7 @@ describe("chat durable run routes", () => {
 				actor: expect.objectContaining({ userId: "user_01HQ" }),
 			}),
 			afterSequence: 2,
-			runId: "run_01HQ",
+			requestId: "req_01HQ",
 			signal: expect.any(AbortSignal),
 		});
 	});
@@ -138,9 +124,7 @@ describe("chat durable run routes", () => {
 					conversationId: "conv_01HQ",
 					phase: "completed",
 					requestId: "req_01HQ",
-					runId: "run_01HQ",
 					status: "completed",
-					traceId: "trace_01HQ",
 				},
 			}),
 			listEvents: vi.fn(),
@@ -148,16 +132,11 @@ describe("chat durable run routes", () => {
 			subscribeEvents: vi.fn().mockReturnValue(
 				(async function* () {
 					yield {
-						eventId: "event-final",
 						eventType: "request.completed",
 						occurredAt: "2026-06-04T01:02:06.000Z",
-						payload: {
-							request_id: "req_01HQ",
-							trace_id: "trace_01HQ",
-						},
-						runId: "run_01HQ",
+						payload: {},
+						requestId: "req_01HQ",
 						sequence: 3,
-						visibility: "browser",
 					};
 				})(),
 			),
@@ -170,7 +149,7 @@ describe("chat durable run routes", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/chat/runs/run_01HQ/events/stream?after_sequence=2",
+				"https://app-api.internal/api/chat/requests/req_01HQ/events/stream?after_sequence=2",
 				{
 					method: "GET",
 				},
@@ -179,18 +158,15 @@ describe("chat durable run routes", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("text/event-stream");
-		expect(response.headers.get("x-run-id")).toBe("run_01HQ");
 		expect(response.headers.get("x-request-id")).toBe("req_01HQ");
-		expect(response.headers.get("x-trace-id")).toBe("trace_01HQ");
+		expect(response.headers.get("x-trace-id")).toBeNull();
 		const streamBody = await response.text();
 		expect(parseSingleSseBlock(streamBody)).toEqual({
 			data: {
 				occurredAt: "2026-06-04T01:02:06.000Z",
 				requestId: "req_01HQ",
-				runId: "run_01HQ",
 				sequence: 3,
 				status: "completed",
-				traceId: "trace_01HQ",
 			},
 			event: "request.completed",
 		});
@@ -198,14 +174,14 @@ describe("chat durable run routes", () => {
 			principal: expect.objectContaining({
 				actor: expect.objectContaining({ userId: "user_01HQ" }),
 			}),
-			runId: "run_01HQ",
+			requestId: "req_01HQ",
 		});
 		expect(runtimeRunService.subscribeEvents).toHaveBeenCalledWith({
 			principal: expect.objectContaining({
 				actor: expect.objectContaining({ userId: "user_01HQ" }),
 			}),
 			afterSequence: 2,
-			runId: "run_01HQ",
+			requestId: "req_01HQ",
 			signal: expect.any(AbortSignal),
 		});
 		expect(runtimeRunService.listEvents).not.toHaveBeenCalled();
@@ -232,9 +208,7 @@ describe("chat durable run routes", () => {
 					conversationId: "conv_01HQ",
 					phase: "running",
 					requestId: "req_01HQ",
-					runId: "run_01HQ",
 					status: "running",
-					traceId: "trace_01HQ",
 				},
 			}),
 			listEvents: vi.fn(),
@@ -250,7 +224,7 @@ describe("chat durable run routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/chat/runs/run_01HQ/events/stream", {
+			new Request("https://app-api.internal/api/chat/requests/req_01HQ/events/stream", {
 				method: "GET",
 			}),
 		);
@@ -270,9 +244,7 @@ describe("chat durable run routes", () => {
 					conversationId: "conv_01HQ",
 					phase: "running",
 					requestId: "req_01HQ",
-					runId: "run_01HQ",
 					status: "running",
-					traceId: "trace_01HQ",
 				},
 			}),
 			listEvents: vi.fn(),
@@ -281,16 +253,11 @@ describe("chat durable run routes", () => {
 				(async function* () {
 					await new Promise((resolve) => setTimeout(resolve, 100));
 					yield {
-						eventId: "event-final",
-						eventType: "finalization.completed",
+						eventType: "request.completed",
 						occurredAt: "2026-06-04T01:02:06.000Z",
-						payload: {
-							request_id: "req_01HQ",
-							trace_id: "trace_01HQ",
-						},
-						runId: "run_01HQ",
+						payload: {},
+						requestId: "req_01HQ",
 						sequence: 3,
-						visibility: "browser",
 					};
 				})(),
 			),
@@ -302,7 +269,7 @@ describe("chat durable run routes", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/chat/runs/run_01HQ/events/stream?after_sequence=2",
+				"https://app-api.internal/api/chat/requests/req_01HQ/events/stream?after_sequence=2",
 				{
 					method: "GET",
 				},
@@ -321,9 +288,7 @@ describe("chat durable run routes", () => {
 					conversationId: "conv_01HQ",
 					phase: "canceled",
 					requestId: "req_01HQ",
-					runId: "run_01HQ",
 					status: "canceled",
-					traceId: "trace_01HQ",
 				},
 			}),
 			getStatus: vi.fn(),
@@ -337,7 +302,7 @@ describe("chat durable run routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/chat/runs/run_01HQ/cancel", {
+			new Request("https://app-api.internal/api/chat/requests/req_01HQ/cancel", {
 				body: JSON.stringify({ reason: "user_requested" }),
 				headers: {
 					"content-type": "application/json",
@@ -353,9 +318,7 @@ describe("chat durable run routes", () => {
 				conversationId: "conv_01HQ",
 				phase: "canceled",
 				requestId: "req_01HQ",
-				runId: "run_01HQ",
 				status: "canceled",
-				traceId: "trace_01HQ",
 			},
 		});
 		expect(runtimeRunService.cancel).toHaveBeenCalledWith({
@@ -363,7 +326,7 @@ describe("chat durable run routes", () => {
 				actor: expect.objectContaining({ userId: "user_01HQ" }),
 			}),
 			reason: "user_requested",
-			runId: "run_01HQ",
+			requestId: "req_01HQ",
 		});
 	});
 
@@ -371,8 +334,8 @@ describe("chat durable run routes", () => {
 		const runtimeRunService = {
 			cancel: vi.fn().mockRejectedValue(
 				new AppApiRouteError({
-					code: "run_already_terminal",
-					message: "Run is already terminal.",
+					code: "request_already_terminal",
+					message: "Request is already terminal.",
 					retryable: false,
 					status: 409,
 				}),
@@ -388,7 +351,7 @@ describe("chat durable run routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/chat/runs/run_01HQ/cancel", {
+			new Request("https://app-api.internal/api/chat/requests/req_01HQ/cancel", {
 				body: JSON.stringify({ reason: "user_requested" }),
 				headers: { "content-type": "application/json" },
 				method: "POST",
@@ -398,8 +361,8 @@ describe("chat durable run routes", () => {
 		expect(response.status).toBe(409);
 		await expect(response.json()).resolves.toMatchObject({
 			error: {
-				code: "run_already_terminal",
-				message: "Run is already terminal.",
+				code: "request_already_terminal",
+				message: "Request is already terminal.",
 				retryable: false,
 			},
 		});
@@ -419,7 +382,7 @@ describe("chat durable run routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/chat/runs/run_01HQ/cancel", {
+			new Request("https://app-api.internal/api/chat/requests/req_01HQ/cancel", {
 				body: JSON.stringify({ reason: "stop because this text must not enter audit" }),
 				headers: {
 					"content-type": "application/json",
@@ -444,8 +407,8 @@ describe("chat durable run routes", () => {
 			cancel: vi.fn(),
 			getStatus: vi.fn().mockRejectedValue(
 				new AppApiRouteError({
-					code: "run_not_found",
-					message: "Run not found.",
+					code: "request_not_found",
+					message: "Request not found.",
 					retryable: false,
 					status: 404,
 				}),
@@ -460,7 +423,7 @@ describe("chat durable run routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/chat/runs/run_other", {
+			new Request("https://app-api.internal/api/chat/requests/req_other", {
 				method: "GET",
 			}),
 		);
@@ -468,8 +431,8 @@ describe("chat durable run routes", () => {
 		expect(response.status).toBe(404);
 		await expect(response.json()).resolves.toMatchObject({
 			error: {
-				code: "run_not_found",
-				message: "Run not found.",
+				code: "request_not_found",
+				message: "Request not found.",
 				retryable: false,
 			},
 		});
@@ -498,7 +461,7 @@ describe("chat durable run routes", () => {
 
 		const response = await app.fetch(
 			new Request(
-				"https://app-api.internal/api/chat/runs/run_01HQ/events/stream?after_sequence=0",
+				"https://app-api.internal/api/chat/requests/req_01HQ/events/stream?after_sequence=0",
 				{
 					method: "GET",
 				},
@@ -528,10 +491,8 @@ describe("chat durable run routes", () => {
 					durationMs: 3_000,
 					phase: "completed",
 					requestId: "req_01HQ",
-					runId: "run_01HQ",
 					startedAt: "2026-06-04T01:02:04.000Z",
 					status: "completed",
-					traceId: "trace_01HQ",
 				},
 				steps: [
 					{
@@ -572,7 +533,7 @@ describe("chat durable run routes", () => {
 		});
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/chat/runs/run_01HQ/steps", {
+			new Request("https://app-api.internal/api/chat/requests/req_01HQ/steps", {
 				method: "GET",
 			}),
 		);
@@ -587,10 +548,8 @@ describe("chat durable run routes", () => {
 				durationMs: 3_000,
 				phase: "completed",
 				requestId: "req_01HQ",
-				runId: "run_01HQ",
 				startedAt: "2026-06-04T01:02:04.000Z",
 				status: "completed",
-				traceId: "trace_01HQ",
 			},
 			steps: [
 				expect.objectContaining({ phase: "queued" }),
@@ -605,7 +564,7 @@ describe("chat durable run routes", () => {
 			principal: expect.objectContaining({
 				actor: expect.objectContaining({ userId: "user_01HQ" }),
 			}),
-			runId: "run_01HQ",
+			requestId: "req_01HQ",
 		});
 	});
 });

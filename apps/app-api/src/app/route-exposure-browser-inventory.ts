@@ -87,27 +87,27 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/chat/runs/:runId",
+		path: "/api/chat/requests/:requestId",
 		callerClass: "browser-surface",
-		admission: "session principal plus run ownership required",
+		admission: "session principal plus request ownership required",
 	},
 	{
 		method: "GET",
-		path: "/api/chat/runs/:runId/events",
+		path: "/api/chat/requests/:requestId/events",
 		callerClass: "browser-surface",
-		admission: "session principal plus run ownership required",
+		admission: "session principal plus request ownership required",
 	},
 	{
 		method: "GET",
-		path: "/api/chat/runs/:runId/events/stream",
+		path: "/api/chat/requests/:requestId/events/stream",
 		callerClass: "browser-surface",
-		admission: "session principal plus run ownership required",
+		admission: "session principal plus request ownership required",
 	},
 	{
 		method: "GET",
-		path: "/api/chat/runs/:runId/steps",
+		path: "/api/chat/requests/:requestId/steps",
 		callerClass: "browser-surface",
-		admission: "session principal plus run ownership required; sanitized step trajectory only",
+		admission: "session principal plus request ownership required; sanitized step trajectory only",
 	},
 	{
 		method: "GET",
@@ -267,9 +267,9 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
-		path: "/api/chat/runs/:runId/cancel",
+		path: "/api/chat/requests/:requestId/cancel",
 		callerClass: "browser-surface",
-		admission: "session principal plus run ownership required",
+		admission: "session principal plus request ownership required",
 	},
 	{
 		method: "POST",

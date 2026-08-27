@@ -106,7 +106,6 @@ export function buildAcceptedRequestObservabilityFact(input: {
 	safetyIdentifier?: string | null;
 	surface: string;
 	startedAt: string;
-	traceId: string;
 }): RequestObservabilityFactWrite {
 	return {
 		aclAnomalyCode: null,
@@ -120,21 +119,14 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		measuredAt: input.startedAt,
 		modelName: null,
 		modelProvider: null,
-		promptId: null,
-		promptVersion: null,
 		policyReason: null,
 		principalType: input.principal.principal.type,
-		projectionLagMs: null,
 		requestId: input.requestId,
 		safetyIdentifier: input.safetyIdentifier ?? null,
-		templateSha256: null,
 		startedAt: input.startedAt,
 		status: "accepted",
 		surface: input.surface,
-		traceAvailable: Boolean(input.traceId),
-		traceId: input.traceId,
 		updatedAt: input.startedAt,
-		workflowTraceSummary: null,
 		stageTiming: {},
 	};
 }
@@ -147,18 +139,15 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	projectionCloseoutMs?: number | null;
 	requestId: string;
 	response: ToolExecutionResponse;
-	runId: string;
 	safetyIdentifier?: string | null;
 	startedAt: string;
 	stageTiming?: Record<string, unknown> | null;
 	status: TurnDispatchStatus;
 	streamAppApiTtftMs?: number | null;
 	surface: string;
-	traceId: string;
 	conversationId: string;
 }): RequestObservabilityFactWrite {
 	const observability = input.response.observability;
-	const promptTrace = observability?.promptTrace ?? null;
 
 	return {
 		aclAnomalyCode: null,
@@ -172,21 +161,14 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		measuredAt: input.completedAt,
 		modelName: observability?.modelName ?? null,
 		modelProvider: observability?.modelProvider ?? null,
-		promptId: promptTrace?.promptId ?? null,
-		promptVersion: null,
 		policyReason: normalizePolicyReason({ status: input.status }),
 		principalType: input.principal.principal.type,
-		projectionLagMs: null,
 		requestId: input.requestId,
 		safetyIdentifier: input.safetyIdentifier ?? null,
-		templateSha256: promptTrace?.promptTemplateSha256 ?? null,
 		startedAt: input.startedAt,
 		status: input.status,
 		surface: input.surface,
-		traceAvailable: Boolean(input.traceId),
-		traceId: input.traceId,
 		updatedAt: input.completedAt,
-		workflowTraceSummary: input.response.workflowTraceSummary ?? null,
 		stageTiming: mergeStageTiming({
 			...(input.stageTiming === undefined ? {} : { appApiStageTiming: input.stageTiming }),
 			...(input.response.stageTiming === undefined

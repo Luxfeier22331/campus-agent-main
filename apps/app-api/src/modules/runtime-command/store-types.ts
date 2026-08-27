@@ -1,7 +1,6 @@
 import type { AbuseThrottleReason } from "../abuse-throttle-policy";
 import type { ResolvedAppPrincipal } from "../auth/principal";
 import type { ChatMessage, ChatSessionSlot } from "../chat/model";
-import type { ToolExecutionWorkflowTraceSummary } from "../request-observability-types";
 import type { TurnDispatchPrincipalSnapshot } from "../turn-dispatch-types";
 import type { ChatCommandRequestKind, ChatCommandResponse } from "./service/types";
 
@@ -25,7 +24,6 @@ export interface TurnDispatchMemorySnapshot {
 export interface FrozenDurableRunWrite {
 	executionInputJson: string;
 	executionInputSha256: string;
-	turnId: string;
 }
 
 export interface TurnDispatchWrite {
@@ -40,9 +38,6 @@ export interface TurnDispatchWrite {
 	principalSnapshot: TurnDispatchPrincipalSnapshot;
 	idempotencyKey: string | null;
 	requestFingerprintSha256: string | null;
-	traceId: string;
-	runId: string | null;
-	turnId: string | null;
 	safetyIdentifier?: string | null;
 	status: TurnDispatchStatus;
 	errorCode: string | null;
@@ -57,7 +52,6 @@ export type FinalizeTurnDispatchWrite = Omit<
 		| "completedAt"
 		| "errorCode"
 		| "requestId"
-		| "runId"
 		| "safetyIdentifier"
 		| "status"
 		| "turnSequence"
@@ -70,7 +64,6 @@ export type FinalizeTurnDispatchWrite = Omit<
 
 export interface RequestObservabilityFactWrite {
 	requestId: string;
-	traceId: string;
 	safetyIdentifier?: string | null;
 	conversationId: string;
 	surface: string;
@@ -85,15 +78,9 @@ export interface RequestObservabilityFactWrite {
 	aclDecision: string | null;
 	aclAnomalyCode: string | null;
 	failClosed: boolean | null;
-	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;
 	stageTiming?: Record<string, unknown>;
 	modelProvider: string | null;
 	modelName: string | null;
-	promptId: string | null;
-	promptVersion: string | null;
-	templateSha256: string | null;
-	traceAvailable: boolean;
-	projectionLagMs: number | null;
 	measuredAt: string;
 	updatedAt: string;
 }
@@ -102,7 +89,7 @@ export interface AcceptRequestWrite {
 	conversationBaseline: {
 		activeBranchId: string;
 		activeMessageId: string | null;
-		activeRunId: string | null;
+		activeRequestId: string | null;
 		activeTurnSequence: number;
 		updatedAt: string;
 	};
@@ -145,7 +132,6 @@ export interface StoredIdempotentRequest {
 	acceptedAt: string;
 	requestFingerprintSha256: string;
 	response: ChatCommandResponse;
-	runId: string | null;
 	status: TurnDispatchStatus;
 }
 
@@ -160,10 +146,8 @@ export interface AcceptedDurableRequestCloseout {
 	questionPreview: string;
 	requestFingerprintSha256: string | null;
 	requestId: string;
-	runId: string;
 	safetyIdentifier: string | null;
 	surface: string;
-	traceId: string;
 	turnSequence: number;
 	userMessageId: string;
 	finalizationFingerprint: string | null;
@@ -191,21 +175,18 @@ export interface AcceptedChatCommandStore {
 	finalizeRequest(input: FinalizeRequestWrite): Promise<FinalizeRequestResult>;
 	listAcceptedDurableRequestsForCloseout(input?: {
 		limit?: number;
-		runId?: string;
+		requestId?: string;
 		startedBefore?: string;
 	}): Promise<AcceptedDurableRequestCloseout[]>;
-	readDurableRunInput(runId: string): Promise<{
+	readDurableRunInput(requestId: string): Promise<{
 		conversationId: string;
 		executionInputSha256: string | null;
 		executionInputJson: string | null;
 		memoryRecallEnabled: boolean | null;
 		ownerUserId: string;
 		requestId: string;
-		runId: string;
 		surface: string;
 		status: TurnDispatchStatus;
-		traceId: string;
-		turnId: string | null;
 	} | null>;
 }
 

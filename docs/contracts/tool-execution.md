@@ -19,39 +19,39 @@ status: active
 
 - app-api 调用 execution-control 的运行创建、状态、事件、步骤和取消接口；
 - execution-control 调用 app-api 的
-  `GET /api/internal/execution/runs/{runId}/input` 读取冻结输入。
+  `GET /api/internal/execution/requests/{requestId}/input` 读取冻结输入。
 
 前一组接口使用 execution-control 的内部认证，后一组接口只接受
 `x-app-execution-auth`，其值来自双方共享的 `APP_API_EXECUTION_SHARED_SECRET`。该 Secret 只用于
 execution-control 与 app-api 之间的执行输入读取及产品回调通道，不能用于浏览器或其他内部
 接口。输入响应必须带
 `Cache-Control: no-store`。工具执行请求和成功响应严格使用 `snake_case`；app-api
-错误响应复用标准错误信封，其中关联字段保持 `traceId` 和 `requestId`。精确路径、状态码和响应结构
+错误响应复用标准错误信封，其中关联字段只使用 `requestId`。精确路径、状态码和响应结构
 只由 OpenAPI 维护。
 
-路径参数 `{runId}` 与创建请求的 `run_id` 使用同一标识合同：必须匹配
+路径参数 `{requestId}` 与创建请求的 `request_id` 使用同一标识合同：必须匹配
 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`。当前 GET 输入接口只声明 `200` 以及
 `400/401/404/409/503`；所有错误状态复用同一个 app-api 错误响应并带
 `Cache-Control: no-store`。这些集合的可执行事实仍以 OpenAPI 为准。
 
 ## 创建运行
 
-运行信封携带不可变的 run、conversation、turn、request、`owner_user_id`、`surface` 和 trace 标识。
-当前载荷是 `tool_execution_v5`，响应合同是 `execution_finalization_response_v6`。运行 metadata
+运行信封携带不可变的 request、conversation、`owner_user_id` 和 `surface`。
+当前载荷是 `tool_execution_v6`，响应合同是 `execution_finalization_response_v7`。运行 metadata
 严格限制为以下内容：
 
 ```json
 {
-  "execution_contract_version": "tool_execution_v5",
-  "execution_input_ref": "app-api://execution-inputs/run_01",
+  "execution_contract_version": "tool_execution_v6",
+  "execution_input_ref": "app-api://execution-inputs/req_01",
   "execution_input_sha256": "<64 位小写十六进制 SHA-256>"
 }
 ```
 
-`execution_input_ref` 必须精确绑定当前 run，格式为
-`app-api://execution-inputs/{runId}`。app-api 将准入命令和完整执行输入分别冻结为 PostgreSQL
+`execution_input_ref` 必须精确绑定当前 request，格式为
+`app-api://execution-inputs/{requestId}`。app-api 将准入命令和完整执行输入分别冻结为 PostgreSQL
 `text` 中的原始 UTF-8 JSON 文本，并对同一文本字节计算 SHA-256；不能先解析为 `jsonb` 再重算
-hash。execution-control 读取输入时必须校验 ref、run、hash 与 1 MiB 上限，不能把 metadata
+hash。execution-control 读取输入时必须校验 ref、request、hash 与 1 MiB 上限，不能把 metadata
 扩展成输入副本。
 
 `tenant_id` 属于冻结的完整输入，不进入 metadata。调用方不能指定工具；Primary Agent 只能从
@@ -66,7 +66,7 @@ task-queue 字段。
 `configs/runtime/tool-function-schemas.v3.json` 是运行时工具事实。当前登记的内部合同为：
 
 - `campus_search`：按当前 Campus Docs 绑定检索中央民族大学 Campus Web 文档，返回有界 evidence。
-- `personal_memory_recall`：按当前 run 绑定的用户身份读取有界个人记忆。
+- `personal_memory_recall`：按当前 request 绑定的用户身份读取有界个人记忆。
 
 两个工具的 exposure 都登记为 `model_visible`，但注册表本身不会自动向 Agent Runtime 开放工具。
 execution-control 根据当前能力状态生成本轮工具集合：
@@ -76,7 +76,7 @@ execution-control 根据当前能力状态生成本轮工具集合：
 - 个人记忆可用时，`max_model_turns=3`、`max_tool_calls=2`，开放 `campus_search` 和
   `personal_memory_recall`。工具预算独立于集合大小，不从数组顺序推导调用顺序。
 
-`personal_memory_recall_allowed` 是当前 v5 私有 wire 字段，表示由个人记忆生命周期和就绪状态派生、
+`personal_memory_recall_allowed` 是当前 v6 私有 wire 字段，表示由个人记忆生命周期和就绪状态派生、
 随本轮冻结的内部可用性，不表示用户同意状态或逐次读取授权。浏览器和用户文案不得暴露该字段、
 recall 工具或执行结果。matched personal memory 只支持用户自身事实或偏好，不推导机构事实。
 
@@ -93,7 +93,7 @@ Primary Agent 的固定角色是中央民族大学校园问答助手，未明确
 本轮成功 evidence 支持所需机构事实时，在正常助手正文中说明资料边界。
 
 `campus_search` evidence 按返回顺序对应正文中的 Markdown 引用 `[1]` 到 `[5]`。Finalization 只从
-同一次 run 的成功工具结果中解析实际出现的引用并派生公开来源；失败工具、越界编号和未被正文引用的
+同一次 request 的成功工具结果中解析实际出现的引用并派生公开来源；失败工具、越界编号和未被正文引用的
 evidence 不贡献来源。
 
 ## 工具合同指纹
@@ -129,7 +129,7 @@ run 不得因 Activity 重投递而再次执行。已有 `started` 或 `complete
 时，必须以 `agent_attempt_uncertain` 失败关闭。
 
 `campus_search` 也在同一次 SDK run 内执行，不创建独立 Temporal Activity。它的 evidence 只在本次
-Agent result 内有效，不能跨 run 或从模型输出中重新构造。
+Agent result 内有效，不能跨 request 或从模型输出中重新构造。
 
 ## Temporal 与终态处理
 
@@ -147,7 +147,7 @@ Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，�
 可重试失败；任一 ID 不同，包括 Reset successor，都是非重试身份失败。start 已 `superseded` 时只有
 cancellation finalizer 可使用已绑定 root，其他 Activity 不得继续执行或写投影。
 
-app-api 为已经分配 `run_id` 的产品请求保留完整执行输入和 hash；业务终态不会删除或清空它。
+app-api 为已经分配 `request_id` 的产品请求保留完整执行输入和 hash；业务终态不会删除或清空它。
 execution-control 不维护输入清理发件箱，也不提供释放回调。输入随 app-api 所有的会话和用户数据
 生命周期删除，不能由 Temporal Activity、reconciler 或运行终态单独处置。
 
@@ -162,8 +162,8 @@ Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_
 属于 unauthorized successor：只以 `workflow_successor_without_authorization` 失败关闭产品 root run，
 不得将 successor Run ID 写入 start binding，也不得向 successor 发送取消。
 
-`ExecutionFinalizationResponse` 包含状态、答案、模型用量、结果、错误和 trace 标识；可选字段包括
-观测摘要、工作流调用链摘要和阶段耗时。追问、资料不足和范围说明都是 `completed` 助手正文。它不返回路由标签、外部平台引用
+`ExecutionFinalizationResponse` 包含状态、答案、模型用量、结果和错误；可选字段包括观测摘要和
+阶段耗时。追问、资料不足和范围说明都是 `completed` 助手正文。它不返回路由标签、外部平台引用
 或逐请求遥测控制项。
 
 当前在线链路只有 `campus_search` 注册了机构知识 evidence adapter。Finalization 按成功工具 adapter
@@ -196,7 +196,7 @@ execution-control 已检查到的持久序列游标；app-api 后续必须将它
 只有被过滤的内部事件而 `events` 为空。不能以“最后一个返回事件”的 sequence 推进游标，否则会
 反复读取内部事件或漏掉其后的公开事件。
 
-`request.accepted` 只表示 app-api 已持久化产品请求并提供可管理的稳定 `runId`，不证明 Temporal
+`request.accepted` 只表示 app-api 已持久化产品请求并提供可管理的稳定 `requestId`，不证明 Temporal
 已经收取 workflow task。app-api 不为尚未从持久事件观察到的状态合成
 `execution.queued`。`run.canceled` 是浏览器可见终态事件；浏览器断线只停止本次订阅，不取消 run。
 

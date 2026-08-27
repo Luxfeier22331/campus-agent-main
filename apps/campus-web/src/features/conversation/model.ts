@@ -33,7 +33,6 @@ export interface ChatMessage {
 	kind: ChatMessageKind | null;
 	requestId: string | null;
 	retryable: boolean | null;
-	runId?: string | null;
 	role: "assistant" | "user";
 	structuredParts?: ChatStructuredPart[];
 	text: string;
@@ -74,7 +73,7 @@ export interface ConversationSearchResult extends ConversationSummary {
 }
 
 export interface ConversationDetail extends ConversationSummary {
-	activeRunId: string | null;
+	activeRequestId: string | null;
 	messages: ChatMessage[];
 }
 
@@ -83,7 +82,6 @@ export type ChatCommandResult =
 			kind: "answer";
 			requestId: string;
 			text: string;
-			traceId: string;
 	  }
 	| {
 			errorCode: string;
@@ -91,7 +89,6 @@ export type ChatCommandResult =
 			message: string;
 			requestId: string;
 			retryable: boolean;
-			traceId: string;
 	  };
 
 export interface ChatAnswerPayload {
@@ -121,11 +118,9 @@ export interface ChatRequestStreamEvent {
 		messageId?: string;
 		occurredAt: string;
 		requestId: string;
-		runId?: string | null;
 		phase?: "finalizing" | "generating" | "preparing";
 		sequence?: number;
 		status: string;
-		traceId: string;
 	};
 	event: ChatRequestStreamEventName;
 }

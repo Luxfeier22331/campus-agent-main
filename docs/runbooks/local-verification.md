@@ -131,10 +131,10 @@ pnpm --filter ops-web dev:fixture
 `provider-secrets.md` 保存并验证 LLM、Embedding 或通知分类当前值；应用启动不能静默 seed 在线配置。
 main checkout 导入的 provider 字段只作为当前 worktree 的外部开发连接，不自动覆盖模型配置数据库，
 也不把通用 LLM 连接映射为通知分类设置。
-`pnpm dev:init` 先运行 execution-control 历史 Goose migration，再运行 Model Config 事务切换。前者使用
-`provider-config-encryption.key` 作为冻结历史 migration 输入，后者使用它解密旧行并以
-`model-config-encryption.key` 重加密。启动前会验证当前 Model Config 密文可解密；失败说明数据库和 key
-不属于同一个本地实例。不要复制其他 worktree、staging 或 production 的任一 encryption key；使用
+`pnpm dev:init` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline，不再执行
+execution-control 历史 Goose migration、Model Config 切换命令，也不生成 legacy provider key。启动前
+会验证当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
+同一个本地实例。不要复制其他 worktree、staging 或 production 的 encryption key；使用
 `pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>` 显式销毁该实例后重新运行
 `pnpm dev:init`，再通过 Ops Web 配置本地模型。
 

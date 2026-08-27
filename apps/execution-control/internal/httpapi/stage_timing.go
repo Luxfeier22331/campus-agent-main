@@ -32,7 +32,7 @@ func (s *Server) stageTimingForRun(
 		"stream.first_delta_persist_ms",
 		durationBetween(run.StartedAt, run.StreamingStartedAt),
 	)
-	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RunID)
+	attempts, err := s.runProjectionStore.ListStepAttempts(ctx, run.RequestID)
 	if err != nil {
 		return nil, fmt.Errorf("stage timing step attempts unavailable: %w", err)
 	}

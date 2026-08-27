@@ -14,7 +14,7 @@ func (s *Server) FinalizeExecutionFailure(
 	ctx context.Context,
 	input temporalruntime.FinalizeExecutionFailureActivityInput,
 ) (temporalruntime.FinalizeExecutionFailureActivityOutput, error) {
-	if strings.TrimSpace(input.RunID) == "" || strings.TrimSpace(input.TraceID) == "" || input.FailedAt.IsZero() {
+	if strings.TrimSpace(input.RequestID) == "" || input.FailedAt.IsZero() {
 		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, temporal.NewNonRetryableApplicationError(
 			"execution failure finalizer identity is invalid",
 			"execution_failure_finalizer_invalid",
@@ -32,22 +32,15 @@ func (s *Server) FinalizeExecutionFailure(
 	if s == nil || s.runProjectionStore == nil {
 		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, execution.ErrRunProjectionStoreNotConfigured
 	}
-	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, input.RunID, false); err != nil {
+	if err := s.ensureTemporalActivityOwnsRootExecution(ctx, input.RequestID, false); err != nil {
 		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, err
 	}
-	run, err := s.runProjectionStore.GetRun(ctx, strings.TrimSpace(input.RunID))
+	run, err := s.runProjectionStore.GetRun(ctx, strings.TrimSpace(input.RequestID))
 	if err != nil {
 		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, sanitizedTemporalApplicationError(
 			"execution_failure_finalizer_state_unavailable",
 			err,
 			errors.Is(err, execution.ErrDurableRunNotFound),
-		)
-	}
-	if run.TraceID != strings.TrimSpace(input.TraceID) {
-		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, temporal.NewNonRetryableApplicationError(
-			"execution failure finalizer identity mismatch",
-			"execution_failure_finalizer_invalid",
-			nil,
 		)
 	}
 	if run.Status != execution.DurableRunStatusFailed && temporalRunTerminal(run.Status) {
@@ -86,7 +79,7 @@ func temporalFailureProjectionForStage(
 	switch strings.TrimSpace(input.Stage) {
 	case "agent.primary":
 		return temporalStepFailureProjection{
-			ProjectionRef: temporalProjectionRef(input.RunID, "agent/primary/result"),
+			ProjectionRef: temporalProjectionRef(input.RequestID, "agent/primary/result"),
 			ResultKind:    "activity_failure",
 			StepID:        "agent.primary",
 			StepKind:      "agent",
@@ -94,7 +87,7 @@ func temporalFailureProjectionForStage(
 		}, true
 	case "finalization.write":
 		return temporalStepFailureProjection{
-			ProjectionRef: temporalProjectionRef(input.RunID, "finalization/write"),
+			ProjectionRef: temporalProjectionRef(input.RequestID, "finalization/write"),
 			ResultKind:    "activity_failure",
 			StepID:        "finalization.write",
 			StepKind:      "finalization",
@@ -108,7 +101,7 @@ func temporalFailureProjectionForStage(
 func finalizedExecutionFailureOutput(run execution.DurableRun) temporalruntime.FinalizeExecutionFailureActivityOutput {
 	return temporalruntime.FinalizeExecutionFailureActivityOutput{
 		CompletedAt: run.CompletedAt,
-		RunID:       run.RunID,
+		RequestID:   run.RequestID,
 		Status:      string(run.Status),
 	}
 }

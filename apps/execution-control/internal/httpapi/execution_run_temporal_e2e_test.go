@@ -73,7 +73,7 @@ func TestExecutionRunHTTPStartsTemporalWorkflowAndProjectsCompletion(t *testing.
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs",
+		"/internal/execution/requests",
 		strings.NewReader(durableRunCreateBodyForTest("run-http-temporal-e2e", "conv-http-temporal-e2e")),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -93,7 +93,7 @@ func TestExecutionRunHTTPStartsTemporalWorkflowAndProjectsCompletion(t *testing.
 	if completed.FinalResponseRef == "" {
 		t.Fatalf("completed run missing final response ref: %#v", completed)
 	}
-	events, err := store.ListRunEvents(ctx, completed.RunID)
+	events, err := store.ListRunEvents(ctx, completed.RequestID)
 	if err != nil {
 		t.Fatalf("list run events: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestExecutionRunHTTPStartsTemporalWorkflowAndProjectsCompletion(t *testing.
 		!runEventsContain(events, execution.DurableRunEventTypeRunCompleted) {
 		t.Fatalf("completion events missing: %#v", events)
 	}
-	steps, err := store.ListRunSteps(ctx, completed.RunID)
+	steps, err := store.ListRunSteps(ctx, completed.RequestID)
 	if err != nil {
 		t.Fatalf("list run steps: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 	createResponse := httptest.NewRecorder()
 	createRequest := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs",
+		"/internal/execution/requests",
 		strings.NewReader(durableRunCreateBodyForTest("run-http-temporal-cancel-e2e", "conv-http-temporal-cancel-e2e")),
 	)
 	createRequest.Header.Set("x-worker-origin-auth", "secret")
@@ -189,7 +189,7 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 	cancelResponse := httptest.NewRecorder()
 	cancelRequest := newTestRequest(
 		http.MethodPost,
-		"/internal/execution/runs/run-http-temporal-cancel-e2e/cancel",
+		"/internal/execution/requests/run-http-temporal-cancel-e2e/cancel",
 		strings.NewReader(`{"reason":"user_requested"}`),
 	)
 	cancelRequest.Header.Set("x-worker-origin-auth", "secret")
@@ -227,7 +227,7 @@ func (httpTemporalE2EActivities) AppendConversationMemoryActivity(
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	return temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: 1,
-		RunID:                input.RunID,
+		RequestID:            input.RequestID,
 		SchemaVersion:        "memory_conversation_append_result_v3",
 		Status:               "completed",
 	}, nil
@@ -261,13 +261,13 @@ func (a httpTemporalE2EActivities) ExecutePrimaryAgentActivity(
 	ctx context.Context,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	if err := a.transitionRunToRunning(ctx, input.RunID); err != nil {
+	if err := a.transitionRunToRunning(ctx, input.RequestID); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{
-		AgentResultRef: "projection://runs/" + input.RunID + "/agent/primary/result",
+		AgentResultRef: "projection://runs/" + input.RequestID + "/agent/primary/result",
 		FinalOutput:    "HTTP Temporal E2E answer",
-		RunID:          input.RunID,
+		RequestID:      input.RequestID,
 		Status:         "completed",
 		TerminalReason: "answer_completed",
 	}, nil
@@ -277,15 +277,15 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 	ctx context.Context,
 	input temporalruntime.WriteFinalizationActivityInput,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
-	run, err := a.store.GetRun(ctx, input.RunID)
+	run, err := a.store.GetRun(ctx, input.RequestID)
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	completedAt := time.Now().UTC()
-	finalizationRef := "projection://runs/" + input.RunID + "/finalization"
+	finalizationRef := "projection://runs/" + input.RequestID + "/finalization"
 	if _, err := a.store.AppendRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              input.RunID + ":finalization-completed",
-		RunID:                input.RunID,
+		EventID:              input.RequestID + ":finalization-completed",
+		RequestID:            input.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeFinalizationCompleted,
 		OccurredAt:           completedAt,
@@ -294,16 +294,15 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		Payload: map[string]any{
 			"agent_result_ref": input.AgentResult.AgentResultRef,
 			"request_id":       run.RequestID,
-			"trace_id":         run.TraceID,
 		},
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if _, err := a.store.UpsertStepResult(ctx, execution.StepResultProjection{
-		ResultID:             temporalStepResultID(input.RunID, "finalization.write", 1),
+		ResultID:             temporalStepResultID(input.RequestID, "finalization.write", 1),
 		StepID:               "finalization.write",
-		RunID:                input.RunID,
-		AttemptID:            temporalStepAttemptID(input.RunID, "finalization.write", 1),
+		RequestID:            input.RequestID,
+		AttemptID:            temporalStepAttemptID(input.RequestID, "finalization.write", 1),
 		Status:               "completed",
 		ResultKind:           "final_answer_projection",
 		ProjectionRef:        finalizationRef,
@@ -316,14 +315,14 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 	if _, err := a.store.CompleteRunProjection(ctx, execution.DurableRunCompleteRequest{
 		FinalResponseRef: finalizationRef,
 		Now:              completedAt,
-		RunID:            input.RunID,
+		RequestID:        input.RequestID,
 		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if _, err := a.store.AppendRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              input.RunID + ":run-completed",
-		RunID:                input.RunID,
+		EventID:              input.RequestID + ":run-completed",
+		RequestID:            input.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeRunCompleted,
 		OccurredAt:           completedAt,
@@ -339,7 +338,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 	}
 	if _, err := a.store.UpsertRunStep(ctx, execution.RunStepProjection{
 		StepID:               "finalization.write",
-		RunID:                input.RunID,
+		RequestID:            input.RequestID,
 		ConversationID:       run.ConversationID,
 		StepKind:             "finalization",
 		Tool:                 "",
@@ -360,7 +359,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 	return temporalruntime.WriteFinalizationActivityOutput{
 		CompletedAt:   completedAt,
 		ProjectionRef: finalizationRef,
-		RunID:         input.RunID,
+		RequestID:     input.RequestID,
 		Status:        "completed",
 	}, nil
 }
@@ -370,16 +369,16 @@ func (a httpTemporalE2EActivities) FinalizeExecutionCancellationActivity(
 	input temporalruntime.FinalizeExecutionCancellationActivityInput,
 ) (temporalruntime.FinalizeExecutionCancellationActivityOutput, error) {
 	run, err := a.store.CancelRunProjection(ctx, execution.DurableRunCancelRequest{
-		RunID:  input.RunID,
-		Reason: input.Reason,
-		Now:    input.CanceledAt,
+		RequestID: input.RequestID,
+		Reason:    input.Reason,
+		Now:       input.CanceledAt,
 	})
 	if err != nil {
 		return temporalruntime.FinalizeExecutionCancellationActivityOutput{}, err
 	}
 	return temporalruntime.FinalizeExecutionCancellationActivityOutput{
-		RunID:  run.RunID,
-		Status: string(run.Status),
+		RequestID: run.RequestID,
+		Status:    string(run.Status),
 	}, nil
 }
 
@@ -389,7 +388,7 @@ func (httpTemporalE2EActivities) FinalizeExecutionFailureActivity(
 ) (temporalruntime.FinalizeExecutionFailureActivityOutput, error) {
 	return temporalruntime.FinalizeExecutionFailureActivityOutput{
 		CompletedAt: input.FailedAt,
-		RunID:       input.RunID,
+		RequestID:   input.RequestID,
 		Status:      "failed",
 	}, nil
 }
@@ -427,7 +426,7 @@ func (a *blockingHTTPTemporalE2EActivities) ExecutePrimaryAgentActivity(
 	ctx context.Context,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	if err := a.transitionRunToRunning(ctx, input.RunID); err != nil {
+	if err := a.transitionRunToRunning(ctx, input.RequestID); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	a.once.Do(func() { close(a.started) })

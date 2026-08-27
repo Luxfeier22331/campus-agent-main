@@ -29,7 +29,7 @@ const inboundTraceHeaders = {
 const answerResponse = {
 	answer: {
 		conversation: {
-			activeRunId: null,
+			activeRequestId: null,
 			createdAt: "2026-03-28T07:59:00.000Z",
 			id: "conv_01HQ",
 			messages: [],
@@ -40,11 +40,9 @@ const answerResponse = {
 			kind: "answer" as const,
 			requestId: "req_01HQ",
 			text: "图书馆开放到 22:00。",
-			traceId: "trace_01HQ",
 		},
 	},
 	requestId: "req_01HQ",
-	traceId: "trace_01HQ",
 };
 
 function createCampusPrincipal() {
@@ -73,7 +71,7 @@ function createCampusPrincipal() {
 }
 
 describe("POST /api/chat/requests", () => {
-	it("returns a product-layer answer payload plus request/trace headers", async () => {
+	it("returns a product-layer answer payload plus a request header", async () => {
 		const service: ChatCommandService = {
 			submit: vi.fn().mockResolvedValue(answerResponse),
 		};
@@ -100,11 +98,10 @@ describe("POST /api/chat/requests", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("x-request-id")).toBe("req_01HQ");
-		expect(response.headers.get("x-trace-id")).toBe("trace_01HQ");
 		await expect(response.json()).resolves.toEqual({
 			answer: {
 				conversation: {
-					activeRunId: null,
+					activeRequestId: null,
 					createdAt: "2026-03-28T07:59:00.000Z",
 					id: "conv_01HQ",
 					messages: [],
@@ -115,7 +112,6 @@ describe("POST /api/chat/requests", () => {
 					kind: "answer",
 					requestId: "req_01HQ",
 					text: "图书馆开放到 22:00。",
-					traceId: "trace_01HQ",
 				},
 			},
 		});
@@ -163,7 +159,6 @@ describe("POST /api/chat/requests", () => {
 				message: "Sign in required.",
 				requestId: null,
 				retryable: false,
-				traceId: null,
 			},
 		});
 	});
@@ -198,7 +193,6 @@ describe("POST /api/chat/requests", () => {
 
 		expect(response.status).toBe(404);
 		expect(response.headers.get("x-request-id")).toMatch(/^req_[0-9a-f]{32}$/);
-		expect(response.headers.get("x-trace-id")).toMatch(/^trace_[0-9a-f]{32}$/);
 		await expect(response.json()).resolves.toEqual({
 			error: {
 				code: "conversation_not_found",
@@ -206,7 +200,6 @@ describe("POST /api/chat/requests", () => {
 				message: "Conversation not found.",
 				requestId: expect.stringMatching(/^req_[0-9a-f]{32}$/),
 				retryable: false,
-				traceId: expect.stringMatching(/^trace_[0-9a-f]{32}$/),
 			},
 		});
 	});
@@ -230,7 +223,6 @@ describe("POST /api/chat/requests", () => {
 
 		expect(response.status).toBe(415);
 		expect(response.headers.get("x-request-id")).toMatch(/^req_[0-9a-f]{32}$/);
-		expect(response.headers.get("x-trace-id")).toMatch(/^trace_[0-9a-f]{32}$/);
 		await expect(response.json()).resolves.toEqual({
 			error: {
 				code: "unsupported_media_type",
@@ -238,7 +230,6 @@ describe("POST /api/chat/requests", () => {
 				message: "application/json is required.",
 				requestId: expect.stringMatching(/^req_[0-9a-f]{32}$/),
 				retryable: false,
-				traceId: expect.stringMatching(/^trace_[0-9a-f]{32}$/),
 			},
 		});
 	});
@@ -301,7 +292,7 @@ describe("POST /api/chat/requests", () => {
 
 		expect(response.status).toBe(422);
 		expect(response.headers.get("x-request-id")).toMatch(/^req_[0-9a-f]{32}$/);
-		expect(response.headers.get("x-trace-id")).toMatch(/^trace_[0-9a-f]{32}$/);
+		expect(response.headers.get("x-trace-id")).toBeNull();
 		await expect(response.json()).resolves.toEqual({
 			error: {
 				code: "validation_failed",
@@ -309,7 +300,6 @@ describe("POST /api/chat/requests", () => {
 				message: "prompt is required.",
 				requestId: expect.stringMatching(/^req_[0-9a-f]{32}$/),
 				retryable: false,
-				traceId: expect.stringMatching(/^trace_[0-9a-f]{32}$/),
 			},
 		});
 	});
@@ -325,7 +315,6 @@ describe("POST /api/chat/requests/stream", () => {
 						occurredAt: "2026-03-28T08:00:00.000Z",
 						requestId: "req_stream_wait_01HQ",
 						status: "accepted",
-						traceId: "trace_stream_wait_01HQ",
 					},
 					event: "request.accepted",
 				};
@@ -334,7 +323,7 @@ describe("POST /api/chat/requests/stream", () => {
 					data: {
 						answer: {
 							conversation: {
-								activeRunId: null,
+								activeRequestId: null,
 								createdAt: "2026-03-28T07:59:00.000Z",
 								id: "conv_wait_01HQ",
 								messages: [],
@@ -345,13 +334,11 @@ describe("POST /api/chat/requests/stream", () => {
 								kind: "answer",
 								requestId: "req_stream_wait_01HQ",
 								text: "图书馆开放到 22:00。",
-								traceId: "trace_stream_wait_01HQ",
 							},
 						},
 						occurredAt: "2026-03-28T08:00:02.000Z",
 						requestId: "req_stream_wait_01HQ",
 						status: "completed",
-						traceId: "trace_stream_wait_01HQ",
 					},
 					event: "request.completed",
 				};
@@ -390,7 +377,6 @@ describe("POST /api/chat/requests/stream", () => {
 						occurredAt: "2026-03-28T08:00:00.000Z",
 						requestId: "req_stream_01HQ",
 						status: "accepted",
-						traceId: "trace_stream_01HQ",
 					},
 					event: "request.accepted",
 				};
@@ -399,7 +385,6 @@ describe("POST /api/chat/requests/stream", () => {
 						occurredAt: "2026-03-28T08:00:01.000Z",
 						requestId: "req_stream_01HQ",
 						status: "running",
-						traceId: "trace_stream_01HQ",
 					},
 					event: "execution.running",
 				};
@@ -407,7 +392,7 @@ describe("POST /api/chat/requests/stream", () => {
 					data: {
 						answer: {
 							conversation: {
-								activeRunId: null,
+								activeRequestId: null,
 								createdAt: "2026-03-28T07:59:00.000Z",
 								id: "conv_01HQ",
 								messages: [],
@@ -418,13 +403,11 @@ describe("POST /api/chat/requests/stream", () => {
 								kind: "answer",
 								requestId: "req_stream_01HQ",
 								text: "图书馆开放到 22:00。",
-								traceId: "trace_stream_01HQ",
 							},
 						},
 						occurredAt: "2026-03-28T08:00:02.000Z",
 						requestId: "req_stream_01HQ",
 						status: "completed",
-						traceId: "trace_stream_01HQ",
 					},
 					event: "request.completed",
 				};

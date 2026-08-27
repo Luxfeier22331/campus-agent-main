@@ -1,7 +1,6 @@
 export interface BaseRequestTelemetry {
 	requestId: string;
 	surface: string;
-	traceId: string;
 }
 
 export type RequestOutcomeStatus =
@@ -21,7 +20,6 @@ export interface AppTelemetry {
 			route?: string;
 			status?: number;
 			surface?: string;
-			traceId?: string | null;
 		},
 	): void;
 	configureChatRequestScope(input: BaseRequestTelemetry): void;
@@ -29,7 +27,6 @@ export interface AppTelemetry {
 		requestId?: string | null;
 		route: string;
 		surface: string;
-		traceId?: string | null;
 	}): void;
 	markHttpResponseStatus(status: number): void;
 	configureRequestOutcome(

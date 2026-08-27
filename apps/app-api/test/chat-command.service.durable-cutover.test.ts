@@ -5,13 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
 import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
 import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
-import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
 	answerResponsePayload,
 	durableEvent,
 	durableEventPage,
 	durableRun,
-	emptyRunStepTrajectory,
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
@@ -23,8 +21,6 @@ import {
 	getFrozenExecutionPayload,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
-
-const EXPECTED_LANGFUSE_TRACE_PARENT = "00-5f8392c82813604cd79a0f7eb8b7306a-0000000000000001-01";
 
 describe("chat command durable runtime cutover", () => {
 	it("rejects blocking deployed chat commands when durable runtime is required but missing", async () => {
@@ -118,7 +114,6 @@ describe("chat command durable runtime cutover", () => {
 			),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(),
-			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -170,15 +165,12 @@ describe("chat command durable runtime cutover", () => {
 				ownerUserId: "user_01HQ",
 				queuedAt: "2026-06-04T01:02:03Z",
 				requestId: "req_0001",
-				runId: "run_0001",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
 				surface: "campus_web",
 				taskQueue: "campus-agent.workflow",
 				terminalReason: "",
-				traceId: "trace_0001",
-				turnId: "turn_0001",
 				updatedAt: "2026-06-04T01:02:04Z",
 			}),
 			getRun: vi.fn(),
@@ -191,17 +183,15 @@ describe("chat command durable runtime cutover", () => {
 						occurredAt: "2026-06-04T01:02:06.000Z",
 						payload: {
 							request_id: "req_0001",
-							trace_id: "trace_0001",
 							response: answerResponsePayload(),
 						},
 						payloadSchemaVersion: "run-event-v1",
-						runId: "run_0001",
+						requestId: "req_0001",
 						sequence: 1,
 						visibility: "internal",
 					},
 				]),
 			),
-			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -225,7 +215,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
 		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0];
-		const executionPayload = getFrozenExecutionPayload(createRunInput?.runId ?? "run_0001");
+		const executionPayload = getFrozenExecutionPayload(createRunInput?.requestId ?? "req_0001");
 		expect(Object.keys(executionPayload).sort()).toEqual([
 			"context",
 			"conversation_id",
@@ -234,16 +224,12 @@ describe("chat command durable runtime cutover", () => {
 			"response_contract",
 			"safety_identifier",
 			"tenant_id",
-			"trace",
 			"user_goal",
 		]);
 		expect(executionPayload).toMatchObject({
-			execution_contract_version: "tool_execution_v5",
-			response_contract: "execution_finalization_response_v6",
+			execution_contract_version: "tool_execution_v6",
+			response_contract: "execution_finalization_response_v7",
 			tenant_id: "tenant-main",
-			trace: {
-				trace_id: "trace_0001",
-			},
 			user_goal: "示例大学本科学生国家奖学金评审办法",
 		});
 		expect(createRunInput).not.toHaveProperty("selectedTool");
@@ -253,28 +239,21 @@ describe("chat command durable runtime cutover", () => {
 			expect.objectContaining({
 				conversationId: "conv_01HQ",
 				metadata: expect.objectContaining({
-					execution_contract_version: "tool_execution_v5",
-					execution_input_ref: "app-api://execution-inputs/run_0001",
+					execution_contract_version: "tool_execution_v6",
+					execution_input_ref: "app-api://execution-inputs/req_0001",
 					execution_input_sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
 				}),
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
-				runId: "run_0001",
 				runtimeVersions: {
 					contract: "durable-agent-runtime-contract-v1",
 				},
 				surface: "campus_web",
-				traceHeaders: {
-					traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
-				},
-				traceId: "trace_0001",
-				turnId: "turn_0001",
 			}),
 		);
 		expect(acceptedWrites[0]).toMatchObject({
 			turnDispatch: {
 				requestId: "req_0001",
-				runId: "run_0001",
 				status: "accepted",
 			},
 		});
@@ -282,11 +261,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
-			runId: "run_0001",
-			traceHeaders: {
-				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
-			},
-			traceId: "trace_0001",
+			requestId: "req_0001",
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 	});
@@ -314,14 +289,12 @@ describe("chat command durable runtime cutover", () => {
 								request_id: "req_0001",
 								status: "failed",
 								terminal_reason: "worker_unavailable",
-								trace_id: "trace_0001",
 							},
 							sequence: 1,
 						}),
 					]),
 				)
 				.mockResolvedValue(durableEventPage([], 1)),
-			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -348,91 +321,6 @@ describe("chat command durable runtime cutover", () => {
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
 	});
 
-	it("generates the durable W3C traceparent without reusing a legacy browser value", async () => {
-		const { store } = createCommandStore();
-		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
-		const executionRuntime: ExecutionControlRuntimeClient = {
-			cancelRun: vi.fn(),
-			createRun: vi.fn().mockResolvedValue({
-				admittedAt: "",
-				completedAt: "",
-				conversationId: "conv_01HQ",
-				createdAt: "2026-06-04T01:02:03Z",
-				failCloseReason: "",
-				finalResponseRef: "",
-				ownerUserId: "user_01HQ",
-				queuedAt: "2026-06-04T01:02:03Z",
-				requestId: "req_0001",
-				runId: "run_0001",
-				startedAt: "",
-				status: "queued",
-				streamingStartedAt: "",
-				surface: "campus_web",
-				taskQueue: "campus-agent.workflow",
-				terminalReason: "",
-				traceId: "trace_0001",
-				turnId: "turn_0001",
-				updatedAt: "2026-06-04T01:02:04Z",
-			}),
-			getRun: vi.fn(),
-			listRunEvents: vi.fn().mockResolvedValue(
-				durableEventPage([
-					durableEvent({
-						eventType: "finalization.completed",
-						sequence: 1,
-						payload: {
-							request_id: "req_0001",
-							trace_id: "trace_0001",
-							response: answerResponsePayload("国家奖学金每学年评审一次。"),
-						},
-						visibility: "internal",
-					}),
-				]),
-			),
-			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
-		};
-		const service = buildChatCommandService({
-			deriveSafetyIdentifier: () => "safety_0001",
-			executionRuntime,
-			generateId: createDeterministicIdGenerator(),
-			now: () => new Date("2026-06-04T01:02:03.000Z"),
-			conversationStore,
-			store,
-			telemetry,
-		});
-
-		const legacyBrowserTraceParent = "00-11111111111111111111111111111111-2222222222222222-01";
-		const submitInput = {
-			payload: {
-				conversationId: "conv_01HQ",
-				prompt: "示例大学本科学生国家奖学金评审办法",
-			},
-			principal: createPrincipal(),
-			requestKind: "public_chat" as const,
-			traceHeaders: { traceParent: legacyBrowserTraceParent },
-		};
-		await service.submit(submitInput);
-
-		const langfuseTraceId = await deriveLangfuseTraceId("trace_0001");
-		const expectedTraceParent = `00-${langfuseTraceId}-0000000000000001-01`;
-		expect(expectedTraceParent).not.toBe(legacyBrowserTraceParent);
-		expect(executionRuntime.createRun).toHaveBeenCalledWith(
-			expect.objectContaining({
-				traceHeaders: expect.objectContaining({
-					traceParent: expectedTraceParent,
-				}),
-			}),
-		);
-		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith(
-			expect.objectContaining({
-				traceHeaders: expect.objectContaining({
-					traceParent: expectedTraceParent,
-				}),
-			}),
-		);
-	});
-
 	it("rejects retired client routing hints on public chat", async () => {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
@@ -441,7 +329,6 @@ describe("chat command durable runtime cutover", () => {
 			createRun: vi.fn(),
 			getRun: vi.fn(),
 			listRunEvents: vi.fn(),
-			listRunSteps: vi.fn(),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -492,14 +379,12 @@ describe("chat command durable runtime cutover", () => {
 							response: {
 								...answerResponsePayload("图书馆在海淀校区主教学区西侧。"),
 							},
-							trace_id: "trace_0001",
 						},
 						sequence: 1,
 						visibility: "internal",
 					}),
 				]),
 			),
-			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -524,7 +409,7 @@ describe("chat command durable runtime cutover", () => {
 			.calls[0]?.[0];
 		expect(createRunInput).not.toHaveProperty("requestedTool");
 		expect(createRunInput).not.toHaveProperty("taskQueue");
-		const executionPayload = getFrozenExecutionPayload(createRunInput?.runId ?? "run_0001");
+		const executionPayload = getFrozenExecutionPayload(createRunInput?.requestId ?? "req_0001");
 		expect(executionPayload).not.toHaveProperty("requested_tool");
 		expect(executionPayload).toMatchObject({ user_goal: "图书馆在哪里" });
 	});
@@ -556,7 +441,6 @@ describe("chat command durable runtime cutover", () => {
 						payload: {
 							request_id: "req_0001",
 							response: answerResponsePayload(),
-							trace_id: "trace_0001",
 						},
 						sequence: 2,
 						visibility: "internal",
@@ -568,7 +452,6 @@ describe("chat command durable runtime cutover", () => {
 			createRun: vi.fn().mockResolvedValue(durableRun()),
 			getRun: vi.fn(),
 			listRunEvents,
-			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
 		};
 		const service = buildChatCommandService({
 			deriveSafetyIdentifier: () => "safety_0001",
@@ -595,20 +478,12 @@ describe("chat command durable runtime cutover", () => {
 		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(listRunEvents).toHaveBeenNthCalledWith(1, {
 			afterSequence: 0,
-			runId: "run_0001",
-			traceHeaders: {
-				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
-			},
-			traceId: "trace_0001",
+			requestId: "req_0001",
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(listRunEvents).toHaveBeenNthCalledWith(2, {
 			afterSequence: 1,
-			runId: "run_0001",
-			traceHeaders: {
-				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
-			},
-			traceId: "trace_0001",
+			requestId: "req_0001",
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
 		});
 		expect(finalWrites).toHaveLength(1);

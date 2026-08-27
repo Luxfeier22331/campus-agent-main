@@ -387,7 +387,7 @@ const AssistantMessage: FC = () => {
 
 	// Keep the 44px hit area in flow; the message-group gap offsets only the visual spacing.
 	const ACTION_BAR_HEIGHT = "-mb-5 min-h-11";
-	const runMetadata = useAuiState((s) => s.message.metadata.custom?.campusRun);
+	const runMetadata = useAuiState((s) => s.message.metadata.custom?.campusRequest);
 	const messageCustom = useAuiState((s) => s.message.metadata.custom);
 	const messageMetadata = useMemo(() => readCampusMessageMetadata(messageCustom), [messageCustom]);
 	const runView = useMemo(() => readCampusRunViewMetadata(runMetadata), [runMetadata]);

@@ -55,7 +55,7 @@ export function registerInternalRoutes(input: {
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 }) {
-	input.app.get("/api/internal/execution/runs/:runId/input", async (c) => {
+	input.app.get("/api/internal/execution/requests/:requestId/input", async (c) => {
 		if (!executionInputAuthorized(c.req.raw, input.env)) {
 			return jsonResponse(
 				errorEnvelope({
@@ -66,12 +66,12 @@ export function registerInternalRoutes(input: {
 				{ status: 401 },
 			);
 		}
-		const runId = c.req.param("runId").trim();
-		if (!runId) {
+		const requestId = c.req.param("requestId").trim();
+		if (!requestId) {
 			return jsonResponse(
 				errorEnvelope({
 					code: "invalid_request",
-					message: "run_id is required.",
+					message: "request_id is required.",
 					retryable: false,
 				}),
 				{ status: 400 },
@@ -88,7 +88,7 @@ export function registerInternalRoutes(input: {
 				{ status: 503 },
 			);
 		}
-		const frozen = await service.readExecutionInput(runId);
+		const frozen = await service.readExecutionInput(requestId);
 		if (!frozen || (frozen.executionInputJson === null && frozen.executionInputSha256 === null)) {
 			return jsonResponse(
 				errorEnvelope({
@@ -128,7 +128,7 @@ export function registerInternalRoutes(input: {
 		});
 	});
 
-	input.app.put("/api/internal/execution/runs/:runId/product-finalization", async (c) => {
+	input.app.put("/api/internal/execution/requests/:requestId/product-finalization", async (c) => {
 		if (!authorized(c.req.raw, input.env)) {
 			return jsonResponse(
 				errorEnvelope({
@@ -143,7 +143,7 @@ export function registerInternalRoutes(input: {
 		const completedAt = body?.completed_at;
 		const finalizationFingerprint = body?.finalization_fingerprint;
 		const responseJson = body?.response_json;
-		const runId = c.req.param("runId").trim();
+		const requestId = c.req.param("requestId").trim();
 		if (
 			typeof completedAt !== "string" ||
 			Number.isNaN(Date.parse(completedAt)) ||
@@ -152,8 +152,8 @@ export function registerInternalRoutes(input: {
 			typeof responseJson !== "string" ||
 			responseJson.length === 0 ||
 			(body !== null && "response" in body) ||
-			!runId ||
-			finalizationFingerprint.trim() !== sha256(`${runId}\0${responseJson}`)
+			!requestId ||
+			finalizationFingerprint.trim() !== sha256(`${requestId}\0${responseJson}`)
 		) {
 			return jsonResponse(
 				errorEnvelope({
@@ -209,7 +209,7 @@ export function registerInternalRoutes(input: {
 				completedAt,
 				finalizationFingerprint: finalizationFingerprint.trim(),
 				response: parsedResponse,
-				runId,
+				requestId,
 			});
 			return jsonResponse(result, { status: 200 });
 		} catch (error) {

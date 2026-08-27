@@ -17,7 +17,6 @@ func temporalFinalizationResultPayload(
 		"agent_result_ref":   input.AgentResult.AgentResultRef,
 		"finalized_response": finalizedResponse,
 		"request_id":         run.RequestID,
-		"trace_id":           run.TraceID,
 	}
 	payload["finalization_fingerprint_sha256"] = sha256AnyValue(payload)
 	return payload
@@ -33,8 +32,8 @@ func (s *Server) appendTemporalFinalizationCompletedEvents(
 	internalPayload := cloneAnyMapFromMetadata(payload)
 	internalPayload["response"] = finalizedResponse
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":finalization-completed-internal",
-		RunID:                run.RunID,
+		EventID:              run.RequestID + ":finalization-completed-internal",
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeFinalizationCompleted,
 		OccurredAt:           occurredAt,
@@ -46,11 +45,10 @@ func (s *Server) appendTemporalFinalizationCompletedEvents(
 	}
 	browserPayload := map[string]any{
 		"request_id": run.RequestID,
-		"trace_id":   run.TraceID,
 	}
 	return s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
-		EventID:              run.RunID + ":finalization-completed",
-		RunID:                run.RunID,
+		EventID:              run.RequestID + ":finalization-completed",
+		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeFinalizationCompleted,
 		OccurredAt:           occurredAt,
