@@ -24,10 +24,8 @@ metadata:
     argocd.argoproj.io/sync-wave: "-2"
 spec:
   podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values: ["model-config", "model-config-schema"]
+    matchLabels:
+      app.kubernetes.io/name: model-config
   policyTypes: ["Egress"]
   egress:
     - to:

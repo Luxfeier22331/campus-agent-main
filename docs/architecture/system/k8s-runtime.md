@@ -25,8 +25,8 @@ ServiceAccount、ConfigMap 和 Secret，不得复制共享资源所有权。
 当前稳定进程形态是：
 
 - `execution-control`：一个标准 Deployment，提供执行 API 和三类 Temporal poller；
-- `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；独立 schema Job
-  在 execution-control 历史 Goose migration 之后完成数据库所有权切换；
+- `model-config`：一个独立 Deployment 和一个 `8000` 端口的 Service；数据库结构由 data-postgres
+  Application 中的统一 `campus-agent-schema` Job 安装；
 - `agent-runtime`：一个独立 Deployment；
 - `ops-web`：一个运维 API Deployment；
 - `ops-web-internal-portal-check`：使用 Ops Web 凭据 store 顺序检查凭据池的 CronJob；
@@ -57,9 +57,9 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 
 当前合同中的代表性规则是：
 
-- 现有部署仍由 `model-config-schema`、`execution-run-projection-schema`、`ops-web-bootstrap` 和
-  `notice-publisher-schema` 执行历史 schema 路径，并声明 active deadline 与 resources；源码中的
-  `campus-agent-schema` 尚未接入 GitOps，后续 cutover 必须替换旧 Job，不能并行维护两套 ledger；
+- `data-postgres` Application 中的 `campus-agent-schema` 是唯一 schema Job，使用现有
+  `campus_agent` owner 和 PostgreSQL CA；`ops-web-bootstrap` 只执行 Dining bootstrap，不执行 DDL；
+  旧 schema runner 的源码和镜像构建上下文仅作为现有数据库的不可变历史保留，不再进入活跃拓扑；
 - internal-portal collection/check 和 Campus Docs 三个阶段 Job 使用 `Forbid`，并有 active
   deadline 与 resources；
 - Campus Docs 三个阶段和 internal-portal 三个模板默认 `suspend: true`，不因源码存在而自动运行；

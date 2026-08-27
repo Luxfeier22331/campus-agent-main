@@ -8,11 +8,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ops-web/package.json ./apps/ops-web/package.json
 COPY apps/app-api/package.json ./apps/app-api/package.json
 COPY apps/campus-web/package.json ./apps/campus-web/package.json
+COPY jobs/notice-publisher/package.json ./jobs/notice-publisher/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
 COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
 COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
 COPY packages/internal-portal-client/package.json ./packages/internal-portal-client/package.json
+COPY packages/notice-database/package.json ./packages/notice-database/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY scripts/release/check-ops-web-artifact.mjs ./scripts/release/check-ops-web-artifact.mjs
 

@@ -1,8 +1,8 @@
 # app-api-schema
 
 用于现有部署数据库安装和迁移 App API schema 的历史容器构建上下文。新建或重建的本地数据库改由
-`jobs/campus-agent-schema` 安装统一 baseline；本 Job 暂未从 GitOps 退役，但不再是本地 bootstrap
-入口。
+`jobs/campus-agent-schema` 安装统一 baseline；本 Job 已从 GitOps 拓扑和 release candidate 退役，
+但保留源码和 Dockerfile 作为不可变历史。
 
 镜像在构建阶段把 `apps/app-api/ops/db/schema.ts` 及其本地依赖编译为 JavaScript，启动后执行一次
 schema 安装并退出。它不是常驻服务，也不维护第二份 migration 实现。运行时 app-api、Dining 同步和

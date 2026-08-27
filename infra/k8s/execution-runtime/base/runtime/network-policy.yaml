@@ -9,9 +9,7 @@ spec:
         operator: In
         values:
           - agent-runtime
-          - app-api-schema
           - execution-control
-          - execution-run-projection-schema
   policyTypes: ["Ingress"]
   ingress:
     - from:
@@ -44,9 +42,7 @@ spec:
         operator: In
         values:
           - agent-runtime
-          - app-api-schema
           - execution-control
-          - execution-run-projection-schema
   policyTypes: ["Egress"]
   egress:
     - to:

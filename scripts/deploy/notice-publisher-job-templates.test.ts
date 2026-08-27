@@ -9,10 +9,6 @@ const publisherManifestPath = resolve(
 	import.meta.dirname,
 	"../../infra/k8s/ingestion-runtime/base/runtime/notice-publisher.yaml",
 );
-const schemaManifestPath = resolve(
-	import.meta.dirname,
-	"../../infra/k8s/ingestion-runtime/base/runtime/notice-publisher-schema.yaml",
-);
 const networkPolicyManifestPath = resolve(
 	import.meta.dirname,
 	"../../infra/k8s/ingestion-runtime/base/runtime/network-policy.yaml",
@@ -34,30 +30,10 @@ test("notice publisher manual Job template is suspended and non-retrying", () =>
 	assert.deepEqual(container(manifest, "notice-publisher").args, ["publish"]);
 });
 
-test("notice publisher schema Job uses the existing owner identity", () => {
-	const manifest = singleManifest(schemaManifestPath);
-	assert.equal(nameOf(manifest), "notice-publisher-schema");
-	const metadata = record(manifest.metadata, "metadata");
-	const annotations = record(metadata.annotations, "annotations");
-	assert.equal(annotations["argocd.argoproj.io/sync-wave"], "-1");
-	const spec = record(manifest.spec, "Job spec");
-	assert.equal(spec.backoffLimit, 0);
-	const migrate = container(manifest, "notice-publisher-schema");
-	assert.deepEqual(migrate.args, ["migrate"]);
-	assert.deepEqual(secretNames(migrate), [
-		"campus-agent-postgres-campus-agent-owner",
-		"campus-agent-postgres-campus-agent-owner",
-	]);
-});
-
-test("notice schema migration runs before the Ops Web bootstrap Job", () => {
-	const schema = syncWave(singleManifest(schemaManifestPath));
-	const bootstrap = syncWave(singleManifest(bootstrapManifestPath));
-	assert.ok(
-		schema < bootstrap,
-		`schema wave ${schema} must be earlier than bootstrap wave ${bootstrap}`,
-	);
-	assert.equal(bootstrap, 0);
+test("Ops Web bootstrap only runs the Dining bootstrap", () => {
+	const bootstrap = container(singleManifest(bootstrapManifestPath), "bootstrap");
+	assert.equal(bootstrap.envFrom, undefined);
+	assert.deepEqual(bootstrap.args, ["exec node dist-ops/db/bootstrap-dining.js\n"]);
 });
 
 test("notice publisher workloads can reach their required services", () => {
@@ -67,15 +43,7 @@ test("notice publisher workloads can reach their required services", () => {
 	assert.ok(policy);
 	const spec = record(policy.spec, "NetworkPolicy spec");
 	assert.deepEqual(spec, {
-		podSelector: {
-			matchExpressions: [
-				{
-					key: "app.kubernetes.io/name",
-					operator: "In",
-					values: ["notice-publisher", "notice-publisher-schema"],
-				},
-			],
-		},
+		podSelector: { matchLabels: { "app.kubernetes.io/name": "notice-publisher" } },
 		policyTypes: ["Egress"],
 		egress: [
 			{
@@ -125,15 +93,6 @@ function nameOf(manifest: Record<string, unknown>): string {
 	return name;
 }
 
-function syncWave(manifest: Record<string, unknown>): number {
-	const annotations = record(record(manifest.metadata, "metadata").annotations, "annotations");
-	const value = annotations["argocd.argoproj.io/sync-wave"];
-	if (typeof value !== "string" || !/^-?\d+$/u.test(value)) {
-		throw new Error("manifest sync wave is invalid");
-	}
-	return Number(value);
-}
-
 function container(manifest: Record<string, unknown>, name: string): Record<string, unknown> {
 	const spec = record(manifest.spec, `${name} spec`);
 	const podTemplate =
@@ -149,21 +108,6 @@ function container(manifest: Record<string, unknown>, name: string): Record<stri
 		throw new Error(`${name} must contain one container`);
 	}
 	return record(podSpec.containers[0], `${name} container`);
-}
-
-function secretNames(container: Record<string, unknown>): string[] {
-	if (!Array.isArray(container.env)) {
-		throw new Error("container env is invalid");
-	}
-	return container.env.flatMap((item) => {
-		const valueFromValue = record(item, "env item").valueFrom;
-		if (valueFromValue === undefined) {
-			return [];
-		}
-		const valueFrom = record(valueFromValue, "valueFrom");
-		const secretKeyRef = record(valueFrom.secretKeyRef, "secretKeyRef");
-		return typeof secretKeyRef.name === "string" ? [secretKeyRef.name] : [];
-	});
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

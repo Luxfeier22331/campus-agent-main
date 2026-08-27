@@ -615,6 +615,9 @@ importers:
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1(@noble/hashes@2.3.0)
+      notice-publisher:
+        specifier: workspace:*
+        version: link:../../jobs/notice-publisher
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3

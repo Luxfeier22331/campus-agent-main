@@ -35,30 +35,10 @@ spec:
             - -ec
           args:
             - |
-              export OPS_WEB_SCHEMA_DATABASE_URL="$(node -e '
-                const url = new URL(`postgresql://${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`);
-                url.username = process.env.PGUSER;
-                url.password = process.env.PGPASSWORD;
-                process.stdout.write(url.toString());
-              ')"
-              node dist-ops/db/ops-web-database.js apply
               exec node dist-ops/db/bootstrap-dining.js
-          envFrom:
-            - configMapRef:
-                name: ops-web-schema-database-config
           env:
             - name: DEPLOYMENT_ENVIRONMENT
               value: production
-            - name: PGUSER
-              valueFrom:
-                secretKeyRef:
-                  name: campus-agent-postgres-campus-agent-owner
-                  key: username
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: campus-agent-postgres-campus-agent-owner
-                  key: password
             - name: OPS_WEB_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -76,8 +56,6 @@ spec:
                 secretKeyRef:
                   name: object-store-secrets
                   key: OBJECT_STORE_DERIVED_SECRET_KEY
-            - name: OPS_WEB_SCHEMA_DATABASE_CA_CERT_PATH
-              value: /etc/campus-agent/postgres/ca.crt
             - name: OPS_WEB_DATABASE_CA_CERT_PATH
               value: /etc/campus-agent/postgres/ca.crt
           volumeMounts:

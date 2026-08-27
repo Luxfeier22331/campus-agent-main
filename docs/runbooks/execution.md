@@ -19,20 +19,18 @@ staging execution runtime 由 Kubernetes/GitOps 管理，Docker Compose 只用�
 3. 合并环境 PR 选择 deployment revision；
 4. Argo CD 按该 revision 对账。
 
-同一交付顺序必须先运行低 wave 的 execution-control `Sync` schema Job，再运行 Model Config schema
-Job，最后启动依赖它们的 workload。两个 Job 分别使用同 revision 的所属镜像；长期进程不执行 schema
-迁移。execution-control 命令在执行 DDL 前最多等待 60 秒处理临时 PostgreSQL 连接错误；认证、TLS、
-权限、SQL 和 schema 错误立即失败，DDL 本身不自动重放。
+同一交付顺序必须先运行 `data-postgres` Application 中的 `campus-agent-schema` Job，再启动依赖数据库
+的 workload。该 Job 使用 `campus_agent` owner 和统一 migration ledger；长期进程不执行 schema 迁移。
+`ops-web-bootstrap` 只在自己的 wave 中执行 Dining bootstrap，不负责建表、迁移或授权。
 
 发布检查：
 
 - 环境仓 commit；
 - root/child Application sync 与 health；
-- schema Job 返回 `passed=true`、`schema_ready=true`、`store=postgres`；
+- `campus-agent-schema` Job 成功，并确认统一 ledger 已安装到目标数据库；
 - schema Job 已确认 `execution_control` 对所属 `execution_control` 表具有精确读写权限，且不具有 schema
   创建、表维护或 App API 产品终态表访问权限；
-- Model Config schema Job 已完成独立 schema/role 安装；维护窗口切换时还需确认旧模型设置已事务迁移，
-  且 execution-control 和 Ops Web 均无 `model_config.model_configs` 数据库权限；
+- Model Config、通知和 Dining 的运行角色只使用各自运行权限；Ops Web bootstrap 没有 DDL 或授权职责；
 - first-party Deployment rollout 和不可变 image digest；
 - 没有 `CrashLoopBackOff`、`ImagePullBackOff` 或无法解释的 `Pending` Pod。
 
@@ -55,7 +53,7 @@ schema 的最终结构。旧 Goose migration 与 `model-config-schema` 暂作为
 1. 暂停 PostgreSQL writer，并保留 Temporal history；
 2. 对目标数据库做可恢复备份；
 3. 在隔离数据库验证业务数据迁入统一 baseline，核对行数、外键、owner 和运行角色 ACL；
-4. 使用同一 revision 替换 GitOps schema Job 与应用镜像，再恢复写入。
+4. 使用同一 revision 的统一 schema Job 和应用镜像完成 GitOps cutover，再恢复写入。
 
 本次源码变化没有执行上述在线 cutover。旧 migration 不得改写，也不能通过双写、兼容 view 或第二条
 新 ledger 延长过渡期；具体数据转换 SQL 必须在实施 cutover 时基于实际备份设计和验证。

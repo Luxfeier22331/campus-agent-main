@@ -1,8 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: execution-schema-database-config
+  name: campus-agent-database-config
   labels:
+    app.kubernetes.io/name: campus-agent-postgres
     app.kubernetes.io/part-of: campus-agent
   annotations:
     argocd.argoproj.io/sync-wave: "-3"
@@ -12,5 +13,5 @@ data:
   PGDATABASE: campus_agent
   PGSSLMODE: verify-full
   PGSSLROOTCERT: /etc/campus-agent/postgres/ca.crt
-  APP_API_SCHEMA_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt
-  APP_API_SCHEMA_DATABASE_SSLMODE: verify-full
+  NOTICES_DATABASE_SSLMODE: verify-full
+  NOTICES_DATABASE_CA_CERT_PATH: /etc/campus-agent/postgres/ca.crt

@@ -1,7 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - database-config.yaml
   - database-roles.yaml
   - database-grants-job.yaml
   - internal-portal-check.yaml

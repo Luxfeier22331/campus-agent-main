@@ -45,7 +45,7 @@ spec:
                 - notice-sync
               envFrom:
                 - configMapRef:
-                    name: ingestion-schema-database-config
+                    name: campus-agent-database-config
               env:
                 - name: DEPLOYMENT_ENVIRONMENT
                   value: production
@@ -158,7 +158,7 @@ spec:
                 - notice-backfill
               envFrom:
                 - configMapRef:
-                    name: ingestion-schema-database-config
+                    name: campus-agent-database-config
               env:
                 - name: DEPLOYMENT_ENVIRONMENT
                   value: production

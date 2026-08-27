@@ -15,8 +15,7 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 
 - 统一 schema bootstrap 使用数据库 owner 连接；Ops Web 凭据表最终位于
   `internal_portal.credentials`，历史环境由 Ops Web handoff migration 一次性接管；
-- 通知采集、分类和发布共享 `notices.*`；本地由 `campus-agent-schema` 安装，集群仍使用现有通知
-  schema Job，直到后续 GitOps cutover；
+- 通知采集、分类和发布共享 `notices.*`；本地和集群都由 `campus-agent-schema` 安装；
 - source 与 derived bucket 使用各自对象存储凭据；
 - Ops Web 与 internal-portal-collection 来自同一 source revision；
 - 使用本地命令时，已通过 `internal-portal:auth:pull` 从 Ops Web 解析当前有效 TGC；使用 Job 入口时，
@@ -161,8 +160,8 @@ pnpm --filter notice-publisher dev:init
 Migration 6 将 `category` 改为可空，增加 `is_published`，并把迁移前已有通知标记为已发布。新采集通知
 默认未分类、未发布，直接在既有库存上迁移，不清空通知或资源表。
 
-线上由 wave -1 的 schema Job 使用既有 `campus_agent` owner Secret 执行相同 migration，不创建线上
-`notice_publisher` 角色。
+线上由 `data-postgres` Application 中的 `campus-agent-schema` Job 使用既有 `campus_agent` owner Secret
+执行统一 migration，不创建线上 `notice_publisher` 角色。
 
 ### 单条与批量发布
 
@@ -239,8 +238,8 @@ kubectl -n <namespace> create job \
 分类器专用数据库身份或模型 Secret。运行一次性采集 Job 前须在目标环境确认到 Ops Web、source bucket、
 PostgreSQL 和门户 HTTPS 的连通性。
 
-通知 schema Job 在 Argo sync wave -1 使用既有数据库 owner Secret 和 PostgreSQL CA。发布模板同样复用
-owner 与 source/derived 对象存储 Secret，不新增线上 publisher Secret。全量发布直接创建一次性 Job：
+统一 `campus-agent-schema` Job 使用既有数据库 owner Secret 和 PostgreSQL CA。发布模板同样复用 owner
+与 source/derived 对象存储 Secret，不新增线上 publisher Secret。全量发布直接创建一次性 Job：
 
 ```bash
 kubectl -n <namespace> create job \

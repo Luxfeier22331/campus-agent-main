@@ -91,12 +91,8 @@ metadata:
   name: notice-publisher-egress
 spec:
   podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values:
-          - notice-publisher
-          - notice-publisher-schema
+    matchLabels:
+      app.kubernetes.io/name: notice-publisher
   policyTypes: ["Egress"]
   egress:
     - to:

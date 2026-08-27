@@ -80,6 +80,7 @@
 		"app-api": "workspace:*",
 		"drizzle-kit": "^0.31.10",
 		"jsdom": "^30.0.1",
+		"notice-publisher": "workspace:*",
 		"tailwindcss": "^4.3.3",
 		"testcontainers": "12.1.0",
 		"tsx": "^4.23.12",

@@ -1,23 +1,22 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: notice-publisher-schema
+  name: campus-agent-schema
   labels:
-    app.kubernetes.io/name: notice-publisher-schema
+    app.kubernetes.io/name: campus-agent-schema
     app.kubernetes.io/part-of: campus-agent
   annotations:
     argocd.argoproj.io/sync-options: Force=true,Replace=true
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   activeDeadlineSeconds: 300
   backoffLimit: 0
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: notice-publisher-schema
+        app.kubernetes.io/name: campus-agent-schema
         app.kubernetes.io/part-of: campus-agent
     spec:
-      serviceAccountName: ingestion-runtime
       automountServiceAccountToken: false
       enableServiceLinks: false
       restartPolicy: Never
@@ -30,16 +29,14 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: migrate
-          image: ghcr.io/muc-wiki/campus-agent/notice-publisher:replace-me
+        - name: schema
+          image: ghcr.io/muc-wiki/campus-agent/campus-agent-schema:replace-me
           imagePullPolicy: IfNotPresent
           args: ["migrate"]
           envFrom:
             - configMapRef:
-                name: ingestion-schema-database-config
+                name: campus-agent-database-config
           env:
-            - name: DEPLOYMENT_ENVIRONMENT
-              value: production
             - name: PGUSER
               valueFrom:
                 secretKeyRef:
@@ -52,18 +49,15 @@ spec:
                   key: password
           resources:
             requests:
-              cpu: 25m
-              memory: 64Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
-              memory: 256Mi
+              memory: 384Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
           volumeMounts:
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres

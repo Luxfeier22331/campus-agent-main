@@ -3,8 +3,6 @@ kind: Kustomization
 resources:
   - service-account.yaml
   - database-role.yaml
-  - database-config.yaml
-  - schema-job.yaml
   - workload.yaml
   - network-policy.yaml
   - availability.yaml

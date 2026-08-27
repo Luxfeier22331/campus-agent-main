@@ -13,7 +13,6 @@ const SOURCE_REPOSITORY = "MUC-WIKI/campus-agent";
 const IMAGE_PACKAGES = new Map<string, readonly string[]>([
 	["agent-runtime", ["agent-runtime"]],
 	["campus-agent-schema", ["campus-agent-schema"]],
-	["app-api-schema", ["app-api-schema"]],
 	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
 	["execution-control", ["execution-control"]],
 	["model-config", ["model-config"]],
@@ -27,7 +26,6 @@ const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
 	["apps/execution-control/Dockerfile", ["execution-control"]],
 	["apps/model-config/Dockerfile", ["model-config"]],
 	["jobs/campus-agent-schema/Dockerfile", ["campus-agent-schema"]],
-	["jobs/app-api-schema/Dockerfile", ["app-api-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
 	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
 	["jobs/notice-publisher/Dockerfile", ["notice-publisher"]],
@@ -164,15 +162,6 @@ export async function planCandidates(
 	);
 	if (sharedNodeRelease || changesPath(files, "jobs/campus-agent-schema")) {
 		images.add("campus-agent-schema");
-	}
-	if (
-		sharedNodeRelease ||
-		changesPath(files, "jobs/app-api-schema") ||
-		changesPath(files, "apps/app-api/drizzle") ||
-		changesPath(files, "apps/app-api/ops/db") ||
-		changesPath(files, "apps/app-api/src/script-support/shared-db")
-	) {
-		images.add("app-api-schema");
 	}
 	if (sharedNodeRelease) {
 		images.add("internal-portal-collection");

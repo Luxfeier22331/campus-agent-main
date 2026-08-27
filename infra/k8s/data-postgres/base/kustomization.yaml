@@ -5,4 +5,6 @@ resources:
   - roles.yaml
   - databases.yaml
   - service-aliases.yaml
+  - database-config.yaml
+  - schema-job.yaml
   - network-policy.yaml

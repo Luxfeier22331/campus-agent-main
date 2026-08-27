@@ -241,7 +241,6 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, [
 		"agent-runtime",
-		"app-api-schema",
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"execution-control",
@@ -401,7 +400,7 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 	assert.deepEqual(await planCandidates(options(root), runner), {
 		base: BASE,
 		head: HEAD,
-		images: ["app-api-schema", "campus-docs-index-publisher", "execution-control"],
+		images: ["campus-docs-index-publisher", "execution-control"],
 		sourceBases: [],
 		topologyMigrations: [],
 		workers: [],
@@ -443,7 +442,6 @@ test("a Node lockfile change selects Node one-shot images but not the independen
 	};
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, [
-		"app-api-schema",
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"internal-portal-collection",

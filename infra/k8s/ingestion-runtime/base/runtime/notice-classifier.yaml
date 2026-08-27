@@ -40,7 +40,7 @@ spec:
               imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
-                    name: ingestion-schema-database-config
+                    name: campus-agent-database-config
               env:
                 - name: DEPLOYMENT_ENVIRONMENT
                   value: production
