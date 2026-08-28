@@ -47,10 +47,13 @@ RUN apt-get update \
 
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=dependencies --chown=node:node /app/jobs/campus-agent-schema/package.json ./jobs/campus-agent-schema/package.json
+COPY --from=dependencies --chown=node:node /app/jobs/campus-agent-schema/node_modules ./jobs/campus-agent-schema/node_modules
 COPY --from=build --chown=node:node /app/jobs/campus-agent-schema/dist ./jobs/campus-agent-schema/dist
 COPY --from=build --chown=node:node /app/jobs/campus-agent-schema/migrations ./jobs/campus-agent-schema/migrations
 
-RUN node --check ./jobs/campus-agent-schema/dist/cli.js
+RUN node --check ./jobs/campus-agent-schema/dist/cli.js \
+  && cd ./jobs/campus-agent-schema \
+  && node --input-type=module -e "await Promise.all([import('drizzle-orm'), import('pg')])"
 
 USER node
 
