@@ -224,13 +224,11 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 			t.Fatalf("agent runtime path = %q", request.URL.Path)
 		}
 		writeAgentRuntimeSSEEvent(t, response, "answer_delta", map[string]any{
-			"schema_version": "agent_runtime_answer_delta.v2",
-			"chunk_index":    1,
+			"schema_version": "agent_runtime_answer_delta.v3",
 			"delta":          "你好",
 		})
 		writeAgentRuntimeSSEEvent(t, response, "answer_delta", map[string]any{
-			"schema_version": "agent_runtime_answer_delta.v2",
-			"chunk_index":    2,
+			"schema_version": "agent_runtime_answer_delta.v3",
 			"delta":          "，我是校园问答助手。",
 		})
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
@@ -314,9 +312,11 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 	}
 	completedEvent := events[6]
 	if completedEvent.Visibility != execution.DurableRunEventVisibilityBrowser ||
-		completedEvent.Payload["accumulated_text"] != "你好，我是校园问答助手。" ||
 		completedEvent.Payload["message_id"] != "run-primary-agent-streaming:answer" {
 		t.Fatalf("answer_completed event = %#v", completedEvent)
+	}
+	if _, exists := completedEvent.Payload["accumulated_text"]; exists {
+		t.Fatalf("answer_completed event contains retired accumulated_text: %#v", completedEvent)
 	}
 }
 
@@ -344,8 +344,7 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 			t.Fatalf("agent runtime path = %q", request.URL.Path)
 		}
 		writeAgentRuntimeSSEEvent(t, response, "answer_delta", map[string]any{
-			"schema_version": "agent_runtime_answer_delta.v2",
-			"chunk_index":    1,
+			"schema_version": "agent_runtime_answer_delta.v3",
 			"delta":          "你好",
 		})
 		close(deltaFlushed)

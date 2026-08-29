@@ -8,7 +8,6 @@ import {
 	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	createTelemetryMock,
-	expectNoInternalLocators,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceObservabilityStatusSuite(): void {
@@ -114,7 +113,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: {
-						payload_kind: "knowledge_query",
 						tool_result: {
 							candidate_routes: [{ display_name: "缓考申请" }, { display_name: "转专业申请" }],
 						},
@@ -139,7 +137,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: {
-						payload_kind: "knowledge_query",
 						tool_result: {
 							fail_close_reason: "source_conflict",
 							outcome: "temporarily_unverifiable",
@@ -167,7 +164,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: {
-						payload_kind: "knowledge_query",
 						tool_result: {
 							outcome: "resolved_current",
 							query_text: "地铁校内规定预约",
@@ -197,7 +193,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 						totalTokens: 162,
 					},
 					result: {
-						payload_kind: "knowledge_query",
 						tool_result: {
 							outcome: "resolved_current",
 							query_text: "招生办电话",
@@ -243,7 +238,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		}
 		expect(followUp.answer.result.text).toContain("请说明学生规定方向");
 		expect(followUp.answer.result.text).toContain("缓考申请");
-		expectNoInternalLocators(followUp.answer.result.text);
 		expect(followUpStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
 				status: "completed",
@@ -257,7 +251,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		expect(insufficientEvidence.answer.result.text).toContain("为避免误导");
 		expect(insufficientEvidence.answer.result.text).toContain("来源信息存在冲突");
 		expect(insufficientEvidence.answer.result.text).toContain("学生规定临时变更");
-		expectNoInternalLocators(insufficientEvidence.answer.result.text);
 		expect(insufficientEvidenceStore.finalWrites[0]).toMatchObject({
 			turnDispatch: {
 				status: "completed",

@@ -20,9 +20,7 @@ func TestExecutePrimaryAgentActivityProjectsPersonalMemoryToolResult(t *testing.
 	store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
 		"status":         "completed",
 		"tool_name":      personalMemoryRecallToolName,
-		"payload_kind":   personalMemoryRecallToolName,
 		"arguments_json": map[string]any{"query": "我上次说过喜欢哪个食堂？"},
-		"result_ref":     "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
 		"result": map[string]any{
 			"outcome": "matched", "memory_text": "用户喜欢一食堂。",
 		},
@@ -64,7 +62,7 @@ func TestExecutePrimaryAgentActivityProjectsPersonalMemoryToolResult(t *testing.
 		toolResult.SanitizedPayload["outcome"] != "matched" {
 		t.Fatalf("personal memory tool result = %#v; all results = %#v", toolResult, results)
 	}
-	assertSDKToolArgumentIdentityForTest(t, toolResult.SanitizedPayload)
+	assertToolArgumentIdentityForTest(t, toolResult.SanitizedPayload)
 	for _, field := range []string{"arguments_json", "memory_text", "result"} {
 		if _, exists := toolResult.SanitizedPayload[field]; exists {
 			t.Fatalf("tool result leaked %s: %#v", field, toolResult.SanitizedPayload)
@@ -81,9 +79,7 @@ func TestExecutePrimaryAgentActivityCompletesWithFailedPersonalMemoryToolResult(
 	store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
 		"status":            "failed",
 		"tool_name":         personalMemoryRecallToolName,
-		"payload_kind":      personalMemoryRecallToolName,
 		"arguments_json":    map[string]any{"query": "我上次说过喜欢哪个食堂？"},
-		"result_ref":        "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
 		"fail_close_reason": "tool_handler_failed",
 		"result":            map[string]any{"error": map[string]any{"code": "memory_unavailable"}},
 	})
@@ -107,72 +103,13 @@ func TestExecutePrimaryAgentActivityCompletesWithFailedPersonalMemoryToolResult(
 	t.Fatalf("failed personal memory tool step missing: %#v", steps)
 }
 
-func TestExecutePrimaryAgentActivityFailsClosedOnPersonalMemoryArgumentDrift(t *testing.T) {
-	tests := []struct {
-		name      string
-		arguments map[string]any
-		message   string
-	}{
-		{name: "extra field", arguments: map[string]any{"query": "食堂", "unexpected": true}, message: "not allowed"},
-		{name: "empty query", arguments: map[string]any{"query": ""}, message: "shorter than minLength"},
-		{name: "long query", arguments: map[string]any{"query": strings.Repeat("记", 401)}, message: "longer than maxLength"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runID := "run-primary-agent-memory-args-" + strings.ReplaceAll(test.name, " ", "-")
-			store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
-				"status":         "completed",
-				"tool_name":      personalMemoryRecallToolName,
-				"payload_kind":   personalMemoryRecallToolName,
-				"arguments_json": test.arguments,
-				"result_ref":     "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
-				"result":         map[string]any{"outcome": "no_match", "memory_text": ""},
-			})
-			if err == nil || !strings.Contains(err.Error(), "fail_close_reason=schema_contract_drift") ||
-				!strings.Contains(err.Error(), test.message) {
-				t.Fatalf("argument drift error = %v", err)
-			}
-			assertSDKToolProjectionFailure(t, store, runID, "schema_contract_drift")
-		})
-	}
-}
-
-func TestExecutePrimaryAgentActivityFailsClosedOnPersonalMemoryResultDrift(t *testing.T) {
-	tests := []struct {
-		name   string
-		result map[string]any
-	}{
-		{name: "missing memory text", result: map[string]any{"outcome": "matched"}},
-		{name: "invalid outcome", result: map[string]any{"outcome": "unknown", "memory_text": ""}},
-		{name: "extra field", result: map[string]any{"outcome": "no_match", "memory_text": "", "extra": true}},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			runID := "run-primary-agent-memory-result-" + strings.ReplaceAll(test.name, " ", "-")
-			store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
-				"status":         "completed",
-				"tool_name":      personalMemoryRecallToolName,
-				"payload_kind":   personalMemoryRecallToolName,
-				"arguments_json": map[string]any{"query": "食堂"},
-				"result_ref":     "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
-				"result":         test.result,
-			})
-			if err == nil || !strings.Contains(err.Error(), "fail_close_reason=result_contract_drift") {
-				t.Fatalf("result drift error = %v", err)
-			}
-			assertSDKToolProjectionFailure(t, store, runID, "result_contract_drift")
-		})
-	}
-}
-
 func TestExecutePrimaryAgentActivityRejectsUnadmittedSDKToolResult(t *testing.T) {
 	tests := []struct {
-		name        string
-		toolName    string
-		payloadKind string
-		want        string
+		name     string
+		toolName string
+		want     string
 	}{
-		{name: "unknown tool", toolName: "unregistered_fixture_tool", payloadKind: "unregistered_fixture_tool", want: "is not admitted"},
+		{name: "unknown tool", toolName: "unregistered_fixture_tool", want: "was not visible"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -180,9 +117,7 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSDKToolResult(t *testing.T)
 			store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
 				"status":         "completed",
 				"tool_name":      test.toolName,
-				"payload_kind":   test.payloadKind,
 				"arguments_json": map[string]any{},
-				"result_ref":     "agent-runtime://" + runID + "/tools/" + test.toolName + "/1",
 				"result":         map[string]any{},
 			})
 			if err == nil || !strings.Contains(err.Error(), test.want) {
@@ -200,20 +135,6 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSDKToolResult(t *testing.T)
 		})
 	}
 }
-
-func TestSDKToolResultEnvelopeRejectsRegisteredToolWithoutResultValidator(t *testing.T) {
-	_, err := sdkToolResultEnvelopeForProjection(
-		"unregistered_fixture_tool",
-		"unregistered_fixture_tool",
-		"completed",
-		map[string]any{},
-		"projection://fixture",
-	)
-	if err == nil || !strings.Contains(err.Error(), "has no result validator") {
-		t.Fatalf("missing result validator error = %v", err)
-	}
-}
-
 func executePrimaryAgentSDKToolFixture(
 	t *testing.T,
 	runID string,
@@ -286,7 +207,7 @@ func assertSDKToolProjectionFailure(
 			if attempt.DurationMS != 18 {
 				t.Fatalf("tool attempt duration_ms = %d, want 18", attempt.DurationMS)
 			}
-			assertSDKToolArgumentIdentityForTest(t, attempt.SanitizedPayload)
+			assertToolArgumentIdentityForTest(t, attempt.SanitizedPayload)
 			return
 		}
 	}

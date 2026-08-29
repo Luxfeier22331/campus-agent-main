@@ -90,9 +90,7 @@ type AgentToolResult struct {
 	ArgumentsJSON   map[string]any `json:"arguments_json"`
 	DurationMS      float64        `json:"duration_ms"`
 	FailCloseReason string         `json:"fail_close_reason"`
-	PayloadKind     string         `json:"payload_kind"`
 	Result          map[string]any `json:"result"`
-	ResultRef       string         `json:"result_ref"`
 	Status          string         `json:"status"`
 	ToolName        string         `json:"tool_name"`
 }

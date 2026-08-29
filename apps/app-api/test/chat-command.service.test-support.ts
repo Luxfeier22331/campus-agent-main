@@ -489,17 +489,6 @@ export function createTelemetryMock(): AppTelemetry {
 	};
 }
 
-export function expectNoInternalLocators(text: string) {
-	for (const marker of ["source-faithful", "student_rules:", "chunk-"]) {
-		if (text.includes(marker)) {
-			throw new Error(`Unexpected internal locator marker in answer: ${marker}`);
-		}
-	}
-	if (/\[[^\]]*#[^\]]*\]/.test(text)) {
-		throw new Error("Unexpected internal source locator markdown in answer.");
-	}
-}
-
 export function createExecutionRuntimeFromToolClient(
 	client: ToolExecutionClient,
 	options: {

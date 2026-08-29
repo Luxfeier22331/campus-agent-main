@@ -163,9 +163,7 @@ type agentToolResult struct {
 	DurationMS      float64        `json:"duration_ms"`
 	Status          string         `json:"status"`
 	ToolName        string         `json:"tool_name"`
-	PayloadKind     string         `json:"payload_kind"`
 	Result          map[string]any `json:"result"`
-	ResultRef       string         `json:"result_ref"`
 	FailCloseReason string         `json:"fail_close_reason"`
 }
 

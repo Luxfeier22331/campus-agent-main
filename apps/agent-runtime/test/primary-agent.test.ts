@@ -28,8 +28,11 @@ const limits = {
 
 function timedToolResult(
 	result: UntimedToolExecutionResult | undefined,
+	argumentsJson: Record<string, unknown>,
 ): ToolExecutionResult | undefined {
-	return result === undefined ? undefined : { ...result, durationMs: 12 };
+	return result === undefined
+		? undefined
+		: { ...result, argumentsJson, durationMs: 12, toolName: "test_lookup" };
 }
 
 const testParameterSchema = {
@@ -89,7 +92,7 @@ describe("primary agent runtime", () => {
 			return {
 				finalOutput: `我是校园问答助手。收到：${currentText}`,
 				providerResponseId: "resp_1",
-				toolCalls: [],
+				toolResults: [],
 				usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 			} as never;
 		};
@@ -132,7 +135,7 @@ describe("primary agent runtime", () => {
 				return {
 					finalOutput: "当前没有可用的校园事实工具。",
 					providerResponseId: "resp_closed_tools",
-					toolCalls: [],
+					toolResults: [],
 					usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 				};
 			},
@@ -175,7 +178,7 @@ describe("primary agent runtime", () => {
 		const runner: AgentRunner = async () => ({
 			finalOutput: "我是校园问答助手。",
 			providerResponseId: "resp_missing_envelope",
-			toolCalls: [],
+			toolResults: [],
 			usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 		});
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
@@ -200,7 +203,7 @@ describe("primary agent runtime", () => {
 			runner: async () => ({
 				finalOutput: "blocking result must not be used for stream",
 				providerResponseId: "resp_blocking",
-				toolCalls: [],
+				toolResults: [],
 				usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 			}),
 		});
@@ -230,20 +233,16 @@ describe("primary agent runtime", () => {
 			streamingRunner: async function* () {
 				try {
 					yield {
-						accumulatedText: "最终答案",
-						chunkIndex: 1,
 						delta: "最终答案",
 					};
 					yield {
 						finalOutput: "最终答案",
 						providerResponseId: "resp-stream-terminal",
-						toolCalls: [],
+						toolResults: [],
 						usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 					};
 					postTerminalPulled = true;
 					yield {
-						accumulatedText: "must not be consumed",
-						chunkIndex: 2,
 						delta: "must not be consumed",
 					};
 				} finally {
@@ -269,6 +268,45 @@ describe("primary agent runtime", () => {
 		expect(streamingRunnerClosed).toBe(true);
 	});
 
+	it("completes when the streaming runner has final output but no text delta", async () => {
+		const runtime = createPrimaryAgentRuntime({
+			catalog,
+			runner: async () => {
+				throw new Error("blocking runner must not be used");
+			},
+			streamingRunner: async function* () {
+				yield {
+					finalOutput: "无需增量展示的最终答案。",
+					providerResponseId: "resp-stream-no-delta",
+					toolResults: [],
+					usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 8, usageObserved: true },
+				};
+			},
+		});
+
+		const events: PrimaryAgentStreamEvent[] = [];
+		for await (const event of runtime.stream({
+			requestId: "req-stream-no-delta",
+			conversationId: "conversation-1",
+			input: "hi",
+			providerConfig,
+			limits,
+			visibleToolNames: [],
+		})) {
+			events.push(event);
+		}
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			event: "completed",
+			data: {
+				status: "completed",
+				finalOutput: "无需增量展示的最终答案。",
+				terminalReason: "answer_completed",
+			},
+		});
+	});
+
 	it("exposes personal memory through a tool without preloading memory into model context", async () => {
 		let observedInstructions = "";
 		let observedInput: unknown;
@@ -280,7 +318,7 @@ describe("primary agent runtime", () => {
 			return {
 				finalOutput: "我会先给结论。",
 				providerResponseId: "resp_memory",
-				toolCalls: [],
+				toolResults: [],
 				usage: { modelRequestCount: 1, inputTokens: 16, outputTokens: 8, usageObserved: true },
 			};
 		};
@@ -343,7 +381,7 @@ describe("primary agent runtime", () => {
 			return {
 				finalOutput: "我会先给结论。",
 				providerResponseId: "resp_prompt_trace",
-				toolCalls: [],
+				toolResults: [],
 				usage: { modelRequestCount: 1, inputTokens: 18, outputTokens: 8, usageObserved: true },
 			};
 		};
@@ -383,7 +421,7 @@ describe("primary agent runtime", () => {
 			return {
 				finalOutput: "大一是否可申请需要看转专业办法的年级条件。",
 				providerResponseId: "resp_context",
-				toolCalls: [],
+				toolResults: [],
 				usage: { modelRequestCount: 1, inputTokens: 32, outputTokens: 12, usageObserved: true },
 			};
 		};
@@ -447,7 +485,7 @@ describe("primary agent runtime", () => {
 				return {
 					finalOutput: "你好。",
 					providerResponseId: "resp_empty_session_state",
-					toolCalls: [],
+					toolResults: [],
 					usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 4, usageObserved: true },
 				};
 			},
@@ -477,37 +515,27 @@ describe("primary agent runtime", () => {
 
 	it("passes visible SDK tools to the runner and records ordered tool results", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
-			const toolResult = timedToolResult(
-				await tools[0]?.execute({
-					query_text: "通知今天几点",
-					intent: "next_departure",
-				}),
-			);
+			const argumentsJson = {
+				query_text: "通知今天几点",
+				intent: "next_departure",
+			};
+			const toolResult = timedToolResult(await tools[0]?.execute(argumentsJson), argumentsJson);
 			return {
 				finalOutput: "通知查询完成。",
 				providerResponseId: "resp_2",
-				toolCalls: [
-					{
-						name: "test_lookup",
-						argumentsSummary: { intent: "next_departure" },
-						result: toolResult,
-					},
-				],
+				toolResults: toolResult ? [toolResult] : [],
 				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({
 			catalog,
 			runner,
-			toolExecutor: async ({ tool, argumentsJson }) => ({
+			toolExecutor: async ({ argumentsJson }) => ({
 				status: "completed",
-				toolName: tool.name,
-				payloadKind: tool.name,
 				result: {
 					outcome: "resolved_current",
 					echo: argumentsJson,
 				},
-				resultRef: "agent-runtime://req-tool/tools/test_lookup",
 			}),
 		});
 
@@ -522,7 +550,7 @@ describe("primary agent runtime", () => {
 
 		expect(result.status).toBe("completed");
 		expect(result.terminalReason).toBe("answer_completed");
-		expect(result.toolResults[0]?.resultRef).toBe("agent-runtime://req-tool/tools/test_lookup");
+		expect(result.toolResults[0]?.result).toMatchObject({ outcome: "resolved_current" });
 		expect(result.toolResults[0]?.argumentsJson).toEqual({
 			query_text: "通知今天几点",
 			intent: "next_departure",
@@ -533,17 +561,12 @@ describe("primary agent runtime", () => {
 
 	it("fails closed when a model-visible typed tool has no executor", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
-			const toolResult = timedToolResult(await tools[0]?.execute({ query_text: "通知今天几点" }));
+			const argumentsJson = { query_text: "通知今天几点" };
+			const toolResult = timedToolResult(await tools[0]?.execute(argumentsJson), argumentsJson);
 			return {
 				finalOutput: "",
 				providerResponseId: "resp_missing_tool_executor",
-				toolCalls: [
-					{
-						name: "test_lookup",
-						argumentsSummary: { query_text: "通知今天几点" },
-						result: toolResult,
-					},
-				],
+				toolResults: toolResult ? [toolResult] : [],
 				usage: { modelRequestCount: 1, inputTokens: 18, outputTokens: 4, usageObserved: true },
 			};
 		};
@@ -565,10 +588,8 @@ describe("primary agent runtime", () => {
 			{
 				status: "failed",
 				toolName: "test_lookup",
-				payloadKind: "test_lookup",
 				argumentsJson: { query_text: "通知今天几点" },
 				result: { error: "tool executor is not configured" },
-				resultRef: "agent-runtime://req-missing-tool-executor/tools/test_lookup/failed",
 				failCloseReason: "tool_executor_not_configured",
 				durationMs: 12,
 			},
@@ -577,36 +598,26 @@ describe("primary agent runtime", () => {
 
 	it("keeps a valid terminal result when a selected tool fails", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
-			const toolResult = timedToolResult(
-				await tools[0]?.execute({
-					query_text: "通知今天几点",
-					intent: "next_departure",
-				}),
-			);
+			const argumentsJson = {
+				query_text: "通知今天几点",
+				intent: "next_departure",
+			};
+			const toolResult = timedToolResult(await tools[0]?.execute(argumentsJson), argumentsJson);
 			return {
 				finalOutput: "通知查询失败。",
 				providerResponseId: "resp_failed_tool",
-				toolCalls: [
-					{
-						name: "test_lookup",
-						argumentsSummary: { intent: "next_departure" },
-						result: toolResult,
-					},
-				],
+				toolResults: toolResult ? [toolResult] : [],
 				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({
 			catalog,
 			runner,
-			toolExecutor: async ({ tool }) => ({
+			toolExecutor: async () => ({
 				status: "failed",
-				toolName: tool.name,
-				payloadKind: tool.name,
 				result: {
 					error: "source truth unavailable",
 				},
-				resultRef: "agent-runtime://req-tool/tools/test_lookup/failed",
 				failCloseReason: "source_truth_unavailable",
 			}),
 		});
@@ -639,27 +650,19 @@ describe("primary agent runtime", () => {
 			},
 			streamingRunner: async function* () {
 				yield {
-					accumulatedText: "通知查询失败。",
-					chunkIndex: 1,
 					delta: "通知查询失败。",
 				};
 				yield {
 					finalOutput: "通知查询失败。",
 					providerResponseId: "resp-stream-failed-tool",
-					toolCalls: [
+					toolResults: [
 						{
-							name: "test_lookup",
-							argumentsSummary: { query_text: "通知" },
-							result: {
-								status: "failed",
-								toolName: "test_lookup",
-								payloadKind: "test_lookup",
-								argumentsJson: { query_text: "通知" },
-								result: { error: "source truth unavailable" },
-								resultRef: "agent-runtime://req-stream-failed-tool/tools/test_lookup/failed",
-								failCloseReason: "source_truth_unavailable",
-								durationMs: 12,
-							},
+							status: "failed",
+							toolName: "test_lookup",
+							argumentsJson: { query_text: "通知" },
+							result: { error: "source truth unavailable" },
+							failCloseReason: "source_truth_unavailable",
+							durationMs: 12,
 						},
 					],
 					usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
@@ -696,36 +699,23 @@ describe("primary agent runtime", () => {
 		let executorSignal: AbortSignal | undefined;
 		const runner: AgentRunner = async ({ signal, tools }) => {
 			runnerSignal = signal;
-			const toolResult = timedToolResult(
-				await tools[0]?.execute({
-					query_text: "通知今天几点",
-				}),
-			);
+			const argumentsJson = { query_text: "通知今天几点" };
+			const toolResult = timedToolResult(await tools[0]?.execute(argumentsJson), argumentsJson);
 			return {
 				finalOutput: "通知查询完成。",
 				providerResponseId: "resp_signal",
-				toolCalls: [
-					{
-						name: "test_lookup",
-						argumentsSummary: { query_text: "通知今天几点" },
-						result: toolResult,
-					},
-				],
+				toolResults: toolResult ? [toolResult] : [],
 				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			};
 		};
 		const runtime = createPrimaryAgentRuntime({
 			catalog,
 			runner,
-			toolExecutor: async ({ signal, tool, argumentsJson }) => {
+			toolExecutor: async ({ signal }) => {
 				executorSignal = signal;
 				return {
 					status: "completed",
-					toolName: tool.name,
-					payloadKind: tool.name,
-					argumentsJson,
 					result: { outcome: "resolved_current" },
-					resultRef: "agent-runtime://req-tool/tools/test_lookup",
 				};
 			},
 		});

@@ -819,15 +819,13 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 				map[string]any{
 					"arguments_json_sha256": "sha256:personal-memory-recall",
 					"authorization":         "nested authorization must not leak",
-					"payload_kind":          "personal_memory_recall",
 					"result": map[string]any{
 						"outcome":     "matched",
 						"memory_text": "nested memory text must not leak",
 						"source_body": "nested source body must not leak",
 					},
-					"result_ref": "projection://runs/run-temporal-trajectory/sdk-tools/personal_memory_recall/1",
-					"status":     "completed",
-					"tool_name":  "personal_memory_recall",
+					"status":    "completed",
+					"tool_name": "personal_memory_recall",
 				},
 			},
 		},

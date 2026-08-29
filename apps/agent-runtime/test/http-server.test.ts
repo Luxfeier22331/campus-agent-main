@@ -335,16 +335,12 @@ describe("agent runtime HTTP handler", () => {
 						yield {
 							event: "answer_delta",
 							data: {
-								accumulatedText: "国家奖学金",
-								chunkIndex: 1,
 								delta: "国家奖学金",
 							},
 						};
 						yield {
 							event: "answer_delta",
 							data: {
-								accumulatedText: "国家奖学金每学年评审一次。",
-								chunkIndex: 2,
 								delta: "每学年评审一次。",
 							},
 						};
@@ -383,8 +379,6 @@ describe("agent runtime HTTP handler", () => {
 						yield {
 							event: "answer_delta",
 							data: {
-								accumulatedText: "must not be emitted",
-								chunkIndex: 3,
 								delta: "must not be emitted",
 							},
 						};
@@ -414,9 +408,8 @@ describe("agent runtime HTTP handler", () => {
 			"completed",
 		]);
 		expect(events[0]?.data).toMatchObject({
-			chunk_index: 1,
 			delta: "国家奖学金",
-			schema_version: "agent_runtime_answer_delta.v2",
+			schema_version: "agent_runtime_answer_delta.v3",
 		});
 		expect(events[2]?.data).toMatchObject({
 			final_output: "国家奖学金每学年评审一次。",
@@ -633,17 +626,22 @@ describe("agent runtime HTTP handler", () => {
 
 	it("returns a completed runtime result when a selected tool reports failure", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
-			const result = await tools[0]?.execute({ query_text: "通知" });
+			const argumentsJson = { query_text: "通知" };
+			const result = await tools[0]?.execute(argumentsJson);
 			return {
 				finalOutput: "工具失败。",
 				providerResponseId: "resp_tool_failed",
-				toolCalls: [
-					{
-						name: "test_lookup",
-						argumentsSummary: {},
-						result: result === undefined ? undefined : { ...result, durationMs: 12 },
-					},
-				],
+				toolResults:
+					result === undefined
+						? []
+						: [
+								{
+									...result,
+									argumentsJson,
+									durationMs: 12,
+									toolName: "test_lookup",
+								},
+							],
 				usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 			};
 		};
@@ -652,12 +650,9 @@ describe("agent runtime HTTP handler", () => {
 			runtime: createPrimaryAgentRuntime({
 				catalog,
 				runner,
-				toolExecutor: async ({ tool }) => ({
+				toolExecutor: async () => ({
 					status: "failed",
-					toolName: tool.name,
-					payloadKind: tool.name,
 					result: { error: "source truth unavailable" },
-					resultRef: "agent-runtime://run-1/tools/test_lookup/failed",
 					failCloseReason: "source_truth_unavailable",
 				}),
 			}),
@@ -806,7 +801,7 @@ describe("agent runtime HTTP handler", () => {
 				async *stream() {
 					yield {
 						event: "answer_delta",
-						data: { accumulatedText: "partial", chunkIndex: 1, delta: "partial" },
+						data: { delta: "partial" },
 					};
 				},
 			},
@@ -826,9 +821,8 @@ describe("agent runtime HTTP handler", () => {
 			{
 				event: "answer_delta",
 				data: {
-					chunk_index: 1,
 					delta: "partial",
-					schema_version: "agent_runtime_answer_delta.v2",
+					schema_version: "agent_runtime_answer_delta.v3",
 				},
 			},
 			{
@@ -926,7 +920,7 @@ const noToolRunner: AgentRunner = async () =>
 	({
 		finalOutput: "我是校园问答助手。",
 		providerResponseId: "resp_test",
-		toolCalls: [],
+		toolResults: [],
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 	}) as never;
 

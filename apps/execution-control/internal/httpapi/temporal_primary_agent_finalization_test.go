@@ -46,12 +46,9 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 			"provider_request_body": map[string]any{"authorization": "Bearer forbidden"},
 			"status":                "completed",
 			"tool_results": []map[string]any{{
-				"status":       "completed",
-				"tool_name":    "personal_memory_recall",
-				"tool":         "personal_memory_recall",
-				"payload_kind": "personal_memory_recall",
-				"result_ref":   "agent-runtime://run-primary-agent-finalization/tools/personal_memory_recall",
-				"result":       map[string]any{"outcome": "resolved_current"},
+				"status":    "completed",
+				"tool_name": "personal_memory_recall",
+				"result":    map[string]any{"outcome": "resolved_current"},
 			}},
 			"terminal_reason": "answer_completed",
 			"stage_timing": map[string]any{

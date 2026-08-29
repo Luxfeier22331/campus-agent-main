@@ -44,8 +44,7 @@ export function agentRunStreamResponse(
 					if (event.event === "answer_delta") {
 						controller.enqueue(
 							encodeSseEvent("answer_delta", {
-								schema_version: "agent_runtime_answer_delta.v2",
-								chunk_index: event.data.chunkIndex,
+								schema_version: "agent_runtime_answer_delta.v3",
 								delta: event.data.delta,
 							}),
 						);
@@ -134,10 +133,8 @@ export function agentRunResultWire(result: PrimaryAgentRunResult, runtimeRelease
 			duration_ms: toolResult.durationMs,
 			status: toolResult.status,
 			tool_name: toolResult.toolName,
-			payload_kind: toolResult.payloadKind,
-			arguments_json: toolResult.argumentsJson ?? {},
+			arguments_json: toolResult.argumentsJson,
 			result: toolResult.result,
-			result_ref: toolResult.resultRef,
 			fail_close_reason: toolResult.failCloseReason,
 		})),
 		tool_contract_fingerprint: {

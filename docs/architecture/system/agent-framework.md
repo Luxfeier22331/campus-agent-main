@@ -24,8 +24,9 @@ Primary Agent 的固定角色指令使用简体中文，并明确产品服务中
 
 - 本轮工具集合始终包含 `campus_search`，个人记忆可用时还包含 `personal_memory_recall`；集合顺序没有
   路由语义；
-- 个人记忆不可用时，最多两次模型 turn，最多一次 `campus_search`；
-- 个人记忆可用时，最多三次模型 turn、两次工具调用，每个可见工具最多调用一次；
+- 个人记忆不可用时，最多两次模型 turn，最多一次工具调用（此时只有 `campus_search`）；
+- 个人记忆可用时，最多三次模型 turn、两次工具调用；同一工具可以重复调用，次数只受本轮总
+  `max_tool_calls` 限制；
 - 问候、改写等不需要机构事实的请求可以直接回答，不强制调用 `campus_search`；
 
 重复 Activity 投递受 execution-control 的 invocation receipt 约束。供应商调用已经开始但完整结果

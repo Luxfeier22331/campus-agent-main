@@ -90,8 +90,6 @@ export interface PromptTrace {
 }
 
 export interface AgentRunnerAnswerDelta {
-	accumulatedText: string;
-	chunkIndex: number;
 	delta: string;
 }
 
@@ -107,15 +105,13 @@ export interface ToolExecutionRequest {
 
 export interface UntimedToolExecutionResult {
 	status: "completed" | "failed";
-	toolName: string;
-	payloadKind: string;
-	argumentsJson?: Record<string, unknown>;
 	result: Record<string, unknown>;
-	resultRef: string;
 	failCloseReason?: string;
 }
 
 export interface ToolExecutionResult extends UntimedToolExecutionResult {
+	toolName: string;
+	argumentsJson: Record<string, unknown>;
 	durationMs: number;
 }
 
@@ -134,12 +130,6 @@ export interface SdkToolExecutionContext {
 	searchOrdinal?: number;
 }
 
-export interface RunnerToolCall {
-	name: string;
-	argumentsSummary: Record<string, unknown>;
-	result: ToolExecutionResult | undefined;
-}
-
 export interface AgentRunnerInput {
 	activityAttempt?: number;
 	input: AgentInputItem[];
@@ -154,7 +144,7 @@ export interface AgentRunnerInput {
 export interface AgentRunnerResult {
 	finalOutput: string;
 	providerResponseId: string;
-	toolCalls: RunnerToolCall[];
+	toolResults: ToolExecutionResult[];
 	usage: UsageSummary;
 }
 

@@ -92,9 +92,7 @@ func TestExecutePrimaryAgentActivityFailsClosedAfterCompletedReceiptWithoutSecon
 						"duration_ms":    17.25,
 						"status":         "completed",
 						"tool_name":      personalMemoryRecallToolName,
-						"payload_kind":   personalMemoryRecallToolName,
 						"arguments_json": map[string]any{"query": "今晚六点还有通知吗"},
-						"result_ref":     "agent-runtime://" + runID + "/tools/personal_memory_recall/1",
 						"result": map[string]any{
 							"outcome": "matched", "memory_text": "用户经常乘坐晚通知。",
 						},

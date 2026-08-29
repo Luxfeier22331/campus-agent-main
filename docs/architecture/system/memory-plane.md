@@ -46,7 +46,8 @@ bank。
 
 在持久回答开始时，execution-control 冻结 `recall_enabled`、`append_enabled` 和用户代次。
 `recall_enabled=false` 时新运行不开放个人记忆工具；为 true 时，Primary Agent 可以按当前请求调用
-一次 `personal_memory_recall`。handler 重新校验运行身份、策略和用户代次后调用 Hindsight，并返回
+`personal_memory_recall`。调用次数受本轮总工具预算限制，不另设每工具一次限制。handler 重新校验运行身份、
+策略和用户代次后调用 Hindsight，并返回
 裁剪后的 `memory_text`。matched 结果可以支持用户自身事实或偏好，但不能支持机构事实、替代 Campus
 Docs evidence、成为公开来源或改变工具集合；no-match 不能被解释为任何事实。
 
@@ -63,7 +64,7 @@ append 使用确定性 document ID、`update_mode=replace` 和 private observati
 但必须记录 failed step 和稳定失败状态。
 
 gate 在 chat 准入时冻结，后续执行不重读可变设置。关闭 recall 时不开放工具或创建 recall step；
-开启 recall 时由 Primary Agent 按当前请求决定是否执行，单个 run 最多一次。关闭 append 时追加
+开启 recall 时由 Primary Agent 按当前请求决定是否执行，调用次数受本轮总工具预算限制。关闭 append 时追加
 activity 投影 skipped step。两者都不能从 PostgreSQL、Qdrant 或供应商抽取记忆。
 
 ## 用户管理与删除

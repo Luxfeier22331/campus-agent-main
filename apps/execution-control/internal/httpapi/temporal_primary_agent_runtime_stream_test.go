@@ -17,37 +17,17 @@ func TestPrimaryAgentRuntimeFailureKindKeepsPreflightAndTransportFailuresDistinc
 	}
 }
 
-func TestAgentRuntimeStreamStateRequiresContinuousAnswerDeltas(t *testing.T) {
+func TestAgentRuntimeStreamStateValidatesEachAnswerDelta(t *testing.T) {
 	state := agentRuntimeStreamState{}
-	first := agentRuntimeAnswerDelta{
-		SchemaVersion: "agent_runtime_answer_delta.v2",
-		ChunkIndex:    1,
-		Delta:         "你好",
-	}
-	if err := state.validateDelta(first); err != nil {
-		t.Fatalf("validate first delta: %v", err)
-	}
-	state.recordDelta(first)
-
 	tests := []struct {
 		name  string
 		delta agentRuntimeAnswerDelta
 		want  string
 	}{
 		{
-			name: "gap",
-			delta: agentRuntimeAnswerDelta{
-				SchemaVersion: "agent_runtime_answer_delta.v2",
-				ChunkIndex:    3,
-				Delta:         "！",
-			},
-			want: "chunk_index",
-		},
-		{
 			name: "schema drift",
 			delta: agentRuntimeAnswerDelta{
-				SchemaVersion: "agent_runtime_answer_delta.v1",
-				ChunkIndex:    2,
+				SchemaVersion: "agent_runtime_answer_delta.v2",
 				Delta:         "！",
 			},
 			want: "schema_version",
@@ -55,8 +35,7 @@ func TestAgentRuntimeStreamStateRequiresContinuousAnswerDeltas(t *testing.T) {
 		{
 			name: "empty delta",
 			delta: agentRuntimeAnswerDelta{
-				SchemaVersion: "agent_runtime_answer_delta.v2",
-				ChunkIndex:    2,
+				SchemaVersion: "agent_runtime_answer_delta.v3",
 			},
 			want: "delta is required",
 		},
@@ -69,13 +48,14 @@ func TestAgentRuntimeStreamStateRequiresContinuousAnswerDeltas(t *testing.T) {
 			}
 		})
 	}
-	space := agentRuntimeAnswerDelta{
-		SchemaVersion: "agent_runtime_answer_delta.v2",
-		ChunkIndex:    2,
-		Delta:         " ",
-	}
-	if err := state.validateDelta(space); err != nil {
-		t.Fatalf("whitespace delta must remain valid: %v", err)
+	for _, delta := range []agentRuntimeAnswerDelta{
+		{SchemaVersion: "agent_runtime_answer_delta.v3", Delta: "你好"},
+		{SchemaVersion: "agent_runtime_answer_delta.v3", Delta: "！"},
+		{SchemaVersion: "agent_runtime_answer_delta.v3", Delta: " "},
+	} {
+		if err := state.validateDelta(delta); err != nil {
+			t.Fatalf("valid delta %#v rejected: %v", delta, err)
+		}
 	}
 }
 
@@ -94,15 +74,6 @@ func TestAgentRuntimeHTTPErrorDoesNotExposeUpstreamMessage(t *testing.T) {
 
 func TestAgentRuntimeStreamStateBindsCompletedResultToRunAndAnswer(t *testing.T) {
 	state := agentRuntimeStreamState{}
-	first := agentRuntimeAnswerDelta{
-		SchemaVersion: "agent_runtime_answer_delta.v2",
-		ChunkIndex:    1,
-		Delta:         "answer",
-	}
-	if err := state.validateDelta(first); err != nil {
-		t.Fatalf("validate first delta: %v", err)
-	}
-	state.recordDelta(first)
 	run := execution.DurableRun{RequestID: "run-1"}
 
 	if err := state.validateCompleted(run, agentRuntimeResponse{
@@ -113,13 +84,7 @@ func TestAgentRuntimeStreamStateBindsCompletedResultToRunAndAnswer(t *testing.T)
 	}
 	if err := state.validateCompleted(run, agentRuntimeResponse{
 		RequestID:   "run-1",
-		FinalOutput: "tampered",
-	}); err == nil || !strings.Contains(err.Error(), "final_output") {
-		t.Fatalf("final output drift error = %v", err)
-	}
-	if err := state.validateCompleted(run, agentRuntimeResponse{
-		RequestID:   "run-1",
-		FinalOutput: "answer",
+		FinalOutput: "any canonical answer",
 	}); err != nil {
 		t.Fatalf("validate completed result: %v", err)
 	}

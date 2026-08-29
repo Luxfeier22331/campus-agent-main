@@ -27,7 +27,6 @@ describe("execution-control tool executor", () => {
 
 		expect(result).toMatchObject({
 			status: "failed",
-			toolName: "test_lookup",
 			failCloseReason: "tool_executor_not_configured",
 			result: {
 				error: "execution-control query base URL and shared secret are required",
@@ -156,7 +155,7 @@ describe("execution-control tool executor", () => {
 		expect(observedSecret).toBe("query-secret\u00a0");
 	});
 
-	it("preserves result envelopes from execution-control", async () => {
+	it("passes through execution-control business results unchanged", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "http://execution-control:8000",
 			sharedSecret: "query-secret",
@@ -164,7 +163,7 @@ describe("execution-control tool executor", () => {
 				new Response(
 					JSON.stringify({
 						outcome: "resolved_current",
-						result_envelope: {
+						business_payload: {
 							schema_version: "test_tool_result.v1",
 							tool: "test_lookup",
 							tool_name: "test_lookup",
@@ -202,7 +201,7 @@ describe("execution-control tool executor", () => {
 		});
 
 		expect(result.status).toBe("completed");
-		expect(result.result.result_envelope).toMatchObject({
+		expect(result.result.business_payload).toMatchObject({
 			schema_version: "test_tool_result.v1",
 			tool_name: "test_lookup",
 			query_kind: "test_lookup",

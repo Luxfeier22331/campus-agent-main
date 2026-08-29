@@ -14,18 +14,18 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		const baseUrl = options.baseUrl.trim();
 		const sharedSecret = options.sharedSecret;
 		if (request.tool.handler.type !== "execution_control_internal_query") {
-			return failedToolResult(request, "tool_handler_not_supported", {
+			return failedToolResult("tool_handler_not_supported", {
 				error: "tool handler is not executable through execution-control query HTTP",
 			});
 		}
 		if (baseUrl === "" || sharedSecret === "") {
-			return failedToolResult(request, "tool_executor_not_configured", {
+			return failedToolResult("tool_executor_not_configured", {
 				error: "execution-control query base URL and shared secret are required",
 			});
 		}
 		const endpoint = request.tool.handler.endpoint;
 		if (!isCanonicalExecutionControlInternalEndpoint(endpoint)) {
-			return failedToolResult(request, "tool_handler_invalid_endpoint", {
+			return failedToolResult("tool_handler_invalid_endpoint", {
 				error: "execution-control query endpoint must be a canonical /internal/ path",
 			});
 		}
@@ -44,7 +44,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 				throw new Error("execution-control endpoint escaped its configured origin");
 			}
 		} catch {
-			return failedToolResult(request, "tool_executor_not_configured", {
+			return failedToolResult("tool_executor_not_configured", {
 				error: "execution-control query base URL is invalid",
 			});
 		}
@@ -79,18 +79,18 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		} catch (error) {
 			throwIfRunAborted(request.signal, error);
 			if (timeoutSignal.aborted) {
-				return timedOutToolResult(request);
+				return timedOutToolResult();
 			}
-			return failedToolResult(request, "transient_internal_query_failed", {
+			return failedToolResult("transient_internal_query_failed", {
 				error: "execution-control query request failed",
 			});
 		}
 		throwIfRunAborted(request.signal, new Error("Agent run was cancelled during tool execution."));
 		if (timeoutSignal.aborted) {
-			return timedOutToolResult(request);
+			return timedOutToolResult();
 		}
 		if (response.status >= 300 && response.status < 400) {
-			return failedToolResult(request, "tool_handler_redirected", {
+			return failedToolResult("tool_handler_redirected", {
 				error: "execution-control query returned a redirect",
 			});
 		}
@@ -100,59 +100,43 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		} catch (error) {
 			throwIfRunAborted(request.signal, error);
 			if (timeoutSignal.aborted) {
-				return timedOutToolResult(request);
+				return timedOutToolResult();
 			}
-			return failedToolResult(request, "tool_handler_invalid_response", {
+			return failedToolResult("tool_handler_invalid_response", {
 				error: "execution-control query returned invalid JSON",
 			});
 		}
 		throwIfRunAborted(request.signal, new Error("Agent run was cancelled during tool execution."));
 		if (timeoutSignal.aborted) {
-			return timedOutToolResult(request);
+			return timedOutToolResult();
 		}
 		if (!response.ok) {
-			return failedToolResult(request, "tool_handler_failed", {
+			return failedToolResult("tool_handler_failed", {
 				error: "execution-control query failed",
 			});
 		}
 		return {
 			status: "completed",
-			toolName: request.tool.name,
-			payloadKind: request.tool.name,
-			argumentsJson: request.argumentsJson,
 			result,
-			resultRef: toolResultRef(request),
 		};
 	};
 }
 
-function timedOutToolResult(request: ToolExecutionRequest): UntimedToolExecutionResult {
-	return failedToolResult(request, "transient_internal_query_failed", {
+function timedOutToolResult(): UntimedToolExecutionResult {
+	return failedToolResult("transient_internal_query_failed", {
 		error: "execution-control query timed out",
 	});
 }
 
 function failedToolResult(
-	request: ToolExecutionRequest,
 	failCloseReason: string,
 	result: Record<string, unknown>,
 ): UntimedToolExecutionResult {
 	return {
 		status: "failed",
-		toolName: request.tool.name,
-		payloadKind: request.tool.name,
-		argumentsJson: request.argumentsJson,
 		result,
-		resultRef: `${toolResultRef(request)}/failed`,
 		failCloseReason,
 	};
-}
-
-function toolResultRef(request: ToolExecutionRequest): string {
-	const invocation = request.invocationId?.trim();
-	return invocation
-		? `agent-runtime://${request.requestId}/tools/${request.tool.name}/${encodeURIComponent(invocation)}`
-		: `agent-runtime://${request.requestId}/tools/${request.tool.name}`;
 }
 
 function throwIfRunAborted(signal: AbortSignal | undefined, fallback: unknown): void {

@@ -1,22 +1,21 @@
-import { isDeepStrictEqual } from "node:util";
 import {
 	Agent,
-	type AgentInputItem,
 	type ModelProvider,
 	Runner,
-	type Tool,
+	type RunResult,
+	type StreamedRunResult,
 	tool,
+	type Usage,
 } from "@openai/agents";
 import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
 	AgentRunnerInput,
 	PromptProviderRuntimeConfig,
-	RunnerToolCall,
 	StreamingAgentRunner,
 	ToolExecutionResult,
-	UntimedToolExecutionResult,
 } from "./agent-run-contract.ts";
+import { AgentRuntimeError } from "./runtime-errors.ts";
 import type { JsonObjectSchema } from "./tool-catalog.ts";
 
 const emptyParametersSchema = {
@@ -27,17 +26,18 @@ const emptyParametersSchema = {
 };
 
 interface AgentSdkContext {
-	requestId: string;
 	toolBudget: {
 		limit: number;
 		reserved: number;
-		usedToolNames: Set<string>;
 	};
+	toolResults: Map<string, ToolExecutionResult>;
 }
 
+// Agents SDK uses this broad bound for its invariant result type parameter.
+// biome-ignore lint/suspicious/noExplicitAny: required by the Agents SDK result type constraint
+type CampusAgent = Agent<AgentSdkContext, any>;
+
 export interface OpenAIAgentsRunnerOptions {
-	runSdk?: OpenAIAgentsRunFunction;
-	runSdkStream?: OpenAIAgentsStreamRunFunction;
 	model?: string;
 	modelProvider?: ModelProvider;
 	resolveRuntimeOptions?: (
@@ -45,80 +45,14 @@ export interface OpenAIAgentsRunnerOptions {
 	) => Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">;
 }
 
-export type OpenAIAgentsRunFunction = (
-	agent: Agent<AgentSdkContext, "text">,
-	input: AgentInputItem[],
-	options: {
-		context: AgentSdkContext;
-		maxTurns: number;
-		modelProvider?: ModelProvider;
-		workflowName: string;
-		traceIncludeSensitiveData: boolean;
-		signal?: AbortSignal;
-	},
-) => Promise<OpenAIAgentsRunResultLike>;
-
-export type OpenAIAgentsStreamRunFunction = (
-	agent: Agent<AgentSdkContext, "text">,
-	input: AgentInputItem[],
-	options: {
-		context: AgentSdkContext;
-		maxTurns: number;
-		modelProvider?: ModelProvider;
-		workflowName: string;
-		traceIncludeSensitiveData: boolean;
-		signal?: AbortSignal;
-	},
-) => Promise<OpenAIAgentsStreamRunResultLike>;
-
-interface OpenAIAgentsRunResultLike {
-	currentAgent?: { name?: string };
-	finalOutput?: unknown;
-	lastAgent?: { name?: string };
-	lastResponseId?: string;
-	newItems?: unknown[];
-	rawResponses?: unknown[];
-	state?: {
-		_trace?: { traceId?: string };
-		_context?: { usage?: UsageLike };
-		context?: { usage?: UsageLike };
-		usage?: UsageLike;
-	};
-	trace?: { traceId?: string };
-	usage?: UsageLike;
-}
-
-interface OpenAIAgentsStreamRunResultLike extends OpenAIAgentsRunResultLike {
-	cancelled?: boolean;
-	completed: Promise<void>;
-	error?: unknown;
-	toTextStream(): ReadableStream<string>;
-}
-
-interface UsageLike {
-	requests?: number;
-	inputTokens?: number;
-	outputTokens?: number;
-	cachedInputTokens?: number;
-	inputTokensDetails?: Record<string, number>[] | Record<string, number>;
-}
-
 export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}): AgentRunner {
-	const runSdk = options.runSdk ?? defaultRunSdk;
 	return async (input) => {
-		const requestOptions =
-			options.resolveRuntimeOptions?.(input.providerConfig) ??
-			({
-				...(options.model ? { model: options.model } : {}),
-				...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
+		const requestOptions = resolveRequestOptions(options, input.providerConfig);
 		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
-		const result = await runSdk(runtime.agent, input.input, {
+		const runner = createSdkRunner(requestOptions.modelProvider);
+		const result = await runner.run(runtime.agent, input.input, {
 			context: runtime.context,
 			maxTurns: input.limits.maxTurns,
-			...(requestOptions.modelProvider ? { modelProvider: requestOptions.modelProvider } : {}),
-			workflowName: "campus-agent.primary-agent",
-			traceIncludeSensitiveData: false,
 			...(input.signal ? { signal: input.signal } : {}),
 		});
 		return agentRunnerResultFromSDKResult(result);
@@ -128,49 +62,49 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 export function createStreamingOpenAIAgentsRunner(
 	options: OpenAIAgentsRunnerOptions = {},
 ): StreamingAgentRunner {
-	const runSdkStream = options.runSdkStream ?? defaultRunSdkStream;
 	return async function* (input) {
-		const requestOptions =
-			options.resolveRuntimeOptions?.(input.providerConfig) ??
-			({
-				...(options.model ? { model: options.model } : {}),
-				...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
+		const requestOptions = resolveRequestOptions(options, input.providerConfig);
 		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
-		const result = await runSdkStream(runtime.agent, input.input, {
+		const runner = createSdkRunner(requestOptions.modelProvider);
+		const result = await runner.run(runtime.agent, input.input, {
 			context: runtime.context,
 			maxTurns: input.limits.maxTurns,
-			...(requestOptions.modelProvider ? { modelProvider: requestOptions.modelProvider } : {}),
-			workflowName: "campus-agent.primary-agent",
-			traceIncludeSensitiveData: false,
 			...(input.signal ? { signal: input.signal } : {}),
+			stream: true,
 		});
-		let accumulatedText = "";
-		let chunkIndex = 0;
 		for await (const delta of result.toTextStream()) {
-			if (delta === "") {
-				continue;
+			if (delta !== "") {
+				yield { delta } satisfies AgentRunnerAnswerDelta;
 			}
-			accumulatedText += delta;
-			chunkIndex += 1;
-			yield {
-				accumulatedText,
-				chunkIndex,
-				delta,
-			} satisfies AgentRunnerAnswerDelta;
 		}
 		await result.completed;
 		throwIfStreamRunDidNotComplete(result, input.signal);
-		const finalResult = agentRunnerResultFromSDKResult(result);
-		if (finalResult.finalOutput !== accumulatedText) {
-			throw new Error("streamed answer text does not match final output");
-		}
-		yield finalResult;
+		yield agentRunnerResultFromSDKResult(result);
 	};
 }
 
+function resolveRequestOptions(
+	options: OpenAIAgentsRunnerOptions,
+	providerConfig: PromptProviderRuntimeConfig,
+) {
+	return (
+		options.resolveRuntimeOptions?.(providerConfig) ?? {
+			...(options.model ? { model: options.model } : {}),
+			...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
+		}
+	);
+}
+
+function createSdkRunner(modelProvider: ModelProvider | undefined): Runner {
+	return new Runner({
+		...(modelProvider ? { modelProvider } : {}),
+		workflowName: "campus-agent.primary-agent",
+		traceIncludeSensitiveData: false,
+	});
+}
+
 function throwIfStreamRunDidNotComplete(
-	result: OpenAIAgentsStreamRunResultLike,
+	result: StreamedRunResult<AgentSdkContext, CampusAgent>,
 	signal: AbortSignal | undefined,
 ): void {
 	if (result.error !== undefined && result.error !== null) {
@@ -187,22 +121,19 @@ function throwIfStreamRunDidNotComplete(
 
 function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 	const context: AgentSdkContext = {
-		requestId: input.requestId,
 		toolBudget: {
 			limit: input.limits.maxToolCalls,
 			reserved: 0,
-			usedToolNames: new Set(),
 		},
+		toolResults: new Map(),
 	};
-	const sdkTools = input.tools.map((runtimeTool) => sdkTool(runtimeTool));
-	const agent = Agent.create({
+	const agent = new Agent<AgentSdkContext>({
 		name: "Campus primary assistant",
 		instructions: input.instructions,
 		...(model ? { model } : {}),
 		modelSettings: { maxTokens: input.limits.maxOutputTokens },
-		// Agent.create in SDK 0.13.0 hard-codes unknown context.
-		tools: sdkTools as unknown as Tool<unknown>[],
-	}) as Agent<AgentSdkContext, "text">;
+		tools: input.tools.map((runtimeTool) => sdkTool(runtimeTool)),
+	});
 	return { agent, context };
 }
 
@@ -212,313 +143,81 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 		description: runtimeTool.description,
 		parameters: runtimeTool.parameters ?? emptyParametersSchema,
 		strict: true,
-		isEnabled: ({ runContext }) =>
-			runContext.context.toolBudget.reserved < runContext.context.toolBudget.limit &&
-			!runContext.context.toolBudget.usedToolNames.has(runtimeTool.name),
+		errorFunction: null,
 		async execute(argumentsJson, runContext, details) {
-			const startedAt = performance.now();
-			const complete = (result: UntimedToolExecutionResult): ToolExecutionResult => ({
-				...result,
-				durationMs: Math.max(0.001, performance.now() - startedAt),
-			});
-			const parsedArguments = recordFromToolArguments(argumentsJson);
 			const context = runContext?.context;
-			if (context === undefined) {
-				throw new Error(`${runtimeTool.name} requires SDK run context`);
+			if (!context) {
+				throw new AgentRuntimeError(
+					"tool_execution_failed",
+					`${runtimeTool.name} requires SDK run context.`,
+				);
 			}
 			if (context.toolBudget.reserved >= context.toolBudget.limit) {
-				return complete(toolCallBudgetExhaustedResult(runtimeTool.name, parsedArguments, context));
+				throw new AgentRuntimeError(
+					"tool_execution_failed",
+					"The admitted tool call budget is exhausted.",
+				);
 			}
-			if (context.toolBudget.usedToolNames.has(runtimeTool.name)) {
-				return complete(toolCallAlreadyUsedResult(runtimeTool.name, parsedArguments, context));
+			const invocationId = details?.toolCall?.callId;
+			if (!invocationId) {
+				throw new AgentRuntimeError(
+					"tool_execution_failed",
+					`${runtimeTool.name} is missing its SDK call ID.`,
+				);
 			}
 			context.toolBudget.reserved += 1;
-			context.toolBudget.usedToolNames.add(runtimeTool.name);
-			const invocationId = details?.toolCall?.callId;
-			const result = await runtimeTool.execute(
-				parsedArguments,
-				invocationId ? { invocationId } : {},
-			);
-			return complete(result);
+			const startedAt = performance.now();
+			const parsedArguments = argumentsJson as Record<string, unknown>;
+			const result = await runtimeTool.execute(parsedArguments, { invocationId });
+			context.toolResults.set(invocationId, {
+				...result,
+				argumentsJson: parsedArguments,
+				durationMs: Math.max(0.001, performance.now() - startedAt),
+				toolName: runtimeTool.name,
+			});
+			return result;
 		},
 	});
 }
 
-function toolCallAlreadyUsedResult(
-	toolName: string,
-	argumentsJson: Record<string, unknown>,
-	context: AgentSdkContext,
-): UntimedToolExecutionResult {
+function agentRunnerResultFromSDKResult(
+	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
+) {
 	return {
-		status: "failed",
-		toolName,
-		payloadKind: toolName,
-		argumentsJson,
-		failCloseReason: "tool_call_already_used",
-		result: { error: "The admitted tool may be called at most once per run." },
-		resultRef: `agent-runtime://${context.requestId}/tools/${toolName}/already-used`,
+		finalOutput: result.finalOutput ?? "",
+		providerResponseId: result.lastResponseId?.trim() ?? "",
+		toolResults: toolResultsFromSDKResult(result),
+		usage: usageFromSDK(result.runContext.usage),
 	};
 }
 
-function toolCallBudgetExhaustedResult(
-	toolName: string,
-	argumentsJson: Record<string, unknown>,
-	context: AgentSdkContext,
-): UntimedToolExecutionResult {
+function toolResultsFromSDKResult(
+	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
+): ToolExecutionResult[] {
+	const tracked = result.runContext.context.toolResults;
+	const toolResults: ToolExecutionResult[] = [];
+	for (const item of result.newItems) {
+		if (item.type !== "tool_call_item" || item.rawItem.type !== "function_call") {
+			continue;
+		}
+		const toolResult = tracked.get(item.rawItem.callId);
+		if (!toolResult) {
+			throw new Error(`SDK tool call ${item.rawItem.callId} has no execution result`);
+		}
+		toolResults.push(toolResult);
+	}
+	return toolResults;
+}
+
+function usageFromSDK(usage: Usage) {
 	return {
-		status: "failed",
-		toolName,
-		payloadKind: toolName,
-		argumentsJson,
-		failCloseReason: "tool_call_budget_exhausted",
-		result: { error: "The admitted tool call budget is exhausted." },
-		resultRef: `agent-runtime://${context.requestId}/tools/${toolName}/budget-exhausted`,
+		modelRequestCount: usage.requests,
+		inputTokens: usage.inputTokens,
+		outputTokens: usage.outputTokens,
+		cachedInputTokens: usage.inputTokensDetails.reduce(
+			(sum, details) => sum + (details.cached_tokens ?? 0),
+			0,
+		),
+		usageObserved: usage.requests > 0,
 	};
-}
-
-function recordFromToolArguments(value: unknown): Record<string, unknown> {
-	const record = recordFromUnknown(value);
-	return record ?? {};
-}
-
-const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => {
-	const runner = new Runner({
-		...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-		workflowName: options.workflowName,
-		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
-	});
-	return runner.run(agent, input, {
-		context: options.context,
-		maxTurns: options.maxTurns,
-		...(options.signal ? { signal: options.signal } : {}),
-	}) as Promise<OpenAIAgentsRunResultLike>;
-};
-
-const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, options) => {
-	const runner = new Runner({
-		...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-		workflowName: options.workflowName,
-		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
-	});
-	return runner.run(agent, input, {
-		context: options.context,
-		maxTurns: options.maxTurns,
-		...(options.signal ? { signal: options.signal } : {}),
-		stream: true,
-	}) as unknown as Promise<OpenAIAgentsStreamRunResultLike>;
-};
-
-function agentRunnerResultFromSDKResult(result: OpenAIAgentsRunResultLike) {
-	const toolCalls = toolCallsFromItems(result.newItems ?? []);
-	return {
-		finalOutput: String(result.finalOutput ?? ""),
-		providerResponseId: providerResponseIDFromResult(result),
-		toolCalls,
-		usage: usageFromResult(result),
-	};
-}
-
-function providerResponseIDFromResult(result: OpenAIAgentsRunResultLike): string {
-	const responseID = result.lastResponseId ?? lastStringID(result.rawResponses ?? []);
-	return responseID?.trim() ?? "";
-}
-
-function usageFromResult(result: OpenAIAgentsRunResultLike) {
-	const usage =
-		result.usage ??
-		result.state?.usage ??
-		result.state?._context?.usage ??
-		result.state?.context?.usage;
-	if (usage === undefined) {
-		return {
-			modelRequestCount: 0,
-			inputTokens: 0,
-			outputTokens: 0,
-			cachedInputTokens: 0,
-			usageObserved: false,
-		};
-	}
-	return {
-		modelRequestCount: integerOrZero(usage.requests),
-		inputTokens: integerOrZero(usage.inputTokens),
-		outputTokens: integerOrZero(usage.outputTokens),
-		cachedInputTokens: cachedInputTokensFromUsage(usage),
-		usageObserved:
-			usage.requests !== undefined ||
-			usage.inputTokens !== undefined ||
-			usage.outputTokens !== undefined ||
-			usage.cachedInputTokens !== undefined ||
-			usage.inputTokensDetails !== undefined,
-	};
-}
-
-function cachedInputTokensFromUsage(usage: UsageLike): number {
-	if (usage.cachedInputTokens !== undefined) {
-		return integerOrZero(usage.cachedInputTokens);
-	}
-	const details = usage.inputTokensDetails;
-	if (Array.isArray(details)) {
-		return details.reduce((sum, entry) => sum + integerOrZero(entry.cached_tokens), 0);
-	}
-	return integerOrZero(details?.cached_tokens);
-}
-
-function toolCallsFromItems(items: unknown[]): RunnerToolCall[] {
-	const calls: RunnerToolCall[] = [];
-	const seenInvocationIDs = new Set<string>();
-	for (const rawItemValue of items) {
-		const item = recordFromUnknown(rawItemValue);
-		if (item?.type !== "tool_call_item") {
-			continue;
-		}
-		const rawItem = recordFromUnknown(item.rawItem);
-		const name = stringFromUnknown(rawItem?.name);
-		if (name === "") {
-			continue;
-		}
-		const callID = stringFromUnknown(rawItem?.callId);
-		if (callID === "") {
-			throw new Error(`SDK tool call ${name} is missing its invocation ID`);
-		}
-		if (seenInvocationIDs.has(callID)) {
-			throw new Error(`SDK tool invocation ${callID} is duplicated`);
-		}
-		seenInvocationIDs.add(callID);
-		const argumentsSummary = argumentsSummaryFromRawItem(rawItem);
-		const result = outputResultForCall(items, callID);
-		if (result === undefined) {
-			throw new Error(`SDK tool call ${name} has no exact result for invocation ${callID}`);
-		}
-		if (result.toolName !== name || result.payloadKind !== name) {
-			throw new Error(`SDK tool call ${name} result identity does not match invocation ${callID}`);
-		}
-		if (
-			result.argumentsJson === undefined ||
-			!isDeepStrictEqual(result.argumentsJson, argumentsSummary)
-		) {
-			throw new Error(`SDK tool call ${name} result arguments do not match invocation ${callID}`);
-		}
-		calls.push({
-			name,
-			argumentsSummary,
-			result,
-		});
-	}
-	return calls;
-}
-
-function outputResultForCall(items: unknown[], callID: string): ToolExecutionResult | undefined {
-	let matchedOutput: Record<string, unknown> | undefined;
-	for (const item of items) {
-		const candidate = recordFromUnknown(item);
-		if (candidate?.type !== "tool_call_output_item") {
-			continue;
-		}
-		const rawItem = recordFromUnknown(candidate.rawItem);
-		if (stringFromUnknown(rawItem?.callId) !== callID) {
-			continue;
-		}
-		if (matchedOutput !== undefined) {
-			throw new Error(`SDK tool invocation ${callID} has multiple result items`);
-		}
-		matchedOutput = candidate;
-	}
-	return matchedOutput === undefined ? undefined : toolResultFromOutput(matchedOutput);
-}
-
-function toolResultFromOutput(value: unknown): ToolExecutionResult | undefined {
-	const item = recordFromUnknown(value);
-	const rawItem = recordFromUnknown(item?.rawItem);
-	for (const output of [item?.output, rawItem?.output]) {
-		const result = toolResultFromValue(output);
-		if (result !== undefined) {
-			return result;
-		}
-	}
-	return;
-}
-
-function toolResultFromValue(output: unknown): ToolExecutionResult | undefined {
-	if (isToolExecutionResult(output)) {
-		return output;
-	}
-	if (typeof output === "string") {
-		try {
-			const parsed = JSON.parse(output);
-			return isToolExecutionResult(parsed) ? parsed : undefined;
-		} catch {
-			return;
-		}
-	}
-	const textOutput = recordFromUnknown(output);
-	if (typeof textOutput?.text !== "string") {
-		return;
-	}
-	try {
-		const parsed = JSON.parse(textOutput.text);
-		return isToolExecutionResult(parsed) ? parsed : undefined;
-	} catch {
-		return;
-	}
-}
-
-function argumentsSummaryFromRawItem(
-	rawItem: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-	const rawArguments = rawItem?.arguments;
-	if (recordFromUnknown(rawArguments) !== undefined) {
-		return rawArguments as Record<string, unknown>;
-	}
-	if (typeof rawArguments !== "string") {
-		return {};
-	}
-	try {
-		const parsed = JSON.parse(rawArguments);
-		return recordFromUnknown(parsed) ?? {};
-	} catch {
-		return {};
-	}
-}
-
-function isToolExecutionResult(value: unknown): value is ToolExecutionResult {
-	const candidate = recordFromUnknown(value);
-	return (
-		candidate !== undefined &&
-		(candidate.status === "completed" || candidate.status === "failed") &&
-		typeof candidate.durationMs === "number" &&
-		Number.isFinite(candidate.durationMs) &&
-		candidate.durationMs > 0 &&
-		stringFromUnknown(candidate.toolName) !== "" &&
-		stringFromUnknown(candidate.payloadKind) !== "" &&
-		(candidate.argumentsJson === undefined ||
-			recordFromUnknown(candidate.argumentsJson) !== undefined) &&
-		recordFromUnknown(candidate.result) !== undefined &&
-		stringFromUnknown(candidate.resultRef) !== "" &&
-		(candidate.status !== "failed" || stringFromUnknown(candidate.failCloseReason) !== "")
-	);
-}
-
-function lastStringID(values: unknown[]): string | undefined {
-	for (let index = values.length - 1; index >= 0; index--) {
-		const value = values[index];
-		const id = stringFromUnknown(recordFromUnknown(value)?.id);
-		if (id !== "") {
-			return id;
-		}
-	}
-	return;
-}
-
-function recordFromUnknown(value: unknown): Record<string, unknown> | undefined {
-	return value !== null && typeof value === "object" && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: undefined;
-}
-
-function stringFromUnknown(value: unknown): string {
-	return typeof value === "string" ? value.trim() : "";
-}
-
-function integerOrZero(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : 0;
 }

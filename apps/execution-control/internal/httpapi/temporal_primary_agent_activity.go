@@ -442,16 +442,9 @@ func (s *Server) projectPrimaryAgentToolResults(
 			return fmt.Errorf("agent runtime tool result tool_name is required")
 		}
 		projectionClass := projectionClassForToolName(toolName)
-		payloadKind := strings.TrimSpace(result.PayloadKind)
-		if payloadKind == "" {
-			return fmt.Errorf("agent runtime tool result payload_kind is required")
-		}
 		status := strings.TrimSpace(result.Status)
 		if status == "" {
 			return fmt.Errorf("agent runtime tool result status is required")
-		}
-		if err := validatePrimaryAgentSDKToolResult(toolName, payloadKind); err != nil {
-			return err
 		}
 		_, modelVisible := visible[toolName]
 		if !modelVisible {
@@ -462,106 +455,15 @@ func (s *Server) projectPrimaryAgentToolResults(
 		}
 		callIndex := index + 1
 		stepID := fmt.Sprintf("sdk_tool.execute.%s.%d", toolName, callIndex)
-		resultRef := primaryAgentSDKToolProjectionRef(run.RequestID, toolName, callIndex)
-		argumentMetadata, err := validateSDKToolArguments(toolName, result.ArgumentsJSON)
-		if err != nil {
-			validationFailure := summarizeTemporalFailure("tool_argument_invalid", "", err)
-			payload := map[string]any{
-				"argument_validation":      "Tool arguments did not match the admitted schema.",
-				"argument_validation_hash": validationFailure.Hash,
-				"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
-				"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
-				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
-				"fail_close_reason":        "schema_contract_drift",
-				"payload_kind":             payloadKind,
-				"result_sha256":            sha256AnyValue(result.Result),
-				"runtime_surface":          "openai_agents_sdk_tool",
-				"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
-				"tool_name":                toolName,
-				"tool_status":              status,
-			}
-			if err := s.projectTemporalStep(ctx, identity.apply(temporalStepProjection{
-				Attempt:         attempt,
-				ActivityAttempt: attempt,
-				PreserveAttempt: identity.PreserveAttempt,
-				Tool:            projectionClass,
-				Run:             run,
-				Status:          "failed",
-				StepID:          stepID,
-				StepKind:        "tool",
-				TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
-				WorkerID:        identity.WorkerID,
-				StartedAt:       startedAt,
-				CompletedAt:     completedAt,
-				DurationMS:      durationMS,
-				UpdatedAt:       completedAt,
-				ResultKind:      "activity_failure",
-				ProjectionRef:   resultRef,
-				FailCloseReason: "schema_contract_drift",
-				Payload:         payload,
-			})); err != nil {
-				return err
-			}
-			return fmt.Errorf("agent runtime tool %s arguments invalid fail_close_reason=schema_contract_drift: %w", toolName, err)
-		}
+		resultRef := primaryAgentToolProjectionRef(run.RequestID, toolName, callIndex)
 		resultPayload := cloneAnyMapFromMetadata(result.Result)
-		resultEnvelope, err := sdkToolResultEnvelopeForProjection(
-			toolName,
-			payloadKind,
-			status,
-			resultPayload,
-			resultRef,
-		)
-		if err != nil {
-			payload := map[string]any{
-				"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
-				"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
-				"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
-				"fail_close_reason":        "result_contract_drift",
-				"payload_kind":             payloadKind,
-				"result_sha256":            sha256AnyValue(resultPayload),
-				"runtime_surface":          "openai_agents_sdk_tool",
-				"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
-				"tool_name":                toolName,
-				"tool_status":              status,
-			}
-			if err := s.projectTemporalStep(ctx, identity.apply(temporalStepProjection{
-				Attempt:         attempt,
-				ActivityAttempt: attempt,
-				PreserveAttempt: identity.PreserveAttempt,
-				Tool:            projectionClass,
-				Run:             run,
-				Status:          "failed",
-				StepID:          stepID,
-				StepKind:        "tool",
-				TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
-				WorkerID:        identity.WorkerID,
-				StartedAt:       startedAt,
-				CompletedAt:     completedAt,
-				DurationMS:      durationMS,
-				UpdatedAt:       completedAt,
-				ResultKind:      "activity_failure",
-				ProjectionRef:   resultRef,
-				FailCloseReason: "result_contract_drift",
-				Payload:         payload,
-			})); err != nil {
-				return err
-			}
-			return fmt.Errorf("agent runtime tool %s result invalid fail_close_reason=result_contract_drift: %w", toolName, err)
-		}
-		_ = resultEnvelope
 		payload := map[string]any{
-			"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
-			"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
-			"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
-			"fail_close_reason":        strings.TrimSpace(result.FailCloseReason),
-			"outcome":                  boundedToolOutcome(resultPayload["outcome"]),
-			"payload_kind":             payloadKind,
-			"result_sha256":            sha256AnyValue(resultPayload),
-			"runtime_surface":          "openai_agents_sdk_tool",
-			"sdk_result_ref":           strings.TrimSpace(result.ResultRef),
-			"tool_name":                toolName,
-			"tool_status":              status,
+			"arguments_json_sha256": sha256JSONRef(result.ArgumentsJSON),
+			"fail_close_reason":     strings.TrimSpace(result.FailCloseReason),
+			"outcome":               boundedToolOutcome(resultPayload["outcome"]),
+			"result_sha256":         sha256AnyValue(resultPayload),
+			"tool_name":             toolName,
+			"tool_status":           status,
 		}
 		if toolName == campusSearchToolName && status == "completed" {
 			payload["result"] = cloneAnyMapFromMetadata(resultPayload)
@@ -574,7 +476,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 			PreserveAttempt: identity.PreserveAttempt,
 			Tool:            projectionClass,
 			Run:             run,
-			Status:          temporalSDKToolStepStatus(status),
+			Status:          toolStepStatus(status),
 			StepID:          stepID,
 			StepKind:        "tool",
 			TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
@@ -583,7 +485,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 			CompletedAt:     completedAt,
 			DurationMS:      durationMS,
 			UpdatedAt:       completedAt,
-			ResultKind:      temporalSDKToolResultKind(status),
+			ResultKind:      toolResultKind(status),
 			ProjectionRef:   resultRef,
 			FailCloseReason: strings.TrimSpace(result.FailCloseReason),
 			Payload:         payload,
@@ -675,70 +577,7 @@ func projectionClassForToolName(toolName string) string {
 	return "tool"
 }
 
-func validatePrimaryAgentSDKToolResult(toolName string, payloadKind string) error {
-	registry, ok := runtimepolicy.DefaultToolSpecRegistry()
-	if !ok {
-		return fmt.Errorf("tool registry is not available")
-	}
-	// Exposure controls whether a new run can offer the tool to the model. A
-	// completed result may be replayed after that exposure is closed, so result
-	// projection is bound to the registered read-only contract and the turn's
-	// frozen visible_tool_names instead.
-	tool, ok := registry.ToolByName(toolName)
-	if !ok || !tool.ReadOnly {
-		return fmt.Errorf("agent runtime tool %s is not admitted", toolName)
-	}
-	if tool.Name != payloadKind {
-		return fmt.Errorf("agent runtime tool %s drifted from admitted payload kind", toolName)
-	}
-	return nil
-}
-
-func sdkToolResultEnvelopeForProjection(
-	toolName string,
-	payloadKind string,
-	status string,
-	result map[string]any,
-	projectionRef string,
-) (map[string]any, error) {
-	toolName = strings.TrimSpace(toolName)
-	status = strings.TrimSpace(status)
-	if toolName == personalMemoryRecallToolName {
-		if status != "completed" {
-			return nil, nil
-		}
-		if err := validatePersonalMemoryRecallToolResult(result); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	}
-	if toolName == campusSearchToolName {
-		if status != "completed" {
-			return nil, nil
-		}
-		if _, _, err := decodeCampusSearchResult(result); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	}
-	return nil, fmt.Errorf("agent runtime tool %s has no result validator", toolName)
-}
-
-func validatePersonalMemoryRecallToolResult(result map[string]any) error {
-	if len(result) != 2 {
-		return fmt.Errorf("personal_memory_recall result must contain only outcome and memory_text")
-	}
-	outcome, outcomeOK := result["outcome"].(string)
-	if !outcomeOK || (outcome != "matched" && outcome != "no_match") {
-		return fmt.Errorf("personal_memory_recall result outcome is invalid")
-	}
-	if _, ok := result["memory_text"].(string); !ok {
-		return fmt.Errorf("personal_memory_recall result memory_text must be a string")
-	}
-	return nil
-}
-
-func temporalSDKToolStepStatus(status string) string {
+func toolStepStatus(status string) string {
 	switch strings.TrimSpace(status) {
 	case "completed":
 		return "completed"
@@ -747,7 +586,7 @@ func temporalSDKToolStepStatus(status string) string {
 	}
 }
 
-func temporalSDKToolResultKind(status string) string {
+func toolResultKind(status string) string {
 	switch strings.TrimSpace(status) {
 	case "completed":
 		return "typed_tool_result"

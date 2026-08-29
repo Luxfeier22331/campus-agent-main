@@ -184,12 +184,13 @@ func (s *Server) consumeAgentRuntimeStream(
 		}
 		stopFlushTimer()
 		persistedChunkIndex++
-		delta := agentRuntimeAnswerDelta{
-			SchemaVersion: "agent_runtime_answer_delta.v2",
-			ChunkIndex:    persistedChunkIndex,
-			Delta:         pendingDelta.String(),
-		}
-		if err := s.projectPrimaryAgentAnswerDelta(ctx, run, messageID, delta); err != nil {
+		if err := s.projectPrimaryAgentAnswerDelta(
+			ctx,
+			run,
+			messageID,
+			persistedChunkIndex,
+			pendingDelta.String(),
+		); err != nil {
 			return err
 		}
 		pendingDelta.Reset()
@@ -212,9 +213,8 @@ func (s *Server) consumeAgentRuntimeStream(
 			if err := state.validateDelta(delta); err != nil {
 				return err
 			}
-			state.recordDelta(delta)
 			pendingDelta.WriteString(delta.Delta)
-			if state.lastChunkIndex == 1 || pendingDelta.Len() >= deltaFlushBytes {
+			if persistedChunkIndex == 0 || pendingDelta.Len() >= deltaFlushBytes {
 				return flushPendingDelta()
 			}
 			if flushTimerC == nil {
@@ -285,8 +285,8 @@ func (s *Server) consumeAgentRuntimeStream(
 			if completed == nil {
 				return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("agent runtime stream completed without completed event")
 			}
-			if state.accumulatedText != "" {
-				if err := s.projectPrimaryAgentAnswerCompleted(ctx, run, messageID, state.accumulatedText); err != nil {
+			if persistedChunkIndex > 0 {
+				if err := s.projectPrimaryAgentAnswerCompleted(ctx, run, messageID); err != nil {
 					return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 				}
 			}
@@ -302,51 +302,22 @@ type agentRuntimeSSEEvent struct {
 
 type agentRuntimeAnswerDelta struct {
 	SchemaVersion string `json:"schema_version"`
-	ChunkIndex    int    `json:"chunk_index"`
 	Delta         string `json:"delta"`
 }
 
-// agentRuntimeStreamState tracks the cross-event invariants that cannot be
-// checked from one SSE frame in isolation.
+// agentRuntimeStreamState tracks the lifecycle of the upstream SSE stream.
 type agentRuntimeStreamState struct {
-	accumulatedText string
-	lastChunkIndex  int
-	terminalEvent   string
+	terminalEvent string
 }
 
 func (state agentRuntimeStreamState) validateDelta(delta agentRuntimeAnswerDelta) error {
-	if strings.TrimSpace(delta.SchemaVersion) != "agent_runtime_answer_delta.v2" {
+	if strings.TrimSpace(delta.SchemaVersion) != "agent_runtime_answer_delta.v3" {
 		return fmt.Errorf("agent runtime answer_delta schema_version drift")
 	}
 	if delta.Delta == "" {
 		return fmt.Errorf("agent runtime answer_delta delta is required")
 	}
-	if delta.ChunkIndex <= 0 {
-		return fmt.Errorf("agent runtime answer_delta chunk_index is required")
-	}
-	if state.lastChunkIndex == 0 {
-		if delta.ChunkIndex != 1 {
-			return fmt.Errorf(
-				"agent runtime answer_delta chunk_index = %d, want first chunk index 1",
-				delta.ChunkIndex,
-			)
-		}
-		return nil
-	}
-	wantChunkIndex := state.lastChunkIndex + 1
-	if delta.ChunkIndex != wantChunkIndex {
-		return fmt.Errorf(
-			"agent runtime answer_delta chunk_index = %d, want %d",
-			delta.ChunkIndex,
-			wantChunkIndex,
-		)
-	}
 	return nil
-}
-
-func (state *agentRuntimeStreamState) recordDelta(delta agentRuntimeAnswerDelta) {
-	state.lastChunkIndex = delta.ChunkIndex
-	state.accumulatedText += delta.Delta
 }
 
 func (state agentRuntimeStreamState) validateCompleted(
@@ -362,9 +333,6 @@ func (state agentRuntimeStreamState) validateCompleted(
 			strings.TrimSpace(response.RequestID),
 			strings.TrimSpace(run.RequestID),
 		)
-	}
-	if state.lastChunkIndex > 0 && response.FinalOutput != state.accumulatedText {
-		return fmt.Errorf("agent runtime completed final_output does not match answer_delta accumulated_text")
 	}
 	return nil
 }
@@ -430,20 +398,18 @@ func (s *Server) projectPrimaryAgentAnswerDelta(
 	ctx context.Context,
 	run execution.DurableRun,
 	messageID string,
-	delta agentRuntimeAnswerDelta,
+	chunkIndex int,
+	deltaText string,
 ) error {
-	if strings.TrimSpace(delta.SchemaVersion) != "agent_runtime_answer_delta.v2" {
-		return fmt.Errorf("agent runtime answer_delta schema_version drift")
+	if chunkIndex <= 0 {
+		return fmt.Errorf("run answer_delta chunk_index is required")
 	}
-	if delta.Delta == "" {
+	if deltaText == "" {
 		return fmt.Errorf("agent runtime answer_delta delta is required")
-	}
-	if delta.ChunkIndex <= 0 {
-		return fmt.Errorf("agent runtime answer_delta chunk_index is required")
 	}
 	now := time.Now().UTC()
 	deltaEvent := execution.DurableRunEvent{
-		EventID:              fmt.Sprintf("%s:answer-delta:%d", run.RequestID, delta.ChunkIndex),
+		EventID:              fmt.Sprintf("%s:answer-delta:%d", run.RequestID, chunkIndex),
 		RequestID:            run.RequestID,
 		ConversationID:       run.ConversationID,
 		EventType:            execution.DurableRunEventTypeRunAnswerDelta,
@@ -451,13 +417,13 @@ func (s *Server) projectPrimaryAgentAnswerDelta(
 		Visibility:           execution.DurableRunEventVisibilityBrowser,
 		PayloadSchemaVersion: "run-answer-event-v2",
 		Payload: map[string]any{
-			"chunk_index": delta.ChunkIndex,
-			"delta":       delta.Delta,
+			"chunk_index": chunkIndex,
+			"delta":       deltaText,
 			"message_id":  messageID,
 			"request_id":  run.RequestID,
 		},
 	}
-	if delta.ChunkIndex == 1 {
+	if chunkIndex == 1 {
 		_, err := s.runProjectionStore.StartRunAnswerStream(ctx, execution.RunAnswerStreamStartRequest{
 			RequestID: run.RequestID,
 			Now:       now,
@@ -494,11 +460,7 @@ func (s *Server) projectPrimaryAgentAnswerCompleted(
 	ctx context.Context,
 	run execution.DurableRun,
 	messageID string,
-	accumulatedText string,
 ) error {
-	if strings.TrimSpace(accumulatedText) == "" {
-		return fmt.Errorf("agent runtime answer_completed accumulated_text is required")
-	}
 	return s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RequestID + ":answer-completed",
 		RequestID:            run.RequestID,
@@ -508,9 +470,8 @@ func (s *Server) projectPrimaryAgentAnswerCompleted(
 		Visibility:           execution.DurableRunEventVisibilityBrowser,
 		PayloadSchemaVersion: "run-answer-event-v1",
 		Payload: map[string]any{
-			"accumulated_text": accumulatedText,
-			"message_id":       messageID,
-			"request_id":       run.RequestID,
+			"message_id": messageID,
+			"request_id": run.RequestID,
 		},
 	})
 }
@@ -600,9 +561,7 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 			ArgumentsJSON:   cloneAnyMapFromMetadata(result.ArgumentsJSON),
 			DurationMS:      result.DurationMS,
 			FailCloseReason: result.FailCloseReason,
-			PayloadKind:     result.PayloadKind,
 			Result:          result.Result,
-			ResultRef:       result.ResultRef,
 			Status:          result.Status,
 			ToolName:        result.ToolName,
 		})

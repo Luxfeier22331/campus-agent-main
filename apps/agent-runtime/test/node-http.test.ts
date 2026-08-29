@@ -116,7 +116,7 @@ describe("agent runtime node HTTP server", () => {
 								done: false as const,
 								value: {
 									event: "answer_delta" as const,
-									data: { accumulatedText: "A", chunkIndex: 1, delta: "A" },
+									data: { delta: "A" },
 								},
 							};
 						}

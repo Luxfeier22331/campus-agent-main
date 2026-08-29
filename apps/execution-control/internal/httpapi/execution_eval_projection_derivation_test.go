@@ -306,8 +306,6 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsPersonalMemoryToolCa
 			"arguments_json_sha256": "sha256:memory-query",
 			"outcome":               "matched",
 			"result_sha256":         "sha256:memory-result",
-			"runtime_surface":       "openai_agents_sdk_tool",
-			"sdk_result_ref":        "agent-runtime://run-temporal-memory-derived-eval/tools/personal_memory_recall/1",
 			"tool_name":             "personal_memory_recall",
 			"tool_status":           "completed",
 		},

@@ -46,41 +46,18 @@ func primaryAgentResultPayload(
 	output temporalruntime.ExecutePrimaryAgentActivityOutput,
 ) (map[string]any, error) {
 	toolResults := make([]map[string]any, 0, len(output.ToolResults))
-	for index, result := range output.ToolResults {
+	for _, result := range output.ToolResults {
 		durationMS, err := primaryAgentToolDurationMS(result.DurationMS)
 		if err != nil {
 			return nil, err
 		}
-		argumentMetadata, err := validateSDKToolArguments(result.ToolName, result.ArgumentsJSON)
-		if err != nil {
-			return nil, err
-		}
-		resultBody := cloneAnyMapFromMetadata(result.Result)
-		envelope, err := sdkToolResultEnvelopeForProjection(
-			result.ToolName,
-			result.PayloadKind,
-			result.Status,
-			resultBody,
-			primaryAgentSDKToolProjectionRef(input.run.RequestID, result.ToolName, index+1),
-		)
-		if err != nil {
-			return nil, err
-		}
-		if len(envelope) > 0 {
-			resultBody["result_envelope"] = envelope
-		}
 		toolResults = append(toolResults, map[string]any{
-			"arguments_json":           cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			"arguments_json_sha256":    argumentMetadata.ArgumentsJSONSHA256,
-			"arguments_schema_sha256":  argumentMetadata.ArgumentsSchemaSHA256,
-			"arguments_schema_version": argumentMetadata.ArgumentsSchemaVersion,
-			"duration_ms":              durationMS,
-			"fail_close_reason":        result.FailCloseReason,
-			"payload_kind":             result.PayloadKind,
-			"result":                   resultBody,
-			"result_ref":               result.ResultRef,
-			"status":                   result.Status,
-			"tool_name":                result.ToolName,
+			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
+			"duration_ms":       durationMS,
+			"fail_close_reason": result.FailCloseReason,
+			"result":            cloneAnyMapFromMetadata(result.Result),
+			"status":            result.Status,
+			"tool_name":         result.ToolName,
 		})
 	}
 	payload := map[string]any{
@@ -128,9 +105,7 @@ func primaryAgentFinalizationResultMap(
 			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
 			"duration_ms":       result.DurationMS,
 			"fail_close_reason": result.FailCloseReason,
-			"payload_kind":      result.PayloadKind,
 			"result":            cloneAnyMapFromMetadata(result.Result),
-			"result_ref":        result.ResultRef,
 			"status":            result.Status,
 			"tool_name":         result.ToolName,
 		})
@@ -201,11 +176,27 @@ func primaryAgentToolDurationMS(value float64) (int64, error) {
 	return int64(math.Ceil(value)), nil
 }
 
+func numericValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case float64:
+		return typed, true
+	case json.Number:
+		number, err := typed.Float64()
+		return number, err == nil
+	default:
+		return 0, false
+	}
+}
+
 func numericProjectionValue(value any) float64 {
 	numeric, _ := numericValue(value)
 	return numeric
 }
 
-func primaryAgentSDKToolProjectionRef(runID string, toolName string, callIndex int) string {
+func primaryAgentToolProjectionRef(runID string, toolName string, callIndex int) string {
 	return temporalProjectionRef(runID, fmt.Sprintf("sdk-tools/%s/%d", toolName, callIndex))
 }

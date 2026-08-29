@@ -108,9 +108,7 @@ func preparePrimaryAgentFinalizationRunForTest(
 			ArgumentsJSON:   cloneAnyMapFromMetadata(result["arguments_json"]),
 			DurationMS:      numericProjectionValue(result["duration_ms"]),
 			FailCloseReason: strings.TrimSpace(stringValue(result["fail_close_reason"])),
-			PayloadKind:     strings.TrimSpace(stringValue(result["payload_kind"])),
 			Result:          cloneAnyMapFromMetadata(result["result"]),
-			ResultRef:       strings.TrimSpace(stringValue(result["result_ref"])),
 			Status:          strings.TrimSpace(stringValue(result["status"])),
 			ToolName:        strings.TrimSpace(stringValue(result["tool_name"])),
 		})

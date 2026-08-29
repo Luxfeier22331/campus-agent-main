@@ -15,7 +15,6 @@ import type {
 	PromptTrace,
 	SdkToolRuntime,
 	ToolExecutionRequest,
-	ToolExecutionResult,
 	ToolExecutor,
 	UntimedToolExecutionResult,
 } from "./agent-run-contract.ts";
@@ -39,7 +38,6 @@ const defaultInstructions = [
 	"没有本轮证据支持所需机构事实时，直接说明当前资料无法支持答案；不要使用模型记忆补全。",
 	"campus_search 返回的 evidence 按顺序对应 [1] 到 [5]。使用其中的事实时，在相关陈述后写对应的 Markdown 引用标记 [n]；不要写 evidence_ref 或其他内部 locator。",
 	"不要编造用户输入、会话上下文或可用工具结果中不存在的事实。",
-	"不要在面向用户的回答中暴露内部执行细节。",
 	"只有用户意图确实不明确时，才提出一个简短的澄清问题。",
 ].join("\n");
 
@@ -145,10 +143,7 @@ function primaryAgentRunnerInput(
 					...(context?.searchOrdinal === undefined ? {} : { searchOrdinal: context.searchOrdinal }),
 					...(input.signal ? { signal: input.signal } : {}),
 				};
-				return executor(request).then((result) => ({
-					...result,
-					argumentsJson: result.argumentsJson ?? argumentsJson,
-				}));
+				return executor(request);
 			},
 		};
 	};
@@ -200,9 +195,7 @@ function primaryAgentRunResultFromRunnerResult(args: {
 	toolContractFingerprint: ToolContractFingerprint;
 }): PrimaryAgentRunResult {
 	const { contextUsage, input, promptTrace, result, timing, toolContractFingerprint } = args;
-	const toolResults = result.toolCalls
-		.map((call) => call.result)
-		.filter((value): value is ToolExecutionResult => value !== undefined);
+	const toolResults = result.toolResults;
 	if (result.finalOutput.trim() === "") {
 		return {
 			status: "failed",
@@ -388,17 +381,13 @@ function requireCatalogEntry(catalog: ToolCatalog, name: string): ToolCatalogEnt
 }
 
 async function defaultToolExecutor(
-	request: ToolExecutionRequest,
+	_request: ToolExecutionRequest,
 ): Promise<UntimedToolExecutionResult> {
 	return {
 		status: "failed",
-		toolName: request.tool.name,
-		payloadKind: request.tool.name,
-		argumentsJson: request.argumentsJson,
 		result: {
 			error: "tool executor is not configured",
 		},
-		resultRef: `agent-runtime://${request.requestId}/tools/${request.tool.name}/failed`,
 		failCloseReason: "tool_executor_not_configured",
 	};
 }

@@ -94,12 +94,19 @@ Finalization result 也不得在终态后补写。该例外不放宽其他 Activ
 ### Activity Result 与 Receipt
 
 Primary Agent 的有界结果经由 Temporal Activity result 传给 Finalization；普通 run、event、step、result
-投影只保存 ref、hash、用量和公开终态，不保存模型正文或工具原始载荷。当前在线 workflow 不产生
-知识检索 result；Campus Docs 的离线制品发布由独立 Job 负责，不进入本数据合同。
+投影只保存 ref、hash、用量和公开终态，不保存模型正文或工具原始载荷。当前在线 workflow 不产生独立的
+知识检索阶段或第二套 query result；`campus_search` 的有界返回值属于同一次 Agent result。Campus Docs
+的离线制品发布由独立 Job 负责，不进入本数据合同。
 
 个人记忆召回不单独建立外部调用 receipt。Primary Agent invocation receipt 绑定整个 SDK run 的精确
 请求摘要，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通 SDK tool 投影只保存
-工具身份、参数摘要、`outcome`、结果 hash/ref 和真实工具耗时，不保存 `memory_text`。
+工具身份、参数摘要、`outcome`、结果 hash、产品投影 ref 和真实工具耗时，不保存 `memory_text`。同一工具的重复调用
+按实际调用顺序分别投影。
+
+Agent Runtime 的流式 `answer_delta` 只携带临时展示用的 `delta` 和
+`agent_runtime_answer_delta.v3`；execution-control 在合并后为浏览器事件分配本地 `chunk_index`。
+`answer_completed` 只表示增量流已结束，不复制累积正文；`final_output` 是 Finalization 使用的 canonical
+答案正文。
 
 ## Agent Activity 投影
 

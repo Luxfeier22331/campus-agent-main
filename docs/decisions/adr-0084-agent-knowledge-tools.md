@@ -34,7 +34,7 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
   离线索引或当前绑定存在不表示在线 Agent 已经消费它；
 - 离线发布继续由 Chunk、Embedding 和 Publisher 三个显式阶段完成，阶段之间只传递内容寻址制品；
 - 个人记忆只支持用户自身事实或偏好，不能替代机构知识来源；
-- `campus_search` 与个人记忆工具每次 run 各最多调用一次，二者没有固定先后关系；不恢复 fallback、
+- 工具调用次数只受准入快照的总 `max_tool_calls` 限制，同一工具可以重复调用，二者没有固定先后关系；不恢复 fallback、
   Knowledge Agent、handoff 或第二次答案合成。
 
 ## 结果

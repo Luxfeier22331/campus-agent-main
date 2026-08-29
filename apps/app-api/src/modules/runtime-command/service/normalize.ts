@@ -38,16 +38,6 @@ export function previewText(text: string, maxLength = 160): string {
 	return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
 }
 
-const INTERNAL_LOCATOR_PATTERNS = [
-	/source-faithful/iu,
-	/\b(?:curriculum|handbook|official_web|student_rules|service_catalog|authenticated_notice|internal_notice|notice):/iu,
-	/\bchunk-[a-z0-9_-]+\b/iu,
-	/\[[^\]\n]*#[^\]\n]*\]/u,
-	/(?:release[_-]?id|projection(?:_id|_table)?|table_parser_state|debug[_-]?only)\s*[:=]/iu,
-	/\bingestion_projection\b/iu,
-	/\bs3:\/\//iu,
-];
-
 export function sanitizePublicAssistantText(input: {
 	status: ToolExecutionResponse["status"];
 	text: string;
@@ -61,14 +51,6 @@ export function sanitizePublicAssistantText(input: {
 		});
 	}
 
-	if (INTERNAL_LOCATOR_PATTERNS.some((pattern) => pattern.test(input.text))) {
-		throw new AppApiRouteError({
-			code: "execution_invalid_public_response",
-			message: "Execution public answer text leaked internal locator content.",
-			retryable: true,
-			status: 502,
-		});
-	}
 	return input.text;
 }
 

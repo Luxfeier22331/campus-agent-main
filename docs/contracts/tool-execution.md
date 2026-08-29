@@ -74,7 +74,8 @@ execution-control 根据当前能力状态生成本轮工具集合：
 - `visible_tool_names` 是名称唯一的集合，数组顺序没有路由语义；
 - 个人记忆不可用时，`max_model_turns=2`、`max_tool_calls=1`，只开放 `campus_search`；
 - 个人记忆可用时，`max_model_turns=3`、`max_tool_calls=2`，开放 `campus_search` 和
-  `personal_memory_recall`。工具预算独立于集合大小，不从数组顺序推导调用顺序。
+  `personal_memory_recall`。工具预算是本轮所有工具调用的总预算；同一工具可以重复调用，不从数组顺序
+  推导调用顺序。
 
 `personal_memory_recall_allowed` 是当前 v6 私有 wire 字段，表示由个人记忆生命周期和就绪状态派生、
 随本轮冻结的内部可用性，不表示用户同意状态或逐次读取授权。浏览器和用户文案不得暴露该字段、
@@ -95,6 +96,11 @@ Primary Agent 的固定角色是中央民族大学校园问答助手，未明确
 `campus_search` evidence 按返回顺序对应正文中的 Markdown 引用 `[1]` 到 `[5]`。Finalization 只从
 同一次 request 的成功工具结果中解析实际出现的引用并派生公开来源；失败工具、越界编号和未被正文引用的
 evidence 不贡献来源。
+
+Agents SDK 负责依据 `tool-function-schemas.v3.json` 验证模型生成的函数参数。Execution Control 只读取
+同一文件参与工具合同指纹，不再递归实现第二份 schema 校验；handler 仍负责身份、业务前置条件和结果合同。
+Agent Runtime 返回的每个 `tool_results` 项包含实际 `tool_name`、`arguments_json`、`status`、
+`duration_ms`、有界 `result` 和可选 `fail_close_reason`。
 
 ## 工具合同指纹
 

@@ -11,13 +11,9 @@ describe("chat payload boundary", () => {
 		expect(sanitizePublicAssistantText({ status: "completed", text })).toBe(text);
 	});
 
-	it("rejects internal locators instead of removing them", () => {
-		expect(() =>
-			sanitizePublicAssistantText({
-				status: "completed",
-				text: "回答 [student_rules:doc#chunk-001]",
-			}),
-		).toThrow(/leaked internal locator/i);
+	it("does not classify ordinary answer text as an internal locator", () => {
+		const text = "回答 ticket:ABC-123。";
+		expect(sanitizePublicAssistantText({ status: "completed", text })).toBe(text);
 	});
 
 	it("keeps public chat limited to conversation and prompt fields", () => {
