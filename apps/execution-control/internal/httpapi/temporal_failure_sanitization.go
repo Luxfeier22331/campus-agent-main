@@ -10,18 +10,13 @@ import (
 const defaultExecutionFailureMessage = "Execution failed before completion."
 
 type temporalFailureSummary struct {
-	Hash    string
 	Kind    string
 	Message string
 }
 
-func summarizeTemporalFailure(kind string, failureHash string, cause error) temporalFailureSummary {
+func summarizeTemporalFailure(kind string) temporalFailureSummary {
 	kind = boundedTemporalFailureKind(kind)
-	if !validTemporalFailureHash(failureHash) {
-		failureHash = memoryFailureHash(cause)
-	}
 	return temporalFailureSummary{
-		Hash:    failureHash,
 		Kind:    kind,
 		Message: temporalFailurePublicMessage(kind),
 	}
@@ -41,27 +36,14 @@ func boundedTemporalFailureKind(kind string) string {
 	return kind
 }
 
-func validTemporalFailureHash(value string) bool {
-	value = strings.TrimSpace(value)
-	if len(value) != 64 {
-		return false
-	}
-	for _, char := range value {
-		if (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
 func temporalFailurePublicMessage(kind string) string {
 	switch boundedTemporalFailureKind(kind) {
 	case "personal_memory_not_configured":
 		return "Personal memory could not be loaded for this request."
 	case "agent_runtime_timeout", "agent_deadline_exceeded":
 		return "The agent runtime did not complete before its deadline."
-	case "agent_runtime_failed", "model_setting_missing", "provider_unavailable":
+	case "agent_runtime_failed", "model_setting_missing", "provider_rate_limited", "provider_http_failed",
+		"provider_connection_failed", "provider_timeout", "provider_unavailable":
 		return "The answer provider is temporarily unavailable."
 	case "tool_execution_failed":
 		return "A runtime tool could not complete."
@@ -70,12 +52,19 @@ func temporalFailurePublicMessage(kind string) string {
 	}
 }
 
-func temporalFailurePayload(projection temporalStepFailureProjection, cause error) map[string]any {
-	summary := summarizeTemporalFailure(projection.FailureKind, projection.FailureHash, cause)
+func temporalFailurePayload(projection temporalStepFailureProjection) map[string]any {
+	summary := summarizeTemporalFailure(projection.FailureKind)
 	payload := cloneAnyMapFromMetadata(projection.Payload)
+	delete(payload, "failure_hash")
+	delete(payload, "failure_kind")
+	delete(payload, "fail_close_reason")
 	delete(payload, "message")
-	payload["failure_hash"] = summary.Hash
-	payload["failure_kind"] = summary.Kind
+	if _, ok := payload["failure"]; !ok {
+		payload["failure"] = map[string]any{
+			"code":      summary.Kind,
+			"operation": strings.TrimSpace(projection.StepID),
+		}
+	}
 	payload["message"] = summary.Message
 	return payload
 }
@@ -86,10 +75,9 @@ func temporalApplicationError(summary temporalFailureSummary, nonRetryable bool)
 			summary.Message,
 			summary.Kind,
 			nil,
-			summary.Hash,
 		)
 	}
-	return temporal.NewApplicationError(summary.Message, summary.Kind, summary.Hash)
+	return temporal.NewApplicationError(summary.Message, summary.Kind)
 }
 
 func sanitizedTemporalApplicationError(
@@ -97,7 +85,7 @@ func sanitizedTemporalApplicationError(
 	cause error,
 	nonRetryable bool,
 ) error {
-	return temporalApplicationError(summarizeTemporalFailure(kind, "", cause), nonRetryable)
+	return temporalApplicationError(summarizeTemporalFailure(kind), nonRetryable)
 }
 
 func fixedTemporalFailureError(kind string) error {

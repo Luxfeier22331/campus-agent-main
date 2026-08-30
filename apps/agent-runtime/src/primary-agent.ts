@@ -30,13 +30,14 @@ const defaultInstructions = [
 	"只使用本次运行提供的函数工具。",
 	"用户未明确指定机构时，所说的学校、本校和校园默认指中央民族大学。",
 	"工具定义描述其能够提供的事实范围；根据当前问题所需事实与工具范围选择工具，不要按具体机构、地点或实体名称建立固定路由特判。",
-	"机构名称本身既不强制也不禁止工具调用；只有工具声明的资料范围和本轮真实返回的证据能够支持事实回答。",
+	"机构名称本身既不强制也不禁止工具调用；只有工具声明的资料范围和本轮真实返回的结果能够支持事实回答。",
 	"personal_memory_recall 可用时，仅在当前问题依赖已保存的用户个人事实或偏好时使用。个人记忆不是学校事实的依据。",
-	"将成功工具返回的证据视为该次调用完整且有界的上下文；不要要求更大的 top-k，也不要提及未返回的候选。",
-	"回答机构事实时，只使用本轮成功工具结果中的证据。一个工具失败时不得使用其结果；如果其他成功工具的证据足以支持答案，可以继续回答。",
-	"证据只支持问题的一部分时，只回答有证据的部分并清楚说明资料边界；不要补全、推断或伪造未获支持的部分。",
-	"没有本轮证据支持所需机构事实时，直接说明当前资料无法支持答案；不要使用模型记忆补全。",
-	"campus_search 返回的 evidence 按顺序对应 [1] 到 [5]。使用其中的事实时，在相关陈述后写对应的 Markdown 引用标记 [n]；不要写 evidence_ref 或其他内部 locator。",
+	"成功工具返回的 results 是供你判断的候选，不要求全部采用，也不要提及未返回的候选。",
+	"回答机构事实时，只采用直接支持当前问题、主体、适用人群和办理程序的候选；同一文档或相邻章节不表示规则可以混用。",
+	"一个工具失败时不得使用其结果；其他成功结果足以支持答案时，可以继续回答。",
+	"结果只支持问题的一部分时，只回答有依据的部分并清楚说明资料边界；不要把问题未要求的相邻规则作为补充，也不要推断或伪造未获支持的内容。",
+	"没有本轮结果支持所需机构事实时，直接说明当前资料无法支持答案；不要使用模型记忆补全。",
+	"campus_search 的每条 result 都带有本次运行全局唯一的 citation_index。只在实际采用该结果时，在相关陈述后写对应的 Markdown 引用 [n]；多次检索也使用结果给出的编号，不要写 result_ref 或其他内部 locator。",
 	"不要编造用户输入、会话上下文或可用工具结果中不存在的事实。",
 	"只有用户意图确实不明确时，才提出一个简短的澄清问题。",
 ].join("\n");
@@ -140,7 +141,9 @@ function primaryAgentRunnerInput(
 					argumentsJson,
 					requestId: input.requestId,
 					...(context?.invocationId ? { invocationId: context.invocationId } : {}),
-					...(context?.searchOrdinal === undefined ? {} : { searchOrdinal: context.searchOrdinal }),
+					...(context?.citationStart === undefined ? {} : { citationStart: context.citationStart }),
+					...(context?.resultLimit === undefined ? {} : { resultLimit: context.resultLimit }),
+					...(toolName === "campus_search" ? { userGoal: input.input } : {}),
 					...(input.signal ? { signal: input.signal } : {}),
 				};
 				return executor(request);
@@ -388,6 +391,11 @@ async function defaultToolExecutor(
 		result: {
 			error: "tool executor is not configured",
 		},
-		failCloseReason: "tool_executor_not_configured",
+		failure: {
+			code: "tool_executor_not_configured",
+			operation: "agent.tool",
+			detail: "tool executor is not configured",
+			...(_request.invocationId ? { invocationId: _request.invocationId } : {}),
+		},
 	};
 }

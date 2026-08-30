@@ -404,7 +404,7 @@ func createReconcilerStartIntentForTest(t *testing.T) (*execution.InMemoryRunPro
 			Surface: "campus-web", TaskQueue: temporalruntime.WorkflowTaskQueue,
 			Status: execution.DurableRunStatusCreated, CreatedAt: now, UpdatedAt: now,
 			Metadata: map[string]any{
-				"execution_contract_version": "tool_execution_v6",
+				"execution_contract_version": "tool_execution_v7",
 				"execution_input_ref":        "app-api://execution-inputs/" + runID,
 				"execution_input_sha256":     payloadHash,
 			},

@@ -668,6 +668,60 @@ describe("OpsWebApp", () => {
 		}
 	});
 
+	it("refreshes finished details for a later execution-stage failure", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const originalFetch = globalThis.fetch;
+		let detailCalls = 0;
+		const laterFailureDetail = {
+			...opsRequestDetailFixture,
+			execution: {
+				...opsRequestDetailFixture.execution,
+				failure: {
+					code: "hindsight_append_failed",
+					detail: null,
+					httpStatus: null,
+					invocationId: null,
+					operation: "memory.append",
+				},
+				stages: [
+					...opsRequestDetailFixture.execution.stages,
+					{
+						completedAt: "2026-07-09T06:29:10.000Z",
+						durationMs: 500,
+						failureKind: "hindsight_append_failed",
+						kind: "memory",
+						startedAt: "2026-07-09T06:29:09.500Z",
+						status: "failed",
+					},
+				],
+			},
+		};
+		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url =
+				typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
+			if (url.includes("/api/ops/requests/req_ops_001") && !url.includes("/sentry-issues")) {
+				detailCalls += 1;
+				return Response.json(detailCalls === 1 ? opsRequestDetailFixture : laterFailureDetail);
+			}
+			return originalFetch(input, init);
+		}) as typeof fetch;
+
+		try {
+			render(<OpsWebApp initialPath="/requests/req_ops_001" />);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
+			expect(screen.queryByText("hindsight_append_failed")).not.toBeInTheDocument();
+
+			await vi.advanceTimersByTimeAsync(30_000);
+			await waitFor(() => expect(detailCalls).toBeGreaterThan(1));
+			expect(await screen.findByText("hindsight_append_failed")).toBeInTheDocument();
+			expect(screen.getByTestId("request-result")).toHaveTextContent("缓考申请需要在规定期限内");
+			expect(screen.getByTestId("request-execution")).toHaveTextContent("memory");
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	it("does not keep the retired runtime route", async () => {
 		render(<OpsWebApp initialPath="/runtime" />);
 

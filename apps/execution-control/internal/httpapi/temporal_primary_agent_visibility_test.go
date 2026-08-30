@@ -115,7 +115,7 @@ func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testin
 		t.Fatalf("visible_tool_names = %#v, want campus search and personal memory recall", seenBody["visible_tool_names"])
 	}
 	limits := cloneAnyMapFromMetadata(seenBody["limits"])
-	if limits["max_turns"] != float64(3) || limits["max_tool_calls"] != float64(2) {
+	if limits["max_turns"] != float64(4) || limits["max_tool_calls"] != float64(3) {
 		t.Fatalf("limits = %#v, want bounded personal memory strategy", limits)
 	}
 	targets, _ := seenBody["document_scopes"].([]any)

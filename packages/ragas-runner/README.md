@@ -2,9 +2,11 @@
 
 调用 Ragas 官方指标的 Python 批量评分适配器，也是 workspace 中唯一的 Python package。
 
-RAG runner 接收 `ragas_sample_batch.v2`，调用 Ragas 后输出 `ragas_score_batch.v2`。样本只包含
-Ragas 所需的用户问题、答案、检索文本、可选 reference 和标量 metadata；空
-`retrieved_contexts` 也会被评分。Agent runner 使用独立的 `ragas_agent_sample_batch.v2` 合同，
+RAG runner 接收 `ragas_sample_batch.v3`，调用 Ragas 后输出 `ragas_score_batch.v3`。样本只包含
+Ragas 所需的用户问题、答案、全部检索候选 `retrieved_contexts`、答案实际引用的
+`cited_contexts`、可选 reference 和标量 metadata；空上下文也会被评分。Faithfulness 使用
+`cited_contexts`，检索 precision/recall 使用 `retrieved_contexts`。Agent runner 使用独立的
+`ragas_agent_sample_batch.v2` 合同，
 仅服务工具轨迹指标。
 
 runner 不连接 Langfuse、不选择数据集、不从 trace 读取正文、不发布 score，也不参与在线回答。平台

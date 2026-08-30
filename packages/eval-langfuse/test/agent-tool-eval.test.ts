@@ -22,6 +22,8 @@ function jsonResponse(payload: unknown): Response {
 function runStepsResponse(input: {
 	answer: string;
 	requestId: string;
+	citedContextIds?: string[];
+	citedContexts?: string[];
 	retrievedContextIds?: string[];
 	retrievedContexts?: string[];
 }): Response {
@@ -33,10 +35,12 @@ function runStepsResponse(input: {
 	return jsonResponse({
 		agent_runtime_eval_projection: {
 			answer: input.answer,
+			cited_context_ids: input.citedContextIds ?? [],
+			cited_contexts: input.citedContexts ?? [],
 			request_id: input.requestId,
 			retrieved_context_ids: input.retrievedContextIds ?? [],
 			retrieved_contexts: input.retrievedContexts ?? [],
-			schema_version: "agent_runtime_eval_projection.v4",
+			schema_version: "agent_runtime_eval_projection.v5",
 			tool_trajectory: trajectory,
 		},
 	});
@@ -202,7 +206,7 @@ describe("agent product eval runner", () => {
 				retrievedContexts: [],
 				toolTrajectory: { decision_kind: "direct_answer", tool_calls: [] },
 			});
-			expect(readFileSync(outputPath, "utf-8")).toContain("agent_product_eval_result.v2");
+			expect(readFileSync(outputPath, "utf-8")).toContain("agent_product_eval_result.v3");
 		} finally {
 			rmSync(directory, { force: true, recursive: true });
 		}

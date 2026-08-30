@@ -227,8 +227,8 @@ describe("chat command durable runtime cutover", () => {
 			"user_goal",
 		]);
 		expect(executionPayload).toMatchObject({
-			execution_contract_version: "tool_execution_v6",
-			response_contract: "execution_finalization_response_v7",
+			execution_contract_version: "tool_execution_v7",
+			response_contract: "execution_finalization_response_v8",
 			tenant_id: "tenant-main",
 			user_goal: "示例大学本科学生国家奖学金评审办法",
 		});
@@ -239,7 +239,7 @@ describe("chat command durable runtime cutover", () => {
 			expect.objectContaining({
 				conversationId: "conv_01HQ",
 				metadata: expect.objectContaining({
-					execution_contract_version: "tool_execution_v6",
+					execution_contract_version: "tool_execution_v7",
 					execution_input_ref: "app-api://execution-inputs/req_0001",
 					execution_input_sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
 				}),

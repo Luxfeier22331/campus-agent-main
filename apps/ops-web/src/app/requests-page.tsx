@@ -443,6 +443,7 @@ function RequestAttentionReason({ request }: { request: OpsRequestSummary }) {
 		return null;
 	}
 	const labels = {
+		EXECUTION_STAGE_FAILED: "执行阶段失败",
 		REQUEST_FAILED: "产品请求失败",
 		RESULT_MISSING: "会话结果缺失",
 		WAITING_USER: "等待用户补充信息",

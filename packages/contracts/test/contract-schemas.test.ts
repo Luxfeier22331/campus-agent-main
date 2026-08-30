@@ -42,7 +42,7 @@ describe("contract schema registry", () => {
 				.map((path) => readJson(path).$id)
 				.filter((id): id is string => typeof id === "string"),
 		);
-		const tools = readJson("configs/runtime/tools.v6.json").tools as Record<string, unknown>[];
+		const tools = readJson("configs/runtime/tools.v7.json").tools as Record<string, unknown>[];
 
 		for (const tool of tools) {
 			for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
@@ -60,8 +60,8 @@ describe("contract schema registry", () => {
 	});
 
 	it("keeps registered tool artifacts aligned with current exposure", () => {
-		const tools = readJson("configs/runtime/tools.v6.json").tools as Record<string, unknown>[];
-		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v3.json")
+		const tools = readJson("configs/runtime/tools.v7.json").tools as Record<string, unknown>[];
+		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v4.json")
 			.tools as Record<string, unknown>[];
 		const toolIds = readToolContractEnum("ToolID");
 		const modelVisibleToolNames = readToolContractEnum("ModelVisibleToolName");
@@ -78,5 +78,34 @@ describe("contract schema registry", () => {
 		expect(modelVisibleNames).toEqual(["campus_search", "personal_memory_recall"]);
 		expect(modelVisibleToolNames.sort()).toEqual(modelVisibleNames);
 		expect(functionSchemaNames).toEqual(catalogNames);
+	});
+
+	it("defines campus search candidates and run-scoped citation indexes", () => {
+		const schema = readJson(
+			"packages/contracts/schemas/campus-search-tool-contracts.v2.schema.json",
+		);
+		const definitions = schema.$defs as Record<string, Record<string, unknown>>;
+		const payload = definitions.CampusSearchPayload;
+		const result = definitions.CampusSearchResult;
+		const item = definitions.CampusSearchResultItem;
+		const payloadProperties = payload?.properties as Record<string, Record<string, unknown>>;
+		const resultProperties = result?.properties as Record<string, Record<string, unknown>>;
+		const itemProperties = item?.properties as Record<string, Record<string, unknown>>;
+
+		expect(payload?.required).toEqual(["search_query"]);
+		expect(Object.keys(payloadProperties)).toEqual(["search_query"]);
+		expect(result?.required).toEqual(["outcome", "results"]);
+		expect(resultProperties.results).toMatchObject({ maxItems: 5 });
+		expect(item?.required).toEqual(expect.arrayContaining(["citation_index", "result_ref"]));
+		expect(itemProperties.citation_index).toEqual({
+			type: "integer",
+			minimum: 1,
+			maximum: 10,
+		});
+		expect(itemProperties.result_ref).toEqual({
+			type: "string",
+			pattern: "^result://[a-f0-9]{64}$",
+		});
+		expect(itemProperties).not.toHaveProperty("evidence_ref");
 	});
 });

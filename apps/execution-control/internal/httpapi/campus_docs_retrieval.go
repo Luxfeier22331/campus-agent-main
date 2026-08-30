@@ -13,35 +13,38 @@ import (
 )
 
 const (
-	campusDocsCandidateLimit     = 24
-	campusDocsEvidenceCharBudget = 4000
+	campusDocsCandidateLimit      = 24
+	campusDocsEvidenceCharBudget  = 4000
+	primaryAgentSearchResultLimit = 5
 )
 
 type campusDocsCandidate struct {
 	dedupKey string
-	evidence campusSearchEvidence
+	result   campusSearchResultItem
 }
 
-type campusSearchEvidence struct {
-	EvidenceRef  string
-	SourceKind   string
-	DocumentID   string
-	Title        string
-	SectionRef   string
-	SectionTitle string
-	RootUnitIDs  []string
-	VersionID    string
-	VersionLabel string
-	VersionSlug  string
-	Text         string
+type campusSearchResultItem struct {
+	CitationIndex int
+	ResultRef     string
+	SourceKind    string
+	DocumentID    string
+	Title         string
+	SectionRef    string
+	SectionTitle  string
+	RootUnitIDs   []string
+	VersionID     string
+	VersionLabel  string
+	VersionSlug   string
+	Text          string
 }
 
-func retrieveCampusDocsEvidence(
+func retrieveCampusDocsResults(
 	ctx context.Context,
 	client campusDocsQdrantClient,
 	index campusdocs.Index,
 	query string,
-) ([]campusSearchEvidence, error) {
+	resultLimit int,
+) ([]campusSearchResultItem, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, errors.New("campus docs query is required")
@@ -83,7 +86,7 @@ func retrieveCampusDocsEvidence(
 		return nil, errors.New("campus docs Qdrant response exceeds the candidate limit")
 	}
 	if len(candidates) == 0 {
-		return []campusSearchEvidence{}, nil
+		return []campusSearchResultItem{}, nil
 	}
 	rerankerConfig, err := client.resolveRerankerProviderConfig(ctx)
 	if err != nil {
@@ -94,20 +97,20 @@ func retrieveCampusDocsEvidence(
 		return nil, err
 	}
 
-	evidence := make([]campusSearchEvidence, 0, primaryAgentEvidenceLimit)
+	results := make([]campusSearchResultItem, 0, resultLimit)
 	characterCount := 0
 	for _, candidate := range rankedCandidates {
-		if len(evidence) >= primaryAgentEvidenceLimit {
+		if len(results) >= resultLimit {
 			break
 		}
-		textLength := utf8.RuneCountInString(candidate.evidence.Text)
+		textLength := utf8.RuneCountInString(candidate.result.Text)
 		if characterCount+textLength > campusDocsEvidenceCharBudget {
 			continue
 		}
-		evidence = append(evidence, candidate.evidence)
+		results = append(results, candidate.result)
 		characterCount += textLength
 	}
-	return evidence, nil
+	return results, nil
 }
 
 func campusDocsCandidateFromQdrantPoint(
@@ -163,8 +166,8 @@ func campusDocsCandidateFromQdrantPoint(
 	dedupKey := strings.Join([]string{index.Collection, required["chunk_id"], required["text_sha256"]}, "\x00")
 	return campusDocsCandidate{
 		dedupKey: dedupKey,
-		evidence: campusSearchEvidence{
-			EvidenceRef:  "evidence://" + strings.TrimPrefix(sha256TextRef(dedupKey), "sha256:"),
+		result: campusSearchResultItem{
+			ResultRef:    "result://" + strings.TrimPrefix(sha256TextRef(dedupKey), "sha256:"),
 			SourceKind:   "document",
 			DocumentID:   required["document_id"],
 			Title:        required["document_title"],
@@ -225,44 +228,45 @@ func campusDocsRootUnitIDs(value any) ([]string, bool) {
 	return result, len(result) > 0
 }
 
-func campusSearchResult(evidence []campusSearchEvidence) map[string]any {
-	items := make([]map[string]any, 0, len(evidence))
-	for _, item := range evidence {
+func campusSearchResult(results []campusSearchResultItem, citationStart int) map[string]any {
+	items := make([]map[string]any, 0, len(results))
+	for offset, item := range results {
 		items = append(items, map[string]any{
-			"evidence_ref":  item.EvidenceRef,
-			"source_kind":   item.SourceKind,
-			"document_id":   item.DocumentID,
-			"title":         item.Title,
-			"section_ref":   item.SectionRef,
-			"section_title": item.SectionTitle,
-			"root_unit_ids": append([]string{}, item.RootUnitIDs...),
-			"version_id":    item.VersionID,
-			"version_label": item.VersionLabel,
-			"version_slug":  item.VersionSlug,
-			"text":          item.Text,
+			"citation_index": citationStart + offset,
+			"result_ref":     item.ResultRef,
+			"source_kind":    item.SourceKind,
+			"document_id":    item.DocumentID,
+			"title":          item.Title,
+			"section_ref":    item.SectionRef,
+			"section_title":  item.SectionTitle,
+			"root_unit_ids":  append([]string{}, item.RootUnitIDs...),
+			"version_id":     item.VersionID,
+			"version_label":  item.VersionLabel,
+			"version_slug":   item.VersionSlug,
+			"text":           item.Text,
 		})
 	}
 	outcome := "no_match"
 	if len(items) > 0 {
 		outcome = "matched"
 	}
-	return map[string]any{"outcome": outcome, "evidence": items}
+	return map[string]any{"outcome": outcome, "results": items}
 }
 
-func decodeCampusSearchResult(result map[string]any) (string, []campusSearchEvidence, error) {
+func decodeCampusSearchResult(result map[string]any) (string, []campusSearchResultItem, error) {
 	if len(result) != 2 {
-		return "", nil, errors.New("campus_search result must contain only outcome and evidence")
+		return "", nil, errors.New("campus_search result must contain only outcome and results")
 	}
 	outcome, ok := result["outcome"].(string)
 	if !ok || (outcome != "matched" && outcome != "no_match") {
 		return "", nil, errors.New("campus_search result outcome is invalid")
 	}
-	rawEvidence, ok := result["evidence"]
+	rawResults, ok := result["results"]
 	if !ok {
-		return "", nil, errors.New("campus_search result evidence is required")
+		return "", nil, errors.New("campus_search result results is required")
 	}
 	var values []any
-	switch typed := rawEvidence.(type) {
+	switch typed := rawResults.(type) {
 	case []any:
 		values = typed
 	case []map[string]any:
@@ -271,65 +275,72 @@ func decodeCampusSearchResult(result map[string]any) (string, []campusSearchEvid
 			values[index] = typed[index]
 		}
 	default:
-		return "", nil, errors.New("campus_search result evidence must be an array")
+		return "", nil, errors.New("campus_search result results must be an array")
 	}
-	if len(values) > primaryAgentEvidenceLimit || (outcome == "no_match" && len(values) != 0) || (outcome == "matched" && len(values) == 0) {
-		return "", nil, errors.New("campus_search result outcome and evidence do not agree")
+	if len(values) > primaryAgentSearchResultLimit || (outcome == "no_match" && len(values) != 0) || (outcome == "matched" && len(values) == 0) {
+		return "", nil, errors.New("campus_search result outcome and results do not agree")
 	}
-	evidence := make([]campusSearchEvidence, 0, len(values))
-	seen := map[string]struct{}{}
+	results := make([]campusSearchResultItem, 0, len(values))
+	seenRefs := map[string]struct{}{}
+	seenIndexes := map[int]struct{}{}
 	characterCount := 0
 	for index, value := range values {
 		item, ok := value.(map[string]any)
 		if !ok {
-			return "", nil, fmt.Errorf("campus_search evidence %d is invalid", index)
+			return "", nil, fmt.Errorf("campus_search result %d is invalid", index)
 		}
-		parsed, err := campusSearchEvidenceFromMap(item)
+		parsed, err := campusSearchResultItemFromMap(item)
 		if err != nil {
-			return "", nil, fmt.Errorf("campus_search evidence %d: %w", index, err)
+			return "", nil, fmt.Errorf("campus_search result %d: %w", index, err)
 		}
-		if _, duplicate := seen[parsed.EvidenceRef]; duplicate {
-			return "", nil, errors.New("campus_search evidence_ref is duplicated")
+		if _, duplicate := seenRefs[parsed.ResultRef]; duplicate {
+			return "", nil, errors.New("campus_search result_ref is duplicated within one call")
 		}
-		seen[parsed.EvidenceRef] = struct{}{}
+		if _, duplicate := seenIndexes[parsed.CitationIndex]; duplicate {
+			return "", nil, errors.New("campus_search citation_index is duplicated")
+		}
+		seenRefs[parsed.ResultRef] = struct{}{}
+		seenIndexes[parsed.CitationIndex] = struct{}{}
 		characterCount += utf8.RuneCountInString(parsed.Text)
-		evidence = append(evidence, parsed)
+		results = append(results, parsed)
 	}
 	if characterCount > campusDocsEvidenceCharBudget {
-		return "", nil, errors.New("campus_search evidence exceeds the character budget")
+		return "", nil, errors.New("campus_search results exceed the character budget")
 	}
-	return outcome, evidence, nil
+	return outcome, results, nil
 }
 
-func campusSearchEvidenceFromMap(value map[string]any) (campusSearchEvidence, error) {
-	if len(value) != 11 {
-		return campusSearchEvidence{}, errors.New("evidence contains unexpected fields")
+func campusSearchResultItemFromMap(value map[string]any) (campusSearchResultItem, error) {
+	if len(value) != 12 {
+		return campusSearchResultItem{}, errors.New("result contains unexpected fields")
 	}
-	item := campusSearchEvidence{
-		EvidenceRef:  strings.TrimSpace(stringValue(value["evidence_ref"])),
-		SourceKind:   strings.TrimSpace(stringValue(value["source_kind"])),
-		DocumentID:   strings.TrimSpace(stringValue(value["document_id"])),
-		Title:        strings.TrimSpace(stringValue(value["title"])),
-		SectionRef:   strings.TrimSpace(stringValue(value["section_ref"])),
-		SectionTitle: strings.TrimSpace(stringValue(value["section_title"])),
-		VersionID:    strings.TrimSpace(stringValue(value["version_id"])),
-		VersionLabel: strings.TrimSpace(stringValue(value["version_label"])),
-		VersionSlug:  strings.TrimSpace(stringValue(value["version_slug"])),
-		Text:         strings.TrimSpace(stringValue(value["text"])),
+	item := campusSearchResultItem{
+		CitationIndex: intFromAny(value["citation_index"]),
+		ResultRef:     strings.TrimSpace(stringValue(value["result_ref"])),
+		SourceKind:    strings.TrimSpace(stringValue(value["source_kind"])),
+		DocumentID:    strings.TrimSpace(stringValue(value["document_id"])),
+		Title:         strings.TrimSpace(stringValue(value["title"])),
+		SectionRef:    strings.TrimSpace(stringValue(value["section_ref"])),
+		SectionTitle:  strings.TrimSpace(stringValue(value["section_title"])),
+		VersionID:     strings.TrimSpace(stringValue(value["version_id"])),
+		VersionLabel:  strings.TrimSpace(stringValue(value["version_label"])),
+		VersionSlug:   strings.TrimSpace(stringValue(value["version_slug"])),
+		Text:          strings.TrimSpace(stringValue(value["text"])),
 	}
-	if !strings.HasPrefix(item.EvidenceRef, "evidence://") || !validSHA256Ref(strings.TrimPrefix(item.EvidenceRef, "evidence://")) ||
+	if item.CitationIndex < 1 || item.CitationIndex > 10 ||
+		!strings.HasPrefix(item.ResultRef, "result://") || !validSHA256Ref(strings.TrimPrefix(item.ResultRef, "result://")) ||
 		item.SourceKind != "document" || item.DocumentID == "" || item.Title == "" || item.SectionTitle == "" ||
 		item.VersionID == "" || item.VersionLabel == "" || item.VersionSlug == "" || item.Text == "" ||
 		!campusDocsVersionedSectionRef(item.SectionRef, item.VersionSlug) {
-		return campusSearchEvidence{}, errors.New("evidence fields are invalid")
+		return campusSearchResultItem{}, errors.New("result fields are invalid")
 	}
 	rootUnitIDs, ok := campusDocsRootUnitIDs(value["root_unit_ids"])
 	if !ok {
-		return campusSearchEvidence{}, errors.New("root_unit_ids is invalid")
+		return campusSearchResultItem{}, errors.New("root_unit_ids is invalid")
 	}
 	item.RootUnitIDs = rootUnitIDs
 	if utf8.RuneCountInString(item.Text) > campusDocsEvidenceCharBudget {
-		return campusSearchEvidence{}, errors.New("text is too long")
+		return campusSearchResultItem{}, errors.New("text is too long")
 	}
 	return item, nil
 }

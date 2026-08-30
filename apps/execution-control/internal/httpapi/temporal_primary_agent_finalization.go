@@ -651,7 +651,7 @@ func (s *Server) primaryAgentFinalizedResponse(
 	if !ok || strings.TrimSpace(answerText) == "" {
 		return nil, fmt.Errorf("agent final_output is required")
 	}
-	evidenceClosure, err := s.primaryAgentEvidenceClosureForFinalization(agentResult, answerText)
+	citationClosure, err := s.primaryAgentCitationClosureForFinalization(agentResult, answerText)
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +671,7 @@ func (s *Server) primaryAgentFinalizedResponse(
 		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	result := map[string]any{
-		"sources":         evidenceClosure.Sources,
+		"sources":         citationClosure.Sources,
 		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	modelUsage, err := primaryAgentModelUsage(agentResult)

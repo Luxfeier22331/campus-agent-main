@@ -303,7 +303,7 @@ func runStepProjectionResponse(step execution.RunStepProjection) map[string]any 
 		"completed_at":           formatOptionalTime(step.CompletedAt),
 		"updated_at":             formatOptionalTime(step.UpdatedAt),
 		"payload_schema_version": step.PayloadSchemaVersion,
-		"sanitized_payload":      sanitizeProjectionPayload(step.SanitizedPayload),
+		"sanitized_payload":      cloneAnyMapFromMetadata(step.SanitizedPayload),
 	}
 }
 
@@ -342,7 +342,7 @@ func stepAttemptProjectionResponse(attempt execution.StepAttemptProjection) map[
 		"terminal_reason":         attempt.TerminalReason,
 		"updated_at":              formatOptionalTime(attempt.UpdatedAt),
 		"payload_schema_version":  attempt.PayloadSchemaVersion,
-		"sanitized_payload":       sanitizeProjectionPayload(attempt.SanitizedPayload),
+		"sanitized_payload":       cloneAnyMapFromMetadata(attempt.SanitizedPayload),
 	}
 }
 
@@ -357,7 +357,7 @@ func stepResultProjectionResponse(result execution.StepResultProjection) map[str
 		"projection_ref":         result.ProjectionRef,
 		"created_at":             formatOptionalTime(result.CreatedAt),
 		"payload_schema_version": result.PayloadSchemaVersion,
-		"sanitized_payload":      sanitizeProjectionPayload(result.SanitizedPayload),
+		"sanitized_payload":      cloneAnyMapFromMetadata(result.SanitizedPayload),
 	}
 }
 
@@ -370,11 +370,13 @@ func buildAgentRuntimeEvalProjection(
 	results, _ = successfulPrimaryAgentActivityProjections(steps, results, attempts)
 	rag := projectedRAGForEval(results)
 	return map[string]any{
-		"schema_version":        "agent_runtime_eval_projection.v4",
+		"schema_version":        "agent_runtime_eval_projection.v5",
 		"request_id":            run.RequestID,
 		"answer":                rag["answer"],
 		"retrieved_context_ids": rag["retrieved_context_ids"],
 		"retrieved_contexts":    rag["retrieved_contexts"],
+		"cited_context_ids":     rag["cited_context_ids"],
+		"cited_contexts":        rag["cited_contexts"],
 		"tool_trajectory":       buildToolTrajectoryProjection(run, projectedEvalToolCalls(results)),
 	}
 }
@@ -482,16 +484,16 @@ func projectedEvalToolCalls(results []execution.StepResultProjection) []map[stri
 		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.") {
 			continue
 		}
-		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		payload := cloneAnyMapFromMetadata(result.SanitizedPayload)
 		toolName := firstNonEmptyText(payload["tool_name"], toolNameFromSDKStepID(result.StepID))
 		if toolName == "" {
 			continue
 		}
 		call := map[string]any{"tool_name": toolName}
 		if evalSafeArgs, ok := payload["eval_safe_args"].(map[string]any); ok && len(evalSafeArgs) > 0 {
-			call["eval_safe_args"] = sanitizeProjectionPayload(evalSafeArgs)
+			call["eval_safe_args"] = cloneAnyMapFromMetadata(evalSafeArgs)
 		}
-		calls = append(calls, sanitizeProjectionPayload(call))
+		calls = append(calls, call)
 	}
 	return calls
 }
@@ -502,55 +504,6 @@ func toolNameFromSDKStepID(stepID string) string {
 		return ""
 	}
 	return strings.TrimSpace(parts[2])
-}
-
-func sanitizeProjectionPayload(payload map[string]any) map[string]any {
-	if payload == nil {
-		return map[string]any{}
-	}
-	sanitized := map[string]any{}
-	for key, value := range payload {
-		if unsafeProjectionKey(key) {
-			continue
-		}
-		sanitized[key] = sanitizeProjectionValue(value)
-	}
-	return sanitized
-}
-
-func sanitizeProjectionValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		return sanitizeProjectionPayload(typed)
-	case []any:
-		items := make([]any, 0, len(typed))
-		for _, item := range typed {
-			items = append(items, sanitizeProjectionValue(item))
-		}
-		return items
-	case []map[string]any:
-		items := make([]map[string]any, 0, len(typed))
-		for _, item := range typed {
-			items = append(items, sanitizeProjectionPayload(item))
-		}
-		return items
-	default:
-		return value
-	}
-}
-
-func unsafeProjectionKey(key string) bool {
-	normalizedKey := strings.ToLower(strings.TrimSpace(key))
-	return normalizedKey == "memory_text" ||
-		strings.Contains(normalizedKey, "raw_prompt") ||
-		strings.Contains(normalizedKey, "raw_answer") ||
-		strings.Contains(normalizedKey, "raw_provider") ||
-		strings.Contains(normalizedKey, "raw_source") ||
-		strings.Contains(normalizedKey, "source_body") ||
-		strings.Contains(normalizedKey, "cookie") ||
-		strings.Contains(normalizedKey, "authorization") ||
-		strings.Contains(normalizedKey, "api_key") ||
-		strings.Contains(normalizedKey, "secret")
 }
 
 func requiredStringFromMap(payload map[string]any, key string) string {

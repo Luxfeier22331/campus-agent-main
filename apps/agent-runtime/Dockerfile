@@ -41,8 +41,8 @@ RUN apt-get update \
 
 COPY --from=dependencies --chown=node:node /app /app
 COPY --from=build --chown=node:node /app/apps/agent-runtime/dist ./apps/agent-runtime/dist
-COPY --chown=node:node configs/runtime/tools.v6.json ./configs/runtime/tools.v6.json
-COPY --chown=node:node configs/runtime/tool-function-schemas.v3.json ./configs/runtime/tool-function-schemas.v3.json
+COPY --chown=node:node configs/runtime/tools.v7.json ./configs/runtime/tools.v7.json
+COPY --chown=node:node configs/runtime/tool-function-schemas.v4.json ./configs/runtime/tool-function-schemas.v4.json
 
 USER node
 

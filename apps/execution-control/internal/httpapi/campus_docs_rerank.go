@@ -118,9 +118,9 @@ func (e campusDocsQdrantClient) rerankCampusDocsCandidates(
 
 func campusDocsRerankDocument(candidate campusDocsCandidate) string {
 	return strings.Join([]string{
-		strings.TrimSpace(candidate.evidence.Title),
-		strings.TrimSpace(candidate.evidence.SectionTitle),
-		strings.TrimSpace(candidate.evidence.Text),
+		strings.TrimSpace(candidate.result.Title),
+		strings.TrimSpace(candidate.result.SectionTitle),
+		strings.TrimSpace(candidate.result.Text),
 	}, "\n")
 }
 

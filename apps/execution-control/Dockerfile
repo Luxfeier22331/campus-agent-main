@@ -16,8 +16,8 @@ COPY apps/execution-control/go.mod apps/execution-control/go.sum ./
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod go mod download
 
 COPY apps/execution-control ./
-COPY configs/runtime/tool-function-schemas.v3.json /src/configs/runtime/tool-function-schemas.v3.json
-COPY configs/runtime/tools.v6.json /src/configs/runtime/tools.v6.json
+COPY configs/runtime/tool-function-schemas.v4.json /src/configs/runtime/tool-function-schemas.v4.json
+COPY configs/runtime/tools.v7.json /src/configs/runtime/tools.v7.json
 COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts/fixtures/tool_execution_contract
 
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod \
@@ -34,8 +34,8 @@ RUN apt-get update \
 
 COPY --from=build /out/execution-control /usr/local/bin/execution-control
 COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schema
-COPY configs/runtime/tool-function-schemas.v3.json /etc/campus-agent/tool-function-schemas.v3.json
-COPY configs/runtime/tools.v6.json /etc/campus-agent/tools.v6.json
+COPY configs/runtime/tool-function-schemas.v4.json /etc/campus-agent/tool-function-schemas.v4.json
+COPY configs/runtime/tools.v7.json /etc/campus-agent/tools.v7.json
 
 USER appuser
 EXPOSE 8000

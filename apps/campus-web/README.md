@@ -34,7 +34,7 @@ pnpm --dir apps/campus-web typecheck
 
 `style-dev.html` 是独立的本地组件展示入口。运行 `pnpm dev:init -- --target core` 后访问 `/style-dev.html#overview`，
 目录按组件族列出真实组件和真实组合组件；详情页一次只挂载当前示例。示例可以通过
-`/style-dev.html#style-dev-conversation-run-status/completed` 这样的 hash 直接打开，搜索只作用于本地目录。
+`/style-dev.html#style-dev-conversation-thread/messages` 这样的 hash 直接打开，搜索只作用于本地目录。
 
 当前目录覆盖基础与主题、表单与控件、浮层、问答、文档、地图、食堂和账号。展示页只提供最小真实容器、
 内存适配器和静态合同数据，不导入产品路由、领域 API 或提交函数，也不会进入 app 生产构建。

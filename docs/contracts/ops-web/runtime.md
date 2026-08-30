@@ -52,8 +52,9 @@ SQL 片段。
 筛选，并受当前 `view` 约束，用于展示同一查询范围内可切换的状态计数。
 
 - `recent` 按 `startedAt desc, requestId desc` 排序，展示全部符合筛选条件的运行；
-- `attention` 展示终态缺少会话结果、`FAILED` 和 `ACTION_REQUIRED`，依次按数据完整性异常、产品失败、
-  等待用户排序，再按 `startedAt desc, requestId desc` 排序。
+- `attention` 展示终态缺少会话结果、`FAILED`、执行阶段失败的请求和 `ACTION_REQUIRED`，依次按数据完整性异常、
+  产品失败或执行阶段失败、等待用户排序，再按 `startedAt desc, requestId desc` 排序。执行阶段失败不改写产品请求状态，
+  已写入回答的完成请求仍保留 `COMPLETED` 与 `WRITTEN`。
 
 两种视图使用 `v2` 游标；游标包含所属视图，不能跨视图复用。每条摘要只包含请求 ID、问题预览及
 截断事实、产品状态和生命周期、开始完成时间、一次总耗时、产品结果状态、当前执行阶段、失败类型和
@@ -66,7 +67,9 @@ SQL 片段。
 - `MISSING`：产品已进入终态，但没有满足 request、conversation 和 role 关联的助手消息。
 
 `executionStage` 是当前请求最近保存步骤的 `kind` 和 `status`，没有步骤时为 `null`；
-`failureKind` 是持久运行事实中的有界失败分类。列表查询不读取 attempt 诊断。
+`failureKind` 是列表使用的持久失败代码。执行阶段失败会让请求进入 `attention`，但不改写产品请求状态；
+因此回答已经写入时仍为 `COMPLETED` 与 `WRITTEN`，并以 `EXECUTION_STAGE_FAILED` 标记需要关注。列表查询不读取
+attempt 诊断。
 活动请求的展示耗时由服务端 `generatedAt - startedAt` 计算；终态使用产品完成时间计算的持久耗时。
 接口不伪造心跳或阶段开始时间。
 
@@ -83,7 +86,9 @@ source kind、target kind、version ID、locator 或 trace card。
 
 `execution` 返回：
 
-- `failure`：有界失败类型、Agent Runtime 错误代码和 HTTP 状态、fail-close 与终止原因；
+- `failure`：当前失败操作的结构化诊断事实，包括 `code`、`operation`、可选 `detail`、
+  `httpStatus` 和 `invocationId`。存在多个失败阶段时，按阶段 `updatedAt`、`startedAt`、`stepId` 的降序确定当前失败阶段；
+  `terminalReason` 与 `failCloseReason` 仍是运行状态字段，不作为根因重复展示；Sentry 只提供辅助错误记录，不影响基础失败事实返回；
 - `releases`：本次运行实际记录的 execution-control 与 agent-runtime release，二者只用于诊断；
 - `model`：模型与 provider、模型请求数及汇总 token；
 - `stages[]`：阶段类型、状态、起止时间、耗时和有界失败类型。

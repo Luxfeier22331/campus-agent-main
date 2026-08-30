@@ -232,7 +232,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		expect(readAssistantText()).toBe("请求失败。");
 	});
 
-	it("replays a submit that closes before acceptance with the same idempotency key", async () => {
+	it("reports a submit that closes before acceptance without replaying", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream
 			.mockImplementationOnce(() => streamEvents([]))
@@ -283,18 +283,14 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(2);
-			const firstInput = conversationApiMock.submitChatRequestStream.mock.calls[0]?.[0];
-			const replayInput = conversationApiMock.submitChatRequestStream.mock.calls[1]?.[0];
-			expect(firstInput?.idempotencyKey).toEqual(expect.any(String));
-			expect(replayInput?.idempotencyKey).toBe(firstInput?.idempotencyKey);
-			expect(readAssistantText()).toBe("重放后取得同一运行。");
+			expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(1);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("automatically resumes the accepted run when the submit stream ends before terminal", async () => {
+	it("keeps an accepted run active when the submit stream ends", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -350,19 +346,15 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledWith({
-				afterSequence: 7,
-				requestId: "req_resume",
-				signal: expect.any(AbortSignal),
-			});
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
-			expect(readAssistantText()).toBe("恢复后的终态。");
+			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("refreshes canonical messages when durable status is terminal beyond the stream cursor", async () => {
+	it("keeps streamed messages when the stream ends before terminal", async () => {
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
 				{
@@ -405,21 +397,14 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			});
 		});
 
-		expect(conversationApiMock.getRunStatus).toHaveBeenCalledWith({
-			requestId: "req_status_terminal",
-			signal: expect.any(AbortSignal),
-		});
-		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
-			"conv_created",
-			expect.any(AbortSignal),
-		);
-		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledOnce();
-		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
-		expect(hasMessageId("msg_status_draft")).toBe(false);
-		expect(readAssistantText()).toBe("规范回答");
+		expect(conversationApiMock.getRunStatus).not.toHaveBeenCalled();
+		expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+		expect(hasMessageId("msg_status_draft")).toBe(true);
+		expect(readAssistantText()).toBe("临时草稿");
 	});
 
-	it("stops a submit after three replays with the same idempotency key", async () => {
+	it("does not replay a submit that closes without acceptance", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() => streamEvents([]));
 
@@ -439,19 +424,14 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(4);
-			const idempotencyKeys = conversationApiMock.submitChatRequestStream.mock.calls.map(
-				([input]) => input.idempotencyKey,
-			);
-			expect(new Set(idempotencyKeys).size).toBe(1);
+			expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(1);
 			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
-			expect(readAssistantText()).toBe("回答连接已中断，请重试。");
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("ends loading after three recovery rounds make no stream or durable-status progress", async () => {
+	it("allows manual resume after the submit stream disconnects", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -499,14 +479,11 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(4);
-			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(3);
-			expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith(
-				"conv_created",
-				expect.any(AbortSignal),
-			);
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
-			expect(hasMessageId("msg_user")).toBe(true);
+			expect(conversationApiMock.getRunStatus).not.toHaveBeenCalled();
+			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
+			expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
 			expect(
 				assistantUiMock.externalStoreInput?.messages.some(
 					(message) =>
@@ -516,8 +493,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 						typeof message.id === "string" &&
 						message.id.startsWith("local-user-"),
 				),
-			).toBe(false);
-			expect(readAssistantText()).toBe("回答连接已中断，请重试。");
+			).toBe(true);
+			expect(readAssistantText()).toBe("");
 
 			conversationApiMock.resumeRunEventsStream.mockImplementationOnce(() =>
 				streamEvents([
@@ -547,7 +524,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		}
 	});
 
-	it("resets recovery failures after a successful durable status check", async () => {
+	it("keeps an accepted run active without automatic recovery", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -595,10 +572,11 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(6);
-			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(5);
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
-			expect(readAssistantText()).toBe("回答连接已中断，请重试。");
+			expect(conversationApiMock.getRunStatus).not.toHaveBeenCalled();
+			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
+			expect(readAssistantText()).toBe("");
 		} finally {
 			vi.useRealTimers();
 		}
@@ -678,7 +656,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		}
 	});
 
-	it("renders a structured manual resume failure without rejecting assistant-ui", async () => {
+	it("keeps the run active when manual resume fails", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -719,14 +697,15 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
-			expect(readAssistantText()).toBe("手动恢复失败。");
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
+			expect(readAssistantText()).toBe("");
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("keeps the accepted run visible when resume fails with a non-retryable stream error", async () => {
+	it("keeps the streamed draft when manual resume fails", async () => {
 		vi.useFakeTimers();
 		let markDeltaConsumed: () => void = () => {
 			throw new Error("delta consumption marker was not initialized");
@@ -786,24 +765,17 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			expect(readAssistantText()).toBe("不完整草稿");
 
 			await act(async () => {
-				await vi.advanceTimersByTimeAsync(250);
 				await submitPromise;
+				await assistantUiMock.externalStoreInput?.onResume?.();
 			});
 
-			expect(readMessageText("local-error-req_resume_failed")).toBe("恢复回答失败。");
+			expect(readMessageText("local-error-req_resume_failed")).toBe("");
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
 			expect(assistantUiMock.externalStoreInput?.messages).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
 						content: [{ text: "不完整草稿", type: "text" }],
-						metadata: {
-							custom: {
-								campusRequest: expect.objectContaining({
-									connection: "disconnected",
-									requestId: "req_resume_failed",
-								}),
-							},
-							isOptimistic: true,
-						},
 						role: "assistant",
 					}),
 				]),
@@ -834,7 +806,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(1);
 	});
 
-	it("does not retry a resume stream after authentication expires", async () => {
+	it("requires login when manual resume authentication expires", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
 			yield {
@@ -864,13 +836,14 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await Promise.resolve();
 			});
 			await act(async () => {
-				await vi.advanceTimersByTimeAsync(250);
 				await submitPromise;
+				await assistantUiMock.externalStoreInput?.onResume?.();
 			});
 
 			expect(onLoginRequired).toHaveBeenCalledTimes(1);
 			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(1);
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
 		} finally {
 			vi.useRealTimers();
 		}
@@ -968,14 +941,6 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: "msg_answer",
-					metadata: {
-						custom: expect.objectContaining({
-							campusRequest: expect.objectContaining({
-								requestId: "req_failed",
-								status: "failed",
-							}),
-						}),
-					},
 				}),
 			]),
 		);

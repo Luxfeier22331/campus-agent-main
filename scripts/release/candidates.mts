@@ -224,8 +224,8 @@ export async function planCandidates(
 		) ||
 		files.some((file) =>
 			[
-				"configs/runtime/tool-function-schemas.v3.json",
-				"configs/runtime/tools.v6.json",
+				"configs/runtime/tool-function-schemas.v4.json",
+				"configs/runtime/tools.v7.json",
 				"packages/contracts/fixtures/tool_execution_contract/",
 			].some((input) => file === input || file.startsWith(input)),
 		)

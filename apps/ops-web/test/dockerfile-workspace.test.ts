@@ -149,8 +149,8 @@ describe("ops-web Dockerfile workspace inputs", () => {
 	it("keeps the non-ingestion config allowlist explicit", () => {
 		const patterns = dockerignore.split("\n");
 		expect(patterns).toContain("configs/runtime/**");
-		expect(patterns).toContain("!configs/runtime/tools.v6.json");
-		expect(patterns).toContain("!configs/runtime/tool-function-schemas.v3.json");
+		expect(patterns).toContain("!configs/runtime/tools.v7.json");
+		expect(patterns).toContain("!configs/runtime/tool-function-schemas.v4.json");
 		expect(patterns).toContain("!configs/runtime/latency-budgets.v1.json");
 		expect(patterns).toContain("configs/sources/**");
 		expect(patterns).toContain("!configs/sources/internal-portal.json");

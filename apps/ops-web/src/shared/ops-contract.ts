@@ -332,9 +332,9 @@ const OpsRequestLifecyclePhaseSchema = z.enum([
 ]);
 const OpsAssistantMessageKindSchema = z.enum(["answer", "error"]);
 export const CitationIndexesSchema = z
-	.array(z.number().int().min(1).max(5))
+	.array(z.number().int().min(1).max(10))
 	.min(1)
-	.max(5)
+	.max(10)
 	.refine((values) => new Set(values).size === values.length, "citation indexes must be unique");
 const OpsRequestResultSummarySchema = z.discriminatedUnion("state", [
 	z.object({ kind: z.null(), state: z.literal("PENDING") }),
@@ -343,7 +343,9 @@ const OpsRequestResultSummarySchema = z.discriminatedUnion("state", [
 ]);
 
 export const OpsRequestSummarySchema = z.object({
-	attentionReason: z.enum(["RESULT_MISSING", "REQUEST_FAILED", "WAITING_USER"]).nullable(),
+	attentionReason: z
+		.enum(["RESULT_MISSING", "REQUEST_FAILED", "EXECUTION_STAGE_FAILED", "WAITING_USER"])
+		.nullable(),
 	completedAt: IsoDateTimeSchema.nullable(),
 	durationMs: z.number().int().nonnegative().nullable(),
 	executionStage: z
@@ -406,18 +408,18 @@ const OpsProductResultSchema = z.discriminatedUnion("state", [
 	z.object({ reasonCode: z.literal("ASSISTANT_MESSAGE_MISSING"), state: z.literal("MISSING") }),
 	z.object({
 		kind: OpsAssistantMessageKindSchema,
-		sources: z.array(OpsProductSourceSchema).max(5),
+		sources: z.array(OpsProductSourceSchema).max(10),
 		state: z.literal("WRITTEN"),
 		text: z.string(),
 	}),
 ]);
 
 const OpsExecutionFailureSchema = z.object({
-	agentRuntimeHttpStatus: z.number().int().min(100).max(599).nullable(),
-	failCloseReason: z.string().min(1).nullable(),
-	kind: z.string().min(1).nullable(),
-	runtimeErrorCode: z.string().min(1).nullable(),
-	terminalReason: z.string().min(1).nullable(),
+	code: z.string().min(1).nullable(),
+	detail: z.string().min(1).nullable(),
+	httpStatus: z.number().int().min(100).max(599).nullable(),
+	invocationId: z.string().min(1).nullable(),
+	operation: z.string().min(1).nullable(),
 });
 
 const OpsExecutionStageSchema = z.object({

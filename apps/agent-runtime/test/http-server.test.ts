@@ -25,7 +25,7 @@ const transportResultSchemaRef = schemaRef(
 );
 
 const catalog: ToolCatalog = {
-	schemaVersion: "tool-registry-v6",
+	schemaVersion: "tool-registry-v7",
 	registryVersion: "test",
 	contractFingerprint: testToolContractFingerprint(),
 	tools: [
@@ -639,6 +639,7 @@ describe("agent runtime HTTP handler", () => {
 									...result,
 									argumentsJson,
 									durationMs: 12,
+									invocationId: "test-call-1",
 									toolName: "test_lookup",
 								},
 							],
@@ -653,7 +654,11 @@ describe("agent runtime HTTP handler", () => {
 				toolExecutor: async () => ({
 					status: "failed",
 					result: { error: "source truth unavailable" },
-					failCloseReason: "source_truth_unavailable",
+					failure: {
+						code: "source_truth_unavailable",
+						operation: "tool.test_lookup",
+						detail: "source truth unavailable",
+					},
 				}),
 			}),
 		});
@@ -676,13 +681,17 @@ describe("agent runtime HTTP handler", () => {
 			tool_results?: Array<{
 				arguments_json?: Record<string, unknown>;
 				duration_ms?: number;
-				fail_close_reason?: string;
+				invocation_id?: string;
+				failure?: { code?: string; operation?: string; detail?: string; invocation_id?: string };
 			}>;
 		};
 		expect(body.status).toBe("completed");
 		expect(body.final_output).toBe("工具失败。");
 		expect(body.terminal_reason).toBe("answer_completed");
-		expect(body.tool_results?.[0]?.fail_close_reason).toBe("source_truth_unavailable");
+		expect(body.tool_results?.[0]?.failure).toMatchObject({
+			code: "source_truth_unavailable",
+			operation: "tool.test_lookup",
+		});
 		expect(body.tool_results?.[0]?.arguments_json).toEqual({ query_text: "通知" });
 		expect(body.tool_results?.[0]?.duration_ms).toBe(12);
 	});
@@ -783,7 +792,9 @@ describe("agent runtime HTTP handler", () => {
 				event: "error",
 				data: {
 					code: "agent_deadline_exceeded",
+					detail: "agent deadline signal was aborted",
 					message: "Agent run exceeded its configured deadline.",
+					operation: "agent.runtime",
 					retryable: false,
 					runtime_release: "test-release",
 				},
@@ -830,6 +841,7 @@ describe("agent runtime HTTP handler", () => {
 				data: {
 					code: "run_failed",
 					message: "The agent runtime could not complete the request.",
+					operation: "agent.runtime",
 					retryable: false,
 					runtime_release: "test-release",
 				},
@@ -865,6 +877,7 @@ describe("agent runtime HTTP handler", () => {
 				data: {
 					code: "run_failed",
 					message: "The agent runtime could not complete the request.",
+					operation: "agent.runtime",
 					retryable: false,
 					runtime_release: "test-release",
 				},
@@ -907,6 +920,7 @@ describe("agent runtime HTTP handler", () => {
 				data: {
 					code: "tool_contract_mismatch",
 					message: "The admitted tool contract does not match this agent runtime.",
+					operation: "agent.runtime",
 					retryable: false,
 					runtime_release: "test-release",
 				},

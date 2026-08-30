@@ -1,11 +1,11 @@
 openapi: 3.1.1
 info:
   title: campus-agent tool execution contract
-  version: tool-execution-v6
+  version: tool-execution-v7
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
-  execution_contract_version: tool_execution_v6
-  response_contract: execution_finalization_response_v7
+  execution_contract_version: tool_execution_v7
+  response_contract: execution_finalization_response_v8
   versioning_policy:
     execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
     response_contract: ExecutionFinalizationResponse wire contract changes must bump response_contract
@@ -241,7 +241,7 @@ components:
         - execution_input_sha256
       properties:
         execution_contract_version:
-          const: tool_execution_v6
+          const: tool_execution_v7
         execution_input_ref:
           type: string
           pattern: "^app-api://execution-inputs/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
@@ -717,9 +717,9 @@ components:
         - context
       properties:
         execution_contract_version:
-          const: tool_execution_v6
+          const: tool_execution_v7
         response_contract:
-          const: execution_finalization_response_v7
+          const: execution_finalization_response_v8
         user_goal:
           type: string
         conversation_id:

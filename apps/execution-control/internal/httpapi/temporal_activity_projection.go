@@ -139,10 +139,13 @@ func (s *Server) failFinalizationActivity(
 	failCloseReason string,
 	cause error,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
-	summary := summarizeTemporalFailure(failureKind, "", cause)
+	summary := summarizeTemporalFailure(failureKind)
+	operation := strings.TrimSpace(tool)
+	if operation == "" {
+		operation = "finalization.write"
+	}
 	err := s.projectTemporalFailureStep(ctx, run, temporalStepFailureProjection{
 		Tool:            tool,
-		FailureHash:     summary.Hash,
 		FailureKind:     summary.Kind,
 		ProjectionRef:   temporalProjectionRef(run.RequestID, "finalization/write"),
 		ResultKind:      "activity_failure",
@@ -151,7 +154,10 @@ func (s *Server) failFinalizationActivity(
 		TaskQueue:       temporalruntime.ActivityTaskQueueCore,
 		FailCloseReason: failCloseReason,
 		Payload: map[string]any{
-			"fail_close_reason": failCloseReason,
+			"failure": map[string]any{
+				"code":      summary.Kind,
+				"operation": operation,
+			},
 		},
 	}, cause)
 	if err != nil {
@@ -167,7 +173,6 @@ func (s *Server) failFinalizationActivity(
 type temporalStepFailureProjection struct {
 	Tool               string
 	FailedAt           time.Time
-	FailureHash        string
 	FailureKind        string
 	CancelOutcome      execution.CancelOutcome
 	FailCloseReason    string
@@ -199,7 +204,7 @@ func (s *Server) projectTemporalFailureStep(
 		now = time.Now().UTC()
 	}
 	projection.FailureKind = boundedTemporalFailureKind(projection.FailureKind)
-	payload := temporalFailurePayload(projection, cause)
+	payload := temporalFailurePayload(projection)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:            1,
 		Tool:               temporalFailureTool(projection),
@@ -242,11 +247,6 @@ func temporalFailureTool(projection temporalStepFailureProjection) string {
 func temporalFailureFailCloseReason(projection temporalStepFailureProjection) string {
 	if strings.TrimSpace(projection.FailCloseReason) != "" {
 		return strings.TrimSpace(projection.FailCloseReason)
-	}
-	if projection.Payload != nil {
-		if value := strings.TrimSpace(stringValue(projection.Payload["fail_close_reason"])); value != "" {
-			return value
-		}
 	}
 	switch strings.TrimSpace(projection.FailureKind) {
 	case "current_state_unverifiable",
@@ -302,9 +302,9 @@ func (s *Server) failTemporalRun(
 	}
 	failedAt = failedAt.UTC()
 	failureKind := projection.FailureKind
-	summary := summarizeTemporalFailure(failureKind, projection.FailureHash, cause)
+	summary := summarizeTemporalFailure(failureKind)
 	failureKind = summary.Kind
-	terminalError := temporalRunFailureErrorPayload(failureKind, projection.FailureHash, cause)
+	terminalError := temporalRunFailureErrorPayload(failureKind)
 	terminalReason := temporalFailureTerminalReason(projection, failureKind)
 	if run.Status != execution.DurableRunStatusFailed {
 		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
@@ -316,9 +316,8 @@ func (s *Server) failTemporalRun(
 			Visibility:           execution.DurableRunEventVisibilityInternal,
 			PayloadSchemaVersion: "run-event-v1",
 			Payload: map[string]any{
-				"failure_hash": summary.Hash,
-				"failure_kind": summary.Kind,
-				"message":      summary.Message,
+				"failure": temporalFailurePayload(projection)["failure"],
+				"message": summary.Message,
 			},
 		}); err != nil {
 			return execution.DurableRun{}, err
@@ -404,13 +403,12 @@ func temporalFailureTerminalReason(
 	}
 }
 
-func temporalRunFailureErrorPayload(failureKind string, failureHash string, cause error) map[string]any {
-	summary := summarizeTemporalFailure(failureKind, failureHash, cause)
+func temporalRunFailureErrorPayload(failureKind string) map[string]any {
+	summary := summarizeTemporalFailure(failureKind)
 	return map[string]any{
-		"code":         summary.Kind,
-		"failure_hash": summary.Hash,
-		"message":      summary.Message,
-		"retryable":    false,
+		"code":      summary.Kind,
+		"message":   summary.Message,
+		"retryable": false,
 	}
 }
 

@@ -149,9 +149,11 @@ describe("PostgreSQL ops status store", () => {
 		);
 		expect(detail.execution).toMatchObject({
 			failure: {
-				agentRuntimeHttpStatus: null,
-				kind: null,
-				runtimeErrorCode: null,
+				code: null,
+				detail: null,
+				httpStatus: null,
+				invocationId: null,
+				operation: null,
 			},
 			releases: {
 				agentRuntime: "agent-runtime@899f251",
@@ -312,11 +314,13 @@ describe("PostgreSQL ops status store", () => {
 						modelProvider: "",
 						modelRequestCount: 0,
 						sanitizedPayloadJson: {
-							agent_runtime_error_code: "tool_contract_mismatch",
-							agent_runtime_http_status: 409,
 							agent_runtime_release: "agent-runtime@new",
 							execution_control_release: "execution-control@old",
-							failure_kind: "runtime_invariant_failed",
+							failure: {
+								code: "runtime_invariant_failed",
+								http_status: 409,
+								operation: "agent.primary",
+							},
 						},
 						status: "failed",
 						terminalReason: "runtime_invariant_failed",
@@ -325,7 +329,9 @@ describe("PostgreSQL ops status store", () => {
 				],
 				steps: [
 					runStepRow({
-						sanitizedPayloadJson: { failure_kind: "runtime_invariant_failed" },
+						sanitizedPayloadJson: {
+							failure: { code: "runtime_invariant_failed", operation: "agent.primary" },
+						},
 						status: "failed",
 					}),
 				],
@@ -347,11 +353,11 @@ describe("PostgreSQL ops status store", () => {
 		);
 
 		expect(detail?.execution.failure).toEqual({
-			agentRuntimeHttpStatus: 409,
-			failCloseReason: "tool_contract_mismatch",
-			kind: "runtime_invariant_failed",
-			runtimeErrorCode: "tool_contract_mismatch",
-			terminalReason: "runtime_invariant_failed",
+			code: "runtime_invariant_failed",
+			detail: null,
+			httpStatus: 409,
+			invocationId: null,
+			operation: "agent.primary",
 		});
 		expect(detail?.execution.releases).toEqual({
 			agentRuntime: "agent-runtime@new",
@@ -363,6 +369,78 @@ describe("PostgreSQL ops status store", () => {
 			requestCount: 0,
 			tokens: { cachedInput: null, input: null, output: null, total: null },
 		});
+	});
+
+	it("keeps a written answer completed when a later execution stage fails", async () => {
+		const latestFailure = new Date("2026-07-09T07:29:10.000Z");
+		const db = createFakeOpsDb({
+			diagnostics: runDiagnostics({
+				attempts: [
+					runAttemptRow({
+						sanitizedPayloadJson: {
+							failure: { code: "agent_tool_failed", operation: "tool.call" },
+						},
+						status: "failed",
+					}),
+				],
+				steps: [
+					runStepRow({
+						completedAt: latestFailure,
+						sanitizedPayloadJson: {
+							failure: { code: "hindsight_append_failed", operation: "memory.append" },
+						},
+						startedAt: new Date("2026-07-09T07:29:09.000Z"),
+						status: "failed",
+						stepId: "step_memory",
+						stepKind: "memory",
+						updatedAt: latestFailure,
+					}),
+					runStepRow({
+						completedAt: new Date("2026-07-09T07:29:08.000Z"),
+						sanitizedPayloadJson: {
+							failure: { code: "agent_tool_failed", operation: "tool.call" },
+						},
+						startedAt: new Date("2026-07-09T07:29:07.000Z"),
+						status: "failed",
+						stepId: "step_tool",
+						stepKind: "tool",
+						updatedAt: new Date("2026-07-09T07:29:08.000Z"),
+					}),
+				],
+			}),
+			requestRows: [
+				requestRow({
+					attentionPriority: 1,
+					attentionReason: "EXECUTION_STAGE_FAILED",
+					completedAt: new Date("2026-07-09T07:29:04.000Z"),
+					dataUpdatedAt: latestFailure,
+					executionFailureKind: "hindsight_append_failed",
+					executionStepKind: "memory",
+					executionStepStatus: "failed",
+					status: "completed",
+				}),
+			],
+		});
+		const store = createPgOpsStatusStore({ db, now: () => now });
+
+		const detail = OpsRequestDetailResponseSchema.parse(await store.getRequestDetail("req_pg_001"));
+		const attention = await store.listRequests({ view: "attention", window: "1h" });
+
+		expect(detail.request).toMatchObject({ status: "COMPLETED", lifecyclePhase: "FINISHED" });
+		expect(detail.result).toMatchObject({ state: "WRITTEN", kind: "answer" });
+		expect(detail.execution.failure).toMatchObject({
+			code: "hindsight_append_failed",
+			operation: "memory.append",
+		});
+		expect(attention.data).toHaveLength(1);
+		expect(attention.data[0]).toMatchObject({
+			attentionReason: "EXECUTION_STAGE_FAILED",
+			failureKind: "hindsight_append_failed",
+			requestId: "req_pg_001",
+			result: { kind: "answer", state: "WRITTEN" },
+			status: "COMPLETED",
+		});
+		expect(attention.statusCounts).toMatchObject({ completed: 1, failed: 0, total: 1 });
 	});
 
 	it("does not load attempt diagnostics for request lists", async () => {
@@ -458,6 +536,24 @@ describe("PostgreSQL ops status store", () => {
 
 		expect(result.data).toHaveLength(1);
 		expect(result.data[0]).toMatchObject({ requestId: "req_target" });
+	});
+
+	it("filters request lists by execution failure kind", async () => {
+		const request = requestRow({
+			attentionPriority: 1,
+			attentionReason: "EXECUTION_STAGE_FAILED",
+			executionFailureKind: "hindsight_append_failed",
+			requestId: "req_memory_failure",
+			status: "completed",
+		});
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb({ requestRows: [requestRow(), request] }),
+			now: () => now,
+		});
+
+		const result = await store.listRequests({ q: "hindsight_append_failed", window: "1h" });
+
+		expect(result.data.map((row) => row.requestId)).toEqual(["req_memory_failure"]);
 	});
 
 	it("keeps recent runs chronological and prioritizes missing results in attention view", async () => {

@@ -115,6 +115,7 @@ export interface OpsRequestDetailRow extends OpsRequestRow {
 export interface OpsRequestStageRow {
 	completedAt: Date | null;
 	sanitizedPayloadJson: unknown;
+	stepId: string;
 	startedAt: Date | null;
 	status: string;
 	stepKind: string;

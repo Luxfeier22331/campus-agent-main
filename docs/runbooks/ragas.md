@@ -38,6 +38,7 @@ RAG 样本使用 `ragas_sample_batch.v3`：
       "user_input": "图书馆开放时间是什么？",
       "response": "图书馆开放时间为 08:00 到 22:00。",
       "retrieved_contexts": ["图书馆开放时间为 08:00-22:00。"],
+      "cited_contexts": ["图书馆开放时间为 08:00-22:00。"],
       "reference": "图书馆开放时间为 08:00-22:00。",
       "metadata": {"surface_key": "app-api.chat"}
     }
@@ -45,8 +46,9 @@ RAG 样本使用 `ragas_sample_batch.v3`：
 }
 ```
 
-每条 RAG 样本只包含 `case_id`、`user_input`、`response`、`retrieved_contexts`、可选 `reference`
-和标量 `metadata`。`retrieved_contexts: []` 仍是有效输入，不能因为为空而丢弃样本。`trace_id`、
+每条 RAG 样本只包含 `case_id`、`user_input`、`response`、`retrieved_contexts`、
+`cited_contexts`、可选 `reference` 和标量 `metadata`。前者是全部检索候选，后者是答案实际引用
+的候选；空数组仍是有效输入，不能因为为空而丢弃样本。`trace_id`、
 `observation_id`、dataset run、context ID、凭据和本地路径不属于 native Ragas 合同。
 
 使用当前 runner：
@@ -61,8 +63,9 @@ uv run --package campus-ragas-runner python -m campus_ragas_runner rag \
 省略 `--output` 或传入 `-` 时，完整的 `ragas_score_batch.v3` JSON 输出到 stdout。输出只包含
 每个 `case_id` 的 `scores` 和实际评分错误；缺少 reference 时不运行需要 reference 的指标，不伪造零分。
 
-默认指标是 `faithfulness` 和 `answer_relevancy`。`context_precision`、`context_recall` 只有在
-样本提供 `reference` 时才适用；不使用 `context_precision_without_reference`。
+默认指标是 `faithfulness` 和 `answer_relevancy`。`faithfulness` 使用 `cited_contexts`；
+`context_precision`、`context_recall` 使用 `retrieved_contexts`，且只有在样本提供 `reference`
+时才适用；不使用 `context_precision_without_reference`。
 
 ## 模型配置
 
@@ -114,7 +117,7 @@ provider profile，由调用方显式使用；它不从在线 Model Config 获�
 
 需要验证真实 Agent 行为时，手动运行 `agent-eval`。这不是在线服务、定时任务或 Ragas 输入发现
 机制；它读取调用方提供的 cases 文件，通过 App API 产生目标 turn，并写出一个
-`agent_product_eval_result.v2` 产品结果文件。该阶段不访问 Langfuse、不调用 Ragas。
+`agent_product_eval_result.v3` 产品结果文件。该阶段不访问 Langfuse、不调用 Ragas。
 
 ```bash
 pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
@@ -132,8 +135,8 @@ pnpm --dir packages/eval-langfuse exec tsx ./src/cli.ts \
 `--app-api-base-url`、`--cookie-header`、`--execution-control-base-url`、
 `--execution-control-auth-secret`、`--cases` 和 `--output` 是该命令的显式输入。setup turn 与目标
 turn 使用同一 conversation。对话通过 App API 执行；检索上下文和工具轨迹从 execution-control 的
-受认证内部投影接口按 `requestId` 读取。产品结果包含 case、`requestId`、实际答案、检索上下文和
-工具轨迹，不包含 Langfuse 平台身份。
+受认证内部投影接口按 `requestId` 读取。产品结果包含 case、`requestId`、实际答案、全部检索候选、
+实际引用结果和工具轨迹，不包含 Langfuse 平台身份。
 
 随后单独运行 Ragas 评分：
 

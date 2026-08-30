@@ -30,11 +30,11 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			t.Fatalf("create run: %v", err)
 		}
 		if created.Status != execution.DurableRunStatusCreated ||
-			created.Metadata["execution_contract_version"] != "tool_execution_v6" {
+			created.Metadata["execution_contract_version"] != "tool_execution_v7" {
 			t.Fatalf("created run = %#v", created)
 		}
 		updatedMetadata := map[string]any{
-			"execution_contract_version": "tool_execution_v6",
+			"execution_contract_version": "tool_execution_v7",
 			"execution_input_ref":        "app-api://execution-inputs/" + created.RequestID,
 			"execution_input_sha256":     strings.Repeat("b", 64),
 		}
@@ -1106,7 +1106,7 @@ func durableRun(runID, conversationID string, now time.Time) execution.DurableRu
 			"execution_control": "integration",
 		},
 		Metadata: map[string]any{
-			"execution_contract_version": "tool_execution_v6",
+			"execution_contract_version": "tool_execution_v7",
 			"execution_input_ref":        "app-api://execution-inputs/" + runID,
 			"execution_input_sha256":     strings.Repeat("a", 64),
 		},

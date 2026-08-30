@@ -75,7 +75,7 @@ transform 恢复 producer 已删除的内容。
 产品路径评测分为三个显式阶段：
 
 1. `agent-eval` 读取调用方提供的 cases 文件，可选执行 setup turn，通过真实 App API 执行目标 turn，
-   按 `requestId` 读取 `agent_runtime_eval_projection.v4`，写出 `agent_product_eval_result.v2`；
+   按 `requestId` 读取 `agent_runtime_eval_projection.v5`，写出 `agent_product_eval_result.v3`；
 2. `score-ragas` 读取该产品结果，在本地临时构造 Agent sample 和 `ragas_sample_batch.v3`，调用
    Ragas runner，写出最终 score 文件；
 3. `publish-scores` 按 `case_id` 使用调用方显式提供的原生 Langfuse trace ID 映射，并通过官方 SDK

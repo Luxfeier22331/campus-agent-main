@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	ExecutionContractVersion  = "tool_execution_v6"
+	ExecutionContractVersion  = "tool_execution_v7"
 	ExecutionRequestIDPattern = "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-	ResponseContract          = "execution_finalization_response_v7"
+	ResponseContract          = "execution_finalization_response_v8"
 )
 
 var executionRequestIDRegexp = regexp.MustCompile(ExecutionRequestIDPattern)

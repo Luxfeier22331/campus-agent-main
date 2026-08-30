@@ -85,25 +85,23 @@ describe("Campus Web 用户可见状态治理", () => {
 		expect(reasoningSource).not.toContain("<ReasoningText>{children}</ReasoningText>");
 	});
 
-	it("keeps queueing as a runtime fact instead of a chat display state", () => {
-		const runStepsSource = read("src/components/conversation/campus-run-steps.tsx");
+	it("keeps run phases out of the chat display", () => {
 		const styleDevSource = sourceFiles("src/style-dev").map(read).join("\n");
+		const threadSource = read("src/components/assistant-ui/thread.tsx");
 
-		expect(runStepsSource).not.toContain('queued: "排队"');
 		expect(styleDevSource).not.toContain('label: "排队"');
-		expect(runStepsSource).toContain('phase === "queued" ? "preparing" : phase');
+		expect(threadSource).toContain("正在回答");
+		expect(threadSource).not.toContain("正在准备回答");
+		expect(threadSource).not.toContain("回答过程");
 	});
 
 	it("keeps ordinary chat content out of success and info colors", () => {
-		const runStatusSource = read("src/components/conversation/campus-run-status.tsx");
-		const runStepsSource = read("src/components/conversation/campus-run-steps.tsx");
 		const threadSource = read("src/components/assistant-ui/thread.tsx");
 		const campusStylesSource = read("src/campus-styles.css");
 
-		expect(runStatusSource).not.toContain('"回答完成"');
-		expect(runStatusSource).not.toContain("text-success");
-		expect(runStepsSource).not.toContain("text-success");
-		expect(runStepsSource).not.toContain("text-info");
+		expect(threadSource).not.toContain('"回答完成"');
+		expect(threadSource).not.toContain("text-success");
+		expect(threadSource).not.toContain("text-info");
 		expect(threadSource).not.toContain("bg-chat-accent-subtle text-chat-accent-text");
 		expect(campusStylesSource).toContain("background: var(--chat-message-user-bg);");
 		expect(campusStylesSource).toContain("color: var(--chat-message-user-text);");

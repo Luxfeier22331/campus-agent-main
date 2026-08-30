@@ -2,11 +2,8 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -29,7 +26,6 @@ func (s *Server) FailWorkflowStart(
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	projection := temporalStepFailureProjection{
 		FailedAt:        now,
-		FailureHash:     reconciliationFailureHash(failureKind),
 		FailureKind:     failureKind,
 		ProjectionRef:   temporalProjectionRef(run.RequestID, "workflow/start"),
 		ResultKind:      "activity_failure",
@@ -64,7 +60,6 @@ func (s *Server) FinalizeWorkflowTimeout(
 	failureKind := "workflow_execution_timeout"
 	projection := temporalStepFailureProjection{
 		FailedAt:        expiredAt,
-		FailureHash:     reconciliationFailureHash(failureKind),
 		FailureKind:     failureKind,
 		FailCloseReason: failureKind,
 		ProjectionRef:   temporalProjectionRef(run.RequestID, "workflow/execution"),
@@ -113,7 +108,6 @@ func (s *Server) FinalizeWorkflowClosure(
 	failedAt := closedAt.UTC().Truncate(time.Microsecond)
 	projection := temporalStepFailureProjection{
 		FailedAt:        failedAt,
-		FailureHash:     reconciliationFailureHash(failureKind),
 		FailureKind:     failureKind,
 		FailCloseReason: failureKind,
 		ProjectionRef:   temporalProjectionRef(run.RequestID, "workflow/execution"),
@@ -135,9 +129,4 @@ func (s *Server) FinalizeWorkflowClosure(
 	}
 	_, err = s.failTemporalRun(ctx, latest, projection, cause)
 	return err
-}
-
-func reconciliationFailureHash(code string) string {
-	digest := sha256.Sum256([]byte(strings.TrimSpace(code)))
-	return hex.EncodeToString(digest[:])
 }

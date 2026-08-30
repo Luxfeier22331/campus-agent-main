@@ -35,14 +35,14 @@ function FailureSection({ detail }: { detail: OpsRequestDetailResponse }) {
 				失败摘要
 			</h2>
 			<div className="grid border-danger/30 border-y text-sm sm:grid-cols-2 lg:grid-cols-3">
-				<KeyValue label="失败类型" value={formatOpsDomainValue(failure.kind)} />
-				<KeyValue label="Runtime 错误代码" value={failure.runtimeErrorCode ?? "未记录"} />
 				<KeyValue
-					label="Agent Runtime HTTP 状态"
-					value={failure.agentRuntimeHttpStatus?.toString() ?? "未记录"}
+					label="失败代码"
+					value={failure.code ? formatOpsDomainValue(failure.code) : "未记录"}
 				/>
-				<KeyValue label="关闭原因" value={failure.failCloseReason ?? "未记录"} />
-				<KeyValue label="终止原因" value={failure.terminalReason ?? "未记录"} />
+				<KeyValue label="操作" value={failure.operation ?? "未记录"} />
+				<KeyValue label="详情" value={failure.detail ?? "未记录"} />
+				<KeyValue label="HTTP 状态" value={failure.httpStatus?.toString() ?? "未记录"} />
+				<KeyValue label="工具调用 ID" value={failure.invocationId ?? "未记录"} />
 			</div>
 		</section>
 	);
@@ -275,11 +275,11 @@ function ExternalQueryState<T>({
 
 function hasFailure(failure: OpsRequestDetailResponse["execution"]["failure"]) {
 	return Boolean(
-		failure.kind ||
-			failure.runtimeErrorCode ||
-			failure.agentRuntimeHttpStatus ||
-			failure.failCloseReason ||
-			failure.terminalReason,
+		failure.code ||
+			failure.operation ||
+			failure.detail ||
+			failure.httpStatus ||
+			failure.invocationId,
 	);
 }
 

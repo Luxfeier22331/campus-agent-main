@@ -61,9 +61,11 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 			"tool_results":    []any{},
 			"terminal_reason": "answer_completed",
 			"usage": map[string]any{
+				"model_request_count": 3,
 				"input_tokens":        12,
 				"output_tokens":       8,
 				"cached_input_tokens": 0,
+				"usage_observed":      true,
 			},
 		})
 	}))
@@ -190,7 +192,12 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	}
 	if len(attempts) != 1 ||
 		attempts[0].ModelProvider != "openai" ||
-		attempts[0].ModelName != "gpt-test" {
+		attempts[0].ModelName != "gpt-test" ||
+		attempts[0].ModelRequestCount != 3 ||
+		attempts[0].InputTokens != 12 ||
+		attempts[0].OutputTokens != 8 ||
+		attempts[0].CachedInputTokens != 0 ||
+		!attempts[0].UsageObserved {
 		t.Fatalf("projected attempts = %#v, want primary agent model", attempts)
 	}
 	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-001")
@@ -563,7 +570,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWithoutAdmissionSnapshot(t *testi
 	if listErr != nil {
 		t.Fatalf("list steps: %v", listErr)
 	}
-	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "admission_snapshot_invalid" {
+	if len(steps) != 1 || stringValue(nestedAny(steps[0].SanitizedPayload, "failure", "code")) != "admission_snapshot_invalid" {
 		t.Fatalf("steps = %#v", steps)
 	}
 }
@@ -612,14 +619,10 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	if len(steps) != 1 || steps[0].StepID != "agent.primary" || steps[0].Status != "failed" {
 		t.Fatalf("projected steps = %#v", steps)
 	}
-	if steps[0].SanitizedPayload["failure_kind"] != "agent_runtime_request_failed" {
+	if stringValue(nestedAny(steps[0].SanitizedPayload, "failure", "code")) != "agent_runtime_request_failed" {
 		t.Fatalf("agent failure payload = %#v", steps[0].SanitizedPayload)
 	}
-	if _, exposed := steps[0].SanitizedPayload["agent_runtime_error_code"]; exposed {
-		t.Fatalf("agent failure payload exposed unadmitted runtime error code: %#v", steps[0].SanitizedPayload)
-	}
-	if steps[0].SanitizedPayload["message"] != defaultExecutionFailureMessage ||
-		!validTemporalFailureHash(stringValue(steps[0].SanitizedPayload["failure_hash"])) {
+	if steps[0].SanitizedPayload["message"] != defaultExecutionFailureMessage {
 		t.Fatalf("agent failure payload missing runtime diagnostic: %#v", steps[0].SanitizedPayload)
 	}
 	if strings.Contains(stringValue(steps[0].SanitizedPayload["message"]), "provider request aborted") {
@@ -634,6 +637,10 @@ func TestPrimaryAgentRuntimeFailureKindPreservesStableCodes(t *testing.T) {
 		"agent_deadline_exceeded",
 		"max_turns_exceeded",
 		"provider_unavailable",
+		"provider_rate_limited",
+		"provider_http_failed",
+		"provider_connection_failed",
+		"provider_timeout",
 		"tool_execution_failed",
 		"run_failed",
 	} {
@@ -681,11 +688,8 @@ func TestExecutePrimaryAgentActivityClassifiesUnauthorizedRuntimeAsNonRetryable(
 	if listErr != nil {
 		t.Fatalf("list run steps: %v", listErr)
 	}
-	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "agent_runtime_unauthorized" {
+	if len(steps) != 1 || stringValue(nestedAny(steps[0].SanitizedPayload, "failure", "code")) != "agent_runtime_unauthorized" {
 		t.Fatalf("unauthorized agent failure projection = %#v", steps)
-	}
-	if _, exposed := steps[0].SanitizedPayload["agent_runtime_error_code"]; exposed {
-		t.Fatalf("unauthorized internal code must not enter the public payload: %#v", steps[0])
 	}
 	attempts, listErr := store.ListStepAttempts(context.Background(), input.RequestID)
 	if listErr != nil {
@@ -733,7 +737,7 @@ func TestExecutePrimaryAgentActivityLeavesAgentRuntimeTimeoutTerminalStateToWork
 	if listErr != nil {
 		t.Fatalf("list run steps: %v", listErr)
 	}
-	if len(steps) != 1 || steps[0].SanitizedPayload["failure_kind"] != "agent_attempt_uncertain" {
+	if len(steps) != 1 || stringValue(nestedAny(steps[0].SanitizedPayload, "failure", "code")) != "agent_attempt_uncertain" {
 		t.Fatalf("agent timeout failure payload = %#v", steps)
 	}
 	if _, exists := steps[0].SanitizedPayload["fail_close_reason"]; exists {

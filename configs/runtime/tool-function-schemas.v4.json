@@ -1,23 +1,23 @@
 {
-	"schema_version": "tool-function-schemas-v3",
+	"schema_version": "tool-function-schemas-v4",
 	"tools": [
 		{
 			"type": "function",
 			"name": "campus_search",
-			"description": "检索中央民族大学当前 Campus Web 文档中的校内事实、政策和办事流程。",
+			"description": "检索中央民族大学当前 Campus Web 文档中的校内事实、政策和办事流程，返回供回答选择的候选结果。",
 			"strict": true,
 			"parameters": {
 				"type": "object",
 				"additionalProperties": false,
 				"properties": {
-					"query": {
+					"search_query": {
 						"type": "string",
-						"description": "根据用户当前问题整理出的、面向中央民族大学校内资料的聚焦查询。",
+						"description": "根据用户当前问题整理出的、面向中央民族大学校内资料的聚焦检索表达。",
 						"minLength": 1,
 						"maxLength": 400
 					}
 				},
-				"required": ["query"]
+				"required": ["search_query"]
 			}
 		},
 		{

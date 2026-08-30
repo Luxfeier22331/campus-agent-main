@@ -18,7 +18,7 @@ function checkRegistryCoverage(): void {
 	const entries = registryEntries();
 	const expectedValidates: Record<string, string[]> = {
 		"internal-portal-descriptor.v1": ["configs/sources/internal-portal.json"],
-		"runtime-tools.v6": ["configs/runtime/tools.v6.json"],
+		"runtime-tools.v7": ["configs/runtime/tools.v7.json"],
 		"runtime-latency-budgets.v1": ["configs/runtime/latency-budgets.v1.json"],
 	};
 	for (const [entryId, validates] of Object.entries(expectedValidates)) {
@@ -73,7 +73,7 @@ function checkRuntimeToolSchemaRefs(): void {
 		const schema = readJson(String(entry.path));
 		schemaDocs[String(schema.$id)] = schema;
 	}
-	const config = readJson("configs/runtime/tools.v6.json");
+	const config = readJson("configs/runtime/tools.v7.json");
 	for (const tool of config.tools as Record<string, unknown>[]) {
 		for (const fieldName of ["payload_schema_ref", "result_schema_ref"]) {
 			const ref = String(tool[fieldName]);

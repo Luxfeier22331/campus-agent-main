@@ -50,7 +50,6 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 	}
 
 	output, err := server.FinalizeExecutionFailure(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
-		FailureHash: strings.Repeat("a", 64),
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
 		RequestID:   "run-agent-failed",
@@ -79,7 +78,6 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 	}
 
 	replay, err := server.FinalizeExecutionFailure(context.Background(), temporalruntime.FinalizeExecutionFailureActivityInput{
-		FailureHash: strings.Repeat("a", 64),
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
 		RequestID:   "run-agent-failed",
@@ -91,17 +89,6 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 	if callbackCount != 1 {
 		t.Fatalf("product callback count = %d, want 1", callbackCount)
 	}
-	_, conflictErr := server.FinalizeExecutionFailure(
-		context.Background(),
-		temporalruntime.FinalizeExecutionFailureActivityInput{
-			FailureHash: strings.Repeat("b", 64),
-			FailureKind: "agent_runtime_failed",
-			FailedAt:    now.Add(3 * time.Second),
-			RequestID:   "run-agent-failed",
-			Stage:       "agent.primary",
-		},
-	)
-	assertTemporalFailureSanitized(t, conflictErr, "execution_failure_terminal_conflict", true)
 	attempts, err := store.ListStepAttempts(context.Background(), "run-agent-failed")
 	if err != nil {
 		t.Fatalf("list agent attempts after finalizer: %v", err)
@@ -151,7 +138,6 @@ func TestFinalizeExecutionFailureActivityOwnsAllPreAnswerFailureStages(t *testin
 			output, err := server.FinalizeExecutionFailure(
 				context.Background(),
 				temporalruntime.FinalizeExecutionFailureActivityInput{
-					FailureHash: strings.Repeat("c", 64),
 					FailureKind: test.failureKind,
 					FailedAt:    now.Add(time.Second),
 					RequestID:   runID,
@@ -199,7 +185,6 @@ func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailu
 	_, err := server.FinalizeExecutionFailure(
 		context.Background(),
 		temporalruntime.FinalizeExecutionFailureActivityInput{
-			FailureHash: strings.Repeat("d", 64),
 			FailureKind: "agent_runtime_unauthorized",
 			FailedAt:    now.Add(time.Second),
 			RequestID:   "run-runtime-unauthorized",
@@ -248,7 +233,6 @@ func TestFinalizeExecutionFailureActivityKeepsRunActiveUntilCallbackSucceeds(t *
 	_, err := server.FinalizeExecutionFailure(
 		context.Background(),
 		temporalruntime.FinalizeExecutionFailureActivityInput{
-			FailureHash: strings.Repeat("d", 64),
 			FailureKind: "agent_runtime_failed",
 			FailedAt:    now.Add(time.Second),
 			RequestID:   "run-callback-pending",

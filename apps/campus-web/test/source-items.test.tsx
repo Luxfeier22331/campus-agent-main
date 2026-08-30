@@ -8,7 +8,7 @@ describe("conversation source items", () => {
 			<SourceItemsList
 				sourceItems={[
 					{
-						citationIndexes: [2, 1],
+						citationIndexes: [10, 1],
 						collectionLabel: "学生手册",
 						kind: "campus_document",
 						primaryAction: {
@@ -27,8 +27,8 @@ describe("conversation source items", () => {
 		);
 
 		expect(screen.getByText("上网指南")).toBeInTheDocument();
-		expect(screen.getByText("[2] [1]")).toBeInTheDocument();
-		expect(screen.getByLabelText("引用 2、1")).toBeInTheDocument();
+		expect(screen.getByText("[10] [1]")).toBeInTheDocument();
+		expect(screen.getByLabelText("引用 10、1")).toBeInTheDocument();
 		expect(screen.getByText("学生手册 · 2026 版")).toBeInTheDocument();
 		expect(screen.getByText("校园网用户应按学校规定管理账号。")).toBeInTheDocument();
 		const link = screen.getByRole("link", { name: "查看文档" });

@@ -38,9 +38,8 @@ func assertTemporalFailureSanitized(
 			wantNonRetryable,
 		)
 	}
-	var failureHash string
-	if err := applicationError.Details(&failureHash); err != nil || !validTemporalFailureHash(failureHash) {
-		t.Fatalf("application error failure hash = %q err=%v", failureHash, err)
+	if applicationError.HasDetails() {
+		t.Fatal("application error must not carry diagnostic details")
 	}
 	failure := temporal.GetDefaultFailureConverter().ErrorToFailure(err)
 	encoded, marshalErr := protojson.Marshal(failure)

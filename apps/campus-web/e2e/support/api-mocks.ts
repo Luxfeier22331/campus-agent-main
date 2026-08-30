@@ -742,16 +742,6 @@ function routeMocks(input: {
 						}),
 		},
 		{
-			method: "POST",
-			path: /^\/api\/chat\/runs\/[^/]+\/cancel$/,
-			response: (route) =>
-				route.fulfill({
-					contentType: "application/json",
-					json: { ok: true },
-					status: 200,
-				}),
-		},
-		{
 			method: "GET",
 			path: mapPageManifest.placesUrl,
 			response: (route) =>

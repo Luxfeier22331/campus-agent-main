@@ -19,7 +19,7 @@ type campusSearchToolEnvelope struct {
 }
 
 type campusSearchToolPayload struct {
-	Query string `json:"query"`
+	SearchQuery string `json:"search_query"`
 }
 
 func (s *Server) handleCampusSearchTool(response http.ResponseWriter, request *http.Request) {
@@ -60,15 +60,20 @@ func decodeCampusSearchToolEnvelope(body json.RawMessage) (campusSearchToolEnvel
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		return envelope, errors.New("campus_search request has trailing JSON content")
 	}
-	envelope.Payload.Query = strings.TrimSpace(envelope.Payload.Query)
+	envelope.Payload.SearchQuery = strings.TrimSpace(envelope.Payload.SearchQuery)
 	envelope.AccessContext.RequestID = strings.TrimSpace(envelope.AccessContext.RequestID)
 	envelope.AccessContext.InvocationID = strings.TrimSpace(envelope.AccessContext.InvocationID)
-	if envelope.Payload.Query == "" || len([]rune(envelope.Payload.Query)) > 400 {
-		return envelope, errors.New("payload.query must contain between 1 and 400 characters")
+	envelope.AccessContext.UserGoal = strings.TrimSpace(envelope.AccessContext.UserGoal)
+	if envelope.Payload.SearchQuery == "" || len([]rune(envelope.Payload.SearchQuery)) > 400 {
+		return envelope, errors.New("payload.search_query must contain between 1 and 400 characters")
 	}
 	if envelope.AccessContext.RequestID == "" ||
-		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.ActivityAttempt <= 0 {
-		return envelope, errors.New("access_context.request_id, invocation_id, and activity_attempt are required")
+		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.ActivityAttempt <= 0 ||
+		envelope.AccessContext.UserGoal == "" || envelope.AccessContext.CitationStart < 1 ||
+		envelope.AccessContext.CitationStart > 10 || envelope.AccessContext.ResultLimit < 1 ||
+		envelope.AccessContext.ResultLimit > primaryAgentSearchResultLimit ||
+		envelope.AccessContext.CitationStart+envelope.AccessContext.ResultLimit > 11 {
+		return envelope, errors.New("campus_search access_context is invalid")
 	}
 	return envelope, nil
 }
@@ -93,9 +98,28 @@ func (s *Server) executeCampusSearchTool(
 	if !found {
 		return nil, errors.New("campus docs current index is not available")
 	}
-	evidence, err := retrieveCampusDocsEvidence(ctx, s.campusDocsQdrant, index, envelope.Payload.Query)
+	retrievalQuery := campusSearchRetrievalQuery(
+		envelope.AccessContext.UserGoal,
+		envelope.Payload.SearchQuery,
+	)
+	results, err := retrieveCampusDocsResults(
+		ctx,
+		s.campusDocsQdrant,
+		index,
+		retrievalQuery,
+		envelope.AccessContext.ResultLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
-	return campusSearchResult(evidence), nil
+	return campusSearchResult(results, envelope.AccessContext.CitationStart), nil
+}
+
+func campusSearchRetrievalQuery(userGoal string, searchQuery string) string {
+	userGoal = strings.TrimSpace(userGoal)
+	searchQuery = strings.TrimSpace(searchQuery)
+	if searchQuery == userGoal {
+		return userGoal
+	}
+	return userGoal + "\n检索表达：" + searchQuery
 }

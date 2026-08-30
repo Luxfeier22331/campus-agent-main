@@ -1,11 +1,19 @@
 import { type AgentToolEvalCase, validateAgentToolEvalCases } from "./agent-tool-eval";
-import { loadJsonObject, mappingList, stringField, stringList, writeJsonObject } from "./json";
+import {
+	loadJsonObject,
+	mappingList,
+	requiredStringList,
+	stringField,
+	writeJsonObject,
+} from "./json";
 import { parseToolTrajectory, type ToolTrajectory } from "./tool-trajectory";
 
-export const AGENT_PRODUCT_EVAL_RESULT_SCHEMA_VERSION = "agent_product_eval_result.v2";
+export const AGENT_PRODUCT_EVAL_RESULT_SCHEMA_VERSION = "agent_product_eval_result.v3";
 
 export interface AgentProductEvalItem {
 	answer: string;
+	citedContextIds: string[];
+	citedContexts: string[];
 	case: AgentToolEvalCase;
 	requestId: string;
 	retrievedContextIds: string[];
@@ -55,13 +63,32 @@ export function parseAgentProductEvalResult(
 			throw new Error(`product result request_id is duplicated: ${requestId}`);
 		}
 		seenRequestIds.add(requestId);
-		const retrievedContextIds = stringList(item.retrieved_context_ids);
-		const retrievedContexts = stringList(item.retrieved_contexts);
+		const retrievedContextIds = requiredStringList(
+			item.retrieved_context_ids,
+			`${caseItem.case_id}.retrieved_context_ids`,
+		);
+		const retrievedContexts = requiredStringList(
+			item.retrieved_contexts,
+			`${caseItem.case_id}.retrieved_contexts`,
+		);
+		const citedContextIds = requiredStringList(
+			item.cited_context_ids,
+			`${caseItem.case_id}.cited_context_ids`,
+		);
+		const citedContexts = requiredStringList(
+			item.cited_contexts,
+			`${caseItem.case_id}.cited_contexts`,
+		);
 		if (retrievedContextIds.length !== retrievedContexts.length) {
 			throw new Error(`${caseItem.case_id} retrieved context ids and contexts must align`);
 		}
+		if (citedContextIds.length !== citedContexts.length) {
+			throw new Error(`${caseItem.case_id} cited context ids and contexts must align`);
+		}
 		return {
 			answer: stringField(item.answer, `${caseItem.case_id}.answer`),
+			citedContextIds,
+			citedContexts,
 			case: caseItem,
 			requestId,
 			retrievedContextIds,
@@ -77,6 +104,8 @@ export function writeAgentProductEvalResult(path: string, input: AgentProductEva
 		eval_run_id: input.evalRunId,
 		items: input.items.map((item) => ({
 			answer: item.answer,
+			cited_context_ids: item.citedContextIds,
+			cited_contexts: item.citedContexts,
 			case: item.case,
 			request_id: item.requestId,
 			retrieved_context_ids: item.retrievedContextIds,

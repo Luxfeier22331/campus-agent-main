@@ -35,17 +35,6 @@ const runSummarySchema = z.object({
 const runStatusResponseSchema = z.object({
 	run: runSummarySchema,
 });
-const runStepSchema = z.object({
-	completedAt: nullableTimestamp,
-	durationMs: z.number().int().nonnegative().nullable(),
-	phase: z.enum(["queued", "preparing", "generating", "finalizing"]),
-	startedAt: nullableTimestamp,
-	status: z.enum(["pending", "running", "completed", "failed", "cancelled"]),
-});
-const runStepsResponseSchema = z.object({
-	run: runSummarySchema,
-	steps: z.array(runStepSchema),
-});
 const productRunEventSchema = z.object({
 	eventType: z.enum([
 		"answer.delta",
@@ -88,24 +77,6 @@ export interface ChatRunStatus {
 	startedAt: string | null;
 	status: string;
 	terminalReason?: string;
-}
-
-export type ChatRunProductPhase = "preparing" | "generating" | "finalizing";
-/** The API may include queued as a scheduling fact; it is not a standalone chat display phase. */
-export type ChatRunStepPhase = "queued" | ChatRunProductPhase;
-export type ChatRunStepStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
-
-export interface ChatRunStep {
-	completedAt: string | null;
-	durationMs: number | null;
-	phase: ChatRunStepPhase;
-	startedAt: string | null;
-	status: ChatRunStepStatus;
-}
-
-export interface ChatRunSteps {
-	run: ChatRunStatus;
-	steps: ChatRunStep[];
 }
 
 export async function cancelRun(requestId: string): Promise<ChatRunStatus> {
@@ -312,39 +283,6 @@ export async function getRunEvents(input: {
 			.filter((event): event is ChatRequestStreamEvent => event !== null),
 		nextSequence: parsed.data.nextSequence,
 		run,
-	};
-}
-
-export async function getRunSteps(input: {
-	requestId: string;
-	signal?: AbortSignal;
-}): Promise<ChatRunSteps> {
-	const response = await fetch(`/api/chat/requests/${encodeURIComponent(input.requestId)}/steps`, {
-		credentials: "same-origin",
-		headers: { accept: "application/json" },
-		method: "GET",
-		...(input.signal ? { signal: input.signal } : {}),
-	});
-	if (response.status === 401) {
-		throw new UnauthorizedError();
-	}
-	if (!response.ok) {
-		throw await createChatStreamRequestError(response);
-	}
-	let payload: unknown;
-	try {
-		payload = await response.json();
-	} catch {
-		throw invalidRunStatusResponse(response.status);
-	}
-	const parsed = runStepsResponseSchema.safeParse(payload);
-	if (!parsed.success) {
-		throw invalidRunStatusResponse(response.status);
-	}
-	const run = parsed.data.run;
-	return {
-		run: normalizeRunStatus(run),
-		steps: parsed.data.steps,
 	};
 }
 

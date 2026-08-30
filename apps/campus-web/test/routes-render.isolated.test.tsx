@@ -299,7 +299,7 @@ describe("campus routes", () => {
 		expect(qaShellSource).not.toContain("@assistant-ui/react-data-stream");
 		expect(qaShellSource).not.toContain("/api/chat/assistant-ui");
 		expect(assistantRuntimeSource).toContain("useExternalStoreRuntime");
-		expect(assistantControllerSource).toContain("useConversationRunCoordinator");
+		expect(assistantControllerSource).toContain("useAssistantUiRunController");
 		expect(assistantCoordinatorSource).toContain("submitChatRequestStream");
 		expect(
 			assistantRuntimeSource + assistantControllerSource + assistantCoordinatorSource,

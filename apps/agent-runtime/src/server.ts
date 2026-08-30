@@ -19,7 +19,7 @@ const executionAgentRuntimeSharedSecret = exactSharedSecret(
 	process.env.EXECUTION_AGENT_RUNTIME_SHARED_SECRET,
 );
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const catalogPath = resolve(repositoryRoot, "configs/runtime/tools.v6.json");
+const catalogPath = resolve(repositoryRoot, "configs/runtime/tools.v7.json");
 const deploymentRelease = requiredDeploymentRelease(
 	process.env.DEPLOYMENT_ENVIRONMENT,
 	process.env.DEPLOYMENT_RELEASE,

@@ -17,15 +17,16 @@ status: active
 `campus_docs_embedding` 连接；collection、provider 和检索参数不进入准入快照或 Temporal workflow
 input。
 
-检索只保留 rerank `relevance_score >= 0.5` 的候选，并返回单次最多 5 条的有界 evidence；没有候选时
-返回 `no_match`。该分数只表示查询与候选文本的相关性，不判断机构、人群或规则适用主体。事实范围由
-工具说明和本轮真实 evidence 共同约束，不能通过提高阈值或套用高分证据代替。模型只能在正文中使用
-`[1]` 到 `[5]` 引用本次 `campus_search` 按顺序返回的 evidence；execution-control 在 Finalization 时从
-引用和真实工具结果派生公开 source cards。模型不能自行创建来源，也不能把内部 locator 写入答案。
+检索只保留 rerank `relevance_score >= 0.5` 的候选，每次返回最多 5 条，同一 run 累计最多 10 条；
+没有候选时返回 `no_match`。该分数只表示查询与候选文本的相关性，不判断机构、人群或规则适用主体。
+工具返回的 `results` 是供 Agent 选择的候选，不等于答案已经使用。模型只对实际采用的结果使用其
+全局 `citation_index` 写入 `[1]` 到 `[10]`；execution-control 在 Finalization 时从引用和真实工具
+结果派生公开 source cards。未知或越界引用使 Finalization 失败。模型不能自行创建来源，也不能把
+`result_ref` 写入答案。
 
 未明确指定机构时，学校、本校和校园默认指中央民族大学。问题包含多个事实范围时，Agent 可以调用
-能够覆盖其中一部分的工具，只回答本轮成功 evidence 支持的部分并说明剩余资料边界；已有部分答案时
-仍返回普通正文，不能因另一部分没有资料而丢弃有效答案。所需机构事实完全没有本轮成功 evidence
+能够覆盖其中一部分的工具，只回答本轮候选直接支持的部分并说明剩余资料边界；已有部分答案时
+仍返回普通正文，不能因另一部分没有资料而丢弃有效答案。所需机构事实完全没有本轮候选
 支持时在正文中说明当前资料无法支持回答，而不是用模型记忆补全。
 
 Campus Docs 的来源清洗、reader、Chunk、Embedding 和 Publisher 仍属于独立离线数据面，由

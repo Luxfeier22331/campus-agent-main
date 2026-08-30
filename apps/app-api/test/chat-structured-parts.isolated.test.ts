@@ -149,10 +149,42 @@ describe("chat structured parts", () => {
 		});
 	});
 
+	it("keeps citation ten and more than five cited source cards", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				sources: Array.from({ length: 6 }, (_, offset) => {
+					const citationIndex = offset + 5;
+					return {
+						citation_index: citationIndex,
+						kind: "campus_document",
+						root_unit_ids: [`root-${citationIndex}`],
+						section_ref: `/docs/regulations/student_rules/handbook/v/2026-current#rules-${citationIndex}`,
+						section_title: `管理规定 ${citationIndex}`,
+						title: `学生手册 ${citationIndex}`,
+						version_label: "2026 版",
+						version_slug: "2026-current",
+					};
+				}),
+			},
+			status: "completed",
+		});
+
+		expect(parts[0]).toMatchObject({
+			sourceItems: [
+				{ citationIndexes: [5] },
+				{ citationIndexes: [6] },
+				{ citationIndexes: [7] },
+				{ citationIndexes: [8] },
+				{ citationIndexes: [9] },
+				{ citationIndexes: [10] },
+			],
+		});
+	});
+
 	it.each([
 		["missing", undefined],
 		["zero", 0],
-		["six", 6],
+		["eleven", 11],
 		["fraction", 1.5],
 	] as const)("rejects invalid citation index: %s", (_name, citationIndex) => {
 		expect(() =>

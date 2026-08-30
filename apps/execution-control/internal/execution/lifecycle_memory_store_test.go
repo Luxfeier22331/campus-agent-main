@@ -622,7 +622,7 @@ func atomicRunCreateRequestForTest(now time.Time) DurableRunCreateIntent {
 			Surface: "campus-web", TaskQueue: "campus-agent.workflow.v3",
 			Status: DurableRunStatusCreated, CreatedAt: now, UpdatedAt: now,
 			Metadata: map[string]any{
-				"execution_contract_version": "tool_execution_v6",
+				"execution_contract_version": "tool_execution_v7",
 				"execution_input_ref":        "app-api://execution-inputs/run-atomic",
 				"execution_input_sha256":     strings.Repeat("c", 64),
 			},

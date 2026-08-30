@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ChatStreamRequestError } from "../src/features/conversation/api";
-
 import {
 	isPersistedConversationMessageId,
-	isStreamRecoveryExhausted,
 	isTerminalRunStatus,
-	nextResumeDelay,
-	RESUME_MAX_DELAY_MS,
-	streamRecoveryExhausted,
 } from "../src/features/conversation/assistant-ui-recovery-policy";
 
 describe("assistant-ui recovery policy", () => {
@@ -16,27 +10,6 @@ describe("assistant-ui recovery policy", () => {
 		expect(isPersistedConversationMessageId("local-user-01")).toBe(false);
 		expect(isPersistedConversationMessageId("local-error-01")).toBe(false);
 		expect(isPersistedConversationMessageId(null)).toBe(false);
-	});
-
-	it("identifies exhausted recovery without treating other stream errors as recoverable state", () => {
-		expect(
-			isStreamRecoveryExhausted(
-				new ChatStreamRequestError({
-					code: "chat_stream_connection_lost",
-					message: "连接已中断。",
-					retryable: true,
-				}),
-			),
-		).toBe(true);
-		expect(
-			isStreamRecoveryExhausted(
-				new ChatStreamRequestError({
-					code: "execution_failed",
-					message: "执行失败。",
-					retryable: false,
-				}),
-			),
-		).toBe(false);
 	});
 
 	it.each(["completed", "failed", "canceled", "expired"] as const)(
@@ -56,17 +29,4 @@ describe("assistant-ui recovery policy", () => {
 			).toBe(true);
 		},
 	);
-
-	it("caps exponential resume delay", () => {
-		expect(nextResumeDelay(250)).toBe(500);
-		expect(nextResumeDelay(RESUME_MAX_DELAY_MS)).toBe(RESUME_MAX_DELAY_MS);
-	});
-
-	it("preserves request identity in exhausted recovery errors", () => {
-		expect(streamRecoveryExhausted({ requestId: "req_01" })).toMatchObject({
-			code: "chat_stream_connection_lost",
-			requestId: "req_01",
-			retryable: true,
-		});
-	});
 });

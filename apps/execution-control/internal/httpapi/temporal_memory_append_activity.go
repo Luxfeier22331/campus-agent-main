@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -81,7 +79,7 @@ func (s *Server) projectMemoryAppendFailure(
 	failureKind string,
 	cause error,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
-	summary := summarizeTemporalFailure(failureKind, "", cause)
+	summary := summarizeTemporalFailure(failureKind)
 	output := temporalruntime.AppendConversationMemoryActivityOutput{
 		RequestID:     run.RequestID,
 		SchemaVersion: "memory_conversation_append_result_v3",
@@ -91,14 +89,16 @@ func (s *Server) projectMemoryAppendFailure(
 	now := time.Now().UTC()
 	payload := map[string]any{
 		"appended_message_count": output.AppendedMessageCount,
-		"failure_kind":           summary.Kind,
-		"failure_hash":           summary.Hash,
-		"message":                summary.Message,
-		"schema_version":         output.SchemaVersion,
-		"skip_reasons":           output.SkipReasons,
-		"skipped_count":          output.SkippedCount,
-		"status":                 output.Status,
-		"thread_id":              output.ThreadID,
+		"failure": map[string]any{
+			"code":      summary.Kind,
+			"operation": "memory.append",
+		},
+		"message":        summary.Message,
+		"schema_version": output.SchemaVersion,
+		"skip_reasons":   output.SkipReasons,
+		"skipped_count":  output.SkippedCount,
+		"status":         output.Status,
+		"thread_id":      output.ThreadID,
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       temporalActivityAttempt(ctx),
@@ -285,12 +285,4 @@ func startPersonalMemoryHeartbeat(ctx context.Context, detail string) func() {
 		}
 	}()
 	return func() { close(stop) }
-}
-
-func memoryFailureHash(cause error) string {
-	if cause == nil {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(cause.Error()))
-	return hex.EncodeToString(sum[:])
 }

@@ -56,11 +56,9 @@ import {
 	ToolGroupTrigger,
 } from "@/components/assistant-ui/tool-group";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { CampusRunDuration, CampusRunStatus } from "@/components/conversation/campus-run-status";
 import { deleteMessageFeedback, submitMessageFeedback } from "@/features/conversation/api";
 import { readCampusMessageMetadata } from "@/features/conversation/assistant-ui-mappers";
 import { isPersistedConversationMessageId } from "@/features/conversation/assistant-ui-recovery-policy";
-import { readCampusRunViewMetadata } from "@/features/conversation/run-view-state";
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
 
@@ -84,7 +82,6 @@ export interface ThreadProps {
 	assistantAvatarFallback?: string | undefined;
 	components?: ThreadComponents | undefined;
 	composerPlaceholder?: string | undefined;
-	defaultRunStepsOpen?: boolean | undefined;
 	welcomeMessage?: string | undefined;
 }
 
@@ -92,7 +89,6 @@ const EMPTY_COMPONENTS: ThreadComponents = {};
 const DEFAULT_THREAD_SETTINGS = {
 	assistantAvatarFallback: "问",
 	composerPlaceholder: "输入校园问题",
-	defaultRunStepsOpen: false,
 	welcomeMessage: "今天想了解什么校园信息？",
 };
 
@@ -108,7 +104,6 @@ export const Thread: FC<ThreadProps> = ({
 	assistantAvatarFallback = DEFAULT_THREAD_SETTINGS.assistantAvatarFallback,
 	components = EMPTY_COMPONENTS,
 	composerPlaceholder = DEFAULT_THREAD_SETTINGS.composerPlaceholder,
-	defaultRunStepsOpen = DEFAULT_THREAD_SETTINGS.defaultRunStepsOpen,
 	welcomeMessage = DEFAULT_THREAD_SETTINGS.welcomeMessage,
 }) => {
 	const isEmpty = useAuiState(isNewChatView);
@@ -119,7 +114,6 @@ export const Thread: FC<ThreadProps> = ({
 				value={{
 					assistantAvatarFallback,
 					composerPlaceholder,
-					defaultRunStepsOpen,
 					welcomeMessage,
 				}}
 			>
@@ -151,7 +145,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 			>
 				<div
 					className={cn(
-						"mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-3 pt-4 sm:px-5 sm:pt-6",
+						"mx-auto flex w-full max-w-(--thread-max-width) flex-col px-3 pt-4 sm:px-5 sm:pt-6",
 						isEmpty && "justify-center",
 					)}
 				>
@@ -170,22 +164,17 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 						<ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
 					</div>
 					<ThreadRunStatus />
-
-					<ThreadPrimitive.ViewportFooter
-						className={cn(
-							"aui-thread-viewport-footer relative flex flex-col gap-3 overflow-visible pb-3 sm:pb-5",
-							!isEmpty &&
-								"sticky bottom-0 mt-auto bg-background pt-2 shadow-[0_-18px_24px_-24px_color-mix(in_oklab,var(--sys-text-default)_30%,transparent)]",
-						)}
-					>
-						<ThreadScrollToBottom />
-						<Composer />
-						<AuiIf condition={(s) => isNewChatView(s) && s.composer.isEmpty}>
-							<ThreadSuggestions />
-						</AuiIf>
-					</ThreadPrimitive.ViewportFooter>
 				</div>
 			</ThreadPrimitive.Viewport>
+			<div className="aui-thread-composer-dock border-border/70 shrink-0 border-t bg-background px-3 pb-3 sm:px-5 sm:pb-5">
+				<div className="relative mx-auto flex w-full max-w-(--thread-max-width) flex-col gap-3 pt-2">
+					<ThreadScrollToBottom />
+					<Composer />
+					<AuiIf condition={(s) => isNewChatView(s) && s.composer.isEmpty}>
+						<ThreadSuggestions />
+					</AuiIf>
+				</div>
+			</div>
 		</ThreadPrimitive.Root>
 	);
 };
@@ -193,6 +182,12 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 const ThreadRunStatus: FC = () => {
 	const threadId = useAuiState((state) => state.threadListItem.id);
 	const isRunning = useAuiState((state) => state.thread.isRunning);
+	const connection = useAuiState((state) => {
+		const extras = state.thread.extras;
+		return extras && typeof extras === "object" && "connection" in extras
+			? (extras as { connection?: string }).connection
+			: "connected";
+	});
 	const previousRef = useRef<{ isRunning: boolean; threadId: string } | null>(null);
 	const [announcement, setAnnouncement] = useState("");
 
@@ -213,9 +208,24 @@ const ThreadRunStatus: FC = () => {
 	}, [isRunning, threadId]);
 
 	return (
-		<span aria-atomic="true" aria-live="polite" className="sr-only" role="status">
-			{announcement}
-		</span>
+		<>
+			{isRunning ? (
+				<p
+					aria-atomic="true"
+					className={cn(
+						"aui-thread-run-status mx-auto mb-3 w-full max-w-(--thread-max-width) px-3 text-sm sm:px-5",
+						connection === "disconnected" ? "text-destructive" : "text-muted-foreground",
+					)}
+					data-connection={connection}
+					role="status"
+				>
+					{connection === "disconnected" ? "连接已断开" : "正在回答"}
+				</p>
+			) : null}
+			<span aria-atomic="true" aria-live="polite" className="sr-only" role="status">
+				{announcement}
+			</span>
+		</>
 	);
 };
 
@@ -383,14 +393,9 @@ const AssistantMessage: FC = () => {
 		ToolGroup,
 		ReasoningGroup,
 	} = useContext(ThreadComponentsContext);
-	const { defaultRunStepsOpen } = useContext(ThreadSettingsContext);
-
-	// Keep the 44px hit area in flow; the message-group gap offsets only the visual spacing.
-	const ACTION_BAR_HEIGHT = "-mb-5 min-h-11";
-	const runMetadata = useAuiState((s) => s.message.metadata.custom?.campusRequest);
+	useContext(ThreadSettingsContext);
 	const messageCustom = useAuiState((s) => s.message.metadata.custom);
 	const messageMetadata = useMemo(() => readCampusMessageMetadata(messageCustom), [messageCustom]);
-	const runView = useMemo(() => readCampusRunViewMetadata(runMetadata), [runMetadata]);
 
 	return (
 		<MessagePrimitive.Root
@@ -405,7 +410,6 @@ const AssistantMessage: FC = () => {
 				className="text-foreground px-1 leading-7 wrap-break-word [contain-intrinsic-size:auto_24px] [content-visibility:auto] sm:px-2"
 			>
 				<AssistantMessageStatus kind={messageMetadata.kind} />
-				{runView ? <CampusRunStatus defaultStepsOpen={defaultRunStepsOpen} run={runView} /> : null}
 				<MessagePrimitive.GroupedParts
 					groupBy={groupPartByType({
 						reasoning: ["group-chainOfThought", "group-reasoning"],
@@ -453,9 +457,6 @@ const AssistantMessage: FC = () => {
 							case "data":
 								return part.dataRendererUI;
 							case "indicator":
-								if (runView) {
-									return null;
-								}
 								return (
 									<span
 										data-slot="aui_assistant-message-indicator"
@@ -474,9 +475,8 @@ const AssistantMessage: FC = () => {
 
 			<div
 				data-slot="aui_assistant-message-footer"
-				className={cn("ms-1 flex items-center gap-5 sm:ms-2", ACTION_BAR_HEIGHT)}
+				className="ms-1 flex min-h-6 items-center gap-5 sm:ms-2"
 			>
-				{runView ? <CampusRunDuration run={runView} /> : null}
 				<BranchPicker />
 				<AssistantActionBar />
 			</div>

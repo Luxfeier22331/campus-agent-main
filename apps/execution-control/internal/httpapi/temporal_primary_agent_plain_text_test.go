@@ -104,14 +104,24 @@ func preparePrimaryAgentFinalizationRunForTest(
 		output.PromptTrace = primaryAgentPromptTraceForFinalizationTest()
 	}
 	for _, result := range primaryAgentToolResultMaps(agentMetadata["tool_results"]) {
-		output.ToolResults = append(output.ToolResults, temporalruntime.AgentToolResult{
-			ArgumentsJSON:   cloneAnyMapFromMetadata(result["arguments_json"]),
-			DurationMS:      numericProjectionValue(result["duration_ms"]),
-			FailCloseReason: strings.TrimSpace(stringValue(result["fail_close_reason"])),
-			Result:          cloneAnyMapFromMetadata(result["result"]),
-			Status:          strings.TrimSpace(stringValue(result["status"])),
-			ToolName:        strings.TrimSpace(stringValue(result["tool_name"])),
-		})
+		agentToolResult := temporalruntime.AgentToolResult{
+			ArgumentsJSON: cloneAnyMapFromMetadata(result["arguments_json"]),
+			DurationMS:    numericProjectionValue(result["duration_ms"]),
+			InvocationID:  strings.TrimSpace(stringValue(result["invocation_id"])),
+			Result:        cloneAnyMapFromMetadata(result["result"]),
+			Status:        strings.TrimSpace(stringValue(result["status"])),
+			ToolName:      strings.TrimSpace(stringValue(result["tool_name"])),
+		}
+		if failure, ok := result["failure"].(map[string]any); ok {
+			agentToolResult.Failure = &temporalruntime.ExecutionFailure{
+				Code:         strings.TrimSpace(stringValue(failure["code"])),
+				Operation:    strings.TrimSpace(stringValue(failure["operation"])),
+				Detail:       strings.TrimSpace(stringValue(failure["detail"])),
+				HTTPStatus:   intFromAny(failure["http_status"]),
+				InvocationID: strings.TrimSpace(stringValue(failure["invocation_id"])),
+			}
+		}
+		output.ToolResults = append(output.ToolResults, agentToolResult)
 	}
 	if _, err := store.TransitionRun(context.Background(), runID, execution.DurableRunStatusAdmitted, "", now.Add(2*time.Second)); err != nil {
 		t.Fatalf("admit run: %v", err)

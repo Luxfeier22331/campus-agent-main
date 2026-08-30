@@ -212,7 +212,8 @@ func TestAppendConversationMemoryActivityProjectsFailureWhenHindsightAppendFails
 	if payload == nil {
 		t.Fatal("memory.append failure projection missing")
 	}
-	if payload["status"] != "failed" || payload["failure_kind"] != "hindsight_append_failed" {
+	failure, _ := payload["failure"].(map[string]any)
+	if payload["status"] != "failed" || failure["code"] != "hindsight_append_failed" {
 		t.Fatalf("payload = %#v, want failed hindsight append projection", payload)
 	}
 	if payload["user_message"] != nil || payload["assistant_message"] != nil {

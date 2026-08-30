@@ -29,36 +29,6 @@ const RuntimeProvider: FC<PropsWithChildren> = ({ children }) => {
 	return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
 };
 
-const RunStatusRuntimeProvider: FC<PropsWithChildren> = ({ children }) => {
-	const runtime = useLocalRuntime(noOpAdapter, {
-		initialMessages: [
-			{
-				content: [{ text: "完整回答", type: "text" }],
-				metadata: {
-					custom: {
-						campusRequest: {
-							acceptedAt: "2026-08-18T07:00:00.000Z",
-							completedAt: "2026-08-18T07:00:05.000Z",
-							connection: "live",
-							durationMs: 5_000,
-							phase: "finalizing",
-							provisional: false,
-							requestId: "req_accessibility",
-							sequence: 8,
-							startedAt: "2026-08-18T07:00:01.000Z",
-							status: "completed",
-						},
-					},
-				},
-				role: "assistant",
-				status: { reason: "stop", type: "complete" },
-			},
-		],
-	});
-
-	return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
-};
-
 describe("assistant thread accessibility", () => {
 	it("keeps streamed messages out of the polite status announcer", async () => {
 		render(
@@ -78,22 +48,16 @@ describe("assistant thread accessibility", () => {
 		expect(runStatus).not.toContainElement(answer);
 	});
 
-	it("renders stable run metadata through the real assistant-ui selector", async () => {
+	it("keeps completed messages free of runtime phase and timer UI", async () => {
 		render(
-			<RunStatusRuntimeProvider>
+			<RuntimeProvider>
 				<Thread />
-			</RunStatusRuntimeProvider>,
+			</RuntimeProvider>,
 		);
 
-		const progress = await screen.findByRole("region", { name: "回答进度" });
-		const answer = await screen.findByText("完整回答");
-
-		expect(progress).toBeInTheDocument();
-		expect(screen.getByText("回答过程")).toBeInTheDocument();
-		expect(screen.queryByText("回答完成")).not.toBeInTheDocument();
-		expect(screen.getByText("5秒")).toBeInTheDocument();
-		expect(
-			progress.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
+		await screen.findByText("完整回答");
+		expect(screen.queryByRole("region", { name: "回答进度" })).not.toBeInTheDocument();
+		expect(screen.queryByText("回答过程")).not.toBeInTheDocument();
+		expect(screen.queryByText("5秒")).not.toBeInTheDocument();
 	});
 });

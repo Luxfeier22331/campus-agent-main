@@ -119,7 +119,6 @@ func TestToolExecutionWorkflowFinalizesRunAfterPrimaryAgentFailure(t *testing.T)
 			return finalization.RequestID == input.RequestID &&
 				finalization.Stage == "agent.primary" &&
 				finalization.FailureKind == "agent_attempt_uncertain" &&
-				len(finalization.FailureHash) == 64 &&
 				!finalization.FailedAt.IsZero()
 		}),
 	).Return(FinalizeExecutionFailureActivityOutput{RequestID: input.RequestID, Status: "failed"}, nil).Once()
@@ -161,7 +160,6 @@ func TestToolExecutionWorkflowFinalizesRunAfterNonRetryableFinalizationFailure(t
 			return finalization.RequestID == input.RequestID &&
 				finalization.Stage == "finalization.write" &&
 				finalization.FailureKind == "finalization_input_invalid" &&
-				len(finalization.FailureHash) == 64 &&
 				!finalization.FailedAt.IsZero()
 		}),
 	).Return(FinalizeExecutionFailureActivityOutput{RequestID: input.RequestID, Status: "failed"}, nil).Once()
@@ -232,14 +230,6 @@ func TestToolExecutionWorkflowReturnsFailureFinalizerErrorBeforeStageError(t *te
 	}
 	if strings.Contains(err.Error(), "agent failed") {
 		t.Fatalf("workflow error = %v, finalizer error must take precedence", err)
-	}
-}
-
-func TestWorkflowFailureHashUsesBoundedApplicationErrorDetail(t *testing.T) {
-	expected := strings.Repeat("a", 64)
-	err := temporal.NewApplicationError("bounded failure", "provider_unavailable", expected)
-	if actual := workflowFailureHash(err); actual != expected {
-		t.Fatalf("workflow failure hash = %q, want sanitized detail %q", actual, expected)
 	}
 }
 

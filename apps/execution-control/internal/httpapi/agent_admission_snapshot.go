@@ -62,12 +62,12 @@ func (s *Server) buildAgentAdmissionSnapshot(
 
 func executionStrategyForAdmission(personalMemoryRecallAvailable bool) temporalruntime.ExecutionStrategySnapshot {
 	visibleToolNames := []string{campusSearchToolName}
-	maxModelTurns := 2
-	maxToolCalls := 1
+	maxModelTurns := 3
+	maxToolCalls := 2
 	if personalMemoryRecallAvailable {
 		visibleToolNames = append(visibleToolNames, personalMemoryRecallToolName)
-		maxModelTurns = 3
-		maxToolCalls = 2
+		maxModelTurns = 4
+		maxToolCalls = 3
 	}
 	strategy := temporalruntime.ExecutionStrategySnapshot{
 		Kind:             "direct",

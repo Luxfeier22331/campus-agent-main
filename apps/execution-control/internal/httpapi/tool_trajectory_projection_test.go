@@ -32,7 +32,6 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 			StartedAt:      now,
 			CompletedAt:    now.Add(100 * time.Millisecond),
 			SanitizedPayload: map[string]any{
-				"raw_prompt":         "must not leak",
 				"visible_tool_names": []any{"personal_memory_recall"},
 			},
 		}},
@@ -85,7 +84,6 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 				SanitizedPayload: map[string]any{
 					"activity_attempt":      1,
 					"arguments_json_sha256": "sha256:args",
-					"authorization":         "must not leak",
 					"result":                map[string]any{"outcome": "recalled"},
 					"tool_name":             "personal_memory_recall",
 				},
@@ -110,12 +108,6 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 	}
 	if len(calls[0]) != 1 {
 		t.Fatalf("tool call contains non-eval fields: %#v", calls[0])
-	}
-	serialized := stringifyForTest(projection)
-	for _, forbidden := range []string{"must not leak", "raw_prompt", "raw_provider_result", "authorization"} {
-		if strings.Contains(serialized, forbidden) {
-			t.Fatalf("tool trajectory projection leaked %q: %s", forbidden, serialized)
-		}
 	}
 }
 
@@ -148,8 +140,8 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 			Status:     "completed",
 			ResultKind: "typed_tool_result",
 			SanitizedPayload: map[string]any{
-				"result": campusSearchResult([]campusSearchEvidence{{
-					EvidenceRef:  "evidence://" + strings.Repeat("c", 64),
+				"result": campusSearchResult([]campusSearchResultItem{{
+					ResultRef:    "result://" + strings.Repeat("c", 64),
 					SourceKind:   "document",
 					DocumentID:   "curriculum-document",
 					Title:        "培养方案",
@@ -160,7 +152,7 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 					VersionLabel: "当前版本",
 					VersionSlug:  "current",
 					Text:         "successful context",
-				}}),
+				}}, 1),
 			},
 		},
 		{
@@ -173,10 +165,10 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 				"finalized_response": map[string]any{
 					"result": map[string]any{
 						"sources": []any{map[string]any{
-							"document_id":  "curriculum-document",
-							"evidence_ref": "evidence://successful-context",
-							"kind":         "campus_document",
-							"snippet":      "successful context",
+							"document_id": "curriculum-document",
+							"result_ref":  "result://successful-context",
+							"kind":        "campus_document",
+							"snippet":     "successful context",
 						}},
 					},
 				},

@@ -29,7 +29,7 @@ const rawToolSchema = z.object({
 	result_projection_policy: z.literal("bounded_json"),
 });
 const rawCatalogSchema = z.object({
-	schema_version: z.literal("tool-registry-v6"),
+	schema_version: z.literal("tool-registry-v7"),
 	registry_version: z.string().min(1),
 	tools: z.array(rawToolSchema).min(1),
 });
@@ -58,7 +58,7 @@ export interface ToolCatalogEntry {
 }
 
 export interface ToolCatalog {
-	schemaVersion: "tool-registry-v6";
+	schemaVersion: "tool-registry-v7";
 	registryVersion: string;
 	contractFingerprint: ToolContractFingerprint;
 	tools: ToolCatalogEntry[];
@@ -208,8 +208,8 @@ function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObje
 		throw new Error(`tool function schema config not found: ${path}`);
 	}
 	const parsed = JSON.parse(readFileSync(path, "utf8")) as ToolFunctionSchemaFile;
-	if (parsed.schema_version !== "tool-function-schemas-v3" || !Array.isArray(parsed.tools)) {
-		throw new Error("tool function schema config must use tool-function-schemas-v3");
+	if (parsed.schema_version !== "tool-function-schemas-v4" || !Array.isArray(parsed.tools)) {
+		throw new Error("tool function schema config must use tool-function-schemas-v4");
 	}
 	const result = new Map<string, JsonObjectSchema>();
 	for (const rawTool of parsed.tools) {
@@ -300,7 +300,7 @@ function canonicalJSONString(value: string): string {
 
 function defaultToolFunctionSchemaPath(toolCatalogPath: string): string | undefined {
 	for (let dir = dirname(toolCatalogPath); ; dir = dirname(dir)) {
-		const candidate = join(dir, "configs", "runtime", "tool-function-schemas.v3.json");
+		const candidate = join(dir, "configs", "runtime", "tool-function-schemas.v4.json");
 		if (existsSync(candidate)) {
 			return candidate;
 		}

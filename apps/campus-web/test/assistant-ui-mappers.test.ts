@@ -78,9 +78,6 @@ describe("assistant-ui conversation mappers", () => {
 				id: "msg_assistant",
 				metadata: {
 					custom: {
-						campusRequest: {
-							requestId: "req_01HQ",
-						},
 						campusMessage: {
 							kind: "answer",
 							requestId: "req_01HQ",
@@ -93,7 +90,7 @@ describe("assistant-ui conversation mappers", () => {
 		]);
 	});
 
-	it("projects message status, request identity, and existing feedback", () => {
+	it("projects message status and existing feedback", () => {
 		const conversation: ConversationDetail = {
 			archivedAt: null,
 			activeRequestId: null,
@@ -123,9 +120,6 @@ describe("assistant-ui conversation mappers", () => {
 		expect(toAssistantThreadMessages(conversation)[0]).toMatchObject({
 			metadata: {
 				custom: {
-					campusRequest: {
-						requestId: "req_01HQ",
-					},
 					campusMessage: {
 						kind: "error",
 						requestId: "req_01HQ",

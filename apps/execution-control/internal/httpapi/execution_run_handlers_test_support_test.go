@@ -198,7 +198,7 @@ func durableRunCreateBodyWithToolForTest(
 			"contract": "durable-agent-runtime-contract-v1",
 		},
 		"metadata": map[string]any{
-			"execution_contract_version": "tool_execution_v6",
+			"execution_contract_version": "tool_execution_v7",
 			"execution_input_ref":        "app-api://execution-inputs/" + runID,
 			"execution_input_sha256":     hex.EncodeToString(digest[:]),
 		},

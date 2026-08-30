@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	ToolRegistrySchemaVersion = "tool-registry-v6"
-	defaultToolRegistryPath   = "configs/runtime/tools.v6.json"
-	packagedToolRegistryPath  = "/etc/campus-agent/tools.v6.json"
+	ToolRegistrySchemaVersion = "tool-registry-v7"
+	defaultToolRegistryPath   = "configs/runtime/tools.v7.json"
+	packagedToolRegistryPath  = "/etc/campus-agent/tools.v7.json"
 )
 
 var toolSchemaRefPattern = regexp.MustCompile(

@@ -64,8 +64,8 @@ execution-control 不预先构造另一份模型上下文摘要。
 上下文；来源公开字段由 execution-control 在 Finalization 中从真实工具结果派生。
 
 Agent 根据问题所需事实与工具声明范围选择工具，不按机构、地点或其他实体名称建立固定路由。问题
-同时包含已覆盖和未覆盖事实时，只回答本轮成功 evidence 支持的部分并说明资料边界；已有有效部分
-答案时仍生成普通正文。所需机构事实完全没有本轮成功 evidence 支持时直接说明资料不足。普通工具
+同时包含已覆盖和未覆盖事实时，只回答本轮检索候选直接支持的部分并说明资料边界；已有有效部分
+答案时仍生成普通正文。所需机构事实完全没有本轮候选支持时直接说明资料不足。普通工具
 失败可以与合法答案并存，但失败工具结果不得成为答案依据；合同、
 身份、运行指纹和结果结构错误继续失败关闭。
 
@@ -73,7 +73,7 @@ Agent 根据问题所需事实与工具声明范围选择工具，不按机构�
 
 Agent Runtime 使用 Agents SDK 原生文本输出，返回非空 `final_output`、有序真实工具调用摘要、模型
 用量、`context_usage`、运行指纹和 trace 关联。execution-control 校验文本与工具结果并写入
-`execution_finalization_response_v6`；追问、资料不足和范围说明都作为 `completed` 正文保存。
+`execution_finalization_response_v8`；追问、资料不足和范围说明都作为 `completed` 正文保存。
 
 `AppendConversationMemoryActivity` 是产品终态成功后的独立副作用，只追加已完成对话；它不是 Agent
 反思步骤，失败不会改写已完成的产品终态。

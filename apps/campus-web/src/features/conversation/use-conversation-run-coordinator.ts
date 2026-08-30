@@ -1,5 +1,5 @@
 import type { AppendMessage } from "@assistant-ui/react";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createIdempotencyKey, UnauthorizedError } from "@/platform/api/client";
 import {
 	type ChatRunStatus,
@@ -16,13 +16,7 @@ import { toAssistantThreadMessages } from "./assistant-ui-mappers";
 import {
 	isAbortError,
 	isRunAlreadyTerminalError,
-	isStreamRecoveryExhausted,
 	isTerminalRunStatus,
-	MAX_CONSECUTIVE_RECOVERY_FAILURES,
-	MAX_INITIAL_STREAM_REPLAYS,
-	nextResumeDelay,
-	RESUME_INITIAL_DELAY_MS,
-	streamRecoveryExhausted,
 } from "./assistant-ui-recovery-policy";
 import {
 	ConversationInitializationRegistry,
@@ -30,23 +24,42 @@ import {
 } from "./conversation-initialization";
 import type { ChatRequestStreamEvent } from "./model";
 import {
-	consumeRunLifecycleEvents,
-	fetchConversationMessagesWithRetry,
-	waitForResumeDelay,
-} from "./run-lifecycle-consumer";
-import {
 	type ActiveRun,
 	type RunCancellationState,
 	RunOperationMachine,
 	type RuntimeOperationIdentity,
 } from "./run-operation-machine";
-import {
-	type CampusRunViewAction,
-	type CampusRunViewState,
-	EMPTY_CAMPUS_RUN_VIEW,
-	reduceCampusRunViewState,
-} from "./run-view-state";
 import { useAssistantUiMessageProjection } from "./use-assistant-ui-message-projection";
+
+interface RuntimeRunState {
+	connection: "connected" | "disconnected";
+	operationId: number;
+	requestId: string | null;
+	sequence: number;
+}
+
+interface PendingAssistantDelta {
+	occurredAt: string;
+	text: string;
+}
+
+interface RuntimeRunAction {
+	acceptedAt?: string;
+	connection?: RuntimeRunState["connection"];
+	event?: ChatRequestStreamEvent;
+	operationId: number;
+	requestId?: string | null;
+	run?: ChatRunStatus;
+	sequence?: number;
+	type: "connection" | "event" | "hydrate" | "rebind" | "reset" | "start";
+}
+
+const EMPTY_RUNTIME_RUN: RuntimeRunState = {
+	connection: "connected",
+	operationId: 0,
+	requestId: null,
+	sequence: 0,
+};
 
 export interface ConversationRunPromptInput {
 	conversationId: string | undefined;
@@ -84,41 +97,67 @@ export function useConversationRunCoordinator({
 		appendAssistantDelta,
 		appendLocalErrorMessage,
 		appendLocalUserMessage,
-		appendProvisionalAssistantMessage,
-		cancelAssistantFrame,
 		clearMessages,
-		clearProvisionalAssistantMessages,
-		flushAssistantFrame,
 		messages,
 		removeMessage,
 		replaceWithCanonicalMessages,
-		revealAccumulatedAssistantText,
-		scheduleAssistantFrame,
 		setRuntimeMessages,
 		truncateMessagesFrom,
-		updateAssistantRunView,
 	} = useAssistantUiMessageProjection();
-	const [runView, dispatchRunView] = useReducer(reduceCampusRunViewState, EMPTY_CAMPUS_RUN_VIEW);
-	const runViewRef = useRef(EMPTY_CAMPUS_RUN_VIEW);
+	const [runState, setRunState] = useState(EMPTY_RUNTIME_RUN);
+	const runStateRef = useRef(EMPTY_RUNTIME_RUN);
+	const pendingAssistantDeltasRef = useRef(new Map<string, PendingAssistantDelta>());
 	const applyTerminalRunStatusRef = useRef<
 		((status: ChatRunStatus, operation: RuntimeOperationIdentity) => Promise<void>) | null
 	>(null);
 
-	const applyRunViewAction = useCallback(
-		(action: CampusRunViewAction): CampusRunViewState => {
-			const next = reduceCampusRunViewState(runViewRef.current, action);
-			runViewRef.current = next;
-			dispatchRunView(action);
-			updateAssistantRunView(next);
-			return next;
-		},
-		[updateAssistantRunView],
-	);
+	const applyRunStateAction = useCallback((action: RuntimeRunAction): RuntimeRunState => {
+		const current = runStateRef.current;
+		let next = current;
+		if (action.type === "reset" || action.type === "start") {
+			next = { ...EMPTY_RUNTIME_RUN, operationId: action.operationId };
+		} else if (current.operationId !== action.operationId) {
+			return current;
+		} else if (action.type === "connection") {
+			next = {
+				...current,
+				connection: action.connection ?? current.connection,
+				requestId: action.requestId ?? current.requestId,
+			};
+		} else if (action.type === "rebind") {
+			next = { ...current, requestId: action.requestId ?? current.requestId };
+		} else if (action.type === "hydrate" && action.run) {
+			next = {
+				...current,
+				connection: "connected",
+				requestId: action.run.requestId,
+				sequence: Math.max(current.sequence, action.sequence ?? 0),
+			};
+		} else if (action.type === "event" && action.event) {
+			const eventRequestId = action.event.data.requestId?.trim();
+			const eventSequence = action.event.data.sequence;
+			if (
+				(current.requestId && eventRequestId && current.requestId !== eventRequestId) ||
+				(eventSequence !== undefined && eventSequence <= current.sequence)
+			) {
+				return current;
+			}
+			next = {
+				...current,
+				connection: "connected",
+				requestId: eventRequestId || current.requestId,
+				sequence: eventSequence ?? current.sequence,
+			};
+		}
+		runStateRef.current = next;
+		setRunState(next);
+		return next;
+	}, []);
 
-	const applyRunViewEvent = useCallback(
-		(event: ChatRequestStreamEvent, operationId: number): CampusRunViewState =>
-			applyRunViewAction({ event, operationId, type: "event" }),
-		[applyRunViewAction],
+	const applyRunStateEvent = useCallback(
+		(event: ChatRequestStreamEvent, operationId: number) =>
+			applyRunStateAction({ event, operationId, type: "event" }),
+		[applyRunStateAction],
 	);
 
 	const replaceActiveRun = useCallback((run: ActiveRun | null) => {
@@ -128,6 +167,26 @@ export function useConversationRunCoordinator({
 	const updateActiveRun = useCallback((update: (current: ActiveRun | null) => ActiveRun | null) => {
 		operationMachineRef.current.updateActiveRun(update);
 	}, []);
+
+	const clearPendingAssistantDeltas = useCallback(() => {
+		pendingAssistantDeltasRef.current.clear();
+	}, []);
+
+	const holdAssistantDelta = useCallback((messageId: string, delta: string, occurredAt: string) => {
+		const current = pendingAssistantDeltasRef.current.get(messageId);
+		pendingAssistantDeltasRef.current.set(messageId, {
+			occurredAt,
+			text: (current?.text ?? "") + delta,
+		});
+	}, []);
+
+	const revealPendingAssistantDeltas = useCallback(() => {
+		const pending = [...pendingAssistantDeltasRef.current.entries()];
+		pendingAssistantDeltasRef.current.clear();
+		for (const [messageId, delta] of pending) {
+			appendAssistantDelta(messageId, delta.text, delta.occurredAt);
+		}
+	}, [appendAssistantDelta]);
 
 	const fetchConversationDetail = useCallback(
 		async (conversationId: string, signal?: AbortSignal) =>
@@ -143,10 +202,10 @@ export function useConversationRunCoordinator({
 		[fetchConversationDetail],
 	);
 
-	const startOperation = useCallback(
-		(): RuntimeOperationIdentity => operationMachineRef.current.start(),
-		[],
-	);
+	const startOperation = useCallback((): RuntimeOperationIdentity => {
+		clearPendingAssistantDeltas();
+		return operationMachineRef.current.start();
+	}, [clearPendingAssistantDeltas]);
 
 	const ownsOperation = useCallback(
 		(operation: RuntimeOperationIdentity): boolean =>
@@ -201,10 +260,10 @@ export function useConversationRunCoordinator({
 							ownsOperation(operation) &&
 							operationMachineRef.current.activeRun?.requestId === run.requestId
 						) {
-							applyRunViewAction({
+							applyRunStateAction({
 								operationId: operation.id,
 								run: status,
-								sequence: runViewRef.current.sequence,
+								sequence: runStateRef.current.sequence,
 								type: "hydrate",
 							});
 							if (isTerminalRunStatus(status)) {
@@ -250,7 +309,7 @@ export function useConversationRunCoordinator({
 						) {
 							return;
 						}
-						revealAccumulatedAssistantText();
+						revealPendingAssistantDeltas();
 						if (error instanceof UnauthorizedError) {
 							onLoginRequired();
 							return;
@@ -263,19 +322,20 @@ export function useConversationRunCoordinator({
 		},
 		[
 			appendCancellationFailure,
-			applyRunViewAction,
+			applyRunStateAction,
 			onLoginRequired,
 			ownsOperation,
-			revealAccumulatedAssistantText,
+			revealPendingAssistantDeltas,
 		],
 	);
 
 	useEffect(
 		() => () => {
 			operationMachineRef.current.invalidate();
+			clearPendingAssistantDeltas();
 			initializationRegistryRef.current.clear();
 		},
-		[],
+		[clearPendingAssistantDeltas],
 	);
 
 	const applyTerminalEvent = useCallback(
@@ -283,12 +343,11 @@ export function useConversationRunCoordinator({
 			if (!ownsOperation(operation)) {
 				return;
 			}
-			flushAssistantFrame();
+			clearPendingAssistantDeltas();
 			const conversationId =
 				event.data.answer?.conversation.id ??
 				operationMachineRef.current.activeRun?.conversationId ??
 				remoteId;
-			const terminalRunView = runViewRef.current;
 			operationMachineRef.current.cancellation = { phase: "idle" };
 			setIsRunning(false);
 			replaceActiveRun(null);
@@ -308,26 +367,21 @@ export function useConversationRunCoordinator({
 						})
 					: null;
 			if (event.event === "request.cancelled") {
-				flushAssistantFrame();
 				return;
 			}
 			if (event.data.answer) {
 				const terminalMessages = toAssistantThreadMessages(event.data.answer.conversation);
-				cancelAssistantFrame();
-				replaceWithCanonicalMessages(terminalMessages, terminalRunView);
+				replaceWithCanonicalMessages(terminalMessages);
 				return;
 			}
 			if (conversationId) {
-				cancelAssistantFrame();
-				clearProvisionalAssistantMessages();
 				try {
-					const nextMessages = await fetchConversationMessagesWithRetry(
+					const nextMessages = await fetchConversationMessages(
 						conversationId,
 						operation.controller.signal,
-						fetchConversationMessages,
 					);
 					if (ownsOperation(operation)) {
-						replaceWithCanonicalMessages(nextMessages, terminalRunView);
+						replaceWithCanonicalMessages(nextMessages);
 						return;
 					}
 				} catch (error) {
@@ -352,10 +406,8 @@ export function useConversationRunCoordinator({
 		},
 		[
 			appendLocalErrorMessage,
-			cancelAssistantFrame,
-			clearProvisionalAssistantMessages,
+			clearPendingAssistantDeltas,
 			fetchConversationMessages,
-			flushAssistantFrame,
 			ownsOperation,
 			remoteId,
 			replaceActiveRun,
@@ -373,7 +425,6 @@ export function useConversationRunCoordinator({
 			if (!messageId || typeof delta !== "string" || delta.length === 0) {
 				return;
 			}
-			appendAssistantDelta(messageId, delta, event.data.occurredAt);
 			const cancellation = operationMachineRef.current.cancellation;
 			if (
 				(cancellation.phase === "awaiting_request_id" ||
@@ -381,11 +432,12 @@ export function useConversationRunCoordinator({
 					cancellation.phase === "acknowledged") &&
 				cancellation.operationId === operation.id
 			) {
+				holdAssistantDelta(messageId, delta, event.data.occurredAt);
 				return;
 			}
-			scheduleAssistantFrame(messageId, event.data.occurredAt);
+			appendAssistantDelta(messageId, delta, event.data.occurredAt);
 		},
-		[appendAssistantDelta, ownsOperation, scheduleAssistantFrame],
+		[appendAssistantDelta, holdAssistantDelta, ownsOperation],
 	);
 
 	const applyTerminalRunStatus = useCallback(
@@ -393,13 +445,13 @@ export function useConversationRunCoordinator({
 			if (!ownsOperation(operation)) {
 				return;
 			}
-			const terminalRunView = applyRunViewAction({
+			clearPendingAssistantDeltas();
+			applyRunStateAction({
 				operationId: operation.id,
 				run: status,
-				sequence: runViewRef.current.sequence,
+				sequence: runStateRef.current.sequence,
 				type: "hydrate",
 			});
-			cancelAssistantFrame();
 			operationMachineRef.current.cancellation = { phase: "idle" };
 			setIsRunning(false);
 			replaceActiveRun(null);
@@ -407,13 +459,12 @@ export function useConversationRunCoordinator({
 				initializationRegistryRef.current.local = null;
 			}
 			try {
-				const nextMessages = await fetchConversationMessagesWithRetry(
+				const nextMessages = await fetchConversationMessages(
 					status.conversationId,
 					operation.controller.signal,
-					fetchConversationMessages,
 				);
 				if (ownsOperation(operation)) {
-					replaceWithCanonicalMessages(nextMessages, terminalRunView);
+					replaceWithCanonicalMessages(nextMessages);
 				}
 			} catch (error) {
 				if (error instanceof UnauthorizedError || isAbortError(error)) {
@@ -433,8 +484,8 @@ export function useConversationRunCoordinator({
 		},
 		[
 			appendLocalErrorMessage,
-			applyRunViewAction,
-			cancelAssistantFrame,
+			applyRunStateAction,
+			clearPendingAssistantDeltas,
 			fetchConversationMessages,
 			ownsOperation,
 			replaceActiveRun,
@@ -449,14 +500,16 @@ export function useConversationRunCoordinator({
 			conversationId: string | undefined,
 			operation: RuntimeOperationIdentity,
 			onEvent: () => void,
-		) =>
-			consumeRunLifecycleEvents({
-				events,
-				isCurrent: () => ownsOperation(operation),
-				onAccepted: (event) => {
-					if (!event.data.requestId) {
-						return;
-					}
+		) => {
+			let eventCount = 0;
+			for await (const event of events) {
+				if (!ownsOperation(operation)) {
+					return { eventCount, terminal: true };
+				}
+				eventCount += 1;
+				applyRunStateEvent(event, operation.id);
+				onEvent();
+				if (event.event === "request.accepted" && event.data.requestId) {
 					const acceptedRun = {
 						...(conversationId ? { conversationId } : {}),
 						requestId: event.data.requestId,
@@ -470,33 +523,36 @@ export function useConversationRunCoordinator({
 					) {
 						void requestRunCancellation(acceptedRun, operation);
 					}
-				},
-				onAnswerDelta: (event) => applyAnswerDelta(event, operation),
-				onEvent: (event) => {
-					applyRunViewEvent(event, operation.id);
-					onEvent();
-				},
-				onRunEvent: (event) => {
-					if (!event.data.requestId) {
-						return;
-					}
-					const requestId = event.data.requestId;
+				}
+				if (event.data.requestId) {
 					updateActiveRun((current) => ({
 						...((current?.conversationId ?? conversationId)
 							? { conversationId: current?.conversationId ?? conversationId }
 							: {}),
-						requestId,
+						requestId: event.data.requestId,
 						...((event.data.sequence ?? current?.sequence) === undefined
 							? {}
 							: { sequence: event.data.sequence ?? current?.sequence }),
 					}));
-				},
-				onTerminal: (event) => applyTerminalEvent(event, operation),
-			}),
+				}
+				if (event.event === "answer.delta") {
+					applyAnswerDelta(event, operation);
+				}
+				if (
+					event.event === "request.completed" ||
+					event.event === "request.failed" ||
+					event.event === "request.cancelled"
+				) {
+					await applyTerminalEvent(event, operation);
+					return { eventCount, terminal: true };
+				}
+			}
+			return { eventCount, terminal: false };
+		},
 		[
 			applyAnswerDelta,
 			applyTerminalEvent,
-			applyRunViewEvent,
+			applyRunStateEvent,
 			ownsOperation,
 			replaceActiveRun,
 			requestRunCancellation,
@@ -510,141 +566,38 @@ export function useConversationRunCoordinator({
 			controller: AbortController;
 			operation: RuntimeOperationIdentity;
 			initialEvents: AsyncIterable<ChatRequestStreamEvent>;
-			retryInitialEvents?: () => AsyncIterable<ChatRequestStreamEvent>;
 		}) => {
-			let delayMs = RESUME_INITIAL_DELAY_MS;
-			let events = input.initialEvents;
-			let initialReplayCount = 0;
-			let consecutiveRecoveryFailures = 0;
-			for (;;) {
-				if (!ownsOperation(input.operation)) {
-					return;
-				}
-				let streamProgress = false;
-				try {
-					const consumed = await consumeLifecycleStream(
-						events,
-						input.conversationId,
-						input.operation,
-						() => {
-							streamProgress = true;
-							consecutiveRecoveryFailures = 0;
-							delayMs = RESUME_INITIAL_DELAY_MS;
-						},
-					);
-					if (consumed.terminal || input.controller.signal.aborted) {
-						return;
-					}
-					if (consumed.eventCount > 0) {
-						delayMs = RESUME_INITIAL_DELAY_MS;
-						consecutiveRecoveryFailures = 0;
-					}
-				} catch (error) {
-					if (!ownsOperation(input.operation)) {
-						return;
-					}
-					if (
-						error instanceof UnauthorizedError ||
-						isAbortError(error) ||
-						(error instanceof ChatStreamRequestError && !error.retryable)
-					) {
-						throw error;
-					}
-					if (!(operationMachineRef.current.activeRun || input.retryInitialEvents)) {
-						throw error;
-					}
-				}
-
-				const run = ownsOperation(input.operation) ? operationMachineRef.current.activeRun : null;
-				if (!run) {
-					if (!input.retryInitialEvents) {
-						throw new ChatStreamRequestError({
-							code: "stream_closed_before_acceptance",
-							message: "回答连接在运行被接受前关闭。",
-							retryable: true,
-						});
-					}
-					if (initialReplayCount >= MAX_INITIAL_STREAM_REPLAYS) {
-						throw streamRecoveryExhausted();
-					}
-					initialReplayCount += 1;
-					await waitForResumeDelay(delayMs, input.controller.signal);
-					events = input.retryInitialEvents();
-					delayMs = nextResumeDelay(delayMs);
-					continue;
-				}
-
-				try {
-					const status = await getRunStatus({
-						requestId: run.requestId,
-						signal: input.controller.signal,
-					});
-					if (isTerminalRunStatus(status)) {
-						await applyTerminalRunStatus(status, input.operation);
-						return;
-					}
-					applyRunViewAction({
-						operationId: input.operation.id,
-						run: status,
-						...(run.sequence === undefined ? {} : { sequence: run.sequence }),
-						type: "hydrate",
-					});
-					updateActiveRun((current) =>
-						current?.requestId === status.requestId
-							? {
-									...current,
-									conversationId: status.conversationId,
-									requestId: status.requestId,
-								}
-							: current,
-					);
-					consecutiveRecoveryFailures = 0;
-				} catch (error) {
-					if (!ownsOperation(input.operation)) {
-						return;
-					}
-					if (
-						error instanceof UnauthorizedError ||
-						isAbortError(error) ||
-						(error instanceof ChatStreamRequestError && !error.retryable)
-					) {
-						throw error;
-					}
-					if (!streamProgress) {
-						consecutiveRecoveryFailures += 1;
-					}
-					if (consecutiveRecoveryFailures >= MAX_CONSECUTIVE_RECOVERY_FAILURES) {
-						throw streamRecoveryExhausted(run);
-					}
-				}
-				await waitForResumeDelay(delayMs, input.controller.signal);
-				events = resumeRunEventsStream({
-					...(run.sequence === undefined ? {} : { afterSequence: run.sequence }),
-					requestId: run.requestId,
-					signal: input.controller.signal,
+			if (!ownsOperation(input.operation)) {
+				return;
+			}
+			const consumed = await consumeLifecycleStream(
+				input.initialEvents,
+				input.conversationId,
+				input.operation,
+				() => undefined,
+			);
+			if (!(consumed.terminal || input.controller.signal.aborted)) {
+				throw new ChatStreamRequestError({
+					code: "chat_stream_connection_lost",
+					message: "回答连接已断开。",
+					retryable: true,
+					requestId: operationMachineRef.current.activeRun?.requestId,
 				});
-				delayMs = nextResumeDelay(delayMs);
 			}
 		},
-		[
-			applyRunViewAction,
-			applyTerminalRunStatus,
-			consumeLifecycleStream,
-			ownsOperation,
-			updateActiveRun,
-		],
+		[consumeLifecycleStream, ownsOperation],
 	);
 
 	const markRunDisconnected = useCallback(
 		(operationId: number, requestId: string | null) => {
-			applyRunViewAction({
+			applyRunStateAction({
 				connection: "disconnected",
 				operationId,
 				...(requestId === null ? {} : { requestId }),
 				type: "connection",
 			});
 		},
-		[applyRunViewAction],
+		[applyRunStateAction],
 	);
 
 	const restoreConversationRun = useCallback(
@@ -657,7 +610,7 @@ export function useConversationRunCoordinator({
 				return;
 			}
 			const canonicalMessages = toAssistantThreadMessages(conversation);
-			applyRunViewAction({ operationId: operation.id, type: "reset" });
+			applyRunStateAction({ operationId: operation.id, type: "reset" });
 			replaceWithCanonicalMessages(canonicalMessages);
 			if (!conversation.activeRequestId) {
 				setIsRunning(false);
@@ -675,39 +628,19 @@ export function useConversationRunCoordinator({
 					requestId: status.requestId,
 				};
 				replaceActiveRun(activeRun);
-				const hydrated = applyRunViewAction({
+				applyRunStateAction({
 					operationId: operation.id,
 					run: status,
 					type: "hydrate",
 				});
-				const hasAssistantForRun = canonicalMessages.some((message) => {
-					if (message.role !== "assistant") {
-						return false;
-					}
-					const metadata = message.metadata?.custom?.campusRequest;
-					return Boolean(
-						metadata &&
-							typeof metadata === "object" &&
-							!Array.isArray(metadata) &&
-							(metadata as Record<string, unknown>).requestId === requestId,
-					);
-				});
-				if (!hasAssistantForRun) {
-					appendProvisionalAssistantMessage({
-						messageId: `local-assistant-${crypto.randomUUID()}`,
-						occurredAt: status.acceptedAt,
-						runView: hydrated,
-					});
-				}
 				setIsRunning(!isTerminalRunStatus(status));
 				if (isTerminalRunStatus(status)) {
-					const nextMessages = await fetchConversationMessagesWithRetry(
+					const nextMessages = await fetchConversationMessages(
 						conversationId,
 						operation.controller.signal,
-						fetchConversationMessages,
 					);
 					if (ownsOperation(operation)) {
-						replaceWithCanonicalMessages(nextMessages, hydrated);
+						replaceWithCanonicalMessages(nextMessages);
 						replaceActiveRun(null);
 					}
 					return;
@@ -734,7 +667,7 @@ export function useConversationRunCoordinator({
 					await applyTerminalRunStatus(replay.run, operation);
 					return;
 				}
-				applyRunViewAction({
+				applyRunStateAction({
 					operationId: operation.id,
 					run: replay.run,
 					sequence: replay.nextSequence,
@@ -749,37 +682,34 @@ export function useConversationRunCoordinator({
 					conversationId,
 					controller: operation.controller,
 					operation,
-					initialEvents: streamFromEvents([]),
+					initialEvents: resumeRunEventsStream({
+						afterSequence: replay.nextSequence,
+						requestId,
+						signal: operation.controller.signal,
+					}),
 				});
 			} catch (error) {
 				if (!ownsOperation(operation)) {
 					return;
 				}
-				setIsRunning(false);
+				setIsRunning(true);
 				markRunDisconnected(operation.id, requestId);
 				if (error instanceof UnauthorizedError) {
 					onLoginRequired();
 					return;
 				}
 				if (isAbortError(error)) {
-					cancelAssistantFrame();
-					clearProvisionalAssistantMessages();
 					return;
 				}
 				if (error instanceof ChatStreamRequestError) {
-					appendLocalErrorMessage(error);
 					return;
 				}
 				throw error;
 			}
 		},
 		[
-			appendLocalErrorMessage,
-			appendProvisionalAssistantMessage,
-			applyRunViewAction,
+			applyRunStateAction,
 			applyTerminalRunStatus,
-			cancelAssistantFrame,
-			clearProvisionalAssistantMessages,
 			consumeLifecycleStream,
 			fetchConversationMessages,
 			followLifecycleStream,
@@ -805,14 +735,13 @@ export function useConversationRunCoordinator({
 			return;
 		}
 
+		clearPendingAssistantDeltas();
 		const operation = operationMachineRef.current.begin();
 		const operationId = operation.id;
 		const controller = operation.controller;
-		cancelAssistantFrame();
-		clearProvisionalAssistantMessages();
 		operationMachineRef.current.cancellation = { phase: "idle" };
 		replaceActiveRun(null);
-		applyRunViewAction({ operationId, type: "reset" });
+		applyRunStateAction({ operationId, type: "reset" });
 		setIsRunning(false);
 		if (!remoteId) {
 			operationMachineRef.current.controller = null;
@@ -861,10 +790,9 @@ export function useConversationRunCoordinator({
 		};
 	}, [
 		appendLocalErrorMessage,
-		applyRunViewAction,
+		applyRunStateAction,
 		clearMessages,
-		clearProvisionalAssistantMessages,
-		cancelAssistantFrame,
+		clearPendingAssistantDeltas,
 		fetchConversationDetail,
 		onLoginRequired,
 		ownsOperation,
@@ -887,12 +815,9 @@ export function useConversationRunCoordinator({
 			const operation = startOperation();
 			const controller = operation.controller;
 			const localMessageId = `local-user-${crypto.randomUUID()}`;
-			const provisionalAssistantMessageId = `local-assistant-${crypto.randomUUID()}`;
 			const acceptedAt = new Date().toISOString();
-			cancelAssistantFrame();
-			clearProvisionalAssistantMessages();
 			replaceActiveRun(null);
-			const startedRunView = applyRunViewAction({
+			applyRunStateAction({
 				acceptedAt,
 				operationId: operation.id,
 				type: "start",
@@ -904,11 +829,6 @@ export function useConversationRunCoordinator({
 				truncateMessagesFrom(input.truncateFromMessageId);
 			}
 			appendLocalUserMessage(input.messageContent, localMessageId);
-			appendProvisionalAssistantMessage({
-				messageId: provisionalAssistantMessageId,
-				occurredAt: acceptedAt,
-				runView: startedRunView,
-			});
 			setIsRunning(true);
 
 			let initializationCleanupFailed = false;
@@ -1005,7 +925,6 @@ export function useConversationRunCoordinator({
 					controller,
 					operation,
 					initialEvents: submitEvents(),
-					retryInitialEvents: submitEvents,
 				});
 			} catch (error) {
 				if (initializationCleanupFailed) {
@@ -1015,58 +934,24 @@ export function useConversationRunCoordinator({
 					return;
 				}
 				const acceptedRun = operationMachineRef.current.activeRun;
-				setIsRunning(false);
+				setIsRunning(Boolean(acceptedRun));
 				if (error instanceof UnauthorizedError) {
 					if (operationMachineRef.current.activeRun) {
 						markRunDisconnected(operation.id, operationMachineRef.current.activeRun.requestId);
-					} else {
-						cancelAssistantFrame();
-						if (!acceptedRun) {
-							clearProvisionalAssistantMessages();
-						}
 					}
 					onLoginRequired();
 					return;
 				}
 				if (isAbortError(error)) {
-					cancelAssistantFrame();
-					clearProvisionalAssistantMessages();
 					return;
 				}
 				if (error instanceof ChatStreamRequestError) {
-					const recoveryExhausted = acceptedRun && isStreamRecoveryExhausted(error);
 					if (acceptedRun) {
 						markRunDisconnected(operation.id, acceptedRun.requestId);
-					}
-					if (!recoveryExhausted) {
-						replaceActiveRun(null);
-					}
-					cancelAssistantFrame();
-					if (!acceptedRun) {
-						clearProvisionalAssistantMessages();
+						operationMachineRef.current.cancellation = { phase: "idle" };
+						return;
 					}
 					operationMachineRef.current.cancellation = { phase: "idle" };
-					const conversationId = acceptedRun?.conversationId ?? input.conversationId;
-					if (acceptedRun && conversationId) {
-						try {
-							const canonicalMessages = await fetchConversationMessages(
-								conversationId,
-								controller.signal,
-							);
-							if (!ownsOperation(operation)) {
-								return;
-							}
-							replaceWithCanonicalMessages(canonicalMessages, runViewRef.current);
-						} catch (refreshError) {
-							if (refreshError instanceof UnauthorizedError) {
-								onLoginRequired();
-								return;
-							}
-							if (isAbortError(refreshError)) {
-								return;
-							}
-						}
-					}
 					appendLocalErrorMessage(error);
 					return;
 				}
@@ -1078,18 +963,13 @@ export function useConversationRunCoordinator({
 		[
 			appendLocalErrorMessage,
 			appendLocalUserMessage,
-			appendProvisionalAssistantMessage,
-			applyRunViewAction,
-			cancelAssistantFrame,
-			clearProvisionalAssistantMessages,
-			fetchConversationMessages,
+			applyRunStateAction,
 			followLifecycleStream,
 			loginRequired,
 			markRunDisconnected,
 			onLoginRequired,
 			ownsOperation,
 			replaceActiveRun,
-			replaceWithCanonicalMessages,
 			startOperation,
 			truncateMessagesFrom,
 		],
@@ -1099,13 +979,11 @@ export function useConversationRunCoordinator({
 		const currentRun = operationMachineRef.current.activeRun;
 		let controller = operationMachineRef.current.controller;
 		const cancellation = operationMachineRef.current.cancellation;
-		cancelAssistantFrame();
 		if (
 			controller &&
 			cancellation.phase === "initializing" &&
 			cancellation.operationId === operationMachineRef.current.operationId
 		) {
-			clearProvisionalAssistantMessages();
 			removeMessage(cancellation.localMessageId);
 			initializationRegistryRef.current.local = null;
 			operationMachineRef.current.invalidate();
@@ -1120,7 +998,7 @@ export function useConversationRunCoordinator({
 			} else {
 				operation = startOperation();
 				controller = operation.controller;
-				applyRunViewAction({
+				applyRunStateAction({
 					operationId: operation.id,
 					requestId: currentRun.requestId,
 					type: "rebind",
@@ -1141,16 +1019,12 @@ export function useConversationRunCoordinator({
 			}
 			return;
 		}
-		cancelAssistantFrame();
-		clearProvisionalAssistantMessages();
 		initializationRegistryRef.current.local = null;
 		operationMachineRef.current.invalidate();
 		setIsRunning(false);
 		replaceActiveRun(null);
 	}, [
-		applyRunViewAction,
-		cancelAssistantFrame,
-		clearProvisionalAssistantMessages,
+		applyRunStateAction,
 		isRunning,
 		removeMessage,
 		replaceActiveRun,
@@ -1165,12 +1039,11 @@ export function useConversationRunCoordinator({
 		}
 		const operation = startOperation();
 		const controller = operation.controller;
-		applyRunViewAction({
+		applyRunStateAction({
 			operationId: operation.id,
 			requestId: currentRun.requestId,
 			type: "rebind",
 		});
-		cancelAssistantFrame();
 		setIsRunning(true);
 		try {
 			await followLifecycleStream({
@@ -1187,25 +1060,18 @@ export function useConversationRunCoordinator({
 			if (!ownsOperation(operation)) {
 				return;
 			}
-			setIsRunning(false);
+			setIsRunning(true);
 			if (error instanceof UnauthorizedError) {
 				markRunDisconnected(operation.id, currentRun.requestId);
 				onLoginRequired();
 				return;
 			}
 			if (isAbortError(error)) {
-				cancelAssistantFrame();
-				clearProvisionalAssistantMessages();
 				return;
 			}
 			if (error instanceof ChatStreamRequestError) {
 				markRunDisconnected(operation.id, currentRun.requestId);
-				if (!isStreamRecoveryExhausted(error)) {
-					replaceActiveRun(null);
-				}
-				cancelAssistantFrame();
 				operationMachineRef.current.cancellation = { phase: "idle" };
-				appendLocalErrorMessage(error);
 				return;
 			}
 			markRunDisconnected(operation.id, currentRun.requestId);
@@ -1214,15 +1080,11 @@ export function useConversationRunCoordinator({
 			operationMachineRef.current.clearController(operation);
 		}
 	}, [
-		appendLocalErrorMessage,
-		applyRunViewAction,
-		cancelAssistantFrame,
-		clearProvisionalAssistantMessages,
+		applyRunStateAction,
 		followLifecycleStream,
 		markRunDisconnected,
 		onLoginRequired,
 		ownsOperation,
-		replaceActiveRun,
 		startOperation,
 	]);
 
@@ -1230,7 +1092,7 @@ export function useConversationRunCoordinator({
 		isLoading,
 		isRunning,
 		messages,
-		runView,
+		runState,
 		onCancel,
 		onResume,
 		requiresConversationInitialization,

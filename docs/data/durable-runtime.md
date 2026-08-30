@@ -142,7 +142,7 @@ provider/model 与有界用量摘要保存于正式投影中。已开始或已�
 ## Finalization 投影
 
 Finalization 保存 SDK 终态答案和确定性校验结果。机构知识 source 只能来自同一次运行中成功工具的
-真实 evidence，并通过该工具对应 adapter 校验；当前只有 `campus_search` 注册 Campus Docs 来源 adapter。
+真实 cited result，并通过该工具对应 adapter 校验；当前只有 `campus_search` 注册 Campus Docs 来源 adapter。
 其他来源能力接入时必须由对应合同定义来源校验和公开字段。
 
 Finalization 可以拒绝空正文、无效工具结果或不满足执行合同的 output，但不会创建或改写答案。app-api 可以在
@@ -181,7 +181,7 @@ run 或阶段结果。
 - 原始 source body、Qdrant point 或 object-store bytes；
 - 本地文件路径。
 
-完整 `tool_execution_v6` 输入由 app-api 以精确 UTF-8 文本拥有，execution-control 只持久化
+完整 `tool_execution_v7` 输入由 app-api 以精确 UTF-8 文本拥有，execution-control 只持久化
 `execution_input_ref` 和 `execution_input_sha256`；ref 指向的数据也不得
 复制到上述投影。已经分配 request 的输入在产品终态后仍由 app-api 保留，随 app-api 的会话和用户数据
 生命周期删除；execution-control 不维护对应清理记录。

@@ -14,7 +14,7 @@ status: active
 ## 持久执行协调
 
 `chat.turn_dispatches` 是产品请求身份和终态的 app-api 提交点。接收事务为同一 request
-冻结完整的 `tool_execution_v6` 输入，并写入 `execution_input_json text` 和
+冻结完整的 `tool_execution_v7` 输入，并写入 `execution_input_json text` 和
 `execution_input_sha256`，供 execution-control 按
 `app-api://execution-inputs/{requestId}` 读取。
 

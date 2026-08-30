@@ -19,6 +19,10 @@ import {
 	InternalPortalCredentialConflictError,
 	InternalPortalCredentialNameConflictError,
 } from "../src/server/internal-portal-credential-store.ts";
+import {
+	createPgOpsStatusStore,
+	createPgOpsStatusStoreDatabase,
+} from "../src/server/pg-ops-status-store.ts";
 import { installNoticeSchema } from "./ops-web-postgres.global-setup.ts";
 
 const postgres = inject("opsWebPostgres");
@@ -286,6 +290,319 @@ describe("ops-web PostgreSQL grants", () => {
 			(select count(*)::int from dining.review_reports where report_id = 'drp_preserve') as reports,
 			(select count(*)::int from dining.review_edits where edit_id = 'dre_preserve') as edits`);
 		expect(counts.rows[0]).toEqual({ edits: 1, menu: 1, reports: 1, reviews: 1 });
+	});
+
+	it("projects request status separately from execution-stage failures", async () => {
+		const runtime = requiredClient(opsWeb, "ops_web");
+		const suffix = randomUUID().replaceAll("-", "");
+		const conversationId = `ops_status_${suffix}`;
+		const requestIds = [
+			`ops_status_answer_${suffix}`,
+			`ops_status_tool_${suffix}`,
+			`ops_status_missing_${suffix}`,
+			`ops_status_failed_${suffix}`,
+			`ops_status_waiting_${suffix}`,
+		];
+		const answerRequestId = requestIds[0];
+		const toolRequestId = requestIds[1];
+		if (!(answerRequestId && toolRequestId)) {
+			throw new Error("request fixture IDs are incomplete");
+		}
+		const userMessageIds = requestIds.map((requestId) => `${requestId}:user`);
+		const assistantMessageIds = [
+			`${requestIds[0]}:assistant`,
+			`${requestIds[1]}:assistant`,
+			`${requestIds[3]}:assistant`,
+			`${requestIds[4]}:assistant`,
+		];
+		const generatedAt = new Date("2026-08-30T01:00:00.000Z");
+		const answerStartedAt = new Date("2026-08-30T00:59:00.000Z");
+		const toolStartedAt = new Date("2026-08-30T00:58:00.000Z");
+		const missingStartedAt = new Date("2026-08-30T00:57:00.000Z");
+		const failedStartedAt = new Date("2026-08-30T00:56:00.000Z");
+		const waitingStartedAt = new Date("2026-08-30T00:55:00.000Z");
+
+		try {
+			await management.query(
+				`insert into chat.conversations
+					(id, owner_user_id, title, created_at, updated_at)
+				 values ($1, 'ops-status-test', 'Ops status integration test', $2, $2)`,
+				[conversationId, answerStartedAt],
+			);
+
+			for (const [index, requestId] of requestIds.entries()) {
+				const startedAt = [
+					answerStartedAt,
+					toolStartedAt,
+					missingStartedAt,
+					failedStartedAt,
+					waitingStartedAt,
+				][index];
+				await management.query(
+					`insert into chat.messages
+						(id, conversation_id, role, kind, text, created_at, request_id)
+					 values ($1, $2, 'user', null, $3, $4, $5)`,
+					[userMessageIds[index], conversationId, `问题 ${requestId}`, startedAt, requestId],
+				);
+			}
+
+			const assistantMessages = [
+				{
+					createdAt: new Date("2026-08-30T00:59:04.000Z"),
+					id: assistantMessageIds[0],
+					kind: "answer",
+					requestId: requestIds[0],
+					text: `回答 ${requestIds[0]}`,
+				},
+				{
+					createdAt: new Date("2026-08-30T00:58:05.000Z"),
+					id: assistantMessageIds[1],
+					kind: "answer",
+					requestId: requestIds[1],
+					text: `回答 ${requestIds[1]}`,
+				},
+				{
+					createdAt: new Date("2026-08-30T00:56:05.000Z"),
+					id: assistantMessageIds[2],
+					kind: "error",
+					requestId: requestIds[3],
+					text: "当前暂时无法完成查询。",
+				},
+				{
+					createdAt: new Date("2026-08-30T00:55:05.000Z"),
+					id: assistantMessageIds[3],
+					kind: "error",
+					requestId: requestIds[4],
+					text: "请补充要查询的具体事项。",
+				},
+			];
+			for (const assistant of assistantMessages) {
+				await management.query(
+					`insert into chat.messages
+						(id, conversation_id, role, kind, text, created_at, request_id)
+					 values ($1, $2, 'assistant', $3, $4, $5, $6)`,
+					[
+						assistant.id,
+						conversationId,
+						assistant.kind,
+						assistant.text,
+						assistant.createdAt,
+						assistant.requestId,
+					],
+				);
+			}
+
+			const dispatches = [
+				{
+					assistantMessageId: assistantMessageIds[0],
+					completedAt: new Date("2026-08-30T00:59:04.000Z"),
+					requestId: requestIds[0],
+					startedAt: answerStartedAt,
+					status: "completed",
+				},
+				{
+					assistantMessageId: assistantMessageIds[1],
+					completedAt: new Date("2026-08-30T00:58:05.000Z"),
+					requestId: requestIds[1],
+					startedAt: toolStartedAt,
+					status: "completed",
+				},
+				{
+					assistantMessageId: `${requestIds[2]}:assistant-missing`,
+					completedAt: new Date("2026-08-30T00:57:05.000Z"),
+					requestId: requestIds[2],
+					startedAt: missingStartedAt,
+					status: "completed",
+				},
+				{
+					assistantMessageId: assistantMessageIds[2],
+					completedAt: new Date("2026-08-30T00:56:05.000Z"),
+					requestId: requestIds[3],
+					startedAt: failedStartedAt,
+					status: "error",
+				},
+				{
+					assistantMessageId: assistantMessageIds[3],
+					completedAt: null,
+					requestId: requestIds[4],
+					startedAt: waitingStartedAt,
+					status: "approval_required",
+				},
+			];
+			for (const [index, dispatch] of dispatches.entries()) {
+				await management.query(
+					`insert into chat.turn_dispatches
+						(request_id, conversation_id, user_message_id, assistant_message_id, turn_sequence,
+						 surface, owner_user_id, actor_user_id, principal_snapshot_json, status,
+						 created_at, completed_at, updated_at)
+					 values ($1, $2, $3, $4, $5, 'campus_web', 'ops-status-test', 'ops-status-test', '{}'::jsonb,
+						 $6, $7, $8, $9)`,
+					[
+						dispatch.requestId,
+						conversationId,
+						userMessageIds[index],
+						dispatch.assistantMessageId,
+						index + 1,
+						dispatch.status,
+						dispatch.startedAt,
+						dispatch.completedAt,
+						index === 0
+							? new Date("2026-08-30T00:59:10.000Z")
+							: (dispatch.completedAt ?? dispatch.startedAt),
+					],
+				);
+			}
+
+			for (const [index, requestId] of requestIds.slice(0, 2).entries()) {
+				const startedAt = index === 0 ? answerStartedAt : toolStartedAt;
+				await management.query(
+					`insert into execution_control.agent_runs
+						(request_id, conversation_id, owner_user_id, surface, task_queue, status, created_at, completed_at, updated_at)
+					 values ($1, $2, 'ops-status-test', 'campus_web', 'ops-status-test', 'completed', $3, $4, $5)`,
+					[
+						requestId,
+						conversationId,
+						startedAt,
+						new Date(startedAt.valueOf() + 5_000),
+						index === 0
+							? new Date("2026-08-30T00:59:10.000Z")
+							: new Date("2026-08-30T00:58:05.000Z"),
+					],
+				);
+			}
+
+			const steps = [
+				{
+					completedAt: new Date("2026-08-30T00:59:03.000Z"),
+					failure: null,
+					requestId: requestIds[0],
+					startedAt: new Date("2026-08-30T00:59:01.000Z"),
+					status: "completed",
+					stepId: "agent.primary",
+					stepKind: "agent",
+					updatedAt: new Date("2026-08-30T00:59:03.000Z"),
+				},
+				{
+					completedAt: new Date("2026-08-30T00:59:10.000Z"),
+					failure: { code: "hindsight_append_failed", operation: "memory.append" },
+					requestId: requestIds[0],
+					startedAt: new Date("2026-08-30T00:59:09.000Z"),
+					status: "failed",
+					stepId: "memory.append",
+					stepKind: "memory",
+					updatedAt: new Date("2026-08-30T00:59:10.000Z"),
+				},
+				{
+					completedAt: new Date("2026-08-30T00:58:02.000Z"),
+					failure: { code: "agent_tool_failed", operation: "tool.call" },
+					requestId: requestIds[1],
+					startedAt: new Date("2026-08-30T00:58:01.000Z"),
+					status: "failed",
+					stepId: "tool.call",
+					stepKind: "tool",
+					updatedAt: new Date("2026-08-30T00:58:02.000Z"),
+				},
+				{
+					completedAt: new Date("2026-08-30T00:58:05.000Z"),
+					failure: null,
+					requestId: requestIds[1],
+					startedAt: new Date("2026-08-30T00:58:04.000Z"),
+					status: "completed",
+					stepId: "finalization.write",
+					stepKind: "finalization",
+					updatedAt: new Date("2026-08-30T00:58:05.000Z"),
+				},
+			];
+			for (const step of steps) {
+				await management.query(
+					`insert into execution_control.agent_run_steps
+						(step_id, request_id, conversation_id, step_kind, status, started_at, completed_at,
+						 updated_at, payload_schema_version, sanitized_payload_json)
+					 values ($1, $2, $3, $4, $5, $6, $7, $8, 'ops-status-test.v1', $9::jsonb)`,
+					[
+						step.stepId,
+						step.requestId,
+						conversationId,
+						step.stepKind,
+						step.status,
+						step.startedAt,
+						step.completedAt,
+						step.updatedAt,
+						JSON.stringify(step.failure ? { failure: step.failure } : {}),
+					],
+				);
+			}
+
+			const store = createPgOpsStatusStore({
+				db: createPgOpsStatusStoreDatabase(runtime as never),
+				now: () => generatedAt,
+			});
+			const detail = await store.getRequestDetail(answerRequestId);
+			if (!detail) {
+				throw new Error("completed request detail is missing");
+			}
+			expect(detail.request).toMatchObject({ lifecyclePhase: "FINISHED", status: "COMPLETED" });
+			expect(detail.result).toMatchObject({ kind: "answer", state: "WRITTEN" });
+			expect(detail.execution.failure).toMatchObject({
+				code: "hindsight_append_failed",
+				operation: "memory.append",
+			});
+			expect(detail.execution.stages.map((stage) => stage.kind)).toEqual(["agent", "memory"]);
+
+			const toolDetail = await store.getRequestDetail(toolRequestId);
+			if (!toolDetail) {
+				throw new Error("tool request detail is missing");
+			}
+			expect(toolDetail.result).toMatchObject({ kind: "answer", state: "WRITTEN" });
+			expect(toolDetail.execution.failure).toMatchObject({
+				code: "agent_tool_failed",
+				operation: "tool.call",
+			});
+			expect(toolDetail.execution.stages.map((stage) => stage.kind)).toEqual([
+				"tool",
+				"finalization",
+			]);
+
+			const attention = await store.listRequests({ view: "attention", window: "1h" });
+			expect(attention.data.map((request) => request.requestId)).toEqual([
+				requestIds[2],
+				requestIds[0],
+				requestIds[1],
+				requestIds[3],
+				requestIds[4],
+			]);
+			expect(attention.data[1]).toMatchObject({
+				attentionReason: "EXECUTION_STAGE_FAILED",
+				failureKind: "hindsight_append_failed",
+				result: { kind: "answer", state: "WRITTEN" },
+				status: "COMPLETED",
+			});
+			expect(attention.statusCounts).toMatchObject({
+				actionRequired: 1,
+				completed: 3,
+				failed: 1,
+				total: 5,
+			});
+
+			const searched = await store.listRequests({ q: "hindsight_append_failed", window: "1h" });
+			expect(searched.data.map((request) => request.requestId)).toEqual([requestIds[0]]);
+
+			const overview = await store.getOverview("1h");
+			expect(overview.requests.updatedAt).toBe("2026-08-30T00:59:10.000Z");
+		} finally {
+			await management.query(
+				"delete from chat.turn_dispatches where request_id = any($1::text[])",
+				[requestIds],
+			);
+			await management.query(
+				"delete from execution_control.agent_runs where request_id = any($1::text[])",
+				[requestIds],
+			);
+			await management.query("delete from chat.messages where id = any($1::text[])", [
+				userMessageIds.concat(assistantMessageIds),
+			]);
+			await management.query("delete from chat.conversations where id = $1", [conversationId]);
+		}
 	});
 
 	it("moves the deployed ingestion-control credential table without changing rows", async () => {

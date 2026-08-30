@@ -87,8 +87,9 @@ pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`�
   重新提交原 prompt。
 
 assistant message 的 `source_items` structured part 只包含当前产品来源卡片。每个来源卡片的
-`citationIndexes` 是正文中对应的 `[n]` 编号数组，数组保持正文首次引用顺序，值必须是 `1..5` 的唯一
-整数。同一阅读目标的多个 evidence 会合并到同一卡片；App API 不从正文推导编号。历史 structured
+`citationIndexes` 是正文中对应的 `[n]` 编号数组，数组保持正文首次引用顺序，值必须是 `1..10` 的唯一
+整数。同一阅读目标的多个 cited results 会合并到同一卡片；App API 只消费 execution-control 已校验
+并公开投影的来源，不从正文或全部检索候选推导编号。历史 structured
 part 缺少该字段时不生成来源卡片，正文仍保留。
 
 ### 重命名、删除和状态

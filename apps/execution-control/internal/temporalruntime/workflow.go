@@ -1,8 +1,6 @@
 package temporalruntime
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"strings"
 	"time"
@@ -193,7 +191,6 @@ func finalizeExecutionFailure(
 	}
 	finalizerCtx := workflow.WithActivityOptions(ctx, options)
 	return workflow.ExecuteActivity(finalizerCtx, FinalizeExecutionFailureActivityName, FinalizeExecutionFailureActivityInput{
-		FailureHash: workflowFailureHash(cause),
 		FailureKind: workflowFailureKind(cause, fallbackKind),
 		FailedAt:    workflow.Now(ctx).UTC(),
 		RequestID:   input.RequestID,
@@ -259,34 +256,6 @@ func boundedFailureKind(kind string) bool {
 	}
 	for _, char := range kind {
 		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '_' || char == '-' {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-func workflowFailureHash(cause error) string {
-	if cause == nil {
-		return ""
-	}
-	var applicationError *temporal.ApplicationError
-	if errors.As(cause, &applicationError) && applicationError.HasDetails() {
-		var failureHash string
-		if err := applicationError.Details(&failureHash); err == nil && validFailureHash(failureHash) {
-			return failureHash
-		}
-	}
-	sum := sha256.Sum256([]byte(cause.Error()))
-	return hex.EncodeToString(sum[:])
-}
-
-func validFailureHash(value string) bool {
-	if len(value) != 64 {
-		return false
-	}
-	for _, char := range value {
-		if (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') {
 			continue
 		}
 		return false

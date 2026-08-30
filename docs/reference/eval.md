@@ -24,7 +24,7 @@ status: active
 `packages/eval-langfuse/assets/agent/routing/cases.v1.json`。Langfuse 上的 trace、score 和反馈不能
 自动改写这些输入。
 `agent-eval` 通过真实 App API 执行这些用例，并从 execution-control 的受认证内部接口读取
-`agent_runtime_eval_projection.v4` 中的答案、检索上下文和 `tool_trajectory.v4`。Campus Docs 上下文只
+`agent_runtime_eval_projection.v5` 中的答案、检索上下文、引用上下文和 `tool_trajectory.v4`。Campus Docs 上下文只
 来自真实 `campus_search` tool result 的闭包；Langfuse trace 只提供相关联的 SDK 和模型观测。
 
 线上 trace 只保存受控关联、模型/工具名称、用量、耗时和有限状态，不保存 answer、prompt、对话、
@@ -44,6 +44,7 @@ retrieval 正文、工具参数或 provider 原始响应。因此 Ragas 不从�
       "user_input": "图书馆开放时间是什么？",
       "response": "图书馆开放时间为 08:00 到 22:00。",
       "retrieved_contexts": ["图书馆开放时间为 08:00-22:00。"],
+      "cited_contexts": ["图书馆开放时间为 08:00-22:00。"],
       "reference": "图书馆开放时间为 08:00-22:00。",
       "metadata": {"surface_key": "app-api.chat"}
     }
@@ -51,14 +52,17 @@ retrieval 正文、工具参数或 provider 原始响应。因此 Ragas 不从�
 }
 ```
 
-单条样本只包含 `case_id`、`user_input`、`response`、`retrieved_contexts`、可选 `reference` 和
-标量 `metadata`。不得放入 trace、observation、dataset run、context ID、凭据、本地路径或原始正文
-之外的运行 dump。空 `retrieved_contexts` 是有效的失败样本，不能因此丢弃整批评测。
+单条样本只包含 `case_id`、`user_input`、`response`、`retrieved_contexts`、`cited_contexts`、
+可选 `reference` 和标量 `metadata`。`retrieved_contexts` 包含全部检索候选，`cited_contexts`
+只包含答案实际引用的候选。不得放入 trace、observation、dataset run、context ID、凭据、本地路径或
+原始正文之外的运行 dump。任一上下文数组为空仍是有效样本，不能因此丢弃整批评测。
 
 评分结果使用 `ragas_score_batch.v3`，只保留每个 `case_id` 的 `scores` 和实际评分错误，不携带
 产品请求或 Langfuse 身份。缺少 reference 时不运行 `context_precision` 和 `context_recall`，不伪造零分。
 
-默认 Ragas 指标为：
+`faithfulness` 消费 `cited_contexts`，`context_precision` 和 `context_recall` 消费
+`retrieved_contexts`，`answer_relevancy` 不消费上下文。这样答案忠实度只检查实际采用的依据，检索
+质量仍对全部候选负责。默认 Ragas 指标为：
 
 - `faithfulness`；
 - `answer_relevancy`。
@@ -69,7 +73,7 @@ retrieval 正文、工具参数或 provider 原始响应。因此 Ragas 不从�
 ## Agent 评测
 
 `agent-eval` 通过真实 App API 执行调用方显式提供的 cases 文件，生成
-`agent_product_eval_result.v2`。随后 `score-ragas` 生成 Agent 工具样本和独立的 RAG v3 样本，
+`agent_product_eval_result.v3`。随后 `score-ragas` 生成 Agent 工具样本和独立的 RAG v3 样本，
 输出最终 score 文件。发布到 Langfuse 时，TypeScript 适配层用同一批次的显式 case-to-trace 映射
 补回 score target，不把平台身份传给 Python Ragas runner。
 

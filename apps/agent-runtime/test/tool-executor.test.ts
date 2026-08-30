@@ -27,7 +27,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result).toMatchObject({
 			status: "failed",
-			failCloseReason: "tool_executor_not_configured",
+			failure: { code: "tool_executor_not_configured", operation: "tool.test_lookup" },
 			result: {
 				error: "execution-control query base URL and shared secret are required",
 			},
@@ -63,7 +63,7 @@ describe("execution-control tool executor", () => {
 
 			expect(result).toMatchObject({
 				status: "failed",
-				failCloseReason: "tool_handler_redirected",
+				failure: { code: "tool_handler_redirected", operation: "tool.test_lookup" },
 				result: { error: "execution-control query returned a redirect" },
 			});
 			expect(targetRequests).toBe(0);
@@ -104,7 +104,7 @@ describe("execution-control tool executor", () => {
 			expect(fetchCalled).toBe(false);
 			expect(result).toMatchObject({
 				status: "failed",
-				failCloseReason: "tool_handler_invalid_endpoint",
+				failure: { code: "tool_handler_invalid_endpoint", operation: "tool.test_lookup" },
 				result: {
 					error: "execution-control query endpoint must be a canonical /internal/ path",
 				},
@@ -132,6 +132,41 @@ describe("execution-control tool executor", () => {
 		expect(requests).toHaveLength(1);
 		expect(requests[0]?.headers.get("x-execution-query-auth")).toBe("query-secret");
 		expect(requests[0]?.headers.get("authorization")).toBeNull();
+	});
+
+	it("sends run-scoped campus search context to execution-control", async () => {
+		let body: Record<string, unknown> | undefined;
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret",
+			fetchImpl: async (request, init) => {
+				const normalized = request instanceof Request ? request : new Request(request, init);
+				body = (await normalized.json()) as Record<string, unknown>;
+				return Response.json({ outcome: "no_match", results: [] });
+			},
+		});
+		const request = toolRequest();
+		request.tool.name = "campus_search";
+		request.tool.handler.endpoint = "/internal/campus/search";
+		request.argumentsJson = { search_query: "转专业办理条件" };
+		request.invocationId = "search-call-2";
+		request.userGoal = "我想了解转专业需要满足什么条件？";
+		request.citationStart = 4;
+		request.resultLimit = 5;
+
+		await executor(request);
+
+		expect(body).toEqual({
+			payload: { search_query: "转专业办理条件" },
+			access_context: {
+				activity_attempt: 1,
+				request_id: "request-tool-executor",
+				invocation_id: "search-call-2",
+				user_goal: "我想了解转专业需要满足什么条件？",
+				citation_start: 4,
+				result_limit: 5,
+			},
+		});
 	});
 
 	it("passes the configured query secret without application-level trimming", async () => {
@@ -222,7 +257,11 @@ describe("execution-control tool executor", () => {
 		const result = await executor(toolRequest());
 
 		expect(result.status).toBe("failed");
-		expect(result.failCloseReason).toBe("tool_handler_failed");
+		expect(result.failure).toMatchObject({
+			code: "tool_handler_failed",
+			operation: "tool.test_lookup",
+			httpStatus: 503,
+		});
 		expect(result.result).toEqual({ error: "execution-control query failed" });
 	});
 
@@ -236,7 +275,10 @@ describe("execution-control tool executor", () => {
 		const result = await executor(toolRequest());
 
 		expect(result.status).toBe("failed");
-		expect(result.failCloseReason).toBe("tool_handler_invalid_response");
+		expect(result.failure).toMatchObject({
+			code: "tool_handler_invalid_response",
+			operation: "tool.test_lookup",
+		});
 		expect(result.result.error).toBe("execution-control query returned invalid JSON");
 	});
 
@@ -252,7 +294,10 @@ describe("execution-control tool executor", () => {
 		const result = await executor(toolRequest());
 
 		expect(result.status).toBe("failed");
-		expect(result.failCloseReason).toBe("transient_internal_query_failed");
+		expect(result.failure).toMatchObject({
+			code: "transient_internal_query_failed",
+			operation: "tool.test_lookup",
+		});
 		expect(result.result.error).toBe("execution-control query request failed");
 		expect(result.result).not.toHaveProperty("detail");
 	});
@@ -278,7 +323,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result).toMatchObject({
 			status: "failed",
-			failCloseReason: "transient_internal_query_failed",
+			failure: { code: "transient_internal_query_failed", operation: "tool.test_lookup" },
 			result: { error: "execution-control query timed out" },
 		});
 	});
@@ -312,7 +357,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result).toMatchObject({
 			status: "failed",
-			failCloseReason: "transient_internal_query_failed",
+			failure: { code: "transient_internal_query_failed", operation: "tool.test_lookup" },
 			result: { error: "execution-control query timed out" },
 		});
 	});

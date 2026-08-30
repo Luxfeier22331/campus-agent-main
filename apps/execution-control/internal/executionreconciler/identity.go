@@ -31,7 +31,7 @@ func (r *Reconciler) DecodeAndValidateWorkflowStartInput(
 	if input.TaskQueue != temporalruntime.WorkflowTaskQueue || intent.TaskQueue != temporalruntime.WorkflowTaskQueue {
 		return input, errors.New("workflow task queue is not v3")
 	}
-	if input.PayloadSHA256 != intent.PayloadSHA256 || !validTemporalFailureHash(input.PayloadSHA256) {
+	if input.PayloadSHA256 != intent.PayloadSHA256 || !validSHA256Hex(input.PayloadSHA256) {
 		return input, errors.New("workflow input payload hash is invalid")
 	}
 	if r.finalizer == nil {
@@ -199,7 +199,7 @@ func (r *Reconciler) describeLatestMatchingBoundWorkflowExecution(
 	return latest, true
 }
 
-func validTemporalFailureHash(value string) bool {
+func validSHA256Hex(value string) bool {
 	value = strings.TrimSpace(value)
 	if len(value) != 64 {
 		return false

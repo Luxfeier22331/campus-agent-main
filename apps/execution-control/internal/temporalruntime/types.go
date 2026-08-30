@@ -86,13 +86,22 @@ type ExecutePrimaryAgentActivityInput struct {
 	VisibleToolNames  []string               `json:"visible_tool_names"`
 }
 
+type ExecutionFailure struct {
+	Code         string `json:"code"`
+	Operation    string `json:"operation"`
+	Detail       string `json:"detail,omitempty"`
+	HTTPStatus   int    `json:"http_status,omitempty"`
+	InvocationID string `json:"invocation_id,omitempty"`
+}
+
 type AgentToolResult struct {
-	ArgumentsJSON   map[string]any `json:"arguments_json"`
-	DurationMS      float64        `json:"duration_ms"`
-	FailCloseReason string         `json:"fail_close_reason"`
-	Result          map[string]any `json:"result"`
-	Status          string         `json:"status"`
-	ToolName        string         `json:"tool_name"`
+	ArgumentsJSON map[string]any    `json:"arguments_json"`
+	DurationMS    float64           `json:"duration_ms"`
+	Failure       *ExecutionFailure `json:"failure,omitempty"`
+	InvocationID  string            `json:"invocation_id"`
+	Result        map[string]any    `json:"result"`
+	Status        string            `json:"status"`
+	ToolName      string            `json:"tool_name"`
 }
 
 type ExecutePrimaryAgentActivityOutput struct {
@@ -171,7 +180,6 @@ type FinalizePersonalMemoryCommandReceiptActivityInput struct {
 }
 
 type FinalizeExecutionFailureActivityInput struct {
-	FailureHash string    `json:"failure_hash"`
 	FailureKind string    `json:"failure_kind"`
 	FailedAt    time.Time `json:"failed_at"`
 	RequestID   string    `json:"request_id"`

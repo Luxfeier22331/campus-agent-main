@@ -51,14 +51,7 @@ func primaryAgentResultPayload(
 		if err != nil {
 			return nil, err
 		}
-		toolResults = append(toolResults, map[string]any{
-			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			"duration_ms":       durationMS,
-			"fail_close_reason": result.FailCloseReason,
-			"result":            cloneAnyMapFromMetadata(result.Result),
-			"status":            result.Status,
-			"tool_name":         result.ToolName,
-		})
+		toolResults = append(toolResults, primaryAgentToolResultMap(result, float64(durationMS)))
 	}
 	payload := map[string]any{
 		"activity_attempt":          input.activityAttempt,
@@ -101,14 +94,7 @@ func primaryAgentFinalizationResultMap(
 	output := input.AgentResult
 	toolResults := make([]map[string]any, 0, len(output.ToolResults))
 	for _, result := range output.ToolResults {
-		toolResults = append(toolResults, map[string]any{
-			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			"duration_ms":       result.DurationMS,
-			"fail_close_reason": result.FailCloseReason,
-			"result":            cloneAnyMapFromMetadata(result.Result),
-			"status":            result.Status,
-			"tool_name":         result.ToolName,
-		})
+		toolResults = append(toolResults, primaryAgentToolResultMap(result, result.DurationMS))
 	}
 	result := map[string]any{
 		"admission_snapshot_sha256": sha256JSONRef(input.AdmissionSnapshot),
@@ -137,6 +123,24 @@ func primaryAgentFinalizationResultMap(
 		result["admitted_tool_contract_fingerprint"] = expected
 	}
 	return result
+}
+
+func primaryAgentToolResultMap(
+	result temporalruntime.AgentToolResult,
+	durationMS float64,
+) map[string]any {
+	toolResult := map[string]any{
+		"arguments_json": cloneAnyMapFromMetadata(result.ArgumentsJSON),
+		"duration_ms":    durationMS,
+		"invocation_id":  result.InvocationID,
+		"result":         cloneAnyMapFromMetadata(result.Result),
+		"status":         result.Status,
+		"tool_name":      result.ToolName,
+	}
+	if result.Failure != nil {
+		toolResult["failure"] = result.Failure
+	}
+	return toolResult
 }
 
 // primaryAgentResultProjectionPayload is the bounded, non-sensitive view that
@@ -197,6 +201,6 @@ func numericProjectionValue(value any) float64 {
 	return numeric
 }
 
-func primaryAgentToolProjectionRef(runID string, toolName string, callIndex int) string {
-	return temporalProjectionRef(runID, fmt.Sprintf("sdk-tools/%s/%d", toolName, callIndex))
+func primaryAgentToolProjectionRef(runID string, toolName string, invocationID string) string {
+	return temporalProjectionRef(runID, fmt.Sprintf("sdk-tools/%s/%s", toolName, invocationID))
 }

@@ -1,4 +1,5 @@
 import { MaxTurnsExceededError, ToolCallError, ToolTimeoutError } from "@openai/agents";
+import type { ExecutionFailure } from "./agent-run-contract.ts";
 
 export type AgentRuntimeErrorCode =
 	| "invalid_request"
@@ -6,16 +7,35 @@ export type AgentRuntimeErrorCode =
 	| "agent_deadline_exceeded"
 	| "max_turns_exceeded"
 	| "provider_unavailable"
+	| "provider_rate_limited"
+	| "provider_http_failed"
+	| "provider_connection_failed"
+	| "provider_timeout"
 	| "tool_execution_failed"
 	| "tool_contract_mismatch"
 	| "run_failed";
 
 export class AgentRuntimeError extends Error {
 	readonly code: AgentRuntimeErrorCode;
+	readonly failure: ExecutionFailure;
 
-	constructor(code: AgentRuntimeErrorCode, message: string) {
+	constructor(
+		code: AgentRuntimeErrorCode,
+		message: string,
+		failure: Omit<ExecutionFailure, "code" | "operation"> & {
+			code?: string;
+			operation?: string;
+		} = {},
+	) {
 		super(message);
 		this.code = code;
+		this.failure = {
+			code,
+			operation: failure.operation ?? "agent.runtime",
+			...(failure.detail ? { detail: failure.detail } : {}),
+			...(failure.httpStatus === undefined ? {} : { httpStatus: failure.httpStatus }),
+			...(failure.invocationId ? { invocationId: failure.invocationId } : {}),
+		};
 		this.name = "AgentRuntimeError";
 	}
 }
@@ -23,12 +43,26 @@ export class AgentRuntimeError extends Error {
 export function agentRuntimeErrorPayload(
 	error: unknown,
 	options: { deadlineSignal?: AbortSignal } = {},
-): { code: AgentRuntimeErrorCode; message: string; retryable: false } {
+): {
+	code: AgentRuntimeErrorCode;
+	message: string;
+	retryable: false;
+	operation: string;
+	detail?: string;
+	http_status?: number;
+	invocation_id?: string;
+} {
 	const classified = classifyAgentRuntimeError(error, options.deadlineSignal);
 	return {
 		code: classified.code,
 		message: classified.message,
 		retryable: false,
+		operation: classified.failure.operation,
+		...(classified.failure.detail ? { detail: classified.failure.detail } : {}),
+		...(classified.failure.httpStatus === undefined
+			? {}
+			: { http_status: classified.failure.httpStatus }),
+		...(classified.failure.invocationId ? { invocation_id: classified.failure.invocationId } : {}),
 	};
 }
 
@@ -37,40 +71,83 @@ function classifyAgentRuntimeError(
 	deadlineSignal: AbortSignal | undefined,
 ): AgentRuntimeError {
 	if (error instanceof AgentRuntimeError) {
-		return new AgentRuntimeError(error.code, publicAgentRuntimeErrorMessage(error.code));
+		return new AgentRuntimeError(
+			error.code,
+			publicAgentRuntimeErrorMessage(error.code),
+			error.failure,
+		);
 	}
 	if (deadlineSignal?.aborted) {
 		return new AgentRuntimeError(
 			"agent_deadline_exceeded",
 			"Agent run exceeded its configured deadline.",
+			{ operation: "agent.runtime", detail: "agent deadline signal was aborted" },
 		);
 	}
 	if (error instanceof MaxTurnsExceededError) {
-		return new AgentRuntimeError("max_turns_exceeded", "Agent run exceeded its turn limit.");
+		return new AgentRuntimeError("max_turns_exceeded", "Agent run exceeded its turn limit.", {
+			operation: "agent.runner",
+		});
 	}
 	if (error instanceof ToolCallError || error instanceof ToolTimeoutError) {
 		return new AgentRuntimeError(
 			"tool_execution_failed",
 			publicAgentRuntimeErrorMessage("tool_execution_failed"),
+			{ operation: "agent.tool", detail: "SDK tool execution failed" },
 		);
 	}
-	if (providerUnavailable(error)) {
+	const providerFailure = classifyProviderFailure(error);
+	if (providerFailure) {
 		return new AgentRuntimeError(
-			"provider_unavailable",
-			publicAgentRuntimeErrorMessage("provider_unavailable"),
+			providerFailure.code,
+			publicAgentRuntimeErrorMessage(providerFailure.code),
+			providerFailure,
 		);
 	}
-	return new AgentRuntimeError("run_failed", publicAgentRuntimeErrorMessage("run_failed"));
+	return new AgentRuntimeError("run_failed", publicAgentRuntimeErrorMessage("run_failed"), {
+		operation: "agent.runtime",
+	});
 }
 
-function providerUnavailable(error: unknown): boolean {
+function classifyProviderFailure(error: unknown):
+	| (Omit<ExecutionFailure, "code"> & {
+			code: AgentRuntimeErrorCode;
+	  })
+	| null {
 	const record = objectRecord(error);
 	const status = numberValue(record?.status ?? record?.statusCode);
-	if (status === 429 || (status !== undefined && status >= 500)) {
-		return true;
+	if (status === 429) {
+		return {
+			code: "provider_rate_limited",
+			operation: "agent.model",
+			detail: "provider returned HTTP 429",
+			httpStatus: status,
+		};
+	}
+	if (status !== undefined && status >= 500) {
+		return {
+			code: "provider_http_failed",
+			operation: "agent.model",
+			detail: `provider returned HTTP ${status}`,
+			httpStatus: status,
+		};
 	}
 	const name = error instanceof Error ? error.name : "";
-	return /APIConnectionError|RateLimitError|ServiceUnavailableError/i.test(name);
+	if (/Timeout|timed.?out/i.test(name)) {
+		return {
+			code: "provider_timeout",
+			operation: "agent.model",
+			detail: "provider request timed out",
+		};
+	}
+	if (/APIConnectionError|ConnectionError|ECONNRESET|ECONNREFUSED/i.test(name)) {
+		return {
+			code: "provider_connection_failed",
+			operation: "agent.model",
+			detail: "provider connection failed",
+		};
+	}
+	return null;
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
@@ -95,6 +172,14 @@ function publicAgentRuntimeErrorMessage(code: AgentRuntimeErrorCode): string {
 			return "Agent run exceeded its turn limit.";
 		case "provider_unavailable":
 			return "The answer provider is temporarily unavailable.";
+		case "provider_rate_limited":
+			return "The answer provider rate limit was reached.";
+		case "provider_http_failed":
+			return "The answer provider returned an error.";
+		case "provider_connection_failed":
+			return "The answer provider could not be reached.";
+		case "provider_timeout":
+			return "The answer provider did not respond in time.";
 		case "tool_execution_failed":
 			return "A runtime tool could not complete.";
 		case "tool_contract_mismatch":

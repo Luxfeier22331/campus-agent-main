@@ -11,8 +11,8 @@ status: active
 本文定义模型工具如何开放、由谁选择以及如何投影。精确名称、暴露范围、schema、handler 和
 timeout 由以下可执行注册表维护：
 
-- `configs/runtime/tools.v6.json`；
-- `configs/runtime/tool-function-schemas.v3.json`。
+- `configs/runtime/tools.v7.json`；
+- `configs/runtime/tool-function-schemas.v4.json`。
 
 注册表、endpoint 或实现存在都不会自动向模型开放工具。
 
@@ -44,22 +44,23 @@ Agent、handoff 或文档类别路由。
 
 Primary Agent 消费对话并生成原生文本回答。问题所需事实落在中央民族大学当前 Campus Web 文档
 范围时可以调用 `campus_search`；问题依赖用户自身事实或偏好时可以调用
-`personal_memory_recall`。工具在同一次 SDK run 内没有单独的每工具调用上限，调用次数只受本轮总
-`max_tool_calls` 限制，彼此没有固定先后关系。实体名称
+`personal_memory_recall`。调用次数受本轮总 `max_tool_calls` 限制。`campus_search` 调用按模型调用
+顺序串行执行，以分配本轮全局引用编号；其他工具不因此串行化。实体名称
 本身不决定路由；模型比较问题所需事实和每个工具声明的事实范围。
 `campus_search` 的 no-match 是成功的有界结果，不等于机构事实不存在；模型应在正文中说明资料不足，
 或在用户意图不明确时提出简短追问，而不是使用模型记忆补全。
 
 `campus_search` handler 在调用时读取当前 Campus Docs collection，并从 Model Config 读取当前
-embedding 和 reranker 连接，执行 dense/sparse hybrid 查询并只返回有界 evidence。它不接收 collection、
+embedding 和 reranker 连接，执行 dense/sparse hybrid 查询并只返回有界候选结果。它不接收 collection、
 provider、top-k 或向量参数。
-正文中的 `[1]` 到 `[5]` 只对应本次成功工具结果中按顺序返回的 evidence。
+每次检索最多返回 5 条结果，同一 run 累计最多 10 条；正文中的 `[1]` 到 `[10]` 对应结果携带的
+本轮全局 `citation_index`。检索结果只是候选，只有正文实际引用的结果进入公开来源投影。
 
 `execution_control_internal_query` handler 在同一个 Agent Activity 内调用 execution-control 的有界
 读取接口。个人记忆 handler 重新校验冻结策略和运行身份后调用 Hindsight，只向 Agent 返回受限结果；
 它不创建额外 Temporal Activity，也不把记忆正文写入普通投影。
 
-普通工具失败不得贡献 evidence，也不得回退到未注册数据源、强制预检索或旧工具；其他成功工具或
+普通工具失败不得贡献候选或来源，也不得回退到未注册数据源、强制预检索或旧工具；其他成功工具或
 非机构事实已经足以支持回答时，整轮仍可完成。合同、身份、运行指纹或结果结构错误继续失败关闭。
 
 ## 投影

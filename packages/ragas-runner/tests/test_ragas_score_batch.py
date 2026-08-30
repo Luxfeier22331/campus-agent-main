@@ -27,6 +27,7 @@ def sample_payload(**item_overrides: object) -> dict[str, object]:
         "user_input": "图书馆开放时间是什么？",
         "response": "图书馆开放时间为 08:00 到 22:00。",
         "retrieved_contexts": ["图书馆开放时间为 08:00-22:00。"],
+        "cited_contexts": ["图书馆开放时间为 08:00-22:00。"],
         "reference": "图书馆开放时间为 08:00-22:00。",
         "metadata": {"surface_key": "app-api.chat"},
     }
@@ -60,6 +61,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             self.assertNotIn("run_id", output)
             self.assertEqual(captured[0].user_input, "图书馆开放时间是什么？")
             self.assertEqual(captured[0].retrieved_contexts, ("图书馆开放时间为 08:00-22:00。",))
+            self.assertEqual(captured[0].cited_contexts, ("图书馆开放时间为 08:00-22:00。",))
             self.assertEqual(captured[0].metadata, {"surface_key": "app-api.chat"})
             payload = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["schema_version"], "ragas_score_batch.v3")
@@ -71,7 +73,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw_dir:
             input_path = Path(raw_dir) / "samples.json"
             input_path.write_text(
-                json.dumps(sample_payload(retrieved_contexts=[])),
+                json.dumps(sample_payload(retrieved_contexts=[], cited_contexts=[])),
                 encoding="utf-8",
             )
 
@@ -83,6 +85,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
 
             run_ragas_score_batch(input_path=input_path, scorer_factory=lambda: fake_scorer)
             self.assertEqual(captured[0].retrieved_contexts, ())
+            self.assertEqual(captured[0].cited_contexts, ())
 
     def test_preserves_errors_and_omits_non_finite_scores(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
@@ -153,6 +156,15 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                     scorer_factory=lambda: lambda _projection: (),
                 )
 
+            missing_cited = sample_payload()
+            del missing_cited["items"][0]["cited_contexts"]
+            input_path.write_text(json.dumps(missing_cited), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "cited_contexts must be a list"):
+                run_ragas_score_batch(
+                    input_path=input_path,
+                    scorer_factory=lambda: lambda _projection: (),
+                )
+
     def test_stdout_is_the_structured_default_output(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             input_path = Path(raw_dir) / "samples.json"
@@ -196,6 +208,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             user_input="What are the library opening hours?",
             response="The library is open from 08:00 to 22:00.",
             retrieved_contexts=("The library opening hours are 08:00-22:00.",),
+            cited_contexts=("The library opening hours are 08:00-22:00.",),
         )
         clients: list[object] = []
 
@@ -253,7 +266,11 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             case_id="case-001",
             user_input="What are the library opening hours?",
             response="The library is open from 08:00 to 22:00.",
-            retrieved_contexts=("The library opening hours are 08:00-22:00.",),
+            retrieved_contexts=(
+                "The library opening hours are 08:00-22:00.",
+                "The adjacent cafeteria section describes meal times.",
+            ),
+            cited_contexts=("The library opening hours are 08:00-22:00.",),
             reference="The library is open from 08:00 to 22:00.",
         )
         calls: list[tuple[object, ...]] = []
@@ -284,10 +301,68 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                 (
                     projection.user_input,
                     projection.response,
-                    list(projection.retrieved_contexts),
+                    list(projection.cited_contexts),
                 )
             ],
         )
+
+    def test_routes_cited_contexts_to_faithfulness_and_retrieved_contexts_to_retrieval_metrics(
+        self,
+    ) -> None:
+        projection = RagasProjection(
+            case_id="case-001",
+            user_input="What are the library opening hours?",
+            response="The library is open from 08:00 to 22:00.",
+            retrieved_contexts=(
+                "The library opening hours are 08:00-22:00.",
+                "The adjacent cafeteria section describes meal times.",
+            ),
+            cited_contexts=("The library opening hours are 08:00-22:00.",),
+            reference="The library is open from 08:00 to 22:00.",
+        )
+        calls: dict[str, tuple[object, ...]] = {}
+
+        class FakeFaithfulness:
+            def __init__(self, *, llm: object) -> None:
+                del llm
+
+            async def ascore(self, *args: object) -> float:
+                calls["faithfulness"] = args
+                return 1.0
+
+        class FakeContextPrecision:
+            def __init__(self, *, llm: object) -> None:
+                del llm
+
+            async def ascore(self, *args: object) -> float:
+                calls["context_precision"] = args
+                return 0.5
+
+        class FakeContextRecall:
+            def __init__(self, *, llm: object) -> None:
+                del llm
+
+            async def ascore(self, *args: object) -> float:
+                calls["context_recall"] = args
+                return 1.0
+
+        with (
+            patch("ragas.metrics.collections.Faithfulness", FakeFaithfulness),
+            patch("ragas.metrics.collections.ContextPrecision", FakeContextPrecision),
+            patch("ragas.metrics.collections.ContextRecall", FakeContextRecall),
+        ):
+            asyncio.run(
+                _score_with_official_ragas_metrics(
+                    projection,
+                    metric_names=("faithfulness", "context_precision", "context_recall"),
+                    llm=object(),
+                    embeddings=object(),
+                )
+            )
+
+        self.assertEqual(calls["faithfulness"][2], list(projection.cited_contexts))
+        self.assertEqual(calls["context_precision"][2], list(projection.retrieved_contexts))
+        self.assertEqual(calls["context_recall"][1], list(projection.retrieved_contexts))
 
     def test_reports_empty_context_and_skips_reference_metrics_without_reference(self) -> None:
         projection = RagasProjection(
@@ -295,6 +370,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             user_input="What are the library opening hours?",
             response="The library is open from 08:00 to 22:00.",
             retrieved_contexts=(),
+            cited_contexts=(),
         )
         calls: list[str] = []
 
@@ -336,7 +412,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             ["faithfulness", "answer_relevancy"],
         )
         self.assertIsNone(results[0].score)
-        self.assertEqual(results[0].rationale, "retrieved_contexts is empty")
+        self.assertEqual(results[0].rationale, "cited_contexts is empty")
 
     def test_reports_empty_context_for_reference_metrics(self) -> None:
         projection = RagasProjection(
@@ -344,6 +420,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             user_input="What are the library opening hours?",
             response="The library is open from 08:00 to 22:00.",
             retrieved_contexts=(),
+            cited_contexts=(),
             reference="The library is open from 08:00 to 22:00.",
         )
         calls: list[str] = []
@@ -388,13 +465,17 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
         self.assertEqual(results[1].score, 0.7)
         self.assertEqual(
             [result.rationale for result in results if result.score is None],
-            ["retrieved_contexts is empty"] * 3,
+            [
+                "cited_contexts is empty",
+                "retrieved_contexts is empty",
+                "retrieved_contexts is empty",
+            ],
         )
 
     def test_empty_context_error_does_not_stop_later_batch_items(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
             input_path = Path(raw_dir) / "samples.json"
-            empty_item = sample_payload(retrieved_contexts=[])["items"][0]
+            empty_item = sample_payload(retrieved_contexts=[], cited_contexts=[])["items"][0]
             normal_item = sample_payload()["items"][0]
             input_path.write_text(
                 json.dumps(
@@ -410,7 +491,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
                 if not projection.retrieved_contexts:
                     return (
                         RagasResult(
-                            metric_name="faithfulness", rationale="retrieved_contexts is empty"
+                            metric_name="faithfulness", rationale="cited_contexts is empty"
                         ),
                     )
                 return (RagasResult(metric_name="faithfulness", score=0.9),)
@@ -423,7 +504,7 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
         items = output["items"]
         self.assertEqual([item["case_id"] for item in items], ["case-001", "case-002"])
         self.assertEqual(items[0]["scores"], {})
-        self.assertEqual(items[0]["errors"][0]["reason"], "retrieved_contexts is empty")
+        self.assertEqual(items[0]["errors"][0]["reason"], "cited_contexts is empty")
         self.assertEqual(items[1]["scores"], {"ragas.faithfulness": 0.9})
 
 

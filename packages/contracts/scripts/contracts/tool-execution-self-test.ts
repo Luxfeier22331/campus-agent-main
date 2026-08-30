@@ -25,9 +25,9 @@ function checkOpenApiMetadata(): void {
 		"dialect mismatch",
 	);
 	const meta = asRecord(openapi["x-campus-contract"], "x-campus-contract");
-	expect(meta.execution_contract_version === "tool_execution_v6", "execution contract mismatch");
+	expect(meta.execution_contract_version === "tool_execution_v7", "execution contract mismatch");
 	expect(
-		meta.response_contract === "execution_finalization_response_v7",
+		meta.response_contract === "execution_finalization_response_v8",
 		"response contract mismatch",
 	);
 	const policy = asRecord(meta.versioning_policy, "versioning_policy");
@@ -316,11 +316,11 @@ function checkGeneratedArtifacts(): void {
 function checkFixtureMatrix(): void {
 	const delegate = loadFixture("execution_payload.valid.json");
 	expect(
-		delegate.execution_contract_version === "tool_execution_v6",
+		delegate.execution_contract_version === "tool_execution_v7",
 		"delegate execution contract",
 	);
 	expect(
-		delegate.response_contract === "execution_finalization_response_v7",
+		delegate.response_contract === "execution_finalization_response_v8",
 		"delegate response contract",
 	);
 	expectFixtureValidity("execution_payload.valid.json", "ExecutionPayload", true);

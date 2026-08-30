@@ -20,7 +20,6 @@ export {
 	cancelRun,
 	getRunEvents,
 	getRunStatus,
-	getRunSteps,
 	resumeRunEventsStream,
 	submitChatRequestStream,
 } from "./run-client";

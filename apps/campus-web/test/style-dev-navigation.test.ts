@@ -8,11 +8,11 @@ describe("style-dev navigation", () => {
 	});
 
 	it("round-trips a story and variant", () => {
-		const hash = buildStyleDevHash("style-dev-conversation-run-status", "completed");
-		expect(hash).toBe("#style-dev-conversation-run-status/completed");
+		const hash = buildStyleDevHash("style-dev-conversation-thread", "messages");
+		expect(hash).toBe("#style-dev-conversation-thread/messages");
 		expect(parseStyleDevHash(hash)).toEqual({
-			storyId: "style-dev-conversation-run-status",
-			variantId: "completed",
+			storyId: "style-dev-conversation-thread",
+			variantId: "messages",
 		});
 	});
 

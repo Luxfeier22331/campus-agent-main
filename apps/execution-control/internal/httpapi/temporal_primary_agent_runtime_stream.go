@@ -246,6 +246,10 @@ func (s *Server) consumeAgentRuntimeStream(
 			}
 			streamError = agentRuntimeApplicationError{
 				Code:           strings.TrimSpace(runtimeErr.Code),
+				Detail:         strings.TrimSpace(runtimeErr.Detail),
+				HTTPStatus:     runtimeErr.HTTPStatus,
+				InvocationID:   strings.TrimSpace(runtimeErr.InvocationID),
+				Operation:      strings.TrimSpace(runtimeErr.Operation),
 				RuntimeRelease: strings.TrimSpace(runtimeErr.RuntimeRelease),
 			}
 			state.terminalEvent = "error"
@@ -483,6 +487,9 @@ func agentRuntimeFailureFromResponse(
 	return agentRuntimeHTTPError{
 		StatusCode:     statusCode,
 		Code:           strings.TrimSpace(response.Error.Code),
+		Detail:         strings.TrimSpace(response.Error.Detail),
+		InvocationID:   strings.TrimSpace(response.Error.InvocationID),
+		Operation:      strings.TrimSpace(response.Error.Operation),
 		RuntimeRelease: strings.TrimSpace(response.RuntimeRelease),
 	}
 }
@@ -502,6 +509,10 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 			"context_budget_exceeded",
 			"agent_deadline_exceeded",
 			"max_turns_exceeded",
+			"provider_rate_limited",
+			"provider_http_failed",
+			"provider_connection_failed",
+			"provider_timeout",
 			"provider_unavailable",
 			"tool_execution_failed",
 			"tool_contract_mismatch",
@@ -517,6 +528,10 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 			"context_budget_exceeded",
 			"agent_deadline_exceeded",
 			"max_turns_exceeded",
+			"provider_rate_limited",
+			"provider_http_failed",
+			"provider_connection_failed",
+			"provider_timeout",
 			"provider_unavailable",
 			"tool_execution_failed",
 			"tool_contract_mismatch",
@@ -558,12 +573,13 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 	toolResults := make([]temporalruntime.AgentToolResult, 0, len(response.ToolResults))
 	for _, result := range response.ToolResults {
 		toolResults = append(toolResults, temporalruntime.AgentToolResult{
-			ArgumentsJSON:   cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			DurationMS:      result.DurationMS,
-			FailCloseReason: result.FailCloseReason,
-			Result:          result.Result,
-			Status:          result.Status,
-			ToolName:        result.ToolName,
+			ArgumentsJSON: cloneAnyMapFromMetadata(result.ArgumentsJSON),
+			DurationMS:    result.DurationMS,
+			Failure:       result.Failure,
+			InvocationID:  strings.TrimSpace(result.InvocationID),
+			Result:        result.Result,
+			Status:        result.Status,
+			ToolName:      result.ToolName,
 		})
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{

@@ -30,6 +30,7 @@ export function useAssistantUiRunController({
 		onResume,
 		requiresConversationInitialization,
 		runPrompt,
+		runState,
 		setMessages,
 	} = useConversationRunCoordinator({
 		loginRequired,
@@ -110,6 +111,9 @@ export function useAssistantUiRunController({
 
 	return {
 		convertMessage,
+		extras: {
+			connection: runState.connection,
+		},
 		isLoading,
 		isRunning,
 		messages,

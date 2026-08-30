@@ -16,12 +16,12 @@ import (
 )
 
 func TestDecodeCampusSearchToolEnvelopeAndRejectsUnauthenticatedRequests(t *testing.T) {
-	valid := `{"access_context":{"activity_attempt":1,"request_id":"request-1","invocation_id":"call-1"},"payload":{"query":"学籍规定"}}`
+	valid := `{"access_context":{"activity_attempt":1,"request_id":"request-1","invocation_id":"call-1","citation_start":1,"result_limit":5,"user_goal":"本科生学籍规定"},"payload":{"search_query":"学籍规定"}}`
 	envelope, err := decodeCampusSearchToolEnvelope([]byte(valid))
 	if err != nil {
 		t.Fatalf("decode valid campus search envelope: %v", err)
 	}
-	if envelope.Payload.Query != "学籍规定" || envelope.AccessContext.RequestID != "request-1" {
+	if envelope.Payload.SearchQuery != "学籍规定" || envelope.AccessContext.RequestID != "request-1" {
 		t.Fatalf("decoded envelope = %#v", envelope)
 	}
 	if _, err := decodeCampusSearchToolEnvelope([]byte(strings.Replace(valid, `"payload"`, `"unexpected"`, 1))); err == nil {
@@ -34,6 +34,34 @@ func TestDecodeCampusSearchToolEnvelopeAndRejectsUnauthenticatedRequests(t *test
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, request)
 	assertError(t, response, http.StatusUnauthorized, "unauthorized")
+}
+
+func TestCampusSearchRetrievalQueryUsesUserGoalAndSearchExpression(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		userGoal    string
+		searchQuery string
+		want        string
+	}{
+		{
+			name:        "same expression",
+			userGoal:    "本科生转专业条件",
+			searchQuery: "本科生转专业条件",
+			want:        "本科生转专业条件",
+		},
+		{
+			name:        "focused expression",
+			userGoal:    "我想知道本科生转专业需要满足什么条件",
+			searchQuery: "本科生转专业申请条件",
+			want:        "我想知道本科生转专业需要满足什么条件\n检索表达：本科生转专业申请条件",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := campusSearchRetrievalQuery(test.userGoal, test.searchQuery); got != test.want {
+				t.Fatalf("retrieval query = %q, want %q", got, test.want)
+			}
+		})
+	}
 }
 
 func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T) {
@@ -93,11 +121,12 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 	if err != nil {
 		t.Fatalf("build Campus docs Qdrant client: %v", err)
 	}
-	evidence, err := retrieveCampusDocsEvidence(
+	evidence, err := retrieveCampusDocsResults(
 		t.Context(),
 		client,
 		campusdocs.Index{Collection: collection},
 		"学籍规定",
+		primaryAgentSearchResultLimit,
 	)
 	if err != nil {
 		t.Fatalf("retrieve Campus docs evidence: %v", err)
@@ -105,7 +134,7 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 	if len(evidence) != 0 {
 		t.Fatalf("no-match evidence = %#v", evidence)
 	}
-	result := campusSearchResult(evidence)
+	result := campusSearchResult(evidence, 1)
 	if result["outcome"] != "no_match" {
 		t.Fatalf("no-match result = %#v", result)
 	}
@@ -181,17 +210,18 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build Campus docs Qdrant client: %v", err)
 	}
-	evidence, err := retrieveCampusDocsEvidence(
+	evidence, err := retrieveCampusDocsResults(
 		t.Context(),
 		client,
 		campusdocs.Index{Collection: collection},
 		"学籍规定",
+		primaryAgentSearchResultLimit,
 	)
 	if err != nil {
 		t.Fatalf("retrieve Campus docs evidence: %v", err)
 	}
-	if len(evidence) != primaryAgentEvidenceLimit {
-		t.Fatalf("evidence count = %d, want %d", len(evidence), primaryAgentEvidenceLimit)
+	if len(evidence) != primaryAgentSearchResultLimit {
+		t.Fatalf("evidence count = %d, want %d", len(evidence), primaryAgentSearchResultLimit)
 	}
 	for index, item := range evidence {
 		want := fmt.Sprintf("chunk-%d", len(points)-index-1)
@@ -250,8 +280,8 @@ func TestCampusDocsRerankerKeepsThresholdBoundaryAndDropsLowerScores(t *testing.
 	if err != nil {
 		t.Fatalf("rerank candidates: %v", err)
 	}
-	if len(ranked) != 2 || !strings.Contains(ranked[0].evidence.Text, "chunk-0") ||
-		!strings.Contains(ranked[1].evidence.Text, "chunk-2") {
+	if len(ranked) != 2 || !strings.Contains(ranked[0].result.Text, "chunk-0") ||
+		!strings.Contains(ranked[1].result.Text, "chunk-2") {
 		t.Fatalf("threshold-filtered candidates = %#v", ranked)
 	}
 }
@@ -302,16 +332,17 @@ func TestCampusDocsRetrievalReturnsNoMatchWhenAllRerankerScoresAreBelowThreshold
 	if err != nil {
 		t.Fatalf("build Campus docs Qdrant client: %v", err)
 	}
-	evidence, err := retrieveCampusDocsEvidence(
+	evidence, err := retrieveCampusDocsResults(
 		t.Context(),
 		client,
 		campusdocs.Index{Collection: collection},
 		"火星校区服务",
+		primaryAgentSearchResultLimit,
 	)
 	if err != nil {
 		t.Fatalf("retrieve Campus docs evidence: %v", err)
 	}
-	result := campusSearchResult(evidence)
+	result := campusSearchResult(evidence, 1)
 	if !rerankCalled || len(evidence) != 0 || result["outcome"] != "no_match" {
 		t.Fatalf("low-score retrieval result = %#v; rerank called = %t", result, rerankCalled)
 	}
@@ -356,11 +387,12 @@ func TestCampusDocsRetrievalDoesNotFallbackWhenRerankerResponseIsInvalid(t *test
 	if err != nil {
 		t.Fatalf("build Campus docs Qdrant client: %v", err)
 	}
-	evidence, err := retrieveCampusDocsEvidence(
+	evidence, err := retrieveCampusDocsResults(
 		t.Context(),
 		client,
 		campusdocs.Index{Collection: collection},
 		"学籍规定",
+		primaryAgentSearchResultLimit,
 	)
 	if err == nil || !strings.Contains(err.Error(), "reranker response index is invalid") {
 		t.Fatalf("invalid reranker response error = %v", err)

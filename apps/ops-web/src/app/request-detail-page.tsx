@@ -22,8 +22,7 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 	const detail = useQuery({
 		queryFn: ({ signal }) => fetchOpsRequestDetail(requestId, { signal }),
 		queryKey: ["ops", "requests", requestId],
-		refetchInterval: (query) =>
-			query.state.data?.request.lifecyclePhase === "FINISHED" ? false : 30_000,
+		refetchInterval: 30_000,
 		refetchIntervalInBackground: false,
 	});
 	const returnPath = normalizeRequestListReturnPath(from);

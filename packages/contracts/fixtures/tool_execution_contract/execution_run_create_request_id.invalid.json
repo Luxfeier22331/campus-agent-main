@@ -5,7 +5,7 @@
 	"personal_memory_recall_allowed": false,
 	"surface": "web",
 	"metadata": {
-		"execution_contract_version": "tool_execution_v6",
+		"execution_contract_version": "tool_execution_v7",
 		"execution_input_ref": "app-api://execution-inputs/req/contract-invalid",
 		"execution_input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	}

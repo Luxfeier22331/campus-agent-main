@@ -89,8 +89,16 @@
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/runtime-tools.v6.schema.json",
 			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Retired tool registry before search results and answer citations were separated."
+		},
+		{
+			"id": "runtime-tools.v7",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tools.v7.schema.json",
+			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/tools.v6.json"],
+			"validates": ["configs/runtime/tools.v7.json"],
 			"notes": "Tool-native runtime registry consumed by agent-runtime and execution-control."
 		},
 		{
@@ -106,16 +114,32 @@
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/campus-search-tool-contracts.v1.schema.json",
 			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Retired Campus Docs search contract that labeled all retrieval hits as evidence."
+		},
+		{
+			"id": "campus-search-tool-contracts.v2",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v2.schema.json",
+			"owner": "packages/contracts",
 			"status": "active",
-			"notes": "Bounded model-facing Campus Docs search request, evidence and result contract."
+			"notes": "Bounded model-facing Campus Docs search request and candidate result contract."
 		},
 		{
 			"id": "runtime-tool-function-schemas.v3",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v3.schema.json",
 			"owner": "packages/contracts",
+			"status": "historical",
+			"notes": "Retired model-facing function parameter schema artifact."
+		},
+		{
+			"id": "runtime-tool-function-schemas.v4",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/runtime-tool-function-schemas.v4.schema.json",
+			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/tool-function-schemas.v3.json"],
+			"validates": ["configs/runtime/tool-function-schemas.v4.json"],
 			"notes": "Strict model-facing function parameter schema artifact."
 		},
 		{

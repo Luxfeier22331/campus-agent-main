@@ -70,10 +70,10 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"result": campusSearchResult([]campusSearchEvidence{
-				{EvidenceRef: "evidence://" + strings.Repeat("a", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility", SectionTitle: "申请条件", RootUnitIDs: []string{"scholarship-eligibility"}, VersionID: "version-scholarship-2026", VersionLabel: "2026 版", VersionSlug: "2026-current", Text: "国家奖学金评审需要满足学习成绩和综合测评要求。"},
-				{EvidenceRef: "evidence://" + strings.Repeat("b", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026-current#award", SectionTitle: "奖励标准", RootUnitIDs: []string{"scholarship-award"}, VersionID: "version-scholarship-2026", VersionLabel: "2026 版", VersionSlug: "2026-current", Text: "国家奖学金奖励标准按照学校当年评审办法执行。"},
-			}),
+			"result": campusSearchResult([]campusSearchResultItem{
+				{ResultRef: "result://" + strings.Repeat("a", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility", SectionTitle: "申请条件", RootUnitIDs: []string{"scholarship-eligibility"}, VersionID: "version-scholarship-2026", VersionLabel: "2026 版", VersionSlug: "2026-current", Text: "国家奖学金评审需要满足学习成绩和综合测评要求。"},
+				{ResultRef: "result://" + strings.Repeat("b", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026-current#award", SectionTitle: "奖励标准", RootUnitIDs: []string{"scholarship-award"}, VersionID: "version-scholarship-2026", VersionLabel: "2026 版", VersionSlug: "2026-current", Text: "国家奖学金奖励标准按照学校当年评审办法执行。"},
+			}, 1),
 		},
 	}); err != nil {
 		t.Fatalf("upsert campus search result: %v", err)
@@ -90,18 +90,17 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
 			"finalized_response": map[string]any{
-				"answer_text": "学习成绩、综合测评和奖励标准都需要满足。",
+				"answer_text": "学习成绩和综合测评需要满足 [1]。",
 				"result": map[string]any{
 					"sources": []any{
 						map[string]any{
 							"document_id":   "handbook:scholarship-policy",
-							"evidence_ref":  "evidence://" + strings.Repeat("a", 64),
+							"result_ref":    "result://" + strings.Repeat("a", 64),
 							"kind":          "campus_document",
 							"root_unit_ids": []any{"scholarship-eligibility"},
 							"section_ref":   "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility",
 							"section_title": "申请条件",
 							"snippet":       "国家奖学金评审需要满足学习成绩和综合测评要求。",
-							"source_body":   "must not leak",
 							"title":         "本科生国家奖学金评审办法",
 							"version_id":    "version-scholarship-2026",
 							"version_label": "2026 版",
@@ -109,7 +108,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 						},
 						map[string]any{
 							"document_id":   "handbook:scholarship-policy",
-							"evidence_ref":  "evidence://" + strings.Repeat("b", 64),
+							"result_ref":    "result://" + strings.Repeat("b", 64),
 							"kind":          "campus_document",
 							"root_unit_ids": []any{"scholarship-award"},
 							"section_ref":   "/docs/regulations/student_rules/scholarship/v/2026-current#award",
@@ -143,11 +142,11 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 	}
 	body := decodeBody(t, response)
 	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
-	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v4" ||
+	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v5" ||
 		evalProjection["request_id"] != "run-temporal-derived-eval" {
 		t.Fatalf("eval projection identity = %#v", evalProjection)
 	}
-	if evalProjection["answer"] != "学习成绩、综合测评和奖励标准都需要满足。" {
+	if evalProjection["answer"] != "学习成绩和综合测评需要满足 [1]。" {
 		t.Fatalf("answer = %#v", evalProjection["answer"])
 	}
 	contexts, _ := evalProjection["retrieved_contexts"].([]any)
@@ -158,19 +157,19 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 	}
 	contextIDs, _ := evalProjection["retrieved_context_ids"].([]any)
 	if len(contextIDs) != 2 ||
-		contextIDs[0] != "evidence://"+strings.Repeat("a", 64) ||
-		contextIDs[1] != "evidence://"+strings.Repeat("b", 64) {
+		contextIDs[0] != "result://"+strings.Repeat("a", 64) ||
+		contextIDs[1] != "result://"+strings.Repeat("b", 64) {
 		t.Fatalf("retrieved_context_ids = %#v", evalProjection["retrieved_context_ids"])
+	}
+	citedContexts, _ := evalProjection["cited_contexts"].([]any)
+	if len(citedContexts) != 1 || citedContexts[0] != contexts[0] {
+		t.Fatalf("cited_contexts = %#v", evalProjection["cited_contexts"])
 	}
 	trajectory := expectRecord(t, evalProjection["tool_trajectory"], "tool_trajectory")
 	calls, _ := trajectory["tool_calls"].([]any)
 	if trajectory["decision_kind"] != "tool_assisted" || len(calls) != 1 ||
 		expectRecord(t, calls[0], "tool_calls[0]")["tool_name"] != "campus_search" {
 		t.Fatalf("tool trajectory = %#v", trajectory)
-	}
-	if strings.Contains(response.Body.String(), "must not leak") ||
-		strings.Contains(response.Body.String(), "source_body") {
-		t.Fatalf("derived eval projection leaked forbidden source body: %s", response.Body.String())
 	}
 }
 

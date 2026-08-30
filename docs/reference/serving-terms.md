@@ -39,7 +39,7 @@ blockquote 和 table。publisher 只消费来源清单选中的当前 reader。
 
 ### 模型可见工具
 
-当前运行中通过 `tools.v6.json` 和冻结准入策略向 Primary Agent 暴露的函数工具。当前机构知识通过只读
+当前运行中通过 `tools.v7.json` 和冻结准入策略向 Primary Agent 暴露的函数工具。当前机构知识通过只读
 `campus_search` 按需检索；离线索引存在不表示模型已经获得知识上下文。
 
 ### 工具调用上限
@@ -56,8 +56,8 @@ publisher 代码内分别维护 `CHUNK_SET_DEFINITION`、`EMBEDDING_SPACE` 和
 向量名、查询指令、距离和 point schema。provider、endpoint、API key、model alias、批大小和并发数
 属于执行连接或调用参数，不进入内容寻址 manifest。
 
-当前没有在线查询消费者；上述定义只由离线制品构建和发布实现使用，不从 PostgreSQL 或环境变量读取
-第二份定义。
+这些定义由离线制品构建和发布实现拥有；在线查询只消费当前 collection 及其 point 合同，不从
+PostgreSQL 或环境变量读取第二份定义。
 
 ### Collection 身份
 
@@ -94,7 +94,8 @@ section 内按 reader 正文元素或表格逻辑行形成，记录覆盖的全�
 ### 当前索引绑定
 
 PostgreSQL `campus_docs_serving.current_index` 的单行记录，只保存当前 collection 名。execution-control
-当前不在在线 run 准入时读取它；数据库不保存索引历史、查询定义或重复的不可变索引记录。
+不在在线 run 准入时读取它；`campus_search` 执行时读取当前绑定。数据库不保存索引历史、查询定义或
+重复的不可变索引记录。
 
 ### 索引发布
 

@@ -33,8 +33,7 @@ function runningCancellationStatus(): ChatRunStatus {
 describe("assistant-ui runtime cancellation and rendering races", () => {
 	installAssistantUiRuntimeTestHarness();
 
-	it("reveals the complete answer delta backlog on the next animation frame", async () => {
-		vi.useFakeTimers();
+	it("renders the first answer delta without an empty assistant shell", async () => {
 		const finalAnswer = "按学校奖学金通知提交材料。";
 		let releaseTerminal: () => void = () => {
 			throw new Error("terminal release was not initialized");
@@ -113,48 +112,38 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				event: "request.completed",
 			} satisfies ChatRequestStreamEvent;
 		});
-		try {
-			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
 
-			let submitPromise: Promise<void> | undefined;
-			await act(async () => {
-				submitPromise = assistantUiMock.externalStoreInput?.onNew({
-					content: [{ text: "奖学金怎么申请？", type: "text" }],
-				});
-				await Promise.resolve();
-				await Promise.resolve();
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "奖学金怎么申请？", type: "text" }],
 			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
 
-			expect(readAssistantText()).toBe("");
-			await act(async () => {
-				await vi.advanceTimersByTimeAsync(16);
-			});
-			expect(readAssistantText()).toBe(finalAnswer);
+		expect(readAssistantText()).toBe(finalAnswer);
 
-			releaseTerminal();
-			await act(async () => {
-				await submitPromise;
-			});
+		releaseTerminal();
+		await act(async () => {
+			await submitPromise;
+		});
 
-			expect(assistantUiMock.externalStoreInput?.messages).toEqual([
-				expect.objectContaining({ id: "msg_user", role: "user" }),
-				expect.objectContaining({
-					content: [{ text: finalAnswer, type: "text" }],
-					id: "msg_answer",
-					role: "assistant",
-				}),
-			]);
-		} finally {
-			vi.useRealTimers();
-		}
+		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
+			expect.objectContaining({ id: "msg_user", role: "user" }),
+			expect.objectContaining({
+				content: [{ text: finalAnswer, type: "text" }],
+				id: "msg_answer",
+				role: "assistant",
+			}),
+		]);
 	});
 
-	it("batches burst deltas into one animation frame", async () => {
-		vi.useFakeTimers();
+	it("updates one assistant message for burst deltas", async () => {
 		let releaseTerminal: () => void = () => {
 			throw new Error("terminal release was not initialized");
 		};
-		const requestAnimationFrame = vi.spyOn(window, "requestAnimationFrame");
 		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
 			yield {
 				data: {
@@ -207,50 +196,35 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		}
 		conversationApiMock.getConversationDetail.mockResolvedValue(canonical);
 
-		try {
-			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
-			let submitPromise: Promise<void> | undefined;
-			await act(async () => {
-				submitPromise = assistantUiMock.externalStoreInput?.onNew({
-					content: [{ text: "奖学金通知", type: "text" }],
-				});
-				await Promise.resolve();
-				await Promise.resolve();
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "奖学金通知", type: "text" }],
 			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
 
-			expect(readAssistantText()).toBe("");
-			expect(requestAnimationFrame).toHaveBeenCalledOnce();
-			await act(async () => {
-				await vi.advanceTimersByTimeAsync(16);
-			});
-			expect(readAssistantText()).toBe("按学校奖学金通知");
+		expect(readAssistantText()).toBe("按学校奖学金通知");
 
-			await act(async () => {
-				releaseTerminal();
-				await submitPromise;
-			});
-			expect(hasMessageId("msg_delta")).toBe(false);
-			expect(readMessageText("msg_answer")).toBe("测试结束。");
-			expect(hasMessageId("local-error-req_delta")).toBe(false);
-			expect(assistantUiMock.externalStoreInput?.messages).toEqual(
-				expect.arrayContaining([
-					expect.objectContaining({
-						id: "msg_answer",
-						metadata: {
-							custom: expect.objectContaining({
-								campusRequest: expect.objectContaining({ status: "failed" }),
-							}),
-						},
-					}),
-				]),
-			);
-		} finally {
-			vi.useRealTimers();
-		}
+		await act(async () => {
+			releaseTerminal();
+			await submitPromise;
+		});
+		expect(hasMessageId("msg_delta")).toBe(false);
+		expect(readMessageText("msg_answer")).toBe("测试结束。");
+		expect(hasMessageId("local-error-req_delta")).toBe(false);
+		expect(assistantUiMock.externalStoreInput?.messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "msg_answer",
+				}),
+			]),
+		);
 	});
 
 	it("flushes a pending answer frame synchronously when the terminal event arrives", async () => {
-		vi.useFakeTimers();
 		assistantUiMock.initialize.mockResolvedValue({ remoteId: undefined });
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -286,22 +260,18 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			]),
 		);
 
-		try {
-			render(<RuntimeProbe onLoginRequired={vi.fn()} />);
-			await act(async () => {
-				await assistantUiMock.externalStoreInput?.onNew({
-					content: [{ text: "立即完成", type: "text" }],
-				});
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "立即完成", type: "text" }],
 			});
+		});
 
-			expect(readAssistantText()).toBe("终态前完整文本");
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
-		} finally {
-			vi.useRealTimers();
-		}
+		expect(readAssistantText()).toBe("终态前完整文本");
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
 	});
 
-	it("suppresses answer deltas while Stop cancellation is requesting and acknowledged", async () => {
+	it("does not render answer deltas while Stop cancellation is requesting and acknowledged", async () => {
 		vi.useFakeTimers();
 		let releaseRequestingDelta: () => void = () => {
 			throw new Error("requesting delta release was not initialized");
@@ -401,6 +371,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				await vi.advanceTimersByTimeAsync(16);
 			});
 			expect(hasMessageId("msg_cancel_frame")).toBe(false);
+			expect(readAssistantText()).toBe("");
 
 			await act(async () => {
 				resolveCancellation(runningCancellationStatus());
@@ -412,6 +383,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				await vi.advanceTimersByTimeAsync(16);
 			});
 			expect(hasMessageId("msg_cancel_frame")).toBe(false);
+			expect(readAssistantText()).toBe("");
 
 			releaseTerminal();
 			await act(async () => {
@@ -422,12 +394,10 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		}
 	});
 
-	it("cancels a pending answer frame on unmount", async () => {
+	it("does not start recovery after unmount", async () => {
 		vi.useFakeTimers();
-		const cancelAnimationFrame = vi.spyOn(window, "cancelAnimationFrame");
-		let streamSignal: AbortSignal | undefined;
 		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input) {
-			streamSignal = input.signal;
+			void input;
 			yield {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
@@ -460,15 +430,11 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				await Promise.resolve();
 				await Promise.resolve();
 			});
-			cancelAnimationFrame.mockClear();
-
 			await act(async () => {
 				unmount();
 				await submitPromise;
 			});
 
-			expect(cancelAnimationFrame).toHaveBeenCalledOnce();
-			expect(streamSignal?.aborted).toBe(true);
 			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
 			expect(conversationApiMock.cancelRun).not.toHaveBeenCalled();
 		} finally {
@@ -552,7 +518,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
 	});
 
-	it("reveals the complete accumulated answer when cancellation fails and continues streaming", async () => {
+	it("continues rendering when cancellation fails", async () => {
 		vi.useFakeTimers();
 		let observedSignal: AbortSignal | undefined;
 		let releaseSuppressedDelta: () => void = () => {
@@ -656,6 +622,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			await vi.advanceTimersByTimeAsync(16);
 		});
 		expect(hasMessageId("msg_cancel_failure")).toBe(false);
+		expect(readAssistantText()).toBe("");
 		await act(async () => {
 			rejectCancellation(new Error("cancel transport failed"));
 			await cancellationPromise;

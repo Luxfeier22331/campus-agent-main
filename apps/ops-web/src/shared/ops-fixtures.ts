@@ -14,11 +14,11 @@ function execution(
 	const failed = status === "failed";
 	return {
 		failure: {
-			agentRuntimeHttpStatus: failed ? 503 : null,
-			failCloseReason: failed ? "provider_unavailable" : null,
-			kind: failed ? "provider_unavailable" : null,
-			runtimeErrorCode: failed ? "provider_unavailable" : null,
-			terminalReason: failed ? "provider_unavailable" : null,
+			code: failed ? "provider_unavailable" : null,
+			detail: failed ? "The answer provider is temporarily unavailable." : null,
+			httpStatus: failed ? 503 : null,
+			invocationId: null,
+			operation: failed ? "agent.model" : null,
 		},
 		model: {
 			name: "deepseek-v4-flash-0731",
@@ -196,7 +196,7 @@ function requestSummary(
 					status: detail.execution.stages.at(-1)?.status ?? "unknown",
 				}
 			: null,
-		failureKind: detail.execution.failure.kind,
+		failureKind: detail.execution.failure.code,
 		lifecyclePhase: detail.request.lifecyclePhase,
 		question: { preview: detail.question.text, truncated: false },
 		requestId: detail.request.requestId,

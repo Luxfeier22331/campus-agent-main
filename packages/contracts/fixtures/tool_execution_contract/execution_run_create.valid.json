@@ -8,7 +8,7 @@
 		"contract": "durable-agent-runtime-contract-v1"
 	},
 	"metadata": {
-		"execution_contract_version": "tool_execution_v6",
+		"execution_contract_version": "tool_execution_v7",
 		"execution_input_ref": "app-api://execution-inputs/req-contract-001",
 		"execution_input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	}

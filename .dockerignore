@@ -48,8 +48,8 @@ jobs/notice-publisher/.env.*
 configs/runtime/**
 !configs/runtime/latency-budgets.v1.json
 !configs/runtime/campus-docs-indexing-profile.v1.json
-!configs/runtime/tool-function-schemas.v3.json
-!configs/runtime/tools.v6.json
+!configs/runtime/tool-function-schemas.v4.json
+!configs/runtime/tools.v7.json
 !configs/sources/
 configs/sources/**
 !configs/sources/internal-portal.json

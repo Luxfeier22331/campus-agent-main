@@ -8,6 +8,7 @@ const assistantUiMock = vi.hoisted(() => ({
 	externalStoreInput: null as null | {
 		isRunning: boolean;
 		messages: unknown[];
+		extras?: { connection?: "connected" | "disconnected" };
 		onCancel: () => Promise<void>;
 		onEdit?: (message: {
 			content: { text: string; type: "text" }[];

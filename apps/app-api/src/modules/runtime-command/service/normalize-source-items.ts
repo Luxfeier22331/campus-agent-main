@@ -94,7 +94,7 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 	if (
 		kind !== "campus_document" ||
 		!(parsedRef && title && versionLabel && versionSlug && citationIndex !== null) ||
-		citationIndex > 5 ||
+		citationIndex > 10 ||
 		versionSlugFromReaderPath(parsedRef.basePath) !== versionSlug
 	) {
 		return null;
@@ -172,7 +172,7 @@ export function normalizeSourceItemsPart(input: {
 		sourcesByKey.set(key, normalized);
 		normalizedSources.push(normalized);
 	}
-	const sourceItems = normalizedSources.slice(0, 5).map(sourceItemFromNormalized);
+	const sourceItems = normalizedSources.map(sourceItemFromNormalized);
 	return sourceItems.length > 0
 		? [
 				{

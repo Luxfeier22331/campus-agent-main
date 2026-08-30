@@ -6,9 +6,9 @@ import (
 	"os"
 )
 
-const toolFunctionSchemaVersion = "tool-function-schemas-v3"
+const toolFunctionSchemaVersion = "tool-function-schemas-v4"
 
-const packagedToolFunctionSchemaPath = "/etc/campus-agent/tool-function-schemas.v3.json"
+const packagedToolFunctionSchemaPath = "/etc/campus-agent/tool-function-schemas.v4.json"
 
 type toolFunctionSchemaFile struct {
 	SchemaVersion string               `json:"schema_version"`

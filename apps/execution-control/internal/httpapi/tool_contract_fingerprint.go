@@ -14,9 +14,9 @@ import (
 const toolContractFingerprintSchemaVersion = "tool_contract_fingerprint.v1"
 
 const (
-	defaultToolRegistryRelativePath       = "configs/runtime/tools.v6.json"
-	defaultToolFunctionSchemaRelativePath = "configs/runtime/tool-function-schemas.v3.json"
-	packagedToolRegistryPath              = "/etc/campus-agent/tools.v6.json"
+	defaultToolRegistryRelativePath       = "configs/runtime/tools.v7.json"
+	defaultToolFunctionSchemaRelativePath = "configs/runtime/tool-function-schemas.v4.json"
+	packagedToolRegistryPath              = "/etc/campus-agent/tools.v7.json"
 )
 
 type toolContractFingerprint struct {

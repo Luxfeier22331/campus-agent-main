@@ -13,7 +13,9 @@ describe("agent runtime errors", () => {
 			}),
 		).toEqual({
 			code: "agent_deadline_exceeded",
+			detail: "agent deadline signal was aborted",
 			message: "Agent run exceeded its configured deadline.",
+			operation: "agent.runtime",
 			retryable: false,
 		});
 	});
@@ -25,11 +27,18 @@ describe("agent runtime errors", () => {
 		});
 	});
 
-	it.each([429, 500, 503])("classifies provider HTTP %i as unavailable", (status) => {
+	it.each([
+		[429, "provider_rate_limited", "The answer provider rate limit was reached."],
+		[500, "provider_http_failed", "The answer provider returned an error."],
+		[503, "provider_http_failed", "The answer provider returned an error."],
+	] as const)("classifies provider HTTP %i", (status, code, message) => {
 		const error = Object.assign(new Error(`provider HTTP ${status}`), { status });
 		expect(agentRuntimeErrorPayload(error)).toEqual({
-			code: "provider_unavailable",
-			message: "The answer provider is temporarily unavailable.",
+			code,
+			detail: `provider returned HTTP ${status}`,
+			http_status: status,
+			message,
+			operation: "agent.model",
 			retryable: false,
 		});
 	});
@@ -41,7 +50,9 @@ describe("agent runtime errors", () => {
 		);
 		expect(agentRuntimeErrorPayload(error)).toEqual({
 			code: "tool_execution_failed",
+			detail: "SDK tool execution failed",
 			message: "A runtime tool could not complete.",
+			operation: "agent.tool",
 			retryable: false,
 		});
 	});

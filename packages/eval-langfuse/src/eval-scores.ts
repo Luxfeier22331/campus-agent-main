@@ -162,6 +162,7 @@ function ragRagasSample(item: AgentProductEvalItem): JsonObject {
 		metadata: { surface_key: item.case.surface_key ?? "app-api.chat" },
 		...(item.case.reference ? { reference: item.case.reference } : {}),
 		response: item.answer,
+		cited_contexts: item.citedContexts,
 		retrieved_contexts: item.retrievedContexts,
 		user_input: item.case.query,
 	};

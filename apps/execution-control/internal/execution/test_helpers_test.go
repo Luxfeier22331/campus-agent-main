@@ -10,7 +10,7 @@ import (
 // putting the payload itself in the run projection.
 func executionMetadataForTest(requestID string, _ string) map[string]any {
 	return map[string]any{
-		"execution_contract_version": "tool_execution_v6",
+		"execution_contract_version": "tool_execution_v7",
 		"execution_input_ref":        "app-api://execution-inputs/" + requestID,
 		"execution_input_sha256":     strings.Repeat("a", 64),
 	}

@@ -32,7 +32,13 @@ function timedToolResult(
 ): ToolExecutionResult | undefined {
 	return result === undefined
 		? undefined
-		: { ...result, argumentsJson, durationMs: 12, toolName: "test_lookup" };
+		: {
+				...result,
+				argumentsJson,
+				durationMs: 12,
+				invocationId: "test-call-1",
+				toolName: "test_lookup",
+			};
 }
 
 const testParameterSchema = {
@@ -54,7 +60,7 @@ const transportResultSchemaRef = schemaRef(
 );
 
 const catalog: ToolCatalog = {
-	schemaVersion: "tool-registry-v6",
+	schemaVersion: "tool-registry-v7",
 	registryVersion: "test",
 	contractFingerprint: testToolContractFingerprint(),
 	tools: [
@@ -162,10 +168,10 @@ describe("primary agent runtime", () => {
 			"工具定义描述其能够提供的事实范围；根据当前问题所需事实与工具范围选择工具，不要按具体机构、地点或实体名称建立固定路由特判。",
 		);
 		expect(observedInstructions).toContain(
-			"机构名称本身既不强制也不禁止工具调用；只有工具声明的资料范围和本轮真实返回的证据能够支持事实回答。",
+			"机构名称本身既不强制也不禁止工具调用；只有工具声明的资料范围和本轮真实返回的结果能够支持事实回答。",
 		);
 		expect(observedInstructions).toContain(
-			"证据只支持问题的一部分时，只回答有证据的部分并清楚说明资料边界；不要补全、推断或伪造未获支持的部分。",
+			"结果只支持问题的一部分时，只回答有依据的部分并清楚说明资料边界；不要把问题未要求的相邻规则作为补充，也不要推断或伪造未获支持的内容。",
 		);
 		expect(observedInstructions).toContain(
 			"不要编造用户输入、会话上下文或可用工具结果中不存在的事实。",
@@ -588,9 +594,14 @@ describe("primary agent runtime", () => {
 			{
 				status: "failed",
 				toolName: "test_lookup",
+				invocationId: "test-call-1",
 				argumentsJson: { query_text: "通知今天几点" },
 				result: { error: "tool executor is not configured" },
-				failCloseReason: "tool_executor_not_configured",
+				failure: {
+					code: "tool_executor_not_configured",
+					operation: "agent.tool",
+					detail: "tool executor is not configured",
+				},
 				durationMs: 12,
 			},
 		]);
@@ -618,7 +629,11 @@ describe("primary agent runtime", () => {
 				result: {
 					error: "source truth unavailable",
 				},
-				failCloseReason: "source_truth_unavailable",
+				failure: {
+					code: "source_truth_unavailable",
+					operation: "tool.test_lookup",
+					detail: "source truth unavailable",
+				},
 			}),
 		});
 
@@ -634,7 +649,10 @@ describe("primary agent runtime", () => {
 		expect(result.status).toBe("completed");
 		expect(result.terminalReason).toBe("answer_completed");
 		expect(result.finalOutput).toBe("通知查询失败。");
-		expect(result.toolResults[0]?.failCloseReason).toBe("source_truth_unavailable");
+		expect(result.toolResults[0]?.failure).toMatchObject({
+			code: "source_truth_unavailable",
+			operation: "tool.test_lookup",
+		});
 		expect(result.toolResults[0]?.durationMs).toBe(12);
 		expect(result.toolResults[0]?.argumentsJson).toEqual({
 			query_text: "通知今天几点",
@@ -659,9 +677,15 @@ describe("primary agent runtime", () => {
 						{
 							status: "failed",
 							toolName: "test_lookup",
+							invocationId: "test-call-1",
 							argumentsJson: { query_text: "通知" },
 							result: { error: "source truth unavailable" },
-							failCloseReason: "source_truth_unavailable",
+							failure: {
+								code: "source_truth_unavailable",
+								operation: "tool.test_lookup",
+								detail: "source truth unavailable",
+								invocationId: "test-call-1",
+							},
 							durationMs: 12,
 						},
 					],

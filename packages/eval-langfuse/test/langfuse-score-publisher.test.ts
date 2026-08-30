@@ -45,6 +45,8 @@ function productResult(): AgentProductEvalResult {
 		items: [
 			{
 				answer: "你好！",
+				citedContextIds: [],
+				citedContexts: [],
 				case: firstCase,
 				requestId: "request-001",
 				retrievedContextIds: [],

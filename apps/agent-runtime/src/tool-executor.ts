@@ -1,4 +1,8 @@
-import type { ToolExecutionRequest, UntimedToolExecutionResult } from "./agent-run-contract.ts";
+import type {
+	ExecutionFailure,
+	ToolExecutionRequest,
+	UntimedToolExecutionResult,
+} from "./agent-run-contract.ts";
 import { injectTraceContext } from "./telemetry.ts";
 import { isCanonicalExecutionControlInternalEndpoint } from "./tool-catalog.ts";
 
@@ -14,18 +18,18 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		const baseUrl = options.baseUrl.trim();
 		const sharedSecret = options.sharedSecret;
 		if (request.tool.handler.type !== "execution_control_internal_query") {
-			return failedToolResult("tool_handler_not_supported", {
+			return failedToolResult(request, "tool_handler_not_supported", {
 				error: "tool handler is not executable through execution-control query HTTP",
 			});
 		}
 		if (baseUrl === "" || sharedSecret === "") {
-			return failedToolResult("tool_executor_not_configured", {
+			return failedToolResult(request, "tool_executor_not_configured", {
 				error: "execution-control query base URL and shared secret are required",
 			});
 		}
 		const endpoint = request.tool.handler.endpoint;
 		if (!isCanonicalExecutionControlInternalEndpoint(endpoint)) {
-			return failedToolResult("tool_handler_invalid_endpoint", {
+			return failedToolResult(request, "tool_handler_invalid_endpoint", {
 				error: "execution-control query endpoint must be a canonical /internal/ path",
 			});
 		}
@@ -44,7 +48,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 				throw new Error("execution-control endpoint escaped its configured origin");
 			}
 		} catch {
-			return failedToolResult("tool_executor_not_configured", {
+			return failedToolResult(request, "tool_executor_not_configured", {
 				error: "execution-control query base URL is invalid",
 			});
 		}
@@ -71,6 +75,13 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 						activity_attempt: request.activityAttempt ?? 1,
 						request_id: request.requestId,
 						invocation_id: request.invocationId,
+						...(request.tool.name === "campus_search"
+							? {
+									user_goal: request.userGoal,
+									citation_start: request.citationStart,
+									result_limit: request.resultLimit,
+								}
+							: {}),
 					},
 				}),
 				redirect: "manual",
@@ -79,18 +90,18 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		} catch (error) {
 			throwIfRunAborted(request.signal, error);
 			if (timeoutSignal.aborted) {
-				return timedOutToolResult();
+				return timedOutToolResult(request);
 			}
-			return failedToolResult("transient_internal_query_failed", {
+			return failedToolResult(request, "transient_internal_query_failed", {
 				error: "execution-control query request failed",
 			});
 		}
 		throwIfRunAborted(request.signal, new Error("Agent run was cancelled during tool execution."));
 		if (timeoutSignal.aborted) {
-			return timedOutToolResult();
+			return timedOutToolResult(request);
 		}
 		if (response.status >= 300 && response.status < 400) {
-			return failedToolResult("tool_handler_redirected", {
+			return failedToolResult(request, "tool_handler_redirected", {
 				error: "execution-control query returned a redirect",
 			});
 		}
@@ -100,20 +111,25 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		} catch (error) {
 			throwIfRunAborted(request.signal, error);
 			if (timeoutSignal.aborted) {
-				return timedOutToolResult();
+				return timedOutToolResult(request);
 			}
-			return failedToolResult("tool_handler_invalid_response", {
+			return failedToolResult(request, "tool_handler_invalid_response", {
 				error: "execution-control query returned invalid JSON",
 			});
 		}
 		throwIfRunAborted(request.signal, new Error("Agent run was cancelled during tool execution."));
 		if (timeoutSignal.aborted) {
-			return timedOutToolResult();
+			return timedOutToolResult(request);
 		}
 		if (!response.ok) {
-			return failedToolResult("tool_handler_failed", {
-				error: "execution-control query failed",
-			});
+			return failedToolResult(
+				request,
+				"tool_handler_failed",
+				{
+					error: "execution-control query failed",
+				},
+				response.status,
+			);
 		}
 		return {
 			status: "completed",
@@ -122,20 +138,28 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 	};
 }
 
-function timedOutToolResult(): UntimedToolExecutionResult {
-	return failedToolResult("transient_internal_query_failed", {
+function timedOutToolResult(request: ToolExecutionRequest): UntimedToolExecutionResult {
+	return failedToolResult(request, "transient_internal_query_failed", {
 		error: "execution-control query timed out",
 	});
 }
 
 function failedToolResult(
-	failCloseReason: string,
+	request: ToolExecutionRequest,
+	code: string,
 	result: Record<string, unknown>,
+	httpStatus?: number,
 ): UntimedToolExecutionResult {
+	const failure: ExecutionFailure = {
+		code,
+		operation: `tool.${request.tool.name}`,
+		...(httpStatus === undefined ? {} : { httpStatus }),
+		...(request.invocationId ? { invocationId: request.invocationId } : {}),
+	};
 	return {
 		status: "failed",
 		result,
-		failCloseReason,
+		failure,
 	};
 }
 

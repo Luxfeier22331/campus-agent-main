@@ -37,12 +37,12 @@ execution-control 与 app-api 之间的执行输入读取及产品回调通道�
 ## 创建运行
 
 运行信封携带不可变的 request、conversation、`owner_user_id` 和 `surface`。
-当前载荷是 `tool_execution_v6`，响应合同是 `execution_finalization_response_v7`。运行 metadata
+当前载荷是 `tool_execution_v7`，响应合同是 `execution_finalization_response_v8`。运行 metadata
 严格限制为以下内容：
 
 ```json
 {
-  "execution_contract_version": "tool_execution_v6",
+  "execution_contract_version": "tool_execution_v7",
   "execution_input_ref": "app-api://execution-inputs/req_01",
   "execution_input_sha256": "<64 位小写十六进制 SHA-256>"
 }
@@ -62,18 +62,19 @@ task-queue 字段。
 
 ## 工具注册与开放
 
-`configs/runtime/tools.v6.json` 与
-`configs/runtime/tool-function-schemas.v3.json` 是运行时工具事实。当前登记的内部合同为：
+`configs/runtime/tools.v7.json` 与
+`configs/runtime/tool-function-schemas.v4.json` 是运行时工具事实。当前登记的内部合同为：
 
-- `campus_search`：按当前 Campus Docs 绑定检索中央民族大学 Campus Web 文档，返回有界 evidence。
+- `campus_search`：按当前 Campus Docs 绑定检索中央民族大学 Campus Web 文档，返回供 Agent 选择的
+  有界候选结果。
 - `personal_memory_recall`：按当前 request 绑定的用户身份读取有界个人记忆。
 
 两个工具的 exposure 都登记为 `model_visible`，但注册表本身不会自动向 Agent Runtime 开放工具。
 execution-control 根据当前能力状态生成本轮工具集合：
 
 - `visible_tool_names` 是名称唯一的集合，数组顺序没有路由语义；
-- 个人记忆不可用时，`max_model_turns=2`、`max_tool_calls=1`，只开放 `campus_search`；
-- 个人记忆可用时，`max_model_turns=3`、`max_tool_calls=2`，开放 `campus_search` 和
+- 个人记忆不可用时，`max_model_turns=3`、`max_tool_calls=2`，只开放 `campus_search`；
+- 个人记忆可用时，`max_model_turns=4`、`max_tool_calls=3`，开放 `campus_search` 和
   `personal_memory_recall`。工具预算是本轮所有工具调用的总预算；同一工具可以重复调用，不从数组顺序
   推导调用顺序。
 
@@ -81,26 +82,36 @@ execution-control 根据当前能力状态生成本轮工具集合：
 随本轮冻结的内部可用性，不表示用户同意状态或逐次读取授权。浏览器和用户文案不得暴露该字段、
 recall 工具或执行结果。matched personal memory 只支持用户自身事实或偏好，不推导机构事实。
 
-`campus_search` 不接收 collection、索引版本、provider、top-k 或 vector-store 字段。handler 在调用
+`campus_search` 的模型参数只有 `search_query`，不接收 collection、索引版本、provider、top-k 或
+vector-store 字段。handler 在调用
 时读取当前 `campus_docs_serving.current_index` 和 embedding provider。handler 内部先取得最多 24 个
 hybrid 候选，再调用同一 provider 的固定 `Qwen3-Reranker-4B` 排序并保留
-`relevance_score >= 0.5` 的候选。成功结果只包含 `outcome` 与最多 5 条 evidence；过滤后无候选返回
+`relevance_score >= 0.5` 的候选。成功结果只包含 `outcome` 与最多 5 条 `results`；过滤后无候选返回
 `no_match`。阈值只判断文本相关性，不判断学校、人群或规则适用主体；reranker 失败不得回退到未排序
 候选。
 
 Primary Agent 的固定角色是中央民族大学校园问答助手，未明确指定机构的校内问题默认指中央民族
 大学。工具定义声明各自能够提供的事实范围；Primary Agent 根据问题所需事实选择工具，不使用机构或
-其他实体名称级路由特判。问题有部分事实被成功工具 evidence 支持时，只回答有依据的部分；完全没有
-本轮成功 evidence 支持所需机构事实时，在正常助手正文中说明资料边界。
+其他实体名称级路由特判。`results` 是可供 Agent 判断的候选，不表示已经用于回答。问题只有部分事实
+被候选直接支持时，只回答有依据的部分；完全没有候选支持所需机构事实时，在正常助手正文中说明资料
+边界。
 
-`campus_search` evidence 按返回顺序对应正文中的 Markdown 引用 `[1]` 到 `[5]`。Finalization 只从
-同一次 request 的成功工具结果中解析实际出现的引用并派生公开来源；失败工具、越界编号和未被正文引用的
-evidence 不贡献来源。
+同一次 SDK run 可以多次调用 `campus_search`。每次最多返回 5 条结果，本轮累计最多 10 条；每条结果
+携带本轮全局 `citation_index` `1..10`。成功但没有结果的调用和失败调用不占用编号。只有正文实际
+引用的结果才是 cited results；Finalization 从同一次 request 的成功工具结果中解析 `[n]` 并派生公开
+来源卡片。失败工具结果和未被正文引用的候选不贡献来源；未知、零或超出 `1..10` 的引用使
+Finalization 失败。
 
-Agents SDK 负责依据 `tool-function-schemas.v3.json` 验证模型生成的函数参数。Execution Control 只读取
+查询文本由 execution-control 确定性生成：`search_query` 与 `user_goal` 相同时只使用
+`user_goal`，否则使用 `user_goal + "\n检索表达：" + search_query`。dense、sparse 和 rerank
+消费同一查询文本。
+
+Agents SDK 负责依据 `tool-function-schemas.v4.json` 验证模型生成的函数参数。Execution Control 只读取
 同一文件参与工具合同指纹，不再递归实现第二份 schema 校验；handler 仍负责身份、业务前置条件和结果合同。
 Agent Runtime 返回的每个 `tool_results` 项包含实际 `tool_name`、`arguments_json`、`status`、
-`duration_ms`、有界 `result` 和可选 `fail_close_reason`。
+`duration_ms`、有界 `result`、实际 `invocation_id` 和可选结构化 `failure`。`failure` 只包含
+`code`、`operation`、可选 `detail`、`http_status` 与 `invocation_id`；它是一次工具或模型操作的
+诊断事实，不替代运行终态的 `terminal_reason`。
 
 ## 工具合同指纹
 
@@ -134,7 +145,7 @@ StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memo
 run 不得因 Activity 重投递而再次执行。已有 `started` 或 `completed` receipt 而没有可用 Activity result
 时，必须以 `agent_attempt_uncertain` 失败关闭。
 
-`campus_search` 也在同一次 SDK run 内执行，不创建独立 Temporal Activity。它的 evidence 只在本次
+`campus_search` 也在同一次 SDK run 内执行，不创建独立 Temporal Activity。它的结果只在本次
 Agent result 内有效，不能跨 request 或从模型输出中重新构造。
 
 ## Temporal 与终态处理
@@ -172,7 +183,7 @@ Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_
 阶段耗时。追问、资料不足和范围说明都是 `completed` 助手正文。它不返回路由标签、外部平台引用
 或逐请求遥测控制项。
 
-当前在线链路只有 `campus_search` 注册了机构知识 evidence adapter。Finalization 按成功工具 adapter
+当前在线链路只有 `campus_search` 注册了机构知识结果 adapter。Finalization 按成功工具 adapter
 校验引用并派生公开来源；没有 adapter、来自失败工具或不属于同一次运行的引用均被拒绝。新的来源能力
 接入时，必须由对应可执行合同定义来源校验和公开字段。
 

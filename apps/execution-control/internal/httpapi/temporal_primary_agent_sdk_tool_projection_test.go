@@ -29,7 +29,7 @@ func TestExecutePrimaryAgentActivityProjectsPersonalMemoryToolResult(t *testing.
 		t.Fatalf("execute primary agent: %v", err)
 	}
 
-	stepID := "sdk_tool.execute.personal_memory_recall.1"
+	stepID := "sdk_tool.execute.personal_memory_recall.invocation-1"
 	steps, err := store.ListRunSteps(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("list run steps: %v", err)
@@ -57,7 +57,7 @@ func TestExecutePrimaryAgentActivityProjectsPersonalMemoryToolResult(t *testing.
 		}
 	}
 	if toolResult == nil || toolResult.ResultKind != "typed_tool_result" ||
-		toolResult.ProjectionRef != "projection://runs/"+runID+"/sdk-tools/personal_memory_recall/1" ||
+		toolResult.ProjectionRef != "projection://runs/"+runID+"/sdk-tools/personal_memory_recall/invocation-1" ||
 		toolResult.SanitizedPayload["tool_name"] != personalMemoryRecallToolName ||
 		toolResult.SanitizedPayload["outcome"] != "matched" {
 		t.Fatalf("personal memory tool result = %#v; all results = %#v", toolResult, results)
@@ -77,11 +77,14 @@ func TestExecutePrimaryAgentActivityProjectsPersonalMemoryToolResult(t *testing.
 func TestExecutePrimaryAgentActivityCompletesWithFailedPersonalMemoryToolResult(t *testing.T) {
 	runID := "run-primary-agent-memory-tool-failed"
 	store, err := executePrimaryAgentSDKToolFixture(t, runID, "completed", map[string]any{
-		"status":            "failed",
-		"tool_name":         personalMemoryRecallToolName,
-		"arguments_json":    map[string]any{"query": "我上次说过喜欢哪个食堂？"},
-		"fail_close_reason": "tool_handler_failed",
-		"result":            map[string]any{"error": map[string]any{"code": "memory_unavailable"}},
+		"status":         "failed",
+		"tool_name":      personalMemoryRecallToolName,
+		"arguments_json": map[string]any{"query": "我上次说过喜欢哪个食堂？"},
+		"failure": map[string]any{
+			"code":      "tool_handler_failed",
+			"operation": "tool.personal_memory_recall",
+		},
+		"result": map[string]any{"error": map[string]any{"code": "memory_unavailable"}},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent with failed SDK tool: %v", err)
@@ -92,9 +95,10 @@ func TestExecutePrimaryAgentActivityCompletesWithFailedPersonalMemoryToolResult(
 		t.Fatalf("list run steps: %v", err)
 	}
 	for _, step := range steps {
-		if step.StepID == "sdk_tool.execute.personal_memory_recall.1" {
+		if step.StepID == "sdk_tool.execute.personal_memory_recall.invocation-1" {
+			failure, _ := step.SanitizedPayload["failure"].(*temporalruntime.ExecutionFailure)
 			if step.Status != "failed" || step.Tool != personalMemoryRecallToolName ||
-				step.SanitizedPayload["fail_close_reason"] != "tool_handler_failed" {
+				failure == nil || failure.Code != "tool_handler_failed" {
 				t.Fatalf("failed personal memory tool step = %#v", step)
 			}
 			return
@@ -143,6 +147,7 @@ func executePrimaryAgentSDKToolFixture(
 ) (*execution.InMemoryRunProjectionStore, error) {
 	t.Helper()
 	toolResult["duration_ms"] = 17.25
+	toolResult["invocation_id"] = "invocation-1"
 	store := execution.NewInMemoryRunProjectionStore()
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
@@ -200,7 +205,7 @@ func assertSDKToolProjectionFailure(
 		t.Fatalf("list attempts: %v", err)
 	}
 	for _, attempt := range attempts {
-		if attempt.StepID == "sdk_tool.execute.personal_memory_recall.1" {
+		if attempt.StepID == "sdk_tool.execute.personal_memory_recall.invocation-1" {
 			if attempt.Status != "failed" || attempt.FailCloseReason != wantReason {
 				t.Fatalf("tool attempt = %#v, want failed %s", attempt, wantReason)
 			}

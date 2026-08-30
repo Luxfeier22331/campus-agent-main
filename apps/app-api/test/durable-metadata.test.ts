@@ -48,7 +48,7 @@ describe("durable run metadata", () => {
 		expect(payload.tenant_id).toBe("tenant-main");
 		expect(frozen.executionInputSha256).toBe(sha256Text(frozen.executionInputJson));
 		expect(frozen.metadata).toEqual({
-			execution_contract_version: "tool_execution_v6",
+			execution_contract_version: "tool_execution_v7",
 			execution_input_ref: "app-api://execution-inputs/req-001",
 			execution_input_sha256: frozen.executionInputSha256,
 		});

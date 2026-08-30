@@ -9,7 +9,7 @@ import {
 } from "../src/modules/integration/execution-control";
 
 const EXECUTION_RUN_METADATA = {
-	execution_contract_version: "tool_execution_v6",
+	execution_contract_version: "tool_execution_v7",
 	execution_input_ref: "app-api://execution-inputs/req_durable_001",
 	execution_input_sha256: "a".repeat(64),
 } as const;

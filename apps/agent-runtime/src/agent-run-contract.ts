@@ -6,6 +6,14 @@ import type {
 	ToolContractFingerprint,
 } from "./tool-catalog.ts";
 
+export interface ExecutionFailure {
+	code: string;
+	operation: string;
+	detail?: string;
+	httpStatus?: number;
+	invocationId?: string;
+}
+
 export interface PrimaryAgentRunInput {
 	activityAttempt?: number;
 	requestId: string;
@@ -99,18 +107,21 @@ export interface ToolExecutionRequest {
 	argumentsJson: Record<string, unknown>;
 	requestId: string;
 	invocationId?: string;
-	searchOrdinal?: number;
+	citationStart?: number;
+	resultLimit?: number;
+	userGoal?: string;
 	signal?: AbortSignal;
 }
 
 export interface UntimedToolExecutionResult {
 	status: "completed" | "failed";
 	result: Record<string, unknown>;
-	failCloseReason?: string;
+	failure?: ExecutionFailure;
 }
 
 export interface ToolExecutionResult extends UntimedToolExecutionResult {
 	toolName: string;
+	invocationId: string;
 	argumentsJson: Record<string, unknown>;
 	durationMs: number;
 }
@@ -127,7 +138,8 @@ export interface SdkToolRuntime {
 
 export interface SdkToolExecutionContext {
 	invocationId?: string;
-	searchOrdinal?: number;
+	citationStart?: number;
+	resultLimit?: number;
 }
 
 export interface AgentRunnerInput {

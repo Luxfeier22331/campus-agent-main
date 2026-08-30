@@ -17,7 +17,7 @@ export function SourceItemsList({ sourceItems }: { sourceItems: SourceItemPayloa
 
 	return (
 		<section aria-label="来源" className="mt-3 flex flex-col gap-2">
-			{sourceItems.slice(0, 5).map((sourceItem) => (
+			{sourceItems.map((sourceItem) => (
 				<SourceItemCard key={sourceItemKey(sourceItem)} sourceItem={sourceItem} />
 			))}
 		</section>

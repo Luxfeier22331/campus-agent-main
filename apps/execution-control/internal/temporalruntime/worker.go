@@ -222,7 +222,6 @@ func NewCoreActivityWorkerWithOptions(
 	if coreQueue == "" {
 		coreQueue = ActivityTaskQueueCore
 	}
-	options.Interceptors = append(options.Interceptors, &ActivityFailureSanitizer{})
 	coreWorker := worker.New(temporalClient, coreQueue, options)
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.AppendConversationMemoryActivity,
@@ -269,7 +268,6 @@ func NewAgentActivityWorkerWithOptions(
 	if agentQueue == "" {
 		agentQueue = ActivityTaskQueueAgent
 	}
-	options.Interceptors = append(options.Interceptors, &ActivityFailureSanitizer{})
 	agentWorker := worker.New(temporalClient, agentQueue, options)
 	agentWorker.RegisterActivityWithOptions(
 		activities.ExecutePrimaryAgentActivity,

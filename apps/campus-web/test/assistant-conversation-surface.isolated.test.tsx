@@ -87,8 +87,9 @@ describe("AssistantConversationSurface", () => {
 			' className="aui-composer-action-wrapper relative flex shrink-0 items-center gap-1 pb-1"'.trimStart(),
 		);
 		expect(threadSource).toContain("flex gap-5 duration-200");
-		expect(threadSource).toContain('className={cn("ms-1 flex items-center gap-5 sm:ms-2"');
-		expect(threadSource).toContain('const ACTION_BAR_HEIGHT = "-mb-5 min-h-11"');
+		expect(threadSource).toContain('className="ms-1 flex min-h-6 items-center gap-5 sm:ms-2"');
+		expect(threadSource).toContain("aui-thread-composer-dock");
+		expect(threadSource).not.toContain("sticky bottom-0 mt-auto");
 		expect(threadSource).toContain('className="mb-14 flex flex-col gap-y-7 empty:hidden sm:mb-16"');
 		expect(threadSource).toContain("flex flex-col items-end gap-y-2.5 px-1");
 		expect(threadSource).toContain("-translate-y-1/2 pe-2.5 peer-empty:hidden");

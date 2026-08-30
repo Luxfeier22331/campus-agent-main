@@ -82,7 +82,7 @@ export function requestRowsCte(): string {
 					end
 				) as "error_code",
 				coalesce(
-					nullif(latest_step.sanitized_payload_json ->> 'failure_kind', ''),
+					nullif(latest_failure_step.sanitized_payload_json -> 'failure' ->> 'code', ''),
 					nullif(agent_run.fail_close_reason, ''),
 					nullif(dispatch.error_code, '')
 				) as "execution_failure_kind",
@@ -91,7 +91,9 @@ export function requestRowsCte(): string {
 				nullif(agent_run.fail_close_reason, '') as "fail_close_reason",
 					greatest(
 					dispatch.updated_at,
-					coalesce(agent_run.updated_at, dispatch.updated_at)
+					coalesce(agent_run.updated_at, dispatch.updated_at),
+					coalesce(latest_step.updated_at, dispatch.updated_at),
+					coalesce(latest_failure_step.updated_at, dispatch.updated_at)
 				) as "projected_at",
 					assistant_message.kind as "assistant_kind",
 					assistant_message.id is not null as "assistant_message_present",
@@ -114,6 +116,7 @@ export function requestRowsCte(): string {
 							'completed', 'error', 'rejected', 'approval_required', 'cancelled'
 						) and assistant_message.id is null then 0
 						when dispatch.status in ('error', 'rejected') then 1
+						when latest_failure_step.step_id is not null then 1
 						when dispatch.status = 'approval_required' then 2
 						else null
 					end as "attention_priority",
@@ -122,6 +125,7 @@ export function requestRowsCte(): string {
 							'completed', 'error', 'rejected', 'approval_required', 'cancelled'
 						) and assistant_message.id is null then 'RESULT_MISSING'
 						when dispatch.status in ('error', 'rejected') then 'REQUEST_FAILED'
+						when latest_failure_step.step_id is not null then 'EXECUTION_STAGE_FAILED'
 						when dispatch.status = 'approval_required' then 'WAITING_USER'
 						else null
 					end as "attention_reason",
@@ -132,12 +136,25 @@ export function requestRowsCte(): string {
 				left join "execution_control"."agent_runs" as agent_run
 					on agent_run.request_id = dispatch.request_id
 				left join lateral (
-					select step.step_id, step.step_kind, step.status, step.sanitized_payload_json
+					select step.step_id, step.step_kind, step.status, step.sanitized_payload_json, step.updated_at
 					from "execution_control"."agent_run_steps" as step
 					where step.request_id = dispatch.request_id
 					order by coalesce(step.started_at, step.updated_at) desc, step.step_id desc
 					limit 1
 				) as latest_step on true
+				left join lateral (
+					select step.step_id, step.sanitized_payload_json, step.updated_at
+					from "execution_control"."agent_run_steps" as step
+					where step.request_id = dispatch.request_id
+						and (
+							step.status = 'failed'
+							or nullif(step.sanitized_payload_json -> 'failure' ->> 'code', '') is not null
+						)
+					order by step.updated_at desc,
+						coalesce(step.started_at, step.updated_at) desc,
+						step.step_id desc
+					limit 1
+				) as latest_failure_step on true
 				left join "chat"."messages" as assistant_message
 					on assistant_message.id = dispatch.assistant_message_id
 					and assistant_message.request_id = dispatch.request_id
@@ -166,7 +183,7 @@ export function buildRequestFilter(
 	if (query.q) {
 		values.push(`%${escapeLikePattern(query.q)}%`);
 		conditions.push(
-			`("request_id" ilike $${values.length} or "question_preview" ilike $${values.length} or "error_code" ilike $${values.length})`,
+			`("request_id" ilike $${values.length} or "question_preview" ilike $${values.length} or "error_code" ilike $${values.length} or "execution_failure_kind" ilike $${values.length})`,
 		);
 	}
 	return {
@@ -180,6 +197,7 @@ export function requestStagesSql(): string {
 		select
 			"completed_at" as "completedAt",
 			"sanitized_payload_json" as "sanitizedPayloadJson",
+			"step_id" as "stepId",
 			"started_at" as "startedAt",
 			"status",
 			"step_kind" as "stepKind",

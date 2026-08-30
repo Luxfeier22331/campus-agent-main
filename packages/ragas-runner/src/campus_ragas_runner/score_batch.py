@@ -29,6 +29,7 @@ class RagasProjection:
     user_input: str
     response: str
     retrieved_contexts: tuple[str, ...]
+    cited_contexts: tuple[str, ...]
     reference: str = ""
     metadata: dict[str, object] = field(default_factory=dict)
 
@@ -211,7 +212,10 @@ def _score_item(item: object, *, scorer: RagasScorer) -> dict[str, object]:
         user_input=_required_str(item.get("user_input"), f"{case_id}.user_input"),
         response=_required_str(item.get("response"), f"{case_id}.response"),
         retrieved_contexts=tuple(
-            _optional_string_list(item.get("retrieved_contexts"), f"{case_id}.retrieved_contexts")
+            _required_string_list(item.get("retrieved_contexts"), f"{case_id}.retrieved_contexts")
+        ),
+        cited_contexts=tuple(
+            _required_string_list(item.get("cited_contexts"), f"{case_id}.cited_contexts")
         ),
         reference=reference,
         metadata=metadata,
@@ -260,16 +264,22 @@ async def _score_with_official_ragas_metrics(
         Faithfulness,
     )
 
-    contexts = list(projection.retrieved_contexts)
+    retrieved_contexts = list(projection.retrieved_contexts)
+    cited_contexts = list(projection.cited_contexts)
     results: list[RagasResult] = []
     for metric_name in metric_names:
         if metric_name in {"context_precision", "context_recall"} and not projection.reference:
             continue
+        contexts = cited_contexts if metric_name == "faithfulness" else retrieved_contexts
         if metric_name in {"faithfulness", "context_precision", "context_recall"} and not contexts:
             results.append(
                 RagasResult(
                     metric_name=metric_name,
-                    rationale="retrieved_contexts is empty",
+                    rationale=(
+                        "cited_contexts is empty"
+                        if metric_name == "faithfulness"
+                        else "retrieved_contexts is empty"
+                    ),
                 )
             )
             continue
@@ -336,9 +346,7 @@ def _required_list(value: object, field: str) -> list[object]:
     return value
 
 
-def _optional_string_list(value: object, field: str) -> list[str]:
-    if value is None:
-        return []
+def _required_string_list(value: object, field: str) -> list[str]:
     if not isinstance(value, list):
         raise ValueError(f"{field} must be a list")
     return [_required_str(item, f"{field}[]") for item in value]
@@ -368,6 +376,7 @@ def _qualify_metric_name(metric_name: str) -> str:
 def _assert_allowed_sample_fields(value: Mapping[str, object], case_id: str) -> None:
     allowed = {
         "case_id",
+        "cited_contexts",
         "metadata",
         "reference",
         "response",

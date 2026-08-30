@@ -95,16 +95,17 @@ Publisher 在激活前完整核对 collection 配置、point 数、point 身份�
 
 当前查询先从 dense/sparse hybrid RRF 取得最多 24 个候选，再使用当前 `campus_docs_reranker`
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选，最终返回
-最多 5 条 evidence，正文总字符预算为 4000。execution-control 校验 point schema、文本 hash、section
+每次最多 5 条候选结果，正文总字符预算为 4000。execution-control 校验 point schema、文本 hash、section
 URL、版本字段和 `root_unit_ids` 后才把结果交给 Agent。reranker 响应的 index 必须覆盖候选且唯一，
 score 必须是有限数值；调用或校验失败直接使检索失败，不回退到未重排候选。过滤后无结果返回成功的
 `no_match`。该阈值只判断查询与候选文本的相关性，不判断学校、人群或规则适用主体。
 当前 collection 只包含中央民族大学 Campus Web 文档。Primary Agent 根据问题所需事实与工具声明范围
 决定是否检索，不通过实体名称特判、Qdrant filter、rerank 阈值或 collection 字段实现路由。
 
-Agent 正文中的 `[1]` 到 `[5]` 只对应本次成功工具结果按顺序返回的 evidence；当前 Campus Docs 来源由
-`campus_search` adapter 校验。Finalization 忽略越界编号和未引用 evidence，并从有效引用派生公开
-source cards。检索失败不会回退到其他数据源，也不会改变当前索引绑定。
+同一 run 的 `campus_search` 结果使用全局 `citation_index` `1..10`，失败和 `no_match` 不占编号。
+Agent 正文只引用实际采用的候选；当前 Campus Docs 来源由 `campus_search` adapter 校验。Finalization
+拒绝未知、零或越界编号，忽略未引用候选，并从有效引用派生公开 source cards。检索失败不会回退到
+其他数据源，也不会改变当前索引绑定。
 
 ## 相关文档
 

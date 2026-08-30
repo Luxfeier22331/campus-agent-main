@@ -131,11 +131,26 @@ export function agentRunResultWire(result: PrimaryAgentRunResult, runtimeRelease
 		stage_timing: result.stageTiming,
 		tool_results: result.toolResults.map((toolResult) => ({
 			duration_ms: toolResult.durationMs,
+			invocation_id: toolResult.invocationId,
 			status: toolResult.status,
 			tool_name: toolResult.toolName,
 			arguments_json: toolResult.argumentsJson,
 			result: toolResult.result,
-			fail_close_reason: toolResult.failCloseReason,
+			...(toolResult.failure
+				? {
+						failure: {
+							code: toolResult.failure.code,
+							operation: toolResult.failure.operation,
+							...(toolResult.failure.detail ? { detail: toolResult.failure.detail } : {}),
+							...(toolResult.failure.httpStatus === undefined
+								? {}
+								: { http_status: toolResult.failure.httpStatus }),
+							...(toolResult.failure.invocationId
+								? { invocation_id: toolResult.failure.invocationId }
+								: {}),
+						},
+					}
+				: {}),
 		})),
 		tool_contract_fingerprint: {
 			schema_version: result.toolContractFingerprint.schemaVersion,

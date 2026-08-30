@@ -47,6 +47,8 @@ function productResult(): AgentProductEvalResult {
 			};
 			return {
 				answer: index === 0 ? "没有召回到上下文。" : "你好！",
+				citedContextIds: [],
+				citedContexts: [],
 				case: caseItem,
 				requestId: `request-${index + 1}`,
 				retrievedContextIds: [],
@@ -104,6 +106,7 @@ describe("product result scoring adapter", () => {
 				items: [
 					{
 						case_id: "case-with-rag",
+						cited_contexts: [],
 						retrieved_contexts: [],
 					},
 				],

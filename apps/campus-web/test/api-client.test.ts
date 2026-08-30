@@ -9,7 +9,6 @@ import {
 	deleteTrailingMessages,
 	getRunEvents,
 	getRunStatus,
-	getRunSteps,
 	listConversations,
 	pinConversation,
 	renameConversation,
@@ -589,51 +588,6 @@ describe("campus app-api client", () => {
 			credentials: "same-origin",
 			headers: { accept: "application/json" },
 			method: "GET",
-		});
-	});
-
-	it("reads the fixed four-phase run steps without exposing raw trajectory fields", async () => {
-		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-			new Response(
-				JSON.stringify({
-					run: {
-						acceptedAt: "2026-06-08T00:00:00.000Z",
-						completedAt: null,
-						conversationId: "conv_01",
-						durationMs: null,
-						phase: "running",
-						requestId: "req_01",
-						startedAt: "2026-06-08T00:00:01.000Z",
-						status: "running",
-					},
-					steps: [
-						{
-							completedAt: null,
-							durationMs: null,
-							phase: "queued",
-							startedAt: "2026-06-08T00:00:00.000Z",
-							status: "completed",
-						},
-						...(["preparing", "generating", "finalizing"] as const).map((phase) => ({
-							completedAt: null,
-							durationMs: null,
-							phase,
-							startedAt: null,
-							status: "pending",
-						})),
-					],
-				}),
-				{ headers: { "content-type": "application/json" } },
-			),
-		);
-
-		await expect(getRunSteps({ requestId: "req_01" })).resolves.toMatchObject({
-			steps: [
-				expect.objectContaining({ phase: "queued" }),
-				expect.objectContaining({ phase: "preparing" }),
-				expect.objectContaining({ phase: "generating" }),
-				expect.objectContaining({ phase: "finalizing" }),
-			],
 		});
 	});
 

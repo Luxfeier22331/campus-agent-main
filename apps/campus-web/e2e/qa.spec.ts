@@ -123,12 +123,29 @@ test.describe("Q&A browser flow", () => {
 		);
 		await page.route("**/api/chat/requests/*/cancel", async (route) => {
 			cancelCalled = true;
-			await route.fulfill({ contentType: "application/json", json: { ok: true }, status: 202 });
+			await route.fulfill({
+				contentType: "application/json",
+				json: {
+					run: {
+						acceptedAt: "2026-06-24T01:00:00.000Z",
+						completedAt: null,
+						conversationId: "conv_e2e",
+						durationMs: null,
+						phase: "running",
+						requestId: "req_e2e",
+						startedAt: null,
+						status: "running",
+					},
+				},
+				status: 202,
+			});
 		});
 		await page.goto("/");
 
 		await page.getByLabel("消息输入").fill("请生成一个较长回答");
 		await page.getByRole("button", { name: "发送" }).click();
+		await expect(page.locator(".aui-thread-run-status")).toHaveText("正在回答");
+		expect(await page.locator(".aui-md").count()).toBe(0);
 		await page.getByRole("button", { name: "停止生成" }).click();
 
 		await expect.poll(() => cancelCalled).toBe(true);

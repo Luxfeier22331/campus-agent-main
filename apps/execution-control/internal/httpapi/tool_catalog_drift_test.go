@@ -71,7 +71,7 @@ func TestRegisteredToolCatalogRetainsCanonicalStrictFunctionSchemas(t *testing.T
 		"..",
 		"configs",
 		"runtime",
-		"tool-function-schemas.v3.json",
+		"tool-function-schemas.v4.json",
 	))
 	if err != nil {
 		t.Fatalf("read tool function schemas: %v", err)

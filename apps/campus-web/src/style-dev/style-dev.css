@@ -340,11 +340,6 @@
 		transform: translateY(0);
 	}
 
-	.style-dev-conversation-status-example {
-		width: min(100%, 680px);
-		margin: 0 auto;
-	}
-
 	.style-dev-sidebar-preview-frame {
 		position: relative;
 		width: min(100%, var(--layout-chat-sidebar-width));

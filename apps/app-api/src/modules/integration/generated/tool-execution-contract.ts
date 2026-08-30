@@ -1,8 +1,8 @@
 /* AUTO-GENERATED FROM tool-execution.openapi.yaml. Do not edit by hand. */
 
 export const TOOL_EXECUTION_CONTRACT = {
-	executionContractVersion: "tool_execution_v6",
-	responseContract: "execution_finalization_response_v7",
+	executionContractVersion: "tool_execution_v7",
+	responseContract: "execution_finalization_response_v8",
 } as const;
 
 export const TOOL_IDS = ["campus_search", "personal_memory_recall"] as const;

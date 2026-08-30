@@ -101,9 +101,10 @@ export function createFakeOpsDb(
 
 function validAttentionReason(
 	value: string | null,
-): "REQUEST_FAILED" | "RESULT_MISSING" | "WAITING_USER" | null {
+): "EXECUTION_STAGE_FAILED" | "REQUEST_FAILED" | "RESULT_MISSING" | "WAITING_USER" | null {
 	if (
 		value === null ||
+		value === "EXECUTION_STAGE_FAILED" ||
 		value === "REQUEST_FAILED" ||
 		value === "RESULT_MISSING" ||
 		value === "WAITING_USER"
@@ -178,6 +179,7 @@ export function runStepRow(overrides: Partial<OpsRequestStageRow> = {}): OpsRequ
 			agent_runtime_release: "agent-runtime@899f251",
 			execution_control_release: "execution-control@a77a046",
 		},
+		stepId: "step_001",
 		startedAt: new Date("2026-07-09T07:29:00.700Z"),
 		status: "completed",
 		stepKind: "agent",
@@ -239,7 +241,12 @@ function filterRequestRows(
 				return false;
 			}
 			if (query.q) {
-				const text = [row.errorCode, row.questionPreview, row.requestId].join(" ");
+				const text = [
+					row.errorCode,
+					row.executionFailureKind,
+					row.questionPreview,
+					row.requestId,
+				].join(" ");
 				if (!text.toLowerCase().includes(query.q.toLowerCase())) {
 					return false;
 				}

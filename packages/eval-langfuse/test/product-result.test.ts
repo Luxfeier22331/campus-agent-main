@@ -8,6 +8,8 @@ function payload(): Record<string, unknown> {
 		items: [
 			{
 				answer: "你好！",
+				cited_context_ids: [],
+				cited_contexts: [],
 				case: {
 					argument_mode: "name_only",
 					case_id: "case-001",
@@ -27,7 +29,7 @@ function payload(): Record<string, unknown> {
 				},
 			},
 		],
-		schema_version: "agent_product_eval_result.v2",
+		schema_version: "agent_product_eval_result.v3",
 	};
 }
 
@@ -45,5 +47,12 @@ describe("agent product result contract", () => {
 			case: { ...(first?.case as Record<string, unknown>), case_id: "case-002" },
 		});
 		expect(() => parseAgentProductEvalResult(value)).toThrow("request_id is duplicated");
+	});
+
+	it("rejects a v3 product result that omits cited contexts", () => {
+		const value = payload();
+		delete (value.items as Record<string, unknown>[])[0]?.cited_contexts;
+
+		expect(() => parseAgentProductEvalResult(value)).toThrow(/cited_contexts must be a list/u);
 	});
 });

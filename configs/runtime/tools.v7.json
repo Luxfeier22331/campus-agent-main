@@ -1,15 +1,15 @@
 {
-	"schema_version": "tool-registry-v6",
-	"registry_version": "2026-08-22",
+	"schema_version": "tool-registry-v7",
+	"registry_version": "2026-08-30",
 	"tools": [
 		{
 			"name": "campus_search",
-			"description": "检索中央民族大学当前 Campus Web 文档中的校内事实、政策和办事流程。",
+			"description": "检索中央民族大学当前 Campus Web 文档中的校内事实、政策和办事流程，返回供回答选择的候选结果。",
 			"exposure": "model_visible",
 			"read_only": true,
 			"requires_approval": false,
-			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v1.schema.json#/$defs/CampusSearchPayload",
-			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v1.schema.json#/$defs/CampusSearchResult",
+			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v2.schema.json#/$defs/CampusSearchPayload",
+			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v2.schema.json#/$defs/CampusSearchResult",
 			"handler": {
 				"type": "execution_control_internal_query",
 				"endpoint": "/internal/campus/search"

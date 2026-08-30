@@ -305,9 +305,11 @@ func (s *Server) ExecutePrimaryAgent(
 		ProviderResponseID: output.ProviderResponseID,
 		ModelProvider:      output.ModelProvider,
 		ModelName:          output.ModelName,
+		ModelRequestCount:  output.Usage.ModelRequestCount,
 		InputTokens:        output.Usage.InputTokens,
 		OutputTokens:       output.Usage.OutputTokens,
 		CachedInputTokens:  output.Usage.CachedInputTokens,
+		UsageObserved:      output.Usage.UsageObserved,
 		Payload:            projectionPayload,
 	})); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -432,7 +434,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 		identity = identities[0]
 	}
 	visible := stringSet(visibleToolNames)
-	for index, result := range output.ToolResults {
+	for _, result := range output.ToolResults {
 		durationMS, err := primaryAgentToolDurationMS(result.DurationMS)
 		if err != nil {
 			return err
@@ -453,17 +455,23 @@ func (s *Server) projectPrimaryAgentToolResults(
 				toolName,
 			)
 		}
-		callIndex := index + 1
-		stepID := fmt.Sprintf("sdk_tool.execute.%s.%d", toolName, callIndex)
-		resultRef := primaryAgentToolProjectionRef(run.RequestID, toolName, callIndex)
+		invocationID := strings.TrimSpace(result.InvocationID)
+		if invocationID == "" {
+			return fmt.Errorf("agent runtime tool result invocation_id is required")
+		}
+		stepID := fmt.Sprintf("sdk_tool.execute.%s.%s", toolName, invocationID)
+		resultRef := primaryAgentToolProjectionRef(run.RequestID, toolName, invocationID)
 		resultPayload := cloneAnyMapFromMetadata(result.Result)
 		payload := map[string]any{
 			"arguments_json_sha256": sha256JSONRef(result.ArgumentsJSON),
-			"fail_close_reason":     strings.TrimSpace(result.FailCloseReason),
+			"invocation_id":         invocationID,
 			"outcome":               boundedToolOutcome(resultPayload["outcome"]),
 			"result_sha256":         sha256AnyValue(resultPayload),
 			"tool_name":             toolName,
 			"tool_status":           status,
+		}
+		if result.Failure != nil {
+			payload["failure"] = result.Failure
 		}
 		if toolName == campusSearchToolName && status == "completed" {
 			payload["result"] = cloneAnyMapFromMetadata(resultPayload)
@@ -487,7 +495,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 			UpdatedAt:       completedAt,
 			ResultKind:      toolResultKind(status),
 			ProjectionRef:   resultRef,
-			FailCloseReason: strings.TrimSpace(result.FailCloseReason),
+			FailCloseReason: "",
 			Payload:         payload,
 		})); err != nil {
 			return err
@@ -614,34 +622,48 @@ func (s *Server) failPrimaryAgentActivity(
 	case "agent_runtime_unauthorized":
 		failCloseReason = "agent_runtime_unauthorized"
 	}
-	summary := summarizeTemporalFailure(failureKind, "", cause)
+	summary := summarizeTemporalFailure(failureKind)
 	payload := map[string]any{
 		"execution_control_release": strings.TrimSpace(s.config.DeploymentRelease),
-		"failure_hash":              summary.Hash,
-		"failure_kind":              summary.Kind,
 		"message":                   summary.Message,
-	}
-	if failCloseReason != "" {
-		payload["fail_close_reason"] = failCloseReason
 	}
 	var runtimeHTTPError agentRuntimeHTTPError
 	if errors.As(cause, &runtimeHTTPError) {
-		payload["agent_runtime_http_status"] = runtimeHTTPError.StatusCode
 		if release := strings.TrimSpace(runtimeHTTPError.RuntimeRelease); release != "" {
 			payload["agent_runtime_release"] = release
 		}
-		if stableCode := primaryAgentRuntimeFailureKind(runtimeHTTPError); stableCode == strings.TrimSpace(runtimeHTTPError.Code) {
-			payload["agent_runtime_error_code"] = stableCode
-		}
+		payload["failure"] = primaryAgentRuntimeFailurePayload(
+			failureKind,
+			primaryAgentRuntimeFailureCode(runtimeHTTPError.Code, primaryAgentRuntimeFailureKind(runtimeHTTPError), failureKind),
+			runtimeHTTPError.Operation,
+			runtimeHTTPError.Detail,
+			runtimeHTTPError.StatusCode,
+			runtimeHTTPError.InvocationID,
+		)
 	}
 	var runtimeApplicationError agentRuntimeApplicationError
 	if errors.As(cause, &runtimeApplicationError) {
 		if release := strings.TrimSpace(runtimeApplicationError.RuntimeRelease); release != "" {
 			payload["agent_runtime_release"] = release
 		}
-		if stableCode := primaryAgentRuntimeFailureKind(runtimeApplicationError); stableCode == strings.TrimSpace(runtimeApplicationError.Code) {
-			payload["agent_runtime_error_code"] = stableCode
-		}
+		payload["failure"] = primaryAgentRuntimeFailurePayload(
+			failureKind,
+			primaryAgentRuntimeFailureCode(runtimeApplicationError.Code, primaryAgentRuntimeFailureKind(runtimeApplicationError), failureKind),
+			runtimeApplicationError.Operation,
+			runtimeApplicationError.Detail,
+			runtimeApplicationError.HTTPStatus,
+			runtimeApplicationError.InvocationID,
+		)
+	}
+	if _, ok := payload["failure"]; !ok {
+		payload["failure"] = primaryAgentRuntimeFailurePayload(
+			failureKind,
+			failureKind,
+			"agent.primary",
+			"",
+			0,
+			"",
+		)
 	}
 	var output temporalruntime.ExecutePrimaryAgentActivityOutput
 	if len(outputs) > 0 {
@@ -652,7 +674,6 @@ func (s *Server) failPrimaryAgentActivity(
 	}
 	err := s.projectTemporalFailureStep(ctx, run, temporalStepFailureProjection{
 		Tool:               "",
-		FailureHash:        summary.Hash,
 		FailureKind:        summary.Kind,
 		ModelName:          output.ModelName,
 		ModelProvider:      output.ModelProvider,
@@ -679,4 +700,44 @@ func (s *Server) failPrimaryAgentActivity(
 		)
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, temporalApplicationError(summary, true)
+}
+
+func primaryAgentRuntimeFailurePayload(
+	fallbackCode string,
+	code string,
+	operation string,
+	detail string,
+	httpStatus int,
+	invocationID string,
+) map[string]any {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		code = strings.TrimSpace(fallbackCode)
+	}
+	operation = strings.TrimSpace(operation)
+	if operation == "" {
+		operation = "agent.primary"
+	}
+	failure := map[string]any{
+		"code":      code,
+		"operation": operation,
+	}
+	if detail = strings.TrimSpace(detail); detail != "" {
+		failure["detail"] = detail
+	}
+	if httpStatus > 0 {
+		failure["http_status"] = httpStatus
+	}
+	if invocationID = strings.TrimSpace(invocationID); invocationID != "" {
+		failure["invocation_id"] = invocationID
+	}
+	return failure
+}
+
+func primaryAgentRuntimeFailureCode(code string, stableCode string, fallbackCode string) string {
+	code = strings.TrimSpace(code)
+	if code != "" && code == strings.TrimSpace(stableCode) {
+		return code
+	}
+	return strings.TrimSpace(fallbackCode)
 }

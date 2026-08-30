@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	localUserMessage,
-	provisionalAssistantMessage,
 	removeMessagesById,
 	upsertAssistantTextMessage,
 } from "../src/features/conversation/assistant-ui-message-projection";
-import { EMPTY_CAMPUS_RUN_VIEW } from "../src/features/conversation/run-view-state";
 
 describe("assistant-ui message projection", () => {
 	it("upserts streamed assistant text without duplicating the message", () => {
@@ -29,15 +27,14 @@ describe("assistant-ui message projection", () => {
 		expect(updated[0]?.createdAt).toEqual(first[0]?.createdAt);
 	});
 
-	it("marks a streamed answer as optimistic when no provisional shell exists", () => {
+	it("does not add optimistic metadata to a streamed answer", () => {
 		const updated = upsertAssistantTextMessage([], {
 			messageId: "run:answer",
 			occurredAt: "2026-06-24T01:00:00.000Z",
-			optimistic: true,
 			text: "流式回答",
 		});
 
-		expect(updated[0]?.metadata?.isOptimistic).toBe(true);
+		expect(updated[0]?.metadata).toBeUndefined();
 	});
 
 	it("removes only provisional message ids", () => {
@@ -56,26 +53,18 @@ describe("assistant-ui message projection", () => {
 		});
 	});
 
-	it("migrates a provisional assistant message to the durable answer id", () => {
-		const provisional = provisionalAssistantMessage({
-			messageId: "local-assistant",
-			occurredAt: "2026-06-18T01:00:00.000Z",
-			runView: { ...EMPTY_CAMPUS_RUN_VIEW, operationId: 1, provisional: true },
-		});
-		const updated = upsertAssistantTextMessage([provisional], {
+	it("creates the durable answer message on its first delta", () => {
+		const updated = upsertAssistantTextMessage([], {
 			messageId: "msg_answer",
 			occurredAt: "2026-06-18T01:00:01.000Z",
-			provisionalMessageId: "local-assistant",
 			text: "回答正文",
 		});
 
-		expect(provisional.metadata?.isOptimistic).toBe(true);
 		expect(updated).toHaveLength(1);
 		expect(updated[0]).toMatchObject({
 			content: [{ text: "回答正文", type: "text" }],
 			id: "msg_answer",
 			role: "assistant",
 		});
-		expect(updated[0]?.metadata?.isOptimistic).toBeUndefined();
 	});
 });

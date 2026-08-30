@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 const primaryAgentTransportGraceMS = 5000
@@ -159,12 +161,13 @@ type agentRuntimeResponse struct {
 }
 
 type agentToolResult struct {
-	ArgumentsJSON   map[string]any `json:"arguments_json"`
-	DurationMS      float64        `json:"duration_ms"`
-	Status          string         `json:"status"`
-	ToolName        string         `json:"tool_name"`
-	Result          map[string]any `json:"result"`
-	FailCloseReason string         `json:"fail_close_reason"`
+	ArgumentsJSON map[string]any                    `json:"arguments_json"`
+	DurationMS    float64                           `json:"duration_ms"`
+	Failure       *temporalruntime.ExecutionFailure `json:"failure"`
+	InvocationID  string                            `json:"invocation_id"`
+	Status        string                            `json:"status"`
+	ToolName      string                            `json:"tool_name"`
+	Result        map[string]any                    `json:"result"`
 }
 
 type agentRuntimeUsage struct {
@@ -176,19 +179,26 @@ type agentRuntimeUsage struct {
 }
 
 type agentRuntimeError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code         string `json:"code"`
+	Message      string `json:"message"`
+	Operation    string `json:"operation"`
+	Detail       string `json:"detail"`
+	HTTPStatus   int    `json:"http_status"`
+	InvocationID string `json:"invocation_id"`
 }
 
 type agentRuntimeHTTPError struct {
 	StatusCode     int
 	Code           string
+	Operation      string
+	Detail         string
+	InvocationID   string
 	RuntimeRelease string
 }
 
 func (err agentRuntimeHTTPError) Error() string {
 	switch strings.TrimSpace(err.Code) {
-	case "provider_unavailable":
+	case "provider_rate_limited", "provider_http_failed", "provider_connection_failed", "provider_timeout", "provider_unavailable":
 		return "The answer provider is temporarily unavailable."
 	case "agent_deadline_exceeded", "context_budget_exceeded", "max_turns_exceeded":
 		return "The agent runtime could not complete the request."
@@ -196,19 +206,24 @@ func (err agentRuntimeHTTPError) Error() string {
 		return "A runtime tool could not complete."
 	case "tool_contract_mismatch":
 		return "The admitted tool contract does not match the agent runtime."
-	default:
-		if err.StatusCode >= http.StatusInternalServerError {
-			return fmt.Sprintf("agent runtime returned HTTP %d", err.StatusCode)
-		}
-		return "The agent runtime request was rejected."
+	case "run_failed":
+		return "The agent runtime could not complete the request."
 	}
+	if err.StatusCode >= http.StatusInternalServerError {
+		return fmt.Sprintf("agent runtime returned HTTP %d", err.StatusCode)
+	}
+	return "The agent runtime request was rejected."
 }
 
 type agentRuntimeApplicationError struct {
 	Code           string
+	Operation      string
+	Detail         string
+	HTTPStatus     int
+	InvocationID   string
 	RuntimeRelease string
 }
 
 func (err agentRuntimeApplicationError) Error() string {
-	return agentRuntimeHTTPError{Code: err.Code}.Error()
+	return agentRuntimeHTTPError{Code: err.Code, Detail: err.Detail}.Error()
 }

@@ -12,6 +12,7 @@ import type {
 	AgentRunnerAnswerDelta,
 	AgentRunnerInput,
 	PromptProviderRuntimeConfig,
+	SdkToolRuntime,
 	StreamingAgentRunner,
 	ToolExecutionResult,
 } from "./agent-run-contract.ts";
@@ -26,6 +27,10 @@ const emptyParametersSchema = {
 };
 
 interface AgentSdkContext {
+	campusSearch: {
+		nextCitationIndex: number;
+		queue: Promise<void>;
+	};
 	toolBudget: {
 		limit: number;
 		reserved: number;
@@ -121,6 +126,7 @@ function throwIfStreamRunDidNotComplete(
 
 function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 	const context: AgentSdkContext = {
+		campusSearch: { nextCitationIndex: 1, queue: Promise.resolve() },
 		toolBudget: {
 			limit: input.limits.maxToolCalls,
 			reserved: 0,
@@ -168,16 +174,93 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 			context.toolBudget.reserved += 1;
 			const startedAt = performance.now();
 			const parsedArguments = argumentsJson as Record<string, unknown>;
-			const result = await runtimeTool.execute(parsedArguments, { invocationId });
+			const result = await executeSdkTool(runtimeTool, parsedArguments, context, invocationId);
 			context.toolResults.set(invocationId, {
 				...result,
 				argumentsJson: parsedArguments,
 				durationMs: Math.max(0.001, performance.now() - startedAt),
 				toolName: runtimeTool.name,
+				invocationId,
 			});
 			return result;
 		},
 	});
+}
+
+async function executeSdkTool(
+	runtimeTool: AgentRunnerInput["tools"][number],
+	argumentsJson: Record<string, unknown>,
+	context: AgentSdkContext,
+	invocationId: string,
+) {
+	if (runtimeTool.name !== "campus_search") {
+		return runtimeTool.execute(argumentsJson, { invocationId });
+	}
+	const previous = context.campusSearch.queue;
+	let release: () => void = () => undefined;
+	context.campusSearch.queue = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await previous;
+	try {
+		const citationStart = context.campusSearch.nextCitationIndex;
+		if (citationStart > 10) {
+			return {
+				failure: {
+					code: "campus_search_result_budget_exhausted",
+					operation: "tool.campus_search",
+					detail: "campus search result budget is exhausted",
+					invocationId,
+				},
+				result: { error: "campus search result budget is exhausted" },
+				status: "failed" as const,
+			};
+		}
+		const resultLimit = Math.min(5, 11 - citationStart);
+		const result = await runtimeTool.execute(argumentsJson, {
+			citationStart,
+			invocationId,
+			resultLimit,
+		});
+		context.campusSearch.nextCitationIndex += campusSearchResultCount(
+			result,
+			citationStart,
+			resultLimit,
+		);
+		return result;
+	} finally {
+		release();
+	}
+}
+
+function campusSearchResultCount(
+	result: Awaited<ReturnType<SdkToolRuntime["execute"]>>,
+	citationStart: number,
+	resultLimit: number,
+): number {
+	if (result.status !== "completed") {
+		return 0;
+	}
+	const results = result.result.results;
+	if (!Array.isArray(results) || results.length > resultLimit) {
+		throw new AgentRuntimeError(
+			"tool_execution_failed",
+			"campus_search returned an invalid result list.",
+		);
+	}
+	for (const [offset, item] of results.entries()) {
+		if (
+			item === null ||
+			typeof item !== "object" ||
+			(item as Record<string, unknown>).citation_index !== citationStart + offset
+		) {
+			throw new AgentRuntimeError(
+				"tool_execution_failed",
+				"campus_search returned invalid citation indexes.",
+			);
+		}
+	}
+	return results.length;
 }
 
 function agentRunnerResultFromSDKResult(

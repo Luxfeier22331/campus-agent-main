@@ -22,7 +22,7 @@ func (s *Server) FinalizeExecutionFailure(
 		)
 	}
 	projection, validStage := temporalFailureProjectionForStage(input)
-	if !validStage || boundedTemporalFailureKind(input.FailureKind) != strings.TrimSpace(input.FailureKind) || !validTemporalFailureHash(input.FailureHash) {
+	if !validStage || boundedTemporalFailureKind(input.FailureKind) != strings.TrimSpace(input.FailureKind) {
 		return temporalruntime.FinalizeExecutionFailureActivityOutput{}, temporal.NewNonRetryableApplicationError(
 			"execution failure finalizer payload is invalid",
 			"execution_failure_finalizer_invalid",
@@ -52,7 +52,6 @@ func (s *Server) FinalizeExecutionFailure(
 	}
 	cause := fixedTemporalFailureError(input.FailureKind)
 	projection.FailedAt = input.FailedAt
-	projection.FailureHash = input.FailureHash
 	projection.FailureKind = input.FailureKind
 	failedRun, finalizeErr := s.failTemporalRun(ctx, run, projection, cause)
 	if finalizeErr != nil {

@@ -24,6 +24,9 @@ type agentToolAccessContext struct {
 	ActivityAttempt int    `json:"activity_attempt"`
 	RequestID       string `json:"request_id"`
 	InvocationID    string `json:"invocation_id"`
+	CitationStart   int    `json:"citation_start,omitempty"`
+	ResultLimit     int    `json:"result_limit,omitempty"`
+	UserGoal        string `json:"user_goal,omitempty"`
 }
 
 type agentToolConflictError struct{ message string }

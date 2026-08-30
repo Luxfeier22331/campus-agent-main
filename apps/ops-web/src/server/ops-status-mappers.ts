@@ -11,6 +11,7 @@ import type {
 	OpsRequestDiagnosticsRows,
 	OpsRequestListQuery,
 	OpsRequestRow,
+	OpsRequestStageRow,
 	OpsRequestSummaryTotals,
 } from "./ops-status-types.ts";
 
@@ -180,7 +181,7 @@ export function requestAttentionPriority(reason: OpsRequestSummary["attentionRea
 	if (reason === "RESULT_MISSING") {
 		return 0;
 	}
-	if (reason === "REQUEST_FAILED") {
+	if (reason === "REQUEST_FAILED" || reason === "EXECUTION_STAGE_FAILED") {
 		return 1;
 	}
 	if (reason === "WAITING_USER") {
@@ -387,29 +388,35 @@ function toExecutionDiagnostics(
 ): OpsRequestDetailResponse["execution"] {
 	const stages = diagnostics.stages.map((stage) => {
 		const payload = isRecord(stage.sanitizedPayloadJson) ? stage.sanitizedPayloadJson : {};
+		const failure = readExecutionFailure(payload.failure);
 		return {
 			completedAt: stage.completedAt?.toISOString() ?? null,
 			durationMs: stageDurationMs(stage.startedAt, stage.completedAt),
-			failureKind: normalizeNullableString(payload.failure_kind),
+			failureKind: failure?.code ?? null,
 			kind: stage.stepKind,
 			startedAt: stage.startedAt?.toISOString() ?? null,
 			status: stage.status,
 		};
 	});
+	const failedStage = diagnostics.stages
+		.filter((stage) => {
+			const payload = isRecord(stage.sanitizedPayloadJson) ? stage.sanitizedPayloadJson : {};
+			return stage.status === "failed" || readExecutionFailure(payload.failure) !== null;
+		})
+		.sort(compareExecutionStageRecency)[0];
+	const failedStagePayload = isRecord(failedStage?.sanitizedPayloadJson)
+		? failedStage.sanitizedPayloadJson
+		: {};
+	const stageFailure = readExecutionFailure(failedStagePayload.failure);
 	const failedAttempt = [...diagnostics.modelAttempts].reverse().find((attempt) => {
 		const payload = isRecord(attempt.sanitizedPayloadJson) ? attempt.sanitizedPayloadJson : {};
-		return (
-			attempt.status === "failed" ||
-			normalizeNullableString(payload.failure_kind) !== null ||
-			normalizeNullableString(payload.agent_runtime_error_code) !== null
-		);
+		return attempt.status === "failed" || readExecutionFailure(payload.failure) !== null;
 	});
 	const failedAttemptPayload = isRecord(failedAttempt?.sanitizedPayloadJson)
 		? failedAttempt.sanitizedPayloadJson
 		: {};
-	const failedStage = [...stages]
-		.reverse()
-		.find((stage) => stage.status === "failed" || stage.failureKind !== null);
+	const attemptFailure = readExecutionFailure(failedAttemptPayload.failure);
+	const failure = mergeExecutionFailures(stageFailure, attemptFailure);
 	const modelAttempt = [...diagnostics.modelAttempts]
 		.reverse()
 		.find(
@@ -424,19 +431,14 @@ function toExecutionDiagnostics(
 
 	return {
 		failure: {
-			agentRuntimeHttpStatus: readHTTPStatus(failedAttemptPayload.agent_runtime_http_status),
-			failCloseReason:
-				normalizeNullableString(failedAttempt?.failCloseReason) ??
-				normalizeNullableString(row.failCloseReason),
-			kind:
-				normalizeNullableString(failedAttemptPayload.failure_kind) ??
-				failedStage?.failureKind ??
+			code:
+				failure?.code ??
 				normalizeNullableString(row.executionFailureKind) ??
 				normalizeNullableString(row.errorCode),
-			runtimeErrorCode: normalizeNullableString(failedAttemptPayload.agent_runtime_error_code),
-			terminalReason:
-				normalizeNullableString(failedAttempt?.terminalReason) ??
-				normalizeNullableString(row.terminalReason),
+			detail: failure?.detail ?? null,
+			httpStatus: failure?.httpStatus ?? null,
+			invocationId: failure?.invocationId ?? null,
+			operation: failure?.operation ?? null,
 		},
 		model: {
 			name: normalizeNullableString(modelAttempt?.modelName),
@@ -457,6 +459,42 @@ function toExecutionDiagnostics(
 			executionControl: diagnosticPayloadString(diagnostics, "execution_control_release"),
 		},
 		stages,
+	};
+}
+
+function readExecutionFailure(
+	value: unknown,
+): OpsRequestDetailResponse["execution"]["failure"] | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+	const code = normalizeNullableString(value.code);
+	const detail = normalizeNullableString(value.detail);
+	const httpStatus = readHTTPStatus(value.http_status);
+	const invocationId = normalizeNullableString(value.invocation_id);
+	const operation = normalizeNullableString(value.operation);
+	if (!(code || detail) && httpStatus === null && !invocationId && !operation) {
+		return null;
+	}
+	return { code, detail, httpStatus, invocationId, operation };
+}
+
+function mergeExecutionFailures(
+	stageFailure: OpsRequestDetailResponse["execution"]["failure"] | null,
+	attemptFailure: OpsRequestDetailResponse["execution"]["failure"] | null,
+): OpsRequestDetailResponse["execution"]["failure"] | null {
+	if (!stageFailure) {
+		return attemptFailure;
+	}
+	if (!(attemptFailure && stageFailure.code) || stageFailure.code !== attemptFailure.code) {
+		return stageFailure;
+	}
+	return {
+		code: stageFailure.code,
+		detail: stageFailure.detail ?? attemptFailure.detail,
+		httpStatus: stageFailure.httpStatus ?? attemptFailure.httpStatus,
+		invocationId: stageFailure.invocationId ?? attemptFailure.invocationId,
+		operation: stageFailure.operation ?? attemptFailure.operation,
 	};
 }
 
@@ -485,6 +523,15 @@ function stageDurationMs(startedAt: Date | null, completedAt: Date | null): numb
 		throw new Error("Execution stage completed before it started");
 	}
 	return durationMs;
+}
+
+function compareExecutionStageRecency(left: OpsRequestStageRow, right: OpsRequestStageRow): number {
+	return (
+		right.updatedAt.valueOf() - left.updatedAt.valueOf() ||
+		(right.startedAt?.valueOf() ?? right.updatedAt.valueOf()) -
+			(left.startedAt?.valueOf() ?? left.updatedAt.valueOf()) ||
+		(right.stepId === left.stepId ? 0 : right.stepId < left.stepId ? -1 : 1)
+	);
 }
 
 function sumAttemptField(
@@ -516,7 +563,10 @@ function normalizeAssistantKind(value: unknown) {
 }
 
 function normalizeAttentionReason(value: unknown): OpsRequestSummary["attentionReason"] {
-	return value === "RESULT_MISSING" || value === "REQUEST_FAILED" || value === "WAITING_USER"
+	return value === "RESULT_MISSING" ||
+		value === "REQUEST_FAILED" ||
+		value === "EXECUTION_STAGE_FAILED" ||
+		value === "WAITING_USER"
 		? value
 		: null;
 }
