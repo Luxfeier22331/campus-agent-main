@@ -22,12 +22,15 @@ staging execution runtime 由 Kubernetes/GitOps 管理，Docker Compose 只用�
 同一交付顺序必须先运行 `data-postgres` Application 中的 `campus-agent-schema` Job，再启动依赖数据库
 的 workload。该 Job 使用 `campus_agent` owner 和统一 migration ledger；长期进程不执行 schema 迁移。
 `ops-web-bootstrap` 只在自己的 wave 中执行 Dining bootstrap，不负责建表、迁移或授权。
+个人记忆状态只通过 `execution_control.personal_memory_*` 表提供；历史 `runtime.*` 兼容 View 由统一
+migration 退役，不是运行时接口。
 
 发布检查：
 
 - 环境仓 commit；
 - root/child Application sync 与 health；
 - `campus-agent-schema` Job 成功，并确认统一 ledger 已安装到目标数据库；
+- 涉及旧对象清理的 migration 完成后，确认退役 View 不存在，底层表和既有运行角色 ACL 仍然存在；
 - schema Job 已确认 `execution_control` 对所属 `execution_control` 表具有精确读写权限，且不具有 schema
   创建、表维护或 App API 产品终态表访问权限；
 - Model Config、通知和 Dining 的运行角色只使用各自运行权限；Ops Web bootstrap 没有 DDL 或授权职责；

@@ -56,6 +56,11 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 表由 `apps/app-api/src/db/schema/auth.ts` 描述，全部 App API 自有表由 `managed.ts` 汇总。可执行 DDL
 与其他产品 schema 一起进入 `campus-agent-schema`；Better Auth 运行时不执行 DDL。
 
+个人记忆的调用租约、命令回执和 owner fence 只由
+`execution_control.personal_memory_call_leases`、`execution_control.personal_memory_command_receipts` 和
+`execution_control.personal_memory_owner_fences` 承载。历史遗留的 `runtime.*` 兼容 View 无当前消费者，
+由统一 migration `0002_remove_runtime_personal_memory_compat_views` 删除，不改变底层表、数据或权限。
+
 Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs serving 逻辑上拥有
 `campus_docs_serving.current_index` 单行绑定；当前 publisher 继续复用 `execution_control` 数据库身份
 写入。当前在线 execution-control 不读取该表；发布任务不创建独立数据库角色、连接字符串或 Secret。
@@ -81,11 +86,14 @@ Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs 
   `drizzle.ops_web_dining_migrations`、`public.execution_control_migrations`、
   `model_config.schema_migrations`、`notices.schema_migrations` 或 `execution_config` 时明确失败；
 - 旧 migration 文件和 runner 暂作为现有部署数据库的不可变历史保留，标准本地 bootstrap 不再调用。
-  本次源码变更不修改 GitOps schema Job，也不迁移在线数据库；
+  源码 migration 由既有 GitOps schema Job 按环境 revision 应用；源码仓不直接修改在线数据库；
+- `0002_remove_runtime_personal_memory_compat_views` 只删除无消费者的 `runtime.*` 个人记忆兼容 View，
+  不删除 `execution_control.personal_memory_*` 表或其数据；
 - 在线切换必须在独立任务中先停写和备份，再验证数据迁入统一结构，最后切换 GitOps。没有完成这套
   数据迁移前，不得把统一 Job 指向带旧 ledger 的数据库；
-- 修改统一 migration 后，至少验证空库首次执行、重复执行、owner 与关键 ACL、旧对象拒绝和两个
-  并发 migrator 的串行结果。验证可以直接使用隔离的本地 PostgreSQL，不要求重型 Testcontainers。
+- 修改统一 migration 后，至少验证空库首次执行、重复执行、owner 与关键 ACL、旧对象拒绝、退役 View
+  消失且底层表仍在，以及两个并发 migrator 的串行结果。验证可以直接使用隔离的本地 PostgreSQL，
+  不要求重型 Testcontainers。
 
 `campus_docs_serving` 与其他 schema 共用统一 ledger；publisher 只写业务记录，不执行 DDL。
 

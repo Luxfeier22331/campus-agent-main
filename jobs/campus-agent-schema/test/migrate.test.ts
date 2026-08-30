@@ -25,6 +25,35 @@ test("the baseline is a schema-only unified migration", async () => {
 	assert.match(baseline, /CREATE TABLE notices\.categories/u);
 });
 
+test("the personal-memory cleanup migration only drops the compatibility views", async () => {
+	const migration = await readFile(
+		resolve(jobRoot, "migrations/0002_remove_runtime_personal_memory_compat_views.sql"),
+		"utf8",
+	);
+	assert.equal(
+		migration.trim(),
+		[
+			"DROP VIEW runtime.personal_memory_call_leases;",
+			"DROP VIEW runtime.personal_memory_command_receipts;",
+			"DROP VIEW runtime.personal_memory_owner_fences;",
+		].join("\n"),
+	);
+	assert.doesNotMatch(migration, /CASCADE|IF EXISTS|DROP TABLE|GRANT|REVOKE/u);
+});
+
+test("the migration journal records the compatibility-view cleanup after existing migrations", async () => {
+	const journal = JSON.parse(
+		await readFile(resolve(jobRoot, "migrations/meta/_journal.json"), "utf8"),
+	) as {
+		entries?: Array<{ idx?: number; tag?: string }>;
+	};
+	const cleanupEntry = journal.entries?.find(
+		(entry) => entry.tag === "0002_remove_runtime_personal_memory_compat_views",
+	);
+	assert.equal(cleanupEntry?.idx, 2);
+	assert.equal(cleanupEntry?.tag, "0002_remove_runtime_personal_memory_compat_views");
+});
+
 test("database configuration uses the standard PostgreSQL environment", () => {
 	const config = readDatabaseConfig({
 		PGDATABASE: "campus_agent",

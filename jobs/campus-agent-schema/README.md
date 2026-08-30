@@ -12,9 +12,12 @@ lock，避免两个 schema Job 同时执行。
 索引和 ACL，不包含业务数据。校园群组、通知分类、测试用户和 Dining 数据由各自的本地 seed 单独
 写入。
 
-当前入口先用于新建或重建的本地 worktree 数据库。后续结构变化在本目录追加 migration，并继续使用
-同一 ledger；不得修改已经应用的 baseline。现有部署环境的 GitOps schema Job 尚未切换到该镜像，
-本次源码变化也不会迁移任何在线数据库。
+当前入口用于新建或重建的本地 worktree 数据库，也由 GitOps 管理的 `campus-agent-schema` Job 使用。
+后续结构变化在本目录追加 migration，并继续使用同一 ledger；不得修改已经应用的 baseline。是否已在
+某个部署环境应用，以该环境的 schema Job 和统一 ledger 状态为准。
+
+`0002_remove_runtime_personal_memory_compat_views.sql` 只删除个人记忆迁移遗留的三个
+`runtime.*` 兼容 View；`execution_control.personal_memory_*` 底层表、数据和权限不变。
 
 旧 runner 的 ledger 和 `execution_config` 如果仍存在，Job 会停止并报告；本 Job 不自动删除它们。
 线上数据库完成明确的停写、备份和 cutover 后，才能迁移到这套入口。

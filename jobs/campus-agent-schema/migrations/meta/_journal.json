@@ -15,6 +15,13 @@
       "when": 1788086400000,
       "tag": "0001_model_config_optional_validation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788110823342,
+      "tag": "0002_remove_runtime_personal_memory_compat_views",
+      "breakpoints": true
     }
   ]
 }
