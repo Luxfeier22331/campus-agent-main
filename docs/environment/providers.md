@@ -59,10 +59,15 @@ PostgreSQL 角色按数据所有权、授权范围和迁移边界决定，不按
 直接消费对象所需权限；对象存储品牌不进入数据合同。Kubernetes 内的写入者使用各自 S3 凭据；
 当前 App API 的 Dining 资源接口通过 Workers VPC binding 访问明确前缀，不获得 S3 凭据。
 
-对象存储管理身份在 Secret 中使用 `OBJECT_STORE_ADMIN_ACCESS_KEY` 和
+对象存储管理身份在 Kubernetes Secret 中使用 `OBJECT_STORE_ADMIN_ACCESS_KEY` 和
 `OBJECT_STORE_ADMIN_SECRET_KEY`。部署清单只在 RustFS 容器边界把它们映射为
 `RUSTFS_ACCESS_KEY` 和 `RUSTFS_SECRET_KEY`；应用身份继续使用 source/derived 各自的
 `OBJECT_STORE_*` 键。供应商名称不进入 Secret 的稳定键名。
+
+Source Worker 发布只消费 `OBJECT_STORE_DERIVED_READ_ACCESS_KEY` 和
+`OBJECT_STORE_DERIVED_READ_SECRET_KEY`。`OBJECT_STORE_DERIVED_ACCESS_KEY` 和
+`OBJECT_STORE_DERIVED_SECRET_KEY` 是 Kubernetes 集群写入身份，不属于 Source GitHub
+Environment，也不进入 Worker candidate。
 
 ## 产品与来源服务
 
@@ -78,15 +83,16 @@ PostgreSQL 角色按数据所有权、授权范围和迁移边界决定，不按
 
 ## 可观测性
 
-外部平台管理与运行时消费使用不同权限边界。Sentry 的 source map 上传和 Ops Web Issue 查询使用
-所属环境投递的 provider token；应用错误上报使用各应用的 DSN。不同环境位置的变量名只是消费方
-投影，不代表独立的上游身份或轮换单元。完整理由见 ADR-0081 与 ADR-0092。
+外部平台管理与运行时消费使用不同投递位置，但继续使用同一枚 provider token。Sentry Terraform
+从 GitOps repository secret 读取，Source source map 发布从 Source repository secret 读取，
+Ops Web 从 Kubernetes `observability-runtime-secrets` 读取；应用错误上报使用各应用的 DSN。
+不同位置只是消费方投影，不代表独立的上游身份或轮换单元。完整理由见 ADR-0081 与 ADR-0092。
 
 Sentry provider 操作使用 `SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_AUTH_TOKEN` 消费合同。
 
 - App API 与 Campus Web 只通过官方 SDK 上报已清理的错误和获准性能数据；
 - Ops Web 只执行固定范围的 Sentry Issue 读取；
-- source map 上传凭据只进入受保护 CI 环境；
+- source map 上传凭据只进入受保护的 staging 发布 CI；
 - Langfuse Agent trace 和 Sentry 错误事件保持不同数据边界。
 
 环境告警的查询、阈值、启用状态、notifier 和投递目标由环境仓及所属平台配置共同拥有，不进入

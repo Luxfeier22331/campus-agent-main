@@ -15,7 +15,8 @@ Cloudflare invocation logs 与 native traces 必须关闭，不能作为证据�
 只服务 App API 入站错误观测，到 durable execution 边界即终止。execution-control 只转发已有的可选
 W3C `traceparent`，不从 `requestId` 派生 trace；若环境启用 Agent trace，Langfuse metadata 使用
 `request_id` 关联。环境 destination、Worker version/traffic、Sentry DSN 和 CI source map credential
-由环境仓与受保护 GitHub Environment 拥有。
+由环境仓拥有；CI source map credential 存放在 Source repository secret，且只由受保护的
+staging 发布 workflow 注入实际上传步骤。
 
 ## 部署前检查
 
