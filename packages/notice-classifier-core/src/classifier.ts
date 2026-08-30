@@ -22,9 +22,13 @@ export class NoticeClassificationProviderError extends Error {
 }
 
 export class NoticeClassificationInvalidOutputError extends Error {
-	constructor(message: string, options?: ErrorOptions) {
-		super(message, options);
+	readonly rawResponse: string | undefined;
+
+	constructor(message: string, options: ErrorOptions & { rawResponse?: string } = {}) {
+		const { rawResponse, ...errorOptions } = options;
+		super(message, errorOptions);
 		this.name = "NoticeClassificationInvalidOutputError";
+		this.rawResponse = rawResponse;
 	}
 }
 

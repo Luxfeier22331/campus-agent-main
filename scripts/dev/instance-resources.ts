@@ -1,41 +1,76 @@
 import { existsSync } from "node:fs";
 
-import { LOCAL_DEV_DATABASE_PASSWORDS } from "./environment";
+import {
+	createLocalDatabase,
+	grantDatabaseConnect,
+	localDatabaseProbe,
+	quoteIdentifier,
+	runPsql,
+} from "./database-roles";
 import { captureCommandResult, runCommand } from "./process";
 import {
 	calculateLocalDevRuntimePorts,
-	type LocalDevProfileV1,
+	type LocalDevProfileV2,
 	listLocalDevProfiles,
 	loadLocalDevProfile,
+	resolveLegacyLocalDevProfilePath,
 	resolveLocalDevProfilePath,
 } from "./profile";
 import {
 	DOCS_BUCKET,
-	inspectSharedInfrastructure,
-	type LocalResourceProbe,
+	inspectSharedCapabilities,
 	localBucketProbe,
 	runObjectStore,
 	SOURCE_BUCKET,
 } from "./shared-infrastructure";
+import type { LocalDevCapability } from "./targets";
 
-const POSTGRES_ADMIN_URL = "postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable";
+const TEMPORAL_PROJECT = "campus-agent-local";
+const TEMPORAL_NAMESPACE_TIMEOUT_MS = 10_000;
 
-export type LocalDevInstanceStatus = "ready" | "stale" | "partial" | "unprovisioned" | "unknown";
+export type LocalDevInstanceStatus =
+	| "ready"
+	| "stale"
+	| "partial"
+	| "unprovisioned"
+	| "unknown"
+	| "registered";
 
 export interface LocalDevInstanceDiagnosis {
-	profile: LocalDevProfileV1;
-	worktree: LocalResourceProbe;
-	database: LocalResourceProbe;
-	bucket: LocalResourceProbe;
+	bucket: "present" | "missing" | "unknown";
+	database: "present" | "missing" | "unknown";
+	namespace: "present" | "missing" | "unknown";
+	profile: LocalDevProfileV2;
 	status: LocalDevInstanceStatus;
+	worktree: "present" | "missing";
 }
 
-export type IsolatedResourceState = "absent" | "complete" | "partial";
+export interface LocalInstanceResourceCleanup {
+	bucket: LocalResourceProbe;
+	database: LocalResourceProbe;
+	namespace: LocalResourceProbe;
+	unresolved: Array<"bucket" | "database" | "namespace">;
+}
+
+export interface LocalInstanceResourceCleanupPlan {
+	deleteBucket: boolean;
+	deleteDatabase: boolean;
+	deleteNamespace: boolean;
+	unresolved: Array<"bucket" | "database" | "namespace">;
+}
+
+export type IsolatedResourceState = "absent" | "complete" | "partial" | "unknown";
+export type IsolatedResourceAction =
+	| "create"
+	| "ready"
+	| "repair-bucket"
+	| "repair-database"
+	| "unknown";
 
 export function classifyIsolatedResourceState(input: {
 	bucketExists: boolean;
 	databaseExists: boolean;
-}): IsolatedResourceState {
+}): Exclude<IsolatedResourceState, "unknown"> {
 	if (input.bucketExists && input.databaseExists) {
 		return "complete";
 	}
@@ -45,14 +80,12 @@ export function classifyIsolatedResourceState(input: {
 	return "partial";
 }
 
-export type IsolatedResourceAction = "create" | "ready" | "repair-bucket";
-
 export function resolveIsolatedResourceAction(input: {
 	bucketExists: boolean;
 	databaseExists: boolean;
-}): IsolatedResourceAction {
+}): Exclude<IsolatedResourceAction, "unknown"> {
 	if (input.bucketExists && !input.databaseExists) {
-		throw new Error("The local bucket exists but its database is missing.");
+		return "repair-database";
 	}
 	if (!input.bucketExists && input.databaseExists) {
 		return "repair-bucket";
@@ -66,47 +99,132 @@ export function assertDestroyConfirmation(instanceId: string, confirmation?: str
 	}
 }
 
-export function ensureLocalInstanceResources(profile: LocalDevProfileV1): void {
-	ensureDatabaseRoles();
+export function resolveLocalInstanceResourceCleanup(input: {
+	bucket: LocalResourceProbe;
+	database: LocalResourceProbe;
+	namespace: LocalResourceProbe;
+}): LocalInstanceResourceCleanupPlan {
+	return {
+		deleteBucket: input.bucket === "present",
+		deleteDatabase: input.database === "present",
+		deleteNamespace: input.namespace === "present",
+		unresolved: [
+			...(input.database === "unknown" ? (["database"] as const) : []),
+			...(input.bucket === "unknown" ? (["bucket"] as const) : []),
+			...(input.namespace === "unknown" ? (["namespace"] as const) : []),
+		],
+	};
+}
 
+export async function ensureLocalInstanceResources(
+	profile: LocalDevProfileV2,
+	options: { ensureBucket?: boolean; repair?: boolean } = {},
+): Promise<void> {
 	const databaseProbe = localDatabaseProbe(profile.databaseName);
-	const bucketProbe = localBucketProbe(profile.bucketName);
-	if (databaseProbe === "unknown" || bucketProbe === "unknown") {
+	const ensureBucket = options.ensureBucket ?? true;
+	if (databaseProbe === "unknown") {
+		throw new Error(
+			`Unable to inspect local instance ${profile.instanceId} (database=${databaseProbe}). Check shared infrastructure and retry.`,
+		);
+	}
+	if (!ensureBucket) {
+		if (databaseProbe === "missing") {
+			createLocalDatabase(profile.databaseName);
+			grantDatabaseConnect(profile.databaseName);
+		} else if (options.repair) {
+			grantDatabaseConnect(profile.databaseName);
+		}
+		return;
+	}
+	const bucketProbe = await localBucketProbe(profile.bucketName);
+	if (bucketProbe === "unknown") {
 		throw new Error(
 			`Unable to inspect local instance ${profile.instanceId} (database=${databaseProbe}, bucket=${bucketProbe}). Check shared infrastructure and retry.`,
 		);
 	}
-	const databaseExists = databaseProbe === "present";
-	const bucketExists = bucketProbe === "present";
-	let action: IsolatedResourceAction;
-	try {
-		action = resolveIsolatedResourceAction({ bucketExists, databaseExists });
-	} catch {
-		throw new Error(
-			`Local instance ${profile.instanceId} is partially provisioned (database=${databaseExists}, bucket=${bucketExists}). Destroy it explicitly before recreating it.`,
-		);
-	}
+	const action = resolveIsolatedResourceAction({
+		bucketExists: bucketProbe === "present",
+		databaseExists: databaseProbe === "present",
+	});
 	if (action === "create") {
-		createIsolatedResources(profile);
-	} else if (action === "repair-bucket") {
+		createLocalDatabase(profile.databaseName);
+		grantDatabaseConnect(profile.databaseName);
 		runObjectStore(profile.bucketName, "create");
 		runObjectStore(profile.bucketName, "configure");
-	} else {
+		return;
+	}
+	if (action === "repair-database") {
+		createLocalDatabase(profile.databaseName);
+		grantDatabaseConnect(profile.databaseName);
+		runObjectStore(profile.bucketName, "configure");
+		return;
+	}
+	if (action === "repair-bucket") {
+		runObjectStore(profile.bucketName, "create");
+		runObjectStore(profile.bucketName, "configure");
+		grantDatabaseConnect(profile.databaseName);
+		return;
+	}
+	if (options.repair) {
+		grantDatabaseConnect(profile.databaseName);
 		runObjectStore(profile.bucketName, "configure");
 	}
-	grantDatabaseConnect(profile.databaseName);
 }
 
-export function localTemporalNamespace(profile: LocalDevProfileV1): string {
+export function localTemporalNamespace(profile: LocalDevProfileV2): string {
 	return `campus-agent-local-${profile.instanceId}`;
 }
 
-export function ensureLocalTemporalNamespace(repoRoot: string, profile: LocalDevProfileV1): void {
-	const namespace = localTemporalNamespace(profile);
+export async function probeLocalTemporalNamespace(
+	repoRoot: string,
+	profile: LocalDevProfileV2,
+): Promise<"present" | "missing" | "unknown"> {
+	const result = captureCommandResult(
+		"docker",
+		[
+			"compose",
+			"--project-name",
+			TEMPORAL_PROJECT,
+			"-f",
+			"infra/local/docker-compose.dev.yml",
+			"exec",
+			"-T",
+			"temporal",
+			"temporal",
+			"operator",
+			"namespace",
+			"describe",
+			"--address",
+			"temporal:7233",
+			"--namespace",
+			localTemporalNamespace(profile),
+		],
+		{ cwd: repoRoot, timeout: TEMPORAL_NAMESPACE_TIMEOUT_MS },
+	);
+	if (result.status === 0 && !result.error && !result.timedOut) {
+		return "present";
+	}
+	if (/Namespace .* not found|namespace .* not found|not found/u.test(result.stderr)) {
+		return "missing";
+	}
+	return "unknown";
+}
+
+export async function ensureLocalTemporalNamespace(
+	repoRoot: string,
+	profile: LocalDevProfileV2,
+): Promise<void> {
+	const state = await probeLocalTemporalNamespace(repoRoot, profile);
+	if (state === "present") {
+		return;
+	}
+	if (state === "unknown") {
+		throw new Error(`Unable to inspect Temporal namespace ${localTemporalNamespace(profile)}.`);
+	}
 	const composeArgs = [
 		"compose",
 		"--project-name",
-		"campus-agent-local",
+		TEMPORAL_PROJECT,
 		"-f",
 		"infra/local/docker-compose.dev.yml",
 		"exec",
@@ -116,14 +234,6 @@ export function ensureLocalTemporalNamespace(repoRoot: string, profile: LocalDev
 		"operator",
 		"namespace",
 	];
-	const describe = captureCommandResult(
-		"docker",
-		[...composeArgs, "describe", "--address", "temporal:7233", "--namespace", namespace],
-		{ cwd: repoRoot },
-	);
-	if (describe.status === 0 && !describe.error) {
-		return;
-	}
 	runCommand(
 		"docker",
 		[
@@ -132,31 +242,49 @@ export function ensureLocalTemporalNamespace(repoRoot: string, profile: LocalDev
 			"--address",
 			"temporal:7233",
 			"--namespace",
-			namespace,
+			localTemporalNamespace(profile),
 			"--retention",
 			"24h",
 		],
-		{ cwd: repoRoot },
+		{ cwd: repoRoot, timeout: TEMPORAL_NAMESPACE_TIMEOUT_MS },
 	);
 }
 
-export function destroyLocalInstanceResources(profile: LocalDevProfileV1): void {
-	const databaseProbe = localDatabaseProbe(profile.databaseName);
-	const bucketProbe = localBucketProbe(profile.bucketName);
-	if (databaseProbe === "unknown" || bucketProbe === "unknown") {
-		throw new Error(
-			`Unable to inspect instance resources (database=${databaseProbe}, bucket=${bucketProbe}); no data was changed.`,
-		);
+export async function destroyLocalInstanceResources(
+	repoRoot: string,
+	profile: LocalDevProfileV2,
+): Promise<LocalInstanceResourceCleanup> {
+	let [databaseProbe, bucketProbe, namespaceProbe] = await Promise.all([
+		Promise.resolve(localDatabaseProbe(profile.databaseName)),
+		localBucketProbe(profile.bucketName),
+		probeLocalTemporalNamespace(repoRoot, profile),
+	]);
+	const cleanupPlan = resolveLocalInstanceResourceCleanup({
+		bucket: bucketProbe,
+		database: databaseProbe,
+		namespace: namespaceProbe,
+	});
+	if (cleanupPlan.deleteNamespace) {
+		await deleteLocalTemporalNamespace(repoRoot, profile);
+		namespaceProbe = "missing";
 	}
-	if (databaseProbe === "present") {
+	if (cleanupPlan.deleteDatabase) {
 		runPsql(`DROP DATABASE ${quoteIdentifier(profile.databaseName)} WITH (FORCE);`);
+		databaseProbe = "missing";
 	}
-	if (bucketProbe === "present") {
+	if (cleanupPlan.deleteBucket) {
 		runObjectStore(profile.bucketName, "remove");
+		bucketProbe = "missing";
 	}
+	return {
+		bucket: bucketProbe,
+		database: databaseProbe,
+		namespace: namespaceProbe,
+		unresolved: cleanupPlan.unresolved,
+	};
 }
 
-export function formatProfileSummary(profile: LocalDevProfileV1): string {
+export function formatProfileSummary(profile: LocalDevProfileV2): string {
 	const runtimePorts = calculateLocalDevRuntimePorts(profile.slot);
 	return [
 		`Local instance: ${profile.instanceId}`,
@@ -174,136 +302,85 @@ export function formatProfileSummary(profile: LocalDevProfileV1): string {
 	].join("\n");
 }
 
-export function diagnoseLocalDevInstances(repoRoot: string): LocalDevInstanceDiagnosis[] {
-	const sharedInfrastructure = inspectSharedInfrastructure(repoRoot);
-	const sharedReady = sharedInfrastructure.status === "ready";
-	return listLocalDevProfiles(repoRoot).map((profile) => {
-		const worktree: LocalResourceProbe = existsSync(profile.worktreePath) ? "present" : "missing";
-		const database = sharedReady ? localDatabaseProbe(profile.databaseName) : "unknown";
-		const bucket = sharedReady ? localBucketProbe(profile.bucketName) : "unknown";
+export async function diagnoseLocalDevInstances(
+	repoRoot: string,
+	options: { verify?: boolean } = {},
+): Promise<LocalDevInstanceDiagnosis[]> {
+	const profiles = listLocalDevProfiles(repoRoot);
+	if (!options.verify) {
+		return profiles.map((profile) => ({
+			bucket: "unknown",
+			database: "unknown",
+			namespace: "unknown",
+			profile,
+			status: existsSync(profile.worktreePath) ? "registered" : "stale",
+			worktree: existsSync(profile.worktreePath) ? "present" : "missing",
+		}));
+	}
+	const shared = await inspectSharedCapabilities({
+		required: ["postgres"] satisfies LocalDevCapability[],
+	});
+	if (shared.postgres !== "present") {
+		return profiles.map((profile) => ({
+			bucket: "unknown",
+			database: "unknown",
+			namespace: "unknown",
+			profile,
+			status: "unknown",
+			worktree: existsSync(profile.worktreePath) ? "present" : "missing",
+		}));
+	}
+	const diagnoses = await mapWithConcurrency(profiles, 4, async (profile) => {
+		const [database, bucket, namespace] = await Promise.all([
+			Promise.resolve(localDatabaseProbe(profile.databaseName)),
+			localBucketProbe(profile.bucketName),
+			probeLocalTemporalNamespace(repoRoot, profile),
+		]);
+		const worktree = existsSync(profile.worktreePath) ? "present" : "missing";
 		return {
 			bucket,
 			database,
+			namespace,
 			profile,
-			status: classifyLocalDevInstanceStatus({ bucket, database, worktree }),
+			status: classifyLocalDevInstanceStatus({ bucket, database, namespace, worktree }),
 			worktree,
-		};
+		} satisfies LocalDevInstanceDiagnosis;
 	});
+	return diagnoses;
 }
 
 export function classifyLocalDevInstanceStatus(input: {
 	bucket: LocalResourceProbe;
 	database: LocalResourceProbe;
-	worktree: LocalResourceProbe;
+	namespace: LocalResourceProbe;
+	worktree: "present" | "missing";
 }): LocalDevInstanceStatus {
-	if ([input.bucket, input.database, input.worktree].includes("unknown")) {
+	if ([input.bucket, input.database, input.namespace].includes("unknown")) {
 		return "unknown";
 	}
-	const complete = input.bucket === "present" && input.database === "present";
-	const missing = input.bucket === "missing" && input.database === "missing";
 	if (input.worktree === "missing") {
 		return "stale";
 	}
-	if (complete) {
+	if (input.bucket === "present" && input.database === "present" && input.namespace === "present") {
 		return "ready";
 	}
-	if (missing) {
+	if (input.bucket === "missing" && input.database === "missing" && input.namespace === "missing") {
 		return "unprovisioned";
 	}
 	return "partial";
 }
 
-function ensureDatabaseRoles(): void {
-	const roles = [
-		["campus_agent", LOCAL_DEV_DATABASE_PASSWORDS.owner, true],
-		["app_api", LOCAL_DEV_DATABASE_PASSWORDS.appApi, true],
-		["execution_control", LOCAL_DEV_DATABASE_PASSWORDS.executionControl, true],
-		["model_config", LOCAL_DEV_DATABASE_PASSWORDS.modelConfig, true],
-		["ops_web", LOCAL_DEV_DATABASE_PASSWORDS.opsWeb, true],
-		["notice_publisher", LOCAL_DEV_DATABASE_PASSWORDS.noticePublisher, true],
-	] as const;
-	for (const [name, password, login] of roles) {
-		const passwordSql = login ? ` PASSWORD ${quoteLiteral(password)}` : "";
-		runPsql(
-			`DO $role$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${quoteLiteral(name)}) THEN CREATE ROLE ${quoteIdentifier(name)} ${login ? "LOGIN" : "NOLOGIN"}${passwordSql}; ELSE ALTER ROLE ${quoteIdentifier(name)} ${login ? "LOGIN" : "NOLOGIN"}${passwordSql}; END IF; END $role$;`,
-		);
-	}
-}
-
-function createIsolatedResources(profile: LocalDevProfileV1): void {
-	try {
-		runPsql(
-			`CREATE DATABASE ${quoteIdentifier(profile.databaseName)} OWNER ${quoteIdentifier("campus_agent")};`,
-		);
-		runPsql(
-			[
-				`REVOKE ALL ON DATABASE ${quoteIdentifier(profile.databaseName)} FROM PUBLIC`,
-				...["app_api", "execution_control", "model_config", "ops_web", "notice_publisher"].map(
-					(role) =>
-						`GRANT CONNECT ON DATABASE ${quoteIdentifier(profile.databaseName)} TO ${quoteIdentifier(role)}`,
-				),
-			].join(";\n"),
-		);
-		runObjectStore(profile.bucketName, "create");
-		runObjectStore(profile.bucketName, "configure");
-	} catch (error) {
-		if (localBucketProbe(profile.bucketName) === "present") {
-			runObjectStore(profile.bucketName, "remove");
-		}
-		if (localDatabaseProbe(profile.databaseName) === "present") {
-			runPsql(`DROP DATABASE ${quoteIdentifier(profile.databaseName)} WITH (FORCE);`);
-		}
-		throw error;
-	}
-}
-
-function grantDatabaseConnect(databaseName: string): void {
-	runPsql(
-		["execution_control", "model_config", "notice_publisher"]
-			.map(
-				(role) =>
-					`GRANT CONNECT ON DATABASE ${quoteIdentifier(databaseName)} TO ${quoteIdentifier(role)}`,
-			)
-			.join(";\n"),
-	);
-}
-
-export function localDatabaseProbe(databaseName: string): LocalResourceProbe {
-	const result = captureCommandResult("psql", [
-		POSTGRES_ADMIN_URL,
-		"-At",
-		"-v",
-		"ON_ERROR_STOP=1",
-		"-c",
-		`SELECT 1 FROM pg_database WHERE datname = ${quoteLiteral(databaseName)};`,
-	]);
-	if (result.status !== 0 || result.error) {
-		return "unknown";
-	}
-	return result.stdout.trim() === "1" ? "present" : "missing";
-}
-
-function runPsql(sql: string): void {
-	runCommand("psql", [POSTGRES_ADMIN_URL, "-v", "ON_ERROR_STOP=1", "-c", sql]);
-}
-
-function quoteIdentifier(value: string): string {
-	if (!/^[a-z_][a-z0-9_]*$/u.test(value)) {
-		throw new Error(`Invalid PostgreSQL identifier: ${value}`);
-	}
-	return `"${value}"`;
-}
-
-function quoteLiteral(value: string): string {
-	return `'${value.replaceAll("'", "''")}'`;
-}
-
 export function localInstanceDestroyPreview(repoRoot: string, instanceId?: string): string {
-	const profile = instanceId
+	let profile = instanceId
 		? listLocalDevProfiles(repoRoot).find((item) => item.instanceId === instanceId)
-		: existsSync(resolveLocalDevProfilePath(repoRoot))
-			? loadLocalDevProfile(repoRoot)
-			: undefined;
+		: undefined;
+	if (
+		!instanceId &&
+		(existsSync(resolveLocalDevProfilePath(repoRoot)) ||
+			existsSync(resolveLegacyLocalDevProfilePath(repoRoot)))
+	) {
+		profile = loadLocalDevProfile(repoRoot);
+	}
 	if (!profile) {
 		return instanceId
 			? `Unknown local development instance: ${instanceId}`
@@ -315,3 +392,51 @@ export function localInstanceDestroyPreview(repoRoot: string, instanceId?: strin
 		`Destroy with: pnpm dev:destroy -- --instance ${profile.instanceId} --confirm ${profile.instanceId}`,
 	].join("\n");
 }
+
+async function deleteLocalTemporalNamespace(
+	repoRoot: string,
+	profile: LocalDevProfileV2,
+): Promise<void> {
+	runCommand(
+		"docker",
+		[
+			"compose",
+			"--project-name",
+			TEMPORAL_PROJECT,
+			"-f",
+			"infra/local/docker-compose.dev.yml",
+			"exec",
+			"-T",
+			"temporal",
+			"temporal",
+			"operator",
+			"namespace",
+			"delete",
+			"--address",
+			"temporal:7233",
+			"--namespace",
+			localTemporalNamespace(profile),
+		],
+		{ cwd: repoRoot, timeout: TEMPORAL_NAMESPACE_TIMEOUT_MS },
+	);
+}
+
+async function mapWithConcurrency<T, R>(
+	items: readonly T[],
+	concurrency: number,
+	worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+	const results = new Array<R>(items.length);
+	let cursor = 0;
+	async function run(): Promise<void> {
+		while (cursor < items.length) {
+			const index = cursor;
+			cursor += 1;
+			results[index] = await worker(items[index]);
+		}
+	}
+	await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => run()));
+	return results;
+}
+
+type LocalResourceProbe = "present" | "missing" | "unknown";

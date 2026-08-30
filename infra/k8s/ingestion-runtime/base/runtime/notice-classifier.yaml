@@ -38,6 +38,7 @@ spec:
             - name: classifier
               image: ghcr.io/muc-wiki/campus-agent/notice-classifier:replace-me
               imagePullPolicy: IfNotPresent
+              args: ["--concurrency", "8"]
               envFrom:
                 - configMapRef:
                     name: campus-agent-database-config

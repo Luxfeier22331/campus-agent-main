@@ -1,16 +1,27 @@
+import { dirname, resolve } from "node:path";
+import { ensureSharedDatabaseRoles } from "./database-roles";
+import { probeLocalBucket, probeLocalObject } from "./local-object-store";
+import { withLifecycleLock } from "./locks";
+import { type LocalPortProbe, probeLocalPort } from "./ports";
 import { captureCommandResult, commandSucceeds, runCommand } from "./process";
-import { isMainWorktree } from "./profile";
+import { isMainWorktree, resolveLocalDevRegistryPath } from "./profile";
+import type { LocalDevCapability } from "./targets";
 
 const COMPOSE_PROJECT = "campus-agent-local";
 const DATA_NETWORK = "campus-agent-data-plane";
 const POSTGRES_VOLUME = "local_postgres-data";
 const OBJECT_STORE_VOLUME = "local_object-store-data";
 const TEMPORAL_VOLUME = "local_temporal-shared-postgres-data";
+const SHARED_LOCK_FILENAME = "shared-reconcile.lock";
+const SHARED_HEALTH_TIMEOUT_MS = 3_000;
+const SHARED_RECONCILE_TIMEOUT_MS = 120_000;
+
 export const SOURCE_BUCKET = "campus-agent-source";
 export const DOCS_BUCKET = "campus-agent-derived";
 export const DOCS_SOURCE_KEY = "campus-docs/source.json";
 const OBJECT_STORE_CLI_IMAGE =
 	"rustfs/rc:v0.1.30@sha256:1296510ec27800668d26a8bdca6251e587086187a9368c7b80134a169e8a3bb8";
+
 const SHARED_CONTAINERS = {
 	objectStore: {
 		container: `${COMPOSE_PROJECT}-object-store-1`,
@@ -34,6 +45,17 @@ export type LocalResourceProbe = "present" | "missing" | "unknown";
 export type SharedInfrastructureStatus = "ready" | "missing" | "unhealthy" | "drifted" | "unknown";
 export type SharedInfrastructureAction = "reuse" | "reconcile" | "reject";
 
+export interface SharedCapabilityDiagnosis {
+	derivedBucket?: LocalResourceProbe;
+	docsBucket?: LocalResourceProbe;
+	docsSource?: LocalResourceProbe;
+	objectStore?: LocalResourceProbe;
+	postgres?: LocalResourceProbe;
+	required: LocalDevCapability[];
+	sourceBucket?: LocalResourceProbe;
+	temporal?: LocalResourceProbe;
+}
+
 export interface SharedContainerDiagnosis {
 	probe: LocalResourceProbe;
 	running: boolean;
@@ -44,6 +66,7 @@ export interface SharedContainerDiagnosis {
 }
 
 export interface SharedInfrastructureDiagnosis {
+	capabilities: SharedCapabilityDiagnosis;
 	status: SharedInfrastructureStatus;
 	containers: {
 		objectStore: SharedContainerDiagnosis;
@@ -76,10 +99,10 @@ export function resolveSharedInfrastructureAction(input: {
 	if (input.status === "ready") {
 		return "reuse";
 	}
-	if (!input.isMainWorktree || input.status === "unknown") {
+	if (input.status === "unknown") {
 		return "reject";
 	}
-	return "reconcile";
+	return input.isMainWorktree ? "reconcile" : "reject";
 }
 
 export function sharedComposeUpCommand(): string[] {
@@ -127,7 +150,6 @@ export function classifySharedInfrastructureStatus(input: {
 	if (buckets.docs === "missing" || buckets.source === "missing") {
 		return "missing";
 	}
-	// Compose records the bootstrap path in working_dir/config_files; project, service and hash are the stable identity.
 	if (
 		Object.entries(SHARED_CONTAINERS).some(([name, expected]) => {
 			const container = containers[name as keyof typeof containers];
@@ -161,63 +183,98 @@ export function derivedBucketPublicReadPolicy(bucketName: string): string {
 	});
 }
 
-export function ensureSharedInfrastructure(repoRoot: string): void {
-	const current = inspectSharedInfrastructure(repoRoot);
-	const action = resolveSharedInfrastructureAction({
-		isMainWorktree: isMainWorktree(repoRoot),
-		status: current.status,
-	});
-	if (action === "reuse") {
-		return;
+export async function inspectSharedCapabilities(input: {
+	derivedBucketName?: string;
+	required: readonly LocalDevCapability[];
+}): Promise<SharedCapabilityDiagnosis> {
+	const required = [...new Set(input.required)];
+	const diagnosis: SharedCapabilityDiagnosis = { required };
+	const needsObjectStore = required.some((capability) =>
+		["derived-bucket", "source-bucket", "docs-bucket", "docs-source"].includes(capability),
+	);
+	if (required.includes("postgres")) {
+		diagnosis.postgres = await probePostgres();
 	}
-	if (action === "reject") {
-		throw new Error(
-			`Shared local infrastructure is ${current.status}; run pnpm dev:init from the main checkout before initializing this worktree.`,
-		);
+	if (needsObjectStore) {
+		diagnosis.objectStore = await probeObjectStore();
 	}
-	for (const volume of [POSTGRES_VOLUME, OBJECT_STORE_VOLUME, TEMPORAL_VOLUME]) {
-		if (!commandSucceeds("docker", ["volume", "inspect", volume])) {
-			runCommand("docker", ["volume", "create", volume]);
+	if (required.includes("temporal")) {
+		diagnosis.temporal = await probeTemporal();
+	}
+	if (required.includes("source-bucket")) {
+		diagnosis.sourceBucket =
+			diagnosis.objectStore === "present"
+				? await probeLocalBucket(SOURCE_BUCKET)
+				: diagnosis.objectStore;
+	}
+	if (required.includes("docs-bucket")) {
+		diagnosis.docsBucket =
+			diagnosis.objectStore === "present"
+				? await probeLocalBucket(DOCS_BUCKET)
+				: diagnosis.objectStore;
+	}
+	if (required.includes("docs-source")) {
+		diagnosis.docsSource =
+			diagnosis.docsBucket === "present"
+				? await probeLocalObject(DOCS_BUCKET, DOCS_SOURCE_KEY)
+				: diagnosis.docsBucket;
+	}
+	if (required.includes("derived-bucket")) {
+		if (input.derivedBucketName) {
+			diagnosis.derivedBucket =
+				diagnosis.objectStore === "present"
+					? await probeLocalBucket(input.derivedBucketName)
+					: diagnosis.objectStore;
+		} else {
+			diagnosis.derivedBucket = "unknown";
 		}
 	}
-	if (!commandSucceeds("docker", ["network", "inspect", DATA_NETWORK])) {
-		runCommand("docker", ["network", "create", DATA_NETWORK]);
-	}
-	runCommand("docker", sharedComposeUpCommand(), { cwd: repoRoot });
-	runObjectStore(SOURCE_BUCKET, "create");
-	runObjectStore(DOCS_BUCKET, "create");
-	const after = inspectSharedInfrastructure(repoRoot);
-	if (after.status !== "ready") {
-		throw new Error(`Shared local infrastructure did not become ready (status=${after.status}).`);
-	}
+	return diagnosis;
 }
 
-export function assertSharedDataInfrastructureReady(repoRoot: string): void {
-	const diagnosis = inspectSharedInfrastructure(repoRoot);
-	if (!isSharedDataInfrastructureReady(diagnosis)) {
-		throw new Error(
-			`Shared local data infrastructure is unavailable (status=${diagnosis.status}); run pnpm dev:init from the main checkout before destroying an instance.`,
-		);
+export function assertRequiredCapabilitiesReady(diagnosis: SharedCapabilityDiagnosis): void {
+	for (const capability of diagnosis.required) {
+		const state = diagnosis[capabilityToField(capability)];
+		if (state !== "present") {
+			throw new Error(
+				`Shared capability ${capability} is ${state ?? "unknown"}; run pnpm dev:shared-reconcile from the canonical checkout.`,
+			);
+		}
 	}
 }
 
-export function isSharedDataInfrastructureReady(diagnosis: SharedInfrastructureDiagnosis): boolean {
-	return (
-		diagnosis.containers.objectStore.probe === "present" &&
-		diagnosis.containers.objectStore.running &&
-		diagnosis.containers.objectStore.healthy &&
-		diagnosis.containers.postgres.probe === "present" &&
-		diagnosis.containers.postgres.running &&
-		diagnosis.containers.postgres.healthy &&
-		diagnosis.network === "present" &&
-		diagnosis.volumes.objectStore === "present" &&
-		diagnosis.volumes.postgres === "present" &&
-		diagnosis.buckets.docs === "present" &&
-		diagnosis.buckets.source === "present"
-	);
+export async function reconcileSharedInfrastructure(repoRoot: string): Promise<void> {
+	if (!isMainWorktree(repoRoot)) {
+		throw new Error("Shared infrastructure reconcile must run from the canonical checkout.");
+	}
+	const lockPath = resolve(dirname(resolveLocalDevRegistryPath(repoRoot)), SHARED_LOCK_FILENAME);
+	await withLifecycleLock(lockPath, "shared-reconcile", async () => {
+		await assertSharedHostPortsAvailable(repoRoot);
+		for (const volume of [POSTGRES_VOLUME, OBJECT_STORE_VOLUME, TEMPORAL_VOLUME]) {
+			if (!commandSucceeds("docker", ["volume", "inspect", volume])) {
+				runCommand("docker", ["volume", "create", volume]);
+			}
+		}
+		if (!commandSucceeds("docker", ["network", "inspect", DATA_NETWORK])) {
+			runCommand("docker", ["network", "create", DATA_NETWORK]);
+		}
+		runCommand("docker", sharedComposeUpCommand(), {
+			cwd: repoRoot,
+			timeout: SHARED_RECONCILE_TIMEOUT_MS,
+		});
+		runObjectStore(SOURCE_BUCKET, "create");
+		runObjectStore(DOCS_BUCKET, "create");
+		ensureSharedDatabaseRoles();
+		const after = await inspectSharedInfrastructure(repoRoot);
+		if (after.status !== "ready") {
+			throw new Error(`Shared local infrastructure did not become ready (status=${after.status}).`);
+		}
+	});
 }
 
-export function inspectSharedInfrastructure(repoRoot: string): SharedInfrastructureDiagnosis {
+export async function inspectSharedInfrastructure(
+	repoRoot: string,
+): Promise<SharedInfrastructureDiagnosis> {
 	const expectedHashes = {
 		objectStore: composeServiceHash(repoRoot, SHARED_CONTAINERS.objectStore.service),
 		postgres: composeServiceHash(repoRoot, SHARED_CONTAINERS.postgres.service),
@@ -240,7 +297,10 @@ export function inspectSharedInfrastructure(repoRoot: string): SharedInfrastruct
 		(container) => container.probe === "present" && container.running && container.healthy,
 	);
 	const buckets = dataContainersReady
-		? { docs: localBucketProbe(DOCS_BUCKET), source: localBucketProbe(SOURCE_BUCKET) }
+		? {
+				docs: await probeLocalBucket(DOCS_BUCKET),
+				source: await probeLocalBucket(SOURCE_BUCKET),
+			}
 		: { docs: "unknown" as const, source: "unknown" as const };
 	const status = classifySharedInfrastructureStatus({
 		buckets,
@@ -249,104 +309,55 @@ export function inspectSharedInfrastructure(repoRoot: string): SharedInfrastruct
 		network,
 		volumes,
 	});
-	return { buckets, containers, expectedHashes, network, status, volumes };
+	const capabilities: SharedCapabilityDiagnosis = {
+		derivedBucket: "unknown",
+		docsBucket: buckets.docs,
+		docsSource:
+			buckets.docs === "present"
+				? await probeLocalObject(DOCS_BUCKET, DOCS_SOURCE_KEY)
+				: buckets.docs,
+		objectStore: dataContainersReady ? "present" : "unknown",
+		postgres:
+			containers.postgres.probe === "present" && containers.postgres.healthy
+				? "present"
+				: "unknown",
+		required: [],
+		sourceBucket: buckets.source,
+		temporal:
+			containers.temporal.probe === "present" && containers.temporal.healthy
+				? "present"
+				: "unknown",
+	};
+	return { buckets, capabilities, containers, expectedHashes, network, status, volumes };
 }
 
-function composeServiceHash(repoRoot: string, service: string): string | undefined {
-	const result = captureCommandResult(
-		"docker",
-		[
-			"compose",
-			"--project-name",
-			COMPOSE_PROJECT,
-			"-f",
-			"infra/local/docker-compose.dev.yml",
-			"config",
-			`--hash=${service}`,
-		],
-		{ cwd: repoRoot },
+export async function assertSharedDataInfrastructureReady(repoRoot: string): Promise<void> {
+	const diagnosis = await inspectSharedInfrastructure(repoRoot);
+	if (!isSharedDataInfrastructureReady(diagnosis)) {
+		throw new Error(
+			`Shared local data infrastructure is unavailable (status=${diagnosis.status}); run pnpm dev:shared-reconcile from the canonical checkout.`,
+		);
+	}
+}
+
+export function isSharedDataInfrastructureReady(diagnosis: SharedInfrastructureDiagnosis): boolean {
+	return (
+		diagnosis.capabilities.objectStore === "present" &&
+		diagnosis.capabilities.postgres === "present" &&
+		diagnosis.capabilities.docsBucket === "present" &&
+		diagnosis.capabilities.sourceBucket === "present"
 	);
-	if (result.status !== 0 || result.error) {
-		return;
-	}
-	const [reportedService, hash] = result.stdout.trim().split(/\s+/u);
-	return reportedService === service && hash ? hash : undefined;
 }
 
-function inspectSharedContainer(container: string): SharedContainerDiagnosis {
-	const result = captureCommandResult("docker", ["inspect", "--format", "{{json .}}", container]);
-	if (result.status !== 0 || result.error) {
-		if (/No such object|No such container/u.test(result.stderr)) {
-			return { healthy: false, probe: "missing", running: false };
-		}
-		return { healthy: false, probe: "unknown", running: false };
-	}
-	try {
-		const value = JSON.parse(result.stdout) as {
-			Config?: { Labels?: Record<string, string> };
-			State?: { Health?: { Status?: string }; Status?: string };
-		};
-		const labels = value.Config?.Labels ?? {};
-		return {
-			configHash: labels["com.docker.compose.config-hash"],
-			healthy: value.State?.Health?.Status === "healthy",
-			probe: "present",
-			project: labels["com.docker.compose.project"],
-			running: value.State?.Status === "running",
-			service: labels["com.docker.compose.service"],
-		};
-	} catch {
-		return { healthy: false, probe: "unknown", running: false };
-	}
+export async function localBucketProbe(bucketName: string): Promise<LocalResourceProbe> {
+	return await probeLocalBucket(bucketName);
 }
 
-function inspectDockerResource(kind: "network" | "volume", name: string): LocalResourceProbe {
-	const result = captureCommandResult("docker", [kind, "inspect", name]);
-	if (result.status === 0 && !result.error) {
-		return "present";
-	}
-	if (/No such object|No such volume|No such network/u.test(result.stderr)) {
-		return "missing";
-	}
-	return "unknown";
-}
-
-export function localBucketProbe(bucketName: string): LocalResourceProbe {
-	const result = captureCommandResult("docker", objectStoreCommand(bucketName, "inspect"));
-	if (result.status === 0 && !result.error) {
-		return "present";
-	}
-	if (/Bucket not found|NoSuchBucket|bucket does not exist/u.test(result.stderr)) {
-		return "missing";
-	}
-	return "unknown";
-}
-
-export function localObjectProbe(bucketName: string, objectKey: string): LocalResourceProbe {
-	const result = captureCommandResult("docker", [
-		"run",
-		"--rm",
-		"--network",
-		DATA_NETWORK,
-		"--env",
-		`BUCKET=${bucketName}`,
-		"--env",
-		`OBJECT_KEY=${objectKey}`,
-		"--env",
-		"RC_CONFIG_DIR=/tmp/.rc",
-		"--entrypoint",
-		"/bin/sh",
-		OBJECT_STORE_CLI_IMAGE,
-		"-ec",
-		'rc alias set local http://object-store:9000 minioadmin minioadmin >/dev/null; rc stat "local/$BUCKET/$OBJECT_KEY" >/dev/null',
-	]);
-	if (result.status === 0 && !result.error) {
-		return "present";
-	}
-	if (/Not found: local\/|No such key|Object does not exist/u.test(result.stderr)) {
-		return "missing";
-	}
-	return "unknown";
+export async function localObjectProbe(
+	bucketName: string,
+	objectKey: string,
+): Promise<LocalResourceProbe> {
+	return await probeLocalObject(bucketName, objectKey);
 }
 
 export function runObjectStore(
@@ -385,4 +396,137 @@ export function objectStoreCommand(
 		"-ec",
 		`rc alias set local http://object-store:9000 minioadmin minioadmin >/dev/null; ${actionScript}`,
 	];
+}
+
+async function probePostgres(): Promise<LocalResourceProbe> {
+	const port = await probeLocalPort(5432);
+	if (port === "available") {
+		return "missing";
+	}
+	if (port === "unknown") {
+		return "unknown";
+	}
+	const result = captureCommandResult(
+		"pg_isready",
+		["-h", "127.0.0.1", "-p", "5432", "-U", "postgres", "-d", "postgres"],
+		{ timeout: SHARED_HEALTH_TIMEOUT_MS },
+	);
+	return result.status === 0 && !result.error && !result.timedOut ? "present" : "unknown";
+}
+
+async function probeObjectStore(): Promise<LocalResourceProbe> {
+	try {
+		const response = await fetch("http://127.0.0.1:9000/health/ready", {
+			signal: AbortSignal.timeout(SHARED_HEALTH_TIMEOUT_MS),
+		});
+		return response.ok ? "present" : response.status === 404 ? "missing" : "unknown";
+	} catch (error) {
+		const code =
+			error instanceof Error && "cause" in error
+				? (error.cause as { code?: string })?.code
+				: undefined;
+		return code === "ECONNREFUSED" ? "missing" : "unknown";
+	}
+}
+
+async function probeTemporal(): Promise<LocalResourceProbe> {
+	const port: LocalPortProbe = await probeLocalPort(7233);
+	return port === "occupied" ? "present" : port === "available" ? "missing" : "unknown";
+}
+
+function capabilityToField(
+	capability: LocalDevCapability,
+): keyof Omit<SharedCapabilityDiagnosis, "required"> {
+	return capability === "derived-bucket"
+		? "derivedBucket"
+		: capability === "source-bucket"
+			? "sourceBucket"
+			: capability === "docs-bucket"
+				? "docsBucket"
+				: capability === "docs-source"
+					? "docsSource"
+					: capability;
+}
+
+function assertSharedHostPortsAvailable(repoRoot: string): Promise<void> {
+	return inspectSharedInfrastructure(repoRoot).then(async (diagnosis) => {
+		const expected = [
+			[5432, diagnosis.containers.postgres],
+			[9000, diagnosis.containers.objectStore],
+			[9001, diagnosis.containers.objectStore],
+			[7233, diagnosis.containers.temporal],
+		] as const;
+		for (const [port, container] of expected) {
+			const state = await probeLocalPort(port);
+			if (state === "unknown") {
+				throw new Error(`Unable to inspect shared port ${port}.`);
+			}
+			if (state === "occupied" && container.probe !== "present") {
+				throw new Error(`Shared port ${port} is occupied by an unexpected process.`);
+			}
+		}
+	});
+}
+
+function composeServiceHash(repoRoot: string, service: string): string | undefined {
+	const result = captureCommandResult(
+		"docker",
+		[
+			"compose",
+			"--project-name",
+			COMPOSE_PROJECT,
+			"-f",
+			"infra/local/docker-compose.dev.yml",
+			"config",
+			`--hash=${service}`,
+		],
+		{ cwd: repoRoot, timeout: SHARED_HEALTH_TIMEOUT_MS },
+	);
+	if (result.status !== 0 || result.error || result.timedOut) {
+		return;
+	}
+	const [reportedService, hash] = result.stdout.trim().split(/\s+/u);
+	return reportedService === service && hash ? hash : undefined;
+}
+
+function inspectSharedContainer(container: string): SharedContainerDiagnosis {
+	const result = captureCommandResult("docker", ["inspect", "--format", "{{json .}}", container], {
+		timeout: SHARED_HEALTH_TIMEOUT_MS,
+	});
+	if (result.status !== 0 || result.error || result.timedOut) {
+		if (/No such object|No such container/u.test(result.stderr)) {
+			return { healthy: false, probe: "missing", running: false };
+		}
+		return { healthy: false, probe: "unknown", running: false };
+	}
+	try {
+		const value = JSON.parse(result.stdout) as {
+			Config?: { Labels?: Record<string, string> };
+			State?: { Health?: { Status?: string }; Status?: string };
+		};
+		const labels = value.Config?.Labels ?? {};
+		return {
+			configHash: labels["com.docker.compose.config-hash"],
+			healthy: value.State?.Health?.Status === "healthy",
+			probe: "present",
+			project: labels["com.docker.compose.project"],
+			running: value.State?.Status === "running",
+			service: labels["com.docker.compose.service"],
+		};
+	} catch {
+		return { healthy: false, probe: "unknown", running: false };
+	}
+}
+
+function inspectDockerResource(kind: "network" | "volume", name: string): LocalResourceProbe {
+	const result = captureCommandResult("docker", [kind, "inspect", name], {
+		timeout: SHARED_HEALTH_TIMEOUT_MS,
+	});
+	if (result.status === 0 && !result.error && !result.timedOut) {
+		return "present";
+	}
+	if (/No such object|No such volume|No such network/u.test(result.stderr)) {
+		return "missing";
+	}
+	return "unknown";
 }

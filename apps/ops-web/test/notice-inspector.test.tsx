@@ -8,6 +8,7 @@ describe("NoticeInspector", () => {
 			<NoticeInspector
 				createJobError={null}
 				currentNoticeJobs={[]}
+				currentPendingJobSubmissions={[]}
 				detailError={null}
 				detailPending
 				dirty={false}

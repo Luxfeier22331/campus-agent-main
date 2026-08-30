@@ -24,16 +24,16 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 ## 数据库与本地进程
 
 ```bash
-pnpm --filter notice-publisher dev:init
-pnpm --filter internal-portal-collection dev:init
-pnpm --filter notice-classifier dev:init
+pnpm dev:shared-reconcile
+pnpm dev:init -- --target internal-portal-collection
 pnpm --filter ops-web dev:api
 ```
 
 数据库 TLS 与运行变量见 Ops Web 的环境合同。新建本地数据库使用
 `drizzle.campus_agent_migrations`；现有部署环境的旧 ledger 和 handoff migration 原样保留，且不会被
-统一 Job 自动接管。`notice-publisher dev:init` 运行统一 schema Job 并写入本地通知分类 seed；
-internal-portal-collection 和 notice-classifier 的初始化只生成各自运行环境，不执行 DDL。
+统一 Job 自动接管。`notice-publisher` target 是统一 schema Job 和通知分类 seed 的 owner；
+`internal-portal-collection` target 只生成 Ops Web 与采集器实际读取的环境投影，并通过 readiness 复用已完成的
+schema，不执行重复 DDL。`notice-classifier` target 只生成 Model Config 与分类器实际读取的环境投影。
 execution-control 的历史通知分类模型设置只作为 Model Config 一次性迁移输入，不构成当前配置所有权。
 
 ## 文件发布
@@ -55,15 +55,14 @@ source bucket 保存 `file` 与 `source.json`，不解析 PDF。线上使用同�
 ### 初始化与认证
 
 ```bash
-pnpm --filter notice-publisher dev:init
-pnpm --filter internal-portal-collection dev:init
-pnpm --filter notice-classifier dev:init
+pnpm dev:init -- --target internal-portal-collection
 pnpm internal-portal:auth:pull
 pnpm internal-portal:auth:check
 ```
 
-先由 notice-publisher 初始化当前 worktree 的统一 schema 与通知分类 seed，再为采集器和分类器生成各自环境。采集器环境
-包含 source bucket 与通知数据库连接；分类器环境包含通知数据库连接和 Model Config URL。
+`internal-portal-collection` target 会准备当前 worktree 的 schema、通知分类 seed、Ops Web 和采集器环境；
+采集器环境包含 source bucket 与通知数据库连接。`notice-classifier` target 同样准备 schema、通知分类 seed，
+并生成 Model Config URL 与分类器环境。两者不维护 package-level 初始化入口，也不重复执行 DDL。
 `internal-portal:auth:pull` 按 `portal-auth.md` 使用当前 Kubernetes context 和 namespace 调用 Ops Web
 凭据解析接口，并原子更新受管理的适配器 `.env.local`；认证检查必须成功后才能请求门户。
 本地通知命令随后直接使用拉取到的 TGC，不需要后台编排器。
@@ -143,18 +142,19 @@ kubectl create job \
   notice-classifier-$(date +%Y%m%d%H%M%S)
 ```
 
-默认并发为 2，单条最多三次尝试，失败以非零状态结束。默认批量更新不会覆盖分类期间发生的人工修改；
+在线模板使用 `--concurrency 8`，分类器 PostgreSQL 连接池上限与该并发一致；本地 CLI 默认并发为 2，
+可按机器资源显式调整。失败以非零状态结束。默认批量更新不会覆盖分类期间发生的人工修改；
 不会自动继续下一阶段。Job 启动分类阶段后从 `model-config:8000` 一次读取
 `notice_classification` 完整配置，模型名和 provider 由 Ops Web 配置，不在镜像或 Kubernetes Secret
 中固定。
 
 ### 通知 schema
 
-`pnpm --filter notice-publisher dev:init` 创建本地 `notice_publisher` 角色，并使用数据库 owner 安装
-`notices.*`。该命令可安全重跑，并会应用当前尚未安装的 migration：
+`pnpm dev:init -- --target notice-publisher` 创建本地 `notice_publisher` 角色，并使用数据库 owner 安装
+`notices.*`。该 target 可安全重跑，并会应用当前尚未安装的 migration：
 
 ```bash
-pnpm --filter notice-publisher dev:init
+pnpm dev:init -- --target notice-publisher
 ```
 
 Migration 6 将 `category` 改为可空，增加 `is_published`，并把迁移前已有通知标记为已发布。新采集通知
@@ -231,8 +231,9 @@ kubectl -n <namespace> create job \
 ```
 
 三个模板各自固定一种动作，不接收 `mode`。回填日期只属于本次 Job，不写入长期环境配置。通知 Job
-在 stdout 输出有效区间和 `scanning/processing/writing/finalizing` 结构化进度；最终通知摘要只输出数量，
-不输出完整 ID 列表。sync 和 backfill 是两个独立 Job，任务中心只显示实际创建的 Job，不自动创建另一条。
+在 stdout 输出 `processedRange`、`maintenanceRange` 和 `scanning/processing/writing/finalizing` 结构化进度；
+最终通知摘要只输出数量，不输出完整 ID 列表。sync 和 backfill 是两个独立 Job，任务中心只显示实际创建的 Job，
+不自动创建另一条。
 
 通知分类 Job 复用既有数据库 owner Secret、PostgreSQL CA 和 Model Config，不读取对象存储，也不新增
 分类器专用数据库身份或模型 Secret。运行一次性采集 Job 前须在目标环境确认到 Ops Web、source bucket、
@@ -261,7 +262,9 @@ kubectl -n <namespace> create -f -
 ## 排查
 
 文件发布先检查分页响应、逐项错误摘要、门户响应及两个固定 source 对象。通知先查看命令错误、
-Job 的 range/progress、原始应用错误、controllerError、通知对象和 `_state.json`，不要手工推进边界来伪装成功。
+Job 的 `processedRange`、`maintenanceRange`、`progress`、原始应用错误、`controllerError`、通知对象和
+`_state.json`，不要手工推进边界来伪装成功。`processedRange` 只说明本次尝试的处理范围；失败时必须以
+`_state.json` 中仍然存在的维护区间为准，不能把它当作已提交边界。
 
 Kubernetes 的 `BackoffLimitExceeded` 表示 Job 控制器观察到 Pod 失败次数达到 `backoffLimit`；本项目固定
 `backoffLimit: 0`，所以它不是应用根因。应用根因应从任务的 Pod 原始输出中读取，Ops Web 会把它放在

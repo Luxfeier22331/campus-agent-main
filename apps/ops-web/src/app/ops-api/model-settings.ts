@@ -43,3 +43,11 @@ export async function putExecutionModelSetting(
 		}),
 	);
 }
+
+export async function validateExecutionModelSetting(kind: ModelSettingKind) {
+	return ExecutionModelSettingsStatusSchema.parse(
+		await fetchJson(`/api/ops/model-configs/${kind}/validate`, {
+			method: "POST",
+		}),
+	);
+}

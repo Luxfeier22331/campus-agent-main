@@ -52,12 +52,12 @@ type Validation struct {
 
 type ConfigView struct {
 	Descriptor
-	CredentialConfigured bool       `json:"credential_configured"`
-	Validation           Validation `json:"validation"`
-	ValidatedAt          time.Time  `json:"validated_at"`
-	ValidatedBy          string     `json:"validated_by"`
-	UpdatedAt            time.Time  `json:"updated_at"`
-	UpdatedBy            string     `json:"updated_by"`
+	CredentialConfigured bool        `json:"credential_configured"`
+	Validation           *Validation `json:"validation"`
+	ValidatedAt          *time.Time  `json:"validated_at"`
+	ValidatedBy          *string     `json:"validated_by"`
+	UpdatedAt            time.Time   `json:"updated_at"`
+	UpdatedBy            string      `json:"updated_by"`
 }
 
 type Status struct {

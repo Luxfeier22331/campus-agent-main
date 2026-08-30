@@ -18,11 +18,17 @@ Model Config 负责具名在线模型配置及其 Provider API Key。当前配�
 - `GET /internal/model-configs/{name}?expected_target_sha256={hash}`：只在目标仍匹配预期 hash 时读取；
 - `GET /internal/admin/model-configs`：读取管理状态；
 - `PUT /internal/admin/model-configs/{name}`：验证后替换当前配置；
+- `POST /internal/admin/model-configs/{name}/validate`：使用当前配置重新验证并只更新验证结果；
 - `POST /internal/admin/model-configs/{name}/models`：发现 Provider 模型。
 
 Primary Agent 在持久执行准入时先读取 target，Agent Runtime 再携带预期 hash 读取完整配置。Campus
 Docs Embedding 与 Notice Classifier 等普通 Job 直接读取一次完整配置；Embedding Set 记录响应中的
 target hash。
+
+本地 `dev:init` 可以把已配置但尚未验证的连接写入当前配置；这一步不访问 Provider，也不产生验证记录。
+因此 `validation`、`validated_at` 和 `validated_by` 可以为 `null`。在线 Ops Web 重新验证不替换当前 target
+或 API Key；它只写入 `validation_status`、验证错误/观测信息、`validated_at` 和 `validated_by`，保留
+`updated_at` 与 `updated_by`。验证失败仍返回完整的结构化诊断消息，供 Ops Web 显示和排查。
 
 Model Config 位于共同受信任的内部服务边界，不再执行第二次服务间认证，也不登记 consumer 或维护
 按配置名的权限矩阵。能够访问该 listener 的内部服务可以读取任意具名配置。Ops Web 仍在自身 BFF

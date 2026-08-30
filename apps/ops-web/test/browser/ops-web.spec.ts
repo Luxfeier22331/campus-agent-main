@@ -299,12 +299,13 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 	await expect(page.getByTestId("request-sources")).toContainText("[1]");
 	await expect(page.getByTestId("request-sources").getByLabel("引用 1")).toBeVisible();
 	const execution = page.getByTestId("request-execution");
-	await expect(execution).toContainText("agent.primary");
+	const completedStage = execution.getByRole("listitem").first();
+	await expect(completedStage).toContainText("Agent");
+	await expect(completedStage).toContainText("已完成");
 	await expect(execution).toContainText("deepseek-v4-flash-0731");
 	await expect(execution).toContainText("2,000");
 	await expect(execution).toContainText("320");
 	await expect(execution).toContainText("400");
-	await expect(execution).toContainText("campus-agent-agent");
 	await expect(execution).toContainText("agent-runtime@899f251");
 	await expect(execution).toContainText("execution-control@a77a046");
 	await expect(page.getByRole("link", { name: "系统记录" })).toHaveCount(0);
@@ -331,7 +332,9 @@ test("六类运行记录保留产品结果和执行诊断语义", async ({ page 
 	await page.goto("/requests/req_ops_002");
 	await expect(page.getByTestId("request-question")).toContainText("你好，你能帮我做什么？");
 	await expect(page.getByTestId("request-result")).toContainText("我可以帮助查询校园通知");
-	await expect(page.getByTestId("request-execution")).toContainText("agent.primary");
+	await expect(page.getByTestId("request-execution").getByRole("listitem").first()).toContainText(
+		"Agent",
+	);
 
 	await page.goto("/requests/req_ops_003");
 	await expect(page.getByTestId("request-question")).toContainText("帮我查一下最近的校园通知");
@@ -361,7 +364,9 @@ test("六类运行记录保留产品结果和执行诊断语义", async ({ page 
 	await expect(page.getByTestId("request-context")).toContainText("已完成");
 	await expect(page.getByTestId("request-result")).toContainText("会话结果缺失");
 	await expect(page.getByTestId("request-result")).toContainText("产品状态为 已完成");
-	await expect(page.getByTestId("request-execution")).toContainText("agent.primary");
+	await expect(page.getByTestId("request-execution").getByRole("listitem").first()).toContainText(
+		"Agent",
+	);
 	await expectStableViewport(page, errors);
 });
 

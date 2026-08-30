@@ -6,7 +6,6 @@
 	"type": "module",
 	"scripts": {
 		"backfill-attachment-links": "tsx src/cli.ts backfill-attachment-links",
-		"dev:init": "pnpm --dir ../.. exec tsx scripts/dev/cli.ts init --target notice-publisher",
 		"build": "esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:@aws-sdk/client-s3 --external:jsdom --external:pg && node --input-type=module -e \"import('./dist/cli.js')\"",
 		"migrate": "tsx src/cli.ts migrate",
 		"publish": "tsx src/cli.ts publish",

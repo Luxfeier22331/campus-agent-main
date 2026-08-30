@@ -10,7 +10,6 @@
 		"auth:check": "tsx adapters/internal-portal/src/auth-cli.ts check",
 		"auth:pull": "tsx adapters/internal-portal/src/auth-cli.ts pull",
 		"collect": "tsx adapters/internal-portal/src/collection-cli.ts",
-		"dev:init": "pnpm --dir ../.. exec tsx scripts/dev/cli.ts init --target internal-portal-collection",
 		"test": "vitest run -c vitest.fast.config.mts",
 		"typecheck": "tsc --noEmit"
 	},

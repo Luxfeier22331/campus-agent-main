@@ -25,3 +25,16 @@
 ## 工具约定
 
 - 搜索使用 `rg` / `rg --files`；Node/Worker 工作使用 `pnpm`；不得添加或维护 `package-lock.json`。
+
+## 机制准入
+
+- 当变更新增持久化状态、数据生命周期约束、manifest/hash/version/immutable、append-only/history/
+  recovery、retry/fallback/wrapper/config flag、权限隔离、脱敏、质量阈值/gate，或拆分 PR、issue、
+  worktree 时，实施计划或变更说明必须说明：需求或已有合同来源、当前真实消费者和 owner、已观察到的
+  失败或信任边界、现有 owner/字段/接口为何不足，以及删除或重新评估条件。任一项缺失时，默认修改
+  现有 owner、报告问题或暂缓，不新增机制。
+- 不得把 agent 自己提出的方案或文档当成外部需求来源。验证应检查行为和真实能力，不得用关键词黑名单
+  全局禁止 retry、fallback、hash、manifest、immutable、QEMU 或权限隔离。
+- 连续承接任务默认留在当前分支和 worktree。只有用户明确要求，或存在独立 owner、发布、回滚或权限
+  边界时才拆分 PR、issue 或 worktree；不得自动创建空 issue。用户明确要求停止更新 issue、不脱敏或
+  不拆分后，不得自行恢复这些动作。

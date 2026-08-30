@@ -127,6 +127,7 @@ export function NoticeMaintenancePage() {
 						<NoticeInspector
 							createJobError={model.createJobError}
 							currentNoticeJobs={model.currentNoticeJobs}
+							currentPendingJobSubmissions={model.currentPendingJobSubmissions}
 							detailError={model.detail.error}
 							detailPending={model.detail.isPending}
 							dirty={model.dirty}
@@ -163,6 +164,7 @@ export function NoticeMaintenancePage() {
 						<NoticeInspector
 							createJobError={model.createJobError}
 							currentNoticeJobs={model.currentNoticeJobs}
+							currentPendingJobSubmissions={model.currentPendingJobSubmissions}
 							detailError={model.detail.error}
 							detailPending={model.detail.isPending}
 							dirty={model.dirty}
@@ -193,6 +195,7 @@ export function NoticeMaintenancePage() {
 				onCreate={model.startJob}
 				onOpenChange={model.setTaskCenterOpen}
 				open={model.taskCenterOpen}
+				pendingSubmissions={model.pendingJobSubmissions}
 			/>
 
 			<Dialog

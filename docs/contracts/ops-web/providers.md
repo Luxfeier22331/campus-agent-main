@@ -24,6 +24,7 @@ namespace、Secret、Deployment 或内部服务地址。
 - `POST /api/ops/model-configs/reranker/models`
 - `POST /api/ops/model-configs/notice_classifier/models`
 - `PUT /api/ops/model-configs/:kind`
+- `POST /api/ops/model-configs/notice_classifier/validate`
 
 `kind` 只允许 `llm`、`embedding`、`reranker` 或 `notice_classifier`。读取结果包含当前值、最后验证结果和更新时间，
 以及固定 Embedding 合同中的 provider、model、transport 和 dimensions；不返回 API key、密文、nonce、
@@ -45,13 +46,15 @@ provider 固定为 `openai-compatible`，model 固定为 `Qwen3-Embedding-4B`，
 
 模型发现支持 LLM、Reranker 和通知分类。浏览器提交目标 `kind`、provider、Base URL 和可选 API key；对应
 `kind` 首次配置必须提供 API key，已有配置时空值表示复用该设置已保存的密钥。Model Config 请求
-该供应商 Base URL 下的 `/models`，只返回去重、排序后的模型 ID 和采样时间，最多 500 条。供应商响应
-正文和 API key 不返回浏览器，也不保存本次候选连接。
+该供应商 Base URL 下的 `/models`，返回本次供应商响应中的完整模型目录，并进行去重、排序和模型 ID 校验；不
+设置额外的模型数量上限。供应商响应正文和 API key 不返回浏览器，也不保存本次候选连接。
 
 保存前 Model Config 对候选设置执行真实供应商调用，并按 `api_protocol` 校验响应结构；只有 HTTP
-成功且响应符合对应协议时才通过。验证失败不会覆盖当前值。未提交 API key
-表示保留现有值，首次配置时必须提供；显式空 API key 无效。没有独立的重新验证接口；需要重新验证时
-再次保存同一设置。Embedding 验证调用 `/embeddings` 时固定提交 model 和 `dimensions=2560`，且只在
+成功且响应符合对应协议时才通过。候选设置验证失败只返回本次诊断，不覆盖当前值，也不更新当前配置的验证记录。未提交 API key
+表示保留现有值，首次配置时必须提供；显式空 API key 无效。通知分类已有配置可通过
+`POST /api/ops/model-configs/notice_classifier/validate` 重新验证当前值；该操作只更新验证状态、验证时间和
+验证操作者，不更新目标、密钥或配置 `updatedAt`。重新验证失败时页面刷新并显示失败状态，同时保留 Model Config
+返回的验证错误信息。其他配置仍通过保存同一设置完成验证。Embedding 验证调用 `/embeddings` 时固定提交 model 和 `dimensions=2560`，且只在
 返回一个由 2560 个有限数值组成的向量时通过。`observedDimensions` 是验证证据，不是可编辑配置。
 供应商验证时限属于
 Model Config 代码合同，不是可由浏览器修改的连接设置。
@@ -63,8 +66,8 @@ Ops Web 服务端负责与现有 camelCase 页面合同互相映射。
 
 ## 通用规则
 
-所有写请求必须来自配置的同源页面并通过人员准入。错误响应只包含稳定 Ops Web 错误码和脱敏信息；
-不得透传供应商正文或凭据。读取失败必须保留失败状态，不能伪装成未配置。
+所有写请求必须来自配置的同源页面并通过人员准入。错误响应包含稳定 Ops Web 错误码；验证失败的业务消息
+保留 Model Config 提供的诊断文本，但不返回 API key、密文或其他凭据。读取失败必须保留失败状态，不能伪装成未配置。
 
 LLM、Reranker 和通知分类页面将 Base URL、API key 和模型作为核心字段，provider 和 transport 放在高级设置。
 Reranker 的 transport 固定为 Cohere Rerank；Embedding 页面只编辑 Base URL 和 API key，并只读展示固定 provider、model、transport 和 dimensions。

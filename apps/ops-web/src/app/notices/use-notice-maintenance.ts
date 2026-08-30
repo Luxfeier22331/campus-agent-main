@@ -36,6 +36,11 @@ export interface NoticeMaintenanceFilters {
 	state: NoticeState | "";
 }
 
+export interface PendingNoticeJobSubmission {
+	input: NoticeJobCreate;
+	submittedAt: number;
+}
+
 export type NoticeNavigationIntent =
 	| { kind: "close" }
 	| {
@@ -96,18 +101,28 @@ export function useNoticeMaintenance() {
 			await queryClient.invalidateQueries({ queryKey: noticesQueryKey });
 		},
 	});
+	const resetSaveCategory = saveCategory.reset;
 
 	const createJob = useMutation({
 		mutationKey: noticeJobCreateMutationKey,
 		mutationFn: createNoticeJob,
-		onSuccess: async ({ job }) => {
+		onSuccess: ({ job }) => {
 			previousJobStatuses.current.set(job.jobName, job.status);
-			await queryClient.invalidateQueries({ queryKey: noticeJobsQueryKey });
+			queryClient.setQueryData<{ jobs: NoticeJob[] }>(noticeJobsQueryKey, (current) => ({
+				jobs: [
+					job,
+					...(current?.jobs ?? []).filter((candidate) => candidate.jobName !== job.jobName),
+				].slice(0, 50),
+			}));
+			void queryClient.invalidateQueries({ queryKey: noticeJobsQueryKey });
 		},
 	});
-	const pendingJobInputs = useMutationState({
+	const pendingJobSubmissions = useMutationState({
 		filters: { mutationKey: noticeJobCreateMutationKey, status: "pending" },
-		select: (mutation) => mutation.state.variables as NoticeJobCreate,
+		select: (mutation): PendingNoticeJobSubmission => ({
+			input: mutation.state.variables as NoticeJobCreate,
+			submittedAt: mutation.state.submittedAt,
+		}),
 	});
 	const startJob = useCallback(
 		(input: NoticeJobCreate) => {
@@ -177,7 +192,7 @@ export function useNoticeMaintenance() {
 
 	const applyIntent = useCallback(
 		(intent: NoticeNavigationIntent) => {
-			saveCategory.reset();
+			resetSaveCategory();
 			if (intent.kind === "close") {
 				setSelectedNoticeId(null);
 				return;
@@ -192,7 +207,7 @@ export function useNoticeMaintenance() {
 			setSearch(intent.q);
 			setState(intent.state);
 		},
-		[saveCategory],
+		[resetSaveCategory],
 	);
 
 	const requestIntent = useCallback(
@@ -221,6 +236,29 @@ export function useNoticeMaintenance() {
 			requestIntent({ kind: "close" });
 		}
 	}, [requestIntent, selectedNoticeId]);
+
+	useEffect(() => {
+		if (
+			selectedNoticeId !== null &&
+			notices.isSuccess &&
+			!notices.isPlaceholderData &&
+			!notices.data.items.some((notice) => notice.noticeId === selectedNoticeId)
+		) {
+			if (dirty) {
+				setPendingIntent((current) => current ?? { kind: "close" });
+				return;
+			}
+			resetSaveCategory();
+			setSelectedNoticeId(null);
+		}
+	}, [
+		dirty,
+		notices.data,
+		notices.isPlaceholderData,
+		notices.isSuccess,
+		resetSaveCategory,
+		selectedNoticeId,
+	]);
 
 	const requestFilters = useCallback(
 		(next: Partial<NoticeMaintenanceFilters>) => {
@@ -321,14 +359,14 @@ export function useNoticeMaintenance() {
 				families.add(noticeJobFamily(job.operation));
 			}
 		}
-		for (const input of pendingJobInputs) {
-			families.add(noticeJobFamily(input.operation));
+		for (const submission of pendingJobSubmissions) {
+			families.add(noticeJobFamily(submission.input.operation));
 		}
 		return families;
-	}, [jobs.data?.jobs, pendingJobInputs]);
+	}, [jobs.data?.jobs, pendingJobSubmissions]);
 	const activeJobCount = useMemo(
-		() => (jobs.data?.jobs ?? []).filter(isActiveNoticeJob).length,
-		[jobs.data?.jobs],
+		() => (jobs.data?.jobs ?? []).filter(isActiveNoticeJob).length + pendingJobSubmissions.length,
+		[jobs.data?.jobs, pendingJobSubmissions.length],
 	);
 
 	const isFamilyBusy = useCallback(
@@ -342,6 +380,15 @@ export function useNoticeMaintenance() {
 		}
 		return (jobs.data?.jobs ?? []).filter((job) => job.noticeId === selectedNoticeId);
 	}, [jobs.data?.jobs, selectedNoticeId]);
+	const currentPendingJobSubmissions = useMemo(() => {
+		if (selectedNoticeId === null) {
+			return [];
+		}
+		return pendingJobSubmissions.filter(
+			(submission) =>
+				"noticeId" in submission.input && submission.input.noticeId === selectedNoticeId,
+		);
+	}, [pendingJobSubmissions, selectedNoticeId]);
 
 	return {
 		activeJobCount,
@@ -352,6 +399,7 @@ export function useNoticeMaintenance() {
 		cancelRouteLeave,
 		createJobError: createJob.error,
 		currentNoticeJobs,
+		currentPendingJobSubmissions,
 		detail,
 		discardPendingIntent,
 		discardRouteChanges,
@@ -362,6 +410,7 @@ export function useNoticeMaintenance() {
 		jobs,
 		notices,
 		pendingIntent,
+		pendingJobSubmissions,
 		q,
 		requestCloseNotice,
 		requestFilters,

@@ -26,13 +26,9 @@ Ops Web 是 TGC、检查结果和 CAS 刷新值的唯一运行所有者，直接
 `OPS_WEB_AUTOMATION_ORIGIN`。程序先读取 metadata，再以 ETag 作为 `If-Match` 创建、轮换或删除记录。
 automation token 不用于采集消费。
 
-`MUC-WIKI/sso-tgc-template` 是协作者自己的运行入口。协作者在自己的电脑或 GitHub Actions 中保存
-学校账号、密码、目标凭据名称、endpoint 和 Bearer token，并自行决定 schedule；这些输入不会投递到集群。
-模板的 Playwright 实现、依赖、测试和 workflow 由模板仓独立拥有；本仓只维护 Ops Web 自动化接口及
-其服务端合同，不保留第二套提取器实现。
-普通模式缺少任一轮换配置时在登录前失败，不会降级为 dry-run；目标名称必须恰好匹配一条具名凭据。
-首次成功运行会按名称创建记录，后续每次成功运行都立即轮换同一条记录，不等待旧值过期，也不创建新记录。
-多个协作者分别使用自己的账号和唯一具名凭据即可并行轮换，Ops Web 不新增主凭据或自动切换状态。
+外部凭据提取与轮换流程由
+[MUC-WIKI/sso-tgc-template](https://github.com/MUC-WIKI/sso-tgc-template) 独立拥有；本仓只维护 Ops Web
+自动化接口及其服务端合同。
 
 Service Ticket、`JSESSIONID` 和 `nginx` Cookie 只存在于当前 HTTP 会话内存。TGC 不进入 Git、
 ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或浏览器存储；extractor 只在当前
@@ -53,7 +49,7 @@ ConfigMap、Kubernetes Secret、URL、Temporal 载荷、对象存储、日志或
 ## 本地拉取
 
 ```bash
-pnpm --filter internal-portal-collection dev:init
+pnpm dev:init -- --target internal-portal-collection
 pnpm internal-portal:auth:pull
 pnpm internal-portal:auth:check
 ```
@@ -69,22 +65,9 @@ pnpm internal-portal:auth:check
 INTERNAL_PORTAL_PROXY_SERVER=http://127.0.0.1:7897
 ```
 
-## Job 入口
+## Job 认证边界
 
-```bash
-kubectl -n <namespace> create job \
-  --from=cronjob/notice-sync <job-name>
-
-kubectl -n <namespace> create job \
-  --from=cronjob/notice-backfill <job-name> \
-  --dry-run=client -o yaml |
-kubectl set env --local -f - \
-  INTERNAL_PORTAL_NOTICE_START_DATE=YYYY-MM-DD -o yaml |
-kubectl -n <namespace> create -f -
-
-kubectl -n <namespace> create job \
-  --from=cronjob/file-sync <job-name>
-```
+通知采集 Job 的创建命令和回填参数见[采集与发布](./ingestion.md#kubernetes)。
 
 这些模板读取 `OPS_WEB_INTERNAL_URL` 和 `OPS_WEB_INTERNAL_TOKEN`，解析 TGC 后以内存参数调用
 与本地 CLI 相同的采集实现。Job 不读取本地 TGC 作为 fallback，没有可用凭据时明确失败。Kubernetes

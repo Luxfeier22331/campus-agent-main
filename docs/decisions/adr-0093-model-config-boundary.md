@@ -10,7 +10,7 @@ decision_id: ADR-0093
 ## 决策
 
 在线模型配置由独立的 `apps/model-config` 拥有，不再属于 execution-control。该服务维护四个稳定
-name 的唯一已验证当前配置：`primary_agent`、`campus_docs_embedding`、
+name 的当前配置：`primary_agent`、`campus_docs_embedding`、
 `campus_docs_reranker` 和 `notice_classification`。`name` 表达产品配置槽位，`api_protocol` 决定
 验证和调用方式；Model Config 不增加模型类型字段。它保存加密的 Provider API Key、执行真实 Provider
 验证，并通过单一内部 listener 提供读取和管理接口；它不代理模型请求，也不拥有 Agent 或执行工作流。
@@ -34,6 +34,7 @@ consumer token、consumer 注册或 name 权限矩阵。任意能够访问 liste
   或 `cohere-compatible`。API protocol 使用 `openai.responses`、`openai.chat_completions`、
   `openai.embeddings` 或 `cohere.rerank`；
 - 每个 name 只有一个当前配置，不提供历史、fallback、router、activation、profile 或在线 rollback；
+- 本地 `dev:init` 可以显式写入缺失的已配置连接，不访问 Provider，也不产生 validation 记录；
 - 更新必须先验证后原子替换；目标 hash 不匹配返回冲突，consumer 不静默读取新目标；
 - Campus Docs Embedding model 和协议仍由 Campus Docs 合同固定；Embedding Set v3 记录 target hash；
 - Ragas 离线模型和 reranker profile 保持独立，不接入在线 Model Config；

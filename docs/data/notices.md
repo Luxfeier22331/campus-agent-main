@@ -65,6 +65,11 @@ internal_portal/notices/_state.json
 `internal_portal_notice_sync_state.v2` 只作为迁移输入读取；它没有可靠的排他上界，下一次 backfill 会重新
 建立完整 v3 区间，sync 在此之前拒绝运行。通知独立、随机消费，不创建 `captures/` 批次。
 
+采集 Job 的 `processedRange` 只记录本次尝试扫描的半开区间；它不是数据库维护边界，也不能在失败后代替
+`_state.json`。只有资源、库存映射和状态文件都成功写入后，`maintenanceRange` 才反映新的
+`[covered_from, covered_until)`。因此一个失败 Job 可以有处理进度和本次处理区间，但下一次 Job 仍应从未推进的
+维护边界继续。分类和发布 Job 不拥有日期维护边界，只返回各自的数量摘要。
+
 跨运行时字段和校验规则以 `packages/ingestion-contracts/schemas/` 中登记的 JSON Schema 为可执行来源。
 
 ## 来源资源
@@ -92,6 +97,9 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 参与、权威状态、后续动作或可复用服务信息的纯叙事报道归 `campus_news`；正式竞赛流程、业务办理和
 权威状态按对应分类处理。标题不足以判断唯一分类时才使用 `unclassified`。
 
+离线评估的 `label-gold`、candidate prediction 和 regression case 命名及产物合同见
+`scripts/notices/README.md`；这些本地评估产物不进入通知数据库，也不改变在线分类交接。
+
 当前每条通知都调用模型分类，不使用标题规则；模型只接收来源对象中的原始 `notice_title`。门户栏目、
 正文、外链标记和 URL 仍按来源、API 与发布合同保存，但不作为分类证据，也不是分类入口的必需字段。
 在线 Job 把结果写回同一通知行。默认批量分类只更新仍为空的分类，不覆盖分类期间发生的人工修改；
@@ -107,7 +115,7 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 外链标记与 URL、可空 `category`、`is_published` 以及发布后写入的 `content_html`、`content_text`。
 
 状态只由现有字段推导：`category IS NULL` 为待分类；已有分类且 `is_published=false` 为待发布；
-`is_published=true` 为已发布。已发布行必须具有分类，不增加独立工作流、审计历史或派生库存表。
+`is_published=true` 为已发布。已发布行必须具有分类；当前状态选择及重新评估条件见 ADR-0094。
 
 单分类 migration 5 不把旧分类值映射到新 taxonomy，也不保留兼容列。它只接受空的
 `notices.notices` 投影；已有本地旧投影必须清空后用新 taxonomy 的模型分类结果重新物化。

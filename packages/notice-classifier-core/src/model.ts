@@ -17,6 +17,7 @@ export const NOTICE_CLASSIFIER_TEMPERATURE = 0;
 
 export const NOTICE_CLASSIFIER_SYSTEM_PROMPT = [
 	"你负责仅根据中央民族大学门户通知标题，将通知归入一个且仅一个面向用户的主分类。",
+	"只返回符合所给 JSON Schema 的 JSON 对象，不要输出解释、Markdown 或其他文本。",
 	"主分类表示通知对用户的主要用途；根据标题体现的办理、参与、核验、权威状态或信息用途判断。",
 	...NOTICE_CATEGORIES.map(
 		(category) => `${category}：${NOTICE_CATEGORY_DESCRIPTIONS[category]}。`,
@@ -30,13 +31,17 @@ export function parseNoticeModelOutput(value: string): NoticeCategory {
 	try {
 		parsed = JSON.parse(value);
 	} catch (error) {
-		throw new NoticeClassificationInvalidOutputError("model returned invalid classification JSON", {
-			cause: error,
-		});
+		throw new NoticeClassificationInvalidOutputError(
+			`model returned invalid classification JSON: ${value}`,
+			{ cause: error, rawResponse: value },
+		);
 	}
 	const result = NoticeClassifierModelOutputSchema.safeParse(parsed);
 	if (!result.success) {
-		throw new NoticeClassificationInvalidOutputError("model returned an invalid classification");
+		throw new NoticeClassificationInvalidOutputError(
+			`model returned an invalid classification: ${value}`,
+			{ rawResponse: value },
+		);
 	}
 	return result.data.category;
 }

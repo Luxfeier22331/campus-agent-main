@@ -17,14 +17,15 @@ import { parseEnv } from "node:util";
 
 import { localApplicationBootstrapCommands } from "./application-bootstrap";
 import {
-	ensureLocalLegacyProviderConfigEncryptionKey,
 	ensureLocalModelConfigEncryptionKey,
 	importMainCheckoutExternalCredentials,
+	localModelConfigCommandEnvironment,
+	localModelConfigEnvironment,
 	MANAGED_LOCAL_ENV_MARKER,
 	managedLocalEnvironmentPaths,
+	managedLocalEnvironmentPathsForProjections,
 	removeLocalEnvironmentFiles,
 	renderLocalEnvironmentFiles,
-	resolveLocalLegacyProviderConfigEncryptionKeyPath,
 	resolveLocalModelConfigEncryptionKeyPath,
 	resolveMainCheckoutRoot,
 } from "./environment";
@@ -32,18 +33,25 @@ import {
 	assertDestroyConfirmation,
 	classifyIsolatedResourceState,
 	classifyLocalDevInstanceStatus,
+	diagnoseLocalDevInstances,
 	resolveIsolatedResourceAction,
+	resolveLocalInstanceResourceCleanup,
 } from "./instance-resources";
 import * as lifecycle from "./lifecycle";
+import { captureCommandResult } from "./process";
 import {
 	allocateLocalDevSlot,
 	calculateLocalDevPorts,
 	calculateLocalDevRuntimePorts,
 	ensureLocalDevProfile,
 	isMainWorktree,
-	type LocalDevProfileV1,
+	type LocalDevProfileV2,
 	listLocalDevProfiles,
 	normalizeResourceLabel,
+	releaseLocalDevProfile,
+	resolveLegacyLocalDevProfilePath,
+	resolveLocalDevProfilePath,
+	resolveLocalDevRegistryPath,
 } from "./profile";
 import {
 	classifySharedInfrastructureStatus,
@@ -53,6 +61,7 @@ import {
 	resolveSharedInfrastructureAction,
 	sharedComposeUpCommand,
 } from "./shared-infrastructure";
+import { resolveLocalDevTargetPlan } from "./targets";
 
 const temporaryDirectories: string[] = [];
 
@@ -92,7 +101,7 @@ describe("local development profiles", () => {
 		assert.equal(allocateLocalDevSlot([], 0), 0);
 	});
 
-	it("registers main and linked worktrees with isolated resource identities", () => {
+	it("registers main and linked worktrees with isolated resource identities", async () => {
 		const repository = mkdtempSync(resolve(tmpdir(), "campus-agent-profile-test-"));
 		temporaryDirectories.push(repository);
 		writeFileSync(resolve(repository, "README.md"), "test\n");
@@ -117,21 +126,119 @@ describe("local development profiles", () => {
 		const previousStateHome = process.env.XDG_STATE_HOME;
 		process.env.XDG_STATE_HOME = stateDirectory;
 		try {
-			const main = ensureLocalDevProfile(repository);
-			const worktree = ensureLocalDevProfile(linked);
+			const main = await ensureLocalDevProfile(repository);
+			const worktree = await ensureLocalDevProfile(linked);
 			assert.equal(isMainWorktree(repository), true);
 			assert.equal(isMainWorktree(linked), false);
 			assert.equal(resolveMainCheckoutRoot(linked), realpathSync(repository));
 			assert.equal(main.slot, 0);
-			assert.equal(worktree.slot, 1);
+			assert.ok(worktree.slot >= 1);
 			assert.notEqual(main.databaseName, worktree.databaseName);
 			assert.notEqual(main.bucketName, worktree.bucketName);
 			assert.notDeepEqual(main.ports, worktree.ports);
 			assert.equal(listLocalDevProfiles(repository).length, 2);
-			rmSync(resolve(stateDirectory, "campus-agent", main.repoKey, "instances.v1.json"));
-			assert.equal(ensureLocalDevProfile(repository).instanceId, main.instanceId);
-			assert.equal(ensureLocalDevProfile(linked).instanceId, worktree.instanceId);
+			assert.equal((await ensureLocalDevProfile(repository)).instanceId, main.instanceId);
+			assert.equal((await ensureLocalDevProfile(linked)).instanceId, worktree.instanceId);
 			assert.equal(listLocalDevProfiles(repository).length, 2);
+		} finally {
+			if (previousStateHome === undefined) {
+				delete process.env.XDG_STATE_HOME;
+			} else {
+				process.env.XDG_STATE_HOME = previousStateHome;
+			}
+		}
+	});
+
+	it("adopts a v1 profile and registry into the canonical v2 files", async () => {
+		const repository = createGitRepository();
+		const stateDirectory = resolve(repository, "state");
+		const previousStateHome = process.env.XDG_STATE_HOME;
+		process.env.XDG_STATE_HOME = stateDirectory;
+		try {
+			const original = await ensureLocalDevProfile(repository);
+			const currentProfilePath = resolveLocalDevProfilePath(repository);
+			const currentRegistryPath = resolveLocalDevRegistryPath(repository);
+			const legacyProfilePath = resolveLegacyLocalDevProfilePath(repository);
+			const legacyRegistryPath = resolve(
+				stateDirectory,
+				"campus-agent",
+				original.repoKey,
+				"instances.v1.json",
+			);
+			const legacyProfile = {
+				...JSON.parse(readFileSync(currentProfilePath, "utf8")),
+				schemaVersion: 1,
+			};
+			const legacyRegistry = {
+				instances: [legacyProfile],
+				schemaVersion: 1,
+			};
+			rmSync(currentProfilePath);
+			rmSync(currentRegistryPath);
+			writeFileSync(legacyProfilePath, `${JSON.stringify(legacyProfile)}\n`);
+			writeFileSync(legacyRegistryPath, `${JSON.stringify(legacyRegistry)}\n`);
+
+			const adopted = await ensureLocalDevProfile(repository);
+			assert.equal(adopted.schemaVersion, 2);
+			assert.equal(adopted.resourceKey, original.resourceKey);
+			assert.equal(adopted.databaseName, original.databaseName);
+			assert.equal(existsSync(currentProfilePath), true);
+			assert.equal(existsSync(currentRegistryPath), true);
+			assert.equal(existsSync(legacyProfilePath), false);
+			assert.equal(existsSync(legacyRegistryPath), false);
+		} finally {
+			if (previousStateHome === undefined) {
+				delete process.env.XDG_STATE_HOME;
+			} else {
+				process.env.XDG_STATE_HOME = previousStateHome;
+			}
+		}
+	});
+
+	it("does not remove a replacement profile when releasing an older registration", async () => {
+		const repository = createGitRepository();
+		const stateDirectory = resolve(repository, "state");
+		const previousStateHome = process.env.XDG_STATE_HOME;
+		process.env.XDG_STATE_HOME = stateDirectory;
+		try {
+			const original = await ensureLocalDevProfile(repository);
+			const replacement = {
+				...original,
+				bucketName: `campus-agent-derived-wt-${original.slot}-cafebabe`,
+				databaseName: `campus_agent_wt_${original.slot}_cafebabe`,
+				instanceId: "replacement-cafebabe",
+				resourceKey: "cafebabe",
+			};
+			writeFileSync(resolveLocalDevProfilePath(repository), `${JSON.stringify(replacement)}\n`);
+
+			releaseLocalDevProfile(repository, original.instanceId);
+
+			assert.equal(existsSync(resolveLocalDevProfilePath(repository)), true);
+			assert.equal(
+				JSON.parse(readFileSync(resolveLocalDevProfilePath(repository), "utf8")).instanceId,
+				"replacement-cafebabe",
+			);
+		} finally {
+			if (previousStateHome === undefined) {
+				delete process.env.XDG_STATE_HOME;
+			} else {
+				process.env.XDG_STATE_HOME = previousStateHome;
+			}
+		}
+	});
+
+	it("lists registered instances without probing mutable resources by default", async () => {
+		const repository = createGitRepository();
+		const previousStateHome = process.env.XDG_STATE_HOME;
+		process.env.XDG_STATE_HOME = resolve(repository, "state");
+		try {
+			const profile = await ensureLocalDevProfile(repository);
+			const [diagnosis] = await diagnoseLocalDevInstances(repository);
+			assert.equal(diagnosis?.profile.instanceId, profile.instanceId);
+			assert.equal(diagnosis?.status, "registered");
+			assert.equal(diagnosis?.database, "unknown");
+			assert.equal(diagnosis?.bucket, "unknown");
+			assert.equal(diagnosis?.namespace, "unknown");
 		} finally {
 			if (previousStateHome === undefined) {
 				delete process.env.XDG_STATE_HOME;
@@ -171,7 +278,11 @@ describe("managed worktree environment", () => {
 			`${MANAGED_LOCAL_ENV_MARKER}\nINTERNAL_PORTAL_SSO_TGC="TGT-main"\n`,
 		);
 
-		importMainCheckoutExternalCredentials({ mainCheckoutRoot, repoRoot });
+		importMainCheckoutExternalCredentials({
+			mainCheckoutRoot,
+			projections: ["core", "internal-portal-collection"],
+			repoRoot,
+		});
 
 		const imported = parseEnv(readFileSync(resolve(repoRoot, ".env"), "utf8"));
 		assert.equal(imported.LLM_BASE_URL, "https://provider.example/v1");
@@ -190,16 +301,65 @@ describe("managed worktree environment", () => {
 		assert.equal(portalEnvironment.INTERNAL_PORTAL_SSO_TGC, "TGT-main");
 	});
 
-	it("preserves worktree credentials and accepts the retired main collector path", () => {
+	it("uses process provider values before root env fallback and scopes command input", () => {
+		const repoRoot = createRepositoryShape();
+		writeFileSync(
+			resolve(repoRoot, ".env"),
+			[
+				"LLM_BASE_URL=https://primary.example/v1",
+				"LLM_API_KEY=primary-key",
+				"LLM_MODEL=primary-model",
+				"NOTICE_CLASSIFICATION_BASE_URL=https://notice.example/v1",
+				"NOTICE_CLASSIFICATION_API_KEY=notice-key",
+				"NOTICE_CLASSIFICATION_MODEL=deepseek-v4-flash-0731",
+				"RERANK_API_KEY=must-not-reach-classifier",
+				"",
+			].join("\n"),
+		);
+		const environment = localModelConfigEnvironment({
+			environment: {
+				NOTICE_CLASSIFICATION_API_KEY: "process-notice-key",
+				RERANK_API_KEY: "process-rerank-key",
+			},
+			names: ["notice_classification"],
+			repoRoot,
+		});
+		assert.deepEqual(environment, {
+			NOTICE_CLASSIFICATION_BASE_URL: "https://notice.example/v1",
+			NOTICE_CLASSIFICATION_API_KEY: "process-notice-key",
+			NOTICE_CLASSIFICATION_MODEL: "deepseek-v4-flash-0731",
+		});
+
+		const commandEnvironment = localModelConfigCommandEnvironment({
+			environment: {
+				NOTICE_CLASSIFICATION_API_KEY: "process-notice-key",
+				RERANK_API_KEY: "process-rerank-key",
+			},
+			names: ["notice_classification"],
+			profile: createProfile(repoRoot),
+			repoRoot,
+		});
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_API_KEY, "process-notice-key");
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_BASE_URL, "https://notice.example/v1");
+		assert.equal(commandEnvironment.NOTICE_CLASSIFICATION_MODEL, "deepseek-v4-flash-0731");
+		assert.equal(commandEnvironment.LLM_API_KEY, undefined);
+		assert.equal(commandEnvironment.LLM_BASE_URL, undefined);
+		assert.equal(commandEnvironment.RERANK_API_KEY, undefined);
+		assert.equal(
+			commandEnvironment.MODEL_CONFIG_DATABASE_URL,
+			"postgresql://model_config:campus-agent-local-model-config@127.0.0.1:5432/campus_agent_wt_1_deadbeef",
+		);
+	});
+
+	it("preserves an existing worktree portal credential", () => {
 		const mainCheckoutRoot = createRepositoryShape();
 		const repoRoot = createRepositoryShape();
-		const retiredPortalEnvironment = resolve(
+		const mainPortalEnvironment = resolve(
 			mainCheckoutRoot,
-			"apps/source-collector/adapters/internal-portal/.env.local",
+			"jobs/internal-portal-collection/adapters/internal-portal/.env.local",
 		);
-		mkdirSync(resolve(retiredPortalEnvironment, ".."), { recursive: true });
 		writeFileSync(
-			retiredPortalEnvironment,
+			mainPortalEnvironment,
 			`${MANAGED_LOCAL_ENV_MARKER}\nINTERNAL_PORTAL_SSO_TGC="TGT-main"\n`,
 		);
 		const targetPortalEnvironment = resolve(
@@ -211,13 +371,44 @@ describe("managed worktree environment", () => {
 			`${MANAGED_LOCAL_ENV_MARKER}\nINTERNAL_PORTAL_SSO_TGC="TGT-worktree"\n`,
 		);
 
-		importMainCheckoutExternalCredentials({ mainCheckoutRoot, repoRoot });
+		importMainCheckoutExternalCredentials({
+			mainCheckoutRoot,
+			projections: ["internal-portal-collection"],
+			repoRoot,
+		});
 
 		assert.equal(
 			parseEnv(readFileSync(targetPortalEnvironment, "utf8")).INTERNAL_PORTAL_SSO_TGC,
 			"TGT-worktree",
 		);
 		assert.equal(existsSync(resolve(repoRoot, ".env")), false);
+	});
+
+	it("does not import unrelated external credentials for a target projection", () => {
+		const mainCheckoutRoot = createRepositoryShape();
+		const repoRoot = createRepositoryShape();
+		writeFileSync(resolve(mainCheckoutRoot, ".env"), "LLM_API_KEY=main-key\n");
+		writeFileSync(
+			resolve(
+				mainCheckoutRoot,
+				"jobs/internal-portal-collection/adapters/internal-portal/.env.local",
+			),
+			`${MANAGED_LOCAL_ENV_MARKER}\nINTERNAL_PORTAL_SSO_TGC="TGT-main"\n`,
+		);
+
+		importMainCheckoutExternalCredentials({
+			mainCheckoutRoot,
+			projections: ["notice-publisher"],
+			repoRoot,
+		});
+
+		assert.equal(existsSync(resolve(repoRoot, ".env")), false);
+		assert.equal(
+			existsSync(
+				resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal/.env.local"),
+			),
+			false,
+		);
 	});
 
 	it("renders isolated endpoints and preserves generated secrets", () => {
@@ -365,14 +556,10 @@ describe("managed worktree environment", () => {
 		assert.equal(statSync(first).mode & 0o777, 0o600);
 	});
 
-	it("preserves a separate legacy provider key for the one-time cutover", () => {
+	it("does not create the retired provider encryption key during standard setup", () => {
 		const repoRoot = createRepositoryShape();
-		const current = ensureLocalModelConfigEncryptionKey(repoRoot);
-		const legacy = ensureLocalLegacyProviderConfigEncryptionKey(repoRoot);
-		assert.equal(legacy, resolveLocalLegacyProviderConfigEncryptionKeyPath(repoRoot));
-		assert.notEqual(legacy, current);
-		assert.equal(Buffer.from(readFileSync(legacy, "utf8").trim(), "base64").length, 32);
-		assert.equal(statSync(legacy).mode & 0o777, 0o600);
+		ensureLocalModelConfigEncryptionKey(repoRoot);
+		assert.equal(existsSync(resolve(repoRoot, "var/dev/provider-config-encryption.key")), false);
 	});
 
 	it("refuses to overwrite a developer-owned application environment file", () => {
@@ -384,16 +571,19 @@ describe("managed worktree environment", () => {
 		);
 	});
 
-	it("does not remove managed files when one target file is developer-owned", () => {
+	it("removes managed files while preserving a developer-owned file", () => {
 		const repoRoot = createRepositoryShape();
 		renderLocalEnvironmentFiles({ profile: createProfile(repoRoot), repoRoot });
 		const firstManagedPath = resolve(repoRoot, "apps/app-api/.env.local");
 		writeFileSync(resolve(repoRoot, "apps/ops-web/.env.local"), "USER_OWNED=1\n");
-		assert.throws(
-			() => removeLocalEnvironmentFiles(repoRoot),
-			/Refusing to overwrite unmanaged local environment file/u,
+		const cleanup = removeLocalEnvironmentFiles(repoRoot);
+		assert.deepEqual(cleanup.skippedUnmanaged, [resolve(repoRoot, "apps/ops-web/.env.local")]);
+		assert.ok(cleanup.removed.length > 0);
+		assert.equal(existsSync(firstManagedPath), false);
+		assert.equal(
+			readFileSync(resolve(repoRoot, "apps/ops-web/.env.local"), "utf8"),
+			"USER_OWNED=1\n",
 		);
-		assert.ok(readFileSync(firstManagedPath, "utf8").startsWith(MANAGED_LOCAL_ENV_MARKER));
 	});
 
 	it("marks every generated file as lifecycle-managed", () => {
@@ -416,6 +606,18 @@ describe("managed worktree environment", () => {
 		assert.equal(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")), false);
 	});
 
+	it("does not create core secrets for a target without a core projection", () => {
+		const repoRoot = createRepositoryShape();
+		renderLocalEnvironmentFiles({
+			profile: createProfile(repoRoot),
+			repoRoot,
+			target: "notice-publisher",
+		});
+		assert.equal(existsSync(resolve(repoRoot, "var/dev/local-secrets.json")), false);
+		assert.equal(existsSync(resolve(repoRoot, "apps/app-api/.dev.vars.local")), false);
+		assert.equal(existsSync(resolve(repoRoot, "jobs/notice-publisher/.env.local")), true);
+	});
+
 	it("renders each one-shot job environment independently", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
@@ -424,26 +626,98 @@ describe("managed worktree environment", () => {
 			repoRoot,
 			target: "internal-portal-collection",
 		});
-		assert.deepEqual(collectionPaths, [
-			resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal/.env.local"),
-		]);
+		assert.deepEqual(
+			collectionPaths,
+			managedLocalEnvironmentPathsForProjections(
+				repoRoot,
+				resolveLocalDevTargetPlan("internal-portal-collection").environmentProjections,
+			),
+		);
 		assert.equal(existsSync(resolve(repoRoot, "jobs/notice-classifier/.env.local")), false);
+		assert.equal(existsSync(resolve(repoRoot, "jobs/notice-publisher/.env.local")), false);
+		assert.equal(existsSync(resolve(repoRoot, "apps/app-api/.env.local")), false);
 
 		const classifierPaths = renderLocalEnvironmentFiles({
 			profile,
 			repoRoot,
 			target: "notice-classifier",
 		});
-		assert.deepEqual(classifierPaths, [resolve(repoRoot, "jobs/notice-classifier/.env.local")]);
+		assert.deepEqual(
+			classifierPaths,
+			managedLocalEnvironmentPathsForProjections(
+				repoRoot,
+				resolveLocalDevTargetPlan("notice-classifier").environmentProjections,
+			),
+		);
+		assert.equal(existsSync(resolve(repoRoot, "apps/model-config/.env.local")), true);
+		assert.equal(existsSync(resolve(repoRoot, "apps/app-api/.env.local")), false);
 	});
 });
 
 describe("local development lifecycle guards", () => {
+	it("preserves timeout evidence for command probes", () => {
+		const result = captureCommandResult(process.execPath, ["-e", "setTimeout(() => {}, 1000)"], {
+			timeout: 20,
+		});
+		assert.equal(result.timedOut, true);
+		assert.notEqual(result.error, undefined);
+	});
+	it("computes target projections and bootstrap owners", () => {
+		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").environmentProjections, [
+			"core",
+			"ops-web",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").environmentProjections, [
+			"model-config",
+			"notice-classifier",
+		]);
+		assert.deepEqual(
+			resolveLocalDevTargetPlan("internal-portal-collection").environmentProjections,
+			["ops-web", "internal-portal-collection"],
+		);
+		assert.deepEqual(resolveLocalDevTargetPlan("internal-portal-collection").bootstrapSteps, [
+			"campus-agent-schema",
+			"notice-publisher-seed-local",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("core").modelConfigNames, [
+			"primary_agent",
+			"campus_docs_embedding",
+			"campus_docs_reranker",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("core").bootstrapSteps, [
+			"campus-agent-schema",
+			"model-config-seed",
+			"campus-web-docs",
+			"app-api-seed-local-campus-groups",
+			"app-api-seed-local-test-user",
+			"model-config-check",
+			"temporal-namespace",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").modelConfigNames, [
+			"notice_classification",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").bootstrapSteps, [
+			"campus-agent-schema",
+			"model-config-seed",
+			"notice-publisher-seed-local",
+			"model-config-check",
+		]);
+		for (const target of ["ops-web", "notice-publisher", "internal-portal-collection"] as const) {
+			const plan = resolveLocalDevTargetPlan(target);
+			assert.deepEqual(plan.modelConfigNames, []);
+			assert.equal(plan.bootstrapSteps.includes("model-config-seed"), false);
+			assert.equal(plan.bootstrapSteps.includes("model-config-check"), false);
+		}
+		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").runtimeDependencies, [
+			"model-config",
+		]);
+	});
 	it("keeps the lifecycle facade limited to init, diagnosis, and destruction", () => {
 		assert.deepEqual(Object.keys(lifecycle).sort(), [
 			"destroyLocalDevelopment",
 			"diagnoseLocalDevelopment",
 			"initializeLocalDevelopmentTarget",
+			"pruneLocalDevelopment",
 		]);
 	});
 
@@ -480,7 +754,7 @@ describe("local development lifecycle guards", () => {
 		);
 	});
 
-	it("repairs a missing bucket without recreating its database", () => {
+	it("repairs either side of a partial isolated instance", () => {
 		assert.equal(
 			resolveIsolatedResourceAction({ bucketExists: false, databaseExists: false }),
 			"create",
@@ -493,9 +767,9 @@ describe("local development lifecycle guards", () => {
 			resolveIsolatedResourceAction({ bucketExists: true, databaseExists: true }),
 			"ready",
 		);
-		assert.throws(
-			() => resolveIsolatedResourceAction({ bucketExists: true, databaseExists: false }),
-			/database is missing/u,
+		assert.equal(
+			resolveIsolatedResourceAction({ bucketExists: true, databaseExists: false }),
+			"repair-database",
 		);
 	});
 
@@ -595,6 +869,17 @@ describe("local development lifecycle guards", () => {
 		assert.equal(
 			isSharedDataInfrastructureReady({
 				...healthy,
+				status: "ready",
+				capabilities: {
+					derivedBucket: "present",
+					docsBucket: "present",
+					docsSource: "present",
+					objectStore: "present",
+					postgres: "present",
+					required: [],
+					sourceBucket: "present",
+					temporal: "present",
+				},
 				containers: {
 					...healthy.containers,
 					temporal: { ...healthy.containers.temporal, healthy: false },
@@ -609,6 +894,7 @@ describe("local development lifecycle guards", () => {
 			classifyLocalDevInstanceStatus({
 				bucket: "present",
 				database: "present",
+				namespace: "present",
 				worktree: "present",
 			}),
 			"ready",
@@ -617,6 +903,7 @@ describe("local development lifecycle guards", () => {
 			classifyLocalDevInstanceStatus({
 				bucket: "present",
 				database: "present",
+				namespace: "present",
 				worktree: "missing",
 			}),
 			"stale",
@@ -625,6 +912,7 @@ describe("local development lifecycle guards", () => {
 			classifyLocalDevInstanceStatus({
 				bucket: "present",
 				database: "missing",
+				namespace: "missing",
 				worktree: "present",
 			}),
 			"partial",
@@ -633,6 +921,7 @@ describe("local development lifecycle guards", () => {
 			classifyLocalDevInstanceStatus({
 				bucket: "missing",
 				database: "missing",
+				namespace: "missing",
 				worktree: "present",
 			}),
 			"unprovisioned",
@@ -641,6 +930,7 @@ describe("local development lifecycle guards", () => {
 			classifyLocalDevInstanceStatus({
 				bucket: "unknown",
 				database: "unknown",
+				namespace: "unknown",
 				worktree: "missing",
 			}),
 			"unknown",
@@ -658,6 +948,22 @@ describe("local development lifecycle guards", () => {
 		assert.throws(() => assertDestroyConfirmation("dining-a1b2", "dining-other"));
 	});
 
+	it("deletes confirmed resources while retaining unresolved cleanup state", () => {
+		assert.deepEqual(
+			resolveLocalInstanceResourceCleanup({
+				bucket: "present",
+				database: "present",
+				namespace: "unknown",
+			}),
+			{
+				deleteBucket: true,
+				deleteDatabase: true,
+				deleteNamespace: false,
+				unresolved: ["namespace"],
+			},
+		);
+	});
+
 	it("runs application bootstrap in explicit dependency order", () => {
 		const commands = localApplicationBootstrapCommands("/repo", createProfile("/repo"));
 		assert.deepEqual(
@@ -671,26 +977,98 @@ describe("local development lifecycle guards", () => {
 				"ops-web-dining-bootstrap",
 			],
 		);
-		assert.doesNotMatch(commands[1]?.args.join(" ") ?? "", /\.dev\.vars/u);
+		assert.doesNotMatch(commands[0]?.args.join(" ") ?? "", /\.dev\.vars/u);
 		assert.match(commands[2]?.args.join(" ") ?? "", /seed-local-campus-groups\.ts/u);
 		assert.match(commands[3]?.args.join(" ") ?? "", /seed-local-test-user\.ts/u);
 		assert.deepEqual(commands[4]?.args, ["--dir", "jobs/notice-publisher", "seed-local"]);
 		assert.equal(commands[4]?.options.env?.DEPLOYMENT_ENVIRONMENT, "local");
 		assert.equal(commands[4]?.options.env?.NOTICES_DATABASE_SSLMODE, "disable");
-		assert.deepEqual(
-			localApplicationBootstrapCommands("/repo", createProfile("/repo"), "ops-web").map(
-				({ step }) => step,
+		assert.equal(
+			commands.some(({ step }) => step === "model-config-seed"),
+			false,
+		);
+		assert.equal(
+			commands.some(({ step }) => step === "model-config-check"),
+			false,
+		);
+
+		const corePlan = resolveLocalDevTargetPlan("core");
+		const coreCommands = localApplicationBootstrapCommands(
+			"/repo",
+			createProfile("/repo"),
+			corePlan.bootstrapSteps.filter(
+				(step): step is Exclude<typeof step, "temporal-namespace"> => step !== "temporal-namespace",
 			),
+			corePlan.modelConfigNames,
+		);
+		assert.deepEqual(
+			coreCommands.map(({ step }) => step),
+			[
+				"campus-agent-schema",
+				"model-config-seed",
+				"campus-web-docs",
+				"app-api-seed-local-campus-groups",
+				"app-api-seed-local-test-user",
+				"model-config-check",
+			],
+		);
+		assert.deepEqual(coreCommands[1]?.args, [
+			"--silent",
+			"--dir",
+			"apps/model-config",
+			"local:seed",
+			"--name",
+			"primary_agent",
+			"--name",
+			"campus_docs_embedding",
+			"--name",
+			"campus_docs_reranker",
+		]);
+		assert.equal(
+			coreCommands[1]?.options.env?.MODEL_CONFIG_DATABASE_URL,
+			"postgresql://model_config:campus-agent-local-model-config@127.0.0.1:5432/campus_agent_wt_1_deadbeef",
+		);
+		assert.match(
+			coreCommands[1]?.options.env?.MODEL_CONFIG_ENCRYPTION_KEY_FILE ?? "",
+			/model-config-encryption\.key$/u,
+		);
+
+		const classifierPlan = resolveLocalDevTargetPlan("notice-classifier");
+		const classifierCommands = localApplicationBootstrapCommands(
+			"/repo",
+			createProfile("/repo"),
+			classifierPlan.bootstrapSteps,
+			classifierPlan.modelConfigNames,
+		);
+		assert.deepEqual(classifierCommands[1]?.args, [
+			"--silent",
+			"--dir",
+			"apps/model-config",
+			"local:seed",
+			"--name",
+			"notice_classification",
+		]);
+		assert.deepEqual(classifierCommands[3]?.args, [
+			"--silent",
+			"--dir",
+			"apps/model-config",
+			"local:check",
+			"--name",
+			"notice_classification",
+		]);
+		assert.deepEqual(
+			localApplicationBootstrapCommands(
+				"/repo",
+				createProfile("/repo"),
+				resolveLocalDevTargetPlan("ops-web").bootstrapSteps.filter(
+					(step) => step !== "temporal-namespace",
+				),
+			).map(({ step }) => step),
 			["campus-agent-schema", "notice-publisher-seed-local", "ops-web-dining-bootstrap"],
 		);
-		assert.equal(
-			commands.some(({ step }) => step === "notice-publisher-migrate"),
-			false,
-		);
-		assert.equal(
-			commands.some(({ step }) => step === "ops-web-schema"),
-			false,
-		);
+		const steps = commands.map(({ step }) => String(step));
+		assert.equal(steps.includes("notice-publisher-migrate"), false);
+		assert.equal(steps.includes("ops-web-schema"), false);
 	});
 
 	it("keeps the internal portal collection local loader inside its adapter", () => {
@@ -703,12 +1081,12 @@ describe("local development lifecycle guards", () => {
 		);
 		assert.doesNotMatch(source, /repoRoot/u);
 		assert.match(source, /path\.join\(adapterRoot, "\.env\.local"\)/u);
-		assert.match(source, /path\.join\(adapterRoot, "\.env"\)/u);
 	});
 
 	it("keeps core and Ops Web dev commands package-native", () => {
 		const appApiPackage = readPackageJson("apps/app-api/package.json");
 		const campusWebPackage = readPackageJson("apps/campus-web/package.json");
+		const schemaPackage = readPackageJson("jobs/campus-agent-schema/package.json");
 		const executionPackage = JSON.parse(
 			readFileSync(
 				resolve(import.meta.dirname, "../../apps/execution-control/package.json"),
@@ -719,6 +1097,7 @@ describe("local development lifecycle guards", () => {
 			readFileSync(resolve(import.meta.dirname, "../../apps/agent-runtime/package.json"), "utf8"),
 		) as { scripts?: { dev?: string } };
 		const opsWebPackage = readPackageJson("apps/ops-web/package.json");
+		assert.match(schemaPackage.scripts?.status ?? "", /tsx src\/cli\.ts status/u);
 		assert.match(appApiPackage.scripts?.dev ?? "", /exec wrangler dev/u);
 		assert.match(appApiPackage.scripts?.dev ?? "", /\. \.\/\.dev\.vars\.local/u);
 		assert.match(
@@ -769,7 +1148,29 @@ function createRepositoryShape(): string {
 	return repoRoot;
 }
 
-function createProfile(worktreePath: string): LocalDevProfileV1 {
+function createGitRepository(): string {
+	const repository = mkdtempSync(resolve(tmpdir(), "campus-agent-git-test-"));
+	temporaryDirectories.push(repository);
+	writeFileSync(resolve(repository, "README.md"), "test\n");
+	execFileSync("git", ["init", "-q", "-b", "main"], { cwd: repository });
+	execFileSync("git", ["add", "README.md"], { cwd: repository });
+	execFileSync(
+		"git",
+		[
+			"-c",
+			"user.name=Local Dev Test",
+			"-c",
+			"user.email=local-dev@example.invalid",
+			"commit",
+			"-qm",
+			"test",
+		],
+		{ cwd: repository },
+	);
+	return repository;
+}
+
+function createProfile(worktreePath: string): LocalDevProfileV2 {
 	return {
 		bucketName: "campus-agent-derived-wt-1-deadbeef",
 		createdAt: "2026-07-20T00:00:00.000Z",
@@ -777,7 +1178,8 @@ function createProfile(worktreePath: string): LocalDevProfileV1 {
 		instanceId: "dining-production-deadbeef",
 		ports: calculateLocalDevPorts(1),
 		repoKey: "repo-key",
-		schemaVersion: 1,
+		resourceKey: "deadbeef",
+		schemaVersion: 2,
 		slot: 1,
 		worktreePath,
 	};

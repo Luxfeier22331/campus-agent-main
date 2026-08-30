@@ -11,17 +11,11 @@ status: active
 internal-portal-collection 分页扫描门户文件发布库存，按 ID 保存原始文件和来源 metadata。当前不生成
 ingestion task 或 workflow，不执行 PDF 解析、OCR、正文抽取、清洗、分类、索引或在线发布。
 
-## 入口
+## 入口语义
 
-```bash
-pnpm internal-portal:collect -- --mode file-sync
-kubectl -n <namespace> create job \
-  --from=cronjob/file-sync <job-name>
-```
-
-本地入口使用受管理环境中的直接 TGC。Job 入口先调用 Ops Web 解析可用 TGC，再执行相同
-实现。Kubernetes base 中的 `file-sync` 是默认暂停的完整模板；维护者显式创建一次性
-Job，不启用 schedule。
+本地采集使用受管理环境中的直接 TGC，Kubernetes Job 先通过 Ops Web 解析可用 TGC。两个入口执行
+同一 `file-sync` 实现，分页、复用、对象写入和失败语义一致。具体操作见
+[采集与发布手册](../runbooks/ingestion.md)。
 
 ## 分页与失败
 
@@ -35,16 +29,12 @@ Job，不启用 schedule。
 
 摘要字段为 `scanned`、`written`、`reused`、`failed` 和 `failures`。
 
-## 对象
+## 对象语义
 
-```text
-internal_portal/<site-id>/file-releases/<file-release-id>/file
-internal_portal/<site-id>/file-releases/<file-release-id>/source.json
-```
-
-`file` 是原始下载字节。`source.json` 使用 `internal_portal_file_release_source.v1`，保存门户 metadata、
-原始文件名、media type、字节数、SHA-256 摘要和对象 key。首次成功采集确定固定对象；同 key 内容冲突
-明确失败。
+每个文件发布 ID 对应原始下载字节和一份 `source.json`。`source.json` 使用
+`internal_portal_file_release_source.v1`，保存门户 metadata、原始文件名、media type、字节数、SHA-256
+摘要和对象 key。首次成功采集确定固定对象；同 key 内容冲突明确失败。具体对象布局由
+[内部门户数据](../data/internal-portal.md)维护。
 
 ## 所有者
 

@@ -23,7 +23,8 @@
 ## 本地命令
 
 ```bash
-pnpm dev:init
+pnpm dev:shared-reconcile
+pnpm dev:init -- --target core
 pnpm --dir apps/campus-web dev
 pnpm --dir apps/campus-web test
 pnpm --dir apps/campus-web test:e2e:smoke
@@ -31,7 +32,7 @@ pnpm --dir apps/campus-web build
 pnpm --dir apps/campus-web typecheck
 ```
 
-`style-dev.html` 是独立的本地组件展示入口。运行 `pnpm dev:init` 后访问 `/style-dev.html#overview`，
+`style-dev.html` 是独立的本地组件展示入口。运行 `pnpm dev:init -- --target core` 后访问 `/style-dev.html#overview`，
 目录按组件族列出真实组件和真实组合组件；详情页一次只挂载当前示例。示例可以通过
 `/style-dev.html#style-dev-conversation-run-status/completed` 这样的 hash 直接打开，搜索只作用于本地目录。
 

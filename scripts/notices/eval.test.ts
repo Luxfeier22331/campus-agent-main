@@ -1,30 +1,40 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+
 import type { NoticeClassificationTask } from "../../packages/notice-classifier-core/src/batch";
-import { NOTICE_CATEGORIES, type NoticeCategory } from "./classifier";
 import {
-	BUSINESS_ACCEPTANCE_PROFILE,
-	BUSINESS_ACCEPTANCE_THRESHOLDS,
-	buildEvalCheckResult,
-	buildEvalReport,
+	NOTICE_CATEGORIES,
+	type NoticeCategory,
+	NoticeClassificationInvalidOutputError,
+	NoticeClassificationProviderError,
+} from "./classifier";
+import {
+	BALANCED_DIAGNOSTIC_PROFILE,
+	buildCandidateEvaluationCheckResult,
+	buildCandidateEvaluationReport,
 	buildEvalSample,
-	buildRandomAcceptanceSample,
-	buildReferenceLabels,
-	buildReferencePredictionCheckpoint,
-	type EvalLabel,
+	buildLabelGold,
+	buildRandomDiagnosticSample,
+	buildRegressionEvaluationCheckResult,
 	type EvalPrediction,
 	type EvalSample,
-	PRODUCTION_PROMPT_SHA256,
+	type LabelGoldEntry,
+	main,
 	parseCategoryCountOverrides,
+	parseEvalCliOptions,
 	parseExactClassification,
-	resolveEvalModelList,
+	RANDOM_DIAGNOSTIC_PROFILE,
+	type RegressionCase,
+	resolveCandidateStabilityIds,
+	resolveExplicitModels,
+	runEvaluationAttempt,
 	type StratificationPrediction,
-	selectRandomAcceptanceIds,
-	validateEvalLabels,
-	validateEvalModels,
-	validateEvalRunIntegrity,
-	validateReferencePredictionCheckpoint,
+	selectRandomDiagnosticIds,
+	validateCandidatePredictions,
+	validateLabelGold,
 	validateStabilityIds,
 } from "./eval";
 
@@ -39,7 +49,7 @@ test("accepts only an exact single-category JSON object", () => {
 	assert.equal(parseExactClassification('{"category":"unknown"}'), null);
 });
 
-test("builds deterministic disjoint random and category-balanced samples", () => {
+test("builds an explicit deterministic model-stratified diagnostic sample", () => {
 	const inputs = Array.from({ length: 520 }, (_, index) => input(index + 1, index));
 	const predictions = inputs.flatMap((value, index) => {
 		const category = CONCRETE_CATEGORIES[index % CONCRETE_CATEGORIES.length] ?? "campus_news";
@@ -50,381 +60,333 @@ test("builds deterministic disjoint random and category-balanced samples", () =>
 	});
 	const options = {
 		categoryCount: 12,
-		evidencePoorCount: 12,
 		randomCount: 120,
 		seed: "seed",
 		stratificationModels: ["model-a", "model-b"],
 	};
 	const first = buildEvalSample(inputs, predictions, options);
 	const second = buildEvalSample(inputs, predictions, options);
+	const balancedCount = 12 * CONCRETE_CATEGORIES.length;
+
 	assert.deepEqual(first, second);
-	assert.equal(first.length, 300);
-	assert.equal(new Set(first.map((sample) => sample.notice_id)).size, 300);
-	assert.equal(first.filter((sample) => sample.split === "random").length, 120);
-	assert.equal(first.filter((sample) => sample.split === "balanced").length, 180);
-	assert.equal(first.filter((sample) => sample.review_group === "evidence_poor").length, 12);
-	assert(first.slice(0, 120).some((sample) => sample.split === "balanced"));
-	assert(first.slice(120).some((sample) => sample.split === "random"));
+	assert.equal(first.length, 120 + balancedCount);
+	assert.equal(new Set(first.map((value) => value.notice_id)).size, first.length);
+	assert.equal(first.filter((value) => value.split === "random").length, 120);
+	assert.equal(first.filter((value) => value.split === "balanced").length, balancedCount);
 });
 
-test("supports explicit rare-category quotas while preserving a 300-item sample", () => {
-	const inputs = Array.from({ length: 520 }, (_, index) => input(index + 1, index));
-	const categoriesById = new Map<number, NoticeCategory>();
-	const predictions = inputs.flatMap((value, index) => {
-		const category = CONCRETE_CATEGORIES[index % CONCRETE_CATEGORIES.length] ?? "campus_news";
-		categoriesById.set(value.noticeId, category);
-		return [
-			stratification(value.noticeId, "model-a", category),
-			stratification(value.noticeId, "model-b", category),
-		];
-	});
-	const samples = buildEvalSample(inputs, predictions, {
-		categoryCount: 12,
-		categoryCountOverrides: { admissions: 11 },
-		evidencePoorCount: 12,
-		randomCount: 121,
-		seed: "seed",
-		stratificationModels: ["model-a", "model-b"],
-	});
-
-	assert.equal(samples.length, 300);
-	assert.equal(samples.filter((sample) => sample.split === "random").length, 121);
-	assert.equal(
-		samples.filter(
-			(sample) =>
-				sample.split === "balanced" &&
-				sample.review_group !== "evidence_poor" &&
-				categoriesById.get(sample.notice_id) === "admissions",
-		).length,
-		11,
-	);
-});
-
-test("builds a deterministic unseen random acceptance sample", () => {
-	const sourceIds = Array.from({ length: 100 }, (_, index) => index + 1);
-	const excludedIds = new Set([1, 2, 3, 4, 5]);
-	const first = selectRandomAcceptanceIds(sourceIds, excludedIds, 60, "acceptance-seed");
-	const second = selectRandomAcceptanceIds(sourceIds, excludedIds, 60, "acceptance-seed");
-	assert.deepEqual(first, second);
-	assert.equal(first.length, 60);
-	assert.equal(new Set(first).size, 60);
-	assert(first.every((noticeId) => !excludedIds.has(noticeId)));
-	assert.throws(
-		() => selectRandomAcceptanceIds([1, 2], new Set([1]), 2, "acceptance-seed"),
-		/expected 2 unseen notices, found 1/u,
-	);
-
-	const samples = buildRandomAcceptanceSample(
-		first.map((noticeId, index) => input(noticeId, index)),
-		"acceptance-seed",
-	);
-	assert.equal(samples.length, 60);
-	assert(samples.every((sample) => sample.split === "random"));
-	assert(samples.every((sample) => sample.review_group === "random"));
-});
-
-test("takes eval models from CLI or runtime configuration without a source allowlist", () => {
-	assert.deepEqual(resolveEvalModelList(["candidate-a", "candidate-b"], "fallback"), [
-		"candidate-a",
-		"candidate-b",
-	]);
-	assert.deepEqual(resolveEvalModelList(undefined, "runtime-model"), ["runtime-model"]);
-	validateEvalModels(["candidate-a"], "reference-model");
-	assert.throws(() => resolveEvalModelList(undefined, undefined), /cannot be empty/u);
-	assert.throws(() => resolveEvalModelList(["candidate", "candidate"], undefined), /duplicates/u);
-	assert.throws(
-		() => validateEvalModels(["reference-model"], "reference-model"),
-		/reference label model/u,
-	);
-});
-
-test("parses only concrete positive category count overrides", () => {
-	assert.deepEqual(parseCategoryCountOverrides(["admissions=11"]), { admissions: 11 });
-	assert.throws(() => parseCategoryCountOverrides(["unclassified=8"]), /invalid category/u);
-	assert.throws(() => parseCategoryCountOverrides(["admissions=0"]), /positive-integer/u);
-	assert.throws(() => parseCategoryCountOverrides(["admissions=11", "admissions=8"]), /duplicate/u);
-});
-
-test("requires exactly one prediction from each stratification model", () => {
+test("requires complete explicit stratification inputs and category quotas", () => {
 	const value = input(1, 0);
 	assert.throws(
 		() =>
-			buildEvalSample(
-				[value],
-				[stratification(1, "model-a", "admissions"), stratification(1, "model-a", "admissions")],
-				{
-					categoryCount: 1,
-					evidencePoorCount: 1,
-					randomCount: 1,
-					seed: "seed",
-					stratificationModels: ["model-a", "model-b"],
-				},
-			),
-		/incomplete stratification predictions/u,
+			buildEvalSample([value], [stratification(1, "model-a", "admissions")], {
+				categoryCount: 1,
+				randomCount: 1,
+				seed: "seed",
+				stratificationModels: ["model-a", "model-b"],
+			}),
+		/missing prediction/u,
 	);
+	assert.deepEqual(parseCategoryCountOverrides(["admissions=11"]), { admissions: 11 });
+	assert.throws(() => parseCategoryCountOverrides(["unclassified=8"]), /invalid category/u);
+	assert.throws(() => parseCategoryCountOverrides(["admissions=0"]), /positive-integer/u);
 });
 
-test("requires complete valid reference labels", () => {
-	const samples = [sample(1), sample(2)];
-	const labels: EvalLabel[] = [referenceLabel(1, "admissions"), referenceLabel(2, "unclassified")];
-	validateEvalLabels(samples, labels);
-	assert.throws(() => validateEvalLabels(samples, labels.slice(0, 1)), /complete/u);
+test("builds a deterministic random diagnostic sample using only explicit exclusions", () => {
+	const sourceIds = Array.from({ length: 100 }, (_, index) => index + 1);
+	const excludedIds = new Set([1, 2, 3, 4, 5]);
+	const first = selectRandomDiagnosticIds(sourceIds, excludedIds, 60, "diagnostic-seed");
+	const second = selectRandomDiagnosticIds(sourceIds, excludedIds, 60, "diagnostic-seed");
+	assert.deepEqual(first, second);
+	assert.equal(first.length, 60);
+	assert(first.every((noticeId) => !excludedIds.has(noticeId)));
 	assert.throws(
-		() =>
-			validateEvalLabels(samples, [
-				labels[0],
-				{ category: "invalid" as NoticeCategory, notice_id: 2 },
-			]),
-		/invalid category/u,
+		() => selectRandomDiagnosticIds([1, 2], new Set([1]), 2, "diagnostic-seed"),
+		/expected 2 unseen notices, found 1/u,
 	);
+
+	const samples = buildRandomDiagnosticSample(
+		first.map((noticeId, index) => input(noticeId, index)),
+		"diagnostic-seed",
+	);
+	assert(samples.every((value) => value.split === "random"));
+	assert(samples.every((value) => value.review_group === "random"));
 });
 
-test("builds complete reference labels from one independent model", () => {
-	const samples = [sample(1), sample(2)];
-	const predictions = [prediction(1, "admissions"), prediction(2, "campus_operations")];
-	assert.deepEqual(buildReferenceLabels(samples, predictions, "model-a"), [
-		referenceLabel(1, "admissions"),
-		referenceLabel(2, "campus_operations"),
+test("uses explicit model names, check kinds, and mutable label-gold terminology", async () => {
+	assert.deepEqual(resolveExplicitModels(["candidate-a", "candidate-b"], "candidate"), [
+		"candidate-a",
+		"candidate-b",
 	]);
+	assert.throws(() => resolveExplicitModels(undefined, "candidate"), /cannot be empty/u);
 	assert.throws(
-		() => buildReferenceLabels(samples, predictions.slice(0, 1), "model-a"),
-		/reference model did not label notice/u,
+		() => resolveExplicitModels(["candidate", "candidate"], "candidate"),
+		/duplicates/u,
 	);
-});
-
-test("resumes only reference predictions bound to the same sample and prompt", () => {
-	const value = sample(1);
-	const predictions = [prediction(1, "admissions")];
-	const checkpoint = buildReferencePredictionCheckpoint(value, predictions, "model-a");
-	assert.deepEqual(
-		validateReferencePredictionCheckpoint(value, checkpoint, "model-a"),
-		predictions,
-	);
-	assert.throws(
-		() =>
-			validateReferencePredictionCheckpoint(
-				{ ...value, notice_title: "changed" },
-				checkpoint,
-				"model-a",
-			),
-		/sample changed/u,
-	);
-	assert.throws(
-		() => validateReferencePredictionCheckpoint(value, checkpoint, "model-b"),
-		/model changed/u,
-	);
-	assert.throws(
-		() =>
-			validateReferencePredictionCheckpoint(value, { ...checkpoint, temperature: 1 }, "model-a"),
-		/request changed/u,
-	);
-	assert.throws(
-		() => buildReferencePredictionCheckpoint(value, [prediction(1, null)], "model-a"),
-		/not successful/u,
-	);
-});
-
-test("validates a fixed stability sample before reusing it", () => {
-	const samples = [sample(1), sample(2), sample(3)];
-	assert.deepEqual(validateStabilityIds(samples, [3, 1], 2), [3, 1]);
-	assert.throws(() => validateStabilityIds(samples, [1], 2), /exactly 2/u);
-	assert.throws(() => validateStabilityIds(samples, [1, 1], 2), /duplicate/u);
-	assert.throws(() => validateStabilityIds(samples, [1, 4], 2), /unknown notice/u);
-});
-
-test("binds checks to the sealed labels and model set", () => {
-	const labelsInput = '{"category":"admissions","notice_id":1}\n';
-	const labelManifestInput = '{"model":"reference-model"}\n';
-	const sampleInput = `${JSON.stringify(sample(1))}\n`;
-	const predictions = [prediction(1, "admissions")];
-	const predictionsInput = `${JSON.stringify(predictions[0])}\n`;
-	const manifest = {
-		api: "responses" as const,
-		label_manifest_sha256: createHash("sha256").update(labelManifestInput).digest("hex"),
-		labels_sha256: createHash("sha256").update(labelsInput).digest("hex"),
-		models: ["model-a"],
-		predictions_sha256: createHash("sha256").update(predictionsInput).digest("hex"),
-		prompt_sha256: PRODUCTION_PROMPT_SHA256,
-		reference_model: "reference-model",
-		sample_sha256: createHash("sha256").update(sampleInput).digest("hex"),
-		temperature: 0,
-	};
-	validateEvalRunIntegrity(
-		labelsInput,
-		labelManifestInput,
-		sampleInput,
-		"reference-model",
-		predictionsInput,
-		predictions,
-		manifest,
-	);
-	assert.throws(
-		() =>
-			validateEvalRunIntegrity(
-				`${labelsInput}\n`,
-				labelManifestInput,
-				sampleInput,
-				"reference-model",
-				predictionsInput,
-				predictions,
-				manifest,
-			),
-		/labels changed/u,
-	);
-	assert.throws(
-		() =>
-			validateEvalRunIntegrity(
-				labelsInput,
-				labelManifestInput,
-				sampleInput,
-				"reference-model",
-				predictionsInput,
-				predictions,
-				{
-					...manifest,
-					models: ["model-b"],
-				},
-			),
-		/model set/u,
-	);
-	assert.throws(
-		() =>
-			validateEvalRunIntegrity(
-				labelsInput,
-				labelManifestInput,
-				sampleInput,
-				"reference-model",
-				predictionsInput,
-				predictions,
-				{
-					...manifest,
-					temperature: 1,
-				},
-			),
-		/request does not match/u,
-	);
-});
-
-test("selects a model only after the single-category hard gate passes", () => {
-	const samples: EvalSample[] = [];
-	const labels: EvalLabel[] = [];
-	let noticeId = 1;
-	for (let index = 0; index < 120; index += 1) {
-		const category = CONCRETE_CATEGORIES[index % CONCRETE_CATEGORIES.length] ?? "campus_news";
-		samples.push(sample(noticeId, "random", "random"));
-		labels.push(referenceLabel(noticeId, category));
-		noticeId += 1;
-	}
-	for (const category of CONCRETE_CATEGORIES) {
-		for (let index = 0; index < 12; index += 1) {
-			samples.push(sample(noticeId, "balanced", "category_consensus"));
-			labels.push(referenceLabel(noticeId, category));
-			noticeId += 1;
-		}
-	}
-	for (let index = 0; index < 12; index += 1) {
-		samples.push(sample(noticeId, "balanced", "evidence_poor"));
-		labels.push(referenceLabel(noticeId, "unclassified"));
-		noticeId += 1;
-	}
-	const predictions = labels.map((label) => prediction(label.notice_id, label.category ?? null));
-	const report = buildEvalReport(samples, labels, predictions, "reference-model");
-	assert.equal(report.gates["model-a"]?.passes, true);
-	assert.equal(report.reference_model, "reference-model");
-	assert.equal(report.selected_model, "model-a");
-	assert.deepEqual(buildEvalCheckResult(report), {
-		models: {
-			"model-a": {
-				aggregate_agreement: 1,
-				balanced_macro_f1: 1,
-				eventual_valid_rate: 1,
-				evidence_poor_agreement: 1,
-				first_attempt_valid_rate: 1,
-				minimum_category_recall: 1,
-				passes: true,
-				primary_agreement: 1,
-				stability_rate: 0,
-			},
-		},
-		passes: true,
-		profile: "balanced_comparison_v1",
-		reference_model: "reference-model",
-		selected_model: "model-a",
-	});
-});
-
-test("accepts the practical business thresholds at their exact boundaries", () => {
-	const samples = Array.from({ length: 60 }, (_, index) => sample(index + 1));
-	const labels = samples.map((value) => referenceLabel(value.notice_id, "admissions"));
-	const predictions = businessBoundaryPredictions(samples, {
-		aggregateCorrect: 153,
-		primaryCorrect: 51,
-		stable: 48,
-	});
-	const report = buildEvalReport(
-		samples,
-		labels,
-		predictions,
-		"reference-model",
-		BUSINESS_ACCEPTANCE_PROFILE,
-	);
-	const gate = report.gates["model-a"];
-	assert.equal(gate?.random_agreement, BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_primary_agreement);
 	assert.equal(
-		gate?.aggregate_agreement,
-		BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_aggregate_agreement,
+		parseEvalCliOptions(["generate-label-gold", "--output-dir", "var/eval"]).command,
+		"generate-label-gold",
 	);
-	assert.equal(gate?.stability_rate, BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_stability_rate);
-	assert.equal(gate?.passes, true);
+	assert.throws(
+		() => parseEvalCliOptions(["freeze-label-gold", "--output-dir", "var/eval"]),
+		/Usage/u,
+	);
+	await assert.rejects(() => main(["check", "--output-dir", "unused"]), /--kind is required/u);
+	await assert.rejects(
+		() => main(["check", "--output-dir", "unused", "--kind", "automatic"]),
+		/--kind must be candidate or regression/u,
+	);
 });
 
-test("rejects business acceptance below primary, aggregate, or stability thresholds", () => {
-	const samples = Array.from({ length: 60 }, (_, index) => sample(index + 1));
-	const labels = samples.map((value) => referenceLabel(value.notice_id, "admissions"));
-	for (const options of [
-		{ aggregateCorrect: 170, primaryCorrect: 50, stable: 50 },
-		{ aggregateCorrect: 152, primaryCorrect: 51, stable: 48 },
-		{ aggregateCorrect: 167, primaryCorrect: 60, stable: 47 },
-	]) {
-		const report = buildEvalReport(
-			samples,
-			labels,
-			businessBoundaryPredictions(samples, options),
-			"reference-model",
-			BUSINESS_ACCEPTANCE_PROFILE,
+test("check recalculates directly from an edited label-gold without model evidence", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "notice-category-eval-"));
+	try {
+		const samples = [sample(1)];
+		await Promise.all([
+			writeFile(join(directory, "sample.jsonl"), serializeJsonLines(samples)),
+			writeFile(
+				join(directory, "label-gold.jsonl"),
+				serializeJsonLines([labelGoldEntry(1, "admissions")]),
+			),
+			writeFile(
+				join(directory, "candidate-predictions.jsonl"),
+				serializeJsonLines([okPrediction(1, "admissions")]),
+			),
+			writeFile(join(directory, "stability-ids.json"), "[]\n"),
+		]);
+
+		const first = JSON.parse(
+			await captureStdout(() => main(["check", "--kind", "candidate", "--output-dir", directory])),
+		) as { agreement: { all: Record<string, { agreement_rate: number }> } };
+		assert.equal(first.agreement.all["model-a"]?.agreement_rate, 1);
+
+		await writeFile(
+			join(directory, "label-gold.jsonl"),
+			serializeJsonLines([labelGoldEntry(1, "campus_news")]),
 		);
-		assert.equal(report.gates["model-a"]?.passes, false);
+		const second = JSON.parse(
+			await captureStdout(() => main(["check", "--kind", "candidate", "--output-dir", directory])),
+		) as { agreement: { all: Record<string, { agreement_rate: number }> } };
+		assert.equal(second.agreement.all["model-a"]?.agreement_rate, 0);
+	} finally {
+		await rm(directory, { force: true, recursive: true });
 	}
 });
 
-test("blocks category collapse only after a category has five reference samples", () => {
-	const samples = Array.from({ length: 60 }, (_, index) => sample(index + 1));
-	const predictions = allRunPredictions(samples, () => "admissions");
-	const fiveTeachingLabels = samples.map((value, index) =>
-		referenceLabel(value.notice_id, index < 5 ? "teaching_affairs" : "admissions"),
+test("builds label-gold from raw predictions without checkpoints or sealed hashes", () => {
+	const samples = [sample(1), sample(2)];
+	const labelGold: LabelGoldEntry[] = [
+		labelGoldEntry(1, "admissions"),
+		labelGoldEntry(2, "unclassified"),
+	];
+	validateLabelGold(samples, labelGold);
+	assert.throws(() => validateLabelGold(samples, labelGold.slice(0, 1)), /complete/u);
+	assert.deepEqual(
+		buildLabelGold(
+			samples,
+			[okPrediction(1, "admissions"), okPrediction(2, "campus_operations")],
+			"model-a",
+		),
+		[labelGoldEntry(1, "admissions"), labelGoldEntry(2, "campus_operations")],
 	);
-	const blocked = buildEvalReport(
-		samples,
-		fiveTeachingLabels,
-		predictions,
-		"reference-model",
-		BUSINESS_ACCEPTANCE_PROFILE,
+	assert.throws(
+		() =>
+			buildLabelGold(samples, [okPrediction(1, "admissions"), providerPrediction(2)], "model-a"),
+		/provider_error/u,
 	);
-	assert.equal(blocked.gates["model-a"]?.minimum_category_recall, 0);
-	assert.equal(blocked.gates["model-a"]?.passes, false);
+});
 
-	const fourTeachingLabels = samples.map((value, index) =>
-		referenceLabel(value.notice_id, index < 4 ? "teaching_affairs" : "admissions"),
+test("runs one diagnostic attempt and preserves error classes and full causes", async () => {
+	let calls = 0;
+	const success = await runEvaluationAttempt({
+		invoke: async () => ({
+			category: "admissions",
+			raw_response: '{"category":"admissions"}',
+		}),
+		model: "model-a",
+		notice_id: 1,
+		repeat: 1,
+	});
+	assert.equal(success.status, "ok");
+	assert.equal(success.raw_response, '{"category":"admissions"}');
+
+	const invalid = await runEvaluationAttempt({
+		invoke: async () => {
+			calls += 1;
+			throw new NoticeClassificationInvalidOutputError("invalid model output", {
+				rawResponse: "not-json",
+			});
+		},
+		model: "model-a",
+		notice_id: 1,
+		repeat: 1,
+	});
+	assert.equal(calls, 1);
+	assert.equal(invalid.status, "invalid_output");
+	assert.equal(invalid.raw_response, "not-json");
+
+	const provider = await runEvaluationAttempt({
+		invoke: async () => {
+			throw new NoticeClassificationProviderError("provider rejected request", {
+				cause: new Error("HTTP 400 with complete response body"),
+				retryable: false,
+			});
+		},
+		model: "model-a",
+		notice_id: 1,
+		repeat: 1,
+	});
+	assert.equal(provider.status, "provider_error");
+	assert.equal(provider.raw_response, undefined);
+	assert.match(provider.error ?? "", /HTTP 400 with complete response body/u);
+
+	await assert.rejects(
+		() =>
+			runEvaluationAttempt({
+				invoke: async () => {
+					throw new TypeError("local adapter bug");
+				},
+				model: "model-a",
+				notice_id: 1,
+				repeat: 1,
+			}),
+		/local adapter bug/u,
 	);
-	const accepted = buildEvalReport(
+});
+
+test("keeps provider errors outside model response validity", () => {
+	const samples = Array.from({ length: 180 }, (_, index) => sample(index + 1));
+	const labelGold = samples.map((value) => labelGoldEntry(value.notice_id, "admissions"));
+	const predictions = samples.flatMap((value, index) => {
+		const luna =
+			index < 175
+				? okPrediction(value.notice_id, "admissions", { model: "gpt-5.6-luna" })
+				: providerPrediction(value.notice_id, { model: "gpt-5.6-luna" });
+		const deepseek =
+			index < 154
+				? okPrediction(value.notice_id, "admissions", { model: "deepseek" })
+				: index < 169
+					? invalidPrediction(value.notice_id, `invalid-${value.notice_id}`, {
+							model: "deepseek",
+						})
+					: providerPrediction(value.notice_id, { model: "deepseek" });
+		return [luna, deepseek];
+	});
+	const report = buildCandidateEvaluationReport(
 		samples,
-		fourTeachingLabels,
+		labelGold,
 		predictions,
-		"reference-model",
-		BUSINESS_ACCEPTANCE_PROFILE,
+		RANDOM_DIAGNOSTIC_PROFILE,
 	);
-	assert.equal(accepted.gates["model-a"]?.minimum_category_recall, 1);
-	assert.equal(accepted.gates["model-a"]?.passes, true);
+	const luna = report.models["gpt-5.6-luna"]?.outcomes;
+	const deepseek = report.models.deepseek?.outcomes;
+	assert.equal(luna?.ok_count, 175);
+	assert.equal(luna?.invalid_output_count, 0);
+	assert.equal(luna?.provider_error_count, 5);
+	assert.equal(luna?.response_received_count, 175);
+	assert.equal(luna?.response_valid_rate, 1);
+	assert.equal(deepseek?.ok_count, 154);
+	assert.equal(deepseek?.invalid_output_count, 15);
+	assert.equal(deepseek?.provider_error_count, 11);
+	assert.equal(deepseek?.response_received_count, 169);
+	assert.equal(deepseek?.response_valid_rate, 154 / 169);
+	assert.equal(report.agreement.all["gpt-5.6-luna"]?.scoreable, 175);
+	assert.equal(report.agreement.all.deepseek?.scoreable, 154);
+	assert.equal("passes" in report, false);
+	assert.equal(buildCandidateEvaluationCheckResult(report).evidence_status, "partial");
+});
+
+test("invalid output remains complete diagnostic evidence rather than a quality gate", () => {
+	const report = buildCandidateEvaluationReport(
+		[sample(1)],
+		[labelGoldEntry(1, "admissions")],
+		[invalidPrediction(1, "not-json")],
+		BALANCED_DIAGNOSTIC_PROFILE,
+	);
+	assert.equal(report.models["model-a"]?.outcomes.invalid_output_count, 1);
+	assert.equal(report.models["model-a"]?.outcomes.provider_error_count, 0);
+	assert.equal(report.models["model-a"]?.outcomes.response_valid_rate, 0);
+	assert.equal(buildCandidateEvaluationCheckResult(report).evidence_status, "complete");
+});
+
+test("requires raw response evidence for successful predictions", () => {
+	assert.throws(
+		() =>
+			validateCandidatePredictions(
+				[sample(1)],
+				[{ ...okPrediction(1, "admissions"), raw_response: undefined }],
+				["model-a"],
+				[],
+			),
+		/no raw response/u,
+	);
+});
+
+test("runs repeats only for explicitly selected stability ids", () => {
+	const samples = [sample(1), sample(2), sample(3)];
+	assert.deepEqual(resolveCandidateStabilityIds(samples, undefined), []);
+	assert.deepEqual(resolveCandidateStabilityIds(samples, [3, 1]), [3, 1]);
+	assert.deepEqual(validateStabilityIds(samples, [3, 1]), [3, 1]);
+	assert.throws(() => resolveCandidateStabilityIds(samples, [1, 1]), /duplicate/u);
+	assert.throws(() => resolveCandidateStabilityIds(samples, [1, 4]), /unknown notice/u);
+
+	const predictions = [
+		okPrediction(1, "admissions"),
+		okPrediction(2, "campus_news"),
+		okPrediction(2, "campus_news", { repeat: 2 }),
+		okPrediction(2, "campus_news", { repeat: 3 }),
+		okPrediction(3, "student_affairs"),
+	];
+	validateCandidatePredictions(samples, predictions, ["model-a"], [2]);
+	assert.throws(
+		() => validateCandidatePredictions(samples, predictions.slice(0, -2), ["model-a"], [2]),
+		/missing prediction/u,
+	);
+});
+
+test("regression defaults to one call and enables repeat analysis explicitly", () => {
+	const cases = [regressionCase(1, "admissions"), regressionCase(2, "campus_news")];
+	const primary = [okPrediction(1, "admissions"), okPrediction(2, "campus_news")];
+	const baseline = buildRegressionEvaluationCheckResult(cases, primary, ["model-a"]);
+	assert.equal(baseline.regression_case_count, 2);
+	assert.equal(baseline.stability_case_count, 0);
+	assert.deepEqual(baseline.models["model-a"]?.primary_agreement, {
+		agreed: 2,
+		rate: 1,
+		scoreable: 2,
+	});
+	assert.equal(baseline.cases[0]?.models["model-a"]?.repeat_results.length, 1);
+	assert.equal(baseline.cases[0]?.models["model-a"]?.stable_complete, null);
+
+	const repeated = [
+		...primary,
+		okPrediction(2, "student_affairs", { repeat: 2 }),
+		okPrediction(2, "campus_news", { repeat: 3 }),
+	];
+	const stability = buildRegressionEvaluationCheckResult(cases, repeated, ["model-a"], [2]);
+	assert.equal(stability.stability_case_count, 1);
+	assert.equal(stability.models["model-a"]?.repeat.selected_repeat_consistency, 0);
+	assert.equal(stability.cases[1]?.models["model-a"]?.stable_complete, false);
+	assert.throws(
+		() => buildRegressionEvaluationCheckResult(cases, repeated.slice(0, -1), ["model-a"], [2]),
+		/missing prediction/u,
+	);
+});
+
+test("regression cases contain product labels but no historical model evidence", () => {
+	const contaminatedCase = {
+		...regressionCase(1, "admissions"),
+		label_gold_category: "admissions",
+	} as unknown as RegressionCase;
+	assert.throws(
+		() =>
+			buildRegressionEvaluationCheckResult(
+				[contaminatedCase],
+				[okPrediction(1, "admissions")],
+				["model-a"],
+			),
+		/unsupported fields/u,
+	);
 });
 
 function input(noticeId: number, index: number): NoticeClassificationTask {
@@ -439,19 +401,12 @@ function stratification(
 	model: string,
 	category: NoticeCategory,
 ): StratificationPrediction {
-	return {
-		attempts: 1,
-		category,
-		elapsed_ms: 100,
-		model,
-		notice_id: noticeId,
-		status: "ok",
-	};
+	return okPrediction(noticeId, category, { model });
 }
 
 function sample(
 	noticeId: number,
-	split: "balanced" | "random" = "random",
+	split: EvalSample["split"] = "random",
 	reviewGroup: EvalSample["review_group"] = "random",
 ): EvalSample {
 	return {
@@ -462,74 +417,88 @@ function sample(
 	};
 }
 
-function referenceLabel(noticeId: number, category: NoticeCategory): EvalLabel {
+function labelGoldEntry(noticeId: number, category: NoticeCategory): LabelGoldEntry {
 	return { category, notice_id: noticeId };
 }
 
-function prediction(noticeId: number, category: NoticeCategory | null): EvalPrediction {
+function regressionCase(noticeId: number, category: NoticeCategory): RegressionCase {
+	return {
+		boundary_group: "test boundary",
+		notice_id: noticeId,
+		notice_title: `通知 ${noticeId}`,
+		product_expected_category: category,
+		rationale: "test rationale",
+	};
+}
+
+interface PredictionOptions {
+	model?: string;
+	repeat?: 1 | 2 | 3;
+}
+
+function okPrediction(
+	noticeId: number,
+	category: NoticeCategory,
+	options: PredictionOptions = {},
+): EvalPrediction {
 	return {
 		attempt: 1,
 		category,
 		elapsed_ms: 100,
-		model: "model-a",
+		model: options.model ?? "model-a",
 		notice_id: noticeId,
-		run: 1,
-		status: category ? "ok" : "invalid_output",
+		raw_response: `{"category":"${category}"}`,
+		repeat: options.repeat ?? 1,
+		status: "ok",
 	};
 }
 
-function allRunPredictions(
-	samples: readonly EvalSample[],
-	categoryFor: (sample: EvalSample, run: 1 | 2 | 3) => NoticeCategory,
-): EvalPrediction[] {
-	return samples.flatMap((value) =>
-		([1, 2, 3] as const).map((run) => ({
-			...prediction(value.notice_id, categoryFor(value, run)),
-			run,
-		})),
-	);
+function invalidPrediction(
+	noticeId: number,
+	rawResponse: string,
+	options: PredictionOptions = {},
+): EvalPrediction {
+	return {
+		attempt: 1,
+		category: null,
+		elapsed_ms: 100,
+		error: `NoticeClassificationInvalidOutputError: ${rawResponse}`,
+		model: options.model ?? "model-a",
+		notice_id: noticeId,
+		raw_response: rawResponse,
+		repeat: options.repeat ?? 1,
+		status: "invalid_output",
+	};
 }
 
-function businessBoundaryPredictions(
-	samples: readonly EvalSample[],
-	options: { aggregateCorrect: number; primaryCorrect: number; stable: number },
-): EvalPrediction[] {
-	const totalPredictions = samples.length * 3;
-	if (
-		options.primaryCorrect < options.stable ||
-		options.aggregateCorrect < options.primaryCorrect + options.stable * 2 ||
-		options.aggregateCorrect > totalPredictions
-	) {
-		throw new Error("unsupported business boundary fixture");
+function providerPrediction(noticeId: number, options: PredictionOptions = {}): EvalPrediction {
+	return {
+		attempt: 1,
+		category: null,
+		elapsed_ms: 100,
+		error: "NoticeClassificationProviderError: provider request failed\nCaused by: complete cause",
+		model: options.model ?? "model-a",
+		notice_id: noticeId,
+		repeat: options.repeat ?? 1,
+		status: "provider_error",
+	};
+}
+
+function serializeJsonLines(values: readonly unknown[]): string {
+	return `${values.map((value) => JSON.stringify(value)).join("\n")}\n`;
+}
+
+async function captureStdout(run: () => Promise<void>): Promise<string> {
+	const originalWrite = process.stdout.write;
+	let output = "";
+	try {
+		process.stdout.write = ((chunk: string | Uint8Array) => {
+			output += String(chunk);
+			return true;
+		}) as typeof process.stdout.write;
+		await run();
+	} finally {
+		process.stdout.write = originalWrite;
 	}
-	let remainingPrimaryCorrect = options.primaryCorrect - options.stable;
-	let remainingAdditionalCorrect =
-		options.aggregateCorrect - options.stable * 3 - remainingPrimaryCorrect;
-	return samples.flatMap((value, index) => {
-		if (index < options.stable) {
-			return ([1, 2, 3] as const).map((run) => ({
-				...prediction(value.notice_id, "admissions"),
-				run,
-			}));
-		}
-		const correctRuns = new Set<1 | 2 | 3>();
-		const primaryCorrect = remainingPrimaryCorrect > 0;
-		if (primaryCorrect) {
-			correctRuns.add(1);
-			remainingPrimaryCorrect -= 1;
-		}
-		for (const run of [2, 3] as const) {
-			if (remainingAdditionalCorrect > 0 && !(primaryCorrect && correctRuns.size === 2)) {
-				correctRuns.add(run);
-				remainingAdditionalCorrect -= 1;
-			}
-		}
-		return ([1, 2, 3] as const).map((run) => ({
-			...prediction(
-				value.notice_id,
-				correctRuns.has(run) ? "admissions" : run === 2 ? "governance" : "campus_news",
-			),
-			run,
-		}));
-	});
+	return output;
 }

@@ -22,6 +22,7 @@ type store interface {
 	Resolve(context.Context, modelconfig.ConfigName, string) (modelconfig.RuntimeConfig, error)
 	Status(context.Context) (modelconfig.Status, error)
 	Put(context.Context, string, modelconfig.ConfigInput, modelconfig.Validation) (modelconfig.ConfigView, error)
+	RecordValidation(context.Context, modelconfig.ConfigName, string, modelconfig.Validation) (modelconfig.ConfigView, error)
 }
 
 func New(store store) *Server {
@@ -63,6 +64,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if name, ok := routeName(r.URL.Path, "/internal/admin/model-configs/", "/models"); ok && r.Method == http.MethodPost {
 		s.serveModels(w, r, name)
+		return
+	}
+	if name, ok := routeName(r.URL.Path, "/internal/admin/model-configs/", "/validate"); ok && r.Method == http.MethodPost {
+		s.serveValidate(w, r, name)
 		return
 	}
 	writeError(w, http.StatusNotFound, "not_found", "Route not found.")
@@ -137,12 +142,16 @@ func (s *Server) servePut(w http.ResponseWriter, r *http.Request, name modelconf
 	}
 	input.Name = name
 	if input.APIKey != nil && strings.TrimSpace(*input.APIKey) == "" {
-		writeError(w, http.StatusUnprocessableEntity, "model_config_invalid", "api_key cannot be empty when provided.")
+		s.serveFailedValidation(w, modelconfig.Validation{
+			Status: "failed", ErrorCode: "invalid_setting", Message: "api_key cannot be empty when provided",
+		})
 		return
 	}
 	baseURL, err := modelconfig.NormalizeBaseURL(input.BaseURL)
 	if err != nil {
-		writeError(w, http.StatusUnprocessableEntity, "model_config_invalid", err.Error())
+		s.serveFailedValidation(w, modelconfig.Validation{
+			Status: "failed", ErrorCode: "invalid_setting", Message: err.Error(),
+		})
 		return
 	}
 	input.BaseURL = baseURL
@@ -173,16 +182,49 @@ func (s *Server) servePut(w http.ResponseWriter, r *http.Request, name modelconf
 	}
 	validation := modelconfig.Validate(r.Context(), target, apiKey)
 	if validation.Status != "passed" {
-		writeJSON(w, http.StatusUnprocessableEntity, validation)
+		s.serveFailedValidation(w, validation)
 		return
 	}
-	view, err := s.store.Put(r.Context(), strings.TrimSpace(r.Header.Get("X-Model-Config-Actor")), input, validation)
+	view, err := s.store.Put(r.Context(), validationActor(r), input, validation)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
 	noStore(w)
 	writeJSON(w, http.StatusOK, view)
+}
+
+func (s *Server) serveValidate(w http.ResponseWriter, r *http.Request, name modelconfig.ConfigName) {
+	if r.URL.RawQuery != "" {
+		writeError(w, http.StatusBadRequest, "invalid_query", "This endpoint does not accept query parameters.")
+		return
+	}
+	current, err := s.store.Resolve(r.Context(), name, "")
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	validation := modelconfig.Validate(r.Context(), current.Target, current.APIKey)
+	view, err := s.store.RecordValidation(r.Context(), name, validationActor(r), validation)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	noStore(w)
+	if validation.Status != "passed" {
+		writeJSON(w, http.StatusUnprocessableEntity, validation)
+		return
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+func (s *Server) serveFailedValidation(w http.ResponseWriter, validation modelconfig.Validation) {
+	noStore(w)
+	writeJSON(w, http.StatusUnprocessableEntity, validation)
+}
+
+func validationActor(r *http.Request) string {
+	return strings.TrimSpace(r.Header.Get("X-Model-Config-Actor"))
 }
 
 func (s *Server) serveModels(w http.ResponseWriter, r *http.Request, name modelconfig.ConfigName) {

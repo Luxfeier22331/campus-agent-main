@@ -50,13 +50,25 @@ export async function runNoticeCommand(
 		if (command.name === "backfill") {
 			const state = await stateStore.load();
 			if (state && isNoticeHistoryCovered(state, command.startDate)) {
+				if (!(state.coveredFrom && state.coveredUntil)) {
+					throw new Error("internal portal notice sync state has no complete maintenance range");
+				}
+				console.log(
+					JSON.stringify({
+						processedRange: null,
+						progress: { phase: "finalizing", processed: 0, total: 0 },
+						status: "running",
+					}),
+				);
 				return {
+					failures: [],
+					maintenanceRange: { from: state.coveredFrom, to: state.coveredUntil },
 					mode: "backfill",
 					noticesProcessed: 0,
 					objectsReused: 0,
 					objectsWritten: 0,
 					pagesFetched: 0,
-					range: null,
+					processedRange: null,
 					resources: {
 						attachmentsDownloaded: 0,
 						attachmentsReused: 0,
@@ -64,6 +76,7 @@ export async function runNoticeCommand(
 						imagesReused: 0,
 					},
 					state,
+					upToDate: false,
 				};
 			}
 		}

@@ -17,15 +17,16 @@ status: active
 
 ### 仓库根环境
 
-根 `.env` 只保存维护者共享的外部开发连接，不是应用运行时配置。linked worktree 执行 `dev:init` 时，
-从 main checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离线通知分类 provider 连接；
-只补充当前 worktree 尚不存在的字段，不覆盖已有值，也不复制数据库 DSN、对象存储身份、观测配置或
-整份环境文件。应用仍不得直接读取根 `.env`；需要这些外部连接时，由调用 shell 或命令入口显式加载。
+根 `.env` 只保存维护者共享的外部开发连接，不是应用运行时配置。linked worktree 的 target 包含 `core` 或
+`model-config` 投影时，`dev:init` 才从 main checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank
+和离线通知分类 provider 连接；包含 `internal-portal-collection` 投影时，才首次导入已有门户 TGC。它只补充
+当前 worktree 尚不存在的字段，不覆盖已有值，也不复制数据库 DSN、对象存储身份、观测配置或整份环境文件。
+应用仍不得直接读取根 `.env`；需要这些外部连接时，由调用 shell 或命令入口显式加载。
 
 ### 应用本地环境
 
-应用只读取自身目录声明的环境文件。显式执行 `pnpm dev:init` 为当前 worktree 原子生成核心应用的以下
-`0600` 文件：
+应用只读取自身目录声明的环境文件。根目录的 `dev:init` 是唯一初始化入口；它根据 target 的实际消费者投影
+及其声明的环境依赖，为当前 worktree 原子生成所需的 `0600` 文件。默认 target 是 `core`：
 
 - App API：`.env.local` 和 `.dev.vars.local`；
 - Campus Web：`.dev.vars.local`；
@@ -33,37 +34,35 @@ status: active
 - execution-control：`.env.local`；
 - agent-runtime：`.env.local`。
 
-可选应用按需执行自己的初始化命令生成文件：
+需要其他边界时显式选择 target：
 
-- `pnpm --filter ops-web dev:init`：Ops Web；
-- `pnpm --filter notice-publisher dev:init`：notice-publisher；
-- `pnpm --filter internal-portal-collection dev:init`：internal-portal-collection adapter；
-- `pnpm --filter notice-classifier dev:init`：notice-classifier。
+    `pnpm dev:init -- --target ops-web`
+    `pnpm dev:init -- --target notice-publisher`
+    `pnpm dev:init -- --target internal-portal-collection`
+    `pnpm dev:init -- --target notice-classifier`
 
-`notice-publisher dev:init` 先通过 `campus-agent-schema` 安装统一 baseline，再写入本地通知分类 seed。
-新的本地 profile 在运行 internal-portal-collection 通知模式或 notice-classifier 前先执行该命令；
-后两者的 `dev:init` 只生成各自环境文件，不执行 DDL。
+target 会自动生成其运行依赖的环境投影；例如 `internal-portal-collection` 生成 Ops Web 和采集器所需的
+文件，`notice-classifier` 只生成 Model Config 与分类器所需的文件。schema、seed 和 Temporal namespace
+由各自 owner 的 readiness probe 判断，只有缺失的步骤才执行；不存在第二份 lifecycle journal。
 
-`ops-web dev:init` 使用同一个 `campus-agent-schema` 入口安装全部 schema 和授权，再写入通知分类与
-Dining 本地 seed，使运行记录与通知页面可以在新的本地 profile 中直接启动。
+`notice-publisher` target 通过 `campus-agent-schema` 安装统一 baseline 并写入通知分类；`ops-web` target
+另外写入 Dining 基线。`internal-portal-collection` 和 `notice-classifier` 不重复执行 DDL。
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
-`dev:init` 还为当前 worktree 创建 `0600` 的 `var/dev/model-config-encryption.key`，供 Model Config
-当前密文使用。`var/dev/provider-config-encryption.key` 只属于保留的历史切换 runner，标准本地
-bootstrap 不再隐式生成；显式验证旧切换路径时由调用者单独准备。密钥不进入 profile、其他 worktree
-或部署环境。
+包含 `core` 或 `model-config` 投影的 target 还会为当前 worktree 创建 `0600` 的
+`var/dev/model-config-encryption.key`，供 Model Config 当前密文使用。标准初始化不生成已退役的
+`provider-config-encryption.key`；密钥不进入 profile、其他 worktree 或部署环境。
 
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实际选择决定。
 
 internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的 source bucket、通知数据库和 Ops Web
 内部接口配置，以及 `internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令
-保留其他托管字段、原子替换该值并设置 `0600`；失败不改文件，后续 `dev:init` 保留已有 TGC。adapter
-目录下未跟踪的 `.env` 只维护可选门户代理或不使用托管本地环境的对象存储配置，不作为长期 TGC 来源。
-进程环境仍具有最高优先级。linked worktree 首次初始化时，如果 main checkout 当前或已退役采集目录的
-托管 `.env.local` 已有 TGC，则将它导入该文件；之后 worktree 自己通过 `auth:pull` 更新的值优先，不被
-再次初始化覆盖。
+保留其他托管字段、原子替换该值并设置 `0600`；失败不改文件，后续 `dev:init` 保留已有 TGC。可选门户
+代理由进程环境显式提供，且进程环境具有最高优先级。linked worktree 首次初始化时，如果 main checkout
+当前采集目录的托管 `.env.local` 已有 TGC，则将它导入该文件；之后 worktree 自己通过 `auth:pull` 更新的值
+优先，不被再次初始化覆盖。
 
 notice-classifier 的托管 `.env.local` 保存本 worktree 的通知数据库连接和非敏感 `MODEL_CONFIG_URL`，
 不再包含对象存储配置。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时从
@@ -74,9 +73,6 @@ Ops Web 的托管 `.env.local` 保存本 worktree 的数据库连接和本地 so
 的本地标记，以及分离的 source/derived 对象存储身份；门户 hostname 直接读取仓库 source descriptor，
 不再维护重复环境变量。App API 的托管变量提供本地 derived bucket 地址和只读凭据，用于通知图片与
 其他获准的派生资源；部署环境改用现有私有对象存储 binding。应用之间不读取彼此环境文件。
-
-App API 的托管变量提供本地 derived bucket 地址和只读凭据，用于通知图片与其他获准的派生资源；部署
-环境改用现有私有对象存储 binding。应用之间不读取彼此环境文件。
 
 一个应用不得读取其他应用或适配器的环境文件，也不得从根 `.env` 隐式扩散数据库或供应商凭据。
 
@@ -97,18 +93,9 @@ Kubernetes、Cloudflare 和外部平台配置由环境仓及所属密钥存储�
 长期运行的 Kubernetes workload 从共享 ConfigMap 逐 key 投影实际消费字段。只服务单个一次性 Job
 且字段全部由该 Job 消费的专用 ConfigMap 可以整体注入。
 
-内部门户采集使用三个默认暂停的 CronJob 模板，分别固定执行通知增量、通知回填和文件发布采集。
-通知维护状态是 `[covered_from, covered_until)` 半开区间；sync 和 backfill 是两个独立 Job，回填日期只在
-创建该次 Job 时写入，首次初始化使用 `2025-12-01`。模板读取 `OPS_WEB_INTERNAL_URL`、
-`OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还读取既有数据库 owner 连接并登记
-通知库存。模板默认暂停，只用于显式创建一次性 Job；不得新增 TGC Secret。
-
-notice-classifier 读取既有数据库 owner 连接和 Model Config，不读取 source/derived bucket，也不创建
-分类器专用数据库身份或模型 Secret。
-
-notice-publisher 的 schema Job 和默认暂停的发布模板复用既有 `campus_agent` owner Secret、PostgreSQL
-CA 与 source/derived 对象存储 Secret。部署环境不创建 `notice_publisher` 角色、专用密码或自动 schedule；
-选择通知 ID 时只修改该次 Job 的容器参数，不修改 CronJob 或长期配置。
+内部门户采集、notice-classifier 和 notice-publisher 只读取各自 workload 声明的数据库、对象存储、
+Ops Web 或 Model Config 配置。任务参数属于单次 Job 输入，不进入长期环境配置；模板和任务操作由
+[采集与发布手册](../runbooks/ingestion.md)维护。
 
 ### 部署配置生命周期
 
@@ -134,21 +121,17 @@ Kubernetes workload 必须先存在明确读取点，环境仓才能投递对应
 仓库不维护手写的全局变量表。变量名和必需性以所属消费者为准，环境仓只维护当前环境实际投递的
 集合，远端核对只用于确认配置生命周期已经闭合。
 
-Campus Web 的 `dev`、`build` 和 `build:staging` 在文档准备阶段按以下顺序合并配置，
-后者覆盖前者：
+Campus Web 的文档准备入口按以下顺序合并配置，后者覆盖前者：
 
 1. 当前应用的 `.dev.vars.local`；
 2. `env/commands/campus-docs-source.env`；
 3. 调用进程环境。
 
 命令配置只用于显式切换文档来源；普通本地构建直接使用 `dev:init` 生成的应用配置，不需要手工
-`source`。对象存储地址和派生桶凭据只服务本地或受信任的来源准备、正式构建和来源更新，不投递到
+`source`。对象存储地址和派生桶凭据只服务本地或受信任的来源准备与正式构建，不投递到
 PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGET` 与
 `CAMPUS_WEB_DOCS_CONTENT_ROOT` 由构建脚本临时生成，同样不进入环境配置。`build:test` 使用固定测试
 输入，不读取以上对象存储配置。
-
-`docs:source:update` 不调用上述构建环境加载器，只读取调用进程环境。需要复用
-`env/commands/campus-docs-source.env` 时，操作者必须先在当前 shell 中显式加载该文件。
 
 ## 读取与覆盖
 
@@ -160,32 +143,38 @@ PR、Worker、Wrangler 或 Argo，也不会传入 Vite。`CAMPUS_WEB_BUILD_TARGE
 ## Worktree
 
 Git 不会把被忽略的环境文件带入新 worktree。每个 worktree 首次显式运行 `pnpm dev:init` 时获得独立
-profile、核心应用文件、端口、PostgreSQL database、derived bucket、Temporal namespace 和 provider
-配置加密密钥；同时按上述白名单从 main checkout 补充维护者共享的外部开发凭据。PostgreSQL、RustFS 与
-Temporal 容器、网络和数据卷由同一机器上的 worktree 共享。主 checkout 是共享依赖的
-bootstrap/reconcile owner，linked worktree 不会重新执行 Compose reconcile，只在共享依赖 ready 时
-复用。execution-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享其他 worktree 的宿主
-进程。应用仍只消费
-`OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入应用环境合同。
-Campus Web 文档合同固定使用共享 `campus-agent-derived`；`dev:init` 只在
-`campus-docs/source.json` 缺失时写入确定性开发样例，不覆盖已有文档来源。worktree profile 中的
-独立 derived bucket 仍只服务 Dining 等实例数据。
+profile、按 target 选择的应用文件、端口、数据库和所需的实例资源；linked worktree 同时按上述白名单从
+main checkout 补充维护者共享的 provider 连接和已有门户 TGC。PostgreSQL、RustFS 与 Temporal 容器、网络
+和数据卷由同一机器上的 worktree 共享，但普通 `dev:init` 不启动或 reconcile 它们。
 
-profile 位于当前 worktree 的 `var/dev/profile.v1.json`，机器级实例注册表位于
-`${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.v1.json`。两者只保存资源身份，不保存
-外部凭据；导入值只进入当前 worktree 被忽略的所属环境文件。使用 `pnpm dev:instances` 查看分配和
-stale/partial 状态，使用 `pnpm dev:doctor` 检查完整性。`pnpm dev` 只读取这份就绪状态，不执行初始化、
-迁移或 seed。共享依赖不可探测时，诊断结果为 `unknown`，不会据此自动创建或删除实例资源。
+只有 canonical checkout 可以运行 `pnpm dev:shared-reconcile` 供应或修复共享依赖；linked worktree 只在
+readiness probe 通过时复用。execution-control 与 agent-runtime 从当前 worktree 源码独立启动，不共享
+其他 worktree 的宿主进程。应用仍只消费 `OBJECT_STORE_*`；`RUSTFS_*` 只存在于供应商容器边界，不进入
+应用环境合同。Campus Web 文档合同固定使用共享 `campus-agent-derived`；缺少
+`campus-docs/source.json` 时由 Campus Web docs owner 写入确定性样例，不覆盖已有来源。
 
-`pnpm dev:destroy` 默认只打印影响范围。只有同时提供同一个实例 ID 才会删除该实例的 database、bucket、托管环境文件和注册记录；它不会启动或重建共享容器，也不会删除共享 source/docs bucket、网络或数据卷：
+profile 位于当前 worktree 的 `var/dev/profile.json`，机器级实例注册表位于
+`${XDG_STATE_HOME:-~/.local/state}/campus-agent/<repo-key>/instances.json`。旧的 v1 profile/registry 会在
+首次成功初始化时原地采用为 v2，数据库、bucket 和 namespace 不会因格式迁移而删除；两者只保存资源身份，
+不保存外部凭据。使用 `pnpm dev:instances` 查看 metadata-only 清单，使用
+`pnpm dev:instances -- --verify` 才探测真实资源；`pnpm dev:doctor` 检查当前 target 的配置完整性。
+`pnpm dev` 只读取 ready 状态，不执行初始化、迁移或 seed。共享依赖不可探测时结果为 `unknown`，不会据此
+自动创建或删除实例资源。
 
-```bash
-pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
-```
+stale 实例不会自动清理。先运行 `pnpm dev:prune` 列出 stale 记录，再明确指定单个实例和确认值执行清理；
+该命令不会批量删除资源。销毁时各实例资源独立探测；某项依赖暂时不可用时，已确认的其他资源可以清理，
+但实例注册会保留，待依赖恢复后重试。
+
+`pnpm dev:destroy` 默认只打印影响范围。只有同时提供同一个实例 ID 才会删除该实例的 database、按需创建的
+derived bucket、Temporal namespace、托管环境文件和注册记录；它不会启动或重建共享容器，也不会删除共享
+source/docs bucket、网络或数据卷：
+
+    pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
 
 ## 相关文档
 
 - [Provider 与 Secret](./providers.md)
 - [测试与验证](../reference/verification.md)
 - [供应商密钥操作](../runbooks/provider-secrets.md)
+- [采集与发布手册](../runbooks/ingestion.md)
 - [Secret 投递决策](../decisions/adr-0066-secret-delivery.md)

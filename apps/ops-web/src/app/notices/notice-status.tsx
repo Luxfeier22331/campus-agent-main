@@ -99,10 +99,42 @@ export function isBatchNoticeJob(job: Pick<NoticeJob, "operation">): boolean {
 	);
 }
 
-export function noticeJobSummaryLabel(summary: NoticeJob["summary"]): string | null {
+export function noticeJobSummaryLabel(
+	operation: NoticeJobOperation,
+	summary: NoticeJob["summary"],
+): string | null {
 	if (!summary) {
 		return null;
 	}
-	const entries = Object.entries(summary).map(([key, value]) => `${key}: ${String(value)}`);
-	return entries.length > 0 ? entries.join(" · ") : null;
+	const family = noticeJobFamily(operation);
+	const entries =
+		family === "collection"
+			? ([
+					["noticesProcessed", "处理通知"],
+					["noticesFailed", "失败通知"],
+					["pagesFetched", "读取分页"],
+					["objectsWritten", "写入来源对象"],
+					["objectsReused", "复用来源对象"],
+					["imagesDownloaded", "下载图片"],
+					["imagesReused", "复用图片"],
+					["attachmentsDownloaded", "下载附件"],
+					["attachmentsReused", "复用附件"],
+				] as const)
+			: family === "classification"
+				? ([
+						["classified", "完成分类"],
+						["requested", "请求处理"],
+						["skipped", "跳过"],
+					] as const)
+				: ([
+						["notices", "发布通知"],
+						["assets", "发布资源"],
+					] as const);
+	const labels = entries.flatMap(([key, label]) =>
+		summary[key] === undefined ? [] : [`${label} ${summary[key]} 条`],
+	);
+	if (family === "collection" && summary.upToDate !== undefined) {
+		labels.push(summary.upToDate ? "已同步到门户当前最新范围" : "尚未同步到门户当前最新范围");
+	}
+	return labels.length > 0 ? labels.join(" · ") : null;
 }

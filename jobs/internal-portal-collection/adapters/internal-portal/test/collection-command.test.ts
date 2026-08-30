@@ -4,19 +4,22 @@ import type { NoticeRunnerResult } from "../src/notice-runner.js";
 const mocks = vi.hoisted(() => ({
 	runFileSync: vi.fn(),
 	runNoticeCommand: vi.fn(async (): Promise<NoticeRunnerResult> => ({
+		failures: [],
+		maintenanceRange: null,
 		mode: "sync" as const,
 		noticesProcessed: 0,
 		objectsReused: 0,
 		objectsWritten: 0,
 		pagesFetched: 0,
+		processedRange: null,
 		resources: {
 			attachmentsDownloaded: 0,
 			attachmentsReused: 0,
 			imagesDownloaded: 0,
 			imagesReused: 0,
 		},
-		range: null,
 		state: { coveredFrom: null, coveredUntil: null, updatedAt: "2026-08-23T00:00:00.000Z" },
+		upToDate: false,
 	})),
 }));
 
@@ -88,14 +91,16 @@ describe("collection command", () => {
 		log.mockRestore();
 	});
 
-	it("prints the effective notice maintenance range beside the final summary", async () => {
+	it("prints the processed and resulting maintenance ranges beside the final summary", async () => {
 		mocks.runNoticeCommand.mockResolvedValueOnce({
+			failures: [],
+			maintenanceRange: { from: "2025-12-01", to: "2026-08-27" },
 			mode: "backfill",
 			noticesProcessed: 4,
 			objectsReused: 1,
 			objectsWritten: 3,
 			pagesFetched: 2,
-			range: { from: "2025-12-01", to: "2026-08-27" },
+			processedRange: { from: "2025-12-01", to: "2026-08-27" },
 			resources: {
 				attachmentsDownloaded: 2,
 				attachmentsReused: 0,
@@ -107,6 +112,7 @@ describe("collection command", () => {
 				coveredUntil: "2026-08-27",
 				updatedAt: "2026-08-26T02:30:07.000Z",
 			},
+			upToDate: false,
 		});
 		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
@@ -115,9 +121,61 @@ describe("collection command", () => {
 		).resolves.toBe(0);
 
 		expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
-			range: { from: "2025-12-01", to: "2026-08-27" },
-			summary: { mode: "backfill", noticesProcessed: 4, pagesFetched: 2 },
+			maintenanceRange: { from: "2025-12-01", to: "2026-08-27" },
+			processedRange: { from: "2025-12-01", to: "2026-08-27" },
+			summary: { noticesFailed: 0, noticesProcessed: 4, pagesFetched: 2 },
 		});
+		log.mockRestore();
+	});
+
+	it("prints every resource failure and returns a non-zero notice status", async () => {
+		mocks.runNoticeCommand.mockResolvedValueOnce({
+			failures: [
+				{
+					error: "NoticeResourceTransferError: notice 9 attachments resource 0 download failed\nCaused by: TypeError: terminated",
+					noticeId: 9,
+					operation: "download",
+					resourceKind: "attachments",
+					resourceOrdinal: 0,
+				},
+			],
+			maintenanceRange: null,
+			mode: "backfill",
+			noticesProcessed: 1,
+			objectsReused: 0,
+			objectsWritten: 2,
+			pagesFetched: 2,
+			processedRange: { from: "2025-12-01", to: "2026-08-01" },
+			resources: {
+				attachmentsDownloaded: 0,
+				attachmentsReused: 0,
+				imagesDownloaded: 0,
+				imagesReused: 0,
+			},
+			state: null,
+			upToDate: false,
+		});
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+		await expect(
+			runCollectionCommand({ mode: "notice-backfill", startDate: "2025-12-01" }),
+		).resolves.toBe(1);
+
+		expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+			error: expect.stringContaining("TypeError: terminated"),
+			failure: {
+				noticeId: 9,
+				operation: "download",
+				resourceKind: "attachments",
+				resourceOrdinal: 0,
+			},
+		});
+		expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+			maintenanceRange: null,
+			summary: { noticesFailed: 1, noticesProcessed: 1 },
+		});
+		error.mockRestore();
 		log.mockRestore();
 	});
 });

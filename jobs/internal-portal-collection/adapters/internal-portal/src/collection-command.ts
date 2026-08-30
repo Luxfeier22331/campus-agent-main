@@ -80,23 +80,40 @@ export async function runCollectionCommand(
 		options,
 	);
 	const { state: _state, ...counts } = noticeSummary;
+	for (const failure of noticeSummary.failures) {
+		console.error(
+			JSON.stringify({
+				error: failure.error,
+				failure: {
+					noticeId: failure.noticeId,
+					operation: failure.operation,
+					resourceKind: failure.resourceKind,
+					resourceOrdinal: failure.resourceOrdinal,
+				},
+				status: "failed",
+			}),
+		);
+	}
 	console.log(
 		JSON.stringify({
-			range: noticeSummary.range,
+			maintenanceRange: noticeSummary.maintenanceRange,
+			processedRange: noticeSummary.processedRange,
 			summary: {
 				attachmentsDownloaded: counts.resources.attachmentsDownloaded,
 				attachmentsReused: counts.resources.attachmentsReused,
 				imagesDownloaded: counts.resources.imagesDownloaded,
 				imagesReused: counts.resources.imagesReused,
-				mode: noticeSummary.mode,
+				noticesFailed: counts.failures.length,
 				noticesProcessed: counts.noticesProcessed,
 				objectsReused: counts.objectsReused,
 				objectsWritten: counts.objectsWritten,
 				pagesFetched: counts.pagesFetched,
+				...(counts.upToDate ? { upToDate: true } : {}),
 			},
+			status: counts.failures.length > 0 ? "failed" : "succeeded",
 		}),
 	);
-	return 0;
+	return counts.failures.length > 0 ? 1 : 0;
 }
 
 function parseFlags(argv: string[]): Map<string, string> {

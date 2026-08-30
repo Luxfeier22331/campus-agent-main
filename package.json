@@ -18,11 +18,13 @@
 		"internal-portal:auth:check": "pnpm --dir jobs/internal-portal-collection auth:check",
 		"internal-portal:auth:pull": "pnpm --dir jobs/internal-portal-collection auth:pull",
 		"internal-portal:collect": "pnpm --dir jobs/internal-portal-collection collect",
-		"dev": "pnpm exec tsx scripts/dev/cli.ts doctor && turbo run dev --env-mode=strict --filter=campus-web --filter=app-api --filter=model-config --filter=execution-control --filter=agent-runtime",
+		"dev": "pnpm exec tsx scripts/dev/cli.ts doctor --target core --scope config && turbo run dev --env-mode=strict --filter=campus-web --filter=app-api --filter=model-config --filter=execution-control --filter=agent-runtime",
 		"dev:init": "pnpm exec tsx scripts/dev/cli.ts init",
 		"dev:doctor": "pnpm exec tsx scripts/dev/cli.ts doctor",
 		"dev:instances": "pnpm exec tsx scripts/dev/cli.ts instances",
-		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy"
+		"dev:shared-reconcile": "pnpm exec tsx scripts/dev/cli.ts shared-reconcile",
+		"dev:destroy": "pnpm exec tsx scripts/dev/cli.ts destroy",
+		"dev:prune": "pnpm exec tsx scripts/dev/cli.ts prune"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-s3": "^3.1111.0",

@@ -3,6 +3,8 @@
 	"private": true,
 	"scripts": {
 		"dev": "set -a && . ./.env.local && set +a && exec go run ./cmd/model-config",
+		"local:check": "go run ./cmd/model-config-local check",
+		"local:seed": "go run ./cmd/model-config-local seed",
 		"native:format": "golangci-lint fmt --diff",
 		"native:lint": "golangci-lint run ./...",
 		"native:test": "go test ./...",

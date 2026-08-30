@@ -59,6 +59,23 @@ const executionStatus: ExecutionModelSettingsStatus = {
 	},
 };
 
+const noticeClassifierUpdatedAt = "2026-07-21T01:00:00.000Z";
+
+function noticeClassifierStatus(
+	validation: NonNullable<
+		ExecutionModelSettingsStatus["settings"]["notice_classifier"]
+	>["latestValidation"],
+): ExecutionModelSettingsStatus {
+	const status = structuredClone(executionStatus);
+	const setting = status.settings.notice_classifier;
+	if (!setting) {
+		throw new Error("Expected the notice classifier setting.");
+	}
+	setting.latestValidation = validation;
+	setting.updatedAt = noticeClassifierUpdatedAt;
+	return status;
+}
+
 describe("model settings page", () => {
 	it("keeps the Embedding vector-space contract read-only", async () => {
 		vi.stubGlobal(
@@ -256,5 +273,90 @@ describe("model settings page", () => {
 
 		expect(await screen.findByText(/新配置验证未通过，当前配置未更改/u)).toBeInTheDocument();
 		expect(screen.getByText(/provider request timed out/u)).toBeInTheDocument();
+	});
+
+	it("revalidates the saved notice classifier without changing its configuration timestamp", async () => {
+		const initial = noticeClassifierStatus({
+			message: "此前验证通过。",
+			status: "passed",
+			validatedAt: "2026-07-21T01:05:00.000Z",
+			validatedBy: "ops@example.test",
+		});
+		const refreshed = noticeClassifierStatus({
+			message: "重新验证通过。",
+			status: "passed",
+			validatedAt: "2026-07-21T02:05:00.000Z",
+			validatedBy: "ops@example.test",
+		});
+		let current = initial;
+		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			if (
+				init?.method === "POST" &&
+				String(input).endsWith("/api/ops/model-configs/notice_classifier/validate")
+			) {
+				current = refreshed;
+			}
+			return Response.json(current);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		render(<OpsWebApp initialPath="/providers" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "重新验证" }));
+
+		expect(await screen.findByText("当前配置已重新验证。")).toBeInTheDocument();
+		expect(screen.getAllByText(/2026-07-21 09:00:00/u)).toHaveLength(4);
+		expect(screen.getByText(/2026-07-21 10:05:00/u)).toBeInTheDocument();
+		expect(
+			fetchMock.mock.calls.some(
+				([input, init]) =>
+					init?.method === "POST" &&
+					String(input).endsWith("/api/ops/model-configs/notice_classifier/validate"),
+			),
+		).toBe(true);
+	});
+
+	it("refreshes the notice classifier failure status after revalidation fails", async () => {
+		const initial = noticeClassifierStatus({
+			message: "此前验证通过。",
+			status: "passed",
+			validatedAt: "2026-07-21T01:05:00.000Z",
+			validatedBy: "ops@example.test",
+		});
+		const failed = noticeClassifierStatus({
+			errorCode: "provider_http_422",
+			message: "HTTP 422: schema unsupported",
+			status: "failed",
+			validatedAt: "2026-07-21T02:05:00.000Z",
+			validatedBy: "ops@example.test",
+		});
+		let current = initial;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				if (
+					init?.method === "POST" &&
+					String(input).endsWith("/api/ops/model-configs/notice_classifier/validate")
+				) {
+					current = failed;
+					return Response.json(
+						{
+							error: {
+								code: "OPS_PROVIDER_CONFIG_INVALID",
+								message: "HTTP 422: schema unsupported",
+							},
+						},
+						{ status: 422 },
+					);
+				}
+				return Response.json(current);
+			}),
+		);
+		render(<OpsWebApp initialPath="/providers" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "重新验证" }));
+
+		expect(await screen.findByText("验证失败")).toBeInTheDocument();
+		expect(await screen.findByText("HTTP 422: schema unsupported")).toBeInTheDocument();
+		expect(screen.getAllByText(/2026-07-21 09:00:00/u)).toHaveLength(4);
 	});
 });

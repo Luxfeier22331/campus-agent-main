@@ -69,7 +69,8 @@ Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET
 
 ```bash
 pnpm install
-pnpm dev:init
+pnpm dev:shared-reconcile
+pnpm dev:init -- --target core
 pnpm --dir apps/app-api dev
 pnpm --dir apps/app-api test
 pnpm --dir apps/app-api test:worker
@@ -80,7 +81,7 @@ pnpm --dir apps/app-api db:generate
 pnpm --dir apps/app-api db:check
 ```
 
-`pnpm dev:init` 为当前 worktree 生成隔离的本地配置和数据库。数据库结构变化通过声明式 schema 和
+`pnpm dev:init -- --target core` 为当前 worktree 生成隔离的本地配置和数据库。数据库结构变化通过声明式 schema 和
 `jobs/campus-agent-schema` 中新增的统一 migration 完成；不得修改已应用 SQL。`ops/db/` 只保留显式
 seed、授权来源和历史 runner 所需代码，业务 seed 不进入 migration。
 

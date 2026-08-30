@@ -32,7 +32,6 @@ export interface InternalPortalConfig {
 
 export function loadInternalPortalEnv(processEnv: NodeJS.ProcessEnv = process.env): void {
 	dotenv.config({ path: path.join(adapterRoot, ".env.local"), processEnv, quiet: true });
-	dotenv.config({ path: path.join(adapterRoot, ".env"), processEnv, quiet: true });
 }
 
 export function resolveInternalPortalConfig(

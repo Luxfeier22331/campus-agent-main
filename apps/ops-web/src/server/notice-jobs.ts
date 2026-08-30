@@ -207,10 +207,11 @@ export class KubernetesNoticeJobStore implements NoticeJobStore {
 			controllerError: status === "failed" ? controllerError(failureCondition) : null,
 			error: status === "failed" ? diagnostics.error : null,
 			jobName,
+			maintenanceRange: diagnostics.maintenanceRange,
 			noticeId,
 			operation,
+			processedRange: diagnostics.processedRange,
 			progress: diagnostics.progress,
-			range: diagnostics.range,
 			startedAt: iso(job.status?.startTime),
 			status,
 			summary: diagnostics.summary,
@@ -310,9 +311,9 @@ function applyOperation(container: V1Container, input: NoticeJobCreate): void {
 			{ name: "INTERNAL_PORTAL_NOTICE_START_DATE", value: input.startDate },
 		];
 	} else if (input.operation === "notice-classify-one") {
-		container.args = ["--notice-id", String(input.noticeId)];
+		container.args = [...(container.args ?? []), "--notice-id", String(input.noticeId)];
 	} else if (input.operation === "notice-publish-one") {
-		container.args = ["publish", "--notice-id", String(input.noticeId)];
+		container.args = [...(container.args ?? []), "--notice-id", String(input.noticeId)];
 	}
 }
 
@@ -330,17 +331,18 @@ function jobStatus(job: V1Job): NoticeJob["status"] {
 
 export interface NoticeJobDiagnostics {
 	error: string | null;
+	maintenanceRange: NoticeJobRange | null;
+	processedRange: NoticeJobRange | null;
 	progress: NoticeJobProgress | null;
-	range: NoticeJobRange | null;
 	summary: NoticeJob["summary"];
 }
 
 export function parseNoticeJobDiagnostics(logs: string): NoticeJobDiagnostics {
 	let progress: NoticeJobProgress | null = null;
-	let range: NoticeJobRange | null = null;
+	let maintenanceRange: NoticeJobRange | null = null;
+	let processedRange: NoticeJobRange | null = null;
 	let summary: NoticeJob["summary"] = null;
-	let explicitError: string | null = null;
-	const rawLines: string[] = [];
+	const errorLines: string[] = [];
 	for (const line of logs.split("\n")) {
 		const trimmed = line.trim();
 		if (!trimmed) {
@@ -350,11 +352,11 @@ export function parseNoticeJobDiagnostics(logs: string): NoticeJobDiagnostics {
 		try {
 			parsed = JSON.parse(trimmed) as unknown;
 		} catch {
-			rawLines.push(line);
+			errorLines.push(line);
 			continue;
 		}
 		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-			rawLines.push(line);
+			errorLines.push(line);
 			continue;
 		}
 		const record = parsed as Record<string, unknown>;
@@ -362,28 +364,39 @@ export function parseNoticeJobDiagnostics(logs: string): NoticeJobDiagnostics {
 		if (progressValue.success) {
 			progress = progressValue.data;
 		}
-		const rangeValue = NoticeJobRangeSchema.safeParse(record.range);
-		if (rangeValue.success) {
-			range = rangeValue.data;
+		const processedRangeValue = NoticeJobRangeSchema.safeParse(record.processedRange);
+		if (processedRangeValue.success) {
+			processedRange = processedRangeValue.data;
+		}
+		const maintenanceRangeValue = NoticeJobRangeSchema.safeParse(record.maintenanceRange);
+		if (maintenanceRangeValue.success) {
+			maintenanceRange = maintenanceRangeValue.data;
 		}
 		const summaryValue = parseScalarSummary(record.summary);
 		if (summaryValue) {
 			summary = summaryValue;
 		}
 		if (typeof record.error === "string" && record.error.length > 0) {
-			explicitError = record.error;
+			errorLines.push(record.error);
 		}
-		const structured = ["error", "progress", "range", "status", "summary"].some((key) =>
-			Object.hasOwn(record, key),
-		);
+		const structured = [
+			"error",
+			"maintenanceRange",
+			"processedRange",
+			"progress",
+			"range",
+			"status",
+			"summary",
+		].some((key) => Object.hasOwn(record, key));
 		if (!structured) {
-			rawLines.push(line);
+			errorLines.push(line);
 		}
 	}
 	return {
-		error: explicitError ?? (rawLines.length > 0 ? rawLines.join("\n").trim() || null : null),
+		error: errorLines.length > 0 ? errorLines.join("\n").trim() || null : null,
+		maintenanceRange,
+		processedRange,
 		progress,
-		range,
 		summary,
 	};
 }
@@ -392,17 +405,30 @@ function parseScalarSummary(value: unknown): NoticeJob["summary"] {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return null;
 	}
-	const scalarEntries = Object.entries(value).filter(
-		([key, entry]) =>
-			key.length > 0 &&
-			((typeof entry === "number" && Number.isSafeInteger(entry) && entry >= 0) ||
-				typeof entry === "boolean" ||
-				(typeof entry === "string" && entry.length <= 200)),
+	const record = value as Record<string, unknown>;
+	const known = Object.fromEntries(
+		[
+			"assets",
+			"attachmentsDownloaded",
+			"attachmentsReused",
+			"classified",
+			"imagesDownloaded",
+			"imagesReused",
+			"notices",
+			"noticesFailed",
+			"noticesProcessed",
+			"objectsReused",
+			"objectsWritten",
+			"pagesFetched",
+			"requested",
+			"skipped",
+			"upToDate",
+		].flatMap((key) => (Object.hasOwn(record, key) ? [[key, record[key]]] : [])),
 	);
-	if (scalarEntries.length === 0) {
+	if (Object.keys(known).length === 0) {
 		return null;
 	}
-	const parsed = NoticeJobSummarySchema.safeParse(Object.fromEntries(scalarEntries.slice(0, 20)));
+	const parsed = NoticeJobSummarySchema.safeParse(known);
 	return parsed.success ? parsed.data : null;
 }
 
@@ -411,7 +437,13 @@ export function parseNoticeJobSummary(logs: string): NoticeJob["summary"] {
 }
 
 function emptyDiagnostics(): NoticeJobDiagnostics {
-	return { error: null, progress: null, range: null, summary: null };
+	return {
+		error: null,
+		maintenanceRange: null,
+		processedRange: null,
+		progress: null,
+		summary: null,
+	};
 }
 
 function hasReadableContainerLog(pod: V1Pod, containerName: string): boolean {

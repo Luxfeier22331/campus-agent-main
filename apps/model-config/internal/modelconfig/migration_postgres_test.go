@@ -121,6 +121,23 @@ func TestPostgresMigration(t *testing.T) {
 			t.Fatalf("readiness: %v", err)
 		}
 		owner := connectPostgres(t, ownerURL)
+		var updatedAtBefore time.Time
+		if err := owner.QueryRow(ctx, "select updated_at from model_config.model_configs where name='primary_agent'").Scan(&updatedAtBefore); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.RecordValidation(ctx, ConfigPrimaryAgent, "revalidator", Validation{
+			Status:  "failed",
+			Message: "provider validation failed",
+		}); err != nil {
+			t.Fatalf("record validation: %v", err)
+		}
+		var updatedAtAfter time.Time
+		if err := owner.QueryRow(ctx, "select updated_at from model_config.model_configs where name='primary_agent'").Scan(&updatedAtAfter); err != nil {
+			t.Fatal(err)
+		}
+		if !updatedAtAfter.Equal(updatedAtBefore) {
+			t.Fatalf("updated_at changed from %s to %s", updatedAtBefore, updatedAtAfter)
+		}
 		if _, err := owner.Exec(ctx, "update model_config.model_configs set encrypted_api_key='corrupt'::bytea where name='primary_agent'"); err != nil {
 			t.Fatal(err)
 		}

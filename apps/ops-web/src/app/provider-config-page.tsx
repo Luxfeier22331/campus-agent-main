@@ -23,6 +23,7 @@ import {
 	discoverExecutionModels,
 	fetchExecutionModelSettings,
 	putExecutionModelSetting,
+	validateExecutionModelSetting,
 } from "./ops-api/model-settings";
 import { ErrorState, InlineError, PageHeader, StaleDataWarning } from "./ops-display";
 import {
@@ -194,6 +195,16 @@ function ExecutionModelSettingForm({
 			setSaveFeedback("配置已保存并验证通过。");
 		},
 	});
+	const revalidate = useMutation({
+		mutationFn: () => validateExecutionModelSetting(kind),
+		onSettled: () =>
+			queryClient.invalidateQueries({ exact: true, queryKey: executionModelSettingsQueryKey }),
+		onSuccess: (data) => {
+			queryClient.setQueryData(executionModelSettingsQueryKey, data);
+			syncFromSetting(data.settings[kind]);
+			setSaveFeedback("当前配置已重新验证。");
+		},
+	});
 	const discovery = useMutation({
 		mutationFn: () =>
 			discoverExecutionModels(
@@ -214,6 +225,7 @@ function ExecutionModelSettingForm({
 		setDraft((current) => ({ ...current, ...patch }));
 		setErrors((current) => clearErrors(current, errorKeys));
 		save.reset();
+		revalidate.reset();
 		if (!options.keepDiscovery) {
 			discovery.reset();
 		}
@@ -232,6 +244,7 @@ function ExecutionModelSettingForm({
 		event.preventDefault();
 		const nextErrors = validateExecutionDraft(draft, !setting?.credentialConfigured, embedding);
 		setErrors(nextErrors);
+		revalidate.reset();
 		if (Object.keys(nextErrors).length > 0) {
 			focusFirstInvalid(formRef);
 			return;
@@ -438,17 +451,35 @@ function ExecutionModelSettingForm({
 							}
 						/>
 					) : null}
+					{revalidate.isError ? (
+						<InlineError error={revalidate.error} title="重新验证失败" />
+					) : null}
 					<div className="grid gap-2 sm:flex sm:flex-wrap">
 						<Button disabled={!dirty || save.isPending} type="submit">
 							<Save className="size-4" />
 							{save.isPending ? "验证并保存中" : "保存并验证"}
 						</Button>
+						{noticeClassifier && setting && !dirty ? (
+							<Button
+								disabled={save.isPending || revalidate.isPending}
+								onClick={() => {
+									setSaveFeedback(null);
+									revalidate.mutate();
+								}}
+								type="button"
+								variant="outline"
+							>
+								<RefreshCw className={cn("size-4", revalidate.isPending && "animate-spin")} />
+								{revalidate.isPending ? "重新验证中" : "重新验证"}
+							</Button>
+						) : null}
 						{dirty ? (
 							<Button
 								onClick={() => {
 									setDraft(baseline);
 									setErrors({});
 									save.reset();
+									revalidate.reset();
 									setSaveFeedback(null);
 								}}
 								variant="ghost"

@@ -1,7 +1,11 @@
 import OpenAI, { APIConnectionError, APIError } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 
-import { NoticeClassificationProviderError, type NoticeModelClassifier } from "./classifier.ts";
+import {
+	type NoticeCategory,
+	NoticeClassificationProviderError,
+	type NoticeModelClassifier,
+} from "./classifier.ts";
 import {
 	NOTICE_CLASSIFIER_SYSTEM_PROMPT,
 	NOTICE_CLASSIFIER_TEMPERATURE,
@@ -17,6 +21,15 @@ export interface NoticeClassifierModelConfig {
 }
 
 export type NoticeClassifierGatewayConfig = Omit<NoticeClassifierModelConfig, "model">;
+
+export interface NoticeModelRawClassification {
+	category: NoticeCategory;
+	rawResponse: string;
+}
+
+export type NoticeModelClassifierWithRawResponse = (
+	noticeTitle: string,
+) => Promise<NoticeModelRawClassification>;
 
 export function createNoticeModelFetch(
 	fetchImplementation: typeof globalThis.fetch = globalThis.fetch,
@@ -54,6 +67,13 @@ export function resolveNoticeClassifierGatewayConfig(
 export function createOpenAINoticeModelClassifier(
 	env: NodeJS.ProcessEnv = process.env,
 ): NoticeModelClassifier {
+	const classifyWithRawResponse = createOpenAINoticeModelClassifierWithRawResponse(env);
+	return async (noticeTitle) => (await classifyWithRawResponse(noticeTitle)).category;
+}
+
+export function createOpenAINoticeModelClassifierWithRawResponse(
+	env: NodeJS.ProcessEnv = process.env,
+): NoticeModelClassifierWithRawResponse {
 	const config = resolveNoticeClassifierModelConfig(env);
 	const client = new OpenAI({
 		apiKey: config.apiKey,
@@ -63,7 +83,10 @@ export function createOpenAINoticeModelClassifier(
 	});
 	return async (noticeTitle) => {
 		const response = await requestStructuredClassification(client, config, noticeTitle);
-		return parseNoticeModelOutput(response.output_text);
+		return {
+			category: parseNoticeModelOutput(response.output_text),
+			rawResponse: response.output_text,
+		};
 	};
 }
 
@@ -97,6 +120,9 @@ async function requestStructuredClassification(
 			},
 		});
 	} catch (error) {
+		if (!(error instanceof APIConnectionError || error instanceof APIError)) {
+			throw error;
+		}
 		throw new NoticeClassificationProviderError("model provider request failed", {
 			cause: error,
 			retryable: isRetryableNoticeProviderCause(error),

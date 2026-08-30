@@ -49,7 +49,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 			database,
 			...(options.noticeIds ? { noticeIds: options.noticeIds } : {}),
 			onProgress: (progress) =>
-				console.log(JSON.stringify({ progress, range: null, status: "running" })),
+				console.log(JSON.stringify({ progress, status: "running" })),
 		});
 		process.stdout.write(`${JSON.stringify(result)}\n`);
 	} finally {

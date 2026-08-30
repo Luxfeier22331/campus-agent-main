@@ -3,6 +3,7 @@ import type { InternalPortalNoticeSource } from "ingestion-contracts";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
 import { fetchAttachmentBinary } from "./api.js";
+import { PortalSessionExpiredError } from "./auth-errors.js";
 import type { ApiRequestContextLike } from "./types.js";
 
 const MAX_RESOURCE_BYTES = 100 * 1024 * 1024;
@@ -23,11 +24,34 @@ export interface NoticeResourceEnsureResult {
 	resources: number;
 }
 
+export type NoticeResourceKind = "attachments" | "images";
+
 interface ResourceCandidate {
-	kind: "attachments" | "images";
+	kind: NoticeResourceKind;
 	noticeId: number;
 	ordinal: number;
 	url: string;
+}
+
+export class NoticeResourceTransferError extends Error {
+	readonly noticeId: number;
+	readonly operation = "download" as const;
+	readonly resourceKind: NoticeResourceKind;
+	readonly resourceOrdinal: number;
+
+	constructor(
+		input: Pick<ResourceCandidate, "kind" | "noticeId" | "ordinal">,
+		options: { cause: unknown },
+	) {
+		super(
+			`notice ${input.noticeId} ${input.kind} resource ${input.ordinal} download failed`,
+			{ cause: options.cause },
+		);
+		this.name = "NoticeResourceTransferError";
+		this.noticeId = input.noticeId;
+		this.resourceKind = input.kind;
+		this.resourceOrdinal = input.ordinal;
+	}
 }
 
 export async function ensureNoticeResources(input: {
@@ -64,12 +88,20 @@ export async function ensureNoticeResources(input: {
 		}
 		const apiContext = input.apiContext;
 		for (const resource of missing) {
-			const file = await fetchAttachmentBinary({
-				...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
-				apiContext,
-				attachmentUrl: resource.url,
-				maxBytes: MAX_RESOURCE_BYTES,
-			});
+			let file: Awaited<ReturnType<typeof fetchAttachmentBinary>>;
+			try {
+				file = await fetchAttachmentBinary({
+					...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
+					apiContext,
+					attachmentUrl: resource.url,
+					maxBytes: MAX_RESOURCE_BYTES,
+				});
+			} catch (error) {
+				if (error instanceof PortalSessionExpiredError) {
+					throw error;
+				}
+				throw new NoticeResourceTransferError(resource, { cause: error });
+			}
 			try {
 				await input.objectStore.createOrVerifyStream({
 					...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),

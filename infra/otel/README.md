@@ -7,8 +7,7 @@
 ## 文件
 
 - `collector-local-debug.yaml`：本地最小调试配置；
-- `collector-local-prodlike.yaml`：本地生产近似链路；
-- `collector.env.example`：本地 prodlike 配置所需的变量示例。
+- `collector-local-prodlike.yaml`：本地生产近似链路。
 
 源码仓负责 Agent Runtime 生产者字段合同和本地配置。环境仓负责实际 receiver、pipeline、endpoint、
 dataset、Secret、部署版本和启用状态。Cloudflare application logs、浏览器和边缘 Sentry 不经过这些
@@ -29,6 +28,6 @@ dataset、Secret、部署版本和启用状态。Cloudflare application logs、�
 scripts/otel/validate-config.sh
 ```
 
-该命令使用固定 digest 的 Collector 镜像验证两份本地配置。环境仓的 render、部署和远端状态由环境
+该命令使用固定 digest 的 Collector 镜像和脚本内验证值校验两份本地配置。环境仓的 render、部署和远端状态由环境
 仓负责；本检查不证明目标环境已经部署，也不证明外部平台已经收到信号。调试和故障排查见
 `../../docs/runbooks/otel.md`。

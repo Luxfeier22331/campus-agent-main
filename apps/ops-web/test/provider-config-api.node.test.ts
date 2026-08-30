@@ -2,7 +2,10 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
-import { ProviderConfigAdminResponseError } from "../src/server/provider-config-client";
+import {
+	createProviderConfigAdminClient,
+	ProviderConfigAdminResponseError,
+} from "../src/server/provider-config-client";
 import { ExecutionModelSettingsStatusSchema } from "../src/shared/ops-contract";
 import { createTestOpsApp } from "./helpers/ops-app";
 
@@ -22,8 +25,46 @@ describe("ops model settings BFF", () => {
 		expect(ExecutionModelSettingsStatusSchema.parse(status)).toEqual(status);
 	});
 
+	it("maps an unvalidated upstream config to a null latest validation", async () => {
+		const fetchImplementation: typeof fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						sampled_at: "2026-08-27T00:00:00.000Z",
+						configs: {
+							primary_agent: {
+								api_protocol: "openai.responses",
+								base_url: "https://provider.example/v1",
+								credential_configured: true,
+								model: "test-model",
+								provider: "openai-compatible",
+								validated_at: null,
+								validated_by: null,
+								validation: null,
+								updated_at: "2026-08-27T00:00:00.000Z",
+								updated_by: "local-seed",
+							},
+						},
+					}),
+					{ headers: { "content-type": "application/json" }, status: 200 },
+				),
+		);
+		const client = createProviderConfigAdminClient(
+			{ MODEL_CONFIG_URL: "http://model-config:8000/" },
+			{ fetchImplementation },
+		);
+
+		const mapped = await client.getStatus();
+		expect(mapped.settings.llm?.latestValidation).toBeNull();
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"http://model-config:8000/internal/admin/model-configs",
+			expect.objectContaining({ method: "GET" }),
+		);
+	});
+
 	it("requires same-origin writes and forwards model discovery", async () => {
 		const put = vi.fn().mockResolvedValue(status);
+		const validate = vi.fn().mockResolvedValue(status);
 		const discoverModels = vi.fn().mockResolvedValue({
 			models: ["model-a", "model-b"],
 			sampledAt: "2026-07-14T10:01:00.000Z",
@@ -35,6 +76,7 @@ describe("ops model settings BFF", () => {
 				discoverModels,
 				getStatus: async () => status,
 				put,
+				validate,
 			},
 		});
 		const body = {
@@ -157,6 +199,61 @@ describe("ops model settings BFF", () => {
 			"ops@example.test",
 			"reranker",
 		);
+
+		const revalidated = await app.request(
+			"http://ops-web:5178/api/ops/model-configs/notice_classifier/validate",
+			{
+				headers: {
+					origin: "https://ops.example.test",
+					"sec-fetch-site": "same-origin",
+				},
+				method: "POST",
+			},
+		);
+		expect(revalidated.status).toBe(200);
+		expect(validate).toHaveBeenCalledWith("notice_classifier", "ops@example.test");
+	});
+
+	it("preserves the upstream validation message", async () => {
+		const upstream = new Response(
+			JSON.stringify({ error_code: "provider_http_422", message: "HTTP 422: schema unsupported" }),
+			{ headers: { "content-type": "application/json" }, status: 422 },
+		);
+		const app = createTestOpsApp({
+			admission: createAllowAllOpsAdmission(),
+			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
+			providerConfigClient: {
+				discoverModels: vi.fn(),
+				getStatus: async () => status,
+				put: vi.fn(),
+				validate: vi.fn(async () => {
+					throw new ProviderConfigAdminResponseError(
+						upstream,
+						"provider_http_422",
+						"HTTP 422: schema unsupported",
+					);
+				}),
+			},
+		});
+
+		const response = await app.request(
+			"http://ops.test/api/ops/model-configs/notice_classifier/validate",
+			{
+				headers: {
+					origin: "https://ops.example.test",
+					"sec-fetch-site": "same-origin",
+				},
+				method: "POST",
+			},
+		);
+		expect(response.status).toBe(422);
+		expect(await response.json()).toEqual({
+			error: {
+				code: "OPS_PROVIDER_CONFIG_INVALID",
+				message: "HTTP 422: schema unsupported",
+				upstreamCode: "provider_http_422",
+			},
+		});
 	});
 
 	it("maps execution-control failures without exposing its message", async () => {
@@ -173,6 +270,7 @@ describe("ops model settings BFF", () => {
 					throw new ProviderConfigAdminResponseError(upstream);
 				},
 				put: vi.fn(),
+				validate: vi.fn(),
 			},
 		});
 

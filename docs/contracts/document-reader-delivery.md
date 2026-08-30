@@ -30,7 +30,7 @@ status: active
 来源系统生成 reader、课程图来源和图片
 -> 来源系统写入对象存储并记录 key、byteSize、sha256
 -> 整理流程生成 campus_docs_source.v3
--> Campus Web 来源更新命令完整校验并写入 campus-docs/source.json
+-> Campus Web 来源提交入口完整校验并写入固定来源清单
 -> Campus Web 构建读取固定来源键并再次校验
 -> 构建进程复制 reader 并生成最终课程图
 -> 构建派生站点索引、内容寻址搜索索引、静态资产和预渲染 HTML
@@ -91,23 +91,13 @@ Campus Web 不从检索分块、HTML、文件名或其他对象重建阅读结�
 浏览器课程图只包含逻辑图标识、标题、目标 `rootUnitId`、图片相对路径和尺寸，不公开来源提取节点、
 边和备注。
 
-## 固定来源键
+## 来源提交
 
-环境的 `campus-agent-derived` bucket 保存：
-
-- `campus-docs/source.json`：唯一可变的规范化来源清单；
-- 来源清单明确引用的 reader、课程图来源和图片。
-
-来源更新命令为：
-
-```bash
-pnpm --dir apps/campus-web docs:source:update -- --source-file <path>
-```
-
-来源更新命令先解析 schema、规范化排序、核对关系并完整编译所有版本；只有全部成功后才覆盖固定
-来源键，随后回读并逐字节核对。编译失败不得修改固定来源键。该命令只读取调用进程环境；需要使用
-`env/commands/campus-docs-source.env` 时先在当前 shell 中显式加载。对象存储地址和凭据不写入来源
-清单。
+固定来源清单及其引用对象的布局由
+[文档阅读器数据模型](../data/document-reader.md)维护。来源提交入口先解析 schema、规范化排序、核对关系并
+完整编译所有版本；只有全部成功后才替换固定来源清单，随后回读并逐字节核对。编译失败不得修改当前
+来源。对象存储地址和凭据不写入来源清单。具体更新操作见
+[Campus Docs 维护与索引发布](../runbooks/campus-docs.md)。
 
 来源对象引用仍按摘要核对。reader 原件保存在对象存储；最终课程图只存在于 Campus Web 的本次构建
 目录及最终静态产物中，不回写对象存储。
@@ -116,7 +106,7 @@ pnpm --dir apps/campus-web docs:source:update -- --source-file <path>
 
 Campus Web 开发和构建入口都必须：
 
-1. 读取 `campus-docs/source.json`，确认它是规范化的 `campus_docs_source.v3` JSON；
+1. 读取固定来源清单，确认它是规范化的 `campus_docs_source.v3` JSON；
 2. 以来源清单精确字节的 SHA-256 选择本地缓存目录；
 3. 核对每份 reader、课程图来源和图片的字节数与摘要；
 4. 校验 reader v3 的身份、元素、标题锚点和表格；
@@ -175,10 +165,9 @@ version 时同时回滚全部文档静态内容。
 
 ## 操作入口
 
-- 来源更新与 Campus Web 构建：`apps/campus-web/README.md`；
+- 来源更新、Campus Web 刷新与检索索引操作：`docs/runbooks/campus-docs.md`；
 - 环境选择与候选发布：`docs/runbooks/release.md`；
 - 数据对象定义：`docs/data/document-reader.md`。
-- 检索索引操作：`docs/runbooks/campus-docs.md`。
 
 ## 相关文档
 

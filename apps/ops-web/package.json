@@ -14,7 +14,6 @@
 		"check": "pnpm typecheck && pnpm test && pnpm build",
 		"dev:api": "node --env-file-if-exists=.env.local --experimental-strip-types src/server/node.ts",
 		"dev:fixture": "set -a && . ./.env.local && set +a && exec node --experimental-strip-types test/fixtures/internal-portal-automation-server.ts --port \"$PORT\"",
-		"dev:init": "pnpm --dir ../.. exec tsx scripts/dev/cli.ts init --target ops-web",
 		"dev:web": "set -a && . ./.env.local && set +a && exec vite --host 127.0.0.1 --port \"$OPS_WEB_WEB_PORT\" --strictPort",
 		"start": "node --env-file-if-exists=.env dist-server/node.js",
 		"db:apply": "node --experimental-strip-types ops/db/ops-web-database.ts apply",

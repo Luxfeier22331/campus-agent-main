@@ -14,66 +14,12 @@ body:
   - type: textarea
     id: desired_behavior
     attributes:
-      label: Desired behavior
-      description: What observable behavior should the system provide?
+      label: Desired outcome
+      description: What observable result should this change provide?
     validations:
       required: true
   - type: textarea
-    id: acceptance_criteria
+    id: context
     attributes:
-      label: Acceptance criteria
-      description: List the concrete conditions that make this request complete.
-      placeholder: |
-        - [ ] ...
-        - [ ] ...
-    validations:
-      required: true
-  - type: dropdown
-    id: area
-    attributes:
-      label: Primary area
-      description: Select the main owner. Maintainers apply the matching area label during triage.
-      options:
-        - campus-web
-        - app-api
-        - ops-web
-        - execution-runtime
-        - ingestion-data
-        - contracts
-        - docs
-        - infra-ci
-    validations:
-      required: true
-  - type: dropdown
-    id: impact
-    attributes:
-      label: Primary impact
-      options:
-        - User-facing behavior
-        - API or contract
-        - Internal implementation
-        - Delivery or operations
-        - Documentation
-    validations:
-      required: true
-  - type: textarea
-    id: dependencies
-    attributes:
-      label: Dependencies
-      description: Link prerequisite or blocking Issues and Pull Requests, or write None.
-    validations:
-      required: true
-  - type: textarea
-    id: out_of_scope
-    attributes:
-      label: Out of scope
-      description: State what this request deliberately does not include.
-  - type: checkboxes
-    id: data_boundary
-    attributes:
-      label: Data and security boundary
-      options:
-        - label: This request uses only synthetic, self-authored, sanitized, or redistributable examples.
-          required: true
-        - label: This request does not publish secrets, private URLs, raw notices, source-derived documents, or internal logs.
-          required: true
+      label: Context
+      description: Add relevant constraints, examples, links, or prior decisions when they help explain the request.

@@ -30,6 +30,13 @@ export interface CampusAgentSchemaResult {
 	result: "applied" | "current";
 }
 
+export interface CampusAgentSchemaStatus {
+	appliedMigrations: number;
+	expectedMigrations: number;
+	legacyObjects: string[];
+	status: "current" | "missing" | "pending" | "legacy";
+}
+
 export function readDatabaseConfig(env: NodeJS.ProcessEnv = process.env): ClientConfig {
 	const host = required(env, "PGHOST");
 	const port = parsePort(env.PGPORT?.trim() || "5432");
@@ -77,6 +84,46 @@ export async function migrateCampusAgentSchema(
 	}
 }
 
+export async function inspectCampusAgentSchema(
+	env: NodeJS.ProcessEnv = process.env,
+): Promise<CampusAgentSchemaStatus> {
+	const client = new Client(readDatabaseConfig(env));
+	await client.connect();
+	try {
+		const legacyObjects = await readLegacyObjects(client);
+		if (legacyObjects.length > 0) {
+			return {
+				appliedMigrations: 0,
+				expectedMigrations: expectedMigrationCount(),
+				legacyObjects,
+				status: "legacy",
+			};
+		}
+		const relation = await client.query<{ present: boolean }>(
+			"select to_regclass($1) is not null as present",
+			[`${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`],
+		);
+		if (!relation.rows[0]?.present) {
+			return {
+				appliedMigrations: 0,
+				expectedMigrations: expectedMigrationCount(),
+				legacyObjects: [],
+				status: "missing",
+			};
+		}
+		const appliedMigrations = await readMigrationCount(client);
+		const expectedMigrations = expectedMigrationCount();
+		return {
+			appliedMigrations,
+			expectedMigrations,
+			legacyObjects: [],
+			status: appliedMigrations === expectedMigrations ? "current" : "pending",
+		};
+	} finally {
+		await client.end();
+	}
+}
+
 export async function withSchemaMigrationLock<T>(
 	client: QueryClient,
 	operation: () => Promise<T>,
@@ -96,18 +143,23 @@ export async function withSchemaMigrationLock<T>(
 }
 
 export async function assertLegacyObjectsAbsent(client: QueryClient): Promise<void> {
+	const legacyObjects = await readLegacyObjects(client);
+	if (legacyObjects.length > 0) {
+		throw new Error(`legacy database objects are still present: ${legacyObjects.join(", ")}`);
+	}
+}
+
+async function readLegacyObjects(client: QueryClient): Promise<string[]> {
 	const result = await client.query<{ object_name: string }>(
-		`select object_name
+					`select object_name
 		 from unnest($1::text[]) as legacy(object_name)
 		 where case
 			when object_name = 'execution_config' then to_regnamespace(object_name) is not null
 			else to_regclass(object_name) is not null
-		 end`,
+			end`,
 		[LEGACY_OBJECTS],
 	);
-	if (result.rows.length > 0) {
-		throw new Error(`legacy database objects are still present: ${result.rows.map((row) => row.object_name).join(", ")}`);
-	}
+	return result.rows.map((row) => row.object_name);
 }
 
 export const legacyObjects = LEGACY_OBJECTS;
@@ -134,6 +186,13 @@ async function readMigrationCount(client: QueryClient): Promise<number> {
 		 from ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`,
 	);
 	return Number(result.rows[0]?.count ?? 0);
+}
+
+function expectedMigrationCount(): number {
+	const journal = JSON.parse(
+		readFileSync(resolve(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8"),
+	) as { entries?: unknown[] };
+	return Array.isArray(journal.entries) ? journal.entries.length : 0;
 }
 
 function readSslConfig(

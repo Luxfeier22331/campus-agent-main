@@ -31,19 +31,15 @@ function resolveTestConfig(
 }
 
 describe("internal portal collection config", () => {
-	it("loads only adapter-owned env files without overriding process env", () => {
+	it("loads the managed adapter environment without overriding process env", () => {
 		const config = vi.spyOn(dotenv, "config").mockReturnValue({ parsed: {} });
 		const processEnv = {};
 
 		loadInternalPortalEnv(processEnv);
 
-		expect(config).toHaveBeenCalledTimes(2);
+		expect(config).toHaveBeenCalledTimes(1);
 		expect(config.mock.calls[0]?.[0]).toMatchObject({
 			path: expect.stringMatching(/adapters\/internal-portal\/\.env\.local$/u),
-			quiet: true,
-		});
-		expect(config.mock.calls[1]?.[0]).toMatchObject({
-			path: expect.stringMatching(/adapters\/internal-portal\/\.env$/u),
 			quiet: true,
 		});
 		expect(config.mock.calls.every(([options]) => options?.override !== true)).toBe(true);

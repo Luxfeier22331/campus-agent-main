@@ -8,7 +8,7 @@ status: active
 
 ## 边界
 
-Model Config 管理四个 name 的唯一已验证当前 config：`primary_agent`、
+Model Config 管理四个 name 的当前 config：`primary_agent`、
 `campus_docs_embedding`、`campus_docs_reranker` 和 `notice_classification`。本文规定这些在线模型
 配置中供应商密钥的首次配置、验证、替换、轮换和撤销。Provider 与环境所有权见
 `../environment/providers.md`，接口边界见 `../contracts/ops-web/providers.md`。
@@ -43,15 +43,19 @@ schema Job 的期望拓扑位于 `data-postgres` Application；旧 runner 和密
 
 ## 本地开发
 
-`pnpm dev:init` 为每个 worktree 维护 `var/dev/model-config-encryption.key`，供 Model Config 当前密文
-使用；它不再生成 `var/dev/provider-config-encryption.key`。后者只在显式验证保留的历史切换 runner 时
-由调用者单独准备。`pnpm dev:init` 为 Model Config 和所有内部 consumer 生成同一 worktree 的
-`MODEL_CONFIG_URL`，不生成 Model Config 调用 token。加密密钥文件不得打印、复制到其他 worktree
+包含 `core` 或 `model-config` 投影的 `pnpm dev:init -- --target <target>` 为每个 worktree 维护 `var/dev/model-config-encryption.key`，供 Model Config 当前密文
+使用，并按 target 从当前进程环境或根 `.env` 读取所需 provider 字段，显式 seed 缺失的配置。seed
+只写入缺失 name，不覆盖已有配置，不访问 Provider，也不产生 validation 记录。它不再生成
+`var/dev/provider-config-encryption.key`。后者只在显式验证保留的历史切换 runner 时由调用者单独准备。
+`core`、`ops-web` 和 `notice-classifier` projection 会在实际消费者需要时生成同一
+worktree 的 `MODEL_CONFIG_URL`，不生成 Model Config 调用 token。加密密钥文件不得打印、复制到其他 worktree
 或提交。
 
-linked worktree 首次运行 `pnpm dev:init` 时，会从 main checkout 根 `.env` 按白名单导入尚未存在的
-provider 外部连接字段，并导入可用的门户 TGC。它不复制数据库连接、在线配置密文或 encryption key；
-导入值也不会自动写入 Model Config，仍需通过 Ops Web 保存并验证。
+linked worktree 首次运行 `pnpm dev:init -- --target <target>` 时，仅在 target 包含 `core` 或 `model-config`
+投影时从 main checkout 根 `.env` 按白名单导入尚未存在的 provider 外部连接字段；仅在包含
+`internal-portal-collection` 投影时首次导入可用的门户 TGC。它不复制数据库连接、在线配置密文或 encryption key；
+之后该 target 的 `dev:init` 会把所需的缺失连接显式写入当前 worktree 的 Model Config。
+这一步仍不访问 Provider。在线 Ops Web 保存或重新验证才会产生 validation 记录。
 
 ## 轮换
 

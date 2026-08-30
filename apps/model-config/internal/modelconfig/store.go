@@ -2,6 +2,7 @@ package modelconfig
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,6 +15,8 @@ import (
 var ErrNotFound = errors.New("model config not found")
 var ErrInitialAPIKeyRequired = errors.New("api key is required for the initial model config")
 var ErrTargetMismatch = errors.New("model target hash mismatch")
+var ErrLocalSeedRequiresConfig = errors.New("at least one model config is required for local seed")
+var ErrLocalCheckRequiresConfig = errors.New("at least one model config is required for local check")
 
 const maxPoolConns = 4
 
@@ -24,6 +27,30 @@ type Store struct {
 
 type rowScanner interface {
 	Scan(dest ...any) error
+}
+
+type LocalSeedConfig struct {
+	Name        ConfigName
+	APIKey      string
+	Provider    string
+	APIProtocol string
+	BaseURL     string
+	Model       string
+}
+
+type LocalConfigCheckState string
+
+const (
+	LocalConfigCheckMissing LocalConfigCheckState = "missing"
+	LocalConfigCheckInvalid LocalConfigCheckState = "invalid"
+	LocalConfigCheckReady   LocalConfigCheckState = "ready"
+	LocalConfigCheckUnknown LocalConfigCheckState = "unknown"
+)
+
+type LocalConfigCheck struct {
+	Name   ConfigName            `json:"name"`
+	State  LocalConfigCheckState `json:"state"`
+	Reason string                `json:"reason,omitempty"`
 }
 
 func NewStore(ctx context.Context, databaseURL string, cipher *Cipher) (*Store, error) {
@@ -151,6 +178,135 @@ func (s *Store) Status(ctx context.Context) (Status, error) {
 	return status, rows.Err()
 }
 
+func (s *Store) Seed(ctx context.Context, configs []LocalSeedConfig) error {
+	if s == nil || s.pool == nil || s.cipher == nil {
+		return errors.New("model config store is not configured")
+	}
+	if len(configs) == 0 {
+		return ErrLocalSeedRequiresConfig
+	}
+
+	type preparedConfig struct {
+		LocalSeedConfig
+		encrypted []byte
+	}
+	prepared := make([]preparedConfig, 0, len(configs))
+	seen := make(map[ConfigName]struct{}, len(configs))
+	for _, config := range configs {
+		if _, exists := seen[config.Name]; exists {
+			return fmt.Errorf("duplicate local model config %q", config.Name)
+		}
+		seen[config.Name] = struct{}{}
+		baseURL, err := NormalizeBaseURL(config.BaseURL)
+		if err != nil {
+			return fmt.Errorf("local model config %s: %w", config.Name, err)
+		}
+		target := Target{
+			Name:        config.Name,
+			Provider:    strings.TrimSpace(config.Provider),
+			APIProtocol: strings.TrimSpace(config.APIProtocol),
+			BaseURL:     baseURL,
+			Model:       strings.TrimSpace(config.Model),
+		}
+		apiKey := strings.TrimSpace(config.APIKey)
+		if err := validateShape(target, apiKey); err != nil {
+			return fmt.Errorf("local model config %s: %w", config.Name, err)
+		}
+		encrypted, err := s.cipher.EncryptValue(apiKey, configAAD(target.Name))
+		if err != nil {
+			return fmt.Errorf("encrypt local model config %s: %w", config.Name, err)
+		}
+		prepared = append(prepared, preparedConfig{
+			LocalSeedConfig: LocalSeedConfig{
+				Name:        target.Name,
+				APIKey:      apiKey,
+				Provider:    target.Provider,
+				APIProtocol: target.APIProtocol,
+				BaseURL:     target.BaseURL,
+				Model:       target.Model,
+			},
+			encrypted: encrypted,
+		})
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	now := time.Now().UTC()
+	for _, config := range prepared {
+		if _, err := tx.Exec(ctx, `insert into model_config.model_configs(name,provider,api_protocol,base_url,model,encrypted_api_key,updated_at,updated_by) values($1,$2,$3,$4,$5,$6,$7,$8) on conflict(name) do nothing`,
+			config.Name,
+			config.Provider,
+			config.APIProtocol,
+			config.BaseURL,
+			config.Model,
+			config.encrypted,
+			now,
+			"local-seed",
+		); err != nil {
+			return fmt.Errorf("seed local model config %s: %w", config.Name, err)
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *Store) Check(ctx context.Context, names []ConfigName) ([]LocalConfigCheck, error) {
+	if s == nil || s.pool == nil || s.cipher == nil {
+		return nil, errors.New("model config store is not configured")
+	}
+	if len(names) == 0 {
+		return nil, ErrLocalCheckRequiresConfig
+	}
+	checks := make([]LocalConfigCheck, 0, len(names))
+	seen := make(map[ConfigName]struct{}, len(names))
+	for _, name := range names {
+		if _, exists := seen[name]; exists {
+			return nil, fmt.Errorf("duplicate model config name %q", name)
+		}
+		seen[name] = struct{}{}
+		var target Target
+		var encrypted []byte
+		err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model,encrypted_api_key from model_config.model_configs where name=$1`, name).Scan(
+			&target.Name,
+			&target.Provider,
+			&target.APIProtocol,
+			&target.BaseURL,
+			&target.Model,
+			&encrypted,
+		)
+		if errors.Is(err, pgx.ErrNoRows) {
+			checks = append(checks, LocalConfigCheck{Name: name, State: LocalConfigCheckMissing})
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		apiKey, err := s.cipher.DecryptValue(encrypted, configAAD(name))
+		if err != nil {
+			checks = append(checks, LocalConfigCheck{
+				Name:   name,
+				State:  LocalConfigCheckInvalid,
+				Reason: "stored credential cannot be decrypted",
+			})
+			continue
+		}
+		baseURL, err := NormalizeBaseURL(target.BaseURL)
+		if err != nil {
+			checks = append(checks, LocalConfigCheck{Name: name, State: LocalConfigCheckInvalid, Reason: err.Error()})
+			continue
+		}
+		target.BaseURL = baseURL
+		if err := validateShape(target, apiKey); err != nil {
+			checks = append(checks, LocalConfigCheck{Name: name, State: LocalConfigCheckInvalid, Reason: err.Error()})
+			continue
+		}
+		checks = append(checks, LocalConfigCheck{Name: name, State: LocalConfigCheckReady})
+	}
+	return checks, nil
+}
+
 func (s *Store) Put(ctx context.Context, actor string, input ConfigInput, validation Validation) (ConfigView, error) {
 	name := ConfigName(strings.TrimSpace(string(input.Name)))
 	baseURL, err := NormalizeBaseURL(input.BaseURL)
@@ -189,10 +345,7 @@ func (s *Store) Put(ctx context.Context, actor string, input ConfigInput, valida
 		return ConfigView{}, err
 	}
 	now := time.Now().UTC()
-	actor = strings.TrimSpace(actor)
-	if actor == "" {
-		actor = "model-config"
-	}
+	actor = validationActor(actor)
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return ConfigView{}, err
@@ -221,8 +374,44 @@ func (s *Store) Put(ctx context.Context, actor string, input ConfigInput, valida
 	return view, nil
 }
 
+func (s *Store) RecordValidation(
+	ctx context.Context,
+	name ConfigName,
+	actor string,
+	validation Validation,
+) (ConfigView, error) {
+	if validation.Status != "passed" && validation.Status != "failed" {
+		return ConfigView{}, errors.New("model config validation status is invalid")
+	}
+	view, err := scanConfigView(s.pool.QueryRow(ctx, `update model_config.model_configs set validation_status=$2,validation_error_code=$3,validation_message=$4,validation_observed_dimensions=nullif($5,0),validated_at=$6,validated_by=$7 where name=$1 returning name,provider,api_protocol,base_url,model,(length(encrypted_api_key)>0),validation_status,validation_error_code,validation_message,coalesce(validation_observed_dimensions,0),validated_at,validated_by,updated_at,updated_by`,
+		name,
+		validation.Status,
+		validation.ErrorCode,
+		validation.Message,
+		validation.ObservedDimensions,
+		time.Now().UTC(),
+		validationActor(actor),
+	))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ConfigView{}, fmt.Errorf("%w: %s", ErrNotFound, name)
+	}
+	return view, err
+}
+
+func validationActor(actor string) string {
+	actor = strings.TrimSpace(actor)
+	if actor == "" {
+		return "model-config"
+	}
+	return actor
+}
+
 func scanConfigView(scanner rowScanner) (ConfigView, error) {
 	var view ConfigView
+	var validationStatus, validationErrorCode, validationMessage sql.NullString
+	var validatedAt sql.NullTime
+	var validatedBy sql.NullString
+	var observedDimensions int
 	if err := scanner.Scan(
 		&view.Name,
 		&view.Provider,
@@ -230,18 +419,32 @@ func scanConfigView(scanner rowScanner) (ConfigView, error) {
 		&view.BaseURL,
 		&view.Model,
 		&view.CredentialConfigured,
-		&view.Validation.Status,
-		&view.Validation.ErrorCode,
-		&view.Validation.Message,
-		&view.Validation.ObservedDimensions,
-		&view.ValidatedAt,
-		&view.ValidatedBy,
+		&validationStatus,
+		&validationErrorCode,
+		&validationMessage,
+		&observedDimensions,
+		&validatedAt,
+		&validatedBy,
 		&view.UpdatedAt,
 		&view.UpdatedBy,
 	); err != nil {
 		return ConfigView{}, err
 	}
-	view.ValidatedAt = view.ValidatedAt.UTC()
+	if validationStatus.Valid && validationMessage.Valid && validatedAt.Valid && validatedBy.Valid {
+		validation := &Validation{
+			Status:             validationStatus.String,
+			Message:            validationMessage.String,
+			ObservedDimensions: observedDimensions,
+		}
+		if validationErrorCode.Valid {
+			validation.ErrorCode = validationErrorCode.String
+		}
+		view.Validation = validation
+		validatedAtValue := validatedAt.Time.UTC()
+		view.ValidatedAt = &validatedAtValue
+		validatedByValue := validatedBy.String
+		view.ValidatedBy = &validatedByValue
+	}
 	view.UpdatedAt = view.UpdatedAt.UTC()
 	view.SchemaVersion = "model_target.v1"
 	view.TargetSHA256 = TargetHash(view.Target)

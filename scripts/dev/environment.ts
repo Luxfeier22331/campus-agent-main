@@ -8,17 +8,24 @@ import {
 	realpathSync,
 	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseEnv } from "node:util";
 
-import type { LocalDevProfileV1 } from "./profile";
+import { ensureLocalDevSecrets } from "./local-secrets";
+import type { LocalDevProfileV2 } from "./profile";
 import { calculateLocalDevRuntimePorts } from "./profile";
+import {
+	type LocalDevEnvironmentProjection,
+	type LocalDevTarget,
+	type LocalModelConfigName,
+	resolveLocalDevTargetPlan,
+} from "./targets";
 
 export const MANAGED_LOCAL_ENV_MARKER = "# Managed by pnpm dev:init. Do not edit.";
 const LOCAL_MODEL_CONFIG_ENCRYPTION_KEY_PATH = "var/dev/model-config-encryption.key";
-const LOCAL_LEGACY_PROVIDER_CONFIG_ENCRYPTION_KEY_PATH = "var/dev/provider-config-encryption.key";
 const IMPORTED_EXTERNAL_ENV_MARKER =
 	"# External development credentials imported from the main checkout by pnpm dev:init.";
 
@@ -26,24 +33,29 @@ const SHARED_EXTERNAL_PROVIDER_ENV_KEYS = [
 	"LLM_BASE_URL",
 	"LLM_API_KEY",
 	"LLM_MODEL",
-	"RAG_SYNTHESIS_MODEL",
+	"NOTICE_CLASSIFICATION_BASE_URL",
+	"NOTICE_CLASSIFICATION_API_KEY",
+	"NOTICE_CLASSIFICATION_MODEL",
 	"EMBEDDING_BASE_URL",
 	"EMBEDDING_API_KEY",
-	"EMBEDDING_MODEL",
-	"EMBEDDING_DIMENSIONS",
 	"RERANK_BASE_URL",
 	"RERANK_API_KEY",
 	"RERANK_MODEL",
-	"RERANK_PATH",
-	"INTERNAL_NOTICE_CLASSIFIER_OPENAI_BASE_URL",
-	"INTERNAL_NOTICE_CLASSIFIER_OPENAI_API_KEY",
-	"INTERNAL_NOTICE_CLASSIFIER_OPENAI_MODEL",
 ] as const;
 
-const MAIN_INTERNAL_PORTAL_ENV_PATHS = [
-	"jobs/internal-portal-collection/adapters/internal-portal/.env.local",
-	"apps/source-collector/adapters/internal-portal/.env.local",
-] as const;
+const LOCAL_MODEL_CONFIG_ENVIRONMENT_KEYS: Record<LocalModelConfigName, readonly string[]> = {
+	primary_agent: ["LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"],
+	campus_docs_embedding: ["EMBEDDING_BASE_URL", "EMBEDDING_API_KEY"],
+	campus_docs_reranker: ["RERANK_BASE_URL", "RERANK_API_KEY", "RERANK_MODEL"],
+	notice_classification: [
+		"NOTICE_CLASSIFICATION_BASE_URL",
+		"NOTICE_CLASSIFICATION_API_KEY",
+		"NOTICE_CLASSIFICATION_MODEL",
+	],
+};
+
+const MAIN_INTERNAL_PORTAL_ENV_PATH =
+	"jobs/internal-portal-collection/adapters/internal-portal/.env.local";
 
 export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	appApi: "apps/app-api/.env.local",
@@ -65,19 +77,14 @@ interface MainCheckoutExternalCredentials {
 	provider: Record<string, string>;
 }
 
-export type LocalDevEnvironmentTarget =
-	| "core"
-	| "ops-web"
-	| "notice-publisher"
-	| "internal-portal-collection"
-	| "notice-classifier"
-	| "all";
+export type LocalDevEnvironmentTarget = LocalDevEnvironmentProjection;
 
 const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
-	Exclude<LocalDevEnvironmentTarget, "all">,
+	LocalDevEnvironmentTarget,
 	readonly ManagedLocalEnvironment[]
 > = {
 	core: ["appApi", "appApiVars", "campusWeb", "modelConfig", "executionControl", "agentRuntime"],
+	"model-config": ["modelConfig"],
 	"ops-web": ["opsWeb"],
 	"notice-publisher": ["noticePublisher"],
 	"internal-portal-collection": ["internalPortalCollection"],
@@ -109,11 +116,23 @@ export function managedLocalEnvironmentPathsForTarget(
 	target: LocalDevEnvironmentTarget,
 ): string[] {
 	const paths = managedLocalEnvironmentPaths(repoRoot);
-	const names =
-		target === "all"
-			? (Object.keys(paths) as ManagedLocalEnvironment[])
-			: LOCAL_DEV_ENVIRONMENT_TARGETS[target];
+	const names = LOCAL_DEV_ENVIRONMENT_TARGETS[target];
 	return names.map((name) => paths[name]);
+}
+
+export function managedLocalEnvironmentPathsForProjections(
+	repoRoot: string,
+	projections: readonly LocalDevEnvironmentProjection[],
+): string[] {
+	return [
+		...new Set(
+			projections.flatMap((target) => managedLocalEnvironmentPathsForTarget(repoRoot, target)),
+		),
+	];
+}
+
+export function allManagedLocalEnvironmentPaths(repoRoot: string): string[] {
+	return Object.values(managedLocalEnvironmentPaths(repoRoot));
 }
 
 export function resolveMainCheckoutRoot(repoRoot: string): string {
@@ -131,17 +150,25 @@ export function resolveMainCheckoutRoot(repoRoot: string): string {
 
 export function importMainCheckoutExternalCredentials(input: {
 	mainCheckoutRoot: string;
+	projections: readonly LocalDevEnvironmentProjection[];
 	repoRoot: string;
 }): void {
 	if (realpathSync(input.mainCheckoutRoot) === realpathSync(input.repoRoot)) {
 		return;
 	}
 	const credentials = readMainCheckoutExternalCredentials(input.mainCheckoutRoot);
-	appendMissingEnvValues(resolve(input.repoRoot, ".env"), credentials.provider);
-	if (!credentials.internalPortalSsoTgc) {
+	if (input.projections.includes("core") || input.projections.includes("model-config")) {
+		appendMissingEnvValues(resolve(input.repoRoot, ".env"), credentials.provider);
+	}
+	if (
+		!(input.projections.includes("internal-portal-collection") && credentials.internalPortalSsoTgc)
+	) {
 		return;
 	}
 	const path = managedLocalEnvironmentPaths(input.repoRoot).internalPortalCollection;
+	if (existsSync(path) && !isManagedFile(path)) {
+		return;
+	}
 	const existing = readManagedEnv(path);
 	if (Object.hasOwn(existing, "INTERNAL_PORTAL_SSO_TGC")) {
 		return;
@@ -152,7 +179,7 @@ export function importMainCheckoutExternalCredentials(input: {
 	});
 }
 
-export function localDatabaseUrls(profile: LocalDevProfileV1): {
+export function localDatabaseUrls(profile: LocalDevProfileV2): {
 	appApi: string;
 	executionControl: string;
 	modelConfig: string;
@@ -172,35 +199,92 @@ export function localDatabaseUrls(profile: LocalDevProfileV1): {
 	};
 }
 
-export function renderLocalEnvironmentFiles(input: {
-	profile: LocalDevProfileV1;
+export function localModelConfigEnvironment(input: {
+	environment?: NodeJS.ProcessEnv;
+	names: readonly LocalModelConfigName[];
 	repoRoot: string;
-	target?: LocalDevEnvironmentTarget;
+}): Record<string, string> {
+	const currentEnvironment = input.environment ?? process.env;
+	const rootEnvironment = readOptionalEnv(resolve(input.repoRoot, ".env"));
+	const keys = [
+		...new Set(input.names.flatMap((name) => LOCAL_MODEL_CONFIG_ENVIRONMENT_KEYS[name])),
+	];
+	return Object.fromEntries(
+		keys.flatMap((key) => {
+			const value = currentEnvironment[key]?.trim() || rootEnvironment[key]?.trim();
+			return value ? [[key, value]] : [];
+		}),
+	);
+}
+
+export function localModelConfigCommandEnvironment(input: {
+	environment?: NodeJS.ProcessEnv;
+	names: readonly LocalModelConfigName[];
+	profile: LocalDevProfileV2;
+	repoRoot: string;
+}): NodeJS.ProcessEnv {
+	const inheritedEnvironment = { ...(input.environment ?? process.env) };
+	for (const key of SHARED_EXTERNAL_PROVIDER_ENV_KEYS) {
+		delete inheritedEnvironment[key];
+	}
+	return {
+		...inheritedEnvironment,
+		...localModelConfigEnvironment({
+			environment: input.environment,
+			names: input.names,
+			repoRoot: input.repoRoot,
+		}),
+		MODEL_CONFIG_DATABASE_URL: localDatabaseUrls(input.profile).modelConfig,
+		MODEL_CONFIG_ENCRYPTION_KEY_FILE: resolveLocalModelConfigEncryptionKeyPath(input.repoRoot),
+	};
+}
+
+export function renderLocalEnvironmentFiles(input: {
+	profile: LocalDevProfileV2;
+	repoRoot: string;
+	target?: LocalDevTarget;
+	projections?: readonly LocalDevEnvironmentProjection[];
 }): string[] {
 	const { profile, repoRoot } = input;
-	const target = input.target ?? "all";
-	assertLocalEnvironmentFilesAreManaged(repoRoot, target);
+	const projections =
+		input.projections ??
+		(input.target
+			? resolveLocalDevTargetPlan(input.target).environmentProjections
+			: (Object.keys(LOCAL_DEV_ENVIRONMENT_TARGETS) as LocalDevEnvironmentProjection[]));
+	const selectedPaths = managedLocalEnvironmentPathsForProjections(repoRoot, projections);
+	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
 	const database = localDatabaseUrls(profile);
 	const paths = managedLocalEnvironmentPaths(repoRoot);
 	const runtimePorts = calculateLocalDevRuntimePorts(profile.slot);
-	const existingSecrets = readManagedEnv(paths.appApiVars);
-	const executionControlEnvironment = readManagedEnv(paths.executionControl);
-	const opsWebEnvironment = readManagedEnv(paths.opsWeb);
-	const existingInternalPortalCollectionEnvironment = readManagedEnv(
-		paths.internalPortalCollection,
-	);
-	const executionSharedSecret =
-		existingSecrets.APP_API_EXECUTION_SHARED_SECRET ||
-		executionControlEnvironment.EXECUTION_AGENT_RUNTIME_SHARED_SECRET ||
-		randomSecret();
-	const opsWebInternalToken =
-		existingSecrets.OPS_WEB_INTERNAL_TOKEN ||
-		executionControlEnvironment.OPS_WEB_INTERNAL_TOKEN ||
-		opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN ||
-		randomSecret();
+	const rendersCore = projections.includes("core");
+	const rendersOpsWeb = projections.includes("ops-web");
+	const rendersInternalPortalCollection = projections.includes("internal-portal-collection");
+	const existingSecrets = rendersCore ? readManagedEnv(paths.appApiVars) : {};
+	const executionControlEnvironment = rendersCore ? readManagedEnv(paths.executionControl) : {};
+	const opsWebEnvironment = rendersOpsWeb ? readManagedEnv(paths.opsWeb) : {};
+	const existingInternalPortalCollectionEnvironment = rendersInternalPortalCollection
+		? readManagedEnv(paths.internalPortalCollection)
+		: {};
+	const localSecrets =
+		rendersCore || rendersOpsWeb || rendersInternalPortalCollection
+			? ensureLocalDevSecrets(repoRoot, {
+					appApiSafetyIdentifierHmacSecret: [existingSecrets.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET],
+					betterAuthSecret: [existingSecrets.BETTER_AUTH_SECRET],
+					executionSharedSecret: [
+						existingSecrets.APP_API_EXECUTION_SHARED_SECRET,
+						executionControlEnvironment.EXECUTION_AGENT_RUNTIME_SHARED_SECRET,
+					],
+					opsWebInternalToken: [
+						existingSecrets.OPS_WEB_INTERNAL_TOKEN,
+						executionControlEnvironment.OPS_WEB_INTERNAL_TOKEN,
+						opsWebEnvironment.OPS_WEB_INTERNAL_TOKEN,
+					],
+				})
+			: undefined;
+	const executionSharedSecret = localSecrets?.executionSharedSecret ?? "";
+	const opsWebInternalToken = localSecrets?.opsWebInternalToken ?? "";
 	const shouldRender = (name: ManagedLocalEnvironment): boolean =>
-		target === "all" ||
-		(LOCAL_DEV_ENVIRONMENT_TARGETS[target] as readonly ManagedLocalEnvironment[]).includes(name);
+		projections.some((target) => LOCAL_DEV_ENVIRONMENT_TARGETS[target].includes(name));
 
 	if (shouldRender("appApi")) {
 		writeManagedEnv(paths.appApi, {
@@ -213,11 +297,10 @@ export function renderLocalEnvironmentFiles(input: {
 	if (shouldRender("appApiVars")) {
 		writeManagedEnv(paths.appApiVars, {
 			APP_API_EXECUTION_SHARED_SECRET: executionSharedSecret,
-			APP_API_SAFETY_IDENTIFIER_HMAC_SECRET:
-				existingSecrets.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET || randomSecret(),
+			APP_API_SAFETY_IDENTIFIER_HMAC_SECRET: localSecrets?.appApiSafetyIdentifierHmacSecret ?? "",
 			AUTH_SHELL_ORIGIN: `http://127.0.0.1:${profile.ports.campusWeb}`,
 			AUTH_TURNSTILE_SECRET_KEY: "local-turnstile-disabled",
-			BETTER_AUTH_SECRET: existingSecrets.BETTER_AUTH_SECRET || randomSecret(),
+			BETTER_AUTH_SECRET: localSecrets?.betterAuthSecret ?? "",
 			EXECUTION_CONTROL_BASE_URL: `http://127.0.0.1:${runtimePorts.executionControl}`,
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
@@ -342,23 +425,19 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 		});
 	}
-	return managedLocalEnvironmentPathsForTarget(repoRoot, target);
+	return selectedPaths;
 }
 
 export function resolveLocalModelConfigEncryptionKeyPath(repoRoot: string): string {
 	return resolve(repoRoot, LOCAL_MODEL_CONFIG_ENCRYPTION_KEY_PATH);
 }
 
-export function resolveLocalLegacyProviderConfigEncryptionKeyPath(repoRoot: string): string {
-	return resolve(repoRoot, LOCAL_LEGACY_PROVIDER_CONFIG_ENCRYPTION_KEY_PATH);
-}
-
 export function ensureLocalModelConfigEncryptionKey(repoRoot: string): string {
 	return ensurePrivateEncryptionKey(resolveLocalModelConfigEncryptionKeyPath(repoRoot));
 }
 
-export function ensureLocalLegacyProviderConfigEncryptionKey(repoRoot: string): string {
-	return ensurePrivateEncryptionKey(resolveLocalLegacyProviderConfigEncryptionKeyPath(repoRoot));
+export function removeLocalModelConfigEncryptionKey(repoRoot: string): void {
+	rmSync(resolveLocalModelConfigEncryptionKeyPath(repoRoot), { force: true });
 }
 
 function ensurePrivateEncryptionKey(path: string): string {
@@ -374,22 +453,39 @@ function ensurePrivateEncryptionKey(path: string): string {
 	return path;
 }
 
-export function removeLocalEnvironmentFiles(repoRoot: string): void {
-	assertLocalEnvironmentFilesAreManaged(repoRoot);
-	for (const resolved of Object.values(managedLocalEnvironmentPaths(repoRoot))) {
+export function removeLocalEnvironmentFiles(
+	repoRoot: string,
+	projections: readonly LocalDevEnvironmentProjection[] = Object.keys(
+		LOCAL_DEV_ENVIRONMENT_TARGETS,
+	) as LocalDevEnvironmentProjection[],
+): { removed: string[]; skippedUnmanaged: string[] } {
+	const removed: string[] = [];
+	const skippedUnmanaged: string[] = [];
+	for (const resolved of managedLocalEnvironmentPathsForProjections(repoRoot, projections)) {
 		if (!existsSync(resolved)) {
 			continue;
 		}
-		assertManagedFile(resolved);
+		if (!isManagedFile(resolved)) {
+			skippedUnmanaged.push(resolved);
+			continue;
+		}
 		rmSync(resolved, { force: true });
+		removed.push(resolved);
 	}
+	return { removed, skippedUnmanaged };
 }
 
 export function assertLocalEnvironmentFilesAreManaged(
 	repoRoot: string,
-	target: LocalDevEnvironmentTarget = "all",
+	selection: LocalDevEnvironmentTarget | readonly LocalDevEnvironmentProjection[] = Object.keys(
+		LOCAL_DEV_ENVIRONMENT_TARGETS,
+	) as LocalDevEnvironmentProjection[],
 ): void {
-	for (const resolved of managedLocalEnvironmentPathsForTarget(repoRoot, target)) {
+	const paths =
+		typeof selection === "string"
+			? managedLocalEnvironmentPathsForTarget(repoRoot, selection)
+			: managedLocalEnvironmentPathsForProjections(repoRoot, selection);
+	for (const resolved of paths) {
 		if (existsSync(resolved)) {
 			assertManagedFile(resolved);
 		}
@@ -401,7 +497,7 @@ function readManagedEnv(path: string): Record<string, string> {
 		return {};
 	}
 	assertManagedFile(path);
-	return parseEnv(readFileSync(path, "utf8"));
+	return parseEnvironment(readFileSync(path, "utf8"));
 }
 
 function readMainCheckoutExternalCredentials(
@@ -414,9 +510,9 @@ function readMainCheckoutExternalCredentials(
 			return value ? [[key, value]] : [];
 		}),
 	);
-	const internalPortalSsoTgc = MAIN_INTERNAL_PORTAL_ENV_PATHS.map((relativePath) =>
-		readOptionalEnv(resolve(mainCheckoutRoot, relativePath)).INTERNAL_PORTAL_SSO_TGC?.trim(),
-	).find(Boolean);
+	const internalPortalSsoTgc = readOptionalEnv(
+		resolve(mainCheckoutRoot, MAIN_INTERNAL_PORTAL_ENV_PATH),
+	).INTERNAL_PORTAL_SSO_TGC?.trim();
 	return {
 		...(internalPortalSsoTgc ? { internalPortalSsoTgc } : {}),
 		provider,
@@ -424,12 +520,12 @@ function readMainCheckoutExternalCredentials(
 }
 
 function readOptionalEnv(path: string): Record<string, string> {
-	return existsSync(path) ? parseEnv(readFileSync(path, "utf8")) : {};
+	return existsSync(path) ? parseEnvironment(readFileSync(path, "utf8")) : {};
 }
 
 function appendMissingEnvValues(path: string, values: Record<string, string>): void {
 	const current = existsSync(path) ? readFileSync(path, "utf8") : "";
-	const parsed = current ? parseEnv(current) : {};
+	const parsed = current ? parseEnvironment(current) : {};
 	const missing = Object.entries(values).filter(([key]) => !Object.hasOwn(parsed, key));
 	if (missing.length === 0) {
 		return;
@@ -443,6 +539,15 @@ function appendMissingEnvValues(path: string, values: Record<string, string>): v
 		"",
 	].join("\n");
 	writePrivateFileAtomic(path, body);
+}
+
+function parseEnvironment(body: string): Record<string, string> {
+	const parsed = parseEnv(body);
+	return Object.fromEntries(
+		Object.entries(parsed).filter(
+			(entry): entry is [string, string] => typeof entry[1] === "string",
+		),
+	);
 }
 
 function writeManagedEnv(path: string, values: Record<string, string>): void {
@@ -467,13 +572,25 @@ function writePrivateFileAtomic(path: string, body: string): void {
 }
 
 function assertManagedFile(path: string): void {
-	if (!readFileSync(path, "utf8").startsWith(MANAGED_LOCAL_ENV_MARKER)) {
+	if (!isManagedFile(path)) {
 		throw new Error(`Refusing to overwrite unmanaged local environment file: ${path}`);
 	}
 }
 
-function randomSecret(): string {
-	return randomBytes(32).toString("base64url");
+function isManagedFile(path: string): boolean {
+	return readFileSync(path, "utf8").startsWith(MANAGED_LOCAL_ENV_MARKER);
+}
+
+export function isLocalManagedFile(path: string): boolean {
+	return existsSync(path) && isManagedFile(path);
+}
+
+export function isPrivateLocalFile(path: string): boolean {
+	try {
+		return (statSync(path).mode & 0o077) === 0;
+	} catch {
+		return false;
+	}
 }
 
 export const LOCAL_DEV_DATABASE_PASSWORDS = LOCAL_DATABASE_PASSWORDS;

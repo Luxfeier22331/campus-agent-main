@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	ModelDiscoveryResponseSchema,
 	NoticeJobRangeSchema,
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
@@ -68,5 +69,15 @@ describe("ops-web contract fixtures", () => {
 		expect(NoticeJobRangeSchema.safeParse({ from: "2026-08-27", to: "2026-08-26" }).success).toBe(
 			false,
 		);
+	});
+
+	it("accepts the complete discovered model catalog", () => {
+		const models = Array.from({ length: 501 }, (_, index) => `model-${index}`);
+		expect(
+			ModelDiscoveryResponseSchema.parse({
+				models,
+				sampledAt: "2026-08-27T00:00:00.000Z",
+			}).models,
+		).toEqual(models);
 	});
 });

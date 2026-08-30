@@ -71,6 +71,7 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 		wantAuthorization := map[string]string{
 			"/v1/embeddings": "Bearer embedding-secret",
 			"/v1/rerank":     "Bearer reranker-secret",
+			"/v1/responses":  "Bearer notice-secret",
 		}[r.URL.Path]
 		if r.Header.Get("Authorization") != wantAuthorization {
 			t.Errorf("provider authorization for %s was not the configured key", r.URL.Path)
@@ -112,6 +113,21 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{map[string]any{"index": 0, "relevance_score": 0.9}}})
+		case "/v1/responses":
+			var body struct {
+				Model string `json:"model"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode notice classification request: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if body.Model == "candidate-model" {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = fmt.Fprint(w, `{"error":"candidate rejected"}`)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]string{"output_text": `{"category":"campus_operations"}`})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -185,6 +201,70 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("failed candidate validation leaves the current database view unchanged", func(t *testing.T) {
+		put := func(model string, includeAPIKey bool) *http.Response {
+			t.Helper()
+			input := map[string]any{
+				"provider":     "openai-compatible",
+				"api_protocol": "openai.responses",
+				"base_url":     provider.URL + "/v1",
+				"model":        model,
+			}
+			if includeAPIKey {
+				input["api_key"] = "notice-secret"
+			}
+			body, err := json.Marshal(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request, err := http.NewRequestWithContext(ctx, http.MethodPut, server.URL+"/internal/admin/model-configs/"+string(modelconfig.ConfigNoticeClassification), bytes.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("X-Model-Config-Actor", "integration-test")
+			response, err := client.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return response
+		}
+
+		initial := put("current-model", true)
+		if initial.StatusCode != http.StatusOK {
+			initial.Body.Close()
+			t.Fatalf("initial PUT status = %d", initial.StatusCode)
+		}
+		initial.Body.Close()
+
+		beforeStatus, err := store.Status(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := beforeStatus.Configs[modelconfig.ConfigNoticeClassification]
+		if before == nil {
+			t.Fatal("initial notice classification view is missing")
+		}
+
+		candidate := put("candidate-model", false)
+		defer candidate.Body.Close()
+		if candidate.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("candidate PUT status = %d", candidate.StatusCode)
+		}
+
+		afterStatus, err := store.Status(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after := afterStatus.Configs[modelconfig.ConfigNoticeClassification]
+		if after == nil {
+			t.Fatal("current notice classification view is missing after candidate validation")
+		}
+		if !reflect.DeepEqual(*after, *before) {
+			t.Fatalf("candidate validation changed current config: before=%#v after=%#v", *before, *after)
+		}
+	})
 }
 
 func connectHTTPIntegrationPostgres(t *testing.T, databaseURL string) *pgx.Conn {

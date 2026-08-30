@@ -75,7 +75,7 @@ describe("notice maintenance page", () => {
 								noticeId: 354517,
 								operation: "notice-publish-one",
 								status: "succeeded",
-								summary: { published: 1 },
+								summary: { notices: 1 },
 							}),
 							job({
 								error: "旧任务没有通知归属",
@@ -105,8 +105,8 @@ describe("notice maintenance page", () => {
 		render(<OpsWebApp initialPath="/notices" />);
 		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
 
-		expect(await screen.findByText("classified: 1")).toBeInTheDocument();
-		expect(screen.queryByText("published: 1")).not.toBeInTheDocument();
+		expect(await screen.findByText("完成分类 1 条")).toBeInTheDocument();
+		expect(screen.queryByText("发布通知 1 条")).not.toBeInTheDocument();
 		expect(screen.queryByText("旧任务没有通知归属")).not.toBeInTheDocument();
 	});
 
@@ -183,7 +183,8 @@ describe("notice maintenance page", () => {
 								noticeId: null,
 								operation: "notice-backfill",
 								progress: { phase: "writing", processed: 3, total: 4 },
-								range: { from: "2025-12-01", to: "2026-08-27" },
+								maintenanceRange: { from: "2025-12-01", to: "2026-08-26" },
+								processedRange: { from: "2025-12-01", to: "2026-08-01" },
 								status: "failed",
 							}),
 						],
@@ -209,7 +210,8 @@ describe("notice maintenance page", () => {
 
 		expect(within(taskCenter).getByLabelText("起始日期")).toHaveValue("2025-12-01");
 		const recentJobs = within(taskCenter).getByRole("list", { name: "最近任务记录" });
-		expect(recentJobs).toHaveTextContent("维护区间 [2025-12-01, 2026-08-27)");
+		expect(recentJobs).toHaveTextContent("本次处理区间 [2025-12-01, 2026-08-01)");
+		expect(recentJobs).toHaveTextContent("完成后维护区间 [2025-12-01, 2026-08-26)");
 		expect(recentJobs).toHaveTextContent("阶段：写入");
 		expect(within(recentJobs).getByRole("progressbar", { name: "任务进度" })).toHaveAttribute(
 			"value",
@@ -221,8 +223,9 @@ describe("notice maintenance page", () => {
 		);
 	});
 
-	it("only locks the operation family whose create request is pending", async () => {
+	it("renders an optimistic task row and only locks its operation family", async () => {
 		let resolveCreate: ((response: Response) => void) | undefined;
+		let createdJob: ReturnType<typeof job> | null = null;
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -236,7 +239,7 @@ describe("notice maintenance page", () => {
 					});
 				}
 				if (url.pathname === "/api/ops/notices/jobs") {
-					return Response.json({ jobs: [] });
+					return Response.json({ jobs: createdJob ? [createdJob] : [] });
 				}
 				if (url.pathname === "/api/ops/notices") {
 					return Response.json({
@@ -261,22 +264,208 @@ describe("notice maintenance page", () => {
 		);
 		expect(within(taskCenter).getByRole("button", { name: "同步新通知" })).toBeEnabled();
 		expect(within(taskCenter).getByRole("button", { name: "发布待发布通知" })).toBeEnabled();
+		expect(within(taskCenter).getByText("正在创建任务")).toBeInTheDocument();
+		expect(
+			within(taskCenter).queryByText(/notice-classify-missing-created/u),
+		).not.toBeInTheDocument();
 
+		createdJob = job({
+			jobName: "notice-classify-missing-created",
+			noticeId: null,
+			operation: "notice-classify-missing",
+		});
 		resolveCreate?.(
 			Response.json(
 				{
-					job: job({
-						jobName: "notice-classify-missing-created",
-						noticeId: null,
-						operation: "notice-classify-missing",
-					}),
+					job: createdJob,
 				},
 				{ status: 201 },
 			),
 		);
 		await waitFor(() =>
-			expect(within(taskCenter).getByRole("button", { name: "分类缺失通知" })).toBeEnabled(),
+			expect(within(taskCenter).getByText("notice-classify-missing-created")).toBeInTheDocument(),
 		);
+		expect(within(taskCenter).queryByText("正在创建任务")).not.toBeInTheDocument();
+		expect(within(taskCenter).getByRole("button", { name: "分类缺失通知" })).toBeDisabled();
+	});
+
+	it("tracks pending submissions from different operation families independently", async () => {
+		const pendingCreates: Array<(response: Response) => void> = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs" && init?.method === "POST") {
+					return await new Promise<Response>((resolve) => pendingCreates.push(resolve));
+				}
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({ jobs: [] });
+				}
+				if (url.pathname === "/api/ops/notices") {
+					return noticeListResponse([]);
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click(await screen.findByRole("button", { name: "任务中心" }));
+		const taskCenter = await screen.findByRole("dialog", { name: "通知任务中心" });
+		fireEvent.click(within(taskCenter).getByRole("button", { name: "分类缺失通知" }));
+		fireEvent.click(within(taskCenter).getByRole("button", { name: "同步新通知" }));
+
+		expect(
+			await within(taskCenter).findByRole("heading", { name: "进行中（2）" }),
+		).toBeInTheDocument();
+		expect(within(taskCenter).getAllByText("正在创建任务")).toHaveLength(2);
+		expect(within(taskCenter).getByRole("button", { name: "分类缺失通知" })).toBeDisabled();
+		expect(within(taskCenter).getByRole("button", { name: "同步新通知" })).toBeDisabled();
+		expect(within(taskCenter).getByRole("button", { name: "发布待发布通知" })).toBeEnabled();
+		expect(pendingCreates).toHaveLength(2);
+	});
+
+	it("keeps an optimistic row visible over a jobs read failure and preserves create errors", async () => {
+		let resolveCreate: ((response: Response) => void) | undefined;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs" && init?.method === "POST") {
+					return await new Promise<Response>((resolve) => {
+						resolveCreate = resolve;
+					});
+				}
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json(
+						{ error: { code: "OPS_NOTICE_JOBS_UNAVAILABLE", message: "任务列表连接失败" } },
+						{ status: 503 },
+					);
+				}
+				if (url.pathname === "/api/ops/notices") {
+					return Response.json({
+						counts: { all: 0, needsClassification: 0, needsPublication: 0, published: 0 },
+						items: [],
+						page: 1,
+						totalItems: 0,
+						totalPages: 0,
+					});
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click(await screen.findByRole("button", { name: "任务中心" }));
+		const taskCenter = await screen.findByRole("dialog", { name: "通知任务中心" });
+		expect(await within(taskCenter).findByText("任务列表连接失败")).toBeInTheDocument();
+		fireEvent.click(within(taskCenter).getByRole("button", { name: "同步新通知" }));
+
+		expect(await within(taskCenter).findByText("正在创建任务")).toBeInTheDocument();
+		resolveCreate?.(
+			Response.json(
+				{
+					error: {
+						code: "OPS_NOTICE_JOB_CREATE_FAILED",
+						message: "Kubernetes create failed: full upstream body",
+					},
+				},
+				{ status: 503 },
+			),
+		);
+
+		expect(
+			await within(taskCenter).findByText("Kubernetes create failed: full upstream body"),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(within(taskCenter).queryByText("正在创建任务")).not.toBeInTheDocument(),
+		);
+	});
+
+	it("keeps the selected notice while a filtered page is placeholder data", async () => {
+		useDesktopViewport();
+		let listRequests = 0;
+		let resolveFilteredList: ((response: Response) => void) | undefined;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({ jobs: [] });
+				}
+				if (url.pathname === "/api/ops/notices/354516") {
+					return Response.json({ notice: notice() });
+				}
+				if (url.pathname === "/api/ops/notices") {
+					listRequests += 1;
+					if (listRequests > 1) {
+						return await new Promise<Response>((resolve) => {
+							resolveFilteredList = resolve;
+						});
+					}
+					return noticeListResponse([notice()]);
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		expect(await screen.findByRole("combobox", { name: "通知分类" })).toBeInTheDocument();
+		fireEvent.change(screen.getByRole("combobox", { name: "分类" }), {
+			target: { value: "campus_operations" },
+		});
+
+		await waitFor(() => expect(listRequests).toBe(2));
+		expect(screen.getByRole("combobox", { name: "通知分类" })).toBeInTheDocument();
+		resolveFilteredList?.(noticeListResponse([]));
+		expect(await screen.findByText("选择一条通知")).toBeInTheDocument();
+	});
+
+	it("protects a dirty selection when a successful refresh removes it", async () => {
+		useDesktopViewport();
+		let listRequests = 0;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({ jobs: [] });
+				}
+				if (url.pathname === "/api/ops/notices/354516") {
+					return Response.json({ notice: notice() });
+				}
+				if (url.pathname === "/api/ops/notices") {
+					listRequests += 1;
+					return listRequests === 1 ? noticeListResponse([notice()]) : noticeListResponse([]);
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		const category = await screen.findByRole("combobox", { name: "通知分类" });
+		await waitFor(() => expect(screen.queryByText("正在刷新详情…")).not.toBeInTheDocument());
+		fireEvent.change(category, { target: { value: "campus_operations" } });
+		expect(await screen.findByText("有未保存的分类更改。")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "刷新通知队列" }));
+
+		expect(await screen.findByRole("dialog", { name: "有未保存的分类更改" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { hidden: true, name: "测试通知" })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "放弃更改" }));
+		expect(await screen.findByText("选择一条通知")).toBeInTheDocument();
 	});
 
 	it.each(["succeeded", "failed"] as const)(
@@ -403,13 +592,45 @@ function job(overrides: Record<string, unknown> = {}) {
 		controllerError: null,
 		error: null,
 		jobName: "notice-classify-one-abc12",
+		maintenanceRange: null,
 		noticeId: 354516,
 		operation: "notice-classify-one",
+		processedRange: null,
 		progress: null,
-		range: null,
 		startedAt: null,
 		status: "pending",
 		summary: null,
 		...overrides,
 	};
+}
+
+function noticeListResponse(items: ReturnType<typeof notice>[]) {
+	return Response.json({
+		counts: {
+			all: items.length,
+			needsClassification: items.length,
+			needsPublication: 0,
+			published: 0,
+		},
+		items,
+		page: 1,
+		totalItems: items.length,
+		totalPages: items.length > 0 ? 1 : 0,
+	});
+}
+
+function useDesktopViewport() {
+	vi.stubGlobal(
+		"matchMedia",
+		vi.fn(() => ({
+			addEventListener: vi.fn(),
+			addListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+			matches: true,
+			media: "(min-width: 1024px)",
+			onchange: null,
+			removeEventListener: vi.fn(),
+			removeListener: vi.fn(),
+		})),
+	);
 }

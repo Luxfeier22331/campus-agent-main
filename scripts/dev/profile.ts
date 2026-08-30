@@ -1,8 +1,19 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	realpathSync,
+	renameSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, resolve } from "node:path";
+import { basename, dirname, isAbsolute, resolve } from "node:path";
+
+import { withLifecycleLock, withLifecycleLockSync } from "./locks";
+import { probeLocalPorts } from "./ports";
 
 export interface LocalDevPorts {
 	appApi: number;
@@ -17,28 +28,39 @@ export interface LocalDevRuntimePorts {
 	modelConfig: number;
 }
 
-export interface LocalDevProfileV1 {
+export interface LocalDevProfileV2 {
 	bucketName: string;
 	createdAt: string;
 	databaseName: string;
 	instanceId: string;
 	ports: LocalDevPorts;
 	repoKey: string;
-	schemaVersion: 1;
+	resourceKey: string;
+	schemaVersion: 2;
 	slot: number;
 	worktreePath: string;
 }
 
-interface LocalDevRegistryV1 {
-	instances: LocalDevProfileV1[];
-	schemaVersion: 1;
+export type LocalDevProfile = LocalDevProfileV2;
+
+interface LocalDevRegistryV2 {
+	instances: LocalDevProfileV2[];
+	schemaVersion: 2;
 }
 
 const MAX_SLOT = 99;
-const PROFILE_RELATIVE_PATH = "var/dev/profile.v1.json";
+const PROFILE_RELATIVE_PATH = "var/dev/profile.json";
+const LEGACY_PROFILE_RELATIVE_PATH = "var/dev/profile.v1.json";
+const REGISTRY_FILENAME = "instances.json";
+const LEGACY_REGISTRY_FILENAME = "instances.v1.json";
+const LOCK_FILENAME = "instances.lock";
 
 export function resolveLocalDevProfilePath(repoRoot: string): string {
 	return resolve(repoRoot, PROFILE_RELATIVE_PATH);
+}
+
+export function resolveLegacyLocalDevProfilePath(repoRoot: string): string {
+	return resolve(repoRoot, LEGACY_PROFILE_RELATIVE_PATH);
 }
 
 export function calculateLocalDevPorts(slot: number): LocalDevPorts {
@@ -60,65 +82,83 @@ export function calculateLocalDevRuntimePorts(slot: number): LocalDevRuntimePort
 	};
 }
 
-export function ensureLocalDevProfile(repoRoot: string): LocalDevProfileV1 {
+export async function ensureLocalDevProfile(repoRoot: string): Promise<LocalDevProfileV2> {
 	const resolvedRoot = realpathSync(repoRoot);
 	const paths = resolveRegistryPaths(resolvedRoot);
-	return withRegistryLock(paths.lockPath, () => {
-		const profile = readProfile(resolveLocalDevProfilePath(resolvedRoot));
-		if (profile) {
+	return await withLifecycleLock(paths.lockPath, "profile", async () => {
+		const registry = readRegistry(paths.registryPath, paths.legacyRegistryPath);
+		assertRegistry(registry.instances, paths.repoKey);
+		const profilePath = resolveLocalDevProfilePath(resolvedRoot);
+		const legacyProfilePath = resolveLegacyLocalDevProfilePath(resolvedRoot);
+		const existingRaw = readJsonIfExists(profilePath) ?? readJsonIfExists(legacyProfilePath);
+		if (existingRaw !== null) {
+			const profile = upgradeProfile(existingRaw);
+			if (!profile) {
+				throw new Error("Invalid local development profile.");
+			}
 			assertProfile(profile, resolvedRoot, paths.repoKey);
-			const registry = readRegistry(paths.registryPath);
+			if (existsSync(legacyProfilePath) && !existsSync(profilePath)) {
+				writeJsonAtomic(profilePath, profile);
+				rmSync(legacyProfilePath, { force: true });
+			}
 			const registered = registry.instances.find(
 				(instance) => instance.instanceId === profile.instanceId,
 			);
 			if (registered) {
-				if (registered.worktreePath !== profile.worktreePath || registered.slot !== profile.slot) {
-					throw new Error(`Conflicting local development registration: ${profile.instanceId}`);
+				assertProfileRegistration(registered, profile);
+				if (!existsSync(paths.registryPath) || existsSync(paths.legacyRegistryPath)) {
+					writeRegistry(paths.registryPath, registry, paths.legacyRegistryPath);
 				}
 				return profile;
 			}
-			if (
-				registry.instances.some(
-					(instance) =>
-						instance.slot === profile.slot || instance.worktreePath === profile.worktreePath,
-				)
-			) {
-				throw new Error(`Local development slot ${profile.slot} is already registered.`);
-			}
-			writeJsonAtomic(paths.registryPath, {
-				instances: [...registry.instances, profile].sort((left, right) => left.slot - right.slot),
-				schemaVersion: 1,
-			} satisfies LocalDevRegistryV1);
+			assertNoRegistrationConflict(registry.instances, profile);
+			writeRegistry(
+				paths.registryPath,
+				{
+					instances: [...registry.instances, profile].sort((left, right) => left.slot - right.slot),
+					schemaVersion: 2,
+				},
+				paths.legacyRegistryPath,
+			);
 			return profile;
 		}
-		const registry = readRegistry(paths.registryPath);
-		const slot = allocateLocalDevSlot(registry.instances, isMainWorktree(resolvedRoot) ? 0 : 1);
-		const suffix = randomBytes(4).toString("hex");
+
+		const firstSlot = isMainWorktree(resolvedRoot) ? 0 : 1;
+		const slot = await allocateAvailableSlot(registry.instances, firstSlot);
+		const resourceKey = randomBytes(4).toString("hex");
 		const label = normalizeResourceLabel(basename(resolvedRoot));
-		const instanceId = `${label}-${suffix}`;
-		const next: LocalDevProfileV1 = {
-			bucketName: `campus-agent-derived-wt-${slot}-${suffix}`,
+		const profile: LocalDevProfileV2 = {
+			bucketName: `campus-agent-derived-wt-${slot}-${resourceKey}`,
 			createdAt: new Date().toISOString(),
-			databaseName: `campus_agent_wt_${slot}_${suffix}`,
-			instanceId,
+			databaseName: `campus_agent_wt_${slot}_${resourceKey}`,
+			instanceId: `${label}-${resourceKey}`,
 			ports: calculateLocalDevPorts(slot),
 			repoKey: paths.repoKey,
-			schemaVersion: 1,
+			resourceKey,
+			schemaVersion: 2,
 			slot,
 			worktreePath: resolvedRoot,
 		};
-		writeJsonAtomic(resolveLocalDevProfilePath(resolvedRoot), next);
-		writeJsonAtomic(paths.registryPath, {
-			instances: [...registry.instances, next].sort((left, right) => left.slot - right.slot),
-			schemaVersion: 1,
-		} satisfies LocalDevRegistryV1);
-		return next;
+		assertNoRegistrationConflict(registry.instances, profile);
+		writeJsonAtomic(profilePath, profile);
+		writeRegistry(
+			paths.registryPath,
+			{
+				instances: [...registry.instances, profile].sort((left, right) => left.slot - right.slot),
+				schemaVersion: 2,
+			},
+			paths.legacyRegistryPath,
+		);
+		return profile;
 	});
 }
 
-export function loadLocalDevProfile(repoRoot: string): LocalDevProfileV1 {
+export function loadLocalDevProfile(repoRoot: string): LocalDevProfileV2 {
 	const resolvedRoot = realpathSync(repoRoot);
-	const profile = readProfile(resolveLocalDevProfilePath(resolvedRoot));
+	const raw =
+		readJsonIfExists(resolveLocalDevProfilePath(resolvedRoot)) ??
+		readJsonIfExists(resolveLegacyLocalDevProfilePath(resolvedRoot));
+	const profile = upgradeProfile(raw);
 	if (!profile) {
 		throw new Error("Local development is not initialized. Run pnpm dev:init first.");
 	}
@@ -126,27 +166,38 @@ export function loadLocalDevProfile(repoRoot: string): LocalDevProfileV1 {
 	return profile;
 }
 
-export function listLocalDevProfiles(repoRoot: string): LocalDevProfileV1[] {
-	return readRegistry(resolveRegistryPaths(realpathSync(repoRoot)).registryPath).instances;
+/** Read-only: legacy state is upgraded in memory but never written. */
+export function listLocalDevProfiles(repoRoot: string): LocalDevProfileV2[] {
+	const paths = resolveRegistryPaths(realpathSync(repoRoot));
+	const registry = readRegistry(paths.registryPath, paths.legacyRegistryPath);
+	assertRegistry(registry.instances, paths.repoKey);
+	return registry.instances;
 }
 
-export function releaseLocalDevProfile(repoRoot: string, instanceId: string): LocalDevProfileV1 {
+export function resolveLocalDevRegistryPath(repoRoot: string): string {
+	return resolveRegistryPaths(realpathSync(repoRoot)).registryPath;
+}
+
+export function releaseLocalDevProfile(repoRoot: string, instanceId: string): LocalDevProfileV2 {
 	const resolvedRoot = realpathSync(repoRoot);
 	const paths = resolveRegistryPaths(resolvedRoot);
-	return withRegistryLock(paths.lockPath, () => {
-		const registry = readRegistry(paths.registryPath);
+	return withLifecycleLockSync(paths.lockPath, "profile", () => {
+		const registry = readRegistry(paths.registryPath, paths.legacyRegistryPath);
+		assertRegistry(registry.instances, paths.repoKey);
 		const target = registry.instances.find((profile) => profile.instanceId === instanceId);
 		if (!target) {
 			throw new Error(`Unknown local development instance: ${instanceId}`);
 		}
-		writeJsonAtomic(paths.registryPath, {
-			instances: registry.instances.filter((profile) => profile.instanceId !== instanceId),
-			schemaVersion: 1,
-		} satisfies LocalDevRegistryV1);
-		const targetProfilePath = resolveLocalDevProfilePath(target.worktreePath);
-		if (readProfile(targetProfilePath)?.instanceId === instanceId) {
-			rmSync(targetProfilePath, { force: true });
-		}
+		writeRegistry(
+			paths.registryPath,
+			{
+				instances: registry.instances.filter((profile) => profile.instanceId !== instanceId),
+				schemaVersion: 2,
+			},
+			paths.legacyRegistryPath,
+		);
+		removeProfileIfMatches(resolveLocalDevProfilePath(target.worktreePath), instanceId);
+		removeProfileIfMatches(resolveLegacyLocalDevProfilePath(target.worktreePath), instanceId);
 		return target;
 	});
 }
@@ -158,31 +209,6 @@ export function normalizeResourceLabel(value: string): string {
 		.replace(/^-+|-+$/gu, "")
 		.slice(0, 28);
 	return normalized || "worktree";
-}
-
-function resolveRegistryPaths(repoRoot: string): {
-	lockPath: string;
-	registryPath: string;
-	repoKey: string;
-} {
-	const commonDir = resolve(
-		repoRoot,
-		execFileSync("git", ["rev-parse", "--git-common-dir"], {
-			cwd: repoRoot,
-			encoding: "utf8",
-		}).trim(),
-	);
-	const repoKey = createHash("sha256").update(realpathSync(commonDir)).digest("hex").slice(0, 12);
-	const stateDir = resolve(
-		process.env.XDG_STATE_HOME?.trim() || resolve(homedir(), ".local/state"),
-		"campus-agent",
-		repoKey,
-	);
-	return {
-		lockPath: resolve(stateDir, "instances.lock"),
-		registryPath: resolve(stateDir, "instances.v1.json"),
-		repoKey,
-	};
 }
 
 export function isMainWorktree(repoRoot: string): boolean {
@@ -201,7 +227,7 @@ export function isMainWorktree(repoRoot: string): boolean {
 }
 
 export function allocateLocalDevSlot(
-	instances: Pick<LocalDevProfileV1, "slot">[],
+	instances: Pick<LocalDevProfileV2, "slot">[],
 	firstSlot: number,
 ): number {
 	const occupied = new Set(instances.map(({ slot }) => slot));
@@ -213,46 +239,209 @@ export function allocateLocalDevSlot(
 	throw new Error(`No local development slots remain between ${firstSlot} and ${MAX_SLOT}.`);
 }
 
-function readProfile(path: string): LocalDevProfileV1 | null {
-	try {
-		return JSON.parse(readFileSync(path, "utf8")) as LocalDevProfileV1;
-	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-			return null;
+export function expectedLocalDevResourceNames(
+	profile: Pick<LocalDevProfileV2, "resourceKey" | "slot">,
+): {
+	bucketName: string;
+	databaseName: string;
+} {
+	return {
+		bucketName: `campus-agent-derived-wt-${profile.slot}-${profile.resourceKey}`,
+		databaseName: `campus_agent_wt_${profile.slot}_${profile.resourceKey}`,
+	};
+}
+
+function resolveRegistryPaths(repoRoot: string): {
+	legacyRegistryPath: string;
+	lockPath: string;
+	repoKey: string;
+	registryPath: string;
+} {
+	const commonDir = resolve(
+		repoRoot,
+		execFileSync("git", ["rev-parse", "--git-common-dir"], {
+			cwd: repoRoot,
+			encoding: "utf8",
+		}).trim(),
+	);
+	const repoKey = createHash("sha256").update(realpathSync(commonDir)).digest("hex").slice(0, 12);
+	const stateDir = resolve(
+		process.env.XDG_STATE_HOME?.trim() || resolve(homedir(), ".local/state"),
+		"campus-agent",
+		repoKey,
+	);
+	return {
+		legacyRegistryPath: resolve(stateDir, LEGACY_REGISTRY_FILENAME),
+		lockPath: resolve(stateDir, LOCK_FILENAME),
+		repoKey,
+		registryPath: resolve(stateDir, REGISTRY_FILENAME),
+	};
+}
+
+async function allocateAvailableSlot(
+	instances: Pick<LocalDevProfileV2, "slot">[],
+	firstSlot: number,
+): Promise<number> {
+	for (let slot = firstSlot; slot <= MAX_SLOT; slot += 1) {
+		if (instances.some((instance) => instance.slot === slot)) {
+			continue;
 		}
-		throw error;
+		const ports = [
+			...Object.values(calculateLocalDevPorts(slot)),
+			...Object.values(calculateLocalDevRuntimePorts(slot)),
+		];
+		const result = await probeLocalPorts(ports);
+		if (result.unknown.length > 0) {
+			throw new Error(`Unable to inspect local development ports: ${result.unknown.join(", ")}.`);
+		}
+		if (result.occupied.length > 0) {
+			continue;
+		}
+		return slot;
+	}
+	throw new Error(`No local development slots remain between ${firstSlot} and ${MAX_SLOT}.`);
+}
+
+function readRegistry(registryPath: string, legacyRegistryPath: string): LocalDevRegistryV2 {
+	const current = readJsonIfExists(registryPath);
+	if (current !== null) {
+		return upgradeRegistry(current);
+	}
+	const legacy = readJsonIfExists(legacyRegistryPath);
+	return legacy === null ? { instances: [], schemaVersion: 2 } : upgradeRegistry(legacy);
+}
+
+function upgradeRegistry(value: unknown): LocalDevRegistryV2 {
+	if (!(isRecord(value) && Array.isArray(value.instances))) {
+		throw new Error("Unsupported local development registry.");
+	}
+	const instances = value.instances.map((instance) => upgradeProfile(instance));
+	if (instances.some((instance) => instance === null)) {
+		throw new Error("Invalid local development registry entry.");
+	}
+	return { instances: instances as LocalDevProfileV2[], schemaVersion: 2 };
+}
+
+function upgradeProfile(value: unknown): LocalDevProfileV2 | null {
+	if (value === null) {
+		return null;
+	}
+	if (!isRecord(value)) {
+		throw new Error("Invalid local development profile.");
+	}
+	if (value.schemaVersion === 2) {
+		return {
+			bucketName: stringField(value, "bucketName"),
+			createdAt: stringField(value, "createdAt"),
+			databaseName: stringField(value, "databaseName"),
+			instanceId: stringField(value, "instanceId"),
+			ports: portsField(value.ports),
+			repoKey: stringField(value, "repoKey"),
+			resourceKey: stringField(value, "resourceKey"),
+			schemaVersion: 2,
+			slot: numberField(value, "slot"),
+			worktreePath: stringField(value, "worktreePath"),
+		};
+	}
+	if (value.schemaVersion !== 1) {
+		throw new Error("Unsupported local development profile version.");
+	}
+	const resourceKey = deriveResourceKey(value);
+	return {
+		bucketName: stringField(value, "bucketName"),
+		createdAt: stringField(value, "createdAt"),
+		databaseName: stringField(value, "databaseName"),
+		instanceId: stringField(value, "instanceId"),
+		ports: portsField(value.ports),
+		repoKey: stringField(value, "repoKey"),
+		resourceKey,
+		schemaVersion: 2,
+		slot: numberField(value, "slot"),
+		worktreePath: stringField(value, "worktreePath"),
+	};
+}
+
+function deriveResourceKey(value: Record<string, unknown>): string {
+	const candidates = [
+		stringField(value, "databaseName").match(/^campus_agent_wt_[0-9]+_([a-f0-9]{8})$/u)?.[1],
+		stringField(value, "bucketName").match(/^[a-z0-9][a-z0-9.-]*-[0-9]+-([a-f0-9]{8})$/u)?.[1],
+		stringField(value, "instanceId").match(/-([a-f0-9]{8})$/u)?.[1],
+	].filter((candidate): candidate is string => candidate !== undefined);
+	if (candidates.length === 0 || candidates.some((candidate) => candidate !== candidates[0])) {
+		throw new Error("Legacy local development profile has inconsistent resource identities.");
+	}
+	return candidates[0];
+}
+
+function assertProfile(
+	profile: LocalDevProfileV2,
+	repoRoot: string,
+	repoKey?: string,
+	allowMissingWorktree = false,
+): void {
+	assertProfileIdentity(profile, repoKey);
+	if (!allowMissingWorktree && profile.worktreePath !== repoRoot) {
+		throw new Error("Invalid local development profile identity.");
 	}
 }
 
-function readRegistry(path: string): LocalDevRegistryV1 {
-	try {
-		const registry = JSON.parse(readFileSync(path, "utf8")) as LocalDevRegistryV1;
-		if (registry.schemaVersion !== 1 || !Array.isArray(registry.instances)) {
-			throw new Error(`Unsupported local development registry: ${path}`);
-		}
-		return registry;
-	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-			return { instances: [], schemaVersion: 1 };
-		}
-		throw error;
-	}
-}
-
-function assertProfile(profile: LocalDevProfileV1, repoRoot: string, repoKey?: string): void {
+function assertProfileIdentity(profile: LocalDevProfileV2, repoKey?: string): void {
 	if (
-		profile.schemaVersion !== 1 ||
-		profile.worktreePath !== repoRoot ||
+		profile.schemaVersion !== 2 ||
+		!isAbsolute(profile.worktreePath) ||
 		(repoKey !== undefined && profile.repoKey !== repoKey) ||
-		!profile.instanceId ||
-		!profile.databaseName ||
-		!profile.bucketName
+		!/^[a-f0-9]{8}$/u.test(profile.resourceKey) ||
+		!profile.instanceId.endsWith(`-${profile.resourceKey}`)
 	) {
-		throw new Error(`Invalid local development profile: ${resolveLocalDevProfilePath(repoRoot)}`);
+		throw new Error("Invalid local development profile identity.");
 	}
 	assertSlot(profile.slot);
+	const expected = expectedLocalDevResourceNames(profile);
+	if (
+		profile.databaseName !== expected.databaseName ||
+		!profile.bucketName.endsWith(`-${profile.slot}-${profile.resourceKey}`)
+	) {
+		throw new Error(
+			`Local development profile resource identity does not match ${profile.instanceId}.`,
+		);
+	}
 	if (JSON.stringify(profile.ports) !== JSON.stringify(calculateLocalDevPorts(profile.slot))) {
 		throw new Error(`Local development profile ports do not match slot ${profile.slot}.`);
+	}
+}
+
+function assertRegistry(instances: LocalDevProfileV2[], repoKey: string): void {
+	for (const profile of instances) {
+		assertProfile(profile, profile.worktreePath, repoKey, true);
+	}
+}
+
+function assertProfileRegistration(left: LocalDevProfileV2, right: LocalDevProfileV2): void {
+	if (
+		left.worktreePath !== right.worktreePath ||
+		left.slot !== right.slot ||
+		left.databaseName !== right.databaseName ||
+		left.bucketName !== right.bucketName
+	) {
+		throw new Error(`Conflicting local development registration: ${right.instanceId}`);
+	}
+}
+
+function assertNoRegistrationConflict(
+	instances: LocalDevProfileV2[],
+	profile: LocalDevProfileV2,
+): void {
+	if (
+		instances.some(
+			(instance) =>
+				instance.instanceId === profile.instanceId ||
+				instance.slot === profile.slot ||
+				instance.worktreePath === profile.worktreePath ||
+				instance.databaseName === profile.databaseName ||
+				instance.bucketName === profile.bucketName,
+		)
+	) {
+		throw new Error(`Conflicting local development registration: ${profile.instanceId}`);
 	}
 }
 
@@ -262,21 +451,15 @@ function assertSlot(slot: number): void {
 	}
 }
 
-function withRegistryLock<T>(lockPath: string, operation: () => T): T {
-	mkdirSync(dirname(lockPath), { recursive: true });
-	try {
-		mkdirSync(lockPath);
-	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "EEXIST") {
-			throw new Error("Another local development lifecycle command is running.");
-		}
-		throw error;
+function writeRegistry(path: string, registry: LocalDevRegistryV2, legacyPath?: string): void {
+	writeJsonAtomic(path, registry);
+	if (legacyPath && legacyPath !== path) {
+		retireLegacyRegistry(legacyPath);
 	}
-	try {
-		return operation();
-	} finally {
-		rmSync(lockPath, { force: true, recursive: true });
-	}
+}
+
+function retireLegacyRegistry(path: string): void {
+	rmSync(path, { force: true });
 }
 
 function writeJsonAtomic(path: string, value: unknown): void {
@@ -284,4 +467,58 @@ function writeJsonAtomic(path: string, value: unknown): void {
 	const temporaryPath = `${path}.${randomUUID()}.tmp`;
 	writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 	renameSync(temporaryPath, path);
+}
+
+function readJsonIfExists(path: string): unknown | null {
+	try {
+		return JSON.parse(readFileSync(path, "utf8")) as unknown;
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			return null;
+		}
+		throw error;
+	}
+}
+
+function removeProfileIfMatches(path: string, instanceId: string): void {
+	const raw = readJsonIfExists(path);
+	if (raw === null) {
+		return;
+	}
+	const profile = upgradeProfile(raw);
+	if (profile?.instanceId === instanceId) {
+		rmSync(path, { force: true });
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringField(value: Record<string, unknown>, field: string): string {
+	const result = value[field];
+	if (typeof result !== "string" || !result) {
+		throw new Error(`Invalid local development field: ${field}`);
+	}
+	return result;
+}
+
+function numberField(value: Record<string, unknown>, field: string): number {
+	const result = value[field];
+	if (typeof result !== "number" || !Number.isSafeInteger(result)) {
+		throw new Error(`Invalid local development field: ${field}`);
+	}
+	return result;
+}
+
+function portsField(value: unknown): LocalDevPorts {
+	if (!isRecord(value)) {
+		throw new Error("Invalid local development ports.");
+	}
+	return {
+		appApi: numberField(value, "appApi"),
+		campusWeb: numberField(value, "campusWeb"),
+		opsWeb: numberField(value, "opsWeb"),
+		opsWebApi: numberField(value, "opsWebApi"),
+	};
 }

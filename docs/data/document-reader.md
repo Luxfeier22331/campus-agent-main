@@ -15,7 +15,7 @@ JSON Schema 维护，来源发布、静态构建和界面由 Campus Web 维护�
 来源资料 -> 整理后的 reader v3、课程图来源与图片 -> campus_docs_source.v3 -> 静态阅读资产
 ```
 
-本文只定义共享文档输入，不定义检索分块、索引发布或在线查询行为。
+本文定义共享文档输入和派生索引制品的存储布局，不定义具体分块、索引发布或在线查询行为。
 
 ## 稳定标识
 
@@ -130,6 +130,21 @@ Reader 不保存 HTML、检索分块、搜索摘要、集合元数据或对象�
 schema 拥有。
 
 公开 slug 变化必须同时登记旧路径 `308`。
+
+## Campus Docs 索引制品
+
+Campus Docs 的分块与向量制品使用以下内容寻址布局：
+
+```text
+campus-docs/rag/chunk-data/sha256/<digest>/chunks.ndjson
+campus-docs/rag/chunk-sets/sha256/<id>/manifest.json
+campus-docs/rag/embedding-data/sha256/<digest>/embeddings.ndjson
+campus-docs/rag/embedding-sets/sha256/<id>/manifest.json
+```
+
+线上制品位于 derived bucket。本地构建在当前 worktree 的 `var/` 下使用相同相对布局，因此 manifest
+中的对象引用不因存储实现而改变。分块身份、Embedding Set 和发布语义由
+[检索服务](../architecture/system/retrieval-serving.md)维护。
 
 ## 不负责
 

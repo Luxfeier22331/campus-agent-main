@@ -37,10 +37,13 @@
 Job 引用来源 CronJob 作为 owner，固定零重试，并在完成 24 小时后回收。
 
 Job 的 stdout 使用结构化 JSON。Ops Web 读取运行中、成功和失败 Job 的 Pod 输出，返回 Kubernetes
-状态、有效维护区间、最近阶段/进度、原始应用错误、controller condition、摘要和单条任务的通知 ID label；
-没有对应日志字段时保持 `range`、`progress`、`error` 或 `controllerError` 为 `null`，不从日志或 Job
+状态、本次处理区间、完成后维护区间、最近阶段/进度、原始应用错误、controller condition、严格业务摘要和单条任务的通知 ID label；
+没有对应日志字段时保持 `processedRange`、`maintenanceRange`、`progress`、`error` 或 `controllerError` 为 `null`，不从日志或 Job
 名称推测处理数量及通知归属。页面分别显示活动任务与成功或失败的历史结果，历史结果不参与任务互斥。
 Job 只保留短期排障证据，当前不持久化超过 24 小时的执行历史。调试阶段错误不做泛化、脱敏或截断。
+
+任务中心在提交一次性 Job 后立即显示客户端 pending 行并锁定对应的采集、分类或发布操作族；收到真实 Job
+后替换该行。pending 行不是 Kubernetes 记录，任务列表加载或刷新失败时仍保留，避免视觉上丢失刚提交的任务。
 
 `/internal-portal` 还管理多条开发者自动化 token。人工管理接口继续使用 Cloudflare Access；开发者
 程序使用环境配置的 `OPS_WEB_AUTOMATION_ORIGIN` 和 Bearer token，可以在名称不存在时创建一条具名
@@ -64,8 +67,8 @@ Ops Web 的内部解析接口。
 ## 本地命令
 
 ```bash
-pnpm dev:init
-pnpm --filter ops-web dev:init
+pnpm dev:shared-reconcile
+pnpm dev:init -- --target ops-web
 pnpm --filter ops-web dev:api
 pnpm --filter ops-web dev:web
 pnpm --filter ops-web dev:fixture
@@ -77,8 +80,9 @@ pnpm --dir apps/ops-web db:check
 pnpm --dir apps/ops-web db:generate
 ```
 
-`ops-web dev:init` 会先通过 `campus-agent-schema` 安装统一 schema 和授权，再写入通知分类与 Dining
-本地 seed；新的本地 profile 不需要单独初始化 notice-publisher。
+`pnpm dev:init -- --target ops-web` 会生成 core 与 Ops Web 实际消费者所需的环境投影，通过
+`campus-agent-schema` 安装统一 schema 和授权，再写入通知分类与 Dining 本地 seed；新的本地 profile 不需要
+单独初始化 notice-publisher。
 
 `dev:api` 和 `dev:web` 分别启动 Node API 与 Vite 页面；`dev:fixture` 只监听 loopback，使用内存凭据服务
 和固定 fixture token，启动时打印 endpoint、token 与测试凭据 ID。它不读取本地真实凭据，也不会改变
@@ -87,9 +91,9 @@ pnpm --dir apps/ops-web db:generate
 同好群和账号管理页面通过服务端配置的 `OPS_WEB_APP_API_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 调用 app-api；
 前者是 HTTP(S) 根地址，令牌不下发到浏览器。
 
-`pnpm dev:init` 为当前 worktree 创建独立 PostgreSQL database 和 derived bucket，并生成
-`.env.local`。Ops Web 使用统一 `ops_web` 角色和 `object-store-secrets`；Dining 不创建专属
-角色、连接、桶或凭据。
+`pnpm dev:init -- --target ops-web` 为当前 worktree 创建独立 PostgreSQL database 和所需 derived
+bucket，并生成 `.env.local`。Ops Web 使用统一 `ops_web` 角色和本地对象存储连接；Dining 不创建专属角色、
+连接、桶或凭据。
 
 Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
 `packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，生成的

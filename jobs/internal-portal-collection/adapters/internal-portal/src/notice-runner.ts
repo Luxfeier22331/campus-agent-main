@@ -1,10 +1,16 @@
 import { parsePortalReleaseTime } from "@campus-agent/notices";
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
+import { formatRawError } from "ingestion-contracts/raw-error";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
 import type { InternalPortalNoticeMetaStore } from "./notice-meta-store.js";
 import type { NoticeInventoryStore } from "./notice-inventory-store.js";
-import { ensureNoticeResources, type NoticeResourceEnsureResult } from "./notice-resources.js";
+import {
+	ensureNoticeResources,
+	type NoticeResourceEnsureResult,
+	type NoticeResourceKind,
+	NoticeResourceTransferError,
+} from "./notice-resources.js";
 import {
 	buildInternalPortalNoticeSource,
 	type InternalPortalNoticeSourceStore,
@@ -32,7 +38,7 @@ export interface NoticeMaintenanceRange {
 export interface NoticeRunnerProgress {
 	phase: "scanning" | "processing" | "writing" | "finalizing";
 	processed: number;
-	range: NoticeMaintenanceRange;
+	processedRange: NoticeMaintenanceRange | null;
 	total: number | null;
 }
 
@@ -68,15 +74,26 @@ export interface NoticeRunnerResourceCounts {
 	imagesReused: number;
 }
 
+export interface NoticeRunnerFailure {
+	error: string;
+	noticeId: number;
+	operation: "download";
+	resourceKind: NoticeResourceKind;
+	resourceOrdinal: number;
+}
+
 export interface NoticeRunnerResult {
+	failures: NoticeRunnerFailure[];
+	maintenanceRange: NoticeMaintenanceRange | null;
 	mode: "backfill" | "sync";
 	noticesProcessed: number;
 	objectsReused: number;
 	objectsWritten: number;
 	pagesFetched: number;
-	range: NoticeMaintenanceRange | null;
+	processedRange: NoticeMaintenanceRange | null;
 	resources: NoticeRunnerResourceCounts;
-	state: InternalPortalNoticeSyncState;
+	state: InternalPortalNoticeSyncState | null;
+	upToDate: boolean;
 }
 
 interface NoticeCandidate {
@@ -106,25 +123,48 @@ export async function syncInternalPortalNotices(
 	}
 	const latestEnd = await discoverPortalLatestEnd(input);
 	if (latestEnd <= current.coveredUntil) {
-		return result("sync", current, null, 1);
+		emitProgress(input, {
+			phase: "finalizing",
+			processed: 0,
+			processedRange: null,
+			total: 0,
+		});
+		return result("sync", current, null, maintenanceRangeFromState(current), 1, undefined, true);
 	}
-	const range = noticeRange(current.coveredUntil, latestEnd);
+	const processedRange = noticeRange(current.coveredUntil, latestEnd);
 	const mappings = await fetchMappings(input);
 	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
-	const scan = await scanNotices(input, range, allowedTypes);
+	const scan = await scanNotices(input, processedRange, allowedTypes);
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
-	const counts = await writeCandidates(input, scan.candidates, range);
+	const counts = await writeCandidates(input, scan.candidates, processedRange);
 	const updatedAt = now(input);
 	emitProgress(input, {
 		phase: "finalizing",
-		processed: counts.noticesProcessed,
-		range,
-		total: counts.noticesProcessed,
+		processed: scan.candidates.length,
+		processedRange,
+		total: scan.candidates.length,
 	});
+	if (counts.failures.length > 0) {
+		return result(
+			"sync",
+			current,
+			processedRange,
+			null,
+			scan.pagesFetched + 1,
+			counts,
+		);
+	}
 	await saveMappings(input, completeMappings, updatedAt);
-	const state = await saveState(input, { ...current, coveredUntil: range.to }, updatedAt);
-	return result("sync", state, range, scan.pagesFetched + 1, counts);
+	const state = await saveState(input, { ...current, coveredUntil: processedRange.to }, updatedAt);
+	return result(
+		"sync",
+		state,
+		processedRange,
+		maintenanceRangeFromState(state),
+		scan.pagesFetched + 1,
+		counts,
+	);
 }
 
 export async function backfillInternalPortalNotices(
@@ -133,38 +173,67 @@ export async function backfillInternalPortalNotices(
 	const startDate = parseNoticeStartDate(input.startDate);
 	const current = await input.stateStore.load();
 	if (current && isNoticeHistoryCovered(current, startDate)) {
-		return result("backfill", current, null, 0);
+		emitProgress(input, {
+			phase: "finalizing",
+			processed: 0,
+			processedRange: null,
+			total: 0,
+		});
+		return result(
+			"backfill",
+			current,
+			null,
+			maintenanceRangeFromState(current),
+			0,
+		);
 	}
 	const completeCurrent = hasCompleteRange(current) ? current : null;
-	const range = noticeRange(
+	const processedRange = noticeRange(
 		startDate,
 		completeCurrent?.coveredFrom ?? (await discoverPortalLatestEnd(input)),
 	);
 
 	const mappings = await fetchMappings(input);
 	const allowedTypes = new Set(Object.keys(mappings.noticeTypes).map(Number));
-	const scan = await scanNotices(input, range, allowedTypes);
+	const scan = await scanNotices(input, processedRange, allowedTypes);
 	const completeMappings = withObservedOrganizations(mappings, scan.candidates);
 	await input.inventoryStore.upsertMappings(completeMappings);
-	const counts = await writeCandidates(input, scan.candidates, range);
+	const counts = await writeCandidates(input, scan.candidates, processedRange);
 	const updatedAt = now(input);
 	emitProgress(input, {
 		phase: "finalizing",
-		processed: counts.noticesProcessed,
-		range,
-		total: counts.noticesProcessed,
+		processed: scan.candidates.length,
+		processedRange,
+		total: scan.candidates.length,
 	});
+	if (counts.failures.length > 0) {
+		return result(
+			"backfill",
+			current,
+			processedRange,
+			null,
+			scan.pagesFetched + (completeCurrent ? 0 : 1),
+			counts,
+		);
+	}
 	await saveMappings(input, completeMappings, updatedAt);
 	const updated = await saveState(
 		input,
 		{
-			coveredFrom: range.from,
-			coveredUntil: completeCurrent?.coveredUntil ?? range.to,
+			coveredFrom: processedRange.from,
+			coveredUntil: completeCurrent?.coveredUntil ?? processedRange.to,
 			updatedAt: current?.updatedAt ?? "",
 		},
 		updatedAt,
 	);
-	return result("backfill", updated, range, scan.pagesFetched + (completeCurrent ? 0 : 1), counts);
+	return result(
+		"backfill",
+		updated,
+		processedRange,
+		maintenanceRangeFromState(updated),
+		scan.pagesFetched + (completeCurrent ? 0 : 1),
+		counts,
+	);
 }
 
 export function isNoticeHistoryCovered(
@@ -197,7 +266,7 @@ async function scanNotices(
 	let totalPages: number | null = null;
 	let totalItems: number | null = null;
 	if (range.from === range.to) {
-		emitProgress(input, { phase: "scanning", processed: 0, range, total: 0 });
+		emitProgress(input, { phase: "scanning", processed: 0, processedRange: range, total: 0 });
 		return { candidates, pagesFetched };
 	}
 
@@ -218,7 +287,12 @@ async function scanNotices(
 				candidates.push(candidate);
 			}
 		}
-		emitProgress(input, { phase: "scanning", processed: scanned, range, total: totalItems });
+		emitProgress(input, {
+			phase: "scanning",
+			processed: scanned,
+			processedRange: range,
+			total: totalItems,
+		});
 	}
 
 	return { candidates, pagesFetched };
@@ -320,17 +394,25 @@ async function writeCandidates(
 	candidates: NoticeCandidate[],
 	range: NoticeMaintenanceRange,
 ): Promise<{
+	failures: NoticeRunnerFailure[];
 	noticesProcessed: number;
 	objectsReused: number;
 	objectsWritten: number;
 	resources: NoticeRunnerResourceCounts;
 }> {
+	const failures: NoticeRunnerFailure[] = [];
 	let objectsReused = 0;
 	let objectsWritten = 0;
 	let noticesProcessed = 0;
 	let candidatesProcessed = 0;
+	let candidatesWritten = 0;
 	const resources = emptyResourceCounts();
-	emitProgress(input, { phase: "processing", processed: 0, range, total: candidates.length });
+	emitProgress(input, {
+		phase: "processing",
+		processed: 0,
+		processedRange: range,
+		total: candidates.length,
+	});
 	for (const candidate of candidates) {
 		const existing = await input.sourceStore.get(candidate.noticeId);
 		let source: InternalPortalNoticeSource;
@@ -356,10 +438,17 @@ async function writeCandidates(
 		emitProgress(input, {
 			phase: "processing",
 			processed: candidatesProcessed,
-			range,
+			processedRange: range,
 			total: candidates.length,
 		});
 		if (!isSourceInRange(source, range)) {
+			candidatesWritten += 1;
+			emitProgress(input, {
+				phase: "writing",
+				processed: candidatesWritten,
+				processedRange: range,
+				total: candidates.length,
+			});
 			continue;
 		}
 		if (existing) {
@@ -374,28 +463,51 @@ async function writeCandidates(
 		}
 		emitProgress(input, {
 			phase: "writing",
-			processed: noticesProcessed,
-			range,
+			processed: candidatesWritten,
+			processedRange: range,
 			total: candidates.length,
 		});
-		const resourceResult = await ensureNoticeResources({
-			apiContext: input.apiContext,
-			dryRun: false,
-			notices: [source],
-			objectStore: input.objectStore,
-			portalHost: input.portalHost,
-		});
+		let resourceResult: NoticeResourceEnsureResult;
+		try {
+			resourceResult = await ensureNoticeResources({
+				apiContext: input.apiContext,
+				dryRun: false,
+				notices: [source],
+				objectStore: input.objectStore,
+				portalHost: input.portalHost,
+			});
+		} catch (error) {
+			if (!(error instanceof NoticeResourceTransferError)) {
+				throw error;
+			}
+			failures.push({
+				error: formatRawError(error),
+				noticeId: error.noticeId,
+				operation: error.operation,
+				resourceKind: error.resourceKind,
+				resourceOrdinal: error.resourceOrdinal,
+			});
+			candidatesWritten += 1;
+			emitProgress(input, {
+				phase: "writing",
+				processed: candidatesWritten,
+				processedRange: range,
+				total: candidates.length,
+			});
+			continue;
+		}
 		await input.inventoryStore.register(source);
 		noticesProcessed += 1;
 		addResourceCounts(resources, resourceResult);
+		candidatesWritten += 1;
 		emitProgress(input, {
 			phase: "writing",
-			processed: noticesProcessed,
-			range,
+			processed: candidatesWritten,
+			processedRange: range,
 			total: candidates.length,
 		});
 	}
-	return { noticesProcessed, objectsReused, objectsWritten, resources };
+	return { failures, noticesProcessed, objectsReused, objectsWritten, resources };
 }
 
 async function saveMappings(
@@ -479,20 +591,31 @@ function now(input: NoticeRunnerInput): string {
 
 function result(
 	mode: NoticeRunnerResult["mode"],
-	state: InternalPortalNoticeSyncState,
-	range: NoticeMaintenanceRange | null,
+	state: InternalPortalNoticeSyncState | null,
+	processedRange: NoticeMaintenanceRange | null,
+	maintenanceRange: NoticeMaintenanceRange | null,
 	pagesFetched: number,
 	counts: Pick<
 		NoticeRunnerResult,
-		"noticesProcessed" | "objectsReused" | "objectsWritten" | "resources"
+		"failures" | "noticesProcessed" | "objectsReused" | "objectsWritten" | "resources"
 	> = {
+		failures: [],
 		noticesProcessed: 0,
 		objectsReused: 0,
 		objectsWritten: 0,
 		resources: emptyResourceCounts(),
 	},
+	upToDate = false,
 ): NoticeRunnerResult {
-	return { mode, pagesFetched, range, state, ...counts };
+	return {
+		maintenanceRange,
+		mode,
+		pagesFetched,
+		processedRange,
+		state,
+		upToDate,
+		...counts,
+	};
 }
 
 function hasCompleteRange(
@@ -505,6 +628,15 @@ function hasCompleteRange(
 		throw new Error("internal portal notice sync state has an invalid maintenance range");
 	}
 	return true;
+}
+
+function maintenanceRangeFromState(
+	state: InternalPortalNoticeSyncState,
+): NoticeMaintenanceRange {
+	if (!hasCompleteRange(state)) {
+		throw new Error("internal portal notice sync state has no complete maintenance range");
+	}
+	return { from: state.coveredFrom, to: state.coveredUntil };
 }
 
 function noticeRange(from: string, to: string): NoticeMaintenanceRange {
@@ -561,8 +693,8 @@ function emitProgress(input: NoticeRunnerInput, progress: NoticeRunnerProgress):
 		input.onProgress(progress);
 		return;
 	}
-	const { range, ...jobProgress } = progress;
-	console.log(JSON.stringify({ progress: jobProgress, range, status: "running" }));
+	const { processedRange, ...jobProgress } = progress;
+	console.log(JSON.stringify({ processedRange, progress: jobProgress, status: "running" }));
 }
 
 function emptyResourceCounts(): NoticeRunnerResourceCounts {

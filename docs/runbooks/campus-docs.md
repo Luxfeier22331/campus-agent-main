@@ -94,15 +94,9 @@ pnpm --dir jobs/campus-docs-index-publisher publish-index-local -- \
 ## RAG 制品
 
 本地 Chunk 命令只读对象存储中的当前 source 和 reader，本地 Embedding 命令只读本地 Chunk Set；二者
-把相同相对对象键写入当前 worktree 的 `var/`。这些文件用于本地检查，不是线上候选，也不通过上传
-进入下一阶段。三个线上 Job 写入同一 derived bucket，所有正式对象都按内容寻址：
-
-| 制品 | 对象键 |
-| --- | --- |
-| Chunk 数据 | `campus-docs/rag/chunk-data/sha256/<digest>/chunks.ndjson` |
-| Chunk set | `campus-docs/rag/chunk-sets/sha256/<id>/manifest.json` |
-| Embedding 数据 | `campus-docs/rag/embedding-data/sha256/<digest>/embeddings.ndjson` |
-| Embedding set | `campus-docs/rag/embedding-sets/sha256/<id>/manifest.json` |
+按[文档阅读器数据模型](../data/document-reader.md)定义的相对布局写入当前 worktree 的 `var/`。这些文件
+用于本地检查，不是线上候选，也不通过上传进入下一阶段。线上 Chunk 与 Embedding Job 将同一布局写入
+derived bucket，所有正式对象都按内容寻址。
 
 NDJSON 和 manifest 都使用规范序列化并以换行结尾。写入使用 `If-None-Match: *`；同键同内容是幂等
 重跑，不同内容是错误。系统不维护 `latest` 制品指针，下一阶段必须显式接收上一阶段输出的

@@ -93,6 +93,51 @@ describe("notice classification job", () => {
 		expect(maximum).toBeLessThanOrEqual(2);
 		expect(started).toEqual(["通知 1", "通知 2"]);
 	});
+
+	it("runs eight workers and classifies every notice exactly once", async () => {
+		const rows = Array.from({ length: 16 }, (_, index) => ({
+			notice_id: String(index + 1),
+			title: `通知 ${index + 1}`,
+		}));
+		const database = fakeDatabase(rows);
+		const classifications = new Map<string, number>();
+		let active = 0;
+		let maximum = 0;
+		let started = 0;
+		let releaseWorkers: (() => void) | undefined;
+		let eightWorkersStarted: (() => void) | undefined;
+		const workerGate = new Promise<void>((resolve) => {
+			releaseWorkers = resolve;
+		});
+		const startedGate = new Promise<void>((resolve) => {
+			eightWorkersStarted = resolve;
+		});
+
+		const run = runNoticeClassificationJob({
+			concurrency: 8,
+			createModelClassifier: () => async (title) => {
+				classifications.set(title, (classifications.get(title) ?? 0) + 1);
+				active += 1;
+				started += 1;
+				maximum = Math.max(maximum, active);
+				if (started === 8) {
+					eightWorkersStarted?.();
+				}
+				await workerGate;
+				active -= 1;
+				return "campus_operations";
+			},
+			database,
+		});
+
+		await startedGate;
+		expect(active).toBe(8);
+		releaseWorkers?.();
+		await expect(run).resolves.toEqual({ classified: 16, requested: 16, skipped: 0 });
+		expect(maximum).toBe(8);
+		expect([...classifications.values()]).toEqual(Array.from({ length: 16 }, () => 1));
+		expect(database.query).toHaveBeenCalledTimes(17);
+	});
 });
 
 function fakeDatabase(rows: Array<{ notice_id: string; title: string }>, updateCount = 1) {

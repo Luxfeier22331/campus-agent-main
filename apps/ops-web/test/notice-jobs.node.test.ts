@@ -109,7 +109,12 @@ describe("notice Kubernetes jobs", () => {
 		});
 		const published = await store.create({ noticeId: 354516, operation: "notice-publish-one" });
 
-		expect(created[0]?.spec?.template.spec?.containers[0]?.args).toEqual(["--notice-id", "354516"]);
+		expect(created[0]?.spec?.template.spec?.containers[0]?.args).toEqual([
+			"--concurrency",
+			"8",
+			"--notice-id",
+			"354516",
+		]);
 		expect(created[1]?.spec?.template.spec?.containers[0]?.args).toEqual([
 			"publish",
 			"--notice-id",
@@ -217,7 +222,13 @@ describe("notice Kubernetes jobs", () => {
 			parseNoticeJobDiagnostics(
 				JSON.stringify({ summary: { failures: [{ noticeId: 1, reason: "failed" }] } }),
 			),
-		).toEqual({ error: null, progress: null, range: null, summary: null });
+		).toEqual({
+			error: null,
+			maintenanceRange: null,
+			processedRange: null,
+			progress: null,
+			summary: null,
+		});
 	});
 
 	it("reads failed pod output and separates application and controller errors", async () => {
@@ -275,7 +286,6 @@ describe("notice Kubernetes jobs", () => {
 				[
 					JSON.stringify({
 						progress: { phase: "processing", processed: 1, total: 4 },
-						range: null,
 						status: "running",
 					}),
 					`Error: ${name} model provider returned HTTP 502: upstream response body`,
@@ -343,18 +353,19 @@ describe("notice Kubernetes jobs", () => {
 		expect(core.readNamespacedPodLog).not.toHaveBeenCalled();
 	});
 
-	it("parses the latest range, progress, summary, and raw output", () => {
+	it("parses the latest processing and maintenance ranges, progress, summary, and raw output", () => {
 		expect(
 			parseNoticeJobDiagnostics(
 				[
 					JSON.stringify({
 						progress: { phase: "scanning", processed: 2, total: 10 },
-						range: { from: "2026-08-01", to: "2026-08-27" },
+						processedRange: { from: "2026-08-01", to: "2026-08-10" },
 						status: "running",
 					}),
 					JSON.stringify({
+						maintenanceRange: { from: "2025-12-01", to: "2026-08-26" },
 						progress: { phase: "writing", processed: 3, total: 4 },
-						range: { from: "2026-08-01", to: "2026-08-27" },
+						processedRange: { from: "2026-08-01", to: "2026-08-26" },
 						status: "running",
 					}),
 					JSON.stringify({ summary: { noticesProcessed: 4 } }),
@@ -363,10 +374,22 @@ describe("notice Kubernetes jobs", () => {
 			),
 		).toEqual({
 			error: "raw application line",
+			maintenanceRange: { from: "2025-12-01", to: "2026-08-26" },
+			processedRange: { from: "2026-08-01", to: "2026-08-26" },
 			progress: { phase: "writing", processed: 3, total: 4 },
-			range: { from: "2026-08-01", to: "2026-08-27" },
 			summary: { noticesProcessed: 4 },
 		});
+	});
+
+	it("preserves multiple explicit application errors in log order", () => {
+		expect(
+			parseNoticeJobDiagnostics(
+				[
+					JSON.stringify({ error: "first resource failure", status: "failed" }),
+					JSON.stringify({ error: "second resource failure\ncaused by timeout", status: "failed" }),
+				].join("\n"),
+			).error,
+		).toBe("first resource failure\nsecond resource failure\ncaused by timeout");
 	});
 });
 
@@ -413,7 +436,7 @@ function jobTemplate(name: string): V1CronJob {
 						spec: {
 							containers: [
 								{
-									...(classifier ? {} : { args: ["publish"] }),
+									args: classifier ? ["--concurrency", "8"] : ["publish"],
 									image: "job:test",
 									name: classifier ? "classifier" : "publisher",
 								},
@@ -435,10 +458,11 @@ function job(overrides: Partial<NoticeJob> = {}): NoticeJob {
 		controllerError: null,
 		error: null,
 		jobName: "notice-sync-test",
+		maintenanceRange: null,
 		noticeId: null,
 		operation: "notice-sync",
+		processedRange: null,
 		progress: null,
-		range: null,
 		startedAt: null,
 		status: "pending",
 		summary: null,

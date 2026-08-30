@@ -2,7 +2,6 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-env_file="$repo_root/infra/otel/collector.env.example"
 collector_image="otel/opentelemetry-collector-contrib:0.158.0@sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"
 
 docker_args=(
@@ -11,7 +10,6 @@ docker_args=(
   --read-only
   --cap-drop=ALL
   --security-opt=no-new-privileges
-  --env-file "$env_file"
   -e LANGFUSE_PUBLIC_KEY=pk-lf-ci-validation
   -e LANGFUSE_SECRET_KEY=sk-lf-ci-validation
   -e OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.example.invalid/api/public/otel

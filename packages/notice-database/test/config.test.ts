@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { readNoticeDatabaseConfig } from "../src/index.ts";
+import { createNoticeDatabasePool, readNoticeDatabaseConfig } from "../src/index.ts";
 
 const temporaryDirectories: string[] = [];
 
@@ -57,5 +57,21 @@ describe("notice database configuration", () => {
 			connectionString: "postgresql://campus_agent:secret@db/campus_agent",
 			ssl: { ca: "test-ca", rejectUnauthorized: true },
 		});
+	});
+
+	it("applies the classifier worker count to the PostgreSQL pool", async () => {
+		const pool = createNoticeDatabasePool(
+			{
+				DEPLOYMENT_ENVIRONMENT: "local",
+				NOTICES_DATABASE_SSLMODE: "disable",
+				NOTICES_DATABASE_URL: "postgresql://notice:secret@127.0.0.1:5432/campus_agent",
+			},
+			{ max: 8 },
+		);
+		try {
+			expect(pool.options.max).toBe(8);
+		} finally {
+			await pool.end();
+		}
 	});
 });

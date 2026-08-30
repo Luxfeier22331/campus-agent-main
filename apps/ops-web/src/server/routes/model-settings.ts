@@ -159,6 +159,25 @@ export function registerModelSettingsRoutes(input: {
 		const result = await providerConfigClient.put(kind.data, body.data, operator.operatorId);
 		return context.json(result);
 	});
+
+	app.post("/api/ops/model-configs/:kind/validate", async (context) => {
+		const operator = await admitOpsApiRequest(admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		if (!requestHasConfiguredOrigin(context.req.raw, publicOrigin)) {
+			return jsonError(
+				"OPS_PROVIDER_CONFIG_CSRF_REJECTED",
+				"在线模型配置写请求未通过同源校验。",
+				403,
+			);
+		}
+		const kind = ModelSettingKindSchema.safeParse(context.req.param("kind"));
+		if (!kind.success) {
+			return jsonError("OPS_PROVIDER_CONFIG_NOT_FOUND", "未找到对应的在线模型配置。", 404);
+		}
+		return context.json(await providerConfigClient.validate(kind.data, operator.operatorId));
+	});
 }
 
 export function providerConfigAdminErrorResponse(
@@ -168,7 +187,7 @@ export function providerConfigAdminErrorResponse(
 	if (error.response.status === 400 || error.response.status === 422) {
 		return jsonError(
 			"OPS_PROVIDER_CONFIG_INVALID",
-			providerConfigValidationMessage(error.upstreamCode),
+			error.upstreamMessage || providerConfigValidationMessage(error.upstreamCode),
 			error.response.status,
 			details,
 		);

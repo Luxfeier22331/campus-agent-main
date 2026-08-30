@@ -50,7 +50,7 @@ async function main(): Promise<void> {
 				client,
 				noticeIds: parsed.noticeIds.length ? parsed.noticeIds : undefined,
 				onProgress: (progress) =>
-					console.log(JSON.stringify({ progress, range: null, status: "running" })),
+					console.log(JSON.stringify({ progress, status: "running" })),
 				objectStore: store,
 				portalHost: internalPortalHost(),
 			});

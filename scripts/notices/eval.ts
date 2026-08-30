@@ -1,22 +1,22 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, relative, resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { NOTICE_CATEGORIES, type NoticeCategory } from "@campus-agent/notices";
-import OpenAI from "openai";
+import OpenAI, { APIConnectionError, APIError } from "openai";
+import { formatRawError } from "../../packages/ingestion-contracts/src/raw-error";
 import type { NoticeClassificationTask } from "../../packages/notice-classifier-core/src/batch";
 import {
-	isRetryableNoticeClassificationError,
-	NOTICE_CLASSIFICATION_RETRY_DELAYS_MS,
+	NoticeClassificationInvalidOutputError,
 	NoticeClassificationProviderError,
-	type NoticeModelClassifier,
 } from "./classifier";
 import { mapWithConcurrency } from "./concurrency";
 import {
 	createNoticeModelFetch,
-	createOpenAINoticeModelClassifier,
+	createOpenAINoticeModelClassifierWithRawResponse,
+	isRetryableNoticeProviderCause,
 	NOTICE_CLASSIFIER_SYSTEM_PROMPT,
 	NOTICE_CLASSIFIER_TEMPERATURE,
 	resolveNoticeClassifierGatewayConfig,
@@ -29,20 +29,8 @@ import {
 	loadNoticeClassificationInputs,
 } from "./source";
 
-export const DEFAULT_EVAL_SEED = "notice-category-gate-2026-08-16-v1";
-export const BUSINESS_ACCEPTANCE_PROFILE = "business_acceptance_v1";
-export const BALANCED_COMPARISON_PROFILE = "balanced_comparison_v1";
-export const BUSINESS_ACCEPTANCE_THRESHOLDS = {
-	eventual_valid_rate: 1,
-	first_attempt_valid_rate: 0.98,
-	minimum_aggregate_agreement: 0.85,
-	minimum_category_recall: 0.6,
-	minimum_category_support: 5,
-	minimum_primary_agreement: 0.85,
-	minimum_random_labels: 60,
-	minimum_stability_rate: 0.8,
-	minimum_stability_samples: 60,
-} as const;
+export const BALANCED_DIAGNOSTIC_PROFILE = "balanced_diagnostic_v1";
+export const RANDOM_DIAGNOSTIC_PROFILE = "random_diagnostic_v1";
 
 type ConcreteNoticeCategory = Exclude<NoticeCategory, "unclassified">;
 
@@ -54,23 +42,15 @@ const CATEGORY_SET = new Set<string>(NOTICE_CATEGORIES);
 const EXACT_CLASSIFICATION_INSTRUCTION =
 	'只输出单行 JSON 对象，且只能包含 category 字段，例如 {"category":"campus_operations"}。不要输出 Markdown、解释或其他文字。';
 const CLASSIFICATION_SYSTEM_PROMPT = `${NOTICE_CLASSIFIER_SYSTEM_PROMPT}\n${EXACT_CLASSIFICATION_INSTRUCTION}`;
-const CLASSIFICATION_PROMPT_SHA256 = createHash("sha256")
-	.update(CLASSIFICATION_SYSTEM_PROMPT)
-	.digest("hex");
-export const PRODUCTION_PROMPT_SHA256 = createHash("sha256")
-	.update(NOTICE_CLASSIFIER_SYSTEM_PROMPT)
-	.digest("hex");
-const REFERENCE_INFERENCE_API = "chat.completions";
-const CANDIDATE_INFERENCE_API = "responses";
+const CHAT_COMPLETIONS_INFERENCE_API = "chat.completions";
+const RESPONSES_INFERENCE_API = "responses";
 
-export type EvalProfile = typeof BALANCED_COMPARISON_PROFILE | typeof BUSINESS_ACCEPTANCE_PROFILE;
-
-export type EvalSplit = "balanced" | "random";
+export type EvalProfile = typeof BALANCED_DIAGNOSTIC_PROFILE | typeof RANDOM_DIAGNOSTIC_PROFILE;
+export type EvalSplit = "balanced" | "random" | "regression";
 export type EvalReviewGroup =
 	| "category_consensus"
 	| "category_disagreement"
-	| "category_shape"
-	| "evidence_poor"
+	| "regression"
 	| "random";
 export type PredictionStatus = "invalid_output" | "ok" | "provider_error";
 
@@ -81,203 +61,140 @@ export interface EvalSample {
 	split: EvalSplit;
 }
 
-export interface EvalLabel {
+export interface LabelGoldEntry {
 	category: NoticeCategory;
 	notice_id: number;
 }
 
 export interface EvalPrediction {
-	attempt: 1 | 2 | 3;
+	attempt: 1;
 	category: NoticeCategory | null;
-	completion_tokens?: number;
 	elapsed_ms: number;
 	error?: string;
 	model: string;
 	notice_id: number;
-	prompt_tokens?: number;
-	run: 1 | 2 | 3;
+	raw_response?: string;
+	repeat: 1 | 2 | 3;
 	status: PredictionStatus;
-	total_tokens?: number;
 }
 
-export interface StratificationPrediction {
-	attempts: number;
-	category: NoticeCategory | null;
-	completion_tokens?: number;
-	elapsed_ms: number;
-	error?: string;
-	model: string;
-	notice_id: number;
-	prompt_tokens?: number;
-	status: PredictionStatus;
-	total_tokens?: number;
-}
+export type StratificationPrediction = EvalPrediction;
 
 export interface EvalSampleOptions {
 	categoryCount: number;
 	categoryCountOverrides?: Partial<Record<ConcreteNoticeCategory, number>>;
-	evidencePoorCount: number;
 	randomCount: number;
 	seed: string;
 	stratificationModels: readonly string[];
 }
 
-export interface DifficultSelectionInput {
-	labels: readonly EvalLabel[];
-	predictions: readonly EvalPrediction[];
-	samples: readonly EvalSample[];
-	seed: string;
+export interface RegressionCase {
+	boundary_group: string;
+	notice_id: number;
+	notice_title: string;
+	product_expected_category: NoticeCategory;
+	rationale: string;
 }
 
-interface StratifyManifest {
-	api: typeof REFERENCE_INFERENCE_API;
-	created_at: string;
-	eligible_count: number;
-	excluded_notice_ids: number[];
-	models: string[];
-	seed: string;
-	source_count: number;
-	temperature: number;
+interface RegressionFixture {
+	cases: RegressionCase[];
 }
 
-interface EvalManifest {
-	balanced_count: number;
-	category_counts: Record<ConcreteNoticeCategory, number>;
-	created_at: string;
-	evidence_poor_count: number;
-	excluded_notice_ids: number[];
-	historical_sample_files?: string[];
-	profile: EvalProfile;
-	random_count: number;
-	review_groups: Record<EvalReviewGroup, number>;
-	sample_sha256: string;
-	seed: string;
-	source_count: number;
-	stratification_models: string[];
+interface RegressionEvidence {
+	cases: RegressionCase[];
+	samples: EvalSample[];
 }
 
-export interface EvalLabelManifest {
-	api: typeof REFERENCE_INFERENCE_API;
-	created_at: string;
-	labels_sha256: string;
-	model: string;
-	predictions_sha256: string;
-	prompt_sha256: string;
-	sample_count: number;
-	sample_sha256: string;
-	temperature: number;
-}
-
-export interface ReferencePredictionCheckpoint {
-	api: typeof REFERENCE_INFERENCE_API;
-	model: string;
-	predictions: EvalPrediction[];
-	prompt_sha256: string;
-	sample_sha256: string;
-	temperature: number;
-}
-
-export interface EvalRunManifest {
-	api: typeof CANDIDATE_INFERENCE_API;
-	created_at: string;
-	label_manifest_sha256: string;
-	labels_sha256: string;
-	models: string[];
-	predictions_sha256: string;
-	prompt_sha256: string;
-	reference_model: string;
-	sample_sha256: string;
-	seed: string;
-	stability_count: number;
-	temperature: number;
-}
-
-interface LabelMetricSet {
+interface CategoryAgreementMetrics {
 	agreed: number;
 	agreement_rate: number | null;
 	confusion: Record<string, Record<string, number>>;
+	invalid_output_count: number;
 	macro_f1: number | null;
-	per_label: Record<
+	per_category: Record<
 		string,
 		{ f1: number | null; precision: number | null; recall: number | null; support: number }
 	>;
+	provider_error_count: number;
 	scoreable: number;
 }
 
-interface ModelOperationalMetrics {
-	completion_tokens: number;
-	eventual_valid_rate: number | null;
-	failed: number;
-	first_attempt_valid_rate: number | null;
-	p50_ms: number | null;
-	p90_ms: number | null;
-	prompt_tokens: number;
-	stable_difficult: number;
-	stability_total: number;
-	total_tokens: number;
+interface ModelOutcomeMetrics {
+	invalid_output_count: number;
+	ok_count: number;
+	provider_error_count: number;
+	provider_error_rate: number | null;
+	response_received_count: number;
+	response_valid_rate: number | null;
+	total_task_count: number;
 }
 
-interface ModelGate {
-	aggregate_agreement: number | null;
-	balanced_macro_f1: number | null;
-	eligible_sample: boolean;
-	evidence_poor_agreement: number | null;
-	eventual_valid_rate: number | null;
-	first_attempt_valid_rate: number | null;
-	minimum_category_recall: number | null;
-	model: string;
-	passes: boolean;
-	profile: EvalProfile;
-	random_agreement: number | null;
-	stability_rate: number | null;
-	thresholds: {
-		balanced_macro_f1: number;
-		eventual_valid_rate: number;
-		first_attempt_valid_rate: number;
-		minimum_aggregate_agreement: number;
-		minimum_category_recall: number;
-		minimum_category_support: number;
-		minimum_evidence_poor_agreement: number;
-		minimum_primary_agreement: number;
-		minimum_random_agreement: number;
-		minimum_random_labels: number;
-		minimum_stability_rate: number;
-		minimum_stability_samples: number;
-	};
+interface RepeatMetrics {
+	repeat_complete_count: number;
+	repeat_incomplete_count: number;
+	selected_repeat_consistency: number | null;
+	stable_complete_count: number;
 }
 
-export interface EvalReport {
-	all: Record<string, LabelMetricSet>;
-	balanced: Record<string, LabelMetricSet>;
-	evidence_poor: Record<string, LabelMetricSet>;
-	gates: Record<string, ModelGate>;
+interface ModelEvaluationMetrics {
+	latency_p50_ms: number | null;
+	latency_p90_ms: number | null;
+	outcomes: ModelOutcomeMetrics;
+	repeat: RepeatMetrics;
+}
+
+interface AgreementBySample {
+	all: Record<string, CategoryAgreementMetrics>;
+	balanced: Record<string, CategoryAgreementMetrics>;
+	random: Record<string, CategoryAgreementMetrics>;
+}
+
+export interface CandidateEvaluationReport {
+	agreement: AgreementBySample;
 	generated_at: string;
-	models: Record<string, ModelOperationalMetrics>;
+	models: Record<string, ModelEvaluationMetrics>;
 	profile: EvalProfile;
-	random: Record<string, LabelMetricSet>;
-	reference_model: string;
-	selected_model: string | null;
 }
 
-export interface EvalCheckResult {
+export interface CandidateEvaluationCheckResult extends CandidateEvaluationReport {
+	evidence_status: "complete" | "partial";
+}
+
+interface RegressionRepeatResult {
+	category: NoticeCategory | null;
+	matches_product_expected: boolean | null;
+	status: PredictionStatus;
+}
+
+interface RegressionModelCaseResult {
+	primary: RegressionRepeatResult;
+	repeat_complete: boolean | null;
+	repeat_results: RegressionRepeatResult[];
+	stable_complete: boolean | null;
+}
+
+interface RegressionCaseResult {
+	boundary_group: string;
+	models: Record<string, RegressionModelCaseResult>;
+	notice_id: number;
+	notice_title: string;
+	product_expected_category: NoticeCategory;
+}
+
+export interface RegressionEvaluationCheckResult {
+	candidate_models: string[];
+	cases: RegressionCaseResult[];
+	evidence_status: "complete" | "partial";
 	models: Record<
 		string,
 		{
-			aggregate_agreement: number | null;
-			balanced_macro_f1: number | null;
-			eventual_valid_rate: number | null;
-			evidence_poor_agreement: number | null;
-			first_attempt_valid_rate: number | null;
-			minimum_category_recall: number | null;
-			passes: boolean;
-			primary_agreement: number | null;
-			stability_rate: number | null;
+			outcomes: ModelOutcomeMetrics;
+			primary_agreement: { agreed: number; rate: number | null; scoreable: number };
+			repeat: RepeatMetrics;
 		}
 	>;
-	passes: boolean;
-	profile: EvalProfile;
-	reference_model: string;
-	selected_model: string | null;
+	regression_case_count: number;
+	stability_case_count: number;
 }
 
 interface StratificationSummary {
@@ -291,20 +208,14 @@ interface SelectedInput {
 	reviewGroup: EvalReviewGroup;
 }
 
-interface ResolvedPrediction {
-	category: NoticeCategory | null;
+export interface EvaluationAttemptOptions {
+	invoke: () => Promise<{
+		category: NoticeCategory;
+		raw_response: string;
+	}>;
 	model: string;
-	noticeId: number;
-}
-
-interface ReferenceLabelEvidence {
-	labelManifest: EvalLabelManifest;
-	labelManifestInput: string;
-	labels: EvalLabel[];
-	labelsInput: string;
-	predictions: EvalPrediction[];
-	samples: EvalSample[];
-	sampleInput: string;
+	notice_id: number;
+	repeat: 1 | 2 | 3;
 }
 
 export function parseExactClassification(value: unknown): NoticeCategory | null {
@@ -332,7 +243,7 @@ export function buildEvalSample(
 	predictions: readonly StratificationPrediction[],
 	options: EvalSampleOptions,
 ): EvalSample[] {
-	if (options.randomCount < 1 || options.categoryCount < 1 || options.evidencePoorCount < 1) {
+	if (options.randomCount < 1 || options.categoryCount < 1) {
 		throw new Error("eval sample counts must be positive");
 	}
 	const categoryCounts = resolveCategoryCounts(options);
@@ -368,7 +279,6 @@ export function buildEvalSample(
 		const categoryCount = categoryCounts[category];
 		const consensusTarget = Math.ceil(categoryCount / 2);
 		const disagreementTarget = Math.floor(categoryCount / 3);
-		const shapeTarget = categoryCount - consensusTarget - disagreementTarget;
 		const categorySelected: SelectedInput[] = [];
 		selectFromPool(
 			candidates.filter((input) => summaries.get(input.noticeId)?.consensus === category),
@@ -393,19 +303,6 @@ export function buildEvalSample(
 		);
 		selectFromPool(
 			candidates.filter(
-				(input) =>
-					summaries.get(input.noticeId)?.categories.has(category) === true &&
-					isSourceShapeOutlier(input),
-			),
-			shapeTarget,
-			"category_shape",
-			categorySelected,
-			selectedIds,
-			options.seed,
-			`${category}:shape`,
-		);
-		selectFromPool(
-			candidates.filter(
 				(input) => summaries.get(input.noticeId)?.categories.has(category) === true,
 			),
 			categoryCount - categorySelected.length,
@@ -421,30 +318,6 @@ export function buildEvalSample(
 		selected.push(...categorySelected);
 	}
 
-	const evidenceCandidates = candidates
-		.filter((input) => !selectedIds.has(input.noticeId))
-		.sort((left, right) => {
-			const scoreDifference =
-				evidencePoorScore(right, summaries) - evidencePoorScore(left, summaries);
-			return (
-				scoreDifference ||
-				hashRank(options.seed, "evidence-poor", left.noticeId).localeCompare(
-					hashRank(options.seed, "evidence-poor", right.noticeId),
-				) ||
-				left.noticeId - right.noticeId
-			);
-		});
-	for (const input of evidenceCandidates.slice(0, options.evidencePoorCount)) {
-		selectedIds.add(input.noticeId);
-		selected.push({ input, reviewGroup: "evidence_poor" });
-	}
-	if (
-		selected.filter((value) => value.reviewGroup === "evidence_poor").length !==
-		options.evidencePoorCount
-	) {
-		throw new Error("not enough evidence-poor candidates");
-	}
-
 	return selected
 		.map(({ input, reviewGroup }) =>
 			toEvalSample(input, reviewGroup === "random" ? "random" : "balanced", reviewGroup),
@@ -457,14 +330,14 @@ export function buildEvalSample(
 		);
 }
 
-export function selectRandomAcceptanceIds(
+export function selectRandomDiagnosticIds(
 	sourceIds: readonly number[],
 	excludedIds: ReadonlySet<number>,
 	count: number,
 	seed: string,
 ): number[] {
 	if (!Number.isSafeInteger(count) || count < 1) {
-		throw new Error("acceptance sample count must be a positive integer");
+		throw new Error("diagnostic sample count must be a positive integer");
 	}
 	const uniqueIds = new Set<number>();
 	for (const noticeId of sourceIds) {
@@ -490,12 +363,12 @@ export function selectRandomAcceptanceIds(
 	return selected;
 }
 
-export function buildRandomAcceptanceSample(
+export function buildRandomDiagnosticSample(
 	inputs: readonly NoticeClassificationTask[],
 	seed: string,
 ): EvalSample[] {
 	if (new Set(inputs.map((input) => input.noticeId)).size !== inputs.length) {
-		throw new Error("acceptance inputs contain duplicate notice ids");
+		throw new Error("diagnostic inputs contain duplicate notice ids");
 	}
 	return inputs
 		.map((input) => toEvalSample(input, "random", "random"))
@@ -529,170 +402,57 @@ export function parseCategoryCountOverrides(
 	return overrides;
 }
 
-export function validateEvalLabels(
+export function validateLabelGold(
 	samples: readonly EvalSample[],
-	labels: readonly EvalLabel[],
+	labelGold: readonly LabelGoldEntry[],
 ): void {
+	validateEvalSamples(samples);
 	const sampleIds = new Set(samples.map((sample) => sample.notice_id));
-	const labelIds = new Set<number>();
-	for (const label of labels) {
-		if (!sampleIds.has(label.notice_id)) {
-			throw new Error(`label references an unknown notice: ${label.notice_id}`);
+	const labelGoldIds = new Set<number>();
+	for (const entry of labelGold) {
+		if (!sampleIds.has(entry.notice_id)) {
+			throw new Error(`label-gold references an unknown notice: ${entry.notice_id}`);
 		}
-		if (labelIds.has(label.notice_id)) {
-			throw new Error(`duplicate reference label: ${label.notice_id}`);
+		if (labelGoldIds.has(entry.notice_id)) {
+			throw new Error(`duplicate label-gold entry: ${entry.notice_id}`);
 		}
-		labelIds.add(label.notice_id);
-		if (!CATEGORY_SET.has(label.category)) {
-			throw new Error(`reference label has an invalid category: ${label.notice_id}`);
+		labelGoldIds.add(entry.notice_id);
+		if (!CATEGORY_SET.has(entry.category)) {
+			throw new Error(`label-gold has an invalid category: ${entry.notice_id}`);
 		}
 	}
-	if (labelIds.size !== sampleIds.size) {
-		throw new Error("reference labels do not cover the complete eval sample");
+	if (labelGoldIds.size !== sampleIds.size) {
+		throw new Error("label-gold does not cover the complete eval sample");
 	}
 }
 
-export function buildReferenceLabels(
+export function buildLabelGold(
 	samples: readonly EvalSample[],
 	predictions: readonly EvalPrediction[],
-	model: string,
-): EvalLabel[] {
+	labelGoldModel: string,
+): LabelGoldEntry[] {
+	validatePredictionRecords(samples, predictions, [labelGoldModel], () => [1]);
 	const failed = samples.flatMap((sample) => {
-		const category = resolvePrediction(predictions, sample.notice_id, model, 1);
-		if (category) {
-			return [];
-		}
-		const attempts = predictions
-			.filter(
-				(prediction) =>
-					prediction.notice_id === sample.notice_id &&
-					prediction.model === model &&
-					prediction.run === 1,
-			)
-			.map((prediction) => prediction.status);
-		return [`${sample.notice_id} (${attempts.join(",") || "missing"})`];
+		const prediction = resolvePredictionResult(predictions, sample.notice_id, labelGoldModel, 1);
+		return prediction?.status === "ok"
+			? []
+			: [`${sample.notice_id} (${prediction?.status ?? "missing"})`];
 	});
 	if (failed.length > 0) {
-		throw new Error(`reference model did not label notices: ${failed.join("; ")}`);
+		throw new Error(`label-gold model did not classify notices: ${failed.join("; ")}`);
 	}
-	const labels = samples.map((sample) => ({
-		category: resolvePrediction(predictions, sample.notice_id, model, 1) as NoticeCategory,
+	const labelGold = samples.map((sample) => ({
+		category: resolvePredictionResult(predictions, sample.notice_id, labelGoldModel, 1)
+			?.category as NoticeCategory,
 		notice_id: sample.notice_id,
 	}));
-	validateEvalLabels(samples, labels);
-	return labels;
+	validateLabelGold(samples, labelGold);
+	return labelGold;
 }
 
-export function buildReferencePredictionCheckpoint(
-	sample: EvalSample,
-	predictions: readonly EvalPrediction[],
-	model: string,
-): ReferencePredictionCheckpoint {
-	validateReferencePredictions(sample, predictions, model);
-	if (!resolvePrediction(predictions, sample.notice_id, model, 1)) {
-		throw new Error(`reference prediction checkpoint is not successful: ${sample.notice_id}`);
-	}
-	return {
-		api: REFERENCE_INFERENCE_API,
-		model,
-		predictions: [...predictions],
-		prompt_sha256: CLASSIFICATION_PROMPT_SHA256,
-		sample_sha256: sha256(serializeJsonLines([sample])),
-		temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-	};
-}
-
-export function validateReferencePredictionCheckpoint(
-	sample: EvalSample,
-	checkpoint: ReferencePredictionCheckpoint,
-	model: string,
-): EvalPrediction[] {
-	if (checkpoint.model !== model) {
-		throw new Error(`reference prediction checkpoint model changed: ${sample.notice_id}`);
-	}
-	if (
-		checkpoint.api !== REFERENCE_INFERENCE_API ||
-		checkpoint.temperature !== NOTICE_CLASSIFIER_TEMPERATURE
-	) {
-		throw new Error(`reference prediction checkpoint request changed: ${sample.notice_id}`);
-	}
-	if (checkpoint.prompt_sha256 !== CLASSIFICATION_PROMPT_SHA256) {
-		throw new Error(`reference prediction checkpoint prompt changed: ${sample.notice_id}`);
-	}
-	if (checkpoint.sample_sha256 !== sha256(serializeJsonLines([sample]))) {
-		throw new Error(`reference prediction checkpoint sample changed: ${sample.notice_id}`);
-	}
-	validateReferencePredictions(sample, checkpoint.predictions, model);
-	if (!resolvePrediction(checkpoint.predictions, sample.notice_id, model, 1)) {
-		throw new Error(`reference prediction checkpoint is not successful: ${sample.notice_id}`);
-	}
-	return checkpoint.predictions;
-}
-
-function validateReferencePredictions(
-	sample: EvalSample,
-	predictions: readonly EvalPrediction[],
-	model: string,
-): void {
-	if (predictions.length === 0) {
-		throw new Error(`reference prediction checkpoint is empty: ${sample.notice_id}`);
-	}
-	for (const prediction of predictions) {
-		if (
-			prediction.notice_id !== sample.notice_id ||
-			prediction.model !== model ||
-			prediction.run !== 1
-		) {
-			throw new Error(`reference prediction checkpoint identity changed: ${sample.notice_id}`);
-		}
-		if (
-			prediction.status === "ok" &&
-			!(prediction.category && CATEGORY_SET.has(prediction.category))
-		) {
-			throw new Error(`reference prediction checkpoint category is invalid: ${sample.notice_id}`);
-		}
-	}
-}
-
-export function selectDifficultIds(input: DifficultSelectionInput, count: number): number[] {
-	if (count > input.samples.length) {
-		throw new Error("stability count exceeds the sample size");
-	}
-	const labels = new Map(input.labels.map((label) => [label.notice_id, label]));
-	const models = [...new Set(input.predictions.map((prediction) => prediction.model))];
-	const candidates = input.samples.map((sample) => {
-		const expected = labels.get(sample.notice_id)?.category ?? null;
-		const actual = models.map((model) =>
-			resolvePrediction(input.predictions, sample.notice_id, model, 1),
-		);
-		return {
-			disagreements: actual.filter((category) => category !== expected).length,
-			distinct: new Set(actual.filter((category): category is NoticeCategory => category !== null))
-				.size,
-			errors: actual.filter((category) => category === null).length,
-			noticeId: sample.notice_id,
-		};
-	});
-	candidates.sort(
-		(left, right) =>
-			right.errors - left.errors ||
-			right.distinct - left.distinct ||
-			right.disagreements - left.disagreements ||
-			hashRank(input.seed, "stability", left.noticeId).localeCompare(
-				hashRank(input.seed, "stability", right.noticeId),
-			) ||
-			left.noticeId - right.noticeId,
-	);
-	return candidates.slice(0, count).map((candidate) => candidate.noticeId);
-}
-
-export function validateStabilityIds(
-	samples: readonly EvalSample[],
-	value: unknown,
-	expectedCount: number,
-): number[] {
-	if (!Array.isArray(value) || value.length !== expectedCount) {
-		throw new Error(`stability ids must contain exactly ${expectedCount} notices`);
+export function validateStabilityIds(samples: readonly EvalSample[], value: unknown): number[] {
+	if (!Array.isArray(value)) {
+		throw new Error("stability ids must be a JSON array");
 	}
 	const sampleIds = new Set(samples.map((sample) => sample.notice_id));
 	const ids = new Set<number>();
@@ -708,104 +468,275 @@ export function validateStabilityIds(
 	return [...ids];
 }
 
-export function buildEvalReport(
+export function resolveCandidateStabilityIds(
 	samples: readonly EvalSample[],
-	labels: readonly EvalLabel[],
+	value: unknown | undefined,
+): number[] {
+	return value === undefined ? [] : validateStabilityIds(samples, value);
+}
+
+export function validateCandidatePredictions(
+	samples: readonly EvalSample[],
 	predictions: readonly EvalPrediction[],
-	referenceModel: string,
-	profile: EvalProfile = BALANCED_COMPARISON_PROFILE,
-): EvalReport {
-	validateEvalLabels(samples, labels);
-	const models = [...new Set(predictions.map((prediction) => prediction.model))].sort();
-	const labelsById = new Map(labels.map((label) => [label.notice_id, label]));
-	const metricsFor = (filter: (sample: EvalSample) => boolean): Record<string, LabelMetricSet> =>
+	models: readonly string[],
+	stabilityIds: readonly number[],
+): void {
+	const validatedIds = validateStabilityIds(samples, stabilityIds);
+	const stabilitySet = new Set(validatedIds);
+	validatePredictionRecords(samples, predictions, models, (sample) =>
+		stabilitySet.has(sample.notice_id) ? ([1, 2, 3] as const) : ([1] as const),
+	);
+}
+
+export function buildCandidateEvaluationReport(
+	samples: readonly EvalSample[],
+	labelGold: readonly LabelGoldEntry[],
+	predictions: readonly EvalPrediction[],
+	profile: EvalProfile = inferEvalProfile(samples),
+): CandidateEvaluationReport {
+	validateLabelGold(samples, labelGold);
+	const models = predictionModels(predictions);
+	const stabilityIds = inferStabilityIds(predictions);
+	validateCandidatePredictions(samples, predictions, models, stabilityIds);
+	const labelGoldById = new Map(labelGold.map((entry) => [entry.notice_id, entry]));
+	const metricsFor = (
+		filter: (sample: EvalSample) => boolean,
+	): Record<string, CategoryAgreementMetrics> =>
 		Object.fromEntries(
 			models.map((model) => [
 				model,
-				calculateLabelMetrics(
+				calculateCategoryAgreementMetrics(
 					samples.filter(filter),
-					labelsById,
+					labelGoldById,
 					resolveModelPredictions(samples, predictions, model),
 				),
 			]),
 		);
-	const all = metricsFor(() => true);
-	const random = metricsFor((sample) => sample.split === "random");
-	const balanced = metricsFor(
-		(sample) => sample.split === "balanced" && sample.review_group !== "evidence_poor",
-	);
-	const evidencePoor = metricsFor((sample) => sample.review_group === "evidence_poor");
-	const operations = Object.fromEntries(
-		models.map((model) => [model, calculateOperationalMetrics(samples, predictions, model)]),
-	);
-	const aggregateAgreement = Object.fromEntries(
-		models.map((model) => [
-			model,
-			calculateAggregateAgreement(samples, labelsById, predictions, model),
-		]),
-	);
-	const gates = Object.fromEntries(
-		models.map((model) => [
-			model,
-			evaluateModelGate(
-				model,
-				profile,
-				random[model],
-				balanced[model],
-				evidencePoor[model],
-				operations[model],
-				aggregateAgreement[model],
-			),
-		]),
-	);
-	const selectedModel = selectBusinessModel(gates, operations);
 	return {
-		all,
-		balanced,
-		evidence_poor: evidencePoor,
-		gates,
+		agreement: {
+			all: metricsFor(() => true),
+			balanced: metricsFor((sample) => sample.split === "balanced"),
+			random: metricsFor((sample) => sample.split === "random"),
+		},
 		generated_at: new Date().toISOString(),
-		models: operations,
+		models: Object.fromEntries(
+			models.map((model) => [model, calculateModelMetrics(predictions, model, stabilityIds)]),
+		),
 		profile,
-		random,
-		reference_model: referenceModel,
-		selected_model: selectedModel,
 	};
 }
 
-export function buildEvalCheckResult(report: EvalReport): EvalCheckResult {
-	const models = Object.fromEntries(
-		Object.keys(report.models)
-			.sort()
-			.map((model) => {
-				const gate = report.gates[model];
-				const operations = report.models[model];
-				if (!(gate && operations)) {
-					throw new Error(`eval report is missing model metrics: ${model}`);
-				}
-				return [
-					model,
-					{
-						aggregate_agreement: gate.aggregate_agreement,
-						balanced_macro_f1: gate.balanced_macro_f1,
-						eventual_valid_rate: operations.eventual_valid_rate,
-						evidence_poor_agreement: gate.evidence_poor_agreement,
-						first_attempt_valid_rate: operations.first_attempt_valid_rate,
-						minimum_category_recall: gate.minimum_category_recall,
-						passes: gate.passes,
-						primary_agreement: gate.random_agreement,
-						stability_rate: gate.stability_rate,
-					},
-				];
-			}),
-	);
+export function buildCandidateEvaluationCheckResult(
+	report: CandidateEvaluationReport,
+): CandidateEvaluationCheckResult {
 	return {
-		models,
-		passes: report.selected_model !== null,
-		profile: report.profile,
-		reference_model: report.reference_model,
-		selected_model: report.selected_model,
+		...report,
+		evidence_status: Object.values(report.models).every(
+			(metrics) => metrics.outcomes.provider_error_count === 0,
+		)
+			? "complete"
+			: "partial",
 	};
+}
+
+export function buildRegressionEvaluationCheckResult(
+	cases: readonly RegressionCase[],
+	predictions: readonly EvalPrediction[],
+	models: readonly string[],
+	stabilityIds: readonly number[] = inferStabilityIds(predictions),
+): RegressionEvaluationCheckResult {
+	validateRegressionCases(cases);
+	const samples = toRegressionSamples(cases);
+	validateEvalSamples(samples);
+	validateRegressionPredictions(samples, predictions, models, stabilityIds);
+	const stabilitySet = new Set(stabilityIds);
+	const caseResults = cases.map(
+		(value): RegressionCaseResult => ({
+			boundary_group: value.boundary_group,
+			models: Object.fromEntries(
+				models.map((model) => {
+					const repeats = stabilitySet.has(value.notice_id) ? ([1, 2, 3] as const) : ([1] as const);
+					const repeatResults = repeats.map((repeat) =>
+						toRegressionRepeatResult(
+							resolvePredictionResult(predictions, value.notice_id, model, repeat),
+							value.product_expected_category,
+						),
+					);
+					const repeated = repeats.length === 3;
+					const repeatComplete = repeated
+						? repeatResults.every((result) => result.status === "ok")
+						: null;
+					return [
+						model,
+						{
+							primary: repeatResults[0] as RegressionRepeatResult,
+							repeat_complete: repeatComplete,
+							repeat_results: repeatResults,
+							stable_complete:
+								repeatComplete === null
+									? null
+									: repeatComplete &&
+										new Set(repeatResults.map((result) => result.category)).size === 1,
+						},
+					];
+				}),
+			) as Record<string, RegressionModelCaseResult>,
+			notice_id: value.notice_id,
+			notice_title: value.notice_title,
+			product_expected_category: value.product_expected_category,
+		}),
+	);
+	const modelResults = Object.fromEntries(
+		models.map((model) => {
+			const agreement = calculateRegressionAgreement(cases, predictions, model);
+			const metrics = calculateModelMetrics(predictions, model, stabilityIds);
+			return [
+				model,
+				{
+					outcomes: metrics.outcomes,
+					primary_agreement: {
+						agreed: agreement.agreed,
+						rate: ratio(agreement.agreed, agreement.scoreable),
+						scoreable: agreement.scoreable,
+					},
+					repeat: metrics.repeat,
+				},
+			];
+		}),
+	) as RegressionEvaluationCheckResult["models"];
+	return {
+		candidate_models: [...models],
+		cases: caseResults,
+		evidence_status: Object.values(modelResults).every(
+			(value) => value.outcomes.provider_error_count === 0,
+		)
+			? "complete"
+			: "partial",
+		models: modelResults,
+		regression_case_count: cases.length,
+		stability_case_count: stabilityIds.length,
+	};
+}
+
+function validateRegressionPredictions(
+	samples: readonly EvalSample[],
+	predictions: readonly EvalPrediction[],
+	models: readonly string[],
+	stabilityIds: readonly number[],
+): void {
+	const validatedIds = validateStabilityIds(samples, stabilityIds);
+	const stabilitySet = new Set(validatedIds);
+	validatePredictionRecords(samples, predictions, models, (sample) =>
+		stabilitySet.has(sample.notice_id) ? ([1, 2, 3] as const) : ([1] as const),
+	);
+}
+
+function validatePredictionRecords(
+	samples: readonly EvalSample[],
+	predictions: readonly EvalPrediction[],
+	models: readonly string[],
+	expectedRepeatsForSample: (sample: EvalSample) => readonly (1 | 2 | 3)[],
+): void {
+	validateEvalSamples(samples);
+	validateModelList(models, "prediction");
+	const sampleIds = new Set(samples.map((sample) => sample.notice_id));
+	const modelSet = new Set(models);
+	const expectedTasks = new Set<string>();
+	for (const model of models) {
+		for (const sample of samples) {
+			for (const repeat of expectedRepeatsForSample(sample)) {
+				expectedTasks.add(`${model}:${sample.notice_id}:${repeat}`);
+			}
+		}
+	}
+	const actualTasks = new Set<string>();
+	for (const prediction of predictions) {
+		if (!sampleIds.has(prediction.notice_id)) {
+			throw new Error(`prediction references an unknown notice: ${prediction.notice_id}`);
+		}
+		if (!modelSet.has(prediction.model)) {
+			throw new Error(`prediction references an unknown model: ${prediction.model}`);
+		}
+		if (prediction.attempt !== 1 || !isClassificationRepeat(prediction.repeat)) {
+			throw new Error(`prediction must contain one direct attempt: ${prediction.notice_id}`);
+		}
+		const taskKey = `${prediction.model}:${prediction.notice_id}:${prediction.repeat}`;
+		if (!expectedTasks.has(taskKey)) {
+			throw new Error(`prediction references an unrequested task: ${taskKey}`);
+		}
+		if (actualTasks.has(taskKey)) {
+			throw new Error(`duplicate prediction: ${taskKey}`);
+		}
+		actualTasks.add(taskKey);
+		if (
+			prediction.status !== "ok" &&
+			prediction.status !== "invalid_output" &&
+			prediction.status !== "provider_error"
+		) {
+			throw new Error(`prediction has an invalid status: ${taskKey}`);
+		}
+		if (prediction.status === "ok") {
+			if (!(prediction.category && CATEGORY_SET.has(prediction.category))) {
+				throw new Error(`successful prediction has an invalid category: ${taskKey}`);
+			}
+			if (typeof prediction.raw_response !== "string" || prediction.raw_response.length === 0) {
+				throw new Error(`successful prediction has no raw response: ${taskKey}`);
+			}
+		} else {
+			if (prediction.category !== null) {
+				throw new Error(`failed prediction has a category: ${taskKey}`);
+			}
+			if (!prediction.error) {
+				throw new Error(`failed prediction has no raw error evidence: ${taskKey}`);
+			}
+			if (prediction.status === "invalid_output" && prediction.raw_response === undefined) {
+				throw new Error(`invalid output prediction has no raw response: ${taskKey}`);
+			}
+			if (prediction.status === "provider_error" && prediction.raw_response !== undefined) {
+				throw new Error(`provider error prediction contains a model response: ${taskKey}`);
+			}
+		}
+		if (!Number.isFinite(prediction.elapsed_ms) || prediction.elapsed_ms < 0) {
+			throw new Error(`prediction has an invalid elapsed time: ${taskKey}`);
+		}
+	}
+	for (const taskKey of expectedTasks) {
+		if (!actualTasks.has(taskKey)) {
+			throw new Error(`missing prediction: ${taskKey}`);
+		}
+	}
+}
+
+function validateEvalSamples(samples: readonly EvalSample[]): void {
+	if (samples.length === 0) {
+		throw new Error("eval sample cannot be empty");
+	}
+	const ids = new Set<number>();
+	for (const sample of samples) {
+		if (!Number.isSafeInteger(sample.notice_id) || sample.notice_id < 1) {
+			throw new Error(`eval sample has an invalid notice id: ${String(sample.notice_id)}`);
+		}
+		if (ids.has(sample.notice_id)) {
+			throw new Error(`duplicate eval sample: ${sample.notice_id}`);
+		}
+		ids.add(sample.notice_id);
+		if (typeof sample.notice_title !== "string" || !sample.notice_title.trim()) {
+			throw new Error(`eval sample has an empty title: ${sample.notice_id}`);
+		}
+		const validGrouping =
+			(sample.split === "random" && sample.review_group === "random") ||
+			(sample.split === "balanced" &&
+				(sample.review_group === "category_consensus" ||
+					sample.review_group === "category_disagreement")) ||
+			(sample.split === "regression" && sample.review_group === "regression");
+		if (!validGrouping) {
+			throw new Error(`eval sample has an invalid split or review group: ${sample.notice_id}`);
+		}
+	}
+}
+
+function isClassificationRepeat(value: number): value is 1 | 2 | 3 {
+	return value === 1 || value === 2 || value === 3;
 }
 
 function summarizeStratification(
@@ -813,30 +744,14 @@ function summarizeStratification(
 	predictions: readonly StratificationPrediction[],
 	stratificationModels: readonly string[],
 ): Map<number, StratificationSummary> {
-	validateModelList(stratificationModels, "stratification");
-	const inputIds = new Set(inputs.map((input) => input.noticeId));
-	const byNotice = new Map<number, StratificationPrediction[]>();
-	for (const prediction of predictions) {
-		if (!inputIds.has(prediction.notice_id)) {
-			throw new Error(`stratification references an unknown notice: ${prediction.notice_id}`);
-		}
-		const values = byNotice.get(prediction.notice_id) ?? [];
-		values.push(prediction);
-		byNotice.set(prediction.notice_id, values);
-	}
+	const samples = inputs.map((input) => toEvalSample(input, "random", "random"));
+	validatePredictionRecords(samples, predictions, stratificationModels, () => [1]);
 	const summaries = new Map<number, StratificationSummary>();
 	for (const input of inputs) {
-		const values = byNotice.get(input.noticeId) ?? [];
-		const models = values.map((prediction) => prediction.model);
-		if (
-			values.length !== stratificationModels.length ||
-			new Set(models).size !== stratificationModels.length ||
-			stratificationModels.some((model) => !models.includes(model))
-		) {
-			throw new Error(`incomplete stratification predictions: ${input.noticeId}`);
-		}
-		const categories = values.flatMap((prediction) =>
-			prediction.status === "ok" && prediction.category ? [prediction.category] : [],
+		const categories = predictions.flatMap((prediction) =>
+			prediction.notice_id === input.noticeId && prediction.status === "ok" && prediction.category
+				? [prediction.category]
+				: [],
 		);
 		summaries.set(input.noticeId, {
 			categories: new Set(categories),
@@ -900,57 +815,47 @@ function selectFromPool(
 	}
 }
 
-function evidencePoorScore(
-	input: NoticeClassificationTask,
-	summaries: ReadonlyMap<number, StratificationSummary>,
-): number {
-	const titleLength = [...input.noticeTitle.trim()].length;
-	return (
-		(summaries.get(input.noticeId)?.disagreement ? 4 : 0) +
-		(titleLength <= 12 ? 2 : 0) +
-		(titleLength <= 6 ? 1 : 0)
-	);
-}
-
-function isSourceShapeOutlier(input: NoticeClassificationTask): boolean {
-	const titleLength = [...input.noticeTitle.trim()].length;
-	return titleLength <= 12 || titleLength >= 60;
-}
-
-function calculateLabelMetrics(
+function calculateCategoryAgreementMetrics(
 	samples: readonly EvalSample[],
-	labels: ReadonlyMap<number, EvalLabel>,
-	predictions: ReadonlyMap<number, ResolvedPrediction>,
-): LabelMetricSet {
+	labelGold: ReadonlyMap<number, LabelGoldEntry>,
+	predictions: ReadonlyMap<number, EvalPrediction>,
+): CategoryAgreementMetrics {
 	const counters = Object.fromEntries(
 		NOTICE_CATEGORIES.map((category) => [category, { fn: 0, fp: 0, support: 0, tp: 0 }]),
 	) as Record<NoticeCategory, { fn: number; fp: number; support: number; tp: number }>;
 	const confusion: Record<string, Record<string, number>> = {};
 	let agreed = 0;
 	let scoreable = 0;
+	let invalidOutputCount = 0;
+	let providerErrorCount = 0;
 	for (const sample of samples) {
-		const label = labels.get(sample.notice_id);
-		if (!label) {
+		const expected = labelGold.get(sample.notice_id)?.category;
+		const prediction = predictions.get(sample.notice_id);
+		if (!(expected && prediction) || prediction.status === "provider_error") {
+			providerErrorCount += 1;
 			continue;
 		}
+		if (prediction.status === "invalid_output") {
+			invalidOutputCount += 1;
+			continue;
+		}
+		const actual = prediction.category;
+		if (!actual) {
+			throw new Error(`successful prediction has no category: ${sample.notice_id}`);
+		}
 		scoreable += 1;
-		const expected = label.category;
-		const actual = predictions.get(sample.notice_id)?.category ?? null;
 		counters[expected].support += 1;
-		const actualKey = actual ?? "__error__";
 		confusion[expected] ??= {};
-		confusion[expected][actualKey] = (confusion[expected][actualKey] ?? 0) + 1;
+		confusion[expected][actual] = (confusion[expected][actual] ?? 0) + 1;
 		if (actual === expected) {
 			agreed += 1;
 			counters[expected].tp += 1;
 		} else {
 			counters[expected].fn += 1;
-			if (actual) {
-				counters[actual].fp += 1;
-			}
+			counters[actual].fp += 1;
 		}
 	}
-	const perLabel: LabelMetricSet["per_label"] = {};
+	const perCategory: CategoryAgreementMetrics["per_category"] = {};
 	const f1Values: number[] = [];
 	for (const category of NOTICE_CATEGORIES) {
 		const values = counters[category];
@@ -965,14 +870,16 @@ function calculateLabelMetrics(
 		if (values.support > 0 && f1 !== null) {
 			f1Values.push(f1);
 		}
-		perLabel[category] = { f1, precision, recall, support: values.support };
+		perCategory[category] = { f1, precision, recall, support: values.support };
 	}
 	return {
 		agreed,
 		agreement_rate: ratio(agreed, scoreable),
 		confusion,
+		invalid_output_count: invalidOutputCount,
 		macro_f1: f1Values.length > 0 ? average(f1Values) : null,
-		per_label: perLabel,
+		per_category: perCategory,
+		provider_error_count: providerErrorCount,
 		scoreable,
 	};
 }
@@ -981,268 +888,226 @@ function resolveModelPredictions(
 	samples: readonly EvalSample[],
 	predictions: readonly EvalPrediction[],
 	model: string,
-): ReadonlyMap<number, ResolvedPrediction> {
+): ReadonlyMap<number, EvalPrediction> {
 	return new Map(
 		samples.map((sample) => [
 			sample.notice_id,
-			{
-				category: resolvePrediction(predictions, sample.notice_id, model, 1),
-				model,
-				noticeId: sample.notice_id,
-			},
+			resolvePredictionResult(predictions, sample.notice_id, model, 1) as EvalPrediction,
 		]),
 	);
 }
 
-function resolvePrediction(
+function resolvePredictionResult(
 	predictions: readonly EvalPrediction[],
 	noticeId: number,
 	model: string,
-	run: 1 | 2 | 3,
-): NoticeCategory | null {
-	return (
-		predictions
-			.filter(
-				(prediction) =>
-					prediction.notice_id === noticeId && prediction.model === model && prediction.run === run,
-			)
-			.sort((left, right) => left.attempt - right.attempt)
-			.find((prediction) => prediction.status === "ok")?.category ?? null
+	repeat: 1 | 2 | 3,
+): EvalPrediction | undefined {
+	return predictions.find(
+		(prediction) =>
+			prediction.notice_id === noticeId &&
+			prediction.model === model &&
+			prediction.repeat === repeat,
 	);
 }
 
-function calculateOperationalMetrics(
-	samples: readonly EvalSample[],
+function calculateModelMetrics(
 	predictions: readonly EvalPrediction[],
 	model: string,
-): ModelOperationalMetrics {
+	stabilityIds: readonly number[],
+): ModelEvaluationMetrics {
 	const values = predictions.filter((prediction) => prediction.model === model);
-	const stabilityIds = new Set(
-		values.filter((prediction) => prediction.run !== 1).map((prediction) => prediction.notice_id),
-	);
-	const tasks = [
-		...samples.map((sample) => ({ noticeId: sample.notice_id, run: 1 as const })),
-		...[...stabilityIds].flatMap((noticeId) => [
-			{ noticeId, run: 2 as const },
-			{ noticeId, run: 3 as const },
-		]),
-	];
-	const firstValid = tasks.filter(({ noticeId, run }) =>
-		values.some(
-			(prediction) =>
-				prediction.notice_id === noticeId &&
-				prediction.run === run &&
-				prediction.attempt === 1 &&
-				prediction.status === "ok",
+	return {
+		latency_p50_ms: percentile(
+			values.map((prediction) => prediction.elapsed_ms),
+			0.5,
 		),
+		latency_p90_ms: percentile(
+			values.map((prediction) => prediction.elapsed_ms),
+			0.9,
+		),
+		outcomes: buildOutcomeMetrics(values),
+		repeat: calculateRepeatMetrics(values, model, stabilityIds),
+	};
+}
+
+function buildOutcomeMetrics(predictions: readonly EvalPrediction[]): ModelOutcomeMetrics {
+	const okCount = predictions.filter((prediction) => prediction.status === "ok").length;
+	const invalidOutputCount = predictions.filter(
+		(prediction) => prediction.status === "invalid_output",
 	).length;
-	const eventualValid = tasks.filter(
-		({ noticeId, run }) => resolvePrediction(values, noticeId, model, run) !== null,
+	const providerErrorCount = predictions.filter(
+		(prediction) => prediction.status === "provider_error",
 	).length;
-	const latencies = values
-		.filter((prediction) => prediction.status === "ok")
-		.map((prediction) => prediction.elapsed_ms)
-		.sort((left, right) => left - right);
-	let stable = 0;
+	const responseReceivedCount = okCount + invalidOutputCount;
+	return {
+		invalid_output_count: invalidOutputCount,
+		ok_count: okCount,
+		provider_error_count: providerErrorCount,
+		provider_error_rate: ratio(providerErrorCount, predictions.length),
+		response_received_count: responseReceivedCount,
+		response_valid_rate: ratio(okCount, responseReceivedCount),
+		total_task_count: predictions.length,
+	};
+}
+
+function calculateRepeatMetrics(
+	predictions: readonly EvalPrediction[],
+	model: string,
+	stabilityIds: readonly number[],
+): RepeatMetrics {
+	let repeatCompleteCount = 0;
+	let stableCompleteCount = 0;
 	for (const noticeId of stabilityIds) {
-		const categories = ([1, 2, 3] as const).map((run) =>
-			resolvePrediction(values, noticeId, model, run),
+		const outcomes = ([1, 2, 3] as const).map((repeat) =>
+			resolvePredictionResult(predictions, noticeId, model, repeat),
 		);
-		if (categories.every((category) => category !== null) && new Set(categories).size === 1) {
-			stable += 1;
+		const complete = outcomes.every((outcome) => outcome?.status === "ok");
+		if (complete) {
+			repeatCompleteCount += 1;
+			if (new Set(outcomes.map((outcome) => outcome?.category)).size === 1) {
+				stableCompleteCount += 1;
+			}
 		}
 	}
 	return {
-		completion_tokens: sum(values.map((prediction) => prediction.completion_tokens ?? 0)),
-		eventual_valid_rate: ratio(eventualValid, tasks.length),
-		failed: tasks.length - eventualValid,
-		first_attempt_valid_rate: ratio(firstValid, tasks.length),
-		p50_ms: percentile(latencies, 0.5),
-		p90_ms: percentile(latencies, 0.9),
-		prompt_tokens: sum(values.map((prediction) => prediction.prompt_tokens ?? 0)),
-		stable_difficult: stable,
-		stability_total: stabilityIds.size,
-		total_tokens: sum(values.map((prediction) => prediction.total_tokens ?? 0)),
+		repeat_complete_count: repeatCompleteCount,
+		repeat_incomplete_count: stabilityIds.length - repeatCompleteCount,
+		selected_repeat_consistency: ratio(stableCompleteCount, repeatCompleteCount),
+		stable_complete_count: stableCompleteCount,
 	};
 }
 
-function calculateAggregateAgreement(
-	samples: readonly EvalSample[],
-	labels: ReadonlyMap<number, EvalLabel>,
+function calculateRegressionAgreement(
+	cases: readonly RegressionCase[],
 	predictions: readonly EvalPrediction[],
 	model: string,
-): { agreed: number; agreement_rate: number | null; scoreable: number } {
+): { agreed: number; scoreable: number } {
 	let agreed = 0;
 	let scoreable = 0;
-	for (const sample of samples) {
-		const label = labels.get(sample.notice_id);
-		if (!label) {
+	for (const value of cases) {
+		const outcome = resolvePredictionResult(predictions, value.notice_id, model, 1);
+		if (outcome?.status !== "ok") {
 			continue;
 		}
-		for (const run of [1, 2, 3] as const) {
-			const hasRun = predictions.some(
-				(prediction) =>
-					prediction.model === model &&
-					prediction.notice_id === sample.notice_id &&
-					prediction.run === run,
-			);
-			if (!hasRun) {
-				continue;
-			}
-			scoreable += 1;
-			if (resolvePrediction(predictions, sample.notice_id, model, run) === label.category) {
-				agreed += 1;
-			}
+		scoreable += 1;
+		if (outcome.category === value.product_expected_category) {
+			agreed += 1;
 		}
 	}
-	return { agreed, agreement_rate: ratio(agreed, scoreable), scoreable };
+	return { agreed, scoreable };
 }
 
-function evaluateModelGate(
-	model: string,
-	profile: EvalProfile,
-	random: LabelMetricSet | undefined,
-	balanced: LabelMetricSet | undefined,
-	evidencePoor: LabelMetricSet | undefined,
-	operations: ModelOperationalMetrics | undefined,
-	aggregate: { agreement_rate: number | null; scoreable: number } | undefined,
-): ModelGate {
-	const thresholds =
-		profile === BUSINESS_ACCEPTANCE_PROFILE
-			? {
-					balanced_macro_f1: 0,
-					eventual_valid_rate: BUSINESS_ACCEPTANCE_THRESHOLDS.eventual_valid_rate,
-					first_attempt_valid_rate: BUSINESS_ACCEPTANCE_THRESHOLDS.first_attempt_valid_rate,
-					minimum_aggregate_agreement: BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_aggregate_agreement,
-					minimum_category_recall: BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_category_recall,
-					minimum_category_support: BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_category_support,
-					minimum_evidence_poor_agreement: 0,
-					minimum_primary_agreement: BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_primary_agreement,
-					minimum_random_agreement: BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_primary_agreement,
-					minimum_random_labels: BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_random_labels,
-					minimum_stability_rate: BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_stability_rate,
-					minimum_stability_samples: BUSINESS_ACCEPTANCE_THRESHOLDS.minimum_stability_samples,
-				}
-			: {
-					balanced_macro_f1: 0.8,
-					eventual_valid_rate: 1,
-					first_attempt_valid_rate: 0.98,
-					minimum_aggregate_agreement: 0,
-					minimum_category_recall: 0.6,
-					minimum_category_support: 8,
-					minimum_evidence_poor_agreement: 0.7,
-					minimum_primary_agreement: 0.85,
-					minimum_random_agreement: 0.85,
-					minimum_random_labels: 120,
-					minimum_stability_rate: 0,
-					minimum_stability_samples: 0,
-				};
-	const categoryMetrics =
-		profile === BUSINESS_ACCEPTANCE_PROFILE
-			? Object.values(random?.per_label ?? {}).filter(
-					(metric) => metric.support >= thresholds.minimum_category_support,
-				)
-			: CONCRETE_CATEGORIES.map((category) => balanced?.per_label[category]);
-	const minimumRecall =
-		categoryMetrics.length > 0 && categoryMetrics.every((metric) => metric?.recall !== null)
-			? Math.min(...categoryMetrics.map((metric) => metric?.recall ?? 0))
-			: null;
-	const stability = stabilityRate(operations);
-	const eligibleSample =
-		profile === BUSINESS_ACCEPTANCE_PROFILE
-			? (random?.scoreable ?? 0) >= thresholds.minimum_random_labels &&
-				aggregate?.scoreable === (random?.scoreable ?? 0) * 3 &&
-				(operations?.stability_total ?? 0) >= thresholds.minimum_stability_samples &&
-				operations?.stability_total === random?.scoreable &&
-				categoryMetrics.length > 0
-			: (random?.scoreable ?? 0) >= thresholds.minimum_random_labels &&
-				categoryMetrics.every(
-					(metric) => (metric?.support ?? 0) >= thresholds.minimum_category_support,
-				);
-	const gate: ModelGate = {
-		aggregate_agreement: aggregate?.agreement_rate ?? null,
-		balanced_macro_f1: balanced?.macro_f1 ?? null,
-		eligible_sample: eligibleSample,
-		evidence_poor_agreement: evidencePoor?.agreement_rate ?? null,
-		eventual_valid_rate: operations?.eventual_valid_rate ?? null,
-		first_attempt_valid_rate: operations?.first_attempt_valid_rate ?? null,
-		minimum_category_recall: minimumRecall,
-		model,
-		passes: false,
-		profile,
-		random_agreement: random?.agreement_rate ?? null,
-		stability_rate: stability,
-		thresholds,
+function toRegressionRepeatResult(
+	prediction: EvalPrediction | undefined,
+	expected: NoticeCategory,
+): RegressionRepeatResult {
+	return {
+		category: prediction?.category ?? null,
+		matches_product_expected: prediction?.status === "ok" ? prediction.category === expected : null,
+		status: prediction?.status ?? "provider_error",
 	};
-	gate.passes =
-		profile === BUSINESS_ACCEPTANCE_PROFILE
-			? eligibleSample &&
-				(gate.random_agreement ?? 0) >= thresholds.minimum_primary_agreement &&
-				(gate.aggregate_agreement ?? 0) >= thresholds.minimum_aggregate_agreement &&
-				(gate.minimum_category_recall ?? 0) >= thresholds.minimum_category_recall &&
-				(gate.stability_rate ?? 0) >= thresholds.minimum_stability_rate &&
-				(gate.first_attempt_valid_rate ?? 0) >= thresholds.first_attempt_valid_rate &&
-				gate.eventual_valid_rate === thresholds.eventual_valid_rate
-			: eligibleSample &&
-				(gate.random_agreement ?? 0) >= thresholds.minimum_random_agreement &&
-				(gate.balanced_macro_f1 ?? 0) >= thresholds.balanced_macro_f1 &&
-				(gate.minimum_category_recall ?? 0) >= thresholds.minimum_category_recall &&
-				(gate.evidence_poor_agreement ?? 0) >= thresholds.minimum_evidence_poor_agreement &&
-				(gate.first_attempt_valid_rate ?? 0) >= thresholds.first_attempt_valid_rate &&
-				gate.eventual_valid_rate === thresholds.eventual_valid_rate;
-	return gate;
 }
 
-function selectBusinessModel(
-	gates: Readonly<Record<string, ModelGate>>,
-	operations: Readonly<Record<string, ModelOperationalMetrics>>,
-): string | null {
-	const passed = Object.values(gates).filter((gate) => gate.passes);
-	passed.sort(
-		(left, right) =>
-			(right.aggregate_agreement ?? -1) - (left.aggregate_agreement ?? -1) ||
-			(right.balanced_macro_f1 ?? -1) - (left.balanced_macro_f1 ?? -1) ||
-			(right.random_agreement ?? -1) - (left.random_agreement ?? -1) ||
-			(right.minimum_category_recall ?? -1) - (left.minimum_category_recall ?? -1) ||
-			stabilityRate(operations[right.model]) - stabilityRate(operations[left.model]) ||
-			(right.first_attempt_valid_rate ?? -1) - (left.first_attempt_valid_rate ?? -1) ||
-			(operations[left.model]?.total_tokens ?? Number.MAX_SAFE_INTEGER) -
-				(operations[right.model]?.total_tokens ?? Number.MAX_SAFE_INTEGER) ||
-			(operations[left.model]?.p90_ms ?? Number.MAX_SAFE_INTEGER) -
-				(operations[right.model]?.p90_ms ?? Number.MAX_SAFE_INTEGER) ||
-			left.model.localeCompare(right.model),
-	);
-	return passed[0]?.model ?? null;
+function toRegressionSamples(cases: readonly RegressionCase[]): EvalSample[] {
+	return cases.map((value) => ({
+		notice_id: value.notice_id,
+		notice_title: value.notice_title,
+		review_group: "regression",
+		split: "regression",
+	}));
 }
 
-function stabilityRate(metrics: ModelOperationalMetrics | undefined): number {
-	return metrics?.stability_total ? metrics.stable_difficult / metrics.stability_total : 0;
+function validateRegressionCases(cases: readonly RegressionCase[]): void {
+	if (cases.length === 0) {
+		throw new Error("regression fixture must contain at least one case");
+	}
+	const caseIds = new Set<number>();
+	for (const value of cases) {
+		assertExactObjectKeys(
+			value,
+			["boundary_group", "notice_id", "notice_title", "product_expected_category", "rationale"],
+			"regression case",
+		);
+		if (!Number.isSafeInteger(value.notice_id) || value.notice_id < 1) {
+			throw new Error(`regression case has an invalid notice id: ${String(value.notice_id)}`);
+		}
+		if (caseIds.has(value.notice_id)) {
+			throw new Error(`duplicate regression case: ${value.notice_id}`);
+		}
+		caseIds.add(value.notice_id);
+		if (!CATEGORY_SET.has(value.product_expected_category)) {
+			throw new Error(`regression case has an invalid product category: ${value.notice_id}`);
+		}
+		if (!(value.boundary_group.trim() && value.notice_title.trim() && value.rationale.trim())) {
+			throw new Error(`regression case is missing boundary rationale: ${value.notice_id}`);
+		}
+	}
 }
 
-async function runStratifyCommand(options: CliOptions): Promise<void> {
+function inferStabilityIds(predictions: readonly EvalPrediction[]): number[] {
+	return [
+		...new Set(
+			predictions
+				.filter((prediction) => prediction.repeat !== 1)
+				.map((prediction) => prediction.notice_id),
+		),
+	].sort((left, right) => left - right);
+}
+
+function predictionModels(predictions: readonly EvalPrediction[]): string[] {
+	const models = [...new Set(predictions.map((prediction) => prediction.model))].sort();
+	validateModelList(models, "prediction");
+	return models;
+}
+
+function validateModelList(models: readonly string[], name: string): void {
+	if (models.length === 0) {
+		throw new Error(`${name} model list cannot be empty`);
+	}
+	if (models.some((model) => !model)) {
+		throw new Error(`${name} model list contains an empty model`);
+	}
+	if (new Set(models).size !== models.length) {
+		throw new Error(`${name} model list contains duplicates`);
+	}
+}
+
+export function resolveExplicitModels(
+	configuredModels: readonly string[] | undefined,
+	role: string,
+): string[] {
+	const models = configuredModels?.map((model) => model.trim()) ?? [];
+	validateModelList(models, role);
+	return models;
+}
+
+function inferEvalProfile(samples: readonly EvalSample[]): EvalProfile {
+	validateEvalSamples(samples);
+	if (samples.some((sample) => sample.split === "regression")) {
+		throw new Error("regression samples do not use a candidate eval profile");
+	}
+	return samples.some((sample) => sample.split === "balanced")
+		? BALANCED_DIAGNOSTIC_PROFILE
+		: RANDOM_DIAGNOSTIC_PROFILE;
+}
+
+async function runStratifyCommand(options: EvalCliOptions): Promise<void> {
 	const directory = resolve(requiredOption(options, "output-dir"));
 	const predictionsPath = resolve(directory, "strata-predictions.jsonl");
-	const manifestPath = resolve(directory, "stratify-manifest.json");
-	await assertOutputPathsAbsent([predictionsPath, manifestPath]);
-	const seed = singleOption(options, "seed") ?? DEFAULT_EVAL_SEED;
 	const excludedIds = await readExcludedIds(options);
 	const concurrency = positiveIntegerOption(options, "concurrency", 2);
 	const timeoutMs = positiveIntegerOption(options, "timeout-ms", 60_000);
-	const models = resolveEvalModelList(
-		options.model,
-		process.env.INTERNAL_NOTICE_CLASSIFIER_OPENAI_MODEL,
-	);
+	const models = resolveExplicitModels(options.model, "stratification");
 	const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 	loadLocalNoticeSourceEnvironment(repositoryRoot);
 	const store = createNoticeSourceObjectStoreFromEnv();
-	let sourceCount: number;
 	let inputs: NoticeClassificationTask[];
 	try {
-		const ids = await listNoticeSourceIds(store);
-		sourceCount = ids.length;
+		const sourceIds = await listNoticeSourceIds(store);
 		inputs = await loadNoticeClassificationInputs(
 			store,
-			ids.filter((id) => !excludedIds.has(id)),
+			sourceIds.filter((id) => !excludedIds.has(id)),
 			{ concurrency: 4 },
 		);
 	} finally {
@@ -1268,180 +1133,88 @@ async function runStratifyCommand(options: CliOptions): Promise<void> {
 	});
 	await mkdir(directory, { recursive: true });
 	await writeJsonLines(predictionsPath, predictions);
-	await writeJsonFile(manifestPath, {
-		api: REFERENCE_INFERENCE_API,
-		created_at: new Date().toISOString(),
-		eligible_count: inputs.length,
-		excluded_notice_ids: [...excludedIds].sort((left, right) => left - right),
-		models,
-		seed,
-		source_count: sourceCount,
-		temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-	} satisfies StratifyManifest);
 	process.stdout.write(
-		`${JSON.stringify({ eligible_count: inputs.length, predictions: predictions.length })}\n`,
+		`${JSON.stringify({ eligible_count: inputs.length, inference_api: CHAT_COMPLETIONS_INFERENCE_API, models, predictions: predictions.length, temperature: NOTICE_CLASSIFIER_TEMPERATURE })}\n`,
 	);
 }
 
-async function runSampleCommand(options: CliOptions): Promise<void> {
+async function runSampleCommand(options: EvalCliOptions): Promise<void> {
 	const directory = resolve(requiredOption(options, "output-dir"));
 	const samplePath = resolve(directory, "sample.jsonl");
-	const manifestPath = resolve(directory, "manifest.json");
-	await assertOutputPathsAbsent([samplePath, manifestPath]);
-	const stratifyManifest = await readJsonFile<StratifyManifest>(
-		resolve(directory, "stratify-manifest.json"),
-	);
-	validateModelList(stratifyManifest.models, "stratification");
-	if (
-		stratifyManifest.api !== REFERENCE_INFERENCE_API ||
-		stratifyManifest.temperature !== NOTICE_CLASSIFIER_TEMPERATURE
-	) {
-		throw new Error("stratification request does not match the current eval contract");
-	}
 	const predictions = await readJsonLines<StratificationPrediction>(
 		resolve(directory, "strata-predictions.jsonl"),
 	);
-	const randomCount = positiveIntegerOption(options, "random-count", 120);
-	const categoryCount = positiveIntegerOption(options, "category-count", 12);
+	const models = predictionModels(predictions);
+	const noticeIds = [...new Set(predictions.map((prediction) => prediction.notice_id))].sort(
+		(left, right) => left - right,
+	);
+	const randomCount = requiredPositiveIntegerOption(options, "random-count");
+	const categoryCount = requiredPositiveIntegerOption(options, "category-count");
 	const categoryCountOverrides = parseCategoryCountOverrides(
 		options["category-count-override"] ?? [],
 	);
-	const evidencePoorCount = positiveIntegerOption(options, "evidence-poor-count", 12);
-	const seed = singleOption(options, "seed") ?? stratifyManifest.seed;
-	const excludedIds = new Set(stratifyManifest.excluded_notice_ids);
+	const seed = requiredOption(options, "seed");
 	const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 	loadLocalNoticeSourceEnvironment(repositoryRoot);
 	const store = createNoticeSourceObjectStoreFromEnv();
 	let inputs: NoticeClassificationTask[];
 	try {
-		const ids = await listNoticeSourceIds(store);
-		inputs = await loadNoticeClassificationInputs(
-			store,
-			ids.filter((id) => !excludedIds.has(id)),
-			{ concurrency: 4 },
-		);
+		inputs = await loadNoticeClassificationInputs(store, noticeIds, { concurrency: 4 });
 	} finally {
 		store.close();
 	}
 	const samples = buildEvalSample(inputs, predictions, {
 		categoryCount,
 		categoryCountOverrides,
-		evidencePoorCount,
 		randomCount,
 		seed,
-		stratificationModels: stratifyManifest.models,
+		stratificationModels: models,
 	});
-	const sampleInput = serializeJsonLines(samples);
-	await writeFile(samplePath, sampleInput, { encoding: "utf8", flag: "wx" });
-	await writeJsonFile(manifestPath, {
-		balanced_count: samples.filter(
-			(sample) => sample.split === "balanced" && sample.review_group !== "evidence_poor",
-		).length,
-		category_counts: resolveCategoryCounts({ categoryCount, categoryCountOverrides }),
-		created_at: new Date().toISOString(),
-		evidence_poor_count: evidencePoorCount,
-		excluded_notice_ids: stratifyManifest.excluded_notice_ids,
-		profile: BALANCED_COMPARISON_PROFILE,
-		random_count: randomCount,
-		review_groups: countReviewGroups(samples),
-		sample_sha256: sha256(sampleInput),
-		seed,
-		source_count: stratifyManifest.source_count,
-		stratification_models: stratifyManifest.models,
-	} satisfies EvalManifest);
-	process.stdout.write(`${JSON.stringify({ sample_count: samples.length })}\n`);
+	await mkdir(directory, { recursive: true });
+	await writeJsonLines(samplePath, samples);
+	process.stdout.write(
+		`${JSON.stringify({ profile: BALANCED_DIAGNOSTIC_PROFILE, sample_count: samples.length, seed })}\n`,
+	);
 }
 
-async function runRandomSampleCommand(options: CliOptions): Promise<void> {
+async function runRandomSampleCommand(options: EvalCliOptions): Promise<void> {
 	const directory = resolve(requiredOption(options, "output-dir"));
 	const samplePath = resolve(directory, "sample.jsonl");
-	const manifestPath = resolve(directory, "manifest.json");
-	await assertOutputPathsAbsent([samplePath, manifestPath]);
-	const count = positiveIntegerOption(options, "count", 60);
-	const seed = singleOption(options, "seed") ?? `${DEFAULT_EVAL_SEED}-acceptance`;
+	const count = requiredPositiveIntegerOption(options, "count");
+	const seed = requiredOption(options, "seed");
 	const concurrency = positiveIntegerOption(options, "concurrency", 2);
 	const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-	const evidenceRoot = resolve(
-		singleOption(options, "evidence-root") ?? resolve(repositoryRoot, "var/notices/eval"),
-	);
-	const historicalSampleFiles = await findHistoricalSampleFiles(evidenceRoot);
-	const badcaseSamplePath = resolve(
-		repositoryRoot,
-		"scripts/notices/golden/classification-badcases.sample.jsonl",
-	);
-	if (await pathExists(badcaseSamplePath)) {
-		historicalSampleFiles.push(badcaseSamplePath);
-	}
-	historicalSampleFiles.sort();
 	const excludedIds = await readExcludedIds(options);
-	for (const path of historicalSampleFiles) {
-		for (const value of await readJsonLines<{ notice_id: number }>(path)) {
-			if (!Number.isSafeInteger(value.notice_id) || value.notice_id < 1) {
-				throw new Error(`historical sample contains an invalid notice id: ${path}`);
-			}
-			excludedIds.add(value.notice_id);
-		}
-	}
 	loadLocalNoticeSourceEnvironment(repositoryRoot);
 	const store = createNoticeSourceObjectStoreFromEnv();
-	let sourceIds: number[];
 	let inputs: NoticeClassificationTask[];
+	let sourceCount = 0;
 	try {
-		sourceIds = await listNoticeSourceIds(store);
-		const selectedIds = selectRandomAcceptanceIds(sourceIds, excludedIds, count, seed);
+		const sourceIds = await listNoticeSourceIds(store);
+		sourceCount = sourceIds.length;
+		const selectedIds = selectRandomDiagnosticIds(sourceIds, excludedIds, count, seed);
 		inputs = await loadNoticeClassificationInputs(store, selectedIds, { concurrency });
 	} finally {
 		store.close();
 	}
-	const samples = buildRandomAcceptanceSample(inputs, seed);
-	const overlap = samples.filter((sample) => excludedIds.has(sample.notice_id));
-	if (overlap.length > 0) {
-		throw new Error(`acceptance sample overlaps historical evidence: ${overlap.length}`);
-	}
-	const sampleInput = serializeJsonLines(samples);
+	const samples = buildRandomDiagnosticSample(inputs, seed);
 	await mkdir(directory, { recursive: true });
-	await writeFile(samplePath, sampleInput, { encoding: "utf8", flag: "wx" });
-	await writeJsonFile(manifestPath, {
-		balanced_count: 0,
-		category_counts: emptyCategoryCounts(),
-		created_at: new Date().toISOString(),
-		evidence_poor_count: 0,
-		excluded_notice_ids: [...excludedIds].sort((left, right) => left - right),
-		historical_sample_files: historicalSampleFiles.map((path) => relative(repositoryRoot, path)),
-		profile: BUSINESS_ACCEPTANCE_PROFILE,
-		random_count: samples.length,
-		review_groups: countReviewGroups(samples),
-		sample_sha256: sha256(sampleInput),
-		seed,
-		source_count: sourceIds.length,
-		stratification_models: [],
-	} satisfies EvalManifest);
+	await writeJsonLines(samplePath, samples);
 	process.stdout.write(
-		`${JSON.stringify({ excluded: excludedIds.size, historical_sample_files: historicalSampleFiles.length, sample_count: samples.length, sample_sha256: sha256(sampleInput), source_count: sourceIds.length })}\n`,
+		`${JSON.stringify({ excluded: excludedIds.size, profile: RANDOM_DIAGNOSTIC_PROFILE, sample_count: samples.length, seed, source_count: sourceCount })}\n`,
 	);
 }
 
-async function runLabelCommand(options: CliOptions): Promise<void> {
+async function runGenerateLabelGoldCommand(options: EvalCliOptions): Promise<void> {
 	const directory = resolve(requiredOption(options, "output-dir"));
-	const labelsPath = resolve(directory, "labels.jsonl");
-	const predictionsPath = resolve(directory, "label-predictions.jsonl");
-	const manifestPath = resolve(directory, "label-manifest.json");
-	await assertOutputPathsAbsent([labelsPath, predictionsPath, manifestPath]);
-	const checkpointDirectory = resolve(directory, "label-checkpoints");
-	await mkdir(checkpointDirectory, { recursive: true });
-	const samplePath = resolve(directory, "sample.jsonl");
-	const sampleInput = await readFile(samplePath, "utf8");
-	const samples = parseJsonLines<EvalSample>(sampleInput, samplePath);
+	const samples = await loadEvaluationSample(directory);
+	const models = resolveExplicitModels(options.model, "label-gold");
+	if (models.length !== 1) {
+		throw new Error("generating label-gold requires exactly one model");
+	}
+	const model = models[0] as string;
 	const concurrency = positiveIntegerOption(options, "concurrency", 2);
 	const timeoutMs = positiveIntegerOption(options, "timeout-ms", 60_000);
-	const models = resolveEvalModelList(
-		options.model,
-		process.env.INTERNAL_NOTICE_CLASSIFIER_OPENAI_MODEL,
-	);
-	if (models.length !== 1) {
-		throw new Error("reference labeling requires exactly one model");
-	}
-	const referenceModel = models[0] as string;
 	const gateway = resolveNoticeClassifierGatewayConfig(process.env);
 	const client = new OpenAI({
 		apiKey: gateway.apiKey,
@@ -1450,374 +1223,224 @@ async function runLabelCommand(options: CliOptions): Promise<void> {
 		maxRetries: 0,
 		timeout: timeoutMs,
 	});
-	const predictionsById = new Map<number, EvalPrediction[]>();
-	for (const sample of samples) {
-		const checkpoint = await readOptionalJsonFile<ReferencePredictionCheckpoint>(
-			resolve(checkpointDirectory, `${sample.notice_id}.json`),
-		);
-		if (checkpoint) {
-			predictionsById.set(
-				sample.notice_id,
-				validateReferencePredictionCheckpoint(sample, checkpoint, referenceModel),
-			);
-		}
-	}
-	const pendingSamples = samples.filter((sample) => !predictionsById.has(sample.notice_id));
-	if (predictionsById.size > 0) {
-		process.stderr.write(`label resume ${predictionsById.size}/${samples.length}\n`);
-	}
 	let completed = 0;
-	let providerBlocked = false;
-	const attempted = await mapWithConcurrency(pendingSamples, concurrency, async (sample) => {
-		if (providerBlocked) {
-			return { sample, values: [] };
-		}
-		const values = await classifyForReferenceRun(client, referenceModel, sample, 1);
+	const predictions = await mapWithConcurrency(samples, concurrency, async (sample) => {
+		const prediction = await runEvaluationAttempt({
+			invoke: () => requestExactChatClassification(client, model, sample.notice_title),
+			model,
+			notice_id: sample.notice_id,
+			repeat: 1,
+		});
 		completed += 1;
-		if (resolvePrediction(values, sample.notice_id, referenceModel, 1)) {
-			const checkpoint = buildReferencePredictionCheckpoint(sample, values, referenceModel);
-			await writeJsonFile(resolve(checkpointDirectory, `${sample.notice_id}.json`), checkpoint);
-			predictionsById.set(sample.notice_id, values);
-		} else if (values.length === 3 && values.every((value) => value.status === "provider_error")) {
-			providerBlocked = true;
+		if (completed % 60 === 0 || completed === samples.length) {
+			process.stderr.write(`label-gold progress ${completed}/${samples.length}\n`);
 		}
-		if (completed % 60 === 0 || completed === pendingSamples.length) {
-			process.stderr.write(
-				`label progress ${completed}/${pendingSamples.length}; checkpoints ${predictionsById.size}/${samples.length}\n`,
-			);
-		}
-		return { sample, values };
+		return prediction;
 	});
-	const failed = attempted.flatMap(({ sample, values }) => {
-		if (values.length === 0) {
-			return [];
-		}
-		if (resolvePrediction(values, sample.notice_id, referenceModel, 1)) {
-			return [];
-		}
-		return [
-			`${sample.notice_id} (${values.map((prediction) => prediction.status).join(",") || "missing"})`,
-		];
-	});
-	if (failed.length > 0) {
-		throw new Error(
-			`reference model did not label notices: ${failed.join("; ")}; ${predictionsById.size}/${samples.length} successful checkpoints retained`,
-		);
-	}
-	const predictions = samples.flatMap((sample) => {
-		const values = predictionsById.get(sample.notice_id);
-		if (!values) {
-			throw new Error(`reference prediction checkpoint is missing: ${sample.notice_id}`);
-		}
-		return values;
-	});
-	const labels = buildReferenceLabels(samples, predictions, referenceModel);
-	const labelsInput = serializeJsonLines(labels);
-	const predictionsInput = serializeJsonLines(predictions);
-	await writeFile(predictionsPath, predictionsInput, { encoding: "utf8", flag: "wx" });
-	await writeFile(labelsPath, labelsInput, { encoding: "utf8", flag: "wx" });
-	await writeJsonFile(manifestPath, {
-		api: REFERENCE_INFERENCE_API,
-		created_at: new Date().toISOString(),
-		labels_sha256: sha256(labelsInput),
-		model: referenceModel,
-		predictions_sha256: sha256(predictionsInput),
-		prompt_sha256: CLASSIFICATION_PROMPT_SHA256,
-		sample_count: samples.length,
-		sample_sha256: sha256(sampleInput),
-		temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-	} satisfies EvalLabelManifest);
+	await mkdir(directory, { recursive: true });
+	await writeJsonLines(resolve(directory, "label-gold-predictions.jsonl"), predictions);
+	const labelGold = buildLabelGold(samples, predictions, model);
+	await writeJsonLines(resolve(directory, "label-gold.jsonl"), labelGold);
 	process.stdout.write(
-		`${JSON.stringify({ labels: labels.length, model: referenceModel, predictions: predictions.length })}\n`,
+		`${JSON.stringify({ inference_api: CHAT_COMPLETIONS_INFERENCE_API, label_gold_entries: labelGold.length, model, predictions: predictions.length, temperature: NOTICE_CLASSIFIER_TEMPERATURE })}\n`,
 	);
 }
 
-async function loadReferenceLabelEvidence(directory: string): Promise<ReferenceLabelEvidence> {
-	const samplePath = resolve(directory, "sample.jsonl");
-	const labelsPath = resolve(directory, "labels.jsonl");
-	const predictionsPath = resolve(directory, "label-predictions.jsonl");
-	const manifestPath = resolve(directory, "label-manifest.json");
-	const [sampleInput, labelsInput, predictionsInput, labelManifestInput] = await Promise.all([
-		readFile(samplePath, "utf8"),
-		readFile(labelsPath, "utf8"),
-		readFile(predictionsPath, "utf8"),
-		readFile(manifestPath, "utf8"),
-	]);
-	const samples = parseJsonLines<EvalSample>(sampleInput, samplePath);
-	const labels = parseJsonLines<EvalLabel>(labelsInput, labelsPath);
-	const predictions = parseJsonLines<EvalPrediction>(predictionsInput, predictionsPath);
-	const labelManifest = JSON.parse(labelManifestInput) as EvalLabelManifest;
-	validateModelList([labelManifest.model], "reference label");
-	if (
-		labelManifest.api !== REFERENCE_INFERENCE_API ||
-		labelManifest.temperature !== NOTICE_CLASSIFIER_TEMPERATURE
-	) {
-		throw new Error("reference label request does not match the current eval contract");
-	}
-	if (labelManifest.sample_sha256 !== sha256(sampleInput)) {
-		throw new Error("reference label sample changed after labeling");
-	}
-	if (labelManifest.labels_sha256 !== sha256(labelsInput)) {
-		throw new Error("reference labels changed after labeling");
-	}
-	if (labelManifest.predictions_sha256 !== sha256(predictionsInput)) {
-		throw new Error("reference label predictions changed after labeling");
-	}
-	if (labelManifest.prompt_sha256 !== CLASSIFICATION_PROMPT_SHA256) {
-		throw new Error("reference label prompt does not match the current taxonomy contract");
-	}
-	if (labelManifest.sample_count !== samples.length) {
-		throw new Error("reference label sample count does not match the manifest");
-	}
-	const predictionModels = [...new Set(predictions.map((prediction) => prediction.model))];
-	if (predictionModels.length !== 1 || predictionModels[0] !== labelManifest.model) {
-		throw new Error("reference label prediction model does not match the manifest");
-	}
-	validateEvalLabels(samples, labels);
-	const generatedLabels = buildReferenceLabels(samples, predictions, labelManifest.model);
-	if (serializeJsonLines(generatedLabels) !== labelsInput) {
-		throw new Error("reference labels do not match the sealed model predictions");
-	}
-	return {
-		labelManifest,
-		labelManifestInput,
-		labels,
-		labelsInput,
-		predictions,
-		samples,
-		sampleInput,
-	};
-}
-
-async function runModelsCommand(options: CliOptions): Promise<void> {
+async function runEvaluateCandidatesCommand(options: EvalCliOptions): Promise<void> {
 	const directory = resolve(requiredOption(options, "output-dir"));
-	const predictionsPath = resolve(directory, "predictions.jsonl");
-	const stabilityIdsPath = resolve(directory, "stability-ids.json");
-	const runManifestPath = resolve(directory, "run-manifest.json");
-	await assertOutputPathsAbsent([predictionsPath, stabilityIdsPath, runManifestPath]);
-	const reference = await loadReferenceLabelEvidence(directory);
-	const { labels, labelsInput, samples } = reference;
-	const manifest = await readJsonFile<EvalManifest>(resolve(directory, "manifest.json"));
-	const profile = resolveEvalProfile(manifest);
-	if (manifest.sample_sha256 !== sha256(reference.sampleInput)) {
-		throw new Error("eval sample does not match the sample manifest");
-	}
-	const models = resolveEvalModelList(
-		options.model,
-		process.env.INTERNAL_NOTICE_CLASSIFIER_OPENAI_MODEL,
-	);
-	validateEvalModels(models, reference.labelManifest.model);
+	const { labelGold, samples } = await loadLabelGold(directory);
+	const models = resolveExplicitModels(options.model, "candidate");
 	const concurrency = positiveIntegerOption(options, "concurrency", 2);
-	const stabilityCount = positiveIntegerOption(
-		options,
-		"stability-count",
-		profile === BUSINESS_ACCEPTANCE_PROFILE ? samples.length : 30,
+	const stabilityIds = await readRequestedStabilityIds(options, samples);
+	const predictions = await evaluateResponseModels(
+		samples,
+		models,
+		stabilityIds,
+		concurrency,
+		"eval",
 	);
-	if (profile === BUSINESS_ACCEPTANCE_PROFILE && stabilityCount !== samples.length) {
-		throw new Error("business acceptance must repeat every sample three times");
-	}
+	validateLabelGold(samples, labelGold);
+	validateCandidatePredictions(samples, predictions, models, stabilityIds);
+	await mkdir(directory, { recursive: true });
+	await Promise.all([
+		writeJsonLines(resolve(directory, "candidate-predictions.jsonl"), predictions),
+		writeJsonFile(resolve(directory, "stability-ids.json"), stabilityIds),
+	]);
+	process.stdout.write(
+		`${JSON.stringify({ candidate_models: models, candidate_predictions: predictions.length, inference_api: RESPONSES_INFERENCE_API, stability_count: stabilityIds.length, temperature: NOTICE_CLASSIFIER_TEMPERATURE })}\n`,
+	);
+}
+
+async function runEvaluateRegressionCommand(options: EvalCliOptions): Promise<void> {
+	const directory = resolve(requiredOption(options, "output-dir"));
+	const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+	const evidence = await loadRegressionEvidence(repositoryRoot);
+	const models = resolveExplicitModels(options.model, "candidate");
+	const concurrency = positiveIntegerOption(options, "concurrency", 2);
+	const stabilityIds = await readRequestedStabilityIds(options, evidence.samples);
+	const predictions = await evaluateResponseModels(
+		evidence.samples,
+		models,
+		stabilityIds,
+		concurrency,
+		"regression",
+	);
+	validateRegressionPredictions(evidence.samples, predictions, models, stabilityIds);
+	await mkdir(directory, { recursive: true });
+	await Promise.all([
+		writeJsonLines(resolve(directory, "regression-predictions.jsonl"), predictions),
+		writeJsonFile(resolve(directory, "stability-ids.json"), stabilityIds),
+	]);
+	process.stdout.write(
+		`${JSON.stringify({ candidate_models: models, candidate_predictions: predictions.length, inference_api: RESPONSES_INFERENCE_API, regression_case_count: evidence.cases.length, stability_count: stabilityIds.length, temperature: NOTICE_CLASSIFIER_TEMPERATURE })}\n`,
+	);
+}
+
+async function evaluateResponseModels(
+	samples: readonly EvalSample[],
+	models: readonly string[],
+	stabilityIds: readonly number[],
+	concurrency: number,
+	progressLabel: string,
+): Promise<EvalPrediction[]> {
+	const stabilitySet = new Set(stabilityIds);
 	const classifiers = new Map(
 		models.map((model) => [
 			model,
-			createOpenAINoticeModelClassifier({
+			createOpenAINoticeModelClassifierWithRawResponse({
 				...process.env,
 				INTERNAL_NOTICE_CLASSIFIER_OPENAI_MODEL: model,
 			}),
 		]),
 	);
-	const primaryTasks = samples.flatMap((sample) =>
-		models.map((model) => ({ model, run: 1 as const, sample })),
+	const tasks = samples.flatMap((sample) =>
+		models.flatMap((model) => {
+			const repeats = stabilitySet.has(sample.notice_id) ? ([1, 2, 3] as const) : ([1] as const);
+			return repeats.map((repeat) => ({ model, repeat, sample }));
+		}),
 	);
 	let completed = 0;
-	const primary = (
-		await mapWithConcurrency(primaryTasks, concurrency, async (task) => {
-			const values = await classifyForCandidateRun(
-				classifiers.get(task.model) as NoticeModelClassifier,
-				task.model,
-				task.sample,
-				task.run,
-			);
-			completed += 1;
-			if (completed % 60 === 0 || completed === primaryTasks.length) {
-				process.stderr.write(`eval progress ${completed}/${primaryTasks.length}\n`);
-			}
-			return values;
-		})
-	).flat();
-	const stabilityIdsFile = singleOption(options, "stability-ids-file");
-	const difficultIds = stabilityIdsFile
-		? validateStabilityIds(
-				samples,
-				await readJsonFile<unknown>(resolve(stabilityIdsFile)),
-				stabilityCount,
-			)
-		: selectDifficultIds(
-				{ labels, predictions: primary, samples, seed: manifest.seed },
-				stabilityCount,
-			);
-	const samplesById = new Map(samples.map((sample) => [sample.notice_id, sample]));
-	const stabilityTasks = difficultIds.flatMap((noticeId) => {
-		const sample = samplesById.get(noticeId);
-		if (!sample) {
-			throw new Error(`difficult notice is missing: ${noticeId}`);
+	return mapWithConcurrency(tasks, concurrency, async (task) => {
+		const classifier = classifiers.get(task.model) as (
+			noticeTitle: string,
+		) => Promise<{ category: NoticeCategory; rawResponse: string }>;
+		const prediction = await runEvaluationAttempt({
+			invoke: async () => {
+				const result = await classifier(task.sample.notice_title);
+				return { category: result.category, raw_response: result.rawResponse };
+			},
+			model: task.model,
+			notice_id: task.sample.notice_id,
+			repeat: task.repeat,
+		});
+		completed += 1;
+		if (completed % 60 === 0 || completed === tasks.length) {
+			process.stderr.write(`${progressLabel} progress ${completed}/${tasks.length}\n`);
 		}
-		return models.flatMap((model) => [
-			{ model, run: 2 as const, sample },
-			{ model, run: 3 as const, sample },
-		]);
+		return prediction;
 	});
-	let stabilityCompleted = 0;
-	const stability = (
-		await mapWithConcurrency(stabilityTasks, concurrency, async (task) => {
-			const values = await classifyForCandidateRun(
-				classifiers.get(task.model) as NoticeModelClassifier,
-				task.model,
-				task.sample,
-				task.run,
-			);
-			stabilityCompleted += 1;
-			if (stabilityCompleted % 60 === 0 || stabilityCompleted === stabilityTasks.length) {
-				process.stderr.write(`stability progress ${stabilityCompleted}/${stabilityTasks.length}\n`);
-			}
-			return values;
-		})
-	).flat();
-	const predictions = [...primary, ...stability];
-	const predictionsInput = serializeJsonLines(predictions);
-	await writeFile(predictionsPath, predictionsInput, { encoding: "utf8", flag: "wx" });
-	await writeJsonFile(stabilityIdsPath, difficultIds);
-	await writeJsonFile(runManifestPath, {
-		api: CANDIDATE_INFERENCE_API,
-		created_at: new Date().toISOString(),
-		label_manifest_sha256: sha256(reference.labelManifestInput),
-		labels_sha256: sha256(labelsInput),
-		models,
-		predictions_sha256: sha256(predictionsInput),
-		prompt_sha256: PRODUCTION_PROMPT_SHA256,
-		reference_model: reference.labelManifest.model,
-		sample_sha256: sha256(reference.sampleInput),
-		seed: manifest.seed,
-		stability_count: difficultIds.length,
-		temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-	} satisfies EvalRunManifest);
-	process.stdout.write(
-		`${JSON.stringify({ api: CANDIDATE_INFERENCE_API, predictions: predictions.length, stability_count: difficultIds.length })}\n`,
-	);
 }
 
-export function validateEvalModels(models: readonly string[], referenceModel: string): void {
-	validateModelList(models, "eval");
-	if (models.includes(referenceModel)) {
-		throw new Error("reference label model cannot also be an eval candidate");
-	}
-}
-
-export function resolveEvalModelList(
-	configuredModels: readonly string[] | undefined,
-	environmentModel: string | undefined,
-): string[] {
-	const models =
-		configuredModels && configuredModels.length > 0
-			? configuredModels.map((model) => model.trim())
-			: environmentModel?.trim()
-				? [environmentModel.trim()]
-				: [];
-	validateModelList(models, "eval");
-	return models;
-}
-
-function validateModelList(models: readonly string[], name: string): void {
-	if (models.length === 0) {
-		throw new Error(`${name} model list cannot be empty`);
-	}
-	if (models.some((model) => !model)) {
-		throw new Error(`${name} model list contains an empty model`);
-	}
-	if (new Set(models).size !== models.length) {
-		throw new Error(`${name} model list contains duplicates`);
-	}
-}
-
-async function runCheckCommand(options: CliOptions): Promise<boolean> {
+async function runCheckCommand(options: EvalCliOptions): Promise<boolean> {
 	const directory = resolve(requiredOption(options, "output-dir"));
-	const reference = await loadReferenceLabelEvidence(directory);
-	const predictionsPath = resolve(directory, "predictions.jsonl");
-	const predictionsInput = await readFile(predictionsPath, "utf8");
-	const predictions = parseJsonLines<EvalPrediction>(predictionsInput, predictionsPath);
-	const runManifest = await readJsonFile<EvalRunManifest>(resolve(directory, "run-manifest.json"));
-	const manifest = await readJsonFile<EvalManifest>(resolve(directory, "manifest.json"));
-	const profile = resolveEvalProfile(manifest);
-	validateEvalRunIntegrity(
-		reference.labelsInput,
-		reference.labelManifestInput,
-		reference.sampleInput,
-		reference.labelManifest.model,
-		predictionsInput,
-		predictions,
-		runManifest,
-	);
-	const report = buildEvalReport(
-		reference.samples,
-		reference.labels,
-		predictions,
-		reference.labelManifest.model,
-		profile,
-	);
-	const result = buildEvalCheckResult(report);
-	process.stdout.write(`${JSON.stringify(result)}\n`);
-	return result.passes;
+	const kind = requiredOption(options, "kind");
+	if (kind === "candidate") {
+		const { labelGold, samples } = await loadLabelGold(directory);
+		const predictions = await readJsonLines<EvalPrediction>(
+			resolve(directory, "candidate-predictions.jsonl"),
+		);
+		const stabilityIds = await readStoredStabilityIds(directory, samples);
+		const models = predictionModels(predictions);
+		validateCandidatePredictions(samples, predictions, models, stabilityIds);
+		const result = buildCandidateEvaluationCheckResult(
+			buildCandidateEvaluationReport(samples, labelGold, predictions),
+		);
+		process.stdout.write(`${JSON.stringify(result)}\n`);
+		return result.evidence_status === "complete";
+	}
+	if (kind === "regression") {
+		const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+		const evidence = await loadRegressionEvidence(repositoryRoot);
+		const predictions = await readJsonLines<EvalPrediction>(
+			resolve(directory, "regression-predictions.jsonl"),
+		);
+		const stabilityIds = await readStoredStabilityIds(directory, evidence.samples);
+		const models = predictionModels(predictions);
+		const result = buildRegressionEvaluationCheckResult(
+			evidence.cases,
+			predictions,
+			models,
+			stabilityIds,
+		);
+		process.stdout.write(`${JSON.stringify(result)}\n`);
+		return result.evidence_status === "complete";
+	}
+	throw new Error("--kind must be candidate or regression");
 }
 
-export function validateEvalRunIntegrity(
-	labelsInput: string,
-	labelManifestInput: string,
-	sampleInput: string,
-	referenceModel: string,
-	predictionsInput: string,
-	predictions: readonly EvalPrediction[],
-	manifest: Pick<
-		EvalRunManifest,
-		| "api"
-		| "label_manifest_sha256"
-		| "labels_sha256"
-		| "models"
-		| "predictions_sha256"
-		| "prompt_sha256"
-		| "reference_model"
-		| "sample_sha256"
-		| "temperature"
-	>,
-): void {
-	if (
-		manifest.api !== CANDIDATE_INFERENCE_API ||
-		manifest.temperature !== NOTICE_CLASSIFIER_TEMPERATURE
-	) {
-		throw new Error("prediction request does not match the current eval contract");
+async function loadEvaluationSample(directory: string): Promise<EvalSample[]> {
+	const samples = await readJsonLines<EvalSample>(resolve(directory, "sample.jsonl"));
+	validateEvalSamples(samples);
+	if (samples.some((sample) => sample.split === "regression")) {
+		throw new Error("candidate evaluation cannot use regression samples");
 	}
-	const labelsSha256 = sha256(labelsInput);
-	if (labelsSha256 !== manifest.labels_sha256) {
-		throw new Error("reference labels changed after the model run");
+	return samples;
+}
+
+async function loadLabelGold(
+	directory: string,
+): Promise<{ labelGold: LabelGoldEntry[]; samples: EvalSample[] }> {
+	const samples = await loadEvaluationSample(directory);
+	const labelGold = await readJsonLines<LabelGoldEntry>(resolve(directory, "label-gold.jsonl"));
+	validateLabelGold(samples, labelGold);
+	return { labelGold, samples };
+}
+
+async function loadRegressionEvidence(repositoryRoot: string): Promise<RegressionEvidence> {
+	const metadataPath = resolve(
+		repositoryRoot,
+		"scripts/notices/regression/classification-badcases.json",
+	);
+	let parsedFixture: unknown;
+	try {
+		parsedFixture = JSON.parse(await readFile(metadataPath, "utf8")) as unknown;
+	} catch (error) {
+		throw new Error(`${metadataPath} is not valid JSON`, { cause: error });
 	}
-	if (sha256(labelManifestInput) !== manifest.label_manifest_sha256) {
-		throw new Error("reference label manifest changed after the model run");
+	assertExactObjectKeys(parsedFixture, ["cases"], "regression fixture");
+	const fixture = parsedFixture as unknown as RegressionFixture;
+	if (!Array.isArray(fixture.cases)) {
+		throw new Error("regression fixture must contain cases");
 	}
-	if (sha256(sampleInput) !== manifest.sample_sha256) {
-		throw new Error("sample changed after the model run");
+	validateRegressionCases(fixture.cases);
+	const samples = toRegressionSamples(fixture.cases);
+	validateEvalSamples(samples);
+	return { cases: fixture.cases, samples };
+}
+
+async function readRequestedStabilityIds(
+	options: EvalCliOptions,
+	samples: readonly EvalSample[],
+): Promise<number[]> {
+	const path = singleOption(options, "stability-ids-file");
+	if (!path) {
+		return [];
 	}
-	if (sha256(predictionsInput) !== manifest.predictions_sha256) {
-		throw new Error("predictions changed after the model run");
+	let value: unknown;
+	try {
+		value = JSON.parse(await readFile(resolve(path), "utf8")) as unknown;
+	} catch (error) {
+		throw new Error(`${resolve(path)} is not valid JSON`, { cause: error });
 	}
-	if (manifest.prompt_sha256 !== PRODUCTION_PROMPT_SHA256) {
-		throw new Error("prediction prompt does not match the production classifier");
-	}
-	if (referenceModel !== manifest.reference_model) {
-		throw new Error("reference label model does not match the run manifest");
-	}
-	const predictionModels = [...new Set(predictions.map((prediction) => prediction.model))].sort();
-	const manifestModels = [...manifest.models].sort();
-	if (JSON.stringify(predictionModels) !== JSON.stringify(manifestModels)) {
-		throw new Error("prediction model set does not match the run manifest");
-	}
+	return validateStabilityIds(samples, value);
+}
+
+async function readStoredStabilityIds(
+	directory: string,
+	samples: readonly EvalSample[],
+): Promise<number[]> {
+	const value = await readOptionalJsonFile<unknown>(resolve(directory, "stability-ids.json"));
+	return resolveCandidateStabilityIds(samples, value);
 }
 
 async function classifyForStratification(
@@ -1825,152 +1448,80 @@ async function classifyForStratification(
 	model: string,
 	input: NoticeClassificationTask,
 ): Promise<StratificationPrediction> {
-	const startedAt = performance.now();
-	for (let attempt = 1; attempt <= 3; attempt += 1) {
-		try {
-			const response = await requestClassification(client, model, toModelInput(input.noticeTitle));
-			const category = parseExactClassification(response.raw);
-			if (!category) {
-				return {
-					attempts: attempt,
-					category: null,
-					elapsed_ms: Math.round(performance.now() - startedAt),
-					error: `invalid classification: ${response.raw?.slice(0, 240) ?? "empty"}`,
-					model,
-					notice_id: input.noticeId,
-					status: "invalid_output",
-				};
-			}
-			return {
-				attempts: attempt,
-				category,
-				completion_tokens: response.completionTokens,
-				elapsed_ms: Math.round(performance.now() - startedAt),
-				model,
-				notice_id: input.noticeId,
-				prompt_tokens: response.promptTokens,
-				status: "ok",
-				total_tokens: response.totalTokens,
-			};
-		} catch (error) {
-			if (attempt === 3) {
-				return {
-					attempts: attempt,
-					category: null,
-					elapsed_ms: Math.round(performance.now() - startedAt),
-					error: formatError(error),
-					model,
-					notice_id: input.noticeId,
-					status: "provider_error",
-				};
-			}
-			await waitForClassificationRetry(attempt);
-		}
-	}
-	throw new Error("unreachable stratification retry state");
+	return runEvaluationAttempt({
+		invoke: () => requestExactChatClassification(client, model, input.noticeTitle),
+		model,
+		notice_id: input.noticeId,
+		repeat: 1,
+	});
 }
 
-async function classifyForReferenceRun(
+export async function runEvaluationAttempt(
+	options: EvaluationAttemptOptions,
+): Promise<EvalPrediction> {
+	const startedAt = performance.now();
+	try {
+		const result = await options.invoke();
+		return {
+			attempt: 1,
+			category: result.category,
+			elapsed_ms: Math.round(performance.now() - startedAt),
+			model: options.model,
+			notice_id: options.notice_id,
+			raw_response: result.raw_response,
+			repeat: options.repeat,
+			status: "ok",
+		};
+	} catch (error) {
+		if (error instanceof NoticeClassificationInvalidOutputError) {
+			return {
+				attempt: 1,
+				category: null,
+				elapsed_ms: Math.round(performance.now() - startedAt),
+				error: formatRawError(error),
+				model: options.model,
+				notice_id: options.notice_id,
+				raw_response: error.rawResponse ?? "",
+				repeat: options.repeat,
+				status: "invalid_output",
+			};
+		}
+		if (error instanceof NoticeClassificationProviderError) {
+			return {
+				attempt: 1,
+				category: null,
+				elapsed_ms: Math.round(performance.now() - startedAt),
+				error: formatRawError(error),
+				model: options.model,
+				notice_id: options.notice_id,
+				repeat: options.repeat,
+				status: "provider_error",
+			};
+		}
+		throw error;
+	}
+}
+
+async function requestExactChatClassification(
 	client: OpenAI,
 	model: string,
-	sample: EvalSample,
-	run: 1 | 2 | 3,
-): Promise<EvalPrediction[]> {
-	const predictions: EvalPrediction[] = [];
-	for (let attempt = 1; attempt <= 3; attempt += 1) {
-		const startedAt = performance.now();
-		try {
-			const response = await requestClassification(
-				client,
-				model,
-				toModelInput(sample.notice_title),
-			);
-			const category = parseExactClassification(response.raw);
-			if (!category) {
-				predictions.push({
-					attempt: attempt as 1 | 2 | 3,
-					category: null,
-					elapsed_ms: Math.round(performance.now() - startedAt),
-					error: `invalid classification: ${response.raw?.slice(0, 240) ?? "empty"}`,
-					model,
-					notice_id: sample.notice_id,
-					run,
-					status: "invalid_output",
-				});
-				return predictions;
-			}
-			predictions.push({
-				attempt: attempt as 1 | 2 | 3,
-				category,
-				completion_tokens: response.completionTokens,
-				elapsed_ms: Math.round(performance.now() - startedAt),
-				model,
-				notice_id: sample.notice_id,
-				prompt_tokens: response.promptTokens,
-				run,
-				status: "ok",
-				total_tokens: response.totalTokens,
-			});
-			return predictions;
-		} catch (error) {
-			predictions.push({
-				attempt: attempt as 1 | 2 | 3,
-				category: null,
-				elapsed_ms: Math.round(performance.now() - startedAt),
-				error: formatError(error),
-				model,
-				notice_id: sample.notice_id,
-				run,
-				status: "provider_error",
-			});
-			if (attempt < 3) {
-				await waitForClassificationRetry(attempt);
-			}
-		}
+	noticeTitle: string,
+): Promise<{
+	category: NoticeCategory;
+	raw_response: string;
+}> {
+	const response = await requestClassification(client, model, toModelInput(noticeTitle));
+	const category = parseExactClassification(response.raw);
+	if (!category) {
+		throw new NoticeClassificationInvalidOutputError(
+			`model returned an invalid exact classification: ${String(response.raw)}`,
+			{ rawResponse: response.raw ?? "" },
+		);
 	}
-	return predictions;
-}
-
-async function classifyForCandidateRun(
-	classifier: NoticeModelClassifier,
-	model: string,
-	sample: EvalSample,
-	run: 1 | 2 | 3,
-): Promise<EvalPrediction[]> {
-	const predictions: EvalPrediction[] = [];
-	for (let attempt = 1; attempt <= 3; attempt += 1) {
-		const startedAt = performance.now();
-		try {
-			const category = await classifier(sample.notice_title);
-			predictions.push({
-				attempt: attempt as 1 | 2 | 3,
-				category,
-				elapsed_ms: Math.round(performance.now() - startedAt),
-				model,
-				notice_id: sample.notice_id,
-				run,
-				status: "ok",
-			});
-			return predictions;
-		} catch (error) {
-			const providerError = error instanceof NoticeClassificationProviderError;
-			predictions.push({
-				attempt: attempt as 1 | 2 | 3,
-				category: null,
-				elapsed_ms: Math.round(performance.now() - startedAt),
-				error: formatError(error),
-				model,
-				notice_id: sample.notice_id,
-				run,
-				status: providerError ? "provider_error" : "invalid_output",
-			});
-			if (!isRetryableNoticeClassificationError(error) || attempt === 3) {
-				return predictions;
-			}
-			await waitForClassificationRetry(attempt);
-		}
-	}
-	return predictions;
+	return {
+		category,
+		raw_response: response.raw ?? "",
+	};
 }
 
 async function requestClassification(
@@ -1978,57 +1529,30 @@ async function requestClassification(
 	model: string,
 	input: Record<string, unknown>,
 ): Promise<{
-	completionTokens?: number;
-	promptTokens?: number;
 	raw: string | null;
-	totalTokens?: number;
 }> {
-	const response = await client.chat.completions.create({
-		messages: [
-			{
-				content: CLASSIFICATION_SYSTEM_PROMPT,
-				role: "system",
-			},
-			{ content: JSON.stringify(input), role: "user" },
-		],
-		model,
-		stream: false,
-		temperature: NOTICE_CLASSIFIER_TEMPERATURE,
-	});
-	return {
-		completionTokens: response.usage?.completion_tokens,
-		promptTokens: response.usage?.prompt_tokens,
-		raw: response.choices[0]?.message.content ?? null,
-		totalTokens: response.usage?.total_tokens,
-	};
-}
-
-function countReviewGroups(samples: readonly EvalSample[]): Record<EvalReviewGroup, number> {
-	return {
-		category_consensus: samples.filter((sample) => sample.review_group === "category_consensus")
-			.length,
-		category_disagreement: samples.filter(
-			(sample) => sample.review_group === "category_disagreement",
-		).length,
-		category_shape: samples.filter((sample) => sample.review_group === "category_shape").length,
-		evidence_poor: samples.filter((sample) => sample.review_group === "evidence_poor").length,
-		random: samples.filter((sample) => sample.review_group === "random").length,
-	};
-}
-
-function emptyCategoryCounts(): Record<ConcreteNoticeCategory, number> {
-	return Object.fromEntries(CONCRETE_CATEGORIES.map((category) => [category, 0])) as Record<
-		ConcreteNoticeCategory,
-		number
-	>;
-}
-
-function resolveEvalProfile(manifest: Pick<EvalManifest, "profile">): EvalProfile {
-	const profile = manifest.profile;
-	if (profile !== BALANCED_COMPARISON_PROFILE && profile !== BUSINESS_ACCEPTANCE_PROFILE) {
-		throw new Error(`unknown eval profile: ${String(profile)}`);
+	try {
+		const response = await client.chat.completions.create({
+			messages: [
+				{ content: CLASSIFICATION_SYSTEM_PROMPT, role: "system" },
+				{ content: JSON.stringify(input), role: "user" },
+			],
+			model,
+			stream: false,
+			temperature: NOTICE_CLASSIFIER_TEMPERATURE,
+		});
+		return {
+			raw: response.choices[0]?.message.content ?? null,
+		};
+	} catch (error) {
+		if (!(error instanceof APIConnectionError || error instanceof APIError)) {
+			throw error;
+		}
+		throw new NoticeClassificationProviderError("model provider request failed", {
+			cause: error,
+			retryable: isRetryableNoticeProviderCause(error),
+		});
 	}
-	return profile;
 }
 
 function toEvalSample(
@@ -2060,18 +1584,38 @@ function hashRank(seed: string, scope: string, noticeId: number): string {
 	return createHash("sha256").update(`${seed}:${scope}:${noticeId}`).digest("hex");
 }
 
-type CliOptions = Record<string, string[] | undefined>;
+export type EvalCommand =
+	| "check"
+	| "evaluate-candidates"
+	| "evaluate-regression"
+	| "generate-label-gold"
+	| "sample"
+	| "sample-random"
+	| "stratify";
 
-function parseCliOptions(argv: readonly string[]): { command: string; options: CliOptions } {
+export type EvalCliOptions = Record<string, string[] | undefined>;
+
+const EVAL_COMMANDS = new Set<EvalCommand>([
+	"check",
+	"evaluate-candidates",
+	"evaluate-regression",
+	"generate-label-gold",
+	"sample",
+	"sample-random",
+	"stratify",
+]);
+
+export function parseEvalCliOptions(argv: readonly string[]): {
+	command: EvalCommand;
+	options: EvalCliOptions;
+} {
 	const command = argv[0];
-	if (
-		!(command && ["stratify", "sample", "sample-random", "label", "run", "check"].includes(command))
-	) {
+	if (!(command && EVAL_COMMANDS.has(command as EvalCommand))) {
 		throw new Error(
-			"Usage: pnpm notice:classify:eval <stratify|sample|sample-random|label|run|check> --output-dir <path>",
+			"Usage: pnpm notice:classify:eval <stratify|sample|sample-random|generate-label-gold|evaluate-candidates|evaluate-regression|check> --output-dir <path>",
 		);
 	}
-	const options: CliOptions = {};
+	const options: EvalCliOptions = {};
 	for (let index = 1; index < argv.length; index += 2) {
 		const key = argv[index];
 		const value = argv[index + 1];
@@ -2081,10 +1625,10 @@ function parseCliOptions(argv: readonly string[]): { command: string; options: C
 		const normalized = key.slice(2);
 		options[normalized] = [...(options[normalized] ?? []), value];
 	}
-	return { command, options };
+	return { command: command as EvalCommand, options };
 }
 
-function singleOption(options: CliOptions, key: string): string | undefined {
+function singleOption(options: EvalCliOptions, key: string): string | undefined {
 	const values = options[key];
 	if (!values || values.length === 0) {
 		return;
@@ -2095,7 +1639,7 @@ function singleOption(options: CliOptions, key: string): string | undefined {
 	return values[0];
 }
 
-function requiredOption(options: CliOptions, key: string): string {
+function requiredOption(options: EvalCliOptions, key: string): string {
 	const value = singleOption(options, key)?.trim();
 	if (!value) {
 		throw new Error(`--${key} is required`);
@@ -2103,18 +1647,26 @@ function requiredOption(options: CliOptions, key: string): string {
 	return value;
 }
 
-function positiveIntegerOption(options: CliOptions, key: string, fallback: number): number {
+function positiveIntegerOption(options: EvalCliOptions, key: string, fallback: number): number {
 	const raw = singleOption(options, key);
 	if (raw === undefined) {
 		return fallback;
 	}
+	return parsePositiveInteger(raw, key);
+}
+
+function requiredPositiveIntegerOption(options: EvalCliOptions, key: string): number {
+	return parsePositiveInteger(requiredOption(options, key), key);
+}
+
+function parsePositiveInteger(raw: string, key: string): number {
 	if (!/^[1-9][0-9]*$/u.test(raw)) {
 		throw new Error(`--${key} must be a positive integer`);
 	}
 	return Number(raw);
 }
 
-async function readExcludedIds(options: CliOptions): Promise<Set<number>> {
+async function readExcludedIds(options: EvalCliOptions): Promise<Set<number>> {
 	const ids = new Set<number>();
 	for (const value of options["exclude-ids"] ?? []) {
 		for (const raw of value.split(",")) {
@@ -2129,7 +1681,11 @@ async function readExcludedIds(options: CliOptions): Promise<Set<number>> {
 		}
 	}
 	for (const path of options["exclude-file"] ?? []) {
-		for (const value of await readJsonLines<{ notice_id: number }>(resolve(path))) {
+		const resolvedPath = resolve(path);
+		for (const value of parseJsonLines<{ notice_id: number }>(
+			await readFile(resolvedPath, "utf8"),
+			resolvedPath,
+		)) {
 			if (!Number.isSafeInteger(value.notice_id) || value.notice_id < 1) {
 				throw new Error(`exclude file contains an invalid notice id: ${path}`);
 			}
@@ -2139,50 +1695,16 @@ async function readExcludedIds(options: CliOptions): Promise<Set<number>> {
 	return ids;
 }
 
-async function findHistoricalSampleFiles(directory: string): Promise<string[]> {
-	if (!(await pathExists(directory))) {
-		return [];
-	}
-	const details = await stat(directory);
-	if (!details.isDirectory()) {
-		throw new Error(`evidence root is not a directory: ${directory}`);
-	}
-	const files: string[] = [];
-	for (const entry of await readdir(directory, { withFileTypes: true })) {
-		const path = resolve(directory, entry.name);
-		if (entry.isDirectory()) {
-			files.push(...(await findHistoricalSampleFiles(path)));
-		} else if (
-			entry.isFile() &&
-			(basename(path) === "sample.jsonl" || basename(path).endsWith(".sample.jsonl"))
-		) {
-			files.push(path);
-		}
-	}
-	return files.sort();
-}
-
-async function pathExists(path: string): Promise<boolean> {
-	try {
-		await access(path);
-		return true;
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			return false;
-		}
-		throw error;
-	}
-}
-
 async function writeJsonLines(path: string, values: readonly unknown[]): Promise<void> {
-	await writeFile(path, serializeJsonLines(values), {
-		encoding: "utf8",
-		flag: "wx",
-	});
+	await writeFile(path, serializeJsonLines(values), { encoding: "utf8" });
 }
 
 function serializeJsonLines(values: readonly unknown[]): string {
 	return `${values.map((value) => JSON.stringify(value)).join("\n")}\n`;
+}
+
+async function writeJsonFile(path: string, value: unknown): Promise<void> {
+	await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8" });
 }
 
 async function readJsonLines<Value>(path: string): Promise<Value[]> {
@@ -2202,31 +1724,9 @@ function parseJsonLines<Value>(input: string, path: string): Value[] {
 		});
 }
 
-async function writeJsonFile(path: string, value: unknown): Promise<void> {
-	await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
-}
-
-async function assertOutputPathsAbsent(paths: readonly string[]): Promise<void> {
-	for (const path of paths) {
-		try {
-			await access(path);
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-				continue;
-			}
-			throw error;
-		}
-		throw new Error(`output already exists: ${path}`);
-	}
-}
-
-async function readJsonFile<Value>(path: string): Promise<Value> {
-	return JSON.parse(await readFile(path, "utf8")) as Value;
-}
-
 async function readOptionalJsonFile<Value>(path: string): Promise<Value | undefined> {
 	try {
-		return await readJsonFile<Value>(path);
+		return JSON.parse(await readFile(path, "utf8")) as Value;
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 			return;
@@ -2251,27 +1751,27 @@ function percentile(values: readonly number[], percentileValue: number): number 
 	if (values.length === 0) {
 		return null;
 	}
-	return values[Math.min(values.length - 1, Math.floor(values.length * percentileValue))] ?? null;
+	const sorted = [...values].sort((left, right) => left - right);
+	return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * percentileValue))] ?? null;
 }
 
-function waitForClassificationRetry(attempt: number): Promise<void> {
-	const delayMs = NOTICE_CLASSIFICATION_RETRY_DELAYS_MS[attempt - 1];
-	if (delayMs === undefined) {
-		throw new Error(`invalid provider retry attempt: ${attempt}`);
+function assertExactObjectKeys(
+	value: unknown,
+	expectedKeys: readonly string[],
+	name: string,
+): asserts value is Record<string, unknown> {
+	if (!(value && typeof value === "object" && !Array.isArray(value))) {
+		throw new Error(`${name} must be an object`);
 	}
-	return new Promise((resolvePromise) => setTimeout(resolvePromise, delayMs));
-}
-
-function formatError(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
-function sha256(value: string): string {
-	return createHash("sha256").update(value).digest("hex");
+	const actualKeys = Object.keys(value).sort();
+	const sortedExpectedKeys = [...expectedKeys].sort();
+	if (JSON.stringify(actualKeys) !== JSON.stringify(sortedExpectedKeys)) {
+		throw new Error(`${name} contains unsupported fields: ${actualKeys.join(",")}`);
+	}
 }
 
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
-	const { command, options } = parseCliOptions(argv);
+	const { command, options } = parseEvalCliOptions(argv);
 	if (command === "stratify") {
 		await runStratifyCommand(options);
 	}
@@ -2281,11 +1781,14 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 	if (command === "sample-random") {
 		await runRandomSampleCommand(options);
 	}
-	if (command === "label") {
-		await runLabelCommand(options);
+	if (command === "generate-label-gold") {
+		await runGenerateLabelGoldCommand(options);
 	}
-	if (command === "run") {
-		await runModelsCommand(options);
+	if (command === "evaluate-candidates") {
+		await runEvaluateCandidatesCommand(options);
+	}
+	if (command === "evaluate-regression") {
+		await runEvaluateRegressionCommand(options);
 	}
 	if (command === "check" && !(await runCheckCommand(options))) {
 		process.exitCode = 1;
@@ -2295,7 +1798,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 const entrypoint = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : "";
 if (import.meta.url === entrypoint) {
 	main().catch((error) => {
-		console.error(formatError(error));
+		console.error(formatRawError(error));
 		process.exitCode = 1;
 	});
 }

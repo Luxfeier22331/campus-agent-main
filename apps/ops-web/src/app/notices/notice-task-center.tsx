@@ -22,6 +22,7 @@ import {
 	noticeJobSummaryLabel,
 	noticeOperationLabel,
 } from "./notice-status";
+import type { PendingNoticeJobSubmission } from "./use-notice-maintenance";
 
 const INITIAL_NOTICE_BACKFILL_DATE = "2025-12-01";
 
@@ -34,6 +35,7 @@ export function NoticeTaskCenter({
 	onCreate,
 	onOpenChange,
 	open,
+	pendingSubmissions,
 }: {
 	createError: unknown;
 	isFamilyBusy: (family: NoticeJobFamily) => boolean;
@@ -43,6 +45,7 @@ export function NoticeTaskCenter({
 	onCreate: (input: NoticeJobCreate) => void;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
+	pendingSubmissions: PendingNoticeJobSubmission[];
 }) {
 	const [startDate, setStartDate] = useState(INITIAL_NOTICE_BACKFILL_DATE);
 	const activeJobs = jobs.filter(isActiveNoticeJob);
@@ -157,24 +160,29 @@ export function NoticeTaskCenter({
 								</h2>
 								<p className="text-muted-foreground text-xs">最多显示 50 条</p>
 							</div>
-							{jobsPending ? <TaskListSkeleton /> : null}
 							{jobsError ? <InlineError error={jobsError} title="任务读取失败" /> : null}
-							{jobsPending || jobsError ? null : jobs.length === 0 ? (
-								<TaskListEmpty />
+							{jobsPending && jobs.length === 0 ? <TaskListSkeleton /> : null}
+							{jobs.length === 0 && pendingSubmissions.length === 0 ? (
+								jobsPending || jobsError ? null : (
+									<TaskListEmpty />
+								)
 							) : (
 								<div className="grid gap-6">
 									<TaskSection
 										ariaLabel="进行中任务"
 										emptyMessage="当前没有进行中的任务。"
 										jobs={activeJobs}
-										title={`进行中（${activeJobs.length}）`}
+										pendingSubmissions={pendingSubmissions}
+										title={`进行中（${activeJobs.length + pendingSubmissions.length}）`}
 									/>
-									<TaskSection
-										ariaLabel="最近任务记录"
-										emptyMessage="暂无已完成的任务。"
-										jobs={recentJobs}
-										title="最近记录"
-									/>
+									{recentJobs.length > 0 || !(jobsPending || jobsError) ? (
+										<TaskSection
+											ariaLabel="最近任务记录"
+											emptyMessage="暂无已完成的任务。"
+											jobs={recentJobs}
+											title="最近记录"
+										/>
+									) : null}
 								</div>
 							)}
 						</section>
@@ -230,32 +238,62 @@ function TaskSection({
 	ariaLabel,
 	emptyMessage,
 	jobs,
+	pendingSubmissions = [],
 	title,
 }: {
 	ariaLabel: string;
 	emptyMessage: string;
 	jobs: NoticeJob[];
+	pendingSubmissions?: PendingNoticeJobSubmission[];
 	title: string;
 }) {
 	return (
 		<section aria-label={ariaLabel}>
 			<h3 className="mb-2 font-medium text-sm">{title}</h3>
-			{jobs.length === 0 ? (
+			{jobs.length === 0 && pendingSubmissions.length === 0 ? (
 				<p className="rounded-md bg-surface-muted px-3 py-3 text-muted-foreground text-xs">
 					{emptyMessage}
 				</p>
 			) : (
-				<TaskList ariaLabel={ariaLabel} jobs={jobs} />
+				<TaskList ariaLabel={ariaLabel} jobs={jobs} pendingSubmissions={pendingSubmissions} />
 			)}
 		</section>
 	);
 }
 
-function TaskList({ ariaLabel, jobs }: { ariaLabel: string; jobs: NoticeJob[] }) {
+function TaskList({
+	ariaLabel,
+	jobs,
+	pendingSubmissions,
+}: {
+	ariaLabel: string;
+	jobs: NoticeJob[];
+	pendingSubmissions: PendingNoticeJobSubmission[];
+}) {
 	return (
 		<ul aria-label={ariaLabel} className="grid gap-2">
+			{pendingSubmissions.map((submission) => (
+				<li
+					className="rounded-[var(--card-radius)] border border-border px-4 py-3"
+					key={`${submission.submittedAt}:${submission.input.operation}`}
+				>
+					<div className="flex flex-wrap items-center justify-between gap-2">
+						<p className="font-medium text-sm">
+							{noticeOperationLabel(submission.input.operation)}
+						</p>
+						<NoticeJobStatusBadge status="pending" />
+					</div>
+					<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
+						<span>{noticeJobInputScopeLabel(submission.input)}</span>
+						<span>正在创建任务</span>
+					</div>
+					<p className="mt-2 text-muted-foreground text-xs">
+						提交于 {formatTimestamp(new Date(submission.submittedAt).toISOString())}
+					</p>
+				</li>
+			))}
 			{jobs.map((job) => {
-				const summary = noticeJobSummaryLabel(job.summary);
+				const summary = noticeJobSummaryLabel(job.operation, job.summary);
 				return (
 					<li
 						className="rounded-[var(--card-radius)] border border-border px-4 py-3"
@@ -280,6 +318,16 @@ function TaskList({ ariaLabel, jobs }: { ariaLabel: string; jobs: NoticeJob[] })
 			})}
 		</ul>
 	);
+}
+
+function noticeJobInputScopeLabel(input: NoticeJobCreate): string {
+	if ("noticeId" in input) {
+		return `单条 #${input.noticeId}`;
+	}
+	if (input.operation === "notice-backfill") {
+		return `批量 · 起始日期 ${input.startDate}`;
+	}
+	return "批量";
 }
 
 function noticeJobScopeLabel(job: NoticeJob): string {

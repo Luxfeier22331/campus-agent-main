@@ -14,14 +14,17 @@ Thanks for sending a pull request. Before review:
 
 ## What changed?
 
+<!-- Include user-facing, API, contract, migration, documentation, or operational impact when relevant. -->
+
 ## How was this verified?
+
+<!-- List checks actually run and any relevant verification that was not performed. -->
 
 ## Related issue(s)
 
 <!--
-Link the Issue that owns this work. Use "Refs" when the Issue still has
-follow-up work or another owner. Use "Fixes" only when merging this Pull
-Request satisfies every acceptance criterion.
+Use "Fixes" when merging this Pull Request resolves the Issue's stated outcome.
+Use "Refs" when the Pull Request is partial work or the Issue is context only.
 
 Examples:
 Refs #<issue number>
@@ -30,51 +33,3 @@ Fixes #<issue number>
 
 If there is no associated issue, then write "N/A".
 -->
-
-## Change category
-
-- [ ] Bug fix
-- [ ] Feature
-- [ ] API / contract change
-- [ ] Cleanup / refactor
-- [ ] Documentation
-- [ ] Dependency
-- [ ] Test / CI
-
-## User-facing change
-
-<!--
-If no, write "NONE" in the release-note block below.
-If yes, enter the user-facing release note below.
-If the PR requires additional action from users or operators, include
-"action required".
--->
-
-```release-note
-NONE
-```
-
-## API / contract / migration impact
-
-## Documentation
-
-<!--
-This section can be blank if this pull request does not require additional
-documentation.
-
-When adding links which point to resources within git repositories, reference a
-specific commit when possible and avoid linking directly to a moving branch.
-This ensures that links reference a specific point in time.
-
-Please use the following format:
-- [ADR]: <link>
-- [Architecture]: <link>
-- [Contract]: <link>
-- [Runbook]: <link>
-- [Usage]: <link>
-- [Other doc]: <link>
--->
-
-```docs
-
-```

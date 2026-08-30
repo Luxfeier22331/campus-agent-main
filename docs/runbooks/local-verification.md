@@ -16,9 +16,9 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.e
 模型链路；验证个人记忆时再显式启动并配置 Hindsight。
 
 产品页面本地开发使用 worktree profile 和应用本地托管环境文件，不读取根 `.env`。仓库生成 loopback
-数据库凭据和应用本地随机 secret；linked worktree 的 `dev:init` 还从 main checkout 按字段白名单补充
-尚未存在的 provider 外部开发连接，并在 main 已有时导入门户 TGC。数据库、对象存储资源、应用内部
-secret 和 provider 配置加密 key 仍按 worktree 独立。其他外部凭据由开发者进程环境显式提供。
+数据库凭据和应用本地随机 secret；linked worktree 的 target 按 projection 白名单补充尚未存在的 provider
+外部开发连接，并在 `internal-portal-collection` projection 下首次导入 main 已有的门户 TGC。数据库、
+对象存储资源、应用内部 secret 和 provider 配置加密 key 仍按 worktree 独立。其他外部凭据由开发者进程环境显式提供。
 
 默认诊断 compose 使用 debug OTel Collector。只有验证本地 Agent trace 到 Langfuse 的转发时加入
 `docker-compose.execution-runtime.langfuse.yml`。
@@ -35,14 +35,16 @@ pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 ```bash
 pnpm --dir apps/campus-web test:node:fast
 pnpm --dir apps/campus-web build:test
-pnpm dev:init
+pnpm dev:shared-reconcile
+pnpm dev:init -- --target core
 pnpm dev
 ```
 
 `build:test` 只供浏览器回归使用确定性测试内容。Campus Web 的正常开发和构建读取对象存储固定键
-`campus-docs/source.json`。`pnpm dev:init` 显式创建共享 Temporal、固定本地文档 bucket，在来源键缺失时
-写入确定性开发样例，安装核心 schema/seed；`pnpm dev` 随后只读取就绪状态，并由 Turbo 并行启动 Campus
-Web、app-api、execution-control 和 agent-runtime。它不隐式执行初始化、迁移或 seed。
+`campus-docs/source.json`。共享依赖只由 canonical checkout 的 `pnpm dev:shared-reconcile` 供应；
+`pnpm dev:init -- --target core` 为当前 worktree 创建实例资源，在来源键缺失时写入确定性开发样例，
+并安装核心 schema/seed 和 Temporal namespace。`pnpm dev` 随后只读取就绪状态，并由 Turbo 并行启动
+Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行初始化、迁移或 seed。
 直接执行 `pnpm --dir apps/campus-web build` 也会读取当前 worktree 的托管配置。只有显式访问其他对象
 存储时才通过 `env/commands/campus-docs-source.env` 或进程环境覆盖，进程环境优先级最高。
 
@@ -57,16 +59,18 @@ pnpm dev:doctor
 pnpm dev:instances
 ```
 
-`pnpm dev:doctor` 会同时检查共享容器的运行状态、健康检查、Compose 配置 hash、网络、数据卷和
-共享 bucket；无法探测时显示 `unknown`，不会把连接失败当成资源不存在。主 checkout 负责首次启动
-或重新协调共享容器，linked worktree 只复用 ready 状态的共享依赖。Temporal namespace 按 profile
-创建，database 与 derived bucket
-必须同时存在或同时不存在。只有一个存在表示上次供应中断，初始化会 fail closed；按
-`pnpm dev:destroy` 输出的确认命令删除该实例后重新初始化。
+`pnpm dev:doctor` 默认检查当前 target 的配置、实例资源和 owner readiness；使用
+`pnpm dev:doctor -- --scope shared` 才检查共享容器运行状态、健康检查、Compose 配置 hash、网络、数据
+卷和共享 bucket，`--scope runtime` 还检查当前 target 的 HTTP health endpoint。无法探测时显示 `unknown`，
+不会把连接失败当成资源不存在。主 checkout 负责首次启动或重新协调共享容器，linked worktree 只复用
+ready 状态的共享依赖。Temporal namespace 按 profile 创建；实例的 derived bucket 只在 target 声明需要时
+供应，notice-classifier 等 database-only target 不会无条件创建它。
 
-`pnpm dev:instances` 是只读清单，会为每条注册记录显示 worktree、database、derived bucket 和总
-状态：`ready`、`stale`、`partial`、`unprovisioned` 或 `unknown`。worktree 已删除但资源仍存在时
-只标记为 `stale`，不会自动清理；确认实例 ID 后可从仍存在的 checkout 执行：
+`pnpm dev:instances` 是 metadata-only 清单，只读取注册表，不访问 PostgreSQL、RustFS 或 Temporal；
+`pnpm dev:instances -- --verify` 才为每条记录探测 worktree、database、derived bucket 和 namespace。
+默认清单中的记录显示为 `registered` 或 `stale`，验证清单显示 `ready`、`stale`、`partial`、`unprovisioned` 或
+`unknown`。worktree 已删除但资源仍存在时只标记
+为 `stale`，不会自动清理。先用 `pnpm dev:prune` 列出 stale 记录，再确认单个实例 ID 后执行：
 
 ```bash
 pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
@@ -74,25 +78,26 @@ pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>
 
 删除 linked worktree 前，先运行上述销毁命令；不要在任一 worktree 执行共享 compose 的 `down` 或
 `down -v`。source bucket 与 Campus Web 文档 bucket 是共享资源，不能作为单个实例销毁目标。
-单独启动核心应用要求当前 worktree 已执行根 `pnpm dev:init`；可选应用要求先执行各自 package 的
-`dev:init`。internal-portal-collection 的通知模式和 notice-classifier 还要求当前 profile 已执行
-`pnpm --filter notice-publisher dev:init`，由 schema owner 安装 `notices.*`。
+单独启动核心应用要求当前 worktree 已执行 `pnpm dev:init -- --target core`；可选应用统一使用根入口，
+例如 `pnpm dev:init -- --target ops-web`。target 会生成真实依赖的环境投影；
+internal-portal-collection 和 notice-classifier 不需要再单独运行 notice-publisher 初始化。
 
 ## 可选应用
 
-可选应用不由根 `pnpm dev` 启动，各自拥有初始化和运行入口：
+可选应用不由根 `pnpm dev` 启动，初始化仍由根 CLI 拥有：
 
 ```bash
-pnpm --filter ops-web dev:init
+pnpm dev:init -- --target ops-web
 pnpm --filter ops-web dev:api
 pnpm --filter ops-web dev:web
-pnpm --filter notice-publisher dev:init
-pnpm --filter internal-portal-collection dev:init
-pnpm --filter notice-classifier dev:init
+pnpm dev:init -- --target notice-publisher
+pnpm dev:init -- --target internal-portal-collection
+pnpm dev:init -- --target notice-classifier
 ```
 
-`notice-publisher dev:init` 是通知 schema 的本地安装入口；internal-portal-collection 和
-notice-classifier 的初始化只生成自身环境文件，不重复执行 DDL。
+`notice-publisher` target 是通知 schema/category seed 的 owner；`internal-portal-collection` 只生成
+Ops Web 和采集器实际读取的环境投影，`notice-classifier` 只生成 Model Config 与分类器实际读取的环境投影。
+两者都通过 readiness 检查复用统一 schema 和通知分类 seed，但不重复执行 DDL。
 
 ## Ops Web API
 
@@ -126,17 +131,23 @@ pnpm --filter ops-web dev:fixture
 
 ## Model Config
 
-在线配置由当前 worktree 的独立 Model Config 数据库、role 和 `model-config-encryption.key` 持有。需要修改时
-启动本地 `pnpm dev` 与 `pnpm --filter ops-web dev:api`、`pnpm --filter ops-web dev:web`，按
-`provider-secrets.md` 保存并验证 LLM、Embedding 或通知分类当前值；应用启动不能静默 seed 在线配置。
-main checkout 导入的 provider 字段只作为当前 worktree 的外部开发连接，不自动覆盖模型配置数据库，
-也不把通用 LLM 连接映射为通知分类设置。
-`pnpm dev:init` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline，不再执行
+在线配置由当前 worktree 的独立 Model Config 数据库、role 和 `model-config-encryption.key` 持有。
+`pnpm dev:init -- --target core` 或 `--target notice-classifier` 会按 target 从当前进程环境或根 `.env` 显式
+seed 缺失的 Model Config；它不访问 Provider、不覆盖已有配置，也不产生 validation 记录。需要在线修改或
+验证时，启动本地 `pnpm dev` 与 `pnpm --filter ops-web dev:api`、`pnpm --filter ops-web dev:web`，按
+`provider-secrets.md` 操作。应用启动不能静默 seed 在线配置。main checkout 导入的 provider 字段只是
+初始化输入，不是 runtime source；映射由 target 声明的 config name 决定，通用 LLM 连接不会隐式覆盖已有
+通知分类配置。`notice_classification` 本地 seed 使用独立的
+`NOTICE_CLASSIFICATION_BASE_URL`、`NOTICE_CLASSIFICATION_API_KEY` 和
+`NOTICE_CLASSIFICATION_MODEL` 输入；当前开发环境中 endpoint 与 API key 暂时与
+`primary_agent` 相同，模型为 `deepseek-v4-flash-0731`。这只是初始化时的当前值，不把两个
+配置合并，也不改变通知消费者逻辑。
+`pnpm dev:init -- --target core` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline，不再执行
 execution-control 历史 Goose migration、Model Config 切换命令，也不生成 legacy provider key。启动前
-会验证当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
+会在 seed 后检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
 同一个本地实例。不要复制其他 worktree、staging 或 production 的 encryption key；使用
 `pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>` 显式销毁该实例后重新运行
-`pnpm dev:init`，再通过 Ops Web 配置本地模型。
+`pnpm dev:init -- --target core`，再通过 Ops Web 配置本地模型。
 
 ## Campus Web 浏览器回归
 

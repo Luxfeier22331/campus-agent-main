@@ -9,14 +9,21 @@ const PHASE_LABELS: Record<NonNullable<NoticeJob["progress"]>["phase"], string> 
 
 export function NoticeJobDiagnostics({ job }: { job: NoticeJob }) {
 	const progress = job.progress;
-	if (!(job.range || progress || job.error || job.controllerError)) {
+	if (
+		!(job.processedRange || job.maintenanceRange || progress || job.error || job.controllerError)
+	) {
 		return null;
 	}
 	return (
 		<div className="mt-2 grid gap-2 text-xs">
-			{job.range ? (
+			{job.processedRange ? (
 				<p className="text-muted-foreground">
-					维护区间 [{job.range.from}, {job.range.to})
+					本次处理区间 [{job.processedRange.from}, {job.processedRange.to})
+				</p>
+			) : null}
+			{job.maintenanceRange ? (
+				<p className="text-muted-foreground">
+					完成后维护区间 [{job.maintenanceRange.from}, {job.maintenanceRange.to})
 				</p>
 			) : null}
 			{progress ? <ProgressView progress={progress} /> : null}

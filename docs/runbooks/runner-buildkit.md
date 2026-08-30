@@ -20,8 +20,9 @@ CPU、虚拟化方式或主机名。
 | `nc-arm-6c` | 原生 ARM64 | `campus-agent-release` | 已通过真实 arm64 OCI 探针 |
 | `sq-nixos` | x86_64 + NixOS binfmt/QEMU | `campus-runner-buildkit-v1` | 待 SSH/主机网络恢复后验证 |
 
-Runner 服务为作业注入 `HOME`、`DOCKER_CONFIG` 和 `BUILDX_BUILDER`。工作流不得使用
-`docker/setup-buildx-action`、`docker/setup-qemu-action`，也不得创建临时 builder。
+Runner 服务为作业注入 `HOME`、`DOCKER_CONFIG` 和 `BUILDX_BUILDER`。源码工作流只依赖这个能力合同，
+不判断 builder 是原生目标、QEMU/binfmt 还是其他宿主实现。宿主实现或工作流编排发生变化后仍必须通过
+同一能力探针；工具名称本身不是仓库级禁止项。
 
 ## 能力探针
 

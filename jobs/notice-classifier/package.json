@@ -7,7 +7,6 @@
 	"scripts": {
 		"build": "esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:pg",
 		"classify": "tsx src/cli.ts",
-		"dev:init": "pnpm --dir ../.. exec tsx scripts/dev/cli.ts init --target notice-classifier",
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},

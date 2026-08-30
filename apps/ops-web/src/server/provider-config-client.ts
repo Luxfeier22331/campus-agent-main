@@ -21,11 +21,13 @@ export class ProviderConfigAdminUnavailableError extends Error {}
 export class ProviderConfigAdminResponseError extends Error {
 	readonly response: Response;
 	readonly upstreamCode: string;
+	readonly upstreamMessage: string;
 
-	constructor(response: Response, upstreamCode = "model_settings_error") {
+	constructor(response: Response, upstreamCode = "model_settings_error", upstreamMessage = "") {
 		super(`Model settings admin API returned HTTP ${response.status}.`);
 		this.response = response;
 		this.upstreamCode = upstreamCode;
+		this.upstreamMessage = upstreamMessage;
 	}
 }
 
@@ -65,12 +67,14 @@ export function createProviderConfigAdminClient(
 		}
 		const body = (await response.json().catch(() => null)) as unknown;
 		if (!response.ok) {
+			const upstream = providerConfigError(body);
 			throw new ProviderConfigAdminResponseError(
 				new Response(JSON.stringify(body), {
 					headers: { "content-type": "application/json; charset=utf-8" },
 					status: response.status,
 				}),
-				providerConfigErrorCode(body),
+				upstream.code,
+				upstream.message,
 			);
 		}
 		return body;
@@ -104,6 +108,15 @@ export function createProviderConfigAdminClient(
 				actorId,
 				body: updateInput(kind, parsed),
 				method: "PUT",
+			});
+			return ExecutionModelSettingsStatusSchema.parse(
+				mapStatus(await request("", { method: "GET" })),
+			);
+		},
+		async validate(kind: ModelSettingKind, actorId: string) {
+			await request(`/${configNameForKind(kind)}/validate`, {
+				actorId,
+				method: "POST",
 			});
 			return ExecutionModelSettingsStatusSchema.parse(
 				mapStatus(await request("", { method: "GET" })),
@@ -176,21 +189,36 @@ function mapStatus(value: unknown) {
 			return null;
 		}
 		const b = asRecord(config);
-		const validation = asRecord(b.validation);
+		const rawValidation = b.validation;
+		const validation =
+			rawValidation && typeof rawValidation === "object" && !Array.isArray(rawValidation)
+				? asRecord(rawValidation)
+				: null;
+		const hasCompleteValidation =
+			validation !== null &&
+			(validation.status === "passed" || validation.status === "failed") &&
+			typeof validation.message === "string" &&
+			typeof b.validated_at === "string" &&
+			typeof b.validated_by === "string";
 		return {
 			baseUrl: b.base_url,
 			credentialConfigured: b.credential_configured,
 			kind,
-			latestValidation: {
-				...(validation.error_code ? { errorCode: validation.error_code } : {}),
-				message: validation.message,
-				...(validation.observed_dimensions
-					? { observedDimensions: validation.observed_dimensions }
-					: {}),
-				status: validation.status,
-				validatedAt: b.validated_at,
-				validatedBy: b.validated_by,
-			},
+			latestValidation: hasCompleteValidation
+				? {
+						...(typeof validation.error_code === "string" && validation.error_code
+							? { errorCode: validation.error_code }
+							: {}),
+						message: validation.message,
+						...(typeof validation.observed_dimensions === "number" &&
+						validation.observed_dimensions > 0
+							? { observedDimensions: validation.observed_dimensions }
+							: {}),
+						status: validation.status,
+						validatedAt: b.validated_at,
+						validatedBy: b.validated_by,
+					}
+				: null,
 			model: b.model,
 			provider: b.provider,
 			transport:
@@ -222,12 +250,20 @@ function mapStatus(value: unknown) {
 	};
 }
 
-function providerConfigErrorCode(body: unknown) {
-	if (!body || typeof body !== "object" || !("error" in body)) {
-		return "model_settings_error";
-	}
-	const error = body.error;
-	return error && typeof error === "object" && "code" in error && typeof error.code === "string"
-		? error.code
-		: "model_settings_error";
+function providerConfigError(body: unknown) {
+	const record = asRecord(body);
+	const nested = asRecord(record.error);
+	const code =
+		typeof nested.code === "string"
+			? nested.code
+			: typeof record.error_code === "string"
+				? record.error_code
+				: "model_settings_error";
+	const message =
+		typeof nested.message === "string"
+			? nested.message
+			: typeof record.message === "string"
+				? record.message
+				: "";
+	return { code, message };
 }

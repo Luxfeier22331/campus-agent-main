@@ -17,10 +17,12 @@ import {
 	NoticeStateBadge,
 	noticeJobSummaryLabel,
 } from "./notice-status";
+import type { PendingNoticeJobSubmission } from "./use-notice-maintenance";
 
 export interface NoticeInspectorProps {
 	createJobError: unknown;
 	currentNoticeJobs: NoticeJob[];
+	currentPendingJobSubmissions: PendingNoticeJobSubmission[];
 	detailError: unknown;
 	detailPending: boolean;
 	dirty: boolean;
@@ -43,6 +45,7 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 	const {
 		createJobError,
 		currentNoticeJobs,
+		currentPendingJobSubmissions,
 		detailError,
 		detailPending,
 		dirty,
@@ -77,7 +80,7 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 				<div className="grid max-w-xs gap-2">
 					<p className="font-medium">选择一条通知</p>
 					<p className="text-muted-foreground text-sm">
-						从左侧队列选择通知，在这里查看 metadata 并维护分类。
+						从左侧队列选择通知，在这里查看来源信息并维护分类。
 					</p>
 				</div>
 			</div>
@@ -88,13 +91,14 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 	const classifyDisabled = isFamilyBusy("classification");
 	const publishDisabled = isFamilyBusy("publication");
 	const latestJob = currentNoticeJobs[0];
+	const pendingSubmission = currentPendingJobSubmissions[0];
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			{mobile ? (
 				<div className="border-border border-b px-5 py-4 pr-14">
 					<p className="font-semibold">通知详情</p>
-					<p className="mt-1 text-muted-foreground text-xs">安全 metadata 与维护操作</p>
+					<p className="mt-1 text-muted-foreground text-xs">来源信息与维护操作</p>
 				</div>
 			) : null}
 			<div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
@@ -112,7 +116,7 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 
 					<section aria-labelledby="notice-source-metadata">
 						<h3 className="mb-3 font-medium text-sm" id="notice-source-metadata">
-							来源 metadata
+							来源信息
 						</h3>
 						<dl className="grid gap-3 rounded-[var(--card-radius)] border border-border px-4 py-3 text-sm">
 							<MetadataRow label="通知类型" value={notice.noticeType.name} />
@@ -255,7 +259,20 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 								</div>
 							</details>
 						) : null}
-						{latestJob ? (
+						{pendingSubmission ? (
+							<div className="rounded-[var(--card-radius)] border border-border px-3 py-3">
+								<div className="flex flex-wrap items-center justify-between gap-2">
+									<p className="font-medium text-sm">正在创建单条任务</p>
+									<NoticeJobStatusBadge status="pending" />
+								</div>
+								<p className="mt-1 text-muted-foreground text-xs">
+									{pendingSubmission.input.operation === "notice-classify-one"
+										? "模型分类"
+										: "发布"}{" "}
+									· {formatTimestamp(new Date(pendingSubmission.submittedAt).toISOString())}
+								</p>
+							</div>
+						) : latestJob ? (
 							<div className="rounded-[var(--card-radius)] border border-border px-3 py-3">
 								<div className="flex flex-wrap items-center justify-between gap-2">
 									<p className="font-medium text-sm">最近一次单条任务</p>
@@ -265,14 +282,17 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 									{latestJob.operation === "notice-classify-one" ? "模型分类" : "发布"} ·{" "}
 									{formatTimestamp(latestJob.createdAt)}
 								</p>
-								{noticeJobSummaryLabel(latestJob.summary) ? (
-									<p className="mt-2 text-xs">{noticeJobSummaryLabel(latestJob.summary)}</p>
+								{noticeJobSummaryLabel(latestJob.operation, latestJob.summary) ? (
+									<p className="mt-2 text-xs">
+										{noticeJobSummaryLabel(latestJob.operation, latestJob.summary)}
+									</p>
 								) : null}
 								<NoticeJobDiagnostics job={latestJob} />
 							</div>
 						) : null}
 						{createJobError ? <InlineError error={createJobError} title="任务启动失败" /> : null}
-						{currentNoticeJobs.some(
+						{pendingSubmission ||
+						currentNoticeJobs.some(
 							(job) => job.status === "pending" || job.status === "running",
 						) ? (
 							<p className="text-muted-foreground text-xs" role="status">

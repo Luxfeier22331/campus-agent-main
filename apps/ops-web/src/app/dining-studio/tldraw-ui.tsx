@@ -68,6 +68,7 @@ const DINING_TOOL_IDS = [
 export const DINING_ZH_CN_TLDRAW_MESSAGES = {
 	"action.copy-hovered-styles": "复制悬停元素样式",
 	"action.frame-selection": "为选中元素创建框架",
+	"comments.link-copied": "链接已复制",
 	"page-menu.max-pages-reached": "已达到页面数量上限",
 	"page-menu.resize": "调整页面大小",
 } as const;

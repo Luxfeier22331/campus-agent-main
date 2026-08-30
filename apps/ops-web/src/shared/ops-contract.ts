@@ -65,10 +65,25 @@ export const NoticeJobCreateSchema = z.discriminatedUnion("operation", [
 export type NoticeJobCreate = z.infer<typeof NoticeJobCreateSchema>;
 
 export const NoticeJobStatusSchema = z.enum(["pending", "running", "succeeded", "failed"]);
-export const NoticeJobSummarySchema = z.record(
-	z.string().min(1),
-	z.union([z.number().int().nonnegative(), z.string().max(200), z.boolean()]),
-);
+export const NoticeJobSummarySchema = z
+	.object({
+		assets: z.number().int().nonnegative().optional(),
+		attachmentsDownloaded: z.number().int().nonnegative().optional(),
+		attachmentsReused: z.number().int().nonnegative().optional(),
+		classified: z.number().int().nonnegative().optional(),
+		imagesDownloaded: z.number().int().nonnegative().optional(),
+		imagesReused: z.number().int().nonnegative().optional(),
+		notices: z.number().int().nonnegative().optional(),
+		noticesFailed: z.number().int().nonnegative().optional(),
+		noticesProcessed: z.number().int().nonnegative().optional(),
+		objectsReused: z.number().int().nonnegative().optional(),
+		objectsWritten: z.number().int().nonnegative().optional(),
+		pagesFetched: z.number().int().nonnegative().optional(),
+		requested: z.number().int().nonnegative().optional(),
+		skipped: z.number().int().nonnegative().optional(),
+		upToDate: z.boolean().optional(),
+	})
+	.strict();
 export const NoticeJobSchema = z
 	.object({
 		completedAt: IsoDateTimeSchema.nullable(),
@@ -76,10 +91,11 @@ export const NoticeJobSchema = z
 		controllerError: z.string().nullable(),
 		error: z.string().nullable(),
 		jobName: z.string().min(1),
+		maintenanceRange: NoticeJobRangeSchema.nullable(),
 		noticeId: NoticeIdSchema.nullable(),
 		operation: NoticeJobOperationSchema,
+		processedRange: NoticeJobRangeSchema.nullable(),
 		progress: NoticeJobProgressSchema.nullable(),
-		range: NoticeJobRangeSchema.nullable(),
 		startedAt: IsoDateTimeSchema.nullable(),
 		status: NoticeJobStatusSchema,
 		summary: NoticeJobSummarySchema.nullable(),
@@ -167,7 +183,7 @@ export type ModelDiscoveryRequest = z.infer<typeof ModelDiscoveryRequestSchema>;
 
 export const ModelDiscoveryResponseSchema = z
 	.object({
-		models: z.array(z.string().trim().min(1).max(256)).max(500),
+		models: z.array(z.string().trim().min(1).max(256)),
 		sampledAt: IsoDateTimeSchema,
 	})
 	.strict();

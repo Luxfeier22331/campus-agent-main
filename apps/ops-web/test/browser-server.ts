@@ -209,10 +209,11 @@ function createBrowserNoticeJobStore(): NoticeJobStore & { reset(): void } {
 				controllerError: null,
 				error: null,
 				jobName: `${input.operation}-browser-${String(sequence)}`,
+				maintenanceRange: null,
 				noticeId: "noticeId" in input ? input.noticeId : null,
 				operation: input.operation,
+				processedRange: null,
 				progress: null,
-				range: null,
 				startedAt: null,
 				status: "pending",
 				summary: null,
@@ -767,6 +768,19 @@ function fixtureProviderConfigClient() {
 				updatedAt: new Date().toISOString(),
 				updatedBy: "ops@example.test",
 			};
+			return status;
+		},
+		async validate(kind: "llm" | "embedding" | "reranker" | "notice_classifier") {
+			const setting = status.settings[kind];
+			if (setting) {
+				setting.latestValidation = {
+					message: "Validation passed.",
+					...(kind === "embedding" ? { observedDimensions: 2560 } : {}),
+					status: "passed",
+					validatedAt: new Date().toISOString(),
+					validatedBy: "ops@example.test",
+				};
+			}
 			return status;
 		},
 	};
