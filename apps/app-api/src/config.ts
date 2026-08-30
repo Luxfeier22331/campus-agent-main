@@ -19,7 +19,6 @@ export interface Env {
 	AUTH_TURNSTILE_SECRET_KEY?: string;
 	RESEND_API_KEY?: string;
 	AUTH_EMAIL_FROM?: string;
-	AUTH_EMAIL_REPLY_TO?: string;
 	EXECUTION_CONTROL_BASE_URL?: string;
 	EXECUTION_CONTROL_PRIVATE?: WorkerFetchBindingLike;
 	EXECUTION_CONTROL_PRIVATE_ORIGIN?: string;
@@ -45,7 +44,6 @@ export interface AppAuthConfig {
 export interface AppAuthEmailConfig {
 	resendApiKey: string;
 	authEmailFrom: string;
-	authEmailReplyTo?: string;
 }
 
 const MISSING_CONFIG_KEYS = [
@@ -188,8 +186,5 @@ export function readAppAuthEmailConfig(env: Env): AppAuthEmailConfig {
 	return {
 		resendApiKey: readRequiredTrimmedValue(env.RESEND_API_KEY, "RESEND_API_KEY"),
 		authEmailFrom: readRequiredTrimmedValue(env.AUTH_EMAIL_FROM, "AUTH_EMAIL_FROM"),
-		...(env.AUTH_EMAIL_REPLY_TO?.trim()
-			? { authEmailReplyTo: env.AUTH_EMAIL_REPLY_TO.trim() }
-			: {}),
 	};
 }

@@ -29,8 +29,8 @@ status: active
   表示为 `VERIFICATION_FAILED`，不能向浏览器暴露供应商或数据库错误。
 - Better Auth 限流响应使用 `X-Retry-After` 秒数，Campus Web 据此限制再次提交，不能用固定等待时间
   猜测服务端窗口。
-- 密码重置、邮箱验证和邀请邮件统一使用 `AUTH_EMAIL_FROM`，可选回复地址为
-  `AUTH_EMAIL_REPLY_TO`，并在发送时使用 `RESEND_API_KEY`。邮件投递配置缺失或投递失败只使对应
+- 密码重置、邮箱验证和邀请邮件统一使用 `AUTH_EMAIL_FROM` 作为发件人与回复地址，并在发送时使用
+  `RESEND_API_KEY`。邮件投递配置缺失或投递失败只使对应
   邮件操作失败，不撤销已经创建的账号，也不改变已验证账号的登录和会话合同。
 - 使用临时密码登录的账号必须先完成改密，Campus Web 将其导向改密界面后再返回原页面。
 

@@ -26,7 +26,7 @@ describe("app-api auth config boundary", () => {
 				RESEND_API_KEY: "resend_test_key",
 				AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 			}),
-		).toMatchObject({
+		).toEqual({
 			authEmailFrom: "Campus Agent <auth@example.com>",
 			resendApiKey: "resend_test_key",
 		});

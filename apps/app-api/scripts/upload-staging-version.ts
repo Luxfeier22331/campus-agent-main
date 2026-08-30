@@ -87,9 +87,6 @@ try {
 		},
 		variables: {
 			AUTH_EMAIL_FROM: requiredEnv("AUTH_EMAIL_FROM"),
-			...(process.env.AUTH_EMAIL_REPLY_TO?.trim()
-				? { AUTH_EMAIL_REPLY_TO: process.env.AUTH_EMAIL_REPLY_TO.trim() }
-				: {}),
 			SENTRY_DSN: requiredEnv("SENTRY_APP_API_DSN"),
 			DEPLOYMENT_RELEASE: sentryRelease,
 		},

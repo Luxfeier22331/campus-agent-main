@@ -251,7 +251,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 
 	const releasePlan = workflowJob(workflow, "release-plan");
 	assert.deepEqual(releasePlan["runs-on"], SHARED_SELF_HOSTED_RUNNER);
-	assert.equal(releasePlan.environment, "staging");
+	assert.equal(releasePlan.environment, undefined);
 	assert.deepEqual(releasePlan.permissions, { contents: "read", statuses: "write" });
 
 	const publishImages = workflowJob(workflow, "publish-images");
@@ -278,7 +278,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 		"publish-workers",
 	]);
 	assert.deepEqual(promote["runs-on"], SHARED_SELF_HOSTED_RUNNER);
-	assert.equal(promote.environment, "staging");
+	assert.equal(promote.environment, undefined);
 	assert.match(String(promote.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
 	assert.match(String(promote.if), /github\.ref == 'refs\/heads\/main'/u);
 	const plan = namedStep(releasePlan, "Select release candidates");
@@ -345,6 +345,7 @@ test("Worker publication matches the candidate registry and secret boundaries", 
 
 	const appApi = namedStep(workers, "Upload app-api candidate");
 	assert(isObject(appApi.env));
+	assert.equal(appApi.env.AUTH_EMAIL_FROM, githubExpression("vars.AUTH_EMAIL_FROM"));
 	assert.equal(
 		appApi.env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
 		githubExpression("secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY"),

@@ -15,7 +15,6 @@ import {
 
 const AUTH_EMAIL_CONFIG = {
 	authEmailFrom: "Campus Agent <account@auth.muc.wiki>",
-	authEmailReplyTo: "support@example.com",
 	resendApiKey: "resend_test_key",
 };
 
@@ -277,7 +276,7 @@ export function registerAppApiAuthConfigSuite() {
 			};
 			expect(firstPayload).toMatchObject({
 				from: "Campus Agent <account@auth.muc.wiki>",
-				replyTo: "support@example.com",
+				replyTo: "Campus Agent <account@auth.muc.wiki>",
 				subject: "重置中央民族大学校园问答密码",
 				to: "jane@muc.edu.cn",
 			});

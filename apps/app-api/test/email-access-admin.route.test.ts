@@ -143,10 +143,17 @@ describe("email access admin routes", () => {
 			lastInvitationSentAt: "2026-07-19T02:00:00.000Z",
 		});
 		expect(sender.send).toHaveBeenCalledTimes(2);
-		expect(sender.send).toHaveBeenLastCalledWith(expect.objectContaining({ to: grant.email }), {
-			idempotencyKey: "resend-1:invitation",
-			purpose: "access_invitation",
-		});
+		expect(sender.send).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				from: "Campus Agent <account@auth.muc.wiki>",
+				replyTo: "Campus Agent <account@auth.muc.wiki>",
+				to: grant.email,
+			}),
+			{
+				idempotencyKey: "resend-1:invitation",
+				purpose: "access_invitation",
+			},
+		);
 		expect(markInvitationSent).toHaveBeenCalledWith(grant.id);
 	});
 

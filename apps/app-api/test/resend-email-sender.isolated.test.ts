@@ -15,6 +15,7 @@ import { createResendEmailSender } from "../src/modules/auth/reset-mail";
 const message = {
 	from: "Campus Agent <account@auth.muc.wiki>",
 	html: "<p>test</p>",
+	replyTo: "Campus Agent <account@auth.muc.wiki>",
 	subject: "Test",
 	text: "test",
 	to: "student@muc.edu.cn",

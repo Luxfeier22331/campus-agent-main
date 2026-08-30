@@ -203,7 +203,6 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		return {
 			authShellOrigin: appOrigin,
 			authEmailFrom: emailConfig.authEmailFrom,
-			...(emailConfig.authEmailReplyTo ? { authEmailReplyTo: emailConfig.authEmailReplyTo } : {}),
 			...(input.emailSender ? { emailSender: input.emailSender } : {}),
 			resendApiKey: emailConfig.resendApiKey,
 		};

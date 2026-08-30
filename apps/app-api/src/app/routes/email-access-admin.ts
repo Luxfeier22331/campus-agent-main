@@ -76,7 +76,6 @@ async function sendInvitation(input: {
 			{
 				authShellOrigin: authConfig.authShellOrigin,
 				authEmailFrom: emailConfig.authEmailFrom,
-				...(emailConfig.authEmailReplyTo ? { authEmailReplyTo: emailConfig.authEmailReplyTo } : {}),
 				...(input.emailSender ? { emailSender: input.emailSender } : {}),
 				resendApiKey: emailConfig.resendApiKey,
 			},

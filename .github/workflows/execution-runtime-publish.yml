@@ -37,7 +37,6 @@ jobs:
   release-plan:
     runs-on: [self-hosted, Linux, campus-ci]
     timeout-minutes: 10
-    environment: staging
     permissions:
       contents: read
       statuses: write
@@ -287,7 +286,6 @@ jobs:
         env:
           APP_API_DB_HYPERDRIVE_ID: ${{ vars.APP_API_DB_HYPERDRIVE_ID }}
           AUTH_EMAIL_FROM: ${{ vars.AUTH_EMAIL_FROM }}
-          AUTH_EMAIL_REPLY_TO: ${{ vars.AUTH_EMAIL_REPLY_TO }}
           APP_API_EXECUTION_SHARED_SECRET: ${{ secrets.APP_API_EXECUTION_SHARED_SECRET }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -498,7 +496,6 @@ jobs:
       )
     runs-on: [self-hosted, Linux, campus-ci]
     timeout-minutes: 15
-    environment: staging
     outputs:
       promotion_disposition: ${{ steps.promotion.outputs.promotion_disposition }}
     steps:

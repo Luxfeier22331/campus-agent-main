@@ -62,8 +62,8 @@ schema 后运行
 未知部分状态和 migration hash 校验。
 Better Auth 核心运行时要求 `DEPLOYMENT_ENVIRONMENT`、`BETTER_AUTH_SECRET`、`AUTH_SHELL_ORIGIN` 和
 `AUTH_TURNSTILE_SECRET_KEY`；`APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` 是聊天准入和就绪检查的核心
-输入。认证邮件仅在实际发送时读取 `AUTH_EMAIL_FROM`、`RESEND_API_KEY` 和可选
-`AUTH_EMAIL_REPLY_TO`，缺失这些值不会阻止已验证用户登录或刷新会话，但相应邮件操作会明确失败。
+输入。认证邮件仅在实际发送时读取 `AUTH_EMAIL_FROM` 和 `RESEND_API_KEY`；`AUTH_EMAIL_FROM` 同时作为
+发件人与回复地址。缺失这些值不会阻止已验证用户登录或刷新会话，但相应邮件操作会明确失败。
 
 ## 本地命令
 

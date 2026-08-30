@@ -29,7 +29,7 @@ export type AuthEmailPurpose =
 export interface AuthEmailMessage {
 	from: string;
 	html: string;
-	replyTo?: string;
+	replyTo: string;
 	subject: string;
 	text: string;
 	to: string;
@@ -45,7 +45,6 @@ export interface AuthEmailSender {
 export interface AuthMailConfig {
 	authShellOrigin: string;
 	authEmailFrom: string;
-	authEmailReplyTo?: string;
 	emailSender?: AuthEmailSender;
 	resendApiKey: string;
 }
@@ -129,7 +128,7 @@ export function createResendEmailSender(apiKey: string): AuthEmailSender {
 				{
 					from: message.from,
 					html: message.html,
-					...(message.replyTo ? { replyTo: message.replyTo } : {}),
+					replyTo: message.replyTo,
 					subject: message.subject,
 					tags: [
 						{ name: "app", value: "campus-agent" },
@@ -339,7 +338,7 @@ function basePayload(
 	return {
 		from: config.authEmailFrom,
 		html: input.html,
-		...(config.authEmailReplyTo ? { replyTo: config.authEmailReplyTo } : {}),
+		replyTo: config.authEmailFrom,
 		subject: input.subject,
 		text: input.text,
 		to: input.to,
