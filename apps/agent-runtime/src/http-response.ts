@@ -157,6 +157,13 @@ export function agentRunResultWire(result: PrimaryAgentRunResult, runtimeRelease
 			tools_sha256: result.toolContractFingerprint.toolsSha256,
 			function_schema_sha256: result.toolContractFingerprint.functionSchemaSha256,
 		},
+		web_citations: result.webCitations.map((citation) => ({
+			end_index: citation.endIndex,
+			start_index: citation.startIndex,
+			title: citation.title,
+			url: citation.url,
+		})),
+		web_search_used: result.webSearchUsed,
 		terminal_reason: result.terminalReason,
 		usage: {
 			model_request_count: result.usage.modelRequestCount,

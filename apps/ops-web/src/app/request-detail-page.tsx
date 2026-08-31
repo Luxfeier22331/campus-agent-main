@@ -232,10 +232,8 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 					<li
 						className="grid gap-2 py-4"
 						key={[
+							source.kind,
 							source.title,
-							source.collectionLabel,
-							source.sectionTitle,
-							source.versionLabel,
 							source.primaryAction.href,
 							source.primaryAction.label,
 							source.snippet,
@@ -253,11 +251,13 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 								</span>
 								<div className="min-w-0">
 									<p className="font-medium text-foreground">{source.title}</p>
-									{source.sectionTitle ? (
+									{source.kind === "campus_document" && source.sectionTitle ? (
 										<p className="mt-1 text-muted-foreground text-xs">{source.sectionTitle}</p>
 									) : null}
 									<p className="mt-1 text-muted-foreground text-xs">
-										{[source.collectionLabel, source.versionLabel].filter(Boolean).join(" · ")}
+										{source.kind === "web_page"
+											? source.hostname
+											: [source.collectionLabel, source.versionLabel].filter(Boolean).join(" · ")}
 									</p>
 								</div>
 							</div>
@@ -288,6 +288,8 @@ function SourceAction({
 		<a
 			className="inline-flex min-h-10 items-center gap-2 font-medium text-info text-sm hover:underline"
 			href={action.href}
+			rel={action.external ? "noopener noreferrer" : undefined}
+			target={action.external ? "_blank" : undefined}
 		>
 			{action.label}
 		</a>

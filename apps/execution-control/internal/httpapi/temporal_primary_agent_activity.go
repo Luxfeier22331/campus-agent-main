@@ -54,8 +54,8 @@ func (s *Server) ExecutePrimaryAgent(
 	}
 	limits := s.primaryAgentRuntimeLimits()
 	snapshot := input.AdmissionSnapshot
-	visibleToolNames := input.VisibleToolNames
-	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleToolNames); err != nil {
+	visibleFunctionToolNames := input.VisibleFunctionToolNames
+	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleFunctionToolNames); err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "admission_snapshot_invalid", err)
 	}
 	if err := s.validateLocalToolContractFingerprint(snapshot.ToolContractFingerprint); err != nil {
@@ -63,7 +63,7 @@ func (s *Server) ExecutePrimaryAgent(
 	}
 	limits = limitsFromAdmissionSnapshot(snapshot.AgentLimits)
 	limits.MaxTurns = snapshot.ExecutionStrategy.MaxModelTurns
-	limits.MaxToolCalls = snapshot.ExecutionStrategy.MaxToolCalls
+	limits.MaxFunctionToolCalls = snapshot.ExecutionStrategy.MaxFunctionToolCalls
 	agentResultRef := temporalProjectionRef(run.RequestID, "agent/primary/result")
 	attempt := temporalActivityAttempt(ctx)
 	conversationContext, err := primaryAgentConversationContextForRun(executionPayload, limits)
@@ -136,10 +136,10 @@ func (s *Server) ExecutePrimaryAgent(
 		UpdatedAt:     startedAt,
 		ProjectionRef: agentResultRef,
 		Payload: map[string]any{
-			"execution_control_release": strings.TrimSpace(s.config.DeploymentRelease),
-			"execution_strategy":        executionStrategyProjectionPayload(snapshot.ExecutionStrategy),
-			"tool_contract_fingerprint": toolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint),
-			"visible_tool_names":        append([]string{}, visibleToolNames...),
+			"execution_control_release":   strings.TrimSpace(s.config.DeploymentRelease),
+			"execution_strategy":          executionStrategyProjectionPayload(snapshot.ExecutionStrategy),
+			"tool_contract_fingerprint":   toolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint),
+			"visible_function_tool_names": append([]string{}, visibleFunctionToolNames...),
 		},
 	}, attempt)
 	attempt = startedProjection.Attempt
@@ -178,7 +178,7 @@ func (s *Server) ExecutePrimaryAgent(
 			startedAt,
 			completedAt,
 			attempt,
-			visibleToolNames,
+			visibleFunctionToolNames,
 			output,
 		); err != nil {
 			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -216,7 +216,7 @@ func (s *Server) ExecutePrimaryAgent(
 			startedAt,
 			time.Now().UTC(),
 			attempt,
-			visibleToolNames,
+			visibleFunctionToolNames,
 			output,
 		)
 		if projectionErr != nil {
@@ -279,7 +279,7 @@ func (s *Server) ExecutePrimaryAgent(
 		startedAt,
 		completedAt,
 		attempt,
-		visibleToolNames,
+		visibleFunctionToolNames,
 		output,
 		identity,
 	); err != nil {
@@ -425,7 +425,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 	startedAt time.Time,
 	completedAt time.Time,
 	attempt int,
-	visibleToolNames []string,
+	visibleFunctionToolNames []string,
 	output temporalruntime.ExecutePrimaryAgentActivityOutput,
 	identities ...primaryAgentProjectionIdentity,
 ) error {
@@ -433,7 +433,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 	if len(identities) > 0 {
 		identity = identities[0]
 	}
-	visible := stringSet(visibleToolNames)
+	visible := stringSet(visibleFunctionToolNames)
 	for _, result := range output.ToolResults {
 		durationMS, err := primaryAgentToolDurationMS(result.DurationMS)
 		if err != nil {

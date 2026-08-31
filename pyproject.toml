@@ -9,7 +9,6 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-  "pre-commit>=4.2.0",
   "ruff>=0.15.11",
   "sqlfluff>=3.4.2",
   "yamllint>=1.37.1",

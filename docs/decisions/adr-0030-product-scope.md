@@ -9,26 +9,29 @@ status: accepted
 ## 背景
 
 隐式网页搜索或通用模型知识回退会让用户和运维人员无法区分学校证据支持的答案与
-开放域猜测。
+开放域猜测。产品需要允许使用尚未采集的公开校园网页信息，但仍要保持校园范围和可见来源。
 
 ## 决策
 
-Campus Agent 是面向中央民族大学这一单一学校信息范围的产品。学校特定事实只能使用已开放校园工具
-和已发布证据。当前 Agent 没有通用 web-search 或 open-domain factual tool。
+Campus Agent 是面向中央民族大学这一单一学校信息范围的产品。学校特定事实使用已开放校园工具、已发布
+证据，或由 Agents SDK 原生 `web_search` 返回的公开校园网页证据。`web_search` 只作为校园问题的证据
+来源，不开放通用 open-domain factual tool 或任意主题的聊天搜索。
 
 primary agent 可以直接回答问候、产品问题和普通对话，但不得用模型记忆补齐缺失的校园
 事实。
 
-工具定义声明事实范围。所需事实完全不在当前工具范围内，或工具没有返回足够 evidence 时，Primary
-Agent 在正常助手正文中说明资料边界；这不是执行策略拒绝。实体名称出现在改写、翻译等不需要机构
-事实的任务中，不单独触发工具调用或拒绝。
+工具定义声明事实范围。所需事实完全不在当前本地工具范围内时，Primary Agent 可以针对公开校园信息
+使用 `web_search`；如果网页证据仍不足，则在正常助手正文中说明资料边界。这不是执行策略拒绝。实体
+名称出现在改写、翻译等不需要机构事实的任务中，不单独触发工具调用或拒绝。
 
-校园搜索失败时不得自动触发开放网页搜索。未来开放域能力需要独立产品决策、可见工具、policy
-和 evaluation，不能伪装成 retrieval tuning 或 best-effort recovery。
+`web_search` 不是 `campus_search` 失败后的自动回退：是否使用由 Primary Agent 根据问题和工具声明
+决定，不能由代码在失败后机械触发。未来开放域能力仍需要独立产品决策、可见工具、policy 和
+evaluation，不能伪装成 retrieval tuning 或 best-effort recovery。
 
 ## 后果
 
-- 校园答案只有一套证据承诺。
+- 校园答案可以使用本地 Campus Docs evidence 或公开网页 evidence；两者都由 Finalization 校验并派生
+  统一编号的来源卡。Web Search 不写入本地 `tool_results` 或工具轨迹，也不保存供应商原始搜索结果。
 - out-of-scope 行为可观测、可测试。
 - 产品扩展默认新增校园领域，而不是扩大为通用助手。
 

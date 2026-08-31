@@ -62,6 +62,17 @@ target 会自动生成其运行依赖的环境投影；例如 `internal-portal-c
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实际选择决定。
 
+### Git hook
+
+Git hook 不属于应用环境文件。`pnpm install` 的 `prepare` 为当前 checkout 或 linked worktree 设置
+worktree-local `core.hooksPath=.githooks`，并安装该 checkout 自己的 `pre-commit` 与 `pre-push`；
+不会引用其他 checkout 的 Node 或 Python 环境。生成的 `.githooks/` 被 Git 忽略，依赖已安装但 hook
+缺失时执行 `pnpm hooks:install`。
+
+`uv sync --locked --all-packages --dev` 提供 Ruff、SQLFluff 和 Yamllint，`pnpm dev:init` 仍只负责应用
+环境初始化。`prepare` 在 CI、production install 和不包含 Git metadata 的 package/Docker build context
+中跳过安装。
+
 internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的 source bucket、通知数据库和 Ops Web
 内部接口配置，以及 `internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令
 保留其他托管字段、原子替换该值并设置 `0600`；失败不改文件，后续 `dev:init` 保留已有 TGC。可选门户

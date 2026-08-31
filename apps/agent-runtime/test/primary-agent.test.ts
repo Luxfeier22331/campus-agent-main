@@ -22,7 +22,7 @@ const limits = {
 	contextCharLimit: 16_000,
 	currentInputCharLimit: 8_000,
 	maxOutputTokens: 2_048,
-	maxToolCalls: 3,
+	maxFunctionToolCalls: 3,
 	maxTurns: 6,
 };
 
@@ -99,6 +99,8 @@ describe("primary agent runtime", () => {
 				finalOutput: `我是校园问答助手。收到：${currentText}`,
 				providerResponseId: "resp_1",
 				toolResults: [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 			} as never;
 		};
@@ -113,7 +115,7 @@ describe("primary agent runtime", () => {
 			input: "hi 你是谁",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("completed");
@@ -142,6 +144,8 @@ describe("primary agent runtime", () => {
 					finalOutput: "当前没有可用的校园事实工具。",
 					providerResponseId: "resp_closed_tools",
 					toolResults: [],
+					webCitations: [],
+					webSearchUsed: false,
 					usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 				};
 			},
@@ -153,7 +157,7 @@ describe("primary agent runtime", () => {
 			input: "今天下一班通知几点发？",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 		});
 
 		expect(observedToolNames).toEqual([]);
@@ -185,6 +189,8 @@ describe("primary agent runtime", () => {
 			finalOutput: "我是校园问答助手。",
 			providerResponseId: "resp_missing_envelope",
 			toolResults: [],
+			webCitations: [],
+			webSearchUsed: false,
 			usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 8, usageObserved: true },
 		});
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
@@ -195,7 +201,7 @@ describe("primary agent runtime", () => {
 			input: "hi 你是谁",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("completed");
@@ -210,6 +216,8 @@ describe("primary agent runtime", () => {
 				finalOutput: "blocking result must not be used for stream",
 				providerResponseId: "resp_blocking",
 				toolResults: [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 			}),
 		});
@@ -220,7 +228,7 @@ describe("primary agent runtime", () => {
 			input: "hi",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 		});
 
 		await expect(events[Symbol.asyncIterator]().next()).rejects.toThrow(
@@ -245,6 +253,8 @@ describe("primary agent runtime", () => {
 						finalOutput: "最终答案",
 						providerResponseId: "resp-stream-terminal",
 						toolResults: [],
+						webCitations: [],
+						webSearchUsed: false,
 						usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 					};
 					postTerminalPulled = true;
@@ -264,7 +274,7 @@ describe("primary agent runtime", () => {
 			input: "hi",
 			providerConfig,
 			limits,
-			visibleToolNames: [],
+			visibleFunctionToolNames: [],
 		})) {
 			events.push(event);
 		}
@@ -285,6 +295,8 @@ describe("primary agent runtime", () => {
 					finalOutput: "无需增量展示的最终答案。",
 					providerResponseId: "resp-stream-no-delta",
 					toolResults: [],
+					webCitations: [],
+					webSearchUsed: false,
 					usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 8, usageObserved: true },
 				};
 			},
@@ -297,7 +309,7 @@ describe("primary agent runtime", () => {
 			input: "hi",
 			providerConfig,
 			limits,
-			visibleToolNames: [],
+			visibleFunctionToolNames: [],
 		})) {
 			events.push(event);
 		}
@@ -325,6 +337,8 @@ describe("primary agent runtime", () => {
 				finalOutput: "我会先给结论。",
 				providerResponseId: "resp_memory",
 				toolResults: [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 16, outputTokens: 8, usageObserved: true },
 			};
 		};
@@ -361,7 +375,7 @@ describe("primary agent runtime", () => {
 			input: "之后回答能不能先给结论？",
 			providerConfig,
 			limits,
-			visibleToolNames: ["personal_memory_recall"],
+			visibleFunctionToolNames: ["personal_memory_recall"],
 			conversationContext: emptyConversationContext(),
 		});
 
@@ -388,6 +402,8 @@ describe("primary agent runtime", () => {
 				finalOutput: "我会先给结论。",
 				providerResponseId: "resp_prompt_trace",
 				toolResults: [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 18, outputTokens: 8, usageObserved: true },
 			};
 		};
@@ -403,7 +419,7 @@ describe("primary agent runtime", () => {
 			input: "之后回答能不能先给结论？",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 			conversationContext: emptyConversationContext(),
 		});
 
@@ -428,6 +444,8 @@ describe("primary agent runtime", () => {
 				finalOutput: "大一是否可申请需要看转专业办法的年级条件。",
 				providerResponseId: "resp_context",
 				toolResults: [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 32, outputTokens: 12, usageObserved: true },
 			};
 		};
@@ -438,7 +456,7 @@ describe("primary agent runtime", () => {
 			input: "那大一能不能申请？",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 			conversationContext: {
 				schemaVersion: "agent_conversation_context.v1" as const,
 				recentTurns: [
@@ -492,6 +510,8 @@ describe("primary agent runtime", () => {
 					finalOutput: "你好。",
 					providerResponseId: "resp_empty_session_state",
 					toolResults: [],
+					webCitations: [],
+					webSearchUsed: false,
 					usage: { modelRequestCount: 1, inputTokens: 12, outputTokens: 4, usageObserved: true },
 				};
 			},
@@ -503,7 +523,7 @@ describe("primary agent runtime", () => {
 			input: "你好",
 			providerConfig,
 			limits,
-			visibleToolNames: [],
+			visibleFunctionToolNames: [],
 			conversationContext: {
 				schemaVersion: "agent_conversation_context.v1",
 				recentTurns: [],
@@ -530,6 +550,8 @@ describe("primary agent runtime", () => {
 				finalOutput: "通知查询完成。",
 				providerResponseId: "resp_2",
 				toolResults: toolResult ? [toolResult] : [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			};
 		};
@@ -551,7 +573,7 @@ describe("primary agent runtime", () => {
 			input: "通知今天几点",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("completed");
@@ -573,6 +595,8 @@ describe("primary agent runtime", () => {
 				finalOutput: "",
 				providerResponseId: "resp_missing_tool_executor",
 				toolResults: toolResult ? [toolResult] : [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 18, outputTokens: 4, usageObserved: true },
 			};
 		};
@@ -584,7 +608,7 @@ describe("primary agent runtime", () => {
 			input: "通知今天几点",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("failed");
@@ -618,6 +642,8 @@ describe("primary agent runtime", () => {
 				finalOutput: "通知查询失败。",
 				providerResponseId: "resp_failed_tool",
 				toolResults: toolResult ? [toolResult] : [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			};
 		};
@@ -643,7 +669,7 @@ describe("primary agent runtime", () => {
 			input: "通知今天几点",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 		});
 
 		expect(result.status).toBe("completed");
@@ -689,6 +715,8 @@ describe("primary agent runtime", () => {
 							durationMs: 12,
 						},
 					],
+					webCitations: [],
+					webSearchUsed: false,
 					usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 				};
 			},
@@ -701,7 +729,7 @@ describe("primary agent runtime", () => {
 			input: "通知",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 		})) {
 			events.push(event);
 		}
@@ -729,6 +757,8 @@ describe("primary agent runtime", () => {
 				finalOutput: "通知查询完成。",
 				providerResponseId: "resp_signal",
 				toolResults: toolResult ? [toolResult] : [],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 20, outputTokens: 10, usageObserved: true },
 			};
 		};
@@ -750,7 +780,7 @@ describe("primary agent runtime", () => {
 			input: "通知今天几点",
 			providerConfig,
 			limits,
-			visibleToolNames: ["test_lookup"],
+			visibleFunctionToolNames: ["test_lookup"],
 			signal: controller.signal,
 		});
 

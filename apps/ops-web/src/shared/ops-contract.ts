@@ -391,7 +391,7 @@ export const OpsRequestListResponseSchema = z.object({
 	window: OpsRequestWindowSchema,
 });
 
-const OpsProductSourceSchema = z.object({
+const OpsCampusProductSourceSchema = z.object({
 	citationIndexes: CitationIndexesSchema,
 	collectionLabel: z.string(),
 	kind: z.literal("campus_document"),
@@ -406,6 +406,25 @@ const OpsProductSourceSchema = z.object({
 	title: z.string().min(1),
 	versionLabel: z.string(),
 });
+
+const OpsWebProductSourceSchema = z.object({
+	citationIndexes: CitationIndexesSchema,
+	hostname: z.string().min(1),
+	kind: z.literal("web_page"),
+	primaryAction: z.object({
+		disabledReason: z.string().min(1).nullable(),
+		external: z.literal(true),
+		href: z.string().min(1).nullable(),
+		label: z.literal("打开网页"),
+	}),
+	snippet: z.string().nullable(),
+	title: z.string().min(1),
+});
+
+const OpsProductSourceSchema = z.discriminatedUnion("kind", [
+	OpsCampusProductSourceSchema,
+	OpsWebProductSourceSchema,
+]);
 
 const OpsProductResultSchema = z.discriminatedUnion("state", [
 	z.object({ state: z.literal("PENDING") }),

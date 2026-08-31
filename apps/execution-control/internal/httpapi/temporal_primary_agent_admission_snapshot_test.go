@@ -73,10 +73,10 @@ func TestExecutePrimaryAgentActivityDelegatesPinnedTargetToAgentRuntime(t *testi
 	server.primaryAgentTargetResolver = nil
 
 	input := temporalruntime.ExecutePrimaryAgentActivityInput{
-		AdmissionSnapshot: snapshot,
-		ConversationID:    "conv-admission-snapshot",
-		RequestID:         "run-admission-snapshot",
-		VisibleToolNames:  append([]string{}, snapshot.ExecutionStrategy.VisibleToolNames...),
+		AdmissionSnapshot:        snapshot,
+		ConversationID:           "conv-admission-snapshot",
+		RequestID:                "run-admission-snapshot",
+		VisibleFunctionToolNames: append([]string{}, snapshot.ExecutionStrategy.VisibleFunctionToolNames...),
 	}
 	_, err = server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil || requests != 1 {
@@ -105,8 +105,8 @@ func TestValidateAdmissionSnapshotRejectsMissingProviderHash(t *testing.T) {
 
 func TestValidateExecutionStrategyAllowsIndependentBudgetAndToolOrder(t *testing.T) {
 	strategy := executionStrategyForAdmission(true)
-	strategy.VisibleToolNames = []string{personalMemoryRecallToolName, campusSearchToolName}
-	strategy.MaxToolCalls = 1
+	strategy.VisibleFunctionToolNames = []string{personalMemoryRecallToolName, campusSearchToolName}
+	strategy.MaxFunctionToolCalls = 1
 	strategy.MaxModelTurns = 2
 	if err := validateExecutionStrategy(strategy); err != nil {
 		t.Fatalf("validate independent strategy: %v", err)

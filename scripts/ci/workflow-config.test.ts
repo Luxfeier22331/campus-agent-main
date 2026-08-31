@@ -170,10 +170,17 @@ test("pull request validation keeps the shared required-check contract", async (
 	const repoChecks = workflowJob(workflow, "repo-checks");
 	assert.equal(repoChecks.if, "github.event.pull_request.draft == false");
 	assert.deepEqual(repoChecks["runs-on"], SHARED_SELF_HOSTED_RUNNER);
-	const repositoryLint = namedStep(repoChecks, "Lint repository");
-	assert.equal(repositoryLint.run, "pnpm lint");
-	assert.deepEqual(repositoryLint.env, { GITHUB_TOKEN: githubExpression("github.token") });
-	assert.equal(namedStep(repoChecks, "Test repository scripts").run, "pnpm test");
+	const staticDependencies = namedStep(repoChecks, "Install static-check dependencies");
+	assert.equal(staticDependencies.if, "always()");
+	assert.equal(staticDependencies.run, "uv sync --only-dev --no-install-workspace");
+	assert.equal(namedStep(repoChecks, "Check repository").run, "pnpm check");
+	for (const removed of ["Lint Python", "Lint YAML", "Lint SQL", "Lint Shell"]) {
+		assert.equal(
+			jobSteps(repoChecks).some((step) => step.name === removed),
+			false,
+			removed,
+		);
+	}
 	assert.equal(namedStep(repoChecks, "Summarize repository evidence").shell, "bash -e {0}");
 	assert.equal(
 		namedStep(repoChecks, "Run affected Node evidence").if,

@@ -107,7 +107,12 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 		agentResult,
 	)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", "", err)
+		failureKind := "agent_finalization_invalid"
+		var citationError *primaryAgentCitationValidationError
+		if errors.As(err, &citationError) {
+			failureKind = "citation_validation_failed"
+		}
+		return s.failFinalizationActivity(ctx, run, "", failureKind, "", err)
 	}
 	writeProductFinalization := s.productFinalizationWriter
 	if writeProductFinalization == nil {
@@ -680,7 +685,7 @@ func (s *Server) primaryAgentFinalizedResponse(
 	}
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
 		Status:        "completed",
-		AnswerText:    answerText,
+		AnswerText:    citationClosure.AnswerText,
 		Error:         nil,
 		ModelUsage:    modelUsage,
 		StageTiming:   stageTiming,

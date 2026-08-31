@@ -6,7 +6,15 @@ import { pathToFileURL } from "node:url";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 
-const AFFECTED_TASKS = ["build", "build:worker", "test", "test:worker", "typecheck"] as const;
+const AFFECTED_TASKS = [
+	"build",
+	"build:worker",
+	"native:test",
+	"native:typecheck",
+	"test",
+	"test:worker",
+	"typecheck",
+] as const;
 
 export interface CommandResult {
 	error?: Error;

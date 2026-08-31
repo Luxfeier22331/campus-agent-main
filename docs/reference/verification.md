@@ -41,16 +41,22 @@ runner、工具版本、缓存和发布实现由可执行配置维护；本文�
 
 | 命令 | 负责 | 不证明 |
 | --- | --- | --- |
-| `pre-commit` | 暂存文件的基础格式、解析、冲突和 Secret 检查 | typecheck、test、build 或 runtime |
+| `pre-commit` | 暂存文件的 check-only 跨语言静态检查和 Secret 扫描 | typecheck、test、build 或 runtime |
+| `pre-push` | 受影响 Node 模块的 typecheck/test/worker test 与 Go 模块的 vet/test | build、integration、浏览器 E2E 或 runtime |
 | `pnpm verify` | 对当前工作树的源码和配置执行全量 lint、合同、类型与测试检查 | 需显式选择的制品构建、浏览器 E2E、部署或运行时状态 |
 | `pnpm check` | 仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
-| `pnpm lint` | Biome、Markdownlint 与 EditorConfig | 文档链接、业务行为或类型正确性 |
+| `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描 | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
 | `pnpm test` | 仓库开发、验证和发布脚本测试 | package test、镜像构建或外部服务 |
 | `pnpm --dir packages/contracts check` | JSON Schema/OpenAPI 同步和合同不变量 | consumer runtime 行为 |
 | `scripts/dependencies/scan.sh` | 已锁定依赖的漏洞扫描 | 应用行为或镜像漏洞 |
 | `scripts/infra/validate.sh` | Kustomize render 与基础设施 policy | 集群已应用或 workload 健康 |
 | `scripts/otel/validate-config.sh` | Collector 配置校验 | 后端已经收到真实信号 |
+
+`.pre-commit-config.yaml` 是 Biome、Markdownlint、EditorConfig、Ruff、SQLFluff、Yamllint、ShellCheck、
+Go format 和基础解析检查的单一可执行 owner。`pre-commit` 只选择暂存文件，`pnpm lint` 选择全部
+tracked 文件；两条入口都不改写文件。PR CI 通过 `pnpm check` 复用该配置，并另行扫描 PR authored
+commit 历史。
 
 package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护。Turbo 只负责声明
 任务图、输入和缓存边界；integration test 与有副作用任务不得依赖缓存，远端缓存是否命中不影响

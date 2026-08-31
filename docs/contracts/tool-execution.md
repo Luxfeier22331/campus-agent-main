@@ -72,11 +72,17 @@ task-queue 字段。
 两个工具的 exposure 都登记为 `model_visible`，但注册表本身不会自动向 Agent Runtime 开放工具。
 execution-control 根据当前能力状态生成本轮工具集合：
 
-- `visible_tool_names` 是名称唯一的集合，数组顺序没有路由语义；
-- 个人记忆不可用时，`max_model_turns=3`、`max_tool_calls=2`，只开放 `campus_search`；
-- 个人记忆可用时，`max_model_turns=4`、`max_tool_calls=3`，开放 `campus_search` 和
+- `visible_function_tool_names` 是名称唯一的集合，数组顺序没有路由语义；
+- 个人记忆不可用时，`max_model_turns=2`、`max_function_tool_calls=1`，只开放 `campus_search`；
+- 个人记忆可用时，`max_model_turns=3`、`max_function_tool_calls=2`，开放 `campus_search` 和
   `personal_memory_recall`。工具预算是本轮所有工具调用的总预算；同一工具可以重复调用，不从数组顺序
   推导调用顺序。
+
+以上字段和预算只描述本地 function tools。Agent Runtime 另外固定附加 Agents SDK 原生
+`web_search` hosted tool；它不进入工具注册表、`visible_function_tool_names`、本地
+`max_function_tool_calls`、execution-control handler 或 `tool_results`。该能力要求 Primary Agent 的
+Model Config 使用 OpenAI Responses API；不兼容的 Chat Completions 配置以
+`model_config_incompatible` 拒绝，不进行 fallback。
 
 `personal_memory_recall_allowed` 是当前 v6 私有 wire 字段，表示由个人记忆生命周期和就绪状态派生、
 随本轮冻结的内部可用性，不表示用户同意状态或逐次读取授权。浏览器和用户文案不得暴露该字段、
@@ -96,6 +102,20 @@ Primary Agent 的固定角色是中央民族大学校园问答助手，未明确
 被候选直接支持时，只回答有依据的部分；完全没有候选支持所需机构事实时，在正常助手正文中说明资料
 边界。
 
+需要补充或核验尚未采集的公开校园网页信息时，Primary Agent 可以使用 `web_search`。`campus_search`
+返回 `no_match` 或失败表示当前已采集文档没有可用证据；Primary Agent 不应为同一事实改写查询后重复
+调用，问题所需事实可从公开校园网页获取时应使用 `web_search`，不能直接判定资料不足。是否调用仍由
+Primary Agent 根据问题和本轮结果决定，不能由代码机械触发。只有 `campus_search` 成功返回 `matched`
+和 evidence 时才使用 `[n]` 引用；`web_search` 支持的每条事实必须由 SDK 原生 URL citation 支持，模型
+不得手写 URL、Markdown 来源链接、数字引用或 turn 引用。Finalization 校验 citation 的位置、URL 和
+标题，把实际引用转换为统一的编号正文链接及 `kind=web_page` 来源卡；当前仍不保存 Web Search
+原始结果，也不把它伪装成本地 function tool 轨迹。
+
+`campus_search` evidence 按返回顺序对应正文中的 Markdown 引用 `[1]` 到 `[5]`。Finalization 只从
+同一次 request 的成功工具结果中解析实际出现的引用并派生公开来源；失败工具、越界编号和未被正文引用的
+evidence 不贡献来源。本轮没有成功 Campus Docs evidence、但存在有效 SDK 原生 Web citation 时，模型
+额外写出的数字引用只作为冗余正文标记移除，不生成来源，也不阻断已有 Web citation 的 Finalization；
+没有有效 Web citation 时仍按失败工具引用拒绝。
 同一次 SDK run 可以多次调用 `campus_search`。每次最多返回 5 条结果，本轮累计最多 10 条；每条结果
 携带本轮全局 `citation_index` `1..10`。成功但没有结果的调用和失败调用不占用编号。只有正文实际
 引用的结果才是 cited results；Finalization 从同一次 request 的成功工具结果中解析 `[n]` 并派生公开
@@ -181,7 +201,9 @@ Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_
 
 `ExecutionFinalizationResponse` 包含状态、答案、模型用量、结果和错误；可选字段包括观测摘要和
 阶段耗时。追问、资料不足和范围说明都是 `completed` 助手正文。它不返回路由标签、外部平台引用
-或逐请求遥测控制项。
+或逐请求遥测控制项。`result.sources` 是完整来源集合，来源为 `campus_document` 或 `web_page`；
+Campus 来源保留文档定位和 `citation_href`，Web 来源保留 `hostname`、`url` 和
+`citation_href`。来源编号由 Finalization 按正文首次出现顺序写入，重复 Web URL 复用编号。
 
 当前在线链路只有 `campus_search` 注册了机构知识结果 adapter。Finalization 按成功工具 adapter
 校验引用并派生公开来源；没有 adapter、来自失败工具或不属于同一次运行的引用均被拒绝。新的来源能力

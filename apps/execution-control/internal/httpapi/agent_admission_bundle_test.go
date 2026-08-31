@@ -40,10 +40,10 @@ func TestBuildAgentAdmissionSnapshotResolvesPrimaryAgentTargetOnce(t *testing.T)
 	if snapshot.PrimaryAgentTargetSHA256 != primaryAgentModelTargetSHA256ForTest {
 		t.Fatalf("provider admission hashes = %#v", snapshot)
 	}
-	if !containsString(snapshot.ExecutionStrategy.VisibleToolNames, personalMemoryRecallToolName) {
+	if !containsString(snapshot.ExecutionStrategy.VisibleFunctionToolNames, personalMemoryRecallToolName) {
 		t.Fatalf("execution strategy = %#v", snapshot.ExecutionStrategy)
 	}
-	snapshot.ExecutionStrategy.MaxToolCalls++
+	snapshot.ExecutionStrategy.MaxFunctionToolCalls++
 	if err := validateAdmissionSnapshot(snapshot); err == nil {
 		t.Fatal("admission snapshot accepted a mutated execution strategy")
 	}

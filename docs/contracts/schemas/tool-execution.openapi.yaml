@@ -780,7 +780,7 @@ components:
           type: string
         result:
           oneOf:
-            - $ref: "#/components/schemas/SafeObject"
+            - $ref: "#/components/schemas/ExecutionFinalizationResult"
             - type: "null"
         error:
           oneOf:
@@ -796,3 +796,101 @@ components:
           oneOf:
             - $ref: "#/components/schemas/StageTiming"
             - type: "null"
+    ExecutionFinalizationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - sources
+        - terminal_reason
+      properties:
+        sources:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/CampusDocumentSource"
+              - $ref: "#/components/schemas/WebPageSource"
+        terminal_reason:
+          type: string
+    CampusDocumentSource:
+      type: object
+      additionalProperties: false
+      required:
+        - citation_href
+        - citation_index
+        - document_id
+        - evidence_ref
+        - kind
+        - root_unit_ids
+        - section_ref
+        - section_title
+        - snippet
+        - title
+        - version_id
+        - version_label
+        - version_slug
+      properties:
+        citation_href:
+          type: string
+          minLength: 1
+        citation_index:
+          type: integer
+          minimum: 1
+        document_id:
+          type: string
+          minLength: 1
+        evidence_ref:
+          type: string
+          minLength: 1
+        kind:
+          const: campus_document
+        root_unit_ids:
+          type: array
+          items:
+            type: string
+        section_ref:
+          type: string
+          minLength: 1
+        section_title:
+          type: string
+        snippet:
+          type: string
+        title:
+          type: string
+          minLength: 1
+        version_id:
+          type: string
+          minLength: 1
+        version_label:
+          type: string
+          minLength: 1
+        version_slug:
+          type: string
+          minLength: 1
+    WebPageSource:
+      type: object
+      additionalProperties: false
+      required:
+        - citation_href
+        - citation_index
+        - hostname
+        - kind
+        - title
+        - url
+      properties:
+        citation_href:
+          type: string
+          format: uri
+        citation_index:
+          type: integer
+          minimum: 1
+        hostname:
+          type: string
+          minLength: 1
+        kind:
+          const: web_page
+        title:
+          type: string
+          minLength: 1
+        url:
+          type: string
+          format: uri

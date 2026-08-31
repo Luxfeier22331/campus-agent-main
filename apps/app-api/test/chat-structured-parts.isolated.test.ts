@@ -181,6 +181,114 @@ describe("chat structured parts", () => {
 		});
 	});
 
+	it("projects Web sources with citation hrefs and preserves URL identity", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				sources: [
+					{
+						citation_href: "https://www.muc.edu.cn/contact?campus=main#mailing-address",
+						citation_index: 1,
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						title: "联系我们",
+						url: "https://www.muc.edu.cn/contact?campus=main",
+					},
+					{
+						citation_href: "https://www.muc.edu.cn/contact?campus=fengtai#address",
+						citation_index: 2,
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						title: "联系我们",
+						url: "https://www.muc.edu.cn/contact?campus=fengtai#address",
+					},
+					{
+						citation_href: "https://www.muc.edu.cn/contact?campus=main#address",
+						citation_index: 7,
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						title: "学校联系方式",
+						url: "https://www.muc.edu.cn/contact?campus=main",
+					},
+				],
+			},
+			status: "completed",
+		});
+
+		expect(parts).toEqual([
+			{
+				sourceItems: [
+					{
+						citationIndexes: [1, 7],
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						primaryAction: {
+							disabledReason: null,
+							external: true,
+							href: "https://www.muc.edu.cn/contact?campus=main#mailing-address",
+							label: "打开网页",
+						},
+						snippet: null,
+						title: "联系我们",
+					},
+					{
+						citationIndexes: [2],
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						primaryAction: {
+							disabledReason: null,
+							external: true,
+							href: "https://www.muc.edu.cn/contact?campus=fengtai#address",
+							label: "打开网页",
+						},
+						snippet: null,
+						title: "联系我们",
+					},
+				],
+				type: "source_items",
+			},
+		]);
+	});
+
+	it.each([
+		[
+			"unsupported protocol",
+			{
+				citation_href: "ftp://www.muc.edu.cn/contact",
+				citation_index: 1,
+				hostname: "www.muc.edu.cn",
+				kind: "web_page",
+				title: "联系我们",
+				url: "ftp://www.muc.edu.cn/contact",
+			},
+		],
+		[
+			"URL credentials",
+			{
+				citation_href: "https://user:password@www.muc.edu.cn/contact",
+				citation_index: 1,
+				hostname: "www.muc.edu.cn",
+				kind: "web_page",
+				title: "联系我们",
+				url: "https://user:password@www.muc.edu.cn/contact",
+			},
+		],
+		[
+			"hostname mismatch",
+			{
+				citation_href: "https://www.muc.edu.cn/contact",
+				citation_index: 1,
+				hostname: "evil.example",
+				kind: "web_page",
+				title: "联系我们",
+				url: "https://www.muc.edu.cn/contact",
+			},
+		],
+	] as const)("rejects Web source with %s", (_name, source) => {
+		expect(() =>
+			normalizeSourceItemsPart({ result: { sources: [source] }, status: "completed" }),
+		).toThrow("Execution source item 0 is invalid.");
+	});
+
 	it.each([
 		["missing", undefined],
 		["zero", 0],

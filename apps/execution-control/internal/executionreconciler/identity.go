@@ -39,7 +39,7 @@ func (r *Reconciler) DecodeAndValidateWorkflowStartInput(
 	}
 	if err := r.finalizer.ValidateWorkflowAdmission(
 		input.AdmissionSnapshot,
-		input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames,
+		input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames,
 	); err != nil {
 		return input, fmt.Errorf("workflow admission snapshot is invalid: %w", err)
 	}

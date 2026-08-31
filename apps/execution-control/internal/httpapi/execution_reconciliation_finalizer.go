@@ -12,9 +12,9 @@ import (
 
 func (s *Server) ValidateWorkflowAdmission(
 	snapshot temporalruntime.AgentAdmissionSnapshot,
-	visibleToolNames []string,
+	visibleFunctionToolNames []string,
 ) error {
-	return validateAdmissionSnapshotForVisibleTools(snapshot, visibleToolNames)
+	return validateAdmissionSnapshotForVisibleTools(snapshot, visibleFunctionToolNames)
 }
 
 func (s *Server) FailWorkflowStart(

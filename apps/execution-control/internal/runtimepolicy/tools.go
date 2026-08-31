@@ -8,12 +8,12 @@ var (
 	defaultToolSpecRegistryOK   bool
 )
 
-func ModelVisibleToolNames() []string {
+func ModelVisibleFunctionToolNames() []string {
 	registry, ok := DefaultToolSpecRegistry()
 	if !ok {
 		return nil
 	}
-	return registry.ModelVisibleToolNames()
+	return registry.ModelVisibleFunctionToolNames()
 }
 
 func ModelVisibleToolByName(name string) (ToolSpec, bool) {

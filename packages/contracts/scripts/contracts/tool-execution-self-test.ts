@@ -247,6 +247,31 @@ function checkExecutionResponseDiagnostics(): void {
 	const responseProperties = properties(response, "ExecutionFinalizationResponse");
 	expectIncludes(response.required, "model_usage", "model usage required");
 	expectEqualJson(
+		responseProperties.result,
+		{
+			oneOf: [{ $ref: "#/components/schemas/ExecutionFinalizationResult" }, { type: "null" }],
+		},
+		"finalization result ref",
+	);
+	const result = schema("ExecutionFinalizationResult");
+	expect(result.additionalProperties === false, "finalization result must be closed");
+	expectEqualJson(
+		new Set(Object.keys(properties(result, "ExecutionFinalizationResult"))),
+		new Set(["sources", "terminal_reason"]),
+		"finalization result fields",
+	);
+	const sourceItems = properties(result, "ExecutionFinalizationResult").sources;
+	expectEqualJson(
+		asRecord(sourceItems, "ExecutionFinalizationResult.sources").items,
+		{
+			oneOf: [
+				{ $ref: "#/components/schemas/CampusDocumentSource" },
+				{ $ref: "#/components/schemas/WebPageSource" },
+			],
+		},
+		"finalization source variants",
+	);
+	expectEqualJson(
 		asRecord(responseProperties.stage_timing, "stage_timing").oneOf,
 		[{ $ref: "#/components/schemas/StageTiming" }, { type: "null" }],
 		"stage timing nullable ref",
@@ -326,6 +351,16 @@ function checkFixtureMatrix(): void {
 	expectFixtureValidity("execution_payload.valid.json", "ExecutionPayload", true);
 	expectFixtureValidity("execution_run_create.valid.json", "ExecutionRunCreateRequest", true);
 	for (const fixtureName of [
+		"response_cancelled_null_target.valid.json",
+		"response_completed_delegate.valid.json",
+		"response_error_execution_control_unavailable.valid.json",
+		"response_temporal_finalization.valid.json",
+		"response_timeout.valid.json",
+		"response_web_sources.valid.json",
+	]) {
+		expectFixtureValidity(fixtureName, "ExecutionFinalizationResponse", true);
+	}
+	for (const fixtureName of [
 		"execution_payload_extra_field.invalid.json",
 		"execution_payload_invalid_enum.invalid.json",
 		"execution_payload_invalid_version.invalid.json",
@@ -339,6 +374,12 @@ function checkFixtureMatrix(): void {
 		"execution_run_create_sha.invalid.json",
 	]) {
 		expectFixtureValidity(fixtureName, "ExecutionRunCreateRequest", false);
+	}
+	for (const fixtureName of [
+		"response_camel_case.invalid.json",
+		"response_extra_field.invalid.json",
+	]) {
+		expectFixtureValidity(fixtureName, "ExecutionFinalizationResponse", false);
 	}
 	for (const fixtureName of [
 		"execution_payload_extra_field.invalid.json",

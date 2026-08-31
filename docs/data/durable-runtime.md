@@ -150,8 +150,11 @@ Finalization 可以拒绝空正文、无效工具结果或不满足执行合同�
 可以幂等重放；不同 fingerprint 与已提交的产品终态冲突，execution-control 不得用较晚结果覆盖。
 
 Finalization 读取 workflow 传入的 Agent result，验证身份、执行输入摘要和终态 schema。
-`finalization.write` 的 completed StepResult 保存由 agent result
-ref、最终响应和 request 生成的 `finalization_fingerprint_sha256`。
+`finalization.write` 的 completed StepResult 只保存 agent result ref、request、
+`finalization_fingerprint_sha256` 和有界 `finalization_summary`。该 summary 包含答案正文及其 hash、
+响应 hash、状态和 Campus/Web 来源计数，不保存完整来源对象、模型用量或完整最终响应。内部
+`finalization.completed` event 保留完整 `ExecutionFinalizationResponse`，用于产品回调后的修复和
+完成重放校验；同名浏览器事件只包含 request ID。
 `FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的
 单个事务中，校验并提交 completed `finalization.write` Step、Attempt、Result 与 completed run 四元组，
 同时释放 conversation active-run lock。已经存在的 pending 或 leased cancellation 在同一 CAS 中改为

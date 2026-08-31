@@ -78,9 +78,9 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)
 	}
-	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames) != 1 ||
-		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames[0] != campusSearchToolName {
-		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
+	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames) != 1 ||
+		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames[0] != campusSearchToolName {
+		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames)
 	}
 	snapshot := starter.input.AdmissionSnapshot
 	if snapshot.ToolContractFingerprintSHA256 == "" ||
@@ -114,9 +114,9 @@ func TestExecutionRunCreateHidesPersonalMemoryToolWhenRuntimeIsUnavailable(t *te
 	}
 	server.ReconcileTemporalRunsOnce(context.Background())
 	strategy := starter.input.AdmissionSnapshot.ExecutionStrategy
-	if !containsString(strategy.VisibleToolNames, campusSearchToolName) ||
-		containsString(strategy.VisibleToolNames, personalMemoryRecallToolName) ||
-		strategy.MaxToolCalls != 2 || strategy.MaxModelTurns != 3 {
+	if !containsString(strategy.VisibleFunctionToolNames, campusSearchToolName) ||
+		containsString(strategy.VisibleFunctionToolNames, personalMemoryRecallToolName) ||
+		strategy.MaxFunctionToolCalls != 1 || strategy.MaxModelTurns != 2 {
 		t.Fatalf("execution strategy = %#v, want campus search only", strategy)
 	}
 }
@@ -430,9 +430,9 @@ func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
 	server.ReconcileTemporalRunsOnce(context.Background())
-	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames) != 1 ||
-		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames[0] != campusSearchToolName {
-		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames)
+	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames) != 1 ||
+		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames[0] != campusSearchToolName {
+		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames)
 	}
 }
 
@@ -755,8 +755,9 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		UpdatedAt:            now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion: "run-step-projection-v1",
 		SanitizedPayload: map[string]any{
-			"payload_ref":        "projection://runs/run-temporal-trajectory/agent/primary/input",
-			"visible_tool_names": []any{"personal_memory_recall"},
+			"payload_ref":                 "projection://runs/run-temporal-trajectory/agent/primary/input",
+			"raw_prompt":                  "must not leak",
+			"visible_function_tool_names": []any{"personal_memory_recall"},
 		},
 	}); err != nil {
 		t.Fatalf("upsert step: %v", err)

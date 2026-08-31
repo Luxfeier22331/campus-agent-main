@@ -79,9 +79,9 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-001",
-		RequestID:        "run-primary-agent-001",
-		VisibleToolNames: []string{},
+		ConversationID:           "conv-primary-agent-001",
+		RequestID:                "run-primary-agent-001",
+		VisibleFunctionToolNames: []string{},
 	})
 	output, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
@@ -265,9 +265,9 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-streaming",
-		RequestID:        "run-primary-agent-streaming",
-		VisibleToolNames: []string{},
+		ConversationID:           "conv-primary-agent-streaming",
+		RequestID:                "run-primary-agent-streaming",
+		VisibleFunctionToolNames: []string{},
 	})
 	output, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
@@ -383,9 +383,9 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-live-streaming",
-		RequestID:        "run-primary-agent-live-streaming",
-		VisibleToolNames: []string{},
+		ConversationID:           "conv-primary-agent-live-streaming",
+		RequestID:                "run-primary-agent-live-streaming",
+		VisibleFunctionToolNames: []string{},
 	})
 	done := make(chan error, 1)
 	go func() {
@@ -482,9 +482,9 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-empty-memory",
-		RequestID:        "run-primary-agent-empty-memory",
-		VisibleToolNames: []string{},
+		ConversationID:           "conv-primary-agent-empty-memory",
+		RequestID:                "run-primary-agent-empty-memory",
+		VisibleFunctionToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
@@ -559,8 +559,8 @@ func TestExecutePrimaryAgentActivityFailsClosedWithoutAdmissionSnapshot(t *testi
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgent(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		RequestID:        "run-primary-agent-admission-missing",
-		VisibleToolNames: []string{},
+		RequestID:                "run-primary-agent-admission-missing",
+		VisibleFunctionToolNames: []string{},
 	})
 	if err == nil {
 		t.Fatal("expected missing admission snapshot to fail closed")
@@ -605,8 +605,8 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		RequestID:        "run-primary-agent-runtime-diagnostic",
-		VisibleToolNames: []string{},
+		RequestID:                "run-primary-agent-runtime-diagnostic",
+		VisibleFunctionToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err == nil {
@@ -678,8 +678,8 @@ func TestExecutePrimaryAgentActivityClassifiesUnauthorizedRuntimeAsNonRetryable(
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		RequestID:        "run-primary-agent-runtime-unauthorized",
-		VisibleToolNames: []string{},
+		RequestID:                "run-primary-agent-runtime-unauthorized",
+		VisibleFunctionToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 
@@ -725,8 +725,8 @@ func TestExecutePrimaryAgentActivityLeavesAgentRuntimeTimeoutTerminalStateToWork
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		RequestID:        "run-primary-agent-runtime-timeout",
-		VisibleToolNames: []string{},
+		RequestID:                "run-primary-agent-runtime-timeout",
+		VisibleFunctionToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err == nil {

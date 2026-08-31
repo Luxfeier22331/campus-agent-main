@@ -10,23 +10,43 @@ export type ChatMessageFeedbackReasonCode =
 	| "other";
 export const DRAFT_CONVERSATION_TITLE = "New conversation";
 
-export interface ChatSourceAction {
+export interface ChatCampusSourceAction {
 	label: "查看文档";
 	href: string;
 	external: false;
 	disabledReason: null;
 }
 
-export interface ChatSourceItem {
+export interface ChatWebSourceAction {
+	label: "打开网页";
+	href: string;
+	external: true;
+	disabledReason: null;
+}
+
+export type ChatSourceAction = ChatCampusSourceAction | ChatWebSourceAction;
+
+export interface ChatCampusSourceItem {
 	citationIndexes: number[];
 	kind: "campus_document";
 	title: string;
 	snippet: string | null;
-	primaryAction: ChatSourceAction;
+	primaryAction: ChatCampusSourceAction;
 	sectionTitle: string;
 	collectionLabel: string;
 	versionLabel: string;
 }
+
+export interface ChatWebSourceItem {
+	citationIndexes: number[];
+	kind: "web_page";
+	hostname: string;
+	title: string;
+	snippet: string | null;
+	primaryAction: ChatWebSourceAction;
+}
+
+export type ChatSourceItem = ChatCampusSourceItem | ChatWebSourceItem;
 
 export interface ChatSourceItemsStructuredPart {
 	type: "source_items";
@@ -189,20 +209,56 @@ function isBrowserSafeDocsHref(value: string): boolean {
 	);
 }
 
+function normalizeExternalWebHref(value: unknown): string | null {
+	const href = normalizeOptionalString(value);
+	if (!href) {
+		return null;
+	}
+	try {
+		const parsed = new URL(href);
+		if (
+			(parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+			!parsed.hostname ||
+			parsed.username ||
+			parsed.password
+		) {
+			return null;
+		}
+		return parsed.href;
+	} catch {
+		return null;
+	}
+}
+
 function normalizeSourceAction(value: unknown): ChatSourceAction | null {
 	if (!isRecord(value)) {
 		return null;
 	}
-	const href = normalizeOptionalString(value.href);
-	if (!(href && isBrowserSafeDocsHref(href))) {
-		return null;
+	if (value.external === false && value.label === "查看文档") {
+		const href = normalizeOptionalString(value.href);
+		if (!(href && isBrowserSafeDocsHref(href))) {
+			return null;
+		}
+		return {
+			label: "查看文档",
+			href,
+			external: false,
+			disabledReason: null,
+		};
 	}
-	return {
-		label: "查看文档",
-		href,
-		external: false,
-		disabledReason: null,
-	};
+	if (value.external === true && value.label === "打开网页") {
+		const href = normalizeExternalWebHref(value.href);
+		if (!href) {
+			return null;
+		}
+		return {
+			label: "打开网页",
+			href,
+			external: true,
+			disabledReason: null,
+		};
+	}
+	return null;
 }
 
 function normalizeSourceItem(value: unknown): ChatSourceItem | null {
@@ -211,9 +267,8 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 	}
 
 	const title = normalizeOptionalString(value.title);
-	const versionLabel = normalizeOptionalString(value.versionLabel);
 	const citationIndexes = normalizeCitationIndexes(value.citationIndexes);
-	if (value.kind !== "campus_document" || !(title && versionLabel && citationIndexes)) {
+	if (!(title && citationIndexes)) {
 		return null;
 	}
 
@@ -222,16 +277,39 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 		return null;
 	}
 
-	return {
-		citationIndexes,
-		kind: "campus_document",
-		title,
-		snippet: normalizeOptionalString(value.snippet),
-		primaryAction,
-		sectionTitle: normalizeOptionalString(value.sectionTitle) ?? "",
-		collectionLabel: normalizeOptionalString(value.collectionLabel) ?? "",
-		versionLabel,
-	};
+	if (value.kind === "campus_document") {
+		const versionLabel = normalizeOptionalString(value.versionLabel);
+		if (!versionLabel || primaryAction.external !== false) {
+			return null;
+		}
+		return {
+			citationIndexes,
+			kind: "campus_document",
+			title,
+			snippet: normalizeOptionalString(value.snippet),
+			primaryAction,
+			sectionTitle: normalizeOptionalString(value.sectionTitle) ?? "",
+			collectionLabel: normalizeOptionalString(value.collectionLabel) ?? "",
+			versionLabel,
+		};
+	}
+
+	if (value.kind === "web_page" && primaryAction.external === true) {
+		const hostname = normalizeOptionalString(value.hostname);
+		if (!hostname) {
+			return null;
+		}
+		return {
+			citationIndexes,
+			kind: "web_page",
+			hostname,
+			title,
+			snippet: normalizeOptionalString(value.snippet),
+			primaryAction,
+		};
+	}
+
+	return null;
 }
 
 function normalizeCitationIndexes(value: unknown): number[] | null {

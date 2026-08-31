@@ -412,7 +412,7 @@ func createMemoryAppendRunForTest(
 		ProjectionRef:        temporalProjectionRef(runID, "finalization/write"),
 		PayloadSchemaVersion: "run-step-result-v1",
 		SanitizedPayload: map[string]any{
-			"finalized_response": map[string]any{
+			"finalization_summary": map[string]any{
 				"answer_text": "好的，我会在后续回答中结合保研材料准备这个目标。",
 			},
 		},

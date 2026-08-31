@@ -252,14 +252,14 @@ function validRunBody() {
 			context_char_limit: 16_000,
 			current_input_char_limit: 4_000,
 			max_output_tokens: 1_000,
-			max_tool_calls: 0,
+			max_function_tool_calls: 0,
 			max_turns: 1,
 		},
 		expected_model_target_sha256:
 			"5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
 		request_id: "request-1",
 		user_id: "user-1",
-		visible_tool_names: [],
+		visible_function_tool_names: [],
 		expected_tool_contract_fingerprint: {
 			function_schema_sha256: testToolContractFingerprint().functionSchemaSha256,
 			schema_version: testToolContractFingerprint().schemaVersion,
@@ -290,6 +290,8 @@ function completedResult(requestId: string) {
 		status: "completed" as const,
 		terminalReason: "answer_completed" as const,
 		toolResults: [],
+		webCitations: [],
+		webSearchUsed: false,
 		toolContractFingerprint: testToolContractFingerprint(),
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 	};

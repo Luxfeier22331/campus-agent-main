@@ -10,7 +10,11 @@
 	"result": {
 		"sources": [
 			{
+				"citation_href": "/docs/regulations/student_rules/leave-policy/v/2026-current#process",
+				"citation_index": 1,
 				"document_id": "student_rules/leave-policy",
+				"evidence_ref": "evidence://leave-policy-process",
+				"kind": "campus_document",
 				"root_unit_ids": ["leave-policy-process"],
 				"section_ref": "/docs/regulations/student_rules/leave-policy/v/2026-current#process",
 				"section_title": "请假程序",

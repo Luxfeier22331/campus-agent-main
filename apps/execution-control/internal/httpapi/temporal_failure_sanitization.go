@@ -45,6 +45,8 @@ func temporalFailurePublicMessage(kind string) string {
 	case "agent_runtime_failed", "model_setting_missing", "provider_rate_limited", "provider_http_failed",
 		"provider_connection_failed", "provider_timeout", "provider_unavailable":
 		return "The answer provider is temporarily unavailable."
+	case "citation_validation_failed":
+		return "The answer citations could not be verified."
 	case "tool_execution_failed":
 		return "A runtime tool could not complete."
 	default:

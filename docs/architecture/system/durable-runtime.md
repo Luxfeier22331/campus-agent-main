@@ -197,6 +197,9 @@ Finalization 执行确定性校验：
   Finalization 不得覆盖它。
 
 Finalization 不调用 LLM、不生成第二个答案、不改写 SDK 答案；app-api 也不改写。
+`finalization.write` StepResult 只保存有界 `finalization_summary`、响应 hash 和引用计数；完整
+`ExecutionFinalizationResponse` 保留在内部 `finalization.completed` event，供产品回调后的修复和
+完成重放校验使用，不进入浏览器事件。
 completed run 的重放必须严格核对 `CompletedAt`、`TerminalReason`、`FinalResponseRef`、
 `finalization_fingerprint_sha256` 以及唯一且内部一致的 canonical Step/Attempt/Result，
 随后返回已提交四元组。它不得写入较晚 candidate，不得修改 canonical 四元组、取消命令或可能属于后续

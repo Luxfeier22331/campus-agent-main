@@ -85,7 +85,7 @@ func validatePrimaryAgentProviderInvocationEnvelope(
 func canonicalPrimaryAgentActivityInput(
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) temporalruntime.ExecutePrimaryAgentActivityInput {
-	input.VisibleToolNames = canonicalStringSlice(input.VisibleToolNames)
+	input.VisibleFunctionToolNames = canonicalStringSlice(input.VisibleFunctionToolNames)
 	return input
 }
 

@@ -33,6 +33,11 @@ Campus Docs 的来源清洗、reader、Chunk、Embedding 和 Publisher 仍属于
 [检索服务](retrieval-serving.md) 维护。离线索引或当前指针只表示可供工具查询的制品已经发布，
 不改变 Agent 的准入能力。
 
+Agents SDK 原生 `web_search` 可以为校园问题补充或核验尚未进入 Campus Docs 的公开网页信息，但它
+不属于本地检索数据面，也不是 `campus_search` no-match 或失败后的代码级 fallback。其原生引用由
+Finalization 校验并转换为正文中的编号来源链接与 `web_page` source card；Web Search 不进入
+本地 `tool_results` 或工具轨迹，也不保存供应商原始搜索结果。
+
 ## 相关文档
 
 - [Agent 框架](agent-framework.md)

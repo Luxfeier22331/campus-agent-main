@@ -51,9 +51,9 @@ func TestExecutePrimaryAgentActivityAcceptsPlainTextFinalOutput(t *testing.T) {
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-plain-text",
-		RequestID:        "run-primary-agent-plain-text",
-		VisibleToolNames: []string{},
+		ConversationID:           "conv-primary-agent-plain-text",
+		RequestID:                "run-primary-agent-plain-text",
+		VisibleFunctionToolNames: []string{},
 	})
 	output, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {

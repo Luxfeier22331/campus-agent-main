@@ -42,7 +42,7 @@ const runtimeLimitsSchema = z
 		context_char_limit: z.number().int().positive(),
 		current_input_char_limit: z.number().int().positive(),
 		max_output_tokens: z.number().int().positive(),
-		max_tool_calls: z.number().int().nonnegative(),
+		max_function_tool_calls: z.number().int().nonnegative(),
 		max_turns: z.number().int().positive(),
 	})
 	.strict();
@@ -54,7 +54,7 @@ export const agentRunRequestSchema = z
 		request_id: z.string().min(1),
 		conversation_id: z.string().min(1),
 		input: z.string().min(1),
-		visible_tool_names: z.array(z.string().min(1)).default([]),
+		visible_function_tool_names: z.array(z.string().min(1)).default([]),
 		expected_tool_contract_fingerprint: toolContractFingerprintSchema,
 		expected_model_target_sha256: z.string().regex(/^[0-9a-f]{64}$/),
 		limits: runtimeLimitsSchema,
@@ -92,7 +92,7 @@ export function runtimeInputFromAgentRunRequest(
 		requestId: parsed.request_id,
 		conversationId: parsed.conversation_id,
 		input: parsed.input,
-		visibleToolNames: parsed.visible_tool_names,
+		visibleFunctionToolNames: parsed.visible_function_tool_names,
 		expectedToolContractFingerprint: mapToolContractFingerprint(
 			parsed.expected_tool_contract_fingerprint,
 		),
@@ -102,7 +102,7 @@ export function runtimeInputFromAgentRunRequest(
 			contextCharLimit: parsed.limits.context_char_limit,
 			currentInputCharLimit: parsed.limits.current_input_char_limit,
 			maxOutputTokens: parsed.limits.max_output_tokens,
-			maxToolCalls: parsed.limits.max_tool_calls,
+			maxFunctionToolCalls: parsed.limits.max_function_tool_calls,
 			maxTurns: parsed.limits.max_turns,
 		},
 		...(parsed.conversation_context

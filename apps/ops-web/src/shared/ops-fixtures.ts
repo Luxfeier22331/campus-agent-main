@@ -73,9 +73,22 @@ const knowledgeDetail = {
 				title: "学生管理规定",
 				versionLabel: "当前版本",
 			},
+			{
+				citationIndexes: [2],
+				hostname: "jwc.muc.edu.cn",
+				kind: "web_page",
+				primaryAction: {
+					disabledReason: null,
+					external: true,
+					href: "https://jwc.muc.edu.cn/info/1045/12345.htm?source=chat#materials",
+					label: "打开网页",
+				},
+				snippet: "教务处公开页面提供缓考办理材料说明。",
+				title: "缓考办理说明",
+			},
 		],
 		state: "WRITTEN",
-		text: "缓考申请需要在规定期限内提交书面材料并说明原因。",
+		text: "缓考申请需要在规定期限内提交书面材料并说明原因，也可查看教务处公开说明。",
 	},
 } satisfies OpsRequestDetailResponse;
 

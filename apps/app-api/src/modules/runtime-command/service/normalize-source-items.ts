@@ -56,17 +56,29 @@ function parseSectionRef(value: string): { anchor: string | null; basePath: stri
 	}
 }
 
-interface NormalizedSource {
+interface NormalizedSourceBase {
+	citationIndexes: number[];
+	identityKey: string;
+	primaryHref: string;
+	snippet: string | null;
+	title: string;
+}
+
+interface NormalizedCampusSource extends NormalizedSourceBase {
 	anchor: string | null;
 	basePath: string;
-	citationIndexes: number[];
 	kind: "campus_document";
 	rootUnitIds: string[];
 	sectionTitle: string;
-	snippet: string | null;
-	title: string;
 	versionLabel: string;
 }
+
+interface NormalizedWebSource extends NormalizedSourceBase {
+	hostname: string;
+	kind: "web_page";
+}
+
+type NormalizedSource = NormalizedCampusSource | NormalizedWebSource;
 
 function versionSlugFromReaderPath(basePath: string): string | null {
 	const segments = basePath.split("/").filter(Boolean);
@@ -86,45 +98,94 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 	}
 	const title = recordString(source, "title", "title");
 	const kind = recordString(source, "kind", "kind");
-	const sectionRef = recordString(source, "section_ref", "section_ref");
+	const citationIndex = recordNumber(source, "citation_index", "citationIndex");
+	const citationHref = recordString(source, "citation_href", "citationHref");
+	const sectionRef = citationHref ?? recordString(source, "section_ref", "sectionRef");
 	const versionLabel = recordString(source, "version_label", "versionLabel");
 	const versionSlug = recordString(source, "version_slug", "versionSlug");
-	const citationIndex = recordNumber(source, "citation_index", "citationIndex");
 	const parsedRef = sectionRef ? parseSectionRef(sectionRef) : null;
-	if (
-		kind !== "campus_document" ||
-		!(parsedRef && title && versionLabel && versionSlug && citationIndex !== null) ||
-		citationIndex > 10 ||
-		versionSlugFromReaderPath(parsedRef.basePath) !== versionSlug
-	) {
+	if (!(title && citationIndex !== null) || citationIndex > 10) {
 		return null;
 	}
-	return {
-		anchor: parsedRef.anchor,
-		basePath: parsedRef.basePath,
-		citationIndexes: [citationIndex],
-		kind: "campus_document",
-		rootUnitIds: dedupeStable(recordStringArray(source, "root_unit_ids", "rootUnitIds")),
-		sectionTitle: recordString(source, "section_title", "section_title") ?? "",
-		snippet: normalizeSnippet(source.snippet),
-		title,
-		versionLabel,
-	};
+
+	if (kind === "campus_document") {
+		const rootUnitIds = dedupeStable(recordStringArray(source, "root_unit_ids", "rootUnitIds"));
+		if (
+			!(parsedRef && versionLabel && versionSlug) ||
+			versionSlugFromReaderPath(parsedRef.basePath) !== versionSlug
+		) {
+			return null;
+		}
+		return {
+			anchor: parsedRef.anchor,
+			basePath: parsedRef.basePath,
+			citationIndexes: [citationIndex],
+			identityKey: `campus:${parsedRef.basePath}\u0000${parsedRef.anchor ?? ""}`,
+			kind: "campus_document",
+			primaryHref: buildSourceCardHref({
+				anchor: parsedRef.anchor,
+				basePath: parsedRef.basePath,
+				rootUnitIds,
+			}),
+			rootUnitIds,
+			sectionTitle: recordString(source, "section_title", "sectionTitle") ?? "",
+			snippet: normalizeSnippet(source.snippet),
+			title,
+			versionLabel,
+		};
+	}
+
+	if (kind === "web_page") {
+		const url = recordString(source, "url", "url");
+		const webHref = citationHref ?? url;
+		const normalizedUrl = normalizeWebUrl(url);
+		const normalizedCitationHref = normalizeWebUrl(webHref);
+		const hostname = recordString(source, "hostname", "hostname");
+		if (
+			!(normalizedUrl && normalizedCitationHref && hostname) ||
+			hostname.toLowerCase() !== normalizedUrl.hostname
+		) {
+			return null;
+		}
+		return {
+			citationIndexes: [citationIndex],
+			hostname: normalizedUrl.hostname,
+			identityKey: `web:${normalizedUrl.href}`,
+			kind: "web_page",
+			primaryHref: normalizedCitationHref.href,
+			snippet: normalizeSnippet(source.snippet),
+			title,
+		};
+	}
+
+	return null;
 }
 
 function sourceItemFromNormalized(source: NormalizedSource): ChatSourceItem {
+	if (source.kind === "web_page") {
+		return {
+			citationIndexes: source.citationIndexes,
+			hostname: source.hostname,
+			kind: "web_page",
+			primaryAction: {
+				label: "打开网页",
+				href: source.primaryHref,
+				external: true,
+				disabledReason: null,
+			},
+			snippet: source.snippet,
+			title: source.title,
+		};
+	}
+
 	return {
 		citationIndexes: source.citationIndexes,
-		kind: source.kind,
+		kind: "campus_document",
 		title: source.title,
 		snippet: source.snippet,
 		primaryAction: {
 			label: "查看文档",
-			href: buildSourceCardHref({
-				anchor: source.anchor,
-				basePath: source.basePath,
-				rootUnitIds: source.rootUnitIds,
-			}),
+			href: source.primaryHref,
 			external: false,
 			disabledReason: null,
 		},
@@ -134,15 +195,31 @@ function sourceItemFromNormalized(source: NormalizedSource): ChatSourceItem {
 	};
 }
 
+function normalizeWebUrl(value: string | null): URL | null {
+	if (!value) {
+		return null;
+	}
+	try {
+		const parsed = new URL(value);
+		if (
+			(parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+			!parsed.hostname ||
+			parsed.username ||
+			parsed.password
+		) {
+			return null;
+		}
+		return parsed;
+	} catch {
+		return null;
+	}
+}
+
 export function resultSources(result: unknown): unknown[] {
 	if (!isRecord(result)) {
 		return [];
 	}
 	return Array.isArray(result.sources) ? result.sources : [];
-}
-
-function normalizedSourceKey(source: NormalizedSource): string {
-	return `${source.basePath}\u0000${source.anchor ?? ""}`;
 }
 
 export function normalizeSourceItemsPart(input: {
@@ -159,14 +236,21 @@ export function normalizeSourceItemsPart(input: {
 		if (!normalized) {
 			throw new Error(`Execution source item ${index} is invalid.`);
 		}
-		const key = normalizedSourceKey(normalized);
+		const key = normalized.identityKey;
 		const existing = sourcesByKey.get(key);
 		if (existing) {
 			existing.citationIndexes = dedupeStableNumbers([
 				...existing.citationIndexes,
 				...normalized.citationIndexes,
 			]);
-			existing.rootUnitIds = dedupeStable([...existing.rootUnitIds, ...normalized.rootUnitIds]);
+			if (existing.kind === "campus_document" && normalized.kind === "campus_document") {
+				existing.rootUnitIds = dedupeStable([...existing.rootUnitIds, ...normalized.rootUnitIds]);
+				existing.primaryHref = buildSourceCardHref({
+					anchor: existing.anchor,
+					basePath: existing.basePath,
+					rootUnitIds: existing.rootUnitIds,
+				});
+			}
 			continue;
 		}
 		sourcesByKey.set(key, normalized);

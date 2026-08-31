@@ -31,13 +31,13 @@ func withAgentAdmissionSnapshotForTest(
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) temporalruntime.ExecutePrimaryAgentActivityInput {
 	t.Helper()
-	memoryAllowed := len(input.VisibleToolNames) == 1 && input.VisibleToolNames[0] == personalMemoryRecallToolName
+	memoryAllowed := len(input.VisibleFunctionToolNames) == 1 && input.VisibleFunctionToolNames[0] == personalMemoryRecallToolName
 	snapshot, err := server.buildAgentAdmissionSnapshot(t.Context(), memoryAllowed)
 	if err != nil {
 		t.Fatalf("build agent admission snapshot: %v", err)
 	}
 	input.AdmissionSnapshot = snapshot
-	input.VisibleToolNames = append([]string{}, snapshot.ExecutionStrategy.VisibleToolNames...)
+	input.VisibleFunctionToolNames = append([]string{}, snapshot.ExecutionStrategy.VisibleFunctionToolNames...)
 	return input
 }
 

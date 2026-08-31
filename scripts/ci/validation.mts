@@ -16,9 +16,9 @@ export {
 	validationProfileMetadata,
 } from "./validation-profiles.mts";
 
-export type LightSurface = "config" | "contracts" | "python" | "shell" | "sql" | "yaml";
+export type LightSurface = "config" | "contracts";
 
-const LIGHT_SURFACES: LightSurface[] = ["contracts", "config", "python", "yaml", "sql", "shell"];
+const LIGHT_SURFACES: LightSurface[] = ["contracts", "config"];
 
 export interface ValidationPlan {
 	affectedPackages: string[];
@@ -37,10 +37,6 @@ export interface ValidationPlanOptions {
 
 function changesPath(files: readonly string[], prefix: string): boolean {
 	return files.some((file) => file === prefix || file.startsWith(`${prefix}/`));
-}
-
-function matchesFile(files: readonly string[], pattern: RegExp): boolean {
-	return files.some((file) => pattern.test(file));
 }
 
 const AFFECTED_NODE_TASKS = new Set(["build", "build:worker", "test", "test:worker", "typecheck"]);
@@ -69,21 +65,6 @@ function selectLightSurfaces(files: readonly string[]): LightSurface[] {
 		files.some((file) => file === "flake.nix" || file === "flake.lock" || file.startsWith("nix/"))
 	) {
 		selected.add("config");
-	}
-	if (matchesFile(files, /(?:^|\/)\w[^/]*\.py$/u) || files.includes("pyproject.toml")) {
-		selected.add("python");
-	}
-	if (files.some((file) => file !== "pnpm-lock.yaml" && /\.ya?ml$/u.test(file))) {
-		selected.add("yaml");
-	}
-	if (
-		matchesFile(files, /\.sql$/u) ||
-		files.some((file) => file === ".sqlfluff" || file === ".sqlfluffignore")
-	) {
-		selected.add("sql");
-	}
-	if (matchesFile(files, /\.sh$/u)) {
-		selected.add("shell");
 	}
 	return LIGHT_SURFACES.filter((surface) => selected.has(surface));
 }

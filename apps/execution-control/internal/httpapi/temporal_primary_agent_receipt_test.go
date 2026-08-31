@@ -110,9 +110,9 @@ func TestExecutePrimaryAgentActivityFailsClosedAfterCompletedReceiptWithoutSecon
 			attachAgentAdmissionProviderConfigsForTest(server)
 			attachRunProjectionStoreForHandlerTest(server, store)
 			input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-				ConversationID:   "conv-" + runID,
-				RequestID:        runID,
-				VisibleToolNames: []string{personalMemoryRecallToolName},
+				ConversationID:           "conv-" + runID,
+				RequestID:                runID,
+				VisibleFunctionToolNames: []string{personalMemoryRecallToolName},
 			})
 
 			if _, err := server.ExecutePrimaryAgent(context.Background(), input); err == nil {

@@ -111,7 +111,7 @@ func (s *Server) executePersonalMemoryRecallTool(
 		return nil, agentToolConflictError{message: err.Error()}
 	}
 	strategy := workflowInput.AdmissionSnapshot.ExecutionStrategy
-	if !containsString(strategy.VisibleToolNames, personalMemoryRecallToolName) {
+	if !containsString(strategy.VisibleFunctionToolNames, personalMemoryRecallToolName) {
 		return nil, agentToolConflictError{message: "personal memory recall is not available for this run"}
 	}
 	payload, err := s.loadExecutionPayload(ctx, run)
@@ -167,7 +167,7 @@ func (s *Server) validateAgentToolRun(
 	if latestAttempt != access.ActivityAttempt {
 		return execution.DurableRun{}, agentToolConflictError{message: "agent tool activity_attempt does not match latest agent attempt"}
 	}
-	if !containsString(stringSliceFromAny(step.SanitizedPayload["visible_tool_names"]), toolName) {
+	if !containsString(stringSliceFromAny(step.SanitizedPayload["visible_function_tool_names"]), toolName) {
 		return execution.DurableRun{}, agentToolConflictError{message: "agent tool is not admitted for this run"}
 	}
 	return run, nil

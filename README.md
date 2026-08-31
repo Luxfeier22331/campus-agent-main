@@ -41,7 +41,7 @@
 ## 开发
 
 ```bash
-uv sync --all-packages --dev
+uv sync --locked --all-packages --dev
 pnpm install
 pnpm check
 ```
@@ -51,6 +51,19 @@ pnpm check
 必须显式提供所属环境配置。
 
 协作方式见 [贡献指南](./CONTRIBUTING.md)。
+
+### Git hooks
+
+`pnpm install` 的 `prepare` 会为当前 checkout 或 linked worktree 设置 worktree-local
+`core.hooksPath=.githooks`，并安装 `pre-commit` 与 `pre-push`。生成目录不提交 Git；需要修复时执行：
+
+```bash
+pnpm hooks:install
+```
+
+先执行 `uv sync --locked --all-packages --dev`，使 Ruff、SQLFluff 和 Yamllint 可供 hook 使用。
+`pre-commit` 对暂存文件执行 check-only 静态检查和 Secret 扫描；`pre-push` 对受影响的 Node 与 Go
+模块执行类型检查和测试。两者都不替代 build、integration、浏览器 E2E、PR CI 或 runtime 验证。
 
 ## 许可证
 

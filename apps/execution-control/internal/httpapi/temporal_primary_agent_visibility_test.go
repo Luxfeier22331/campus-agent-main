@@ -49,20 +49,20 @@ func TestExecutePrimaryAgentActivityPassesCurrentEmptyToolSet(t *testing.T) {
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-institutional-account",
-		RequestID:        "run-primary-agent-institutional-account",
-		VisibleToolNames: []string{},
+		ConversationID:           "conv-primary-agent-institutional-account",
+		RequestID:                "run-primary-agent-institutional-account",
+		VisibleFunctionToolNames: []string{},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
-	visible, ok := seenBody["visible_tool_names"].([]any)
+	visible, ok := seenBody["visible_function_tool_names"].([]any)
 	if !ok {
-		t.Fatalf("visible_tool_names missing or wrong type: %#v", seenBody)
+		t.Fatalf("visible_function_tool_names missing or wrong type: %#v", seenBody)
 	}
 	if len(visible) != 1 || visible[0] != campusSearchToolName {
-		t.Fatalf("visible_tool_names = %#v, want campus search", visible)
+		t.Fatalf("visible_function_tool_names = %#v, want campus search", visible)
 	}
 }
 
@@ -102,20 +102,20 @@ func TestExecutePrimaryAgentActivityPassesAuthorizedPersonalMemoryTool(t *testin
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-personal-memory",
-		RequestID:        "run-primary-agent-personal-memory",
-		VisibleToolNames: []string{personalMemoryRecallToolName},
+		ConversationID:           "conv-primary-agent-personal-memory",
+		RequestID:                "run-primary-agent-personal-memory",
+		VisibleFunctionToolNames: []string{personalMemoryRecallToolName},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
-	visible, ok := seenBody["visible_tool_names"].([]any)
+	visible, ok := seenBody["visible_function_tool_names"].([]any)
 	if !ok || len(visible) != 2 || visible[0] != campusSearchToolName || visible[1] != personalMemoryRecallToolName {
-		t.Fatalf("visible_tool_names = %#v, want campus search and personal memory recall", seenBody["visible_tool_names"])
+		t.Fatalf("visible_function_tool_names = %#v, want campus search and personal memory recall", seenBody["visible_function_tool_names"])
 	}
 	limits := cloneAnyMapFromMetadata(seenBody["limits"])
-	if limits["max_turns"] != float64(4) || limits["max_tool_calls"] != float64(3) {
+	if limits["max_turns"] != float64(3) || limits["max_function_tool_calls"] != float64(2) {
 		t.Fatalf("limits = %#v, want bounded personal memory strategy", limits)
 	}
 	targets, _ := seenBody["document_scopes"].([]any)
@@ -150,11 +150,11 @@ func TestExecutePrimaryAgentActivityRejectsMismatchedVisibleToolSet(t *testing.T
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-visible-tool-mismatch",
-		RequestID:        "run-primary-agent-visible-tool-mismatch",
-		VisibleToolNames: []string{},
+		ConversationID:           "conv-primary-agent-visible-tool-mismatch",
+		RequestID:                "run-primary-agent-visible-tool-mismatch",
+		VisibleFunctionToolNames: []string{},
 	})
-	input.VisibleToolNames = []string{personalMemoryRecallToolName}
+	input.VisibleFunctionToolNames = []string{personalMemoryRecallToolName}
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	assertTemporalFailureSanitized(t, err, "admission_snapshot_invalid", true)
 	if requests != 0 {

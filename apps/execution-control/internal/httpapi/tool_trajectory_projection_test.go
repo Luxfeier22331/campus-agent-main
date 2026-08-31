@@ -32,7 +32,8 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 			StartedAt:      now,
 			CompletedAt:    now.Add(100 * time.Millisecond),
 			SanitizedPayload: map[string]any{
-				"visible_tool_names": []any{"personal_memory_recall"},
+				"raw_prompt":                  "must not leak",
+				"visible_function_tool_names": []any{"personal_memory_recall"},
 			},
 		}},
 		[]execution.StepAttemptProjection{
@@ -162,15 +163,11 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 			Status:     "completed",
 			ResultKind: "final_answer_projection",
 			SanitizedPayload: map[string]any{
-				"finalized_response": map[string]any{
-					"result": map[string]any{
-						"sources": []any{map[string]any{
-							"document_id": "curriculum-document",
-							"result_ref":  "result://successful-context",
-							"kind":        "campus_document",
-							"snippet":     "successful context",
-						}},
-					},
+				"finalization_summary": map[string]any{
+					"answer_text":         "回答 [1]。",
+					"campus_source_count": 1,
+					"source_count":        1,
+					"status":              "completed",
 				},
 			},
 		},

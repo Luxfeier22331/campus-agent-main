@@ -1,6 +1,6 @@
 export type ChatMessageKind = "answer" | "error";
 
-export interface SourceItemPayload {
+export interface CampusDocumentSourceItemPayload {
 	citationIndexes: number[];
 	collectionLabel: string;
 	kind: "campus_document";
@@ -15,6 +15,22 @@ export interface SourceItemPayload {
 	title: string;
 	versionLabel: string;
 }
+
+export interface WebPageSourceItemPayload {
+	citationIndexes: number[];
+	hostname: string;
+	kind: "web_page";
+	primaryAction: {
+		disabledReason: null;
+		external: true;
+		href: string;
+		label: "打开网页";
+	};
+	snippet: string | null;
+	title: string;
+}
+
+export type SourceItemPayload = CampusDocumentSourceItemPayload | WebPageSourceItemPayload;
 
 export interface ChatStructuredPart {
 	sourceItems: SourceItemPayload[];

@@ -14,7 +14,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-const executionStrategySchemaVersion = "execution_strategy.v3"
+const executionStrategySchemaVersion = "execution_strategy.v4"
 
 var lowercaseSHA256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var sha256RefPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
@@ -24,7 +24,7 @@ func (s *Server) buildAgentAdmissionSnapshot(
 	personalMemoryRecallAvailable bool,
 ) (temporalruntime.AgentAdmissionSnapshot, error) {
 	strategy := executionStrategyForAdmission(personalMemoryRecallAvailable)
-	visibleToolNames := strategy.VisibleToolNames
+	visibleFunctionToolNames := strategy.VisibleFunctionToolNames
 	limits := s.primaryAgentRuntimeLimits()
 	limitSnapshot := temporalruntime.AgentRuntimeLimitsSnapshot{
 		AgentDeadlineMS:       limits.AgentDeadlineMS,
@@ -54,38 +54,38 @@ func (s *Server) buildAgentAdmissionSnapshot(
 		)
 	}
 	snapshot.PrimaryAgentTargetSHA256 = target.TargetSHA256
-	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleToolNames); err != nil {
+	if err := validateAdmissionSnapshotForVisibleTools(snapshot, visibleFunctionToolNames); err != nil {
 		return temporalruntime.AgentAdmissionSnapshot{}, err
 	}
 	return snapshot, nil
 }
 
 func executionStrategyForAdmission(personalMemoryRecallAvailable bool) temporalruntime.ExecutionStrategySnapshot {
-	visibleToolNames := []string{campusSearchToolName}
-	maxModelTurns := 3
-	maxToolCalls := 2
+	visibleFunctionToolNames := []string{campusSearchToolName}
+	maxModelTurns := 2
+	maxFunctionToolCalls := 1
 	if personalMemoryRecallAvailable {
-		visibleToolNames = append(visibleToolNames, personalMemoryRecallToolName)
-		maxModelTurns = 4
-		maxToolCalls = 3
+		visibleFunctionToolNames = append(visibleFunctionToolNames, personalMemoryRecallToolName)
+		maxModelTurns = 3
+		maxFunctionToolCalls = 2
 	}
 	strategy := temporalruntime.ExecutionStrategySnapshot{
-		Kind:             "direct",
-		MaxModelTurns:    maxModelTurns,
-		MaxToolCalls:     maxToolCalls,
-		SchemaVersion:    executionStrategySchemaVersion,
-		VisibleToolNames: visibleToolNames,
+		Kind:                     "direct",
+		MaxModelTurns:            maxModelTurns,
+		MaxFunctionToolCalls:     maxFunctionToolCalls,
+		SchemaVersion:            executionStrategySchemaVersion,
+		VisibleFunctionToolNames: visibleFunctionToolNames,
 	}
 	return strategy
 }
 
 func executionStrategyProjectionPayload(strategy temporalruntime.ExecutionStrategySnapshot) map[string]any {
 	return map[string]any{
-		"kind":               strategy.Kind,
-		"max_model_turns":    strategy.MaxModelTurns,
-		"max_tool_calls":     strategy.MaxToolCalls,
-		"schema_version":     strategy.SchemaVersion,
-		"visible_tool_names": append([]string{}, strategy.VisibleToolNames...),
+		"kind":                        strategy.Kind,
+		"max_model_turns":             strategy.MaxModelTurns,
+		"max_function_tool_calls":     strategy.MaxFunctionToolCalls,
+		"schema_version":              strategy.SchemaVersion,
+		"visible_function_tool_names": append([]string{}, strategy.VisibleFunctionToolNames...),
 	}
 }
 
@@ -146,11 +146,11 @@ func validateExecutionStrategy(strategy temporalruntime.ExecutionStrategySnapsho
 	if strategy.SchemaVersion != executionStrategySchemaVersion || strategy.Kind != "direct" {
 		return errors.New("execution strategy identity is invalid")
 	}
-	if strategy.MaxToolCalls < 0 || strategy.MaxModelTurns < 1 {
+	if strategy.MaxFunctionToolCalls < 0 || strategy.MaxModelTurns < 1 {
 		return errors.New("execution strategy tool budget is invalid")
 	}
 	seen := map[string]struct{}{}
-	for _, name := range strategy.VisibleToolNames {
+	for _, name := range strategy.VisibleFunctionToolNames {
 		if strings.TrimSpace(name) != name || name == "" {
 			return errors.New("execution strategy visible tools are not canonical")
 		}
@@ -167,17 +167,17 @@ func validateExecutionStrategy(strategy temporalruntime.ExecutionStrategySnapsho
 
 func validateAdmissionSnapshotForVisibleTools(
 	snapshot temporalruntime.AgentAdmissionSnapshot,
-	visibleToolNames []string,
+	visibleFunctionToolNames []string,
 ) error {
 	if err := validateAdmissionSnapshot(snapshot); err != nil {
 		return err
 	}
-	frozen := stringSet(snapshot.ExecutionStrategy.VisibleToolNames)
-	visible := stringSet(visibleToolNames)
-	if len(visible) != len(visibleToolNames) || len(frozen) != len(visible) {
+	frozen := stringSet(snapshot.ExecutionStrategy.VisibleFunctionToolNames)
+	visible := stringSet(visibleFunctionToolNames)
+	if len(visible) != len(visibleFunctionToolNames) || len(frozen) != len(visible) {
 		return errors.New("visible tools differ from the frozen execution strategy")
 	}
-	for _, name := range visibleToolNames {
+	for _, name := range visibleFunctionToolNames {
 		if strings.TrimSpace(name) != name || name == "" {
 			return errors.New("visible tools differ from the frozen execution strategy")
 		}

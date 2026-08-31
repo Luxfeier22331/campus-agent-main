@@ -7,6 +7,8 @@ export type AgentRuntimeErrorCode =
 	| "agent_deadline_exceeded"
 	| "max_turns_exceeded"
 	| "provider_unavailable"
+	| "model_config_incompatible"
+	| "citation_validation_failed"
 	| "provider_rate_limited"
 	| "provider_http_failed"
 	| "provider_connection_failed"
@@ -172,6 +174,10 @@ function publicAgentRuntimeErrorMessage(code: AgentRuntimeErrorCode): string {
 			return "Agent run exceeded its turn limit.";
 		case "provider_unavailable":
 			return "The answer provider is temporarily unavailable.";
+		case "model_config_incompatible":
+			return "The configured answer model does not support the required Responses API.";
+		case "citation_validation_failed":
+			return "The answer contained invalid web citations.";
 		case "provider_rate_limited":
 			return "The answer provider rate limit was reached.";
 		case "provider_http_failed":

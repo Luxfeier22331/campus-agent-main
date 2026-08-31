@@ -22,7 +22,7 @@ type primaryAgentRuntimeLimits struct {
 	ContextCharLimit      int
 	CurrentInputCharLimit int
 	MaxOutputTokens       int
-	MaxToolCalls          int
+	MaxFunctionToolCalls  int
 	MaxTurns              int
 }
 
@@ -41,7 +41,7 @@ func primaryAgentRuntimeLimitsPayload(limits primaryAgentRuntimeLimits) map[stri
 		"context_char_limit":       limits.ContextCharLimit,
 		"current_input_char_limit": limits.CurrentInputCharLimit,
 		"max_output_tokens":        limits.MaxOutputTokens,
-		"max_tool_calls":           limits.MaxToolCalls,
+		"max_function_tool_calls":  limits.MaxFunctionToolCalls,
 		"max_turns":                limits.MaxTurns,
 	}
 }
@@ -143,21 +143,30 @@ func intFromAny(value any) int {
 }
 
 type agentRuntimeResponse struct {
-	Status                  string            `json:"status"`
-	Error                   agentRuntimeError `json:"error"`
-	RequestID               string            `json:"request_id"`
-	ContextUsage            map[string]any    `json:"context_usage"`
-	FinalOutput             string            `json:"final_output"`
-	ModelName               string            `json:"model_name"`
-	ModelProvider           string            `json:"model_provider"`
-	PromptTrace             map[string]any    `json:"prompt_trace"`
-	ProviderResponseID      string            `json:"provider_response_id"`
-	StageTiming             map[string]any    `json:"stage_timing"`
-	ToolResults             []agentToolResult `json:"tool_results"`
-	TerminalReason          string            `json:"terminal_reason"`
-	ToolContractFingerprint map[string]any    `json:"tool_contract_fingerprint"`
-	RuntimeRelease          string            `json:"runtime_release"`
-	Usage                   agentRuntimeUsage `json:"usage"`
+	Status                  string                    `json:"status"`
+	Error                   agentRuntimeError         `json:"error"`
+	RequestID               string                    `json:"request_id"`
+	ContextUsage            map[string]any            `json:"context_usage"`
+	FinalOutput             string                    `json:"final_output"`
+	ModelName               string                    `json:"model_name"`
+	ModelProvider           string                    `json:"model_provider"`
+	PromptTrace             map[string]any            `json:"prompt_trace"`
+	ProviderResponseID      string                    `json:"provider_response_id"`
+	StageTiming             map[string]any            `json:"stage_timing"`
+	ToolResults             []agentToolResult         `json:"tool_results"`
+	TerminalReason          string                    `json:"terminal_reason"`
+	ToolContractFingerprint map[string]any            `json:"tool_contract_fingerprint"`
+	RuntimeRelease          string                    `json:"runtime_release"`
+	Usage                   agentRuntimeUsage         `json:"usage"`
+	WebCitations            []agentRuntimeWebCitation `json:"web_citations"`
+	WebSearchUsed           bool                      `json:"web_search_used"`
+}
+
+type agentRuntimeWebCitation struct {
+	EndIndex   int    `json:"end_index"`
+	StartIndex int    `json:"start_index"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
 }
 
 type agentToolResult struct {

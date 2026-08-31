@@ -36,7 +36,15 @@ function git(root: string, ...args: string[]): string {
 
 function writeTurboFixture(root: string, outputLogs?: string): void {
 	const tasks = Object.fromEntries(
-		["build", "build:worker", "test", "test:worker", "typecheck"].map((taskName) => [
+		[
+			"build",
+			"build:worker",
+			"native:test",
+			"native:typecheck",
+			"test",
+			"test:worker",
+			"typecheck",
+		].map((taskName) => [
 			taskName,
 			{
 				inputs: ["$TURBO_DEFAULT$"],
@@ -143,6 +151,8 @@ test("validates ancestry, reads the diff once, and uses the lockfile Turbo", () 
 	assert.equal(calls.filter(({ args }) => args[0] === "diff").length, 1);
 	const turbo = calls.find(({ command }) => command === "pnpm");
 	assert.deepEqual(turbo?.args.slice(0, 3), ["exec", "turbo", "run"]);
+	assert(turbo?.args.includes("native:test"));
+	assert(turbo?.args.includes("native:typecheck"));
 	assert(!turbo?.args.includes("dlx"));
 	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
 });

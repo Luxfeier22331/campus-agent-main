@@ -24,7 +24,7 @@ func projectedRAGAnswer(results []execution.StepResultProjection) string {
 			continue
 		}
 		payload := cloneAnyMapFromMetadata(result.SanitizedPayload)
-		finalized := optionalMapFromMap(payload, "finalized_response")
+		finalized := optionalMapFromMap(payload, "finalization_summary")
 		if answer := firstNonEmptyText(finalized["answer_text"]); answer != "" {
 			return answer
 		}

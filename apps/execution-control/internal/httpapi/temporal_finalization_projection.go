@@ -14,12 +14,52 @@ func temporalFinalizationResultPayload(
 	run execution.DurableRun,
 ) map[string]any {
 	payload := map[string]any{
-		"agent_result_ref":   input.AgentResult.AgentResultRef,
-		"finalized_response": finalizedResponse,
-		"request_id":         run.RequestID,
+		"agent_result_ref":     input.AgentResult.AgentResultRef,
+		"finalization_summary": temporalFinalizationProjectionSummary(finalizedResponse),
+		"request_id":           run.RequestID,
 	}
 	payload["finalization_fingerprint_sha256"] = sha256AnyValue(payload)
 	return payload
+}
+
+func temporalFinalizationProjectionSummary(finalizedResponse map[string]any) map[string]any {
+	result := optionalMapFromMap(finalizedResponse, "result")
+	sourceCount := 0
+	campusSourceCount := 0
+	webSourceCount := 0
+	switch sources := result["sources"].(type) {
+	case []any:
+		sourceCount = len(sources)
+		for _, source := range sources {
+			kind := stringValue(cloneAnyMapFromMetadata(source)["kind"])
+			switch kind {
+			case "campus_document":
+				campusSourceCount++
+			case "web_page":
+				webSourceCount++
+			}
+		}
+	case []map[string]any:
+		sourceCount = len(sources)
+		for _, source := range sources {
+			switch stringValue(source["kind"]) {
+			case "campus_document":
+				campusSourceCount++
+			case "web_page":
+				webSourceCount++
+			}
+		}
+	}
+	answerText := stringValue(finalizedResponse["answer_text"])
+	return map[string]any{
+		"answer_text":         answerText,
+		"answer_text_sha256":  sha256AnyValue(answerText),
+		"campus_source_count": campusSourceCount,
+		"response_sha256":     sha256AnyValue(finalizedResponse),
+		"source_count":        sourceCount,
+		"status":              stringValue(finalizedResponse["status"]),
+		"web_source_count":    webSourceCount,
+	}
 }
 
 func (s *Server) appendTemporalFinalizationCompletedEvents(

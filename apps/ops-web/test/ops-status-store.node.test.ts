@@ -304,6 +304,49 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
+	it("projects the complete Web source collection without requiring a Campus Web origin", async () => {
+		const sourceItems = Array.from({ length: 6 }, (_, index) => ({
+			citationIndexes: [index + 1],
+			hostname: "www.muc.edu.cn",
+			kind: "web_page",
+			primaryAction: {
+				disabledReason: null,
+				external: true,
+				href: `https://www.muc.edu.cn/page/${index + 1}?source=search#answer`,
+				label: "打开网页",
+			},
+			snippet: null,
+			title: `公开页面 ${index + 1}`,
+		}));
+		const request = requestRow({
+			assistantStructuredPartsJson: [{ sourceItems, type: "source_items" }],
+		});
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb({ requestRows: [request] }),
+			now: () => now,
+		});
+
+		const detail = OpsRequestDetailResponseSchema.parse(
+			await store.getRequestDetail(request.requestId),
+		);
+		if (detail.result.state !== "WRITTEN") {
+			throw new Error("expected written result");
+		}
+
+		expect(detail.result.sources).toHaveLength(6);
+		expect(detail.result.sources[5]).toMatchObject({
+			citationIndexes: [6],
+			hostname: "www.muc.edu.cn",
+			kind: "web_page",
+			primaryAction: {
+				disabledReason: null,
+				external: true,
+				href: "https://www.muc.edu.cn/page/6?source=search#answer",
+				label: "打开网页",
+			},
+		});
+	});
+
 	it("projects attempt-level failures without inventing model activity", async () => {
 		const db = createFakeOpsDb({
 			diagnostics: runDiagnostics({

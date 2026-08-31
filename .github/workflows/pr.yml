@@ -85,29 +85,18 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
 
-      - name: Install Python lint dependencies
-        id: install_light_dependencies
-        if: >-
-          contains(fromJSON(steps.plan.outputs.light_surfaces), 'python') ||
-          contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql') ||
-          contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml')
+      - name: Install static-check dependencies
+        id: install_static_dependencies
+        if: always()
         continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
         run: uv sync --only-dev --no-install-workspace
 
-      - name: Lint repository
-        id: repository_lint
+      - name: Check repository
+        id: repository_check
         if: always()
         continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm lint
-
-      - name: Test repository scripts
-        id: repository_tests
-        if: always()
-        continue-on-error: true
-        run: pnpm test
+        run: pnpm check
 
       - name: Check executable contracts
         id: contracts
@@ -121,53 +110,6 @@ jobs:
         continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
         run: actionlint && zizmor --min-severity=medium .github
-
-      - name: Lint Python
-        id: python
-        if: >-
-          always() &&
-          contains(fromJSON(steps.plan.outputs.light_surfaces), 'python') &&
-          steps.install_light_dependencies.outcome == 'success'
-        continue-on-error: true
-        shell: nix develop .#ci-light --command bash -e {0}
-        run: |
-          git ls-files -z -- '*.py' \
-            | xargs -0 --no-run-if-empty uv run --no-sync ruff check
-          git ls-files -z -- '*.py' \
-            | xargs -0 --no-run-if-empty uv run --no-sync ruff format --check
-
-      - name: Lint YAML
-        id: yaml
-        if: >-
-          always() &&
-          contains(fromJSON(steps.plan.outputs.light_surfaces), 'yaml') &&
-          steps.install_light_dependencies.outcome == 'success'
-        continue-on-error: true
-        shell: nix develop .#ci-light --command bash -e {0}
-        run: |
-          git ls-files -z -- '*.yaml' '*.yml' ':(exclude)pnpm-lock.yaml' \
-            | xargs -0 --no-run-if-empty uv run --no-sync yamllint -c .yamllint.yml
-
-      - name: Lint SQL
-        id: sql
-        if: >-
-          always() &&
-          contains(fromJSON(steps.plan.outputs.light_surfaces), 'sql') &&
-          steps.install_light_dependencies.outcome == 'success'
-        continue-on-error: true
-        shell: nix develop .#ci-light --command bash -e {0}
-        run: |
-          git ls-files -z -- '*.sql' \
-            | xargs -0 --no-run-if-empty uv run --no-sync sqlfluff lint --config .sqlfluff
-
-      - name: Lint Shell
-        id: shell
-        if: always() && contains(fromJSON(steps.plan.outputs.light_surfaces), 'shell')
-        continue-on-error: true
-        shell: nix develop .#ci-light --command bash -e {0}
-        run: |
-          git ls-files -z -- '*.sh' \
-            | xargs -0 --no-run-if-empty shellcheck -x -s bash
 
       - name: Scan authored commits for secrets
         id: secrets
@@ -245,15 +187,10 @@ jobs:
               "contracts":"${{ steps.contracts.outcome }}",
               "github-actions":"${{ steps.github_actions.outcome }}",
               "install-affected":"${{ steps.install_affected.outcome }}",
-              "install-light-dependencies":"${{ steps.install_light_dependencies.outcome }}",
-              "python":"${{ steps.python.outcome }}",
-              "repository-lint":"${{ steps.repository_lint.outcome }}",
-              "repository-tests":"${{ steps.repository_tests.outcome }}",
+              "install-static-dependencies":"${{ steps.install_static_dependencies.outcome }}",
+              "repository-check":"${{ steps.repository_check.outcome }}",
               "secrets":"${{ steps.secrets.outcome }}",
-              "shell":"${{ steps.shell.outcome }}",
-              "sql":"${{ steps.sql.outcome }}",
-              "toolchain":"${{ steps.toolchain.outcome }}",
-              "yaml":"${{ steps.yaml.outcome }}"
+              "toolchain":"${{ steps.toolchain.outcome }}"
             }
         run: |
           jq . <<< "$RESULTS"

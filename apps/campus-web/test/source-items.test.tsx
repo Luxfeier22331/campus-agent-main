@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SourceItemsList } from "../src/components/conversation/source-items";
 
@@ -37,5 +37,66 @@ describe("conversation source items", () => {
 			"/docs/regulations/student_rules/network-guide/v/2026-current#account",
 		);
 		expect(link).not.toHaveAttribute("target");
+	});
+
+	it("renders Web sources as safe external links", () => {
+		render(
+			<SourceItemsList
+				sourceItems={[
+					{
+						citationIndexes: [6],
+						hostname: "www.muc.edu.cn",
+						kind: "web_page",
+						primaryAction: {
+							disabledReason: null,
+							external: true,
+							href: "https://www.muc.edu.cn/contact?campus=fengtai#address",
+							label: "打开网页",
+						},
+						snippet: null,
+						title: "联系我们",
+					},
+				]}
+			/>,
+		);
+
+		expect(screen.getByText("www.muc.edu.cn")).toBeInTheDocument();
+		const link = screen.getByRole("link", { name: "打开网页" });
+		expect(link).toHaveAttribute("href", "https://www.muc.edu.cn/contact?campus=fengtai#address");
+		expect(link).toHaveAttribute("target", "_blank");
+		expect(link).toHaveAttribute("rel", "noopener noreferrer");
+	});
+
+	it("shows five sources by default and expands the complete collection", () => {
+		const sourceItems = Array.from({ length: 6 }, (_, index) => ({
+			citationIndexes: [index + 1],
+			hostname: "www.muc.edu.cn",
+			kind: "web_page" as const,
+			primaryAction: {
+				disabledReason: null,
+				external: true as const,
+				href: `https://www.muc.edu.cn/page/${index + 1}`,
+				label: "打开网页" as const,
+			},
+			snippet: null,
+			title: `来源 ${index + 1}`,
+		}));
+
+		render(<SourceItemsList sourceItems={sourceItems} />);
+
+		expect(screen.getByText("来源 5")).toBeInTheDocument();
+		expect(screen.queryByText("来源 6")).not.toBeInTheDocument();
+		const expand = screen.getByRole("button", { name: "查看其余 1 个来源" });
+		expect(expand).toHaveAttribute("aria-expanded", "false");
+
+		fireEvent.click(expand);
+		expect(screen.getByText("来源 6")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "收起来源" })).toHaveAttribute(
+			"aria-expanded",
+			"true",
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "收起来源" }));
+		expect(screen.queryByText("来源 6")).not.toBeInTheDocument();
 	});
 });

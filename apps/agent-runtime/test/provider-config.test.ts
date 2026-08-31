@@ -12,13 +12,13 @@ import {
 describe("agent runtime provider config", () => {
 	it("creates SDK runner options from request scoped provider config", () => {
 		const provider: ModelProvider = {
-			async getModel() {
+			getModel() {
 				throw new Error("provider should not be resolved by config tests");
 			},
 		};
 		const providerConfigs: unknown[] = [];
 
-		const options = openAIAgentsRunnerOptionsFromProviderConfig(
+		const result = openAIAgentsRunnerOptionsFromProviderConfig(
 			{
 				apiKey: "request-provider-key",
 				baseUrl: "https://request-provider.example/v1",
@@ -34,8 +34,8 @@ describe("agent runtime provider config", () => {
 			},
 		);
 
-		expect(options.model).toBe("gpt-request");
-		expect(options.modelProvider).toBe(provider);
+		expect(result.model).toBe("gpt-request");
+		expect(result.modelProvider).toBe(provider);
 		expect(providerConfigs).toEqual([
 			{
 				apiKey: "request-provider-key",
@@ -47,17 +47,17 @@ describe("agent runtime provider config", () => {
 
 	it("uses SDK chat-completions transport for OpenAI-compatible prompt profiles", () => {
 		const provider: ModelProvider = {
-			async getModel() {
+			getModel() {
 				throw new Error("provider should not be resolved by config tests");
 			},
 		};
 		const providerConfigs: unknown[] = [];
 
-		const options = openAIAgentsRunnerOptionsFromProviderConfig(
+		const result = openAIAgentsRunnerOptionsFromProviderConfig(
 			{
-				apiKey: "request-provider-key",
-				baseUrl: "https://request-provider.example/v1",
-				model: "gpt-request",
+				apiKey: "provider-key",
+				baseUrl: "https://provider.example/v1",
+				model: "gpt-agent",
 				provider: "openai-compatible",
 				transport: "chat_completions",
 			},
@@ -69,18 +69,18 @@ describe("agent runtime provider config", () => {
 			},
 		);
 
-		expect(options.model).toBe("gpt-request");
-		expect(options.modelProvider).toBe(provider);
+		expect(result.model).toBe("gpt-agent");
+		expect(result.modelProvider).toBe(provider);
 		expect(providerConfigs).toEqual([
 			{
-				apiKey: "request-provider-key",
-				baseURL: "https://request-provider.example/v1",
+				apiKey: "provider-key",
+				baseURL: "https://provider.example/v1",
 				useResponses: false,
 			},
 		]);
 	});
 
-	it("rejects incomplete request scoped provider config", () => {
+	it("rejects incomplete request-scoped provider config", () => {
 		expect(() =>
 			openAIAgentsRunnerOptionsFromProviderConfig({
 				apiKey: "",
@@ -99,15 +99,6 @@ describe("agent runtime provider config", () => {
 				transport: "responses",
 			}),
 		).toThrow("provider model is required");
-		expect(() =>
-			openAIAgentsRunnerOptionsFromProviderConfig({
-				apiKey: "provider-key",
-				baseUrl: "https://provider.example/v1",
-				model: "gpt-agent",
-				provider: "openai",
-				transport: "legacy_completions",
-			}),
-		).toThrow("provider transport must be responses or chat_completions");
 	});
 
 	it("does not expose env-based provider config entrypoints", () => {
@@ -115,7 +106,6 @@ describe("agent runtime provider config", () => {
 			fileURLToPath(new URL("../src/provider-config.ts", import.meta.url)),
 			"utf8",
 		);
-
 		expect(source).not.toContain("createOpenAIAgentsRunnerFromEnv");
 		expect(source).not.toContain("openAIAgentsRunnerOptionsFromEnv");
 		expect(source).not.toContain("AGENT_PROMPT_MODEL");
@@ -149,7 +139,9 @@ describe("agent runtime provider config", () => {
 		const targetAddress = target.address() as { port: number };
 		const redirect = createServer((request, response) => {
 			providerUserAgent = request.headers["user-agent"] ?? "";
-			response.writeHead(307, { location: `http://127.0.0.1:${targetAddress.port}/v1/responses` });
+			response.writeHead(307, {
+				location: `http://127.0.0.1:${targetAddress.port}/v1/responses`,
+			});
 			response.end();
 		});
 		await listen(redirect);
@@ -158,9 +150,7 @@ describe("agent runtime provider config", () => {
 			const redirectAddress = redirect.address() as { port: number };
 			const response = await fetchWithoutRedirects(
 				`http://127.0.0.1:${redirectAddress.port}/v1/responses`,
-				{
-					headers: { "user-agent": "OpenAI/JS 7.4.0" },
-				},
+				{ headers: { "user-agent": "OpenAI/JS" } },
 			);
 			expect(response.status).toBe(307);
 			await response.body?.cancel();

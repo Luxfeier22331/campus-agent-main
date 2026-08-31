@@ -76,6 +76,25 @@ describe("Model Config runtime client", () => {
 		).rejects.toMatchObject({ code, status });
 	});
 
+	it("loads a Chat Completions runtime config for the SDK runner", async () => {
+		await expect(
+			resolvePrimaryAgentModelConfig(
+				{
+					baseUrl: "http://model-config",
+					fetchImplementation: async () =>
+						Response.json({
+							...validRuntimeConfig,
+							api_protocol: "openai.chat_completions",
+						}),
+				},
+				targetSha256,
+			),
+		).resolves.toMatchObject({
+			provider: "openai",
+			transport: "chat_completions",
+		});
+	});
+
 	it.each([
 		["invalid JSON", new Response("not-json")],
 		["null payload", Response.json(null)],

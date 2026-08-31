@@ -148,9 +148,9 @@ func TestExecutePrimaryAgentActivitySendsConversationContextAndProjectsRuntimeUs
 	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-primary-agent-context",
-		RequestID:        "run-primary-agent-context",
-		VisibleToolNames: []string{},
+		ConversationID:           "conv-primary-agent-context",
+		RequestID:                "run-primary-agent-context",
+		VisibleFunctionToolNames: []string{},
 	})
 	output, err := server.ExecutePrimaryAgent(context.Background(), input)
 	if err != nil {

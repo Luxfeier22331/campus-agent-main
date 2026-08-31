@@ -122,7 +122,7 @@ test("CI control files stay in hosted checks instead of selecting heavy profiles
 		["flake.nix", ["config"]],
 		["nix/tools.nix", ["config"]],
 		["scripts/ci/validation.mts", []],
-		[".github/workflows/pr.yml", ["config", "yaml"]],
+		[".github/workflows/pr.yml", ["config"]],
 	] as const) {
 		const plan = validationPlanFromScope(scope([file]), { mode: "pull-request" });
 		assert.deepEqual(plan.lightSurfaces, lightSurfaces, file);
@@ -130,21 +130,21 @@ test("CI control files stay in hosted checks instead of selecting heavy profiles
 	}
 });
 
-test("selects static surfaces from renamed and deleted paths", () => {
+test("keeps only separately owned config checks in the validation plan", () => {
 	const plan = validationPlanFromScope(
 		scope([".github/workflows/old.yml", "config/new.yaml", "removed/check.sh", "schema.sql"]),
 		{ mode: "pull-request" },
 	);
-	assert.deepEqual(plan.lightSurfaces, ["config", "yaml", "sql", "shell"]);
+	assert.deepEqual(plan.lightSurfaces, ["config"]);
 });
 
-test("keeps YAML validation when YAML and pnpm lock files both change", () => {
+test("keeps static lint ownership outside the affected validation plan", () => {
 	assert.deepEqual(profiles(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), ["toolchain"]);
 	assert.deepEqual(
 		validationPlanFromScope(scope(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), {
 			mode: "pull-request",
 		}).lightSurfaces,
-		["yaml"],
+		[],
 	);
 });
 

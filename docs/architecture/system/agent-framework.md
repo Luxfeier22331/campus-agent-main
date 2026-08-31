@@ -9,8 +9,8 @@ status: active
 ## 边界
 
 `apps/agent-runtime` 负责面向模型的 OpenAI Agents SDK run，包括 instruction、模型输入装配、模型
-调用、可选函数调用、原生文本回答和 SDK trace。它不负责产品认证、Temporal 生命周期、知识检索、
-工具开放、个人记忆存储或最终投影持久化。
+调用、本地函数调用、模型托管的 Web Search、原生文本回答和 SDK trace。它不负责产品认证、Temporal
+生命周期、本地知识检索、函数工具开放、个人记忆存储或最终投影持久化。
 
 ## 运行形态
 
@@ -20,13 +20,15 @@ status: active
 Primary Agent 的固定角色指令使用简体中文，并明确产品服务中央民族大学。未明确指定机构时，学校、
 本校和校园均按中央民族大学理解；这属于单校产品身份，不由请求或环境变量动态选择。
 
-当前执行策略为 `execution_strategy.v3` 的 `kind=direct`：
+当前执行策略为 `execution_strategy.v4` 的 `kind=direct`：
 
-- 本轮工具集合始终包含 `campus_search`，个人记忆可用时还包含 `personal_memory_recall`；集合顺序没有
-  路由语义；
-- 个人记忆不可用时，最多两次模型 turn，最多一次工具调用（此时只有 `campus_search`）；
-- 个人记忆可用时，最多三次模型 turn、两次工具调用；同一工具可以重复调用，次数只受本轮总
-  `max_tool_calls` 限制；
+- execution-control 提供的本地函数工具集合始终包含 `campus_search`，个人记忆可用时还包含
+  `personal_memory_recall`；集合顺序没有路由语义；
+- Agent Runtime 另外固定附加 Agents SDK 原生 `web_search` hosted tool；它不进入本地函数工具集合；
+- 个人记忆不可用时，最多两次模型 turn，最多一次本地函数调用；
+- 个人记忆可用时，最多三次模型 turn、两次本地函数调用；同一函数工具可以重复调用，次数只受本轮总
+  `max_function_tool_calls` 限制；
+- hosted `web_search` 不消耗本地函数调用预算；
 - 问候、改写等不需要机构事实的请求可以直接回答，不强制调用 `campus_search`；
 
 重复 Activity 投递受 execution-control 的 invocation receipt 约束。供应商调用已经开始但完整结果
@@ -60,20 +62,25 @@ Agent Runtime 在创建真实 `AgentInputItem[]` 时组装：
 execution-control 不预先构造另一份模型上下文摘要。
 
 用户文本、对话、记忆和工具结果都是不可信数据，不能拼入 developer instruction。匹配的个人记忆只能
-支持用户自身事实或偏好，不能被当作机构事实来源。`campus_search` 结果作为本轮工具结果进入 SDK
-上下文；来源公开字段由 execution-control 在 Finalization 中从真实工具结果派生。
+支持用户自身事实或偏好，不能被当作机构事实来源。`campus_search` 结果作为本轮函数工具结果进入 SDK
+上下文；来源公开字段由 execution-control 在 Finalization 中从真实函数工具结果派生。hosted
+`web_search` 结果由 SDK 直接提供给同一次 run；Finalization 校验 SDK 原生引用并派生 `web_page`
+来源卡。Web Search 不进入本地 `tool_results` 或工具轨迹，也不保存供应商原始搜索结果。
 
-Agent 根据问题所需事实与工具声明范围选择工具，不按机构、地点或其他实体名称建立固定路由。问题
-同时包含已覆盖和未覆盖事实时，只回答本轮检索候选直接支持的部分并说明资料边界；已有有效部分
-答案时仍生成普通正文。所需机构事实完全没有本轮候选支持时直接说明资料不足。普通工具
-失败可以与合法答案并存，但失败工具结果不得成为答案依据；合同、
+Agent 根据问题所需事实与工具声明范围选择工具，不按机构、地点或其他实体名称建立固定路由。已发布
+Campus Docs 可以使用 `campus_search`，需要补充或核验尚未采集的公开校园网页信息时可以使用
+`web_search`；后者不是前者失败后由代码机械触发的回退。问题同时包含已覆盖和未覆盖事实时，只回答
+本轮成功 evidence 支持的部分并说明资料边界；已有有效部分答案时仍生成普通正文。所需机构事实完全
+没有本轮成功 evidence 支持时直接说明资料不足。普通函数工具失败可以与合法答案并存，但失败结果
+不得成为答案依据；合同、
 身份、运行指纹和结果结构错误继续失败关闭。
 
 ## 输出与终态
 
-Agent Runtime 使用 Agents SDK 原生文本输出，返回非空 `final_output`、有序真实工具调用摘要、模型
-用量、`context_usage`、运行指纹和 trace 关联。execution-control 校验文本与工具结果并写入
-`execution_finalization_response_v8`；追问、资料不足和范围说明都作为 `completed` 正文保存。
+Agent Runtime 使用 Agents SDK 原生文本输出，返回非空 `final_output`、有序真实函数工具调用摘要、模型
+用量、`context_usage`、运行指纹和 trace 关联。hosted `web_search` 的原生 URL citation 随终态结果返回，
+不伪装成本地函数调用；execution-control 校验引用位置和来源后，将其转换为正文中的统一来源链接。
+最终响应使用 `execution_finalization_response_v8`；追问、资料不足和范围说明都作为 `completed` 正文保存。
 
 `AppendConversationMemoryActivity` 是产品终态成功后的独立副作用，只追加已完成对话；它不是 Agent
 反思步骤，失败不会改写已完成的产品终态。

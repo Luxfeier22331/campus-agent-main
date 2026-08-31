@@ -55,7 +55,7 @@ func primaryAgentRuntimeRequestPayload(
 		"request_id":                   run.RequestID,
 		"conversation_id":              run.ConversationID,
 		"input":                        strings.TrimSpace(inputText),
-		"visible_tool_names":           append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
+		"visible_function_tool_names":  append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames...),
 		"limits":                       primaryAgentRuntimeLimitsPayload(limits),
 		"expected_model_target_sha256": input.AdmissionSnapshot.PrimaryAgentTargetSHA256,
 	}
@@ -516,6 +516,7 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 			"provider_unavailable",
 			"tool_execution_failed",
 			"tool_contract_mismatch",
+			"citation_validation_failed",
 			"run_failed":
 			return strings.TrimSpace(runtimeError.Code)
 		}
@@ -535,6 +536,7 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 			"provider_unavailable",
 			"tool_execution_failed",
 			"tool_contract_mismatch",
+			"citation_validation_failed",
 			"run_failed":
 			return strings.TrimSpace(applicationError.Code)
 		}
@@ -582,6 +584,15 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 			ToolName:      result.ToolName,
 		})
 	}
+	webCitations := make([]temporalruntime.AgentWebCitation, 0, len(response.WebCitations))
+	for _, citation := range response.WebCitations {
+		webCitations = append(webCitations, temporalruntime.AgentWebCitation{
+			EndIndex:   citation.EndIndex,
+			StartIndex: citation.StartIndex,
+			Title:      strings.TrimSpace(citation.Title),
+			URL:        strings.TrimSpace(citation.URL),
+		})
+	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{
 		ContextUsage:            cloneAnyMapFromMetadata(response.ContextUsage),
 		FinalOutput:             response.FinalOutput,
@@ -603,5 +614,7 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 			OutputTokens:      response.Usage.OutputTokens,
 			UsageObserved:     response.Usage.UsageObserved,
 		},
+		WebCitations:  webCitations,
+		WebSearchUsed: response.WebSearchUsed,
 	}
 }

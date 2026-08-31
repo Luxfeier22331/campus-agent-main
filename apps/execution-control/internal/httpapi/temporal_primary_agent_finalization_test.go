@@ -135,12 +135,18 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 		t.Fatal("finalization.write result missing")
 		return
 	}
-	projectedResponse, ok := finalizationResult.SanitizedPayload["finalized_response"].(map[string]any)
+	projectedResponse, ok := finalizationResult.SanitizedPayload["finalization_summary"].(map[string]any)
 	if !ok {
 		t.Fatalf("finalization result payload = %#v", finalizationResult.SanitizedPayload)
 	}
 	if projectedResponse["answer_text"] != finalizationResponse["answer_text"] {
-		t.Fatalf("projected response drifted from event: %#v", projectedResponse)
+		t.Fatalf("projected finalization summary drifted from event: %#v", projectedResponse)
+	}
+	if _, exists := finalizationResult.SanitizedPayload["finalized_response"]; exists {
+		t.Fatalf("finalization result must not persist the complete response: %#v", finalizationResult.SanitizedPayload)
+	}
+	if projectedResponse["source_count"] != 0 {
+		t.Fatalf("source count = %#v, want 0", projectedResponse["source_count"])
 	}
 }
 

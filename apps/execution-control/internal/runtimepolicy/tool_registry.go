@@ -138,7 +138,7 @@ func (t ToolSpec) Validate() error {
 	return nil
 }
 
-func (r ToolSpecRegistry) ModelVisibleToolNames() []string {
+func (r ToolSpecRegistry) ModelVisibleFunctionToolNames() []string {
 	allowed := make([]string, 0)
 	for _, tool := range r.Tools {
 		if tool.Exposure == "model_visible" && tool.ReadOnly {

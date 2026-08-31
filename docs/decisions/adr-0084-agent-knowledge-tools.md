@@ -16,8 +16,9 @@ Primary Agent，但又把 Campus Docs 检索固化为每个有效请求都必须
 
 这条链路不是通用 RAG 或工具合同。它让问候、改写和个人事实请求也依赖 Qdrant 与 Embedding
 Provider，并使 Agent 输入、Temporal history、运行投影、评测和部署配置同时耦合到 Campus Docs。
-当前产品已经确定机构知识以 Primary Agent 的只读 `campus_search` function tool 接入；本 ADR 记录
-收敛后的边界，避免恢复强制预检索或多 Agent 编排。
+当前产品已经确定已发布 Campus Docs 以 Primary Agent 的只读 `campus_search` function tool 接入；
+尚未采集的公开校园网页信息可由 SDK 原生 `web_search` 补充。本 ADR 记录收敛后的本地知识边界，
+避免恢复强制预检索或多 Agent 编排。
 
 ## 决策
 
@@ -27,6 +28,8 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
   `campus_docs_evidence`；
 - Primary Agent 按需调用只读 `campus_search`，Finalization 只接受同一次运行中成功工具经对应 adapter
   校验的来源引用；
+- hosted `web_search` 由 Agent Runtime 直接附加，只用于校园问题的公开网页证据；它不进入本地函数
+  工具预算、结果或轨迹，也不是 `campus_search` 失败后的代码级 fallback；
 - `campus_search` 在 execution-control 中读取当前 collection，并从 Model Config 读取 embedding 和
   reranker 连接，不把二者放入
   admission snapshot 或 Temporal workflow input；
@@ -34,7 +37,7 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
   离线索引或当前绑定存在不表示在线 Agent 已经消费它；
 - 离线发布继续由 Chunk、Embedding 和 Publisher 三个显式阶段完成，阶段之间只传递内容寻址制品；
 - 个人记忆只支持用户自身事实或偏好，不能替代机构知识来源；
-- 工具调用次数只受准入快照的总 `max_tool_calls` 限制，同一工具可以重复调用，二者没有固定先后关系；不恢复 fallback、
+- 本地函数工具调用次数只受准入快照的总 `max_function_tool_calls` 限制，同一工具可以重复调用，二者没有固定先后关系；不恢复代码级 fallback、
   Knowledge Agent、handoff 或第二次答案合成。
 
 ## 结果
@@ -43,7 +46,8 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
   时读取它们；
 - Agent Runtime 输入和 Temporal workflow 只保留当前实际开放的能力；
 - 在线 Agent 评测不再把机构文档证据当作固定输入，离线 RAG 评测继续验证索引制品；
-- `campus_search` 返回 `no_match` 或失败时，在线回答不能使用模型记忆补全机构事实；
+- `campus_search` 返回 `no_match` 或失败时，在线回答不能使用模型记忆补全机构事实，也不会由代码自动
+  触发 Web Search；
 - 删除旧类型、阶段耗时、部署变量和兼容路径，不保留隐藏 fallback。
 
 ## 未采用方案

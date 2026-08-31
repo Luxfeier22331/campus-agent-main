@@ -1,4 +1,4 @@
-import type { ModelProvider } from "@openai/agents";
+import type { AssistantMessageItem, ModelProvider } from "@openai/agents";
 import { assistantMessage, functionCall, ScriptedModel } from "@openai/agents/testing";
 import { describe, expect, it } from "vitest";
 import type {
@@ -22,7 +22,7 @@ const limits = {
 	contextCharLimit: 16_000,
 	currentInputCharLimit: 8_000,
 	maxOutputTokens: 2_048,
-	maxToolCalls: 10,
+	maxFunctionToolCalls: 10,
 	maxTurns: 6,
 };
 
@@ -305,7 +305,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			createOpenAIAgentsRunner({
 				model: "gpt-test",
 				modelProvider: providerFor(model),
-			})(input([lookupTool(execute)], { limits: { ...limits, maxToolCalls: 1 } })),
+			})(input([lookupTool(execute)], { limits: { ...limits, maxFunctionToolCalls: 1 } })),
 		).rejects.toThrow("tool call budget is exhausted");
 	});
 
@@ -331,4 +331,85 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			toolResults: [{ toolName: "test_lookup" }],
 		});
 	});
+
+	it("adds hosted Web Search only for Responses transport", async () => {
+		const responsesModel = new ScriptedModel([[assistantMessage("已完成。")]]);
+		await createOpenAIAgentsRunner({
+			model: "gpt-test",
+			modelProvider: providerFor(responsesModel),
+		})(input());
+		expect(responsesModel.firstCall?.request.tools).toEqual([
+			expect.objectContaining({ type: "hosted_tool", name: "web_search" }),
+		]);
+
+		const chatModel = new ScriptedModel([[assistantMessage("已完成。")]]);
+		await createOpenAIAgentsRunner({
+			model: "gpt-test",
+			modelProvider: providerFor(chatModel),
+		})(
+			input([], {
+				providerConfig: { ...providerConfig, transport: "chat_completions" },
+			}),
+		);
+		expect(chatModel.firstCall?.request.tools).toEqual([]);
+	});
+
+	it("returns native Web Search citations without local function results", async () => {
+		const model = new ScriptedModel([
+			[
+				{
+					type: "hosted_tool_call",
+					name: "web_search_call",
+					status: "completed",
+					providerData: { type: "web_search_call" },
+				},
+				assistantMessageWithAnnotations("😀本校地址见这里。", [
+					{
+						end_index: 9,
+						start_index: 7,
+						title: "学校官网",
+						type: "url_citation",
+						url: "https://www.muc.edu.cn/contact#address",
+					},
+				]),
+			],
+		]);
+
+		const result = await createOpenAIAgentsRunner({
+			model: "gpt-test",
+			modelProvider: providerFor(model),
+		})(input());
+
+		expect(result).toMatchObject({
+			toolResults: [],
+			webCitations: [
+				{
+					endIndex: 8,
+					startIndex: 6,
+					title: "学校官网",
+					url: "https://www.muc.edu.cn/contact#address",
+				},
+			],
+			webSearchUsed: true,
+		});
+	});
 });
+
+function assistantMessageWithAnnotations(
+	text: string,
+	annotations: Record<string, unknown>[],
+): AssistantMessageItem {
+	return {
+		type: "message",
+		role: "assistant",
+		status: "completed",
+		phase: "final_answer",
+		content: [
+			{
+				type: "output_text",
+				text,
+				providerData: { annotations },
+			},
+		],
+	};
+}

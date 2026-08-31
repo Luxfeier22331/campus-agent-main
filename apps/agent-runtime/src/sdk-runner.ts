@@ -1,11 +1,13 @@
 import {
 	Agent,
+	type AssistantMessageItem,
 	type ModelProvider,
 	Runner,
 	type RunResult,
 	type StreamedRunResult,
 	tool,
 	type Usage,
+	webSearchTool,
 } from "@openai/agents";
 import type {
 	AgentRunner,
@@ -15,6 +17,7 @@ import type {
 	SdkToolRuntime,
 	StreamingAgentRunner,
 	ToolExecutionResult,
+	WebCitation,
 } from "./agent-run-contract.ts";
 import { AgentRuntimeError } from "./runtime-errors.ts";
 import type { JsonObjectSchema } from "./tool-catalog.ts";
@@ -31,11 +34,11 @@ interface AgentSdkContext {
 		nextCitationIndex: number;
 		queue: Promise<void>;
 	};
-	toolBudget: {
+	functionToolBudget: {
 		limit: number;
 		reserved: number;
 	};
-	toolResults: Map<string, ToolExecutionResult>;
+	functionToolResults: Map<string, ToolExecutionResult>;
 }
 
 // Agents SDK uses this broad bound for its invariant result type parameter.
@@ -127,18 +130,19 @@ function throwIfStreamRunDidNotComplete(
 function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 	const context: AgentSdkContext = {
 		campusSearch: { nextCitationIndex: 1, queue: Promise.resolve() },
-		toolBudget: {
-			limit: input.limits.maxToolCalls,
+		functionToolBudget: {
+			limit: input.limits.maxFunctionToolCalls,
 			reserved: 0,
 		},
-		toolResults: new Map(),
+		functionToolResults: new Map(),
 	};
+	const hostedTools = input.providerConfig.transport === "responses" ? [webSearchTool()] : [];
 	const agent = new Agent<AgentSdkContext>({
 		name: "Campus primary assistant",
 		instructions: input.instructions,
 		...(model ? { model } : {}),
 		modelSettings: { maxTokens: input.limits.maxOutputTokens },
-		tools: input.tools.map((runtimeTool) => sdkTool(runtimeTool)),
+		tools: [...input.tools.map((runtimeTool) => sdkTool(runtimeTool)), ...hostedTools],
 	});
 	return { agent, context };
 }
@@ -158,10 +162,10 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 					`${runtimeTool.name} requires SDK run context.`,
 				);
 			}
-			if (context.toolBudget.reserved >= context.toolBudget.limit) {
+			if (context.functionToolBudget.reserved >= context.functionToolBudget.limit) {
 				throw new AgentRuntimeError(
 					"tool_execution_failed",
-					"The admitted tool call budget is exhausted.",
+					"The admitted function tool call budget is exhausted.",
 				);
 			}
 			const invocationId = details?.toolCall?.callId;
@@ -171,11 +175,11 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 					`${runtimeTool.name} is missing its SDK call ID.`,
 				);
 			}
-			context.toolBudget.reserved += 1;
+			context.functionToolBudget.reserved += 1;
 			const startedAt = performance.now();
 			const parsedArguments = argumentsJson as Record<string, unknown>;
 			const result = await executeSdkTool(runtimeTool, parsedArguments, context, invocationId);
-			context.toolResults.set(invocationId, {
+			context.functionToolResults.set(invocationId, {
 				...result,
 				argumentsJson: parsedArguments,
 				durationMs: Math.max(0.001, performance.now() - startedAt),
@@ -270,6 +274,8 @@ function agentRunnerResultFromSDKResult(
 		finalOutput: result.finalOutput ?? "",
 		providerResponseId: result.lastResponseId?.trim() ?? "",
 		toolResults: toolResultsFromSDKResult(result),
+		webCitations: extractWebCitations(result),
+		webSearchUsed: webSearchUsedFromSDKResult(result),
 		usage: usageFromSDK(result.runContext.usage),
 	};
 }
@@ -277,7 +283,7 @@ function agentRunnerResultFromSDKResult(
 function toolResultsFromSDKResult(
 	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
 ): ToolExecutionResult[] {
-	const tracked = result.runContext.context.toolResults;
+	const tracked = result.runContext.context.functionToolResults;
 	const toolResults: ToolExecutionResult[] = [];
 	for (const item of result.newItems) {
 		if (item.type !== "tool_call_item" || item.rawItem.type !== "function_call") {
@@ -290,6 +296,180 @@ function toolResultsFromSDKResult(
 		toolResults.push(toolResult);
 	}
 	return toolResults;
+}
+
+function webSearchUsedFromSDKResult(
+	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
+): boolean {
+	return result.newItems.some((item) => {
+		const rawItem = item.rawItem;
+		return (
+			rawItem?.type === "hosted_tool_call" &&
+			(rawItem.name === "web_search_call" ||
+				rawItem.providerData?.type === "web_search_call" ||
+				rawItem.providerData?.type === "web_search")
+		);
+	});
+}
+
+function extractWebCitations(
+	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
+): WebCitation[] {
+	const finalOutput = typeof result.finalOutput === "string" ? result.finalOutput : "";
+	if (finalOutput === "") {
+		return [];
+	}
+	const finalMessages = messagesForFinalOutput(result, finalOutput);
+	if (finalMessages.length === 0) {
+		return [];
+	}
+
+	const citations: WebCitation[] = [];
+	let partOffset = 0;
+	for (const message of finalMessages) {
+		for (const content of outputTextContents(message)) {
+			const annotations = content.providerData?.annotations;
+			if (annotations === undefined) {
+				partOffset += [...content.text].length;
+				continue;
+			}
+			if (!Array.isArray(annotations)) {
+				throw citationValidationError("output text annotations must be an array");
+			}
+			for (const annotation of annotations) {
+				if (!isRecord(annotation)) {
+					throw citationValidationError("web citation annotation must be an object");
+				}
+				if (annotation.type !== "url_citation") {
+					continue;
+				}
+				const startIndex = integerValue(annotation.start_index);
+				const endIndex = integerValue(annotation.end_index);
+				const title = stringValue(annotation.title);
+				const url = serializedWebCitationURL(annotation.url);
+				if (
+					startIndex === null ||
+					endIndex === null ||
+					startIndex < 0 ||
+					endIndex <= startIndex ||
+					!title ||
+					!url
+				) {
+					throw citationValidationError("web citation annotation fields are invalid");
+				}
+				if (endIndex > content.text.length) {
+					throw citationValidationError("web citation annotation is outside its text part");
+				}
+				const startCodePoint = codePointOffsetFromUtf16(content.text, startIndex);
+				const endCodePoint = codePointOffsetFromUtf16(content.text, endIndex);
+				if (startCodePoint === null || endCodePoint === null || endCodePoint <= startCodePoint) {
+					throw citationValidationError("web citation annotation splits a code point");
+				}
+				citations.push({
+					startIndex: partOffset + startCodePoint,
+					endIndex: partOffset + endCodePoint,
+					title,
+					url,
+				});
+			}
+			partOffset += [...content.text].length;
+		}
+	}
+	return citations;
+}
+
+function messagesForFinalOutput(
+	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
+	finalOutput: string,
+): AssistantMessageItem[] {
+	const messages = result.newItems.flatMap((item) =>
+		item.type === "message_output_item" && item.rawItem?.type === "message" ? [item.rawItem] : [],
+	);
+	const matched: AssistantMessageItem[] = [];
+	let matchedText = "";
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (!message) {
+			continue;
+		}
+		matched.unshift(message);
+		matchedText = assistantMessageText(message) + matchedText;
+		if (matchedText === finalOutput) {
+			return matched;
+		}
+		if (!finalOutput.endsWith(matchedText)) {
+			return [];
+		}
+	}
+	return [];
+}
+
+function assistantMessageText(message: unknown): string {
+	return outputTextContents(message)
+		.map((content) => content.text)
+		.join("");
+}
+
+function outputTextContents(
+	message: unknown,
+): Array<{ text: string; providerData?: Record<string, unknown> }> {
+	if (!(isRecord(message) && Array.isArray(message.content))) {
+		return [];
+	}
+	return message.content.flatMap((content) => {
+		if (!isRecord(content) || content.type !== "output_text" || typeof content.text !== "string") {
+			return [];
+		}
+		return [
+			{
+				text: content.text,
+				...(isRecord(content.providerData) ? { providerData: content.providerData } : {}),
+			},
+		];
+	});
+}
+
+function citationValidationError(message: string): AgentRuntimeError {
+	return new AgentRuntimeError("citation_validation_failed", message);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function integerValue(value: unknown): number | null {
+	return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
+}
+
+function stringValue(value: unknown): string | null {
+	return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+function serializedWebCitationURL(value: unknown): string | null {
+	if (typeof value !== "string" || value.trim() === "") {
+		return null;
+	}
+	try {
+		const url = new URL(value);
+		if ((url.protocol !== "https:" && url.protocol !== "http:") || url.hostname === "") {
+			return null;
+		}
+		return url.toString();
+	} catch {
+		return null;
+	}
+}
+
+function codePointOffsetFromUtf16(text: string, offset: number): number | null {
+	if (offset < 0 || offset > text.length) {
+		return null;
+	}
+	const prefix = text.slice(0, offset);
+	const last = prefix.charCodeAt(prefix.length - 1);
+	if (last >= 0xd800 && last <= 0xdbff) {
+		return null;
+	}
+	return [...prefix].length;
 }
 
 function usageFromSDK(usage: Usage) {

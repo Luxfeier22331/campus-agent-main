@@ -64,13 +64,26 @@ Priority 在实际排期需要时设置，只表达影响，不表达提交者�
 
 ## 环境准备
 
+在当前 worktree 安装项目依赖：
+
 ```bash
-uv sync --all-packages --dev
+uv sync --locked --all-packages --dev
 pnpm install
-pre-commit install
 ```
 
-`pre-commit` 只执行轻量文件检查和暂存内容的 Secret 扫描，不替代类型检查、测试或构建。
+你在当前 checkout 执行 `pnpm install` 时，`prepare` 会通过 `@j178/prek` 设置
+worktree-local `core.hooksPath=.githooks`，并安装该 checkout 自己的 `pre-commit` 与 `pre-push`。
+生成的 `.githooks/` 被 Git 忽略；依赖已安装但 hook 缺失时执行：
+
+```bash
+pnpm hooks:install
+```
+
+Ruff、SQLFluff 和 Yamllint 由 `uv sync --locked --all-packages --dev` 提供；它们不负责安装 Git hook。
+`pre-commit` 对暂存文件执行 check-only 的跨语言静态检查和 Secret 扫描；`pre-push` 只执行受影响的
+Node typecheck/test/worker test 与 Go vet/test，不运行 build、数据库 integration 或浏览器 E2E。
+`pnpm dev:init` 只初始化应用环境。Git 可以通过 `--no-verify` 跳过本地 hook，未安装 hook 时也不会
+自动拒绝提交，因此 Pull Request CI 是最终门禁。
 
 ## 分支与 Pull Request
 

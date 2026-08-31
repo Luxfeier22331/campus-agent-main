@@ -1,0 +1,36 @@
+{
+	"status": "completed",
+	"answer_text": "学校公开联系方式见相关网页。",
+	"model_usage": {
+		"input_tokens": 600,
+		"cached_input_tokens": 200,
+		"output_tokens": 80,
+		"total_tokens": 680
+	},
+	"result": {
+		"sources": [
+			{
+				"citation_href": "https://www.muc.edu.cn/contact?campus=main#address",
+				"citation_index": 1,
+				"hostname": "www.muc.edu.cn",
+				"kind": "web_page",
+				"title": "联系我们",
+				"url": "https://www.muc.edu.cn/contact?campus=main#address"
+			},
+			{
+				"citation_href": "https://www.muc.edu.cn/contact?campus=fengtai#address",
+				"citation_index": 2,
+				"hostname": "www.muc.edu.cn",
+				"kind": "web_page",
+				"title": "联系我们",
+				"url": "https://www.muc.edu.cn/contact?campus=fengtai#address"
+			}
+		],
+		"terminal_reason": "answer"
+	},
+	"error": null,
+	"observability": {
+		"agent_runtime": "openai_agents_sdk",
+		"terminal_reason": "answer"
+	}
+}

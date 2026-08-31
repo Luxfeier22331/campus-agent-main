@@ -89,38 +89,13 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"finalized_response": map[string]any{
-				"answer_text": "学习成绩和综合测评需要满足 [1]。",
-				"result": map[string]any{
-					"sources": []any{
-						map[string]any{
-							"document_id":   "handbook:scholarship-policy",
-							"result_ref":    "result://" + strings.Repeat("a", 64),
-							"kind":          "campus_document",
-							"root_unit_ids": []any{"scholarship-eligibility"},
-							"section_ref":   "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility",
-							"section_title": "申请条件",
-							"snippet":       "国家奖学金评审需要满足学习成绩和综合测评要求。",
-							"title":         "本科生国家奖学金评审办法",
-							"version_id":    "version-scholarship-2026",
-							"version_label": "2026 版",
-							"version_slug":  "2026-current",
-						},
-						map[string]any{
-							"document_id":   "handbook:scholarship-policy",
-							"result_ref":    "result://" + strings.Repeat("b", 64),
-							"kind":          "campus_document",
-							"root_unit_ids": []any{"scholarship-award"},
-							"section_ref":   "/docs/regulations/student_rules/scholarship/v/2026-current#award",
-							"section_title": "奖励标准",
-							"snippet":       "国家奖学金奖励标准按照学校当年评审办法执行。",
-							"title":         "本科生国家奖学金评审办法",
-							"version_id":    "version-scholarship-2026",
-							"version_label": "2026 版",
-							"version_slug":  "2026-current",
-						},
-					},
-				},
+			"finalization_summary": map[string]any{
+				"answer_text":         "学习成绩和综合测评需要满足 [1]。",
+				"campus_source_count": 2,
+				"response_sha256":     "sha256:finalized-response",
+				"source_count":        2,
+				"status":              "completed",
+				"web_source_count":    0,
 			},
 		},
 	}); err != nil {

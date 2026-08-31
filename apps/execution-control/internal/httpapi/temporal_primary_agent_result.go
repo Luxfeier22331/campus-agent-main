@@ -53,6 +53,15 @@ func primaryAgentResultPayload(
 		}
 		toolResults = append(toolResults, primaryAgentToolResultMap(result, float64(durationMS)))
 	}
+	webCitations := make([]map[string]any, 0, len(output.WebCitations))
+	for _, citation := range output.WebCitations {
+		webCitations = append(webCitations, map[string]any{
+			"end_index":   citation.EndIndex,
+			"start_index": citation.StartIndex,
+			"title":       citation.Title,
+			"url":         citation.URL,
+		})
+	}
 	payload := map[string]any{
 		"activity_attempt":          input.activityAttempt,
 		"admission_snapshot_sha256": sha256JSONRef(input.activityInput.AdmissionSnapshot),
@@ -79,6 +88,8 @@ func primaryAgentResultPayload(
 			"output_tokens":       output.Usage.OutputTokens,
 			"usage_observed":      output.Usage.UsageObserved,
 		},
+		"web_citations":   webCitations,
+		"web_search_used": output.WebSearchUsed,
 	}
 	if expected := toolContractFingerprintSnapshotMap(
 		input.activityInput.AdmissionSnapshot.ToolContractFingerprint,
@@ -95,6 +106,15 @@ func primaryAgentFinalizationResultMap(
 	toolResults := make([]map[string]any, 0, len(output.ToolResults))
 	for _, result := range output.ToolResults {
 		toolResults = append(toolResults, primaryAgentToolResultMap(result, result.DurationMS))
+	}
+	webCitations := make([]map[string]any, 0, len(output.WebCitations))
+	for _, citation := range output.WebCitations {
+		webCitations = append(webCitations, map[string]any{
+			"end_index":   citation.EndIndex,
+			"start_index": citation.StartIndex,
+			"title":       citation.Title,
+			"url":         citation.URL,
+		})
 	}
 	result := map[string]any{
 		"admission_snapshot_sha256": sha256JSONRef(input.AdmissionSnapshot),
@@ -118,6 +138,8 @@ func primaryAgentFinalizationResultMap(
 			"output_tokens":       output.Usage.OutputTokens,
 			"usage_observed":      output.Usage.UsageObserved,
 		},
+		"web_citations":   webCitations,
+		"web_search_used": output.WebSearchUsed,
 	}
 	if expected := toolContractFingerprintSnapshotMap(input.AdmissionSnapshot.ToolContractFingerprint); expected != nil {
 		result["admitted_tool_contract_fingerprint"] = expected
@@ -154,7 +176,7 @@ func primaryAgentResultProjectionPayload(raw map[string]any) map[string]any {
 		"provider_response_id", "stage_timing", "status",
 		"agent_runtime_release", "execution_control_release", "terminal_reason",
 		"tool_contract_fingerprint", "admitted_tool_contract_fingerprint",
-		"usage", "provider_invocation_sha256",
+		"usage", "provider_invocation_sha256", "web_search_used",
 	} {
 		if value, ok := raw[key]; ok {
 			result[key] = value
@@ -169,6 +191,9 @@ func primaryAgentResultProjectionPayload(raw map[string]any) map[string]any {
 	}
 	if trace, ok := raw["prompt_trace"]; ok {
 		result["prompt_trace_sha256"] = sha256AnyValue(trace)
+	}
+	if citations, ok := raw["web_citations"]; ok {
+		result["web_citations_sha256"] = sha256AnyValue(citations)
 	}
 	return result
 }

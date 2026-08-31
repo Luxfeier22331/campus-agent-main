@@ -1,16 +1,91 @@
+minimum_prek_version: 0.5.0
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+  - repo: builtin
     hooks:
       - id: check-added-large-files
+        stages: [pre-commit]
       - id: check-merge-conflict
+        stages: [pre-commit]
       - id: check-json
+        stages: [pre-commit]
       - id: check-toml
+        stages: [pre-commit]
       - id: check-yaml
+        stages: [pre-commit]
         args: [--allow-multiple-documents]
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.1
+
+  - repo: local
     hooks:
-      - id: gitleaks
+      - id: biome
+        name: Biome
+        entry: pnpm exec biome check --no-errors-on-unmatched
+        language: system
+        files: '\.(?:[cm]?[jt]sx?|jsonc?|css|html)$'
+
+      - id: markdownlint
+        name: Markdownlint
+        entry: pnpm exec markdownlint-cli2 --no-globs --
+        language: system
+        files: '\.md$'
+        exclude: '^apps/campus-web/\.generated/'
+
+      - id: editorconfig
+        name: EditorConfig
+        entry: pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size
+        language: system
+        exclude: '(^|/)(dist|node_modules|\.tmp|drizzle/meta)(/|$)'
+
+      - id: ruff-check
+        name: Ruff lint
+        entry: nix develop .#ci-light --command uv run --no-sync ruff check
+        language: system
+        files: '\.py$'
+
+      - id: ruff-format
+        name: Ruff format
+        entry: nix develop .#ci-light --command uv run --no-sync ruff format --check
+        language: system
+        files: '\.py$'
+
+      - id: sqlfluff
+        name: SQLFluff
+        entry: nix develop .#ci-light --command uv run --no-sync sqlfluff lint --config .sqlfluff
+        language: system
+        files: '\.sql$'
+
+      - id: yamllint
+        name: Yamllint
+        entry: nix develop .#ci-light --command uv run --no-sync yamllint -c .yamllint.yml
+        language: system
+        files: '\.ya?ml$'
+        exclude: '^pnpm-lock\.yaml$'
+
+      - id: shellcheck
+        name: ShellCheck
+        entry: nix develop .#ci-light --command shellcheck -x -s bash
+        language: system
+        files: '\.sh$'
+
+      - id: go-format
+        name: Go format
+        entry: nix develop .#ci-full --command golangci-lint fmt --diff
+        language: system
+        files: '\.go$'
+
+      - id: staged-secrets
+        name: Staged secret scan
+        entry: nix develop .#ci-light --command gitleaks git --pre-commit --redact --staged
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: affected-pre-push
+        name: Affected pre-push evidence
+        entry: node --experimental-strip-types scripts/ci/pre-push.mts
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

@@ -270,11 +270,11 @@ func executePrimaryAgent(
 ) (ExecutePrimaryAgentActivityOutput, error) {
 	agentCtx := workflow.WithActivityOptions(ctx, primaryAgentActivityOptions(activityOptions))
 	agentInput := ExecutePrimaryAgentActivityInput{
-		AdmissionSnapshot: input.AdmissionSnapshot,
-		ConversationID:    input.ConversationID,
-		RequestID:         input.RequestID,
-		TraceParent:       input.TraceParent,
-		VisibleToolNames:  append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleToolNames...),
+		AdmissionSnapshot:        input.AdmissionSnapshot,
+		ConversationID:           input.ConversationID,
+		RequestID:                input.RequestID,
+		TraceParent:              input.TraceParent,
+		VisibleFunctionToolNames: append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames...),
 	}
 	var agent ExecutePrimaryAgentActivityOutput
 	err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent)

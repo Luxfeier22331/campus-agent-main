@@ -11,7 +11,11 @@
 	"result": {
 		"sources": [
 			{
+				"citation_href": "/docs/regulations/student_rules/national-scholarship/v/2026-current#principles",
+				"citation_index": 1,
 				"document_id": "student_rules/national-scholarship",
+				"evidence_ref": "evidence://national-scholarship-principles",
+				"kind": "campus_document",
 				"root_unit_ids": ["national-scholarship-principles"],
 				"section_ref": "/docs/regulations/student_rules/national-scholarship/v/2026-current#principles",
 				"section_title": "评审原则",

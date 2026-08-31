@@ -363,9 +363,10 @@ describe("agent runtime HTTP handler", () => {
 									"agent.runtime_ms": 12,
 									"agent.first_delta_ms": 4,
 								},
-								selectedTools: [],
 								toolContractFingerprint: testToolContractFingerprint(),
 								toolResults: [],
+								webCitations: [],
+								webSearchUsed: false,
 								terminalReason: "answer_completed",
 								usage: {
 									modelRequestCount: 1,
@@ -594,6 +595,8 @@ describe("agent runtime HTTP handler", () => {
 						stageTiming: {},
 						toolContractFingerprint: testToolContractFingerprint(),
 						toolResults: [],
+						webCitations: [],
+						webSearchUsed: false,
 						terminalReason: "answer_completed",
 						usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 					};
@@ -643,6 +646,8 @@ describe("agent runtime HTTP handler", () => {
 									toolName: "test_lookup",
 								},
 							],
+				webCitations: [],
+				webSearchUsed: false,
 				usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 			};
 		};
@@ -935,6 +940,8 @@ const noToolRunner: AgentRunner = async () =>
 		finalOutput: "我是校园问答助手。",
 		providerResponseId: "resp_test",
 		toolResults: [],
+		webCitations: [],
+		webSearchUsed: false,
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 	}) as never;
 
@@ -969,7 +976,7 @@ function validRunBody(): Record<string, unknown> {
 		request_id: "req-1",
 		conversation_id: "conversation-1",
 		input: "hi 你是谁",
-		visible_tool_names: ["test_lookup"],
+		visible_function_tool_names: ["test_lookup"],
 		expected_tool_contract_fingerprint: wireToolContractFingerprint(catalog.contractFingerprint),
 		expected_model_target_sha256: PRIMARY_AGENT_TARGET_SHA256,
 		limits: validRuntimeLimits(),
@@ -990,7 +997,7 @@ function validRuntimeLimits(): Record<string, number> {
 		context_char_limit: 16_000,
 		current_input_char_limit: 8_000,
 		max_output_tokens: 2_048,
-		max_tool_calls: 3,
+		max_function_tool_calls: 3,
 		max_turns: 6,
 	};
 }

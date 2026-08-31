@@ -185,9 +185,9 @@ func executePrimaryAgentSDKToolFixture(
 	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	input := withAgentAdmissionSnapshotForTest(t, server, temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:   "conv-" + runID,
-		RequestID:        runID,
-		VisibleToolNames: []string{personalMemoryRecallToolName},
+		ConversationID:           "conv-" + runID,
+		RequestID:                runID,
+		VisibleFunctionToolNames: []string{personalMemoryRecallToolName},
 	})
 	_, err := server.ExecutePrimaryAgent(context.Background(), input)
 	return store, err

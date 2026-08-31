@@ -80,9 +80,10 @@ attempt 诊断。
 
 响应包含服务端生成时间、请求状态和时间、完整用户问题、产品结果及有界执行诊断。产品结果为
 `WRITTEN`、`PENDING` 或 `MISSING` 联合类型；`WRITTEN` 返回 app-api 已净化并写入
-会话的完整文本、`answer` 或 `error` 消息类型，以及 Campus Web 实际展示的最多五项
-`source_items`。每项来源包含与正文对应的 `citationIndexes`，保持正文首次引用顺序。来源不返回内部
-source kind、target kind、version ID、locator 或 trace card。
+会话的完整文本、`answer` 或 `error` 消息类型，以及完整 `source_items` 集合。每项来源包含与正文
+对应的 `citationIndexes`，保持正文首次引用顺序，并以 `campus_document` 或 `web_page` 区分产品展示；
+网页来源包含 hostname 和经过校验的 HTTP/HTTPS 外链。来源不返回内部 target kind、version ID、
+locator 或 trace card。
 
 `execution` 返回：
 

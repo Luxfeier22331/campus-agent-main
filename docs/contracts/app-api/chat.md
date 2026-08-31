@@ -88,9 +88,11 @@ pinned conversation 排在其他 conversation 前，组内按 `updatedAt desc`�
 
 assistant message 的 `source_items` structured part 只包含当前产品来源卡片。每个来源卡片的
 `citationIndexes` 是正文中对应的 `[n]` 编号数组，数组保持正文首次引用顺序，值必须是 `1..10` 的唯一
-整数。同一阅读目标的多个 cited results 会合并到同一卡片；App API 只消费 execution-control 已校验
-并公开投影的来源，不从正文或全部检索候选推导编号。历史 structured
-part 缺少该字段时不生成来源卡片，正文仍保留。
+整数。来源为 `campus_document` 或 `web_page`：前者提供固定版本的 Campus Web 阅读目标，后者提供
+hostname 和经过校验的 HTTP/HTTPS 外链。同一 Campus Docs 阅读目标或同一完整 Web URL 的多个引用会
+合并到同一卡片；query 或 fragment 不同的 Web URL 不合并。App API 只消费 execution-control 已校验
+并公开投影的来源，不从正文或全部检索候选推导编号。历史 structured part 缺少当前合同字段时不生成
+来源卡片，正文仍保留；Campus Web 默认显示前五项。
 
 ### 重命名、删除和状态
 

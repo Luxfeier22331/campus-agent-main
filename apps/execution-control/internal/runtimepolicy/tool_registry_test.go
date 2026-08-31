@@ -21,7 +21,7 @@ func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	if registry.SchemaVersion != ToolRegistrySchemaVersion {
 		t.Fatalf("schema_version = %q, want %q", registry.SchemaVersion, ToolRegistrySchemaVersion)
 	}
-	if got := registry.ModelVisibleToolNames(); !sameStrings(got, []string{"campus_search", "personal_memory_recall"}) {
+	if got := registry.ModelVisibleFunctionToolNames(); !sameStrings(got, []string{"campus_search", "personal_memory_recall"}) {
 		t.Fatalf("model-visible tools = %#v, want campus_search and personal_memory_recall", got)
 	}
 	wantTools := map[string]struct {
@@ -60,7 +60,7 @@ func TestRuntimePolicyModelVisibleToolsMatchDefaultToolSpec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadToolSpecRegistry default failed: %v", err)
 	}
-	if got, want := ModelVisibleToolNames(), registry.ModelVisibleToolNames(); !sameStrings(got, want) {
+	if got, want := ModelVisibleFunctionToolNames(), registry.ModelVisibleFunctionToolNames(); !sameStrings(got, want) {
 		t.Fatalf("model visible tools = %#v, want ToolSpec %#v", got, want)
 	}
 }

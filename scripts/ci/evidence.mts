@@ -3,7 +3,12 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { readNodeVersion } from "../toolchain/node-version.mts";
-import { type CommandResult, type CommandRunner, resolveAffectedScope } from "./scope.mts";
+import {
+	type AffectedScope,
+	type CommandResult,
+	type CommandRunner,
+	resolveAffectedScope,
+} from "./scope.mts";
 import {
 	isValidationProfile,
 	VALIDATION_PROFILE_REGISTRY,
@@ -11,6 +16,8 @@ import {
 } from "./validation-profiles.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const PRE_PUSH_NODE_TASKS = ["typecheck", "test", "test:worker"] as const;
+const PRE_PUSH_NATIVE_TASKS = ["native:typecheck", "native:test"] as const;
 
 export type EvidenceCommandRunner = CommandRunner;
 
@@ -36,7 +43,7 @@ export function runCommand(
 }
 
 function runProfileCommand(
-	profile: ValidationProfile,
+	profile: ValidationProfile | "pre-push",
 	command: string,
 	args: string[],
 	runner: EvidenceCommandRunner,
@@ -51,6 +58,44 @@ function runProfileCommand(
 			`Candidate validation profile ${profile} failed with exit code ${result.status ?? 1}`,
 		);
 	}
+}
+
+function runAffectedTask(
+	input: {
+		profile: "pre-push";
+		scope: AffectedScope;
+		serialized: boolean;
+		task: string;
+	},
+	runner: EvidenceCommandRunner,
+	options: { cwd: string; env: NodeJS.ProcessEnv },
+): void {
+	const packages = [
+		...new Set(
+			input.scope.tasks
+				.filter(({ task }) => task === input.task)
+				.map(({ package: packageName }) => packageName),
+		),
+	].sort();
+	if (packages.length === 0) {
+		return;
+	}
+	runProfileCommand(
+		input.profile,
+		"pnpm",
+		[
+			"exec",
+			"turbo",
+			"run",
+			input.task,
+			"--only",
+			...(input.serialized ? ["--concurrency=1"] : []),
+			"--summarize",
+			...packages.map((packageName) => `--filter=${packageName}`),
+		],
+		runner,
+		options,
+	);
 }
 
 function runAffectedNodeEvidence(
@@ -136,6 +181,62 @@ function runAffectedNodeEvidence(
 			runner,
 			options,
 		);
+	}
+}
+
+export function runPrePushEvidence(
+	input: {
+		base?: string;
+		head: string;
+		repositoryRoot: string;
+	},
+	runner: EvidenceCommandRunner = runCommand,
+): void {
+	if (
+		!SHA_PATTERN.test(input.head) ||
+		(input.base !== undefined && !SHA_PATTERN.test(input.base))
+	) {
+		throw new Error("Pre-push evidence revisions must be full lowercase commit SHAs");
+	}
+	const env = {
+		...process.env,
+		...(input.base ? { TURBO_SCM_BASE: input.base } : {}),
+		TURBO_SCM_HEAD: input.head,
+	};
+	const options = { cwd: input.repositoryRoot, env };
+	if (!input.base) {
+		runProfileCommand(
+			"pre-push",
+			"pnpm",
+			["exec", "turbo", "run", ...PRE_PUSH_NODE_TASKS, "--summarize"],
+			runner,
+			options,
+		);
+		for (const task of PRE_PUSH_NATIVE_TASKS) {
+			runProfileCommand(
+				"pre-push",
+				"pnpm",
+				["exec", "turbo", "run", task, "--concurrency=1", "--summarize"],
+				runner,
+				options,
+			);
+		}
+		return;
+	}
+
+	const scope = resolveAffectedScope(
+		{
+			base: input.base,
+			head: input.head,
+			repositoryRoot: input.repositoryRoot,
+		},
+		runner,
+	);
+	for (const task of PRE_PUSH_NODE_TASKS) {
+		runAffectedTask({ profile: "pre-push", scope, serialized: false, task }, runner, options);
+	}
+	for (const task of PRE_PUSH_NATIVE_TASKS) {
+		runAffectedTask({ profile: "pre-push", scope, serialized: true, task }, runner, options);
 	}
 }
 

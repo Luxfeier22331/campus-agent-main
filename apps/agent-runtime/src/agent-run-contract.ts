@@ -19,7 +19,7 @@ export interface PrimaryAgentRunInput {
 	requestId: string;
 	conversationId: string;
 	input: string;
-	visibleToolNames: string[];
+	visibleFunctionToolNames: string[];
 	conversationContext?: AgentConversationContext;
 	expectedToolContractFingerprint?: ToolContractFingerprint;
 	providerConfig: PromptProviderRuntimeConfig;
@@ -32,7 +32,7 @@ export interface AgentRuntimeLimits {
 	contextCharLimit: number;
 	currentInputCharLimit: number;
 	maxOutputTokens: number;
-	maxToolCalls: number;
+	maxFunctionToolCalls: number;
 	maxTurns: number;
 }
 
@@ -126,6 +126,13 @@ export interface ToolExecutionResult extends UntimedToolExecutionResult {
 	durationMs: number;
 }
 
+export interface WebCitation {
+	startIndex: number;
+	endIndex: number;
+	title: string;
+	url: string;
+}
+
 export interface SdkToolRuntime {
 	name: string;
 	description: string;
@@ -157,6 +164,8 @@ export interface AgentRunnerResult {
 	finalOutput: string;
 	providerResponseId: string;
 	toolResults: ToolExecutionResult[];
+	webCitations: WebCitation[];
+	webSearchUsed: boolean;
 	usage: UsageSummary;
 }
 
@@ -165,7 +174,6 @@ export type StreamingAgentRunner = (
 	input: AgentRunnerInput,
 ) => AsyncIterable<AgentRunnerAnswerDelta | AgentRunnerResult>;
 export type ToolExecutor = (request: ToolExecutionRequest) => Promise<UntimedToolExecutionResult>;
-
 export interface PrimaryAgentRunResult {
 	status: "completed" | "failed";
 	requestId: string;
@@ -178,6 +186,8 @@ export interface PrimaryAgentRunResult {
 	stageTiming: Record<string, number>;
 	toolContractFingerprint: ToolContractFingerprint;
 	toolResults: ToolExecutionResult[];
+	webCitations: WebCitation[];
+	webSearchUsed: boolean;
 	terminalReason: "answer_completed" | "agent_runtime_failed";
 	usage: UsageSummary;
 }
@@ -198,7 +208,7 @@ export interface CreatePrimaryAgentRuntimeOptions {
 export type PrimaryAgentStreamEvent =
 	| {
 			event: "answer_delta";
-			data: AgentRunnerAnswerDelta;
+			data: { delta: string };
 	  }
 	| {
 			event: "completed";

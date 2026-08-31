@@ -19,9 +19,10 @@ status: active
 ```
 
 代码负责认证、授权、工具准入、期限、非空文本与工具结果校验以及终态写入。当前代码冻结
-`execution_strategy.v3` 的 `direct` 路径；在线回答不自动预检索或注入 Campus Docs 内容，机构知识
-只通过已注册的 `campus_search` function tool 按需提供。工具是否存在、如何执行和结果如何公开，必须
-由对应合同与实现决定，不能因为提示词中出现相关描述就扩大模型能力。
+`execution_strategy.v4` 的 `direct` 路径；在线回答不自动预检索或注入 Campus Docs 内容，机构知识
+可以通过已注册的 `campus_search` function tool 按需提供，也可以由 Agents SDK 原生 `web_search`
+补充或核验尚未采集的公开校园网页信息。工具是否存在、如何执行和结果如何公开，必须由对应合同与
+实现决定，不能因为提示词中出现相关描述就扩大模型能力。
 Agents SDK 在这些边界内负责语义选择、必要的工具循环、澄清和答案生成。提示词不能替代代码检查，
 也不能扩大当前 run 已提供的能力。
 
@@ -43,6 +44,12 @@ Agents SDK 在这些边界内负责语义选择、必要的工具循环、澄清
 中央民族大学校园问答助手，未明确指定机构时，学校、本校和校园均默认指中央民族大学。工具选择依据
 问题所需事实与工具声明范围，不使用实体名称级特判；工具结果是候选，正文只引用本轮实际采用的结果。
 execution-control 传入类型化数据，不在 Go 侧维护另一套 Agent prompt 或答案合成 prompt。
+
+`campus_search` 返回 `no_match` 或失败时，模型不为同一事实改写查询后重复调用；问题所需事实可从
+尚未采集的公开校园网页获取时应使用 `web_search`，不能直接判定资料不足。`web_search` 只服务于校园
+问题，不是通用开放域能力，也不是代码自动回退。只有 `campus_search` 成功返回 evidence 时才使用
+`[n]` 引用；Web Search 支持的事实必须由 SDK 原生 URL citation 支持，模型不得手写 URL、Markdown
+来源链接、数字引用或 turn 引用。Finalization 负责生成统一的编号来源链接。
 
 ## 可信边界
 

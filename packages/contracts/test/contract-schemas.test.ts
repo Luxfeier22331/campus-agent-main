@@ -64,7 +64,7 @@ describe("contract schema registry", () => {
 		const functionSchemas = readJson("configs/runtime/tool-function-schemas.v4.json")
 			.tools as Record<string, unknown>[];
 		const toolIds = readToolContractEnum("ToolID");
-		const modelVisibleToolNames = readToolContractEnum("ModelVisibleToolName");
+		const modelVisibleFunctionToolNames = readToolContractEnum("ModelVisibleToolName");
 		const catalogNames = tools.map((tool) => String(tool.name)).sort();
 		const modelVisibleNames = tools
 			.filter((tool) => tool.exposure === "model_visible")
@@ -76,7 +76,7 @@ describe("contract schema registry", () => {
 		expect(catalogNames).toEqual(expectedRegisteredTools);
 		expect(toolIds.sort()).toEqual(catalogNames);
 		expect(modelVisibleNames).toEqual(["campus_search", "personal_memory_recall"]);
-		expect(modelVisibleToolNames.sort()).toEqual(modelVisibleNames);
+		expect(modelVisibleFunctionToolNames.sort()).toEqual(modelVisibleNames);
 		expect(functionSchemaNames).toEqual(catalogNames);
 	});
 

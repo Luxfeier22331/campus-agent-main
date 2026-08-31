@@ -8,7 +8,7 @@ status: active
 
 ## 边界
 
-`tool_trajectory.v4` 是评测消费的真实 SDK 工具调用投影。它不是 Langfuse DTO、浏览器
+`tool_trajectory.v4` 是评测消费的真实 SDK 本地函数工具调用投影。它不是 Langfuse DTO、浏览器
 合同、Temporal history 或 Provider response。
 
 ## 顶层结构
@@ -25,14 +25,15 @@ Temporal history。
 
 ## 当前工具词汇
 
-v4 只接受当前注册表中的名称：
+v4 只接受当前本地函数工具注册表中的名称：
 
 - `campus_search`；
 - `personal_memory_recall`。
 
 `tool_calls[]` 按真实发生顺序记录。没有调用的已暴露工具不进入评测轨迹。
 
-非工具能力不得派生工具调用、`tool_name`、`eval_safe_args` 或 `selected_tool`。
+Agents SDK 原生 hosted `web_search` 没有本地执行结果，不进入该轨迹。其他非本地函数工具能力也不得
+派生 `tool_name`、`eval_safe_args` 或 `selected_tool`。
 
 ## 工具调用
 
@@ -45,7 +46,8 @@ Campus Search query、evidence 正文、collection 标识、provider 凭据和�
 
 ## 决策语义
 
-- `direct_answer`：没有执行模型可见工具；
+- `direct_answer`：没有执行本地模型可见函数工具；仅使用 hosted `web_search` 的运行在当前本地轨迹中
+  仍属于该值；
 - `tool_assisted`：至少一个已准入 SDK function tool 已执行；
 - `fail_closed`：合同、配置、策略或执行条件拒绝了本次请求。普通工具失败本身不要求整轮
   `fail_closed`；只要剩余事实足以形成合法终态，轨迹仍可为 `tool_assisted`。

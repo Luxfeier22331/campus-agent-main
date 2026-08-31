@@ -34,11 +34,11 @@ type AgentAdmissionSnapshot struct {
 }
 
 type ExecutionStrategySnapshot struct {
-	Kind             string   `json:"kind"`
-	MaxModelTurns    int      `json:"max_model_turns"`
-	MaxToolCalls     int      `json:"max_tool_calls"`
-	SchemaVersion    string   `json:"schema_version"`
-	VisibleToolNames []string `json:"visible_tool_names"`
+	Kind                     string   `json:"kind"`
+	MaxModelTurns            int      `json:"max_model_turns"`
+	MaxFunctionToolCalls     int      `json:"max_function_tool_calls"`
+	SchemaVersion            string   `json:"schema_version"`
+	VisibleFunctionToolNames []string `json:"visible_function_tool_names"`
 }
 
 // ToolContractFingerprintSnapshot binds an admitted run to the exact tool
@@ -79,11 +79,11 @@ type AppendConversationMemoryActivityOutput struct {
 }
 
 type ExecutePrimaryAgentActivityInput struct {
-	AdmissionSnapshot AgentAdmissionSnapshot `json:"admission_snapshot"`
-	ConversationID    string                 `json:"conversation_id"`
-	RequestID         string                 `json:"request_id"`
-	TraceParent       string                 `json:"traceparent,omitempty"`
-	VisibleToolNames  []string               `json:"visible_tool_names"`
+	AdmissionSnapshot        AgentAdmissionSnapshot `json:"admission_snapshot"`
+	ConversationID           string                 `json:"conversation_id"`
+	RequestID                string                 `json:"request_id"`
+	TraceParent              string                 `json:"traceparent,omitempty"`
+	VisibleFunctionToolNames []string               `json:"visible_function_tool_names"`
 }
 
 type ExecutionFailure struct {
@@ -104,22 +104,31 @@ type AgentToolResult struct {
 	ToolName      string            `json:"tool_name"`
 }
 
+type AgentWebCitation struct {
+	EndIndex   int    `json:"end_index"`
+	StartIndex int    `json:"start_index"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+}
+
 type ExecutePrimaryAgentActivityOutput struct {
-	AgentResultRef          string            `json:"agent_result_ref"`
-	ContextUsage            map[string]any    `json:"context_usage"`
-	FinalOutput             string            `json:"final_output"`
-	ModelName               string            `json:"model_name"`
-	ModelProvider           string            `json:"model_provider"`
-	PromptTrace             map[string]any    `json:"prompt_trace"`
-	ProviderResponseID      string            `json:"provider_response_id"`
-	RequestID               string            `json:"request_id"`
-	StageTiming             map[string]any    `json:"stage_timing,omitempty"`
-	Status                  string            `json:"status"`
-	TerminalReason          string            `json:"terminal_reason"`
-	ToolResults             []AgentToolResult `json:"tool_results"`
-	ToolContractFingerprint map[string]any    `json:"tool_contract_fingerprint"`
-	RuntimeRelease          string            `json:"runtime_release"`
-	Usage                   AgentUsageSummary `json:"usage"`
+	AgentResultRef          string             `json:"agent_result_ref"`
+	ContextUsage            map[string]any     `json:"context_usage"`
+	FinalOutput             string             `json:"final_output"`
+	ModelName               string             `json:"model_name"`
+	ModelProvider           string             `json:"model_provider"`
+	PromptTrace             map[string]any     `json:"prompt_trace"`
+	ProviderResponseID      string             `json:"provider_response_id"`
+	RequestID               string             `json:"request_id"`
+	StageTiming             map[string]any     `json:"stage_timing,omitempty"`
+	Status                  string             `json:"status"`
+	TerminalReason          string             `json:"terminal_reason"`
+	ToolResults             []AgentToolResult  `json:"tool_results"`
+	ToolContractFingerprint map[string]any     `json:"tool_contract_fingerprint"`
+	RuntimeRelease          string             `json:"runtime_release"`
+	Usage                   AgentUsageSummary  `json:"usage"`
+	WebCitations            []AgentWebCitation `json:"web_citations"`
+	WebSearchUsed           bool               `json:"web_search_used"`
 }
 
 type AgentUsageSummary struct {

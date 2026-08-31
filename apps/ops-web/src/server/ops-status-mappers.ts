@@ -22,23 +22,44 @@ const TERMINAL_STATUSES = new Set<OpsRequestSummary["status"]>([
 	"ACTION_REQUIRED",
 ]);
 
-const ProductSourceActionSchema = z.object({
+const ProductCampusSourceActionSchema = z.object({
 	disabledReason: z.null(),
 	external: z.literal(false),
 	href: z.string().min(1),
 	label: z.literal("查看文档"),
 });
 
-const ProductSourceItemSchema = z.object({
+const ProductWebSourceActionSchema = z.object({
+	disabledReason: z.null(),
+	external: z.literal(true),
+	href: z.string().min(1),
+	label: z.literal("打开网页"),
+});
+
+const ProductCampusSourceItemSchema = z.object({
 	citationIndexes: CitationIndexesSchema,
 	collectionLabel: z.string(),
 	kind: z.literal("campus_document"),
-	primaryAction: ProductSourceActionSchema,
+	primaryAction: ProductCampusSourceActionSchema,
 	sectionTitle: z.string(),
 	snippet: z.string().nullable(),
 	title: z.string().min(1),
 	versionLabel: z.string(),
 });
+
+const ProductWebSourceItemSchema = z.object({
+	citationIndexes: CitationIndexesSchema,
+	hostname: z.string().min(1),
+	kind: z.literal("web_page"),
+	primaryAction: ProductWebSourceActionSchema,
+	snippet: z.string().nullable(),
+	title: z.string().min(1),
+});
+
+const ProductSourceItemSchema = z.discriminatedUnion("kind", [
+	ProductCampusSourceItemSchema,
+	ProductWebSourceItemSchema,
+]);
 
 const ProductSourcePartSchema = z.object({
 	sourceItems: z.array(ProductSourceItemSchema),
@@ -318,16 +339,18 @@ function toProductResult(
 		: { state: "PENDING" };
 }
 
-function normalizeProductSourceAction(
-	action: z.infer<typeof ProductSourceActionSchema>,
-	campusWebPublicOrigin?: string,
-): Extract<
+type WrittenProductSource = Extract<
 	OpsRequestDetailResponse["result"],
 	{ state: "WRITTEN" }
->["sources"][number]["primaryAction"] {
+>["sources"][number];
+
+function normalizeCampusProductSourceAction(
+	action: z.infer<typeof ProductCampusSourceActionSchema>,
+	campusWebPublicOrigin?: string,
+): Extract<WrittenProductSource, { kind: "campus_document" }>["primaryAction"] {
 	const href = action.href.trim();
 	if (!campusWebPublicOrigin) {
-		return invalidSourceAction(action, "Campus Web 地址未配置。");
+		return invalidCampusSourceAction(action, "Campus Web 地址未配置。");
 	}
 	try {
 		const parsed = new URL(href, campusWebPublicOrigin);
@@ -335,25 +358,41 @@ function normalizeProductSourceAction(
 			href.startsWith("//") ||
 			(!href.startsWith("/") && parsed.origin !== campusWebPublicOrigin)
 		) {
-			return invalidSourceAction(action);
+			return invalidCampusSourceAction(action);
 		}
 		if (parsed.origin !== campusWebPublicOrigin || parsed.username || parsed.password) {
-			return invalidSourceAction(action);
+			return invalidCampusSourceAction(action);
 		}
 		return { ...action, href: parsed.href };
 	} catch {
-		return invalidSourceAction(action);
+		return invalidCampusSourceAction(action);
 	}
 }
 
-function invalidSourceAction(
-	action: z.infer<typeof ProductSourceActionSchema>,
+function invalidCampusSourceAction(
+	action: z.infer<typeof ProductCampusSourceActionSchema>,
 	disabledReason = "来源链接地址无效。",
-): Extract<
-	OpsRequestDetailResponse["result"],
-	{ state: "WRITTEN" }
->["sources"][number]["primaryAction"] {
+): Extract<WrittenProductSource, { kind: "campus_document" }>["primaryAction"] {
 	return { ...action, disabledReason, href: null };
+}
+
+function normalizeWebProductSourceAction(
+	action: z.infer<typeof ProductWebSourceActionSchema>,
+): Extract<WrittenProductSource, { kind: "web_page" }>["primaryAction"] {
+	try {
+		const parsed = new URL(action.href.trim());
+		if (
+			(parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+			!parsed.hostname ||
+			parsed.username ||
+			parsed.password
+		) {
+			return { ...action, disabledReason: "来源链接地址无效。", href: null };
+		}
+		return { ...action, href: parsed.href };
+	} catch {
+		return { ...action, disabledReason: "来源链接地址无效。", href: null };
+	}
 }
 
 function normalizeProductSources(
@@ -370,13 +409,20 @@ function normalizeProductSources(
 			continue;
 		}
 		for (const source of parsed.data.sourceItems) {
-			sources.push({
-				...source,
-				primaryAction: normalizeProductSourceAction(source.primaryAction, campusWebPublicOrigin),
-			});
-			if (sources.length === 5) {
-				return sources;
-			}
+			sources.push(
+				source.kind === "campus_document"
+					? {
+							...source,
+							primaryAction: normalizeCampusProductSourceAction(
+								source.primaryAction,
+								campusWebPublicOrigin,
+							),
+						}
+					: {
+							...source,
+							primaryAction: normalizeWebProductSourceAction(source.primaryAction),
+						},
+			);
 		}
 	}
 	return sources;

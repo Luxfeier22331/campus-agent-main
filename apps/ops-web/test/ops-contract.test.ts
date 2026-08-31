@@ -30,6 +30,12 @@ describe("ops-web contract fixtures", () => {
 		const parsed = OpsRequestDetailResponseSchema.parse(opsRequestDetailFixture);
 		expect(parsed.request.requestId).toBe("req_ops_001");
 		expect(parsed.result).toMatchObject({ state: "WRITTEN" });
+		expect(parsed.result.state === "WRITTEN" ? parsed.result.sources[1] : null).toMatchObject({
+			citationIndexes: [2],
+			hostname: "jwc.muc.edu.cn",
+			kind: "web_page",
+			primaryAction: { external: true, label: "打开网页" },
+		});
 		expect(parsed.execution.model).toMatchObject({
 			name: "deepseek-v4-flash-0731",
 			requestCount: 1,
