@@ -51,7 +51,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 			onProgress: (progress) =>
 				console.log(JSON.stringify({ progress, status: "running" })),
 		});
-		process.stdout.write(`${JSON.stringify(result)}\n`);
+		process.stdout.write(`${JSON.stringify({ summary: result })}\n`);
 	} finally {
 		await database.end();
 	}

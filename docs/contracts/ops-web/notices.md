@@ -35,10 +35,17 @@ Ops Web 提供通知安全 metadata 的查看与分类维护，并复用暂停�
 - `GET /api/ops/notices/jobs/:jobName`
 
 允许操作为 `notice-sync`、`notice-backfill`、`notice-classify-missing`、`notice-classify-one`、
-`notice-publish-pending` 和 `notice-publish-one`。采集、分类和发布各自构成一个互斥操作族；已有活动 Job
+`notice-publish-pending`、`notice-publish-one` 和 `notice-republish-one`。采集、分类和发布各自构成一个互斥操作族；已有活动 Job
 时返回 `409 OPS_NOTICE_JOB_CONFLICT`。Job 固定零重试，完成 24 小时后回收，不承担长期审计。单条分类和发布 Job 使用
 `campus-agent.muc.wiki/notice-id` label 持久表达通知归属，任务响应通过 `noticeId` 返回该值；批量任务
 以及部署前创建且没有该 label 的单条任务返回 `noticeId: null`。
+
+部署环境从固定暂停 CronJob 模板创建 Kubernetes Job。`local/development` 使用相同接口和任务状态启动
+当前 worktree 的固定采集、分类或发布 CLI（采集使用其本地 adapter 入口加载自身环境）；本地任务只保存在 Ops Web 进程内，服务重启后消失。两种
+执行方式都不接受浏览器提交 command、环境变量或执行路径，也不在失败后切换到另一种执行方式。
+
+`notice-republish-one` 只用于已发布的站内通知，重新读取 source bucket 并更新正文投影，保持已发布状态和分类不变；
+后台不提供批量重新发布入口，批量更新由 notice-publisher 运维命令显式执行。
 
 每个 Job 还返回以下诊断字段：
 
@@ -51,14 +58,14 @@ Ops Web 提供通知安全 metadata 的查看与分类维护，并复用暂停�
   "processed": number, "total": number|null }`；
 - `summary`：严格允许的业务摘要字段，只返回数量、`upToDate` 等已登记字段，不返回通知 ID 列表或任意日志
   对象。分类摘要使用 `classified`、`requested`、`skipped`；采集摘要使用通知、分页、来源对象和资源计数；
-  发布摘要使用 `notices`、`assets`；
-- `error`：应用进程从 Pod 输出的原始错误文本，包括 stack、cause、HTTP 状态和响应体，不做错误码泛化、
+  首次发布摘要使用 `notices`、`assets`，重新发布还可使用 `updated`、`unchanged`；
+- `error`：应用进程从 Pod 或本地子进程输出的原始错误文本，包括 stack、cause、HTTP 状态和响应体，不做错误码泛化、
   脱敏或 500 字符截断；
 - `controllerError`：Kubernetes Job condition 的原始 reason/message，例如
   `BackoffLimitExceeded: Job has reached the specified backoff limit`。它描述控制器观测到的结果，不能替代
   应用错误。
 
-Ops Web 会读取成功、失败和运行中 Job 的 Pod 输出。若 Job 已失败但 Pod 输出不可用，`error` 为 `null`，
+Ops Web 会读取成功、失败和运行中 Job 的进程输出。若 Kubernetes Job 已失败但 Pod 输出不可用，`error` 为 `null`，
 `controllerError` 仍单独返回；任务中心分别展示两者。采集的 sync 和 backfill 是两个独立 Job，页面只显示
 实际创建的 Job，不自动补建或串联另一条。
 

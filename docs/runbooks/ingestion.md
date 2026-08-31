@@ -177,9 +177,18 @@ pnpm --filter notice-publisher run publish --notice-id "$NOTICE_ID"
 pnpm --filter notice-publisher run publish
 ```
 
+已发布通知需要重新按当前清洗规则物化时，使用独立的 `republish` 命令；该命令保持
+`is_published=true` 和分类不变：
+
+```bash
+pnpm --filter notice-publisher run republish --notice-id "$NOTICE_ID"
+pnpm --filter notice-publisher run republish
+```
+
 离线模型比较产生的 JSONL 不进入发布链路。publisher 在数据库事务前完成来源读取、正文清洗和资源
 摘要计算；图片立即写入 derived 内容寻址对象，附件只读取校验并留在 source bucket。随后用单一事务写
-正文、资源 metadata 和发布状态。任一来源缺失、合同无效或已有投影冲突都会以非零状态停止；
+正文、资源 metadata 和发布状态；重新发布只更新正文投影并保持已发布状态。任一来源缺失、合同无效或
+资源投影冲突都会以非零状态停止；
 数据库不留部分批次，已验证的内容寻址图片可在重跑时复用。相同输入必须幂等。
 
 ### 产品验收

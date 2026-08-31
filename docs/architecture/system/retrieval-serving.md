@@ -39,19 +39,47 @@ provider-specific model alias 与调用参数不进入内容寻址 manifest。
 
 ## 分块定义
 
-当前 `campus_docs_reader_elements.v4` 使用 Unicode 字符数，不依赖模型 tokenizer：软目标为 800
+当前 `campus_docs_reader_elements.v5` 使用 Unicode 字符数，不依赖模型 tokenizer：软目标为 800
 字符，单个 Chunk 硬上限为 1600 字符，不做通用重叠。
 
 - heading 只维护按 level 收敛的标题路径，不进入 evidence 正文，也不单独生成 point；标题前正文作为
   preamble 使用当前版本固定链接；
 - paragraph、list 和 blockquote 保持 reader 元素完整并按原顺序合并；超长元素优先在空行、列表项、
   句末和子句边界切分，没有可用边界时才在硬上限切分；
+- 同一 section 的相邻 Chunk 任一侧短于 200 字且合并后不超过 1600 字时回并；不跨 heading、section、
+  table 或独立短段落“<专业名>专业毕业要求：”硬边界，普通冒号结尾段落不形成硬边界；
+- 独立的 `> Source URL: https://...` 段落不进入 evidence；文档开头连续审批/修订日期和文号附着到
+  同一 preamble 的首个正文 Chunk，后续直接进入 heading 时不跨 section 附着；
 - table 保持逻辑行和多级列路径，会携带紧邻且高置信相关的有界正文上下文。上下文最多 400 字，表格
   拆成多个 Chunk 时重复该上下文和列名，不附着无关相邻段落；
 - `root_unit_ids` 按正文元素首次出现顺序去重，覆盖 evidence 实际包含的全部 reader 根单元。
 
 字符硬上限之外仍保留 16000 UTF-8 byte 传输限制。dense embedding 和 sparse vector 使用由文档
 标题、完整 heading 路径和 evidence 正文组成的 `retrieval_text`；point 分别保存正文和检索文本摘要。
+
+## Chunk 策略治理
+
+Chunk 策略治理与生产分块实现同属 `campus-docs-index-publisher`，但治理只读取显式 Chunk Set，不修改
+`campus_docs_reader_elements.v5`、Embedding Set、Qdrant collection 或当前在线绑定。review 对完整
+Chunk Set 生成全量 census、150 份文档的确定性覆盖样本、候选信号和 450 个 Chunk 级审阅项。Chunk
+审阅项包含正文、heading 路径、reader root units、前后边界和全部候选信号；关联既有 embedding
+evaluation 时还全量纳入 evidence Chunk 及其 question/rank。普通分层执行每文档上限，元数据、near-max
+和 embedding evidence 为避免漏检而全量进入。候选信号只定位人工审阅对象，不是自动改写 Chunk 的
+规则。
+
+人工标签只表达 `keep` 或带 `drop`、`attach`、`merge`、`split`、`upstream-reader` action 的
+`change`。标签汇总按 primary stratum 和 candidate signal 报告 change rate，但不会据此生成候选 Chunk
+Set；对照组用于估计候选信号之外的 Reader/Chunker 问题率。
+
+真实 embedding 评测使用固定问题文件、Chunk 的 `retrieval_text` 和当前 canonical dense embedding
+定义，分别报告 target Chunk、全部 evidence、文档和 single-chunk answer 的排名指标。比较 baseline
+与 candidate 时，评测必须分别引用对应 Chunk Set，并使用相同模型 target、问题文件摘要、embedding
+定义和问题顺序；来源投影不同时不比较 evidence placement。逐文本 embedding 缓存和所有治理制品只
+保存在 worktree 的 `var/campus-docs/chunk-governance/`，不进入 Git 或生产制品 Store。
+
+该能力属于本地人工/研究验证，不是 PR 阻断检查，也不等价于在线 dense/sparse hybrid 加 reranker 的
+最终效果。治理结果不会自动生成、发布或激活新的生产 Chunk Set；是否调整生产定义需综合结构 census、
+广泛抽样、evidence placement 和真实 embedding 对比后另行决定。
 
 ## 构建与发布
 

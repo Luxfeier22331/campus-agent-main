@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parsePublishArgs } from "../src/cli.ts";
+import { parsePublishArgs, parseRepublishArgs } from "../src/cli.ts";
 
 describe("notice publisher CLI", () => {
 	it("publishes all pending notices by default", () => {
@@ -18,6 +18,11 @@ describe("notice publisher CLI", () => {
 		).toEqual({
 			noticeIds: [358159, 358160],
 		});
+	});
+
+	it("allows republishing all published notices or selected notice IDs", () => {
+		expect(parseRepublishArgs([])).toEqual({ noticeIds: [] });
+		expect(parseRepublishArgs(["--notice-id", "358159"])).toEqual({ noticeIds: [358159] });
 	});
 
 	it.each([

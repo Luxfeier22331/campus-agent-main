@@ -1,13 +1,11 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createOpenAICompatibleEmbeddingClient } from "@campus-agent/embedding-runtime";
 import { assertSha256Ref } from "./artifacts.ts";
 import { createPostgresIndexCatalog } from "./catalog.ts";
 import { runBuildChunks } from "./chunk-command.ts";
-import {
-	createOpenAICompatibleEmbeddingClient,
-	fetchEmbeddingConnection,
-} from "./embedding.ts";
+import { fetchEmbeddingConnection } from "./embedding.ts";
 import { createS3ArtifactStore } from "./object-store.ts";
 import {
 	buildCampusDocsEmbeddingSet,

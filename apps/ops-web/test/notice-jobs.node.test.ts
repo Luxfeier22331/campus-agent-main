@@ -108,6 +108,7 @@ describe("notice Kubernetes jobs", () => {
 			operation: "notice-classify-one",
 		});
 		const published = await store.create({ noticeId: 354516, operation: "notice-publish-one" });
+		const republished = await store.create({ noticeId: 354516, operation: "notice-republish-one" });
 
 		expect(created[0]?.spec?.template.spec?.containers[0]?.args).toEqual([
 			"--concurrency",
@@ -117,6 +118,11 @@ describe("notice Kubernetes jobs", () => {
 		]);
 		expect(created[1]?.spec?.template.spec?.containers[0]?.args).toEqual([
 			"publish",
+			"--notice-id",
+			"354516",
+		]);
+		expect(created[2]?.spec?.template.spec?.containers[0]?.args).toEqual([
+			"republish",
 			"--notice-id",
 			"354516",
 		]);
@@ -130,6 +136,7 @@ describe("notice Kubernetes jobs", () => {
 		}
 		expect(classified.noticeId).toBe(354516);
 		expect(published.noticeId).toBe(354516);
+		expect(republished.noticeId).toBe(354516);
 	});
 
 	it("reads persisted notice ownership and keeps legacy one-notice jobs unassociated", async () => {
@@ -213,6 +220,9 @@ describe("notice Kubernetes jobs", () => {
 				].join("\n"),
 			),
 		).toEqual({ classified: 4, skipped: 8 });
+		expect(
+			parseNoticeJobSummary(JSON.stringify({ summary: { unchanged: 2, updated: 3 } })),
+		).toEqual({ unchanged: 2, updated: 3 });
 		expect(parseNoticeJobSummary("unstructured output")).toBeNull();
 		expect(parseNoticeJobSummary(JSON.stringify({ processed: 4, status: "running" }))).toBeNull();
 	});

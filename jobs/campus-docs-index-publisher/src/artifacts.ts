@@ -5,10 +5,8 @@ import {
 	sha256,
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import type { ObjectRef } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
-import {
-	CHUNK_SET_DEFINITION,
-	EMBEDDING_SPACE,
-} from "./definitions.ts";
+import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
+import { CHUNK_SET_DEFINITION } from "./definitions.ts";
 import {
 	type ArtifactObjectStore,
 	type ChunkSetManifest,

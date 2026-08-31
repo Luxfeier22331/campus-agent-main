@@ -1,19 +1,12 @@
 export const CHUNK_SET_DEFINITION = {
 	chunking: {
-		algorithm: "campus_docs_reader_elements.v4",
+		algorithm: "campus_docs_reader_elements.v5",
 		maxChars: 1600,
 		overlapChars: 0,
 		targetChars: 800,
 	},
 	readerSchemaVersion: "campus_docs_reader.v3",
 	sourceSchemaVersion: "campus_docs_source.v3",
-} as const;
-
-export const CANONICAL_EMBEDDING_MODEL = "Qwen3-Embedding-4B";
-
-export const EMBEDDING_SPACE = {
-	dimensions: 2560,
-	spaceId: "qwen3-embedding-4b@2560-v1",
 } as const;
 
 export const COLLECTION_DEFINITION = {

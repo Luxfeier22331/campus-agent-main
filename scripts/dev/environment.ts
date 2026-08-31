@@ -68,6 +68,8 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	noticePublisher: "jobs/notice-publisher/.env.local",
 	opsWeb: "apps/ops-web/.env.local",
 	internalPortalCollection: "jobs/internal-portal-collection/adapters/internal-portal/.env.local",
+	campusDocsIndexPublisher: "jobs/campus-docs-index-publisher/.env.local",
+	noticeIndexPublisher: "jobs/notice-index-publisher/.env.local",
 } as const;
 
 type ManagedLocalEnvironment = keyof typeof MANAGED_LOCAL_ENVIRONMENT_PATHS;
@@ -89,6 +91,8 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	"notice-publisher": ["noticePublisher"],
 	"internal-portal-collection": ["internalPortalCollection"],
 	"notice-classifier": ["noticeClassifier"],
+	"campus-docs-index-publisher": ["campusDocsIndexPublisher"],
+	"notice-index-publisher": ["noticeIndexPublisher"],
 };
 
 const LOCAL_DATABASE_PASSWORDS = {
@@ -157,7 +161,13 @@ export function importMainCheckoutExternalCredentials(input: {
 		return;
 	}
 	const credentials = readMainCheckoutExternalCredentials(input.mainCheckoutRoot);
-	if (input.projections.includes("core") || input.projections.includes("model-config")) {
+	if (
+		input.projections.some((projection) =>
+			["core", "model-config", "campus-docs-index-publisher", "notice-index-publisher"].includes(
+				projection,
+			),
+		)
+	) {
 		appendMissingEnvValues(resolve(input.repoRoot, ".env"), credentials.provider);
 	}
 	if (
@@ -285,7 +295,6 @@ export function renderLocalEnvironmentFiles(input: {
 	const opsWebInternalToken = localSecrets?.opsWebInternalToken ?? "";
 	const shouldRender = (name: ManagedLocalEnvironment): boolean =>
 		projections.some((target) => LOCAL_DEV_ENVIRONMENT_TARGETS[target].includes(name));
-
 	if (shouldRender("appApi")) {
 		writeManagedEnv(paths.appApi, {
 			APP_API_SCHEMA_DATABASE_SSLMODE: "disable",
@@ -423,6 +432,21 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
 			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
+		});
+	}
+	if (shouldRender("campusDocsIndexPublisher")) {
+		writeManagedEnv(paths.campusDocsIndexPublisher, {
+			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+		});
+	}
+	if (shouldRender("noticeIndexPublisher")) {
+		writeManagedEnv(paths.noticeIndexPublisher, {
+			DEPLOYMENT_ENVIRONMENT: "local",
+			NOTICES_DATABASE_SSLMODE: "disable",
+			NOTICES_DATABASE_URL: database.owner,
 		});
 	}
 	return selectedPaths;

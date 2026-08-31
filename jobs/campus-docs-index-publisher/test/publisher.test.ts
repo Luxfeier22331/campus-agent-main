@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 
 import {
 	createDocsSourceSiteFixture,
@@ -15,7 +16,7 @@ import {
 	readEmbeddingSet,
 } from "../src/artifacts.ts";
 import { runBuildChunks } from "../src/chunk-command.ts";
-import { COLLECTION_DEFINITION, EMBEDDING_SPACE } from "../src/definitions.ts";
+import { COLLECTION_DEFINITION } from "../src/definitions.ts";
 import {
 	buildCampusDocsChunkSet,
 	buildCampusDocsEmbeddingSet,

@@ -40,6 +40,7 @@ const NOTICE_OPERATION_LABELS: Record<NoticeJobOperation, string> = {
 	"notice-classify-one": "单条模型分类",
 	"notice-publish-one": "单条发布",
 	"notice-publish-pending": "发布待发布通知",
+	"notice-republish-one": "单条重新发布",
 	"notice-sync": "同步新通知",
 };
 

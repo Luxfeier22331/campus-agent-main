@@ -3,7 +3,9 @@ export type LocalDevTarget =
 	| "ops-web"
 	| "notice-publisher"
 	| "internal-portal-collection"
-	| "notice-classifier";
+	| "notice-classifier"
+	| "campus-docs-index-publisher"
+	| "notice-index-publisher";
 
 export type LocalDevCapability =
 	| "postgres"
@@ -19,7 +21,9 @@ export type LocalDevEnvironmentProjection =
 	| "ops-web"
 	| "notice-publisher"
 	| "internal-portal-collection"
-	| "notice-classifier";
+	| "notice-classifier"
+	| "campus-docs-index-publisher"
+	| "notice-index-publisher";
 
 export type LocalDevRuntimeDependency = "core" | "model-config" | "ops-web";
 
@@ -77,13 +81,20 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 	"ops-web": {
 		bootstrapSteps: [
 			"campus-agent-schema",
+			"model-config-seed",
 			"notice-publisher-seed-local",
+			"model-config-check",
 			"ops-web-dining-bootstrap",
 		],
-		capabilities: ["postgres", "derived-bucket"],
-		directEnvironmentProjections: ["ops-web"],
+		capabilities: ["postgres", "derived-bucket", "source-bucket"],
+		directEnvironmentProjections: [
+			"ops-web",
+			"internal-portal-collection",
+			"notice-classifier",
+			"notice-publisher",
+		],
 		environmentDependencies: ["core"],
-		modelConfigNames: [],
+		modelConfigNames: ["notice_classification"],
 		runtimeDependencies: ["core"],
 		target: "ops-web",
 	},
@@ -118,6 +129,24 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 		modelConfigNames: ["notice_classification"],
 		runtimeDependencies: ["model-config"],
 		target: "notice-classifier",
+	},
+	"campus-docs-index-publisher": {
+		bootstrapSteps: [],
+		capabilities: ["postgres", "docs-bucket", "docs-source"],
+		directEnvironmentProjections: ["campus-docs-index-publisher"],
+		environmentDependencies: [],
+		modelConfigNames: [],
+		runtimeDependencies: [],
+		target: "campus-docs-index-publisher",
+	},
+	"notice-index-publisher": {
+		bootstrapSteps: ["campus-agent-schema"],
+		capabilities: ["postgres"],
+		directEnvironmentProjections: ["notice-index-publisher"],
+		environmentDependencies: [],
+		modelConfigNames: [],
+		runtimeDependencies: [],
+		target: "notice-index-publisher",
 	},
 };
 

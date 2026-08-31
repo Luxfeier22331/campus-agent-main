@@ -42,6 +42,8 @@ jobs/notice-publisher/.env
 jobs/notice-publisher/.env.*
 !packages/domains/
 !packages/domains/**
+!packages/embedding-runtime/
+!packages/embedding-runtime/**
 !configs/ingestion/
 !configs/ingestion/**
 !configs/runtime/

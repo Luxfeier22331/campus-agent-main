@@ -36,8 +36,9 @@ ingestion runtime base 为通知增量、通知回填和文件发布分别提供
 数据库。凭据由 Ops Web 候选池解析，本地写入当前 worktree 的受管理环境文件，采集 Job 只在当前进程内
 使用，不形成 TGC Secret。
 
-notice-publisher 读取数据库中已有分类且未发布的通知，显式物化正文与资源并打开学生端可见边界；本地 CLI 与默认暂停的
-Kubernetes Job 模板使用同一实现，不提供自动 schedule。App API 和 Campus Web 只读取 `is_published=true` 的投影。完整
+notice-publisher 读取数据库中已有分类且未发布的通知，显式物化正文与资源并打开学生端可见边界；对已发布站内通知也可通过独立的
+重新发布操作重新物化正文投影，但保持学生端可见边界不变。本地 CLI 与默认暂停的 Kubernetes Job 模板使用同一实现，不提供自动
+schedule。App API 和 Campus Web 只读取 `is_published=true` 的投影。完整
 数据结构和操作顺序分别由 `../../data/notices.md` 和
 `../../runbooks/ingestion.md` 维护。
 
@@ -51,9 +52,12 @@ App API 提供会话保护的目录、站内详情和图片读取。目录用 `s
 通知从目录直接前往已校验来源，不抓取外部正文。站内详情提供需要用户门户登录态的原文和附件链接；
 App API 不代理附件字节。
 
-`campus_notices/internal_notice` 不是当前 Campus Docs publisher 的输入。Agent 不能扫描通知对象存储或
-PostgreSQL，也不提供通知结构化查询、附件解析、embedding 或 RAG，不能把通知分类配置视为产品
-能力。分类、schema、读取接口和页面源码存在都不表示任一环境已经完成资源回填、规范化写入或部署。
+`campus_notices/internal_notice` 不是当前 Campus Docs publisher 的输入。仓库当前只提供显式运行的
+Notice 本地 Chunk 构建、问题生成和 Embedding 检索评测，不发布对象存储制品、Qdrant collection 或在线
+绑定。问题生成和评测只消费与目标 Chunk Run 对齐的本地 Chunk 产物。
+Agent 不能扫描通知对象存储或 PostgreSQL，也不提供通知结构化查询、附件解析或在线 RAG，不能把通知
+分类配置、本地 Chunk 或评测产物视为产品能力。分类、schema、读取接口、页面源码和本地制品存在都不
+表示任一环境已经完成资源回填、规范化写入、索引发布或部署。
 
 ## 相关文档
 

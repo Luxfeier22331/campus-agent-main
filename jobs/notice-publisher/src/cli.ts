@@ -6,7 +6,7 @@ import { formatRawError } from "ingestion-contracts/raw-error";
 import { backfillAttachmentLinks } from "./backfill.ts";
 import { migrateNotices } from "./migrate.ts";
 import { internalPortalHost } from "./portal.ts";
-import { publishNotices } from "./publisher.ts";
+import { publishNotices, republishNotices } from "./publisher.ts";
 import { createPublisherObjectStoreFromEnv } from "./store.ts";
 
 try {
@@ -40,8 +40,28 @@ async function main(): Promise<void> {
 			}
 			return;
 		}
+		if (command === "republish") {
+			const parsed = parseRepublishArgs(args);
+			const store = createPublisherObjectStoreFromEnv(process.env);
+			try {
+				const result = await republishNotices({
+					client,
+					noticeIds: parsed.noticeIds.length ? parsed.noticeIds : undefined,
+					onProgress: (progress) =>
+						console.log(JSON.stringify({ progress, status: "running" })),
+					objectStore: store,
+					portalHost: internalPortalHost(),
+				});
+				console.log(JSON.stringify({ summary: result }));
+			} finally {
+				store.close();
+			}
+			return;
+		}
 		if (command !== "publish") {
-			throw new Error("usage: notice-publisher <migrate|backfill-attachment-links|publish>");
+			throw new Error(
+				"usage: notice-publisher <migrate|backfill-attachment-links|publish|republish>",
+			);
 		}
 		const parsed = parsePublishArgs(args);
 		const store = createPublisherObjectStoreFromEnv(process.env);
@@ -83,6 +103,14 @@ function parseBackfillArgs(args: string[]): { dryRun: boolean; noticeIds: number
 }
 
 export function parsePublishArgs(args: string[]): { noticeIds: number[] } {
+	return parseNoticeIds(args);
+}
+
+export function parseRepublishArgs(args: string[]): { noticeIds: number[] } {
+	return parseNoticeIds(args);
+}
+
+function parseNoticeIds(args: string[]): { noticeIds: number[] } {
 	const noticeIds: number[] = [];
 	for (let index = 0; index < args.length; index += 1) {
 		const value = args[index + 1];

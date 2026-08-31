@@ -1,0 +1,35 @@
+{
+	"name": "notice-index-publisher",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Local-first notice RAG chunk builder and validator.",
+	"license": "Apache-2.0",
+	"type": "module",
+	"scripts": {
+		"build": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { force: true, recursive: true })\" && esbuild ./src/local-chunk-comparison-cli.ts ./src/local-cli.ts ./src/local-embedding-evaluation-cli.ts ./src/local-embedding-sample-cli.ts ./src/local-notice-question-generation-cli.ts ./src/local-review-cli.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --external:pg && node --input-type=module -e \"Promise.all([import('./dist/local-chunk-comparison-cli.js'), import('./dist/local-cli.js'), import('./dist/local-embedding-evaluation-cli.js'), import('./dist/local-embedding-sample-cli.js'), import('./dist/local-notice-question-generation-cli.js'), import('./dist/local-review-cli.js')])\"",
+		"build-chunks-local": "node --env-file=.env.local --import=tsx src/local-cli.ts",
+		"compare-chunks-local": "tsx src/local-chunk-comparison-cli.ts",
+		"evaluate-embeddings-local": "node --env-file=../../.env --import=tsx src/local-embedding-evaluation-cli.ts",
+		"generate-notice-questions-local": "node --env-file=../../.env --import=tsx src/local-notice-question-generation-cli.ts",
+		"sample-embeddings-local": "node --env-file=../../.env --import=tsx src/local-embedding-sample-cli.ts",
+		"review-chunks-local": "tsx src/local-review-cli.ts",
+		"test": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
+		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@campus-agent/embedding-runtime": "workspace:*",
+		"@campus-agent/notice-database": "workspace:*",
+		"pg": "^8.23.0"
+	},
+	"devDependencies": {
+		"@testcontainers/postgresql": "12.1.0",
+		"@types/node": "^24.13.3",
+		"@types/pg": "^8.21.0",
+		"esbuild": "^0.28.2",
+		"testcontainers": "12.1.0",
+		"tsx": "^4.23.12",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.10"
+	}
+}

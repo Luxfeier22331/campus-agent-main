@@ -93,6 +93,84 @@ export async function publishNotices(input: {
 	return result;
 }
 
+export interface NoticeRepublishResult {
+	assets: number;
+	notices: number;
+	skipped: number;
+	unchanged: number;
+	updated: number;
+}
+
+export async function republishNotices(input: {
+	client: PoolClient;
+	noticeIds?: readonly number[];
+	onProgress?: (progress: NoticePublicationProgress) => void;
+	objectStore: PublisherObjectStore;
+	portalHost: string;
+}): Promise<NoticeRepublishResult> {
+	const candidates = await loadCandidates(input.client, input.noticeIds, "republish");
+	if (candidates.length === 0) {
+		input.onProgress?.({ phase: "finalizing", processed: 0, total: 0 });
+		return { assets: 0, notices: 0, skipped: 0, unchanged: 0, updated: 0 };
+	}
+	const meta = await loadMeta(input.objectStore);
+	const records: PublishedNotice[] = [];
+	let skipped = 0;
+	input.onProgress?.({ phase: "processing", processed: 0, total: candidates.length });
+	for (const candidate of candidates) {
+		const record = await loadRecord(input.objectStore, meta, candidate, input.portalHost, {
+			skipAssetsWhenNoText: true,
+		});
+		if (record.contentText === null) {
+			if (input.noticeIds?.length) {
+				throw new Error(`notice ${record.noticeId} has no source body to republish`);
+			}
+			skipped += 1;
+		} else {
+			records.push(record);
+		}
+		input.onProgress?.({
+			phase: "processing",
+			processed: records.length + skipped,
+			total: candidates.length,
+		});
+	}
+	if (records.length === 0) {
+		const result = { assets: 0, notices: 0, skipped, unchanged: 0, updated: 0 };
+		input.onProgress?.({ phase: "finalizing", processed: 0, total: 0 });
+		return result;
+	}
+
+	let updated = 0;
+	let unchanged = 0;
+	await input.client.query("BEGIN");
+	try {
+		for (const [index, record] of records.entries()) {
+			input.onProgress?.({ phase: "writing", processed: index, total: records.length });
+			if (await updatePublishedContent(input.client, record)) {
+				updated += 1;
+			} else {
+				unchanged += 1;
+			}
+			await insertOrVerifyAssets(input.client, record);
+			input.onProgress?.({ phase: "writing", processed: index + 1, total: records.length });
+		}
+		await input.client.query("COMMIT");
+	} catch (error) {
+		await input.client.query("ROLLBACK");
+		throw error;
+	}
+	const result = {
+		assets: records.reduce((sum, item) => sum + item.assets.length, 0),
+		notices: records.length,
+		skipped,
+		unchanged,
+		updated,
+	};
+	input.onProgress?.({ phase: "finalizing", processed: result.notices, total: result.notices });
+	return result;
+}
+
 export interface NoticePublicationProgress {
 	phase: "processing" | "writing" | "finalizing";
 	processed: number;
@@ -102,6 +180,7 @@ export interface NoticePublicationProgress {
 async function loadCandidates(
 	client: PoolClient,
 	noticeIds?: readonly number[],
+	mode: "publish" | "republish" = "publish",
 ): Promise<RegisteredNotice[]> {
 	const explicit = noticeIds !== undefined && noticeIds.length > 0;
 	const result = explicit
@@ -117,7 +196,7 @@ async function loadCandidates(
 				`SELECT notice_id::text, notice_type, organization_id, title, released_at,
 				        is_external, external_url, category, is_published
 				 FROM notices.notices
-				 WHERE category IS NOT NULL AND NOT is_published
+				 WHERE ${mode === "republish" ? "is_published AND NOT is_external" : "category IS NOT NULL AND NOT is_published"}
 				 ORDER BY notice_id`,
 			);
 	const rows = result.rows.map(toDatabaseNotice);
@@ -131,11 +210,23 @@ async function loadCandidates(
 			if (row.category === null) {
 				throw new Error(`notice ${noticeId} has no category`);
 			}
+			if (mode === "republish" && !row.isPublished) {
+				throw new Error(`notice ${noticeId} is not published`);
+			}
+			if (mode === "republish" && row.isExternal) {
+				throw new Error(`notice ${noticeId} is external and cannot be republished`);
+			}
 		}
 	}
 	return rows.map((row) => {
 		if (row.category === null) {
 			throw new Error(`notice ${row.noticeId} has no category`);
+		}
+		if (mode === "republish" && !row.isPublished) {
+			throw new Error(`notice ${row.noticeId} is not published`);
+		}
+		if (mode === "republish" && row.isExternal) {
+			throw new Error(`notice ${row.noticeId} is external and cannot be republished`);
 		}
 		return { ...row, category: row.category };
 	});
@@ -195,6 +286,7 @@ async function loadRecord(
 	meta: InternalPortalMeta,
 	registered: RegisteredNotice,
 	portalHost: string,
+	options: { skipAssetsWhenNoText?: boolean } = {},
 ): Promise<PublishedNotice> {
 	const key = `internal_portal/notices/${registered.noticeId}.json`;
 	const stored = await store.getSource(key);
@@ -224,7 +316,7 @@ async function loadRecord(
 		title: source.notice_title,
 	});
 	const assets: AssetRow[] = [];
-	if (!source.is_external) {
+	if (!source.is_external && !(options.skipAssetsWhenNoText && content.contentText === null)) {
 		for (const image of content.images) {
 			assets.push(
 				await loadAsset({
@@ -261,6 +353,33 @@ async function loadRecord(
 		contentHtml: content.contentHtml,
 		contentText: content.contentText,
 	};
+}
+
+async function updatePublishedContent(client: PoolClient, record: PublishedNotice): Promise<boolean> {
+	const existing = await client.query(
+		"SELECT content_html, content_text, is_published FROM notices.notices WHERE notice_id=$1 FOR UPDATE",
+		[record.noticeId],
+	);
+	const row = existing.rows[0] as Record<string, unknown> | undefined;
+	if (!row || row.is_published !== true) {
+		throw new Error(`notice is no longer published: ${record.noticeId}`);
+	}
+	const unchanged =
+		(row.content_html ?? null) === record.contentHtml &&
+		(row.content_text ?? null) === record.contentText;
+	if (unchanged) {
+		return false;
+	}
+	const updatedResult = await client.query(
+		`UPDATE notices.notices
+		 SET content_html=$2, content_text=$3
+		 WHERE notice_id=$1 AND is_published`,
+		[record.noticeId, record.contentHtml, record.contentText],
+	);
+	if (updatedResult.rowCount !== 1) {
+		throw new Error(`notice is no longer published: ${record.noticeId}`);
+	}
+	return true;
 }
 
 function assertRegisteredSourceMatches(

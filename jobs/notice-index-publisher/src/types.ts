@@ -1,0 +1,157 @@
+import type {
+	BASELINE_CHUNK_DEFINITION,
+	NoticeChunkDefinition,
+	NOTICE_CHUNK_RUN_SCHEMA_VERSION,
+	NOTICE_CHUNK_VALIDATION_SCHEMA_VERSION,
+} from "./definitions.ts";
+
+export type Sha256Ref = `sha256:${string}`;
+
+export interface NoticeSource {
+	contentText: string;
+	noticeId: string;
+	title: string;
+}
+
+export interface NoticeChunk {
+	chunkId: Sha256Ref;
+	chunkIndex: number;
+	content: string;
+	headingPath: string[];
+	noticeId: string;
+	retrievalText: string;
+}
+
+export interface SourceRange {
+	end: number;
+	start: number;
+}
+
+export interface ChunkPart {
+	bodyRanges: SourceRange[];
+	content: string;
+	headingPath: string[];
+	joinSeparator?: "\n" | "\n\n";
+	kind?:
+		| "field"
+		| "footer"
+		| "list-item"
+		| "record"
+		| "table-header"
+		| "table-row"
+		| "text";
+	retrievalHeadingPath?: string[];
+}
+
+export interface BuiltNoticeChunk extends NoticeChunk {
+	bodyRanges: SourceRange[];
+	hardSectionId: number;
+	parts: ChunkPart[];
+}
+
+export interface DetectedHeading {
+	level: 1 | 2;
+	lineIndex: number;
+	range: SourceRange;
+	text: string;
+}
+
+export interface NoticeChunkStats {
+	clauseSplitCount: number;
+	hardCutCount: number;
+	primaryHeadingCount: number;
+	secondaryHeadingCount: number;
+	sentenceSplitCount: number;
+	tableRowSplitCount: number;
+}
+
+export interface BuiltNoticeChunks {
+	chunks: BuiltNoticeChunk[];
+	definition: NoticeChunkDefinition;
+	headings: DetectedHeading[];
+	source: NoticeSource;
+	sourceSha256: Sha256Ref;
+	stats: NoticeChunkStats;
+}
+
+export interface ArtifactReference {
+	byteSize: number;
+	file: string;
+	sha256: Sha256Ref;
+}
+
+export interface NoticeChunkRunManifest {
+	chunkCount: number;
+	chunks: ArtifactReference;
+	definition: NoticeChunkDefinition;
+	noticeCount: number;
+	reviewSamples: ArtifactReference;
+	schemaVersion: typeof NOTICE_CHUNK_RUN_SCHEMA_VERSION;
+	validation: ArtifactReference;
+}
+
+export interface DistributionSummary {
+	max: number;
+	p50: number;
+	p75: number;
+	p90: number;
+	p95: number;
+}
+
+export interface BaselineSummary {
+	chunkChars: DistributionSummary;
+	chunkCount: number;
+	definition: typeof BASELINE_CHUNK_DEFINITION;
+	primaryBoundaryCrossingCount: number;
+}
+
+export interface NoticeChunkValidationReport {
+	baseline: BaselineSummary;
+	chunkChars: DistributionSummary;
+	chunkCount: number;
+	clauseSplitCount: number;
+	definition: NoticeChunkDefinition;
+	fieldValueSplitCount: number;
+	footerOnlyChunkCount: number;
+	hardCutCount: number;
+	headingContentDuplicateCount: number;
+	formalHeadingPathViolationCount: number;
+	listContinuationSplitCount: number;
+	noticeCount: number;
+	noticesWithoutDetectedHeadings: number;
+	primaryBoundaryCrossingCount: 0;
+	primaryHeadingCount: number;
+	schemaVersion: typeof NOTICE_CHUNK_VALIDATION_SCHEMA_VERSION;
+	secondaryBoundaryCrossingCount: number;
+	secondaryHeadingCount: number;
+	sentenceSplitCount: number;
+	standaloneUrlCount: number;
+	tableHeaderContextMissingCount: number;
+	tableRowSplitCount: number;
+	tinyChunkCount: number;
+	orphanLabelCount: number;
+	urlOwnerSplitCount: number;
+}
+
+export interface NoticeReviewSample {
+	chunks: NoticeChunk[];
+	contentText: string;
+	noticeId: string;
+	stratum: ReviewStratum;
+	title: string;
+}
+
+export type ReviewStratum =
+	| "arabic-list"
+	| "long-nested"
+	| "long-primary"
+	| "long-unstructured"
+	| "medium"
+	| "short";
+
+export interface LocalChunkRunResult {
+	chunkCount: number;
+	noticeCount: number;
+	outputDirectory: string;
+	run: Sha256Ref;
+}

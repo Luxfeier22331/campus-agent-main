@@ -115,7 +115,9 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 外链标记与 URL、可空 `category`、`is_published` 以及发布后写入的 `content_html`、`content_text`。
 
 状态只由现有字段推导：`category IS NULL` 为待分类；已有分类且 `is_published=false` 为待发布；
-`is_published=true` 为已发布。已发布行必须具有分类；当前状态选择及重新评估条件见 ADR-0094。
+`is_published=true` 为已发布。已发布行必须具有分类，不增加独立工作流、审计历史或派生库存表。已发布站内通知
+可以通过 notice-publisher 的重新发布行为重新物化正文投影，但不会改变 `is_published` 或分类；当前状态
+选择及重新评估条件见 ADR-0094。
 
 单分类 migration 5 不把旧分类值映射到新 taxonomy，也不保留兼容列。它只接受空的
 `notices.notices` 投影；已有本地旧投影必须清空后用新 taxonomy 的模型分类结果重新物化。
@@ -130,14 +132,137 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 无效链接解包为文本，合法链接只允许 HTTP、HTTPS 与 mailto。来源标题、空段落和编辑器占位图不进入
 投影，正文标题从 `h3` 开始。
 
-首行缩进、对齐、粗体、下划线、警示色和高亮只转换为共享合同规定的有限属性或语义标签；表格只
-保留经过范围校验的合并单元格，并把门户标记的首行转换成表头。门户使用大缩进模拟的尾部落款转换为
-右侧对齐，原始 CSS 不进入投影。
+首行缩进、对齐、粗体、下划线、警示色和高亮只转换为共享合同规定的有限属性或语义标签。表格保留
+经过范围校验的合并单元格；有明确 `<thead>` 的表格按表头路径生成字段和值，没有明确表头的表格按
+逻辑行输出，不根据门户的 `<th>` 或首行标记猜测字段名。单元格内部换行归并为空格，行之间保留换行，
+分组行附着到后续记录。门户使用大缩进模拟的尾部落款转换为右侧对齐，原始 CSS 不进入投影。
+
+清洗只对正文文本节点应用少量审定修正：`统计表干3月5日前` 修正为 `统计表于3月5日前`，`Al+`
+在对应竞赛名称中修正为 `AI+`，`气模馆` 修正为 `气膜馆`；系统登录语境中的“登陆”修正为“登录”。
+不自动修正其他来源性错字或事实内容。
 
 来源门户图片改写为 `notice-asset:image:<ordinal>`，并保存清洗后的 `alt`。外链通知的两个正文字段
 固定为空，只保留原始标题、来源 metadata 与 `external_url`；门户详情返回的包装 HTML 仍留在来源
 对象中。采集器不下载外链通知声明的图片或附件，publisher 也不读取或物化这些资源。`content_text`
 始终从站内通知的最终清洗 DOM 生成。
+
+### 本地检索分块
+
+`jobs/notice-index-publisher` 当前提供已发布通知的本地 Chunk 构建、结构验证、广泛抽样和真实
+Embedding dense-retrieval 评测。任务在只读 repeatable-read 快照中只选择
+`is_published=true AND content_text IS NOT NULL` 的通知；`content_text` 是唯一正文输入。Chunk 阶段
+不重新清洗正文，不读取 `content_html`、图片或附件，因此外链通知、纯图片通知和其他 `content_text` 为空的
+通知不会产生 Chunk。
+
+当前选定的稳定分块定义为 `notice_text_structure.v8`，使用 Unicode 字符数，目标长度为 800 字符、硬上限为
+1200 字符，不使用 overlap。图片及图片 `alt` 不进入正文 Chunk 或 Embedding。结构和字段关系优先于长度：
+
+- `一、` 等正式一级标题开启新的硬章节，Chunk 不跨一级标题；
+- `（一）` 等正式二级标题开启独立语义单元，Chunk 不跨正式二级标题；带值、完整叙述或指令语义的
+  括号序号行不作为二级标题；
+- `1.`、`2、` 等阿拉伯编号保留为父章节中的列表正文，不提升为 `headingPath`；
+- 无编号短句不猜测为标题，无正式标题的通知按原始文本顺序形成语义单元；
+- 直接位于章节正文中的括号事实列表按同级项保留语义边界；流程、办理步骤和条件父项下的嵌套列表保持
+  为一个语义单元；
+- 独立事实列表仍按同级项保留语义边界；同一章节内连续且每项少于 120 个 Unicode 字符的简单短项，
+  在不含二级嵌套列表、且不超过目标长度和硬上限时允许合并；较长或结构复杂的列表项仍单独成块；
+- 流程、办理步骤和连续操作列表保持在一个语义单元内；
+- 列表项吸收其后属于该项的时间、地点、联系方式、URL 和说明，直到下一个同级列表项或明确结构边界；
+- 条件说明父项只吸收自己的嵌套条件项，不吞并后续同级项；标签型父项与其嵌套值保持为一个语义单元；
+  字段标签下的经历、说明列表保持字段组整体，不按编号层级拆分；
+- 连续字段的标签、值和 URL 保持为原子字段组，URL 不脱离其所属标签；长扫码、报送说明不作为章节标题；
+- `姓名：` 包括暂时没有姓名值的形式都可开启人物记录；
+- 序号名单表、分值/标准表、主队/客队赛制表和节次时间表按逻辑行构造；表头只作为
+  `retrievalText` 检索上下文，不写入对外 `headingPath`；
+- `retrievalText` 不向每个列表 Chunk 重复注入通知导语；拆开的嵌套列表值只补充其直接父项上下文，表格行
+  只补充表头上下文，这些检索上下文不写入 `content` 或对外 `headingPath`；人物记录只参与内部组合，
+  不写入对外 `headingPath`；
+- 正文中的简短图片或二维码说明附着相邻语义单元，不单独形成低信息量 Chunk；图片占位符和图片 `alt`
+  仍不进入 Chunk；
+- 供稿、审核等编辑署名以及尾部组织、日期附着到前一个语义单元，不单独形成落款 Chunk；
+- 超长单行依次在句末、分句标点和硬上限拆分。
+
+每个 `notice_chunk.v1` 保存 `noticeId`、`chunkId`、`chunkIndex`、`content`、`headingPath` 和
+`retrievalText`。`content` 只保存正文；`headingPath` 只保存识别出的正式章节路径；用于 Embedding 的
+`retrievalText` 由通知标题、章节路径和正文组成。Chunk Run 按实际 Chunk 内容寻址，写入本地：
+
+```text
+var/notices/chunking/sha256/<run-digest>/
+├── chunks.ndjson
+├── manifest.json
+├── review-samples.ndjson
+└── validation.json
+```
+
+`notice_chunk_validation.v3` 校验来源正文覆盖、字符分布和拆分原因，并诊断一级或二级章节跨越、
+footer-only Chunk、标题正文重复、非正式 `headingPath`、独立 URL、孤立字段标签、字段和值拆分、列表
+续行拆分、URL 归属拆分、表格表头上下文缺失和超长表格行拆分。广泛抽样按极短块、
+长块、层级结构、列表、同章节拆分、时间与联系方式密集等形态生成可复现审阅产物；本地 Embedding
+抽样验证使用 `retrievalText` 对配置的真实 provider 做固定分层抽样，检查向量合同和缓存完整性；完整
+Embedding 评测再使用问题证据验证 target Chunk、完整 evidence 和 Notice 的 Recall 与 MRR。问题集直接
+消费 broad review 中与目标 Chunk Run 对齐的通知 Chunk，每条模型生成两道问题；模型阶段只返回
+`question`、`answer` 和一个 `chunk_ref`，系统直接将所选 Chunk 的完整 `content` 作为唯一 evidence。
+当前问题生成定义为 `notice_question_generation.v8`，`evidenceMode` 为 `selected-chunk-content`，不再生成
+正文行号或 evidence 范围。当前问题生成只选择能够由单个 Chunk 独立回答的单事实问题；这不是对未来在线
+问答的跨 Chunk 能力限制。模型生成问题集和评测结果都是诊断证据，不是人工 gold truth。抽样和评测只
+验证当前 Chunk 与 Embedding 效果，不表示任一环境已有通知索引。
+
+两次策略迭代使用同一份问题文件分别执行 Embedding 评测，再由本地 comparison 命令读取两个 Chunk Run
+和两个 evaluation。对比产物保存 Chunk 数量、长度分布、validation 诊断、文本证据 Recall/MRR 以及逐题
+证据落块和 rank 变化，写入 `var/notices/chunking/comparisons/sha256/<digest>/comparison.json`。证据在两次
+Chunk 中只按 `noticeId + evidence.text` 定位，不复用旧 Chunk ID；comparison 不定义阈值或发布门禁。
+
+此前 v8 与 v6 基线使用同一份 350 道问题的问题集和同一真实 `Qwen3-Embedding-4B` provider 完成对照；
+全部问题都能在两个版本中定位到单 Chunk evidence，missing evidence 为 0：
+
+| 版本 | Chunk 数 | 极短 Chunk（<120） | Recall@1 | Recall@3 | Recall@5 | Recall@10 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| v6 | 3865 | 1925 | 0.811429 | 0.954286 | 0.977143 | 0.991429 | 0.886816 |
+| v8 | 3924 | 1882 | 0.814286 | 0.962857 | 0.982857 | 0.991429 | 0.892078 |
+
+v6→v8 的 Recall@1/@3/@5/@10 分别变化 +0.002857/+0.008571/+0.005714/+0.000000，MRR 变化
++0.005262。v8 的 754 条通知全量 Chunk Run 另抽样审阅了 178 条通知；未发现表格行拆分、表头上下文
+缺失、章节越界、非正式 `headingPath` 或 hard cut。相对 v7，列表续行拆分诊断从 75 降到 66，已确认
+条件父项边界、标签父项归属和重复通知导语问题得到修复。当前选定 v8 作为 notice 的稳定本地 Chunk
+策略，不再继续此前的局部规则实验。
+
+对应本地产物为 Chunk Run `sha256:87b98fabaf78009e119be7ef8ea84980dfb25bc6f48824cc297dd43a0111cef5`、
+Embedding Evaluation `sha256:6eda19d5e6096f0bc25c78d503e2a05c2135c330019f62a0960fd42747c5424c` 和
+v6→v8 Comparison `sha256:9cc8c946629eb2921fc7e6980e4edcf1c1d02c1768ab1e4a0a2bd4565a5e8b9f`。
+
+扩大验证使用同一 v8 Chunk Run：broad review 在 `broad-sample-v2` 中抽取 350/754 条通知，覆盖
+2569/3924 个 Chunk；Embedding 分层抽样选择 400 个 Chunk，缓存全部存在且向量维度均为 2560。问题集
+`sha256:c583208dc9053525b910f0b2e94eda96f86ea0e092a081a0ade64bb10bb10f76` 为每条通知生成两道问题，
+共 700 题，每题恰好一个完整 Chunk evidence，invalid 和 unanchored evidence 均为 0。
+
+完整 Embedding Evaluation
+`sha256:546c9dd2b8780d43098383243bc9b2875d3c473e7e6d64cc6cf50794b0abc849` 使用全部 3924 个 Chunk：
+
+| 问题数 | Recall@1 | Recall@3 | Recall@5 | Recall@10 | MRR | Notice Recall@1 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 700 | 0.810000 | 0.955714 | 0.978571 | 0.991429 | 0.883738 | 0.925714 |
+
+31 个 Recall@3 未命中中，16 个是同通知兄弟 Chunk 排在目标 Chunk 前，15 个是跨通知竞争。当前接受的
+限制为：
+7–21 字的时间、地点等极短独立字段块容易被信息更完整的兄弟块压过；600–899 字的多主题 Chunk 会稀释
+局部事实，该区间 44 题 Recall@3 为 0.863636；重复通知和同一事项的不同阶段通知会互相竞争；少数问题
+本身存在目标 Chunk 不唯一或措辞与正文字段不一致。
+
+这些极短事实块、多主题长块和重复通知竞争已经过逐题抽样确认；继续增加局部合并或聚焦规则的整体收益
+不足以抵消结构退化，因此不再触发本轮 Chunk 策略扩展。
+
+新 700 题使用 `selected-chunk-content` 合同，不能与旧 350 题指标当作严格同题集前后对比；旧结果只用于
+v6→v8 的受控策略对照，新结果作为当前扩大验证基线。这些结果只证明本地 Chunk、真实 Embedding 和离线
+dense retrieval 效果；尚未验证 Qdrant collection、在线 RAG 或生产运行。
+
+Chunk 策略不为凑足目标长度跨正式章节合并，也不把所有同章节事实强行合并；合法的短事实可以保持为短
+Chunk，同一 `headingPath` 下组成关系不同的短语义单元也可以保持相邻分块，例如报名说明与联系人、免费
+说明与参与网址。问题生成阶段只从中选择单 Chunk 单事实问题；其他需要同时询问多个事实的问题不属于当前
+评测问题集，但不改变字段标签和值、URL 与所属标签必须同块的约束。
+
+当前任务只生成本地 Chunk、问题集和评测制品，不写 PostgreSQL，不回写 source bucket，不发布 Qdrant
+collection 或在线 RAG。问题生成和 Embedding 评测都以 Chunk Run 为唯一正文输入；后续 Collection、索引
+发布和 Agent 工具消费必须由各自所有者另行定义并显式接入。
 
 ### Derived 资源
 
@@ -161,10 +286,14 @@ notices/assets/sha256/<digest>
 
 - `internal-portal-collection` 写 source bucket，并在资源齐备后登记通知与来源映射；
 - `notice-classifier` 读取数据库中的 ID 与标题，并更新同一行的 `category`；
-- `notice-publisher` 读取数据库中的待发布项、校验来源、写 derived 图片和正文，并设置 `is_published`；
+- `notice-publisher` 读取数据库中的待发布项、校验来源、写 derived 图片和正文并设置 `is_published`；也可重新读取已发布站内通知
+  的 source，更新 `content_html` 和 `content_text` 而保持已发布状态；
+- `notice-index-publisher` 只在显式本地任务中以只读快照读取已发布正文，生成内容寻址的 Chunk、问题集与
+  评测制品，不更新通知数据库、source bucket 或在线索引；
 - App API 只获得五张通知业务表的读取权限，并读取获准图片对象；不读取 migration ledger 或写入通知；
 - Campus Web 只通过 App API 读取规范化通知；
-- Ops Web 拥有内部门户凭据，并只读取通知安全 metadata、更新 `category`；execution-control、Agent 与 RAG 不连接通知来源或 schema。
+- Ops Web 拥有内部门户凭据，并只读取通知安全 metadata、更新 `category`；execution-control、Agent 与
+  在线检索消费者不连接通知来源或 schema。
 
 通知 publisher 同时提供本地 CLI 和默认暂停的 Kubernetes Job 模板，只能由维护者显式创建一次性
 Job，不提供自动 schedule。线上 schema 与发布复用既有数据库 owner 身份，不创建专用 publisher
@@ -178,3 +307,4 @@ Secret。本地模型比较结果不表示任一环境已经完成后续发布�
 - `../decisions/adr-0087-internal-portal-notice-source.md`
 - `../decisions/adr-0088-normalized-notice-storage.md`
 - `../decisions/adr-0094-notice-maintenance-state.md`
+- `../../jobs/notice-index-publisher/README.md`

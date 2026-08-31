@@ -38,7 +38,6 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 import { createS3ReaderStore, type ObjectStoreReaderEnv } from "../src/object-store.ts";
 
 const environment: ObjectStoreReaderEnv = {
-	CAMPUS_DOCS_OBJECT_STORE_BUCKET: "campus-agent-derived",
 	OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "derived-read-access",
 	OBJECT_STORE_DERIVED_READ_SECRET_KEY: "derived-read-secret",
 	OBJECT_STORE_ENDPOINT: "http://object-store.test",

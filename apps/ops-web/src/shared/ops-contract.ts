@@ -27,6 +27,7 @@ export const NoticeJobOperationSchema = z.enum([
 	"notice-classify-one",
 	"notice-publish-pending",
 	"notice-publish-one",
+	"notice-republish-one",
 ]);
 export type NoticeJobOperation = z.infer<typeof NoticeJobOperationSchema>;
 
@@ -61,6 +62,7 @@ export const NoticeJobCreateSchema = z.discriminatedUnion("operation", [
 	z.object({ operation: z.literal("notice-classify-one"), noticeId: NoticeIdSchema }).strict(),
 	z.object({ operation: z.literal("notice-publish-pending") }).strict(),
 	z.object({ operation: z.literal("notice-publish-one"), noticeId: NoticeIdSchema }).strict(),
+	z.object({ operation: z.literal("notice-republish-one"), noticeId: NoticeIdSchema }).strict(),
 ]);
 export type NoticeJobCreate = z.infer<typeof NoticeJobCreateSchema>;
 
@@ -81,6 +83,8 @@ export const NoticeJobSummarySchema = z
 		pagesFetched: z.number().int().nonnegative().optional(),
 		requested: z.number().int().nonnegative().optional(),
 		skipped: z.number().int().nonnegative().optional(),
+		unchanged: z.number().int().nonnegative().optional(),
+		updated: z.number().int().nonnegative().optional(),
 		upToDate: z.boolean().optional(),
 	})
 	.strict();

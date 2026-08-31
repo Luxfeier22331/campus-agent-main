@@ -4,7 +4,7 @@ import {
 	NOTICE_CATEGORY_LABELS,
 	type NoticeCategory,
 } from "campus-contracts/notices";
-import { ExternalLink, MoreHorizontal, Send, Sparkles } from "lucide-react";
+import { ExternalLink, MoreHorizontal, RefreshCw, Send, Sparkles } from "lucide-react";
 import type { NoticeJob, NoticeJobCreate, NoticeSummary } from "../../shared/ops-contract";
 import { formatTimestamp } from "../format";
 import { ErrorState, InlineError } from "../ops-display";
@@ -228,6 +228,20 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 								发布这条通知
 							</Button>
 						) : null}
+						{actionState.primaryAction === "republish" ? (
+							<Button
+								disabled={publishDisabled}
+								onClick={() =>
+									onStartJob({
+										noticeId: notice.noticeId,
+										operation: "notice-republish-one",
+									})
+								}
+							>
+								<RefreshCw className="size-4" />
+								重新发布
+							</Button>
+						) : null}
 						{actionState.primaryAction === null ? (
 							<p className="rounded-[var(--card-radius)] bg-surface-muted px-3 py-3 text-muted-foreground text-sm">
 								这条通知已经发布。修改分类会立即影响学生端可见内容。
@@ -279,7 +293,11 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 									<NoticeJobStatusBadge status={latestJob.status} />
 								</div>
 								<p className="mt-1 text-muted-foreground text-xs">
-									{latestJob.operation === "notice-classify-one" ? "模型分类" : "发布"} ·{" "}
+									{latestJob.operation === "notice-classify-one"
+										? "模型分类"
+										: latestJob.operation === "notice-republish-one"
+											? "重新发布"
+											: "发布"}{" "}
 									{formatTimestamp(latestJob.createdAt)}
 								</p>
 								{noticeJobSummaryLabel(latestJob.operation, latestJob.summary) ? (

@@ -1,12 +1,11 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { assertSha256Ref } from "./artifacts.ts";
-import { CANONICAL_EMBEDDING_MODEL } from "./definitions.ts";
 import {
-	createEmbeddingConnection,
+	createLocalEmbeddingConnection,
 	createOpenAICompatibleEmbeddingClient,
-} from "./embedding.ts";
+} from "@campus-agent/embedding-runtime";
+import { assertSha256Ref } from "./artifacts.ts";
 import { createFilesystemArtifactStore } from "./filesystem-artifact-store.ts";
 import { buildCampusDocsEmbeddingSet } from "./publisher.ts";
 import type { Sha256Ref } from "./types.ts";
@@ -14,9 +13,7 @@ import type { Sha256Ref } from "./types.ts";
 const ARTIFACT_ROOT = fileURLToPath(new URL("../../../var/", import.meta.url));
 
 interface LocalEmbeddingCommand {
-	baseUrl: string;
 	chunkSet: Sha256Ref;
-	modelTargetSha256: string;
 	reuseEmbeddingSet?: Sha256Ref;
 }
 
@@ -24,19 +21,15 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 	const command = parseLocalEmbeddingCommand(argv);
 	const apiKey = process.env.EMBEDDING_API_KEY?.trim();
 	if (!apiKey) throw new Error("EMBEDDING_API_KEY is required");
+	const baseUrl = process.env.EMBEDDING_BASE_URL?.trim();
+	if (!baseUrl) throw new Error("EMBEDDING_BASE_URL is required");
+	const connection = createLocalEmbeddingConnection({ apiKey, baseUrl });
 	const store = createFilesystemArtifactStore(ARTIFACT_ROOT);
 	const result = await buildCampusDocsEmbeddingSet({
 		artifactStore: store,
 		chunkSet: command.chunkSet,
-		embedding: createOpenAICompatibleEmbeddingClient(
-			createEmbeddingConnection({
-				apiKey,
-				baseUrl: command.baseUrl,
-				model: CANONICAL_EMBEDDING_MODEL,
-				targetSha256: command.modelTargetSha256,
-			}),
-		),
-		embeddingTargetSha256: command.modelTargetSha256,
+		embedding: createOpenAICompatibleEmbeddingClient(connection),
+		embeddingTargetSha256: connection.targetSha256,
 		...(command.reuseEmbeddingSet
 			? { reuseEmbeddingSet: command.reuseEmbeddingSet }
 			: {}),
@@ -62,19 +55,14 @@ export function parseLocalEmbeddingCommand(
 		flags.set(name, value);
 	}
 	for (const name of flags.keys()) {
-		if (!["--base-url", "--chunk-set", "--model-target-sha256", "--reuse-embedding-set"].includes(name)) {
+		if (!["--chunk-set", "--reuse-embedding-set"].includes(name)) {
 			usage();
 		}
 	}
-	const baseUrl = requiredFlag(flags, "--base-url");
 	const chunkSet = assertSha256Ref(requiredFlag(flags, "--chunk-set"), "chunk set");
-	const modelTargetSha256 = requiredFlag(flags, "--model-target-sha256");
-	if (!/^[0-9a-f]{64}$/u.test(modelTargetSha256)) usage();
 	const reuse = flags.get("--reuse-embedding-set");
 	return {
-		baseUrl,
 		chunkSet,
-		modelTargetSha256,
 		...(reuse
 			? { reuseEmbeddingSet: assertSha256Ref(reuse, "reuse embedding set") }
 			: {}),
@@ -89,7 +77,7 @@ function requiredFlag(flags: ReadonlyMap<string, string>, name: string): string 
 
 function usage(): never {
 	throw new Error(
-		"Usage: build-embeddings --chunk-set sha256:<id> --base-url <url> --model-target-sha256 <sha256> [--reuse-embedding-set sha256:<id>]",
+		"Usage: build-embeddings --chunk-set sha256:<id> [--reuse-embedding-set sha256:<id>]",
 	);
 }
 

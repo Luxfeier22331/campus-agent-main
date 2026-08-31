@@ -93,11 +93,15 @@ pnpm --filter ops-web dev:web
 pnpm dev:init -- --target notice-publisher
 pnpm dev:init -- --target internal-portal-collection
 pnpm dev:init -- --target notice-classifier
+pnpm dev:init -- --target campus-docs-index-publisher
+pnpm dev:init -- --target notice-index-publisher
 ```
 
 `notice-publisher` target 是通知 schema/category seed 的 owner；`internal-portal-collection` 只生成
 Ops Web 和采集器实际读取的环境投影，`notice-classifier` 只生成 Model Config 与分类器实际读取的环境投影。
 两者都通过 readiness 检查复用统一 schema 和通知分类 seed，但不重复执行 DDL。
+`ops-web` target 额外生成全部本地通知 Job 环境，并补齐分类模型与 Dining 基线。
+`notice-index-publisher` 复用 schema owner 安装数据库 baseline；`campus-docs-index-publisher` 只生成其任务环境。
 
 ## Ops Web API
 
@@ -118,6 +122,11 @@ curl -sS http://127.0.0.1:<ops-api-port>/readyz
 `pnpm dev`/独立 API 命令输出的地址。local/development 的 `/readyz` 不要求 Cloudflare Access，但仍
 要求本地公开 origin 和 Ops Web 状态数据库。自动化 origin 不影响该结果；未配置时仅自动化 token
 管理区和机器接口返回 `OPS_AUTOMATION_NOT_CONFIGURED`。
+
+本地通知任务不连接 Kubernetes。页面或 `POST /api/ops/notices/jobs` 创建任务后，Ops Web 启动当前
+worktree 的固定 Job CLI，并继续通过既有任务查询接口返回 `pending`、`running`、`succeeded` 或 `failed`。
+任务只保存在进程内，重启 Ops Web 后历史消失。分类任务需要根 `pnpm dev` 中的 Model Config；采集任务
+需要 Ops Web 中已有可用的内部门户凭据。
 
 需要验证真实 HTTP、Bearer、TGC 刷新和 CAS 失败语义时，使用隔离 fixture：
 

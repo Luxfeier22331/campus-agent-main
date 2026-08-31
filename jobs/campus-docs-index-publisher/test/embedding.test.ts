@@ -1,22 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { EMBEDDING_SPACE } from "../src/definitions.ts";
 import {
+	computeEmbeddingTargetSha256,
 	createOpenAICompatibleEmbeddingClient,
 	embedTexts,
-	fetchEmbeddingConnection,
-} from "../src/embedding.ts";
+	EMBEDDING_SPACE,
+} from "@campus-agent/embedding-runtime";
+import { fetchEmbeddingConnection } from "../src/embedding.ts";
 
 const snapshot = {
 	apiKey: "test-key",
 	baseUrl: "https://embedding.example/v1",
-	model: "provider-model-alias",
-	targetSha256: "a".repeat(64),
-};
+	model: "Qwen3-Embedding-4B",
+	targetSha256: computeEmbeddingTargetSha256("https://embedding.example/v1"),
+} as const;
 
 describe("OpenAI-compatible embedding client", () => {
 	it("loads the complete embedding config with one unauthenticated GET", async () => {
-		const targetSha256 = "b".repeat(64);
+		const targetSha256 = computeEmbeddingTargetSha256("https://embedding.example/v1");
 		const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
 			expect(String(input)).toBe(
 				"http://model-config.test/internal/model-configs/campus_docs_embedding",
@@ -47,7 +48,7 @@ describe("OpenAI-compatible embedding client", () => {
 	it.each(["provider", "api_protocol", "model", "name"] as const)(
 		"rejects an invalid runtime %s",
 		async (field) => {
-			const targetSha256 = "b".repeat(64);
+			const targetSha256 = computeEmbeddingTargetSha256("https://embedding.example/v1");
 			const runtime = {
 				api_key: "snapshot-key",
 				api_protocol: "openai.embeddings",

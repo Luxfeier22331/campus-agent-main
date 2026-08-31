@@ -53,7 +53,14 @@ Web Worker version；环境是否选择该 version 仍由环境仓决定。
 
 ## 本地 Chunk 与 Embedding 构建
 
-需要在本地检查正式分块实现时，使用当前对象存储的只读身份生成 Chunk Set：
+首次在当前 worktree 使用本地任务时，先生成 Campus Docs publisher 自己的环境文件：
+
+```bash
+pnpm dev:init -- --target campus-docs-index-publisher
+```
+
+该初始化只生成本包 `.env.local`，不执行 migration、bootstrap 或 seed。需要在本地检查正式分块实现时，
+使用该文件中的对象存储只读身份生成 Chunk Set：
 
 ```bash
 pnpm --dir jobs/campus-docs-index-publisher build-chunks
@@ -64,17 +71,88 @@ worktree 的 `var/campus-docs/rag/`。Chunk identity、reader 元素覆盖、sec
 `retrievalText` 来源、字符上限或表格单元格覆盖不满足时，命令失败且不写 Chunk Set。该阶段不访问
 embedding provider、PostgreSQL 或 Qdrant。
 
-使用输出的 Chunk Set 和显式 Provider 连接生成本地 Embedding Set：
+使用输出的 Chunk Set 和当前 worktree 根 `.env` 中的 Provider 连接生成本地 Embedding Set：
 
 ```bash
-EMBEDDING_API_KEY=... pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
-  --chunk-set sha256:<chunk-set-id> \
-  --base-url https://provider.example/v1
+pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
+  --chunk-set sha256:<chunk-set-id>
 ```
 
-该命令固定使用 `Qwen3-Embedding-4B`，只读写当前 worktree 的 `var/campus-docs/rag/`，不访问
-execution-control、Ops Web、PostgreSQL、Qdrant 或集群对象存储。它与线上 Embedding Job 共用制品生成
-实现；差别只有本地显式连接和文件 Store。
+该命令从当前 worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 和 `EMBEDDING_API_KEY`，固定使用
+`Qwen3-Embedding-4B`，并根据规范化 endpoint 和固定模型合同计算 Model Target hash。它只读写当前
+worktree 的 `var/campus-docs/rag/`，不访问 Model Config、execution-control、Ops Web、PostgreSQL、
+Qdrant 或集群对象存储。它与线上 Embedding Job 共用制品生成实现；差别只有本地连接和文件 Store。
+
+## Chunk 策略治理验证
+
+需要重新验证 Campus Docs 分块策略时，在不改变生产 campus_docs_reader_elements.v5 的前提下，对候选
+Chunk Set 运行治理 review：
+
+```bash
+pnpm --dir jobs/campus-docs-index-publisher review-chunks-local -- \\
+  --chunk-set sha256:<chunk-set-id> \\
+  --embedding-evaluation sha256:<embedding-evaluation-id>
+```
+
+`--embedding-evaluation` 可省略；提供时只读取既有评测并把全部 evidence Chunk 及其 question/rank
+加入审阅项，不重新调用 provider。该步骤读取候选 Chunk Set 及其来源投影，生成全量 census、150 份
+文档的确定性覆盖样本、候选信号和 450 个 Chunk 级 `review-items.ndjson`。450 项包含独立元数据与
+near-max Chunk、全部 embedding evidence、按配额抽取的表格上下文/短章节/同章节尾块/短表格/
+many-root 或 split-reader、100 个无信号对照项和覆盖补齐项。普通分层每份文档最多 4 项，必须全量
+纳入的元数据、near-max 和 embedding evidence 不受该上限约束。
+
+逐项检查正文、heading 路径、reader root units 和前后边界，并用以下最小 NDJSON 合同记录判断：
+
+```json
+{"chunkId":"chunk_...","verdict":"keep"}
+{"action":"upstream-reader","chunkId":"chunk_...","reason":"heading boundary is wrong","verdict":"change"}
+```
+
+`change` 的 action 只能是 `drop`、`attach`、`merge`、`split` 或 `upstream-reader`；`keep` 不带 action。
+标签可以分批汇总：
+
+```bash
+pnpm --dir jobs/campus-docs-index-publisher summarize-chunk-review-labels-local -- \\
+  --review-run sha256:<review-run-id> \\
+  --labels ../../var/campus-docs/chunk-governance/labels/<name>.ndjson
+```
+
+命令会拒绝重复或不属于该 Review Run 的 Chunk ID，并按 primary stratum、candidate signal、verdict 和
+action 输出已标注数、未标注数及 change rate。候选信号只是人工审阅索引，不是自动改 Chunk 的规则。
+
+有真实 embedding 连接时，再对固定问题文件执行 dense 检索评测：
+
+```bash
+pnpm --dir jobs/campus-docs-index-publisher evaluate-chunks-local -- \\
+  --chunk-set sha256:<chunk-set-id> \\
+  --questions ../../var/campus-docs/chunk-governance/questions/<name>.ndjson
+```
+
+评测从当前 worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 与 `EMBEDDING_API_KEY`，固定使用
+retrievalText、Qwen3-Embedding-4B、2560 维 cosine dense 相似度和 Recall@1/3/5/10；
+同时输出 target Chunk、全部 evidence、文档和 single-chunk answer 指标，并按问题 stratum 输出结果。
+它使用 retrievalTextSha256 做本地逐文本缓存；相同输入复跑应显示全部缓存复用并保持相同 Run ID。
+
+比较 baseline 与 candidate 时，必须成对提供对应的 Chunk Set 和 Evaluation Run：
+
+```bash
+pnpm --dir jobs/campus-docs-index-publisher compare-chunks-local -- \\
+  --baseline-chunk-set sha256:<baseline-id> \\
+  --candidate-chunk-set sha256:<candidate-id> \\
+  --questions ../../var/campus-docs/chunk-governance/questions/<name>.ndjson \\
+  --baseline-evaluation sha256:<baseline-evaluation-id> \\
+  --candidate-evaluation sha256:<candidate-evaluation-id>
+```
+
+比较前会校验两次评测分别引用对应 Chunk Set，并使用同一模型 target、问题文件摘要、embedding 定义、
+问题数量和顺序。报告给出结构 delta、evidence placement 状态、整体/分层 embedding delta 以及共同
+问题的排名改善和回归计数。来源投影不同的两次 Chunk Set 仍可比较结构，但不比较 evidence placement。
+
+治理产物仅写入当前 worktree 的 var/campus-docs/chunk-governance/；review 输出包括 census、150 份
+文档样本、候选信号、450 个 Chunk 审阅项及其摘要。真实问题文件、文档正文和 embedding
+向量不提交 Git。review 和 dense 评测用于人工/研究验证，不是 PR 阻断门，也不代表线上 hybrid + reranker
+结果；不以短 Chunk 数量单独判断策略优劣。只有候选策略经过结构、广泛抽样和真实 embedding 证据综合
+判断后，才另行决定是否生成新的生产 Chunk Set；本次治理不自动切换生产分块定义。
 
 ## 本地 Publish 验证
 

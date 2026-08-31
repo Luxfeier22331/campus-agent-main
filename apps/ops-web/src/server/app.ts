@@ -60,6 +60,7 @@ import {
 	InternalPortalCredentialStoreUnavailableError,
 } from "./internal-portal-credential-service.ts";
 import { createPgInternalPortalCredentialStore } from "./internal-portal-credential-store.ts";
+import { createLocalNoticeJobStore } from "./local-notice-jobs.ts";
 import {
 	createKubernetesNoticeJobStore,
 	createNoticeJobService,
@@ -183,11 +184,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		createOpsOverviewService({
 			store,
 		});
-	const noticeJobService =
-		options.noticeJobService ??
-		createNoticeJobService(
-			createKubernetesNoticeJobStore(env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default"),
-		);
+	const noticeJobService = options.noticeJobService ?? createDefaultNoticeJobService(env);
 	const noticeStore =
 		options.noticeStore ??
 		(databasePool
@@ -533,6 +530,16 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 	app.get("*", serveStatic({ path: "index.html", root: staticRoot }));
 	return app;
+}
+
+export function createDefaultNoticeJobService(
+	env: Pick<OpsAppEnv, "DEPLOYMENT_ENVIRONMENT" | "OPS_WEB_KUBERNETES_NAMESPACE">,
+): NoticeJobService {
+	return createNoticeJobService(
+		isLocalOpsEnvironment(env)
+			? createLocalNoticeJobStore()
+			: createKubernetesNoticeJobStore(env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default"),
+	);
 }
 
 function createDefaultInternalPortalCredentialService(

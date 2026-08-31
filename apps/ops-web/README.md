@@ -30,8 +30,9 @@
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器 DTO 位于 `src/shared/`，HTTP 入口位于
 `src/server/app.ts`。
 
-通知维护页面只暴露六个固定操作：增量采集、按日期回填、分类缺失通知、分类单条通知、发布待发布通知和
-发布单条通知。分类编辑直接更新通知数据库中的唯一分类字段。服务端从同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能
+通知维护页面只暴露七个固定操作：增量采集、按日期回填、分类缺失通知、分类单条通知、发布待发布通知、
+发布单条通知和重新发布单条通知。分类编辑直接更新通知数据库中的唯一分类字段。部署环境的服务端从
+同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能
 提交任意 command、image、environment、namespace 或 Secret。每个采集、分类和发布操作族同时只允许
 一个待运行或运行中的 Job，不排队、不自动串联、不自动重试。GitOps 只管理暂停的 CronJob 模板；动态
 Job 引用来源 CronJob 作为 owner，固定零重试，并在完成 24 小时后回收。
@@ -41,6 +42,8 @@ Job 的 stdout 使用结构化 JSON。Ops Web 读取运行中、成功和失败 
 没有对应日志字段时保持 `processedRange`、`maintenanceRange`、`progress`、`error` 或 `controllerError` 为 `null`，不从日志或 Job
 名称推测处理数量及通知归属。页面分别显示活动任务与成功或失败的历史结果，历史结果不参与任务互斥。
 Job 只保留短期排障证据，当前不持久化超过 24 小时的执行历史。调试阶段错误不做泛化、脱敏或截断。
+本地 `local/development` 环境使用同一任务合同启动当前 worktree 的固定 Job CLI，任务状态只保存在 Ops Web
+进程内；服务重启后不恢复本地任务，也不会回退到 Kubernetes。
 
 任务中心在提交一次性 Job 后立即显示客户端 pending 行并锁定对应的采集、分类或发布操作族；收到真实 Job
 后替换该行。pending 行不是 Kubernetes 记录，任务列表加载或刷新失败时仍保留，避免视觉上丢失刚提交的任务。
@@ -92,8 +95,9 @@ pnpm --dir apps/ops-web db:generate
 前者是 HTTP(S) 根地址，令牌不下发到浏览器。
 
 `pnpm dev:init -- --target ops-web` 为当前 worktree 创建独立 PostgreSQL database 和所需 derived
-bucket，并生成 `.env.local`。Ops Web 使用统一 `ops_web` 角色和本地对象存储连接；Dining 不创建专属角色、
-连接、桶或凭据。
+bucket，生成 Ops Web 及通知采集、分类、发布任务实际读取的环境文件，并通过统一 schema 和 seed owner
+补齐 Notice、分类模型与 Dining 本地基线，使后台按钮可以执行完整本地 Job 链路。Ops Web 使用统一
+`ops_web` 角色和本地对象存储连接；Dining 不创建专属角色、连接、桶或凭据。
 
 Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
 `packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，生成的

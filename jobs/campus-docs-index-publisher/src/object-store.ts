@@ -4,7 +4,6 @@ import type { ArtifactObjectStore, ReaderObjectStore } from "./types.ts";
 
 interface ObjectStoreConnectionEnv {
 	OBJECT_STORE_ENDPOINT?: string;
-	CAMPUS_DOCS_OBJECT_STORE_BUCKET?: string;
 }
 
 export interface ObjectStoreEnv extends ObjectStoreConnectionEnv {
@@ -18,7 +17,7 @@ export interface ObjectStoreReaderEnv extends ObjectStoreConnectionEnv {
 }
 
 export function createS3ArtifactStore(env: ObjectStoreEnv = process.env): ArtifactObjectStore {
-	const bucket = bucketFromEnv(env);
+	const bucket = bucketFromEnv();
 	const client = createS3Client({
 		accessKeyId: requiredEnv(env.OBJECT_STORE_DERIVED_ACCESS_KEY, "OBJECT_STORE_DERIVED_ACCESS_KEY"),
 		endpoint: requiredEnv(env.OBJECT_STORE_ENDPOINT, "OBJECT_STORE_ENDPOINT"),
@@ -50,7 +49,7 @@ export function createS3ArtifactStore(env: ObjectStoreEnv = process.env): Artifa
 }
 
 export function createS3ReaderStore(env: ObjectStoreReaderEnv = process.env): ReaderObjectStore {
-	const bucket = bucketFromEnv(env);
+	const bucket = bucketFromEnv();
 	const client = createS3Client({
 		accessKeyId: requiredEnv(
 			env.OBJECT_STORE_DERIVED_READ_ACCESS_KEY,
@@ -93,8 +92,8 @@ function contentTypeForKey(key: string): string {
 	return key.endsWith(".ndjson") ? "application/x-ndjson" : "application/json";
 }
 
-function bucketFromEnv(env: ObjectStoreConnectionEnv): string {
-	return env.CAMPUS_DOCS_OBJECT_STORE_BUCKET?.trim() || "campus-agent-derived";
+function bucketFromEnv(): string {
+	return "campus-agent-derived";
 }
 
 function isPreconditionFailure(error: unknown): boolean {

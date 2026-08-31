@@ -10,13 +10,12 @@ import {
 	canonicalJsonBytes,
 	sha256,
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+import { EMBEDDING_SPACE, embedTexts } from "@campus-agent/embedding-runtime";
 import {
 	CHUNK_SET_DEFINITION,
 	COLLECTION_DEFINITION,
-	EMBEDDING_SPACE,
 } from "./definitions.ts";
 import { assertValidChunkSet } from "./chunk-validation.ts";
-import { embedTexts } from "./embedding.ts";
 import {
 	buildChunks,
 	buildCurrentIndexBinding,

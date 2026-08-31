@@ -18,6 +18,7 @@ import {
 	sourceProjectionSha256,
 } from "../src/indexing.ts";
 import { buildSparseVector } from "../src/indexing.ts";
+import type { SourceVersionSelection } from "../src/types.ts";
 
 describe("Campus docs indexing", () => {
 	it("indexes only current reader versions and preserves section boundaries", async () => {
@@ -203,6 +204,167 @@ describe("Campus docs indexing", () => {
 		expect(chunks.filter((chunk) => chunk.rootUnitIds.includes("root-long"))).toHaveLength(2);
 		expect(chunks.every((chunk) => [...chunk.content].length <= 1600)).toBe(true);
 		expect(CHUNK_SET_DEFINITION.chunking.overlapChars).toBe(0);
+	});
+
+	it("merges a short adjacent tail only within the same section", async () => {
+		const selection = await firstFixtureSelection();
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: {
+				...selection.reader,
+				elements: [
+					{ anchor: "tail", kind: "heading", level: 2, rootUnitId: "heading-tail", text: "尾部" },
+					{ kind: "paragraph", rootUnitId: "tail-a", text: "甲".repeat(750) },
+					{ kind: "list", rootUnitId: "tail-b", text: "乙".repeat(50) },
+					{ anchor: "next", kind: "heading", level: 2, rootUnitId: "heading-next", text: "下一节" },
+					{ kind: "paragraph", rootUnitId: "next-body", text: "丙".repeat(100) },
+				],
+			},
+			version: selection.version,
+		});
+
+		expect(chunks.map((chunk) => chunk.content)).toEqual([
+			`${"甲".repeat(750)}\n\n${"乙".repeat(50)}`,
+			"丙".repeat(100),
+		]);
+		expect(chunks[0]?.rootUnitIds).toEqual(["tail-a", "tail-b"]);
+	});
+
+	it("does not merge a short section across a heading boundary", async () => {
+		const selection = await firstFixtureSelection();
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: {
+				...selection.reader,
+				elements: [
+					{ anchor: "first", kind: "heading", level: 2, rootUnitId: "heading-first", text: "第一节" },
+					{ kind: "paragraph", rootUnitId: "first-body", text: "甲".repeat(100) },
+					{ anchor: "second", kind: "heading", level: 2, rootUnitId: "heading-second", text: "第二节" },
+					{ kind: "paragraph", rootUnitId: "second-body", text: "乙".repeat(100) },
+				],
+			},
+			version: selection.version,
+		});
+
+		expect(chunks.map((chunk) => chunk.content)).toEqual(["甲".repeat(100), "乙".repeat(100)]);
+	});
+
+	it("keeps an ordinary colon-ending paragraph eligible for normal tail merging", async () => {
+		const selection = await firstFixtureSelection();
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: {
+				...selection.reader,
+				elements: [
+					{ anchor: "ordinary", kind: "heading", level: 2, rootUnitId: "heading-ordinary", text: "普通说明" },
+					{ kind: "paragraph", rootUnitId: "ordinary-a", text: "甲".repeat(750) },
+					{ kind: "paragraph", rootUnitId: "ordinary-b", text: "普通说明：" },
+					{ kind: "paragraph", rootUnitId: "ordinary-c", text: "乙".repeat(100) },
+				],
+			},
+			version: selection.version,
+		});
+
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]?.content).toBe(
+			`${"甲".repeat(750)}\n\n普通说明：\n\n${"乙".repeat(100)}`,
+		);
+	});
+
+	it("excludes source URL paragraphs from evidence chunks", async () => {
+		const selection = await firstFixtureSelection();
+		const reader = {
+			...selection.reader,
+			elements: [
+				{ kind: "paragraph", rootUnitId: "source-url", text: "> Source URL: https://example.edu/docs/1" },
+				{ kind: "paragraph", rootUnitId: "source-body", text: "正文内容。" },
+			] satisfies DocsReaderElement[],
+		};
+		const sections = buildSections(selection.document, selection.version, reader);
+		const chunks = buildChunks({ document: selection.document, reader, version: selection.version });
+
+		expect(sections.flatMap((section) => section.elements.map((element) => element.rootUnitId))).toEqual([
+			"source-body",
+		]);
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]?.content).toBe("正文内容。");
+		expect(chunks[0]?.rootUnitIds).toEqual(["source-body"]);
+	});
+
+	it("attaches opening date and document number to the first body chunk", async () => {
+		const selection = await firstFixtureSelection();
+		const reader = {
+			...selection.reader,
+			elements: [
+				{ kind: "paragraph", rootUnitId: "approval-date", text: "（经2024年3月5日校长办公会议审议通过）" },
+				{ kind: "paragraph", rootUnitId: "document-number", text: "民大校发（2024）12号" },
+				{ kind: "paragraph", rootUnitId: "opening-body", text: "这是正文。" },
+			] satisfies DocsReaderElement[],
+		};
+		const chunks = buildChunks({ document: selection.document, reader, version: selection.version });
+
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]).toMatchObject({
+			content: "（经2024年3月5日校长办公会议审议通过）\n\n民大校发（2024）12号\n\n这是正文。",
+			rootUnitIds: ["approval-date", "document-number", "opening-body"],
+		});
+	});
+
+	it("does not carry opening metadata across a heading", async () => {
+		const selection = await firstFixtureSelection();
+		const reader = {
+			...selection.reader,
+			elements: [
+				{ kind: "paragraph", rootUnitId: "opening-date", text: "2005年3月25日" },
+				{ anchor: "body", kind: "heading", level: 2, rootUnitId: "body-heading", text: "正文" },
+				{ kind: "paragraph", rootUnitId: "body-content", text: "正文内容。" },
+			] satisfies DocsReaderElement[],
+		};
+		const chunks = buildChunks({ document: selection.document, reader, version: selection.version });
+
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]?.content).toBe("正文内容。");
+		expect(chunks.map((chunk) => chunk.content).join("\n")).not.toContain("2005年3月25日");
+	});
+
+	it("only treats date-like text at the document start as opening metadata", async () => {
+		const selection = await firstFixtureSelection();
+		const reader = {
+			...selection.reader,
+			elements: [
+				{ anchor: "body", kind: "heading", level: 2, rootUnitId: "middle-heading", text: "正文" },
+				{ kind: "paragraph", rootUnitId: "middle-body-a", text: "前置正文。" },
+				{ kind: "paragraph", rootUnitId: "middle-date", text: "2005年3月25日" },
+				{ kind: "paragraph", rootUnitId: "middle-body-b", text: "后续正文。" },
+			] satisfies DocsReaderElement[],
+		};
+		const chunks = buildChunks({ document: selection.document, reader, version: selection.version });
+
+		expect(chunks[0]?.content).toBe("前置正文。\n\n2005年3月25日\n\n后续正文。");
+		expect(chunks[0]?.rootUnitIds).toEqual(["middle-body-a", "middle-date", "middle-body-b"]);
+	});
+
+	it("starts a professional graduation requirement block after a hard boundary", async () => {
+		const selection = await firstFixtureSelection();
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: {
+				...selection.reader,
+				elements: [
+					{ anchor: "requirements", kind: "heading", level: 2, rootUnitId: "requirements-heading", text: "毕业要求" },
+					{ kind: "paragraph", rootUnitId: "requirements-before", text: "甲".repeat(750) },
+					{ kind: "paragraph", rootUnitId: "requirements-marker", text: "计算机科学与技术专业毕业要求：" },
+					{ kind: "list", rootUnitId: "requirements-after", text: "乙".repeat(100) },
+				],
+			},
+			version: selection.version,
+		});
+
+		expect(chunks.map((chunk) => chunk.content)).toEqual([
+			"甲".repeat(750),
+			"计算机科学与技术专业毕业要求：\n\n" + "乙".repeat(100),
+		]);
+		expect(chunks[1]?.rootUnitIds).toEqual(["requirements-marker", "requirements-after"]);
 	});
 
 	it("splits oversized prose and lists only at structural boundaries without overlap", async () => {
@@ -769,3 +931,21 @@ describe("Campus docs indexing", () => {
 		expect(first.vector.sparse).toEqual(buildSparseVector(chunk.retrievalText));
 	});
 });
+
+async function firstFixtureSelection(): Promise<SourceVersionSelection> {
+	const fixture = createDocsSourceSiteFixture();
+	const source = parseIndexingSource(fixture.sourceBytes);
+	const selections = await loadCurrentVersions({
+		readerStore: {
+			read: async (key) => {
+				const value = fixture.objects.get(key);
+				if (!value) throw new Error(`missing fixture object: ${key}`);
+				return value.body;
+			},
+		},
+		source,
+	});
+	const selection = selections[0];
+	if (!selection) throw new Error("docs fixture is empty");
+	return selection;
+}

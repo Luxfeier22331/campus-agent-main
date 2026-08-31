@@ -52,6 +52,51 @@ describe("notice maintenance page", () => {
 		);
 	});
 
+	it("shows and starts republishing for a published internal notice", async () => {
+		const requests: unknown[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (init?.method === "POST") {
+					requests.push(JSON.parse(String(init.body)));
+					return Response.json(
+						{ job: job({ operation: "notice-republish-one" }) },
+						{ status: 201 },
+					);
+				}
+				if (url.pathname === "/api/ops/notices/jobs") {
+					return Response.json({ jobs: [] });
+				}
+				if (url.pathname === "/api/ops/notices/354516") {
+					return Response.json({
+						notice: notice({ category: "campus_operations", state: "published" }),
+					});
+				}
+				if (url.pathname === "/api/ops/notices") {
+					return Response.json({
+						counts: { all: 1, needsClassification: 0, needsPublication: 0, published: 1 },
+						items: [notice({ category: "campus_operations", state: "published" })],
+						page: 1,
+						totalItems: 1,
+						totalPages: 1,
+					});
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		fireEvent.click(await screen.findByRole("button", { name: "重新发布" }));
+		await waitFor(() =>
+			expect(requests).toContainEqual({ noticeId: 354516, operation: "notice-republish-one" }),
+		);
+	});
+
 	it("restores single-notice task ownership from the server response", async () => {
 		vi.stubGlobal(
 			"fetch",

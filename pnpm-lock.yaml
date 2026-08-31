@@ -720,6 +720,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1109.0
         version: 3.1111.0
+      '@campus-agent/embedding-runtime':
+        specifier: workspace:*
+        version: link:../../packages/embedding-runtime
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -856,6 +859,43 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
 
+  jobs/notice-index-publisher:
+    dependencies:
+      '@campus-agent/embedding-runtime':
+        specifier: workspace:*
+        version: link:../../packages/embedding-runtime
+      '@campus-agent/notice-database':
+        specifier: workspace:*
+        version: link:../../packages/notice-database
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.1.0
+        version: 12.1.0(supports-color@10.2.2)
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+      '@types/pg':
+        specifier: ^8.21.0
+        version: 8.21.0
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+      testcontainers:
+        specifier: 12.1.0
+        version: 12.1.0(supports-color@10.2.2)
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
+
   jobs/notice-publisher:
     dependencies:
       '@aws-sdk/client-s3':
@@ -973,6 +1013,18 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@27.4.0(@noble/hashes@2.3.0)(supports-color@10.2.2))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/embedding-runtime:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/eval-langfuse:
     dependencies:

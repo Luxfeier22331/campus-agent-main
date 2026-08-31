@@ -4,10 +4,10 @@ import type {
 	DocsSourceManifest,
 	ObjectRef,
 } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+import { EMBEDDING_SPACE, type EmbeddingClient } from "@campus-agent/embedding-runtime";
 import type {
 	CHUNK_SET_DEFINITION,
 	COLLECTION_DEFINITION,
-	EMBEDDING_SPACE,
 } from "./definitions.ts";
 
 export const INDEX_COLLECTION_PREFIX = "campus_docs" as const;
@@ -97,17 +97,6 @@ export interface SourceVersionSelection {
 	reader: DocsReader;
 	readerRef: ObjectRef;
 	version: DocsSourceManifest["versions"][number];
-}
-
-export interface EmbeddingClient {
-	embed(input: { texts: string[]; dimensions: number }): Promise<number[][]>;
-}
-
-export interface EmbeddingConnection {
-	apiKey: string;
-	baseUrl: string;
-	model: string;
-	targetSha256: string;
 }
 
 export interface QdrantIndexClient {

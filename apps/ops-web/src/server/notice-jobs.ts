@@ -55,6 +55,11 @@ const OPERATIONS: Record<NoticeJobOperation, OperationDefinition> = {
 		family: "publication",
 		template: "notice-publisher",
 	},
+	"notice-republish-one": {
+		container: "publisher",
+		family: "publication",
+		template: "notice-publisher",
+	},
 };
 
 export class NoticeJobUnavailableError extends Error {
@@ -314,6 +319,8 @@ function applyOperation(container: V1Container, input: NoticeJobCreate): void {
 		container.args = [...(container.args ?? []), "--notice-id", String(input.noticeId)];
 	} else if (input.operation === "notice-publish-one") {
 		container.args = [...(container.args ?? []), "--notice-id", String(input.noticeId)];
+	} else if (input.operation === "notice-republish-one") {
+		container.args = ["republish", "--notice-id", String(input.noticeId)];
 	}
 }
 
@@ -422,6 +429,8 @@ function parseScalarSummary(value: unknown): NoticeJob["summary"] {
 			"pagesFetched",
 			"requested",
 			"skipped",
+			"unchanged",
+			"updated",
 			"upToDate",
 		].flatMap((key) => (Object.hasOwn(record, key) ? [[key, record[key]]] : [])),
 	);
@@ -488,7 +497,11 @@ function isActive(status: NoticeJob["status"]): boolean {
 }
 
 function singleNoticeOperation(operation: NoticeJobOperation): boolean {
-	return operation === "notice-classify-one" || operation === "notice-publish-one";
+	return (
+		operation === "notice-classify-one" ||
+		operation === "notice-publish-one" ||
+		operation === "notice-republish-one"
+	);
 }
 
 function parseNoticeId(value: string | undefined): number | null {

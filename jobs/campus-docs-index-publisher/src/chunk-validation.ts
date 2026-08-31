@@ -3,7 +3,11 @@ import type {
 	DocsReaderTableElement,
 } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
 import { CHUNK_SET_DEFINITION } from "./definitions.ts";
-import { buildSections } from "./indexing.ts";
+import {
+	buildSections,
+	getLeadingDocumentMetadata,
+	isSourceUrlOnly,
+} from "./indexing.ts";
 import type {
 	IndexChunk,
 	ReaderSection,
@@ -13,6 +17,7 @@ import type {
 interface SelectionMetadata {
 	document: SourceVersionSelection["document"];
 	elementByRootUnitId: Map<string, DocsReaderElement>;
+	leadingMetadataRootUnitIds: ReadonlySet<string>;
 	ordinalByRootUnitId: Map<string, number>;
 	sectionByRootUnitId: Map<string, ReaderSection>;
 	sections: ReaderSection[];
@@ -72,6 +77,7 @@ export function assertValidChunkSet(input: {
 
 function buildSelectionMetadata(selection: SourceVersionSelection): SelectionMetadata {
 	const sections = buildSections(selection.document, selection.version, selection.reader);
+	const leadingMetadata = getLeadingDocumentMetadata(selection.reader);
 	const elementByRootUnitId = new Map<string, DocsReaderElement>();
 	const ordinalByRootUnitId = new Map<string, number>();
 	for (const [ordinal, element] of selection.reader.elements.entries()) {
@@ -87,6 +93,7 @@ function buildSelectionMetadata(selection: SourceVersionSelection): SelectionMet
 	return {
 		document: selection.document,
 		elementByRootUnitId,
+		leadingMetadataRootUnitIds: new Set(leadingMetadata?.rootUnitIds ?? []),
 		ordinalByRootUnitId,
 		sectionByRootUnitId,
 		sections,
@@ -109,6 +116,9 @@ function assertValidChunkRoots(chunk: IndexChunk, metadata: SelectionMetadata): 
 		}
 		if (element.kind === "heading") {
 			throw new Error(`Campus docs chunk references a heading root unit: ${chunk.chunkId}`);
+		}
+		if (isSourceUrlOnly(element.kind === "table" ? "" : element.text)) {
+			throw new Error(`Campus docs chunk references a non-evidence root unit: ${chunk.chunkId}`);
 		}
 		const section = metadata.sectionByRootUnitId.get(rootUnitId);
 		if (!section) {
@@ -145,6 +155,12 @@ function assertSourceCoverage(
 				sectionChunks.flatMap((chunk) => chunk.rootUnitIds),
 			);
 			for (const element of section.elements) {
+				if (
+					isSourceUrlOnly(element.kind === "table" ? "" : element.text) ||
+					document.leadingMetadataRootUnitIds.has(element.rootUnitId)
+				) {
+					continue;
+				}
 				if (!representedRootUnitIds.has(element.rootUnitId)) {
 					throw new Error(
 						`Campus docs reader element is absent from chunks: ${document.document.docId}/${element.rootUnitId}`,

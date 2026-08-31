@@ -5,6 +5,7 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY jobs/campus-docs-index-publisher/package.json ./jobs/campus-docs-index-publisher/package.json
+COPY packages/embedding-runtime/package.json ./packages/embedding-runtime/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
@@ -16,6 +17,7 @@ COPY jobs/campus-docs-index-publisher/tsconfig.build.json ./jobs/campus-docs-ind
 COPY jobs/campus-docs-index-publisher/src ./jobs/campus-docs-index-publisher/src
 COPY apps/campus-web/src/docs-reader-build ./apps/campus-web/src/docs-reader-build
 COPY packages/contracts/schemas ./packages/contracts/schemas
+COPY packages/embedding-runtime/src ./packages/embedding-runtime/src
 
 RUN ln -s ../../jobs/campus-docs-index-publisher/node_modules apps/campus-web/node_modules \
   && pnpm --dir jobs/campus-docs-index-publisher build
@@ -26,11 +28,14 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY jobs/campus-docs-index-publisher/package.json ./jobs/campus-docs-index-publisher/package.json
+COPY packages/embedding-runtime/package.json ./packages/embedding-runtime/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
   && pnpm install --frozen-lockfile --prod --filter campus-docs-index-publisher...
+
+COPY packages/embedding-runtime/src ./packages/embedding-runtime/src
 
 FROM node:24.19.0-bookworm-slim AS runtime
 

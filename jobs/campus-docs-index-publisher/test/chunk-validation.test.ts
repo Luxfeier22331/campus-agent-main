@@ -17,6 +17,40 @@ describe("Campus docs chunk validation", () => {
 		expect(() => assertValidChunkSet(input)).not.toThrow();
 	});
 
+	it("accepts leading metadata attached to body while excluding source URLs", async () => {
+		const input = await fixtureInput();
+		const fixtureSelection = input.selections[0];
+		if (!fixtureSelection) throw new Error("docs fixture is empty");
+		const selection = {
+			...fixtureSelection,
+			reader: {
+				...fixtureSelection.reader,
+				elements: [
+					{ kind: "paragraph" as const, rootUnitId: "approval-date", text: "2024年3月5日" },
+					{
+						kind: "paragraph" as const,
+						rootUnitId: "source-url",
+						text: "> Source URL: https://example.edu/docs/1",
+					},
+					{ kind: "paragraph" as const, rootUnitId: "body", text: "正文内容。" },
+				],
+			},
+		};
+		const chunks = buildChunks({
+			document: selection.document,
+			reader: selection.reader,
+			version: selection.version,
+		});
+
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]).toMatchObject({
+			content: "2024年3月5日\n\n正文内容。",
+			rootUnitIds: ["approval-date", "body"],
+		});
+		expect(chunks[0]?.rootUnitIds).not.toContain("source-url");
+		expect(() => assertValidChunkSet({ chunks, selections: [selection] })).not.toThrow();
+	});
+
 	it("rejects duplicate identities and invalid retrieval provenance", async () => {
 		const input = await fixtureInput();
 		const first = requiredChunk(input.chunks[0]);

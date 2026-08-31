@@ -8,37 +8,25 @@ const chunkSet = `sha256:${"a".repeat(64)}`;
 const embeddingSet = `sha256:${"b".repeat(64)}`;
 
 describe("local Campus docs embedding commands", () => {
-	it("requires an explicit provider connection for embedding generation", () => {
+	it("accepts artifact selections while the provider connection comes from the environment", () => {
 		expect(parseLocalEmbeddingCommand([
 			"--",
 			"--chunk-set",
 			chunkSet,
-			"--base-url",
-			"https://embedding.example/v1",
-			"--model-target-sha256",
-			"c".repeat(64),
 			"--reuse-embedding-set",
 			embeddingSet,
 		])).toEqual({
-			baseUrl: "https://embedding.example/v1",
 			chunkSet,
-			modelTargetSha256: "c".repeat(64),
 			reuseEmbeddingSet: embeddingSet,
 		});
 	});
 
-	it("rejects missing direct provider options", () => {
+	it("rejects options outside the artifact selection contract", () => {
 		expect(() => parseLocalEmbeddingCommand([
 			"--chunk-set",
 			chunkSet,
-		])).toThrow("Usage: build-embeddings");
-		expect(() => parseLocalEmbeddingCommand([
-			"--chunk-set",
-			chunkSet,
-			"--base-url",
+			"--provider",
 			"https://embedding.example/v1",
-			"--model",
-			"other-model",
 		])).toThrow("Usage: build-embeddings");
 	});
 

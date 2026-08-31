@@ -411,6 +411,32 @@ describe("managed worktree environment", () => {
 		);
 	});
 
+	it("imports provider credentials for each index publisher target", () => {
+		const mainCheckoutRoot = createRepositoryShape();
+		writeFileSync(
+			resolve(mainCheckoutRoot, ".env"),
+			[
+				"EMBEDDING_BASE_URL=https://embedding.example/v1",
+				"EMBEDDING_API_KEY=embedding-key",
+				"LLM_API_KEY=llm-key",
+				"",
+			].join("\n"),
+		);
+
+		for (const target of ["campus-docs-index-publisher", "notice-index-publisher"] as const) {
+			const repoRoot = createRepositoryShape();
+			importMainCheckoutExternalCredentials({
+				mainCheckoutRoot,
+				projections: resolveLocalDevTargetPlan(target).environmentProjections,
+				repoRoot,
+			});
+			const imported = parseEnv(readFileSync(resolve(repoRoot, ".env"), "utf8"));
+			assert.equal(imported.EMBEDDING_BASE_URL, "https://embedding.example/v1");
+			assert.equal(imported.EMBEDDING_API_KEY, "embedding-key");
+			assert.equal(imported.LLM_API_KEY, "llm-key");
+		}
+	});
+
 	it("renders isolated endpoints and preserves generated secrets", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
@@ -606,6 +632,30 @@ describe("managed worktree environment", () => {
 		assert.equal(existsSync(resolve(repoRoot, "apps/ops-web/.env.local")), false);
 	});
 
+	it("renders the complete local notice job environment for Ops Web", () => {
+		const repoRoot = createRepositoryShape();
+		const rendered = renderLocalEnvironmentFiles({
+			profile: createProfile(repoRoot),
+			repoRoot,
+			target: "ops-web",
+		});
+		assert.deepEqual(
+			rendered.sort(),
+			[
+				resolve(repoRoot, "apps/agent-runtime/.env.local"),
+				resolve(repoRoot, "apps/app-api/.dev.vars.local"),
+				resolve(repoRoot, "apps/app-api/.env.local"),
+				resolve(repoRoot, "apps/campus-web/.dev.vars.local"),
+				resolve(repoRoot, "apps/execution-control/.env.local"),
+				resolve(repoRoot, "apps/model-config/.env.local"),
+				resolve(repoRoot, "apps/ops-web/.env.local"),
+				resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal/.env.local"),
+				resolve(repoRoot, "jobs/notice-classifier/.env.local"),
+				resolve(repoRoot, "jobs/notice-publisher/.env.local"),
+			].sort(),
+		);
+	});
+
 	it("does not create core secrets for a target without a core projection", () => {
 		const repoRoot = createRepositoryShape();
 		renderLocalEnvironmentFiles({
@@ -652,6 +702,61 @@ describe("managed worktree environment", () => {
 		assert.equal(existsSync(resolve(repoRoot, "apps/model-config/.env.local")), true);
 		assert.equal(existsSync(resolve(repoRoot, "apps/app-api/.env.local")), false);
 	});
+
+	it("renders index publisher environments with only their owned fields", () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+
+		const campusPaths = renderLocalEnvironmentFiles({
+			profile,
+			repoRoot,
+			target: "campus-docs-index-publisher",
+		});
+		assert.deepEqual(campusPaths, [
+			resolve(repoRoot, "jobs/campus-docs-index-publisher/.env.local"),
+		]);
+		assert.deepEqual(Object.keys(parseEnv(readFileSync(campusPaths[0] ?? "", "utf8"))).sort(), [
+			"EXECUTION_CONTROL_DATABASE_URL",
+			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
+			"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
+			"OBJECT_STORE_ENDPOINT",
+		]);
+		assert.equal(
+			parseEnv(readFileSync(campusPaths[0] ?? "", "utf8")).OBJECT_STORE_ENDPOINT,
+			"http://127.0.0.1:9000",
+		);
+
+		const noticePaths = renderLocalEnvironmentFiles({
+			profile,
+			repoRoot,
+			target: "notice-index-publisher",
+		});
+		assert.deepEqual(noticePaths, [resolve(repoRoot, "jobs/notice-index-publisher/.env.local")]);
+		assert.deepEqual(Object.keys(parseEnv(readFileSync(noticePaths[0] ?? "", "utf8"))).sort(), [
+			"DEPLOYMENT_ENVIRONMENT",
+			"NOTICES_DATABASE_SSLMODE",
+			"NOTICES_DATABASE_URL",
+		]);
+		assert.equal(
+			parseEnv(readFileSync(noticePaths[0] ?? "", "utf8")).NOTICES_DATABASE_SSLMODE,
+			"disable",
+		);
+	});
+
+	it("does not inspect unrelated developer-owned environments for an index target", () => {
+		const repoRoot = createRepositoryShape();
+		const opsWebPath = resolve(repoRoot, "apps/ops-web/.env.local");
+		writeFileSync(opsWebPath, "USER_OWNED=1\n");
+
+		const rendered = renderLocalEnvironmentFiles({
+			profile: createProfile(repoRoot),
+			repoRoot,
+			target: "campus-docs-index-publisher",
+		});
+
+		assert.deepEqual(rendered, [resolve(repoRoot, "jobs/campus-docs-index-publisher/.env.local")]);
+		assert.equal(readFileSync(opsWebPath, "utf8"), "USER_OWNED=1\n");
+	});
 });
 
 describe("local development lifecycle guards", () => {
@@ -666,6 +771,9 @@ describe("local development lifecycle guards", () => {
 		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").environmentProjections, [
 			"core",
 			"ops-web",
+			"internal-portal-collection",
+			"notice-classifier",
+			"notice-publisher",
 		]);
 		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").environmentProjections, [
 			"model-config",
@@ -702,7 +810,31 @@ describe("local development lifecycle guards", () => {
 			"notice-publisher-seed-local",
 			"model-config-check",
 		]);
-		for (const target of ["ops-web", "notice-publisher", "internal-portal-collection"] as const) {
+		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").modelConfigNames, [
+			"notice_classification",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("ops-web").bootstrapSteps, [
+			"campus-agent-schema",
+			"model-config-seed",
+			"notice-publisher-seed-local",
+			"model-config-check",
+			"ops-web-dining-bootstrap",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("campus-docs-index-publisher").capabilities, [
+			"postgres",
+			"docs-bucket",
+			"docs-source",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("campus-docs-index-publisher").bootstrapSteps, []);
+		assert.deepEqual(resolveLocalDevTargetPlan("notice-index-publisher").bootstrapSteps, [
+			"campus-agent-schema",
+		]);
+		for (const target of [
+			"notice-publisher",
+			"internal-portal-collection",
+			"campus-docs-index-publisher",
+			"notice-index-publisher",
+		] as const) {
 			const plan = resolveLocalDevTargetPlan(target);
 			assert.deepEqual(plan.modelConfigNames, []);
 			assert.equal(plan.bootstrapSteps.includes("model-config-seed"), false);
@@ -1056,15 +1188,21 @@ describe("local development lifecycle guards", () => {
 			"--name",
 			"notice_classification",
 		]);
+		const opsWebPlan = resolveLocalDevTargetPlan("ops-web");
 		assert.deepEqual(
 			localApplicationBootstrapCommands(
 				"/repo",
 				createProfile("/repo"),
-				resolveLocalDevTargetPlan("ops-web").bootstrapSteps.filter(
-					(step) => step !== "temporal-namespace",
-				),
+				opsWebPlan.bootstrapSteps.filter((step) => step !== "temporal-namespace"),
+				opsWebPlan.modelConfigNames,
 			).map(({ step }) => step),
-			["campus-agent-schema", "notice-publisher-seed-local", "ops-web-dining-bootstrap"],
+			[
+				"campus-agent-schema",
+				"model-config-seed",
+				"notice-publisher-seed-local",
+				"model-config-check",
+				"ops-web-dining-bootstrap",
+			],
 		);
 		const steps = commands.map(({ step }) => String(step));
 		assert.equal(steps.includes("notice-publisher-migrate"), false);
@@ -1097,6 +1235,10 @@ describe("local development lifecycle guards", () => {
 			readFileSync(resolve(import.meta.dirname, "../../apps/agent-runtime/package.json"), "utf8"),
 		) as { scripts?: { dev?: string } };
 		const opsWebPackage = readPackageJson("apps/ops-web/package.json");
+		const campusDocsIndexPublisherPackage = readPackageJson(
+			"jobs/campus-docs-index-publisher/package.json",
+		);
+		const noticeIndexPublisherPackage = readPackageJson("jobs/notice-index-publisher/package.json");
 		assert.match(schemaPackage.scripts?.status ?? "", /tsx src\/cli\.ts status/u);
 		assert.match(appApiPackage.scripts?.dev ?? "", /exec wrangler dev/u);
 		assert.match(appApiPackage.scripts?.dev ?? "", /\. \.\/\.dev\.vars\.local/u);
@@ -1109,6 +1251,8 @@ describe("local development lifecycle guards", () => {
 		assert.match(agentPackage.scripts?.dev ?? "", /--experimental-strip-types src\/server\.ts/u);
 		assert.equal(opsWebPackage.scripts?.dev, undefined);
 		assert.match(opsWebPackage.scripts?.["dev:api"] ?? "", /--experimental-strip-types/u);
+		assert.equal(campusDocsIndexPublisherPackage.scripts?.["dev:init"], undefined);
+		assert.equal(noticeIndexPublisherPackage.scripts?.["dev:init"], undefined);
 		for (const command of [
 			appApiPackage.scripts?.dev,
 			campusWebPackage.scripts?.dev,
@@ -1143,6 +1287,9 @@ function createRepositoryShape(): string {
 		recursive: true,
 	});
 	for (const job of ["notice-classifier", "notice-publisher"]) {
+		mkdirSync(resolve(repoRoot, "jobs", job), { recursive: true });
+	}
+	for (const job of ["campus-docs-index-publisher", "notice-index-publisher"]) {
 		mkdirSync(resolve(repoRoot, "jobs", job), { recursive: true });
 	}
 	return repoRoot;

@@ -1,7 +1,7 @@
 import type { NoticeCategory } from "campus-contracts/notices";
 import type { NoticeSummary } from "../../shared/ops-contract";
 
-export type NoticePrimaryAction = "classify" | "publish";
+export type NoticePrimaryAction = "classify" | "publish" | "republish";
 
 export interface NoticeActionState {
 	canSave: boolean;
@@ -12,7 +12,7 @@ export interface NoticeActionState {
 
 export function getNoticeActionState(input: {
 	draftCategory: NoticeCategory | "";
-	notice: Pick<NoticeSummary, "category" | "state">;
+	notice: Pick<NoticeSummary, "category" | "isExternal" | "state">;
 }): NoticeActionState {
 	const canSave = Boolean(input.draftCategory) && input.draftCategory !== input.notice.category;
 	const primaryAction =
@@ -20,7 +20,9 @@ export function getNoticeActionState(input: {
 			? "classify"
 			: input.notice.state === "needs_publication"
 				? "publish"
-				: null;
+				: input.notice.isExternal
+					? null
+					: "republish";
 	return {
 		canSave,
 		primaryAction,

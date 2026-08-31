@@ -17,9 +17,10 @@ status: active
 
 ### 仓库根环境
 
-根 `.env` 只保存维护者共享的外部开发连接，不是应用运行时配置。linked worktree 的 target 包含 `core` 或
-`model-config` 投影时，`dev:init` 才从 main checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank
-和离线通知分类 provider 连接；包含 `internal-portal-collection` 投影时，才首次导入已有门户 TGC。它只补充
+根 `.env` 只保存维护者共享的外部开发连接，不是应用运行时配置。linked worktree 的 target 包含 `core`、
+`model-config`、`campus-docs-index-publisher` 或 `notice-index-publisher` 投影时，`dev:init` 才从 main
+checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离线通知分类 provider 连接；包含
+`internal-portal-collection` 投影时，才首次导入已有门户 TGC。它只补充
 当前 worktree 尚不存在的字段，不覆盖已有值，也不复制数据库 DSN、对象存储身份、观测配置或整份环境文件。
 应用仍不得直接读取根 `.env`；需要这些外部连接时，由调用 shell 或命令入口显式加载。
 
@@ -36,17 +37,21 @@ status: active
 
 需要其他边界时显式选择 target：
 
-    `pnpm dev:init -- --target ops-web`
-    `pnpm dev:init -- --target notice-publisher`
-    `pnpm dev:init -- --target internal-portal-collection`
-    `pnpm dev:init -- --target notice-classifier`
+- `pnpm dev:init -- --target ops-web`：Ops Web 及其本地通知采集、分类、发布任务；
+- `pnpm dev:init -- --target notice-publisher`：notice-publisher；
+- `pnpm dev:init -- --target internal-portal-collection`：internal-portal-collection adapter；
+- `pnpm dev:init -- --target notice-classifier`：notice-classifier；
+- `pnpm dev:init -- --target campus-docs-index-publisher`：Campus Docs Chunk/Embedding/Publish 本地任务；
+- `pnpm dev:init -- --target notice-index-publisher`：已发布通知 Chunk 本地任务。
 
 target 会自动生成其运行依赖的环境投影；例如 `internal-portal-collection` 生成 Ops Web 和采集器所需的
 文件，`notice-classifier` 只生成 Model Config 与分类器所需的文件。schema、seed 和 Temporal namespace
 由各自 owner 的 readiness probe 判断，只有缺失的步骤才执行；不存在第二份 lifecycle journal。
 
 `notice-publisher` target 通过 `campus-agent-schema` 安装统一 baseline 并写入通知分类；`ops-web` target
-另外写入 Dining 基线。`internal-portal-collection` 和 `notice-classifier` 不重复执行 DDL。
+还生成通知采集、分类和发布任务环境，写入 `notice_classification` Model Config 与 Dining 基线。
+`internal-portal-collection` 和 `notice-classifier` 不重复执行 DDL。`notice-index-publisher` target 通过
+同一 schema owner 补齐数据库 baseline；`campus-docs-index-publisher` 只生成任务环境，不执行应用 bootstrap。
 
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
@@ -68,12 +73,20 @@ notice-classifier 的托管 `.env.local` 保存本 worktree 的通知数据库�
 不再包含对象存储配置。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时从
 Model Config 一次读取当前完整配置。
 
-Ops Web 的托管 `.env.local` 保存本 worktree 的数据库连接和本地 source bucket 连接。notice-publisher 的
+Campus Docs index publisher 的托管 `.env.local` 只保存 `EXECUTION_CONTROL_DATABASE_URL`、对象存储
+endpoint 和 derived bucket 只读凭据；derived bucket 固定为共享的 `campus-agent-derived`。Notice index
+publisher 的托管 `.env.local` 保存 `DEPLOYMENT_ENVIRONMENT`、`NOTICES_DATABASE_SSLMODE`、
+`NOTICES_DATABASE_URL`。Notice 问题生成只从当前 worktree 根 `.env` 显式读取 LLM 配置；两个任务的本地
+embedding evaluation 和 Notice embedding 抽样验证都从当前 worktree 根 `.env` 显式读取 `EMBEDDING_BASE_URL` 与
+`EMBEDDING_API_KEY`，不读取其他 job 的环境文件；Campus Docs 的本地 embedding
+构建也使用同一根 `.env`，线上 Campus Docs Embedding Job 仍从 Model Config 获取完整 runtime config。
+
+Ops Web 的托管 `.env.local` 保存本 worktree 的数据库连接和本地 derived bucket 连接；本地 Job 继续读取
+各自所有者的托管环境文件，而不是把任务凭据复制进 Ops Web。notice-publisher 的
 托管 `.env.local` 保存本地 `notice_publisher` 数据库连接、明确禁用 TLS
 的本地标记，以及分离的 source/derived 对象存储身份；门户 hostname 直接读取仓库 source descriptor，
 不再维护重复环境变量。App API 的托管变量提供本地 derived bucket 地址和只读凭据，用于通知图片与
 其他获准的派生资源；部署环境改用现有私有对象存储 binding。应用之间不读取彼此环境文件。
-
 一个应用不得读取其他应用或适配器的环境文件，也不得从根 `.env` 隐式扩散数据库或供应商凭据。
 
 ### 命令环境
