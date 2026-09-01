@@ -119,6 +119,7 @@ export function noticeJobSummaryLabel(
 					["imagesDownloaded", "下载图片"],
 					["imagesReused", "复用图片"],
 					["attachmentsDownloaded", "下载附件"],
+					["attachmentsMissing", "缺失附件"],
 					["attachmentsReused", "复用附件"],
 				] as const)
 			: family === "classification"

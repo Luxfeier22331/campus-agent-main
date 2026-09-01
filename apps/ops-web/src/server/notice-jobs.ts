@@ -417,6 +417,7 @@ function parseScalarSummary(value: unknown): NoticeJob["summary"] {
 		[
 			"assets",
 			"attachmentsDownloaded",
+			"attachmentsMissing",
 			"attachmentsReused",
 			"classified",
 			"imagesDownloaded",

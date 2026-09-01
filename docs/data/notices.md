@@ -10,7 +10,7 @@ status: active
 本文统一维护通知来源对象、规范化投影和资源的长期数据语义。HTTP 响应由
 `../contracts/app-api/notices.md` 维护，采集和发布步骤由 `../runbooks/ingestion.md` 维护。
 
-来源对象保存门户原始数据；采集器在来源和资源齐备后同时登记 `notices.notices`。数据库中的
+来源对象保存门户原始数据；采集器在来源和必需资源齐备后同时登记 `notices.notices`。数据库中的
 `category` 是唯一分类状态，`is_published` 是学生端可见边界。通知数据不保存采集批次、模型理由、
 置信度、原始模型响应、阅读状态或下游处理状态。
 
@@ -60,15 +60,16 @@ internal_portal/notices/_state.json
 `[start,end)` 校验，以排除边界泄漏。门户最新边界由未过滤列表第一条通知的发布时间，或其详情发布时间，
 推导为该日期的下一天；空门户使用运行时的门户日期下一天。
 
-通知对象、其引用的图片和附件、以及 `meta.json` 全部成功后才推进状态；已有合法 source 对象仍会检查并
-补齐缺失资源。增量同步与历史回填通过 PostgreSQL advisory lock 串行执行。旧
+通知对象、其引用的图片和非永久缺失附件、以及 `meta.json` 全部成功后才推进状态；已有合法 source 对象仍会检查并
+补齐缺失资源，明确返回 HTTP 404 的通知附件除外。增量同步与历史回填通过 PostgreSQL advisory lock 串行执行。旧
 `internal_portal_notice_sync_state.v2` 只作为迁移输入读取；它没有可靠的排他上界，下一次 backfill 会重新
 建立完整 v3 区间，sync 在此之前拒绝运行。通知独立、随机消费，不创建 `captures/` 批次。
 
 采集 Job 的 `processedRange` 只记录本次尝试扫描的半开区间；它不是数据库维护边界，也不能在失败后代替
-`_state.json`。只有资源、库存映射和状态文件都成功写入后，`maintenanceRange` 才反映新的
-`[covered_from, covered_until)`。因此一个失败 Job 可以有处理进度和本次处理区间，但下一次 Job 仍应从未推进的
-维护边界继续。分类和发布 Job 不拥有日期维护边界，只返回各自的数量摘要。
+`_state.json`。只有 source、必需资源、库存映射和状态文件都成功写入后，`maintenanceRange` 才反映新的
+`[covered_from, covered_until)`；通知附件明确返回 HTTP 404 时属于永久缺失，不要求资源对象存在，也不阻止该通知
+登记或维护边界推进。因此一个真正失败的 Job 可以有处理进度和本次处理区间，但下一次 Job 仍应从未推进的维护边界
+继续。分类和发布 Job 不拥有日期维护边界，只返回各自的数量摘要。
 
 跨运行时字段和校验规则以 `packages/ingestion-contracts/schemas/` 中登记的 JSON Schema 为可执行来源。
 
@@ -86,8 +87,9 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 展示 ordinal。附件 ordinal 与来源 metadata 顺序一致。
 
 附件的 `notice_annex_id` 是门户资源身份，`notice_annex_path` 只作为来源 metadata 保留。正常采集按
-通知 ID、资源类型和序号 create-or-verify，不改写通知 JSON，也不抓取外部正文。仓库不再提供独立的
-资源维护或状态查看入口。
+通知 ID、资源类型和序号 create-or-verify，不改写通知 JSON，也不抓取外部正文。通知附件下载明确返回 HTTP 404
+时，保留 source 中的附件 metadata，但不创建资源对象；该附件不会生成 `notice_assets` 投影，发布时省略它。
+附件的其他下载错误仍使通知采集失败；图片 404 也仍然是失败。仓库不再提供独立的资源维护或状态查看入口。
 
 ## 分类交接
 
@@ -122,8 +124,9 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 单分类 migration 5 不把旧分类值映射到新 taxonomy，也不保留兼容列。它只接受空的
 `notices.notices` 投影；已有本地旧投影必须清空后用新 taxonomy 的模型分类结果重新物化。
 
-`notices.notice_assets` 按通知、资源类型和从零开始的展示序号保存名称、媒体类型、字节数、SHA-256
-和附件的 `portal_annex_id`；图片的该字段为空，完整门户下载 URL 不落库。表结构和授权的可执行来源是
+`notices.notice_assets` 按通知和资源类型保存名称、媒体类型、字节数、SHA-256 和附件的
+`portal_annex_id`。图片使用从零开始的连续展示 ordinal；附件保留 source metadata ordinal，永久缺失附件会留下
+ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不落库。表结构和授权的可执行来源是
 `jobs/notice-publisher/migrations/`。
 
 ### 正文清洗
@@ -272,8 +275,8 @@ publisher 校验来源资源后，只把通知图片的内容寻址对象写入 
 notices/assets/sha256/<digest>
 ```
 
-附件原始字节继续保留在 source bucket；publisher 读取附件以确认字节数、媒体类型和 SHA-256，但不把
-附件复制到 derived bucket。source bucket 由 internal-portal-collection 写入，publisher 按权限读取，
+实际采集到的附件原始字节继续保留在 source bucket；publisher 读取这些附件以确认字节数、媒体类型和 SHA-256，
+但不把附件复制到 derived bucket。source bucket 由 internal-portal-collection 写入，publisher 按权限读取，
 不向 Worker 或浏览器开放。App API 当前只按数据库摘要读取通知图片并通过通知所属
 的同源接口返回字节；
 浏览器不接收 bucket key、摘要或对象存储凭据。附件 metadata 包含门户资源身份，App API 即时构造
@@ -284,7 +287,7 @@ notices/assets/sha256/<digest>
 
 ## 所有权
 
-- `internal-portal-collection` 写 source bucket，并在资源齐备后登记通知与来源映射；
+- `internal-portal-collection` 写 source bucket，并在必需资源齐备后登记通知与来源映射；
 - `notice-classifier` 读取数据库中的 ID 与标题，并更新同一行的 `category`；
 - `notice-publisher` 读取数据库中的待发布项、校验来源、写 derived 图片和正文并设置 `is_published`；也可重新读取已发布站内通知
   的 source，更新 `content_html` 和 `content_text` 而保持已发布状态；

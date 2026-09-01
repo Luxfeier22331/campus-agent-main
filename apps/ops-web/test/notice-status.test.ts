@@ -5,6 +5,7 @@ import { noticeJobSummaryLabel } from "../src/app/notices/notice-status";
 const mixedSummary = {
 	assets: 2,
 	attachmentsDownloaded: 3,
+	attachmentsMissing: 1,
 	classified: 4,
 	notices: 5,
 	noticesProcessed: 6,
@@ -15,7 +16,7 @@ const mixedSummary = {
 describe("notice job summaries", () => {
 	it("shows only collection fields for collection jobs", () => {
 		expect(noticeJobSummaryLabel("notice-sync", mixedSummary)).toBe(
-			"处理通知 6 条 · 下载附件 3 条 · 已同步到门户当前最新范围",
+			"处理通知 6 条 · 下载附件 3 条 · 缺失附件 1 条 · 已同步到门户当前最新范围",
 		);
 	});
 

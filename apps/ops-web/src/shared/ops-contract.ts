@@ -71,6 +71,7 @@ export const NoticeJobSummarySchema = z
 	.object({
 		assets: z.number().int().nonnegative().optional(),
 		attachmentsDownloaded: z.number().int().nonnegative().optional(),
+		attachmentsMissing: z.number().int().nonnegative().optional(),
 		attachmentsReused: z.number().int().nonnegative().optional(),
 		classified: z.number().int().nonnegative().optional(),
 		imagesDownloaded: z.number().int().nonnegative().optional(),

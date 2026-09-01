@@ -29,6 +29,15 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 		}) {
 			this.record.commands.push({ input: command.input, name: command.constructor.name });
 			if (command instanceof actual.GetObjectCommand) {
+				if (String(command.input.Key).endsWith("/attachments/0")) {
+					throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+				}
+				if (String(command.input.Key).endsWith("/attachments/1")) {
+					throw Object.assign(new Error("forbidden"), {
+						$metadata: { httpStatusCode: 403 },
+						name: "AccessDenied",
+					});
+				}
 				if (
 					command.input.Bucket === "campus-agent-derived" &&
 					String(command.input.Key).startsWith("notices/assets/")
@@ -103,12 +112,22 @@ describe("publisher object store identities", () => {
 			body,
 			contentType: "application/json",
 		});
+		await expect(
+			store.getSourceIfExists("internal_portal/notices/358159/attachments/0"),
+		).resolves.toBeNull();
+		await expect(
+			store.getSourceIfExists("internal_portal/notices/358159/attachments/1"),
+		).rejects.toThrow("forbidden");
 		await store.createOrVerifyDerived({ body, contentType: "image/png", digest });
 		store.close();
 
 		const source = s3.clients.find((client) => client.accessKeyId === "source-access");
 		const derived = s3.clients.find((client) => client.accessKeyId === "derived-access");
-		expect(source?.commands.map((command) => command.name)).toEqual(["GetObjectCommand"]);
+		expect(source?.commands.map((command) => command.name)).toEqual([
+			"GetObjectCommand",
+			"GetObjectCommand",
+			"GetObjectCommand",
+		]);
 		expect(derived?.commands.map((command) => command.name)).toEqual([
 			"GetObjectCommand",
 			"PutObjectCommand",

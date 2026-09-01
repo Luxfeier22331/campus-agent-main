@@ -2,7 +2,7 @@ import { normalizeNoticeContent } from "@campus-agent/notices";
 import type { InternalPortalNoticeSource } from "ingestion-contracts";
 
 import type { InternalPortalCollectionObjectStore } from "../../../src/object-store.js";
-import { fetchAttachmentBinary } from "./api.js";
+import { fetchAttachmentBinary, PortalHttpError } from "./api.js";
 import { PortalSessionExpiredError } from "./auth-errors.js";
 import type { ApiRequestContextLike } from "./types.js";
 
@@ -67,6 +67,14 @@ export async function ensureNoticeResources(input: {
 		attachments: 0,
 		images: 0,
 	};
+	const downloadedByKind = {
+		attachments: 0,
+		images: 0,
+	};
+	const permanentlyMissingByKind = {
+		attachments: 0,
+		images: 0,
+	};
 	const missing: ResourceCandidate[] = [];
 
 	for (const resource of resources) {
@@ -100,6 +108,26 @@ export async function ensureNoticeResources(input: {
 				if (error instanceof PortalSessionExpiredError) {
 					throw error;
 				}
+				if (
+					resource.kind === "attachments" &&
+					error instanceof PortalHttpError &&
+					error.status === 404
+				) {
+					permanentlyMissingByKind.attachments += 1;
+					console.log(
+						JSON.stringify({
+							noticeResource: {
+								disposition: "missing",
+								httpStatus: 404,
+								noticeId: resource.noticeId,
+								resourceKind: resource.kind,
+								resourceOrdinal: resource.ordinal,
+							},
+							status: "running",
+						}),
+					);
+					continue;
+				}
 				throw new NoticeResourceTransferError(resource, { cause: error });
 			}
 			try {
@@ -115,29 +143,27 @@ export async function ensureNoticeResources(input: {
 			} finally {
 				await file.remove();
 			}
+			downloadedByKind[resource.kind] += 1;
 		}
 	}
 
-	const missingByKind = countByKind(missing);
-	const downloadedByKind = input.dryRun
-		? { attachments: 0, images: 0 }
-		: { attachments: missingByKind.attachments, images: missingByKind.images };
+	const missingByKind = input.dryRun ? countByKind(missing) : permanentlyMissingByKind;
 	return {
 		attachments: kindResult(
 			resources.filter((resource) => resource.kind === "attachments").length,
 			existingByKind.attachments,
 			downloadedByKind.attachments,
-			input.dryRun ? missingByKind.attachments : 0,
+			missingByKind.attachments,
 		),
-		downloaded: input.dryRun ? 0 : missing.length,
+		downloaded: downloadedByKind.attachments + downloadedByKind.images,
 		existing: resources.length - missing.length,
 		images: kindResult(
 			resources.filter((resource) => resource.kind === "images").length,
 			existingByKind.images,
 			downloadedByKind.images,
-			input.dryRun ? missingByKind.images : 0,
+			missingByKind.images,
 		),
-		missing: input.dryRun ? missing.length : 0,
+		missing: missingByKind.attachments + missingByKind.images,
 		resources: resources.length,
 	};
 }

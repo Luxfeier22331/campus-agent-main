@@ -43,6 +43,16 @@ export interface FetchAttachmentBinaryResult extends TemporaryAttachmentFile {
 	contentDisposition: string | null;
 }
 
+export class PortalHttpError extends Error {
+	readonly status: number;
+
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = "PortalHttpError";
+		this.status = status;
+	}
+}
+
 export interface FetchFileReleaseDetailInput {
 	apiContext: ApiRequestContextLike;
 	fileReleaseId: number;
@@ -288,8 +298,9 @@ function buildRequestError(
 			`Internal portal ${portalOperationLabel(operation)} request failed: HTTP ${status} ${statusText}${body ? `: ${body}` : ""}`,
 		);
 	}
-	return new Error(
+	return new PortalHttpError(
 		`Internal portal ${portalOperationLabel(operation)} request failed: HTTP ${status} ${statusText}${body ? `: ${body}` : ""}`,
+		status,
 	);
 }
 

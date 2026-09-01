@@ -91,18 +91,20 @@ function fakeClient(rows: unknown[]): PoolClient {
 }
 
 function fakeStore(sources: Record<number, unknown>): PublisherObjectStore {
+	const getSource = vi.fn(async (key: string) => {
+		const match = /internal_portal\/notices\/([1-9][0-9]*)\.json$/u.exec(key);
+		const value = match ? sources[Number(match[1])] : undefined;
+		if (!value) throw new Error(`missing source: ${key}`);
+		return {
+			body: Buffer.from(JSON.stringify(value)),
+			contentType: "application/json",
+		};
+	});
 	return {
 		close: vi.fn(),
 		createOrVerifyDerived: vi.fn(),
-		getSource: vi.fn(async (key: string) => {
-			const match = /internal_portal\/notices\/([1-9][0-9]*)\.json$/u.exec(key);
-			const value = match ? sources[Number(match[1])] : undefined;
-			if (!value) throw new Error(`missing source: ${key}`);
-			return {
-				body: Buffer.from(JSON.stringify(value)),
-				contentType: "application/json",
-			};
-		}),
+		getSource,
+		getSourceIfExists: vi.fn(async (key: string) => getSource(key)),
 	};
 }
 

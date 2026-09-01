@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 		processedRange: null,
 		resources: {
 			attachmentsDownloaded: 0,
+			attachmentsMissing: 0,
 			attachmentsReused: 0,
 			imagesDownloaded: 0,
 			imagesReused: 0,
@@ -103,6 +104,7 @@ describe("collection command", () => {
 			processedRange: { from: "2025-12-01", to: "2026-08-27" },
 			resources: {
 				attachmentsDownloaded: 2,
+				attachmentsMissing: 1,
 				attachmentsReused: 0,
 				imagesDownloaded: 1,
 				imagesReused: 0,
@@ -123,7 +125,12 @@ describe("collection command", () => {
 		expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
 			maintenanceRange: { from: "2025-12-01", to: "2026-08-27" },
 			processedRange: { from: "2025-12-01", to: "2026-08-27" },
-			summary: { noticesFailed: 0, noticesProcessed: 4, pagesFetched: 2 },
+			summary: {
+				attachmentsMissing: 1,
+				noticesFailed: 0,
+				noticesProcessed: 4,
+				pagesFetched: 2,
+			},
 		});
 		log.mockRestore();
 	});
@@ -148,6 +155,7 @@ describe("collection command", () => {
 			processedRange: { from: "2025-12-01", to: "2026-08-01" },
 			resources: {
 				attachmentsDownloaded: 0,
+				attachmentsMissing: 0,
 				attachmentsReused: 0,
 				imagesDownloaded: 0,
 				imagesReused: 0,

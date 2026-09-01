@@ -71,6 +71,7 @@ export async function runNoticeCommand(
 					processedRange: null,
 					resources: {
 						attachmentsDownloaded: 0,
+						attachmentsMissing: 0,
 						attachmentsReused: 0,
 						imagesDownloaded: 0,
 						imagesReused: 0,

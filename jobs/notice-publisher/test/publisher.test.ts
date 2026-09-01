@@ -150,6 +150,138 @@ describe("notice publisher", () => {
 		).rejects.toThrow("notice 358159 is not published");
 	});
 
+	it("omits missing attachment objects while preserving the remaining source ordinals", async () => {
+		const insertedAssets: unknown[][] = [];
+		const client = {
+			query: vi.fn(async (text: string, values?: unknown[]) => {
+				if (text.includes("SELECT notice_id::text")) {
+					return { rowCount: 1, rows: [candidate()] };
+				}
+				if (text.includes("UPDATE notices.notices")) {
+					return { rowCount: 1, rows: [] };
+				}
+				if (text.includes("SELECT asset_kind")) {
+					return { rowCount: 0, rows: [] };
+				}
+				if (text.includes("INSERT INTO notices.notice_assets")) {
+					insertedAssets.push(values ?? []);
+				}
+				return { rowCount: 0, rows: [] };
+			}),
+		} as unknown as PoolClient;
+		const source = {
+			attachments: [
+				{
+					notice_annex_id: "missing-annex",
+					notice_annex_name: "缺失附件.xlsx",
+					notice_annex_path: "/storage/missing.xlsx",
+					suffix: "xlsx",
+					type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				},
+				{
+					notice_annex_id: "present-annex",
+					notice_annex_name: "现存附件.pdf",
+					notice_annex_path: "/storage/present.pdf",
+					suffix: "pdf",
+					type: "application/pdf",
+				},
+			],
+			external_url: null,
+			is_external: false,
+			notice_content_html: "<p>正文</p>",
+			notice_id: 358159,
+			notice_release_time: "2026-08-11 08:00:00",
+			notice_title: "测试通知",
+			notice_type: 5,
+			organization_id: null,
+			schema_version: "internal_portal_notice_source.v2",
+		};
+		const getSource = vi.fn(async (key: string) => ({
+			body: Buffer.from(
+				JSON.stringify(
+					key.endsWith("meta.json")
+						? {
+								notice_types: { "5": "办公通知" },
+								organizations: {},
+								schema_version: "internal_portal_meta.v1",
+								updated_at: "2026-08-11T00:00:00.000Z",
+							}
+						: source,
+				),
+			),
+			contentType: "application/json",
+		}));
+		const store: PublisherObjectStore = {
+			close: vi.fn(),
+			createOrVerifyDerived: vi.fn(),
+			getSource,
+			getSourceIfExists: vi.fn(async (key: string) =>
+				key.endsWith("/attachments/0")
+					? null
+					: { body: Buffer.from("present"), contentType: "application/pdf" },
+			),
+		};
+
+		await expect(
+			publishNotices({ client, objectStore: store, portalHost: "my.muc.edu.cn" }),
+		).resolves.toEqual({ assets: 1, notices: 1 });
+
+		expect(store.getSourceIfExists).toHaveBeenCalledTimes(2);
+		expect(insertedAssets).toHaveLength(1);
+		expect(insertedAssets[0]?.slice(0, 4)).toEqual([
+			358159,
+			"attachment",
+			1,
+			"现存附件.pdf",
+		]);
+	});
+
+	it("keeps missing image objects as publication failures", async () => {
+		const client = fakeClient([{ rows: [candidate()] }]);
+		const source = {
+			attachments: [],
+			external_url: null,
+			is_external: false,
+			notice_content_html: '<p><img src="/images/missing.png"></p>',
+			notice_id: 358159,
+			notice_release_time: "2026-08-11 08:00:00",
+			notice_title: "测试通知",
+			notice_type: 5,
+			organization_id: null,
+			schema_version: "internal_portal_notice_source.v2",
+		};
+		const store: PublisherObjectStore = {
+			close: vi.fn(),
+			createOrVerifyDerived: vi.fn(),
+			getSource: vi.fn(async (key: string) => {
+				if (key.endsWith("/images/0")) {
+					throw new Error("missing image object");
+				}
+				return {
+					body: Buffer.from(
+						JSON.stringify(
+							key.endsWith("meta.json")
+								? {
+										notice_types: { "5": "办公通知" },
+										organizations: {},
+										schema_version: "internal_portal_meta.v1",
+										updated_at: "2026-08-11T00:00:00.000Z",
+									}
+								: source,
+						),
+					),
+					contentType: "application/json",
+				};
+			}),
+			getSourceIfExists: vi.fn(),
+		};
+
+		await expect(
+			publishNotices({ client, objectStore: store, portalHost: "my.muc.edu.cn" }),
+		).rejects.toThrow("missing image object");
+		expect(store.getSourceIfExists).not.toHaveBeenCalled();
+	});
+
 	it("does not project portal wrapper content for an external notice", () => {
 		expect(
 			normalizePublishedNoticeContent({
@@ -201,34 +333,36 @@ function fakeClient(results: Array<{ rows: unknown[] }>): PoolClient {
 }
 
 function fakeStore(): PublisherObjectStore {
+	const getSource = vi.fn(async (key: string) => ({
+		body: Buffer.from(
+			JSON.stringify(
+				key.endsWith("meta.json")
+					? {
+							notice_types: { "5": "办公通知" },
+							organizations: {},
+							schema_version: "internal_portal_meta.v1",
+							updated_at: "2026-08-11T00:00:00.000Z",
+						}
+					: {
+							attachments: [],
+							external_url: null,
+							is_external: false,
+							notice_content_html: "<p>正文</p>",
+							notice_id: 358159,
+							notice_release_time: "2026-08-11 08:00:00",
+							notice_title: "测试通知",
+							notice_type: 5,
+							organization_id: null,
+							schema_version: "internal_portal_notice_source.v2",
+						},
+			),
+		),
+		contentType: "application/json",
+	}));
 	return {
 		close: vi.fn(),
 		createOrVerifyDerived: vi.fn(),
-		getSource: vi.fn(async (key: string) => ({
-			body: Buffer.from(
-				JSON.stringify(
-					key.endsWith("meta.json")
-						? {
-								notice_types: { "5": "办公通知" },
-								organizations: {},
-								schema_version: "internal_portal_meta.v1",
-								updated_at: "2026-08-11T00:00:00.000Z",
-							}
-						: {
-								attachments: [],
-								external_url: null,
-								is_external: false,
-								notice_content_html: "<p>正文</p>",
-								notice_id: 358159,
-								notice_release_time: "2026-08-11 08:00:00",
-								notice_title: "测试通知",
-								notice_type: 5,
-								organization_id: null,
-								schema_version: "internal_portal_notice_source.v2",
-							},
-				),
-			),
-			contentType: "application/json",
-		})),
+		getSource,
+		getSourceIfExists: vi.fn(async (key: string) => getSource(key)),
 	};
 }

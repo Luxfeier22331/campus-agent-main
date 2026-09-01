@@ -261,6 +261,143 @@ describe("notice runner maintenance ranges", () => {
 		]);
 	});
 
+	it("registers a notice and advances state when one declared attachment returns HTTP 404", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const inventoryStore = new MemoryInventoryStore();
+		const objectStore = new MemoryObjectStore();
+		const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		let result!: Awaited<ReturnType<typeof syncInternalPortalNotices>>;
+		let missingResourceLog: unknown;
+		try {
+			result = await syncInternalPortalNotices(
+				runnerInput({
+					apiContext: {
+						get: async (path) =>
+							path.includes("id=attachment-1-0")
+								? httpErrorResponse(404, "Not Found")
+								: attachmentResponse(bytes("present attachment")),
+						post: async () => {
+							throw new Error("unexpected post");
+						},
+					},
+					fetchNoticeDetail: async () => detailWithTwoAttachments(1, "2026-08-10 09:00"),
+					fetchNoticePage: async (input) =>
+						input.startDate === ""
+							? page([notice(300, 5, "2026-08-11 09:00")], 1)
+							: page([notice(1, 5, "2026-08-10 09:00")], 1),
+					inventoryStore,
+					objectStore,
+					onProgress: () => undefined,
+					stateStore,
+				}),
+			);
+			missingResourceLog = log.mock.calls
+				.map(([value]) => JSON.parse(String(value)))
+				.find((value) => value.noticeResource);
+		} finally {
+			log.mockRestore();
+		}
+
+		expect(result).toMatchObject({
+			failures: [],
+			maintenanceRange: { from: "2026-08-01", to: "2026-08-12" },
+			noticesProcessed: 1,
+			resources: {
+				attachmentsDownloaded: 1,
+				attachmentsMissing: 1,
+				attachmentsReused: 0,
+			},
+		});
+		expect(inventoryStore.registered).toEqual([1]);
+		expect(objectStore.streamWrites).toEqual(["internal_portal/notices/1/attachments/1"]);
+		expect(stateStore.saveCalls).toBe(1);
+		expect(missingResourceLog).toEqual({
+			noticeResource: {
+				disposition: "missing",
+				httpStatus: 404,
+				noticeId: 1,
+				resourceKind: "attachments",
+				resourceOrdinal: 0,
+			},
+			status: "running",
+		});
+	});
+
+	it.each([
+		{
+			expectedError: "HTTP 500 Server Error",
+			get: async () => httpErrorResponse(500, "Server Error"),
+			name: "HTTP 500",
+		},
+		{
+			expectedError: "TimeoutError: request timed out",
+			get: async () => {
+				throw Object.assign(new Error("request timed out"), { name: "TimeoutError" });
+			},
+			name: "timeout",
+		},
+	])("keeps attachment $name as a resource failure", async ({ expectedError, get }) => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const result = await syncInternalPortalNotices(
+			runnerInput({
+				apiContext: {
+					get,
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				},
+				fetchNoticeDetail: async () => detailWithAttachment(1, "2026-08-10 09:00"),
+				fetchNoticePage: async (input) =>
+					input.startDate === ""
+						? page([notice(300, 5, "2026-08-11 09:00")], 1)
+						: page([notice(1, 5, "2026-08-10 09:00")], 1),
+				onProgress: () => undefined,
+				stateStore,
+			}),
+		);
+
+		expect(result.failures).toHaveLength(1);
+		expect(result.failures[0]?.error).toContain(expectedError);
+		expect(result.resources.attachmentsMissing).toBe(0);
+		expect(stateStore.saveCalls).toBe(0);
+	});
+
+	it("keeps inline image HTTP 404 as a resource failure", async () => {
+		const stateStore = new MemoryStateStore(
+			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
+		);
+		const result = await syncInternalPortalNotices(
+			runnerInput({
+				apiContext: {
+					get: async () => httpErrorResponse(404, "Not Found"),
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				},
+				fetchNoticeDetail: async () => detailWithImage(1, "2026-08-10 09:00"),
+				fetchNoticePage: async (input) =>
+					input.startDate === ""
+						? page([notice(300, 5, "2026-08-11 09:00")], 1)
+						: page([notice(1, 5, "2026-08-10 09:00")], 1),
+				onProgress: () => undefined,
+				stateStore,
+			}),
+		);
+
+		expect(result.failures).toHaveLength(1);
+		expect(result.failures[0]).toMatchObject({
+			noticeId: 1,
+			resourceKind: "images",
+			resourceOrdinal: 0,
+		});
+		expect(result.resources.attachmentsMissing).toBe(0);
+		expect(stateStore.saveCalls).toBe(0);
+	});
+
 	it("isolates an interrupted inline image and continues with later notices", async () => {
 		const stateStore = new MemoryStateStore(
 			state({ coveredFrom: "2026-08-01", coveredUntil: "2026-08-10" }),
@@ -615,6 +752,21 @@ function detailWithAttachment(noticeId: number, releaseTime: string): NoticeDeta
 	return value;
 }
 
+function detailWithTwoAttachments(noticeId: number, releaseTime: string): NoticeDetailResponse {
+	const value = detail(noticeId, releaseTime);
+	const info = value.datas?.notice_info;
+	if (!info) {
+		throw new Error("test detail is missing notice_info");
+	}
+	info.notice_annext = [0, 1].map((ordinal) => ({
+		notice_annex_id: `attachment-${noticeId}-${ordinal}`,
+		notice_annex_name: `attachment-${noticeId}-${ordinal}.pdf`,
+		suffix: "pdf",
+		type: "application/pdf",
+	}));
+	return value;
+}
+
 function detailWithImage(noticeId: number, releaseTime: string): NoticeDetailResponse {
 	const value = detail(noticeId, releaseTime);
 	const info = value.datas?.notice_info;
@@ -633,6 +785,17 @@ function attachmentResponse(body: AsyncIterable<Uint8Array>): ApiResponseLike {
 		status: () => 200,
 		statusText: () => "OK",
 		text: async () => "",
+	};
+}
+
+function httpErrorResponse(status: number, statusText: string): ApiResponseLike {
+	return {
+		cancelBody: async () => undefined,
+		headers: () => ({}),
+		ok: () => false,
+		status: () => status,
+		statusText: () => statusText,
+		text: async () => statusText,
 	};
 }
 

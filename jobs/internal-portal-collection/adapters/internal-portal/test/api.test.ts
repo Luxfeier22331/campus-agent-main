@@ -9,6 +9,7 @@ import {
 	fetchNoticeDetail,
 	fetchNoticeMetadata,
 	fetchNoticePage,
+	PortalHttpError,
 } from "../src/api.js";
 import { PortalSessionExpiredError } from "../src/auth-errors.js";
 
@@ -168,6 +169,48 @@ describe("internal portal collection api", () => {
 			"application/vnd.openxmlformats-officedocument.wordprocessingml.document; charset=utf-8",
 		);
 		await result.remove();
+	});
+
+	it("exposes non-auth HTTP status without changing the error message", async () => {
+		const error = await fetchAttachmentBinary({
+			apiContext: {
+				get: async () => ({
+					cancelBody: async () => undefined,
+					ok: () => false,
+					status: () => 404,
+					statusText: () => "Not Found",
+					text: async () => "missing",
+				}),
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			},
+			attachmentUrl: "https://portal.example.edu/download?id=missing",
+		}).catch((value: unknown) => value);
+
+		expect(error).toBeInstanceOf(PortalHttpError);
+		expect(error).toMatchObject({ status: 404 });
+		expect(String(error)).toContain("attachment download request failed: HTTP 404 Not Found: missing");
+	});
+
+	it("keeps authentication HTTP failures distinct from ordinary HTTP errors", async () => {
+		await expect(
+			fetchAttachmentBinary({
+				apiContext: {
+					get: async () => ({
+						cancelBody: async () => undefined,
+						ok: () => false,
+						status: () => 403,
+						statusText: () => "Forbidden",
+						text: async () => "expired",
+					}),
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				},
+				attachmentUrl: "https://portal.example.edu/download?id=expired",
+			}),
+		).rejects.toBeInstanceOf(PortalSessionExpiredError);
 	});
 
 	it("rejects oversized attachments from content-length before reading the body", async () => {

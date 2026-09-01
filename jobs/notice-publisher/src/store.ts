@@ -13,6 +13,9 @@ export interface PublisherObjectStore {
 		digest: string;
 	}): Promise<void>;
 	getSource(key: string): Promise<{ body: Uint8Array; contentType: string | null }>;
+	getSourceIfExists(
+		key: string,
+	): Promise<{ body: Uint8Array; contentType: string | null } | null>;
 }
 
 export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): PublisherObjectStore {
@@ -74,6 +77,16 @@ export function createPublisherObjectStoreFromEnv(env: NodeJS.ProcessEnv): Publi
 		},
 		async getSource(key) {
 			return getObject(sourceClient, sourceBucket, key);
+		},
+		async getSourceIfExists(key) {
+			try {
+				return await getObject(sourceClient, sourceBucket, key);
+			} catch (error) {
+				if (isNotFound(error)) {
+					return null;
+				}
+				throw error;
+			}
 		},
 	};
 }

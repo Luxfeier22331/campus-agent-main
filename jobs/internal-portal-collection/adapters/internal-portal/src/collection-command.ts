@@ -100,6 +100,7 @@ export async function runCollectionCommand(
 			processedRange: noticeSummary.processedRange,
 			summary: {
 				attachmentsDownloaded: counts.resources.attachmentsDownloaded,
+				attachmentsMissing: counts.resources.attachmentsMissing,
 				attachmentsReused: counts.resources.attachmentsReused,
 				imagesDownloaded: counts.resources.imagesDownloaded,
 				imagesReused: counts.resources.imagesReused,

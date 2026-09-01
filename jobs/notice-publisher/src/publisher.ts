@@ -318,29 +318,36 @@ async function loadRecord(
 	const assets: AssetRow[] = [];
 	if (!source.is_external && !(options.skipAssetsWhenNoText && content.contentText === null)) {
 		for (const image of content.images) {
+			const stored = await store.getSource(
+				assetSourceKey(source.notice_id, "image", image.sourceOrdinal),
+			);
 			assets.push(
-				await loadAsset({
+				await projectAsset({
 					contentTypeSource: image.normalizedUrl,
 					kind: "image",
-					noticeId: source.notice_id,
 					ordinal: image.ordinal,
 					originalName: null,
 					portalAnnexId: null,
-					sourceOrdinal: image.sourceOrdinal,
+					stored,
 					store,
 				}),
 			);
 		}
 		for (const [ordinal, attachment] of source.attachments.entries()) {
+			const stored = await store.getSourceIfExists(
+				assetSourceKey(source.notice_id, "attachment", ordinal),
+			);
+			if (!stored) {
+				continue;
+			}
 			assets.push(
-				await loadAsset({
+				await projectAsset({
 					contentTypeSource: attachment.notice_annex_name ?? attachment.notice_annex_path,
 					kind: "attachment",
-					noticeId: source.notice_id,
 					ordinal,
 					originalName: attachment.notice_annex_name,
 					portalAnnexId: attachment.notice_annex_id,
-					sourceOrdinal: ordinal,
+					stored,
 					store,
 				}),
 			);
@@ -426,39 +433,43 @@ export function normalizePublishedNoticeContent(input: {
 	});
 }
 
-async function loadAsset(input: {
+async function projectAsset(input: {
 	contentTypeSource: string | null;
 	kind: NoticeAssetKind;
-	noticeId: number;
 	ordinal: number;
 	originalName: string | null;
 	portalAnnexId: string | null;
-	sourceOrdinal: number;
+	stored: { body: Uint8Array; contentType: string | null };
 	store: PublisherObjectStore;
 }): Promise<AssetRow> {
-	const source = await input.store.getSource(
-		`internal_portal/notices/${input.noticeId}/${
-			input.kind === "image" ? "images" : "attachments"
-		}/${input.sourceOrdinal}`,
-	);
-	const contentSha256 = createHash("sha256").update(source.body).digest("hex");
-	const contentType = resolveAssetContentType(source.contentType, input.contentTypeSource);
+	const contentSha256 = createHash("sha256").update(input.stored.body).digest("hex");
+	const contentType = resolveAssetContentType(input.stored.contentType, input.contentTypeSource);
 	if (input.kind === "image") {
 		await input.store.createOrVerifyDerived({
-			body: source.body,
+			body: input.stored.body,
 			contentType,
 			digest: contentSha256,
 		});
 	}
 	return {
 		assetKind: input.kind,
-		byteSize: source.body.byteLength,
+		byteSize: input.stored.body.byteLength,
 		contentSha256,
 		contentType,
 		ordinal: input.ordinal,
 		originalName: input.originalName,
 		portalAnnexId: input.portalAnnexId,
 	};
+}
+
+function assetSourceKey(
+	noticeId: number,
+	kind: NoticeAssetKind,
+	sourceOrdinal: number,
+): string {
+	return `internal_portal/notices/${noticeId}/${
+		kind === "image" ? "images" : "attachments"
+	}/${sourceOrdinal}`;
 }
 
 async function publishOrVerify(client: PoolClient, record: PublishedNotice): Promise<void> {

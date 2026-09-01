@@ -57,7 +57,8 @@ Ops Web 提供通知安全 metadata 的查看与分类维护，并复用暂停�
 - `progress`：最近一次结构化进度 `{ "phase": "scanning|processing|writing|finalizing",
   "processed": number, "total": number|null }`；
 - `summary`：严格允许的业务摘要字段，只返回数量、`upToDate` 等已登记字段，不返回通知 ID 列表或任意日志
-  对象。分类摘要使用 `classified`、`requested`、`skipped`；采集摘要使用通知、分页、来源对象和资源计数；
+  对象。分类摘要使用 `classified`、`requested`、`skipped`；采集摘要使用通知、分页、来源对象和资源计数，资源计数
+  可包含 `attachmentsMissing`，表示门户明确返回 HTTP 404 且未创建资源对象的通知附件数量；
   首次发布摘要使用 `notices`、`assets`，重新发布还可使用 `updated`、`unchanged`；
 - `error`：应用进程从 Pod 或本地子进程输出的原始错误文本，包括 stack、cause、HTTP 状态和响应体，不做错误码泛化、
   脱敏或 500 字符截断；

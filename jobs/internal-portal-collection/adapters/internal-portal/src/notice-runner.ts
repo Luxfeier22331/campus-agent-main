@@ -69,6 +69,7 @@ export interface NoticeRunnerInput {
 
 export interface NoticeRunnerResourceCounts {
 	attachmentsDownloaded: number;
+	attachmentsMissing: number;
 	attachmentsReused: number;
 	imagesDownloaded: number;
 	imagesReused: number;
@@ -700,6 +701,7 @@ function emitProgress(input: NoticeRunnerInput, progress: NoticeRunnerProgress):
 function emptyResourceCounts(): NoticeRunnerResourceCounts {
 	return {
 		attachmentsDownloaded: 0,
+		attachmentsMissing: 0,
 		attachmentsReused: 0,
 		imagesDownloaded: 0,
 		imagesReused: 0,
@@ -711,6 +713,7 @@ function addResourceCounts(
 	resultValue: NoticeResourceEnsureResult,
 ): void {
 	target.attachmentsDownloaded += resultValue.attachments.downloaded;
+	target.attachmentsMissing += resultValue.attachments.missing;
 	target.attachmentsReused += resultValue.attachments.existing;
 	target.imagesDownloaded += resultValue.images.downloaded;
 	target.imagesReused += resultValue.images.existing;

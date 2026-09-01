@@ -87,10 +87,12 @@ pnpm internal-portal:collect -- --mode notice-sync
 会拒绝运行。适配器把内部排他上界转换为门户闭区间 `end_date` 的前一天，并用详情发布时间再次执行
 `[start,end)` 校验。sync 与 backfill 通过 PostgreSQL advisory lock 串行执行，不能并发运行。后续
 sync/backfill 会按顺序下载正文引用的图片和附件。成功后检查 source bucket 包含
-`internal_portal/meta.json`、通知对象、
-资源对象和 `_state.json`，确认 v3 状态中的 `covered_from/covered_until` 区间符合本次 Job，且对应通知已登记到
-`notices.notices`。来源对象必须通过版本化 schema，内部通知与外链字段必须成对合法；任一 source、
-资源、metadata 或库存登记失败时状态不能推进。附件
+`internal_portal/meta.json`、通知对象、已成功采集的资源对象和 `_state.json`，确认 v3 状态中的
+`covered_from/covered_until` 区间符合本次 Job，且对应通知已登记到
+`notices.notices`。来源对象必须通过版本化 schema，内部通知与外链字段必须成对合法；source、metadata、库存登记或
+非永久缺失的资源传输失败时状态不能推进。通知附件明确返回 HTTP 404 时保留 source metadata、跳过附件资源对象，
+继续登记通知并允许状态推进；发布时该附件不进入 `notice_assets`。图片 404、附件的其他 HTTP 错误、超时、流中断
+和对象存储失败仍然阻止推进。附件
 请求按门户附件 ID 和通知 ID 构造，单个图片或附件上限为 100 MiB；外链通知不会触发外部正文或图片
 抓取。仓库不提供独立的资源维护或状态查看命令。通知数据结构见 `../data/notices.md`。
 

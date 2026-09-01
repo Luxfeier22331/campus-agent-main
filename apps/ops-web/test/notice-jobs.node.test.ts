@@ -223,8 +223,34 @@ describe("notice Kubernetes jobs", () => {
 		expect(
 			parseNoticeJobSummary(JSON.stringify({ summary: { unchanged: 2, updated: 3 } })),
 		).toEqual({ unchanged: 2, updated: 3 });
+		expect(parseNoticeJobSummary(JSON.stringify({ summary: { attachmentsMissing: 1 } }))).toEqual({
+			attachmentsMissing: 1,
+		});
 		expect(parseNoticeJobSummary("unstructured output")).toBeNull();
 		expect(parseNoticeJobSummary(JSON.stringify({ processed: 4, status: "running" }))).toBeNull();
+	});
+
+	it("does not treat a structured missing-attachment record as an application error", () => {
+		expect(
+			parseNoticeJobDiagnostics(
+				JSON.stringify({
+					noticeResource: {
+						disposition: "missing",
+						httpStatus: 404,
+						noticeId: 247943,
+						resourceKind: "attachments",
+						resourceOrdinal: 0,
+					},
+					status: "running",
+				}),
+			),
+		).toEqual({
+			error: null,
+			maintenanceRange: null,
+			processedRange: null,
+			progress: null,
+			summary: null,
+		});
 	});
 
 	it("does not report a structured summary without scalar fields as an application error", () => {
