@@ -1,3 +1,5 @@
+@import "tw-animate-css";
+
 @theme inline {
 	--color-background: var(--sys-bg-canvas);
 	--color-foreground: var(--sys-text-default);

@@ -1,6 +1,7 @@
 import type { DataMessagePartProps } from "@assistant-ui/react";
 import { useState } from "react";
 import type { SourceItemPayload } from "@/features/conversation/model";
+import { formatDocsVersionLabel } from "@/features/docs/version";
 
 export interface SourceItemsPayload {
 	sourceItems: SourceItemPayload[];
@@ -47,7 +48,9 @@ function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
 	const metadata =
 		sourceItem.kind === "web_page"
 			? [sourceItem.hostname]
-			: [sourceItem.collectionLabel, sourceItem.versionLabel].filter(Boolean);
+			: [sourceItem.collectionLabel, formatDocsVersionLabel(sourceItem.versionSlug)].filter(
+					Boolean,
+				);
 
 	return (
 		<div className="border-border/70 bg-surface-muted/20 rounded-md border px-3 py-2">

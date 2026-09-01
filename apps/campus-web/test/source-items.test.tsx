@@ -14,13 +14,13 @@ describe("conversation source items", () => {
 						primaryAction: {
 							disabledReason: null,
 							external: false,
-							href: "/docs/regulations/student_rules/network-guide/v/2026-current#account",
+							href: "/docs/regulations/student_rules/network-guide/v/2026#account",
 							label: "查看文档",
 						},
 						sectionTitle: "校园网账号",
 						snippet: "校园网用户应按学校规定管理账号。",
 						title: "上网指南",
-						versionLabel: "2026 版",
+						versionSlug: "2026",
 					},
 				]}
 			/>,
@@ -29,12 +29,12 @@ describe("conversation source items", () => {
 		expect(screen.getByText("上网指南")).toBeInTheDocument();
 		expect(screen.getByText("[10] [1]")).toBeInTheDocument();
 		expect(screen.getByLabelText("引用 10、1")).toBeInTheDocument();
-		expect(screen.getByText("学生手册 · 2026 版")).toBeInTheDocument();
+		expect(screen.getByText("学生手册 · 2026 年版")).toBeInTheDocument();
 		expect(screen.getByText("校园网用户应按学校规定管理账号。")).toBeInTheDocument();
 		const link = screen.getByRole("link", { name: "查看文档" });
 		expect(link).toHaveAttribute(
 			"href",
-			"/docs/regulations/student_rules/network-guide/v/2026-current#account",
+			"/docs/regulations/student_rules/network-guide/v/2026#account",
 		);
 		expect(link).not.toHaveAttribute("target");
 	});

@@ -237,7 +237,7 @@ function run(
 			readerSchemaVersion: "campus_docs_reader.v3",
 			schemaVersion: "campus_docs_chunk_set.v2",
 			sourceProjectionSha256: shaRef(projection),
-			sourceSchemaVersion: "campus_docs_source.v3",
+			sourceSchemaVersion: "campus_docs_source.v4",
 		},
 	};
 }
@@ -256,8 +256,7 @@ function chunk(id: string, content: string, rootUnitIds: string[]): StoredChunk 
 		sectionRef: "/docs/document-1#section-1",
 		sectionTitle: "章节",
 		versionId: "version-1",
-		versionLabel: "现行",
-		versionSlug: "current",
+		versionSlug: "1",
 	};
 }
 

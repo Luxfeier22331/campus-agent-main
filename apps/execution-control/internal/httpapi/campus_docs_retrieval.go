@@ -33,7 +33,6 @@ type campusSearchResultItem struct {
 	SectionTitle  string
 	RootUnitIDs   []string
 	VersionID     string
-	VersionLabel  string
 	VersionSlug   string
 	Text          string
 }
@@ -132,7 +131,6 @@ func campusDocsCandidateFromQdrantPoint(
 		"text_sha256":           firstNonEmptyText(payload["text_sha256"]),
 		"retrieval_text_sha256": firstNonEmptyText(payload["retrieval_text_sha256"]),
 		"version_id":            firstNonEmptyText(payload["version_id"]),
-		"version_label":         firstNonEmptyText(payload["version_label"]),
 		"version_slug":          firstNonEmptyText(payload["version_slug"]),
 	}
 	for field, value := range required {
@@ -143,7 +141,8 @@ func campusDocsCandidateFromQdrantPoint(
 	if required["schema_version"] != "campus_docs_point.v3" {
 		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload schema is unsupported")
 	}
-	if !campusDocsVersionedSectionRef(required["section_ref"], required["version_slug"]) {
+	if !validCampusDocsVersionSlug(required["version_slug"]) ||
+		!campusDocsVersionedSectionRef(required["section_ref"], required["version_slug"]) {
 		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload section_ref is invalid")
 	}
 	if !validSHA256Ref(required["text_sha256"]) ||
@@ -175,7 +174,6 @@ func campusDocsCandidateFromQdrantPoint(
 			SectionTitle: required["section_title"],
 			RootUnitIDs:  rootUnitIDs,
 			VersionID:    required["version_id"],
-			VersionLabel: required["version_label"],
 			VersionSlug:  required["version_slug"],
 			Text:         required["text"],
 		},
@@ -241,7 +239,6 @@ func campusSearchResult(results []campusSearchResultItem, citationStart int) map
 			"section_title":  item.SectionTitle,
 			"root_unit_ids":  append([]string{}, item.RootUnitIDs...),
 			"version_id":     item.VersionID,
-			"version_label":  item.VersionLabel,
 			"version_slug":   item.VersionSlug,
 			"text":           item.Text,
 		})
@@ -311,7 +308,7 @@ func decodeCampusSearchResult(result map[string]any) (string, []campusSearchResu
 }
 
 func campusSearchResultItemFromMap(value map[string]any) (campusSearchResultItem, error) {
-	if len(value) != 12 {
+	if len(value) != 11 {
 		return campusSearchResultItem{}, errors.New("result contains unexpected fields")
 	}
 	item := campusSearchResultItem{
@@ -323,14 +320,13 @@ func campusSearchResultItemFromMap(value map[string]any) (campusSearchResultItem
 		SectionRef:    strings.TrimSpace(stringValue(value["section_ref"])),
 		SectionTitle:  strings.TrimSpace(stringValue(value["section_title"])),
 		VersionID:     strings.TrimSpace(stringValue(value["version_id"])),
-		VersionLabel:  strings.TrimSpace(stringValue(value["version_label"])),
 		VersionSlug:   strings.TrimSpace(stringValue(value["version_slug"])),
 		Text:          strings.TrimSpace(stringValue(value["text"])),
 	}
 	if item.CitationIndex < 1 || item.CitationIndex > 10 ||
 		!strings.HasPrefix(item.ResultRef, "result://") || !validSHA256Ref(strings.TrimPrefix(item.ResultRef, "result://")) ||
 		item.SourceKind != "document" || item.DocumentID == "" || item.Title == "" || item.SectionTitle == "" ||
-		item.VersionID == "" || item.VersionLabel == "" || item.VersionSlug == "" || item.Text == "" ||
+		item.VersionID == "" || !validCampusDocsVersionSlug(item.VersionSlug) || item.Text == "" ||
 		!campusDocsVersionedSectionRef(item.SectionRef, item.VersionSlug) {
 		return campusSearchResultItem{}, errors.New("result fields are invalid")
 	}
@@ -343,6 +339,18 @@ func campusSearchResultItemFromMap(value map[string]any) (campusSearchResultItem
 		return campusSearchResultItem{}, errors.New("text is too long")
 	}
 	return item, nil
+}
+
+func validCampusDocsVersionSlug(value string) bool {
+	if value == "" || value[0] == '0' {
+		return false
+	}
+	for _, character := range value {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func boundedCampusDocsSourceSnippet(content string) string {

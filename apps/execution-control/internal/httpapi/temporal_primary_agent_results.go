@@ -127,7 +127,6 @@ func primaryAgentRunResultFromCampusSearch(item campusSearchResultItem) primaryA
 			"snippet":       boundedCampusDocsSourceSnippet(item.Text),
 			"title":         item.Title,
 			"version_id":    item.VersionID,
-			"version_label": item.VersionLabel,
 			"version_slug":  item.VersionSlug,
 		},
 	}

@@ -13,7 +13,7 @@ export interface CampusDocumentSourceItemPayload {
 	sectionTitle: string;
 	snippet: string | null;
 	title: string;
-	versionLabel: string;
+	versionSlug: string;
 }
 
 export interface WebPageSourceItemPayload {

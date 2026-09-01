@@ -82,7 +82,7 @@ describe("contract schema registry", () => {
 
 	it("defines campus search candidates and run-scoped citation indexes", () => {
 		const schema = readJson(
-			"packages/contracts/schemas/campus-search-tool-contracts.v2.schema.json",
+			"packages/contracts/schemas/campus-search-tool-contracts.v3.schema.json",
 		);
 		const definitions = schema.$defs as Record<string, Record<string, unknown>>;
 		const payload = definitions.CampusSearchPayload;
@@ -97,6 +97,8 @@ describe("contract schema registry", () => {
 		expect(result?.required).toEqual(["outcome", "results"]);
 		expect(resultProperties.results).toMatchObject({ maxItems: 5 });
 		expect(item?.required).toEqual(expect.arrayContaining(["citation_index", "result_ref"]));
+		expect(item?.required).not.toContain("version_label");
+		expect(itemProperties).not.toHaveProperty("version_label");
 		expect(itemProperties.citation_index).toEqual({
 			type: "integer",
 			minimum: 1,

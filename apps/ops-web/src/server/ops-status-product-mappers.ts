@@ -29,7 +29,7 @@ const ProductCampusSourceItemSchema = z.object({
 	sectionTitle: z.string(),
 	snippet: z.string().nullable(),
 	title: z.string().min(1),
-	versionLabel: z.string(),
+	versionSlug: z.string().regex(/^[1-9]\d*$/u),
 });
 
 const ProductWebSourceItemSchema = z.object({

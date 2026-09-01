@@ -6,7 +6,7 @@ export const CHUNK_SET_DEFINITION = {
 		targetChars: 800,
 	},
 	readerSchemaVersion: "campus_docs_reader.v3",
-	sourceSchemaVersion: "campus_docs_source.v3",
+	sourceSchemaVersion: "campus_docs_source.v4",
 } as const;
 
 export const COLLECTION_DEFINITION = {

@@ -50,17 +50,12 @@ export interface PublishedReaderManifestEntry {
 	corpus: string;
 	docId: string;
 	documentSlug: string;
-	effectiveFrom: string | null;
-	isCurrent: boolean;
 	reader: PublishedObjectRef;
 	routeSlug: string;
-	sourceLabel: string;
 	supplements: PublishedReaderSupplement[];
 	title: string;
 	topicId: string | null;
-	updatedAt: string;
 	versionId: string;
-	versionLabel: string;
 	versionSlug: string;
 }
 

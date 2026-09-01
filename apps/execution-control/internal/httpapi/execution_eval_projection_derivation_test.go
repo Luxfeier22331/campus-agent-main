@@ -71,8 +71,8 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
 			"result": campusSearchResult([]campusSearchResultItem{
-				{ResultRef: "result://" + strings.Repeat("a", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026-current#eligibility", SectionTitle: "申请条件", RootUnitIDs: []string{"scholarship-eligibility"}, VersionID: "version-scholarship-2026", VersionLabel: "2026 版", VersionSlug: "2026-current", Text: "国家奖学金评审需要满足学习成绩和综合测评要求。"},
-				{ResultRef: "result://" + strings.Repeat("b", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026-current#award", SectionTitle: "奖励标准", RootUnitIDs: []string{"scholarship-award"}, VersionID: "version-scholarship-2026", VersionLabel: "2026 版", VersionSlug: "2026-current", Text: "国家奖学金奖励标准按照学校当年评审办法执行。"},
+				{ResultRef: "result://" + strings.Repeat("a", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026#eligibility", SectionTitle: "申请条件", RootUnitIDs: []string{"scholarship-eligibility"}, VersionID: "version-scholarship-2026", VersionSlug: "2026", Text: "国家奖学金评审需要满足学习成绩和综合测评要求。"},
+				{ResultRef: "result://" + strings.Repeat("b", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026#award", SectionTitle: "奖励标准", RootUnitIDs: []string{"scholarship-award"}, VersionID: "version-scholarship-2026", VersionSlug: "2026", Text: "国家奖学金奖励标准按照学校当年评审办法执行。"},
 			}, 1),
 		},
 	}); err != nil {

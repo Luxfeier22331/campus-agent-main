@@ -1,6 +1,7 @@
 import { isDocsDocumentPath } from "./docs-redirects";
+import { parseDocsVersionOrder } from "./version";
 
-export const DOCS_SITE_INDEX_SCHEMA = "campus_docs_site_index.v4" as const;
+export const DOCS_SITE_INDEX_SCHEMA = "campus_docs_site_index.v5" as const;
 export const DOCS_SEARCH_INDEX_SCHEMA = "campus_docs_search_index.v2" as const;
 
 const DOCS_COLLECTION_ORDER = new Map<string, number>([
@@ -11,12 +12,7 @@ const DOCS_COLLECTION_ORDER = new Map<string, number>([
 
 export interface DocsSiteVersion {
 	canonicalUrl: string;
-	effectiveFrom: string | null;
-	isCurrent: boolean;
-	label: string;
 	readerUrl: string;
-	sourceLabel: string;
-	updatedAt: string;
 	versionId: string;
 	versionSlug: string;
 }
@@ -191,9 +187,13 @@ function parseRedirect(value: unknown): DocsSiteRedirect {
 function assertDocumentRedirects(siteIndex: DocsSiteIndex): void {
 	const publishedDocumentPaths = new Set(
 		siteIndex.collections.flatMap((collection) =>
-			collection.documents.flatMap((document) =>
-				document.versions.map((version) => version.canonicalUrl),
-			),
+			collection.documents.flatMap((document) => [
+				document.canonicalUrl,
+				...document.versions.flatMap((version) => [
+					version.canonicalUrl,
+					`${document.canonicalUrl}/v/${version.versionSlug}`,
+				]),
+			]),
 		),
 	);
 	for (const redirect of siteIndex.redirects) {
@@ -254,15 +254,16 @@ function parseVersion(value: unknown): DocsSiteVersion {
 	const record = requiredRecord(value, "docs site version");
 	return {
 		canonicalUrl: requiredDocsPath(record.canonicalUrl, "version canonicalUrl"),
-		effectiveFrom: optionalString(record.effectiveFrom) ?? null,
-		isCurrent: requiredBoolean(record.isCurrent, "isCurrent"),
-		label: requiredString(record.label, "version label"),
 		readerUrl: requiredLocalPath(record.readerUrl, "readerUrl"),
-		sourceLabel: requiredString(record.sourceLabel, "sourceLabel"),
-		updatedAt: requiredString(record.updatedAt, "updatedAt"),
 		versionId: requiredString(record.versionId, "versionId"),
-		versionSlug: requiredString(record.versionSlug, "versionSlug"),
+		versionSlug: requiredVersionSlug(record.versionSlug),
 	};
+}
+
+function requiredVersionSlug(value: unknown): string {
+	const versionSlug = requiredString(value, "versionSlug");
+	parseDocsVersionOrder(versionSlug);
+	return versionSlug;
 }
 
 function parseSearchEntry(value: unknown): DocsSearchEntry {
@@ -314,13 +315,6 @@ function requiredString(value: unknown, field: string): string {
 
 function optionalString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function requiredBoolean(value: unknown, field: string): boolean {
-	if (typeof value !== "boolean") {
-		throw new Error(`${field} must be a boolean`);
-	}
-	return value;
 }
 
 function requiredPositiveInteger(value: unknown, field: string): number {

@@ -16,13 +16,12 @@
 				"evidence_ref": "evidence://leave-policy-process",
 				"kind": "campus_document",
 				"root_unit_ids": ["leave-policy-process"],
-				"section_ref": "/docs/regulations/student_rules/leave-policy/v/2026-current#process",
+				"section_ref": "/docs/regulations/student_rules/leave-policy/v/2026#process",
 				"section_title": "请假程序",
 				"snippet": "学生请假应按现行学生手册办理。",
 				"title": "学生请假管理规定",
 				"version_id": "version-leave-policy-2026",
-				"version_label": "2026 版",
-				"version_slug": "2026-current"
+				"version_slug": "2026"
 			}
 		],
 		"terminal_reason": "answer"

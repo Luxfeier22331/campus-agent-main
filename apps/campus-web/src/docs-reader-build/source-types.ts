@@ -28,8 +28,6 @@ export interface DocsRedirect {
 export interface DocsDocument {
 	collection: string;
 	corpus: string;
-	currentVersionId: string;
-	currentVersionSlug: string;
 	docId: string;
 	documentSlug: string;
 	title: string;
@@ -50,13 +48,8 @@ export interface DocsSupplement {
 
 export interface DocsSourceVersion {
 	docId: string;
-	effectiveFrom: string | null;
-	isCurrent: boolean;
-	label: string;
 	reader: ObjectRef;
-	sourceLabel: string;
 	supplements: DocsSupplement[];
-	updatedAt: string;
 	versionId: string;
 	versionSlug: string;
 }
@@ -65,7 +58,7 @@ export interface DocsSourceManifest {
 	collections: DocsCollection[];
 	documents: DocsDocument[];
 	redirects: DocsRedirect[];
-	schemaVersion: "campus_docs_source.v3";
+	schemaVersion: "campus_docs_source.v4";
 	topics: DocsTopic[];
 	versions: DocsSourceVersion[];
 }

@@ -224,7 +224,7 @@ function parseStoredChunk(value: unknown, index: number): StoredChunk {
 	if (!isRecord(value)) throw new Error(`chunk record ${index} is invalid`);
 	const stringFields = [
 		"chunkId", "content", "documentId", "documentTitle", "retrievalText", "retrievalTextSha256",
-		"sectionId", "sectionRef", "sectionTitle", "versionId", "versionLabel", "versionSlug",
+		"sectionId", "sectionRef", "sectionTitle", "versionId", "versionSlug",
 	] as const;
 	if (stringFields.some((field) => typeof value[field] !== "string" || !value[field])) {
 		throw new Error(`chunk record ${index} has an invalid string field`);

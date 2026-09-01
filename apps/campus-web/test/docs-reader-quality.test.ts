@@ -74,6 +74,64 @@ describe("文档 reader 提取质量", () => {
 
 		expect(() => assertReaderExtractionQuality(reader)).not.toThrow();
 	});
+
+	it.each([
+		["> Source URL: https://example.com/docs", "source URL marker"],
+		["民大校发（2025）140号", "prefixed document number"],
+		["（2021）150号", "bare document number"],
+	])("拒绝独立来源或文号：%s", (text, _label) => {
+		const reader: DocsReader = {
+			docId: "doc-1",
+			elements: [
+				text.startsWith("> Source URL")
+					? { kind: "paragraph", rootUnitId: "bad", text }
+					: {
+							anchor: "bad",
+							kind: "heading",
+							level: 2,
+							rootUnitId: "bad",
+							text,
+						},
+			],
+			schemaVersion: "campus_docs_reader.v3",
+			supplements: [],
+			versionId: "version-1",
+		};
+
+		expect(() => assertReaderExtractionQuality(reader)).toThrow("reader contains");
+	});
+
+	it("拒绝相邻重复 heading，但允许正文 URL 和非相邻同名 heading", () => {
+		const reader: DocsReader = {
+			docId: "doc-1",
+			elements: [
+				{
+					anchor: "one",
+					kind: "heading",
+					level: 2,
+					rootUnitId: "heading-1",
+					text: "适用范围",
+				},
+				{ kind: "paragraph", rootUnitId: "body-1", text: "访问 https://example.com。" },
+				{
+					anchor: "two",
+					kind: "heading",
+					level: 2,
+					rootUnitId: "heading-2",
+					text: "适用范围",
+				},
+			],
+			schemaVersion: "campus_docs_reader.v3",
+			supplements: [],
+			versionId: "version-1",
+		};
+		expect(() => assertReaderExtractionQuality(reader)).not.toThrow();
+
+		reader.elements.splice(1, 1);
+		expect(() => assertReaderExtractionQuality(reader)).toThrow(
+			"reader contains adjacent duplicate headings",
+		);
+	});
 });
 
 function sourceWithReaderElements(elements: DocsReaderElement[]): {

@@ -24,8 +24,6 @@ export interface DocsDocumentTarget {
 
 export interface DocsDocumentVersionView {
 	canonicalUrl: string;
-	isCurrent: boolean;
-	label: string;
 	versionSlug: string;
 }
 
@@ -43,17 +41,14 @@ export interface DocsDocumentRouteData {
 	description: string;
 	docId: string;
 	documentSlug: string;
-	isCurrent: boolean;
 	kind: "document";
 	reader: DocsReaderPayload | null;
 	readerUrl: string;
 	routeSlug: string;
 	siteIndex: DocsSiteIndex;
-	sourceLabel: string;
 	title: string;
 	topicId: string | null;
 	topicLabel: string | null;
-	versionLabel: string;
 	versionSlug: string;
 	versions: DocsDocumentVersionView[];
 }
@@ -164,22 +159,17 @@ export function createBrowserDocsDataSource(): DocsDataSource {
 				description: buildReaderDescription(content.reader, document.title),
 				docId: document.docId,
 				documentSlug: document.documentSlug,
-				isCurrent: version.isCurrent,
 				kind: "document",
 				reader: content.reader,
 				readerUrl: version.readerUrl,
 				routeSlug: target.routeSlug,
 				siteIndex,
-				sourceLabel: version.sourceLabel,
 				title: document.title,
 				topicId: topic?.topicId ?? null,
 				topicLabel: topic?.displayName ?? null,
-				versionLabel: version.label,
 				versionSlug: version.versionSlug,
 				versions: document.versions.map((item) => ({
 					canonicalUrl: item.canonicalUrl,
-					isCurrent: item.isCurrent,
-					label: item.label,
 					versionSlug: item.versionSlug,
 				})),
 			};
@@ -246,7 +236,7 @@ function bootstrapMatchesPath(bootstrap: DocsRouteData, path: string): boolean {
 		return true;
 	}
 	return (
-		bootstrap.isCurrent &&
+		isCanonicalDocumentRoute(bootstrap) &&
 		normalizeDocsPath(
 			documentPath({
 				collection: bootstrap.collection,
@@ -255,5 +245,18 @@ function bootstrapMatchesPath(bootstrap: DocsRouteData, path: string): boolean {
 				versionSlug: bootstrap.versionSlug,
 			}),
 		) === path
+	);
+}
+
+function isCanonicalDocumentRoute(data: DocsDocumentRouteData): boolean {
+	return (
+		normalizeDocsPath(data.canonicalUrl) ===
+		normalizeDocsPath(
+			documentPath({
+				collection: data.collection,
+				corpus: data.corpus,
+				routeSlug: data.routeSlug,
+			}),
+		)
 	);
 }

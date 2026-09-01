@@ -114,25 +114,20 @@ function createDocsDataSource(
 				description: "测试文档。",
 				docId: document.docId,
 				documentSlug: document.documentSlug,
-				isCurrent: version.isCurrent,
 				kind: "document",
 				reader: null,
 				readerUrl: version.readerUrl,
 				routeSlug: target.routeSlug,
 				siteIndex,
-				sourceLabel: version.sourceLabel,
 				title: document.title,
 				topicId: document.topicId,
 				topicLabel:
 					siteIndex.topics.find(
 						(item) => item.corpus === collection.corpus && item.topicId === document.topicId,
 					)?.displayName ?? null,
-				versionLabel: version.label,
 				versionSlug: version.versionSlug,
 				versions: document.versions.map((item) => ({
 					canonicalUrl: item.canonicalUrl,
-					isCurrent: item.isCurrent,
-					label: item.label,
 					versionSlug: item.versionSlug,
 				})),
 			} satisfies DocsDocumentRouteData;

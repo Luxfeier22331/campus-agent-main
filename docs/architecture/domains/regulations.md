@@ -25,7 +25,7 @@ status: active
 - 信息化服务；
 - 学校治理。
 
-主题、顺序和文档归属写入 `campus_docs_source.v3`，Campus Web 构建和前端不按标题推断。
+主题、顺序和文档归属写入 `campus_docs_source.v4`，Campus Web 构建和前端不按标题推断。
 
 ## 公开阅读
 
@@ -35,7 +35,7 @@ status: active
 -> Worker 交付静态文档
 ```
 
-同一 `campus_docs_source.v3` 及其当前 reader 也由 Campus Docs publisher 消费。Campus Web 构建不会
+同一 `campus_docs_source.v4` 及其派生的当前 reader 也由 Campus Docs publisher 消费。Campus Web 构建不会
 直接更新 Qdrant 或当前索引指针；publisher 需要独立构建、验证并激活新索引。
 
 Internal Portal 可以提供来源材料，但来源清单不会自动成为规章。把通知中的制度正文提升为

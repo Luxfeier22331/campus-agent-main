@@ -48,7 +48,6 @@ export interface IndexChunk {
 	sectionRef: string;
 	sectionTitle: string;
 	versionId: string;
-	versionLabel: string;
 	versionSlug: string;
 }
 
@@ -78,7 +77,6 @@ export interface CampusDocsPointPayload {
 	text: string;
 	text_sha256: `sha256:${string}`;
 	version_id: string;
-	version_label: string;
 	version_slug: string;
 }
 

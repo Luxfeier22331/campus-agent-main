@@ -17,7 +17,7 @@ RAG 制品和 Campus Web 静态站是两个独立消费者，各自产生不可�
 
 ## 维护规则
 
-`campus_docs_source.v3` 是完整当前期望集合，不是增量补丁。清单、reader、版本和补充对象的字段及
+`campus_docs_source.v4` 是完整当前期望集合，不是增量补丁。清单、reader、版本和补充对象的字段及
 关系以[文档来源与静态交付合同](../contracts/document-reader-delivery.md)为准；本手册只说明操作顺序。
 新增或修订对象先上传，再通过来源更新命令写入固定键；删除通过完整清单移除。RAG 只索引当前 reader，
 历史 reader 只要仍被清单引用就不能清理。

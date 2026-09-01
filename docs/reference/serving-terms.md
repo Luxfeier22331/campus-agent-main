@@ -26,9 +26,9 @@ collection。
 
 ### Campus Docs 来源清单
 
-对象存储固定键 `campus-docs/source.json` 中的 `campus_docs_source.v3`。它列出文档、版本、唯一当前
-版本和内容寻址 reader 引用，是 Campus Web 构建与检索 publisher 共享的控制清单。清单本身不是可
-检索正文。
+对象存储固定键 `campus-docs/source.json` 中的 `campus_docs_source.v4`。它列出文档、版本和内容寻址
+reader 引用，是 Campus Web 构建与检索 publisher 共享的控制清单。当前版本由同一文档内数值最大的
+`versionSlug` 派生，清单本身不是可检索正文。
 
 ### Reader
 
@@ -86,7 +86,7 @@ section 内按 reader 正文元素或表格逻辑行形成，记录覆盖的全�
 ### Point
 
 写入 Qdrant 的离线检索单元。point 使用确定性 UUID，payload 只包含 schema、chunk、document、section、
-版本 ID/slug/label、`root_unit_ids`、正文、正文 SHA-256 和检索文本 SHA-256，并同时保存 `dense` 与
+版本 ID/slug、`root_unit_ids`、正文、正文 SHA-256 和检索文本 SHA-256，并同时保存 `dense` 与
 `sparse` named vector。检索文本由文档标题、完整 heading 路径和正文组成。
 
 ## 发布与激活

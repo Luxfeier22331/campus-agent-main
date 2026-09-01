@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { parseUpdateDocsSourceArgs, updateDocsSource } from "../scripts/update-docs-source.ts";
-import { publicReaderUrl } from "../src/docs-reader-build/published-reader-assets.ts";
 import type {
 	ReaderObjectStoreClient,
 	ReaderObjectStoreWriter,
@@ -13,10 +12,12 @@ import {
 	canonicalJsonBytes,
 	DOCS_SOURCE_KEY,
 	normalizeSourceManifest,
+	selectCurrentVersion,
 	sha256,
 } from "../src/docs-reader-build/source-catalog.ts";
 import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
 import type { DocsSourceManifest, ObjectRef } from "../src/docs-reader-build/source-types.ts";
+import { formatDocsVersionLabel } from "../src/features/docs/version.ts";
 import { COURSE_MAP_IMAGE } from "./helpers/published-reader-fixture.ts";
 
 const tempRoots: string[] = [];
@@ -38,7 +39,6 @@ describe("Campus Web 文档来源编译", () => {
 		expect(second.manifest).toEqual(first.manifest);
 		expect(first.manifest.entries[0]).toMatchObject({
 			documentSlug: "student-rules",
-			sourceLabel: "学生手册",
 			topicId: "campus-life",
 		});
 		expect(first.manifest.entries[0]?.reader.key).toBe("readers/student-rules.json");
@@ -75,10 +75,8 @@ describe("Campus Web 文档来源编译", () => {
 					supplements: [],
 					versionId,
 				}),
-				isCurrent: false,
-				label: `历史版本 ${index}`,
 				versionId,
-				versionSlug: `history-${index}`,
+				versionSlug: String(2026 - index),
 			});
 		}
 
@@ -105,11 +103,51 @@ describe("Campus Web 文档来源编译", () => {
 		expect(result.manifest.entries[0]?.routeSlug).toBe("doc-8816136b822b");
 	});
 
+	it("按数字版本 slug 选择当前版本并派生展示标签", async () => {
+		const store = memoryStore();
+		const source = await sourceFixture(store);
+		const current = first(source.versions, "version");
+		const historical = {
+			...current,
+			versionId: "version-2025",
+			versionSlug: "2025",
+		};
+		source.versions = [historical, current];
+
+		const normalized = normalizeSourceManifest(source);
+		const selected = selectCurrentVersion(normalized.versions, "doc-1");
+
+		expect(selected.versionId).toBe(current.versionId);
+		expect(formatDocsVersionLabel("2026")).toBe("2026 年版");
+		expect(formatDocsVersionLabel("1")).toBe("第 1 版");
+	});
+
+	it("按序号版本选择最大序号，且拒绝年份与序号混用", async () => {
+		const store = memoryStore();
+		const source = await sourceFixture(store);
+		const current = first(source.versions, "version");
+		current.versionSlug = "1";
+		source.versions.push({ ...current, versionId: "version-2", versionSlug: "2" });
+
+		const normalized = normalizeSourceManifest(source);
+		expect(selectCurrentVersion(normalized.versions, "doc-1")?.versionId).toBe("version-2");
+
+		const mixed = await sourceFixture(store);
+		mixed.versions.push({
+			...first(mixed.versions, "version"),
+			versionId: "version-ordinal",
+			versionSlug: "1",
+		});
+		expect(() => normalizeSourceManifest(mixed)).toThrow(
+			"document versions mix year and ordinal slugs",
+		);
+	});
+
 	it("拒绝断裂关系、聚合集合和目录重定向", async () => {
 		const store = memoryStore();
 		const broken = await sourceFixture(store);
-		first(broken.documents, "document").currentVersionId = "missing";
-		expect(() => normalizeSourceManifest(broken)).toThrow("current version is missing");
+		broken.versions = [];
+		expect(() => normalizeSourceManifest(broken)).toThrow("document has no versions");
 
 		const aggregate = await sourceFixture(store);
 		const collection = first(aggregate.collections, "collection");
@@ -149,6 +187,24 @@ describe("Campus Web 文档来源编译", () => {
 		];
 
 		expect(normalizeSourceManifest(source).redirects).toEqual(source.redirects);
+
+		source.redirects = [
+			{
+				fromPath: "/docs/regulations/student_rules/student-rules/v/2025",
+				statusCode: 308,
+				toPath: "/docs/regulations/student_rules/student-rules/v/2026",
+			},
+		];
+		expect(normalizeSourceManifest(source).redirects).toEqual(source.redirects);
+
+		source.redirects = [
+			{
+				fromPath: "/docs/regulations/student_rules/student-rules/v/2026",
+				statusCode: 308,
+				toPath: "/docs/regulations/student_rules/student-rules",
+			},
+		];
+		expect(() => normalizeSourceManifest(source)).toThrow("source is already published");
 	});
 
 	it("接受三个公开培养方案集合", async () => {
@@ -232,16 +288,14 @@ describe("Campus Web 文档来源编译", () => {
 		);
 	});
 
-	it("拒绝会改变公开 URL 语义的路径分隔符并编码合法路径段", async () => {
+	it("拒绝非数字版本 slug 并保留补充资源路径校验", async () => {
 		for (const delimiter of ["?", "#"]) {
 			const store = memoryStore();
 			const source = await sourceFixture(store);
 			const version = first(source.versions, "version");
-			const document = first(source.documents, "document");
-			version.versionSlug = `current${delimiter}draft`;
-			document.currentVersionSlug = version.versionSlug;
+			version.versionSlug = `2026${delimiter}draft`;
 			expect(() => normalizeSourceManifest(source)).toThrow(
-				"version slug for version-1 must be one safe path segment",
+				"version slug must be a year or positive ordinal",
 			);
 
 			const supplementStore = memoryStore();
@@ -257,18 +311,11 @@ describe("Campus Web 文档来源编译", () => {
 			);
 		}
 
-		const store = memoryStore();
-		const source = await sourceFixture(store);
-		const version = first(source.versions, "version");
-		const document = first(source.documents, "document");
-		version.versionSlug = "历史 版";
-		document.currentVersionSlug = version.versionSlug;
-		const compiled = await compileDocsSource({
-			client: store,
-			source: normalizeSourceManifest(source),
-		});
-		const entry = first(compiled.manifest.entries, "compiled version");
-		expect(publicReaderUrl(entry)).toContain("/%E5%8E%86%E5%8F%B2%20%E7%89%88/reader.json");
+		const source = await sourceFixture(memoryStore());
+		first(source.versions, "version").versionSlug = "2025-current";
+		expect(() => normalizeSourceManifest(source)).toThrow(
+			"version slug must be a year or positive ordinal",
+		);
 	});
 
 	it("将课程图来源转换为最终公开格式", async () => {
@@ -398,8 +445,6 @@ async function sourceFixture(store: MemoryStore): Promise<DocsSourceManifest> {
 			{
 				collection: "student_rules",
 				corpus: "regulations",
-				currentVersionId: "version-1",
-				currentVersionSlug: "current",
 				docId: "doc-1",
 				documentSlug: "student-rules",
 				title: "学生手册",
@@ -407,7 +452,7 @@ async function sourceFixture(store: MemoryStore): Promise<DocsSourceManifest> {
 			},
 		],
 		redirects: [],
-		schemaVersion: "campus_docs_source.v3",
+		schemaVersion: "campus_docs_source.v4",
 		topics: [
 			{
 				corpus: "regulations",
@@ -420,15 +465,10 @@ async function sourceFixture(store: MemoryStore): Promise<DocsSourceManifest> {
 		versions: [
 			{
 				docId: "doc-1",
-				effectiveFrom: "2026-07-16",
-				isCurrent: true,
-				label: "现行版",
 				reader,
-				sourceLabel: "学生手册",
 				supplements: [],
-				updatedAt: "2026-07-16T00:00:00.000Z",
 				versionId: "version-1",
-				versionSlug: "current",
+				versionSlug: "2026",
 			},
 		],
 	});

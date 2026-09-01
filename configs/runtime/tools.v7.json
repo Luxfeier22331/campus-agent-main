@@ -8,8 +8,8 @@
 			"exposure": "model_visible",
 			"read_only": true,
 			"requires_approval": false,
-			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v2.schema.json#/$defs/CampusSearchPayload",
-			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v2.schema.json#/$defs/CampusSearchResult",
+			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v3.schema.json#/$defs/CampusSearchPayload",
+			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/campus-search-tool-contracts.v3.schema.json#/$defs/CampusSearchResult",
 			"handler": {
 				"type": "execution_control_internal_query",
 				"endpoint": "/internal/campus/search"

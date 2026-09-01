@@ -14,6 +14,48 @@ export function assertReaderExtractionQuality(reader: DocsReader): void {
 	if (pipeTable) {
 		throw new Error(`reader contains pipe-table paragraph: ${pipeTable.rootUnitId}`);
 	}
+
+	const sourceUrlMarker = reader.elements.find(
+		(element) => element.kind === "paragraph" && isStandaloneSourceUrlMarker(element.text),
+	);
+	if (sourceUrlMarker) {
+		throw new Error(`reader contains source URL marker paragraph: ${sourceUrlMarker.rootUnitId}`);
+	}
+
+	const documentNumberHeading = reader.elements.find(
+		(element) => element.kind === "heading" && isStandaloneFormalDocumentNumber(element.text),
+	);
+	if (documentNumberHeading) {
+		throw new Error(`reader contains document number heading: ${documentNumberHeading.rootUnitId}`);
+	}
+
+	for (let index = 0; index + 1 < reader.elements.length; index += 1) {
+		const current = reader.elements[index];
+		const next = reader.elements[index + 1];
+		if (
+			current?.kind === "heading" &&
+			next?.kind === "heading" &&
+			normalizeHeadingText(current.text) === normalizeHeadingText(next.text)
+		) {
+			throw new Error(
+				`reader contains adjacent duplicate headings: ${current.rootUnitId}, ${next.rootUnitId}`,
+			);
+		}
+	}
+}
+
+export function isStandaloneSourceUrlMarker(value: string): boolean {
+	return /^>\s*Source URL:\s*https?:\/\/\S+$/u.test(normalizeHeadingText(value));
+}
+
+export function isStandaloneFormalDocumentNumber(value: string): boolean {
+	return /^(?:[\p{Script=Han}A-Za-z]{0,24})[〔（(]\d{4}[〕）)]\s*\d+\s*号$/u.test(
+		normalizeHeadingText(value),
+	);
+}
+
+function normalizeHeadingText(value: string): string {
+	return value.replace(/\r\n?/gu, "\n").trim();
 }
 
 function isMultilinePipeTable(text: string): boolean {

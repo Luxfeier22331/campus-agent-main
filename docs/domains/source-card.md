@@ -24,7 +24,8 @@ hostname，不包含检索轨迹、分块内部标识、对象存储位置、供
 - 依据缺少可交付阅读目标时不能生成虚构链接；
 - Campus Docs 卡片只能链接到 Campus Web 已发布的公开阅读目标；网页卡片保留经过校验的完整
   HTTP/HTTPS URL，并在新标签页打开；
-- 卡片显示 source manifest 中的真实版本标签，不根据查看时的当前版本推导“现行版”。
+- 卡片保存 Campus Docs 的 `versionSlug`，由消费界面生成“2026 年版”或“第 1 版”等显示文本，不展示
+  “现行版”。
 - `citationIndexes` 保留正文首次引用该来源的顺序；同一来源多次被引用时合并为一个卡片并稳定去重。
 - `citationIndexes` 只能包含正整数且不得重复；产品层不根据正文重新生成或重新排序编号。
 - Web 来源按完整 URL 去重，query 或 fragment 不同的 URL 是不同来源。

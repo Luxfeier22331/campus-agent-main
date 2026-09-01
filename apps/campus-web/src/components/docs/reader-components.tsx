@@ -22,11 +22,8 @@ import {
 	useState,
 } from "react";
 
-import {
-	buildVersionReaderHref,
-	parseReaderLocationState,
-	type ReaderLocationState,
-} from "@/features/docs/reader-state";
+import { parseReaderLocationState, type ReaderLocationState } from "@/features/docs/reader-state";
+import { compareDocsVersionSlugs, formatDocsVersionLabel } from "@/features/docs/version";
 
 const COPY_LINK_RESET_MS = 3000;
 const EMPTY_READER_STATE: ReaderLocationState = {
@@ -52,8 +49,7 @@ export interface ReaderTableCell {
 }
 
 export interface ReaderVersion {
-	isCurrent: boolean;
-	label: string;
+	canonicalUrl: string;
 	versionSlug: string;
 }
 
@@ -254,126 +250,96 @@ export function ReaderPermalink({
 }
 
 export function ReaderDocumentMeta({
-	collection,
 	collectionLabel,
-	corpus,
-	documentSlug,
-	isCurrent,
 	onVersionNavigate,
-	routeSlug,
-	sourceLabel,
 	topicLabel,
-	versionLabel,
 	versionSlug,
 	versions,
 }: {
-	collection: string;
 	collectionLabel: string;
-	corpus: string;
-	documentSlug: string;
-	isCurrent: boolean;
 	onVersionNavigate?: (href: string) => void;
-	routeSlug: string;
-	sourceLabel: string;
 	topicLabel: string | null;
-	versionLabel: string;
 	versionSlug: string;
 	versions?: ReaderVersion[];
 }) {
 	const resolvedVersions = versions ?? [];
 	const hasMultipleVersions = resolvedVersions.length > 1;
+	const latestVersionSlug = resolvedVersions.reduce(
+		(current, version) =>
+			!current || compareDocsVersionSlugs(version.versionSlug, current) > 0
+				? version.versionSlug
+				: current,
+		"",
+	);
+	const isLatest = !latestVersionSlug || versionSlug === latestVersionSlug;
+	const versionLabel = formatDocsVersionLabel(versionSlug);
 
 	function selectVersion(nextVersionSlug: string) {
 		const version = resolvedVersions.find((item) => item.versionSlug === nextVersionSlug);
 		if (!version) {
 			return;
 		}
-		const href = buildVersionReaderHref({
-			collection,
-			corpus,
-			documentSlug,
-			isCurrent: version.isCurrent,
-			routeSlug,
-			versionSlug: version.versionSlug,
-		});
 		if (onVersionNavigate) {
-			onVersionNavigate(href);
+			onVersionNavigate(version.canonicalUrl);
 			return;
 		}
-		window.location.assign(href);
+		window.location.assign(version.canonicalUrl);
 	}
 
 	return (
 		<section
-			aria-label="文档来源与版本"
+			aria-label="文档信息与版本"
 			className="document-meta-panel"
-			data-docs-collection={collection}
-			data-docs-corpus={corpus}
-			data-docs-document-slug={documentSlug}
-			data-docs-is-current={String(isCurrent)}
 			data-docs-reader-meta="true"
-			data-docs-route-slug={routeSlug}
-			data-docs-multiple-versions={String(hasMultipleVersions)}
 			data-docs-version-slug={versionSlug}
-			data-docs-versions={JSON.stringify({ versions: resolvedVersions })}
 		>
 			<p className="document-meta-summary">
 				{hasMultipleVersions ? null : <span>{versionLabel}</span>}
 				{topicLabel ? <span>主题：{topicLabel}</span> : null}
-				<span>来源：{sourceLabel}</span>
+				<span>{collectionLabel}</span>
 			</p>
-			<div className="document-meta-controls">
-				{isCurrent ? null : (
-					<p
-						aria-label="正在阅读历史版本，请以当前版为准。"
-						className="docs-reader-status docs-version-history-warning"
-						role="status"
-						title="正在阅读历史版本，请以当前版为准。"
-					>
-						历史版本
-					</p>
-				)}
-				{hasMultipleVersions ? (
-					<div className="docs-version-switcher">
-						<Select name="docs-version" onValueChange={selectVersion} value={versionSlug}>
-							<SelectTrigger aria-label="选择文档版本" className="docs-version-trigger">
-								<History aria-hidden="true" />
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent className="docs-version-menu">
-								{resolvedVersions.map((version) => (
-									<SelectItem
-										className="docs-version-option"
-										key={version.versionSlug}
-										value={version.versionSlug}
-									>
-										{version.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-				) : null}
-				<details className="document-meta-details">
-					<summary>来源详情</summary>
-					<dl>
-						{topicLabel ? <MetaDetail label="主题" value={topicLabel} /> : null}
-						<MetaDetail label="文档集合" value={collectionLabel} />
-						<MetaDetail label="版本" value={versionLabel} />
-						<MetaDetail label="来源" value={sourceLabel} />
-					</dl>
-				</details>
-			</div>
+			{isLatest && !hasMultipleVersions ? null : (
+				<div className="document-meta-controls">
+					{isLatest ? null : (
+						<p
+							aria-label="正在阅读历史版本，请以当前版为准。"
+							className="docs-reader-status docs-version-history-warning"
+							role="status"
+							title="正在阅读历史版本，请以当前版为准。"
+						>
+							历史版本
+						</p>
+					)}
+					{hasMultipleVersions ? (
+						<div className="docs-version-switcher">
+							<Select name="docs-version" onValueChange={selectVersion} value={versionSlug}>
+								<SelectTrigger aria-label="选择文档版本" className="docs-version-trigger">
+									<History aria-hidden="true" />
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent className="docs-version-menu">
+									{resolvedVersions.map((version) => (
+										<SelectItem
+											className="docs-version-option"
+											key={version.versionSlug}
+											value={version.versionSlug}
+										>
+											{formatDocsVersionLabel(version.versionSlug)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					) : null}
+				</div>
+			)}
 		</section>
 	);
 }
 
 export function ReaderTable({ rows }: { rows: ReaderTableCell[][] }) {
-	const hasMergedCells = rows.some((row) =>
-		row.some((cell) => (cell.colSpan ?? 1) > 1 || (cell.rowSpan ?? 1) > 1),
-	);
 	return (
-		<ReaderTableScroll stickyFirstColumn={!hasMergedCells}>
+		<ReaderTableScroll>
 			<table>
 				<tbody>
 					{rows.map((row, rowIndex) => (
@@ -401,19 +367,13 @@ export function ReaderTable({ rows }: { rows: ReaderTableCell[][] }) {
 
 export function ReaderMarkdownTable(props: ComponentProps<"table">) {
 	return (
-		<ReaderTableScroll stickyFirstColumn>
+		<ReaderTableScroll>
 			<table {...props} />
 		</ReaderTableScroll>
 	);
 }
 
-function ReaderTableScroll({
-	children,
-	stickyFirstColumn,
-}: {
-	children: ReactNode;
-	stickyFirstColumn: boolean;
-}) {
+function ReaderTableScroll({ children }: { children: ReactNode }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [overflowing, setOverflowing] = useState(false);
 
@@ -441,20 +401,10 @@ function ReaderTableScroll({
 			className="docs-table-scroll"
 			data-docs-overflowing={String(overflowing)}
 			data-docs-scrollable="true"
-			data-docs-sticky-first-column={String(stickyFirstColumn)}
 			ref={containerRef}
 			tabIndex={overflowing ? 0 : undefined}
 		>
 			{children}
-		</div>
-	);
-}
-
-function MetaDetail({ label, value }: { label: string; value: string }) {
-	return (
-		<div>
-			<dt>{label}</dt>
-			<dd>{value}</dd>
 		</div>
 	);
 }

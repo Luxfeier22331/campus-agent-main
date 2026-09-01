@@ -9,9 +9,17 @@ export function attachReaderRouteSlugs(
 	return entries.map((entry) => ({ ...entry }));
 }
 
-export function buildReaderCanonicalUrl(entry: RoutedPublishedReaderManifestEntry): string {
-	const base = `/docs/${entry.corpus}/${entry.collection}/${entry.routeSlug}`;
-	return entry.isCurrent ? base : `${base}/v/${encodeURIComponent(entry.versionSlug)}`;
+export function buildReaderDocumentUrl(entry: RoutedPublishedReaderManifestEntry): string {
+	return `/docs/${entry.corpus}/${entry.collection}/${entry.routeSlug}`;
+}
+
+export function buildReaderCanonicalUrl(
+	entry: RoutedPublishedReaderManifestEntry,
+	latestVersionId: string,
+): string {
+	return entry.versionId === latestVersionId
+		? buildReaderDocumentUrl(entry)
+		: buildReaderVersionUrl(entry);
 }
 
 export function buildReaderVersionUrl(entry: RoutedPublishedReaderManifestEntry): string {

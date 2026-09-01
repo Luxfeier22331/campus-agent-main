@@ -229,7 +229,7 @@ function createSiteIndex(): DocsSiteIndex {
 			},
 		],
 		redirects: [],
-		schemaVersion: "campus_docs_site_index.v4",
+		schemaVersion: "campus_docs_site_index.v5",
 		searchIndexUrl: `/_docs/search/sha256/${"a".repeat(64)}.json`,
 		topics: [
 			{
@@ -254,14 +254,9 @@ function createSiteDocument(input: { docId: string; slug: string; title: string 
 		versions: [
 			{
 				canonicalUrl,
-				effectiveFrom: null,
-				isCurrent: true,
-				label: "现行版",
 				readerUrl: `/_docs/${input.slug}/reader.json`,
-				sourceLabel: "学生手册",
-				updatedAt: "2026-07-26T00:00:00.000Z",
 				versionId: `${input.docId}-version`,
-				versionSlug: "current",
+				versionSlug: "2026",
 			},
 		],
 	};

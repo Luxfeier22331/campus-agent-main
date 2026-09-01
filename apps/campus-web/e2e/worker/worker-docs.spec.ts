@@ -89,12 +89,9 @@ test.describe("campus web static docs browser boundary", () => {
 	});
 
 	test("serves public docs versioned clean URLs through the native reader", async ({ page }) => {
-		const response = await page.goto(
-			"/docs/regulations/student_rules/doc-c62077b20430/v/2025-history",
-			{
-				waitUntil: "domcontentloaded",
-			},
-		);
+		const response = await page.goto("/docs/regulations/student_rules/doc-c62077b20430/v/2025", {
+			waitUntil: "domcontentloaded",
+		});
 
 		expect(response?.status()).toBe(200);
 		await expect(page.locator('[data-campus-prerendered="docs"]')).toContainText(

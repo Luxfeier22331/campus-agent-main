@@ -7,7 +7,7 @@ import type { DocsCourseMaps, DocsReader, DocsSourceManifest, ObjectRef } from "
 
 const schemasRoot = resolve(import.meta.dirname, "../../../../packages/contracts/schemas");
 const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
-const sourceValidator = compile("campus-docs-source.v3.schema.json");
+const sourceValidator = compile("campus-docs-source.v4.schema.json");
 const readerValidator = compile("campus-docs-reader.v3.schema.json");
 const courseMapsValidator = compile("campus-docs-course-maps.v1.schema.json");
 

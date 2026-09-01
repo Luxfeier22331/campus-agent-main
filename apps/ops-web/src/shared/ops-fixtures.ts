@@ -65,13 +65,13 @@ const knowledgeDetail = {
 				primaryAction: {
 					disabledReason: null,
 					external: false,
-					href: "/docs/regulations/student_rules/student-rules/v/2026-current#deferred-exam",
+					href: "/docs/regulations/student_rules/student-rules/v/2026#deferred-exam",
 					label: "查看文档",
 				},
 				sectionTitle: "缓考申请",
 				snippet: "申请人应在规定期限内提交书面材料并说明原因。",
 				title: "学生管理规定",
-				versionLabel: "当前版本",
+				versionSlug: "2026",
 			},
 			{
 				citationIndexes: [2],

@@ -111,7 +111,7 @@ describe("campus-web published reader sync", () => {
 				canonicalUrl: string;
 				documentSlug: string;
 				routeSlug: string;
-				versions: Array<{ canonicalUrl: string; isCurrent: boolean }>;
+				versions: Array<{ canonicalUrl: string; versionSlug: string }>;
 			}>;
 			schemaVersion: string;
 			siteIndex: {
@@ -119,7 +119,7 @@ describe("campus-web published reader sync", () => {
 				searchIndexUrl: string;
 			};
 		}>(join(output.generatedRoot, "catalog.json"));
-		expect(catalog.schemaVersion).toBe("campus_docs_native_catalog.v4");
+		expect(catalog.schemaVersion).toBe("campus_docs_native_catalog.v5");
 		expect(catalog.routes).toHaveLength(5);
 		const currentPublicRoute = catalog.routes.find(
 			(route) => route.canonicalUrl === "/docs/regulations/student_rules/student-attendance",
@@ -132,8 +132,7 @@ describe("campus-web published reader sync", () => {
 		expect(
 			catalog.routes.find(
 				(route) =>
-					route.canonicalUrl ===
-					"/docs/regulations/student_rules/student-attendance/v/2026-current",
+					route.canonicalUrl === "/docs/regulations/student_rules/student-attendance/v/2026",
 			),
 		).toMatchObject({
 			documentSlug: "student-attendance",
@@ -142,15 +141,13 @@ describe("campus-web published reader sync", () => {
 		expect(currentPublicRoute?.versions).toEqual([
 			{
 				canonicalUrl: "/docs/regulations/student_rules/student-attendance",
-				isCurrent: true,
-				label: "现行版",
-				versionSlug: "2026-current",
+				versionId: "version_public",
+				versionSlug: "2026",
 			},
 			{
-				canonicalUrl: "/docs/regulations/student_rules/student-attendance/v/2025-history",
-				isCurrent: false,
-				label: "2025 版",
-				versionSlug: "2025-history",
+				canonicalUrl: "/docs/regulations/student_rules/student-attendance/v/2025",
+				versionId: "version_public_history",
+				versionSlug: "2025",
 			},
 		]);
 
@@ -173,17 +170,11 @@ describe("campus-web published reader sync", () => {
 			"utf8",
 		);
 		const historicalHtml = readFileSync(
-			join(
-				output.pagesRoot,
-				"regulations/student_rules/student-attendance/v/2025-history/index.html",
-			),
+			join(output.pagesRoot, "regulations/student_rules/student-attendance/v/2025/index.html"),
 			"utf8",
 		);
 		const currentVersionHtml = readFileSync(
-			join(
-				output.pagesRoot,
-				"regulations/student_rules/student-attendance/v/2026-current/index.html",
-			),
+			join(output.pagesRoot, "regulations/student_rules/student-attendance/v/2026/index.html"),
 			"utf8",
 		);
 		const secondaryHtml = readFileSync(
@@ -247,12 +238,13 @@ describe("campus-web published reader sync", () => {
 			routes: Array<{
 				canonicalUrl: string;
 				documentSlug: string;
-				isCurrent: boolean;
 				routeSlug: string;
 			}>;
 		}>(join(output.generatedRoot, "catalog.json"));
 		const current = catalog.routes.find(
-			(route) => route.isCurrent && route.documentSlug === "中央民族大学学生考勤管理规定",
+			(route) =>
+				route.canonicalUrl.split("/").filter(Boolean).length === 4 &&
+				route.documentSlug === "中央民族大学学生考勤管理规定",
 		);
 
 		expect(current?.documentSlug).toBe("中央民族大学学生考勤管理规定");
@@ -313,23 +305,20 @@ describe("campus-web published reader sync", () => {
 		});
 		expect(
 			readFileSync(
-				join(
-					targetRoot,
-					"_docs/regulations/student_rules/student-attendance/2026-current/reader.json",
-				),
+				join(targetRoot, "_docs/regulations/student_rules/student-attendance/2026/reader.json"),
 				"utf8",
 			),
 		).toContain("attendance-root");
 		expect(
 			readFileSync(
-				join(targetRoot, "_docs/regulations/student_rules/leave-policy/2026-current/reader.json"),
+				join(targetRoot, "_docs/regulations/student_rules/leave-policy/2026/reader.json"),
 				"utf8",
 			),
 		).toContain("leave-policy-root");
 		const courseMapImage = readFileSync(
 			join(
 				targetRoot,
-				"_docs/regulations/student_rules/student-attendance/2026-current/course-maps/page-0001-map-01.png",
+				"_docs/regulations/student_rules/student-attendance/2026/course-maps/page-0001-map-01.png",
 			),
 		);
 		expect([...courseMapImage.subarray(0, 8)]).toEqual([
@@ -344,10 +333,7 @@ describe("campus-web published reader sync", () => {
 			schemaVersion: string;
 			versionId: string;
 		}>(
-			join(
-				targetRoot,
-				"_docs/regulations/student_rules/student-attendance/2026-current/course-maps.json",
-			),
+			join(targetRoot, "_docs/regulations/student_rules/student-attendance/2026/course-maps.json"),
 		);
 		expect(courseMaps).toMatchObject({
 			docId: "doc_public",
@@ -389,10 +375,7 @@ describe("campus-web published reader sync", () => {
 		expect(existsSync(join(generatedRoot, "catalog.json"))).toBe(false);
 		expect(
 			existsSync(
-				join(
-					targetRoot,
-					"_docs/regulations/student_rules/student-attendance/2026-current/reader.json",
-				),
+				join(targetRoot, "_docs/regulations/student_rules/student-attendance/2026/reader.json"),
 			),
 		).toBe(false);
 	});
@@ -416,7 +399,7 @@ describe("campus-web published reader sync", () => {
 		await syncCampusPublishedReaderAssets({ client, manifest, targetRoot });
 		const existingPath = join(
 			targetRoot,
-			"_docs/regulations/student_rules/student-attendance/2026-current/reader.json",
+			"_docs/regulations/student_rules/student-attendance/2026/reader.json",
 		);
 		const existing = readFileSync(existingPath, "utf8");
 

@@ -45,9 +45,9 @@
 			"notes": "多个应用共享的内部门户非敏感来源描述；凭据由各自运行时输入提供。"
 		},
 		{
-			"id": "campus-docs-source.v3",
+			"id": "campus-docs-source.v4",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/campus-docs-source.v3.schema.json",
+			"path": "packages/contracts/schemas/campus-docs-source.v4.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
 			"notes": "Campus Web 构建消费的主题、文档、版本、阅读正文、补充资产和旧路由来源清单。"
@@ -69,9 +69,9 @@
 			"notes": "Campus Web 构建时从课程地图来源资产生成的精简公开格式。"
 		},
 		{
-			"id": "campus-docs-site-index.v4",
+			"id": "campus-docs-site-index.v5",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/campus-docs-site-index.v4.schema.json",
+			"path": "packages/contracts/schemas/campus-docs-site-index.v5.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
 			"notes": "Campus Web 从固定来源清单派生的公开主题、目录、版本、内容寻址搜索入口和旧路由索引。"
@@ -122,8 +122,16 @@
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/campus-search-tool-contracts.v2.schema.json",
 			"owner": "packages/contracts",
-			"status": "active",
+			"status": "historical",
 			"notes": "Bounded model-facing Campus Docs search request and candidate result contract."
+		},
+		{
+			"id": "campus-search-tool-contracts.v3",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v3.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Campus Docs search contract with version identity separated from UI labels."
 		},
 		{
 			"id": "runtime-tool-function-schemas.v3",

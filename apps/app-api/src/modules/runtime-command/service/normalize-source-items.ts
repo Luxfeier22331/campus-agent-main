@@ -70,7 +70,7 @@ interface NormalizedCampusSource extends NormalizedSourceBase {
 	kind: "campus_document";
 	rootUnitIds: string[];
 	sectionTitle: string;
-	versionLabel: string;
+	versionSlug: string;
 }
 
 interface NormalizedWebSource extends NormalizedSourceBase {
@@ -101,7 +101,6 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 	const citationIndex = recordNumber(source, "citation_index", "citationIndex");
 	const citationHref = recordString(source, "citation_href", "citationHref");
 	const sectionRef = citationHref ?? recordString(source, "section_ref", "sectionRef");
-	const versionLabel = recordString(source, "version_label", "versionLabel");
 	const versionSlug = recordString(source, "version_slug", "versionSlug");
 	const parsedRef = sectionRef ? parseSectionRef(sectionRef) : null;
 	if (!(title && citationIndex !== null) || citationIndex > 10) {
@@ -110,8 +109,11 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 
 	if (kind === "campus_document") {
 		const rootUnitIds = dedupeStable(recordStringArray(source, "root_unit_ids", "rootUnitIds"));
+		if (!(parsedRef && versionSlug)) {
+			return null;
+		}
 		if (
-			!(parsedRef && versionLabel && versionSlug) ||
+			!/^[1-9]\d*$/u.test(versionSlug) ||
 			versionSlugFromReaderPath(parsedRef.basePath) !== versionSlug
 		) {
 			return null;
@@ -131,7 +133,7 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 			sectionTitle: recordString(source, "section_title", "sectionTitle") ?? "",
 			snippet: normalizeSnippet(source.snippet),
 			title,
-			versionLabel,
+			versionSlug,
 		};
 	}
 
@@ -191,7 +193,7 @@ function sourceItemFromNormalized(source: NormalizedSource): ChatSourceItem {
 		},
 		sectionTitle: source.sectionTitle,
 		collectionLabel: collectionLabel(source.basePath),
-		versionLabel: source.versionLabel,
+		versionSlug: source.versionSlug,
 	};
 }
 

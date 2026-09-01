@@ -826,7 +826,6 @@ components:
         - snippet
         - title
         - version_id
-        - version_label
         - version_slug
       properties:
         citation_href:
@@ -858,9 +857,6 @@ components:
           type: string
           minLength: 1
         version_id:
-          type: string
-          minLength: 1
-        version_label:
           type: string
           minLength: 1
         version_slug:

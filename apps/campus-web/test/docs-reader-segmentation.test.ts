@@ -139,8 +139,6 @@ function createSourceFixture(): {
 			{
 				collection: "undergraduate",
 				corpus: "curriculum",
-				currentVersionId: "version-1",
-				currentVersionSlug: "current",
 				docId: "doc-1",
 				documentSlug: "document-1",
 				title: "测试培养方案",
@@ -148,20 +146,15 @@ function createSourceFixture(): {
 			},
 		],
 		redirects: [],
-		schemaVersion: "campus_docs_source.v3",
+		schemaVersion: "campus_docs_source.v4",
 		topics: [],
 		versions: [
 			{
 				docId: "doc-1",
-				effectiveFrom: null,
-				isCurrent: true,
-				label: "现行版",
 				reader: readerRef,
-				sourceLabel: "测试来源",
 				supplements: [],
-				updatedAt: "2026-08-02T00:00:00.000Z",
 				versionId: "version-1",
-				versionSlug: "current",
+				versionSlug: "2026",
 			},
 		],
 	});

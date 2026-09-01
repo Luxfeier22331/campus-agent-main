@@ -1,12 +1,12 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://muc.wiki/campus-agent/schemas/campus-docs-site-index.v4.schema.json",
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-docs-site-index.v5.schema.json",
 	"title": "校园文档公开目录索引",
 	"type": "object",
 	"additionalProperties": false,
 	"required": ["schemaVersion", "searchIndexUrl", "collections", "topics", "redirects"],
 	"properties": {
-		"schemaVersion": { "const": "campus_docs_site_index.v4" },
+		"schemaVersion": { "const": "campus_docs_site_index.v5" },
 		"searchIndexUrl": { "$ref": "#/$defs/LocalPath" },
 		"collections": { "type": "array", "items": { "$ref": "#/$defs/Collection" } },
 		"topics": { "type": "array", "items": { "$ref": "#/$defs/Topic" } },
@@ -14,6 +14,7 @@
 	},
 	"$defs": {
 		"NonEmptyString": { "type": "string", "minLength": 1, "pattern": "\\S" },
+		"VersionSlug": { "type": "string", "pattern": "^[1-9][0-9]*$" },
 		"LocalPath": { "type": "string", "pattern": "^/(?!/)" },
 		"Collection": {
 			"type": "object",
@@ -60,27 +61,12 @@
 		"Version": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"versionId",
-				"versionSlug",
-				"label",
-				"isCurrent",
-				"canonicalUrl",
-				"readerUrl",
-				"sourceLabel",
-				"updatedAt",
-				"effectiveFrom"
-			],
+			"required": ["versionId", "versionSlug", "canonicalUrl", "readerUrl"],
 			"properties": {
 				"versionId": { "$ref": "#/$defs/NonEmptyString" },
-				"versionSlug": { "$ref": "#/$defs/NonEmptyString" },
-				"label": { "$ref": "#/$defs/NonEmptyString" },
-				"isCurrent": { "type": "boolean" },
+				"versionSlug": { "$ref": "#/$defs/VersionSlug" },
 				"canonicalUrl": { "$ref": "#/$defs/LocalPath" },
-				"readerUrl": { "$ref": "#/$defs/LocalPath" },
-				"sourceLabel": { "$ref": "#/$defs/NonEmptyString" },
-				"updatedAt": { "$ref": "#/$defs/NonEmptyString" },
-				"effectiveFrom": { "type": ["string", "null"] }
+				"readerUrl": { "$ref": "#/$defs/LocalPath" }
 			}
 		},
 		"Redirect": {

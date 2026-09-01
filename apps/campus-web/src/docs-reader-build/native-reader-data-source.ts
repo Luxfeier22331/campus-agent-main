@@ -35,10 +35,18 @@ export function createBuildDocsDataSource(input: {
 			if (route.topicId && !topic) {
 				throw new Error(`native docs topic is missing: ${route.topicId}`);
 			}
+			const document = catalog.siteIndex.collections
+				.find(
+					(collection) =>
+						collection.corpus === route.corpus && collection.collection === route.collection,
+				)
+				?.documents.find((item) => item.docId === route.docId);
+			const version = document?.versions.find((item) => item.versionId === route.versionId);
+			if (!(document && version)) {
+				throw new Error(`native docs site index version is missing: ${route.versionId}`);
+			}
 			const base: DocsDocumentRouteData = {
-				canonicalUrl: route.isCurrent
-					? `/docs/${route.corpus}/${route.collection}/${route.routeSlug}`
-					: route.canonicalUrl,
+				canonicalUrl: version.canonicalUrl,
 				collection: route.collection,
 				collectionLabel: route.collectionLabel,
 				corpus: route.corpus,
@@ -46,17 +54,14 @@ export function createBuildDocsDataSource(input: {
 				description: route.description,
 				docId: route.docId,
 				documentSlug: route.documentSlug,
-				isCurrent: route.isCurrent,
 				kind: "document",
 				reader: null,
 				readerUrl: route.readerUrl,
 				routeSlug: route.routeSlug,
 				siteIndex: catalog.siteIndex,
-				sourceLabel: route.sourceLabel,
 				title: route.title,
 				topicId: topic?.topicId ?? null,
 				topicLabel: topic?.displayName ?? null,
-				versionLabel: route.versionLabel,
 				versionSlug: route.versionSlug,
 				versions: route.versions,
 			};

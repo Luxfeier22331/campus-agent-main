@@ -33,7 +33,6 @@ function sameChunkIdentityAndContent(left: StoredChunk, right: IndexChunk): bool
 			sectionRef: left.sectionRef,
 			sectionTitle: left.sectionTitle,
 			versionId: left.versionId,
-			versionLabel: left.versionLabel,
 			versionSlug: left.versionSlug,
 		},
 		{
@@ -47,7 +46,6 @@ function sameChunkIdentityAndContent(left: StoredChunk, right: IndexChunk): bool
 			sectionRef: right.sectionRef,
 			sectionTitle: right.sectionTitle,
 			versionId: right.versionId,
-			versionLabel: right.versionLabel,
 			versionSlug: right.versionSlug,
 		},
 	);

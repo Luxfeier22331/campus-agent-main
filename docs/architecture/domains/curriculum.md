@@ -19,7 +19,7 @@ status: active
 
 ```text
 已核对的培养方案来源
--> campus_docs_source.v3 + campus_docs_reader.v3
+-> campus_docs_source.v4 + campus_docs_reader.v3
 -> Campus Web 静态文档
 -> Campus Docs index publisher
 -> 共享的不可变 campus_docs 索引

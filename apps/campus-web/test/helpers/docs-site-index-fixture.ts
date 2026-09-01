@@ -52,7 +52,7 @@ export function createLargeDocsSiteIndex(): DocsSiteIndex {
 	return {
 		collections,
 		redirects: [],
-		schemaVersion: "campus_docs_site_index.v4",
+		schemaVersion: "campus_docs_site_index.v5",
 		searchIndexUrl: `/_docs/search/sha256/${"a".repeat(64)}.json`,
 		topics,
 	};
@@ -77,14 +77,9 @@ function createCollection(
 				versions: [
 					{
 						canonicalUrl,
-						effectiveFrom: null,
-						isCurrent: true,
-						label: "现行版",
 						readerUrl: `/_docs/${definition.corpus}/${definition.collection}/document-${number}/reader.json`,
-						sourceLabel: definition.label,
-						updatedAt: "2026-07-26T00:00:00.000Z",
 						versionId: `${definition.corpus}-${definition.collection}-${number}-current`,
-						versionSlug: "current",
+						versionSlug: "2026",
 					},
 				],
 			};

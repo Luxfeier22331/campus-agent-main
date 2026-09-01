@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { compareDocsVersionSlugs, parseDocsVersionOrder } from "../features/docs/version.ts";
 import type {
 	DocsCollection,
 	DocsDocument,
@@ -36,7 +37,7 @@ export function assertSha256(value: string): `sha256:${string}` {
 }
 
 export function normalizeSourceManifest(value: DocsSourceManifest): DocsSourceManifest {
-	if (value.schemaVersion !== "campus_docs_source.v3") {
+	if (value.schemaVersion !== "campus_docs_source.v4") {
 		throw new Error(`unsupported docs source schema: ${String(value.schemaVersion)}`);
 	}
 	const source: DocsSourceManifest = {
@@ -49,7 +50,7 @@ export function normalizeSourceManifest(value: DocsSourceManifest): DocsSourceMa
 		redirects: [...value.redirects].sort((left, right) =>
 			left.fromPath.localeCompare(right.fromPath),
 		),
-		schemaVersion: "campus_docs_source.v3",
+		schemaVersion: "campus_docs_source.v4",
 		topics: [...value.topics].sort(
 			(left, right) =>
 				left.corpus.localeCompare(right.corpus) ||
@@ -105,24 +106,22 @@ function assertSourceRelationships(source: DocsSourceManifest): void {
 		source.versions.map((item) => `${item.docId}/${item.versionSlug}`),
 		"document version slug",
 	);
-	const versionsById = new Map(source.versions.map((version) => [version.versionId, version]));
+	const versionsByDocument = new Map<string, DocsSourceVersion[]>();
+	for (const version of source.versions) {
+		versionsByDocument.set(version.docId, [
+			...(versionsByDocument.get(version.docId) ?? []),
+			version,
+		]);
+	}
 	for (const document of source.documents) {
 		if (!scopes.has(scope(document))) {
 			throw new Error(`document references missing scope: ${document.docId}`);
 		}
-		const currentVersion = versionsById.get(document.currentVersionId);
-		if (!(currentVersion && currentVersion.docId === document.docId)) {
-			throw new Error(`document current version is missing: ${document.docId}`);
+		const documentVersions = versionsByDocument.get(document.docId) ?? [];
+		if (documentVersions.length === 0) {
+			throw new Error(`document has no versions: ${document.docId}`);
 		}
-		if (!(currentVersion.isCurrent && currentVersion.versionSlug === document.currentVersionSlug)) {
-			throw new Error(`document current version identity is inconsistent: ${document.docId}`);
-		}
-		if (
-			source.versions.filter((version) => version.docId === document.docId && version.isCurrent)
-				.length !== 1
-		) {
-			throw new Error(`document must have exactly one current version: ${document.docId}`);
-		}
+		selectCurrentVersion(documentVersions, document.docId);
 		if (document.corpus === "regulations") {
 			if (!(document.topicId && topics.has(`${document.corpus}/${document.topicId}`))) {
 				throw new Error(`regulation document topic is missing: ${document.docId}`);
@@ -151,18 +150,22 @@ function assertSourceRelationships(source: DocsSourceManifest): void {
 		assertPathSegment(version.versionSlug, `version slug for ${version.versionId}`);
 		assertSupplementPaths(version);
 	}
-	assertRedirects(
-		source.redirects,
-		new Set(
-			source.versions.map((version) => {
-				const document = documentsById.get(version.docId);
-				if (!document) {
-					throw new Error(`version references missing document: ${version.versionId}`);
-				}
-				return buildReaderCanonicalPath(document, version);
-			}),
-		),
-	);
+	const publishedDocumentPaths = new Set<string>();
+	for (const version of source.versions) {
+		const document = documentsById.get(version.docId);
+		if (!document) {
+			throw new Error(`version references missing document: ${version.versionId}`);
+		}
+		const current = selectCurrentVersion(
+			versionsByDocument.get(version.docId) ?? [],
+			version.docId,
+		);
+		publishedDocumentPaths.add(
+			buildReaderCanonicalPath(document, version, current.versionId === version.versionId),
+		);
+		publishedDocumentPaths.add(buildReaderVersionAlias(document, version));
+	}
+	assertRedirects(source.redirects, publishedDocumentPaths);
 	if (versions.size === 0 || documentIds.size === 0) {
 		throw new Error("docs source must contain at least one document version");
 	}
@@ -203,12 +206,42 @@ function assertRedirects(
 	}
 }
 
+function buildReaderVersionAlias(
+	document: Pick<DocsDocument, "collection" | "corpus" | "documentSlug">,
+	version: Pick<DocsSourceVersion, "versionSlug">,
+): string {
+	return `/docs/${document.corpus}/${document.collection}/${buildReaderRouteSlug(document)}/v/${encodeURIComponent(version.versionSlug)}`;
+}
+
 function buildReaderCanonicalPath(
 	document: Pick<DocsDocument, "collection" | "corpus" | "documentSlug">,
-	version: Pick<DocsSourceVersion, "isCurrent" | "versionSlug">,
+	version: Pick<DocsSourceVersion, "versionSlug">,
+	isLatest: boolean,
 ): string {
 	const base = `/docs/${document.corpus}/${document.collection}/${buildReaderRouteSlug(document)}`;
-	return version.isCurrent ? base : `${base}/v/${encodeURIComponent(version.versionSlug)}`;
+	return isLatest ? base : `${base}/v/${encodeURIComponent(version.versionSlug)}`;
+}
+
+export function selectCurrentVersion(
+	versions: readonly DocsSourceVersion[],
+	docId: string,
+): DocsSourceVersion {
+	if (versions.length === 0) {
+		throw new Error(`document has no versions: ${docId}`);
+	}
+	const orders = versions.map((version) => parseDocsVersionOrder(version.versionSlug));
+	const kind = orders[0]?.kind;
+	if (!kind || orders.some((order) => order.kind !== kind)) {
+		throw new Error(`document versions mix year and ordinal slugs: ${docId}`);
+	}
+	const sorted = [...versions].sort((left, right) =>
+		compareDocsVersionSlugs(left.versionSlug, right.versionSlug),
+	);
+	const current = sorted.at(-1);
+	if (!current) {
+		throw new Error(`document has no current version: ${docId}`);
+	}
+	return current;
 }
 
 function isDocumentRoutePath(pathname: string): boolean {

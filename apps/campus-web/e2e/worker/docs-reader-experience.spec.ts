@@ -404,24 +404,24 @@ test.describe("docs reader experience", () => {
 		documentRequests.length = 0;
 
 		await page.getByRole("combobox", { name: "选择文档版本" }).click();
-		await page.getByRole("option", { name: "2025 版" }).click();
+		await page.getByRole("option", { name: "2025 年版" }).click();
 
 		await expect(page).toHaveURL(historicalReaderPath);
 		expect(documentRequests).toEqual([]);
+		const metadata = page.locator(".document-meta-summary");
+		await expect(metadata).toContainText("校园生活");
+		await expect(metadata).toContainText("学生手册");
 		const historyStatus = page.getByRole("status", {
 			name: "正在阅读历史版本，请以当前版为准。",
 		});
 		await expect(historyStatus).toHaveText("历史版本");
 		const metaRowCenters = await Promise.all(
-			[
-				page.locator(".document-meta-summary"),
-				historyStatus,
-				page.getByRole("combobox", { name: "选择文档版本" }),
-				page.locator(".document-meta-details summary"),
-			].map(async (locator) => {
-				const box = await locator.boundingBox();
-				return (box?.y ?? 0) + (box?.height ?? 0) / 2;
-			}),
+			[metadata, historyStatus, page.getByRole("combobox", { name: "选择文档版本" })].map(
+				async (locator) => {
+					const box = await locator.boundingBox();
+					return (box?.y ?? 0) + (box?.height ?? 0) / 2;
+				},
+			),
 		);
 		expect(Math.max(...metaRowCenters) - Math.min(...metaRowCenters)).toBeLessThanOrEqual(1);
 		await expect(page.locator(`[data-root-unit-id="${attendanceRootUnitId}"]`)).not.toHaveClass(
@@ -451,7 +451,7 @@ test.describe("docs reader experience", () => {
 		await waitForDocsHydration(page);
 
 		await page.getByRole("combobox", { name: "选择文档版本" }).click();
-		await page.getByRole("option", { name: "2025 版" }).click();
+		await page.getByRole("option", { name: "2025 年版" }).click();
 
 		await expect(page.getByRole("banner")).toBeVisible();
 		await expect(page.getByRole("navigation", { name: "文档目录" })).toBeVisible();
@@ -470,6 +470,9 @@ test.describe("docs reader experience", () => {
 		await waitForDocsHydration(page);
 
 		await expect(page.getByText("校园文档", { exact: true }).first()).toBeVisible();
+		const metadata = page.locator(".document-meta-summary");
+		await expect(metadata).toContainText("校园生活");
+		await expect(metadata).toContainText("学生手册");
 		await expect(page.getByLabel("表格移动端按行阅读")).toHaveCount(0);
 		const compactTable = page.locator(
 			'[data-root-unit-id="activity-credit-table"] .docs-table-scroll',
@@ -520,7 +523,6 @@ test.describe("docs reader experience", () => {
 		await expect(productMenuTrigger).toBeFocused();
 		for (const locator of [
 			page.getByRole("combobox", { name: "选择文档版本" }),
-			page.locator(".document-meta-details summary"),
 			page.getByRole("button", { name: "复制“六、课程地图”链接" }),
 		]) {
 			const box = await locator.boundingBox();
@@ -528,14 +530,10 @@ test.describe("docs reader experience", () => {
 			expect(box?.height).toBeGreaterThanOrEqual(44);
 		}
 		await page.getByRole("combobox", { name: "选择文档版本" }).click();
-		const versionOptionBox = await page.getByRole("option", { name: "2025 版" }).boundingBox();
+		const versionOptionBox = await page.getByRole("option", { name: "2025 年版" }).boundingBox();
 		expect(versionOptionBox?.height).toBeGreaterThanOrEqual(44);
 		await page.keyboard.press("Escape");
-		await page.locator(".document-meta-details summary").click();
-		const sourceDetailsBox = await page.locator(".document-meta-details dl").boundingBox();
-		expect(sourceDetailsBox?.x).toBeGreaterThanOrEqual(0);
-		expect((sourceDetailsBox?.x ?? 0) + (sourceDetailsBox?.width ?? 0)).toBeLessThanOrEqual(320);
-		await page.locator(".document-meta-details summary").click();
+		await expect(page.locator(".document-meta-details")).toHaveCount(0);
 		const hasHorizontalOverflow = await page.evaluate(
 			() => document.documentElement.scrollWidth > window.innerWidth + 1,
 		);
@@ -567,26 +565,6 @@ test.describe("docs reader experience", () => {
 		);
 		await mapDialog.getByRole("button", { name: "关闭课程地图" }).click();
 	});
-
-	for (const width of [768, 1024]) {
-		test(`keeps source details inside the ${width}px viewport`, async ({ page }) => {
-			await page.setViewportSize({ height: 800, width });
-			await page.goto(publicReaderPath, { waitUntil: "domcontentloaded" });
-			await waitForDocsHydration(page);
-			await page.locator(".document-meta-details summary").click();
-			const sourceDetails = page.locator(".document-meta-details dl");
-			await expect(sourceDetails).toBeVisible();
-			const sourceDetailsBox = await sourceDetails.boundingBox();
-			expect(sourceDetailsBox?.x).toBeGreaterThanOrEqual(0);
-			expect((sourceDetailsBox?.x ?? 0) + (sourceDetailsBox?.width ?? 0)).toBeLessThanOrEqual(
-				width,
-			);
-			const hasHorizontalOverflow = await page.evaluate(
-				() => document.documentElement.scrollWidth > window.innerWidth + 1,
-			);
-			expect(hasHorizontalOverflow).toBe(false);
-		});
-	}
 
 	test("opens public search results as highlighted reader content", async ({ page }) => {
 		await page.goto(publicReaderPath, { waitUntil: "domcontentloaded" });

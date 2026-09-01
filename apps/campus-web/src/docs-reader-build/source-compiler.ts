@@ -9,7 +9,12 @@ import type {
 } from "./published-reader-types.ts";
 import { assertReaderExtractionQuality } from "./reader-quality.ts";
 import { assertReaderSegmentationQuality } from "./reader-segmentation.ts";
-import { buildReaderRouteSlug, canonicalJsonBytes, sha256 } from "./source-catalog.ts";
+import {
+	buildReaderRouteSlug,
+	canonicalJsonBytes,
+	selectCurrentVersion,
+	sha256,
+} from "./source-catalog.ts";
 import { materializeDocsCourseMaps } from "./source-course-maps.ts";
 import { parseCourseMaps, parseReader } from "./source-schema.ts";
 import type {
@@ -32,6 +37,16 @@ export async function compileDocsSource(input: {
 	source: DocsSourceManifest;
 }): Promise<CompiledDocsSource> {
 	const documents = new Map(input.source.documents.map((document) => [document.docId, document]));
+	const versionsByDocument = new Map<string, DocsSourceManifest["versions"]>();
+	for (const version of input.source.versions) {
+		versionsByDocument.set(version.docId, [
+			...(versionsByDocument.get(version.docId) ?? []),
+			version,
+		]);
+	}
+	for (const document of input.source.documents) {
+		selectCurrentVersion(versionsByDocument.get(document.docId) ?? [], document.docId);
+	}
 	const generated = new Map<string, Uint8Array>();
 	const entries = await mapWithConcurrency(
 		input.source.versions,
@@ -66,17 +81,12 @@ export async function compileDocsSource(input: {
 				corpus: document.corpus,
 				docId: document.docId,
 				documentSlug: document.documentSlug,
-				effectiveFrom: version.effectiveFrom,
-				isCurrent: version.isCurrent,
 				reader: version.reader,
 				routeSlug: buildReaderRouteSlug(document),
-				sourceLabel: version.sourceLabel,
 				supplements,
 				title: document.title,
 				topicId: document.topicId,
-				updatedAt: version.updatedAt,
 				versionId: version.versionId,
-				versionLabel: version.label,
 				versionSlug: version.versionSlug,
 			};
 		},

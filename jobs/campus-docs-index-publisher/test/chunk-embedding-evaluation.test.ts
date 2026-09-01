@@ -87,7 +87,6 @@ function chunk(
 		sectionRef: `/docs/${documentId}`,
 		sectionTitle: "章节",
 		versionId: `${documentId}-version`,
-		versionLabel: "现行",
-		versionSlug: "current",
+		versionSlug: "1",
 	};
 }

@@ -174,7 +174,7 @@ export async function planCandidates(
 		files.some((file) =>
 			[
 				"packages/contracts/schemas/campus-docs-reader.v3.schema.json",
-				"packages/contracts/schemas/campus-docs-source.v3.schema.json",
+				"packages/contracts/schemas/campus-docs-source.v4.schema.json",
 			].includes(file),
 		)
 	) {

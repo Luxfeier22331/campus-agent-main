@@ -516,6 +516,7 @@ describe("OpsWebApp", () => {
 		).not.toBeInTheDocument();
 		expect(screen.getByText(/缓考申请需要在规定期限内/u)).toBeInTheDocument();
 		expect(await screen.findByText("学生管理规定")).toBeInTheDocument();
+		expect(screen.getByText("学生规定 · 2026 年版")).toBeInTheDocument();
 		expect(screen.getByText("jwc.muc.edu.cn")).toBeInTheDocument();
 		const webSourceLink = screen.getByRole("link", { name: "打开网页" });
 		expect(webSourceLink).toHaveAttribute(

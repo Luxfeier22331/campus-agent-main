@@ -73,7 +73,6 @@ export function buildChunks(input: {
 					: canonicalUrl,
 				sectionTitle: section.sectionTitle,
 				versionId: input.version.versionId,
-				versionLabel: input.version.label,
 				versionSlug: input.version.versionSlug,
 			});
 		}

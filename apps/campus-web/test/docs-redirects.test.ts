@@ -27,8 +27,8 @@ describe("docs redirects", () => {
 		expect(isDocsDocumentPath("/docs/regulations")).toBe(false);
 		expect(isDocsDocumentPath("/docs/curriculum/undergraduate")).toBe(false);
 		expect(isDocsDocumentPath("/docs/regulations/student_rules/student-attendance")).toBe(true);
-		expect(
-			isDocsDocumentPath("/docs/regulations/student_rules/student-attendance/v/2025-history"),
-		).toBe(true);
+		expect(isDocsDocumentPath("/docs/regulations/student_rules/student-attendance/v/2025")).toBe(
+			true,
+		);
 	});
 });

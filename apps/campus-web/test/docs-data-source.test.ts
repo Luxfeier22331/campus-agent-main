@@ -91,6 +91,25 @@ describe("native docs data source", () => {
 		).toMatchObject({
 			redirects: [{ fromPath: "/docs/regulations/student_rules/retired-attendance" }],
 		});
+
+		expect(
+			parseDocsSiteIndex({
+				...source,
+				redirects: [
+					{
+						fromPath: "/docs/regulations/student_rules/student-attendance/v/2026-current",
+						statusCode: 308,
+						toPath: "/docs/regulations/student_rules/student-attendance/v/2026",
+					},
+				],
+			}),
+		).toMatchObject({
+			redirects: [
+				{
+					toPath: "/docs/regulations/student_rules/student-attendance/v/2026",
+				},
+			],
+		});
 	});
 
 	it("builds current and historical reader routes", () => {
@@ -106,9 +125,9 @@ describe("native docs data source", () => {
 				collection: "student_rules",
 				corpus: "regulations",
 				routeSlug: "student-attendance",
-				versionSlug: "2025-history",
+				versionSlug: "2025",
 			}),
-		).toBe("/docs/regulations/student_rules/student-attendance/v/2025-history");
+		).toBe("/docs/regulations/student_rules/student-attendance/v/2025");
 	});
 
 	it("loads public reader assets without requesting auth or app-api", async () => {
@@ -141,7 +160,7 @@ describe("native docs data source", () => {
 		).resolves.toMatchObject({
 			docId: "doc-public",
 			reader: { docId: "doc-public", versionId: "version-public" },
-			versionSlug: "2026-current",
+			versionSlug: "2026",
 		});
 		expect(requests).toEqual(["/_docs/site-index.json", "/_docs/student-attendance/reader.json"]);
 		expect(requests.some((url) => url.startsWith("/api/"))).toBe(false);
@@ -170,7 +189,7 @@ describe("native docs data source", () => {
 		window.history.replaceState(
 			null,
 			"",
-			"/docs/regulations/student_rules/student-attendance/v/2026-current",
+			"/docs/regulations/student_rules/student-attendance/v/2026",
 		);
 		const route = createDocumentBootstrap();
 		appendRouteBootstrap(route);
@@ -181,7 +200,7 @@ describe("native docs data source", () => {
 				collection: "student_rules",
 				corpus: "regulations",
 				routeSlug: "student-attendance",
-				versionSlug: "2026-current",
+				versionSlug: "2026",
 			}),
 		).resolves.toEqual(route);
 		expect(fetchMock).not.toHaveBeenCalled();
@@ -191,7 +210,7 @@ describe("native docs data source", () => {
 		window.history.replaceState(
 			null,
 			"",
-			"/docs/regulations/student_rules/student-attendance/v/2026-current",
+			"/docs/regulations/student_rules/student-attendance/v/2026",
 		);
 		const requests: string[] = [];
 		vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -217,12 +236,11 @@ describe("native docs data source", () => {
 				collection: "student_rules",
 				corpus: "regulations",
 				routeSlug: "student-attendance",
-				versionSlug: "2026-current",
+				versionSlug: "2026",
 			}),
 		).resolves.toMatchObject({
 			canonicalUrl: "/docs/regulations/student_rules/student-attendance",
-			isCurrent: true,
-			versionSlug: "2026-current",
+			versionSlug: "2026",
 		});
 		expect(requests).toEqual(["/_docs/site-index.json", "/_docs/student-attendance/reader.json"]);
 	});
@@ -246,17 +264,12 @@ describe("native docs data source", () => {
 		if (!document) {
 			throw new Error("docs site fixture is incomplete");
 		}
-		const historicalPath = "/docs/regulations/student_rules/student-attendance/v/2025-history";
+		const historicalPath = "/docs/regulations/student_rules/student-attendance/v/2025";
 		document.versions.push({
 			canonicalUrl: historicalPath,
-			effectiveFrom: null,
-			isCurrent: false,
-			label: "2025 版",
-			readerUrl: "/_docs/student-attendance/2025-history/reader.json",
-			sourceLabel: "学生手册",
-			updatedAt: "2025-07-26T00:00:00.000Z",
+			readerUrl: "/_docs/student-attendance/2025/reader.json",
 			versionId: "version-history",
-			versionSlug: "2025-history",
+			versionSlug: "2025",
 		});
 		window.history.replaceState(null, "", historicalPath);
 		appendRouteBootstrap(createDocumentBootstrap(siteIndex));
@@ -264,7 +277,7 @@ describe("native docs data source", () => {
 		vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
 			const url = String(input);
 			requests.push(url);
-			if (url === "/_docs/student-attendance/2025-history/reader.json") {
+			if (url === "/_docs/student-attendance/2025/reader.json") {
 				return jsonResponse({
 					docId: "doc-public",
 					elements: [],
@@ -281,14 +294,13 @@ describe("native docs data source", () => {
 				collection: "student_rules",
 				corpus: "regulations",
 				routeSlug: "student-attendance",
-				versionSlug: "2025-history",
+				versionSlug: "2025",
 			}),
 		).resolves.toMatchObject({
-			isCurrent: false,
 			reader: { versionId: "version-history" },
-			versionSlug: "2025-history",
+			versionSlug: "2025",
 		});
-		expect(requests).toEqual(["/_docs/student-attendance/2025-history/reader.json"]);
+		expect(requests).toEqual(["/_docs/student-attendance/2025/reader.json"]);
 	});
 
 	it("distinguishes an absent route from an asset request failure", async () => {
@@ -327,14 +339,9 @@ function createSiteIndex() {
 						versions: [
 							{
 								canonicalUrl: "/docs/regulations/student_rules/student-attendance",
-								effectiveFrom: null,
-								isCurrent: true,
-								label: "现行版",
 								readerUrl: "/_docs/student-attendance/reader.json",
-								sourceLabel: "学生手册",
-								updatedAt: "2026-07-26T00:00:00.000Z",
 								versionId: "version-public",
-								versionSlug: "2026-current",
+								versionSlug: "2026",
 							},
 						],
 					},
@@ -343,7 +350,7 @@ function createSiteIndex() {
 			},
 		],
 		redirects: [],
-		schemaVersion: "campus_docs_site_index.v4" as const,
+		schemaVersion: "campus_docs_site_index.v5" as const,
 		searchIndexUrl: `/_docs/search/sha256/${"a".repeat(64)}.json`,
 		topics: [
 			{
@@ -381,7 +388,6 @@ function createDocumentBootstrap(siteIndex = createSiteIndex()) {
 		description: "学生考勤管理规定的校园文档阅读页。",
 		docId: "doc-public",
 		documentSlug: "student-attendance",
-		isCurrent: true,
 		kind: "document" as const,
 		reader: {
 			docId: "doc-public",
@@ -393,16 +399,14 @@ function createDocumentBootstrap(siteIndex = createSiteIndex()) {
 		readerUrl: "/_docs/student-attendance/reader.json",
 		routeSlug: "student-attendance",
 		siteIndex: siteIndex,
-		sourceLabel: "学生手册",
 		title: "学生考勤管理规定",
-		versionLabel: "现行版",
-		versionSlug: "2026-current",
+		topicId: "courses-exams",
+		topicLabel: "课程与考试",
+		versionSlug: "2026",
 		versions: [
 			{
 				canonicalUrl: "/docs/regulations/student_rules/student-attendance",
-				isCurrent: true,
-				label: "现行版",
-				versionSlug: "2026-current",
+				versionSlug: "2026",
 			},
 		],
 	} as const;

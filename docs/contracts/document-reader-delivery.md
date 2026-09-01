@@ -15,10 +15,10 @@ status: active
 
 现行格式由以下 schema 定义：
 
-- `campus-docs-source.v3.schema.json`：主题、文档、版本、旧正文路由、reader 和补充资产来源；
+- `campus-docs-source.v4.schema.json`：主题、文档、版本、旧正文路由、reader 和补充资产来源；
 - `campus-docs-reader.v3.schema.json`：Campus Web 唯一接受的正文格式；
 - `campus-docs-course-maps.v1.schema.json`：Campus Web 构建生成的课程图公开格式；
-- `campus-docs-site-index.v4.schema.json`：构建派生的公开主题、集合、版本、搜索入口和旧正文路由；
+- `campus-docs-site-index.v5.schema.json`：构建派生的公开主题、集合、版本、搜索入口和旧正文路由；
 - `campus-docs-search-index.v2.schema.json`：构建从当前版本正文派生的搜索索引。
 
 字段和校验规则以 schema 与实现为准。旧发布清单、当前版本指针、数据库投影和旧站点索引不是兼容
@@ -29,7 +29,7 @@ status: active
 ```text
 来源系统生成 reader、课程图来源和图片
 -> 来源系统写入对象存储并记录 key、byteSize、sha256
--> 整理流程生成 campus_docs_source.v3
+-> 整理流程生成 campus_docs_source.v4
 -> Campus Web 来源提交入口完整校验并写入固定来源清单
 -> Campus Web 构建读取固定来源键并再次校验
 -> 构建进程复制 reader 并生成最终课程图
@@ -45,7 +45,8 @@ Campus Docs 索引 publisher 读取同一固定来源键，但不属于本合同
 
 - 文档属于已支持集合，文档、版本、路由和主题标识不重复；
 - 规章文档引用有效主题，培养方案文档不引用规章主题；
-- 每份文档恰好有一个当前版本，且当前版本标识与文档一致；
+- 每份文档至少有一个版本；版本 slug 为四位年份或正整数序号，同一文档内不得混用，数值最大的版本
+  由构建派生为当前版本；
 - 每个版本引用一份与 `docId`、`versionId` 一致的 reader 对象；
 - 每个对象引用包含实际字节数和 SHA-256；
 - 补充数据与图片使用安全相对路径，同一版本内目标路径不重复；
@@ -106,7 +107,7 @@ Campus Web 不从检索分块、HTML、文件名或其他对象重建阅读结�
 
 Campus Web 开发和构建入口都必须：
 
-1. 读取固定来源清单，确认它是规范化的 `campus_docs_source.v3` JSON；
+1. 读取固定来源清单，确认它是规范化的 `campus_docs_source.v4` JSON；
 2. 以来源清单精确字节的 SHA-256 选择本地缓存目录；
 3. 核对每份 reader、课程图来源和图片的字节数与摘要；
 4. 校验 reader v3 的身份、元素、标题锚点和表格；
@@ -142,7 +143,7 @@ lane 的独立 Campus Web publisher 使用 Source staging Environment 的公网�
 一次构建生成：
 
 - `build/catalog.json`：仅供构建和预渲染使用的完整路由目录；
-- `public/_docs/site-index.json`：`campus_docs_site_index.v4`；
+- `public/_docs/site-index.json`：`campus_docs_site_index.v5`；
 - `public/_docs/search/sha256/<digest>.json`：当前版本的内容寻址搜索索引；
 - `public/_docs/**`：全部版本的 reader、最终课程图和图片；
 - `pages/docs/**/index.html`：目录、正文、历史版本和专用 404 页面。

@@ -443,6 +443,7 @@ func TestCampusDocsCandidateValidatesPayloadIdentityAndURL(t *testing.T) {
 		"text hash":     func(payload map[string]any) { payload["text_sha256"] = "sha256:" + strings.Repeat("0", 64) },
 		"section URL":   func(payload map[string]any) { payload["section_ref"] = "/docs/regulations/student_rules/attendance" },
 		"root unit ids": func(payload map[string]any) { payload["root_unit_ids"] = []any{"unit-1", "unit-1"} },
+		"version slug":  func(payload map[string]any) { payload["version_slug"] = "2026-current" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			mutated := validCampusDocsPointForTest()
@@ -478,13 +479,12 @@ func validCampusDocsPointAtTest(index int) qdrantPoint {
 			"retrieval_text_sha256": sha256TextRef(fmt.Sprintf("retrieval-%d", index)),
 			"root_unit_ids":         []any{fmt.Sprintf("attendance-%d", index)},
 			"schema_version":        "campus_docs_point.v3",
-			"section_ref":           fmt.Sprintf("/docs/regulations/student_rules/attendance/v/2026-current#attendance-%d", index),
+			"section_ref":           fmt.Sprintf("/docs/regulations/student_rules/attendance/v/2026#attendance-%d", index),
 			"section_title":         "材料提交",
 			"text":                  text,
 			"text_sha256":           sha256TextRef(text),
 			"version_id":            "student-rules-2026",
-			"version_label":         "2026",
-			"version_slug":          "2026-current",
+			"version_slug":          "2026",
 		},
 	}
 }

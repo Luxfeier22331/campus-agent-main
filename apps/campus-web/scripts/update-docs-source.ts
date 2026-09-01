@@ -13,7 +13,7 @@ export interface UpdateDocsSourceArgs {
 export function parseUpdateDocsSourceArgs(argv: string[]): UpdateDocsSourceArgs {
 	const args = argv.filter((value) => value !== "--");
 	if (args.length !== 2 || args[0] !== "--source-file" || !args[1]?.trim()) {
-		throw new Error("usage: update-docs-source --source-file <campus_docs_source.v3.json>");
+		throw new Error("usage: update-docs-source --source-file <campus_docs_source.v4.json>");
 	}
 	return { sourceFile: resolve(args[1]) };
 }

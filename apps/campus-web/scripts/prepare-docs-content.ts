@@ -89,7 +89,7 @@ export async function prepareDocsContent(
 	const source = normalizeSourceManifest(parseSourceManifest(parseJson(sourceBytes)));
 	const canonicalSourceBytes = canonicalJsonBytes(source);
 	if (!equalBytes(sourceBytes, canonicalSourceBytes)) {
-		throw new Error(`${DOCS_SOURCE_KEY} must contain canonical campus_docs_source.v3 JSON`);
+		throw new Error(`${DOCS_SOURCE_KEY} must contain canonical campus_docs_source.v4 JSON`);
 	}
 	const sourceDigest = sha256(canonicalSourceBytes);
 	const paths = resolveSourceDocsContentPaths(appRoot, sourceDigest);

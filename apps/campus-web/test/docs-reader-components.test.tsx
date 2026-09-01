@@ -84,19 +84,15 @@ describe("declarative docs reader components", () => {
 		render(
 			<ReaderDocument>
 				<ReaderDocumentMeta
-					collection="student_rules"
 					collectionLabel="学生手册"
-					corpus="regulations"
-					documentSlug="rules"
-					isCurrent={false}
-					routeSlug="rules"
-					sourceLabel="学生手册"
 					topicLabel="课程与考试"
-					versionLabel="2025 版"
-					versionSlug="2025-history"
+					versionSlug="2025"
 					versions={[
-						{ isCurrent: true, label: "现行版", versionSlug: "2026-current" },
-						{ isCurrent: false, label: "2025 版", versionSlug: "2025-history" },
+						{ canonicalUrl: "/docs/regulations/student_rules/rules", versionSlug: "2026" },
+						{
+							canonicalUrl: "/docs/regulations/student_rules/rules/v/2025",
+							versionSlug: "2025",
+						},
 					]}
 				/>
 			</ReaderDocument>,
@@ -106,16 +102,11 @@ describe("declarative docs reader components", () => {
 			screen.getByRole("status", { name: "正在阅读历史版本，请以当前版为准。" }),
 		).toHaveTextContent("历史版本");
 		const versionSelector = screen.getByRole("combobox", { name: "选择文档版本" });
-		expect(versionSelector).toHaveTextContent("2025 版");
-		expect(screen.getByLabelText("文档来源与版本")).toHaveAttribute(
-			"data-docs-versions",
-			JSON.stringify({
-				versions: [
-					{ isCurrent: true, label: "现行版", versionSlug: "2026-current" },
-					{ isCurrent: false, label: "2025 版", versionSlug: "2025-history" },
-				],
-			}),
-		);
+		expect(versionSelector).toHaveTextContent("2025 年版");
+		const metadata = screen.getByLabelText("文档信息与版本");
+		expect(metadata).toHaveTextContent("主题：课程与考试");
+		expect(metadata).toHaveTextContent("学生手册");
+		expect(metadata.querySelector("details")).toBeNull();
 	});
 
 	it("keeps compact tables semantic without deriving mobile cards", () => {
@@ -141,7 +132,7 @@ describe("declarative docs reader components", () => {
 
 		expect(screen.getByRole("table")).toBeInTheDocument();
 		const tableContainer = screen.getByRole("table").parentElement;
-		expect(tableContainer).toHaveAttribute("data-docs-sticky-first-column", "false");
+		expect(tableContainer).not.toHaveAttribute("data-docs-sticky-first-column");
 		expect(tableContainer).toHaveAttribute("data-docs-overflowing", "false");
 		expect(tableContainer).not.toHaveAttribute("tabindex");
 		expect(screen.queryByLabelText("表格移动端按行阅读")).not.toBeInTheDocument();
@@ -169,7 +160,7 @@ describe("declarative docs reader components", () => {
 		);
 
 		const table = screen.getByRole("table");
-		expect(table.parentElement).toHaveAttribute("data-docs-sticky-first-column", "true");
+		expect(table.parentElement).not.toHaveAttribute("data-docs-sticky-first-column");
 		expect(within(table).getAllByRole("row")).toHaveLength(7);
 		expect(within(table).getByText("姓名")).toBeInTheDocument();
 		expect(screen.queryByLabelText("表格移动端按行阅读")).not.toBeInTheDocument();
@@ -241,57 +232,24 @@ describe("declarative docs reader components", () => {
 		);
 	});
 
-	it("keeps source details open when document metadata rerenders", () => {
-		const renderMeta = (versionLabel: string) => (
-			<ReaderDocument>
-				<ReaderDocumentMeta
-					collection="student_rules"
-					collectionLabel="学生手册"
-					corpus="regulations"
-					documentSlug="rules"
-					isCurrent
-					routeSlug="rules"
-					sourceLabel="学生手册"
-					topicLabel="课程与考试"
-					versionLabel={versionLabel}
-					versionSlug="2026-current"
-					versions={[{ isCurrent: true, label: "现行版", versionSlug: "2026-current" }]}
-				/>
-			</ReaderDocument>
-		);
-		const { rerender } = render(renderMeta("现行版"));
-		const details = screen.getByText("来源详情").closest("details");
-		if (!(details instanceof HTMLDetailsElement)) {
-			throw new Error("source details element is missing");
-		}
-
-		fireEvent.click(screen.getByText("来源详情"));
-		expect(details.open).toBe(true);
-
-		rerender(renderMeta("2026 版"));
-		expect(details.open).toBe(true);
-	});
-
 	it("does not render a version selector when only one version is published", () => {
 		render(
 			<ReaderDocument>
 				<ReaderDocumentMeta
-					collection="student_rules"
 					collectionLabel="学生手册"
-					corpus="regulations"
-					documentSlug="rules"
-					isCurrent
-					routeSlug="rules"
-					sourceLabel="学生手册"
 					topicLabel="课程与考试"
-					versionLabel="现行版"
-					versionSlug="2026-current"
-					versions={[{ isCurrent: true, label: "现行版", versionSlug: "2026-current" }]}
+					versionSlug="2026"
+					versions={[
+						{ canonicalUrl: "/docs/regulations/student_rules/rules", versionSlug: "2026" },
+					]}
 				/>
 			</ReaderDocument>,
 		);
 
 		expect(screen.queryByRole("combobox", { name: "选择文档版本" })).not.toBeInTheDocument();
-		expect(screen.getByText("来源：学生手册")).toBeInTheDocument();
+		expect(screen.getByText("主题：课程与考试")).toBeInTheDocument();
+		expect(screen.getByText("学生手册")).toBeInTheDocument();
+		expect(screen.getByText("2026 年版")).toBeInTheDocument();
+		expect(screen.queryByText("来源详情")).not.toBeInTheDocument();
 	});
 });

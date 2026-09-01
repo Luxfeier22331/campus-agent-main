@@ -1,6 +1,7 @@
 import {
 	canonicalJsonBytes,
 	normalizeSourceManifest,
+	selectCurrentVersion,
 	sha256,
 } from "../../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import { assertReaderExtractionQuality } from "../../../../apps/campus-web/src/docs-reader-build/reader-quality.ts";
@@ -24,12 +25,18 @@ export function parseIndexingSource(sourceBytes: Uint8Array): IndexingSource {
 	return { manifest, sourceBytes, sourceDigest: sha256(sourceBytes) };
 }
 export function selectCurrentVersions(source: DocsSourceManifest): SourceVersionSelection[] {
-	const versions = new Map(source.versions.map((version) => [version.versionId, version]));
+	const versionsByDocument = new Map<string, DocsSourceManifest["versions"]>();
+	for (const version of source.versions) {
+		versionsByDocument.set(version.docId, [
+			...(versionsByDocument.get(version.docId) ?? []),
+			version,
+		]);
+	}
 	const selected = source.documents.map((document) => {
-		const version = versions.get(document.currentVersionId);
-		if (!version || !version.isCurrent || version.docId !== document.docId) {
-			throw new Error(`current Campus Web version is invalid: ${document.docId}`);
-		}
+		const version = selectCurrentVersion(
+			versionsByDocument.get(document.docId) ?? [],
+			document.docId,
+		);
 		const readerRef = assertObjectRef(version.reader, `reader ${version.versionId}`);
 		return { document, reader: undefined as unknown as DocsReader, readerRef, version };
 	});
@@ -73,7 +80,6 @@ export function buildCurrentSourceProjection(
 			reader: item.readerRef,
 			title: item.document.title,
 			version_id: item.version.versionId,
-			version_label: item.version.label,
 			version_slug: item.version.versionSlug,
 		}))
 		.sort((left, right) => String(left.doc_id).localeCompare(String(right.doc_id)));

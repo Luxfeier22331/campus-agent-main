@@ -18,6 +18,7 @@ import {
 	type DocsSiteIndex,
 	type DocsSiteVersion,
 } from "../features/docs/site-index.ts";
+import { compareDocsVersionSlugs } from "../features/docs/version.ts";
 import { publicReaderUrl, readPublishedObject } from "./published-reader-assets.ts";
 import { resolveCorpusLabel, resolveDocumentDisplayTitle } from "./published-reader-labels.ts";
 import {
@@ -33,7 +34,7 @@ import type {
 	RoutedPublishedReaderManifestEntry,
 } from "./published-reader-types.ts";
 
-export const NATIVE_DOCS_CATALOG_SCHEMA = "campus_docs_native_catalog.v4" as const;
+export const NATIVE_DOCS_CATALOG_SCHEMA = "campus_docs_native_catalog.v5" as const;
 export const NATIVE_DOCS_CATALOG_FILE = "catalog.json";
 
 export interface NativeDocsCatalogRoute {
@@ -44,21 +45,15 @@ export interface NativeDocsCatalogRoute {
 	description: string;
 	docId: string;
 	documentSlug: string;
-	effectiveFrom: string | null;
-	isCurrent: boolean;
 	readerUrl: string;
 	routeSlug: string;
-	sourceLabel: string;
 	title: string;
 	topicId: string | null;
-	updatedAt: string;
 	versionId: string;
-	versionLabel: string;
 	versionSlug: string;
 	versions: Array<{
 		canonicalUrl: string;
-		isCurrent: boolean;
-		label: string;
+		versionId: string;
 		versionSlug: string;
 	}>;
 }
@@ -103,33 +98,29 @@ export async function writeNativeReaderSite(input: {
 		if (!collection) {
 			throw new Error(`docs source collection is missing: ${scopeKey(entry)}`);
 		}
+		const documentEntries = versionsByDocument.get(resolveDocumentVersionKey(entry)) ?? [];
+		const latest = latestVersionEntry(documentEntries);
 		const route: NativeDocsCatalogRoute = {
-			canonicalUrl: buildReaderCanonicalUrl(entry),
+			canonicalUrl: buildReaderCanonicalUrl(entry, latest.versionId),
 			collection: entry.collection,
 			collectionLabel: collection.displayName,
 			corpus: entry.corpus,
 			description: buildReaderDescription(reader, entry.title),
 			docId: entry.docId,
 			documentSlug: entry.documentSlug,
-			effectiveFrom: entry.effectiveFrom,
-			isCurrent: entry.isCurrent,
 			readerUrl: publicReaderUrl(entry),
 			routeSlug: entry.routeSlug,
-			sourceLabel: entry.sourceLabel,
 			title: resolveDocumentDisplayTitle(entry.title),
 			topicId: entry.topicId,
-			updatedAt: entry.updatedAt,
 			versionId: entry.versionId,
-			versionLabel: entry.versionLabel,
 			versionSlug: entry.versionSlug,
-			versions: (versionsByDocument.get(resolveDocumentVersionKey(entry)) ?? []).map((version) => ({
-				canonicalUrl: buildReaderCanonicalUrl(version),
-				isCurrent: version.isCurrent,
-				label: version.versionLabel,
+			versions: documentEntries.map((version) => ({
+				canonicalUrl: buildReaderCanonicalUrl(version, latest.versionId),
+				versionId: version.versionId,
 				versionSlug: version.versionSlug,
 			})),
 		};
-		return entry.isCurrent
+		return entry.versionId === latest.versionId
 			? [route, { ...route, canonicalUrl: buildReaderVersionUrl(entry) }]
 			: [route];
 	});
@@ -205,31 +196,23 @@ function buildSiteIndex(input: {
 }
 
 function buildSiteDocument(entries: RoutedPublishedReaderManifestEntry[]): DocsSiteDocument {
-	const current = entries.find((entry) => entry.isCurrent);
-	if (!current) {
-		throw new Error(`public document is missing a current version: ${entries[0]?.docId}`);
-	}
+	const latest = latestVersionEntry(entries);
 	const versions = entries
 		.map(
 			(entry): DocsSiteVersion => ({
-				canonicalUrl: buildReaderCanonicalUrl(entry),
-				effectiveFrom: entry.effectiveFrom,
-				isCurrent: entry.isCurrent,
-				label: entry.versionLabel,
+				canonicalUrl: buildReaderCanonicalUrl(entry, latest.versionId),
 				readerUrl: publicReaderUrl(entry),
-				sourceLabel: entry.sourceLabel,
-				updatedAt: entry.updatedAt,
 				versionId: entry.versionId,
 				versionSlug: entry.versionSlug,
 			}),
 		)
 		.sort(compareSiteVersion);
 	return {
-		canonicalUrl: buildReaderCanonicalUrl(current),
-		docId: current.docId,
-		documentSlug: current.documentSlug,
-		title: resolveDocumentDisplayTitle(current.title),
-		topicId: current.topicId,
+		canonicalUrl: buildReaderCanonicalUrl(latest, latest.versionId),
+		docId: latest.docId,
+		documentSlug: latest.documentSlug,
+		title: resolveDocumentDisplayTitle(latest.title),
+		topicId: latest.topicId,
 		versions,
 	};
 }
@@ -239,8 +222,13 @@ function buildPublicSearchIndex(input: {
 	readersByVersion: Map<string, DocsReaderPayload>;
 }): DocsSearchIndex {
 	const searchEntries: DocsSearchIndex["entries"] = [];
+	const latestVersionIds = new Set(
+		[...groupVersionsByDocument(input.entries).values()].map(
+			(entries) => latestVersionEntry(entries).versionId,
+		),
+	);
 	for (const entry of input.entries) {
-		if (!entry.isCurrent) {
+		if (!latestVersionIds.has(entry.versionId)) {
 			continue;
 		}
 		const reader = input.readersByVersion.get(entry.versionId);
@@ -355,17 +343,29 @@ function compareEntryVersion(
 	left: RoutedPublishedReaderManifestEntry,
 	right: RoutedPublishedReaderManifestEntry,
 ): number {
-	return (
-		Number(right.isCurrent) - Number(left.isCurrent) ||
-		right.versionSlug.localeCompare(left.versionSlug)
-	);
+	return compareDocsVersionSlugs(right.versionSlug, left.versionSlug);
 }
 
 function compareSiteVersion(left: DocsSiteVersion, right: DocsSiteVersion): number {
-	return (
-		Number(right.isCurrent) - Number(left.isCurrent) ||
-		right.versionSlug.localeCompare(left.versionSlug)
+	return compareDocsVersionSlugs(right.versionSlug, left.versionSlug);
+}
+
+function latestVersionEntry(
+	entries: readonly RoutedPublishedReaderManifestEntry[],
+): RoutedPublishedReaderManifestEntry {
+	const latest = entries.reduce<RoutedPublishedReaderManifestEntry | undefined>(
+		(candidate, entry) => {
+			if (!candidate || compareDocsVersionSlugs(entry.versionSlug, candidate.versionSlug) > 0) {
+				return entry;
+			}
+			return candidate;
+		},
+		undefined,
 	);
+	if (!latest) {
+		throw new Error("public document is missing a version");
+	}
+	return latest;
 }
 
 function scopeKey(value: { collection: string; corpus: string }): string {

@@ -12,7 +12,7 @@ status: active
 JSON Schema 维护，来源发布、静态构建和界面由 Campus Web 维护；索引发布由独立 publisher 维护。
 
 ```text
-来源资料 -> 整理后的 reader v3、课程图来源与图片 -> campus_docs_source.v3 -> 静态阅读资产
+来源资料 -> 整理后的 reader v3、课程图来源与图片 -> campus_docs_source.v4 -> 静态阅读资产
 ```
 
 本文定义共享文档输入和派生索引制品的存储布局，不定义具体分块、索引发布或在线查询行为。
@@ -30,7 +30,7 @@ JSON Schema 维护，来源发布、静态构建和界面由 Campus Web 维护�
 
 ## 来源清单
 
-`campus_docs_source.v3` 是 Campus Web 构建与 Campus Docs publisher 共享的文档控制清单，包含集合、
+`campus_docs_source.v4` 是 Campus Web 构建与 Campus Docs publisher 共享的文档控制清单，包含集合、
 主题、文档、版本、旧正文重定向和来源对象引用。publisher 只读取文档、当前版本和 reader 引用；
 它不把清单自身作为正文索引。
 
@@ -47,12 +47,13 @@ JSON Schema 维护，来源发布、静态构建和界面由 Campus Web 维护�
 
 ### 文档与版本
 
-文档包含 `docId`、`documentSlug`、所属集合、标题、`currentVersionId` 和
-`currentVersionSlug`。每份文档必须恰好有一个当前版本。
+文档包含 `docId`、`documentSlug`、所属集合和标题。版本按同一文档内的数字 `versionSlug` 排序，数值
+最大的版本是当前版本。已知年份使用四位年份，年份未知时使用从 `1` 开始的顺序号，同一文档不能混用
+两种形式。
 
-版本包含 `versionId`、`versionSlug`、`label`、`isCurrent`、`effectiveFrom`、`updatedAt`、
-来源标签、reader 正文对象引用和补充资产引用。当前版本使用文档固定链接，历史版本在路径中显式包含
-版本短名。
+版本只包含 `versionId`、`versionSlug`、所属 `docId`、reader 正文对象引用和补充资产引用。当前版本由
+构建选择；Campus Web 从 `versionSlug` 生成“2026 年版”或“第 1 版”等展示文本。当前版本使用文档固定
+链接，所有版本也提供 `/v/<versionSlug>` 固定别名。
 
 ### 对象引用
 
@@ -120,8 +121,8 @@ Reader 不保存 HTML、检索分块、搜索摘要、集合元数据或对象�
 
 阅读目标包含 `docId`、`versionId`、`versionSlug`、固定链接、`anchor` 和
 `highlightRootUnitIds[]`。历史版本与当前版本都提供 `/v/<versionSlug>` permalink；普通文档导航仍
-使用当前版本的无版本 URL。来源卡片只携带用户可见标题、摘要、版本标签和固定阅读目标，不包含检索
-分数、对象存储位置或供应商响应。
+使用当前版本的无版本 URL。来源卡片只携带用户可见标题、摘要、`versionSlug` 和固定阅读目标，显示
+标签由 Campus Web 生成；卡片不包含检索分数、对象存储位置或供应商响应。
 
 ## 存储边界
 

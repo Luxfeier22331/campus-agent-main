@@ -13,7 +13,7 @@ import {
 	DOCS_CONTENT_SCHEMA,
 	resolveSourceDocsContentPaths,
 } from "../src/docs-reader-build/docs-content.ts";
-import { DOCS_SOURCE_KEY } from "../src/docs-reader-build/source-catalog.ts";
+import { DOCS_SOURCE_KEY, selectCurrentVersion } from "../src/docs-reader-build/source-catalog.ts";
 
 let appRoot: string | null = null;
 const themeBootstrapSourcePath = join(__dirname, "../../../packages/ui/src/theme-bootstrap.js");
@@ -62,21 +62,29 @@ describe("Campus Web 文档内容准备合同", () => {
 		) as {
 			routes: Array<{
 				canonicalUrl: string;
-				isCurrent: boolean;
 				versionId: string;
 				versionSlug: string;
 			}>;
 			siteIndex: { collections: Array<{ documents: unknown[] }> };
 		};
+		const latestVersionIds = new Set(
+			fixture.source.documents
+				.map((document) =>
+					selectCurrentVersion(
+						fixture.source.versions.filter((version) => version.docId === document.docId),
+						document.docId,
+					),
+				)
+				.map((version) => version.versionId),
+		);
 
 		expect(content.root).toBe(
 			resolveSourceDocsContentPaths(appRoot ?? "", fixture.sourceDigest).root,
 		);
-		expect(catalog.routes).toHaveLength(
-			fixture.source.versions.length +
-				fixture.source.versions.filter((version) => version.isCurrent).length,
-		);
-		for (const version of fixture.source.versions.filter((item) => item.isCurrent)) {
+		expect(catalog.routes).toHaveLength(fixture.source.versions.length + latestVersionIds.size);
+		for (const version of fixture.source.versions.filter((item) =>
+			latestVersionIds.has(item.versionId),
+		)) {
 			const routes = catalog.routes.filter((route) => route.versionId === version.versionId);
 			expect(routes).toHaveLength(2);
 			expect(routes.some((route) => route.canonicalUrl.endsWith(`/v/${version.versionSlug}`))).toBe(
@@ -111,10 +119,7 @@ describe("Campus Web 文档内容准备合同", () => {
 		});
 		expect(
 			existsSync(
-				join(
-					content.pagesRoot,
-					"regulations/student_rules/doc-c62077b20430/v/2025-history/index.html",
-				),
+				join(content.pagesRoot, "regulations/student_rules/doc-c62077b20430/v/2025/index.html"),
 			),
 		).toBe(true);
 		expect(existsSync(join(content.pagesRoot, "regulations/index.html"))).toBe(false);
@@ -186,7 +191,7 @@ describe("Campus Web 文档内容准备合同", () => {
 				pages: false,
 				refresh: false,
 			}),
-		).rejects.toThrow(`${DOCS_SOURCE_KEY} must contain canonical campus_docs_source.v3 JSON`);
+		).rejects.toThrow(`${DOCS_SOURCE_KEY} must contain canonical campus_docs_source.v4 JSON`);
 	});
 
 	it("在对象存储缺少固定来源键时明确失败", async () => {

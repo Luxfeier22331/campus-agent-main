@@ -36,7 +36,6 @@ export function buildPoint(input: {
 		text: input.chunk.content,
 		text_sha256: textSha,
 		version_id: input.chunk.versionId,
-		version_label: input.chunk.versionLabel,
 		version_slug: input.chunk.versionSlug,
 	};
 	return {

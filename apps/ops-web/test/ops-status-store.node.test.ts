@@ -145,7 +145,7 @@ describe("PostgreSQL ops status store", () => {
 		expect(
 			detail.result.state === "WRITTEN" ? detail.result.sources[0]?.primaryAction.href : null,
 		).toBe(
-			"https://campus.example.test/docs/regulations/student_rules/student-rules/v/2026-current#deferred-exam",
+			"https://campus.example.test/docs/regulations/student_rules/student-rules/v/2026#deferred-exam",
 		);
 		expect(detail.execution).toMatchObject({
 			failure: {
@@ -206,13 +206,13 @@ describe("PostgreSQL ops status store", () => {
 						primaryAction: {
 							disabledReason: null,
 							external: false,
-							href: "/docs/regulations/student_rules/student-rules/v/2026-current#status",
+							href: "/docs/regulations/student_rules/student-rules/v/2026#status",
 							label: "查看文档",
 						},
 						sectionTitle: "状态",
 						snippet: null,
 						title: "校园信息",
-						versionLabel: "当前",
+						versionSlug: "2026",
 					},
 					{
 						citationIndexes: [2],
@@ -227,7 +227,7 @@ describe("PostgreSQL ops status store", () => {
 						sectionTitle: "正文",
 						snippet: null,
 						title: "错误页面",
-						versionLabel: "当前",
+						versionSlug: "2026",
 					},
 					{
 						citationIndexes: [3],
@@ -242,7 +242,7 @@ describe("PostgreSQL ops status store", () => {
 						sectionTitle: "正文",
 						snippet: null,
 						title: "明文页面",
-						versionLabel: "当前",
+						versionSlug: "2026",
 					},
 					{
 						citationIndexes: [4],
@@ -257,7 +257,7 @@ describe("PostgreSQL ops status store", () => {
 						sectionTitle: "正文",
 						snippet: null,
 						title: "协议页面",
-						versionLabel: "当前",
+						versionSlug: "2026",
 					},
 				],
 				type: "source_items",

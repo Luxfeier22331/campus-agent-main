@@ -276,12 +276,11 @@ func validCampusSearchResultForTest(citationIndex int, hashCharacter string) cam
 		SourceKind:    "document",
 		DocumentID:    "student-rules",
 		Title:         "学生管理规定",
-		SectionRef:    "/docs/regulations/student_rules/attendance/v/2026-current#attendance",
+		SectionRef:    "/docs/regulations/student_rules/attendance/v/2026#attendance",
 		SectionTitle:  "材料提交",
 		RootUnitIDs:   []string{"attendance"},
 		VersionID:     "student-rules-2026",
-		VersionLabel:  "2026",
-		VersionSlug:   "2026-current",
+		VersionSlug:   "2026",
 		Text:          "学生应当在规定期限内提交材料。",
 	}
 }

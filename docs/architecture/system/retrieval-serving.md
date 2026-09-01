@@ -17,7 +17,7 @@ status: active
 
 ## 输入与索引身份
 
-对象存储固定键 `campus-docs/source.json` 保存规范化的 `campus_docs_source.v3` 完整当前集合。
+对象存储固定键 `campus-docs/source.json` 保存规范化的 `campus_docs_source.v4` 完整当前集合。
 Campus Web 静态构建和 Campus Docs 索引发布共享这份清洗后输入，但分别产生静态站候选和 RAG 制品，
 不共享发布状态。
 

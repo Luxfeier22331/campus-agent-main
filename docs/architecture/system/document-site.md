@@ -28,7 +28,7 @@ reader、课程图来源与图片
 
 | 组件 | 负责 | 不负责 |
 | --- | --- | --- |
-| 来源整理流程 | 生成 reader、课程图来源、图片和 `campus_docs_source.v3` | 生成页面或选择 Worker version |
+| 来源整理流程 | 生成 reader、课程图来源、图片和 `campus_docs_source.v4` | 生成页面或选择 Worker version |
 | 对象存储 | 保存固定来源清单及其明确引用的来源对象 | 保存构建后的课程图或直接承担浏览器接口 |
 | Campus Web 来源更新命令 | 规范化、完整校验并更新固定来源键 | 环境流量和线上版本选择 |
 | Campus Web 构建 | 再次核对来源并生成课程图、目录、搜索索引、静态资产和 HTML | 修改来源事实或重写 reader |

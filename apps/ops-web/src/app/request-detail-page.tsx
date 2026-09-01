@@ -234,6 +234,9 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 						key={[
 							source.kind,
 							source.title,
+							...(source.kind === "campus_document"
+								? [source.collectionLabel, source.sectionTitle, source.versionSlug]
+								: [source.hostname]),
 							source.primaryAction.href,
 							source.primaryAction.label,
 							source.snippet,
@@ -257,7 +260,9 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 									<p className="mt-1 text-muted-foreground text-xs">
 										{source.kind === "web_page"
 											? source.hostname
-											: [source.collectionLabel, source.versionLabel].filter(Boolean).join(" · ")}
+											: [source.collectionLabel, formatDocsVersionLabel(source.versionSlug)]
+													.filter(Boolean)
+													.join(" · ")}
 									</p>
 								</div>
 							</div>
@@ -271,6 +276,10 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 			</ul>
 		</section>
 	);
+}
+
+function formatDocsVersionLabel(versionSlug: string): string {
+	return versionSlug.length === 4 ? `${versionSlug} 年版` : `第 ${versionSlug} 版`;
 }
 
 function SourceAction({

@@ -50,16 +50,9 @@ export function DocsDocumentArticle({
 					{data.title}
 				</h1>
 				<ReaderDocumentMeta
-					collection={data.collection}
 					collectionLabel={data.collectionLabel}
-					corpus={data.corpus}
-					documentSlug={data.documentSlug}
-					isCurrent={data.isCurrent}
 					onVersionNavigate={(href) => void navigate({ to: href as never })}
-					routeSlug={data.routeSlug}
-					sourceLabel={data.sourceLabel}
 					topicLabel={data.topicLabel}
-					versionLabel={data.versionLabel}
 					versionSlug={data.versionSlug}
 					versions={data.versions}
 				/>

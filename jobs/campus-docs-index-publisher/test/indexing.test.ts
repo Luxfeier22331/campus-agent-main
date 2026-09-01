@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createDocsSourceSiteFixture } from "../../../apps/campus-web/fixtures/docs-source-site.ts";
 import {
 	canonicalJsonBytes,
+	selectCurrentVersion,
 	sha256,
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import type { DocsReaderElement } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
@@ -100,10 +101,10 @@ describe("Campus docs indexing", () => {
 		const source = structuredClone(fixture.source);
 		const document = source.documents[0];
 		if (!document) throw new Error("docs fixture has no document");
-		const version = source.versions.find(
-			(candidate) => candidate.versionId === document.currentVersionId,
+		const version = selectCurrentVersion(
+			source.versions.filter((candidate) => candidate.docId === document.docId),
+			document.docId,
 		);
-		if (!version) throw new Error("docs fixture has no current version");
 		const reader = {
 			docId: document.docId,
 			elements: [element],
@@ -850,7 +851,7 @@ describe("Campus docs indexing", () => {
 		const historicalOnlySource = parseIndexingSource(canonicalJsonBytes({
 			...fixture.source,
 			versions: fixture.source.versions.map((version) =>
-				version.isCurrent ? version : { ...version, label: `${version.label}（修订说明）` },
+				version.versionSlug === "2025" ? { ...version, versionSlug: "2024" } : version,
 			),
 		}));
 		const historicalOnlySelections = await loadCurrentVersions({
@@ -890,7 +891,7 @@ describe("Campus docs indexing", () => {
 		if (!selection) throw new Error("docs fixture is empty");
 		const original = buildSections(selection.document, selection.version, selection.reader);
 		const changed = buildSections(
-			{ ...selection.document, docId: "doc_other", currentVersionId: "version_other" },
+			{ ...selection.document, docId: "doc_other" },
 			{ ...selection.version, docId: "doc_other", versionId: "version_other" },
 			{ ...selection.reader, docId: "doc_other", versionId: "version_other" },
 		);
@@ -927,7 +928,6 @@ describe("Campus docs indexing", () => {
 			schema_version: "campus_docs_point.v3",
 			text_sha256: sha256Text(chunk.content),
 			version_id: chunk.versionId,
-			version_label: chunk.versionLabel,
 			version_slug: chunk.versionSlug,
 		});
 		expect(first.vector.sparse).toEqual(buildSparseVector(chunk.retrievalText));

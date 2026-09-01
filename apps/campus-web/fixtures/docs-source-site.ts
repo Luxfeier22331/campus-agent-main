@@ -32,9 +32,9 @@ export const DOCS_SOURCE_SITE_FIXTURE = {
 			body: "document-body",
 			courseMap: "course-map",
 		},
-		currentVersionSlug: "2026-current",
+		latestVersionSlug: "2026",
 		documentSlug: "doc-c62077b20430",
-		historicalVersionSlug: "2025-history",
+		historicalVersionSlug: "2025",
 		path: "/docs/regulations/student_rules/doc-c62077b20430",
 		rootUnitIds: {
 			body: "attendance-root",
@@ -135,7 +135,7 @@ export function createDocsSourceSiteFixture(): DocsSourceFixture {
 			const docId = isAttendanceDocument
 				? "doc_site_attendance"
 				: `doc_${collection.collection}_${ordinal}`;
-			const currentVersionId = `${docId}_current`;
+			const latestVersionId = `${docId}_current`;
 			const title = isAttendanceDocument
 				? "中央民族大学学生考勤管理规定"
 				: `${collection.displayName}示例文档 ${ordinal}`;
@@ -143,8 +143,6 @@ export function createDocsSourceSiteFixture(): DocsSourceFixture {
 			documents.push({
 				collection: collection.collection,
 				corpus: collection.corpus,
-				currentVersionId,
-				currentVersionSlug: DOCS_SOURCE_SITE_FIXTURE.attendance.currentVersionSlug,
 				docId,
 				documentSlug,
 				title,
@@ -158,12 +156,10 @@ export function createDocsSourceSiteFixture(): DocsSourceFixture {
 					includeCourseMap: isAttendanceDocument,
 					includeTable:
 						isAttendanceDocument || (collection.collection === "undergraduate" && ordinal === 1),
-					isCurrent: true,
-					label: "现行版",
-					sourceLabel: collection.displayName,
+					useLatestContent: true,
 					title,
-					versionId: currentVersionId,
-					versionSlug: DOCS_SOURCE_SITE_FIXTURE.attendance.currentVersionSlug,
+					versionId: latestVersionId,
+					versionSlug: DOCS_SOURCE_SITE_FIXTURE.attendance.latestVersionSlug,
 				}),
 			);
 
@@ -180,9 +176,7 @@ export function createDocsSourceSiteFixture(): DocsSourceFixture {
 						docId,
 						includeCourseMap: isAttendanceDocument,
 						includeTable: false,
-						isCurrent: false,
-						label: "2025 版",
-						sourceLabel: collection.displayName,
+						useLatestContent: false,
 						title,
 						versionId: `${docId}_history`,
 						versionSlug: DOCS_SOURCE_SITE_FIXTURE.attendance.historicalVersionSlug,
@@ -202,7 +196,7 @@ export function createDocsSourceSiteFixture(): DocsSourceFixture {
 				toPath: DOCS_SOURCE_SITE_FIXTURE.attendance.path,
 			},
 		],
-		schemaVersion: "campus_docs_source.v3",
+		schemaVersion: "campus_docs_source.v4",
 		topics,
 		versions,
 	});
@@ -227,9 +221,7 @@ function createVersion(input: {
 	docId: string;
 	includeCourseMap: boolean;
 	includeTable: boolean;
-	isCurrent: boolean;
-	label: string;
-	sourceLabel: string;
+	useLatestContent: boolean;
 	title: string;
 	versionId: string;
 	versionSlug: string;
@@ -272,13 +264,8 @@ function createVersion(input: {
 	});
 	return {
 		docId: input.docId,
-		effectiveFrom: input.isCurrent ? "2026-01-01" : "2025-01-01",
-		isCurrent: input.isCurrent,
-		label: input.label,
 		reader,
-		sourceLabel: input.sourceLabel,
 		supplements,
-		updatedAt: input.isCurrent ? "2026-07-26T00:00:00.000Z" : "2025-07-26T00:00:00.000Z",
 		versionId: input.versionId,
 		versionSlug: input.versionSlug,
 	};
@@ -287,7 +274,7 @@ function createVersion(input: {
 function attendanceElements(input: {
 	docId: string;
 	includeTable: boolean;
-	isCurrent: boolean;
+	useLatestContent: boolean;
 	title: string;
 	versionId: string;
 }): unknown[] {
@@ -302,7 +289,7 @@ function attendanceElements(input: {
 		{
 			kind: "paragraph",
 			rootUnitId: DOCS_SOURCE_SITE_FIXTURE.attendance.rootUnitIds.body,
-			text: input.isCurrent
+			text: input.useLatestContent
 				? "学生应按时参加教学活动。"
 				: "2025 版测试正文：学生应按历史规定参加教学活动。",
 		},

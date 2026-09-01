@@ -34,7 +34,7 @@ export interface ChatCampusSourceItem {
 	primaryAction: ChatCampusSourceAction;
 	sectionTitle: string;
 	collectionLabel: string;
-	versionLabel: string;
+	versionSlug: string;
 }
 
 export interface ChatWebSourceItem {
@@ -278,8 +278,8 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 	}
 
 	if (value.kind === "campus_document") {
-		const versionLabel = normalizeOptionalString(value.versionLabel);
-		if (!versionLabel || primaryAction.external !== false) {
+		const versionSlug = normalizeOptionalString(value.versionSlug);
+		if (!versionSlug || primaryAction.external !== false) {
 			return null;
 		}
 		return {
@@ -290,7 +290,7 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 			primaryAction,
 			sectionTitle: normalizeOptionalString(value.sectionTitle) ?? "",
 			collectionLabel: normalizeOptionalString(value.collectionLabel) ?? "",
-			versionLabel,
+			versionSlug,
 		};
 	}
 
