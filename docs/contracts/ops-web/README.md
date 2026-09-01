@@ -8,7 +8,7 @@ status: active
 
 本目录定义 Ops Web 服务端提供给自身页面的 HTTP 接口：
 
-- [runtime.md](./runtime.md)：运行概况、运行记录和运行详情中的按需 Sentry 记录；
+- [runtime.md](./runtime.md)：运行概况、运行记录和运行详情中的持久执行诊断；
 - [providers.md](./providers.md)：在线模型配置；
 - [internal-portal.md](./internal-portal.md)：内部门户凭据与自动化 token；
 - [notices.md](./notices.md)：通知库存、分类维护和固定 Job 操作入口；
@@ -32,7 +32,6 @@ status: active
 - `GET /api/ops/overview`
 - `GET /api/ops/requests`
 - `GET /api/ops/requests/:requestId`
-- `GET /api/ops/requests/:requestId/sentry-issues`
 
 模型配置：
 
@@ -148,7 +147,6 @@ status: active
 | 409 | `OPS_DINING_CONFLICT` | 草稿、发布或评价操作违反领域校验 |
 | 503 | `OPS_ADMISSION_NOT_CONFIGURED` | 访问控制未配置 |
 | 503 | `OPS_STATUS_STORE_UNAVAILABLE` | PostgreSQL 读取不可用 |
-| 503 | `OPS_SENTRY_UNAVAILABLE` | Sentry Issue 查询未配置、失败或响应无效 |
 | 503 | `OPS_PROVIDER_CONFIG_UNAVAILABLE` | Model Config 未配置或不可用 |
 | 503 | `OPS_INTERNAL_PORTAL_STORE_UNAVAILABLE`、`OPS_INTERNAL_PORTAL_CHECK_FAILED`、`OPS_INTERNAL_PORTAL_CREDENTIAL_UNAVAILABLE` | 内部门户凭据服务、真实验证或候选池不可用 |
 | 400 | `OPS_AUTOMATION_TOKEN_INPUT_INVALID`、`OPS_AUTOMATION_QUERY_INVALID` | 自动化 token 管理输入或机器查询参数无效 |
@@ -167,7 +165,7 @@ status: active
 `GET /healthz` 只证明 Node 进程可以响应，不访问依赖。
 
 `GET /readyz` 无需操作者身份，只检查 Ops Web 接受核心请求所需的公开 origin、请求状态数据库，
-以及非本地环境的 Access 配置。Sentry、Langfuse、Temporal UI、在线模型配置、Dining 和
+以及非本地环境的 Access 配置。Langfuse、Temporal UI、在线模型配置、Dining 和
 自动化机器入口不属于顶层就绪条件；它们在所属接口返回局部状态。
 
 ## 相关文档

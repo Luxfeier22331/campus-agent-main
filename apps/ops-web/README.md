@@ -4,9 +4,8 @@
 
 ## 职责
 
-- 关联 PostgreSQL 有界投影、Temporal、Sentry 和 Langfuse 跳转信息；
+- 关联 PostgreSQL 有界投影、Temporal 和 Langfuse 跳转信息；
 - 读取固定范围的运行概况、运行记录，以及 execution-control 持久化的净化步骤和尝试；
-- 通过服务端固定查询访问 Sentry，不向浏览器提供任意供应商查询；
 - 执行明确准入的在线模型配置、食堂和同好群内容运营操作；
 - 直接拥有内部门户凭据池，负责真实验证、定时检查、按需显示和采集解析；
 - 通过 Model Config 管理和验证在线模型当前设置；页面保留的 `execution` 路由名只是历史 URL，

@@ -10,7 +10,7 @@
 - `collector-local-prodlike.yaml`：本地生产近似链路。
 
 源码仓负责 Agent Runtime 生产者字段合同和本地配置。环境仓负责实际 receiver、pipeline、endpoint、
-dataset、Secret、部署版本和启用状态。Cloudflare application logs、浏览器和边缘 Sentry 不经过这些
+dataset、Secret、部署版本和启用状态。Cloudflare application logs 和 Worker source map 不经过这些
 本地配置。
 
 两份本地配置都只在 `4318` 提供一个 OTLP/HTTP receiver，并且只接收 Agent Runtime trace：

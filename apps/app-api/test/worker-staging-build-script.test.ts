@@ -46,19 +46,26 @@ describe("worker staging build wrapper", () => {
 				const { join } = require("node:path");
 				const workerDist = join(process.cwd(), "dist", "campus_web");
 				mkdirSync(workerDist, { recursive: true });
-				writeFileSync(join(workerDist, ".dev.vars"), 'SENTRY_DSN = "__campus_agent_runtime_secret_placeholder__SENTRY_DSN"\\n');
+				writeFileSync(join(workerDist, ".dev.vars"), 'APP_API_EXECUTION_SHARED_SECRET = "__campus_agent_runtime_secret_placeholder__APP_API_EXECUTION_SHARED_SECRET"\\n');
 				writeFileSync(join(workerDist, "index.js"), 'export default {};\\n');
 			`;
 
 		const result = spawnSync(
 			tsxBin,
-			[stagingBuildScript, "SENTRY_DSN", "--", process.execPath, "-e", childSource],
+			[
+				stagingBuildScript,
+				"APP_API_EXECUTION_SHARED_SECRET",
+				"--",
+				process.execPath,
+				"-e",
+				childSource,
+			],
 			{
 				cwd: workDir,
 				encoding: "utf8",
 				env: {
 					...process.env,
-					SENTRY_DSN: "",
+					APP_API_EXECUTION_SHARED_SECRET: "",
 				},
 			},
 		);
@@ -76,18 +83,25 @@ describe("worker staging build wrapper", () => {
 		const childSource = `
 				const { writeFileSync } = require("node:fs");
 				const { join } = require("node:path");
-				writeFileSync(join(process.cwd(), "dist", "campus_web", "index.js"), 'const dsn = "__campus_agent_runtime_secret_placeholder__SENTRY_DSN";\\n');
+				writeFileSync(join(process.cwd(), "dist", "campus_web", "index.js"), 'const secret = "__campus_agent_runtime_secret_placeholder__APP_API_EXECUTION_SHARED_SECRET";\\n');
 			`;
 
 		const result = spawnSync(
 			tsxBin,
-			[stagingBuildScript, "SENTRY_DSN", "--", process.execPath, "-e", childSource],
+			[
+				stagingBuildScript,
+				"APP_API_EXECUTION_SHARED_SECRET",
+				"--",
+				process.execPath,
+				"-e",
+				childSource,
+			],
 			{
 				cwd: workDir,
 				encoding: "utf8",
 				env: {
 					...process.env,
-					SENTRY_DSN: "",
+					APP_API_EXECUTION_SHARED_SECRET: "",
 				},
 			},
 		);
@@ -95,7 +109,7 @@ describe("worker staging build wrapper", () => {
 		expect(result.status).toBe(1);
 		expect(result.stderr).toContain("runtime secret placeholder leaked into build artifact");
 		expect(readFileSync(join(workerDist, "index.js"), "utf8")).toContain(
-			"__campus_agent_runtime_secret_placeholder__SENTRY_DSN",
+			"__campus_agent_runtime_secret_placeholder__APP_API_EXECUTION_SHARED_SECRET",
 		);
 	}, 30_000);
 });

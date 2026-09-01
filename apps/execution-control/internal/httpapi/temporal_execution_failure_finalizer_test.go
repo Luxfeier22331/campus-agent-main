@@ -66,8 +66,11 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		t.Fatalf("failed run = %#v err=%v", run, err)
 	}
 	errorBody, ok := productResponse["error"].(map[string]any)
-	if !ok || errorBody["message"] != "The answer provider is temporarily unavailable." {
+	if !ok || errorBody["message"] != defaultExecutionFailureMessage {
 		t.Fatalf("product error = %#v", productResponse)
+	}
+	if run.TerminalReason != execution.DurableTerminalReasonExecutionFailed {
+		t.Fatalf("terminal reason = %q, want %q", run.TerminalReason, execution.DurableTerminalReasonExecutionFailed)
 	}
 	encoded, err := json.Marshal(productResponse)
 	if err != nil {
@@ -202,6 +205,124 @@ func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailu
 		run.TerminalReason != execution.DurableTerminalReasonRuntimeInvariant ||
 		run.FailCloseReason != "agent_runtime_unauthorized" {
 		t.Fatalf("runtime authorization terminal state = %#v", run)
+	}
+}
+
+func TestTemporalFailureTerminalReasonAndProductRetryability(t *testing.T) {
+	tests := []struct {
+		name           string
+		projection     temporalStepFailureProjection
+		failureKind    string
+		terminalReason execution.DurableTerminalReason
+		retryable      bool
+	}{
+		{
+			name:           "provider failure",
+			failureKind:    "provider_connection_failed",
+			terminalReason: execution.DurableTerminalReasonProviderUnavailable,
+			retryable:      true,
+		},
+		{
+			name: "provider timeout outcome",
+			projection: temporalStepFailureProjection{
+				TimeoutOutcome: execution.TimeoutOutcomeProviderTimeout,
+			},
+			failureKind:    "execution_failed",
+			terminalReason: execution.DurableTerminalReasonProviderUnavailable,
+			retryable:      true,
+		},
+		{
+			name:           "agent runtime timeout code",
+			failureKind:    "agent_runtime_timeout",
+			terminalReason: execution.DurableTerminalReasonProviderUnavailable,
+			retryable:      true,
+		},
+		{
+			name: "activity timeout outcome",
+			projection: temporalStepFailureProjection{
+				TimeoutOutcome: execution.TimeoutOutcomeActivityTimeout,
+			},
+			failureKind:    "agent_deadline_exceeded",
+			terminalReason: execution.DurableTerminalReasonRunTimeout,
+			retryable:      true,
+		},
+		{
+			name:           "agent deadline code",
+			failureKind:    "agent_deadline_exceeded",
+			terminalReason: execution.DurableTerminalReasonRunTimeout,
+			retryable:      true,
+		},
+		{
+			name:           "runtime invariant",
+			failureKind:    "agent_runtime_response_invalid",
+			terminalReason: execution.DurableTerminalReasonRuntimeInvariant,
+			retryable:      false,
+		},
+		{
+			name:           "runtime result contract",
+			failureKind:    "agent_runtime_result_invalid",
+			terminalReason: execution.DurableTerminalReasonRuntimeInvariant,
+			retryable:      false,
+		},
+		{
+			name:           "runtime request contract",
+			failureKind:    "invalid_request",
+			terminalReason: execution.DurableTerminalReasonRuntimeInvariant,
+			retryable:      false,
+		},
+		{
+			name:           "runtime configuration contract",
+			failureKind:    "agent_runtime_not_configured",
+			terminalReason: execution.DurableTerminalReasonRuntimeInvariant,
+			retryable:      false,
+		},
+		{
+			name:           "model target contract",
+			failureKind:    "model_target_mismatch",
+			terminalReason: execution.DurableTerminalReasonRuntimeInvariant,
+			retryable:      false,
+		},
+		{
+			name:           "worker unavailable",
+			failureKind:    "worker_unavailable",
+			terminalReason: execution.DurableTerminalReasonWorkerUnavailable,
+			retryable:      true,
+		},
+		{
+			name:           "tool failure",
+			failureKind:    "tool_execution_failed",
+			terminalReason: execution.DurableTerminalReasonExecutionFailed,
+			retryable:      false,
+		},
+		{
+			name:           "input temporarily unavailable",
+			failureKind:    "execution_input_unavailable",
+			terminalReason: execution.DurableTerminalReasonExecutionFailed,
+			retryable:      true,
+		},
+		{
+			name:           "model config unavailable",
+			failureKind:    "model_config_unavailable",
+			terminalReason: execution.DurableTerminalReasonExecutionFailed,
+			retryable:      true,
+		},
+		{
+			name:           "unknown failure",
+			failureKind:    "unexpected_execution_failure",
+			terminalReason: execution.DurableTerminalReasonExecutionFailed,
+			retryable:      false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := temporalFailureTerminalReason(test.projection, test.failureKind); got != test.terminalReason {
+				t.Fatalf("terminal reason = %q, want %q", got, test.terminalReason)
+			}
+			if got := temporalRunFailureRetryable(test.projection, test.failureKind); got != test.retryable {
+				t.Fatalf("retryable = %t, want %t", got, test.retryable)
+			}
+		})
 	}
 }
 

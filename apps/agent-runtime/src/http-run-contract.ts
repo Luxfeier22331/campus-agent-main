@@ -143,6 +143,5 @@ export function agentRunRequestValidationError(error: unknown) {
 		message: contextBudgetExceeded
 			? "The agent runtime context exceeded its configured budget."
 			: "The agent runtime request is invalid.",
-		retryable: false,
 	};
 }

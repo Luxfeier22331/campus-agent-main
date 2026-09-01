@@ -19,7 +19,7 @@ export async function finalizeAcceptedCommand(
 		streamAppApiTtftMs?: number | null;
 	},
 ) {
-	const { dependencies, now, telemetry } = service;
+	const { dependencies, now } = service;
 	const { context } = input;
 	const completedAt = input.completedAt ?? now().toISOString();
 	const durationMs = Math.max(
@@ -60,19 +60,6 @@ export async function finalizeAcceptedCommand(
 		finalized.write.finalizationFingerprint = input.finalizationFingerprint;
 	}
 	const result = await dependencies.commandStore.finalizeRequest(finalized.write);
-	if (result.outcome === "applied") {
-		telemetry?.configureRequestOutcome({
-			errorCode: finalized.write.turnDispatch.errorCode,
-			requestId: context.requestId,
-			status: finalized.write.turnDispatch.status as
-				| "completed"
-				| "error"
-				| "approval_required"
-				| "rejected"
-				| "cancelled",
-			surface: context.surface,
-		});
-	}
 
 	return {
 		outcome: result.outcome,

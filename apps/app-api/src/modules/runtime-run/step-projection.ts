@@ -1,10 +1,8 @@
 import type {
 	RuntimeRunEventProjection,
-	RuntimeRunPhase,
 	RuntimeRunStep,
 	RuntimeRunStepPhase,
 	RuntimeRunStepStatus,
-	RuntimeRunSummary,
 } from "./types";
 
 const RUNTIME_RUN_STEP_PHASES: RuntimeRunStepPhase[] = [
@@ -43,20 +41,6 @@ export function isTerminalExecutionStatus(status: string): boolean {
 	);
 }
 
-function terminalStepStatus(phase: RuntimeRunPhase): RuntimeRunStepStatus {
-	if (phase === "canceled") {
-		return "cancelled";
-	}
-	if (phase === "failed" || phase === "expired") {
-		return "failed";
-	}
-	return "completed";
-}
-
-export function isTerminalRuntimePhase(phase: RuntimeRunPhase): boolean {
-	return phase === "completed" || phase === "failed" || phase === "canceled" || phase === "expired";
-}
-
 function productPhaseFromRunEvent(event: RuntimeRunEventProjection): RuntimeRunStepPhase | null {
 	if (event.eventType === "execution.queued") {
 		return "queued";
@@ -72,9 +56,6 @@ function productPhaseFromRunEvent(event: RuntimeRunEventProjection): RuntimeRunS
 	}
 	if (event.eventType === "answer.delta") {
 		return "generating";
-	}
-	if (event.eventType === "request.completed") {
-		return "finalizing";
 	}
 	return null;
 }
@@ -92,20 +73,7 @@ function terminalEventStatus(event: RuntimeRunEventProjection): RuntimeRunStepSt
 	return null;
 }
 
-function activePhaseFallback(run: RuntimeRunSummary): RuntimeRunStepPhase {
-	if (run.phase === "created" || run.phase === "queued" || run.phase === "admitted") {
-		return "queued";
-	}
-	if (run.phase === "streaming") {
-		return "generating";
-	}
-	return "preparing";
-}
-
-export function deriveRunSteps(
-	events: RuntimeRunEventProjection[],
-	run: RuntimeRunSummary,
-): RuntimeRunStep[] {
+export function deriveRunSteps(events: RuntimeRunEventProjection[]): RuntimeRunStep[] {
 	const steps: RuntimeRunStep[] = RUNTIME_RUN_STEP_PHASES.map((phase) => ({
 		completedAt: null,
 		durationMs: null,
@@ -145,13 +113,6 @@ export function deriveRunSteps(
 		if (activeIndex >= 0) {
 			closeStep(activeIndex, occurredAt);
 		}
-		for (let index = Math.max(activeIndex + 1, 0); index < targetIndex; index += 1) {
-			const skipped = steps[index];
-			if (skipped?.status === "pending") {
-				skipped.status = "completed";
-				skipped.completedAt = occurredAt;
-			}
-		}
 		const target = steps[targetIndex];
 		if (target) {
 			target.startedAt = target.startedAt ?? occurredAt;
@@ -170,50 +131,12 @@ export function deriveRunSteps(
 			advanceTo(phase, occurredAt);
 		}
 		const terminalStatus = terminalEventStatus(event);
-		if (terminalStatus) {
-			if (terminalStatus === "completed") {
-				advanceTo("finalizing", occurredAt);
-			}
-			const terminalIndex = activeIndex >= 0 ? activeIndex : 0;
-			closeStep(terminalIndex, occurredAt, terminalStatus);
-			activeIndex = terminalIndex;
+		if (terminalStatus && activeIndex >= 0) {
+			closeStep(activeIndex, occurredAt, terminalStatus);
 		}
 	}
 
-	if (activeIndex < 0) {
-		if (isTerminalRuntimePhase(run.phase)) {
-			const phase = run.phase === "completed" ? "finalizing" : activePhaseFallback(run);
-			const index = RUNTIME_RUN_STEP_PHASES.indexOf(phase);
-			const startedAt = run.startedAt ?? run.acceptedAt;
-			if (index >= 0) {
-				for (let stepIndex = 0; stepIndex < index; stepIndex += 1) {
-					const step = steps[stepIndex];
-					if (step) {
-						step.status = "completed";
-					}
-				}
-				const step = steps[index];
-				if (step) {
-					step.startedAt = startedAt;
-					step.status = terminalStepStatus(run.phase);
-					step.completedAt = run.completedAt;
-					step.durationMs = durationMsBetween(startedAt, run.completedAt);
-				}
-			}
-		}
-		return steps;
-	}
-
-	if (isTerminalRuntimePhase(run.phase)) {
-		const index = activeIndex;
-		const step = steps[index];
-		if (step && step.status === "running") {
-			const completedAt = run.completedAt ?? step.completedAt;
-			if (completedAt) {
-				closeStep(index, completedAt, terminalStepStatus(run.phase));
-			}
-		}
-	} else {
+	if (activeIndex >= 0) {
 		const step = steps[activeIndex];
 		if (step && step.status === "pending") {
 			step.status = "running";

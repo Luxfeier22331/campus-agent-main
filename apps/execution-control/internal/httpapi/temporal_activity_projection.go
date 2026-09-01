@@ -304,7 +304,7 @@ func (s *Server) failTemporalRun(
 	failureKind := projection.FailureKind
 	summary := summarizeTemporalFailure(failureKind)
 	failureKind = summary.Kind
-	terminalError := temporalRunFailureErrorPayload(failureKind)
+	terminalError := temporalRunFailureErrorPayload(projection, failureKind)
 	terminalReason := temporalFailureTerminalReason(projection, failureKind)
 	if run.Status != execution.DurableRunStatusFailed {
 		if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
@@ -335,7 +335,7 @@ func (s *Server) failTemporalRun(
 				"error",
 				stringValue(terminalError["code"]),
 				stringValue(terminalError["message"]),
-				false,
+				temporalRunFailureRetryable(projection, failureKind),
 			),
 		); err != nil {
 			return execution.DurableRun{}, err
@@ -386,29 +386,87 @@ func temporalFailureTerminalReason(
 		return execution.DurableTerminalReasonRunTimeout
 	}
 	switch strings.TrimSpace(failureKind) {
-	case "agent_runtime_failed", "personal_memory_not_configured", "provider_config_missing", "provider_unavailable":
+	case "agent_runtime_timeout",
+		"provider_rate_limited",
+		"provider_http_failed",
+		"provider_connection_failed",
+		"provider_timeout",
+		"provider_unavailable":
 		return execution.DurableTerminalReasonProviderUnavailable
-	case "tool_execution_failed":
+	case "agent_deadline_exceeded", "workflow_execution_timeout":
+		return execution.DurableTerminalReasonRunTimeout
+	case "worker_unavailable":
 		return execution.DurableTerminalReasonWorkerUnavailable
-	case "workflow_completed_without_terminal_projection",
+	case "agent_runtime_unauthorized",
+		"agent_runtime_response_invalid",
+		"admission_snapshot_invalid",
+		"admission_snapshot_mismatch",
+		"agent_invocation_envelope_invalid",
+		"agent_runtime_incomplete",
+		"agent_runtime_missing_final_output",
+		"agent_runtime_not_configured",
+		"agent_runtime_request_failed",
+		"agent_runtime_result_invalid",
+		"execution_input_metadata_invalid",
+		"finalization_input_invalid",
+		"finalization_replay_conflict",
+		"finalization_replay_incomplete",
+		"invalid_request",
+		"invalid_model_target_sha256",
+		"model_target_mismatch",
+		"temporal_execution_binding_mismatch",
+		"tool_contract_mismatch",
+		"workflow_start_not_dispatched_invalid",
+		"workflow_start_after_dispatch_invalid",
+		"workflow_start_remote_identity_conflict",
+		"workflow_completed_without_terminal_projection",
 		"workflow_failed_without_terminal_projection",
 		"workflow_canceled_without_terminal_projection",
 		"workflow_terminated_without_terminal_projection",
-		"agent_runtime_unauthorized",
-		"tool_contract_mismatch",
 		"workflow_successor_without_authorization":
 		return execution.DurableTerminalReasonRuntimeInvariant
 	default:
-		return execution.DurableTerminalReasonWorkerUnavailable
+		return execution.DurableTerminalReasonExecutionFailed
 	}
 }
 
-func temporalRunFailureErrorPayload(failureKind string) map[string]any {
+func temporalRunFailureRetryable(
+	projection temporalStepFailureProjection,
+	failureKind string,
+) bool {
+	if projection.TimeoutOutcome == execution.TimeoutOutcomeProviderTimeout ||
+		projection.TimeoutOutcome == execution.TimeoutOutcomeActivityTimeout ||
+		projection.TimeoutOutcome == execution.TimeoutOutcomeWorkflowTimeout {
+		return true
+	}
+	switch strings.TrimSpace(failureKind) {
+	case "agent_attempt_uncertain",
+		"agent_deadline_exceeded",
+		"agent_runtime_timeout",
+		"execution_input_unavailable",
+		"model_config_unavailable",
+		"provider_rate_limited",
+		"provider_http_failed",
+		"provider_connection_failed",
+		"provider_timeout",
+		"provider_unavailable",
+		"worker_unavailable",
+		"workflow_execution_timeout":
+		return true
+	default:
+		return false
+	}
+}
+
+func temporalRunFailureErrorPayload(
+	projection temporalStepFailureProjection,
+	failureKind string,
+) map[string]any {
 	summary := summarizeTemporalFailure(failureKind)
 	return map[string]any{
 		"code":      summary.Kind,
 		"message":   summary.Message,
-		"retryable": false,
+		"retryable": temporalRunFailureRetryable(projection, failureKind),
 	}
 }
 

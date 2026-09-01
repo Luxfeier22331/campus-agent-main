@@ -65,14 +65,14 @@ app-api 保存用户轮次并创建持久 request；execution-control 和 Tempor
 - 完整 Temporal history：Temporal；
 - Agent 模型和工具调用 trace：Langfuse；
 - 离线评测输入与结果：调用方和所属评分器；需要关联运行时再把 score 发布到 Langfuse；
-- browser/edge 错误、生产 browser 采样性能、release 和 source map：Sentry；
+- Worker release 和 source map：Worker 发布流程与 Cloudflare 平台；
 - 个人记忆：Hindsight，仅由 execution-control Activity 调用；
 - 产品可用性快照和有限时间线：`status-web` 所属的 Cloudflare KV namespace；不写入原始探测
   响应、Langfuse trace 或数据库记录。
 
 产品和跨服务诊断统一通过 `request_id` 关联，`conversation_id` 只用于产品会话。workflow、Temporal
-run、step、attempt、result 和 provider response ID 仅属于 execution-control 内部；OTel、Sentry 和
-Langfuse 的原生 trace ID 只在各自技术系统内存在，不进入产品 API 或持久业务投影。
+run、step、attempt、result 和 provider response ID 仅属于 execution-control 内部；OTel 和 Langfuse
+的原生 trace ID 只在各自技术系统内存在，不进入产品 API 或持久业务投影。
 
 ## 配置与运行记录
 
@@ -80,14 +80,13 @@ Langfuse 的原生 trace ID 只在各自技术系统内存在，不进入产品 
 - execution-control 读取 `primary_agent` target 并冻结服务返回的 hash；Agent Runtime 按该 hash 读取完整
   配置。普通 Job 直接读取所属具名配置。内部 consumer 位于共同受信任边界，不使用 Model Config
   consumer token 或注册表；Reranker 的在线调用方尚未在本仓库实现。
-- `ops-web -> PostgreSQL/execution-control/Sentry` 提供有界运行摘要和 Sentry Issue。
+- `ops-web -> PostgreSQL/execution-control` 提供有界运行摘要和执行诊断事实。
 - `ops-web -> dining.*` 使用统一 `ops_web` 角色维护食堂草稿、不可变发布版本、菜单、评价和举报；
   app-api 读取公开菜单并以受限权限处理学生评价和举报；校园地图由 campus-web 的静态资产直接提供。
 - `ops-web -> Kubernetes API` 只读取通知管线的暂停 CronJob 模板，创建一次性 Job，并读取由该入口创建的
   Job、Pod 状态和有限结构化日志摘要；不读取 Secret，不接受任意 Kubernetes 资源参数。
 - 在线模型配置不可用不阻断 Ops Web 的运行记录读取 readiness。
-- Temporal UI、Langfuse UI 和 Sentry 保留各自完整能力；Ops Web 只提供跨系统关联、固定 Sentry
-  Issue 查询和常用摘要。
+- Temporal UI 和 Langfuse UI 保留各自完整能力；Ops Web 只提供跨系统关联和常用摘要。
 
 ## 部署边界
 
@@ -96,7 +95,7 @@ Langfuse 的原生 trace ID 只在各自技术系统内存在，不进入产品 
 
 ## 架构约束
 
-- 不让 app-api 代理 Temporal、Langfuse、Sentry 或数据库通用查询。
+- 不让 app-api 代理 Temporal、Langfuse 或数据库通用查询。
 - 不让产品可用性状态页复用 `campus-web` 的校园业务状态语义，或把内部运行组件作为公共服务行。
 - 不让观测平台改写产品请求状态。
 - 不把离线采集职责混入在线回答路径。

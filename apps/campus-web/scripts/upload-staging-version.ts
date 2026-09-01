@@ -2,10 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-	resolveGitSha,
-	resolveStagingSentryRelease,
-} from "../../../scripts/deploy/staging-release.mts";
+import { resolveGitSha } from "../../../scripts/deploy/staging-release.mts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
 import { readCampusWebBuildSourceDigest } from "./build-campus-web.ts";
 
@@ -52,8 +49,6 @@ const sourceSha = resolveGitSha();
 const buildIdentity = `sha256:${createHash("sha256")
 	.update(`${sourceSha}\n${docsSourceDigest}\n`)
 	.digest("hex")}`;
-const sentryRelease = resolveStagingSentryRelease("campus-web");
-const sentryDsn = requiredEnv("SENTRY_CAMPUS_WEB_DSN");
 
 const preflight = spawnSync("pnpm", ["exec", "tsx", "./scripts/preflight-staging.ts"], {
 	cwd: appDir,
@@ -71,16 +66,8 @@ await uploadStagingWorkerVersion({
 	config: "dist/campus_web/wrangler.json",
 	cwd: appDir,
 	workerName: "campus-web-staging",
-	sentrySourceMaps: {
-		artifactDirectory: "dist/campus_web",
-		orgSlug: requiredEnv("SENTRY_ORG_SLUG"),
-		projectSlug: requiredEnv("SENTRY_CAMPUS_WEB_PROJECT_SLUG"),
-		release: sentryRelease,
-	},
 	variables: {
 		AUTH_TURNSTILE_SITE_KEY: turnstileSiteKey,
 		STATUS_WEB_PUBLIC_ORIGIN: statusWebPublicOrigin,
-		SENTRY_DSN: sentryDsn,
-		DEPLOYMENT_RELEASE: sentryRelease,
 	},
 });

@@ -17,34 +17,9 @@ describe("campus runtime config", () => {
 		);
 
 		expect(config.accountUrl).toBe("https://campus-staging.mucwiki-edge.link/account");
-		expect(config.sentry).toEqual({
-			dsn: null,
-			environment: null,
-			release: null,
-		});
 		expect(buildAccountLoginUrl(config, "https://campus-staging.mucwiki-edge.link/c/conv_01")).toBe(
 			"https://campus-staging.mucwiki-edge.link/account/login?redirectTo=https%3A%2F%2Fcampus-staging.mucwiki-edge.link%2Fc%2Fconv_01",
 		);
-	});
-
-	it("parses the public browser Sentry project settings without private credentials", () => {
-		const config = parseCampusRuntimeConfigSource(
-			JSON.stringify({
-				accountUrl: "https://campus.muc.wiki/account",
-				loginUrl: "https://campus.muc.wiki/account/login",
-				sentry: {
-					dsn: "https://public@example.ingest.sentry.io/1",
-					environment: "staging",
-					release: "campus-web@0123456789abcdef0123456789abcdef01234567",
-				},
-			}),
-		);
-
-		expect(config.sentry).toEqual({
-			dsn: "https://public@example.ingest.sentry.io/1",
-			environment: "staging",
-			release: "campus-web@0123456789abcdef0123456789abcdef01234567",
-		});
 	});
 
 	it("reads the browser runtime config script", () => {

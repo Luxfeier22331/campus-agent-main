@@ -10,7 +10,7 @@ status: active
 `stage_timing.v1` 是在线回答请求的有界耗时投影。它规定哪些每请求耗时字段可以进入 app-api
 观测摘要、字段由哪个运行时产生，以及产品诊断与学习闭环如何消费。
 
-它不是 OpenAI Agents SDK trace、Langfuse OTLP payload、Sentry/Collector schema 或
+它不是 OpenAI Agents SDK trace、Langfuse OTLP payload 或 Collector schema，也不是
 Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.json` 拥有；环境告警的
 查询、阈值和投递由环境仓及所属观测平台拥有，不属于跨运行时合同。
 
@@ -59,7 +59,7 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 | `finalization.write_ms` | `apps/execution-control` | 写入有界 finalization projection 的耗时。 |
 | `projection.closeout_ms` | `apps/app-api` | 接收 execution finalization 到完成 app-api observability fact。 |
 
-不得增加供应商专用字段。只在 Langfuse、SDK trace、Sentry 或 Temporal UI 有意义的
+不得增加供应商专用字段。只在 Langfuse、SDK trace 或 Temporal UI 有意义的
 细节留在对应系统，产品投影只保留关联标识。
 
 `provider_queue_ms` 不是必需字段。provider 内部 queue 只有形成明确、稳定且安全的合同后才能
@@ -88,7 +88,7 @@ Temporal history 或复制下游 trace 响应来补耗时字段。
 配置的观测系统。产品数据库只保存 correlation id 与有界 timing，不保存 sink URL、trace body
 或投递记录。
 
-OpenAI Agents SDK trace、Langfuse、Sentry 与 Temporal UI 可以提供进一步诊断，但不能替代本合同，
+OpenAI Agents SDK trace、Langfuse 与 Temporal UI 可以提供进一步诊断，但不能替代本合同，
 也不能把 SDK span、provider payload、tool I/O、prompt、answer 或 memory text 写入
 `stage_timing.v1`。
 

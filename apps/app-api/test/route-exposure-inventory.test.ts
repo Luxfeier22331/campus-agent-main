@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { APP_API_ROUTE_EXPOSURE_INVENTORY } from "../src/app/route-exposure";
+import { normalizeAppApiRoute } from "../src/app/route-normalization";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const routesDir = join(__dirname, "../src/app/routes");
@@ -73,5 +74,17 @@ describe("app-api route exposure inventory", () => {
 				route.path.startsWith("/api/internal/"),
 			).every((route) => route.callerClass === "machine-internal"),
 		).toBe(true);
+	});
+
+	it("normalizes logged routes against the exposure inventory", () => {
+		expect(
+			normalizeAppApiRoute(
+				"https://app-api.internal/api/chat/conversations/conv_secret/messages/msg_secret/feedback?token=secret",
+				"PUT",
+			),
+		).toBe("/api/chat/conversations/:conversationId/messages/:messageId/feedback");
+		expect(normalizeAppApiRoute("https://app-api.internal/student@example.edu")).toBe(
+			"/<unmatched>",
+		);
 	});
 });

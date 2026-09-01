@@ -17,6 +17,22 @@ func TestPrimaryAgentRuntimeFailureKindKeepsPreflightAndTransportFailuresDistinc
 	}
 }
 
+func TestPrimaryAgentRuntimeFailureKindRejectsUnregisteredRuntimeCode(t *testing.T) {
+	const runtimeCode = "new_runtime_failure"
+	cause := agentRuntimeHTTPError{
+		StatusCode: 500,
+		Code:       runtimeCode,
+		Detail:     "runtime diagnostic",
+	}
+	stableCode := primaryAgentRuntimeFailureKind(cause)
+	if stableCode != "agent_runtime_response_invalid" {
+		t.Fatalf("failure kind = %q, want agent_runtime_response_invalid", stableCode)
+	}
+	if detail := primaryAgentRuntimeFailureDetail(cause.Code, stableCode, cause.Detail); detail != "agent runtime returned unregistered error code "+runtimeCode {
+		t.Fatalf("failure detail = %q", detail)
+	}
+}
+
 func TestAgentRuntimeStreamStateValidatesEachAnswerDelta(t *testing.T) {
 	state := agentRuntimeStreamState{}
 	tests := []struct {

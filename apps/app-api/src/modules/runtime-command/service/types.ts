@@ -2,7 +2,6 @@ import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversation, ChatConversationStore } from "../../chat";
 import type { ExecutionControlRuntimeClient, ToolExecutionResponse } from "../../integration";
 import type { RuntimeRunPhase, RuntimeRunProductPhase } from "../../runtime-run";
-import type { AppTelemetry } from "../../telemetry";
 import type {
 	AcceptedChatCommandStore,
 	ChatCommandObservabilityStore,
@@ -59,7 +58,7 @@ export interface ChatCommandStreamEvent {
 		error?: {
 			code: string;
 			message: string;
-			retryable?: boolean;
+			retryable: boolean;
 		};
 		delta?: string;
 		messageId?: string;
@@ -133,7 +132,6 @@ export interface ChatCommandServiceDependencies {
 	observabilityStore: ChatCommandObservabilityStore;
 	durableEventPolling?: DurableEventPollingPolicy;
 	executionRuntime?: ExecutionControlRuntimeClient;
-	telemetry?: AppTelemetry;
 }
 
 export interface ValidatedChatCommandPayload {

@@ -40,7 +40,7 @@ const completedEventData = streamBase.extend({
 });
 const failedEventData = streamBase.extend({
 	error: z
-		.object({ code: nonEmptyString, message: nonEmptyString, retryable: z.boolean().optional() })
+		.object({ code: nonEmptyString, message: nonEmptyString, retryable: z.boolean() })
 		.passthrough(),
 	sequence: sequence.optional(),
 });

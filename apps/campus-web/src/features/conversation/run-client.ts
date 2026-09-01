@@ -228,13 +228,23 @@ function productEventToStreamEvent(
 				errorRecord && typeof errorRecord === "object" && !Array.isArray(errorRecord)
 					? (errorRecord as Record<string, unknown>)
 					: null;
+			if (
+				!error ||
+				typeof error.code !== "string" ||
+				!error.code.trim() ||
+				typeof error.message !== "string" ||
+				!error.message.trim() ||
+				typeof error.retryable !== "boolean"
+			) {
+				throw invalidRunStatusResponse(200);
+			}
 			return {
 				data: {
 					...base,
 					error: {
-						code: typeof error?.code === "string" ? error.code : "run_failed",
-						message: typeof error?.message === "string" ? error.message : "回答暂时无法完成。",
-						retryable: typeof error?.retryable === "boolean" ? error.retryable : true,
+						code: error.code,
+						message: error.message,
+						retryable: error.retryable,
 					},
 					status: "failed",
 				},

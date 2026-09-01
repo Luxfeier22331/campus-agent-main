@@ -83,6 +83,10 @@ export function requestFilterLabels(search: Partial<RequestSearchLike>) {
 	].filter((item): item is string => Boolean(item));
 }
 
+export function formatRequestViewLabel(value: OpsRequestListView) {
+	return value === "attention" ? "需要关注" : "最近运行";
+}
+
 export function requestSearchDraftFromSearch(search: Partial<RequestSearchLike>) {
 	return {
 		q: search.q ?? "",

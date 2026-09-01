@@ -150,6 +150,14 @@ func (s *Server) ExecutePrimaryAgent(
 		startedProjection,
 		activity.IsActivity(ctx),
 	)
+	if err := s.appendTemporalRunProgress(
+		ctx,
+		run,
+		execution.DurableRunProgressPhaseGenerating,
+		time.Now().UTC(),
+	); err != nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+	}
 	output, err := s.callAgentRuntimeRequest(
 		ctx,
 		run,
@@ -408,14 +416,6 @@ func (s *Server) beginPrimaryAgentRun(
 		}
 		run = running
 	}
-	if err := s.appendTemporalRunProgress(
-		ctx,
-		run,
-		execution.DurableRunProgressPhaseGenerating,
-		startedAt,
-	); err != nil {
-		return execution.DurableRun{}, err
-	}
 	return run, nil
 }
 
@@ -629,28 +629,30 @@ func (s *Server) failPrimaryAgentActivity(
 	}
 	var runtimeHTTPError agentRuntimeHTTPError
 	if errors.As(cause, &runtimeHTTPError) {
+		runtimeFailureKind := primaryAgentRuntimeFailureKind(runtimeHTTPError)
 		if release := strings.TrimSpace(runtimeHTTPError.RuntimeRelease); release != "" {
 			payload["agent_runtime_release"] = release
 		}
 		payload["failure"] = primaryAgentRuntimeFailurePayload(
 			failureKind,
-			primaryAgentRuntimeFailureCode(runtimeHTTPError.Code, primaryAgentRuntimeFailureKind(runtimeHTTPError), failureKind),
+			primaryAgentRuntimeFailureCode(runtimeHTTPError.Code, runtimeFailureKind, failureKind),
 			runtimeHTTPError.Operation,
-			runtimeHTTPError.Detail,
+			primaryAgentRuntimeFailureDetail(runtimeHTTPError.Code, runtimeFailureKind, runtimeHTTPError.Detail),
 			runtimeHTTPError.StatusCode,
 			runtimeHTTPError.InvocationID,
 		)
 	}
 	var runtimeApplicationError agentRuntimeApplicationError
 	if errors.As(cause, &runtimeApplicationError) {
+		runtimeFailureKind := primaryAgentRuntimeFailureKind(runtimeApplicationError)
 		if release := strings.TrimSpace(runtimeApplicationError.RuntimeRelease); release != "" {
 			payload["agent_runtime_release"] = release
 		}
 		payload["failure"] = primaryAgentRuntimeFailurePayload(
 			failureKind,
-			primaryAgentRuntimeFailureCode(runtimeApplicationError.Code, primaryAgentRuntimeFailureKind(runtimeApplicationError), failureKind),
+			primaryAgentRuntimeFailureCode(runtimeApplicationError.Code, runtimeFailureKind, failureKind),
 			runtimeApplicationError.Operation,
-			runtimeApplicationError.Detail,
+			primaryAgentRuntimeFailureDetail(runtimeApplicationError.Code, runtimeFailureKind, runtimeApplicationError.Detail),
 			runtimeApplicationError.HTTPStatus,
 			runtimeApplicationError.InvocationID,
 		)
@@ -740,4 +742,15 @@ func primaryAgentRuntimeFailureCode(code string, stableCode string, fallbackCode
 		return code
 	}
 	return strings.TrimSpace(fallbackCode)
+}
+
+func primaryAgentRuntimeFailureDetail(code string, stableCode string, detail string) string {
+	if strings.TrimSpace(stableCode) != "agent_runtime_response_invalid" {
+		return detail
+	}
+	code = strings.TrimSpace(code)
+	if code == "" || boundedTemporalFailureKind(code) != code {
+		return "agent runtime returned an unregistered error code"
+	}
+	return "agent runtime returned unregistered error code " + code
 }

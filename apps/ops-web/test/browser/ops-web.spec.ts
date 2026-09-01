@@ -234,17 +234,10 @@ test("总览在各宽度下保持可读", async ({ page }) => {
 
 test("运行记录进入同页产品结果和执行诊断", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
-	const externalRecordRequests: string[] = [];
-	page.on("request", (request) => {
-		const url = new URL(request.url());
-		if (url.pathname === "/api/ops/requests/req_ops_001/sentry-issues") {
-			externalRecordRequests.push(`${url.pathname}${url.search}`);
-		}
-	});
 	await page.goto("/requests");
 
 	await expect(page.getByRole("heading", { name: "运行记录" })).toBeVisible();
-	const compactLayout = (page.viewportSize()?.width ?? 0) < 768;
+	const compactLayout = (page.viewportSize()?.width ?? 0) < 1280;
 	const recentResults = compactLayout
 		? page.getByTestId("request-mobile-list")
 		: page.getByRole("table", { name: "运行记录" });
@@ -262,17 +255,23 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 		await expectNoAccessibilityViolations(page);
 	}
 
-	await page.getByRole("link", { name: "需要关注" }).click();
+	if ((page.viewportSize()?.width ?? 0) < 768) {
+		await page.getByRole("button", { name: /筛选/u }).click();
+		await page.getByRole("combobox", { name: "运行范围" }).selectOption("attention");
+		await page.getByRole("button", { name: "应用筛选" }).click();
+	} else {
+		await page.getByRole("combobox", { name: "运行范围" }).selectOption("attention");
+		await page.getByRole("button", { name: "应用" }).click();
+	}
 	await expect(page).toHaveURL(/\/requests\?view=attention$/u);
-	await expect(page.getByRole("link", { name: "需要关注" })).toHaveAttribute(
-		"aria-current",
-		"page",
-	);
-	await expect(page.getByRole("link", { name: "最近运行" })).not.toHaveAttribute("aria-current");
-	const attentionResults =
-		(page.viewportSize()?.width ?? 0) < 768
-			? page.getByTestId("request-mobile-list")
-			: page.getByRole("table", { name: "运行记录" });
+	if (compactLayout) {
+		await expect(page.getByText("运行范围：需要关注")).toBeVisible();
+	} else {
+		await expect(page.getByRole("combobox", { name: "运行范围" })).toHaveValue("attention");
+	}
+	const attentionResults = compactLayout
+		? page.getByTestId("request-mobile-list")
+		: page.getByRole("table", { name: "运行记录" });
 	await expect(attentionResults).toContainText("产品请求失败");
 	await expect(attentionResults).toContainText("等待用户补充信息");
 	await expect(attentionResults).toContainText("会话结果缺失");
@@ -288,7 +287,21 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 	await expect(page).toHaveURL(/status=COMPLETED/u);
 	await expect(page.getByRole("link", { name: "奖学金申请截止到哪一天？" })).toBeVisible();
 
-	await page.getByRole("link", { name: "最近运行" }).click();
+	if ((page.viewportSize()?.width ?? 0) < 768) {
+		await page.getByRole("button", { name: /筛选/u }).click();
+		await page.getByRole("combobox", { name: "运行范围" }).selectOption("recent");
+		await page.getByRole("button", { name: "应用筛选" }).click();
+	} else {
+		await page.getByRole("combobox", { name: "运行范围" }).selectOption("recent");
+		await page.getByRole("button", { name: "应用" }).click();
+	}
+	await expect(page).toHaveURL(/\/requests\?status=COMPLETED/u);
+	if (compactLayout) {
+		await expect(page.getByText("运行范围：最近运行")).toBeVisible();
+	} else {
+		await expect(page.getByRole("combobox", { name: "运行范围" })).toHaveValue("recent");
+	}
+	await expect(recentResults).toContainText("会话结果缺失");
 	await page.getByRole("link", { name: "缓考申请需要哪些材料？" }).first().click();
 	await expect(page.getByRole("heading", { name: "运行详情" })).toBeVisible();
 	await expect(page.getByTestId("request-question")).toContainText("缓考申请需要哪些材料？");
@@ -309,21 +322,55 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 	await expect(execution).toContainText("agent-runtime@899f251");
 	await expect(execution).toContainText("execution-control@a77a046");
 	await expect(page.getByRole("link", { name: "系统记录" })).toHaveCount(0);
-	await expect(page.getByRole("button", { name: "加载错误记录" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "加载错误记录" })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: /应用日志/u })).toHaveCount(0);
 	await expect(page.getByText(/正在读取/u)).toHaveCount(0);
-	expect(externalRecordRequests).toEqual([]);
-
-	await page.getByRole("button", { name: "加载错误记录" }).click();
-	const sentryIssues = page.getByRole("list", { name: "错误摘要" });
-	await expect(sentryIssues).toContainText("Request execution failed");
-	await expect(sentryIssues).toContainText("3 个事件");
-	await expect(page.getByRole("link", { name: "在 Sentry 查看" })).toHaveCount(0);
 	if (page.viewportSize()?.width === 320 || page.viewportSize()?.width === 1440) {
 		await expectNoAccessibilityViolations(page);
 	}
-	expect(externalRecordRequests).toEqual(["/api/ops/requests/req_ops_001/sentry-issues"]);
 	await expectStableViewport(page, errors);
+});
+
+test("运行记录在中等宽度使用任务卡片并在宽桌面使用表格", async ({ page }, testInfo) => {
+	testInfo.skip(testInfo.project.name !== "desktop-1440", "只在桌面浏览器项目中运行响应式边界验证");
+
+	await page.setViewportSize({ height: 900, width: 898 });
+	await page.goto("/requests");
+	await expect(page.getByTestId("request-mobile-list")).toBeVisible();
+	await expect(page.getByRole("table", { name: "运行记录" })).toBeHidden();
+	await expect(page.getByRole("combobox", { name: "运行范围" })).toBeVisible();
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+			),
+		)
+		.toBeLessThanOrEqual(0);
+
+	await page.getByRole("combobox", { name: "运行范围" }).selectOption("attention");
+	await page.getByRole("combobox", { name: "状态" }).selectOption("COMPLETED");
+	await page.getByRole("button", { name: "应用" }).click();
+	await expect(page).toHaveURL(
+		/view=attention.*status=COMPLETED|status=COMPLETED.*view=attention/u,
+	);
+	await expect(page.getByText("运行范围：需要关注")).toBeVisible();
+
+	await page.setViewportSize({ height: 900, width: 1280 });
+	await page.goto("/requests");
+	await expect(page.getByRole("table", { name: "运行记录" })).toBeVisible();
+	await expect(page.getByTestId("request-mobile-list")).toBeHidden();
+	await expect(page.getByRole("columnheader", { name: "关注原因" })).toBeVisible();
+	const duration = page
+		.getByRole("table", { name: "运行记录" })
+		.locator("tbody tr")
+		.first()
+		.locator("td")
+		.last()
+		.locator("span");
+	await expect(duration).toHaveCSS("white-space", "nowrap");
+	await expect
+		.poll(async () => (await duration.boundingBox())?.width ?? 0)
+		.toBeGreaterThanOrEqual(120);
 });
 
 test("六类运行记录保留产品结果和执行诊断语义", async ({ page }) => {
@@ -349,8 +396,11 @@ test("六类运行记录保留产品结果和执行诊断语义", async ({ page 
 	await expect(page.getByTestId("request-result")).toContainText("错误结果已写入会话");
 	await expect(page.getByTestId("request-result")).toContainText("当前暂时无法完成查询");
 	await expect(page.getByTestId("request-failure")).toContainText("模型服务不可用");
-	await expect(page.getByTestId("request-failure")).toContainText("provider_unavailable");
 	await expect(page.getByTestId("request-failure")).toContainText("503");
+	await expect(page.getByTestId("request-run-closure")).toContainText("运行终态");
+	await expect(page.getByTestId("request-run-closure")).toContainText("模型服务不可用");
+	await expect(page.getByTestId("request-run-closure")).toContainText("协调收口原因");
+	await expect(page.getByTestId("request-run-closure")).toContainText("provider_timeout");
 	await expect(page.getByTestId("request-execution")).toContainText("失败");
 
 	await page.goto("/requests/req_ops_005");
@@ -367,41 +417,6 @@ test("六类运行记录保留产品结果和执行诊断语义", async ({ page 
 	await expect(page.getByTestId("request-execution").getByRole("listitem").first()).toContainText(
 		"Agent",
 	);
-	await expectStableViewport(page, errors);
-});
-
-test("错误记录读取失败时保留请求诊断摘要", async ({ page }) => {
-	if (page.viewportSize()?.width !== 1440) {
-		return;
-	}
-	const errors = captureRuntimeErrors(page);
-	await page.route("**/api/ops/requests/req_ops_001/sentry-issues", async (route) => {
-		await route.fulfill({
-			body: JSON.stringify({
-				error: { code: "OPS_SENTRY_UNAVAILABLE", message: "Sentry 暂时不可用。" },
-			}),
-			contentType: "application/json",
-			status: 503,
-		});
-	});
-	await page.goto("/requests/req_ops_001");
-
-	await page.getByRole("button", { name: "加载错误记录" }).click();
-	await expect(page.getByText("错误记录读取失败")).toBeVisible();
-	await expect(page.getByText("req_ops_001")).toBeVisible();
-	await expect(page.getByText("agent-runtime@899f251")).toBeVisible();
-	await expectStableViewport(page, errors, ["503 (Service Unavailable)"]);
-});
-
-test("按需错误记录不会串到其他请求", async ({ page }) => {
-	const errors = captureRuntimeErrors(page);
-	await page.goto("/requests/req_ops_003");
-
-	await expect(page.getByRole("heading", { name: "运行详情" })).toBeVisible();
-	await page.getByRole("button", { name: "加载错误记录" }).click();
-	await expect(page.getByText("当前请求没有关联的错误记录。")).toBeVisible();
-	await expect(page.getByText("req_ops_001")).toHaveCount(0);
-	await expect(page.getByText("trace_ops_001")).toHaveCount(0);
 	await expectStableViewport(page, errors);
 });
 

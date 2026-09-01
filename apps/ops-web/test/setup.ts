@@ -4,7 +4,7 @@ import { afterEach, beforeEach, vi } from "vitest";
 import { createOpsApp } from "../src/server/app";
 import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
-import { opsOverviewFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures";
+import { opsOverviewFixture } from "../src/shared/ops-fixtures";
 
 if (typeof CSS !== "undefined" && typeof CSS.supports !== "function") {
 	Object.defineProperty(CSS, "supports", { configurable: true, value: () => false });
@@ -19,9 +19,6 @@ const app = createOpsApp({
 	},
 	overviewService: {
 		getOverview: vi.fn(async () => opsOverviewFixture),
-	},
-	sentry: {
-		queryRequestIssues: vi.fn().mockResolvedValue(opsSentryIssuesFixture),
 	},
 	internalPortalAutomationTokenService: {
 		authenticate: vi.fn().mockResolvedValue(null),

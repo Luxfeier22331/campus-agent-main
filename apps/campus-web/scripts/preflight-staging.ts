@@ -52,7 +52,5 @@ run("pnpm", [
 	"apps/campus-web/dist/campus_web/wrangler.json",
 	"SERVICE:APP_API=app-api-staging",
 	"VAR:APP_API_BASE_URL=https://app-api.internal",
-	"VAR:DEPLOYMENT_ENVIRONMENT=staging",
 	"VAR_ABSENT:AUTH_TURNSTILE_SITE_KEY",
-	"VAR_ABSENT:DEPLOYMENT_RELEASE",
 ]);

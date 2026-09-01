@@ -81,8 +81,7 @@ export function LegalPrivacyPage() {
 			<LegalSection title="第三方服务">
 				<p>
 					服务可能使用 Cloudflare Turnstile 进行安全验证，使用 AI 模型服务生成或整理回答，使用
-					Sentry 等错误监控服务排查问题，使用邮件服务发送账号相关邮件，并依赖云基础设施和内容分发
-					服务提供页面与数据访问。
+					邮件服务发送账号相关邮件，并依赖云基础设施和内容分发服务提供页面与数据访问。
 				</p>
 				<p>这些服务只在完成上述功能所需范围内参与处理。</p>
 			</LegalSection>

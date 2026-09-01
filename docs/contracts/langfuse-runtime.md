@@ -30,11 +30,15 @@ Agent Runtime 只在进程启动时存在 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` �
 选择；产品请求不能选择采样率、project、endpoint 或观测模式。进程关闭时 flush，不在每个请求或
 span 后强制 flush。
 
-浏览器和 Sentry 的追踪上下文只服务 App API 入站错误观测，到 durable execution 边界即终止。
+入站请求的追踪上下文只服务 App API 的可选运行关联，到 durable execution 边界即终止。
 execution-control 只提取和转发入站请求已有的可选 W3C `traceparent`，不从产品标识派生 trace，
-不转换 `sentry-trace`，也不传播 `baggage`。
+也不传播 `baggage`。
 execution-control 不创建 OTel exporter、编排 span 或 runtime metric；Temporal history、PostgreSQL
 投影和 Hindsight 业务调用不依赖 trace export。Hindsight 不产生新的 Langfuse trace。
+
+`traceparent` 只证明跨服务调用的可选因果关联，不承载产品或工作流状态。step `failure.code`、run
+`terminal_reason`、`fail_close_reason` 和产品 `retryable` 都由各自持久合同产生，不能从 trace、
+span、Langfuse 可见性或未传播的 `baggage` 推断。
 
 源码本地 Collector 只有一个 Agent trace pipeline：debug 配置写 debug exporter，prodlike 配置写
 Langfuse。它不接收 execution-control、Hindsight、日志或指标。环境部署

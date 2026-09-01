@@ -83,17 +83,10 @@ Environment，也不进入 Worker candidate。
 
 ## 可观测性
 
-外部平台管理与运行时消费使用不同投递位置，但继续使用同一枚 provider token。Sentry Terraform
-从 GitOps repository secret 读取，Source source map 发布从 Source repository secret 读取，
-Ops Web 从 Kubernetes `observability-runtime-secrets` 读取；应用错误上报使用各应用的 DSN。
-不同位置只是消费方投影，不代表独立的上游身份或轮换单元。完整理由见 ADR-0081 与 ADR-0092。
-
-Sentry provider 操作使用 `SENTRY_AUTH_TOKEN`。仓库没有 `SENTRY_RUNTIME_AUTH_TOKEN` 消费合同。
-
-- App API 与 Campus Web 只通过官方 SDK 上报已清理的错误和获准性能数据；
-- Ops Web 只执行固定范围的 Sentry Issue 读取；
-- source map 上传凭据只进入受保护的 staging 发布 CI；
-- Langfuse Agent trace 和 Sentry 错误事件保持不同数据边界。
+产品请求和执行状态由 PostgreSQL、Temporal 与所属运行时日志提供；Agent trace 是可选的 Langfuse
+运行能力。App API、Campus Web 和 Ops Web 不消费外部错误事件平台，也不维护供应商专用错误凭据。
+Worker source map 由 Wrangler 在 Worker 发布链路中上传给 Cloudflare，用于平台侧 stack trace 映射；
+它不改变产品状态，也不需要外部错误平台 token。
 
 环境告警的查询、阈值、启用状态、notifier 和投递目标由环境仓及所属平台配置共同拥有，不进入
 `packages/contracts`，也不由 Ops Web 提供在线编辑。不得把源码中的 `page`、`ticket` 等通用等级名

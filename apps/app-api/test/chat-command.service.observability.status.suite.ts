@@ -7,7 +7,6 @@ import {
 	createDeterministicIdGenerator,
 	createExecutionRuntimeFromToolClient,
 	createPrincipal,
-	createTelemetryMock,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceObservabilityStatusSuite(): void {
@@ -286,8 +285,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 	it("maps approval_required and rejected into chat-visible errors while preserving runtime statuses", async () => {
 		const approvalStore = createCommandStore();
 		const rejectedStore = createCommandStore();
-		const approvalTelemetry = createTelemetryMock();
-		const rejectedTelemetry = createTelemetryMock();
 		const approvalService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
@@ -307,7 +304,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "approval_required",
 				}),
 			}),
-			telemetry: approvalTelemetry,
 		});
 		const rejectedService = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
@@ -332,7 +328,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					status: "rejected",
 				}),
 			}),
-			telemetry: rejectedTelemetry,
 		});
 
 		const approvalRequired = await approvalService.submit({
@@ -362,12 +357,6 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 				status: "approval_required",
 			},
 		});
-		expect(approvalTelemetry.configureRequestOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({
-				requestId: "req_0001",
-				status: "approval_required",
-			}),
-		);
 		expect(rejected.answer.result).toEqual({
 			errorCode: "request_rejected",
 			kind: "error",
@@ -381,11 +370,5 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 				status: "rejected",
 			},
 		});
-		expect(rejectedTelemetry.configureRequestOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({
-				requestId: "req_0001",
-				status: "rejected",
-			}),
-		);
 	});
 }

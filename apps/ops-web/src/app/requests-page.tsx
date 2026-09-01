@@ -21,6 +21,7 @@ import { formatLifecyclePhase, formatOpsDomainValue } from "./ops-domain-labels"
 import {
 	cleanRequestSearch,
 	formatRequestDuration,
+	formatRequestViewLabel,
 	type RequestSearchLike,
 	requestFilterLabels,
 	requestListPath,
@@ -52,7 +53,6 @@ export function RequestsPage({
 		return (
 			<section>
 				<PageHeader description="还原用户请求的产品处理过程和会话结果。" title="运行记录" />
-				<RequestViewSwitch search={search} view={view} />
 				<RequestFilters search={search} />
 				<div className="mt-4">
 					<ErrorState
@@ -108,10 +108,12 @@ export function RequestsPage({
 					已忽略无效筛选参数：<span className="font-mono">{ignoredParamNames.join("、")}</span>
 				</div>
 			) : null}
-			<RequestViewSwitch search={search} view={view} />
 			<RequestFilters search={search} />
 			<div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
 				<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+					<span className="font-medium text-foreground">
+						运行范围：{formatRequestViewLabel(view)}
+					</span>
 					<span className="font-medium text-foreground">
 						共 {selectedCount} 条，当前显示 {requests.data.data.length} 条
 					</span>
@@ -122,11 +124,15 @@ export function RequestsPage({
 						更新于 {formatTimestamp(requests.data.generatedAt)}
 					</span>
 				</div>
-				<RequestPagination
-					hasActiveFilters={hasActiveFilters}
-					nextCursor={requests.data.page.nextCursor}
-					search={search}
-				/>
+				{hasActiveFilters ? (
+					<Link
+						className="font-medium text-info hover:underline"
+						search={cleanRequestSearch({ view: search.view })}
+						to="/requests"
+					>
+						清除筛选
+					</Link>
+				) : null}
 			</div>
 			{hasActiveFilters ? (
 				<p className="mb-3 text-muted-foreground text-xs">
@@ -146,83 +152,36 @@ export function RequestsPage({
 						generatedAt={requests.data.generatedAt}
 						requests={requests.data.data}
 						search={search}
-						view={view}
 					/>
-					<div className="hidden md:block">
+					<div className="hidden xl:block">
 						<DataTable<OpsRequestSummary>
 							caption="运行记录"
-							columns={createRequestColumns(requests.data.generatedAt, search, view)}
+							columns={createRequestColumns(requests.data.generatedAt, search)}
 							data={requests.data.data}
-							minWidth="1040px"
+							minWidth="1000px"
 							rowKey={(row) => row.requestId}
 						/>
 					</div>
 				</>
 			)}
+			{search.cursor || requests.data.page.nextCursor ? (
+				<div className="mt-4">
+					<RequestPagination nextCursor={requests.data.page.nextCursor} search={search} />
+				</div>
+			) : null}
 		</section>
 	);
 }
 
-function RequestViewSwitch({
-	search,
-	view,
-}: {
-	search: RequestSearchLike;
-	view: OpsRequestListView;
-}) {
-	return (
-		<nav aria-label="运行记录视图" className="mb-4 flex border-border border-b">
-			{(
-				[
-					["recent", "最近运行"],
-					["attention", "需要关注"],
-				] as const
-			).map(([value, label]) => (
-				<Link
-					activeOptions={{ exact: true, includeSearch: true }}
-					aria-current={view === value ? "page" : undefined}
-					className={cn(
-						"inline-flex min-h-11 items-center border-b-2 px-4 font-medium text-sm",
-						view === value
-							? "border-border-selected text-selected-foreground"
-							: "border-transparent text-muted-foreground hover:text-foreground",
-					)}
-					key={value}
-					search={cleanRequestSearch({
-						...search,
-						cursor: undefined,
-						status: undefined,
-						view: value,
-					})}
-					to="/requests"
-				>
-					{label}
-				</Link>
-			))}
-		</nav>
-	);
-}
-
 function RequestPagination({
-	hasActiveFilters,
 	nextCursor,
 	search,
 }: {
-	hasActiveFilters: boolean;
 	nextCursor: string | null;
 	search: RequestSearchLike;
 }) {
 	return (
-		<div className="flex items-center gap-3">
-			{hasActiveFilters ? (
-				<Link
-					className="font-medium text-info hover:underline"
-					search={cleanRequestSearch({ view: search.view })}
-					to="/requests"
-				>
-					清除筛选
-				</Link>
-			) : null}
+		<nav aria-label="运行记录分页" className="flex items-center gap-3">
 			{search.cursor ? (
 				<Link
 					className="font-medium text-info hover:underline"
@@ -241,7 +200,7 @@ function RequestPagination({
 					下一页
 				</Link>
 			) : null}
-		</div>
+		</nav>
 	);
 }
 
@@ -282,26 +241,32 @@ function RequestMobileList({
 	generatedAt,
 	requests,
 	search,
-	view,
 }: {
 	generatedAt: string;
 	requests: OpsRequestSummary[];
 	search: RequestSearchLike;
-	view: OpsRequestListView;
 }) {
 	return (
-		<div className="divide-y divide-border md:hidden" data-testid="request-mobile-list">
+		<div className="divide-y divide-border xl:hidden" data-testid="request-mobile-list">
 			{requests.map((request) => (
 				<article
 					className="grid gap-3 py-4 first:pt-0"
 					data-testid="request-mobile-card"
 					key={request.requestId}
 				>
-					<div className="flex items-center justify-between gap-3">
+					<div className="flex items-start justify-between gap-3">
 						<span className="text-muted-foreground text-xs">
 							{formatTimestamp(request.startedAt)}
 						</span>
-						<StatusBadge status={request.status} />
+						<div className="grid justify-items-end gap-1">
+							<StatusBadge status={request.status} />
+							{request.attentionReason ? (
+								<div className="grid justify-items-end gap-0.5">
+									<span className="text-muted-foreground text-[11px]">关注原因</span>
+									<RequestAttentionReason request={request} />
+								</div>
+							) : null}
+						</div>
 					</div>
 					<Link
 						className="break-words font-semibold text-foreground underline-offset-4 hover:underline"
@@ -311,8 +276,8 @@ function RequestMobileList({
 					>
 						{questionPreview(request)}
 					</Link>
+					<RequestProductResult request={request} />
 					<RequestExecutionStage request={request} />
-					{view === "attention" ? <RequestAttentionReason request={request} /> : null}
 					<div className="flex justify-end text-xs">
 						<span className="font-medium text-foreground">
 							{formatRequestDuration(request, generatedAt)}
@@ -337,23 +302,11 @@ function RequestMobileList({
 	);
 }
 
-function createRequestColumns(
-	generatedAt: string,
-	search: RequestSearchLike,
-	view: OpsRequestListView,
-) {
+function createRequestColumns(generatedAt: string, search: RequestSearchLike) {
 	return [
 		{
 			cell: (row: OpsRequestSummary) => (
-				<span className="min-w-[150px] text-muted-foreground">
-					{formatTimestamp(row.startedAt)}
-				</span>
-			),
-			header: "发起时间",
-		},
-		{
-			cell: (row: OpsRequestSummary) => (
-				<div className="grid min-w-[250px] gap-1">
+				<div className="grid min-w-[260px] gap-1">
 					<Link
 						className="line-clamp-2 font-medium text-foreground underline-offset-4 hover:underline"
 						params={{ requestId: row.requestId }}
@@ -362,11 +315,12 @@ function createRequestColumns(
 					>
 						{questionPreview(row)}
 					</Link>
-					<div className="flex min-w-0 items-center gap-1">
-						<span
-							className="truncate font-mono text-muted-foreground text-xs"
-							title={row.requestId}
-						>
+					<div className="flex min-w-0 items-center gap-2 text-xs">
+						<span className="text-muted-foreground">{formatTimestamp(row.startedAt)}</span>
+						<span className="text-muted-foreground" aria-hidden="true">
+							·
+						</span>
+						<span className="truncate font-mono text-muted-foreground" title={row.requestId}>
 							{row.requestId}
 						</span>
 						<CopyIconButton contextLabel={row.requestId} label="requestId" value={row.requestId} />
@@ -377,23 +331,34 @@ function createRequestColumns(
 			rowHeader: true,
 		},
 		{
-			cell: (row: OpsRequestSummary) => (
-				<RequestExecutionStage className="min-w-[220px]" request={row} />
-			),
-			header: "执行阶段",
+			cell: (row: OpsRequestSummary) => <RequestProductResult request={row} />,
+			header: "产品结果",
 		},
 		{
 			cell: (row: OpsRequestSummary) => (
-				<div className="grid min-w-[130px] justify-items-start gap-2">
+				<div className="grid min-w-[110px] gap-1">
 					<StatusBadge status={row.status} />
-					{view === "attention" ? <RequestAttentionReason request={row} /> : null}
 				</div>
 			),
-			header: "状态",
+			header: "产品状态",
 		},
 		{
 			cell: (row: OpsRequestSummary) => (
-				<span className="min-w-[120px] tabular-nums">
+				<RequestExecutionStage className="min-w-[190px]" request={row} />
+			),
+			header: "执行诊断",
+		},
+		{
+			cell: (row: OpsRequestSummary) => (
+				<div className="min-w-[140px]">
+					<RequestAttentionReason request={row} />
+				</div>
+			),
+			header: "关注原因",
+		},
+		{
+			cell: (row: OpsRequestSummary) => (
+				<span className="block min-w-[120px] whitespace-nowrap tabular-nums">
 					{formatRequestDuration(row, generatedAt)}
 				</span>
 			),
@@ -416,17 +381,26 @@ function RequestExecutionStage({
 	const stage = request.executionStage;
 	return (
 		<div className={cn("grid gap-1 text-sm", className)}>
+			<span className="text-muted-foreground text-xs">执行阶段</span>
 			<span className="font-medium text-foreground">
 				{stage
 					? `${formatOpsDomainValue(stage.kind)} · ${formatOpsDomainValue(stage.status)}`
 					: formatLifecyclePhase(request.lifecyclePhase)}
 			</span>
-			<span className="text-muted-foreground text-xs">{formatResultSummary(request)}</span>
 			{request.failureKind ? (
 				<span className="text-danger text-xs">
 					失败类型：{formatOpsDomainValue(request.failureKind)}
 				</span>
 			) : null}
+		</div>
+	);
+}
+
+function RequestProductResult({ request }: { request: OpsRequestSummary }) {
+	return (
+		<div className="grid min-w-[150px] gap-1 text-sm">
+			<span className="text-muted-foreground text-xs">产品结果</span>
+			<span className="font-medium text-foreground">{formatResultSummary(request)}</span>
 		</div>
 	);
 }

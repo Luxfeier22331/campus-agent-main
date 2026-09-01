@@ -294,10 +294,6 @@ jobs:
           OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
           OBJECT_STORE_VPC_SERVICE_ID: ${{ vars.OBJECT_STORE_VPC_SERVICE_ID }}
           OPS_WEB_INTERNAL_TOKEN: ${{ secrets.OPS_WEB_INTERNAL_TOKEN }}
-          SENTRY_APP_API_DSN: ${{ vars.SENTRY_APP_API_DSN }}
-          SENTRY_APP_API_PROJECT_SLUG: ${{ vars.SENTRY_APP_API_PROJECT_SLUG }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
           WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/app-api-staging.json
         run: |
           mkdir -p worker-candidates
@@ -310,13 +306,9 @@ jobs:
           steps.install_workers.outcome == 'success' &&
           contains(fromJSON(needs.release-plan.outputs.workers), 'campus-web-staging')
         env:
-          CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD: required
           OBJECT_STORE_DERIVED_READ_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_ACCESS_KEY }}
           OBJECT_STORE_DERIVED_READ_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_READ_SECRET_KEY }}
           OBJECT_STORE_ENDPOINT: ${{ vars.OBJECT_STORE_ENDPOINT }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
-          SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
         run: pnpm --dir apps/campus-web build:staging
 
       - name: Upload Campus Web candidate
@@ -330,10 +322,6 @@ jobs:
           CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ vars.CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_CAMPUS_WEB_DSN: ${{ vars.SENTRY_CAMPUS_WEB_DSN }}
-          SENTRY_CAMPUS_WEB_PROJECT_SLUG: ${{ vars.SENTRY_CAMPUS_WEB_PROJECT_SLUG }}
-          SENTRY_ORG_SLUG: ${{ vars.SENTRY_ORG_SLUG }}
           STATUS_WEB_PUBLIC_ORIGIN: ${{ vars.STATUS_WEB_PUBLIC_ORIGIN }}
           WORKER_VERSION_OUTPUT: ${{ github.workspace }}/worker-candidates/campus-web-staging.json
         run: |

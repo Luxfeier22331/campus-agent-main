@@ -17,7 +17,6 @@ import {
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
-	createTelemetryMock,
 	getFrozenExecutionPayload,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
@@ -149,7 +148,6 @@ describe("chat command durable runtime cutover", () => {
 	it("finalizes blocking accepted chat requests from durable finalization events", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
@@ -200,7 +198,6 @@ describe("chat command durable runtime cutover", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			telemetry,
 		});
 
 		await service.submit({
@@ -417,7 +414,6 @@ describe("chat command durable runtime cutover", () => {
 	it("polls blocking durable run events by cursor until terminal finalization arrives", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
@@ -463,7 +459,6 @@ describe("chat command durable runtime cutover", () => {
 			now: () => new Date("2026-06-04T01:02:03.000Z"),
 			conversationStore,
 			store,
-			telemetry,
 		});
 
 		await service.submit({

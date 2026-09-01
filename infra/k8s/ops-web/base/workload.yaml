@@ -128,16 +128,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: OPS_WEB_SENTRY_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_SENTRY_BASE_URL
-            - name: OPS_WEB_SENTRY_PROJECT_SLUGS
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: OPS_WEB_SENTRY_PROJECT_SLUGS
             - name: OPS_WEB_INTERNAL_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -153,17 +143,6 @@ spec:
                 configMapKeyRef:
                   name: ops-web-config
                   key: ACCESS_POLICY_AUD
-            - name: SENTRY_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: observability-runtime-secrets
-                  key: SENTRY_AUTH_TOKEN
-                  optional: true
-            - name: SENTRY_ORG_SLUG
-              valueFrom:
-                configMapKeyRef:
-                  name: ops-web-config
-                  key: SENTRY_ORG_SLUG
           volumeMounts:
             - name: postgres-ca
               mountPath: /etc/campus-agent/postgres

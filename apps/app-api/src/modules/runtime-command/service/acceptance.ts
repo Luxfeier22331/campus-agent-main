@@ -34,14 +34,8 @@ export async function acceptChatCommand(
 	service: ChatCommandServiceContext,
 	input: ChatCommandSubmitInput,
 ): Promise<AcceptChatCommandResult> {
-	const {
-		computeFingerprint,
-		dependencies,
-		deriveSafetyIdentifierForPrincipal,
-		generateId,
-		now,
-		telemetry,
-	} = service;
+	const { computeFingerprint, dependencies, deriveSafetyIdentifierForPrincipal, generateId, now } =
+		service;
 	if (!input.principal.permissions.chat) {
 		throw createPreAcceptError({
 			code: "forbidden",
@@ -221,11 +215,6 @@ export async function acceptChatCommand(
 		surface,
 		turnSequence,
 		userMessageId,
-	});
-
-	telemetry?.configureChatRequestScope({
-		requestId,
-		surface,
 	});
 
 	let acceptedState: Awaited<ReturnType<typeof dependencies.commandStore.acceptRequest>>;

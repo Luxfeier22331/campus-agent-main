@@ -13,6 +13,7 @@ function execution(
 ): OpsRequestDetailResponse["execution"] {
 	const failed = status === "failed";
 	return {
+		failCloseReason: failed ? "provider_timeout" : null,
 		failure: {
 			code: failed ? "provider_unavailable" : null,
 			detail: failed ? "The answer provider is temporarily unavailable." : null,
@@ -40,6 +41,12 @@ function execution(
 				status,
 			},
 		],
+		terminalReason:
+			status === "failed"
+				? "provider_unavailable"
+				: status === "completed"
+					? "answer_completed"
+					: null,
 	};
 }
 
@@ -312,18 +319,3 @@ export const opsOverviewFixture = {
 	},
 	window: "1h",
 } satisfies OpsOverviewResponse;
-
-export const opsSentryIssuesFixture = {
-	dataState: "FRESH",
-	issues: [
-		{
-			eventCount: 3,
-			firstSeen: "2026-07-09T06:29:04.000Z",
-			lastSeen: "2026-07-09T06:29:06.000Z",
-			level: "error",
-			status: "unresolved",
-			title: "Request execution failed",
-		},
-	],
-	queriedAt: now,
-} satisfies import("./ops-contract").OpsSentryIssuesResponse;

@@ -1,15 +1,10 @@
 import { ThemeProvider } from "@campus-agent/ui";
-import { StrictMode } from "react";
+import { Component, type ReactNode, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { AppRouter, campusRouter } from "./app/router";
+import { AppRouter } from "./app/router";
 import { CampusSessionProvider } from "./platform/auth/session";
 import { getCampusRuntimeConfig } from "./platform/runtime/config";
-import {
-	CampusSentryErrorBoundary,
-	campusReactErrorHandler,
-	initializeCampusBrowserSentry,
-} from "./platform/telemetry/sentry-browser-loader";
 import "./app-styles.css";
 
 const rootElement = document.getElementById("root");
@@ -18,20 +13,31 @@ if (!rootElement) {
 	throw new Error("Campus root element was not found.");
 }
 
-const runtimeConfig = getCampusRuntimeConfig();
-void initializeCampusBrowserSentry(runtimeConfig.sentry, campusRouter).catch(() => undefined);
+getCampusRuntimeConfig();
 
-createRoot(rootElement, {
-	onRecoverableError: campusReactErrorHandler(),
-	onUncaughtError: campusReactErrorHandler(),
-}).render(
+class CampusErrorBoundary extends Component<
+	{ children: ReactNode; fallback: ReactNode },
+	{ failed: boolean }
+> {
+	override state = { failed: false };
+
+	static getDerivedStateFromError() {
+		return { failed: true };
+	}
+
+	override render() {
+		return this.state.failed ? this.props.fallback : this.props.children;
+	}
+}
+
+createRoot(rootElement).render(
 	<StrictMode>
 		<ThemeProvider>
-			<CampusSentryErrorBoundary fallback={<ApplicationFailure />}>
+			<CampusErrorBoundary fallback={<ApplicationFailure />}>
 				<CampusSessionProvider>
 					<AppRouter />
 				</CampusSessionProvider>
-			</CampusSentryErrorBoundary>
+			</CampusErrorBoundary>
 		</ThemeProvider>
 	</StrictMode>,
 );

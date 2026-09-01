@@ -8,7 +8,6 @@ import {
 	OpsOverviewResponseSchema,
 	OpsRequestDetailResponseSchema,
 	OpsRequestListResponseSchema,
-	OpsSentryIssuesResponseSchema,
 } from "../../shared/ops-contract";
 import { fetchJson } from "./core";
 
@@ -63,16 +62,5 @@ export async function fetchOpsOverview(
 	const query = new URLSearchParams({ window });
 	return OpsOverviewResponseSchema.parse(
 		await fetchJson(`/api/ops/overview?${query.toString()}`, { signal: input.signal }),
-	);
-}
-
-export async function fetchOpsSentryIssues(
-	requestId: string,
-	input: { signal?: AbortSignal } = {},
-) {
-	return OpsSentryIssuesResponseSchema.parse(
-		await fetchJson(`/api/ops/requests/${encodeURIComponent(requestId)}/sentry-issues`, {
-			signal: input.signal,
-		}),
 	);
 }

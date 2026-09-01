@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import worker, { applyUpstreamCorrelationTags, type Env } from "../src/index";
+import worker, { type Env } from "../src/index";
 
 const appRoot = join(__dirname, "..");
 
@@ -79,28 +79,6 @@ describe("campus worker boundary", () => {
 
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toMatchObject({ status: "ready" });
-	});
-
-	it("adds validated upstream product correlation IDs to the current Sentry scope", () => {
-		const setTag = vi.fn();
-		applyUpstreamCorrelationTags(
-			new Response(null, {
-				headers: {
-					"x-request-id": "req_01HQ",
-					"x-trace-id": "trace_01HQ",
-				},
-			}),
-			setTag,
-		);
-		expect(setTag).toHaveBeenCalledOnce();
-		expect(setTag).toHaveBeenCalledWith("campus.request_id", "req_01HQ");
-
-		setTag.mockClear();
-		applyUpstreamCorrelationTags(
-			new Response(null, { headers: { "x-request-id": "invalid value" } }),
-			setTag,
-		);
-		expect(setTag).not.toHaveBeenCalled();
 	});
 
 	it("serves the favicon through static assets before shell route matching", async () => {
@@ -362,9 +340,7 @@ describe("campus worker boundary", () => {
 			"script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
 		);
 		expect(csp).toContain("frame-src 'self' https://challenges.cloudflare.com");
-		expect(csp).toContain(
-			"connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io https://cloudflareinsights.com",
-		);
+		expect(csp).toContain("connect-src 'self' https://cloudflareinsights.com");
 		expect(csp).toContain("img-src 'self' https://p.qlogo.cn data: blob:");
 		expect(csp).not.toContain("https://cdn.platform.openai.com");
 	});
@@ -408,9 +384,8 @@ describe("campus worker boundary", () => {
 			new Request("https://campus.muc.wiki/api/chat/requests/stream", {
 				body: JSON.stringify({ prompt: "国家奖学金什么时候评审？" }),
 				headers: {
-					baggage: "sentry-environment=staging",
+					baggage: "app.component=campus-web",
 					"content-type": "application/json",
-					"sentry-trace": "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 					traceparent: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
 					"x-trace-id": "trace_01HQ",
 				},
@@ -428,10 +403,7 @@ describe("campus worker boundary", () => {
 		expect(forwarded.headers.get("traceparent")).toBe(
 			"00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
 		);
-		expect(forwarded.headers.get("sentry-trace")).toBe(
-			"0123456789abcdef0123456789abcdef-0123456789abcdef-1",
-		);
-		expect(forwarded.headers.get("baggage")).toBe("sentry-environment=staging");
+		expect(forwarded.headers.get("baggage")).toBe("app.component=campus-web");
 		expect(forwarded.headers.get("x-trace-id")).toBeNull();
 	});
 
@@ -642,12 +614,7 @@ describe("campus worker boundary", () => {
 	});
 
 	it("injects public runtime config from worker env into the shell", async () => {
-		const env = {
-			...createEnv(),
-			SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
-			DEPLOYMENT_ENVIRONMENT: "staging",
-			DEPLOYMENT_RELEASE: "campus-web@0123456789abcdef0123456789abcdef01234567",
-		};
+		const env = createEnv();
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/", {
 				headers: { accept: "text/html" },
@@ -661,8 +628,6 @@ describe("campus worker boundary", () => {
 		expect(html).toContain("__CAMPUS_AUTH_CONFIG__");
 		expect(html).toContain("https://campus.muc.wiki/account");
 		expect(html).toContain("https://campus.muc.wiki/account/login");
-		expect(html).toContain("https://public@example.ingest.sentry.io/1");
-		expect(html).toContain("campus-web@0123456789abcdef0123456789abcdef01234567");
 		expect(html).not.toContain("loginReturnApp");
 	});
 });

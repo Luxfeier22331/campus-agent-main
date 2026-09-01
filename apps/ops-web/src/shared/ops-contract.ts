@@ -457,6 +457,7 @@ const OpsExecutionStageSchema = z.object({
 
 export const OpsRequestDetailResponseSchema = z.object({
 	execution: z.object({
+		failCloseReason: z.string().min(1).nullable(),
 		failure: OpsExecutionFailureSchema,
 		model: z.object({
 			name: z.string().min(1).nullable(),
@@ -474,6 +475,7 @@ export const OpsRequestDetailResponseSchema = z.object({
 			executionControl: z.string().min(1).nullable(),
 		}),
 		stages: z.array(OpsExecutionStageSchema),
+		terminalReason: z.string().min(1).nullable(),
 	}),
 	generatedAt: IsoDateTimeSchema,
 	question: z.object({
@@ -543,28 +545,12 @@ export const OpsOverviewResponseSchema = z.object({
 	window: OpsOverviewWindowSchema,
 });
 
-const SentryIssueSummarySchema = z.object({
-	eventCount: z.number().int().nonnegative(),
-	firstSeen: IsoDateTimeSchema,
-	lastSeen: IsoDateTimeSchema,
-	level: z.string().min(1).nullable(),
-	status: z.string().min(1),
-	title: z.string().min(1),
-});
-
-export const OpsSentryIssuesResponseSchema = z.object({
-	dataState: OpsDataStateSchema,
-	issues: z.array(SentryIssueSummarySchema).max(5),
-	queriedAt: IsoDateTimeSchema,
-});
-
 export type OpsDataState = z.infer<typeof OpsDataStateSchema>;
 export type OpsHealthStatus = z.infer<typeof OpsHealthStatusSchema>;
 export type OpsOverviewResponse = z.infer<typeof OpsOverviewResponseSchema>;
 export type OpsOverviewWindow = z.infer<typeof OpsOverviewWindowSchema>;
 export type OpsRequestDetailResponse = z.infer<typeof OpsRequestDetailResponseSchema>;
 export type OpsRequestListView = z.infer<typeof OpsRequestListViewSchema>;
-export type OpsSentryIssuesResponse = z.infer<typeof OpsSentryIssuesResponseSchema>;
 export type OpsRequestListResponse = z.infer<typeof OpsRequestListResponseSchema>;
 export type OpsRequestSummary = z.infer<typeof OpsRequestSummarySchema>;
 export type OpsRequestWindow = z.infer<typeof OpsRequestWindowSchema>;

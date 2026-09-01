@@ -109,7 +109,7 @@ describe("chat run routes", () => {
 		expect(event).toMatchObject({
 			data: {
 				error: {
-					code: "agent_runtime_timeout",
+					code: "execution_timeout",
 					message: "The agent runtime did not complete before its deadline.",
 					retryable: true,
 				},
@@ -118,5 +118,36 @@ describe("chat run routes", () => {
 			},
 			event: "request.failed",
 		});
+	});
+
+	it("rejects failed resume events without product retryability", () => {
+		expect(() =>
+			__chatRunRoutesTestables.toChatRunResumeStreamEvent({
+				event: {
+					eventType: "request.failed",
+					occurredAt: "2026-06-04T01:02:06.000Z",
+					payload: {
+						error: {
+							code: "run_failed",
+							message: "The request could not be completed.",
+						},
+						status: "failed",
+					},
+					requestId: "req_missing_retryable",
+					sequence: 3,
+				},
+				run: {
+					acceptedAt: "2026-06-04T01:02:03.000Z",
+					completedAt: "2026-06-04T01:02:06.000Z",
+					conversationId: "conv_01HQ",
+					durationMs: 3_000,
+					startedAt: "2026-06-04T01:02:04.000Z",
+					phase: "failed",
+					requestId: "req_missing_retryable",
+					status: "failed",
+					terminalReason: "execution_failed",
+				},
+			}),
+		).toThrow("request.failed error.retryable is required");
 	});
 });

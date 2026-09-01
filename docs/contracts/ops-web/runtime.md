@@ -67,7 +67,8 @@ SQL 片段。
 - `MISSING`：产品已进入终态，但没有满足 request、conversation 和 role 关联的助手消息。
 
 `executionStage` 是当前请求最近保存步骤的 `kind` 和 `status`，没有步骤时为 `null`；
-`failureKind` 是列表使用的持久失败代码。执行阶段失败会让请求进入 `attention`，但不改写产品请求状态；
+`failureKind` 只来自最近失败 step 的结构化 `failure.code`，不从产品 `errorCode`、run
+`terminalReason` 或 `failCloseReason` 补值。执行阶段失败会让请求进入 `attention`，但不改写产品请求状态；
 因此回答已经写入时仍为 `COMPLETED` 与 `WRITTEN`，并以 `EXECUTION_STAGE_FAILED` 标记需要关注。列表查询不读取
 attempt 诊断。
 活动请求的展示耗时由服务端 `generatedAt - startedAt` 计算；终态使用产品完成时间计算的持久耗时。
@@ -89,30 +90,19 @@ locator 或 trace card。
 
 - `failure`：当前失败操作的结构化诊断事实，包括 `code`、`operation`、可选 `detail`、
   `httpStatus` 和 `invocationId`。存在多个失败阶段时，按阶段 `updatedAt`、`startedAt`、`stepId` 的降序确定当前失败阶段；
-  `terminalReason` 与 `failCloseReason` 仍是运行状态字段，不作为根因重复展示；Sentry 只提供辅助错误记录，不影响基础失败事实返回；
+- `terminalReason`：execution-control 保存的粗粒度运行终态；
+- `failCloseReason`：协调器执行失败收口的原因；
 - `releases`：本次运行实际记录的 execution-control 与 agent-runtime release，二者只用于诊断；
 - `model`：模型与 provider、模型请求数及汇总 token；
 - `stages[]`：阶段类型、状态、起止时间、耗时和有界失败类型。
 
-历史运行没有某个诊断字段时返回 `null`，没有持久阶段时返回空数组，不从日志或外部 trace 推导。
+`failure`、`terminalReason` 与 `failCloseReason` 在页面中分区展示，任何一个字段都不能替代另一个。
+历史运行没有某个诊断字段时返回 `null`，没有持久阶段时返回空数组，不从产品错误、终态、日志或外部
+trace 推导根因。
 Ops Web 只以 `requestId` 聚合 `chat.turn_dispatches`、产品消息以及 execution-control 的固定净化列；
 不向浏览器暴露 workflow、Temporal run、step、attempt、result 或 provider response ID。
 
 接口不返回完整模型输入输出、供应商原始响应、费用、Temporal history、完整 Langfuse trace、记忆正文
 或检索候选正文。精确字段由 `apps/ops-web/src/shared/ops-contract.ts` 维护。
 
-## `GET /api/ops/requests/:requestId/sentry-issues`
-
-该接口返回与已保存请求关联的最多五条 Sentry Issue 摘要，不返回完整 event、stack、breadcrumb、
-request 或用户上下文。
-
-服务端使用可信请求标识、固定 environment、项目集合、排序和有界时间窗口调用官方 Issues
-API。浏览器不能添加查询参数。响应包含 `requestId`、查询时间、数据状态和 Issue 摘要，不包含
-OTel correlation 或供应商 `searchQuery`；查询未配置、失败或响应
-无效时返回 `503 OPS_SENTRY_UNAVAILABLE`。
-
 通用鉴权、错误和禁止行为见 [README.md](./README.md)。
-
-运行详情中的 Sentry 记录按需加载。打开详情不会自动发起外部记录查询；操作者点击“加载”后才查询，
-并可单独刷新。响应的
-`dataState`、记录数量和查询时间使用普通文本展示，仅错误和过期状态保留警告样式。

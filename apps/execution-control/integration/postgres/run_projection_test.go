@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/jackc/pgx/v5"
 )
 
 func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
@@ -151,6 +152,83 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 			}
 		case <-time.After(time.Second):
 			t.Fatal("closing the store did not release the active run event waiter")
+		}
+	})
+
+	t.Run("listener reconnects after backend termination", func(t *testing.T) {
+		databaseName, databaseURL := harness.ownerDatabase(t)
+		store := newRunProjectionStore(t, databaseURL, true)
+		if err := store.HealthCheck(t.Context()); err != nil {
+			t.Fatalf("run projection health check: %v", err)
+		}
+
+		now := time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
+		run := createPostgresRunningRun(t, store, "run-listener-reconnect", now)
+		adminURL := harness.databaseURL(t, databaseName, adminUser, adminPassword)
+		oldPID := waitForRunEventListenerPID(t, adminURL, true)
+
+		type waitResult struct {
+			events []execution.DurableRunEvent
+			err    error
+		}
+		waitCtx, cancelWait := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancelWait()
+		waitResults := make(chan waitResult, 1)
+		go func() {
+			events, waitErr := store.WaitForRunEventsAfter(waitCtx, run.RequestID, 0)
+			waitResults <- waitResult{events: events, err: waitErr}
+		}()
+		time.Sleep(50 * time.Millisecond)
+
+		terminateRunEventListener(t, adminURL, oldPID)
+		select {
+		case result := <-waitResults:
+			if result.err == nil {
+				t.Fatalf("listener termination returned events without an error: %#v", result.events)
+			}
+			if errors.Is(result.err, context.DeadlineExceeded) {
+				t.Fatalf("listener termination left waiter blocked: %v", result.err)
+			}
+		case <-waitCtx.Done():
+			t.Fatalf("listener termination did not release waiter: %v", waitCtx.Err())
+		}
+
+		waitForRunEventListenerPID(t, adminURL, false)
+		waitForRunProjectionHealth(t, store)
+		newPID := waitForRunEventListenerPID(t, adminURL, true)
+		if newPID == oldPID {
+			t.Fatalf("listener backend was not replaced: old pid=%d new pid=%d", oldPID, newPID)
+		}
+
+		resumeCtx, cancelResume := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancelResume()
+		resumeResults := make(chan waitResult, 1)
+		go func() {
+			events, waitErr := store.WaitForRunEventsAfter(resumeCtx, run.RequestID, 0)
+			resumeResults <- waitResult{events: events, err: waitErr}
+		}()
+		time.Sleep(50 * time.Millisecond)
+
+		appended, err := store.AppendRunEvent(t.Context(), execution.DurableRunEvent{
+			EventID:              run.RequestID + ":listener-reconnect",
+			RequestID:            run.RequestID,
+			ConversationID:       run.ConversationID,
+			EventType:            execution.DurableRunEventTypeRunAnswerStarted,
+			OccurredAt:           now.Add(time.Second),
+			Visibility:           execution.DurableRunEventVisibilityBrowser,
+			PayloadSchemaVersion: "run-event-v1",
+			Payload:              map[string]any{"status": "streaming"},
+		})
+		if err != nil {
+			t.Fatalf("append event after listener reconnect: %v", err)
+		}
+		select {
+		case result := <-resumeResults:
+			if result.err != nil || len(result.events) != 1 || result.events[0].Sequence != appended.Sequence {
+				t.Fatalf("reconnected listener result = %#v, err=%v", result.events, result.err)
+			}
+		case <-resumeCtx.Done():
+			t.Fatalf("reconnected listener did not receive notification: %v", resumeCtx.Err())
 		}
 	})
 
@@ -1090,6 +1168,80 @@ func newRunProjectionStore(
 	}
 	t.Cleanup(store.Close)
 	return store
+}
+
+func waitForRunEventListenerPID(
+	t *testing.T,
+	databaseURL string,
+	present bool,
+) int32 {
+	t.Helper()
+	conn := connect(t, databaseURL)
+	defer closeConn(t, conn)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		var pid int32
+		err := conn.QueryRow(
+			t.Context(),
+			`select pid
+			 from pg_stat_activity
+			 where datname = current_database()
+			   and usename = $1
+			   and lower(query) like 'listen campus_agent_run_events%'
+			 order by backend_start desc
+			 limit 1`,
+			ownerRole,
+		).Scan(&pid)
+		found := err == nil
+		if present && found {
+			return pid
+		}
+		if !present && errors.Is(err, pgx.ErrNoRows) {
+			return 0
+		}
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("inspect run event listener backend: %v", err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if present {
+		t.Fatalf("run event listener backend did not become visible")
+	} else {
+		t.Fatalf("run event listener backend did not terminate")
+	}
+	return 0
+}
+
+func terminateRunEventListener(t *testing.T, databaseURL string, pid int32) {
+	t.Helper()
+	conn := connect(t, databaseURL)
+	defer closeConn(t, conn)
+	var terminated bool
+	if err := conn.QueryRow(t.Context(), `select pg_terminate_backend($1)`, pid).Scan(&terminated); err != nil {
+		t.Fatalf("terminate run event listener backend: %v", err)
+	}
+	if !terminated {
+		t.Fatalf("terminate run event listener backend returned false for pid %d", pid)
+	}
+}
+
+func waitForRunProjectionHealth(
+	t *testing.T,
+	store *execution.PostgresRunProjectionStore,
+) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		checkCtx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
+		lastErr = store.HealthCheck(checkCtx)
+		cancel()
+		if lastErr == nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("run projection health did not recover: %v", lastErr)
 }
 
 func durableRun(runID, conversationID string, now time.Time) execution.DurableRun {

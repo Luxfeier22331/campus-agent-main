@@ -9,7 +9,6 @@ export interface ChatCommandServiceContext {
 	>;
 	generateId: NonNullable<ChatCommandServiceDependencies["generateId"]>;
 	now: NonNullable<ChatCommandServiceDependencies["now"]>;
-	telemetry: ChatCommandServiceDependencies["telemetry"];
 }
 
 export function createChatCommandServiceContext(
@@ -24,6 +23,5 @@ export function createChatCommandServiceContext(
 				deriveSafetyIdentifier(principal, dependencies.safetyIdentifierHmacSecret ?? "")),
 		generateId: dependencies.generateId ?? defaultGenerateId,
 		now: dependencies.now ?? (() => new Date()),
-		telemetry: dependencies.telemetry,
 	};
 }

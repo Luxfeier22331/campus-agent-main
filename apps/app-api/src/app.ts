@@ -1,13 +1,12 @@
 import { Hono } from "hono";
 import { defaultRuntimeReadinessProbe } from "./app/readiness";
 import { createRequestScopeFactory } from "./app/request-scope";
+import { normalizeAppApiRoute } from "./app/route-normalization";
 import { registerAppRoutes } from "./app/routes";
 import type { AppDependencies } from "./app/types";
 import type { Env } from "./config";
 import { AppApiRouteError, errorEnvelope, jsonResponse, routeErrorResponse } from "./http";
 import { handleAuthRequest, resolveRequestPrincipal } from "./modules/auth";
-import { createAppTelemetry } from "./modules/telemetry";
-import { normalizeAppApiRoute } from "./modules/telemetry/sentry";
 
 export type { AppDependencies, AppRuntimeReadinessResult } from "./app/types";
 
@@ -16,27 +15,12 @@ const APP_API_HTTP_SURFACE = "app_api";
 export function createApp(env: Env, dependencies: AppDependencies = {}) {
 	const app = new Hono<{ Bindings: Env }>();
 	const authHandler = dependencies.authHandler ?? handleAuthRequest;
-	const telemetry = dependencies.telemetry ?? createAppTelemetry();
 	const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
 	const runtimeReadinessProbe =
 		dependencies.runtimeReadinessProbe ?? (() => defaultRuntimeReadinessProbe(env));
 	const scopedServices = createRequestScopeFactory({
 		dependencies,
 		env,
-		telemetry,
-	});
-
-	app.use("*", async (c, next) => {
-		const requestId = c.req.header("x-request-id");
-		telemetry.configureHttpRequestScope({
-			...(requestId ? { requestId } : {}),
-			route: c.req.path,
-			surface: APP_API_HTTP_SURFACE,
-		});
-
-		await next();
-
-		telemetry.markHttpResponseStatus(c.res.status);
 	});
 
 	registerAppRoutes({
@@ -59,14 +43,6 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 			error_type: normalizeErrorType(error),
 			route: normalizeAppApiRoute(c.req.path, c.req.method),
 			source: "app-api.onError",
-			surface: APP_API_HTTP_SURFACE,
-		});
-
-		const requestId = c.req.header("x-request-id");
-		telemetry.captureException(error, {
-			...(requestId ? { requestId } : {}),
-			route: c.req.path,
-			status: 500,
 			surface: APP_API_HTTP_SURFACE,
 		});
 

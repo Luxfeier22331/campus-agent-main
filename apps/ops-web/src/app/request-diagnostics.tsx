@@ -1,26 +1,34 @@
-import { Button, cn } from "@campus-agent/ui";
-import { type UseQueryResult, useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
-import { useState } from "react";
-import type { OpsRequestDetailResponse, OpsSentryIssuesResponse } from "../shared/ops-contract";
+import { cn } from "@campus-agent/ui";
+import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 import { formatDuration, formatTimestamp } from "./format";
-import { fetchOpsSentryIssues } from "./ops-api/observability";
-import { ErrorState, KeyValue, StaleDataWarning } from "./ops-display";
+import { KeyValue } from "./ops-display";
 import { formatOpsDomainValue } from "./ops-domain-labels";
-import { formatDataStateLabel } from "./ops-view-helpers";
 
 export function RequestDiagnostics({ detail }: { detail: OpsRequestDetailResponse }) {
-	const [errorsLoaded, setErrorsLoaded] = useState(false);
 	return (
 		<>
 			<FailureSection detail={detail} />
+			<RunClosureSection detail={detail} />
 			<ExecutionSection detail={detail} />
-			<ErrorRecordsPanel
-				detail={detail}
-				enabled={errorsLoaded}
-				onLoad={() => setErrorsLoaded(true)}
-			/>
 		</>
+	);
+}
+
+function RunClosureSection({ detail }: { detail: OpsRequestDetailResponse }) {
+	const { failCloseReason, terminalReason } = detail.execution;
+	if (!(failCloseReason || terminalReason)) {
+		return null;
+	}
+	return (
+		<section aria-labelledby="request-run-closure-title" data-testid="request-run-closure">
+			<h2 className="mb-3 font-semibold text-foreground text-lg" id="request-run-closure-title">
+				运行终态
+			</h2>
+			<div className="grid border-border border-y text-sm sm:grid-cols-2">
+				<KeyValue label="运行终态" value={formatOpsDomainValue(terminalReason)} />
+				<KeyValue label="协调收口原因" value={formatOpsDomainValue(failCloseReason)} />
+			</div>
+		</section>
 	);
 }
 
@@ -115,161 +123,6 @@ function ExecutionSection({ detail }: { detail: OpsRequestDetailResponse }) {
 				</ol>
 			)}
 		</section>
-	);
-}
-
-function ErrorRecordsPanel({
-	detail,
-	enabled,
-	onLoad,
-}: {
-	detail: OpsRequestDetailResponse;
-	enabled: boolean;
-	onLoad: () => void;
-}) {
-	const query = useQuery({
-		enabled,
-		queryFn: ({ signal }) => fetchOpsSentryIssues(detail.request.requestId, { signal }),
-		queryKey: ["ops", "request-errors", detail.request.requestId],
-		refetchInterval: detail.request.lifecyclePhase === "FINISHED" ? false : 30_000,
-		refetchIntervalInBackground: false,
-		staleTime: Number.POSITIVE_INFINITY,
-	});
-	return (
-		<RecordSourceSection
-			enabled={enabled}
-			loadLabel="加载错误记录"
-			onLoad={onLoad}
-			onRefresh={() => void query.refetch()}
-			refreshing={query.isFetching}
-			title="错误记录"
-		>
-			<ExternalQueryState query={query} title="错误记录">
-				{query.data ? <ErrorRecordResults data={query.data} stale={query.isRefetchError} /> : null}
-			</ExternalQueryState>
-		</RecordSourceSection>
-	);
-}
-
-function ErrorRecordResults({ data, stale }: { data: OpsSentryIssuesResponse; stale: boolean }) {
-	const state = stale
-		? "数据可能已过期"
-		: data.dataState === "FRESH"
-			? null
-			: formatDataStateLabel(data.dataState);
-	return (
-		<>
-			<div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-xs">
-				{state ? <span className="font-medium text-warning">{state}</span> : null}
-				<span>{data.issues.length} 条记录</span>
-				<span>查询于 {formatTimestamp(data.queriedAt)}</span>
-			</div>
-			{data.issues.length === 0 ? (
-				<p className="border-border border-y bg-secondary p-4 text-muted-foreground text-sm">
-					当前请求没有关联的错误记录。
-				</p>
-			) : (
-				<ul aria-label="错误摘要" className="divide-y divide-border border-border border-y">
-					{data.issues.map((issue) => (
-						<li
-							className="grid gap-2 py-3"
-							key={`${issue.title}:${issue.status}:${issue.firstSeen}:${issue.lastSeen}`}
-						>
-							<p className="font-medium text-foreground">{issue.title}</p>
-							<div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-xs">
-								<span>{formatOpsDomainValue(issue.status)}</span>
-								{issue.level ? <span>{formatOpsDomainValue(issue.level)}</span> : null}
-								<span>{issue.eventCount} 个事件</span>
-								<span>首次于 {formatTimestamp(issue.firstSeen)}</span>
-								<span>最近于 {formatTimestamp(issue.lastSeen)}</span>
-							</div>
-						</li>
-					))}
-				</ul>
-			)}
-		</>
-	);
-}
-
-function RecordSourceSection({
-	children,
-	enabled,
-	loadLabel,
-	onLoad,
-	onRefresh,
-	refreshing,
-	title,
-}: {
-	children: React.ReactNode;
-	enabled: boolean;
-	loadLabel: string;
-	onLoad: () => void;
-	onRefresh: () => void;
-	refreshing: boolean;
-	title: string;
-}) {
-	return (
-		<section className="grid gap-4">
-			<div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<h2 className="font-semibold text-foreground text-lg">{title}</h2>
-				{enabled ? (
-					<Button
-						aria-busy={refreshing}
-						aria-label={`刷新${title}`}
-						disabled={refreshing}
-						onClick={onRefresh}
-						variant="outline"
-					>
-						<RefreshCw className="size-4" />
-						<span className="hidden sm:inline">{refreshing ? "刷新中" : "刷新"}</span>
-					</Button>
-				) : (
-					<Button onClick={onLoad} variant="outline">
-						{loadLabel}
-					</Button>
-				)}
-			</div>
-			<div className="grid gap-3">{children}</div>
-		</section>
-	);
-}
-
-function ExternalQueryState<T>({
-	children,
-	query,
-	title,
-}: {
-	children: React.ReactNode;
-	query: UseQueryResult<T, Error>;
-	title: string;
-}) {
-	if (query.fetchStatus === "idle" && !query.data && !query.isError) {
-		return null;
-	}
-	return (
-		<>
-			{query.fetchStatus === "fetching" && !query.data ? (
-				<p className="text-muted-foreground text-sm" role="status">
-					正在读取{title}...
-				</p>
-			) : null}
-			{query.isError && !query.data ? (
-				<ErrorState
-					error={query.error}
-					onRetry={() => query.refetch()}
-					title={`${title}读取失败`}
-				/>
-			) : null}
-			{query.isRefetchError && query.data ? (
-				<StaleDataWarning
-					error={query.error}
-					lastSuccessfulAt={query.dataUpdatedAt}
-					onRetry={() => void query.refetch()}
-					title={`${title}刷新失败`}
-				/>
-			) : null}
-			{children}
-		</>
 	);
 }
 

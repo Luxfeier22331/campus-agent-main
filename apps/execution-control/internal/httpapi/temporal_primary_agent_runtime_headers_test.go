@@ -71,9 +71,6 @@ func TestCallAgentRuntimeExecutionTraceHeaders(t *testing.T) {
 			if got := seenHeaders.Get("baggage"); got != "" {
 				t.Errorf("agent runtime baggage header = %q, want empty", got)
 			}
-			if got := seenHeaders.Get("sentry-trace"); got != "" {
-				t.Errorf("agent runtime sentry-trace header = %q, want empty", got)
-			}
 			if got := seenHeaders.Get("x-trace-id"); got != "" {
 				t.Errorf("agent runtime x-trace-id header = %q, want empty", got)
 			}

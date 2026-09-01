@@ -114,12 +114,6 @@ import {
 import { registerNoticeRoutes } from "./routes/notices.ts";
 import { registerObservabilityRoutes, registerOverviewRoute } from "./routes/observability.ts";
 import { logOpsError } from "./safe-logging.ts";
-import {
-	createSentryClientFromEnv,
-	type SentryClient,
-	type SentryEnv,
-	SentryUnavailableError,
-} from "./sentry-client.ts";
 
 interface OpsHealthEnv {
 	OPS_WEB_KUBERNETES_NAMESPACE?: string;
@@ -135,8 +129,7 @@ type OpsAppEnv = OpsAdmissionEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
 	EmailAccessAdminEnv &
-	ProviderConfigAdminEnv &
-	SentryEnv;
+	ProviderConfigAdminEnv;
 
 interface OpsAppOptions {
 	accountAdminClient?: ReturnType<typeof createAccountAdminClient>;
@@ -151,7 +144,6 @@ interface OpsAppOptions {
 	overviewService?: OpsOverviewService;
 	noticeJobService?: NoticeJobService;
 	noticeStore?: NoticeStore;
-	sentry?: SentryClient;
 	staticRoot?: string;
 	store?: OpsStatusStore;
 	providerConfigClient?: ReturnType<typeof createProviderConfigAdminClient>;
@@ -178,7 +170,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	const admission = options.admission ?? createOpsAdmissionFromEnv(env);
 	const staticRoot = options.staticRoot ?? "dist";
 	const store = options.store ?? createDefaultOpsStatusStore(env, databasePool);
-	const sentry = options.sentry ?? createDefaultSentryClient(env);
 	const overviewService =
 		options.overviewService ??
 		createOpsOverviewService({
@@ -257,12 +248,6 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			});
 			return response;
 		};
-		if (error instanceof SentryUnavailableError) {
-			return respond(
-				jsonError("OPS_SENTRY_UNAVAILABLE", "Sentry Issue 数据不可用。", 503),
-				"sentry_unavailable",
-			);
-		}
 		if (error instanceof AccountAdminUnavailableError) {
 			return respond(
 				jsonError("OPS_ACCOUNT_ADMIN_UNAVAILABLE", "用户管理后端不可用。", 503),
@@ -508,7 +493,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 	registerAccountAdminRoutes({ admission, app, client: accountAdminClient, publicOrigin });
 	registerEmailAccessRoutes({ admission, app, client: emailAccessClient, publicOrigin });
-	registerObservabilityRoutes({ admission, app, sentry, store });
+	registerObservabilityRoutes({ admission, app, store });
 	registerCampusGroupsRoutes({ admission, app, client: campusGroupsClient, publicOrigin });
 	registerNoticeRoutes({ admission, app, jobService: noticeJobService, store: noticeStore });
 	registerDiningRoutes({
@@ -587,20 +572,6 @@ function createDatabaseUnavailableError(env: OpsWebDatabaseEnv): Error {
 			? "Ops Web database pool is unavailable."
 			: "OPS_WEB_DATABASE_URL is required.",
 	);
-}
-
-function createDefaultSentryClient(env: SentryEnv): SentryClient {
-	try {
-		return createSentryClientFromEnv(env);
-	} catch (error) {
-		return {
-			queryRequestIssues: async () => {
-				throw error instanceof SentryUnavailableError
-					? error
-					: new SentryUnavailableError("Sentry client is unavailable.", { cause: error });
-			},
-		};
-	}
 }
 
 function classifyReadinessError(error: unknown) {

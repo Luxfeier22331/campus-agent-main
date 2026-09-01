@@ -106,4 +106,32 @@ describe("runtime run browser projection", () => {
 		expect(serializedPayload).not.toContain("observability");
 		expect(serializedPayload).not.toContain("tool_results");
 	});
+
+	it("does not invent a finalizing phase from answer completion", async () => {
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(durableRun({ status: "running" })),
+			listRunEvents: vi.fn().mockResolvedValue(
+				eventPage([
+					durableEvent({
+						eventType: "run.answer_completed",
+						sequence: 3,
+					}),
+				]),
+			),
+		};
+		const service = buildRuntimeRunService({
+			executionRuntime,
+			store: runtimeStore(),
+		});
+
+		await expect(
+			service.listEvents({
+				afterSequence: 2,
+				principal: createPrincipal(),
+				requestId: "req_01HQ",
+			}),
+		).resolves.toMatchObject({ events: [], nextSequence: 3 });
+	});
 });

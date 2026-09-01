@@ -3,11 +3,6 @@ export const CAMPUS_RUNTIME_CONFIG_SCRIPT_ID = "__CAMPUS_RUNTIME_CONFIG__";
 export interface CampusRuntimeConfig {
 	accountUrl: string;
 	loginUrl: string;
-	sentry: {
-		dsn: string | null;
-		environment: string | null;
-		release: string | null;
-	};
 }
 
 export function parseCampusRuntimeConfigSource(
@@ -21,7 +16,6 @@ export function parseCampusRuntimeConfigSource(
 		const parsed = JSON.parse(source) as {
 			accountUrl?: unknown;
 			loginUrl?: unknown;
-			sentry?: unknown;
 		};
 		return normalizeCampusRuntimeConfig(parsed);
 	} catch {
@@ -54,7 +48,6 @@ export function buildAccountLoginUrlForCurrentRoute(): string {
 function normalizeCampusRuntimeConfig(input: {
 	accountUrl?: unknown;
 	loginUrl?: unknown;
-	sentry?: unknown;
 }): CampusRuntimeConfig {
 	const accountUrl = normalizeUrl(input.accountUrl);
 	const loginUrl = normalizeUrl(input.loginUrl);
@@ -64,21 +57,7 @@ function normalizeCampusRuntimeConfig(input: {
 	return {
 		accountUrl,
 		loginUrl,
-		sentry: normalizeSentryConfig(input.sentry),
 	};
-}
-
-function normalizeSentryConfig(value: unknown): CampusRuntimeConfig["sentry"] {
-	const input = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-	return {
-		dsn: normalizeOptionalString(input.dsn),
-		environment: normalizeOptionalString(input.environment),
-		release: normalizeOptionalString(input.release),
-	};
-}
-
-function normalizeOptionalString(value: unknown): string | null {
-	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function normalizeUrl(value: unknown): string | null {

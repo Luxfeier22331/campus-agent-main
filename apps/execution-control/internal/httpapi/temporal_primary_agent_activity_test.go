@@ -532,6 +532,15 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testi
 	if run.Status != execution.DurableRunStatusRunning {
 		t.Fatalf("run status = %q, want workflow-owned active state", run.Status)
 	}
+	events, listErr := store.ListRunEvents(context.Background(), "run-primary-agent-missing")
+	if listErr != nil {
+		t.Fatalf("list run events: %v", listErr)
+	}
+	for _, event := range events {
+		if event.EventType == execution.DurableRunEventTypeRunProgress {
+			t.Fatalf("pre-invocation failure emitted generating progress: %#v", events)
+		}
+	}
 }
 
 func TestExecutePrimaryAgentActivityFailsClosedWithoutAdmissionSnapshot(t *testing.T) {
@@ -619,7 +628,7 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	if len(steps) != 1 || steps[0].StepID != "agent.primary" || steps[0].Status != "failed" {
 		t.Fatalf("projected steps = %#v", steps)
 	}
-	if stringValue(nestedAny(steps[0].SanitizedPayload, "failure", "code")) != "agent_runtime_request_failed" {
+	if stringValue(nestedAny(steps[0].SanitizedPayload, "failure", "code")) != "agent_runtime_failed" {
 		t.Fatalf("agent failure payload = %#v", steps[0].SanitizedPayload)
 	}
 	if steps[0].SanitizedPayload["message"] != defaultExecutionFailureMessage {
@@ -633,9 +642,13 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 func TestPrimaryAgentRuntimeFailureKindPreservesStableCodes(t *testing.T) {
 	for _, code := range []string{
 		"invalid_request",
+		"invalid_model_target_sha256",
 		"context_budget_exceeded",
 		"agent_deadline_exceeded",
+		"agent_runtime_failed",
 		"max_turns_exceeded",
+		"model_config_unavailable",
+		"model_target_mismatch",
 		"provider_unavailable",
 		"provider_rate_limited",
 		"provider_http_failed",

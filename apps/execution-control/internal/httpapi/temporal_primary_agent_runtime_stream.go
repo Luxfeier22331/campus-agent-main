@@ -506,9 +506,13 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 		}
 		switch strings.TrimSpace(runtimeError.Code) {
 		case "invalid_request",
+			"invalid_model_target_sha256",
 			"context_budget_exceeded",
 			"agent_deadline_exceeded",
+			"agent_runtime_failed",
 			"max_turns_exceeded",
+			"model_config_unavailable",
+			"model_target_mismatch",
 			"provider_rate_limited",
 			"provider_http_failed",
 			"provider_connection_failed",
@@ -520,15 +524,19 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 			"run_failed":
 			return strings.TrimSpace(runtimeError.Code)
 		}
-		return "agent_runtime_request_failed"
+		return "agent_runtime_response_invalid"
 	}
 	var applicationError agentRuntimeApplicationError
 	if errors.As(cause, &applicationError) {
 		switch strings.TrimSpace(applicationError.Code) {
 		case "invalid_request",
+			"invalid_model_target_sha256",
 			"context_budget_exceeded",
 			"agent_deadline_exceeded",
+			"agent_runtime_failed",
 			"max_turns_exceeded",
+			"model_config_unavailable",
+			"model_target_mismatch",
 			"provider_rate_limited",
 			"provider_http_failed",
 			"provider_connection_failed",
@@ -540,7 +548,7 @@ func primaryAgentRuntimeFailureKind(cause error) string {
 			"run_failed":
 			return strings.TrimSpace(applicationError.Code)
 		}
-		return "agent_runtime_request_failed"
+		return "agent_runtime_response_invalid"
 	}
 	if agentRuntimeErrorIsTimeout(cause) {
 		return "agent_attempt_uncertain"

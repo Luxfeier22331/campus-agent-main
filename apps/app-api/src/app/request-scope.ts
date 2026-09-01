@@ -39,11 +39,7 @@ import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runt
 import { createRequestRuntimeScope } from "../request-runtime-scope";
 import type { AppDependencies, AppRequestScope } from "./types";
 
-export function createRequestScopeFactory(input: {
-	dependencies: AppDependencies;
-	env: Env;
-	telemetry: import("../modules/telemetry").AppTelemetry;
-}) {
+export function createRequestScopeFactory(input: { dependencies: AppDependencies; env: Env }) {
 	const executionRuntimeConfigured = isExecutionControlRuntimeConfigured(input.env);
 	const executionRuntime = executionRuntimeConfigured
 		? createExecutionControlRuntimeClient(input.env)
@@ -112,7 +108,6 @@ export function createRequestScopeFactory(input: {
 					...(input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET
 						? { safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET }
 						: {}),
-					telemetry: input.telemetry,
 				});
 				return command;
 			};
@@ -191,7 +186,6 @@ export function createRequestScopeFactory(input: {
 							store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
 						});
 					})()),
-				telemetry: input.telemetry,
 			};
 		},
 	};

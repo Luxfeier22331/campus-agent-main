@@ -11,7 +11,6 @@ import {
 	createExecutionRuntimeFromToolClient,
 	createHmac,
 	createPrincipal,
-	createTelemetryMock,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
 	ExecutionControlTransportError,
@@ -22,7 +21,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 	it("rejects after durable accept when the same safety identifier enters the abuse throttle window", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const safetySecret = "phase-i-safety-secret";
 		const expectedSafetyIdentifier = createHmac("sha256", safetySecret)
 			.update("principal:user_01HQ")
@@ -45,7 +43,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			conversationStore,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
-			telemetry,
 		});
 
 		const response = await service.submit({
@@ -83,20 +80,11 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				status: "rejected",
 			},
 		});
-		expect(telemetry.configureRequestOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({
-				errorCode: "rate_limit_exceeded",
-				requestId: "req_0001",
-				status: "rejected",
-				surface: "campus_web",
-			}),
-		);
 	});
 
 	it("skips the abuse throttle in development and still executes the request", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const getAbuseControlState = vi.fn().mockResolvedValue({
 			activeThrottleUntil: "2026-03-28T08:05:00.000Z",
 			requestCountLastMinute: 9,
@@ -126,7 +114,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			conversationStore,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
-			telemetry,
 		});
 
 		const response = await service.submit({
@@ -153,7 +140,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 	it("recovers a durable run after a retryable create response loss", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const executionRuntime = createExecutionRuntimeFromToolClient({
 			execute: vi.fn().mockRejectedValue(
 				new ExecutionControlTransportError({
@@ -172,7 +158,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			telemetry,
 			executionRuntime,
 		});
 
@@ -192,7 +177,6 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			}),
 		);
 		expect(finalWrites).toHaveLength(0);
-		expect(telemetry.configureRequestOutcome).not.toHaveBeenCalled();
 	});
 
 	it("replays a completed idempotent request and blocks conflicts or in-flight duplicates", async () => {

@@ -414,6 +414,52 @@ describe("PostgreSQL ops status store", () => {
 		});
 	});
 
+	it("does not substitute product or closure codes for missing root failure evidence", async () => {
+		const db = createFakeOpsDb({
+			diagnostics: runDiagnostics({
+				attempts: [
+					runAttemptRow({
+						failCloseReason: "workflow_failed_without_terminal_projection",
+						sanitizedPayloadJson: {},
+						status: "failed",
+						terminalReason: "worker_unavailable",
+					}),
+				],
+				steps: [
+					runStepRow({
+						sanitizedPayloadJson: {},
+						status: "failed",
+					}),
+				],
+			}),
+			requestRows: [
+				requestRow({
+					errorCode: "run_failed",
+					executionFailureKind: null,
+					executionStepStatus: "failed",
+					failCloseReason: "workflow_failed_without_terminal_projection",
+					status: "error",
+					terminalReason: "worker_unavailable",
+				}),
+			],
+		});
+		const detail = await createPgOpsStatusStore({ db, now: () => now }).getRequestDetail(
+			"req_pg_001",
+		);
+
+		expect(detail?.execution.failure).toEqual({
+			code: null,
+			detail: null,
+			httpStatus: null,
+			invocationId: null,
+			operation: null,
+		});
+		expect(detail?.execution).toMatchObject({
+			failCloseReason: "workflow_failed_without_terminal_projection",
+			terminalReason: "worker_unavailable",
+		});
+	});
+
 	it("keeps a written answer completed when a later execution stage fails", async () => {
 		const latestFailure = new Date("2026-07-09T07:29:10.000Z");
 		const db = createFakeOpsDb({

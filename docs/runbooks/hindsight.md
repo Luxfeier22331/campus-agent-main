@@ -74,7 +74,7 @@ Hindsight 在服务启动时读取 LLM、Embedding 和 Rerank 配置。模型 en
 | item 长期 `saving`/`deleting` | app-api profile-memory command outbox、execution-control command admission 和 receipt callback |
 | 账号长期 `erasing` | 代次租约、retired bank 删除和 receipt callback |
 | 已删来源仍被 recall | document identity 是否一致、DeleteDocument 结果和 Hindsight 内部状态 |
-| 外部观测平台出现记忆正文 | 立即停止对应 producer，并按 Langfuse 或 Sentry 字段合同检查清理边界 |
+| 外部观测平台出现记忆正文 | 立即停止对应 producer，并按 Langfuse 字段合同检查清理边界 |
 
 Hindsight 后台 operation 使用其原生诊断能力排查；不要在 campus-agent 增加 operation
 status/list/cancel/retry API 或 reconciliation schedule。

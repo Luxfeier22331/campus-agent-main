@@ -8,7 +8,4 @@ export interface CampusWorkerEnv {
 	};
 	AUTH_TURNSTILE_SITE_KEY?: string;
 	STATUS_WEB_PUBLIC_ORIGIN?: string;
-	SENTRY_DSN?: string;
-	DEPLOYMENT_ENVIRONMENT?: string;
-	DEPLOYMENT_RELEASE?: string;
 }

@@ -8,7 +8,6 @@ import {
 	createExecutionRuntimeFromToolClient,
 	createHmac,
 	createPrincipal,
-	createTelemetryMock,
 	deriveSafetyIdentifier,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
@@ -59,7 +58,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 	it("accepts a chat request, calls executionClient with explicit actor, and finalizes a completed answer", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const safetySecret = "phase-h-safety-secret";
 		const expectedSafetyIdentifier = createHmac("sha256", safetySecret)
 			.update("principal:user_01HQ")
@@ -96,7 +94,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			conversationStore,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
-			telemetry,
 		});
 
 		const response = await service.submit({
@@ -125,12 +122,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				surface: "campus_web",
 				tenantId: "tenant-main",
 				userGoal: "图书馆开放到几点？",
-			}),
-		);
-		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
-			expect.objectContaining({
-				requestId: "req_0001",
-				surface: "campus_web",
 			}),
 		);
 		expect(acceptedWrites).toHaveLength(1);
@@ -224,18 +215,6 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			},
 			requestId: "req_0001",
 		});
-		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
-			expect.objectContaining({
-				requestId: "req_0001",
-			}),
-		);
-		expect(telemetry.configureRequestOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({
-				errorCode: null,
-				requestId: "req_0001",
-				status: "completed",
-			}),
-		);
 	});
 
 	it("does not project PG profile memory during chat submit because execution-control owns memory recall", async () => {

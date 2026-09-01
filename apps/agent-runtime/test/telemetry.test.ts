@@ -1,5 +1,6 @@
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { context, SpanStatusCode, TraceFlags, trace } from "@opentelemetry/api";
+import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
 	InMemorySpanExporter,
@@ -10,7 +11,11 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PrimaryAgentRuntime } from "../src/agent-run-contract.ts";
 import { createAgentRuntimeHandler } from "../src/http-server.ts";
-import { isAgentLangfuseSpan } from "../src/telemetry.ts";
+import {
+	injectTraceContext,
+	isAgentLangfuseSpan,
+	runWithExtractedTraceContext,
+} from "../src/telemetry.ts";
 import { createSafeSpanProcessor } from "../src/telemetry-sanitizer.ts";
 import { testToolContractFingerprint } from "./helpers/runtime-contract.ts";
 
@@ -30,7 +35,7 @@ const provider = new NodeTracerProvider({
 });
 
 beforeAll(() => {
-	provider.register();
+	provider.register({ propagator: new W3CTraceContextPropagator() });
 });
 
 afterAll(async () => {
@@ -40,6 +45,15 @@ afterAll(async () => {
 });
 
 describe("agent runtime Langfuse telemetry", () => {
+	it("propagates traceparent without forwarding baggage", () => {
+		const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+		const inbound = new Headers({ baggage: "release=2026.08.31", traceparent });
+		const outbound = runWithExtractedTraceContext(inbound, () => injectTraceContext(new Headers()));
+
+		expect(outbound.get("traceparent")).toBe(traceparent);
+		expect(outbound.get("baggage")).toBeNull();
+	});
+
 	it("exports the Arize OpenInference scope and rejects unrelated spans", async () => {
 		exporter.reset();
 		provider.getTracer(agentScope).startSpan("agent-run").end();

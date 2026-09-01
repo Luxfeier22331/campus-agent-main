@@ -54,11 +54,9 @@ export function toExecutionDiagnostics(
 	const outputTokens = sumAttemptField(usageAttempts, "outputTokens");
 
 	return {
+		failCloseReason: normalizeNullableString(row.failCloseReason),
 		failure: {
-			code:
-				failure?.code ??
-				normalizeNullableString(row.executionFailureKind) ??
-				normalizeNullableString(row.errorCode),
+			code: failure?.code ?? null,
 			detail: failure?.detail ?? null,
 			httpStatus: failure?.httpStatus ?? null,
 			invocationId: failure?.invocationId ?? null,
@@ -83,6 +81,7 @@ export function toExecutionDiagnostics(
 			executionControl: diagnosticPayloadString(diagnostics, "execution_control_release"),
 		},
 		stages,
+		terminalReason: normalizeNullableString(row.terminalReason),
 	};
 }
 

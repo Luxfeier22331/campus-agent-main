@@ -48,7 +48,6 @@ export function agentRuntimeErrorPayload(
 ): {
 	code: AgentRuntimeErrorCode;
 	message: string;
-	retryable: false;
 	operation: string;
 	detail?: string;
 	http_status?: number;
@@ -58,7 +57,6 @@ export function agentRuntimeErrorPayload(
 	return {
 		code: classified.code,
 		message: classified.message,
-		retryable: false,
 		operation: classified.failure.operation,
 		...(classified.failure.detail ? { detail: classified.failure.detail } : {}),
 		...(classified.failure.httpStatus === undefined

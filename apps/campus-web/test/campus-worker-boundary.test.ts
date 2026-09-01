@@ -15,7 +15,7 @@ describe("campus worker module boundary", () => {
 	it("keeps the public worker entry focused on composition", () => {
 		const source = read("src/index.ts");
 
-		expect(source).toContain("Sentry.withSentry");
+		expect(source).toContain('export { campusWorker as default } from "./platform/worker/router"');
 		expect(source).toContain('from "./platform/worker/router"');
 		expect(source).not.toContain("async fetch(");
 		expect(source).not.toContain("SHELL_EXACT_PATHS");
@@ -24,7 +24,6 @@ describe("campus worker module boundary", () => {
 
 	it("prevents worker internals from importing the public entry", () => {
 		for (const relativePath of [
-			"src/platform/telemetry/sentry-edge.ts",
 			"src/platform/worker/app-api-proxy.ts",
 			"src/platform/worker/assets.ts",
 			"src/platform/worker/router.ts",

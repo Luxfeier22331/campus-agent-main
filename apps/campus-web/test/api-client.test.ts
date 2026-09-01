@@ -477,9 +477,15 @@ describe("campus app-api client", () => {
 					'event: request.completed\ndata: {"status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}\n\n',
 					{ headers: { "content-type": "text/event-stream" } },
 				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					'event: request.failed\ndata: {"requestId":"req_01","status":"failed","occurredAt":"2026-06-08T00:00:02.000Z","error":{"code":"run_failed","message":"回答失败。"}}\n\n',
+					{ headers: { "content-type": "text/event-stream" } },
+				),
 			);
 
-		for (const prompt of ["损坏事件", "未知事件", "错形终态"]) {
+		for (const prompt of ["损坏事件", "未知事件", "错形终态", "缺少重试语义"]) {
 			await expect(async () => {
 				for await (const _event of submitChatRequestStream({ prompt })) {
 					throw new Error("invalid stream must not yield events");
@@ -514,7 +520,7 @@ describe("campus app-api client", () => {
 		});
 	});
 
-	it("uses a default structured request error for failed non-json chat stream startup", async () => {
+	it("rejects a chat stream startup response without the contracted error envelope", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
 			new Response("upstream unavailable", {
 				headers: { "content-type": "text/plain" },
@@ -530,9 +536,9 @@ describe("campus app-api client", () => {
 				throw new Error("stream should not yield events");
 			}
 		}).rejects.toMatchObject({
-			code: "chat_stream_request_failed",
-			message: "Service Unavailable",
-			retryable: true,
+			code: "invalid_error_response",
+			message: "请求返回了无效错误结构。",
+			retryable: false,
 			status: 503,
 		});
 	});
@@ -588,6 +594,47 @@ describe("campus app-api client", () => {
 			credentials: "same-origin",
 			headers: { accept: "application/json" },
 			method: "GET",
+		});
+	});
+
+	it("rejects a failed durable run event without product retryability", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					events: [
+						{
+							eventType: "request.failed",
+							occurredAt: "2026-06-08T00:00:02.000Z",
+							payload: {
+								error: {
+									code: "run_failed",
+									message: "回答失败。",
+								},
+							},
+							requestId: "req_01",
+							sequence: 9,
+						},
+					],
+					nextSequence: 9,
+					run: {
+						acceptedAt: "2026-06-08T00:00:00.000Z",
+						completedAt: "2026-06-08T00:00:02.000Z",
+						conversationId: "conv_01",
+						durationMs: 2_000,
+						phase: "failed",
+						requestId: "req_01",
+						startedAt: "2026-06-08T00:00:01.000Z",
+						status: "failed",
+						terminalReason: "execution_failed",
+					},
+				}),
+				{ headers: { "content-type": "application/json" } },
+			),
+		);
+
+		await expect(getRunEvents({ requestId: "req_01" })).rejects.toMatchObject({
+			code: "invalid_request_status_response",
+			retryable: false,
 		});
 	});
 

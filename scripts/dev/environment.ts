@@ -316,9 +316,7 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_LOCAL_BASE_URL: `http://127.0.0.1:9000/${profile.bucketName}/`,
 			OPS_WEB_INTERNAL_TOKEN: opsWebInternalToken,
 			RESEND_API_KEY: existingSecrets.RESEND_API_KEY || "local-resend-disabled",
-			SENTRY_DSN: "",
 			DEPLOYMENT_ENVIRONMENT: "development",
-			DEPLOYMENT_RELEASE: `app-api@${profile.instanceId}`,
 		});
 	}
 	if (shouldRender("campusWeb")) {
@@ -329,9 +327,6 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
-			SENTRY_DSN: "",
-			DEPLOYMENT_ENVIRONMENT: "development",
-			DEPLOYMENT_RELEASE: `campus-web@${profile.instanceId}`,
 		});
 	}
 	if (shouldRender("executionControl")) {

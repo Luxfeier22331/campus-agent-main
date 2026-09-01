@@ -1,5 +1,3 @@
-import * as Sentry from "@sentry/cloudflare";
-
 import { type AppDependencies, createApp } from "./app";
 import { type Env, isDeployedEnvironment, resolveEnvironment } from "./config";
 import { createPgAccountAdminStore } from "./modules/account-admin";
@@ -25,8 +23,6 @@ import {
 	type ProfileMemoryService,
 } from "./modules/profile-memory";
 import { deriveSafetyIdentifierForUser } from "./modules/runtime-command";
-import { createAppTelemetry } from "./modules/telemetry";
-import { createAppApiSentryOptions } from "./modules/telemetry/sentry";
 import { runWithAppApiExecutionContext } from "./request-execution-context";
 
 export type { Env } from "./config";
@@ -46,7 +42,6 @@ export function createWorkerRuntime(
 	env: Env,
 	dependencies: WorkerRuntimeDependencies = {},
 ): WorkerRuntime {
-	const telemetry = dependencies.telemetry ?? createAppTelemetry();
 	let profileMemoryService: ProfileMemoryService | null = dependencies.profileMemoryService ?? null;
 	let accountLifecycleService:
 		| import("./modules/account-lifecycle").AccountLifecycleService
@@ -96,7 +91,6 @@ export function createWorkerRuntime(
 	const app = createApp(env, {
 		...requestDependencies,
 		...(chatCommandService && runtimeRunService ? { chatCommandService, runtimeRunService } : {}),
-		telemetry,
 	});
 
 	return {
@@ -158,4 +152,4 @@ const worker = {
 	},
 };
 
-export default Sentry.withSentry(createAppApiSentryOptions, worker);
+export default worker;

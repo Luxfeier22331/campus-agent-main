@@ -205,6 +205,19 @@ Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_
 Campus 来源保留文档定位和 `citation_href`，Web 来源保留 `hostname`、`url` 和
 `citation_href`。来源编号由 Finalization 按正文首次出现顺序写入，重复 Web URL 复用编号。
 
+失败合同分为三个字段，不能互相补值：
+
+- step/attempt `failure.code` 保存实际失败操作的稳定代码，是执行根因证据；
+- run `terminal_reason` 是粗粒度终态分类，只允许表达 provider 不可用、运行超时、worker 明确不可用、
+  运行不变量失败或中性的 `execution_failed` 等终态；
+- run `fail_close_reason` 只说明协调器为何执行收口。
+
+只有明确的 `worker_unavailable` 才能产生同名终态；工具失败、通用 Agent Runtime 失败和未知合法错误
+都归入 `execution_failed`，不能伪装成 worker 不可用。Agent Runtime 返回已登记错误码时保留该码；
+返回未登记码时 execution-control 使用 `agent_runtime_response_invalid`，并把有界原始码放在该 step
+的诊断 `detail`。Agent Runtime HTTP/SSE 错误不决定产品 `retryable`；execution-control 在写产品终态
+时根据失败事实显式决定用户能否用相同输入新建请求，且该值与 Temporal 重试策略无关。
+
 当前在线链路只有 `campus_search` 注册了机构知识结果 adapter。Finalization 按成功工具 adapter
 校验引用并派生公开来源；没有 adapter、来自失败工具或不属于同一次运行的引用均被拒绝。新的来源能力
 接入时，必须由对应可执行合同定义来源校验和公开字段。
@@ -226,9 +239,10 @@ HTTP `ExecutionRunStatus` 与 execution-control 内部运行状态保持一致�
 
 面向 Campus Web 的 app-api 产品投影使用独立的事件名称和阶段合同：`execution.queued`、
 `execution.running`、`execution.phase`、`answer.delta`、`request.completed`、
-`request.failed`、`request.cancelled`。其中 `execution.phase` 只允许四个受控阶段，不能把
+`request.failed`、`request.cancelled`。其中 `execution.phase` 只允许三个受控阶段，不能把
 Temporal Activity、SDK tool、retry 或 worker 状态直接变成浏览器状态；回答过程由 app-api 从这些
-产品事件派生固定五阶段，不返回 execution-control 的 attempt/result 轨迹。
+产品事件派生一个调度事实和三个显示阶段，不返回 execution-control 的 attempt/result 轨迹，也不从
+run 摘要或终态反推从未观察到的阶段。
 
 事件查询同时返回浏览器安全的 `events` 和 `next_sequence`。`next_sequence` 表示
 execution-control 已检查到的持久序列游标；app-api 后续必须将它作为 `after_sequence`，即使本次

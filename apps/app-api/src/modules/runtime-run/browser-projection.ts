@@ -111,12 +111,7 @@ export function toBrowserRunEvent(
 	}
 	const payload = sanitizeBrowserRunEventPayload(event);
 	if (productEventType === "execution.phase") {
-		const phase =
-			event.eventType === "run.progress"
-				? payload.phase
-				: event.eventType === "run.answer_completed"
-					? "finalizing"
-					: "generating";
+		const phase = event.eventType === "run.progress" ? payload.phase : "generating";
 		if (!isRuntimeRunProductPhase(phase)) {
 			return null;
 		}
@@ -148,8 +143,9 @@ function toRuntimeRunProductEventType(eventType: string): RuntimeRunProductEvent
 			return "execution.running";
 		case "run.progress":
 		case "run.answer_started":
-		case "run.answer_completed":
 			return "execution.phase";
+		case "run.answer_completed":
+			return null;
 		case "run.answer_delta":
 			return "answer.delta";
 		case "finalization.completed":

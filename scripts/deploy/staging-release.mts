@@ -22,7 +22,3 @@ export function resolveGitSha(): string {
 
 	return commitSha;
 }
-
-export function resolveStagingSentryRelease(appName: string): string {
-	return `${appName}@${resolveGitSha()}`;
-}

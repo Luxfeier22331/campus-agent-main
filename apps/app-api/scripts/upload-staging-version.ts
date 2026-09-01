@@ -3,7 +3,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release.mts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
 import { buildAppApiStagingUploadConfig } from "./staging-upload-config.ts";
 
@@ -29,9 +28,7 @@ if (preflight.status !== 0) {
 const configDir = mkdtempSync(join(tmpdir(), "campus-agent-app-api-"));
 const configPath = resolve(configDir, "wrangler.toml");
 const secretsPath = resolve(configDir, "secrets.json");
-const sentryArtifactDirectory = resolve(configDir, "sentry");
 try {
-	const sentryRelease = resolveStagingSentryRelease("app-api");
 	const hyperdriveId = requiredEnv("APP_API_DB_HYPERDRIVE_ID");
 	const objectStoreVpcServiceId = requiredEnv("OBJECT_STORE_VPC_SERVICE_ID");
 	const executionControlVpcServiceId = requiredEnv("EXECUTION_CONTROL_VPC_SERVICE_ID");
@@ -78,17 +75,8 @@ try {
 		],
 		secretsFile: secretsPath,
 		workerName: "app-api-staging",
-		sentrySourceMaps: {
-			artifactDirectory: sentryArtifactDirectory,
-			orgSlug: requiredEnv("SENTRY_ORG_SLUG"),
-			projectSlug: requiredEnv("SENTRY_APP_API_PROJECT_SLUG"),
-			release: sentryRelease,
-			wranglerOutdir: sentryArtifactDirectory,
-		},
 		variables: {
 			AUTH_EMAIL_FROM: requiredEnv("AUTH_EMAIL_FROM"),
-			SENTRY_DSN: requiredEnv("SENTRY_APP_API_DSN"),
-			DEPLOYMENT_RELEASE: sentryRelease,
 		},
 	});
 } finally {

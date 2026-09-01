@@ -260,7 +260,7 @@ describe("managed worktree environment", () => {
 				"LLM_API_KEY=main-key",
 				"EMBEDDING_API_KEY=embedding-key",
 				"CAMPUS_SHARED_POSTGRES_URL=postgresql://must-not-copy",
-				"SENTRY_API_TOKEN=must-not-copy",
+				"UNRELATED_EXTERNAL_TOKEN=must-not-copy",
 				"",
 			].join("\n"),
 		);
@@ -290,7 +290,7 @@ describe("managed worktree environment", () => {
 		assert.equal(imported.EMBEDDING_API_KEY, "embedding-key");
 		assert.equal(imported.WORKTREE_ONLY, "preserved");
 		assert.equal(imported.CAMPUS_SHARED_POSTGRES_URL, undefined);
-		assert.equal(imported.SENTRY_API_TOKEN, undefined);
+		assert.equal(imported.UNRELATED_EXTERNAL_TOKEN, undefined);
 		assert.equal(statSync(resolve(repoRoot, ".env")).mode & 0o777, 0o600);
 		const portalEnvironment = parseEnv(
 			readFileSync(

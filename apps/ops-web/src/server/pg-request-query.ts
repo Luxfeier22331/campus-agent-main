@@ -73,18 +73,10 @@ export function requestRowsCte(): string {
 					when dispatch.completed_at is null then null
 					else round(extract(epoch from (dispatch.completed_at - dispatch.created_at)) * 1000)::int
 				end as "duration_ms",
-				coalesce(
-					dispatch.error_code,
-					nullif(agent_run.fail_close_reason, ''),
-					case
-						when agent_run.status in ('failed', 'expired')
-							then nullif(agent_run.terminal_reason, '')
-					end
-				) as "error_code",
-				coalesce(
-					nullif(latest_failure_step.sanitized_payload_json -> 'failure' ->> 'code', ''),
-					nullif(agent_run.fail_close_reason, ''),
-					nullif(dispatch.error_code, '')
+				nullif(dispatch.error_code, '') as "error_code",
+				nullif(
+					latest_failure_step.sanitized_payload_json -> 'failure' ->> 'code',
+					''
 				) as "execution_failure_kind",
 				latest_step.step_kind as "execution_step_kind",
 				latest_step.status as "execution_step_status",

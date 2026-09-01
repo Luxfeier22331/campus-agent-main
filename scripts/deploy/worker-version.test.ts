@@ -6,7 +6,6 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-	buildSentrySourceMapUploadArgs,
 	buildWorkerVersionUploadArgs,
 	resolveWorkerPlainTextVariable,
 	uploadStagingWorkerVersion,
@@ -73,24 +72,16 @@ function wranglerSuccess(): ReturnType<typeof spawnSync> {
 const workerOptions = {
 	appName: "app-api",
 	cwd: "/repo/apps/app-api",
-	sentrySourceMaps: {
-		artifactDirectory: "dist/sentry",
-		orgSlug: "muc-wiki",
-		projectSlug: "app-api",
-		release: `app-api@${SOURCE_SHA}`,
-		wranglerOutdir: "/tmp/app-api-sentry",
-	},
-	variables: { DEPLOYMENT_RELEASE: `app-api@${SOURCE_SHA}` },
+	variables: { AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>" },
 	workerName: WORKER_NAME,
 };
 
 const workerEnv = {
 	CLOUDFLARE_ACCOUNT_ID: "account-id",
 	CLOUDFLARE_API_TOKEN: "api-token",
-	SENTRY_AUTH_TOKEN: "sentry-token",
 };
 
-test("builds staging Worker upload arguments without leaking source-map credentials", () => {
+test("builds staging Worker upload arguments", () => {
 	const args = buildWorkerVersionUploadArgs(
 		{
 			appName: "app-api",
@@ -98,8 +89,7 @@ test("builds staging Worker upload arguments without leaking source-map credenti
 			environment: "staging",
 			secretsFile: "/tmp/app-api/secrets.json",
 			variables: {
-				DEPLOYMENT_RELEASE: "app-api@sha",
-				SENTRY_DSN: "https://example.invalid/1",
+				AUTH_EMAIL_FROM: "Campus Agent <auth@example.com>",
 			},
 		},
 		SOURCE_SHA,
@@ -110,21 +100,7 @@ test("builds staging Worker upload arguments without leaking source-map credenti
 	assert.ok(args.includes("staging"));
 	assert.ok(args.includes(`git-${SOURCE_SHA}`));
 	assert.ok(args.includes("/tmp/app-api/secrets.json"));
-	assert.ok(args.includes("SENTRY_DSN:https://example.invalid/1"));
-	assert.ok(!args.some((argument) => argument.includes("SENTRY_AUTH_TOKEN")));
-});
-
-test("builds strict Sentry source-map upload arguments", () => {
-	const args = buildSentrySourceMapUploadArgs({
-		artifactDirectory: "/repo/apps/app-api/dist/sentry/app-api-edge",
-		orgSlug: "muc-wiki",
-		projectSlug: "app-api",
-		release: "app-api@sha",
-	});
-
-	assert.ok(args.includes("--strict"));
-	assert.ok(args.includes("--validate"));
-	assert.ok(!args.includes("SENTRY_AUTH_TOKEN"));
+	assert.ok(args.includes("AUTH_EMAIL_FROM:Campus Agent <auth@example.com>"));
 });
 
 test("resolves a selected Worker plain-text variable", () => {
@@ -147,7 +123,6 @@ test("resolves a selected Worker plain-text variable", () => {
 
 test("uploads and verifies a new Worker version before returning its candidate", async () => {
 	let uploaded = false;
-	let sourceMapUploads = 0;
 	const calls: string[] = [];
 	const fetcher: typeof fetch = async (input, init) => {
 		const url = String(input);
@@ -171,9 +146,6 @@ test("uploads and verifies a new Worker version before returning its candidate",
 			uploaded = true;
 			return wranglerSuccess();
 		},
-		uploadSourceMaps: () => {
-			sourceMapUploads += 1;
-		},
 	});
 
 	assert.deepEqual(result, {
@@ -181,7 +153,6 @@ test("uploads and verifies a new Worker version before returning its candidate",
 		versionId: VERSION_ID,
 		workerName: WORKER_NAME,
 	});
-	assert.equal(sourceMapUploads, 1);
 	assert.equal(calls.filter((url) => url.endsWith("?deployable=true")).length, 2);
 });
 
@@ -208,33 +179,24 @@ test("reuses a matching deployable Worker version beyond Wrangler's ten-item out
 		return apiResponse(versionDetails(VERSION_ID, workerOptions.variables));
 	};
 	let wranglerCalls = 0;
-	const wranglerArguments: string[][] = [];
-	let sourceMapUploads = 0;
 	const result = await uploadStagingWorkerVersion(workerOptions, {
 		env: { ...workerEnv, WORKER_VERSION_OUTPUT: outputFile },
 		fetch: fetcher,
 		resolveSourceSha: () => SOURCE_SHA,
-		runWrangler: (args) => {
+		runWrangler: () => {
 			wranglerCalls += 1;
-			wranglerArguments.push(args);
 			return wranglerSuccess();
-		},
-		uploadSourceMaps: () => {
-			sourceMapUploads += 1;
 		},
 	});
 
 	assert.equal(result.versionId, VERSION_ID);
-	assert.equal(wranglerCalls, 1);
-	assert(wranglerArguments[0]?.includes("--dry-run"));
-	assert.equal(sourceMapUploads, 1);
+	assert.equal(wranglerCalls, 0);
 	assert.equal(JSON.parse(await readFile(outputFile, "utf8")).versionId, VERSION_ID);
 });
 
 test("uploads a new Worker version when a tagged version has mismatched identity", async () => {
 	let uploaded = false;
 	let wranglerCalls = 0;
-	let sourceMapUploads = 0;
 	const fetcher: typeof fetch = async (input) => {
 		const url = String(input);
 		if (url.endsWith("?deployable=true")) {
@@ -251,7 +213,9 @@ test("uploads a new Worker version when a tagged version has mismatched identity
 			return apiResponse(versionDetails(NEW_VERSION_ID, workerOptions.variables));
 		}
 		assert(url.endsWith(`/versions/${VERSION_ID}`));
-		return apiResponse(versionDetails(VERSION_ID, { DEPLOYMENT_RELEASE: "app-api@different" }));
+		return apiResponse(
+			versionDetails(VERSION_ID, { AUTH_EMAIL_FROM: "Other <other@example.com>" }),
+		);
 	};
 	const result = await uploadStagingWorkerVersion(workerOptions, {
 		env: workerEnv,
@@ -262,14 +226,10 @@ test("uploads a new Worker version when a tagged version has mismatched identity
 			uploaded = true;
 			return wranglerSuccess();
 		},
-		uploadSourceMaps: () => {
-			sourceMapUploads += 1;
-		},
 	});
 
 	assert.equal(result.versionId, NEW_VERSION_ID);
 	assert.equal(wranglerCalls, 1);
-	assert.equal(sourceMapUploads, 1);
 });
 
 test("uploads a new Worker version when current secrets cannot be compared", async () => {
@@ -301,7 +261,6 @@ test("uploads a new Worker version when current secrets cannot be compared", asy
 				uploaded = true;
 				return wranglerSuccess();
 			},
-			uploadSourceMaps: () => undefined,
 		},
 	);
 
@@ -355,7 +314,6 @@ test("uploads a new Worker version when an environment binding changed", async (
 				uploaded = true;
 				return wranglerSuccess();
 			},
-			uploadSourceMaps: () => undefined,
 		},
 	);
 

@@ -161,7 +161,7 @@ describe("agent runtime HTTP handler", () => {
 
 		expect(response.status).toBe(409);
 		expect(await response.json()).toMatchObject({
-			error: { code: "tool_contract_mismatch", retryable: false },
+			error: { code: "tool_contract_mismatch" },
 			runtime_release: "test-release",
 		});
 		expect(modelInvoked).toBe(false);
@@ -469,7 +469,7 @@ describe("agent runtime HTTP handler", () => {
 
 		expect(response.status).toBe(400);
 		expect(await response.json()).toMatchObject({
-			error: { code: "invalid_request", retryable: false },
+			error: { code: "invalid_request" },
 		});
 	});
 
@@ -509,7 +509,7 @@ describe("agent runtime HTTP handler", () => {
 
 		expect(response.status).toBe(400);
 		expect(await response.json()).toMatchObject({
-			error: { code: "invalid_request", retryable: false },
+			error: { code: "invalid_request" },
 		});
 	});
 
@@ -533,7 +533,7 @@ describe("agent runtime HTTP handler", () => {
 
 		expect(response.status).toBe(400);
 		expect(await response.json()).toMatchObject({
-			error: { code: "context_budget_exceeded", retryable: false },
+			error: { code: "context_budget_exceeded" },
 		});
 	});
 
@@ -724,11 +724,10 @@ describe("agent runtime HTTP handler", () => {
 
 		expect(response.status).toBe(500);
 		const body = (await response.json()) as {
-			error?: { code?: string; message?: string; retryable?: boolean };
+			error?: { code?: string; message?: string };
 		};
 		expect(body.error?.code).toBe("run_failed");
 		expect(body.error?.message).toBe("The agent runtime could not complete the request.");
-		expect(body.error?.retryable).toBe(false);
 	});
 
 	it("enforces the configured agent deadline", async () => {
@@ -756,11 +755,10 @@ describe("agent runtime HTTP handler", () => {
 
 		expect(response.status).toBe(500);
 		const body = (await response.json()) as {
-			error?: { code?: string; retryable?: boolean };
+			error?: { code?: string };
 		};
 		expect(body.error).toMatchObject({
 			code: "agent_deadline_exceeded",
-			retryable: false,
 		});
 	});
 
@@ -800,7 +798,6 @@ describe("agent runtime HTTP handler", () => {
 					detail: "agent deadline signal was aborted",
 					message: "Agent run exceeded its configured deadline.",
 					operation: "agent.runtime",
-					retryable: false,
 					runtime_release: "test-release",
 				},
 			},
@@ -847,14 +844,13 @@ describe("agent runtime HTTP handler", () => {
 					code: "run_failed",
 					message: "The agent runtime could not complete the request.",
 					operation: "agent.runtime",
-					retryable: false,
 					runtime_release: "test-release",
 				},
 			},
 		]);
 	});
 
-	it("emits a non-retryable terminal SSE error", async () => {
+	it("emits a terminal SSE error", async () => {
 		const onStreamError = vi.fn();
 		const handler = createAgentRuntimeHandler({
 			onStreamError,
@@ -883,7 +879,6 @@ describe("agent runtime HTTP handler", () => {
 					code: "run_failed",
 					message: "The agent runtime could not complete the request.",
 					operation: "agent.runtime",
-					retryable: false,
 					runtime_release: "test-release",
 				},
 			},
@@ -926,7 +921,6 @@ describe("agent runtime HTTP handler", () => {
 					code: "tool_contract_mismatch",
 					message: "The admitted tool contract does not match this agent runtime.",
 					operation: "agent.runtime",
-					retryable: false,
 					runtime_release: "test-release",
 				},
 			},

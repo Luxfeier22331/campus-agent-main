@@ -33,7 +33,7 @@ import type {
 	NoticeJob,
 	NoticeSummary,
 } from "../src/shared/ops-contract.ts";
-import { opsOverviewFixture, opsSentryIssuesFixture } from "../src/shared/ops-fixtures.ts";
+import { opsOverviewFixture } from "../src/shared/ops-fixtures.ts";
 
 const browserTestPort = Number(process.env.OPS_WEB_BROWSER_TEST_PORT ?? "4178");
 const browserDiningStore = createBrowserDiningStore();
@@ -52,19 +52,6 @@ const app = createOpsApp({
 	},
 	overviewService: {
 		getOverview: async () => opsOverviewFixture,
-	},
-	sentry: {
-		queryRequestIssues: async ({ completedAt, requestId, startedAt }) =>
-			requestId === "req_ops_001"
-				? opsSentryIssuesFixture
-				: {
-						...opsSentryIssuesFixture,
-						dataState: "NO_DATA" as const,
-						from: startedAt,
-						issues: [],
-						requestId,
-						to: completedAt ?? startedAt,
-					},
 	},
 	diningMapStore: browserDiningStore,
 	diningMenuStore: browserDiningContentStore,

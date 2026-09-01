@@ -170,10 +170,14 @@ type ChatRequest = {
   合成排队状态；
 - `answer.delta` 只来自持久 `run.answer_delta` 投影，用于显示，不代表最终答案；
 - `execution.phase` 的 `phase` 只允许 `preparing|generating|finalizing`，用于显示受控产品阶段，
-  不暴露 Temporal Activity、SDK tool call 或内部重试；
+  不暴露 Temporal Activity、SDK tool call 或内部重试。阶段只来自持久阶段事件；
+  `run.answer_started` 可以证明 `generating`，`run.answer_completed`、`request.completed` 和 run 摘要
+  都不能自行证明 `finalizing`；
 - 每个产品事件只在事件数据顶层携带一次 `requestId`；不返回 execution-control `eventId`、
   `visibility`，也不在 payload 中重复 `request_id`；
 - finalization transaction 完成后才能发送 terminal event；
+- `request.failed.error` 必须包含 `code`、`message` 和产品语义的布尔 `retryable`；客户端不得在字段
+  缺失时默认可重试；
 - execution-control 的浏览器 `run.canceled` 只有在产品取消终态提交后才转换为
   `request.cancelled`；
 - 浏览器断开只停止消费，不取消 finalization；
@@ -255,8 +259,10 @@ type RunStep = {
 };
 ```
 
-该接口由浏览器可见产品事件和 run 摘要派生，不返回 `attempts`、`results`、工具名、worker、task
-queue、原始步骤载荷或 memory/runtime ref，也不是 execution-control 原始轨迹透传。
+该接口只用浏览器可见持久产品事件派生步骤，不用 run 摘要补阶段或时间。终态只结束已经观察到的
+当前阶段；如果运行已经失败但没有任何阶段事件，四个步骤都保持 `pending`，时间字段为 `null`。
+接口不返回 `attempts`、`results`、工具名、worker、task queue、原始步骤载荷或 memory/runtime ref，
+也不是 execution-control 原始轨迹透传。
 
 ## 可执行来源
 

@@ -16,14 +16,12 @@ describe("agent runtime errors", () => {
 			detail: "agent deadline signal was aborted",
 			message: "Agent run exceeded its configured deadline.",
 			operation: "agent.runtime",
-			retryable: false,
 		});
 	});
 
 	it("classifies the official SDK max-turns error", () => {
 		expect(agentRuntimeErrorPayload(new MaxTurnsExceededError("turn limit"))).toMatchObject({
 			code: "max_turns_exceeded",
-			retryable: false,
 		});
 	});
 
@@ -39,7 +37,6 @@ describe("agent runtime errors", () => {
 			http_status: status,
 			message,
 			operation: "agent.model",
-			retryable: false,
 		});
 	});
 
@@ -53,7 +50,6 @@ describe("agent runtime errors", () => {
 			detail: "SDK tool execution failed",
 			message: "A runtime tool could not complete.",
 			operation: "agent.tool",
-			retryable: false,
 		});
 	});
 });

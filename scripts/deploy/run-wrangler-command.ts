@@ -17,7 +17,7 @@ const CLOUDFLARE_NO_PROXY_HOSTS = [
 	"::1",
 ];
 
-const SENSITIVE_ENV_KEYS = ["CLOUDFLARE_API_TOKEN", "SENTRY_AUTH_TOKEN"] as const;
+const SENSITIVE_ENV_KEYS = ["CLOUDFLARE_API_TOKEN"] as const;
 
 function mergeNoProxyValue(currentValue: string | undefined): string {
 	const entries = new Set(

@@ -15,7 +15,6 @@ status: active
 - `chat.turn_dispatches`：`safety_identifier`、状态、错误和时间；
 - `execution_control.agent_run_steps`：producer 写入的结构化 `failure` 事实；
 - `execution_control.agent_runs`：运行终态、`terminal_reason` 和 `fail_close_reason`，只用于状态判断；
-- Sentry：经过清理的应用异常，不是用户身份、请求正文或限流状态依据。
 
 `runtime.request_observability_fact` 是 App API 内部投影，Ops Web 当前没有列读取权限，不能作为本
 runbook 的排查入口。
@@ -32,12 +31,12 @@ abuse throttle 与 safety alert 阈值由
 2. 确认 turn dispatch 的 terminal 状态和 `error_code`。
 3. 确认 Ops Web 详情中的 `failure.code`、`failure.operation`、`failure.detail`、HTTP 状态和
    `invocationId`；需要判断运行是否已经终止时，再查看 `terminal_reason` 和 `fail_close_reason`。
-4. 需要深入排查错误时，由 Ops Web 按需读取固定范围的 Sentry Issue 摘要，或在 Sentry 通过已保存
-   的关联标识继续检查；不得用外部记录改写持久状态。
+4. 需要深入排查错误时，使用对应运行时的结构化诊断，或在已启用 Langfuse 时使用其受控 trace；
+   不得用观测记录改写持久状态。
 5. 只记录 sanitized request id、pattern code、时间窗口和结论。
 
-若排查中发现 Sentry 或 Langfuse 含 query、header、正文、用户标识、memory 或 credential，应立即
-停止对应 producer 输出并按 observability canary 重新验证；若出现 invocation log/native trace 或
+若排查中发现 Langfuse 含 query、header、正文、用户标识、memory 或 credential，应立即停止对应
+producer 输出并按 observability canary 重新验证；若出现 invocation log/native trace 或
 application-log destination，则先修复必须关闭这些信号的配置漂移。若环境启用了 Agent Langfuse
 trace，可以使用 W3C context 做进一步关联；配额停收时不要求 trace 存在。不得把泄漏字段复制进
 工单，也不得用 trace 缺失推断请求失败。

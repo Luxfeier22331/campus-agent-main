@@ -13,7 +13,7 @@ Model Config 管理四个 name 的当前 config：`primary_agent`、
 配置中供应商密钥的首次配置、验证、替换、轮换和撤销。Provider 与环境所有权见
 `../environment/providers.md`，接口边界见 `../contracts/ops-web/providers.md`。
 
-Hindsight、评测、Sentry、Langfuse、Cloudflare 和其他环境凭据不进入该服务。接口不提供 profile、
+Hindsight、评测、Langfuse、Cloudflare 和其他环境凭据不进入该服务。接口不提供 profile、
 revision、bundle、activation、history、fallback 或在线 rollback。不同部署环境是否使用独立密钥由
 实际环境、供应商限制和运维需求决定；不为不存在或未启用的环境预建配置。
 

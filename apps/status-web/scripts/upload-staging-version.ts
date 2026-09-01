@@ -1,7 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveStagingSentryRelease } from "../../../scripts/deploy/staging-release.mts";
 import { uploadStagingWorkerVersion } from "../../../scripts/deploy/worker-version.ts";
 import {
 	buildStatusStagingUploadConfig,
@@ -25,7 +24,6 @@ const qaOrigin = validateStatusQaOrigin(requiredEnv("STATUS_QA_ORIGIN"));
 const campusOrigin = validateCampusWebPublicOrigin(requiredEnv("CAMPUS_WEB_PUBLIC_ORIGIN"));
 const kvNamespaceId = requiredEnv("STATUS_SNAPSHOT_KV_ID");
 
-const release = resolveStagingSentryRelease("status-web");
 const configDir = mkdtempSync(
 	resolve(process.env.TMPDIR?.trim() || "/tmp", "campus-agent-status-web-"),
 );
@@ -56,7 +54,6 @@ try {
 		workerName: "status-web-staging",
 		variables: {
 			CAMPUS_WEB_PUBLIC_ORIGIN: campusOrigin,
-			DEPLOYMENT_RELEASE: release,
 			STATUS_CAMPUS_ORIGIN: statusCampusOrigin,
 			STATUS_QA_ORIGIN: qaOrigin,
 		},

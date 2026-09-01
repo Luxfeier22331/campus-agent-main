@@ -233,6 +233,10 @@ function toChatRunResumeStreamEvent(input: {
 	}
 	if (input.event.eventType === "request.failed") {
 		const terminalError = getPayloadRecordValue(input.event.payload, "error");
+		const retryable = terminalError ? getBooleanPayloadValue(terminalError, "retryable") : null;
+		if (retryable === null) {
+			throw new Error("request.failed error.retryable is required");
+		}
 		const errorCode =
 			(terminalError ? getStringPayloadValue(terminalError, "code") : null) ??
 			getStringPayloadValue(input.event.payload, "code") ??
@@ -244,10 +248,7 @@ function toChatRunResumeStreamEvent(input: {
 				error: {
 					code: failure.errorCode,
 					message: failure.message,
-					retryable:
-						(terminalError ? getBooleanPayloadValue(terminalError, "retryable") : null) ??
-						getBooleanPayloadValue(input.event.payload, "retryable") ??
-						true,
+					retryable,
 				},
 				status: "failed",
 			},

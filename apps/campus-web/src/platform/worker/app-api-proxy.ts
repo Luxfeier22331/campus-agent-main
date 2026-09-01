@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/cloudflare";
 import {
 	isPublicCacheableAppApiRequest,
 	proxyCacheableAppApiRequest,
@@ -18,7 +17,6 @@ const FORWARDED_HEADERS = [
 	"content-type",
 	"cookie",
 	"idempotency-key",
-	"sentry-trace",
 	"traceparent",
 ] as const;
 const AUTH_FORWARDED_HEADERS = [
@@ -38,16 +36,6 @@ export async function proxyToAppApi(request: Request, env: CampusWorkerEnv): Pro
 		return proxyCacheableAppApiRequestWithEnv(request, env);
 	}
 	return proxyNoStoreAppApiRequest(request, env);
-}
-
-export function applyUpstreamCorrelationTags(
-	response: Response,
-	setTag: (key: string, value: string) => void = Sentry.setTag,
-): void {
-	const requestId = normalizeUpstreamCorrelationId(response.headers.get("x-request-id"), 128);
-	if (requestId) {
-		setTag("campus.request_id", requestId);
-	}
 }
 
 async function proxyNoStoreAppApiRequest(
@@ -92,7 +80,6 @@ async function proxyNoStoreAppApiRequest(
 		if (isHtmlServerErrorResponse(response)) {
 			return dependencyNotReadyResponse();
 		}
-		applyUpstreamCorrelationTags(response);
 		return withNoStore(response);
 	} catch {
 		return dependencyNotReadyResponse();
@@ -120,17 +107,7 @@ async function proxyCacheableAppApiRequestWithEnv(
 		securityHeaders: SECURITY_HEADERS,
 		withNoStore,
 	});
-	applyUpstreamCorrelationTags(response);
 	return response;
-}
-
-function normalizeUpstreamCorrelationId(value: string | null, maxLength: number): string | null {
-	const normalized = value?.trim() ?? "";
-	return normalized.length > 0 &&
-		normalized.length <= maxLength &&
-		/^[A-Za-z0-9._:-]+$/u.test(normalized)
-		? normalized
-		: null;
 }
 
 function resolveAppApiFetch(

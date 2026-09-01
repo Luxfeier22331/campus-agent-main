@@ -42,8 +42,8 @@ func temporalFailurePublicMessage(kind string) string {
 		return "Personal memory could not be loaded for this request."
 	case "agent_runtime_timeout", "agent_deadline_exceeded":
 		return "The agent runtime did not complete before its deadline."
-	case "agent_runtime_failed", "model_setting_missing", "provider_rate_limited", "provider_http_failed",
-		"provider_connection_failed", "provider_timeout", "provider_unavailable":
+	case "provider_rate_limited", "provider_http_failed", "provider_connection_failed",
+		"provider_timeout", "provider_unavailable":
 		return "The answer provider is temporarily unavailable."
 	case "citation_validation_failed":
 		return "The answer citations could not be verified."

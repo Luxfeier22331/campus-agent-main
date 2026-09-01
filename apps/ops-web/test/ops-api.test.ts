@@ -6,20 +6,15 @@ import { createUnavailableDiningStore } from "../src/server/dining-store";
 import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import { createOpsOverviewService } from "../src/server/ops-overview-service";
-import { SentryUnavailableError } from "../src/server/sentry-client";
-import { opsSentryIssuesFixture } from "../src/shared/ops-fixtures";
 import { createTestOpsApp } from "./helpers/ops-app";
 
-function createTestApp(options?: { sentryFails?: boolean }) {
+function createTestApp() {
 	const baseStore = createFixtureOpsStatusStore();
 	const store = baseStore;
 	const overviewService = createOpsOverviewService({
 		now: () => new Date("2026-07-09T06:30:00.000Z"),
 		store,
 	});
-	const queryRequestIssues = options?.sentryFails
-		? vi.fn().mockRejectedValue(new SentryUnavailableError("Sentry unavailable"))
-		: vi.fn().mockResolvedValue(opsSentryIssuesFixture);
 	const app = createTestOpsApp({
 		admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 		env: {
@@ -27,13 +22,9 @@ function createTestApp(options?: { sentryFails?: boolean }) {
 			OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test",
 		},
 		overviewService,
-		sentry: { queryRequestIssues },
 		store,
 	});
-	return {
-		app,
-		queryRequestIssues,
-	};
+	return { app };
 }
 
 describe("ops API", () => {
@@ -235,55 +226,10 @@ describe("ops API", () => {
 		expect(campusGroupsClient.replaceCatalog).toHaveBeenCalledWith(catalog);
 	});
 
-	it("does not retain the retired request log endpoint", async () => {
+	it("does not retain retired request diagnostics endpoints", async () => {
 		const { app } = createTestApp();
-		const response = await app.request("/api/ops/requests/req_ops_001/observability?kind=logs");
-
-		expect(response.status).toBe(404);
-	});
-
-	it("returns trusted Sentry issue summaries under unified Ops admission", async () => {
-		const { app, queryRequestIssues } = createTestApp();
-		const response = await app.request("/api/ops/requests/req_ops_001/sentry-issues");
-
-		expect(response.status).toBe(200);
-		expect(queryRequestIssues).toHaveBeenCalledWith(
-			expect.objectContaining({
-				requestId: "req_ops_001",
-			}),
-		);
-		await expect(response.json()).resolves.toMatchObject({
-			dataState: "FRESH",
-		});
-	});
-
-	it("rejects browser-supplied Sentry query controls", async () => {
-		const { app, queryRequestIssues } = createTestApp();
-		const response = await app.request(
-			"/api/ops/requests/req_ops_001/sentry-issues?query=x&project=x&start=0&limit=100",
-		);
-
-		expect(response.status).toBe(400);
-		expect(queryRequestIssues).not.toHaveBeenCalled();
-	});
-
-	it("does not query Sentry for an unknown request", async () => {
-		const { app, queryRequestIssues } = createTestApp();
-		const response = await app.request("/api/ops/requests/req_missing/sentry-issues");
-
-		expect(response.status).toBe(404);
-		expect(queryRequestIssues).not.toHaveBeenCalled();
-	});
-
-	it("maps Sentry API failures to a dedicated unavailable response", async () => {
-		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-		const { app } = createTestApp({ sentryFails: true });
-		const response = await app.request("/api/ops/requests/req_ops_001/sentry-issues");
-
-		expect(response.status).toBe(503);
-		await expect(response.json()).resolves.toMatchObject({
-			error: { code: "OPS_SENTRY_UNAVAILABLE" },
-		});
-		consoleError.mockRestore();
+		for (const path of ["/api/ops/requests/req_ops_001/observability?kind=logs"]) {
+			expect((await app.request(path)).status).toBe(404);
+		}
 	});
 });

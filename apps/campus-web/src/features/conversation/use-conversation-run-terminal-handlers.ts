@@ -60,7 +60,7 @@ export function useConversationRunTerminalHandlers({
 							code: event.data.error.code,
 							message: event.data.error.message,
 							requestId: event.data.requestId,
-							retryable: event.data.error.retryable ?? true,
+							retryable: event.data.error.retryable,
 						})
 					: null;
 			if (event.event === "request.cancelled") {

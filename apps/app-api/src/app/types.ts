@@ -13,7 +13,6 @@ import type { NoticeService } from "../modules/notices";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
-import type { AppTelemetry } from "../modules/telemetry";
 
 export interface AppDependencies {
 	accountAdminService?: AccountAdminService;
@@ -42,7 +41,6 @@ export interface AppDependencies {
 	profileMemoryService?: ProfileMemoryService;
 	runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
 	runtimeRunService?: RuntimeRunService;
-	telemetry?: AppTelemetry;
 }
 
 type AppRuntimeDependencyName = "auth" | "database";
@@ -69,5 +67,4 @@ export interface AppRequestScope {
 	resolveNoticeService(): NoticeService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveRuntimeRunService(): RuntimeRunService;
-	telemetry: AppTelemetry;
 }

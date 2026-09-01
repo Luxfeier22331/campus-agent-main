@@ -1,11 +1,8 @@
-import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatWranglerFailure, runWranglerCommand } from "./run-wrangler-command.ts";
 import { resolveGitSha } from "./staging-release.mts";
-
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 interface WorkerVersionSummary {
 	id: string;
@@ -31,14 +28,6 @@ export interface UploadedWorkerVersion {
 	[key: string]: string | undefined;
 }
 
-interface SentrySourceMapUploadOptions {
-	artifactDirectory: string;
-	orgSlug: string;
-	projectSlug: string;
-	release: string;
-	wranglerOutdir?: string;
-}
-
 interface ExpectedWorkerBinding {
 	name: string;
 	properties: Record<string, string>;
@@ -52,7 +41,6 @@ interface WorkerVersionUploadOptions {
 	environment?: string;
 	expectedBindings?: ExpectedWorkerBinding[];
 	secretsFile?: string;
-	sentrySourceMaps?: SentrySourceMapUploadOptions;
 	variables: Record<string, string>;
 }
 
@@ -69,7 +57,6 @@ interface WorkerVersionUploadDependencies {
 	fetch?: typeof fetch;
 	resolveSourceSha?: () => string;
 	runWrangler?: WranglerRunner;
-	uploadSourceMaps?: typeof uploadSentrySourceMaps;
 }
 
 function fail(message: string): never {
@@ -361,15 +348,6 @@ export function buildWorkerVersionUploadArgs(
 	if (options.secretsFile) {
 		args.push("--secrets-file", options.secretsFile);
 	}
-	if (options.sentrySourceMaps) {
-		args.push("--upload-source-maps");
-		if (options.sentrySourceMaps.wranglerOutdir) {
-			if (!isAbsolute(options.sentrySourceMaps.wranglerOutdir)) {
-				fail("Wrangler source-map output directory must be absolute.");
-			}
-			args.push("--outdir", options.sentrySourceMaps.wranglerOutdir);
-		}
-	}
 	args.push(
 		"--tag",
 		resolveWorkerVersionTag(options.buildIdentity, sourceSha),
@@ -383,67 +361,6 @@ export function buildWorkerVersionUploadArgs(
 	}
 	return args;
 }
-
-export function buildSentrySourceMapUploadArgs(options: {
-	artifactDirectory: string;
-	orgSlug: string;
-	projectSlug: string;
-	release: string;
-}): string[] {
-	return [
-		"sourcemaps",
-		"upload",
-		"--org",
-		options.orgSlug,
-		"--project",
-		options.projectSlug,
-		"--release",
-		options.release,
-		"--strip-common-prefix",
-		"--strict",
-		"--validate",
-		"--wait-for",
-		"60",
-		options.artifactDirectory,
-	];
-}
-
-function uploadSentrySourceMaps(
-	cwd: string,
-	workerName: string,
-	options: SentrySourceMapUploadOptions,
-	env: NodeJS.ProcessEnv = process.env,
-): void {
-	const authToken = env.SENTRY_AUTH_TOKEN?.trim();
-	if (!authToken) {
-		fail(`SENTRY_AUTH_TOKEN is required to upload source maps for ${workerName}.`);
-	}
-
-	const sentryEnv = { ...env };
-	delete sentryEnv.SENTRY_ALLOW_FAILURE;
-	delete sentryEnv.SENTRY_ORG;
-	delete sentryEnv.SENTRY_PROJECT;
-	sentryEnv.SENTRY_AUTH_TOKEN = authToken;
-	sentryEnv.SENTRY_DISABLE_UPDATE_CHECK = "true";
-	sentryEnv.SENTRY_LOAD_DOTENV = "0";
-	sentryEnv.SENTRY_NO_PROGRESS_BAR = "1";
-	sentryEnv.SENTRY_URL = "https://sentry.io/";
-
-	const artifactDirectory = resolve(cwd, options.artifactDirectory);
-	const result = spawnSync(
-		"pnpm",
-		["exec", "sentry-cli", ...buildSentrySourceMapUploadArgs({ ...options, artifactDirectory })],
-		{
-			cwd: repoRoot,
-			env: sentryEnv,
-			stdio: "inherit",
-		},
-	);
-	if (result.status !== 0) {
-		fail(`Unable to upload Sentry source maps for ${workerName}.`);
-	}
-}
-
 export async function uploadStagingWorkerVersion(
 	options: StagingWorkerVersionOptions,
 	dependencies: WorkerVersionUploadDependencies = {},
@@ -452,18 +369,9 @@ export async function uploadStagingWorkerVersion(
 	const fetcher = dependencies.fetch ?? fetch;
 	const resolveSourceSha = dependencies.resolveSourceSha ?? resolveGitSha;
 	const runWrangler = dependencies.runWrangler ?? runWranglerCommand;
-	const uploadSourceMaps = dependencies.uploadSourceMaps ?? uploadSentrySourceMaps;
 	const sourceSha = resolveSourceSha();
 	const tag = resolveWorkerVersionTag(options.buildIdentity, sourceSha);
 	const message = `MUC-WIKI/campus-agent@${sourceSha} (${options.appName})`;
-	if (
-		options.sentrySourceMaps &&
-		options.variables.DEPLOYMENT_RELEASE !== options.sentrySourceMaps.release
-	) {
-		return fail(
-			`Sentry source-map release for ${options.workerName} must match the Worker DEPLOYMENT_RELEASE variable.`,
-		);
-	}
 	const args = buildWorkerVersionUploadArgs(options, sourceSha);
 	const accountId = requiredEnvironment(env, "CLOUDFLARE_ACCOUNT_ID");
 	const versionsBeforeUpload = options.secretsFile
@@ -509,20 +417,6 @@ export async function uploadStagingWorkerVersion(
 		if (!version) {
 			return fail(`Uploaded Worker version for ${options.workerName} could not be verified.`);
 		}
-	} else if (options.sentrySourceMaps?.wranglerOutdir) {
-		const bundle = runWrangler([...args, "--dry-run"], {
-			cwd: options.cwd,
-			env,
-			stdio: "inherit",
-		});
-		if (bundle.status !== 0) {
-			return fail(
-				formatWranglerFailure(bundle, `Rebuilding source maps for ${options.workerName}`, env),
-			);
-		}
-	}
-	if (options.sentrySourceMaps) {
-		uploadSourceMaps(options.cwd, options.workerName, options.sentrySourceMaps, env);
 	}
 
 	const result = {

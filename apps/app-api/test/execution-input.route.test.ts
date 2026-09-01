@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import type { ChatCommandService } from "../src/modules/runtime-command";
-import { createTelemetryMock } from "./chat-command.service.test-support";
 
 const callbackSecret = "execution-shared-secret";
 const executionInputSecret = callbackSecret;
@@ -28,7 +27,6 @@ function appWithExecutionInput(input: {
 				readExecutionInput: input.readExecutionInput ?? vi.fn(async () => null),
 				submit: vi.fn(),
 			},
-			telemetry: createTelemetryMock(),
 		},
 	);
 }

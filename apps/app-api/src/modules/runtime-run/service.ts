@@ -337,7 +337,7 @@ export function buildRuntimeRunService(input: {
 			});
 			return {
 				run: eventTimeline.run,
-				steps: deriveRunSteps(eventTimeline.events, eventTimeline.run),
+				steps: deriveRunSteps(eventTimeline.events),
 			};
 		},
 		async *subscribeEvents(eventsInput) {

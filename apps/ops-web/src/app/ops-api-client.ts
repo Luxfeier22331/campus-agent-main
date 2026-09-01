@@ -62,6 +62,5 @@ export {
 	fetchOpsOverview,
 	fetchOpsRequestDetail,
 	fetchOpsRequests,
-	fetchOpsSentryIssues,
 	type OpsRequestListParams,
 } from "./ops-api/observability";

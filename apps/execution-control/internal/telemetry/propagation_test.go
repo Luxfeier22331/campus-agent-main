@@ -25,7 +25,7 @@ func TestExtractIncomingContextAcceptsTraceParent(t *testing.T) {
 	}
 }
 
-func TestExtractIncomingContextIgnoresBaggageAndSentryTrace(t *testing.T) {
+func TestExtractIncomingContextIgnoresBaggage(t *testing.T) {
 	ambientContext := ExtractTraceParent(
 		context.Background(),
 		"00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
@@ -37,10 +37,6 @@ func TestExtractIncomingContextIgnoresBaggageAndSentryTrace(t *testing.T) {
 		"baggage": {
 			headerName:  "baggage",
 			headerValue: "release=2026.07.11",
-		},
-		"sentry-trace": {
-			headerName:  "sentry-trace",
-			headerValue: "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ExecutionControlTransportError } from "../src/modules/integration";
 import { buildRuntimeRunService } from "../src/modules/runtime-run";
 import { createPrincipal } from "./chat-command.service.test-support";
-import { durableRun, eventPage, runtimeStore } from "./runtime-run.test-support";
+import { durableEvent, durableRun, eventPage, runtimeStore } from "./runtime-run.test-support";
 
 function runtime() {
 	return {
@@ -95,5 +95,134 @@ describe("runtime run service", () => {
 			}),
 		).rejects.toMatchObject({ code: "request_already_terminal", status: 409 });
 		expect(executionRuntime.cancelRun).not.toHaveBeenCalled();
+	});
+
+	it("keeps every phase pending when a failed run has no phase evidence", async () => {
+		const executionRuntime = runtime();
+		executionRuntime.getRun.mockResolvedValue(
+			durableRun({
+				completedAt: "2026-06-04T01:02:06.000Z",
+				status: "failed",
+				terminalReason: "execution_failed",
+			}),
+		);
+		executionRuntime.listRunEvents.mockResolvedValue(
+			eventPage([
+				durableEvent({
+					eventType: "run.failed",
+					payload: {
+						error: {
+							code: "run_failed",
+							message: "The request could not be completed.",
+							retryable: false,
+						},
+						status: "failed",
+						terminal_reason: "execution_failed",
+					},
+					sequence: 1,
+				}),
+			]),
+		);
+		const service = buildRuntimeRunService({ executionRuntime, store: runtimeStore() });
+
+		await expect(
+			service.listSteps({ principal: createPrincipal(), requestId: "req_01HQ" }),
+		).resolves.toMatchObject({
+			steps: [
+				{
+					completedAt: null,
+					durationMs: null,
+					phase: "queued",
+					startedAt: null,
+					status: "pending",
+				},
+				{
+					completedAt: null,
+					durationMs: null,
+					phase: "preparing",
+					startedAt: null,
+					status: "pending",
+				},
+				{
+					completedAt: null,
+					durationMs: null,
+					phase: "generating",
+					startedAt: null,
+					status: "pending",
+				},
+				{
+					completedAt: null,
+					durationMs: null,
+					phase: "finalizing",
+					startedAt: null,
+					status: "pending",
+				},
+			],
+		});
+	});
+
+	it("does not complete earlier phases that were never observed", async () => {
+		const executionRuntime = runtime();
+		executionRuntime.getRun.mockResolvedValue(
+			durableRun({
+				completedAt: "2026-06-04T01:02:06.000Z",
+				status: "failed",
+				terminalReason: "execution_failed",
+			}),
+		);
+		executionRuntime.listRunEvents.mockResolvedValue(
+			eventPage([
+				durableEvent({
+					eventType: "run.answer_started",
+					occurredAt: "2026-06-04T01:02:04.000Z",
+					sequence: 1,
+				}),
+				durableEvent({
+					eventType: "run.failed",
+					occurredAt: "2026-06-04T01:02:06.000Z",
+					payload: {
+						error: {
+							code: "run_failed",
+							message: "The request could not be completed.",
+							retryable: false,
+						},
+						status: "failed",
+						terminal_reason: "execution_failed",
+					},
+					sequence: 2,
+				}),
+			]),
+		);
+		const service = buildRuntimeRunService({ executionRuntime, store: runtimeStore() });
+
+		const result = await service.listSteps({
+			principal: createPrincipal(),
+			requestId: "req_01HQ",
+		});
+
+		expect(result.steps).toEqual([
+			{ completedAt: null, durationMs: null, phase: "queued", startedAt: null, status: "pending" },
+			{
+				completedAt: null,
+				durationMs: null,
+				phase: "preparing",
+				startedAt: null,
+				status: "pending",
+			},
+			{
+				completedAt: "2026-06-04T01:02:06.000Z",
+				durationMs: 2_000,
+				phase: "generating",
+				startedAt: "2026-06-04T01:02:04.000Z",
+				status: "failed",
+			},
+			{
+				completedAt: null,
+				durationMs: null,
+				phase: "finalizing",
+				startedAt: null,
+				status: "pending",
+			},
+		]);
 	});
 });

@@ -7,7 +7,6 @@ import {
 	opsOverviewFixture,
 	opsRequestDetailFixture,
 	opsRequestListFixture,
-	opsSentryIssuesFixture,
 } from "../src/shared/ops-fixtures";
 
 describe("OpsWebApp", () => {
@@ -68,19 +67,16 @@ describe("OpsWebApp", () => {
 		expect((await screen.findAllByText("缓考申请需要哪些材料？")).length).toBeGreaterThan(0);
 		expect((await screen.findAllByText("Agent · 已完成")).length).toBeGreaterThan(0);
 		expect((await screen.findAllByText("回答已写入会话")).length).toBeGreaterThan(0);
-		expect(screen.getByRole("link", { name: "最近运行" })).toHaveAttribute("aria-current", "page");
-		expect(screen.getByRole("link", { name: "需要关注" })).toHaveAttribute(
-			"href",
-			"/requests?view=attention",
-		);
+		expect(screen.getByRole("combobox", { name: "运行范围" })).toHaveValue("recent");
 		expect(screen.getByRole("combobox", { name: "状态" })).toHaveValue("");
 		const requestTable = screen.getByRole("table", { name: "运行记录" });
 		expect(requestTable).toBeInTheDocument();
 		expect(screen.getByRole("columnheader", { name: "用户问题" })).toHaveAttribute("scope", "col");
-		expect(screen.getByRole("columnheader", { name: "状态" })).toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "执行阶段" })).toBeInTheDocument();
+		expect(screen.getByRole("columnheader", { name: "产品结果" })).toBeInTheDocument();
+		expect(screen.getByRole("columnheader", { name: "产品状态" })).toBeInTheDocument();
+		expect(screen.getByRole("columnheader", { name: "执行诊断" })).toBeInTheDocument();
+		expect(screen.getByRole("columnheader", { name: "关注原因" })).toBeInTheDocument();
 		expect(screen.queryByRole("columnheader", { name: "Token" })).not.toBeInTheDocument();
-		expect(screen.getByRole("columnheader", { name: "发起时间" })).toBeInTheDocument();
 		expect(screen.getByRole("columnheader", { name: "耗时" })).toBeInTheDocument();
 		expect(
 			within(requestTable).getByRole("rowheader", { name: /缓考申请需要哪些材料？/u }),
@@ -215,16 +211,58 @@ describe("OpsWebApp", () => {
 
 		try {
 			render(<OpsWebApp initialPath="/requests" />);
-			fireEvent.click(await screen.findByRole("link", { name: "需要关注" }));
+			fireEvent.change(await screen.findByRole("combobox", { name: "运行范围" }), {
+				target: { value: "attention" },
+			});
+			fireEvent.click(screen.getByRole("button", { name: /应用/u }));
 
 			expect(await screen.findByText("共 1 条，当前显示 1 条")).toBeInTheDocument();
-			expect(screen.getByRole("link", { name: "需要关注" })).toHaveAttribute(
-				"aria-current",
-				"page",
-			);
+			expect(screen.getByRole("combobox", { name: "运行范围" })).toHaveValue("attention");
 			expect(screen.getAllByText("req_ops_004").length).toBeGreaterThan(0);
 			expect(screen.queryAllByText("req_ops_001")).toHaveLength(0);
 			expect(requestedViews).toContain("attention");
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	it("keeps compatible filters when changing the run range and drops its cursor", async () => {
+		const originalFetch = globalThis.fetch;
+		const requestUrls: string[] = [];
+		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+			const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			const url = new URL(raw, "https://ops.example.test");
+			if (url.pathname === "/api/ops/requests") {
+				requestUrls.push(url.toString());
+				const view = url.searchParams.get("view") === "attention" ? "attention" : "recent";
+				return Response.json({
+					...opsRequestListFixture,
+					page: { nextCursor: null },
+					view,
+					window: (url.searchParams.get("window") as "24h" | null) ?? "1h",
+				});
+			}
+			return originalFetch(input, init);
+		}) as typeof fetch;
+
+		try {
+			render(
+				<OpsWebApp initialPath="/requests?view=attention&status=FAILED&q=本地评估&window=24h&cursor=stale" />,
+			);
+			await screen.findByText("运行范围：需要关注");
+
+			const view = screen.getByRole("combobox", { name: "运行范围" });
+			fireEvent.change(view, { target: { value: "recent" } });
+			fireEvent.click(screen.getByRole("button", { name: /应用/u }));
+
+			await waitFor(() => expect(requestUrls.length).toBeGreaterThanOrEqual(2));
+			const submitted = new URL(requestUrls.at(-1) as string);
+			expect(submitted.searchParams.get("view")).toBeNull();
+			expect(submitted.searchParams.get("status")).toBe("FAILED");
+			expect(submitted.searchParams.get("q")).toBe("本地评估");
+			expect(submitted.searchParams.get("window")).toBe("24h");
+			expect(submitted.searchParams.get("cursor")).toBeNull();
+			expect(await screen.findByText("运行范围：最近运行")).toBeInTheDocument();
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
@@ -347,8 +385,7 @@ describe("OpsWebApp", () => {
 
 		expect(await screen.findByText(/已忽略无效筛选参数/)).toBeInTheDocument();
 		expect(await screen.findByText("limit")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "最近运行" })).toHaveAttribute("aria-current", "page");
-		expect(screen.getByRole("link", { name: "需要关注" })).not.toHaveAttribute("aria-current");
+		expect(screen.getByRole("combobox", { name: "运行范围" })).toHaveValue("recent");
 	});
 
 	it("allows product status filters in the attention view", async () => {
@@ -356,8 +393,7 @@ describe("OpsWebApp", () => {
 
 		expect((await screen.findAllByText("req_ops_006")).length).toBeGreaterThan(0);
 		expect(screen.queryByText(/已忽略无效筛选参数/)).not.toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "需要关注" })).toHaveAttribute("aria-current", "page");
-		expect(screen.getByRole("link", { name: "最近运行" })).not.toHaveAttribute("aria-current");
+		expect(screen.getByRole("combobox", { name: "运行范围" })).toHaveValue("attention");
 		expect(screen.getByRole("combobox", { name: "状态" })).toHaveValue("COMPLETED");
 	});
 
@@ -537,11 +573,8 @@ describe("OpsWebApp", () => {
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("req_ops_001");
 		expect(screen.queryByRole("button", { name: /应用日志/u })).not.toBeInTheDocument();
 		expect(screen.queryByRole("list", { name: "应用日志" })).not.toBeInTheDocument();
-		fireEvent.click(await screen.findByRole("button", { name: "加载错误记录" }));
-		expect(await screen.findByRole("list", { name: "错误摘要" })).toHaveTextContent(
-			"Request execution failed",
-		);
-		expect(screen.queryByRole("link", { name: /Sentry|Temporal/u })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "加载错误记录" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: "Temporal" })).not.toBeInTheDocument();
 	}, 10_000);
 
 	it("renders duplicate source metadata without duplicate React keys", async () => {
@@ -580,53 +613,6 @@ describe("OpsWebApp", () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 			consoleError.mockRestore();
-		}
-	});
-
-	it("loads and refreshes Sentry records only on demand", async () => {
-		const originalFetch = globalThis.fetch;
-		let sentryCalls = 0;
-		let resolveRefresh!: (response: Response) => void;
-		const refreshResponse = new Promise<Response>((resolve) => {
-			resolveRefresh = resolve;
-		});
-		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-			const url =
-				typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-			if (url.includes("/api/ops/requests/req_ops_001/sentry-issues")) {
-				sentryCalls += 1;
-				if (sentryCalls === 2) {
-					return refreshResponse;
-				}
-			}
-			return originalFetch(input, init);
-		}) as typeof fetch;
-
-		try {
-			render(<OpsWebApp initialPath="/requests/req_ops_001" />);
-			expect(await screen.findByRole("heading", { name: "运行详情" })).toBeInTheDocument();
-			expect(sentryCalls).toBe(0);
-			expect(screen.queryByText(/正在读取 Sentry/u)).not.toBeInTheDocument();
-			fireEvent.click(await screen.findByRole("button", { name: "加载错误记录" }));
-			await waitFor(() => expect(sentryCalls).toBe(1));
-			expect(await screen.findByRole("list", { name: "错误摘要" })).toHaveTextContent(
-				"Request execution failed",
-			);
-			expect(sentryCalls).toBe(1);
-
-			const refresh = screen.getByRole("button", { name: "刷新错误记录" });
-			fireEvent.click(refresh);
-			await waitFor(() => expect(sentryCalls).toBe(2));
-			expect(refresh).toBeDisabled();
-			expect(refresh).toHaveAttribute("aria-busy", "true");
-			expect(refresh).toHaveTextContent("刷新中");
-
-			resolveRefresh(Response.json(opsSentryIssuesFixture));
-			await waitFor(() => expect(refresh).toBeEnabled());
-			expect(refresh).toHaveAttribute("aria-busy", "false");
-			expect(refresh).toHaveTextContent("刷新");
-		} finally {
-			globalThis.fetch = originalFetch;
 		}
 	});
 
@@ -708,7 +694,7 @@ describe("OpsWebApp", () => {
 		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url =
 				typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-			if (url.includes("/api/ops/requests/req_ops_001") && !url.includes("/sentry-issues")) {
+			if (url.includes("/api/ops/requests/req_ops_001")) {
 				detailCalls += 1;
 				return Response.json(detailCalls === 1 ? opsRequestDetailFixture : laterFailureDetail);
 			}

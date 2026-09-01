@@ -27,7 +27,6 @@ export interface AssetFetcher {
 export interface Env {
 	ASSETS?: AssetFetcher;
 	DEPLOYMENT_ENVIRONMENT?: string;
-	DEPLOYMENT_RELEASE?: string;
 	CAMPUS_WEB_PUBLIC_ORIGIN?: string;
 	STATUS_CAMPUS_ORIGIN?: string;
 	STATUS_QA_ORIGIN?: string;

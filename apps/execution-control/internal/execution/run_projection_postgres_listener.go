@@ -62,12 +62,16 @@ func (s *PostgresRunProjectionStore) ensureRunEventListener(ctx context.Context)
 	if s.closed {
 		return fmt.Errorf("run projection store is closed")
 	}
-	if s.eventListenerErr != nil {
-		return s.eventListenerErr
-	}
 	if s.eventListenerActive {
+		if s.eventListenerErr != nil {
+			return s.eventListenerErr
+		}
 		return nil
 	}
+	// A listener failure only applies to the listener generation that exited.
+	// Consume it before attempting to establish the next generation so a
+	// transient connection error cannot permanently poison the store.
+	s.eventListenerErr = nil
 	connection, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("acquire run event listener connection: %w", err)
@@ -79,22 +83,29 @@ func (s *PostgresRunProjectionStore) ensureRunEventListener(ctx context.Context)
 	listenerCtx, cancel := context.WithCancel(context.Background())
 	s.eventListenerActive = true
 	s.eventListenerCancel = cancel
-	s.eventListenerDone = make(chan struct{})
-	go s.listenForRunEvents(listenerCtx, connection)
+	done := make(chan struct{})
+	s.eventListenerDone = done
+	go s.listenForRunEvents(listenerCtx, connection, done)
 	return nil
 }
 
 func (s *PostgresRunProjectionStore) listenForRunEvents(
 	ctx context.Context,
 	connection *pgxpool.Conn,
+	done chan struct{},
 ) {
-	defer connection.Release()
 	defer func() {
+		connection.Release()
 		s.eventMu.Lock()
-		s.eventListenerActive = false
-		done := s.eventListenerDone
+		if s.eventListenerDone == done {
+			s.eventListenerActive = false
+			s.eventListenerCancel = nil
+			s.eventListenerDone = nil
+		}
+		if done != nil {
+			close(done)
+		}
 		s.eventMu.Unlock()
-		close(done)
 	}()
 	for {
 		notification, err := connection.Conn().WaitForNotification(ctx)

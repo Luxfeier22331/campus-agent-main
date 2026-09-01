@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import type { OpsRequestSummary } from "../shared/ops-contract";
 import {
 	cleanRequestSearch,
+	formatRequestViewLabel,
 	optionalBoundedSearchString,
 	optionalRequestListView,
 	optionalRequestWindow,
@@ -51,6 +52,8 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 
 	const hasExactFilter = exactIdFields.some((field) => Boolean(draft[field.name]));
 	const appliedFilterCount =
+		Number(draft.view === "attention") +
+		Number(Boolean(draft.q)) +
 		Number(Boolean(draft.status)) +
 		Number(draft.window !== "1h") +
 		exactIdFields.filter((field) => Boolean(draft[field.name])).length;
@@ -61,8 +64,8 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 		}
 	};
 	const resetFilters = () => {
-		const resetSearch = cleanRequestSearch({ view: search.view });
-		setDraft(requestSearchDraftFromSearch({ view: search.view ?? "recent" }));
+		const resetSearch = cleanRequestSearch({});
+		setDraft(requestSearchDraftFromSearch({ view: "recent" }));
 		void navigate({ search: resetSearch, to: "/requests" });
 	};
 
@@ -80,7 +83,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 				ref={formRef}
 			>
 				<input name="view" type="hidden" value={draft.view} />
-				<div className="grid gap-3 md:grid-cols-[minmax(15rem,1fr)_9rem_9rem_auto] md:items-end">
+				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_11rem_9rem_9rem_auto] xl:items-end">
 					<SearchInput
 						label="关键词"
 						maxLength={256}
@@ -89,6 +92,12 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 						placeholder="搜索问题、请求 ID 或错误码"
 						value={draft.q}
 					/>
+					<div className="hidden md:block">
+						<RequestViewField
+							onChange={(view) => setDraft((previous) => ({ ...previous, view }))}
+							value={draft.view}
+						/>
+					</div>
 					<div className="hidden md:block">
 						<RequestStatusField
 							onChange={(status) => setDraft((previous) => ({ ...previous, status }))}
@@ -101,7 +110,7 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 							value={draft.window}
 						/>
 					</div>
-					<div className="flex gap-2">
+					<div className="flex gap-2 md:col-span-2 xl:col-span-1">
 						<Button
 							className="flex-1 md:hidden"
 							onClick={() => changeMobileFiltersOpen(true)}
@@ -156,9 +165,13 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 					>
 						<SheetHeader className="mb-5 shrink-0 pr-10">
 							<SheetTitle>筛选运行记录</SheetTitle>
-							<SheetDescription>按状态、时间范围或精确 ID 缩小结果。</SheetDescription>
+							<SheetDescription>按运行范围、状态、时间范围或精确 ID 缩小结果。</SheetDescription>
 						</SheetHeader>
 						<div className="grid min-h-0 flex-1 gap-4 overflow-y-auto pb-4">
+							<RequestViewField
+								onChange={(view) => setDraft((previous) => ({ ...previous, view }))}
+								value={draft.view}
+							/>
 							<RequestStatusField
 								onChange={(status) => setDraft((previous) => ({ ...previous, status }))}
 								value={draft.status}
@@ -210,6 +223,28 @@ export function RequestFilters({ search }: { search: RequestSearchLike }) {
 				</Sheet>
 			</form>
 		</div>
+	);
+}
+
+function RequestViewField({
+	onChange,
+	value,
+}: {
+	onChange: (value: ReturnType<typeof requestSearchDraftFromSearch>["view"]) => void;
+	value: ReturnType<typeof requestSearchDraftFromSearch>["view"];
+}) {
+	return (
+		<Field label="运行范围">
+			<NativeSelect
+				aria-label="运行范围"
+				className="min-h-11"
+				onChange={(event) => onChange(optionalRequestListView(event.target.value) ?? "recent")}
+				value={value}
+			>
+				<option value="recent">{formatRequestViewLabel("recent")}</option>
+				<option value="attention">{formatRequestViewLabel("attention")}</option>
+			</NativeSelect>
+		</Field>
 	);
 }
 

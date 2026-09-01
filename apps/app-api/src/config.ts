@@ -13,7 +13,6 @@ export interface WorkerFetchBindingLike {
 
 export interface Env {
 	DEPLOYMENT_ENVIRONMENT?: string;
-	DEPLOYMENT_RELEASE?: string;
 	BETTER_AUTH_SECRET?: string;
 	AUTH_SHELL_ORIGIN?: string;
 	AUTH_TURNSTILE_SECRET_KEY?: string;
@@ -29,7 +28,6 @@ export interface Env {
 	APP_API_EXECUTION_SHARED_SECRET?: string;
 	OPS_WEB_INTERNAL_TOKEN?: string;
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET?: string;
-	SENTRY_DSN?: string;
 	APP_API_DB?: HyperdriveBindingLike;
 }
 

@@ -12,12 +12,15 @@ export function createChatSseResponse(input: {
 	first: ChatCommandStreamEvent;
 	iterator: AsyncIterator<ChatCommandStreamEvent>;
 }): Response {
+	let cancelled = false;
 	const stream = new ReadableStream<Uint8Array>({
 		async cancel() {
+			cancelled = true;
 			await input.iterator.return?.();
 		},
 		async start(controller) {
 			let keepaliveInterval: ReturnType<typeof setInterval> | null = null;
+			let failed = false;
 			async function emit(event: ChatCommandStreamEvent) {
 				controller.enqueue(encodeSseEvent(event));
 			}
@@ -35,11 +38,18 @@ export function createChatSseResponse(input: {
 					}
 					await emit(next.value);
 				}
+			} catch (error) {
+				if (!cancelled) {
+					failed = true;
+					controller.error(error);
+				}
 			} finally {
 				if (keepaliveInterval) {
 					clearInterval(keepaliveInterval);
 				}
-				controller.close();
+				if (!(cancelled || failed)) {
+					controller.close();
+				}
 			}
 		},
 	});

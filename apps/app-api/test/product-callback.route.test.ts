@@ -8,7 +8,6 @@ import { createApp } from "../src/app";
 import type { ProfileMemoryService } from "../src/modules/profile-memory";
 import type { ChatCommandService } from "../src/modules/runtime-command";
 import { ChatFinalizationConflict } from "../src/modules/runtime-command/store-types";
-import { createTelemetryMock } from "./chat-command.service.test-support";
 
 const callbackSecret = "product-callback-secret";
 
@@ -63,7 +62,6 @@ function appWithCallbacks(input: {
 			profileMemoryService: {
 				applyResult: input.applyMemoryResult ?? vi.fn(async () => "applied" as const),
 			} as unknown as ProfileMemoryService,
-			telemetry: createTelemetryMock(),
 		},
 	);
 }

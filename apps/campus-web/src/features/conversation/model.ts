@@ -128,7 +128,7 @@ export interface ChatRequestStreamEvent {
 		error?: {
 			code: string;
 			message: string;
-			retryable?: boolean;
+			retryable: boolean;
 		};
 		delta?: string;
 		messageId?: string;

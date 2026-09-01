@@ -26,6 +26,7 @@ const (
 	DurableTerminalReasonQueueTimeout          DurableTerminalReason = "queue_timeout"
 	DurableTerminalReasonWorkerUnavailable     DurableTerminalReason = "worker_unavailable"
 	DurableTerminalReasonProviderUnavailable   DurableTerminalReason = "provider_unavailable"
+	DurableTerminalReasonExecutionFailed       DurableTerminalReason = "execution_failed"
 	DurableTerminalReasonRuntimeInvariant      DurableTerminalReason = "runtime_invariant_failed"
 	DurableTerminalReasonUserCanceled          DurableTerminalReason = "user_canceled"
 	DurableTerminalReasonSystemDraining        DurableTerminalReason = "system_draining"

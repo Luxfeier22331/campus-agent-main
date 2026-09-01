@@ -25,19 +25,6 @@ vi.mock("../src/app", () => ({
 	createApp,
 }));
 
-vi.mock("@sentry/cloudflare", () => ({
-	captureException: vi.fn(),
-	getTraceData: vi.fn(() => ({})),
-	setContext: vi.fn(),
-	setTag: vi.fn(),
-	withScope: vi.fn((callback) =>
-		callback({
-			setTag: vi.fn(),
-		}),
-	),
-	withSentry: vi.fn((_options, worker) => worker),
-}));
-
 import worker from "../src/index";
 
 const env = {

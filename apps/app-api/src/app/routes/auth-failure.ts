@@ -1,6 +1,5 @@
 import { errorEnvelope, jsonResponse } from "../../http";
-import { normalizeAppApiRoute } from "../../modules/telemetry/sentry";
-import type { AppRequestScope } from "../types";
+import { normalizeAppApiRoute } from "../route-normalization";
 
 const AUTH_SURFACE = "app_api_auth";
 
@@ -12,7 +11,6 @@ function normalizeErrorType(error: unknown): string {
 export function authenticationDependencyFailure(input: {
 	error: unknown;
 	request: Request;
-	scope: AppRequestScope;
 	source: "auth_handler" | "federation_handler" | "federation_metadata";
 }): Response {
 	const route = normalizeAppApiRoute(input.request.url, input.request.method);
@@ -23,13 +21,6 @@ export function authenticationDependencyFailure(input: {
 		source: input.source,
 		surface: AUTH_SURFACE,
 	});
-	input.scope.telemetry.captureException(input.error, {
-		requestId: input.request.headers.get("x-request-id"),
-		route,
-		status: 503,
-		surface: AUTH_SURFACE,
-	});
-
 	return jsonResponse(
 		errorEnvelope({
 			code: "dependency_not_ready",

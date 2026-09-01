@@ -7,13 +7,11 @@ import {
 	OpsRequestListResponseSchema,
 	OpsRequestListViewSchema,
 	OpsRequestWindowSchema,
-	OpsSentryIssuesResponseSchema,
 } from "../../shared/ops-contract.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
 import type { OpsOverviewService } from "../ops-overview-service.ts";
 import { decodeRequestCursor } from "../ops-status-mappers.ts";
 import type { OpsStatusStore } from "../ops-status-types.ts";
-import type { SentryClient } from "../sentry-client.ts";
 import { admitOpsApiRequest, jsonError, OpsPathIdSchema } from "./http.ts";
 
 const RequestListQuerySchema = z
@@ -55,10 +53,9 @@ export function registerOverviewRoute(input: {
 export function registerObservabilityRoutes(input: {
 	admission: OpsAdmission;
 	app: Hono;
-	sentry: SentryClient;
 	store: OpsStatusStore;
 }): void {
-	const { admission, app, sentry, store } = input;
+	const { admission, app, store } = input;
 	app.get("/api/ops/requests", async (context) => {
 		const operator = await admitOpsApiRequest(admission, context.req.raw);
 		if (operator instanceof Response) {
@@ -100,33 +97,5 @@ export function registerObservabilityRoutes(input: {
 			return jsonError("OPS_REQUEST_NOT_FOUND", "未找到该请求。");
 		}
 		return context.json(OpsRequestDetailResponseSchema.parse(detail));
-	});
-
-	app.get("/api/ops/requests/:requestId/sentry-issues", async (context) => {
-		const operator = await admitOpsApiRequest(admission, context.req.raw);
-		if (operator instanceof Response) {
-			return operator;
-		}
-		const requestId = context.req.param("requestId");
-		if (
-			!OpsPathIdSchema.safeParse(requestId).success ||
-			Object.keys(context.req.query()).length > 0
-		) {
-			return jsonError("OPS_INVALID_QUERY", "Sentry Issue 查询参数无效。", 400);
-		}
-		const detail = await store.getRequestDetail(requestId);
-		if (!detail) {
-			return jsonError("OPS_REQUEST_NOT_FOUND", "未找到该请求。");
-		}
-		return context.json(
-			OpsSentryIssuesResponseSchema.parse(
-				await sentry.queryRequestIssues({
-					completedAt: detail.request.completedAt,
-					requestId: detail.request.requestId,
-					signal: context.req.raw.signal,
-					startedAt: detail.request.startedAt,
-				}),
-			),
-		);
 	});
 }

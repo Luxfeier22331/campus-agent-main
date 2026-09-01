@@ -55,13 +55,22 @@ export async function createChatStreamRequestError(
 		readStringField(errorPayload, "message") ||
 		response.statusText ||
 		DEFAULT_CHAT_STREAM_ERROR_MESSAGE;
+	const retryable = readBooleanField(errorPayload, "retryable");
+	if (retryable === undefined) {
+		return new ChatStreamRequestError({
+			code: "invalid_error_response",
+			message: "请求返回了无效错误结构。",
+			retryable: false,
+			status: response.status,
+		});
+	}
 	return new ChatStreamRequestError({
 		code: readStringField(errorPayload, "code") ?? "chat_stream_request_failed",
 		message,
 		...(readStringField(errorPayload, "requestId")
 			? { requestId: readStringField(errorPayload, "requestId") }
 			: {}),
-		retryable: readBooleanField(errorPayload, "retryable") ?? response.status >= 500,
+		retryable,
 		status: response.status,
 	});
 }

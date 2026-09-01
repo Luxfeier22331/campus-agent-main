@@ -28,7 +28,6 @@ import type {
 } from "../src/modules/runtime-command";
 import { buildChatCommandService as buildProductionChatCommandService } from "../src/modules/runtime-command";
 import { ChatFinalizationConflict } from "../src/modules/runtime-command/store-types";
-import type { AppTelemetry } from "../src/modules/telemetry";
 
 export { createHmac } from "node:crypto";
 export type { ResolvedAppPrincipal } from "../src/modules/auth";
@@ -49,7 +48,6 @@ export {
 	deriveSafetyIdentifier,
 	ExecutionControlTransportError,
 } from "../src/modules/runtime-command";
-export type { AppTelemetry } from "../src/modules/telemetry";
 
 export const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
 export const CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program";
@@ -479,16 +477,6 @@ export function createCommandStore(options?: {
 	};
 }
 
-export function createTelemetryMock(): AppTelemetry {
-	return {
-		captureException: vi.fn(),
-		configureChatRequestScope: vi.fn(),
-		configureHttpRequestScope: vi.fn(),
-		configureRequestOutcome: vi.fn(),
-		markHttpResponseStatus: vi.fn(),
-	};
-}
-
 export function createExecutionRuntimeFromToolClient(
 	client: ToolExecutionClient,
 	options: {
@@ -600,10 +588,15 @@ async function applyTestProductCallback(
 		);
 	} else if (terminal.eventType === "run.failed") {
 		const error = getRecord(terminal.payload.error);
+		const code = getString(error?.code);
+		const message = getString(error?.message);
+		if (!(code && message && typeof error?.retryable === "boolean")) {
+			throw new Error("run.failed error code, message, and retryable are required");
+		}
 		response = executionErrorResponse({
-			code: getString(error?.code) ?? "execution_failed",
-			message: getString(error?.message) ?? "Execution failed.",
-			retryable: typeof error?.retryable === "boolean" ? error.retryable : true,
+			code,
+			message,
+			retryable: error.retryable,
 		});
 	} else {
 		response = executionErrorResponse({

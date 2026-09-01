@@ -60,7 +60,6 @@ describe("native docs build boundary", () => {
 		);
 		expect(indexHtmlSource).toContain('<script src="/theme-bootstrap.js"></script>');
 		expect(docsMainSource).not.toContain("getCampusRuntimeConfig");
-		expect(docsMainSource).not.toContain("initializeCampusBrowserSentry");
 	});
 
 	it("declares the current document asset and build inputs", () => {

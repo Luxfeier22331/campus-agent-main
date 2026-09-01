@@ -58,25 +58,10 @@ async function main(): Promise<void> {
 		"https://app-api.internal",
 		"Built staging config must keep APP_API_BASE_URL fixed.",
 	);
-	expectEqual(
-		vars.DEPLOYMENT_ENVIRONMENT,
-		"staging",
-		"Built staging config must keep DEPLOYMENT_ENVIRONMENT fixed.",
-	);
 	expectAbsent(
 		vars,
 		"AUTH_TURNSTILE_SITE_KEY",
 		"AUTH_TURNSTILE_SITE_KEY must not remain as a repo-fixed staging var in built config.",
-	);
-	expectAbsent(
-		vars,
-		"DEPLOYMENT_RELEASE",
-		"DEPLOYMENT_RELEASE must not remain as a static staging var in built config.",
-	);
-	expectAbsent(
-		vars,
-		"SENTRY_RELEASE",
-		"SENTRY_RELEASE must not remain as a static staging var in built config.",
 	);
 
 	if (Array.isArray(config.routes) && config.routes.length > 0) {

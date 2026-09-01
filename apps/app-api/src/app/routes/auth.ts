@@ -159,7 +159,6 @@ export function registerAuthRoutes(input: {
 			const response = authenticationDependencyFailure({
 				error,
 				request: c.req.raw,
-				scope,
 				source: "auth_handler",
 			});
 			return withNoStore(

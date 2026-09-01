@@ -73,11 +73,6 @@ function injectCampusRuntimeConfig(html: string, request: Request, env: CampusWo
 	const serializedConfig = JSON.stringify({
 		accountUrl: new URL("/account", campusOrigin).toString(),
 		loginUrl: new URL("/account/login", campusOrigin).toString(),
-		sentry: {
-			dsn: env.SENTRY_DSN?.trim() || null,
-			environment: env.DEPLOYMENT_ENVIRONMENT?.trim() || null,
-			release: env.DEPLOYMENT_RELEASE?.trim() || null,
-		},
 	}).replace(/</g, "\\u003c");
 	const authRuntimeConfig = JSON.stringify(
 		resolveTurnstileRuntimeConfig({

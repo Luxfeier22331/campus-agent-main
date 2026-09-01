@@ -4,11 +4,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { cloudflare } from "@cloudflare/vite-plugin";
-import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
-import { resolveStagingSentryRelease } from "../../scripts/deploy/staging-release.mts";
 import { campusBundleGraphPlugin } from "./config/bundle-graph.ts";
 import { loadCampusWebBuildEnvironment } from "./scripts/build-process-env.ts";
 import { resolveDocsContentPaths } from "./src/docs-reader-build/docs-content.ts";
@@ -26,7 +24,6 @@ const campusFaviconPath = path.resolve(campusWebRoot, "assets/favicon.ico");
 
 export default defineConfig(({ command, isPreview }) => {
 	const buildTarget = resolveCampusWebBuildTarget();
-	const sentryUpload = buildTarget === "app" ? resolveSentrySourceMapUpload() : null;
 	if (buildTarget === "docs" && command !== "build") {
 		throw new Error("The Campus Web docs build requires static docs content.");
 	}
@@ -51,7 +48,7 @@ export default defineConfig(({ command, isPreview }) => {
 	}
 	return {
 		build: {
-			sourcemap: sentryUpload ? ("hidden" as const) : false,
+			sourcemap: false,
 			...(buildTarget === "app"
 				? { rollupOptions: { input: path.resolve(campusWebRoot, "index.html") } }
 				: {}),
@@ -88,26 +85,6 @@ export default defineConfig(({ command, isPreview }) => {
 					]),
 			...(buildTarget === "app" && command === "serve" && docsContent
 				? [serveDocsDevelopmentShell(docsContent.paths.publicRoot)]
-				: []),
-			...(sentryUpload
-				? sentryVitePlugin({
-						authToken: sentryUpload.authToken,
-						org: sentryUpload.org,
-						project: sentryUpload.project,
-						url: "https://sentry.io",
-						release: {
-							create: true,
-							finalize: true,
-							inject: true,
-							name: sentryUpload.release,
-							setCommits: { auto: true },
-						},
-						sourcemaps: {
-							assets: "./dist/client/**",
-							filesToDeleteAfterUpload: "./dist/client/**/*.map",
-						},
-						telemetry: false,
-					})
 				: []),
 		],
 		resolve: {
@@ -411,37 +388,6 @@ function relocateDocsHtmlPages(input: { clientOutputRoot: string; pagesRoot: str
 			});
 		},
 		name: "campus-web:relocate-docs-html",
-	};
-}
-
-function resolveSentrySourceMapUpload(): {
-	authToken: string;
-	org: string;
-	project: string;
-	release: string;
-} | null {
-	if (process.env.CAMPUS_WEB_SENTRY_SOURCE_MAP_UPLOAD !== "required") {
-		return null;
-	}
-	if (process.env.SENTRY_ALLOW_FAILURE?.trim()) {
-		throw new Error("SENTRY_ALLOW_FAILURE must be unset for the campus staging source-map upload.");
-	}
-	const required = {
-		SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN?.trim(),
-		SENTRY_CAMPUS_WEB_PROJECT_SLUG: process.env.SENTRY_CAMPUS_WEB_PROJECT_SLUG?.trim(),
-		SENTRY_ORG_SLUG: process.env.SENTRY_ORG_SLUG?.trim(),
-	};
-	const missing = Object.entries(required)
-		.filter(([, value]) => !value)
-		.map(([key]) => key);
-	if (missing.length > 0) {
-		throw new Error(`Campus browser source-map upload is missing: ${missing.join(", ")}.`);
-	}
-	return {
-		authToken: required.SENTRY_AUTH_TOKEN as string,
-		org: required.SENTRY_ORG_SLUG as string,
-		project: required.SENTRY_CAMPUS_WEB_PROJECT_SLUG as string,
-		release: resolveStagingSentryRelease("campus-web"),
 	};
 }
 

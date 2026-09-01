@@ -7,7 +7,6 @@ import {
 	createDeterministicIdGenerator,
 	createExecutionRuntimeFromToolClient,
 	createPrincipal,
-	createTelemetryMock,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
@@ -15,7 +14,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 	it("streams lifecycle updates and finalizes app-api truth before terminal event", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
@@ -40,7 +38,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			conversationStore,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
-			telemetry,
 		});
 		if (!service.submitStream) {
 			throw new Error("Expected chat command stream support.");
@@ -116,7 +113,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 	it("finalizes invalid execution stream terminal errors without defaulting missing fields", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
@@ -137,7 +133,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			conversationStore,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
-			telemetry,
 		});
 		if (!service.submitStream) {
 			throw new Error("Expected chat command stream support.");
@@ -166,17 +161,10 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				status: "error",
 			},
 		});
-		expect(telemetry.configureRequestOutcome).toHaveBeenCalledWith(
-			expect.objectContaining({
-				errorCode: "execution_control_invalid_response",
-				status: "error",
-			}),
-		);
 	});
 	it("lets the agent infer routing from a route-free user goal", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const telemetry = createTelemetryMock();
 		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "学校官网显示图书馆位于海淀校区主教学区西侧。",
@@ -195,7 +183,6 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			conversationStore,
 			store,
 			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
-			telemetry,
 		});
 
 		await service.submit({
@@ -220,6 +207,5 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			turnDispatch: {},
 			requestObservabilityFact: {},
 		});
-		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(expect.objectContaining({}));
 	});
 }
