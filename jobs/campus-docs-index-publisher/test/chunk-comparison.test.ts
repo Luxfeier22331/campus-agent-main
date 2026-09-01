@@ -13,7 +13,7 @@ import type {
 	CampusDocsRetrievalQuestion,
 } from "../src/chunk-governance-types.ts";
 import { parseLocalChunkComparisonCommand } from "../src/local-chunk-comparison-cli.ts";
-import { sha256Text } from "../src/indexing.ts";
+import { sha256Text } from "../src/indexing/content-digest.ts";
 import type { Sha256Ref, StoredChunk } from "../src/types.ts";
 
 describe("Campus docs chunk comparison", () => {

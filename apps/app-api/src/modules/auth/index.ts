@@ -1,19 +1,18 @@
 export type { AppAuth, AppAuthGetter, AppAuthResolutionInput, CreateAppAuthInput } from "./auth";
 export {
-	buildBetterAuthConfig,
 	createAppAuth,
-	enforceEndUserEmailAdmission,
-	enforceSignupLegalConsent,
 	getAppAuth,
 	handleAuthRequest,
-	hashAppPassword,
 	probeAppAuthRuntime,
-	resolveEmailVerificationReturnTarget,
-	resolvePasswordResetRedirectTarget,
+} from "./auth";
+export { buildBetterAuthConfig } from "./auth-config";
+export { hashAppPassword, verifyAppPassword } from "./auth-password";
+export {
+	enforceEndUserEmailAdmission,
+	enforceSignupLegalConsent,
 	SIGNUP_LEGAL_CONSENT_HEADER_NAME,
 	SIGNUP_LEGAL_CONSENT_HEADER_VALUE,
-	verifyAppPassword,
-} from "./auth";
+} from "./auth-policy";
 export type {
 	CampusAccessDecision,
 	CampusAccessDenialReason,
@@ -47,3 +46,7 @@ export {
 	mapSessionToCampusMemberPrincipal,
 	resolveRequestPrincipal,
 } from "./principal";
+export {
+	resolveEmailVerificationReturnTarget,
+	resolvePasswordResetRedirectTarget,
+} from "./reset-mail";

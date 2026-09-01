@@ -6,7 +6,7 @@ import {
 } from "../src/chunk-embedding-evaluation.ts";
 import { decodeCampusDocsQuestionNdjson } from "../src/chunk-governance-questions.ts";
 import { parseLocalChunkEmbeddingEvaluationCommand } from "../src/local-chunk-embedding-evaluation-cli.ts";
-import { sha256Text } from "../src/indexing.ts";
+import { sha256Text } from "../src/indexing/content-digest.ts";
 import type { StoredChunk } from "../src/types.ts";
 
 describe("Campus docs chunk embedding evaluation", () => {

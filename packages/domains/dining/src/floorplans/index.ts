@@ -20,6 +20,12 @@ export {
 	createDiningRenderedFloorplan,
 	sanitizeDiningFloorplanSvg,
 } from "./floorplan-contract.ts";
+export {
+	canonicalizeDiningWayfindingLayout,
+	serializeDiningWayfindingLayout,
+} from "./wayfinding-canonical.ts";
+export { createDefaultDiningWayfindingLayout } from "./wayfinding-defaults.ts";
+export { renderDiningWayfindingSvg } from "./wayfinding-renderer.ts";
 export type {
 	DiningWayfindingCanvas,
 	DiningWayfindingDiagnostic,
@@ -35,17 +41,15 @@ export type {
 	DiningWayfindingRect,
 	DiningWayfindingRegion,
 	DiningWayfindingWindow,
-} from "./wayfinding-layout.ts";
+} from "./wayfinding-types.ts";
 export {
-	assertDiningWayfindingLayout,
-	assertDiningWayfindingPublishableLayout,
-	canonicalizeDiningWayfindingLayout,
-	createDefaultDiningWayfindingLayout,
 	DINING_WAYFINDING_CANVAS,
 	DINING_WAYFINDING_ICON_KEYS,
 	DINING_WAYFINDING_SCHEMA_VERSION,
-	diagnoseDiningWayfindingLayout,
 	isDiningWayfindingPlaceholderWindowLabel,
-	renderDiningWayfindingSvg,
-	serializeDiningWayfindingLayout,
-} from "./wayfinding-layout.ts";
+} from "./wayfinding-types.ts";
+export {
+	assertDiningWayfindingLayout,
+	assertDiningWayfindingPublishableLayout,
+	diagnoseDiningWayfindingLayout,
+} from "./wayfinding-validation.ts";

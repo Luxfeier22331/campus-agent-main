@@ -3,7 +3,11 @@ import currentBaselineRaw from "../drizzle/0000_initial.sql?raw";
 import * as appModule from "../src/app";
 import * as configModule from "../src/config";
 import * as runtimeDbModule from "../src/db/runtime";
-import * as authModule from "../src/modules/auth/auth";
+import * as authRuntimeModule from "../src/modules/auth/auth";
+import * as authConfigModule from "../src/modules/auth/auth-config";
+import * as authPasswordModule from "../src/modules/auth/auth-password";
+import * as authPolicyModule from "../src/modules/auth/auth-policy";
+import * as resetMailModule from "../src/modules/auth/reset-mail";
 
 const poolMockState = vi.hoisted(() => ({
 	createdPoolOptions: [] as Record<string, unknown>[],
@@ -81,16 +85,17 @@ export const resolveEnvironment = configModule.resolveEnvironment;
 export const buildRuntimeDatabaseConfig = runtimeDbModule.buildRuntimeDatabaseConfig;
 export const createRuntimePool = runtimeDbModule.createRuntimePool;
 export const probeRuntimeDatabase = runtimeDbModule.probeRuntimeDatabase;
-export const buildBetterAuthConfig = authModule.buildBetterAuthConfig;
-export const enforceEndUserEmailAdmission = authModule.enforceEndUserEmailAdmission;
+export const buildBetterAuthConfig = authConfigModule.buildBetterAuthConfig;
+export const enforceEndUserEmailAdmission = authPolicyModule.enforceEndUserEmailAdmission;
 export const enforcePasswordChangeSessionRevocation =
-	authModule.enforcePasswordChangeSessionRevocation;
-export const enforceSignupLegalConsent = authModule.enforceSignupLegalConsent;
-export const getAppAuth = authModule.getAppAuth;
-export const hashAppPassword = authModule.hashAppPassword;
+	authPolicyModule.enforcePasswordChangeSessionRevocation;
+export const enforceSignupLegalConsent = authPolicyModule.enforceSignupLegalConsent;
+export const getAppAuth = authRuntimeModule.getAppAuth;
+export const hashAppPassword = authPasswordModule.hashAppPassword;
 export { isCampusEmail } from "../src/modules/auth/campus-access";
-export const probeAppAuthRuntime = authModule.probeAppAuthRuntime;
-export const resolvePasswordResetRedirectTarget = authModule.resolvePasswordResetRedirectTarget;
-export const verifyAppPassword = authModule.verifyAppPassword;
+export const probeAppAuthRuntime = authRuntimeModule.probeAppAuthRuntime;
+export const resolvePasswordResetRedirectTarget =
+	resetMailModule.resolvePasswordResetRedirectTarget;
+export const verifyAppPassword = authPasswordModule.verifyAppPassword;
 export const migration0000 = currentBaselineRaw;
 export { appApiSchema } from "../src/db/schema";

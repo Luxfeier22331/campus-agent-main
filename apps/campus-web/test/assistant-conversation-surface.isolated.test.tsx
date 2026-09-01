@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import threadSource from "../src/components/assistant-ui/thread.tsx?raw";
+import threadActionsSource from "../src/components/assistant-ui/thread-actions.tsx?raw";
+import threadComposerSource from "../src/components/assistant-ui/thread-composer.tsx?raw";
+import threadMessageSource from "../src/components/assistant-ui/thread-message.tsx?raw";
 import { TooltipIconButton } from "../src/components/assistant-ui/tooltip-icon-button";
 import tooltipIconButtonSource from "../src/components/assistant-ui/tooltip-icon-button.tsx?raw";
 import { AssistantConversationSurface } from "../src/components/conversation/assistant-conversation-surface";
@@ -48,10 +51,10 @@ describe("AssistantConversationSurface", () => {
 	});
 
 	it("names the new-message and edit-message composer fields", () => {
-		expect(threadSource).toContain('id="campus-chat-composer"');
-		expect(threadSource).toContain('name="message"');
-		expect(threadSource).toContain('aria-label="编辑消息"');
-		expect(threadSource).toContain('name="edited-message"');
+		expect(threadComposerSource).toContain('id="campus-chat-composer"');
+		expect(threadComposerSource).toContain('name="message"');
+		expect(threadComposerSource).toContain('aria-label="编辑消息"');
+		expect(threadComposerSource).toContain('name="edited-message"');
 	});
 
 	it("keeps message actions compact and composer actions inside 44px hit areas", () => {
@@ -80,19 +83,21 @@ describe("AssistantConversationSurface", () => {
 		expect(tooltipIconButtonSource).toContain("relative size-6");
 		expect(tooltipIconButtonSource).toContain("after:-inset-y-2.5");
 		expect(tooltipIconButtonSource).toContain("after:content-['']");
-		expect(threadSource).toMatch(/aui-composer-send[^"]*size-9[^"]*after:-inset-1/);
-		expect(threadSource).toMatch(/aui-composer-cancel[^"]*size-9[^"]*after:-inset-1/);
-		expect(threadSource).not.toMatch(/aui-composer-(?:dictate|send|cancel)[^"]*size-11/);
-		expect(threadSource).toContain(
+		expect(threadComposerSource).toMatch(/aui-composer-send[^"]*size-9[^"]*after:-inset-1/);
+		expect(threadComposerSource).toMatch(/aui-composer-cancel[^"]*size-9[^"]*after:-inset-1/);
+		expect(threadComposerSource).not.toMatch(/aui-composer-(?:dictate|send|cancel)[^"]*size-11/);
+		expect(threadComposerSource).toContain(
 			' className="aui-composer-action-wrapper relative flex shrink-0 items-center gap-1 pb-1"'.trimStart(),
 		);
-		expect(threadSource).toContain("flex gap-5 duration-200");
-		expect(threadSource).toContain('className="ms-1 flex min-h-6 items-center gap-5 sm:ms-2"');
+		expect(threadActionsSource).toContain("flex gap-5 duration-200");
+		expect(threadMessageSource).toContain(
+			'className="ms-1 flex min-h-6 items-center gap-5 sm:ms-2"',
+		);
 		expect(threadSource).toContain("aui-thread-composer-dock");
 		expect(threadSource).not.toContain("sticky bottom-0 mt-auto");
 		expect(threadSource).toContain('className="mb-14 flex flex-col gap-y-7 empty:hidden sm:mb-16"');
-		expect(threadSource).toContain("flex flex-col items-end gap-y-2.5 px-1");
-		expect(threadSource).toContain("-translate-y-1/2 pe-2.5 peer-empty:hidden");
+		expect(threadMessageSource).toContain("flex flex-col items-end gap-y-2.5 px-1");
+		expect(threadMessageSource).toContain("-translate-y-1/2 pe-2.5 peer-empty:hidden");
 		expect(threadSource).not.toContain("allowAttachments");
 		expect(threadSource).not.toContain("AttachmentDropzone");
 		expect(threadSource).not.toContain("ComposerAddAttachment");

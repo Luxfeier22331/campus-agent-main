@@ -1,17 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-
-import { APIConnectionError, APIError } from "openai";
-
-import { NoticeClassificationInvalidOutputError } from "./classifier";
-
+import { NoticeClassificationInvalidOutputError } from "notice-classifier-core/classifier";
 import {
-	createNoticeModelFetch,
-	isRetryableNoticeProviderCause,
 	NOTICE_CLASSIFIER_SYSTEM_PROMPT,
 	NOTICE_CLASSIFIER_TEMPERATURE,
 	parseNoticeModelOutput,
-} from "./model";
+} from "notice-classifier-core/model";
+import {
+	createNoticeModelFetch,
+	isRetryableNoticeProviderCause,
+} from "notice-classifier-core/openai";
+import { APIConnectionError, APIError } from "openai";
 
 test("removes SDK metadata headers blocked by the model gateway", async () => {
 	let receivedHeaders: Headers | undefined;

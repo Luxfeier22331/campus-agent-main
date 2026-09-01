@@ -3,11 +3,8 @@ import type {
 	DocsReaderTableElement,
 } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
 import { CHUNK_SET_DEFINITION } from "./definitions.ts";
-import {
-	buildSections,
-	getLeadingDocumentMetadata,
-	isSourceUrlOnly,
-} from "./indexing.ts";
+import { buildSections, isSourceUrlOnly } from "./indexing/sections.ts";
+import { getLeadingDocumentMetadata } from "./indexing/chunks.ts";
 import type {
 	IndexChunk,
 	ReaderSection,

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { NOTICE_CATEGORIES, type NoticeCategory } from "./classifier";
+import { NOTICE_CATEGORIES, type NoticeCategory } from "@campus-agent/notices";
 
 interface Badcase {
 	boundary_group: string;

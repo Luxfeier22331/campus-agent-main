@@ -1,7 +1,5 @@
-import {
-	canonicalizeDiningWayfindingLayout,
-	type DiningWayfindingLayout,
-} from "./wayfinding-layout.ts";
+import { canonicalizeDiningWayfindingLayout } from "./wayfinding-canonical.ts";
+import type { DiningWayfindingLayout } from "./wayfinding-types.ts";
 
 export const DINING_FLOORPLAN_BUNDLE_KIND = "dining_floorplan_bundle" as const;
 export const DINING_FLOORPLAN_BUNDLE_SCHEMA_VERSION = 1 as const;

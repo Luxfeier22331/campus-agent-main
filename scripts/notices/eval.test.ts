@@ -3,40 +3,44 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-
-import type { NoticeClassificationTask } from "../../packages/notice-classifier-core/src/batch";
+import { NOTICE_CATEGORIES, type NoticeCategory } from "@campus-agent/notices";
+import type { NoticeClassificationTask } from "notice-classifier-core/batch";
 import {
-	NOTICE_CATEGORIES,
-	type NoticeCategory,
 	NoticeClassificationInvalidOutputError,
 	NoticeClassificationProviderError,
-} from "./classifier";
+} from "notice-classifier-core/classifier";
+import { main } from "./eval";
+import { parseEvalCliOptions } from "./eval-cli";
 import {
-	BALANCED_DIAGNOSTIC_PROFILE,
 	buildCandidateEvaluationCheckResult,
 	buildCandidateEvaluationReport,
+} from "./eval-metrics";
+import { runEvaluationAttempt } from "./eval-provider";
+import { buildRegressionEvaluationCheckResult } from "./eval-regression";
+import {
 	buildEvalSample,
-	buildLabelGold,
 	buildRandomDiagnosticSample,
-	buildRegressionEvaluationCheckResult,
+	parseCategoryCountOverrides,
+	selectRandomDiagnosticIds,
+} from "./eval-sampling";
+import {
+	BALANCED_DIAGNOSTIC_PROFILE,
 	type EvalPrediction,
 	type EvalSample,
 	type LabelGoldEntry,
-	main,
-	parseCategoryCountOverrides,
-	parseEvalCliOptions,
-	parseExactClassification,
 	RANDOM_DIAGNOSTIC_PROFILE,
 	type RegressionCase,
+	type StratificationPrediction,
+} from "./eval-types";
+import {
+	buildLabelGold,
+	parseExactClassification,
 	resolveCandidateStabilityIds,
 	resolveExplicitModels,
-	runEvaluationAttempt,
-	type StratificationPrediction,
-	selectRandomDiagnosticIds,
 	validateCandidatePredictions,
 	validateLabelGold,
 	validateStabilityIds,
-} from "./eval";
+} from "./eval-validation";
 
 const CONCRETE_CATEGORIES = NOTICE_CATEGORIES.filter(
 	(category): category is Exclude<NoticeCategory, "unclassified"> => category !== "unclassified",

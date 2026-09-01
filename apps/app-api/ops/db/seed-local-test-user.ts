@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { hashAppPassword } from "../../src/modules/auth/auth.ts";
+import { hashAppPassword } from "../../src/modules/auth/auth-password.ts";
 import {
 	createAppApiDatabasePool,
 	readAppApiDatabaseEnv,

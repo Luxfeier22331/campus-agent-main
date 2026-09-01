@@ -7,17 +7,19 @@ import {
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
 import type { DocsReaderElement } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
 import { CHUNK_SET_DEFINITION } from "../src/definitions.ts";
+import { buildChunks } from "../src/indexing/chunks.ts";
+import { sha256Text } from "../src/indexing/content-digest.ts";
 import {
-	buildChunks,
 	buildCurrentIndexBinding,
 	buildPoint,
-	buildSections,
+} from "../src/indexing/points.ts";
+import { buildSections } from "../src/indexing/sections.ts";
+import {
 	loadCurrentVersions,
 	parseIndexingSource,
-	sha256Text,
 	sourceProjectionSha256,
-} from "../src/indexing.ts";
-import { buildSparseVector } from "../src/indexing.ts";
+} from "../src/indexing/source.ts";
+import { buildSparseVector } from "../src/indexing/sparse-vector.ts";
 import type { SourceVersionSelection } from "../src/types.ts";
 
 describe("Campus docs indexing", () => {

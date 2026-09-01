@@ -5,7 +5,7 @@ import { createChatCommandServiceContext } from "./service/context";
 import {
 	startDurableFinalizationCloseout,
 	waitForDurableFinalizationResponse,
-} from "./service/durable";
+} from "./service/durable-polling";
 import { ensureDurableRunForAcceptedCommand } from "./service/durable-run";
 import {
 	buildAbuseThrottleRejectedResponse,

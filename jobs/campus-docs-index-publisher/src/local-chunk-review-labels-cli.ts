@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { assertSha256Ref } from "./artifacts.ts";
-import { readCampusDocsChunkGovernanceRun } from "./chunk-governance.ts";
+import { readCampusDocsChunkGovernanceRun } from "./chunk-governance-artifacts.ts";
 import {
 	decodeCampusDocsReviewLabels,
 	summarizeCampusDocsReviewLabels,

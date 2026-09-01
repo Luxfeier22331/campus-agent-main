@@ -20,6 +20,7 @@ import diningExperienceSource from "../src/components/dining/dining-experience.t
 import diningFloorplanSource from "../src/components/dining/dining-floorplan.tsx?raw";
 import diningFloorplanZoomSource from "../src/components/dining/dining-floorplan-zoom.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
+import mapPlacePopoverSource from "../src/components/map/map-place-popover.tsx?raw";
 import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
 import assistantControllerSource from "../src/features/conversation/use-assistant-ui-run-controller.ts?raw";
 import assistantCoordinatorSource from "../src/features/conversation/use-conversation-run-coordinator.ts?raw";
@@ -360,7 +361,7 @@ describe("campus routes", () => {
 		expect(mapExperienceSource).not.toContain('role="dialog"');
 		expect(mapExperienceSource).toContain("@campus-agent/ui");
 		expect(mapExperienceSource).not.toContain("@/components/ui/command");
-		expect(mapExperienceSource).toContain("@/components/ui/popover");
+		expect(mapPlacePopoverSource).toContain("@/components/ui/popover");
 	});
 
 	it("separates the account entry from the conversation history area", async () => {

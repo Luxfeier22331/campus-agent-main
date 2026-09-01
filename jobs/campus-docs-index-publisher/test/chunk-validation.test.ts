@@ -5,9 +5,11 @@ import { assertValidChunkSet } from "../src/chunk-validation.ts";
 import { CHUNK_SET_DEFINITION } from "../src/definitions.ts";
 import {
 	buildChunks,
+} from "../src/indexing/chunks.ts";
+import {
 	loadCurrentVersions,
 	parseIndexingSource,
-} from "../src/indexing.ts";
+} from "../src/indexing/source.ts";
 import type { IndexChunk, SourceVersionSelection } from "../src/types.ts";
 
 describe("Campus docs chunk validation", () => {

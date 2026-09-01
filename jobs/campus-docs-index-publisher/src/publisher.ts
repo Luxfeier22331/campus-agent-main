@@ -18,14 +18,18 @@ import {
 import { assertValidChunkSet } from "./chunk-validation.ts";
 import {
 	buildChunks,
+} from "./indexing/chunks.ts";
+import {
 	buildCurrentIndexBinding,
 	buildPoint,
+} from "./indexing/points.ts";
+import {
 	loadCurrentVersions,
 	parseIndexingSource,
 	selectCurrentVersions,
-	sha256Text,
 	sourceProjectionSha256,
-} from "./indexing.ts";
+} from "./indexing/source.ts";
+import { sha256Text } from "./indexing/content-digest.ts";
 import {
 	CAMPUS_DOCS_SOURCE_KEY,
 	type BuildChunkSetInput,

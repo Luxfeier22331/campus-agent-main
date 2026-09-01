@@ -6,12 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import { createDocsSourceSiteFixture } from "../../../apps/campus-web/fixtures/docs-source-site.ts";
 import {
+	readCampusDocsChunkGovernanceRun,
 	readGovernanceChunkSet,
 } from "../src/chunk-governance-artifacts.ts";
-import {
-	readCampusDocsChunkGovernanceRun,
-	runLocalCampusDocsChunkGovernanceReview,
-} from "../src/chunk-governance.ts";
+import { runLocalCampusDocsChunkGovernanceReview } from "../src/chunk-governance-run.ts";
 import { buildCampusDocsChunkSet } from "../src/publisher.ts";
 import type { ArtifactObjectStore, ReaderObjectStore } from "../src/types.ts";
 

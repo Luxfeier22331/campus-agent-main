@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mapWithConcurrency } from "./concurrency";
+import { mapWithConcurrency } from "notice-classifier-core/concurrency";
 
 test("bounds concurrency and preserves input order", async () => {
 	let active = 0;

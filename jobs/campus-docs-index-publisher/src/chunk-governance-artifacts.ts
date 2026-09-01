@@ -6,15 +6,26 @@ import {
 	decodeChunkNDJSON,
 	encodeNDJSON,
 } from "./artifacts.ts";
+import {
+	CAMPUS_DOCS_CHUNK_CENSUS_SCHEMA_VERSION,
+	CAMPUS_DOCS_CHUNK_GOVERNANCE_SCHEMA_VERSION,
+} from "./chunk-governance-definitions.ts";
 import type {
+	CampusDocsChunkCensus,
+	CampusDocsChunkGovernanceRunData,
+	CampusDocsChunkGovernanceRunManifest,
 	CampusDocsGovernanceChunkSetData,
 	CampusDocsGovernanceChunkSetManifest,
+	CampusDocsReviewCandidate,
+	CampusDocsReviewDocument,
+	CampusDocsReviewItem,
+	CampusDocsReviewItemSummary,
 	GovernanceArtifactReference,
 } from "./chunk-governance-types.ts";
 import {
 	sha256,
 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
-import { sha256Text } from "./indexing.ts";
+import { sha256Text } from "./indexing/content-digest.ts";
 import type { ArtifactObjectStore, Sha256Ref } from "./types.ts";
 
 export const CAMPUS_DOCS_CHUNK_GOVERNANCE_ROOT = "campus-docs/chunk-governance";
@@ -108,6 +119,82 @@ export async function writeImmutableGovernanceFile(
 export function artifactHex(value: Sha256Ref): string {
 	return value.slice("sha256:".length);
 }
+export async function readCampusDocsChunkGovernanceRun(
+	artifactRoot: string,
+	run: Sha256Ref,
+): Promise<CampusDocsChunkGovernanceRunData> {
+	const directory = join(
+		artifactRoot,
+		CAMPUS_DOCS_CHUNK_GOVERNANCE_ROOT,
+		"reviews",
+		"sha256",
+		artifactHex(run),
+	);
+	const manifestBytes = new Uint8Array(await readFile(join(directory, "manifest.json")));
+	if (sha256(manifestBytes) !== run) {
+		throw new Error(`Campus docs chunk governance manifest digest does not match ${run}`);
+	}
+	const manifest = parseGovernanceManifest(JSON.parse(new TextDecoder().decode(manifestBytes)) as unknown);
+	const [censusBytes, sampleBytes, candidatesBytes, reviewItemsBytes, reviewItemSummaryBytes] =
+		await Promise.all([
+			readVerifiedGovernanceFile(directory, manifest.census, "Campus docs chunk governance census"),
+			readVerifiedGovernanceFile(directory, manifest.sample, "Campus docs chunk governance sample"),
+			readVerifiedGovernanceFile(directory, manifest.candidates, "Campus docs chunk governance candidates"),
+			readVerifiedGovernanceFile(directory, manifest.reviewItems, "Campus docs chunk governance review items"),
+			readVerifiedGovernanceFile(
+				directory,
+				manifest.reviewItemSummary,
+				"Campus docs chunk governance review item summary",
+			),
+		]);
+	return {
+		candidates: decodeGovernanceNdjson(candidatesBytes) as CampusDocsReviewCandidate[],
+		census: parseCensus(JSON.parse(new TextDecoder().decode(censusBytes)) as unknown),
+		manifest,
+		reviewItems: decodeGovernanceNdjson(reviewItemsBytes) as CampusDocsReviewItem[],
+		reviewItemSummary: JSON.parse(
+			new TextDecoder().decode(reviewItemSummaryBytes),
+		) as CampusDocsReviewItemSummary,
+		sample: decodeGovernanceNdjson(sampleBytes) as CampusDocsReviewDocument[],
+		run,
+	};
+}
+
+export function parseGovernanceManifest(
+	value: unknown,
+): CampusDocsChunkGovernanceRunManifest {
+	if (!isRecord(value) || value.schemaVersion !== CAMPUS_DOCS_CHUNK_GOVERNANCE_SCHEMA_VERSION) {
+		throw new Error("Campus docs chunk governance manifest schema is invalid");
+	}
+	if (
+		!isSha256Ref(value.chunkSet) ||
+		!isSha256Ref(value.sourceProjectionSha256) ||
+		(value.embeddingEvaluation !== undefined && !isSha256Ref(value.embeddingEvaluation)) ||
+		!positiveInteger(value.reviewItemCount) ||
+		!positiveInteger(value.sampleCount)
+	) {
+		throw new Error("Campus docs chunk governance manifest definition is invalid");
+	}
+	for (const [field, label] of [
+		["candidates", "governance candidates"],
+		["census", "governance census"],
+		["reviewItems", "governance review items"],
+		["reviewItemSummary", "governance review item summary"],
+		["sample", "governance sample"],
+		["sampleSummary", "governance sample summary"],
+	] as const) {
+		assertArtifactReference(value[field], label);
+	}
+	return value as unknown as CampusDocsChunkGovernanceRunManifest;
+}
+
+export function parseCensus(value: unknown): CampusDocsChunkCensus {
+	if (!isRecord(value) || value.schemaVersion !== CAMPUS_DOCS_CHUNK_CENSUS_SCHEMA_VERSION) {
+		throw new Error("Campus docs chunk census schema is invalid");
+	}
+	return value as unknown as CampusDocsChunkCensus;
+}
+
 
 function parseGovernanceChunkSetManifest(
 	value: unknown,
@@ -148,6 +235,21 @@ function parseJson(bytes: Uint8Array, label: string): unknown {
 		return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
 	} catch (error) {
 		throw new Error(`${label} is not valid UTF-8 JSON`, { cause: error });
+	}
+}
+
+function assertArtifactReference(
+	value: unknown,
+	label: string,
+): asserts value is GovernanceArtifactReference {
+	if (
+		!isRecord(value) ||
+		!positiveInteger(value.byteSize) ||
+		typeof value.file !== "string" ||
+		!value.file ||
+		!isSha256Ref(value.sha256)
+	) {
+		throw new Error(`${label} reference is invalid`);
 	}
 }
 

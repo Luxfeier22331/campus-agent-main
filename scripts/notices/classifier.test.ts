@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NoticeClassificationTask } from "../../packages/notice-classifier-core/src/batch";
+import type { NoticeClassificationTask } from "notice-classifier-core/batch";
 import {
 	classifyNotice,
 	NOTICE_CLASSIFICATION_RETRY_DELAYS_MS,
 	NoticeClassificationInvalidOutputError,
 	NoticeClassificationProviderError,
-} from "./classifier";
-import { toModelInput } from "./model";
+} from "notice-classifier-core/classifier";
+import { toModelInput } from "notice-classifier-core/model";
 
 test("uses the model for every notice", async () => {
 	const input: NoticeClassificationTask = {

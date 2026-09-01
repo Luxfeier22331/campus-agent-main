@@ -1,6 +1,5 @@
 import type { DiningMapDraft } from "@campus-agent/dining/domain";
 import {
-	canonicalizeDiningFloorplanBundle,
 	type DiningFloorplanBundleV1,
 	type DiningWayfindingDiagnostic,
 	type DiningWayfindingLayout,
@@ -28,7 +27,6 @@ import {
 	TldrawEditor,
 	useTldrawCurrentUser,
 } from "@tldraw/editor";
-import { PageRecordType } from "@tldraw/tlschema";
 import { Save } from "lucide-react";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
@@ -40,16 +38,27 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Box, type Editor, type TLShape, type TLShapeId, TldrawUi } from "tldraw";
+import { type Editor, type TLShapeId, TldrawUi } from "tldraw";
 import "tldraw/tldraw.css";
 import "./editor.css";
 
 import { DINING_TLDRAW_LICENSE } from "./dining-editor-license";
+import { DiningEditorDiagnosticPanel } from "./editor-diagnostics";
+import { installDiningStoreGuards } from "./editor-store-guards";
 import {
-	layoutToTldrawRecords,
-	tldrawRecordsToDraft,
-	tldrawRecordsToLayout,
-} from "./tldraw-adapter";
+	collectBundle,
+	hasDiningWindowAwaitingName,
+	isTldrawCanvasTarget,
+	isTldrawKeyboardSurface,
+	loadDiningPages,
+	markInvalidShapes,
+	pageIdForFloor,
+	setMembership,
+	shapesForPage,
+	zoomToDiningCanvas,
+} from "./editor-support";
+import type { EditorStatus, PendingWindowName } from "./editor-types";
+import { tldrawRecordsToDraft } from "./tldraw-adapter";
 import {
 	createDiningTldrawOptions,
 	DINING_TLDRAW_ASSET_UTILS,
@@ -57,8 +66,6 @@ import {
 	DINING_TLDRAW_TOOLS,
 	installDiningExternalContentHandlers,
 } from "./tldraw-policy";
-import { type DiningEditorShape, diningShapeEntityId, isDiningEditorShape } from "./tldraw-shapes";
-import { nextEntityId } from "./tldraw-tools";
 import {
 	createDiningTldrawUiComponents,
 	DINING_TLDRAW_UI_OVERRIDES,
@@ -69,11 +76,6 @@ import {
 	DiningEditorFeedbackToast,
 	DiningElementList,
 } from "./tldraw-ui";
-
-interface EditorStatus {
-	kind: "error" | "idle" | "saved" | "saving";
-	message: string;
-}
 
 const DINING_TLDRAW_EDITOR_COMPONENTS = { ErrorFallback: DiningEditorErrorFallback } as const;
 const importedTldrawAssetUrls = getAssetUrlsByImport();
@@ -96,28 +98,6 @@ const DINING_TLDRAW_ASSET_URLS = {
 		"zh-cn": zhCnTranslationUrl,
 	},
 };
-const TLDRAW_CANVAS_SELECTOR = ".tl-canvas";
-const TLDRAW_APPLICATION_SELECTOR = '.tl-container[role="application"]';
-const TLDRAW_INTERACTIVE_SELECTOR =
-	'input, textarea, select, button, a, [contenteditable], [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="combobox"], [role="slider"]';
-
-function eventTargetElement(target: EventTarget | null): Element | null {
-	return target instanceof Element ? target : null;
-}
-
-function isTldrawCanvasTarget(target: EventTarget | null): boolean {
-	return Boolean(eventTargetElement(target)?.closest(TLDRAW_CANVAS_SELECTOR));
-}
-
-function isTldrawKeyboardSurface(target: EventTarget | null): boolean {
-	const element = eventTargetElement(target);
-	return Boolean(
-		element &&
-			(element.closest(TLDRAW_CANVAS_SELECTOR) || element.closest(TLDRAW_APPLICATION_SELECTOR)) &&
-			!element.closest(TLDRAW_INTERACTIVE_SELECTOR),
-	);
-}
-
 export function DiningFloorplanEditor(props: {
 	draft: DiningMapDraft;
 	onSave: (bundle: DiningFloorplanBundleV1, expectedRevision: number) => Promise<DiningMapDraft>;
@@ -131,10 +111,7 @@ export function DiningFloorplanEditor(props: {
 	const [dirtyFloorIds, setDirtyFloorIds] = useState<Set<string>>(() => new Set());
 	const [editor, setEditor] = useState<Editor | null>(null);
 	const [editorFeedback, setEditorFeedback] = useState<DiningEditorFeedback | null>(null);
-	const [pendingWindowName, setPendingWindowName] = useState<{
-		shapeId: TLShapeId;
-		value: string;
-	} | null>(null);
+	const [pendingWindowName, setPendingWindowName] = useState<PendingWindowName | null>(null);
 	const [status, setStatus] = useState<EditorStatus>({ kind: "idle", message: "草稿已保存" });
 	const [userPreferences, setUserPreferences] = useState<TLUserPreferences>({
 		...defaultUserPreferences,
@@ -470,7 +447,7 @@ export function DiningFloorplanEditor(props: {
 								</TldrawUi>
 							</TldrawEditor>
 							{activeDiagnostics.length > 0 && editor ? (
-								<DiagnosticPanel diagnostics={activeDiagnostics} editor={editor} />
+								<DiningEditorDiagnosticPanel diagnostics={activeDiagnostics} editor={editor} />
 							) : null}
 						</div>
 					</section>
@@ -520,227 +497,4 @@ export function DiningFloorplanEditor(props: {
 			</Dialog>
 		</>
 	);
-}
-
-function collectBundle(editor: Editor, base: DiningFloorplanBundleV1): DiningFloorplanBundleV1 {
-	return canonicalizeDiningFloorplanBundle({
-		...base,
-		layouts: base.layouts.map((layout) =>
-			tldrawRecordsToLayout(shapesForPage(editor, layout.floorId), layout),
-		),
-	});
-}
-
-function shapesForPage(editor: Editor, floorId: string): TLShape[] {
-	return [...editor.getPageShapeIds(pageIdForFloor(floorId))].flatMap((id) => {
-		const shape = editor.getShape(id);
-		return shape ? [shape] : [];
-	});
-}
-
-function hasDiningWindowAwaitingName(editor: Editor, floorId: string): boolean {
-	return shapesForPage(editor, floorId).some(
-		(shape) => shape.type === "dining-window" && shape.meta.diningNeedsName === true,
-	);
-}
-
-function installDiningStoreGuards(
-	editor: Editor,
-	setStatus: (status: EditorStatus) => void,
-	onNeedsWindowName: (shapeId: string) => void,
-): void {
-	editor.sideEffects.registerBeforeCreateHandler("shape", (shape) => {
-		if (!isDiningEditorShape(shape)) {
-			return shape;
-		}
-		if (shape.type === "dining-path" && shape.props.layer === "outline") {
-			return shape;
-		}
-		const prefix =
-			shape.type === "dining-path" ? shape.props.layer : shape.type.slice("dining-".length);
-		const existing = editor
-			.getCurrentPageShapes()
-			.flatMap((candidate) => diningShapeEntityId(candidate) ?? []);
-		if (shape.props.entityId && !existing.includes(shape.props.entityId)) {
-			return shape;
-		}
-		const entityId = nextEntityId(prefix, existing);
-		return prepareDiningShapeForCreation(shape, entityId);
-	});
-	editor.sideEffects.registerBeforeDeleteHandler("shape", (shape) => {
-		if (shape.type === "dining-path" && shape.props.layer === "outline") {
-			setStatus({ kind: "error", message: "外轮廓不能删除" });
-			return false;
-		}
-		if (shape.type === "dining-window") {
-			const windows = editor
-				.getCurrentPageShapes()
-				.filter((candidate) => candidate.type === "dining-window");
-			const selectedWindows = windows.filter((candidate) =>
-				editor.getSelectedShapeIds().includes(candidate.id),
-			);
-			if (windows.length - Math.max(1, selectedWindows.length) < 1) {
-				setStatus({ kind: "error", message: "地图至少需要保留一个窗口" });
-				return false;
-			}
-		}
-		return;
-	});
-	editor.sideEffects.registerAfterCreateHandler("shape", (shape) => {
-		if (shape.type === "dining-window" && shape.meta.diningNeedsName === true) {
-			onNeedsWindowName(shape.id);
-			return;
-		}
-		if (isDiningEditorShape(shape)) {
-			return;
-		}
-		editor.run(() => editor.deleteShape(shape.id), { history: "ignore" });
-		setStatus({ kind: "error", message: "该元素不属于食堂地图，已移除" });
-	});
-}
-
-function prepareDiningShapeForCreation(
-	shape: DiningEditorShape,
-	entityId: string,
-): DiningEditorShape {
-	switch (shape.type) {
-		case "dining-window":
-			return {
-				...shape,
-				meta: { ...shape.meta, diningNeedsName: true },
-				props: { ...shape.props, entityId, label: "" },
-			};
-		case "dining-entrance":
-			return { ...shape, props: { ...shape.props, entityId } };
-		case "dining-landmark":
-			return { ...shape, props: { ...shape.props, entityId } };
-		case "dining-region":
-			return { ...shape, props: { ...shape.props, entityId } };
-		case "dining-path":
-			return { ...shape, props: { ...shape.props, entityId } };
-		default:
-			return shape;
-	}
-}
-
-function loadDiningPages(
-	editor: Editor,
-	layouts: DiningWayfindingLayout[],
-	suppressRef: { current: boolean },
-): void {
-	const originalPages = editor.getPages();
-	suppressRef.current = true;
-	try {
-		for (const layout of layouts) {
-			const pageId = pageIdForFloor(layout.floorId);
-			if (!editor.getPage(pageId)) {
-				editor.run(() => editor.createPage({ id: pageId, name: layout.label }), {
-					history: "ignore",
-				});
-				editor.setCurrentPage(pageId);
-				editor.run(() => editor.createShapes(layoutToTldrawRecords(layout)), { history: "ignore" });
-			}
-		}
-		const first = layouts[0];
-		if (first) {
-			editor.setCurrentPage(pageIdForFloor(first.floorId));
-		}
-		for (const page of originalPages) {
-			if (!layouts.some((layout) => page.id === pageIdForFloor(layout.floorId))) {
-				editor.run(() => editor.deletePage(page.id), { history: "ignore" });
-			}
-		}
-		editor.clearHistory();
-	} finally {
-		suppressRef.current = false;
-	}
-}
-
-function markInvalidShapes(
-	editor: Editor,
-	floorId: string,
-	diagnostics: DiningWayfindingDiagnostic[],
-	suppressRef: { current: boolean },
-): void {
-	const invalidIds = new Set(
-		diagnostics.flatMap((diagnostic) => diagnostic.entities.map((entity) => entity.id)),
-	);
-	const updates = shapesForPage(editor, floorId)
-		.filter(isDiningEditorShape)
-		.flatMap((shape) => {
-			const invalid = invalidIds.has(shape.props.entityId);
-			return shape.meta.diningInvalid === invalid
-				? []
-				: [{ id: shape.id, meta: { ...shape.meta, diningInvalid: invalid }, type: shape.type }];
-		});
-	if (updates.length === 0) {
-		return;
-	}
-	suppressRef.current = true;
-	try {
-		editor.run(() => editor.updateShapes(updates as never), { history: "ignore" });
-	} finally {
-		suppressRef.current = false;
-	}
-}
-
-function DiagnosticPanel(props: { diagnostics: DiningWayfindingDiagnostic[]; editor: Editor }) {
-	return (
-		<div className="editor-feedback-panels">
-			<div className="diagnostic-panel" role="alert">
-				<strong>当前地图需要修正</strong>
-				{props.diagnostics.map((diagnostic) => (
-					<button
-						key={`${diagnostic.code}:${diagnostic.message}`}
-						onClick={() => {
-							const ids = diagnostic.entities.flatMap((entity) => {
-								const shape = props.editor
-									.getCurrentPageShapes()
-									.find((candidate) => diningShapeEntityId(candidate) === entity.id);
-								return shape ? [shape.id] : [];
-							});
-							if (ids.length > 0) {
-								props.editor.select(...ids);
-								props.editor.zoomToSelection({ animation: { duration: 180 } });
-							}
-						}}
-						type="button"
-					>
-						{diagnostic.message}
-					</button>
-				))}
-			</div>
-		</div>
-	);
-}
-
-function pageIdForFloor(floorId: string) {
-	return PageRecordType.createId(`dining-${floorId}`);
-}
-
-function zoomToDiningCanvas(editor: Editor): void {
-	let attemptsRemaining = 12;
-	const fitWhenReady = () => {
-		const viewport = editor.getViewportScreenBounds();
-		if ((viewport.width < 160 || viewport.height < 160) && attemptsRemaining > 0) {
-			attemptsRemaining -= 1;
-			requestAnimationFrame(fitWhenReady);
-			return;
-		}
-		editor.zoomToBounds(new Box(0, 0, 1280, 760), {
-			animation: { duration: 180 },
-			inset: 40,
-		});
-	};
-	requestAnimationFrame(fitWhenReady);
-}
-
-function setMembership(current: Set<string>, value: string, included: boolean): Set<string> {
-	const next = new Set(current);
-	if (included) {
-		next.add(value);
-	} else {
-		next.delete(value);
-	}
-	return next;
 }

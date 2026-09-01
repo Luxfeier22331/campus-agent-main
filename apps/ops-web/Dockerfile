@@ -14,6 +14,7 @@ COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
 COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
 COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
 COPY packages/internal-portal-client/package.json ./packages/internal-portal-client/package.json
+COPY packages/notice-classifier-core/package.json ./packages/notice-classifier-core/package.json
 COPY packages/notice-database/package.json ./packages/notice-database/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY scripts/release/check-ops-web-artifact.mjs ./scripts/release/check-ops-web-artifact.mjs

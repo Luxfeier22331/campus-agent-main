@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { NoticeClassificationTask } from "../../packages/notice-classifier-core/src/batch";
+import type { NoticeClassificationTask } from "notice-classifier-core/batch";
+import { classifyNoticeBatch } from "notice-classifier-core/batch";
+import { resolveNoticeClassifierModelConfig } from "notice-classifier-core/openai";
 import {
-	classifyNoticeBatch,
 	DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY,
 	parseNoticeIds,
 	parseNoticeOptions,
 } from "./cli";
-import { resolveNoticeClassifierModelConfig } from "./model";
 
 test("parses repeated notice ids and rejects ambiguous arguments", () => {
 	assert.equal(parseNoticeIds([]), undefined);

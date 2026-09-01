@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { assertSha256Ref } from "./artifacts.ts";
+import { runLocalCampusDocsChunkGovernanceReview } from "./chunk-governance-run.ts";
 import { createFilesystemArtifactStore } from "./filesystem-artifact-store.ts";
-import { runLocalCampusDocsChunkGovernanceReview } from "./chunk-governance.ts";
 import { createS3ReaderStore } from "./object-store.ts";
 import type { Sha256Ref } from "./types.ts";
 

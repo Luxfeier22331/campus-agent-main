@@ -43,9 +43,15 @@ importers:
       editorconfig-checker:
         specifier: ^6.1.1
         version: 6.1.1
+      ingestion-contracts:
+        specifier: workspace:*
+        version: link:packages/ingestion-contracts
       markdownlint-cli2:
         specifier: ^0.23.2
         version: 0.23.2(supports-color@10.2.2)
+      notice-classifier-core:
+        specifier: workspace:*
+        version: link:packages/notice-classifier-core
       openai:
         specifier: 6.49.0
         version: 6.49.0(@aws-sdk/credential-provider-node@3.972.80)(@smithy/signature-v4@5.7.0)(ws@8.21.3)(zod@4.4.3)

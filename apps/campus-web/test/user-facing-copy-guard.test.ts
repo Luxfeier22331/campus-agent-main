@@ -95,8 +95,11 @@ describe("user-facing copy guard", () => {
 
 	it("does not reveal internal email admission mechanics in authentication copy", () => {
 		for (const relativePath of [
-			["src", "components", "auth", "auth-forms.tsx"],
-			["src", "components", "auth", "auth-email-flows.tsx"],
+			["src", "components", "auth", "auth-sign-in-form.tsx"],
+			["src", "components", "auth", "auth-sign-up-form.tsx"],
+			["src", "components", "auth", "auth-password-reset-flows.tsx"],
+			["src", "components", "auth", "auth-verification-flows.tsx"],
+			["src", "components", "auth", "auth-required-password-change.tsx"],
 			["src", "platform", "auth", "client.ts"],
 		]) {
 			const source = readFileSync(join(appDir, ...relativePath), "utf8");

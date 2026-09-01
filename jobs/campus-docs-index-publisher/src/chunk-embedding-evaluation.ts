@@ -43,7 +43,7 @@ import {
 	embedTexts,
 	type EmbeddingClient,
 } from "@campus-agent/embedding-runtime";
-import { sha256Text } from "./indexing.ts";
+import { sha256Text } from "./indexing/content-digest.ts";
 import type { ArtifactObjectStore, Sha256Ref, StoredChunk } from "./types.ts";
 
 const EMBEDDING_CACHE_DIRECTORY = "embedding-cache";

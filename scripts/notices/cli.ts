@@ -2,17 +2,11 @@ import { resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export {
-	assertCompleteNoticeClassificationResults,
-	classifyNoticeBatch,
-	type NoticeClassificationResult,
-} from "../../packages/notice-classifier-core/src/batch";
-
 import {
 	classifyNoticeBatch,
 	DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY as DEFAULT_NOTICE_CLASSIFICATION_CONCURRENCY_VALUE,
-} from "../../packages/notice-classifier-core/src/batch";
-import { createOpenAINoticeModelClassifier } from "./model";
+} from "notice-classifier-core/batch";
+import { createOpenAINoticeModelClassifier } from "notice-classifier-core/openai";
 import {
 	createNoticeSourceObjectStoreFromEnv,
 	loadLocalNoticeSourceEnvironment,

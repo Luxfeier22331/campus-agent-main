@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import process from "node:process";
 
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
-import type { NoticeClassificationTask } from "../../packages/notice-classifier-core/src/batch";
+import type { NoticeClassificationTask } from "notice-classifier-core/batch";
+import { mapWithConcurrency } from "notice-classifier-core/concurrency";
 import {
 	NOTICE_SOURCE_PREFIX,
 	type NoticeClassificationSource,
@@ -11,8 +12,7 @@ import {
 	noticeSourceKey,
 	parseNoticeClassificationSourceJson,
 	validateNoticeIds,
-} from "../../packages/notice-classifier-core/src/source";
-import { mapWithConcurrency } from "./concurrency";
+} from "notice-classifier-core/source";
 
 const SOURCE_BUCKET = "campus-agent-source";
 
