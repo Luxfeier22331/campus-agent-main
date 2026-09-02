@@ -52,6 +52,8 @@ runner、工具版本、缓存和发布实现由可执行配置维护；本文�
 | `scripts/dependencies/scan.sh` | 已锁定依赖的漏洞扫描 | 应用行为或镜像漏洞 |
 | `scripts/infra/validate.sh` | Kustomize render 与基础设施 policy | 集群已应用或 workload 健康 |
 | `scripts/otel/validate-config.sh` | Collector 配置校验 | 后端已经收到真实信号 |
+| PR `container-build` profile | Docker Bake target、变量和构建定义可解析 | 镜像源码、依赖闭包或运行时入口 |
+| PR `image-build` profile | 受影响镜像可在 `linux/arm64` 以 `cacheonly` 完成 BuildKit 构建 | 推送、漏洞扫描或环境部署 |
 
 `.pre-commit-config.yaml` 是 Biome、Markdownlint、EditorConfig、Ruff、SQLFluff、Yamllint、ShellCheck、
 Go format 和基础解析检查的单一可执行 owner。`pre-commit` 只选择暂存文件，`pnpm lint` 选择全部
@@ -76,8 +78,17 @@ package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README �
 | eval package、Ragas adapter 或评测合同 | 所属 package test；跨语言时运行对应 adapter |
 | GitHub Actions | `pnpm check`、Actionlint 与 Zizmor |
 | dependency manifest 或 lockfile | frozen install、受影响模块检查，必要时运行漏洞扫描 |
-| Dockerfile、Bake 或发布适配器 | 仓库脚本测试、Bake 解析；风险需要时构建目标制品 |
+| Dockerfile、Bake 或发布适配器 | 仓库脚本测试、Bake 解析；受影响镜像执行 build-only 构建 |
 | Kubernetes 或 deployment source | `scripts/infra/validate.sh` |
+
+## PR 镜像证据
+
+`container-build` 是廉价的构建定义检查，执行 `docker buildx bake --print`。`image-build` 使用
+`scripts/release/image-targets.mts` 与候选发布共用的受影响目标映射，逐个执行
+`scripts/release/images.mts --mode build-only`：固定 `linux/arm64`，输出为 BuildKit `type=cacheonly`，
+关闭发布阶段的 provenance/SBOM attestation，不 push、不 load、不读取 registry 现有镜像，也不运行 Trivy。
+两个 profile 只证明当前 Dockerfile、
+Turbo prune、依赖安装、编译和 runtime 入口能完成；它们不替代正式候选发布、镜像扫描或部署验收。
 
 普通 PR 只验证源码和受影响边界，不访问私有环境；候选物存在不能解释为已经部署。
 

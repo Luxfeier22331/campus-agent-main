@@ -1,41 +1,47 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
+ARG NODE_VERSION=24.19.0
 
-WORKDIR /app
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
+
+WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/ops-web/package.json ./apps/ops-web/package.json
-COPY apps/app-api/package.json ./apps/app-api/package.json
-COPY apps/campus-web/package.json ./apps/campus-web/package.json
-COPY jobs/notice-publisher/package.json ./jobs/notice-publisher/package.json
-COPY packages/contracts/package.json ./packages/contracts/package.json
-COPY packages/domains/dining/package.json ./packages/domains/dining/package.json
-COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
-COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
-COPY packages/internal-portal-client/package.json ./packages/internal-portal-client/package.json
-COPY packages/notice-classifier-core/package.json ./packages/notice-classifier-core/package.json
-COPY packages/notice-database/package.json ./packages/notice-database/package.json
-COPY packages/ui/package.json ./packages/ui/package.json
-COPY scripts/release/check-ops-web-artifact.mjs ./scripts/release/check-ops-web-artifact.mjs
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
-  && pnpm install --frozen-lockfile --filter 'ops-web...'
+  && pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-web-workspace
 
-COPY apps/ops-web ./apps/ops-web
+COPY . .
+
+RUN ./node_modules/.bin/turbo prune ops-web --docker --out-dir=/repo/out
+
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
+
+WORKDIR /app
+
+COPY --from=pruner /repo/out/json/ ./
+
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  corepack enable pnpm \
+  && pnpm install --ignore-scripts --frozen-lockfile --filter ops-web...
+
+COPY --from=pruner /repo/out/full/ ./
 COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
-COPY packages/contracts ./packages/contracts
-COPY packages/domains/dining ./packages/domains/dining
-COPY packages/domains/notices ./packages/domains/notices
-COPY packages/ingestion-contracts ./packages/ingestion-contracts
-COPY packages/internal-portal-client ./packages/internal-portal-client
-COPY packages/ui ./packages/ui
+COPY scripts/release/check-ops-web-artifact.mjs ./scripts/release/check-ops-web-artifact.mjs
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   pnpm --filter ops-web build \
-  && pnpm --filter ops-web deploy --legacy --prod /opt/ops-web \
+  && PNPM_CONFIG_IGNORE_SCRIPTS=true pnpm --filter ops-web deploy --legacy --prod /opt/ops-web \
   && node scripts/release/check-ops-web-artifact.mjs /opt/ops-web
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime

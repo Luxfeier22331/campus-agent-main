@@ -40,6 +40,15 @@ export interface PublishImageOptions {
 	trivyCacheDirectory: string;
 }
 
+export interface BuildImagesOptions {
+	images: string[];
+	logger?: (message: string) => void;
+	repository: string;
+	repositoryRoot: string;
+	sourceSha: string;
+	summaryFile?: string;
+}
+
 type ImageResult = "built" | "failed" | "not-started" | "reused";
 type ImageStage = "build" | "inspect" | "scan" | "total";
 
@@ -193,6 +202,41 @@ async function appendSummary(file: string, reports: ImageReport[], runMs: number
 	);
 }
 
+async function appendBuildSummary(
+	file: string,
+	reports: ImageReport[],
+	runMs: number,
+): Promise<void> {
+	const counts = resultCounts(reports);
+	const longest = longestImage(reports);
+	const rows = reports.map((report) => {
+		const result = report.failedStage ? `failed (${report.failedStage})` : report.result;
+		return `| ${[
+			`\`${report.image}\``,
+			result,
+			durationCell(report.buildMs),
+			durationCell(report.totalMs),
+		].join(" | ")} |`;
+	});
+	await appendFile(
+		path.resolve(file),
+		[
+			"### Container build results",
+			"",
+			`- Requested images: ${reports.length}`,
+			`- Script duration: ${durationCell(runMs)}`,
+			"- Output: BuildKit cacheonly; no registry push, image load, or vulnerability scan",
+			`- Results: built=${counts.built} reused=${counts.reused} failed=${counts.failed} not-started=${counts["not-started"]}`,
+			`- Longest image: ${longest ? `\`${longest.image}\` (${durationCell(longest.totalMs)})` : "-"}`,
+			"",
+			"| Image | Result | Build | Total |",
+			"| --- | --- | ---: | ---: |",
+			...rows,
+			"",
+		].join("\n"),
+	);
+}
+
 function requiredDigest(value: unknown, context: string): string {
 	if (typeof value !== "string" || !DIGEST_PATTERN.test(value)) {
 		throw new Error(`Invalid image digest from ${context}`);
@@ -298,6 +342,148 @@ function validateOptions(options: PublishImageOptions): void {
 	}
 	if (!SHA_PATTERN.test(options.sourceSha)) {
 		throw new Error(`Invalid source SHA: ${options.sourceSha}`);
+	}
+}
+
+function validateBuildOptions(options: BuildImagesOptions): void {
+	if (!REPOSITORY_PATTERN.test(options.repository)) {
+		throw new Error(`Invalid repository: ${options.repository}`);
+	}
+	if (!SHA_PATTERN.test(options.sourceSha)) {
+		throw new Error(`Invalid source SHA: ${options.sourceSha}`);
+	}
+}
+
+export async function buildImages(
+	options: BuildImagesOptions,
+	runner: CommandRunner = runCommand,
+): Promise<void> {
+	validateBuildOptions(options);
+	const images = normalizedImages(options.images);
+	const logger = options.logger ?? ((message: string) => process.stderr.write(message));
+	const runStartedAt = performance.now();
+	logRun(logger, "start", `images_count=${images.length} mode=build-only output=cacheonly`);
+	const root = path.resolve(options.repositoryRoot);
+	const environment = {
+		...process.env,
+		IMAGE_REVISION: options.sourceSha,
+		IMAGE_SOURCE: `https://github.com/${options.repository}`,
+		NODE_VERSION: readNodeVersion(root),
+	};
+	const commandOptions = { cwd: root, env: environment, output: "capture" as const };
+	const printArguments = ["buildx", "bake", "--file", "docker-bake.hcl", "--print"];
+	let printed: CommandResult;
+	try {
+		printed = await runner("docker", printArguments, commandOptions);
+	} catch (error) {
+		logRun(logger, "failed", `duration_ms=${elapsed(runStartedAt)} failed_stage=preflight`);
+		throw error;
+	}
+	if (printed.code !== 0) {
+		logRun(logger, "failed", `duration_ms=${elapsed(runStartedAt)} failed_stage=preflight`);
+		throw commandError("docker", printArguments, printed);
+	}
+	const targets = bakeTargets(printed.stdout);
+	for (const image of images) {
+		if (!targets.has(image)) {
+			throw new Error(`Image is not declared in docker-bake.hcl: ${image}`);
+		}
+	}
+
+	const reports = images.map<ImageReport>((image) => ({ image, result: "not-started" }));
+	let failure: unknown;
+	for (const [index, image] of images.entries()) {
+		const report = reports[index] as ImageReport;
+		report.result = "failed";
+		const totalStartedAt = performance.now();
+		report.startedAt = totalStartedAt;
+		const buildArguments = [
+			"buildx",
+			"bake",
+			"--file",
+			"docker-bake.hcl",
+			"--progress=plain",
+			"--pull",
+			"--provenance=false",
+			"--sbom=false",
+			"--set",
+			`${image}.platform=linux/arm64`,
+			"--set",
+			`${image}.output=type=cacheonly`,
+			image,
+		];
+		logStage(logger, image, "total", "start");
+		logStage(logger, image, "build", "start", "mode=build-only output=type=cacheonly");
+		const buildStartedAt = performance.now();
+		try {
+			const built = await runner("docker", buildArguments, {
+				cwd: root,
+				env: environment,
+				output: "stream",
+			});
+			report.buildMs = elapsed(buildStartedAt);
+			if (built.code !== 0) {
+				throw commandError("docker", buildArguments, built);
+			}
+		} catch (error) {
+			report.failedStage = "build";
+			report.buildMs = elapsed(buildStartedAt);
+			failure = error;
+			logStage(logger, image, "build", "failed", `duration_ms=${report.buildMs}`);
+			break;
+		}
+		report.result = "built";
+		logStage(logger, image, "build", "complete", `duration_ms=${report.buildMs}`);
+		report.totalMs = elapsed(totalStartedAt);
+		logStage(
+			logger,
+			image,
+			"total",
+			"complete",
+			`duration_ms=${report.totalMs} result=${report.result}`,
+		);
+	}
+	for (const report of reports) {
+		if (report.result === "failed" && report.totalMs === undefined) {
+			report.totalMs = report.startedAt === undefined ? undefined : elapsed(report.startedAt);
+			logStage(
+				logger,
+				report.image,
+				"total",
+				"failed",
+				`duration_ms=${report.totalMs ?? 0} failed_stage=${report.failedStage ?? "unknown"}`,
+			);
+			if (failure === undefined) {
+				failure = new Error(`Container build failed: ${report.image}`);
+			}
+			break;
+		}
+	}
+	if (options.summaryFile) {
+		try {
+			await appendBuildSummary(options.summaryFile, reports, elapsed(runStartedAt));
+		} catch (error) {
+			logger(
+				`[release-image] summary state=failed original_error=${failure !== undefined} error=${error instanceof Error ? error.message : String(error)}\n`,
+			);
+			failure ??= error;
+		}
+	}
+	const counts = resultCounts(reports);
+	logRun(
+		logger,
+		failure === undefined ? "complete" : "failed",
+		[
+			`duration_ms=${elapsed(runStartedAt)}`,
+			`images_count=${reports.length}`,
+			`built=${counts.built}`,
+			`reused=${counts.reused}`,
+			`failed=${counts.failed}`,
+			`not_started=${counts["not-started"]}`,
+		].join(" "),
+	);
+	if (failure !== undefined) {
+		throw failure;
 	}
 }
 
@@ -618,6 +804,20 @@ async function main(args: string[]): Promise<void> {
 	const images = JSON.parse(required(values, "images")) as unknown;
 	if (!Array.isArray(images) || images.some((image) => typeof image !== "string")) {
 		throw new Error("--images must be a JSON string array");
+	}
+	const mode = values.get("mode") ?? "publish";
+	if (mode === "build-only") {
+		await buildImages({
+			images,
+			repository: required(values, "repository"),
+			repositoryRoot: values.get("root") ?? process.cwd(),
+			sourceSha: required(values, "source-sha"),
+			summaryFile: values.get("summary"),
+		});
+		return;
+	}
+	if (mode !== "publish") {
+		throw new Error(`Unsupported image build mode: ${mode}`);
 	}
 	const result = await publishImages({
 		images,

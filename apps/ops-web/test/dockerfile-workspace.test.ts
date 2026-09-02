@@ -1,101 +1,10 @@
-import { globSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = join(import.meta.dirname, "../../..");
 const dockerfile = readFileSync(join(repoRoot, "apps/ops-web/Dockerfile"), "utf8");
 const dockerignore = readFileSync(join(repoRoot, ".dockerignore"), "utf8");
-
-type DependencyField =
-	| "dependencies"
-	| "devDependencies"
-	| "optionalDependencies"
-	| "peerDependencies";
-
-interface PackageManifest {
-	dependencies?: Record<string, string>;
-	devDependencies?: Record<string, string>;
-	name?: string;
-	optionalDependencies?: Record<string, string>;
-	peerDependencies?: Record<string, string>;
-}
-
-interface WorkspaceManifest {
-	manifest: PackageManifest;
-	workspacePath: string;
-}
-
-const dependencyFields: DependencyField[] = [
-	"dependencies",
-	"devDependencies",
-	"optionalDependencies",
-	"peerDependencies",
-];
-
-function readManifest(relativePath: string): PackageManifest {
-	return JSON.parse(readFileSync(join(repoRoot, relativePath), "utf8")) as PackageManifest;
-}
-
-const workspaceManifests = new Map<string, WorkspaceManifest>();
-for (const manifestPath of globSync(
-	[
-		"apps/*/package.json",
-		"jobs/*/package.json",
-		"packages/*/package.json",
-		"packages/domains/*/package.json",
-	],
-	{ cwd: repoRoot },
-).sort()) {
-	const manifest = readManifest(manifestPath);
-	if (!manifest.name) {
-		throw new Error(`Workspace manifest has no package name: ${manifestPath}`);
-	}
-	if (workspaceManifests.has(manifest.name)) {
-		throw new Error(`Duplicate workspace package name: ${manifest.name}`);
-	}
-	workspaceManifests.set(manifest.name, {
-		manifest,
-		workspacePath: manifestPath.slice(0, -"/package.json".length),
-	});
-}
-
-function workspaceDependencies(manifest: PackageManifest): string[] {
-	const dependencies: string[] = [];
-	for (const field of dependencyFields) {
-		for (const [name, version] of Object.entries(manifest[field] ?? {})) {
-			if (version.startsWith("workspace:")) {
-				dependencies.push(name);
-			}
-		}
-	}
-	return dependencies;
-}
-
-function workspaceManifestClosure(): string[] {
-	const rootManifest = readManifest("package.json");
-	const opsWeb = workspaceManifests.get("ops-web");
-	if (!opsWeb) {
-		throw new Error("Ops Web workspace manifest is missing");
-	}
-
-	const closure = new Set([opsWeb.workspacePath]);
-	const pending = [
-		...workspaceDependencies(rootManifest),
-		...workspaceDependencies(opsWeb.manifest),
-	];
-	for (const packageName of pending) {
-		const workspace = workspaceManifests.get(packageName);
-		if (!workspace) {
-			throw new Error(`Workspace dependency has no manifest: ${packageName}`);
-		}
-		if (closure.has(workspace.workspacePath)) {
-			continue;
-		}
-		closure.add(workspace.workspacePath);
-		pending.push(...workspaceDependencies(workspace.manifest));
-	}
-	return [...closure].sort();
-}
 
 const workspaceSourceInputs = [
 	"packages/contracts",
@@ -107,29 +16,36 @@ const workspaceSourceInputs = [
 ] as const;
 
 describe("ops-web Dockerfile workspace inputs", () => {
-	it("includes the recursive workspace manifest closure before dependency installation", () => {
-		const install = "pnpm install --frozen-lockfile --filter 'ops-web...'";
+	it("prunes the workspace closure before installing package dependencies", () => {
 		const rootManifest = "COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./";
+		const prunerInstall =
+			"pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-web-workspace";
+		const prune = "RUN ./node_modules/.bin/turbo prune ops-web --docker --out-dir=/repo/out";
+		const buildManifest = "COPY --from=pruner /repo/out/json/ ./";
+		const buildInstall = "pnpm install --ignore-scripts --frozen-lockfile --filter ops-web...";
+		const fullSource = "COPY --from=pruner /repo/out/full/ ./";
+		const build = "pnpm --filter ops-web build";
 
 		expect(dockerfile).toContain(rootManifest);
-		expect(dockerfile.indexOf(rootManifest)).toBeLessThan(dockerfile.indexOf(install));
-		for (const workspacePath of workspaceManifestClosure()) {
-			const manifest = `COPY ${workspacePath}/package.json ./${workspacePath}/package.json`;
-
-			expect(dockerfile).toContain(manifest);
-			expect(dockerfile.indexOf(manifest)).toBeLessThan(dockerfile.indexOf(install));
-		}
+		expect(dockerfile.indexOf(rootManifest)).toBeLessThan(dockerfile.indexOf(prunerInstall));
+		expect(dockerfile).toContain(prune);
+		expect(dockerfile.indexOf(prunerInstall)).toBeLessThan(dockerfile.indexOf(prune));
+		expect(dockerfile).toContain(buildManifest);
+		expect(dockerfile.indexOf(buildManifest)).toBeLessThan(dockerfile.indexOf(buildInstall));
+		expect(dockerfile).toContain(fullSource);
+		expect(dockerfile.indexOf(fullSource)).toBeLessThan(dockerfile.indexOf(build));
 	});
 
-	it("copies every build-owned workspace source before the package build", () => {
+	it("takes workspace sources from the pruned output", () => {
 		const build = "pnpm --filter ops-web build";
+		const fullSource = "COPY --from=pruner /repo/out/full/ ./";
 
 		for (const workspacePath of workspaceSourceInputs) {
 			const source = `COPY ${workspacePath} ./${workspacePath}`;
 
-			expect(dockerfile).toContain(source);
-			expect(dockerfile.indexOf(source)).toBeLessThan(dockerfile.indexOf(build));
+			expect(dockerfile).not.toContain(source);
 		}
+		expect(dockerfile.indexOf(fullSource)).toBeLessThan(dockerfile.indexOf(build));
 	});
 
 	it("does not copy integration-only application sources into the build stage", () => {

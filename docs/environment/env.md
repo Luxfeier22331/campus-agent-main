@@ -64,14 +64,15 @@ CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实�
 
 ### Git hook
 
-Git hook 不属于应用环境文件。`pnpm install` 的 `prepare` 为当前 checkout 或 linked worktree 设置
-worktree-local `core.hooksPath=.githooks`，并安装该 checkout 自己的 `pre-commit` 与 `pre-push`；
-不会引用其他 checkout 的 Node 或 Python 环境。生成的 `.githooks/` 被 Git 忽略，依赖已安装但 hook
-缺失时执行 `pnpm hooks:install`。
+Git hook 不属于应用环境文件。当前 checkout 或 linked worktree 执行 `pnpm install` 时，`prepare`
+生命周期会调用标准 `prek install`，设置 worktree-local `core.hooksPath=.githooks`，并安装配置中声明的
+hooks；不会引用其他 checkout 的 Node 或 Python 环境。生成的 `.githooks/` 被 Git 忽略。使用
+`pnpm install --ignore-scripts` 时不会自动安装 hook；依赖已安装但 hook 缺失时重新执行
+`pnpm hooks:install`。
 
 `uv sync --locked --all-packages --dev` 提供 Ruff、SQLFluff 和 Yamllint，`pnpm dev:init` 仍只负责应用
-环境初始化。`prepare` 在 CI、production install 和不包含 Git metadata 的 package/Docker build context
-中跳过安装。
+环境初始化，不参与 Git hook 安装。CI、production install 和 Docker/包构建不会触发 Git hook 安装，
+因此只需要复制构建所需的 workspace 文件。
 
 internal-portal-collection 的托管 `.env.local` 保存当前 worktree 的 source bucket、通知数据库和 Ops Web
 内部接口配置，以及 `internal-portal:auth:pull` 最近一次成功解析的 `INTERNAL_PORTAL_SSO_TGC`。拉取命令

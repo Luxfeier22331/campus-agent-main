@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+	buildImages,
 	type CommandOutput,
 	type CommandResult,
 	type CommandRunner,
@@ -467,4 +468,113 @@ test("normalizes image order in the result and output file", async (t) => {
 	);
 	const summary = await readFile(options.summaryFile, "utf8");
 	assert(summary.indexOf("`agent-runtime`") < summary.indexOf("`ops-web`"));
+});
+
+test("build-only evidence builds selected targets without publishing or scanning", async (t) => {
+	const { options } = await fixture(t);
+	const logs: string[] = [];
+	const calls: Array<{
+		args: string[];
+		command: string;
+		env: NodeJS.ProcessEnv;
+		output: CommandOutput;
+	}> = [];
+	const summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const runner: CommandRunner = async (command, args, commandOptions) => {
+		calls.push({ command, args, env: commandOptions.env, output: commandOptions.output });
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime", "ops-web"]);
+		}
+		return result();
+	};
+
+	await buildImages(
+		{
+			images: ["ops-web", "agent-runtime"],
+			logger: (message) => logs.push(message),
+			repository: options.repository,
+			repositoryRoot: options.repositoryRoot,
+			sourceSha: options.sourceSha,
+			summaryFile,
+		},
+		runner,
+	);
+
+	assert.deepEqual(
+		calls.map(({ command, args, output }) => ({
+			command,
+			output,
+			subcommand: args[0],
+		})),
+		[
+			{ command: "docker", output: "capture", subcommand: "buildx" },
+			{ command: "docker", output: "stream", subcommand: "buildx" },
+			{ command: "docker", output: "stream", subcommand: "buildx" },
+		],
+	);
+	const builds = calls.filter((call) => call.output === "stream");
+	assert.equal(builds.length, 2);
+	for (const build of builds) {
+		assert(build.args.includes("--pull"));
+		assert(build.args.includes("--progress=plain"));
+		assert(build.args.includes("--provenance=false"));
+		assert(build.args.includes("--sbom=false"));
+		assert(build.args.includes("--set"));
+		assert(build.args.some((argument) => argument.endsWith(".platform=linux/arm64")));
+		assert(build.args.some((argument) => argument.endsWith(".output=type=cacheonly")));
+		assert.equal(build.args.includes("--push"), false);
+		assert.equal(build.args.includes("--load"), false);
+		assert.equal(build.args.includes("--metadata-file"), false);
+		assert.equal(build.env.IMAGE_REVISION, SHA);
+		assert.equal(build.env.IMAGE_SOURCE, "https://github.com/MUC-WIKI/campus-agent");
+		assert.equal(build.env.NODE_VERSION, "99.88.77");
+	}
+	assert.equal(
+		calls.some((call) => call.command === "trivy"),
+		false,
+	);
+	assert.equal(
+		calls.some((call) => call.args.includes("imagetools")),
+		false,
+	);
+	assert(logs.some((line) => line.includes("mode=build-only output=cacheonly")));
+	assert(logs.some((line) => line.includes("stage=run state=complete")));
+	const summary = await readFile(summaryFile, "utf8");
+	assert.match(summary, /Container build results/u);
+	assert.match(summary, /Output: BuildKit cacheonly/u);
+	assert.match(summary, /Results: built=2 reused=0 failed=0 not-started=0/u);
+	assert.match(summary, /\| `agent-runtime` \| built \|/u);
+	assert.match(summary, /\| `ops-web` \| built \|/u);
+});
+
+test("build-only evidence stops after the first failed image", async (t) => {
+	const { options } = await fixture(t);
+	const logs: string[] = [];
+	const calls: string[] = [];
+	const summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const runner: CommandRunner = async (command, args) => {
+		calls.push([command, ...args].join(" "));
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime", "ops-web"]);
+		}
+		return result({ code: 1, stderr: "build failed" });
+	};
+
+	await assert.rejects(
+		buildImages(
+			{
+				images: ["agent-runtime", "ops-web"],
+				logger: (message) => logs.push(message),
+				repository: options.repository,
+				repositoryRoot: options.repositoryRoot,
+				sourceSha: options.sourceSha,
+				summaryFile,
+			},
+			runner,
+		),
+		/build failed/u,
+	);
+	assert.equal(calls.filter((call) => call.includes("--progress=plain")).length, 1);
+	assert(logs.some((line) => line.includes("failed=1 not_started=1")));
+	assert.match(await readFile(summaryFile, "utf8"), /not-started/u);
 });

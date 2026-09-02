@@ -2,7 +2,9 @@ variable "IMAGE_REVISION" {
   default = "local"
 }
 
-variable "NODE_VERSION" {}
+variable "NODE_VERSION" {
+  default = "24.19.0"
+}
 
 variable "IMAGE_SOURCE" {
   default = "https://github.com/MUC-WIKI/campus-agent"
@@ -12,7 +14,6 @@ group "default" {
   targets = [
     "agent-runtime",
     "campus-agent-schema",
-    "app-api-schema",
     "campus-docs-index-publisher",
     "execution-control",
     "model-config",
@@ -46,6 +47,8 @@ target "campus-agent-schema" {
   dockerfile = "jobs/campus-agent-schema/Dockerfile"
 }
 
+# Historical-only target. It remains addressable for legacy database upgrade work, but is not part
+# of the default or candidate release set.
 target "app-api-schema" {
   inherits   = ["_common"]
   dockerfile = "jobs/app-api-schema/Dockerfile"

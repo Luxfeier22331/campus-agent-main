@@ -193,15 +193,10 @@ test("publishes the first product availability candidate before GitOps selects i
 	assert.deepEqual(plan.workers, ["status-web-staging"]);
 });
 
-test("task graph configuration does not publish business artifacts", async (t) => {
+test("package-local task graph configuration does not publish business artifacts", async (t) => {
 	const root = await fixture(t);
 	const runner = syntheticScopeRunner(
-		changed(
-			"package.json",
-			"turbo.json",
-			"apps/execution-control/turbo.json",
-			"infra/k8s/data-object-store/base/bootstrap.yaml",
-		),
+		changed("apps/execution-control/turbo.json", "infra/k8s/data-object-store/base/bootstrap.yaml"),
 		[],
 	);
 	const plan = await planCandidates(options(root), runner);
@@ -220,7 +215,15 @@ test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit"
 		],
 	);
 	const plan = await planCandidates(options(root), runner);
-	assert.deepEqual(plan.images, ["agent-runtime", "ops-web"]);
+	assert.deepEqual(plan.images, [
+		"agent-runtime",
+		"campus-agent-schema",
+		"campus-docs-index-publisher",
+		"internal-portal-collection",
+		"notice-classifier",
+		"notice-publisher",
+		"ops-web",
+	]);
 	assert.deepEqual(plan.workers, []);
 });
 
@@ -422,7 +425,7 @@ test("does not publish artifacts for an artifact adapter test change", async (t)
 	assert.deepEqual(plan.images, []);
 });
 
-test("a Node lockfile change selects Node one-shot images but not the independent Go image", async (t) => {
+test("a Node lockfile change selects all active Node images but not the independent Go image", async (t) => {
 	const root = await fixture(t);
 	const runner: CommandRunner = (command, args) => {
 		if (command === "pnpm") {
@@ -442,10 +445,13 @@ test("a Node lockfile change selects Node one-shot images but not the independen
 	};
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, [
+		"agent-runtime",
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"internal-portal-collection",
+		"notice-classifier",
 		"notice-publisher",
+		"ops-web",
 	]);
 });
 

@@ -4,6 +4,7 @@ type ValidationCommand = readonly [command: string, ...args: string[]];
 
 type ValidationExecutor =
 	| { kind: "affected-node" }
+	| { kind: "affected-images" }
 	| { commands: readonly ValidationCommand[]; kind: "commands" };
 
 interface ValidationProfileDefinition {
@@ -44,6 +45,21 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		executor: { kind: "affected-node" },
 		lane: "pull-request",
 		requiresDocker: false,
+		requiresUv: false,
+	},
+	"container-build": {
+		executor: {
+			commands: [["docker", "buildx", "bake", "--file", "docker-bake.hcl", "--print"]],
+			kind: "commands",
+		},
+		lane: "pull-request",
+		requiresDocker: true,
+		requiresUv: false,
+	},
+	"image-build": {
+		executor: { kind: "affected-images" },
+		lane: "pull-request",
+		requiresDocker: true,
 		requiresUv: false,
 	},
 	go: {
@@ -121,15 +137,6 @@ export const VALIDATION_PROFILE_REGISTRY = {
 	otel: {
 		executor: { commands: [["scripts/otel/validate-config.sh"]], kind: "commands" },
 		lane: "manual",
-		requiresDocker: true,
-		requiresUv: false,
-	},
-	toolchain: {
-		executor: {
-			commands: [["docker", "buildx", "bake", "--file", "docker-bake.hcl", "--print"]],
-			kind: "commands",
-		},
-		lane: "pull-request",
 		requiresDocker: true,
 		requiresUv: false,
 	},

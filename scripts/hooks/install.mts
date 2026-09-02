@@ -81,8 +81,8 @@ function repositoryRoot(
 	return root ? path.resolve(root) : undefined;
 }
 
-// This adapter exists because generated prek shims reference the installing worktree. Remove it
-// if linked worktrees are retired or the runner gains relocation-safe shared shims.
+// Keep Git's hook path worktree-local because each worktree has its own dependencies. `prek` owns
+// the generated hook files; this adapter only configures the path and delegates installation.
 export function installHooks(
 	options: { cwd?: string; env?: NodeJS.ProcessEnv; runner?: HookCommandRunner } = {},
 ): HookInstallResult {
@@ -107,12 +107,7 @@ export function installHooks(
 		commandOptions,
 		runner,
 	);
-	requireSuccess(
-		"pnpm",
-		["exec", "prek", "install", "--hook-type", "pre-commit", "--hook-type", "pre-push", "--force"],
-		commandOptions,
-		runner,
-	);
+	requireSuccess("pnpm", ["exec", "prek", "install", "--force"], commandOptions, runner);
 	return { repositoryRoot: root, status: "installed" };
 }
 

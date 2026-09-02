@@ -6,8 +6,8 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
-		"prepare": "node --experimental-strip-types scripts/hooks/install.mts",
 		"hooks:install": "node --experimental-strip-types scripts/hooks/install.mts",
+		"prepare": "node --experimental-strip-types scripts/hooks/install.mts",
 		"lint": "pnpm exec prek run --all-files --stage pre-commit --skip staged-secrets",
 		"docs:check": "pnpm exec tsx scripts/docs/check-frontmatter.ts && pnpm exec tsx scripts/docs/check-adr-ids.ts && pnpm exec tsx scripts/docs/check-links.ts && pnpm exec tsx scripts/docs/check-language.ts",
 		"test": "pnpm exec tsx --test scripts/ci/*.test.ts scripts/deploy/*.test.ts scripts/dev/*.test.ts scripts/docs/*.test.ts scripts/hooks/*.test.ts scripts/notices/*.test.ts scripts/release/*.test.ts scripts/release/*.test.mjs",

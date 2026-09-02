@@ -1,6 +1,6 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-
+import { containerBuildInputsChanged, imageTargetsForScope } from "../release/image-targets.mts";
 import { type AffectedScope, type CommandRunner, resolveAffectedScope } from "./scope.mts";
 import {
 	VALIDATION_PROFILES,
@@ -75,17 +75,12 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	if (scope.tasks.some(({ task }) => AFFECTED_NODE_TASKS.has(task))) {
 		selected.add("affected-node");
 	}
-	if (
-		files.some(
-			(file) =>
-				file === "docker-bake.hcl" ||
-				file === "pnpm-lock.yaml" ||
-				file === "pnpm-workspace.yaml" ||
-				file.endsWith("/Dockerfile") ||
-				file.startsWith("scripts/release/"),
-		)
-	) {
-		selected.add("toolchain");
+	const images = imageTargetsForScope(scope);
+	if (containerBuildInputsChanged(files) || images.length > 0) {
+		selected.add("container-build");
+	}
+	if (images.length > 0) {
+		selected.add("image-build");
 	}
 	return VALIDATION_PROFILES.filter((profile) => selected.has(profile));
 }

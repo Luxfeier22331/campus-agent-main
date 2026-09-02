@@ -54,12 +54,17 @@ pnpm check
 
 ### Git hooks
 
-`pnpm install` 的 `prepare` 会为当前 checkout 或 linked worktree 设置 worktree-local
-`core.hooksPath=.githooks`，并安装 `pre-commit` 与 `pre-push`。生成目录不提交 Git；需要修复时执行：
+在当前 checkout 或 linked worktree 执行 `pnpm install` 时，`prepare` 生命周期会自动调用标准
+`prek install`，设置 worktree-local `core.hooksPath=.githooks`，并安装配置中声明的 Git hooks。
+生成目录不提交 Git。使用 `--ignore-scripts` 安装依赖会主动跳过该生命周期；需要手动补装或修复
+本地 hook 时执行：
 
 ```bash
 pnpm hooks:install
 ```
+
+`pnpm dev:init` 只初始化应用环境，不参与 Git hook 安装。CI、production install 和 Docker build
+context 中由安装脚本跳过 Git hook。
 
 先执行 `uv sync --locked --all-packages --dev`，使 Ruff、SQLFluff 和 Yamllint 可供 hook 使用。
 `pre-commit` 对暂存文件执行 check-only 静态检查和 Secret 扫描；`pre-push` 对受影响的 Node 与 Go

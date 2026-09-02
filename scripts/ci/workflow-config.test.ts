@@ -183,13 +183,25 @@ test("pull request validation keeps the shared required-check contract", async (
 	}
 	assert.equal(namedStep(repoChecks, "Summarize repository evidence").shell, "bash -e {0}");
 	assert.equal(
-		namedStep(repoChecks, "Run affected Node evidence").if,
-		"always() && steps.plan.outputs.has_affected_node == 'true' && steps.install_affected.outcome == 'success'",
+		namedStep(repoChecks, "Run affected Node and image evidence").if,
+		"always() && steps.plan.outputs.node_evidence_profiles != '[]' && (\n  steps.plan.outputs.has_image_build == 'true' ||\n  steps.install_affected.outcome == 'success'\n)",
 	);
 	assert.equal(
-		namedStep(repoChecks, "Run toolchain evidence").if,
-		"always() && steps.plan.outputs.has_toolchain == 'true'",
+		namedStep(repoChecks, "Run container build contract evidence").if,
+		"always() && steps.plan.outputs.has_container_build == 'true'",
 	);
+	assert.equal(
+		namedStep(repoChecks, "Run affected Node and image evidence").shell,
+		"nix develop .#ci-release --command bash -e {0}",
+	);
+	const nodeAndImages = namedStep(repoChecks, "Run affected Node and image evidence");
+	assert(isObject(nodeAndImages.env));
+	assert.equal(
+		nodeAndImages.env.VALIDATION_PROFILES,
+		githubExpression("steps.plan.outputs.node_evidence_profiles"),
+	);
+	assert.match(String(nodeAndImages.run), /--repository "\$GITHUB_REPOSITORY"/u);
+	assert.match(String(nodeAndImages.run), /--summary "\$GITHUB_STEP_SUMMARY"/u);
 });
 
 test("Source diff consumers check out complete immutable history", async () => {

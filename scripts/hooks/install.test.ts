@@ -50,7 +50,7 @@ test("skips lifecycle contexts that cannot own development hooks", () => {
 	assert.equal(calls, 1);
 });
 
-test("installs independent hook paths for a checkout and linked worktree", (t) => {
+test("delegates standard prek installation to independent checkout hook paths", (t) => {
 	const parent = mkdtempSync(path.join(os.tmpdir(), "campus-agent-hooks-test-"));
 	t.after(() => rmSync(parent, { force: true, recursive: true }));
 	const main = path.join(parent, "main");
@@ -109,27 +109,13 @@ test("installs independent hook paths for a checkout and linked worktree", (t) =
 	assert.deepEqual(
 		installs.map(({ args }) => args),
 		[
-			[
-				"exec",
-				"prek",
-				"install",
-				"--hook-type",
-				"pre-commit",
-				"--hook-type",
-				"pre-push",
-				"--force",
-			],
-			[
-				"exec",
-				"prek",
-				"install",
-				"--hook-type",
-				"pre-commit",
-				"--hook-type",
-				"pre-push",
-				"--force",
-			],
+			["exec", "prek", "install", "--force"],
+			["exec", "prek", "install", "--force"],
 		],
+	);
+	assert.equal(
+		installs.some(({ args }) => args.includes("dev:init")),
+		false,
 	);
 
 	git(main, "worktree", "remove", "--force", linked);

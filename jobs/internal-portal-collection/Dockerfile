@@ -1,4 +1,7 @@
-FROM node:24.19.0-bookworm-slim AS pruner
+# syntax=docker/dockerfile:1
+ARG NODE_VERSION=24.19.0
+
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -8,14 +11,16 @@ WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-RUN corepack enable pnpm \
-  && pnpm install --frozen-lockfile --filter campus-agent-web-workspace
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  corepack enable pnpm \
+  && pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-web-workspace
 
 COPY . .
 
-RUN pnpm exec turbo prune internal-portal-collection --docker --out-dir=/repo/out
+RUN ./node_modules/.bin/turbo prune internal-portal-collection --docker --out-dir=/repo/out
 
-FROM node:24.19.0-bookworm-slim AS check
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS check
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -25,8 +30,10 @@ WORKDIR /workspace
 
 COPY --from=pruner /repo/out/json/ ./
 
-RUN corepack enable pnpm \
-  && pnpm install --frozen-lockfile --filter internal-portal-collection...
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  corepack enable pnpm \
+  && pnpm install --ignore-scripts --frozen-lockfile --filter internal-portal-collection...
 
 COPY --from=pruner /repo/out/full/ ./
 COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
@@ -35,7 +42,7 @@ RUN pnpm --filter internal-portal-collection typecheck \
   && pnpm --filter internal-portal-collection build \
   && touch /check-complete
 
-FROM node:24.19.0-bookworm-slim AS production-dependencies
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS production-dependencies
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -46,10 +53,12 @@ WORKDIR /workspace
 COPY --from=check /check-complete /check-complete
 COPY --from=pruner /repo/out/json/ ./
 
-RUN corepack enable pnpm \
-  && pnpm install --prod --frozen-lockfile --filter internal-portal-collection...
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  corepack enable pnpm \
+  && pnpm install --ignore-scripts --prod --frozen-lockfile --filter internal-portal-collection...
 
-FROM node:24.19.0-bookworm-slim AS runtime
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 WORKDIR /workspace
 

@@ -1,48 +1,58 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION
-FROM node:${NODE_VERSION}-bookworm-slim AS build
+ARG NODE_VERSION=24.19.0
 
-WORKDIR /app
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
+
+WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY jobs/notice-classifier/package.json ./jobs/notice-classifier/package.json
-COPY packages/notice-classifier-core/package.json ./packages/notice-classifier-core/package.json
-COPY packages/contracts/package.json ./packages/contracts/package.json
-COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
-COPY packages/notice-database/package.json ./packages/notice-database/package.json
-COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
-  && pnpm install --frozen-lockfile --filter notice-classifier...
+  && pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-web-workspace
 
-COPY jobs/notice-classifier/tsconfig.json ./jobs/notice-classifier/tsconfig.json
-COPY jobs/notice-classifier/src ./jobs/notice-classifier/src
-COPY packages/notice-classifier-core/src ./packages/notice-classifier-core/src
-COPY packages/contracts/src ./packages/contracts/src
-COPY packages/domains/notices/src ./packages/domains/notices/src
-COPY packages/notice-database/src ./packages/notice-database/src
-COPY packages/ingestion-contracts/src ./packages/ingestion-contracts/src
+COPY . .
+
+RUN ./node_modules/.bin/turbo prune notice-classifier --docker --out-dir=/repo/out
+
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
+
+WORKDIR /app
+
+COPY --from=pruner /repo/out/json/ ./
+
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  corepack enable pnpm \
+  && pnpm install --ignore-scripts --frozen-lockfile --filter notice-classifier...
+
+COPY --from=pruner /repo/out/full/ ./
 
 RUN pnpm --filter notice-classifier build
 
-FROM node:${NODE_VERSION}-bookworm-slim AS production-dependencies
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS production-dependencies
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY jobs/notice-classifier/package.json ./jobs/notice-classifier/package.json
-COPY packages/notice-classifier-core/package.json ./packages/notice-classifier-core/package.json
-COPY packages/contracts/package.json ./packages/contracts/package.json
-COPY packages/domains/notices/package.json ./packages/domains/notices/package.json
-COPY packages/notice-database/package.json ./packages/notice-database/package.json
-COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json
+COPY --from=pruner /repo/out/json/ ./
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
-  && pnpm install --prod --frozen-lockfile --filter notice-classifier...
+  && pnpm install --ignore-scripts --prod --frozen-lockfile --filter notice-classifier...
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 

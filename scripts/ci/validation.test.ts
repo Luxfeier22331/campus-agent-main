@@ -39,9 +39,15 @@ test("validation profiles have one fail-closed registry", () => {
 		requiresDocker: false,
 		requiresUv: true,
 	});
-	assert.deepEqual(validationProfileMetadata("toolchain"), {
+	assert.deepEqual(validationProfileMetadata("container-build"), {
 		lane: "pull-request",
-		name: "toolchain",
+		name: "container-build",
+		requiresDocker: true,
+		requiresUv: false,
+	});
+	assert.deepEqual(validationProfileMetadata("image-build"), {
+		lane: "pull-request",
+		name: "image-build",
 		requiresDocker: true,
 		requiresUv: false,
 	});
@@ -78,9 +84,8 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 	assert.deepEqual(plan.validationProfiles, ["affected-node"]);
 });
 
-test("keeps native, database, infrastructure, OTel, and browser checks manual", () => {
+test("keeps database, infrastructure, OTel, and browser checks manual", () => {
 	for (const file of [
-		"apps/execution-control/internal/server/server.go",
 		"packages/ragas-runner/tests/test_runner.py",
 		"apps/app-api/drizzle/0001.sql",
 		"apps/ops-web/src/server/internal-portal-credential-store.ts",
@@ -92,41 +97,45 @@ test("keeps native, database, infrastructure, OTel, and browser checks manual", 
 	]) {
 		assert.deepEqual(profiles([file]), [], file);
 	}
+	assert.deepEqual(profiles(["apps/execution-control/internal/server/server.go"]), [
+		"container-build",
+		"image-build",
+	]);
 });
 
-test("keeps mutable vulnerability scans out of pull request profiles", () => {
-	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["toolchain"]);
-	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), ["toolchain"]);
+test("selects container and image evidence for Node dependency inputs", () => {
+	assert.deepEqual(profiles(["pnpm-lock.yaml"]), ["container-build", "image-build"]);
+	assert.deepEqual(profiles(["pnpm-workspace.yaml"]), ["container-build", "image-build"]);
 	assert.deepEqual(profiles(["uv.lock"]), []);
-	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), []);
+	assert.deepEqual(profiles(["apps/execution-control/go.sum"]), ["container-build", "image-build"]);
 });
 
-test("selects toolchain evidence for release adapter changes", () => {
+test("selects container contract evidence for release adapter changes", () => {
 	const plan = validationPlanFromScope(scope(["scripts/release/images.mts"]), {
 		mode: "pull-request",
 	});
 	assert.deepEqual(plan.lightSurfaces, []);
-	assert.deepEqual(plan.validationProfiles, ["toolchain"]);
+	assert.deepEqual(plan.validationProfiles, ["container-build"]);
 });
 
-test("Dockerfiles select release tooling without pretending to build images", () => {
-	assert.deepEqual(profiles(["apps/agent-runtime/Dockerfile"]), ["toolchain"]);
-	assert.deepEqual(profiles(["docker-bake.hcl"]), ["toolchain"]);
+test("Dockerfiles select contract and real image evidence", () => {
+	assert.deepEqual(profiles(["apps/agent-runtime/Dockerfile"]), ["container-build", "image-build"]);
+	assert.deepEqual(profiles(["docker-bake.hcl"]), ["container-build", "image-build"]);
 });
 
-test("CI control files stay in hosted checks instead of selecting heavy profiles", () => {
-	for (const [file, lightSurfaces] of [
-		["package.json", []],
-		["turbo.json", []],
-		["apps/campus-web/turbo.json", []],
-		["flake.nix", ["config"]],
-		["nix/tools.nix", ["config"]],
-		["scripts/ci/validation.mts", []],
-		[".github/workflows/pr.yml", ["config"]],
+test("CI control files stay in hosted checks while image inputs select image evidence", () => {
+	for (const [file, lightSurfaces, validationProfiles] of [
+		["package.json", [], ["container-build", "image-build"]],
+		["turbo.json", [], ["container-build", "image-build"]],
+		["apps/campus-web/turbo.json", [], []],
+		["flake.nix", ["config"], []],
+		["nix/tools.nix", ["config"], []],
+		["scripts/ci/validation.mts", [], []],
+		[".github/workflows/pr.yml", ["config"], []],
 	] as const) {
 		const plan = validationPlanFromScope(scope([file]), { mode: "pull-request" });
 		assert.deepEqual(plan.lightSurfaces, lightSurfaces, file);
-		assert.deepEqual(plan.validationProfiles, [], file);
+		assert.deepEqual(plan.validationProfiles, validationProfiles, file);
 	}
 });
 
@@ -139,7 +148,10 @@ test("keeps only separately owned config checks in the validation plan", () => {
 });
 
 test("keeps static lint ownership outside the affected validation plan", () => {
-	assert.deepEqual(profiles(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), ["toolchain"]);
+	assert.deepEqual(profiles(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), [
+		"container-build",
+		"image-build",
+	]);
 	assert.deepEqual(
 		validationPlanFromScope(scope(["infra/k8s/runtime.yaml", "pnpm-lock.yaml"]), {
 			mode: "pull-request",

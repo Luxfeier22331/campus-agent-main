@@ -73,14 +73,17 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 		{
 			base: BASE,
 			head: HEAD,
-			profiles: ["affected-node", "toolchain"],
+			profiles: ["affected-node", "container-build", "image-build"],
+			repository: "MUC-WIKI/campus-agent",
 			repositoryRoot: REPOSITORY_ROOT,
+			summaryFile: "/tmp/campus-agent-summary.md",
 		},
 		runner,
 	);
 
 	const commands = calls.map(({ command, args }) => [command, ...args]);
 	assert(commands.some((command) => command.includes("--dry-run=json")));
+	assert.equal(calls.filter((call) => call.command === "git" && call.args[0] === "diff").length, 1);
 	const evidenceCommands = commands.filter((command) => !command.includes("--dry-run=json"));
 	assert(!evidenceCommands.some((command) => command.includes("--affected")));
 	assert(
@@ -123,13 +126,63 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 				command.includes("--filter=status-web"),
 		),
 	);
-	assert(commands.some((command) => command.join(" ").includes("docker buildx bake")));
+	assert(
+		commands.some((command) =>
+			command.join(" ").includes("docker buildx bake --file docker-bake.hcl --print"),
+		),
+	);
+	const imageEvidence = commands.find(
+		(command) => command[0] === "node" && command.includes("scripts/release/images.mts"),
+	);
+	assert(imageEvidence);
+	assert(imageEvidence.includes("--mode"));
+	assert(imageEvidence.includes("build-only"));
+	assert(imageEvidence.includes("--images"));
+	assert(imageEvidence.includes('["ops-web"]'));
+	assert(imageEvidence.includes("--repository"));
+	assert(imageEvidence.includes("MUC-WIKI/campus-agent"));
+	assert(imageEvidence.includes("--source-sha"));
+	assert(imageEvidence.includes(HEAD));
+	assert(imageEvidence.includes("--summary"));
+	assert(imageEvidence.includes("/tmp/campus-agent-summary.md"));
 	assert(!commands.some((command) => command.includes("dlx")));
 	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
 	const bake = calls.find(
 		(call) => call.command === "docker" && call.args.slice(0, 2).join(" ") === "buildx bake",
 	);
 	assert.equal(bake?.nodeVersion, readNodeVersion(REPOSITORY_ROOT));
+});
+
+test("requires an explicit repository for image evidence", () => {
+	assert.throws(
+		() =>
+			runCandidateEvidence(
+				{
+					base: BASE,
+					head: HEAD,
+					profiles: ["image-build"],
+					repositoryRoot: REPOSITORY_ROOT,
+				},
+				(command, args) => {
+					if (command === "git" && args[0] === "diff") {
+						return {
+							status: 0,
+							stdout: "M\0apps/agent-runtime/src/index.ts\0",
+						};
+					}
+					if (command === "pnpm") {
+						return {
+							status: 0,
+							stdout: JSON.stringify({
+								tasks: [{ command: "tsc", package: "agent-runtime", task: "build" }],
+							}),
+						};
+					}
+					return { status: 0 };
+				},
+			),
+		/Image build evidence requires --repository/u,
+	);
 });
 
 test("runs selected native, database, and OTel profiles in order", () => {

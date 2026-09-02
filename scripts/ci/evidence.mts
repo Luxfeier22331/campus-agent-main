@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-
+import { imageTargetsForScope } from "../release/image-targets.mts";
 import { readNodeVersion } from "../toolchain/node-version.mts";
 import {
 	type AffectedScope,
@@ -100,25 +100,16 @@ function runAffectedTask(
 
 function runAffectedNodeEvidence(
 	input: {
-		base: string;
 		env: NodeJS.ProcessEnv;
-		head: string;
 		repositoryRoot: string;
+		scope: AffectedScope;
 	},
 	runner: EvidenceCommandRunner,
 ): void {
 	const options = { cwd: input.repositoryRoot, env: input.env };
-	const scope = resolveAffectedScope(
-		{
-			base: input.base,
-			head: input.head,
-			repositoryRoot: input.repositoryRoot,
-		},
-		runner,
-	);
 	for (const taskName of ["test", "test:worker", "typecheck"] as const) {
 		const packages = new Set(
-			scope.tasks.filter((task) => task.task === taskName).map((task) => task.package),
+			input.scope.tasks.filter((task) => task.task === taskName).map((task) => task.package),
 		);
 		if (packages.size > 0) {
 			runProfileCommand(
@@ -140,7 +131,7 @@ function runAffectedNodeEvidence(
 	}
 
 	const buildPackages = new Set(
-		scope.tasks
+		input.scope.tasks
 			.filter((task) => task.task === "build" && task.package !== "campus-web")
 			.map((task) => task.package),
 	);
@@ -163,7 +154,7 @@ function runAffectedNodeEvidence(
 	}
 
 	const builtWorkers = new Set(
-		scope.tasks.filter((task) => task.task === "build:worker").map((task) => task.package),
+		input.scope.tasks.filter((task) => task.task === "build:worker").map((task) => task.package),
 	);
 	if (builtWorkers.size > 0) {
 		runProfileCommand(
@@ -182,6 +173,37 @@ function runAffectedNodeEvidence(
 			options,
 		);
 	}
+}
+
+function runAffectedImageEvidence(
+	input: {
+		repository: string;
+		scope: AffectedScope;
+		summaryFile?: string;
+	},
+	runner: EvidenceCommandRunner,
+	options: { cwd: string; env: NodeJS.ProcessEnv },
+): void {
+	const images = imageTargetsForScope(input.scope);
+	if (images.length === 0) {
+		return;
+	}
+	const args = [
+		"--experimental-strip-types",
+		"scripts/release/images.mts",
+		"--mode",
+		"build-only",
+		"--images",
+		JSON.stringify(images),
+		"--repository",
+		input.repository,
+		"--source-sha",
+		input.scope.head,
+	];
+	if (input.summaryFile) {
+		args.push("--summary", input.summaryFile);
+	}
+	runProfileCommand("image-build", "node", args, runner, options);
 }
 
 export function runPrePushEvidence(
@@ -283,7 +305,9 @@ export function runCandidateEvidence(
 		base: string;
 		head: string;
 		profiles: ValidationProfile[];
+		repository?: string;
 		repositoryRoot: string;
+		summaryFile?: string;
 	},
 	runner: EvidenceCommandRunner = runCommand,
 ): void {
@@ -292,25 +316,59 @@ export function runCandidateEvidence(
 	}
 	const env = {
 		...process.env,
-		...(input.profiles.includes("toolchain")
+		...(input.profiles.includes("container-build") || input.profiles.includes("image-build")
 			? { NODE_VERSION: readNodeVersion(input.repositoryRoot) }
 			: {}),
 		TURBO_SCM_BASE: input.base,
 		TURBO_SCM_HEAD: input.head,
 	};
 	const options = { cwd: input.repositoryRoot, env };
-	for (const profile of input.profiles) {
-		process.stdout.write(`Running validation profile: ${profile}\n`);
+	const requiresScope = input.profiles.some((profile) => {
 		const executor = VALIDATION_PROFILE_REGISTRY[profile].executor;
-		if (executor.kind === "affected-node") {
-			runAffectedNodeEvidence(
+		return executor.kind === "affected-node" || executor.kind === "affected-images";
+	});
+	const scope = requiresScope
+		? resolveAffectedScope(
 				{
 					base: input.base,
-					env,
 					head: input.head,
 					repositoryRoot: input.repositoryRoot,
 				},
 				runner,
+			)
+		: undefined;
+	for (const profile of input.profiles) {
+		process.stdout.write(`Running validation profile: ${profile}\n`);
+		const executor = VALIDATION_PROFILE_REGISTRY[profile].executor;
+		if (executor.kind === "affected-node") {
+			if (!scope) {
+				throw new Error(`Validation profile ${profile} requires an affected scope`);
+			}
+			runAffectedNodeEvidence(
+				{
+					env,
+					repositoryRoot: input.repositoryRoot,
+					scope,
+				},
+				runner,
+			);
+			continue;
+		}
+		if (executor.kind === "affected-images") {
+			if (!scope) {
+				throw new Error(`Validation profile ${profile} requires an affected scope`);
+			}
+			if (!input.repository) {
+				throw new Error("Image build evidence requires --repository");
+			}
+			runAffectedImageEvidence(
+				{
+					repository: input.repository,
+					scope,
+					summaryFile: input.summaryFile,
+				},
+				runner,
+				options,
 			);
 			continue;
 		}
@@ -322,11 +380,14 @@ export function runCandidateEvidence(
 
 async function main(args: string[]): Promise<void> {
 	const values = argumentsMap(args);
+	const profiles = parseValidationProfiles(required(values, "profiles"));
 	runCandidateEvidence({
 		base: required(values, "base"),
 		head: required(values, "head"),
-		profiles: parseValidationProfiles(required(values, "profiles")),
+		profiles,
+		repository: values.get("repository"),
 		repositoryRoot: path.resolve(values.get("root") ?? process.cwd()),
+		summaryFile: values.get("summary"),
 	});
 }
 

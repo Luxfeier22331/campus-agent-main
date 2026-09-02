@@ -1,36 +1,60 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION
-FROM node:${NODE_VERSION}-bookworm-slim AS build
+ARG NODE_VERSION=24.19.0
 
-WORKDIR /app
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
+
+WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY jobs/campus-agent-schema/package.json ./jobs/campus-agent-schema/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
-  && pnpm install --frozen-lockfile --filter campus-agent-schema...
+  && pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-web-workspace
 
-COPY jobs/campus-agent-schema/src ./jobs/campus-agent-schema/src
-COPY jobs/campus-agent-schema/tsconfig.json ./jobs/campus-agent-schema/tsconfig.json
-COPY jobs/campus-agent-schema/migrations ./jobs/campus-agent-schema/migrations
+COPY . .
+
+RUN ./node_modules/.bin/turbo prune campus-agent-schema --docker --out-dir=/repo/out
+
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
+
+WORKDIR /app
+
+COPY --from=pruner /repo/out/json/ ./
+
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
+  corepack enable pnpm \
+  && pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-schema...
+
+COPY --from=pruner /repo/out/full/ ./
 
 RUN pnpm --filter campus-agent-schema build
 
-FROM node:${NODE_VERSION}-bookworm-slim AS dependencies
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS production-dependencies
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV CI=true
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY jobs/campus-agent-schema/package.json ./jobs/campus-agent-schema/package.json
+COPY --from=pruner /repo/out/json/ ./
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
-  && pnpm install --prod --frozen-lockfile --no-optional --filter campus-agent-schema...
+  && pnpm install --ignore-scripts --prod --frozen-lockfile --no-optional --filter campus-agent-schema...
 
-FROM node:${NODE_VERSION}-bookworm-slim
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -45,9 +69,7 @@ RUN apt-get update \
   && rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
   && rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx
 
-COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
-COPY --from=dependencies --chown=node:node /app/jobs/campus-agent-schema/package.json ./jobs/campus-agent-schema/package.json
-COPY --from=dependencies --chown=node:node /app/jobs/campus-agent-schema/node_modules ./jobs/campus-agent-schema/node_modules
+COPY --from=production-dependencies --chown=node:node /app /app
 COPY --from=build --chown=node:node /app/jobs/campus-agent-schema/dist ./jobs/campus-agent-schema/dist
 COPY --from=build --chown=node:node /app/jobs/campus-agent-schema/migrations ./jobs/campus-agent-schema/migrations
 

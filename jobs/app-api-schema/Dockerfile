@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION
+ARG NODE_VERSION=24.19.0
 FROM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /app
@@ -10,7 +10,7 @@ COPY jobs/app-api-schema/package.json ./jobs/app-api-schema/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
-  && pnpm install --frozen-lockfile --filter app-api-schema...
+  && pnpm install --ignore-scripts --frozen-lockfile --filter app-api-schema...
 
 COPY apps/app-api/drizzle ./apps/app-api/drizzle
 COPY apps/app-api/ops/db ./apps/app-api/ops/db
@@ -38,7 +38,7 @@ COPY jobs/app-api-schema/package.json ./jobs/app-api-schema/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
-  && pnpm install --frozen-lockfile --prod --no-optional --filter app-api-schema...
+  && pnpm install --ignore-scripts --frozen-lockfile --prod --no-optional --filter app-api-schema...
 
 FROM node:${NODE_VERSION}-bookworm-slim
 

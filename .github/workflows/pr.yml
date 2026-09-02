@@ -68,10 +68,10 @@ jobs:
           affected_packages="$(jq -c '.affectedPackages' <<< "$plan")"
           light_surfaces="$(jq -c '.lightSurfaces' <<< "$plan")"
           validation_profiles="$(jq -c '.validationProfiles' <<< "$plan")"
-          has_evidence="$(jq -r '.validationProfiles | length > 0' <<< "$plan")"
-          has_affected_node="$(jq -r --arg profile affected-node \
+          node_evidence_profiles="$(jq -c '[.[] | select(. == "affected-node" or . == "image-build")]' <<< "$plan")"
+          has_container_build="$(jq -r --arg profile container-build \
             '.validationProfiles | index($profile) != null' <<< "$plan")"
-          has_toolchain="$(jq -r --arg profile toolchain \
+          has_image_build="$(jq -r --arg profile image-build \
             '.validationProfiles | index($profile) != null' <<< "$plan")"
           {
             echo "base=$base"
@@ -79,9 +79,9 @@ jobs:
             echo "affected_packages=$affected_packages"
             echo "light_surfaces=$light_surfaces"
             echo "validation_profiles=$validation_profiles"
-            echo "has_evidence=$has_evidence"
-            echo "has_affected_node=$has_affected_node"
-            echo "has_toolchain=$has_toolchain"
+            echo "node_evidence_profiles=$node_evidence_profiles"
+            echo "has_container_build=$has_container_build"
+            echo "has_image_build=$has_image_build"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
 
@@ -141,12 +141,15 @@ jobs:
           done < <(jq -r '.[]' <<< "$AFFECTED_PACKAGES")
           pnpm install --frozen-lockfile "${filters[@]}"
 
-      - name: Run affected Node evidence
-        id: affected_node
+      - name: Run affected Node and image evidence
+        id: node_image
         if: >-
           always() &&
-          steps.plan.outputs.has_affected_node == 'true' &&
-          steps.install_affected.outcome == 'success'
+          steps.plan.outputs.node_evidence_profiles != '[]' &&
+          (
+            steps.plan.outputs.has_image_build == 'true' ||
+            steps.install_affected.outcome == 'success'
+          )
         continue-on-error: true
         env:
           BASE_SHA: ${{ steps.plan.outputs.base }}
@@ -155,21 +158,24 @@ jobs:
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-          VALIDATION_PROFILES: '["affected-node"]'
+          VALIDATION_PROFILES: ${{ steps.plan.outputs.node_evidence_profiles }}
+        shell: nix develop .#ci-release --command bash -e {0}
         run: >-
           node --experimental-strip-types scripts/ci/evidence.mts
           --base "$BASE_SHA"
           --head "$HEAD_SHA"
           --profiles "$VALIDATION_PROFILES"
+          --repository "$GITHUB_REPOSITORY"
+          --summary "$GITHUB_STEP_SUMMARY"
 
-      - name: Run toolchain evidence
-        id: toolchain
-        if: always() && steps.plan.outputs.has_toolchain == 'true'
+      - name: Run container build contract evidence
+        id: container_build
+        if: always() && steps.plan.outputs.has_container_build == 'true'
         continue-on-error: true
         env:
           BASE_SHA: ${{ steps.plan.outputs.base }}
           HEAD_SHA: ${{ steps.plan.outputs.head }}
-          VALIDATION_PROFILES: '["toolchain"]'
+          VALIDATION_PROFILES: '["container-build"]'
         shell: nix develop .#ci-release --command bash -e {0}
         run: >-
           node --experimental-strip-types scripts/ci/evidence.mts
@@ -183,14 +189,14 @@ jobs:
         env:
           RESULTS: >-
             {
-              "affected-node":"${{ steps.affected_node.outcome }}",
+              "affected-node-and-images":"${{ steps.node_image.outcome }}",
+              "container-build":"${{ steps.container_build.outcome }}",
               "contracts":"${{ steps.contracts.outcome }}",
               "github-actions":"${{ steps.github_actions.outcome }}",
               "install-affected":"${{ steps.install_affected.outcome }}",
               "install-static-dependencies":"${{ steps.install_static_dependencies.outcome }}",
               "repository-check":"${{ steps.repository_check.outcome }}",
-              "secrets":"${{ steps.secrets.outcome }}",
-              "toolchain":"${{ steps.toolchain.outcome }}"
+              "secrets":"${{ steps.secrets.outcome }}"
             }
         run: |
           jq . <<< "$RESULTS"

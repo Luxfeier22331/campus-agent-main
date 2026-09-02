@@ -6,25 +6,19 @@ const repoRoot = join(import.meta.dirname, "../../..");
 const dockerfile = readFileSync(join(repoRoot, "jobs/notice-classifier/Dockerfile"), "utf8");
 
 describe("notice-classifier Dockerfile workspace inputs", () => {
-	it("includes workspace dependencies in installation and build inputs", () => {
-		const manifest =
-			"COPY packages/ingestion-contracts/package.json ./packages/ingestion-contracts/package.json";
-		const source =
-			"COPY packages/ingestion-contracts/src ./packages/ingestion-contracts/src";
-		const install = "pnpm install --frozen-lockfile --filter notice-classifier...";
-		const productionInstall =
-			"pnpm install --prod --frozen-lockfile --filter notice-classifier...";
-		const build = "pnpm --filter notice-classifier build";
-		const manifestCopies = dockerfile.split(manifest).length - 1;
-
-		expect(manifestCopies).toBe(2);
-		expect(dockerfile.indexOf(manifest)).toBeLessThan(dockerfile.indexOf(install));
-		expect(dockerfile.lastIndexOf(manifest)).toBeLessThan(
-			dockerfile.indexOf(productionInstall),
+	it("uses Turbo prune for the complete workspace dependency closure", () => {
+		expect(dockerfile).toContain(
+			"RUN ./node_modules/.bin/turbo prune notice-classifier --docker --out-dir=/repo/out",
 		);
-		expect(dockerfile).toContain(source);
-		expect(dockerfile.indexOf(source)).toBeLessThan(dockerfile.indexOf(build));
-		expect(dockerfile.split("COPY packages/notice-database/package.json").length - 1).toBe(2);
-		expect(dockerfile).toContain("COPY packages/notice-database/src ./packages/notice-database/src");
+		expect(dockerfile).toContain("COPY --from=pruner /repo/out/json/ ./");
+		expect(dockerfile).toContain("COPY --from=pruner /repo/out/full/ ./");
+		expect(dockerfile).toContain(
+			"pnpm install --ignore-scripts --frozen-lockfile --filter notice-classifier...",
+		);
+		expect(dockerfile).toContain(
+			"pnpm install --ignore-scripts --prod --frozen-lockfile --filter notice-classifier...",
+		);
+		expect(dockerfile).toContain("RUN pnpm --filter notice-classifier build");
+		expect(dockerfile).not.toMatch(/COPY packages\/(?:ingestion-contracts|notice-database)\//u);
 	});
 });

@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { type CommandRunner, resolveAffectedScope } from "../ci/scope.mts";
+import { imageTargetsForScope } from "./image-targets.mts";
 import { readTopologyRetirements, type TopologyMigrationPlan } from "./topology-retirements.mts";
 import { type WorkerCandidate, workerCandidatesForPackage } from "./workers.mts";
 
@@ -10,27 +11,6 @@ export type { CommandResult, CommandRunner } from "../ci/scope.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SOURCE_REPOSITORY = "MUC-WIKI/campus-agent";
-const IMAGE_PACKAGES = new Map<string, readonly string[]>([
-	["agent-runtime", ["agent-runtime"]],
-	["campus-agent-schema", ["campus-agent-schema"]],
-	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
-	["execution-control", ["execution-control"]],
-	["model-config", ["model-config"]],
-	["notice-classifier", ["notice-classifier"]],
-	["notice-publisher", ["notice-publisher"]],
-	["ops-web", ["ops-web"]],
-	["internal-portal-collection", ["internal-portal-collection"]],
-]);
-const ALL_IMAGES = [...new Set([...IMAGE_PACKAGES.values()].flat())].sort();
-const DOCKERFILE_IMAGES = new Map<string, readonly string[]>([
-	["apps/execution-control/Dockerfile", ["execution-control"]],
-	["apps/model-config/Dockerfile", ["model-config"]],
-	["jobs/campus-agent-schema/Dockerfile", ["campus-agent-schema"]],
-	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
-	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
-	["jobs/notice-publisher/Dockerfile", ["notice-publisher"]],
-	["jobs/internal-portal-collection/Dockerfile", ["internal-portal-collection"]],
-]);
 const CAMPUS_WEB_WORKER: WorkerCandidate = "campus-web-staging";
 const CAMPUS_MAP_ASSET_PATH = "apps/campus-web/assets/campus-map";
 const SOURCE_BASE_PATHS = [
@@ -133,14 +113,8 @@ export async function planCandidates(
 		},
 		runner,
 	);
-	const images = new Set<string>();
 	const workers = new Set<WorkerCandidate>();
 	for (const task of scope.tasks) {
-		if (task.task === "build") {
-			for (const image of IMAGE_PACKAGES.get(task.package) ?? []) {
-				images.add(image);
-			}
-		}
 		if (task.task === "build:worker") {
 			for (const worker of workerCandidatesForPackage(task.package)) {
 				workers.add(worker);
@@ -152,91 +126,7 @@ export async function planCandidates(
 	if (changesPath(files, CAMPUS_MAP_ASSET_PATH)) {
 		workers.add(CAMPUS_WEB_WORKER);
 	}
-	for (const file of files) {
-		for (const image of DOCKERFILE_IMAGES.get(file) ?? []) {
-			images.add(image);
-		}
-	}
-	const sharedNodeRelease = files.some((file) =>
-		["pnpm-lock.yaml", "pnpm-workspace.yaml"].includes(file),
-	);
-	if (sharedNodeRelease || changesPath(files, "jobs/campus-agent-schema")) {
-		images.add("campus-agent-schema");
-	}
-	if (sharedNodeRelease) {
-		images.add("internal-portal-collection");
-		images.add("notice-publisher");
-	}
-	if (
-		sharedNodeRelease ||
-		changesPath(files, "jobs/campus-docs-index-publisher") ||
-		changesPath(files, "apps/campus-web/src/docs-reader-build") ||
-		files.some((file) =>
-			[
-				"packages/contracts/schemas/campus-docs-reader.v3.schema.json",
-				"packages/contracts/schemas/campus-docs-source.v4.schema.json",
-			].includes(file),
-		)
-	) {
-		images.add("campus-docs-index-publisher");
-	}
-	if (
-		changesPath(files, "jobs/notice-classifier") ||
-		changesPath(files, "packages/notice-classifier-core") ||
-		changesPath(files, "packages/domains/notices") ||
-		changesPath(files, "packages/notice-database")
-	) {
-		images.add("notice-classifier");
-	}
-	if (
-		changesPath(files, "jobs/internal-portal-collection") ||
-		changesPath(files, "packages/domains/notices") ||
-		changesPath(files, "packages/notice-database")
-	) {
-		images.add("internal-portal-collection");
-	}
-	if (
-		changesPath(files, "jobs/notice-publisher") ||
-		changesPath(files, "configs/sources/internal-portal.json") ||
-		changesPath(files, "packages/domains/notices") ||
-		changesPath(files, "packages/ingestion-contracts") ||
-		changesPath(files, "packages/notice-database") ||
-		files.includes("packages/contracts/src/notices.ts")
-	) {
-		images.add("notice-publisher");
-	}
-	if (
-		files.some(
-			(file) =>
-				file.startsWith("apps/model-config/") &&
-				file !== "apps/model-config/turbo.json" &&
-				!file.endsWith("/README.md"),
-		)
-	) {
-		images.add("model-config");
-	}
-	if (
-		files.some(
-			(file) =>
-				file.startsWith("apps/execution-control/") &&
-				file !== "apps/execution-control/turbo.json" &&
-				!file.endsWith("/README.md"),
-		) ||
-		files.some((file) =>
-			[
-				"configs/runtime/tool-function-schemas.v4.json",
-				"configs/runtime/tools.v7.json",
-				"packages/contracts/fixtures/tool_execution_contract/",
-			].some((input) => file === input || file.startsWith(input)),
-		)
-	) {
-		images.add("execution-control");
-	}
-	if (files.some((file) => [".dockerignore", "docker-bake.hcl"].includes(file))) {
-		for (const image of ALL_IMAGES) {
-			images.add(image);
-		}
-	}
+	const images = imageTargetsForScope(scope);
 	const sourceBases = affectedSourceBases(files);
 	const topologyMigrations = await readTopologyRetirements(options.repositoryRoot, base, runner);
 	if (options.refreshCampusWebDocs) {
@@ -245,7 +135,7 @@ export async function planCandidates(
 	return {
 		base,
 		head: options.head,
-		images: [...images].sort(),
+		images,
 		sourceBases,
 		workers: [...workers].sort(),
 		topologyMigrations,
