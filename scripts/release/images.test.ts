@@ -152,8 +152,8 @@ test("reuses an existing immutable linux/arm64 image", async (t) => {
 	assert.match(summary, /Script duration: \d+\.\ds/u);
 	assert.match(summary, /Cache: registry with mode=max/u);
 	assert.match(summary, /Results: built=0 reused=1 failed=0 not-started=0/u);
-	assert.match(summary, /\| `agent-runtime` \| reused \|/u);
-	assert.match(summary, /\| \d+\.\d+s \| - \| \d+\.\d+s \| \d+\.\d+s \|/u);
+	assert.match(summary, /Trivy feedback: recorded=1 warnings=0 not-run=0/u);
+	assert.match(summary, /\| `agent-runtime` \| reused \| \d+\.\d+s \| - \| recorded \|/u);
 	assert(summary.includes(FIRST_DIGEST));
 });
 
@@ -356,21 +356,29 @@ test("records a build failure and leaves later images not started", async (t) =>
 	assert.match(summary, /\| `ops-web` \| not-started \|/u);
 });
 
-test("fails publication when Trivy rejects an image", async (t) => {
+test("records non-zero Trivy output as non-blocking feedback", async (t) => {
 	const { options } = await fixture(t);
+	options.images = ["ops-web", "agent-runtime"];
 	const logs: string[] = [];
+	const trivyArguments: string[][] = [];
 	options.logger = (message) => logs.push(message);
 	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
 	const runner: CommandRunner = async (command, args) => {
 		if (args.includes("--print")) {
-			return bakePrint(["agent-runtime"]);
+			return bakePrint(options.images);
 		}
 		if (args.includes("imagetools")) {
-			return manifest(FIRST_DIGEST);
+			return args.some((argument) => argument.includes("/agent-runtime:"))
+				? manifest(FIRST_DIGEST)
+				: manifest(SECOND_DIGEST);
 		}
 		if (command === "trivy") {
+			trivyArguments.push(args);
+			if (args.some((argument) => argument.includes("/ops-web@"))) {
+				return result({ stdout: "ops web feedback" });
+			}
 			return result({
-				code: 1,
+				code: 2,
 				stderr: "scanner diagnostics",
 				stdout: "CVE-2026-18446 HIGH fast-uri 3.1.4",
 			});
@@ -378,15 +386,64 @@ test("fails publication when Trivy rejects an image", async (t) => {
 		return result();
 	};
 
-	await assert.rejects(publishImages(options, runner), (error: unknown) => {
-		assert.match(String(error), /CVE-2026-18446 HIGH fast-uri 3\.1\.4/u);
-		assert.match(String(error), /scanner diagnostics/u);
-		return true;
+	assert.deepEqual(await publishImages(options, runner), {
+		"agent-runtime": FIRST_DIGEST,
+		"ops-web": SECOND_DIGEST,
 	});
-	assert(logs.some((line) => /stage=scan state=failed .*exit_code=1/u.test(line)));
+	assert.equal(trivyArguments.length, 2);
+	for (const args of trivyArguments) {
+		const exitCodeIndex = args.indexOf("--exit-code");
+		assert.equal(args[exitCodeIndex + 1], "0");
+	}
+	assert(logs.includes("CVE-2026-18446 HIGH fast-uri 3.1.4\n"));
+	assert(logs.includes("scanner diagnostics\n"));
+	assert(logs.includes("ops web feedback\n"));
+	assert(logs.some((line) => /stage=scan state=warning .*exit_code=2 blocking=false/u.test(line)));
+	const summary = await readFile(options.summaryFile, "utf8");
+	assert.match(summary, /Results: built=0 reused=2 failed=0 not-started=0/u);
+	assert.match(summary, /Trivy feedback: recorded=1 warnings=1 not-run=0/u);
+	assert.match(summary, /\| `agent-runtime` \| reused \| \d+\.\d+s \| - \| warning \|/u);
+});
+
+test("continues with later images when the Trivy process throws", async (t) => {
+	const { options } = await fixture(t);
+	options.images = ["ops-web", "agent-runtime"];
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const logs: string[] = [];
+	options.logger = (message) => logs.push(message);
+	let scanCalls = 0;
+	const runner: CommandRunner = async (command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(options.images);
+		}
+		if (args.includes("imagetools")) {
+			return args.some((argument) => argument.includes("/agent-runtime:"))
+				? manifest(FIRST_DIGEST)
+				: manifest(SECOND_DIGEST);
+		}
+		if (command === "trivy") {
+			scanCalls += 1;
+			if (scanCalls === 1) {
+				throw new Error("trivy process unavailable");
+			}
+			return result({ stdout: "second image feedback" });
+		}
+		return result();
+	};
+
+	assert.deepEqual(await publishImages(options, runner), {
+		"agent-runtime": FIRST_DIGEST,
+		"ops-web": SECOND_DIGEST,
+	});
+	assert.equal(scanCalls, 2);
+	assert(logs.some((line) => line.includes("trivy process unavailable")));
+	assert(
+		logs.some((line) => /stage=scan state=warning .*error=execution blocking=false/u.test(line)),
+	);
+	assert(logs.includes("second image feedback\n"));
 	assert.match(
 		await readFile(options.summaryFile, "utf8"),
-		/\| `agent-runtime` \| failed \(scan\) \|/u,
+		/Trivy feedback: recorded=1 warnings=1 not-run=0/u,
 	);
 });
 
@@ -416,7 +473,7 @@ test("fails publication when the summary cannot be written", async (t) => {
 	);
 });
 
-test("preserves a scan failure when the summary also fails", async (t) => {
+test("keeps a summary write failure blocking after a Trivy warning", async (t) => {
 	const { options } = await fixture(t);
 	const logs: string[] = [];
 	options.logger = (message) => logs.push(message);
@@ -435,11 +492,15 @@ test("preserves a scan failure when the summary also fails", async (t) => {
 	};
 
 	await assert.rejects(publishImages(options, runner), (error: unknown) => {
-		assert.match(String(error), /scanner diagnostics/u);
-		assert.doesNotMatch(String(error), /ENOENT/u);
+		assert.equal((error as NodeJS.ErrnoException).code, "ENOENT");
 		return true;
 	});
-	assert(logs.some((line) => line.includes("summary state=failed original_error=true")));
+	assert(logs.includes("scanner diagnostics\n"));
+	assert(logs.some((line) => line.includes("summary state=failed original_error=false")));
+	assert.equal(
+		await readFile(options.outputFile, "utf8"),
+		`${JSON.stringify({ "agent-runtime": FIRST_DIGEST }, null, 2)}\n`,
+	);
 });
 
 test("normalizes image order in the result and output file", async (t) => {

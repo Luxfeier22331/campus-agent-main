@@ -51,6 +51,7 @@ export interface BuildImagesOptions {
 
 type ImageResult = "built" | "failed" | "not-started" | "reused";
 type ImageStage = "build" | "inspect" | "scan" | "total";
+type ScanFeedback = "recorded" | "warning";
 
 interface ImageReport {
 	buildMs?: number;
@@ -59,6 +60,7 @@ interface ImageReport {
 	image: string;
 	inspectMs?: number;
 	result: ImageResult;
+	scanFeedback?: ScanFeedback;
 	scanMs?: number;
 	startedAt?: number;
 	totalMs?: number;
@@ -127,11 +129,42 @@ function logStage(
 	logger: (message: string) => void,
 	image: string,
 	stage: ImageStage,
-	state: "complete" | "failed" | "start",
+	state: "complete" | "failed" | "start" | "warning",
 	detail?: string,
 ): void {
 	logger(
 		`[release-image] image=${image} stage=${stage} state=${state}${detail ? ` ${detail}` : ""}\n`,
+	);
+}
+
+function logCommandOutput(
+	logger: (message: string) => void,
+	result: Pick<CommandResult, "stderr" | "stdout">,
+): void {
+	for (const output of [result.stdout, result.stderr]) {
+		if (output.length > 0) {
+			logger(output.endsWith("\n") ? output : `${output}\n`);
+		}
+	}
+}
+
+function scanFeedbackCounts(reports: ImageReport[]): {
+	notRun: number;
+	recorded: number;
+	warnings: number;
+} {
+	return reports.reduce(
+		(counts, report) => {
+			if (report.scanFeedback === "recorded") {
+				counts.recorded += 1;
+			} else if (report.scanFeedback === "warning") {
+				counts.warnings += 1;
+			} else {
+				counts.notRun += 1;
+			}
+			return counts;
+		},
+		{ notRun: 0, recorded: 0, warnings: 0 },
 	);
 }
 
@@ -170,6 +203,7 @@ function longestImage(reports: ImageReport[]): ImageReport | undefined {
 
 async function appendSummary(file: string, reports: ImageReport[], runMs: number): Promise<void> {
 	const counts = resultCounts(reports);
+	const scanCounts = scanFeedbackCounts(reports);
 	const longest = longestImage(reports);
 	const rows = reports.map((report) => {
 		const result = report.failedStage ? `failed (${report.failedStage})` : report.result;
@@ -178,6 +212,7 @@ async function appendSummary(file: string, reports: ImageReport[], runMs: number
 			result,
 			durationCell(report.inspectMs),
 			durationCell(report.buildMs),
+			report.scanFeedback ?? "-",
 			durationCell(report.scanMs),
 			durationCell(report.totalMs),
 			report.digest ? `\`${report.digest}\`` : "-",
@@ -192,10 +227,11 @@ async function appendSummary(file: string, reports: ImageReport[], runMs: number
 			`- Script duration: ${durationCell(runMs)}`,
 			`- Cache: ${IMAGE_CACHE_TYPE} with mode=${IMAGE_CACHE_MODE}; per-image ref suffix=:${IMAGE_CACHE_TAG}`,
 			`- Results: built=${counts.built} reused=${counts.reused} failed=${counts.failed} not-started=${counts["not-started"]}`,
+			`- Trivy feedback: recorded=${scanCounts.recorded} warnings=${scanCounts.warnings} not-run=${scanCounts.notRun}`,
 			`- Longest image: ${longest ? `\`${longest.image}\` (${durationCell(longest.totalMs)})` : "-"}`,
 			"",
-			"| Image | Result | Inspect | Build/push/cache export | Scan | Total | Digest |",
-			"| --- | --- | ---: | ---: | ---: | ---: | --- |",
+			"| Image | Result | Inspect | Build/push/cache export | Trivy feedback | Scan | Total | Digest |",
+			"| --- | --- | ---: | ---: | --- | ---: | ---: | --- |",
 			...rows,
 			"",
 		].join("\n"),
@@ -684,37 +720,44 @@ export async function publishImages(
 				"--severity",
 				"HIGH,CRITICAL",
 				"--exit-code",
-				"1",
+				"0",
 				`${repository}@${digest}`,
 			];
 			logStage(logger, image, "scan", "start");
 			const scanStartedAt = performance.now();
-			let scanned: CommandResult;
 			try {
-				scanned = await runner("trivy", trivyArguments, {
+				const scanned = await runner("trivy", trivyArguments, {
 					cwd: root,
 					env: environment,
 					output: "capture",
 				});
-			} catch (error) {
-				report.failedStage = "scan";
 				report.scanMs = elapsed(scanStartedAt);
-				logStage(logger, image, "scan", "failed", `duration_ms=${report.scanMs}`);
-				throw error;
-			}
-			report.scanMs = elapsed(scanStartedAt);
-			if (scanned.code !== 0) {
-				report.failedStage = "scan";
+				logCommandOutput(logger, scanned);
+				if (scanned.code === 0) {
+					report.scanFeedback = "recorded";
+					logStage(logger, image, "scan", "complete", `duration_ms=${report.scanMs}`);
+				} else {
+					report.scanFeedback = "warning";
+					logStage(
+						logger,
+						image,
+						"scan",
+						"warning",
+						`duration_ms=${report.scanMs} exit_code=${scanned.code} blocking=false`,
+					);
+				}
+			} catch (error) {
+				report.scanFeedback = "warning";
+				report.scanMs = elapsed(scanStartedAt);
+				logger(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
 				logStage(
 					logger,
 					image,
 					"scan",
-					"failed",
-					`duration_ms=${report.scanMs} exit_code=${scanned.code}`,
+					"warning",
+					`duration_ms=${report.scanMs} error=execution blocking=false`,
 				);
-				throw commandError("trivy", trivyArguments, scanned);
 			}
-			logStage(logger, image, "scan", "complete", `duration_ms=${report.scanMs}`);
 			digests[image] = digest;
 			report.totalMs = elapsed(totalStartedAt);
 			logStage(

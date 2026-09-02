@@ -92,6 +92,11 @@ Turbo prune、依赖安装、编译和 runtime 入口能完成；它们不替代
 
 普通 PR 只验证源码和受影响边界，不访问私有环境；候选物存在不能解释为已经部署。
 
+正式 staging 候选发布先构建并推送不可变镜像，再对其 digest 运行 `linux/arm64` Trivy 扫描，记录
+`HIGH,CRITICAL`、`os,library` 且已有修复版本的漏洞反馈。漏洞结果或扫描器执行异常只写入发布日志和
+step summary，不阻塞 staging 候选发布或 promotion；镜像构建、推送、registry inspect、digest 解析和
+必要发布产物写入失败仍然阻塞发布。
+
 ## 报告
 
 PR 或最终交接至少写明改动范围、实际执行的命令和结果，以及与本次风险相关但未执行的检查。完成状态
