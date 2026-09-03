@@ -235,7 +235,9 @@ jobs:
       fromJSON(needs.release-plan.outputs.workers)[0] != null
     runs-on: [self-hosted, Linux, campus-ci]
     timeout-minutes: 30
-    environment: staging
+    environment:
+      name: staging
+      deployment: false
     defaults:
       run:
         shell: nix develop .#ci-core --command bash -e {0}

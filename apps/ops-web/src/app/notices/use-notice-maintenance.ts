@@ -41,6 +41,12 @@ export interface PendingNoticeJobSubmission {
 	submittedAt: number;
 }
 
+interface NoticeCategoryDraft {
+	baseCategory: NoticeCategory | "";
+	category: NoticeCategory | "";
+	noticeId: number;
+}
+
 export type NoticeNavigationIntent =
 	| { kind: "close" }
 	| {
@@ -60,8 +66,7 @@ export function useNoticeMaintenance() {
 	const [search, setSearch] = useState("");
 	const [selectedNoticeId, setSelectedNoticeId] = useState<number | null>(null);
 	const [state, setState] = useState<NoticeState | "">("");
-	const [draftNoticeId, setDraftNoticeId] = useState<number | null>(null);
-	const [draftCategory, setDraftCategory] = useState<NoticeCategory | "">("");
+	const [categoryDraft, setCategoryDraft] = useState<NoticeCategoryDraft | null>(null);
 	const [pendingIntent, setPendingIntent] = useState<NoticeNavigationIntent | null>(null);
 	const [taskCenterOpen, setTaskCenterOpen] = useState(false);
 	const previousJobStatuses = useRef(new Map<string, NoticeJob["status"]>());
@@ -96,8 +101,13 @@ export function useNoticeMaintenance() {
 	const saveCategory = useMutation({
 		mutationFn: updateNoticeCategory,
 		onSuccess: async (result) => {
+			const category = result.notice.category ?? "";
 			queryClient.setQueryData([...noticeQueryKey, result.notice.noticeId], result);
-			setDraftCategory(result.notice.category ?? "");
+			setCategoryDraft((current) =>
+				current?.noticeId === result.notice.noticeId
+					? { ...current, baseCategory: category, category }
+					: current,
+			);
 			await queryClient.invalidateQueries({ queryKey: noticesQueryKey });
 		},
 	});
@@ -135,24 +145,36 @@ export function useNoticeMaintenance() {
 		(notice) => notice.noticeId === selectedNoticeId,
 	);
 	const selectedNotice = detail.data?.notice ?? selectedListNotice ?? null;
-	const dirty = Boolean(
-		detail.data?.notice &&
-			draftNoticeId === detail.data.notice.noticeId &&
-			draftCategory !== (detail.data.notice.category ?? ""),
-	);
+	const draftNoticeId = categoryDraft?.noticeId ?? null;
+	const draftBaseCategory = categoryDraft?.baseCategory ?? "";
+	const draftCategory = categoryDraft?.category ?? "";
+	const dirty = Boolean(draftNoticeId === selectedNoticeId && draftCategory !== draftBaseCategory);
 
 	useEffect(() => {
 		if (selectedNoticeId === null) {
-			setDraftNoticeId(null);
-			setDraftCategory("");
+			setCategoryDraft(null);
 			return;
 		}
 		const nextNotice = detail.data?.notice;
-		if (nextNotice?.noticeId === selectedNoticeId && draftNoticeId !== selectedNoticeId) {
-			setDraftNoticeId(selectedNoticeId);
-			setDraftCategory(nextNotice.category ?? "");
+		if (nextNotice?.noticeId !== selectedNoticeId) {
+			return;
 		}
-	}, [detail.data?.notice, draftNoticeId, selectedNoticeId]);
+		const nextCategory = nextNotice.category ?? "";
+		setCategoryDraft((current) => {
+			if (!current || current.noticeId !== selectedNoticeId) {
+				return {
+					baseCategory: nextCategory,
+					category: nextCategory,
+					noticeId: selectedNoticeId,
+				};
+			}
+			const category = current.category === current.baseCategory ? nextCategory : current.category;
+			if (current.baseCategory === nextCategory && current.category === category) {
+				return current;
+			}
+			return { ...current, baseCategory: nextCategory, category };
+		});
+	}, [detail.data?.notice, selectedNoticeId]);
 
 	useEffect(() => {
 		if (!jobs.data) {
@@ -296,8 +318,15 @@ export function useNoticeMaintenance() {
 		return true;
 	}, [detail.data?.notice, draftCategory, saveCategory]);
 
+	const setDraftCategory = useCallback((category: NoticeCategory | "") => {
+		setCategoryDraft((current) => (current ? { ...current, category } : current));
+	}, []);
+
 	const discardPendingIntent = useCallback(() => {
-		setDraftCategory(detail.data?.notice?.category ?? "");
+		const category = detail.data?.notice?.category ?? "";
+		setCategoryDraft((current) =>
+			current ? { ...current, baseCategory: category, category } : current,
+		);
 		const intent = pendingIntent;
 		setPendingIntent(null);
 		if (intent) {

@@ -137,9 +137,8 @@ func validationRequest(target Target) (string, any, error) {
 					{"role": "system", "content": "Classify the notice title and return only the JSON object required by the schema."},
 					{"role": "user", "content": `{"notice_title":"model-config validation"}`},
 				},
-				"max_output_tokens": 64,
-				"model":             target.Model,
-				"temperature":       0,
+				"model":       target.Model,
+				"temperature": 0,
 				"text": map[string]any{
 					"format": noticeClassificationJSONSchema("responses"),
 				},
@@ -157,7 +156,6 @@ func validationRequest(target Target) (string, any, error) {
 					{"role": "system", "content": "Classify the notice title and return only the JSON object required by the schema."},
 					{"role": "user", "content": `{"notice_title":"model-config validation"}`},
 				},
-				"max_tokens":  64,
 				"model":       target.Model,
 				"temperature": 0,
 				"response_format": map[string]any{

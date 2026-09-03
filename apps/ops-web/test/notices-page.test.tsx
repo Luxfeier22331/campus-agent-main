@@ -608,11 +608,87 @@ describe("notice maintenance page", () => {
 			});
 			expect(screen.getAllByText("校园服务与运行").length).toBeGreaterThan(0);
 			expect(screen.getAllByText("待发布").length).toBeGreaterThan(0);
+			if (terminalStatus === "succeeded") {
+				expect(screen.getByRole("combobox", { name: "通知分类" })).toHaveValue("campus_operations");
+				expect(screen.queryByText("有未保存的分类更改。")).not.toBeInTheDocument();
+			}
 			if (terminalStatus === "failed") {
 				expect(screen.getByText("任务执行失败")).toBeInTheDocument();
 			}
 		},
 	);
+
+	it("preserves a manual category draft when a refreshed detail changes", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		let jobFinished = false;
+		let jobsRequests = 0;
+		let detailRequests = 0;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: RequestInfo | URL) => {
+				const url = new URL(
+					typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+					"https://ops.example.test",
+				);
+				if (url.pathname === "/api/ops/notices/jobs") {
+					jobsRequests += 1;
+					return Response.json({
+						jobs: [
+							job({
+								completedAt: jobFinished ? "2026-08-23T10:01:00.000Z" : null,
+								jobName: "notice-classify-one-active",
+								status: jobFinished ? "succeeded" : "running",
+								summary: jobFinished ? { classified: 1 } : null,
+							}),
+						],
+					});
+				}
+				if (url.pathname === "/api/ops/notices/354516") {
+					detailRequests += 1;
+					return Response.json({
+						notice: jobFinished
+							? notice({ category: "campus_operations", state: "needs_publication" })
+							: notice(),
+					});
+				}
+				if (url.pathname === "/api/ops/notices") {
+					return Response.json({
+						counts: {
+							all: 1,
+							needsClassification: jobFinished ? 0 : 1,
+							needsPublication: jobFinished ? 1 : 0,
+							published: 0,
+						},
+						items: [
+							jobFinished
+								? notice({ category: "campus_operations", state: "needs_publication" })
+								: notice(),
+						],
+						page: 1,
+						totalItems: 1,
+						totalPages: 1,
+					});
+				}
+				return new Response(null, { status: 404 });
+			}),
+		);
+
+		render(<OpsWebApp initialPath="/notices" />);
+		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		const category = await screen.findByRole("combobox", { name: "通知分类" });
+		fireEvent.change(category, { target: { value: "student_affairs" } });
+		expect(await screen.findByText("有未保存的分类更改。")).toBeInTheDocument();
+
+		jobFinished = true;
+		await vi.advanceTimersByTimeAsync(3_000);
+		await waitFor(() => {
+			expect(jobsRequests).toBeGreaterThan(1);
+			expect(detailRequests).toBeGreaterThan(1);
+		});
+
+		expect(screen.getByRole("combobox", { name: "通知分类" })).toHaveValue("student_affairs");
+		expect(screen.getByText("有未保存的分类更改。")).toBeInTheDocument();
+	});
 });
 
 function notice(overrides: Record<string, unknown> = {}) {

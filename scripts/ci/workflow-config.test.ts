@@ -173,7 +173,10 @@ test("pull request validation keeps the shared required-check contract", async (
 	const staticDependencies = namedStep(repoChecks, "Install static-check dependencies");
 	assert.equal(staticDependencies.if, "always()");
 	assert.equal(staticDependencies.run, "uv sync --only-dev --no-install-workspace");
-	assert.equal(namedStep(repoChecks, "Check repository").run, "pnpm check");
+	const repositoryCheck = namedStep(repoChecks, "Check repository");
+	assert.equal(repositoryCheck.run, "pnpm check");
+	assert(isObject(repositoryCheck.env));
+	assert.equal(repositoryCheck.env.GITHUB_TOKEN, githubExpression("github.token"));
 	for (const removed of ["Lint Python", "Lint YAML", "Lint SQL", "Lint Shell"]) {
 		assert.equal(
 			jobSteps(repoChecks).some((step) => step.name === removed),
@@ -281,7 +284,10 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	const publishWorkers = workflowJob(workflow, "publish-workers");
 	assert.equal(publishWorkers.needs, "release-plan");
 	assert.deepEqual(publishWorkers["runs-on"], SHARED_SELF_HOSTED_RUNNER);
-	assert.equal(publishWorkers.environment, "staging");
+	assert.deepEqual(publishWorkers.environment, {
+		name: "staging",
+		deployment: false,
+	});
 
 	const candidateStatus = workflowJob(workflow, "candidate-status");
 	assert.deepEqual(candidateStatus.needs, ["release-plan", "publish-images", "publish-workers"]);

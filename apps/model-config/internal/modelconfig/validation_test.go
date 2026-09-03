@@ -62,6 +62,9 @@ func TestValidateNoticeClassificationUsesStructuredOutput(t *testing.T) {
 			response: map[string]any{"output_text": `{"category":"campus_operations"}`},
 			assertBody: func(t *testing.T, body map[string]any) {
 				t.Helper()
+				if _, ok := body["max_output_tokens"]; ok {
+					t.Fatalf("responses validation request must not set max_output_tokens: %#v", body)
+				}
 				text := body["text"].(map[string]any)
 				format := text["format"].(map[string]any)
 				if format["type"] != "json_schema" || format["strict"] != true {
@@ -77,6 +80,9 @@ func TestValidateNoticeClassificationUsesStructuredOutput(t *testing.T) {
 			response: map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": `{"category":"campus_operations"}`}}}},
 			assertBody: func(t *testing.T, body map[string]any) {
 				t.Helper()
+				if _, ok := body["max_tokens"]; ok {
+					t.Fatalf("chat completions validation request must not set max_tokens: %#v", body)
+				}
 				responseFormat := body["response_format"].(map[string]any)
 				jsonSchema := responseFormat["json_schema"].(map[string]any)
 				if responseFormat["type"] != "json_schema" || jsonSchema["strict"] != true {

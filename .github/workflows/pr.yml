@@ -96,6 +96,8 @@ jobs:
         id: repository_check
         if: always()
         continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: pnpm check
 
       - name: Check executable contracts
