@@ -1,4 +1,4 @@
-import { sha256 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+import { sha256 } from "./indexing/content-digest.ts";
 import {
 	CAMPUS_DOCS_CHUNK_CENSUS_SCHEMA_VERSION,
 	CAMPUS_DOCS_CHUNK_GOVERNANCE_DEFINITION,

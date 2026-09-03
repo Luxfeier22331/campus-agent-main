@@ -1,9 +1,5 @@
+import { analyzeDocsTableLayout, assertDocsTableLayout } from "campus-contracts/campus-docs";
 import { describe, expect, it } from "vitest";
-
-import {
-	analyzeDocsTableLayout,
-	assertDocsTableLayout,
-} from "../src/docs-reader-build/table-layout";
 
 describe("docs table layout", () => {
 	it("expands a middle cell surrounded by active row spans into a complete grid", () => {

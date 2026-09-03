@@ -22,12 +22,12 @@ import type {
 	CampusDocsChunkGovernanceResult,
 	CampusDocsChunkGovernanceRunManifest,
 } from "./chunk-governance-types.ts";
-import { canonicalJsonBytes, sha256 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+import { canonicalJsonBytes, sha256 } from "./indexing/content-digest.ts";
+import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
 import { buildChunks } from "./indexing/chunks.ts";
 import { loadCurrentVersions, parseIndexingSource, sourceProjectionSha256 } from "./indexing/source.ts";
 import { assertValidChunkSet } from "./chunk-validation.ts";
 import {
-	CAMPUS_DOCS_SOURCE_KEY,
 	type ArtifactObjectStore,
 	type ReaderObjectStore,
 	type Sha256Ref,
@@ -44,7 +44,7 @@ export async function runLocalCampusDocsChunkGovernanceReview(input: {
 }): Promise<CampusDocsChunkGovernanceResult> {
 	const [chunkSet, sourceBytes, embeddingEvaluation] = await Promise.all([
 		readChunkSet(input.artifactStore, input.chunkSet),
-		input.sourceStore.read(CAMPUS_DOCS_SOURCE_KEY),
+		input.sourceStore.read(DOCS_SOURCE_KEY),
 		input.embeddingEvaluation
 			? readCampusDocsChunkEmbeddingEvaluation(input.artifactRoot, input.embeddingEvaluation)
 			: Promise.resolve(undefined),

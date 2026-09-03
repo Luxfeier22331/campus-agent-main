@@ -1,10 +1,10 @@
+import { assertDocsTableLayout } from "./campus-docs-table.ts";
 import type {
 	DocsReader,
 	DocsReaderElement,
 	DocsReaderTableCell,
 	DocsReaderTableElement,
-} from "./source-types.ts";
-import { assertDocsTableLayout } from "./table-layout.ts";
+} from "./campus-docs-types.ts";
 
 const READER_KEYS = ["docId", "elements", "schemaVersion", "supplements", "versionId"] as const;
 const HEADING_KEYS = ["anchor", "kind", "level", "rootUnitId", "text"] as const;

@@ -6,10 +6,8 @@ import {
 	writeEmbeddingData,
 	writeEmbeddingSetManifest,
 } from "./artifacts.ts";
-import {
-	canonicalJsonBytes,
-	sha256,
-} from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+import { canonicalJsonBytes, sha256 } from "./indexing/content-digest.ts";
+import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
 import { EMBEDDING_SPACE, embedTexts } from "@campus-agent/embedding-runtime";
 import {
 	CHUNK_SET_DEFINITION,
@@ -31,7 +29,6 @@ import {
 } from "./indexing/source.ts";
 import { sha256Text } from "./indexing/content-digest.ts";
 import {
-	CAMPUS_DOCS_SOURCE_KEY,
 	type BuildChunkSetInput,
 	type BuildChunkSetResult,
 	type BuildEmbeddingSetInput,
@@ -58,7 +55,7 @@ export interface IndexCandidate {
 export async function buildCampusDocsChunkSet(
 	input: BuildChunkSetInput,
 ): Promise<BuildChunkSetResult> {
-	const sourceBytes = await input.sourceStore.read(CAMPUS_DOCS_SOURCE_KEY);
+	const sourceBytes = await input.sourceStore.read(DOCS_SOURCE_KEY);
 	const source = parseIndexingSource(sourceBytes);
 	const selections = await loadCurrentVersions({ readerStore: input.sourceStore, source });
 	const chunks = selections.flatMap((selection) =>
@@ -325,7 +322,7 @@ async function assertSourceProjectionUnchanged(
 	expectedProjection: Sha256Ref,
 ): Promise<void> {
 	try {
-		const sourceBytes = await store.read(CAMPUS_DOCS_SOURCE_KEY);
+		const sourceBytes = await store.read(DOCS_SOURCE_KEY);
 		const source = parseIndexingSource(sourceBytes);
 		const selections = selectCurrentVersions(source.manifest);
 		if (sourceProjectionSha256(selections) !== expectedProjection) {

@@ -1,4 +1,4 @@
-import type { DocsReader } from "./source-types.ts";
+import type { DocsReader } from "./campus-docs-types.ts";
 
 export function assertReaderExtractionQuality(reader: DocsReader): void {
 	const migratedHeading = reader.elements.find((element) =>

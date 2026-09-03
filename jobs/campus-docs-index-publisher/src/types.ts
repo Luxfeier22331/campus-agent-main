@@ -3,7 +3,7 @@ import type {
 	DocsReaderElement,
 	DocsSourceManifest,
 	ObjectRef,
-} from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+} from "campus-contracts/campus-docs";
 import { EMBEDDING_SPACE, type EmbeddingClient } from "@campus-agent/embedding-runtime";
 import type {
 	CHUNK_SET_DEFINITION,
@@ -11,8 +11,6 @@ import type {
 } from "./definitions.ts";
 
 export const INDEX_COLLECTION_PREFIX = "campus_docs" as const;
-export const CAMPUS_DOCS_SOURCE_KEY = "campus-docs/source.json" as const;
-
 export type Sha256Ref = `sha256:${string}`;
 
 export interface ReaderObjectStore {

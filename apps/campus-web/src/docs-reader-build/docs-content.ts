@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 
-import { assertSha256 } from "./source-catalog.ts";
+import { assertSha256 } from "./artifact-digest.ts";
 
 export const DOCS_CONTENT_SCHEMA = "campus_web_docs_content.v4" as const;
 export const DOCS_CONTENT_METADATA_FILE = "content.json";

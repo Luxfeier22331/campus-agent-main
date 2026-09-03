@@ -1,9 +1,6 @@
-import { resolve } from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 
 import pg, { type Client } from "pg";
-import { migrateDiningSchema } from "./dining-migrations.ts";
 import { type DatabaseSslConfig, readDatabaseConnectionConfig } from "./postgres-tls.ts";
 
 const DINING_TABLES = [
@@ -58,26 +55,6 @@ const OPS_WEB_GRANT_STATEMENTS = [
 		"internal_portal"."automation_tokens",
 		"internal_portal"."credentials"
 	 TO "ops_web"`,
-	`DO $ops_web_ingestion_control_cleanup$
-	DECLARE
-		unexpected_objects text;
-	BEGIN
-		IF pg_catalog.to_regnamespace('ingestion_control') IS NOT NULL THEN
-			SELECT pg_catalog.string_agg(class.relname, ', ' ORDER BY class.relname)
-			INTO unexpected_objects
-			FROM pg_catalog.pg_class class
-			JOIN pg_catalog.pg_namespace namespace ON namespace.oid = class.relnamespace
-			WHERE namespace.nspname = 'ingestion_control'
-				AND class.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
-				AND class.relname <> 'schema_migrations';
-			IF unexpected_objects IS NOT NULL THEN
-				RAISE EXCEPTION
-					'ingestion_control contains unexpected objects: %', unexpected_objects;
-			END IF;
-			EXECUTE 'DROP SCHEMA "ingestion_control" CASCADE';
-		END IF;
-	END
-	$ops_web_ingestion_control_cleanup$`,
 	`GRANT USAGE ON SCHEMA "chat" TO "ops_web"`,
 	`REVOKE ALL PRIVILEGES ON TABLE
 		"chat"."turn_dispatches",
@@ -130,7 +107,7 @@ const OPS_WEB_GRANT_STATEMENTS = [
 	) ON TABLE "chat"."messages" TO "ops_web"`,
 ] as const;
 
-async function applyDiningGrantStatements(client: {
+export async function applyDiningGrantStatements(client: {
 	query(sql: string): Promise<unknown>;
 }): Promise<void> {
 	for (const statement of DINING_GRANT_STATEMENTS) {
@@ -678,7 +655,6 @@ export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process
 	await withClient(config.schemaAdmin, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
 		await assertDatabaseRole(client, "app_api");
-		await migrateDiningSchema(client);
 		await client.query("begin");
 		try {
 			await applyOpsWebGrantStatements(client);
@@ -699,14 +675,13 @@ export async function applyOpsWebDatabaseGrants(env: NodeJS.ProcessEnv = process
 	};
 }
 
-export async function applyDiningDatabase(env: NodeJS.ProcessEnv = process.env): Promise<{
+export async function applyOpsWebDiningGrants(env: NodeJS.ProcessEnv = process.env): Promise<{
 	diningMap: "ready";
 }> {
 	const config = readDatabaseConfigs(env);
 	await withClient(config.schemaAdmin, async (client) => {
 		await assertDatabaseRole(client, "ops_web");
 		await assertDatabaseRole(client, "app_api");
-		await migrateDiningSchema(client);
 		await client.query("begin");
 		try {
 			await applyDiningGrantStatements(client);
@@ -740,25 +715,4 @@ export async function verifyOpsWebDatabase(env: NodeJS.ProcessEnv = process.env)
 		opsWebRole: "ready",
 		readModel: "ready",
 	};
-}
-
-async function main(): Promise<void> {
-	const action = process.argv[2];
-	if (action !== "apply" && action !== "apply-dining" && action !== "verify") {
-		throw new Error("Usage: ops-web-database.ts <apply|apply-dining|verify>");
-	}
-	const result =
-		action === "apply"
-			? await applyOpsWebDatabaseGrants()
-			: action === "apply-dining"
-				? await applyDiningDatabase()
-				: await verifyOpsWebDatabase();
-	console.log(JSON.stringify(result, null, 2));
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-	void main().catch((error) => {
-		console.error(error instanceof Error ? error.message : String(error));
-		process.exit(1);
-	});
 }

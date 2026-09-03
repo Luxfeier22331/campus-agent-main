@@ -21,10 +21,7 @@ export type {
 export {
 	assertAccountReady,
 	assertCampusUserEligible,
-	CAMPUS_EMAIL_DOMAIN,
 	evaluateCampusAccess,
-	isCampusEmail,
-	normalizeCampusEmail,
 } from "./campus-access";
 export type { OpsAccountAdminApi } from "./ops-account-admin-plugin";
 export { getOpsAccountAdminApi } from "./ops-account-admin-plugin";

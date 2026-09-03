@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { publicExecutionFailure } from "../src/modules/runtime-command/service/writes";
+import { publicExecutionFailure } from "../src/modules/runtime-command/service/errors";
 
 describe("runtime command public execution errors", () => {
 	it.each([

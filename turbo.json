@@ -34,6 +34,19 @@
 			],
 			"outputs": ["dist/**", "dist-ops/**", "dist-server/**", ".tanstack/**"]
 		},
+		"campus-web#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/campus-docs*.ts",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-course-maps.v1.schema.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-reader.v3.schema.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-source.v4.schema.json"
+			],
+			"outputs": ["dist/**", ".tanstack/**"]
+		},
 		"typecheck": {
 			"dependsOn": ["^typecheck"],
 			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
@@ -90,6 +103,9 @@
 		"test:database-integration": {
 			"cache": false
 		},
+		"test:database-legacy-integration": {
+			"cache": false
+		},
 		"test:browser": {
 			"cache": false
 		},
@@ -107,7 +123,14 @@
 		},
 		"campus-contracts#typecheck": {
 			"dependsOn": ["^typecheck"],
-			"inputs": ["package.json", "scripts/**/*.ts", "test/**/*.ts", "tsconfig.json"],
+			"inputs": [
+				"package.json",
+				"schemas/**",
+				"scripts/**/*.ts",
+				"src/**/*.ts",
+				"test/**/*.ts",
+				"tsconfig.json"
+			],
 			"outputLogs": "new-only"
 		},
 		"eval-langfuse#test": {

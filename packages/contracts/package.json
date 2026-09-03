@@ -7,6 +7,9 @@
 		"./account-admin": "./src/account-admin.ts",
 		"./auth": "./src/auth.ts",
 		"./campus-groups": "./src/campus-groups.ts",
+		"./campus-docs": "./src/campus-docs.ts",
+		"./campus-docs-fixture": "./test/campus-docs-source-site.ts",
+		"./campus-docs-node": "./src/campus-docs-node.ts",
 		"./email-access": "./src/email-access.ts",
 		"./internal-portal-credential": "./src/internal-portal-credential.ts",
 		"./notices": "./src/notices.ts",
@@ -20,11 +23,11 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"ajv": "^8.20.0",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@types/node": "^24.13.3",
-		"ajv": "^8.20.0",
 		"smol-toml": "1.8.0",
 		"tsx": "^4.23.12",
 		"typescript": "^7.0.2",

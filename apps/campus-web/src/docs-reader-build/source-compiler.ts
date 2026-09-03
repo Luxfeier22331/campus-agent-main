@@ -1,3 +1,21 @@
+import type {
+	DocsDocument,
+	DocsReader,
+	DocsSourceManifest,
+	DocsSupplement,
+	ObjectRef,
+} from "campus-contracts/campus-docs";
+import {
+	assertReaderExtractionQuality,
+	assertReaderSegmentationQuality,
+} from "campus-contracts/campus-docs";
+import {
+	buildReaderRouteSlug,
+	parseCourseMaps,
+	parseReader,
+	selectCurrentVersion,
+} from "campus-contracts/campus-docs-node";
+import { canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
 import {
 	assertPublishedReaderAssetLayout,
 	readPublishedObject,
@@ -7,23 +25,7 @@ import type {
 	PublishedReaderManifestEntry,
 	ReaderObjectStoreClient,
 } from "./published-reader-types.ts";
-import { assertReaderExtractionQuality } from "./reader-quality.ts";
-import { assertReaderSegmentationQuality } from "./reader-segmentation.ts";
-import {
-	buildReaderRouteSlug,
-	canonicalJsonBytes,
-	selectCurrentVersion,
-	sha256,
-} from "./source-catalog.ts";
 import { materializeDocsCourseMaps } from "./source-course-maps.ts";
-import { parseCourseMaps, parseReader } from "./source-schema.ts";
-import type {
-	DocsDocument,
-	DocsReader,
-	DocsSourceManifest,
-	DocsSupplement,
-	ObjectRef,
-} from "./source-types.ts";
 
 const VERSION_COMPILE_CONCURRENCY = 4;
 

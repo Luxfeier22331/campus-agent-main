@@ -17,6 +17,9 @@
 
 - Chat 模块拥有会话、消息和产品事件写入；Profile Memory 模块拥有记忆来源失效、命令生成和状态
   协调，Chat 只能通过该模块暴露的窄入口触发记忆变更；
+- Email Access 拥有邮箱规范化、校园域名分类和邮箱准入；Auth 拥有 Better Auth 运行时、会话及账号状态
+  检查。Auth 和 Account Admin 可以消费 Email Access 的纯校园邮箱 leaf，但 Email Access 不得依赖
+  `modules/auth` 实现；
 - Runtime Command 对外 service 只编排请求接受、持久执行准入和产品终态，具体阶段规则由所属子模块
   维护；
 - schema 和跨模块类型是 leaf dependency，不得反向导入 service、store facade 或运行时实现。

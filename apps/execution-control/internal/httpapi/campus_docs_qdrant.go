@@ -19,7 +19,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
 const (
@@ -112,7 +111,7 @@ func qdrantHTTPClient(scheme string, timeout time.Duration, caCertPath string) (
 	}), nil
 }
 
-func (e campusDocsQdrantClient) embedQueryWithProviderConfig(
+func (e campusDocsQdrantClient) embedQueryWithRuntimeConfig(
 	ctx context.Context,
 	embeddingConfig modelconfigclient.RuntimeConfig,
 	queryText string,
@@ -129,14 +128,14 @@ func (e campusDocsQdrantClient) embedQueryWithProviderConfig(
 	if err != nil {
 		return nil, err
 	}
-	baseURL, err := providerconfig.NormalizeBaseURL(embeddingConfig.BaseURL)
+	baseURL, err := modelconfigclient.NormalizeBaseURL(embeddingConfig.BaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("embedding provider base url: %w", err)
 	}
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		strings.TrimRight(baseURL, "/")+"/embeddings",
+		baseURL+"/embeddings",
 		bytes.NewReader(body),
 	)
 	if err != nil {

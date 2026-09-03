@@ -2,7 +2,7 @@ import { APIError } from "better-auth/api";
 
 import type { AppApiEnvironment } from "../../config";
 import { AppApiRouteError } from "../../http";
-import { isCampusEmail, normalizeCampusEmail } from "../auth/campus-access";
+import { isCampusEmail, normalizeCampusEmail } from "./campus-email";
 import type { EmailAccessGrantStore } from "./store";
 import type {
 	EmailAccessDecision,

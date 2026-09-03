@@ -40,10 +40,7 @@ import type {
 	NumericDistribution,
 	NumericDistributionDelta,
 } from "./chunk-governance-types.ts";
-import {
-	canonicalJsonBytes,
-	sha256,
-} from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+import { canonicalJsonBytes, sha256 } from "./indexing/content-digest.ts";
 import type { ArtifactObjectStore, Sha256Ref } from "./types.ts";
 
 const COMPARISON_DIRECTORY = "comparisons";

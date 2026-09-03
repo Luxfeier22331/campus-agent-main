@@ -1,4 +1,3 @@
-import { parseDocsReaderContract } from "../../docs-reader-build/reader-contract";
 import type {
 	DocsReader as SourceDocsReader,
 	DocsReaderElement as SourceDocsReaderElement,
@@ -6,7 +5,8 @@ import type {
 	DocsReaderTableCell as SourceDocsReaderTableCell,
 	DocsReaderTableElement as SourceDocsReaderTableElement,
 	DocsReaderTextElement as SourceDocsReaderTextElement,
-} from "../../docs-reader-build/source-types";
+} from "campus-contracts/campus-docs";
+import { parseDocsReaderContract } from "campus-contracts/campus-docs";
 
 export type DocsReaderPayload = SourceDocsReader;
 export type DocsReaderElement = SourceDocsReaderElement;

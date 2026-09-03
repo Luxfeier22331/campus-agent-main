@@ -12,7 +12,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
 func TestDecodeCampusSearchToolEnvelopeAndRejectsUnauthenticatedRequests(t *testing.T) {
@@ -76,7 +75,7 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 				t.Fatalf("decode embedding request: %v", err)
 			}
-			if body["model"] != providerconfig.CanonicalEmbeddingModel ||
+			if body["model"] != campusDocsEmbeddingModel ||
 				!strings.HasPrefix(body["input"].(string), "Instruct: ") ||
 				body["dimensions"] != float64(campusdocs.EmbeddingDimensions) {
 				t.Fatalf("embedding request = %#v", body)
@@ -111,12 +110,7 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 			QdrantURL:             provider.URL,
 			QdrantReadOnlyAPIKey:  "qdrant-read-only",
 		},
-		staticProviderConfigResolver{
-			providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
-				providerconfig.KindEmbedding,
-				provider.URL+"/v1",
-			),
-		},
+		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
 	)
 	if err != nil {
 		t.Fatalf("build Campus docs Qdrant client: %v", err)
@@ -200,12 +194,7 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 			QdrantURL:             provider.URL,
 			QdrantReadOnlyAPIKey:  "qdrant-read-only",
 		},
-		staticProviderConfigResolver{
-			providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
-				providerconfig.KindEmbedding,
-				provider.URL+"/v1",
-			),
-		},
+		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
 	)
 	if err != nil {
 		t.Fatalf("build Campus docs Qdrant client: %v", err)
@@ -322,12 +311,7 @@ func TestCampusDocsRetrievalReturnsNoMatchWhenAllRerankerScoresAreBelowThreshold
 			QdrantURL:             provider.URL,
 			QdrantReadOnlyAPIKey:  "qdrant-read-only",
 		},
-		staticProviderConfigResolver{
-			providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
-				providerconfig.KindEmbedding,
-				provider.URL+"/v1",
-			),
-		},
+		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
 	)
 	if err != nil {
 		t.Fatalf("build Campus docs Qdrant client: %v", err)
@@ -377,12 +361,7 @@ func TestCampusDocsRetrievalDoesNotFallbackWhenRerankerResponseIsInvalid(t *test
 			QdrantURL:             provider.URL,
 			QdrantReadOnlyAPIKey:  "qdrant-read-only",
 		},
-		staticProviderConfigResolver{
-			providerconfig.KindEmbedding: embeddingProviderConfigSnapshotForTest(
-				providerconfig.KindEmbedding,
-				provider.URL+"/v1",
-			),
-		},
+		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
 	)
 	if err != nil {
 		t.Fatalf("build Campus docs Qdrant client: %v", err)

@@ -42,15 +42,12 @@ test("Collector prunes its workspace dependency closure from the repository cont
 	assert.match(collectorDockerfile, /turbo prune internal-portal-collection --docker/u);
 });
 
-test("Campus Docs publisher includes its external version utility", () => {
+test("Campus Docs publisher includes its shared contract schemas", () => {
 	const dockerfile = readFileSync(
 		resolve(repositoryRoot, "jobs/campus-docs-index-publisher/Dockerfile"),
 		"utf8",
 	);
-	assert.match(
-		dockerfile,
-		/COPY apps\/campus-web\/src\/features\/docs\/version\.ts \.\/apps\/campus-web\/src\/features\/docs\/version\.ts/u,
-	);
+	assert.match(dockerfile, /COPY packages\/contracts\/schemas \.\/packages\/contracts\/schemas/u);
 	assert.match(
 		dockerfile,
 		/COPY --from=pruner \/repo\/out\/full\/packages\/embedding-runtime\/src \.\/packages\/embedding-runtime\/src/u,

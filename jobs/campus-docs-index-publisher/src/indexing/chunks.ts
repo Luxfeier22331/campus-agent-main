@@ -1,9 +1,9 @@
-import { buildReaderRouteSlug } from "../../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+import { buildReaderRouteSlug } from "campus-contracts/campus-docs-node";
 import type {
 	DocsReader,
 	DocsSourceManifest,
 	DocsSourceVersion,
-} from "../../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+} from "campus-contracts/campus-docs";
 import { CHUNK_SET_DEFINITION } from "../definitions.ts";
 import { sha256Text, stableId } from "./content-digest.ts";
 import type { IndexChunk } from "../types.ts";

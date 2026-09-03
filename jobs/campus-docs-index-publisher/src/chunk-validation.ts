@@ -1,7 +1,7 @@
 import type {
 	DocsReaderElement,
 	DocsReaderTableElement,
-} from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+} from "campus-contracts/campus-docs";
 import { CHUNK_SET_DEFINITION } from "./definitions.ts";
 import { buildSections, isSourceUrlOnly } from "./indexing/sections.ts";
 import { getLeadingDocumentMetadata } from "./indexing/chunks.ts";

@@ -15,7 +15,7 @@ export {
 	deriveSafetyIdentifier,
 	deriveSafetyIdentifierForUser,
 } from "./service";
-export { publicExecutionFailure } from "./service/writes";
+export { publicExecutionFailure } from "./service/errors";
 export {
 	type AbuseControlState,
 	type AcceptedChatCommandStore,

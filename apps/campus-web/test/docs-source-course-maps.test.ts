@@ -1,9 +1,8 @@
 import { Buffer } from "node:buffer";
-
+import type { DocsReader } from "campus-contracts/campus-docs";
 import { describe, expect, it } from "vitest";
 import { readPngDimensions } from "../src/docs-reader-build/png-dimensions.ts";
 import { materializeDocsCourseMaps } from "../src/docs-reader-build/source-course-maps.ts";
-import type { DocsReader } from "../src/docs-reader-build/source-types.ts";
 
 describe("published course maps", () => {
 	it("rejects non-PNG image formats before parsing dimensions", () => {

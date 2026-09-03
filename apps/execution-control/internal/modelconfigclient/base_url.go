@@ -1,4 +1,4 @@
-package providerconfig
+package modelconfigclient
 
 import (
 	"errors"
@@ -9,19 +9,15 @@ import (
 
 var errInvalidProviderBaseURL = errors.New("provider base url is invalid")
 
-// NormalizeBaseURL validates the URL again at the network-consumer boundary.
-// Configuration validation is not sufficient because snapshots may come from
-// storage or an injected resolver after the profile was admitted.
+// NormalizeBaseURL validates a provider URL received in a runtime config at
+// the network-consumer boundary. Producer-side validation is not sufficient
+// because a runtime config may come from storage or an injected resolver.
 func NormalizeBaseURL(raw string) (string, error) {
-	return normalizeProviderBaseURL(raw)
-}
-
-func normalizeProviderBaseURL(raw string) (string, error) {
 	parsed, err := parseProviderBaseURL(raw)
 	if err != nil {
 		return "", err
 	}
-	return parsed.String(), nil
+	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
 func parseProviderBaseURL(raw string) (*url.URL, error) {

@@ -1,7 +1,6 @@
+import { parseDocsReaderContract } from "campus-contracts/campus-docs";
+import { parseReader } from "campus-contracts/campus-docs-node";
 import { describe, expect, it } from "vitest";
-
-import { parseDocsReaderContract } from "../src/docs-reader-build/reader-contract";
-import { parseReader } from "../src/docs-reader-build/source-schema";
 import { parseDocsReaderPayload } from "../src/features/docs/model";
 
 const reader = {

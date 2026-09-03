@@ -1,12 +1,8 @@
+import type { DocsSourceManifest } from "campus-contracts/campus-docs";
+import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "campus-contracts/campus-docs-node";
+import { canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
 import type { ReaderObjectStoreWriter } from "./published-reader-types.ts";
-import {
-	canonicalJsonBytes,
-	DOCS_SOURCE_KEY,
-	normalizeSourceManifest,
-	sha256,
-} from "./source-catalog.ts";
 import { compileDocsSource } from "./source-compiler.ts";
-import type { DocsSourceManifest } from "./source-types.ts";
 
 export async function publishDocsSource(input: {
 	client: ReaderObjectStoreWriter;

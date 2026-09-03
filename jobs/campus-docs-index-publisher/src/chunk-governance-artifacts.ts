@@ -22,10 +22,7 @@ import type {
 	CampusDocsReviewItemSummary,
 	GovernanceArtifactReference,
 } from "./chunk-governance-types.ts";
-import {
-	sha256,
-} from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
-import { sha256Text } from "./indexing/content-digest.ts";
+import { sha256, sha256Text } from "./indexing/content-digest.ts";
 import type { ArtifactObjectStore, Sha256Ref } from "./types.ts";
 
 export const CAMPUS_DOCS_CHUNK_GOVERNANCE_ROOT = "campus-docs/chunk-governance";

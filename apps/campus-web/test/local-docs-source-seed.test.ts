@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
 
-import { createDocsSourceSiteFixture } from "../fixtures/docs-source-site.ts";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
+import { describe, expect, it } from "vitest";
 import { seedLocalDocsSource } from "../scripts/seed-local-docs-source.ts";
 import type { ReaderObjectStoreWriter } from "../src/docs-reader-build/published-reader-types.ts";
-import { DOCS_SOURCE_KEY } from "../src/docs-reader-build/source-catalog.ts";
 
 describe("Campus Web 本地文档来源初始化", () => {
 	it("先写全部引用对象，最后提交固定来源键", async () => {

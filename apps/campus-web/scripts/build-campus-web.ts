@@ -12,10 +12,9 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
+import { assertSha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import { readDocsContentMetadata } from "../src/docs-reader-build/docs-content.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
-import { assertSha256 } from "../src/docs-reader-build/source-catalog.ts";
 import { loadCampusWebBuildEnvironment, omitObjectStoreEnvironment } from "./build-process-env.ts";
 import {
 	type BundleCheckResult,

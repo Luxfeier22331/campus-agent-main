@@ -82,8 +82,11 @@ test("maps non-Turbo notice and execution inputs to their consumers", () => {
 	assert.deepEqual(targets(["configs/runtime/tools.v7.json"]), ["execution-control"]);
 });
 
-test("maps the docs publisher's external source utility to its image", () => {
-	assert.deepEqual(targets(["apps/campus-web/src/features/docs/version.ts"]), [
+test("maps the docs publisher's shared contract sources to its image", () => {
+	assert.deepEqual(targets(["packages/contracts/src/campus-docs-node.ts"]), [
+		"campus-docs-index-publisher",
+	]);
+	assert.deepEqual(targets(["packages/contracts/schemas/campus-docs-course-maps.v1.schema.json"]), [
 		"campus-docs-index-publisher",
 	]);
 });

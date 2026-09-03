@@ -1,24 +1,22 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { DocsSourceManifest, ObjectRef } from "campus-contracts/campus-docs";
+import { formatDocsVersionLabel } from "campus-contracts/campus-docs";
+import { COURSE_MAP_IMAGE } from "campus-contracts/campus-docs-fixture";
+import {
+	DOCS_SOURCE_KEY,
+	normalizeSourceManifest,
+	selectCurrentVersion,
+} from "campus-contracts/campus-docs-node";
 import { afterEach, describe, expect, it } from "vitest";
-
 import { parseUpdateDocsSourceArgs, updateDocsSource } from "../scripts/update-docs-source.ts";
+import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import type {
 	ReaderObjectStoreClient,
 	ReaderObjectStoreWriter,
 } from "../src/docs-reader-build/published-reader-types.ts";
-import {
-	canonicalJsonBytes,
-	DOCS_SOURCE_KEY,
-	normalizeSourceManifest,
-	selectCurrentVersion,
-	sha256,
-} from "../src/docs-reader-build/source-catalog.ts";
 import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
-import type { DocsSourceManifest, ObjectRef } from "../src/docs-reader-build/source-types.ts";
-import { formatDocsVersionLabel } from "../src/features/docs/version.ts";
-import { COURSE_MAP_IMAGE } from "./helpers/published-reader-fixture.ts";
 
 const tempRoots: string[] = [];
 

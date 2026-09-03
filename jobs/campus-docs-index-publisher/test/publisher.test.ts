@@ -4,11 +4,12 @@ import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 import {
 	createDocsSourceSiteFixture,
 	type DocsSourceFixture,
-} from "../../../apps/campus-web/fixtures/docs-source-site.ts";
+} from "campus-contracts/campus-docs-fixture";
 import {
 	canonicalJsonBytes,
 	sha256,
-} from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+} from "../src/indexing/content-digest.ts";
+import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
 import {
 	chunkSetManifestKey,
 	embeddingSetManifestKey,
@@ -24,7 +25,6 @@ import {
 } from "../src/publisher.ts";
 import { QdrantCollectionContentMismatchError } from "../src/qdrant.ts";
 import {
-	CAMPUS_DOCS_SOURCE_KEY,
 	type ArtifactObjectStore,
 	type CurrentIndexBinding,
 	type IndexCatalog,
@@ -214,7 +214,7 @@ describe("Campus docs artifact stages", () => {
 	it("deletes a newly created collection when the source projection changed", async () => {
 		const store = fixtureStore();
 		const artifacts = await buildArtifacts(store);
-		await store.replace(CAMPUS_DOCS_SOURCE_KEY, new TextEncoder().encode("{}\n"));
+		await store.replace(DOCS_SOURCE_KEY, new TextEncoder().encode("{}\n"));
 		const qdrant = qdrantHarness();
 		const catalog = catalogHarness();
 
@@ -323,7 +323,7 @@ function fixtureStore(
 ): MemoryArtifactStore {
 	const store = new MemoryArtifactStore();
 	for (const [key, value] of fixture.objects) store.objects.set(key, value.body);
-	store.objects.set(CAMPUS_DOCS_SOURCE_KEY, sourceBytes);
+	store.objects.set(DOCS_SOURCE_KEY, sourceBytes);
 	return store;
 }
 

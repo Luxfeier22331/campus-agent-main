@@ -1,5 +1,5 @@
+import { parseDocsVersionOrder } from "campus-contracts/campus-docs";
 import { isDocsDocumentPath } from "./docs-redirects";
-import { parseDocsVersionOrder } from "./version";
 
 export const DOCS_SITE_INDEX_SCHEMA = "campus_docs_site_index.v5" as const;
 export const DOCS_SEARCH_INDEX_SCHEMA = "campus_docs_search_index.v2" as const;

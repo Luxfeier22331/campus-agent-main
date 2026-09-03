@@ -34,10 +34,7 @@ import type {
 	CampusDocsRetrievalMetricSlice,
 	CampusDocsRetrievalQuestion,
 } from "./chunk-governance-types.ts";
-import {
-	canonicalJsonBytes,
-	sha256,
-} from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+import { canonicalJsonBytes, sha256 } from "./indexing/content-digest.ts";
 import {
 	EMBEDDING_SPACE,
 	embedTexts,

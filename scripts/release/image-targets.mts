@@ -113,9 +113,10 @@ export function imageTargetsForScope(scope: {
 	}
 	if (
 		changesPath(files, "jobs/campus-docs-index-publisher") ||
-		changesPath(files, "apps/campus-web/src/docs-reader-build") ||
-		files.includes("apps/campus-web/src/features/docs/version.ts") ||
+		files.some((file) => file.startsWith("packages/contracts/src/campus-docs")) ||
+		files.includes("packages/contracts/package.json") ||
 		[
+			"packages/contracts/schemas/campus-docs-course-maps.v1.schema.json",
 			"packages/contracts/schemas/campus-docs-reader.v3.schema.json",
 			"packages/contracts/schemas/campus-docs-source.v4.schema.json",
 		].some((file) => files.includes(file))

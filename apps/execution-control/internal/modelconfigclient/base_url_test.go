@@ -1,8 +1,8 @@
-package providerconfig
+package modelconfigclient
 
 import "testing"
 
-func TestNormalizeProviderBaseURL(t *testing.T) {
+func TestNormalizeBaseURL(t *testing.T) {
 	tests := []struct {
 		name  string
 		value string
@@ -14,18 +14,19 @@ func TestNormalizeProviderBaseURL(t *testing.T) {
 		{name: "ipv4 loopback", value: "http://127.23.45.67/v1", want: "http://127.23.45.67/v1"},
 		{name: "ipv6 loopback", value: "http://[::1]:8080/v1", want: "http://[::1]:8080/v1"},
 		{name: "trimmed and normalized scheme", value: "  HTTPS://provider.example/v1  ", want: "https://provider.example/v1"},
+		{name: "trailing slashes", value: "https://provider.example/v1///", want: "https://provider.example/v1"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := normalizeProviderBaseURL(test.value)
+			got, err := NormalizeBaseURL(test.value)
 			if err != nil || got != test.want {
-				t.Fatalf("normalizeProviderBaseURL(%q) = %q, %v; want %q", test.value, got, err, test.want)
+				t.Fatalf("NormalizeBaseURL(%q) = %q, %v; want %q", test.value, got, err, test.want)
 			}
 		})
 	}
 }
 
-func TestNormalizeProviderBaseURLRejectsUnsafeValues(t *testing.T) {
+func TestNormalizeBaseURLRejectsUnsafeValues(t *testing.T) {
 	values := []string{
 		"",
 		"/v1",
@@ -44,8 +45,8 @@ func TestNormalizeProviderBaseURLRejectsUnsafeValues(t *testing.T) {
 	}
 	for _, value := range values {
 		t.Run(value, func(t *testing.T) {
-			if normalized, err := normalizeProviderBaseURL(value); err == nil {
-				t.Fatalf("normalizeProviderBaseURL(%q) = %q, want error", value, normalized)
+			if normalized, err := NormalizeBaseURL(value); err == nil {
+				t.Fatalf("NormalizeBaseURL(%q) = %q, want error", value, normalized)
 			}
 		})
 	}

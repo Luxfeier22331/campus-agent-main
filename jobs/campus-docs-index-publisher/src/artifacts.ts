@@ -1,10 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
-import {
-	canonicalJsonBytes,
-	sha256,
-} from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
-import type { ObjectRef } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+import { canonicalJsonBytes, sha256 } from "./indexing/content-digest.ts";
+import type { ObjectRef } from "campus-contracts/campus-docs";
 import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 import { CHUNK_SET_DEFINITION } from "./definitions.ts";
 import {

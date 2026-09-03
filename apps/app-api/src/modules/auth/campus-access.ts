@@ -1,6 +1,6 @@
 import { APIError } from "better-auth/api";
 
-export const CAMPUS_EMAIL_DOMAIN = "muc.edu.cn";
+import { isCampusEmail } from "../email-access/campus-email";
 
 export type CampusAccessDenialReason =
 	| "account_banned"
@@ -32,29 +32,6 @@ export function assertAccountReady(user: CampusAccessUser): void {
 			message: "The password must be changed before continuing.",
 		});
 	}
-}
-
-export function normalizeCampusEmail(value: string | null | undefined): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const normalized = value.trim().toLowerCase();
-	const separator = normalized.lastIndexOf("@");
-	if (
-		separator <= 0 ||
-		separator !== normalized.indexOf("@") ||
-		separator === normalized.length - 1
-	) {
-		return null;
-	}
-
-	return normalized;
-}
-
-export function isCampusEmail(value: string | null | undefined): boolean {
-	const email = normalizeCampusEmail(value);
-	return email?.slice(email.lastIndexOf("@") + 1) === CAMPUS_EMAIL_DOMAIN;
 }
 
 export function evaluateCampusAccess(user: CampusAccessUser): CampusAccessDecision {

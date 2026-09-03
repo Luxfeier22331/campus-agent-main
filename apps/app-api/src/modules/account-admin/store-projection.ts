@@ -6,7 +6,7 @@ import {
 	emailAccessGrant,
 	user,
 } from "../../db/schema";
-import { CAMPUS_EMAIL_DOMAIN } from "../auth/campus-access";
+import { CAMPUS_EMAIL_DOMAIN } from "../email-access/campus-email";
 import type {
 	AccountAdminAction,
 	AccountAdminEventRecord,

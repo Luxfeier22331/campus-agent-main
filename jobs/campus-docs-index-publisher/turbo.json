@@ -2,6 +2,21 @@
 	"$schema": "https://turborepo.com/schema.json",
 	"extends": ["//"],
 	"tasks": {
+		"build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!**/README.md",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/campus-docs*.ts",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-course-maps.v1.schema.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-reader.v3.schema.json",
+				"$TURBO_ROOT$/packages/contracts/schemas/campus-docs-source.v4.schema.json",
+				"$TURBO_ROOT$/packages/embedding-runtime/package.json",
+				"$TURBO_ROOT$/packages/embedding-runtime/src/**"
+			],
+			"outputs": ["dist/**"]
+		},
 		"test": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] },
 		"test:database-integration": {
 			"inputs": [

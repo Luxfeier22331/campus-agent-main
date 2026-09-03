@@ -12,7 +12,7 @@ import type {
 	CampusDocsReviewItemStratum,
 	CampusDocsReviewItemSummary,
 } from "./chunk-governance-types.ts";
-import { sha256 } from "../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
+import { sha256 } from "./indexing/content-digest.ts";
 import type { Sha256Ref } from "./types.ts";
 
 const METADATA_SIGNALS = new Set<CampusDocsReviewCandidateSignal>([

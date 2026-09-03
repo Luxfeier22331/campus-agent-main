@@ -24,6 +24,10 @@
   `schemas/campus-groups-catalog.v1.schema.json`；
 - `src/internal-portal-credential.ts`：Ops Web 与 internal-portal-collection 共享的内部门户凭据解析响应
   合同；
+- `src/campus-docs*.ts`：Campus Docs 来源清单、reader、课程图、表格布局、提取质量和分段规则的唯一
+  共享实现。`campus-contracts/campus-docs` 只暴露 browser-safe 类型与 reader/质量核心；
+  `campus-contracts/campus-docs-node` 暴露 Node-only 的 AJV schema parser、来源清单规范化和路由 slug
+  能力；
 - `schemas/contract-schema-registry.v1.json`：runtime catalog 与 contract check 使用的 schema
   registry；
 - `schemas/runtime-*.schema.json`：运行时工具注册表、function schema、execution config、延迟预算与
@@ -31,6 +35,13 @@
 
 runtime catalog 的 `payload_schema_ref` 与 `result_schema_ref` 必须解析到已注册 JSON Schema。
 schema 存在不代表工具对模型可见；实际 exposure 由 runtime registry 控制。
+
+Campus Docs 的 object-store digest、canonical JSON、对象键和 immutable writer 仍由实际 producer
+（Campus Web 来源/构建流程或 `campus-docs-index-publisher`）分别拥有；contracts 不提供通用 artifact
+工具，也不依赖 Campus Web 私有源码。
+
+`campus-contracts/campus-docs-fixture` 仅供 Campus Docs contract、Campus Web 和 index publisher 的测试
+共享确定性输入，不是生产对象存储接口。
 
 ## 生成产物
 

@@ -92,7 +92,7 @@ export const enforcePasswordChangeSessionRevocation =
 export const enforceSignupLegalConsent = authPolicyModule.enforceSignupLegalConsent;
 export const getAppAuth = authRuntimeModule.getAppAuth;
 export const hashAppPassword = authPasswordModule.hashAppPassword;
-export { isCampusEmail } from "../src/modules/auth/campus-access";
+export { isCampusEmail } from "../src/modules/email-access/campus-email";
 export const probeAppAuthRuntime = authRuntimeModule.probeAppAuthRuntime;
 export const resolvePasswordResetRedirectTarget =
 	resetMailModule.resolvePasswordResetRedirectTarget;

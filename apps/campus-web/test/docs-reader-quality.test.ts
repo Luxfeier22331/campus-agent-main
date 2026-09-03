@@ -1,14 +1,13 @@
-import { describe, expect, it } from "vitest";
-
-import { createDocsSourceSiteFixture } from "../fixtures/docs-source-site.ts";
-import { assertReaderExtractionQuality } from "../src/docs-reader-build/reader-quality.ts";
-import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/source-catalog.ts";
-import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
 import type {
 	DocsReader,
 	DocsReaderElement,
 	DocsSourceManifest,
-} from "../src/docs-reader-build/source-types.ts";
+} from "campus-contracts/campus-docs";
+import { assertReaderExtractionQuality } from "campus-contracts/campus-docs";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
+import { describe, expect, it } from "vitest";
+import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
+import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
 
 describe("文档 reader 提取质量", () => {
 	it("拒绝遗留的迁移标题占位元素", async () => {

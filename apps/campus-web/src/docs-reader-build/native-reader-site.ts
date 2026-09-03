@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-
+import { compareDocsVersionSlugs } from "campus-contracts/campus-docs";
 import {
 	buildReaderDescription,
 	type DocsReaderElement,
@@ -18,7 +18,6 @@ import {
 	type DocsSiteIndex,
 	type DocsSiteVersion,
 } from "../features/docs/site-index.ts";
-import { compareDocsVersionSlugs } from "../features/docs/version.ts";
 import { publicReaderUrl, readPublishedObject } from "./published-reader-assets.ts";
 import { resolveCorpusLabel, resolveDocumentDisplayTitle } from "./published-reader-labels.ts";
 import {

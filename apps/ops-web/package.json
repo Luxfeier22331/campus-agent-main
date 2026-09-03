@@ -16,14 +16,15 @@
 		"dev:fixture": "set -a && . ./.env.local && set +a && exec node --experimental-strip-types test/fixtures/internal-portal-automation-server.ts --port \"$PORT\"",
 		"dev:web": "set -a && . ./.env.local && set +a && exec vite --host 127.0.0.1 --port \"$OPS_WEB_WEB_PORT\" --strictPort",
 		"start": "node --env-file-if-exists=.env dist-server/node.js",
-		"db:apply": "node --experimental-strip-types ops/db/ops-web-database.ts apply",
-		"db:apply-dining": "node --experimental-strip-types ops/db/ops-web-database.ts apply-dining",
+		"db:apply": "node --experimental-strip-types ops/db/ops-web-database-legacy.ts apply",
+		"db:apply-dining": "node --experimental-strip-types ops/db/ops-web-database-legacy.ts apply-dining",
 		"db:bootstrap-dining": "node --experimental-strip-types ops/db/bootstrap-dining.ts",
 		"db:check": "drizzle-kit check --config drizzle.config.ts",
 		"db:generate": "drizzle-kit generate --config drizzle.config.ts",
 		"test": "vitest run --config vitest.config.mts",
 		"test:browser": "pnpm build && playwright test --config browser.config.ts",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
+		"test:database-legacy-integration": "vitest run --config vitest.database-legacy-integration.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

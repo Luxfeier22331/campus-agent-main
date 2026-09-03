@@ -3,12 +3,12 @@ import {
 	type ToolExecutionResponse,
 } from "../../integration";
 import type { RuntimeRunProductPhase } from "../../runtime-run";
+import { publicExecutionFailure } from "./errors";
 import type {
 	ChatCommandResponse,
 	ChatCommandStreamEvent,
 	ChatCommandStreamEventName,
 } from "./types";
-import { publicExecutionFailure } from "./writes";
 
 interface ParsedSseEvent {
 	data: unknown;

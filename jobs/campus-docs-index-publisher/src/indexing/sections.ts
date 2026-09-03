@@ -3,7 +3,7 @@ import type {
 	DocsReaderElement,
 	DocsSourceManifest,
 	DocsSourceVersion,
-} from "../../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+} from "campus-contracts/campus-docs";
 import type { ReaderSection } from "../types.ts";
 import { stableId } from "./content-digest.ts";
 

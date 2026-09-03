@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	assertCampusUserEligible,
-	evaluateCampusAccess,
-	isCampusEmail,
-} from "../src/modules/auth/campus-access";
+import { assertCampusUserEligible, evaluateCampusAccess } from "../src/modules/auth/campus-access";
 import { mapSessionToCampusMemberPrincipal } from "../src/modules/auth/principal";
+import { isCampusEmail, normalizeCampusEmail } from "../src/modules/email-access/campus-email";
 
 describe("campus email access", () => {
 	it.each([
@@ -17,6 +14,14 @@ describe("campus email access", () => {
 		["student@@muc.edu.cn", false],
 	])("checks the exact campus domain for %s", (email, expected) => {
 		expect(isCampusEmail(email)).toBe(expected);
+	});
+
+	it("normalizes only structurally valid email values", () => {
+		expect(normalizeCampusEmail(" Student@MUC.EDU.CN ")).toBe("student@muc.edu.cn");
+		expect(normalizeCampusEmail("student@@muc.edu.cn")).toBeNull();
+		expect(normalizeCampusEmail("@muc.edu.cn")).toBeNull();
+		expect(normalizeCampusEmail("student@")).toBeNull();
+		expect(normalizeCampusEmail(null)).toBeNull();
 	});
 
 	it("requires a verified, unblocked account", () => {

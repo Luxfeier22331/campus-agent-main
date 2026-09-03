@@ -1,7 +1,7 @@
 import type { DataMessagePartProps } from "@assistant-ui/react";
+import { formatDocsVersionLabel } from "campus-contracts/campus-docs";
 import { useState } from "react";
 import type { SourceItemPayload } from "@/features/conversation/model";
-import { formatDocsVersionLabel } from "@/features/docs/version";
 
 export interface SourceItemsPayload {
 	sourceItems: SourceItemPayload[];

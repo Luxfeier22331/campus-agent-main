@@ -1,17 +1,20 @@
-import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
-import {
-	canonicalJsonBytes,
-	DOCS_SOURCE_KEY,
-	normalizeSourceManifest,
-	sha256,
-} from "../src/docs-reader-build/source-catalog.ts";
+import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
+import { deflateSync } from "node:zlib";
+
+import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "../src/campus-docs-node.ts";
 import type {
 	DocsDocument,
 	DocsSourceManifest,
 	DocsSourceVersion,
 	ObjectRef,
-} from "../src/docs-reader-build/source-types.ts";
-import { COURSE_MAP_IMAGE } from "./course-map-image.ts";
+} from "../src/campus-docs-types.ts";
+
+export const COURSE_MAP_IMAGE = createPngImage(1233, 649);
+
+export interface DocsSourceFixtureClient {
+	readOptionalBytesObject(input: { key: string }): Promise<Uint8Array | undefined>;
+}
 
 export interface DocsSourceFixtureObject {
 	body: Uint8Array;
@@ -19,7 +22,7 @@ export interface DocsSourceFixtureObject {
 }
 
 export interface DocsSourceFixture {
-	client: ReaderObjectStoreClient;
+	client: DocsSourceFixtureClient;
 	objects: ReadonlyMap<string, DocsSourceFixtureObject>;
 	source: DocsSourceManifest;
 	sourceBytes: Uint8Array;
@@ -461,4 +464,66 @@ function objectRef(key: string, bytes: Uint8Array): ObjectRef {
 		key,
 		sha256: sha256(bytes),
 	};
+}
+
+function canonicalJsonBytes(value: unknown): Uint8Array {
+	return new TextEncoder().encode(`${JSON.stringify(sortJson(value), undefined, 2)}\n`);
+}
+
+function sha256(value: Uint8Array): `sha256:${string}` {
+	return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function sortJson(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(sortJson);
+	}
+	if (value && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value as Record<string, unknown>)
+				.sort(([left], [right]) => left.localeCompare(right))
+				.map(([key, child]) => [key, sortJson(child)]),
+		);
+	}
+	return value;
+}
+
+function createPngImage(width: number, height: number): Uint8Array {
+	const rowSize = width + 1;
+	const raw = Buffer.alloc(rowSize * height, 232);
+	for (let row = 0; row < height; row += 1) {
+		raw[row * rowSize] = 0;
+	}
+	const ihdr = Buffer.alloc(13);
+	ihdr.writeUInt32BE(width, 0);
+	ihdr.writeUInt32BE(height, 4);
+	ihdr[8] = 8;
+	return Buffer.concat([
+		Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+		createPngChunk("IHDR", ihdr),
+		createPngChunk("IDAT", deflateSync(raw)),
+		createPngChunk("IEND", Buffer.alloc(0)),
+	]);
+}
+
+function createPngChunk(type: string, data: Uint8Array): Buffer {
+	const typeBytes = Buffer.from(type, "ascii");
+	const dataBytes = Buffer.from(data);
+	const chunk = Buffer.alloc(12 + dataBytes.length);
+	chunk.writeUInt32BE(dataBytes.length, 0);
+	typeBytes.copy(chunk, 4);
+	dataBytes.copy(chunk, 8);
+	chunk.writeUInt32BE(crc32(Buffer.concat([typeBytes, dataBytes])), 8 + dataBytes.length);
+	return chunk;
+}
+
+function crc32(bytes: Uint8Array): number {
+	let value = 0xffffffff;
+	for (const byte of bytes) {
+		value ^= byte;
+		for (let bit = 0; bit < 8; bit += 1) {
+			value = (value >>> 1) ^ (value & 1 ? 0xedb88320 : 0);
+		}
+	}
+	return (value ^ 0xffffffff) >>> 0;
 }

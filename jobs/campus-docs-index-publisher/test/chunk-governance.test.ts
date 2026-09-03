@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { createDocsSourceSiteFixture } from "../../../apps/campus-web/fixtures/docs-source-site.ts";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
 import {
 	readCampusDocsChunkGovernanceRun,
 	readGovernanceChunkSet,
@@ -64,7 +64,7 @@ describe("Campus docs chunk governance", () => {
 			},
 		};
 		const bytes = new TextEncoder().encode(`${JSON.stringify(historical)}\n`);
-		const historicalId = await import("../../../apps/campus-web/src/docs-reader-build/source-catalog.ts")
+		const historicalId = await import("../src/indexing/content-digest.ts")
 			.then(({ sha256 }) => sha256(bytes));
 		await artifactStore.writeImmutable(
 			`campus-docs/rag/chunk-sets/sha256/${historicalId.slice("sha256:".length)}/manifest.json`,

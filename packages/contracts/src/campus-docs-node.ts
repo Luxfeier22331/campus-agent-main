@@ -1,18 +1,32 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020.js";
+import courseMapsSchema from "../schemas/campus-docs-course-maps.v1.schema.json" with {
+	type: "json",
+};
+import readerSchema from "../schemas/campus-docs-reader.v3.schema.json" with { type: "json" };
+import sourceSchema from "../schemas/campus-docs-source.v4.schema.json" with { type: "json" };
 
-import { parseDocsReaderContract } from "./reader-contract.ts";
-import type { DocsCourseMaps, DocsReader, DocsSourceManifest, ObjectRef } from "./source-types.ts";
+import { parseDocsReaderContract } from "./campus-docs-reader.ts";
+import type {
+	DocsCourseMaps,
+	DocsReader,
+	DocsSourceManifest,
+	ObjectRef,
+} from "./campus-docs-types.ts";
 
-const schemasRoot = resolve(import.meta.dirname, "../../../../packages/contracts/schemas");
+export {
+	buildReaderRouteSlug,
+	normalizeSourceManifest,
+	selectCurrentVersion,
+} from "./campus-docs-source.ts";
+export { DOCS_SOURCE_KEY } from "./campus-docs-types.ts";
+
 const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
-const sourceValidator = compile("campus-docs-source.v4.schema.json");
-const readerValidator = compile("campus-docs-reader.v3.schema.json");
-const courseMapsValidator = compile("campus-docs-course-maps.v1.schema.json");
+const sourceValidator = ajv.compile(sourceSchema) as ValidateFunction<DocsSourceManifest>;
+const readerValidator = ajv.compile(readerSchema);
+const courseMapsValidator = ajv.compile(courseMapsSchema) as ValidateFunction<DocsCourseMaps>;
 
 export function parseSourceManifest(value: unknown): DocsSourceManifest {
-	return validate(value, sourceValidator, "docs source manifest") as DocsSourceManifest;
+	return validate(value, sourceValidator, "docs source manifest");
 }
 
 export function parseReader(value: unknown): DocsReader {
@@ -20,7 +34,7 @@ export function parseReader(value: unknown): DocsReader {
 }
 
 export function parseCourseMaps(value: unknown): DocsCourseMaps {
-	return validate(value, courseMapsValidator, "docs course maps") as DocsCourseMaps;
+	return validate(value, courseMapsValidator, "docs course maps");
 }
 
 export function parseObjectRef(value: unknown): ObjectRef {
@@ -46,11 +60,7 @@ export function parseObjectRef(value: unknown): ObjectRef {
 	};
 }
 
-function compile(name: string): ValidateFunction {
-	return ajv.compile(JSON.parse(readFileSync(resolve(schemasRoot, name), "utf8")) as object);
-}
-
-function validate(value: unknown, validator: ValidateFunction, label: string): unknown {
+function validate<T>(value: unknown, validator: ValidateFunction<T>, label: string): T {
 	if (!validator(value)) {
 		throw new Error(`invalid ${label}: ${ajv.errorsText(validator.errors)}`);
 	}

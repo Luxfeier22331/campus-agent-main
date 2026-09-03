@@ -78,13 +78,15 @@ pnpm --dir apps/ops-web start
 pnpm --dir apps/ops-web check
 pnpm --dir apps/ops-web test:browser
 pnpm --dir apps/ops-web test:database-integration
+pnpm --dir apps/ops-web test:database-legacy-integration
 pnpm --dir apps/ops-web db:check
 pnpm --dir apps/ops-web db:generate
 ```
 
 `pnpm dev:init -- --target ops-web` 会生成 core 与 Ops Web 实际消费者所需的环境投影，通过
 `campus-agent-schema` 安装统一 schema 和授权，再写入通知分类与 Dining 本地 seed；新的本地 profile 不需要
-单独初始化 notice-publisher。
+单独初始化 notice-publisher。`test:database-integration` 只验证当前统一 schema 拓扑；
+`test:database-legacy-integration` 单独验证历史数据库升级与 handoff。
 
 `dev:api` 和 `dev:web` 分别启动 Node API 与 Vite 页面；`dev:fixture` 只监听 loopback，使用内存凭据服务
 和固定 fixture token，启动时打印 endpoint、token 与测试凭据 ID。它不读取本地真实凭据，也不会改变

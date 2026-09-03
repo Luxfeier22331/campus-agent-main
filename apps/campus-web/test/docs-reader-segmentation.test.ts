@@ -1,22 +1,13 @@
-import { describe, expect, it } from "vitest";
-
-import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
+import type { DocsReader, DocsSourceManifest, ObjectRef } from "campus-contracts/campus-docs";
 import {
 	assertReaderSegmentationQuality,
 	cleanReaderSegmentation,
-} from "../src/docs-reader-build/reader-segmentation.ts";
-import {
-	canonicalJsonBytes,
-	DOCS_SOURCE_KEY,
-	normalizeSourceManifest,
-	sha256,
-} from "../src/docs-reader-build/source-catalog.ts";
+} from "campus-contracts/campus-docs";
+import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "campus-contracts/campus-docs-node";
+import { describe, expect, it } from "vitest";
+import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
+import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
 import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
-import type {
-	DocsReader,
-	DocsSourceManifest,
-	ObjectRef,
-} from "../src/docs-reader-build/source-types.ts";
 
 describe("文档 reader 分段清洗", () => {
 	it.each([

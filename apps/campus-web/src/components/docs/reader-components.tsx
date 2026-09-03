@@ -10,6 +10,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@campus-agent/ui";
+import { compareDocsVersionSlugs, formatDocsVersionLabel } from "campus-contracts/campus-docs";
 import { History, Link as LinkIcon } from "lucide-react";
 import {
 	type ComponentProps,
@@ -21,9 +22,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-
 import { parseReaderLocationState, type ReaderLocationState } from "@/features/docs/reader-state";
-import { compareDocsVersionSlugs, formatDocsVersionLabel } from "@/features/docs/version";
 
 const COPY_LINK_RESET_MS = 3000;
 const EMPTY_READER_STATE: ReaderLocationState = {

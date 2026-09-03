@@ -4,12 +4,12 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { createDocsSourceSiteFixture } from "../../../apps/campus-web/fixtures/docs-source-site.ts";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
+import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
 import { chunkSetManifestKey, readChunkSet } from "../src/artifacts.ts";
 import { createFilesystemArtifactStore } from "../src/filesystem-artifact-store.ts";
 import { buildCampusDocsChunkSet } from "../src/publisher.ts";
 import {
-	CAMPUS_DOCS_SOURCE_KEY,
 	type ArtifactObjectStore,
 	type ReaderObjectStore,
 } from "../src/types.ts";
@@ -53,7 +53,7 @@ describe("filesystem artifact store", () => {
 			const fixture = createDocsSourceSiteFixture();
 			const sourceStore: ReaderObjectStore = {
 				async read(key) {
-					const body = key === CAMPUS_DOCS_SOURCE_KEY
+					const body = key === DOCS_SOURCE_KEY
 						? fixture.sourceBytes
 						: fixture.objects.get(key)?.body;
 					if (!body) throw new Error(`missing fixture object: ${key}`);

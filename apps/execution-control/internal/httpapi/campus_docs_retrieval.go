@@ -55,7 +55,7 @@ func retrieveCampusDocsResults(
 	if err != nil {
 		return nil, err
 	}
-	embedding, err := client.embedQueryWithProviderConfig(
+	embedding, err := client.embedQueryWithRuntimeConfig(
 		ctx,
 		embeddingConfig,
 		campusdocs.BuildDenseQueryText(query, campusdocs.EmbeddingQueryInstruction),

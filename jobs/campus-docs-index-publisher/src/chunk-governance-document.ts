@@ -1,4 +1,4 @@
-import type { DocsReaderElement } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+import type { DocsReaderElement } from "campus-contracts/campus-docs";
 import {
 	CAMPUS_DOCS_CHUNK_GOVERNANCE_DEFINITION,
 } from "./chunk-governance-definitions.ts";

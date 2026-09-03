@@ -8,7 +8,7 @@ import type {
 	CAMPUS_DOCS_CHUNK_GOVERNANCE_DEFINITION,
 	CAMPUS_DOCS_CHUNK_GOVERNANCE_SCHEMA_VERSION,
 } from "./chunk-governance-definitions.ts";
-import type { ObjectRef } from "../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+import type { ObjectRef } from "campus-contracts/campus-docs";
 import type { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 import type { CHUNK_SET_DEFINITION } from "./definitions.ts";
 import type { Sha256Ref, StoredChunk } from "./types.ts";

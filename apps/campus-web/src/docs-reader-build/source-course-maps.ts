@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import { readPngDimensions } from "./png-dimensions.ts";
 import type {
 	DocsCourseMaps,
 	DocsReader,
 	DocsReaderElement,
 	DocsReaderHeadingElement,
-} from "./source-types.ts";
+} from "campus-contracts/campus-docs";
+import { readPngDimensions } from "./png-dimensions.ts";
 
 const MAX_HORIZONTAL_GAP = 24;
 const MIN_VERTICAL_OVERLAP = 0.8;

@@ -1,23 +1,24 @@
 import {
-	canonicalJsonBytes,
 	normalizeSourceManifest,
 	selectCurrentVersion,
-	sha256,
-} from "../../../../apps/campus-web/src/docs-reader-build/source-catalog.ts";
-import { assertReaderExtractionQuality } from "../../../../apps/campus-web/src/docs-reader-build/reader-quality.ts";
-import { assertReaderSegmentationQuality } from "../../../../apps/campus-web/src/docs-reader-build/reader-segmentation.ts";
-import { parseReader, parseSourceManifest } from "../../../../apps/campus-web/src/docs-reader-build/source-schema.ts";
+	parseReader,
+	parseSourceManifest,
+} from "campus-contracts/campus-docs-node";
+import {
+	assertReaderExtractionQuality,
+	assertReaderSegmentationQuality,
+} from "campus-contracts/campus-docs";
 import type {
 	DocsReader,
 	DocsSourceManifest,
 	ObjectRef,
-} from "../../../../apps/campus-web/src/docs-reader-build/source-types.ts";
+} from "campus-contracts/campus-docs";
 import type {
 	IndexingSource,
 	Sha256Ref,
 	SourceVersionSelection,
 } from "../types.ts";
-import { sha256Bytes } from "./content-digest.ts";
+import { canonicalJsonBytes, sha256, sha256Bytes } from "./content-digest.ts";
 
 export function parseIndexingSource(sourceBytes: Uint8Array): IndexingSource {
 	const sourceValue = parseJson(sourceBytes, "campus docs source");

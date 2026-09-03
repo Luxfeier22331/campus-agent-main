@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 )
 
 const (
@@ -37,7 +36,7 @@ func (e campusDocsQdrantClient) rerankCampusDocsCandidates(
 	if e.embeddingHTTPClient == nil {
 		return nil, errors.New("reranker HTTP client is not configured")
 	}
-	baseURL, err := providerconfig.NormalizeBaseURL(provider.BaseURL)
+	baseURL, err := modelconfigclient.NormalizeBaseURL(provider.BaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("reranker provider base url: %w", err)
 	}
@@ -56,7 +55,7 @@ func (e campusDocsQdrantClient) rerankCampusDocsCandidates(
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		strings.TrimRight(baseURL, "/")+"/rerank",
+		baseURL+"/rerank",
 		bytes.NewReader(body),
 	)
 	if err != nil {

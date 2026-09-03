@@ -36,8 +36,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
   && pnpm install --ignore-scripts --frozen-lockfile --filter campus-docs-index-publisher...
 
 COPY --from=pruner /repo/out/full/ ./
-COPY apps/campus-web/src/docs-reader-build ./apps/campus-web/src/docs-reader-build
-COPY apps/campus-web/src/features/docs/version.ts ./apps/campus-web/src/features/docs/version.ts
 COPY packages/contracts/schemas ./packages/contracts/schemas
 
 RUN pnpm --filter campus-docs-index-publisher build
@@ -78,8 +76,8 @@ COPY --from=production-dependencies --chown=node:node /app /app
 COPY --from=build --chown=node:node /app/jobs/campus-docs-index-publisher/dist ./dist
 COPY --from=build --chown=node:node /app/packages/contracts/schemas ./dist/packages/contracts/schemas
 
-RUN node --input-type=module -e "import('./dist/jobs/campus-docs-index-publisher/src/cli.js')"
+RUN node --input-type=module -e "import('./dist/cli.js')"
 
 USER node
 
-ENTRYPOINT ["node", "dist/jobs/campus-docs-index-publisher/src/cli.js"]
+ENTRYPOINT ["node", "dist/cli.js"]

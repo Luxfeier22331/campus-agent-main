@@ -191,7 +191,7 @@ test("runs selected native, database, and OTel profiles in order", () => {
 		{
 			base: BASE,
 			head: HEAD,
-			profiles: ["go", "ragas", "ops-web-postgres", "otel"],
+			profiles: ["go", "ragas", "ops-web-postgres", "ops-web-postgres-legacy", "otel"],
 			repositoryRoot: "/repository",
 		},
 		(command, args) => {
@@ -211,6 +211,7 @@ test("runs selected native, database, and OTel profiles in order", () => {
 		"pnpm exec turbo run typecheck test --filter=eval-langfuse --summarize",
 		"pnpm exec turbo run test:eval --filter=ragas-runner --concurrency=1 --summarize",
 		"pnpm exec turbo run test:database-integration --filter=ops-web --summarize",
+		"pnpm exec turbo run test:database-legacy-integration --filter=ops-web --summarize",
 		"scripts/otel/validate-config.sh",
 	]);
 });

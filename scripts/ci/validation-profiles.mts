@@ -128,6 +128,15 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresDocker: true,
 		requiresUv: false,
 	},
+	"ops-web-postgres-legacy": {
+		executor: {
+			commands: [turboCommand("ops-web", "test:database-legacy-integration")],
+			kind: "commands",
+		},
+		lane: "manual",
+		requiresDocker: true,
+		requiresUv: false,
+	},
 	infra: {
 		executor: { commands: [["scripts/infra/validate.sh"]], kind: "commands" },
 		lane: "manual",

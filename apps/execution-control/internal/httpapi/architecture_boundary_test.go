@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -86,6 +87,23 @@ func TestRetiredInfrastructureImplementationsDoNotReturnToHTTPPackage(t *testing
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
 			t.Fatalf("inspect %s: %v", name, err)
+		}
+	}
+}
+
+func TestCampusDocsHTTPDoesNotImportHistoricalProviderConfig(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve test source path")
+	}
+	directory := filepath.Dir(filename)
+	for _, name := range []string{"campus_docs_qdrant.go", "campus_docs_rerank.go"} {
+		source, err := os.ReadFile(filepath.Join(directory, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if strings.Contains(string(source), "internal/providerconfig") {
+			t.Fatalf("active Campus Docs HTTP implementation imports historical providerconfig: %s", name)
 		}
 	}
 }

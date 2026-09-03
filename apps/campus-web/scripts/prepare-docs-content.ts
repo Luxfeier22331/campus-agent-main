@@ -10,7 +10,12 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
+import {
+	DOCS_SOURCE_KEY,
+	normalizeSourceManifest,
+	parseSourceManifest,
+} from "campus-contracts/campus-docs-node";
+import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import {
 	createDocsContentMetadata,
 	type DocsContentPaths,
@@ -22,14 +27,7 @@ import { writeNativeDocsHtmlPages } from "../src/docs-reader-build/native-reader
 import { createCachingReaderObjectStore } from "../src/docs-reader-build/prepared-reader-object-store.ts";
 import { createS3ReaderObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";
-import {
-	canonicalJsonBytes,
-	DOCS_SOURCE_KEY,
-	normalizeSourceManifest,
-	sha256,
-} from "../src/docs-reader-build/source-catalog.ts";
 import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";
-import { parseSourceManifest } from "../src/docs-reader-build/source-schema.ts";
 import {
 	syncCampusPublishedReaderAssets,
 	syncCampusPublishedReaderDocs,

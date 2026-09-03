@@ -8,13 +8,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const connect = vi.fn();
 const end = vi.fn();
 const query = vi.fn();
-const migrateDiningSchema = vi.fn().mockResolvedValue(undefined);
 const clientConstructor = vi.fn(function Client(config: { connectionString: string }) {
 	return { config, connect, end, query };
 });
 
 vi.mock("pg", () => ({ default: { Client: clientConstructor } }));
-vi.mock("../ops/db/dining-migrations.ts", () => ({ migrateDiningSchema }));
 
 const localTlsEnv = {
 	DEPLOYMENT_ENVIRONMENT: "local",
@@ -70,7 +68,6 @@ describe("ops-web database verification", () => {
 		end.mockReset().mockResolvedValue(undefined);
 		query.mockReset();
 		clientConstructor.mockClear();
-		migrateDiningSchema.mockClear();
 		installSuccessfulQueries();
 	});
 
@@ -128,18 +125,16 @@ describe("ops-web database verification", () => {
 		expect(allQueries).not.toContain("ops_observability_read_audit");
 		expect(allQueries).not.toContain("ops_audit_maintenance");
 		expect(query).toHaveBeenCalledWith("commit");
-		expect(migrateDiningSchema).toHaveBeenCalledTimes(1);
 	});
 
 	it("applies Dining independently from the Ops read model", async () => {
-		const { applyDiningDatabase } = await import("../ops/db/ops-web-database.ts");
-		await expect(applyDiningDatabase(validEnv())).resolves.toEqual({ diningMap: "ready" });
+		const { applyOpsWebDiningGrants } = await import("../ops/db/ops-web-database.ts");
+		await expect(applyOpsWebDiningGrants(validEnv())).resolves.toEqual({ diningMap: "ready" });
 		const allQueries = query.mock.calls.map(([sql]) => String(sql)).join("\n");
 		expect(allQueries).toContain('TO "app_api"');
 		expect(allQueries).not.toContain('"runtime"."agent_runs"');
 		expect(allQueries).not.toContain("execution_config");
 		expect(query).toHaveBeenCalledWith("commit");
-		expect(migrateDiningSchema).toHaveBeenCalledTimes(1);
 	});
 
 	it("rejects a runtime DSN that does not connect as ops_web", async () => {

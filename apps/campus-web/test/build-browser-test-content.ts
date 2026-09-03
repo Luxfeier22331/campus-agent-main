@@ -1,4 +1,4 @@
-import { createDocsSourceSiteFixture } from "../fixtures/docs-source-site.ts";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
 import { buildCampusWeb } from "../scripts/build-campus-web.ts";
 
 async function main(): Promise<void> {
