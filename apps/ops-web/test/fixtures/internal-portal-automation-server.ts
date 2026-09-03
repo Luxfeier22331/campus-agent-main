@@ -2,7 +2,6 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type ServerType, serve } from "@hono/node-server";
 import { createOpsApp } from "../../src/server/app.ts";
-import { createFixtureOpsStatusStore } from "../../src/server/fixture-ops-status-store.ts";
 import type { InternalPortalAutomationTokenService } from "../../src/server/internal-portal-automation-token-service.ts";
 import {
 	InternalPortalCandidateCheckFailedError,
@@ -11,6 +10,7 @@ import {
 	InternalPortalCredentialNotFoundError,
 	type InternalPortalCredentialService,
 } from "../../src/server/internal-portal-credential-service.ts";
+import { createFixtureOpsStatusStore } from "../../src/server/ops-status/store/fixture.ts";
 import type { InternalPortalCredential } from "../../src/shared/ops-contract.ts";
 
 export const AUTOMATION_FIXTURE_CREDENTIAL_ID = "11111111-1111-4111-8111-111111111111";

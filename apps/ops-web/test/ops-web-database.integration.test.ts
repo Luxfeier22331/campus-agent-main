@@ -16,7 +16,7 @@ import {
 import {
 	createPgOpsStatusStore,
 	createPgOpsStatusStoreDatabase,
-} from "../src/server/pg-ops-status-store.ts";
+} from "../src/server/ops-status/store/postgres.ts";
 
 const postgres = inject("opsWebPostgres");
 const databaseEnv = {

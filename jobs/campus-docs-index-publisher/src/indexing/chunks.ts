@@ -1,4 +1,4 @@
-import { buildReaderRouteSlug } from "campus-contracts/campus-docs-node";
+import { buildReaderRouteSlug } from "campus-contracts/campus-docs/node";
 import type {
 	DocsReader,
 	DocsSourceManifest,

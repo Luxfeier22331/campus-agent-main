@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
 import {
 	canonicalJsonBytes,
 	sha256,
 } from "../src/indexing/content-digest.ts";
-import { selectCurrentVersion } from "campus-contracts/campus-docs-node";
+import { selectCurrentVersion } from "campus-contracts/campus-docs/node";
 import type { DocsReaderElement } from "campus-contracts/campus-docs";
 import { CHUNK_SET_DEFINITION } from "../src/definitions.ts";
 import { buildChunks } from "../src/indexing/chunks.ts";

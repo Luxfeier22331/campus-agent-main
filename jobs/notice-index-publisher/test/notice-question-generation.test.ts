@@ -15,8 +15,8 @@ import {
 	resolveNoticeQuestionModelConfig,
 	runLocalNoticeQuestionSetGeneration,
 	validateGeneratedQuestions,
-} from "../src/notice-question-generation.ts";
-import { parseLocalNoticeQuestionGenerationCommand } from "../src/local-notice-question-generation-cli.ts";
+} from "../src/notice-question-generation/index.ts";
+import { parseLocalNoticeQuestionGenerationCommand } from "../src/cli/local-notice-question-generation-cli.ts";
 import { readNoticeChunkRun } from "../src/run-reader.ts";
 
 describe("notice question model", () => {

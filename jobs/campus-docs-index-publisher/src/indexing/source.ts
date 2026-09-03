@@ -3,7 +3,7 @@ import {
 	selectCurrentVersion,
 	parseReader,
 	parseSourceManifest,
-} from "campus-contracts/campus-docs-node";
+} from "campus-contracts/campus-docs/node";
 import {
 	assertReaderExtractionQuality,
 	assertReaderSegmentationQuality,

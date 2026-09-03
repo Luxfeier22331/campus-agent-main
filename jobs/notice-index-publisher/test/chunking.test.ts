@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildNoticeChunks } from "../src/chunking.ts";
+import { buildNoticeChunks } from "../src/chunking/index.ts";
 import {
 	NOTICE_CHUNK_DEFINITION,
 } from "../src/definitions.ts";

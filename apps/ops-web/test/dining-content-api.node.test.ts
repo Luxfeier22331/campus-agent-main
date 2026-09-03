@@ -7,8 +7,8 @@ import type {
 } from "@campus-agent/dining/domain";
 import { describe, expect, it, vi } from "vitest";
 import type { DiningMenuStore, DiningReviewStore } from "../src/server/dining-store-contract";
-import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
+import { createFixtureOpsStatusStore } from "../src/server/ops-status/store/fixture.ts";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 const NOW = "2026-07-24T08:00:00.000Z";

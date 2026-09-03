@@ -1,5 +1,5 @@
 import { parseDocsReaderContract } from "campus-contracts/campus-docs";
-import { parseReader } from "campus-contracts/campus-docs-node";
+import { parseReader } from "campus-contracts/campus-docs/node";
 import { describe, expect, it } from "vitest";
 import { parseDocsReaderPayload } from "../src/features/docs/model";
 

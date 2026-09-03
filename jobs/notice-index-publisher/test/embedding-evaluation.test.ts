@@ -11,8 +11,8 @@ import {
 	evaluateDenseRetrieval,
 	formatNoticeQuery,
 	runLocalNoticeEmbeddingEvaluation,
-} from "../src/embedding-evaluation.ts";
-import { parseLocalEmbeddingEvaluationCommand } from "../src/local-embedding-evaluation-cli.ts";
+} from "../src/embedding-evaluation/index.ts";
+import { parseLocalEmbeddingEvaluationCommand } from "../src/cli/local-embedding-evaluation-cli.ts";
 import type { NoticeChunk, Sha256Ref } from "../src/types.ts";
 
 describe("notice embedding evaluation", () => {

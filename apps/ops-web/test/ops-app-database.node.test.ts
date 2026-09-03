@@ -17,8 +17,8 @@ vi.mock("../src/server/internal-portal-automation-token-store.ts", async () => (
 	...(await vi.importActual("../src/server/internal-portal-automation-token-store.ts")),
 	createPgInternalPortalAutomationTokenStore: createTokenStore,
 }));
-vi.mock("../src/server/ops-status-factory.ts", async () => ({
-	...(await vi.importActual("../src/server/ops-status-factory.ts")),
+vi.mock("../src/server/ops-status/composition/factory.ts", async () => ({
+	...(await vi.importActual("../src/server/ops-status/composition/factory.ts")),
 	createOpsStatusStore: createStatus,
 }));
 

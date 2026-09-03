@@ -3,9 +3,9 @@
 import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
 import { describe, expect, it, vi } from "vitest";
 import { createUnavailableDiningStore } from "../src/server/dining-store";
-import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
-import { createOpsOverviewService } from "../src/server/ops-overview-service";
+import { createOpsOverviewService } from "../src/server/ops-status/composition/overview-service.ts";
+import { createFixtureOpsStatusStore } from "../src/server/ops-status/store/fixture.ts";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 function createTestApp() {

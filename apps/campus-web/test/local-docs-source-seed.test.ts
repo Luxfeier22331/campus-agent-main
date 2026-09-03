@@ -1,6 +1,6 @@
 import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
 
-import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
 import { describe, expect, it } from "vitest";
 import { seedLocalDocsSource } from "../scripts/seed-local-docs-source.ts";
 import type { ReaderObjectStoreWriter } from "../src/docs-reader-build/published-reader-types.ts";

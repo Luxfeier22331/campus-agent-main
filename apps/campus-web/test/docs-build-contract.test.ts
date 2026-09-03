@@ -1,8 +1,8 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
-import { DOCS_SOURCE_KEY, selectCurrentVersion } from "campus-contracts/campus-docs-node";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
+import { DOCS_SOURCE_KEY, selectCurrentVersion } from "campus-contracts/campus-docs/node";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseCampusWebBuildArgs } from "../scripts/build-campus-web.ts";
 import {

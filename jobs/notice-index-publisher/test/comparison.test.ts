@@ -6,15 +6,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { writeLocalChunkRun } from "../src/artifacts.ts";
-import { buildNoticeChunks } from "../src/chunking.ts";
+import { buildNoticeChunks } from "../src/chunking/index.ts";
 import {
 	placeNoticeQuestionEvidence,
 	runLocalNoticeChunkComparison,
-} from "../src/comparison.ts";
-import { runLocalNoticeEmbeddingEvaluation } from "../src/embedding-evaluation.ts";
+} from "../src/comparison/index.ts";
+import { runLocalNoticeEmbeddingEvaluation } from "../src/embedding-evaluation/index.ts";
 import { sha256 } from "../src/encoding.ts";
-import { parseLocalChunkComparisonCommand } from "../src/local-chunk-comparison-cli.ts";
-import { buildValidationReport, selectReviewSamples } from "../src/report.ts";
+import { parseLocalChunkComparisonCommand } from "../src/cli/local-chunk-comparison-cli.ts";
+import { buildValidationReport, selectReviewSamples } from "../src/report/index.ts";
 import type { BuiltNoticeChunks, NoticeChunk, NoticeSource, Sha256Ref } from "../src/types.ts";
 import { assertValidNoticeChunks, storedNoticeChunk } from "../src/validation.ts";
 

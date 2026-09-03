@@ -14,8 +14,8 @@ import {
 import {
 		runLocalNoticeEmbeddingSample,
 	selectNoticeEmbeddingSample,
-} from "../src/embedding-sample.ts";
-import { parseLocalEmbeddingSampleCommand } from "../src/local-embedding-sample-cli.ts";
+} from "../src/embedding-sample/index.ts";
+import { parseLocalEmbeddingSampleCommand } from "../src/cli/local-embedding-sample-cli.ts";
 import { canonicalJsonBytes, sha256, unicodeLength } from "../src/encoding.ts";
 import type { NoticeChunk, Sha256Ref } from "../src/types.ts";
 

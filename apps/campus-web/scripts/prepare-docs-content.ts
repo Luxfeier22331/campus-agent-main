@@ -14,7 +14,7 @@ import {
 	DOCS_SOURCE_KEY,
 	normalizeSourceManifest,
 	parseSourceManifest,
-} from "campus-contracts/campus-docs-node";
+} from "campus-contracts/campus-docs/node";
 import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import {
 	createDocsContentMetadata,

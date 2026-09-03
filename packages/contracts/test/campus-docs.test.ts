@@ -5,13 +5,13 @@ import {
 	DOCS_SOURCE_KEY,
 	parseDocsReaderContract,
 	parseDocsVersionOrder,
-} from "../src/campus-docs.ts";
+} from "../src/campus-docs/index.ts";
 import {
 	buildReaderRouteSlug,
 	normalizeSourceManifest,
 	parseReader,
 	parseSourceManifest,
-} from "../src/campus-docs-node.ts";
+} from "../src/campus-docs/node/index.ts";
 
 const reader = {
 	docId: "doc-1",

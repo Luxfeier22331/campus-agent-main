@@ -1,12 +1,12 @@
 import type { Pool } from "pg";
 
 import { writeLocalChunkRun } from "./artifacts.ts";
-import { buildNoticeChunks } from "./chunking.ts";
+import { buildNoticeChunks } from "./chunking/index.ts";
 import {
 	NOTICE_CHUNK_DEFINITION,
 	type NoticeChunkDefinition,
 } from "./definitions.ts";
-import { buildValidationReport, selectReviewSamples } from "./report.ts";
+import { buildValidationReport, selectReviewSamples } from "./report/index.ts";
 import { loadPublishedNoticeSources, sortNoticeSources } from "./source.ts";
 import type { LocalChunkRunResult, NoticeSource } from "./types.ts";
 import { assertValidChunkRun, storedNoticeChunk } from "./validation.ts";

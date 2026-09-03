@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isLogicalNoticeTableLike, selectBroadReviewSample } from "../src/broad-review.ts";
+import { isLogicalNoticeTableLike, selectBroadReviewSample } from "../src/broad-review/index.ts";
 import { sha256 } from "../src/encoding.ts";
 import type { NoticeChunk } from "../src/types.ts";
 

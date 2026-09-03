@@ -1,5 +1,5 @@
 import { DOCS_SOURCE_KEY } from "campus-contracts/campus-docs";
-import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
 import { createS3ObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
 import type { ReaderObjectStoreWriter } from "../src/docs-reader-build/published-reader-types.ts";
 

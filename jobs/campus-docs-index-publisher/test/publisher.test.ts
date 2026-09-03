@@ -4,7 +4,7 @@ import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 import {
 	createDocsSourceSiteFixture,
 	type DocsSourceFixture,
-} from "campus-contracts/campus-docs-fixture";
+} from "campus-contracts/campus-docs/fixture";
 import {
 	canonicalJsonBytes,
 	sha256,

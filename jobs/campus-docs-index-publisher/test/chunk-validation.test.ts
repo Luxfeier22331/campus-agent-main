@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
 import { assertValidChunkSet } from "../src/chunk-validation.ts";
 import { CHUNK_SET_DEFINITION } from "../src/definitions.ts";
 import {

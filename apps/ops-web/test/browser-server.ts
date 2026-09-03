@@ -23,10 +23,10 @@ import {
 	DiningStoreConflictError,
 	DiningStoreNotFoundError,
 } from "../src/server/dining-store-errors.ts";
-import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store.ts";
 import { createNoticeJobService, type NoticeJobStore } from "../src/server/notice-jobs.ts";
 import type { NoticeStore } from "../src/server/notice-store.ts";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission.ts";
+import { createFixtureOpsStatusStore } from "../src/server/ops-status/store/fixture.ts";
 import type { DiningReleaseSummary } from "../src/shared/dining-contract.ts";
 import type {
 	ExecutionModelSettingsStatus,

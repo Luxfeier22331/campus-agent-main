@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildNoticeChunks } from "../src/chunking.ts";
-import { buildValidationReport } from "../src/report.ts";
+import { buildNoticeChunks } from "../src/chunking/index.ts";
+import { buildValidationReport } from "../src/report/index.ts";
 import { assertValidChunkRun, assertValidNoticeChunks } from "../src/validation.ts";
 
 describe("notice chunk validation", () => {

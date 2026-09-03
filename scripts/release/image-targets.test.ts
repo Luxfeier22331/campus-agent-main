@@ -83,7 +83,7 @@ test("maps non-Turbo notice and execution inputs to their consumers", () => {
 });
 
 test("maps the docs publisher's shared contract sources to its image", () => {
-	assert.deepEqual(targets(["packages/contracts/src/campus-docs-node.ts"]), [
+	assert.deepEqual(targets(["packages/contracts/src/campus-docs/node/index.ts"]), [
 		"campus-docs-index-publisher",
 	]);
 	assert.deepEqual(targets(["packages/contracts/schemas/campus-docs-course-maps.v1.schema.json"]), [

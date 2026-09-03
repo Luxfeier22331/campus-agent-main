@@ -9,9 +9,9 @@ import {
 	OpsRequestWindowSchema,
 } from "../../shared/ops-contract.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
-import type { OpsOverviewService } from "../ops-overview-service.ts";
-import { decodeRequestCursor } from "../ops-status-mappers.ts";
-import type { OpsStatusStore } from "../ops-status-types.ts";
+import type { OpsOverviewService } from "../ops-status/composition/overview-service.ts";
+import type { OpsStatusStore } from "../ops-status/contract.ts";
+import { decodeRequestCursor } from "../ops-status/mapping/request.ts";
 import { admitOpsApiRequest, jsonError, OpsPathIdSchema } from "./http.ts";
 
 const RequestListQuerySchema = z

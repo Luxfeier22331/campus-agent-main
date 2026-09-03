@@ -4,7 +4,7 @@ import type {
 	DocsSourceManifest,
 } from "campus-contracts/campus-docs";
 import { assertReaderExtractionQuality } from "campus-contracts/campus-docs";
-import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs-fixture";
+import { createDocsSourceSiteFixture } from "campus-contracts/campus-docs/fixture";
 import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import { compileDocsSource } from "../src/docs-reader-build/source-compiler.ts";

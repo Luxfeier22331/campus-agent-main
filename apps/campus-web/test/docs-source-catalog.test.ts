@@ -3,12 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DocsSourceManifest, ObjectRef } from "campus-contracts/campus-docs";
 import { formatDocsVersionLabel } from "campus-contracts/campus-docs";
-import { COURSE_MAP_IMAGE } from "campus-contracts/campus-docs-fixture";
+import { COURSE_MAP_IMAGE } from "campus-contracts/campus-docs/fixture";
 import {
 	DOCS_SOURCE_KEY,
 	normalizeSourceManifest,
 	selectCurrentVersion,
-} from "campus-contracts/campus-docs-node";
+} from "campus-contracts/campus-docs/node";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseUpdateDocsSourceArgs, updateDocsSource } from "../scripts/update-docs-source.ts";
 import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";

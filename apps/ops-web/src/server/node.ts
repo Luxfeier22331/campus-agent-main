@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { createOpsApp } from "./app.ts";
 import { createOpsWebDatabasePool } from "./database.ts";
 import { assertInternalPortalCredentialSchema } from "./internal-portal-credential-store.ts";
-import { createOpsStatusStore } from "./ops-status-factory.ts";
+import { createOpsStatusStore } from "./ops-status/composition/factory.ts";
 import { logOpsError, logOpsEvent } from "./safe-logging.ts";
 
 const port = Number.parseInt(process.env.PORT ?? "5178", 10);

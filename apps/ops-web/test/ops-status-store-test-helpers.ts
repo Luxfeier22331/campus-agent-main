@@ -1,18 +1,18 @@
+import type { OpsRequestListQuery } from "../src/server/ops-status/contract.ts";
 import {
 	decodeRequestCursor,
 	requestAttentionPriority,
 	requestListView,
-} from "../src/server/ops-status-mappers";
-import type {
-	OpsRequestDetailRow,
-	OpsRequestDiagnosticsRows,
-	OpsRequestListQuery,
-	OpsRequestModelAttemptRow,
-	OpsRequestRow,
-	OpsRequestStageRow,
-	PgOpsStatusStoreDatabase,
-} from "../src/server/ops-status-types";
-import { OPS_REQUEST_PAGE_SIZE } from "../src/server/ops-status-types";
+} from "../src/server/ops-status/mapping/request.ts";
+import {
+	OPS_REQUEST_PAGE_SIZE,
+	type OpsRequestDetailRow,
+	type OpsRequestDiagnosticsRows,
+	type OpsRequestModelAttemptRow,
+	type OpsRequestRow,
+	type OpsRequestStageRow,
+	type PgOpsStatusStoreDatabase,
+} from "../src/server/ops-status/store/types.ts";
 
 export function createFakeOpsDb(
 	overrides: { diagnostics?: OpsRequestDiagnosticsRows; requestRows?: OpsRequestDetailRow[] } = {},

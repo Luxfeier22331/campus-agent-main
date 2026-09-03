@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseSourceManifest } from "campus-contracts/campus-docs-node";
+import { parseSourceManifest } from "campus-contracts/campus-docs/node";
 import { createS3ObjectStore } from "../src/docs-reader-build/published-reader-object-store.ts";
 import type { ReaderObjectStoreWriter } from "../src/docs-reader-build/published-reader-types.ts";
 import { publishDocsSource } from "../src/docs-reader-build/source-publisher.ts";

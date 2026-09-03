@@ -393,7 +393,7 @@ test("selects Docker-only schema, publisher, and Go images", async (t) => {
 			return result({
 				stdout: changed(
 					"apps/app-api/ops/db/schema.ts",
-					"packages/contracts/src/campus-docs-node.ts",
+					"packages/contracts/src/campus-docs/node/index.ts",
 					"apps/execution-control/internal/schemamigrations/migrator.go",
 				),
 			});

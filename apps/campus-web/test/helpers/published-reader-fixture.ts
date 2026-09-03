@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { COURSE_MAP_IMAGE as COURSE_MAP_IMAGE_FIXTURE } from "campus-contracts/campus-docs-fixture";
+import { COURSE_MAP_IMAGE as COURSE_MAP_IMAGE_FIXTURE } from "campus-contracts/campus-docs/fixture";
 
-export { COURSE_MAP_IMAGE } from "campus-contracts/campus-docs-fixture";
+export { COURSE_MAP_IMAGE } from "campus-contracts/campus-docs/fixture";
 
 import type {
 	PublishedObjectRef,

@@ -14,7 +14,7 @@ import {
 	parseCourseMaps,
 	parseReader,
 	selectCurrentVersion,
-} from "campus-contracts/campus-docs-node";
+} from "campus-contracts/campus-docs/node";
 import { canonicalJsonBytes, sha256 } from "./artifact-digest.ts";
 import {
 	assertPublishedReaderAssetLayout,

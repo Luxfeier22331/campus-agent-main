@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import { createUnavailableDiningStore } from "../src/server/dining-store";
 import type { DiningMapStore } from "../src/server/dining-store-contract";
 import { DiningStoreConflictError } from "../src/server/dining-store-errors";
-import { createFixtureOpsStatusStore } from "../src/server/fixture-ops-status-store";
 import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
+import { createFixtureOpsStatusStore } from "../src/server/ops-status/store/fixture.ts";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 const NOW = "2026-07-24T08:00:00.000Z";

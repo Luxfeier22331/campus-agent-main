@@ -4,13 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	createOpsStatusStore,
 	resolveCampusWebPublicOrigin,
-} from "../src/server/ops-status-factory";
-import { createPgOpsStatusStore } from "../src/server/pg-ops-status-store";
+} from "../src/server/ops-status/composition/factory.ts";
+import { createPgOpsStatusStore } from "../src/server/ops-status/store/postgres.ts";
 import {
 	requestModelAttemptsSql,
 	requestRowsCte,
 	requestStagesSql,
-} from "../src/server/pg-request-query";
+} from "../src/server/ops-status/store/request-query.ts";
 import { OpsRequestDetailResponseSchema } from "../src/shared/ops-contract";
 import {
 	createFakeOpsDb,

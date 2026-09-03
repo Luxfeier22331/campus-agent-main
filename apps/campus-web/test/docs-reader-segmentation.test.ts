@@ -3,7 +3,7 @@ import {
 	assertReaderSegmentationQuality,
 	cleanReaderSegmentation,
 } from "campus-contracts/campus-docs";
-import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "campus-contracts/campus-docs-node";
+import { DOCS_SOURCE_KEY, normalizeSourceManifest } from "campus-contracts/campus-docs/node";
 import { describe, expect, it } from "vitest";
 import { canonicalJsonBytes, sha256 } from "../src/docs-reader-build/artifact-digest.ts";
 import type { ReaderObjectStoreClient } from "../src/docs-reader-build/published-reader-types.ts";

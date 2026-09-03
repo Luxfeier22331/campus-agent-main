@@ -83,14 +83,17 @@ import {
 	type OpsAdmission,
 	type OpsAdmissionEnv,
 } from "./ops-admission.ts";
-import { createOpsOverviewService, type OpsOverviewService } from "./ops-overview-service.ts";
-import { createOpsStatusStore } from "./ops-status-factory.ts";
+import { createOpsStatusStore } from "./ops-status/composition/factory.ts";
+import {
+	createOpsOverviewService,
+	type OpsOverviewService,
+} from "./ops-status/composition/overview-service.ts";
 import {
 	type OpsStatusEnv,
 	type OpsStatusStore,
 	OpsStatusStoreUnavailableError,
-} from "./ops-status-types.ts";
-import { createUnavailableOpsStatusStore } from "./ops-status-unavailable.ts";
+} from "./ops-status/contract.ts";
+import { createUnavailableOpsStatusStore } from "./ops-status/store/unavailable.ts";
 import {
 	createProviderConfigAdminClient,
 	type ProviderConfigAdminEnv,
