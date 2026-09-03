@@ -20,7 +20,7 @@ env:
 
 jobs:
   scan:
-    runs-on: [self-hosted, Linux, campus-ci]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
     timeout-minutes: 15
     defaults:
       run:

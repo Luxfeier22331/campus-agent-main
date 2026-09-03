@@ -39,6 +39,16 @@ async function runProbe(options: { architecture: string }): Promise<{
 	await mkdir(bin);
 	const fixture = await createOciFixture(root, options.architecture);
 	const fakeDocker = path.join(bin, "docker");
+	const fakeDf = path.join(bin, "df");
+	await writeFile(
+		fakeDf,
+		`#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\\n' "Filesystem 1B-blocks Used Available Use% Mounted on"
+printf '%s\\n' "fixture 100000000000 1000000000 50000000000 1% /"
+`,
+	);
+	await chmod(fakeDf, 0o755);
 	await writeFile(
 		fakeDocker,
 		`#!/usr/bin/env bash

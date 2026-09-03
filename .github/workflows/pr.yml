@@ -25,7 +25,7 @@ env:
 jobs:
   repo-checks:
     if: github.event.pull_request.draft == false
-    runs-on: [self-hosted, Linux, campus-ci]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
     timeout-minutes: 30
     defaults:
       run:

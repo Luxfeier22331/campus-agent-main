@@ -10,7 +10,7 @@ import { MANUAL_VALIDATION_PROFILES } from "./validation-profiles.mts";
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
 const ENVIRONMENT_PREFIXED_CONFIG = /\b(?:STAGING|DEV|DEVELOPMENT|PROD|PRODUCTION)_[A-Z0-9_]+\b/u;
-const SHARED_SELF_HOSTED_RUNNER = ["self-hosted", "Linux", "campus-ci"];
+const SELF_HOSTED_RUNNER_LABELS = ["self-hosted", "Linux", "campus-ci"];
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -18,6 +18,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function githubExpression(expression: string): string {
 	return ["$", "{{ ", expression, " }}"].join("");
+}
+
+function runnerSelector(hostedRunner: "ubuntu-24.04" | "ubuntu-24.04-arm"): string {
+	return githubExpression(
+		`fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '${JSON.stringify(SELF_HOSTED_RUNNER_LABELS)}' || '"${hostedRunner}"')`,
+	);
 }
 
 async function loadWorkflow(name: string): Promise<Record<string, unknown>> {
@@ -169,7 +175,8 @@ test("pull request validation keeps the shared required-check contract", async (
 	]);
 	const repoChecks = workflowJob(workflow, "repo-checks");
 	assert.equal(repoChecks.if, "github.event.pull_request.draft == false");
-	assert.deepEqual(repoChecks["runs-on"], SHARED_SELF_HOSTED_RUNNER);
+	assert.equal(repoChecks["runs-on"], runnerSelector("ubuntu-24.04"));
+	assert.equal(namedStep(repoChecks, "Install Nix").if, "runner.environment != 'self-hosted'");
 	const staticDependencies = namedStep(repoChecks, "Install static-check dependencies");
 	assert.equal(staticDependencies.if, "always()");
 	assert.equal(staticDependencies.run, "uv sync --only-dev --no-install-workspace");
@@ -240,7 +247,8 @@ test("manual evidence derives its choices and dependencies from the profile regi
 	assert.deepEqual(profile.options, MANUAL_VALIDATION_PROFILES);
 
 	const evidence = workflowJob(workflow, "evidence");
-	assert.deepEqual(evidence["runs-on"], SHARED_SELF_HOSTED_RUNNER);
+	assert.equal(evidence["runs-on"], runnerSelector("ubuntu-24.04"));
+	assert.equal(namedStep(evidence, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.equal(namedStep(evidence, "Resolve profile requirements").id, "profile");
 	assert.equal(
 		namedStep(evidence, "Install evaluation dependencies").if,
@@ -260,7 +268,8 @@ test("scheduled dependency evidence has a bounded read-only lane", async () => {
 	assert.deepEqual(workflow.permissions, { contents: "read" });
 	assert.deepEqual(workflow.concurrency, { "cancel-in-progress": true, group: "dependencies" });
 	const scan = workflowJob(workflow, "scan");
-	assert.deepEqual(scan["runs-on"], SHARED_SELF_HOSTED_RUNNER);
+	assert.equal(scan["runs-on"], runnerSelector("ubuntu-24.04"));
+	assert.equal(namedStep(scan, "Install Nix").if, "runner.environment != 'self-hosted'");
 });
 
 test("candidate publication keeps permissions, runners, and job dependencies explicit", async () => {
@@ -272,18 +281,26 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	});
 
 	const releasePlan = workflowJob(workflow, "release-plan");
-	assert.deepEqual(releasePlan["runs-on"], SHARED_SELF_HOSTED_RUNNER);
+	assert.equal(releasePlan["runs-on"], runnerSelector("ubuntu-24.04"));
+	assert.equal(namedStep(releasePlan, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.equal(releasePlan.environment, undefined);
 	assert.deepEqual(releasePlan.permissions, { contents: "read", statuses: "write" });
 
 	const publishImages = workflowJob(workflow, "publish-images");
 	assert.equal(publishImages.needs, "release-plan");
-	assert.deepEqual(publishImages["runs-on"], SHARED_SELF_HOSTED_RUNNER);
+	assert.equal(publishImages["runs-on"], runnerSelector("ubuntu-24.04-arm"));
+	assert.equal(namedStep(publishImages, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.deepEqual(publishImages.permissions, { contents: "read", packages: "write" });
+	const buildx = namedStep(publishImages, "Setup Docker Buildx");
+	assert.equal(buildx.if, "runner.environment != 'self-hosted'");
+	assert.equal(buildx.uses, "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c");
+	assert(isObject(buildx.with));
+	assert.equal(buildx.with["cache-binary"], false);
 
 	const publishWorkers = workflowJob(workflow, "publish-workers");
 	assert.equal(publishWorkers.needs, "release-plan");
-	assert.deepEqual(publishWorkers["runs-on"], SHARED_SELF_HOSTED_RUNNER);
+	assert.equal(publishWorkers["runs-on"], runnerSelector("ubuntu-24.04"));
+	assert.equal(namedStep(publishWorkers, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.deepEqual(publishWorkers.environment, {
 		name: "staging",
 		deployment: false,
@@ -291,7 +308,7 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 
 	const candidateStatus = workflowJob(workflow, "candidate-status");
 	assert.deepEqual(candidateStatus.needs, ["release-plan", "publish-images", "publish-workers"]);
-	assert.deepEqual(candidateStatus["runs-on"], SHARED_SELF_HOSTED_RUNNER);
+	assert.equal(candidateStatus["runs-on"], runnerSelector("ubuntu-24.04"));
 	assert.deepEqual(candidateStatus.permissions, { contents: "read", statuses: "write" });
 	assert.match(String(candidateStatus.if), /^always\(\)/u);
 
@@ -302,7 +319,8 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 		"publish-images",
 		"publish-workers",
 	]);
-	assert.deepEqual(promote["runs-on"], SHARED_SELF_HOSTED_RUNNER);
+	assert.equal(promote["runs-on"], runnerSelector("ubuntu-24.04"));
+	assert.equal(namedStep(promote, "Install Nix").if, "runner.environment != 'self-hosted'");
 	assert.equal(promote.environment, undefined);
 	assert.match(String(promote.if), /needs\.candidate-status\.outputs\.approved == 'true'/u);
 	assert.match(String(promote.if), /github\.ref == 'refs\/heads\/main'/u);
