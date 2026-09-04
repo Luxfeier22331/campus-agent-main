@@ -18,6 +18,7 @@ group "default" {
     "execution-control",
     "model-config",
     "notice-classifier",
+    "notice-index-publisher",
     "notice-publisher",
     "ops-web",
     "internal-portal-collection",
@@ -65,6 +66,11 @@ target "model-config" {
 target "notice-classifier" {
   inherits   = ["_common"]
   dockerfile = "jobs/notice-classifier/Dockerfile"
+}
+
+target "notice-index-publisher" {
+  inherits   = ["_common"]
+  dockerfile = "jobs/notice-index-publisher/Dockerfile"
 }
 
 target "notice-publisher" {

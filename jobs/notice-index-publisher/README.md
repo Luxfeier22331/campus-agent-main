@@ -1,7 +1,8 @@
-# Notice 本地 Chunk 与 Embedding 评测
+# Notice Chunk、Embedding 与本地评测
 
-该包负责已发布且有正文通知的本地 Chunk 构建、结构验证、广泛抽样、问题生成和 Embedding dense-retrieval
-评测。当前不发布 Qdrant collection，也不提供在线 RAG 消费入口。
+该包负责已发布且有正文通知的 Chunk Run、Embedding Set，以及本地结构验证、广泛抽样、问题生成和
+Embedding dense-retrieval 评测。集群任务把正式制品写入 derived bucket；当前不发布 Qdrant
+collection，也不提供在线 RAG 消费入口。
 
 ## 主链路
 
@@ -14,6 +15,25 @@
 ```
 
 Chunk Run 是问题生成和 Embedding 评测的唯一正文输入。
+
+## 集群制品链路
+
+集群使用两个默认暂停的 Job 模板，阶段之间只传递显式内容寻址 ID：
+
+```text
+notice-chunk-builder
+  -> notices/rag/chunk-runs/sha256/<run-id>/
+  -> NOTICE_CHUNK_RUN=sha256:<run-id>
+  -> notice-embedding-builder
+  -> notices/rag/embedding-sets/sha256/<set-id>/manifest.json
+```
+
+`build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v8 实现并写入 Chunk
+Run。`build-embeddings` 只读取显式 Chunk Run，从 Model Config 的 `campus_docs_embedding` 槽位读取完整
+连接，按 `retrievalText` 摘要去重并写入 `notice_embedding_set.v1`。两个阶段不自动串联，不维护
+`latest` 指针，不写入 Qdrant 或通知数据库。
+
+完整运行步骤见 `docs/runbooks/notice-indexing.md`。
 
 ## 构建 Chunk
 
@@ -56,7 +76,7 @@ pnpm --dir jobs/notice-index-publisher build-chunks-local
 - 供稿、审核等编辑署名以及尾部组织、日期附着正文尾部；表格后的 footer 使用普通 footer part，不标记为
   表格行；超长单行仍按句末、分句标点和硬上限拆分。
 
-Chunk Run 写入：
+本地 Chunk Run 写入：
 
 ```text
 var/notices/chunking/sha256/<run-digest>/
@@ -214,7 +234,8 @@ Chunk、真实 Embedding 和离线 dense retrieval 效果；尚未验证 Qdrant 
 
 Chunk 构建使用本包 `.env.local` 的通知数据库配置。问题生成只需要当前 worktree 根 `.env` 中的
 `LLM_BASE_URL`、`LLM_API_KEY` 和 `LLM_MODEL`；Embedding 评测只需要 `EMBEDDING_BASE_URL` 和
-`EMBEDDING_API_KEY`。
+`EMBEDDING_API_KEY`。集群 Chunk Job 使用现有通知数据库连接与 derived bucket 写入身份；集群
+Embedding Job 使用 derived bucket 写入身份和 `MODEL_CONFIG_URL`。
 
 ```bash
 pnpm --dir jobs/notice-index-publisher typecheck

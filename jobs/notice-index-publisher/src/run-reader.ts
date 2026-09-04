@@ -6,7 +6,9 @@ import {
 	NOTICE_CHUNK_VALIDATION_SCHEMA_VERSION,
 } from "./definitions.ts";
 import { sha256 } from "./encoding.ts";
+import { noticeChunkRunPrefix } from "./artifacts.ts";
 import type {
+	NoticeArtifactReader,
 	NoticeChunk,
 	NoticeChunkRunManifest,
 	NoticeChunkValidationReport,
@@ -34,19 +36,35 @@ export async function readNoticeChunkRun(
 		"sha256",
 		artifactHex(run),
 	);
-	const manifestBytes = await readFile(join(directory, "manifest.json"));
+	return readNoticeChunkRunFiles(run, (file) => readFile(join(directory, file)));
+}
+
+export async function readStoredNoticeChunkRun(
+	store: NoticeArtifactReader,
+	run: Sha256Ref,
+): Promise<NoticeChunkRunData> {
+	assertSha256Ref(run, "notice chunk run");
+	const prefix = noticeChunkRunPrefix(run);
+	return readNoticeChunkRunFiles(run, (file) => store.read(`${prefix}/${file}`));
+}
+
+async function readNoticeChunkRunFiles(
+	run: Sha256Ref,
+	read: (file: string) => Promise<Uint8Array>,
+): Promise<NoticeChunkRunData> {
+	const manifestBytes = await read("manifest.json");
 	if (sha256(manifestBytes) !== run) {
 		throw new Error(`notice chunk run manifest digest does not match ${run}`);
 	}
 	const manifest = parseManifest(manifestBytes);
-	const chunkBytes = await readVerifiedFile(directory, manifest.chunks, "notice chunk data");
+	const chunkBytes = await readVerifiedFile(read, manifest.chunks, "notice chunk data");
 	const validationBytes = await readVerifiedFile(
-		directory,
+		read,
 		manifest.validation,
 		"notice chunk validation",
 	);
 	const reviewBytes = await readVerifiedFile(
-		directory,
+		read,
 		manifest.reviewSamples,
 		"notice review samples",
 	);
@@ -271,11 +289,11 @@ function groupChunks(chunks: readonly NoticeChunk[]): Map<string, NoticeChunk[]>
 }
 
 async function readVerifiedFile(
-	directory: string,
+	read: (file: string) => Promise<Uint8Array>,
 	ref: { byteSize: number; file: string; sha256: Sha256Ref },
 	label: string,
 ): Promise<Uint8Array> {
-	const bytes = await readFile(join(directory, ref.file));
+	const bytes = await read(ref.file);
 	if (bytes.byteLength !== ref.byteSize) {
 		throw new Error(`${label} byte size does not match ${ref.byteSize}`);
 	}

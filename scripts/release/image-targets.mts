@@ -6,6 +6,7 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"internal-portal-collection",
 	"model-config",
 	"notice-classifier",
+	"notice-index-publisher",
 	"notice-publisher",
 	"ops-web",
 ] as const;
@@ -18,6 +19,7 @@ export const NODE_IMAGE_TARGETS = [
 	"campus-docs-index-publisher",
 	"internal-portal-collection",
 	"notice-classifier",
+	"notice-index-publisher",
 	"notice-publisher",
 	"ops-web",
 ] as const satisfies readonly ImageTarget[];
@@ -34,6 +36,7 @@ export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> 
 	["execution-control", ["execution-control"]],
 	["model-config", ["model-config"]],
 	["notice-classifier", ["notice-classifier"]],
+	["notice-index-publisher", ["notice-index-publisher"]],
 	["notice-publisher", ["notice-publisher"]],
 	["ops-web", ["ops-web"]],
 	["internal-portal-collection", ["internal-portal-collection"]],
@@ -48,6 +51,7 @@ export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
 	["jobs/internal-portal-collection/Dockerfile", ["internal-portal-collection"]],
 	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
+	["jobs/notice-index-publisher/Dockerfile", ["notice-index-publisher"]],
 	["jobs/notice-publisher/Dockerfile", ["notice-publisher"]],
 ]);
 
@@ -130,6 +134,13 @@ export function imageTargetsForScope(scope: {
 		changesPath(files, "packages/notice-database")
 	) {
 		addPackageTargets(targets, "notice-classifier");
+	}
+	if (
+		changesPath(files, "jobs/notice-index-publisher") ||
+		changesPath(files, "packages/embedding-runtime") ||
+		changesPath(files, "packages/notice-database")
+	) {
+		addPackageTargets(targets, "notice-index-publisher");
 	}
 	if (
 		changesPath(files, "jobs/internal-portal-collection") ||

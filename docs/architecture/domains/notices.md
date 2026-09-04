@@ -52,9 +52,9 @@ App API 提供会话保护的目录、站内详情和图片读取。目录用 `s
 通知从目录直接前往已校验来源，不抓取外部正文。站内详情提供需要用户门户登录态的原文和附件链接；
 App API 不代理附件字节。
 
-`campus_notices/internal_notice` 不是当前 Campus Docs publisher 的输入。仓库当前只提供显式运行的
-Notice 本地 Chunk 构建、问题生成和 Embedding 检索评测，不发布对象存储制品、Qdrant collection 或在线
-绑定。问题生成和评测只消费与目标 Chunk Run 对齐的本地 Chunk 产物。
+`campus_notices/internal_notice` 不是当前 Campus Docs publisher 的输入。Notice 自己的两个默认暂停任务
+可以从已发布正文生成 derived bucket 中的 Chunk Run 与 Embedding Set；它们不发布 Qdrant collection、
+不维护在线绑定，也不向 Agent 暴露工具。问题生成和评测仍只消费与目标 Chunk Run 对齐的本地产物。
 Agent 不能扫描通知对象存储或 PostgreSQL，也不提供通知结构化查询、附件解析或在线 RAG，不能把通知
 分类配置、本地 Chunk 或评测产物视为产品能力。分类、schema、读取接口、页面源码和本地制品存在都不
 表示任一环境已经完成资源回填、规范化写入、索引发布或部署。

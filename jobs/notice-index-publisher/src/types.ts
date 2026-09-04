@@ -4,6 +4,7 @@ import type {
 	NOTICE_CHUNK_RUN_SCHEMA_VERSION,
 	NOTICE_CHUNK_VALIDATION_SCHEMA_VERSION,
 } from "./definitions.ts";
+import { EMBEDDING_SPACE, type EmbeddingClient } from "@campus-agent/embedding-runtime";
 
 export type Sha256Ref = `sha256:${string}`;
 
@@ -80,6 +81,20 @@ export interface ArtifactReference {
 	sha256: Sha256Ref;
 }
 
+export interface ObjectReference {
+	byteSize: number;
+	key: string;
+	sha256: Sha256Ref;
+}
+
+export interface NoticeArtifactReader {
+	read(key: string): Promise<Uint8Array>;
+}
+
+export interface NoticeArtifactStore extends NoticeArtifactReader {
+	writeImmutable(key: string, body: Uint8Array): Promise<void>;
+}
+
 export interface NoticeChunkRunManifest {
 	chunkCount: number;
 	chunks: ArtifactReference;
@@ -154,4 +169,42 @@ export interface LocalChunkRunResult {
 	noticeCount: number;
 	outputDirectory: string;
 	run: Sha256Ref;
+}
+
+export interface StoredChunkRunResult {
+	chunkCount: number;
+	noticeCount: number;
+	run: Sha256Ref;
+}
+
+export interface StoredNoticeEmbedding {
+	dense: number[];
+	retrievalTextSha256: Sha256Ref;
+}
+
+export interface NoticeEmbeddingSetManifest {
+	chunkRun: Sha256Ref;
+	embeddingCount: number;
+	embeddingSpace: typeof EMBEDDING_SPACE;
+	embeddings: ObjectReference;
+	modelTargetSha256: string;
+	schemaVersion: "notice_embedding_set.v1";
+}
+
+export interface NoticeEmbeddingSetData {
+	embeddings: StoredNoticeEmbedding[];
+	manifest: NoticeEmbeddingSetManifest;
+}
+
+export interface BuildNoticeEmbeddingSetInput {
+	artifactStore: NoticeArtifactStore;
+	chunkRun: Sha256Ref;
+	embedding: EmbeddingClient;
+	modelTargetSha256: string;
+	onEmbeddingProgress?: (completedInputCount: number, totalInputCount: number) => void;
+}
+
+export interface BuildNoticeEmbeddingSetResult {
+	embeddingCount: number;
+	embeddingSet: Sha256Ref;
 }

@@ -8,11 +8,21 @@ import {
 import { canonicalJsonBytes, encodeNdjson, sha256 } from "./encoding.ts";
 import type {
 	LocalChunkRunResult,
+	NoticeArtifactStore,
 	NoticeChunk,
 	NoticeChunkRunManifest,
 	NoticeChunkValidationReport,
 	NoticeReviewSample,
+	StoredChunkRunResult,
 } from "./types.ts";
+
+interface EncodedChunkRun {
+	chunkBytes: Uint8Array;
+	manifestBytes: Uint8Array;
+	reviewBytes: Uint8Array;
+	run: `sha256:${string}`;
+	validationBytes: Uint8Array;
+}
 
 export async function writeLocalChunkRun(input: {
 	artifactRoot: string;
@@ -21,6 +31,64 @@ export async function writeLocalChunkRun(input: {
 	reviewSamples: readonly NoticeReviewSample[];
 	validation: NoticeChunkValidationReport;
 }): Promise<LocalChunkRunResult> {
+	const encoded = encodeChunkRun(input);
+	const outputDirectory = join(
+		input.artifactRoot,
+		"notices",
+		"chunking",
+		"sha256",
+		encoded.run.slice("sha256:".length),
+	);
+	await mkdir(outputDirectory, { recursive: true });
+	await Promise.all([
+		writeImmutable(join(outputDirectory, "chunks.ndjson"), encoded.chunkBytes),
+		writeImmutable(join(outputDirectory, "manifest.json"), encoded.manifestBytes),
+		writeImmutable(join(outputDirectory, "review-samples.ndjson"), encoded.reviewBytes),
+		writeImmutable(join(outputDirectory, "validation.json"), encoded.validationBytes),
+	]);
+	return {
+		chunkCount: input.chunks.length,
+		noticeCount: input.validation.noticeCount,
+		outputDirectory,
+		run: encoded.run,
+	};
+}
+
+export async function writeStoredChunkRun(input: {
+	artifactStore: NoticeArtifactStore;
+	chunks: readonly NoticeChunk[];
+	definition: NoticeChunkDefinition;
+	reviewSamples: readonly NoticeReviewSample[];
+	validation: NoticeChunkValidationReport;
+}): Promise<StoredChunkRunResult> {
+	const encoded = encodeChunkRun(input);
+	const prefix = noticeChunkRunPrefix(encoded.run);
+	await Promise.all([
+		input.artifactStore.writeImmutable(`${prefix}/chunks.ndjson`, encoded.chunkBytes),
+		input.artifactStore.writeImmutable(
+			`${prefix}/review-samples.ndjson`,
+			encoded.reviewBytes,
+		),
+		input.artifactStore.writeImmutable(`${prefix}/validation.json`, encoded.validationBytes),
+	]);
+	await input.artifactStore.writeImmutable(`${prefix}/manifest.json`, encoded.manifestBytes);
+	return {
+		chunkCount: input.chunks.length,
+		noticeCount: input.validation.noticeCount,
+		run: encoded.run,
+	};
+}
+
+export function noticeChunkRunPrefix(run: `sha256:${string}`): string {
+	return `notices/rag/chunk-runs/sha256/${run.slice("sha256:".length)}`;
+}
+
+function encodeChunkRun(input: {
+	chunks: readonly NoticeChunk[];
+	definition: NoticeChunkDefinition;
+	reviewSamples: readonly NoticeReviewSample[];
+	validation: NoticeChunkValidationReport;
+}): EncodedChunkRun {
 	const chunkBytes = encodeNdjson(input.chunks);
 	const validationBytes = canonicalJsonBytes(input.validation);
 	const reviewBytes = encodeNdjson(input.reviewSamples);
@@ -34,26 +102,12 @@ export async function writeLocalChunkRun(input: {
 		validation: reference("validation.json", validationBytes),
 	};
 	const manifestBytes = canonicalJsonBytes(manifest);
-	const run = sha256(manifestBytes);
-	const outputDirectory = join(
-		input.artifactRoot,
-		"notices",
-		"chunking",
-		"sha256",
-		run.slice("sha256:".length),
-	);
-	await mkdir(outputDirectory, { recursive: true });
-	await Promise.all([
-		writeImmutable(join(outputDirectory, "chunks.ndjson"), chunkBytes),
-		writeImmutable(join(outputDirectory, "manifest.json"), manifestBytes),
-		writeImmutable(join(outputDirectory, "review-samples.ndjson"), reviewBytes),
-		writeImmutable(join(outputDirectory, "validation.json"), validationBytes),
-	]);
 	return {
-		chunkCount: input.chunks.length,
-		noticeCount: input.validation.noticeCount,
-		outputDirectory,
-		run,
+		chunkBytes,
+		manifestBytes,
+		reviewBytes,
+		run: sha256(manifestBytes),
+		validationBytes,
 	};
 }
 

@@ -18,16 +18,26 @@ const classifierDockerfile = readFileSync(
 	resolve(repositoryRoot, "jobs/notice-classifier/Dockerfile"),
 	"utf8",
 );
+const indexPublisherDockerfile = readFileSync(
+	resolve(repositoryRoot, "jobs/notice-index-publisher/Dockerfile"),
+	"utf8",
+);
 
 test("notice database workspace files remain in all ingestion Docker contexts", () => {
 	assert.ok(dockerignore.includes("!packages/notice-database/"));
 	assert.ok(dockerignore.includes("!packages/notice-database/**"));
 });
 
+test("notice index publisher workspace remains in the Docker context", () => {
+	assert.ok(dockerignore.includes("!jobs/notice-index-publisher/"));
+	assert.ok(dockerignore.includes("!jobs/notice-index-publisher/**"));
+});
+
 test("notice images use Turbo prune instead of hand-maintained dependency copies", () => {
 	for (const [name, dockerfile] of [
 		["publisher", publisherDockerfile],
 		["classifier", classifierDockerfile],
+		["index-publisher", indexPublisherDockerfile],
 	] as const) {
 		assert.match(dockerfile, new RegExp(`turbo prune (notice-${name}) --docker`, "u"));
 		assert.match(dockerfile, /COPY --from=pruner \/repo\/out\/json\//u);
@@ -35,6 +45,13 @@ test("notice images use Turbo prune instead of hand-maintained dependency copies
 		assert.doesNotMatch(dockerfile, /COPY packages\/notice-database\/package\.json/u);
 		assert.doesNotMatch(dockerfile, /COPY packages\/notice-database\/src/u);
 	}
+});
+
+test("Notice index publisher includes the shared embedding runtime source", () => {
+	assert.match(
+		indexPublisherDockerfile,
+		/COPY --from=pruner \/repo\/out\/full\/packages\/embedding-runtime\/src \.\/packages\/embedding-runtime\/src/u,
+	);
 });
 
 test("Collector prunes its workspace dependency closure from the repository context", () => {

@@ -149,10 +149,10 @@ ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不
 对象中。采集器不下载外链通知声明的图片或附件，publisher 也不读取或物化这些资源。`content_text`
 始终从站内通知的最终清洗 DOM 生成。
 
-### 本地检索分块
+### 检索分块与制品
 
-`jobs/notice-index-publisher` 当前提供已发布通知的本地 Chunk 构建、结构验证、广泛抽样和真实
-Embedding dense-retrieval 评测。任务在只读 repeatable-read 快照中只选择
+`jobs/notice-index-publisher` 提供已发布通知的 Chunk Run 与 Embedding Set 集群构建，以及本地结构验证、
+广泛抽样和真实 Embedding dense-retrieval 评测。任务在只读 repeatable-read 快照中只选择
 `is_published=true AND content_text IS NOT NULL` 的通知；`content_text` 是唯一正文输入。Chunk 阶段
 不重新清洗正文，不读取 `content_html`、图片或附件，因此外链通知、纯图片通知和其他 `content_text` 为空的
 通知不会产生 Chunk。
@@ -291,8 +291,9 @@ notices/assets/sha256/<digest>
 - `notice-classifier` 读取数据库中的 ID 与标题，并更新同一行的 `category`；
 - `notice-publisher` 读取数据库中的待发布项、校验来源、写 derived 图片和正文并设置 `is_published`；也可重新读取已发布站内通知
   的 source，更新 `content_html` 和 `content_text` 而保持已发布状态；
-- `notice-index-publisher` 只在显式本地任务中以只读快照读取已发布正文，生成内容寻址的 Chunk、问题集与
-  评测制品，不更新通知数据库、source bucket 或在线索引；
+- `notice-index-publisher` 在显式本地或默认暂停的集群任务中以只读快照读取已发布正文；集群任务生成
+  derived bucket 中内容寻址的 Chunk Run 与 Embedding Set，本地任务继续生成问题集与评测制品；它不更新
+  通知数据库、source bucket、Qdrant 或在线索引绑定；
 - App API 只获得五张通知业务表的读取权限，并读取获准图片对象；不读取 migration ledger 或写入通知；
 - Campus Web 只通过 App API 读取规范化通知；
 - Ops Web 拥有内部门户凭据，并只读取通知安全 metadata、更新 `category`；execution-control、Agent 与
@@ -300,7 +301,8 @@ notices/assets/sha256/<digest>
 
 通知 publisher 同时提供本地 CLI 和默认暂停的 Kubernetes Job 模板，只能由维护者显式创建一次性
 Job，不提供自动 schedule。线上 schema 与发布复用既有数据库 owner 身份，不创建专用 publisher
-Secret。本地模型比较结果不表示任一环境已经完成后续发布或开放这套数据。
+Secret。Notice Chunk 与 Embedding 也分别使用默认暂停的模板，阶段间只交接显式制品 ID；本地模型比较
+结果和对象存储中存在制品都不表示已经发布 Qdrant 或开放在线检索。
 
 ## 相关文档
 

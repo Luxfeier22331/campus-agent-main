@@ -11,6 +11,7 @@ const nodeDockerfiles = [
 	"jobs/campus-docs-index-publisher/Dockerfile",
 	"jobs/internal-portal-collection/Dockerfile",
 	"jobs/notice-classifier/Dockerfile",
+	"jobs/notice-index-publisher/Dockerfile",
 	"jobs/notice-publisher/Dockerfile",
 ] as const;
 

@@ -34,6 +34,8 @@ jobs/internal-portal-collection/**/.env.*
 !jobs/internal-portal-collection/**/.env.example
 !jobs/notice-classifier/
 !jobs/notice-classifier/**
+!jobs/notice-index-publisher/
+!jobs/notice-index-publisher/**
 !jobs/notice-publisher/
 !jobs/notice-publisher/**
 jobs/notice-publisher/.env

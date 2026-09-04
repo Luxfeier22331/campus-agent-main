@@ -221,6 +221,7 @@ test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit"
 		"campus-docs-index-publisher",
 		"internal-portal-collection",
 		"notice-classifier",
+		"notice-index-publisher",
 		"notice-publisher",
 		"ops-web",
 	]);
@@ -250,6 +251,7 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 		"internal-portal-collection",
 		"model-config",
 		"notice-classifier",
+		"notice-index-publisher",
 		"notice-publisher",
 		"ops-web",
 	]);
@@ -307,6 +309,7 @@ test("publishes all notice jobs when the shared notice database package changes"
 	assert.deepEqual(plan.images, [
 		"internal-portal-collection",
 		"notice-classifier",
+		"notice-index-publisher",
 		"notice-publisher",
 	]);
 	assert.deepEqual(plan.workers, []);
@@ -447,6 +450,7 @@ test("a Node lockfile change selects all active Node images but not the independ
 		"campus-docs-index-publisher",
 		"internal-portal-collection",
 		"notice-classifier",
+		"notice-index-publisher",
 		"notice-publisher",
 		"ops-web",
 	]);

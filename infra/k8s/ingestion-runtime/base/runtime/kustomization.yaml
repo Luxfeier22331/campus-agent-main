@@ -5,4 +5,5 @@ resources:
   - network-policy.yaml
   - internal-portal-collection.yaml
   - notice-classifier.yaml
+  - notice-index-publisher.yaml
   - notice-publisher.yaml

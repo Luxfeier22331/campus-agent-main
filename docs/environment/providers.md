@@ -20,7 +20,7 @@ status: active
 | 能力 | 配置所有者 | 消费方 | 合同 |
 | --- | --- | --- | --- |
 | Primary Agent | Model Config 的 `primary_agent` config | execution-control、agent-runtime | 准入冻结 target hash；Agent Runtime 按该 hash 读取完整配置 |
-| Embedding 连接 | Model Config 的 `campus_docs_embedding` config | Campus Docs Embedding Job | Job 一次读取完整配置；Ops Web 只替换 Base URL 和 API key，provider、model 和 protocol 由 Campus Docs 固定合同拥有 |
+| Embedding 连接 | Model Config 的 `campus_docs_embedding` config | Campus Docs 与 Notice Embedding Job | Job 一次读取完整配置；Ops Web 只替换 Base URL 和 API key，provider、model 和 protocol 由共享 canonical embedding 合同拥有 |
 | Reranker 连接 | Model Config 的 `campus_docs_reranker` config | 未来 Campus Docs 检索消费者 | Cohere Rerank provider/protocol 由该具名配置约束；离线实验继续使用独立本地 profile |
 | 通知分类连接 | Model Config 的 `notice_classification` config | notice-classifier 在线 Job | Job 启动阶段一次读取完整配置；API key 不返回浏览器 |
 | 个人记忆 LLM、Embedding、RRF | 环境仓的 Hindsight Helm 配置 | Hindsight | 不从 execution 配置、Ops Web 或评测配置派生 |
