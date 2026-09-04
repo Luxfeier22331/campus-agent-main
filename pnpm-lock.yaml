@@ -665,19 +665,6 @@ importers:
         specifier: 4.123.0
         version: 4.123.0(@cloudflare/workers-types@5.20260815.1)
 
-  jobs/app-api-schema:
-    dependencies:
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@cloudflare/workers-types@5.20260815.1)(@opentelemetry/api@1.9.1)(@types/pg@8.21.0)(kysely@0.29.5)(pg@8.23.0)
-      pg:
-        specifier: ^8.23.0
-        version: 8.23.0
-    devDependencies:
-      esbuild:
-        specifier: 0.28.2
-        version: 0.28.2
-
   jobs/campus-agent-schema:
     dependencies:
       drizzle-orm:

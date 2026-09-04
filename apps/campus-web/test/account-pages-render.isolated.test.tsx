@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountAuthPage, AccountSettingsPage } from "../src/app/routes/account-page";
@@ -56,6 +56,7 @@ describe("campus account pages", () => {
 
 	afterEach(() => {
 		cleanup();
+		vi.unstubAllGlobals();
 	});
 
 	it("routes auth actions through the campus-owned auth surface", () => {
@@ -134,23 +135,37 @@ describe("campus account pages", () => {
 		expect(screen.queryByText(/app-api|execution-control|provider-config/)).toBeNull();
 	});
 
-	it("renders federation consent and error pages with neutral campus account copy", () => {
+	it("renders federation consent and error pages with neutral campus account copy", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				Response.json({
+					client_id: "test-oauth-client",
+					client_name: "Test OAuth Client",
+					client_uri: "https://oauth.example.test/product",
+				}),
+			),
+		);
 		window.history.pushState(
 			{},
 			"",
-			"/account/federation/consent?client_id=muc-wiki&response_type=code&scope=openid",
+			"/account/federation/consent?client_id=test-oauth-client&response_type=code&scope=openid&sig=test-signature&exp=1893456000&ba_iat=1893455400000&ba_param=ba_iat&ba_param=ba_param&ba_param=client_id&ba_param=exp&ba_param=response_type&ba_param=scope",
 		);
 		const { unmount } = render(<FederationConsentPage />);
 
-		expect(screen.getByRole("heading", { name: "使用校园账号登录 MUC Wiki" })).toBeInTheDocument();
-		expect(screen.getByText("MUC Wiki")).toBeInTheDocument();
-		expect(screen.getByText("授权登录")).toBeInTheDocument();
-		expect(screen.getByText("MUC Wiki 将获得")).toBeInTheDocument();
-		expect(screen.getByText("允许后，MUC Wiki 可以使用这些信息完成登录。")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "允许并继续" })).toHaveAttribute(
-			"href",
-			"/api/federation/authorize?client_id=muc-wiki&response_type=code&scope=openid",
+		await waitFor(() =>
+			expect(
+				screen.getByRole("heading", { name: "使用校园账号登录 Test OAuth Client" }),
+			).toBeInTheDocument(),
 		);
+		expect(screen.getByText("Test OAuth Client")).toBeInTheDocument();
+		expect(screen.getByText("授权登录")).toBeInTheDocument();
+		expect(screen.getByText("Test OAuth Client 将获得")).toBeInTheDocument();
+		expect(
+			screen.getByText("允许后，Test OAuth Client 可以使用这些信息完成登录。"),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "允许并继续" })).toBeEnabled();
+		expect(screen.getByRole("button", { name: "取消" })).toBeEnabled();
 		expect(screen.queryByText("OAuth")).toBeNull();
 		expect(screen.queryByText(/staging/)).toBeNull();
 
@@ -160,7 +175,7 @@ describe("campus account pages", () => {
 
 		expect(screen.getByRole("heading", { name: "登录授权未完成" })).toBeInTheDocument();
 		expect(screen.getByText("请回到刚才的应用重新开始。")).toBeInTheDocument();
-		expect(screen.queryByText(/MUC Wiki 登录入口/)).toBeNull();
+		expect(screen.queryByText(/专属登录入口/)).toBeNull();
 	});
 
 	it("does not show raw authorization protocol errors to users", () => {
@@ -175,5 +190,24 @@ describe("campus account pages", () => {
 		expect(screen.getByText("请回到刚才的应用重新开始，或稍后再试。")).toBeInTheDocument();
 		expect(screen.queryByText(/OAuth/)).toBeNull();
 		expect(screen.queryByText(/redirect_uri/)).toBeNull();
+	});
+
+	it("does not allow consent when the registered client is unavailable", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(Response.json({ error: { code: "not_found" } }, { status: 404 })),
+		);
+		window.history.pushState(
+			{},
+			"",
+			"/account/federation/consent?client_id=test-oauth-client&scope=openid&sig=test-signature&exp=1893456000&ba_iat=1893455400000&ba_param=ba_iat&ba_param=ba_param&ba_param=client_id&ba_param=exp&ba_param=scope",
+		);
+
+		render(<FederationConsentPage />);
+
+		await waitFor(() =>
+			expect(screen.getByText("无法确认此应用，暂不能授权。")).toBeInTheDocument(),
+		);
+		expect(screen.getByRole("button", { name: "允许并继续" })).toBeDisabled();
 	});
 });

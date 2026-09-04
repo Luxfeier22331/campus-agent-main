@@ -64,8 +64,9 @@ execution-control 保留 `owner_deletion_fences(state=deleted)` 这一条最小 
 或平台 retention 合同负责。任务状态仍由 App API 生命周期拥有，不是 execution-control 或 Temporal 的
 产品工作流状态。
 
-MUC Wiki 是独立服务，只通过明确的联邦协议关联账号。两个系统不共享 Cookie、密码、会话表或
-本地权限。详细关系见 [MUC Wiki 联邦登录](./mucwiki-login.md)。
+外部 relying party 只能通过 App API 已登记的 OAuth/OIDC client 接入。双方不共享 Cookie、密码、
+会话表或本地权限；App API 只发布获准的身份声明，外部服务继续拥有自己的账号关联、会话和权限。
+协议边界见 [联邦登录合同](../../contracts/app-api/federation.md)。
 
 ## 禁止形态
 
@@ -79,6 +80,7 @@ MUC Wiki 是独立服务，只通过明确的联邦协议关联账号。两个�
 
 - [App API 登录合同](../../contracts/app-api/auth.md)
 - [联邦登录合同](../../contracts/app-api/federation.md)
+- [Campus Web 交付与同源边界 ADR](../../decisions/adr-0050-campus-web.md)
 - [产品运行时](./product-runtime.md)
 - [工具路由](./tool-routing.md)
 - [个人记忆](./memory-plane.md)

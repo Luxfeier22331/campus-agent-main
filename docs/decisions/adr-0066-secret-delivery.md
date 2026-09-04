@@ -30,7 +30,7 @@ status: accepted
 
 - workload 通过环境仓交付的 SealedSecret 消费稳定 key，不自行创建或选择 Secret 交付后端；
 - 环境仓可以审查 SealedSecret desired state，但源码仓不获得真实凭据；
-- 业务数据中的用户凭据（例如 ingestion-control 持久化的内部门户 TGC）仍由所属数据模型维护，不被
+- 业务数据中的用户凭据（例如 Ops Web 持久化的内部门户 TGC）仍由所属数据模型维护，不被
   误当作 workload Secret；
 - internal-portal-collection 不读取部署 TGC Secret；本地命令的显式输入和集群 Job 经内部 API 解析的
   TGC 不改变集群 Secret 合同；

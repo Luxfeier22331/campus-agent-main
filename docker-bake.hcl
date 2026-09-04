@@ -47,13 +47,6 @@ target "campus-agent-schema" {
   dockerfile = "jobs/campus-agent-schema/Dockerfile"
 }
 
-# Historical-only target. It remains addressable for legacy database upgrade work, but is not part
-# of the default or candidate release set.
-target "app-api-schema" {
-  inherits   = ["_common"]
-  dockerfile = "jobs/app-api-schema/Dockerfile"
-}
-
 target "campus-docs-index-publisher" {
   inherits   = ["_common"]
   dockerfile = "jobs/campus-docs-index-publisher/Dockerfile"

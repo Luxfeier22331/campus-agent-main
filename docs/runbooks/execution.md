@@ -47,19 +47,14 @@ migration 退役，不是运行时接口。
 
 ## 数据库迁移边界
 
-新建或重建的本地数据库由 `campus-agent-schema` 一次安装 execution-control、Model Config 和其他产品
-schema 的最终结构。旧 Goose migration 与 `model-config-schema` 暂作为现有部署数据库的不可变历史
-保留，不再由标准本地 bootstrap 执行。
+当前数据库拓扑由 `campus-agent-schema` 一次安装 execution-control、Model Config 和其他产品 schema
+的最终结构。旧 Goose migration 与 `model-config-schema` 不由标准本地 bootstrap 或 GitOps 调用，只为
+本地历史数据库集成测试保留。
 
-统一 Job 不接管包含旧 ledger 或 `execution_config` 的数据库。现有部署环境切换时必须另行完成：
-
-1. 暂停 PostgreSQL writer，并保留 Temporal history；
-2. 对目标数据库做可恢复备份；
-3. 在隔离数据库验证业务数据迁入统一 baseline，核对行数、外键、owner 和运行角色 ACL；
-4. 使用同一 revision 的统一 schema Job 和应用镜像完成 GitOps cutover，再恢复写入。
-
-本次源码变化没有执行上述在线 cutover。旧 migration 不得改写，也不能通过双写、兼容 view 或第二条
-新 ledger 延长过渡期；具体数据转换 SQL 必须在实施 cutover 时基于实际备份设计和验证。
+统一 Job 不接管包含旧 ledger 或 `execution_config` 的数据库；这是对未知数据库状态的 fail-closed 检查，
+不是线上 upgrade 路径。具体环境是否已经应用某个 revision，以 GitOps 选择、schema Job 结果和统一
+ledger 为准，不在本文保存一次性审计结果。旧 migration 不得改写，也不能通过双写、兼容 view 或第二条
+ledger 延长历史路径。
 
 ## 配置和 Secret
 

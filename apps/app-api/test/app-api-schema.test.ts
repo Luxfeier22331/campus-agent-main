@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { buildAppApiGrantSql } from "../ops/db/app-api-grants.ts";
 
 const appRoot = resolve(import.meta.dirname, "..");
-const repoRoot = resolve(appRoot, "../..");
 
 function readAppFile(relativePath: string): string {
 	return readFileSync(resolve(appRoot, relativePath), "utf8");
@@ -273,18 +272,5 @@ describe("app-api schema installer", () => {
 		expect(existsSync(resolve(appRoot, "drizzle/baseline/chat_pre_0001.sql"))).toBe(true);
 		expect(existsSync(resolve(appRoot, "test/fixtures/chat-pre-0001.sql"))).toBe(false);
 		expect(existsSync(resolve(appRoot, "src/db/schema/owned.ts"))).toBe(false);
-	});
-
-	it("packages only the app-api schema entrypoint into the migration image", () => {
-		const dockerfile = readFileSync(resolve(repoRoot, "jobs/app-api-schema/Dockerfile"), "utf8");
-		const packageManifest = JSON.parse(
-			readFileSync(resolve(repoRoot, "jobs/app-api-schema/package.json"), "utf8"),
-		) as { dependencies: Record<string, string> };
-
-		expect(dockerfile).toContain("ops/db/schema.ts");
-		expect(dockerfile).toContain("--prod --no-optional");
-		expect(dockerfile).toContain("USER node");
-		expect(dockerfile).not.toContain("wrangler");
-		expect(Object.keys(packageManifest.dependencies).sort()).toEqual(["drizzle-orm", "pg"]);
 	});
 });

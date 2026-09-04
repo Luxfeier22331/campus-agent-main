@@ -57,7 +57,7 @@ export function SignInForm(props: SharedAuthFormProps) {
 			if (result && typeof result === "object" && "error" in result && result.error) {
 				throwCampusAuthResultError(result);
 			}
-			await props.onAuthenticated();
+			await props.onAuthenticated(result);
 		} catch (error) {
 			if (readCampusAuthErrorCode(error) === "EMAIL_NOT_VERIFIED") {
 				const email = normalizeAuthEmail(values.email);

@@ -189,9 +189,21 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/federation/client",
+		callerClass: "browser-surface",
+		admission: "active end-user session and registered OAuth/OIDC client public metadata",
+	},
+	{
+		method: "GET",
 		path: "/api/federation/authorize",
 		callerClass: "browser-surface",
 		admission: "registered OAuth/OIDC client and active end-user session required",
+	},
+	{
+		method: "POST",
+		path: "/api/federation/consent",
+		callerClass: "browser-surface",
+		admission: "active end-user session and Better Auth signed OAuth authorization query",
 	},
 	{
 		method: "POST",

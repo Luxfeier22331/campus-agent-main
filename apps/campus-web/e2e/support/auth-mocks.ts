@@ -10,6 +10,7 @@ export interface AuthRequestRecord {
 
 interface AuthMockOptions {
 	signIn?: "success" | "invalid" | "rate-limited" | "unverified";
+	signInRedirect?: string;
 	signOut?: "failure" | "success";
 	signUp?: "success" | "registered";
 	sessionState?: CampusApiSessionState;
@@ -45,7 +46,12 @@ export async function mockAuthApi(
 				return;
 			}
 			if (url.pathname === "/api/auth/sign-in/email") {
-				await fulfillSignIn(route, options.signIn ?? "invalid", options.sessionState);
+				await fulfillSignIn(
+					route,
+					options.signIn ?? "invalid",
+					options.sessionState,
+					options.signInRedirect,
+				);
 				return;
 			}
 			if (url.pathname === "/api/auth/sign-up/email") {
@@ -94,6 +100,7 @@ async function fulfillSignIn(
 	route: Route,
 	mode: NonNullable<AuthMockOptions["signIn"]>,
 	sessionState?: CampusApiSessionState,
+	redirectUrl?: string,
 ) {
 	if (mode === "success") {
 		if (sessionState) {
@@ -105,7 +112,7 @@ async function fulfillSignIn(
 				data: {
 					redirect: true,
 					token: "session_token_e2e",
-					url: null,
+					url: redirectUrl ?? null,
 					user: {
 						email: "student@example.edu",
 						id: "user_e2e",

@@ -71,7 +71,7 @@ export function SignUpForm({
 		try {
 			const headers = await resolveCaptchaHeaders(captchaRef.current);
 			const email = normalizeAuthEmail(values.email);
-			await campusAuthClient.signUp.email({
+			const result = await campusAuthClient.signUp.email({
 				callbackURL: props.redirectTo,
 				email,
 				fetchOptions: { ...(headers ? { headers } : {}), throw: true },
@@ -92,6 +92,15 @@ export function SignUpForm({
 					email,
 					retryAfterSeconds === undefined ? {} : { retryAfterSeconds },
 				);
+				return;
+			}
+			if (
+				result &&
+				typeof result === "object" &&
+				"redirect" in result &&
+				result.redirect === true
+			) {
+				await props.onAuthenticated(result);
 				return;
 			}
 			props.onVerificationRequired(email);

@@ -7,7 +7,7 @@ export interface VerificationDeliveryFailure {
 }
 
 export interface SharedAuthFormProps {
-	onAuthenticated: () => void | Promise<void>;
+	onAuthenticated: (result?: unknown) => void | Promise<void>;
 	onSwitch: (view: AuthFormView) => void;
 	onVerificationRequired: (email: string, failure?: VerificationDeliveryFailure) => void;
 	redirectTo: string;

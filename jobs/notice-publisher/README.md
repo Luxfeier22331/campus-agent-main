@@ -21,7 +21,7 @@ pnpm --filter notice-publisher run republish --notice-id 123456
 
 通知 schema 与授权由 `campus-agent-schema` 安装。`pnpm dev:init -- --target notice-publisher` 在生成托管 `.env.local` 后调用
 `seed-local`，后者只向隔离的本地数据库写入通知分类，不创建表，也不维护 migration ledger。
-`migrate` 和 `migrations/` 暂作为现有部署数据库的不可变历史入口保留，不参与新的本地 bootstrap。
+`migrate` 和 `migrations/` 不由标准本地 bootstrap 或 GitOps 调用，为本地历史数据库集成测试保留。
 
 `republish` 读取已发布、站内通知的 source bucket 原始正文，重新生成 `content_html` 和 `content_text`，
 保持 `is_published`、分类和来源 metadata 不变。无 `--notice-id` 时处理全部已发布站内通知，有

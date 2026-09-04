@@ -167,7 +167,9 @@ test.describe("campus web static docs browser boundary", () => {
 		request,
 	}) => {
 		for (const path of [
+			"/api/federation/client",
 			"/api/federation/authorize",
+			"/api/federation/consent",
 			"/api/federation/token",
 			"/api/federation/userinfo",
 			"/api/federation/jwks",

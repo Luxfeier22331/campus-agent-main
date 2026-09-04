@@ -47,6 +47,21 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/internal/ops/campus-groups/state")).toBe(false);
 	});
 
+	it("allows only the explicit federation browser contract", () => {
+		for (const path of [
+			"/api/federation/client",
+			"/api/federation/authorize",
+			"/api/federation/consent",
+			"/api/federation/token",
+			"/api/federation/userinfo",
+			"/api/federation/jwks",
+			"/api/federation/logout",
+		]) {
+			expect(isAllowedCampusAppApiRequest(path)).toBe(true);
+		}
+		expect(isAllowedCampusAppApiRequest("/api/federation/admin")).toBe(false);
+	});
+
 	it("allows chat run status and step routes", () => {
 		expect(isAllowedCampusAppApiRequest("/api/chat/requests/req_01")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/chat/requests/req_01/events")).toBe(true);

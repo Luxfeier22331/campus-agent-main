@@ -21,5 +21,5 @@ runtime cancellation 的 HTTP cancel 与 scheduled dispatcher 共享同一 Postg
 
 Cloudflare cron trigger 属于环境仓的 Cloudflare Terraform desired state。源码仓的 Wrangler 配置只
 提供 `scheduled()` 实现，不声明部署环境的 cron；环境仓负责选择周期、Worker version、reconcile 和
-部署后的 trigger 验证。当前 staging 的 app-api trigger 由环境仓 `cloudflare/staging/workers` root
-声明；具体周期只以环境仓 desired state 为准，本合同不在源码仓重复声明或改写该周期。
+部署后的 trigger 验证。具体环境的 Terraform root 和周期只以环境仓 desired state 为准，本合同不在
+源码仓重复声明。

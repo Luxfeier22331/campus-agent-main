@@ -86,7 +86,7 @@ pnpm --dir apps/app-api db:check
 
 `pnpm dev:init -- --target core` 为当前 worktree 生成隔离的本地配置和数据库。数据库结构变化通过声明式 schema 和
 `jobs/campus-agent-schema` 中新增的统一 migration 完成；不得修改已应用 SQL。`ops/db/` 只保留显式
-seed、授权来源和历史 runner 所需代码，业务 seed 不进入 migration。
+seed、授权来源和本地 migration 测试所需代码，业务 seed 不进入 migration。
 
 ## 相关文档
 

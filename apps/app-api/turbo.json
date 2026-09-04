@@ -29,7 +29,6 @@
 				"!**/README.md",
 				"$TURBO_ROOT$/configs/sources/internal-portal.json",
 				"$TURBO_ROOT$/configs/runtime/**",
-				"$TURBO_ROOT$/jobs/app-api-schema/**",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/packages/contracts/fixtures/**",
 				"$TURBO_ROOT$/scripts/deploy/**",
@@ -44,8 +43,7 @@
 				"src/db/**",
 				"src/modules/profile-memory/**",
 				"test/app-api-migration-upgrade.integration.test.ts",
-				"vitest.migration-integration.config.mts",
-				"$TURBO_ROOT$/jobs/app-api-schema/**"
+				"vitest.migration-integration.config.mts"
 			]
 		},
 		"test:shared-db-integration": {

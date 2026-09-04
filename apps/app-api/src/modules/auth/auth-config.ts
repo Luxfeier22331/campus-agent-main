@@ -266,7 +266,6 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 					claims_supported: [...FEDERATION_CLAIMS],
 					scopes_supported: [...FEDERATION_SCOPES],
 				},
-				cachedTrustedClients: new Set(["muc-wiki"]),
 				consentPage: "/account/federation/consent",
 				customAccessTokenClaims: async ({ user: authUser }) => {
 					if (authUser) {

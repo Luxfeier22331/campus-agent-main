@@ -78,11 +78,8 @@ base 为三种动作分别提供默认暂停的模板；它们没有 schedule，
 接口。需要在没有真实门户凭据时验证 HTTP 链路，可运行
 `pnpm --filter ops-web dev:fixture`；该 fixture 的 token 和 TGC 仅在本地进程生命周期内有效。
 
-## 数据升级与保留
+## 数据保留与恢复
 
-现有环境由 Ops Web migration `0005_melted_shatterstar.sql` 将旧
-`ingestion_control.internal_portal_credentials` 原位迁入 `internal_portal.credentials`，重命名约束和
-索引并清理旧 schema，不复制或双写数据。新数据库直接由 Ops Web final-schema baseline 创建最终表。
 Pod 重启不会删除凭据；数据库或 schema 被重建后，GitOps 不会从 Secret 回填 TGC，必须重新录入。
 
 ## 失败处理

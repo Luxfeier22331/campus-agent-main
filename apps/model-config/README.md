@@ -40,9 +40,9 @@ Model Config 位于共同受信任的内部服务边界，不再执行第二次�
 schema 共用 `drizzle.campus_agent_migrations`。常驻进程使用 `model_config` runtime role，只获得
 schema usage 和所属表的明确读写权限。Provider API Key 加密保存在 `encrypted_api_key`。
 
-`model-config-schema` 与 execution-control 旧 Goose runner 仅作为现有部署数据库的不可变历史源码保留；
-标准本地 bootstrap 和 GitOps 拓扑不再运行它们，也不生成旧 Provider Config key。现有数据库切换仍需在
-备份和维护窗口中执行。
+`model-config-schema` 与 execution-control 旧 Goose runner 不由标准本地 bootstrap 或 GitOps 调用，
+其 migration 代码为本地历史数据库集成测试保留。统一 schema Job 会拒绝旧 ledger 和
+`execution_config`，不把这些 runner 作为线上 upgrade 路径，也不生成旧 Provider Config key。
 
 详见 [ADR-0093](../../docs/decisions/adr-0093-model-config-boundary.md) 和
 [密钥 runbook](../../docs/runbooks/provider-secrets.md)。

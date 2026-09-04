@@ -57,7 +57,9 @@ describe("federation provider routes", () => {
 		});
 
 		const requests = [
+			new Request("https://campus.muc.wiki/api/federation/client?client_id=test-oauth-client"),
 			new Request("https://campus.muc.wiki/api/federation/authorize"),
+			new Request("https://campus.muc.wiki/api/federation/consent", { method: "POST" }),
 			new Request("https://campus.muc.wiki/api/federation/token", { method: "POST" }),
 			new Request("https://campus.muc.wiki/api/federation/userinfo"),
 			new Request("https://campus.muc.wiki/api/federation/jwks"),
@@ -70,12 +72,67 @@ describe("federation provider routes", () => {
 		}
 
 		expect(seen).toEqual([
+			{ method: "GET", pathname: "/oauth2/public-client" },
 			{ method: "GET", pathname: "/oauth2/authorize" },
+			{ method: "POST", pathname: "/oauth2/consent" },
 			{ method: "POST", pathname: "/oauth2/token" },
 			{ method: "GET", pathname: "/oauth2/userinfo" },
 			{ method: "GET", pathname: "/jwks" },
 			{ method: "GET", pathname: "/oauth2/end-session" },
 		]);
+	});
+
+	it("exposes only public OAuth client fields", async () => {
+		const app = createApp(env, {
+			authHandler: vi.fn(() =>
+				Response.json({
+					client_id: "test-oauth-client",
+					client_name: "Test OAuth Client",
+					client_uri: "https://oauth.example.test",
+					client_secret: "must-not-leak",
+					metadata: { owner: "private" },
+					redirect_uris: ["https://oauth.example.test/callback"],
+				}),
+			),
+		});
+
+		const response = await app.fetch(
+			new Request("https://campus.muc.wiki/api/federation/client?client_id=test-oauth-client"),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			client_id: "test-oauth-client",
+			client_name: "Test OAuth Client",
+			client_uri: "https://oauth.example.test",
+		});
+	});
+
+	it("keeps consent redirect JSON for the browser to validate before navigation", async () => {
+		const app = createApp(env, {
+			authHandler: vi.fn(() =>
+				Response.json({
+					redirect: true,
+					url: "https://oauth.example.test/callback?code=abc&state=xyz",
+				}),
+			),
+		});
+
+		const response = await app.fetch(
+			new Request("https://campus.muc.wiki/api/federation/consent", {
+				body: JSON.stringify({ accept: true, oauth_query: "signed-query" }),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			redirect: true,
+			url: "https://oauth.example.test/callback?code=abc&state=xyz",
+		});
 	});
 
 	it("normalizes provider JSON redirects to HTTP redirects on federation routes", async () => {

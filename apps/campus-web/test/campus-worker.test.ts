@@ -146,7 +146,9 @@ describe("campus worker boundary", () => {
 			"/api/auth/list-sessions",
 			"/api/auth/request-password-reset",
 			"/api/auth/reset-password",
+			"/api/federation/client",
 			"/api/federation/authorize",
+			"/api/federation/consent",
 			"/api/federation/token",
 			"/api/federation/userinfo",
 			"/api/federation/jwks",
@@ -433,6 +435,41 @@ describe("campus worker boundary", () => {
 		expect(response.status).toBe(200);
 		expect(forwardedRequests).toHaveLength(1);
 		expect(forwardedRequests[0]?.headers.get("x-campus-legal-accepted")).toBe("terms-and-privacy");
+	});
+
+	it("forwards browser interaction headers for federation consent", async () => {
+		const forwardedRequests: Request[] = [];
+		const env = createEnv({
+			fetch(request) {
+				forwardedRequests.push(request);
+				return Response.json({ redirect: true, url: "https://oauth.example.test/callback" });
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/federation/consent", {
+				body: JSON.stringify({ accept: true, oauth_query: "signed-query" }),
+				headers: {
+					cookie: "better-auth.session_token=session-token",
+					"content-type": "application/json",
+					origin: "https://campus.muc.wiki",
+					referer: "https://campus.muc.wiki/account/federation/consent",
+					"user-agent": "campus-worker-test",
+				},
+				method: "POST",
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		const forwarded = forwardedRequests[0];
+		expect(forwarded?.headers.get("cookie")).toBe("better-auth.session_token=session-token");
+		expect(forwarded?.headers.get("content-type")).toBe("application/json");
+		expect(forwarded?.headers.get("origin")).toBe("https://campus.muc.wiki");
+		expect(forwarded?.headers.get("referer")).toBe(
+			"https://campus.muc.wiki/account/federation/consent",
+		);
+		expect(forwarded?.headers.get("user-agent")).toBe("campus-worker-test");
 	});
 
 	it("uses the configured loopback app-api URL as local dev proxy transport", async () => {

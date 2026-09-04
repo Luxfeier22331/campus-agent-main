@@ -36,10 +36,9 @@ revision、bundle、activation、history、fallback 或在线 rollback。不同�
 execution-control Goose 与 `model-config-schema` 的双阶段切换。统一 Job 会拒绝带旧 migration ledger
 或 `execution_config` 的数据库，不提供原位兼容路径。
 
-现有部署环境的数据库切换仍必须单独完成停写、备份、数据迁入统一结构和 GitOps 替换；在这些步骤得到
-验证前，不能把 `campus-agent-schema` 指向带旧 ledger 的数据库，也不能同时运行新旧 ledger。统一
-schema Job 的期望拓扑位于 `data-postgres` Application；旧 runner 和密钥合同仅作为现有数据库的不可变
-历史保留。
+统一 schema Job 的期望拓扑位于 `data-postgres` Application；旧 runner 和密钥合同不由标准本地
+bootstrap 或 GitOps 调用，只为本地历史数据库集成测试保留。具体环境是否已经应用某个
+revision，以 GitOps 选择、schema Job 结果和统一 ledger 为准。
 
 ## 本地开发
 

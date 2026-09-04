@@ -17,9 +17,11 @@ describe("federation runtime readiness", () => {
 		});
 		expect(report.endpoints.required).toEqual(
 			expect.arrayContaining([
+				"getOAuthClientPublic",
 				"getOAuthServerConfig",
 				"getOpenIdConfig",
 				"oauth2Authorize",
+				"oauth2Consent",
 				"oauth2Token",
 				"oauth2UserInfo",
 				"oauth2EndSession",

@@ -4,7 +4,11 @@ import {
 	type CampusAuthResultState,
 	readCampusAuthResultState,
 } from "@/platform/auth/result-state";
-import { buildAuthViewHref, resolveAccountAuthReturnTarget } from "@/platform/auth/return-target";
+import {
+	buildAuthViewHref,
+	resolveAccountAuthReturnTarget,
+	resolveSafeAuthNavigationTarget,
+} from "@/platform/auth/return-target";
 import { useCampusSession } from "@/platform/auth/session";
 import {
 	ForgotPasswordForm,
@@ -127,8 +131,16 @@ export function AuthPanel({
 		showVerification(email, failure ? "failed" : "sent", failure?.retryAfterSeconds);
 	}
 
-	async function completeAuthentication() {
+	async function completeAuthentication(result?: unknown) {
 		await session.refresh();
+		const redirect = readAuthRedirect(result);
+		if (redirect && typeof window !== "undefined") {
+			const target = resolveSafeAuthNavigationTarget(redirect, window.location.origin);
+			if (target) {
+				window.location.assign(target);
+				return;
+			}
+		}
 		if (onAuthenticated) {
 			onAuthenticated();
 			return;
@@ -283,4 +295,15 @@ function normalizeOptionalEmail(value: string | null): string {
 function normalizeOptionalValue(value: string | null): string | undefined {
 	const normalized = value?.trim();
 	return normalized ? normalized : undefined;
+}
+
+function readAuthRedirect(value: unknown): string | null {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+	const result = value as Record<string, unknown>;
+	if (result.redirect === true && typeof result.url === "string") {
+		return result.url;
+	}
+	return "data" in result ? readAuthRedirect(result.data) : null;
 }

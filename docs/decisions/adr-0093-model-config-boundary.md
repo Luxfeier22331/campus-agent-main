@@ -38,10 +38,9 @@ consumer token、consumer 注册或 name 权限矩阵。任意能够访问 liste
 - 更新必须先验证后原子替换；目标 hash 不匹配返回冲突，consumer 不静默读取新目标；
 - Campus Docs Embedding model 和协议仍由 Campus Docs 合同固定；Embedding Set v3 记录 target hash；
 - Ragas 离线模型和 reranker profile 保持独立，不接入在线 Model Config；
-- execution-control 中的旧 Provider Config 代码只保留为不可修改历史 migration 输入，常驻 runtime
-  不再加载旧表、密钥或管理接口；
-- schema 切换先完成 execution-control 历史 Goose migration，再由 Model Config 在一个事务中解密、
-  冲突校验、重加密、写入新表并删除旧表。维护窗口内允许短暂不可用，不增加双写或兼容读取；
+- execution-control 中的旧 Provider Config 与 Model Config migration 代码为本地历史数据库集成测试
+  保留，常驻 runtime 不加载旧表、密钥或管理接口，GitOps 也不调用旧 runner；
+- 当前统一 schema Job 不接管旧 ledger 或 `execution_config`，不把历史迁移链作为线上 upgrade 路径；
 - Agent Control 的 API 与 orchestrator 物理拆分不在本决策中实施，命名重构也不得重新吞并 Model
   Config 所有权。
 

@@ -20,7 +20,7 @@ lock，避免两个 schema Job 同时执行。
 `runtime.*` 兼容 View；`execution_control.personal_memory_*` 底层表、数据和权限不变。
 
 旧 runner 的 ledger 和 `execution_config` 如果仍存在，Job 会停止并报告；本 Job 不自动删除它们。
-线上数据库完成明确的停写、备份和 cutover 后，才能迁移到这套入口。
+旧 runner 不由标准本地 bootstrap 或 GitOps 调用，只为本地历史数据库集成测试保留。
 
 本地运行：
 

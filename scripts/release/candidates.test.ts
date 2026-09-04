@@ -431,10 +431,7 @@ test("a Node lockfile change selects all active Node images but not the independ
 		if (command === "pnpm") {
 			return result({
 				stdout: JSON.stringify({
-					tasks: [
-						{ command: "<NONEXISTENT>", package: "app-api-schema", task: "build" },
-						{ command: "<NONEXISTENT>", package: "execution-control", task: "build" },
-					],
+					tasks: [{ command: "<NONEXISTENT>", package: "execution-control", task: "build" }],
 				}),
 			});
 		}

@@ -93,3 +93,27 @@ export function resolveAccountAuthReturnTarget(
 
 	return DEFAULT_RETURN_TARGET;
 }
+
+export function resolveSafeAuthNavigationTarget(
+	value: unknown,
+	currentOrigin: string,
+): string | null {
+	if (typeof value !== "string" || !value.trim()) {
+		return null;
+	}
+	try {
+		const target = new URL(value, currentOrigin);
+		const origin = new URL(currentOrigin).origin;
+		if (target.username || target.password) {
+			return null;
+		}
+		if (target.origin !== origin && target.protocol !== "https:") {
+			return null;
+		}
+		return target.origin === origin
+			? `${target.pathname}${target.search}${target.hash}`
+			: target.toString();
+	} catch {
+		return null;
+	}
+}

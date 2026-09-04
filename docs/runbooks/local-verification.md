@@ -148,9 +148,8 @@ seed 缺失的 Model Config；它不访问 Provider、不覆盖已有配置，�
 初始化输入，不是 runtime source；映射由 target 声明的 config name 决定，通用 LLM 连接不会隐式覆盖已有
 通知分类配置。`notice_classification` 本地 seed 使用独立的
 `NOTICE_CLASSIFICATION_BASE_URL`、`NOTICE_CLASSIFICATION_API_KEY` 和
-`NOTICE_CLASSIFICATION_MODEL` 输入；当前开发环境中 endpoint 与 API key 暂时与
-`primary_agent` 相同，模型为 `deepseek-v4-flash-0731`。这只是初始化时的当前值，不把两个
-配置合并，也不改变通知消费者逻辑。
+`NOTICE_CLASSIFICATION_MODEL` 输入；是否复用 endpoint 或凭据由调用方的本地输入决定，不把两个配置
+合并，也不改变通知消费者逻辑。
 `pnpm dev:init -- --target core` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline，不再执行
 execution-control 历史 Goose migration、Model Config 切换命令，也不生成 legacy provider key。启动前
 会在 seed 后检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于

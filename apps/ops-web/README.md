@@ -103,8 +103,8 @@ bucket，生成 Ops Web 及通知采集、分类、发布任务实际读取的�
 Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
 `packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，生成的
 migration 与其他产品 schema 一起由 `jobs/campus-agent-schema/` 管理，并记录在
-`drizzle.campus_agent_migrations`。`apps/ops-web/drizzle/`、`db:apply-dining` 和 `db:apply` 暂作为现有
-部署环境的不可变历史入口保留，不再参与新建本地数据库 bootstrap。`db:bootstrap-dining` 只写入
+`drizzle.campus_agent_migrations`。`apps/ops-web/drizzle/`、`db:apply-dining` 和 `db:apply` 只作为本地
+历史数据库测试与开发 fixture 保留，不再参与当前线上拓扑或新建本地数据库 bootstrap。`db:bootstrap-dining` 只写入
 Dining 基线草稿，并通过正式 publisher 上传 SVG、原子写入 release 和当前 publication；已有有效
 发布时不修改数据。授权和 bootstrap 不建表，也不维护 migration ledger。
 

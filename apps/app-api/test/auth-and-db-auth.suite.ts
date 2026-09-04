@@ -94,7 +94,6 @@ export function registerAppApiAuthConfigSuite() {
 						id: "oauth-provider",
 						options: expect.objectContaining({
 							allowDynamicClientRegistration: false,
-							cachedTrustedClients: new Set(["muc-wiki"]),
 							customIdTokenClaims: expect.any(Function),
 							customUserInfoClaims: expect.any(Function),
 							loginPage: "/account/login",

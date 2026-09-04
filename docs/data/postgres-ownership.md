@@ -85,12 +85,10 @@ Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs 
 - 新入口不是旧数据库的原位升级器。发现 `drizzle.app_api_migrations`、
   `drizzle.ops_web_dining_migrations`、`public.execution_control_migrations`、
   `model_config.schema_migrations`、`notices.schema_migrations` 或 `execution_config` 时明确失败；
-- 旧 migration 文件和 runner 暂作为现有部署数据库的不可变历史保留，标准本地 bootstrap 不再调用。
-  源码 migration 由既有 GitOps schema Job 按环境 revision 应用；源码仓不直接修改在线数据库；
+- 旧 migration 文件和 runner 只作为本地测试与开发数据库 fixture 保留，不构成线上 legacy upgrade 合同；
+  线上统一使用 schema Job 按环境 revision 应用当前结构；源码仓不直接修改在线数据库；
 - `0002_remove_runtime_personal_memory_compat_views` 只删除无消费者的 `runtime.*` 个人记忆兼容 View，
   不删除 `execution_control.personal_memory_*` 表或其数据；
-- 在线切换必须在独立任务中先停写和备份，再验证数据迁入统一结构，最后切换 GitOps。没有完成这套
-  数据迁移前，不得把统一 Job 指向带旧 ledger 的数据库；
 - 修改统一 migration 后，至少验证空库首次执行、重复执行、owner 与关键 ACL、旧对象拒绝、退役 View
   消失且底层表仍在，以及两个并发 migrator 的串行结果。验证可以直接使用隔离的本地 PostgreSQL，
   不要求重型 Testcontainers。
@@ -175,8 +173,7 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
 - Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
 - Ops Web 使用 `ops_web` 角色读写 `internal_portal.credentials` 和
   `internal_portal.automation_tokens`；token 明文保留是为满足 Ops Web 的重复 reveal 合同，不作为通用
-  Secret 管理能力。历史环境中的 `ingestion_control.internal_portal_credentials` 由 Ops Web 的一次性
-  handoff migration 原位迁入并清理旧 schema；当前运行时不再创建或使用旧角色；
+  Secret 管理能力；当前运行时不创建或使用旧 `ingestion_control` 角色；
 - 不同逻辑所有者共用 DDL journal，但不通过双写复制同一事实，也不共享运行时写权限；
 - 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
 
@@ -194,8 +191,8 @@ workload 只使用运行角色。
 - 本地业务 seed：`apps/app-api/ops/db/`、`jobs/notice-publisher/src/seed-local.ts`、
   `apps/ops-web/ops/db/`
 - `apps/app-api/drizzle/`、`apps/ops-web/drizzle/`、`apps/execution-control/internal/schemamigrations/`、
-  `apps/model-config/internal/modelconfig/` 和 `jobs/notice-publisher/migrations/` 暂保留为现有部署数据库
-  的不可变历史，不是新建本地数据库的执行入口。
+  `apps/model-config/internal/modelconfig/migration.go` 和 `jobs/notice-publisher/migrations/` 只作为本地
+  历史数据库测试与开发 fixture 保留，不是当前线上拓扑或新建本地数据库的执行入口。
 
 ## 相关文档
 

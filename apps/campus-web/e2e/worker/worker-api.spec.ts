@@ -55,7 +55,7 @@ test.describe("campus web worker app-api boundary", () => {
 			"/api/me/security/sessions",
 			"/api/me/security/sessions/session_e2e",
 			"/api/me/authorized-apps",
-			"/api/me/authorized-apps/muc-wiki-e2e",
+			"/api/me/authorized-apps/retired-client-e2e",
 			"/api/me/profile-memory/export",
 		]) {
 			await expectWorkerUnknownApi(await request.get(path));

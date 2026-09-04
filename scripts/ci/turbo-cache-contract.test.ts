@@ -72,7 +72,6 @@ test("Turbo affected selection uses task inputs and no phantom CI tasks", () => 
 		Object.keys(tasks).some((task) => task.startsWith("//#ci:")),
 		false,
 	);
-	assert.equal(tasks["app-api-schema#build"], undefined);
 	assert.equal(tasks["execution-control#build"], undefined);
 
 	for (const task of ["build", "typecheck", "test", "test:worker"]) {

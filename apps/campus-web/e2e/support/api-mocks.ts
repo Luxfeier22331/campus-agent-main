@@ -474,6 +474,38 @@ function routeMocks(input: {
 		},
 		{
 			method: "GET",
+			path: "/api/federation/client",
+			response: (route) =>
+				route.fulfill({
+					contentType: "application/json",
+					json: sessionState.authenticated
+						? {
+								client_id: "test-oauth-client",
+								client_name: "Test OAuth Client",
+								client_uri: "https://oauth.example.test/product",
+							}
+						: { error: { code: "session_required", message: "请先登录。" } },
+					status: sessionState.authenticated ? 200 : 401,
+				}),
+		},
+		{
+			method: "POST",
+			path: "/api/federation/consent",
+			response: (route) => {
+				const body = parseRequestJson(route);
+				return route.fulfill({
+					contentType: "application/json",
+					json: {
+						redirect: true,
+						url:
+							body.accept === true ? "/account" : "/account/federation/error?error=access_denied",
+					},
+					status: 200,
+				});
+			},
+		},
+		{
+			method: "GET",
 			path: "/api/auth/list-accounts",
 			response: (route) =>
 				route.fulfill({

@@ -2,7 +2,7 @@
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import campusWebWorker from "../../campus-web/test-support/worker";
 import { createApp } from "../src/app";
 import type { Env } from "../src/config";
@@ -16,15 +16,18 @@ import {
 	buildEmailAccessService,
 	createPgEmailAccessGrantStore,
 } from "../src/modules/email-access";
-import { provisionMucWikiFederationClient } from "../src/script-support/provisioning/provision-muc-wiki-federation-client-lib";
 import { buildSharedDbIntegrationEnv } from "./shared-db-integration-helpers";
+import {
+	provisionTestOAuthClient,
+	TEST_FEDERATION_CLIENT_ID,
+	TEST_FEDERATION_CLIENT_SECRET,
+	TEST_FEDERATION_REDIRECT_URI,
+} from "./support/federation-client";
 
 const postgres = inject("appApiPostgres");
 const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 const OPS_TOKEN = "account-journeys-ops-token";
 const PASSWORD = "password12345";
-const FEDERATION_CLIENT_SECRET = "federation-client-secret";
-const FEDERATION_REDIRECT_URI = "https://wiki.example.test/oauth/callback";
 
 interface CapturedEmail {
 	subject: string;
@@ -233,14 +236,9 @@ describe("account journeys PostgreSQL integration", () => {
 			ssl: false,
 		});
 		await client.connect();
-		await provisionMucWikiFederationClient(
-			{
-				clientSecret: FEDERATION_CLIENT_SECRET,
-				postLogoutRedirectUris: ["https://wiki.example.test/"],
-				redirectUris: [FEDERATION_REDIRECT_URI],
-			},
-			{ executeSql: (sql, params) => client.query(sql, params) },
-		);
+		await provisionTestOAuthClient({
+			executeSql: (sql, params) => client.query(sql, params),
+		});
 
 		auth = createAppAuth(env, {
 			emailSender: {
@@ -717,21 +715,79 @@ describe("account journeys PostgreSQL integration", () => {
 		const { userId } = await signUp(email);
 		await verify(email);
 		const signedIn = await signIn(email);
+		const cookie = cookieHeader(signedIn);
+		const publicClient = await app.fetch(
+			new Request(
+				`https://app-api.internal/api/federation/client?client_id=${TEST_FEDERATION_CLIENT_ID}`,
+				{ headers: { cookie } },
+			),
+		);
+		expect(publicClient.status).toBe(200);
+		const publicClientPayload = (await publicClient.json()) as Record<string, unknown>;
+		expect(publicClientPayload).toMatchObject({
+			client_id: TEST_FEDERATION_CLIENT_ID,
+			client_name: "Test OAuth Client",
+		});
+		expect(publicClientPayload).not.toHaveProperty("client_secret");
+		expect(publicClientPayload).not.toHaveProperty("redirect_uris");
+		expect(publicClientPayload).not.toHaveProperty("metadata");
 		const verifier = "federation-pkce-verifier-0123456789-abcdefghijk";
 		const authorizeUrl = new URL("https://app-api.internal/api/federation/authorize");
 		authorizeUrl.searchParams.set("response_type", "code");
-		authorizeUrl.searchParams.set("client_id", "muc-wiki");
-		authorizeUrl.searchParams.set("redirect_uri", FEDERATION_REDIRECT_URI);
+		authorizeUrl.searchParams.set("client_id", TEST_FEDERATION_CLIENT_ID);
+		authorizeUrl.searchParams.set("redirect_uri", TEST_FEDERATION_REDIRECT_URI);
 		authorizeUrl.searchParams.set("scope", "openid profile email");
 		authorizeUrl.searchParams.set("state", "journey-state");
 		authorizeUrl.searchParams.set("code_challenge", await pkceChallenge(verifier));
 		authorizeUrl.searchParams.set("code_challenge_method", "S256");
-		const authorized = await app.fetch(
-			new Request(authorizeUrl, { headers: { cookie: cookieHeader(signedIn) } }),
-		);
+		const authorized = await app.fetch(new Request(authorizeUrl, { headers: { cookie } }));
 		expect(authorized.status).toBe(302);
-		const callback = new URL(authorized.headers.get("location") ?? "");
-		expect(callback.origin + callback.pathname).toBe(FEDERATION_REDIRECT_URI);
+		const consentPage = new URL(authorized.headers.get("location") ?? "", authShellOrigin);
+		expect(consentPage.pathname).toBe("/account/federation/consent");
+		expect(consentPage.searchParams.get("sig")).toBeTruthy();
+		expect(consentPage.searchParams.getAll("ba_param")).toContain("client_id");
+		const signedOAuthQuery = consentPage.searchParams.toString();
+		const consentRequest = (oauthQuery: string, accept = true) =>
+			app.fetch(
+				new Request("https://app-api.internal/api/federation/consent", {
+					body: JSON.stringify({ accept, oauth_query: oauthQuery }),
+					headers: {
+						accept: "application/json",
+						cookie,
+						"content-type": "application/json",
+						origin: authShellOrigin,
+					},
+					method: "POST",
+				}),
+			);
+
+		const tamperedOAuthQuery = new URLSearchParams(signedOAuthQuery);
+		tamperedOAuthQuery.set("client_id", "tampered-client");
+		expect((await consentRequest(tamperedOAuthQuery.toString())).status).toBe(400);
+
+		const signedAt = Date.now();
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			vi.setSystemTime(signedAt + 11 * 60 * 1000);
+			expect((await consentRequest(signedOAuthQuery)).status).toBe(400);
+		} finally {
+			vi.useRealTimers();
+		}
+
+		const denied = await consentRequest(signedOAuthQuery, false);
+		expect(denied.status).toBe(200);
+		const deniedPayload = (await denied.json()) as { redirect: boolean; url: string };
+		expect(deniedPayload.redirect).toBe(true);
+		const deniedCallback = new URL(deniedPayload.url);
+		expect(deniedCallback.searchParams.get("error")).toBe("access_denied");
+		expect(deniedCallback.searchParams.get("state")).toBe("journey-state");
+
+		const consent = await consentRequest(signedOAuthQuery);
+		expect(consent.status).toBe(200);
+		const consentPayload = (await consent.json()) as { redirect: boolean; url: string };
+		expect(consentPayload.redirect).toBe(true);
+		const callback = new URL(consentPayload.url);
+		expect(callback.origin + callback.pathname).toBe(TEST_FEDERATION_REDIRECT_URI);
 		expect(callback.searchParams.get("state")).toBe("journey-state");
 		const code = callback.searchParams.get("code");
 		expect(code).toBeTruthy();
@@ -739,14 +795,14 @@ describe("account journeys PostgreSQL integration", () => {
 		const token = await app.fetch(
 			new Request("https://app-api.internal/api/federation/token", {
 				body: new URLSearchParams({
-					client_id: "muc-wiki",
+					client_id: TEST_FEDERATION_CLIENT_ID,
 					code: code ?? "",
 					code_verifier: verifier,
 					grant_type: "authorization_code",
-					redirect_uri: FEDERATION_REDIRECT_URI,
+					redirect_uri: TEST_FEDERATION_REDIRECT_URI,
 				}),
 				headers: {
-					authorization: `Basic ${Buffer.from(`muc-wiki:${FEDERATION_CLIENT_SECRET}`).toString("base64")}`,
+					authorization: `Basic ${Buffer.from(`${TEST_FEDERATION_CLIENT_ID}:${TEST_FEDERATION_CLIENT_SECRET}`).toString("base64")}`,
 					"content-type": "application/x-www-form-urlencoded",
 				},
 				method: "POST",

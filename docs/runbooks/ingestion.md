@@ -13,8 +13,8 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 
 ## 前置条件
 
-- 统一 schema bootstrap 使用数据库 owner 连接；Ops Web 凭据表最终位于
-  `internal_portal.credentials`，历史环境由 Ops Web handoff migration 一次性接管；
+- 统一 schema bootstrap 使用数据库 owner 连接；Ops Web 凭据表位于
+  `internal_portal.credentials`，handoff migration 只作为本地历史数据库测试 fixture；
 - 通知采集、分类和发布共享 `notices.*`；本地和集群都由 `campus-agent-schema` 安装；
 - source 与 derived bucket 使用各自对象存储凭据；
 - Ops Web 与 internal-portal-collection 来自同一 source revision；
@@ -29,9 +29,9 @@ pnpm dev:init -- --target internal-portal-collection
 pnpm --filter ops-web dev:api
 ```
 
-数据库 TLS 与运行变量见 Ops Web 的环境合同。新建本地数据库使用
-`drizzle.campus_agent_migrations`；现有部署环境的旧 ledger 和 handoff migration 原样保留，且不会被
-统一 Job 自动接管。`notice-publisher` target 是统一 schema Job 和通知分类 seed 的 owner；
+数据库 TLS 与运行变量见 Ops Web 的环境合同。当前本地与 Kubernetes 拓扑使用
+`drizzle.campus_agent_migrations`；旧 ledger 和 handoff migration 不由 bootstrap 或 GitOps 调用，只为
+本地历史数据库集成测试保留。`notice-publisher` target 是统一 schema Job 和通知分类 seed 的 owner；
 `internal-portal-collection` target 只生成 Ops Web 与采集器实际读取的环境投影，并通过 readiness 复用已完成的
 schema，不执行重复 DDL。`notice-classifier` target 只生成 Model Config 与分类器实际读取的环境投影。
 execution-control 的历史通知分类模型设置只作为 Model Config 一次性迁移输入，不构成当前配置所有权。

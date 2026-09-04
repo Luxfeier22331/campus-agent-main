@@ -8,12 +8,12 @@ status: active
 
 ## 边界
 
-app-api Identity Platform 使用 Better Auth OAuth Provider + `jwt()` 作为 OIDC-compatible runtime
-adapter。public contract 固定在 well-known 和 `/api/federation/*`；native `/oauth2/*` 与
-`/jwks` 只是内部映射。
+App API 使用 Better Auth OAuth Provider + `jwt()` 提供 OAuth 2.0 / OpenID Connect Provider。
+公开合同固定在 well-known 和 `/api/federation/*`；native `/oauth2/*` 与 `/jwks` 只是内部映射。
 
-首期只允许 controlled/static client，不开放动态注册。Better Auth runtime state 位于
-`app_auth.*`，client/claim policy 由 app-api federation runtime 校验。
+只允许受控静态 client，不开放动态注册。Better Auth runtime state 位于 `app_auth.*`，client、
+redirect URI、scope 和 claim policy 由 App API 所有。当前仓库不提供面向任意调用方的 client
+注册或 provisioning 接口。
 
 ## 发现
 
@@ -39,8 +39,44 @@ production issuer 为 `https://campus.muc.wiki`，staging 使用部署环境 iss
 - `code_challenge`
 - `code_challenge_method=S256`
 
-redirect URI 必须精确匹配 registry。endpoint 要求 active app-api session。trusted-client consent
-skip 只能来自 client policy，caller 不能自行指定。
+redirect URI 必须精确匹配 registry。无会话时 Provider 跳转到 Campus Web 登录页；需要同意时跳转到
+Campus Web consent 页面。调用方不能自行指定跳过同意。
+
+## Consent 页面支持
+
+### Client 展示信息
+
+`GET /api/federation/client?client_id=<id>` 要求有效用户会话，并映射到 Provider 的
+`/oauth2/public-client`。响应只允许以下公开展示字段：
+
+- `client_id`
+- `client_name`
+- `client_uri`
+- `logo_uri`
+- `contacts`
+- `tos_uri`
+- `policy_uri`
+
+client secret、redirect allowlist、grant policy、私有 metadata 和 owner 引用不得进入响应。client
+不存在或禁用时，Campus Web 不允许用户确认授权。
+
+### 同意决定
+
+`POST /api/federation/consent` 接受：
+
+```json
+{
+  "accept": true,
+  "oauth_query": "<provider-signed-query>"
+}
+```
+
+`oauth_query` 必须保留 Provider 重定向页面中由重复 `ba_param` 指定的完整签名参数，包括 `sig`、
+`exp` 和 `ba_iat`。Campus Web 不重建 OAuth 参数，也不自行判定签名；Provider 校验签名和过期时间。
+篡改、缺失或过期的查询必须失败。
+
+Provider 返回 `{ "redirect": true, "url": "..." }`。该响应保持 JSON，由 Campus Web 在允许
+同源 URL 或 HTTPS URL 后执行导航；App API 不把 consent POST 自动改写为跨域 HTTP redirect。
 
 ## Token 交换
 
@@ -74,31 +110,23 @@ secret 和 service principal material 始终禁止；campus claim 必须使用�
 `GET /api/federation/logout` 实现 relying-party end-session：
 
 - post-logout redirect 必须匹配 client registry；
-- provider logout 不删除 MediaWiki 本地 account linking；
-- app-api session revoke 与 relying-party local logout 是不同操作。
+- Provider logout 不删除 relying party 的本地账号关联；
+- App API session revoke 与 relying party local logout 是不同操作。
 
-## 首个 Client
+## Client 生命周期
 
-`muc-wiki` 为 confidential trusted first-party client：
-
-- auth method `client_secret_basic`；
-- grant `authorization_code`、`refresh_token`；
-- response type `code`；
-- scope `openid profile email`；
-- PKCE required；
-- end-session enabled；
-- redirect 和 post-logout URI 精确 allowlist。
-
-secret 只进入部署 secret store。配置步骤见 `../../runbooks/federation.md`。
+client 记录由 App API 的 `app_auth.oauthClient` 所有，注册、修改和停用必须走受控运维变更；不能
+通过浏览器或动态注册 endpoint 完成。具体 client 的 secret、redirect URI 和外部系统配置属于对应
+接入变更，不写入本通用合同。
 
 ## 可执行来源
 
 - `apps/app-api/src/app/routes/federation.ts`
 - `apps/app-api/src/modules/auth/auth.ts`
-- `apps/app-api/ops/identity/`
+- `apps/campus-web/src/app/routes/federation-pages.tsx`
+- `apps/campus-web/src/platform/auth/oauth-context.ts`
 
 ## 相关文档
 
-- `../../architecture/system/mucwiki-login.md`
 - `../../architecture/system/identity-authz.md`
 - `./auth.md`

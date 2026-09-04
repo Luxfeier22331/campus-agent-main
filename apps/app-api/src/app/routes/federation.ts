@@ -9,7 +9,9 @@ import { dependencyNotReadyResponse } from "../responses";
 import type { AppRequestScope } from "../types";
 
 const FEDERATION_ROUTE_REWRITES = new Map<string, string>([
+	["/api/federation/client", "/oauth2/public-client"],
 	["/api/federation/authorize", "/oauth2/authorize"],
+	["/api/federation/consent", "/oauth2/consent"],
 	["/api/federation/token", "/oauth2/token"],
 	["/api/federation/userinfo", "/oauth2/userinfo"],
 	["/api/federation/jwks", "/jwks"],
@@ -53,6 +55,9 @@ async function normalizeFederationProviderResponse(input: {
 }): Promise<Response> {
 	const { request, response } = input;
 	const requestUrl = new URL(request.url);
+	if (request.method === "GET" && requestUrl.pathname === "/api/federation/client") {
+		return await normalizePublicClientResponse(response);
+	}
 	if (
 		request.method === "GET" &&
 		requestUrl.pathname === "/api/federation/authorize" &&
@@ -61,7 +66,11 @@ async function normalizeFederationProviderResponse(input: {
 		return await normalizeAuthorizeErrorResponse({ request, response });
 	}
 
-	if (response.status !== 200) {
+	if (
+		request.method !== "GET" ||
+		requestUrl.pathname !== "/api/federation/authorize" ||
+		response.status !== 200
+	) {
 		return response;
 	}
 
@@ -87,6 +96,44 @@ async function normalizeFederationProviderResponse(input: {
 	}
 
 	return buildRedirectResponse(body.url) ?? response;
+}
+
+async function normalizePublicClientResponse(response: Response): Promise<Response> {
+	if (response.status !== 200) {
+		return response;
+	}
+	const contentType = response.headers.get("content-type") ?? "";
+	if (!contentType.toLowerCase().includes("application/json")) {
+		return response;
+	}
+
+	let payload: unknown;
+	try {
+		payload = await response.clone().json();
+	} catch {
+		return response;
+	}
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		return response;
+	}
+
+	const client = payload as Record<string, unknown>;
+	const publicClient: Record<string, unknown> = {};
+	for (const field of [
+		"client_id",
+		"client_name",
+		"client_uri",
+		"logo_uri",
+		"contacts",
+		"tos_uri",
+		"policy_uri",
+	] as const) {
+		if (field in client) {
+			publicClient[field] = client[field];
+		}
+	}
+
+	return new Response(JSON.stringify(publicClient), response);
 }
 
 async function normalizeAuthorizeErrorResponse(input: {
@@ -229,7 +276,9 @@ export function registerFederationRoutes(input: {
 
 	input.app.get("/.well-known/openid-configuration", (c) => handleMetadataRequest(c.req.raw));
 	input.app.get("/.well-known/oauth-authorization-server", (c) => handleMetadataRequest(c.req.raw));
+	input.app.get("/api/federation/client", (c) => handleFederationRequest(c.req.raw));
 	input.app.get("/api/federation/authorize", (c) => handleFederationRequest(c.req.raw));
+	input.app.post("/api/federation/consent", (c) => handleFederationRequest(c.req.raw));
 	input.app.post("/api/federation/token", (c) => handleFederationRequest(c.req.raw));
 	input.app.get("/api/federation/userinfo", (c) => handleFederationRequest(c.req.raw));
 	input.app.get("/api/federation/jwks", (c) => handleFederationRequest(c.req.raw));

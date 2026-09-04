@@ -11,9 +11,11 @@ import {
 } from "./config";
 
 const REQUIRED_ENDPOINTS = [
+	"getOAuthClientPublic",
 	"getOAuthServerConfig",
 	"getOpenIdConfig",
 	"oauth2Authorize",
+	"oauth2Consent",
 	"oauth2Token",
 	"oauth2UserInfo",
 	"oauth2EndSession",
@@ -67,7 +69,6 @@ export function buildFederationProviderRuntimeReadinessReport(): FederationProvi
 			claims_supported: [...FEDERATION_CLAIMS],
 			scopes_supported: [...FEDERATION_SCOPES],
 		},
-		cachedTrustedClients: new Set(["muc-wiki"]),
 		consentPage: "/account/federation/consent",
 		customIdTokenClaims: buildFederationProviderClaimSet,
 		customUserInfoClaims: buildFederationProviderClaimSet,

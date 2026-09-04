@@ -1,58 +1,87 @@
 import { expect, test } from "@playwright/test";
-import { mockCampusApi } from "./support/api-mocks";
+import { type CampusApiRequestRecord, mockCampusApi } from "./support/api-mocks";
 import { mockAuthApi } from "./support/auth-mocks";
 
-test.describe("federation browser flow", () => {
-	test("renders admitted OAuth consent details and preserves the authorize parameters", async ({
-		page,
-	}) => {
-		await mockCampusApi(page, { authenticated: false });
-		await page.goto(
-			"/account/federation/consent?client_id=muc-wiki&redirect_uri=https%3A%2F%2Fwiki.mucwiki-edge.link%2Fcallback&response_type=code&scope=openid%20email%20profile&state=state_e2e&code_challenge=challenge_e2e&code_challenge_method=S256&ignored=drop",
-		);
+const SIGNED_OAUTH_QUERY =
+	"client_id=test-oauth-client&redirect_uri=https%3A%2F%2Foauth.example.test%2Fcallback&response_type=code&scope=openid+email+profile+custom%3Aread&state=state_e2e&code_challenge=challenge_e2e&code_challenge_method=S256&sig=test-signature&exp=1893456000&ba_iat=1893455400000&ignored=drop&ba_param=ba_iat&ba_param=ba_param&ba_param=client_id&ba_param=code_challenge&ba_param=code_challenge_method&ba_param=exp&ba_param=redirect_uri&ba_param=response_type&ba_param=scope&ba_param=state";
+const EXPECTED_OAUTH_QUERY = SIGNED_OAUTH_QUERY.replace("&ignored=drop", "");
 
-		await expect(page.getByRole("heading", { name: "使用校园账号登录 MUC Wiki" })).toBeVisible();
-		await expect(page.getByText("wiki.mucwiki-edge.link")).toBeVisible();
+test.describe("federation browser flow", () => {
+	test("loads generic OAuth client details and submits signed consent", async ({ page }) => {
+		const requests: CampusApiRequestRecord[] = [];
+		await mockCampusApi(page, { authenticated: true, requests });
+		await page.goto(`/account/federation/consent?${SIGNED_OAUTH_QUERY}`);
+
+		await expect(
+			page.getByRole("heading", { name: "使用校园账号登录 Test OAuth Client" }),
+		).toBeVisible();
+		await expect(page.getByText("oauth.example.test")).toBeVisible();
 		await expect(page.getByText("登录身份")).toBeVisible();
 		await expect(page.getByText("邮箱地址")).toBeVisible();
 		await expect(page.getByText("基本资料")).toBeVisible();
+		await expect(page.getByText("custom:read")).toBeVisible();
 
-		const href = await page.getByRole("link", { name: "允许并继续" }).getAttribute("href");
-		expect(href).toBe(
-			"/api/federation/authorize?client_id=muc-wiki&redirect_uri=https%3A%2F%2Fwiki.mucwiki-edge.link%2Fcallback&response_type=code&scope=openid+email+profile&state=state_e2e&code_challenge=challenge_e2e&code_challenge_method=S256",
+		await page.getByRole("button", { name: "允许并继续" }).click();
+		await expect(page).toHaveURL("/account");
+		const consentRequest = requests.find(
+			(request) => request.method === "POST" && request.path === "/api/federation/consent",
 		);
+		expect(consentRequest?.body).toEqual({
+			accept: true,
+			oauth_query: EXPECTED_OAUTH_QUERY,
+		});
 	});
 
-	test("falls back to the account surface when OAuth parameters are missing", async ({ page }) => {
-		await mockCampusApi(page, { authenticated: false });
-		await page.goto("/account/federation/consent");
+	test("submits a signed denial and follows the provider response", async ({ page }) => {
+		const requests: CampusApiRequestRecord[] = [];
+		await mockCampusApi(page, { authenticated: true, requests });
+		await page.goto(`/account/federation/consent?${SIGNED_OAUTH_QUERY}`);
 
-		await expect(page.getByRole("heading", { name: "使用校园账号登录" })).toBeVisible();
-		await expect(page.getByRole("link", { name: "允许并继续" })).toHaveAttribute(
-			"href",
-			"/account",
-		);
-		await expect(page.getByText("MUC Wiki")).toHaveCount(0);
+		await page.getByRole("button", { name: "取消" }).click();
+
+		await expect(page).toHaveURL("/account/federation/error?error=access_denied");
+		expect(
+			requests.find(
+				(request) => request.method === "POST" && request.path === "/api/federation/consent",
+			)?.body,
+		).toEqual({ accept: false, oauth_query: EXPECTED_OAUTH_QUERY });
 	});
 
-	test("preserves the federation consent target after email sign-in", async ({ page }) => {
+	test("fails closed when signed OAuth parameters are missing", async ({ page }) => {
+		await mockCampusApi(page, { authenticated: true });
+		await page.goto("/account/federation/consent?client_id=test-oauth-client&scope=openid");
+
+		await expect(
+			page.getByRole("heading", { name: "使用校园账号登录 Test OAuth Client" }),
+		).toBeVisible();
+		await expect(page.getByRole("button", { name: "允许并继续" })).toBeDisabled();
+		await expect(page.getByRole("button", { name: "取消" })).toBeDisabled();
+	});
+
+	test("continues the provider redirect returned by email sign-in", async ({ page }) => {
+		const requests: CampusApiRequestRecord[] = [];
 		const sessionState = { authenticated: false };
-		await mockCampusApi(page, { sessionState });
-		await mockAuthApi(page, { sessionState, signIn: "success" });
-		const consentTarget =
-			"/account/federation/consent?client_id=muc-wiki&redirect_uri=https%3A%2F%2Fwiki.mucwiki-edge.link%2Fcallback&response_type=code&scope=openid%20email%20profile&state=state_e2e&code_challenge=challenge_e2e&code_challenge_method=S256";
-		await page.goto(`/account/login?redirectTo=${encodeURIComponent(consentTarget)}`);
+		await mockCampusApi(page, { requests, sessionState });
+		const authRequests = await mockAuthApi(page, {
+			sessionState,
+			signIn: "success",
+			signInRedirect: `/account/federation/consent?${EXPECTED_OAUTH_QUERY}`,
+		});
+		await page.goto(`/account/login?${SIGNED_OAUTH_QUERY}`);
 
 		await page.getByLabel("邮箱").fill("student@example.edu");
 		await page.getByRole("textbox", { exact: true, name: "密码" }).fill("validpassword123");
 		await page.getByRole("button", { name: "登录" }).click();
 
-		await expect(page).toHaveURL(consentTarget);
-		await expect(page.getByRole("heading", { name: "使用校园账号登录 MUC Wiki" })).toBeVisible();
-		await expect(page.getByRole("link", { name: "允许并继续" })).toHaveAttribute(
-			"href",
-			"/api/federation/authorize?client_id=muc-wiki&redirect_uri=https%3A%2F%2Fwiki.mucwiki-edge.link%2Fcallback&response_type=code&scope=openid+email+profile&state=state_e2e&code_challenge=challenge_e2e&code_challenge_method=S256",
-		);
+		await expect(page).toHaveURL(`/account/federation/consent?${EXPECTED_OAUTH_QUERY}`);
+		await expect(
+			page.getByRole("heading", { name: "使用校园账号登录 Test OAuth Client" }),
+		).toBeVisible();
+		expect(
+			authRequests.find((request) => request.path === "/api/auth/sign-in/email")?.postData,
+		).toMatchObject({
+			oauth_query: EXPECTED_OAUTH_QUERY,
+		});
 	});
 
 	for (const [error, title] of [

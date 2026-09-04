@@ -34,10 +34,10 @@ gh variable delete CI_RUNNER_MODE \
 `campus-ci` 表示 self-hosted Runner 已通过能力探针，且能使用 runner-owned Buildx builder 生成
 `linux/arm64` 制品；它不表示某一种 CPU、虚拟化方式或主机名。未通过探针的 Runner 不得添加该标签：
 
-| Runner | 目标架构实现 | Builder | 备用状态 |
-| --- | --- | --- | --- |
-| `nc-arm-6c` | 原生 ARM64 | `campus-agent-release` | 已通过真实 arm64 OCI 探针并带有 `campus-ci` |
-| `sq-nixos` | x86_64 + NixOS binfmt/QEMU | `campus-runner-buildkit-v1` | 已通过真实 arm64 OCI 探针并带有 `campus-ci` |
+| Runner | 目标架构实现 | Builder |
+| --- | --- | --- |
+| `nc-arm-6c` | 原生 ARM64 | `campus-agent-release` |
+| `sq-nixos` | x86_64 + NixOS binfmt/QEMU | `campus-runner-buildkit-v1` |
 
 Self-hosted Runner 服务为作业注入 `HOME`、`DOCKER_CONFIG` 和 `BUILDX_BUILDER`。源码工作流只依赖
 这个能力合同，不判断 builder 是原生目标、QEMU/binfmt 还是其他宿主实现。GitHub-hosted 的镜像任务

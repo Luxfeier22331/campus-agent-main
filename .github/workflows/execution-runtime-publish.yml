@@ -168,6 +168,9 @@ jobs:
     if: >-
       needs.release-plan.result == 'success' &&
       fromJSON(needs.release-plan.outputs.images)[0] != null
+    concurrency:
+      group: campus-agent-ghcr-mutation
+      cancel-in-progress: false
     runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04-arm"') }}
     timeout-minutes: 60
     permissions:

@@ -22,8 +22,8 @@ partially_superseded_by:
 - 门户内容不按登录主体形成请求、产物、条目或发布流作用域；
 - `jobs/internal-portal-collection` 只负责门户适配、来源对象和明确请求的文件发布，不负责通知规范化、
   文档分块、向量索引或在线发布；
-- `jobs/internal-portal-collection` 不持久化 TGC；部署采集所需 TGC 与有界检查状态由 ingestion-control
-  PostgreSQL 唯一维护，本地命令只消费调用方显式提供或显式拉取的认证输入；
+- `jobs/internal-portal-collection` 不持久化 TGC；凭据持久化、检查与解析的当前所有权由 ADR-0089
+  管理，本地命令只消费调用方显式提供或显式拉取的认证输入；
 - 认证客户端负责会话建立、校验和错误分类，凭据解析由 ADR-0089 管理，具体认证操作与同步步骤由
   数据文档和 runbook 维护；
 - 通知来源身份、同步边界、资源关系和下游交接由 ADR-0087 及其数据合同维护。

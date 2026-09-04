@@ -29,6 +29,7 @@ const AUTH_FORWARDED_HEADERS = [
 	"x-captcha-response",
 ] as const;
 const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authorization"] as const;
+const FEDERATION_INTERACTION_PATHS = new Set(["/api/federation/consent"]);
 const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
 
 export async function proxyToAppApi(request: Request, env: CampusWorkerEnv): Promise<Response> {
@@ -134,6 +135,9 @@ function isLoopbackAppApiBaseUrl(value: string): boolean {
 
 function getForwardedHeaders(pathname: string) {
 	if (pathname.startsWith("/api/auth/")) {
+		return AUTH_FORWARDED_HEADERS;
+	}
+	if (FEDERATION_INTERACTION_PATHS.has(pathname)) {
 		return AUTH_FORWARDED_HEADERS;
 	}
 	if (FEDERATION_CREDENTIAL_PATHS.has(pathname)) {
