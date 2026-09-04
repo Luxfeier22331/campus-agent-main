@@ -37,9 +37,6 @@ importers:
       '@types/react-dom':
         specifier: 19.2.4
         version: 19.2.4(@types/react@19.2.18)
-      editorconfig-checker:
-        specifier: ^6.1.1
-        version: 6.1.1
       ingestion-contracts:
         specifier: workspace:*
         version: link:packages/ingestion-contracts
@@ -5666,11 +5663,6 @@ packages:
 
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
-
-  editorconfig-checker@6.1.1:
-    resolution: {integrity: sha512-kiOb6qaWpMNt7Z/43ba0Pa1Inhr2/t9nKbvEKtCeXJ5AesztoM9AgLOOQVB4QUv/nGjgz3xkbx4pcogVRD2NWw==}
-    engines: {node: '>=20.11.0'}
-    hasBin: true
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -12234,8 +12226,6 @@ snapshots:
   earcut@3.2.3: {}
 
   eastasianwidth@0.2.0: {}
-
-  editorconfig-checker@6.1.1: {}
 
   emoji-regex@8.0.0: {}
 

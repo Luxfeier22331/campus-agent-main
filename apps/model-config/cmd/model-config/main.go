@@ -44,7 +44,7 @@ func run(_ *slog.Logger) error {
 		Handler:           httpapi.New(store),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
+		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 	errs := make(chan error, 1)

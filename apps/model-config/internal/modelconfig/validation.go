@@ -14,9 +14,13 @@ import (
 	"time"
 )
 
-const embeddingModel = "Qwen3-Embedding-4B"
-const embeddingDimensions = 2560
-const rerankAPIProtocol = "cohere.rerank"
+const (
+	embeddingModel                    = "Qwen3-Embedding-4B"
+	embeddingDimensions               = 2560
+	rerankerProviderValidationTimeout = 45 * time.Second
+	providerValidationTimeout         = 10 * time.Second
+	rerankAPIProtocol                 = "cohere.rerank"
+)
 
 var noticeClassificationCategories = []string{
 	"research_affairs",
@@ -48,7 +52,11 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 	if err := validateShape(target, apiKey); err != nil {
 		return Validation{Status: "failed", ErrorCode: "invalid_setting", Message: err.Error()}
 	}
-	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	validationTimeout := providerValidationTimeout
+	if target.APIProtocol == rerankAPIProtocol {
+		validationTimeout = rerankerProviderValidationTimeout
+	}
+	client := &http.Client{Timeout: validationTimeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	endpoint, body, err := validationRequest(target)
 	if err != nil {
 		return Validation{Status: "failed", ErrorCode: "invalid_protocol", Message: err.Error()}
@@ -64,6 +72,9 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 	req.Header.Set("authorization", "Bearer "+apiKey)
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("accept", "application/json")
+	if target.Provider == "cohere-compatible" {
+		req.Header.Set("X-Failover-Enabled", "true")
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return Validation{Status: "failed", ErrorCode: "provider_unavailable", Message: fmt.Sprintf("model provider request failed: %v", err)}
@@ -370,13 +381,27 @@ func DiscoverModels(ctx context.Context, name ConfigName, provider, baseURL, api
 	}
 	var items []string
 	switch provider {
-	case "cohere", "cohere-compatible":
+	case "cohere":
 		if decoded.Models == nil {
 			return nil, Validation{Status: "failed", ErrorCode: "invalid_response", Message: "provider model response is invalid"}
 		}
 		items = make([]string, 0, len(decoded.Models))
 		for _, item := range decoded.Models {
 			items = append(items, item.Name)
+		}
+	case "cohere-compatible":
+		if decoded.Models != nil {
+			items = make([]string, 0, len(decoded.Models))
+			for _, item := range decoded.Models {
+				items = append(items, item.Name)
+			}
+		} else if decoded.Data != nil {
+			items = make([]string, 0, len(decoded.Data))
+			for _, item := range decoded.Data {
+				items = append(items, item.ID)
+			}
+		} else {
+			return nil, Validation{Status: "failed", ErrorCode: "invalid_response", Message: "provider model response is invalid"}
 		}
 	default:
 		if decoded.Data == nil {

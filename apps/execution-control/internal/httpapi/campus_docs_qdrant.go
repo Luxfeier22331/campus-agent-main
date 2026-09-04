@@ -23,6 +23,7 @@ import (
 
 const (
 	campusDocsEmbeddingTimeout = 10 * time.Second
+	campusDocsRerankTimeout    = 45 * time.Second
 	campusDocsQdrantTimeout    = 60 * time.Second
 )
 
@@ -32,6 +33,7 @@ type modelConfigRuntimeResolver interface {
 
 type campusDocsQdrantClient struct {
 	embeddingHTTPClient *http.Client
+	rerankHTTPClient    *http.Client
 	modelConfigResolver modelConfigRuntimeResolver
 	httpClient          *http.Client
 	qdrantQueryAPIKey   string
@@ -73,6 +75,7 @@ func buildCampusDocsQdrantClient(
 	}
 	return campusDocsQdrantClient{
 		embeddingHTTPClient: &http.Client{Timeout: campusDocsEmbeddingTimeout},
+		rerankHTTPClient:    &http.Client{Timeout: campusDocsRerankTimeout},
 		modelConfigResolver: modelConfigResolver,
 		httpClient:          httpClient,
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantReadOnlyAPIKey),

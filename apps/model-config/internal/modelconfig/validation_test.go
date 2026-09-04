@@ -271,7 +271,7 @@ func TestValidateEmbeddingRequestsCanonicalDimensions(t *testing.T) {
 
 func TestValidateRerankerRequestsAndChecksResponse(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/v1/rerank" || r.Header.Get("Authorization") != "Bearer secret" {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/rerank" || r.Header.Get("Authorization") != "Bearer secret" || r.Header.Get("X-Failover-Enabled") != "true" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		var body struct {
@@ -467,6 +467,27 @@ func TestDiscoverCohereModels(t *testing.T) {
 		t.Fatalf("DiscoverModels() validation = %#v", validation)
 	}
 	if !reflect.DeepEqual(models, []string{"embed-v4", "rerank-v4"}) {
+		t.Fatalf("DiscoverModels() = %#v", models)
+	}
+}
+
+func TestDiscoverCohereCompatibleModelsAcceptsOpenAIModelList(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" || r.Header.Get("Authorization") != "Bearer secret" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = fmt.Fprint(w, `{"object":"list","data":[{"id":"Qwen3-Reranker-4B"},{"id":"Qwen3-Embedding-4B"}]}`)
+	}))
+	defer server.Close()
+	previous := http.DefaultTransport
+	http.DefaultTransport = server.Client().Transport
+	defer func() { http.DefaultTransport = previous }()
+
+	models, validation := DiscoverModels(context.Background(), ConfigCampusDocsReranker, "cohere-compatible", server.URL+"/v1", "secret")
+	if validation.Status != "passed" {
+		t.Fatalf("DiscoverModels() validation = %#v", validation)
+	}
+	if !reflect.DeepEqual(models, []string{"Qwen3-Embedding-4B", "Qwen3-Reranker-4B"}) {
 		t.Fatalf("DiscoverModels() = %#v", models)
 	}
 }

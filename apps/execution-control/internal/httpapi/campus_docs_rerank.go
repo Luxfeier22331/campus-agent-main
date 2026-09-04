@@ -33,7 +33,7 @@ func (e campusDocsQdrantClient) rerankCampusDocsCandidates(
 	if len(candidates) == 0 {
 		return []campusDocsCandidate{}, nil
 	}
-	if e.embeddingHTTPClient == nil {
+	if e.rerankHTTPClient == nil {
 		return nil, errors.New("reranker HTTP client is not configured")
 	}
 	baseURL, err := modelconfigclient.NormalizeBaseURL(provider.BaseURL)
@@ -64,7 +64,10 @@ func (e campusDocsQdrantClient) rerankCampusDocsCandidates(
 	request.Header.Set("accept", "application/json")
 	request.Header.Set("authorization", "Bearer "+provider.APIKey)
 	request.Header.Set("content-type", "application/json")
-	response, err := noRedirectHTTPClient(e.embeddingHTTPClient).Do(request)
+	if provider.Provider == "cohere-compatible" {
+		request.Header.Set("X-Failover-Enabled", "true")
+	}
+	response, err := noRedirectHTTPClient(e.rerankHTTPClient).Do(request)
 	if err != nil {
 		return nil, err
 	}

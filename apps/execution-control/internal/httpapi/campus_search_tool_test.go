@@ -229,6 +229,10 @@ func TestCampusDocsRerankerKeepsThresholdBoundaryAndDropsLowerScores(t *testing.
 			http.NotFound(response, request)
 			return
 		}
+		if request.Header.Get("X-Failover-Enabled") != "true" {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		writeJSON(response, http.StatusOK, map[string]any{
 			"results": []map[string]any{
 				{"index": 1, "relevance_score": 0.499},
@@ -251,7 +255,7 @@ func TestCampusDocsRerankerKeepsThresholdBoundaryAndDropsLowerScores(t *testing.
 		}
 		candidates[index] = candidate
 	}
-	ranked, err := (campusDocsQdrantClient{embeddingHTTPClient: provider.Client()}).rerankCampusDocsCandidates(
+	ranked, err := (campusDocsQdrantClient{rerankHTTPClient: provider.Client()}).rerankCampusDocsCandidates(
 		t.Context(),
 		modelconfigclient.RuntimeConfig{
 			APIKey:        "test-embedding-key",

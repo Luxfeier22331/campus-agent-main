@@ -16,6 +16,8 @@ export interface ProviderConfigAdminEnv {
 	MODEL_CONFIG_URL?: string;
 }
 
+const PROVIDER_CONFIG_ADMIN_REQUEST_TIMEOUT_MS = 60_000;
+
 export class ProviderConfigAdminUnavailableError extends Error {}
 
 export class ProviderConfigAdminResponseError extends Error {
@@ -58,7 +60,7 @@ export function createProviderConfigAdminClient(
 					...(options.body === undefined ? {} : { "content-type": "application/json" }),
 				},
 				method: options.method,
-				signal: AbortSignal.timeout(15_000),
+				signal: AbortSignal.timeout(PROVIDER_CONFIG_ADMIN_REQUEST_TIMEOUT_MS),
 			});
 		} catch (error) {
 			throw new ProviderConfigAdminUnavailableError(

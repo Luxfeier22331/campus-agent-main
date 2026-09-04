@@ -82,6 +82,7 @@
           ];
           lightPackages = corePackages ++ (with pkgs; [
             actionlint
+            editorconfig-checker
             python312
             shellcheck
             tools.osvScanner

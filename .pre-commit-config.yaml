@@ -34,7 +34,7 @@ repos:
 
       - id: editorconfig
         name: EditorConfig
-        entry: pnpm exec editorconfig-checker -no-color -disable-indentation -disable-indent-size
+        entry: nix develop .#ci-light --command editorconfig-checker -no-color -disable-indentation -disable-indent-size
         language: system
         exclude: '(^|/)(dist|node_modules|\.tmp|drizzle/meta)(/|$)'
 
