@@ -23,14 +23,13 @@ func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testin
 	}
 	defer lease.Release()
 
-	server := NewServerWithDependencies(
+	server := NewServerWithOptions(
 		readyServerConfigForTest(t, func(cfg *config.Config) {
 			cfg.MaxConcurrentAnswers = 1
 			cfg.QueueCapacity = 1
 			cfg.QueueTimeoutMS = 1_000
 		}),
-		controller,
-		nil,
+		ServerOptions{AdmissionController: controller},
 	)
 	markTemporalReadyForTest(server)
 	response := httptest.NewRecorder()

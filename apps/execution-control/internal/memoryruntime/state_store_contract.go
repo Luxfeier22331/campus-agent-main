@@ -37,3 +37,9 @@ type StateStore interface {
 	MarkCommandRetryable(context.Context, string, string) error
 	SubjectDrained(context.Context, string, int64, string, int64) (bool, error)
 }
+
+type Executor interface {
+	ExecuteCommand(context.Context, PersonalMemoryCommandRequest) (PersonalMemoryCommandResult, error)
+	AppendConversationTurn(context.Context, AppendConversationTurnRequest) (AppendConversationTurnResult, error)
+	Recall(context.Context, RecallRequest) (RecallResult, error)
+}

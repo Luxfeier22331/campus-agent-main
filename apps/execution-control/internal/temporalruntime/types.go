@@ -3,59 +3,11 @@ package temporalruntime
 import (
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
-type ToolExecutionWorkflowInput struct {
-	AdmissionSnapshot            AgentAdmissionSnapshot `json:"admission_snapshot"`
-	AdmissionSnapshotSHA256      string                 `json:"admission_snapshot_sha256"`
-	ConversationID               string                 `json:"conversation_id"`
-	Namespace                    string                 `json:"namespace"`
-	PayloadSHA256                string                 `json:"payload_sha256"`
-	PersonalMemoryTimeoutSeconds float64                `json:"personal_memory_timeout_seconds"`
-	RequestID                    string                 `json:"request_id"`
-	TaskQueue                    string                 `json:"task_queue"`
-	TraceParent                  string                 `json:"traceparent,omitempty"`
-	WorkflowID                   string                 `json:"workflow_id"`
-}
-
-// AgentAdmissionSnapshot contains only bounded, non-secret execution policy
-// inputs. Provider credentials and model responses are deliberately excluded.
-type AgentAdmissionSnapshot struct {
-	AgentLimits             AgentRuntimeLimitsSnapshot `json:"agent_limits"`
-	AgentLimitsSHA256       string                     `json:"agent_limits_sha256"`
-	ExecutionStrategy       ExecutionStrategySnapshot  `json:"execution_strategy"`
-	ExecutionStrategySHA256 string                     `json:"execution_strategy_sha256"`
-	// PrimaryAgentTargetSHA256 is the opaque Model Config target hash frozen
-	// for this run. The JSON name stays stable for persisted Temporal history.
-	PrimaryAgentTargetSHA256      string                          `json:"provider_config_sha256"`
-	ToolContractFingerprint       ToolContractFingerprintSnapshot `json:"tool_contract_fingerprint"`
-	ToolContractFingerprintSHA256 string                          `json:"tool_contract_fingerprint_sha256"`
-}
-
-type ExecutionStrategySnapshot struct {
-	Kind                     string   `json:"kind"`
-	MaxModelTurns            int      `json:"max_model_turns"`
-	MaxFunctionToolCalls     int      `json:"max_function_tool_calls"`
-	SchemaVersion            string   `json:"schema_version"`
-	VisibleFunctionToolNames []string `json:"visible_function_tool_names"`
-}
-
-// ToolContractFingerprintSnapshot binds an admitted run to the exact tool
-// registry and function schemas expected from agent-runtime. It contains no
-// credentials or model data.
-type ToolContractFingerprintSnapshot struct {
-	FunctionSchemaSHA256 string `json:"function_schema_sha256"`
-	SchemaVersion        string `json:"schema_version"`
-	ToolsSHA256          string `json:"tools_sha256"`
-}
-
-type AgentRuntimeLimitsSnapshot struct {
-	AgentDeadlineMS       int `json:"agent_deadline_ms"`
-	ContextCharLimit      int `json:"context_char_limit"`
-	CurrentInputCharLimit int `json:"current_input_char_limit"`
-	MaxOutputTokens       int `json:"max_output_tokens"`
-}
+type ToolExecutionWorkflowInput = execution.WorkflowStartInput
 
 type ToolExecutionWorkflowResult struct {
 	CompletedAt   time.Time `json:"completed_at"`
@@ -79,11 +31,11 @@ type AppendConversationMemoryActivityOutput struct {
 }
 
 type ExecutePrimaryAgentActivityInput struct {
-	AdmissionSnapshot        AgentAdmissionSnapshot `json:"admission_snapshot"`
-	ConversationID           string                 `json:"conversation_id"`
-	RequestID                string                 `json:"request_id"`
-	TraceParent              string                 `json:"traceparent,omitempty"`
-	VisibleFunctionToolNames []string               `json:"visible_function_tool_names"`
+	AdmissionSnapshot        execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
+	ConversationID           string                           `json:"conversation_id"`
+	RequestID                string                           `json:"request_id"`
+	TraceParent              string                           `json:"traceparent,omitempty"`
+	VisibleFunctionToolNames []string                         `json:"visible_function_tool_names"`
 }
 
 type ExecutionFailure struct {
@@ -141,7 +93,7 @@ type AgentUsageSummary struct {
 
 type WriteFinalizationActivityInput struct {
 	AgentResult       ExecutePrimaryAgentActivityOutput `json:"agent_result"`
-	AdmissionSnapshot AgentAdmissionSnapshot            `json:"admission_snapshot"`
+	AdmissionSnapshot execution.AgentAdmissionSnapshot  `json:"admission_snapshot"`
 	FinalizedAt       time.Time                         `json:"finalized_at"`
 	RequestID         string                            `json:"request_id"`
 }
@@ -153,23 +105,11 @@ type WriteFinalizationActivityOutput struct {
 	Status        string    `json:"status"`
 }
 
-type FinalizeExecutionCancellationActivityOutput struct {
-	RequestID string `json:"request_id"`
-	Status    string `json:"status"`
-}
+type FinalizeExecutionCancellationActivityOutput = execution.ExecutionCancellationFinalizationOutput
 
-type FinalizeExecutionCancellationActivityInput struct {
-	CanceledAt time.Time `json:"canceled_at"`
-	Reason     string    `json:"reason"`
-	RequestID  string    `json:"request_id"`
-}
+type FinalizeExecutionCancellationActivityInput = execution.ExecutionCancellationFinalizationInput
 
-type ToolExecutionWorkflowCancelInput struct {
-	Reason        string `json:"reason"`
-	RequestID     string `json:"request_id"`
-	TemporalRunID string `json:"temporal_run_id"`
-	WorkflowID    string `json:"workflow_id"`
-}
+type ToolExecutionWorkflowCancelInput = execution.WorkflowCancelInput
 
 type PersonalMemoryCommandWorkflowInput struct {
 	Command    memoryruntime.PersonalMemoryCommandRequest `json:"command"`

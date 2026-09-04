@@ -4,6 +4,7 @@ package httpapi
 
 import (
 	"context"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,7 +38,7 @@ func TestExecutionRunHTTPStartsTemporalWorkflowAndProjectsCompletion(t *testing.
 		}
 	}()
 	temporalClient := devServer.Client()
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	activities := &httpTemporalE2EActivities{store: store}
 	workers := []worker.Worker{
 		temporalruntime.NewWorkflowWorker(temporalClient, temporalruntime.WorkflowTaskQueue),
@@ -133,7 +134,7 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 		}
 	}()
 	temporalClient := devServer.Client()
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	activities := &blockingHTTPTemporalE2EActivities{
 		httpTemporalE2EActivities: httpTemporalE2EActivities{store: store},
 		started:                   make(chan struct{}),
@@ -218,7 +219,7 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 }
 
 type httpTemporalE2EActivities struct {
-	store *execution.InMemoryRunProjectionStore
+	store *executionpersistence.InMemoryRunProjectionStore
 }
 
 func (httpTemporalE2EActivities) AppendConversationMemoryActivity(
@@ -299,7 +300,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if _, err := a.store.UpsertStepResult(ctx, execution.StepResultProjection{
-		ResultID:             temporalStepResultID(input.RequestID, "finalization.write", 1),
+		ResultID:             temporalStepResultIDForHTTPTest(input.RequestID, "finalization.write", 1),
 		StepID:               "finalization.write",
 		RequestID:            input.RequestID,
 		AttemptID:            temporalStepAttemptID(input.RequestID, "finalization.write", 1),
@@ -437,7 +438,7 @@ func (a *blockingHTTPTemporalE2EActivities) ExecutePrimaryAgentActivity(
 func waitForRunStatus(
 	t *testing.T,
 	ctx context.Context,
-	store *execution.InMemoryRunProjectionStore,
+	store *executionpersistence.InMemoryRunProjectionStore,
 	runID string,
 	status execution.DurableRunStatus,
 ) execution.DurableRun {

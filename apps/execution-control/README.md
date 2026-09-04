@@ -30,13 +30,18 @@ HTTP API 也不拥有 worker 生命周期。
 
 内部实现按以下边界组织：
 
-- `internal/temporalruntime` 拥有 workflow、activity 名称、输入输出合同和 worker 注册；
-- `internal/primaryagentactivity`、`internal/memoryactivity` 与 `internal/finalizationactivity` 只把
-  Temporal activity 方法映射到对应业务 handler，不复制业务规则；
+- `internal/execution` 拥有与传输、Temporal SDK 和数据库无关的执行合同、workflow 身份校验、admission
+  规则与持久化端口；
+- `internal/executionapplication` 拥有 admission snapshot、run 创建/取消和 Agent 内部工具执行用例；
+- `internal/httpapi` 只负责认证、JSON wire 解码、错误映射和响应编码，查询接口可直接读取有界投影；
+- `internal/temporalruntime` 拥有 Temporal workflow、activity 名称、SDK 输入输出适配和 worker 注册；
+- `internal/temporaladapter` 直接拥有 Temporal activity 方法与业务 handler 的适配，不复制业务规则；
 - `internal/executionreconciler` 独立拥有启动、取消和终态收敛状态机，`internal/runtimeassembly`
-  统一启动和停止 poller 与 reconciler；
-- `internal/execution` 拥有执行输入读取；冻结的 `internal/providerconfig` 代码只服务历史 Goose
-  migration，不得重新进入常驻 runtime。
+  统一启动和停止 poller 与 reconciler；reconciler 只依赖 `internal/execution` 合同，不导入 Temporal SDK
+  或 HTTP；
+- `internal/campusdocs` 拥有索引与检索领域合同，`internal/campusdocspersistence` 实现当前索引的 PostgreSQL
+  读取，`internal/outboundadapter` 实现 embedding、Qdrant 和 reranker 调用；
+- 冻结的 `internal/providerconfig` 代码只服务历史 Goose migration，不得重新进入常驻 runtime。
 
 ## 进程入口
 

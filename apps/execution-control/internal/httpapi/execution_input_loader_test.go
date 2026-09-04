@@ -15,6 +15,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executioninput"
 )
 
 func TestExecutionInputLoaderLoadsAndValidatesFrozenBytes(t *testing.T) {
@@ -82,7 +83,7 @@ func TestExecutionInputLoaderRejectsRedirects(t *testing.T) {
 	defer source.Close()
 
 	_, err := executionInputTestLoader(t, source.URL).Load(context.Background(), run)
-	if err == nil || !errors.Is(err, execution.ErrInputRedirect) {
+	if err == nil || !errors.Is(err, executioninput.ErrInputRedirect) {
 		t.Fatalf("error = %v, want redirect rejection", err)
 	}
 	if redirectedRequests.Load() != 0 {
@@ -228,7 +229,7 @@ func TestExecutionInputLoaderNeverIncludesErrorResponseBody(t *testing.T) {
 func TestExecutionInputLoaderRejectsAmbiguousBaseURLSuffixes(t *testing.T) {
 	for _, suffix := range []string{"?", "#"} {
 		t.Run(suffix, func(t *testing.T) {
-			_, err := execution.NewInputLoader(config.Config{
+			_, err := executioninput.NewInputLoader(config.Config{
 				AppAPIExecutionSharedSecret: "input-secret",
 				ProductCallbackBaseURL:      "https://app-api.internal" + suffix,
 			})
@@ -257,13 +258,13 @@ func TestReadyzDoesNotExposeExecutionInputCredential(t *testing.T) {
 
 func executionInputTestLoader(t *testing.T, baseURL string) execution.InputLoader {
 	t.Helper()
-	loader, err := execution.NewInputLoader(config.Config{
+	loader, err := executioninput.NewInputLoader(config.Config{
 		AppAPIExecutionSharedSecret: "input-secret",
 		ProductCallbackBaseURL:      baseURL,
 		ProductCallbackTimeoutMS:    2_000,
 	})
 	if err != nil {
-		t.Fatalf("execution.NewInputLoader returned error: %v", err)
+		t.Fatalf("executioninput.NewInputLoader returned error: %v", err)
 	}
 	return loader
 }

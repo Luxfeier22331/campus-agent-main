@@ -13,9 +13,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/finalizationactivity"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryactivity"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/primaryagentactivity"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -38,9 +35,9 @@ type Runtime struct {
 }
 
 type ActivityHandlers interface {
-	primaryagentactivity.Handler
-	memoryactivity.Handler
-	finalizationactivity.Handler
+	temporalruntime.AgentActivities
+	temporalruntime.ContextActivities
+	temporalruntime.FinalizationActivities
 }
 
 type ActivitySets struct {
@@ -51,9 +48,9 @@ type ActivitySets struct {
 
 func NewActivitySets(handlers ActivityHandlers) ActivitySets {
 	return ActivitySets{
-		Agent:        primaryagentactivity.New(handlers),
-		Context:      memoryactivity.New(handlers),
-		Finalization: finalizationactivity.New(handlers),
+		Agent:        handlers,
+		Context:      handlers,
+		Finalization: handlers,
 	}
 }
 

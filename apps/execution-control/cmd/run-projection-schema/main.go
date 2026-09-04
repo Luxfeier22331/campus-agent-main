@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"net"
 	"net/url"
 	"os"
@@ -14,8 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/schemamigrations"
 	"github.com/jackc/pgx/v5"
@@ -197,14 +197,14 @@ func runSchemaCommand(ctx context.Context, options schemaOptions) (schemaReport,
 		return schemaReport{}, err
 	}
 
-	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
+	store, err := executionpersistence.NewPostgresRunProjectionStore(ctx, executionpersistence.PostgresRunProjectionStoreOptions{
 		DatabaseURL: options.DatabaseURL,
 	})
 	if err != nil {
 		return schemaReport{}, err
 	}
 	defer store.Close()
-	memoryStore, err := memoryruntime.NewPostgresStateStore(ctx, memoryruntime.PostgresStateStoreOptions{
+	memoryStore, err := memorypersistence.NewPostgresStateStore(ctx, memorypersistence.PostgresStateStoreOptions{
 		DatabaseURL: options.DatabaseURL,
 	})
 	if err != nil {

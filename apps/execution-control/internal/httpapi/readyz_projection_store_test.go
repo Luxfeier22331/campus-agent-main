@@ -6,15 +6,22 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestReadyzReportsTemporalWorkerNotStarted(t *testing.T) {
-	server := NewServer(readyServerConfigForTest(t, func(cfg *config.Config) {
+	cfg := readyServerConfigForTest(t, func(cfg *config.Config) {
 		cfg.TemporalAddress = "127.0.0.1:7233"
 		cfg.TemporalNamespace = "campus-agent-test"
 		cfg.TemporalTaskQueue = "campus-agent.workflow"
 		cfg.TemporalWorkerIdentity = "test:execution-control:readyz"
-	}))
+	})
+	server := NewServerWithOptions(cfg, ServerOptions{
+		TemporalStarter: readyTemporalStarter{readiness: temporalruntime.RuntimeReadiness{
+			Healthy:   false,
+			LastError: "temporal worker not started",
+		}},
+	})
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))

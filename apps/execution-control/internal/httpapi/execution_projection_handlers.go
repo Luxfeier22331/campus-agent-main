@@ -2,15 +2,12 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
@@ -222,37 +219,6 @@ func readRunEventsWaitBudget(request *http.Request) (time.Duration, error) {
 	return time.Duration(value) * time.Millisecond, nil
 }
 
-func durableRunFromCreateBody(
-	body json.RawMessage,
-	now time.Time,
-	taskQueue string,
-) (execution.DurableRun, bool, error) {
-	wire, err := contracts.DecodeExecutionRunCreateRequestWireJSON(body)
-	if err != nil {
-		return execution.DurableRun{}, false, fmt.Errorf("invalid execution run create request: %w", err)
-	}
-	taskQueue = strings.TrimSpace(taskQueue)
-	if taskQueue == "" {
-		return execution.DurableRun{}, false, errors.New("execution task queue is not configured")
-	}
-	return execution.DurableRun{
-		RequestID:       wire.RequestID,
-		ConversationID:  wire.ConversationID,
-		OwnerUserID:     wire.OwnerUserID,
-		Surface:         wire.Surface,
-		Status:          execution.DurableRunStatusCreated,
-		TaskQueue:       taskQueue,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		RuntimeVersions: wire.RuntimeVersions,
-		Metadata: map[string]any{
-			"execution_contract_version": wire.Metadata.ExecutionContractVersion,
-			"execution_input_ref":        wire.Metadata.ExecutionInputRef,
-			"execution_input_sha256":     wire.Metadata.ExecutionInputSHA256,
-		},
-	}, wire.PersonalMemoryRecallAllowed, nil
-}
-
 func durableRunResponse(run execution.DurableRun) map[string]any {
 	return map[string]any{
 		"conversation_id":      run.ConversationID,
@@ -303,7 +269,7 @@ func runStepProjectionResponse(step execution.RunStepProjection) map[string]any 
 		"completed_at":           formatOptionalTime(step.CompletedAt),
 		"updated_at":             formatOptionalTime(step.UpdatedAt),
 		"payload_schema_version": step.PayloadSchemaVersion,
-		"sanitized_payload":      cloneAnyMapFromMetadata(step.SanitizedPayload),
+		"sanitized_payload":      execution.CloneAnyMap(step.SanitizedPayload),
 	}
 }
 
@@ -342,7 +308,7 @@ func stepAttemptProjectionResponse(attempt execution.StepAttemptProjection) map[
 		"terminal_reason":         attempt.TerminalReason,
 		"updated_at":              formatOptionalTime(attempt.UpdatedAt),
 		"payload_schema_version":  attempt.PayloadSchemaVersion,
-		"sanitized_payload":       cloneAnyMapFromMetadata(attempt.SanitizedPayload),
+		"sanitized_payload":       execution.CloneAnyMap(attempt.SanitizedPayload),
 	}
 }
 
@@ -357,7 +323,7 @@ func stepResultProjectionResponse(result execution.StepResultProjection) map[str
 		"projection_ref":         result.ProjectionRef,
 		"created_at":             formatOptionalTime(result.CreatedAt),
 		"payload_schema_version": result.PayloadSchemaVersion,
-		"sanitized_payload":      cloneAnyMapFromMetadata(result.SanitizedPayload),
+		"sanitized_payload":      execution.CloneAnyMap(result.SanitizedPayload),
 	}
 }
 
@@ -392,7 +358,7 @@ func successfulPrimaryAgentActivityProjections(
 			result.ResultKind != "agent_final_output" {
 			continue
 		}
-		activityAttempt, ok := positiveIntValue(result.SanitizedPayload["activity_attempt"])
+		activityAttempt, ok := execution.PositiveIntValue(result.SanitizedPayload["activity_attempt"])
 		if !ok || result.AttemptID != temporalStepAttemptID(result.RequestID, result.StepID, activityAttempt) {
 			continue
 		}
@@ -419,11 +385,15 @@ func successfulPrimaryAgentActivityProjections(
 	for _, attempt := range attempts {
 		if !primaryAgentActivityStep(attempt.StepID) ||
 			(!aggregateMismatch && successfulAttempt == 0 ||
-				successfulAttempt > 0 && projectionActivityAttempt(attempt) == successfulAttempt) {
+				successfulAttempt > 0 && execution.ProjectionActivityAttempt(attempt) == successfulAttempt) {
 			filteredAttempts = append(filteredAttempts, attempt)
 		}
 	}
 	return filteredResults, filteredAttempts
+}
+
+func temporalStepAttemptID(runID string, stepID string, attempt int) string {
+	return strings.TrimSpace(runID) + ":" + strings.TrimSpace(stepID) + ":attempt-" + strconv.Itoa(attempt)
 }
 
 func primaryAgentAggregateMatchesAttempt(
@@ -439,7 +409,7 @@ func primaryAgentAggregateMatchesAttempt(
 		}
 		aggregateAttempt := step.ActivityAttempt
 		if aggregateAttempt <= 0 {
-			aggregateAttempt, _ = positiveIntValue(step.SanitizedPayload["activity_attempt"])
+			aggregateAttempt, _ = execution.PositiveIntValue(step.SanitizedPayload["activity_attempt"])
 		}
 		if aggregateAttempt <= 0 {
 			return true
@@ -451,13 +421,6 @@ func primaryAgentAggregateMatchesAttempt(
 
 func primaryAgentActivityStep(stepID string) bool {
 	return stepID == "agent.primary" || strings.HasPrefix(stepID, "sdk_tool.execute.")
-}
-
-func projectionActivityAttempt(attempt execution.StepAttemptProjection) int {
-	if attempt.ActivityAttempt > 0 {
-		return attempt.ActivityAttempt
-	}
-	return attempt.Attempt
 }
 
 func buildToolTrajectoryProjection(
@@ -484,14 +447,14 @@ func projectedEvalToolCalls(results []execution.StepResultProjection) []map[stri
 		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.") {
 			continue
 		}
-		payload := cloneAnyMapFromMetadata(result.SanitizedPayload)
-		toolName := firstNonEmptyText(payload["tool_name"], toolNameFromSDKStepID(result.StepID))
+		payload := execution.CloneAnyMap(result.SanitizedPayload)
+		toolName := execution.FirstNonEmptyText(payload["tool_name"], toolNameFromSDKStepID(result.StepID))
 		if toolName == "" {
 			continue
 		}
 		call := map[string]any{"tool_name": toolName}
 		if evalSafeArgs, ok := payload["eval_safe_args"].(map[string]any); ok && len(evalSafeArgs) > 0 {
-			call["eval_safe_args"] = cloneAnyMapFromMetadata(evalSafeArgs)
+			call["eval_safe_args"] = execution.CloneAnyMap(evalSafeArgs)
 		}
 		calls = append(calls, call)
 	}
@@ -513,14 +476,6 @@ func requiredStringFromMap(payload map[string]any, key string) string {
 func optionalStringFromMap(payload map[string]any, key string) string {
 	value, _ := payload[key].(string)
 	return strings.TrimSpace(value)
-}
-
-func optionalMapFromMap(payload map[string]any, key string) map[string]any {
-	value, _ := payload[key].(map[string]any)
-	if value == nil {
-		return map[string]any{}
-	}
-	return value
 }
 
 func formatOptionalTime(value time.Time) string {

@@ -7,29 +7,21 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 )
 
 type lifecycleStarter struct{}
 
-func (lifecycleStarter) CancelToolExecutionWorkflow(context.Context, temporalruntime.ToolExecutionWorkflowCancelInput) error {
+func (lifecycleStarter) CancelToolExecutionWorkflow(context.Context, execution.WorkflowCancelInput) error {
 	return nil
 }
 
-func (lifecycleStarter) CheckReadiness(context.Context) temporalruntime.RuntimeReadiness {
-	return temporalruntime.RuntimeReadiness{Healthy: true}
-}
-
-func (lifecycleStarter) StartPersonalMemoryCommandWorkflow(context.Context, temporalruntime.PersonalMemoryCommandWorkflowInput) error {
-	return nil
-}
-
-func (lifecycleStarter) StartToolExecutionWorkflow(context.Context, temporalruntime.ToolExecutionWorkflowInput) (string, error) {
+func (lifecycleStarter) StartToolExecutionWorkflow(context.Context, execution.WorkflowStartInput) (string, error) {
 	return "", nil
 }
 
 type blockingCancellationStore struct {
-	*execution.InMemoryRunProjectionStore
+	*executionpersistence.InMemoryRunProjectionStore
 	entered     chan struct{}
 	enteredOnce sync.Once
 	release     chan struct{}
@@ -62,7 +54,7 @@ func waitForReconcilerState(t *testing.T, reconciler *Reconciler, predicate func
 
 func TestReconcilerStopSerializesConcurrentStart(t *testing.T) {
 	store := &blockingCancellationStore{
-		InMemoryRunProjectionStore: execution.NewInMemoryRunProjectionStore(),
+		InMemoryRunProjectionStore: executionpersistence.NewInMemoryRunProjectionStore(),
 		entered:                    make(chan struct{}),
 		release:                    make(chan struct{}),
 	}
@@ -114,7 +106,7 @@ func TestReconcilerStopSerializesConcurrentStart(t *testing.T) {
 
 func TestReconcilerWakeAndStopAreSafeWhenRepeated(t *testing.T) {
 	store := &blockingCancellationStore{
-		InMemoryRunProjectionStore: execution.NewInMemoryRunProjectionStore(),
+		InMemoryRunProjectionStore: executionpersistence.NewInMemoryRunProjectionStore(),
 		entered:                    make(chan struct{}),
 		release:                    make(chan struct{}),
 	}

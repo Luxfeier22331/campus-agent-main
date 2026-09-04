@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,10 +9,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 )
 
-const personalMemoryRecallToolName = "personal_memory_recall"
+const personalMemoryRecallToolName = executionapplication.PersonalMemoryRecallToolName
 
 type personalMemoryRecallToolEnvelope struct {
 	AccessContext agentToolAccessContext          `json:"access_context"`
@@ -28,10 +27,6 @@ type agentToolAccessContext struct {
 	ResultLimit     int    `json:"result_limit,omitempty"`
 	UserGoal        string `json:"user_goal,omitempty"`
 }
-
-type agentToolConflictError struct{ message string }
-
-func (agentToolConflictError) Error() string { return "agent tool request conflicts with run state" }
 
 type personalMemoryRecallToolPayload struct {
 	Query string `json:"query"`
@@ -51,10 +46,15 @@ func (s *Server) handlePersonalMemoryRecallTool(response http.ResponseWriter, re
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	result, err := s.executePersonalMemoryRecallTool(request.Context(), envelope)
+	result, err := s.agentToolService.PersonalMemoryRecall(
+		request.Context(),
+		executionapplication.PersonalMemoryRecallRequest{
+			AccessContext: agentToolAccessContextToApplication(envelope.AccessContext),
+			Query:         envelope.Payload.Query,
+		},
+	)
 	if err != nil {
-		var conflict agentToolConflictError
-		if errors.As(err, &conflict) {
+		if executionapplication.IsAgentToolConflict(err) {
 			writeError(response, http.StatusConflict, "run_context_conflict", err.Error(), false)
 			return
 		}
@@ -94,108 +94,15 @@ func decodePersonalMemoryRecallToolEnvelope(body json.RawMessage) (personalMemor
 	return envelope, nil
 }
 
-func (s *Server) executePersonalMemoryRecallTool(
-	ctx context.Context,
-	envelope personalMemoryRecallToolEnvelope,
-) (map[string]any, error) {
-	run, err := s.validateAgentToolRun(ctx, envelope.AccessContext, personalMemoryRecallToolName)
-	if err != nil {
-		return nil, err
-	}
-	intent, err := s.runProjectionStore.GetWorkflowStartIntent(ctx, run.RequestID)
-	if err != nil {
-		return nil, err
-	}
-	workflowInput, err := s.newExecutionReconciler().DecodeAndValidateWorkflowStartInput(intent, run)
-	if err != nil {
-		return nil, agentToolConflictError{message: err.Error()}
-	}
-	strategy := workflowInput.AdmissionSnapshot.ExecutionStrategy
-	if !containsString(strategy.VisibleFunctionToolNames, personalMemoryRecallToolName) {
-		return nil, agentToolConflictError{message: "personal memory recall is not available for this run"}
-	}
-	payload, err := s.loadExecutionPayload(ctx, run)
-	if err != nil {
-		return nil, err
-	}
-	recallRequest, err := memoryRecallRequestForRun(run, payload)
-	if err != nil {
-		return nil, agentToolConflictError{message: err.Error()}
-	}
-	recallRequest.UserGoal = envelope.Payload.Query
-	result, err := s.recallPersonalMemory(ctx, recallRequest)
-	if err != nil {
-		return nil, err
-	}
-	memoryText := strings.TrimSpace(result.ContextBlock)
-	outcome := "no_match"
-	if memoryText != "" {
-		outcome = "matched"
-	}
-	return map[string]any{
-		"memory_text": memoryText,
-		"outcome":     outcome,
-	}, nil
-}
-
-func (s *Server) validateAgentToolRun(
-	ctx context.Context,
+func agentToolAccessContextToApplication(
 	access agentToolAccessContext,
-	toolName string,
-) (execution.DurableRun, error) {
-	if s.runProjectionStoreErr != nil {
-		return execution.DurableRun{}, s.runProjectionStoreErr
+) executionapplication.AgentToolAccessContext {
+	return executionapplication.AgentToolAccessContext{
+		ActivityAttempt: access.ActivityAttempt,
+		CitationStart:   access.CitationStart,
+		InvocationID:    access.InvocationID,
+		RequestID:       access.RequestID,
+		ResultLimit:     access.ResultLimit,
+		UserGoal:        access.UserGoal,
 	}
-	if s.runProjectionStore == nil {
-		return execution.DurableRun{}, execution.ErrRunProjectionStoreNotConfigured
-	}
-	run, err := s.runProjectionStore.GetRun(ctx, access.RequestID)
-	if err != nil {
-		return execution.DurableRun{}, err
-	}
-	if run.Status != execution.DurableRunStatusRunning {
-		return execution.DurableRun{}, agentToolConflictError{message: "agent tool run is not running"}
-	}
-	steps, err := s.runProjectionStore.ListRunSteps(ctx, run.RequestID)
-	if err != nil {
-		return execution.DurableRun{}, err
-	}
-	step, latestAttempt, ok := latestPrimaryAgentStep(steps)
-	if !ok {
-		return execution.DurableRun{}, agentToolConflictError{message: "agent.primary admission projection is unavailable"}
-	}
-	if latestAttempt != access.ActivityAttempt {
-		return execution.DurableRun{}, agentToolConflictError{message: "agent tool activity_attempt does not match latest agent attempt"}
-	}
-	if !containsString(stringSliceFromAny(step.SanitizedPayload["visible_function_tool_names"]), toolName) {
-		return execution.DurableRun{}, agentToolConflictError{message: "agent tool is not admitted for this run"}
-	}
-	return run, nil
-}
-
-func latestPrimaryAgentStep(
-	steps []execution.RunStepProjection,
-) (execution.RunStepProjection, int, bool) {
-	var latest execution.RunStepProjection
-	latestAttempt := 0
-	found := false
-	for _, step := range steps {
-		if step.StepID != "agent.primary" {
-			continue
-		}
-		attempt := step.ActivityAttempt
-		if attempt <= 0 {
-			attempt, _ = positiveIntValue(step.SanitizedPayload["activity_attempt"])
-		}
-		if attempt <= 0 {
-			continue
-		}
-		if !found || attempt > latestAttempt ||
-			(attempt == latestAttempt && step.UpdatedAt.After(latest.UpdatedAt)) {
-			latest = step
-			latestAttempt = attempt
-			found = true
-		}
-	}
-	return latest, latestAttempt, found
 }

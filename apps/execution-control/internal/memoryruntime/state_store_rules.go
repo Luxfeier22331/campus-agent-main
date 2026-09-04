@@ -7,7 +7,15 @@ import (
 	"time"
 )
 
-func applyFenceCommand(fence *memoryFence, command PersonalMemoryCommandRequest) error {
+// FenceState is the runtime-owned owner lifecycle fence projected by a state store.
+// Persistence adapters use it when applying the same command ordering rules.
+type FenceState struct {
+	Generation int64
+	Lifecycle  string
+	Sequence   int64
+}
+
+func ApplyFenceCommand(fence *FenceState, command PersonalMemoryCommandRequest) error {
 	if fence.Lifecycle == "deleted" {
 		return fmt.Errorf("%w: owner is deleted", ErrMemoryFenceConflict)
 	}
@@ -42,7 +50,7 @@ func applyFenceCommand(fence *memoryFence, command PersonalMemoryCommandRequest)
 	return nil
 }
 
-func commandReceiptTerminal(status string) bool {
+func CommandReceiptTerminal(status string) bool {
 	switch strings.TrimSpace(status) {
 	case "succeeded", "failed":
 		return true
@@ -51,7 +59,7 @@ func commandReceiptTerminal(status string) bool {
 	}
 }
 
-func validateCommandTerminalResult(status string, errorCode string, resultFingerprint string) (string, string, string, error) {
+func ValidateCommandTerminalResult(status string, errorCode string, resultFingerprint string) (string, string, string, error) {
 	status = strings.TrimSpace(status)
 	errorCode = strings.TrimSpace(errorCode)
 	resultFingerprint = strings.TrimSpace(resultFingerprint)
@@ -74,14 +82,14 @@ func validateCommandTerminalResult(status string, errorCode string, resultFinger
 	}
 }
 
-func validateReceiptIdentity(receipt CommandReceipt, ownerHash string, command PersonalMemoryCommandRequest) error {
+func ValidateReceiptIdentity(receipt CommandReceipt, ownerHash string, command PersonalMemoryCommandRequest) error {
 	if receipt.OwnerScopeHash != ownerHash || receipt.Generation != command.OwnerGeneration || receipt.Sequence != command.OwnerSequence || receipt.Kind != command.CommandKind || receipt.SubjectScopeHash != command.SubjectScopeHash || receipt.SupersessionScope != command.SupersessionScope {
 		return fmt.Errorf("%w: command receipt identity mismatch", ErrMemoryFenceConflict)
 	}
 	return nil
 }
 
-func commandLeaseDeadline(ttl time.Duration) *time.Time {
+func CommandLeaseDeadline(ttl time.Duration) *time.Time {
 	if ttl <= 0 {
 		ttl = 105 * time.Second
 	}

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -210,9 +210,9 @@ func testSchemaCommandAllowsEmptyExecutionSchema(t *testing.T, harness *postgres
 	if err := runtimeStore.HealthCheck(t.Context()); err != nil {
 		t.Fatalf("runtime run projection health check: %v", err)
 	}
-	memoryStore, err := memoryruntime.NewPostgresStateStore(
+	memoryStore, err := memorypersistence.NewPostgresStateStore(
 		t.Context(),
-		memoryruntime.PostgresStateStoreOptions{DatabaseURL: runtimeURL},
+		memorypersistence.PostgresStateStoreOptions{DatabaseURL: runtimeURL},
 	)
 	if err != nil {
 		t.Fatalf("create runtime personal memory state store: %v", err)
@@ -757,9 +757,9 @@ func assertCampusDocsExecutionControlAccess(t *testing.T, runtimeURL string) {
 
 func runtimeStoreCRUD(t *testing.T, runtimeURL string) error {
 	t.Helper()
-	store, err := execution.NewPostgresRunProjectionStore(
+	store, err := executionpersistence.NewPostgresRunProjectionStore(
 		t.Context(),
-		execution.PostgresRunProjectionStoreOptions{DatabaseURL: runtimeURL},
+		executionpersistence.PostgresRunProjectionStoreOptions{DatabaseURL: runtimeURL},
 	)
 	if err != nil {
 		return err

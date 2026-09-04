@@ -3,11 +3,10 @@ package executionreconciler
 import (
 	"context"
 	"errors"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	enumspb "go.temporal.io/api/enums/v1"
 	"strings"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 type workflowStartIntentReader interface {
@@ -62,7 +61,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 		return
 	}
 
-	control, ok := r.starter.(temporalruntime.WorkflowControl)
+	control, ok := r.starter.(execution.WorkflowControl)
 	if !ok {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_identity_unavailable")
 		return
@@ -81,12 +80,12 @@ func (r *Reconciler) ReconcileCancellationCommand(
 		r.retryCancellation(ctx, store, command, "workflow_start_identity_invalid")
 		return
 	}
-	input, err := r.DecodeAndValidateWorkflowStartInput(startIntent, run)
+	input, err := execution.DecodeAndValidateWorkflowStartInput(startIntent, run)
 	if err != nil {
 		r.retryCancellation(ctx, store, command, "workflow_start_identity_invalid")
 		return
 	}
-	expectedIdentity, err := temporalruntime.ToolExecutionWorkflowIdentityForInput(input)
+	expectedIdentity, err := execution.WorkflowIdentityForInput(input)
 	if err != nil {
 		r.retryCancellation(ctx, store, command, "workflow_start_identity_invalid")
 		return
@@ -135,15 +134,15 @@ func (r *Reconciler) ReconcileCancellationCommand(
 		r.retryCancellation(ctx, store, command, "temporal_cancel_chain_identity_unavailable")
 		return
 	}
-	identityErr := temporalruntime.ValidateToolExecutionWorkflowIdentity(info, expectedIdentity)
-	if errors.Is(identityErr, temporalruntime.ErrWorkflowIdentityConflict) {
+	identityErr := execution.ValidateWorkflowIdentity(info, expectedIdentity)
+	if errors.Is(identityErr, execution.ErrWorkflowIdentityConflict) {
 		// The durable run does not own this execution. Never deliver a cancel
 		// to it; close only the local product run selected by the command.
 		r.finalizeCancellationLocally(ctx, store, command, run)
 		return
 	}
 	if identityErr != nil {
-		if errors.Is(identityErr, temporalruntime.ErrWorkflowOwnershipUnsafe) &&
+		if errors.Is(identityErr, execution.ErrWorkflowOwnershipUnsafe) &&
 			storedTemporalRunID != "" && temporalWorkflowMemoIdentityMatches(info, expectedIdentity) &&
 			temporalWorkflowTerminal(info.Status) && !info.CloseTime.IsZero() &&
 			r.failCloseUnauthorizedWorkflowSuccessor(
@@ -236,7 +235,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 		}
 		info = latest
 	}
-	if info.Status == enumspb.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW {
+	if info.Status == execution.WorkflowExecutionStatusContinuedAsNew {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_chain_advancing")
 		return
 	}
@@ -248,7 +247,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 	}
 
 	cancelCtx, cancel := context.WithTimeout(ctx, r.operationTimeout)
-	err = r.starter.CancelToolExecutionWorkflow(cancelCtx, temporalruntime.ToolExecutionWorkflowCancelInput{
+	err = r.starter.CancelToolExecutionWorkflow(cancelCtx, execution.WorkflowCancelInput{
 		Reason: command.Reason, RequestID: command.RequestID, TemporalRunID: temporalRunID, WorkflowID: command.WorkflowID,
 	})
 	cancel()
@@ -268,7 +267,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 		return
 	}
 	if latestInfo.Found && strings.TrimSpace(latestInfo.RunID) == temporalRunID &&
-		temporalruntime.ValidateToolExecutionWorkflowIdentity(latestInfo, expectedIdentity) == nil &&
+		execution.ValidateWorkflowIdentity(latestInfo, expectedIdentity) == nil &&
 		temporalWorkflowTerminal(latestInfo.Status) {
 		latest, found := r.describeLatestMatchingBoundWorkflowExecution(
 			ctx,
@@ -294,7 +293,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 			r.retryCancellation(ctx, store, command, "temporal_cancel_chain_identity_unavailable")
 			return
 		}
-		if latest.Status == enumspb.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW {
+		if latest.Status == execution.WorkflowExecutionStatusContinuedAsNew {
 			r.retryCancellation(ctx, store, command, "temporal_cancel_chain_advancing")
 			return
 		}
@@ -351,35 +350,35 @@ func (r *Reconciler) cancellationStillOwnsActiveRun(
 func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 	ctx context.Context,
 	store execution.RunProjectionStore,
-	control temporalruntime.WorkflowControl,
+	control execution.WorkflowControl,
 	command execution.RunCancellationCommand,
 	run execution.DurableRun,
 	startIntent execution.WorkflowStartIntent,
-	input temporalruntime.ToolExecutionWorkflowInput,
-	expectedIdentity temporalruntime.ToolExecutionWorkflowIdentity,
-) (execution.WorkflowStartIntent, temporalruntime.WorkflowExecutionInfo, bool) {
+	input execution.WorkflowStartInput,
+	expectedIdentity execution.WorkflowIdentity,
+) (execution.WorkflowStartIntent, execution.WorkflowExecutionInfo, bool) {
 	if startIntent.State != execution.LifecycleIntentStateSuperseded ||
 		!startIntent.DispatchAttempted || strings.TrimSpace(startIntent.TemporalRunID) != "" {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_state_invalid")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
-	recoveryStarter, ok := r.starter.(temporalruntime.WorkflowCancellationRecoveryStarter)
+	recoveryStarter, ok := r.starter.(execution.WorkflowCancellationRecoveryStarter)
 	if !ok {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_start_unavailable")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	latestRun, err := store.GetRun(ctx, command.RequestID)
 	if err != nil {
 		r.retryCancellation(ctx, store, command, "run_unavailable")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	if temporalRunTerminal(latestRun.Status) {
 		r.confirmCancellation(ctx, store, command)
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	if latestRun.ConversationID != run.ConversationID {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_identity_invalid")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	startCtx, cancel := context.WithTimeout(
 		traceContextForWorkflowStart(ctx, input),
@@ -389,17 +388,17 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 	cancel()
 	if err != nil {
 		code := "temporal_cancel_recovery_start_uncertain"
-		if errors.Is(err, temporalruntime.ErrWorkflowIdentityConflict) ||
-			errors.Is(err, temporalruntime.ErrWorkflowOwnershipUnsafe) {
+		if errors.Is(err, execution.ErrWorkflowIdentityConflict) ||
+			errors.Is(err, execution.ErrWorkflowOwnershipUnsafe) {
 			code = "temporal_cancel_recovery_identity_conflict"
 		}
 		r.retryCancellation(ctx, store, command, code)
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	temporalRunID = strings.TrimSpace(temporalRunID)
 	if temporalRunID == "" {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_identity_unavailable")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	probeCtx, probeCancel := context.WithTimeout(ctx, r.operationTimeout)
 	exact, probeErr := control.DescribeToolExecutionWorkflow(probeCtx, startIntent.WorkflowID, temporalRunID)
@@ -407,11 +406,11 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 	if probeErr != nil || strings.TrimSpace(exact.RunID) != temporalRunID ||
 		strings.TrimSpace(exact.FirstRunID) != temporalRunID {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_identity_unavailable")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
-	identityErr := temporalruntime.ValidateToolExecutionWorkflowIdentity(exact, expectedIdentity)
+	identityErr := execution.ValidateWorkflowIdentity(exact, expectedIdentity)
 	if identityErr != nil {
-		if errors.Is(identityErr, temporalruntime.ErrWorkflowOwnershipUnsafe) &&
+		if errors.Is(identityErr, execution.ErrWorkflowOwnershipUnsafe) &&
 			temporalWorkflowMemoIdentityMatches(exact, expectedIdentity) &&
 			temporalWorkflowTerminal(exact.Status) && !exact.CloseTime.IsZero() &&
 			r.failCloseUnauthorizedWorkflowSuccessor(
@@ -424,10 +423,10 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 				exact,
 				&command,
 			) {
-			return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+			return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 		}
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_identity_unavailable")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	latest, found := r.describeLatestMatchingBoundWorkflowExecution(
 		ctx,
@@ -448,10 +447,10 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 			exact,
 			&command,
 		) {
-			return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+			return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 		}
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_chain_unavailable")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	bound, bindErr := store.BindSupersededWorkflowStartExecution(ctx, execution.WorkflowStartExecutionBinding{
 		RequestID:     command.RequestID,
@@ -465,11 +464,11 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 			code = "temporal_cancel_recovery_binding_conflict"
 		}
 		r.retryCancellation(ctx, store, command, code)
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	if strings.TrimSpace(bound.TemporalRunID) != temporalRunID {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_binding_conflict")
-		return execution.WorkflowStartIntent{}, temporalruntime.WorkflowExecutionInfo{}, false
+		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
 	return bound, latest, true
 }
@@ -479,12 +478,12 @@ func (r *Reconciler) reconcileClosedWorkflowCancellation(
 	store execution.RunProjectionStore,
 	command execution.RunCancellationCommand,
 	run execution.DurableRun,
-	info temporalruntime.WorkflowExecutionInfo,
+	info execution.WorkflowExecutionInfo,
 ) bool {
 	switch info.Status {
-	case enumspb.WORKFLOW_EXECUTION_STATUS_CANCELED:
+	case execution.WorkflowExecutionStatusCanceled:
 		r.finalizeCancellationLocally(ctx, store, command, run)
-	case enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+	case execution.WorkflowExecutionStatusTimedOut:
 		if info.CloseTime.IsZero() {
 			r.retryCancellation(ctx, store, command, "temporal_cancel_close_time_unavailable")
 			return true
@@ -495,7 +494,7 @@ func (r *Reconciler) reconcileClosedWorkflowCancellation(
 		if err := r.finalizeTimedOutWorkflow(ctx, store, run, info.CloseTime); err != nil && ctx.Err() == nil {
 			r.logWarn("Temporal workflow timeout finalization failed", "request_id", run.RequestID, "error", err)
 		}
-	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+	case execution.WorkflowExecutionStatusTerminated:
 		if info.CloseTime.IsZero() {
 			r.retryCancellation(ctx, store, command, "temporal_cancel_close_time_unavailable")
 			return true
@@ -506,8 +505,8 @@ func (r *Reconciler) reconcileClosedWorkflowCancellation(
 		if err := r.finalizeTerminatedWorkflow(ctx, store, run, info.CloseTime); err != nil && ctx.Err() == nil {
 			r.logWarn("Temporal workflow termination finalization failed", "request_id", run.RequestID, "error", err)
 		}
-	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED,
-		enumspb.WORKFLOW_EXECUTION_STATUS_FAILED:
+	case execution.WorkflowExecutionStatusCompleted,
+		execution.WorkflowExecutionStatusFailed:
 		// Temporal already chose a non-cancellation close status. Retire the
 		// cancellation command so the corresponding terminal projector can win.
 		r.confirmCancellation(ctx, store, command)
@@ -535,7 +534,7 @@ func (r *Reconciler) finalizeCancellationLocally(
 		return
 	}
 	finalizeCtx, finalizeCancel := context.WithTimeout(ctx, 30*time.Second)
-	_, finalizeErr := r.finalizer.FinalizeExecutionCancellation(finalizeCtx, temporalruntime.FinalizeExecutionCancellationActivityInput{
+	_, finalizeErr := r.finalizer.FinalizeExecutionCancellation(finalizeCtx, execution.ExecutionCancellationFinalizationInput{
 		CanceledAt: command.CreatedAt.UTC().Truncate(time.Microsecond),
 		Reason:     command.Reason,
 		RequestID:  command.RequestID,

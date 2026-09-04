@@ -3,6 +3,7 @@ package httpapi
 import (
 	"strings"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
@@ -23,9 +24,9 @@ func projectedRAGAnswer(results []execution.StepResultProjection) string {
 		if result.StepID != "finalization.write" {
 			continue
 		}
-		payload := cloneAnyMapFromMetadata(result.SanitizedPayload)
-		finalized := optionalMapFromMap(payload, "finalization_summary")
-		if answer := firstNonEmptyText(finalized["answer_text"]); answer != "" {
+		payload := execution.CloneAnyMap(result.SanitizedPayload)
+		finalized := execution.OptionalMapFromMap(payload, "finalization_summary")
+		if answer := execution.FirstNonEmptyText(finalized["answer_text"]); answer != "" {
 			return answer
 		}
 	}
@@ -54,7 +55,7 @@ func projectedRAGCitedContexts(
 	answer string,
 	results []execution.StepResultProjection,
 ) ([]string, []string) {
-	cited, err := citedPrimaryAgentResults(answer, projectedRAGSearchResults(results))
+	cited, err := campusdocs.CitedSearchResults(answer, projectedRAGSearchResults(results))
 	if err != nil {
 		return []string{}, []string{}
 	}
@@ -67,21 +68,19 @@ func projectedRAGCitedContexts(
 	return contexts, contextIDs
 }
 
-func projectedRAGSearchResults(results []execution.StepResultProjection) []primaryAgentRunResult {
-	projected := []primaryAgentRunResult{}
+func projectedRAGSearchResults(results []execution.StepResultProjection) []campusdocs.SearchResultItem {
+	projected := []campusdocs.SearchResultItem{}
 	for _, result := range results {
 		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.campus_search.") ||
 			result.Status != "completed" {
 			continue
 		}
-		payload := cloneAnyMapFromMetadata(result.SanitizedPayload)
-		_, searchResults, err := decodeCampusSearchResult(cloneAnyMapFromMetadata(payload["result"]))
+		payload := execution.CloneAnyMap(result.SanitizedPayload)
+		_, searchResults, err := campusdocs.DecodeSearchResult(execution.CloneAnyMapFromValue(payload["result"]))
 		if err != nil {
 			continue
 		}
-		for _, item := range searchResults {
-			projected = append(projected, primaryAgentRunResultFromCampusSearch(item))
-		}
+		projected = append(projected, searchResults...)
 	}
 	return projected
 }

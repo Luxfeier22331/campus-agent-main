@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 const maxDescriptorResponseBytes = 1 << 20
@@ -20,9 +22,7 @@ var lowercaseSHA256 = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 var ErrNotConfigured = errors.New("model config client is not configured")
 
-type PrimaryAgentTarget struct {
-	TargetSHA256 string
-}
+type PrimaryAgentTarget = execution.PrimaryAgentTarget
 
 type RuntimeConfig struct {
 	SchemaVersion string `json:"schema_version"`
@@ -35,9 +35,7 @@ type RuntimeConfig struct {
 	TargetSHA256  string `json:"target_sha256"`
 }
 
-type PrimaryAgentTargetResolver interface {
-	ResolvePrimaryAgentTarget(context.Context) (PrimaryAgentTarget, error)
-}
+type PrimaryAgentTargetResolver = execution.PrimaryAgentTargetResolver
 
 type Client struct {
 	baseURL string

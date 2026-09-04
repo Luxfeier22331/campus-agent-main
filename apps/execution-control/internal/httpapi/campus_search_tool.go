@@ -2,16 +2,20 @@ package httpapi
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 )
 
-const campusSearchToolName = "campus_search"
+const (
+	campusSearchToolName          = executionapplication.CampusSearchToolName
+	primaryAgentSearchResultLimit = executionapplication.PrimaryAgentSearchResultLimit
+)
 
 type campusSearchToolEnvelope struct {
 	AccessContext agentToolAccessContext  `json:"access_context"`
@@ -36,10 +40,15 @@ func (s *Server) handleCampusSearchTool(response http.ResponseWriter, request *h
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	result, err := s.executeCampusSearchTool(request.Context(), envelope)
+	result, err := s.agentToolService.CampusSearch(
+		request.Context(),
+		executionapplication.CampusSearchRequest{
+			AccessContext: agentToolAccessContextToApplication(envelope.AccessContext),
+			SearchQuery:   envelope.Payload.SearchQuery,
+		},
+	)
 	if err != nil {
-		var conflict agentToolConflictError
-		if errors.As(err, &conflict) {
+		if executionapplication.IsAgentToolConflict(err) {
 			writeError(response, http.StatusConflict, "run_context_conflict", err.Error(), false)
 			return
 		}
@@ -76,50 +85,4 @@ func decodeCampusSearchToolEnvelope(body json.RawMessage) (campusSearchToolEnvel
 		return envelope, errors.New("campus_search access_context is invalid")
 	}
 	return envelope, nil
-}
-
-func (s *Server) executeCampusSearchTool(
-	ctx context.Context,
-	envelope campusSearchToolEnvelope,
-) (map[string]any, error) {
-	if _, err := s.validateAgentToolRun(ctx, envelope.AccessContext, campusSearchToolName); err != nil {
-		return nil, err
-	}
-	if s.campusDocsIndexStore == nil {
-		return nil, errors.New("campus docs index store is not configured")
-	}
-	if s.campusDocsQdrantErr != nil {
-		return nil, s.campusDocsQdrantErr
-	}
-	index, found, err := s.campusDocsIndexStore.CurrentIndex(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, errors.New("campus docs current index is not available")
-	}
-	retrievalQuery := campusSearchRetrievalQuery(
-		envelope.AccessContext.UserGoal,
-		envelope.Payload.SearchQuery,
-	)
-	results, err := retrieveCampusDocsResults(
-		ctx,
-		s.campusDocsQdrant,
-		index,
-		retrievalQuery,
-		envelope.AccessContext.ResultLimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return campusSearchResult(results, envelope.AccessContext.CitationStart), nil
-}
-
-func campusSearchRetrievalQuery(userGoal string, searchQuery string) string {
-	userGoal = strings.TrimSpace(userGoal)
-	searchQuery = strings.TrimSpace(searchQuery)
-	if searchQuery == userGoal {
-		return userGoal
-	}
-	return userGoal + "\n检索表达：" + searchQuery
 }

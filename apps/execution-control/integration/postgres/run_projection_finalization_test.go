@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 )
 
 func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) {
@@ -284,7 +285,7 @@ func testRunProjectionFinalizationStore(t *testing.T, harness *postgresHarness) 
 
 func createPostgresFinalizationRun(
 	t *testing.T,
-	store *execution.PostgresRunProjectionStore,
+	store *executionpersistence.PostgresRunProjectionStore,
 	runID string,
 	now time.Time,
 ) execution.DurableRun {
@@ -368,7 +369,7 @@ func postgresFinalizationRequest(
 
 func seedPostgresFinalizationRecords(
 	t *testing.T,
-	store *execution.PostgresRunProjectionStore,
+	store *executionpersistence.PostgresRunProjectionStore,
 	request execution.RunProjectionFinalizeRequest,
 ) {
 	t.Helper()
@@ -385,7 +386,7 @@ func seedPostgresFinalizationRecords(
 
 func assertPostgresFinalizationRollback(
 	t *testing.T,
-	store *execution.PostgresRunProjectionStore,
+	store *executionpersistence.PostgresRunProjectionStore,
 	runID string,
 ) {
 	t.Helper()
@@ -398,7 +399,7 @@ func assertPostgresFinalizationRollback(
 
 func assertPostgresFinalizationCardinality(
 	t *testing.T,
-	store *execution.PostgresRunProjectionStore,
+	store *executionpersistence.PostgresRunProjectionStore,
 	runID string,
 	wantSteps int,
 	wantAttempts int,

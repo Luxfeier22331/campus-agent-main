@@ -13,6 +13,8 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -112,6 +114,10 @@ func v3ExecutionMetadataForHTTPTest(requestID string) map[string]any {
 	}
 }
 
+func temporalStepResultIDForHTTPTest(runID string, stepID string, attempt int) string {
+	return strings.TrimSpace(runID) + ":" + strings.TrimSpace(stepID) + ":result-" + fmt.Sprint(attempt)
+}
+
 func executionPayloadWireForHTTPTest(
 	requestID string,
 	conversationID string,
@@ -127,13 +133,13 @@ func executionPayloadWireForHTTPTest(
 		UserGoal:                 userGoal,
 		ConversationID:           conversationID,
 		RequestID:                requestID,
-		Context:                  cloneAnyMapFromMetadata(contextProjection),
+		Context:                  execution.CloneAnyMap(contextProjection),
 	}
 }
 
 func setExecutionPayloadConversationContextForRunTest(
 	t *testing.T,
-	store *execution.InMemoryRunProjectionStore,
+	store *executionpersistence.InMemoryRunProjectionStore,
 	runID string,
 	conversationContext map[string]any,
 ) {
@@ -143,7 +149,7 @@ func setExecutionPayloadConversationContextForRunTest(
 		t.Fatalf("get run projection: %v", err)
 	}
 	wire := testExecutionInputForRun(t, runID)
-	contextEnvelope := cloneAnyMapFromMetadata(wire.Context)
+	contextEnvelope := execution.CloneAnyMap(wire.Context)
 	contextEnvelope["conversation"] = conversationContext
 	wire.Context = contextEnvelope
 	registerTestExecutionInput(t, store, run, wire)
@@ -155,11 +161,33 @@ func attachRunProjectionStoreForHandlerTest(
 ) {
 	server.runProjectionStore = store
 	server.runProjectionStoreErr = nil
-	server.executionInputLoader = mapExecutionInputLoader{}
-	server.executionInputErr = nil
-	server.productFinalizationWriter = func(context.Context, execution.DurableRun, time.Time, map[string]any) error {
-		return nil
-	}
+	attachRunServiceForHandlerTest(server, store, mapExecutionInputLoader{}, staticAdmissionSnapshotBuilder{
+		targetSHA256: primaryAgentModelTargetSHA256ForTest,
+	}, false)
+	server.agentToolService = executionapplication.NewAgentToolService(
+		executionapplication.AgentToolServiceOptions{
+			InputLoader: mapExecutionInputLoader{},
+			Store:       store,
+		},
+	)
+}
+
+func attachRunServiceForHandlerTest(
+	server *Server,
+	store execution.RunProjectionStore,
+	inputLoader execution.InputLoader,
+	admissionSnapshotBuilder execution.AdmissionSnapshotBuilder,
+	personalMemoryRecallAvailable bool,
+) {
+	server.runService = executionapplication.NewRunService(executionapplication.RunServiceOptions{
+		AdmissionSnapshotBuilder:      admissionSnapshotBuilder,
+		InputLoader:                   inputLoader,
+		Namespace:                     server.config.TemporalNamespace,
+		PersonalMemoryRecallAvailable: personalMemoryRecallAvailable,
+		PersonalMemoryTimeoutSeconds:  server.config.PersonalMemoryTimeoutSeconds,
+		Store:                         store,
+		TaskQueue:                     server.config.TemporalTaskQueue,
+	})
 }
 
 func durableRunCreateBodyForTest(runID string, conversationID string) string {
@@ -215,7 +243,7 @@ func durableRunCreateBodyWithToolForTest(
 
 func createHTTPAPIQueuedDurableRunForTest(
 	t *testing.T,
-	store *execution.InMemoryRunProjectionStore,
+	store *executionpersistence.InMemoryRunProjectionStore,
 	runID string,
 	conversationID string,
 	now time.Time,
@@ -225,7 +253,7 @@ func createHTTPAPIQueuedDurableRunForTest(
 	userGoal := "hello"
 	if agentRequest != nil {
 		if payload, ok := agentRequest["payload"].(map[string]any); ok {
-			userGoal = firstNonEmptyText(payload["query_text"], userGoal)
+			userGoal = execution.FirstNonEmptyText(payload["query_text"], userGoal)
 		}
 	}
 	metadata := v3ExecutionMetadataForHTTPTest(runID)
@@ -287,7 +315,7 @@ func testExecutionInputForRun(t *testing.T, runID string) contracts.ExecutionPay
 
 func registerTestExecutionInput(
 	t *testing.T,
-	store *execution.InMemoryRunProjectionStore,
+	store *executionpersistence.InMemoryRunProjectionStore,
 	run execution.DurableRun,
 	wire contracts.ExecutionPayloadWire,
 ) {
@@ -304,7 +332,7 @@ func registerTestExecutionInput(
 	if err != nil {
 		t.Fatalf("get run for execution input registration: %v", err)
 	}
-	metadata := cloneAnyMapFromMetadata(latest.Metadata)
+	metadata := execution.CloneAnyMap(latest.Metadata)
 	metadata["execution_input_sha256"] = hex.EncodeToString(digest[:])
 	if err := store.ReplaceRunMetadata(context.Background(), run.RequestID, metadata); err != nil {
 		t.Fatalf("update execution input digest: %v", err)

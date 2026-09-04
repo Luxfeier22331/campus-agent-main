@@ -3,9 +3,9 @@ package executionreconciler
 import (
 	"context"
 	"errors"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"strings"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 func (r *Reconciler) ReconcileStarts(ctx context.Context) {
@@ -70,12 +70,12 @@ func (r *Reconciler) ReconcileStartIntent(
 		}
 		return
 	}
-	input, err := r.DecodeAndValidateWorkflowStartInput(intent, run)
+	input, err := execution.DecodeAndValidateWorkflowStartInput(intent, run)
 	if err != nil {
 		r.PermanentlyFailStartIntent(ctx, store, intent, run, WorkflowStartValidationFailure(intent), err)
 		return
 	}
-	expectedIdentity, err := temporalruntime.ToolExecutionWorkflowIdentityForInput(input)
+	expectedIdentity, err := execution.WorkflowIdentityForInput(input)
 	if err != nil {
 		r.PermanentlyFailStartIntent(ctx, store, intent, run, WorkflowStartValidationFailure(intent), err)
 		return
@@ -114,7 +114,7 @@ func (r *Reconciler) ReconcileStartIntent(
 	temporalRunID, err := r.starter.StartToolExecutionWorkflow(startCtx, input)
 	cancel()
 	if err != nil {
-		if errors.Is(err, temporalruntime.ErrWorkflowIdentityConflict) {
+		if errors.Is(err, execution.ErrWorkflowIdentityConflict) {
 			r.PermanentlyFailStartIntent(ctx, store, intent, run, WorkflowStartRemoteConflictFailure, err)
 			return
 		}
@@ -155,8 +155,8 @@ func (r *Reconciler) compensateSupersededStart(
 	store execution.RunProjectionStore,
 	leased execution.WorkflowStartIntent,
 	run execution.DurableRun,
-	input temporalruntime.ToolExecutionWorkflowInput,
-	expectedIdentity temporalruntime.ToolExecutionWorkflowIdentity,
+	input execution.WorkflowStartInput,
+	expectedIdentity execution.WorkflowIdentity,
 	temporalRunID string,
 ) {
 	reader, ok := store.(workflowStartIntentReader)
@@ -167,11 +167,11 @@ func (r *Reconciler) compensateSupersededStart(
 	if err != nil || current.State != execution.LifecycleIntentStateSuperseded {
 		return
 	}
-	currentInput, err := r.DecodeAndValidateWorkflowStartInput(current, run)
+	currentInput, err := execution.DecodeAndValidateWorkflowStartInput(current, run)
 	if err != nil {
 		return
 	}
-	currentIdentity, err := temporalruntime.ToolExecutionWorkflowIdentityForInput(currentInput)
+	currentIdentity, err := execution.WorkflowIdentityForInput(currentInput)
 	if err != nil || currentIdentity != expectedIdentity || currentInput.WorkflowID != input.WorkflowID {
 		return
 	}
@@ -207,7 +207,7 @@ func (r *Reconciler) compensateSupersededStart(
 		return
 	}
 	cancelCtx, cancel := context.WithTimeout(ctx, r.operationTimeout)
-	err = r.starter.CancelToolExecutionWorkflow(cancelCtx, temporalruntime.ToolExecutionWorkflowCancelInput{
+	err = r.starter.CancelToolExecutionWorkflow(cancelCtx, execution.WorkflowCancelInput{
 		Reason: "user_requested", RequestID: leased.RequestID, TemporalRunID: temporalRunID, WorkflowID: input.WorkflowID,
 	})
 	cancel()

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 const (
@@ -30,34 +29,23 @@ const (
 	WorkflowUnauthorizedSuccessorFailure = "workflow_successor_without_authorization"
 )
 
-type Finalizer interface {
-	FailWorkflowStart(context.Context, execution.DurableRun, string, error) error
-	FinalizeExecutionCancellation(
-		context.Context,
-		temporalruntime.FinalizeExecutionCancellationActivityInput,
-	) (temporalruntime.FinalizeExecutionCancellationActivityOutput, error)
-	FinalizeWorkflowClosure(context.Context, execution.DurableRun, time.Time, string) error
-	FinalizeWorkflowTimeout(context.Context, execution.DurableRun, time.Time) error
-	ValidateWorkflowAdmission(temporalruntime.AgentAdmissionSnapshot, []string) error
-}
-
 type Options struct {
-	Finalizer        Finalizer
+	Finalizer        execution.WorkflowFinalizer
 	Logger           *slog.Logger
 	OperationTimeout time.Duration
-	Starter          temporalruntime.ChatWorkflowStarter
+	Starter          execution.WorkflowStarter
 	Store            execution.RunProjectionStore
 }
 
 type Reconciler struct {
 	activeWorkflowCursor string
-	finalizer            Finalizer
+	finalizer            execution.WorkflowFinalizer
 	logger               *slog.Logger
 	mu                   sync.Mutex
 	operationTimeout     time.Duration
 	projectionStore      execution.RunProjectionStore
 	run                  *reconcilerRun
-	starter              temporalruntime.ChatWorkflowStarter
+	starter              execution.WorkflowStarter
 	stopDone             chan struct{}
 	stopping             bool
 }

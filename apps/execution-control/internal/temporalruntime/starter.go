@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
@@ -20,27 +21,22 @@ const (
 )
 
 type ChatWorkflowStarter interface {
-	CancelToolExecutionWorkflow(context.Context, ToolExecutionWorkflowCancelInput) error
+	execution.WorkflowStarter
 	CheckReadiness(context.Context) RuntimeReadiness
 	StartPersonalMemoryCommandWorkflow(context.Context, PersonalMemoryCommandWorkflowInput) error
-	StartToolExecutionWorkflow(context.Context, ToolExecutionWorkflowInput) (string, error)
 }
 
 // WorkflowControl is separate from ChatWorkflowStarter so command-only test
 // doubles do not need to implement Temporal visibility. The lifecycle
 // reconciler uses it to verify cancellation and timeout ownership.
-type WorkflowControl interface {
-	DescribeToolExecutionWorkflow(context.Context, string, string) (WorkflowExecutionInfo, error)
-}
+type WorkflowControl = execution.WorkflowControl
 
 // WorkflowCancellationRecoveryStarter recreates an execution whose durable
 // dispatch fence committed but whose StartWorkflowExecution call may never
 // have happened. Implementations must preserve the canonical workflow input
 // and delay the first workflow task long enough for the caller to bind and
 // cancel the concrete root execution.
-type WorkflowCancellationRecoveryStarter interface {
-	EnsureToolExecutionWorkflowForCancellation(context.Context, ToolExecutionWorkflowInput) (string, error)
-}
+type WorkflowCancellationRecoveryStarter = execution.WorkflowCancellationRecoveryStarter
 
 type StarterOptions struct {
 	ActivityTaskQueues       []string
@@ -321,7 +317,7 @@ func (s *Starter) describeToolExecutionWorkflow(
 		WorkflowID:      strings.TrimSpace(execution.WorkflowId),
 		RunID:           describedRunID,
 		FirstRunID:      strings.TrimSpace(details.FirstRunId),
-		Status:          details.Status,
+		Status:          workflowExecutionStatus(details.Status),
 		ResetStateKnown: extended != nil,
 		IdentityState:   identityState,
 		Identity:        identity,
@@ -342,6 +338,27 @@ func (s *Starter) describeToolExecutionWorkflow(
 		}
 	}
 	return info, nil
+}
+
+func workflowExecutionStatus(status enumspb.WorkflowExecutionStatus) execution.WorkflowExecutionStatus {
+	switch status {
+	case enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING:
+		return execution.WorkflowExecutionStatusRunning
+	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+		return execution.WorkflowExecutionStatusCompleted
+	case enumspb.WORKFLOW_EXECUTION_STATUS_FAILED:
+		return execution.WorkflowExecutionStatusFailed
+	case enumspb.WORKFLOW_EXECUTION_STATUS_CANCELED:
+		return execution.WorkflowExecutionStatusCanceled
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+		return execution.WorkflowExecutionStatusTerminated
+	case enumspb.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW:
+		return execution.WorkflowExecutionStatusContinuedAsNew
+	case enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+		return execution.WorkflowExecutionStatusTimedOut
+	default:
+		return execution.WorkflowExecutionStatusUnknown
+	}
 }
 
 func (s *Starter) Close() {

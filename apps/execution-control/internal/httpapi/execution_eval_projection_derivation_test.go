@@ -2,17 +2,19 @@ package httpapi
 
 import (
 	"context"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Now().UTC()
@@ -70,7 +72,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
-			"result": campusSearchResult([]campusSearchResultItem{
+			"result": campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{
 				{ResultRef: "result://" + strings.Repeat("a", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026#eligibility", SectionTitle: "申请条件", RootUnitIDs: []string{"scholarship-eligibility"}, VersionID: "version-scholarship-2026", VersionSlug: "2026", Text: "国家奖学金评审需要满足学习成绩和综合测评要求。"},
 				{ResultRef: "result://" + strings.Repeat("b", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026#award", SectionTitle: "奖励标准", RootUnitIDs: []string{"scholarship-award"}, VersionID: "version-scholarship-2026", VersionSlug: "2026", Text: "国家奖学金奖励标准按照学校当年评审办法执行。"},
 			}, 1),
@@ -149,7 +151,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 }
 
 func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsDirectAnswer(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Now().UTC()
@@ -219,7 +221,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsDirectAnswer(t *test
 }
 
 func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsPersonalMemoryToolCall(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Now().UTC()
@@ -251,7 +253,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsPersonalMemoryToolCa
 		t.Fatalf("start run: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             temporalStepResultID(run.RequestID, "agent.primary", 1),
+		ResultID:             temporalStepResultIDForHTTPTest(run.RequestID, "agent.primary", 1),
 		StepID:               "agent.primary",
 		RequestID:            run.RequestID,
 		AttemptID:            temporalStepAttemptID(run.RequestID, "agent.primary", 1),
@@ -267,7 +269,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsPersonalMemoryToolCa
 		t.Fatalf("upsert primary agent result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             temporalStepResultID(run.RequestID, "sdk_tool.execute.personal_memory_recall.1", 1),
+		ResultID:             temporalStepResultIDForHTTPTest(run.RequestID, "sdk_tool.execute.personal_memory_recall.1", 1),
 		StepID:               "sdk_tool.execute.personal_memory_recall.1",
 		RequestID:            run.RequestID,
 		AttemptID:            temporalStepAttemptID(run.RequestID, "sdk_tool.execute.personal_memory_recall.1", 1),

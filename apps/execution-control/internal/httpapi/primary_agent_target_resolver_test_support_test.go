@@ -3,54 +3,79 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"testing"
+	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-type staticPrimaryAgentTargetResolver struct {
+type staticAdmissionSnapshotBuilder struct {
 	targetSHA256 string
 	err          error
 }
 
-func attachPrimaryAgentProviderConfigForTest(server *Server) {
-	attachAgentAdmissionProviderConfigsForTest(server)
-}
-
 func attachAgentAdmissionProviderConfigsForTest(server *Server) {
-	server.primaryAgentTargetResolver = staticPrimaryAgentTargetResolver{
-		targetSHA256: primaryAgentModelTargetSHA256ForTest,
+	if server == nil || server.runProjectionStore == nil {
+		return
 	}
-	server.primaryAgentTargetErr = nil
+	attachRunServiceForHandlerTest(
+		server,
+		server.runProjectionStore,
+		mapExecutionInputLoader{},
+		staticAdmissionSnapshotBuilder{targetSHA256: primaryAgentModelTargetSHA256ForTest},
+		false,
+	)
 }
 
-func withAgentAdmissionSnapshotForTest(
-	t *testing.T,
-	server *Server,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) temporalruntime.ExecutePrimaryAgentActivityInput {
-	t.Helper()
-	memoryAllowed := len(input.VisibleFunctionToolNames) == 1 && input.VisibleFunctionToolNames[0] == personalMemoryRecallToolName
-	snapshot, err := server.buildAgentAdmissionSnapshot(t.Context(), memoryAllowed)
-	if err != nil {
-		t.Fatalf("build agent admission snapshot: %v", err)
-	}
-	input.AdmissionSnapshot = snapshot
-	input.VisibleFunctionToolNames = append([]string{}, snapshot.ExecutionStrategy.VisibleFunctionToolNames...)
-	return input
-}
-
-func (resolver staticPrimaryAgentTargetResolver) ResolvePrimaryAgentTarget(
+func (builder staticAdmissionSnapshotBuilder) BuildAgentAdmissionSnapshot(
 	_ context.Context,
-) (modelconfigclient.PrimaryAgentTarget, error) {
-	if resolver.err != nil {
-		return modelconfigclient.PrimaryAgentTarget{}, resolver.err
+	personalMemoryRecallAvailable bool,
+) (execution.AgentAdmissionSnapshot, error) {
+	if builder.err != nil {
+		return execution.AgentAdmissionSnapshot{}, execution.NewDependencyNotReadyError(builder.err)
 	}
-	if resolver.targetSHA256 == "" {
-		return modelconfigclient.PrimaryAgentTarget{}, errors.New("primary agent model target is missing")
+	if builder.targetSHA256 == "" {
+		return execution.AgentAdmissionSnapshot{}, errors.New("primary agent model target is missing")
 	}
-	return modelconfigclient.PrimaryAgentTarget{TargetSHA256: resolver.targetSHA256}, nil
+	visibleTools := []string{campusSearchToolName}
+	maxModelTurns := 2
+	maxFunctionToolCalls := 1
+	if personalMemoryRecallAvailable {
+		visibleTools = append(visibleTools, personalMemoryRecallToolName)
+		maxModelTurns = 3
+		maxFunctionToolCalls = 2
+	}
+	snapshot := execution.AgentAdmissionSnapshot{
+		AgentLimits: execution.AgentRuntimeLimitsSnapshot{
+			AgentDeadlineMS:       1,
+			ContextCharLimit:      1,
+			CurrentInputCharLimit: 1,
+			MaxOutputTokens:       1,
+		},
+		ExecutionStrategy: execution.ExecutionStrategySnapshot{
+			Kind:                     "direct",
+			MaxModelTurns:            maxModelTurns,
+			MaxFunctionToolCalls:     maxFunctionToolCalls,
+			SchemaVersion:            "execution_strategy.v4",
+			VisibleFunctionToolNames: visibleTools,
+		},
+		PrimaryAgentTargetSHA256: builder.targetSHA256,
+		ToolContractFingerprint: execution.ToolContractFingerprintSnapshot{
+			FunctionSchemaSHA256: "sha256:" + strings.Repeat("a", 64),
+			SchemaVersion:        "tool_contract_fingerprint.v1",
+			ToolsSHA256:          "sha256:" + strings.Repeat("b", 64),
+		},
+		ToolContractFingerprintSHA256: "test-tool-contract-hash",
+	}
+	snapshot.AgentLimitsSHA256 = strings.TrimPrefix(execution.SHA256JSONRef(snapshot.AgentLimits), "sha256:")
+	snapshot.ExecutionStrategySHA256 = strings.TrimPrefix(
+		execution.SHA256JSONRef(snapshot.ExecutionStrategy),
+		"sha256:",
+	)
+	snapshot.ToolContractFingerprintSHA256 = strings.TrimPrefix(
+		execution.SHA256JSONRef(snapshot.ToolContractFingerprint),
+		"sha256:",
+	)
+	return snapshot, nil
 }
 
 const primaryAgentModelTargetSHA256ForTest = "4b20ab70a9ac22073110f59ea007f27de19d731319b62ed4bd60b11d057c6635"

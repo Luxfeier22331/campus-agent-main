@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimeassembly"
 )
 
@@ -44,20 +43,23 @@ func run(logger *slog.Logger) error {
 	runtimeContext, cancelRuntime := context.WithCancel(context.Background())
 	defer cancelRuntime()
 
-	handler := httpapi.NewServerWithDependencies(cfg, nil, logger)
+	owner, err := newRuntimeOwner(cfg, logger)
+	if err != nil {
+		return fmt.Errorf("build execution-control runtime: %w", err)
+	}
 	runtime, err := runtimeassembly.StartRuntime(
 		signalContext,
 		runtimeContext,
 		cfg,
-		handler,
-		handler.ExecutionReconciler(),
+		owner.adapter,
+		owner.reconciler,
 		logger,
 	)
 	if err != nil {
-		_ = handler.Shutdown(context.Background())
+		_ = owner.Shutdown(context.Background())
 		return err
 	}
-	requestTracker := newRequestTracker(handler)
+	requestTracker := newRequestTracker(owner.server)
 	gatewayServer := newHTTPServer(
 		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		requestTracker,
@@ -83,7 +85,7 @@ func run(logger *slog.Logger) error {
 		gatewayServer,
 		requestTracker,
 		runtime,
-		handler,
+		owner,
 		cancelRuntime,
 		time.Duration(cfg.ShutdownGraceMS)*time.Millisecond,
 	); err != nil && runtimeErr == nil {

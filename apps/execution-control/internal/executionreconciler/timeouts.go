@@ -3,11 +3,10 @@ package executionreconciler
 import (
 	"context"
 	"errors"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
-	enumspb "go.temporal.io/api/enums/v1"
 	"strings"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 type activeWorkflowRunReader interface {
@@ -17,7 +16,7 @@ type activeWorkflowRunReader interface {
 func (r *Reconciler) ReconcileWorkflowTimeouts(ctx context.Context) {
 	store := r.store()
 	reader, readerOK := store.(activeWorkflowRunReader)
-	control, controlOK := r.starter.(temporalruntime.WorkflowControl)
+	control, controlOK := r.starter.(execution.WorkflowControl)
 	if store == nil || !readerOK || !controlOK {
 		return
 	}
@@ -53,15 +52,15 @@ func (r *Reconciler) ReconcileWorkflowTimeouts(ctx context.Context) {
 func (r *Reconciler) reconcileWorkflowTimeout(
 	ctx context.Context,
 	store execution.RunProjectionStore,
-	control temporalruntime.WorkflowControl,
+	control execution.WorkflowControl,
 	binding execution.ActiveWorkflowRun,
 ) {
-	input, decodeErr := r.DecodeAndValidateWorkflowStartInput(binding.StartIntent, binding.Run)
+	input, decodeErr := execution.DecodeAndValidateWorkflowStartInput(binding.StartIntent, binding.Run)
 	if decodeErr != nil {
 		r.logWarn("confirmed Temporal workflow identity is invalid", "request_id", binding.Run.RequestID, "error", decodeErr)
 		return
 	}
-	expected, identityErr := temporalruntime.ToolExecutionWorkflowIdentityForInput(input)
+	expected, identityErr := execution.WorkflowIdentityForInput(input)
 	if identityErr != nil {
 		return
 	}
@@ -80,8 +79,8 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 		strings.TrimSpace(info.FirstRunID) != rootTemporalRunID {
 		return
 	}
-	if identityErr = temporalruntime.ValidateToolExecutionWorkflowIdentity(info, expected); identityErr != nil {
-		if errors.Is(identityErr, temporalruntime.ErrWorkflowOwnershipUnsafe) &&
+	if identityErr = execution.ValidateWorkflowIdentity(info, expected); identityErr != nil {
+		if errors.Is(identityErr, execution.ErrWorkflowOwnershipUnsafe) &&
 			temporalWorkflowMemoIdentityMatches(info, expected) &&
 			temporalWorkflowTerminal(info.Status) && !info.CloseTime.IsZero() {
 			r.failCloseUnauthorizedWorkflowSuccessor(
@@ -95,7 +94,7 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 				nil,
 			)
 		}
-		if errors.Is(identityErr, temporalruntime.ErrWorkflowIdentityConflict) {
+		if errors.Is(identityErr, execution.ErrWorkflowIdentityConflict) {
 			r.logWarn("confirmed Temporal workflow identity conflict", "request_id", binding.Run.RequestID)
 		}
 		return
@@ -125,23 +124,23 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 		info = latest
 	}
 	switch info.Status {
-	case enumspb.WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+	case execution.WorkflowExecutionStatusTimedOut:
 		if info.CloseTime.IsZero() {
 			return
 		}
 		if err := r.finalizeTimedOutWorkflow(ctx, store, binding.Run, info.CloseTime); err != nil && ctx.Err() == nil {
 			r.logWarn("Temporal workflow timeout finalization failed", "request_id", binding.Run.RequestID, "error", err)
 		}
-	case enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED:
+	case execution.WorkflowExecutionStatusTerminated:
 		if info.CloseTime.IsZero() {
 			return
 		}
 		if err := r.finalizeTerminatedWorkflow(ctx, store, binding.Run, info.CloseTime); err != nil && ctx.Err() == nil {
 			r.logWarn("Temporal workflow termination finalization failed", "request_id", binding.Run.RequestID, "error", err)
 		}
-	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED,
-		enumspb.WORKFLOW_EXECUTION_STATUS_FAILED,
-		enumspb.WORKFLOW_EXECUTION_STATUS_CANCELED:
+	case execution.WorkflowExecutionStatusCompleted,
+		execution.WorkflowExecutionStatusFailed,
+		execution.WorkflowExecutionStatusCanceled:
 		if info.CloseTime.IsZero() {
 			return
 		}
@@ -194,13 +193,13 @@ func (r *Reconciler) finalizeClosedWorkflowFailure(
 	return r.finalizer.FinalizeWorkflowClosure(ctx, run, closedAt, failureKind)
 }
 
-func workflowClosedWithoutProjectionFailure(status enumspb.WorkflowExecutionStatus) (string, bool) {
+func workflowClosedWithoutProjectionFailure(status execution.WorkflowExecutionStatus) (string, bool) {
 	switch status {
-	case enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+	case execution.WorkflowExecutionStatusCompleted:
 		return WorkflowCompletedUnprojectedFailure, true
-	case enumspb.WORKFLOW_EXECUTION_STATUS_FAILED:
+	case execution.WorkflowExecutionStatusFailed:
 		return WorkflowFailedUnprojectedFailure, true
-	case enumspb.WORKFLOW_EXECUTION_STATUS_CANCELED:
+	case execution.WorkflowExecutionStatusCanceled:
 		return WorkflowCanceledUnprojectedFailure, true
 	default:
 		return "", false

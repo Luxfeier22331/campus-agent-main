@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
@@ -141,7 +142,7 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 			Status:     "completed",
 			ResultKind: "typed_tool_result",
 			SanitizedPayload: map[string]any{
-				"result": campusSearchResult([]campusSearchResultItem{{
+				"result": campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{{
 					ResultRef:    "result://" + strings.Repeat("c", 64),
 					SourceKind:   "document",
 					DocumentID:   "curriculum-document",

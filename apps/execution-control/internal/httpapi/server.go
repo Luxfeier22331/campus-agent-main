@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,41 +9,44 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 type Server struct {
-	config                     config.Config
-	admission                  *admission.Controller
-	lifecycle                  *lifecycle.Registry
-	logger                     *slog.Logger
-	runProjectionStore         execution.RunProjectionStore
-	runProjectionStoreErr      error
-	executionInputLoader       execution.InputLoader
-	executionInputErr          error
-	personalMemoryExecutor     personalMemoryExecutor
-	personalMemoryErr          error
-	personalMemoryStateStore   memoryruntime.StateStore
-	personalMemoryStateErr     error
-	campusDocsIndexStore       campusdocs.IndexStore
-	campusDocsIndexStoreErr    error
-	campusDocsQdrant           campusDocsQdrantClient
-	campusDocsQdrantErr        error
-	temporalStarter            temporalruntime.ChatWorkflowStarter
-	temporalStarterErr         error
-	executionReconciler        *executionreconciler.Reconciler
-	productFinalizationWriter  func(context.Context, execution.DurableRun, time.Time, map[string]any) error
-	primaryAgentTargetResolver modelconfigclient.PrimaryAgentTargetResolver
-	primaryAgentTargetErr      error
+	config                   config.Config
+	admission                *admission.Controller
+	lifecycle                *lifecycle.Registry
+	logger                   *slog.Logger
+	runProjectionStore       execution.RunProjectionStore
+	runProjectionStoreErr    error
+	personalMemoryStateStore memoryruntime.StateStore
+	personalMemoryStateErr   error
+	temporalStarter          temporalruntime.ChatWorkflowStarter
+	temporalStarterErr       error
+	runService               *executionapplication.RunService
+	agentToolService         *executionapplication.AgentToolService
+}
+
+// ServerOptions contains already-constructed application ports. The HTTP
+// package wires routes and authentication around these ports; it does not
+// construct persistence, provider, or Temporal clients.
+type ServerOptions struct {
+	AdmissionController      *admission.Controller
+	AgentToolService         *executionapplication.AgentToolService
+	Logger                   *slog.Logger
+	PersonalMemoryStateStore memoryruntime.StateStore
+	PersonalMemoryStateError error
+	RunProjectionStore       execution.RunProjectionStore
+	RunProjectionStoreError  error
+	RunService               *executionapplication.RunService
+	TemporalStarter          temporalruntime.ChatWorkflowStarter
+	TemporalStarterError     error
 }
 
 type errorInfo struct {
@@ -56,123 +58,33 @@ type errorInfo struct {
 const statusClientClosedRequest = 499
 
 func NewServer(cfg config.Config) *Server {
-	return NewServerWithDependencies(cfg, nil, nil)
+	return NewServerWithOptions(cfg, ServerOptions{})
 }
 
-func NewServerWithDependencies(
-	cfg config.Config,
-	admissionController *admission.Controller,
-	logger *slog.Logger,
-) *Server {
+func NewServerWithOptions(cfg config.Config, options ServerOptions) *Server {
 	cfg = normalizeServerConfig(cfg)
-	if admissionController == nil {
-		admissionController = newAdmissionController(cfg)
+	if options.AdmissionController == nil {
+		options.AdmissionController = newAdmissionController(cfg)
 	}
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	if options.Logger == nil {
+		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	registry := lifecycle.NewRegistry()
-	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
-	var modelConfigResolver *modelconfigclient.Client
-	var modelConfigErr error
-	if strings.TrimSpace(cfg.ModelConfigBaseURL) != "" {
-		modelConfigResolver, modelConfigErr = modelconfigclient.New(cfg.ModelConfigBaseURL)
-	}
-	campusDocsIndexStore, campusDocsIndexStoreErr := newCampusDocsIndexStore(cfg)
-	campusDocsQdrant, campusDocsQdrantErr := newCampusDocsQdrantClient(cfg, modelConfigResolver)
-	var primaryAgentTargetResolver modelconfigclient.PrimaryAgentTargetResolver
-	if modelConfigResolver != nil {
-		primaryAgentTargetResolver = modelConfigResolver
-	}
-	primaryAgentTargetErr := modelConfigErr
-	personalMemoryExecutor, personalMemoryErr := newHindsightMemoryExecutor(cfg)
-	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(cfg)
-	if personalMemoryErr == nil && personalMemoryStateErr == nil {
-		personalMemoryExecutor = newFencedPersonalMemoryExecutor(personalMemoryExecutor, personalMemoryStateStore, cfg.PersonalMemoryOwnerSalt, cfg.PersonalMemoryTimeoutSeconds)
-	}
-	executionInputLoader, executionInputErr := execution.NewInputLoader(cfg)
-	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
-
 	server := &Server{
-		config:                     cfg,
-		admission:                  admissionController,
-		lifecycle:                  registry,
-		logger:                     logger,
-		runProjectionStore:         runProjectionStore,
-		runProjectionStoreErr:      runProjectionStoreErr,
-		executionInputLoader:       executionInputLoader,
-		executionInputErr:          executionInputErr,
-		personalMemoryExecutor:     personalMemoryExecutor,
-		personalMemoryErr:          personalMemoryErr,
-		personalMemoryStateStore:   personalMemoryStateStore,
-		personalMemoryStateErr:     personalMemoryStateErr,
-		campusDocsIndexStore:       campusDocsIndexStore,
-		campusDocsIndexStoreErr:    campusDocsIndexStoreErr,
-		campusDocsQdrant:           campusDocsQdrant,
-		campusDocsQdrantErr:        campusDocsQdrantErr,
-		temporalStarter:            temporalStarter,
-		temporalStarterErr:         temporalStarterErr,
-		primaryAgentTargetResolver: primaryAgentTargetResolver,
-		primaryAgentTargetErr:      primaryAgentTargetErr,
+		config:                   cfg,
+		admission:                options.AdmissionController,
+		lifecycle:                registry,
+		logger:                   options.Logger,
+		runProjectionStore:       options.RunProjectionStore,
+		runProjectionStoreErr:    options.RunProjectionStoreError,
+		personalMemoryStateStore: options.PersonalMemoryStateStore,
+		personalMemoryStateErr:   options.PersonalMemoryStateError,
+		temporalStarter:          options.TemporalStarter,
+		temporalStarterErr:       options.TemporalStarterError,
+		runService:               options.RunService,
+		agentToolService:         options.AgentToolService,
 	}
-	server.executionReconciler = server.newExecutionReconciler()
 	return server
-}
-
-func (s *Server) newExecutionReconciler() *executionreconciler.Reconciler {
-	if s == nil {
-		return nil
-	}
-	return executionreconciler.New(executionreconciler.Options{
-		Finalizer:        s,
-		Logger:           s.logger,
-		OperationTimeout: time.Duration(s.config.TemporalStartTimeoutMS) * time.Millisecond,
-		Starter:          s.temporalStarter,
-		Store:            s.runProjectionStore,
-	})
-}
-
-func (s *Server) ExecutionReconciler() *executionreconciler.Reconciler {
-	if s == nil {
-		return nil
-	}
-	return s.executionReconciler
-}
-
-func (s *Server) wakeTemporalReconciler() {
-	if s != nil && s.executionReconciler != nil {
-		s.executionReconciler.Wake()
-	}
-}
-
-func (s *Server) loadExecutionInput(
-	ctx context.Context,
-	run execution.DurableRun,
-) (contracts.ExecutionPayloadWire, error) {
-	if s.executionInputLoader == nil {
-		cause := s.executionInputErr
-		if cause == nil {
-			cause = errors.New("execution input loader is not configured")
-		}
-		return contracts.ExecutionPayloadWire{}, execution.NewInputError(
-			"load",
-			"execution_input_not_configured",
-			false,
-			cause,
-		)
-	}
-	return s.executionInputLoader.Load(ctx, run)
-}
-
-func (s *Server) loadExecutionPayload(
-	ctx context.Context,
-	run execution.DurableRun,
-) (map[string]any, error) {
-	wire, err := s.loadExecutionInput(ctx, run)
-	if err != nil {
-		return nil, err
-	}
-	return execution.PayloadMap(wire), nil
 }
 
 func normalizeServerConfig(cfg config.Config) config.Config {
@@ -191,53 +103,6 @@ func normalizeServerConfig(cfg config.Config) config.Config {
 	return cfg
 }
 
-func newCampusDocsIndexStore(cfg config.Config) (campusdocs.IndexStore, error) {
-	return campusdocs.NewPostgresIndexStore(cfg.DatabaseURL)
-}
-
-func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
-	if strings.TrimSpace(cfg.TemporalAddress) == "" && strings.TrimSpace(cfg.TemporalNamespace) == "" {
-		return nil, temporalruntime.ErrTemporalStarterNotConfigured
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return temporalruntime.NewStarter(ctx, temporalruntime.StarterOptions{
-		ActivityTaskQueues:       requiredTemporalActivityTaskQueueNames(cfg),
-		Address:                  cfg.TemporalAddress,
-		Namespace:                cfg.TemporalNamespace,
-		TaskQueue:                cfg.TemporalTaskQueue,
-		WorkerID:                 cfg.TemporalWorkerIdentity,
-		StartTimeout:             time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
-		WorkflowExecutionTimeout: time.Duration(cfg.TemporalWorkflowExecutionTimeoutSeconds) * time.Second,
-	})
-}
-
-func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, error) {
-	if strings.TrimSpace(cfg.DatabaseURL) == "" {
-		return nil, nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	store, err := execution.NewPostgresRunProjectionStore(ctx, execution.PostgresRunProjectionStoreOptions{
-		DatabaseURL: strings.TrimSpace(cfg.DatabaseURL),
-	})
-	if err != nil {
-		return nil, err
-	}
-	return store, nil
-}
-
-func newPersonalMemoryStateStore(cfg config.Config) (memoryruntime.StateStore, error) {
-	if strings.TrimSpace(cfg.DatabaseURL) == "" {
-		return memoryruntime.NewInMemoryStateStore(), nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return memoryruntime.NewPostgresStateStore(ctx, memoryruntime.PostgresStateStoreOptions{
-		DatabaseURL: strings.TrimSpace(cfg.DatabaseURL),
-	})
-}
-
 func newAdmissionController(cfg config.Config) *admission.Controller {
 	return admission.NewController(admission.Config{
 		MaxConcurrent: cfg.MaxConcurrentAnswers,
@@ -250,19 +115,9 @@ func (s *Server) StartDraining() {
 	s.admission.StartDraining()
 }
 
-func (s *Server) Shutdown(_ context.Context) error {
-	if closer, ok := s.campusDocsIndexStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
-	if closer, ok := s.runProjectionStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
-	if closer, ok := s.personalMemoryStateStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
-	if closer, ok := s.temporalStarter.(interface{ Close() }); ok {
-		closer.Close()
-	}
+// Shutdown is intentionally a no-op. The composition root owns the stores,
+// clients and their close order; HTTP only owns request admission and routes.
+func (s *Server) Shutdown(context.Context) error {
 	return nil
 }
 

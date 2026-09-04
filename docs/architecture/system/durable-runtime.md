@@ -26,6 +26,20 @@ status: active
 
 PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执行队列或 Temporal history 副本。
 
+## 实现所有权
+
+- `internal/execution` 定义中立执行合同、admission 校验、workflow identity 和持久化端口，不依赖
+  Temporal SDK、HTTP 或 PostgreSQL driver；
+- `internal/executionapplication` 负责构造冻结 workflow input、原子提交 run/start intent、提交取消命令，
+  并执行 Campus Docs 与个人记忆工具用例；
+- `internal/httpapi` 只完成认证、wire 解码、错误映射和响应编码，不拥有执行生命周期、admission、检索
+  query 或 recall request 规则；
+- `internal/executionreconciler` 通过中立 starter/control/finalizer 合同收敛持久命令，Temporal SDK 只存在于
+  `internal/temporalruntime` 与 `internal/temporaladapter`；
+- `internal/campusdocs` 定义索引和搜索合同，PostgreSQL 当前索引读取由
+  `internal/campusdocspersistence` 实现，embedding、Qdrant 与 reranker wire 调用由
+  `internal/outboundadapter` 实现。
+
 ## 进程停机
 
 `execution-control` 收到停机信号后先进入 draining，禁止新的 HTTP 业务请求；已进入的请求在有界的
@@ -53,9 +67,9 @@ invocation receipt 约束包含模型和工具调用的整个 SDK run 只能开�
 
 ## 启动与取消命令
 
-execution-control 的创建事务同时写入 run 与 workflow 启动命令，然后即可把稳定 run 返回给
-app-api。后台 reconciler 租约并幂等投递命令，因此 API 响应、进程退出或 Temporal 返回不确定时
-都不会要求删除 run 或猜测 workflow 是否已启动。
+execution-control 的 application service 在同一事务写入 run 与 workflow 启动命令，然后 HTTP adapter
+即可把稳定 run 返回给 app-api。后台 reconciler 租约并幂等投递命令，因此 API 响应、进程退出或
+Temporal 返回不确定时都不会要求删除 run 或猜测 workflow 是否已启动。
 
 每个在线回答固定使用 `campus-agent.chat.{requestId}` 作为 Workflow ID。与仍开放的同 ID workflow
 冲突时使用 `USE_EXISTING`，关闭后重放使用 `REJECT_DUPLICATE`；reconciler 读取已有执行并确认
@@ -135,6 +149,10 @@ Model Target hash 和有界会话上下文。Agent Runtime 从共同受信任的
 
 SDK `maxTurns` 只限制该 run 的代理与工具轮次，不是重试次数、重新规划预算或新的 Temporal
 阶段。内部 SDK 工具在 Agent Activity 生命周期内调用带认证的 execution-control 查询接口。
+HTTP adapter 解码工具 envelope 后把 typed request 交给 `AgentToolService`；该 use case 校验 run 正在
+执行、activity attempt 是最新 Primary Agent attempt，且工具位于该 attempt 的已准入可见工具集合。
+Campus Search 的检索表达式、当前索引读取和搜索调用，以及 personal-memory recall 的冻结 workflow
+admission 校验、执行输入加载和 recall request 构造都不属于 HTTP owner。
 
 每个 source-side Temporal Activity 在读取 run 或写入任何投影前，都从当前 Activity context 取得
 Workflow ID 与精确 Temporal Run ID，并与持久 start intent 的 Workflow ID 和 root Run ID 绑定逐项

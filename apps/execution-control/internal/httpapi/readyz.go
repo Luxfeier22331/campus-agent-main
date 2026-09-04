@@ -81,7 +81,7 @@ func (s *Server) agentRuntimeStatus(ctx context.Context) map[string]any {
 }
 
 func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
-	configured := s.temporalStarter != nil
+	configured := s.temporalStarter != nil || s.temporalStarterErr != nil
 	status := map[string]any{
 		"configured":          configured,
 		"healthy":             false,

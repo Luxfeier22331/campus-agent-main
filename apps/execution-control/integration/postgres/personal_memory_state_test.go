@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memorypersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
@@ -17,7 +18,7 @@ func testPersonalMemoryStateStore(t *testing.T, harness *postgresHarness) {
 	)
 	_, databaseURL := harness.ownerDatabase(t)
 	requireSchema(t, databaseURL, nil)
-	store, err := memoryruntime.NewPostgresStateStore(t.Context(), memoryruntime.PostgresStateStoreOptions{
+	store, err := memorypersistence.NewPostgresStateStore(t.Context(), memorypersistence.PostgresStateStoreOptions{
 		DatabaseURL: databaseURL,
 	})
 	if err != nil {

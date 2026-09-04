@@ -1,23 +1,17 @@
 package temporalruntime
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"strings"
-	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	commonpb "go.temporal.io/api/common/v1"
-	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/converter"
 )
 
 var (
-	ErrWorkflowIdentityUnknown  = errors.New("temporal workflow identity is not yet observable")
-	ErrWorkflowIdentityConflict = errors.New("temporal workflow identity conflicts with durable intent")
-	ErrWorkflowOwnershipUnsafe  = errors.New("temporal workflow execution ownership is unsafe to converge")
+	ErrWorkflowIdentityUnknown  = execution.ErrWorkflowIdentityUnknown
+	ErrWorkflowIdentityConflict = execution.ErrWorkflowIdentityConflict
+	ErrWorkflowOwnershipUnsafe  = execution.ErrWorkflowOwnershipUnsafe
 )
 
 const (
@@ -27,84 +21,27 @@ const (
 	workflowMemoInputSHAKey   = "campus_agent_input_sha256"
 )
 
-type WorkflowExecutionInfo struct {
-	Found           bool
-	WorkflowID      string
-	RunID           string
-	FirstRunID      string
-	Status          enumspb.WorkflowExecutionStatus
-	CloseTime       time.Time
-	ResetStateKnown bool
-	LastResetTime   time.Time
-	ResetRunID      string
-	IdentityState   WorkflowIdentityState
-	Identity        ToolExecutionWorkflowIdentity
-}
+type WorkflowExecutionInfo = execution.WorkflowExecutionInfo
 
-type WorkflowIdentityState string
+type WorkflowIdentityState = execution.WorkflowIdentityState
 
 const (
-	WorkflowIdentityUnknown WorkflowIdentityState = "unknown"
-	WorkflowIdentityKnown   WorkflowIdentityState = "known"
-	WorkflowIdentityInvalid WorkflowIdentityState = "invalid"
+	WorkflowIdentityUnknown = execution.WorkflowIdentityUnknown
+	WorkflowIdentityKnown   = execution.WorkflowIdentityKnown
+	WorkflowIdentityInvalid = execution.WorkflowIdentityInvalid
 )
 
-type ToolExecutionWorkflowIdentity struct {
-	RequestID           string
-	WorkflowID          string
-	PayloadSHA256       string
-	WorkflowInputSHA256 string
-}
+type ToolExecutionWorkflowIdentity = execution.WorkflowIdentity
 
 func ToolExecutionWorkflowIdentityForInput(input ToolExecutionWorkflowInput) (ToolExecutionWorkflowIdentity, error) {
-	encoded, err := json.Marshal(input)
-	if err != nil {
-		return ToolExecutionWorkflowIdentity{}, fmt.Errorf("encode workflow input identity: %w", err)
-	}
-	digest := sha256.Sum256(encoded)
-	identity := ToolExecutionWorkflowIdentity{
-		RequestID:           strings.TrimSpace(input.RequestID),
-		WorkflowID:          strings.TrimSpace(input.WorkflowID),
-		PayloadSHA256:       strings.TrimSpace(input.PayloadSHA256),
-		WorkflowInputSHA256: hex.EncodeToString(digest[:]),
-	}
-	if identity.RequestID == "" || identity.WorkflowID == "" ||
-		!validWorkflowIdentitySHA(identity.PayloadSHA256) ||
-		!validWorkflowIdentitySHA(identity.WorkflowInputSHA256) {
-		return ToolExecutionWorkflowIdentity{}, errors.New("workflow input identity is incomplete")
-	}
-	return identity, nil
+	return execution.WorkflowIdentityForInput(input)
 }
 
 func ValidateToolExecutionWorkflowIdentity(
 	info WorkflowExecutionInfo,
 	expected ToolExecutionWorkflowIdentity,
 ) error {
-	if !info.Found {
-		return ErrWorkflowIdentityUnknown
-	}
-	if strings.TrimSpace(info.WorkflowID) != expected.WorkflowID {
-		return fmt.Errorf("%w: workflow id differs", ErrWorkflowIdentityConflict)
-	}
-	switch info.IdentityState {
-	case WorkflowIdentityUnknown, "":
-		return ErrWorkflowIdentityUnknown
-	case WorkflowIdentityInvalid:
-		return fmt.Errorf("%w: workflow memo identity is invalid", ErrWorkflowIdentityConflict)
-	case WorkflowIdentityKnown:
-	default:
-		return ErrWorkflowIdentityUnknown
-	}
-	if info.Identity != expected {
-		return fmt.Errorf("%w: workflow memo identity differs", ErrWorkflowIdentityConflict)
-	}
-	if !info.ResetStateKnown {
-		return fmt.Errorf("%w: workflow reset state is unavailable", ErrWorkflowIdentityUnknown)
-	}
-	if !info.LastResetTime.IsZero() || strings.TrimSpace(info.ResetRunID) != "" {
-		return fmt.Errorf("%w: workflow execution has reset evidence", ErrWorkflowOwnershipUnsafe)
-	}
-	return nil
+	return execution.ValidateWorkflowIdentity(info, expected)
 }
 
 func toolExecutionWorkflowIdentityFromMemo(memo *commonpb.Memo) (ToolExecutionWorkflowIdentity, WorkflowIdentityState) {
@@ -132,18 +69,8 @@ func toolExecutionWorkflowIdentityFromMemo(memo *commonpb.Memo) (ToolExecutionWo
 	identity := ToolExecutionWorkflowIdentity{
 		RequestID: values[0], WorkflowID: values[1], PayloadSHA256: values[2], WorkflowInputSHA256: values[3],
 	}
-	if present != len(keys) || identity.RequestID == "" || identity.WorkflowID == "" ||
-		!validWorkflowIdentitySHA(identity.PayloadSHA256) ||
-		!validWorkflowIdentitySHA(identity.WorkflowInputSHA256) {
+	if present != len(keys) || !identity.Valid() {
 		return ToolExecutionWorkflowIdentity{}, WorkflowIdentityInvalid
 	}
 	return identity, WorkflowIdentityKnown
-}
-
-func validWorkflowIdentitySHA(value string) bool {
-	if len(value) != sha256.Size*2 || strings.ToLower(value) != value {
-		return false
-	}
-	decoded, err := hex.DecodeString(value)
-	return err == nil && len(decoded) == sha256.Size
 }

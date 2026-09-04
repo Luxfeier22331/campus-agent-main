@@ -3,10 +3,9 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +24,7 @@ func TestDurableRunResponseIncludesFinalResponseRef(t *testing.T) {
 }
 
 func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachAgentAdmissionProviderConfigsForTest(server)
@@ -61,7 +60,7 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 		t.Fatalf("Temporal start must be deferred to the reconciler: %#v", starter.input)
 	}
 
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 
 	if starter.input.RequestID != "run-temporal-001" {
 		t.Fatalf("workflow input request id = %q", starter.input.RequestID)
@@ -84,13 +83,15 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	}
 	snapshot := starter.input.AdmissionSnapshot
 	if snapshot.ToolContractFingerprintSHA256 == "" ||
-		validateToolContractFingerprintSnapshot(snapshot.ToolContractFingerprint) != nil {
+		snapshot.ToolContractFingerprint.SchemaVersion == "" ||
+		snapshot.ToolContractFingerprint.ToolsSHA256 == "" ||
+		snapshot.ToolContractFingerprint.FunctionSchemaSHA256 == "" {
 		t.Fatalf("tool contract admission snapshot = %#v", snapshot)
 	}
 }
 
 func TestExecutionRunCreateHidesPersonalMemoryToolWhenRuntimeIsUnavailable(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachAgentAdmissionProviderConfigsForTest(server)
@@ -112,10 +113,10 @@ func TestExecutionRunCreateHidesPersonalMemoryToolWhenRuntimeIsUnavailable(t *te
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	strategy := starter.input.AdmissionSnapshot.ExecutionStrategy
-	if !containsString(strategy.VisibleFunctionToolNames, campusSearchToolName) ||
-		containsString(strategy.VisibleFunctionToolNames, personalMemoryRecallToolName) ||
+	if !execution.ContainsString(strategy.VisibleFunctionToolNames, campusSearchToolName) ||
+		execution.ContainsString(strategy.VisibleFunctionToolNames, personalMemoryRecallToolName) ||
 		strategy.MaxFunctionToolCalls != 1 || strategy.MaxModelTurns != 2 {
 		t.Fatalf("execution strategy = %#v, want campus search only", strategy)
 	}
@@ -145,16 +146,22 @@ func TestExecutionRunCreateClassifiesExecutionInputErrors(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			store := execution.NewInMemoryRunProjectionStore()
+			store := executionpersistence.NewInMemoryRunProjectionStore()
 			server := newWorkerAuthServerForTest()
 			attachAgentAdmissionProviderConfigsForTest(server)
 			attachRunProjectionStoreForHandlerTest(server, store)
-			server.executionInputLoader = failingExecutionInputLoader{err: execution.NewInputError(
-				"load",
-				"execution_input_unavailable",
-				test.retryable,
-				errors.New("sensitive upstream failure"),
-			)}
+			attachRunServiceForHandlerTest(
+				server,
+				store,
+				failingExecutionInputLoader{err: execution.NewInputError(
+					"load",
+					"execution_input_unavailable",
+					test.retryable,
+					errors.New("sensitive upstream failure"),
+				)},
+				staticAdmissionSnapshotBuilder{targetSHA256: primaryAgentModelTargetSHA256ForTest},
+				false,
+			)
 
 			response := httptest.NewRecorder()
 			request := newTestRequest(
@@ -195,18 +202,22 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 			name:  "primary agent target missing",
 			runID: "run-primary-agent-target-missing",
 			configure: func(server *Server) {
-				server.primaryAgentTargetResolver = staticPrimaryAgentTargetResolver{
-					err: errors.New("primary agent model target is missing"),
-				}
+				attachRunServiceForHandlerTest(
+					server,
+					server.runProjectionStore,
+					mapExecutionInputLoader{},
+					staticAdmissionSnapshotBuilder{err: errors.New("primary agent model target is missing")},
+					false,
+				)
 			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			store := execution.NewInMemoryRunProjectionStore()
+			store := executionpersistence.NewInMemoryRunProjectionStore()
 			server := newWorkerAuthServerForTest()
 			attachAgentAdmissionProviderConfigsForTest(server)
-			test.configure(server)
 			attachRunProjectionStoreForHandlerTest(server, store)
+			test.configure(server)
 
 			response := httptest.NewRecorder()
 			request := newTestRequest(
@@ -238,22 +249,19 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 	}
 }
 
-func TestExecutionRunCreateReturnsDependencyNotReadyForToolRuntimeRegistry(t *testing.T) {
-	root := t.TempDir()
-	configDir := filepath.Join(root, "configs", "runtime")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		t.Fatalf("create runtime config directory: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "tools.v7.json"), []byte("{"), 0o600); err != nil {
-		t.Fatalf("write malformed tool registry: %v", err)
-	}
-	t.Chdir(root)
-
-	store := execution.NewInMemoryRunProjectionStore()
+func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionSnapshotBuilder(t *testing.T) {
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
-	const runID = "run-tool-runtime-registry-invalid"
+	attachRunServiceForHandlerTest(
+		server,
+		store,
+		mapExecutionInputLoader{},
+		staticAdmissionSnapshotBuilder{err: errors.New("tool contract is unavailable")},
+		false,
+	)
+	const runID = "run-admission-snapshot-builder-unavailable"
 
 	response := httptest.NewRecorder()
 	request := newTestRequest(
@@ -279,7 +287,7 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForToolRuntimeRegistry(t *te
 }
 
 func TestExecutionRunCreateRejectsUnknownMetadataField(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = &fakeTemporalStarter{}
@@ -302,7 +310,7 @@ func TestExecutionRunCreateRejectsUnknownMetadataField(t *testing.T) {
 }
 
 func TestExecutionRunCreateRejectsUnknownExecutionPayloadField(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = &fakeTemporalStarter{}
@@ -325,7 +333,7 @@ func TestExecutionRunCreateRejectsUnknownExecutionPayloadField(t *testing.T) {
 }
 
 func TestExecutionRunCreateRejectsCallerToolHint(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -352,7 +360,7 @@ func TestExecutionRunCreateRejectsCallerToolHint(t *testing.T) {
 }
 
 func TestExecutionRunCreateRejectsKnownCallerToolHint(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachAgentAdmissionProviderConfigsForTest(server)
@@ -377,7 +385,7 @@ func TestExecutionRunCreateRejectsKnownCallerToolHint(t *testing.T) {
 }
 
 func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachAgentAdmissionProviderConfigsForTest(server)
@@ -398,7 +406,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	traceHeaders := telemetry.InjectExecutionTraceHeaders(starter.ctx, "req-traceparent-001")
 	if traceHeaders["traceparent"] != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
 		t.Fatalf("Temporal starter context traceparent = %q", traceHeaders["traceparent"])
@@ -406,7 +414,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 }
 
 func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachAgentAdmissionProviderConfigsForTest(server)
@@ -429,7 +437,7 @@ func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames) != 1 ||
 		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames[0] != campusSearchToolName {
 		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames)
@@ -437,7 +445,7 @@ func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
 }
 
 func TestExecutionRunCreateAcceptsWhenTemporalStarterMissing(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachAgentAdmissionProviderConfigsForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -462,7 +470,7 @@ func TestExecutionRunCreateAcceptsWhenTemporalStarterMissing(t *testing.T) {
 	if run.Status != execution.DurableRunStatusCreated {
 		t.Fatalf("projection status = %q, want created", run.Status)
 	}
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	if run, err = store.GetRun(context.Background(), "run-temporal-missing"); err != nil {
 		t.Fatalf("get run after no-op reconciliation: %v", err)
 	} else if run.Status != execution.DurableRunStatusCreated {
@@ -471,7 +479,7 @@ func TestExecutionRunCreateAcceptsWhenTemporalStarterMissing(t *testing.T) {
 }
 
 func TestExecutionRunCreateRetriesWhenTemporalStartFails(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{err: context.DeadlineExceeded}
 	server := newWorkerAuthServerForTest()
 	attachAgentAdmissionProviderConfigsForTest(server)
@@ -491,7 +499,7 @@ func TestExecutionRunCreateRetriesWhenTemporalStartFails(t *testing.T) {
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	if _, err := store.GetRun(context.Background(), "run-temporal-fail"); err != nil {
 		t.Fatalf("failed Temporal start must retain the durable run: %v", err)
 	}
@@ -510,7 +518,7 @@ func TestExecutionRunCreateRetriesWhenTemporalStartFails(t *testing.T) {
 }
 
 func TestExecutionRunEventsWaitsForNewEventsWithinBoundedBudget(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 15, 1, 2, 3, 0, time.UTC)
@@ -558,7 +566,7 @@ func TestExecutionRunEventsWaitsForNewEventsWithinBoundedBudget(t *testing.T) {
 }
 
 func TestExecutionRunEventsRejectsInvalidWaitBudget(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	createHTTPAPIQueuedDurableRunForTest(t, store, "run-events-invalid-wait", "conv-events-invalid-wait", time.Now(), nil)
@@ -577,7 +585,7 @@ func TestExecutionRunEventsRejectsInvalidWaitBudget(t *testing.T) {
 }
 
 func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -688,7 +696,7 @@ func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T)
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	if starter.cancelRunID != "" {
 		t.Fatalf("reconciler must not cancel without verified workflow identity: run=%q", starter.cancelRunID)
 	}
@@ -730,7 +738,7 @@ func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T)
 }
 
 func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)

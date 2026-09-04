@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -1152,14 +1153,14 @@ func newRunProjectionStore(
 	t *testing.T,
 	databaseURL string,
 	prepareSchema bool,
-) *execution.PostgresRunProjectionStore {
+) *executionpersistence.PostgresRunProjectionStore {
 	t.Helper()
 	if prepareSchema {
 		requireSchema(t, databaseURL, nil)
 	}
-	store, err := execution.NewPostgresRunProjectionStore(
+	store, err := executionpersistence.NewPostgresRunProjectionStore(
 		t.Context(),
-		execution.PostgresRunProjectionStoreOptions{
+		executionpersistence.PostgresRunProjectionStoreOptions{
 			DatabaseURL: databaseURL,
 		},
 	)
@@ -1227,7 +1228,7 @@ func terminateRunEventListener(t *testing.T, databaseURL string, pid int32) {
 
 func waitForRunProjectionHealth(
 	t *testing.T,
-	store *execution.PostgresRunProjectionStore,
+	store *executionpersistence.PostgresRunProjectionStore,
 ) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -1267,7 +1268,7 @@ func durableRun(runID, conversationID string, now time.Time) execution.DurableRu
 
 func createPostgresRunningRun(
 	t *testing.T,
-	store *execution.PostgresRunProjectionStore,
+	store *executionpersistence.PostgresRunProjectionStore,
 	runID string,
 	now time.Time,
 ) execution.DurableRun {

@@ -343,7 +343,7 @@ func validateDurableRunFailureReplay(
 }
 
 func durableRunEventPayloadFingerprint(payload map[string]any) (string, error) {
-	payloadJSON, err := jsonMapToBytes(payload)
+	payloadJSON, err := JSONMapToBytes(payload)
 	if err != nil {
 		return "", fmt.Errorf("encode terminal event payload: %w", err)
 	}

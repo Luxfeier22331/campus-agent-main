@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,7 +14,7 @@ import (
 )
 
 func TestExecutionRunCancelPersistsCommandBeforeTemporalFinalization(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -26,26 +27,6 @@ func TestExecutionRunCancelPersistsCommandBeforeTemporalFinalization(t *testing.
 		time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC),
 		nil,
 	)
-	callbackCalled := false
-	server.productFinalizationWriter = func(
-		_ context.Context,
-		_ execution.DurableRun,
-		_ time.Time,
-		_ map[string]any,
-	) error {
-		callbackCalled = true
-		events, err := store.ListRunEvents(context.Background(), "run-callback-before-cancel")
-		if err != nil {
-			t.Fatalf("list events in product callback: %v", err)
-		}
-		for _, event := range events {
-			if event.EventType == execution.DurableRunEventTypeRunCanceled {
-				t.Fatal("run.canceled became visible before product callback succeeded")
-			}
-		}
-		return errors.New("callback unavailable")
-	}
-
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
@@ -65,9 +46,6 @@ func TestExecutionRunCancelPersistsCommandBeforeTemporalFinalization(t *testing.
 	if run.Status != execution.DurableRunStatusQueued {
 		t.Fatalf("cancel request must not publish terminal state: %q", run.Status)
 	}
-	if callbackCalled {
-		t.Fatal("HTTP cancel handler must defer product callback to Temporal finalization")
-	}
 	events, err := store.ListRunEvents(context.Background(), "run-callback-before-cancel")
 	if err != nil {
 		t.Fatalf("list cancel command events: %v", err)
@@ -80,7 +58,7 @@ func TestExecutionRunCancelPersistsCommandBeforeTemporalFinalization(t *testing.
 }
 
 func TestExecutionRunCancelDefersCancellationUntilReconcilerCanVerifyIdentity(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -111,14 +89,14 @@ func TestExecutionRunCancelDefersCancellationUntilReconcilerCanVerifyIdentity(t 
 	if starter.cancelRunID != "" {
 		t.Fatalf("Temporal cancel must be deferred to the reconciler: run=%q", starter.cancelRunID)
 	}
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	if starter.cancelRunID != "" || starter.cancelReason != "" {
 		t.Fatalf("Temporal cancel used unverified legacy identity: run=%q reason=%q", starter.cancelRunID, starter.cancelReason)
 	}
 }
 
 func TestExecutionRunCancelRejectsUnsupportedReasonCodes(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -157,7 +135,7 @@ func TestExecutionRunCancelRejectsUnsupportedReasonCodes(t *testing.T) {
 }
 
 func TestExecutionRunCancelRetriesWhenTemporalIdentityIsUnavailable(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{cancelErr: context.DeadlineExceeded}
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -185,7 +163,7 @@ func TestExecutionRunCancelRetriesWhenTemporalIdentityIsUnavailable(t *testing.T
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	server.ReconcileTemporalRunsOnce(context.Background())
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	if starter.cancelRunID != "" {
 		t.Fatalf("Temporal cancel used unverified identity: run=%q", starter.cancelRunID)
 	}
@@ -212,7 +190,7 @@ func TestExecutionRunCancelRetriesWhenTemporalIdentityIsUnavailable(t *testing.T
 }
 
 func TestExecutionRunCancelDoesNotDependOnStaleGetRunSnapshot(t *testing.T) {
-	base := execution.NewInMemoryRunProjectionStore()
+	base := executionpersistence.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	now := time.Date(2026, 7, 23, 11, 0, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(t, base, "run-cancel-atomic-store", "conv-cancel-atomic-store", now, nil)
@@ -237,4 +215,16 @@ func TestExecutionRunCancelDoesNotDependOnStaleGetRunSnapshot(t *testing.T) {
 	if err != nil || len(commands) != 1 {
 		t.Fatalf("atomic cancellation command = %#v, err=%v", commands, err)
 	}
+}
+
+type failingGetRunProjectionStore struct {
+	execution.RunProjectionStore
+	err error
+}
+
+func (store failingGetRunProjectionStore) GetRun(
+	context.Context,
+	string,
+) (execution.DurableRun, error) {
+	return execution.DurableRun{}, store.err
 }

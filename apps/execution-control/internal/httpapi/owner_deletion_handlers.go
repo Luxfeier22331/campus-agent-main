@@ -83,7 +83,7 @@ func (s *Server) handleOwnerDeletionFinalize(
 		writeError(response, http.StatusServiceUnavailable, "personal_memory_state_unavailable", "Personal memory state is not configured.", true)
 		return
 	}
-	ownerHash := personalMemoryOwnerScopeHash(s.config.PersonalMemoryOwnerSalt, "tenant-main", ownerUserID)
+	ownerHash := memoryruntime.OwnerScopeHash(s.config.PersonalMemoryOwnerSalt, "tenant-main", ownerUserID)
 	if err := s.personalMemoryStateStore.MarkOwnerDeleted(request.Context(), ownerHash); err != nil {
 		if errors.Is(err, memoryruntime.ErrMemoryOwnerNotDrained) {
 			writeError(response, http.StatusConflict, "owner_deletion_not_drained", "Personal memory deletion has not drained.", true)

@@ -2,11 +2,14 @@ package httpapi
 
 import (
 	"errors"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -34,17 +37,14 @@ func TestServerInfrastructureFieldsUseTheirOwnedPackages(t *testing.T) {
 		pointer bool
 	}{
 		{
-			field: "executionInputLoader",
-			owner: "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution",
-		},
-		{
-			field:   "executionReconciler",
-			owner:   "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler",
+			field:   "runService",
+			owner:   "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication",
 			pointer: true,
 		},
 		{
-			field: "primaryAgentTargetResolver",
-			owner: "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient",
+			field:   "agentToolService",
+			owner:   "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication",
+			pointer: true,
 		},
 	}
 
@@ -70,6 +70,9 @@ func TestRetiredInfrastructureImplementationsDoNotReturnToHTTPPackage(t *testing
 	}
 	directory := filepath.Dir(filename)
 	for _, name := range []string{
+		"campus_docs_qdrant.go",
+		"campus_docs_rerank.go",
+		"campus_docs_retrieval.go",
 		"document_evidence_qdrant.go",
 		"execution_input_loader.go",
 		"execution_input_projection.go",
@@ -91,20 +94,51 @@ func TestRetiredInfrastructureImplementationsDoNotReturnToHTTPPackage(t *testing
 	}
 }
 
-func TestCampusDocsHTTPDoesNotImportHistoricalProviderConfig(t *testing.T) {
+func TestExecutionHandlersDoNotImportTheirFormerRuleOwners(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("resolve test source path")
 	}
 	directory := filepath.Dir(filename)
-	for _, name := range []string{"campus_docs_qdrant.go", "campus_docs_rerank.go"} {
-		source, err := os.ReadFile(filepath.Join(directory, name))
-		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
-		}
-		if strings.Contains(string(source), "internal/providerconfig") {
-			t.Fatalf("active Campus Docs HTTP implementation imports historical providerconfig: %s", name)
-		}
+	tests := map[string][]string{
+		"campus_search_tool.go": {
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime",
+		},
+		"execution_run_handlers.go": {
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime",
+		},
+		"personal_memory_recall_tool.go": {
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter",
+			"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime",
+		},
+	}
+	for name, forbidden := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(directory, name)
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+			if err != nil {
+				t.Fatalf("parse %s: %v", path, err)
+			}
+			for _, imported := range file.Imports {
+				importPath, err := strconv.Unquote(imported.Path.Value)
+				if err != nil {
+					t.Fatalf("decode import in %s: %v", path, err)
+				}
+				for _, blocked := range forbidden {
+					if importPath == blocked || strings.HasPrefix(importPath, blocked+"/") {
+						t.Fatalf("%s imports former rule owner %q", name, importPath)
+					}
+				}
+			}
+		})
 	}
 }
 
