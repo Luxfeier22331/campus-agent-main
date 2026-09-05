@@ -4,6 +4,7 @@ import {
 	computeEmbeddingTargetSha256,
 	createLocalEmbeddingConnection,
 	EMBEDDING_SPACE,
+	embedTextBatches,
 	normalizeEmbeddingBaseUrl,
 } from "../src/index.ts";
 
@@ -40,5 +41,27 @@ describe("embedding runtime contract", () => {
 		expect(() => normalizeEmbeddingBaseUrl("https://embedding.example/v1?x=1")).toThrow(
 			"query or fragment",
 		);
+	});
+
+	it("delivers validated provider results one batch at a time", async () => {
+		const batches: Array<{ offset: number; texts: readonly string[] }> = [];
+		const progress: [number, number][] = [];
+		await embedTextBatches(
+			{
+				async embed(input) {
+					return input.texts.map(() => new Array(input.dimensions).fill(1));
+				},
+			},
+			Array.from({ length: 10 }, (_, index) => `text-${index}`),
+			async ({ offset, texts, vectors }) => {
+				expect(vectors).toHaveLength(texts.length);
+				expect(vectors[0]).toHaveLength(EMBEDDING_SPACE.dimensions);
+				batches.push({ offset, texts });
+			},
+			(completed, total) => progress.push([completed, total]),
+		);
+
+		expect(batches.map(({ offset }) => offset).sort((left, right) => left - right)).toEqual([0, 8]);
+		expect(progress).toEqual([[10, 10]]);
 	});
 });

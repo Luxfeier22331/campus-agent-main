@@ -33,6 +33,9 @@ test("notice index artifact Job templates are complete and suspended", () => {
 		assert.equal(jobSpec.ttlSecondsAfterFinished, 86_400);
 		assert.equal(jobSpec.backoffLimit, 0);
 		assert.deepEqual(container(manifest, name).args, args);
+		if (name === "notice-embedding-builder") {
+			assert.equal(tmpSizeLimit(manifest, name), "1Gi");
+		}
 	}
 
 	assert.doesNotMatch(readFileSync(manifestPath, "utf8"), /NOTICE_CHUNK_RUN/u);
@@ -87,6 +90,26 @@ function container(manifest: Record<string, unknown>, name: string): Record<stri
 		throw new Error(`${name} must contain one container`);
 	}
 	return record(podSpec.containers[0], `${name} container`);
+}
+
+function tmpSizeLimit(manifest: Record<string, unknown>, name: string): string {
+	const spec = record(manifest.spec, `${name} spec`);
+	const jobSpec = record(record(spec.jobTemplate, `${name} job template`).spec, `${name} Job`);
+	const podSpec = record(record(jobSpec.template, `${name} pod template`).spec, `${name} pod spec`);
+	if (!Array.isArray(podSpec.volumes)) {
+		throw new Error(`${name} volumes are invalid`);
+	}
+	const tmp = podSpec.volumes
+		.map((value) => record(value, `${name} volume`))
+		.find((value) => value.name === "tmp");
+	if (!tmp) {
+		throw new Error(`${name} tmp volume is missing`);
+	}
+	const emptyDir = record(tmp.emptyDir, `${name} emptyDir`);
+	if (typeof emptyDir.sizeLimit !== "string") {
+		throw new Error(`${name} tmp size limit is invalid`);
+	}
+	return emptyDir.sizeLimit;
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

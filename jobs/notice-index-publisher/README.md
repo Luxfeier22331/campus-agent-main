@@ -25,13 +25,15 @@ notice-chunk-builder
   -> notices/rag/chunk-runs/sha256/<run-id>/
   -> NOTICE_CHUNK_RUN=sha256:<run-id>
   -> notice-embedding-builder
+  -> notices/rag/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
   -> notices/rag/embedding-sets/sha256/<set-id>/manifest.json
 ```
 
 `build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v8 实现并写入 Chunk
 Run。`build-embeddings` 只读取显式 Chunk Run，从 Model Config 的 `campus_docs_embedding` 槽位读取完整
-连接，按 `retrievalText` 摘要去重并写入 `notice_embedding_set.v1`。两个阶段不自动串联，不维护
-`latest` 指针，不写入 Qdrant 或通知数据库。
+连接，按 `retrievalText` 摘要去重。已有且通过校验的线上 cache 会复用，缺失输入才调用 Provider；每个
+成功 batch 立即写入 cache，最终仍写入 `notice_embedding_set.v1`。两个阶段不自动串联，不维护 `latest`
+指针，不写入 Qdrant 或通知数据库。
 
 完整运行步骤见 `docs/runbooks/notice-indexing.md`。
 
@@ -139,6 +141,30 @@ SHA-256 和模型 target 缓存：
 ```text
 var/notices/chunking/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
 ```
+
+线上 Job 使用同样的内容寻址结构，但根路径为：
+
+```text
+notices/rag/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
+```
+
+重跑 Embedding Job 会先校验并复用已完成的 cache；中途失败时已经写入的 batch 保留，下一次只处理缺失
+输入。完成日志包含生成与复用数量：
+
+```json
+{"event":"result","embedding_count":12528,"generated_embedding_input_count":0,"reused_embedding_input_count":12528,"embedding_set":"sha256:<id>"}
+```
+
+如需把完整验证过的本地 cache 导入线上 derived bucket：
+
+```bash
+pnpm --dir jobs/notice-index-publisher import-embedding-cache-local -- \
+  --chunk-run sha256:<chunk-run-id> \
+  --model-target-sha256 <model-target-sha256> \
+  --cache-directory var/notices/chunking/embedding-cache/<model-target-sha256>/sha256
+```
+
+该命令会先拒绝缺失、额外或无效文件，再上传 cache，不调用 Embedding Provider。
 
 抽样验证：
 

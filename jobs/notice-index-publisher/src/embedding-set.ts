@@ -1,9 +1,21 @@
+import { createHash } from "node:crypto";
+import { mkdtemp, open, rm } from "node:fs/promises";
+import type { FileHandle } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { EMBEDDING_SPACE, embedTexts } from "@campus-agent/embedding-runtime";
+import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
 
-import { assertValidNoticeEmbeddingVector } from "./embedding-cache.ts";
-import { canonicalJsonBytes, encodeNdjson, sha256 } from "./encoding.ts";
+import {
+	assertValidNoticeEmbeddingVector,
+	collectNoticeEmbeddingInputs,
+	noticeEmbeddingCacheKey,
+	parseCachedNoticeEmbedding,
+	resolveStoredNoticeEmbeddingCache,
+	sortNoticeEmbeddingInputs,
+} from "./embedding-cache.ts";
+import { canonicalJsonBytes, sha256 } from "./encoding.ts";
 import { readStoredNoticeChunkRun } from "./run-reader.ts";
 import type {
 	BuildNoticeEmbeddingSetInput,
@@ -21,46 +33,73 @@ export async function buildNoticeEmbeddingSet(
 ): Promise<BuildNoticeEmbeddingSetResult> {
 	assertModelTarget(input.modelTargetSha256);
 	const chunkRun = await readStoredNoticeChunkRun(input.artifactStore, input.chunkRun);
-	const textBySha256 = new Map<Sha256Ref, string>();
-	for (const chunk of chunkRun.chunks) {
-		const digest = sha256(chunk.retrievalText);
-		const existing = textBySha256.get(digest);
-		if (existing !== undefined && existing !== chunk.retrievalText) {
-			throw new Error(`notice retrieval text SHA-256 collision: ${digest}`);
-		}
-		textBySha256.set(digest, chunk.retrievalText);
-	}
-	const inputs = [...textBySha256].sort(([left], [right]) => left.localeCompare(right));
-	const vectors = await embedTexts(
-		input.embedding,
-		inputs.map(([, text]) => text),
-		input.onEmbeddingProgress,
-	);
-	const embeddings = inputs.map<StoredNoticeEmbedding>(([retrievalTextSha256], index) => {
-		const dense = vectors[index];
-		if (!dense) throw new Error(`notice embedding result is missing: ${retrievalTextSha256}`);
-		assertValidNoticeEmbeddingVector(dense, retrievalTextSha256);
-		return { dense, retrievalTextSha256 };
-	});
-	const embeddingBytes = encodeNdjson(embeddings);
-	const embeddingDigest = sha256(embeddingBytes);
-	const embeddingKey = noticeEmbeddingDataKey(embeddingDigest);
-	await input.artifactStore.writeImmutable(embeddingKey, embeddingBytes);
-	const manifest: NoticeEmbeddingSetManifest = {
-		chunkRun: input.chunkRun,
-		embeddingCount: embeddings.length,
-		embeddingSpace: EMBEDDING_SPACE,
-		embeddings: reference(embeddingKey, embeddingBytes),
+	const inputs = sortNoticeEmbeddingInputs(collectNoticeEmbeddingInputs(chunkRun.chunks));
+	const resolved = await resolveStoredNoticeEmbeddingCache({
+		artifactStore: input.artifactStore,
+		embedding: input.embedding,
 		modelTargetSha256: input.modelTargetSha256,
-		schemaVersion: "notice_embedding_set.v1",
-	};
-	const manifestBytes = canonicalJsonBytes(manifest);
-	const embeddingSet = sha256(manifestBytes);
-	await input.artifactStore.writeImmutable(
-		noticeEmbeddingSetManifestKey(embeddingSet),
-		manifestBytes,
-	);
-	return { embeddingCount: embeddings.length, embeddingSet };
+		...(input.onEmbeddingProgress ? { onProgress: input.onEmbeddingProgress } : {}),
+		textBySha256: new Map(inputs),
+	});
+	const tempDirectory = await mkdtemp(join(tmpdir(), "notice-embedding-set-"));
+	const tempPath = join(tempDirectory, "embeddings.ndjson");
+	let fileHandle: FileHandle | undefined;
+	try {
+		fileHandle = await open(tempPath, "wx");
+		const digest = createHash("sha256");
+		let byteSize = 0;
+		let embeddingCount = 0;
+		for (const [retrievalTextSha256] of inputs) {
+			const cached = parseCachedNoticeEmbedding(
+				await input.artifactStore.read(
+					noticeEmbeddingCacheKey(input.modelTargetSha256, retrievalTextSha256),
+				),
+				retrievalTextSha256,
+				input.modelTargetSha256,
+			);
+			const recordBytes = canonicalJsonBytes({
+				dense: cached.dense,
+				retrievalTextSha256,
+			});
+			await writeAll(fileHandle, recordBytes);
+			digest.update(recordBytes);
+			byteSize += recordBytes.byteLength;
+			embeddingCount += 1;
+		}
+		await fileHandle.close();
+		fileHandle = undefined;
+
+		const embeddingDigest = `sha256:${digest.digest("hex")}` as Sha256Ref;
+		const embeddingKey = noticeEmbeddingDataKey(embeddingDigest);
+		await input.artifactStore.writeImmutableFile(embeddingKey, {
+			byteSize,
+			path: tempPath,
+			sha256: embeddingDigest,
+		});
+		const manifest: NoticeEmbeddingSetManifest = {
+			chunkRun: input.chunkRun,
+			embeddingCount,
+			embeddingSpace: EMBEDDING_SPACE,
+			embeddings: reference(embeddingKey, byteSize, embeddingDigest),
+			modelTargetSha256: input.modelTargetSha256,
+			schemaVersion: "notice_embedding_set.v1",
+		};
+		const manifestBytes = canonicalJsonBytes(manifest);
+		const embeddingSet = sha256(manifestBytes);
+		await input.artifactStore.writeImmutable(
+			noticeEmbeddingSetManifestKey(embeddingSet),
+			manifestBytes,
+		);
+		return {
+			embeddingCount,
+			embeddingSet,
+			generatedEmbeddingInputCount: resolved.generatedInputCount,
+			reusedEmbeddingInputCount: resolved.reusedInputCount,
+		};
+	} finally {
+		if (fileHandle) await fileHandle.close();
+		await rm(tempDirectory, { force: true, recursive: true });
+	}
 }
 
 export async function readNoticeEmbeddingSet(
@@ -131,8 +170,17 @@ function decodeEmbeddings(bytes: Uint8Array, expectedCount: number): StoredNotic
 	});
 }
 
-function reference(key: string, bytes: Uint8Array): ObjectReference {
-	return { byteSize: bytes.byteLength, key, sha256: sha256(bytes) };
+function reference(key: string, byteSize: number, digest: Sha256Ref): ObjectReference {
+	return { byteSize, key, sha256: digest };
+}
+
+async function writeAll(fileHandle: FileHandle, bytes: Uint8Array): Promise<void> {
+	let offset = 0;
+	while (offset < bytes.byteLength) {
+		const result = await fileHandle.write(bytes, offset, bytes.byteLength - offset);
+		if (result.bytesWritten <= 0) throw new Error("notice embedding data file write made no progress");
+		offset += result.bytesWritten;
+	}
 }
 
 function assertObjectReference(value: unknown, label: string): asserts value is ObjectReference {

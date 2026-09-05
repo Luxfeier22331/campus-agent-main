@@ -92,7 +92,12 @@ export interface NoticeArtifactReader {
 }
 
 export interface NoticeArtifactStore extends NoticeArtifactReader {
+	list(prefix: string): Promise<readonly string[]>;
 	writeImmutable(key: string, body: Uint8Array): Promise<void>;
+	writeImmutableFile(
+		key: string,
+		input: { byteSize: number; path: string; sha256: Sha256Ref },
+	): Promise<void>;
 }
 
 export interface NoticeChunkRunManifest {
@@ -207,4 +212,6 @@ export interface BuildNoticeEmbeddingSetInput {
 export interface BuildNoticeEmbeddingSetResult {
 	embeddingCount: number;
 	embeddingSet: Sha256Ref;
+	generatedEmbeddingInputCount: number;
+	reusedEmbeddingInputCount: number;
 }

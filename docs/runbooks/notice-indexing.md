@@ -44,11 +44,18 @@ kubectl -n <namespace> create -f -
 kubectl -n <namespace> logs job/<job-name> --follow
 ```
 
-Job 从 Model Config 的 `campus_docs_embedding` 槽位读取一次完整连接，按 `retrievalTextSha256` 去重后调用
-Provider。成功结果包含：
+Job 从 Model Config 的 `campus_docs_embedding` 槽位读取一次完整连接，按 `retrievalTextSha256` 去重。每个
+模型 target 和文本摘要对应一个线上不可变 cache：
+
+```text
+notices/rag/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
+```
+
+Job 会先校验已有 cache，只把缺失输入提交给 Provider；每个成功 batch 会立即写入 cache。因此失败后重跑
+会复用已完成的输入，日志中的 `generated` 和 `reused` 数量可以确认本次工作范围。成功结果包含：
 
 ```json
-{"event":"result","embedding_count":12528,"embedding_set":"sha256:<id>"}
+{"event":"result","embedding_count":12528,"generated_embedding_input_count":0,"reused_embedding_input_count":12528,"embedding_set":"sha256:<id>"}
 ```
 
 Embedding 数据和 manifest 位于：
@@ -59,3 +66,18 @@ notices/rag/embedding-sets/sha256/<id>/manifest.json
 ```
 
 同一内容寻址对象重复写入会验证已有内容；模板不包含 `NOTICE_CHUNK_RUN` 默认值，不扫描或选择最新制品。
+
+## 导入本地 Embedding Cache
+
+当本地 cache 已经由同一份 Chunk Run 和同一模型 target 完整生成时，可以先完整校验再导入线上：
+
+```bash
+pnpm --dir jobs/notice-index-publisher import-embedding-cache-local -- \
+  --chunk-run sha256:<chunk-run-id> \
+  --model-target-sha256 <model-target-sha256> \
+  --cache-directory var/notices/chunking/embedding-cache/<model-target-sha256>/sha256
+```
+
+命令会拒绝缺失、额外或内容不符合 `notice_embedding_cache.v1` 的文件；校验失败时不会上传任何 cache，且
+不会调用 Provider。导入后照常运行 `build-embeddings`；最终数据对象和 manifest 仍使用原有的
+`notice_embedding_set.v1` 合同。

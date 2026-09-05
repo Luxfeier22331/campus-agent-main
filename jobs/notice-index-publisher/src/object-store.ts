@@ -1,6 +1,15 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
 
-import type { NoticeArtifactStore } from "./types.ts";
+import {
+	GetObjectCommand,
+	ListObjectsV2Command,
+	PutObjectCommand,
+	S3Client,
+} from "@aws-sdk/client-s3";
+
+import type { NoticeArtifactStore, Sha256Ref } from "./types.ts";
 
 export interface NoticeObjectStoreEnv {
 	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
@@ -32,6 +41,26 @@ export function createNoticeS3ArtifactStore(
 	};
 	return {
 		read,
+		async list(prefix) {
+			const keys: string[] = [];
+			let continuationToken: string | undefined;
+			do {
+				const response = await client.send(
+					new ListObjectsV2Command({
+						Bucket: "campus-agent-derived",
+						Prefix: prefix,
+						...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+					}),
+				);
+				for (const object of response.Contents ?? []) {
+					if (object.Key) keys.push(object.Key);
+				}
+				continuationToken = response.IsTruncated
+					? response.NextContinuationToken
+					: undefined;
+			} while (continuationToken);
+			return keys;
+		},
 		async writeImmutable(key, body) {
 			try {
 				await client.send(
@@ -53,7 +82,50 @@ export function createNoticeS3ArtifactStore(
 				}
 			}
 		},
+		async writeImmutableFile(key, input) {
+			const file = await stat(input.path);
+			if (file.size !== input.byteSize) {
+				throw new Error(`notice artifact file size changed before upload: ${input.path}`);
+			}
+			try {
+				await client.send(
+					new PutObjectCommand({
+						Body: createReadStream(input.path),
+						Bucket: "campus-agent-derived",
+						ContentLength: input.byteSize,
+						ContentType: key.endsWith(".ndjson")
+							? "application/x-ndjson"
+							: "application/json",
+						IfNoneMatch: "*",
+						Key: key,
+					}),
+				);
+			} catch (error) {
+				if (!isPreconditionFailure(error)) throw error;
+				await verifyExistingObject(key, input);
+			}
+		},
 	};
+
+	async function verifyExistingObject(
+		key: string,
+		input: { byteSize: number; path: string; sha256: Sha256Ref },
+	): Promise<void> {
+		const response = await client.send(
+			new GetObjectCommand({ Bucket: "campus-agent-derived", Key: key }),
+		);
+		if (!response.Body) throw new Error(`notice artifact body is missing: ${key}`);
+		const digest = createHash("sha256");
+		let byteSize = 0;
+		for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+			byteSize += chunk.byteLength;
+			digest.update(chunk);
+		}
+		const actualSha256 = `sha256:${digest.digest("hex")}` as Sha256Ref;
+		if (byteSize !== input.byteSize || actualSha256 !== input.sha256) {
+			throw new Error(`immutable notice artifact conflicts with existing content: ${key}`);
+		}
+	}
 }
 
 function isPreconditionFailure(error: unknown): boolean {

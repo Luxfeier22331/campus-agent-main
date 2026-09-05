@@ -4,13 +4,13 @@ import { join } from "node:path";
 
 import {
 	EMBEDDING_SPACE,
-	embedTexts,
+	embedTextBatches,
 	type EmbeddingClient,
 } from "@campus-agent/embedding-runtime";
 
 import { writeImmutable } from "./artifacts.ts";
 import { canonicalJsonBytes, sha256 } from "./encoding.ts";
-import type { Sha256Ref } from "./types.ts";
+import type { NoticeArtifactStore, NoticeChunk, Sha256Ref } from "./types.ts";
 
 export const NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION = "notice_embedding_cache.v1" as const;
 
@@ -32,6 +32,19 @@ export interface ResolvedNoticeEmbeddingVectors {
 	vectorsByTextSha256: Map<Sha256Ref, number[]>;
 }
 
+export interface ResolvedStoredNoticeEmbeddingCache {
+	generatedInputCount: number;
+	generatedTextSha256s: ReadonlySet<Sha256Ref>;
+	reusedInputCount: number;
+	reusedTextSha256s: ReadonlySet<Sha256Ref>;
+}
+
+export interface ImportedNoticeEmbeddingCache {
+	importedEmbeddingInputCount: number;
+	modelTargetSha256: string;
+	textCount: number;
+}
+
 export async function resolveNoticeEmbeddingVectors(input: {
 	artifactRoot: string;
 	embedding: EmbeddingClient;
@@ -46,9 +59,7 @@ export async function resolveNoticeEmbeddingVectors(input: {
 	const vectorsByTextSha256 = new Map<Sha256Ref, number[]>();
 	const reusedTextSha256s = new Set<Sha256Ref>();
 	const missing: Array<[Sha256Ref, string]> = [];
-	const sortedInputs = [...input.textBySha256].sort(([left], [right]) =>
-		left.localeCompare(right),
-	);
+	const sortedInputs = sortNoticeEmbeddingInputs(input.textBySha256);
 	for (const [textSha256, text] of sortedInputs) {
 		if (sha256(text) !== textSha256) {
 			throw new Error(`notice embedding input text hash is invalid: ${textSha256}`);
@@ -63,36 +74,32 @@ export async function resolveNoticeEmbeddingVectors(input: {
 		vectorsByTextSha256.set(textSha256, cached.dense);
 		reusedTextSha256s.add(textSha256);
 	}
-	const generatedVectors = await embedTexts(
+	await embedTextBatches(
 		input.embedding,
 		missing.map(([, text]) => text),
+		async (batch) => {
+			await Promise.all(
+				batch.vectors.map(async (dense, index) => {
+					const entry = missing[batch.offset + index];
+					if (!entry) throw new Error("embedding result batch offset is invalid");
+					const [textSha256] = entry;
+					assertValidNoticeEmbeddingVector(dense, textSha256);
+					vectorsByTextSha256.set(textSha256, dense);
+					await writeImmutable(
+						noticeEmbeddingCachePath(
+							input.artifactRoot,
+							input.modelTargetSha256,
+							textSha256,
+						),
+						canonicalJsonBytes(
+							cachedNoticeEmbedding(dense, textSha256, input.modelTargetSha256),
+						),
+					);
+				}),
+			);
+		},
 		input.onProgress,
 	);
-	const writes: Array<{ bytes: Uint8Array; path: string }> = [];
-	for (const [index, [textSha256]] of missing.entries()) {
-		const dense = generatedVectors[index];
-		if (!dense) throw new Error(`embedding result is missing for ${textSha256}`);
-		assertValidNoticeEmbeddingVector(dense, textSha256);
-		const cached: CachedNoticeEmbedding = {
-			dense,
-			embeddingSpace: EMBEDDING_SPACE,
-			modelTargetSha256: input.modelTargetSha256,
-			schemaVersion: NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION,
-			textSha256,
-		};
-		vectorsByTextSha256.set(textSha256, dense);
-		writes.push({
-			bytes: canonicalJsonBytes(cached),
-			path: join(cacheDirectory, `${artifactHex(textSha256)}.json`),
-		});
-	}
-	for (let offset = 0; offset < writes.length; offset += CACHE_WRITE_CONCURRENCY) {
-		await Promise.all(
-			writes
-				.slice(offset, offset + CACHE_WRITE_CONCURRENCY)
-				.map((write) => writeImmutable(write.path, write.bytes)),
-		);
-	}
 	if (vectorsByTextSha256.size !== input.textBySha256.size) {
 		throw new Error("embedding cache does not cover every notice embedding input");
 	}
@@ -103,6 +110,152 @@ export async function resolveNoticeEmbeddingVectors(input: {
 		reusedTextSha256s,
 		vectorsByTextSha256,
 	};
+}
+
+export async function resolveStoredNoticeEmbeddingCache(input: {
+	artifactStore: NoticeArtifactStore;
+	embedding: EmbeddingClient;
+	modelTargetSha256: string;
+	onProgress?: (completedInputCount: number, totalInputCount: number) => void;
+	textBySha256: ReadonlyMap<Sha256Ref, string>;
+}): Promise<ResolvedStoredNoticeEmbeddingCache> {
+	assertNoticeEmbeddingModelTargetSha256(input.modelTargetSha256);
+	const sortedInputs = sortNoticeEmbeddingInputs(input.textBySha256);
+	const storedKeys = new Set(
+		await input.artifactStore.list(noticeEmbeddingCachePrefix(input.modelTargetSha256)),
+	);
+	const missing: Array<[Sha256Ref, string]> = [];
+	const reusedTextSha256s = new Set<Sha256Ref>();
+	for (const [textSha256, text] of sortedInputs) {
+		if (sha256(text) !== textSha256) {
+			throw new Error(`notice embedding input text hash is invalid: ${textSha256}`);
+		}
+		const key = noticeEmbeddingCacheKey(input.modelTargetSha256, textSha256);
+		if (!storedKeys.has(key)) {
+			missing.push([textSha256, text]);
+			continue;
+		}
+		parseCachedNoticeEmbedding(
+			await input.artifactStore.read(key),
+			textSha256,
+			input.modelTargetSha256,
+		);
+		reusedTextSha256s.add(textSha256);
+	}
+
+	const generatedTextSha256s = new Set<Sha256Ref>();
+	await embedTextBatches(
+		input.embedding,
+		missing.map(([, text]) => text),
+		async (batch) => {
+			await Promise.all(
+				batch.vectors.map(async (dense, index) => {
+					const entry = missing[batch.offset + index];
+					if (!entry) throw new Error("embedding result batch offset is invalid");
+					const [textSha256] = entry;
+					assertValidNoticeEmbeddingVector(dense, textSha256);
+					const bytes = canonicalJsonBytes(
+						cachedNoticeEmbedding(dense, textSha256, input.modelTargetSha256),
+					);
+					await input.artifactStore.writeImmutable(
+						noticeEmbeddingCacheKey(input.modelTargetSha256, textSha256),
+						bytes,
+					);
+					generatedTextSha256s.add(textSha256);
+				}),
+			);
+		},
+		input.onProgress,
+	);
+	return {
+		generatedInputCount: generatedTextSha256s.size,
+		generatedTextSha256s,
+		reusedInputCount: reusedTextSha256s.size,
+		reusedTextSha256s,
+	};
+}
+
+export async function importLocalNoticeEmbeddingCache(input: {
+	artifactStore: NoticeArtifactStore;
+	cacheDirectory: string;
+	modelTargetSha256: string;
+	textBySha256: ReadonlyMap<Sha256Ref, string>;
+}): Promise<ImportedNoticeEmbeddingCache> {
+	assertNoticeEmbeddingModelTargetSha256(input.modelTargetSha256);
+	const sortedInputs = sortNoticeEmbeddingInputs(input.textBySha256);
+	for (const [textSha256, text] of sortedInputs) {
+		if (sha256(text) !== textSha256) {
+			throw new Error(`notice embedding input text hash is invalid: ${textSha256}`);
+		}
+	}
+	const names = new Set(await readdir(input.cacheDirectory));
+	const expectedNames = new Set(sortedInputs.map(([textSha256]) => cacheFileName(textSha256)));
+	const extraNames = [...names].filter((name) => !expectedNames.has(name)).sort();
+	if (extraNames.length > 0) {
+		throw new Error(`notice embedding cache contains extra files: ${extraNames[0]}`);
+	}
+	const missingNames = [...expectedNames].filter((name) => !names.has(name)).sort();
+	if (missingNames.length > 0) {
+		throw new Error(`notice embedding cache is missing files: ${missingNames[0]}`);
+	}
+
+	for (const [textSha256] of sortedInputs) {
+		parseCachedNoticeEmbedding(
+			await readFile(join(input.cacheDirectory, cacheFileName(textSha256))),
+			textSha256,
+			input.modelTargetSha256,
+		);
+	}
+
+	for (let offset = 0; offset < sortedInputs.length; offset += CACHE_WRITE_CONCURRENCY) {
+		await Promise.all(
+			sortedInputs.slice(offset, offset + CACHE_WRITE_CONCURRENCY).map(async ([textSha256]) => {
+				await input.artifactStore.writeImmutable(
+					noticeEmbeddingCacheKey(input.modelTargetSha256, textSha256),
+					await readFile(join(input.cacheDirectory, cacheFileName(textSha256))),
+				);
+			}),
+		);
+	}
+	return {
+		importedEmbeddingInputCount: sortedInputs.length,
+		modelTargetSha256: input.modelTargetSha256,
+		textCount: sortedInputs.length,
+	};
+}
+
+export function collectNoticeEmbeddingInputs(
+	chunks: readonly NoticeChunk[],
+): Map<Sha256Ref, string> {
+	const textBySha256 = new Map<Sha256Ref, string>();
+	for (const chunk of chunks) {
+		const textSha256 = sha256(chunk.retrievalText);
+		const existing = textBySha256.get(textSha256);
+		if (existing !== undefined && existing !== chunk.retrievalText) {
+			throw new Error(`notice retrieval text SHA-256 collision: ${textSha256}`);
+		}
+		textBySha256.set(textSha256, chunk.retrievalText);
+	}
+	return textBySha256;
+}
+
+export function sortNoticeEmbeddingInputs(
+	textBySha256: ReadonlyMap<Sha256Ref, string>,
+): Array<[Sha256Ref, string]> {
+	return [...textBySha256].sort(([left], [right]) => left.localeCompare(right));
+}
+
+export function noticeEmbeddingCachePrefix(modelTargetSha256: string): string {
+	assertNoticeEmbeddingModelTargetSha256(modelTargetSha256);
+	return `notices/rag/embedding-cache/${modelTargetSha256}/sha256`;
+}
+
+export function noticeEmbeddingCacheKey(
+	modelTargetSha256: string,
+	textSha256: Sha256Ref,
+): string {
+	assertTextSha256(textSha256);
+	return `${noticeEmbeddingCachePrefix(modelTargetSha256)}/${artifactHex(textSha256)}.json`;
 }
 
 export function parseCachedNoticeEmbedding(
@@ -151,7 +304,12 @@ export function noticeEmbeddingCachePath(
 	modelTargetSha256: string,
 	textSha256: Sha256Ref,
 ): string {
-	return join(noticeEmbeddingCacheDirectory(artifactRoot, modelTargetSha256), `${artifactHex(textSha256)}.json`);
+	assertNoticeEmbeddingModelTargetSha256(modelTargetSha256);
+	assertTextSha256(textSha256);
+	return join(
+		noticeEmbeddingCacheDirectory(artifactRoot, modelTargetSha256),
+		`${artifactHex(textSha256)}.json`,
+	);
 }
 
 export function assertNoticeEmbeddingModelTargetSha256(value: string): void {
@@ -171,6 +329,21 @@ function noticeEmbeddingCacheDirectory(artifactRoot: string, modelTargetSha256: 
 	);
 }
 
+function cachedNoticeEmbedding(
+	dense: number[],
+	textSha256: Sha256Ref,
+	modelTargetSha256: string,
+): CachedNoticeEmbedding {
+	assertValidNoticeEmbeddingVector(dense, textSha256);
+	return {
+		dense,
+		embeddingSpace: EMBEDDING_SPACE,
+		modelTargetSha256,
+		schemaVersion: NOTICE_EMBEDDING_CACHE_SCHEMA_VERSION,
+		textSha256,
+	};
+}
+
 function parseJson(bytes: Uint8Array, label: string): unknown {
 	try {
 		return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
@@ -181,6 +354,17 @@ function parseJson(bytes: Uint8Array, label: string): unknown {
 
 function artifactHex(value: Sha256Ref): string {
 	return value.slice("sha256:".length);
+}
+
+function cacheFileName(value: Sha256Ref): string {
+	assertTextSha256(value);
+	return `${artifactHex(value)}.json`;
+}
+
+function assertTextSha256(value: Sha256Ref): void {
+	if (!/^sha256:[0-9a-f]{64}$/u.test(value)) {
+		throw new Error("notice embedding text SHA-256 is invalid");
+	}
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

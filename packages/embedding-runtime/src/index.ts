@@ -21,6 +21,12 @@ export interface EmbeddingClient {
 	embed(input: { texts: string[]; dimensions: number }): Promise<number[][]>;
 }
 
+export interface EmbeddingBatch {
+	offset: number;
+	texts: readonly string[];
+	vectors: readonly number[][];
+}
+
 export interface EmbeddingConnection {
 	apiKey: string;
 	baseUrl: string;
@@ -163,6 +169,31 @@ export async function embedTexts(
 	texts: readonly string[],
 	onProgress?: (completedInputCount: number, totalInputCount: number) => void,
 ): Promise<number[][]> {
+	const result = new Array<number[] | undefined>(texts.length);
+	await embedTextBatches(
+		client,
+		texts,
+		async (batch) => {
+			for (const [index, vector] of batch.vectors.entries()) {
+				result[batch.offset + index] = vector;
+			}
+		},
+		onProgress,
+	);
+	return result.map((vector, index) => {
+		if (!vector) {
+			throw new Error(`embedding result is missing input ${index}`);
+		}
+		return vector;
+	});
+}
+
+export async function embedTextBatches(
+	client: EmbeddingClient,
+	texts: readonly string[],
+	onBatch: (batch: EmbeddingBatch) => Promise<void> | void,
+	onProgress?: (completedInputCount: number, totalInputCount: number) => void,
+): Promise<void> {
 	const batches: Array<{ offset: number; texts: string[] }> = [];
 	for (let offset = 0; offset < texts.length; offset += EMBEDDING_BATCH_SIZE) {
 		batches.push({
@@ -170,7 +201,6 @@ export async function embedTexts(
 			texts: texts.slice(offset, offset + EMBEDDING_BATCH_SIZE),
 		});
 	}
-	const result = new Array<number[] | undefined>(texts.length);
 	let completedInputCount = 0;
 	for (let offset = 0; offset < batches.length; offset += EMBEDDING_REQUEST_CONCURRENCY) {
 		const group = batches.slice(offset, offset + EMBEDDING_REQUEST_CONCURRENCY);
@@ -194,19 +224,13 @@ export async function embedTexts(
 							`embedding vector ${batch.offset + index} has invalid dimensions or values`,
 						);
 					}
-					result[batch.offset + index] = vector;
 				}
+				await onBatch({ offset: batch.offset, texts: batch.texts, vectors });
 			}),
 		);
 		completedInputCount += group.reduce((count, batch) => count + batch.texts.length, 0);
 		onProgress?.(completedInputCount, texts.length);
 	}
-	return result.map((vector, index) => {
-		if (!vector) {
-			throw new Error(`embedding result is missing input ${index}`);
-		}
-		return vector;
-	});
 }
 
 function isLoopback(hostname: string): boolean {

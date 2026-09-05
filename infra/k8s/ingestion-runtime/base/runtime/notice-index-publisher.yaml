@@ -178,4 +178,4 @@ spec:
           volumes:
             - name: tmp
               emptyDir:
-                sizeLimit: 32Mi
+                sizeLimit: 1Gi
