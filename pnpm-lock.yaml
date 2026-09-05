@@ -597,9 +597,6 @@ importers:
       app-api:
         specifier: workspace:*
         version: link:../app-api
-      drizzle-kit:
-        specifier: ^0.31.10
-        version: 0.31.10
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1(@noble/hashes@2.3.0)
@@ -901,9 +898,6 @@ importers:
         specifier: ^8.22.0
         version: 8.23.0
     devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.1.0
-        version: 12.1.0(supports-color@10.2.2)
       '@types/node':
         specifier: ^24.13.2
         version: 24.13.3

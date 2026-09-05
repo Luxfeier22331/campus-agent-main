@@ -12,6 +12,14 @@ spec:
     roles:
       - name: campus_docs_index_publisher
         ensure: absent
+      - name: docs_publish
+        ensure: absent
+      - name: execution_provider_config_admin
+        ensure: absent
+      - name: execution_provider_config_reader
+        ensure: absent
+      - name: ingestion_control
+        ensure: absent
   bootstrap:
     initdb:
       database: campus_agent

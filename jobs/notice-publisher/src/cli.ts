@@ -4,7 +4,6 @@ import { pathToFileURL } from "node:url";
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { formatRawError } from "ingestion-contracts/raw-error";
 import { backfillAttachmentLinks } from "./backfill.ts";
-import { migrateNotices } from "./migrate.ts";
 import { internalPortalHost } from "./portal.ts";
 import { publishNotices, republishNotices } from "./publisher.ts";
 import { createPublisherObjectStoreFromEnv } from "./store.ts";
@@ -20,10 +19,6 @@ async function main(): Promise<void> {
 	const pool = createNoticeDatabasePool(process.env, { max: 1 });
 	const client = await pool.connect();
 	try {
-		if (command === "migrate") {
-			console.log(JSON.stringify({ result: await migrateNotices(client) }));
-			return;
-		}
 		if (command === "backfill-attachment-links") {
 			const parsed = parseBackfillArgs(args);
 			const store = createPublisherObjectStoreFromEnv(process.env);
@@ -60,7 +55,7 @@ async function main(): Promise<void> {
 		}
 		if (command !== "publish") {
 			throw new Error(
-				"usage: notice-publisher <migrate|backfill-attachment-links|publish|republish>",
+				"usage: notice-publisher <backfill-attachment-links|publish|republish>",
 			);
 		}
 		const parsed = parsePublishArgs(args);

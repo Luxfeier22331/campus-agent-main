@@ -12,7 +12,7 @@ export default defineConfig({
 				"internal-portal-check": resolve(import.meta.dirname, "ops/internal-portal-check.ts"),
 			},
 			output: {
-				// Preserve the source entry depth so ../../drizzle resolves inside the artifact.
+				// Preserve the source entry depth for the operational entrypoints.
 				entryFileNames: "[name].js",
 			},
 		},

@@ -21,7 +21,7 @@ func testRunProjectionStore(t *testing.T, harness *postgresHarness) {
 	t.Run("schema health CRUD and idempotent install", func(t *testing.T) {
 		_, databaseURL := harness.ownerDatabase(t)
 		store := newRunProjectionStore(t, databaseURL, true)
-		requireSchema(t, databaseURL, nil)
+		requireSchema(t, databaseURL)
 		if err := store.HealthCheck(t.Context()); err != nil {
 			t.Fatalf("run projection health check: %v", err)
 		}
@@ -1156,7 +1156,7 @@ func newRunProjectionStore(
 ) *executionpersistence.PostgresRunProjectionStore {
 	t.Helper()
 	if prepareSchema {
-		requireSchema(t, databaseURL, nil)
+		requireSchema(t, databaseURL)
 	}
 	store, err := executionpersistence.NewPostgresRunProjectionStore(
 		t.Context(),

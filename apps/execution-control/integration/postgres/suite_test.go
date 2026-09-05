@@ -8,13 +8,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/providerconfig"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/schemamigrations"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -24,18 +24,19 @@ const (
 	postgresImage     = "postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193"
 	adminUser         = "postgres"
 	adminPassword     = "postgres-integration-admin"
-	ownerRole         = "execution_schema_owner"
-	ownerPassword     = "execution-schema-owner-password"
+	ownerRole         = "campus_agent"
+	ownerPassword     = "campus-agent-password"
 	executionRole     = "execution_control"
 	executionPassword = "execution-control-password"
 	appAPIRole        = "app_api"
 	opsWebRole        = "ops_web"
 	opsWebPassword    = "ops-web-password"
+	modelConfigRole   = "model_config"
 )
 
 type postgresHarness struct {
-	adminURL  string
-	moduleDir string
+	adminURL       string
+	repositoryRoot string
 }
 
 func TestPostgresIntegration(t *testing.T) {
@@ -56,11 +57,8 @@ func TestPostgresIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve PostgreSQL connection string: %v", err)
 	}
-	harness := &postgresHarness{adminURL: adminURL, moduleDir: executionControlModuleDir(t)}
+	harness := &postgresHarness{adminURL: adminURL, repositoryRoot: repositoryRoot(t)}
 
-	t.Run("schema migrations are independent from grant roles", func(t *testing.T) {
-		testSchemaMigrationsWithoutGrantRoles(t, harness)
-	})
 	harness.installClusterRoles(t)
 	t.Run("run projection store", func(t *testing.T) {
 		testRunProjectionStore(t, harness)
@@ -71,21 +69,15 @@ func TestPostgresIntegration(t *testing.T) {
 	t.Run("personal memory state store", func(t *testing.T) {
 		testPersonalMemoryStateStore(t, harness)
 	})
-	t.Run("frozen historical provider config migrations", func(t *testing.T) {
-		testLegacyProviderConfigMigration(t, harness)
-	})
-	t.Run("schema command", func(t *testing.T) {
-		testSchemaCommand(t, harness)
-	})
 }
 
-func executionControlModuleDir(t *testing.T) string {
+func repositoryRoot(t *testing.T) string {
 	t.Helper()
 	_, source, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("resolve integration test source path")
 	}
-	return filepath.Clean(filepath.Join(filepath.Dir(source), "..", ".."))
+	return filepath.Clean(filepath.Join(filepath.Dir(source), "..", "..", "..", ".."))
 }
 
 func (h *postgresHarness) installClusterRoles(t *testing.T) {
@@ -97,6 +89,7 @@ func (h *postgresHarness) installClusterRoles(t *testing.T) {
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{executionRole}.Sanitize(), executionPassword),
 		fmt.Sprintf("create role %s nologin", pgx.Identifier{appAPIRole}.Sanitize()),
 		fmt.Sprintf("create role %s login password '%s'", pgx.Identifier{opsWebRole}.Sanitize(), opsWebPassword),
+		fmt.Sprintf("create role %s nologin", pgx.Identifier{modelConfigRole}.Sanitize()),
 	}
 	for _, statement := range statements {
 		if _, err := conn.Exec(t.Context(), statement); err != nil {
@@ -164,29 +157,27 @@ func closeConn(t *testing.T, conn *pgx.Conn) {
 	}
 }
 
-func migrateSchema(ctx context.Context, databaseURL string, keyring *providerconfig.Keyring) error {
-	migrator, err := schemamigrations.New(databaseURL, keyring, integrationProviderCipher())
-	if err != nil {
-		return err
-	}
-	defer func() { _ = migrator.Close() }()
-	if err := migrator.Up(ctx); err != nil {
-		return err
-	}
-	return migrator.InstallGrants(ctx)
-}
-
-func integrationProviderCipher() *providerconfig.SecretCipher {
-	cipher, err := providerconfig.NewSecretCipher(integrationEncryptionKey())
-	if err != nil {
-		panic(err)
-	}
-	return cipher
-}
-
-func requireSchema(t *testing.T, databaseURL string, keyring *providerconfig.Keyring) {
+func requireSchema(t *testing.T, databaseURL string) {
 	t.Helper()
-	if err := migrateSchema(t.Context(), databaseURL, keyring); err != nil {
-		t.Fatalf("migrate execution-control schema: %v", err)
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		t.Fatalf("parse schema database URL: %v", err)
+	}
+	password, ok := parsed.User.Password()
+	if !ok {
+		t.Fatal("schema database URL is missing a password")
+	}
+	command := exec.CommandContext(t.Context(), "pnpm", "--dir", "jobs/campus-agent-schema", "migrate")
+	command.Dir = repositoryRoot(t)
+	command.Env = append(os.Environ(),
+		"PGHOST="+parsed.Hostname(),
+		"PGPORT="+parsed.Port(),
+		"PGDATABASE="+strings.TrimPrefix(parsed.Path, "/"),
+		"PGUSER="+parsed.User.Username(),
+		"PGPASSWORD="+password,
+		"PGSSLMODE=disable",
+	)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("migrate execution-control schema with campus-agent-schema: %v\n%s", err, output)
 	}
 }

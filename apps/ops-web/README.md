@@ -78,15 +78,11 @@ pnpm --dir apps/ops-web start
 pnpm --dir apps/ops-web check
 pnpm --dir apps/ops-web test:browser
 pnpm --dir apps/ops-web test:database-integration
-pnpm --dir apps/ops-web test:database-legacy-integration
-pnpm --dir apps/ops-web db:check
-pnpm --dir apps/ops-web db:generate
 ```
 
 `pnpm dev:init -- --target ops-web` 会生成 core 与 Ops Web 实际消费者所需的环境投影，通过
 `campus-agent-schema` 安装统一 schema 和授权，再写入通知分类与 Dining 本地 seed；新的本地 profile 不需要
-单独初始化 notice-publisher。`test:database-integration` 只验证当前统一 schema 拓扑；
-`test:database-legacy-integration` 单独验证历史数据库升级与 handoff。
+单独初始化 notice-publisher。`test:database-integration` 只验证当前统一 schema 拓扑。
 
 `dev:api` 和 `dev:web` 分别启动 Node API 与 Vite 页面；`dev:fixture` 只监听 loopback，使用内存凭据服务
 和固定 fixture token，启动时打印 endpoint、token 与测试凭据 ID。它不读取本地真实凭据，也不会改变
@@ -101,10 +97,9 @@ bucket，生成 Ops Web 及通知采集、分类、发布任务实际读取的�
 `ops_web` 角色和本地对象存储连接；Dining 不创建专属角色、连接、桶或凭据。
 
 Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
-`packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，生成的
-migration 与其他产品 schema 一起由 `jobs/campus-agent-schema/` 管理，并记录在
-`drizzle.campus_agent_migrations`。`apps/ops-web/drizzle/`、`db:apply-dining` 和 `db:apply` 只作为本地
-历史数据库测试与开发 fixture 保留，不再参与当前线上拓扑或新建本地数据库 bootstrap。`db:bootstrap-dining` 只写入
+`packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，对应的
+DDL 与其他产品 schema 一起由 `jobs/campus-agent-schema/` 管理，并记录在
+`drizzle.campus_agent_migrations`。`db:bootstrap-dining` 只写入
 Dining 基线草稿，并通过正式 publisher 上传 SVG、原子写入 release 和当前 publication；已有有效
 发布时不修改数据。授权和 bootstrap 不建表，也不维护 migration ledger。
 

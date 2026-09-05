@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
@@ -8,6 +8,14 @@ import { parseAllDocuments } from "yaml";
 type JsonObject = Record<string, unknown>;
 
 const base = resolve(import.meta.dirname, "../../infra/k8s/data-postgres/base");
+const kubernetesRoot = resolve(import.meta.dirname, "../../infra/k8s");
+const retiredDatabaseRoles = [
+	"campus_docs_index_publisher",
+	"docs_publish",
+	"execution_provider_config_admin",
+	"execution_provider_config_reader",
+	"ingestion_control",
+] as const;
 
 test("the unified schema Job uses the shared database owner and CA", () => {
 	const manifest = singleManifest(resolve(base, "schema-job.yaml"));
@@ -56,6 +64,34 @@ test("the shared database ConfigMap serves schema and notice runtimes", () => {
 	});
 });
 
+test("declares retired PostgreSQL roles as absent and nowhere as active resources", () => {
+	const manifest = singleManifest(resolve(base, "cluster.yaml"));
+	const spec = record(manifest.spec, "Cluster spec");
+	const managed = record(spec.managed, "managed roles");
+	const roles = managed.roles;
+	assert.ok(Array.isArray(roles));
+	assert.deepEqual(
+		roles
+			.map((role: unknown) => {
+				const value = record(role, "managed role");
+				return { ensure: value.ensure, name: value.name };
+			})
+			.filter(({ name }) =>
+				retiredDatabaseRoles.includes(name as (typeof retiredDatabaseRoles)[number]),
+			)
+			.sort((left, right) => String(left.name).localeCompare(String(right.name))),
+		retiredDatabaseRoles.map((name) => ({ ensure: "absent", name })),
+	);
+
+	const declaredDatabaseRoles = databaseRoleNames(kubernetesRoot);
+	assert.deepEqual(
+		declaredDatabaseRoles.filter((name) =>
+			retiredDatabaseRoles.includes(name as (typeof retiredDatabaseRoles)[number]),
+		),
+		[],
+	);
+});
+
 function singleManifest(path: string): JsonObject {
 	const values = parseAllDocuments(readFileSync(path, "utf8")).map((document) => document.toJS());
 	if (
@@ -67,6 +103,29 @@ function singleManifest(path: string): JsonObject {
 		throw new Error(`${path} must contain exactly one manifest`);
 	}
 	return values[0] as JsonObject;
+}
+
+function databaseRoleNames(root: string): string[] {
+	return yamlFiles(root).flatMap((path) =>
+		parseAllDocuments(readFileSync(path, "utf8")).flatMap((document) => {
+			const manifest = document.toJS();
+			if (!isObject(manifest) || manifest.kind !== "DatabaseRole") {
+				return [];
+			}
+			const roleName = record(manifest.spec, "DatabaseRole spec").name;
+			return typeof roleName === "string" ? [roleName] : [];
+		}),
+	);
+}
+
+function yamlFiles(root: string): string[] {
+	return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+		const path = resolve(root, entry.name);
+		if (entry.isDirectory()) {
+			return yamlFiles(path);
+		}
+		return entry.isFile() && /\.ya?ml$/u.test(entry.name) ? [path] : [];
+	});
 }
 
 function nameOf(manifest: JsonObject): string {

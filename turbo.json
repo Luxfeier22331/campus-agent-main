@@ -103,9 +103,6 @@
 		"test:database-integration": {
 			"cache": false
 		},
-		"test:database-legacy-integration": {
-			"cache": false
-		},
 		"test:browser": {
 			"cache": false
 		},

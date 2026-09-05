@@ -37,7 +37,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharin
 
 COPY --from=pruner /repo/out/full/ ./
 COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
-COPY jobs/notice-publisher/migrations ./jobs/notice-publisher/migrations
 
 RUN pnpm --filter notice-publisher build
 
@@ -73,7 +72,6 @@ RUN apt-get update \
 
 COPY --from=production-dependencies --chown=node:node /app /app
 COPY --from=build --chown=node:node /app/jobs/notice-publisher/dist /app/jobs/notice-publisher/dist
-COPY --from=build --chown=node:node /app/jobs/notice-publisher/migrations /app/jobs/notice-publisher/migrations
 
 RUN node --input-type=module -e "import('./jobs/notice-publisher/dist/cli.js')"
 

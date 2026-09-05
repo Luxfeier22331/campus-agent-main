@@ -15,8 +15,7 @@ COPY apps/model-config ./
 
 RUN --mount=type=cache,id=go-model-config-modules,target=/go/pkg/mod \
     --mount=type=cache,id=go-model-config-build,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/model-config ./cmd/model-config \
-    && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/model-config-schema ./cmd/model-config-schema
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/model-config ./cmd/model-config
 
 FROM debian:bookworm-slim
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
@@ -24,7 +23,6 @@ RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/model-config /usr/local/bin/model-config
-COPY --from=build /out/model-config-schema /usr/local/bin/model-config-schema
 USER appuser
 EXPOSE 8000 8001
 ENTRYPOINT ["/usr/local/bin/model-config"]

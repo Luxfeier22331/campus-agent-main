@@ -150,9 +150,8 @@ seed 缺失的 Model Config；它不访问 Provider、不覆盖已有配置，�
 `NOTICE_CLASSIFICATION_BASE_URL`、`NOTICE_CLASSIFICATION_API_KEY` 和
 `NOTICE_CLASSIFICATION_MODEL` 输入；是否复用 endpoint 或凭据由调用方的本地输入决定，不把两个配置
 合并，也不改变通知消费者逻辑。
-`pnpm dev:init -- --target core` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline，不再执行
-execution-control 历史 Goose migration、Model Config 切换命令，也不生成 legacy provider key。启动前
-会在 seed 后检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
+`pnpm dev:init -- --target core` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline。
+启动前会在 seed 后检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
 同一个本地实例。不要复制其他 worktree、staging 或 production 的 encryption key；使用
 `pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>` 显式销毁该实例后重新运行
 `pnpm dev:init -- --target core`，再通过 Ops Web 配置本地模型。

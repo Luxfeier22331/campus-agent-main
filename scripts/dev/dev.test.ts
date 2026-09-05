@@ -582,12 +582,6 @@ describe("managed worktree environment", () => {
 		assert.equal(statSync(first).mode & 0o777, 0o600);
 	});
 
-	it("does not create the retired provider encryption key during standard setup", () => {
-		const repoRoot = createRepositoryShape();
-		ensureLocalModelConfigEncryptionKey(repoRoot);
-		assert.equal(existsSync(resolve(repoRoot, "var/dev/provider-config-encryption.key")), false);
-	});
-
 	it("refuses to overwrite a developer-owned application environment file", () => {
 		const repoRoot = createRepositoryShape();
 		writeFileSync(resolve(repoRoot, "apps/ops-web/.env.local"), "USER_OWNED=1\n");
@@ -1204,9 +1198,6 @@ describe("local development lifecycle guards", () => {
 				"ops-web-dining-bootstrap",
 			],
 		);
-		const steps = commands.map(({ step }) => String(step));
-		assert.equal(steps.includes("notice-publisher-migrate"), false);
-		assert.equal(steps.includes("ops-web-schema"), false);
 	});
 
 	it("keeps the internal portal collection local loader inside its adapter", () => {

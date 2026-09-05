@@ -6,8 +6,7 @@
 	"files": [
 		"dist",
 		"dist-ops",
-		"dist-server",
-		"drizzle"
+		"dist-server"
 	],
 	"scripts": {
 		"build": "vite build && vite build --ssr src/server/node.ts --outDir dist-server && vite build --config vite.ops.config.ts",
@@ -16,15 +15,10 @@
 		"dev:fixture": "set -a && . ./.env.local && set +a && exec node --experimental-strip-types test/fixtures/internal-portal-automation-server.ts --port \"$PORT\"",
 		"dev:web": "set -a && . ./.env.local && set +a && exec vite --host 127.0.0.1 --port \"$OPS_WEB_WEB_PORT\" --strictPort",
 		"start": "node --env-file-if-exists=.env dist-server/node.js",
-		"db:apply": "node --experimental-strip-types ops/db/ops-web-database-legacy.ts apply",
-		"db:apply-dining": "node --experimental-strip-types ops/db/ops-web-database-legacy.ts apply-dining",
 		"db:bootstrap-dining": "node --experimental-strip-types ops/db/bootstrap-dining.ts",
-		"db:check": "drizzle-kit check --config drizzle.config.ts",
-		"db:generate": "drizzle-kit generate --config drizzle.config.ts",
 		"test": "vitest run --config vitest.config.mts",
 		"test:browser": "pnpm build && playwright test --config browser.config.ts",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
-		"test:database-legacy-integration": "vitest run --config vitest.database-legacy-integration.config.mts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -78,7 +72,6 @@
 		"@types/react-dom": "^19.2.4",
 		"@vitejs/plugin-react": "^6.0.5",
 		"app-api": "workspace:*",
-		"drizzle-kit": "^0.31.10",
 		"jsdom": "^30.0.1",
 		"notice-publisher": "workspace:*",
 		"tailwindcss": "^4.3.3",

@@ -118,6 +118,20 @@ test("keeps only executable Turbo tasks and rejects malformed plans", () => {
 	assert.throws(() => parseTurboTasks("not-json"), /invalid affected plan/u);
 });
 
+test("parses Turbo JSON after an informational prefix", () => {
+	assert.deepEqual(
+		parseTurboTasks(
+			[
+				"• turbo 2.10.10",
+				JSON.stringify({
+					tasks: [{ command: "vitest", package: "campus-web", task: "test" }],
+				}),
+			].join("\n"),
+		),
+		[{ package: "campus-web", task: "test" }],
+	);
+});
+
 test("validates ancestry, reads the diff once, and uses the lockfile Turbo", () => {
 	const calls: Array<{ command: string; args: string[]; base?: string; head?: string }> = [];
 	const runner: CommandRunner = (command, args, options) => {

@@ -19,6 +19,7 @@ const RYUK_IMAGE =
 
 describe("Campus docs publisher PostgreSQL catalog", () => {
 	let connectionString = "";
+	let executionControlConnectionString = "";
 	let container: StartedPostgreSqlContainer;
 
 	beforeAll(async () => {
@@ -31,9 +32,13 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 			.withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/u, 2))
 			.start();
 		connectionString = container.getConnectionUri();
+		const executionControlPassword = randomUUID();
 		const client = new Client({ connectionString, ssl: false });
 		await client.connect();
 		try {
+			await client.query(
+				`create role execution_control login password '${executionControlPassword}'`,
+			);
 			await client.query(`
 				create schema campus_docs_serving;
 				create table campus_docs_serving.current_index (
@@ -41,9 +46,19 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 					collection text not null check (collection ~ '^campus_docs_[a-f0-9]{64}$')
 				)
 			`);
+			await client.query(
+				"grant usage on schema campus_docs_serving to execution_control",
+			);
+			await client.query(
+				"grant select, insert, update on table campus_docs_serving.current_index to execution_control",
+			);
 		} finally {
 			await client.end();
 		}
+		const executionControlURL = new URL(connectionString);
+		executionControlURL.username = "execution_control";
+		executionControlURL.password = executionControlPassword;
+		executionControlConnectionString = executionControlURL.toString();
 	}, 180_000);
 
 	afterAll(async () => {
@@ -65,7 +80,7 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 		}
 
 		const target = targetBinding("b");
-		const catalog = createPostgresIndexCatalog(catalogEnv(connectionString));
+		const catalog = createPostgresIndexCatalog(catalogEnv(executionControlConnectionString));
 		try {
 			await expect(catalog.activate(target)).resolves.toEqual({ noOp: false });
 		} finally {
@@ -84,8 +99,8 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 	});
 
 	it("rejects concurrent publisher sessions and releases the lock on close", async () => {
-		const first = createPostgresIndexCatalog(catalogEnv(connectionString));
-		const second = createPostgresIndexCatalog(catalogEnv(connectionString));
+		const first = createPostgresIndexCatalog(catalogEnv(executionControlConnectionString));
+		const second = createPostgresIndexCatalog(catalogEnv(executionControlConnectionString));
 		try {
 			await first.acquirePublisherLock();
 			await expect(second.acquirePublisherLock()).rejects.toThrow(
@@ -112,7 +127,7 @@ describe("Campus docs publisher PostgreSQL catalog", () => {
 		} finally {
 			await admin.end();
 		}
-		const catalog = createPostgresIndexCatalog(catalogEnv(connectionString));
+		const catalog = createPostgresIndexCatalog(catalogEnv(executionControlConnectionString));
 		try {
 			await expect(catalog.activate(target)).resolves.toEqual({ noOp: true });
 		} finally {

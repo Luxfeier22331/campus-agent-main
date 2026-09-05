@@ -32,20 +32,18 @@ revision、bundle、activation、history、fallback 或在线 rollback。不同�
 
 ## 数据库入口状态
 
-新建或重建的本地数据库由 `campus-agent-schema` 直接安装最终 `model_config` 结构和授权，不再经过
-execution-control Goose 与 `model-config-schema` 的双阶段切换。统一 Job 会拒绝带旧 migration ledger
-或 `execution_config` 的数据库，不提供原位兼容路径。
+新建或重建的本地数据库由 `campus-agent-schema` 直接安装最终 `model_config` 结构和授权。统一 Job
+会拒绝带旧 migration ledger 或 `execution_config` 的数据库，不提供原位兼容路径。
 
-统一 schema Job 的期望拓扑位于 `data-postgres` Application；旧 runner 和密钥合同不由标准本地
-bootstrap 或 GitOps 调用，只为本地历史数据库集成测试保留。具体环境是否已经应用某个
-revision，以 GitOps 选择、schema Job 结果和统一 ledger 为准。
+统一 schema Job 的期望拓扑位于 `data-postgres` Application。具体环境是否已经应用某个 revision，
+以 GitOps 选择、schema Job 结果和统一 ledger 为准。
 
 ## 本地开发
 
 包含 `core` 或 `model-config` 投影的 `pnpm dev:init -- --target <target>` 为每个 worktree 维护 `var/dev/model-config-encryption.key`，供 Model Config 当前密文
 使用，并按 target 从当前进程环境或根 `.env` 读取所需 provider 字段，显式 seed 缺失的配置。seed
-只写入缺失 name，不覆盖已有配置，不访问 Provider，也不产生 validation 记录。它不再生成
-`var/dev/provider-config-encryption.key`。后者只在显式验证保留的历史切换 runner 时由调用者单独准备。
+只写入缺失 name，不覆盖已有配置，不访问 Provider，也不产生 validation 记录。它不再生成旧的
+Provider Config 密钥文件；加密密钥仅使用 `model-config-encryption.key`。
 `core`、`ops-web` 和 `notice-classifier` projection 会在实际消费者需要时生成同一
 worktree 的 `MODEL_CONFIG_URL`，不生成 Model Config 调用 token。加密密钥文件不得打印、复制到其他 worktree
 或提交。

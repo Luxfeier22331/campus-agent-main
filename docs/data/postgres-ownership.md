@@ -24,7 +24,7 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影和个人记忆状态读写 |
 | `model_config` | `apps/model-config` | 当前具名模型配置与加密凭据读写 |
-| `notice_publisher` | 本地 `jobs/notice-publisher` | 本地规范化通知写入；部署环境不创建该角色 |
+| `notice_publisher` | `jobs/notice-publisher` | 通知规范化写入；本地由独立运行角色连接，部署 Job 复用 `campus_agent` |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户凭据及 automation token 读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
@@ -32,6 +32,22 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 
 表中角色是权限主体，不等于都已具备环境登录凭据。`ops_web` 是 Ops Web 的唯一运行角色，Dining
 不创建第二个角色或连接。
+
+数据库角色生命周期由 CNPG 声明负责：当前角色由 `DatabaseRole` 资源声明，退役角色由
+`infra/k8s/data-postgres/base/cluster.yaml` 中的 `spec.managed.roles` 以 `ensure: absent` 声明。
+以下角色不是当前权限主体，只保留为退役清单，防止历史资源或人工操作重新创建它们：
+
+| 退役角色 | 退役原因 |
+| --- | --- |
+| `campus_docs_index_publisher` | 发布任务已复用 `execution_control` 技术身份 |
+| `docs_publish` | 旧发布路径已退役 |
+| `execution_provider_config_admin` | 旧 Provider Config 管理路径已退役 |
+| `execution_provider_config_reader` | 旧 Provider Config 读取路径已退役 |
+| `ingestion_control` | ingestion-control 服务与凭据路径已退役 |
+
+`campus-agent-schema` 只负责 schema、migration 和授权，不执行 `DROP ROLE`；Argo CD prune 只清理
+Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役声明在所有受管环境确认角色已消失、
+且仓库不存在重新创建来源前保持有效；之后才重新评估是否移除对应的负向声明。
 
 ## Schema 所有权
 
@@ -44,7 +60,7 @@ Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，�
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影 |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
-| `campus_docs_serving.current_index` | Campus Docs serving（当前 publisher 复用 `execution_control` 技术身份写入） | Campus Docs publisher；供后续在线知识能力使用 |
+| `campus_docs_serving.current_index` | Campus Docs serving（publisher 复用 `execution_control` 技术身份写入） | Campus Docs publisher、execution-control Campus Search |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `internal_portal.credentials`、`internal_portal.automation_tokens` | Ops Web | Ops Web；internal-portal-collection 只通过内部解析 API 消费结果 |
@@ -62,12 +78,13 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 由统一 migration `0002_remove_runtime_personal_memory_compat_views` 删除，不改变底层表、数据或权限。
 
 Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs serving 逻辑上拥有
-`campus_docs_serving.current_index` 单行绑定；当前 publisher 继续复用 `execution_control` 数据库身份
-写入。当前在线 execution-control 不读取该表；发布任务不创建独立数据库角色、连接字符串或 Secret。
+`campus_docs_serving.current_index` 单行绑定；publisher 继续复用 `execution_control` 数据库身份
+读取并写入该绑定。在线 execution-control 的 Campus Search 也使用该身份读取当前绑定，但在线代码路径
+只消费该记录，不承担发布写入职责。由于 publisher 与在线 execution-control 共享技术身份，数据库 ACL
+不能进一步区分两条进程路径；当前不因此创建独立数据库角色、连接字符串或 Secret。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
-通知 schema 与显式发布 Job 同样复用既有 `campus_agent` owner Secret，不创建线上
-`notice_publisher` 登录或密码。`notice_publisher` 只保留为本地 worktree 的开发角色；通知 migration
-在该角色存在时授予本地发布权限，在部署环境缺失该角色时直接使用 owner。
+通知 schema 与显式发布 Job 同样复用既有 `campus_agent` owner Secret；部署环境不需要
+`notice_publisher` 登录或密码，本地通知发布仍使用独立的 `notice_publisher` 运行角色。
 
 ## 迁移合同
 
@@ -85,8 +102,8 @@ Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs 
 - 新入口不是旧数据库的原位升级器。发现 `drizzle.app_api_migrations`、
   `drizzle.ops_web_dining_migrations`、`public.execution_control_migrations`、
   `model_config.schema_migrations`、`notices.schema_migrations` 或 `execution_config` 时明确失败；
-- 旧 migration 文件和 runner 只作为本地测试与开发数据库 fixture 保留，不构成线上 legacy upgrade 合同；
-  线上统一使用 schema Job 按环境 revision 应用当前结构；源码仓不直接修改在线数据库；
+- 应用自有 migration 文件、runner 和 legacy integration profile 已退役，不构成线上 upgrade 合同；线上统一
+  使用 schema Job 按环境 revision 应用当前结构；源码仓不直接修改在线数据库；
 - `0002_remove_runtime_personal_memory_compat_views` 只删除无消费者的 `runtime.*` 个人记忆兼容 View，
   不删除 `execution_control.personal_memory_*` 表或其数据；
 - 修改统一 migration 后，至少验证空库首次执行、重复执行、owner 与关键 ACL、旧对象拒绝、退役 View
@@ -132,7 +149,6 @@ embedding 制品的存活判断。未有明确引用或删除清单时，本仓�
 | notice-publisher | 1 | Job 进程显式使用单连接 pool |
 | Campus Docs publisher | 1 | 使用单个 PostgreSQL client |
 
-`providerconfig.Store` 只保留为历史迁移和测试辅助，不是当前常驻运行时消费者，不计入常驻预算。
 `ingestion-control` 已退役，也不计入当前预算。App API Worker 的 Hyperdrive 连接数由 Cloudflare
 平台和环境仓配置拥有，源码仓不能给它假定一个本地 pool 上限。
 
@@ -162,8 +178,8 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
   投影使用的精确列读取。Ops Web bootstrap 不创建、扩大或收回 execution-control 表权限；
 - 在线模型配置只能通过 Model Config 管理接口修改，Ops Web 不直连其 schema；
 - `execution_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
-  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；发布任务复用该身份，当前在线
-  execution-control 不消费该表；
+  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；发布任务和在线 Campus Search
+  复用该身份，前者负责激活当前绑定，后者只读取当前绑定；
 - `model_config.model_configs` 可以为空或只配置一个 name；schema 安装不把业务配置完整性
   变成部署门禁。缺失 name 由其消费路径失败关闭。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，
@@ -190,9 +206,8 @@ workload 只使用运行角色。
   `apps/ops-web/ops/db/internal-portal-schema.ts`
 - 本地业务 seed：`apps/app-api/ops/db/`、`jobs/notice-publisher/src/seed-local.ts`、
   `apps/ops-web/ops/db/`
-- `apps/app-api/drizzle/`、`apps/ops-web/drizzle/`、`apps/execution-control/internal/schemamigrations/`、
-  `apps/model-config/internal/modelconfig/migration.go` 和 `jobs/notice-publisher/migrations/` 只作为本地
-  历史数据库测试与开发 fixture 保留，不是当前线上拓扑或新建本地数据库的执行入口。
+- `apps/app-api/drizzle/` 仍是 App API 自有声明式迁移的可执行来源；其他应用自有 schema runner、旧 migration
+  目录和 legacy integration profile 已退役。当前新建或重建数据库只通过 `jobs/campus-agent-schema/` 安装。
 
 ## 相关文档
 
@@ -201,4 +216,6 @@ workload 只使用运行角色。
 - `../product/dining.md`
 - `../architecture/system/data-plane.md`
 - `../architecture/system/k8s-runtime.md`
+- `../architecture/system/retrieval-serving.md`
+- `../runbooks/campus-docs.md`
 - `../decisions/adr-0073-postgres.md`

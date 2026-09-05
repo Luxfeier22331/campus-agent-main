@@ -85,7 +85,6 @@ test("Turbo does not cache side-effecting or environment-coupled tasks", () => {
 	for (const task of [
 		"test:migration-integration",
 		"test:database-integration",
-		"test:database-legacy-integration",
 		"test:shared-db-integration",
 		"test:browser",
 		"test:e2e:full",
@@ -128,10 +127,7 @@ test("expensive package tasks declare boundary-specific affected inputs", () => 
 		["apps/campus-web/turbo.json", ["test:e2e:full", "test:e2e:smoke"]],
 		["apps/execution-control/turbo.json", ["test:database-integration"]],
 		["apps/model-config/turbo.json", ["test:database-integration"]],
-		[
-			"apps/ops-web/turbo.json",
-			["test:browser", "test:database-integration", "test:database-legacy-integration"],
-		],
+		["apps/ops-web/turbo.json", ["test:browser", "test:database-integration"]],
 		["apps/status-web/turbo.json", ["test:browser"]],
 	];
 	for (const [config, taskNames] of owners) {
@@ -152,15 +148,6 @@ test("Ops Web database tasks track their schema source owners", () => {
 		"apps/ops-web/turbo.json",
 		["test:database-integration"],
 		["$TURBO_ROOT$/jobs/campus-agent-schema/**"],
-	);
-	assertTaskInputs(
-		"apps/ops-web/turbo.json",
-		["test:database-legacy-integration"],
-		[
-			"drizzle/**",
-			"$TURBO_ROOT$/apps/app-api/drizzle/**",
-			"$TURBO_ROOT$/apps/app-api/src/script-support/shared-db/**",
-		],
 	);
 });
 

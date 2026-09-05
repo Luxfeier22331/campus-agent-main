@@ -121,13 +121,10 @@ internal_portal/notices/<notice-id>/attachments/<ordinal>
 可以通过 notice-publisher 的重新发布行为重新物化正文投影，但不会改变 `is_published` 或分类；当前状态
 选择及重新评估条件见 ADR-0094。
 
-单分类 migration 5 不把旧分类值映射到新 taxonomy，也不保留兼容列。它只接受空的
-`notices.notices` 投影；已有本地旧投影必须清空后用新 taxonomy 的模型分类结果重新物化。
-
 `notices.notice_assets` 按通知和资源类型保存名称、媒体类型、字节数、SHA-256 和附件的
 `portal_annex_id`。图片使用从零开始的连续展示 ordinal；附件保留 source metadata ordinal，永久缺失附件会留下
 ordinal 空缺。图片的 `portal_annex_id` 为空，完整门户下载 URL 不落库。表结构和授权的可执行来源是
-`jobs/notice-publisher/migrations/`。
+`jobs/campus-agent-schema/`；通知领域的声明式字段来源仍由 `packages/domains/notices/` 拥有。
 
 ### 正文清洗
 

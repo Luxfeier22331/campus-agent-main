@@ -30,7 +30,6 @@ test("validation profiles have one fail-closed registry", () => {
 		"execution-control-postgres",
 		"model-config-postgres",
 		"ops-web-postgres",
-		"ops-web-postgres-legacy",
 		"infra",
 		"otel",
 	]);
@@ -39,12 +38,6 @@ test("validation profiles have one fail-closed registry", () => {
 		name: "ragas",
 		requiresDocker: false,
 		requiresUv: true,
-	});
-	assert.deepEqual(validationProfileMetadata("ops-web-postgres-legacy"), {
-		lane: "manual",
-		name: "ops-web-postgres-legacy",
-		requiresDocker: true,
-		requiresUv: false,
 	});
 	assert.deepEqual(validationProfileMetadata("container-build"), {
 		lane: "pull-request",

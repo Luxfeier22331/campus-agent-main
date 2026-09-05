@@ -22,8 +22,7 @@ COPY packages/contracts/fixtures/tool_execution_contract /src/packages/contracts
 
 RUN --mount=type=cache,id=go-modules,target=/go/pkg/mod \
   --mount=type=cache,id=go-build,target=/root/.cache/go-build \
-  CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control \
-  && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/run-projection-schema ./cmd/run-projection-schema
+  CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/execution-control ./cmd/execution-control
 
 FROM debian:bookworm-slim
 
@@ -33,7 +32,6 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/execution-control /usr/local/bin/execution-control
-COPY --from=build /out/run-projection-schema /usr/local/bin/run-projection-schema
 COPY configs/runtime/tool-function-schemas.v4.json /etc/campus-agent/tool-function-schemas.v4.json
 COPY configs/runtime/tools.v7.json /etc/campus-agent/tools.v7.json
 

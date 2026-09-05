@@ -12,8 +12,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +44,9 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 	for _, statement := range []string{
 		"create role campus_agent login password 'campus-agent-password'",
 		"create role model_config login password 'model-config-password'",
+		"create role app_api nologin",
+		"create role execution_control nologin",
+		"create role ops_web nologin",
 	} {
 		if _, err := admin.Exec(ctx, statement); err != nil {
 			t.Fatal(err)
@@ -53,9 +59,7 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 	ownerURL := httpIntegrationDatabaseURL(adminURL, "model_config_http", "campus_agent", "campus-agent-password")
 	runtimeURL := httpIntegrationDatabaseURL(adminURL, "model_config_http", "model_config", "model-config-password")
 	keyPath := writeHTTPIntegrationKey(t, "01234567890123456789012345678901")
-	if err := modelconfig.Install(ctx, ownerURL, keyPath, ""); err != nil {
-		t.Fatal(err)
-	}
+	installUnifiedSchema(t, ctx, ownerURL)
 	cipher, err := modelconfig.LoadCipher(keyPath)
 	if err != nil {
 		t.Fatal(err)
@@ -265,6 +269,36 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 			t.Fatalf("candidate validation changed current config: before=%#v after=%#v", *before, *after)
 		}
 	})
+}
+
+func installUnifiedSchema(t *testing.T, ctx context.Context, databaseURL string) {
+	t.Helper()
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		t.Fatalf("parse schema database URL: %v", err)
+	}
+	password, ok := parsed.User.Password()
+	if !ok {
+		t.Fatal("schema database URL is missing a password")
+	}
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve integration test source path")
+	}
+	repositoryRoot := filepath.Clean(filepath.Join(filepath.Dir(source), "..", "..", "..", ".."))
+	command := exec.CommandContext(ctx, "pnpm", "--dir", "jobs/campus-agent-schema", "migrate")
+	command.Dir = repositoryRoot
+	command.Env = append(os.Environ(),
+		"PGHOST="+parsed.Hostname(),
+		"PGPORT="+parsed.Port(),
+		"PGDATABASE="+strings.TrimPrefix(parsed.Path, "/"),
+		"PGUSER="+parsed.User.Username(),
+		"PGPASSWORD="+password,
+		"PGSSLMODE=disable",
+	)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("install unified schema: %v\n%s", err, output)
+	}
 }
 
 func connectHTTPIntegrationPostgres(t *testing.T, databaseURL string) *pgx.Conn {

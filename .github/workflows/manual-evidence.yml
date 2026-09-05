@@ -15,7 +15,6 @@ on:
           - execution-control-postgres
           - model-config-postgres
           - ops-web-postgres
-          - ops-web-postgres-legacy
           - infra
           - otel
 

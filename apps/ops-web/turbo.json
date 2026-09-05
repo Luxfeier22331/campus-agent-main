@@ -16,23 +16,6 @@
 				"$TURBO_ROOT$/packages/ui/**"
 			]
 		},
-		"test:database-legacy-integration": {
-			"inputs": [
-				"drizzle/**",
-				"ops/db/**",
-				"package.json",
-				"src/server/postgres-tls.ts",
-				"test/ops-web-database-legacy.integration.test.ts",
-				"test/ops-web-postgres-legacy.global-setup.ts",
-				"vitest.database-legacy-integration.config.mts",
-				"$TURBO_ROOT$/apps/app-api/ops/db/**",
-				"$TURBO_ROOT$/apps/app-api/drizzle/**",
-				"$TURBO_ROOT$/apps/app-api/src/script-support/shared-db/**",
-				"$TURBO_ROOT$/apps/execution-control/**",
-				"$TURBO_ROOT$/jobs/notice-publisher/**",
-				"$TURBO_ROOT$/packages/domains/dining/**"
-			]
-		},
 		"test:database-integration": {
 			"inputs": [
 				"ops/db/**",

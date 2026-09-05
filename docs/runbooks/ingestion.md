@@ -14,7 +14,7 @@ callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立�
 ## 前置条件
 
 - 统一 schema bootstrap 使用数据库 owner 连接；Ops Web 凭据表位于
-  `internal_portal.credentials`，handoff migration 只作为本地历史数据库测试 fixture；
+  `internal_portal.credentials`；
 - 通知采集、分类和发布共享 `notices.*`；本地和集群都由 `campus-agent-schema` 安装；
 - source 与 derived bucket 使用各自对象存储凭据；
 - Ops Web 与 internal-portal-collection 来自同一 source revision；
@@ -30,11 +30,10 @@ pnpm --filter ops-web dev:api
 ```
 
 数据库 TLS 与运行变量见 Ops Web 的环境合同。当前本地与 Kubernetes 拓扑使用
-`drizzle.campus_agent_migrations`；旧 ledger 和 handoff migration 不由 bootstrap 或 GitOps 调用，只为
-本地历史数据库集成测试保留。`notice-publisher` target 是统一 schema Job 和通知分类 seed 的 owner；
+`drizzle.campus_agent_migrations`。`notice-publisher` target 是统一 schema Job 和通知分类 seed 的 owner；
 `internal-portal-collection` target 只生成 Ops Web 与采集器实际读取的环境投影，并通过 readiness 复用已完成的
 schema，不执行重复 DDL。`notice-classifier` target 只生成 Model Config 与分类器实际读取的环境投影。
-execution-control 的历史通知分类模型设置只作为 Model Config 一次性迁移输入，不构成当前配置所有权。
+通知分类由当前 Model Config 配置和分类器 Job 负责，不由 execution-control 持有。
 
 ## 文件发布
 
@@ -152,18 +151,15 @@ kubectl create job \
 
 ### 通知 schema
 
-`pnpm dev:init -- --target notice-publisher` 创建本地 `notice_publisher` 角色，并使用数据库 owner 安装
-`notices.*`。该 target 可安全重跑，并会应用当前尚未安装的 migration：
+`pnpm dev:init -- --target notice-publisher` 准备本地 `notice_publisher` 运行角色，并通过
+`campus-agent-schema` 使用数据库 owner 安装 `notices.*`。该 target 可安全重跑：
 
 ```bash
 pnpm dev:init -- --target notice-publisher
 ```
 
-Migration 6 将 `category` 改为可空，增加 `is_published`，并把迁移前已有通知标记为已发布。新采集通知
-默认未分类、未发布，直接在既有库存上迁移，不清空通知或资源表。
-
-线上由 `data-postgres` Application 中的 `campus-agent-schema` Job 使用既有 `campus_agent` owner Secret
-执行统一 migration，不创建线上 `notice_publisher` 角色。
+新采集通知默认未分类、未发布；线上由 `data-postgres` Application 中的 `campus-agent-schema` Job
+使用既有 `campus_agent` owner Secret 安装统一 schema。
 
 ### 单条与批量发布
 
@@ -297,11 +293,10 @@ pnpm --filter notice-classifier test
 pnpm --filter notice-classifier build
 pnpm --filter notice-publisher typecheck
 pnpm --filter notice-publisher test
-pnpm --filter notice-publisher test:migration-integration
 pnpm --filter app-api test
 pnpm --filter campus-web test
 scripts/infra/validate.sh
 ```
 
-这些检查验证源码、合同、隔离数据库 migration 和 Kubernetes 期望配置，不证明集群已应用或
+这些检查验证源码、合同、当前统一 schema 的隔离数据库拓扑和 Kubernetes 期望配置，不证明集群已应用或
 真实门户可用。Ops Web 凭据的环境检查见 `portal-auth.md`。

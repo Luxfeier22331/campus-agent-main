@@ -40,24 +40,21 @@ HTTP API 也不拥有 worker 生命周期。
   统一启动和停止 poller 与 reconciler；reconciler 只依赖 `internal/execution` 合同，不导入 Temporal SDK
   或 HTTP；
 - `internal/campusdocs` 拥有索引与检索领域合同，`internal/campusdocspersistence` 实现当前索引的 PostgreSQL
-  读取，`internal/outboundadapter` 实现 embedding、Qdrant 和 reranker 调用；
-- 冻结的 `internal/providerconfig` 代码只服务历史 Goose migration，不得重新进入常驻 runtime。
+  读取，`internal/outboundadapter` 实现 embedding、Qdrant 和 reranker 调用。
 
 ## 进程入口
 
 - `execution-control`：生产入口；`8000` 提供内部执行、查询、记忆和健康接口，同时运行三类
   Temporal poller。本地宿主进程通过标准 `HOST` 和 `PORT` 配置监听地址。
-- `run-projection-schema`：为本地历史数据库集成测试保留的 Goose runner，不由标准本地 bootstrap 或
-  GitOps 调用。新建或重建的本地数据库由 `campus-agent-schema` 直接安装最终结构和授权。
 
 收到 SIGTERM 或运行时致命错误时，`execution-control` 先将 HTTP 准入置为 draining，停止新的业务请求，
 并在 `ShutdownGraceMS` 窗口内等待已进入的请求完成。HTTP 阶段结束后才停止 reconciler 和 Temporal
 poller，最后关闭运行投影、个人记忆状态和 Temporal starter。超时请求会先收到 context cancellation；
 若仍有 handler 不退出，进程不会提前关闭其共享 store，持久化的 start/cancel intent 由下一实例继续收敛。
 
-`internal/schemamigrations/` 与 `public.execution_control_migrations` 为本地历史数据库集成测试保留。
-当前共享数据库 migration 位于 `jobs/campus-agent-schema/`，统一记录在
-`drizzle.campus_agent_migrations`。运行时 Store 只连接和读写，不自动建表。
+当前共享数据库 schema 由 `jobs/campus-agent-schema/` 安装，统一记录在
+`drizzle.campus_agent_migrations`。运行时 Store 只连接和读写，不自动建表；PostgreSQL 集成测试也通过
+该共享 Job 准备数据库，不再编译或调用应用自有 schema runner。
 
 具体 HTTP 路径、字段和枚举不在 README 复制：
 

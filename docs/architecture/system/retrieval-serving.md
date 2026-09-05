@@ -111,6 +111,11 @@ Publisher 在激活前完整核对 collection 配置、point 数、point 身份�
 重新确认当前文档投影未变化。只有验证成功才替换 PostgreSQL
 `campus_docs_serving.current_index` 的单一当前绑定；构建失败不改变现有绑定。
 
+`current_index` 的逻辑 owner 是 Campus Docs serving，预期写入者是 Campus Docs index publisher。
+Publisher 当前复用 `execution_control` 数据库身份完成读取和激活；该身份是部署层共享的技术 writer，
+不是 execution-control 在线服务的逻辑写入职责。数据库 ACL 因此授予该身份
+`SELECT`、`INSERT`、`UPDATE`，并拒绝 `DELETE`、`TRUNCATE`、`REFERENCES` 和 `TRIGGER`。
+
 源码包含 Job、schema、制品或 collection 只能证明发布链可执行，不能证明任一环境已经运行这些 Job
 或激活当前索引。操作步骤和清理条件见 `../../runbooks/campus-docs.md`。
 
@@ -120,6 +125,9 @@ Publisher 在激活前完整核对 collection 配置、point 数、point 身份�
 `campus_search` 被 Primary Agent 按需调用后，execution-control 从同一个 execution-control 数据库读取
 该绑定，从 Model Config 读取 `campus_docs_embedding` 和 `campus_docs_reranker` 连接，向对应 collection 发起 dense/sparse hybrid
 查询。工具不接受客户端或模型传入 collection、provider、vector name、top-k 或版本字段。
+
+在线 execution-control 只读取 `current_index`；它不执行 publisher 的激活流程。由于两条路径当前共享
+`execution_control` 技术身份，数据库权限不能单独表达这一进程级区分，代码行为和 ACL 需要分别验证。
 
 当前查询先从 dense/sparse hybrid RRF 取得最多 24 个候选，再使用当前 `campus_docs_reranker`
 连接调用固定的 rerank 模型对候选排序，只保留 `relevance_score >= 0.5` 的候选，最终返回

@@ -48,13 +48,12 @@ migration 退役，不是运行时接口。
 ## 数据库迁移边界
 
 当前数据库拓扑由 `campus-agent-schema` 一次安装 execution-control、Model Config 和其他产品 schema
-的最终结构。旧 Goose migration 与 `model-config-schema` 不由标准本地 bootstrap 或 GitOps 调用，只为
-本地历史数据库集成测试保留。
+的最终结构。本次涉及的 execution-control、Model Config、Ops Web 和 notice-publisher 自有 schema runner、
+旧 migration 目录及 legacy integration profile 已退役，不是标准本地 bootstrap 或 GitOps 的可执行入口。
 
 统一 Job 不接管包含旧 ledger 或 `execution_config` 的数据库；这是对未知数据库状态的 fail-closed 检查，
 不是线上 upgrade 路径。具体环境是否已经应用某个 revision，以 GitOps 选择、schema Job 结果和统一
-ledger 为准，不在本文保存一次性审计结果。旧 migration 不得改写，也不能通过双写、兼容 view 或第二条
-ledger 延长历史路径。
+ledger 为准，不在本文保存一次性审计结果。不得通过双写、兼容 view 或第二条 ledger 延长已退役路径。
 
 ## 配置和 Secret
 

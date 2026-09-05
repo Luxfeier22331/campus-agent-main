@@ -90,7 +90,11 @@ function requireSuccess(command: string, args: string[], result: CommandResult):
 export function parseTurboTasks(source: string): ScopeTask[] {
 	let value: unknown;
 	try {
-		value = JSON.parse(source) as unknown;
+		const jsonStart = source.indexOf("{");
+		if (jsonStart < 0) {
+			throw new Error("Turbo affected plan does not contain a JSON object");
+		}
+		value = JSON.parse(source.slice(jsonStart)) as unknown;
 	} catch (error) {
 		throw new Error("Turbo returned an invalid affected plan", { cause: error });
 	}

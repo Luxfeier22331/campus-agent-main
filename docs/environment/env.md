@@ -56,8 +56,8 @@ target 会自动生成其运行依赖的环境投影；例如 `internal-portal-c
 这些文件带有管理标记，不提交 Git，也不供人工编辑；命令拒绝覆盖同路径的开发者自有文件。重新初始化保留已生成的本地应用 secret，并按当前 profile 重写端口、数据库和 bucket 地址。核心应用的 worktree 连接、端口和本地 secret 由托管文件提供；Hindsight、OTEL、代理等不属于托管文件的外部配置仍由 shell、`op run` 或其他可选 secret manager 注入，不写入 profile 或机器注册表。
 
 包含 `core` 或 `model-config` 投影的 target 还会为当前 worktree 创建 `0600` 的
-`var/dev/model-config-encryption.key`，供 Model Config 当前密文使用。标准初始化不生成已退役的
-`provider-config-encryption.key`；密钥不进入 profile、其他 worktree 或部署环境。
+`var/dev/model-config-encryption.key`，供 Model Config 当前密文使用；密钥不进入 profile、其他 worktree
+或部署环境。
 
 托管本地环境不连接 Turnstile：Campus Web 不渲染验证码，App API 只对本地禁用标记跳过
 CAPTCHA 插件。部署环境是否启用 Turnstile 及其配置由该环境实际选择决定。
