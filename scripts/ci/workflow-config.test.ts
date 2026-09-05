@@ -338,9 +338,11 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.doesNotMatch(String(promotion.run), /--kubernetes/u);
 	const preflight = namedStep(promote, "Preflight GitOps promotion render");
 	assert.match(String(preflight.run), /gitops\/scripts\/validate-kubernetes\.sh/u);
-	assert.match(String(preflight.run), /clusters\/staging\/overlays\/data-postgres/u);
-	assert.match(String(preflight.run), /clusters\/staging\/overlays\/runtime/u);
-	assert.match(String(preflight.run), /validate-rendered/u);
+	assert.match(String(preflight.run), /scope-working-tree/u);
+	assert.match(String(preflight.run), /gitops_base_sha/u);
+	assert.match(String(preflight.run), /jq \. "\$scope_file"/u);
+	assert.doesNotMatch(String(preflight.run), /clusters\/staging\/overlays\/data-postgres/u);
+	assert.doesNotMatch(String(preflight.run), /validate-rendered --directory/u);
 	assert.match(String(preflight.run), /validate-ops-web-promotion/u);
 	const installGitOpsTooling = namedStep(promote, "Install GitOps tooling");
 	assert.equal(installGitOpsTooling.run, "pnpm --dir gitops install --frozen-lockfile");
