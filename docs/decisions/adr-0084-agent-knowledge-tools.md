@@ -10,26 +10,28 @@ supersedes: ADR-0075
 
 ## 背景
 
-ADR-0075 曾把机构知识查询包装为 Primary Agent 到 Knowledge Agent 的 handoff。后续实现保留单一
-Primary Agent，但又把 Campus Docs 检索固化为每个有效请求都必须执行的 Temporal Activity，并把
-检索结果固定注入模型输入。
+ADR-0075 曾把机构知识查询包装为 Primary Agent 到 Knowledge Agent 的 handoff。后续实现保留同一模型
+角色，但又把 Campus Docs 检索固化为每个有效请求都必须执行的 Temporal Activity，并把检索结果固定注入
+模型输入。
 
 这条链路不是通用 RAG 或工具合同。它让问候、改写和个人事实请求也依赖 Qdrant 与 Embedding
 Provider，并使 Agent 输入、Temporal history、运行投影、评测和部署配置同时耦合到 Campus Docs。
-当前产品已经确定已发布 Campus Docs 以 Primary Agent 的只读 `campus_search` function tool 接入；
+当前产品已经确定已发布 Campus Docs 以 Agent Workflow Executor 的只读 `campus_search` function tool 接入；
 尚未采集的公开校园网页信息可由 SDK 原生 `web_search` 补充。本 ADR 记录收敛后的本地知识边界，
 避免恢复强制预检索或多 Agent 编排。
 
 ## 决策
 
-- 每个在线回答继续只有一个 Primary Agent 和一个最终答案所有者；不恢复 Knowledge Agent、handoff
-  或第二次答案合成；
+- 每个在线回答使用同一模型角色完成 `solve`、`execute_step`、`replan` 和 `synthesize` operation；Solve
+  可以直接回答或返回计划；不恢复
+  Knowledge Agent 或 handoff，但保留显式的计划、重规划和最终合成阶段；
 - 当前在线 workflow 不自动执行 Campus Docs 检索，也不向 Agent Runtime 注入固定
   `campus_docs_evidence`；
-- Primary Agent 按需调用只读 `campus_search`，Finalization 只接受同一次运行中成功工具经对应 adapter
-  校验的来源引用；
-- hosted `web_search` 由 Agent Runtime 直接附加，只用于校园问题的公开网页证据；它不进入本地函数
-  工具预算、结果或轨迹，也不是 `campus_search` 失败后的代码级 fallback；
+- Executor 按当前步骤按需调用只读 `campus_search`，Finalization 只接受同一次运行中成功工具经对应
+  adapter 校验的来源引用；
+- hosted `web_search` 只有在当前 `execute_step` 的候选来源中被 Solve/Replanner 生成的计划显式允许时才由
+  Agent Runtime 附加，只用于校园问题的公开网页证据；它不进入本地函数工具预算、结果或轨迹，也不是
+  `campus_search` 失败后的代码级 fallback；
 - `campus_search` 在 execution-control 中读取当前 collection，并从 Model Config 读取 embedding 和
   reranker 连接，不把二者放入
   admission snapshot 或 Temporal workflow input；
@@ -37,8 +39,9 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
   离线索引或当前绑定存在不表示在线 Agent 已经消费它；
 - 离线发布继续由 Chunk、Embedding 和 Publisher 三个显式阶段完成，阶段之间只传递内容寻址制品；
 - 个人记忆只支持用户自身事实或偏好，不能替代机构知识来源；
-- 本地函数工具调用次数只受准入快照的总 `max_function_tool_calls` 限制，同一工具可以重复调用，二者没有固定先后关系；不恢复代码级 fallback、
-  Knowledge Agent、handoff 或第二次答案合成。
+- 本地函数工具调用次数只受当前 operation 的总 `max_function_tool_calls` 限制；`max_plan_steps` 和
+  `max_replans` 由外层 workflow 约束。来源切换由 Replanner 的结构化剩余步骤决定，不恢复代码级
+  fallback、Knowledge Agent 或 handoff。
 
 ## 结果
 
@@ -46,8 +49,8 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
   时读取它们；
 - Agent Runtime 输入和 Temporal workflow 只保留当前实际开放的能力；
 - 在线 Agent 评测不再把机构文档证据当作固定输入，离线 RAG 评测继续验证索引制品；
-- `campus_search` 返回 `no_match` 或失败时，在线回答不能使用模型记忆补全机构事实，也不会由代码自动
-  触发 Web Search；
+- `campus_search` 返回 `no_match` 或失败时，在线回答不能使用模型记忆补全机构事实；系统不会由代码
+  自动触发 Web Search，Replanner 可以在仍有预算时生成显式 Web Search 步骤；
 - 删除旧类型、阶段耗时、部署变量和兼容路径，不保留隐藏 fallback。
 
 ## 未采用方案

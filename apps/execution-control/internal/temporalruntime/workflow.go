@@ -2,9 +2,11 @@ package temporalruntime
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -22,7 +24,20 @@ func ToolExecutionWorkflow(
 	input ToolExecutionWorkflowInput,
 ) (ToolExecutionWorkflowResult, error) {
 	activityOptions := defaultActivityOptions()
-	agent, err := executePrimaryAgent(ctx, activityOptions, input)
+	if err := validateWorkflowInput(input); err != nil {
+		if finalizeErr := finalizeExecutionFailure(
+			ctx,
+			activityOptions,
+			input,
+			"workflow.input",
+			"workflow_input_invalid",
+			err,
+		); finalizeErr != nil {
+			return ToolExecutionWorkflowResult{}, finalizeErr
+		}
+		return ToolExecutionWorkflowResult{}, err
+	}
+	solveResult, err := executeSolveTask(ctx, activityOptions, input)
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
 			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
@@ -31,16 +46,231 @@ func ToolExecutionWorkflow(
 			ctx,
 			activityOptions,
 			input,
-			"agent.primary",
-			"agent_runtime_failed",
+			"solve.initial",
+			"workflow_solve_failed",
 			err,
 		); finalizeErr != nil {
 			return ToolExecutionWorkflowResult{}, finalizeErr
 		}
 		return ToolExecutionWorkflowResult{}, err
 	}
-	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
-		AgentResult:       agent,
+	if solveResult.SolveOutcome == "answer" {
+		if strings.TrimSpace(solveResult.FinalOutput) == "" {
+			return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_solve_invalid", errors.New("solver returned empty answer"))
+		}
+		return finalizeWorkflowAnswer(ctx, activityOptions, input, solveResult)
+	}
+	if solveResult.SolveOutcome != "plan" || solveResult.Plan == nil {
+		return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_solve_invalid", errors.New("solver returned neither an answer nor a plan"))
+	}
+	plan := *solveResult.Plan
+	if err := validateWorkflowPlan(
+		plan,
+		input.AdmissionSnapshot.AgentBudget.MaxPlanSteps,
+		nil,
+		input.AdmissionSnapshot.AgentCapabilities,
+	); err != nil {
+		return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_solve_invalid", err)
+	}
+	remaining := append([]WorkflowTaskPlanStep{}, plan.Steps...)
+	completedSteps := make([]WorkflowCompletedStep, 0, len(plan.Steps))
+	evidence, nextCitationIndex, mergeErr := mergeWorkflowEvidence(nil, solveResult.Evidence, 1)
+	if mergeErr != nil {
+		return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_evidence_invalid", mergeErr)
+	}
+	replanCount := 0
+	for len(remaining) > 0 {
+		stepIndex := nextReadyWorkflowStep(remaining, completedSteps)
+		if stepIndex < 0 {
+			return failWorkflowStage(
+				ctx,
+				activityOptions,
+				input,
+				"workflow.solve",
+				"workflow_dependency_cycle",
+				errors.New("workflow has no executable remaining step"),
+			)
+		}
+		step := remaining[stepIndex]
+		stepResult, stepErr := executeTaskStep(ctx, activityOptions, input, plan, step, completedSteps, nextCitationIndex)
+		stepFailed := stepErr != nil
+		var completed WorkflowCompletedStep
+		if stepErr != nil {
+			if workflowExecutionCanceled(ctx, stepErr) {
+				return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
+			}
+			if len(evidence) == 0 {
+				return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), "workflow_step_failed", stepErr)
+			}
+			completed = failedWorkflowStep(step, len(completedSteps)+1, stepErr)
+		} else {
+			var completedErr error
+			completed, completedErr = canonicalCompletedWorkflowStep(stepResult, step, len(completedSteps)+1)
+			if completedErr != nil {
+				return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), "workflow_step_invalid", completedErr)
+			}
+			var mergeErr error
+			evidence, nextCitationIndex, mergeErr = mergeWorkflowEvidence(evidence, stepResult.Evidence, nextCitationIndex)
+			if mergeErr != nil {
+				return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), "workflow_evidence_invalid", mergeErr)
+			}
+		}
+		completedSteps = append(completedSteps, completed)
+		remaining = append(remaining[:stepIndex], remaining[stepIndex+1:]...)
+		if replanCount >= input.AdmissionSnapshot.AgentBudget.MaxReplans ||
+			!workflowStepNeedsRecoveryReplan(completed, remaining, completedSteps) {
+			continue
+		}
+		replanCount++
+		replanStage := fmt.Sprintf("solve.replan.%d", replanCount)
+		replanResult, replanErr := executeReplanTask(
+			ctx,
+			activityOptions,
+			input,
+			plan,
+			completedSteps,
+			remaining,
+			replanCount,
+		)
+		if replanErr != nil {
+			if workflowExecutionCanceled(ctx, replanErr) {
+				return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
+			}
+			if stepFailed {
+				continue
+			}
+			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_failed", replanErr)
+		}
+		if replanResult.Replan == nil {
+			if stepFailed {
+				continue
+			}
+			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_invalid", errors.New("replanner returned no decision"))
+		}
+		decision := replanResult.Replan
+		switch decision.Decision {
+		case "synthesize":
+			remaining = nil
+		case "continue", "revise":
+			if err := validateWorkflowRemainingSteps(
+				decision.RemainingSteps,
+				input.AdmissionSnapshot.AgentBudget.MaxPlanSteps,
+				completedSteps,
+				input.AdmissionSnapshot.AgentCapabilities,
+			); err != nil {
+				if stepFailed {
+					continue
+				}
+				return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_invalid", err)
+			}
+			remaining = append([]WorkflowTaskPlanStep{}, decision.RemainingSteps...)
+			plan = workflowPlanWithCompletedAndRemaining(plan, completedSteps, remaining)
+		default:
+			if stepFailed {
+				continue
+			}
+			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_invalid", fmt.Errorf("unsupported replan decision %q", decision.Decision))
+		}
+	}
+	synthesis, err := executeSynthesizeAnswer(ctx, activityOptions, input, plan, completedSteps, evidence)
+	if err != nil {
+		if workflowExecutionCanceled(ctx, err) {
+			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
+		}
+		if finalizeErr := finalizeExecutionFailure(
+			ctx,
+			activityOptions,
+			input,
+			"answer.synthesize",
+			"workflow_synthesis_failed",
+			err,
+		); finalizeErr != nil {
+			return ToolExecutionWorkflowResult{}, finalizeErr
+		}
+		return ToolExecutionWorkflowResult{}, err
+	}
+	if strings.TrimSpace(synthesis.FinalOutput) == "" {
+		return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", "workflow_synthesis_invalid", errors.New("synthesizer returned empty output"))
+	}
+	return finalizeWorkflowAnswer(ctx, activityOptions, input, synthesis)
+}
+
+func workflowStepNeedsRecoveryReplan(
+	completed WorkflowCompletedStep,
+	remaining []WorkflowTaskPlanStep,
+	completedSteps []WorkflowCompletedStep,
+) bool {
+	if len(completed.Evidence) > 0 {
+		return false
+	}
+	failedSources := map[WorkflowSource]struct{}{}
+	for _, attempt := range completed.SourceAttempts {
+		switch strings.TrimSpace(attempt.Status) {
+		case "failed", "no_match":
+			failedSources[attempt.Source] = struct{}{}
+		}
+	}
+	if len(failedSources) == 0 {
+		return false
+	}
+	for _, step := range remaining {
+		ready := true
+		completedIDs := make(map[string]struct{}, len(completedSteps))
+		for _, item := range completedSteps {
+			completedIDs[item.Step.ID] = struct{}{}
+		}
+		for _, dependency := range step.DependsOn {
+			if _, done := completedIDs[dependency]; !done {
+				ready = false
+				break
+			}
+		}
+		if !ready {
+			continue
+		}
+		for _, source := range step.CandidateSources {
+			if _, failed := failedSources[source]; !failed {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func failedWorkflowStep(
+	step WorkflowTaskPlanStep,
+	executionIndex int,
+	cause error,
+) WorkflowCompletedStep {
+	failureCode := workflowFailureKind(cause, "workflow_step_failed")
+	attempts := make([]WorkflowSourceAttempt, 0, len(step.CandidateSources))
+	for _, source := range step.CandidateSources {
+		attempts = append(attempts, WorkflowSourceAttempt{
+			FailureCode: failureCode,
+			Source:      source,
+			Status:      "failed",
+		})
+	}
+	return WorkflowCompletedStep{
+		Evidence:       []WorkflowEvidence{},
+		ExecutionIndex: executionIndex,
+		Step:           step,
+		Summary:        "该资料步骤未完成；最终回答仅基于已经取得的资料。",
+		SourceAttempts: attempts,
+	}
+}
+
+func finalizeWorkflowAnswer(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+	workflowResult WorkflowOperationActivityOutput,
+) (ToolExecutionWorkflowResult, error) {
+	if strings.TrimSpace(workflowResult.FinalOutput) == "" {
+		return failWorkflowStage(ctx, activityOptions, input, workflowFinalizationStage(workflowResult), "workflow_answer_invalid", errors.New("workflow answer is empty"))
+	}
+	finalization, err := executeWorkflowFinalization(ctx, activityOptions, WriteWorkflowFinalizationActivityInput{
+		WorkflowResult:    workflowResult,
 		AdmissionSnapshot: input.AdmissionSnapshot,
 		FinalizedAt:       workflow.Now(ctx).UTC(),
 		RequestID:         input.RequestID,
@@ -69,6 +299,406 @@ func ToolExecutionWorkflow(
 	defer postFinalizationCancel()
 	_ = executeMemoryAppend(postFinalizationCtx, activityOptions, input)
 	return workflowResultFromFinalization(finalization), nil
+}
+
+func workflowFinalizationStage(result WorkflowOperationActivityOutput) string {
+	if result.Operation == WorkflowOperationSolve {
+		return "solve.initial"
+	}
+	return "answer.synthesize"
+}
+
+func validateWorkflowInput(input ToolExecutionWorkflowInput) error {
+	if strings.TrimSpace(input.RequestID) == "" || strings.TrimSpace(input.ConversationID) == "" {
+		return errors.New("workflow request id and conversation id are required")
+	}
+	if input.AdmissionSnapshot.AgentBudget.MaxPlanSteps < 1 || input.AdmissionSnapshot.AgentBudget.MaxModelTurns < 1 ||
+		input.AdmissionSnapshot.AgentBudget.MaxFunctionToolCalls < 0 || input.AdmissionSnapshot.AgentBudget.MaxReplans < 0 {
+		return errors.New("workflow admission budget is invalid")
+	}
+	return nil
+}
+
+func executeSolveTask(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+) (WorkflowOperationActivityOutput, error) {
+	var output WorkflowOperationActivityOutput
+	err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
+		SolveTaskActivityName,
+		SolveTaskActivityInput{
+			WorkflowOperationActivityInputBase: workflowOperationActivityInputBase(input),
+			MaxSteps:                           input.AdmissionSnapshot.AgentBudget.MaxPlanSteps,
+		},
+	).Get(ctx, &output)
+	return output, err
+}
+
+func executeTaskStep(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+	plan WorkflowTaskPlan,
+	step WorkflowTaskPlanStep,
+	completedSteps []WorkflowCompletedStep,
+	citationStart int,
+) (WorkflowOperationActivityOutput, error) {
+	var output WorkflowOperationActivityOutput
+	err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
+		ExecuteTaskStepActivityName,
+		ExecuteTaskStepActivityInput{
+			WorkflowOperationActivityInputBase: workflowOperationActivityInputBase(input),
+			Plan:                               plan,
+			Step:                               step,
+			CompletedSteps:                     append([]WorkflowCompletedStep{}, completedSteps...),
+			CitationStart:                      citationStart,
+		},
+	).Get(ctx, &output)
+	return output, err
+}
+
+func executeReplanTask(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+	plan WorkflowTaskPlan,
+	completedSteps []WorkflowCompletedStep,
+	remaining []WorkflowTaskPlanStep,
+	replanIndex int,
+) (WorkflowOperationActivityOutput, error) {
+	var output WorkflowOperationActivityOutput
+	err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
+		ReplanTaskActivityName,
+		ReplanTaskActivityInput{
+			WorkflowOperationActivityInputBase: workflowOperationActivityInputBase(input),
+			Plan:                               plan,
+			CompletedSteps:                     append([]WorkflowCompletedStep{}, completedSteps...),
+			RemainingSteps:                     append([]WorkflowTaskPlanStep{}, remaining...),
+			MaxRemainingSteps:                  input.AdmissionSnapshot.AgentBudget.MaxPlanSteps - len(completedSteps),
+			ReplanIndex:                        replanIndex,
+		},
+	).Get(ctx, &output)
+	return output, err
+}
+
+func executeSynthesizeAnswer(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+	plan WorkflowTaskPlan,
+	completedSteps []WorkflowCompletedStep,
+	evidence []WorkflowEvidence,
+) (WorkflowOperationActivityOutput, error) {
+	var output WorkflowOperationActivityOutput
+	err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
+		SynthesizeAnswerActivityName,
+		SynthesizeAnswerActivityInput{
+			WorkflowOperationActivityInputBase: workflowOperationActivityInputBase(input),
+			Plan:                               plan,
+			CompletedSteps:                     append([]WorkflowCompletedStep{}, completedSteps...),
+			Evidence:                           append([]WorkflowEvidence{}, evidence...),
+		},
+	).Get(ctx, &output)
+	return output, err
+}
+
+func executeWorkflowFinalization(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input WriteWorkflowFinalizationActivityInput,
+) (WorkflowFinalizationActivityOutput, error) {
+	finalizationOptions := unlimitedFinalizerActivityOptions(30 * time.Second)
+	finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
+	var output WorkflowFinalizationActivityOutput
+	err := workflow.ExecuteActivity(finalizationCtx, WriteWorkflowFinalizationActivityName, input).Get(ctx, &output)
+	return output, err
+}
+
+func workflowOperationActivityInputBase(input ToolExecutionWorkflowInput) WorkflowOperationActivityInputBase {
+	return WorkflowOperationActivityInputBase{
+		AdmissionSnapshot:        input.AdmissionSnapshot,
+		ConversationID:           input.ConversationID,
+		RequestID:                input.RequestID,
+		TraceParent:              input.TraceParent,
+		VisibleFunctionToolNames: append([]string{}, input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames...),
+	}
+}
+
+func workflowOperationActivityOptions(base workflow.ActivityOptions) workflow.ActivityOptions {
+	options := base
+	options.TaskQueue = ActivityTaskQueueAgent
+	options.StartToCloseTimeout = 300 * time.Second
+	options.HeartbeatTimeout = 30 * time.Second
+	if options.RetryPolicy == nil {
+		options.RetryPolicy = &temporal.RetryPolicy{}
+	} else {
+		policy := *options.RetryPolicy
+		policy.NonRetryableErrorTypes = append([]string{}, options.RetryPolicy.NonRetryableErrorTypes...)
+		options.RetryPolicy = &policy
+	}
+	options.RetryPolicy.MaximumAttempts = 0
+	return options
+}
+
+func nextReadyWorkflowStep(
+	remaining []WorkflowTaskPlanStep,
+	completed []WorkflowCompletedStep,
+) int {
+	completedIDs := make(map[string]struct{}, len(completed))
+	for _, item := range completed {
+		completedIDs[item.Step.ID] = struct{}{}
+	}
+	for index, step := range remaining {
+		ready := true
+		for _, dependency := range step.DependsOn {
+			if _, done := completedIDs[dependency]; !done {
+				ready = false
+				break
+			}
+		}
+		if ready {
+			return index
+		}
+	}
+	return -1
+}
+
+func canonicalCompletedWorkflowStep(
+	output WorkflowOperationActivityOutput,
+	want WorkflowTaskPlanStep,
+	executionIndex int,
+) (WorkflowCompletedStep, error) {
+	if output.CompletedStep == nil {
+		return WorkflowCompletedStep{}, errors.New("executor returned no completed step")
+	}
+	completed := *output.CompletedStep
+	if completed.Step.ID != want.ID || strings.TrimSpace(completed.Summary) == "" {
+		return WorkflowCompletedStep{}, errors.New("executor completed step identity is invalid")
+	}
+	completed.Step = want
+	completed.ExecutionIndex = executionIndex
+	completed.Evidence = append([]WorkflowEvidence{}, output.Evidence...)
+	if len(completed.Evidence) == 0 {
+		completed.Evidence = append([]WorkflowEvidence{}, output.CompletedStep.Evidence...)
+	}
+	if len(completed.SourceAttempts) == 0 {
+		completed.SourceAttempts = append([]WorkflowSourceAttempt{}, output.SourceAttempts...)
+	}
+	return completed, nil
+}
+
+func mergeWorkflowEvidence(
+	existing []WorkflowEvidence,
+	additional []WorkflowEvidence,
+	nextCitationIndex int,
+) ([]WorkflowEvidence, int, error) {
+	result := append([]WorkflowEvidence{}, existing...)
+	seenIDs := make(map[string]struct{}, len(result))
+	usedCitations := map[int]struct{}{}
+	for _, item := range result {
+		if item.ID == "" {
+			return nil, nextCitationIndex, errors.New("workflow evidence id is required")
+		}
+		seenIDs[item.ID] = struct{}{}
+		if item.CitationIndex > 0 {
+			if _, duplicate := usedCitations[item.CitationIndex]; duplicate {
+				return nil, nextCitationIndex, fmt.Errorf("workflow citation index %d is duplicated", item.CitationIndex)
+			}
+			usedCitations[item.CitationIndex] = struct{}{}
+			if item.CitationIndex >= nextCitationIndex {
+				nextCitationIndex = item.CitationIndex + 1
+			}
+		}
+	}
+	for _, item := range additional {
+		if item.ID == "" || item.Title == "" || item.Excerpt == "" {
+			return nil, nextCitationIndex, errors.New("workflow evidence fields are required")
+		}
+		if _, duplicate := seenIDs[item.ID]; duplicate {
+			continue
+		}
+		if item.CitationIndex > 0 {
+			if _, duplicate := usedCitations[item.CitationIndex]; duplicate {
+				return nil, nextCitationIndex, fmt.Errorf("workflow citation index %d is duplicated", item.CitationIndex)
+			}
+			usedCitations[item.CitationIndex] = struct{}{}
+			if item.CitationIndex >= nextCitationIndex {
+				nextCitationIndex = item.CitationIndex + 1
+			}
+		}
+		seenIDs[item.ID] = struct{}{}
+		result = append(result, item)
+	}
+	return result, nextCitationIndex, nil
+}
+
+func validateWorkflowPlan(
+	plan WorkflowTaskPlan,
+	maxSteps int,
+	completed []WorkflowCompletedStep,
+	capabilities execution.AgentCapabilitiesSnapshot,
+) error {
+	if plan.SchemaVersion != "task_plan.v1" || strings.TrimSpace(plan.Goal) == "" || len(plan.Steps) > maxSteps {
+		return errors.New("task plan identity or size is invalid")
+	}
+	known := make(map[string]struct{}, len(completed))
+	for _, item := range completed {
+		known[item.Step.ID] = struct{}{}
+	}
+	visible := workflowVisibleSourceSet(capabilities.VisibleFunctionToolNames, capabilities.HostedWebSearch)
+	for _, step := range plan.Steps {
+		if strings.TrimSpace(step.ID) == "" || strings.TrimSpace(step.Objective) == "" {
+			return errors.New("task plan step identity is invalid")
+		}
+		if _, duplicate := known[step.ID]; duplicate {
+			return fmt.Errorf("task plan step %s is duplicated", step.ID)
+		}
+		known[step.ID] = struct{}{}
+		if err := validateWorkflowSources(step.ID, step.CandidateSources, visible); err != nil {
+			return err
+		}
+		seenDependencies := map[string]struct{}{}
+		for _, dependency := range step.DependsOn {
+			if dependency == step.ID {
+				return fmt.Errorf("task plan step %s depends on itself", step.ID)
+			}
+			if _, duplicate := seenDependencies[dependency]; duplicate {
+				return fmt.Errorf("task plan step %s repeats a dependency", step.ID)
+			}
+			seenDependencies[dependency] = struct{}{}
+			if _, exists := known[dependency]; !exists {
+				return fmt.Errorf("task plan step %s depends on unknown step %s", step.ID, dependency)
+			}
+		}
+	}
+	return nil
+}
+
+func validateWorkflowRemainingSteps(
+	steps []WorkflowTaskPlanStep,
+	maxSteps int,
+	completed []WorkflowCompletedStep,
+	capabilities execution.AgentCapabilitiesSnapshot,
+) error {
+	if len(completed)+len(steps) > maxSteps {
+		return errors.New("workflow steps exceed budget")
+	}
+	completedIDs := make(map[string]struct{}, len(completed))
+	for _, item := range completed {
+		completedIDs[item.Step.ID] = struct{}{}
+	}
+	known := make(map[string]struct{}, len(completedIDs)+len(steps))
+	for id := range completedIDs {
+		known[id] = struct{}{}
+	}
+	visible := workflowVisibleSourceSet(capabilities.VisibleFunctionToolNames, capabilities.HostedWebSearch)
+	for _, step := range steps {
+		if _, done := completedIDs[step.ID]; done {
+			return fmt.Errorf("remaining step %s is already completed", step.ID)
+		}
+		if _, duplicate := known[step.ID]; duplicate {
+			return fmt.Errorf("remaining step %s is duplicated", step.ID)
+		}
+		if err := validateWorkflowSources(step.ID, step.CandidateSources, visible); err != nil {
+			return err
+		}
+		known[step.ID] = struct{}{}
+		for _, dependency := range step.DependsOn {
+			if dependency == step.ID {
+				return fmt.Errorf("remaining step %s depends on itself", step.ID)
+			}
+			if _, exists := known[dependency]; !exists {
+				return fmt.Errorf("remaining step %s depends on unknown step %s", step.ID, dependency)
+			}
+		}
+	}
+	return nil
+}
+
+func workflowVisibleSourceSet(values []string, hostedWebSearch bool) map[WorkflowSource]struct{} {
+	visible := map[WorkflowSource]struct{}{}
+	if hostedWebSearch {
+		visible[WorkflowSourceWebSearch] = struct{}{}
+	}
+	for _, value := range values {
+		switch WorkflowSource(strings.TrimSpace(value)) {
+		case WorkflowSourceCampusSearch:
+			visible[WorkflowSourceCampusSearch] = struct{}{}
+		case WorkflowSourcePersonalMemoryRecall:
+			visible[WorkflowSourcePersonalMemoryRecall] = struct{}{}
+		}
+	}
+	return visible
+}
+
+func validateWorkflowSources(
+	stepID string,
+	sources []WorkflowSource,
+	visible map[WorkflowSource]struct{},
+) error {
+	if len(sources) == 0 || len(sources) > 3 {
+		return fmt.Errorf("workflow step %s candidate source count is invalid", stepID)
+	}
+	seen := map[WorkflowSource]struct{}{}
+	for _, source := range sources {
+		if _, duplicate := seen[source]; duplicate {
+			return fmt.Errorf("workflow step %s repeats candidate source %s", stepID, source)
+		}
+		seen[source] = struct{}{}
+		if _, available := visible[source]; !available {
+			return fmt.Errorf("workflow step %s uses unavailable source %s", stepID, source)
+		}
+	}
+	return nil
+}
+
+// workflowPlanWithCompletedAndRemaining is the workflow's current plan view.
+// A replanner may introduce steps that were not present in the initial plan;
+// keeping completed definitions first preserves dependency validation for the
+// next executor activity while making the replacement steps part of the
+// contract passed to agent-runtime.
+func workflowPlanWithCompletedAndRemaining(
+	previous WorkflowTaskPlan,
+	completed []WorkflowCompletedStep,
+	remaining []WorkflowTaskPlanStep,
+) WorkflowTaskPlan {
+	steps := make([]WorkflowTaskPlanStep, 0, len(completed)+len(remaining))
+	for _, item := range completed {
+		steps = append(steps, item.Step)
+	}
+	steps = append(steps, remaining...)
+	return WorkflowTaskPlan{
+		SchemaVersion: previous.SchemaVersion,
+		Goal:          previous.Goal,
+		Steps:         steps,
+	}
+}
+
+func workflowTaskStepID(stepID string) string {
+	stepID = strings.TrimSpace(stepID)
+	if stepID == "" {
+		return "task.step.invalid"
+	}
+	return "task.step." + stepID
+}
+
+func failWorkflowStage(
+	ctx workflow.Context,
+	activityOptions workflow.ActivityOptions,
+	input ToolExecutionWorkflowInput,
+	stage string,
+	fallback string,
+	cause error,
+) (ToolExecutionWorkflowResult, error) {
+	if finalizeErr := finalizeExecutionFailure(ctx, activityOptions, input, stage, fallback, cause); finalizeErr != nil {
+		return ToolExecutionWorkflowResult{}, finalizeErr
+	}
+	return ToolExecutionWorkflowResult{}, cause
 }
 
 func PersonalMemoryCommandWorkflow(
@@ -263,24 +893,6 @@ func boundedFailureKind(kind string) bool {
 	return true
 }
 
-func executePrimaryAgent(
-	ctx workflow.Context,
-	activityOptions workflow.ActivityOptions,
-	input ToolExecutionWorkflowInput,
-) (ExecutePrimaryAgentActivityOutput, error) {
-	agentCtx := workflow.WithActivityOptions(ctx, primaryAgentActivityOptions(activityOptions))
-	agentInput := ExecutePrimaryAgentActivityInput{
-		AdmissionSnapshot:        input.AdmissionSnapshot,
-		ConversationID:           input.ConversationID,
-		RequestID:                input.RequestID,
-		TraceParent:              input.TraceParent,
-		VisibleFunctionToolNames: append([]string{}, input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames...),
-	}
-	var agent ExecutePrimaryAgentActivityOutput
-	err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent)
-	return agent, err
-}
-
 func defaultActivityOptions() workflow.ActivityOptions {
 	return workflow.ActivityOptions{
 		StartToCloseTimeout: 60 * time.Second,
@@ -313,29 +925,6 @@ func executeMemoryAppend(
 	).Get(ctx, &appendResult)
 }
 
-func primaryAgentActivityOptions(base workflow.ActivityOptions) workflow.ActivityOptions {
-	options := base
-	options.TaskQueue = ActivityTaskQueueAgent
-	options.StartToCloseTimeout = 180 * time.Second
-	options.HeartbeatTimeout = 30 * time.Second
-	if options.RetryPolicy == nil {
-		options.RetryPolicy = &temporal.RetryPolicy{}
-	} else {
-		// ActivityOptions is copied by value, but RetryPolicy is a pointer. Keep
-		// the provider-specific single-attempt policy from mutating the base
-		// options later used by finalization and other activities.
-		policy := *options.RetryPolicy
-		policy.NonRetryableErrorTypes = append([]string{}, options.RetryPolicy.NonRetryableErrorTypes...)
-		options.RetryPolicy = &policy
-	}
-	// Receipt fencing makes provider invocation single-shot. Retries are kept
-	// unlimited so a completed receipt can repair downstream projections;
-	// uncertain or deterministic failures are returned as non-retryable by the
-	// activity implementation.
-	options.RetryPolicy.MaximumAttempts = 0
-	return options
-}
-
 func memoryActivityOptions(base workflow.ActivityOptions, timeoutSeconds float64) workflow.ActivityOptions {
 	options := base
 	options.TaskQueue = ActivityTaskQueueCore
@@ -359,19 +948,7 @@ func memoryActivityOptions(base workflow.ActivityOptions, timeoutSeconds float64
 	return options
 }
 
-func executeFinalization(
-	ctx workflow.Context,
-	activityOptions workflow.ActivityOptions,
-	input WriteFinalizationActivityInput,
-) (WriteFinalizationActivityOutput, error) {
-	finalizationOptions := unlimitedFinalizerActivityOptions(30 * time.Second)
-	finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
-	var finalization WriteFinalizationActivityOutput
-	err := workflow.ExecuteActivity(finalizationCtx, WriteFinalizationActivityName, input).Get(ctx, &finalization)
-	return finalization, err
-}
-
-func workflowResultFromFinalization(finalization WriteFinalizationActivityOutput) ToolExecutionWorkflowResult {
+func workflowResultFromFinalization(finalization WorkflowFinalizationActivityOutput) ToolExecutionWorkflowResult {
 	return ToolExecutionWorkflowResult(finalization)
 }
 

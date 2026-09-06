@@ -398,14 +398,14 @@ export function createCommandStore(options?: {
 				...current,
 				"stream.app_api_ttft_ms": input.durationMs,
 			};
-			const agentFirstDeltaMs = next["agent.first_delta_ms"];
+			const workflowFirstDeltaMs = next["workflow.first_delta_ms"];
 			if (
-				typeof agentFirstDeltaMs === "number" &&
-				Number.isFinite(agentFirstDeltaMs) &&
-				agentFirstDeltaMs >= 0 &&
-				input.durationMs >= agentFirstDeltaMs
+				typeof workflowFirstDeltaMs === "number" &&
+				Number.isFinite(workflowFirstDeltaMs) &&
+				workflowFirstDeltaMs >= 0 &&
+				input.durationMs >= workflowFirstDeltaMs
 			) {
-				next["stream.orchestration_overhead_ms"] = input.durationMs - agentFirstDeltaMs;
+				next["stream.orchestration_overhead_ms"] = input.durationMs - workflowFirstDeltaMs;
 			}
 			requestStageTiming.set(input.requestId, next);
 			return true;

@@ -271,8 +271,8 @@ func TestDecodeToolExecutionResponseWireJSONRejectsNonCanonicalStageTiming(t *te
 func TestDecodeToolExecutionResponseWireJSONAcceptsCanonicalStageTiming(t *testing.T) {
 	payload := canonicalToolExecutionResponsePayload()
 	payload["stage_timing"] = map[string]any{
-		"agent.runtime_ms":     42,
-		"agent.first_delta_ms": 12,
+		"workflow.execute_step_ms": 42,
+		"workflow.first_delta_ms":  12,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -283,7 +283,7 @@ func TestDecodeToolExecutionResponseWireJSONAcceptsCanonicalStageTiming(t *testi
 	if err != nil {
 		t.Fatalf("DecodeToolExecutionResponseWireJSON returned error: %v", err)
 	}
-	if wire.StageTiming[StageTimingFieldAgentRuntimeMs] != 42 {
+	if wire.StageTiming[StageTimingFieldWorkflowExecuteStepMs] != 42 {
 		t.Fatalf("stage timing = %#v", wire.StageTiming)
 	}
 }

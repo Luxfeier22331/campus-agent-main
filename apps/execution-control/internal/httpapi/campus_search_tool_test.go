@@ -8,7 +8,7 @@ import (
 )
 
 func TestDecodeCampusSearchToolEnvelopeAndRejectsUnauthenticatedRequests(t *testing.T) {
-	valid := `{"access_context":{"activity_attempt":1,"request_id":"request-1","invocation_id":"call-1","citation_start":1,"result_limit":5,"user_goal":"本科生学籍规定"},"payload":{"search_query":"学籍规定"}}`
+	valid := `{"access_context":{"activity_attempt":1,"request_id":"request-1","invocation_id":"call-1","workflow_step_id":"task.step.lookup","citation_start":1,"result_limit":5,"user_goal":"本科生学籍规定"},"payload":{"search_query":"学籍规定"}}`
 	envelope, err := decodeCampusSearchToolEnvelope([]byte(valid))
 	if err != nil {
 		t.Fatalf("decode valid campus search envelope: %v", err)

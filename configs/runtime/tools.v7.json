@@ -1,6 +1,6 @@
 {
 	"schema_version": "tool-registry-v7",
-	"registry_version": "2026-08-30",
+	"registry_version": "2026-09-03",
 	"tools": [
 		{
 			"name": "campus_search",
@@ -14,7 +14,7 @@
 				"type": "execution_control_internal_query",
 				"endpoint": "/internal/campus/search"
 			},
-			"timeout_ms": 12000,
+			"timeout_ms": 45000,
 			"result_projection_policy": "bounded_json"
 		},
 		{

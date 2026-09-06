@@ -23,6 +23,7 @@ type agentToolAccessContext struct {
 	ActivityAttempt int    `json:"activity_attempt"`
 	RequestID       string `json:"request_id"`
 	InvocationID    string `json:"invocation_id"`
+	WorkflowStepID  string `json:"workflow_step_id"`
 	CitationStart   int    `json:"citation_start,omitempty"`
 	ResultLimit     int    `json:"result_limit,omitempty"`
 	UserGoal        string `json:"user_goal,omitempty"`
@@ -84,12 +85,14 @@ func decodePersonalMemoryRecallToolEnvelope(body json.RawMessage) (personalMemor
 	envelope.Payload.Query = strings.TrimSpace(envelope.Payload.Query)
 	envelope.AccessContext.RequestID = strings.TrimSpace(envelope.AccessContext.RequestID)
 	envelope.AccessContext.InvocationID = strings.TrimSpace(envelope.AccessContext.InvocationID)
+	envelope.AccessContext.WorkflowStepID = strings.TrimSpace(envelope.AccessContext.WorkflowStepID)
 	if envelope.Payload.Query == "" || len([]rune(envelope.Payload.Query)) > 400 {
 		return envelope, errors.New("payload.query must contain between 1 and 400 characters")
 	}
 	if envelope.AccessContext.RequestID == "" ||
-		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.ActivityAttempt <= 0 {
-		return envelope, errors.New("access_context.request_id, invocation_id, and activity_attempt are required")
+		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.WorkflowStepID == "" ||
+		envelope.AccessContext.ActivityAttempt <= 0 {
+		return envelope, errors.New("access_context.request_id, invocation_id, workflow_step_id, and activity_attempt are required")
 	}
 	return envelope, nil
 }
@@ -104,5 +107,6 @@ func agentToolAccessContextToApplication(
 		RequestID:       access.RequestID,
 		ResultLimit:     access.ResultLimit,
 		UserGoal:        access.UserGoal,
+		WorkflowStepID:  access.WorkflowStepID,
 	}
 }

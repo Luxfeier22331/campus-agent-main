@@ -8,30 +8,34 @@ status: active
 
 ## 边界
 
-`apps/agent-runtime` 负责面向模型的 OpenAI Agents SDK run，包括 instruction、模型输入装配、模型
-调用、本地函数调用、模型托管的 Web Search、原生文本回答和 SDK trace。它不负责产品认证、Temporal
-生命周期、本地知识检索、函数工具开放、个人记忆存储或最终投影持久化。
+`apps/agent-runtime` 负责 Agent Workflow 的单次模型 operation，包括 instruction、模型输入装配、
+模型调用、本地函数调用、模型托管的 Web Search、结构化计划/重规划输出、最终自然语言输出和 SDK
+trace。它不负责产品认证、Temporal 生命周期、持久步骤顺序、本地知识检索、函数工具准入、个人记忆
+存储或最终投影持久化。
 
 ## 运行形态
 
-每个在线回答只有一个 Primary Agent 和一个最终答案所有者。execution-control 通过
-`ExecutePrimaryAgentActivity` 启动一个 SDK run。
-系统不存在 Knowledge Agent、handoff、第二次答案合成或终态后的模型反思。
-Primary Agent 的固定角色指令使用简体中文，并明确产品服务中央民族大学。未明确指定机构时，学校、
+每个在线回答由同一模型角色完成四类 operation，但“Workflow”指 Agent Workflow，不等同于
+Temporal Workflow：
+
+1. `solve` 在一次模型 operation 中直接回答简单请求，或将复杂目标拆成有依赖关系的步骤。
+2. `execute_step` 执行当前步骤声明的候选来源，并在需要时进行多轮模型—工具调用；这一局部行为
+   接近 ReAct，但系统没有把思维文本作为状态，也不实现显式 ReAct 状态机。
+3. `replan` 根据已完成步骤、成功证据、`no_match` 和工具失败决定继续、修改剩余步骤或进入合成。
+4. `synthesize` 只使用聚合后的证据生成用户答案，不再调用检索工具。
+
+execution-control 负责上述 operation 的持久顺序、依赖检查、重规划预算和最终收口；Agent Runtime
+只执行当前 operation。系统不使用 Knowledge Agent 或 handoff。历史配置槽位仍称为 `primary_agent`，
+但它不是用户可见的 Agent 层级，也不是编排策略名。
+
+所有 operation 的固定角色指令使用简体中文，并明确产品服务中央民族大学。未明确指定机构时，学校、
 本校和校园均按中央民族大学理解；这属于单校产品身份，不由请求或环境变量动态选择。
 
-当前执行策略为 `execution_strategy.v4` 的 `kind=direct`：
+本地函数工具集合由准入快照提供；`execute_step` 只能使用当前步骤的候选来源。每个步骤的
+`candidateSources` 可以包含 `campus_search`、`web_search` 或 `personal_memory_recall`，但实际来源选择
+由 Executor 在该步骤内完成，Replanner 可以为后续步骤调整来源。系统没有名为 `direct` 的策略分支。
 
-- execution-control 提供的本地函数工具集合始终包含 `campus_search`，个人记忆可用时还包含
-  `personal_memory_recall`；集合顺序没有路由语义；
-- Agent Runtime 另外固定附加 Agents SDK 原生 `web_search` hosted tool；它不进入本地函数工具集合；
-- 个人记忆不可用时，最多两次模型 turn，最多一次本地函数调用；
-- 个人记忆可用时，最多三次模型 turn、两次本地函数调用；同一函数工具可以重复调用，次数只受本轮总
-  `max_function_tool_calls` 限制；
-- hosted `web_search` 不消耗本地函数调用预算；
-- 问候、改写等不需要机构事实的请求可以直接回答，不强制调用 `campus_search`；
-
-重复 Activity 投递受 execution-control 的 invocation receipt 约束。供应商调用已经开始但完整结果
+重复 operation 投递受 execution-control 的 invocation receipt 约束。供应商调用已经开始但完整结果
 尚未落盘时必须返回 `agent_attempt_uncertain`，不得再次调用供应商。Agent Runtime 不实现自己的
 重试、receipt 或不确定结果恢复。
 
@@ -67,23 +71,23 @@ execution-control 不预先构造另一份模型上下文摘要。
 `web_search` 结果由 SDK 直接提供给同一次 run；Finalization 校验 SDK 原生引用并派生 `web_page`
 来源卡。Web Search 不进入本地 `tool_results` 或工具轨迹，也不保存供应商原始搜索结果。
 
-Agent 根据问题所需事实与工具声明范围选择工具，不按机构、地点或其他实体名称建立固定路由。已发布
-Campus Docs 可以使用 `campus_search`，需要补充或核验尚未采集的公开校园网页信息时可以使用
-`web_search`；后者不是前者失败后由代码机械触发的回退。问题同时包含已覆盖和未覆盖事实时，只回答
-本轮成功 evidence 支持的部分并说明资料边界；已有有效部分答案时仍生成普通正文。所需机构事实完全
-没有本轮成功 evidence 支持时直接说明资料不足。普通函数工具失败可以与合法答案并存，但失败结果
-不得成为答案依据；合同、
-身份、运行指纹和结果结构错误继续失败关闭。
+Solve 根据用户目标决定直接回答或生成步骤和候选来源；Executor 只能执行当前步骤允许的来源；Replanner 根据实际
+结果重新决定剩余路径。`campus_search` 的 `no_match` 只说明当前 Campus Docs 没有找到证据，不会由
+代码自动切换到 Web Search；如果后续仍需要公开网页证据，必须由 Replanner 产生包含 `web_search` 的
+合法步骤。问题同时包含已覆盖和未覆盖事实时，Synthesizer 只回答成功证据支持的部分并说明资料边界；
+已有有效部分答案时仍生成普通正文。普通函数工具失败可以与合法答案并存，但失败结果不得成为答案依据；
+合同、身份、运行指纹和结果结构错误继续失败关闭。
 
 ## 输出与终态
 
-Agent Runtime 使用 Agents SDK 原生文本输出，返回非空 `final_output`、有序真实函数工具调用摘要、模型
-用量、`context_usage`、运行指纹和 trace 关联。hosted `web_search` 的原生 URL citation 随终态结果返回，
-不伪装成本地函数调用；execution-control 校验引用位置和来源后，将其转换为正文中的统一来源链接。
-最终响应使用 `execution_finalization_response_v8`；追问、资料不足和范围说明都作为 `completed` 正文保存。
+Agent Runtime 对 `solve`（直接答案或计划结果）和 `replan` 返回结构化 operation 结果；Solve 不执行检索，
+`execute_step` 返回步骤文本、证据和来源尝试，对 `synthesize` 返回非空 `final_output` 及 Web citation。
+execution-control 校验每个 operation
+的合同、依赖、引用位置和来源后，再写入 `execution_finalization_response_v9`。追问、资料不足、工具失败后
+保留成功证据的部分答案都作为 `completed` 正文保存。
 
-`AppendConversationMemoryActivity` 是产品终态成功后的独立副作用，只追加已完成对话；它不是 Agent
-反思步骤，失败不会改写已完成的产品终态。
+`AppendConversationMemoryActivity` 是产品终态成功后的独立副作用，不是 Agent 反思步骤，失败不会改写
+已完成的产品终态。
 
 ## 可观测性
 

@@ -398,13 +398,18 @@ func temporalActivityTypeForStep(stepID string) string {
 	switch normalized {
 	case "memory.append":
 		return temporalruntime.AppendConversationMemoryActivityName
-	case "agent.primary":
-		return temporalruntime.ExecutePrimaryAgentActivityName
+	case "solve.initial":
+		return temporalruntime.SolveTaskActivityName
+	case "answer.synthesize":
+		return temporalruntime.SynthesizeAnswerActivityName
 	case "finalization.write":
-		return temporalruntime.WriteFinalizationActivityName
+		return temporalruntime.WriteWorkflowFinalizationActivityName
 	default:
-		if strings.HasPrefix(normalized, "sdk_tool.execute.") {
-			return temporalruntime.ExecutePrimaryAgentActivityName
+		if strings.HasPrefix(normalized, "solve.replan.") {
+			return temporalruntime.ReplanTaskActivityName
+		}
+		if strings.HasPrefix(normalized, "step.") {
+			return temporalruntime.ExecuteTaskStepActivityName
 		}
 		return ""
 	}

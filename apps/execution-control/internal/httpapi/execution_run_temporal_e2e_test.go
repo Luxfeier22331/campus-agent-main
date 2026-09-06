@@ -49,7 +49,7 @@ func TestExecutionRunHTTPStartsTemporalWorkflowAndProjectsCompletion(t *testing.
 			activities,
 			worker.Options{},
 		),
-		temporalruntime.NewAgentActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueAgent, activities),
+		temporalruntime.NewWorkflowOperationActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueAgent, activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -84,6 +84,7 @@ func TestExecutionRunHTTPStartsTemporalWorkflowAndProjectsCompletion(t *testing.
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	completed := waitForRunStatus(
 		t,
 		ctx,
@@ -148,7 +149,7 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 			activities,
 			worker.Options{},
 		),
-		temporalruntime.NewAgentActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueAgent, activities),
+		temporalruntime.NewWorkflowOperationActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueAgent, activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -181,6 +182,7 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 	if createResponse.Code != http.StatusAccepted {
 		t.Fatalf("create status = %d, want 202; body: %s", createResponse.Code, createResponse.Body.String())
 	}
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	select {
 	case <-activities.started:
 	case <-ctx.Done():
@@ -199,6 +201,7 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 	if cancelResponse.Code != http.StatusAccepted {
 		t.Fatalf("cancel status = %d, want 202; body: %s", cancelResponse.Code, cancelResponse.Body.String())
 	}
+	reconcileTemporalRunsOnceForTest(context.Background(), server)
 	canceled := waitForRunStatus(
 		t,
 		ctx,
@@ -258,29 +261,72 @@ func (httpTemporalE2EActivities) WritePersonalMemoryCommandResultActivity(
 	return nil
 }
 
-func (a httpTemporalE2EActivities) ExecutePrimaryAgentActivity(
+func (a httpTemporalE2EActivities) SolveTaskActivity(
 	ctx context.Context,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	input temporalruntime.SolveTaskActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
 	if err := a.transitionRunToRunning(ctx, input.RequestID); err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+		return temporalruntime.WorkflowOperationActivityOutput{}, err
 	}
-	return temporalruntime.ExecutePrimaryAgentActivityOutput{
-		AgentResultRef: "projection://runs/" + input.RequestID + "/agent/primary/result",
-		FinalOutput:    "HTTP Temporal E2E answer",
-		RequestID:      input.RequestID,
-		Status:         "completed",
-		TerminalReason: "answer_completed",
+	return temporalruntime.WorkflowOperationActivityOutput{
+		Operation:         temporalruntime.WorkflowOperationSolve,
+		SolveOutcome:      "answer",
+		WorkflowResultRef: "projection://runs/" + input.RequestID + "/solve/initial/result",
+		FinalOutput:       "HTTP Temporal E2E answer",
+		RequestID:         input.RequestID,
+		Status:            "completed",
+		TerminalReason:    "answer_completed",
 	}, nil
 }
 
-func (a httpTemporalE2EActivities) WriteFinalizationActivity(
+func (httpTemporalE2EActivities) ExecuteTaskStepActivity(
+	_ context.Context,
+	input temporalruntime.ExecuteTaskStepActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	return temporalruntime.WorkflowOperationActivityOutput{
+		Operation:   temporalruntime.WorkflowOperationExecuteStep,
+		RequestID:   input.RequestID,
+		Status:      "completed",
+		FinalOutput: "HTTP Temporal E2E step",
+	}, nil
+}
+
+func (httpTemporalE2EActivities) ReplanTaskActivity(
+	_ context.Context,
+	input temporalruntime.ReplanTaskActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	return temporalruntime.WorkflowOperationActivityOutput{
+		Operation: temporalruntime.WorkflowOperationReplan,
+		RequestID: input.RequestID,
+		Status:    "completed",
+		Replan: &temporalruntime.WorkflowTaskReplan{
+			SchemaVersion:  "task_replan.v1",
+			Decision:       "continue",
+			Reason:         "continue",
+			RemainingSteps: append([]temporalruntime.WorkflowTaskPlanStep{}, input.RemainingSteps...),
+		},
+	}, nil
+}
+
+func (httpTemporalE2EActivities) SynthesizeAnswerActivity(
+	_ context.Context,
+	input temporalruntime.SynthesizeAnswerActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	return temporalruntime.WorkflowOperationActivityOutput{
+		Operation:   temporalruntime.WorkflowOperationSynthesize,
+		RequestID:   input.RequestID,
+		Status:      "completed",
+		FinalOutput: "HTTP Temporal E2E synthesized answer",
+	}, nil
+}
+
+func (a httpTemporalE2EActivities) WriteWorkflowFinalizationActivity(
 	ctx context.Context,
-	input temporalruntime.WriteFinalizationActivityInput,
-) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
+) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
 	run, err := a.store.GetRun(ctx, input.RequestID)
 	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	completedAt := time.Now().UTC()
 	finalizationRef := "projection://runs/" + input.RequestID + "/finalization"
@@ -293,11 +339,10 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		Visibility:           execution.DurableRunEventVisibilityBrowser,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
-			"agent_result_ref": input.AgentResult.AgentResultRef,
-			"request_id":       run.RequestID,
+			"request_id": run.RequestID,
 		},
 	}); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	if _, err := a.store.UpsertStepResult(ctx, execution.StepResultProjection{
 		ResultID:             temporalStepResultIDForHTTPTest(input.RequestID, "finalization.write", 1),
@@ -311,7 +356,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload:     map[string]any{"activity_attempt": 1},
 	}); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	if _, err := a.store.CompleteRunProjection(ctx, execution.DurableRunCompleteRequest{
 		FinalResponseRef: finalizationRef,
@@ -319,7 +364,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		RequestID:        input.RequestID,
 		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 	}); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	if _, err := a.store.AppendRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              input.RequestID + ":run-completed",
@@ -335,7 +380,7 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 			"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 		},
 	}); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	if _, err := a.store.UpsertRunStep(ctx, execution.RunStepProjection{
 		StepID:               "finalization.write",
@@ -351,13 +396,13 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		UpdatedAt:            completedAt,
 		PayloadSchemaVersion: "run-step-projection-v1",
 		SanitizedPayload: map[string]any{
-			"agent_result_ref": input.AgentResult.AgentResultRef,
+			"agent_result_ref": input.WorkflowResult.WorkflowResultRef,
 			"projection_ref":   finalizationRef,
 		},
 	}); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
-	return temporalruntime.WriteFinalizationActivityOutput{
+	return temporalruntime.WorkflowFinalizationActivityOutput{
 		CompletedAt:   completedAt,
 		ProjectionRef: finalizationRef,
 		RequestID:     input.RequestID,
@@ -423,16 +468,16 @@ type blockingHTTPTemporalE2EActivities struct {
 	started chan struct{}
 }
 
-func (a *blockingHTTPTemporalE2EActivities) ExecutePrimaryAgentActivity(
+func (a *blockingHTTPTemporalE2EActivities) SolveTaskActivity(
 	ctx context.Context,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	input temporalruntime.SolveTaskActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
 	if err := a.transitionRunToRunning(ctx, input.RequestID); err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+		return temporalruntime.WorkflowOperationActivityOutput{}, err
 	}
 	a.once.Do(func() { close(a.started) })
 	<-ctx.Done()
-	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, ctx.Err()
+	return temporalruntime.WorkflowOperationActivityOutput{}, ctx.Err()
 }
 
 func waitForRunStatus(

@@ -12,19 +12,20 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 )
 
-// AgentRuntimeStreamClient is the typed outbound port used by the Temporal
-// adapter. The response body remains a stream because SSE decoding belongs to
-// the Temporal activity owner.
-type AgentRuntimeStreamClient interface {
-	Stream(context.Context, AgentRuntimeStreamRequest) (AgentRuntimeStreamResponse, error)
+// AgentRuntimeClient is the typed outbound port used by the Temporal adapter.
+// Response decoding remains with the activity owner because solve/replan
+// operations return structured JSON while answer synthesis returns SSE.
+type AgentRuntimeClient interface {
+	Execute(context.Context, AgentRuntimeRequest) (AgentRuntimeResponse, error)
 }
 
-type AgentRuntimeStreamRequest struct {
+type AgentRuntimeRequest struct {
 	Body      []byte
 	RequestID string
+	Stream    bool
 }
 
-type AgentRuntimeStreamResponse struct {
+type AgentRuntimeResponse struct {
 	StatusCode int
 	Body       io.ReadCloser
 }
@@ -60,7 +61,7 @@ type agentRuntimeHTTPClient struct {
 // NewAgentRuntimeClient constructs the sole HTTP implementation for the
 // agent-runtime stream endpoint. Missing configuration is retained until the
 // call so readiness/activity error contracts remain unchanged.
-func NewAgentRuntimeClient(cfg config.Config) AgentRuntimeStreamClient {
+func NewAgentRuntimeClient(cfg config.Config) AgentRuntimeClient {
 	return &agentRuntimeHTTPClient{
 		baseURL:      strings.TrimRight(strings.TrimSpace(cfg.AgentRuntimeBaseURL), "/"),
 		sharedSecret: strings.TrimSpace(cfg.AgentRuntimeSharedSecret),
@@ -68,19 +69,23 @@ func NewAgentRuntimeClient(cfg config.Config) AgentRuntimeStreamClient {
 	}
 }
 
-func (client *agentRuntimeHTTPClient) Stream(
+func (client *agentRuntimeHTTPClient) Execute(
 	ctx context.Context,
-	request AgentRuntimeStreamRequest,
-) (AgentRuntimeStreamResponse, error) {
+	request AgentRuntimeRequest,
+) (AgentRuntimeResponse, error) {
 	if client == nil || client.baseURL == "" || client.sharedSecret == "" {
-		return AgentRuntimeStreamResponse{}, &AgentRuntimeRequestError{
+		return AgentRuntimeResponse{}, &AgentRuntimeRequestError{
 			Cause: errors.New("agent runtime base URL and shared secret are required"),
 		}
 	}
-	requestURL := client.baseURL + "/internal/agent-requests/stream"
+	requestPath := "/internal/agent-requests"
+	if request.Stream {
+		requestPath += "/stream"
+	}
+	requestURL := client.baseURL + requestPath
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(request.Body))
 	if err != nil {
-		return AgentRuntimeStreamResponse{}, &AgentRuntimeRequestError{Build: true, Cause: err}
+		return AgentRuntimeResponse{}, &AgentRuntimeRequestError{Build: true, Cause: err}
 	}
 	httpRequest.Header.Set("authorization", "Bearer "+client.sharedSecret)
 	httpRequest.Header.Set("content-type", "application/json")
@@ -92,9 +97,9 @@ func (client *agentRuntimeHTTPClient) Stream(
 		if httpResponse != nil && httpResponse.Body != nil {
 			_ = httpResponse.Body.Close()
 		}
-		return AgentRuntimeStreamResponse{}, &AgentRuntimeRequestError{Cause: err}
+		return AgentRuntimeResponse{}, &AgentRuntimeRequestError{Cause: err}
 	}
-	return AgentRuntimeStreamResponse{
+	return AgentRuntimeResponse{
 		StatusCode: httpResponse.StatusCode,
 		Body:       httpResponse.Body,
 	}, nil

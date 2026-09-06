@@ -379,9 +379,9 @@ func TestDecodeWorkflowStartInputAllowsToolBudgetIndependentOfVisibility(t *test
 	if err := json.Unmarshal(intent.WorkflowInputJSON, &input); err != nil {
 		t.Fatal(err)
 	}
-	input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames = []string{campusSearchToolName, personalMemoryRecallToolName}
-	input.AdmissionSnapshot.ExecutionStrategySHA256 = execution.HashAdmissionJSON(
-		input.AdmissionSnapshot.ExecutionStrategy,
+	input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames = []string{campusSearchToolName, personalMemoryRecallToolName}
+	input.AdmissionSnapshot.AgentCapabilitiesSHA256 = execution.HashAdmissionJSON(
+		input.AdmissionSnapshot.AgentCapabilities,
 	)
 	input.AdmissionSnapshotSHA256 = execution.SHA256JSONRef(input.AdmissionSnapshot)
 	intent.WorkflowInputJSON, err = json.Marshal(input)
@@ -390,6 +390,6 @@ func TestDecodeWorkflowStartInputAllowsToolBudgetIndependentOfVisibility(t *test
 	}
 
 	if _, err := execution.DecodeAndValidateWorkflowStartInput(intent, run); err != nil {
-		t.Fatalf("decode strategy with independent tool budget: %v", err)
+		t.Fatalf("decode capabilities with independent tool budget: %v", err)
 	}
 }

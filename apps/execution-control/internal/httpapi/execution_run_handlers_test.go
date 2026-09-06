@@ -77,9 +77,9 @@ func TestExecutionRunCreatePersistsStartIntentBeforeTemporalReconciliation(t *te
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)
 	}
-	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames) != 1 ||
-		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames[0] != campusSearchToolName {
-		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames)
+	if len(starter.input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames) != 1 ||
+		starter.input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames[0] != campusSearchToolName {
+		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames)
 	}
 	snapshot := starter.input.AdmissionSnapshot
 	if snapshot.ToolContractFingerprintSHA256 == "" ||
@@ -114,11 +114,12 @@ func TestExecutionRunCreateHidesPersonalMemoryToolWhenRuntimeIsUnavailable(t *te
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
 	reconcileTemporalRunsOnceForTest(context.Background(), server)
-	strategy := starter.input.AdmissionSnapshot.ExecutionStrategy
-	if !execution.ContainsString(strategy.VisibleFunctionToolNames, campusSearchToolName) ||
-		execution.ContainsString(strategy.VisibleFunctionToolNames, personalMemoryRecallToolName) ||
-		strategy.MaxFunctionToolCalls != 1 || strategy.MaxModelTurns != 2 {
-		t.Fatalf("execution strategy = %#v, want campus search only", strategy)
+	capabilities := starter.input.AdmissionSnapshot.AgentCapabilities
+	budget := starter.input.AdmissionSnapshot.AgentBudget
+	if !execution.ContainsString(capabilities.VisibleFunctionToolNames, campusSearchToolName) ||
+		execution.ContainsString(capabilities.VisibleFunctionToolNames, personalMemoryRecallToolName) ||
+		budget.MaxFunctionToolCalls != 8 || budget.MaxModelTurns != 8 {
+		t.Fatalf("admission = capabilities %#v budget %#v, want campus search only", capabilities, budget)
 	}
 }
 
@@ -199,14 +200,14 @@ func TestExecutionRunCreateReturnsDependencyNotReadyForAdmissionDependencies(t *
 		runID     string
 	}{
 		{
-			name:  "primary agent target missing",
+			name:  "workflow model target missing",
 			runID: "run-primary-agent-target-missing",
 			configure: func(server *Server) {
 				attachRunServiceForHandlerTest(
 					server,
 					server.runProjectionStore,
 					mapExecutionInputLoader{},
-					staticAdmissionSnapshotBuilder{err: errors.New("primary agent model target is missing")},
+					staticAdmissionSnapshotBuilder{err: errors.New("workflow model target is missing")},
 					false,
 				)
 			},
@@ -438,9 +439,9 @@ func TestExecutionRunCreateKeepsClosedToolsOutOfPrimaryAgent(t *testing.T) {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
 	reconcileTemporalRunsOnceForTest(context.Background(), server)
-	if len(starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames) != 1 ||
-		starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames[0] != campusSearchToolName {
-		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames)
+	if len(starter.input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames) != 1 ||
+		starter.input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames[0] != campusSearchToolName {
+		t.Fatalf("visible tools = %#v, want campus search", starter.input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames)
 	}
 }
 
@@ -751,7 +752,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		agentRequestForDurableWorkerTest("hello"),
 	)
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
-		StepID:               "agent.primary",
+		StepID:               "task.step.lookup",
 		RequestID:            "run-temporal-trajectory",
 		ConversationID:       "conv-temporal-trajectory",
 		StepKind:             "agent",
@@ -763,7 +764,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		UpdatedAt:            now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion: "run-step-projection-v1",
 		SanitizedPayload: map[string]any{
-			"payload_ref":                 "projection://runs/run-temporal-trajectory/agent/primary/input",
+			"payload_ref":                 "projection://runs/run-temporal-trajectory/task/step/lookup/input",
 			"raw_prompt":                  "must not leak",
 			"visible_function_tool_names": []any{"personal_memory_recall"},
 		},
@@ -771,8 +772,8 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("upsert step: %v", err)
 	}
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
-		AttemptID:             temporalStepAttemptID("run-temporal-trajectory", "agent.primary", 1),
-		StepID:                "agent.primary",
+		AttemptID:             temporalStepAttemptID("run-temporal-trajectory", "task.step.lookup", 1),
+		StepID:                "task.step.lookup",
 		RequestID:             "run-temporal-trajectory",
 		Attempt:               1,
 		Status:                "completed",
@@ -781,7 +782,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		WorkflowID:            "campus-agent.chat.run-temporal-trajectory",
 		TemporalRunID:         "temporal-run-trajectory",
 		ActivityID:            "activity-agent-1",
-		ActivityType:          temporalruntime.ExecutePrimaryAgentActivityName,
+		ActivityType:          temporalruntime.ExecuteTaskStepActivityName,
 		ActivityAttempt:       1,
 		ScheduledAt:           now.Add(-25 * time.Millisecond),
 		StartedAt:             now,
@@ -803,24 +804,24 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		UpdatedAt:             now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload: map[string]any{
-			"activity_type": temporalruntime.ExecutePrimaryAgentActivityName,
+			"activity_type": temporalruntime.ExecuteTaskStepActivityName,
 		},
 	}); err != nil {
 		t.Fatalf("upsert attempt: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "agent.primary:result:1",
-		StepID:               "agent.primary",
+		ResultID:             "task.step.lookup:result:1",
+		StepID:               "task.step.lookup",
 		RequestID:            "run-temporal-trajectory",
-		AttemptID:            temporalStepAttemptID("run-temporal-trajectory", "agent.primary", 1),
+		AttemptID:            temporalStepAttemptID("run-temporal-trajectory", "task.step.lookup", 1),
 		Status:               "completed",
 		ResultKind:           "agent_final_output",
-		ProjectionRef:        "projection://runs/run-temporal-trajectory/agent/primary/result",
+		ProjectionRef:        "projection://runs/run-temporal-trajectory/task/step/lookup/result",
 		CreatedAt:            now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
 			"activity_attempt": 1,
-			"result_ref":       "projection://runs/run-temporal-trajectory/agent/primary/result",
+			"result_ref":       "projection://runs/run-temporal-trajectory/task/step/lookup/result",
 			"tool_results": []any{
 				map[string]any{
 					"arguments_json_sha256": "sha256:personal-memory-recall",
@@ -867,7 +868,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"workflow_id":             "campus-agent.chat.run-temporal-trajectory",
 		"temporal_run_id":         "temporal-run-trajectory",
 		"activity_id":             "activity-agent-1",
-		"activity_type":           temporalruntime.ExecutePrimaryAgentActivityName,
+		"activity_type":           temporalruntime.ExecuteTaskStepActivityName,
 		"activity_attempt":        float64(1),
 		"schedule_to_start_ms":    float64(25),
 		"duration_ms":             float64(100),

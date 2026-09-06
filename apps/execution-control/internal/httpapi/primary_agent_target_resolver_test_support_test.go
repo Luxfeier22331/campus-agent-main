@@ -34,15 +34,23 @@ func (builder staticAdmissionSnapshotBuilder) BuildAgentAdmissionSnapshot(
 		return execution.AgentAdmissionSnapshot{}, execution.NewDependencyNotReadyError(builder.err)
 	}
 	if builder.targetSHA256 == "" {
-		return execution.AgentAdmissionSnapshot{}, errors.New("primary agent model target is missing")
+		return execution.AgentAdmissionSnapshot{}, errors.New("workflow model target is missing")
 	}
 	visibleTools := []string{campusSearchToolName}
-	maxModelTurns := 2
-	maxFunctionToolCalls := 1
 	if personalMemoryRecallAvailable {
 		visibleTools = append(visibleTools, personalMemoryRecallToolName)
-		maxModelTurns = 3
-		maxFunctionToolCalls = 2
+	}
+	capabilities := execution.AgentCapabilitiesSnapshot{
+		SchemaVersion:            execution.AgentCapabilitiesSchemaVersion,
+		HostedWebSearch:          true,
+		VisibleFunctionToolNames: visibleTools,
+	}
+	budget := execution.AgentRuntimeBudgetSnapshot{
+		MaxFunctionToolCalls: 8,
+		MaxModelTurns:        8,
+		MaxPlanSteps:         6,
+		MaxReplans:           3,
+		SchemaVersion:        execution.AgentRuntimeBudgetSchemaVersion,
 	}
 	snapshot := execution.AgentAdmissionSnapshot{
 		AgentLimits: execution.AgentRuntimeLimitsSnapshot{
@@ -51,30 +59,20 @@ func (builder staticAdmissionSnapshotBuilder) BuildAgentAdmissionSnapshot(
 			CurrentInputCharLimit: 1,
 			MaxOutputTokens:       1,
 		},
-		ExecutionStrategy: execution.ExecutionStrategySnapshot{
-			Kind:                     "direct",
-			MaxModelTurns:            maxModelTurns,
-			MaxFunctionToolCalls:     maxFunctionToolCalls,
-			SchemaVersion:            "execution_strategy.v4",
-			VisibleFunctionToolNames: visibleTools,
-		},
-		PrimaryAgentTargetSHA256: builder.targetSHA256,
+		AgentCapabilities: capabilities,
+		AgentBudget:       budget,
+		ModelTargetSHA256: builder.targetSHA256,
 		ToolContractFingerprint: execution.ToolContractFingerprintSnapshot{
 			FunctionSchemaSHA256: "sha256:" + strings.Repeat("a", 64),
-			SchemaVersion:        "tool_contract_fingerprint.v1",
+			SchemaVersion:        execution.ToolContractFingerprintSchemaVersion,
 			ToolsSHA256:          "sha256:" + strings.Repeat("b", 64),
 		},
 		ToolContractFingerprintSHA256: "test-tool-contract-hash",
 	}
-	snapshot.AgentLimitsSHA256 = strings.TrimPrefix(execution.SHA256JSONRef(snapshot.AgentLimits), "sha256:")
-	snapshot.ExecutionStrategySHA256 = strings.TrimPrefix(
-		execution.SHA256JSONRef(snapshot.ExecutionStrategy),
-		"sha256:",
-	)
-	snapshot.ToolContractFingerprintSHA256 = strings.TrimPrefix(
-		execution.SHA256JSONRef(snapshot.ToolContractFingerprint),
-		"sha256:",
-	)
+	snapshot.AgentLimitsSHA256 = execution.HashAdmissionJSON(snapshot.AgentLimits)
+	snapshot.AgentCapabilitiesSHA256 = execution.HashAdmissionJSON(snapshot.AgentCapabilities)
+	snapshot.AgentBudgetSHA256 = execution.HashAdmissionJSON(snapshot.AgentBudget)
+	snapshot.ToolContractFingerprintSHA256 = execution.HashAdmissionJSON(snapshot.ToolContractFingerprint)
 	return snapshot, nil
 }
 

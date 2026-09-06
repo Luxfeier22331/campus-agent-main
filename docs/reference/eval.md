@@ -80,9 +80,15 @@ retrieval 正文、工具参数或 provider 原始响应。因此 Ragas 不从�
 是否生成 RAG 样本由 case 是否声明 reference context 决定，不由实际召回是否非空决定。空召回仍须
 作为 RAG 失败样本进入评分。
 
-Primary Agent 路由使用 `campus/agent/routing`，并与当前工具 exposure 保持一致。当前覆盖直接回答、
-`campus_search`、个人记忆、跟进和 prompt injection。调用方需要评测 RAG 时显式提供 reference context，
-不把它写成在线 Agent 的固定输入。
+checked-in routing 用例覆盖直接回答、机构身份、Campus Docs、多轮跟进、其他学校官方网页、跨校比较、
+Campus Docs 与官方网页混合任务、陈旧会话说法和工具注入。`reference_tool_calls` 只描述当前暴露的
+本地函数工具；托管 Web Search 是否实际执行，通过 execution step 的 `web_search_used`、URL citation
+和来源证据检查，不伪装成 `campus_search` 调用。
+
+在线编排评测沿用 `campus/agent/routing` 这一历史 case 集合名称，实际覆盖 Solve、Executor、Replanner
+和 Synthesizer 的产品路径，以及直接回答、`campus_search`、官方 Web Search、跟进和 prompt injection。
+该名称不表示存在 Primary Agent 路由角色。调用方需要评测 RAG 时显式提供 reference context，不把它
+写成在线 workflow 的固定输入。
 
 ## Score
 

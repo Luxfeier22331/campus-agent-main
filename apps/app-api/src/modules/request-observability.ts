@@ -56,17 +56,17 @@ function mergeStageTiming(input: {
 		addOptionalStageTimingField(timing, "stream.app_api_ttft_ms", input.streamAppApiTtftMs);
 	}
 	const streamAppApiTtftMs = timing["stream.app_api_ttft_ms"];
-	const agentFirstDeltaMs = timing["agent.first_delta_ms"];
+	const workflowFirstDeltaMs = timing["workflow.first_delta_ms"];
 	if (
 		typeof streamAppApiTtftMs === "number" &&
 		Number.isFinite(streamAppApiTtftMs) &&
 		streamAppApiTtftMs >= 0 &&
-		typeof agentFirstDeltaMs === "number" &&
-		Number.isFinite(agentFirstDeltaMs) &&
-		agentFirstDeltaMs >= 0 &&
-		streamAppApiTtftMs >= agentFirstDeltaMs
+		typeof workflowFirstDeltaMs === "number" &&
+		Number.isFinite(workflowFirstDeltaMs) &&
+		workflowFirstDeltaMs >= 0 &&
+		streamAppApiTtftMs >= workflowFirstDeltaMs
 	) {
-		timing["stream.orchestration_overhead_ms"] = streamAppApiTtftMs - agentFirstDeltaMs;
+		timing["stream.orchestration_overhead_ms"] = streamAppApiTtftMs - workflowFirstDeltaMs;
 	}
 	addOptionalStageTimingField(timing, "projection.closeout_ms", input.projectionCloseoutMs);
 	return timing;

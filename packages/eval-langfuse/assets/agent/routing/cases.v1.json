@@ -103,11 +103,11 @@
 		},
 		{
 			"case_id": "routing-other-institution-policy",
-			"case_family": "unsupported_institution",
+			"case_family": "official_web",
 			"split": "smoke",
 			"query": "北京大学本科生转专业需要什么条件？",
 			"argument_mode": "name_only",
-			"reference": "应说明当前资料只覆盖中央民族大学，并建议查询北京大学官方现行规定；不得调用 campus_search 或套用本校材料。",
+			"reference": "应通过北京大学官方网页查询现行转专业规定，概括申请资格、限制和办理要求，并给出官方网页引用；不得调用 campus_search 或套用中央民族大学材料。",
 			"reference_tool_calls": []
 		},
 		{
@@ -116,20 +116,55 @@
 			"split": "regression",
 			"query": "比较中央民族大学和北京大学的本科生转专业条件。",
 			"argument_mode": "name_only",
-			"reference": "当前资料支持中央民族大学一年级本科生申请转专业及相关限制，但不包含北京大学的现行规定，因此不能据此比较北京大学的具体条件。",
+			"reference": "应以 Campus Docs 说明中央民族大学转专业资格和限制，并通过北京大学官方网页查询北京大学现行规定，明确区分两校规则、适用范围和仍需核对的当年通知。",
 			"reference_context_ids": [
 				"evidence://f91a210d15a3c864b051251910b22a874fc8b4af26d0c36cf9b6ee1af7513e84"
 			],
 			"reference_tool_calls": [{ "name": "campus_search", "args": {} }]
 		},
 		{
-			"case_id": "routing-official-web-unavailable",
-			"case_family": "unavailable_source",
+			"case_id": "routing-official-web-current-notices",
+			"case_family": "official_web",
 			"split": "regression",
-			"query": "学校官网今天刚发布的通知有哪些？",
+			"query": "请查中央民族大学官网最近发布的三条通知，给出标题、发布日期和官方链接。",
 			"argument_mode": "name_only",
-			"reference": "Campus Docs 不包含官网最新通知，不能编造最新通知。",
+			"reference": "应使用中央民族大学官方网页查询最近发布的通知，给出可核验的标题、发布日期和官方链接；不能只因 Campus Docs 不含最新通知就拒绝回答，也不能编造结果。",
 			"reference_tool_calls": []
+		},
+		{
+			"case_id": "routing-complex-campus-and-web",
+			"case_family": "multi_step_mixed_sources",
+			"split": "regression",
+			"query": "我是中央民族大学一年级本科生，准备申请转专业。请先根据校内规定总结申请资格和限制，再查学校官网是否有当前可核验的转专业通知或办理信息，最后给我一份按先后顺序排列的准备清单；查不到的部分请明确说明。",
+			"argument_mode": "name_only",
+			"reference": "应先依据 Campus Docs 说明中央民族大学本科生转专业的基础资格、特殊招生限制和一次只能申请一个专业等规则，再使用学校官方网页核对当前通知或办理信息，最后给出有顺序的准备清单；任何未找到的当年时间、名额或材料要求都应明确说明。",
+			"reference_context_ids": [
+				"evidence://f91a210d15a3c864b051251910b22a874fc8b4af26d0c36cf9b6ee1af7513e84",
+				"evidence://cea08275d7c198ef5f0a5c2433a570369c98bb8c624d1a50bf5b3d595c13da9e",
+				"evidence://1da822e606043fcd7d4b9a557e18791dd51e242f8a359705efe643c45b5d6b15"
+			],
+			"reference_tool_calls": [{ "name": "campus_search", "args": {} }]
+		},
+		{
+			"case_id": "routing-six-turn-context",
+			"case_family": "long_context_follow_up",
+			"split": "regression",
+			"setup_turns": [
+				"我是中央民族大学一年级本科生。",
+				"我是普通类招生录取的。",
+				"我想申请转专业。",
+				"我的目标专业是经济学。",
+				"我最关心自己是否具备基础申请资格。",
+				"也请提醒我哪些信息必须以当年通知为准。"
+			],
+			"query": "结合前面六轮信息，告诉我是否具备申请的基础资格，并给我下一步核对清单。",
+			"argument_mode": "name_only",
+			"reference": "应正确保留用户是一年级、普通类招生、拟申请经济学且关注基础资格等六轮上下文；依据现行校内规定说明其具备提出申请的基础条件，但最终资格还取决于身体条件、目标专业要求和当年计划，并给出核对当年名额、考核、时间和材料的清单。",
+			"reference_context_ids": [
+				"evidence://f91a210d15a3c864b051251910b22a874fc8b4af26d0c36cf9b6ee1af7513e84",
+				"evidence://1da822e606043fcd7d4b9a557e18791dd51e242f8a359705efe643c45b5d6b15"
+			],
+			"reference_tool_calls": [{ "name": "campus_search", "args": {} }]
 		},
 		{
 			"case_id": "routing-stale-conversation-claim",

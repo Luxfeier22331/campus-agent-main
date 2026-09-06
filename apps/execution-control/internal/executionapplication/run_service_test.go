@@ -181,9 +181,11 @@ func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testi
 		AccessContext: AgentToolAccessContext{
 			ActivityAttempt: 1,
 			CitationStart:   1,
+			InvocationID:    "tool-campus-search-1",
 			RequestID:       run.RequestID,
 			ResultLimit:     5,
 			UserGoal:        "我想知道本科生转专业需要满足什么条件",
+			WorkflowStepID:  "task.step.step.lookup",
 		},
 		SearchQuery: "本科生转专业申请条件",
 	})
@@ -200,6 +202,7 @@ func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testi
 		AccessContext: AgentToolAccessContext{
 			ActivityAttempt: 2,
 			RequestID:       run.RequestID,
+			WorkflowStepID:  "task.step.step.lookup",
 		},
 	}); !IsAgentToolConflict(err) {
 		t.Fatalf("stale attempt error = %v, want run conflict", err)
@@ -217,7 +220,9 @@ func TestAgentToolServiceBuildsPersonalMemoryRecallFromFrozenRunInput(t *testing
 	result, err := service.PersonalMemoryRecall(context.Background(), PersonalMemoryRecallRequest{
 		AccessContext: AgentToolAccessContext{
 			ActivityAttempt: 1,
+			InvocationID:    "tool-memory-recall-1",
 			RequestID:       run.RequestID,
+			WorkflowStepID:  "task.step.step.lookup",
 		},
 		Query: "新的记忆查询",
 	})
@@ -349,13 +354,13 @@ func applicationTestRunningRun(
 			t.Fatalf("transition application test run to %s: %v", status, err)
 		}
 	}
-	strategy := execution.ExecutionStrategyForAdmission(personalMemoryRecallAvailable)
+	capabilities := execution.AgentCapabilitiesForAdmission(personalMemoryRecallAvailable, true)
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
-		StepID:               "agent.primary",
+		StepID:               "task.step.step.lookup",
 		RequestID:            wire.RequestID,
 		ConversationID:       wire.ConversationID,
-		StepKind:             "agent",
-		Status:               "running",
+		StepKind:             "executor",
+		Status:               "started",
 		ActivityAttempt:      1,
 		TaskQueue:            "campus-agent.activity.agent.v3",
 		WorkerID:             "test:agent:001",
@@ -363,7 +368,7 @@ func applicationTestRunningRun(
 		UpdatedAt:            applicationTestNow.Add(3 * time.Second),
 		PayloadSchemaVersion: "run-step-projection-v1",
 		SanitizedPayload: map[string]any{
-			"visible_function_tool_names": strategy.VisibleFunctionToolNames,
+			"visible_function_tool_names": capabilities.VisibleFunctionToolNames,
 		},
 	}); err != nil {
 		t.Fatalf("upsert application test agent step: %v", err)
@@ -384,7 +389,14 @@ func validApplicationTestAdmissionSnapshot(
 		CurrentInputCharLimit: 1,
 		MaxOutputTokens:       1,
 	}
-	strategy := execution.ExecutionStrategyForAdmission(personalMemoryRecallAvailable)
+	capabilities := execution.AgentCapabilitiesForAdmission(personalMemoryRecallAvailable, true)
+	budget := execution.AgentRuntimeBudgetSnapshot{
+		MaxFunctionToolCalls: 8,
+		MaxModelTurns:        8,
+		MaxPlanSteps:         6,
+		MaxReplans:           3,
+		SchemaVersion:        execution.AgentRuntimeBudgetSchemaVersion,
+	}
 	toolContract := execution.ToolContractFingerprintSnapshot{
 		FunctionSchemaSHA256: "sha256:" + strings.Repeat("b", 64),
 		SchemaVersion:        execution.ToolContractFingerprintSchemaVersion,
@@ -393,9 +405,11 @@ func validApplicationTestAdmissionSnapshot(
 	return execution.AgentAdmissionSnapshot{
 		AgentLimits:                   limits,
 		AgentLimitsSHA256:             execution.HashAdmissionJSON(limits),
-		ExecutionStrategy:             strategy,
-		ExecutionStrategySHA256:       execution.HashAdmissionJSON(strategy),
-		PrimaryAgentTargetSHA256:      strings.Repeat("d", 64),
+		AgentCapabilities:             capabilities,
+		AgentCapabilitiesSHA256:       execution.HashAdmissionJSON(capabilities),
+		AgentBudget:                   budget,
+		AgentBudgetSHA256:             execution.HashAdmissionJSON(budget),
+		ModelTargetSHA256:             strings.Repeat("d", 64),
 		ToolContractFingerprint:       toolContract,
 		ToolContractFingerprintSHA256: execution.HashAdmissionJSON(toolContract),
 	}

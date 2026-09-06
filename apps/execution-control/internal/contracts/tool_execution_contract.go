@@ -14,7 +14,7 @@ import (
 const (
 	ExecutionContractVersion  = "tool_execution_v7"
 	ExecutionRequestIDPattern = "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-	ResponseContract          = "execution_finalization_response_v8"
+	ResponseContract          = "execution_finalization_response_v9"
 )
 
 var executionRequestIDRegexp = regexp.MustCompile(ExecutionRequestIDPattern)
@@ -52,15 +52,17 @@ type StageTimingField string
 const (
 	StageTimingFieldRequestTotalMs                StageTimingField = "request.total_ms"
 	StageTimingFieldExecutionDispatchMs           StageTimingField = "execution.dispatch_ms"
-	StageTimingFieldAgentScheduleToStartMs        StageTimingField = "agent.schedule_to_start_ms"
+	StageTimingFieldWorkflowScheduleToStartMs     StageTimingField = "workflow.schedule_to_start_ms"
 	StageTimingFieldStreamFirstDeltaPersistMs     StageTimingField = "stream.first_delta_persist_ms"
 	StageTimingFieldStreamAppApiTtftMs            StageTimingField = "stream.app_api_ttft_ms"
 	StageTimingFieldStreamOrchestrationOverheadMs StageTimingField = "stream.orchestration_overhead_ms"
 	StageTimingFieldExecutionAdmissionMs          StageTimingField = "execution.admission_ms"
 	StageTimingFieldMemoryRecallMs                StageTimingField = "memory.recall_ms"
-	StageTimingFieldAgentPrimaryMs                StageTimingField = "agent.primary_ms"
-	StageTimingFieldAgentRuntimeMs                StageTimingField = "agent.runtime_ms"
-	StageTimingFieldAgentFirstDeltaMs             StageTimingField = "agent.first_delta_ms"
+	StageTimingFieldWorkflowSolveMs               StageTimingField = "workflow.solve_ms"
+	StageTimingFieldWorkflowExecuteStepMs         StageTimingField = "workflow.execute_step_ms"
+	StageTimingFieldWorkflowReplanMs              StageTimingField = "workflow.replan_ms"
+	StageTimingFieldWorkflowSynthesizeMs          StageTimingField = "workflow.synthesize_ms"
+	StageTimingFieldWorkflowFirstDeltaMs          StageTimingField = "workflow.first_delta_ms"
 	StageTimingFieldToolTotalMs                   StageTimingField = "tool.total_ms"
 	StageTimingFieldFinalizationWriteMs           StageTimingField = "finalization.write_ms"
 	StageTimingFieldProjectionCloseoutMs          StageTimingField = "projection.closeout_ms"
@@ -335,15 +337,17 @@ func (value StageTimingField) Valid() bool {
 	switch value {
 	case StageTimingFieldRequestTotalMs,
 		StageTimingFieldExecutionDispatchMs,
-		StageTimingFieldAgentScheduleToStartMs,
+		StageTimingFieldWorkflowScheduleToStartMs,
 		StageTimingFieldStreamFirstDeltaPersistMs,
 		StageTimingFieldStreamAppApiTtftMs,
 		StageTimingFieldStreamOrchestrationOverheadMs,
 		StageTimingFieldExecutionAdmissionMs,
 		StageTimingFieldMemoryRecallMs,
-		StageTimingFieldAgentPrimaryMs,
-		StageTimingFieldAgentRuntimeMs,
-		StageTimingFieldAgentFirstDeltaMs,
+		StageTimingFieldWorkflowSolveMs,
+		StageTimingFieldWorkflowExecuteStepMs,
+		StageTimingFieldWorkflowReplanMs,
+		StageTimingFieldWorkflowSynthesizeMs,
+		StageTimingFieldWorkflowFirstDeltaMs,
 		StageTimingFieldToolTotalMs,
 		StageTimingFieldFinalizationWriteMs,
 		StageTimingFieldProjectionCloseoutMs:

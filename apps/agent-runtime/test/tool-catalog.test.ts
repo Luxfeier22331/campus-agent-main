@@ -193,10 +193,11 @@ describe("tool catalog", () => {
 			"campus_search",
 			"personal_memory_recall",
 		]);
-		expect(catalog.registryVersion).toBe("2026-08-30");
+		expect(catalog.registryVersion).toBe("2026-09-03");
 		expect(catalog.tools.find((tool) => tool.name === "campus_search")).toMatchObject({
 			description:
 				"检索中央民族大学当前 Campus Web 文档中的校内事实、政策和办事流程，返回供回答选择的候选结果。",
+			timeoutMs: 45_000,
 			parameterSchema: {
 				properties: {
 					search_query: {
@@ -204,6 +205,9 @@ describe("tool catalog", () => {
 					},
 				},
 			},
+		});
+		expect(catalog.tools.find((tool) => tool.name === "personal_memory_recall")).toMatchObject({
+			timeoutMs: 12_000,
 		});
 	});
 

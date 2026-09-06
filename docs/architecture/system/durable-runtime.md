@@ -7,19 +7,20 @@ status: active
 
 ## 文档边界
 
-本文定义在线回答的持久生命周期。Temporal 维护 workflow history、task queue、retry、timer
-和 activity dispatch；execution-control 负责执行准入、命令投递和有界投影；OpenAI Agents SDK
-负责一个 Agent Activity 内的代理与工具循环。app-api 拥有产品请求、原始执行输入和跨系统产品
-终态。
+本文定义在线回答的持久生命周期。这里的 Agent Workflow 是产品编排概念；Temporal Workflow 是其
+持久化实现，负责 workflow history、task queue、retry、timer 和 activity dispatch。execution-control
+负责执行准入、四类 operation 的顺序、重规划预算、命令投递和有界投影；OpenAI Agents SDK 负责某个
+operation 内的模型与工具循环。app-api 拥有产品请求、原始执行输入和跨系统产品终态。
 
 ## 主要对象
 
 - `Conversation`、`Turn`：app-api 产品事实；
 - `Run`：产品可见持久执行对象；
-- `ToolExecutionWorkflow`：一个 run 的 Temporal workflow；
+- `Agent Workflow`：Solve（直接回答或生成计划）→Execute Step→Replan→Synthesize 的产品编排；
+- `ToolExecutionWorkflow`：上述 Agent Workflow 的 Temporal Workflow 实现；
 - `WorkflowStartCommand`、`CancellationCommand`：将已提交的 PostgreSQL 意图投递给 Temporal
   的持久命令；
-- `AgentInvocationReceipt`：约束具有外部副作用的 Primary Agent 调用只能开始一次；
+- `AgentInvocationReceipt`：约束同一模型 operation 的供应商调用只能开始一次；
 - `RunEvent`、`RunStep`、`StepAttempt`、`StepResult`：有界投影，不是 workflow
   history；
 - `Finalization`：app-api 消费的已验证终态投影。
@@ -49,19 +50,22 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 
 ## 执行阶段
 
-1. **Agent Activity**：在 agent queue 只调用一次 `apps/agent-runtime`，完成 Primary Agent、可选的
-   函数工具调用和原生文本输出。
-2. **Finalization**：在 core queue 校验 Agent 结果、生成终态投影并写入
-   最终投影。
-3. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
+1. **Solve**：在 agent queue 调用 `apps/agent-runtime`，直接回答简单请求或生成有界任务计划；
+2. **Execute Step**：按依赖逐步调用 `apps/agent-runtime`，由 Executor 执行当前步骤允许的来源并保留
+   成功证据、`no_match` 和失败状态；
+3. **Replan**：在步骤完成后调用 `apps/agent-runtime`，由 Replanner 决定继续、修改剩余步骤或进入合成；
+4. **Synthesize**：聚合成功证据后调用 `apps/agent-runtime` 生成最终正文；
+5. **Finalization**：在 core queue 校验 operation 结果、生成终态投影并写入最终投影；
+6. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
 
-Temporal 不把 SDK tool call 展开成额外阶段，也不存在工作流重新规划状态。当前在线 workflow
-不包含知识检索阶段；离线 Campus Docs 制品发布不进入 Temporal history。
+Temporal 不把 SDK tool call 展开成独立 Temporal 阶段，但 Agent Workflow 的 Solve、Execute Step、Replan
+和 Synthesize 是真实的持久步骤。当前在线 workflow 不包含独立的强制预检索阶段；离线 Campus Docs
+制品发布不进入 Temporal history。
 
 PostgreSQL 只保存 ref、hash、用量和产品终态等有界投影，不保存完整 Agent 结果。
 
-`personal_memory_recall` 不建立独立载荷。它的完整返回值是有界 Agent result 的一部分；Primary Agent
-invocation receipt 约束包含模型和工具调用的整个 SDK run 只能开始一次。若 receipt 已是 `started` 或
+`personal_memory_recall` 不建立独立载荷。它的完整返回值是当前 operation 有界 result 的一部分；模型
+operation invocation receipt 约束该 operation 的模型和工具调用只能开始一次。若 receipt 已是 `started` 或
 `completed`，但本次 Activity 没有可用的 Temporal result，执行以 `agent_attempt_uncertain` 失败关闭，
 不再次调用 Provider。精确绑定字段和 StepResult 写入边界见 `../../data/durable-runtime.md`。
 
@@ -140,17 +144,18 @@ Reset 或其他 successor 不能改写产品终态或被重新绑定到原产品
 三个 poller 与执行 HTTP API 运行在同一个 `execution-control` 进程。不存在按知识类型、工具或检索
 能力拆分的独立 worker；`agent-runtime` 仍是独立 Deployment。
 
-## Agent Activity
+## Agent Workflow operation
 
-execution-control 提供运行标识、已冻结执行策略、已准入的模型可见工具、`primary_agent` 预期
-Model Target hash 和有界会话上下文。Agent Runtime 从共同受信任的 Model Config 按预期 hash 读取
-实际供应商配置，再在真实 `AgentInputItem[]` 上
-执行字符预算裁剪，并返回结构化终态、真实 SDK 工具摘要、上下文用量、模型用量和 trace 关联。
+execution-control 为每个 operation 提供运行标识、当前步骤/计划、已准入的模型可见工具、历史配置槽位
+`primary_agent` 的预期 Model Target hash 和有界会话上下文。Agent Runtime 从共同受信任的 Model Config
+按预期 hash 读取实际供应商配置，再在真实 `AgentInputItem[]` 上执行字符预算裁剪，并返回 operation
+结果、真实 SDK 工具摘要、证据、上下文用量、模型用量和 trace 关联。
 
-SDK `maxTurns` 只限制该 run 的代理与工具轮次，不是重试次数、重新规划预算或新的 Temporal
-阶段。内部 SDK 工具在 Agent Activity 生命周期内调用带认证的 execution-control 查询接口。
+SDK `maxTurns` 只限制当前 operation 的代理与工具轮次，不是重试次数或重规划预算。重规划次数和
+步骤数量由外层 Agent Workflow 预算限制。内部 SDK 工具在当前 operation 生命周期内调用带认证的
+execution-control 查询接口。
 HTTP adapter 解码工具 envelope 后把 typed request 交给 `AgentToolService`；该 use case 校验 run 正在
-执行、activity attempt 是最新 Primary Agent attempt，且工具位于该 attempt 的已准入可见工具集合。
+执行、activity attempt 是当前 operation 的最新 attempt，且工具位于该 attempt 的已准入可见工具集合。
 Campus Search 的检索表达式、当前索引读取和搜索调用，以及 personal-memory recall 的冻结 workflow
 admission 校验、执行输入加载和 recall request 构造都不属于 HTTP owner。
 
@@ -161,7 +166,7 @@ Workflow ID 与精确 Temporal Run ID，并与持久 start intent 的 Workflow I
 root execution，Agent、查询和普通 Finalization Activity 都必须停止。该 fence 不能只信任 Workflow
 input 中携带的产品 run ID。
 
-Primary Agent Activity 的 Temporal `MaximumAttempts` 为 `0`，允许在 workflow 生命周期内重试
+Agent operation Activity 的 Temporal `MaximumAttempts` 为 `0`，允许在 workflow 生命周期内重试
 Activity 调度和投影修复，但供应商调用仍然只能开始一次。Activity 在调用供应商前计算 canonical
 provider invocation envelope 的摘要并写入 invocation receipt；只有 receipt 不存在时可进入首次调用。
 receipt 为 `started` 或 `completed` 时都不能重放模型调用或从 PostgreSQL 复原模型正文，而是以
@@ -171,7 +176,7 @@ receipt 为 `started` 或 `completed` 时都不能重放模型调用或从 Postg
 provider invocation envelope 的摘要是 receipt 的输入 fingerprint。它绑定 execution input、完整
 执行身份与授权投影、可见工具、最终模型上下文，以及实际发送给 agent-runtime 的精确 HTTP body；请求
 摘要和网络发送复用同一份编码 bytes。completed receipt 只保存该输入摘要、Agent result ref 和 schema
-version，不保存模型结果。`agent.primary` StepResult 保存有界摘要和正文 hash；完整 Agent result 仅由
+version，不保存模型结果。各 operation 的 StepResult 保存有界摘要和正文 hash；完整 operation result 仅由
 workflow 的 Activity result 交给 Finalization。
 
 ## 取消、超时与终态处理

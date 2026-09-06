@@ -7,21 +7,29 @@ import "context"
 type AgentAdmissionSnapshot struct {
 	AgentLimits             AgentRuntimeLimitsSnapshot `json:"agent_limits"`
 	AgentLimitsSHA256       string                     `json:"agent_limits_sha256"`
-	ExecutionStrategy       ExecutionStrategySnapshot  `json:"execution_strategy"`
-	ExecutionStrategySHA256 string                     `json:"execution_strategy_sha256"`
-	// PrimaryAgentTargetSHA256 is the opaque Model Config target hash frozen
+	AgentCapabilities       AgentCapabilitiesSnapshot  `json:"agent_capabilities"`
+	AgentCapabilitiesSHA256 string                     `json:"agent_capabilities_sha256"`
+	AgentBudget             AgentRuntimeBudgetSnapshot `json:"agent_budget"`
+	AgentBudgetSHA256       string                     `json:"agent_budget_sha256"`
+	// ModelTargetSHA256 is the opaque Model Config target hash frozen
 	// for this run. The JSON name stays stable for persisted Temporal history.
-	PrimaryAgentTargetSHA256      string                          `json:"provider_config_sha256"`
+	ModelTargetSHA256             string                          `json:"provider_config_sha256"`
 	ToolContractFingerprint       ToolContractFingerprintSnapshot `json:"tool_contract_fingerprint"`
 	ToolContractFingerprintSHA256 string                          `json:"tool_contract_fingerprint_sha256"`
 }
 
-type ExecutionStrategySnapshot struct {
-	Kind                     string   `json:"kind"`
-	MaxModelTurns            int      `json:"max_model_turns"`
-	MaxFunctionToolCalls     int      `json:"max_function_tool_calls"`
+type AgentCapabilitiesSnapshot struct {
 	SchemaVersion            string   `json:"schema_version"`
+	HostedWebSearch          bool     `json:"hosted_web_search"`
 	VisibleFunctionToolNames []string `json:"visible_function_tool_names"`
+}
+
+type AgentRuntimeBudgetSnapshot struct {
+	MaxFunctionToolCalls int    `json:"max_function_tool_calls"`
+	MaxModelTurns        int    `json:"max_model_turns"`
+	MaxPlanSteps         int    `json:"max_plan_steps"`
+	MaxReplans           int    `json:"max_replans"`
+	SchemaVersion        string `json:"schema_version"`
 }
 
 // ToolContractFingerprintSnapshot binds an admitted run to the exact tool
@@ -40,12 +48,13 @@ type AgentRuntimeLimitsSnapshot struct {
 	MaxOutputTokens       int `json:"max_output_tokens"`
 }
 
-type PrimaryAgentTarget struct {
-	TargetSHA256 string
+type ModelTarget struct {
+	TargetSHA256    string
+	HostedWebSearch bool
 }
 
-type PrimaryAgentTargetResolver interface {
-	ResolvePrimaryAgentTarget(context.Context) (PrimaryAgentTarget, error)
+type ModelTargetResolver interface {
+	ResolveModelTarget(context.Context) (ModelTarget, error)
 }
 
 type AdmissionSnapshotBuilder interface {

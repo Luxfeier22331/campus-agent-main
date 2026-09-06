@@ -6,6 +6,13 @@ import (
 	"encoding/json"
 )
 
+func CapabilitiesForTarget(target Target) Capabilities {
+	return Capabilities{
+		HostedWebSearch: (target.Provider == "openai" || target.Provider == "openai-compatible") &&
+			target.APIProtocol == "openai.responses",
+	}
+}
+
 func TargetHash(target Target) string {
 	payload := struct {
 		Name        ConfigName `json:"name"`

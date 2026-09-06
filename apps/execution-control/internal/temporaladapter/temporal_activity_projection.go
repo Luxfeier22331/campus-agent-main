@@ -96,7 +96,7 @@ func (s *Adapter) temporalActivityRun(
 	return run, nil
 }
 
-func (s *Adapter) temporalActivityRunAllowCompletedAgentFinalization(
+func (s *Adapter) temporalActivityRunAllowCompletedWorkflowFinalization(
 	ctx context.Context,
 	requestID string,
 ) (execution.DurableRun, error) {
@@ -119,6 +119,13 @@ func (s *Adapter) temporalActivityRunAllowCompletedAgentFinalization(
 	return run, nil
 }
 
+func (s *Adapter) validateLocalToolContractFingerprintMap(expected map[string]any) error {
+	if s == nil || s.admissionService == nil {
+		return errors.New("agent admission service is not configured")
+	}
+	return s.admissionService.ValidateLocalToolContractFingerprintMap(expected)
+}
+
 func temporalRunTerminal(status execution.DurableRunStatus) bool {
 	switch status {
 	case execution.DurableRunStatusCompleted,
@@ -138,7 +145,7 @@ func (s *Adapter) failFinalizationActivity(
 	failureKind string,
 	failCloseReason string,
 	cause error,
-) (temporalruntime.WriteFinalizationActivityOutput, error) {
+) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
 	summary := summarizeTemporalFailure(failureKind)
 	operation := strings.TrimSpace(tool)
 	if operation == "" {
@@ -161,13 +168,13 @@ func (s *Adapter) failFinalizationActivity(
 		},
 	}, cause)
 	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"activity_projection_failed",
 			err,
 			false,
 		)
 	}
-	return temporalruntime.WriteFinalizationActivityOutput{}, temporalApplicationError(summary, true)
+	return temporalruntime.WorkflowFinalizationActivityOutput{}, temporalApplicationError(summary, true)
 }
 
 type temporalStepFailureProjection struct {
@@ -386,15 +393,14 @@ func temporalFailureTerminalReason(
 		return execution.DurableTerminalReasonRunTimeout
 	}
 	switch strings.TrimSpace(failureKind) {
-	case "agent_runtime_timeout",
-		"provider_rate_limited",
+	case "agent_runtime_timeout", "agent_deadline_exceeded", "workflow_execution_timeout":
+		return execution.DurableTerminalReasonRunTimeout
+	case "provider_rate_limited",
 		"provider_http_failed",
 		"provider_connection_failed",
 		"provider_timeout",
 		"provider_unavailable":
 		return execution.DurableTerminalReasonProviderUnavailable
-	case "agent_deadline_exceeded", "workflow_execution_timeout":
-		return execution.DurableTerminalReasonRunTimeout
 	case "worker_unavailable":
 		return execution.DurableTerminalReasonWorkerUnavailable
 	case "agent_runtime_unauthorized",

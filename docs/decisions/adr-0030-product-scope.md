@@ -17,15 +17,15 @@ Campus Agent 是面向中央民族大学这一单一学校信息范围的产品�
 证据，或由 Agents SDK 原生 `web_search` 返回的公开校园网页证据。`web_search` 只作为校园问题的证据
 来源，不开放通用 open-domain factual tool 或任意主题的聊天搜索。
 
-primary agent 可以直接回答问候、产品问题和普通对话，但不得用模型记忆补齐缺失的校园
-事实。
+Agent Workflow 可以直接处理问候、产品问题和普通对话，但不得用模型记忆补齐缺失的校园事实。
 
-工具定义声明事实范围。所需事实完全不在当前本地工具范围内时，Primary Agent 可以针对公开校园信息
-使用 `web_search`；如果网页证据仍不足，则在正常助手正文中说明资料边界。这不是执行策略拒绝。实体
-名称出现在改写、翻译等不需要机构事实的任务中，不单独触发工具调用或拒绝。
+工具定义声明事实范围。Solve/Executor 判断当前步骤所需来源；所需事实不在已采集文档范围内时，
+Replanner 可以为公开校园信息生成 `web_search` 步骤；如果网页证据仍不足，则在正常助手正文中说明
+资料边界。这不是执行策略拒绝。实体名称出现在改写、翻译等不需要机构事实的任务中，不单独触发工具
+调用或拒绝。
 
-`web_search` 不是 `campus_search` 失败后的自动回退：是否使用由 Primary Agent 根据问题和工具声明
-决定，不能由代码在失败后机械触发。未来开放域能力仍需要独立产品决策、可见工具、policy 和
+`web_search` 不是 `campus_search` 失败后的自动回退：是否使用由 Agent Workflow 的 Solve/Replanner
+根据问题和工具声明决定，不能由代码在失败后机械触发。未来开放域能力仍需要独立产品决策、可见工具、policy 和
 evaluation，不能伪装成 retrieval tuning 或 best-effort recovery。
 
 ## 后果

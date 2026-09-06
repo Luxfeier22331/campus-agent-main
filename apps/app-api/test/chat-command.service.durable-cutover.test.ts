@@ -225,7 +225,7 @@ describe("chat command durable runtime cutover", () => {
 		]);
 		expect(executionPayload).toMatchObject({
 			execution_contract_version: "tool_execution_v7",
-			response_contract: "execution_finalization_response_v8",
+			response_contract: "execution_finalization_response_v9",
 			tenant_id: "tenant-main",
 			user_goal: "示例大学本科学生国家奖学金评审办法",
 		});
@@ -312,9 +312,7 @@ describe("chat command durable runtime cutover", () => {
 		});
 
 		expect(finalWrites).toHaveLength(1);
-		expect(finalWrites[0]?.assistantMessage.text).toBe(
-			"The agent runtime did not complete before its deadline.",
-		);
+		expect(finalWrites[0]?.assistantMessage.text).toBe("本次回答超时，未能完成。");
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
 	});
 

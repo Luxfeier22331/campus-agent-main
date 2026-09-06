@@ -5,9 +5,11 @@ import type {
 	AgentRunnerAnswerDelta,
 	AgentRunnerInput,
 	AgentRunnerResult,
+	AgentRunnerSolveDecision,
 	SdkToolRuntime,
 } from "../src/agent-run-contract.ts";
 import { createOpenAIAgentsRunner, createStreamingOpenAIAgentsRunner } from "../src/sdk-runner.ts";
+import { solveSdkOutputSchema } from "../src/workflow-runtime.ts";
 
 const providerConfig = {
 	apiKey: "test-provider-key",
@@ -67,6 +69,9 @@ function searchResults(citationStart: number, count: number) {
 	return Array.from({ length: count }, (_, offset) => ({
 		citation_index: citationStart + offset,
 		result_ref: `result://${String(citationStart + offset).padStart(64, "0")}`,
+		source_kind: "document",
+		text: `result ${citationStart + offset}`,
+		title: `Result ${citationStart + offset}`,
 	}));
 }
 
@@ -75,8 +80,11 @@ function input(
 	overrides: Partial<AgentRunnerInput> = {},
 ): AgentRunnerInput {
 	return {
+		allowWebSearch: false,
+		citationStart: 1,
 		input: [{ role: "user", content: "查询校内信息" }],
 		instructions: "Answer directly.",
+		operation: "execute_step",
 		tools,
 		requestId: "req-sdk",
 		limits,
@@ -317,7 +325,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			],
 			[assistantMessage("最终答案。")],
 		]);
-		const events: Array<AgentRunnerAnswerDelta | AgentRunnerResult> = [];
+		const events: Array<AgentRunnerAnswerDelta | AgentRunnerResult | AgentRunnerSolveDecision> = [];
 		for await (const event of createStreamingOpenAIAgentsRunner({
 			model: "gpt-test",
 			modelProvider: providerFor(model),
@@ -332,12 +340,77 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		});
 	});
 
-	it("adds hosted Web Search only for Responses transport", async () => {
+	it("streams a structured solve answer only after emitting its decision", async () => {
+		const answer = '中文\n"校园"';
+		const model = new ScriptedModel([
+			[assistantMessage(JSON.stringify({ outcome: "answer", answer }))],
+		]);
+		const events: Array<AgentRunnerAnswerDelta | AgentRunnerResult | AgentRunnerSolveDecision> = [];
+		for await (const event of createStreamingOpenAIAgentsRunner({
+			model: "gpt-test",
+			modelProvider: providerFor(model),
+		})(input([], { operation: "solve", outputType: solveSdkOutputSchema }))) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([
+			{ solveOutcome: "answer" },
+			{ delta: answer },
+			expect.objectContaining({
+				finalOutput: answer,
+				structuredOutput: { outcome: "answer", answer },
+			}),
+		]);
+		model.assertComplete();
+	});
+
+	it("streams a structured solve plan without exposing plan JSON as answer text", async () => {
+		const plan = {
+			outcome: "plan",
+			plan: {
+				schemaVersion: "task_plan.v1",
+				goal: "查询奖学金",
+				steps: [
+					{
+						id: "step.scholarship",
+						objective: "查找奖学金通知",
+						candidateSources: ["campus_search"],
+						dependsOn: [],
+					},
+				],
+			},
+		};
+		const model = new ScriptedModel([[assistantMessage(JSON.stringify(plan))]]);
+		const events: Array<AgentRunnerAnswerDelta | AgentRunnerResult | AgentRunnerSolveDecision> = [];
+		for await (const event of createStreamingOpenAIAgentsRunner({
+			model: "gpt-test",
+			modelProvider: providerFor(model),
+		})(input([], { operation: "solve", outputType: solveSdkOutputSchema }))) {
+			events.push(event);
+		}
+
+		expect(events[0]).toEqual({ solveOutcome: "plan" });
+		expect(events.slice(1)).toEqual([
+			expect.objectContaining({
+				finalOutput: "",
+				structuredOutput: plan,
+			}),
+		]);
+		expect(events.some((event) => "delta" in event)).toBe(false);
+		model.assertComplete();
+	});
+
+	it("adds hosted Web Search only when the model capability is admitted", async () => {
 		const responsesModel = new ScriptedModel([[assistantMessage("已完成。")]]);
 		await createOpenAIAgentsRunner({
 			model: "gpt-test",
 			modelProvider: providerFor(responsesModel),
-		})(input());
+		})(
+			input([], {
+				allowWebSearch: true,
+				providerConfig: { ...providerConfig, hostedWebSearch: true },
+			}),
+		);
 		expect(responsesModel.firstCall?.request.tools).toEqual([
 			expect.objectContaining({ type: "hosted_tool", name: "web_search" }),
 		]);
@@ -348,7 +421,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			modelProvider: providerFor(chatModel),
 		})(
 			input([], {
-				providerConfig: { ...providerConfig, transport: "chat_completions" },
+				providerConfig: {
+					...providerConfig,
+					hostedWebSearch: false,
+					transport: "chat_completions",
+				},
 			}),
 		);
 		expect(chatModel.firstCall?.request.tools).toEqual([]);

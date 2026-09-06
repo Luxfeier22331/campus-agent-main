@@ -12,7 +12,7 @@ status: active
 
 - app-api 拥有浏览器认证、会话事实和浏览器传输；
 - execution-control 拥有准入、Temporal 生命周期、内部查询策略、终态处理和安全投影；
-- agent-runtime 在单个 Temporal Agent Activity 内运行完整 OpenAI Agents SDK 循环；
+- agent-runtime 在 Temporal Agent Workflow 的单个 operation Activity 内运行 OpenAI Agents SDK 循环；
 - 浏览器不得直接调用本合同。
 
 ## 接口与认证
@@ -37,7 +37,7 @@ execution-control 与 app-api 之间的执行输入读取及产品回调通道�
 ## 创建运行
 
 运行信封携带不可变的 request、conversation、`owner_user_id` 和 `surface`。
-当前载荷是 `tool_execution_v7`，响应合同是 `execution_finalization_response_v8`。运行 metadata
+当前载荷是 `tool_execution_v7`，响应合同是 `execution_finalization_response_v9`。运行 metadata
 严格限制为以下内容：
 
 ```json
@@ -54,8 +54,8 @@ execution-control 与 app-api 之间的执行输入读取及产品回调通道�
 hash。execution-control 读取输入时必须校验 ref、request、hash 与 1 MiB 上限，不能把 metadata
 扩展成输入副本。
 
-`tenant_id` 属于冻结的完整输入，不进入 metadata。调用方不能指定工具；Primary Agent 只能从
-准入快照提供的模型可见工具中选择。
+`tenant_id` 属于冻结的完整输入，不进入 metadata。调用方不能指定工具；Solve、Executor 和
+Replanner 只能在准入快照与当前步骤允许的来源中作出选择。
 
 调用方不得发送 document scope、version query、corpus、collection、top-k、provider、vector-store 或
 task-queue 字段。
@@ -73,15 +73,16 @@ task-queue 字段。
 execution-control 根据当前能力状态生成本轮工具集合：
 
 - `visible_function_tool_names` 是名称唯一的集合，数组顺序没有路由语义；
-- 个人记忆不可用时，`max_model_turns=2`、`max_function_tool_calls=1`，只开放 `campus_search`；
-- 个人记忆可用时，`max_model_turns=3`、`max_function_tool_calls=2`，开放 `campus_search` 和
-  `personal_memory_recall`。工具预算是本轮所有工具调用的总预算；同一工具可以重复调用，不从数组顺序
-  推导调用顺序。
+- `execute_step` 只开放当前步骤候选来源对应的工具；`solve`、`replan` 和 `synthesize` 不执行本地
+  function tool；
+- `max_model_turns` 与 `max_function_tool_calls` 是单个 operation 的预算，`max_plan_steps` 与
+  `max_replans` 是外层 workflow 的请求级预算；同一工具可以重复调用，不从数组顺序推导调用顺序。
 
-以上字段和预算只描述本地 function tools。Agent Runtime 另外固定附加 Agents SDK 原生
-`web_search` hosted tool；它不进入工具注册表、`visible_function_tool_names`、本地
-`max_function_tool_calls`、execution-control handler 或 `tool_results`。该能力要求 Primary Agent 的
-Model Config 使用 OpenAI Responses API；不兼容的 Chat Completions 配置以
+以上字段和预算只描述本地 function tools。`web_search` 只有在当前 execute step 的候选来源中被显式
+允许时，Agent Runtime 才附加 Agents SDK 原生 hosted tool；它不进入工具注册表、
+`visible_function_tool_names`、本地 `max_function_tool_calls`、execution-control handler 或
+`tool_results`。该能力要求 `primary_agent` Model Config 使用 OpenAI Responses API；不兼容的 Chat
+Completions 配置以
 `model_config_incompatible` 拒绝，不进行 fallback。
 
 `personal_memory_recall_allowed` 是当前 v6 私有 wire 字段，表示由个人记忆生命周期和就绪状态派生、
@@ -96,16 +97,16 @@ hybrid 候选，再调用同一 provider 的固定 `Qwen3-Reranker-4B` 排序并
 `no_match`。阈值只判断文本相关性，不判断学校、人群或规则适用主体；reranker 失败不得回退到未排序
 候选。
 
-Primary Agent 的固定角色是中央民族大学校园问答助手，未明确指定机构的校内问题默认指中央民族
-大学。工具定义声明各自能够提供的事实范围；Primary Agent 根据问题所需事实选择工具，不使用机构或
-其他实体名称级路由特判。`results` 是可供 Agent 判断的候选，不表示已经用于回答。问题只有部分事实
+Agent Workflow 的固定角色是中央民族大学校园问答助手，未明确指定机构的校内问题默认指中央民族
+大学。工具定义声明各自能够提供的事实范围；Solve、Executor 和 Replanner 根据目标、当前步骤与
+证据选择来源，不使用机构或其他实体名称级路由特判。`results` 是可供 Agent 判断的候选，不表示已经
+用于回答。问题只有部分事实
 被候选直接支持时，只回答有依据的部分；完全没有候选支持所需机构事实时，在正常助手正文中说明资料
 边界。
 
-需要补充或核验尚未采集的公开校园网页信息时，Primary Agent 可以使用 `web_search`。`campus_search`
-返回 `no_match` 或失败表示当前已采集文档没有可用证据；Primary Agent 不应为同一事实改写查询后重复
-调用，问题所需事实可从公开校园网页获取时应使用 `web_search`，不能直接判定资料不足。是否调用仍由
-Primary Agent 根据问题和本轮结果决定，不能由代码机械触发。只有 `campus_search` 成功返回 `matched`
+需要补充或核验尚未采集的公开校园网页信息时，Replanner 可以为后续步骤加入 `web_search`，Executor
+再在该步骤内调用它。`campus_search` 返回 `no_match` 或失败表示当前已采集文档没有可用证据；这不会由
+代码自动触发 Web Search，也不能直接判定资料不足。只有 `campus_search` 成功返回 `matched`
 和 evidence 时才使用 `[n]` 引用；`web_search` 支持的每条事实必须由 SDK 原生 URL citation 支持，模型
 不得手写 URL、Markdown 来源链接、数字引用或 turn 引用。Finalization 校验 citation 的位置、URL 和
 标题，把实际引用转换为统一的编号正文链接及 `kind=web_page` 来源卡；当前仍不保存 Web Search
@@ -160,8 +161,8 @@ Finalization 前同时核对准入、已保存结果和本地合同。任一阶�
 StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memory.append` 可写的例外由
 `../data/durable-runtime.md` 定义。
 
-`personal_memory_recall` 是 Primary Agent 同一次 SDK run 内的有界工具调用，不使用独立 memory ref
-或独立 payload。它的完整结果只进入有界 Agent result；Primary Agent invocation receipt 约束整个 SDK
+`personal_memory_recall` 是 Execute Step operation 同一次 SDK run 内的有界工具调用，不使用独立 memory
+ref 或独立 payload。它的完整结果只进入有界 operation result；operation invocation receipt 约束整个 SDK
 run 不得因 Activity 重投递而再次执行。已有 `started` 或 `completed` receipt 而没有可用 Activity result
 时，必须以 `agent_attempt_uncertain` 失败关闭。
 
@@ -170,12 +171,12 @@ Agent result 内有效，不能跨 request 或从模型输出中重新构造。
 
 ## Temporal 与终态处理
 
-`ToolExecutionWorkflow` 的阶段、队列和 Agent Activity 边界由
+`ToolExecutionWorkflow` 的阶段、队列和 operation Activity 边界由
 `../architecture/system/durable-runtime.md` 定义。SDK 函数调用不创建额外 Temporal
 Activity。
 
 Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，不携带冻结输入正文。Temporal history
-携带有界 Agent Activity result；app-api 产品终态及其 `finalization_fingerprint` 是跨系统
+携带有界 operation result；app-api 产品终态及其 `finalization_fingerprint` 是跨系统
 重复完成、取消和较晚结果的最终裁决；execution-control 的终态投影必须与该结果一致，不能先向浏览器
 发布相冲突的终态。
 

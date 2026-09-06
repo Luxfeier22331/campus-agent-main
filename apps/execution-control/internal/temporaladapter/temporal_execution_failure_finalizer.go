@@ -75,16 +75,41 @@ func (s *Adapter) FinalizeExecutionFailure(
 func temporalFailureProjectionForStage(
 	input temporalruntime.FinalizeExecutionFailureActivityInput,
 ) (temporalStepFailureProjection, bool) {
-	switch strings.TrimSpace(input.Stage) {
-	case "agent.primary":
+	stage := strings.TrimSpace(input.Stage)
+	switch {
+	case stage == "solve.initial":
 		return temporalStepFailureProjection{
-			ProjectionRef: temporalProjectionRef(input.RequestID, "agent/primary/result"),
+			ProjectionRef: workflowOperationResultRef(input.RequestID, stage),
 			ResultKind:    "activity_failure",
-			StepID:        "agent.primary",
-			StepKind:      "agent",
+			StepID:        stage,
+			StepKind:      "solver",
 			TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
 		}, true
-	case "finalization.write":
+	case strings.HasPrefix(stage, "task.step."):
+		return temporalStepFailureProjection{
+			ProjectionRef: workflowOperationResultRef(input.RequestID, stage),
+			ResultKind:    "activity_failure",
+			StepID:        stage,
+			StepKind:      "executor",
+			TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
+		}, true
+	case strings.HasPrefix(stage, "solve.replan."):
+		return temporalStepFailureProjection{
+			ProjectionRef: workflowOperationResultRef(input.RequestID, stage),
+			ResultKind:    "activity_failure",
+			StepID:        stage,
+			StepKind:      "replanner",
+			TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
+		}, true
+	case stage == "answer.synthesize":
+		return temporalStepFailureProjection{
+			ProjectionRef: workflowOperationResultRef(input.RequestID, stage),
+			ResultKind:    "activity_failure",
+			StepID:        stage,
+			StepKind:      "synthesizer",
+			TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
+		}, true
+	case stage == "finalization.write":
 		return temporalStepFailureProjection{
 			ProjectionRef: temporalProjectionRef(input.RequestID, "finalization/write"),
 			ResultKind:    "activity_failure",

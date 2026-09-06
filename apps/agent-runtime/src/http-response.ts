@@ -1,9 +1,16 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { PrimaryAgentRunResult, PrimaryAgentRuntime } from "./agent-run-contract.ts";
+import type {
+	CompletedTaskStep,
+	TaskPlan,
+	TaskReplan,
+	WorkflowEvidence,
+	WorkflowOperationResult,
+	WorkflowOperationStreamEvent,
+} from "./agent-run-contract.ts";
 import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
 export function agentRunStreamResponse(
-	events: ReturnType<PrimaryAgentRuntime["stream"]>,
+	events: AsyncIterable<WorkflowOperationStreamEvent>,
 	options: {
 		deadlineSignal?: AbortSignal;
 		onError?: (error: unknown) => void;
@@ -41,10 +48,19 @@ export function agentRunStreamResponse(
 						throw new Error("Agent runtime stream ended without a terminal event.");
 					}
 					const event = item.value;
+					if (event.event === "solve_decision") {
+						controller.enqueue(
+							encodeSseEvent("solve_decision", {
+								schema_version: "workflow_runtime_solve_decision.v1",
+								outcome: event.data.outcome,
+							}),
+						);
+						continue;
+					}
 					if (event.event === "answer_delta") {
 						controller.enqueue(
 							encodeSseEvent("answer_delta", {
-								schema_version: "agent_runtime_answer_delta.v3",
+								schema_version: "workflow_runtime_answer_delta.v1",
 								delta: event.data.delta,
 							}),
 						);
@@ -92,8 +108,9 @@ export function agentRunStreamResponse(
 	});
 }
 
-export function agentRunResultWire(result: PrimaryAgentRunResult, runtimeRelease: string) {
+export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelease: string) {
 	return {
+		operation: result.operation,
 		status: result.status,
 		request_id: result.requestId,
 		runtime_release: runtimeRelease,
@@ -119,6 +136,19 @@ export function agentRunResultWire(result: PrimaryAgentRunResult, runtimeRelease
 				: {}),
 		},
 		final_output: result.finalOutput,
+		...(result.solveOutcome === undefined ? {} : { solve_outcome: result.solveOutcome }),
+		...(result.structuredOutput === undefined
+			? {}
+			: { structured_output: structuredOutputWire(result.structuredOutput) }),
+		...(result.completedStep === undefined
+			? {}
+			: { completed_step: completedStepWire(result.completedStep) }),
+		evidence: result.evidence.map(evidenceWire),
+		source_attempts: result.sourceAttempts.map((attempt) => ({
+			source: attempt.source,
+			status: attempt.status,
+			...(attempt.failureCode ? { failure_code: attempt.failureCode } : {}),
+		})),
 		model_name: result.modelName,
 		model_provider: result.modelProvider,
 		prompt_trace: {
@@ -172,6 +202,63 @@ export function agentRunResultWire(result: PrimaryAgentRunResult, runtimeRelease
 			cached_input_tokens: result.usage.cachedInputTokens ?? 0,
 			usage_observed: result.usage.usageObserved,
 		},
+	};
+}
+
+function structuredOutputWire(value: TaskPlan | TaskReplan): Record<string, unknown> {
+	if (value.schemaVersion === "task_plan.v1") {
+		return {
+			goal: value.goal,
+			schema_version: value.schemaVersion,
+			steps: value.steps.map(taskPlanStepWire),
+		};
+	}
+	return {
+		decision: value.decision,
+		reason: value.reason,
+		remaining_steps: value.remainingSteps.map(taskPlanStepWire),
+		schema_version: value.schemaVersion,
+	};
+}
+
+function taskPlanStepWire(step: TaskPlan["steps"][number]) {
+	return {
+		candidate_sources: step.candidateSources,
+		depends_on: step.dependsOn,
+		id: step.id,
+		objective: step.objective,
+	};
+}
+
+function completedStepWire(step: CompletedTaskStep) {
+	return {
+		evidence: step.evidence.map(evidenceWire),
+		execution_index: step.executionIndex,
+		source_attempts: step.sourceAttempts.map((attempt) => ({
+			source: attempt.source,
+			status: attempt.status,
+			...(attempt.failureCode ? { failure_code: attempt.failureCode } : {}),
+		})),
+		step: taskPlanStepWire(step.step),
+		summary: step.summary,
+	};
+}
+
+function evidenceWire(evidence: WorkflowEvidence) {
+	return {
+		excerpt: evidence.excerpt,
+		id: evidence.id,
+		schema_version: evidence.schemaVersion,
+		source: evidence.source,
+		title: evidence.title,
+		...(evidence.citationIndex === undefined ? {} : { citation_index: evidence.citationIndex }),
+		...(evidence.url === undefined ? {} : { url: evidence.url }),
+		...(evidence.resultRef === undefined ? {} : { result_ref: evidence.resultRef }),
+		...(evidence.documentId === undefined ? {} : { document_id: evidence.documentId }),
+		...(evidence.sectionRef === undefined ? {} : { section_ref: evidence.sectionRef }),
+		...(evidence.sectionTitle === undefined ? {} : { section_title: evidence.sectionTitle }),
+		...(evidence.versionId === undefined ? {} : { version_id: evidence.versionId }),
+		...(evidence.versionSlug === undefined ? {} : { version_slug: evidence.versionSlug }),
 	};
 }
 

@@ -283,24 +283,33 @@ async def _score_with_official_ragas_metrics(
                 )
             )
             continue
-        if metric_name == "faithfulness":
-            score = await Faithfulness(llm=llm).ascore(
-                projection.user_input, projection.response, contexts
+        try:
+            if metric_name == "faithfulness":
+                score = await Faithfulness(llm=llm).ascore(
+                    projection.user_input, projection.response, contexts
+                )
+            elif metric_name == "answer_relevancy":
+                score = await AnswerRelevancy(llm=llm, embeddings=embeddings, strictness=1).ascore(
+                    projection.user_input, projection.response
+                )
+            elif metric_name == "context_precision":
+                score = await ContextPrecision(llm=llm).ascore(
+                    projection.user_input, projection.reference, contexts
+                )
+            elif metric_name == "context_recall":
+                score = await ContextRecall(llm=llm).ascore(
+                    projection.user_input, contexts, projection.reference
+                )
+            else:
+                raise ValueError(f"unsupported metric: {metric_name}")
+        except Exception as error:
+            results.append(
+                RagasResult(
+                    metric_name=metric_name,
+                    rationale=_metric_exception_reason(error),
+                )
             )
-        elif metric_name == "answer_relevancy":
-            score = await AnswerRelevancy(llm=llm, embeddings=embeddings, strictness=1).ascore(
-                projection.user_input, projection.response
-            )
-        elif metric_name == "context_precision":
-            score = await ContextPrecision(llm=llm).ascore(
-                projection.user_input, projection.reference, contexts
-            )
-        elif metric_name == "context_recall":
-            score = await ContextRecall(llm=llm).ascore(
-                projection.user_input, contexts, projection.reference
-            )
-        else:
-            raise ValueError(f"unsupported metric: {metric_name}")
+            continue
         results.append(
             RagasResult(
                 metric_name=metric_name,
@@ -321,6 +330,13 @@ def _metric_value(result: object) -> float | None:
 def _metric_reason(result: object) -> str:
     reason = getattr(result, "reason", None)
     return reason.strip() if isinstance(reason, str) else ""
+
+
+def _metric_exception_reason(error: Exception) -> str:
+    message = str(error).strip()
+    if len(message) > 1000:
+        message = f"{message[:997]}..."
+    return f"{type(error).__name__}: {message}" if message else type(error).__name__
 
 
 def _load_json_object(path: Path) -> dict[str, object]:

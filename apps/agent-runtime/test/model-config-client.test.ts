@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-	ModelConfigClientError,
-	resolvePrimaryAgentModelConfig,
-} from "../src/model-config-client.ts";
+import { ModelConfigClientError, resolveModelRuntimeConfig } from "../src/model-config-client.ts";
 
 const targetSha256 = "1c8c4cf353f3040aeabe9beb3f3e946acb1c645f95a609ade778d22c920a62ec";
 
@@ -31,7 +28,7 @@ describe("Model Config runtime client", () => {
 		});
 
 		await expect(
-			resolvePrimaryAgentModelConfig(
+			resolveModelRuntimeConfig(
 				{ baseUrl: "http://model-config/", fetchImplementation: fetchMock },
 				targetSha256,
 			),
@@ -50,7 +47,7 @@ describe("Model Config runtime client", () => {
 		async (expected) => {
 			const fetchMock = vi.fn<typeof fetch>();
 			await expect(
-				resolvePrimaryAgentModelConfig(
+				resolveModelRuntimeConfig(
 					{ baseUrl: "http://model-config", fetchImplementation: fetchMock },
 					expected,
 				),
@@ -66,7 +63,7 @@ describe("Model Config runtime client", () => {
 		[503, "model_config_unavailable"],
 	] as const)("maps HTTP %i to %s", async (status, code) => {
 		await expect(
-			resolvePrimaryAgentModelConfig(
+			resolveModelRuntimeConfig(
 				{
 					baseUrl: "http://model-config",
 					fetchImplementation: async () => new Response(null, { status }),
@@ -78,7 +75,7 @@ describe("Model Config runtime client", () => {
 
 	it("loads a Chat Completions runtime config for the SDK runner", async () => {
 		await expect(
-			resolvePrimaryAgentModelConfig(
+			resolveModelRuntimeConfig(
 				{
 					baseUrl: "http://model-config",
 					fetchImplementation: async () =>
@@ -108,7 +105,7 @@ describe("Model Config runtime client", () => {
 	] as const)("rejects %s", async (_name, response) => {
 		let error: unknown;
 		try {
-			await resolvePrimaryAgentModelConfig(
+			await resolveModelRuntimeConfig(
 				{
 					baseUrl: "http://model-config",
 					fetchImplementation: async () => response,

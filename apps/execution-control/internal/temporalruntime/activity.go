@@ -2,8 +2,11 @@ package temporalruntime
 
 const (
 	AppendConversationMemoryActivityName             = "AppendConversationMemoryActivity"
-	ExecutePrimaryAgentActivityName                  = "ExecutePrimaryAgentActivity"
-	WriteFinalizationActivityName                    = "WriteFinalizationActivity"
+	SolveTaskActivityName                            = "SolveTaskActivity"
+	ExecuteTaskStepActivityName                      = "ExecuteTaskStepActivity"
+	ReplanTaskActivityName                           = "ReplanTaskActivity"
+	SynthesizeAnswerActivityName                     = "SynthesizeAnswerActivity"
+	WriteWorkflowFinalizationActivityName            = "WriteWorkflowFinalizationActivity"
 	FinalizeExecutionCancellationActivityName        = "FinalizeExecutionCancellationActivity"
 	ExecutePersonalMemoryCommandActivityName         = "ExecutePersonalMemoryCommandActivity"
 	FinalizePersonalMemoryCommandReceiptActivityName = "FinalizePersonalMemoryCommandReceiptActivity"

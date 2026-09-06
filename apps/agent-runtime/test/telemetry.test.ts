@@ -1,6 +1,5 @@
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { context, SpanStatusCode, TraceFlags, trace } from "@opentelemetry/api";
-import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
 	InMemorySpanExporter,
@@ -9,13 +8,9 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { PrimaryAgentRuntime } from "../src/agent-run-contract.ts";
+import type { WorkflowOperationRuntime } from "../src/agent-run-contract.ts";
 import { createAgentRuntimeHandler } from "../src/http-server.ts";
-import {
-	injectTraceContext,
-	isAgentLangfuseSpan,
-	runWithExtractedTraceContext,
-} from "../src/telemetry.ts";
+import { isAgentLangfuseSpan } from "../src/telemetry.ts";
 import { createSafeSpanProcessor } from "../src/telemetry-sanitizer.ts";
 import { testToolContractFingerprint } from "./helpers/runtime-contract.ts";
 
@@ -35,7 +30,7 @@ const provider = new NodeTracerProvider({
 });
 
 beforeAll(() => {
-	provider.register({ propagator: new W3CTraceContextPropagator() });
+	provider.register();
 });
 
 afterAll(async () => {
@@ -45,15 +40,6 @@ afterAll(async () => {
 });
 
 describe("agent runtime Langfuse telemetry", () => {
-	it("propagates traceparent without forwarding baggage", () => {
-		const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-		const inbound = new Headers({ baggage: "release=2026.08.31", traceparent });
-		const outbound = runWithExtractedTraceContext(inbound, () => injectTraceContext(new Headers()));
-
-		expect(outbound.get("traceparent")).toBe(traceparent);
-		expect(outbound.get("baggage")).toBeNull();
-	});
-
 	it("exports the Arize OpenInference scope and rejects unrelated spans", async () => {
 		exporter.reset();
 		provider.getTracer(agentScope).startSpan("agent-run").end();
@@ -200,7 +186,7 @@ describe("agent runtime Langfuse telemetry", () => {
 
 	it("keeps only product correlation attributes active while a response stream is consumed", async () => {
 		exporter.reset();
-		const runtime: PrimaryAgentRuntime = {
+		const runtime: WorkflowOperationRuntime = {
 			async run() {
 				throw new Error("blocking runtime is not expected");
 			},
@@ -209,7 +195,7 @@ describe("agent runtime Langfuse telemetry", () => {
 					provider.getTracer(agentScope).startSpan("stream-model-call").end();
 					yield {
 						event: "completed" as const,
-						data: completedResult(input.requestId),
+						data: completedResult(input),
 					};
 				})();
 			},
@@ -248,8 +234,8 @@ describe("agent runtime Langfuse telemetry", () => {
 		expect(span?.attributes).toMatchObject({
 			"session.id": "conversation-1",
 			"langfuse.trace.metadata.request_id": "request-1",
-			"langfuse.trace.name": "online-answer",
-			"langfuse.trace.tags": ["surface:agent-runtime"],
+			"langfuse.trace.name": "workflow-synthesize",
+			"langfuse.trace.tags": ["surface:agent-runtime", "operation:synthesize"],
 			"user.id": "user-1",
 		});
 		expect(span?.attributes).not.toHaveProperty("langfuse.trace.metadata.activity_attempt");
@@ -260,7 +246,13 @@ function validRunBody() {
 	return {
 		activity_attempt: 2,
 		conversation_id: "conversation-1",
-		input: "你好",
+		operation: "synthesize" as const,
+		operation_input: {
+			completed_steps: [],
+			evidence: [],
+			goal: "你好",
+			plan: { schema_version: "task_plan.v1" as const, goal: "你好", steps: [] },
+		},
 		limits: {
 			agent_deadline_ms: 10_000,
 			context_char_limit: 16_000,
@@ -268,6 +260,8 @@ function validRunBody() {
 			max_output_tokens: 1_000,
 			max_function_tool_calls: 0,
 			max_turns: 1,
+			max_plan_steps: 4,
+			max_replans: 1,
 		},
 		expected_model_target_sha256:
 			"5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
@@ -282,8 +276,9 @@ function validRunBody() {
 	};
 }
 
-function completedResult(requestId: string) {
+function completedResult(input: { requestId: string }) {
 	return {
+		operation: "synthesize" as const,
 		contextUsage: {
 			contextChars: 44,
 			currentInputChars: 2,
@@ -293,17 +288,19 @@ function completedResult(requestId: string) {
 		modelName: "test-model",
 		modelProvider: "openai",
 		promptTrace: {
-			promptId: "primary_agent" as const,
+			promptId: "workflow.synthesize" as const,
 			promptTemplateSha256: "sha256:template",
 			renderedPromptSha256: "sha256:rendered",
 			schemaVersion: "agent_runtime_prompt_trace.v1" as const,
 		},
 		providerResponseId: "response-1",
-		requestId,
+		requestId: input.requestId,
 		stageTiming: {},
 		status: "completed" as const,
-		terminalReason: "answer_completed" as const,
+		terminalReason: "operation_completed" as const,
 		toolResults: [],
+		evidence: [],
+		sourceAttempts: [],
 		webCitations: [],
 		webSearchUsed: false,
 		toolContractFingerprint: testToolContractFingerprint(),

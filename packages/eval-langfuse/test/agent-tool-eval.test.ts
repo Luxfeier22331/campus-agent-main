@@ -72,10 +72,10 @@ describe("agent eval cases", () => {
 			resolve(import.meta.dirname, "../assets/agent/routing/cases.v1.json"),
 		);
 
-		expect(result.case_count).toBe(14);
-		expect(result.tool_counts).toEqual({ campus_search: 6, direct_answer: 8 });
+		expect(result.case_count).toBe(16);
+		expect(result.tool_counts).toEqual({ campus_search: 8, direct_answer: 8 });
 		const ragCases = result.cases.filter((item) => item.reference_context_ids.length > 0);
-		expect(ragCases).toHaveLength(6);
+		expect(ragCases).toHaveLength(8);
 		expect(ragCases.every((item) => item.reference_context_ids[0]?.startsWith("evidence://"))).toBe(
 			true,
 		);
@@ -88,6 +88,12 @@ describe("agent eval cases", () => {
 		).toMatchObject({
 			reference_tool_calls: [],
 		});
+		expect(result.cases.find((item) => item.case_id === "routing-six-turn-context")).toMatchObject({
+			setup_turns: expect.arrayContaining(["我是中央民族大学一年级本科生。"]),
+		});
+		expect(
+			result.cases.find((item) => item.case_id === "routing-six-turn-context")?.setup_turns,
+		).toHaveLength(6);
 	});
 
 	it("loads versioned cases without Langfuse identity", () => {
@@ -207,6 +213,65 @@ describe("agent product eval runner", () => {
 				toolTrajectory: { decision_kind: "direct_answer", tool_calls: [] },
 			});
 			expect(readFileSync(outputPath, "utf-8")).toContain("agent_product_eval_result.v3");
+		} finally {
+			rmSync(directory, { force: true, recursive: true });
+		}
+	});
+
+	it("waits for the final execution projection after product completion", async () => {
+		const directory = mkdtempSync(join(tmpdir(), "agent-product-eval-projection-wait-test-"));
+		try {
+			const casesPath = join(directory, "cases.json");
+			const outputPath = join(directory, "product-result.json");
+			writeFileSync(casesPath, JSON.stringify(casesPayload()), "utf-8");
+			let streamCount = 0;
+			let projectionReads = 0;
+
+			const fetchImpl: typeof fetch = async (input) => {
+				const url = String(input);
+				if (url.endsWith("/api/chat/requests/stream")) {
+					streamCount += 1;
+					const setup = streamCount === 1;
+					const requestId = setup ? "request-setup" : "request-001";
+					return new Response(
+						sse("request.accepted", { requestId, status: "accepted" }) +
+							sse("request.completed", {
+								answer: {
+									conversation: { id: "conversation-001", messages: [] },
+									result: {
+										kind: "answer",
+										requestId,
+										text: setup ? "准备查询。" : "图书馆 8 点开门。",
+									},
+								},
+								requestId,
+								status: "completed",
+							}),
+						{ headers: { "content-type": "text/event-stream" } },
+					);
+				}
+				if (url.endsWith("/internal/execution/requests/request-001/steps")) {
+					projectionReads += 1;
+					return runStepsResponse({
+						answer: projectionReads === 1 ? "" : "图书馆 8 点开门。",
+						requestId: "request-001",
+					});
+				}
+				throw new Error(`unexpected projection wait request: ${url}`);
+			};
+
+			await runAgentToolEval({
+				appApiBaseUrl: "https://app-api.example",
+				casesPath,
+				cookieHeader: "session=test",
+				executionControlAuthSecret: "execution-secret",
+				executionControlBaseUrl: "https://execution-control.example",
+				fetchImpl,
+				outputPath,
+			});
+
+			expect(projectionReads).toBe(2);
+			expect(loadAgentProductEvalResult(outputPath).items[0]?.answer).toBe("图书馆 8 点开门。");
 		} finally {
 			rmSync(directory, { force: true, recursive: true });
 		}

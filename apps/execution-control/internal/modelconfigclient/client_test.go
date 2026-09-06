@@ -17,7 +17,7 @@ func TestNewRejectsMissingURL(t *testing.T) {
 	}
 }
 
-func TestResolvePrimaryAgentTargetValidatesContract(t *testing.T) {
+func TestResolveModelTargetValidatesContract(t *testing.T) {
 	const targetSHA256 = "4b20ab70a9ac22073110f59ea007f27de19d731319b62ed4bd60b11d057c6635"
 	target := map[string]any{
 		"api_protocol":   "openai.responses",
@@ -74,12 +74,12 @@ func TestResolvePrimaryAgentTargetValidatesContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := client.ResolvePrimaryAgentTarget(context.Background())
+			got, err := client.ResolveModelTarget(context.Background())
 			if test.wantErr == "" {
 				if err != nil {
 					t.Fatal(err)
 				}
-				want := PrimaryAgentTarget{TargetSHA256: targetSHA256}
+				want := ModelTarget{TargetSHA256: targetSHA256}
 				if got != want {
 					t.Fatalf("setting = %#v, want %#v", got, want)
 				}
@@ -92,7 +92,7 @@ func TestResolvePrimaryAgentTargetValidatesContract(t *testing.T) {
 	}
 }
 
-func TestResolvePrimaryAgentTargetRejectsNonSuccess(t *testing.T) {
+func TestResolveModelTargetRejectsNonSuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 	}))
@@ -101,7 +101,7 @@ func TestResolvePrimaryAgentTargetRejectsNonSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.ResolvePrimaryAgentTarget(context.Background()); err == nil || !strings.Contains(err.Error(), "HTTP 403") {
+	if _, err := client.ResolveModelTarget(context.Background()); err == nil || !strings.Contains(err.Error(), "HTTP 403") {
 		t.Fatalf("error = %v", err)
 	}
 }

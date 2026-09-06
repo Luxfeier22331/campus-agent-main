@@ -82,7 +82,7 @@ function finalizedWrite(): FinalizeRequestWrite {
 			status: "completed",
 			surface: "campus_web",
 			stageTiming: {
-				"agent.runtime_ms": 320,
+				"workflow.execute_step_ms": 320,
 			},
 			updatedAt: "2026-06-04T01:02:06.000Z",
 		},
@@ -620,7 +620,7 @@ describe("pg chat command store", () => {
 		expect(insertValues).toHaveBeenCalledWith(
 			expect.objectContaining({
 				stageTimingJson: {
-					"agent.runtime_ms": 320,
+					"workflow.execute_step_ms": 320,
 				},
 			}),
 		);
@@ -631,7 +631,7 @@ describe("pg chat command store", () => {
 		const conflictTimingQuery = dialect.sqlToQuery(conflictUpdate.set.stageTimingJson);
 		const conflictUpdatedAtQuery = dialect.sqlToQuery(conflictUpdate.set.updatedAt);
 		expect(conflictTimingQuery.sql).toContain("excluded.stage_timing_json");
-		expect(conflictTimingQuery.sql).toContain("agent.first_delta_ms");
+		expect(conflictTimingQuery.sql).toContain("workflow.first_delta_ms");
 		expect(conflictTimingQuery.sql).toContain("stream.app_api_ttft_ms");
 		expect(conflictTimingQuery.sql).toContain("stream.orchestration_overhead_ms");
 		expect(conflictUpdatedAtQuery.sql).toContain("greatest");

@@ -16,7 +16,7 @@ func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 
 	for name, activities := range map[string]any{
 		"context":      sets.Context,
-		"agent":        sets.Agent,
+		"workflow":     sets.Workflow,
 		"finalization": sets.Finalization,
 	} {
 		activityType := reflect.TypeOf(activities)
@@ -48,17 +48,24 @@ func TestTemporalActivityInterfacesExposeOnlyTheirQueueMethods(t *testing.T) {
 		t.Fatal("context activities still expose retired UpdateInferredMemoryActivity")
 	}
 
-	agentType := reflect.TypeOf((*temporalruntime.AgentActivities)(nil)).Elem()
-	if _, ok := agentType.MethodByName("ExecutePrimaryAgentActivity"); !ok {
-		t.Fatal("agent activities missing ExecutePrimaryAgentActivity")
+	workflowType := reflect.TypeOf((*temporalruntime.WorkflowActivities)(nil)).Elem()
+	for _, method := range []string{
+		"SolveTaskActivity",
+		"ExecuteTaskStepActivity",
+		"ReplanTaskActivity",
+		"SynthesizeAnswerActivity",
+	} {
+		if _, ok := workflowType.MethodByName(method); !ok {
+			t.Fatalf("workflow activities missing %s", method)
+		}
 	}
-	if _, ok := agentType.MethodByName("PlanRouteActivity"); ok {
-		t.Fatal("agent activities expose context method")
+	if _, ok := workflowType.MethodByName("AppendConversationMemoryActivity"); ok {
+		t.Fatal("workflow activities expose context method")
 	}
 
 	finalizationType := reflect.TypeOf((*temporalruntime.FinalizationActivities)(nil)).Elem()
-	if _, ok := finalizationType.MethodByName("WriteFinalizationActivity"); !ok {
-		t.Fatal("finalization activities missing WriteFinalizationActivity")
+	if _, ok := finalizationType.MethodByName("WriteWorkflowFinalizationActivity"); !ok {
+		t.Fatal("finalization activities missing WriteWorkflowFinalizationActivity")
 	}
 	if _, ok := finalizationType.MethodByName("FinalizeExecutionFailureActivity"); !ok {
 		t.Fatal("finalization activities missing FinalizeExecutionFailureActivity")
@@ -95,10 +102,10 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 		worker.Stop()
 	})
 	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewAgentActivityWorker(
+		worker := temporalruntime.NewWorkflowOperationActivityWorker(
 			temporalClient,
 			"test-agent",
-			sets.Agent,
+			sets.Workflow,
 		)
 		worker.Stop()
 	})

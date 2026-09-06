@@ -32,7 +32,7 @@ type Options struct {
 	PersonalMemoryStateError  error
 	ProductFinalizationWriter ProductFinalizationWriter
 	ProductCallbackClient     outboundadapter.ProductCallbackClient
-	AgentRuntimeClient        outboundadapter.AgentRuntimeStreamClient
+	AgentRuntimeClient        outboundadapter.AgentRuntimeClient
 	RunProjectionStore        execution.RunProjectionStore
 }
 
@@ -48,18 +48,39 @@ type Adapter struct {
 	personalMemoryStateErr    error
 	productFinalizationWriter ProductFinalizationWriter
 	productCallbackClient     outboundadapter.ProductCallbackClient
-	agentRuntimeClient        outboundadapter.AgentRuntimeStreamClient
+	agentRuntimeClient        outboundadapter.AgentRuntimeClient
 	runProjectionStore        execution.RunProjectionStore
 }
 
 // The adapter itself is the Temporal activity set. Keeping registration
 // methods on the concrete adapter avoids a second forwarding owner between
 // Temporal and the execution application.
-func (a *Adapter) ExecutePrimaryAgentActivity(
+func (a *Adapter) SolveTaskActivity(
 	ctx context.Context,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
-	return a.ExecutePrimaryAgent(ctx, input)
+	input temporalruntime.SolveTaskActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	return a.SolveTask(ctx, input)
+}
+
+func (a *Adapter) ExecuteTaskStepActivity(
+	ctx context.Context,
+	input temporalruntime.ExecuteTaskStepActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	return a.ExecuteTaskStep(ctx, input)
+}
+
+func (a *Adapter) ReplanTaskActivity(
+	ctx context.Context,
+	input temporalruntime.ReplanTaskActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	return a.ReplanTask(ctx, input)
+}
+
+func (a *Adapter) SynthesizeAnswerActivity(
+	ctx context.Context,
+	input temporalruntime.SynthesizeAnswerActivityInput,
+) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	return a.SynthesizeAnswer(ctx, input)
 }
 
 func (a *Adapter) AppendConversationMemoryActivity(
@@ -104,11 +125,11 @@ func (a *Adapter) FinalizeExecutionFailureActivity(
 	return a.FinalizeExecutionFailure(ctx, input)
 }
 
-func (a *Adapter) WriteFinalizationActivity(
+func (a *Adapter) WriteWorkflowFinalizationActivity(
 	ctx context.Context,
-	input temporalruntime.WriteFinalizationActivityInput,
-) (temporalruntime.WriteFinalizationActivityOutput, error) {
-	return a.WriteFinalization(ctx, input)
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
+) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
+	return a.WriteWorkflowFinalization(ctx, input)
 }
 
 func New(options Options) *Adapter {

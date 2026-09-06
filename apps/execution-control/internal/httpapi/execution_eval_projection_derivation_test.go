@@ -46,13 +46,13 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 		t.Fatalf("start run: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "agent.primary:result:1",
-		StepID:               "agent.primary",
+		ResultID:             "task.step.scholarship:result:1",
+		StepID:               "task.step.scholarship",
 		RequestID:            run.RequestID,
-		AttemptID:            temporalStepAttemptID(run.RequestID, "agent.primary", 1),
+		AttemptID:            temporalStepAttemptID(run.RequestID, "task.step.scholarship", 1),
 		Status:               "completed",
-		ResultKind:           "agent_final_output",
-		ProjectionRef:        "projection://runs/run-temporal-derived-eval/agent/primary/result",
+		ResultKind:           "task_step_result",
+		ProjectionRef:        "projection://runs/run-temporal-derived-eval/task/step/scholarship/result",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
@@ -72,6 +72,8 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesAnswerAndContexts(t *
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
+			"activity_attempt": 1,
+			"parent_step_id":   "task.step.scholarship",
 			"result": campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{
 				{ResultRef: "result://" + strings.Repeat("a", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026#eligibility", SectionTitle: "申请条件", RootUnitIDs: []string{"scholarship-eligibility"}, VersionID: "version-scholarship-2026", VersionSlug: "2026", Text: "国家奖学金评审需要满足学习成绩和综合测评要求。"},
 				{ResultRef: "result://" + strings.Repeat("b", 64), SourceKind: "document", DocumentID: "handbook:scholarship-policy", Title: "本科生国家奖学金评审办法", SectionRef: "/docs/regulations/student_rules/scholarship/v/2026#award", SectionTitle: "奖励标准", RootUnitIDs: []string{"scholarship-award"}, VersionID: "version-scholarship-2026", VersionSlug: "2026", Text: "国家奖学金奖励标准按照学校当年评审办法执行。"},
@@ -183,13 +185,13 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsDirectAnswer(t *test
 		t.Fatalf("start run: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             "agent.primary:result:1",
-		StepID:               "agent.primary",
+		ResultID:             "answer.synthesize:result:1",
+		StepID:               "answer.synthesize",
 		RequestID:            run.RequestID,
-		AttemptID:            temporalStepAttemptID(run.RequestID, "agent.primary", 1),
+		AttemptID:            temporalStepAttemptID(run.RequestID, "answer.synthesize", 1),
 		Status:               "completed",
-		ResultKind:           "agent_final_output",
-		ProjectionRef:        "projection://runs/run-temporal-derived-history-eval/agent/primary/result",
+		ResultKind:           "answer_synthesis",
+		ProjectionRef:        "projection://runs/run-temporal-derived-history-eval/answer/synthesize/result",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
@@ -253,20 +255,20 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsPersonalMemoryToolCa
 		t.Fatalf("start run: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
-		ResultID:             temporalStepResultIDForHTTPTest(run.RequestID, "agent.primary", 1),
-		StepID:               "agent.primary",
+		ResultID:             temporalStepResultIDForHTTPTest(run.RequestID, "task.step.memory", 1),
+		StepID:               "task.step.memory",
 		RequestID:            run.RequestID,
-		AttemptID:            temporalStepAttemptID(run.RequestID, "agent.primary", 1),
+		AttemptID:            temporalStepAttemptID(run.RequestID, "task.step.memory", 1),
 		Status:               "completed",
-		ResultKind:           "agent_final_output",
-		ProjectionRef:        "projection://runs/run-temporal-memory-derived-eval/agent/primary/result",
+		ResultKind:           "task_step_result",
+		ProjectionRef:        "projection://runs/run-temporal-memory-derived-eval/task/step/memory/result",
 		CreatedAt:            now,
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
 			"activity_attempt": 1,
 		},
 	}); err != nil {
-		t.Fatalf("upsert primary agent result: %v", err)
+		t.Fatalf("upsert workflow step result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             temporalStepResultIDForHTTPTest(run.RequestID, "sdk_tool.execute.personal_memory_recall.1", 1),
@@ -280,7 +282,9 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionProjectsPersonalMemoryToolCa
 		PayloadSchemaVersion: "step-result-projection-v1",
 		SanitizedPayload: map[string]any{
 			"arguments_json_sha256": "sha256:memory-query",
+			"activity_attempt":      1,
 			"outcome":               "matched",
+			"parent_step_id":        "task.step.memory",
 			"result_sha256":         "sha256:memory-result",
 			"tool_name":             "personal_memory_recall",
 			"tool_status":           "completed",

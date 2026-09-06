@@ -5,7 +5,7 @@ info:
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 x-campus-contract:
   execution_contract_version: tool_execution_v7
-  response_contract: execution_finalization_response_v8
+  response_contract: execution_finalization_response_v9
   versioning_policy:
     execution_contract_version: incompatible execution envelope changes must bump execution_contract_version
     response_contract: ExecutionFinalizationResponse wire contract changes must bump response_contract
@@ -589,7 +589,7 @@ components:
         execution.dispatch_ms:
           type: number
           minimum: 0
-        agent.schedule_to_start_ms:
+        workflow.schedule_to_start_ms:
           type: number
           minimum: 0
         stream.first_delta_persist_ms:
@@ -607,13 +607,19 @@ components:
         memory.recall_ms:
           type: number
           minimum: 0
-        agent.primary_ms:
+        workflow.solve_ms:
           type: number
           minimum: 0
-        agent.runtime_ms:
+        workflow.execute_step_ms:
           type: number
           minimum: 0
-        agent.first_delta_ms:
+        workflow.replan_ms:
+          type: number
+          minimum: 0
+        workflow.synthesize_ms:
+          type: number
+          minimum: 0
+        workflow.first_delta_ms:
           type: number
           minimum: 0
         tool.total_ms:
@@ -719,7 +725,7 @@ components:
         execution_contract_version:
           const: tool_execution_v7
         response_contract:
-          const: execution_finalization_response_v8
+          const: execution_finalization_response_v9
         user_goal:
           type: string
         conversation_id:

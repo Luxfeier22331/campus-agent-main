@@ -8,7 +8,7 @@ import { evaluateStageTimingBudget, LATENCY_BUDGET_RULES } from "../src/modules/
 describe("runtime latency budget", () => {
 	it("classifies canonical stage timing fields against repo-owned thresholds", () => {
 		const result = evaluateStageTimingBudget({
-			"agent.runtime_ms": 13_000,
+			"workflow.execute_step_ms": 13_000,
 			"request.total_ms": 900,
 		});
 
@@ -16,12 +16,12 @@ describe("runtime latency budget", () => {
 		expect(result.breaches).toEqual([
 			{
 				durationMs: 13_000,
-				field: "agent.runtime_ms",
+				field: "workflow.execute_step_ms",
 				severity: "critical",
 				thresholdMs: 12_000,
 			},
 		]);
-		expect(result.worstBreach?.field).toBe("agent.runtime_ms");
+		expect(result.worstBreach?.field).toBe("workflow.execute_step_ms");
 	});
 
 	it("keeps every canonical stage timing field covered by the versioned budget artifact", () => {

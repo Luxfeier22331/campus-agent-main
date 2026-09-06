@@ -9,6 +9,110 @@ import (
 
 type ToolExecutionWorkflowInput = execution.WorkflowStartInput
 
+type WorkflowOperation string
+
+const (
+	WorkflowOperationSolve       WorkflowOperation = "solve"
+	WorkflowOperationExecuteStep WorkflowOperation = "execute_step"
+	WorkflowOperationReplan      WorkflowOperation = "replan"
+	WorkflowOperationSynthesize  WorkflowOperation = "synthesize"
+)
+
+type WorkflowSource string
+
+const (
+	WorkflowSourceCampusSearch         WorkflowSource = "campus_search"
+	WorkflowSourceWebSearch            WorkflowSource = "web_search"
+	WorkflowSourcePersonalMemoryRecall WorkflowSource = "personal_memory_recall"
+)
+
+type WorkflowTaskPlan struct {
+	SchemaVersion string                 `json:"schema_version"`
+	Goal          string                 `json:"goal"`
+	Steps         []WorkflowTaskPlanStep `json:"steps"`
+}
+
+type WorkflowTaskPlanStep struct {
+	ID               string           `json:"id"`
+	Objective        string           `json:"objective"`
+	CandidateSources []WorkflowSource `json:"candidate_sources"`
+	DependsOn        []string         `json:"depends_on"`
+}
+
+type WorkflowTaskReplan struct {
+	SchemaVersion  string                 `json:"schema_version"`
+	Decision       string                 `json:"decision"`
+	Reason         string                 `json:"reason"`
+	RemainingSteps []WorkflowTaskPlanStep `json:"remaining_steps"`
+}
+
+type WorkflowEvidence struct {
+	SchemaVersion string         `json:"schema_version"`
+	ID            string         `json:"id"`
+	Source        WorkflowSource `json:"source"`
+	Title         string         `json:"title"`
+	Excerpt       string         `json:"excerpt"`
+	CitationIndex int            `json:"citation_index,omitempty"`
+	URL           string         `json:"url,omitempty"`
+	ResultRef     string         `json:"result_ref,omitempty"`
+	DocumentID    string         `json:"document_id,omitempty"`
+	SectionRef    string         `json:"section_ref,omitempty"`
+	SectionTitle  string         `json:"section_title,omitempty"`
+	VersionID     string         `json:"version_id,omitempty"`
+	VersionSlug   string         `json:"version_slug,omitempty"`
+}
+
+type WorkflowSourceAttempt struct {
+	Source      WorkflowSource `json:"source"`
+	Status      string         `json:"status"`
+	FailureCode string         `json:"failure_code,omitempty"`
+}
+
+type WorkflowCompletedStep struct {
+	Step           WorkflowTaskPlanStep    `json:"step"`
+	ExecutionIndex int                     `json:"execution_index"`
+	Summary        string                  `json:"summary"`
+	Evidence       []WorkflowEvidence      `json:"evidence"`
+	SourceAttempts []WorkflowSourceAttempt `json:"source_attempts"`
+}
+
+type WorkflowOperationActivityInputBase struct {
+	AdmissionSnapshot        execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
+	ConversationID           string                           `json:"conversation_id"`
+	RequestID                string                           `json:"request_id"`
+	TraceParent              string                           `json:"traceparent,omitempty"`
+	VisibleFunctionToolNames []string                         `json:"visible_function_tool_names"`
+}
+
+type SolveTaskActivityInput struct {
+	WorkflowOperationActivityInputBase
+	MaxSteps int `json:"max_steps"`
+}
+
+type ExecuteTaskStepActivityInput struct {
+	WorkflowOperationActivityInputBase
+	Plan           WorkflowTaskPlan        `json:"plan"`
+	Step           WorkflowTaskPlanStep    `json:"step"`
+	CompletedSteps []WorkflowCompletedStep `json:"completed_steps"`
+	CitationStart  int                     `json:"citation_start"`
+}
+
+type ReplanTaskActivityInput struct {
+	WorkflowOperationActivityInputBase
+	Plan              WorkflowTaskPlan        `json:"plan"`
+	CompletedSteps    []WorkflowCompletedStep `json:"completed_steps"`
+	RemainingSteps    []WorkflowTaskPlanStep  `json:"remaining_steps"`
+	MaxRemainingSteps int                     `json:"max_remaining_steps"`
+	ReplanIndex       int                     `json:"replan_index"`
+}
+
+type SynthesizeAnswerActivityInput struct {
+	WorkflowOperationActivityInputBase
+	Plan           WorkflowTaskPlan        `json:"plan"`
+	CompletedSteps []WorkflowCompletedStep `json:"completed_steps"`
+	Evidence       []WorkflowEvidence      `json:"evidence"`
+}
+
 type ToolExecutionWorkflowResult struct {
 	CompletedAt   time.Time `json:"completed_at"`
 	ProjectionRef string    `json:"projection_ref"`
@@ -28,14 +132,6 @@ type AppendConversationMemoryActivityOutput struct {
 	SkippedCount         int      `json:"skipped_count"`
 	Status               string   `json:"status"`
 	ThreadID             string   `json:"thread_id,omitempty"`
-}
-
-type ExecutePrimaryAgentActivityInput struct {
-	AdmissionSnapshot        execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
-	ConversationID           string                           `json:"conversation_id"`
-	RequestID                string                           `json:"request_id"`
-	TraceParent              string                           `json:"traceparent,omitempty"`
-	VisibleFunctionToolNames []string                         `json:"visible_function_tool_names"`
 }
 
 type ExecutionFailure struct {
@@ -63,24 +159,32 @@ type AgentWebCitation struct {
 	URL        string `json:"url"`
 }
 
-type ExecutePrimaryAgentActivityOutput struct {
-	AgentResultRef          string             `json:"agent_result_ref"`
-	ContextUsage            map[string]any     `json:"context_usage"`
-	FinalOutput             string             `json:"final_output"`
-	ModelName               string             `json:"model_name"`
-	ModelProvider           string             `json:"model_provider"`
-	PromptTrace             map[string]any     `json:"prompt_trace"`
-	ProviderResponseID      string             `json:"provider_response_id"`
-	RequestID               string             `json:"request_id"`
-	StageTiming             map[string]any     `json:"stage_timing,omitempty"`
-	Status                  string             `json:"status"`
-	TerminalReason          string             `json:"terminal_reason"`
-	ToolResults             []AgentToolResult  `json:"tool_results"`
-	ToolContractFingerprint map[string]any     `json:"tool_contract_fingerprint"`
-	RuntimeRelease          string             `json:"runtime_release"`
-	Usage                   AgentUsageSummary  `json:"usage"`
-	WebCitations            []AgentWebCitation `json:"web_citations"`
-	WebSearchUsed           bool               `json:"web_search_used"`
+type WorkflowOperationActivityOutput struct {
+	Operation               WorkflowOperation       `json:"operation"`
+	SolveOutcome            string                  `json:"solve_outcome,omitempty"`
+	WorkflowResultRef       string                  `json:"agent_result_ref"`
+	ContextUsage            map[string]any          `json:"context_usage"`
+	FinalOutput             string                  `json:"final_output"`
+	StructuredOutput        map[string]any          `json:"structured_output,omitempty"`
+	Plan                    *WorkflowTaskPlan       `json:"plan,omitempty"`
+	Replan                  *WorkflowTaskReplan     `json:"replan,omitempty"`
+	CompletedStep           *WorkflowCompletedStep  `json:"completed_step,omitempty"`
+	Evidence                []WorkflowEvidence      `json:"evidence"`
+	SourceAttempts          []WorkflowSourceAttempt `json:"source_attempts"`
+	ModelName               string                  `json:"model_name"`
+	ModelProvider           string                  `json:"model_provider"`
+	PromptTrace             map[string]any          `json:"prompt_trace"`
+	ProviderResponseID      string                  `json:"provider_response_id"`
+	RequestID               string                  `json:"request_id"`
+	StageTiming             map[string]any          `json:"stage_timing,omitempty"`
+	Status                  string                  `json:"status"`
+	TerminalReason          string                  `json:"terminal_reason"`
+	ToolResults             []AgentToolResult       `json:"tool_results"`
+	ToolContractFingerprint map[string]any          `json:"tool_contract_fingerprint"`
+	RuntimeRelease          string                  `json:"runtime_release"`
+	Usage                   AgentUsageSummary       `json:"usage"`
+	WebCitations            []AgentWebCitation      `json:"web_citations"`
+	WebSearchUsed           bool                    `json:"web_search_used"`
 }
 
 type AgentUsageSummary struct {
@@ -91,14 +195,14 @@ type AgentUsageSummary struct {
 	UsageObserved     bool  `json:"usage_observed"`
 }
 
-type WriteFinalizationActivityInput struct {
-	AgentResult       ExecutePrimaryAgentActivityOutput `json:"agent_result"`
-	AdmissionSnapshot execution.AgentAdmissionSnapshot  `json:"admission_snapshot"`
-	FinalizedAt       time.Time                         `json:"finalized_at"`
-	RequestID         string                            `json:"request_id"`
+type WriteWorkflowFinalizationActivityInput struct {
+	WorkflowResult    WorkflowOperationActivityOutput  `json:"workflow_result"`
+	AdmissionSnapshot execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
+	FinalizedAt       time.Time                        `json:"finalized_at"`
+	RequestID         string                           `json:"request_id"`
 }
 
-type WriteFinalizationActivityOutput struct {
+type WorkflowFinalizationActivityOutput struct {
 	CompletedAt   time.Time `json:"completed_at"`
 	ProjectionRef string    `json:"projection_ref"`
 	RequestID     string    `json:"request_id"`

@@ -15,6 +15,15 @@ type stageTimingDuration struct {
 	duration time.Duration
 }
 
+const (
+	stageTimingWorkflowSolveMS       = "workflow.solve_ms"
+	stageTimingWorkflowExecuteStepMS = "workflow.execute_step_ms"
+	stageTimingWorkflowReplanMS      = "workflow.replan_ms"
+	stageTimingWorkflowSynthesizeMS  = "workflow.synthesize_ms"
+	stageTimingWorkflowScheduleMS    = "workflow.schedule_to_start_ms"
+	stageTimingWorkflowFirstDeltaMS  = "workflow.first_delta_ms"
+)
+
 func (s *Adapter) stageTimingForRun(
 	ctx context.Context,
 	run execution.DurableRun,
@@ -36,6 +45,14 @@ func (s *Adapter) stageTimingForRun(
 	if err != nil {
 		return nil, fmt.Errorf("stage timing step attempts unavailable: %w", err)
 	}
+	results, err := s.runProjectionStore.ListStepResults(ctx, run.RequestID)
+	if err != nil {
+		return nil, fmt.Errorf("stage timing step results unavailable: %w", err)
+	}
+	for field, value := range workflowRuntimeStageTimingForResults(results) {
+		timing[field] = value
+	}
+	delete(timing, stageTimingWorkflowScheduleMS)
 	for _, attempt := range attempts {
 		duration := stepAttemptDuration(attempt)
 		stepID := strings.TrimSpace(attempt.StepID)
@@ -45,11 +62,10 @@ func (s *Adapter) stageTimingForRun(
 			if field := stageTimingToolField(attempt); field != "" {
 				addStageTimingDuration(timing, field, duration)
 			}
-		case stepID == "agent.primary":
-			addStageTimingDuration(timing, "agent.primary_ms", duration)
+		case workflowOperationForStepID(stepID) != "":
 			addStageTimingDuration(
 				timing,
-				"agent.schedule_to_start_ms",
+				stageTimingWorkflowScheduleMS,
 				time.Duration(attempt.ScheduleToStartMS)*time.Millisecond,
 			)
 		}
@@ -58,6 +74,87 @@ func (s *Adapter) stageTimingForRun(
 		addStageTimingDuration(timing, item.field, item.duration)
 	}
 	return timing, nil
+}
+
+func workflowOperationForStepID(stepID string) string {
+	switch normalized := strings.TrimSpace(stepID); {
+	case normalized == "solve.initial":
+		return "solve"
+	case strings.HasPrefix(normalized, "task.step."):
+		return "execute_step"
+	case strings.HasPrefix(normalized, "solve.replan."):
+		return "replan"
+	case normalized == "answer.synthesize":
+		return "synthesize"
+	default:
+		return ""
+	}
+}
+
+func workflowRuntimeStageTimingForResults(
+	results []execution.StepResultProjection,
+) map[string]float64 {
+	current := map[string]execution.StepResultProjection{}
+	currentAttempts := map[string]int{}
+	for _, result := range results {
+		if result.Status != "completed" || workflowOperationForStepID(result.StepID) == "" {
+			continue
+		}
+		activityAttempt, valid := execution.PositiveIntValue(result.SanitizedPayload["activity_attempt"])
+		if !valid || activityAttempt < currentAttempts[result.StepID] {
+			continue
+		}
+		currentAttempts[result.StepID] = activityAttempt
+		current[result.StepID] = result
+	}
+	values := map[string]float64{}
+	for stepID, result := range current {
+		operation := workflowOperationForStepID(stepID)
+		stageTiming := execution.CloneAnyMapFromValue(result.SanitizedPayload["stage_timing"])
+		for field, rawValue := range stageTiming {
+			if !workflowRuntimeStageTimingFieldAllowed(operation, field) {
+				continue
+			}
+			value, ok := stageTimingNumber(rawValue)
+			if !ok {
+				continue
+			}
+			if field == stageTimingWorkflowFirstDeltaMS {
+				values[field] = value
+				continue
+			}
+			values[field] += value
+		}
+	}
+	return values
+}
+
+func workflowRuntimeStageTimingFieldAllowed(operation string, field string) bool {
+	if field == stageTimingWorkflowFirstDeltaMS {
+		return operation == "synthesize"
+	}
+	return field == "workflow."+operation+"_ms"
+}
+
+func stageTimingNumber(value any) (float64, bool) {
+	var number float64
+	switch typed := value.(type) {
+	case float64:
+		number = typed
+	case float32:
+		number = float64(typed)
+	case int:
+		number = float64(typed)
+	case int64:
+		number = float64(typed)
+	case uint:
+		number = float64(typed)
+	case uint64:
+		number = float64(typed)
+	default:
+		return 0, false
+	}
+	return number, !math.IsNaN(number) && !math.IsInf(number, 0) && number >= 0
 }
 
 func stageTimingToolField(attempt execution.StepAttemptProjection) string {

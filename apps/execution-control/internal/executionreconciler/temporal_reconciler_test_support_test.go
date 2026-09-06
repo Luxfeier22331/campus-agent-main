@@ -15,7 +15,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter"
 )
 
@@ -35,18 +34,18 @@ const (
 
 const primaryAgentModelTargetSHA256ForTest = "4b20ab70a9ac22073110f59ea007f27de19d731319b62ed4bd60b11d057c6635"
 
-type staticPrimaryAgentTargetResolver struct {
+type staticModelTargetResolver struct {
 	targetSHA256 string
 	err          error
 }
 
-func (resolver staticPrimaryAgentTargetResolver) ResolvePrimaryAgentTarget(
+func (resolver staticModelTargetResolver) ResolveModelTarget(
 	context.Context,
-) (modelconfigclient.PrimaryAgentTarget, error) {
+) (execution.ModelTarget, error) {
 	if resolver.err != nil {
-		return modelconfigclient.PrimaryAgentTarget{}, resolver.err
+		return execution.ModelTarget{}, resolver.err
 	}
-	return modelconfigclient.PrimaryAgentTarget{TargetSHA256: resolver.targetSHA256}, nil
+	return execution.ModelTarget{TargetSHA256: resolver.targetSHA256, HostedWebSearch: true}, nil
 }
 
 type reconcilerTestHarness struct {
@@ -101,7 +100,7 @@ func newReconcilerForTest(
 
 func newAdmissionServiceForReconcilerTest() *executionapplication.AdmissionService {
 	return executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
-		PrimaryAgentTargetResolver: staticPrimaryAgentTargetResolver{
+		ModelTargetResolver: staticModelTargetResolver{
 			targetSHA256: primaryAgentModelTargetSHA256ForTest,
 		},
 	})

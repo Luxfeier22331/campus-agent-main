@@ -44,7 +44,7 @@ func TestTemporalDevServerRunsToolExecutionWorkflowAndReplaysHistory(t *testing.
 			activities,
 			worker.Options{},
 		),
-		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, activities),
+		NewWorkflowOperationActivityWorker(temporalClient, ActivityTaskQueueAgent, activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -97,7 +97,7 @@ func TestTemporalDevServerRunsToolExecutionWorkflowAndReplaysHistory(t *testing.
 	}
 }
 
-func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughLinearWorkflow(t *testing.T) {
+func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughPlannedWorkflow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	server, err := testsuite.StartDevServer(ctx, testsuite.DevServerOptions{
@@ -123,7 +123,7 @@ func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughLinearWorkflow(t *te
 			activities,
 			worker.Options{},
 		),
-		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, activities),
+		NewWorkflowOperationActivityWorker(temporalClient, ActivityTaskQueueAgent, activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -155,8 +155,10 @@ func TestTemporalDevServerRunsExplicitKnowledgeChoiceThroughLinearWorkflow(t *te
 		t.Fatalf("workflow history: %v", err)
 	}
 	for _, activityName := range []string{
-		ExecutePrimaryAgentActivityName,
-		WriteFinalizationActivityName,
+		SolveTaskActivityName,
+		ExecuteTaskStepActivityName,
+		SynthesizeAnswerActivityName,
+		WriteWorkflowFinalizationActivityName,
 		AppendConversationMemoryActivityName,
 	} {
 		if !historyContainsCompletedActivity(history, activityName) {
@@ -348,7 +350,7 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 			&activities.Activities,
 			worker.Options{},
 		),
-		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, &activities),
+		NewWorkflowOperationActivityWorker(temporalClient, ActivityTaskQueueAgent, &activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -369,7 +371,7 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 	select {
 	case <-activities.started:
 	case <-ctx.Done():
-		t.Fatalf("wait for agent activity start: %v", ctx.Err())
+		t.Fatalf("wait for solve activity start: %v", ctx.Err())
 	}
 	starter := &Starter{
 		client:       temporalClient,
@@ -446,19 +448,16 @@ func versionedPersonalMemoryCommandWorkflow(
 }
 
 func devServerWorkflowInput(requestID string) ToolExecutionWorkflowInput {
-	return ToolExecutionWorkflowInput{
-		ConversationID: "conversation-" + requestID,
-		RequestID:      requestID,
-	}
+	return validToolExecutionWorkflowInput(requestID)
 }
 
-func (a *blockingAgentActivities) ExecutePrimaryAgentActivity(
+func (a *blockingAgentActivities) SolveTaskActivity(
 	ctx context.Context,
-	input ExecutePrimaryAgentActivityInput,
-) (ExecutePrimaryAgentActivityOutput, error) {
+	input SolveTaskActivityInput,
+) (WorkflowOperationActivityOutput, error) {
 	a.once.Do(func() { close(a.started) })
 	<-ctx.Done()
-	return ExecutePrimaryAgentActivityOutput{}, ctx.Err()
+	return WorkflowOperationActivityOutput{}, ctx.Err()
 }
 
 func workflowHistory(

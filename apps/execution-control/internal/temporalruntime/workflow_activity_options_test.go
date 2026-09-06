@@ -13,9 +13,9 @@ func TestActivityOptionsWaitForCancellationBeforeFinalization(t *testing.T) {
 	for name, options := range map[string]struct {
 		wait bool
 	}{
-		"primary-agent": {wait: primaryAgentActivityOptions(base).WaitForCancellation},
-		"memory":        {wait: memoryActivityOptions(base, 90).WaitForCancellation},
-		"finalizer":     {wait: unlimitedFinalizerActivityOptions(15 * time.Second).WaitForCancellation},
+		"workflow-operation": {wait: workflowOperationActivityOptions(base).WaitForCancellation},
+		"memory":             {wait: memoryActivityOptions(base, 90).WaitForCancellation},
+		"finalizer":          {wait: unlimitedFinalizerActivityOptions(15 * time.Second).WaitForCancellation},
 	} {
 		if !options.wait {
 			t.Fatalf("%s activity dropped WaitForCancellation", name)
@@ -23,22 +23,22 @@ func TestActivityOptionsWaitForCancellationBeforeFinalization(t *testing.T) {
 	}
 }
 
-func TestPrimaryAgentActivityUsesRealProviderTimeoutWindow(t *testing.T) {
+func TestWorkflowOperationActivityUsesRealProviderTimeoutWindow(t *testing.T) {
 	base := defaultActivityOptions()
 	base.TaskQueue = "default"
 
-	options := primaryAgentActivityOptions(base)
+	options := workflowOperationActivityOptions(base)
 	if options.TaskQueue != ActivityTaskQueueAgent {
-		t.Fatalf("primary agent queue = %q, want %q", options.TaskQueue, ActivityTaskQueueAgent)
+		t.Fatalf("workflow operation queue = %q, want %q", options.TaskQueue, ActivityTaskQueueAgent)
 	}
-	if options.StartToCloseTimeout != 180*time.Second {
-		t.Fatalf("primary agent StartToCloseTimeout = %s, want 180s", options.StartToCloseTimeout)
+	if options.StartToCloseTimeout != 300*time.Second {
+		t.Fatalf("workflow operation StartToCloseTimeout = %s, want 300s", options.StartToCloseTimeout)
 	}
 	if options.HeartbeatTimeout != 30*time.Second {
-		t.Fatalf("primary agent HeartbeatTimeout = %s, want 30s", options.HeartbeatTimeout)
+		t.Fatalf("workflow operation HeartbeatTimeout = %s, want 30s", options.HeartbeatTimeout)
 	}
 	if options.RetryPolicy == nil || options.RetryPolicy.MaximumAttempts != 0 {
-		t.Fatalf("primary agent retry policy = %#v, want receipt-fenced unlimited repair", options.RetryPolicy)
+		t.Fatalf("workflow operation retry policy = %#v, want receipt-fenced unlimited repair", options.RetryPolicy)
 	}
 	if base.RetryPolicy == nil || base.RetryPolicy.MaximumAttempts != 3 {
 		t.Fatalf("base retry policy = %#v, want isolated three-attempt policy", base.RetryPolicy)

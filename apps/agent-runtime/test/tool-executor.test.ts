@@ -150,6 +150,7 @@ describe("execution-control tool executor", () => {
 		request.tool.handler.endpoint = "/internal/campus/search";
 		request.argumentsJson = { search_query: "转专业办理条件" };
 		request.invocationId = "search-call-2";
+		request.workflowStepId = "task.step.step.notice";
 		request.userGoal = "我想了解转专业需要满足什么条件？";
 		request.citationStart = 4;
 		request.resultLimit = 5;
@@ -162,6 +163,7 @@ describe("execution-control tool executor", () => {
 				activity_attempt: 1,
 				request_id: "request-tool-executor",
 				invocation_id: "search-call-2",
+				workflow_step_id: "task.step.step.notice",
 				user_goal: "我想了解转专业需要满足什么条件？",
 				citation_start: 4,
 				result_limit: 5,

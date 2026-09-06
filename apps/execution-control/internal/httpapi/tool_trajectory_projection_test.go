@@ -24,10 +24,10 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 			},
 		},
 		[]execution.RunStepProjection{{
-			StepID:         "agent.primary",
+			StepID:         "task.step.memory",
 			RequestID:      "req-tool-trajectory",
 			ConversationID: "conv-tool-trajectory",
-			StepKind:       "agent",
+			StepKind:       "executor",
 			Status:         "completed",
 			TaskQueue:      "campus-agent.activity.agent",
 			StartedAt:      now,
@@ -39,8 +39,8 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 		}},
 		[]execution.StepAttemptProjection{
 			{
-				AttemptID:       temporalStepAttemptID("req-tool-trajectory", "agent.primary", 1),
-				StepID:          "agent.primary",
+				AttemptID:       temporalStepAttemptID("req-tool-trajectory", "task.step.memory", 1),
+				StepID:          "task.step.memory",
 				RequestID:       "req-tool-trajectory",
 				Status:          "completed",
 				Attempt:         1,
@@ -61,13 +61,13 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 		},
 		[]execution.StepResultProjection{
 			{
-				ResultID:      "agent.primary:result:1",
-				StepID:        "agent.primary",
+				ResultID:      "task.step.memory:result:1",
+				StepID:        "task.step.memory",
 				RequestID:     "req-tool-trajectory",
-				AttemptID:     temporalStepAttemptID("req-tool-trajectory", "agent.primary", 1),
+				AttemptID:     temporalStepAttemptID("req-tool-trajectory", "task.step.memory", 1),
 				Status:        "completed",
-				ResultKind:    "agent_final_output",
-				ProjectionRef: "projection://runs/run-tool-trajectory/agent/primary/result",
+				ResultKind:    "task_step_result",
+				ProjectionRef: "projection://runs/run-tool-trajectory/task/step/memory/result",
 				CreatedAt:     now.Add(100 * time.Millisecond),
 				SanitizedPayload: map[string]any{
 					"activity_attempt":    1,
@@ -86,6 +86,7 @@ func TestBuildAgentRuntimeEvalProjectionIncludesToolTrajectory(t *testing.T) {
 				SanitizedPayload: map[string]any{
 					"activity_attempt":      1,
 					"arguments_json_sha256": "sha256:args",
+					"parent_step_id":        "task.step.memory",
 					"result":                map[string]any{"outcome": "recalled"},
 					"tool_name":             "personal_memory_recall",
 				},
@@ -122,12 +123,12 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 	}
 	results := []execution.StepResultProjection{
 		{
-			ResultID:   "agent.primary:result:2",
-			StepID:     "agent.primary",
+			ResultID:   "task.step.lookup:result:2",
+			StepID:     "task.step.lookup",
 			RequestID:  run.RequestID,
-			AttemptID:  temporalStepAttemptID(run.RequestID, "agent.primary", 2),
+			AttemptID:  temporalStepAttemptID(run.RequestID, "task.step.lookup", 2),
 			Status:     "completed",
-			ResultKind: "agent_final_output",
+			ResultKind: "task_step_result",
 			SanitizedPayload: map[string]any{
 				"activity_attempt": 2,
 			},
@@ -142,6 +143,8 @@ func TestBuildAgentRuntimeEvalProjectionProjectsCurrentToolTrajectory(t *testing
 			Status:     "completed",
 			ResultKind: "typed_tool_result",
 			SanitizedPayload: map[string]any{
+				"activity_attempt": 2,
+				"parent_step_id":   "task.step.lookup",
 				"result": campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{{
 					ResultRef:    "result://" + strings.Repeat("c", 64),
 					SourceKind:   "document",
@@ -200,6 +203,7 @@ func personalMemoryEvalResultForAttempt(
 		ResultKind: "typed_tool_result",
 		SanitizedPayload: map[string]any{
 			"activity_attempt": activityAttempt,
+			"parent_step_id":   "task.step.lookup",
 			"result":           map[string]any{"outcome": "recalled"},
 			"tool_name":        "personal_memory_recall",
 		},

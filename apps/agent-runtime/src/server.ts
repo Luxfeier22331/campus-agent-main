@@ -3,16 +3,17 @@ import { fileURLToPath } from "node:url";
 
 import { createAgentRuntimeHandler } from "./http-server.ts";
 import { createAgentRuntimeNodeServer } from "./node-http.ts";
-import { createPrimaryAgentRuntime } from "./primary-agent.ts";
 import {
 	createRequestScopedOpenAIAgentsRunner,
 	createRequestScopedStreamingOpenAIAgentsRunner,
 } from "./provider-config.ts";
+import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 import { logAgentRuntimeEvent, safeAgentRuntimeErrorCode } from "./safe-logging.ts";
 import { exactSharedSecret, loadAgentRuntimeServerConfig } from "./server-config.ts";
 import { runWithExtractedTraceContext, startAgentRuntimeTelemetry } from "./telemetry.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
+import { createWorkflowOperationRuntime } from "./workflow-runtime.ts";
 
 const { host, port } = loadAgentRuntimeServerConfig();
 const executionAgentRuntimeSharedSecret = exactSharedSecret(
@@ -41,7 +42,7 @@ const telemetry = (() => {
 })();
 
 const catalog = loadToolCatalog(catalogPath);
-const runtime = createPrimaryAgentRuntime({
+const runtime = createWorkflowOperationRuntime({
 	catalog,
 	runner: createRequestScopedOpenAIAgentsRunner(),
 	streamingRunner: createRequestScopedStreamingOpenAIAgentsRunner(),
@@ -51,9 +52,17 @@ const runtime = createPrimaryAgentRuntime({
 	}),
 });
 const handler = createAgentRuntimeHandler({
+	onRunError: (error, context) =>
+		logAgentRuntimeEvent("error", "agent_runtime.run", "failed", {
+			...runtimeErrorLogFields(error),
+			operation: context.operation,
+			request_id: context.requestId,
+			runtime_release: deploymentRelease,
+			source: "runtime",
+		}),
 	onStreamError: (error, context) =>
 		logAgentRuntimeEvent("error", "agent_runtime.stream", "failed", {
-			error_code: safeAgentRuntimeErrorCode(error),
+			...runtimeErrorLogFields(error),
 			request_id: context.requestId,
 			runtime_release: deploymentRelease,
 			source: "stream",
@@ -101,4 +110,15 @@ function requiredSetting(name: string, value: string | undefined): string {
 		throw new Error(`${name} is required`);
 	}
 	return normalized;
+}
+
+function runtimeErrorLogFields(error: unknown) {
+	const payload = agentRuntimeErrorPayload(error);
+	return {
+		error_code: payload.code,
+		error_operation: payload.operation,
+		...(payload.detail ? { error_detail: payload.detail } : {}),
+		...(payload.http_status === undefined ? {} : { error_http_status: payload.http_status }),
+		...(payload.invocation_id ? { invocation_id: payload.invocation_id } : {}),
+	};
 }

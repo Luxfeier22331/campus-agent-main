@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	campusSearchToolName          = executionapplication.CampusSearchToolName
-	primaryAgentSearchResultLimit = executionapplication.PrimaryAgentSearchResultLimit
+	campusSearchToolName    = executionapplication.CampusSearchToolName
+	campusSearchResultLimit = executionapplication.CampusSearchResultLimit
 )
 
 type campusSearchToolEnvelope struct {
@@ -72,15 +72,17 @@ func decodeCampusSearchToolEnvelope(body json.RawMessage) (campusSearchToolEnvel
 	envelope.Payload.SearchQuery = strings.TrimSpace(envelope.Payload.SearchQuery)
 	envelope.AccessContext.RequestID = strings.TrimSpace(envelope.AccessContext.RequestID)
 	envelope.AccessContext.InvocationID = strings.TrimSpace(envelope.AccessContext.InvocationID)
+	envelope.AccessContext.WorkflowStepID = strings.TrimSpace(envelope.AccessContext.WorkflowStepID)
 	envelope.AccessContext.UserGoal = strings.TrimSpace(envelope.AccessContext.UserGoal)
 	if envelope.Payload.SearchQuery == "" || len([]rune(envelope.Payload.SearchQuery)) > 400 {
 		return envelope, errors.New("payload.search_query must contain between 1 and 400 characters")
 	}
 	if envelope.AccessContext.RequestID == "" ||
-		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.ActivityAttempt <= 0 ||
+		envelope.AccessContext.InvocationID == "" || envelope.AccessContext.WorkflowStepID == "" ||
+		envelope.AccessContext.ActivityAttempt <= 0 ||
 		envelope.AccessContext.UserGoal == "" || envelope.AccessContext.CitationStart < 1 ||
 		envelope.AccessContext.CitationStart > 10 || envelope.AccessContext.ResultLimit < 1 ||
-		envelope.AccessContext.ResultLimit > primaryAgentSearchResultLimit ||
+		envelope.AccessContext.ResultLimit > campusSearchResultLimit ||
 		envelope.AccessContext.CitationStart+envelope.AccessContext.ResultLimit > 11 {
 		return envelope, errors.New("campus_search access_context is invalid")
 	}

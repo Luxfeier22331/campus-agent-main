@@ -13,7 +13,7 @@
 			"critical_ms": 1000
 		},
 		{
-			"field": "agent.schedule_to_start_ms",
+			"field": "workflow.schedule_to_start_ms",
 			"warn_ms": 500,
 			"critical_ms": 1500
 		},
@@ -43,17 +43,27 @@
 			"critical_ms": 2000
 		},
 		{
-			"field": "agent.primary_ms",
+			"field": "workflow.solve_ms",
 			"warn_ms": 7000,
 			"critical_ms": 14000
 		},
 		{
-			"field": "agent.runtime_ms",
+			"field": "workflow.execute_step_ms",
 			"warn_ms": 6000,
 			"critical_ms": 12000
 		},
 		{
-			"field": "agent.first_delta_ms",
+			"field": "workflow.replan_ms",
+			"warn_ms": 3000,
+			"critical_ms": 6000
+		},
+		{
+			"field": "workflow.synthesize_ms",
+			"warn_ms": 6000,
+			"critical_ms": 12000
+		},
+		{
+			"field": "workflow.first_delta_ms",
 			"warn_ms": 2000,
 			"critical_ms": 4500
 		},

@@ -21,17 +21,23 @@ type Target struct {
 	Model       string     `json:"model"`
 }
 
+type Capabilities struct {
+	HostedWebSearch bool `json:"hosted_web_search"`
+}
+
 type Descriptor struct {
 	SchemaVersion string `json:"schema_version"`
 	Target
-	TargetSHA256 string `json:"target_sha256"`
+	Capabilities Capabilities `json:"capabilities"`
+	TargetSHA256 string       `json:"target_sha256"`
 }
 
 type RuntimeConfig struct {
 	SchemaVersion string `json:"schema_version"`
 	Target
-	APIKey       string `json:"api_key"`
-	TargetSHA256 string `json:"target_sha256"`
+	Capabilities Capabilities `json:"capabilities"`
+	APIKey       string       `json:"api_key"`
+	TargetSHA256 string       `json:"target_sha256"`
 }
 
 type ConfigInput struct {

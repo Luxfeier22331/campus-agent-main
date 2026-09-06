@@ -45,7 +45,7 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		t.Fatalf("admit run: %v", err)
 	}
 	if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
-		StepID:               "agent.primary",
+		StepID:               "solve.initial",
 		RequestID:            "run-step-terminal-late",
 		ConversationID:       "conv-step-terminal-late",
 		StepKind:             "agent",
@@ -65,9 +65,9 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 	if _, err := store.UpsertStepAttempt(context.Background(), execution.StepAttemptProjection{
 		ActivityAttempt:      1,
 		Attempt:              1,
-		AttemptID:            temporalStepAttemptID("run-step-terminal-late", "agent.primary", 1),
+		AttemptID:            temporalStepAttemptID("run-step-terminal-late", "solve.initial", 1),
 		RequestID:            "run-step-terminal-late",
-		StepID:               "agent.primary",
+		StepID:               "solve.initial",
 		Status:               "failed",
 		PayloadSchemaVersion: "step-attempt-projection-v1",
 		SanitizedPayload:     map[string]any{"terminal_reason": "provider_timeout"},
@@ -86,7 +86,7 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		Tool:            "",
 		Run:             run,
 		Status:          "completed",
-		StepID:          "agent.primary",
+		StepID:          "solve.initial",
 		StepKind:        "agent",
 		TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
 		WorkerID:        "worker-1",
@@ -94,10 +94,10 @@ func TestProjectTemporalStepRecordsLateCompletionAfterTerminalStepProjection(t *
 		CompletedAt:     now.Add(5 * time.Second),
 		UpdatedAt:       now.Add(5 * time.Second),
 		ResultKind:      "agent_final_output",
-		ProjectionRef:   temporalProjectionRef(run.RequestID, "agent/primary/result"),
+		ProjectionRef:   temporalProjectionRef(run.RequestID, "solve/initial/result"),
 		Payload:         map[string]any{"provider_response": "late"},
 	})
-	if err == nil || !strings.Contains(err.Error(), "already terminal before agent.primary completion projection") {
+	if err == nil || !strings.Contains(err.Error(), "already terminal before solve.initial completion projection") {
 		t.Fatalf("late completion error = %v", err)
 	}
 
@@ -156,8 +156,8 @@ func TestProjectTemporalStepAllowsEquivalentTerminalReplay(t *testing.T) {
 	}
 	projection := temporalStepProjection{
 		ActivityAttempt:    1,
-		ActivityID:         "activity-agent-primary",
-		ActivityType:       temporalruntime.ExecutePrimaryAgentActivityName,
+		ActivityID:         "activity-solve-initial",
+		ActivityType:       temporalruntime.SolveTaskActivityName,
 		Attempt:            1,
 		Tool:               "",
 		CompletedAt:        now.Add(4 * time.Second),
@@ -165,7 +165,7 @@ func TestProjectTemporalStepAllowsEquivalentTerminalReplay(t *testing.T) {
 		ModelName:          "test-model",
 		ModelProvider:      "test-provider",
 		Payload:            map[string]any{"provider_response": "stable"},
-		ProjectionRef:      temporalProjectionRef(run.RequestID, "agent/primary/result"),
+		ProjectionRef:      temporalProjectionRef(run.RequestID, "solve/initial/result"),
 		ProviderRequestRef: "provider-request-stable",
 		ProviderResponseID: "provider-response-stable",
 		ResultKind:         "agent_final_output",
@@ -174,7 +174,7 @@ func TestProjectTemporalStepAllowsEquivalentTerminalReplay(t *testing.T) {
 		ScheduleToStartMS:  1000,
 		StartedAt:          now.Add(2 * time.Second),
 		Status:             "completed",
-		StepID:             "agent.primary",
+		StepID:             "solve.initial",
 		StepKind:           "agent",
 		TaskQueue:          temporalruntime.ActivityTaskQueueAgent,
 		TemporalRunID:      "temporal-run-step-terminal-replay",
@@ -243,7 +243,7 @@ func TestProjectTemporalStepAllowsHigherActivityAttemptToReplaceTerminalStep(t *
 		Attempt:         1,
 		Run:             run,
 		Status:          "failed",
-		StepID:          "agent.primary",
+		StepID:          "solve.initial",
 		StepKind:        "agent",
 		TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
 		StartedAt:       now.Add(2 * time.Second),
@@ -262,7 +262,7 @@ func TestProjectTemporalStepAllowsHigherActivityAttemptToReplaceTerminalStep(t *
 	base.UpdatedAt = now.Add(5 * time.Second)
 	base.Payload = map[string]any{"provider_response": "retry-success"}
 	base.ResultKind = "agent_final_output"
-	base.ProjectionRef = temporalProjectionRef(run.RequestID, "agent/primary/result")
+	base.ProjectionRef = temporalProjectionRef(run.RequestID, "solve/initial/result")
 	if err := server.projectTemporalStep(context.Background(), base); err != nil {
 		t.Fatalf("project attempt 2 completion: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestProjectTemporalStepPreservesCancellationFinalizerTerminalProjection(t *
 		Attempt:         1,
 		Run:             run,
 		Status:          "started",
-		StepID:          "agent.primary",
+		StepID:          "solve.initial",
 		StepKind:        "agent",
 		TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
 		StartedAt:       now.Add(time.Second),
@@ -348,7 +348,7 @@ func TestProjectTemporalStepPreservesCancellationFinalizerTerminalProjection(t *
 	lateFailure.CompletedAt = now.Add(3 * time.Second)
 	lateFailure.UpdatedAt = lateFailure.CompletedAt
 	lateFailure.ResultKind = "activity_failure"
-	lateFailure.ProjectionRef = temporalProjectionRef(run.RequestID, "agent/primary/result")
+	lateFailure.ProjectionRef = temporalProjectionRef(run.RequestID, "solve/initial/result")
 	lateFailure.Payload = map[string]any{"marker": "late-failure"}
 	if err := server.projectTemporalStep(context.Background(), lateFailure); !errors.Is(err, execution.ErrStaleRunStepProjection) {
 		t.Fatalf("late failure error = %v, want ErrStaleRunStepProjection", err)

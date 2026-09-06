@@ -19,7 +19,7 @@ import (
 func TestServerDoesNotImplementTemporalActivitySets(t *testing.T) {
 	server := any(&Server{})
 	for name, implemented := range map[string]bool{
-		"agent":        implements[temporalruntime.AgentActivities](server),
+		"workflow":     implements[temporalruntime.WorkflowActivities](server),
 		"context":      implements[temporalruntime.ContextActivities](server),
 		"finalization": implements[temporalruntime.FinalizationActivities](server),
 	} {

@@ -542,7 +542,7 @@ describe("app-api shared product DB integration", () => {
 							totalTokens: 2,
 						},
 						result: null,
-						stageTiming: { "agent.first_delta_ms": 600 },
+						stageTiming: { "workflow.first_delta_ms": 600 },
 						status: "completed",
 					},
 					safetyIdentifier: null,
@@ -605,7 +605,7 @@ describe("app-api shared product DB integration", () => {
 		const finalizationFirst = await runOrder("finalization_first");
 		const ttftAfterFinalizationSnapshot = await runOrder("ttft_after_finalization_snapshot");
 		expect(ttftFirst?.stage_timing).toEqual({
-			"agent.first_delta_ms": 600,
+			"workflow.first_delta_ms": 600,
 			"request.total_ms": 3000,
 			"stream.app_api_ttft_ms": 1000,
 			"stream.orchestration_overhead_ms": 400,

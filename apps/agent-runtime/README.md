@@ -1,25 +1,38 @@
 # agent-runtime
 
-执行一次 OpenAI Agents SDK 运行的 TypeScript 服务。
+执行校园信息 workflow 中模型 operation 的 TypeScript 服务。
 
 ## 职责
 
-- 运行单一 Primary Agent 与本轮可用的可选函数工具循环；当前可开放
-  `campus_search` 和 `personal_memory_recall`；
-- 消费 execution-control 提供的预期 Model Target hash、工具目录、上下文和截止时间，并从共同
-  受信任的 Model Config 读取仍匹配该 hash 的 `primary_agent` 完整运行配置；
-- 把工具调用交回 execution-control，不直接访问产品数据库或内部工具服务；
-- 返回 Agents SDK 原生文本、工具轨迹、模型用量和调用链关联信息；
-- 通过 OpenTelemetry 与 Langfuse 记录受控 Agent 轨迹。
+- 执行 Solve、Executor、Replanner 和 Synthesizer；Solve 可以直接回答，也可以返回任务计划；
+- 严格解析并校验 Solve/Replanner 返回的 JSON 文本，以及步骤摘要和最终文本；结构化合同不依赖
+  OpenAI-compatible Provider 强制执行 JSON Schema；
+- 只向 Executor 开放当前步骤声明且本轮获准的函数工具，以及可用时的托管 `web_search`；
+- 消费 execution-control 提供的预期 Model Target hash、上下文和 operation 预算，并从共同受信任的
+  Model Config 读取仍匹配该 hash 的 `primary_agent` 配置；该名称是历史配置键，不是 Agent 层级；
+- 把本地函数调用交回 execution-control，不直接访问产品数据库、Campus Docs 数据库或 Hindsight；
+- 返回 operation 结果、证据、source attempts、模型用量和调用链关联信息；
+- 通过 OpenTelemetry 与 Langfuse 记录受控模型轨迹。
 
-持久执行、重试、用户记忆获取、工具权限和运行终态属于 execution-control 与 Temporal。本应用不
-保存会话或运行状态。
+持久执行、计划顺序、重新规划次数、取消、工具准入和产品终态属于 execution-control 与 Temporal。
+本应用不保存会话或运行状态。
+
+## 编排语义
+
+外层是带 Replanning 的自适应 Solve→Execute→Synthesize。Executor 内可以发生多轮模型—工具调用，因此局部
+接近 ReAct，但本应用不实现显式 thought/action/observation 状态机。仓库没有独立 skill runtime；当前只有
+workflow operation 实现，不暴露尚未有真实消费者的策略枚举。
+
+`max_model_turns` 与 `max_function_tool_calls` 按单个 operation 计数；`max_plan_steps` 与
+`max_replans` 由外层 workflow 作为请求级预算执行。
 
 ## 内部边界
 
-- `agent-run-contract.ts` 拥有 SDK 运行输入输出合同；
+- `agent-run-contract.ts` 拥有 operation 输入输出合同；
+- `workflow-runtime.ts` 拥有四类 operation 的指令、上下文与结果校验；
 - `http-run-contract.ts` 负责 HTTP 请求校验与运行输入投影，`http-response.ts` 负责普通响应和 SSE
-  wire 投影；Node server 不解释或改写回答正文；
+  wire 投影；
+- `sdk-runner.ts` 只负责 OpenAI Agents SDK 与工具循环，不决定持久步骤顺序；
 - Provider、工具执行和 SDK runner 依赖上述 leaf contract，不反向依赖 HTTP server。
 
 ## 入口
@@ -34,6 +47,7 @@ pnpm --filter agent-runtime test
 ## 相关文档
 
 - `docs/architecture/system/agent-framework.md`
+- `docs/architecture/system/prompt.md`
 - `docs/architecture/system/tool-routing.md`
 - `docs/architecture/system/durable-runtime.md`
 - `docs/reference/telemetry.md`

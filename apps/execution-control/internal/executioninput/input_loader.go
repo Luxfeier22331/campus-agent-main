@@ -19,6 +19,8 @@ import (
 
 var ErrInputRedirect = errors.New("execution input redirects are disabled")
 
+const executionInputRequestTimeout = 30 * time.Second
+
 type appAPIInputLoader struct {
 	baseURL      string
 	httpClient   *http.Client
@@ -36,14 +38,10 @@ func NewInputLoader(cfg config.Config) (execution.InputLoader, error) {
 		parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || strings.Contains(baseURL, "#") {
 		return nil, errors.New("app-api execution input base URL is invalid")
 	}
-	timeout := time.Duration(cfg.ProductCallbackTimeoutMS) * time.Millisecond
-	if timeout <= 0 {
-		timeout = 5 * time.Second
-	}
 	return &appAPIInputLoader{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: timeout,
+			Timeout: executionInputRequestTimeout,
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return ErrInputRedirect
 			},

@@ -35,20 +35,20 @@ type Runtime struct {
 }
 
 type ActivityHandlers interface {
-	temporalruntime.AgentActivities
+	temporalruntime.WorkflowActivities
 	temporalruntime.ContextActivities
 	temporalruntime.FinalizationActivities
 }
 
 type ActivitySets struct {
-	Agent        temporalruntime.AgentActivities
+	Workflow     temporalruntime.WorkflowActivities
 	Context      temporalruntime.ContextActivities
 	Finalization temporalruntime.FinalizationActivities
 }
 
 func NewActivitySets(handlers ActivityHandlers) ActivitySets {
 	return ActivitySets{
-		Agent:        handlers,
+		Workflow:     handlers,
 		Context:      handlers,
 		Finalization: handlers,
 	}
@@ -184,10 +184,10 @@ func buildWorker(
 			options,
 		), nil
 	case RoleAgent:
-		return temporalruntime.NewAgentActivityWorkerWithOptions(
+		return temporalruntime.NewWorkflowOperationActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueAgent,
-			activitySets.Agent,
+			activitySets.Workflow,
 			options,
 		), nil
 	default:

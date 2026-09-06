@@ -18,15 +18,14 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 const (
-	campusSearchToolName                 = string(contracts.ToolIDCampusSearch)
-	personalMemoryRecallToolName         = string(contracts.ToolIDPersonalMemoryRecall)
-	primaryAgentModelTargetSHA256ForTest = "4b20ab70a9ac22073110f59ea007f27de19d731319b62ed4bd60b11d057c6635"
+	campusSearchToolName         = string(contracts.ToolIDCampusSearch)
+	personalMemoryRecallToolName = string(contracts.ToolIDPersonalMemoryRecall)
+	modelTargetSHA256ForTest     = "4b20ab70a9ac22073110f59ea007f27de19d731319b62ed4bd60b11d057c6635"
 )
 
 var temporalTestExecutionInputs = struct {
@@ -46,21 +45,21 @@ func newWorkerAuthAdapterForTest() *Adapter {
 	return newAdapterForTest(config.Config{AppAPIExecutionSharedSecret: "secret"})
 }
 
-type staticPrimaryAgentTargetResolver struct {
+type staticModelTargetResolver struct {
 	targetSHA256 string
 	err          error
 }
 
-func (resolver staticPrimaryAgentTargetResolver) ResolvePrimaryAgentTarget(
+func (resolver staticModelTargetResolver) ResolveModelTarget(
 	_ context.Context,
-) (modelconfigclient.PrimaryAgentTarget, error) {
+) (execution.ModelTarget, error) {
 	if resolver.err != nil {
-		return modelconfigclient.PrimaryAgentTarget{}, resolver.err
+		return execution.ModelTarget{}, resolver.err
 	}
 	if resolver.targetSHA256 == "" {
-		return modelconfigclient.PrimaryAgentTarget{}, fmt.Errorf("primary agent model target is missing")
+		return execution.ModelTarget{}, fmt.Errorf("workflow model target is missing")
 	}
-	return modelconfigclient.PrimaryAgentTarget{TargetSHA256: resolver.targetSHA256}, nil
+	return execution.ModelTarget{TargetSHA256: resolver.targetSHA256, HostedWebSearch: true}, nil
 }
 
 func attachAgentAdmissionProviderConfigsForTest(adapter *Adapter) {
@@ -69,14 +68,10 @@ func attachAgentAdmissionProviderConfigsForTest(adapter *Adapter) {
 		ContextCharLimit:      adapter.config.AgentRuntimeContextCharLimit,
 		CurrentInputCharLimit: adapter.config.AgentRuntimeInputCharLimit,
 		MaxOutputTokens:       adapter.config.AgentRuntimeMaxOutputTokens,
-		PrimaryAgentTargetResolver: staticPrimaryAgentTargetResolver{
-			targetSHA256: primaryAgentModelTargetSHA256ForTest,
+		ModelTargetResolver: staticModelTargetResolver{
+			targetSHA256: modelTargetSHA256ForTest,
 		},
 	})
-}
-
-func attachPrimaryAgentProviderConfigForTest(adapter *Adapter) {
-	attachAgentAdmissionProviderConfigsForTest(adapter)
 }
 
 func admissionSnapshotForTest(
@@ -85,8 +80,8 @@ func admissionSnapshotForTest(
 ) execution.AgentAdmissionSnapshot {
 	t.Helper()
 	service := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
-		PrimaryAgentTargetResolver: staticPrimaryAgentTargetResolver{
-			targetSHA256: primaryAgentModelTargetSHA256ForTest,
+		ModelTargetResolver: staticModelTargetResolver{
+			targetSHA256: modelTargetSHA256ForTest,
 		},
 	})
 	snapshot, err := service.BuildAgentAdmissionSnapshot(t.Context(), personalMemoryRecallAvailable)
@@ -94,31 +89,6 @@ func admissionSnapshotForTest(
 		t.Fatalf("build agent admission snapshot: %v", err)
 	}
 	return snapshot
-}
-
-func toolContractFingerprintForTest(t *testing.T) execution.ToolContractFingerprintSnapshot {
-	t.Helper()
-	return admissionSnapshotForTest(t, false).ToolContractFingerprint
-}
-
-func withAgentAdmissionSnapshotForTest(
-	t *testing.T,
-	adapter *Adapter,
-	input temporalruntime.ExecutePrimaryAgentActivityInput,
-) temporalruntime.ExecutePrimaryAgentActivityInput {
-	t.Helper()
-	memoryAllowed := len(input.VisibleFunctionToolNames) == 1 &&
-		input.VisibleFunctionToolNames[0] == personalMemoryRecallToolName
-	if adapter.admissionService == nil {
-		attachAgentAdmissionProviderConfigsForTest(adapter)
-	}
-	snapshot, err := adapter.admissionService.BuildAgentAdmissionSnapshot(t.Context(), memoryAllowed)
-	if err != nil {
-		t.Fatalf("build agent admission snapshot: %v", err)
-	}
-	input.AdmissionSnapshot = snapshot
-	input.VisibleFunctionToolNames = append([]string{}, snapshot.ExecutionStrategy.VisibleFunctionToolNames...)
-	return input
 }
 
 func writeJSON(response http.ResponseWriter, status int, body any) {

@@ -22,12 +22,14 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 {
   "request.total_ms": 1840,
   "execution.dispatch_ms": 45,
-  "agent.schedule_to_start_ms": 80,
+  "workflow.schedule_to_start_ms": 80,
   "stream.first_delta_persist_ms": 940,
   "stream.app_api_ttft_ms": 1020,
   "stream.orchestration_overhead_ms": 310,
-  "agent.primary_ms": 1380,
-  "agent.first_delta_ms": 710
+  "workflow.solve_ms": 210,
+  "workflow.execute_step_ms": 580,
+  "workflow.synthesize_ms": 420,
+  "workflow.first_delta_ms": 210
 }
 ```
 
@@ -46,15 +48,17 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 | --- | --- | --- |
 | `request.total_ms` | `apps/app-api` | 从 app-api 接受请求到终态投影对 app-api 可见。 |
 | `execution.dispatch_ms` | `apps/execution-control` | run 从创建到进入 queued 状态的耗时。 |
-| `agent.schedule_to_start_ms` | `apps/execution-control` | `agent.primary` Activity 从 Temporal 调度到 worker 开始执行的耗时。 |
+| `workflow.schedule_to_start_ms` | `apps/execution-control` | 本次 Workflow 中 Solve、Executor、Replanner 和 Synthesizer Activity 从 Temporal 调度到 worker 开始执行的累计耗时。 |
 | `stream.first_delta_persist_ms` | `apps/execution-control` | run 从 running 到首条 answer delta 与 streaming 状态原子提交的耗时。 |
 | `stream.app_api_ttft_ms` | `apps/app-api` | 从 app-api 接受新请求到实际收到首条 answer delta 的耗时。 |
-| `stream.orchestration_overhead_ms` | `apps/app-api` | `stream.app_api_ttft_ms - agent.first_delta_ms`；仅在两者都存在且差值非负时写入。 |
+| `stream.orchestration_overhead_ms` | `apps/app-api` | `stream.app_api_ttft_ms - workflow.first_delta_ms`；仅在两者都存在且差值非负时写入。 |
 | `execution.admission_ms` | `apps/execution-control` | run 进入执行路径前的准入耗时。 |
 | `memory.recall_ms` | `apps/execution-control` | 已执行 personal memory recall 工具调用的耗时。 |
-| `agent.primary_ms` | `apps/execution-control` | 单个 Agent Activity 的端到端耗时，包括 SDK 工具调用。 |
-| `agent.runtime_ms` | `apps/agent-runtime` | 完整 OpenAI Agents SDK run 耗时。 |
-| `agent.first_delta_ms` | `apps/agent-runtime` | agent-runtime 接受请求到第一个可见 answer delta。 |
+| `workflow.solve_ms` | `apps/agent-runtime` | Solve 模型 operation 的累计耗时；该 operation 可以直接回答，也可以返回任务计划。 |
+| `workflow.execute_step_ms` | `apps/agent-runtime` | Executor 模型 operation 的累计耗时，包括本地工具和 hosted Web Search 调用。 |
+| `workflow.replan_ms` | `apps/agent-runtime` | Replanner 模型 operation 的累计耗时。 |
+| `workflow.synthesize_ms` | `apps/agent-runtime` | Synthesizer 模型 operation 的耗时。 |
+| `workflow.first_delta_ms` | `apps/agent-runtime` | Synthesizer operation 开始到第一个可见 answer delta 的耗时。 |
 | `tool.total_ms` | `apps/execution-control` | 本次 run 中所有已投影 SDK tool call 的总耗时。 |
 | `finalization.write_ms` | `apps/execution-control` | 写入有界 finalization projection 的耗时。 |
 | `projection.closeout_ms` | `apps/app-api` | 接收 execution finalization 到完成 app-api observability fact。 |
@@ -63,7 +67,7 @@ Temporal history。单请求耗时预算由 `configs/runtime/latency-budgets.v1.
 细节留在对应系统，产品投影只保留关联标识。
 
 `provider_queue_ms` 不是必需字段。provider 内部 queue 只有形成明确、稳定且安全的合同后才能
-加入；当前通过 `agent.first_delta_ms`、`agent.runtime_ms`、`stream.app_api_ttft_ms`、
+加入；当前通过 `workflow.first_delta_ms`、各 `workflow.*_ms`、`stream.app_api_ttft_ms`、
 `stream.orchestration_overhead_ms` 与 trace correlation 排查启动延迟。
 
 每个字段都必须被 `configs/runtime/latency-budgets.v1.json` 接受。单次请求可以缺少未运行阶段，

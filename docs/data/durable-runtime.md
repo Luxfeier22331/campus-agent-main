@@ -20,8 +20,8 @@ run 以 `request_id` 为主键，并关联 conversation、`owner_user_id`、`sur
 
 内部状态依次使用 `created`、`queued`、`admitted`、`running` 和可选的 `streaming`；持久取消
 意图使用 `cancel_requested`，终态为 `completed`、`failed`、`canceled` 或 `expired`。可重试阶段
-可以回到等待状态，但 Primary Agent provider invocation 不重试；任何终态都不可再次迁移。浏览器连接
-状态不能用于推断运行状态。
+可以回到等待状态，但已经由 invocation receipt 标记开始的模型 operation 不重试；任何终态都不可再次
+迁移。浏览器连接状态不能用于推断运行状态。
 
 ### 运行事件
 
@@ -80,8 +80,8 @@ retry/cancel/timeout outcome、可公开的 provider/model 标识及 input/outpu
 `Usage.requests`，后者区分供应商明确上报为零与没有取得 usage。模型费用由 Langfuse 计算，
 不属于 PostgreSQL 持久投影字段。
 
-result 投影包含 status、result kind/ref、拒绝原因和有界 metadata。SDK function call 不得由此
-形成第二套 workflow graph。
+result 投影包含 status、result kind/ref、拒绝原因和有界 metadata。SDK function call 不得由此形成第二套
+workflow graph；Agent Workflow 的计划和步骤只由执行合同及其持久 step 投影拥有。
 
 StepResult 以 `result_id` 首次写入为准；全部字段与规范 JSON payload 相同的重放返回原记录，
 任一字段或 payload 不同都冲突且不能覆盖。内存与 PostgreSQL 存储在写入前都先锁定所属 run，
@@ -93,12 +93,13 @@ Finalization result 也不得在终态后补写。该例外不放宽其他 Activ
 
 ### Activity Result 与 Receipt
 
-Primary Agent 的有界结果经由 Temporal Activity result 传给 Finalization；普通 run、event、step、result
-投影只保存 ref、hash、用量和公开终态，不保存模型正文或工具原始载荷。当前在线 workflow 不产生独立的
-知识检索阶段或第二套 query result；`campus_search` 的有界返回值属于同一次 Agent result。Campus Docs
+每个 Agent Workflow operation 的有界结果经由 Temporal Activity result 传给下一阶段；普通 run、event、
+step、result 投影只保存 ref、hash、用量和公开终态，不保存模型正文或工具原始载荷。当前在线 workflow
+不产生独立的强制预检索阶段或第二套 query result；`campus_search` 的有界返回值属于对应 Execute Step
+result。Campus Docs
 的离线制品发布由独立 Job 负责，不进入本数据合同。
 
-个人记忆召回不单独建立外部调用 receipt。Primary Agent invocation receipt 绑定整个 SDK run 的精确
+个人记忆召回不单独建立外部调用 receipt。模型 operation invocation receipt 绑定该 operation 的精确
 请求摘要，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通 SDK tool 投影只保存
 工具身份、参数摘要、`outcome`、结果 hash、产品投影 ref 和真实工具耗时，不保存 `memory_text`。同一工具的重复调用
 按实际调用顺序分别投影。
@@ -108,11 +109,11 @@ Agent Runtime 的流式 `answer_delta` 只携带临时展示用的 `delta` 和
 `answer_completed` 只表示增量流已结束，不复制累积正文；`final_output` 是 Finalization 使用的 canonical
 答案正文。
 
-## Agent Activity 投影
+## Agent Workflow operation 投影
 
-Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 可以包含：
+每个 Agent Workflow operation 代表一次 OpenAI Agents SDK run。其有界 metadata 可以包含：
 
-- Primary Agent 标识；
+- operation 类型和当前 workflow step 标识；
 - 可用的模型可见工具；
 - SDK function-tool 调用摘要；
 - provider response id 与 model/provider 标识；
@@ -121,14 +122,14 @@ Agent Activity 代表一次完整的 OpenAI Agents SDK run。其有界 metadata 
 
 正式投影不存储 SDK state、raw message 或 raw function payload。
 
-Primary Agent 在供应商调用前构造 canonical provider invocation envelope。envelope 的规范 JSON
+每个 operation 在供应商调用前构造 canonical provider invocation envelope。envelope 的规范 JSON
 SHA-256 是 invocation receipt 的 `InputSHA256`，绑定 run、invocation、Activity attempt、完整
 Activity input SHA、execution input SHA、完整执行身份与授权投影及其 SHA、模型可见工具，以及实际
 发送给 Agent Runtime 的 HTTP body SHA。HTTP 调用必须发送计算 request SHA 时的
 同一份编码 bytes，不能在计算摘要后重新编码。envelope 只在本次 Activity 内存中用于生成 receipt
 fingerprint，不持久化为单独载荷。
 
-运行级 Agent 模型用量只聚合 `step_id = 'agent.primary'` 的去重 attempt。每个已观测 attempt
+运行级 Agent 模型用量按各 operation step 的去重 attempt 聚合。每个已观测 attempt
 计算一次，重试已产生的用量不丢弃。`total_tokens` 按 input 与 output 相加，cached input 是 input
 子集，不重复计入总数。失败但已取得 SDK 结果的 attempt 仍保存 usage；调用前失败、网络中断或 SDK
 抛错且无法取得 usage 时保存 `usage_observed = false`，不用零伪装成真实用量。

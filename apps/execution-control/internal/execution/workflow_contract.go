@@ -58,7 +58,7 @@ func DecodeAndValidateWorkflowStartInput(
 	}
 	if err := ValidateAdmissionSnapshotForVisibleTools(
 		input.AdmissionSnapshot,
-		input.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames,
+		input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames,
 	); err != nil {
 		return input, fmt.Errorf("workflow admission snapshot is invalid: %w", err)
 	}

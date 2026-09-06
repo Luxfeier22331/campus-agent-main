@@ -21,7 +21,7 @@ import type {
 } from "./types";
 
 export const DEFAULT_DURABLE_EVENT_POLLING_POLICY = {
-	maxAttempts: 4,
+	maxAttempts: 36,
 	waitMs: 25_000,
 } as const;
 

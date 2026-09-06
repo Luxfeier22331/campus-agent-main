@@ -175,14 +175,14 @@ describe("execution finalization canonical response fixtures", () => {
 	it("parses stage timing", () => {
 		const payload = loadFixture("response_temporal_finalization.valid.json");
 		payload.stage_timing = {
-			"agent.runtime_ms": 321,
-			"agent.first_delta_ms": 120,
+			"workflow.execute_step_ms": 321,
+			"workflow.first_delta_ms": 120,
 		};
 
 		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
 			stageTiming: {
-				"agent.runtime_ms": 321,
-				"agent.first_delta_ms": 120,
+				"workflow.execute_step_ms": 321,
+				"workflow.first_delta_ms": 120,
 			},
 		});
 	});

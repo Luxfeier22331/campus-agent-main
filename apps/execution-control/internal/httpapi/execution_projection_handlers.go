@@ -333,7 +333,7 @@ func buildAgentRuntimeEvalProjection(
 	attempts []execution.StepAttemptProjection,
 	results []execution.StepResultProjection,
 ) map[string]any {
-	results, _ = successfulPrimaryAgentActivityProjections(steps, results, attempts)
+	results = currentWorkflowResultProjections(steps, attempts, results)
 	rag := projectedRAGForEval(results)
 	return map[string]any{
 		"schema_version":        "agent_runtime_eval_projection.v5",
@@ -347,80 +347,106 @@ func buildAgentRuntimeEvalProjection(
 	}
 }
 
-func successfulPrimaryAgentActivityProjections(
+func currentWorkflowResultProjections(
 	steps []execution.RunStepProjection,
-	results []execution.StepResultProjection,
 	attempts []execution.StepAttemptProjection,
-) ([]execution.StepResultProjection, []execution.StepAttemptProjection) {
-	successfulAttempt := 0
+	results []execution.StepResultProjection,
+) []execution.StepResultProjection {
+	selectedAttempts := map[string]int{}
+	for _, step := range steps {
+		if !isWorkflowOperationStep(step.StepID) || step.Status != "completed" {
+			continue
+		}
+		attempt := step.ActivityAttempt
+		if attempt <= 0 {
+			attempt, _ = execution.PositiveIntValue(step.SanitizedPayload["activity_attempt"])
+		}
+		if attempt > selectedAttempts[step.StepID] {
+			selectedAttempts[step.StepID] = attempt
+		}
+	}
 	for _, result := range results {
-		if result.StepID != "agent.primary" || result.Status != "completed" ||
-			result.ResultKind != "agent_final_output" {
+		if !isWorkflowOperationStep(result.StepID) || result.Status != "completed" {
 			continue
 		}
-		activityAttempt, ok := execution.PositiveIntValue(result.SanitizedPayload["activity_attempt"])
-		if !ok || result.AttemptID != temporalStepAttemptID(result.RequestID, result.StepID, activityAttempt) {
+		activityAttempt := workflowResultActivityAttempt(result)
+		if activityAttempt <= 0 {
 			continue
 		}
-		if activityAttempt > successfulAttempt {
-			successfulAttempt = activityAttempt
+		if activityAttempt > selectedAttempts[result.StepID] {
+			selectedAttempts[result.StepID] = activityAttempt
 		}
 	}
-	aggregateMismatch := successfulAttempt > 0 && !primaryAgentAggregateMatchesAttempt(steps, successfulAttempt)
-	if aggregateMismatch {
-		successfulAttempt = 0
-	}
-	filteredResults := make([]execution.StepResultProjection, 0, len(results))
-	for _, result := range results {
-		if !primaryAgentActivityStep(result.StepID) {
-			filteredResults = append(filteredResults, result)
-			continue
-		}
-		if successfulAttempt > 0 &&
-			result.AttemptID == temporalStepAttemptID(result.RequestID, result.StepID, successfulAttempt) {
-			filteredResults = append(filteredResults, result)
-		}
-	}
-	filteredAttempts := make([]execution.StepAttemptProjection, 0, len(attempts))
 	for _, attempt := range attempts {
-		if !primaryAgentActivityStep(attempt.StepID) ||
-			(!aggregateMismatch && successfulAttempt == 0 ||
-				successfulAttempt > 0 && execution.ProjectionActivityAttempt(attempt) == successfulAttempt) {
-			filteredAttempts = append(filteredAttempts, attempt)
+		if !isWorkflowOperationStep(attempt.StepID) || attempt.Status != "completed" {
+			continue
+		}
+		if activityAttempt := execution.ProjectionActivityAttempt(attempt); activityAttempt > selectedAttempts[attempt.StepID] {
+			selectedAttempts[attempt.StepID] = activityAttempt
 		}
 	}
-	return filteredResults, filteredAttempts
+	selectedFinalizationAttempt := 0
+	for _, result := range results {
+		if result.StepID != "finalization.write" || result.Status != "completed" {
+			continue
+		}
+		if attempt := workflowResultActivityAttempt(result); attempt > selectedFinalizationAttempt {
+			selectedFinalizationAttempt = attempt
+		}
+	}
+	projected := make([]execution.StepResultProjection, 0, len(results))
+	for _, result := range results {
+		if isWorkflowOperationStep(result.StepID) {
+			if result.Status == "completed" && workflowResultActivityAttempt(result) == selectedAttempts[result.StepID] {
+				projected = append(projected, result)
+			}
+			continue
+		}
+		if result.StepID == "finalization.write" {
+			if result.Status == "completed" && workflowResultActivityAttempt(result) == selectedFinalizationAttempt {
+				projected = append(projected, result)
+			}
+			continue
+		}
+		if !strings.HasPrefix(result.StepID, "sdk_tool.execute.") {
+			continue
+		}
+		parentStepID := execution.FirstNonEmptyText(
+			result.SanitizedPayload["parent_step_id"],
+			result.SanitizedPayload["workflow_step_id"],
+		)
+		if parentStepID == "" || selectedAttempts[parentStepID] <= 0 ||
+			workflowResultActivityAttempt(result) != selectedAttempts[parentStepID] {
+			continue
+		}
+		projected = append(projected, result)
+	}
+	return projected
 }
 
 func temporalStepAttemptID(runID string, stepID string, attempt int) string {
 	return strings.TrimSpace(runID) + ":" + strings.TrimSpace(stepID) + ":attempt-" + strconv.Itoa(attempt)
 }
 
-func primaryAgentAggregateMatchesAttempt(
-	steps []execution.RunStepProjection,
-	activityAttempt int,
-) bool {
-	for _, step := range steps {
-		if step.StepID != "agent.primary" {
-			continue
-		}
-		if step.Status != "completed" {
-			return false
-		}
-		aggregateAttempt := step.ActivityAttempt
-		if aggregateAttempt <= 0 {
-			aggregateAttempt, _ = execution.PositiveIntValue(step.SanitizedPayload["activity_attempt"])
-		}
-		if aggregateAttempt <= 0 {
-			return true
-		}
-		return aggregateAttempt == activityAttempt
-	}
-	return true
+func isWorkflowOperationStep(stepID string) bool {
+	stepID = strings.TrimSpace(stepID)
+	return stepID == "solve.initial" || stepID == "answer.synthesize" ||
+		strings.HasPrefix(stepID, "solve.replan.") || strings.HasPrefix(stepID, "task.step.")
 }
 
-func primaryAgentActivityStep(stepID string) bool {
-	return stepID == "agent.primary" || strings.HasPrefix(stepID, "sdk_tool.execute.")
+func workflowResultActivityAttempt(result execution.StepResultProjection) int {
+	if attempt, ok := execution.PositiveIntValue(result.SanitizedPayload["activity_attempt"]); ok {
+		return attempt
+	}
+	parts := strings.Split(strings.TrimSpace(result.AttemptID), ":attempt-")
+	if len(parts) != 2 {
+		return 0
+	}
+	attempt, err := strconv.Atoi(parts[1])
+	if err != nil || attempt <= 0 {
+		return 0
+	}
+	return attempt
 }
 
 func buildToolTrajectoryProjection(

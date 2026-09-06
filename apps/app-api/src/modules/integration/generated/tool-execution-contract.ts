@@ -2,7 +2,7 @@
 
 export const TOOL_EXECUTION_CONTRACT = {
 	executionContractVersion: "tool_execution_v7",
-	responseContract: "execution_finalization_response_v8",
+	responseContract: "execution_finalization_response_v9",
 } as const;
 
 export const TOOL_IDS = ["campus_search", "personal_memory_recall"] as const;
@@ -17,15 +17,17 @@ export const EXECUTION_STATUSES = [
 export const STAGE_TIMING_FIELDS = [
 	"request.total_ms",
 	"execution.dispatch_ms",
-	"agent.schedule_to_start_ms",
+	"workflow.schedule_to_start_ms",
 	"stream.first_delta_persist_ms",
 	"stream.app_api_ttft_ms",
 	"stream.orchestration_overhead_ms",
 	"execution.admission_ms",
 	"memory.recall_ms",
-	"agent.primary_ms",
-	"agent.runtime_ms",
-	"agent.first_delta_ms",
+	"workflow.solve_ms",
+	"workflow.execute_step_ms",
+	"workflow.replan_ms",
+	"workflow.synthesize_ms",
+	"workflow.first_delta_ms",
 	"tool.total_ms",
 	"finalization.write_ms",
 	"projection.closeout_ms",

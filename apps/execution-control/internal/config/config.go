@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultAgentRuntimeDeadlineMS      = 90_000
+	defaultAgentRuntimeDeadlineMS      = 240_000
 	defaultAgentRuntimeInputCharLimit  = 8_000
 	defaultAgentRuntimeMaxOutputTokens = 2_048
 	defaultMaxConcurrentAnswers        = 8
@@ -19,6 +19,7 @@ const (
 	defaultMemoryTimeoutSeconds        = 90
 	defaultQueueCapacity               = 24
 	defaultQueueTimeoutMS              = 3_000
+	defaultProductCallbackTimeoutMS    = 5_000
 	defaultRequestBodyLimitBytes       = 1_048_576
 	defaultRequestTimeoutMS            = 95_000
 	defaultShutdownGraceMS             = 95_000
@@ -160,7 +161,7 @@ func loadFromEnv() (Config, error) {
 		AgentRuntimeInputCharLimit:              defaultAgentRuntimeInputCharLimit,
 		AgentRuntimeContextCharLimit:            16_000,
 		ProductCallbackBaseURL:                  strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
-		ProductCallbackTimeoutMS:                1_000,
+		ProductCallbackTimeoutMS:                defaultProductCallbackTimeoutMS,
 		ModelConfigBaseURL:                      strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
 		QdrantURL:                               strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
 		QdrantReadOnlyAPIKey:                    strings.TrimSpace(values.QdrantReadOnlyAPIKey),

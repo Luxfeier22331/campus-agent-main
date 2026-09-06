@@ -306,6 +306,51 @@ class RagasRunnerScoreBatchTest(unittest.TestCase):
             ],
         )
 
+    def test_records_metric_exception_and_scores_following_metric(self) -> None:
+        projection = RagasProjection(
+            case_id="case-001",
+            user_input="What are the library opening hours?",
+            response="The library is open from 08:00 to 22:00.",
+            retrieved_contexts=("The library opening hours are 08:00-22:00.",),
+            cited_contexts=("The library opening hours are 08:00-22:00.",),
+            reference="The library is open from 08:00 to 22:00.",
+        )
+
+        class FailingFaithfulness:
+            def __init__(self, *, llm: object) -> None:
+                self.llm = llm
+
+            async def ascore(self, *_args: object) -> object:
+                raise RuntimeError("provider unavailable")
+
+        class WorkingAnswerRelevancy:
+            def __init__(self, *, llm: object, embeddings: object, strictness: int) -> None:
+                self.llm = llm
+                self.embeddings = embeddings
+                self.strictness = strictness
+
+            async def ascore(self, *_args: object) -> float:
+                return 0.5
+
+        with (
+            patch("ragas.metrics.collections.Faithfulness", FailingFaithfulness),
+            patch("ragas.metrics.collections.AnswerRelevancy", WorkingAnswerRelevancy),
+        ):
+            results = asyncio.run(
+                _score_with_official_ragas_metrics(
+                    projection,
+                    metric_names=("faithfulness", "answer_relevancy"),
+                    llm=object(),
+                    embeddings=object(),
+                )
+            )
+
+        self.assertEqual(results[0].metric_name, "faithfulness")
+        self.assertIsNone(results[0].score)
+        self.assertIn("RuntimeError: provider unavailable", results[0].rationale)
+        self.assertEqual(results[1].metric_name, "answer_relevancy")
+        self.assertEqual(results[1].score, 0.5)
+
     def test_routes_cited_contexts_to_faithfulness_and_retrieved_contexts_to_retrieval_metrics(
         self,
     ) -> None:

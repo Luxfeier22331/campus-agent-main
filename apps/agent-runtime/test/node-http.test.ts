@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { request as nodeRequest, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
+import type { WorkflowOperationRuntime } from "../src/agent-run-contract.ts";
 import { agentRunStreamResponse } from "../src/http-response.ts";
 import {
 	AGENT_RUNTIME_MAX_REQUEST_BODY_BYTES,
@@ -125,7 +126,7 @@ describe("agent runtime node HTTP server", () => {
 					return: returnIterator,
 				};
 			},
-		} as ReturnType<import("../src/agent-run-contract.ts").PrimaryAgentRuntime["stream"]>;
+		} as ReturnType<WorkflowOperationRuntime["stream"]>;
 		const writePromise = writeNodeResponse(
 			response,
 			agentRunStreamResponse(events, { runtimeRelease: "test-release" }),

@@ -29,8 +29,11 @@ func TestRuntimeUsesFixedRuntimePolicy(t *testing.T) {
 	if cfg.RequestTimeoutMS != 95_000 || cfg.ShutdownGraceMS != 95_000 {
 		t.Fatalf("unexpected request limits: %#v", cfg)
 	}
-	if cfg.AgentRuntimeDeadlineMS != 90_000 || cfg.AgentRuntimeMaxOutputTokens != 2_048 {
+	if cfg.AgentRuntimeDeadlineMS != 240_000 || cfg.AgentRuntimeMaxOutputTokens != 2_048 {
 		t.Fatalf("unexpected agent limits: %#v", cfg)
+	}
+	if cfg.ProductCallbackTimeoutMS != 5_000 {
+		t.Fatalf("product callback timeout = %d", cfg.ProductCallbackTimeoutMS)
 	}
 }
 

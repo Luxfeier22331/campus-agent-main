@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ from campus_ragas_runner.agent_score_batch import (
     RagasAgentProjection,
     RagasAgentResult,
     RagasAgentRunnerSettings,
+    _score_with_official_ragas_metrics,
     build_ragas_agent_scorer,
     run_ragas_agent_score_batch,
 )
@@ -282,6 +284,42 @@ class RagasAgentScoreBatchTest(unittest.TestCase):
                 for client in clients
             )
         )
+
+    def test_records_metric_exception_and_scores_following_metric(self) -> None:
+        projection = RagasAgentProjection(
+            case_id="case-001",
+            query="What are the library opening hours?",
+            answer="The library is open from 08:00 to 22:00.",
+            tool_calls=(),
+            reference_tool_calls=(),
+            argument_mode="name_only",
+            reference="The library is open from 08:00 to 22:00.",
+        )
+
+        class FailingAccuracy:
+            async def ascore(self, *_args: object) -> object:
+                raise RuntimeError("provider unavailable")
+
+        class WorkingF1:
+            async def ascore(self, *_args: object) -> float:
+                return type("Score", (), {"value": 0.5})()
+
+        with (
+            patch("ragas.metrics.collections.ToolCallAccuracy", FailingAccuracy),
+            patch("ragas.metrics.collections.ToolCallF1", WorkingF1),
+        ):
+            results = asyncio.run(
+                _score_with_official_ragas_metrics(
+                    projection,
+                    llm=object(),
+                )
+            )
+
+        self.assertEqual(results[0].metric_name, "tool_call_accuracy.name_only")
+        self.assertIsNone(results[0].score)
+        self.assertIn("RuntimeError: provider unavailable", results[0].rationale)
+        self.assertEqual(results[1].metric_name, "tool_call_f1.name_only")
+        self.assertEqual(results[1].score, 0.5)
 
     def test_agent_cli_mode_uses_provider_config(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:

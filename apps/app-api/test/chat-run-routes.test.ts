@@ -110,7 +110,7 @@ describe("chat run routes", () => {
 			data: {
 				error: {
 					code: "execution_timeout",
-					message: "The agent runtime did not complete before its deadline.",
+					message: "本次回答超时，未能完成。",
 					retryable: true,
 				},
 				requestId: "req_0001",

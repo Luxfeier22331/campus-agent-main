@@ -2,41 +2,34 @@ package temporaladapter
 
 import (
 	"fmt"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"net/http"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-const primaryAgentTransportGraceMS = 5000
+const workflowTransportGraceMS = 5000
 
 const (
-	defaultAgentDeadlineMS        = 90000
+	defaultAgentDeadlineMS        = 240000
 	defaultAgentMaxOutputTokens   = 2048
 	defaultAgentCurrentInputChars = 8000
 	defaultAgentContextChars      = 16000
 )
 
-type primaryAgentRuntimeLimits struct {
+type workflowRuntimeLimits struct {
 	AgentDeadlineMS       int
 	ContextCharLimit      int
 	CurrentInputCharLimit int
 	MaxOutputTokens       int
 	MaxFunctionToolCalls  int
 	MaxTurns              int
+	MaxPlanSteps          int
+	MaxReplans            int
 }
 
-func (s *Adapter) primaryAgentRuntimeLimits() primaryAgentRuntimeLimits {
-	return primaryAgentRuntimeLimits{
-		AgentDeadlineMS:       positiveOrDefault(s.config.AgentRuntimeDeadlineMS, defaultAgentDeadlineMS),
-		ContextCharLimit:      positiveOrDefault(s.config.AgentRuntimeContextCharLimit, defaultAgentContextChars),
-		CurrentInputCharLimit: positiveOrDefault(s.config.AgentRuntimeInputCharLimit, defaultAgentCurrentInputChars),
-		MaxOutputTokens:       positiveOrDefault(s.config.AgentRuntimeMaxOutputTokens, defaultAgentMaxOutputTokens),
-	}
-}
-
-func primaryAgentRuntimeLimitsPayload(limits primaryAgentRuntimeLimits) map[string]any {
+func workflowRuntimeLimitsPayload(limits workflowRuntimeLimits) map[string]any {
 	return map[string]any{
 		"agent_deadline_ms":        limits.AgentDeadlineMS,
 		"context_char_limit":       limits.ContextCharLimit,
@@ -44,6 +37,8 @@ func primaryAgentRuntimeLimitsPayload(limits primaryAgentRuntimeLimits) map[stri
 		"max_output_tokens":        limits.MaxOutputTokens,
 		"max_function_tool_calls":  limits.MaxFunctionToolCalls,
 		"max_turns":                limits.MaxTurns,
+		"max_plan_steps":           limits.MaxPlanSteps,
+		"max_replans":              limits.MaxReplans,
 	}
 }
 
@@ -54,9 +49,9 @@ func positiveOrDefault(value int, fallback int) int {
 	return fallback
 }
 
-func primaryAgentConversationContextForRun(
+func workflowConversationContextForRun(
 	payload map[string]any,
-	limits primaryAgentRuntimeLimits,
+	limits workflowRuntimeLimits,
 ) (map[string]any, error) {
 	currentInput := strings.TrimSpace(execution.StringValue(payload["user_goal"]))
 	currentInputChars := len([]rune(currentInput))
@@ -73,15 +68,15 @@ func primaryAgentConversationContextForRun(
 	}
 	context := map[string]any{
 		"schema_version": "agent_conversation_context.v1",
-		"recent_turns":   primaryAgentNormalizedRecentTurns(conversation),
+		"recent_turns":   workflowNormalizedRecentTurns(conversation),
 	}
-	if sessionState := primaryAgentModelRelevantSessionState(conversation); len(sessionState) > 0 {
+	if sessionState := workflowModelRelevantSessionState(conversation); len(sessionState) > 0 {
 		context["session_state"] = sessionState
 	}
 	return context, nil
 }
 
-func primaryAgentNormalizedRecentTurns(conversation map[string]any) []any {
+func workflowNormalizedRecentTurns(conversation map[string]any) []any {
 	turns := anyListFromAny(conversation["recent_turns"])
 	result := make([]any, 0, len(turns))
 	for _, raw := range turns {
@@ -103,7 +98,7 @@ func primaryAgentNormalizedRecentTurns(conversation map[string]any) []any {
 	return result
 }
 
-func primaryAgentModelRelevantSessionState(conversation map[string]any) map[string]any {
+func workflowModelRelevantSessionState(conversation map[string]any) map[string]any {
 	state := execution.CloneAnyMapFromValue(conversation["session_state"])
 	confirmedSlots := make([]any, 0)
 	for _, rawSlot := range anyListFromAny(state["confirmed_slots"]) {
@@ -130,12 +125,31 @@ func anyListFromAny(value any) []any {
 	return values
 }
 
+func intFromAny(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
+	}
+}
+
 type agentRuntimeResponse struct {
+	Operation               string                    `json:"operation"`
+	SolveOutcome            string                    `json:"solve_outcome"`
 	Status                  string                    `json:"status"`
 	Error                   agentRuntimeError         `json:"error"`
 	RequestID               string                    `json:"request_id"`
 	ContextUsage            map[string]any            `json:"context_usage"`
 	FinalOutput             string                    `json:"final_output"`
+	StructuredOutput        map[string]any            `json:"structured_output"`
+	CompletedStep           map[string]any            `json:"completed_step"`
+	Evidence                []map[string]any          `json:"evidence"`
+	SourceAttempts          []map[string]any          `json:"source_attempts"`
 	ModelName               string                    `json:"model_name"`
 	ModelProvider           string                    `json:"model_provider"`
 	PromptTrace             map[string]any            `json:"prompt_trace"`

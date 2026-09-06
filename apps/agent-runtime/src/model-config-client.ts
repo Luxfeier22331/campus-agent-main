@@ -14,6 +14,9 @@ interface RuntimeConfigResponse {
 	provider: string;
 	schema_version: "model_runtime_config.v1";
 	target_sha256: string;
+	capabilities?: {
+		hosted_web_search?: boolean;
+	};
 }
 
 export class ModelConfigClientError extends Error {
@@ -28,7 +31,7 @@ export class ModelConfigClientError extends Error {
 	}
 }
 
-export async function resolvePrimaryAgentModelConfig(
+export async function resolveModelRuntimeConfig(
 	options: ModelConfigClientOptions,
 	expectedTargetSha256: string,
 ): Promise<PromptProviderRuntimeConfig> {
@@ -99,6 +102,7 @@ export async function resolvePrimaryAgentModelConfig(
 		);
 	}
 	return {
+		...(payload.capabilities?.hosted_web_search === true ? { hostedWebSearch: true } : {}),
 		provider: payload.provider,
 		transport: payload.api_protocol === "openai.responses" ? "responses" : "chat_completions",
 		baseUrl: payload.base_url,
@@ -121,7 +125,18 @@ function isRuntimeConfigResponse(value: unknown): value is RuntimeConfigResponse
 		"schema_version",
 		"target_sha256",
 	];
-	if (Object.keys(value).sort().join("\n") !== expectedKeys.join("\n")) {
+	const keys = Object.keys(value).sort();
+	const legacyKeys = expectedKeys.join("\n");
+	const capabilityKeys = [...expectedKeys, "capabilities"].sort().join("\n");
+	if (keys.join("\n") !== legacyKeys && keys.join("\n") !== capabilityKeys) {
+		return false;
+	}
+	if (
+		"capabilities" in value &&
+		(!isRecord(value.capabilities) ||
+			Object.keys(value.capabilities).some((key) => key !== "hosted_web_search") ||
+			typeof value.capabilities.hosted_web_search !== "boolean")
+	) {
 		return false;
 	}
 	return (

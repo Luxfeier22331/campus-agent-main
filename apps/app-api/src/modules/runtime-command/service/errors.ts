@@ -118,7 +118,7 @@ export function publicExecutionFailure(input: {
 	} else if (["personal_memory_not_configured"].includes(errorCode)) {
 		message = "Personal memory could not be loaded for this request.";
 	} else if (errorCode === "execution_timeout") {
-		message = "The agent runtime did not complete before its deadline.";
+		message = "本次回答超时，未能完成。";
 	} else if (errorCode === "provider_unavailable") {
 		message = "The answer provider is temporarily unavailable.";
 	} else if (errorCode === "tool_execution_failed") {

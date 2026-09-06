@@ -29,7 +29,10 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 			durationMS:       110,
 			sanitizedPayload: map[string]any{"tool_name": "personal_memory_recall"},
 		},
-		{stepID: "agent.primary", durationMS: 120, scheduleToStartMS: 75},
+		{stepID: "solve.initial", durationMS: 120, scheduleToStartMS: 75},
+		{stepID: "task.step.step.lookup", durationMS: 120, scheduleToStartMS: 15},
+		{stepID: "solve.replan.1", durationMS: 120, scheduleToStartMS: 25},
+		{stepID: "answer.synthesize", durationMS: 120, scheduleToStartMS: 35},
 		{stepID: "sdk_tool.execute.test_lookup.1", durationMS: 140, sanitizedPayload: map[string]any{"tool_name": "test_lookup"}},
 		{stepID: "finalization.write", durationMS: 230},
 	} {
@@ -45,8 +48,22 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 			now,
 		)
 	}
+	for _, result := range []struct {
+		stepID      string
+		stageTiming map[string]any
+	}{
+		{stepID: "solve.initial", stageTiming: map[string]any{"workflow.solve_ms": 80.0}},
+		{stepID: "task.step.step.lookup", stageTiming: map[string]any{"workflow.execute_step_ms": 321.0}},
+		{stepID: "solve.replan.1", stageTiming: map[string]any{"workflow.replan_ms": 42.0}},
+		{stepID: "answer.synthesize", stageTiming: map[string]any{
+			"workflow.first_delta_ms": 120.0,
+			"workflow.synthesize_ms":  500.0,
+		}},
+	} {
+		upsertStageTimingResult(t, store, run.RequestID, result.stepID, result.stageTiming, now)
+	}
 
-	timing, err := server.stageTimingForRun(context.Background(), run, map[string]any{"agent.runtime_ms": float64(321)})
+	timing, err := server.stageTimingForRun(context.Background(), run, nil)
 	if err != nil {
 		t.Fatalf("stage timing: %v", err)
 	}
@@ -55,9 +72,12 @@ func TestStageTimingForRunProjectsCanonicalExecutionFields(t *testing.T) {
 	assertStageTimingField(t, timing, "execution.admission_ms", 200)
 	assertStageTimingField(t, timing, "stream.first_delta_persist_ms", 500)
 	assertStageTimingField(t, timing, "memory.recall_ms", 110)
-	assertStageTimingField(t, timing, "agent.primary_ms", 120)
-	assertStageTimingField(t, timing, "agent.schedule_to_start_ms", 75)
-	assertStageTimingField(t, timing, "agent.runtime_ms", 321)
+	assertStageTimingField(t, timing, "workflow.solve_ms", 80)
+	assertStageTimingField(t, timing, "workflow.execute_step_ms", 321)
+	assertStageTimingField(t, timing, "workflow.replan_ms", 42)
+	assertStageTimingField(t, timing, "workflow.synthesize_ms", 500)
+	assertStageTimingField(t, timing, "workflow.first_delta_ms", 120)
+	assertStageTimingField(t, timing, "workflow.schedule_to_start_ms", 150)
 	assertStageTimingField(t, timing, "tool.total_ms", 250)
 	if _, ok := timing["finalization.write_ms"]; ok {
 		t.Fatalf("stage_timing callback projection must exclude self-referential finalization.write_ms: %#v", timing)
@@ -71,7 +91,7 @@ func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
 
 	now := time.Date(2026, 7, 4, 10, 30, 0, 0, time.UTC)
 	run := createStageTimingRun(t, store, now)
-	upsertStageTimingAttempt(t, store, run.RequestID, 1, "agent.primary", 120, nil, now)
+	upsertStageTimingAttempt(t, store, run.RequestID, 1, "task.step.step.lookup", 120, nil, now)
 
 	timing, err := server.stageTimingForRun(context.Background(), run, nil)
 	if err != nil {
@@ -81,18 +101,48 @@ func TestStageTimingForRunDoesNotSynthesizeUnexecutedStages(t *testing.T) {
 	assertStageTimingField(t, timing, "execution.dispatch_ms", 100)
 	assertStageTimingField(t, timing, "execution.admission_ms", 200)
 	assertStageTimingField(t, timing, "stream.first_delta_persist_ms", 500)
-	assertStageTimingField(t, timing, "agent.primary_ms", 120)
 	for _, field := range []string{
-		"agent.schedule_to_start_ms",
+		"workflow.schedule_to_start_ms",
 		"memory.recall_ms",
-		"agent.runtime_ms",
-		"agent.first_delta_ms",
+		"workflow.solve_ms",
+		"workflow.execute_step_ms",
+		"workflow.replan_ms",
+		"workflow.synthesize_ms",
+		"workflow.first_delta_ms",
 		"tool.total_ms",
 		"finalization.write_ms",
 	} {
 		if _, ok := timing[field]; ok {
 			t.Fatalf("stage_timing must not synthesize %s without a matching executed stage: %#v", field, timing)
 		}
+	}
+}
+
+func upsertStageTimingResult(
+	t *testing.T,
+	store *executionpersistence.InMemoryRunProjectionStore,
+	runID string,
+	stepID string,
+	stageTiming map[string]any,
+	now time.Time,
+) {
+	t.Helper()
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             temporalStepResultID(runID, stepID, 1),
+		StepID:               stepID,
+		RequestID:            runID,
+		AttemptID:            temporalStepAttemptID(runID, stepID, 1),
+		Status:               "completed",
+		ResultKind:           "workflow_operation_result",
+		ProjectionRef:        workflowOperationResultRef(runID, stepID),
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload: map[string]any{
+			"activity_attempt": 1,
+			"stage_timing":     stageTiming,
+		},
+	}); err != nil {
+		t.Fatalf("upsert workflow result %s: %v", stepID, err)
 	}
 }
 

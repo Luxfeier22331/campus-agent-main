@@ -120,6 +120,7 @@ func (s *Store) Descriptor(ctx context.Context, name ConfigName) (Descriptor, er
 		return Descriptor{}, err
 	}
 	descriptor.SchemaVersion = "model_target.v1"
+	descriptor.Capabilities = CapabilitiesForTarget(descriptor.Target)
 	descriptor.TargetSHA256 = TargetHash(descriptor.Target)
 	return descriptor, nil
 }
@@ -152,6 +153,7 @@ func (s *Store) Resolve(ctx context.Context, name ConfigName, expected string) (
 	return RuntimeConfig{
 		SchemaVersion: "model_runtime_config.v1",
 		Target:        target,
+		Capabilities:  CapabilitiesForTarget(target),
 		APIKey:        apiKey,
 		TargetSHA256:  targetSHA256,
 	}, nil

@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	ExecutionStrategySchemaVersion       = "execution_strategy.v4"
+	AgentCapabilitiesSchemaVersion       = "agent_capabilities.v1"
+	AgentRuntimeBudgetSchemaVersion      = "agent_runtime_budget.v1"
 	ToolContractFingerprintSchemaVersion = "tool_contract_fingerprint.v1"
 )
 
@@ -22,31 +23,36 @@ var (
 	sha256RefPattern       = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
-func ExecutionStrategyForAdmission(personalMemoryRecallAvailable bool) ExecutionStrategySnapshot {
+func AgentCapabilitiesForAdmission(
+	personalMemoryRecallAvailable bool,
+	hostedWebSearch bool,
+) AgentCapabilitiesSnapshot {
 	visibleFunctionToolNames := []string{string(contracts.ModelVisibleToolNameCampusSearch)}
-	maxModelTurns := 2
-	maxFunctionToolCalls := 1
 	if personalMemoryRecallAvailable {
 		visibleFunctionToolNames = append(visibleFunctionToolNames, string(contracts.ModelVisibleToolNamePersonalMemoryRecall))
-		maxModelTurns = 3
-		maxFunctionToolCalls = 2
 	}
-	return ExecutionStrategySnapshot{
-		Kind:                     "direct",
-		MaxModelTurns:            maxModelTurns,
-		MaxFunctionToolCalls:     maxFunctionToolCalls,
-		SchemaVersion:            ExecutionStrategySchemaVersion,
+	return AgentCapabilitiesSnapshot{
+		SchemaVersion:            AgentCapabilitiesSchemaVersion,
+		HostedWebSearch:          hostedWebSearch,
 		VisibleFunctionToolNames: visibleFunctionToolNames,
 	}
 }
 
-func ExecutionStrategyProjectionPayload(strategy ExecutionStrategySnapshot) map[string]any {
+func AgentCapabilitiesProjectionPayload(capabilities AgentCapabilitiesSnapshot) map[string]any {
 	return map[string]any{
-		"kind":                        strategy.Kind,
-		"max_model_turns":             strategy.MaxModelTurns,
-		"max_function_tool_calls":     strategy.MaxFunctionToolCalls,
-		"schema_version":              strategy.SchemaVersion,
-		"visible_function_tool_names": append([]string{}, strategy.VisibleFunctionToolNames...),
+		"schema_version":              capabilities.SchemaVersion,
+		"hosted_web_search":           capabilities.HostedWebSearch,
+		"visible_function_tool_names": append([]string{}, capabilities.VisibleFunctionToolNames...),
+	}
+}
+
+func AgentRuntimeBudgetProjectionPayload(budget AgentRuntimeBudgetSnapshot) map[string]any {
+	return map[string]any{
+		"max_function_tool_calls": budget.MaxFunctionToolCalls,
+		"max_model_turns":         budget.MaxModelTurns,
+		"max_plan_steps":          budget.MaxPlanSteps,
+		"max_replans":             budget.MaxReplans,
+		"schema_version":          budget.SchemaVersion,
 	}
 }
 
@@ -63,15 +69,22 @@ func ValidateAdmissionSnapshot(snapshot AgentAdmissionSnapshot) error {
 	if snapshot.AgentLimitsSHA256 == "" || HashAdmissionJSON(snapshot.AgentLimits) != snapshot.AgentLimitsSHA256 {
 		return errors.New("agent limits admission snapshot hash mismatch")
 	}
-	if snapshot.ExecutionStrategySHA256 == "" ||
-		HashAdmissionJSON(snapshot.ExecutionStrategy) != snapshot.ExecutionStrategySHA256 {
-		return errors.New("execution strategy admission snapshot hash mismatch")
+	if snapshot.AgentCapabilitiesSHA256 == "" ||
+		HashAdmissionJSON(snapshot.AgentCapabilities) != snapshot.AgentCapabilitiesSHA256 {
+		return errors.New("agent capabilities admission snapshot hash mismatch")
 	}
-	if err := ValidateExecutionStrategy(snapshot.ExecutionStrategy); err != nil {
+	if err := ValidateAgentCapabilities(snapshot.AgentCapabilities); err != nil {
 		return err
 	}
-	if !lowercaseSHA256Pattern.MatchString(strings.TrimSpace(snapshot.PrimaryAgentTargetSHA256)) {
-		return errors.New("primary agent model target admission snapshot is invalid")
+	if snapshot.AgentBudgetSHA256 == "" ||
+		HashAdmissionJSON(snapshot.AgentBudget) != snapshot.AgentBudgetSHA256 {
+		return errors.New("agent budget admission snapshot hash mismatch")
+	}
+	if err := ValidateAgentRuntimeBudget(snapshot.AgentBudget); err != nil {
+		return err
+	}
+	if !lowercaseSHA256Pattern.MatchString(strings.TrimSpace(snapshot.ModelTargetSHA256)) {
+		return errors.New("workflow model target admission snapshot is invalid")
 	}
 	if err := ValidateToolContractFingerprintSnapshot(snapshot.ToolContractFingerprint); err != nil {
 		return err
@@ -93,25 +106,31 @@ func ValidateAdmissionSnapshot(snapshot AgentAdmissionSnapshot) error {
 	return nil
 }
 
-func ValidateExecutionStrategy(strategy ExecutionStrategySnapshot) error {
-	if strategy.SchemaVersion != ExecutionStrategySchemaVersion || strategy.Kind != "direct" {
-		return errors.New("execution strategy identity is invalid")
-	}
-	if strategy.MaxFunctionToolCalls < 0 || strategy.MaxModelTurns < 1 {
-		return errors.New("execution strategy tool budget is invalid")
+func ValidateAgentCapabilities(capabilities AgentCapabilitiesSnapshot) error {
+	if capabilities.SchemaVersion != AgentCapabilitiesSchemaVersion {
+		return errors.New("agent capabilities identity is invalid")
 	}
 	seen := map[string]struct{}{}
-	for _, name := range strategy.VisibleFunctionToolNames {
+	for _, name := range capabilities.VisibleFunctionToolNames {
 		if strings.TrimSpace(name) != name || name == "" {
-			return errors.New("execution strategy visible tools are not canonical")
+			return errors.New("agent capabilities visible tools are not canonical")
 		}
 		if _, exists := seen[name]; exists {
-			return errors.New("execution strategy contains duplicate visible tools")
+			return errors.New("agent capabilities contains duplicate visible tools")
 		}
 		seen[name] = struct{}{}
 		if !supportedModelVisibleToolName(name) {
-			return fmt.Errorf("execution strategy tool %s is not registered as model visible", name)
+			return fmt.Errorf("agent capability tool %s is not registered as model visible", name)
 		}
+	}
+	return nil
+}
+
+func ValidateAgentRuntimeBudget(budget AgentRuntimeBudgetSnapshot) error {
+	if budget.SchemaVersion != AgentRuntimeBudgetSchemaVersion ||
+		budget.MaxFunctionToolCalls < 0 || budget.MaxModelTurns < 1 ||
+		budget.MaxPlanSteps < 1 || budget.MaxReplans < 0 {
+		return errors.New("agent runtime budget is invalid")
 	}
 	return nil
 }
@@ -133,17 +152,17 @@ func ValidateAdmissionSnapshotForVisibleTools(
 	if err := ValidateAdmissionSnapshot(snapshot); err != nil {
 		return err
 	}
-	frozen := stringSet(snapshot.ExecutionStrategy.VisibleFunctionToolNames)
+	frozen := stringSet(snapshot.AgentCapabilities.VisibleFunctionToolNames)
 	visible := stringSet(visibleFunctionToolNames)
 	if len(visible) != len(visibleFunctionToolNames) || len(frozen) != len(visible) {
-		return errors.New("visible tools differ from the frozen execution strategy")
+		return errors.New("visible tools differ from the frozen agent capabilities")
 	}
 	for _, name := range visibleFunctionToolNames {
 		if strings.TrimSpace(name) != name || name == "" {
-			return errors.New("visible tools differ from the frozen execution strategy")
+			return errors.New("visible tools differ from the frozen agent capabilities")
 		}
 		if _, ok := frozen[name]; !ok {
-			return errors.New("visible tools differ from the frozen execution strategy")
+			return errors.New("visible tools differ from the frozen agent capabilities")
 		}
 	}
 	return nil

@@ -13,47 +13,6 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestCallAgentRuntimeDoesNotFollowRedirect(t *testing.T) {
-	var targetRequests atomic.Int32
-	target := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
-		targetRequests.Add(1)
-		response.WriteHeader(http.StatusOK)
-	}))
-	defer target.Close()
-
-	redirect := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
-		response.Header().Set("location", target.URL)
-		response.Header().Set("content-type", "application/json")
-		response.WriteHeader(http.StatusTemporaryRedirect)
-		_, _ = response.Write([]byte(`{"error":{"code":"redirect","message":"redirect rejected"}}`))
-	}))
-	defer redirect.Close()
-
-	server := newAdapterForTest(config.Config{
-		AgentRuntimeBaseURL:      redirect.URL,
-		AgentRuntimeSharedSecret: "agent-secret",
-		AgentRuntimeDeadlineMS:   1000,
-	})
-	run := execution.DurableRun{
-		RequestID: "run-agent-runtime-redirect",
-	}
-	_, err := server.callAgentRuntime(
-		context.Background(),
-		run,
-		temporalruntime.ExecutePrimaryAgentActivityInput{RequestID: run.RequestID},
-		"private prompt",
-		nil,
-		server.primaryAgentRuntimeLimits(),
-		1,
-	)
-	if err == nil {
-		t.Fatal("call agent runtime succeeded through redirect")
-	}
-	if got := targetRequests.Load(); got != 0 {
-		t.Fatalf("redirect target received %d requests, want 0", got)
-	}
-}
-
 func TestWritePersonalMemoryCommandResultDoesNotFollowRedirect(t *testing.T) {
 	var targetRequests atomic.Int32
 	target := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {

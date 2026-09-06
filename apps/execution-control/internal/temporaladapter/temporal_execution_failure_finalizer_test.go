@@ -34,15 +34,15 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		if err := server.projectTemporalStep(context.Background(), temporalStepProjection{
 			ActivityAttempt: attempt + 1,
 			ActivityID:      marker,
-			ActivityType:    temporalruntime.ExecutePrimaryAgentActivityName,
+			ActivityType:    temporalruntime.SolveTaskActivityName,
 			Attempt:         attempt + 1,
 			CompletedAt:     now.Add(time.Duration(attempt+1) * time.Second),
 			Payload:         map[string]any{"attempt_marker": marker},
 			Run:             run,
 			StartedAt:       now,
 			Status:          "failed",
-			StepID:          "agent.primary",
-			StepKind:        "agent",
+			StepID:          "solve.initial",
+			StepKind:        "solver",
 			TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
 			UpdatedAt:       now.Add(time.Duration(attempt+1) * time.Second),
 		}); err != nil {
@@ -54,7 +54,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
 		RequestID:   "run-agent-failed",
-		Stage:       "agent.primary",
+		Stage:       "solve.initial",
 	})
 	if err != nil {
 		t.Fatalf("finalize execution failure: %v", err)
@@ -85,7 +85,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 		FailureKind: "agent_runtime_failed",
 		FailedAt:    now.Add(3 * time.Second),
 		RequestID:   "run-agent-failed",
-		Stage:       "agent.primary",
+		Stage:       "solve.initial",
 	})
 	if err != nil || replay.Status != string(execution.DurableRunStatusFailed) {
 		t.Fatalf("idempotent finalization = %#v err=%v", replay, err)
@@ -102,7 +102,7 @@ func TestFinalizeExecutionFailureActivityClosesProductRunAndReleasesConversation
 	}
 	for _, attempt := range attempts {
 		marker := []string{"agent-attempt-1", "agent-attempt-2"}[attempt.Attempt-1]
-		if attempt.ActivityType != temporalruntime.ExecutePrimaryAgentActivityName ||
+		if attempt.ActivityType != temporalruntime.SolveTaskActivityName ||
 			attempt.SanitizedPayload["attempt_marker"] != marker {
 			t.Fatalf("agent attempt %d was overwritten by finalizer: %#v", attempt.Attempt, attempt)
 		}
@@ -116,7 +116,10 @@ func TestFinalizeExecutionFailureActivityOwnsAllPreAnswerFailureStages(t *testin
 		failureKind string
 		stage       string
 	}{
-		{failureKind: "agent_runtime_failed", stage: "agent.primary"},
+		{failureKind: "workflow_solve_failed", stage: "solve.initial"},
+		{failureKind: "run_failed", stage: "task.step.step.lookup"},
+		{failureKind: "workflow_replan_failed", stage: "solve.replan.1"},
+		{failureKind: "workflow_synthesis_failed", stage: "answer.synthesize"},
 		{failureKind: "finalization_failed", stage: "finalization.write"},
 	}
 	for index, test := range tests {
@@ -192,7 +195,7 @@ func TestFinalizeExecutionFailureActivityMapsRuntimeUnauthorizedToInvariantFailu
 			FailureKind: "agent_runtime_unauthorized",
 			FailedAt:    now.Add(time.Second),
 			RequestID:   "run-runtime-unauthorized",
-			Stage:       "agent.primary",
+			Stage:       "solve.initial",
 		},
 	)
 	if err != nil {
@@ -235,7 +238,7 @@ func TestTemporalFailureTerminalReasonAndProductRetryability(t *testing.T) {
 		{
 			name:           "agent runtime timeout code",
 			failureKind:    "agent_runtime_timeout",
-			terminalReason: execution.DurableTerminalReasonProviderUnavailable,
+			terminalReason: execution.DurableTerminalReasonRunTimeout,
 			retryable:      true,
 		},
 		{
@@ -358,7 +361,7 @@ func TestFinalizeExecutionFailureActivityKeepsRunActiveUntilCallbackSucceeds(t *
 			FailureKind: "agent_runtime_failed",
 			FailedAt:    now.Add(time.Second),
 			RequestID:   "run-callback-pending",
-			Stage:       "agent.primary",
+			Stage:       "solve.initial",
 		},
 	)
 	assertTemporalFailureSanitized(t, err, "execution_failure_finalizer_failed", false)

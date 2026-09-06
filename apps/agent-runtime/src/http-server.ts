@@ -1,8 +1,7 @@
 import { propagateAttributes } from "@langfuse/tracing";
 import type {
-	PrimaryAgentRunInput,
-	PrimaryAgentRunResult,
-	PrimaryAgentRuntime,
+	PromptProviderRuntimeConfig,
+	WorkflowOperationRuntime,
 } from "./agent-run-contract.ts";
 import {
 	agentRunResultWire,
@@ -19,16 +18,20 @@ import {
 import {
 	ModelConfigClientError,
 	type ModelConfigClientOptions,
-	resolvePrimaryAgentModelConfig,
+	resolveModelRuntimeConfig,
 } from "./model-config-client.ts";
 import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
 
 export interface AgentRuntimeHandlerOptions {
+	onRunError?: (
+		error: unknown,
+		context: { operation: AgentRunRequest["operation"]; requestId: string },
+	) => void;
 	onStreamError?: (error: unknown, context: { requestId: string }) => void;
 	runtimeRelease: string;
 	sharedSecret: string;
-	runtime: PrimaryAgentRuntime;
+	runtime: WorkflowOperationRuntime;
 	modelConfig: ModelConfigClientOptions;
 }
 
@@ -71,7 +74,7 @@ export function createAgentRuntimeHandler(
 				return providerConfig;
 			}
 			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
-			let result: PrimaryAgentRunResult;
+			let result: Awaited<ReturnType<WorkflowOperationRuntime["run"]>>;
 			try {
 				result = await withAgentTraceAttributes(parsed, () =>
 					options.runtime.run(
@@ -79,6 +82,14 @@ export function createAgentRuntimeHandler(
 					),
 				);
 			} catch (error) {
+				try {
+					options.onRunError?.(error, {
+						operation: parsed.operation,
+						requestId: parsed.request_id,
+					});
+				} catch {
+					// Diagnostics must not change the operation response.
+				}
 				const runtimeError = agentRuntimeErrorPayload(error, {
 					deadlineSignal: signals.deadlineSignal,
 				});
@@ -97,18 +108,33 @@ export function createAgentRuntimeHandler(
 			if (parsed instanceof Response) {
 				return parsed;
 			}
+			if (parsed.operation !== "solve" && parsed.operation !== "synthesize") {
+				return jsonResponse(400, {
+					error: {
+						code: "invalid_request",
+						message: "Only solve and synthesize operations support streaming.",
+						retryable: false,
+					},
+				});
+			}
 			const providerConfig = await resolveProviderConfig(parsed, options.modelConfig);
 			if (providerConfig instanceof Response) {
 				return providerConfig;
 			}
 			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
+			const runtimeInput = runtimeInputFromAgentRunRequest(parsed, providerConfig, signals.signal);
+			if (runtimeInput.operation !== "solve" && runtimeInput.operation !== "synthesize") {
+				return jsonResponse(400, {
+					error: {
+						code: "invalid_request",
+						message: "Only solve and synthesize operations support streaming.",
+						retryable: false,
+					},
+				});
+			}
 			return withAgentTraceAttributes(parsed, () =>
 				agentRunStreamResponse(
-					bindAsyncIterableToActiveContext(
-						options.runtime.stream(
-							runtimeInputFromAgentRunRequest(parsed, providerConfig, signals.signal),
-						),
-					),
+					bindAsyncIterableToActiveContext(options.runtime.stream(runtimeInput)),
 					{
 						deadlineSignal: signals.deadlineSignal,
 						runtimeRelease: options.runtimeRelease,
@@ -136,9 +162,9 @@ export function createAgentRuntimeHandler(
 async function resolveProviderConfig(
 	parsed: AgentRunRequest,
 	options: ModelConfigClientOptions,
-): Promise<PrimaryAgentRunInput["providerConfig"] | Response> {
+): Promise<PromptProviderRuntimeConfig | Response> {
 	try {
-		return await resolvePrimaryAgentModelConfig(options, parsed.expected_model_target_sha256);
+		return await resolveModelRuntimeConfig(options, parsed.expected_model_target_sha256);
 	} catch (error) {
 		if (error instanceof ModelConfigClientError) {
 			return jsonResponse(error.status === 409 ? 409 : 503, {
@@ -178,8 +204,8 @@ function withAgentTraceAttributes<T>(parsed: AgentRunRequest, callback: () => T)
 				request_id: parsed.request_id,
 			},
 			sessionId: parsed.conversation_id,
-			tags: ["surface:agent-runtime"],
-			traceName: "online-answer",
+			tags: ["surface:agent-runtime", `operation:${parsed.operation}`],
+			traceName: `workflow-${parsed.operation}`,
 			userId: parsed.user_id,
 		},
 		callback,

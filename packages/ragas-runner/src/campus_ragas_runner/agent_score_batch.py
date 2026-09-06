@@ -13,6 +13,7 @@ os.environ.setdefault("RAGAS_DO_NOT_TRACK", "true")
 
 from campus_ragas_runner.provider_config import load_provider_profiles
 from campus_ragas_runner.score_batch import (
+    _metric_exception_reason,
     _optional_mapping,
     _optional_str,
     _qualify_metric_name,
@@ -232,34 +233,47 @@ async def _score_with_official_ragas_metrics(
     results: list[RagasAgentResult] = []
     suffix = "name_only" if projection.argument_mode == "name_only" else "args"
     for metric_name in AGENT_METRIC_NAMES:
-        if metric_name == "tool_call_accuracy":
-            score = await ToolCallAccuracy().ascore(messages, reference_tool_calls)
-            results.append(
-                RagasAgentResult(
-                    metric_name=f"tool_call_accuracy.{suffix}",
-                    score=_metric_value(score),
-                    rationale=_metric_reason(score),
+        try:
+            if metric_name == "tool_call_accuracy":
+                score = await ToolCallAccuracy().ascore(messages, reference_tool_calls)
+                results.append(
+                    RagasAgentResult(
+                        metric_name=f"tool_call_accuracy.{suffix}",
+                        score=_metric_value(score),
+                        rationale=_metric_reason(score),
+                    )
                 )
-            )
-        elif metric_name == "tool_call_f1":
-            score = await ToolCallF1().ascore(messages, reference_tool_calls)
-            results.append(
-                RagasAgentResult(
-                    metric_name=f"tool_call_f1.{suffix}",
-                    score=_metric_value(score),
-                    rationale=_metric_reason(score),
+            elif metric_name == "tool_call_f1":
+                score = await ToolCallF1().ascore(messages, reference_tool_calls)
+                results.append(
+                    RagasAgentResult(
+                        metric_name=f"tool_call_f1.{suffix}",
+                        score=_metric_value(score),
+                        rationale=_metric_reason(score),
+                    )
                 )
-            )
-        elif metric_name == "agent_goal_accuracy_with_reference" and projection.reference:
-            score = await AgentGoalAccuracyWithReference(llm=llm).ascore(
-                messages,
-                projection.reference,
+            elif metric_name == "agent_goal_accuracy_with_reference" and projection.reference:
+                score = await AgentGoalAccuracyWithReference(llm=llm).ascore(
+                    messages,
+                    projection.reference,
+                )
+                results.append(
+                    RagasAgentResult(
+                        metric_name="agent_goal_accuracy.with_reference",
+                        score=_metric_value(score),
+                        rationale=_metric_reason(score),
+                    )
+                )
+        except Exception as error:
+            output_name = (
+                "agent_goal_accuracy.with_reference"
+                if metric_name == "agent_goal_accuracy_with_reference"
+                else f"{metric_name}.{suffix}"
             )
             results.append(
                 RagasAgentResult(
-                    metric_name="agent_goal_accuracy.with_reference",
-                    score=_metric_value(score),
-                    rationale=_metric_reason(score),
+                    metric_name=output_name,
+                    rationale=_metric_exception_reason(error),
                 )
             )
     return tuple(results)

@@ -10,25 +10,25 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
 )
 
-type countingPrimaryAgentTargetResolver struct {
+type countingModelTargetResolver struct {
 	targetSHA256 string
 	calls        int
 }
 
-func (resolver *countingPrimaryAgentTargetResolver) ResolvePrimaryAgentTarget(
+func (resolver *countingModelTargetResolver) ResolveModelTarget(
 	context.Context,
-) (modelconfigclient.PrimaryAgentTarget, error) {
+) (modelconfigclient.ModelTarget, error) {
 	resolver.calls++
 	if resolver.targetSHA256 == "" {
-		return modelconfigclient.PrimaryAgentTarget{}, errors.New("requested model target is missing")
+		return modelconfigclient.ModelTarget{}, errors.New("requested model target is missing")
 	}
-	return modelconfigclient.PrimaryAgentTarget{TargetSHA256: resolver.targetSHA256}, nil
+	return modelconfigclient.ModelTarget{TargetSHA256: resolver.targetSHA256, HostedWebSearch: true}, nil
 }
 
-func TestBuildAgentAdmissionSnapshotResolvesPrimaryAgentTargetOnce(t *testing.T) {
-	resolver := &countingPrimaryAgentTargetResolver{targetSHA256: primaryAgentModelTargetSHA256ForTest}
+func TestBuildAgentAdmissionSnapshotResolvesModelTargetOnce(t *testing.T) {
+	resolver := &countingModelTargetResolver{targetSHA256: modelTargetSHA256ForTest}
 	service := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
-		PrimaryAgentTargetResolver: resolver,
+		ModelTargetResolver: resolver,
 	})
 
 	snapshot, err := service.BuildAgentAdmissionSnapshot(t.Context(), true)
@@ -36,38 +36,38 @@ func TestBuildAgentAdmissionSnapshotResolvesPrimaryAgentTargetOnce(t *testing.T)
 		t.Fatalf("build admission snapshot: %v", err)
 	}
 	if resolver.calls != 1 {
-		t.Fatalf("primary agent target calls = %d, want 1", resolver.calls)
+		t.Fatalf("workflow model target calls = %d, want 1", resolver.calls)
 	}
-	if snapshot.PrimaryAgentTargetSHA256 != primaryAgentModelTargetSHA256ForTest {
+	if snapshot.ModelTargetSHA256 != modelTargetSHA256ForTest {
 		t.Fatalf("provider admission hashes = %#v", snapshot)
 	}
-	if !execution.ContainsString(snapshot.ExecutionStrategy.VisibleFunctionToolNames, personalMemoryRecallToolName) {
-		t.Fatalf("execution strategy = %#v", snapshot.ExecutionStrategy)
+	if !execution.ContainsString(snapshot.AgentCapabilities.VisibleFunctionToolNames, personalMemoryRecallToolName) {
+		t.Fatalf("agent capabilities = %#v", snapshot.AgentCapabilities)
 	}
-	snapshot.ExecutionStrategy.MaxFunctionToolCalls++
+	snapshot.AgentBudget.MaxFunctionToolCalls++
 	if err := execution.ValidateAdmissionSnapshot(snapshot); err == nil {
-		t.Fatal("admission snapshot accepted a mutated execution strategy")
+		t.Fatal("admission snapshot accepted a mutated agent budget")
 	}
 }
 
 func TestBuildAgentAdmissionSnapshotDoesNotRequireCampusDocs(t *testing.T) {
-	resolver := &countingPrimaryAgentTargetResolver{targetSHA256: primaryAgentModelTargetSHA256ForTest}
+	resolver := &countingModelTargetResolver{targetSHA256: modelTargetSHA256ForTest}
 	service := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
-		PrimaryAgentTargetResolver: resolver,
+		ModelTargetResolver: resolver,
 	})
 
 	_, err := service.BuildAgentAdmissionSnapshot(t.Context(), false)
 	if err != nil {
-		t.Fatalf("build direct admission snapshot: %v", err)
+		t.Fatalf("build workflow admission snapshot: %v", err)
 	}
 	if resolver.calls != 1 {
-		t.Fatalf("primary agent target calls = %d, want 1", resolver.calls)
+		t.Fatalf("workflow model target calls = %d, want 1", resolver.calls)
 	}
 }
 
 func TestBuildAgentAdmissionSnapshotRequiresProviderSettings(t *testing.T) {
 	service := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
-		PrimaryAgentTargetError: modelconfigclient.ErrNotConfigured,
+		ModelTargetError: modelconfigclient.ErrNotConfigured,
 	})
 
 	if _, err := service.BuildAgentAdmissionSnapshot(t.Context(), false); !errors.Is(err, modelconfigclient.ErrNotConfigured) {

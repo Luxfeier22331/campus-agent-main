@@ -33,8 +33,11 @@ interface ProductRunEventPage {
 	run: ProductRunSummary;
 }
 
-const ACCEPTED_RUN_RECOVERY_TIMEOUT_MS = 180_000;
+const PRODUCT_RUN_TIMEOUT_MS = 900_000;
+const ACCEPTED_RUN_RECOVERY_TIMEOUT_MS = PRODUCT_RUN_TIMEOUT_MS;
 const ACCEPTED_RUN_RECOVERY_POLL_MS = 500;
+const EXECUTION_PROJECTION_RECOVERY_TIMEOUT_MS = 30_000;
+const EXECUTION_PROJECTION_RECOVERY_POLL_MS = 200;
 
 export interface AgentToolEvalInput {
 	appApiBaseUrl: string;
@@ -119,7 +122,7 @@ async function submitChatStream(input: {
 			"idempotency-key": stableId("agent-tool-eval", input.prompt, randomUUID()),
 		},
 		method: "POST",
-		signal: AbortSignal.timeout(180_000),
+		signal: AbortSignal.timeout(PRODUCT_RUN_TIMEOUT_MS),
 	});
 	if (!response.ok) {
 		throw new Error(`chat stream failed (${response.status}): ${await response.text()}`);
@@ -373,28 +376,53 @@ async function fetchExecutionProjection(input: {
 	fetchImpl: typeof fetch;
 	requestId: string;
 }): Promise<ExecutionRunEvalProjection> {
-	const response = await input.fetchImpl(
-		new URL(
-			`/internal/execution/requests/${encodeURIComponent(input.requestId)}/steps`,
-			input.baseUrl,
-		),
-		{
-			headers: {
-				accept: "application/json",
-				"x-worker-origin-auth": input.authSecret,
+	const deadline = Date.now() + EXECUTION_PROJECTION_RECOVERY_TIMEOUT_MS;
+	while (true) {
+		const response = await input.fetchImpl(
+			new URL(
+				`/internal/execution/requests/${encodeURIComponent(input.requestId)}/steps`,
+				input.baseUrl,
+			),
+			{
+				headers: {
+					accept: "application/json",
+					"x-worker-origin-auth": input.authSecret,
+				},
+				method: "GET",
+				signal: AbortSignal.timeout(60_000),
 			},
-			method: "GET",
-			signal: AbortSignal.timeout(60_000),
-		},
-	);
-	if (!response.ok) {
-		throw new Error(
-			`execution projection request failed (${response.status}): ${await response.text()}`,
 		);
+		if (!response.ok) {
+			throw new Error(
+				`execution projection request failed (${response.status}): ${await response.text()}`,
+			);
+		}
+		const payload = (await response.json()) as unknown;
+		if (executionProjectionAnswerReady(payload, input.requestId)) {
+			return parseExecutionRunEvalProjection(payload);
+		}
+		if (Date.now() >= deadline) {
+			throw new Error(
+				`execution eval projection did not expose a final answer within ${EXECUTION_PROJECTION_RECOVERY_TIMEOUT_MS}ms for ${input.requestId}`,
+			);
+		}
+		await waitForAcceptedRunRecovery(EXECUTION_PROJECTION_RECOVERY_POLL_MS);
 	}
-	const projection = parseExecutionRunEvalProjection((await response.json()) as unknown);
-	if (projection.requestId !== input.requestId) {
+}
+
+function executionProjectionAnswerReady(value: unknown, requestId: string): boolean {
+	const payload = mapping(value, "run steps payload");
+	const projection = mapping(
+		payload.agentRuntimeEvalProjection ?? payload.agent_runtime_eval_projection ?? payload,
+		"agent runtime eval projection",
+	);
+	if (projection.schema_version !== "agent_runtime_eval_projection.v5") {
+		throw new Error("agent runtime eval projection must use agent_runtime_eval_projection.v5");
+	}
+	if (
+		stringField(projection.request_id, "agent runtime eval projection.request_id") !== requestId
+	) {
 		throw new Error("execution eval projection request_id does not match the product request");
 	}
-	return projection;
+	return optionalString(projection.answer) !== null;
 }

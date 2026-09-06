@@ -22,7 +22,7 @@ var lowercaseSHA256 = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 var ErrNotConfigured = errors.New("model config client is not configured")
 
-type PrimaryAgentTarget = execution.PrimaryAgentTarget
+type ModelTarget = execution.ModelTarget
 
 type RuntimeConfig struct {
 	SchemaVersion string `json:"schema_version"`
@@ -33,9 +33,12 @@ type RuntimeConfig struct {
 	Model         string `json:"model"`
 	APIKey        string `json:"api_key"`
 	TargetSHA256  string `json:"target_sha256"`
+	Capabilities  struct {
+		HostedWebSearch bool `json:"hosted_web_search"`
+	} `json:"capabilities"`
 }
 
-type PrimaryAgentTargetResolver = execution.PrimaryAgentTargetResolver
+type ModelTargetResolver = execution.ModelTargetResolver
 
 type Client struct {
 	baseURL string
@@ -50,6 +53,9 @@ type descriptor struct {
 	BaseURL       string `json:"base_url"`
 	Model         string `json:"model"`
 	TargetSHA256  string `json:"target_sha256"`
+	Capabilities  struct {
+		HostedWebSearch bool `json:"hosted_web_search"`
+	} `json:"capabilities"`
 }
 
 func New(baseURL string) (*Client, error) {
@@ -66,27 +72,30 @@ func New(baseURL string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) ResolvePrimaryAgentTarget(ctx context.Context) (PrimaryAgentTarget, error) {
+func (c *Client) ResolveModelTarget(ctx context.Context) (ModelTarget, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/internal/model-targets/primary_agent", nil)
 	if err != nil {
-		return PrimaryAgentTarget{}, err
+		return ModelTarget{}, err
 	}
 	response, err := c.http.Do(request)
 	if err != nil {
-		return PrimaryAgentTarget{}, err
+		return ModelTarget{}, err
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
-		return PrimaryAgentTarget{}, fmt.Errorf("model config target returned HTTP %d", response.StatusCode)
+		return ModelTarget{}, fmt.Errorf("model config target returned HTTP %d", response.StatusCode)
 	}
 	value, err := decodeDescriptor(response.Body)
 	if err != nil {
-		return PrimaryAgentTarget{}, err
+		return ModelTarget{}, err
 	}
 	if err := validateDescriptor(value); err != nil {
-		return PrimaryAgentTarget{}, err
+		return ModelTarget{}, err
 	}
-	return PrimaryAgentTarget{TargetSHA256: value.TargetSHA256}, nil
+	return ModelTarget{
+		TargetSHA256:    value.TargetSHA256,
+		HostedWebSearch: value.Capabilities.HostedWebSearch,
+	}, nil
 }
 
 func (c *Client) ResolveRuntimeConfig(ctx context.Context, name string) (RuntimeConfig, error) {

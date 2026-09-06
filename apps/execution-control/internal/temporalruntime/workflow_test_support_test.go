@@ -4,11 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"go.temporal.io/sdk/activity"
 )
 
 type Activities struct{}
+
+const workflowTestGoal = "查询并整理校园信息"
 
 type workflowTestActivityRegistrar interface {
 	RegisterActivityWithOptions(activity any, options activity.RegisterOptions)
@@ -20,12 +23,24 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 		activity.RegisterOptions{Name: AppendConversationMemoryActivityName},
 	)
 	env.RegisterActivityWithOptions(
-		activities.ExecutePrimaryAgentActivity,
-		activity.RegisterOptions{Name: ExecutePrimaryAgentActivityName},
+		activities.SolveTaskActivity,
+		activity.RegisterOptions{Name: SolveTaskActivityName},
 	)
 	env.RegisterActivityWithOptions(
-		activities.WriteFinalizationActivity,
-		activity.RegisterOptions{Name: WriteFinalizationActivityName},
+		activities.ExecuteTaskStepActivity,
+		activity.RegisterOptions{Name: ExecuteTaskStepActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.ReplanTaskActivity,
+		activity.RegisterOptions{Name: ReplanTaskActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.SynthesizeAnswerActivity,
+		activity.RegisterOptions{Name: SynthesizeAnswerActivityName},
+	)
+	env.RegisterActivityWithOptions(
+		activities.WriteWorkflowFinalizationActivity,
+		activity.RegisterOptions{Name: WriteWorkflowFinalizationActivityName},
 	)
 	env.RegisterActivityWithOptions(
 		activities.FinalizeExecutionCancellationActivity,
@@ -99,27 +114,110 @@ func (Activities) AppendConversationMemoryActivity(
 	}, nil
 }
 
-func (Activities) ExecutePrimaryAgentActivity(
+func (Activities) SolveTaskActivity(
 	_ context.Context,
-	input ExecutePrimaryAgentActivityInput,
-) (ExecutePrimaryAgentActivityOutput, error) {
-	return ExecutePrimaryAgentActivityOutput{
-		AgentResultRef: "projection://runs/" + input.RequestID + "/agent/primary/result",
-		FinalOutput:    "你好，我是校园问答助手。",
-		RequestID:      input.RequestID,
-		Status:         "completed",
-		TerminalReason: "answer_completed",
+	input SolveTaskActivityInput,
+) (WorkflowOperationActivityOutput, error) {
+	step := WorkflowTaskPlanStep{
+		ID:               "step.lookup",
+		Objective:        workflowTestGoal,
+		CandidateSources: []WorkflowSource{WorkflowSourceCampusSearch},
+		DependsOn:        []string{},
+	}
+	return WorkflowOperationActivityOutput{
+		Operation:    WorkflowOperationSolve,
+		SolveOutcome: "plan",
+		Plan: &WorkflowTaskPlan{
+			SchemaVersion: "task_plan.v1",
+			Goal:          workflowTestGoal,
+			Steps:         []WorkflowTaskPlanStep{step},
+		},
+		RequestID: input.RequestID,
+		Status:    "completed",
 	}, nil
 }
 
-func (Activities) WriteFinalizationActivity(
+func (Activities) ExecuteTaskStepActivity(
 	_ context.Context,
-	input WriteFinalizationActivityInput,
-) (WriteFinalizationActivityOutput, error) {
-	return WriteFinalizationActivityOutput{
+	input ExecuteTaskStepActivityInput,
+) (WorkflowOperationActivityOutput, error) {
+	completed := WorkflowCompletedStep{
+		Step:           input.Step,
+		ExecutionIndex: len(input.CompletedSteps) + 1,
+		Summary:        "已完成步骤。",
+		Evidence:       []WorkflowEvidence{},
+		SourceAttempts: []WorkflowSourceAttempt{{Source: input.Step.CandidateSources[0], Status: "completed"}},
+	}
+	return WorkflowOperationActivityOutput{
+		Operation:      WorkflowOperationExecuteStep,
+		CompletedStep:  &completed,
+		RequestID:      input.RequestID,
+		Status:         "completed",
+		FinalOutput:    completed.Summary,
+		SourceAttempts: append([]WorkflowSourceAttempt{}, completed.SourceAttempts...),
+		Evidence:       []WorkflowEvidence{},
+	}, nil
+}
+
+func (Activities) ReplanTaskActivity(
+	_ context.Context,
+	input ReplanTaskActivityInput,
+) (WorkflowOperationActivityOutput, error) {
+	return WorkflowOperationActivityOutput{
+		Operation: WorkflowOperationReplan,
+		Replan: &WorkflowTaskReplan{
+			SchemaVersion:  "task_replan.v1",
+			Decision:       "continue",
+			Reason:         "继续执行已规划步骤。",
+			RemainingSteps: append([]WorkflowTaskPlanStep{}, input.RemainingSteps...),
+		},
+		RequestID: input.RequestID,
+		Status:    "completed",
+	}, nil
+}
+
+func (Activities) SynthesizeAnswerActivity(
+	_ context.Context,
+	input SynthesizeAnswerActivityInput,
+) (WorkflowOperationActivityOutput, error) {
+	return WorkflowOperationActivityOutput{
+		Operation:   WorkflowOperationSynthesize,
+		RequestID:   input.RequestID,
+		Status:      "completed",
+		FinalOutput: "这是合成后的校园信息答案。",
+		Evidence:    append([]WorkflowEvidence{}, input.Evidence...),
+	}, nil
+}
+
+func (Activities) WriteWorkflowFinalizationActivity(
+	_ context.Context,
+	input WriteWorkflowFinalizationActivityInput,
+) (WorkflowFinalizationActivityOutput, error) {
+	return WorkflowFinalizationActivityOutput{
 		CompletedAt:   time.Now().UTC(),
-		ProjectionRef: "projection://runs/" + input.RequestID + "/finalization/write",
+		ProjectionRef: "projection://runs/" + input.RequestID + "/answer/synthesize/result",
 		RequestID:     input.RequestID,
 		Status:        "completed",
 	}, nil
+}
+
+func validToolExecutionWorkflowInput(requestID string) ToolExecutionWorkflowInput {
+	return ToolExecutionWorkflowInput{
+		ConversationID: "conversation-" + requestID,
+		RequestID:      requestID,
+		AdmissionSnapshot: execution.AgentAdmissionSnapshot{
+			AgentCapabilities: execution.AgentCapabilitiesSnapshot{
+				SchemaVersion:            "agent_capabilities.v1",
+				HostedWebSearch:          true,
+				VisibleFunctionToolNames: []string{"campus_search", "personal_memory_recall"},
+			},
+			AgentBudget: execution.AgentRuntimeBudgetSnapshot{
+				MaxFunctionToolCalls: 8,
+				MaxModelTurns:        8,
+				MaxPlanSteps:         8,
+				MaxReplans:           4,
+				SchemaVersion:        execution.AgentRuntimeBudgetSchemaVersion,
+			},
+		},
+	}
 }

@@ -75,6 +75,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 						activity_attempt: request.activityAttempt ?? 1,
 						request_id: request.requestId,
 						invocation_id: request.invocationId,
+						...(request.workflowStepId ? { workflow_step_id: request.workflowStepId } : {}),
 						...(request.tool.name === "campus_search"
 							? {
 									user_goal: request.userGoal,

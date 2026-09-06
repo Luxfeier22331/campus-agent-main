@@ -12,43 +12,62 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-func (s *Adapter) WriteFinalization(
+// WriteWorkflowFinalization is the finalization boundary for the durable
+// solve/execute/replan/synthesize workflow. A direct Solve answer and a
+// synthesized planned answer share the same product commit path.
+func (s *Adapter) WriteWorkflowFinalization(
 	ctx context.Context,
-	input temporalruntime.WriteFinalizationActivityInput,
-) (temporalruntime.WriteFinalizationActivityOutput, error) {
-	return s.writePrimaryAgentFinalizationActivity(ctx, input)
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
+) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
+	if input.WorkflowResult.Operation != temporalruntime.WorkflowOperationSolve &&
+		input.WorkflowResult.Operation != temporalruntime.WorkflowOperationSynthesize {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_input_invalid",
+			errors.New("workflow finalization requires a solve answer or synthesize result"),
+			true,
+		)
+	}
+	if strings.TrimSpace(input.WorkflowResult.RequestID) != strings.TrimSpace(input.RequestID) {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+			"finalization_input_invalid",
+			errors.New("workflow result request identity is invalid"),
+			true,
+		)
+	}
+	return s.writeWorkflowFinalizationActivity(ctx, input)
 }
 
-func (s *Adapter) writePrimaryAgentFinalizationActivity(
+func (s *Adapter) writeWorkflowFinalizationActivity(
 	ctx context.Context,
-	input temporalruntime.WriteFinalizationActivityInput,
-) (temporalruntime.WriteFinalizationActivityOutput, error) {
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
+) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
 	finalizedAt := input.FinalizedAt.UTC().Truncate(time.Microsecond)
 	if finalizedAt.IsZero() {
-		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_input_invalid",
 			errors.New("finalized_at is required"),
 			true,
 		)
 	}
-	agentResult := primaryAgentFinalizationResultMap(input)
-	if strings.TrimSpace(input.AgentResult.AgentResultRef) != temporalProjectionRef(input.RequestID, "agent/primary/result") ||
-		strings.TrimSpace(input.AgentResult.RequestID) != strings.TrimSpace(input.RequestID) {
-		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+	workflowResult := input.WorkflowResult
+	agentResult := workflowFinalizationResultMap(input)
+	if strings.TrimSpace(workflowResult.WorkflowResultRef) != workflowResultRefForFinalization(input) ||
+		strings.TrimSpace(workflowResult.RequestID) != strings.TrimSpace(input.RequestID) {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_input_invalid",
 			errors.New("agent result identity is invalid"),
 			true,
 		)
 	}
-	run, err := s.temporalActivityRunAllowCompletedAgentFinalization(
+	run, err := s.temporalActivityRunAllowCompletedWorkflowFinalization(
 		ctx,
 		input.RequestID,
 	)
 	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	if run.Status == execution.DurableRunStatusCompleted {
-		return s.repairCompletedPrimaryAgentFinalization(ctx, run, input, finalizedAt)
+		return s.repairCompletedWorkflowFinalization(ctx, run, input, finalizedAt)
 	}
 	finalizationStartedAt := time.Now().UTC()
 	if err := s.appendTemporalRunProgress(
@@ -57,11 +76,11 @@ func (s *Adapter) writePrimaryAgentFinalizationActivity(
 		execution.DurableRunProgressPhaseFinalizing,
 		finalizationStartedAt,
 	); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	replayEvidence, err := s.completedFinalizationProjectionEvidence(ctx, run)
 	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	expectedToolContract := execution.CloneAnyMapFromValue(agentResult["admitted_tool_contract_fingerprint"])
 	if len(expectedToolContract) == 0 && activity.IsActivity(ctx) {
@@ -75,17 +94,7 @@ func (s *Adapter) writePrimaryAgentFinalizationActivity(
 		)
 	}
 	if len(expectedToolContract) > 0 {
-		if s.admissionService == nil {
-			return s.failFinalizationActivity(
-				ctx,
-				run,
-				"",
-				"tool_contract_mismatch",
-				"tool_contract_mismatch",
-				errors.New("agent admission service is not configured"),
-			)
-		}
-		if err := s.admissionService.ValidateLocalToolContractFingerprintMap(expectedToolContract); err != nil {
+		if err := s.validateLocalToolContractFingerprintMap(expectedToolContract); err != nil {
 			return s.failFinalizationActivity(
 				ctx,
 				run,
@@ -96,7 +105,7 @@ func (s *Adapter) writePrimaryAgentFinalizationActivity(
 			)
 		}
 	}
-	if toolName, failCloseReason, err := validatePrimaryAgentResultSucceeded(agentResult); err != nil {
+	if toolName, failCloseReason, err := validateWorkflowResultSucceeded(agentResult); err != nil {
 		return s.failFinalizationActivity(
 			ctx,
 			run,
@@ -111,14 +120,14 @@ func (s *Adapter) writePrimaryAgentFinalizationActivity(
 	}
 	finalizationRef := temporalProjectionRef(run.RequestID, "finalization/write")
 	completedAt := finalizedAt
-	finalizedResponse, err := s.primaryAgentFinalizedResponse(
+	finalizedResponse, err := s.workflowFinalizedResponse(
 		ctx,
 		run,
 		agentResult,
 	)
 	if err != nil {
 		failureKind := "agent_finalization_invalid"
-		var citationError *primaryAgentCitationValidationError
+		var citationError *workflowCitationValidationError
 		if errors.As(err, &citationError) {
 			failureKind = "citation_validation_failed"
 		}
@@ -129,15 +138,15 @@ func (s *Adapter) writePrimaryAgentFinalizationActivity(
 		writeProductFinalization = s.writeChatProductFinalization
 	}
 	if err := writeProductFinalization(ctx, run, completedAt, finalizedResponse); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	if err := s.appendTemporalFinalizationCompletedEvents(ctx, run, completedAt, finalizedResponse, map[string]any{
-		"agent_result_ref": input.AgentResult.AgentResultRef,
-		"request_id":       run.RequestID,
+		"workflow_result_ref": workflowResult.WorkflowResultRef,
+		"request_id":          run.RequestID,
 	}); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
-	terminalReason := primaryAgentTerminalReason(agentResult)
+	terminalReason := workflowTerminalReason(agentResult)
 	projectionCompletedAt := time.Now().UTC()
 	if replayEvidence != nil {
 		projectionCompletedAt = replayEvidence.CompletedAt
@@ -145,7 +154,7 @@ func (s *Adapter) writePrimaryAgentFinalizationActivity(
 	projectionRun := run
 	projectionRun.FinalResponseRef = finalizationRef
 	projectionRun.TerminalReason = terminalReason
-	completedRun, err := s.commitPrimaryAgentFinalizationStep(
+	completedRun, err := s.commitWorkflowFinalizationStep(
 		ctx,
 		projectionRun,
 		input,
@@ -156,12 +165,12 @@ func (s *Adapter) writePrimaryAgentFinalizationActivity(
 		replayEvidence,
 	)
 	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
-	if err := s.appendPrimaryAgentRunCompletedEvent(ctx, completedRun, completedAt); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	if err := s.appendWorkflowRunCompletedEvent(ctx, completedRun, completedAt); err != nil {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
-	return temporalruntime.WriteFinalizationActivityOutput{
+	return temporalruntime.WorkflowFinalizationActivityOutput{
 		CompletedAt:   completedAt,
 		ProjectionRef: temporalProjectionRef(completedRun.RequestID, "finalization/write"),
 		RequestID:     completedRun.RequestID,
@@ -169,10 +178,17 @@ func (s *Adapter) writePrimaryAgentFinalizationActivity(
 	}, nil
 }
 
-func (s *Adapter) commitPrimaryAgentFinalizationStep(
+func workflowResultRefForFinalization(input temporalruntime.WriteWorkflowFinalizationActivityInput) string {
+	if input.WorkflowResult.Operation == temporalruntime.WorkflowOperationSolve {
+		return workflowOperationResultRef(input.RequestID, "solve.initial")
+	}
+	return workflowOperationResultRef(input.RequestID, "answer.synthesize")
+}
+
+func (s *Adapter) commitWorkflowFinalizationStep(
 	ctx context.Context,
 	run execution.DurableRun,
-	input temporalruntime.WriteFinalizationActivityInput,
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
 	startedAt time.Time,
 	projectionCompletedAt time.Time,
 	runCompletedAt time.Time,
@@ -299,10 +315,10 @@ func (s *Adapter) commitPrimaryAgentFinalizationStep(
 	return finalized.Run, nil
 }
 
-func (s *Adapter) projectPrimaryAgentFinalizationStep(
+func (s *Adapter) projectWorkflowFinalizationStep(
 	ctx context.Context,
 	run execution.DurableRun,
-	input temporalruntime.WriteFinalizationActivityInput,
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
 	startedAt time.Time,
 	completedAt time.Time,
 	finalizedResponse map[string]any,
@@ -425,15 +441,15 @@ func (s *Adapter) completedFinalizationProjectionEvidence(
 	}, nil
 }
 
-func (s *Adapter) repairCompletedPrimaryAgentFinalization(
+func (s *Adapter) repairCompletedWorkflowFinalization(
 	ctx context.Context,
 	run execution.DurableRun,
-	input temporalruntime.WriteFinalizationActivityInput,
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
 	finalizedAt time.Time,
-) (temporalruntime.WriteFinalizationActivityOutput, error) {
+) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
 	completedAt := run.CompletedAt.UTC().Truncate(time.Microsecond)
 	if completedAt.IsZero() || !completedAt.Equal(finalizedAt) {
-		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_replay_conflict",
 			fmt.Errorf(
 				"completed run finalized_at drift: stored=%s requested=%s",
@@ -443,41 +459,41 @@ func (s *Adapter) repairCompletedPrimaryAgentFinalization(
 			true,
 		)
 	}
-	finalizedResponse, err := s.completedPrimaryAgentFinalizedResponse(ctx, run)
+	finalizedResponse, err := s.completedWorkflowFinalizedResponse(ctx, run)
 	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
-	if err := s.validateCompletedPrimaryAgentFinalizationStep(ctx, run, input, finalizedResponse); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	if err := s.validateCompletedWorkflowFinalizationStep(ctx, run, input, finalizedResponse); err != nil {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	replayEvidence, err := s.completedFinalizationProjectionEvidence(ctx, run)
 	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	if replayEvidence == nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_replay_incomplete",
 			errors.New("completed finalization step and attempt evidence is missing"),
 			true,
 		)
 	}
-	agentResult := primaryAgentFinalizationResultMap(input)
-	if _, _, err := validatePrimaryAgentResultSucceeded(agentResult); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+	agentResult := workflowFinalizationResultMap(input)
+	if _, _, err := validateWorkflowResultSucceeded(agentResult); err != nil {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_replay_conflict",
 			err,
 			true,
 		)
 	}
-	expectedTerminalReason := primaryAgentTerminalReason(agentResult)
+	expectedTerminalReason := workflowTerminalReason(agentResult)
 	if run.TerminalReason != expectedTerminalReason {
-		return temporalruntime.WriteFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
 			"finalization_replay_conflict",
 			errors.New("completed run terminal identity differs from the workflow agent result"),
 			true,
 		)
 	}
-	canonicalRun, err := s.commitPrimaryAgentFinalizationStep(
+	canonicalRun, err := s.commitWorkflowFinalizationStep(
 		ctx,
 		run,
 		input,
@@ -488,12 +504,12 @@ func (s *Adapter) repairCompletedPrimaryAgentFinalization(
 		replayEvidence,
 	)
 	if err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
-	if err := s.appendPrimaryAgentRunCompletedEvent(ctx, canonicalRun, completedAt); err != nil {
-		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	if err := s.appendWorkflowRunCompletedEvent(ctx, canonicalRun, completedAt); err != nil {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
-	return temporalruntime.WriteFinalizationActivityOutput{
+	return temporalruntime.WorkflowFinalizationActivityOutput{
 		CompletedAt:   completedAt,
 		ProjectionRef: canonicalRun.FinalResponseRef,
 		RequestID:     canonicalRun.RequestID,
@@ -501,7 +517,7 @@ func (s *Adapter) repairCompletedPrimaryAgentFinalization(
 	}, nil
 }
 
-func (s *Adapter) appendPrimaryAgentRunCompletedEvent(
+func (s *Adapter) appendWorkflowRunCompletedEvent(
 	ctx context.Context,
 	run execution.DurableRun,
 	completedAt time.Time,
@@ -549,14 +565,14 @@ func (s *Adapter) appendPrimaryAgentRunCompletedEvent(
 	return errors.New("run.completed event is missing after append")
 }
 
-func (s *Adapter) validateCompletedPrimaryAgentFinalizationStep(
+func (s *Adapter) validateCompletedWorkflowFinalizationStep(
 	ctx context.Context,
 	run execution.DurableRun,
-	input temporalruntime.WriteFinalizationActivityInput,
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
 	finalizedResponse map[string]any,
 ) error {
 	finalizationRef := temporalProjectionRef(run.RequestID, "finalization/write")
-	if run.FinalResponseRef != finalizationRef || strings.TrimSpace(input.AgentResult.AgentResultRef) == "" {
+	if run.FinalResponseRef != finalizationRef || strings.TrimSpace(input.WorkflowResult.WorkflowResultRef) == "" {
 		return sanitizedTemporalApplicationError(
 			"finalization_replay_conflict",
 			errors.New("completed run finalization identity differs"),
@@ -613,7 +629,7 @@ func (s *Adapter) validateCompletedPrimaryAgentFinalizationStep(
 	return nil
 }
 
-func (s *Adapter) completedPrimaryAgentFinalizedResponse(
+func (s *Adapter) completedWorkflowFinalizedResponse(
 	ctx context.Context,
 	run execution.DurableRun,
 ) (map[string]any, error) {
@@ -638,10 +654,10 @@ func (s *Adapter) completedPrimaryAgentFinalizedResponse(
 	)
 }
 
-func validatePrimaryAgentResultSucceeded(agentResult map[string]any) (string, string, error) {
+func validateWorkflowResultSucceeded(agentResult map[string]any) (string, string, error) {
 	status := strings.TrimSpace(execution.StringValue(agentResult["status"]))
 	if status != "completed" {
-		return "", "agent_runtime_incomplete", fmt.Errorf("agent result status is %q", status)
+		return "", "agent_runtime_incomplete", fmt.Errorf("workflow result status is %q", status)
 	}
 	expectedFingerprint := execution.CloneAnyMapFromValue(agentResult["admitted_tool_contract_fingerprint"])
 	if len(expectedFingerprint) > 0 {
@@ -649,31 +665,31 @@ func validatePrimaryAgentResultSucceeded(agentResult map[string]any) (string, st
 		if len(actualFingerprint) == 0 ||
 			execution.HashAdmissionJSON(expectedFingerprint) != execution.HashAdmissionJSON(actualFingerprint) {
 			return "", "tool_contract_mismatch", errors.New(
-				"persisted agent runtime tool contract does not match admission",
+				"persisted workflow runtime tool contract does not match admission",
 			)
 		}
 	}
 	return "", "", nil
 }
 
-func (s *Adapter) primaryAgentFinalizedResponse(
+func (s *Adapter) workflowFinalizedResponse(
 	ctx context.Context,
 	run execution.DurableRun,
-	agentResult map[string]any,
+	workflowResult map[string]any,
 	additionalStageTiming ...stageTimingDuration,
 ) (map[string]any, error) {
-	answerText, ok := agentResult["final_output"].(string)
+	answerText, ok := workflowResult["final_output"].(string)
 	if !ok || strings.TrimSpace(answerText) == "" {
-		return nil, fmt.Errorf("agent final_output is required")
+		return nil, fmt.Errorf("workflow final_output is required")
 	}
-	citationClosure, err := s.primaryAgentCitationClosureForFinalization(agentResult, answerText)
+	citationClosure, err := s.workflowCitationClosureForFinalization(workflowResult, answerText)
 	if err != nil {
 		return nil, err
 	}
 	stageTiming, err := s.stageTimingForRun(
 		ctx,
 		run,
-		execution.CloneAnyMapFromValue(agentResult["stage_timing"]),
+		execution.CloneAnyMapFromValue(workflowResult["stage_timing"]),
 		additionalStageTiming...,
 	)
 	if err != nil {
@@ -681,15 +697,15 @@ func (s *Adapter) primaryAgentFinalizedResponse(
 	}
 	observability := map[string]any{
 		"agent_runtime":   "openai_agents_sdk",
-		"model_name":      agentResult["model_name"],
-		"model_provider":  agentResult["model_provider"],
+		"model_name":      workflowResult["model_name"],
+		"model_provider":  workflowResult["model_provider"],
 		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	result := map[string]any{
 		"sources":         citationClosure.Sources,
 		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
-	modelUsage, err := primaryAgentModelUsage(agentResult)
+	modelUsage, err := workflowModelUsage(workflowResult)
 	if err != nil {
 		return nil, err
 	}
@@ -704,12 +720,12 @@ func (s *Adapter) primaryAgentFinalizedResponse(
 	}), nil
 }
 
-func primaryAgentModelUsage(agentResult map[string]any) (ModelUsageWire, error) {
-	usage := execution.CloneAnyMapFromValue(agentResult["usage"])
+func workflowModelUsage(workflowResult map[string]any) (ModelUsageWire, error) {
+	usage := execution.CloneAnyMapFromValue(workflowResult["usage"])
 	result := ModelUsageWire{
-		InputTokens:       int64(execution.IntFromAny(usage["input_tokens"])),
-		CachedInputTokens: int64(execution.IntFromAny(usage["cached_input_tokens"])),
-		OutputTokens:      int64(execution.IntFromAny(usage["output_tokens"])),
+		InputTokens:       int64(intFromAny(usage["input_tokens"])),
+		CachedInputTokens: int64(intFromAny(usage["cached_input_tokens"])),
+		OutputTokens:      int64(intFromAny(usage["output_tokens"])),
 	}
 	result.TotalTokens = result.InputTokens + result.OutputTokens
 	if result.InputTokens < 0 || result.CachedInputTokens < 0 || result.OutputTokens < 0 ||
@@ -719,11 +735,11 @@ func primaryAgentModelUsage(agentResult map[string]any) (ModelUsageWire, error) 
 	return result, nil
 }
 
-func primaryAgentTerminalReason(agentResult map[string]any) execution.DurableTerminalReason {
+func workflowTerminalReason(workflowResult map[string]any) execution.DurableTerminalReason {
 	return execution.DurableTerminalReasonAnswerCompleted
 }
 
-func primaryAgentToolResultMaps(value any) []map[string]any {
+func workflowToolResultMaps(value any) []map[string]any {
 	switch typed := value.(type) {
 	case []map[string]any:
 		return append([]map[string]any{}, typed...)

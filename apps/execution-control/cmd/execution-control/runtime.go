@@ -60,12 +60,12 @@ func newRuntimeOwner(cfg config.Config, logger *slog.Logger) (*runtimeOwner, err
 	campusDocsSearcher, campusDocsSearcherErr := outboundadapter.NewCampusDocsSearcher(cfg, modelConfigResolver)
 
 	admissionService := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
-		AgentDeadlineMS:            cfg.AgentRuntimeDeadlineMS,
-		ContextCharLimit:           cfg.AgentRuntimeContextCharLimit,
-		CurrentInputCharLimit:      cfg.AgentRuntimeInputCharLimit,
-		MaxOutputTokens:            cfg.AgentRuntimeMaxOutputTokens,
-		PrimaryAgentTargetResolver: modelConfigResolver,
-		PrimaryAgentTargetError:    modelConfigErr,
+		AgentDeadlineMS:       cfg.AgentRuntimeDeadlineMS,
+		ContextCharLimit:      cfg.AgentRuntimeContextCharLimit,
+		CurrentInputCharLimit: cfg.AgentRuntimeInputCharLimit,
+		MaxOutputTokens:       cfg.AgentRuntimeMaxOutputTokens,
+		ModelTargetResolver:   modelConfigResolver,
+		ModelTargetError:      modelConfigErr,
 	})
 
 	personalMemoryExecutor, personalMemoryErr := hindsightadapter.New(hindsightadapter.Options{

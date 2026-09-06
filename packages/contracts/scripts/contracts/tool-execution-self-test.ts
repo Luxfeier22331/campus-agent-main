@@ -27,7 +27,7 @@ function checkOpenApiMetadata(): void {
 	const meta = asRecord(openapi["x-campus-contract"], "x-campus-contract");
 	expect(meta.execution_contract_version === "tool_execution_v7", "execution contract mismatch");
 	expect(
-		meta.response_contract === "execution_finalization_response_v8",
+		meta.response_contract === "execution_finalization_response_v9",
 		"response contract mismatch",
 	);
 	const policy = asRecord(meta.versioning_policy, "versioning_policy");
@@ -284,15 +284,17 @@ function checkExecutionResponseDiagnostics(): void {
 		new Set([
 			"request.total_ms",
 			"execution.dispatch_ms",
-			"agent.schedule_to_start_ms",
+			"workflow.schedule_to_start_ms",
 			"stream.first_delta_persist_ms",
 			"stream.app_api_ttft_ms",
 			"stream.orchestration_overhead_ms",
 			"execution.admission_ms",
 			"memory.recall_ms",
-			"agent.primary_ms",
-			"agent.runtime_ms",
-			"agent.first_delta_ms",
+			"workflow.solve_ms",
+			"workflow.execute_step_ms",
+			"workflow.replan_ms",
+			"workflow.synthesize_ms",
+			"workflow.first_delta_ms",
 			"tool.total_ms",
 			"finalization.write_ms",
 			"projection.closeout_ms",
@@ -345,7 +347,7 @@ function checkFixtureMatrix(): void {
 		"delegate execution contract",
 	);
 	expect(
-		delegate.response_contract === "execution_finalization_response_v8",
+		delegate.response_contract === "execution_finalization_response_v9",
 		"delegate response contract",
 	);
 	expectFixtureValidity("execution_payload.valid.json", "ExecutionPayload", true);

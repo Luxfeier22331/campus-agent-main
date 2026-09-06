@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	CampusSearchToolName          = "campus_search"
-	PersonalMemoryRecallToolName  = "personal_memory_recall"
-	PrimaryAgentSearchResultLimit = campusdocs.SearchResultLimit
+	CampusSearchToolName         = "campus_search"
+	PersonalMemoryRecallToolName = "personal_memory_recall"
+	CampusSearchResultLimit      = campusdocs.SearchResultLimit
 )
 
 type AgentToolServiceOptions struct {
@@ -50,6 +50,7 @@ type AgentToolAccessContext struct {
 	RequestID       string
 	ResultLimit     int
 	UserGoal        string
+	WorkflowStepID  string
 }
 
 type CampusSearchRequest struct {
@@ -145,7 +146,7 @@ func (s *AgentToolService) PersonalMemoryRecall(
 		return nil, newAgentToolConflict(err)
 	}
 	if !execution.ContainsString(
-		workflowInput.AdmissionSnapshot.ExecutionStrategy.VisibleFunctionToolNames,
+		workflowInput.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames,
 		PersonalMemoryRecallToolName,
 	) {
 		return nil, newAgentToolConflict(errors.New("personal memory recall is not available for this run"))
@@ -202,15 +203,15 @@ func (s *AgentToolService) validateRun(
 	if err != nil {
 		return execution.DurableRun{}, err
 	}
-	step, latestAttempt, ok := latestPrimaryAgentStep(steps)
+	step, latestAttempt, ok := latestWorkflowOperationStep(steps, access.WorkflowStepID)
 	if !ok {
 		return execution.DurableRun{}, newAgentToolConflict(
-			errors.New("agent.primary admission projection is unavailable"),
+			errors.New("executor step admission projection is unavailable"),
 		)
 	}
 	if latestAttempt != access.ActivityAttempt {
 		return execution.DurableRun{}, newAgentToolConflict(
-			errors.New("agent tool activity_attempt does not match latest agent attempt"),
+			errors.New("workflow tool activity_attempt does not match its executor attempt"),
 		)
 	}
 	if !execution.ContainsString(
@@ -247,14 +248,16 @@ func (s *AgentToolService) loadExecutionPayload(
 	return execution.PayloadMap(wire), nil
 }
 
-func latestPrimaryAgentStep(
+func latestWorkflowOperationStep(
 	steps []execution.RunStepProjection,
+	stepID string,
 ) (execution.RunStepProjection, int, bool) {
 	var latest execution.RunStepProjection
 	latestAttempt := 0
 	found := false
+	stepID = strings.TrimSpace(stepID)
 	for _, step := range steps {
-		if step.StepID != "agent.primary" {
+		if step.StepID != stepID || step.StepKind != "executor" || step.Status != "started" {
 			continue
 		}
 		attempt := step.ActivityAttempt

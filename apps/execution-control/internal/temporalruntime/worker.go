@@ -24,7 +24,7 @@ type WorkerOptions struct {
 	CoreQueue              string
 	WorkerID               string
 	ContextActivities      ContextActivities
-	AgentActivities        AgentActivities
+	WorkflowActivities     WorkflowActivities
 	FinalizationActivities FinalizationActivities
 }
 
@@ -56,11 +56,23 @@ type ContextActivities interface {
 	) error
 }
 
-type AgentActivities interface {
-	ExecutePrimaryAgentActivity(
+type WorkflowActivities interface {
+	SolveTaskActivity(
 		context.Context,
-		ExecutePrimaryAgentActivityInput,
-	) (ExecutePrimaryAgentActivityOutput, error)
+		SolveTaskActivityInput,
+	) (WorkflowOperationActivityOutput, error)
+	ExecuteTaskStepActivity(
+		context.Context,
+		ExecuteTaskStepActivityInput,
+	) (WorkflowOperationActivityOutput, error)
+	ReplanTaskActivity(
+		context.Context,
+		ReplanTaskActivityInput,
+	) (WorkflowOperationActivityOutput, error)
+	SynthesizeAnswerActivity(
+		context.Context,
+		SynthesizeAnswerActivityInput,
+	) (WorkflowOperationActivityOutput, error)
 }
 
 type FinalizationActivities interface {
@@ -72,10 +84,10 @@ type FinalizationActivities interface {
 		context.Context,
 		FinalizeExecutionFailureActivityInput,
 	) (FinalizeExecutionFailureActivityOutput, error)
-	WriteFinalizationActivity(
+	WriteWorkflowFinalizationActivity(
 		context.Context,
-		WriteFinalizationActivityInput,
-	) (WriteFinalizationActivityOutput, error)
+		WriteWorkflowFinalizationActivityInput,
+	) (WorkflowFinalizationActivityOutput, error)
 }
 
 func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntime, error) {
@@ -87,8 +99,8 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if options.ContextActivities == nil {
 		return nil, errors.New("temporal context activities are required")
 	}
-	if options.AgentActivities == nil {
-		return nil, errors.New("temporal agent activities are required")
+	if options.WorkflowActivities == nil {
+		return nil, errors.New("temporal workflow operation activities are required")
 	}
 	if options.FinalizationActivities == nil {
 		return nil, errors.New("temporal finalization activities are required")
@@ -119,10 +131,10 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 		options.FinalizationActivities,
 		workerOptions,
 	)
-	agentWorker := NewAgentActivityWorkerWithOptions(
+	agentWorker := NewWorkflowOperationActivityWorkerWithOptions(
 		temporalClient,
 		ActivityTaskQueueAgent,
-		options.AgentActivities,
+		options.WorkflowActivities,
 		workerOptions,
 	)
 	return &WorkerRuntime{
@@ -248,20 +260,24 @@ func NewCoreActivityWorkerWithOptions(
 		activityRegisterOptions(FinalizeExecutionFailureActivityName),
 	)
 	coreWorker.RegisterActivityWithOptions(
-		finalizationActivities.WriteFinalizationActivity,
-		activityRegisterOptions(WriteFinalizationActivityName),
+		finalizationActivities.WriteWorkflowFinalizationActivity,
+		activityRegisterOptions(WriteWorkflowFinalizationActivityName),
 	)
 	return coreWorker
 }
 
-func NewAgentActivityWorker(temporalClient client.Client, queue string, activities AgentActivities) worker.Worker {
-	return NewAgentActivityWorkerWithOptions(temporalClient, queue, activities, worker.Options{})
-}
-
-func NewAgentActivityWorkerWithOptions(
+func NewWorkflowOperationActivityWorker(
 	temporalClient client.Client,
 	queue string,
-	activities AgentActivities,
+	activities WorkflowActivities,
+) worker.Worker {
+	return NewWorkflowOperationActivityWorkerWithOptions(temporalClient, queue, activities, worker.Options{})
+}
+
+func NewWorkflowOperationActivityWorkerWithOptions(
+	temporalClient client.Client,
+	queue string,
+	activities WorkflowActivities,
 	options worker.Options,
 ) worker.Worker {
 	agentQueue := strings.TrimSpace(queue)
@@ -269,9 +285,15 @@ func NewAgentActivityWorkerWithOptions(
 		agentQueue = ActivityTaskQueueAgent
 	}
 	agentWorker := worker.New(temporalClient, agentQueue, options)
+	agentWorker.RegisterActivityWithOptions(activities.SolveTaskActivity, activityRegisterOptions(SolveTaskActivityName))
 	agentWorker.RegisterActivityWithOptions(
-		activities.ExecutePrimaryAgentActivity,
-		activityRegisterOptions(ExecutePrimaryAgentActivityName),
+		activities.ExecuteTaskStepActivity,
+		activityRegisterOptions(ExecuteTaskStepActivityName),
+	)
+	agentWorker.RegisterActivityWithOptions(activities.ReplanTaskActivity, activityRegisterOptions(ReplanTaskActivityName))
+	agentWorker.RegisterActivityWithOptions(
+		activities.SynthesizeAnswerActivity,
+		activityRegisterOptions(SynthesizeAnswerActivityName),
 	)
 	return agentWorker
 }

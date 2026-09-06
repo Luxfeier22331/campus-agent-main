@@ -48,6 +48,7 @@ export function agentRuntimeErrorPayload(
 ): {
 	code: AgentRuntimeErrorCode;
 	message: string;
+	retryable: false;
 	operation: string;
 	detail?: string;
 	http_status?: number;
@@ -57,6 +58,7 @@ export function agentRuntimeErrorPayload(
 	return {
 		code: classified.code,
 		message: classified.message,
+		retryable: false,
 		operation: classified.failure.operation,
 		...(classified.failure.detail ? { detail: classified.failure.detail } : {}),
 		...(classified.failure.httpStatus === undefined
@@ -114,8 +116,8 @@ function classifyProviderFailure(error: unknown):
 			code: AgentRuntimeErrorCode;
 	  })
 	| null {
-	const record = objectRecord(error);
-	const status = numberValue(record?.status ?? record?.statusCode);
+	const record = providerErrorRecord(error);
+	const status = numberValue(record?.status ?? record?.statusCode ?? record?.httpStatus);
 	if (status === 429) {
 		return {
 			code: "provider_rate_limited",
@@ -132,7 +134,7 @@ function classifyProviderFailure(error: unknown):
 			httpStatus: status,
 		};
 	}
-	const name = error instanceof Error ? error.name : "";
+	const name = providerErrorName(error);
 	if (/Timeout|timed.?out/i.test(name)) {
 		return {
 			code: "provider_timeout",
@@ -148,6 +150,48 @@ function classifyProviderFailure(error: unknown):
 		};
 	}
 	return null;
+}
+
+function providerErrorRecord(error: unknown): Record<string, unknown> | undefined {
+	let current = error;
+	for (let depth = 0; depth < 4; depth += 1) {
+		const record = objectRecord(current);
+		if (record) {
+			if (
+				numberValue(record.status) !== undefined ||
+				numberValue(record.statusCode) !== undefined ||
+				numberValue(record.httpStatus) !== undefined
+			) {
+				return record;
+			}
+			current = record.cause;
+			continue;
+		}
+		break;
+	}
+	return objectRecord(error);
+}
+
+function providerErrorName(error: unknown): string {
+	let current = error;
+	for (let depth = 0; depth < 4; depth += 1) {
+		if (current instanceof Error) {
+			if (current.name) {
+				return current.name;
+			}
+			current = current.cause;
+			continue;
+		}
+		const record = objectRecord(current);
+		if (!record) {
+			break;
+		}
+		if (typeof record.name === "string" && record.name) {
+			return record.name;
+		}
+		current = record.cause;
+	}
+	return "";
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {

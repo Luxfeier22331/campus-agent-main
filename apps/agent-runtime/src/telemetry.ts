@@ -8,7 +8,11 @@ import {
 	type TextMapGetter,
 	type TextMapSetter,
 } from "@opentelemetry/api";
-import { W3CTraceContextPropagator } from "@opentelemetry/core";
+import {
+	CompositePropagator,
+	W3CBaggagePropagator,
+	W3CTraceContextPropagator,
+} from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
@@ -58,7 +62,9 @@ export function startAgentRuntimeTelemetry(
 		spanProcessors: [processor],
 	});
 	provider.register({
-		propagator: new W3CTraceContextPropagator(),
+		propagator: new CompositePropagator({
+			propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
+		}),
 	});
 	const instrumentation = new OpenAIAgentsInstrumentation({
 		exclusiveProcessor: true,

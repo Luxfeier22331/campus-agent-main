@@ -67,8 +67,8 @@ describe("request observability stage timing", () => {
 			requestId: "req_stage_timing_01HQ",
 			response: createResponse({
 				stageTiming: {
-					"agent.first_delta_ms": 300,
-					"agent.runtime_ms": 710,
+					"workflow.first_delta_ms": 300,
+					"workflow.execute_step_ms": 710,
 					"memory.recall_ms": 35,
 					"tool.total_ms": 920,
 				},
@@ -81,8 +81,8 @@ describe("request observability stage timing", () => {
 		});
 
 		expect(fact.stageTiming).toEqual({
-			"agent.first_delta_ms": 300,
-			"agent.runtime_ms": 710,
+			"workflow.first_delta_ms": 300,
+			"workflow.execute_step_ms": 710,
 			"memory.recall_ms": 35,
 			"projection.closeout_ms": 17,
 			"request.total_ms": 1350,
@@ -92,7 +92,7 @@ describe("request observability stage timing", () => {
 		});
 	});
 
-	it("omits orchestration overhead when app-api observes a shorter duration than agent runtime", () => {
+	it("omits orchestration overhead when app-api observes a shorter duration than workflow first delta", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-13T08:00:01.350Z",
 			conversationId: "conv_stage_timing_clock_01HQ",
@@ -101,7 +101,7 @@ describe("request observability stage timing", () => {
 			principal: createPrincipal(),
 			requestId: "req_stage_timing_clock_01HQ",
 			response: createResponse({
-				stageTiming: { "agent.first_delta_ms": 500 },
+				stageTiming: { "workflow.first_delta_ms": 500 },
 				status: "completed",
 			}),
 			startedAt: "2026-04-13T08:00:00.000Z",
@@ -111,7 +111,7 @@ describe("request observability stage timing", () => {
 		});
 
 		expect(fact.stageTiming).toMatchObject({
-			"agent.first_delta_ms": 500,
+			"workflow.first_delta_ms": 500,
 			"stream.app_api_ttft_ms": 420,
 		});
 		expect(fact.stageTiming).not.toHaveProperty("stream.orchestration_overhead_ms");
@@ -126,7 +126,7 @@ describe("request observability stage timing", () => {
 			principal: createPrincipal(),
 			requestId: "req_stage_timing_first_value_01HQ",
 			response: createResponse({
-				stageTiming: { "agent.first_delta_ms": 800 },
+				stageTiming: { "workflow.first_delta_ms": 800 },
 				status: "completed",
 			}),
 			startedAt: "2026-04-13T08:00:00.000Z",
@@ -139,7 +139,7 @@ describe("request observability stage timing", () => {
 		});
 
 		expect(fact.stageTiming).toMatchObject({
-			"agent.first_delta_ms": 800,
+			"workflow.first_delta_ms": 800,
 			"stream.app_api_ttft_ms": 1800,
 			"stream.orchestration_overhead_ms": 1000,
 		});
@@ -157,7 +157,7 @@ describe("request observability stage timing", () => {
 				requestId: "req_stage_timing_invalid_01HQ",
 				response: createResponse({
 					stageTiming: {
-						"agent.runtime_ms": 710,
+						"workflow.execute_step_ms": 710,
 					},
 					status: "completed",
 				}),

@@ -13,7 +13,7 @@ status: active
 Langfuse trace、annotation、score 和其他平台状态不能自动改写来源。
 
 `agent-eval` 读取调用方显式提供的 cases 文件，并通过真实 App API 产生一次产品执行。Ragas 输入必须由
-适配器或调用方显式写成 `ragas_sample_batch.v2`，不能从普通 trace 或 Langfuse 反查 answer、retrieved
+适配器或调用方显式写成 `ragas_sample_batch.v3`，不能从普通 trace 或 Langfuse 反查 answer、retrieved
 contexts 或其他正文。一次性执行也可以直接提供其他输入文件。
 
 ## Agent 用例
@@ -48,7 +48,8 @@ contexts 或其他正文。一次性执行也可以直接提供其他输入文�
 用例提供 `reference_context_ids[]` 或 `reference_contexts[]` 时，runner 才把离线
 样本送入 Ragas；普通改写、翻译或问候不因主题相似而进入 RAG 评测。
 `campus_search`、`personal_memory_recall` 或其他当前实际开放的注册工具可以进入工具预期。不得从答案
-正文反推工具选择。
+正文反推工具选择。托管 Web Search 不是本地 function tool，不写入 `reference_tool_calls[]`；其执行和
+引用由产品 execution projection 单独验证。
 
 路由用例必须与 checked-in 工具注册表的当前 exposure 一致。知识回答不得恢复已退役的课程、文档召回或
 章节读取工具名称。
@@ -68,12 +69,14 @@ contexts 或其他正文。一次性执行也可以直接提供其他输入文�
 ## Ragas 样本边界
 
 Ragas native sample 只允许以下字段：`case_id`、`user_input`、`response`、`retrieved_contexts`、
-可选 `reference` 和标量 `metadata`。`trace_id`、`observation_id`、平台运行标识、context ID、
+`cited_contexts`、可选 `reference` 和标量 `metadata`。`retrieved_contexts` 是全部实际检索候选，
+`cited_contexts` 是答案实际采用的候选；`faithfulness` 使用后者，context precision/recall 使用前者。
+`trace_id`、`observation_id`、平台运行标识、context ID、
 本地路径和凭据只在 TypeScript 适配层保留，用于把 score 关联回 Langfuse；它们不能进入 Python
 runner 的 RAG 样本。
 
-`retrieved_contexts: []` 是有效样本。空召回应由确定性检索 score 和 Ragas 结果共同反映，不能通过
-跳过样本来提高批次成功率。
+`retrieved_contexts: []` 与 `cited_contexts: []` 都是有效输入。空召回应由确定性检索 score 和
+Ragas 结果共同反映，不能通过跳过样本来提高批次成功率。
 
 ## 数据边界
 

@@ -1,4 +1,4 @@
-import type { AgentInputItem } from "@openai/agents";
+import type { AgentInputItem, AgentOutputType } from "@openai/agents";
 import type {
 	JsonObjectSchema,
 	ToolCatalog,
@@ -6,25 +6,123 @@ import type {
 	ToolContractFingerprint,
 } from "./tool-catalog.ts";
 
-export interface ExecutionFailure {
-	code: string;
-	operation: string;
-	detail?: string;
-	httpStatus?: number;
-	invocationId?: string;
+export type WorkflowOperation = "solve" | "execute_step" | "replan" | "synthesize";
+export type WorkflowSource = "campus_search" | "web_search" | "personal_memory_recall";
+
+export interface TaskPlanStep {
+	id: string;
+	objective: string;
+	candidateSources: WorkflowSource[];
+	dependsOn: string[];
 }
 
-export interface PrimaryAgentRunInput {
+export interface TaskPlan {
+	schemaVersion: "task_plan.v1";
+	goal: string;
+	steps: TaskPlanStep[];
+}
+
+export interface TaskReplan {
+	schemaVersion: "task_replan.v1";
+	decision: "continue" | "revise" | "synthesize";
+	reason: string;
+	remainingSteps: TaskPlanStep[];
+}
+
+export interface WorkflowEvidence {
+	schemaVersion: "workflow_evidence.v1";
+	id: string;
+	source: WorkflowSource;
+	title: string;
+	excerpt: string;
+	citationIndex?: number;
+	url?: string;
+	resultRef?: string;
+	documentId?: string;
+	sectionRef?: string;
+	sectionTitle?: string;
+	versionId?: string;
+	versionSlug?: string;
+}
+
+export interface CompletedTaskStep {
+	step: TaskPlanStep;
+	executionIndex: number;
+	summary: string;
+	evidence: WorkflowEvidence[];
+	sourceAttempts: SourceAttempt[];
+}
+
+export interface SourceAttempt {
+	source: WorkflowSource;
+	status: "matched" | "no_match" | "completed" | "failed";
+	failureCode?: string;
+}
+
+interface WorkflowOperationInputBase {
 	activityAttempt?: number;
 	requestId: string;
 	conversationId: string;
-	input: string;
 	visibleFunctionToolNames: string[];
 	conversationContext?: AgentConversationContext;
 	expectedToolContractFingerprint?: ToolContractFingerprint;
 	providerConfig: PromptProviderRuntimeConfig;
 	limits: AgentRuntimeLimits;
 	signal?: AbortSignal;
+}
+
+export interface SolveWorkflowOperationInput extends WorkflowOperationInputBase {
+	operation: "solve";
+	operationInput: {
+		goal: string;
+		maxSteps: number;
+	};
+}
+
+export interface ExecuteStepWorkflowOperationInput extends WorkflowOperationInputBase {
+	operation: "execute_step";
+	operationInput: {
+		goal: string;
+		plan: TaskPlan;
+		step: TaskPlanStep;
+		completedSteps: CompletedTaskStep[];
+		citationStart: number;
+	};
+}
+
+export interface ReplanWorkflowOperationInput extends WorkflowOperationInputBase {
+	operation: "replan";
+	operationInput: {
+		goal: string;
+		plan: TaskPlan;
+		completedSteps: CompletedTaskStep[];
+		remainingSteps: TaskPlanStep[];
+		maxRemainingSteps: number;
+	};
+}
+
+export interface SynthesizeWorkflowOperationInput extends WorkflowOperationInputBase {
+	operation: "synthesize";
+	operationInput: {
+		goal: string;
+		plan: TaskPlan;
+		completedSteps: CompletedTaskStep[];
+		evidence: WorkflowEvidence[];
+	};
+}
+
+export type WorkflowOperationInput =
+	| SolveWorkflowOperationInput
+	| ExecuteStepWorkflowOperationInput
+	| ReplanWorkflowOperationInput
+	| SynthesizeWorkflowOperationInput;
+
+export interface ExecutionFailure {
+	code: string;
+	operation: string;
+	detail?: string;
+	httpStatus?: number;
+	invocationId?: string;
 }
 
 export interface AgentRuntimeLimits {
@@ -77,6 +175,7 @@ export interface ModelContextUsage {
 export interface PromptProviderRuntimeConfig {
 	provider: string;
 	transport: string;
+	hostedWebSearch?: boolean;
 	baseUrl?: string;
 	model: string;
 	apiKey: string;
@@ -91,7 +190,7 @@ export interface UsageSummary {
 }
 
 export interface PromptTrace {
-	promptId: "primary_agent";
+	promptId: "workflow.solve" | "workflow.execute_step" | "workflow.replan" | "workflow.synthesize";
 	promptTemplateSha256: string;
 	renderedPromptSha256: string;
 	schemaVersion: "agent_runtime_prompt_trace.v1";
@@ -107,6 +206,7 @@ export interface ToolExecutionRequest {
 	argumentsJson: Record<string, unknown>;
 	requestId: string;
 	invocationId?: string;
+	workflowStepId?: string;
 	citationStart?: number;
 	resultLimit?: number;
 	userGoal?: string;
@@ -151,17 +251,22 @@ export interface SdkToolExecutionContext {
 
 export interface AgentRunnerInput {
 	activityAttempt?: number;
+	operation: WorkflowOperation;
 	input: AgentInputItem[];
 	instructions: string;
+	outputType?: AgentOutputType;
 	limits: AgentRuntimeLimits;
 	tools: SdkToolRuntime[];
 	requestId: string;
 	providerConfig: PromptProviderRuntimeConfig;
+	allowWebSearch: boolean;
+	citationStart: number;
 	signal?: AbortSignal;
 }
 
 export interface AgentRunnerResult {
 	finalOutput: string;
+	structuredOutput?: unknown;
 	providerResponseId: string;
 	toolResults: ToolExecutionResult[];
 	webCitations: WebCitation[];
@@ -170,15 +275,26 @@ export interface AgentRunnerResult {
 }
 
 export type AgentRunner = (input: AgentRunnerInput) => Promise<AgentRunnerResult>;
+export interface AgentRunnerSolveDecision {
+	solveOutcome: "answer" | "plan";
+}
+
 export type StreamingAgentRunner = (
 	input: AgentRunnerInput,
-) => AsyncIterable<AgentRunnerAnswerDelta | AgentRunnerResult>;
+) => AsyncIterable<AgentRunnerAnswerDelta | AgentRunnerSolveDecision | AgentRunnerResult>;
 export type ToolExecutor = (request: ToolExecutionRequest) => Promise<UntimedToolExecutionResult>;
-export interface PrimaryAgentRunResult {
+
+export interface WorkflowOperationResult {
 	status: "completed" | "failed";
+	operation: WorkflowOperation;
 	requestId: string;
 	contextUsage: ModelContextUsage;
 	finalOutput: string;
+	solveOutcome?: "answer" | "plan";
+	structuredOutput?: TaskPlan | TaskReplan;
+	completedStep?: CompletedTaskStep;
+	evidence: WorkflowEvidence[];
+	sourceAttempts: SourceAttempt[];
 	modelName: string;
 	modelProvider: string;
 	promptTrace: PromptTrace;
@@ -188,29 +304,35 @@ export interface PrimaryAgentRunResult {
 	toolResults: ToolExecutionResult[];
 	webCitations: WebCitation[];
 	webSearchUsed: boolean;
-	terminalReason: "answer_completed" | "agent_runtime_failed";
+	terminalReason: "operation_completed" | "agent_runtime_failed";
 	usage: UsageSummary;
 }
 
-export interface PrimaryAgentRuntime {
-	run(input: PrimaryAgentRunInput): Promise<PrimaryAgentRunResult>;
-	stream(input: PrimaryAgentRunInput): AsyncIterable<PrimaryAgentStreamEvent>;
+export interface WorkflowOperationRuntime {
+	run(input: WorkflowOperationInput): Promise<WorkflowOperationResult>;
+	stream(
+		input: SolveWorkflowOperationInput | SynthesizeWorkflowOperationInput,
+	): AsyncIterable<WorkflowOperationStreamEvent>;
 }
 
-export interface CreatePrimaryAgentRuntimeOptions {
+export interface CreateWorkflowOperationRuntimeOptions {
 	catalog: ToolCatalog;
 	runner: AgentRunner;
 	streamingRunner?: StreamingAgentRunner;
 	toolExecutor?: ToolExecutor;
-	instructions?: string;
+	instructions?: Partial<Record<WorkflowOperation, string>>;
 }
 
-export type PrimaryAgentStreamEvent =
+export type WorkflowOperationStreamEvent =
+	| {
+			event: "solve_decision";
+			data: { outcome: "answer" | "plan" };
+	  }
 	| {
 			event: "answer_delta";
 			data: { delta: string };
 	  }
 	| {
 			event: "completed";
-			data: PrimaryAgentRunResult;
+			data: WorkflowOperationResult;
 	  };

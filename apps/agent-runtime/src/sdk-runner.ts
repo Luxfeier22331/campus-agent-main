@@ -1,5 +1,7 @@
 import {
 	Agent,
+	type AgentOptions,
+	type AgentOutputType,
 	type AssistantMessageItem,
 	type ModelProvider,
 	Runner,
@@ -13,6 +15,8 @@ import type {
 	AgentRunner,
 	AgentRunnerAnswerDelta,
 	AgentRunnerInput,
+	AgentRunnerResult,
+	AgentRunnerSolveDecision,
 	PromptProviderRuntimeConfig,
 	SdkToolRuntime,
 	StreamingAgentRunner,
@@ -41,9 +45,7 @@ interface AgentSdkContext {
 	functionToolResults: Map<string, ToolExecutionResult>;
 }
 
-// Agents SDK uses this broad bound for its invariant result type parameter.
-// biome-ignore lint/suspicious/noExplicitAny: required by the Agents SDK result type constraint
-type CampusAgent = Agent<AgentSdkContext, any>;
+type CampusAgent = Agent<AgentSdkContext, AgentOutputType>;
 
 export interface OpenAIAgentsRunnerOptions {
 	model?: string;
@@ -57,13 +59,13 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 	return async (input) => {
 		const requestOptions = resolveRequestOptions(options, input.providerConfig);
 		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
-		const runner = createSdkRunner(requestOptions.modelProvider);
+		const runner = createSdkRunner(requestOptions.modelProvider, input.operation);
 		const result = await runner.run(runtime.agent, input.input, {
 			context: runtime.context,
 			maxTurns: input.limits.maxTurns,
 			...(input.signal ? { signal: input.signal } : {}),
 		});
-		return agentRunnerResultFromSDKResult(result);
+		return agentRunnerResultFromSDKResult(result, input.operation);
 	};
 }
 
@@ -73,13 +75,17 @@ export function createStreamingOpenAIAgentsRunner(
 	return async function* (input) {
 		const requestOptions = resolveRequestOptions(options, input.providerConfig);
 		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
-		const runner = createSdkRunner(requestOptions.modelProvider);
+		const runner = createSdkRunner(requestOptions.modelProvider, input.operation);
 		const result = await runner.run(runtime.agent, input.input, {
 			context: runtime.context,
 			maxTurns: input.limits.maxTurns,
 			...(input.signal ? { signal: input.signal } : {}),
 			stream: true,
 		});
+		if (input.operation === "solve") {
+			yield* streamSolveResult(result, input);
+			return;
+		}
 		for await (const delta of result.toTextStream()) {
 			if (delta !== "") {
 				yield { delta } satisfies AgentRunnerAnswerDelta;
@@ -87,8 +93,127 @@ export function createStreamingOpenAIAgentsRunner(
 		}
 		await result.completed;
 		throwIfStreamRunDidNotComplete(result, input.signal);
-		yield agentRunnerResultFromSDKResult(result);
+		yield agentRunnerResultFromSDKResult(result, input.operation);
 	};
+}
+
+async function* streamSolveResult(
+	result: StreamedRunResult<AgentSdkContext, CampusAgent>,
+	input: AgentRunnerInput,
+): AsyncGenerator<AgentRunnerAnswerDelta | AgentRunnerSolveDecision | AgentRunnerResult> {
+	let serializedOutput = "";
+	let outcome: "answer" | "plan" | undefined;
+	let emittedAnswer = "";
+	for await (const event of result) {
+		if (event.type !== "raw_model_stream_event" || event.data.type !== "output_text_delta") {
+			continue;
+		}
+		serializedOutput += event.data.delta;
+		if (!outcome) {
+			const outcomeMatch = /"outcome"\s*:\s*"(answer|plan)"/u.exec(serializedOutput);
+			if (outcomeMatch?.[1] === "answer" || outcomeMatch?.[1] === "plan") {
+				outcome = outcomeMatch[1];
+				yield { solveOutcome: outcome };
+			}
+		}
+		if (outcome === "answer") {
+			const answer = partialJSONStringField(serializedOutput, "answer");
+			if (answer?.startsWith(emittedAnswer)) {
+				const delta = answer.slice(emittedAnswer.length);
+				emittedAnswer = answer;
+				if (delta !== "") {
+					yield { delta };
+				}
+			}
+		}
+	}
+	await result.completed;
+	throwIfStreamRunDidNotComplete(result, input.signal);
+	const finalResult = agentRunnerResultFromSDKResult(result, input.operation);
+	if (!outcome) {
+		const structured = finalResult.structuredOutput;
+		if (
+			isRecord(structured) &&
+			(structured.outcome === "answer" || structured.outcome === "plan")
+		) {
+			outcome = structured.outcome;
+			yield { solveOutcome: outcome };
+			if (outcome === "answer" && emittedAnswer === "") {
+				emittedAnswer = finalResult.finalOutput;
+				if (emittedAnswer !== "") {
+					yield { delta: emittedAnswer };
+				}
+			}
+		}
+	}
+	yield finalResult;
+}
+
+function partialJSONStringField(serialized: string, field: string): string | undefined {
+	const fieldPattern = new RegExp(`"${field}"\\s*:\\s*"`, "u");
+	const match = fieldPattern.exec(serialized);
+	if (!match) {
+		return undefined;
+	}
+	const start = match.index + match[0].length;
+	let value = "";
+	for (let index = start; index < serialized.length; index += 1) {
+		const character = serialized[index];
+		if (character === '"') {
+			return value;
+		}
+		if (character !== "\\") {
+			value += character;
+			continue;
+		}
+		if (index + 1 >= serialized.length) {
+			return value;
+		}
+		const escapeCharacter = serialized[index + 1];
+		if (escapeCharacter === undefined) {
+			return value;
+		}
+		switch (escapeCharacter) {
+			case '"':
+			case "\\":
+			case "/":
+				value += escapeCharacter;
+				index += 1;
+				break;
+			case "b":
+				value += "\b";
+				index += 1;
+				break;
+			case "f":
+				value += "\f";
+				index += 1;
+				break;
+			case "n":
+				value += "\n";
+				index += 1;
+				break;
+			case "r":
+				value += "\r";
+				index += 1;
+				break;
+			case "t":
+				value += "\t";
+				index += 1;
+				break;
+			case "u": {
+				const hex = serialized.slice(index + 2, index + 6);
+				if (!/^[0-9a-f]{4}$/iu.test(hex)) {
+					return value;
+				}
+				value += String.fromCharCode(Number.parseInt(hex, 16));
+				index += 5;
+				break;
+			}
+			default:
+				return value;
+		}
+	}
+	return value;
 }
 
 function resolveRequestOptions(
@@ -103,10 +228,13 @@ function resolveRequestOptions(
 	);
 }
 
-function createSdkRunner(modelProvider: ModelProvider | undefined): Runner {
+function createSdkRunner(
+	modelProvider: ModelProvider | undefined,
+	operation: AgentRunnerInput["operation"],
+): Runner {
 	return new Runner({
 		...(modelProvider ? { modelProvider } : {}),
-		workflowName: "campus-agent.primary-agent",
+		workflowName: `campus-agent.workflow.${operation}`,
 		traceIncludeSensitiveData: false,
 	});
 }
@@ -129,21 +257,31 @@ function throwIfStreamRunDidNotComplete(
 
 function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 	const context: AgentSdkContext = {
-		campusSearch: { nextCitationIndex: 1, queue: Promise.resolve() },
+		campusSearch: { nextCitationIndex: input.citationStart, queue: Promise.resolve() },
 		functionToolBudget: {
 			limit: input.limits.maxFunctionToolCalls,
 			reserved: 0,
 		},
 		functionToolResults: new Map(),
 	};
-	const hostedTools = input.providerConfig.transport === "responses" ? [webSearchTool()] : [];
-	const agent = new Agent<AgentSdkContext>({
-		name: "Campus primary assistant",
+	if (input.allowWebSearch && input.providerConfig.hostedWebSearch !== true) {
+		throw new AgentRuntimeError(
+			"model_config_incompatible",
+			"The selected model target does not support hosted Web Search.",
+			{ operation: `workflow.${input.operation}` },
+		);
+	}
+	const hostedTools =
+		input.allowWebSearch && input.providerConfig.hostedWebSearch === true ? [webSearchTool()] : [];
+	const agentConfig: AgentOptions<AgentSdkContext, AgentOutputType> = {
+		name: `Campus workflow ${input.operation}`,
 		instructions: input.instructions,
+		...(input.outputType ? { outputType: input.outputType } : {}),
 		...(model ? { model } : {}),
 		modelSettings: { maxTokens: input.limits.maxOutputTokens },
 		tools: [...input.tools.map((runtimeTool) => sdkTool(runtimeTool)), ...hostedTools],
-	});
+	};
+	const agent = new Agent<AgentSdkContext, AgentOutputType>(agentConfig);
 	return { agent, context };
 }
 
@@ -269,15 +407,34 @@ function campusSearchResultCount(
 
 function agentRunnerResultFromSDKResult(
 	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
+	operation: AgentRunnerInput["operation"],
 ) {
+	const rawFinalOutput = result.finalOutput;
+	const finalOutput = textOutputFromSDKResult(rawFinalOutput, operation);
 	return {
-		finalOutput: result.finalOutput ?? "",
+		finalOutput,
+		...(isRecord(rawFinalOutput) ? { structuredOutput: rawFinalOutput } : {}),
 		providerResponseId: result.lastResponseId?.trim() ?? "",
 		toolResults: toolResultsFromSDKResult(result),
 		webCitations: extractWebCitations(result),
 		webSearchUsed: webSearchUsedFromSDKResult(result),
 		usage: usageFromSDK(result.runContext.usage),
 	};
+}
+
+function textOutputFromSDKResult(value: unknown, operation: AgentRunnerInput["operation"]): string {
+	if (typeof value === "string") {
+		return value;
+	}
+	if (
+		operation === "solve" &&
+		isRecord(value) &&
+		value.outcome === "answer" &&
+		typeof value.answer === "string"
+	) {
+		return value.answer;
+	}
+	return "";
 }
 
 function toolResultsFromSDKResult(

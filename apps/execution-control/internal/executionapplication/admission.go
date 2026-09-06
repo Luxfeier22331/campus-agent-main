@@ -10,29 +10,33 @@ import (
 )
 
 const (
-	defaultAgentDeadlineMS        = 90000
+	defaultAgentDeadlineMS        = 240000
 	defaultAgentMaxOutputTokens   = 2048
 	defaultAgentCurrentInputChars = 8000
 	defaultAgentContextChars      = 16000
+	defaultMaxFunctionToolCalls   = 8
+	defaultMaxModelTurns          = 8
+	defaultMaxPlanSteps           = 6
+	defaultMaxReplans             = 3
 )
 
 type AdmissionOptions struct {
-	AgentDeadlineMS            int
-	ContextCharLimit           int
-	CurrentInputCharLimit      int
-	MaxOutputTokens            int
-	PrimaryAgentTargetResolver execution.PrimaryAgentTargetResolver
-	PrimaryAgentTargetError    error
-	ToolFunctionSchemaPath     string
-	ToolRegistryPath           string
+	AgentDeadlineMS        int
+	ContextCharLimit       int
+	CurrentInputCharLimit  int
+	MaxOutputTokens        int
+	ModelTargetResolver    execution.ModelTargetResolver
+	ModelTargetError       error
+	ToolFunctionSchemaPath string
+	ToolRegistryPath       string
 }
 
 type AdmissionService struct {
-	limits                     execution.AgentRuntimeLimitsSnapshot
-	primaryAgentTargetResolver execution.PrimaryAgentTargetResolver
-	primaryAgentTargetError    error
-	toolFunctionSchemaPath     string
-	toolRegistryPath           string
+	limits                 execution.AgentRuntimeLimitsSnapshot
+	modelTargetResolver    execution.ModelTargetResolver
+	modelTargetError       error
+	toolFunctionSchemaPath string
+	toolRegistryPath       string
 }
 
 func NewAdmissionService(options AdmissionOptions) *AdmissionService {
@@ -43,10 +47,10 @@ func NewAdmissionService(options AdmissionOptions) *AdmissionService {
 			CurrentInputCharLimit: positiveOrDefault(options.CurrentInputCharLimit, defaultAgentCurrentInputChars),
 			MaxOutputTokens:       positiveOrDefault(options.MaxOutputTokens, defaultAgentMaxOutputTokens),
 		},
-		primaryAgentTargetResolver: options.PrimaryAgentTargetResolver,
-		primaryAgentTargetError:    options.PrimaryAgentTargetError,
-		toolFunctionSchemaPath:     strings.TrimSpace(options.ToolFunctionSchemaPath),
-		toolRegistryPath:           strings.TrimSpace(options.ToolRegistryPath),
+		modelTargetResolver:    options.ModelTargetResolver,
+		modelTargetError:       options.ModelTargetError,
+		toolFunctionSchemaPath: strings.TrimSpace(options.ToolFunctionSchemaPath),
+		toolRegistryPath:       strings.TrimSpace(options.ToolRegistryPath),
 	}
 }
 
@@ -59,7 +63,23 @@ func (s *AdmissionService) BuildAgentAdmissionSnapshot(
 			errors.New("agent admission service is not configured"),
 		)
 	}
-	strategy := execution.ExecutionStrategyForAdmission(personalMemoryRecallAvailable)
+	target, err := s.resolveModelTarget(ctx)
+	if err != nil {
+		return execution.AgentAdmissionSnapshot{}, execution.NewDependencyNotReadyError(
+			fmt.Errorf("resolve workflow model target: %w", err),
+		)
+	}
+	capabilities := execution.AgentCapabilitiesForAdmission(
+		personalMemoryRecallAvailable,
+		target.HostedWebSearch,
+	)
+	budget := execution.AgentRuntimeBudgetSnapshot{
+		MaxFunctionToolCalls: defaultMaxFunctionToolCalls,
+		MaxModelTurns:        defaultMaxModelTurns,
+		MaxPlanSteps:         defaultMaxPlanSteps,
+		MaxReplans:           defaultMaxReplans,
+		SchemaVersion:        execution.AgentRuntimeBudgetSchemaVersion,
+	}
 	toolContract, err := buildToolContractFingerprint(s.toolRegistryPath, s.toolFunctionSchemaPath)
 	if err != nil {
 		return execution.AgentAdmissionSnapshot{}, execution.NewDependencyNotReadyError(
@@ -69,21 +89,17 @@ func (s *AdmissionService) BuildAgentAdmissionSnapshot(
 	snapshot := execution.AgentAdmissionSnapshot{
 		AgentLimits:                   s.limits,
 		AgentLimitsSHA256:             execution.HashAdmissionJSON(s.limits),
-		ExecutionStrategy:             strategy,
-		ExecutionStrategySHA256:       execution.HashAdmissionJSON(strategy),
+		AgentCapabilities:             capabilities,
+		AgentCapabilitiesSHA256:       execution.HashAdmissionJSON(capabilities),
+		AgentBudget:                   budget,
+		AgentBudgetSHA256:             execution.HashAdmissionJSON(budget),
+		ModelTargetSHA256:             target.TargetSHA256,
 		ToolContractFingerprint:       toolContract,
 		ToolContractFingerprintSHA256: execution.HashAdmissionJSON(toolContract),
 	}
-	target, err := s.resolvePrimaryAgentTarget(ctx)
-	if err != nil {
-		return execution.AgentAdmissionSnapshot{}, execution.NewDependencyNotReadyError(
-			fmt.Errorf("resolve primary agent model target: %w", err),
-		)
-	}
-	snapshot.PrimaryAgentTargetSHA256 = target.TargetSHA256
 	if err := execution.ValidateAdmissionSnapshotForVisibleTools(
 		snapshot,
-		strategy.VisibleFunctionToolNames,
+		capabilities.VisibleFunctionToolNames,
 	); err != nil {
 		return execution.AgentAdmissionSnapshot{}, err
 	}
@@ -134,14 +150,14 @@ func (s *AdmissionService) ValidateLocalToolContractFingerprintMap(expected map[
 	return nil
 }
 
-func (s *AdmissionService) resolvePrimaryAgentTarget(ctx context.Context) (execution.PrimaryAgentTarget, error) {
-	if s.primaryAgentTargetError != nil {
-		return execution.PrimaryAgentTarget{}, s.primaryAgentTargetError
+func (s *AdmissionService) resolveModelTarget(ctx context.Context) (execution.ModelTarget, error) {
+	if s.modelTargetError != nil {
+		return execution.ModelTarget{}, s.modelTargetError
 	}
-	if s.primaryAgentTargetResolver == nil {
-		return execution.PrimaryAgentTarget{}, errors.New("primary agent model target resolver is not configured")
+	if s.modelTargetResolver == nil {
+		return execution.ModelTarget{}, errors.New("workflow model target resolver is not configured")
 	}
-	return s.primaryAgentTargetResolver.ResolvePrimaryAgentTarget(ctx)
+	return s.modelTargetResolver.ResolveModelTarget(ctx)
 }
 
 func positiveOrDefault(value int, fallback int) int {

@@ -10,11 +10,11 @@ import (
 
 func temporalFinalizationResultPayload(
 	finalizedResponse map[string]any,
-	input temporalruntime.WriteFinalizationActivityInput,
+	input temporalruntime.WriteWorkflowFinalizationActivityInput,
 	run execution.DurableRun,
 ) map[string]any {
 	payload := map[string]any{
-		"agent_result_ref":     input.AgentResult.AgentResultRef,
+		"workflow_result_ref":  input.WorkflowResult.WorkflowResultRef,
 		"finalization_summary": temporalFinalizationProjectionSummary(finalizedResponse),
 		"request_id":           run.RequestID,
 	}
