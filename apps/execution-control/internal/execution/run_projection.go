@@ -53,6 +53,7 @@ const (
 	DurableRunEventTypeActivityFailed             DurableRunEventType = "activity.failed"
 	DurableRunEventTypeAgentCompleted             DurableRunEventType = "agent.completed"
 	DurableRunEventTypeWorkflowOperationCompleted DurableRunEventType = "workflow.operation_completed"
+	DurableRunEventTypeFinalizationReserved       DurableRunEventType = "finalization.reserved"
 	DurableRunEventTypeFinalizationCompleted      DurableRunEventType = "finalization.completed"
 )
 

@@ -41,14 +41,6 @@ func (s *Adapter) writeWorkflowFinalizationActivity(
 	ctx context.Context,
 	input temporalruntime.WriteWorkflowFinalizationActivityInput,
 ) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
-	finalizedAt := input.FinalizedAt.UTC().Truncate(time.Microsecond)
-	if finalizedAt.IsZero() {
-		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
-			"finalization_input_invalid",
-			errors.New("finalized_at is required"),
-			true,
-		)
-	}
 	workflowResult := input.WorkflowResult
 	agentResult := workflowFinalizationResultMap(input)
 	if strings.TrimSpace(workflowResult.WorkflowResultRef) != workflowResultRefForFinalization(input) ||
@@ -67,15 +59,10 @@ func (s *Adapter) writeWorkflowFinalizationActivity(
 		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	if run.Status == execution.DurableRunStatusCompleted {
-		return s.repairCompletedWorkflowFinalization(ctx, run, input, finalizedAt)
+		return s.repairCompletedWorkflowFinalization(ctx, run, input)
 	}
-	finalizationStartedAt := time.Now().UTC()
-	if err := s.appendTemporalRunProgress(
-		ctx,
-		run,
-		execution.DurableRunProgressPhaseFinalizing,
-		finalizationStartedAt,
-	); err != nil {
+	finalizationStartedAt, err := s.ensureFinalizationProgress(ctx, run)
+	if err != nil {
 		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	replayEvidence, err := s.completedFinalizationProjectionEvidence(ctx, run)
@@ -115,11 +102,7 @@ func (s *Adapter) writeWorkflowFinalizationActivity(
 			err,
 		)
 	}
-	if replayEvidence != nil {
-		finalizationStartedAt = replayEvidence.StartedAt
-	}
 	finalizationRef := temporalProjectionRef(run.RequestID, "finalization/write")
-	completedAt := finalizedAt
 	finalizedResponse, err := s.workflowFinalizedResponse(
 		ctx,
 		run,
@@ -137,6 +120,35 @@ func (s *Adapter) writeWorkflowFinalizationActivity(
 	if writeProductFinalization == nil {
 		writeProductFinalization = s.writeChatProductFinalization
 	}
+	finalizationPayload := temporalFinalizationResultPayload(finalizedResponse, input, run)
+	finalizationFingerprint := strings.TrimSpace(
+		execution.StringValue(finalizationPayload[execution.FinalizationFingerprintPayloadKey]),
+	)
+	timing, err := s.ensureFinalizationTimingReservation(
+		ctx,
+		run,
+		input,
+		finalizedResponse,
+		finalizationStartedAt,
+		finalizationFingerprint,
+	)
+	if err != nil {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
+	}
+	if timing.Legacy && replayEvidence != nil {
+		if replayEvidence.CanonicalStartedAt.IsZero() ||
+			replayEvidence.CanonicalCompletedAt.IsZero() ||
+			replayEvidence.CanonicalUpdatedAt.IsZero() ||
+			replayEvidence.CanonicalResultCreatedAt.IsZero() {
+			return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+				"finalization_replay_incomplete",
+				errors.New("legacy canonical finalization timing evidence is missing"),
+				true,
+			)
+		}
+		replayEvidence.PreserveCanonicalTiming = true
+	}
+	completedAt := timing.CompletedAt
 	if err := writeProductFinalization(ctx, run, completedAt, finalizedResponse); err != nil {
 		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
@@ -147,7 +159,7 @@ func (s *Adapter) writeWorkflowFinalizationActivity(
 		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
 	terminalReason := workflowTerminalReason(agentResult)
-	projectionCompletedAt := time.Now().UTC()
+	projectionCompletedAt := canonicalFinalizationTime(time.Now())
 	if replayEvidence != nil {
 		projectionCompletedAt = replayEvidence.CompletedAt
 	}
@@ -195,21 +207,50 @@ func (s *Adapter) commitWorkflowFinalizationStep(
 	finalizedResponse map[string]any,
 	replayEvidence ...*finalizationProjectionEvidence,
 ) (execution.DurableRun, error) {
+	canonicalStartedAt := canonicalFinalizationTime(startedAt)
+	completionAt := canonicalFinalizationTime(runCompletedAt)
+	if completionAt.IsZero() {
+		completionAt = canonicalFinalizationTime(projectionCompletedAt)
+	}
+	canonicalStepCompletedAt := completionAt
+	canonicalStepUpdatedAt := completionAt
+	canonicalResultCreatedAt := completionAt
+	if len(replayEvidence) > 0 && replayEvidence[0] != nil && replayEvidence[0].PreserveCanonicalTiming {
+		evidence := replayEvidence[0]
+		if !evidence.CanonicalStartedAt.IsZero() {
+			canonicalStartedAt = canonicalFinalizationTime(evidence.CanonicalStartedAt)
+		}
+		if !evidence.CanonicalCompletedAt.IsZero() {
+			canonicalStepCompletedAt = canonicalFinalizationTime(evidence.CanonicalCompletedAt)
+		}
+		if !evidence.CanonicalUpdatedAt.IsZero() {
+			canonicalStepUpdatedAt = canonicalFinalizationTime(evidence.CanonicalUpdatedAt)
+		}
+		if !evidence.CanonicalResultCreatedAt.IsZero() {
+			canonicalResultCreatedAt = canonicalFinalizationTime(evidence.CanonicalResultCreatedAt)
+		}
+	}
+	activityCompletedAt := canonicalFinalizationTime(projectionCompletedAt)
+	if activityCompletedAt.IsZero() {
+		activityCompletedAt = canonicalFinalizationTime(time.Now())
+	}
 	projection := temporalStepProjection{
-		Attempt:       1,
-		Tool:          "",
-		Run:           run,
-		Status:        "completed",
-		StepID:        "finalization.write",
-		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     startedAt,
-		CompletedAt:   projectionCompletedAt,
-		UpdatedAt:     projectionCompletedAt,
-		ResultKind:    "final_answer_projection",
-		ProjectionRef: run.FinalResponseRef,
-		Payload:       temporalFinalizationResultPayload(finalizedResponse, input, run),
+		Attempt:            1,
+		Tool:               "",
+		Run:                run,
+		Status:             "completed",
+		StepID:             "finalization.write",
+		StepKind:           "finalization",
+		TaskQueue:          temporalruntime.ActivityTaskQueueCore,
+		WorkerID:           s.config.TemporalWorkerIdentity,
+		StartedAt:          canonicalStartedAt,
+		CompletedAt:        canonicalStepCompletedAt,
+		AttemptCompletedAt: activityCompletedAt,
+		UpdatedAt:          canonicalStepUpdatedAt,
+		AttemptUpdatedAt:   activityCompletedAt,
+		ResultKind:         "final_answer_projection",
+		ProjectionRef:      run.FinalResponseRef,
+		Payload:            temporalFinalizationResultPayload(finalizedResponse, input, run),
 	}
 	if len(replayEvidence) > 0 && replayEvidence[0] != nil {
 		projection = replayEvidence[0].apply(projection)
@@ -220,9 +261,17 @@ func (s *Adapter) commitWorkflowFinalizationStep(
 	if attempt <= 0 {
 		attempt = 1
 	}
-	updatedAt := projection.UpdatedAt
-	if updatedAt.IsZero() {
-		updatedAt = time.Now().UTC()
+	attemptStartedAt := canonicalFinalizationTime(projection.AttemptStartedAt)
+	attemptCompletedAt := canonicalFinalizationTime(projection.AttemptCompletedAt)
+	attemptUpdatedAt := canonicalFinalizationTime(projection.AttemptUpdatedAt)
+	if attemptStartedAt.IsZero() {
+		attemptStartedAt = canonicalStartedAt
+	}
+	if attemptCompletedAt.IsZero() {
+		attemptCompletedAt = activityCompletedAt
+	}
+	if attemptUpdatedAt.IsZero() {
+		attemptUpdatedAt = attemptCompletedAt
 	}
 	attemptID := temporalStepAttemptID(run.RequestID, projection.StepID, attempt)
 	finalizationFingerprint := strings.TrimSpace(
@@ -233,7 +282,7 @@ func (s *Adapter) commitWorkflowFinalizationStep(
 		execution.RunProjectionFinalizeRequest{
 			Completion: execution.DurableRunCompleteRequest{
 				FinalResponseRef: run.FinalResponseRef,
-				Now:              runCompletedAt,
+				Now:              completionAt,
 				RequestID:        run.RequestID,
 				TerminalReason:   run.TerminalReason,
 			},
@@ -249,7 +298,7 @@ func (s *Adapter) commitWorkflowFinalizationStep(
 				WorkerID:             projection.WorkerID,
 				StartedAt:            projection.StartedAt,
 				CompletedAt:          projection.CompletedAt,
-				UpdatedAt:            updatedAt,
+				UpdatedAt:            canonicalStepUpdatedAt,
 				PayloadSchemaVersion: "run-step-projection-v1",
 				SanitizedPayload:     projection.Payload,
 			},
@@ -267,8 +316,8 @@ func (s *Adapter) commitWorkflowFinalizationStep(
 				ActivityType:          projection.ActivityType,
 				ActivityAttempt:       projection.ActivityAttempt,
 				ScheduledAt:           projection.ScheduledAt,
-				StartedAt:             projection.StartedAt,
-				CompletedAt:           projection.CompletedAt,
+				StartedAt:             attemptStartedAt,
+				CompletedAt:           attemptCompletedAt,
 				ScheduleToStartMS:     projection.ScheduleToStartMS,
 				DurationMS:            projection.DurationMS,
 				ProviderRequestRef:    projection.ProviderRequestRef,
@@ -283,7 +332,7 @@ func (s *Adapter) commitWorkflowFinalizationStep(
 				LateCompletionOutcome: projection.LateCompletionOutcome,
 				FailCloseReason:       projection.FailCloseReason,
 				TerminalReason:        projection.TerminalReason,
-				UpdatedAt:             updatedAt,
+				UpdatedAt:             attemptUpdatedAt,
 				PayloadSchemaVersion:  "step-attempt-projection-v1",
 				SanitizedPayload:      projection.Payload,
 			},
@@ -295,7 +344,7 @@ func (s *Adapter) commitWorkflowFinalizationStep(
 				Status:               projection.Status,
 				ResultKind:           projection.ResultKind,
 				ProjectionRef:        projection.ProjectionRef,
-				CreatedAt:            updatedAt,
+				CreatedAt:            canonicalResultCreatedAt,
 				PayloadSchemaVersion: "step-result-projection-v1",
 				SanitizedPayload:     projection.Payload,
 			},
@@ -304,6 +353,22 @@ func (s *Adapter) commitWorkflowFinalizationStep(
 	)
 	if err != nil {
 		if errors.Is(err, execution.ErrRunFinalizationConflict) {
+			if run.Status != execution.DurableRunStatusCompleted {
+				// The active-path callback and internal evidence have already
+				// succeeded. Do not let the workflow turn this projection conflict
+				// into a generic product failure.
+				hasSuccessEvidence, evidenceErr := s.finalizationSuccessEvidence(ctx, run)
+				if evidenceErr != nil {
+					return execution.DurableRun{}, evidenceErr
+				}
+				if hasSuccessEvidence {
+					return execution.DurableRun{}, sanitizedTemporalApplicationError(
+						"finalization_projection_conflict",
+						err,
+						true,
+					)
+				}
+			}
 			return execution.DurableRun{}, sanitizedTemporalApplicationError(
 				"finalization_replay_conflict",
 				err,
@@ -324,21 +389,24 @@ func (s *Adapter) projectWorkflowFinalizationStep(
 	finalizedResponse map[string]any,
 	replayEvidence ...*finalizationProjectionEvidence,
 ) error {
+	activityCompletedAt := canonicalFinalizationTime(time.Now())
 	projection := temporalStepProjection{
-		Attempt:       1,
-		Tool:          "",
-		Run:           run,
-		Status:        "completed",
-		StepID:        "finalization.write",
-		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     startedAt,
-		CompletedAt:   completedAt,
-		UpdatedAt:     completedAt,
-		ResultKind:    "final_answer_projection",
-		ProjectionRef: run.FinalResponseRef,
-		Payload:       temporalFinalizationResultPayload(finalizedResponse, input, run),
+		Attempt:            1,
+		Tool:               "",
+		Run:                run,
+		Status:             "completed",
+		StepID:             "finalization.write",
+		StepKind:           "finalization",
+		TaskQueue:          temporalruntime.ActivityTaskQueueCore,
+		WorkerID:           s.config.TemporalWorkerIdentity,
+		StartedAt:          startedAt,
+		CompletedAt:        completedAt,
+		AttemptCompletedAt: activityCompletedAt,
+		UpdatedAt:          completedAt,
+		AttemptUpdatedAt:   activityCompletedAt,
+		ResultKind:         "final_answer_projection",
+		ProjectionRef:      run.FinalResponseRef,
+		Payload:            temporalFinalizationResultPayload(finalizedResponse, input, run),
 	}
 	if len(replayEvidence) > 0 && replayEvidence[0] != nil {
 		projection = replayEvidence[0].apply(projection)
@@ -347,19 +415,25 @@ func (s *Adapter) projectWorkflowFinalizationStep(
 }
 
 type finalizationProjectionEvidence struct {
-	ActivityAttempt   int
-	ActivityID        string
-	ActivityType      string
-	Attempt           int
-	CompletedAt       time.Time
-	DurationMS        int64
-	ScheduledAt       time.Time
-	ScheduleToStartMS int64
-	StartedAt         time.Time
-	TemporalRunID     string
-	UpdatedAt         time.Time
-	WorkerID          string
-	WorkflowID        string
+	ActivityAttempt          int
+	ActivityID               string
+	ActivityType             string
+	Attempt                  int
+	CanonicalCompletedAt     time.Time
+	CanonicalResultCreatedAt time.Time
+	CanonicalStartedAt       time.Time
+	CanonicalUpdatedAt       time.Time
+	CompletedAt              time.Time
+	DurationMS               int64
+	PreserveCanonicalTiming  bool
+	ScheduledAt              time.Time
+	ScheduleToStartMS        int64
+	StartedAt                time.Time
+	TaskQueue                string
+	TemporalRunID            string
+	UpdatedAt                time.Time
+	WorkerID                 string
+	WorkflowID               string
 }
 
 func (e *finalizationProjectionEvidence) apply(
@@ -369,14 +443,17 @@ func (e *finalizationProjectionEvidence) apply(
 	projection.ActivityID = e.ActivityID
 	projection.ActivityType = e.ActivityType
 	projection.Attempt = e.Attempt
-	projection.CompletedAt = e.CompletedAt
+	projection.AttemptCompletedAt = e.CompletedAt
 	projection.DurationMS = e.DurationMS
 	projection.PreserveAttempt = true
 	projection.ScheduledAt = e.ScheduledAt
 	projection.ScheduleToStartMS = e.ScheduleToStartMS
-	projection.StartedAt = e.StartedAt
+	projection.AttemptStartedAt = e.StartedAt
 	projection.TemporalRunID = e.TemporalRunID
-	projection.UpdatedAt = e.UpdatedAt
+	projection.AttemptUpdatedAt = e.UpdatedAt
+	if e.TaskQueue != "" {
+		projection.TaskQueue = e.TaskQueue
+	}
 	projection.WorkerID = e.WorkerID
 	projection.WorkflowID = e.WorkflowID
 	return projection
@@ -390,13 +467,18 @@ func (s *Adapter) completedFinalizationProjectionEvidence(
 	if err != nil {
 		return nil, err
 	}
-	activityAttempt := 0
+	var selectedStep *execution.RunStepProjection
 	for _, step := range steps {
 		if step.StepID == "finalization.write" && step.Status == "completed" {
-			activityAttempt = step.ActivityAttempt
+			candidate := step
+			selectedStep = &candidate
 			break
 		}
 	}
+	if selectedStep == nil {
+		return nil, nil
+	}
+	activityAttempt := selectedStep.ActivityAttempt
 	if activityAttempt <= 0 {
 		return nil, nil
 	}
@@ -424,20 +506,47 @@ func (s *Adapter) completedFinalizationProjectionEvidence(
 			true,
 		)
 	}
+	results, err := s.runProjectionStore.ListStepResults(ctx, run.RequestID)
+	if err != nil {
+		return nil, err
+	}
+	var selectedResult *execution.StepResultProjection
+	for index := range results {
+		result := results[index]
+		if result.StepID != execution.FinalizationStepID || result.Status != "completed" ||
+			result.AttemptID != temporalStepAttemptID(run.RequestID, execution.FinalizationStepID, selected.Attempt) {
+			continue
+		}
+		candidate := result
+		selectedResult = &candidate
+		break
+	}
+	if selectedResult == nil || selectedResult.CreatedAt.IsZero() {
+		return nil, sanitizedTemporalApplicationError(
+			"finalization_replay_incomplete",
+			errors.New("completed finalization result evidence is missing"),
+			true,
+		)
+	}
 	return &finalizationProjectionEvidence{
-		ActivityAttempt:   execution.ProjectionActivityAttempt(*selected),
-		ActivityID:        selected.ActivityID,
-		ActivityType:      selected.ActivityType,
-		Attempt:           selected.Attempt,
-		CompletedAt:       selected.CompletedAt,
-		DurationMS:        selected.DurationMS,
-		ScheduledAt:       selected.ScheduledAt,
-		ScheduleToStartMS: selected.ScheduleToStartMS,
-		StartedAt:         selected.StartedAt,
-		TemporalRunID:     selected.TemporalRunID,
-		UpdatedAt:         selected.UpdatedAt,
-		WorkerID:          selected.WorkerID,
-		WorkflowID:        selected.WorkflowID,
+		ActivityAttempt:          execution.ProjectionActivityAttempt(*selected),
+		ActivityID:               selected.ActivityID,
+		ActivityType:             selected.ActivityType,
+		Attempt:                  selected.Attempt,
+		CanonicalCompletedAt:     selectedStep.CompletedAt,
+		CanonicalResultCreatedAt: selectedResult.CreatedAt,
+		CanonicalStartedAt:       selectedStep.StartedAt,
+		CanonicalUpdatedAt:       selectedStep.UpdatedAt,
+		CompletedAt:              selected.CompletedAt,
+		DurationMS:               selected.DurationMS,
+		ScheduledAt:              selected.ScheduledAt,
+		ScheduleToStartMS:        selected.ScheduleToStartMS,
+		StartedAt:                selected.StartedAt,
+		TaskQueue:                selected.TaskQueue,
+		TemporalRunID:            selected.TemporalRunID,
+		UpdatedAt:                selected.UpdatedAt,
+		WorkerID:                 selected.WorkerID,
+		WorkflowID:               selected.WorkflowID,
 	}, nil
 }
 
@@ -445,24 +554,26 @@ func (s *Adapter) repairCompletedWorkflowFinalization(
 	ctx context.Context,
 	run execution.DurableRun,
 	input temporalruntime.WriteWorkflowFinalizationActivityInput,
-	finalizedAt time.Time,
 ) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
-	completedAt := run.CompletedAt.UTC().Truncate(time.Microsecond)
-	if completedAt.IsZero() || !completedAt.Equal(finalizedAt) {
-		return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
-			"finalization_replay_conflict",
-			fmt.Errorf(
-				"completed run finalized_at drift: stored=%s requested=%s",
-				completedAt.Format(time.RFC3339Nano),
-				finalizedAt.Format(time.RFC3339Nano),
-			),
-			true,
-		)
-	}
 	finalizedResponse, err := s.completedWorkflowFinalizedResponse(ctx, run)
 	if err != nil {
 		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
+	finalizationPayload := temporalFinalizationResultPayload(finalizedResponse, input, run)
+	finalizationFingerprint := strings.TrimSpace(
+		execution.StringValue(finalizationPayload[execution.FinalizationFingerprintPayloadKey]),
+	)
+	timing, err := s.completedFinalizationTiming(
+		ctx,
+		run,
+		input,
+		finalizedResponse,
+		finalizationFingerprint,
+	)
+	if err != nil {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
+	}
+	completedAt := timing.CompletedAt
 	if err := s.validateCompletedWorkflowFinalizationStep(ctx, run, input, finalizedResponse); err != nil {
 		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
@@ -476,6 +587,32 @@ func (s *Adapter) repairCompletedWorkflowFinalization(
 			errors.New("completed finalization step and attempt evidence is missing"),
 			true,
 		)
+	}
+	if timing.Legacy {
+		if replayEvidence.CanonicalStartedAt.IsZero() ||
+			replayEvidence.CanonicalCompletedAt.IsZero() ||
+			replayEvidence.CanonicalUpdatedAt.IsZero() ||
+			replayEvidence.CanonicalResultCreatedAt.IsZero() {
+			return temporalruntime.WorkflowFinalizationActivityOutput{}, sanitizedTemporalApplicationError(
+				"finalization_replay_incomplete",
+				errors.New("legacy canonical finalization timing evidence is missing"),
+				true,
+			)
+		}
+		replayEvidence.PreserveCanonicalTiming = true
+	}
+	canonicalStartedAt := timing.StartedAt
+	if timing.Legacy {
+		canonicalStartedAt = replayEvidence.CanonicalStartedAt
+	}
+	if canonicalStartedAt.IsZero() {
+		canonicalStartedAt = canonicalFinalizationTime(replayEvidence.StartedAt)
+	}
+	if canonicalStartedAt.IsZero() {
+		canonicalStartedAt = canonicalFinalizationTime(run.StartedAt)
+	}
+	if canonicalStartedAt.IsZero() {
+		canonicalStartedAt = completedAt
 	}
 	agentResult := workflowFinalizationResultMap(input)
 	if _, _, err := validateWorkflowResultSucceeded(agentResult); err != nil {
@@ -497,7 +634,7 @@ func (s *Adapter) repairCompletedWorkflowFinalization(
 		ctx,
 		run,
 		input,
-		replayEvidence.StartedAt,
+		canonicalStartedAt,
 		replayEvidence.CompletedAt,
 		completedAt,
 		finalizedResponse,

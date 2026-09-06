@@ -775,6 +775,38 @@ func TestToolExecutionWorkflowRetriesFinalizationProjectionWithoutFailureFinaliz
 	env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 0)
 }
 
+func TestToolExecutionWorkflowLeavesFinalizationProjectionConflictForRepair(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	input := validToolExecutionWorkflowInput("run-workflow-finalization-conflict")
+	input.AdmissionSnapshot.AgentBudget.MaxReplans = 0
+	plan := WorkflowTaskPlan{
+		SchemaVersion: "task_plan.v1",
+		Goal:          workflowTestGoal,
+		Steps: []WorkflowTaskPlanStep{{
+			ID:               "step.lookup",
+			Objective:        "查找资料",
+			CandidateSources: []WorkflowSource{WorkflowSourceCampusSearch},
+			DependsOn:        []string{},
+		}},
+	}
+	env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(workflowPlanOutput(input.RequestID, plan), nil).Once()
+	env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.Anything).Return(workflowStepOutput(input.RequestID, plan.Steps[0], "步骤完成。", nil, nil), nil).Once()
+	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.Anything).Return(workflowSynthesisOutput(input.RequestID, "答案。", nil), nil).Once()
+	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(
+		WorkflowFinalizationActivityOutput{},
+		temporal.NewNonRetryableApplicationError("projection conflict", "finalization_projection_conflict", nil),
+	).Once()
+
+	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
+
+	if err := env.GetWorkflowError(); err == nil || !strings.Contains(err.Error(), "projection conflict") {
+		t.Fatalf("workflow error = %v, want finalization projection conflict", err)
+	}
+	env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 0)
+}
+
 func TestToolExecutionWorkflowFinalizesCancellationOnDisconnectedContext(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()

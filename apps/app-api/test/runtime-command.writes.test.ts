@@ -11,6 +11,7 @@ describe("runtime command public execution errors", () => {
 		["invalid_request", "runtime_invariant_failed"],
 		["agent_runtime_not_configured", "runtime_invariant_failed"],
 		["agent_runtime_result_invalid", "runtime_invariant_failed"],
+		["finalization_projection_conflict", "runtime_invariant_failed"],
 		["model_target_mismatch", "runtime_invariant_failed"],
 		["agent_runtime_failed", "run_failed"],
 		["future_bounded_failure", "run_failed"],

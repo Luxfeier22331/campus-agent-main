@@ -27,6 +27,7 @@ const RUNTIME_INVARIANT_ERROR_CODES = new Set([
 	"agent_runtime_unauthorized",
 	"execution_input_metadata_invalid",
 	"finalization_input_invalid",
+	"finalization_projection_conflict",
 	"finalization_replay_conflict",
 	"finalization_replay_incomplete",
 	"invalid_request",

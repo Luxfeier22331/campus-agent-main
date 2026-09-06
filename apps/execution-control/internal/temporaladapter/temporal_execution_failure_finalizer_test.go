@@ -269,6 +269,12 @@ func TestTemporalFailureTerminalReasonAndProductRetryability(t *testing.T) {
 			retryable:      false,
 		},
 		{
+			name:           "finalization projection conflict",
+			failureKind:    "finalization_projection_conflict",
+			terminalReason: execution.DurableTerminalReasonRuntimeInvariant,
+			retryable:      false,
+		},
+		{
 			name:           "runtime request contract",
 			failureKind:    "invalid_request",
 			terminalReason: execution.DurableTerminalReasonRuntimeInvariant,

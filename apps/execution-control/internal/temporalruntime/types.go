@@ -198,8 +198,10 @@ type AgentUsageSummary struct {
 type WriteWorkflowFinalizationActivityInput struct {
 	WorkflowResult    WorkflowOperationActivityOutput  `json:"workflow_result"`
 	AdmissionSnapshot execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
-	FinalizedAt       time.Time                        `json:"finalized_at"`
-	RequestID         string                           `json:"request_id"`
+	// FinalizedAt is retained for Temporal history compatibility. New
+	// finalization uses execution-control's durable timing reservation.
+	FinalizedAt time.Time `json:"finalized_at"`
+	RequestID   string    `json:"request_id"`
 }
 
 type WorkflowFinalizationActivityOutput struct {

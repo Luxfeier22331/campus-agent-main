@@ -165,6 +165,9 @@ type ChatRequest = {
 
 规则：
 
+- `request.completed` 只由 execution-control 在 `FinalizeRunProjection` 成功后写入的
+  browser-visible `run.completed` 事件产生；历史版本的 `finalization.completed` 浏览器事件仍可被读取，
+  但 app-api 不再把它映射为产品终态；
 - 产品 accept transaction 提交并取得可管理的稳定 `requestId` 后发送 `request.accepted`；该事件不
   表示 Temporal 已排队，app-api 只把持久 `run.queued` 证据转换为 `execution.queued`，不能自行
   合成排队状态；
@@ -175,7 +178,8 @@ type ChatRequest = {
   都不能自行证明 `finalizing`；
 - 每个产品事件只在事件数据顶层携带一次 `requestId`；不返回 execution-control `eventId`、
   `visibility`，也不在 payload 中重复 `request_id`；
-- finalization transaction 完成后才能发送 terminal event；
+- 产品 callback 成功后先保存内部 `finalization.completed` 证据，再由 `FinalizeRunProjection` 原子提交
+  completed 投影并释放 conversation lock；只有该提交成功后才能发送 browser-visible terminal event；
 - `request.failed.error` 必须包含 `code`、`message` 和产品语义的布尔 `retryable`；客户端不得在字段
   缺失时默认可重试；
 - execution-control 的浏览器 `run.canceled` 只有在产品取消终态提交后才转换为

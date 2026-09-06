@@ -419,7 +419,7 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 						}),
 						activeBranchId: input.assistantMessage.branchId ?? "branch_active",
 						activeMessageId: input.assistantMessage.id,
-						activeRequestId: input.turnDispatch.requestId,
+						activeRequestId: null,
 						activeTurnSequence: input.turnDispatch.turnSequence,
 					})
 					.where(

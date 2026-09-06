@@ -17,6 +17,9 @@ func (s *Adapter) FailWorkflowStart(
 	cause error,
 ) error {
 	now := time.Now().UTC().Truncate(time.Microsecond)
+	if err := s.guardAgainstFinalizationSuccess(ctx, run, failureKind); err != nil {
+		return err
+	}
 	projection := temporalStepFailureProjection{
 		FailedAt:        now,
 		FailureKind:     failureKind,
@@ -51,6 +54,9 @@ func (s *Adapter) FinalizeWorkflowTimeout(
 	}
 	expiredAt := closedAt.UTC().Truncate(time.Microsecond)
 	failureKind := "workflow_execution_timeout"
+	if err := s.guardAgainstFinalizationSuccess(ctx, latest, failureKind); err != nil {
+		return err
+	}
 	projection := temporalStepFailureProjection{
 		FailedAt:        expiredAt,
 		FailureKind:     failureKind,
@@ -99,6 +105,9 @@ func (s *Adapter) FinalizeWorkflowClosure(
 		return errors.New("workflow termination durable identity changed")
 	}
 	failedAt := closedAt.UTC().Truncate(time.Microsecond)
+	if err := s.guardAgainstFinalizationSuccess(ctx, latest, failureKind); err != nil {
+		return err
+	}
 	projection := temporalStepFailureProjection{
 		FailedAt:        failedAt,
 		FailureKind:     failureKind,

@@ -251,16 +251,6 @@ export function lifecycleEventFromDurableRunEvent(
 			event: "execution.phase",
 		};
 	}
-	if (event.eventType === "run.answer_completed") {
-		return {
-			data: {
-				...baseData,
-				phase: "finalizing",
-				status: "running",
-			},
-			event: "execution.phase",
-		};
-	}
 	return null;
 }
 

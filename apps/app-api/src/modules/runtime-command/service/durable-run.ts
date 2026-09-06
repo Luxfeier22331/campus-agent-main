@@ -14,6 +14,8 @@ const DURABLE_RUNTIME_VERSIONS = {
 	contract: "durable-agent-runtime-contract-v1",
 } as const;
 
+const MAX_DURABLE_RUN_RECOVERY_ATTEMPTS = 3;
+
 export interface DurableRunEnsureResult {
 	response: ReturnType<typeof toHandledErrorTransportOutcome> | null;
 	run: ExecutionControlRun | null;
@@ -34,18 +36,28 @@ export async function ensureDurableRunForStoredInput(input: {
 		});
 	}
 	const createInput = createInputFromStoredRun(stored);
-	try {
-		const run = await input.executionRuntime.createRun(createInput);
-		assertRunMatchesStoredInput(createInput, run);
-		return run;
-	} catch (error) {
-		if (!isAmbiguousCreateFailure(error)) {
-			throw error;
+	for (let attempt = 0; attempt < MAX_DURABLE_RUN_RECOVERY_ATTEMPTS; attempt += 1) {
+		try {
+			const run = await input.executionRuntime.createRun(createInput);
+			assertRunMatchesStoredInput(createInput, run);
+			return run;
+		} catch (error) {
+			if (!isAmbiguousCreateFailure(error)) {
+				throw error;
+			}
+
+			try {
+				const run = await input.executionRuntime.getRun({ requestId: stored.requestId });
+				assertRunMatchesStoredInput(createInput, run);
+				return run;
+			} catch (lookupError) {
+				if (!isMissingRun(lookupError)) {
+					throw lookupError;
+				}
+			}
 		}
-		const run = await input.executionRuntime.getRun({ requestId: stored.requestId });
-		assertRunMatchesStoredInput(createInput, run);
-		return run;
 	}
+	throw durableRunRecoveryPending();
 }
 
 function createInputFromStoredRun(input: {
@@ -107,6 +119,23 @@ function isAmbiguousCreateFailure(error: unknown): boolean {
 	return error instanceof ExecutionControlTransportError && error.retryable && error.status >= 500;
 }
 
+function isMissingRun(error: unknown): boolean {
+	return (
+		error instanceof ExecutionControlTransportError &&
+		error.status === 404 &&
+		(error.code === "durable_run_not_found" || error.code === "execution_run_not_found")
+	);
+}
+
+function durableRunRecoveryPending(): ExecutionControlTransportError {
+	return new ExecutionControlTransportError({
+		code: "execution_status_pending",
+		message: "Durable run creation is still pending and can be resumed.",
+		retryable: true,
+		status: 504,
+	});
+}
+
 export async function ensureDurableRunForAcceptedCommand(
 	service: ChatCommandServiceContext,
 	context: AcceptedChatCommandContext,
@@ -129,7 +158,7 @@ export async function ensureDurableRunForAcceptedCommand(
 		});
 		return { response: null, run };
 	} catch (error) {
-		if (isAmbiguousCreateFailure(error)) {
+		if (isAmbiguousCreateFailure(error) || isRecoveryPending(error)) {
 			throw error;
 		}
 		return {
@@ -137,4 +166,10 @@ export async function ensureDurableRunForAcceptedCommand(
 			run: null,
 		};
 	}
+}
+
+function isRecoveryPending(error: unknown): error is ExecutionControlTransportError {
+	return (
+		error instanceof ExecutionControlTransportError && error.code === "execution_status_pending"
+	);
 }

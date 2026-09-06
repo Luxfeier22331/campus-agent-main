@@ -115,6 +115,10 @@ execution-control 提交产品终态时，内部回调正文使用 `completed_at
 `SHA256(request_id + NUL + response_json 的精确 UTF-8 字节)`。app-api 必须先按原字符串校验
 fingerprint，再解析并校验最终响应合同，不得对解析结果重新序列化后计算 fingerprint，也不接受
 已退役的 `response` 对象字段作为 fallback。
+execution-control 在发送该 callback 前持久化 internal `finalization.reserved`，固定 callback 的
+`completed_at`；该事件不改变 app-api callback wire contract，也不映射为浏览器事件。app-api 继续
+通过 `next_sequence` 跳过它，浏览器阶段只用 `run.progress(finalizing)` 到 `run.completed` 的
+持久事件时间计算 `finalizing.durationMs`。
 
 ## 幂等
 

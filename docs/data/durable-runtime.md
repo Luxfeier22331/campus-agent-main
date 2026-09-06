@@ -154,8 +154,15 @@ Finalization 读取 workflow 传入的 Agent result，验证身份、执行输�
 `finalization.write` 的 completed StepResult 只保存 agent result ref、request、
 `finalization_fingerprint_sha256` 和有界 `finalization_summary`。该 summary 包含答案正文及其 hash、
 响应 hash、状态和 Campus/Web 来源计数，不保存完整来源对象、模型用量或完整最终响应。内部
-`finalization.completed` event 保留完整 `ExecutionFinalizationResponse`，用于产品回调后的修复和
-完成重放校验；同名浏览器事件只包含 request ID。
+内部 `finalization.completed` event 保留完整 `ExecutionFinalizationResponse`，用于产品回调后的修复和
+完成重放校验。新路径不再写同名 browser-visible event；历史版本留下的同名浏览器事件只作为兼容数据，
+由 app-api 过滤，不得作为产品成功终态。浏览器成功终态统一使用 `run.completed`，且只能在
+`FinalizeRunProjection` 成功后追加。
+产品 callback 前还会写入 internal `finalization.reserved` event。它只保存 request、workflow result
+ref、`finalization_fingerprint_sha256`、首次 `run.progress(finalizing)` 时间和 canonical completion
+时间；同一 Activity 的 retry 或 callback 后 projection/CAS 重试必须复用这组时间。canonical
+`finalization.write` Step/Result 与 run.CompletedAt 不采用 Temporal Workflow 的 `FinalizedAt`，
+以避免 workflow history 时间早于实际 finalization Activity。
 `FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的
 单个事务中，校验并提交 completed `finalization.write` Step、Attempt、Result 与 completed run 四元组，
 同时释放 conversation active-run lock。已经存在的 pending 或 leased cancellation 在同一 CAS 中改为
@@ -166,7 +173,9 @@ Finalization 读取 workflow 传入的 Agent result，验证身份、执行输�
 `FinalResponseRef` 和 fingerprint 必须与 completed run 一致，且存储中必须存在唯一、
 内部引用和 schema 都有效的 canonical Step/Attempt/Result。校验成功只返回原 canonical 四元组，不采用
 较晚 candidate 的 ID、时间或 payload，不补写或修改任何 canonical 记录；后续 `run.completed` 事件在
-CAS 之外单独幂等补充。
+CAS 之外单独幂等补充。若产品 callback 已成功而 canonical projection 发生冲突，只有能证明同一
+fingerprint/identity 的 replay 才允许修复；记录存在歧义或不完整时必须 fail-closed，不选择 winner、
+不发送错误 callback、不写 `run.failed`，并返回 `finalization_projection_conflict` 供诊断和人工修复。
 
 ## 终态与失败数据
 

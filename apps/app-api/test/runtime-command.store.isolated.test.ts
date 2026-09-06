@@ -90,12 +90,12 @@ function finalizedWrite(): FinalizeRequestWrite {
 	};
 }
 
-function conversationReadSelect() {
+function conversationReadSelect(activeRequestId: string | null = "req_01HQ") {
 	const limit = vi.fn().mockResolvedValue([
 		{
 			activeBranchId: "branch_active",
 			activeMessageId: "msg_assistant_01HQ",
-			activeRequestId: "req_01HQ",
+			activeRequestId,
 			activeTurnSequence: 1,
 			createdAt: new Date("2026-06-04T01:02:00.000Z"),
 			id: "conv_01HQ",
@@ -108,6 +108,67 @@ function conversationReadSelect() {
 	const where = vi.fn(() => ({ limit, orderBy }));
 	const from = vi.fn(() => ({ where }));
 	return vi.fn(() => ({ from }));
+}
+
+function prepareFinalizationDatabase(activeRequestId: string | null) {
+	const forUpdate = vi
+		.fn()
+		.mockResolvedValue([{ finalizationFingerprint: null, status: "accepted" }]);
+	const transactionSelect = vi.fn(() => ({
+		from: () => ({ where: () => ({ limit: () => ({ for: forUpdate }) }) }),
+	}));
+	const requestReturning = vi.fn().mockResolvedValue([{ requestId: "req_01HQ" }]);
+	const conversationReturning = vi.fn().mockResolvedValue([{ id: "conv_01HQ" }]);
+	const updateWhere = vi
+		.fn()
+		.mockReturnValueOnce({ returning: requestReturning })
+		.mockReturnValueOnce({ returning: conversationReturning })
+		.mockReturnValueOnce(undefined);
+	const updateSet = vi.fn((_values: Record<string, unknown>) => ({ where: updateWhere }));
+	const update = vi.fn(() => ({ set: updateSet }));
+	const onConflictDoUpdate = vi.fn();
+	const insertValues = vi.fn(() => ({ onConflictDoUpdate }));
+	const insert = vi.fn(() => ({ values: insertValues }));
+	const deleteFn = vi.fn();
+	const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+		callback({ delete: deleteFn, insert, select: transactionSelect, update }),
+	);
+	const selectLimit = vi.fn().mockResolvedValue([
+		{
+			activeBranchId: "branch_active",
+			activeMessageId: "msg_assistant_01HQ",
+			activeRequestId,
+			activeTurnSequence: 1,
+			createdAt: new Date("2026-06-04T01:02:00.000Z"),
+			id: "conv_01HQ",
+			ownerUserId: "user_01HQ",
+			title: "示例大学本科学生国家奖学金评审办法",
+			updatedAt: new Date("2026-06-04T01:02:06.000Z"),
+		},
+	]);
+	const selectOrderBy = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+	const selectWhere = vi.fn(() => ({ orderBy: selectOrderBy, limit: selectLimit }));
+	const selectFrom = vi.fn(() => ({ where: selectWhere }));
+	const select = vi.fn(() => ({ from: selectFrom }));
+
+	createRuntimeDatabase.mockResolvedValue({ select, transaction });
+
+	return { updateSet };
+}
+
+function finalizedWriteForStatus(
+	status: "approval_required" | "cancelled" | "completed" | "error" | "rejected",
+) {
+	const write = finalizedWrite();
+	write.turnDispatch.status = status;
+	write.requestObservabilityFact.status = status;
+	if (status !== "completed") {
+		write.assistantMessage.kind = "error";
+		write.assistantMessage.retryable = false;
+		write.turnDispatch.errorCode = "execution_failed";
+		write.requestObservabilityFact.errorCode = "execution_failed";
+	}
+	return write;
 }
 
 describe("pg chat command store", () => {
@@ -409,6 +470,28 @@ describe("pg chat command store", () => {
 		expect(returning).toHaveBeenCalledWith({ requestId: expect.anything() });
 		expect(insert).not.toHaveBeenCalled();
 	});
+
+	it.each(["completed", "error", "cancelled", "approval_required", "rejected"] as const)(
+		"clears activeRequestId when the finalization CAS still owns a %s request",
+		async (status) => {
+			const { updateSet } = prepareFinalizationDatabase(null);
+			const store = createPgChatCommandStore({} as never);
+
+			const result = await store.finalizeRequest(finalizedWriteForStatus(status));
+
+			expect(result).toMatchObject({
+				outcome: "applied",
+				conversation: {
+					activeRequestId: null,
+					activeTurnSequence: 1,
+				},
+			});
+			expect(updateSet.mock.calls[1]?.[0]).toMatchObject({
+				activeRequestId: null,
+				activeTurnSequence: 1,
+			});
+		},
+	);
 
 	it("returns an exact finalization tuple replay without issuing writes", async () => {
 		const completedAt = new Date("2026-06-04T01:02:06.000Z");

@@ -134,6 +134,51 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 			}
 		}
 	}
+	if event.EventType == DurableRunEventTypeFinalizationReserved {
+		if event.Visibility != DurableRunEventVisibilityInternal {
+			return fmt.Errorf("%w: finalization.reserved visibility must be internal", ErrInvalidRunEvent)
+		}
+		if event.PayloadSchemaVersion != "finalization-reservation-event-v1" {
+			return fmt.Errorf("%w: finalization.reserved payload schema is invalid", ErrInvalidRunEvent)
+		}
+		if event.EventID != event.RequestID+":finalization-reserved" {
+			return fmt.Errorf("%w: finalization.reserved event_id is invalid", ErrInvalidRunEvent)
+		}
+		const (
+			requestIDKey         = "request_id"
+			workflowResultRefKey = "workflow_result_ref"
+			fingerprintKey       = "finalization_fingerprint_sha256"
+			startedAtKey         = "started_at"
+			completedAtKey       = "completed_at"
+		)
+		for key := range event.Payload {
+			switch key {
+			case requestIDKey, workflowResultRefKey, fingerprintKey, startedAtKey, completedAtKey:
+			default:
+				return fmt.Errorf("%w: finalization.reserved payload contains forbidden field %s", ErrInvalidRunEvent, key)
+			}
+		}
+		requestID, requestIDOK := event.Payload[requestIDKey].(string)
+		workflowResultRef, workflowResultRefOK := event.Payload[workflowResultRefKey].(string)
+		fingerprint, fingerprintOK := event.Payload[fingerprintKey].(string)
+		startedAt, startedAtOK := durableRunEventTimeValue(event.Payload[startedAtKey])
+		completedAt, completedAtOK := durableRunEventTimeValue(event.Payload[completedAtKey])
+		if !requestIDOK || strings.TrimSpace(requestID) != event.RequestID {
+			return fmt.Errorf("%w: finalization.reserved request_id is invalid", ErrInvalidRunEvent)
+		}
+		if !workflowResultRefOK || strings.TrimSpace(workflowResultRef) == "" {
+			return fmt.Errorf("%w: finalization.reserved workflow_result_ref is required", ErrInvalidRunEvent)
+		}
+		if !fingerprintOK || !validLowerHexSHA256(strings.TrimSpace(fingerprint)) {
+			return fmt.Errorf("%w: finalization.reserved fingerprint is invalid", ErrInvalidRunEvent)
+		}
+		if !startedAtOK || !completedAtOK || completedAt.Before(startedAt) {
+			return fmt.Errorf("%w: finalization.reserved timing is invalid", ErrInvalidRunEvent)
+		}
+		if event.OccurredAt.IsZero() || !event.OccurredAt.UTC().Truncate(time.Microsecond).Equal(completedAt) {
+			return fmt.Errorf("%w: finalization.reserved occurred_at must equal completed_at", ErrInvalidRunEvent)
+		}
+	}
 	if event.EventType == DurableRunEventTypeRunCanceled &&
 		event.Visibility == DurableRunEventVisibilityBrowser {
 		for key := range event.Payload {
@@ -145,6 +190,24 @@ func validateDurableRunEventBase(event DurableRunEvent) error {
 		}
 	}
 	return nil
+}
+
+func durableRunEventTimeValue(value any) (time.Time, bool) {
+	switch typed := value.(type) {
+	case string:
+		parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(typed))
+		if err != nil || parsed.IsZero() {
+			return time.Time{}, false
+		}
+		return parsed.UTC().Truncate(time.Microsecond), true
+	case time.Time:
+		if typed.IsZero() {
+			return time.Time{}, false
+		}
+		return typed.UTC().Truncate(time.Microsecond), true
+	default:
+		return time.Time{}, false
+	}
 }
 
 func durableRunProgressPhaseValid(phase DurableRunProgressPhase) bool {

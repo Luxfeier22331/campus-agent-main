@@ -20,6 +20,7 @@ type temporalStepProjection struct {
 	Tool                  string
 	CancelOutcome         execution.CancelOutcome
 	CompletedAt           time.Time
+	AttemptCompletedAt    time.Time
 	DurationMS            int64
 	FailCloseReason       string
 	ModelRequestCount     int64
@@ -41,6 +42,7 @@ type temporalStepProjection struct {
 	ScheduledAt           time.Time
 	ScheduleToStartMS     int64
 	StartedAt             time.Time
+	AttemptStartedAt      time.Time
 	Status                string
 	StepID                string
 	StepKind              string
@@ -49,6 +51,7 @@ type temporalStepProjection struct {
 	TerminalReason        string
 	TimeoutOutcome        execution.TimeoutOutcome
 	UpdatedAt             time.Time
+	AttemptUpdatedAt      time.Time
 	WorkerID              string
 	WorkflowID            string
 }
@@ -80,6 +83,18 @@ func (s *Adapter) projectTemporalStep(ctx context.Context, projection temporalSt
 	updatedAt := projection.UpdatedAt
 	if updatedAt.IsZero() {
 		updatedAt = time.Now().UTC()
+	}
+	attemptStartedAt := projection.AttemptStartedAt
+	if attemptStartedAt.IsZero() {
+		attemptStartedAt = projection.StartedAt
+	}
+	attemptCompletedAt := projection.AttemptCompletedAt
+	if attemptCompletedAt.IsZero() {
+		attemptCompletedAt = projection.CompletedAt
+	}
+	attemptUpdatedAt := projection.AttemptUpdatedAt
+	if attemptUpdatedAt.IsZero() {
+		attemptUpdatedAt = updatedAt
 	}
 	if completionErr == nil {
 		if _, err := s.runProjectionStore.UpsertRunStep(ctx, execution.RunStepProjection{
@@ -127,8 +142,8 @@ func (s *Adapter) projectTemporalStep(ctx context.Context, projection temporalSt
 		ActivityType:          projection.ActivityType,
 		ActivityAttempt:       projection.ActivityAttempt,
 		ScheduledAt:           projection.ScheduledAt,
-		StartedAt:             projection.StartedAt,
-		CompletedAt:           projection.CompletedAt,
+		StartedAt:             attemptStartedAt,
+		CompletedAt:           attemptCompletedAt,
 		ScheduleToStartMS:     projection.ScheduleToStartMS,
 		DurationMS:            projection.DurationMS,
 		ProviderRequestRef:    projection.ProviderRequestRef,
@@ -145,7 +160,7 @@ func (s *Adapter) projectTemporalStep(ctx context.Context, projection temporalSt
 		LateCompletionOutcome: projection.LateCompletionOutcome,
 		FailCloseReason:       projection.FailCloseReason,
 		TerminalReason:        projection.TerminalReason,
-		UpdatedAt:             updatedAt,
+		UpdatedAt:             attemptUpdatedAt,
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload:      projection.Payload,
 	}); err != nil {
@@ -288,6 +303,8 @@ func markLateCompletionIgnored(
 ) {
 	projection.Status = "blocked"
 	projection.CompletedAt = time.Time{}
+	projection.AttemptCompletedAt = time.Time{}
+	projection.AttemptUpdatedAt = time.Time{}
 	projection.LateCompletionOutcome = outcome
 	projection.TerminalReason = "late_completion_ignored"
 	projection.ProjectionRef = ""
@@ -315,6 +332,7 @@ func (s *Adapter) withTemporalActivityEvidence(
 	projection temporalStepProjection,
 	attempt int,
 ) temporalStepProjection {
+	separateAttemptTiming := strings.TrimSpace(projection.StepID) == execution.FinalizationStepID
 	if projection.CancelOutcome == "" {
 		projection.CancelOutcome = execution.CancelOutcomeNotRequested
 	}
@@ -350,6 +368,9 @@ func (s *Adapter) withTemporalActivityEvidence(
 		if projection.ScheduledAt.IsZero() {
 			projection.ScheduledAt = info.ScheduledTime
 		}
+		if separateAttemptTiming && projection.AttemptStartedAt.IsZero() {
+			projection.AttemptStartedAt = info.StartedTime
+		}
 		if projection.StartedAt.IsZero() {
 			projection.StartedAt = info.StartedTime
 		}
@@ -369,17 +390,34 @@ func (s *Adapter) withTemporalActivityEvidence(
 	if projection.ActivityType == "" {
 		projection.ActivityType = temporalActivityTypeForStep(projection.StepID)
 	}
+	if separateAttemptTiming {
+		if projection.AttemptStartedAt.IsZero() {
+			projection.AttemptStartedAt = projection.StartedAt
+		}
+		if projection.AttemptCompletedAt.IsZero() {
+			projection.AttemptCompletedAt = projection.CompletedAt
+		}
+		if projection.AttemptUpdatedAt.IsZero() {
+			projection.AttemptUpdatedAt = projection.UpdatedAt
+		}
+	}
+	startedAt := projection.StartedAt
+	completedAt := projection.CompletedAt
+	if separateAttemptTiming {
+		startedAt = projection.AttemptStartedAt
+		completedAt = projection.AttemptCompletedAt
+	}
 	if projection.ScheduleToStartMS <= 0 &&
 		!projection.ScheduledAt.IsZero() &&
-		!projection.StartedAt.IsZero() &&
-		!projection.StartedAt.Before(projection.ScheduledAt) {
-		projection.ScheduleToStartMS = projection.StartedAt.Sub(projection.ScheduledAt).Milliseconds()
+		!startedAt.IsZero() &&
+		!startedAt.Before(projection.ScheduledAt) {
+		projection.ScheduleToStartMS = startedAt.Sub(projection.ScheduledAt).Milliseconds()
 	}
 	if projection.DurationMS <= 0 &&
-		!projection.StartedAt.IsZero() &&
-		!projection.CompletedAt.IsZero() &&
-		!projection.CompletedAt.Before(projection.StartedAt) {
-		projection.DurationMS = projection.CompletedAt.Sub(projection.StartedAt).Milliseconds()
+		!startedAt.IsZero() &&
+		!completedAt.IsZero() &&
+		!completedAt.Before(startedAt) {
+		projection.DurationMS = completedAt.Sub(startedAt).Milliseconds()
 	}
 	return projection
 }

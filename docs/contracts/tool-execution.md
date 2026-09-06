@@ -178,7 +178,8 @@ Activity。
 Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，不携带冻结输入正文。Temporal history
 携带有界 operation result；app-api 产品终态及其 `finalization_fingerprint` 是跨系统
 重复完成、取消和较晚结果的最终裁决；execution-control 的终态投影必须与该结果一致，不能先向浏览器
-发布相冲突的终态。
+发布相冲突的终态。成功 callback 后只有 `FinalizeRunProjection` 成功追加的 `run.completed` 才能成为
+浏览器成功终态；内部 `finalization.completed` 不是产品终态。
 
 所有 source-side Temporal Activity 在处理业务输入前，必须从当前 Activity context 读取 Workflow ID
 和精确 Temporal Run ID，并与持久 start intent 的 Workflow ID/root Run ID 绑定比较。绑定尚未确认是
@@ -227,7 +228,16 @@ Finalization Activity 必须通过一次 `FinalizeRunProjection` 提交 complete
 run 四元组；不得拆成独立投影写入与 run completion。存储以单次 CAS 原子提交四元组、释放
 conversation active-run lock，并让 completion 赢过已存在的 pending 或 leased cancellation，将其确认为
 `completion_won`。completed replay 只核对 `CompletedAt`、`TerminalReason`、`FinalResponseRef`、
-fingerprint 和已有 canonical 记录并返回原四元组，不得用较晚 candidate 补写或修改它。
+fingerprint 和已有 canonical 记录并返回原四元组，不得用较晚 candidate 补写或修改它。若 callback 已
+成功而 canonical 记录冲突，只有同一 fingerprint/identity 的 replay 可以修复；歧义或不完整时
+fail-closed，不能猜测完成或失败、重复 error callback 或发布 `run.failed`，并返回
+`finalization_projection_conflict`。
+Finalization callback 前必须先保存 internal `finalization.reserved`。其 completion 时间由
+execution-control 在 callback 前以 wall clock 确定，并由 callback、canonical Step/Result、completed
+run 及 `run.completed` 共同复用；Activity retry 不得重新取时间。StepAttempt 仍保留本次 Temporal
+Activity 的 schedule/start/end 与 worker evidence，不能用 attempt evidence 覆盖 canonical Step 的
+产品完成时间。旧 run 没有 reservation 时，只能使用合法旧 internal `finalization.completed` 的时间，
+或在已有 completed run 的明确成功证据下使用存储的 `run.CompletedAt`；不能猜测或回写历史事件。
 
 ## 投影与严格性
 

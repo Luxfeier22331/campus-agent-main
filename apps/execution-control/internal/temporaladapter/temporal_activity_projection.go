@@ -146,6 +146,9 @@ func (s *Adapter) failFinalizationActivity(
 	failCloseReason string,
 	cause error,
 ) (temporalruntime.WorkflowFinalizationActivityOutput, error) {
+	if err := s.guardAgainstFinalizationSuccess(ctx, run, failureKind); err != nil {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
+	}
 	summary := summarizeTemporalFailure(failureKind)
 	operation := strings.TrimSpace(tool)
 	if operation == "" {
@@ -303,6 +306,11 @@ func (s *Adapter) failTemporalRun(
 	projection temporalStepFailureProjection,
 	cause error,
 ) (execution.DurableRun, error) {
+	if run.Status != execution.DurableRunStatusFailed {
+		if err := s.guardAgainstFinalizationSuccess(ctx, run, projection.FailureKind); err != nil {
+			return execution.DurableRun{}, err
+		}
+	}
 	failedAt := projection.FailedAt
 	if failedAt.IsZero() {
 		failedAt = time.Now().UTC()
@@ -415,6 +423,7 @@ func temporalFailureTerminalReason(
 		"agent_runtime_result_invalid",
 		"execution_input_metadata_invalid",
 		"finalization_input_invalid",
+		"finalization_projection_conflict",
 		"finalization_replay_conflict",
 		"finalization_replay_incomplete",
 		"invalid_request",

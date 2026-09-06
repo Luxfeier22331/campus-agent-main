@@ -1,6 +1,11 @@
 import { expect, it, vi } from "vitest";
 
 import {
+	durableEvent,
+	durableEventPage,
+	durableRun,
+} from "./chat-command.service.durable-cutover.test-support";
+import {
 	buildChatCommandService,
 	ChatAcceptanceConversationConflict,
 	ChatAcceptanceIdempotencyConflict,
@@ -169,7 +174,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				},
 				principal: createPrincipal(),
 			}),
-		).rejects.toMatchObject({ code: "execution_status_pending", retryable: true });
+		).rejects.toMatchObject({ code: "execution_status_pending", retryable: true, status: 504 });
 
 		expect(executionRuntime.getRun).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -177,6 +182,139 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			}),
 		);
 		expect(finalWrites).toHaveLength(0);
+	});
+
+	it("retries durable run creation with the same request identity after a temporary 404", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const createRun = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new ExecutionControlTransportError({
+					code: "execution_control_unavailable",
+					message: "Execution control request timed out.",
+					retryable: true,
+					status: 504,
+				}),
+			)
+			.mockResolvedValueOnce(durableRun());
+		const executionRuntime = {
+			cancelRun: vi.fn(),
+			createRun,
+			getRun: vi.fn().mockRejectedValue(
+				new ExecutionControlTransportError({
+					code: "execution_run_not_found",
+					message: "Execution run not found.",
+					retryable: true,
+					status: 404,
+				}),
+			),
+			listRunEvents: vi.fn().mockResolvedValue(
+				durableEventPage([
+					durableEvent({
+						eventType: "finalization.completed",
+						payload: {
+							request_id: "req_0001",
+							response: {
+								answer_text: "可以继续处理。",
+								error: null,
+								model_usage: {
+									cached_input_tokens: 0,
+									input_tokens: 1,
+									output_tokens: 1,
+									total_tokens: 2,
+								},
+								result: { sources: [] },
+								status: "completed",
+							},
+						},
+						sequence: 1,
+						visibility: "internal",
+					}),
+				]),
+			),
+		};
+		const service = buildChatCommandService({
+			durableEventPolling: { maxAttempts: 1 },
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-03-28T08:00:00.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const response = await service.submit({
+			payload: { conversationId: "conv_01HQ", prompt: "图书馆开放到几点？" },
+			principal: createPrincipal(),
+		});
+
+		expect(response.answer.result).toMatchObject({ kind: "answer", text: "可以继续处理。" });
+		expect(createRun).toHaveBeenCalledTimes(2);
+		expect(createRun.mock.calls[0]?.[0]).toEqual(createRun.mock.calls[1]?.[0]);
+		expect(executionRuntime.getRun).toHaveBeenCalledOnce();
+		expect(finalWrites).toHaveLength(1);
+	});
+
+	it("keeps an accepted streaming request resumable when run creation remains uncertain", async () => {
+		const { store, acceptedWrites, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockRejectedValue(
+				new ExecutionControlTransportError({
+					code: "execution_control_unavailable",
+					message: "Execution control request timed out.",
+					retryable: true,
+					status: 504,
+				}),
+			),
+			getRun: vi.fn().mockRejectedValue(
+				new ExecutionControlTransportError({
+					code: "execution_run_not_found",
+					message: "Execution run not found.",
+					retryable: true,
+					status: 404,
+				}),
+			),
+			listRunEvents: vi.fn(),
+		};
+		const service = buildChatCommandService({
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-03-28T08:00:00.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const stream = service.submitStream?.({
+			payload: { conversationId: "conv_01HQ", prompt: "图书馆开放到几点？" },
+			principal: createPrincipal(),
+		});
+		expect(stream).toBeDefined();
+		const streamIterator = stream?.[Symbol.asyncIterator]();
+		const firstEvent = await streamIterator?.next();
+		expect(firstEvent?.value).toMatchObject({
+			event: "request.accepted",
+			data: { status: "accepted" },
+		});
+		expect(executionRuntime.createRun).not.toHaveBeenCalled();
+
+		const events: unknown[] = [firstEvent?.value];
+		while (true) {
+			const event = await streamIterator?.next();
+			if (!event || event.done) {
+				break;
+			}
+			events.push(event.value);
+		}
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ event: "request.accepted", data: { status: "accepted" } });
+		expect(acceptedWrites).toHaveLength(1);
+		expect(executionRuntime.createRun).toHaveBeenCalledTimes(3);
+		expect(executionRuntime.getRun).toHaveBeenCalledTimes(3);
+		expect(finalWrites).toHaveLength(0);
+		expect(executionRuntime.listRunEvents).not.toHaveBeenCalled();
 	});
 
 	it("replays a completed idempotent request and blocks conflicts or in-flight duplicates", async () => {

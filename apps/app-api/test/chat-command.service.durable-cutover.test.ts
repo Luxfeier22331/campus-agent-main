@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
 import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
+import { lifecycleEventFromDurableRunEvent } from "../src/modules/runtime-command/service/durable";
 import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable-polling";
 import {
 	answerResponsePayload,
@@ -22,6 +23,34 @@ import {
 } from "./chat-command.service.test-support";
 
 describe("chat command durable runtime cutover", () => {
+	it("uses only durable finalizing progress as the live finalizing evidence", () => {
+		const context = {
+			acceptedAt: "2026-06-04T01:02:03.000Z",
+			requestId: "req_0001",
+		};
+		const answerCompleted = durableEvent({
+			eventType: "run.answer_completed",
+			sequence: 3,
+		});
+		const finalizingProgress = durableEvent({
+			eventType: "run.progress",
+			payload: { phase: "finalizing" },
+			sequence: 4,
+		});
+
+		expect(lifecycleEventFromDurableRunEvent(context, answerCompleted)).toBeNull();
+		expect(lifecycleEventFromDurableRunEvent(context, finalizingProgress)).toEqual({
+			data: {
+				occurredAt: "2026-06-04T01:02:04.000Z",
+				phase: "finalizing",
+				requestId: "req_0001",
+				sequence: 4,
+				status: "running",
+			},
+			event: "execution.phase",
+		});
+	});
+
 	it("rejects blocking deployed chat commands when durable runtime is required but missing", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();

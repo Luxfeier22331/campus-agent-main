@@ -288,10 +288,7 @@ func expectInternalFinalizationResponseForTest(
 			continue
 		}
 		if event.Visibility == execution.DurableRunEventVisibilityBrowser {
-			if _, exists := event.Payload["response"]; exists {
-				t.Fatalf("browser finalization.completed event leaked response: %#v", event.Payload)
-			}
-			continue
+			t.Fatalf("new finalization path emitted legacy browser event: %#v", event)
 		}
 		if event.Visibility != execution.DurableRunEventVisibilityInternal {
 			continue

@@ -568,6 +568,16 @@ describe("app-api shared product DB integration", () => {
 				await store.finalizeRequest(staleFinalization);
 			}
 
+			const conversationRow = await dbClient.query<{ active_request_id: string | null }>(
+				`
+					select "active_request_id"
+					from "chat"."conversations"
+					where "id" = $1
+				`,
+				[conversationId],
+			);
+			expect(conversationRow.rows[0]?.active_request_id).toBeNull();
+
 			const firstRow = await dbClient.query<{
 				stage_timing: Record<string, unknown>;
 				updated_at: string;

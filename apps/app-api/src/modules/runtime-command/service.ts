@@ -238,7 +238,20 @@ export function buildChatCommandService(
 
 			const executionRuntime = dependencies.executionRuntime;
 			if (executionRuntime) {
-				const durableRunCreate = await ensureDurableRun(context);
+				yield acceptedStreamEvent(context);
+
+				let durableRunCreate: Awaited<ReturnType<typeof ensureDurableRun>>;
+				try {
+					durableRunCreate = await ensureDurableRun(context);
+				} catch (error) {
+					if (
+						error instanceof ExecutionControlTransportError &&
+						error.code === "execution_status_pending"
+					) {
+						return;
+					}
+					throw error;
+				}
 				if (durableRunCreate.response) {
 					const finalized = await finalizeAcceptedCommand(service, {
 						context,
@@ -276,7 +289,6 @@ export function buildChatCommandService(
 						}),
 				});
 				context.input.waitUntil?.(closeout.completion);
-				yield acceptedStreamEvent(context);
 				yield* closeout.streamEvents();
 				return;
 			}

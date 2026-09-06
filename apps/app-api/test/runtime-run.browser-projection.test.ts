@@ -49,13 +49,37 @@ describe("runtime run browser projection", () => {
 		]);
 	});
 
-	it("strips internal finalization payload from student-visible run events", async () => {
+	it("filters internal and legacy browser finalization events while advancing the cursor", async () => {
 		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn(),
 			getRun: vi.fn().mockResolvedValue(durableRun({ status: "completed" })),
 			listRunEvents: vi.fn().mockResolvedValue(
 				eventPage([
+					durableEvent({
+						eventType: "finalization.reserved",
+						payload: {
+							completed_at: "2026-06-04T01:02:08.000Z",
+							finalization_fingerprint_sha256: "a".repeat(64),
+							request_id: "req_01HQ",
+							started_at: "2026-06-04T01:02:07.000Z",
+							workflow_result_ref: "workflow-result",
+						},
+						sequence: 2,
+						visibility: "internal",
+					}),
+					durableEvent({
+						eventType: "finalization.completed",
+						payload: {
+							request_id: "req_01HQ",
+							response: {
+								answer_text: "hidden",
+								result: { tool_results: [{ raw: "hidden" }] },
+							},
+						},
+						sequence: 3,
+						visibility: "internal",
+					}),
 					durableEvent({
 						eventType: "finalization.completed",
 						payload: {
@@ -72,7 +96,7 @@ describe("runtime run browser projection", () => {
 								},
 							},
 						},
-						sequence: 3,
+						sequence: 4,
 					}),
 				]),
 			),
@@ -83,28 +107,122 @@ describe("runtime run browser projection", () => {
 		});
 
 		const result = await service.listEvents({
-			afterSequence: 2,
+			afterSequence: 1,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
 		});
 
 		expect(result).toEqual({
-			events: [
-				expect.objectContaining({
-					eventType: "request.completed",
-					payload: {},
-				}),
-			],
-			nextSequence: 3,
+			events: [],
+			nextSequence: 4,
 			run: expect.objectContaining({
 				phase: "completed",
 				requestId: "req_01HQ",
 			}),
 		});
-		const serializedPayload = JSON.stringify(result.events[0]?.payload);
-		expect(serializedPayload).not.toContain("response");
-		expect(serializedPayload).not.toContain("observability");
-		expect(serializedPayload).not.toContain("tool_results");
+	});
+
+	it("uses run.completed as the only successful terminal after a legacy event", async () => {
+		const events = [
+			durableEvent({
+				eventType: "finalization.completed",
+				payload: { request_id: "req_01HQ" },
+				sequence: 3,
+			}),
+			durableEvent({
+				eventType: "run.completed",
+				payload: {
+					request_id: "req_01HQ",
+					status: "completed",
+					terminal_reason: "answer_completed",
+				},
+				sequence: 4,
+			}),
+		];
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(durableRun({ status: "completed" })),
+			listRunEvents: vi
+				.fn()
+				.mockImplementation(({ afterSequence = 0 }) =>
+					Promise.resolve(eventPage(events.filter((event) => event.sequence > afterSequence))),
+				),
+		};
+		const service = buildRuntimeRunService({
+			executionRuntime,
+			store: runtimeStore(),
+		});
+
+		await expect(
+			service.listEvents({
+				principal: createPrincipal(),
+				requestId: "req_01HQ",
+			}),
+		).resolves.toMatchObject({
+			events: [expect.objectContaining({ eventType: "request.completed", sequence: 4 })],
+			nextSequence: 4,
+		});
+
+		await expect(
+			service.listEvents({
+				afterSequence: 3,
+				principal: createPrincipal(),
+				requestId: "req_01HQ",
+			}),
+		).resolves.toMatchObject({
+			events: [expect.objectContaining({ eventType: "request.completed", sequence: 4 })],
+			nextSequence: 4,
+		});
+	});
+
+	it("derives finalizing duration from the durable progress and completion timestamps", async () => {
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(
+				durableRun({
+					completedAt: "2026-06-04T01:02:08.250Z",
+					status: "completed",
+				}),
+			),
+			listRunEvents: vi.fn().mockResolvedValue(
+				eventPage([
+					durableEvent({
+						eventType: "run.progress",
+						occurredAt: "2026-06-04T01:02:07.000Z",
+						payload: { phase: "finalizing", request_id: "req_01HQ" },
+						sequence: 2,
+					}),
+					durableEvent({
+						eventType: "run.completed",
+						occurredAt: "2026-06-04T01:02:08.250Z",
+						payload: {
+							request_id: "req_01HQ",
+							status: "completed",
+							terminal_reason: "answer_completed",
+						},
+						sequence: 3,
+					}),
+				]),
+			),
+		};
+		const service = buildRuntimeRunService({
+			executionRuntime,
+			store: runtimeStore(),
+		});
+
+		const result = await service.listSteps({
+			principal: createPrincipal(),
+			requestId: "req_01HQ",
+		});
+
+		expect(result.steps.find((step) => step.phase === "finalizing")).toMatchObject({
+			completedAt: "2026-06-04T01:02:08.250Z",
+			durationMs: 1250,
+			startedAt: "2026-06-04T01:02:07.000Z",
+			status: "completed",
+		});
 	});
 
 	it("does not invent a finalizing phase from answer completion", async () => {

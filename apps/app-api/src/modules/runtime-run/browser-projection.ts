@@ -70,8 +70,6 @@ function sanitizeBrowserRunEventPayload(event: ExecutionControlRunEvent): Record
 		}
 		case "run.answer_completed":
 			return {};
-		case "finalization.completed":
-			return {};
 		case "run.completed":
 			return pickStringPayloadFields(payload, ["status", "terminal_reason"]);
 		case "run.canceled":
@@ -149,6 +147,9 @@ function toRuntimeRunProductEventType(eventType: string): RuntimeRunProductEvent
 		case "run.answer_delta":
 			return "answer.delta";
 		case "finalization.completed":
+			// Kept for historical durable events, but the browser-visible success
+			// terminal is now emitted only as run.completed.
+			return null;
 		case "run.completed":
 			return "request.completed";
 		case "run.canceled":

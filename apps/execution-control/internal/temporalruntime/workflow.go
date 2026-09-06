@@ -279,6 +279,9 @@ func finalizeWorkflowAnswer(
 		if workflowExecutionCanceled(ctx, err) {
 			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
 		}
+		if workflowFailureKind(err, "") == "finalization_projection_conflict" {
+			return ToolExecutionWorkflowResult{}, err
+		}
 		if finalizeErr := finalizeExecutionFailure(
 			ctx,
 			activityOptions,

@@ -222,11 +222,21 @@ Finalization 执行确定性校验：
 Finalization 不调用 LLM、不生成第二个答案、不改写 SDK 答案；app-api 也不改写。
 `finalization.write` StepResult 只保存有界 `finalization_summary`、响应 hash 和引用计数；完整
 `ExecutionFinalizationResponse` 保留在内部 `finalization.completed` event，供产品回调后的修复和
-完成重放校验使用，不进入浏览器事件。
+完成重放校验使用，不进入浏览器事件。新路径不写同名 browser-visible event；历史同名事件由 app-api
+过滤。只有 `FinalizeRunProjection` 成功后的 `run.completed` 才是浏览器成功终态。
+Finalization 在 callback 前先持久化 internal `finalization.reserved` event，绑定
+`workflow_result_ref`、projection fingerprint、首次 durable `run.progress(finalizing)` 的
+`started_at` 与 execution-control 生成的 wall-clock `completed_at`。重试必须复用 reservation 的
+时间和身份；canonical Step/Result、run.CompletedAt、callback `completed_at` 与 `run.completed`
+统一使用该 completion boundary。Temporal Workflow 输入中的 `FinalizedAt` 仅为旧 history 的
+反序列化兼容字段，不再是新路径的 canonical completion source。
 completed run 的重放必须严格核对 `CompletedAt`、`TerminalReason`、`FinalResponseRef`、
 `finalization_fingerprint_sha256` 以及唯一且内部一致的 canonical Step/Attempt/Result，
 随后返回已提交四元组。它不得写入较晚 candidate，不得修改 canonical 四元组、取消命令或可能属于后续
-run 的 conversation lock；CAS 外只允许幂等补充后续 `run.completed` 事件。
+run 的 conversation lock；CAS 外只允许幂等补充后续 `run.completed` 事件。若产品成功证据已经存在但
+projection CAS 冲突，失败收口必须停止在 `finalization_projection_conflict`：不重复发送产品错误
+callback，也不发布 `run.failed`。只有同一 fingerprint/identity 的重放可以自动修复；canonical 记录
+歧义或不完整时保持 active 并 fail-closed，交由明确诊断和人工修复路径处理。
 
 ## 流式传输与容量
 
