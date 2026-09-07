@@ -33,6 +33,10 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 				body["dimensions"] != float64(campusdocs.EmbeddingDimensions) {
 				t.Fatalf("embedding request = %#v", body)
 			}
+			if body["input"] !=
+				"Instruct: "+campusdocs.EmbeddingQueryInstruction+"\nQuery:学籍规定" {
+				t.Fatalf("embedding query instruction = %q", body["input"])
+			}
 			embedding := make([]float64, campusdocs.EmbeddingDimensions)
 			embedding[0] = 0.25
 			writeJSON(response, http.StatusOK, map[string]any{
@@ -372,6 +376,29 @@ func TestCampusDocsCandidateValidatesPayloadIdentityAndURL(t *testing.T) {
 				t.Fatalf("invalid %s was accepted", name)
 			}
 		})
+	}
+}
+
+func TestCampusNoticeCandidateValidatesCitationIdentity(t *testing.T) {
+	index := campusdocs.Index{Collection: "campus_docs_" + strings.Repeat("c", 64)}
+	text := "通知正文"
+	point := qdrantPoint{
+		ID:    "notice-point",
+		Score: 0.91,
+		Payload: map[string]any{
+			"citation_href":         "/notices/54321",
+			"chunk_id":              "notice-chunk",
+			"notice_id":             "12345",
+			"retrieval_text_sha256": execution.SHA256TextRef("通知\n" + text),
+			"schema_version":        "campus_rag_point.v1",
+			"section_title":         "正文",
+			"text":                  text,
+			"text_sha256":           execution.SHA256TextRef(text),
+			"title":                 "通知",
+		},
+	}
+	if _, err := campusDocsCandidateFromQdrantPoint(index, point); err == nil {
+		t.Fatal("accepted notice point whose citation href identifies another notice")
 	}
 }
 

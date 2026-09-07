@@ -422,8 +422,24 @@ const OpsWebProductSourceSchema = z.object({
 	title: z.string().min(1),
 });
 
+const OpsNoticeProductSourceSchema = z.object({
+	citationIndexes: CitationIndexesSchema,
+	kind: z.literal("campus_notice"),
+	noticeId: z.string().min(1),
+	primaryAction: z.object({
+		disabledReason: z.string().min(1).nullable(),
+		external: z.literal(false),
+		href: z.string().min(1).nullable(),
+		label: z.literal("查看通知"),
+	}),
+	sectionTitle: z.string(),
+	snippet: z.string().nullable(),
+	title: z.string().min(1),
+});
+
 const OpsProductSourceSchema = z.discriminatedUnion("kind", [
 	OpsCampusProductSourceSchema,
+	OpsNoticeProductSourceSchema,
 	OpsWebProductSourceSchema,
 ]);
 

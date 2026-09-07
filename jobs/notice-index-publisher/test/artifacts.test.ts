@@ -24,6 +24,9 @@ describe("local notice chunk artifacts", () => {
 			expect(
 				JSON.parse(await readFile(join(first.outputDirectory, "manifest.json"), "utf8")),
 			).toMatchObject({ chunkCount: 2, noticeCount: 2, schemaVersion: "notice_chunk_run.v1" });
+			await expect(
+				readFile(join(first.outputDirectory, "source-projection.ndjson")),
+			).rejects.toThrow();
 			expect(await readFile(join(first.outputDirectory, "chunks.ndjson"), "utf8")).toContain(
 				'"noticeId":"1"',
 			);

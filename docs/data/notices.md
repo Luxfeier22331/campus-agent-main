@@ -260,9 +260,10 @@ Chunk，同一 `headingPath` 下组成关系不同的短语义单元也可以保
 说明与参与网址。问题生成阶段只从中选择单 Chunk 单事实问题；其他需要同时询问多个事实的问题不属于当前
 评测问题集，但不改变字段标签和值、URL 与所属标签必须同块的约束。
 
-当前任务只生成本地 Chunk、问题集和评测制品，不写 PostgreSQL，不回写 source bucket，不发布 Qdrant
-collection 或在线 RAG。问题生成和 Embedding 评测都以 Chunk Run 为唯一正文输入；后续 Collection、索引
-发布和 Agent 工具消费必须由各自所有者另行定义并显式接入。
+当前任务只生成本地 Chunk、问题集和评测制品，不写 PostgreSQL 或回写 source bucket。Notice Chunk/Embedding
+builder 不直接发布 Qdrant collection 或在线绑定；完成的 Notice Embedding Set 可由统一
+`campus-rag-index-publisher` 与 Docs Embedding Set 组装为当前 Campus RAG collection。问题生成和
+Embedding 评测都以 Chunk Run 为唯一正文输入。
 
 ### Derived 资源
 
@@ -290,16 +291,19 @@ notices/assets/sha256/<digest>
   的 source，更新 `content_html` 和 `content_text` 而保持已发布状态；
 - `notice-index-publisher` 在显式本地或默认暂停的集群任务中以只读快照读取已发布正文；集群任务生成
   derived bucket 中内容寻址的 Chunk Run 与 Embedding Set，本地任务继续生成问题集与评测制品；它不更新
-  通知数据库、source bucket、Qdrant 或在线索引绑定；
+  通知数据库、source bucket、Qdrant 或在线索引绑定。统一 `campus-rag-index-publisher` 读取这些显式
+  制品并负责混合 collection 与 current pointer；
 - App API 只获得五张通知业务表的读取权限，并读取获准图片对象；不读取 migration ledger 或写入通知；
 - Campus Web 只通过 App API 读取规范化通知；
 - Ops Web 拥有内部门户凭据，并只读取通知安全 metadata、更新 `category`；execution-control、Agent 与
-  在线检索消费者不连接通知来源或 schema。
+  在线检索消费者不连接通知来源或 schema，统一 publisher 也只读取 immutable Notice artifacts，不连接
+  live Notices DB。
 
 通知 publisher 同时提供本地 CLI 和默认暂停的 Kubernetes Job 模板，只能由维护者显式创建一次性
 Job，不提供自动 schedule。线上 schema 与发布复用既有数据库 owner 身份，不创建专用 publisher
-Secret。Notice Chunk 与 Embedding 也分别使用默认暂停的模板，阶段间只交接显式制品 ID；本地模型比较
-结果和对象存储中存在制品都不表示已经发布 Qdrant 或开放在线检索。
+Secret。Notice Chunk 与 Embedding 也分别使用默认暂停的模板，阶段间只交接显式制品 ID；只有统一
+Publisher 成功验证并激活 `campus_docs_serving.current_index` 后，Notice 才通过 `campus_search` 进入
+在线检索。本地模型比较结果和对象存储中存在制品都不表示已经完成该发布。
 
 ## 相关文档
 

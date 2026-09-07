@@ -1,13 +1,15 @@
-# Campus Docs 索引任务
+# Campus Docs Chunk 与 Embedding 任务
 
-该包实现 Campus Docs 的 Chunk Set 构建、Embedding Set 构建和 Qdrant collection 发布。三个阶段分别
-执行并通过显式内容寻址 ID 交接；该包不采集或清洗来源文档，也不负责环境选择。
+该包只实现 Campus Docs 的 Chunk Set 和 Embedding Set 构建，以及保留给本地兼容验证的 Docs-only
+`publish-index-local`。生产 serving 发布由 `jobs/campus-rag-index-publisher` 的统一 publisher 负责；
+该包不采集或清洗来源文档，也不负责环境选择。
 
 ## 入口
 
-- `src/local-chunk-cli.ts`、`src/local-embedding-cli.ts`、`src/local-publish-cli.ts`：本地验证入口；
-- `src/cli.ts`：Kubernetes Job 使用的阶段入口；
-- `src/definitions.ts`：分块、向量空间和 collection 定义。
+- `src/local-chunk-cli.ts`、`src/local-embedding-cli.ts`：本地 Docs 验证入口；
+- `src/local-publish-cli.ts`：仅保留的 Docs-only 本地兼容验证入口；
+- `src/cli.ts`：Kubernetes Docs builder 阶段入口；
+- `src/definitions.ts`：Docs 分块和向量空间定义。生产统一 collection 定义属于 unified publisher。
 
 ```bash
 pnpm --dir jobs/campus-docs-index-publisher build-chunks
@@ -15,7 +17,7 @@ pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
   --chunk-set sha256:<id>
 ```
 
-当前不自动串联三个阶段。每个命令只执行一个阶段，并把下一阶段需要的内容寻址 ID 输出为 JSON。本地
+当前不自动串联两个 builder 阶段。每个命令只执行一个阶段，并把下一阶段需要的内容寻址 ID 输出为 JSON。本地
 `build-chunks` 从对象存储只读当前 source 和 reader；`build-embeddings` 只读本地 Chunk Set，直接调用
 根 `.env` 中的 OpenAI-compatible endpoint。两者都把制品写入仓库根目录的 `var/`，不向共享 bucket 写入
 正式候选。`publish-index-local` 从 `var/` 读取 Embedding Set，使用本地 PostgreSQL/Qdrant，并从
@@ -38,7 +40,7 @@ pnpm dev:init -- --target campus-docs-index-publisher
 读取本包 `.env.local`；embedding 和 embedding evaluation 读取当前 worktree 根 `.env`。进程环境优先于
 `.env`，因此可在一次显式命令中覆盖本地 provider 连接。
 
-本地 Chunk/Embedding 入口与集群 `src/cli.ts` 共用相同领域函数，只替换 Store 和 Embedding 连接组装。
+本地 Docs Chunk/Embedding 入口与集群 `src/cli.ts` 共用相同领域函数，只替换 Store 和 Embedding 连接组装。
 集群镜像在构建期生成 JavaScript，可以单独检查生产构建：
 
 ```bash
@@ -159,20 +161,22 @@ worktree 根 `.env` 读取 `EMBEDDING_BASE_URL` 与 `EMBEDDING_API_KEY`，直接
 - `campus-docs/rag/embedding-data/sha256/<digest>/embeddings.ndjson`
 - `campus-docs/rag/embedding-sets/sha256/<id>/manifest.json`
 
-## 发布阶段
+## 生产 serving 边界
 
-本地发布入口显式接收 `--embedding-set`；线上 `publish-index` 从本次 Job 的
-`CAMPUS_DOCS_EMBEDDING_SET` 读取同一标识。发布阶段从 manifest 解析唯一 Chunk Set，不读取 reader，也不调用
-provider；只校验制品链、生成完整 points，并写入 Qdrant collection。collection 名由显式 Embedding
-Set ID 与 `COLLECTION_DEFINITION` 的规范 JSON SHA-256 形成，不另行生成索引制品。
+本包没有生产 `publish-index` CLI，也没有生产 Docs-only publisher CronJob。Docs Embedding Set 由本包
+输出后，必须与 Notice Embedding Set 一起交给
+`jobs/campus-rag-index-publisher`。统一 publisher 从两个 manifest 解析各自的 Chunk Set/Chunk Run，
+不读取 reader、不调用 embedding provider，并将 Docs (`source_kind=document`) 与 Notice
+(`source_kind=notice`) points 组装到同一个 `campus_docs_<sha256>` collection。
 
-`CHUNK_SET_DEFINITION`、`EMBEDDING_SPACE` 和 `COLLECTION_DEFINITION` 分别拥有分块、向量空间和 Qdrant
-查询/point 定义，不再维护混合的总索引定义。
+Notice citation 由 Notice Chunk Run v1 的 `noticeId` 固定生成，形如 `/notices/<noticeId>`；统一 publisher
+不连接 live Notices DB。它是 `campus_docs_serving.current_index` 的唯一写入者。旧
+`publish-index-local` 只用于检查本包保留的 Docs-only local 实现，不代表生产 owner，也不能验证混合
+Docs/Notice collection。
 
-任务完成 point 数、payload 和双向量校验后，重新读取 `source.json` 并比较当前文档投影；投影未变化时
-才原子替换 PostgreSQL `campus_docs_serving.current_index`。目标 collection 已存在时先做完整校验；
-内容不匹配时停止且不删除。仅当本次新建 collection 的写入、校验或来源复核失败时删除该 collection；
-数据库激活报错后保留已验证 collection，重跑同一 Embedding Set 完成状态确认或激活。
+统一 publisher 在完成 point 数、payload 和双向量校验后原子替换 PostgreSQL `campus_docs_serving.current_index`。
+目标 collection 已存在时先做完整校验；内容不匹配时停止且不删除。仅当本次新建 collection 的写入或校验失败时删除该 collection；
+数据库激活报错后保留已验证 collection，重跑同一 Docs/Notice Embedding Set 完成状态确认或激活。
 
 本地生成 Embedding Set 后，在本地真实 Qdrant 上执行同一发布函数：
 
@@ -192,13 +196,13 @@ NDJSON 使用稳定字段顺序并以换行结尾，manifest 使用规范 JSON �
 寻址。本地文件 Store 和线上 S3 Store 都执行 create-or-verify：同键同内容视为幂等，不同内容立即
 失败；线上使用 `If-None-Match: *`。不存在 `latest` 指针、构建状态机、自动链式执行或兼容回退。
 
-三个线上阶段共用现有 derived bucket 身份：Chunk 和 Embedding 阶段写入数据及 manifest，Publisher
-只读取显式制品并写入 Qdrant/当前 collection 指针；不创建独立的 Campus Docs 对象存储 Secret。本地
+两个 Docs builder 阶段共用现有 derived bucket 身份并写入数据及 manifest；统一 Publisher
+只读取显式 Docs/Notice 制品并写入 Qdrant/当前 collection 指针；不创建独立的 Campus Docs 对象存储 Secret。本地
 Chunk 和 Embedding 制品不会上传或晋升，正式候选由线上 Job 使用相同实现重新生成。
 
-三个 Kubernetes `CronJob` 均保持 `suspend: true`，且各自固定一个完整阶段命令。线上操作不依赖仓库或
-pnpm；Chunk Job 可以直接从模板创建，Embedding 和 Publisher 只通过 `kubectl set env --local` 注入本次
-制品标识：
+Docs 的两个 Kubernetes `CronJob` 均保持 `suspend: true`，且各自固定一个 builder 命令。统一 Publisher
+的执行模板属于 execution runtime；线上操作不依赖仓库或 pnpm。Docs builder 的输入只通过本次 Job
+环境注入：
 
 ```bash
 kubectl -n <namespace> create job \
@@ -210,16 +214,11 @@ kubectl -n <namespace> create job \
 kubectl set env --local -f - CAMPUS_DOCS_CHUNK_SET=sha256:<id> -o yaml |
 kubectl -n <namespace> create -f -
 
-kubectl -n <namespace> create job \
-  --from=cronjob/campus-docs-index-publisher <job-name> \
-  --dry-run=client -o yaml |
-kubectl set env --local -f - CAMPUS_DOCS_EMBEDDING_SET=sha256:<id> -o yaml |
-kubectl -n <namespace> create -f -
 ```
 
-需要复用向量时，在 Embedding 的 `kubectl set env` 命令中同时设置
-`CAMPUS_DOCS_REUSE_EMBEDDING_SET=sha256:<id>`。每个 Job 只执行自己的阶段，不触发下一阶段。完整操作顺序见
-`docs/runbooks/campus-docs.md`。
+需要复用向量时，在 Docs Embedding 的 `kubectl set env` 命令中同时设置
+`CAMPUS_DOCS_REUSE_EMBEDDING_SET=sha256:<id>`。每个 Job 只执行自己的阶段，不触发下一阶段。Notice
+builder 和统一 Publisher 的完整操作顺序见 `docs/runbooks/campus-docs.md`。
 
 ## 相关文档
 

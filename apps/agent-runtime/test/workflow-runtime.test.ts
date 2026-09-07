@@ -181,10 +181,26 @@ describe("workflow operation runtime", () => {
 						results: [
 							{
 								citation_index: 1,
-								result_ref: "result://notice-1",
+								document_id: "handbook:student-rules",
+								result_ref: "result://document-1",
 								source_kind: "document",
+								section_ref: "/docs/regulations/student_rules/attendance/v/2026#attendance",
+								section_title: "申请条件",
 								text: `通知正文：${String(argumentsJson.search_query)}`,
 								title: "校园通知",
+								root_unit_ids: ["unit-attendance"],
+								version_id: "version-2026",
+								version_slug: "2026",
+							},
+							{
+								citation_index: 2,
+								citation_href: "/notices/12345",
+								notice_id: "12345",
+								result_ref: "result://notice-1",
+								section_title: "报名要求",
+								source_kind: "notice",
+								text: "请在规定时间内完成报名。",
+								title: "关于报名的通知",
 							},
 						],
 					},
@@ -207,9 +223,19 @@ describe("workflow operation runtime", () => {
 		expect(result.evidence).toEqual([
 			expect.objectContaining({
 				citationIndex: 1,
-				id: "campus:result://notice-1",
+				id: "campus:result://document-1",
+				rootUnitIds: ["unit-attendance"],
 				source: "campus_search",
 				title: "校园通知",
+			}),
+			expect.objectContaining({
+				citationHref: "/notices/12345",
+				citationIndex: 2,
+				noticeId: "12345",
+				resultRef: "result://notice-1",
+				sectionTitle: "报名要求",
+				source: "campus_search",
+				title: "关于报名的通知",
 			}),
 		]);
 	});

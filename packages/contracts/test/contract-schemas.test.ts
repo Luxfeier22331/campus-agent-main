@@ -82,7 +82,7 @@ describe("contract schema registry", () => {
 
 	it("defines campus search candidates and run-scoped citation indexes", () => {
 		const schema = readJson(
-			"packages/contracts/schemas/campus-search-tool-contracts.v3.schema.json",
+			"packages/contracts/schemas/campus-search-tool-contracts.v4.schema.json",
 		);
 		const definitions = schema.$defs as Record<string, Record<string, unknown>>;
 		const payload = definitions.CampusSearchPayload;
@@ -90,24 +90,27 @@ describe("contract schema registry", () => {
 		const item = definitions.CampusSearchResultItem;
 		const payloadProperties = payload?.properties as Record<string, Record<string, unknown>>;
 		const resultProperties = result?.properties as Record<string, Record<string, unknown>>;
-		const itemProperties = item?.properties as Record<string, Record<string, unknown>>;
+		const documentDefinition = definitions.CampusDocumentResultItem;
+		const noticeDefinition = definitions.CampusNoticeResultItem;
+		if (!(documentDefinition && noticeDefinition)) {
+			throw new Error("campus search result item definitions are invalid");
+		}
+		if (!(isRecord(documentDefinition.properties) && isRecord(noticeDefinition.properties))) {
+			throw new Error("campus search result item properties are invalid");
+		}
 
 		expect(payload?.required).toEqual(["search_query"]);
 		expect(Object.keys(payloadProperties)).toEqual(["search_query"]);
 		expect(result?.required).toEqual(["outcome", "results"]);
 		expect(resultProperties.results).toMatchObject({ maxItems: 5 });
-		expect(item?.required).toEqual(expect.arrayContaining(["citation_index", "result_ref"]));
-		expect(item?.required).not.toContain("version_label");
-		expect(itemProperties).not.toHaveProperty("version_label");
-		expect(itemProperties.citation_index).toEqual({
-			type: "integer",
-			minimum: 1,
-			maximum: 10,
-		});
-		expect(itemProperties.result_ref).toEqual({
-			type: "string",
-			pattern: "^result://[a-f0-9]{64}$",
-		});
-		expect(itemProperties).not.toHaveProperty("evidence_ref");
+		expect(item?.oneOf).toHaveLength(2);
+		expect(documentDefinition.required).toEqual(
+			expect.arrayContaining(["citation_index", "result_ref", "source_kind"]),
+		);
+		expect(noticeDefinition.required).toEqual(
+			expect.arrayContaining(["citation_index", "result_ref", "source_kind", "notice_id"]),
+		);
+		expect(noticeDefinition.properties.source_kind).toEqual({ const: "notice" });
+		expect(documentDefinition.properties.source_kind).toEqual({ const: "document" });
 	});
 });

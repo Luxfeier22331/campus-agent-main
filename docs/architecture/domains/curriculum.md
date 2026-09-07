@@ -21,11 +21,12 @@ status: active
 已核对的培养方案来源
 -> campus_docs_source.v4 + campus_docs_reader.v3
 -> Campus Web 静态文档
--> Campus Docs index publisher
+-> Campus Docs Chunk/Embedding builder
+-> Campus RAG unified publisher
 -> 共享的不可变 campus_docs 索引
 ```
 
-源码具备 publisher 不表示任一环境已经激活索引；实际可用性取决于
+源码具备 builder/publisher 不表示任一环境已经激活索引；实际可用性取决于
 `campus_docs_serving.current_index` 是否存在有效的当前 collection 指针。
 
 ## 读取边界

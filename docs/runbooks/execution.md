@@ -67,9 +67,9 @@ registry 的 pull secret 由环境 overlay 绑定到 first-party ServiceAccount�
 由 Campus Docs 合同拥有。缺少数据库、可解密 Model Config key 或所属 config 时，对应管理或消费路径
 失败关闭。Hindsight 与 eval provider 配置不进入 Model Config。
 
-Campus Docs 的三个索引 Job 由人工分别触发。Embedding Job 从 Model Config 一次读取
-`campus_docs_embedding` 完整配置；Embedding Set v3 记录响应中的 target hash。
-Publisher 只消费显式 chunk/embedding 制品并在完整校验 Qdrant collection 后替换
+Campus Docs 与 Notices 的 Chunk/Embedding Job 由人工分别触发。两个 Embedding Job 从 Model Config 一次
+读取 `campus_docs_embedding` 完整配置；各自 Embedding Set 记录响应中的 target hash。统一 Publisher 只
+消费显式 Docs/Notice chunk/embedding 制品，在完整校验混合 Qdrant collection 后替换
 `campus_docs_serving.current_index`。Publisher 复用 `EXECUTION_CONTROL_DATABASE_URL`，不创建第二个
 数据库身份或连接。在线运行只从该绑定取得 collection；dimensions、查询指令和向量名由当前代码
 提供，模型设置不重复保存这些索引属性。具体操作与清理条件见 `campus-docs.md`。

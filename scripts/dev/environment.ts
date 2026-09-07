@@ -14,6 +14,7 @@ import {
 import { dirname, resolve } from "node:path";
 import { parseEnv } from "node:util";
 
+import type { LocalQdrantConnection } from "./local-qdrant";
 import { ensureLocalDevSecrets } from "./local-secrets";
 import type { LocalDevProfileV2 } from "./profile";
 import { calculateLocalDevRuntimePorts } from "./profile";
@@ -69,6 +70,7 @@ export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
 	opsWeb: "apps/ops-web/.env.local",
 	internalPortalCollection: "jobs/internal-portal-collection/adapters/internal-portal/.env.local",
 	campusDocsIndexPublisher: "jobs/campus-docs-index-publisher/.env.local",
+	campusRagIndexPublisher: "jobs/campus-rag-index-publisher/.env.local",
 	noticeIndexPublisher: "jobs/notice-index-publisher/.env.local",
 } as const;
 
@@ -92,6 +94,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	"internal-portal-collection": ["internalPortalCollection"],
 	"notice-classifier": ["noticeClassifier"],
 	"campus-docs-index-publisher": ["campusDocsIndexPublisher"],
+	"campus-rag-index-publisher": ["campusRagIndexPublisher"],
 	"notice-index-publisher": ["noticeIndexPublisher"],
 };
 
@@ -251,6 +254,7 @@ export function localModelConfigCommandEnvironment(input: {
 
 export function renderLocalEnvironmentFiles(input: {
 	profile: LocalDevProfileV2;
+	qdrant?: LocalQdrantConnection;
 	repoRoot: string;
 	target?: LocalDevTarget;
 	projections?: readonly LocalDevEnvironmentProjection[];
@@ -344,6 +348,12 @@ export function renderLocalEnvironmentFiles(input: {
 			EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: `${profile.instanceId}:execution-control`,
 			HOST: "127.0.0.1",
 			PORT: String(runtimePorts.executionControl),
+			...(input.qdrant
+				? {
+						QDRANT_READ_ONLY_API_KEY: input.qdrant.readOnlyApiKey,
+						QDRANT_URL: input.qdrant.url,
+					}
+				: {}),
 		});
 	}
 	if (shouldRender("modelConfig")) {
@@ -435,6 +445,22 @@ export function renderLocalEnvironmentFiles(input: {
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+		});
+	}
+	if (shouldRender("campusRagIndexPublisher")) {
+		if (!input.qdrant) {
+			throw new Error("Campus RAG publisher requires a resolved local Qdrant connection.");
+		}
+		writeManagedEnv(paths.campusRagIndexPublisher, {
+			EXECUTION_CONTROL_DATABASE_URL: database.owner,
+			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_READ_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+			QDRANT_API_KEY: input.qdrant.apiKey,
+			QDRANT_URL: input.qdrant.url,
 		});
 	}
 	if (shouldRender("noticeIndexPublisher")) {

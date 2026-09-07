@@ -16,7 +16,7 @@ status: accepted
 
 - 来源和文档所有者可以保留历史版本；
 - 阅读器可以按明确版本展示已发布历史内容；
-- Campus Docs publisher 只把来源清单当前 reader 构建的索引写入
+- 统一 Campus RAG publisher 只把来源清单当前 reader 构建的 Docs 制品与显式 Notice 制品组装后写入
   `campus_docs_serving.current_index`；
 - 当前在线 Agent 通过只读 `campus_search` 消费该索引；历史、截至日期和版本比较问题在当前 Agent 能力中返回无法支持；
 - 若开放历史检索，必须另行定义精确版本选择、引用呈现和评测合同；

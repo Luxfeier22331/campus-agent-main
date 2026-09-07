@@ -73,12 +73,18 @@ interface NormalizedCampusSource extends NormalizedSourceBase {
 	versionSlug: string;
 }
 
+interface NormalizedNoticeSource extends NormalizedSourceBase {
+	kind: "campus_notice";
+	noticeId: string;
+	sectionTitle: string;
+}
+
 interface NormalizedWebSource extends NormalizedSourceBase {
 	hostname: string;
 	kind: "web_page";
 }
 
-type NormalizedSource = NormalizedCampusSource | NormalizedWebSource;
+type NormalizedSource = NormalizedCampusSource | NormalizedNoticeSource | NormalizedWebSource;
 
 function versionSlugFromReaderPath(basePath: string): string | null {
 	const segments = basePath.split("/").filter(Boolean);
@@ -137,6 +143,29 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 		};
 	}
 
+	if (kind === "campus_notice") {
+		const noticeId = recordString(source, "notice_id", "noticeId");
+		if (noticeId === null) {
+			return null;
+		}
+		if (sectionRef === null) {
+			return null;
+		}
+		if (!noticeCitationHrefMatchesNoticeId(sectionRef, noticeId)) {
+			return null;
+		}
+		return {
+			citationIndexes: [citationIndex],
+			identityKey: `notice:${noticeId}`,
+			kind: "campus_notice",
+			noticeId,
+			primaryHref: sectionRef,
+			sectionTitle: recordString(source, "section_title", "sectionTitle") ?? "正文",
+			snippet: normalizeSnippet(source.snippet),
+			title,
+		};
+	}
+
 	if (kind === "web_page") {
 		const url = recordString(source, "url", "url");
 		const webHref = citationHref ?? url;
@@ -163,6 +192,11 @@ function normalizeSource(source: unknown): NormalizedSource | null {
 	return null;
 }
 
+function noticeCitationHrefMatchesNoticeId(value: string, noticeId: string): boolean {
+	const match = /^\/notices\/([A-Za-z0-9._~-]+)$/u.exec(value);
+	return match?.[1] === noticeId;
+}
+
 function sourceItemFromNormalized(source: NormalizedSource): ChatSourceItem {
 	if (source.kind === "web_page") {
 		return {
@@ -175,6 +209,23 @@ function sourceItemFromNormalized(source: NormalizedSource): ChatSourceItem {
 				external: true,
 				disabledReason: null,
 			},
+			snippet: source.snippet,
+			title: source.title,
+		};
+	}
+
+	if (source.kind === "campus_notice") {
+		return {
+			citationIndexes: source.citationIndexes,
+			kind: "campus_notice",
+			noticeId: source.noticeId,
+			primaryAction: {
+				disabledReason: null,
+				external: false,
+				href: source.primaryHref,
+				label: "查看通知",
+			},
+			sectionTitle: source.sectionTitle,
 			snippet: source.snippet,
 			title: source.title,
 		};

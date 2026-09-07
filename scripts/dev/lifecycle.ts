@@ -27,6 +27,7 @@ import {
 	formatProfileSummary,
 	probeLocalTemporalNamespace,
 } from "./instance-resources";
+import { resolveLocalQdrantConnection } from "./local-qdrant";
 import { removeLocalDevSecrets, resolveLocalDevSecretsPath } from "./local-secrets";
 import {
 	ensureLocalDevProfile,
@@ -79,6 +80,11 @@ export async function initializeLocalDevelopmentTarget(
 	const plan = resolveLocalDevTargetPlan(target);
 	const projections = plan.environmentProjections;
 	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
+	const qdrant = projections.some((projection) =>
+		["core", "campus-rag-index-publisher"].includes(projection),
+	)
+		? await resolveLocalQdrantConnection()
+		: undefined;
 
 	const profile = await ensureLocalDevProfile(repoRoot);
 	const shared = await inspectSharedCapabilities({
@@ -99,7 +105,7 @@ export async function initializeLocalDevelopmentTarget(
 		projections,
 		repoRoot,
 	});
-	renderLocalEnvironmentFiles({ profile, repoRoot, target, projections });
+	renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target, projections });
 
 	if (plan.bootstrapSteps.includes("temporal-namespace")) {
 		await ensureLocalTemporalNamespace(repoRoot, profile);

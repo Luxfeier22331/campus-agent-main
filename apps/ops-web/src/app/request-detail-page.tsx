@@ -236,7 +236,9 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 							source.title,
 							...(source.kind === "campus_document"
 								? [source.collectionLabel, source.sectionTitle, source.versionSlug]
-								: [source.hostname]),
+								: source.kind === "campus_notice"
+									? [source.noticeId, source.sectionTitle]
+									: [source.hostname]),
 							source.primaryAction.href,
 							source.primaryAction.label,
 							source.snippet,
@@ -254,15 +256,18 @@ function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
 								</span>
 								<div className="min-w-0">
 									<p className="font-medium text-foreground">{source.title}</p>
-									{source.kind === "campus_document" && source.sectionTitle ? (
+									{(source.kind === "campus_document" || source.kind === "campus_notice") &&
+									source.sectionTitle ? (
 										<p className="mt-1 text-muted-foreground text-xs">{source.sectionTitle}</p>
 									) : null}
 									<p className="mt-1 text-muted-foreground text-xs">
 										{source.kind === "web_page"
 											? source.hostname
-											: [source.collectionLabel, formatDocsVersionLabel(source.versionSlug)]
-													.filter(Boolean)
-													.join(" · ")}
+											: source.kind === "campus_notice"
+												? `通知 ${source.noticeId}`
+												: [source.collectionLabel, formatDocsVersionLabel(source.versionSlug)]
+														.filter(Boolean)
+														.join(" · ")}
 									</p>
 								</div>
 							</div>

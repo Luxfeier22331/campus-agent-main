@@ -40,7 +40,12 @@ export function buildNoticeChunks(
 	const pieces = units.flatMap((unit) =>
 		buildUnitPieces(source.contentText, unit, stats, definition),
 	);
-	const chunks = combinePieces(source, sourceSha256, pieces, definition);
+	const chunks = combinePieces(
+		source,
+		sourceSha256,
+		pieces,
+		definition,
+	);
 	if (chunks.length === 0) {
 		throw new Error(`notice produced no chunks: ${source.noticeId}`);
 	}

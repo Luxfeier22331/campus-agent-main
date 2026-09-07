@@ -814,6 +814,7 @@ components:
           items:
             oneOf:
               - $ref: "#/components/schemas/CampusDocumentSource"
+              - $ref: "#/components/schemas/CampusNoticeSource"
               - $ref: "#/components/schemas/WebPageSource"
         terminal_reason:
           type: string
@@ -866,6 +867,40 @@ components:
           type: string
           minLength: 1
         version_slug:
+          type: string
+          minLength: 1
+    CampusNoticeSource:
+      type: object
+      additionalProperties: false
+      required:
+        - citation_href
+        - citation_index
+        - evidence_ref
+        - kind
+        - notice_id
+        - section_title
+        - snippet
+        - title
+      properties:
+        citation_href:
+          type: string
+          pattern: "^/notices/[A-Za-z0-9._~-]+$"
+        citation_index:
+          type: integer
+          minimum: 1
+        evidence_ref:
+          type: string
+          minLength: 1
+        kind:
+          const: campus_notice
+        notice_id:
+          type: string
+          minLength: 1
+        section_title:
+          type: string
+        snippet:
+          type: string
+        title:
           type: string
           minLength: 1
     WebPageSource:

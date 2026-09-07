@@ -142,7 +142,6 @@ function decodeChunks(bytes: Uint8Array): NoticeChunk[] {
 	}
 	return chunks;
 }
-
 function decodeValidation(bytes: Uint8Array): NoticeChunkValidationReport {
 	const value = parseJson(bytes, "notice chunk validation");
 	const schemaVersion = isRecord(value) ? value.schemaVersion : undefined;

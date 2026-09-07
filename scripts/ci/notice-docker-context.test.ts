@@ -22,6 +22,10 @@ const indexPublisherDockerfile = readFileSync(
 	resolve(repositoryRoot, "jobs/notice-index-publisher/Dockerfile"),
 	"utf8",
 );
+const ragPublisherDockerfile = readFileSync(
+	resolve(repositoryRoot, "jobs/campus-rag-index-publisher/Dockerfile"),
+	"utf8",
+);
 
 test("notice database workspace files remain in all ingestion Docker contexts", () => {
 	assert.ok(dockerignore.includes("!packages/notice-database/"));
@@ -52,6 +56,13 @@ test("Notice index publisher includes the shared embedding runtime source", () =
 		indexPublisherDockerfile,
 		/COPY --from=pruner \/repo\/out\/full\/packages\/embedding-runtime\/src \.\/packages\/embedding-runtime\/src/u,
 	);
+});
+
+test("Campus RAG publisher includes its workspace and shared embedding runtime source", () => {
+	assert.ok(dockerignore.includes("!jobs/campus-rag-index-publisher/"));
+	assert.ok(dockerignore.includes("!jobs/campus-rag-index-publisher/**"));
+	assert.match(ragPublisherDockerfile, /turbo prune campus-rag-index-publisher --docker/u);
+	assert.match(ragPublisherDockerfile, /COPY --from=pruner \/repo\/out\/full\/ \.\//u);
 });
 
 test("Collector prunes its workspace dependency closure from the repository context", () => {

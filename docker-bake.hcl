@@ -15,6 +15,7 @@ group "default" {
     "agent-runtime",
     "campus-agent-schema",
     "campus-docs-index-publisher",
+	"campus-rag-index-publisher",
     "execution-control",
     "model-config",
     "notice-classifier",
@@ -51,6 +52,11 @@ target "campus-agent-schema" {
 target "campus-docs-index-publisher" {
   inherits   = ["_common"]
   dockerfile = "jobs/campus-docs-index-publisher/Dockerfile"
+}
+
+target "campus-rag-index-publisher" {
+  inherits   = ["_common"]
+  dockerfile = "jobs/campus-rag-index-publisher/Dockerfile"
 }
 
 target "execution-control" {

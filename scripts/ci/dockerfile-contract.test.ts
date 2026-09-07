@@ -9,6 +9,7 @@ const nodeDockerfiles = [
 	"apps/ops-web/Dockerfile",
 	"jobs/campus-agent-schema/Dockerfile",
 	"jobs/campus-docs-index-publisher/Dockerfile",
+	"jobs/campus-rag-index-publisher/Dockerfile",
 	"jobs/internal-portal-collection/Dockerfile",
 	"jobs/notice-classifier/Dockerfile",
 	"jobs/notice-index-publisher/Dockerfile",

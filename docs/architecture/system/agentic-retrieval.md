@@ -10,12 +10,12 @@ status: active
 已注册的只读 `campus_search` function tool 按需查询，不恢复 Knowledge Agent、handoff、强制预检索
 或第二次答案合成。
 
-`campus_search` 的工具说明声明它只提供中央民族大学当前 Campus Web 文档。Primary Agent 根据问题
+`campus_search` 的工具说明声明它提供中央民族大学当前 Campus Web 文档和已发布校园通知。Primary Agent 根据问题
 所需事实与该声明范围是否相交决定是否调用；问候、改写、个人事实以及所需事实完全不在该范围内的
-请求，不因词面相似而自动查询 Campus Docs。工具调用时读取 PostgreSQL
+请求，不因词面相似而自动查询 Campus RAG。工具调用时读取 PostgreSQL
 `campus_docs_serving.current_index` 的当前 collection，并从 Model Config 读取当前
-`campus_docs_embedding` 连接；collection、provider 和检索参数不进入准入快照或 Temporal workflow
-input。
+`campus_docs_embedding` 与 `campus_docs_reranker` 连接；collection、provider 和检索参数不进入准入快照
+或 Temporal workflow input。
 
 检索只保留 rerank `relevance_score >= 0.5` 的候选，每次返回最多 5 条，同一 run 累计最多 10 条；
 没有候选时返回 `no_match`。该分数只表示查询与候选文本的相关性，不判断机构、人群或规则适用主体。
@@ -29,7 +29,7 @@ input。
 仍返回普通正文，不能因另一部分没有资料而丢弃有效答案。所需机构事实完全没有本轮候选
 支持时在正文中说明当前资料无法支持回答，而不是用模型记忆补全。
 
-Campus Docs 的来源清洗、reader、Chunk、Embedding 和 Publisher 仍属于独立离线数据面，由
+Campus Docs/Notice 的来源清洗、reader、Chunk、Embedding 和统一 Publisher 仍属于独立离线数据面，由
 [检索服务](retrieval-serving.md) 维护。离线索引或当前指针只表示可供工具查询的制品已经发布，
 不改变 Agent 的准入能力。
 

@@ -35,9 +35,10 @@ Provider，并使 Agent 输入、Temporal history、运行投影、评测和部�
 - `campus_search` 在 execution-control 中读取当前 collection，并从 Model Config 读取 embedding 和
   reranker 连接，不把二者放入
   admission snapshot 或 Temporal workflow input；
-- Campus Docs 的来源、Chunk、Embedding、Qdrant collection 和发布器继续作为独立离线数据面维护；
+- Campus Docs/Notice 的来源、Chunk、Embedding、统一 Qdrant collection 和发布器继续作为独立离线数据面维护；
   离线索引或当前绑定存在不表示在线 Agent 已经消费它；
-- 离线发布继续由 Chunk、Embedding 和 Publisher 三个显式阶段完成，阶段之间只传递内容寻址制品；
+- Docs/Notice builder 分别完成 Chunk 与 Embedding 阶段，统一 Publisher 只接收两套显式内容寻址制品并
+  原子更新当前绑定；Publisher 不重新 embedding；
 - 个人记忆只支持用户自身事实或偏好，不能替代机构知识来源；
 - 本地函数工具调用次数只受当前 operation 的总 `max_function_tool_calls` 限制；`max_plan_steps` 和
   `max_replans` 由外层 workflow 约束。来源切换由 Replanner 的结构化剩余步骤决定，不恢复代码级

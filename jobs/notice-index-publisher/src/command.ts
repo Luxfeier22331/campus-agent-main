@@ -7,7 +7,10 @@ import {
 	type NoticeChunkDefinition,
 } from "./definitions.ts";
 import { buildValidationReport, selectReviewSamples } from "./report/index.ts";
-import { loadPublishedNoticeSources, sortNoticeSources } from "./source.ts";
+import {
+	loadPublishedNoticeSources,
+	sortNoticeSources,
+} from "./source.ts";
 import type {
 	LocalChunkRunResult,
 	NoticeArtifactStore,

@@ -174,6 +174,23 @@ func workflowEvidenceSource(
 ) (map[string]any, string, error) {
 	switch item.Source {
 	case temporalruntime.WorkflowSourceCampusSearch:
+		noticeID := strings.TrimSpace(item.NoticeID)
+		citationHref := strings.TrimSpace(item.CitationHref)
+		if noticeID != "" || citationHref != "" {
+			if noticeID == "" || !campusdocs.ValidNoticeCitationHrefForNoticeID(citationHref, noticeID) ||
+				strings.TrimSpace(item.SectionTitle) == "" {
+				return nil, "", workflowCitationValidationErrorf("campus notice evidence %q has invalid source identity", item.ID)
+			}
+			return map[string]any{
+				"citation_href": citationHref,
+				"evidence_ref":  item.ID,
+				"kind":          "campus_notice",
+				"notice_id":     noticeID,
+				"section_title": item.SectionTitle,
+				"snippet":       campusdocs.BoundedSourceSnippet(item.Excerpt),
+				"title":         item.Title,
+			}, "campus:" + item.ID, nil
+		}
 		href := strings.TrimSpace(item.SectionRef)
 		if href == "" {
 			href = strings.TrimSpace(item.URL)
@@ -202,6 +219,9 @@ func workflowEvidenceSource(
 		}
 		if item.VersionSlug != "" {
 			source["version_slug"] = item.VersionSlug
+		}
+		if len(item.RootUnitIDs) > 0 {
+			source["root_unit_ids"] = append([]string{}, item.RootUnitIDs...)
 		}
 		return source, "campus:" + item.ID, nil
 	case temporalruntime.WorkflowSourceWebSearch:
@@ -256,6 +276,22 @@ func workflowResultsFromAgentResult(agentResult map[string]any) ([]workflowRunRe
 }
 
 func workflowRunResultFromCampusSearch(item campusdocs.SearchResultItem) workflowRunResult {
+	if item.SourceKind == "notice" {
+		return workflowRunResult{
+			CitationIndex: item.CitationIndex,
+			ResultRef:     item.ResultRef,
+			Text:          item.Text,
+			Source: map[string]any{
+				"citation_href": item.CitationHref,
+				"evidence_ref":  item.ResultRef,
+				"kind":          "campus_notice",
+				"notice_id":     item.NoticeID,
+				"section_title": item.SectionTitle,
+				"snippet":       campusdocs.BoundedSourceSnippet(item.Text),
+				"title":         item.Title,
+			},
+		}
+	}
 	return workflowRunResult{
 		CitationIndex: item.CitationIndex,
 		ResultRef:     item.ResultRef,

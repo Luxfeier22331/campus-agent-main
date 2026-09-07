@@ -1006,7 +1006,31 @@ function campusEvidenceFromResult(result: Record<string, unknown>): WorkflowEvid
 		const excerpt = stringValue(raw.text);
 		const source = stringValue(raw.source_kind);
 		const citationIndex = integerValue(raw.citation_index);
-		if (!(id && title && excerpt) || source !== "document" || citationIndex === undefined) {
+		if (!(id && title && excerpt) || citationIndex === undefined) {
+			continue;
+		}
+		if (source === "notice") {
+			const noticeId = stringValue(raw.notice_id);
+			const citationHref = stringValue(raw.citation_href);
+			const sectionTitle = stringValue(raw.section_title);
+			if (!(noticeId && citationHref && sectionTitle)) {
+				continue;
+			}
+			evidence.push({
+				citationHref,
+				citationIndex,
+				excerpt: excerpt.slice(0, maxEvidenceExcerptCharacters),
+				id: `campus:${id}`,
+				noticeId,
+				resultRef: id,
+				schemaVersion: "workflow_evidence.v1",
+				sectionTitle,
+				source: "campus_search",
+				title,
+			});
+			continue;
+		}
+		if (source !== "document") {
 			continue;
 		}
 		const item: WorkflowEvidence = {
@@ -1018,6 +1042,10 @@ function campusEvidenceFromResult(result: Record<string, unknown>): WorkflowEvid
 			source: "campus_search",
 			title,
 		};
+		const rootUnitIds = stringArrayValue(raw.root_unit_ids);
+		if (rootUnitIds !== undefined) {
+			item.rootUnitIds = rootUnitIds;
+		}
 		const optionalFields: [keyof WorkflowEvidence, unknown][] = [
 			["documentId", raw.document_id],
 			["sectionRef", raw.section_ref],
@@ -1262,6 +1290,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function stringArrayValue(value: unknown): string[] | undefined {
+	if (!Array.isArray(value) || value.length === 0) {
+		return undefined;
+	}
+	const result: string[] = [];
+	for (const item of value) {
+		const normalized = stringValue(item);
+		if (!normalized || result.includes(normalized)) {
+			return undefined;
+		}
+		result.push(normalized);
+	}
+	return result;
 }
 
 function integerValue(value: unknown): number | undefined {

@@ -1,0 +1,29 @@
+{
+	"name": "campus-rag-index-publisher",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Unified immutable Campus Docs and Notices Qdrant serving index publisher.",
+	"license": "Apache-2.0",
+	"type": "module",
+	"scripts": {
+		"build": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { force: true, recursive: true })\" && esbuild ./src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:@aws-sdk/client-s3 --external:pg && node --input-type=module -e \"import('./dist/cli.js')\"",
+		"publish-index": "tsx src/cli.ts publish-index",
+		"publish-index-local": "node --env-file=.env.local --import=tsx src/local-cli.ts",
+		"import-artifacts-local": "node --env-file=.env.local --import=tsx src/import-local-cli.ts",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1109.0",
+		"@campus-agent/embedding-runtime": "workspace:*",
+		"pg": "^8.23.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.3",
+		"@types/pg": "^8.21.0",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.12",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.10"
+	}
+}

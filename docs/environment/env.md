@@ -18,7 +18,7 @@ status: active
 ### 仓库根环境
 
 根 `.env` 只保存维护者共享的外部开发连接，不是应用运行时配置。linked worktree 的 target 包含 `core`、
-`model-config`、`campus-docs-index-publisher` 或 `notice-index-publisher` 投影时，`dev:init` 才从 main
+`model-config`、`campus-docs-index-publisher`、`campus-rag-index-publisher` 或 `notice-index-publisher` 投影时，`dev:init` 才从 main
 checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离线通知分类 provider 连接；包含
 `internal-portal-collection` 投影时，才首次导入已有门户 TGC。它只补充
 当前 worktree 尚不存在的字段，不覆盖已有值，也不复制数据库 DSN、对象存储身份、观测配置或整份环境文件。
@@ -41,7 +41,8 @@ checkout 的根 `.env` 按字段白名单导入 LLM、Embedding、Rerank 和离�
 - `pnpm dev:init -- --target notice-publisher`：notice-publisher；
 - `pnpm dev:init -- --target internal-portal-collection`：internal-portal-collection adapter；
 - `pnpm dev:init -- --target notice-classifier`：notice-classifier；
-- `pnpm dev:init -- --target campus-docs-index-publisher`：Campus Docs Chunk/Embedding/Publish 本地任务；
+- `pnpm dev:init -- --target campus-docs-index-publisher`：Campus Docs Chunk/Embedding 与 Docs-only local 验证任务；
+- `pnpm dev:init -- --target campus-rag-index-publisher`：统一 Campus RAG publisher 本地连接环境；
 - `pnpm dev:init -- --target notice-index-publisher`：已发布通知 Chunk 本地任务。
 
 target 会自动生成其运行依赖的环境投影；例如 `internal-portal-collection` 生成 Ops Web 和采集器所需的
@@ -85,9 +86,15 @@ notice-classifier 的托管 `.env.local` 保存本 worktree 的通知数据库�
 不再包含对象存储配置。它不保存模型 API key、模型名或 provider 配置；本地 Job 启动分类阶段时从
 Model Config 一次读取当前完整配置。
 
-Campus Docs index publisher 的托管 `.env.local` 只保存 `EXECUTION_CONTROL_DATABASE_URL`、对象存储
-endpoint 和 derived bucket 只读凭据；derived bucket 固定为共享的 `campus-agent-derived`。Notice index
-publisher 的托管 `.env.local` 保存 `DEPLOYMENT_ENVIRONMENT`、`NOTICES_DATABASE_SSLMODE`、
+Campus Docs builder 的托管 `.env.local` 保存对象存储 endpoint 和 derived bucket 写入凭据；derived bucket
+固定为共享的 `campus-agent-derived`。统一 Campus RAG publisher 的托管 `.env.local` 保存
+`EXECUTION_CONTROL_DATABASE_URL`、Qdrant endpoint/API key、对象存储 endpoint、当前 worktree 的
+`OBJECT_STORE_BUCKET_DERIVED` 和该 bucket 的读写凭据；写入凭据用于本地制品导入。Qdrant 连接由
+`scripts/dev` 在初始化时读取正在运行的本地 Compose 容器的 writer key 和 HTTP 映射端口，经认证检查后
+写入现有托管文件；每次初始化重新读取，不维护第二份凭据状态。Qdrant 服务配置仍由
+`infra/local/docker-compose.qdrant.yml` 拥有；若本地服务供应方式改变，应同步调整此连接读取逻辑。
+publisher 不读取 Model Config、Notices 数据库或 embedding provider。Notice index publisher 的托管 `.env.local` 保存
+`DEPLOYMENT_ENVIRONMENT`、`NOTICES_DATABASE_SSLMODE`、
 `NOTICES_DATABASE_URL`。Notice 问题生成只从当前 worktree 根 `.env` 显式读取 LLM 配置；两个任务的本地
 embedding evaluation 和 Notice embedding 抽样验证都从当前 worktree 根 `.env` 显式读取 `EMBEDDING_BASE_URL` 与
 `EMBEDDING_API_KEY`，不读取其他 job 的环境文件；Campus Docs 的本地 embedding

@@ -35,7 +35,7 @@ func temporalFinalizationProjectionSummary(finalizedResponse map[string]any) map
 		for _, source := range sources {
 			kind := execution.StringValue(execution.CloneAnyMapFromValue(source)["kind"])
 			switch kind {
-			case "campus_document":
+			case "campus_document", "campus_notice":
 				campusSourceCount++
 			case "web_page":
 				webSourceCount++
@@ -45,7 +45,7 @@ func temporalFinalizationProjectionSummary(finalizedResponse map[string]any) map
 		sourceCount = len(sources)
 		for _, source := range sources {
 			switch execution.StringValue(source["kind"]) {
-			case "campus_document":
+			case "campus_document", "campus_notice":
 				campusSourceCount++
 			case "web_page":
 				webSourceCount++

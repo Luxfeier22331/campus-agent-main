@@ -2,6 +2,7 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"agent-runtime",
 	"campus-agent-schema",
 	"campus-docs-index-publisher",
+	"campus-rag-index-publisher",
 	"execution-control",
 	"internal-portal-collection",
 	"model-config",
@@ -17,6 +18,7 @@ export const NODE_IMAGE_TARGETS = [
 	"agent-runtime",
 	"campus-agent-schema",
 	"campus-docs-index-publisher",
+	"campus-rag-index-publisher",
 	"internal-portal-collection",
 	"notice-classifier",
 	"notice-index-publisher",
@@ -33,6 +35,7 @@ export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> 
 	["agent-runtime", ["agent-runtime"]],
 	["campus-agent-schema", ["campus-agent-schema"]],
 	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
+	["campus-rag-index-publisher", ["campus-rag-index-publisher"]],
 	["execution-control", ["execution-control"]],
 	["model-config", ["model-config"]],
 	["notice-classifier", ["notice-classifier"]],
@@ -49,6 +52,7 @@ export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[
 	["apps/ops-web/Dockerfile", ["ops-web"]],
 	["jobs/campus-agent-schema/Dockerfile", ["campus-agent-schema"]],
 	["jobs/campus-docs-index-publisher/Dockerfile", ["campus-docs-index-publisher"]],
+	["jobs/campus-rag-index-publisher/Dockerfile", ["campus-rag-index-publisher"]],
 	["jobs/internal-portal-collection/Dockerfile", ["internal-portal-collection"]],
 	["jobs/notice-classifier/Dockerfile", ["notice-classifier"]],
 	["jobs/notice-index-publisher/Dockerfile", ["notice-index-publisher"]],
@@ -126,6 +130,16 @@ export function imageTargetsForScope(scope: {
 		].some((file) => files.includes(file))
 	) {
 		addPackageTargets(targets, "campus-docs-index-publisher");
+	}
+	if (
+		changesPath(files, "jobs/campus-rag-index-publisher") ||
+		changesPath(files, "jobs/campus-docs-index-publisher") ||
+		changesPath(files, "jobs/notice-index-publisher") ||
+		changesPath(files, "packages/embedding-runtime") ||
+		files.some((file) => file.startsWith("packages/contracts/src/campus-docs")) ||
+		files.includes("packages/contracts/package.json")
+	) {
+		addPackageTargets(targets, "campus-rag-index-publisher");
 	}
 	if (
 		changesPath(files, "jobs/notice-classifier") ||

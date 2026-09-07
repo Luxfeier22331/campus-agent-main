@@ -14,7 +14,6 @@
 		"summarize-chunk-review-labels-local": "tsx src/local-chunk-review-labels-cli.ts",
 		"compare-chunks-local": "tsx src/local-chunk-comparison-cli.ts",
 		"evaluate-chunks-local": "node --env-file=../../.env --import=tsx src/local-chunk-embedding-evaluation-cli.ts",
-		"publish-index": "tsx src/cli.ts publish-index",
 		"test": "vitest run --exclude 'test/**/*.database.integration.test.ts'",
 		"test:database-integration": "vitest run --config vitest.database-integration.config.mts",
 		"typecheck": "tsc --noEmit"

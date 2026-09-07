@@ -65,7 +65,7 @@ task-queue 字段。
 `configs/runtime/tools.v7.json` 与
 `configs/runtime/tool-function-schemas.v4.json` 是运行时工具事实。当前登记的内部合同为：
 
-- `campus_search`：按当前 Campus Docs 绑定检索中央民族大学 Campus Web 文档，返回供 Agent 选择的
+- `campus_search`：按当前 Campus RAG 绑定检索中央民族大学当前 Campus Web 文档和已发布校园通知，返回供 Agent 选择的
   有界候选结果。
 - `personal_memory_recall`：按当前 request 绑定的用户身份读取有界个人记忆。
 
@@ -91,8 +91,8 @@ recall 工具或执行结果。matched personal memory 只支持用户自身事�
 
 `campus_search` 的模型参数只有 `search_query`，不接收 collection、索引版本、provider、top-k 或
 vector-store 字段。handler 在调用
-时读取当前 `campus_docs_serving.current_index` 和 embedding provider。handler 内部先取得最多 24 个
-hybrid 候选，再调用同一 provider 的固定 `Qwen3-Reranker-4B` 排序并保留
+时读取当前 `campus_docs_serving.current_index`、embedding provider 和 reranker provider。handler 内部
+先取得最多 24 个 hybrid 候选，再调用 `campus_docs_reranker` 配置中的固定 `Qwen3-Reranker-4B` 排序并保留
 `relevance_score >= 0.5` 的候选。成功结果只包含 `outcome` 与最多 5 条 `results`；过滤后无候选返回
 `no_match`。阈值只判断文本相关性，不判断学校、人群或规则适用主体；reranker 失败不得回退到未排序
 候选。
@@ -203,8 +203,8 @@ Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_
 
 `ExecutionFinalizationResponse` 包含状态、答案、模型用量、结果和错误；可选字段包括观测摘要和
 阶段耗时。追问、资料不足和范围说明都是 `completed` 助手正文。它不返回路由标签、外部平台引用
-或逐请求遥测控制项。`result.sources` 是完整来源集合，来源为 `campus_document` 或 `web_page`；
-Campus 来源保留文档定位和 `citation_href`，Web 来源保留 `hostname`、`url` 和
+或逐请求遥测控制项。`result.sources` 是完整来源集合，来源为 `campus_document`、`campus_notice` 或 `web_page`；
+Campus 文档来源保留文档定位；校园通知来源保留 `notice_id`、section title 和 `/notices/<noticeId>` `citation_href`；Web 来源保留 `hostname`、`url` 和
 `citation_href`。来源编号由 Finalization 按正文首次出现顺序写入，重复 Web URL 复用编号。
 
 失败合同分为三个字段，不能互相补值：

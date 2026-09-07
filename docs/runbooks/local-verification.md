@@ -94,6 +94,7 @@ pnpm dev:init -- --target notice-publisher
 pnpm dev:init -- --target internal-portal-collection
 pnpm dev:init -- --target notice-classifier
 pnpm dev:init -- --target campus-docs-index-publisher
+pnpm dev:init -- --target campus-rag-index-publisher
 pnpm dev:init -- --target notice-index-publisher
 ```
 
@@ -101,7 +102,31 @@ pnpm dev:init -- --target notice-index-publisher
 Ops Web 和采集器实际读取的环境投影，`notice-classifier` 只生成 Model Config 与分类器实际读取的环境投影。
 两者都通过 readiness 检查复用统一 schema 和通知分类 seed，但不重复执行 DDL。
 `ops-web` target 额外生成全部本地通知 Job 环境，并补齐分类模型与 Dining 基线。
-`notice-index-publisher` 复用 schema owner 安装数据库 baseline；`campus-docs-index-publisher` 只生成其任务环境。
+`notice-index-publisher` 复用 schema owner 安装数据库 baseline；`campus-docs-index-publisher` 只生成其 Docs
+builder 环境；`campus-rag-index-publisher` 只生成统一 publisher 读取 derived bucket、Qdrant 和当前索引
+数据库所需的环境，不上传本地 `var/` 制品。
+
+验证统一 Campus RAG 发布时，除 `campus-rag-index-publisher` 环境外还需要同一 worktree 的 schema baseline：
+
+```bash
+pnpm dev:init -- --target campus-rag-index-publisher
+pnpm dev:init -- --target notice-index-publisher
+```
+
+统一 publisher 的本地入口是：
+
+```bash
+pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
+  --docs-embedding-set sha256:<docs-embedding-set-id> \
+  --notice-embedding-set sha256:<notice-embedding-set-id>
+```
+
+运行上述命令前，先用 `import-artifacts-local` 从集群 derived object store 导入两个 Embedding Set 的 serving
+引用闭包。导入使用临时 object-store port-forward，并写入当前 worktree 的隔离本地 bucket；不会复制整个
+bucket，也不会写入共享 bucket。发布验证使用本地 PostgreSQL/Qdrant 和本地 S3，不调用 embedding provider，
+也不形成线上前置状态。`dev:init -- --target campus-rag-index-publisher` 从正在运行的本地 Qdrant Compose
+容器读取 writer key 和 HTTP 映射端口，经认证检查后写入本 worktree 的托管环境文件。容器需先由
+`infra/local/docker-compose.qdrant.yml` 启动；连接或认证失败时初始化报错，凭据变化后重跑初始化即可更新。
 
 ## Ops Web API
 

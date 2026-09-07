@@ -10,9 +10,9 @@ Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流�
 - `model-config` 独立拥有模型目标、凭据和验证；`execution-control` 只读取 `primary_agent` target 并
   冻结服务返回的 hash，同时轮询 workflow、core activity 和 agent activity 三类 Temporal 队列；
 - Temporal 保存 workflow history、重试、超时、heartbeat 和 cancellation；
-- PostgreSQL 保存产品、运维和评测需要的有界投影；Campus Docs publisher 单独使用 serving schema
+- PostgreSQL 保存产品、运维和评测需要的有界投影；统一 Campus RAG publisher 使用 serving schema
   维护当前索引绑定；
-- Hindsight 保存个人记忆，Qdrant 保存当前 Campus Docs 索引的文档 chunk 正文与引用元数据。
+- Hindsight 保存个人记忆，Qdrant 保存当前 Campus RAG 索引的 Docs/Notice chunk 正文与引用元数据。
 
 ## Temporal 工作流
 
@@ -22,7 +22,7 @@ Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流�
 | `PersonalMemoryCommandWorkflow` | 个人记忆条目、会话和账户级变更 | `docs/architecture/system/memory-plane.md` |
 
 在线回答只使用 workflow、core activity 和 agent activity 三类 task queue。个人记忆函数工具在
-Agent Activity 内按需执行，不单独创建 Temporal activity；Campus Docs publisher 不属于在线回答链路。
+Agent Activity 内按需执行，不单独创建 Temporal activity；Campus RAG publisher 不属于在线回答链路。
 
 进程入口只负责配置、服务生命周期和退出协调；Temporal client、poller 与 queue 组装由运行时组装
 层拥有。各 queue 的 activity adapter 依赖窄 handler interface，不依赖 HTTP server 的具体类型，

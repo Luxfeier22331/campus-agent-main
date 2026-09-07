@@ -9,8 +9,8 @@ status: active
 ## 边界
 
 Campus Web 在 `/docs` 及正文固定链接提供公开目录、正文、历史版本和浏览器本地搜索。公开阅读与
-Campus Docs 检索 publisher 共享已清洗的 `source.json` 和 reader 输入，但分别生成静态站点与不可变
-向量索引；Campus Web 不创建或激活检索索引。
+Campus Docs Chunk builder 共享已清洗的 `source.json` 和 reader 输入，但分别生成静态站点与 RAG 制品；
+Campus Web 不创建或激活检索索引，统一 Campus RAG publisher 负责 Docs/Notice serving collection。
 
 ```text
 reader、课程图来源与图片
@@ -18,7 +18,7 @@ reader、课程图来源与图片
 ├-> Campus Web 构建进程校验 reader 并生成课程图
 │  -> 构建派生目录、搜索索引、静态资产和 HTML
 │  -> Cloudflare Assets 直接交付静态文件
-└-> Campus Docs index publisher（独立链路）
+└-> Campus Docs Chunk/Embedding builder -> Campus RAG unified publisher（独立链路）
 ```
 
 `app-api`、产品 PostgreSQL、Better Auth 和文档访问准入不在这条链路中。文档来源或构建失败不能
@@ -37,7 +37,7 @@ reader、课程图来源与图片
 | Cloudflare Assets | 直接提供文档、`/_docs/**`、重定向和 404 页面 | 请求 App API 获取文档或判断访问权限 |
 
 Campus Web 静态交付不维护独立 reader 发布 Job、文档数据库角色或运行时文档 API。独立 Campus Docs
-索引 publisher 由检索服务拥有，不属于静态交付链。
+builder 和 Campus RAG serving publisher 由检索服务拥有，不属于静态交付链。
 
 ## 构建边界
 

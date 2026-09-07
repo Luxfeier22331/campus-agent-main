@@ -1,8 +1,8 @@
 # Notice Chunk、Embedding 与本地评测
 
 该包负责已发布且有正文通知的 Chunk Run、Embedding Set，以及本地结构验证、广泛抽样、问题生成和
-Embedding dense-retrieval 评测。集群任务把正式制品写入 derived bucket；当前不发布 Qdrant
-collection，也不提供在线 RAG 消费入口。
+Embedding dense-retrieval 评测。集群任务把正式制品写入 derived bucket；本包不直接发布 Qdrant
+collection 或维护在线绑定，生产 serving 由 `jobs/campus-rag-index-publisher` 统一完成。
 
 ## 主链路
 
@@ -12,13 +12,16 @@ collection，也不提供在线 RAG 消费入口。
   -> 问题生成（直接消费 Chunk Run）
   -> Embedding 抽样或 Recall 评测
   -> 两个 Chunk Run 的离线对比
+  -> Notice Embedding Set
+  -> Campus RAG unified publisher
 ```
 
 Chunk Run 是问题生成和 Embedding 评测的唯一正文输入。
 
 ## 集群制品链路
 
-集群使用两个默认暂停的 Job 模板，阶段之间只传递显式内容寻址 ID：
+集群使用两个默认暂停的 Job 模板，阶段之间只传递显式内容寻址 ID；完成后由统一 serving publisher
+与 Docs Embedding Set 组装当前 collection：
 
 ```text
 notice-chunk-builder
@@ -27,13 +30,16 @@ notice-chunk-builder
   -> notice-embedding-builder
   -> notices/rag/embedding-cache/<model-target-sha256>/sha256/<text-sha256>.json
   -> notices/rag/embedding-sets/sha256/<set-id>/manifest.json
+  -> CAMPUS_NOTICE_EMBEDDING_SET
+  -> campus-rag-index-publisher
 ```
 
 `build-chunks` 在只读 repeatable-read 快照中读取 PostgreSQL，使用与本地相同的 v8 实现并写入 Chunk
 Run。`build-embeddings` 只读取显式 Chunk Run，从 Model Config 的 `campus_docs_embedding` 槽位读取完整
 连接，按 `retrievalText` 摘要去重。已有且通过校验的线上 cache 会复用，缺失输入才调用 Provider；每个
 成功 batch 立即写入 cache，最终仍写入 `notice_embedding_set.v1`。两个阶段不自动串联，不维护 `latest`
-指针，不写入 Qdrant 或通知数据库。
+指针，不写入 Qdrant 或通知数据库。统一 publisher 只读取该 Embedding Set 和其 Chunk Run，不连接 live
+Notices DB，也不重新 embedding。
 
 完整运行步骤见 `docs/runbooks/notice-indexing.md`。
 
@@ -87,6 +93,10 @@ var/notices/chunking/sha256/<run-digest>/
 ├── review-samples.ndjson
 └── validation.json
 ```
+
+Chunk Run 使用 `notice_chunk_run.v1`。builder 在同一次 repeatable-read 快照中生成 Chunk、review sample
+和 validation 诊断；统一 publisher 只消费 Chunk 数据，使用 `retrievalText` 首行生成 Notice title，并由
+`noticeId` 生成 `/notices/<noticeId>` citation，不读取 live Notices DB。
 
 ## Chunk 抽样与验证
 

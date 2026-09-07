@@ -130,8 +130,16 @@
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/campus-search-tool-contracts.v3.schema.json",
 			"owner": "packages/contracts",
-			"status": "active",
+			"status": "historical",
 			"notes": "Campus Docs search contract with version identity separated from UI labels."
+		},
+		{
+			"id": "campus-search-tool-contracts.v4",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/campus-search-tool-contracts.v4.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"notes": "Unified Campus Docs and published Notices search contract with source-aware result branches."
 		},
 		{
 			"id": "runtime-tool-function-schemas.v3",

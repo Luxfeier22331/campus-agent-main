@@ -16,6 +16,21 @@ export interface CampusDocumentSourceItemPayload {
 	versionSlug: string;
 }
 
+export interface CampusNoticeSourceItemPayload {
+	citationIndexes: number[];
+	kind: "campus_notice";
+	noticeId: string;
+	primaryAction: {
+		disabledReason: null;
+		external: false;
+		href: string;
+		label: "查看通知";
+	};
+	sectionTitle: string;
+	snippet: string | null;
+	title: string;
+}
+
 export interface WebPageSourceItemPayload {
 	citationIndexes: number[];
 	hostname: string;
@@ -30,7 +45,10 @@ export interface WebPageSourceItemPayload {
 	title: string;
 }
 
-export type SourceItemPayload = CampusDocumentSourceItemPayload | WebPageSourceItemPayload;
+export type SourceItemPayload =
+	| CampusDocumentSourceItemPayload
+	| CampusNoticeSourceItemPayload
+	| WebPageSourceItemPayload;
 
 export interface ChatStructuredPart {
 	sourceItems: SourceItemPayload[];

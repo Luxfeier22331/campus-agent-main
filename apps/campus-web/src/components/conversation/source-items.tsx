@@ -48,9 +48,11 @@ function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
 	const metadata =
 		sourceItem.kind === "web_page"
 			? [sourceItem.hostname]
-			: [sourceItem.collectionLabel, formatDocsVersionLabel(sourceItem.versionSlug)].filter(
-					Boolean,
-				);
+			: sourceItem.kind === "campus_notice"
+				? ["校园通知"]
+				: [sourceItem.collectionLabel, formatDocsVersionLabel(sourceItem.versionSlug)].filter(
+						Boolean,
+					);
 
 	return (
 		<div className="border-border/70 bg-surface-muted/20 rounded-md border px-3 py-2">
@@ -74,7 +76,8 @@ function SourceItemCard({ sourceItem }: { sourceItem: SourceItemPayload }) {
 				</div>
 				<SourceItemAction sourceItem={sourceItem} />
 			</div>
-			{sourceItem.kind === "campus_document" && sourceItem.sectionTitle ? (
+			{(sourceItem.kind === "campus_document" || sourceItem.kind === "campus_notice") &&
+			sourceItem.sectionTitle ? (
 				<p className="text-muted-foreground mt-1 line-clamp-1 text-xs">{sourceItem.sectionTitle}</p>
 			) : null}
 			{sourceItem.snippet ? (

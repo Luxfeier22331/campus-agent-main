@@ -6,8 +6,9 @@ status: active
 
 # 通知 Chunk 与 Embedding 制品
 
-本文运行两个默认暂停的集群模板，生成通知 Chunk Run 和 Embedding Set。它们不写入 Qdrant，不修改通知
-数据库，也不自动触发下一阶段。
+本文运行两个默认暂停的集群模板，生成通知 Chunk Run 和 Embedding Set。它们不直接写入 Qdrant、不修改
+通知数据库，也不自动触发下一阶段；完成的 Notice Embedding Set 由统一 Campus RAG publisher 与 Docs
+Embedding Set 组装为当前 serving collection。
 
 ## 构建 Chunk Run
 
@@ -66,6 +67,10 @@ notices/rag/embedding-sets/sha256/<id>/manifest.json
 ```
 
 同一内容寻址对象重复写入会验证已有内容；模板不包含 `NOTICE_CHUNK_RUN` 默认值，不扫描或选择最新制品。
+
+Chunk Run 使用 `notice_chunk_run.v1`。统一 publisher 只读取 Chunk 数据，从 `retrievalText` 首行生成 title，
+并由 `noticeId` 固定生成 `/notices/<noticeId>` citation；review sample 和 validation 仍作为离线诊断产物，
+不连接 live Notices DB，也不重新 embedding。
 
 ## 导入本地 Embedding Cache
 

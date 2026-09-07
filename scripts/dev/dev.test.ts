@@ -64,6 +64,11 @@ import {
 import { resolveLocalDevTargetPlan } from "./targets";
 
 const temporaryDirectories: string[] = [];
+const qdrant = {
+	apiKey: "fixture-qdrant-writer",
+	readOnlyApiKey: "fixture-qdrant-read-only",
+	url: "http://127.0.0.1:16333",
+};
 
 afterEach(() => {
 	for (const path of temporaryDirectories.splice(0)) {
@@ -440,7 +445,7 @@ describe("managed worktree environment", () => {
 	it("renders isolated endpoints and preserves generated secrets", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);
-		renderLocalEnvironmentFiles({ profile, repoRoot });
+		renderLocalEnvironmentFiles({ profile, qdrant, repoRoot });
 		const secretPath = resolve(repoRoot, "apps/app-api/.dev.vars.local");
 		const internalPortalCollectionPath = resolve(
 			repoRoot,
@@ -451,7 +456,7 @@ describe("managed worktree environment", () => {
 			internalPortalCollectionPath,
 			`${readFileSync(internalPortalCollectionPath, "utf8").trimEnd()}\nINTERNAL_PORTAL_SSO_TGC="TGT-local"\n`,
 		);
-		renderLocalEnvironmentFiles({ profile, repoRoot });
+		renderLocalEnvironmentFiles({ profile, qdrant, repoRoot });
 		const second = parseEnv(readFileSync(secretPath, "utf8"));
 
 		assert.equal(first.BETTER_AUTH_SECRET, second.BETTER_AUTH_SECRET);
@@ -593,7 +598,7 @@ describe("managed worktree environment", () => {
 
 	it("removes managed files while preserving a developer-owned file", () => {
 		const repoRoot = createRepositoryShape();
-		renderLocalEnvironmentFiles({ profile: createProfile(repoRoot), repoRoot });
+		renderLocalEnvironmentFiles({ profile: createProfile(repoRoot), qdrant, repoRoot });
 		const firstManagedPath = resolve(repoRoot, "apps/app-api/.env.local");
 		writeFileSync(resolve(repoRoot, "apps/ops-web/.env.local"), "USER_OWNED=1\n");
 		const cleanup = removeLocalEnvironmentFiles(repoRoot);
@@ -610,6 +615,7 @@ describe("managed worktree environment", () => {
 		const repoRoot = createRepositoryShape();
 		const rendered = renderLocalEnvironmentFiles({
 			profile: createProfile(repoRoot),
+			qdrant,
 			repoRoot,
 		});
 		assert.deepEqual(rendered.sort(), Object.values(managedLocalEnvironmentPaths(repoRoot)).sort());
@@ -735,6 +741,53 @@ describe("managed worktree environment", () => {
 			parseEnv(readFileSync(noticePaths[0] ?? "", "utf8")).NOTICES_DATABASE_SSLMODE,
 			"disable",
 		);
+
+		const ragPaths = renderLocalEnvironmentFiles({
+			profile,
+			qdrant,
+			repoRoot,
+			target: "campus-rag-index-publisher",
+		});
+		assert.deepEqual(ragPaths, [resolve(repoRoot, "jobs/campus-rag-index-publisher/.env.local")]);
+		assert.deepEqual(Object.keys(parseEnv(readFileSync(ragPaths[0] ?? "", "utf8"))).sort(), [
+			"EXECUTION_CONTROL_DATABASE_URL",
+			"OBJECT_STORE_BUCKET_DERIVED",
+			"OBJECT_STORE_DERIVED_ACCESS_KEY",
+			"OBJECT_STORE_DERIVED_READ_ACCESS_KEY",
+			"OBJECT_STORE_DERIVED_READ_SECRET_KEY",
+			"OBJECT_STORE_DERIVED_SECRET_KEY",
+			"OBJECT_STORE_ENDPOINT",
+			"QDRANT_API_KEY",
+			"QDRANT_URL",
+		]);
+		const ragPath = ragPaths[0] ?? "";
+		let ragEnvironment = parseEnv(readFileSync(ragPath, "utf8"));
+		assert.equal(ragEnvironment.QDRANT_API_KEY, qdrant.apiKey);
+		assert.equal(ragEnvironment.QDRANT_URL, qdrant.url);
+		assert.equal(ragEnvironment.OBJECT_STORE_BUCKET_DERIVED, profile.bucketName);
+		renderLocalEnvironmentFiles({
+			profile,
+			qdrant: { apiKey: "rotated-fixture-writer", url: "http://127.0.0.1:26333" },
+			repoRoot,
+			target: "campus-rag-index-publisher",
+		});
+		ragEnvironment = parseEnv(readFileSync(ragPath, "utf8"));
+		assert.equal(ragEnvironment.QDRANT_API_KEY, "rotated-fixture-writer");
+		assert.equal(ragEnvironment.QDRANT_URL, "http://127.0.0.1:26333");
+	});
+
+	it("does not generate a placeholder Qdrant key when its connection is missing", () => {
+		const repoRoot = createRepositoryShape();
+		assert.throws(
+			() =>
+				renderLocalEnvironmentFiles({
+					profile: createProfile(repoRoot),
+					repoRoot,
+					target: "campus-rag-index-publisher",
+				}),
+			/requires a resolved local Qdrant connection/u,
+		);
+		assert.equal(existsSync(managedLocalEnvironmentPaths(repoRoot).campusRagIndexPublisher), false);
 	});
 
 	it("does not inspect unrelated developer-owned environments for an index target", () => {
@@ -820,6 +873,11 @@ describe("local development lifecycle guards", () => {
 			"docs-source",
 		]);
 		assert.deepEqual(resolveLocalDevTargetPlan("campus-docs-index-publisher").bootstrapSteps, []);
+		assert.deepEqual(resolveLocalDevTargetPlan("campus-rag-index-publisher").capabilities, [
+			"postgres",
+			"derived-bucket",
+		]);
+		assert.deepEqual(resolveLocalDevTargetPlan("campus-rag-index-publisher").bootstrapSteps, []);
 		assert.deepEqual(resolveLocalDevTargetPlan("notice-index-publisher").bootstrapSteps, [
 			"campus-agent-schema",
 		]);
@@ -827,6 +885,7 @@ describe("local development lifecycle guards", () => {
 			"notice-publisher",
 			"internal-portal-collection",
 			"campus-docs-index-publisher",
+			"campus-rag-index-publisher",
 			"notice-index-publisher",
 		] as const) {
 			const plan = resolveLocalDevTargetPlan(target);
@@ -1280,7 +1339,11 @@ function createRepositoryShape(): string {
 	for (const job of ["notice-classifier", "notice-publisher"]) {
 		mkdirSync(resolve(repoRoot, "jobs", job), { recursive: true });
 	}
-	for (const job of ["campus-docs-index-publisher", "notice-index-publisher"]) {
+	for (const job of [
+		"campus-docs-index-publisher",
+		"campus-rag-index-publisher",
+		"notice-index-publisher",
+	]) {
 		mkdirSync(resolve(repoRoot, "jobs", job), { recursive: true });
 	}
 	return repoRoot;

@@ -48,6 +48,9 @@ const evidence: WorkflowEvidence = {
 	title: "校园通知",
 	excerpt: "通知正文",
 	citationIndex: 1,
+	noticeId: "notice-1",
+	citationHref: "/notices/notice-1",
+	sectionTitle: "正文",
 };
 
 describe("agent runtime HTTP handler", () => {
@@ -720,6 +723,10 @@ function evidenceWire(value: WorkflowEvidence) {
 		title: value.title,
 		excerpt: value.excerpt,
 		...(value.citationIndex === undefined ? {} : { citation_index: value.citationIndex }),
+		...(value.noticeId === undefined ? {} : { notice_id: value.noticeId }),
+		...(value.citationHref === undefined ? {} : { citation_href: value.citationHref }),
+		...(value.sectionTitle === undefined ? {} : { section_title: value.sectionTitle }),
+		...(value.rootUnitIds === undefined ? {} : { root_unit_ids: value.rootUnitIds }),
 	};
 }
 

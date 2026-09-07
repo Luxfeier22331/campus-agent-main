@@ -4,7 +4,7 @@
 		{
 			"type": "function",
 			"name": "campus_search",
-			"description": "检索中央民族大学当前 Campus Web 文档中的校内事实、政策和办事流程，返回供回答选择的候选结果。",
+			"description": "检索中央民族大学当前 Campus Web 文档与已发布通知中的校内事实、政策、办事流程和近期信息，返回供回答选择的候选结果。",
 			"strict": true,
 			"parameters": {
 				"type": "object",

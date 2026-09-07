@@ -52,6 +52,25 @@ describe("chat structured parts", () => {
 		]);
 	});
 
+	it("rejects a notice source whose citation href identifies another notice", () => {
+		expect(() =>
+			normalizeSourceItemsPart({
+				result: {
+					sources: [
+						{
+							citation_href: "/notices/54321",
+							citation_index: 1,
+							kind: "campus_notice",
+							notice_id: "12345",
+							title: "通知",
+						},
+					],
+				},
+				status: "completed",
+			}),
+		).toThrow("Execution source item 0 is invalid.");
+	});
+
 	it("drops persisted source items that do not use the current source contract", () => {
 		const parts = normalizeChatStructuredParts([
 			{
@@ -68,6 +87,32 @@ describe("chat structured parts", () => {
 						snippet: "学生应遵守校园网络使用规定。",
 						title: "学生手册",
 						versionSlug: "2026",
+					},
+				],
+				type: "source_items",
+			},
+		]);
+
+		expect(parts).toEqual([]);
+	});
+
+	it("drops persisted notice source cards whose href identifies another notice", () => {
+		const parts = normalizeChatStructuredParts([
+			{
+				sourceItems: [
+					{
+						citationIndexes: [1],
+						kind: "campus_notice",
+						noticeId: "12345",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: "/notices/54321",
+							label: "查看通知",
+						},
+						sectionTitle: "正文",
+						snippet: null,
+						title: "通知",
 					},
 				],
 				type: "source_items",

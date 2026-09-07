@@ -1,0 +1,12 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"extends": ["//"],
+	"tasks": {
+		"build": {
+			"inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"],
+			"outputs": ["dist/**"]
+		},
+		"test": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] },
+		"typecheck": { "inputs": ["$TURBO_DEFAULT$", "!README.md", "!**/README.md"] }
+	}
+}

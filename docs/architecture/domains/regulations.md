@@ -35,8 +35,8 @@ status: active
 -> Worker 交付静态文档
 ```
 
-同一 `campus_docs_source.v4` 及其派生的当前 reader 也由 Campus Docs publisher 消费。Campus Web 构建不会
-直接更新 Qdrant 或当前索引指针；publisher 需要独立构建、验证并激活新索引。
+同一 `campus_docs_source.v4` 及其派生的当前 reader 也由 Docs builder 消费。Campus Web 构建不会直接
+更新 Qdrant 或当前索引指针；统一 Campus RAG publisher 需要与显式 Notice 制品一起独立验证并激活新索引。
 
 Internal Portal 可以提供来源材料，但来源清单不会自动成为规章。把通知中的制度正文提升为
 `institutional_rules` 需要显式的规范文档物化、来源关联和质量检查；当前任务注册表没有实现该

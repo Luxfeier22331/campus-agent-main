@@ -123,7 +123,7 @@ spec:
         values:
           - campus-docs-chunk-builder
           - campus-docs-embedding-builder
-          - campus-docs-index-publisher
+          - campus-rag-index-publisher
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -148,7 +148,7 @@ spec:
         values:
           - campus-docs-chunk-builder
           - campus-docs-embedding-builder
-          - campus-docs-index-publisher
+          - campus-rag-index-publisher
   policyTypes: ["Egress"]
   egress:
     - to:
@@ -190,7 +190,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: campus-docs-index-publisher
+      app.kubernetes.io/name: campus-rag-index-publisher
   policyTypes: ["Egress"]
   egress:
     - to:

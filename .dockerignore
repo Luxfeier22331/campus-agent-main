@@ -27,6 +27,8 @@ apps/campus-web/**
 !jobs/campus-agent-schema/**
 !jobs/campus-docs-index-publisher/
 !jobs/campus-docs-index-publisher/**
+!jobs/campus-rag-index-publisher/
+!jobs/campus-rag-index-publisher/**
 !jobs/internal-portal-collection/
 !jobs/internal-portal-collection/**
 jobs/internal-portal-collection/**/.env

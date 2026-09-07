@@ -39,9 +39,6 @@ describe("local Campus docs embedding commands", () => {
 			kind: "build-embeddings",
 			reuseEmbeddingSet: embeddingSet,
 		});
-		expect(parseCommand(["publish-index"], {
-			CAMPUS_DOCS_EMBEDDING_SET: embeddingSet,
-		})).toEqual({ embeddingSet, kind: "publish-index" });
 	});
 
 	it("rejects missing environment selections and retired online flags", () => {
@@ -49,12 +46,12 @@ describe("local Campus docs embedding commands", () => {
 			"CAMPUS_DOCS_CHUNK_SET is required",
 		);
 		expect(() => parseCommand(["publish-index"], {})).toThrow(
-			"CAMPUS_DOCS_EMBEDDING_SET is required",
+			"Usage: build-chunks | build-embeddings",
 		);
 		expect(() => parseCommand(
 			["publish-index", "--embedding-set", embeddingSet],
 			{ CAMPUS_DOCS_EMBEDDING_SET: embeddingSet },
-		)).toThrow("Usage: build-chunks");
+		)).toThrow("Usage: build-chunks | build-embeddings");
 	});
 
 	it("uses the explicit embedding set for local publish", () => {

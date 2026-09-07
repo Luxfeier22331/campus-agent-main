@@ -394,6 +394,10 @@ func campusDocsCandidateFromQdrantPoint(
 		return campusDocsCandidate{}, err
 	}
 	payload := point.Payload
+	sourceKind := execution.FirstNonEmptyText(payload["source_kind"])
+	if sourceKind == "notice" {
+		return campusNoticeCandidateFromQdrantPoint(index, point)
+	}
 	required := map[string]string{
 		"schema_version":        execution.FirstNonEmptyText(payload["schema_version"]),
 		"chunk_id":              execution.FirstNonEmptyText(payload["chunk_id"]),
@@ -412,7 +416,7 @@ func campusDocsCandidateFromQdrantPoint(
 			return campusDocsCandidate{}, fmt.Errorf("campus docs Qdrant payload %s is required", field)
 		}
 	}
-	if required["schema_version"] != "campus_docs_point.v3" {
+	if required["schema_version"] != "campus_docs_point.v3" && required["schema_version"] != "campus_rag_point.v1" {
 		return campusDocsCandidate{}, errors.New("campus docs Qdrant payload schema is unsupported")
 	}
 	if !campusdocs.ValidVersionSlug(required["version_slug"]) ||
@@ -450,6 +454,55 @@ func campusDocsCandidateFromQdrantPoint(
 			VersionID:    required["version_id"],
 			VersionSlug:  required["version_slug"],
 			Text:         required["text"],
+		},
+	}, nil
+}
+
+func campusNoticeCandidateFromQdrantPoint(
+	index campusdocs.Index,
+	point qdrantPoint,
+) (campusDocsCandidate, error) {
+	payload := point.Payload
+	required := map[string]string{
+		"schema_version":        execution.FirstNonEmptyText(payload["schema_version"]),
+		"chunk_id":              execution.FirstNonEmptyText(payload["chunk_id"]),
+		"notice_id":             execution.FirstNonEmptyText(payload["notice_id"]),
+		"title":                 execution.FirstNonEmptyText(payload["title"]),
+		"section_title":         execution.FirstNonEmptyText(payload["section_title"]),
+		"citation_href":         execution.FirstNonEmptyText(payload["citation_href"]),
+		"text":                  execution.FirstNonEmptyText(payload["text"]),
+		"text_sha256":           execution.FirstNonEmptyText(payload["text_sha256"]),
+		"retrieval_text_sha256": execution.FirstNonEmptyText(payload["retrieval_text_sha256"]),
+	}
+	for field, value := range required {
+		if value == "" {
+			return campusDocsCandidate{}, fmt.Errorf("campus notice Qdrant payload %s is required", field)
+		}
+	}
+	if required["schema_version"] != "campus_rag_point.v1" ||
+		!campusdocs.ValidNoticeCitationHrefForNoticeID(required["citation_href"], required["notice_id"]) ||
+		!execution.ValidSHA256Ref(required["text_sha256"]) ||
+		execution.SHA256TextRef(required["text"]) != required["text_sha256"] ||
+		!execution.ValidSHA256Ref(required["retrieval_text_sha256"]) {
+		return campusDocsCandidate{}, errors.New("campus notice Qdrant payload is invalid")
+	}
+	if math.IsNaN(point.Score) || math.IsInf(point.Score, 0) {
+		return campusDocsCandidate{}, errors.New("campus notice Qdrant score is invalid")
+	}
+	if textLength := utf8.RuneCountInString(required["text"]); textLength < 1 || textLength > campusdocs.EvidenceCharBudget {
+		return campusDocsCandidate{}, errors.New("campus notice Qdrant payload text length is invalid")
+	}
+	dedupKey := strings.Join([]string{index.Collection, "notice", required["chunk_id"], required["text_sha256"]}, "\x00")
+	return campusDocsCandidate{
+		dedupKey: dedupKey,
+		result: campusdocs.SearchResultItem{
+			CitationHref: required["citation_href"],
+			NoticeID:     required["notice_id"],
+			ResultRef:    "result://" + strings.TrimPrefix(execution.SHA256TextRef(dedupKey), "sha256:"),
+			SectionTitle: required["section_title"],
+			SourceKind:   "notice",
+			Text:         required["text"],
+			Title:        required["title"],
 		},
 	}, nil
 }

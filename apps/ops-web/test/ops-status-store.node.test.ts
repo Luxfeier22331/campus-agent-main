@@ -259,6 +259,34 @@ describe("PostgreSQL ops status store", () => {
 						title: "协议页面",
 						versionSlug: "2026",
 					},
+					{
+						citationIndexes: [5],
+						kind: "campus_notice",
+						noticeId: "354516",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: " /notices/354516 ",
+							label: "查看通知",
+						},
+						sectionTitle: "正文",
+						snippet: null,
+						title: "有效通知",
+					},
+					{
+						citationIndexes: [6],
+						kind: "campus_notice",
+						noticeId: "354517",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: "/notices/354516",
+							label: "查看通知",
+						},
+						sectionTitle: "正文",
+						snippet: null,
+						title: "不一致通知",
+					},
 				],
 				type: "source_items",
 			},
@@ -299,6 +327,14 @@ describe("PostgreSQL ops status store", () => {
 			href: null,
 		});
 		expect(detailWithOrigin.result.sources[3]?.primaryAction).toMatchObject({
+			disabledReason: "来源链接地址无效。",
+			href: null,
+		});
+		expect(detailWithOrigin.result.sources[4]?.primaryAction).toMatchObject({
+			disabledReason: null,
+			href: "/notices/354516",
+		});
+		expect(detailWithOrigin.result.sources[5]?.primaryAction).toMatchObject({
 			disabledReason: "来源链接地址无效。",
 			href: null,
 		});

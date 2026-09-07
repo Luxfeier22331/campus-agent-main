@@ -8,7 +8,7 @@ status: active
 
 ## 边界
 
-本文记录源码仓可确认的 PostgreSQL、对象存储和 Campus Docs 恢复事实，以及环境 owner 在恢复演练中
+本文记录源码仓可确认的 PostgreSQL、对象存储和 Campus RAG 恢复事实，以及环境 owner 在恢复演练中
 必须提供的证据。它不创建备份供应商、恢复控制器或自动清理任务，也不把仓库清单当作生产环境状态。
 
 ## 当前清单事实
@@ -40,7 +40,9 @@ status: active
 3. 将对象恢复到隔离 bucket/prefix；保留对象 key、VersionId、delete marker 和 checksum。
 4. 在隔离目标核对 schema migration ledger、schema owner、runtime grants、关键表约束和索引。
 5. 按 `source.json` 及其 reader、补充对象引用核对 `byteSize` 与 `sha256`；不从 bucket listing 推断存活集合。
-6. 核对 `campus_docs_serving.current_index` 指向的 Qdrant collection 是否存在、配置一致且 point 可读。
+6. 核对 `campus_docs_serving.current_index` 指向的统一 Qdrant collection 是否存在、配置一致，且同时
+   包含 Docs 与 Notice point；按显式 Docs/Notice Embedding Set 引用核对两条 artifact chain 的 manifest、
+   Chunk/Chunk Run 和向量数量。
 7. 通过所属应用的健康检查和最小读取/写入演练验证恢复目标，再由环境 owner 决定是否切换。
 
 ## 数据边界
@@ -51,7 +53,8 @@ status: active
 - Temporal/platform 负责 workflow history retention，不由账号删除任务即时清除；
 - Hindsight 负责 personal memory bank 和内容；
 - 来源 owner 负责门户原始 source/file/source.json；
-- Campus Docs serving 负责 chunk/embedding 制品、当前索引和旧 collection 的人工清理。
+- Campus RAG serving 负责 Docs/Notice chunk/embedding 制品、统一当前索引和旧 collection 的人工清理；
+  `jobs/campus-rag-index-publisher` 是 `campus_docs_serving.current_index` 的唯一写入者。
 
 恢复演练不得把这些不同 owner 的事实合并成一个 PostgreSQL 表，也不得复制 Hindsight、Temporal 或 Qdrant
 的内部历史来“补齐”恢复证据。

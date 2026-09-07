@@ -60,7 +60,7 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 | `runtime.request_observability_fact` | App API 产品终态 | App API |
 | `execution_control.agent_*`、`execution_control.conversation_run_locks`、`execution_control.personal_memory_*`、`execution_control.owner_deletion_fences` | execution-control | execution-control、获准 Ops Web 投影 |
 | `model_config.model_configs` | Model Config | Model Config；其他消费者只通过内部 HTTP 合同 |
-| `campus_docs_serving.current_index` | Campus Docs serving（publisher 复用 `execution_control` 技术身份写入） | Campus Docs publisher、execution-control Campus Search |
+| `campus_docs_serving.current_index` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher、execution-control Campus Search |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
 | `internal_portal.credentials`、`internal_portal.automation_tokens` | Ops Web | Ops Web；internal-portal-collection 只通过内部解析 API 消费结果 |
@@ -77,11 +77,13 @@ ingestion registry 和来源事实由采集数据所有者维护，不并入产�
 `execution_control.personal_memory_owner_fences` 承载。历史遗留的 `runtime.*` 兼容 View 无当前消费者，
 由统一 migration `0002_remove_runtime_personal_memory_compat_views` 删除，不改变底层表、数据或权限。
 
-Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs serving 逻辑上拥有
-`campus_docs_serving.current_index` 单行绑定；publisher 继续复用 `execution_control` 数据库身份
-读取并写入该绑定。在线 execution-control 的 Campus Search 也使用该身份读取当前绑定，但在线代码路径
-只消费该记录，不承担发布写入职责。由于 publisher 与在线 execution-control 共享技术身份，数据库 ACL
-不能进一步区分两条进程路径；当前不因此创建独立数据库角色、连接字符串或 Secret。
+Campus Web 静态文档发布只使用对象存储和构建产物。Campus RAG serving 逻辑上拥有
+`campus_docs_serving.current_index` 单行绑定；唯一 current pointer writer 是
+`jobs/campus-rag-index-publisher`，继续复用 `execution_control` 数据库身份读取并写入该绑定。Docs 和
+Notice Chunk/Embedding builder 不写入该表。在线 execution-control 的 Campus Search 也使用该身份读取
+当前绑定，但在线代码路径只消费该记录，不承担发布写入职责。由于 publisher 与在线 execution-control
+共享技术身份，数据库 ACL 不能进一步区分两条进程路径；当前不因此创建独立数据库角色、连接字符串或
+Secret。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 通知 schema 与显式发布 Job 同样复用既有 `campus_agent` owner Secret；部署环境不需要
 `notice_publisher` 登录或密码，本地通知发布仍使用独立的 `notice_publisher` 运行角色。
@@ -123,8 +125,8 @@ Campus Web 静态文档发布只使用对象存储和构建产物。Campus Docs 
 | Hindsight personal memory | Hindsight；execution-control 推进删除命令 | 账号清除合同；execution-control 不保存正文 |
 | 门户原始 source/file/source.json | 采集/来源数据面 | 按来源清单和业务引用决定；由来源 owner 人工核对清理 |
 | normalized reader/source manifest | Campus Docs/Campus Web 数据面 | 当前及仍被清单引用的历史对象保留 |
-| chunk/embedding 内容寻址制品 | Campus Docs retrieval serving | 由显式引用或人工清单治理，不加宽泛 TTL |
-| 当前索引及旧 Qdrant collection | Campus Docs serving | 当前 collection 保留；旧 collection 人工核对后删除 |
+| Docs/Notice chunk/embedding 内容寻址制品 | Campus RAG retrieval serving | 由显式引用或人工清单治理，不加宽泛 TTL |
+| 当前索引及旧 Qdrant collection | Campus RAG serving | 当前 collection 保留；旧 collection 人工核对后删除 |
 | logs/traces/evaluation records | 各观测/评测系统 | 各系统自己的 retention 合同 |
 
 对象存储 lifecycle 只表达已确认的阶段性规则，不替代数据 owner 对 source、normalized、chunk 和
@@ -147,7 +149,7 @@ embedding 制品的存活判断。未有明确引用或删除清单时，本仓�
 | campus-agent schema migrator | 1 | 统一 Job 的 PostgreSQL client |
 | Ops Web bootstrap/dining | 1 | bootstrap 进程显式使用单连接 pool |
 | notice-publisher | 1 | Job 进程显式使用单连接 pool |
-| Campus Docs publisher | 1 | 使用单个 PostgreSQL client |
+| Campus RAG publisher | 1 | 使用单个 PostgreSQL client |
 
 `ingestion-control` 已退役，也不计入当前预算。App API Worker 的 Hyperdrive 连接数由 Cloudflare
 平台和环境仓配置拥有，源码仓不能给它假定一个本地 pool 上限。
@@ -178,8 +180,8 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
   投影使用的精确列读取。Ops Web bootstrap 不创建、扩大或收回 execution-control 表权限；
 - 在线模型配置只能通过 Model Config 管理接口修改，Ops Web 不直连其 schema；
 - `execution_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
-  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；发布任务和在线 Campus Search
-  复用该身份，前者负责激活当前绑定，后者只读取当前绑定；
+  但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；统一 Campus RAG publisher 和在线
+  Campus Search 复用该身份，前者负责激活当前绑定，后者只读取当前绑定；Docs/Notice builder 不访问该表；
 - `model_config.model_configs` 可以为空或只配置一个 name；schema 安装不把业务配置完整性
   变成部署门禁。缺失 name 由其消费路径失败关闭。
 - App API 读取 Dining 当前发布地图、菜单和公开评价；可创建或删除学生自己的评价并创建举报，

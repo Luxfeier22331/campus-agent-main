@@ -4,16 +4,18 @@ owner_boundary: retrieval-serving
 status: active
 ---
 
-# Campus Docs 维护与索引发布
+# Campus Docs 与 Notices 维护及统一 RAG 发布
 
 ## 边界
 
-本文说明如何把整理后的 Campus Web 文档更新到对象存储、刷新静态文档候选，并按三个独立阶段手动
-构建 Campus Docs 检索索引。它不负责来源采集、正文清洗方法、普通运行时发布或环境 Secret 创建。
+本文说明如何把整理后的 Campus Web 文档更新到对象存储、刷新静态文档候选，分别构建 Docs/Notice
+Chunk 与 Embedding 制品，并由一个统一 serving publisher 发布 Campus RAG 索引。它不负责来源采集、
+正文清洗方法、普通运行时发布或环境 Secret 创建。
 
-共享输入只有对象存储中的 `campus-docs/source.json` 及其引用对象。Campus Web 静态构建和 Campus Docs
-RAG 制品和 Campus Web 静态站是两个独立消费者，各自产生不可变产物并独立失败；二者之间没有跨系统
-事务或第二个文档版本指针。在线 Agent 只通过 `campus_search` 读取已发布的当前 collection。
+Docs 的共享输入是对象存储中的 `campus-docs/source.json` 及其引用对象；Notice 的输入是
+`notice-publisher` 已发布正文。静态站、Docs builder、Notice builder 和统一 publisher 是独立消费者，
+各自产生或消费不可变制品并独立失败；二者之间没有跨系统事务或第二个索引指针。在线 Agent 只通过
+`campus_search` 读取已发布的当前 collection。
 
 ## 维护规则
 
@@ -23,8 +25,10 @@ RAG 制品和 Campus Web 静态站是两个独立消费者，各自产生不可�
 历史 reader 只要仍被清单引用就不能清理。
 
 生命周期 owner 也按阶段区分：来源 owner 管理门户原始对象和来源清单，Campus Web/Campus Docs 数据面
-管理仍被清单引用的 normalized reader 与补充资产，Campus Docs serving 管理 chunk/embedding 制品和
-当前 Qdrant collection。对象是否存在于 bucket 不等于仍可删除；本手册中的清理都是人工核对的明确集合。
+管理仍被清单引用的 normalized reader 与补充资产，Notice 数据面管理已发布正文，Campus RAG serving
+管理两类 chunk/embedding 制品、当前 Qdrant collection 和旧 collection。统一 publisher 是
+`campus_docs_serving.current_index` 的唯一写入者。对象是否存在于 bucket 不等于仍可删除；本手册中的
+清理都是人工核对的明确集合。
 
 ## 更新来源
 
@@ -51,7 +55,7 @@ Web Worker version；环境是否选择该 version 仍由环境仓决定。
 每个当前版本同时生成普通文档 URL 和 `/v/<versionSlug>` 固定链接。静态构建和 RAG 构建是同一来源的
 独立消费者，可以分别运行；任一消费者失败时只修复并重跑所属构建，不回滚已经写入的来源清单。
 
-## 本地 Chunk 与 Embedding 构建
+## 本地 Docs Chunk 与 Embedding 构建
 
 首次在当前 worktree 使用本地任务时，先生成 Campus Docs publisher 自己的环境文件：
 
@@ -71,7 +75,7 @@ worktree 的 `var/campus-docs/rag/`。Chunk identity、reader 元素覆盖、sec
 `retrievalText` 来源、字符上限或表格单元格覆盖不满足时，命令失败且不写 Chunk Set。该阶段不访问
 embedding provider、PostgreSQL 或 Qdrant。
 
-使用输出的 Chunk Set 和当前 worktree 根 `.env` 中的 Provider 连接生成本地 Embedding Set：
+使用输出的 Chunk Set 和当前 worktree 根 `.env` 中的 Provider 连接生成本地 Docs Embedding Set：
 
 ```bash
 pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
@@ -82,6 +86,28 @@ pnpm --dir jobs/campus-docs-index-publisher build-embeddings -- \
 `Qwen3-Embedding-4B`，并根据规范化 endpoint 和固定模型合同计算 Model Target hash。它只读写当前
 worktree 的 `var/campus-docs/rag/`，不访问 Model Config、execution-control、Ops Web、PostgreSQL、
 Qdrant 或集群对象存储。它与线上 Embedding Job 共用制品生成实现；差别只有本地连接和文件 Store。
+
+## 本地 Notice Chunk 与 Embedding 构建
+
+Notice 的 Chunk/Embedding builder 保留在 `notice-index-publisher`，不由 Docs package 重新处理。首次使用
+时生成其本地环境文件，并从本地 Notices 数据库生成显式 Chunk Run：
+
+```bash
+pnpm dev:init -- --target notice-index-publisher
+pnpm --dir jobs/notice-index-publisher build-chunks-local
+```
+
+使用输出的 `run` 生成 Notice Embedding Set。命令只读取该显式 Chunk Run；线上版本从 Model Config 读取
+一次 `campus_docs_embedding` 连接，本地版本读取当前 worktree 的 embedding 连接：
+
+```bash
+NOTICE_CHUNK_RUN=sha256:<chunk-run-id> \
+pnpm --dir jobs/notice-index-publisher build-embeddings
+```
+
+Notice Chunk Run 使用 `notice_chunk_run.v1`。Embedding Set 只保存向量和显式 Chunk Run 引用；这些阶段不访问
+Qdrant、不维护 `current_index`，也不重新生成 Docs 制品。统一 publisher 从 Chunk `retrievalText` 首行生成
+Notice title，并由 `noticeId` 生成 `/notices/<noticeId>` citation。
 
 ## Chunk 策略治理验证
 
@@ -154,10 +180,11 @@ pnpm --dir jobs/campus-docs-index-publisher compare-chunks-local -- \\
 结果；不以短 Chunk 数量单独判断策略优劣。只有候选策略经过结构、广泛抽样和真实 embedding 证据综合
 判断后，才另行决定是否生成新的生产 Chunk Set；本次治理不自动切换生产分块定义。
 
-## 本地 Publish 验证
+## 本地 Docs Publish 验证
 
-本地 Embedding Set 生成后，使用本地真实 Qdrant 和当前对象存储 source 执行 publish。命令只读取
-`var/` 中的 Embedding/Chunk 制品，不调用 provider，也不向对象存储写入 RAG 制品：
+旧 Docs package 的 `publish-index-local` 仅用于本地 Docs-only 实现验证；它不是线上 serving owner，也
+不能验证包含 Notice 的统一 collection。命令只读取 `var/` 中的 Docs Embedding/Chunk 制品，不调用
+provider，也不向对象存储写入 RAG 制品：
 
 ```bash
 EXECUTION_CONTROL_DATABASE_URL=postgresql://<local-user>:<local-password>@127.0.0.1:5432/<local-database>?sslmode=disable \
@@ -166,32 +193,79 @@ pnpm --dir jobs/campus-docs-index-publisher publish-index-local -- \
   --embedding-set sha256:<embedding-set-id>
 ```
 
-首次运行可检查 Qdrant collection、全量 point 读回和 `campus_docs_serving.current_index`；同一制品
-再次运行可检查 `no_op: true`。该命令服务本地实现验证，不是触发线上 Publisher Job 的前置状态。
+首次运行可检查 Docs-only Qdrant collection、全量 point 读回和 `campus_docs_serving.current_index`；同一
+制品再次运行可检查 `no_op: true`。该命令服务本地兼容实现验证，不是触发线上统一 Publisher Job 的
+前置状态。统一 Publisher 的生产验证使用两个线上 Embedding Set，按下节的 Job 顺序执行。
+
+## 本地统一 RAG 发布验证
+
+统一 Publisher 的本地验证使用与生产相同的组装、Qdrant 校验和 `current_index` 激活逻辑。验证前从集群
+derived object store 导入两个 Embedding Set 的 serving 引用闭包到当前 worktree 的隔离本地 bucket。它只验证
+发布阶段，不运行 Chunk、Embedding、provider 或在线查询。
+
+先确保本地 Qdrant Compose 服务已启动，再初始化当前 worktree 的 publisher 环境和本地 schema。
+publisher 初始化从运行中的容器取得 writer key 和 HTTP 映射端口，完成认证检查后生成环境文件：
+
+```bash
+pnpm dev:init -- --target campus-rag-index-publisher
+pnpm dev:init -- --target notice-index-publisher
+```
+
+从集群导入本次两个 Embedding Set：
+
+```bash
+pnpm --dir jobs/campus-rag-index-publisher import-artifacts-local -- \
+  --namespace campus-agent-staging \
+  --context <kubectl-context> \
+  --docs-embedding-set sha256:<docs-embedding-set-id> \
+  --notice-embedding-set sha256:<notice-embedding-set-id>
+```
+
+导入器只复制两个 Embedding Set 实际引用的 serving immutable 对象，保持生产 object key，不复制整个 bucket，
+也不写入集群 bucket。
+
+运行验证：
+
+```bash
+pnpm --dir jobs/campus-rag-index-publisher publish-index-local -- \
+  --docs-embedding-set sha256:<docs-embedding-set-id> \
+  --notice-embedding-set sha256:<notice-embedding-set-id>
+```
+
+命令会读取并校验 serving 所需的两条 artifact chain，创建并校验混合 Docs/Notice collection，然后激活
+`campus_docs_serving.current_index`。成功后检查输出的 `collection`、`point_count` 和 `no_op`，并在本地
+数据库确认 current binding；使用相同两个 ID 重跑应返回 `no_op: true`。缺少或篡改任一引用对象时必须
+失败且不改变 current binding。
+
+本地 publisher 的 `.env.local` 使用当前 worktree 的隔离本地 S3 bucket 和 writer 凭据；`publish-index-local`
+只读取该 bucket，不回退到 filesystem。没有两套已完成且格式符合合同的 Embedding Set 时，停止发布
+验证，不在该命令中重新生成 embedding。
 
 ## RAG 制品
 
-本地 Chunk 命令只读对象存储中的当前 source 和 reader，本地 Embedding 命令只读本地 Chunk Set；二者
-按[文档阅读器数据模型](../data/document-reader.md)定义的相对布局写入当前 worktree 的 `var/`。这些文件
-用于本地检查，不是线上候选，也不通过上传进入下一阶段。线上 Chunk 与 Embedding Job 将同一布局写入
-derived bucket，所有正式对象都按内容寻址。
+本地 Docs Chunk 命令只读对象存储中的当前 source 和 reader，本地 Docs Embedding 命令只读本地 Docs
+Chunk Set；Notice builder 则从已发布 Notice 快照生成 Chunk Run，再生成 Notice Embedding Set。各自按
+领域定义的相对布局写入当前 worktree 的 `var/`。这些文件用于本地检查，不是线上候选，也不通过上传
+进入下一阶段。线上两个 builder 将同一制品合同写入 derived bucket，所有正式对象都按内容寻址。
 
 NDJSON 和 manifest 都使用规范序列化并以换行结尾。写入使用 `If-None-Match: *`；同键同内容是幂等
 重跑，不同内容是错误。系统不维护 `latest` 制品指针，下一阶段必须显式接收上一阶段输出的
 `sha256:<id>`。
 
-三个 Job 使用现有 derived bucket 身份。Chunk 和 Embedding Job 写入各自的数据与 manifest；Publisher
-只读取显式制品并发布 Qdrant/当前指针，不写入新的对象存储制品，也不创建单独的对象存储 Secret 或
-只读/写入两套 Campus Docs 凭据。
+四个 builder Job 使用现有 derived bucket 身份。Docs/Notice Chunk 和 Embedding Job 写入各自的数据与
+manifest；统一 Publisher 只读取显式 Docs/Notice Embedding Set，组装一个同时包含两类 point 的 Qdrant
+collection，并写入当前指针。Publisher 不写入新的对象存储制品，不访问 Notices DB 或 embedding provider，
+也不创建单独的 serving artifact Secret。
 
 ## 手动执行
 
-`CronJob/campus-docs-chunk-builder`、`CronJob/campus-docs-embedding-builder` 和
-`CronJob/campus-docs-index-publisher` 各自保存一个完整阶段的 Pod 模板，必须保持 `suspend: true`，不得
-通过解除暂停执行。维护者只使用 `kubectl` 从模板创建一次性 Job；Embedding 和 Publisher 的内容寻址
-输入只写入本次 Job，不保存到 CronJob、ConfigMap 或 Secret。每个 Job 不等待或触发下一阶段。
+`CronJob/campus-docs-chunk-builder`、`campus-docs-embedding-builder`、`notice-chunk-builder`、
+`notice-embedding-builder` 和 `campus-rag-index-publisher` 各自保存一个完整阶段的 Pod 模板，必须保持
+`suspend: true`，不得通过解除暂停执行。维护者只使用 `kubectl` 从模板创建一次性 Job；Embedding 和
+Publisher 的内容寻址输入只写入本次 Job，不保存到 CronJob、ConfigMap 或 Secret。每个 Job 不等待或触发
+下一阶段。
 
-### 1. 构建 Chunk Set
+### 1. 构建 Docs Chunk Set
 
 ```bash
 kubectl -n <namespace> create job \
@@ -205,7 +279,7 @@ kubectl -n <namespace> create job \
 该 Job 只访问来源、reader 和 derived bucket，不访问 execution-control、PostgreSQL、Qdrant 或
 embedding provider。
 
-### 2. 构建 Embedding Set
+### 2. 构建 Docs Embedding Set
 
 ```bash
 kubectl -n <namespace> create job \
@@ -240,29 +314,59 @@ Model Target hash；该 hash 直接来自完整配置响应。只有 hash 与检
 Publisher 显式使用日志返回的
 `embedding_set`。`campus_docs_embedding_set.v1` 已退役，不能作为 `--reuse-embedding-set` 输入。
 
-### 3. 发布 Index
+### 3. 构建 Notice Chunk Run
+
+在 ingestion runtime 中从已发布 Notice 的 repeatable-read 快照生成 Chunk Run：
 
 ```bash
 kubectl -n <namespace> create job \
-  --from=cronjob/campus-docs-index-publisher <job-name> \
+  --from=cronjob/notice-chunk-builder <job-name>
+```
+
+成功日志包含 `chunk_run`、`chunk_count` 和 `notice_count`。该 Job 读取 Notices 数据库并写入 derived bucket，
+但不访问 Qdrant 或 `current_index`；review sample 和 validation 仅供离线诊断。
+
+### 4. 构建 Notice Embedding Set
+
+```bash
+kubectl -n <namespace> create job \
+  --from=cronjob/notice-embedding-builder <job-name> \
   --dry-run=client -o yaml |
 kubectl set env --local -f - \
-  CAMPUS_DOCS_EMBEDDING_SET=sha256:<embedding-set-id> -o yaml |
+  NOTICE_CHUNK_RUN=sha256:<chunk-run-id> -o yaml |
 kubectl -n <namespace> create -f -
 ```
 
-Publisher 只读取显式 Embedding Set，并从其 manifest 解析 Chunk Set；不读取 reader，也不调用
-embedding provider。Qdrant collection 后缀由显式 Embedding Set ID 与当前 Collection Definition 的
-规范 JSON 摘要形成：
+Notice Embedding Job 只读取显式 Chunk Run，从 Model Config 一次读取 `campus_docs_embedding`，按
+`retrievalTextSha256` 复用显式可验证 cache 或调用 provider，最后写入 `notice_embedding_set.v1`。
+它不访问 Qdrant、`current_index` 或 Docs reader。
+
+### 5. 发布统一 Campus RAG Index
+
+```bash
+kubectl -n <namespace> create job \
+  --from=cronjob/campus-rag-index-publisher <job-name> \
+  --dry-run=client -o yaml |
+kubectl set env --local -f - \
+  CAMPUS_DOCS_EMBEDDING_SET=sha256:<docs-embedding-set-id> \
+  CAMPUS_NOTICE_EMBEDDING_SET=sha256:<notice-embedding-set-id> -o yaml |
+kubectl -n <namespace> create -f -
+```
+
+统一 Publisher 只读取两个显式 Embedding Set，并从各自 manifest 解析 Docs Chunk Set 和 Notice Chunk
+Run；不读取 reader、不连接 Notices 数据库，也不调用 embedding provider。它把两套已生成向量组装为一个
+混合 Docs/Notice collection，Docs point 使用 `source_kind=document`，Notice point 使用
+`source_kind=notice`，Notice citation 固定为 `/notices/<noticeId>`。Qdrant collection 后缀由两个
+Embedding Set ID 与当前 Collection Definition 的规范 JSON 摘要形成：
 
 ```text
 campus_docs_<sha256>
 ```
 
-Publisher 写入并完整校验 Qdrant points 后，重新读取 `source.json`，只比较会影响当前索引的文档投影。
-投影未变化时才原子替换 PostgreSQL `campus_docs_serving.current_index`。成功 JSON 包含 `collection`、
-`point_count` 和 `no_op`。Publisher 复用 `execution_control` 数据库连接，不创建独立 role、DSN 或
-数据库 Secret。
+Publisher 写入并完整校验 Qdrant points 后，原子替换 PostgreSQL `campus_docs_serving.current_index`。成功
+JSON 包含 `collection`、`point_count` 和
+`no_op`。Publisher 是该 current pointer 的唯一写入者，复用 `execution_control` 数据库连接，不创建
+独立 role、DSN 或数据库 Secret。
 
 PostgreSQL advisory lock 只保护发布阶段的当前绑定替换。同一时刻已有 Publisher 时，新 Publisher Job
 立即失败；Chunk 和 Embedding 阶段不使用该锁。
@@ -280,15 +384,19 @@ CronJob 的任务历史设置不管理由上述命令创建的独立 Job。
 
 ## 验证与失败处理
 
-- reader、摘要或清单关系无效：修复来源对象或候选清单，重新运行 Chunk Job；
-- provider 快照或 embedding 调用失败：当前索引不变；修复 Ops Web 中的连接并重新运行 Embedding Job；
-- embedding set 或其 chunk set 引用无效：Publisher 在写 Qdrant 前失败，使用正确的 Embedding Set ID
-  重跑；
-- 新 collection 写入、校验或来源末次核对失败：Publisher 删除本次新建 collection，当前绑定不变；
+- Docs reader、摘要或清单关系无效：修复来源对象或候选清单，重新运行 Docs Chunk Job；
+- Notice Chunk Run 或其 serving 数据无效：修复已发布 Notice 或 Notice builder 输入，重新运行
+  Notice Chunk Job；
+- provider 快照或 embedding 调用失败：当前索引不变；修复 Model Config 中的连接并重新运行对应
+  Embedding Job；已有合法向量可按显式复用合同复用；
+- 任一 Embedding Set 或其 Chunk 制品引用无效：统一 Publisher 在写 Qdrant 前失败，使用正确的两个
+  Embedding Set ID 重跑；
+- 新 collection 写入或校验失败：统一 Publisher 删除本次新建 collection，
+  当前绑定不变；
 - 目标 collection 已存在但内容不匹配：Publisher 停止且不删除该 collection；
 - 目标 collection 已存在且内容完整：重跑会完成验证并尝试激活；
-- 数据库激活返回错误：保留已验证 collection，直接重跑同一 Embedding Set ID；若上次提交已成功，
-  激活返回 `no_op: true`，否则完成当前指针替换。
+- 数据库激活返回错误：保留已验证 collection，直接重跑同一 Docs/Notice Embedding Set ID；若上次提交
+  已成功，激活返回 `no_op: true`，否则完成当前指针替换。
 
 Embedding 设置可以在首次索引发布前保存和验证。配置验证使用固定 Embedding 合同并记录 provider
 返回的观测维度。离线分块、向量和 collection 定义发生变化时，必须用同一版本重新生成并发布
@@ -310,11 +418,11 @@ collection；已发布的当前 collection 由 `campus_search` 按需消费。
 
 ## Qdrant 清理
 
-旧 collection 不在激活时自动删除。当前在线 execution-control 不读取 collection，也不会在运行准入中
-冻结它。人工删除前必须：
+旧 collection 不在激活时自动删除，保留它作为回滚候选。当前在线 execution-control 不读取 collection，
+也不会在运行准入中冻结它。人工删除前必须：
 
 1. 从 `campus_docs_serving.current_index` 读取当前 collection，永不删除当前值；
-2. 确认没有正在运行的 Campus Docs Publisher Job 使用待删除 collection；
+2. 确认没有正在运行的 Campus RAG Publisher Job 使用待删除 collection；
 3. 使用 Qdrant 管理凭据删除明确列出的非当前 collection，并再次确认当前 collection 可读取。
 
 仓库不维护 collection 历史表、保留状态机或自动回收任务。每次清理只处理本次明确核对的集合。

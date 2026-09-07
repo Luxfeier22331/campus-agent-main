@@ -9,7 +9,8 @@ status: active
 ## 文档边界
 
 本文定义公开文档阅读、站内搜索、来源卡片和 Campus Docs 索引输入共享的标识与数据边界。字段由
-JSON Schema 维护，来源发布、静态构建和界面由 Campus Web 维护；索引发布由独立 publisher 维护。
+JSON Schema 维护，来源发布、静态构建和界面由 Campus Web 维护；Docs builder 与统一 Campus RAG serving
+publisher 由检索服务维护。
 
 ```text
 来源资料 -> 整理后的 reader v3、课程图来源与图片 -> campus_docs_source.v4 -> 静态阅读资产
@@ -30,8 +31,8 @@ JSON Schema 维护，来源发布、静态构建和界面由 Campus Web 维护�
 
 ## 来源清单
 
-`campus_docs_source.v4` 是 Campus Web 构建与 Campus Docs publisher 共享的文档控制清单，包含集合、
-主题、文档、版本、旧正文重定向和来源对象引用。publisher 只读取文档、当前版本和 reader 引用；
+`campus_docs_source.v4` 是 Campus Web 构建与 Campus Docs Chunk builder 共享的文档控制清单，包含集合、
+主题、文档、版本、旧正文重定向和来源对象引用。Docs builder 只读取文档、当前版本和 reader 引用；
 它不把清单自身作为正文索引。
 
 ### 集合与主题
@@ -127,8 +128,8 @@ Reader 不保存 HTML、检索分块、搜索摘要、集合元数据或对象�
 ## 存储边界
 
 来源清单及其引用对象由对象存储保存，公开静态内容由不可变 Worker version 携带；产品 PostgreSQL
-不保存文档投影，App API 不读取、选择或转发公开文档。Campus Docs 当前索引的绑定由其独立 serving
-schema 拥有。
+不保存文档投影，App API 不读取、选择或转发公开文档。Campus Docs 当前索引的绑定由统一 Campus RAG
+serving publisher 写入 serving schema。
 
 公开 slug 变化必须同时登记旧路径 `308`。
 

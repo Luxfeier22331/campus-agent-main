@@ -17,6 +17,13 @@ export interface ChatCampusSourceAction {
 	disabledReason: null;
 }
 
+export interface ChatNoticeSourceAction {
+	label: "查看通知";
+	href: string;
+	external: false;
+	disabledReason: null;
+}
+
 export interface ChatWebSourceAction {
 	label: "打开网页";
 	href: string;
@@ -24,7 +31,10 @@ export interface ChatWebSourceAction {
 	disabledReason: null;
 }
 
-export type ChatSourceAction = ChatCampusSourceAction | ChatWebSourceAction;
+export type ChatSourceAction =
+	| ChatCampusSourceAction
+	| ChatNoticeSourceAction
+	| ChatWebSourceAction;
 
 export interface ChatCampusSourceItem {
 	citationIndexes: number[];
@@ -37,6 +47,16 @@ export interface ChatCampusSourceItem {
 	versionSlug: string;
 }
 
+export interface ChatNoticeSourceItem {
+	citationIndexes: number[];
+	kind: "campus_notice";
+	noticeId: string;
+	title: string;
+	snippet: string | null;
+	primaryAction: ChatNoticeSourceAction;
+	sectionTitle: string;
+}
+
 export interface ChatWebSourceItem {
 	citationIndexes: number[];
 	kind: "web_page";
@@ -46,7 +66,7 @@ export interface ChatWebSourceItem {
 	primaryAction: ChatWebSourceAction;
 }
 
-export type ChatSourceItem = ChatCampusSourceItem | ChatWebSourceItem;
+export type ChatSourceItem = ChatCampusSourceItem | ChatNoticeSourceItem | ChatWebSourceItem;
 
 export interface ChatSourceItemsStructuredPart {
 	type: "source_items";
@@ -246,6 +266,18 @@ function normalizeSourceAction(value: unknown): ChatSourceAction | null {
 			disabledReason: null,
 		};
 	}
+	if (value.external === false && value.label === "查看通知") {
+		const href = normalizeOptionalString(value.href);
+		if (!(href && /^\/notices\/[A-Za-z0-9._~-]+$/u.test(href))) {
+			return null;
+		}
+		return {
+			label: "查看通知",
+			href,
+			external: false,
+			disabledReason: null,
+		};
+	}
 	if (value.external === true && value.label === "打开网页") {
 		const href = normalizeExternalWebHref(value.href);
 		if (!href) {
@@ -259,6 +291,11 @@ function normalizeSourceAction(value: unknown): ChatSourceAction | null {
 		};
 	}
 	return null;
+}
+
+function noticeCitationHrefMatchesNoticeId(value: string, noticeId: string): boolean {
+	const match = /^\/notices\/([A-Za-z0-9._~-]+)$/u.exec(value);
+	return match?.[1] === noticeId;
 }
 
 function normalizeSourceItem(value: unknown): ChatSourceItem | null {
@@ -279,7 +316,7 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 
 	if (value.kind === "campus_document") {
 		const versionSlug = normalizeOptionalString(value.versionSlug);
-		if (!versionSlug || primaryAction.external !== false) {
+		if (!versionSlug || primaryAction.external !== false || primaryAction.label !== "查看文档") {
 			return null;
 		}
 		return {
@@ -291,6 +328,33 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 			sectionTitle: normalizeOptionalString(value.sectionTitle) ?? "",
 			collectionLabel: normalizeOptionalString(value.collectionLabel) ?? "",
 			versionSlug,
+		};
+	}
+
+	if (
+		value.kind === "campus_notice" &&
+		primaryAction.external === false &&
+		primaryAction.label === "查看通知"
+	) {
+		const noticeId = normalizeOptionalString(value.noticeId);
+		const sectionTitle = normalizeOptionalString(value.sectionTitle);
+		if (noticeId === null) {
+			return null;
+		}
+		if (sectionTitle === null) {
+			return null;
+		}
+		if (!noticeCitationHrefMatchesNoticeId(primaryAction.href, noticeId)) {
+			return null;
+		}
+		return {
+			citationIndexes,
+			kind: "campus_notice",
+			noticeId,
+			title,
+			snippet: normalizeOptionalString(value.snippet),
+			primaryAction,
+			sectionTitle,
 		};
 	}
 

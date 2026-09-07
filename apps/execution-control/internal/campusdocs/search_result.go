@@ -18,13 +18,16 @@ const (
 )
 
 var citationPattern = regexp.MustCompile(`\[([0-9]+)\]`)
+var noticeCitationPattern = regexp.MustCompile(`^/notices/([A-Za-z0-9._~-]+)$`)
 
 type SearchResultItem struct {
 	CitationIndex int
 	ResultRef     string
 	SourceKind    string
 	DocumentID    string
+	NoticeID      string
 	Title         string
+	CitationHref  string
 	SectionRef    string
 	SectionTitle  string
 	RootUnitIDs   []string
@@ -36,6 +39,19 @@ type SearchResultItem struct {
 func EncodeSearchResult(results []SearchResultItem, citationStart int) map[string]any {
 	items := make([]map[string]any, 0, len(results))
 	for offset, item := range results {
+		if item.SourceKind == "notice" {
+			items = append(items, map[string]any{
+				"citation_href":  item.CitationHref,
+				"citation_index": citationStart + offset,
+				"notice_id":      item.NoticeID,
+				"result_ref":     item.ResultRef,
+				"section_title":  item.SectionTitle,
+				"source_kind":    item.SourceKind,
+				"text":           item.Text,
+				"title":          item.Title,
+			})
+			continue
+		}
 		items = append(items, map[string]any{
 			"citation_index": citationStart + offset,
 			"result_ref":     item.ResultRef,
@@ -117,15 +133,14 @@ func DecodeSearchResult(result map[string]any) (string, []SearchResultItem, erro
 }
 
 func searchResultItemFromMap(value map[string]any) (SearchResultItem, error) {
-	if len(value) != 11 {
-		return SearchResultItem{}, errors.New("result contains unexpected fields")
-	}
 	item := SearchResultItem{
 		CitationIndex: execution.IntFromAny(value["citation_index"]),
 		ResultRef:     execution.StringValue(value["result_ref"]),
 		SourceKind:    execution.StringValue(value["source_kind"]),
 		DocumentID:    execution.StringValue(value["document_id"]),
+		NoticeID:      execution.StringValue(value["notice_id"]),
 		Title:         execution.StringValue(value["title"]),
+		CitationHref:  execution.StringValue(value["citation_href"]),
 		SectionRef:    execution.StringValue(value["section_ref"]),
 		SectionTitle:  execution.StringValue(value["section_title"]),
 		VersionID:     execution.StringValue(value["version_id"]),
@@ -135,10 +150,23 @@ func searchResultItemFromMap(value map[string]any) (SearchResultItem, error) {
 	if item.CitationIndex < 1 || item.CitationIndex > 10 ||
 		!strings.HasPrefix(item.ResultRef, "result://") ||
 		!execution.ValidSHA256Ref(strings.TrimPrefix(item.ResultRef, "result://")) ||
-		item.SourceKind != "document" || item.DocumentID == "" || item.Title == "" ||
-		item.SectionTitle == "" || item.VersionID == "" || !ValidVersionSlug(item.VersionSlug) ||
-		item.Text == "" || !ValidVersionedSectionRef(item.SectionRef, item.VersionSlug) {
+		item.Title == "" || item.SectionTitle == "" || item.Text == "" {
 		return SearchResultItem{}, errors.New("result fields are invalid")
+	}
+	if item.SourceKind == "notice" {
+		if len(value) != 8 || item.NoticeID == "" ||
+			!ValidNoticeCitationHrefForNoticeID(item.CitationHref, item.NoticeID) {
+			return SearchResultItem{}, errors.New("notice result fields are invalid")
+		}
+		if utf8.RuneCountInString(item.Text) > EvidenceCharBudget {
+			return SearchResultItem{}, errors.New("text is too long")
+		}
+		return item, nil
+	}
+	if item.SourceKind != "document" || len(value) != 11 || item.DocumentID == "" ||
+		item.VersionID == "" || !ValidVersionSlug(item.VersionSlug) ||
+		!ValidVersionedSectionRef(item.SectionRef, item.VersionSlug) {
+		return SearchResultItem{}, errors.New("document result fields are invalid")
 	}
 	rootUnitIDs, ok := DecodeRootUnitIDs(value["root_unit_ids"])
 	if !ok {
@@ -149,6 +177,15 @@ func searchResultItemFromMap(value map[string]any) (SearchResultItem, error) {
 		return SearchResultItem{}, errors.New("text is too long")
 	}
 	return item, nil
+}
+
+func ValidNoticeCitationHref(value string) bool {
+	return noticeCitationPattern.MatchString(strings.TrimSpace(value))
+}
+
+func ValidNoticeCitationHrefForNoticeID(value string, noticeID string) bool {
+	match := noticeCitationPattern.FindStringSubmatch(strings.TrimSpace(value))
+	return len(match) == 2 && strings.TrimSpace(noticeID) != "" && match[1] == strings.TrimSpace(noticeID)
 }
 
 func ValidVersionedSectionRef(value string, versionSlug string) bool {

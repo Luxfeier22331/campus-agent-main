@@ -39,8 +39,11 @@ export interface WorkflowEvidence {
 	url?: string;
 	resultRef?: string;
 	documentId?: string;
+	noticeId?: string;
+	citationHref?: string;
 	sectionRef?: string;
 	sectionTitle?: string;
+	rootUnitIds?: string[];
 	versionId?: string;
 	versionSlug?: string;
 }

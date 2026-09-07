@@ -36,8 +36,9 @@ status: active
 -> 构建派生站点索引、内容寻址搜索索引、静态资产和预渲染 HTML
 ```
 
-静态交付链不建立独立 reader 发布 Job、reader 中间对象或第二个发布版本指针。检索服务拥有的独立
-Campus Docs 索引 publisher 读取同一固定来源键，但不属于本合同定义的静态产物链。
+静态交付链不建立独立 reader 发布 Job、reader 中间对象或第二个发布版本指针。检索服务拥有的
+Campus Docs Chunk builder 读取同一固定来源键，随后由统一 Campus RAG serving publisher 消费显式
+Docs/Notice 制品；这两条链路都不属于本合同定义的静态产物链。
 
 ## 来源要求
 

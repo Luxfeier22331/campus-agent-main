@@ -3,21 +3,15 @@ import { fileURLToPath } from "node:url";
 
 import { createOpenAICompatibleEmbeddingClient } from "@campus-agent/embedding-runtime";
 import { assertSha256Ref } from "./artifacts.ts";
-import { createPostgresIndexCatalog } from "./catalog.ts";
 import { runBuildChunks } from "./chunk-command.ts";
 import { fetchEmbeddingConnection } from "./embedding.ts";
 import { createS3ArtifactStore } from "./object-store.ts";
-import {
-	buildCampusDocsEmbeddingSet,
-	publishCampusDocsIndex,
-} from "./publisher.ts";
-import { createQdrantClient } from "./qdrant.ts";
+import { buildCampusDocsEmbeddingSet } from "./publisher.ts";
 import type { Sha256Ref } from "./types.ts";
 
 type Command =
 	| { kind: "build-chunks" }
-	| { chunkSet: Sha256Ref; kind: "build-embeddings"; reuseEmbeddingSet?: Sha256Ref }
-	| { embeddingSet: Sha256Ref; kind: "publish-index" };
+	| { chunkSet: Sha256Ref; kind: "build-embeddings"; reuseEmbeddingSet?: Sha256Ref };
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
 	const command = parseCommand(argv, process.env);
@@ -63,34 +57,6 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 			});
 			return;
 		}
-		case "publish-index": {
-			writeProgress({
-				embedding_set: command.embeddingSet,
-				stage: "publish",
-				status: "started",
-			});
-			const catalog = createPostgresIndexCatalog();
-			try {
-				await catalog.acquirePublisherLock();
-				const result = await publishCampusDocsIndex({
-					artifactStore: store,
-					catalog,
-					embeddingSet: command.embeddingSet,
-					onPublishProgress(stage) {
-						writeProgress({ stage: `publish:${stage}`, status: "running" });
-					},
-					qdrant: createQdrantClient(),
-					sourceStore: store,
-				});
-				writeResult({
-					collection: result.collection,
-					no_op: result.noOp,
-					point_count: result.pointCount,
-				});
-			} finally {
-				await catalog.close();
-			}
-		}
 	}
 }
 
@@ -113,11 +79,6 @@ export function parseCommand(
 			...(reuse ? { reuseEmbeddingSet: reuse } : {}),
 		};
 	}
-	if (kind === "publish-index") {
-		if (args.length !== 0) usage();
-		const embeddingSet = requiredEnvRef(env, "CAMPUS_DOCS_EMBEDDING_SET");
-		return { embeddingSet, kind };
-	}
 	return usage();
 }
 
@@ -134,7 +95,7 @@ function optionalEnvRef(env: NodeJS.ProcessEnv, name: string): Sha256Ref | undef
 
 function usage(): never {
 	throw new Error(
-		"Usage: build-chunks | build-embeddings | publish-index",
+		"Usage: build-chunks | build-embeddings",
 	);
 }
 

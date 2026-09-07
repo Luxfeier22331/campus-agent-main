@@ -255,8 +255,11 @@ function evidenceWire(evidence: WorkflowEvidence) {
 		...(evidence.url === undefined ? {} : { url: evidence.url }),
 		...(evidence.resultRef === undefined ? {} : { result_ref: evidence.resultRef }),
 		...(evidence.documentId === undefined ? {} : { document_id: evidence.documentId }),
+		...(evidence.noticeId === undefined ? {} : { notice_id: evidence.noticeId }),
+		...(evidence.citationHref === undefined ? {} : { citation_href: evidence.citationHref }),
 		...(evidence.sectionRef === undefined ? {} : { section_ref: evidence.sectionRef }),
 		...(evidence.sectionTitle === undefined ? {} : { section_title: evidence.sectionTitle }),
+		...(evidence.rootUnitIds === undefined ? {} : { root_unit_ids: evidence.rootUnitIds }),
 		...(evidence.versionId === undefined ? {} : { version_id: evidence.versionId }),
 		...(evidence.versionSlug === undefined ? {} : { version_slug: evidence.versionSlug }),
 	};

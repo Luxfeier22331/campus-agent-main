@@ -63,9 +63,9 @@ replay 兼容；确实不兼容的执行合同使用维护窗口排空，不通�
 - PostgreSQL 角色生命周期由 CNPG 声明负责：`DatabaseRole` 声明当前角色，
   `data-postgres` Cluster 的 `spec.managed.roles` 使用 `ensure: absent` 退役历史角色；schema Job 不执行
   `DROP ROLE`，Argo CD prune 也只处理 Kubernetes 资源；
-- internal-portal collection/check 和 Campus Docs 三个阶段 Job 使用 `Forbid`，并有 active
+- internal-portal collection/check、Docs/Notice builder 和统一 Campus RAG publisher Job 使用 `Forbid`，并有 active
   deadline 与 resources；
-- Campus Docs 三个阶段和 internal-portal 三个模板默认 `suspend: true`，不因源码存在而自动运行；
+- Docs/Notice builder、统一 Campus RAG publisher 和 internal-portal 三个模板默认 `suspend: true`，不因源码存在而自动运行；
 - Job 的 `ttlSecondsAfterFinished` 只负责完成后的 Job 对象回收，不替代数据 retention 或备份。
 
 Ops Web 按需从暂停的通知 CronJob 模板创建 Job。GitOps 只管理 CronJob 模板；动态 Job 通过

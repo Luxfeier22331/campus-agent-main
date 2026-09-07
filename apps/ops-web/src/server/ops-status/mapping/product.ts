@@ -21,6 +21,13 @@ const ProductWebSourceActionSchema = z.object({
 	label: z.literal("打开网页"),
 });
 
+const ProductNoticeSourceActionSchema = z.object({
+	disabledReason: z.null(),
+	external: z.literal(false),
+	href: z.string().min(1),
+	label: z.literal("查看通知"),
+});
+
 const ProductCampusSourceItemSchema = z.object({
 	citationIndexes: CitationIndexesSchema,
 	collectionLabel: z.string(),
@@ -41,8 +48,19 @@ const ProductWebSourceItemSchema = z.object({
 	title: z.string().min(1),
 });
 
+const ProductNoticeSourceItemSchema = z.object({
+	citationIndexes: CitationIndexesSchema,
+	kind: z.literal("campus_notice"),
+	noticeId: z.string().min(1),
+	primaryAction: ProductNoticeSourceActionSchema,
+	sectionTitle: z.string(),
+	snippet: z.string().nullable(),
+	title: z.string().min(1),
+});
+
 const ProductSourceItemSchema = z.discriminatedUnion("kind", [
 	ProductCampusSourceItemSchema,
+	ProductNoticeSourceItemSchema,
 	ProductWebSourceItemSchema,
 ]);
 
@@ -140,6 +158,31 @@ function normalizeWebProductSourceAction(
 	}
 }
 
+function normalizeNoticeProductSource(
+	source: z.infer<typeof ProductNoticeSourceItemSchema>,
+): Extract<WrittenProductSource, { kind: "campus_notice" }> {
+	const href = source.primaryAction.href.trim();
+	if (!noticeCitationHrefMatchesNoticeId(href, source.noticeId)) {
+		return {
+			...source,
+			primaryAction: {
+				...source.primaryAction,
+				disabledReason: "来源链接地址无效。",
+				href: null,
+			},
+		};
+	}
+	return {
+		...source,
+		primaryAction: { ...source.primaryAction, href },
+	};
+}
+
+function noticeCitationHrefMatchesNoticeId(value: string, noticeId: string): boolean {
+	const match = /^\/notices\/([A-Za-z0-9._~-]+)$/u.exec(value);
+	return match?.[1] === noticeId;
+}
+
 function normalizeProductSources(
 	value: unknown,
 	campusWebPublicOrigin?: string,
@@ -154,20 +197,24 @@ function normalizeProductSources(
 			continue;
 		}
 		for (const source of parsed.data.sourceItems) {
-			sources.push(
-				source.kind === "campus_document"
-					? {
-							...source,
-							primaryAction: normalizeCampusProductSourceAction(
-								source.primaryAction,
-								campusWebPublicOrigin,
-							),
-						}
-					: {
-							...source,
-							primaryAction: normalizeWebProductSourceAction(source.primaryAction),
-						},
-			);
+			if (source.kind === "campus_document") {
+				sources.push({
+					...source,
+					primaryAction: normalizeCampusProductSourceAction(
+						source.primaryAction,
+						campusWebPublicOrigin,
+					),
+				});
+				continue;
+			}
+			if (source.kind === "campus_notice") {
+				sources.push(normalizeNoticeProductSource(source));
+				continue;
+			}
+			sources.push({
+				...source,
+				primaryAction: normalizeWebProductSourceAction(source.primaryAction),
+			});
 		}
 	}
 	return sources;

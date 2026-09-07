@@ -67,6 +67,35 @@ describe("conversation source items", () => {
 		expect(link).toHaveAttribute("rel", "noopener noreferrer");
 	});
 
+	it("renders Campus Notice sources as internal links", () => {
+		render(
+			<SourceItemsList
+				sourceItems={[
+					{
+						citationIndexes: [3],
+						kind: "campus_notice",
+						noticeId: "358159",
+						primaryAction: {
+							disabledReason: null,
+							external: false,
+							href: "/notices/358159",
+							label: "查看通知",
+						},
+						sectionTitle: "办理要求",
+						snippet: "请按通知要求提交材料。",
+						title: "关于提交材料的通知",
+					},
+				]}
+			/>,
+		);
+
+		expect(screen.getByText("校园通知")).toBeInTheDocument();
+		expect(screen.getByText("办理要求")).toBeInTheDocument();
+		const link = screen.getByRole("link", { name: "查看通知" });
+		expect(link).toHaveAttribute("href", "/notices/358159");
+		expect(link).not.toHaveAttribute("target");
+	});
+
 	it("shows five sources by default and expands the complete collection", () => {
 		const sourceItems = Array.from({ length: 6 }, (_, index) => ({
 			citationIndexes: [index + 1],

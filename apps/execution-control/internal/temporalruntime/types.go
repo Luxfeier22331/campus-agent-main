@@ -56,8 +56,11 @@ type WorkflowEvidence struct {
 	URL           string         `json:"url,omitempty"`
 	ResultRef     string         `json:"result_ref,omitempty"`
 	DocumentID    string         `json:"document_id,omitempty"`
+	NoticeID      string         `json:"notice_id,omitempty"`
+	CitationHref  string         `json:"citation_href,omitempty"`
 	SectionRef    string         `json:"section_ref,omitempty"`
 	SectionTitle  string         `json:"section_title,omitempty"`
+	RootUnitIDs   []string       `json:"root_unit_ids,omitempty"`
 	VersionID     string         `json:"version_id,omitempty"`
 	VersionSlug   string         `json:"version_slug,omitempty"`
 }

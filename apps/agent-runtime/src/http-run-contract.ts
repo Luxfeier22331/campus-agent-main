@@ -107,8 +107,11 @@ const evidenceSchema = z
 		url: z.string().url().optional(),
 		result_ref: z.string().min(1).optional(),
 		document_id: z.string().min(1).optional(),
+		notice_id: z.string().min(1).optional(),
+		citation_href: z.string().min(1).optional(),
 		section_ref: z.string().min(1).optional(),
 		section_title: z.string().min(1).optional(),
+		root_unit_ids: z.array(z.string().min(1)).min(1).optional(),
 		version_id: z.string().min(1).optional(),
 		version_slug: z.string().min(1).optional(),
 	})
@@ -362,6 +365,8 @@ function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
 		["url", value.url],
 		["resultRef", value.result_ref],
 		["documentId", value.document_id],
+		["noticeId", value.notice_id],
+		["citationHref", value.citation_href],
 		["sectionRef", value.section_ref],
 		["sectionTitle", value.section_title],
 		["versionId", value.version_id],
@@ -371,6 +376,9 @@ function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
 		if (fieldValue !== undefined) {
 			(result as unknown as Record<string, unknown>)[key] = fieldValue;
 		}
+	}
+	if (value.root_unit_ids !== undefined) {
+		result.rootUnitIds = [...value.root_unit_ids];
 	}
 	return result;
 }

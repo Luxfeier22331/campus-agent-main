@@ -266,6 +266,7 @@ function checkExecutionResponseDiagnostics(): void {
 		{
 			oneOf: [
 				{ $ref: "#/components/schemas/CampusDocumentSource" },
+				{ $ref: "#/components/schemas/CampusNoticeSource" },
 				{ $ref: "#/components/schemas/WebPageSource" },
 			],
 		},
