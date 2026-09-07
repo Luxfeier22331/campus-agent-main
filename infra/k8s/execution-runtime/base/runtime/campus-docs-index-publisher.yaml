@@ -148,3 +148,6 @@ spec:
                 - name: tmp
                   mountPath: /tmp
           volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 32Mi
