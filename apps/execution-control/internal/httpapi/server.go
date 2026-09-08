@@ -10,12 +10,10 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreadmodel"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/lifecycle"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 type Server struct {
@@ -23,14 +21,15 @@ type Server struct {
 	admission                *admission.Controller
 	lifecycle                *lifecycle.Registry
 	logger                   *slog.Logger
-	runProjectionStore       execution.RunProjectionStore
+	runProjectionStore       executionapplication.RunStore
+	runReader                executionreadmodel.Reader
 	runProjectionStoreErr    error
-	personalMemoryStateStore memoryruntime.StateStore
+	personalMemoryStateStore executionapplication.MemoryStore
 	personalMemoryStateErr   error
-	temporalStarter          temporalruntime.ChatWorkflowStarter
+	temporalStarter          executionapplication.WorkflowGateway
 	temporalStarterErr       error
-	runService               *executionapplication.RunService
-	agentToolService         *executionapplication.AgentToolService
+	runService               executionapplication.RunCommandService
+	agentToolService         executionapplication.AgentToolPort
 }
 
 // ServerOptions contains already-constructed application ports. The HTTP
@@ -38,14 +37,15 @@ type Server struct {
 // construct persistence, provider, or Temporal clients.
 type ServerOptions struct {
 	AdmissionController      *admission.Controller
-	AgentToolService         *executionapplication.AgentToolService
+	AgentToolService         executionapplication.AgentToolPort
 	Logger                   *slog.Logger
-	PersonalMemoryStateStore memoryruntime.StateStore
+	PersonalMemoryStateStore executionapplication.MemoryStore
 	PersonalMemoryStateError error
-	RunProjectionStore       execution.RunProjectionStore
+	RunProjectionStore       executionapplication.RunStore
+	RunReader                executionreadmodel.Reader
 	RunProjectionStoreError  error
-	RunService               *executionapplication.RunService
-	TemporalStarter          temporalruntime.ChatWorkflowStarter
+	RunService               executionapplication.RunCommandService
+	TemporalStarter          executionapplication.WorkflowGateway
 	TemporalStarterError     error
 }
 
@@ -76,6 +76,7 @@ func NewServerWithOptions(cfg config.Config, options ServerOptions) *Server {
 		lifecycle:                registry,
 		logger:                   options.Logger,
 		runProjectionStore:       options.RunProjectionStore,
+		runReader:                options.RunReader,
 		runProjectionStoreErr:    options.RunProjectionStoreError,
 		personalMemoryStateStore: options.PersonalMemoryStateStore,
 		personalMemoryStateErr:   options.PersonalMemoryStateError,
@@ -83,6 +84,9 @@ func NewServerWithOptions(cfg config.Config, options ServerOptions) *Server {
 		temporalStarterErr:       options.TemporalStarterError,
 		runService:               options.RunService,
 		agentToolService:         options.AgentToolService,
+	}
+	if server.runReader == nil && server.runProjectionStore != nil {
+		server.runReader = executionreadmodel.NewStoreReader(server.runProjectionStore)
 	}
 	return server
 }

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"net/http"
 	"net/http/httptest"
@@ -194,7 +195,7 @@ func TestExecutionRunCancelDoesNotDependOnStaleGetRunSnapshot(t *testing.T) {
 	server := newWorkerAuthServerForTest()
 	now := time.Date(2026, 7, 23, 11, 0, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(t, base, "run-cancel-atomic-store", "conv-cancel-atomic-store", now, nil)
-	store := failingGetRunProjectionStore{RunProjectionStore: base, err: errors.New("stale read unavailable")}
+	store := failingGetRunProjectionStore{RunStore: base, err: errors.New("stale read unavailable")}
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	response := httptest.NewRecorder()
@@ -218,7 +219,7 @@ func TestExecutionRunCancelDoesNotDependOnStaleGetRunSnapshot(t *testing.T) {
 }
 
 type failingGetRunProjectionStore struct {
-	execution.RunProjectionStore
+	executionapplication.RunStore
 	err error
 }
 

@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 type failingReadCloser struct{}
@@ -40,52 +41,52 @@ func newWorkerAuthServerForTest() *Server {
 }
 
 type readyTemporalStarter struct {
-	readiness temporalruntime.RuntimeReadiness
+	readiness executionapplication.RuntimeReadiness
 }
 
 func (readyTemporalStarter) StartToolExecutionWorkflow(
 	context.Context,
-	temporalruntime.ToolExecutionWorkflowInput,
+	execution.WorkflowStartInput,
 ) (string, error) {
 	return "temporal-ready-run", nil
 }
 
 func (readyTemporalStarter) StartPersonalMemoryCommandWorkflow(
 	context.Context,
-	temporalruntime.PersonalMemoryCommandWorkflowInput,
+	executionapplication.PersonalMemoryCommandInput,
 ) error {
 	return nil
 }
 
 func (readyTemporalStarter) CancelToolExecutionWorkflow(
 	context.Context,
-	temporalruntime.ToolExecutionWorkflowCancelInput,
+	execution.WorkflowCancelInput,
 ) error {
 	return nil
 }
 
-func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalruntime.RuntimeReadiness {
+func (starter readyTemporalStarter) CheckReadiness(context.Context) executionapplication.RuntimeReadiness {
 	if starter.readiness.TaskQueues != nil || starter.readiness.LastError != "" {
 		return starter.readiness
 	}
-	return temporalruntime.RuntimeReadiness{
+	return executionapplication.RuntimeReadiness{
 		Healthy: true,
-		TaskQueues: []temporalruntime.TaskQueueReadiness{
+		TaskQueues: []executionapplication.TaskQueueReadiness{
 			{
-				Name:    temporalruntime.WorkflowTaskQueue,
-				Type:    temporalruntime.TaskQueueTypeWorkflow,
+				Name:    "campus-agent.workflow.v3",
+				Type:    "workflow",
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueCore,
-				Type:    temporalruntime.TaskQueueTypeActivity,
+				Name:    "campus-agent.activity.core.v3",
+				Type:    "activity",
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueAgent,
-				Type:    temporalruntime.TaskQueueTypeActivity,
+				Name:    "campus-agent.activity.agent.v3",
+				Type:    "activity",
 				Pollers: 1,
 				Healthy: true,
 			},

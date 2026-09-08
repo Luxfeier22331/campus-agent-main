@@ -69,6 +69,9 @@ func TestPostgresIntegration(t *testing.T) {
 	t.Run("personal memory state store", func(t *testing.T) {
 		testPersonalMemoryStateStore(t, harness)
 	})
+	t.Run("agent invocation receipt", func(t *testing.T) {
+		testAgentInvocationReceipt(t, harness)
+	})
 }
 
 func repositoryRoot(t *testing.T) string {

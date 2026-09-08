@@ -15,50 +15,8 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 )
-
-// ProductCallbackClient is the typed app-api callback port used by terminal
-// Temporal activities. It owns callback URL construction and HTTP policy;
-// Temporal owns the surrounding activity error mapping.
-type ProductCallbackClient interface {
-	WritePersonalMemoryCommandResult(context.Context, PersonalMemoryCommandResultRequest) error
-	WriteExecutionFinalization(context.Context, ExecutionFinalizationRequest) error
-}
-
-type PersonalMemoryCommandResultRequest struct {
-	CommandID         string
-	ErrorCode         string
-	ResultFingerprint string
-	Status            string
-}
-
-type ExecutionFinalizationRequest struct {
-	RequestID   string
-	CompletedAt time.Time
-	Response    map[string]any
-}
-
-// ProductCallbackError deliberately keeps the response body out of the error
-// value. It gives the Temporal adapter stable classification while preserving
-// the existing no-diagnostic-details contract.
-type ProductCallbackError struct {
-	Code  string
-	Cause error
-}
-
-func (err *ProductCallbackError) Error() string {
-	if err == nil || err.Code == "" {
-		return "product callback failed"
-	}
-	return "product callback failed"
-}
-
-func (err *ProductCallbackError) Unwrap() error {
-	if err == nil {
-		return nil
-	}
-	return err.Cause
-}
 
 type productCallbackHTTPClient struct {
 	baseURL      string
@@ -69,7 +27,7 @@ type productCallbackHTTPClient struct {
 // NewProductCallbackClient constructs the app-api callback owner. Missing
 // configuration is reported when the activity invokes the port, matching the
 // previous runtime behavior.
-func NewProductCallbackClient(cfg config.Config) ProductCallbackClient {
+func NewProductCallbackClient(cfg config.Config) executionapplication.ProductCallbackClient {
 	timeout := time.Duration(cfg.ProductCallbackTimeoutMS) * time.Millisecond
 	if timeout <= 0 {
 		timeout = 5 * time.Second
@@ -85,7 +43,7 @@ func NewProductCallbackClient(cfg config.Config) ProductCallbackClient {
 
 func (client *productCallbackHTTPClient) WritePersonalMemoryCommandResult(
 	ctx context.Context,
-	request PersonalMemoryCommandResultRequest,
+	request executionapplication.PersonalMemoryCommandResultRequest,
 ) error {
 	resultFingerprint := strings.TrimSpace(request.ResultFingerprint)
 	if resultFingerprint == "" {
@@ -110,7 +68,7 @@ func (client *productCallbackHTTPClient) WritePersonalMemoryCommandResult(
 
 func (client *productCallbackHTTPClient) WriteExecutionFinalization(
 	ctx context.Context,
-	request ExecutionFinalizationRequest,
+	request executionapplication.ExecutionFinalizationRequest,
 ) error {
 	responseJSON, err := json.Marshal(request.Response)
 	if err != nil {
@@ -178,5 +136,5 @@ func (client *productCallbackHTTPClient) do(ctx context.Context, callbackURL str
 }
 
 func productCallbackError(code string, cause error) error {
-	return &ProductCallbackError{Code: code, Cause: cause}
+	return &executionapplication.ProductCallbackError{Code: code, Cause: cause}
 }

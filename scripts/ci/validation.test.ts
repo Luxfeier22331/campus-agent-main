@@ -28,6 +28,9 @@ test("validation profiles have one fail-closed registry", () => {
 		"app-api-migration",
 		"app-api-product-db",
 		"execution-control-postgres",
+		"execution-control-temporal",
+		"execution-control-stream",
+		"execution-control-replay",
 		"model-config-postgres",
 		"ops-web-postgres",
 		"infra",
@@ -66,6 +69,25 @@ test("docs-only changes keep automatic evidence empty", () => {
 	assert.deepEqual(plan.affectedPackages, []);
 	assert.deepEqual(plan.lightSurfaces, []);
 	assert.deepEqual(plan.validationProfiles, []);
+});
+
+test("execution-control native checks are automatic while service integrations stay manual", () => {
+	const selected = profiles(
+		["apps/execution-control/internal/temporalruntime/workflow.go"],
+		[
+			{ package: "execution-control", task: "native:test" },
+			{ package: "execution-control", task: "native:typecheck" },
+		],
+	);
+	assert.ok(selected.includes("execution-control-native"));
+	for (const profile of [
+		"execution-control-temporal",
+		"execution-control-stream",
+		"execution-control-replay",
+	] as const) {
+		assert.ok(!selected.includes(profile));
+		assert.equal(validationProfileMetadata(profile).lane, "manual");
+	}
 });
 
 test("selects affected Node and Worker evidence from Turbo tasks", () => {

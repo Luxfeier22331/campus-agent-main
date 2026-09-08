@@ -1,0 +1,98 @@
+package temporaltest
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimeassembly"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/api/serviceerror"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+)
+
+type Activities interface {
+	temporalruntime.ContextActivities
+	temporalruntime.FinalizationActivities
+	temporalruntime.WorkflowActivities
+}
+
+type WorkerSpec struct {
+	Queue string
+	Kind  string
+	New   func(client.Client) worker.Worker
+}
+
+type WorkerHandle struct {
+	once    sync.Once
+	workers []worker.Worker
+}
+
+func (handle *WorkerHandle) Stop() {
+	handle.once.Do(func() {
+		for i := len(handle.workers) - 1; i >= 0; i-- {
+			handle.workers[i].Stop()
+		}
+	})
+}
+
+func (h *Harness) StartCustomWorkers(t *testing.T, specs ...WorkerSpec) *WorkerHandle {
+	t.Helper()
+	handle := &WorkerHandle{}
+	// Register before the first Start so partial bootstrap failures are cleaned up.
+	t.Cleanup(handle.Stop)
+	h.mu.Lock()
+	h.workers = append(h.workers, handle)
+	h.mu.Unlock()
+	for _, spec := range specs {
+		t.Logf("worker startup namespace=%s queue=%s kind=%s", h.Namespace, spec.Queue, spec.Kind)
+		w := spec.New(h.Client)
+		if err := w.Start(); err != nil {
+			t.Fatalf("start worker namespace=%s queue=%s kind=%s: %v", h.Namespace, spec.Queue, spec.Kind, err)
+		}
+		handle.workers = append(handle.workers, w)
+	}
+	return handle
+}
+
+func (h *Harness) StartStandardWorkers(t *testing.T, activities Activities) *WorkerHandle {
+	t.Helper()
+	return h.StartCustomWorkers(t,
+		WorkerSpec{temporalruntime.WorkflowTaskQueue, "workflow", func(c client.Client) worker.Worker {
+			return runtimeassembly.NewWorkflowWorkerWithOptions(c, temporalruntime.WorkflowTaskQueue, Options())
+		}},
+		WorkerSpec{temporalruntime.ActivityTaskQueueCore, "core", func(c client.Client) worker.Worker {
+			return runtimeassembly.NewCoreActivityWorkerWithOptions(c, temporalruntime.ActivityTaskQueueCore, activities, activities, Options())
+		}},
+		WorkerSpec{temporalruntime.ActivityTaskQueueAgent, "agent", func(c client.Client) worker.Worker {
+			return runtimeassembly.NewWorkflowOperationActivityWorkerWithOptions(c, temporalruntime.ActivityTaskQueueAgent, activities, Options())
+		}},
+	)
+}
+
+// Keep cancellation delivery through fake activity heartbeats within the test deadline.
+func Options() worker.Options {
+	return worker.Options{WorkerStopTimeout: time.Second, MaxHeartbeatThrottleInterval: time.Second}
+}
+
+// CleanupRun is registered after worker startup, so an unfinished workflow is
+// terminated before its workers stop. Completed histories are left for replay.
+func (h *Harness) CleanupRun(t *testing.T, workflowID, runID string) {
+	t.Helper()
+	t.Logf("workflow namespace=%s workflow_id=%s run_id=%s", h.Namespace, workflowID, runID)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := h.Client.TerminateWorkflow(ctx, workflowID, runID, "integration test cleanup"); err != nil {
+			var closed *serviceerror.NotFound
+			if !errors.As(err, &closed) {
+				fmt.Fprintln(os.Stderr, "workflow cleanup:", err)
+			}
+		}
+	})
+}

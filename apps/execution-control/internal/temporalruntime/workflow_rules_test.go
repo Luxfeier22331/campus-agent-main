@@ -8,7 +8,7 @@ import (
 )
 
 func TestValidateWorkflowRulesSharePlanAndReplanSemantics(t *testing.T) {
-	capabilities := execution.AgentCapabilitiesForAdmission(false, true)
+	capabilities := AgentCapabilitiesSnapshot(execution.AgentCapabilitiesForAdmission(false, true))
 	first := WorkflowTaskPlanStep{
 		ID:               "step.first",
 		Objective:        "先查资料",
@@ -22,7 +22,7 @@ func TestValidateWorkflowRulesSharePlanAndReplanSemantics(t *testing.T) {
 	if err := ValidateWorkflowPlan(plan, 2, capabilities); err != nil {
 		t.Fatalf("valid plan rejected: %v", err)
 	}
-	completed := []WorkflowCompletedStep{{Step: first, ExecutionIndex: 1, Summary: "已完成"}}
+	completed := []WorkflowCompletedStep{{Step: first, ExecutionIndex: 1, Summary: "已完成", RemainingFacts: []string{}}}
 	if err := ValidateWorkflowCompletedSteps(completed, plan); err != nil {
 		t.Fatalf("valid completed step rejected: %v", err)
 	}
@@ -43,17 +43,17 @@ func TestValidateWorkflowRulesSharePlanAndReplanSemantics(t *testing.T) {
 	}{
 		{
 			name:   "continue requires remaining steps",
-			replan: WorkflowTaskReplan{Decision: "continue"},
+			replan: WorkflowTaskReplan{SchemaVersion: "task_replan.v2", Decision: "continue"},
 			want:   "requires remaining steps",
 		},
 		{
 			name:   "synthesize rejects remaining steps",
-			replan: WorkflowTaskReplan{Decision: "synthesize", RemainingSteps: []WorkflowTaskPlanStep{replacement}},
+			replan: WorkflowTaskReplan{SchemaVersion: "task_replan.v2", Decision: "synthesize", RemainingSteps: []WorkflowTaskPlanStep{replacement}},
 			want:   "must not contain remaining steps",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			err := ValidateWorkflowReplanDecision(test.replan)
+			err := ValidateWorkflowReplanDecision(test.replan, completed)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want substring %q", err, test.want)
 			}
@@ -68,7 +68,7 @@ func TestValidateWorkflowCompletedStepsDoesNotRevalidateSources(t *testing.T) {
 		CandidateSources: []WorkflowSource{WorkflowSourceCampusSearch},
 	}
 	plan := WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: "校园任务", Steps: []WorkflowTaskPlanStep{step}}
-	completed := []WorkflowCompletedStep{{Step: step, ExecutionIndex: 1, Summary: "已完成"}}
+	completed := []WorkflowCompletedStep{{Step: step, ExecutionIndex: 1, Summary: "已完成", RemainingFacts: []string{}}}
 	if err := ValidateWorkflowCompletedSteps(completed, plan); err != nil {
 		t.Fatalf("completed step rejected despite exact plan membership: %v", err)
 	}

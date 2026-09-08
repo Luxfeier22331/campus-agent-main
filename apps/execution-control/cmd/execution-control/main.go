@@ -43,23 +43,16 @@ func run(logger *slog.Logger) error {
 	runtimeContext, cancelRuntime := context.WithCancel(context.Background())
 	defer cancelRuntime()
 
-	owner, err := newRuntimeOwner(cfg, logger)
+	owner, err := runtimeassembly.NewOwner(cfg, logger)
 	if err != nil {
 		return fmt.Errorf("build execution-control runtime: %w", err)
 	}
-	runtime, err := runtimeassembly.StartRuntime(
-		signalContext,
-		runtimeContext,
-		cfg,
-		owner.adapter,
-		owner.reconciler,
-		logger,
-	)
+	runtime, err := owner.Start(signalContext, runtimeContext, cfg, logger)
 	if err != nil {
 		_ = owner.Shutdown(context.Background())
 		return err
 	}
-	requestTracker := newRequestTracker(owner.server)
+	requestTracker := newRequestTracker(owner.Handler())
 	gatewayServer := newHTTPServer(
 		fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		requestTracker,

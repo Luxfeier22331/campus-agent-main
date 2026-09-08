@@ -192,6 +192,12 @@ test("pull request validation keeps the shared required-check contract", async (
 		);
 	}
 	assert.equal(namedStep(repoChecks, "Summarize repository evidence").shell, "bash -e {0}");
+	const native = namedStep(repoChecks, "Check execution-control native code");
+	assert.match(String(native.if), /execution-control-native/u);
+	assert.match(String(native.run), /--profiles '\["execution-control-native"\]'/u);
+	const summary = namedStep(repoChecks, "Summarize repository evidence");
+	assert(isObject(summary.env));
+	assert.match(String(summary.env.RESULTS), /steps\.execution_control_native\.outcome/u);
 	assert.equal(
 		namedStep(repoChecks, "Run affected Node and image evidence").if,
 		"always() && steps.plan.outputs.node_evidence_profiles != '[]' && (\n  steps.plan.outputs.has_image_build == 'true' ||\n  steps.install_affected.outcome == 'success'\n)",

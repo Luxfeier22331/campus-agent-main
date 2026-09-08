@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"unicode/utf8"
 )
 
 var workflowTaskStepIDPattern = regexp.MustCompile(`^step\.[a-z0-9][a-z0-9_-]{0,63}$`)
@@ -16,10 +15,10 @@ var workflowTaskStepIDPattern = regexp.MustCompile(`^step\.[a-z0-9][a-z0-9_-]{0,
 func ValidateWorkflowPlan(
 	plan WorkflowTaskPlan,
 	maxSteps int,
-	capabilities execution.AgentCapabilitiesSnapshot,
+	capabilities AgentCapabilitiesSnapshot,
 ) error {
 	if plan.SchemaVersion != "task_plan.v1" || strings.TrimSpace(plan.Goal) == "" ||
-		maxSteps < 1 || len(plan.Steps) > maxSteps {
+		maxSteps < 1 || len(plan.Steps) == 0 || len(plan.Steps) > maxSteps {
 		return errors.New("workflow plan identity or size is invalid")
 	}
 	known := make(map[string]struct{}, len(plan.Steps))
@@ -64,6 +63,9 @@ func ValidateWorkflowCompletedSteps(
 	}
 	seen := map[string]struct{}{}
 	for _, item := range completed {
+		if err := ValidateWorkflowStepOutcome(item); err != nil {
+			return err
+		}
 		if item.ExecutionIndex < 1 || strings.TrimSpace(item.Summary) == "" {
 			return errors.New("completed workflow step metadata is invalid")
 		}
@@ -84,7 +86,7 @@ func ValidateWorkflowRemainingSteps(
 	steps []WorkflowTaskPlanStep,
 	maxSteps int,
 	completed []WorkflowCompletedStep,
-	capabilities execution.AgentCapabilitiesSnapshot,
+	capabilities AgentCapabilitiesSnapshot,
 ) error {
 	if len(completed)+len(steps) > maxSteps {
 		return errors.New("workflow steps exceed budget")
@@ -123,11 +125,21 @@ func ValidateWorkflowRemainingSteps(
 }
 
 // ValidateWorkflowReplanDecision validates the decision/remaining-step shape.
-func ValidateWorkflowReplanDecision(replan WorkflowTaskReplan) error {
+func ValidateWorkflowReplanDecision(replan WorkflowTaskReplan, completed []WorkflowCompletedStep) error {
+	if replan.SchemaVersion != "task_replan.v2" {
+		return errors.New("workflow replan schema version is invalid")
+	}
 	switch replan.Decision {
-	case "synthesize":
+	case "synthesize", "insufficient":
 		if len(replan.RemainingSteps) != 0 {
-			return errors.New("synthesize decision must not contain remaining steps")
+			return errors.New("terminal replan decision must not contain remaining steps")
+		}
+		mode := "grounded"
+		if replan.Decision == "insufficient" {
+			mode = "insufficient"
+		}
+		if err := ValidateWorkflowAnswerMode(mode, WorkflowCompletedEvidence(completed), WorkflowCompletedSourceAttempts(completed)); err != nil {
+			return err
 		}
 	case "continue":
 		if len(replan.RemainingSteps) == 0 {
@@ -217,4 +229,109 @@ func sameWorkflowStrings(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+// Remaining facts concern this step's objective, not unexecuted future steps.
+func ValidateWorkflowStepOutcome(step WorkflowCompletedStep) error {
+	if step.RemainingFacts == nil || len(step.RemainingFacts) > 32 {
+		return errors.New("workflow remaining facts are required and bounded")
+	}
+	for _, fact := range step.RemainingFacts {
+		if strings.TrimSpace(fact) == "" || utf8.RuneCountInString(fact) > 1000 {
+			return errors.New("workflow remaining fact is invalid")
+		}
+	}
+	if step.Failure != nil {
+		if !WorkflowFailureRecoverable(step.Failure.Code) || step.Failure.Operation != "execute_step" || len(step.Evidence) != 0 {
+			return errors.New("workflow step failure cannot be recovered")
+		}
+	}
+	return nil
+}
+
+// Provider/runtime errors are recoverable only after a classified terminal response.
+// Transport timeouts and uncertain invocation receipts are intentionally absent.
+func WorkflowFailureRecoverable(code string) bool {
+	switch code {
+	case "agent_deadline_exceeded", "provider_timeout", "provider_connection_failed", "provider_rate_limited", "provider_http_failed":
+		return true
+	default:
+		return false
+	}
+}
+
+func WorkflowToolFailureRecoverable(failure *ExecutionFailure) bool {
+	if failure == nil {
+		return false
+	}
+	return failure.Code == "transient_internal_query_failed" ||
+		(failure.Code == "tool_handler_failed" && (failure.HTTPStatus == 429 || (failure.HTTPStatus >= 500 && failure.HTTPStatus < 600)))
+}
+
+func WorkflowCompletedEvidence(completed []WorkflowCompletedStep) []WorkflowEvidence {
+	result := []WorkflowEvidence{}
+	for _, step := range completed {
+		result = append(result, step.Evidence...)
+	}
+	return result
+}
+
+func WorkflowCompletedSourceAttempts(completed []WorkflowCompletedStep) []WorkflowSourceAttempt {
+	result := []WorkflowSourceAttempt{}
+	for _, step := range completed {
+		result = append(result, step.SourceAttempts...)
+	}
+	return result
+}
+
+// Every exit from the search loop uses the same grounded/no-match/failure contract.
+func WorkflowAnswerMode(evidence []WorkflowEvidence, completed []WorkflowCompletedStep) (string, error) {
+	mode := "grounded"
+	if len(evidence) == 0 {
+		mode = "insufficient"
+	}
+	return mode, ValidateWorkflowAnswerMode(mode, evidence, WorkflowCompletedSourceAttempts(completed))
+}
+
+func ValidateWorkflowAnswerMode(mode string, evidence []WorkflowEvidence, attempts []WorkflowSourceAttempt) error {
+	switch mode {
+	case "grounded":
+		if len(evidence) > 0 {
+			return nil
+		}
+		return errors.New("grounded synthesis requires evidence")
+	case "insufficient":
+		if len(evidence) > 0 {
+			return errors.New("insufficient synthesis must not contain evidence")
+		}
+		for _, attempt := range attempts {
+			if attempt.Status == "no_match" {
+				return nil
+			}
+		}
+		return errors.New("insufficient synthesis requires a real no_match result")
+	default:
+		return errors.New("workflow answer mode is invalid")
+	}
+}
+
+func workflowHasRecoveryPath(completed []WorkflowCompletedStep, remaining []WorkflowTaskPlanStep, capabilities AgentCapabilitiesSnapshot) bool {
+	if nextReadyWorkflowStep(remaining, completed) >= 0 {
+		return true
+	}
+	available := workflowVisibleSourceSet(capabilities.VisibleFunctionToolNames, capabilities.HostedWebSearch)
+	// A source that produced partial evidence can still answer a more specific question.
+	for _, step := range completed {
+		if step.Failure != nil {
+			for _, source := range step.Step.CandidateSources {
+				delete(available, source)
+			}
+		}
+		for _, attempt := range step.SourceAttempts {
+			if attempt.Status == "failed" || attempt.Status == "no_match" {
+				delete(available, attempt.Source)
+			}
+		}
+	}
+	return len(available) > 0
 }

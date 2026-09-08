@@ -75,6 +75,13 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	if (scope.tasks.some(({ task }) => AFFECTED_NODE_TASKS.has(task))) {
 		selected.add("affected-node");
 	}
+	if (
+		scope.tasks.some(
+			({ package: name, task }) => name === "execution-control" && task.startsWith("native:"),
+		)
+	) {
+		selected.add("execution-control-native");
+	}
 	const images = imageTargetsForScope(scope);
 	if (containerBuildInputsChanged(files) || images.length > 0) {
 		selected.add("container-build");

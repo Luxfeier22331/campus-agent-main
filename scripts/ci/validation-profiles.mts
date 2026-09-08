@@ -71,6 +71,20 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresDocker: false,
 		requiresUv: false,
 	},
+	"execution-control-native": {
+		executor: {
+			commands: [
+				["pnpm", "--dir", "apps/execution-control", "native:format"],
+				["pnpm", "--dir", "apps/execution-control", "native:lint"],
+				["pnpm", "--dir", "apps/execution-control", "native:typecheck"],
+				["pnpm", "--dir", "apps/execution-control", "native:test"],
+			],
+			kind: "commands",
+		},
+		lane: "pull-request",
+		requiresDocker: false,
+		requiresUv: false,
+	},
 	ragas: {
 		executor: {
 			commands: [
@@ -108,6 +122,33 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		},
 		lane: "manual",
 		requiresDocker: true,
+		requiresUv: false,
+	},
+	"execution-control-temporal": {
+		executor: {
+			commands: [["pnpm", "--dir", "apps/execution-control", "test:temporal-integration"]],
+			kind: "commands",
+		},
+		lane: "manual",
+		requiresDocker: false,
+		requiresUv: false,
+	},
+	"execution-control-stream": {
+		executor: {
+			commands: [["pnpm", "--dir", "apps/execution-control", "test:stream-integration"]],
+			kind: "commands",
+		},
+		lane: "manual",
+		requiresDocker: false,
+		requiresUv: false,
+	},
+	"execution-control-replay": {
+		executor: {
+			commands: [["pnpm", "--dir", "apps/execution-control", "test:temporal-replay"]],
+			kind: "commands",
+		},
+		lane: "manual",
+		requiresDocker: false,
 		requiresUv: false,
 	},
 	"model-config-postgres": {

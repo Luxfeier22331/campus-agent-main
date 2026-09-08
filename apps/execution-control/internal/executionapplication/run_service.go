@@ -27,7 +27,7 @@ type RunServiceOptions struct {
 	PersonalMemoryRecallAvailable bool
 	PersonalMemoryTimeoutSeconds  float64
 	ReconcilerWaker               ReconcilerWaker
-	Store                         execution.RunProjectionStore
+	Store                         RunStore
 	StoreError                    error
 	TaskQueue                     string
 }
@@ -41,7 +41,7 @@ type RunService struct {
 	personalMemoryRecallAvailable bool
 	personalMemoryTimeoutSeconds  float64
 	reconcilerWaker               ReconcilerWaker
-	store                         execution.RunProjectionStore
+	store                         RunStore
 	storeError                    error
 	taskQueue                     string
 }

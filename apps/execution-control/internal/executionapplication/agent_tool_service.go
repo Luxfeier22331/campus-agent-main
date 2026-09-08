@@ -24,9 +24,9 @@ type AgentToolServiceOptions struct {
 	CampusDocsSearcherError   error
 	InputLoader               execution.InputLoader
 	InputError                error
-	PersonalMemoryExecutor    memoryruntime.Executor
+	PersonalMemoryExecutor    MemoryExecutor
 	PersonalMemoryError       error
-	Store                     execution.RunProjectionStore
+	Store                     RunStore
 	StoreError                error
 }
 
@@ -37,9 +37,9 @@ type AgentToolService struct {
 	campusDocsSearcherError   error
 	inputLoader               execution.InputLoader
 	inputError                error
-	personalMemoryExecutor    memoryruntime.Executor
+	personalMemoryExecutor    MemoryExecutor
 	personalMemoryError       error
-	store                     execution.RunProjectionStore
+	store                     RunStore
 	storeError                error
 }
 

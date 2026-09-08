@@ -17,6 +17,20 @@ execution-control 在一个标准 Deployment 中运行 workflow、core activity 
 poller。副本数与滚动更新由 Kubernetes/GitOps 管理，应用不调用 Kubernetes API，也不维护第二套
 自动扩缩状态。采集链路不使用 Temporal，见[采集与离线数据运维](./ingestion.md)。
 
+本地 Temporal 测试属于 integration 验证，不是完整产品 E2E。它使用 Temporal Dev Server、测试 worker
+和测试 projection，不连接 staging、真实 Agent Runtime 或 PostgreSQL。运行入口由 execution-control
+package script 管理，禁止使用已废弃的混合 `temporal_e2e` build tag。
+
+`test:temporal-integration` 按 package 复用 Dev Server，按测试启动 worker；日志分别标记 server、worker、
+workflow、history replay 和 cleanup。测试失败或超时由 `integration/temporaltest` 关闭 worker、client
+和 server，不依赖 `pnpm dev`。`test:temporal-replay` 只验证已提交 history，不启动外部服务。
+
+`integration/temporal` 用生产 30 秒 heartbeat 验证 activity timeout/retry，用缩短的测试执行预算验证
+workflow 硬超时，并确认 finalization 后 memory append 仍阻塞 workflow 完成。测试不改变生产的
+900 秒总预算。stream 的三类 completed 失败验证位于独立的 `integration/stream`，当前已发布的 delta
+在失败后仍保留；receipt 的完整结果恢复、冲突和随父 run 删除的行为由 PostgreSQL integration 验证。
+这些测试记录 #401、#414、#415、#416 的当前边界，不表示相关产品语义已修改。
+
 ## 所有权
 
 - Argo CD：platform chart、标准 Deployment、ConfigMap、Secret、image digest 与 sync order；

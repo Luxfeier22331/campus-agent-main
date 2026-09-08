@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
@@ -21,22 +20,20 @@ const (
 )
 
 type AdmissionOptions struct {
-	AgentDeadlineMS        int
-	ContextCharLimit       int
-	CurrentInputCharLimit  int
-	MaxOutputTokens        int
-	ModelTargetResolver    execution.ModelTargetResolver
-	ModelTargetError       error
-	ToolFunctionSchemaPath string
-	ToolRegistryPath       string
+	AgentDeadlineMS       int
+	ContextCharLimit      int
+	CurrentInputCharLimit int
+	MaxOutputTokens       int
+	ModelTargetResolver   execution.ModelTargetResolver
+	ModelTargetError      error
+	ToolContract          ToolContractSource
 }
 
 type AdmissionService struct {
-	limits                 execution.AgentRuntimeLimitsSnapshot
-	modelTargetResolver    execution.ModelTargetResolver
-	modelTargetError       error
-	toolFunctionSchemaPath string
-	toolRegistryPath       string
+	limits              execution.AgentRuntimeLimitsSnapshot
+	modelTargetResolver execution.ModelTargetResolver
+	modelTargetError    error
+	toolContract        ToolContractSource
 }
 
 func NewAdmissionService(options AdmissionOptions) *AdmissionService {
@@ -47,10 +44,9 @@ func NewAdmissionService(options AdmissionOptions) *AdmissionService {
 			CurrentInputCharLimit: positiveOrDefault(options.CurrentInputCharLimit, defaultAgentCurrentInputChars),
 			MaxOutputTokens:       positiveOrDefault(options.MaxOutputTokens, defaultAgentMaxOutputTokens),
 		},
-		modelTargetResolver:    options.ModelTargetResolver,
-		modelTargetError:       options.ModelTargetError,
-		toolFunctionSchemaPath: strings.TrimSpace(options.ToolFunctionSchemaPath),
-		toolRegistryPath:       strings.TrimSpace(options.ToolRegistryPath),
+		modelTargetResolver: options.ModelTargetResolver,
+		modelTargetError:    options.ModelTargetError,
+		toolContract:        options.ToolContract,
 	}
 }
 
@@ -80,7 +76,7 @@ func (s *AdmissionService) BuildAgentAdmissionSnapshot(
 		MaxReplans:           defaultMaxReplans,
 		SchemaVersion:        execution.AgentRuntimeBudgetSchemaVersion,
 	}
-	toolContract, err := buildToolContractFingerprint(s.toolRegistryPath, s.toolFunctionSchemaPath)
+	toolContract, err := s.toolFingerprint()
 	if err != nil {
 		return execution.AgentAdmissionSnapshot{}, execution.NewDependencyNotReadyError(
 			fmt.Errorf("build tool contract admission snapshot: %w", err),
@@ -106,7 +102,7 @@ func (s *AdmissionService) ValidateLocalToolContractFingerprintMap(expected map[
 	if s == nil {
 		return errors.New("agent admission service is not configured")
 	}
-	local, err := buildToolContractFingerprint(s.toolRegistryPath, s.toolFunctionSchemaPath)
+	local, err := s.toolFingerprint()
 	if err != nil {
 		return fmt.Errorf("build local tool contract fingerprint: %w", err)
 	}
@@ -132,4 +128,15 @@ func positiveOrDefault(value int, fallback int) int {
 		return value
 	}
 	return fallback
+}
+
+type ToolContractSource interface {
+	Fingerprint() (execution.ToolContractFingerprintSnapshot, error)
+}
+
+func (s *AdmissionService) toolFingerprint() (execution.ToolContractFingerprintSnapshot, error) {
+	if s.toolContract == nil {
+		return execution.ToolContractFingerprintSnapshot{}, errors.New("tool contract source is not configured")
+	}
+	return s.toolContract.Fingerprint()
 }

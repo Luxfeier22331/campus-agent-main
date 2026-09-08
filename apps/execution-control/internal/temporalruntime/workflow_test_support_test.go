@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -87,7 +86,7 @@ func (Activities) FinalizeExecutionCancellationActivity(
 
 func (Activities) ExecutePersonalMemoryCommandActivity(
 	_ context.Context,
-	input memoryruntime.PersonalMemoryCommandRequest,
+	input PersonalMemoryCommandRequest,
 ) (PersonalMemoryCommandActivityOutput, error) {
 	return PersonalMemoryCommandActivityOutput{
 		CommandID: input.CommandID,
@@ -166,7 +165,7 @@ func (Activities) ReplanTaskActivity(
 	return WorkflowOperationActivityOutput{
 		Operation: WorkflowOperationReplan,
 		Replan: &WorkflowTaskReplan{
-			SchemaVersion:  "task_replan.v1",
+			SchemaVersion:  "task_replan.v2",
 			Decision:       "continue",
 			Reason:         "继续执行已规划步骤。",
 			RemainingSteps: append([]WorkflowTaskPlanStep{}, input.RemainingSteps...),
@@ -205,13 +204,13 @@ func validToolExecutionWorkflowInput(requestID string) ToolExecutionWorkflowInpu
 	return ToolExecutionWorkflowInput{
 		ConversationID: "conversation-" + requestID,
 		RequestID:      requestID,
-		AdmissionSnapshot: execution.AgentAdmissionSnapshot{
-			AgentCapabilities: execution.AgentCapabilitiesSnapshot{
+		AdmissionSnapshot: AgentAdmissionSnapshot{
+			AgentCapabilities: AgentCapabilitiesSnapshot{
 				SchemaVersion:            "agent_capabilities.v1",
 				HostedWebSearch:          true,
 				VisibleFunctionToolNames: []string{"campus_search", "personal_memory_recall"},
 			},
-			AgentBudget: execution.AgentRuntimeBudgetSnapshot{
+			AgentBudget: AgentRuntimeBudgetSnapshot{
 				MaxFunctionToolCalls: 8,
 				MaxModelTurns:        8,
 				MaxPlanSteps:         8,

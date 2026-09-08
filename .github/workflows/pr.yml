@@ -185,6 +185,20 @@ jobs:
           --head "$HEAD_SHA"
           --profiles "$VALIDATION_PROFILES"
 
+      - name: Check execution-control native code
+        id: execution_control_native
+        if: always() && contains(fromJSON(steps.plan.outputs.validation_profiles), 'execution-control-native')
+        continue-on-error: true
+        shell: nix develop .#ci-full --command bash -e {0}
+        env:
+          BASE_SHA: ${{ steps.plan.outputs.base }}
+          HEAD_SHA: ${{ steps.plan.outputs.head }}
+        run: >-
+          node --experimental-strip-types scripts/ci/evidence.mts
+          --base "$BASE_SHA"
+          --head "$HEAD_SHA"
+          --profiles '["execution-control-native"]'
+
       - name: Summarize repository evidence
         if: always()
         shell: bash -e {0}
@@ -194,6 +208,7 @@ jobs:
               "affected-node-and-images":"${{ steps.node_image.outcome }}",
               "container-build":"${{ steps.container_build.outcome }}",
               "contracts":"${{ steps.contracts.outcome }}",
+              "execution-control-native":"${{ steps.execution_control_native.outcome }}",
               "github-actions":"${{ steps.github_actions.outcome }}",
               "install-affected":"${{ steps.install_affected.outcome }}",
               "install-static-dependencies":"${{ steps.install_static_dependencies.outcome }}",

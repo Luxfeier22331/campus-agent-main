@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
@@ -39,7 +40,7 @@ type hindsightExecutor struct {
 	contextCharBudget int
 }
 
-func New(options Options) (memoryruntime.Executor, error) {
+func New(options Options) (executionapplication.MemoryExecutor, error) {
 	if strings.TrimSpace(options.BaseURL) == "" {
 		return nil, errors.New("HINDSIGHT_API_BASE_URL is required for Hindsight memory runtime")
 	}

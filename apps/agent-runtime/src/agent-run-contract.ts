@@ -7,6 +7,7 @@ import type {
 } from "./tool-catalog.ts";
 
 export type WorkflowOperation = "solve" | "execute_step" | "replan" | "synthesize";
+export type WorkflowAnswerMode = "grounded" | "insufficient";
 export type WorkflowSource = "campus_search" | "web_search" | "personal_memory_recall";
 
 export interface TaskPlanStep {
@@ -23,8 +24,8 @@ export interface TaskPlan {
 }
 
 export interface TaskReplan {
-	schemaVersion: "task_replan.v1";
-	decision: "continue" | "synthesize";
+	schemaVersion: "task_replan.v2";
+	decision: "continue" | "synthesize" | "insufficient";
 	reason: string;
 	remainingSteps: TaskPlanStep[];
 }
@@ -49,6 +50,8 @@ export interface WorkflowEvidence {
 }
 
 export interface CompletedTaskStep {
+	remainingFacts: string[];
+	failure?: ExecutionFailure;
 	step: TaskPlanStep;
 	executionIndex: number;
 	summary: string;
@@ -107,6 +110,7 @@ export interface ReplanWorkflowOperationInput extends WorkflowOperationInputBase
 export interface SynthesizeWorkflowOperationInput extends WorkflowOperationInputBase {
 	operation: "synthesize";
 	operationInput: {
+		answerMode: WorkflowAnswerMode;
 		goal: string;
 		plan: TaskPlan;
 		completedSteps: CompletedTaskStep[];
@@ -284,6 +288,7 @@ export type StreamingAgentRunner = (
 export type ToolExecutor = (request: ToolExecutionRequest) => Promise<UntimedToolExecutionResult>;
 
 export interface WorkflowOperationResult {
+	answerMode?: WorkflowAnswerMode;
 	status: "completed" | "failed";
 	operation: WorkflowOperation;
 	requestId: string;

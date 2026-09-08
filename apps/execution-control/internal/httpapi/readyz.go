@@ -2,12 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/readiness"
 )
 
 const dependencyHealthCheckTimeout = time.Second
@@ -21,10 +22,11 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	agentRuntimeStatus := s.agentRuntimeStatus(request.Context())
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
-	ready := transportStatus.Healthy &&
-		agentRuntimeStatus["healthy"] == true &&
-		runProjectionStoreStatus["healthy"] == true &&
-		temporalRuntimeStatus["healthy"] == true
+	ready := transportStatus.Healthy && readiness.Aggregate(request.Context(),
+		func(context.Context) map[string]any { return agentRuntimeStatus },
+		func(context.Context) map[string]any { return runProjectionStoreStatus },
+		func(context.Context) map[string]any { return temporalRuntimeStatus },
+	)
 	statusCode := http.StatusOK
 	statusText := "ready"
 	if !ready {
@@ -123,21 +125,21 @@ func (s *Server) temporalRuntimeStatus(ctx context.Context) map[string]any {
 
 func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 	return append([]string{
-		defaultString(strings.TrimSpace(cfg.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
+		defaultString(strings.TrimSpace(cfg.TemporalTaskQueue), "campus-agent.workflow.v3"),
 	}, requiredTemporalActivityTaskQueueNames(cfg)...)
 }
 
 func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
 	_ = cfg
 	required := []string{
-		temporalruntime.ActivityTaskQueueCore,
-		temporalruntime.ActivityTaskQueueAgent,
+		"campus-agent.activity.core.v3",
+		"campus-agent.activity.agent.v3",
 	}
 	return required
 }
 
 func containsRequiredTemporalTaskQueues(
-	actual []temporalruntime.TaskQueueReadiness,
+	actual []executionapplication.TaskQueueReadiness,
 	required []string,
 ) bool {
 	seen := map[string]bool{}

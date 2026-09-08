@@ -13,6 +13,9 @@ on:
           - app-api-migration
           - app-api-product-db
           - execution-control-postgres
+          - execution-control-temporal
+          - execution-control-stream
+          - execution-control-replay
           - model-config-postgres
           - ops-web-postgres
           - infra

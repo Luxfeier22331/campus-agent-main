@@ -1,12 +1,12 @@
 package httpapi
 
 import (
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestReadyzReportsTemporalWorkerNotStarted(t *testing.T) {
@@ -17,7 +17,7 @@ func TestReadyzReportsTemporalWorkerNotStarted(t *testing.T) {
 		cfg.TemporalWorkerIdentity = "test:execution-control:readyz"
 	})
 	server := NewServerWithOptions(cfg, ServerOptions{
-		TemporalStarter: readyTemporalStarter{readiness: temporalruntime.RuntimeReadiness{
+		TemporalStarter: readyTemporalStarter{readiness: executionapplication.RuntimeReadiness{
 			Healthy:   false,
 			LastError: "temporal worker not started",
 		}},

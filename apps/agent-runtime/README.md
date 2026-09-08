@@ -29,9 +29,12 @@ Provider schema、可选字段方案可能产生错配分支的问题；消费�
 接近 ReAct，但本应用不实现显式 thought/action/observation 状态机。仓库没有独立 skill runtime；当前只有
 workflow operation 实现，不暴露尚未有真实消费者的策略枚举。
 
-Replanner 的 `task_replan.v1` 只使用 `continue` 和 `synthesize`。Runtime 只负责版本、字段、枚举、
+Replanner 的 `task_replan.v2` 使用 `continue`、`synthesize` 和 `insufficient`。Runtime 只负责版本、字段、枚举、
 长度和数组结构；计划预算、依赖、候选来源可用性以及 decision 与 `remainingSteps` 的语义组合由
 execution-control 统一准入。`reason` 说明决策原因，不构成额外执行状态。
+
+Executor 必须返回 `summary` 与 `remainingFacts`。Synthesis 必须声明 `answerMode`：`grounded`
+要求存在证据，`insufficient` 仅适用于没有证据但至少有真实 `no_match` 的结果。
 
 `max_model_turns` 与 `max_function_tool_calls` 按单个 operation 计数；`max_plan_steps` 与
 `max_replans` 由外层 workflow 作为请求级预算执行。

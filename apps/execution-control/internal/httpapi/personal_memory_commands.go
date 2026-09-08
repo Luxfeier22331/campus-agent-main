@@ -2,11 +2,11 @@ package httpapi
 
 import (
 	"encoding/json"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"net/http"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func (s *Server) handlePersonalMemoryCommand(response http.ResponseWriter, request *http.Request) {
@@ -34,7 +34,7 @@ func (s *Server) handlePersonalMemoryCommand(response http.ResponseWriter, reque
 	workflowID := "campus-agent.memory.command." + strings.TrimSpace(command.CommandID)
 	if err := s.temporalStarter.StartPersonalMemoryCommandWorkflow(
 		request.Context(),
-		temporalruntime.PersonalMemoryCommandWorkflowInput{Command: command, WorkflowID: workflowID},
+		executionapplication.PersonalMemoryCommandInput{Command: command, WorkflowID: workflowID},
 	); err != nil {
 		writeError(response, http.StatusServiceUnavailable, "temporal_admission_failed", "Personal memory workflow admission failed.", true)
 		return

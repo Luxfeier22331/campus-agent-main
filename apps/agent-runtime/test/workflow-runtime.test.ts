@@ -68,6 +68,97 @@ const catalog: ToolCatalog = {
 };
 
 describe("workflow operation runtime", () => {
+	it.each(["no_match", "matched", "failed"] as const)(
+		"preserves memory %s through execute and replan",
+		async (status) => {
+			let observedReplan: AgentRunnerInput | undefined;
+			const step: TaskPlanStep = {
+				...taskStep("step.memory", "读取个人记忆"),
+				candidateSources: ["personal_memory_recall"],
+			};
+			const runtime = createWorkflowOperationRuntime({
+				catalog,
+				runner: async (input) => {
+					if (input.operation === "replan") {
+						observedReplan = input;
+						return runnerResult({
+							finalOutput: JSON.stringify({
+								schemaVersion: "task_replan.v2",
+								decision: "continue",
+								reason: "继续查询。",
+								remainingSteps: [taskStep("step.next", "补充资料")],
+							}),
+						});
+					}
+					return runnerResult({
+						finalOutput: JSON.stringify({
+							summary: "没有可用的个人记忆。",
+							remainingFacts: ["个人偏好"],
+						}),
+						toolResults: [
+							{
+								toolName: "personal_memory_recall",
+								invocationId: "call-memory-miss",
+								argumentsJson: { query: "个人偏好" },
+								durationMs: 1,
+								status: status === "failed" ? "failed" : "completed",
+								result:
+									status === "failed"
+										? { error: "unavailable" }
+										: {
+												outcome: status,
+												memory_text: status === "matched" ? "喜欢安静的自习环境。" : "",
+											},
+								...(status === "failed"
+									? {
+											failure: {
+												code: "source_unavailable",
+												operation: "tool.personal_memory_recall",
+											},
+										}
+									: {}),
+							},
+						],
+					});
+				},
+			});
+			const result = await runtime.run(executeInput(step));
+			expect(result.evidence).toHaveLength(status === "matched" ? 1 : 0);
+			const attempts = [
+				{
+					source: "personal_memory_recall",
+					status,
+					...(status === "failed" ? { failureCode: "source_unavailable" } : {}),
+				},
+			];
+			expect(result.sourceAttempts).toEqual(attempts);
+			const request = replanInput(taskPlan("个人偏好", [step]), []);
+			if (!result.completedStep) {
+				throw new Error("missing completed step");
+			}
+			request.operationInput.completedSteps = [result.completedStep];
+			await runtime.run(request);
+			const message = observedReplan?.input.at(-1);
+			if (!(message && "content" in message) || typeof message.content !== "string") {
+				throw new Error("missing replan payload");
+			}
+			const payload = JSON.parse(message.content.slice(message.content.indexOf("\n") + 1));
+			expect(payload.completedSteps[0].sourceAttempts).toEqual(attempts);
+			expect(payload.completedSteps[0].evidence).toEqual(result.evidence);
+		},
+	);
+
+	it("rejects empty solve plans", async () => {
+		const plan = taskPlan("查找图书馆开放时间", []);
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async () => runnerResult({ finalOutput: JSON.stringify({ outcome: "plan", plan }) }),
+		});
+		await expect(runtime.run(solveInput(plan.goal, 4))).rejects.toMatchObject({
+			code: "run_failed",
+		});
+	});
+
 	it("returns a validated plan from the adaptive solve operation", async () => {
 		let observed: AgentRunnerInput | undefined;
 		const plan = taskPlan("查询奖学金", [taskStep("step.scholarship", "查找奖学金通知")]);
@@ -104,7 +195,10 @@ describe("workflow operation runtime", () => {
 			runner: async (input) => {
 				observed = input;
 				return runnerResult({
-					finalOutput: JSON.stringify({ outcome: "plan", plan: taskPlan("查询奖学金", []) }),
+					finalOutput: JSON.stringify({
+						outcome: "plan",
+						plan: taskPlan("查询奖学金", [taskStep("step.scholarship", "查询奖学金")]),
+					}),
 				});
 			},
 		});
@@ -167,7 +261,7 @@ describe("workflow operation runtime", () => {
 					toolName: "campus_search",
 				};
 				return runnerResult({
-					finalOutput: "找到校园通知。",
+					finalOutput: JSON.stringify({ summary: "找到校园通知。", remainingFacts: [] }),
 					toolResults: [toolResult],
 				});
 			},
@@ -270,7 +364,10 @@ describe("workflow operation runtime", () => {
 			catalog,
 			runner: async () =>
 				runnerResult({
-					finalOutput: "公开网页没有找到可核验结果。",
+					finalOutput: JSON.stringify({
+						summary: "公开网页没有找到可核验结果。",
+						remainingFacts: ["公开校园网页"],
+					}),
 					webSearchUsed: true,
 				}),
 		});
@@ -294,7 +391,10 @@ describe("workflow operation runtime", () => {
 				const argumentsJson = { search_query: "暂时不可用" };
 				const result = await tool.execute(argumentsJson, { invocationId: "call-failed" });
 				return runnerResult({
-					finalOutput: "当前来源暂时不可用。",
+					finalOutput: JSON.stringify({
+						summary: "当前来源暂时不可用。",
+						remainingFacts: ["暂时不可用的资料"],
+					}),
 					toolResults: [
 						{
 							...result,
@@ -330,7 +430,7 @@ describe("workflow operation runtime", () => {
 		const plan = taskPlan("复杂校园任务", [taskStep("step.first", "第一步")]);
 		const replacement = taskStep("step.second", "补充公开资料", ["step.first"]);
 		const replan: TaskReplan = {
-			schemaVersion: "task_replan.v1",
+			schemaVersion: "task_replan.v2",
 			decision: "continue",
 			reason: "校内来源没有匹配结果，改查公开资料。",
 			remainingSteps: [replacement],
@@ -365,7 +465,7 @@ describe("workflow operation runtime", () => {
 			runner: async () =>
 				runnerResult({
 					finalOutput: JSON.stringify({
-						schemaVersion: "task_replan.v1",
+						schemaVersion: "task_replan.v2",
 						decision,
 						reason: "调整路径。",
 						remainingSteps,
@@ -390,7 +490,7 @@ describe("workflow operation runtime", () => {
 		async ({ decision, remainingSteps }) => {
 			const plan = taskPlan("校园任务", [taskStep("step.first", "第一步")]);
 			const replan = {
-				schemaVersion: "task_replan.v1",
+				schemaVersion: "task_replan.v2",
 				decision,
 				reason: "调整路径。",
 				remainingSteps,
@@ -403,12 +503,12 @@ describe("workflow operation runtime", () => {
 		},
 	);
 
-	it.each(["continue", "synthesize"] as const)(
+	it.each(["continue", "synthesize", "insufficient"] as const)(
 		"accepts the %s replan decision",
 		async (decision) => {
 			const plan = taskPlan("校园任务", [taskStep("step.first", "第一步")]);
 			const replan: TaskReplan = {
-				schemaVersion: "task_replan.v1",
+				schemaVersion: "task_replan.v2",
 				decision,
 				reason: "按当前结果继续。",
 				remainingSteps: decision === "continue" ? plan.steps : [],
@@ -436,6 +536,7 @@ describe("workflow operation runtime", () => {
 		};
 		const step = taskStep("step.notice", "查找奖学金通知");
 		const completedStep: CompletedTaskStep = {
+			remainingFacts: [],
 			step,
 			executionIndex: 1,
 			summary: "已找到通知。",
@@ -476,6 +577,8 @@ describe("workflow operation runtime", () => {
 						},
 					],
 					coverageNotes: ["本次未能取得公开网页资料。"],
+					answerMode: "grounded",
+					remainingFacts: [{ objective: step.objective, facts: [] }],
 				},
 			)}`,
 		});
@@ -508,7 +611,21 @@ describe("workflow operation runtime", () => {
 		});
 
 		const events: WorkflowOperationStreamEvent[] = [];
-		for await (const event of runtime.stream(synthesizeInput(taskPlan("目标", []), [], []))) {
+		for await (const event of runtime.stream(
+			synthesizeInput(
+				taskPlan("目标", [taskStep("step.material", "已有资料")]),
+				[],
+				[
+					{
+						schemaVersion: "workflow_evidence.v1",
+						id: "material",
+						source: "campus_search",
+						title: "资料",
+						excerpt: "资料正文",
+					},
+				],
+			),
+		)) {
 			events.push(event);
 		}
 
@@ -539,7 +656,7 @@ describe("workflow operation runtime", () => {
 			runner: async (input) => {
 				observed = input;
 				return runnerResult({
-					finalOutput: JSON.stringify({ outcome: "plan", plan: taskPlan("你好", []) }),
+					finalOutput: JSON.stringify({ outcome: "answer", answer: "你好！" }),
 				});
 			},
 		});
@@ -635,7 +752,7 @@ function synthesizeInput(
 ): SynthesizeWorkflowOperationInput {
 	return {
 		operation: "synthesize",
-		operationInput: { completedSteps, evidence, goal: plan.goal, plan },
+		operationInput: { answerMode: "grounded", completedSteps, evidence, goal: plan.goal, plan },
 		...commonInput("req-synthesize", ["campus_search"]),
 	};
 }

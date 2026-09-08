@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *PostgresRunProjectionStore) BeginAgentInvocation(
+func (s *PostgresReceiptStore) BeginAgentInvocation(
 	ctx context.Context,
 	receipt execution.AgentInvocationReceipt,
 ) (execution.AgentInvocationReceipt, execution.AgentInvocationDisposition, error) {
@@ -37,13 +37,13 @@ func (s *PostgresRunProjectionStore) BeginAgentInvocation(
 	if tag.RowsAffected() == 1 {
 		return stored, execution.AgentInvocationDispositionClaimed, nil
 	}
-	if stored.State == execution.AgentInvocationReceiptStateCompleted {
+	if stored.State == execution.AgentInvocationReceiptStateCompleted || stored.State == execution.AgentInvocationReceiptStateFailed {
 		return stored, execution.AgentInvocationDispositionReplay, nil
 	}
 	return stored, execution.AgentInvocationDispositionAmbiguous, nil
 }
 
-func (s *PostgresRunProjectionStore) GetAgentInvocationReceipt(
+func (s *PostgresReceiptStore) GetAgentInvocationReceipt(
 	ctx context.Context,
 	invocationID string,
 ) (execution.AgentInvocationReceipt, error) {
@@ -61,10 +61,13 @@ func (s *PostgresRunProjectionStore) GetAgentInvocationReceipt(
 	return receipt, nil
 }
 
-func (s *PostgresRunProjectionStore) CompleteAgentInvocation(
+func (s *PostgresReceiptStore) CompleteAgentInvocation(
 	ctx context.Context,
 	receipt execution.AgentInvocationReceipt,
 ) (execution.AgentInvocationReceipt, error) {
+	if receipt.State == "" {
+		receipt.State = execution.AgentInvocationReceiptStateCompleted
+	}
 	if err := execution.ValidateAgentInvocationReceipt(receipt, true); err != nil {
 		return execution.AgentInvocationReceipt{}, err
 	}
@@ -82,8 +85,8 @@ func (s *PostgresRunProjectionStore) CompleteAgentInvocation(
 	if stored.RequestID != receipt.RequestID || stored.InputSHA256 != receipt.InputSHA256 {
 		return execution.AgentInvocationReceipt{}, fmt.Errorf("%w: invocation identity differs", execution.ErrAgentInvocationConflict)
 	}
-	if stored.State == execution.AgentInvocationReceiptStateCompleted {
-		if stored.OutputSHA256 != receipt.OutputSHA256 {
+	if stored.State == execution.AgentInvocationReceiptStateCompleted || stored.State == execution.AgentInvocationReceiptStateFailed {
+		if stored.OutputSHA256 != receipt.OutputSHA256 || stored.State != receipt.State {
 			return execution.AgentInvocationReceipt{}, fmt.Errorf("%w: invocation output differs", execution.ErrAgentInvocationConflict)
 		}
 		return stored, nil
@@ -91,7 +94,7 @@ func (s *PostgresRunProjectionStore) CompleteAgentInvocation(
 	_, err = tx.Exec(ctx, `update execution_control.agent_invocation_receipts
 	set state = $2, output_json = $3::jsonb, output_sha256 = $4,
 		completed_at = $5, updated_at = $6 where invocation_id = $1`,
-		receipt.InvocationID, string(execution.AgentInvocationReceiptStateCompleted), receipt.OutputJSON,
+		receipt.InvocationID, string(receipt.State), receipt.OutputJSON,
 		receipt.OutputSHA256, receipt.CompletedAt, receipt.UpdatedAt,
 	)
 	if err != nil {
@@ -100,12 +103,14 @@ func (s *PostgresRunProjectionStore) CompleteAgentInvocation(
 	if err := tx.Commit(ctx); err != nil {
 		return execution.AgentInvocationReceipt{}, err
 	}
-	receipt.State = execution.AgentInvocationReceiptStateCompleted
+	if receipt.State != execution.AgentInvocationReceiptStateFailed {
+		receipt.State = execution.AgentInvocationReceiptStateCompleted
+	}
 	receipt.CreatedAt = stored.CreatedAt
 	return receipt, nil
 }
 
-func (s *PostgresRunProjectionStore) getAgentInvocationReceipt(
+func (s *PostgresReceiptStore) getAgentInvocationReceipt(
 	ctx context.Context,
 	invocationID string,
 ) (execution.AgentInvocationReceipt, error) {

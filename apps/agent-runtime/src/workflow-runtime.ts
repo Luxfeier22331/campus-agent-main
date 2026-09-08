@@ -52,16 +52,23 @@ export const taskPlanOutputSchema = z
 	.object({
 		schemaVersion: z.literal("task_plan.v1"),
 		goal: z.string().trim().min(1).max(8_000),
-		steps: z.array(taskPlanStepSchema).max(32),
+		steps: z.array(taskPlanStepSchema).min(1).max(32),
 	})
 	.strict();
 
 export const taskReplanOutputSchema = z
 	.object({
-		schemaVersion: z.literal("task_replan.v1"),
-		decision: z.enum(["continue", "synthesize"]),
+		schemaVersion: z.literal("task_replan.v2"),
+		decision: z.enum(["continue", "synthesize", "insufficient"]),
 		reason: z.string().trim().min(1).max(1_000),
 		remainingSteps: z.array(taskPlanStepSchema).max(32),
+	})
+	.strict();
+
+const executorOutputSchema = z
+	.object({
+		summary: z.string().min(1).max(32_000),
+		remainingFacts: z.array(z.string().trim().min(1).max(1_000)).max(32),
 	})
 	.strict();
 
@@ -118,14 +125,18 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"campus_search 返回 no_match 只代表该来源没有找到证据；如果 web_search 在候选来源中，仍可继续用它寻找可信公开校园网页。",
 		"工具失败或无匹配不等于整个请求失败；保留已获得的证据，并清楚说明资料边界。",
 		"Campus 结果的 citation_index 为 N 时，步骤摘要必须写成 [N]，例如 citation_index=1 写成 [1]。不得输出 [citation_index:1]、[citation_index] 或其他占位写法。",
-		"输出简短的步骤摘要，供后续合成器使用；不要向浏览器流式输出。",
+		"只输出 JSON 对象，恰好包含 summary 和 remainingFacts；summary 是简短步骤摘要，remainingFacts 是尚缺事实的字符串数组。",
+		"remainingFacts 只描述本步骤 objective 尚未得到证据支持的事实；已充分覆盖时返回 []，尚未执行的后续步骤目标不算本步骤缺口。无可用资料时必须保留当前步骤的事实缺口。",
+		"只在 summary 中放置引用；不要向浏览器流式输出。",
 	].join("\n"),
 	replan: [
 		...productIdentityInstructions,
 		"你负责检查已经完成的步骤和剩余步骤，决定继续、调整步骤或直接合成。",
 		"只输出一个 JSON 对象，不要输出 Markdown、代码围栏或解释性文字。",
-		"JSON 必须恰好包含 schemaVersion、decision、reason、remainingSteps；字段名区分大小写，schemaVersion 必须是 task_replan.v1。",
-		"decision 只能是 continue 或 synthesize；remainingSteps 中每项必须恰好包含 id、objective、candidateSources、dependsOn。",
+		"JSON 必须恰好包含 schemaVersion、decision、reason、remainingSteps；字段名区分大小写，schemaVersion 必须是 task_replan.v2。",
+		"decision 只能是 continue、synthesize 或 insufficient；remainingSteps 中每项必须恰好包含 id、objective、candidateSources、dependsOn。",
+		"synthesize 必须有合法证据；无证据且存在真实 no_match、没有进一步适用检索路径时选择 insufficient，remainingSteps=[]。全部来源故障不等于 no_match。",
+		"依据各步骤 remainingFacts 调整路径；缺口已有后续证据支持时不重复检索。",
 		"如果已有证据足以回答用户目标，选择 synthesize；不要为了增加步骤而继续。",
 		"如果仍需执行步骤，选择 continue；remainingSteps 给出完整的剩余路径，可以保留或替换原有步骤，并通过 reason 说明原因。",
 		"调整后的 candidateSources 只能使用 operation data 中 availableSources 列出的值，dependsOn 只能引用已有或更早的新步骤。",
@@ -261,6 +272,23 @@ function prepareOperation(
 		input.expectedToolContractFingerprint,
 		catalog.contractFingerprint,
 	);
+	if (input.operation === "synthesize") {
+		const { answerMode, evidence, completedSteps } = input.operationInput;
+		const hasNoMatch = completedSteps.some((step) =>
+			step.sourceAttempts.some((attempt) => attempt.status === "no_match"),
+		);
+		if (
+			(answerMode === "grounded" && evidence.length === 0) ||
+			(answerMode === "insufficient" && (evidence.length > 0 || !hasNoMatch)) ||
+			(answerMode !== "grounded" && answerMode !== "insufficient")
+		) {
+			throw new AgentRuntimeError(
+				"invalid_request",
+				"Synthesis mode does not match the available evidence.",
+				{ operation: "workflow.synthesize" },
+			);
+		}
+	}
 	const currentGoal = operationGoal(input);
 	validateCurrentInput(currentGoal, input.limits);
 	const availableSources = availableWorkflowSources(input);
@@ -322,7 +350,10 @@ function prepareOperation(
 			allowWebSearch,
 			citationStart: citationStartForOperation(input),
 			input: modelInput.items,
-			instructions: instructions[input.operation],
+			instructions:
+				input.operation === "synthesize" && input.operationInput.answerMode === "insufficient"
+					? `${instructions.synthesize}\n本次 answerMode=insufficient：只能说明本轮检索没有找到可用资料，以及哪些来源暂时不可用；不得补充校园事实、时间、资格、网址或编号引用。不得将未查到资料表述为事实不存在。`
+					: instructions[input.operation],
 			limits: input.limits,
 			operation: input.operation,
 			providerConfig: input.providerConfig,
@@ -521,11 +552,19 @@ function synthesisPayload(
 			excerpt: item.excerpt,
 		})),
 		coverageNotes: synthesisCoverageNotes(input.completedSteps),
+		answerMode: input.answerMode,
+		remainingFacts: input.completedSteps.map((step) => ({
+			objective: step.step.objective,
+			facts: step.remainingFacts,
+		})),
 	};
 }
 
 function synthesisCoverageNotes(completedSteps: CompletedTaskStep[]): string[] {
 	const notes = new Set<string>();
+	if (completedSteps.some((step) => step.failure)) {
+		notes.add("部分资料步骤未完成，只能依据已取得的资料回答。");
+	}
 	for (const attempt of sourceAttemptsFromCompletedSteps(completedSteps)) {
 		const note = sourceBoundaryNote(attempt);
 		if (note) {
@@ -645,10 +684,15 @@ function operationResultFromRunner(args: {
 				};
 			}
 			case "execute_step": {
-				const finalOutput = requireTextOutput(runnerResult.finalOutput, "workflow.execute_step");
-				const evidence = evidenceFromRunnerResult(runnerResult, input.operationInput.citationStart);
+				const parsed = requireExecutorOutput(runnerResult);
+				const finalOutput = parsed.result.finalOutput;
+				const evidence = evidenceFromRunnerResult(
+					parsed.result,
+					input.operationInput.citationStart,
+				);
 				const sourceAttempts = sourceAttemptsFromRunnerResult(runnerResult);
 				const completedStep: CompletedTaskStep = {
+					remainingFacts: parsed.remainingFacts,
 					evidence,
 					executionIndex: input.operationInput.completedSteps.length + 1,
 					sourceAttempts,
@@ -657,6 +701,7 @@ function operationResultFromRunner(args: {
 				};
 				return {
 					...common,
+					webCitations: parsed.result.webCitations,
 					finalOutput,
 					status: "completed",
 					completedStep,
@@ -667,8 +712,16 @@ function operationResultFromRunner(args: {
 			}
 			case "synthesize": {
 				const finalOutput = requireTextOutput(runnerResult.finalOutput, "workflow.synthesize");
+				if (input.operationInput.answerMode === "insufficient" && /\[\d+\]/u.test(finalOutput)) {
+					throw new AgentRuntimeError(
+						"citation_validation_failed",
+						"Insufficient-material answers cannot contain numbered citations.",
+						{ operation: "workflow.synthesize" },
+					);
+				}
 				return {
 					...common,
+					answerMode: input.operationInput.answerMode,
 					finalOutput,
 					status: "completed",
 					evidence: normalizeEvidence(input.operationInput.evidence),
@@ -715,6 +768,69 @@ function requireSolveOutcome(
 			schemaVersion: parsed.data.plan.schemaVersion,
 			steps: parsed.data.plan.steps.map(toTaskPlanStep),
 		},
+	};
+}
+
+function requireExecutorOutput(result: AgentRunnerResult): {
+	result: AgentRunnerResult;
+	remainingFacts: string[];
+} {
+	const parsed = executorOutputSchema.parse(
+		parseModelJSON(result.finalOutput, "Executor", "workflow.execute_step"),
+	);
+	const summary = requireTextOutput(parsed.summary, "workflow.execute_step");
+	const matches = [...result.finalOutput.matchAll(/"summary"\s*:\s*("(?:\\[\s\S]|[^"\\])*")/gu)];
+	if (matches.length !== 1 || JSON.parse(matches[0]?.[1] ?? "null") !== parsed.summary) {
+		throw new AgentRuntimeError("run_failed", "Executor must return exactly one summary.", {
+			operation: "workflow.execute_step",
+		});
+	}
+	const match = matches[0];
+	if (!match || match.index === undefined || !match[1]) {
+		throw new AgentRuntimeError("run_failed", "Executor summary is missing.", {
+			operation: "workflow.execute_step",
+		});
+	}
+	const contentStart = match.index + match[0].length - match[1].length + 1;
+	const contentEnd = contentStart + match[1].length - 2;
+	const rawPoints = [...result.finalOutput];
+	const leadingWhitespace = [...parsed.summary].length - [...parsed.summary.trimStart()].length;
+	const webCitations = result.webCitations.map((citation) => {
+		const start = rawPoints.slice(0, citation.startIndex).join("").length;
+		const end = rawPoints.slice(0, citation.endIndex).join("").length;
+		try {
+			if (
+				citation.startIndex < 0 ||
+				citation.endIndex > rawPoints.length ||
+				start < contentStart ||
+				end > contentEnd
+			) {
+				throw new Error("citation outside summary");
+			}
+			const beforeStart = JSON.parse(
+				`"${result.finalOutput.slice(contentStart, start)}"`,
+			) as string;
+			const beforeEnd = JSON.parse(`"${result.finalOutput.slice(contentStart, end)}"`) as string;
+			if (/[\uD800-\uDFFF]/u.test(beforeStart) || /[\uD800-\uDFFF]/u.test(beforeEnd)) {
+				throw new Error("citation splits a character");
+			}
+			const startIndex = [...beforeStart].length - leadingWhitespace;
+			const endIndex = [...beforeEnd].length - leadingWhitespace;
+			if (startIndex < 0 || endIndex <= startIndex || endIndex > [...summary].length) {
+				throw new Error("citation outside summary text");
+			}
+			return { ...citation, startIndex, endIndex };
+		} catch {
+			throw new AgentRuntimeError(
+				"citation_validation_failed",
+				"Executor citation does not identify summary text.",
+				{ operation: "workflow.execute_step" },
+			);
+		}
+	});
+	return {
+		result: { ...result, finalOutput: summary, webCitations },
+		remainingFacts: parsed.remainingFacts,
 	};
 }
 
@@ -951,9 +1067,24 @@ function sourceAttemptsFromRunnerResult(result: AgentRunnerResult): SourceAttemp
 			});
 			continue;
 		}
-		if (source === "campus_search") {
+		if (source === "campus_search" || source === "personal_memory_recall") {
 			const outcome = isRecord(toolResult.result) ? toolResult.result.outcome : undefined;
-			attempts.push({ source, status: outcome === "no_match" ? "no_match" : "matched" });
+			if (outcome !== "matched" && outcome !== "no_match") {
+				throw new AgentRuntimeError("tool_contract_mismatch", "Tool result outcome is invalid.", {
+					operation: `tool.${source}`,
+				});
+			}
+			if (
+				source === "personal_memory_recall" &&
+				(outcome === "matched") !== Boolean(stringValue(toolResult.result.memory_text))
+			) {
+				throw new AgentRuntimeError(
+					"tool_contract_mismatch",
+					"Memory outcome does not match its content.",
+					{ operation: "tool.personal_memory_recall" },
+				);
+			}
+			attempts.push({ source, status: outcome });
 		} else {
 			attempts.push({ source, status: "completed" });
 		}

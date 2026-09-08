@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"strings"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 func (s *InMemoryRunProjectionStore) BeginOwnerDeletion(
@@ -147,11 +148,7 @@ func (s *InMemoryRunProjectionStore) deleteRunLocked(requestID string, run execu
 			delete(s.stepResults, key)
 		}
 	}
-	for invocationID, receipt := range s.agentInvocationReceipts {
-		if receipt.RequestID == requestID {
-			delete(s.agentInvocationReceipts, invocationID)
-		}
-	}
+	s.Receipts.deleteRunLocked(requestID)
 	for waiter := range s.runEventWaiters[requestID] {
 		close(waiter)
 	}

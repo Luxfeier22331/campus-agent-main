@@ -15,7 +15,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreadmodel"
 )
 
 var testExecutionInputs = struct {
@@ -51,13 +51,13 @@ type fakeTemporalStarter struct {
 	cancelReason string
 	cancelErr    error
 	ctx          context.Context
-	input        temporalruntime.ToolExecutionWorkflowInput
+	input        execution.WorkflowStartInput
 	err          error
 }
 
 func (f *fakeTemporalStarter) StartToolExecutionWorkflow(
 	ctx context.Context,
-	input temporalruntime.ToolExecutionWorkflowInput,
+	input execution.WorkflowStartInput,
 ) (string, error) {
 	f.ctx = ctx
 	f.input = input
@@ -66,39 +66,39 @@ func (f *fakeTemporalStarter) StartToolExecutionWorkflow(
 
 func (f *fakeTemporalStarter) StartPersonalMemoryCommandWorkflow(
 	context.Context,
-	temporalruntime.PersonalMemoryCommandWorkflowInput,
+	executionapplication.PersonalMemoryCommandInput,
 ) error {
 	return f.err
 }
 
 func (f *fakeTemporalStarter) CancelToolExecutionWorkflow(
 	_ context.Context,
-	input temporalruntime.ToolExecutionWorkflowCancelInput,
+	input execution.WorkflowCancelInput,
 ) error {
 	f.cancelRunID = input.RequestID
 	f.cancelReason = input.Reason
 	return f.cancelErr
 }
 
-func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.RuntimeReadiness {
-	return temporalruntime.RuntimeReadiness{
+func (f *fakeTemporalStarter) CheckReadiness(context.Context) executionapplication.RuntimeReadiness {
+	return executionapplication.RuntimeReadiness{
 		Healthy: true,
-		TaskQueues: []temporalruntime.TaskQueueReadiness{
+		TaskQueues: []executionapplication.TaskQueueReadiness{
 			{
-				Name:    temporalruntime.WorkflowTaskQueue,
-				Type:    temporalruntime.TaskQueueTypeWorkflow,
+				Name:    "campus-agent.workflow.v3",
+				Type:    "workflow",
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueCore,
-				Type:    temporalruntime.TaskQueueTypeActivity,
+				Name:    "campus-agent.activity.core.v3",
+				Type:    "activity",
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueAgent,
-				Type:    temporalruntime.TaskQueueTypeActivity,
+				Name:    "campus-agent.activity.agent.v3",
+				Type:    "activity",
 				Pollers: 1,
 				Healthy: true,
 			},
@@ -157,9 +157,10 @@ func setExecutionPayloadConversationContextForRunTest(
 
 func attachRunProjectionStoreForHandlerTest(
 	server *Server,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 ) {
 	server.runProjectionStore = store
+	server.runReader = executionreadmodel.NewStoreReader(store)
 	server.runProjectionStoreErr = nil
 	attachRunServiceForHandlerTest(server, store, mapExecutionInputLoader{}, staticAdmissionSnapshotBuilder{
 		targetSHA256: primaryAgentModelTargetSHA256ForTest,
@@ -174,7 +175,7 @@ func attachRunProjectionStoreForHandlerTest(
 
 func attachRunServiceForHandlerTest(
 	server *Server,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	inputLoader execution.InputLoader,
 	admissionSnapshotBuilder execution.AdmissionSnapshotBuilder,
 	personalMemoryRecallAvailable bool,

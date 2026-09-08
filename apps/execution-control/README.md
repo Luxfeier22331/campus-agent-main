@@ -30,15 +30,20 @@ HTTP API 也不拥有 worker 生命周期。
 
 内部实现按以下边界组织：
 
-- `internal/execution` 拥有与传输、Temporal SDK 和数据库无关的执行合同、workflow 身份校验、admission
-  规则与持久化端口；
-- `internal/executionapplication` 拥有 admission snapshot、run 创建/取消和 Agent 内部工具执行用例；
+- `internal/execution` 拥有与传输、Temporal SDK 和数据库无关的执行合同、workflow 身份校验与 admission
+  规则；
+- `internal/executionapplication` 拥有 run、receipt、memory、workflow control 和 outbound ports，执行
+  admission、run 创建/取消、receipt 状态管理和 Agent 内部工具用例；工具合同文件由 `internal/toolcontract`
+  读取后通过 application port 注入；
 - `internal/httpapi` 只负责认证、JSON wire 解码、错误映射和响应编码，查询接口可直接读取有界投影；
-- `internal/temporalruntime` 拥有 Temporal workflow、activity 名称、SDK 输入输出适配和 worker 注册；
-- `internal/temporaladapter` 直接拥有 Temporal activity 方法与业务 handler 的适配，不复制业务规则；
+- `internal/temporalruntime` 拥有 Temporal workflow、activity 名称和独立的 workflow/activity DTO；
+- `internal/temporaladapter/execution`、`memory`、`finalization` 分别实现执行、记忆和终态 activity，
+  `finalization/projection` 通过 application RunStore 写投影；`contract` 与 `control` 负责合同转换和控制适配；
+- `internal/executionpersistence` 分别实现 run 与 receipt 存储，receipt 的保留期限随父 run，删除由同一锁或
+  数据库外键事务完成；activity 通过 application receipt service 保存完整输出和 hash；
 - `internal/executionreconciler` 独立拥有启动、取消和终态收敛状态机，`internal/runtimeassembly`
-  统一启动和停止 poller 与 reconciler；reconciler 只依赖 `internal/execution` 合同，不导入 Temporal SDK
-  或 HTTP；
+  唯一负责生产依赖组装、Temporal client、worker 注册及生命周期；reconciler 依赖 application ports，
+  不导入 Temporal SDK 或 HTTP；
 - `internal/campusdocs` 拥有索引与检索领域合同，`internal/campusdocspersistence` 实现当前索引的 PostgreSQL
   读取，`internal/outboundadapter` 实现 embedding、Qdrant 和 reranker 调用。
 
@@ -75,6 +80,39 @@ pnpm --dir apps/execution-control native:typecheck
 pnpm --dir apps/execution-control native:test
 pnpm check
 ```
+
+测试按依赖分层运行：
+
+| 入口 | 范围与依赖 |
+| --- | --- |
+| `native:test` | workflow/adapter/HTTP 单元与组件测试，不启动外部服务 |
+| `test:temporal-integration` | 真实 Temporal workflow、HTTP starter、取消、超时、finalization 和即时 replay |
+| `test:temporal-replay` | 已提交 history 的独立 replay，不启动 Temporal Server 或 activity |
+| `test:stream-integration` | 本地 `httptest.Server` SSE、真实 consumer 和 in-memory projection，不启动 Temporal |
+| `test:database-integration` | testcontainers PostgreSQL、共享 schema、receipt 和投影持久化，不启动 Temporal |
+
+这些 integration 不隐式启动 `pnpm dev`、App API、Campus Web 或真实 Agent Runtime，也不连接 staging。
+完整产品链路验证仍由产品测试入口负责。
+
+`integration/temporal` 拥有真实 workflow、history replay 和取消场景，`integration/execution_http`
+通过公开构造接口组装 HTTP、application service、reconciler 和 Temporal starter。活动 fake 由
+`integration/temporalfake` 及 HTTP 测试包拥有；`integration/temporaltest` 只管理每个测试包的
+Dev Server、worker 和 workflow 清理。`internal/` 下的测试不启动 Temporal Server。
+
+```bash
+pnpm --dir apps/execution-control test:temporal-integration
+pnpm --dir apps/execution-control test:temporal-replay
+pnpm --dir apps/execution-control test:stream-integration
+pnpm --dir apps/execution-control test:database-integration
+```
+
+Temporal fixture 按包管理 Dev Server，按测试管理 worker 和唯一 workflow ID。测试失败时走 cleanup；
+包超时前预留 worker、client 和 server 的关闭时间。子进程测试会验证失败和超时后的监听端口已关闭。
+受保护 history 的用途和更新命令见 [replay fixtures](./integration/temporal/testdata/replay/README.md)。
+
+PR 对受影响的 execution-control 运行 `native:format`、`native:lint`、`native:typecheck`、`native:test`。
+Temporal、stream、replay 和 PostgreSQL 在 GitHub 手动 validation profile 中分别选择，暂不作为 PR
+required service checks。本地 Dev Server fixture 不用于部署验证。
 
 运行配置和环境操作见 `docs/runbooks/execution.md`、`docs/runbooks/temporal.md` 与
 `docs/runbooks/local-verification.md`。README 不保存环境地址、Secret、完整变量清单或部署状态。

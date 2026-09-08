@@ -84,7 +84,7 @@ const taskPlanSchema = z
 	.object({
 		schema_version: z.literal("task_plan.v1"),
 		goal: z.string().min(1),
-		steps: z.array(taskPlanStepSchema),
+		steps: z.array(taskPlanStepSchema).min(1),
 	})
 	.strict();
 
@@ -117,11 +117,17 @@ const evidenceSchema = z
 	})
 	.strict();
 
+const stepFailureSchema = z
+	.object({ code: z.string().min(1), operation: z.string().min(1) })
+	.strict();
+
 const completedStepSchema = z
 	.object({
 		step: taskPlanStepSchema,
 		execution_index: z.number().int().positive(),
 		summary: z.string().min(1),
+		remaining_facts: z.array(z.string().trim().min(1).max(1_000)).max(32),
+		failure: stepFailureSchema.optional(),
 		evidence: z.array(evidenceSchema),
 		source_attempts: z.array(sourceAttemptSchema),
 	})
@@ -187,6 +193,7 @@ const synthesizeRequestSchema = z
 		operation: z.literal("synthesize"),
 		operation_input: z
 			.object({
+				answer_mode: z.enum(["grounded", "insufficient"]),
 				goal: z.string().min(1),
 				plan: taskPlanSchema,
 				completed_steps: z.array(completedStepSchema),
@@ -303,6 +310,7 @@ export function runtimeInputFromAgentRunRequest(
 		...base,
 		operation: "synthesize",
 		operationInput: {
+			answerMode: parsed.operation_input.answer_mode,
 			completedSteps: parsed.operation_input.completed_steps.map(mapCompletedStep),
 			evidence: parsed.operation_input.evidence.map(mapEvidence),
 			goal: parsed.operation_input.goal,
@@ -385,6 +393,8 @@ function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
 
 function mapCompletedStep(value: z.infer<typeof completedStepSchema>): CompletedTaskStep {
 	return {
+		remainingFacts: value.remaining_facts,
+		...(value.failure ? { failure: value.failure } : {}),
 		evidence: value.evidence.map(mapEvidence),
 		executionIndex: value.execution_index,
 		sourceAttempts: value.source_attempts.map((attempt) => ({

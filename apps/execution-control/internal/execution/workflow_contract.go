@@ -1,7 +1,6 @@
 package execution
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -150,11 +149,15 @@ func WorkflowIdentityForInput(input WorkflowStartInput) (WorkflowIdentity, error
 	if err != nil {
 		return WorkflowIdentity{}, fmt.Errorf("encode workflow input identity: %w", err)
 	}
+	return WorkflowIdentityForPayload(input.RequestID, input.WorkflowID, input.PayloadSHA256, encoded)
+}
+
+func WorkflowIdentityForPayload(requestID, workflowID, payloadSHA256 string, encoded []byte) (WorkflowIdentity, error) {
 	digest := sha256.Sum256(encoded)
 	identity := WorkflowIdentity{
-		RequestID:           strings.TrimSpace(input.RequestID),
-		WorkflowID:          strings.TrimSpace(input.WorkflowID),
-		PayloadSHA256:       strings.TrimSpace(input.PayloadSHA256),
+		RequestID:           strings.TrimSpace(requestID),
+		WorkflowID:          strings.TrimSpace(workflowID),
+		PayloadSHA256:       strings.TrimSpace(payloadSHA256),
 		WorkflowInputSHA256: hex.EncodeToString(digest[:]),
 	}
 	if !identity.Valid() {
@@ -197,32 +200,4 @@ func validWorkflowIdentitySHA(value string) bool {
 	}
 	decoded, err := hex.DecodeString(value)
 	return err == nil && len(decoded) == sha256.Size
-}
-
-type WorkflowStarter interface {
-	CancelToolExecutionWorkflow(context.Context, WorkflowCancelInput) error
-	// StartToolExecutionWorkflow returns only a non-empty exact root Run ID
-	// verified against the input identity and reset state.
-	// The reconciler persists this binding without repeating that verification.
-	StartToolExecutionWorkflow(context.Context, WorkflowStartInput) (string, error)
-}
-
-type WorkflowControl interface {
-	DescribeToolExecutionWorkflow(context.Context, string, string) (WorkflowExecutionInfo, error)
-}
-
-type WorkflowCancellationRecoveryStarter interface {
-	// EnsureToolExecutionWorkflowForCancellation has the same verified-root
-	// return guarantee as StartToolExecutionWorkflow, with a delayed first task.
-	EnsureToolExecutionWorkflowForCancellation(context.Context, WorkflowStartInput) (string, error)
-}
-
-type WorkflowFinalizer interface {
-	FailWorkflowStart(context.Context, DurableRun, string, error) error
-	FinalizeExecutionCancellation(
-		context.Context,
-		ExecutionCancellationFinalizationInput,
-	) (ExecutionCancellationFinalizationOutput, error)
-	FinalizeWorkflowClosure(context.Context, DurableRun, time.Time, string) error
-	FinalizeWorkflowTimeout(context.Context, DurableRun, time.Time) error
 }

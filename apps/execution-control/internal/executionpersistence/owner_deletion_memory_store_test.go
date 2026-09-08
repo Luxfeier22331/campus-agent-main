@@ -3,9 +3,10 @@ package executionpersistence
 import (
 	"context"
 	"errors"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"testing"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing.T) {
@@ -33,7 +34,7 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 	store.runSteps["step-1"] = execution.RunStepProjection{RequestID: requestID}
 	store.stepAttempts["attempt-1"] = execution.StepAttemptProjection{RequestID: requestID}
 	store.stepResults["result-1"] = execution.StepResultProjection{RequestID: requestID}
-	store.agentInvocationReceipts["invocation-1"] = execution.AgentInvocationReceipt{RequestID: requestID}
+	store.Receipts.records["invocation-1"] = execution.AgentInvocationReceipt{RequestID: requestID}
 	store.mu.Unlock()
 
 	status, err := store.BeginOwnerDeletion(ctx, request.Run.OwnerUserID, now.Add(2*time.Second))
@@ -84,11 +85,11 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 		t.Fatalf("deleted run lookup error = %v, want execution.ErrDurableRunNotFound", err)
 	}
 	if len(store.runEvents) != 0 || len(store.runSteps) != 0 || len(store.stepAttempts) != 0 ||
-		len(store.stepResults) != 0 || len(store.agentInvocationReceipts) != 0 ||
+		len(store.stepResults) != 0 || len(store.Receipts.records) != 0 ||
 		len(store.workflowStartIntents) != 0 || len(store.cancellationCommands) != 0 {
 		t.Fatalf("owner projection cascade left data: events=%d steps=%d attempts=%d results=%d invocations=%d starts=%d cancellations=%d",
 			len(store.runEvents), len(store.runSteps), len(store.stepAttempts), len(store.stepResults),
-			len(store.agentInvocationReceipts), len(store.workflowStartIntents), len(store.cancellationCommands))
+			len(store.Receipts.records), len(store.workflowStartIntents), len(store.cancellationCommands))
 	}
 	if _, err := store.CreateRun(ctx, execution.DurableRun{
 		RequestID:      "run-after-deletion",

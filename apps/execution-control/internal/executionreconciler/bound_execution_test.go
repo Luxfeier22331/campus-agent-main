@@ -3,6 +3,7 @@ package executionreconciler
 import (
 	"context"
 	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"testing"
 	"time"
 
@@ -77,7 +78,7 @@ func TestRecoveryMustSucceedAndBindBeforeReadingStatusOrCanceling(t *testing.T) 
 			}
 			markReconcilerStartDispatchForTest(t, base, leased[0], intent.CreatedAt)
 			command := requestAndLeaseReconcilerCancellationForTest(t, base, intent.RequestID, intent.CreatedAt.Add(time.Second), "recovery-cancel")
-			var store execution.RunProjectionStore = base
+			var store executionapplication.RunStore = base
 			if test.bindingErr != nil {
 				store = &failingWorkflowStartExecutionBindingStore{InMemoryRunProjectionStore: base, err: test.bindingErr}
 			}
@@ -134,9 +135,10 @@ func TestCancellationDeliveryFailureRechecksOnlyBoundExecution(t *testing.T) {
 			}
 			run, err := store.GetRun(context.Background(), intent.RequestID)
 			wantStatus := execution.DurableRunStatusFailed
-			if closedStatus == execution.WorkflowExecutionStatusTimedOut {
+			switch closedStatus {
+			case execution.WorkflowExecutionStatusTimedOut:
 				wantStatus = execution.DurableRunStatusExpired
-			} else if closedStatus == execution.WorkflowExecutionStatusCanceled {
+			case execution.WorkflowExecutionStatusCanceled:
 				wantStatus = execution.DurableRunStatusCanceled
 			}
 			if err != nil || run.Status != wantStatus {

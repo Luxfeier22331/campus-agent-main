@@ -1,6 +1,7 @@
 package temporalruntime
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -21,32 +22,30 @@ const (
 	workflowMemoInputSHAKey   = "campus_agent_input_sha256"
 )
 
-type WorkflowExecutionInfo = execution.WorkflowExecutionInfo
-
-type WorkflowIdentityState = execution.WorkflowIdentityState
-
 const (
 	WorkflowIdentityUnknown = execution.WorkflowIdentityUnknown
 	WorkflowIdentityKnown   = execution.WorkflowIdentityKnown
 	WorkflowIdentityInvalid = execution.WorkflowIdentityInvalid
 )
 
-type ToolExecutionWorkflowIdentity = execution.WorkflowIdentity
-
-func ToolExecutionWorkflowIdentityForInput(input ToolExecutionWorkflowInput) (ToolExecutionWorkflowIdentity, error) {
-	return execution.WorkflowIdentityForInput(input)
+func ToolExecutionWorkflowIdentityForInput(input ToolExecutionWorkflowInput) (execution.WorkflowIdentity, error) {
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		return execution.WorkflowIdentity{}, err
+	}
+	return execution.WorkflowIdentityForPayload(input.RequestID, input.WorkflowID, input.PayloadSHA256, encoded)
 }
 
 func ValidateToolExecutionWorkflowIdentity(
-	info WorkflowExecutionInfo,
-	expected ToolExecutionWorkflowIdentity,
+	info execution.WorkflowExecutionInfo,
+	expected execution.WorkflowIdentity,
 ) error {
 	return execution.ValidateWorkflowIdentity(info, expected)
 }
 
-func toolExecutionWorkflowIdentityFromMemo(memo *commonpb.Memo) (ToolExecutionWorkflowIdentity, WorkflowIdentityState) {
+func toolExecutionWorkflowIdentityFromMemo(memo *commonpb.Memo) (execution.WorkflowIdentity, execution.WorkflowIdentityState) {
 	if memo == nil {
-		return ToolExecutionWorkflowIdentity{}, WorkflowIdentityUnknown
+		return execution.WorkflowIdentity{}, WorkflowIdentityUnknown
 	}
 	fields := memo.GetFields()
 	keys := []string{workflowMemoRequestIDKey, workflowMemoWorkflowIDKey, workflowMemoPayloadSHAKey, workflowMemoInputSHAKey}
@@ -59,18 +58,18 @@ func toolExecutionWorkflowIdentityFromMemo(memo *commonpb.Memo) (ToolExecutionWo
 		}
 		present++
 		if err := converter.GetDefaultDataConverter().FromPayload(payload, &values[index]); err != nil {
-			return ToolExecutionWorkflowIdentity{}, WorkflowIdentityInvalid
+			return execution.WorkflowIdentity{}, WorkflowIdentityInvalid
 		}
 		values[index] = strings.TrimSpace(values[index])
 	}
 	if present == 0 {
-		return ToolExecutionWorkflowIdentity{}, WorkflowIdentityUnknown
+		return execution.WorkflowIdentity{}, WorkflowIdentityUnknown
 	}
-	identity := ToolExecutionWorkflowIdentity{
+	identity := execution.WorkflowIdentity{
 		RequestID: values[0], WorkflowID: values[1], PayloadSHA256: values[2], WorkflowInputSHA256: values[3],
 	}
 	if present != len(keys) || !identity.Valid() {
-		return ToolExecutionWorkflowIdentity{}, WorkflowIdentityInvalid
+		return execution.WorkflowIdentity{}, WorkflowIdentityInvalid
 	}
 	return identity, WorkflowIdentityKnown
 }

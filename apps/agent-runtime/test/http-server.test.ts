@@ -676,6 +676,7 @@ function validBody(
 			plan: planWire(plan),
 			completed_steps: [],
 			evidence: [evidenceWire(evidence)],
+			answer_mode: "grounded",
 		},
 	};
 }

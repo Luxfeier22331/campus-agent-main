@@ -103,6 +103,7 @@ type AgentInvocationReceiptState string
 const (
 	AgentInvocationReceiptStateStarted   AgentInvocationReceiptState = "started"
 	AgentInvocationReceiptStateCompleted AgentInvocationReceiptState = "completed"
+	AgentInvocationReceiptStateFailed    AgentInvocationReceiptState = "failed"
 )
 
 type AgentInvocationDisposition string

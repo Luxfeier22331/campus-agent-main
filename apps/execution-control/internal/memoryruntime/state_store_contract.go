@@ -1,7 +1,6 @@
 package memoryruntime
 
 import (
-	"context"
 	"errors"
 	"time"
 )
@@ -25,21 +24,4 @@ type CommandReceipt struct {
 	Status            string
 	SubjectScopeHash  string
 	SupersessionScope string
-}
-
-type StateStore interface {
-	BeginCall(context.Context, string, string, int64, int64, string, string, time.Duration) error
-	BeginCommand(context.Context, string, PersonalMemoryCommandRequest, time.Duration) (CommandReceipt, bool, error)
-	EndCall(context.Context, string, string) error
-	FinalizeCommand(context.Context, string, string, string, string, string, string) (CommandReceipt, error)
-	GenerationDrained(context.Context, string, int64) (bool, error)
-	MarkOwnerDeleted(context.Context, string) error
-	MarkCommandRetryable(context.Context, string, string) error
-	SubjectDrained(context.Context, string, int64, string, int64) (bool, error)
-}
-
-type Executor interface {
-	ExecuteCommand(context.Context, PersonalMemoryCommandRequest) (PersonalMemoryCommandResult, error)
-	AppendConversationTurn(context.Context, AppendConversationTurnRequest) (AppendConversationTurnResult, error)
-	Recall(context.Context, RecallRequest) (RecallResult, error)
 }

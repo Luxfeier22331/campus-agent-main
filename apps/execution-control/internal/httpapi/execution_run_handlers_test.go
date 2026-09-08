@@ -12,7 +12,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestDurableRunResponseIncludesFinalResponseRef(t *testing.T) {
@@ -623,12 +622,12 @@ func TestExecutionRunCancelDefersStepProjectionToTemporalFinalizer(t *testing.T)
 		t.Helper()
 		stepKind := "agent"
 		tool := ""
-		taskQueue := temporalruntime.ActivityTaskQueueAgent
+		taskQueue := "campus-agent.activity.agent.v3"
 		payload := map[string]any{"step_id": stepID}
 		if strings.HasPrefix(stepID, "sdk_tool.execute.personal_memory_recall.") {
 			stepKind = "tool"
 			tool = personalMemoryRecallToolName
-			taskQueue = temporalruntime.ActivityTaskQueueForToolTarget(tool)
+			taskQueue = "campus-agent.activity.agent.v3"
 			payload["tool_name"] = tool
 		}
 		if _, err := store.UpsertRunStep(context.Background(), execution.RunStepProjection{
@@ -756,7 +755,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		ConversationID:       "conv-temporal-trajectory",
 		StepKind:             "agent",
 		Status:               "completed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueAgent,
+		TaskQueue:            "campus-agent.activity.agent.v3",
 		WorkerID:             "staging:context:worker-1",
 		StartedAt:            now,
 		CompletedAt:          now.Add(100 * time.Millisecond),
@@ -776,12 +775,12 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		RequestID:             "run-temporal-trajectory",
 		Attempt:               1,
 		Status:                "completed",
-		TaskQueue:             temporalruntime.ActivityTaskQueueAgent,
+		TaskQueue:             "campus-agent.activity.agent.v3",
 		WorkerID:              "staging:context:worker-1",
 		WorkflowID:            "campus-agent.chat.run-temporal-trajectory",
 		TemporalRunID:         "temporal-run-trajectory",
 		ActivityID:            "activity-agent-1",
-		ActivityType:          temporalruntime.ExecuteTaskStepActivityName,
+		ActivityType:          "ExecuteTaskStepActivity",
 		ActivityAttempt:       1,
 		ScheduledAt:           now.Add(-25 * time.Millisecond),
 		StartedAt:             now,
@@ -803,7 +802,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		UpdatedAt:             now.Add(100 * time.Millisecond),
 		PayloadSchemaVersion:  "step-attempt-projection-v1",
 		SanitizedPayload: map[string]any{
-			"activity_type": temporalruntime.ExecuteTaskStepActivityName,
+			"activity_type": "ExecuteTaskStepActivity",
 		},
 	}); err != nil {
 		t.Fatalf("upsert attempt: %v", err)
@@ -855,7 +854,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("steps = %#v, want one step", body["steps"])
 	}
 	step := expectRecord(t, steps[0], "steps[0]")
-	if step["step_kind"] != "agent" || step["task_queue"] != temporalruntime.ActivityTaskQueueAgent {
+	if step["step_kind"] != "agent" || step["task_queue"] != "campus-agent.activity.agent.v3" {
 		t.Fatalf("step = %#v", step)
 	}
 	attempts, ok := body["attempts"].([]any)
@@ -867,7 +866,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		"workflow_id":             "campus-agent.chat.run-temporal-trajectory",
 		"temporal_run_id":         "temporal-run-trajectory",
 		"activity_id":             "activity-agent-1",
-		"activity_type":           temporalruntime.ExecuteTaskStepActivityName,
+		"activity_type":           "ExecuteTaskStepActivity",
 		"activity_attempt":        float64(1),
 		"schedule_to_start_ms":    float64(25),
 		"duration_ms":             float64(100),

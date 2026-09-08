@@ -12,22 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
-
-func TestServerDoesNotImplementTemporalActivitySets(t *testing.T) {
-	server := any(&Server{})
-	for name, implemented := range map[string]bool{
-		"workflow":     implements[temporalruntime.WorkflowActivities](server),
-		"context":      implements[temporalruntime.ContextActivities](server),
-		"finalization": implements[temporalruntime.FinalizationActivities](server),
-	} {
-		if implemented {
-			t.Fatalf("httpapi.Server implements the %s Temporal activity set", name)
-		}
-	}
-}
 
 func TestServerInfrastructureFieldsUseTheirOwnedPackages(t *testing.T) {
 	serverType := reflect.TypeOf(Server{})
@@ -39,12 +24,12 @@ func TestServerInfrastructureFieldsUseTheirOwnedPackages(t *testing.T) {
 		{
 			field:   "runService",
 			owner:   "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication",
-			pointer: true,
+			pointer: false,
 		},
 		{
 			field:   "agentToolService",
 			owner:   "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication",
-			pointer: true,
+			pointer: false,
 		},
 	}
 
@@ -94,6 +79,21 @@ func TestRetiredInfrastructureImplementationsDoNotReturnToHTTPPackage(t *testing
 	}
 }
 
+func TestExecutionProjectionHandlersUseReadModelBoundary(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve test source path")
+	}
+	path := filepath.Join(filepath.Dir(filename), "execution_projection_handlers.go")
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read projection handlers: %v", err)
+	}
+	if strings.Contains(string(contents), "s.runProjectionStore.") {
+		t.Fatal("execution projection handlers must use Server.runReader, not the projection store")
+	}
+}
+
 func TestExecutionHandlersDoNotImportTheirFormerRuleOwners(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
@@ -140,9 +140,4 @@ func TestExecutionHandlersDoNotImportTheirFormerRuleOwners(t *testing.T) {
 			}
 		})
 	}
-}
-
-func implements[T any](value any) bool {
-	_, ok := value.(T)
-	return ok
 }

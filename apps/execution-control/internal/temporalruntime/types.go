@@ -2,12 +2,23 @@ package temporalruntime
 
 import (
 	"time"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 )
 
-type ToolExecutionWorkflowInput = execution.WorkflowStartInput
+// ToolExecutionWorkflowInput is the Temporal-facing workflow contract. It is
+// intentionally distinct from the application workflow input so Temporal
+// serialization does not leak application contracts across the adapter.
+type ToolExecutionWorkflowInput struct {
+	AdmissionSnapshot            AgentAdmissionSnapshot `json:"admission_snapshot"`
+	AdmissionSnapshotSHA256      string                 `json:"admission_snapshot_sha256"`
+	ConversationID               string                 `json:"conversation_id"`
+	Namespace                    string                 `json:"namespace"`
+	PayloadSHA256                string                 `json:"payload_sha256"`
+	PersonalMemoryTimeoutSeconds float64                `json:"personal_memory_timeout_seconds"`
+	RequestID                    string                 `json:"request_id"`
+	TaskQueue                    string                 `json:"task_queue"`
+	TraceParent                  string                 `json:"traceparent,omitempty"`
+	WorkflowID                   string                 `json:"workflow_id"`
+}
 
 type WorkflowOperation string
 
@@ -72,6 +83,8 @@ type WorkflowSourceAttempt struct {
 }
 
 type WorkflowCompletedStep struct {
+	RemainingFacts []string                `json:"remaining_facts"`
+	Failure        *ExecutionFailure       `json:"failure,omitempty"`
 	Step           WorkflowTaskPlanStep    `json:"step"`
 	ExecutionIndex int                     `json:"execution_index"`
 	Summary        string                  `json:"summary"`
@@ -80,10 +93,10 @@ type WorkflowCompletedStep struct {
 }
 
 type WorkflowOperationActivityInputBase struct {
-	AdmissionSnapshot execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
-	ConversationID    string                           `json:"conversation_id"`
-	RequestID         string                           `json:"request_id"`
-	TraceParent       string                           `json:"traceparent,omitempty"`
+	AdmissionSnapshot AgentAdmissionSnapshot `json:"admission_snapshot"`
+	ConversationID    string                 `json:"conversation_id"`
+	RequestID         string                 `json:"request_id"`
+	TraceParent       string                 `json:"traceparent,omitempty"`
 }
 
 type SolveTaskActivityInput struct {
@@ -109,6 +122,7 @@ type ReplanTaskActivityInput struct {
 }
 
 type SynthesizeAnswerActivityInput struct {
+	AnswerMode string `json:"answer_mode"`
 	WorkflowOperationActivityInputBase
 	Plan           WorkflowTaskPlan        `json:"plan"`
 	CompletedSteps []WorkflowCompletedStep `json:"completed_steps"`
@@ -164,6 +178,7 @@ type AgentWebCitation struct {
 }
 
 type WorkflowOperationActivityOutput struct {
+	AnswerMode              string                  `json:"answer_mode,omitempty"`
 	Operation               WorkflowOperation       `json:"operation"`
 	SolveOutcome            string                  `json:"solve_outcome,omitempty"`
 	WorkflowResultRef       string                  `json:"agent_result_ref"`
@@ -199,12 +214,9 @@ type AgentUsageSummary struct {
 }
 
 type WriteWorkflowFinalizationActivityInput struct {
-	WorkflowResult    WorkflowOperationActivityOutput  `json:"workflow_result"`
-	AdmissionSnapshot execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
-	// FinalizedAt is retained for Temporal history compatibility. New
-	// finalization uses execution-control's durable timing reservation.
-	FinalizedAt time.Time `json:"finalized_at"`
-	RequestID   string    `json:"request_id"`
+	WorkflowResult    WorkflowOperationActivityOutput `json:"workflow_result"`
+	AdmissionSnapshot AgentAdmissionSnapshot          `json:"admission_snapshot"`
+	RequestID         string                          `json:"request_id"`
 }
 
 type WorkflowFinalizationActivityOutput struct {
@@ -214,15 +226,26 @@ type WorkflowFinalizationActivityOutput struct {
 	Status        string    `json:"status"`
 }
 
-type FinalizeExecutionCancellationActivityOutput = execution.ExecutionCancellationFinalizationOutput
+type FinalizeExecutionCancellationActivityOutput struct {
+	RequestID string `json:"request_id"`
+	Status    string `json:"status"`
+}
 
-type FinalizeExecutionCancellationActivityInput = execution.ExecutionCancellationFinalizationInput
-
-type ToolExecutionWorkflowCancelInput = execution.WorkflowCancelInput
+type FinalizeExecutionCancellationActivityInput struct {
+	CanceledAt time.Time `json:"canceled_at"`
+	Reason     string    `json:"reason"`
+	RequestID  string    `json:"request_id"`
+}
+type ToolExecutionWorkflowCancelInput struct {
+	Reason        string `json:"reason"`
+	RequestID     string `json:"request_id"`
+	TemporalRunID string `json:"temporal_run_id"`
+	WorkflowID    string `json:"workflow_id"`
+}
 
 type PersonalMemoryCommandWorkflowInput struct {
-	Command    memoryruntime.PersonalMemoryCommandRequest `json:"command"`
-	WorkflowID string                                     `json:"workflow_id"`
+	Command    PersonalMemoryCommandRequest `json:"command"`
+	WorkflowID string                       `json:"workflow_id"`
 }
 
 type PersonalMemoryCommandActivityOutput struct {
@@ -233,8 +256,8 @@ type PersonalMemoryCommandActivityOutput struct {
 }
 
 type FinalizePersonalMemoryCommandReceiptActivityInput struct {
-	Command memoryruntime.PersonalMemoryCommandRequest `json:"command"`
-	Result  PersonalMemoryCommandActivityOutput        `json:"result"`
+	Command PersonalMemoryCommandRequest        `json:"command"`
+	Result  PersonalMemoryCommandActivityOutput `json:"result"`
 }
 
 type FinalizeExecutionFailureActivityInput struct {
@@ -250,4 +273,9 @@ type FinalizeExecutionFailureActivityOutput struct {
 	Status      string    `json:"status"`
 }
 
-type PersonalMemoryCommandWorkflowResult = PersonalMemoryCommandActivityOutput
+type PersonalMemoryCommandWorkflowResult struct {
+	CommandID         string `json:"command_id"`
+	ErrorCode         string `json:"error_code,omitempty"`
+	ResultFingerprint string `json:"result_fingerprint"`
+	Status            string `json:"status"`
+}

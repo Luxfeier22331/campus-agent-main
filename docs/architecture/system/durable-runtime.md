@@ -29,14 +29,18 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 
 ## 实现所有权
 
-- `internal/execution` 定义中立执行合同、admission 校验、workflow identity 和持久化端口，不依赖
+- `internal/execution` 定义中立执行合同、admission 校验和 workflow identity，不依赖
   Temporal SDK、HTTP 或 PostgreSQL driver；
 - `internal/executionapplication` 负责构造冻结 workflow input、原子提交 run/start intent、提交取消命令，
-  并执行 Campus Docs 与个人记忆工具用例；
+  并拥有 run/receipt/memory、workflow control 和 outbound ports，执行 receipt 状态管理、Campus Docs
+  与个人记忆工具用例；具体工具合同文件读取由 `internal/toolcontract` 实现注入端口；
 - `internal/httpapi` 只完成认证、wire 解码、错误映射和响应编码，不拥有执行生命周期、admission、检索
   query 或 recall request 规则；
-- `internal/executionreconciler` 通过中立 starter/control/finalizer 合同收敛持久命令，Temporal SDK 只存在于
-  `internal/temporalruntime` 与 `internal/temporaladapter`；
+- `internal/executionreconciler` 通过 application starter/control/finalizer 合同收敛持久命令；
+- `internal/temporaladapter/execution`、`memory`、`finalization` 分别拥有实际 activity 实现，
+  `finalization/projection` 通过 application RunStore 写投影；`contract` 负责独立 workflow DTO 与领域合同转换；
+- `internal/runtimeassembly` 是唯一生产 composition root，创建 Temporal client、starter 和 worker，
+  注册 workflow/activity 并组装 application ports；
 - `internal/campusdocs` 定义索引和搜索合同，PostgreSQL 当前索引读取由
   `internal/campusdocspersistence` 实现，embedding、Qdrant 与 reranker wire 调用由
   `internal/outboundadapter` 实现。
@@ -181,6 +185,8 @@ Activity 调度和投影修复，但供应商调用仍然只能开始一次。Ac
 provider invocation envelope 的摘要并写入 invocation receipt；只有 receipt 不存在时可进入首次调用。
 receipt 为 `started` 时结果不确定，以 `workflow_attempt_uncertain` 阻断，不重新调用模型；
 `completed` receipt 则解码已保存的 operation output，校验身份、修复投影后返回原结果。
+已领取的 invocation 返回失败时，application receipt service 写入 `failed` 及有界错误码；后续投递
+返回该失败，不再次执行供应商调用。进程在写入终态前退出时仍保留 `started`，按不确定结果处理。
 该约束承认 Activity dispatch 和外部模型 API 之间不存在原子事务。
 
 provider invocation envelope 的摘要是 receipt 的输入 fingerprint，绑定 request、step、operation、
@@ -190,7 +196,9 @@ agent-runtime 后续加工后的最终模型输入摘要。
 completed receipt 保存完整类型化 operation output、输出 hash 和完成时间，可能包含回答正文、证据及
 工具结果；先完成 receipt，再写诊断投影，使 Activity 重投递能够恢复结果而不重复供应商调用。
 各 operation 的 StepResult 仍保存有界摘要和正文 hash；receipt 是执行恢复载荷，不取代 app-api 的
-产品答案所有权。准入快照在 builder、持久输入解码和 Activity 边界校验，不与自身工具列表重复比较。
+产品答案所有权。独立 receipt store 负责记录与冲突检查，保留期限随父 run；内存 owner 在共享锁下删除，
+PostgreSQL 通过外键级联删除，不另设 receipt TTL。
+准入快照在 builder、持久输入解码和 Activity 边界校验，不与自身工具列表重复比较。
 
 ## 取消、超时与终态处理
 
@@ -240,8 +248,8 @@ Finalization 在 callback 前先持久化 internal `finalization.reserved` event
 `workflow_result_ref`、projection fingerprint、首次 durable `run.progress(finalizing)` 的
 `started_at` 与 execution-control 生成的 wall-clock `completed_at`。重试必须复用 reservation 的
 时间和身份；canonical Step/Result、run.CompletedAt、callback `completed_at` 与 `run.completed`
-统一使用该 completion boundary。Temporal Workflow 输入中的 `FinalizedAt` 仅为旧 history 的
-反序列化兼容字段，不再是新路径的 canonical completion source。
+统一使用该 completion boundary。workflow DTO 不再保留旧 `FinalizedAt` 字段或 history 兼容分支；
+离线 replay fixture 直接由当前生产 workflow 生成。
 completed run 的重放必须严格核对 `CompletedAt`、`TerminalReason`、`FinalResponseRef`、
 `finalization_fingerprint_sha256` 以及唯一且内部一致的 canonical Step/Attempt/Result，
 随后返回已提交四元组。它不得写入较晚 candidate，不得修改 canonical 四元组、取消命令或可能属于后续

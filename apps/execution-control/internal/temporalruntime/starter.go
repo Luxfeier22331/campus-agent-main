@@ -20,24 +20,6 @@ const (
 	workflowCancellationRecoveryStartDelay = time.Minute
 )
 
-type ChatWorkflowStarter interface {
-	execution.WorkflowStarter
-	CheckReadiness(context.Context) RuntimeReadiness
-	StartPersonalMemoryCommandWorkflow(context.Context, PersonalMemoryCommandWorkflowInput) error
-}
-
-// WorkflowControl is separate from ChatWorkflowStarter so command-only test
-// doubles do not need to implement Temporal visibility. The lifecycle
-// reconciler uses it to verify cancellation and timeout ownership.
-type WorkflowControl = execution.WorkflowControl
-
-// WorkflowCancellationRecoveryStarter recreates an execution whose durable
-// dispatch fence committed but whose StartWorkflowExecution call may never
-// have happened. Implementations must preserve the canonical workflow input
-// and delay the first workflow task long enough for the caller to bind and
-// cancel the concrete root execution.
-type WorkflowCancellationRecoveryStarter = execution.WorkflowCancellationRecoveryStarter
-
 type StarterOptions struct {
 	ActivityTaskQueues       []string
 	Address                  string
@@ -65,19 +47,11 @@ func (s *Starter) SDKClient() client.Client {
 	return s.client
 }
 
-func NewStarter(_ context.Context, options StarterOptions) (*Starter, error) {
+func NewStarter(_ context.Context, options StarterOptions, temporalClient client.Client) (*Starter, error) {
 	address := strings.TrimSpace(options.Address)
 	namespace := strings.TrimSpace(options.Namespace)
 	if address == "" || namespace == "" {
 		return nil, ErrTemporalStarterNotConfigured
-	}
-	clientOptions := client.Options{
-		HostPort:  address,
-		Namespace: namespace,
-	}
-	temporalClient, err := client.NewLazyClient(clientOptions)
-	if err != nil {
-		return nil, err
 	}
 	taskQueue := strings.TrimSpace(options.TaskQueue)
 	if taskQueue == "" {
@@ -194,7 +168,7 @@ func (s *Starter) validateStartedToolExecutionWorkflow(
 	ctx context.Context,
 	workflowID string,
 	temporalRunID string,
-	expected ToolExecutionWorkflowIdentity,
+	expected execution.WorkflowIdentity,
 ) (string, error) {
 	temporalRunID = strings.TrimSpace(temporalRunID)
 	if temporalRunID == "" {
@@ -264,13 +238,13 @@ func (s *Starter) DescribeToolExecutionWorkflow(
 	ctx context.Context,
 	workflowID string,
 	temporalRunID string,
-) (WorkflowExecutionInfo, error) {
+) (execution.WorkflowExecutionInfo, error) {
 	if s == nil || s.client == nil {
-		return WorkflowExecutionInfo{}, ErrTemporalStarterNotConfigured
+		return execution.WorkflowExecutionInfo{}, ErrTemporalStarterNotConfigured
 	}
 	workflowID = strings.TrimSpace(workflowID)
 	if workflowID == "" {
-		return WorkflowExecutionInfo{}, errors.New("workflow id is required")
+		return execution.WorkflowExecutionInfo{}, errors.New("workflow id is required")
 	}
 	return s.describeToolExecutionWorkflow(ctx, workflowID, strings.TrimSpace(temporalRunID))
 }
@@ -279,32 +253,32 @@ func (s *Starter) describeToolExecutionWorkflow(
 	ctx context.Context,
 	workflowID string,
 	temporalRunID string,
-) (WorkflowExecutionInfo, error) {
+) (execution.WorkflowExecutionInfo, error) {
 	describeCtx, cancel := context.WithTimeout(ctx, s.startTimeout)
 	defer cancel()
 	description, err := s.client.DescribeWorkflowExecution(describeCtx, workflowID, temporalRunID)
 	if err != nil {
 		var notFound *serviceerror.NotFound
 		if errors.As(err, &notFound) {
-			return WorkflowExecutionInfo{Found: false}, nil
+			return execution.WorkflowExecutionInfo{Found: false}, nil
 		}
-		return WorkflowExecutionInfo{}, err
+		return execution.WorkflowExecutionInfo{}, err
 	}
 	details := description.GetWorkflowExecutionInfo()
-	execution := details.GetExecution()
-	if details == nil || execution == nil || strings.TrimSpace(execution.WorkflowId) == "" ||
-		strings.TrimSpace(execution.RunId) == "" {
-		return WorkflowExecutionInfo{}, errors.New("temporal workflow description is incomplete")
+	workflowExecution := details.GetExecution()
+	if details == nil || workflowExecution == nil || strings.TrimSpace(workflowExecution.WorkflowId) == "" ||
+		strings.TrimSpace(workflowExecution.RunId) == "" {
+		return execution.WorkflowExecutionInfo{}, errors.New("temporal workflow description is incomplete")
 	}
-	describedRunID := strings.TrimSpace(execution.RunId)
+	describedRunID := strings.TrimSpace(workflowExecution.RunId)
 	if temporalRunID = strings.TrimSpace(temporalRunID); temporalRunID != "" && describedRunID != temporalRunID {
-		return WorkflowExecutionInfo{}, errors.New("temporal workflow description run id differs from requested execution")
+		return execution.WorkflowExecutionInfo{}, errors.New("temporal workflow description run id differs from requested execution")
 	}
 	identity, identityState := toolExecutionWorkflowIdentityFromMemo(details.Memo)
 	extended := description.GetWorkflowExtendedInfo()
-	info := WorkflowExecutionInfo{
+	info := execution.WorkflowExecutionInfo{
 		Found:           true,
-		WorkflowID:      strings.TrimSpace(execution.WorkflowId),
+		WorkflowID:      strings.TrimSpace(workflowExecution.WorkflowId),
 		RunID:           describedRunID,
 		FirstRunID:      strings.TrimSpace(details.FirstRunId),
 		Status:          workflowExecutionStatus(details.Status),
@@ -314,7 +288,7 @@ func (s *Starter) describeToolExecutionWorkflow(
 	}
 	if details.CloseTime != nil {
 		if err := details.CloseTime.CheckValid(); err != nil {
-			return WorkflowExecutionInfo{}, errors.New("temporal workflow close time is invalid")
+			return execution.WorkflowExecutionInfo{}, errors.New("temporal workflow close time is invalid")
 		}
 		info.CloseTime = details.CloseTime.AsTime().UTC()
 	}

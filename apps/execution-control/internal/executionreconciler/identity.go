@@ -2,6 +2,7 @@ package executionreconciler
 
 import (
 	"context"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -18,7 +19,7 @@ func traceContextForWorkflowStart(ctx context.Context, input execution.WorkflowS
 
 func (r *Reconciler) verifyUnboundRootWorkflowExecutionCandidate(
 	ctx context.Context,
-	control execution.WorkflowControl,
+	control executionapplication.WorkflowControl,
 	workflowID string,
 	expected execution.WorkflowIdentity,
 	candidate execution.WorkflowExecutionInfo,

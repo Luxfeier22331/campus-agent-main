@@ -3,6 +3,7 @@ package executionreconciler
 import (
 	"context"
 	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -41,7 +42,7 @@ func (r *Reconciler) ReconcileStarts(ctx context.Context) {
 
 func (r *Reconciler) ReconcileStartIntent(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	intent execution.WorkflowStartIntent,
 ) {
 	run, err := store.GetRun(ctx, intent.RequestID)
@@ -137,7 +138,7 @@ func WorkflowStartValidationFailure(intent execution.WorkflowStartIntent) string
 
 func (r *Reconciler) compensateSupersededStart(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	leased execution.WorkflowStartIntent,
 	run execution.DurableRun,
 	input execution.WorkflowStartInput,
@@ -203,7 +204,7 @@ func (r *Reconciler) compensateSupersededStart(
 
 func (r *Reconciler) retryStart(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	intent execution.WorkflowStartIntent,
 	code string,
 ) {
@@ -218,7 +219,7 @@ func (r *Reconciler) retryStart(
 
 func (r *Reconciler) PermanentlyFailStartIntent(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	intent execution.WorkflowStartIntent,
 	run execution.DurableRun,
 	failureKind string,

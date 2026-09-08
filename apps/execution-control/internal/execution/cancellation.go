@@ -6,13 +6,20 @@ import (
 	"time"
 )
 
+type cancellationStore interface {
+	ListRunSteps(context.Context, string) ([]RunStepProjection, error)
+	UpsertRunStep(context.Context, RunStepProjection) (RunStepProjection, error)
+	ListStepAttempts(context.Context, string) ([]StepAttemptProjection, error)
+	UpsertStepAttempt(context.Context, StepAttemptProjection) (StepAttemptProjection, error)
+}
+
 // CancelIncompleteRunWork closes projection records that are still active
 // when cancellation wins the run terminal-state race. The operation is
 // idempotent: terminal records are left untouched and non-terminal records
 // are written with the same cancellation timestamp.
 func CancelIncompleteRunWork(
 	ctx context.Context,
-	store RunProjectionStore,
+	store cancellationStore,
 	run DurableRun,
 	reason string,
 	canceledAt time.Time,

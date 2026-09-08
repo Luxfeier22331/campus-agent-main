@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"strings"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 func (s *InMemoryRunProjectionStore) CreateRun(
@@ -59,11 +60,7 @@ func (s *InMemoryRunProjectionStore) DeleteRun(_ context.Context, requestID stri
 	delete(s.runEvents, requestID)
 	delete(s.workflowStartIntents, requestID)
 	delete(s.cancellationCommands, requestID)
-	for invocationID, receipt := range s.agentInvocationReceipts {
-		if receipt.RequestID == requestID {
-			delete(s.agentInvocationReceipts, invocationID)
-		}
-	}
+	s.Receipts.deleteRunLocked(requestID)
 	delete(s.activeRunByConversation, run.ConversationID)
 	return nil
 }

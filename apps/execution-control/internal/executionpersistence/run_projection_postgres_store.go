@@ -31,6 +31,7 @@ type PostgresRunProjectionStoreOptions struct {
 }
 
 type PostgresRunProjectionStore struct {
+	Receipts            *PostgresReceiptStore
 	pool                *pgxpool.Pool
 	eventMu             sync.Mutex
 	eventListenerActive bool
@@ -61,6 +62,7 @@ func NewPostgresRunProjectionStore(
 	}
 	return &PostgresRunProjectionStore{
 		pool:         pool,
+		Receipts:     &PostgresReceiptStore{pool: pool},
 		eventWaiters: map[string]map[chan struct{}]struct{}{},
 	}, nil
 }

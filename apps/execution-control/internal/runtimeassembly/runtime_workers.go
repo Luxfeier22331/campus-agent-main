@@ -8,12 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"go.temporal.io/sdk/client"
-	"go.temporal.io/sdk/worker"
-
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionreconciler"
+	temporalexecution "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
+	temporalfinalization "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
+	temporalmemory "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/memory"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
 )
 
 type Role string
@@ -34,23 +36,21 @@ type Runtime struct {
 	workers    []worker.Worker
 }
 
-type ActivityHandlers interface {
-	temporalruntime.WorkflowActivities
-	temporalruntime.ContextActivities
-	temporalruntime.FinalizationActivities
-}
-
 type ActivitySets struct {
-	Workflow     temporalruntime.WorkflowActivities
-	Context      temporalruntime.ContextActivities
-	Finalization temporalruntime.FinalizationActivities
+	Workflow     temporalexecution.Activities
+	Context      temporalmemory.Activities
+	Finalization temporalfinalization.Activities
 }
 
-func NewActivitySets(handlers ActivityHandlers) ActivitySets {
+func NewActivitySets(
+	workflow temporalexecution.Activities,
+	contextActivities temporalmemory.Activities,
+	finalization temporalfinalization.Activities,
+) ActivitySets {
 	return ActivitySets{
-		Workflow:     handlers,
-		Context:      handlers,
-		Finalization: handlers,
+		Workflow:     workflow,
+		Context:      contextActivities,
+		Finalization: finalization,
 	}
 }
 
@@ -58,12 +58,14 @@ func StartRuntime(
 	startupContext context.Context,
 	lifetimeContext context.Context,
 	cfg config.Config,
-	activityHandlers ActivityHandlers,
+	workflowActivities temporalexecution.Activities,
+	contextActivities temporalmemory.Activities,
+	finalizationActivities temporalfinalization.Activities,
 	reconciler *executionreconciler.Reconciler,
 	logger *slog.Logger,
 ) (*Runtime, error) {
-	if activityHandlers == nil {
-		return nil, fmt.Errorf("activity handlers are required for the combined runtime")
+	if workflowActivities == nil || contextActivities == nil || finalizationActivities == nil {
+		return nil, fmt.Errorf("all activity owners are required for the combined runtime")
 	}
 	if reconciler == nil {
 		return nil, fmt.Errorf("execution reconciler is required for the combined runtime")
@@ -74,7 +76,7 @@ func StartRuntime(
 	if lifetimeContext == nil {
 		lifetimeContext = startupContext
 	}
-	activitySets := NewActivitySets(activityHandlers)
+	activitySets := NewActivitySets(workflowActivities, contextActivities, finalizationActivities)
 	if logger == nil {
 		logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	}
@@ -170,13 +172,13 @@ func buildWorker(
 	}
 	switch role {
 	case RoleWorkflow:
-		return temporalruntime.NewWorkflowWorkerWithOptions(
+		return NewWorkflowWorkerWithOptions(
 			temporalClient,
 			cfg.TemporalTaskQueue,
 			options,
 		), nil
 	case RoleCore:
-		return temporalruntime.NewCoreActivityWorkerWithOptions(
+		return NewCoreActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueCore,
 			activitySets.Context,
@@ -184,7 +186,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleAgent:
-		return temporalruntime.NewWorkflowOperationActivityWorkerWithOptions(
+		return NewWorkflowOperationActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueAgent,
 			activitySets.Workflow,
@@ -208,7 +210,7 @@ func workerOptionsForRole(
 	role Role,
 	onFatalError func(error),
 ) (worker.Options, error) {
-	options, err := temporalruntime.WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(role)))
+	options, err := WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(role)))
 	if err != nil {
 		return worker.Options{}, err
 	}
@@ -217,9 +219,9 @@ func workerOptionsForRole(
 	return options, nil
 }
 
-func temporalWorkerProfile(cfg config.Config, role string) temporalruntime.WorkerProfile {
+func temporalWorkerProfile(cfg config.Config, role string) WorkerProfile {
 	profile := cfg.WorkerProfiles[role]
-	return temporalruntime.WorkerProfile{
+	return WorkerProfile{
 		ActivitySlots:                profile.ActivitySlots,
 		ActivityTaskPollers:          profile.ActivityTaskPollers,
 		TaskQueueActivitiesPerSecond: profile.TaskQueueActivitiesPerSecond,

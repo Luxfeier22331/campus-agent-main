@@ -2,6 +2,7 @@ package executionreconciler
 
 import (
 	"context"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -11,7 +12,7 @@ import (
 )
 
 type recordingTemporalReconcilerStore struct {
-	execution.RunProjectionStore
+	executionapplication.RunStore
 	calls []string
 }
 
@@ -42,7 +43,7 @@ func (s *recordingTemporalReconcilerStore) ListActiveWorkflowRuns(
 
 func TestTemporalReconcilerPreservesCancellationStartTimeoutOrder(t *testing.T) {
 	store := &recordingTemporalReconcilerStore{
-		RunProjectionStore: executionpersistence.NewInMemoryRunProjectionStore(),
+		RunStore: executionpersistence.NewInMemoryRunProjectionStore(),
 	}
 	reconciler := newReconcilerForTest(
 		config.Config{},

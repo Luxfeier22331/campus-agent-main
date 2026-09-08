@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	commonpb "go.temporal.io/api/common/v1"
 	workflowpb "go.temporal.io/api/workflow/v1"
 	workflowservicepb "go.temporal.io/api/workflowservice/v1"
@@ -93,7 +94,7 @@ func starterWorkflowInputForTest(runID string) ToolExecutionWorkflowInput {
 
 func workflowDescriptionForTest(
 	t *testing.T,
-	identity ToolExecutionWorkflowIdentity,
+	identity execution.WorkflowIdentity,
 	temporalRunID string,
 ) *workflowservicepb.DescribeWorkflowExecutionResponse {
 	t.Helper()

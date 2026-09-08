@@ -1,7 +1,6 @@
 package execution
 
 import (
-	"context"
 	"errors"
 	"time"
 )
@@ -28,10 +27,4 @@ type OwnerDeletionStatus struct {
 type OwnerDeletionFinalizeRequest struct {
 	OwnerUserID string
 	Now         time.Time
-}
-
-type OwnerDeletionStore interface {
-	BeginOwnerDeletion(context.Context, string, time.Time) (OwnerDeletionStatus, error)
-	OwnerDeletionStatus(context.Context, string) (OwnerDeletionStatus, error)
-	FinalizeOwnerDeletion(context.Context, OwnerDeletionFinalizeRequest) (OwnerDeletionStatus, error)
 }

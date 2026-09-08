@@ -3,6 +3,7 @@ package executionreconciler
 import (
 	"context"
 	"errors"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"strings"
 	"time"
 
@@ -46,7 +47,7 @@ func (r *Reconciler) ReconcileCancellations(ctx context.Context) {
 
 func (r *Reconciler) ReconcileCancellationCommand(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	command execution.RunCancellationCommand,
 ) {
 	run, err := store.GetRun(ctx, command.RequestID)
@@ -61,7 +62,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 		return
 	}
 
-	control, ok := r.starter.(execution.WorkflowControl)
+	control, ok := r.starter.(executionapplication.WorkflowControl)
 	if !ok {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_identity_unavailable")
 		return
@@ -224,7 +225,7 @@ func (r *Reconciler) ReconcileCancellationCommand(
 
 func (r *Reconciler) cancellationStillOwnsActiveRun(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	command execution.RunCancellationCommand,
 	run execution.DurableRun,
 	startIntent execution.WorkflowStartIntent,
@@ -267,8 +268,8 @@ func (r *Reconciler) cancellationStillOwnsActiveRun(
 
 func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 	ctx context.Context,
-	store execution.RunProjectionStore,
-	control execution.WorkflowControl,
+	store executionapplication.RunStore,
+	control executionapplication.WorkflowControl,
 	command execution.RunCancellationCommand,
 	run execution.DurableRun,
 	startIntent execution.WorkflowStartIntent,
@@ -279,7 +280,7 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_state_invalid")
 		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
 	}
-	recoveryStarter, ok := r.starter.(execution.WorkflowCancellationRecoveryStarter)
+	recoveryStarter, ok := r.starter.(executionapplication.WorkflowCancellationRecoveryStarter)
 	if !ok {
 		r.retryCancellation(ctx, store, command, "temporal_cancel_recovery_start_unavailable")
 		return execution.WorkflowStartIntent{}, execution.WorkflowExecutionInfo{}, false
@@ -349,7 +350,7 @@ func (r *Reconciler) ensureSupersededWorkflowStartForCancellation(
 
 func (r *Reconciler) reconcileClosedWorkflowCancellation(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	command execution.RunCancellationCommand,
 	run execution.DurableRun,
 	info execution.WorkflowExecutionInfo,
@@ -403,7 +404,7 @@ func (r *Reconciler) reconcileClosedWorkflowCancellation(
 
 func (r *Reconciler) finalizeCancellationLocally(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	command execution.RunCancellationCommand,
 	run execution.DurableRun,
 ) {
@@ -440,7 +441,7 @@ func (r *Reconciler) finalizeCancellationLocally(
 
 func (r *Reconciler) confirmCancellation(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	command execution.RunCancellationCommand,
 ) bool {
 	err := store.ConfirmRunCancellationCommand(ctx, execution.RunCancellationCommandResult{
@@ -454,7 +455,7 @@ func (r *Reconciler) confirmCancellation(
 
 func (r *Reconciler) retryCancellation(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	command execution.RunCancellationCommand,
 	code string,
 ) {

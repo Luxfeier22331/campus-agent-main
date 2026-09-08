@@ -1,12 +1,12 @@
 package httpapi
 
 import (
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
@@ -121,30 +121,30 @@ func TestReadyzPublishesDeploymentRelease(t *testing.T) {
 func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 	server := newReadyServerForTest(t)
 	server.temporalStarter = readyTemporalStarter{
-		readiness: temporalruntime.RuntimeReadiness{
+		readiness: executionapplication.RuntimeReadiness{
 			Healthy: false,
-			TaskQueues: []temporalruntime.TaskQueueReadiness{
+			TaskQueues: []executionapplication.TaskQueueReadiness{
 				{
-					Name:    temporalruntime.WorkflowTaskQueue,
-					Type:    temporalruntime.TaskQueueTypeWorkflow,
+					Name:    "campus-agent.workflow.v3",
+					Type:    "workflow",
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueCore,
-					Type:    temporalruntime.TaskQueueTypeActivity,
+					Name:    "campus-agent.activity.core.v3",
+					Type:    "activity",
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueAgent,
-					Type:    temporalruntime.TaskQueueTypeActivity,
+					Name:    "campus-agent.activity.agent.v3",
+					Type:    "activity",
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueCore,
-					Type:    temporalruntime.TaskQueueTypeActivity,
+					Name:    "campus-agent.activity.core.v3",
+					Type:    "activity",
 					Pollers: 0,
 					Healthy: false,
 				},
@@ -171,30 +171,30 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 func TestReadyzDoesNotRequireNoticeActivityPollerForClosedNoticeTool(t *testing.T) {
 	server := newReadyServerForTest(t, func(*config.Config) {})
 	server.temporalStarter = readyTemporalStarter{
-		readiness: temporalruntime.RuntimeReadiness{
+		readiness: executionapplication.RuntimeReadiness{
 			Healthy: true,
-			TaskQueues: []temporalruntime.TaskQueueReadiness{
+			TaskQueues: []executionapplication.TaskQueueReadiness{
 				{
-					Name:    temporalruntime.WorkflowTaskQueue,
-					Type:    temporalruntime.TaskQueueTypeWorkflow,
+					Name:    "campus-agent.workflow.v3",
+					Type:    "workflow",
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueCore,
-					Type:    temporalruntime.TaskQueueTypeActivity,
+					Name:    "campus-agent.activity.core.v3",
+					Type:    "activity",
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueAgent,
-					Type:    temporalruntime.TaskQueueTypeActivity,
+					Name:    "campus-agent.activity.agent.v3",
+					Type:    "activity",
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueCore,
-					Type:    temporalruntime.TaskQueueTypeActivity,
+					Name:    "campus-agent.activity.core.v3",
+					Type:    "activity",
 					Pollers: 1,
 					Healthy: true,
 				},
@@ -222,8 +222,8 @@ func TestRequiredTemporalTaskQueuesIncludeRuntimeWorkers(t *testing.T) {
 
 	for _, want := range []string{
 		"custom.workflow",
-		temporalruntime.ActivityTaskQueueCore,
-		temporalruntime.ActivityTaskQueueAgent,
+		"campus-agent.activity.core.v3",
+		"campus-agent.activity.agent.v3",
 	} {
 		if !containsStringValue(anySlice(queues), want) {
 			t.Fatalf("required task queues = %#v, missing %s", queues, want)

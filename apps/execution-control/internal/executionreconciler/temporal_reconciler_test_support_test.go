@@ -10,12 +10,14 @@ import (
 	"testing"
 	"time"
 
+	temporaladapter "github.com/MUC-WIKI/campus-agent/apps/execution-control/integration/adaptertest"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/contracts"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/control"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolcontract"
 )
 
 const (
@@ -56,8 +58,8 @@ type reconcilerTestHarness struct {
 
 func newReconcilerTestHarness(
 	cfg config.Config,
-	store execution.RunProjectionStore,
-	starter execution.WorkflowStarter,
+	store executionapplication.RunStore,
+	starter executionapplication.WorkflowStarter,
 ) *reconcilerTestHarness {
 	harness := &reconcilerTestHarness{}
 	admissionService := newAdmissionServiceForReconcilerTest()
@@ -79,7 +81,7 @@ func newReconcilerTestHarness(
 		RunProjectionStore: store,
 	})
 	harness.reconciler = New(Options{
-		Finalizer:        harness.adapter,
+		Finalizer:        control.NewFinalizer(harness.adapter),
 		OperationTimeout: time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
 		Starter:          starter,
 		Store:            store,
@@ -89,8 +91,8 @@ func newReconcilerTestHarness(
 
 func newReconcilerForTest(
 	cfg config.Config,
-	store execution.RunProjectionStore,
-	starter execution.WorkflowStarter,
+	store executionapplication.RunStore,
+	starter executionapplication.WorkflowStarter,
 	writer temporaladapter.ProductFinalizationWriter,
 ) *Reconciler {
 	harness := newReconcilerTestHarness(cfg, store, starter)
@@ -100,6 +102,7 @@ func newReconcilerForTest(
 
 func newAdmissionServiceForReconcilerTest() *executionapplication.AdmissionService {
 	return executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
+		ToolContract: toolcontract.Files{},
 		ModelTargetResolver: staticModelTargetResolver{
 			targetSHA256: primaryAgentModelTargetSHA256ForTest,
 		},
@@ -120,7 +123,7 @@ func temporalStepResultID(runID string, stepID string, attempt int) string {
 
 func storeFinalizationCompletionProofForTest(
 	t *testing.T,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	runID string,
 	projectionRef string,
 	createdAt time.Time,
@@ -317,7 +320,7 @@ func (s *failWorkflowStartIntentOnceStore) FailWorkflowStartIntent(
 }
 
 type pagedActiveWorkflowStore struct {
-	execution.RunProjectionStore
+	executionapplication.RunStore
 	bindings []execution.ActiveWorkflowRun
 	cursors  []string
 }
@@ -347,22 +350,22 @@ func (noOpExecutionInputLoader) Load(context.Context, execution.DurableRun) (con
 	return contracts.ExecutionPayloadWire{}, errors.New("not used")
 }
 
-type failingGetRunProjectionStore struct {
-	execution.RunProjectionStore
+type failingGetRunStore struct {
+	executionapplication.RunStore
 	err error
 }
 
-func (s failingGetRunProjectionStore) GetRun(context.Context, string) (execution.DurableRun, error) {
+func (s failingGetRunStore) GetRun(context.Context, string) (execution.DurableRun, error) {
 	return execution.DurableRun{}, s.err
 }
 
-type failingAfterFirstGetRunProjectionStore struct {
-	execution.RunProjectionStore
+type failingAfterFirstGetRunStore struct {
+	executionapplication.RunStore
 	err   error
 	reads int
 }
 
-func (s *failingAfterFirstGetRunProjectionStore) GetRun(
+func (s *failingAfterFirstGetRunStore) GetRun(
 	ctx context.Context,
 	runID string,
 ) (execution.DurableRun, error) {
@@ -370,11 +373,11 @@ func (s *failingAfterFirstGetRunProjectionStore) GetRun(
 	if s.reads > 1 {
 		return execution.DurableRun{}, s.err
 	}
-	return s.RunProjectionStore.GetRun(ctx, runID)
+	return s.RunStore.GetRun(ctx, runID)
 }
 
 type terminalOnCancellationRecheckStore struct {
-	execution.RunProjectionStore
+	executionapplication.RunStore
 	reads int
 }
 
@@ -382,7 +385,7 @@ func (s *terminalOnCancellationRecheckStore) GetRun(
 	ctx context.Context,
 	runID string,
 ) (execution.DurableRun, error) {
-	run, err := s.RunProjectionStore.GetRun(ctx, runID)
+	run, err := s.RunStore.GetRun(ctx, runID)
 	if err != nil {
 		return execution.DurableRun{}, err
 	}
@@ -580,7 +583,7 @@ func markReconcilerStartDispatchForTest(
 
 func mustListRunEvents(
 	t *testing.T,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	runID string,
 ) []execution.DurableRunEvent {
 	t.Helper()
@@ -591,6 +594,6 @@ func mustListRunEvents(
 	return events
 }
 
-var _ execution.WorkflowControl = (*reconcilerStarterForTest)(nil)
+var _ executionapplication.WorkflowControl = (*reconcilerStarterForTest)(nil)
 
-var _ execution.WorkflowStarter = (*reconcilerStarterWithoutControlForTest)(nil)
+var _ executionapplication.WorkflowStarter = (*reconcilerStarterWithoutControlForTest)(nil)

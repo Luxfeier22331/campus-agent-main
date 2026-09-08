@@ -5,12 +5,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 const (
@@ -30,22 +29,22 @@ const (
 )
 
 type Options struct {
-	Finalizer        execution.WorkflowFinalizer
+	Finalizer        executionapplication.WorkflowFinalizer
 	Logger           *slog.Logger
 	OperationTimeout time.Duration
-	Starter          execution.WorkflowStarter
-	Store            execution.RunProjectionStore
+	Starter          executionapplication.WorkflowStarter
+	Store            executionapplication.RunStore
 }
 
 type Reconciler struct {
 	activeWorkflowCursor string
-	finalizer            execution.WorkflowFinalizer
+	finalizer            executionapplication.WorkflowFinalizer
 	logger               *slog.Logger
 	mu                   sync.Mutex
 	operationTimeout     time.Duration
-	projectionStore      execution.RunProjectionStore
+	projectionStore      executionapplication.RunStore
 	run                  *reconcilerRun
-	starter              execution.WorkflowStarter
+	starter              executionapplication.WorkflowStarter
 	stopDone             chan struct{}
 	stopping             bool
 }
@@ -228,7 +227,7 @@ func lifecycleErrorHash(code string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-func (r *Reconciler) store() execution.RunProjectionStore {
+func (r *Reconciler) store() executionapplication.RunStore {
 	if r == nil {
 		return nil
 	}

@@ -1,11 +1,13 @@
 package executionpersistence
 
 import (
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"sync"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 type InMemoryRunProjectionStore struct {
+	Receipts                *InMemoryReceiptStore
 	mu                      sync.RWMutex
 	runs                    map[string]execution.DurableRun
 	runEvents               map[string][]execution.DurableRunEvent
@@ -15,13 +17,12 @@ type InMemoryRunProjectionStore struct {
 	activeRunByConversation map[string]string
 	workflowStartIntents    map[string]execution.WorkflowStartIntent
 	cancellationCommands    map[string]execution.RunCancellationCommand
-	agentInvocationReceipts map[string]execution.AgentInvocationReceipt
 	runEventWaiters         map[string]map[chan struct{}]struct{}
 	ownerDeletionFences     map[string]execution.OwnerDeletionState
 }
 
 func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
-	return &InMemoryRunProjectionStore{
+	store := &InMemoryRunProjectionStore{
 		runs:                    map[string]execution.DurableRun{},
 		runEvents:               map[string][]execution.DurableRunEvent{},
 		runSteps:                map[string]execution.RunStepProjection{},
@@ -30,8 +31,9 @@ func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
 		activeRunByConversation: map[string]string{},
 		workflowStartIntents:    map[string]execution.WorkflowStartIntent{},
 		cancellationCommands:    map[string]execution.RunCancellationCommand{},
-		agentInvocationReceipts: map[string]execution.AgentInvocationReceipt{},
 		runEventWaiters:         map[string]map[chan struct{}]struct{}{},
 		ownerDeletionFences:     map[string]execution.OwnerDeletionState{},
 	}
+	store.Receipts = &InMemoryReceiptStore{data: store, records: map[string]execution.AgentInvocationReceipt{}}
+	return store
 }

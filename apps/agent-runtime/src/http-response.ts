@@ -136,6 +136,7 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 				: {}),
 		},
 		final_output: result.finalOutput,
+		...(result.answerMode ? { answer_mode: result.answerMode } : {}),
 		...(result.solveOutcome === undefined ? {} : { solve_outcome: result.solveOutcome }),
 		...(result.structuredOutput === undefined
 			? {}
@@ -237,6 +238,10 @@ function completedStepWire(step: CompletedTaskStep) {
 		})),
 		step: taskPlanStepWire(step.step),
 		summary: step.summary,
+		remaining_facts: step.remainingFacts,
+		...(step.failure
+			? { failure: { code: step.failure.code, operation: step.failure.operation } }
+			: {}),
 	};
 }
 

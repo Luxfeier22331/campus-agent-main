@@ -392,7 +392,7 @@ func TestTemporalCancellationRechecksTerminalWinnerBeforeExternalRPC(t *testing.
 	info := reconcilerWorkflowInfoForIntent(t, intent, "temporal-cancel-stale-worker")
 	info.Status = execution.WorkflowExecutionStatusRunning
 	starter := &reconcilerStarterForTest{describe: info}
-	store := &terminalOnCancellationRecheckStore{RunProjectionStore: base}
+	store := &terminalOnCancellationRecheckStore{RunStore: base}
 	reconciler := newReconcilerForTest(config.Config{TemporalStartTimeoutMS: 1000}, store, starter, nil)
 	reconciler.ReconcileCancellationCommand(context.Background(), store, command)
 
@@ -420,7 +420,7 @@ func TestTemporalCancellationReadFailureCannotSendUsingStaleState(t *testing.T) 
 		t.Fatalf("lease = %#v, err=%v", commands, err)
 	}
 	starter := &reconcilerStarterForTest{}
-	store := failingGetRunProjectionStore{RunProjectionStore: base, err: errors.New("projection read unavailable")}
+	store := failingGetRunStore{RunStore: base, err: errors.New("projection read unavailable")}
 	reconciler := newReconcilerForTest(config.Config{TemporalStartTimeoutMS: 1000}, store, starter, nil)
 	reconciler.ReconcileCancellationCommand(context.Background(), store, commands[0])
 	if starter.cancellations() != 0 {

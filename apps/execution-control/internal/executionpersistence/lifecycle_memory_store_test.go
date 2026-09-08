@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
 func TestInMemoryCreateRunWithStartIntentIsAtomicAndFingerprintIdempotent(t *testing.T) {
@@ -595,11 +596,11 @@ func TestInMemoryAgentInvocationReceiptFailsClosedOnAmbiguousReplay(t *testing.T
 		InvocationID: "run-1:agent-primary", RequestID: "run-1",
 		InputSHA256: strings.Repeat("a", 64), CreatedAt: now, UpdatedAt: now,
 	}
-	_, disposition, err := store.BeginAgentInvocation(context.Background(), receipt)
+	_, disposition, err := store.Receipts.BeginAgentInvocation(context.Background(), receipt)
 	if err != nil || disposition != execution.AgentInvocationDispositionClaimed {
 		t.Fatalf("first invocation claim disposition=%q err=%v", disposition, err)
 	}
-	_, disposition, err = store.BeginAgentInvocation(context.Background(), receipt)
+	_, disposition, err = store.Receipts.BeginAgentInvocation(context.Background(), receipt)
 	if err != nil || disposition != execution.AgentInvocationDispositionAmbiguous {
 		t.Fatalf("ambiguous invocation disposition=%q err=%v", disposition, err)
 	}
@@ -607,10 +608,10 @@ func TestInMemoryAgentInvocationReceiptFailsClosedOnAmbiguousReplay(t *testing.T
 	receipt.OutputSHA256 = strings.Repeat("b", 64)
 	receipt.CompletedAt = now.Add(time.Second)
 	receipt.UpdatedAt = receipt.CompletedAt
-	if _, err := store.CompleteAgentInvocation(context.Background(), receipt); err != nil {
+	if _, err := store.Receipts.CompleteAgentInvocation(context.Background(), receipt); err != nil {
 		t.Fatal(err)
 	}
-	stored, disposition, err := store.BeginAgentInvocation(context.Background(), receipt)
+	stored, disposition, err := store.Receipts.BeginAgentInvocation(context.Background(), receipt)
 	if err != nil || disposition != execution.AgentInvocationDispositionReplay || string(stored.OutputJSON) != string(receipt.OutputJSON) {
 		t.Fatalf("completed invocation replay=%#v disposition=%q err=%v", stored, disposition, err)
 	}

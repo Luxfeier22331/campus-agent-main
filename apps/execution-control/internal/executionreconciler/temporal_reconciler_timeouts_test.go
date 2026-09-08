@@ -221,7 +221,7 @@ func TestTemporalReconcilerTimeoutScanPaginatesPastFailedBatchAndWraps(t *testin
 	}
 	bindings = append(bindings, execution.ActiveWorkflowRun{Run: run, StartIntent: confirmedIntent})
 	store := &pagedActiveWorkflowStore{
-		RunProjectionStore: base, bindings: bindings,
+		RunStore: base, bindings: bindings,
 	}
 	closedAt := time.Date(2026, 7, 23, 10, 11, 12, 123456000, time.UTC)
 	info := reconcilerWorkflowInfoForIntent(t, intent, "temporal-paginated-timeout")

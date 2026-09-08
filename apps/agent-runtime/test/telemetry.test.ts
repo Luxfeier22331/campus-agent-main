@@ -248,10 +248,36 @@ function validRunBody() {
 		conversation_id: "conversation-1",
 		operation: "synthesize" as const,
 		operation_input: {
-			completed_steps: [],
+			answer_mode: "insufficient" as const,
+			completed_steps: [
+				{
+					step: {
+						id: "step.first",
+						objective: "资料",
+						candidate_sources: ["campus_search"],
+						depends_on: [],
+					},
+					execution_index: 1,
+					summary: "没有匹配",
+					remaining_facts: ["资料"],
+					evidence: [],
+					source_attempts: [{ source: "campus_search", status: "no_match" as const }],
+				},
+			],
 			evidence: [],
 			goal: "你好",
-			plan: { schema_version: "task_plan.v1" as const, goal: "你好", steps: [] },
+			plan: {
+				schema_version: "task_plan.v1" as const,
+				goal: "你好",
+				steps: [
+					{
+						id: "step.first",
+						objective: "资料",
+						candidate_sources: ["campus_search"],
+						depends_on: [],
+					},
+				],
+			},
 		},
 		limits: {
 			agent_deadline_ms: 10_000,
@@ -267,7 +293,7 @@ function validRunBody() {
 			"5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
 		request_id: "request-1",
 		user_id: "user-1",
-		visible_function_tool_names: [],
+		visible_function_tool_names: ["campus_search"],
 		expected_tool_contract_fingerprint: {
 			function_schema_sha256: testToolContractFingerprint().functionSchemaSha256,
 			schema_version: testToolContractFingerprint().schemaVersion,
@@ -294,7 +320,7 @@ function completedResult(input: { requestId: string }) {
 		terminalReason: "operation_completed" as const,
 		toolResults: [],
 		evidence: [],
-		sourceAttempts: [],
+		sourceAttempts: [{ source: "campus_search" as const, status: "no_match" as const }],
 		webCitations: [],
 		webSearchUsed: false,
 		toolContractFingerprint: testToolContractFingerprint(),

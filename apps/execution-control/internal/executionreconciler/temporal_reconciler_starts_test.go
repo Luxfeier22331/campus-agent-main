@@ -125,7 +125,7 @@ func TestTemporalReconcilerLateStartCompensationRechecksTerminalWinnerBeforeExte
 			t.Errorf("request racing cancellation: %v", err)
 		}
 	}
-	store := &terminalOnCancellationRecheckStore{RunProjectionStore: base}
+	store := &terminalOnCancellationRecheckStore{RunStore: base}
 	reconciler := newReconcilerForTest(config.Config{TemporalStartTimeoutMS: 1000}, store, starter, nil)
 	reconciler.ReconcileStarts(context.Background())
 
@@ -154,9 +154,9 @@ func TestTemporalReconcilerLateStartCompensationReadFailureKeepsCancellationRetr
 			t.Errorf("request racing cancellation: %v", err)
 		}
 	}
-	store := &failingAfterFirstGetRunProjectionStore{
-		RunProjectionStore: base,
-		err:                errors.New("late start projection unavailable"),
+	store := &failingAfterFirstGetRunStore{
+		RunStore: base,
+		err:      errors.New("late start projection unavailable"),
 	}
 	reconciler := newReconcilerForTest(config.Config{TemporalStartTimeoutMS: 1000}, store, starter, nil)
 	reconciler.ReconcileStarts(context.Background())
@@ -327,9 +327,9 @@ func TestTemporalReconcilerRunReadFailureCannotStartWorkflow(t *testing.T) {
 		t.Fatalf("lease = %#v, err=%v", leased, err)
 	}
 	starter := &reconcilerStarterForTest{}
-	store := failingGetRunProjectionStore{
-		RunProjectionStore: base,
-		err:                errors.New("projection read unavailable"),
+	store := failingGetRunStore{
+		RunStore: base,
+		err:      errors.New("projection read unavailable"),
 	}
 	reconciler := newReconcilerForTest(config.Config{TemporalStartTimeoutMS: 1000}, store, starter, nil)
 	reconciler.ReconcileStartIntent(context.Background(), store, leased[0])

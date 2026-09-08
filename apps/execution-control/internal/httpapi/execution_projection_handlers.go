@@ -16,7 +16,7 @@ func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.runProjectionStore == nil {
+	if s.runReader == nil {
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -30,7 +30,7 @@ func (s *Server) handleExecutionRunGet(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusBadRequest, "invalid_request", "request_id is required.", false)
 		return
 	}
-	run, err := s.runProjectionStore.GetRun(request.Context(), strings.TrimSpace(requestID))
+	run, err := s.runReader.GetRun(request.Context(), strings.TrimSpace(requestID))
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
 			writeError(response, http.StatusNotFound, "durable_run_not_found", "Durable run not found.", false)
@@ -47,7 +47,7 @@ func (s *Server) handleExecutionRunEvents(response http.ResponseWriter, request 
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.runProjectionStore == nil {
+	if s.runReader == nil {
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -111,13 +111,13 @@ func (s *Server) listRunEventsAfterWithOptionalWait(
 	afterSequence int64,
 	waitBudget time.Duration,
 ) ([]execution.DurableRunEvent, error) {
-	events, err := s.runProjectionStore.ListRunEventsAfter(ctx, requestID, afterSequence)
+	events, err := s.runReader.ListRunEventsAfter(ctx, requestID, afterSequence)
 	if err != nil || len(events) > 0 || waitBudget <= 0 {
 		return events, err
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, waitBudget)
 	defer cancel()
-	events, err = s.runProjectionStore.WaitForRunEventsAfter(waitCtx, requestID, afterSequence)
+	events, err = s.runReader.WaitForRunEventsAfter(waitCtx, requestID, afterSequence)
 	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 		return []execution.DurableRunEvent{}, nil
 	}
@@ -129,7 +129,7 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
 		return
 	}
-	if s.runProjectionStore == nil {
+	if s.runReader == nil {
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -144,7 +144,7 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 		writeError(response, http.StatusBadRequest, "invalid_request", "request_id is required.", false)
 		return
 	}
-	run, err := s.runProjectionStore.GetRun(request.Context(), requestID)
+	run, err := s.runReader.GetRun(request.Context(), requestID)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
 			writeError(response, http.StatusNotFound, "execution_request_not_found", "Execution request not found.", false)
@@ -153,7 +153,7 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 		writeError(response, http.StatusInternalServerError, "execution_run_query_failed", err.Error(), true)
 		return
 	}
-	steps, err := s.runProjectionStore.ListRunSteps(request.Context(), requestID)
+	steps, err := s.runReader.ListRunSteps(request.Context(), requestID)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
 			writeError(response, http.StatusNotFound, "execution_request_not_found", "Execution request not found.", false)
@@ -162,12 +162,12 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 		writeError(response, http.StatusInternalServerError, "execution_run_steps_query_failed", err.Error(), true)
 		return
 	}
-	attempts, err := s.runProjectionStore.ListStepAttempts(request.Context(), requestID)
+	attempts, err := s.runReader.ListStepAttempts(request.Context(), requestID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "execution_step_attempts_query_failed", err.Error(), true)
 		return
 	}
-	results, err := s.runProjectionStore.ListStepResults(request.Context(), requestID)
+	results, err := s.runReader.ListStepResults(request.Context(), requestID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "execution_step_results_query_failed", err.Error(), true)
 		return

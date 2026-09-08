@@ -2,6 +2,7 @@ package executionreconciler
 
 import (
 	"context"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ type activeWorkflowRunReader interface {
 func (r *Reconciler) ReconcileWorkflowTimeouts(ctx context.Context) {
 	store := r.store()
 	reader, readerOK := store.(activeWorkflowRunReader)
-	control, controlOK := r.starter.(execution.WorkflowControl)
+	control, controlOK := r.starter.(executionapplication.WorkflowControl)
 	if store == nil || !readerOK || !controlOK {
 		return
 	}
@@ -50,8 +51,8 @@ func (r *Reconciler) ReconcileWorkflowTimeouts(ctx context.Context) {
 
 func (r *Reconciler) reconcileWorkflowTimeout(
 	ctx context.Context,
-	store execution.RunProjectionStore,
-	control execution.WorkflowControl,
+	store executionapplication.RunStore,
+	control executionapplication.WorkflowControl,
 	binding execution.ActiveWorkflowRun,
 ) {
 	rootTemporalRunID := strings.TrimSpace(binding.StartIntent.TemporalRunID)
@@ -111,7 +112,7 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 
 func (r *Reconciler) finalizeTimedOutWorkflow(
 	ctx context.Context,
-	_ execution.RunProjectionStore,
+	_ executionapplication.RunStore,
 	run execution.DurableRun,
 	closedAt time.Time,
 ) error {
@@ -120,7 +121,7 @@ func (r *Reconciler) finalizeTimedOutWorkflow(
 
 func (r *Reconciler) finalizeTerminatedWorkflow(
 	ctx context.Context,
-	store execution.RunProjectionStore,
+	store executionapplication.RunStore,
 	run execution.DurableRun,
 	closedAt time.Time,
 ) error {
@@ -135,7 +136,7 @@ func (r *Reconciler) finalizeTerminatedWorkflow(
 
 func (r *Reconciler) finalizeClosedWorkflowFailure(
 	ctx context.Context,
-	_ execution.RunProjectionStore,
+	_ executionapplication.RunStore,
 	run execution.DurableRun,
 	closedAt time.Time,
 	failureKind string,

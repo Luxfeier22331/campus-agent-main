@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	env "github.com/caarlos0/env/v11"
 )
 
 const (
+	defaultTemporalTaskQueue           = "campus-agent.workflow.v3"
 	defaultAgentRuntimeDeadlineMS      = 240_000
 	defaultAgentRuntimeInputCharLimit  = 8_000
 	defaultAgentRuntimeMaxOutputTokens = 2_048
@@ -150,7 +150,7 @@ func loadFromEnv() (Config, error) {
 		DatabaseURL:                             normalizePostgresDatabaseURL(values.DatabaseURL),
 		TemporalAddress:                         strings.TrimSpace(values.TemporalAddress),
 		TemporalNamespace:                       strings.TrimSpace(values.TemporalNamespace),
-		TemporalTaskQueue:                       temporalruntime.WorkflowTaskQueue,
+		TemporalTaskQueue:                       defaultTemporalTaskQueue,
 		TemporalWorkerIdentity:                  strings.TrimSpace(values.TemporalWorkerIdentity),
 		TemporalStartTimeoutMS:                  5_000,
 		TemporalWorkflowExecutionTimeoutSeconds: fixedTemporalWorkflowTimeoutSec,

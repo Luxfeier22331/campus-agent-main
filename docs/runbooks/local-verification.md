@@ -206,8 +206,27 @@ SHA-256，并在产品回调成功后发布终结事件；它不会连接 stagin
 健康。命令结束后 Playwright 会停止本次启动的 fixture 和两个 Wrangler 进程；共享本地 Postgres、RustFS
 和 worktree profile 不由该命令销毁。
 
-Temporal 工作流 E2E 按需在本地执行。测试会启动 Temporal Dev Server，不连接 staging 或其他部署环境：
+Temporal 集成测试按需在本地执行。测试会启动 Temporal Dev Server，不连接 staging 或其他部署环境：
 
 ```bash
-go -C apps/execution-control test -tags=temporal_e2e ./internal/temporalruntime ./internal/httpapi -count=1
+go -C apps/execution-control test -tags=temporal_integration ./integration/temporal ./integration/execution_http -count=1 -timeout=2m
 ```
+
+专项验证通过独立入口执行：
+
+```bash
+pnpm --dir apps/execution-control test:temporal-replay
+pnpm --dir apps/execution-control test:stream-integration
+pnpm --dir apps/execution-control test:database-integration
+```
+
+replay 只读取已提交 history；stream 只启动测试自己的 SSE HTTP server；database 使用现有
+testcontainers PostgreSQL 和共享 schema job。这些命令均不要求启动完整产品服务。
+
+Temporal 每个包进程只启动一个 Dev Server，worker 按测试清理。fixture 在 `go test -timeout` 前
+预留关闭时间，失败和超时路径由子进程测试验证。SSE server 由测试关闭，PostgreSQL 容器由
+testcontainers cleanup 回收。
+
+GitHub `manual-validation-profile` 可分别选择 `execution-control-temporal`、`execution-control-stream`、
+`execution-control-replay` 或 `execution-control-postgres`。默认 PR 只自动运行受影响的 native 检查；
+这些服务集成和 history 验证不扩大 required check 范围。
