@@ -1306,7 +1306,8 @@ describe("local development lifecycle guards", () => {
 		);
 		assert.match(campusWebPackage.scripts?.dev ?? "", /\bvite\b/u);
 		assert.match(executionPackage.scripts?.dev ?? "", /exec go run/u);
-		assert.match(agentPackage.scripts?.dev ?? "", /--experimental-strip-types src\/server\.ts/u);
+		assert.match(agentPackage.scripts?.dev ?? "", /(?:^|\s)--experimental-strip-types(?:\s|$)/u);
+		assert.match(agentPackage.scripts?.dev ?? "", /(?:^|\s)src\/server\.ts$/u);
 		assert.equal(opsWebPackage.scripts?.dev, undefined);
 		assert.match(opsWebPackage.scripts?.["dev:api"] ?? "", /--experimental-strip-types/u);
 		assert.equal(campusDocsIndexPublisherPackage.scripts?.["dev:init"], undefined);

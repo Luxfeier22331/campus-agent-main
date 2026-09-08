@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -46,8 +47,9 @@ type campusDocsHTTPClient struct {
 }
 
 type campusDocsCandidate struct {
-	dedupKey string
-	result   campusdocs.SearchResultItem
+	dedupKey   string
+	result     campusdocs.SearchResultItem
+	diagnostic *campusdiagnostics.Candidate
 }
 
 type campusDocsRerankResultWire struct {
@@ -140,6 +142,13 @@ func (client *campusDocsHTTPClient) Search(
 	query string,
 	resultLimit int,
 ) ([]campusdocs.SearchResultItem, error) {
+	observer := campusdocs.SearchObservation(ctx)
+	snapshot := observer.Snapshot
+	snapshot.RetrievalMode = "hybrid_rrf"
+	if len(campusdocs.BuildSparseVector(query).Indices) == 0 {
+		snapshot.RetrievalMode = "dense"
+	}
+	started := time.Now()
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, errors.New("campus docs query is required")
@@ -160,11 +169,16 @@ func (client *campusDocsHTTPClient) Search(
 	if err != nil {
 		return nil, err
 	}
+	snapshot.Durations["embedding"] = time.Since(started).Milliseconds()
+	observer.Phase("embedded")
+	started = time.Now()
 	points, err := client.queryCampusDocsPoints(ctx, query, embedding, index)
 	if err != nil {
 		return nil, err
 	}
 	candidates := make([]campusDocsCandidate, 0, len(points))
+	snapshot.Candidates = make([]campusdiagnostics.Candidate, 0, campusDocsCandidateLimit)
+	snapshot.RetrievedCount = len(points)
 	seen := map[string]struct{}{}
 	for _, point := range points {
 		candidate, err := campusDocsCandidateFromQdrantPoint(index, point)
@@ -175,14 +189,35 @@ func (client *campusDocsHTTPClient) Search(
 			continue
 		}
 		seen[candidate.dedupKey] = struct{}{}
+		if utf8.RuneCountInString(candidate.result.Title) > 400 || utf8.RuneCountInString(candidate.result.SectionTitle) > 400 {
+			snapshot.SnapshotTruncated = true
+		}
+		if len(snapshot.Candidates) < campusDocsCandidateLimit {
+			snapshot.Candidates = append(snapshot.Candidates, campusdiagnostics.Candidate{
+				ResultRef: candidate.result.ResultRef, SourceKind: candidate.result.SourceKind,
+				Title:       campusdiagnostics.Bound(candidate.result.Title, 400),
+				Section:     campusdiagnostics.Bound(candidate.result.SectionTitle, 400),
+				FusionScore: point.Score, RetrievalRank: len(candidates) + 1,
+				Text: campusdiagnostics.Bound(candidate.result.Text, 160),
+			})
+			candidate.diagnostic = &snapshot.Candidates[len(snapshot.Candidates)-1]
+		} else {
+			snapshot.SnapshotTruncated = true
+		}
 		candidates = append(candidates, candidate)
 	}
 	if len(candidates) > campusDocsCandidateLimit {
 		return nil, errors.New("campus docs Qdrant response exceeds the candidate limit")
 	}
+	snapshot.DeduplicatedCount = len(candidates)
+	snapshot.RerankInputCount = len(candidates)
+	snapshot.Durations["retrieval"] = time.Since(started).Milliseconds()
+	observer.Phase("retrieved")
 	if len(candidates) == 0 {
+		observer.Phase("selected")
 		return []campusdocs.SearchResultItem{}, nil
 	}
+	started = time.Now()
 	rerankerConfig, err := client.resolveRerankerProviderConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -192,19 +227,39 @@ func (client *campusDocsHTTPClient) Search(
 		return nil, err
 	}
 
+	snapshot.RerankKeptCount = len(rankedCandidates)
+	snapshot.Durations["rerank"] = time.Since(started).Milliseconds()
+	observer.Phase("reranked")
+	started = time.Now()
 	results := make([]campusdocs.SearchResultItem, 0, resultLimit)
 	characterCount := 0
 	for _, candidate := range rankedCandidates {
 		if len(results) >= resultLimit {
-			break
+			if candidate.diagnostic != nil {
+				candidate.diagnostic.ExclusionReason = "result_limit"
+			}
+			continue
 		}
 		textLength := utf8.RuneCountInString(candidate.result.Text)
 		if characterCount+textLength > campusdocs.EvidenceCharBudget {
+			if candidate.diagnostic != nil {
+				candidate.diagnostic.ExclusionReason = "evidence_char_budget"
+			}
 			continue
+		}
+		if candidate.diagnostic != nil {
+			candidate.diagnostic.Returned = true
+			candidate.diagnostic.Text = candidate.result.Text
+			citationIndex := snapshot.CitationStart + len(results)
+			candidate.diagnostic.CitationIndex = &citationIndex
 		}
 		results = append(results, candidate.result)
 		characterCount += textLength
 	}
+	snapshot.ReturnedCount = len(results)
+	snapshot.ExcludedCount = len(candidates) - len(results)
+	snapshot.Durations["selection"] = time.Since(started).Milliseconds()
+	observer.Phase("selected")
 	return results, nil
 }
 
@@ -590,9 +645,17 @@ func (client *campusDocsHTTPClient) rerankCampusDocsCandidates(
 		return ranked[left].score > ranked[right].score
 	})
 	result := make([]campusDocsCandidate, 0, len(ranked))
-	for _, item := range ranked {
+	for position, item := range ranked {
+		if item.candidate.diagnostic != nil {
+			score, rank := item.score, position+1
+			item.candidate.diagnostic.RerankScore = &score
+			item.candidate.diagnostic.RerankRank = &rank
+		}
 		if item.score < campusDocsRerankRelevanceThreshold {
-			break
+			if item.candidate.diagnostic != nil {
+				item.candidate.diagnostic.ExclusionReason = "rerank_below_threshold"
+			}
+			continue
 		}
 		result = append(result, item.candidate)
 	}

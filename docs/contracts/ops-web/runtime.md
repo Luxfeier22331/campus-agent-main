@@ -98,14 +98,31 @@ locator 或 trace card。
 - `stages[]`：阶段类型、状态、工具名和调用 ID（适用时）、起止时间、耗时和有界失败类型；耗时优先
   使用同一 `request_id`、`step_id`、`activity_attempt` 的 attempt 投影 `duration_ms`，缺失时才由阶段
   起止时间计算。
+- `campusSearch`：Campus Search 专用诊断，包含 `dataState`、`reason` 与 `calls[]`。每次调用展示
+  invocation、workflow step、activity attempt、查询、最后观察阶段、阶段时间、排队和工具总耗时、
+  失败码与 HTTP 状态，以及服务端检索快照。这些 ID 只用于 Ops 关联，不授予操作运行的权限。
+
+Campus Search 的 `dataState` 为 `FRESH`、`PARTIAL`、`NO_DATA` 或 `UNAVAILABLE`。无记录表示旧请求、
+未调用工具或未收到观察，不能据此推断检索失败；终态请求中缺少工具终态的调用显示 `incomplete`。
+诊断查询失败只使 `campusSearch` 不可用，不遮盖产品结果。活动请求约每两秒刷新，隐藏页面不后台
+轮询；进入终态后再刷新一次以读取引用投影，随后停止定时刷新。
+
+快照包含实际检索表达（最多 1024 字符）、dense / hybrid RRF 模式、embedding / retrieval / rerank /
+selection 耗时、召回与去重后候选数、重排输入与保留数、返回与排除数。只有对应阶段已观察完成时，
+该阶段统计才有含义。最多 24 个候选记录来源、标题、章节、融合分数、重排分数、两次排序名次及
+筛选原因（低于重排阈值、返回数量限制、正文预算）。返回项保存工具已返回的正文，总计最多 4000
+字符；排除项只有最多 160 字符预览。候选的 `cited` 在 finalization 成功后为实际引用与否，未完成或
+引用投影缺失时为 `null`。这里只反映本次工具的候选与选择，不提供没有标注集支持的 recall / precision。
 
 `failure`、`terminalReason` 与 `failCloseReason` 在页面中分区展示，任何一个字段都不能替代另一个。
 历史运行没有某个诊断字段时返回 `null`，没有持久阶段时返回空数组，不从产品错误、终态、日志或外部
 trace 推导根因。
 Ops Web 只以 `requestId` 聚合 `chat.turn_dispatches`、产品消息以及 execution-control 的固定净化列；
-不向浏览器暴露 workflow、Temporal run、step、attempt、result 或 provider response ID。
+不向浏览器暴露 Temporal workflow/run 或 provider response ID；Campus Search 诊断专用的调用、步骤、
+尝试编号和 result ref 仅在上述 Ops 字段返回。
 
 接口不返回完整模型输入输出、供应商原始响应、费用、Temporal history、完整 Langfuse trace、记忆正文
-或检索候选正文。精确字段由 `apps/ops-web/src/shared/ops-contract.ts` 维护。
+或无界检索正文。上述有界 Campus Search 候选快照是明确例外。精确字段由
+`apps/ops-web/src/shared/ops-contract.ts` 与 `campus-search-diagnostics.ts` 维护。
 
 通用鉴权、错误和禁止行为见 [README.md](./README.md)。

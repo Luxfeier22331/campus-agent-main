@@ -314,6 +314,12 @@ const REQUIRED_SELECTS = [
 		`,
 	},
 	{
+		label: "execution_control.agent_campus_search_diagnostics",
+		sql: `select request_id, invocation_id, workflow_step_id, activity_attempt, schema_version,
+			search_query, status, current_phase, phase_times_json, snapshot_json, failure_code,
+			http_status, cited_result_refs, updated_at from execution_control.agent_campus_search_diagnostics limit 0`,
+	},
+	{
 		label: "execution_control.agent_run_steps",
 		sql: `
 			select

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
@@ -95,6 +97,22 @@ func (s *AgentToolService) CampusSearch(
 	ctx context.Context,
 	request CampusSearchRequest,
 ) (map[string]any, error) {
+	access := request.AccessContext
+	query := campusSearchRetrievalQuery(access.UserGoal, request.SearchQuery)
+	snapshot := &campusdiagnostics.Snapshot{
+		EffectiveQuery: campusdiagnostics.Bound(query, 1024), CitationStart: access.CitationStart,
+		ResultLimit: access.ResultLimit, Durations: map[string]int64{}, Candidates: []campusdiagnostics.Candidate{},
+		SnapshotTruncated: len([]rune(query)) > 1024,
+	}
+	observe := func(phase string) {
+		campusdiagnostics.Record(ctx, s.store, campusdiagnostics.Observation{
+			RequestID: access.RequestID, InvocationID: access.InvocationID,
+			WorkflowStepID: access.WorkflowStepID, ActivityAttempt: access.ActivityAttempt,
+			SearchQuery: request.SearchQuery, Phase: phase, At: time.Now(), Snapshot: snapshot,
+		})
+	}
+	observe("received")
+	ctx = campusdocs.WithSearchObserver(ctx, &campusdocs.SearchObserver{Snapshot: snapshot, Phase: observe})
 	if _, err := s.validateRun(ctx, request.AccessContext, CampusSearchToolName); err != nil {
 		return nil, err
 	}
@@ -117,10 +135,11 @@ func (s *AgentToolService) CampusSearch(
 	if !found {
 		return nil, errors.New("campus docs current index is not available")
 	}
+	observe("index_loaded")
 	results, err := s.campusDocsSearcher.Search(
 		ctx,
 		index,
-		campusSearchRetrievalQuery(request.AccessContext.UserGoal, request.SearchQuery),
+		query,
 		request.AccessContext.ResultLimit,
 	)
 	if err != nil {

@@ -1,6 +1,7 @@
 import { Button, cn } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, RefreshCw } from "lucide-react";
+import { useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
@@ -22,9 +23,24 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 	const detail = useQuery({
 		queryFn: ({ signal }) => fetchOpsRequestDetail(requestId, { signal }),
 		queryKey: ["ops", "requests", requestId],
-		refetchInterval: 30_000,
+		refetchInterval: (query) => requestDetailPollInterval(query.state.data),
 		refetchIntervalInBackground: false,
 	});
+	const finishedRequestId =
+		detail.data?.request.lifecyclePhase === "FINISHED" ? detail.data.request.requestId : null;
+	const refetch = detail.refetch;
+	useEffect(() => {
+		if (!finishedRequestId) {
+			return;
+		}
+		// Product completion can precede the best-effort citation projection.
+		const timer = setTimeout(() => {
+			if (document.visibilityState === "visible") {
+				void refetch();
+			}
+		}, 2000);
+		return () => clearTimeout(timer);
+	}, [finishedRequestId, refetch]);
 	const returnPath = normalizeRequestListReturnPath(from);
 
 	if (detail.isPending) {
@@ -87,6 +103,12 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 			)}
 		</section>
 	);
+}
+
+export function requestDetailPollInterval(
+	detail: OpsRequestDetailResponse | undefined,
+): number | false {
+	return detail?.request.lifecyclePhase === "FINISHED" ? false : 2000;
 }
 
 function BackToRequests({ href }: { href: string }) {

@@ -1,5 +1,6 @@
 import { NOTICE_CATEGORIES } from "campus-contracts/notices";
 import { z } from "zod";
+import { CampusSearchDiagnosticsSchema } from "./campus-search-diagnostics.ts";
 
 export {
 	type InternalPortalCredential,
@@ -476,6 +477,7 @@ const OpsExecutionStageSchema = z.object({
 
 export const OpsRequestDetailResponseSchema = z.object({
 	execution: z.object({
+		campusSearch: CampusSearchDiagnosticsSchema,
 		failCloseReason: z.string().min(1).nullable(),
 		failure: OpsExecutionFailureSchema,
 		model: z.object({

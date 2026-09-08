@@ -141,6 +141,9 @@ describe("execution-control tool executor", () => {
 			sharedSecret: "query-secret",
 			fetchImpl: async (request, init) => {
 				const normalized = request instanceof Request ? request : new Request(request, init);
+				if (normalized.url.endsWith("/observations")) {
+					return new Response(null, { status: 204 });
+				}
 				body = (await normalized.json()) as Record<string, unknown>;
 				return Response.json({ outcome: "no_match", results: [] });
 			},

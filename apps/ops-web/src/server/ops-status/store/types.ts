@@ -94,6 +94,23 @@ export interface OpsRequestModelAttemptRow {
 }
 
 export interface OpsRequestDiagnosticsRows {
+	campusSearch?: CampusSearchDiagnosticRow[] | null;
 	modelAttempts: OpsRequestModelAttemptRow[];
 	stages: OpsRequestStageRow[];
+}
+
+export interface CampusSearchDiagnosticRow {
+	invocationId: string;
+	workflowStepId: string;
+	activityAttempt: number;
+	schemaVersion: number;
+	searchQuery: string;
+	status: "running" | "completed" | "failed" | "canceled";
+	currentPhase: string;
+	phaseTimes: Record<string, string>;
+	snapshot: unknown;
+	failureCode: string | null;
+	httpStatus: number | null;
+	citedResultRefs: string[] | null;
+	updatedAt: Date;
 }

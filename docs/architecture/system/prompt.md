@@ -32,6 +32,13 @@ status: active
 execution-control 的 Agent Workflow 合同显式传递；提示词只约束每个 operation 如何消费输入、输出
 结构化结果或用户正文。
 
+## 规则治理
+
+- 身份、权限、工具准入、预算、输出结构、引用合法性和终态写入属于代码或可执行合同；提示词不得重复承担这些保证。
+- 用户答案风格属于产品行为，只保留直接、简洁且可执行的表达，不把内部检索状态、失败码或覆盖范围写给用户。
+- Provider 或模型特有的格式 workaround 只能记录在对应配置或历史决策中，不得升级为所有模型的架构约束。
+- 修改模型或 SDK 时，先用现有测试和真实产品路径验证能力；没有具体失败或消费者的旧规则直接删除或降为历史说明。
+
 ## 指令层次
 
 模型输入按以下职责分层：
@@ -41,7 +48,7 @@ execution-control 的 Agent Workflow 合同显式传递；提示词只约束每�
 3. execution-control 提供的当前 operation、步骤和有界运行上下文；
 4. 当前用户输入和近期会话；
 5. 工具返回的有界数据与依据；
-6. 当前 operation 的输出合同、回答语言、资料边界和正文引用要求。
+6. 当前 operation 的输出合同、用户答案风格和正文引用要求。
 
 角色指令由 `apps/agent-runtime` 维护，并使用简体中文表达当前单校产品边界：Agent Workflow 服务
 中央民族大学校园问答场景，未明确指定机构时，学校、本校和校园均默认指中央民族大学。Solve 生成
@@ -51,7 +58,7 @@ execution-control 传入类型化数据，不在 Go 侧维护另一套 Agent pro
 
 `campus_search` 返回 `no_match` 或失败时，Executor 保留该来源尝试，Replanner 决定是否增加允许
 `web_search` 的后续步骤；系统不由代码自动回退，也不要求固定的 2～3 个 turn。问题所需事实可从尚未
-采集的公开校园网页获取时，后续步骤可以使用 `web_search`，不能直接判定资料不足。`web_search` 只服务
+采集的公开校园网页获取时，后续步骤可以使用 `web_search`，不能仅凭校内无匹配就判定事实不存在。`web_search` 只服务
 于校园问题，不是通用开放域能力。只有 `campus_search` 成功返回 evidence 时才使用 `[n]` 引用；Web Search
 支持的事实必须由 SDK 原生 URL citation 支持，模型不得手写 URL、Markdown 来源链接、数字引用或 turn
 引用。Finalization 负责生成统一的编号来源链接。

@@ -6,7 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "tsc --project tsconfig.build.json",
-		"dev": "node --env-file-if-exists=.env.local --experimental-strip-types src/server.ts",
+		"dev": "node --env-file-if-exists=.env.local --experimental-strip-types --network-family-autoselection-attempt-timeout=2000 src/server.ts",
 		"test": "vitest run -c vitest.config.mts",
 		"typecheck": "tsc --noEmit"
 	},

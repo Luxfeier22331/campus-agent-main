@@ -134,15 +134,22 @@ function classifyProviderFailure(error: unknown):
 			httpStatus: status,
 		};
 	}
-	const name = providerErrorName(error);
-	if (/Timeout|timed.?out/i.test(name)) {
+	const names = providerErrorNames(error);
+	const codes = providerErrorCodes(error);
+	if (
+		codes.some((code) => code === "ETIMEDOUT") ||
+		names.some((name) => /Timeout|timed.?out/i.test(name))
+	) {
 		return {
 			code: "provider_timeout",
 			operation: "agent.model",
 			detail: "provider request timed out",
 		};
 	}
-	if (/APIConnectionError|ConnectionError|ECONNRESET|ECONNREFUSED/i.test(name)) {
+	if (
+		codes.some((code) => /^E(?:CONN|HOST|NET)/.test(code)) ||
+		names.some((name) => /APIConnectionError|ConnectionError|ECONNRESET|ECONNREFUSED/i.test(name))
+	) {
 		return {
 			code: "provider_connection_failed",
 			operation: "agent.model",
@@ -172,26 +179,40 @@ function providerErrorRecord(error: unknown): Record<string, unknown> | undefine
 	return objectRecord(error);
 }
 
-function providerErrorName(error: unknown): string {
-	let current = error;
-	for (let depth = 0; depth < 4; depth += 1) {
-		if (current instanceof Error) {
-			if (current.name) {
-				return current.name;
-			}
-			current = current.cause;
+function providerErrorNames(error: unknown): string[] {
+	return providerErrorChain(error).flatMap((value) => {
+		const record = objectRecord(value);
+		return typeof record?.name === "string" ? [record.name] : [];
+	});
+}
+
+function providerErrorCodes(error: unknown): string[] {
+	return providerErrorChain(error).flatMap((value) => {
+		const record = objectRecord(value);
+		return typeof record?.code === "string" ? [record.code] : [];
+	});
+}
+
+function providerErrorChain(error: unknown): unknown[] {
+	const values: unknown[] = [];
+	const queue: unknown[] = [error];
+	const seen = new Set<unknown>();
+	while (queue.length > 0 && values.length < 16) {
+		const current = queue.shift();
+		if (current === undefined || seen.has(current)) {
 			continue;
 		}
+		seen.add(current);
+		values.push(current);
 		const record = objectRecord(current);
-		if (!record) {
-			break;
+		if (record?.cause) {
+			queue.push(record.cause);
 		}
-		if (typeof record.name === "string" && record.name) {
-			return record.name;
+		if (record?.errors && Array.isArray(record.errors)) {
+			queue.push(...record.errors);
 		}
-		current = record.cause;
 	}
-	return "";
+	return values;
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {

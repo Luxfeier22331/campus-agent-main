@@ -182,7 +182,7 @@ describe("workflow operation runtime", () => {
 		expect(observed?.operation).toBe("solve");
 		expect(observed?.tools).toEqual([]);
 		expect(observed?.allowWebSearch).toBe(false);
-		expect(observed?.instructions).toContain("schemaVersion、goal、steps");
+		expect(observed?.instructions).toContain("计划必须符合 task_plan.v1 合同");
 		expect(JSON.stringify(observed?.input)).toContain(
 			'\\"availableSources\\":[\\"campus_search\\",\\"web_search\\"]',
 		);
@@ -305,8 +305,8 @@ describe("workflow operation runtime", () => {
 
 		expect(observed?.operation).toBe("execute_step");
 		expect(observed?.tools.map((tool) => tool.name)).toEqual(["campus_search"]);
-		expect(observed?.instructions).toContain("citation_index=1 写成 [1]");
-		expect(observed?.instructions).toContain("不得输出 [citation_index:1]");
+		expect(observed?.instructions).toContain("引用编号由结构化 evidence 保留");
+		expect(observed?.instructions).not.toContain("步骤摘要必须写成");
 		expect(observedWorkflowStepId).toBe("task.step.step.notice");
 		expect(result.completedStep).toMatchObject({
 			step,
@@ -562,6 +562,8 @@ describe("workflow operation runtime", () => {
 		expect(observed?.tools).toEqual([]);
 		expect(observed?.instructions).toContain("citationIndex=1 写成 [1]");
 		expect(observed?.instructions).toContain("不得输出 [citation_index:1]");
+		expect(observed?.instructions).not.toContain("coverageNotes");
+		expect(observed?.instructions).not.toContain("不能据此断定网上不存在");
 		const synthesisInput = observed?.input.at(-1);
 		expect(synthesisInput).toEqual({
 			role: "user",
@@ -576,18 +578,59 @@ describe("workflow operation runtime", () => {
 							excerpt: "每学年评审一次。",
 						},
 					],
-					coverageNotes: ["本次未能取得公开网页资料。"],
 					answerMode: "grounded",
 					remainingFacts: [{ objective: step.objective, facts: [] }],
 				},
 			)}`,
 		});
+		expect(JSON.stringify(synthesisInput)).not.toContain("coverageNotes");
 		expect(result.finalOutput).toBe("奖学金每学年评审一次 [1]。");
 		expect(result.evidence).toEqual([evidence]);
 		expect(result.sourceAttempts).toEqual([
 			{ source: "campus_search", status: "matched" },
 			{ source: "web_search", status: "failed", failureCode: "provider_internal" },
 		]);
+	});
+
+	it("keeps insufficient synthesis concise and rejects fabricated citations", async () => {
+		let observed: AgentRunnerInput | undefined;
+		const step = taskStep("step.missing", "查找不存在的通知");
+		const input = synthesizeInput(
+			taskPlan("不存在的通知", [step]),
+			[
+				{
+					remainingFacts: [],
+					step,
+					executionIndex: 1,
+					summary: "未找到匹配资料。",
+					evidence: [],
+					sourceAttempts: [{ source: "campus_search", status: "no_match" }],
+				},
+			],
+			[],
+		);
+		input.operationInput.answerMode = "insufficient";
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async (runnerInput) => {
+				observed = runnerInput;
+				return runnerResult({ finalOutput: "暂未找到相关资料。" });
+			},
+		});
+
+		const result = await runtime.run(input);
+		expect(result.finalOutput).toBe("暂未找到相关资料。");
+		expect(observed?.tools).toEqual([]);
+		expect(observed?.instructions).toContain("answerMode=insufficient");
+		expect(observed?.instructions).not.toContain("coverageNotes");
+
+		const invalidRuntime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async () => runnerResult({ finalOutput: "无法确认 [1]。" }),
+		});
+		await expect(invalidRuntime.run(input)).rejects.toMatchObject({
+			code: "citation_validation_failed",
+		});
 	});
 
 	it("streams only the synthesize operation and stops after its terminal result", async () => {

@@ -108,12 +108,10 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"你负责在一次操作中决定直接回答用户，或为复杂校园信息任务制定可执行计划。",
 		"只输出一个 JSON 对象，不要输出 Markdown、代码围栏或解释性文字。",
 		'直接回答时必须输出 {"result":{"outcome":"answer","answer":"..."}}；answer 必须是给用户看的自然语言，不得包含 plan 字段。',
-		"本操作不调用检索工具，也不能用模型记忆补齐当前校园事实；涉及校园规定、通知、联系方式、日期、资格条件等需要资料支持的问题，必须输出 plan。",
+		"本操作不调用检索工具，也不能用模型记忆补齐需要外部资料支持的校园事实；这类问题返回计划。",
 		"只有问候、改写、产品说明或其他不需要外部资料的问题才直接返回 answer。",
 		'需要多个相互依赖的目标、多个检索步骤或一次检索无法闭合时，输出 {"result":{"outcome":"plan","plan":{...}}}，不得包含 answer 字段。',
-		"plan 必须恰好包含 schemaVersion、goal、steps；schemaVersion 必须是 task_plan.v1。",
-		"steps 中每项必须恰好包含 id、objective、candidateSources、dependsOn。",
-		"每个步骤都必须有唯一的 step.<name> id、明确 objective、非空 candidateSources 和只指向前序步骤的 dependsOn。",
+		"计划必须符合 task_plan.v1 合同。",
 		"不需要检索的问题必须直接返回 answer，不要制造空计划。",
 		"candidateSources 只能使用 operation data 中 availableSources 列出的值。",
 		"不要把来源名称、内部运行标签或实现细节暴露给用户；它们只用于内部执行。",
@@ -123,8 +121,7 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"你负责执行当前任务步骤，并整理该步骤得到的事实。",
 		"只能依据当前步骤开放的工具结果作答，不能使用模型记忆补全事实。",
 		"campus_search 返回 no_match 只代表该来源没有找到证据；如果 web_search 在候选来源中，仍可继续用它寻找可信公开校园网页。",
-		"工具失败或无匹配不等于整个请求失败；保留已获得的证据，并清楚说明资料边界。",
-		"Campus 结果的 citation_index 为 N 时，步骤摘要必须写成 [N]，例如 citation_index=1 写成 [1]。不得输出 [citation_index:1]、[citation_index] 或其他占位写法。",
+		"工具失败或无匹配不等于整个请求失败；保留已获得的证据，并在步骤摘要中准确反映结果。引用编号由结构化 evidence 保留，步骤摘要不需要改写成正文引用格式。",
 		"只输出 JSON 对象，恰好包含 summary 和 remainingFacts；summary 是简短步骤摘要，remainingFacts 是尚缺事实的字符串数组。",
 		"remainingFacts 只描述本步骤 objective 尚未得到证据支持的事实；已充分覆盖时返回 []，尚未执行的后续步骤目标不算本步骤缺口。无可用资料时必须保留当前步骤的事实缺口。",
 		"只在 summary 中放置引用；不要向浏览器流式输出。",
@@ -133,8 +130,7 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		...productIdentityInstructions,
 		"你负责检查已经完成的步骤和剩余步骤，决定继续、调整步骤或直接合成。",
 		"只输出一个 JSON 对象，不要输出 Markdown、代码围栏或解释性文字。",
-		"JSON 必须恰好包含 schemaVersion、decision、reason、remainingSteps；字段名区分大小写，schemaVersion 必须是 task_replan.v2。",
-		"decision 只能是 continue、synthesize 或 insufficient；remainingSteps 中每项必须恰好包含 id、objective、candidateSources、dependsOn。",
+		"只输出符合 task_replan.v2 合同的 JSON；decision 只能是 continue、synthesize 或 insufficient。",
 		"synthesize 必须有合法证据；无证据且存在真实 no_match、没有进一步适用检索路径时选择 insufficient，remainingSteps=[]。全部来源故障不等于 no_match。",
 		"依据各步骤 remainingFacts 调整路径；缺口已有后续证据支持时不重复检索。",
 		"如果已有证据足以回答用户目标，选择 synthesize；不要为了增加步骤而继续。",
@@ -145,11 +141,11 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		...productIdentityInstructions,
 		"你是最终答案合成器，只能使用输入中提供的聚合证据和用户上下文。",
 		"不要调用检索工具，不要使用模型记忆补全，也不要声称执行了未提供的检索。",
-		"回答用户目标中有证据支持的部分；证据不足时明确说明资料边界，但仍保留已经支持的部分。",
+		"直接回答有资料支持的部分；没有资料时简洁说明暂未找到或暂时无法确认，不解释内部检索范围、步骤或失败原因。",
 		"Campus evidence 的 citationIndex 为 N 时，在对应事实后写成 [N]，例如 citationIndex=1 写成 [1]。不得输出 [citation_index:1]、[citationIndex:1] 或其他占位写法。",
 		"不要手写 URL 或内部 locator。",
 		"编号引用只能使用 materials 中实际提供的 citationIndex；没有可编号材料时不得输出任何 [N]，也不得为资料不足说明添加引用。",
-		"按 coverageNotes 区分资料暂时无法取得与检索成功但无匹配，不得把资料获取失败说成已经查证没有相关资料。",
+		"不要把暂未找到资料表述为事实不存在；不要把内部检索状态、来源覆盖范围或工具失败细节写进答案。",
 		"只输出给用户看的自然语言答案，不要输出计划、步骤状态、工具失败细节或内部标签。",
 	].join("\n"),
 };
@@ -309,6 +305,20 @@ function prepareOperation(
 		const catalogEntry = requireCatalogEntry(catalog, toolName);
 		return {
 			name: definition.name,
+			...(input.signal ? { signal: input.signal } : {}),
+			async observe(argumentsJson, invocationId, observation) {
+				await executor.observe?.(
+					{
+						tool: catalogEntry,
+						argumentsJson,
+						invocationId,
+						requestId: input.requestId,
+						activityAttempt: input.activityAttempt ?? 1,
+						workflowStepId: workflowExecutorStepId(input),
+					},
+					observation,
+				);
+			},
 			description: definition.description,
 			parameters: definition.parameterSchema,
 			execute(argumentsJson, context) {
@@ -352,7 +362,7 @@ function prepareOperation(
 			input: modelInput.items,
 			instructions:
 				input.operation === "synthesize" && input.operationInput.answerMode === "insufficient"
-					? `${instructions.synthesize}\n本次 answerMode=insufficient：只能说明本轮检索没有找到可用资料，以及哪些来源暂时不可用；不得补充校园事实、时间、资格、网址或编号引用。不得将未查到资料表述为事实不存在。`
+					? `${instructions.synthesize}\n本次 answerMode=insufficient：简洁说明暂未找到相关资料或目前无法确认，不解释内部检索范围、步骤或来源故障；不得补充校园事实、时间、资格、网址或编号引用。不得将未查到资料表述为事实不存在。`
 					: instructions[input.operation],
 			limits: input.limits,
 			operation: input.operation,
@@ -551,58 +561,12 @@ function synthesisPayload(
 			title: item.title,
 			excerpt: item.excerpt,
 		})),
-		coverageNotes: synthesisCoverageNotes(input.completedSteps),
 		answerMode: input.answerMode,
 		remainingFacts: input.completedSteps.map((step) => ({
 			objective: step.step.objective,
 			facts: step.remainingFacts,
 		})),
 	};
-}
-
-function synthesisCoverageNotes(completedSteps: CompletedTaskStep[]): string[] {
-	const notes = new Set<string>();
-	if (completedSteps.some((step) => step.failure)) {
-		notes.add("部分资料步骤未完成，只能依据已取得的资料回答。");
-	}
-	for (const attempt of sourceAttemptsFromCompletedSteps(completedSteps)) {
-		const note = sourceBoundaryNote(attempt);
-		if (note) {
-			notes.add(note);
-		}
-	}
-	return [...notes];
-}
-
-function sourceBoundaryNote(attempt: SourceAttempt): string | undefined {
-	if (attempt.status === "no_match") {
-		switch (attempt.source) {
-			case "campus_search":
-				return "校内已收录资料未找到匹配内容。";
-			case "web_search":
-				return "公开网页资料未找到匹配内容。";
-			case "personal_memory_recall":
-				return "个人记忆中没有找到匹配内容。";
-			default:
-				return undefined;
-		}
-	}
-	if (attempt.status === "failed") {
-		if (attempt.failureCode?.startsWith("workflow_")) {
-			return "有一个资料步骤未完成，以下回答仅基于已经取得的资料。";
-		}
-		switch (attempt.source) {
-			case "campus_search":
-				return "本次未能取得校内资料。";
-			case "web_search":
-				return "本次未能取得公开网页资料。";
-			case "personal_memory_recall":
-				return "本次未能取得相关个人记忆。";
-			default:
-				return undefined;
-		}
-	}
-	return undefined;
 }
 
 function userVisibleSourceLabel(source: WorkflowSource): string {

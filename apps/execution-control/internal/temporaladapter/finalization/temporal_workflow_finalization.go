@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -35,7 +36,27 @@ func (s *Adapter) WriteWorkflowFinalization(
 			true,
 		)
 	}
-	return s.CommitWorkflowFinalization(ctx, input)
+	output, err := s.CommitWorkflowFinalization(ctx, input)
+	if err == nil && output.Status == "completed" {
+		campusdiagnostics.MarkCitations(ctx, s.RunProjectionStore, input.RequestID, campusSearchCitedRefs(input.WorkflowResult))
+	}
+	return output, err
+}
+
+// The finalization path has already validated the citation closure. This only
+// projects the referenced Campus candidates after successful finalization.
+func campusSearchCitedRefs(result temporalruntime.WorkflowOperationActivityOutput) []string {
+	refs := []string{}
+	markers := map[string]bool{}
+	for _, marker := range WorkflowCitationPattern.FindAllString(result.FinalOutput, -1) {
+		markers[marker] = true
+	}
+	for _, item := range result.Evidence {
+		if item.Source == temporalruntime.WorkflowSourceCampusSearch && markers[fmt.Sprintf("[%d]", item.CitationIndex)] {
+			refs = append(refs, execution.FirstNonEmptyText(item.ResultRef, item.ID))
+		}
+	}
+	return refs
 }
 
 func (s *Adapter) CommitWorkflowFinalization(

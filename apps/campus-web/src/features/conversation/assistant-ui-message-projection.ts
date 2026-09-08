@@ -30,6 +30,7 @@ export function upsertAssistantTextMessage(
 				content,
 				createdAt: new Date(input.occurredAt),
 				id: input.messageId,
+				metadata: { isOptimistic: true },
 				role: "assistant",
 			},
 		];

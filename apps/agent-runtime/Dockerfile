@@ -74,4 +74,4 @@ USER node
 
 EXPOSE 27062
 
-CMD ["node", "apps/agent-runtime/dist/server.js"]
+CMD ["node", "--network-family-autoselection-attempt-timeout=2000", "apps/agent-runtime/dist/server.js"]

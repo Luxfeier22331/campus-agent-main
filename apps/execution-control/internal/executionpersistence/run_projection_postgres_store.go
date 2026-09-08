@@ -24,6 +24,7 @@ var runProjectionRuntimeTables = []string{
 	"execution_control.agent_workflow_starts",
 	"execution_control.agent_run_cancellations",
 	"execution_control.agent_invocation_receipts",
+	"execution_control.agent_campus_search_diagnostics",
 }
 
 type PostgresRunProjectionStoreOptions struct {

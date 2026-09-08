@@ -35,6 +35,8 @@ execution-control 统一准入。`reason` 说明决策原因，不构成额外�
 
 Executor 必须返回 `summary` 与 `remainingFacts`。Synthesis 必须声明 `answerMode`：`grounded`
 要求存在证据，`insufficient` 仅适用于没有证据但至少有真实 `no_match` 的结果。
+这些字段只用于运行时合同和收敛判断；`insufficient` 回答保持简洁，不注入检索覆盖范围、内部步骤或
+`coverageNotes` 一类防御性说明，也不能把未查到资料表述为事实不存在。
 
 `max_model_turns` 与 `max_function_tool_calls` 按单个 operation 计数；`max_plan_steps` 与
 `max_replans` 由外层 workflow 作为请求级预算执行。

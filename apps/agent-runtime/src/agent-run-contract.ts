@@ -1,4 +1,5 @@
 import type { AgentInputItem, AgentOutputType } from "@openai/agents";
+import type { CampusSearchObservation, CampusSearchReporter } from "./campus-search-observer.ts";
 import type {
 	JsonObjectSchema,
 	ToolCatalog,
@@ -237,6 +238,12 @@ export interface WebCitation {
 }
 
 export interface SdkToolRuntime {
+	signal?: AbortSignal;
+	observe?(
+		argumentsJson: Record<string, unknown>,
+		invocationId: string,
+		observation: CampusSearchObservation,
+	): Promise<void>;
 	name: string;
 	description: string;
 	parameters?: JsonObjectSchema;
@@ -285,7 +292,11 @@ export interface AgentRunnerSolveDecision {
 export type StreamingAgentRunner = (
 	input: AgentRunnerInput,
 ) => AsyncIterable<AgentRunnerAnswerDelta | AgentRunnerSolveDecision | AgentRunnerResult>;
-export type ToolExecutor = (request: ToolExecutionRequest) => Promise<UntimedToolExecutionResult>;
+export type ToolExecutor = ((
+	request: ToolExecutionRequest,
+) => Promise<UntimedToolExecutionResult>) & {
+	observe?: CampusSearchReporter;
+};
 
 export interface WorkflowOperationResult {
 	answerMode?: WorkflowAnswerMode;

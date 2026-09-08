@@ -36,6 +36,13 @@
       "when": 1788651000000,
       "tag": "0004_grant_ops_web_step_activity_attempt",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788825600000,
+      "tag": "0005_campus_search_diagnostics",
+      "breakpoints": true
     }
   ]
 }

@@ -139,6 +139,12 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleReadyz(response, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/requests":
 		s.handleExecutionRunCreate(response, request)
+	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/execution/requests/") && strings.HasSuffix(path, "/campus-search/observations"):
+		if requestID, ok := executionRequestIDFromPath(path, "/campus-search/observations"); ok {
+			s.handleCampusSearchObservation(response, request, requestID)
+		} else {
+			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
+		}
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/owners/") && strings.HasSuffix(path, "/deletion/begin"):
 		s.handleOwnerDeletionBegin(response, request, ownerUserIDFromDeletionPath(path, "/deletion/begin"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/internal/owners/") && strings.HasSuffix(path, "/deletion/finalize"):

@@ -180,6 +180,9 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
   `REFERENCES`、`TRIGGER`，也不能访问 App API 所有的 `runtime.request_observability_fact`；
 - execution-control 表所有者只向 `ops_web` 授予 `agent_runs` 和 `agent_step_attempts` 当前运维
   投影使用的精确列读取。Ops Web bootstrap 不创建、扩大或收回 execution-control 表权限；
+- `execution_control.agent_campus_search_diagnostics` 保存 Ops 检查 RAG 所需的有界候选和阶段快照，
+  `execution_control` 读写、`ops_web` 只读列级诊断字段，`app_api` 无权限。它与所属 run 级联删除；
+  不因此向 Ops Web 开放 `agent_run_events` 或 `agent_step_results`；
 - 在线模型配置只能通过 Model Config 管理接口修改，Ops Web 不直连其 schema；
 - `execution_control` 对 `campus_docs_serving.current_index` 具有 `SELECT`、`INSERT`、`UPDATE`，
   但不具有 `DELETE`、`TRUNCATE`、`REFERENCES` 或 `TRIGGER`；统一 Campus RAG publisher 和在线
@@ -197,7 +200,8 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
   `internal_portal.automation_tokens`；token 明文保留是为满足 Ops Web 的重复 reveal 合同，不作为通用
   Secret 管理能力；当前运行时不创建或使用旧 `ingestion_control` 角色；
 - 不同逻辑所有者共用 DDL journal，但不通过双写复制同一事实，也不共享运行时写权限；
-- 对象 bytes、原始来源、工作流历史和供应商 trace 不进入这些 schema。
+- 对象 bytes、无界原始来源、工作流历史和供应商 trace 不进入这些 schema。Campus Search 的有界候选
+  正文是为 Ops RAG 诊断保留的快照，不作为来源系统副本。
 
 角色、grant、schema 安装和应用查询必须共同变化。新增数据库列不会自动进入其他所有者的读取
 权限或 API 响应。所属应用交付声明式 schema 与查询变化，统一 Job 交付安装 SQL 和授权；常驻

@@ -347,10 +347,19 @@ async function executeSdkTool(
 	context.campusSearch.queue = new Promise<void>((resolve) => {
 		release = resolve;
 	});
+	await runtimeTool.observe?.(argumentsJson, invocationId, { phase: "queued" });
 	await previous;
 	try {
+		if (runtimeTool.signal?.aborted) {
+			await runtimeTool.observe?.(argumentsJson, invocationId, { phase: "canceled" });
+			throw runtimeTool.signal.reason ?? new Error("Agent run was canceled.");
+		}
 		const citationStart = context.campusSearch.nextCitationIndex;
 		if (citationStart > 10) {
+			await runtimeTool.observe?.(argumentsJson, invocationId, {
+				phase: "failed",
+				failureCode: "campus_search_result_budget_exhausted",
+			});
 			return {
 				failure: {
 					code: "campus_search_result_budget_exhausted",

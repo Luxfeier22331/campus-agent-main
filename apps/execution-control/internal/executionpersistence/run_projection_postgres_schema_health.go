@@ -8,6 +8,7 @@ with expected_tables(table_name) as (
 	values
 		('owner_deletion_fences'),
 		('agent_runs'),
+		('agent_campus_search_diagnostics'),
 		('agent_run_events'),
 		('agent_run_steps'),
 		('agent_step_attempts'),

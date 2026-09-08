@@ -4,6 +4,7 @@ import type {
 	OpsRequestDiagnosticsRows,
 	OpsRequestStageRow,
 } from "../store/types.ts";
+import { toCampusSearchDiagnostics } from "./campus-search.ts";
 import { isRecord, normalizeNullableString } from "./values.ts";
 
 export function toExecutionDiagnostics(
@@ -56,6 +57,7 @@ export function toExecutionDiagnostics(
 	const outputTokens = sumAttemptField(usageAttempts, "outputTokens");
 
 	return {
+		campusSearch: toCampusSearchDiagnostics(diagnostics.campusSearch, row.completedAt !== null),
 		failCloseReason: normalizeNullableString(row.failCloseReason),
 		failure: {
 			code: failure?.code ?? null,

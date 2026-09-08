@@ -316,23 +316,32 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			[assistantMessage("完成。")],
 		]);
 		let downstreamCalls = 0;
+		const observations: Array<{ invocationId: string; phase: string; failureCode?: string }> = [];
+		const searchTool = campusSearchTool(async (_arguments, context) => {
+			downstreamCalls += 1;
+			const citationStart = context?.citationStart ?? 0;
+			return {
+				status: "completed",
+				result: { outcome: "matched", results: searchResults(citationStart, 5) },
+			};
+		});
+		searchTool.observe = async (_arguments, invocationId, observation) => {
+			observations.push({ invocationId, ...observation });
+		};
 		const result = await createOpenAIAgentsRunner({
 			model: "gpt-test",
 			modelProvider: providerFor(model),
-		})(
-			input([
-				campusSearchTool(async (_arguments, context) => {
-					downstreamCalls += 1;
-					const citationStart = context?.citationStart ?? 0;
-					return {
-						status: "completed",
-						result: { outcome: "matched", results: searchResults(citationStart, 5) },
-					};
-				}),
-			]),
-		);
+		})(input([searchTool]));
 
 		expect(downstreamCalls).toBe(2);
+		expect(observations.filter((item) => item.invocationId === "search-3")).toEqual([
+			{ invocationId: "search-3", phase: "queued" },
+			{
+				invocationId: "search-3",
+				phase: "failed",
+				failureCode: "campus_search_result_budget_exhausted",
+			},
+		]);
 		expect(result.toolResults.at(-1)).toMatchObject({
 			status: "failed",
 			invocationId: "search-3",

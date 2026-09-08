@@ -27,14 +27,14 @@ describe("assistant-ui message projection", () => {
 		expect(updated[0]?.createdAt).toEqual(first[0]?.createdAt);
 	});
 
-	it("does not add optimistic metadata to a streamed answer", () => {
+	it("marks a streamed answer as optimistic until canonical messages replace it", () => {
 		const updated = upsertAssistantTextMessage([], {
 			messageId: "run:answer",
 			occurredAt: "2026-06-24T01:00:00.000Z",
 			text: "流式回答",
 		});
 
-		expect(updated[0]?.metadata).toBeUndefined();
+		expect(updated[0]?.metadata).toMatchObject({ isOptimistic: true });
 	});
 
 	it("removes only provisional message ids", () => {
@@ -64,6 +64,7 @@ describe("assistant-ui message projection", () => {
 		expect(updated[0]).toMatchObject({
 			content: [{ text: "回答正文", type: "text" }],
 			id: "msg_answer",
+			metadata: { isOptimistic: true },
 			role: "assistant",
 		});
 	});

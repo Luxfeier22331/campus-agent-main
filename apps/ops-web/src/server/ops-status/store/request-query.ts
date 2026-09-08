@@ -286,3 +286,12 @@ function addStatusFilter(
 	values.push(statuses);
 	conditions.push(`"status" = any($${values.length})`);
 }
+export function requestCampusSearchSql(): string {
+	return `select invocation_id as "invocationId", workflow_step_id as "workflowStepId",
+		activity_attempt as "activityAttempt", schema_version as "schemaVersion", search_query as "searchQuery",
+		status, current_phase as "currentPhase", phase_times_json as "phaseTimes", snapshot_json as "snapshot",
+		failure_code as "failureCode", http_status as "httpStatus", cited_result_refs as "citedResultRefs",
+		updated_at as "updatedAt"
+		from execution_control.agent_campus_search_diagnostics where request_id = $1
+		order by coalesce(phase_times_json->>'queued', phase_times_json->>'received'), invocation_id`;
+}

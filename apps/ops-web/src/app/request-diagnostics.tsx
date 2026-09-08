@@ -1,5 +1,6 @@
 import { cn } from "@campus-agent/ui";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
+import { CampusSearchSection } from "./campus-search-diagnostics";
 import { formatDuration, formatTimestamp } from "./format";
 import { KeyValue } from "./ops-display";
 import { formatOpsDomainValue } from "./ops-domain-labels";
@@ -10,6 +11,7 @@ export function RequestDiagnostics({ detail }: { detail: OpsRequestDetailRespons
 			<FailureSection detail={detail} />
 			<RunClosureSection detail={detail} />
 			<ExecutionSection detail={detail} />
+			<CampusSearchSection diagnostics={detail.execution.campusSearch} />
 		</>
 	);
 }

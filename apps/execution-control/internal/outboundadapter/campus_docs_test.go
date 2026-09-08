@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
@@ -91,6 +92,9 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 }
 
 func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
+	snapshot := &campusdiagnostics.Snapshot{CitationStart: 4, Durations: map[string]int64{}}
+	phases := []string{}
+	ctx := campusdocs.WithSearchObserver(t.Context(), &campusdocs.SearchObserver{Snapshot: snapshot, Phase: func(phase string) { phases = append(phases, phase) }})
 	collection := "campus_docs_" + strings.Repeat("c", 64)
 	points := make([]qdrantPoint, 7)
 	for index := range points {
@@ -150,7 +154,7 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
 	)
 	evidence, err := client.Search(
-		t.Context(),
+		ctx,
 		campusdocs.Index{Collection: collection},
 		"学籍规定",
 		campusdocs.SearchResultLimit,
@@ -169,6 +173,20 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 	}
 	if !embeddingsCalled || !qdrantCalled || !rerankCalled {
 		t.Fatalf("embedding called = %t, qdrant called = %t, rerank called = %t", embeddingsCalled, qdrantCalled, rerankCalled)
+	}
+	if strings.Join(phases, ",") != "embedded,retrieved,reranked,selected" || snapshot.ReturnedCount != 5 || snapshot.ExcludedCount != 2 {
+		t.Fatalf("diagnostics = %#v, %v", snapshot, phases)
+	}
+	for _, candidate := range snapshot.Candidates {
+		if candidate.RerankScore == nil || candidate.RerankRank == nil {
+			t.Fatal("missing scores")
+		}
+		if candidate.Returned && (candidate.CitationIndex == nil || *candidate.CitationIndex < 4) {
+			t.Fatal("missing citation index")
+		}
+		if !candidate.Returned && candidate.ExclusionReason != "result_limit" {
+			t.Fatalf("exclusion = %s", candidate.ExclusionReason)
+		}
 	}
 }
 
@@ -229,6 +247,8 @@ func TestCampusDocsRerankerKeepsThresholdBoundaryAndDropsLowerScores(t *testing.
 }
 
 func TestCampusDocsRetrievalReturnsNoMatchWhenAllRerankerScoresAreBelowThreshold(t *testing.T) {
+	snapshot := &campusdiagnostics.Snapshot{Durations: map[string]int64{}}
+	ctx := campusdocs.WithSearchObserver(t.Context(), &campusdocs.SearchObserver{Snapshot: snapshot, Phase: func(string) {}})
 	collection := "campus_docs_" + strings.Repeat("f", 64)
 	rerankCalled := false
 	provider := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -267,7 +287,7 @@ func TestCampusDocsRetrievalReturnsNoMatchWhenAllRerankerScoresAreBelowThreshold
 		campusDocsRuntimeConfigResolverForTest(provider.URL+"/v1///"),
 	)
 	evidence, err := client.Search(
-		t.Context(),
+		ctx,
 		campusdocs.Index{Collection: collection},
 		"火星校区服务",
 		campusdocs.SearchResultLimit,
@@ -278,6 +298,14 @@ func TestCampusDocsRetrievalReturnsNoMatchWhenAllRerankerScoresAreBelowThreshold
 	result := campusdocs.EncodeSearchResult(evidence, 1)
 	if !rerankCalled || len(evidence) != 0 || result["outcome"] != "no_match" {
 		t.Fatalf("low-score retrieval result = %#v; rerank called = %t", result, rerankCalled)
+	}
+	if snapshot.ExcludedCount != 2 {
+		t.Fatal("missing rejected candidates")
+	}
+	for _, candidate := range snapshot.Candidates {
+		if candidate.ExclusionReason != "rerank_below_threshold" || candidate.RerankScore == nil {
+			t.Fatalf("candidate = %#v", candidate)
+		}
 	}
 }
 

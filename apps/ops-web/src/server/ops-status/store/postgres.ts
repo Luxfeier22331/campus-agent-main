@@ -14,6 +14,7 @@ import {
 } from "../mapping/request.ts";
 import {
 	buildRequestFilter,
+	requestCampusSearchSql,
 	requestDetailSql,
 	requestModelAttemptsSql,
 	requestRowsCte,
@@ -22,6 +23,7 @@ import {
 	summarizeStatusCounts,
 } from "./request-query.ts";
 import type {
+	CampusSearchDiagnosticRow,
 	OpsRequestDetailRow,
 	OpsRequestModelAttemptRow,
 	OpsRequestOverviewRow,
@@ -135,11 +137,13 @@ export function createPgOpsStatusStoreDatabase(
 		},
 		async getRequestDiagnostics(requestId) {
 			return classifyDbError(async () => {
-				const [stages, modelAttempts] = await Promise.all([
+				const [stages, modelAttempts, campusSearch] = await Promise.all([
 					pool.query(requestStagesSql(), [requestId]),
 					pool.query(requestModelAttemptsSql(), [requestId]),
+					pool.query(requestCampusSearchSql(), [requestId]).catch(() => null),
 				]);
 				return {
+					campusSearch: campusSearch ? (campusSearch.rows as CampusSearchDiagnosticRow[]) : null,
 					modelAttempts: modelAttempts.rows as OpsRequestModelAttemptRow[],
 					stages: stages.rows as OpsRequestStageRow[],
 				};
@@ -224,6 +228,7 @@ export function createPgOpsStatusStoreDatabase(
 					pool.query(requestDetailSql("limit 0")),
 					pool.query(requestStagesSql(), ["__schema_check__"]),
 					pool.query(requestModelAttemptsSql(), ["__schema_check__"]),
+					pool.query(requestCampusSearchSql(), ["__schema_check__"]),
 				]);
 			});
 		},

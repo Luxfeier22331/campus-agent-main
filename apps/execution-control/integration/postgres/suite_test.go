@@ -60,6 +60,7 @@ func TestPostgresIntegration(t *testing.T) {
 	harness := &postgresHarness{adminURL: adminURL, repositoryRoot: repositoryRoot(t)}
 
 	harness.installClusterRoles(t)
+	t.Run("campus search diagnostics", func(t *testing.T) { testCampusSearchDiagnostics(t, harness) })
 	t.Run("run projection store", func(t *testing.T) {
 		testRunProjectionStore(t, harness)
 	})

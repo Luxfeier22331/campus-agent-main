@@ -13,6 +13,27 @@ app-api 产品读模型、Ops Web 运行记录、诊断和评测消费，并保�
 
 ## 核心记录
 
+### Campus Search 诊断投影
+
+`execution_control.agent_campus_search_diagnostics` 是 execution-control 所有、Ops Web 只读的专用投影，
+以 `(request_id, invocation_id)` 标识一次工具调用，schema version 为 1。它不属于产品事件、工作流
+状态或最终答案；不写入 `agent_run_events`、`agent_step_results` 或 App API 的 request observability fact。
+请求删除时通过外键级联删除，不单独增加 TTL 或历史回填机制。
+
+Agent Runtime 经现有内部 query auth 上报 queued、dispatching、completed、failed、canceled；服务端记录
+received、index_loaded、embedded、retrieved、reranked、selected。固定接口为
+`POST /internal/execution/requests/:requestId/campus-search/observations`，仅接收固定生命周期字段，不能
+注入候选正文。阶段时间首次观察后保留，后到的早期阶段不会覆盖终态；服务端累积快照和客户端生命周期
+合并到同一行，不建立事件日志。写入有短超时、无重试、无后台队列，失败不改变工具结果。
+
+`snapshot_json` 保存当前阶段的有界累计快照，`phase_times_json` 保存固定阶段时间；查询最多 400 字符，
+实际检索表达最多 1024 字符，候选最多 24 个。返回正文共最多 4000 字符，排除项预览每项最多 160 字符。
+标题和章节各最多 400 字符。正文只服务 Ops 检查 RAG 效果，不发送到聊天事件或外部观测后端；详细 DTO
+见 Ops runtime 合同。`cited_result_refs` 只在 finalization 成功后写入，`null` 不等于没有引用。
+
+不记录原始异常、Provider 凭据、完整模型输入输出、dense/sparse 分路候选或无法计算的召回率。未来若
+Ops 不再使用逐调用候选诊断，应一起移除生产者、专用路由、表与页面，不保留第二条诊断管道。
+
 ### 运行
 
 run 以 `request_id` 为主键，并关联 conversation、`owner_user_id`、`surface`、生命周期、运行版本、
