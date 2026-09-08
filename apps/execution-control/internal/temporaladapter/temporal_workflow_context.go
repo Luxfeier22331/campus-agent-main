@@ -152,7 +152,6 @@ type agentRuntimeResponse struct {
 	SourceAttempts          []map[string]any          `json:"source_attempts"`
 	ModelName               string                    `json:"model_name"`
 	ModelProvider           string                    `json:"model_provider"`
-	PromptTrace             map[string]any            `json:"prompt_trace"`
 	ProviderResponseID      string                    `json:"provider_response_id"`
 	StageTiming             map[string]any            `json:"stage_timing"`
 	ToolResults             []agentToolResult         `json:"tool_results"`

@@ -59,7 +59,7 @@ func TestTemporalReconcilerPermanentlyFailsDescribeIdentityConflictWithoutCancel
 	}
 }
 
-func TestTemporalReconcilerFailClosesUnauthorizedSuccessor(t *testing.T) {
+func TestTemporalReconcilerTimesOutBoundRootWithoutLookingForSuccessor(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
 	callbackCalls := 0
 	now := confirmAndStartReconcilerRunForTest(t, store, intent, "temporal-timeout-chain-first")
@@ -86,13 +86,12 @@ func TestTemporalReconcilerFailClosesUnauthorizedSuccessor(t *testing.T) {
 	)
 	reconciler.ReconcileWorkflowTimeouts(context.Background())
 	failed, err := store.GetRun(context.Background(), intent.RequestID)
-	if err != nil || failed.Status != execution.DurableRunStatusFailed ||
-		failed.TerminalReason != execution.DurableTerminalReasonRuntimeInvariant ||
-		failed.FailCloseReason != workflowUnauthorizedSuccessorFailure || callbackCalls != 1 {
+	if err != nil || failed.Status != execution.DurableRunStatusExpired ||
+		failed.TerminalReason != execution.DurableTerminalReasonRunTimeout || callbackCalls != 1 {
 		t.Fatalf("unauthorized successor run = %#v, callbacks=%d, err=%v", failed, callbackCalls, err)
 	}
-	if described := starter.describedTemporalRunIDs(); len(described) != 3 ||
-		described[0] != "temporal-timeout-chain-first" || described[1] != "" || described[2] != "" {
+	if described := starter.describedTemporalRunIDs(); len(described) != 1 ||
+		described[0] != "temporal-timeout-chain-first" {
 		t.Fatalf("different latest workflow timeout describes = %#v", described)
 	}
 	if starter.cancellations() != 0 {
@@ -104,7 +103,7 @@ func TestTemporalReconcilerFailClosesUnauthorizedSuccessor(t *testing.T) {
 	}
 }
 
-func TestTemporalReconcilerFailClosesResetSuccessorWithoutFollowingIt(t *testing.T) {
+func TestTemporalReconcilerTimesOutBoundRootDespiteResetEvidence(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
 	now := confirmAndStartReconcilerRunForTest(t, store, intent, "temporal-timeout-reset-root")
 	info := reconcilerWorkflowInfoForIntent(t, intent, "temporal-timeout-reset-root")
@@ -133,9 +132,8 @@ func TestTemporalReconcilerFailClosesResetSuccessorWithoutFollowingIt(t *testing
 	)
 	reconciler.ReconcileWorkflowTimeouts(context.Background())
 	run, err := store.GetRun(context.Background(), intent.RequestID)
-	if err != nil || run.Status != execution.DurableRunStatusFailed ||
-		run.TerminalReason != execution.DurableTerminalReasonRuntimeInvariant ||
-		run.FailCloseReason != workflowUnauthorizedSuccessorFailure || callbackCalls != 1 {
+	if err != nil || run.Status != execution.DurableRunStatusExpired ||
+		run.TerminalReason != execution.DurableTerminalReasonRunTimeout || callbackCalls != 1 {
 		t.Fatalf("reset-marked successor run = %#v, callbacks=%d, err=%v", run, callbackCalls, err)
 	}
 	if starter.cancellations() != 0 {
@@ -143,7 +141,7 @@ func TestTemporalReconcilerFailClosesResetSuccessorWithoutFollowingIt(t *testing
 	}
 }
 
-func TestTemporalReconcilerDoesNotBindRecoveryStartWithSuccessor(t *testing.T) {
+func TestTemporalReconcilerBindsVerifiedRecoveryRootBeforeClosingIt(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
 	leasedStarts, err := store.LeaseWorkflowStartIntents(context.Background(), execution.LifecycleLeaseRequest{
 		LeaseToken: "start-before-recovery-successor", Now: intent.CreatedAt,
@@ -184,13 +182,13 @@ func TestTemporalReconcilerDoesNotBindRecoveryStartWithSuccessor(t *testing.T) {
 		t.Fatalf("successor recovery calls = starts:%d cancels:%d", starter.recoveryCalls(), starter.cancellations())
 	}
 	start, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
-	if err != nil || start.TemporalRunID != "" {
-		t.Fatalf("successor recovery was bound: start=%#v err=%v", start, err)
+	if err != nil || start.TemporalRunID != root.RunID {
+		t.Fatalf("verified recovery root was not bound: start=%#v err=%v", start, err)
 	}
 	run, err := store.GetRun(context.Background(), intent.RequestID)
 	if err != nil || run.Status != execution.DurableRunStatusFailed ||
 		run.TerminalReason != execution.DurableTerminalReasonRuntimeInvariant ||
-		run.FailCloseReason != workflowUnauthorizedSuccessorFailure {
+		run.FailCloseReason != workflowExecutionClosedInvariantFailure {
 		t.Fatalf("successor recovery product run = %#v, err=%v", run, err)
 	}
 	assertReconcilerCancellationConfirmedForTest(t, store, intent.RequestID, intent.CreatedAt.Add(time.Second))
@@ -333,8 +331,8 @@ func TestTemporalReconcilerCancelsExactIdentityVerifiedTemporalRun(t *testing.T)
 	if starter.cancellations() != 1 {
 		t.Fatalf("cancellation calls = %d, want 1", starter.cancellations())
 	}
-	if described := starter.describedTemporalRunIDs(); len(described) != 2 ||
-		described[0] != "temporal-run-owned" || described[1] != "" {
+	if described := starter.describedTemporalRunIDs(); len(described) != 1 ||
+		described[0] != "temporal-run-owned" {
 		t.Fatalf("cancellation describe Temporal run ids = %#v", described)
 	}
 	target := starter.cancellationInput()
@@ -344,7 +342,7 @@ func TestTemporalReconcilerCancelsExactIdentityVerifiedTemporalRun(t *testing.T)
 	}
 }
 
-func TestTemporalReconcilerRejectsResetEvidenceForCancellation(t *testing.T) {
+func TestTemporalReconcilerCancelsBoundRootDespiteResetEvidence(t *testing.T) {
 	store, intent := createReconcilerStartIntentForTest(t)
 	now := confirmAndStartReconcilerRunForTest(t, store, intent, "temporal-cancel-reset-root")
 	command := requestAndLeaseReconcilerCancellationForTest(
@@ -360,28 +358,32 @@ func TestTemporalReconcilerRejectsResetEvidenceForCancellation(t *testing.T) {
 	starter := &reconcilerStarterForTest{describe: info}
 	reconciler := newReconcilerForTest(config.Config{TemporalStartTimeoutMS: 1000}, store, starter, nil)
 	reconciler.ReconcileCancellationCommand(context.Background(), store, command)
-	if starter.cancellations() != 0 {
-		t.Fatalf("reset-marked execution received %d cancellation calls", starter.cancellations())
+	if starter.cancellations() != 1 || starter.cancellationInput().TemporalRunID != info.RunID {
+		t.Fatalf("bound root cancellation = %#v, calls=%d", starter.cancellationInput(), starter.cancellations())
+	}
+	if described := starter.describedTemporalRunIDs(); len(described) != 1 || described[0] != info.RunID {
+		t.Fatalf("bound root describes = %#v", described)
 	}
 	retried, err := store.LeaseRunCancellationCommands(context.Background(), execution.LifecycleLeaseRequest{
 		LeaseToken: "cancel-reset-marked-retry", Now: lifecycleNow().Add(time.Minute),
 		LeaseUntil: lifecycleNow().Add(2 * time.Minute), Limit: 1,
 	})
-	if err != nil || len(retried) != 1 || retried[0].LastErrorCode != "temporal_cancel_identity_unavailable" {
+	if err != nil || len(retried) != 1 || retried[0].LastErrorCode != "temporal_cancel_projection_pending" {
 		t.Fatalf("reset-marked cancellation retry = %#v, err=%v", retried, err)
 	}
 }
 
-func TestTemporalReconcilerFailClosesDifferentLatestRunWithoutCancelingSuccessor(t *testing.T) {
+func TestTemporalReconcilerClosesBoundRootWithoutCancelingSuccessor(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		exactStatus execution.WorkflowExecutionStatus
+		failureKind string
 	}{
 		{
-			name: "continue as new", exactStatus: execution.WorkflowExecutionStatusContinuedAsNew,
+			name: "continue as new", exactStatus: execution.WorkflowExecutionStatusContinuedAsNew, failureKind: workflowExecutionClosedInvariantFailure,
 		},
 		{
-			name: "reset can preserve first run id", exactStatus: execution.WorkflowExecutionStatusTerminated,
+			name: "reset can preserve first run id", exactStatus: execution.WorkflowExecutionStatusTerminated, failureKind: workflowExecutionTerminatedFailure,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -424,12 +426,11 @@ func TestTemporalReconcilerFailClosesDifferentLatestRunWithoutCancelingSuccessor
 			run, err := store.GetRun(context.Background(), intent.RequestID)
 			if err != nil || run.Status != execution.DurableRunStatusFailed ||
 				run.TerminalReason != execution.DurableTerminalReasonRuntimeInvariant ||
-				run.FailCloseReason != workflowUnauthorizedSuccessorFailure {
+				run.FailCloseReason != test.failureKind {
 				t.Fatalf("successor cancellation product run = %#v, err=%v", run, err)
 			}
 			assertReconcilerCancellationConfirmedForTest(t, store, intent.RequestID, now)
-			if described := starter.describedTemporalRunIDs(); len(described) != 3 ||
-				described[0] != exact.RunID || described[1] != "" || described[2] != "" {
+			if described := starter.describedTemporalRunIDs(); len(described) != 1 || described[0] != exact.RunID {
 				t.Fatalf("continuation cancellation describes = %#v", described)
 			}
 		})

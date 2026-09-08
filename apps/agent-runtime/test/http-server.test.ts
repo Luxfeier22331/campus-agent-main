@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import type {
 	AgentRunnerResult,
 	AgentRuntimeLimits,
-	PromptTrace,
 	SolveWorkflowOperationInput,
 	SynthesizeWorkflowOperationInput,
 	TaskPlan,
@@ -117,7 +116,9 @@ describe("agent runtime HTTP handler", () => {
 		expect(response.status).toBe(200);
 		expect(observed?.operation).toBe("solve");
 		expect(observed?.operationInput).toMatchObject({ goal: "查询奖学金", maxSteps: 2 });
-		expect(await response.json()).toMatchObject({
+		const responseBody = await response.json();
+		expect(responseBody).not.toHaveProperty("prompt_trace");
+		expect(responseBody).toMatchObject({
 			operation: "solve",
 			status: "completed",
 			structured_output: {
@@ -597,7 +598,6 @@ function resultFor(
 		sourceAttempts: [],
 		modelName: "gpt-5-mini",
 		modelProvider: "openai",
-		promptTrace: promptTrace(input.operation),
 		providerResponseId: "resp-test",
 		stageTiming: { [`workflow.${input.operation}_ms`]: 2 },
 		toolContractFingerprint: fingerprint,
@@ -619,15 +619,6 @@ function agentRunnerResult(overrides: Partial<AgentRunnerResult> = {}): AgentRun
 		webSearchUsed: false,
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 		...overrides,
-	};
-}
-
-function promptTrace(operation: WorkflowOperationInput["operation"]): PromptTrace {
-	return {
-		promptId: `workflow.${operation}` as PromptTrace["promptId"],
-		promptTemplateSha256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		renderedPromptSha256: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		schemaVersion: "agent_runtime_prompt_trace.v1",
 	};
 }
 

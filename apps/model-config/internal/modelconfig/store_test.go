@@ -99,6 +99,44 @@ type configViewScannerStub struct {
 	values []any
 }
 
+func TestScanConfigViewCapabilitiesAndValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name, protocol        string
+		status, at, actor     any
+		wantSearch, wantError bool
+	}{
+		{"responses unvalidated", "openai.responses", nil, nil, nil, true, false},
+		{"chat", "openai.chat_completions", nil, nil, nil, false, false},
+		{"embedding", "openai.embeddings", nil, nil, nil, false, false},
+		{"rerank", "cohere.rerank", nil, nil, nil, false, false},
+		{"passed", "openai.responses", "passed", time.Now(), "operator", true, false},
+		{"failed", "openai.responses", "failed", time.Now(), "operator", true, false},
+		{"missing time", "openai.responses", "passed", nil, "operator", true, true},
+		{"missing status", "openai.responses", nil, time.Now(), "operator", true, true},
+		{"missing actor", "openai.responses", "passed", time.Now(), nil, true, true},
+		{"invalid status", "openai.responses", "unknown", time.Now(), "operator", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			view, err := scanConfigView(configViewScannerStub{values: []any{
+				ConfigPrimaryAgent, "openai-compatible", tc.protocol, "https://provider.example/v1", "model", true,
+				tc.status, "", "validation result", 0, tc.at, tc.actor, time.Now(), "operator",
+			}})
+			if (err != nil) != tc.wantError {
+				t.Fatalf("error = %v, wantError = %v", err, tc.wantError)
+			}
+			if tc.wantError {
+				return
+			}
+			if view.Capabilities.HostedWebSearch != tc.wantSearch {
+				t.Fatalf("capabilities = %+v", view.Capabilities)
+			}
+			if (view.Validation == nil) != (tc.status == nil) {
+				t.Fatalf("validation = %+v", view.Validation)
+			}
+		})
+	}
+}
+
 func (s configViewScannerStub) Scan(dest ...any) error {
 	for index, value := range s.values {
 		switch target := dest[index].(type) {

@@ -179,10 +179,15 @@ export function useConversationRunRecovery({
 
 	const onResume = useCallback(async () => {
 		const currentRun = operationMachine.activeRun;
-		if (!currentRun?.requestId) {
+		if (
+			!currentRun?.requestId ||
+			operationMachine.recovering ||
+			operationMachine.cancellation.phase !== "idle"
+		) {
 			return;
 		}
 		const operation = startOperation();
+		operationMachine.recovering = true;
 		const controller = operation.controller;
 		applyRunStateAction({
 			operationId: operation.id,
@@ -191,6 +196,22 @@ export function useConversationRunRecovery({
 		});
 		setIsRunning(true);
 		try {
+			applyRunStateAction({
+				type: "connection",
+				connection: "recovering",
+				operationId: operation.id,
+			});
+			const status = await getRunStatus({
+				requestId: currentRun.requestId,
+				signal: controller.signal,
+			});
+			if (!ownsOperation(operation)) {
+				return;
+			}
+			if (isTerminalRunStatus(status)) {
+				await applyTerminalRunStatus(status, operation);
+				return;
+			}
 			await followLifecycleStream({
 				...(currentRun.conversationId ? { conversationId: currentRun.conversationId } : {}),
 				operation,
@@ -213,7 +234,7 @@ export function useConversationRunRecovery({
 			if (isAbortError(error)) {
 				return;
 			}
-			if (error instanceof ChatStreamRequestError) {
+			if (error instanceof ChatStreamRequestError || error instanceof TypeError) {
 				markRunDisconnected(operation.id, currentRun.requestId);
 				operationMachine.cancellation = { phase: "idle" };
 				return;
@@ -221,10 +242,14 @@ export function useConversationRunRecovery({
 			markRunDisconnected(operation.id, currentRun.requestId);
 			throw error;
 		} finally {
+			if (ownsOperation(operation)) {
+				operationMachine.recovering = false;
+			}
 			operationMachine.clearController(operation);
 		}
 	}, [
 		applyRunStateAction,
+		applyTerminalRunStatus,
 		followLifecycleStream,
 		markRunDisconnected,
 		onLoginRequired,

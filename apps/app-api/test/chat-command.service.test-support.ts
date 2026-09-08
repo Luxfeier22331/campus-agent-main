@@ -424,46 +424,42 @@ export function createCommandStore(options?: {
 			shouldThrottle: false,
 			throttleReason: null,
 		})),
-		listAcceptedDurableRequestsForCloseout: vi.fn(async (input) => {
+		getDurableRequestForCloseout: vi.fn(async (requestId) => {
 			const accepted = [...acceptedWrites]
 				.reverse()
 				.find(
-					(write) =>
-						write.turnDispatch.requestId &&
-						(!input?.requestId || write.turnDispatch.requestId === input.requestId),
+					(write) => write.turnDispatch.requestId && write.turnDispatch.requestId === requestId,
 				);
 			if (!accepted?.turnDispatch.requestId) {
-				return [];
+				return null;
 			}
 			const snapshot = accepted.turnDispatch.principalSnapshot;
 			const finalized = finalWrites.find(
 				(write) => write.turnDispatch.requestId === accepted.turnDispatch.requestId,
 			);
-			return [
-				{
-					acceptedAt: accepted.turnDispatch.createdAt,
-					assistantMessageId: accepted.turnDispatch.assistantMessageId,
-					completedAt: finalized?.turnDispatch.completedAt ?? null,
-					conversation: structuredClone(conversation),
-					conversationTitle: accepted.conversationTitle,
-					finalizationFingerprint: finalized?.finalizationFingerprint ?? null,
-					idempotencyKey: accepted.turnDispatch.idempotencyKey,
-					principal: {
-						actor: snapshot.actor,
-						...(snapshot.authorization ? { authorization: snapshot.authorization } : {}),
-						permissions: { chat: true },
-						principal: { ...snapshot.principal, email: null },
-						session: null,
-					},
-					questionPreview: accepted.userMessage.text,
-					requestFingerprintSha256: accepted.turnDispatch.requestFingerprintSha256,
-					requestId: accepted.turnDispatch.requestId,
-					safetyIdentifier: accepted.turnDispatch.safetyIdentifier ?? null,
-					surface: accepted.turnDispatch.surface,
-					turnSequence: accepted.turnDispatch.turnSequence,
-					userMessageId: accepted.turnDispatch.userMessageId,
+			return {
+				acceptedAt: accepted.turnDispatch.createdAt,
+				assistantMessageId: accepted.turnDispatch.assistantMessageId,
+				completedAt: finalized?.turnDispatch.completedAt ?? null,
+				conversation: structuredClone(conversation),
+				conversationTitle: accepted.conversationTitle,
+				finalizationFingerprint: finalized?.finalizationFingerprint ?? null,
+				idempotencyKey: accepted.turnDispatch.idempotencyKey,
+				principal: {
+					actor: snapshot.actor,
+					...(snapshot.authorization ? { authorization: snapshot.authorization } : {}),
+					permissions: { chat: true },
+					principal: { ...snapshot.principal, email: null },
+					session: null,
 				},
-			];
+				questionPreview: accepted.userMessage.text,
+				requestFingerprintSha256: accepted.turnDispatch.requestFingerprintSha256,
+				requestId: accepted.turnDispatch.requestId,
+				safetyIdentifier: accepted.turnDispatch.safetyIdentifier ?? null,
+				surface: accepted.turnDispatch.surface,
+				turnSequence: accepted.turnDispatch.turnSequence,
+				userMessageId: accepted.turnDispatch.userMessageId,
+			};
 		}),
 	};
 

@@ -7,11 +7,7 @@ import {
 	type ExecutionFinalizationResponseWire,
 	STAGE_TIMING_FIELDS,
 } from "./execution-finalization-contract";
-import type {
-	ToolExecutionObservability,
-	ToolExecutionPromptTrace,
-	ToolExecutionResponse,
-} from "./tool-execution-types";
+import type { ToolExecutionObservability, ToolExecutionResponse } from "./tool-execution-types";
 
 const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
 	"raw_answer",
@@ -221,43 +217,6 @@ function normalizeWorkflowTraceKeyToken(value: string): string {
 		.replace(/[^a-z0-9]/g, "");
 }
 
-function parsePromptTrace(value: unknown): ToolExecutionPromptTrace | null {
-	const record = getRecord(value);
-	if (!record) {
-		return null;
-	}
-	const allowedKeys = new Set([
-		"prompt_id",
-		"prompt_template_sha256",
-		"rendered_prompt_sha256",
-		"schema_version",
-	]);
-	for (const key of Object.keys(record)) {
-		if (!allowedKeys.has(key)) {
-			throw new ExecutionFinalizationResponseContractError(
-				`observability.prompt_trace.${key} is not allowed`,
-			);
-		}
-	}
-	const promptId = normalizeNullableString(record.prompt_id);
-	const promptTemplateSha256 = normalizeNullableString(record.prompt_template_sha256);
-	const renderedPromptSha256 = normalizeNullableString(record.rendered_prompt_sha256);
-	if (
-		record.schema_version !== "agent_runtime_prompt_trace.v1" ||
-		!promptId ||
-		!promptTemplateSha256 ||
-		!renderedPromptSha256
-	) {
-		throw new ExecutionFinalizationResponseContractError("observability.prompt_trace is invalid");
-	}
-	return {
-		promptId,
-		promptTemplateSha256,
-		renderedPromptSha256,
-		schemaVersion: "agent_runtime_prompt_trace.v1",
-	};
-}
-
 function parseExecutionObservability(value: unknown): ToolExecutionObservability | null {
 	const record = getRecord(value);
 	if (!record) {
@@ -270,6 +229,7 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 		"agent_runtime",
 		"model_name",
 		"model_provider",
+		// Retired field: accept it when reading historical payloads, but do not project it.
 		"prompt_trace",
 		"terminal_reason",
 	]);
@@ -282,7 +242,6 @@ function parseExecutionObservability(value: unknown): ToolExecutionObservability
 		agentRuntime: normalizeNullableString(record.agent_runtime),
 		modelName: normalizeNullableString(record.model_name),
 		modelProvider: normalizeNullableString(record.model_provider),
-		promptTrace: parsePromptTrace(record.prompt_trace),
 		terminalReason: normalizeNullableString(record.terminal_reason),
 	};
 

@@ -106,7 +106,13 @@ export async function* streamEvents(events: ChatRequestStreamEvent[]) {
 	}
 }
 
-export function cancellationTerminalEvent(): ChatRequestStreamEvent {
+export function cancellationTerminalEvent({
+	requestId = "req_01",
+	sequence = 2,
+}: {
+	requestId?: string;
+	sequence?: number;
+} = {}): ChatRequestStreamEvent {
 	return {
 		data: {
 			answer: {
@@ -124,13 +130,13 @@ export function cancellationTerminalEvent(): ChatRequestStreamEvent {
 					errorCode: "execution_cancelled",
 					kind: "error",
 					message: "The request was cancelled.",
-					requestId: "req_01",
+					requestId,
 					retryable: false,
 				},
 			},
 			occurredAt: "2026-06-24T01:00:02.000Z",
-			requestId: "req_01",
-			sequence: 2,
+			requestId,
+			sequence,
 			status: "cancelled",
 		},
 		event: "request.cancelled",

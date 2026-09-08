@@ -32,6 +32,9 @@ func TestWorkflowOperationProviderRequestFingerprintIgnoresActivityAttempt(t *te
 	if firstHash != secondHash {
 		t.Fatalf("retry fingerprint = %q, want stable fingerprint %q", secondHash, firstHash)
 	}
+	if firstHash != "c928ca9bebee3087d2140bcfe0546750d4d5320195b05e0001233624177049ee" {
+		t.Fatalf("logical request fingerprint changed: %s", firstHash)
+	}
 
 	second["operation_input"].(map[string]any)["goal"] = "查询奖学金"
 	changedHash, err := workflowOperationProviderRequestSHA256(second)
@@ -40,6 +43,26 @@ func TestWorkflowOperationProviderRequestFingerprintIgnoresActivityAttempt(t *te
 	}
 	if changedHash == firstHash {
 		t.Fatal("semantic operation input change reused the receipt fingerprint")
+	}
+}
+
+func TestWorkflowOperationReplanDecisionContract(t *testing.T) {
+	for _, decision := range []string{"continue", "synthesize", "revise", "unknown", ""} {
+		t.Run(decision, func(t *testing.T) {
+			output, err := workflowOperationOutputFromRuntimeResponse(agentRuntimeResponse{
+				StructuredOutput: map[string]any{
+					"schema_version": "task_replan.v1", "decision": decision,
+					"reason": "检查剩余路径", "remaining_steps": []any{},
+				},
+			}, temporalruntime.WorkflowOperationReplan, "result-replan")
+			if decision == "continue" || decision == "synthesize" {
+				if err != nil || output.Replan == nil || output.Replan.Decision != decision {
+					t.Fatalf("valid decision output=%#v, err=%v", output, err)
+				}
+			} else if err == nil {
+				t.Fatalf("accepted invalid decision %q", decision)
+			}
+		})
 	}
 }
 
@@ -78,6 +101,9 @@ func TestWorkflowOperationReceiptReplaysWhenOnlyActivityAttemptChanges(t *testin
 		})
 	}
 	firstFingerprint := invocationFingerprint(1)
+	if firstFingerprint != "83fd8fcf89e85fd386ab3e40546feefeceb84237725ac88e75d15df4ab2b68f3" {
+		t.Fatalf("invocation fingerprint changed: %s", firstFingerprint)
+	}
 	retryFingerprint := invocationFingerprint(2)
 	if firstFingerprint != retryFingerprint {
 		t.Fatalf("retry invocation fingerprint = %q, want %q", retryFingerprint, firstFingerprint)
@@ -109,6 +135,10 @@ func TestWorkflowOperationReceiptReplaysWhenOnlyActivityAttemptChanges(t *testin
 	if err != nil || disposition != execution.AgentInvocationDispositionReplay ||
 		string(stored.OutputJSON) != string(output) {
 		t.Fatalf("retry receipt=%#v disposition=%q err=%v", stored, disposition, err)
+	}
+	retryReceipt.InputSHA256 = strings.Repeat("f", 64)
+	if _, _, err := store.BeginAgentInvocation(context.Background(), retryReceipt); err == nil {
+		t.Fatal("changed input reused completed receipt")
 	}
 }
 

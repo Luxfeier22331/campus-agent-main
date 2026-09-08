@@ -240,7 +240,14 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 			initial.Body.Close()
 			t.Fatalf("initial PUT status = %d", initial.StatusCode)
 		}
+		var saved modelconfig.ConfigView
+		if err := json.NewDecoder(initial.Body).Decode(&saved); err != nil {
+			t.Fatal(err)
+		}
 		initial.Body.Close()
+		if !saved.Capabilities.HostedWebSearch {
+			t.Fatal("PUT omitted Responses hosted search capability")
+		}
 
 		beforeStatus, err := store.Status(ctx)
 		if err != nil {
@@ -250,6 +257,25 @@ func TestPostgresHTTPPutPersistsEmbeddingAndReranker(t *testing.T) {
 		if before == nil {
 			t.Fatal("initial notice classification view is missing")
 		}
+		descriptor, err := store.Descriptor(ctx, modelconfig.ConfigNoticeClassification)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := store.Resolve(ctx, modelconfig.ConfigNoticeClassification, descriptor.TargetSHA256)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if before.Capabilities != saved.Capabilities || before.Capabilities != descriptor.Capabilities || before.Capabilities != resolved.Capabilities {
+			t.Fatal("management, descriptor and runtime capabilities differ")
+		}
+		validated, err := store.RecordValidation(ctx, modelconfig.ConfigNoticeClassification, "integration-test", *before.Validation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if validated.Capabilities != before.Capabilities || validated.TargetSHA256 != before.TargetSHA256 || !validated.UpdatedAt.Equal(before.UpdatedAt) {
+			t.Fatal("revalidation changed target metadata or omitted capabilities")
+		}
+		before = &validated
 
 		candidate := put("candidate-model", false)
 		defer candidate.Body.Close()

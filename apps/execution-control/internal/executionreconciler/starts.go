@@ -80,23 +80,8 @@ func (r *Reconciler) ReconcileStartIntent(
 		r.PermanentlyFailStartIntent(ctx, store, intent, run, WorkflowStartValidationFailure(intent), err)
 		return
 	}
-	// RequestRunCancellation can retire a lease while this worker is holding a
-	// previously leased snapshot. Re-read the durable intent immediately before
-	// the external RPC so a cancellation committed first cannot start a workflow.
-	if reader, ok := store.(workflowStartIntentReader); ok {
-		current, readErr := reader.GetWorkflowStartIntent(ctx, intent.RequestID)
-		if readErr != nil {
-			if errors.Is(readErr, execution.ErrLifecycleLeaseConflict) {
-				return
-			}
-			r.retryStart(ctx, store, intent, "workflow_start_intent_unavailable")
-			return
-		}
-		if current.State != execution.LifecycleIntentStateLeased ||
-			current.LeaseToken != intent.LeaseToken {
-			return
-		}
-	}
+	// The dispatch fence atomically checks the current lease, active run and
+	// cancellation intent. A snapshot read before it cannot protect the RPC.
 	if err := store.MarkWorkflowStartDispatchAttempt(ctx, execution.WorkflowStartIntentResult{
 		RequestID: intent.RequestID, LeaseToken: intent.LeaseToken, Now: LifecycleNow(),
 	}); err != nil {

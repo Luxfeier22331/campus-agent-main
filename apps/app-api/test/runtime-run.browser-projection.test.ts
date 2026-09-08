@@ -84,11 +84,6 @@ describe("runtime run browser projection", () => {
 						eventType: "finalization.completed",
 						payload: {
 							agent_result_ref: "agent-result-hidden",
-							observability: {
-								prompt_trace: {
-									rendered_prompt_sha256: "hidden",
-								},
-							},
 							request_id: "req_01HQ",
 							response: {
 								result: {

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -64,10 +63,9 @@ func ToolExecutionWorkflow(
 		return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_solve_invalid", errors.New("solver returned neither an answer nor a plan"))
 	}
 	plan := *solveResult.Plan
-	if err := validateWorkflowPlan(
+	if err := ValidateWorkflowPlan(
 		plan,
 		input.AdmissionSnapshot.AgentBudget.MaxPlanSteps,
-		nil,
 		input.AdmissionSnapshot.AgentCapabilities,
 	); err != nil {
 		return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_solve_invalid", err)
@@ -148,11 +146,17 @@ func ToolExecutionWorkflow(
 			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_invalid", errors.New("replanner returned no decision"))
 		}
 		decision := replanResult.Replan
+		if err := ValidateWorkflowReplanDecision(*decision); err != nil {
+			if stepFailed {
+				continue
+			}
+			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_invalid", err)
+		}
 		switch decision.Decision {
 		case "synthesize":
 			remaining = nil
-		case "continue", "revise":
-			if err := validateWorkflowRemainingSteps(
+		case "continue":
+			if err := ValidateWorkflowRemainingSteps(
 				decision.RemainingSteps,
 				input.AdmissionSnapshot.AgentBudget.MaxPlanSteps,
 				completedSteps,
@@ -424,11 +428,10 @@ func executeWorkflowFinalization(
 
 func workflowOperationActivityInputBase(input ToolExecutionWorkflowInput) WorkflowOperationActivityInputBase {
 	return WorkflowOperationActivityInputBase{
-		AdmissionSnapshot:        input.AdmissionSnapshot,
-		ConversationID:           input.ConversationID,
-		RequestID:                input.RequestID,
-		TraceParent:              input.TraceParent,
-		VisibleFunctionToolNames: append([]string{}, input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames...),
+		AdmissionSnapshot: input.AdmissionSnapshot,
+		ConversationID:    input.ConversationID,
+		RequestID:         input.RequestID,
+		TraceParent:       input.TraceParent,
 	}
 }
 
@@ -538,126 +541,6 @@ func mergeWorkflowEvidence(
 		result = append(result, item)
 	}
 	return result, nextCitationIndex, nil
-}
-
-func validateWorkflowPlan(
-	plan WorkflowTaskPlan,
-	maxSteps int,
-	completed []WorkflowCompletedStep,
-	capabilities execution.AgentCapabilitiesSnapshot,
-) error {
-	if plan.SchemaVersion != "task_plan.v1" || strings.TrimSpace(plan.Goal) == "" || len(plan.Steps) > maxSteps {
-		return errors.New("task plan identity or size is invalid")
-	}
-	known := make(map[string]struct{}, len(completed))
-	for _, item := range completed {
-		known[item.Step.ID] = struct{}{}
-	}
-	visible := workflowVisibleSourceSet(capabilities.VisibleFunctionToolNames, capabilities.HostedWebSearch)
-	for _, step := range plan.Steps {
-		if strings.TrimSpace(step.ID) == "" || strings.TrimSpace(step.Objective) == "" {
-			return errors.New("task plan step identity is invalid")
-		}
-		if _, duplicate := known[step.ID]; duplicate {
-			return fmt.Errorf("task plan step %s is duplicated", step.ID)
-		}
-		known[step.ID] = struct{}{}
-		if err := validateWorkflowSources(step.ID, step.CandidateSources, visible); err != nil {
-			return err
-		}
-		seenDependencies := map[string]struct{}{}
-		for _, dependency := range step.DependsOn {
-			if dependency == step.ID {
-				return fmt.Errorf("task plan step %s depends on itself", step.ID)
-			}
-			if _, duplicate := seenDependencies[dependency]; duplicate {
-				return fmt.Errorf("task plan step %s repeats a dependency", step.ID)
-			}
-			seenDependencies[dependency] = struct{}{}
-			if _, exists := known[dependency]; !exists {
-				return fmt.Errorf("task plan step %s depends on unknown step %s", step.ID, dependency)
-			}
-		}
-	}
-	return nil
-}
-
-func validateWorkflowRemainingSteps(
-	steps []WorkflowTaskPlanStep,
-	maxSteps int,
-	completed []WorkflowCompletedStep,
-	capabilities execution.AgentCapabilitiesSnapshot,
-) error {
-	if len(completed)+len(steps) > maxSteps {
-		return errors.New("workflow steps exceed budget")
-	}
-	completedIDs := make(map[string]struct{}, len(completed))
-	for _, item := range completed {
-		completedIDs[item.Step.ID] = struct{}{}
-	}
-	known := make(map[string]struct{}, len(completedIDs)+len(steps))
-	for id := range completedIDs {
-		known[id] = struct{}{}
-	}
-	visible := workflowVisibleSourceSet(capabilities.VisibleFunctionToolNames, capabilities.HostedWebSearch)
-	for _, step := range steps {
-		if _, done := completedIDs[step.ID]; done {
-			return fmt.Errorf("remaining step %s is already completed", step.ID)
-		}
-		if _, duplicate := known[step.ID]; duplicate {
-			return fmt.Errorf("remaining step %s is duplicated", step.ID)
-		}
-		if err := validateWorkflowSources(step.ID, step.CandidateSources, visible); err != nil {
-			return err
-		}
-		known[step.ID] = struct{}{}
-		for _, dependency := range step.DependsOn {
-			if dependency == step.ID {
-				return fmt.Errorf("remaining step %s depends on itself", step.ID)
-			}
-			if _, exists := known[dependency]; !exists {
-				return fmt.Errorf("remaining step %s depends on unknown step %s", step.ID, dependency)
-			}
-		}
-	}
-	return nil
-}
-
-func workflowVisibleSourceSet(values []string, hostedWebSearch bool) map[WorkflowSource]struct{} {
-	visible := map[WorkflowSource]struct{}{}
-	if hostedWebSearch {
-		visible[WorkflowSourceWebSearch] = struct{}{}
-	}
-	for _, value := range values {
-		switch WorkflowSource(strings.TrimSpace(value)) {
-		case WorkflowSourceCampusSearch:
-			visible[WorkflowSourceCampusSearch] = struct{}{}
-		case WorkflowSourcePersonalMemoryRecall:
-			visible[WorkflowSourcePersonalMemoryRecall] = struct{}{}
-		}
-	}
-	return visible
-}
-
-func validateWorkflowSources(
-	stepID string,
-	sources []WorkflowSource,
-	visible map[WorkflowSource]struct{},
-) error {
-	if len(sources) == 0 || len(sources) > 3 {
-		return fmt.Errorf("workflow step %s candidate source count is invalid", stepID)
-	}
-	seen := map[WorkflowSource]struct{}{}
-	for _, source := range sources {
-		if _, duplicate := seen[source]; duplicate {
-			return fmt.Errorf("workflow step %s repeats candidate source %s", stepID, source)
-		}
-		seen[source] = struct{}{}
-		if _, available := visible[source]; !available {
-			return fmt.Errorf("workflow step %s uses unavailable source %s", stepID, source)
-		}
-	}
-	return nil
 }
 
 // workflowPlanWithCompletedAndRemaining is the workflow's current plan view.

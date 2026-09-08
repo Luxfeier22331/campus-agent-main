@@ -163,8 +163,9 @@ StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memo
 
 `personal_memory_recall` 是 Execute Step operation 同一次 SDK run 内的有界工具调用，不使用独立 memory
 ref 或独立 payload。它的完整结果只进入有界 operation result；operation invocation receipt 约束整个 SDK
-run 不得因 Activity 重投递而再次执行。已有 `started` 或 `completed` receipt 而没有可用 Activity result
-时，必须以 `agent_attempt_uncertain` 失败关闭。
+run 不得因 Activity 重投递而再次执行。已有 `started` receipt 时以 `workflow_attempt_uncertain`
+阻断；`completed` receipt 保存完整类型化 operation output，重投递时校验身份、修复投影并返回
+原结果，不重新调用供应商。结果无法解码或无法通过恢复校验时沿用既有失败路径。
 
 `campus_search` 也在同一次 SDK run 内执行，不创建独立 Temporal Activity。它的结果只在本次
 Agent result 内有效，不能跨 request 或从模型输出中重新构造。
@@ -183,7 +184,7 @@ Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，�
 
 所有 source-side Temporal Activity 在处理业务输入前，必须从当前 Activity context 读取 Workflow ID
 和精确 Temporal Run ID，并与持久 start intent 的 Workflow ID/root Run ID 绑定比较。绑定尚未确认是
-可重试失败；任一 ID 不同，包括 Reset successor，都是非重试身份失败。start 已 `superseded` 时只有
+可重试失败；任一 ID 不同，包括外部创建的其他 execution，都是非重试身份失败。start 已 `superseded` 时只有
 cancellation finalizer 可使用已绑定 root，其他 Activity 不得继续执行或写投影。
 
 app-api 为已经分配 `request_id` 的产品请求保留完整执行输入和 hash；业务终态不会删除或清空它。
@@ -192,14 +193,19 @@ execution-control 不维护输入清理发件箱，也不提供释放回调。�
 
 启动前的持久 `dispatch_attempted=false` fence 可证明本地失败或 supersede 没有跨过 RPC 边界；若
 fence 已提交、start 已 `superseded` 且没有 Run ID，取消 reconciler 必须使用原 canonical input 和
-一分钟 `StartDelay` 的 recovery starter 创建或取得 root，完成 exact/latest 校验并首写精确绑定后
-才能取消。
+一分钟 `StartDelay` 的 recovery starter 创建或取得 root。starter 完成首次 exact/latest 身份校验后
+返回精确 Run ID；reconciler 不重复校验，持久绑定后读取当前状态并取消。
+
+首次绑定仍校验 root、Memo、reset state 与 exact/latest 一致性。绑定后以持久 Workflow ID/Run ID
+为归属依据，取消、投递失败后的复查和关闭状态收敛只读取该精确 execution；不再验证 Memo、
+chain、reset state 或 latest。取消前的产品状态检查、绑定冲突与终态事务不变。
 
 Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_NEW` 与
 `TIMED_OUT` 都是 closed 状态，reconciler 不得让对应产品 run 继续保持 active。正常终态按产品投影
-收敛；缺少产品终态的 closed execution 失败关闭。`CONTINUED_AS_NEW`、Reset 或其他不同 latest Run
-属于 unauthorized successor：只以 `workflow_successor_without_authorization` 失败关闭产品 root run，
-不得将 successor Run ID 写入 start binding，也不得向 successor 发送取消。
+收敛；缺少产品终态的 closed execution 失败关闭，取消路径对已取消 root 沿用本地取消收口。
+`CONTINUED_AS_NEW` 直接以不可重试的 `runtime_invariant_failed` 收口，不要求先找到 successor。
+latest 改变不影响已绑定 root 按自身状态收敛；不得将其他 Run ID 写入 start binding 或向其发送取消。
+Describe 不可用、NotFound 或缺少必要关闭时间时保持重试，已有产品终态仍优先。
 
 `ExecutionFinalizationResponse` 包含状态、答案、模型用量、结果和错误；可选字段包括观测摘要和
 阶段耗时。追问、资料不足和范围说明都是 `completed` 助手正文。它不返回路由标签、外部平台引用
@@ -238,6 +244,9 @@ run 及 `run.completed` 共同复用；Activity retry 不得重新取时间。St
 Activity 的 schedule/start/end 与 worker evidence，不能用 attempt evidence 覆盖 canonical Step 的
 产品完成时间。旧 run 没有 reservation 时，只能使用合法旧 internal `finalization.completed` 的时间，
 或在已有 completed run 的明确成功证据下使用存储的 `run.CompletedAt`；不能猜测或回写历史事件。
+
+app-api 按精确 `request_id` 读取 closeout 上下文，包括已终态请求的 replay；不比较请求创建时间与
+execution-control 的完成时间。行锁、终态写入和 fingerprint 冲突裁决仍由产品持久化 owner 负责。
 
 ## 投影与严格性
 

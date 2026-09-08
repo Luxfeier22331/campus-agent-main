@@ -290,7 +290,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		}
 	});
 
-	it("keeps an accepted run active when the submit stream ends", async () => {
+	it("automatically resumes an accepted run once when the submit stream ends", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -338,23 +338,20 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await Promise.resolve();
 			});
 
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
-			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
-
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(250);
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
-			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
-			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(1);
+			expect(conversationApiMock.submitChatRequestStream).toHaveBeenCalledTimes(1);
+			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("keeps streamed messages when the stream ends before terminal", async () => {
+	it("loads canonical messages when a disconnected request has completed", async () => {
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
 				{
@@ -397,11 +394,12 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			});
 		});
 
-		expect(conversationApiMock.getRunStatus).not.toHaveBeenCalled();
-		expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
-		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
-		expect(hasMessageId("msg_status_draft")).toBe(true);
-		expect(readAssistantText()).toBe("临时草稿");
+		expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(1);
+		expect(conversationApiMock.getConversationDetail).toHaveBeenCalled();
+		expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+		expect(hasMessageId("msg_status_draft")).toBe(false);
+		expect(readAssistantText()).toBe("规范回答");
 	});
 
 	it("does not replay a submit that closes without acceptance", async () => {
@@ -479,7 +477,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.getRunStatus).not.toHaveBeenCalled();
+			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(1);
 			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
 			expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
 			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
@@ -496,6 +494,12 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 			).toBe(true);
 			expect(readAssistantText()).toBe("");
 
+			conversationApiMock.getRunStatus.mockResolvedValue({
+				conversationId: "conv_created",
+				phase: "running",
+				requestId: "req_recovery_lost",
+				status: "running",
+			});
 			conversationApiMock.resumeRunEventsStream.mockImplementationOnce(() =>
 				streamEvents([
 					{
@@ -524,7 +528,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 		}
 	});
 
-	it("keeps an accepted run active without automatic recovery", async () => {
+	it("stops automatic recovery after one failed status request", async () => {
 		vi.useFakeTimers();
 		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
@@ -572,7 +576,7 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await submitPromise;
 			});
 
-			expect(conversationApiMock.getRunStatus).not.toHaveBeenCalled();
+			expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(1);
 			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
 			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
@@ -840,8 +844,8 @@ describe("assistant-ui runtime recovery and terminal handling", () => {
 				await assistantUiMock.externalStoreInput?.onResume?.();
 			});
 
-			expect(onLoginRequired).toHaveBeenCalledTimes(1);
-			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(1);
+			expect(onLoginRequired).toHaveBeenCalledTimes(2);
+			expect(conversationApiMock.resumeRunEventsStream).toHaveBeenCalledTimes(2);
 			expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
 			expect(assistantUiMock.externalStoreInput?.extras?.connection).toBe("disconnected");
 		} finally {

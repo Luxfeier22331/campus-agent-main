@@ -172,6 +172,18 @@ function finalizedWriteForStatus(
 }
 
 describe("pg chat command store", () => {
+	it("looks up closeout by exact request identity without time or status filters", async () => {
+		const where = vi.fn().mockResolvedValue([]);
+		createRuntimeDatabase.mockReturnValue({
+			select: () => ({ from: () => ({ where }) }),
+		});
+		const store = createPgChatCommandStore({} as never);
+		expect(await store.getDurableRequestForCloseout("req_unknown")).toBeNull();
+		const query = new PgDialect().sqlToQuery(where.mock.calls[0]?.[0] as SQL);
+		expect(query.sql).toBe('"chat"."turn_dispatches"."request_id" = $1');
+		expect(query.params).toEqual(["req_unknown"]);
+	});
+
 	beforeEach(() => {
 		createRuntimeDatabase.mockReset();
 		createRuntimeDbGetter.mockClear();

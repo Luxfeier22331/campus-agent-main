@@ -44,9 +44,13 @@ func TestBuildAgentAdmissionSnapshotResolvesModelTargetOnce(t *testing.T) {
 	if !execution.ContainsString(snapshot.AgentCapabilities.VisibleFunctionToolNames, personalMemoryRecallToolName) {
 		t.Fatalf("agent capabilities = %#v", snapshot.AgentCapabilities)
 	}
+	originalHash := execution.SHA256JSONRef(snapshot)
 	snapshot.AgentBudget.MaxFunctionToolCalls++
-	if err := execution.ValidateAdmissionSnapshot(snapshot); err == nil {
-		t.Fatal("admission snapshot accepted a mutated agent budget")
+	if execution.SHA256JSONRef(snapshot) == originalHash {
+		t.Fatal("top-level hash did not cover changed budget")
+	}
+	if err := execution.ValidateAdmissionSnapshot(snapshot); err != nil {
+		t.Fatalf("valid budget rejected: %v", err)
 	}
 }
 
@@ -62,6 +66,33 @@ func TestBuildAgentAdmissionSnapshotDoesNotRequireCampusDocs(t *testing.T) {
 	}
 	if resolver.calls != 1 {
 		t.Fatalf("workflow model target calls = %d, want 1", resolver.calls)
+	}
+}
+
+func TestAdmissionSnapshotRejectsInvalidPolicy(t *testing.T) {
+	for name, mutate := range map[string]func(*execution.AgentAdmissionSnapshot){
+		"duplicate tools": func(s *execution.AgentAdmissionSnapshot) {
+			s.AgentCapabilities.VisibleFunctionToolNames = []string{"campus_search", "campus_search"}
+		},
+		"blank tool": func(s *execution.AgentAdmissionSnapshot) {
+			s.AgentCapabilities.VisibleFunctionToolNames = []string{" "}
+		},
+		"noncanonical tool": func(s *execution.AgentAdmissionSnapshot) {
+			s.AgentCapabilities.VisibleFunctionToolNames = []string{" campus_search"}
+		},
+		"unknown tool": func(s *execution.AgentAdmissionSnapshot) {
+			s.AgentCapabilities.VisibleFunctionToolNames = []string{"unknown"}
+		},
+		"budget": func(s *execution.AgentAdmissionSnapshot) { s.AgentBudget.MaxModelTurns = 0 },
+		"limits": func(s *execution.AgentAdmissionSnapshot) { s.AgentLimits.MaxOutputTokens = 0 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			snapshot := admissionSnapshotForTest(t, false)
+			mutate(&snapshot)
+			if err := execution.ValidateAdmissionSnapshot(snapshot); err == nil {
+				t.Fatal("invalid policy accepted")
+			}
+		})
 	}
 }
 

@@ -56,10 +56,7 @@ func DecodeAndValidateWorkflowStartInput(
 	if input.AdmissionSnapshotSHA256 != SHA256JSONRef(input.AdmissionSnapshot) {
 		return input, errors.New("workflow admission snapshot hash is invalid")
 	}
-	if err := ValidateAdmissionSnapshotForVisibleTools(
-		input.AdmissionSnapshot,
-		input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames,
-	); err != nil {
+	if err := ValidateAdmissionSnapshot(input.AdmissionSnapshot); err != nil {
 		return input, fmt.Errorf("workflow admission snapshot is invalid: %w", err)
 	}
 	return input, nil
@@ -204,6 +201,9 @@ func validWorkflowIdentitySHA(value string) bool {
 
 type WorkflowStarter interface {
 	CancelToolExecutionWorkflow(context.Context, WorkflowCancelInput) error
+	// StartToolExecutionWorkflow returns only a non-empty exact root Run ID
+	// verified against the input identity and reset state.
+	// The reconciler persists this binding without repeating that verification.
 	StartToolExecutionWorkflow(context.Context, WorkflowStartInput) (string, error)
 }
 
@@ -212,6 +212,8 @@ type WorkflowControl interface {
 }
 
 type WorkflowCancellationRecoveryStarter interface {
+	// EnsureToolExecutionWorkflowForCancellation has the same verified-root
+	// return guarantee as StartToolExecutionWorkflow, with a delayed first task.
 	EnsureToolExecutionWorkflowForCancellation(context.Context, WorkflowStartInput) (string, error)
 }
 

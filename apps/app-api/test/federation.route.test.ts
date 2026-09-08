@@ -17,6 +17,24 @@ const env = {
 };
 
 describe("federation provider routes", () => {
+	it.each(["/.well-known/openid-configuration", "/api/federation/userinfo"])(
+		"reports dependency failure accurately for %s",
+		async (path) => {
+			const app = createApp(env, {
+				authHandler: vi.fn().mockRejectedValue(new Error("unavailable")),
+				getAppAuth: vi.fn().mockRejectedValue(new Error("unavailable")),
+			});
+			const response = await app.fetch(new Request(`https://campus.muc.wiki${path}`), env);
+			expect(response.status).toBe(503);
+			expect(await response.json()).toMatchObject({
+				error: {
+					code: "dependency_not_ready",
+					message: "Runtime dependencies are not ready.",
+					retryable: true,
+				},
+			});
+		},
+	);
 	it("maps legacy app auth routes to Better Auth root endpoints", async () => {
 		const seen: string[] = [];
 		const app = createApp(env, {

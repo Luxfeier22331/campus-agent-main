@@ -409,7 +409,9 @@ function agentRunnerResultFromSDKResult(
 	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
 	operation: AgentRunnerInput["operation"],
 ) {
-	const rawFinalOutput = result.finalOutput;
+	const sdkOutput = result.finalOutput;
+	const rawFinalOutput =
+		operation === "solve" && isRecord(sdkOutput) ? sdkOutput.result : sdkOutput;
 	const finalOutput = textOutputFromSDKResult(rawFinalOutput, operation);
 	return {
 		finalOutput,

@@ -69,6 +69,9 @@ Ops Web 服务端负责与现有 camelCase 页面合同互相映射。
 所有写请求必须来自配置的同源页面并通过人员准入。错误响应包含稳定 Ops Web 错误码；验证失败的业务消息
 保留 Model Config 提供的诊断文本，但不返回 API key、密文或其他凭据。读取失败必须保留失败状态，不能伪装成未配置。
 
+合法空配置集合或不存在的槽位表示未配置；缺失或非法的配置集合、未知协议和不完整验证记录属于读取失败，
+通过既有 `503 OPS_PROVIDER_CONFIG_UNAVAILABLE` 返回。只有明确为空的验证记录及其时间、操作者才表示未验证。
+
 LLM、Reranker 和通知分类页面将 Base URL、API key 和模型作为核心字段，provider 和 transport 放在高级设置。
 Reranker 的 transport 固定为 Cohere Rerank；Embedding 页面只编辑 Base URL 和 API key，并只读展示固定 provider、model、transport 和 dimensions。
 页面不展示或编辑 space ID、collection 或制品 ID，也不展示 API key 末四位；页面只显示凭据是否已配置。

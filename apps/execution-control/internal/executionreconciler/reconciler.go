@@ -19,14 +19,14 @@ const (
 	temporalIntentLease       = 30 * time.Second
 	temporalRetryMaximum      = 30 * time.Second
 
-	WorkflowStartNotDispatchedFailure    = "workflow_start_not_dispatched_invalid"
-	WorkflowStartPostDispatchFailure     = "workflow_start_after_dispatch_invalid"
-	WorkflowStartRemoteConflictFailure   = "workflow_start_remote_identity_conflict"
-	WorkflowExecutionTerminatedFailure   = "workflow_terminated_without_terminal_projection"
-	WorkflowCompletedUnprojectedFailure  = "workflow_completed_without_terminal_projection"
-	WorkflowFailedUnprojectedFailure     = "workflow_failed_without_terminal_projection"
-	WorkflowCanceledUnprojectedFailure   = "workflow_canceled_without_terminal_projection"
-	WorkflowUnauthorizedSuccessorFailure = "workflow_successor_without_authorization"
+	WorkflowStartNotDispatchedFailure       = "workflow_start_not_dispatched_invalid"
+	WorkflowStartPostDispatchFailure        = "workflow_start_after_dispatch_invalid"
+	WorkflowStartRemoteConflictFailure      = "workflow_start_remote_identity_conflict"
+	WorkflowExecutionTerminatedFailure      = "workflow_terminated_without_terminal_projection"
+	WorkflowCompletedUnprojectedFailure     = "workflow_completed_without_terminal_projection"
+	WorkflowFailedUnprojectedFailure        = "workflow_failed_without_terminal_projection"
+	WorkflowCanceledUnprojectedFailure      = "workflow_canceled_without_terminal_projection"
+	WorkflowExecutionClosedInvariantFailure = "runtime_invariant_failed"
 )
 
 type Options struct {

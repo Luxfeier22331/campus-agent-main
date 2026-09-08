@@ -46,6 +46,53 @@ function createCampusPrincipal() {
 	};
 }
 
+describe("conversation principal dependency failures", () => {
+	it("preserves typed principal errors", async () => {
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockRejectedValue(
+				new AppApiRouteError({
+					code: "access_denied",
+					message: "Access denied.",
+					retryable: false,
+					status: 403,
+				}),
+			),
+		});
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations"),
+		);
+		expect(response.status).toBe(403);
+		expect(await response.json()).toMatchObject({
+			error: { code: "access_denied", message: "Access denied.", retryable: false },
+		});
+	});
+	it("does not misreport a connection timeout as missing configuration or create a conversation", async () => {
+		const { service } = createConversationService();
+		const app = createApp(env, {
+			chatConversationService: service,
+			getPrincipal: vi
+				.fn()
+				.mockRejectedValue(new Error("Connection terminated due to connection timeout")),
+		});
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/conversations", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: "{}",
+			}),
+		);
+		expect(response.status).toBe(503);
+		expect(await response.json()).toMatchObject({
+			error: {
+				code: "dependency_not_ready",
+				message: "Runtime dependencies are not ready.",
+				retryable: true,
+			},
+		});
+		expect(service.createDraft).not.toHaveBeenCalled();
+	});
+});
+
 function createConversationService() {
 	const conversations: ChatConversationSummaryResponse[] = [
 		{

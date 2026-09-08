@@ -52,6 +52,14 @@ execution-control 网关为新建在线回答固定设置 900 秒的 Temporal `W
 注册旧 history 仍会调度的 activity。只有旧 poller 退出前启动的相关开放 workflow 全部终止后，后续
 发布才能删除旧分支和 activity；固定 version marker 继续保留，不能复用其 change ID。
 
+## Replanner 决策收敛发布
+
+删除旧 `revise` 决策的版本不支持回放包含该结果的旧 history。发布采用维护窗口排空：
+先暂停新在线 run 准入，保持旧 execution-control 与 agent-runtime 运行，等待已接受的在线 run、
+待投递启动命令和开放的在线回答 workflow 收敛；旧 poller 退出后协调升级两个服务，再恢复准入。
+排空未完成不得发布该版本，不添加 alias、兼容 worker 或 version marker。
+历史记录不删除；需要离线回放旧 history 时使用对应旧版本。
+
 ## 状态检查
 
 按环境仓库提供的 context/namespace 执行：
@@ -88,19 +96,21 @@ kubectl get pod
 
 - 用 Temporal Describe 检查 execution 状态以及 Memo 中的 `campus_agent_workflow_id`、
   `campus_agent_run_id`、`campus_agent_payload_sha256`、`campus_agent_input_sha256`；
-- visibility 暂不可用或 Memo 缺失属于身份未知，应恢复 visibility 后等待 reconciler 重试，不能据此
-  手工确认启动或发送取消；
+- 首次绑定时 Describe 暂不可用、Memo 或 reset state 缺失属于身份未知，应恢复读取后等待重试，
+  不能据此手工确认启动。已有绑定时只检查精确 Workflow ID/Run ID 的状态，Memo、reset state 或
+  latest 不再阻断取消和终态收敛；
 - 启动命令已置位 `dispatch_attempted` 但 Describe 返回 `NotFound` 时，先区分是否已有持久 Run ID。
   已有绑定表示 Temporal 身份暂不可见，取消应以 `temporal_start_identity_unresolved` 保持 pending；
   尚无绑定、start 已 `superseded` 的崩溃窗口应由 recovery starter 使用原 canonical input 和当前一分钟
-  `StartDelay` 创建或取得 root，完成 exact/latest 校验、首写绑定后再走精确 Run ID 取消。检查
+  `StartDelay` 创建或取得 root；starter 完成首次精确 Run ID 校验，reconciler 首写绑定后读取当前
+  状态并走精确 Run ID 取消，不重复 starter 的身份校验。检查
   `temporal_cancel_recovery_*` 错误和 starter 可用性；不得手工启动替代 Workflow 或取消 latest；
 - Activity 报 `temporal_execution_binding_pending` 时检查 start 是否尚未确认精确 root Run ID；该错误
   可重试。`temporal_execution_binding_mismatch` 表示当前 Activity 的 Workflow ID 或 Run ID 与持久
   root 不同，包含 Reset successor，属于非重试身份故障；不得修改绑定来接纳它。start 已
   `superseded` 时，除 cancellation finalizer 外的 Activity 应停在
   `temporal_execution_cancellation_pending`；
-- Memo 与持久命令明确冲突时保留该 execution，由应用把本地 run 失败关闭；不得将冲突 execution
+- 首次绑定的 Memo 与持久命令明确冲突时保留该 execution，由应用收口本地 run；不得将冲突 execution
   当作目标 run 强制取消；
 - execution 为 `TIMED_OUT` 但尚无 `run.expired` 时，检查产品终态回调和投影存储错误；产品终态与
   `run.expired` 必须在同一投影事务中提交，app-api 持有的执行输入不随该终态清空；
@@ -110,9 +120,9 @@ kubectl get pod
   任一机制前必须先设计持久 chain binding，不能直接放宽 exact-run 校验；
 - `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、`CONTINUED_AS_NEW` 和 `TIMED_OUT` 都是
   closed 状态。若对应产品 run 仍为 active，检查 active-run reconciler、产品终态回调和投影事务；
-  超时应收敛为 `expired`，其余缺失产品终态的关闭应收敛为失败。不同 latest Run 或
-  `CONTINUED_AS_NEW` 应以 `workflow_successor_without_authorization` 失败关闭产品 root，successor
-  不得被绑定或取消；
+  超时应收敛为 `expired`，其余缺失产品终态的关闭应收敛为失败，取消路径对已取消 root 沿用本地
+  取消收口。`CONTINUED_AS_NEW` 直接以不可重试的 `runtime_invariant_failed` 收口，不需要查找
+  successor。latest 改变不影响 root 按自身状态收敛；其他 execution 不得被绑定或取消；
 - 在线回答不支持 Reset。平台运维不得用 Reset 绕过应用的产品终态和运行绑定；应用会拒绝把 Reset
   successor 重新绑定到原产品 run。
 

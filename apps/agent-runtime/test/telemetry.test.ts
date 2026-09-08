@@ -287,12 +287,6 @@ function completedResult(input: { requestId: string }) {
 		finalOutput: "你好",
 		modelName: "test-model",
 		modelProvider: "openai",
-		promptTrace: {
-			promptId: "workflow.synthesize" as const,
-			promptTemplateSha256: "sha256:template",
-			renderedPromptSha256: "sha256:rendered",
-			schemaVersion: "agent_runtime_prompt_trace.v1" as const,
-		},
 		providerResponseId: "response-1",
 		requestId: input.requestId,
 		stageTiming: {},

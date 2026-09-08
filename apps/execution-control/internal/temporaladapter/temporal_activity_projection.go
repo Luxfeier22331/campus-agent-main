@@ -438,7 +438,7 @@ func temporalFailureTerminalReason(
 		"workflow_failed_without_terminal_projection",
 		"workflow_canceled_without_terminal_projection",
 		"workflow_terminated_without_terminal_projection",
-		"workflow_successor_without_authorization":
+		"runtime_invariant_failed":
 		return execution.DurableTerminalReasonRuntimeInvariant
 	default:
 		return execution.DurableTerminalReasonExecutionFailed

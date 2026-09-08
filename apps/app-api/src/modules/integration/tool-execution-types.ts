@@ -1,13 +1,6 @@
 import type { ExecutionActorContext, ExecutionAuthorizationContext } from "../auth";
 import type { ExecutionFinalizationStatus } from "./execution-finalization-contract";
 
-export interface ToolExecutionPromptTrace {
-	promptId: string;
-	promptTemplateSha256: string;
-	renderedPromptSha256: string;
-	schemaVersion: "agent_runtime_prompt_trace.v1";
-}
-
 export interface ToolExecutionSessionSlot {
 	confirmed?: boolean;
 	name: string;
@@ -69,7 +62,6 @@ export interface ToolExecutionObservability {
 	agentRuntime: string | null;
 	modelName: string | null;
 	modelProvider: string | null;
-	promptTrace: ToolExecutionPromptTrace | null;
 	terminalReason: string | null;
 }
 

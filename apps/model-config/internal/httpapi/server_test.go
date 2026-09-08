@@ -55,6 +55,7 @@ func fakeDescriptor(name modelconfig.ConfigName) modelconfig.Descriptor {
 	return modelconfig.Descriptor{
 		SchemaVersion: "model_target.v1",
 		Target:        target,
+		Capabilities:  modelconfig.CapabilitiesForTarget(target),
 		TargetSHA256:  modelconfig.TargetHash(target),
 	}
 }
@@ -84,6 +85,7 @@ func (s *fakeStore) Resolve(_ context.Context, name modelconfig.ConfigName, expe
 	return modelconfig.RuntimeConfig{
 		SchemaVersion: "model_runtime_config.v1",
 		Target:        descriptor.Target,
+		Capabilities:  modelconfig.CapabilitiesForTarget(descriptor.Target),
 		TargetSHA256:  descriptor.TargetSHA256,
 		APIKey:        apiKey,
 	}, nil

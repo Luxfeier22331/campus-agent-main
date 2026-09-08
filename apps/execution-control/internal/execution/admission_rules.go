@@ -66,19 +66,8 @@ func HashAdmissionJSON(value any) string {
 }
 
 func ValidateAdmissionSnapshot(snapshot AgentAdmissionSnapshot) error {
-	if snapshot.AgentLimitsSHA256 == "" || HashAdmissionJSON(snapshot.AgentLimits) != snapshot.AgentLimitsSHA256 {
-		return errors.New("agent limits admission snapshot hash mismatch")
-	}
-	if snapshot.AgentCapabilitiesSHA256 == "" ||
-		HashAdmissionJSON(snapshot.AgentCapabilities) != snapshot.AgentCapabilitiesSHA256 {
-		return errors.New("agent capabilities admission snapshot hash mismatch")
-	}
 	if err := ValidateAgentCapabilities(snapshot.AgentCapabilities); err != nil {
 		return err
-	}
-	if snapshot.AgentBudgetSHA256 == "" ||
-		HashAdmissionJSON(snapshot.AgentBudget) != snapshot.AgentBudgetSHA256 {
-		return errors.New("agent budget admission snapshot hash mismatch")
 	}
 	if err := ValidateAgentRuntimeBudget(snapshot.AgentBudget); err != nil {
 		return err
@@ -88,10 +77,6 @@ func ValidateAdmissionSnapshot(snapshot AgentAdmissionSnapshot) error {
 	}
 	if err := ValidateToolContractFingerprintSnapshot(snapshot.ToolContractFingerprint); err != nil {
 		return err
-	}
-	if snapshot.ToolContractFingerprintSHA256 == "" ||
-		HashAdmissionJSON(snapshot.ToolContractFingerprint) != snapshot.ToolContractFingerprintSHA256 {
-		return errors.New("tool contract admission snapshot hash mismatch")
 	}
 	for name, value := range map[string]int{
 		"agent_deadline_ms":        snapshot.AgentLimits.AgentDeadlineMS,
@@ -145,29 +130,6 @@ func supportedModelVisibleToolName(name string) bool {
 	}
 }
 
-func ValidateAdmissionSnapshotForVisibleTools(
-	snapshot AgentAdmissionSnapshot,
-	visibleFunctionToolNames []string,
-) error {
-	if err := ValidateAdmissionSnapshot(snapshot); err != nil {
-		return err
-	}
-	frozen := stringSet(snapshot.AgentCapabilities.VisibleFunctionToolNames)
-	visible := stringSet(visibleFunctionToolNames)
-	if len(visible) != len(visibleFunctionToolNames) || len(frozen) != len(visible) {
-		return errors.New("visible tools differ from the frozen agent capabilities")
-	}
-	for _, name := range visibleFunctionToolNames {
-		if strings.TrimSpace(name) != name || name == "" {
-			return errors.New("visible tools differ from the frozen agent capabilities")
-		}
-		if _, ok := frozen[name]; !ok {
-			return errors.New("visible tools differ from the frozen agent capabilities")
-		}
-	}
-	return nil
-}
-
 func ValidateToolContractFingerprintSnapshot(snapshot ToolContractFingerprintSnapshot) error {
 	if snapshot.SchemaVersion != ToolContractFingerprintSchemaVersion {
 		return errors.New("tool contract admission snapshot identity is invalid")
@@ -200,12 +162,4 @@ func ValidateAgentRuntimeToolContract(expected ToolContractFingerprintSnapshot, 
 		return errors.New("agent runtime tool contract does not match admission")
 	}
 	return nil
-}
-
-func stringSet(values []string) map[string]struct{} {
-	result := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		result[value] = struct{}{}
-	}
-	return result
 }

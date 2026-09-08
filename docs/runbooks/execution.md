@@ -45,6 +45,19 @@ migration 退役，不是运行时接口。
 私有连接器、暂停新的产品请求准入的维护窗口执行。Schema Job 仍是唯一的 DDL 入口；不得通过
 常驻进程、手工数据库命令或伪造 migration ledger 绕过该合同。
 
+## 开发环境 admission 快照硬切
+
+本次删除 admission 内层 hash 的变更在本地 dev 与 staging 采用硬切：不支持旧运行跨版本续跑、
+Activity receipt 恢复或 Temporal history replay；不引入双 hash、旧字段重建或兼容分支。
+顶层 admission hash 继续覆盖完整快照，工具合同内容指纹仍保留。
+
+切换时先暂停目标环境的新请求并停止旧 reconciler/worker，再终止该环境尚未关闭的旧回答 workflow。
+清理对应开发请求的启动/取消意图、运行投影和 invocation receipts，并一并处理 app-api 未完成请求与
+活动会话绑定，避免新实例恢复旧运行。已关闭历史可以保留查看，但不得重放或重新派发。
+随后统一更新 app-api、execution-control 与 agent-runtime，以新请求验证完成、取消和重试。
+清理仅覆盖已确认环境的开发回答数据，不清空共享数据库、Temporal namespace、模型配置或检索数据；
+staging 的停止、数据处理与部署由环境仓执行。本条是此次发布边界，不新增长期数据生命周期机制。
+
 ## 数据库迁移边界
 
 当前数据库拓扑由 `campus-agent-schema` 一次安装 execution-control、Model Config 和其他产品 schema

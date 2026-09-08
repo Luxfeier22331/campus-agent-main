@@ -77,6 +77,25 @@ function noticeClassifierStatus(
 }
 
 describe("model settings page", () => {
+	it("shows a read failure instead of unconfigured forms", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json(
+					{
+						error: {
+							code: "OPS_PROVIDER_CONFIG_UNAVAILABLE",
+							message: "在线模型配置服务暂不可用。",
+						},
+					},
+					{ status: 503 },
+				),
+			),
+		);
+		render(<OpsWebApp initialPath="/providers" />);
+		expect(await screen.findByText("模型配置读取失败")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "保存并验证" })).not.toBeInTheDocument();
+	});
 	it("keeps the Embedding vector-space contract read-only", async () => {
 		vi.stubGlobal(
 			"fetch",

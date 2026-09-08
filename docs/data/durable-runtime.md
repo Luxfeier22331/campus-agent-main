@@ -38,7 +38,8 @@ source body。
 
 run 与 workflow 启动命令在一个事务写入。启动命令固定 Workflow ID、队列、输入 ref/hash 和
 有界策略版本，并记录租约、租约次数、`dispatch_attempted`、Temporal Run ID 或低基数失败原因；
-reconciler 在外部 RPC 前用 lease token 原子置位 dispatch fence，重复执行不能创建第二个 workflow。
+reconciler 在外部 RPC 前用 lease token 原子置位 dispatch fence，由该写入检查租约、活动状态与取消
+意图，不另做租约预读；重复执行不能创建第二个 workflow。
 升级前已有命令迁移为 `dispatch_attempted=true`，不能从租约次数反推从未投递。
 
 execution-control 的取消命令与 `cancel_requested` 一起持久化，再由 reconciler 幂等投递。app-api
@@ -51,8 +52,10 @@ execution-control 的取消命令与 `cancel_requested` 一起持久化，再由
 
 若取消已把 start 置为 `superseded`，命令满足 `dispatch_attempted=true`、尚无 Temporal Run ID，且
 Describe 明确返回 `NotFound`，reconciler 使用原 canonical input 触发带一分钟 `StartDelay` 的 recovery
-start。只有 recovery root 通过 exact/latest 身份校验后，存储才允许对 superseded start 首写不可变
-Temporal Run ID；之后取消继续使用该精确绑定。recovery 失败或身份未知时仍保持 pending，
+start。recovery starter 完成首次 exact/latest 身份校验并返回精确 root Run ID 后，reconciler 通过现有
+条件写入对 superseded start 首写不可变绑定，不重复远端身份证明；之后读取该精确 execution 的当前
+状态并取消。绑定后的取消和终态收敛不以 Memo、chain、reset state 或 latest 作为额外归属条件。
+recovery 失败或首次绑定身份未知时仍保持 pending，
 不得用 latest Run ID 补写绑定。
 
 ### 账号删除
@@ -123,22 +126,23 @@ Agent Runtime 的流式 `answer_delta` 只携带临时展示用的 `delta` 和
 正式投影不存储 SDK state、raw message 或 raw function payload。
 
 每个 operation 在供应商调用前构造 canonical provider invocation envelope。envelope 的规范 JSON
-SHA-256 是 invocation receipt 的 `InputSHA256`，绑定 run、invocation、Activity attempt、完整
-Activity input SHA、execution input SHA、完整执行身份与授权投影及其 SHA、模型可见工具，以及实际
-发送给 Agent Runtime 的 HTTP body SHA。HTTP 调用必须发送计算 request SHA 时的
-同一份编码 bytes，不能在计算摘要后重新编码。envelope 只在本次 Activity 内存中用于生成 receipt
-fingerprint，不持久化为单独载荷。
+SHA-256 是 invocation receipt 的 `InputSHA256`，绑定 request、step、operation、invocation、
+execution input SHA、admission snapshot SHA 和逻辑请求 SHA。逻辑请求包含实际发送的用户与会话标识、
+operation 输入、可见工具、预算、预期模型及工具合同和会话上下文，但排除投递元数据
+`activity_attempt`；HTTP 请求仍携带该字段。不能将逻辑摘要解释为精确 HTTP bytes 或最终模型输入的
+摘要。envelope 只在本次 Activity 内存中用于生成 receipt fingerprint，不持久化为单独载荷。
 
 运行级 Agent 模型用量按各 operation step 的去重 attempt 聚合。每个已观测 attempt
 计算一次，重试已产生的用量不丢弃。`total_tokens` 按 input 与 output 相加，cached input 是 input
 子集，不重复计入总数。失败但已取得 SDK 结果的 attempt 仍保存 usage；调用前失败、网络中断或 SDK
 抛错且无法取得 usage 时保存 `usage_observed = false`，不用零伪装成真实用量。
 
-invocation receipt 在供应商调用前持久化调用身份、上述 envelope fingerprint 和开始状态。完成时它只
-保存 `provider_invocation_sha256`、Agent result ref 与 schema version 的摘要，不保存模型正文、prompt、
-对话、工具原始参数或供应商完整响应。完整有界 Agent result 由 Temporal Activity result 传给下一阶段；
-provider/model 与有界用量摘要保存于正式投影中。已开始或已完成 receipt 但没有可用 Activity result 时，
-只能以 `agent_attempt_uncertain` 失败关闭，不能重新调用供应商。
+invocation receipt 在供应商调用前持久化调用身份、上述 envelope fingerprint 和开始状态。完成时
+`OutputJSON` 保存完整类型化 operation output，`OutputSHA256` 保存其摘要，同时记录完成时间。
+该恢复载荷可能包含回答正文、证据、工具参数和结果，不是仅含 ref/hash/schema 的摘要，也不是供应商
+原始响应。receipt 先于诊断投影提交；completed receipt 在 Activity 重投递时用于恢复原结果并修复投影。
+started receipt 或无法解码的 completed 结果以 `workflow_attempt_uncertain` 阻断；恢复结果仍需通过身份
+和来源校验，修复失败沿用既有错误路径，不重新调用供应商。产品答案由 app-api 拥有。
 
 ## Finalization 投影
 

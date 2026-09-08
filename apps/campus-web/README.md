@@ -19,6 +19,12 @@
   稳定调用面；
 - 浏览器组件不直接依赖 Worker 入口，telemetry 也不得反向导入入口文件。
 
+Conversation coordinator 对已受理请求的传输断线自动恢复一次，失败后由用户手动重连；先读取原 request
+状态，终态加载 canonical 消息，运行中按最后 sequence 续接事件，不重新提交 prompt。此行为解决本地
+已观察到的“后台完成但页面断线”，由浏览器 conversation feature 拥有，消费既有 status/events 接口；
+仅有手动恢复无法自动收敛该状态。取消、鉴权失败、非法协议和业务终态不触发自动恢复，不增加持久状态。
+若产品事件传输改由其他 owner 统一恢复，应删除或重新评估此处的一次恢复逻辑。
+
 ## 本地命令
 
 ```bash

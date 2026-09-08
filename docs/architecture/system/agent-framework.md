@@ -21,10 +21,12 @@ Temporal Workflow：
 1. `solve` 在一次模型 operation 中直接回答简单请求，或将复杂目标拆成有依赖关系的步骤。
 2. `execute_step` 执行当前步骤声明的候选来源，并在需要时进行多轮模型—工具调用；这一局部行为
    接近 ReAct，但系统没有把思维文本作为状态，也不实现显式 ReAct 状态机。
-3. `replan` 根据已完成步骤、成功证据、`no_match` 和工具失败决定继续、修改剩余步骤或进入合成。
+3. `replan` 根据已完成步骤、成功证据、`no_match` 和工具失败选择 `continue`（可保留或替换剩余步骤）或进入 `synthesize`。
 4. `synthesize` 只使用聚合后的证据生成用户答案，不再调用检索工具。
 
-execution-control 负责上述 operation 的持久顺序、依赖检查、重规划预算和最终收口；Agent Runtime
+execution-control 负责上述 operation 的持久顺序、依赖检查、重规划预算和最终收口；plan、候选来源、依赖和
+replan decision 的语义规则由 `temporalruntime` 共享纯规则入口统一实现，Adapter 与 Temporal workflow
+只保留各自信任边界的调用；Agent Runtime
 只执行当前 operation。系统不使用 Knowledge Agent 或 handoff。历史配置槽位仍称为 `primary_agent`，
 但它不是用户可见的 Agent 层级，也不是编排策略名。
 
@@ -82,8 +84,8 @@ Solve 根据用户目标决定直接回答或生成步骤和候选来源；Execu
 
 Agent Runtime 对 `solve`（直接答案或计划结果）和 `replan` 返回结构化 operation 结果；Solve 不执行检索，
 `execute_step` 返回步骤文本、证据和来源尝试，对 `synthesize` 返回非空 `final_output` 及 Web citation。
-execution-control 校验每个 operation
-的合同、依赖、引用位置和来源后，再写入 `execution_finalization_response_v9`。追问、资料不足、工具失败后
+Agent Runtime 只校验 operation 输出的结构合同；execution-control 再统一校验每个 operation
+的语义合同、依赖、引用位置和来源后，再写入 `execution_finalization_response_v9`。追问、资料不足、工具失败后
 保留成功证据的部分答案都作为 `completed` 正文保存。
 
 `AppendConversationMemoryActivity` 是产品终态成功后的独立副作用，不是 Agent 反思步骤，失败不会改写

@@ -67,12 +67,7 @@ func (builder staticAdmissionSnapshotBuilder) BuildAgentAdmissionSnapshot(
 			SchemaVersion:        execution.ToolContractFingerprintSchemaVersion,
 			ToolsSHA256:          "sha256:" + strings.Repeat("b", 64),
 		},
-		ToolContractFingerprintSHA256: "test-tool-contract-hash",
 	}
-	snapshot.AgentLimitsSHA256 = execution.HashAdmissionJSON(snapshot.AgentLimits)
-	snapshot.AgentCapabilitiesSHA256 = execution.HashAdmissionJSON(snapshot.AgentCapabilities)
-	snapshot.AgentBudgetSHA256 = execution.HashAdmissionJSON(snapshot.AgentBudget)
-	snapshot.ToolContractFingerprintSHA256 = execution.HashAdmissionJSON(snapshot.ToolContractFingerprint)
 	return snapshot, nil
 }
 

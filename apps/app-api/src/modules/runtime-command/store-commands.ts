@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import type { RuntimeDbGetter } from "../../db/runtime";
 import {
@@ -24,11 +24,7 @@ import {
 	buildSessionSlotInsertValues,
 } from "./store-mutations";
 import { withStreamOrchestrationOverhead } from "./store-observability-timing";
-import type {
-	AcceptedChatCommandStore,
-	AcceptedDurableRequestCloseout,
-	TurnDispatchMemorySnapshot,
-} from "./store-types";
+import type { AcceptedChatCommandStore, TurnDispatchMemorySnapshot } from "./store-types";
 import {
 	ChatAcceptanceConversationConflict,
 	ChatAcceptanceIdempotencyConflict,
@@ -102,70 +98,61 @@ export function createPgAcceptedChatCommandStore(getDb: RuntimeDbGetter): Accept
 			};
 		},
 
-		async listAcceptedDurableRequestsForCloseout(input = {}) {
+		async getDurableRequestForCloseout(requestId) {
 			const db = await getDb();
-			const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
-			const startedBefore = input.startedBefore ? new Date(input.startedBefore) : new Date();
-			const requestId = input.requestId?.trim();
+			const normalizedRequestId = requestId.trim();
+			if (!normalizedRequestId) {
+				return null;
+			}
 			const dispatchRows = await db
 				.select()
 				.from(turnDispatches)
-				.where(
-					and(
-						...(requestId ? [] : [eq(turnDispatches.status, "accepted")]),
-						lte(turnDispatches.createdAt, startedBefore),
-						...(requestId ? [eq(turnDispatches.requestId, requestId)] : []),
-					),
-				)
-				.orderBy(asc(turnDispatches.createdAt))
-				.limit(limit);
-			const candidates: AcceptedDurableRequestCloseout[] = [];
-			for (const row of dispatchRows) {
-				const conversation = await loadConversation(row.ownerUserId, row.conversationId);
-				if (!conversation) {
-					continue;
-				}
-				const userMessage = conversation.messages.find(
-					(message) => message.id === row.userMessageId,
-				);
-				if (!userMessage) {
-					continue;
-				}
-				const principalSnapshot = row.principalSnapshotJson;
-				candidates.push({
-					acceptedAt: row.createdAt.toISOString(),
-					assistantMessageId: row.assistantMessageId,
-					completedAt: row.completedAt?.toISOString() ?? null,
-					conversation,
-					conversationTitle: conversation.title,
-					idempotencyKey: row.idempotencyKey,
-					principal: {
-						actor: principalSnapshot.actor,
-						...(principalSnapshot.authorization
-							? { authorization: principalSnapshot.authorization }
-							: {}),
-						permissions: {
-							chat: true,
-						},
-						principal: {
-							displayName: principalSnapshot.principal.displayName,
-							email: null,
-							principalId: principalSnapshot.principal.principalId,
-							type: principalSnapshot.principal.type,
-						},
-						session: null,
-					},
-					questionPreview: userMessage.text,
-					requestFingerprintSha256: row.requestFingerprintSha256,
-					requestId: row.requestId,
-					safetyIdentifier: row.safetyIdentifier,
-					surface: row.surface,
-					turnSequence: row.turnSequence,
-					userMessageId: row.userMessageId,
-					finalizationFingerprint: row.finalizationFingerprint,
-				});
+				.where(eq(turnDispatches.requestId, normalizedRequestId));
+			const row = dispatchRows[0];
+			if (!row) {
+				return null;
 			}
-			return candidates;
+			const conversation = await loadConversation(row.ownerUserId, row.conversationId);
+			if (!conversation) {
+				return null;
+			}
+			const userMessage = conversation.messages.find((message) => message.id === row.userMessageId);
+			if (!userMessage) {
+				return null;
+			}
+			const principalSnapshot = row.principalSnapshotJson;
+			return {
+				acceptedAt: row.createdAt.toISOString(),
+				assistantMessageId: row.assistantMessageId,
+				completedAt: row.completedAt?.toISOString() ?? null,
+				conversation,
+				conversationTitle: conversation.title,
+				idempotencyKey: row.idempotencyKey,
+				principal: {
+					actor: principalSnapshot.actor,
+					...(principalSnapshot.authorization
+						? { authorization: principalSnapshot.authorization }
+						: {}),
+					permissions: {
+						chat: true,
+					},
+					principal: {
+						displayName: principalSnapshot.principal.displayName,
+						email: null,
+						principalId: principalSnapshot.principal.principalId,
+						type: principalSnapshot.principal.type,
+					},
+					session: null,
+				},
+				questionPreview: userMessage.text,
+				requestFingerprintSha256: row.requestFingerprintSha256,
+				requestId: row.requestId,
+				safetyIdentifier: row.safetyIdentifier,
+				surface: row.surface,
+				turnSequence: row.turnSequence,
+				userMessageId: row.userMessageId,
+				finalizationFingerprint: row.finalizationFingerprint,
+			};
 		},
 
 		async findIdempotentRequest(input) {

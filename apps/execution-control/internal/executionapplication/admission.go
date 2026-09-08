@@ -87,49 +87,16 @@ func (s *AdmissionService) BuildAgentAdmissionSnapshot(
 		)
 	}
 	snapshot := execution.AgentAdmissionSnapshot{
-		AgentLimits:                   s.limits,
-		AgentLimitsSHA256:             execution.HashAdmissionJSON(s.limits),
-		AgentCapabilities:             capabilities,
-		AgentCapabilitiesSHA256:       execution.HashAdmissionJSON(capabilities),
-		AgentBudget:                   budget,
-		AgentBudgetSHA256:             execution.HashAdmissionJSON(budget),
-		ModelTargetSHA256:             target.TargetSHA256,
-		ToolContractFingerprint:       toolContract,
-		ToolContractFingerprintSHA256: execution.HashAdmissionJSON(toolContract),
+		AgentLimits:             s.limits,
+		AgentCapabilities:       capabilities,
+		AgentBudget:             budget,
+		ModelTargetSHA256:       target.TargetSHA256,
+		ToolContractFingerprint: toolContract,
 	}
-	if err := execution.ValidateAdmissionSnapshotForVisibleTools(
-		snapshot,
-		capabilities.VisibleFunctionToolNames,
-	); err != nil {
+	if err := execution.ValidateAdmissionSnapshot(snapshot); err != nil {
 		return execution.AgentAdmissionSnapshot{}, err
 	}
 	return snapshot, nil
-}
-
-func (s *AdmissionService) ValidateWorkflowAdmission(
-	snapshot execution.AgentAdmissionSnapshot,
-	visibleFunctionToolNames []string,
-) error {
-	return execution.ValidateAdmissionSnapshotForVisibleTools(snapshot, visibleFunctionToolNames)
-}
-
-func (s *AdmissionService) ValidateLocalToolContractFingerprint(
-	expected execution.ToolContractFingerprintSnapshot,
-) error {
-	if s == nil {
-		return errors.New("agent admission service is not configured")
-	}
-	local, err := buildToolContractFingerprint(s.toolRegistryPath, s.toolFunctionSchemaPath)
-	if err != nil {
-		return fmt.Errorf("build local tool contract fingerprint: %w", err)
-	}
-	if err := execution.ValidateAgentRuntimeToolContract(
-		expected,
-		execution.ToolContractFingerprintSnapshotMap(local),
-	); err != nil {
-		return fmt.Errorf("local execution-control tool contract fingerprint: %w", err)
-	}
-	return nil
 }
 
 func (s *AdmissionService) ValidateLocalToolContractFingerprintMap(expected map[string]any) error {

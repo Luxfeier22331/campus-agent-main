@@ -279,6 +279,20 @@ describe("campus app-api client", () => {
 		expect(cancel).toHaveBeenCalledOnce();
 	});
 
+	it("normalizes network failures while reading the lifecycle stream", async () => {
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.error(new TypeError("Failed to fetch"));
+			},
+		});
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(body, { headers: { "content-type": "text/event-stream" } }),
+		);
+		await expect(
+			submitChatRequestStream({ prompt: "断线" })[Symbol.asyncIterator]().next(),
+		).rejects.toMatchObject({ code: "chat_stream_connection_lost", retryable: true });
+	});
+
 	it("cancels the lifecycle reader when the caller stops consuming early", async () => {
 		const cancel = vi.fn();
 		const body = new ReadableStream<Uint8Array>({

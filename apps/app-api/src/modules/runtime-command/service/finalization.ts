@@ -137,12 +137,7 @@ export async function applyProductFinalization(
 	},
 ): Promise<{ outcome: "applied" | "replayed" }> {
 	const { dependencies } = service;
-	const candidates = await dependencies.commandStore.listAcceptedDurableRequestsForCloseout({
-		limit: 1,
-		requestId: input.requestId,
-		startedBefore: input.completedAt,
-	});
-	const candidate = candidates[0];
+	const candidate = await dependencies.commandStore.getDurableRequestForCloseout(input.requestId);
 	if (!candidate) {
 		throw createPreAcceptError({
 			code: "request_not_found",

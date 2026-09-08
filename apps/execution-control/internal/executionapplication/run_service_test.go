@@ -2,6 +2,7 @@ package executionapplication
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -163,6 +164,38 @@ func TestRunServiceCreatesRunAndStartIntentBeforeWakingReconciler(t *testing.T) 
 	}
 	if builder.personalMemoryRecallAvailable {
 		t.Fatal("personal memory recall was admitted for a request that did not allow it")
+	}
+	for _, field := range []string{"agent_limits_sha256", "agent_capabilities_sha256", "agent_budget_sha256", "tool_contract_fingerprint_sha256"} {
+		if strings.Contains(string(intent.WorkflowInputJSON), field) {
+			t.Fatalf("new workflow input contains retired field %s", field)
+		}
+	}
+	for name, mutate := range map[string]func(*execution.AgentAdmissionSnapshot){
+		"limits": func(s *execution.AgentAdmissionSnapshot) { s.AgentLimits.MaxOutputTokens++ },
+		"capabilities": func(s *execution.AgentAdmissionSnapshot) {
+			s.AgentCapabilities.HostedWebSearch = !s.AgentCapabilities.HostedWebSearch
+		},
+		"budget": func(s *execution.AgentAdmissionSnapshot) { s.AgentBudget.MaxModelTurns++ },
+		"tool contract": func(s *execution.AgentAdmissionSnapshot) {
+			s.ToolContractFingerprint.ToolsSHA256 = "sha256:" + strings.Repeat("f", 64)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			changed := input
+			mutate(&changed.AdmissionSnapshot)
+			if execution.SHA256JSONRef(changed.AdmissionSnapshot) == input.AdmissionSnapshotSHA256 {
+				t.Fatal("top-level hash did not cover snapshot mutation")
+			}
+			changedIntent := intent
+			encoded, err := json.Marshal(changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			changedIntent.WorkflowInputJSON = encoded
+			if _, err := execution.DecodeAndValidateWorkflowStartInput(changedIntent, result.Run); err == nil {
+				t.Fatal("workflow accepted mutation with stale top-level hash")
+			}
+		})
 	}
 	if waker.count != 1 {
 		t.Fatalf("reconciler wake count = %d, want 1", waker.count)
@@ -403,14 +436,10 @@ func validApplicationTestAdmissionSnapshot(
 		ToolsSHA256:          "sha256:" + strings.Repeat("c", 64),
 	}
 	return execution.AgentAdmissionSnapshot{
-		AgentLimits:                   limits,
-		AgentLimitsSHA256:             execution.HashAdmissionJSON(limits),
-		AgentCapabilities:             capabilities,
-		AgentCapabilitiesSHA256:       execution.HashAdmissionJSON(capabilities),
-		AgentBudget:                   budget,
-		AgentBudgetSHA256:             execution.HashAdmissionJSON(budget),
-		ModelTargetSHA256:             strings.Repeat("d", 64),
-		ToolContractFingerprint:       toolContract,
-		ToolContractFingerprintSHA256: execution.HashAdmissionJSON(toolContract),
+		AgentLimits:             limits,
+		AgentCapabilities:       capabilities,
+		AgentBudget:             budget,
+		ModelTargetSHA256:       strings.Repeat("d", 64),
+		ToolContractFingerprint: toolContract,
 	}
 }

@@ -41,7 +41,6 @@ const RUNTIME_INVARIANT_ERROR_CODES = new Set([
 	"workflow_start_after_dispatch_invalid",
 	"workflow_start_not_dispatched_invalid",
 	"workflow_start_remote_identity_conflict",
-	"workflow_successor_without_authorization",
 	"workflow_terminated_without_terminal_projection",
 ]);
 const PUBLIC_EXECUTION_ERROR_CODES = new Set([
@@ -194,7 +193,6 @@ export function buildAbuseThrottleRejectedResponse(): ToolExecutionResponse {
 			agentRuntime: null,
 			modelName: null,
 			modelProvider: null,
-			promptTrace: null,
 			terminalReason: "rate_limit_exceeded",
 		},
 		modelUsage: zeroModelUsage(),

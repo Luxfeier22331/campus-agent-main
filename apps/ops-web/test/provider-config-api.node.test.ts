@@ -5,6 +5,7 @@ import { createAllowAllOpsAdmission } from "../src/server/ops-admission";
 import {
 	createProviderConfigAdminClient,
 	ProviderConfigAdminResponseError,
+	ProviderConfigAdminUnavailableError,
 } from "../src/server/provider-config-client";
 import { ExecutionModelSettingsStatusSchema } from "../src/shared/ops-contract";
 import { createTestOpsApp } from "./helpers/ops-app";
@@ -21,6 +22,71 @@ const status = ExecutionModelSettingsStatusSchema.parse({
 });
 
 describe("ops model settings BFF", () => {
+	const config = {
+		api_protocol: "openai.responses",
+		base_url: "https://provider.example/v1",
+		credential_configured: true,
+		model: "model",
+		provider: "openai-compatible",
+		validation: null,
+		validated_at: null,
+		validated_by: null,
+		updated_at: "2026-09-08T00:00:00Z",
+		updated_by: "operator",
+	};
+	const clientFor = (configs: unknown) =>
+		createProviderConfigAdminClient(
+			{ MODEL_CONFIG_URL: "http://model-config:8000" },
+			{
+				fetchImplementation: vi.fn(async () =>
+					Response.json({ sampled_at: "2026-09-08T00:00:00Z", configs }),
+				),
+			},
+		);
+	it.each([
+		["openai.responses", "responses"],
+		["openai.chat_completions", "chat_completions"],
+		["openai.embeddings", "embeddings"],
+		["cohere.rerank", "rerank"],
+	])("maps %s explicitly", async (protocol, transport) => {
+		const result = await clientFor({
+			primary_agent: { ...config, api_protocol: protocol },
+		}).getStatus();
+		expect(result.settings.llm?.transport).toBe(transport);
+	});
+	it.each([{}, { primary_agent: null }])(
+		"accepts genuinely absent settings: %j",
+		async (configs) => {
+			expect((await clientFor(configs).getStatus()).settings.llm).toBeNull();
+		},
+	);
+	it.each([
+		undefined,
+		null,
+		[],
+		false,
+		{ primary_agent: false },
+		{ primary_agent: { ...config, api_protocol: "unknown" } },
+		{ primary_agent: { ...config, api_protocol: undefined } },
+		{ primary_agent: { ...config, validation: { status: "passed", message: "ok" } } },
+		{ primary_agent: { ...config, validation: undefined } },
+		{ primary_agent: { ...config, validated_by: "operator" } },
+	])("rejects invalid upstream state: %j", async (configs) => {
+		await expect(clientFor(configs).getStatus()).rejects.toBeInstanceOf(
+			ProviderConfigAdminUnavailableError,
+		);
+	});
+	it("returns the existing unavailable envelope for malformed upstream status", async () => {
+		const app = createTestOpsApp({
+			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
+			providerConfigClient: clientFor(null),
+		});
+		const response = await app.request("http://ops.test/api/ops/model-configs");
+		expect(response.status).toBe(503);
+		expect(await response.json()).toMatchObject({
+			error: { code: "OPS_PROVIDER_CONFIG_UNAVAILABLE" },
+		});
+	});
 	it("parses the current-settings contract without release entities", () => {
 		expect(ExecutionModelSettingsStatusSchema.parse(status)).toEqual(status);
 	});

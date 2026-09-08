@@ -18,7 +18,8 @@ status: active
 代码负责边界，提示词负责边界内推理
 ```
 
-代码负责认证、授权、步骤准入、期限、非空文本与工具结果校验以及终态写入。在线回答由
+代码负责认证、授权、步骤准入、期限、非空文本与工具结果校验以及终态写入。Agent Runtime 负责输出
+结构解析；execution-control 负责计划与重规划的语义准入。在线回答由
 `solve`、`execute_step`、`replan` 和 `synthesize` 四类 operation 组成；Solve 可以直接回答或返回计划，代码固定步骤顺序和预算，模型
 在步骤边界内选择如何使用候选来源。Solve 只负责直接回答或生成计划；机构知识由 `execute_step` 按需
 通过已注册的 `campus_search` function tool 提供，也可以由步骤显式允许的 Agents SDK 原生 `web_search`
@@ -44,7 +45,7 @@ execution-control 的 Agent Workflow 合同显式传递；提示词只约束每�
 
 角色指令由 `apps/agent-runtime` 维护，并使用简体中文表达当前单校产品边界：Agent Workflow 服务
 中央民族大学校园问答场景，未明确指定机构时，学校、本校和校园均默认指中央民族大学。Solve 生成
-步骤，Executor 依据当前步骤候选来源执行，Replanner 依据真实结果调整后续路径；工具结果是候选，正文
+步骤，Executor 依据当前步骤候选来源执行，Replanner 依据真实结果通过 `continue` 保留或替换后续路径，或选择 `synthesize` 提前结束；工具结果是候选，正文
 只引用本轮实际采用的结果。
 execution-control 传入类型化数据，不在 Go 侧维护另一套 Agent prompt 或答案合成 prompt。
 
@@ -79,7 +80,7 @@ execution-control 传入类型化数据，不在 Go 侧维护另一套 Agent pro
 
 ## 可观测性
 
-有界产品投影只保存 prompt 标识、模板与渲染 hash、模型身份、运行状态和关联标识。受信任
+有界产品投影保存模型身份、运行状态和关联标识，不再传递 prompt 标识、模板或渲染 hash。受信任
 Langfuse 运行 trace 也只保存受控模型、用量、阶段结果和关联元数据，不记录真实模型输入输出、
 对话或工具原始载荷。请求不能动态开启或关闭遥测。
 

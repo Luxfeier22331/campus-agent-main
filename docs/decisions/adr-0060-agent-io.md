@@ -41,7 +41,7 @@ status: accepted
 - 追问、资料不足和范围说明是普通回答正文；消费端不得为它们再造模型 outcome。
 - JSON、streaming 和持久化投影必须保留同一回答正文与运行状态。
 
-具体 packet 字段、终态枚举、错误码和 prompt trace 由 executable contract 与所属运行时
+具体 packet 字段、终态枚举和错误码由 executable contract 与所属运行时
 文档维护，本 ADR 不复制动态清单。
 
 ## 后果

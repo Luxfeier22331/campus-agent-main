@@ -2,7 +2,6 @@ package executionreconciler
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -55,13 +54,8 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 	control execution.WorkflowControl,
 	binding execution.ActiveWorkflowRun,
 ) {
-	input, decodeErr := execution.DecodeAndValidateWorkflowStartInput(binding.StartIntent, binding.Run)
-	if decodeErr != nil {
-		r.logWarn("confirmed Temporal workflow identity is invalid", "request_id", binding.Run.RequestID, "error", decodeErr)
-		return
-	}
-	expected, identityErr := execution.WorkflowIdentityForInput(input)
-	if identityErr != nil {
+	rootTemporalRunID := strings.TrimSpace(binding.StartIntent.TemporalRunID)
+	if rootTemporalRunID == "" {
 		return
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, r.operationTimeout)
@@ -74,54 +68,9 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 	if probeErr != nil {
 		return
 	}
-	rootTemporalRunID := strings.TrimSpace(binding.StartIntent.TemporalRunID)
-	if strings.TrimSpace(info.RunID) != rootTemporalRunID ||
-		strings.TrimSpace(info.FirstRunID) != rootTemporalRunID {
+	if !info.Found || strings.TrimSpace(info.RunID) != rootTemporalRunID ||
+		strings.TrimSpace(info.WorkflowID) != strings.TrimSpace(binding.StartIntent.WorkflowID) {
 		return
-	}
-	if identityErr = execution.ValidateWorkflowIdentity(info, expected); identityErr != nil {
-		if errors.Is(identityErr, execution.ErrWorkflowOwnershipUnsafe) &&
-			temporalWorkflowMemoIdentityMatches(info, expected) &&
-			temporalWorkflowTerminal(info.Status) && !info.CloseTime.IsZero() {
-			r.failCloseUnauthorizedWorkflowSuccessor(
-				ctx,
-				store,
-				control,
-				binding.Run,
-				binding.StartIntent,
-				expected,
-				info,
-				nil,
-			)
-		}
-		if errors.Is(identityErr, execution.ErrWorkflowIdentityConflict) {
-			r.logWarn("confirmed Temporal workflow identity conflict", "request_id", binding.Run.RequestID)
-		}
-		return
-	}
-	if temporalWorkflowTerminal(info.Status) {
-		latest, found := r.describeLatestMatchingBoundWorkflowExecution(
-			ctx,
-			control,
-			binding.StartIntent.WorkflowID,
-			binding.StartIntent.TemporalRunID,
-			expected,
-			info.FirstRunID,
-		)
-		if !found {
-			r.failCloseUnauthorizedWorkflowSuccessor(
-				ctx,
-				store,
-				control,
-				binding.Run,
-				binding.StartIntent,
-				expected,
-				info,
-				nil,
-			)
-			return
-		}
-		info = latest
 	}
 	switch info.Status {
 	case execution.WorkflowExecutionStatusTimedOut:
@@ -140,7 +89,8 @@ func (r *Reconciler) reconcileWorkflowTimeout(
 		}
 	case execution.WorkflowExecutionStatusCompleted,
 		execution.WorkflowExecutionStatusFailed,
-		execution.WorkflowExecutionStatusCanceled:
+		execution.WorkflowExecutionStatusCanceled,
+		execution.WorkflowExecutionStatusContinuedAsNew:
 		if info.CloseTime.IsZero() {
 			return
 		}
@@ -201,6 +151,8 @@ func workflowClosedWithoutProjectionFailure(status execution.WorkflowExecutionSt
 		return WorkflowFailedUnprojectedFailure, true
 	case execution.WorkflowExecutionStatusCanceled:
 		return WorkflowCanceledUnprojectedFailure, true
+	case execution.WorkflowExecutionStatusContinuedAsNew:
+		return WorkflowExecutionClosedInvariantFailure, true
 	default:
 		return "", false
 	}

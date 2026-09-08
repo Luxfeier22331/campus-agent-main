@@ -24,7 +24,7 @@ export interface TaskPlan {
 
 export interface TaskReplan {
 	schemaVersion: "task_replan.v1";
-	decision: "continue" | "revise" | "synthesize";
+	decision: "continue" | "synthesize";
 	reason: string;
 	remainingSteps: TaskPlanStep[];
 }
@@ -192,13 +192,6 @@ export interface UsageSummary {
 	usageObserved: boolean;
 }
 
-export interface PromptTrace {
-	promptId: "workflow.solve" | "workflow.execute_step" | "workflow.replan" | "workflow.synthesize";
-	promptTemplateSha256: string;
-	renderedPromptSha256: string;
-	schemaVersion: "agent_runtime_prompt_trace.v1";
-}
-
 export interface AgentRunnerAnswerDelta {
 	delta: string;
 }
@@ -300,7 +293,6 @@ export interface WorkflowOperationResult {
 	sourceAttempts: SourceAttempt[];
 	modelName: string;
 	modelProvider: string;
-	promptTrace: PromptTrace;
 	providerResponseId: string;
 	stageTiming: Record<string, number>;
 	toolContractFingerprint: ToolContractFingerprint;

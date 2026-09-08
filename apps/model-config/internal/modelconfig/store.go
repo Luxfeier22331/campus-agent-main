@@ -432,7 +432,11 @@ func scanConfigView(scanner rowScanner) (ConfigView, error) {
 	); err != nil {
 		return ConfigView{}, err
 	}
-	if validationStatus.Valid && validationMessage.Valid && validatedAt.Valid && validatedBy.Valid {
+	if validationStatus.Valid || validatedAt.Valid || validatedBy.Valid {
+		if !validationStatus.Valid || !validationMessage.Valid || !validatedAt.Valid || !validatedBy.Valid ||
+			(validationStatus.String != "passed" && validationStatus.String != "failed") || strings.TrimSpace(validatedBy.String) == "" {
+			return ConfigView{}, errors.New("stored model config validation is incomplete or invalid")
+		}
 		validation := &Validation{
 			Status:             validationStatus.String,
 			Message:            validationMessage.String,
@@ -449,6 +453,7 @@ func scanConfigView(scanner rowScanner) (ConfigView, error) {
 	}
 	view.UpdatedAt = view.UpdatedAt.UTC()
 	view.SchemaVersion = "model_target.v1"
+	view.Capabilities = CapabilitiesForTarget(view.Target)
 	view.TargetSHA256 = TargetHash(view.Target)
 	return view, nil
 }

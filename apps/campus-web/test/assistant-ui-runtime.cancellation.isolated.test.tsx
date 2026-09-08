@@ -346,7 +346,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			await new Promise<void>((resolve) => {
 				releaseTerminal = resolve;
 			});
-			yield cancellationTerminalEvent();
+			yield cancellationTerminalEvent({ sequence: 4 });
 		});
 
 		try {
@@ -396,8 +396,17 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 
 	it("does not start recovery after unmount", async () => {
 		vi.useFakeTimers();
+		let releaseStream!: () => void;
+		const streamEnded = new Promise<void>((resolve) => {
+			releaseStream = resolve;
+		});
+		let markDeltaConsumed!: () => void;
+		const deltaConsumed = new Promise<void>((resolve) => {
+			markDeltaConsumed = resolve;
+		});
+		let observedSignal: AbortSignal | undefined;
 		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input) {
-			void input;
+			observedSignal = input.signal;
 			yield {
 				data: {
 					occurredAt: "2026-06-24T01:00:00.000Z",
@@ -418,6 +427,8 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				},
 				event: "answer.delta",
 			} satisfies ChatRequestStreamEvent;
+			markDeltaConsumed();
+			await streamEnded;
 		});
 
 		try {
@@ -427,19 +438,68 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 				submitPromise = assistantUiMock.externalStoreInput?.onNew({
 					content: [{ text: "卸载", type: "text" }],
 				});
-				await Promise.resolve();
-				await Promise.resolve();
+				await deltaConsumed;
 			});
+			unmount();
+			expect(observedSignal?.aborted).toBe(true);
 			await act(async () => {
-				unmount();
+				releaseStream();
 				await submitPromise;
 			});
 
+			expect(conversationApiMock.getRunStatus).not.toHaveBeenCalled();
 			expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
 			expect(conversationApiMock.cancelRun).not.toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("does not resume when unmounted during the recovery status query", async () => {
+		let resolveStatus!: (status: ChatRunStatus) => void;
+		const statusResult = new Promise<ChatRunStatus>((resolve) => {
+			resolveStatus = resolve;
+		});
+		let markStatusRequested!: () => void;
+		const statusRequested = new Promise<void>((resolve) => {
+			markStatusRequested = resolve;
+		});
+		let observedSignal: AbortSignal | undefined;
+		conversationApiMock.getRunStatus.mockImplementation((input) => {
+			observedSignal = input.signal;
+			markStatusRequested();
+			return statusResult;
+		});
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_01",
+						sequence: 1,
+						status: "accepted",
+					},
+					event: "request.accepted",
+				},
+			]),
+		);
+		const { unmount } = render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "恢复查询期间卸载", type: "text" }],
+			});
+			await statusRequested;
+		});
+		expect(conversationApiMock.getRunStatus).toHaveBeenCalledTimes(1);
+		unmount();
+		expect(observedSignal?.aborted).toBe(true);
+		await act(async () => {
+			resolveStatus(runningCancellationStatus());
+			await submitPromise;
+		});
+		expect(conversationApiMock.resumeRunEventsStream).not.toHaveBeenCalled();
+		expect(conversationApiMock.cancelRun).not.toHaveBeenCalled();
 	});
 
 	it("waits for durable cancellation confirmation and merges duplicate stop requests", async () => {
@@ -591,7 +651,7 @@ describe("assistant-ui runtime cancellation and rendering races", () => {
 			await new Promise<void>((resolve) => {
 				releaseStream = resolve;
 			});
-			yield cancellationTerminalEvent();
+			yield cancellationTerminalEvent({ sequence: 4 });
 		});
 		conversationApiMock.cancelRun.mockImplementation(
 			() =>

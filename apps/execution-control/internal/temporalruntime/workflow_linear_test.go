@@ -502,7 +502,7 @@ func TestToolExecutionWorkflowReplansAfterFinalCampusSearchMissOrFailure(t *test
 					len(actual.CompletedSteps) == 1 && actual.CompletedSteps[0].SourceAttempts[0].Status == campusStatus
 			})).
 				Run(func(mock.Arguments) { sequence = append(sequence, "replan") }).
-				Return(workflowReplanOutput(input.RequestID, "revise", "校内来源不可用，改查公开来源。", []WorkflowTaskPlanStep{webStep}), nil).Once()
+				Return(workflowReplanOutput(input.RequestID, "continue", "校内来源不可用，改查公开来源。", []WorkflowTaskPlanStep{webStep}), nil).Once()
 			env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.MatchedBy(func(actual ExecuteTaskStepActivityInput) bool {
 				return actual.Step.ID == webStep.ID && len(actual.CompletedSteps) == 1 &&
 					len(actual.Plan.Steps) == 2 && actual.Plan.Steps[1].ID == webStep.ID
@@ -535,11 +535,11 @@ func TestToolExecutionWorkflowReplansAfterFinalCampusSearchMissOrFailure(t *test
 	}
 }
 
-func TestToolExecutionWorkflowReplannerCanReviseRemainingPath(t *testing.T) {
+func TestToolExecutionWorkflowReplannerCanReplaceRemainingPath(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
-	input := validToolExecutionWorkflowInput("run-workflow-revise")
+	input := validToolExecutionWorkflowInput("run-workflow-replace")
 	input.AdmissionSnapshot.AgentBudget.MaxReplans = 1
 	first := WorkflowTaskPlanStep{ID: "step.first", Objective: "先查基础资料", CandidateSources: []WorkflowSource{WorkflowSourceCampusSearch}, DependsOn: []string{}}
 	oldSecond := WorkflowTaskPlanStep{ID: "step.old", Objective: "旧路径", CandidateSources: []WorkflowSource{WorkflowSourceCampusSearch}, DependsOn: []string{first.ID}}
@@ -550,7 +550,7 @@ func TestToolExecutionWorkflowReplannerCanReviseRemainingPath(t *testing.T) {
 		Return(workflowStepOutput(input.RequestID, first, "基础资料完成。", nil, []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "no_match"}}), nil).Once()
 	env.OnActivity(ReplanTaskActivityName, mock.Anything, mock.MatchedBy(func(actual ReplanTaskActivityInput) bool {
 		return actual.ReplanIndex == 1 && len(actual.RemainingSteps) == 1 && actual.RemainingSteps[0].ID == oldSecond.ID
-	})).Return(workflowReplanOutput(input.RequestID, "revise", "切换来源。", []WorkflowTaskPlanStep{newSecond}), nil).Once()
+	})).Return(workflowReplanOutput(input.RequestID, "continue", "切换来源。", []WorkflowTaskPlanStep{newSecond}), nil).Once()
 	env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.MatchedBy(func(actual ExecuteTaskStepActivityInput) bool {
 		return actual.Step.ID == newSecond.ID && len(actual.CompletedSteps) == 1 &&
 			len(actual.Plan.Steps) == 2 && actual.Plan.Steps[0].ID == first.ID && actual.Plan.Steps[1].ID == newSecond.ID
@@ -568,6 +568,32 @@ func TestToolExecutionWorkflowReplannerCanReviseRemainingPath(t *testing.T) {
 	}
 	env.AssertActivityNumberOfCalls(t, ReplanTaskActivityName, 1)
 	env.AssertActivityNumberOfCalls(t, ExecuteTaskStepActivityName, 2)
+}
+
+func TestToolExecutionWorkflowRejectsRemovedReplanDecision(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	input := validToolExecutionWorkflowInput("run-workflow-revise-rejected")
+	input.AdmissionSnapshot.AgentBudget.MaxReplans = 1
+	step := WorkflowTaskPlanStep{ID: "step.first", Objective: "查询资料", CandidateSources: []WorkflowSource{WorkflowSourceCampusSearch}, DependsOn: []string{}}
+	plan := WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: workflowTestGoal, Steps: []WorkflowTaskPlanStep{step}}
+	env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(workflowPlanOutput(input.RequestID, plan), nil).Once()
+	env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.Anything).
+		Return(workflowStepOutput(input.RequestID, step, "没有匹配结果。", nil, []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "no_match"}}), nil).Once()
+	env.OnActivity(ReplanTaskActivityName, mock.Anything, mock.Anything).
+		Return(workflowReplanOutput(input.RequestID, "revise", "旧决策不再支持。", nil), nil).Once()
+	env.OnActivity(FinalizeExecutionFailureActivityName, mock.Anything, mock.MatchedBy(func(actual FinalizeExecutionFailureActivityInput) bool {
+		return actual.RequestID == input.RequestID && actual.Stage == "solve.replan.1" && actual.FailureKind == "workflow_replan_invalid"
+	})).Return(FinalizeExecutionFailureActivityOutput{RequestID: input.RequestID, Status: "failed"}, nil).Once()
+
+	env.ExecuteWorkflow(ToolExecutionWorkflow, input)
+
+	if err := env.GetWorkflowError(); err == nil || !strings.Contains(err.Error(), "unsupported replan decision") {
+		t.Fatalf("workflow error = %v, want removed decision failure", err)
+	}
+	env.AssertActivityNumberOfCalls(t, ExecuteTaskStepActivityName, 1)
+	env.AssertActivityNumberOfCalls(t, SynthesizeAnswerActivityName, 0)
 }
 
 func TestToolExecutionWorkflowRejectsReplanThatExceedsTotalStepBudget(t *testing.T) {
@@ -588,7 +614,7 @@ func TestToolExecutionWorkflowRejectsReplanThatExceedsTotalStepBudget(t *testing
 	})).Return(workflowStepOutput(input.RequestID, first, "基础资料完成。", nil, []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "no_match"}}), nil).Once()
 	env.OnActivity(ReplanTaskActivityName, mock.Anything, mock.MatchedBy(func(actual ReplanTaskActivityInput) bool {
 		return actual.MaxRemainingSteps == 1
-	})).Return(workflowReplanOutput(input.RequestID, "revise", "扩展检索路径。", []WorkflowTaskPlanStep{newSecond, newThird}), nil).Once()
+	})).Return(workflowReplanOutput(input.RequestID, "continue", "扩展检索路径。", []WorkflowTaskPlanStep{newSecond, newThird}), nil).Once()
 	env.OnActivity(FinalizeExecutionFailureActivityName, mock.Anything, mock.MatchedBy(func(actual FinalizeExecutionFailureActivityInput) bool {
 		return actual.RequestID == input.RequestID && actual.Stage == "solve.replan.1" &&
 			actual.FailureKind == "workflow_replan_invalid"

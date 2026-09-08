@@ -21,8 +21,19 @@ export class RunOperationMachine {
 	cancellation: RunCancellationState = { phase: "idle" };
 	controller: AbortController | null = null;
 	operationId = 0;
+	recovering = false;
+	private automaticallyResumedRequestId: string | null = null;
+
+	claimAutomaticResume(requestId: string): boolean {
+		if (this.automaticallyResumedRequestId === requestId) {
+			return false;
+		}
+		this.automaticallyResumedRequestId = requestId;
+		return true;
+	}
 
 	start(): RuntimeOperationIdentity {
+		this.recovering = false;
 		this.controller?.abort();
 		this.cancellation = { phase: "idle" };
 		const controller = new AbortController();
@@ -32,6 +43,7 @@ export class RunOperationMachine {
 	}
 
 	begin(controller = new AbortController()): RuntimeOperationIdentity {
+		this.recovering = false;
 		this.controller?.abort();
 		this.cancellation = { phase: "idle" };
 		this.controller = controller;
@@ -54,6 +66,7 @@ export class RunOperationMachine {
 	}
 
 	invalidate(): void {
+		this.recovering = false;
 		this.operationId += 1;
 		this.controller?.abort();
 		this.controller = null;

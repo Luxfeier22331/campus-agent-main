@@ -89,8 +89,8 @@ func TestStarterDelaysCancellationRecoveryWorkflowWithoutChangingIdentity(t *tes
 		fake.startOptions.Memo[workflowMemoPayloadSHAKey] != identity.PayloadSHA256 {
 		t.Fatalf("recovery workflow identity memo = %#v", fake.startOptions.Memo)
 	}
-	if !reflect.DeepEqual(fake.describedRunIDs, []string{fake.startRunID, ""}) {
-		t.Fatalf("recovery workflow described run ids = %#v, want exact/latest", fake.describedRunIDs)
+	if !reflect.DeepEqual(fake.describedRunIDs, []string{fake.startRunID}) {
+		t.Fatalf("recovery workflow described run ids = %#v, want exact root only", fake.describedRunIDs)
 	}
 }
 
@@ -110,8 +110,8 @@ func TestStarterAcceptsAlreadyStartedOnlyWhenMemoIdentityMatches(t *testing.T) {
 	} else if runID != "temporal-run" {
 		t.Fatalf("already-started run id = %q", runID)
 	}
-	if !reflect.DeepEqual(fake.describedRunIDs, []string{"temporal-run", ""}) {
-		t.Fatalf("described run ids = %#v, want exact/latest", fake.describedRunIDs)
+	if !reflect.DeepEqual(fake.describedRunIDs, []string{"temporal-run"}) {
+		t.Fatalf("described run ids = %#v, want exact root only", fake.describedRunIDs)
 	}
 }
 
@@ -186,7 +186,7 @@ func TestStarterRejectsAlreadyStartedWithResetEvidence(t *testing.T) {
 	}
 }
 
-func TestStarterRejectsStartedExecutionWhenLatestRunDiffers(t *testing.T) {
+func TestStarterAcceptsStartedRootWithoutCheckingLatestRun(t *testing.T) {
 	input := starterWorkflowInputForTest("run-latest-differs")
 	identity, err := ToolExecutionWorkflowIdentityForInput(input)
 	if err != nil {
@@ -200,8 +200,11 @@ func TestStarterRejectsStartedExecutionWhenLatestRunDiffers(t *testing.T) {
 		descriptionSeries: []*workflowservicepb.DescribeWorkflowExecutionResponse{exact, latest},
 	}
 	starter := &Starter{client: fake, taskQueue: WorkflowTaskQueue, startTimeout: time.Second}
-	if _, err := starter.StartToolExecutionWorkflow(context.Background(), input); !errors.Is(err, ErrWorkflowOwnershipUnsafe) {
-		t.Fatalf("different latest ownership error = %v, want ErrWorkflowOwnershipUnsafe", err)
+	if runID, err := starter.StartToolExecutionWorkflow(context.Background(), input); err != nil || runID != "temporal-start-root" {
+		t.Fatalf("started root result = %q, err=%v", runID, err)
+	}
+	if !reflect.DeepEqual(fake.describedRunIDs, []string{"temporal-start-root"}) {
+		t.Fatalf("described run ids = %#v, want exact root only", fake.describedRunIDs)
 	}
 }
 
@@ -326,5 +329,25 @@ func TestStarterCancellationTargetsVerifiedTemporalRun(t *testing.T) {
 	}
 	if fake.canceledID != input.WorkflowID || fake.canceledRunID != input.TemporalRunID {
 		t.Fatalf("cancellation target = workflow_id=%q run_id=%q", fake.canceledID, fake.canceledRunID)
+	}
+}
+
+func TestStarterDescribeInvalidResetTimeDoesNotHideExecutionStatus(t *testing.T) {
+	input := starterWorkflowInputForTest("run-invalid-reset-time")
+	identity, err := ToolExecutionWorkflowIdentityForInput(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	description := workflowDescriptionForTest(t, identity, "temporal-invalid-reset-time")
+	description.WorkflowExtendedInfo.LastResetTime = &timestamppb.Timestamp{Seconds: 253402300800}
+	fake := &captureTemporalClient{description: description, startRunID: "temporal-invalid-reset-time"}
+	starter := &Starter{client: fake, startTimeout: time.Second}
+	info, err := starter.DescribeToolExecutionWorkflow(context.Background(), input.WorkflowID, fake.startRunID)
+	if err != nil || !info.Found || info.RunID != fake.startRunID || info.ResetStateKnown ||
+		info.Status != workflowExecutionStatus(description.WorkflowExecutionInfo.Status) {
+		t.Fatalf("execution status was hidden by invalid reset metadata: %#v, err=%v", info, err)
+	}
+	if _, err := starter.StartToolExecutionWorkflow(context.Background(), input); !errors.Is(err, ErrWorkflowIdentityUnknown) {
+		t.Fatalf("initial binding accepted invalid reset metadata: %v", err)
 	}
 }

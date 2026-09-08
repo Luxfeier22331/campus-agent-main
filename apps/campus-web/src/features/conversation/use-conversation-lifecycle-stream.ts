@@ -79,6 +79,16 @@ export function useConversationLifecycleStream({
 				if (!ownsOperation(operation)) {
 					return { terminal: true };
 				}
+				const activeRun = operationMachine.activeRun;
+				if (
+					activeRun &&
+					event.data.requestId === activeRun.requestId &&
+					event.data.sequence !== undefined &&
+					activeRun.sequence !== undefined &&
+					event.data.sequence <= activeRun.sequence
+				) {
+					continue;
+				}
 				applyRunStateEvent(event, operation.id);
 				if (event.event === "request.accepted" && event.data.requestId) {
 					const acceptedRun: ActiveRun = {

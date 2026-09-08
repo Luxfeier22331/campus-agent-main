@@ -173,11 +173,7 @@ export interface AcceptedChatCommandStore {
 	}): Promise<AbuseControlState>;
 	acceptRequest(input: AcceptRequestWrite): Promise<AcceptRequestResult>;
 	finalizeRequest(input: FinalizeRequestWrite): Promise<FinalizeRequestResult>;
-	listAcceptedDurableRequestsForCloseout(input?: {
-		limit?: number;
-		requestId?: string;
-		startedBefore?: string;
-	}): Promise<AcceptedDurableRequestCloseout[]>;
+	getDurableRequestForCloseout(requestId: string): Promise<AcceptedDurableRequestCloseout | null>;
 	readDurableRunInput(requestId: string): Promise<{
 		conversationId: string;
 		executionInputSha256: string | null;

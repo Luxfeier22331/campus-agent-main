@@ -62,12 +62,13 @@ Temporal 不把 SDK tool call 展开成独立 Temporal 阶段，但 Agent Workfl
 和 Synthesize 是真实的持久步骤。当前在线 workflow 不包含独立的强制预检索阶段；离线 Campus Docs
 制品发布不进入 Temporal history。
 
-PostgreSQL 只保存 ref、hash、用量和产品终态等有界投影，不保存完整 Agent 结果。
+PostgreSQL 正式步骤投影保存 ref、hash、用量和终态等摘要；invocation receipt 另保存完整类型化
+operation output，用于 Activity 重投递时恢复结果和修复投影。
 
 `personal_memory_recall` 不建立独立载荷。它的完整返回值是当前 operation 有界 result 的一部分；模型
-operation invocation receipt 约束该 operation 的模型和工具调用只能开始一次。若 receipt 已是 `started` 或
-`completed`，但本次 Activity 没有可用的 Temporal result，执行以 `agent_attempt_uncertain` 失败关闭，
-不再次调用 Provider。精确绑定字段和 StepResult 写入边界见 `../../data/durable-runtime.md`。
+operation invocation receipt 约束该 operation 的模型和工具调用只能开始一次。started receipt 的
+结果不确定时阻断；completed receipt 使用已保存结果恢复，不再次调用 Provider。
+精确绑定字段和 StepResult 写入边界见 `../../data/durable-runtime.md`。
 
 ## 启动与取消命令
 
@@ -82,15 +83,17 @@ Temporal Run ID，而不是创建第二个 workflow。Workflow 输入只包含�
 
 Temporal 返回 `WorkflowExecutionAlreadyStarted` 只表示同 Workflow ID 已存在，不能直接确认本次
 启动成功。starter 必须取得 `ExecuteWorkflow` 返回的具体 Run ID，或
-`WorkflowExecutionAlreadyStarted.RunId`，再依次 Describe 该精确 execution 与同 Workflow ID 的
-latest execution。精确 execution 必须是 `first_run_id` 等于自身 Run ID 的 root；两次结果都必须
-通过完整 Memo 校验、明确提供 reset state、没有 `last_reset_time` 或 `reset_run_id`，且 latest Run ID
-仍等于候选 root。starter 只返回该已验证 Run ID，reconciler 只能持久化它，不能从空 Run ID 的
+`WorkflowExecutionAlreadyStarted.RunId`，再 Describe 该精确 execution。精确 execution 必须是
+`first_run_id` 等于自身 Run ID 的 root，并通过完整 Memo 校验、明确提供 reset state、没有
+`last_reset_time` 或 `reset_run_id`。latest 改变不阻断该精确 root 的绑定；successor 不属于本产品
+run。starter 只返回该已验证 Run ID，reconciler 只能持久化它，不能从空 Run ID 的
 Describe 结果另选绑定对象。无法 Describe、Run ID 为空、reset state 缺失或任一条件未确认时保持
-启动命令可重试，不能伪造已确认状态。
+启动命令可重试，不能伪造已确认状态。普通 starter 与 recovery starter 都返回已验证的精确 root
+Run ID；reconciler 负责持久绑定，不重复 starter 已完成的身份证明。
 
 reconciler 在调用 `StartWorkflowExecution` 前，必须用当前 start lease token 在持久命令上原子置位
-`dispatch_attempted`。取消先提交时该写入失败且不能发送 RPC；dispatch fence 先提交时，即使进程在
+`dispatch_attempted`。该原子写入检查当前租约、活动 run 和取消意图，不在写入前另做租约预读。
+取消先提交时该写入失败且不能发送 RPC；dispatch fence 先提交时，即使进程在
 RPC 前退出，也必须按“可能已经投递”处理。`attempt_count` 只表示租约次数，不能证明是否发起过 RPC。
 只有 `dispatch_attempted=false` 的本地输入校验失败才可使用
 `workflow_start_not_dispatched_invalid`；此前可能投递过的命令即使后来校验失败也必须保留载荷。
@@ -99,22 +102,26 @@ RPC 前退出，也必须按“可能已经投递”处理。`attempt_count` 只
 `dispatch_attempted=true`、start 已 `superseded`、尚无 Temporal Run ID 的状态。Describe 确认
 `NotFound` 后，reconciler 使用原 canonical workflow input 调用 recovery starter；starter 复用相同
 Workflow ID 与 Memo，并以当前固定一分钟的 `StartDelay` 创建或取得 root execution。它必须完成
-exact/latest 双 Describe 和完整身份校验，reconciler 才能首写绑定该精确 Run ID，随后走普通的
-exact-run 取消路径。延迟只为绑定和取消保留窗口，不能把 recovery execution 当作 successor，也不能
-以空 Run ID 取消 latest execution。
+精确 Run ID Describe 和完整身份校验。reconciler 收到成功结果后首写绑定该精确 Run ID，再查询其
+当前状态并走普通的 exact-run 取消路径，不在持久绑定前重复查询。延迟只为绑定和取消保留窗口，
+不能以空 Run ID 取消未绑定的 execution。
 
 每次启动在 Temporal Memo 固化 `campus_agent_workflow_id`、`campus_agent_run_id`、
-`campus_agent_payload_sha256` 和 `campus_agent_input_sha256`。reconciler 只有在这四项完整且与持久
+`campus_agent_payload_sha256` 和 `campus_agent_input_sha256`。首次绑定只有在这四项完整且与持久
 启动命令一致时才确认已有执行；visibility 暂不可读、Memo 缺失或尚不可解码都保持可重试。明确
 不一致时，run 与启动命令失败关闭，且不得取消该未知所有权的 Temporal execution。
 
 取消由 app-api 校验归属后调用 execution-control。execution-control 将
 `cancel_requested` 与 Temporal 取消命令持久化后由 reconciler 投递；临时网络错误只推进命令重试，
-不丢失用户意图，也不直接伪造已取消终态。取消投递同样先校验上述 Memo：身份暂不可确认时重试；
-明确冲突时只完成本地产品取消，不向不属于该 run 的 execution 发送取消。reconciler 每次操作已绑定
-execution 前都要重新 Describe 精确 Run 与 latest Run；两者必须仍是同一个 root Run ID、Memo 一致、
-reset state 已知且没有 reset evidence。最终只使用该持久绑定的具体 Run ID 取消，不能用空 Run ID
-取消 latest execution，也不能把不同 latest 当作 successor 跟随。
+不丢失用户意图，也不直接伪造已取消终态。尚无绑定时，取消路径先通过无 Run ID 的 Describe 发现候选，
+再对该候选的精确 Run ID 校验 Memo、root 和 reset state；latest 只用于发现候选，不是绑定条件。身份未知时重试，Memo 明确冲突时只完成本地产品取消，
+不向该 execution 发送取消。
+
+绑定后，持久 Workflow ID/Run ID 是归属依据。取消和终态收敛只查询、操作该精确 execution，
+不重建启动输入摘要，不重新证明 Memo、chain、reset state 或 latest 归属。Describe 返回的
+Workflow ID/Run ID 必须与请求对象一致；取消 RPC 失败后也只复查同一个 execution。
+取消前仍检查当前产品状态和持久绑定，完成与取消的竞争仍由已有终态事务裁决。
+latest 改变不影响 root 按自身状态收敛；不重新绑定或取消其他 execution。
 
 Temporal 的 `first_run_id` 是 execution chain 标识；官方定义的同一 chain 包含
 Continue-As-New、Workflow Retry、Cron 和 Reset，因而“相同 `first_run_id`”不能排除 Reset。当前在线
@@ -151,6 +158,9 @@ execution-control 为每个 operation 提供运行标识、当前步骤/计划�
 按预期 hash 读取实际供应商配置，再在真实 `AgentInputItem[]` 上执行字符预算裁剪，并返回 operation
 结果、真实 SDK 工具摘要、证据、上下文用量、模型用量和 trace 关联。
 
+plan、候选来源、依赖和 replan decision 的语义规则由 execution-control 的共享纯规则入口实现；Adapter
+与 Temporal workflow 只在各自信任边界调用，不复制同一套语义实现。
+
 SDK `maxTurns` 只限制当前 operation 的代理与工具轮次，不是重试次数或重规划预算。重规划次数和
 步骤数量由外层 Agent Workflow 预算限制。内部 SDK 工具在当前 operation 生命周期内调用带认证的
 execution-control 查询接口。
@@ -169,15 +179,18 @@ input 中携带的产品 run ID。
 Agent operation Activity 的 Temporal `MaximumAttempts` 为 `0`，允许在 workflow 生命周期内重试
 Activity 调度和投影修复，但供应商调用仍然只能开始一次。Activity 在调用供应商前计算 canonical
 provider invocation envelope 的摘要并写入 invocation receipt；只有 receipt 不存在时可进入首次调用。
-receipt 为 `started` 或 `completed` 时都不能重放模型调用或从 PostgreSQL 复原模型正文，而是以
-`agent_attempt_uncertain` 失败关闭。该约束承认 Activity dispatch 和外部模型 API 之间不存在原子
-事务。
+receipt 为 `started` 时结果不确定，以 `workflow_attempt_uncertain` 阻断，不重新调用模型；
+`completed` receipt 则解码已保存的 operation output，校验身份、修复投影后返回原结果。
+该约束承认 Activity dispatch 和外部模型 API 之间不存在原子事务。
 
-provider invocation envelope 的摘要是 receipt 的输入 fingerprint。它绑定 execution input、完整
-执行身份与授权投影、可见工具、最终模型上下文，以及实际发送给 agent-runtime 的精确 HTTP body；请求
-摘要和网络发送复用同一份编码 bytes。completed receipt 只保存该输入摘要、Agent result ref 和 schema
-version，不保存模型结果。各 operation 的 StepResult 保存有界摘要和正文 hash；完整 operation result 仅由
-workflow 的 Activity result 交给 Finalization。
+provider invocation envelope 的摘要是 receipt 的输入 fingerprint，绑定 request、step、operation、
+invocation、execution input hash、admission snapshot hash 和逻辑请求摘要。逻辑请求摘要排除
+`activity_attempt`；实际 HTTP 请求仍携带它来约束工具调用。它不是精确 HTTP bytes 的摘要，也不是
+agent-runtime 后续加工后的最终模型输入摘要。
+completed receipt 保存完整类型化 operation output、输出 hash 和完成时间，可能包含回答正文、证据及
+工具结果；先完成 receipt，再写诊断投影，使 Activity 重投递能够恢复结果而不重复供应商调用。
+各 operation 的 StepResult 仍保存有界摘要和正文 hash；receipt 是执行恢复载荷，不取代 app-api 的
+产品答案所有权。准入快照在 builder、持久输入解码和 Activity 边界校验，不与自身工具列表重复比较。
 
 ## 取消、超时与终态处理
 
@@ -190,18 +203,17 @@ app-api 产品行和 `finalization_fingerprint` 是跨系统终态裁决。execu
 覆盖已经提交的产品终态。
 
 reconciler 将 Temporal 的 `COMPLETED`、`FAILED`、`CANCELED`、`TERMINATED`、
-`CONTINUED_AS_NEW` 和 `TIMED_OUT` 全部视为 closed。若对应产品 run 仍是活动状态，必须在身份可验证
-后收敛为产品终态：超时投影为 `expired`，终止投影为失败，缺少 canonical 产品终态的完成、失败或
-取消也失败关闭；`CONTINUED_AS_NEW` 或任何不同 latest Run 表示不受支持的 successor，产品 root run
-以 `workflow_successor_without_authorization` 失败关闭。该路径不得把 successor 绑定到产品 run，也
-不得向 successor 发送取消。visibility 或身份暂不可验证时继续重试，不能
-留下一个已确认 closed 但永久 active 的产品 run，也不能靠猜测写终态。
+`CONTINUED_AS_NEW` 和 `TIMED_OUT` 全部视为 closed。若对应产品 run 仍是活动状态，按已绑定
+execution 的状态收敛：超时投影为 `expired`，终止投影为失败，缺少 canonical 产品终态的完成、
+失败或取消也失败关闭；取消命令观察到已取消 root 时沿用本地取消收口。
+`CONTINUED_AS_NEW` 是当前产品不支持的关闭结果，以不可重试的 `runtime_invariant_failed` 收口，
+不查找 successor，也不以 latest 是否改变决定产品终态。Describe 失败、NotFound 或缺少必要关闭
+时间时保持重试，不猜测终态。已有产品终态不能被覆盖。
 
 在线回答在启动时设置 Temporal `WorkflowExecutionTimeout`。Temporal 报告 `TIMED_OUT` 后，
-reconciler 以有界游标分页扫描已确认的活动 run，先查询持久化 Temporal Run ID 对应的精确
-execution，再查询同 Workflow ID 的 latest execution；只有两次查询仍指向同一个 root Run ID、
-Memo 一致、reset state 已知且没有 reset evidence，并确认该 execution 超时后，才依次写入 workflow step timeout；
-单条 visibility 或身份错误不能阻塞后续页。随后
+reconciler 以有界游标分页扫描已确认的活动 run，只查询持久化 Temporal Run ID 对应的精确
+execution；确认该对象超时且有关闭时间后，写入 workflow step timeout。
+单条 Describe 失败或对象不匹配不能阻塞后续页。随后
 提交 app-api 产品终态，再以同一事务写入 `expired` 状态、`run_timeout` 原因、浏览器可见的
 `run.expired` 事件并释放 conversation active-run 锁。产品回调失败时保持原活动状态重试；终态事件
 写入冲突时整个投影事务回滚，不能留下缺少 `run.expired` 的半终态。产品终态不清空 app-api

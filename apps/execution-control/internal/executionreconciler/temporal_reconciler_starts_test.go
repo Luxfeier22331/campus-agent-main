@@ -380,9 +380,6 @@ func TestDecodeWorkflowStartInputAllowsToolBudgetIndependentOfVisibility(t *test
 		t.Fatal(err)
 	}
 	input.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames = []string{campusSearchToolName, personalMemoryRecallToolName}
-	input.AdmissionSnapshot.AgentCapabilitiesSHA256 = execution.HashAdmissionJSON(
-		input.AdmissionSnapshot.AgentCapabilities,
-	)
 	input.AdmissionSnapshotSHA256 = execution.SHA256JSONRef(input.AdmissionSnapshot)
 	intent.WorkflowInputJSON, err = json.Marshal(input)
 	if err != nil {

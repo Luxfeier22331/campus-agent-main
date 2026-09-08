@@ -13,6 +13,8 @@ describe("runtime command public execution errors", () => {
 		["agent_runtime_result_invalid", "runtime_invariant_failed"],
 		["finalization_projection_conflict", "runtime_invariant_failed"],
 		["model_target_mismatch", "runtime_invariant_failed"],
+		["runtime_invariant_failed", "runtime_invariant_failed"],
+		["temporal_execution_binding_mismatch", "runtime_invariant_failed"],
 		["agent_runtime_failed", "run_failed"],
 		["future_bounded_failure", "run_failed"],
 	] as const)("maps %s to the product error %s", (sourceCode, publicCode) => {

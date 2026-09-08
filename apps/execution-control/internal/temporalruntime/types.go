@@ -80,11 +80,10 @@ type WorkflowCompletedStep struct {
 }
 
 type WorkflowOperationActivityInputBase struct {
-	AdmissionSnapshot        execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
-	ConversationID           string                           `json:"conversation_id"`
-	RequestID                string                           `json:"request_id"`
-	TraceParent              string                           `json:"traceparent,omitempty"`
-	VisibleFunctionToolNames []string                         `json:"visible_function_tool_names"`
+	AdmissionSnapshot execution.AgentAdmissionSnapshot `json:"admission_snapshot"`
+	ConversationID    string                           `json:"conversation_id"`
+	RequestID         string                           `json:"request_id"`
+	TraceParent       string                           `json:"traceparent,omitempty"`
 }
 
 type SolveTaskActivityInput struct {
@@ -176,7 +175,6 @@ type WorkflowOperationActivityOutput struct {
 	SourceAttempts          []WorkflowSourceAttempt `json:"source_attempts"`
 	ModelName               string                  `json:"model_name"`
 	ModelProvider           string                  `json:"model_provider"`
-	PromptTrace             map[string]any          `json:"prompt_trace"`
 	ProviderResponseID      string                  `json:"provider_response_id"`
 	RequestID               string                  `json:"request_id"`
 	StageTiming             map[string]any          `json:"stage_timing,omitempty"`

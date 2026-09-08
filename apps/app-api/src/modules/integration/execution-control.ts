@@ -25,7 +25,6 @@ export type {
 	ToolExecutionConversationContext,
 	ToolExecutionInput,
 	ToolExecutionObservability,
-	ToolExecutionPromptTrace,
 	ToolExecutionResponse,
 	ToolExecutionSessionSlot,
 	ToolExecutionSessionSummary,

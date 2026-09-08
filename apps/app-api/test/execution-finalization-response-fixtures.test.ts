@@ -132,7 +132,7 @@ describe("execution finalization canonical response fixtures", () => {
 		expect(JSON.stringify(result)).not.toContain("postgres://runtime:secret");
 	});
 
-	it("parses direct model and prompt observability", () => {
+	it("parses direct model observability and ignores retired prompt trace", () => {
 		const payload = loadFixture("response_temporal_finalization.valid.json");
 		payload.observability = {
 			...(payload.observability as Record<string, unknown>),
@@ -146,18 +146,14 @@ describe("execution finalization canonical response fixtures", () => {
 			},
 		};
 
-		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
+		const response = parseExecutionFinalizationResponsePayload(payload);
+		expect(response).toMatchObject({
 			observability: {
 				modelName: "gpt-4.1",
 				modelProvider: "openai",
-				promptTrace: {
-					promptId: "primary_agent",
-					promptTemplateSha256: "sha256:template",
-					renderedPromptSha256: "sha256:rendered",
-					schemaVersion: "agent_runtime_prompt_trace.v1",
-				},
 			},
 		});
+		expect(response.observability).not.toHaveProperty("promptTrace");
 	});
 
 	it("rejects unknown observability projections", () => {

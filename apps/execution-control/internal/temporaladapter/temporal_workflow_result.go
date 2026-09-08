@@ -60,7 +60,6 @@ func workflowFinalizationResultMap(
 		"solve_outcome":             output.SolveOutcome,
 		"model_name":                output.ModelName,
 		"model_provider":            output.ModelProvider,
-		"prompt_trace":              execution.CloneAnyMapFromValue(output.PromptTrace),
 		"provider_response_id":      output.ProviderResponseID,
 		"stage_timing":              execution.CloneAnyMapFromValue(output.StageTiming),
 		"status":                    output.Status,

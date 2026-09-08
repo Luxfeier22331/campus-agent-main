@@ -151,12 +151,6 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 		})),
 		model_name: result.modelName,
 		model_provider: result.modelProvider,
-		prompt_trace: {
-			schema_version: result.promptTrace.schemaVersion,
-			prompt_id: result.promptTrace.promptId,
-			prompt_template_sha256: result.promptTrace.promptTemplateSha256,
-			rendered_prompt_sha256: result.promptTrace.renderedPromptSha256,
-		},
 		provider_response_id: result.providerResponseId,
 		stage_timing: result.stageTiming,
 		tool_results: result.toolResults.map((toolResult) => ({

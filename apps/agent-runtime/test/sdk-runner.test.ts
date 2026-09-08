@@ -1,5 +1,6 @@
 import type { AssistantMessageItem, ModelProvider } from "@openai/agents";
 import { assistantMessage, functionCall, ScriptedModel } from "@openai/agents/testing";
+import { zodTextFormat } from "openai/helpers/zod";
 import { describe, expect, it } from "vitest";
 import type {
 	AgentRunnerAnswerDelta,
@@ -102,6 +103,39 @@ function providerFor(model: ScriptedModel): ModelProvider {
 }
 
 describe("OpenAI Agents SDK runner adapter", () => {
+	it("converts the solve union without the SDK non-strict fallback", () => {
+		const format = zodTextFormat(solveSdkOutputSchema, "solve");
+		expect(format.strict).toBe(true);
+		expect(format.schema).toMatchObject({ type: "object", required: ["result"] });
+	});
+
+	it.each([
+		{ result: { outcome: "answer", plan: {} } },
+		{ result: { outcome: "answer", answer: "" } },
+		{ result: { outcome: "answer", answer: "你好", plan: {} } },
+		{ outcome: "answer", answer: "你好" },
+	])("rejects invalid solve wire output %j", async (output) => {
+		const model = new ScriptedModel([[assistantMessage(JSON.stringify(output))]]);
+		await expect(
+			createOpenAIAgentsRunner({ model: "gpt-test", modelProvider: providerFor(model) })(
+				input([], { operation: "solve", outputType: solveSdkOutputSchema }),
+			),
+		).rejects.toThrow();
+	});
+
+	it("unwraps a non-streaming answer with answer before outcome", async () => {
+		const model = new ScriptedModel([
+			[assistantMessage(JSON.stringify({ result: { answer: "你好", outcome: "answer" } }))],
+		]);
+		const result = await createOpenAIAgentsRunner({
+			model: "gpt-test",
+			modelProvider: providerFor(model),
+		})(input([], { operation: "solve", outputType: solveSdkOutputSchema }));
+		expect(result).toMatchObject({
+			finalOutput: "你好",
+			structuredOutput: { outcome: "answer", answer: "你好" },
+		});
+	});
 	it("uses the SDK text output, response ID, and usage", async () => {
 		const model = new ScriptedModel([[assistantMessage("我是校园问答助手。")]]);
 		const result = await createOpenAIAgentsRunner({
@@ -343,7 +377,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 	it("streams a structured solve answer only after emitting its decision", async () => {
 		const answer = '中文\n"校园"';
 		const model = new ScriptedModel([
-			[assistantMessage(JSON.stringify({ outcome: "answer", answer }))],
+			[assistantMessage(JSON.stringify({ result: { outcome: "answer", answer } }))],
 		]);
 		const events: Array<AgentRunnerAnswerDelta | AgentRunnerResult | AgentRunnerSolveDecision> = [];
 		for await (const event of createStreamingOpenAIAgentsRunner({
@@ -380,7 +414,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				],
 			},
 		};
-		const model = new ScriptedModel([[assistantMessage(JSON.stringify(plan))]]);
+		const model = new ScriptedModel([[assistantMessage(JSON.stringify({ result: plan }))]]);
 		const events: Array<AgentRunnerAnswerDelta | AgentRunnerResult | AgentRunnerSolveDecision> = [];
 		for await (const event of createStreamingOpenAIAgentsRunner({
 			model: "gpt-test",

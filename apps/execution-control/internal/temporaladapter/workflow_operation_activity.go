@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -24,10 +23,6 @@ const (
 	workflowPersonalMemoryRecallToolName = "personal_memory_recall"
 )
 
-var workflowLowercaseSHA256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-
-var workflowTaskStepIDPattern = regexp.MustCompile(`^step\.[a-z0-9][a-z0-9_-]{0,63}$`)
-
 // SolveTask decides whether the request can be answered in this operation or
 // needs a durable task plan. It owns no browser-visible output; answer text is
 // streamed through the internal runtime contract and finalized by Temporal.
@@ -43,12 +38,11 @@ func (s *Adapter) SolveTask(
 		Payload: map[string]any{
 			"max_steps": input.MaxSteps,
 		},
-		RequestID:                input.RequestID,
-		StepID:                   "solve.initial",
-		StepKind:                 "solver",
-		Stream:                   true,
-		TraceParent:              input.TraceParent,
-		VisibleFunctionToolNames: input.VisibleFunctionToolNames,
+		RequestID:   input.RequestID,
+		StepID:      "solve.initial",
+		StepKind:    "solver",
+		Stream:      true,
+		TraceParent: input.TraceParent,
 	})
 }
 
@@ -69,14 +63,13 @@ func (s *Adapter) ExecuteTaskStep(
 			"plan":            input.Plan,
 			"step":            input.Step,
 		},
-		RequestID:                input.RequestID,
-		CitationStart:            input.CitationStart,
-		Plan:                     &input.Plan,
-		Step:                     &input.Step,
-		StepID:                   stepID,
-		StepKind:                 "executor",
-		TraceParent:              input.TraceParent,
-		VisibleFunctionToolNames: input.VisibleFunctionToolNames,
+		RequestID:     input.RequestID,
+		CitationStart: input.CitationStart,
+		Plan:          &input.Plan,
+		Step:          &input.Step,
+		StepID:        stepID,
+		StepKind:      "executor",
+		TraceParent:   input.TraceParent,
 	})
 }
 
@@ -103,15 +96,14 @@ func (s *Adapter) ReplanTask(
 			"plan":                input.Plan,
 			"remaining_steps":     input.RemainingSteps,
 		},
-		RequestID:                input.RequestID,
-		Plan:                     &input.Plan,
-		RemainingSteps:           append([]temporalruntime.WorkflowTaskPlanStep{}, input.RemainingSteps...),
-		MaxRemainingSteps:        input.MaxRemainingSteps,
-		ReplanIndex:              input.ReplanIndex,
-		StepID:                   fmt.Sprintf("solve.replan.%d", input.ReplanIndex),
-		StepKind:                 "replanner",
-		TraceParent:              input.TraceParent,
-		VisibleFunctionToolNames: input.VisibleFunctionToolNames,
+		RequestID:         input.RequestID,
+		Plan:              &input.Plan,
+		RemainingSteps:    append([]temporalruntime.WorkflowTaskPlanStep{}, input.RemainingSteps...),
+		MaxRemainingSteps: input.MaxRemainingSteps,
+		ReplanIndex:       input.ReplanIndex,
+		StepID:            fmt.Sprintf("solve.replan.%d", input.ReplanIndex),
+		StepKind:          "replanner",
+		TraceParent:       input.TraceParent,
 	})
 }
 
@@ -134,37 +126,35 @@ func (s *Adapter) SynthesizeAnswer(
 			"evidence":        input.Evidence,
 			"plan":            input.Plan,
 		},
-		RequestID:                input.RequestID,
-		Plan:                     &input.Plan,
-		StepID:                   "answer.synthesize",
-		StepKind:                 "synthesizer",
-		Stream:                   true,
-		TraceParent:              input.TraceParent,
-		VisibleFunctionToolNames: input.VisibleFunctionToolNames,
+		RequestID:   input.RequestID,
+		Plan:        &input.Plan,
+		StepID:      "answer.synthesize",
+		StepKind:    "synthesizer",
+		Stream:      true,
+		TraceParent: input.TraceParent,
 	})
 }
 
 type workflowOperationActivityRequest struct {
-	AdmissionSnapshot        execution.AgentAdmissionSnapshot
-	CompletedSteps           []temporalruntime.WorkflowCompletedStep
-	ConversationID           string
-	CitationStart            int
-	Evidence                 []temporalruntime.WorkflowEvidence
-	Goal                     string
-	MaxSteps                 int
-	MaxRemainingSteps        int
-	Operation                temporalruntime.WorkflowOperation
-	Payload                  map[string]any
-	Plan                     *temporalruntime.WorkflowTaskPlan
-	RemainingSteps           []temporalruntime.WorkflowTaskPlanStep
-	RequestID                string
-	ReplanIndex              int
-	StepID                   string
-	StepKind                 string
-	Stream                   bool
-	Step                     *temporalruntime.WorkflowTaskPlanStep
-	TraceParent              string
-	VisibleFunctionToolNames []string
+	AdmissionSnapshot execution.AgentAdmissionSnapshot
+	CompletedSteps    []temporalruntime.WorkflowCompletedStep
+	ConversationID    string
+	CitationStart     int
+	Evidence          []temporalruntime.WorkflowEvidence
+	Goal              string
+	MaxSteps          int
+	MaxRemainingSteps int
+	Operation         temporalruntime.WorkflowOperation
+	Payload           map[string]any
+	Plan              *temporalruntime.WorkflowTaskPlan
+	RemainingSteps    []temporalruntime.WorkflowTaskPlanStep
+	RequestID         string
+	ReplanIndex       int
+	StepID            string
+	StepKind          string
+	Stream            bool
+	Step              *temporalruntime.WorkflowTaskPlanStep
+	TraceParent       string
 }
 
 func (s *Adapter) runWorkflowOperationActivity(
@@ -193,10 +183,7 @@ func (s *Adapter) runWorkflowOperationActivity(
 			errors.New("agent runtime base URL and shared secret are required"),
 		)
 	}
-	if err := execution.ValidateAdmissionSnapshotForVisibleTools(
-		request.AdmissionSnapshot,
-		request.VisibleFunctionToolNames,
-	); err != nil {
+	if err := execution.ValidateAdmissionSnapshot(request.AdmissionSnapshot); err != nil {
 		return s.failWorkflowOperationActivity(ctx, run, request, "admission_snapshot_invalid", err)
 	}
 	run, err = s.beginWorkflowRun(ctx, run, time.Now().UTC().Truncate(time.Microsecond))
@@ -260,9 +247,6 @@ func (s *Adapter) runWorkflowOperationActivity(
 		SchemaVersion:           workflowOperationInvocationSchemaVersion,
 		StepID:                  request.StepID,
 	}
-	if err := validateWorkflowOperationInvocationEnvelope(envelope, request.AdmissionSnapshot); err != nil {
-		return s.failWorkflowOperationActivity(ctx, run, request, "workflow_invocation_envelope_invalid", err)
-	}
 	invocationSHA256 := sha256AnyValue(envelope)
 	receiptNow := time.Now().UTC().Truncate(time.Microsecond)
 	_, disposition, err := s.runProjectionStore.BeginAgentInvocation(ctx, execution.AgentInvocationReceipt{
@@ -324,7 +308,7 @@ func (s *Adapter) runWorkflowOperationActivity(
 			"agent_capabilities":          execution.AgentCapabilitiesProjectionPayload(request.AdmissionSnapshot.AgentCapabilities),
 			"agent_budget":                execution.AgentRuntimeBudgetProjectionPayload(request.AdmissionSnapshot.AgentBudget),
 			"tool_contract_fingerprint":   execution.ToolContractFingerprintSnapshotMap(request.AdmissionSnapshot.ToolContractFingerprint),
-			"visible_function_tool_names": append([]string{}, request.VisibleFunctionToolNames...),
+			"visible_function_tool_names": append([]string{}, request.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames...),
 		},
 	}, temporalActivityAttempt(ctx))
 	if err := s.projectTemporalStep(ctx, startedProjection); err != nil {
@@ -351,13 +335,11 @@ func (s *Adapter) runWorkflowOperationActivity(
 			fmt.Errorf("runtime operation %q does not match %q", response.Operation, request.Operation),
 		)
 	}
-	if request.AdmissionSnapshot.ToolContractFingerprintSHA256 != "" {
-		if err := execution.ValidateAgentRuntimeToolContract(
-			request.AdmissionSnapshot.ToolContractFingerprint,
-			response.ToolContractFingerprint,
-		); err != nil {
-			return s.failWorkflowOperationActivity(ctx, run, request, "tool_contract_mismatch", err)
-		}
+	if err := execution.ValidateAgentRuntimeToolContract(
+		request.AdmissionSnapshot.ToolContractFingerprint,
+		response.ToolContractFingerprint,
+	); err != nil {
+		return s.failWorkflowOperationActivity(ctx, run, request, "tool_contract_mismatch", err)
 	}
 	output, err := workflowOperationOutputFromRuntimeResponse(response, request.Operation, resultRef)
 	if err != nil {
@@ -390,11 +372,10 @@ func (s *Adapter) runWorkflowOperationActivity(
 		}
 	}
 	if request.Operation == temporalruntime.WorkflowOperationSolve && output.Plan != nil {
-		if err := validateWorkflowPlanForOperation(
+		if err := temporalruntime.ValidateWorkflowPlan(
 			*output.Plan,
 			request.MaxSteps,
-			stringSet(request.VisibleFunctionToolNames),
-			request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch,
+			request.AdmissionSnapshot.AgentCapabilities,
 		); err != nil {
 			return s.failWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
 		}
@@ -403,18 +384,14 @@ func (s *Adapter) runWorkflowOperationActivity(
 		return s.failWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("replanner result has no decision"))
 	}
 	if request.Operation == temporalruntime.WorkflowOperationReplan {
-		if output.Replan.Decision == "synthesize" && len(output.Replan.RemainingSteps) != 0 {
-			return s.failWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("synthesize decision must not contain remaining steps"))
+		if err := temporalruntime.ValidateWorkflowReplanDecision(*output.Replan); err != nil {
+			return s.failWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
 		}
-		if output.Replan.Decision != "synthesize" && len(output.Replan.RemainingSteps) == 0 {
-			return s.failWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("continuing replan decision requires remaining steps"))
-		}
-		if err := validateWorkflowRemainingSteps(
+		if err := temporalruntime.ValidateWorkflowRemainingSteps(
 			output.Replan.RemainingSteps,
 			request.MaxRemainingSteps,
 			request.CompletedSteps,
-			stringSet(request.VisibleFunctionToolNames),
-			request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch,
+			request.AdmissionSnapshot.AgentCapabilities,
 		); err != nil {
 			return s.failWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
 		}
@@ -439,7 +416,7 @@ func (s *Adapter) runWorkflowOperationActivity(
 	if err != nil {
 		return s.failWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
 	}
-	outputSummary, err := json.Marshal(output)
+	outputJSON, err := json.Marshal(output)
 	if err != nil {
 		return s.failWorkflowOperationActivity(ctx, run, request, "workflow_invocation_receipt_failed", err)
 	}
@@ -449,8 +426,8 @@ func (s *Adapter) runWorkflowOperationActivity(
 		RequestID:    run.RequestID,
 		InputSHA256:  invocationSHA256,
 		State:        execution.AgentInvocationReceiptStateCompleted,
-		OutputJSON:   outputSummary,
-		OutputSHA256: sha256Bytes(outputSummary),
+		OutputJSON:   outputJSON,
+		OutputSHA256: sha256Bytes(outputJSON),
 		CreatedAt:    receiptNow,
 		CompletedAt:  completedReceiptAt,
 		UpdatedAt:    completedReceiptAt,
@@ -529,35 +506,10 @@ type workflowOperationInvocationEnvelope struct {
 	StepID                  string                            `json:"step_id"`
 }
 
-func validateWorkflowOperationInvocationEnvelope(
-	envelope workflowOperationInvocationEnvelope,
-	snapshot execution.AgentAdmissionSnapshot,
-) error {
-	if envelope.SchemaVersion != workflowOperationInvocationSchemaVersion ||
-		envelope.Operation == "" || strings.TrimSpace(envelope.RequestID) == "" ||
-		envelope.InvocationID != strings.TrimSpace(envelope.RequestID)+":"+strings.TrimSpace(envelope.StepID) {
-		return errors.New("workflow operation invocation identity is invalid")
-	}
-	for _, digest := range []string{
-		envelope.AdmissionSnapshotSHA256,
-		envelope.ExecutionInputSHA256,
-		envelope.ProviderRequestSHA256,
-	} {
-		if !workflowLowercaseSHA256Pattern.MatchString(digest) {
-			return errors.New("workflow operation invocation hash is invalid")
-		}
-	}
-	if execution.HashAdmissionJSON(snapshot) != envelope.AdmissionSnapshotSHA256 {
-		return errors.New("workflow operation admission snapshot hash mismatch")
-	}
-	return nil
-}
-
 func validateWorkflowOperationRequest(request workflowOperationActivityRequest) error {
 	if strings.TrimSpace(request.Goal) == "" {
 		return errors.New("workflow operation goal is required")
 	}
-	visible := stringSet(request.VisibleFunctionToolNames)
 	switch request.Operation {
 	case temporalruntime.WorkflowOperationSolve:
 		if request.StepID != "solve.initial" || request.MaxSteps < 1 ||
@@ -571,13 +523,13 @@ func validateWorkflowOperationRequest(request workflowOperationActivityRequest) 
 		if request.CitationStart < 1 {
 			return errors.New("executor citation_start must be positive")
 		}
-		if err := validateWorkflowPlanForOperation(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, visible, request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch); err != nil {
+		if err := temporalruntime.ValidateWorkflowPlan(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, request.AdmissionSnapshot.AgentCapabilities); err != nil {
 			return err
 		}
-		if !workflowPlanContainsStep(*request.Plan, *request.Step) {
+		if !temporalruntime.WorkflowPlanContainsStep(*request.Plan, *request.Step) {
 			return errors.New("executor step is not part of the supplied plan")
 		}
-		if err := validateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan, visible, request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch); err != nil {
+		if err := temporalruntime.ValidateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan); err != nil {
 			return err
 		}
 	case temporalruntime.WorkflowOperationReplan:
@@ -588,23 +540,23 @@ func validateWorkflowOperationRequest(request workflowOperationActivityRequest) 
 		if request.MaxRemainingSteps < 0 || request.MaxRemainingSteps > request.AdmissionSnapshot.AgentBudget.MaxPlanSteps {
 			return errors.New("replanner remaining-step budget is invalid")
 		}
-		if err := validateWorkflowPlanForOperation(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, visible, request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch); err != nil {
+		if err := temporalruntime.ValidateWorkflowPlan(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, request.AdmissionSnapshot.AgentCapabilities); err != nil {
 			return err
 		}
-		if err := validateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan, visible, request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch); err != nil {
+		if err := temporalruntime.ValidateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan); err != nil {
 			return err
 		}
-		if err := validateWorkflowRemainingSteps(request.RemainingSteps, request.MaxRemainingSteps, request.CompletedSteps, visible, request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch); err != nil {
+		if err := temporalruntime.ValidateWorkflowRemainingSteps(request.RemainingSteps, request.MaxRemainingSteps, request.CompletedSteps, request.AdmissionSnapshot.AgentCapabilities); err != nil {
 			return err
 		}
 	case temporalruntime.WorkflowOperationSynthesize:
 		if request.Plan == nil || request.StepID != "answer.synthesize" || !request.Stream {
 			return errors.New("synthesizer identity or stream mode is invalid")
 		}
-		if err := validateWorkflowPlanForOperation(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, visible, request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch); err != nil {
+		if err := temporalruntime.ValidateWorkflowPlan(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, request.AdmissionSnapshot.AgentCapabilities); err != nil {
 			return err
 		}
-		if err := validateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan, visible, request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch); err != nil {
+		if err := temporalruntime.ValidateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan); err != nil {
 			return err
 		}
 		for _, item := range request.Evidence {
@@ -638,7 +590,7 @@ func validateWorkflowOperationOutputSources(
 			return err
 		}
 		if output.CompletedStep != nil {
-			if !sameWorkflowPlanStep(output.CompletedStep.Step, *request.Step) {
+			if !temporalruntime.WorkflowTaskPlanStepEqual(output.CompletedStep.Step, *request.Step) {
 				return errors.New("executor completed step does not match the admitted step")
 			}
 			if err := validateWorkflowOutputSourceAttempts(output.CompletedStep.SourceAttempts, allowed); err != nil {
@@ -669,22 +621,6 @@ func validateWorkflowOperationOutputSources(
 	default:
 		return fmt.Errorf("unsupported workflow operation %q", request.Operation)
 	}
-}
-
-func workflowAvailableSourceSet(visible []string, hostedWebSearch bool) map[temporalruntime.WorkflowSource]struct{} {
-	allowed := map[temporalruntime.WorkflowSource]struct{}{}
-	for _, name := range visible {
-		switch strings.TrimSpace(name) {
-		case workflowCampusSearchToolName:
-			allowed[temporalruntime.WorkflowSourceCampusSearch] = struct{}{}
-		case workflowPersonalMemoryRecallToolName:
-			allowed[temporalruntime.WorkflowSourcePersonalMemoryRecall] = struct{}{}
-		}
-	}
-	if hostedWebSearch {
-		allowed[temporalruntime.WorkflowSourceWebSearch] = struct{}{}
-	}
-	return allowed
 }
 
 func workflowCandidateSourceSet(
@@ -782,189 +718,6 @@ func workflowSourceForToolName(
 	}
 }
 
-func sameWorkflowPlanStep(
-	left temporalruntime.WorkflowTaskPlanStep,
-	right temporalruntime.WorkflowTaskPlanStep,
-) bool {
-	return left.ID == right.ID && left.Objective == right.Objective &&
-		sameWorkflowSources(left.CandidateSources, right.CandidateSources) &&
-		sameWorkflowStrings(left.DependsOn, right.DependsOn)
-}
-
-func validateWorkflowPlanForOperation(
-	plan temporalruntime.WorkflowTaskPlan,
-	maxSteps int,
-	visible map[string]struct{},
-	hostedWebSearch bool,
-) error {
-	if plan.SchemaVersion != "task_plan.v1" || strings.TrimSpace(plan.Goal) == "" ||
-		maxSteps < 1 || len(plan.Steps) > maxSteps {
-		return errors.New("workflow plan identity or size is invalid")
-	}
-	known := map[string]struct{}{}
-	for _, step := range plan.Steps {
-		if !workflowTaskStepIDPattern.MatchString(strings.TrimSpace(step.ID)) || strings.TrimSpace(step.Objective) == "" {
-			return fmt.Errorf("workflow plan step %q has invalid identity", step.ID)
-		}
-		if _, exists := known[step.ID]; exists {
-			return fmt.Errorf("workflow plan step %s is duplicated", step.ID)
-		}
-		if err := validateWorkflowCandidateSources(step.ID, step.CandidateSources, visible, hostedWebSearch); err != nil {
-			return err
-		}
-		seenDependencies := map[string]struct{}{}
-		for _, dependency := range step.DependsOn {
-			if dependency == step.ID {
-				return fmt.Errorf("workflow plan step %s depends on itself", step.ID)
-			}
-			if _, duplicate := seenDependencies[dependency]; duplicate {
-				return fmt.Errorf("workflow plan step %s repeats a dependency", step.ID)
-			}
-			if _, exists := known[dependency]; !exists {
-				return fmt.Errorf("workflow plan step %s depends on unknown or later step %s", step.ID, dependency)
-			}
-			seenDependencies[dependency] = struct{}{}
-		}
-		known[step.ID] = struct{}{}
-	}
-	return nil
-}
-
-func validateWorkflowCandidateSources(
-	stepID string,
-	sources []temporalruntime.WorkflowSource,
-	visible map[string]struct{},
-	hostedWebSearch bool,
-) error {
-	if len(sources) == 0 || len(sources) > 3 {
-		return fmt.Errorf("workflow step %s candidate source count is invalid", stepID)
-	}
-	seen := map[temporalruntime.WorkflowSource]struct{}{}
-	for _, source := range sources {
-		if _, duplicate := seen[source]; duplicate {
-			return fmt.Errorf("workflow step %s repeats candidate source %s", stepID, source)
-		}
-		seen[source] = struct{}{}
-		switch source {
-		case temporalruntime.WorkflowSourceCampusSearch, temporalruntime.WorkflowSourcePersonalMemoryRecall:
-			if _, admitted := visible[string(source)]; !admitted {
-				return fmt.Errorf("workflow step %s uses non-admitted source %s", stepID, source)
-			}
-		case temporalruntime.WorkflowSourceWebSearch:
-			if !hostedWebSearch {
-				return fmt.Errorf("workflow step %s uses non-admitted source %s", stepID, source)
-			}
-		default:
-			return fmt.Errorf("workflow step %s uses unsupported source %q", stepID, source)
-		}
-	}
-	return nil
-}
-
-func validateWorkflowCompletedSteps(
-	completed []temporalruntime.WorkflowCompletedStep,
-	plan temporalruntime.WorkflowTaskPlan,
-	visible map[string]struct{},
-	hostedWebSearch bool,
-) error {
-	if len(completed) > len(plan.Steps) {
-		return errors.New("completed workflow step count exceeds the supplied plan")
-	}
-	seen := map[string]struct{}{}
-	for _, item := range completed {
-		if item.ExecutionIndex < 1 || strings.TrimSpace(item.Summary) == "" {
-			return errors.New("completed workflow step metadata is invalid")
-		}
-		if _, duplicate := seen[item.Step.ID]; duplicate {
-			return fmt.Errorf("completed workflow step %s is duplicated", item.Step.ID)
-		}
-		if !workflowPlanContainsStep(plan, item.Step) {
-			return fmt.Errorf("completed workflow step %s is not part of the supplied plan", item.Step.ID)
-		}
-		if err := validateWorkflowCandidateSources(item.Step.ID, item.Step.CandidateSources, visible, hostedWebSearch); err != nil {
-			return err
-		}
-		seen[item.Step.ID] = struct{}{}
-	}
-	return nil
-}
-
-func validateWorkflowRemainingSteps(
-	remaining []temporalruntime.WorkflowTaskPlanStep,
-	maxRemaining int,
-	completed []temporalruntime.WorkflowCompletedStep,
-	visible map[string]struct{},
-	hostedWebSearch bool,
-) error {
-	if len(remaining) > maxRemaining {
-		return errors.New("remaining workflow steps exceed the admitted budget")
-	}
-	known := map[string]struct{}{}
-	for _, item := range completed {
-		known[item.Step.ID] = struct{}{}
-	}
-	for _, step := range remaining {
-		if !workflowTaskStepIDPattern.MatchString(strings.TrimSpace(step.ID)) || strings.TrimSpace(step.Objective) == "" {
-			return fmt.Errorf("remaining workflow step %q has invalid identity", step.ID)
-		}
-		if _, duplicate := known[step.ID]; duplicate {
-			return fmt.Errorf("remaining workflow step %s is duplicated or already completed", step.ID)
-		}
-		if err := validateWorkflowCandidateSources(step.ID, step.CandidateSources, visible, hostedWebSearch); err != nil {
-			return err
-		}
-		for _, dependency := range step.DependsOn {
-			if dependency == step.ID {
-				return fmt.Errorf("remaining workflow step %s depends on itself", step.ID)
-			}
-			if _, exists := known[dependency]; !exists {
-				return fmt.Errorf("remaining workflow step %s depends on unknown or later step %s", step.ID, dependency)
-			}
-		}
-		known[step.ID] = struct{}{}
-	}
-	return nil
-}
-
-func workflowPlanContainsStep(
-	plan temporalruntime.WorkflowTaskPlan,
-	want temporalruntime.WorkflowTaskPlanStep,
-) bool {
-	for _, step := range plan.Steps {
-		if step.ID != want.ID || step.Objective != want.Objective ||
-			!sameWorkflowSources(step.CandidateSources, want.CandidateSources) ||
-			!sameWorkflowStrings(step.DependsOn, want.DependsOn) {
-			continue
-		}
-		return true
-	}
-	return false
-}
-
-func sameWorkflowSources(left, right []temporalruntime.WorkflowSource) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
-func sameWorkflowStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
 func workflowOperationInputError(message string) error {
 	return sanitizedTemporalApplicationError("workflow_operation_input_invalid", errors.New(message), true)
 }
@@ -1010,7 +763,7 @@ func workflowOperationRuntimeRequestPayload(
 		"conversation_id":              run.ConversationID,
 		"operation":                    string(request.Operation),
 		"operation_input":              request.Payload,
-		"visible_function_tool_names":  append([]string{}, request.VisibleFunctionToolNames...),
+		"visible_function_tool_names":  append([]string{}, request.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames...),
 		"limits":                       workflowRuntimeLimitsPayload(limits),
 		"expected_model_target_sha256": request.AdmissionSnapshot.ModelTargetSHA256,
 	}
@@ -1052,7 +805,6 @@ func workflowOperationOutputFromRuntimeResponse(
 		FinalOutput:             strings.TrimSpace(response.FinalOutput),
 		ModelName:               strings.TrimSpace(response.ModelName),
 		ModelProvider:           strings.TrimSpace(response.ModelProvider),
-		PromptTrace:             execution.CloneAnyMapFromValue(response.PromptTrace),
 		ProviderResponseID:      strings.TrimSpace(response.ProviderResponseID),
 		RequestID:               strings.TrimSpace(response.RequestID),
 		StageTiming:             execution.CloneAnyMapFromValue(response.StageTiming),
@@ -1116,7 +868,8 @@ func workflowOperationOutputFromRuntimeResponse(
 		if err := decodeWorkflowValue(response.StructuredOutput, &replan); err != nil {
 			return temporalruntime.WorkflowOperationActivityOutput{}, fmt.Errorf("decode task replan: %w", err)
 		}
-		if replan.SchemaVersion != "task_replan.v1" || strings.TrimSpace(replan.Decision) == "" {
+		if replan.SchemaVersion != "task_replan.v1" ||
+			(replan.Decision != "continue" && replan.Decision != "synthesize") {
 			return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("task replan identity is invalid")
 		}
 		output.Replan = &replan
@@ -1217,16 +970,15 @@ func (s *Adapter) projectWorkflowToolResults(
 	output temporalruntime.WorkflowOperationActivityOutput,
 	identity temporalStepProjection,
 ) error {
-	visible := stringSet(request.VisibleFunctionToolNames)
 	completedAt := time.Now().UTC().Truncate(time.Microsecond)
 	for _, result := range output.ToolResults {
 		toolName := strings.TrimSpace(result.ToolName)
 		if toolName == "" || strings.TrimSpace(result.InvocationID) == "" {
 			return errors.New("workflow tool result identity is required")
 		}
-		if _, admitted := visible[toolName]; !admitted {
-			return fmt.Errorf("workflow tool %s was not visible for this operation", toolName)
-		}
+		// Tool/source admission is completed before projection by
+		// validateWorkflowOperationOutputSources. This function only validates
+		// projection fields and writes the bounded tool result.
 		durationMS, err := workflowToolDurationMS(result.DurationMS)
 		if err != nil {
 			return err
@@ -1563,7 +1315,6 @@ func agentRuntimeResponseFromTemporalOutput(
 		SolveOutcome:            output.SolveOutcome,
 		ModelName:               output.ModelName,
 		ModelProvider:           output.ModelProvider,
-		PromptTrace:             execution.CloneAnyMapFromValue(output.PromptTrace),
 		ProviderResponseID:      output.ProviderResponseID,
 		RequestID:               output.RequestID,
 		StageTiming:             execution.CloneAnyMapFromValue(output.StageTiming),

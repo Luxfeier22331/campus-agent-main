@@ -1,4 +1,4 @@
-import { AuiIf, ThreadPrimitive, useAuiState } from "@assistant-ui/react";
+import { AuiIf, ThreadPrimitive, useAui, useAuiState } from "@assistant-ui/react";
 import { cn } from "@campus-agent/ui";
 import { ArrowDownIcon } from "lucide-react";
 import type { FC } from "react";
@@ -98,6 +98,7 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 };
 
 const ThreadRunStatus: FC = () => {
+	const aui = useAui();
 	const threadId = useAuiState((state) => state.threadListItem.id);
 	const isRunning = useAuiState((state) => state.thread.isRunning);
 	const connection = useAuiState((state) => {
@@ -137,7 +138,20 @@ const ThreadRunStatus: FC = () => {
 					data-connection={connection}
 					role="status"
 				>
-					{connection === "disconnected" ? "连接已断开" : "正在回答"}
+					{connection === "disconnected"
+						? "连接已断开"
+						: connection === "recovering"
+							? "正在恢复连接"
+							: "正在回答"}
+					{connection === "disconnected" ? (
+						<button
+							type="button"
+							className="ml-2 underline"
+							onClick={() => void aui.thread().resumeRun({ parentId: null })}
+						>
+							恢复连接
+						</button>
+					) : null}
 				</p>
 			) : null}
 			<span aria-atomic="true" aria-live="polite" className="sr-only" role="status">

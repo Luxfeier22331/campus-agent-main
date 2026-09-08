@@ -30,9 +30,9 @@ execution-control，由 execution-control 持久化并投递；app-api 不复制
 原始执行输入由 app-api 以精确文本和 hash 拥有。Temporal 输入/history 与 execution-control
 投影只保存 ref/hash 和有界标识，不能复制 prompt、会话或认证正文。
 
-Primary Agent Activity 具有不可重复的外部模型副作用，因此禁用 Activity 自动重试，并以持久
-invocation receipt 支持完整结果的只读恢复；已经开始却没有完整 receipt 的调用失败为不确定状态，
-不重新执行。其他具备幂等边界的 activity 仍可按各自策略重试。
+Agent operation Activity 可以重投递以恢复结果和修复投影，但不能重复外部模型调用。持久
+invocation receipt 在调用前取得首次执行权；started receipt 的结果不确定时阻断，completed receipt
+使用已保存的完整类型化结果修复投影并返回。Activity 重试不是供应商调用重试，具体策略由运行架构维护。
 
 取消和超时必须从 Temporal 传播到 Agent Activity 和进行中的内部或供应商调用。取消后的终态
 写入使用 disconnected workflow context，避免 cancellation 跳过持久 closeout。app-api 产品终态

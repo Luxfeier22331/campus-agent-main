@@ -12,7 +12,6 @@ import type {
 	CompletedTaskStep,
 	CreateWorkflowOperationRuntimeOptions,
 	ModelContextUsage,
-	PromptTrace,
 	SdkToolRuntime,
 	SolveWorkflowOperationInput,
 	SourceAttempt,
@@ -60,7 +59,7 @@ export const taskPlanOutputSchema = z
 export const taskReplanOutputSchema = z
 	.object({
 		schemaVersion: z.literal("task_replan.v1"),
-		decision: z.enum(["continue", "revise", "synthesize"]),
+		decision: z.enum(["continue", "synthesize"]),
 		reason: z.string().trim().min(1).max(1_000),
 		remainingSteps: z.array(taskPlanStepSchema).max(32),
 	})
@@ -86,9 +85,7 @@ export const solveOutputSchema = z.discriminatedUnion("outcome", [
 // object-shaped schema only when configuring the SDK output type.
 export const solveSdkOutputSchema = z
 	.object({
-		answer: z.string().max(32_000).optional(),
-		outcome: z.enum(["answer", "plan"]),
-		plan: taskPlanOutputSchema.optional(),
+		result: solveOutputSchema,
 	})
 	.strict();
 
@@ -103,10 +100,10 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		...productIdentityInstructions,
 		"你负责在一次操作中决定直接回答用户，或为复杂校园信息任务制定可执行计划。",
 		"只输出一个 JSON 对象，不要输出 Markdown、代码围栏或解释性文字。",
-		'直接回答时必须输出 {"outcome":"answer","answer":"..."}；answer 必须是给用户看的自然语言。',
+		'直接回答时必须输出 {"result":{"outcome":"answer","answer":"..."}}；answer 必须是给用户看的自然语言，不得包含 plan 字段。',
 		"本操作不调用检索工具，也不能用模型记忆补齐当前校园事实；涉及校园规定、通知、联系方式、日期、资格条件等需要资料支持的问题，必须输出 plan。",
 		"只有问候、改写、产品说明或其他不需要外部资料的问题才直接返回 answer。",
-		'需要多个相互依赖的目标、多个检索步骤或一次检索无法闭合时，输出 {"outcome":"plan","plan":{...}}。',
+		'需要多个相互依赖的目标、多个检索步骤或一次检索无法闭合时，输出 {"result":{"outcome":"plan","plan":{...}}}，不得包含 answer 字段。',
 		"plan 必须恰好包含 schemaVersion、goal、steps；schemaVersion 必须是 task_plan.v1。",
 		"steps 中每项必须恰好包含 id、objective、candidateSources、dependsOn。",
 		"每个步骤都必须有唯一的 step.<name> id、明确 objective、非空 candidateSources 和只指向前序步骤的 dependsOn。",
@@ -128,9 +125,9 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"你负责检查已经完成的步骤和剩余步骤，决定继续、调整步骤或直接合成。",
 		"只输出一个 JSON 对象，不要输出 Markdown、代码围栏或解释性文字。",
 		"JSON 必须恰好包含 schemaVersion、decision、reason、remainingSteps；字段名区分大小写，schemaVersion 必须是 task_replan.v1。",
-		"decision 只能是 continue、revise 或 synthesize；remainingSteps 中每项必须恰好包含 id、objective、candidateSources、dependsOn。",
+		"decision 只能是 continue 或 synthesize；remainingSteps 中每项必须恰好包含 id、objective、candidateSources、dependsOn。",
 		"如果已有证据足以回答用户目标，选择 synthesize；不要为了增加步骤而继续。",
-		"如果来源无匹配、失败或出现新的依赖，选择 revise 并给出合法的剩余步骤。",
+		"如果仍需执行步骤，选择 continue；remainingSteps 给出完整的剩余路径，可以保留或替换原有步骤，并通过 reason 说明原因。",
 		"调整后的 candidateSources 只能使用 operation data 中 availableSources 列出的值，dependsOn 只能引用已有或更早的新步骤。",
 	].join("\n"),
 	synthesize: [
@@ -140,6 +137,8 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		"回答用户目标中有证据支持的部分；证据不足时明确说明资料边界，但仍保留已经支持的部分。",
 		"Campus evidence 的 citationIndex 为 N 时，在对应事实后写成 [N]，例如 citationIndex=1 写成 [1]。不得输出 [citation_index:1]、[citationIndex:1] 或其他占位写法。",
 		"不要手写 URL 或内部 locator。",
+		"编号引用只能使用 materials 中实际提供的 citationIndex；没有可编号材料时不得输出任何 [N]，也不得为资料不足说明添加引用。",
+		"按 coverageNotes 区分资料暂时无法取得与检索成功但无匹配，不得把资料获取失败说成已经查证没有相关资料。",
 		"只输出给用户看的自然语言答案，不要输出计划、步骤状态、工具失败细节或内部标签。",
 	].join("\n"),
 };
@@ -152,13 +151,6 @@ export function createWorkflowOperationRuntime(
 		...defaultInstructions,
 		...(options.instructions ?? {}),
 	};
-	const promptTemplateHashes = new Map<WorkflowOperation, string>(
-		(Object.keys(instructions) as WorkflowOperation[]).map((operation) => [
-			operation,
-			sha256(instructions[operation]),
-		]),
-	);
-
 	return {
 		async run(input) {
 			const prepared = prepareOperation(input, options.catalog, executor, instructions);
@@ -170,8 +162,6 @@ export function createWorkflowOperationRuntime(
 				runnerResult,
 				startedAt,
 				completedAt: new Date(),
-				promptTemplateSha256:
-					promptTemplateHashes.get(input.operation) ?? sha256(instructions[input.operation]),
 				toolContractFingerprint: options.catalog.contractFingerprint,
 			});
 		},
@@ -206,8 +196,6 @@ export function createWorkflowOperationRuntime(
 						startedAt,
 						completedAt: new Date(),
 						...(firstDeltaAt ? { firstDeltaAt } : {}),
-						promptTemplateSha256:
-							promptTemplateHashes.get(input.operation) ?? sha256(instructions[input.operation]),
 						toolContractFingerprint: options.catalog.contractFingerprint,
 					});
 					if (input.operation === "solve") {
@@ -598,21 +586,14 @@ function operationResultFromRunner(args: {
 	startedAt: Date;
 	completedAt: Date;
 	firstDeltaAt?: Date;
-	promptTemplateSha256: string;
 	toolContractFingerprint: ToolContractFingerprint;
 }): WorkflowOperationResult {
 	const { input, prepared, runnerResult } = args;
-	const promptTrace = promptTraceFromRenderedInstructions(
-		input.operation,
-		args.promptTemplateSha256,
-		prepared.runnerInput.instructions,
-	);
 	const common = {
 		contextUsage: prepared.contextUsage,
 		modelName: input.providerConfig.model,
 		modelProvider: input.providerConfig.provider,
 		operation: input.operation,
-		promptTrace,
 		providerResponseId: runnerResult.providerResponseId,
 		requestId: input.requestId,
 		stageTiming: stageTiming(input.operation, args.startedAt, args.completedAt, args.firstDeltaAt),
@@ -626,12 +607,7 @@ function operationResultFromRunner(args: {
 	try {
 		switch (input.operation) {
 			case "solve": {
-				const outcome = requireSolveOutcome(
-					runnerResult,
-					input.operationInput.goal,
-					input.operationInput.maxSteps,
-					new Set(availableWorkflowSources(input)),
-				);
+				const outcome = requireSolveOutcome(runnerResult, input.operationInput.goal);
 				const evidence = evidenceFromRunnerResult(runnerResult, 1);
 				const sourceAttempts = sourceAttemptsFromRunnerResult(runnerResult);
 				if (outcome.outcome === "answer") {
@@ -657,12 +633,7 @@ function operationResultFromRunner(args: {
 				};
 			}
 			case "replan": {
-				const replan = requireTaskReplan(
-					runnerResult.finalOutput,
-					input.operationInput.plan,
-					input.operationInput.maxRemainingSteps,
-					new Set(availableWorkflowSources(input)),
-				);
+				const replan = requireTaskReplan(runnerResult.finalOutput);
 				return {
 					...common,
 					finalOutput: "",
@@ -723,8 +694,6 @@ function operationResultFromRunner(args: {
 function requireSolveOutcome(
 	runnerResult: AgentRunnerResult,
 	goal: string,
-	maxSteps: number,
-	availableSources: Set<WorkflowSource>,
 ): { outcome: "answer"; answer: string } | { outcome: "plan"; plan: TaskPlan } {
 	const raw =
 		runnerResult.structuredOutput ??
@@ -739,7 +708,6 @@ function requireSolveOutcome(
 	if (parsed.data.outcome === "answer") {
 		return { answer: parsed.data.answer.trim(), outcome: "answer" };
 	}
-	validatePlanGraph(parsed.data.plan.steps, maxSteps, new Set(), availableSources);
 	return {
 		outcome: "plan",
 		plan: {
@@ -750,12 +718,7 @@ function requireSolveOutcome(
 	};
 }
 
-function requireTaskReplan(
-	value: string,
-	plan: TaskPlan,
-	maxSteps: number,
-	availableSources: Set<WorkflowSource>,
-): TaskReplan {
+function requireTaskReplan(value: string): TaskReplan {
 	const parsed = taskReplanOutputSchema.safeParse(
 		parseModelJSON(value, "Replanner", "workflow.replan"),
 	);
@@ -764,22 +727,6 @@ function requireTaskReplan(
 			operation: "workflow.replan",
 			detail: parsed.error.message,
 		});
-	}
-	const knownPlanIDs = new Set(plan.steps.map((step) => step.id));
-	validateReplannedSteps(parsed.data.remainingSteps, maxSteps, knownPlanIDs, availableSources);
-	if (parsed.data.decision === "synthesize" && parsed.data.remainingSteps.length > 0) {
-		throw new AgentRuntimeError(
-			"run_failed",
-			"A synthesize replan decision cannot contain remaining steps.",
-			{ operation: "workflow.replan" },
-		);
-	}
-	if (parsed.data.decision !== "synthesize" && parsed.data.remainingSteps.length === 0) {
-		throw new AgentRuntimeError(
-			"run_failed",
-			"A continuing replan decision must contain remaining steps.",
-			{ operation: "workflow.replan" },
-		);
 	}
 	return {
 		decision: parsed.data.decision,
@@ -803,120 +750,6 @@ function parseModelJSON(value: string, label: string, operation: string): unknow
 			operation,
 			detail: error instanceof Error ? error.message : "JSON parsing failed",
 		});
-	}
-}
-
-function validatePlanGraph(
-	steps: z.infer<typeof taskPlanStepSchema>[],
-	maxSteps: number,
-	knownIDs: Set<string>,
-	availableSources: Set<WorkflowSource>,
-): void {
-	if (steps.length > maxSteps) {
-		throw new AgentRuntimeError("run_failed", "Workflow plan exceeds its admitted step budget.", {
-			operation: "workflow.solve",
-		});
-	}
-	const IDs = new Set(knownIDs);
-	for (const step of steps) {
-		if (IDs.has(step.id)) {
-			throw new AgentRuntimeError("run_failed", `Workflow step ${step.id} is duplicated.`, {
-				operation: "workflow.solve",
-			});
-		}
-		IDs.add(step.id);
-		if (new Set(step.candidateSources).size !== step.candidateSources.length) {
-			throw new AgentRuntimeError("run_failed", `Workflow step ${step.id} repeats a source.`, {
-				operation: "workflow.solve",
-			});
-		}
-		for (const source of step.candidateSources) {
-			if (!availableSources.has(source)) {
-				throw new AgentRuntimeError(
-					"run_failed",
-					`Workflow step ${step.id} uses unavailable source ${source}.`,
-					{ operation: "workflow.solve" },
-				);
-			}
-		}
-		if (
-			step.dependsOn.includes(step.id) ||
-			new Set(step.dependsOn).size !== step.dependsOn.length
-		) {
-			throw new AgentRuntimeError(
-				"run_failed",
-				`Workflow step ${step.id} has invalid dependencies.`,
-				{
-					operation: "workflow.solve",
-				},
-			);
-		}
-		for (const dependency of step.dependsOn) {
-			if (!IDs.has(dependency)) {
-				throw new AgentRuntimeError(
-					"run_failed",
-					`Workflow step ${step.id} depends on an unknown or later step ${dependency}.`,
-					{ operation: "workflow.solve" },
-				);
-			}
-		}
-	}
-}
-
-function validateReplannedSteps(
-	steps: z.infer<typeof taskPlanStepSchema>[],
-	maxSteps: number,
-	knownIDs: Set<string>,
-	availableSources: Set<WorkflowSource>,
-): void {
-	if (steps.length > maxSteps) {
-		throw new AgentRuntimeError("run_failed", "Workflow replan exceeds its admitted step budget.", {
-			operation: "workflow.replan",
-		});
-	}
-	const seen = new Set<string>();
-	for (const step of steps) {
-		if (seen.has(step.id)) {
-			throw new AgentRuntimeError("run_failed", `Workflow step ${step.id} is duplicated.`, {
-				operation: "workflow.replan",
-			});
-		}
-		seen.add(step.id);
-		if (new Set(step.candidateSources).size !== step.candidateSources.length) {
-			throw new AgentRuntimeError("run_failed", `Workflow step ${step.id} repeats a source.`, {
-				operation: "workflow.replan",
-			});
-		}
-		for (const source of step.candidateSources) {
-			if (!availableSources.has(source)) {
-				throw new AgentRuntimeError(
-					"run_failed",
-					`Workflow step ${step.id} uses unavailable source ${source}.`,
-					{ operation: "workflow.replan" },
-				);
-			}
-		}
-		if (
-			step.dependsOn.includes(step.id) ||
-			new Set(step.dependsOn).size !== step.dependsOn.length
-		) {
-			throw new AgentRuntimeError(
-				"run_failed",
-				`Workflow step ${step.id} has invalid dependencies.`,
-				{
-					operation: "workflow.replan",
-				},
-			);
-		}
-		for (const dependency of step.dependsOn) {
-			if (!(knownIDs.has(dependency) || seen.has(dependency))) {
-				throw new AgentRuntimeError(
-					"run_failed",
-					`Workflow step ${step.id} depends on an unknown or later step ${dependency}.`,
-					{ operation: "workflow.replan" },
-				);
-			}
-		}
 	}
 }
 
@@ -1194,19 +1027,6 @@ function validateCurrentInput(value: string, limits: AgentRuntimeLimits): void {
 			{ operation: "workflow.context" },
 		);
 	}
-}
-
-function promptTraceFromRenderedInstructions(
-	operation: WorkflowOperation,
-	promptTemplateSha256: string,
-	renderedInstructions: string,
-): PromptTrace {
-	return {
-		promptId: `workflow.${operation}`,
-		promptTemplateSha256,
-		renderedPromptSha256: sha256(renderedInstructions),
-		schemaVersion: "agent_runtime_prompt_trace.v1",
-	};
 }
 
 function stageTiming(

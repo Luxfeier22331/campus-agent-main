@@ -73,7 +73,16 @@ async function* parseProductSse(response: Response): AsyncIterable<ChatRequestSt
 	let completed = false;
 	try {
 		while (true) {
-			const chunk = await reader.read();
+			const chunk = await reader.read().catch((error: unknown) => {
+				if (error instanceof TypeError) {
+					throw new ChatStreamRequestError({
+						code: "chat_stream_connection_lost",
+						message: "回答连接已断开。",
+						retryable: true,
+					});
+				}
+				throw error;
+			});
 			if (chunk.done) {
 				break;
 			}

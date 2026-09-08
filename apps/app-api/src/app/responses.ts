@@ -4,7 +4,7 @@ export function dependencyNotReadyResponse() {
 	return jsonResponse(
 		errorEnvelope({
 			code: "dependency_not_ready",
-			message: "Runtime configuration is incomplete.",
+			message: "Runtime dependencies are not ready.",
 			retryable: true,
 		}),
 		{ status: 503 },

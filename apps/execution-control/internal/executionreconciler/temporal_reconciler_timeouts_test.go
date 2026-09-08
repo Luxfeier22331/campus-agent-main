@@ -143,6 +143,11 @@ func TestTemporalReconcilerFailClosesClosedWorkflowWithoutProductTerminalProject
 			status:      execution.WorkflowExecutionStatusCanceled,
 			failureKind: workflowCanceledUnprojectedFailure,
 		},
+		{
+			name:        "continued as new without successor visibility",
+			status:      execution.WorkflowExecutionStatusContinuedAsNew,
+			failureKind: workflowExecutionClosedInvariantFailure,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store, intent := createReconcilerStartIntentForTest(t)
@@ -240,8 +245,8 @@ func TestTemporalReconcilerTimeoutScanPaginatesPastFailedBatchAndWraps(t *testin
 	if err != nil || expired.Status != execution.DurableRunStatusExpired || !expired.CompletedAt.Equal(closedAt) {
 		t.Fatalf("later-page timeout did not converge: %#v err=%v", expired, err)
 	}
-	if described := starter.describedTemporalRunIDs(); len(described) != 2 ||
-		described[0] != "temporal-paginated-timeout" || described[1] != "" {
+	if described := starter.describedTemporalRunIDs(); len(described) != 1 ||
+		described[0] != "temporal-paginated-timeout" {
 		t.Fatalf("timeout describe Temporal run ids = %#v", described)
 	}
 	reconciler.ReconcileWorkflowTimeouts(context.Background())

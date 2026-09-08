@@ -84,8 +84,6 @@ func TestTemporalReconcilerAllowsCompletionAfterCancellationRequest(t *testing.T
 				starter.cancelErr = errors.New("cancellation delivery was uncertain")
 				starter.describeSeries = []execution.WorkflowExecutionInfo{
 					runningInfo,
-					runningInfo,
-					completedInfo,
 					completedInfo,
 				}
 			}
@@ -250,6 +248,15 @@ func TestTemporalReconcilerEnsuresAndCancelsMissingDispatchedStart(t *testing.T)
 		startRunID:     recoveredRun.RunID,
 		describe:       recoveredRun,
 		describeSeries: []execution.WorkflowExecutionInfo{{Found: false}},
+		onDescribe: func(runID string) {
+			if runID == "" {
+				return // Initial discovery before recovery.
+			}
+			bound, err := store.GetWorkflowStartIntent(context.Background(), intent.RequestID)
+			if err != nil || bound.TemporalRunID != runID {
+				t.Fatalf("recovery status read preceded durable binding: %#v, err=%v", bound, err)
+			}
+		},
 	}
 	reconciler := newReconcilerForTest(config.Config{TemporalStartTimeoutMS: 1000}, store, starter, nil)
 	reconciler.ReconcileCancellationCommand(context.Background(), store, commands[0])
@@ -276,7 +283,7 @@ func TestTemporalReconcilerEnsuresAndCancelsMissingDispatchedStart(t *testing.T)
 		t.Fatalf("recovery input changed: input=%s durable=%s err=%v", recoveryInputJSON, intent.WorkflowInputJSON, err)
 	}
 	described := starter.describedTemporalRunIDs()
-	wantDescribed := []string{"", recoveredRun.RunID, "", ""}
+	wantDescribed := []string{"", recoveredRun.RunID}
 	if fmt.Sprint(described) != fmt.Sprint(wantDescribed) {
 		t.Fatalf("recovery describes = %#v, want %#v", described, wantDescribed)
 	}

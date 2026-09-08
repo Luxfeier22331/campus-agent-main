@@ -4,7 +4,7 @@ import type { ChatRequestStreamEvent } from "./model";
 import type { ChatRunStatus } from "./run-client";
 
 export interface RuntimeRunState {
-	connection: "connected" | "disconnected";
+	connection: "connected" | "disconnected" | "recovering";
 	operationId: number;
 	requestId: string | null;
 	sequence: number;

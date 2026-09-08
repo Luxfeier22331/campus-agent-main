@@ -210,16 +210,6 @@ func (s *Starter) validateStartedToolExecutionWorkflow(
 	if strings.TrimSpace(exact.RunID) != temporalRunID || strings.TrimSpace(exact.FirstRunID) != temporalRunID {
 		return "", fmt.Errorf("%w: started execution is not the root run", ErrWorkflowOwnershipUnsafe)
 	}
-	latest, err := s.describeToolExecutionWorkflow(ctx, workflowID, "")
-	if err != nil {
-		return "", fmt.Errorf("%w: describe latest execution: %v", ErrWorkflowIdentityUnknown, err)
-	}
-	if err := ValidateToolExecutionWorkflowIdentity(latest, expected); err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(latest.RunID) != temporalRunID || strings.TrimSpace(latest.FirstRunID) != temporalRunID {
-		return "", fmt.Errorf("%w: latest execution differs from started root run", ErrWorkflowOwnershipUnsafe)
-	}
 	return temporalRunID, nil
 }
 
@@ -332,9 +322,12 @@ func (s *Starter) describeToolExecutionWorkflow(
 		info.ResetRunID = strings.TrimSpace(extended.ResetRunId)
 		if extended.LastResetTime != nil {
 			if err := extended.LastResetTime.CheckValid(); err != nil {
-				return WorkflowExecutionInfo{}, errors.New("temporal workflow last reset time is invalid")
+				// Reset metadata gates initial binding, not reads of an already
+				// bound execution's status.
+				info.ResetStateKnown = false
+			} else {
+				info.LastResetTime = extended.LastResetTime.AsTime().UTC()
 			}
-			info.LastResetTime = extended.LastResetTime.AsTime().UTC()
 		}
 	}
 	return info, nil

@@ -95,9 +95,7 @@ export function createProviderConfigAdminClient(
 			}).then((response) => ModelDiscoveryResponseSchema.parse(discoveryResponse(response)));
 		},
 		async getStatus() {
-			return ExecutionModelSettingsStatusSchema.parse(
-				mapStatus(await request("", { method: "GET" })),
-			);
+			return mapStatus(await request("", { method: "GET" }));
 		},
 		async put(kind: ModelSettingKind, body: ModelSettingUpdate, actorId: string) {
 			const parsed =
@@ -111,18 +109,14 @@ export function createProviderConfigAdminClient(
 				body: updateInput(kind, parsed),
 				method: "PUT",
 			});
-			return ExecutionModelSettingsStatusSchema.parse(
-				mapStatus(await request("", { method: "GET" })),
-			);
+			return mapStatus(await request("", { method: "GET" }));
 		},
 		async validate(kind: ModelSettingKind, actorId: string) {
 			await request(`/${configNameForKind(kind)}/validate`, {
 				actorId,
 				method: "POST",
 			});
-			return ExecutionModelSettingsStatusSchema.parse(
-				mapStatus(await request("", { method: "GET" })),
-			);
+			return mapStatus(await request("", { method: "GET" }));
 		},
 	};
 }
@@ -184,43 +178,38 @@ function discoveryResponse(value: unknown) {
 }
 function mapStatus(value: unknown) {
 	const raw = asRecord(value);
+	if (!raw.configs || typeof raw.configs !== "object" || Array.isArray(raw.configs)) {
+		throw new ProviderConfigAdminUnavailableError(
+			"Model settings response is missing a valid configs object.",
+		);
+	}
 	const configs = asRecord(raw.configs);
 	const setting = (kind: ModelSettingKind) => {
 		const config = configs[configNameForKind(kind)];
-		if (!config) {
+		if (config === undefined || config === null) {
 			return null;
 		}
 		const b = asRecord(config);
-		const rawValidation = b.validation;
-		const validation =
-			rawValidation && typeof rawValidation === "object" && !Array.isArray(rawValidation)
-				? asRecord(rawValidation)
-				: null;
-		const hasCompleteValidation =
-			validation !== null &&
-			(validation.status === "passed" || validation.status === "failed") &&
-			typeof validation.message === "string" &&
-			typeof b.validated_at === "string" &&
-			typeof b.validated_by === "string";
+		const validation = asRecord(b.validation);
+		const unvalidated = b.validation === null && b.validated_at === null && b.validated_by === null;
 		return {
 			baseUrl: b.base_url,
 			credentialConfigured: b.credential_configured,
 			kind,
-			latestValidation: hasCompleteValidation
-				? {
-						...(typeof validation.error_code === "string" && validation.error_code
+			latestValidation: unvalidated
+				? null
+				: {
+						...(validation.error_code !== undefined && validation.error_code !== ""
 							? { errorCode: validation.error_code }
 							: {}),
 						message: validation.message,
-						...(typeof validation.observed_dimensions === "number" &&
-						validation.observed_dimensions > 0
-							? { observedDimensions: validation.observed_dimensions }
-							: {}),
+						...(validation.observed_dimensions === undefined
+							? {}
+							: { observedDimensions: validation.observed_dimensions }),
 						status: validation.status,
 						validatedAt: b.validated_at,
 						validatedBy: b.validated_by,
-					}
-				: null,
+					},
 			model: b.model,
 			provider: b.provider,
 			transport:
@@ -230,12 +219,14 @@ function mapStatus(value: unknown) {
 						? "chat_completions"
 						: b.api_protocol === "cohere.rerank"
 							? "rerank"
-							: "embeddings",
+							: b.api_protocol === "openai.embeddings"
+								? "embeddings"
+								: undefined,
 			updatedAt: b.updated_at,
 			updatedBy: b.updated_by,
 		};
 	};
-	return {
+	const result = ExecutionModelSettingsStatusSchema.safeParse({
 		embeddingContract: {
 			dimensions: 2560,
 			model: "Qwen3-Embedding-4B",
@@ -249,7 +240,13 @@ function mapStatus(value: unknown) {
 			reranker: setting("reranker"),
 			notice_classifier: setting("notice_classifier"),
 		},
-	};
+	});
+	if (!result.success) {
+		throw new ProviderConfigAdminUnavailableError(
+			"Model settings response contains invalid status fields.",
+		);
+	}
+	return result.data;
 }
 
 function providerConfigError(body: unknown) {

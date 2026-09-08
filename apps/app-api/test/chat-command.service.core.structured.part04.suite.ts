@@ -59,7 +59,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 		expect(finalWrites[0]?.requestObservabilityFact).not.toHaveProperty("traceId");
 	});
 
-	it("rejects a finalization replay with a different fingerprint for the same request", async () => {
+	it("closes out by request identity despite clock skew and preserves replay conflicts", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({
@@ -106,7 +106,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 		};
 		await expect(
 			service.applyProductFinalization?.({
-				completedAt: "2026-03-28T08:00:02.000Z",
+				completedAt: "2026-03-28T07:59:59.000Z",
 				finalizationFingerprint: "fingerprint-1",
 				requestId: "req_0001",
 				response,
@@ -114,7 +114,23 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 		).resolves.toEqual({ outcome: "applied" });
 		await expect(
 			service.applyProductFinalization?.({
-				completedAt: "2026-03-28T08:00:02.000Z",
+				completedAt: "2026-03-28T07:59:59.000Z",
+				finalizationFingerprint: "fingerprint-1",
+				requestId: "req_0001",
+				response,
+			}),
+		).resolves.toEqual({ outcome: "replayed" });
+		await expect(
+			service.applyProductFinalization?.({
+				completedAt: "2026-03-28T07:59:59.000Z",
+				finalizationFingerprint: "fingerprint-1",
+				requestId: "unknown",
+				response,
+			}),
+		).rejects.toMatchObject({ code: "request_not_found" });
+		await expect(
+			service.applyProductFinalization?.({
+				completedAt: "2026-03-28T07:59:59.000Z",
 				finalizationFingerprint: "fingerprint-2",
 				requestId: "req_0001",
 				response,

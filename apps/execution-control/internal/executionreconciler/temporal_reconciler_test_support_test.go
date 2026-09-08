@@ -22,14 +22,14 @@ const (
 	campusSearchToolName         = string(contracts.ToolIDCampusSearch)
 	personalMemoryRecallToolName = string(contracts.ToolIDPersonalMemoryRecall)
 
-	workflowStartNotDispatchedFailure    = WorkflowStartNotDispatchedFailure
-	workflowStartPostDispatchFailure     = WorkflowStartPostDispatchFailure
-	workflowStartRemoteConflictFailure   = WorkflowStartRemoteConflictFailure
-	workflowExecutionTerminatedFailure   = WorkflowExecutionTerminatedFailure
-	workflowCompletedUnprojectedFailure  = WorkflowCompletedUnprojectedFailure
-	workflowFailedUnprojectedFailure     = WorkflowFailedUnprojectedFailure
-	workflowCanceledUnprojectedFailure   = WorkflowCanceledUnprojectedFailure
-	workflowUnauthorizedSuccessorFailure = WorkflowUnauthorizedSuccessorFailure
+	workflowStartNotDispatchedFailure       = WorkflowStartNotDispatchedFailure
+	workflowStartPostDispatchFailure        = WorkflowStartPostDispatchFailure
+	workflowStartRemoteConflictFailure      = WorkflowStartRemoteConflictFailure
+	workflowExecutionTerminatedFailure      = WorkflowExecutionTerminatedFailure
+	workflowCompletedUnprojectedFailure     = WorkflowCompletedUnprojectedFailure
+	workflowFailedUnprojectedFailure        = WorkflowFailedUnprojectedFailure
+	workflowCanceledUnprojectedFailure      = WorkflowCanceledUnprojectedFailure
+	workflowExecutionClosedInvariantFailure = WorkflowExecutionClosedInvariantFailure
 )
 
 const primaryAgentModelTargetSHA256ForTest = "4b20ab70a9ac22073110f59ea007f27de19d731319b62ed4bd60b11d057c6635"
@@ -157,6 +157,7 @@ type reconcilerStarterForTest struct {
 	cancelCalls    int
 	cancelInput    execution.WorkflowCancelInput
 	onStart        func()
+	onDescribe     func(string)
 }
 
 // reconcilerStarterWithoutControlForTest models a command client that can
@@ -255,7 +256,11 @@ func (f *reconcilerStarterForTest) DescribeToolExecutionWorkflow(
 		info = f.describeSeries[describeIndex]
 	}
 	err := f.describeErr
+	onDescribe := f.onDescribe
 	f.mu.Unlock()
+	if onDescribe != nil {
+		onDescribe(temporalRunID)
+	}
 	return info, err
 }
 

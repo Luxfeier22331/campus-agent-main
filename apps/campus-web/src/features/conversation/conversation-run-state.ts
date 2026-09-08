@@ -11,6 +11,12 @@ export function reduceRuntimeRunState(
 	let next = current;
 	if (action.type === "reset" || action.type === "start") {
 		next = { ...EMPTY_RUNTIME_RUN, operationId: action.operationId };
+	} else if (action.type === "rebind") {
+		next = {
+			...current,
+			operationId: action.operationId,
+			requestId: action.requestId ?? current.requestId,
+		};
 	} else if (current.operationId !== action.operationId) {
 		return current;
 	} else if (action.type === "connection") {
@@ -19,8 +25,6 @@ export function reduceRuntimeRunState(
 			connection: action.connection ?? current.connection,
 			requestId: action.requestId ?? current.requestId,
 		};
-	} else if (action.type === "rebind") {
-		next = { ...current, requestId: action.requestId ?? current.requestId };
 	} else if (action.type === "hydrate" && action.run) {
 		next = {
 			...current,

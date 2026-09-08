@@ -88,7 +88,6 @@ describe("workflow operation runtime", () => {
 		expect(result.status).toBe("completed");
 		expect(result.finalOutput).toBe("");
 		expect(result.structuredOutput).toEqual(plan);
-		expect(result.promptTrace.promptId).toBe("workflow.solve");
 		expect(observed?.operation).toBe("solve");
 		expect(observed?.tools).toEqual([]);
 		expect(observed?.allowWebSearch).toBe(false);
@@ -327,12 +326,12 @@ describe("workflow operation runtime", () => {
 		]);
 	});
 
-	it("validates replan output without turning it into a user answer", async () => {
+	it("validates replacement replan output without turning it into a user answer", async () => {
 		const plan = taskPlan("复杂校园任务", [taskStep("step.first", "第一步")]);
 		const replacement = taskStep("step.second", "补充公开资料", ["step.first"]);
 		const replan: TaskReplan = {
 			schemaVersion: "task_replan.v1",
-			decision: "revise",
+			decision: "continue",
 			reason: "校内来源没有匹配结果，改查公开资料。",
 			remainingSteps: [replacement],
 		};
@@ -347,6 +346,80 @@ describe("workflow operation runtime", () => {
 		expect(result.structuredOutput).toEqual(replan);
 		expect(result.finalOutput).toBe("");
 	});
+
+	it.each([
+		{
+			decision: "revise",
+			remainingSteps: [taskStep("step.next", "继续检索")],
+			error: "invalid decision",
+		},
+		{
+			decision: "unknown",
+			remainingSteps: [taskStep("step.next", "继续检索")],
+			error: "invalid decision",
+		},
+	])("rejects invalid replan: $decision / $error", async ({ decision, remainingSteps, error }) => {
+		const plan = taskPlan("校园任务", [taskStep("step.first", "第一步")]);
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async () =>
+				runnerResult({
+					finalOutput: JSON.stringify({
+						schemaVersion: "task_replan.v1",
+						decision,
+						reason: "调整路径。",
+						remainingSteps,
+					}),
+				}),
+		});
+		await expect(runtime.run(replanInput(plan, plan.steps))).rejects.toThrow(error);
+	});
+
+	it.each([
+		{ decision: "continue" as const, remainingSteps: [] },
+		{
+			decision: "synthesize" as const,
+			remainingSteps: [taskStep("step.next", "继续检索")],
+		},
+		{
+			decision: "continue" as const,
+			remainingSteps: [taskStep("step.next", "继续检索", ["step.missing"])],
+		},
+	])(
+		"passes semantic replan decisions through to execution-control",
+		async ({ decision, remainingSteps }) => {
+			const plan = taskPlan("校园任务", [taskStep("step.first", "第一步")]);
+			const replan = {
+				schemaVersion: "task_replan.v1",
+				decision,
+				reason: "调整路径。",
+				remainingSteps,
+			};
+			const runtime = createWorkflowOperationRuntime({
+				catalog,
+				runner: async () => runnerResult({ finalOutput: JSON.stringify(replan) }),
+			});
+			expect((await runtime.run(replanInput(plan, plan.steps))).structuredOutput).toEqual(replan);
+		},
+	);
+
+	it.each(["continue", "synthesize"] as const)(
+		"accepts the %s replan decision",
+		async (decision) => {
+			const plan = taskPlan("校园任务", [taskStep("step.first", "第一步")]);
+			const replan: TaskReplan = {
+				schemaVersion: "task_replan.v1",
+				decision,
+				reason: "按当前结果继续。",
+				remainingSteps: decision === "continue" ? plan.steps : [],
+			};
+			const runtime = createWorkflowOperationRuntime({
+				catalog,
+				runner: async () => runnerResult({ finalOutput: JSON.stringify(replan) }),
+			});
+			expect((await runtime.run(replanInput(plan, plan.steps))).structuredOutput).toEqual(replan);
+		},
+	);
 
 	it("synthesizes only from supplied evidence and exposes no retrieval tools", async () => {
 		let observed: AgentRunnerInput | undefined;
@@ -497,7 +570,7 @@ describe("workflow operation runtime", () => {
 		});
 	});
 
-	it("rejects solve sources that are not available for the admitted run", async () => {
+	it("passes structurally valid solve plans to execution-control for semantic admission", async () => {
 		const unavailableStep: TaskPlanStep = {
 			...taskStep("step.memory", "读取个人记忆"),
 			candidateSources: ["personal_memory_recall"],
@@ -513,9 +586,9 @@ describe("workflow operation runtime", () => {
 				}),
 		});
 
-		await expect(runtime.run(solveInput("目标", 2))).rejects.toMatchObject({
-			code: "run_failed",
-		});
+		expect((await runtime.run(solveInput("目标", 2))).structuredOutput).toEqual(
+			taskPlan("目标", [unavailableStep]),
+		);
 	});
 });
 

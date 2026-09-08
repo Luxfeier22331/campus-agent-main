@@ -114,12 +114,7 @@ export function buildChatCommandService(
 		acceptedAt: string;
 		requestId: string;
 	}): Promise<AcceptedChatCommandContext> {
-		const candidate = (
-			await dependencies.commandStore.listAcceptedDurableRequestsForCloseout({
-				limit: 1,
-				requestId: input.requestId,
-			})
-		).find((item) => item.requestId === input.requestId);
+		const candidate = await dependencies.commandStore.getDurableRequestForCloseout(input.requestId);
 		if (!candidate) {
 			throw new ExecutionControlTransportError({
 				code: "runtime_invariant_failed",

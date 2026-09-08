@@ -31,7 +31,13 @@ target hash。
 `updated_at` 与 `updated_by`。验证失败仍返回完整的结构化诊断消息，供 Ops Web 显示和排查。
 
 Model Config 位于共同受信任的内部服务边界，不再执行第二次服务间认证，也不登记 consumer 或维护
-按配置名的权限矩阵。能够访问该 listener 的内部服务可以读取任意具名配置。Ops Web 仍在自身 BFF
+按配置名的权限矩阵。
+
+管理视图、target 和 runtime 响应使用同一能力推导规则；`hosted_web_search` 表示当前 provider/协议
+允许的托管搜索接入，不表示供应商搜索已实测通过。验证状态、时间和操作者全部为空表示未验证；
+部分缺失的验证记录返回读取错误，不转换成未验证。
+
+能够访问该 listener 的内部服务可以读取任意具名配置。Ops Web 仍在自身 BFF
 边界执行人员认证和 CSRF 校验；`X-Model-Config-Actor` 只用于审计来源。所有配置响应都使用
 `Cache-Control: no-store`。
 

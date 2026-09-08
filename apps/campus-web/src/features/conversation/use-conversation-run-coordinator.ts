@@ -378,6 +378,16 @@ export function useConversationRunCoordinator({
 				if (isAbortError(error)) {
 					return;
 				}
+				if (
+					acceptedRun &&
+					operationMachineRef.current.cancellation.phase === "idle" &&
+					error instanceof ChatStreamRequestError &&
+					error.code === "chat_stream_connection_lost" &&
+					operationMachineRef.current.claimAutomaticResume(acceptedRun.requestId)
+				) {
+					await onResume();
+					return;
+				}
 				if (error instanceof ChatStreamRequestError) {
 					if (acceptedRun) {
 						markRunDisconnected(operation.id, acceptedRun.requestId);
@@ -401,6 +411,7 @@ export function useConversationRunCoordinator({
 			loginRequired,
 			markRunDisconnected,
 			onLoginRequired,
+			onResume,
 			ownsOperation,
 			replaceActiveRun,
 			startOperation,
