@@ -357,6 +357,7 @@ export const OpsRequestSummarySchema = z.object({
 		.object({
 			kind: z.string().min(1),
 			status: z.string().min(1),
+			toolName: z.string().min(1).nullable(),
 		})
 		.nullable(),
 	failureKind: z.string().min(1).nullable(),
@@ -467,8 +468,10 @@ const OpsExecutionStageSchema = z.object({
 	durationMs: z.number().int().nonnegative().nullable(),
 	failureKind: z.string().min(1).nullable(),
 	kind: z.string().min(1),
+	invocationId: z.string().min(1).nullable(),
 	startedAt: IsoDateTimeSchema.nullable(),
 	status: z.string().min(1),
+	toolName: z.string().min(1).nullable(),
 });
 
 export const OpsRequestDetailResponseSchema = z.object({

@@ -183,6 +183,13 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			{ query_text: "第二次" },
 		]);
 		expect(result.toolResults.every((item) => item.durationMs > 0)).toBe(true);
+		for (const toolResult of result.toolResults) {
+			expect(toolResult.startedAt).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/u));
+			expect(toolResult.completedAt).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/u));
+			expect(Date.parse(toolResult.completedAt ?? "")).toBeGreaterThanOrEqual(
+				Date.parse(toolResult.startedAt ?? ""),
+			);
+		}
 	});
 
 	it("correlates concurrently completed calls by call ID and preserves model order", async () => {

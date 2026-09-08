@@ -46,6 +46,7 @@ export interface OpsRequestRow {
 	executionFailureKind: string | null;
 	executionStepKind: string | null;
 	executionStepStatus: string | null;
+	executionStepToolName: string | null;
 	failCloseReason: string | null;
 	dataUpdatedAt: Date;
 	questionPreview: string;
@@ -66,6 +67,7 @@ export interface OpsRequestDetailRow extends OpsRequestRow {
 
 export interface OpsRequestStageRow {
 	completedAt: Date | null;
+	durationMs: number | string | null;
 	sanitizedPayloadJson: unknown;
 	stepId: string;
 	startedAt: Date | null;

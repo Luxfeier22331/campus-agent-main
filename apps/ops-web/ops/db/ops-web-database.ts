@@ -317,7 +317,7 @@ const REQUIRED_SELECTS = [
 		label: "execution_control.agent_run_steps",
 		sql: `
 			select
-				"step_id", "request_id", "step_kind", "status", "started_at",
+				"step_id", "request_id", "step_kind", "status", "activity_attempt", "started_at",
 				"completed_at", "updated_at", "sanitized_payload_json"
 			from "execution_control"."agent_run_steps"
 			limit 0
@@ -327,8 +327,8 @@ const REQUIRED_SELECTS = [
 		label: "execution_control.agent_step_attempts",
 		sql: `
 			select
-				"step_id", "request_id", "attempt", "status", "started_at", "completed_at",
-				"duration_ms", "model_provider", "model_name", "model_request_count",
+				"step_id", "request_id", "attempt", "status", "activity_attempt", "started_at", "completed_at",
+				"duration_ms", "updated_at", "model_provider", "model_name", "model_request_count",
 				"input_tokens", "output_tokens", "cached_input_tokens", "usage_observed",
 				"fail_close_reason", "terminal_reason", "sanitized_payload_json"
 			from "execution_control"."agent_step_attempts"

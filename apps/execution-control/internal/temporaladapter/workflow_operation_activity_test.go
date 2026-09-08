@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
@@ -244,5 +245,132 @@ func TestValidateWorkflowOperationOutputSourcesRejectsRetrievalOnReplanner(t *te
 	if err := validateWorkflowOperationOutputSources(request, output); err == nil ||
 		!strings.Contains(err.Error(), "returned source output") {
 		t.Fatalf("replanner source validation error = %v", err)
+	}
+}
+
+func TestProjectWorkflowToolResultsUsesRuntimeTimingForStepAndAttempt(t *testing.T) {
+	store := executionpersistence.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 9, 5, 10, 0, 0, 0, time.UTC)
+	runID := "run-tool-runtime-timing"
+	createQueuedDurableRunForTest(
+		t,
+		store,
+		runID,
+		"conversation-"+runID,
+		now,
+		agentRequestForDurableWorkerTest("查询规定"),
+	)
+	run, err := store.GetRun(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run projection: %v", err)
+	}
+	adapter := newAdapterForTest(config.Config{TemporalWorkerIdentity: "test:tool-timing"})
+	attachRunProjectionStoreForAdapterTest(adapter, store)
+	startedAt := now.Add(2 * time.Second)
+	completedAt := startedAt.Add(275 * time.Millisecond)
+	request := workflowOperationActivityRequest{
+		Operation: temporalruntime.WorkflowOperationExecuteStep,
+		RequestID: runID,
+		StepID:    "step.campus",
+	}
+	output := temporalruntime.WorkflowOperationActivityOutput{
+		ToolResults: []temporalruntime.AgentToolResult{{
+			ArgumentsJSON: map[string]any{"search_query": "规定"},
+			StartedAt:     &startedAt,
+			CompletedAt:   &completedAt,
+			DurationMS:    275.25,
+			InvocationID:  "call-runtime-timing",
+			Result:        map[string]any{"outcome": "matched"},
+			Status:        "completed",
+			ToolName:      campusSearchToolName,
+		}},
+	}
+	identity := temporalStepProjection{
+		ActivityAttempt: 2,
+		Attempt:         3,
+		Run:             run,
+		StartedAt:       now,
+		WorkerID:        "test:tool-timing",
+	}
+
+	if err := adapter.projectWorkflowToolResults(context.Background(), run, request, output, identity); err != nil {
+		t.Fatalf("project workflow tool result: %v", err)
+	}
+	steps, err := store.ListRunSteps(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list run steps: %v", err)
+	}
+	if len(steps) != 1 {
+		t.Fatalf("run steps = %#v, want one tool step", steps)
+	}
+	if !steps[0].StartedAt.Equal(startedAt) || !steps[0].CompletedAt.Equal(completedAt) {
+		t.Fatalf("tool step timing = %s..%s, want %s..%s", steps[0].StartedAt, steps[0].CompletedAt, startedAt, completedAt)
+	}
+	attempts, err := store.ListStepAttempts(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list step attempts: %v", err)
+	}
+	if len(attempts) != 1 {
+		t.Fatalf("step attempts = %#v, want one tool attempt", attempts)
+	}
+	if !attempts[0].StartedAt.Equal(startedAt) || !attempts[0].CompletedAt.Equal(completedAt) || attempts[0].DurationMS != 276 {
+		t.Fatalf("tool attempt timing = %#v, want runtime boundaries and ceiled duration", attempts[0])
+	}
+}
+
+func TestWorkflowToolProjectionTimingFallsBackWithoutRuntimeBoundaries(t *testing.T) {
+	fallbackStartedAt := time.Date(2026, 9, 5, 10, 0, 0, 0, time.UTC)
+	fallbackCompletedAt := fallbackStartedAt.Add(time.Second)
+	startedAt, completedAt, err := workflowToolProjectionTimes(
+		temporalruntime.AgentToolResult{},
+		fallbackStartedAt,
+		fallbackCompletedAt,
+	)
+	if err != nil {
+		t.Fatalf("fallback tool timing: %v", err)
+	}
+	if !startedAt.Equal(fallbackStartedAt) || !completedAt.Equal(fallbackCompletedAt) {
+		t.Fatalf("fallback timing = %s..%s, want %s..%s", startedAt, completedAt, fallbackStartedAt, fallbackCompletedAt)
+	}
+}
+
+func TestWorkflowToolProjectionRejectsReversedRuntimeBoundaries(t *testing.T) {
+	startedAt := time.Date(2026, 9, 5, 10, 0, 1, 0, time.UTC)
+	completedAt := startedAt.Add(-time.Millisecond)
+	_, _, err := workflowToolProjectionTimes(
+		temporalruntime.AgentToolResult{StartedAt: &startedAt, CompletedAt: &completedAt},
+		startedAt,
+		startedAt,
+	)
+	if err == nil || !strings.Contains(err.Error(), "completed_at precedes started_at") {
+		t.Fatalf("reversed timing error = %v", err)
+	}
+}
+
+func TestWorkflowFinalizationResultMapPreservesToolRuntimeTiming(t *testing.T) {
+	startedAt := time.Date(2026, 9, 5, 10, 0, 0, 123456000, time.FixedZone("CST", 8*60*60))
+	completedAt := startedAt.Add(275 * time.Millisecond)
+	payload := workflowFinalizationResultMap(temporalruntime.WriteWorkflowFinalizationActivityInput{
+		RequestID: "run-tool-result-timing",
+		WorkflowResult: temporalruntime.WorkflowOperationActivityOutput{
+			RequestID: "run-tool-result-timing",
+			ToolResults: []temporalruntime.AgentToolResult{{
+				StartedAt:    &startedAt,
+				CompletedAt:  &completedAt,
+				DurationMS:   275,
+				InvocationID: "call-result-timing",
+				Result:       map[string]any{},
+				Status:       "completed",
+				ToolName:     campusSearchToolName,
+			}},
+		},
+	})
+	results := workflowToolResultMaps(payload["tool_results"])
+	if len(results) != 1 {
+		t.Fatalf("mapped tool results = %#v, want one result", results)
+	}
+	if results[0]["started_at"] != "2026-09-05T02:00:00.123456Z" ||
+		results[0]["completed_at"] != "2026-09-05T02:00:00.398456Z" {
+		t.Fatalf("mapped tool timing = %#v", results[0])
 	}
 }

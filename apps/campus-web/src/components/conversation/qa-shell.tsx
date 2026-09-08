@@ -134,6 +134,7 @@ export function CampusChatWorkspace({
 
 	return (
 		<SidebarProvider
+			className="h-dvh min-h-0 overflow-hidden"
 			onOpenChange={onChatSidebarChange}
 			open={chatSidebarOpen}
 			style={
@@ -154,8 +155,8 @@ export function CampusChatWorkspace({
 				id="campus-chat-sidebar"
 				onLoginRequired={onLoginRequired}
 			/>
-			<SidebarInset data-testid="assistant-chat">
-				<div className="flex min-h-dvh flex-col bg-background text-foreground">
+			<SidebarInset className="min-h-0 overflow-hidden" data-testid="assistant-chat">
+				<div className="flex h-full min-h-0 flex-col bg-background text-foreground">
 					<CampusTopNav
 						activePath={activePath}
 						brandLabel={topTitle}
@@ -171,7 +172,7 @@ export function CampusChatWorkspace({
 						variant="workspace"
 					/>
 					{authDialogOpen ? <AuthDialog onOpenChange={onAuthDialogChange} open /> : null}
-					<div className="min-h-0 flex-1">
+					<div className="min-h-0 flex-1 overflow-hidden">
 						<AssistantConversationSurface />
 					</div>
 				</div>

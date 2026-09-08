@@ -92,13 +92,20 @@ function ExecutionSection({ detail }: { detail: OpsRequestDetailResponse }) {
 								stage.startedAt,
 								stage.completedAt,
 								stage.failureKind,
+								stage.toolName,
+								stage.invocationId,
 							].join(":")}
 						>
 							<div className="flex flex-wrap items-start justify-between gap-3">
 								<div>
 									<p className="font-semibold text-foreground">
-										{formatOpsDomainValue(stage.kind)}
+										{formatOpsDomainValue(stage.toolName ?? stage.kind)}
 									</p>
+									{stage.invocationId ? (
+										<p className="mt-1 text-muted-foreground text-xs">
+											调用 ID：{stage.invocationId}
+										</p>
+									) : null}
 									<p className="mt-1 text-muted-foreground text-sm">
 										{formatTimestamp(stage.startedAt)} 至 {formatTimestamp(stage.completedAt)}
 										{stage.durationMs === null ? "" : ` · ${formatDuration(stage.durationMs)}`}

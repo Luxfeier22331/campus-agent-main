@@ -5,10 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"math"
 	"strings"
+	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -105,6 +106,12 @@ func workflowToolResultMap(
 		"result":         execution.CloneAnyMapFromValue(result.Result),
 		"status":         result.Status,
 		"tool_name":      result.ToolName,
+	}
+	if result.StartedAt != nil {
+		toolResult["started_at"] = result.StartedAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
+	}
+	if result.CompletedAt != nil {
+		toolResult["completed_at"] = result.CompletedAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
 	}
 	if result.Failure != nil {
 		toolResult["failure"] = result.Failure

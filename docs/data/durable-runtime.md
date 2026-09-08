@@ -104,8 +104,8 @@ result。Campus Docs
 
 个人记忆召回不单独建立外部调用 receipt。模型 operation invocation receipt 绑定该 operation 的精确
 请求摘要，防止 Activity 重投递再次执行模型或 `personal_memory_recall`。普通 SDK tool 投影只保存
-工具身份、参数摘要、`outcome`、结果 hash、产品投影 ref 和真实工具耗时，不保存 `memory_text`。同一工具的重复调用
-按实际调用顺序分别投影。
+工具身份、参数摘要、`outcome`、结果 hash、产品投影 ref 和真实工具耗时；如果 Runtime 提供 RFC3339
+UTC 边界，也保存实际工具调用的起止时间，不保存 `memory_text`。同一工具的重复调用按实际调用顺序分别投影。
 
 Agent Runtime 的流式 `answer_delta` 只携带临时展示用的 `delta` 和
 `agent_runtime_answer_delta.v3`；execution-control 在合并后为浏览器事件分配本地 `chunk_index`。

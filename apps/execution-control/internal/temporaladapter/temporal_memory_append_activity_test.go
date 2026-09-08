@@ -107,7 +107,7 @@ func TestAppendConversationMemoryActivityAcceptsCompletedTurnForAsyncPersonalMem
 	store := executionpersistence.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 15, 12, 5, 0, 0, time.UTC)
 	createMemoryAppendRunForTest(t, store, "run-memory-append-enabled", "我之后主要关注保研材料", ptrBool(true), now)
-	executor := &fakePersonalMemoryExecutor{}
+	executor := &fakePersonalMemoryExecutor{appendDelay: 5 * time.Millisecond}
 	server := newAdapterForTest(config.Config{TemporalWorkerIdentity: "test:memory-append"})
 	server.personalMemoryExecutor = executor
 	server.personalMemoryErr = nil
@@ -143,6 +143,7 @@ func TestAppendConversationMemoryActivityAcceptsCompletedTurnForAsyncPersonalMem
 	if executor.seenAppend.UserMessageCreatedAt != now.Format(time.RFC3339Nano) {
 		t.Fatalf("user_message_created_at = %q, want current user message created_at", executor.seenAppend.UserMessageCreatedAt)
 	}
+	assertMemoryAppendProjectionHasElapsedTiming(t, store, "run-memory-append-enabled")
 }
 
 func TestAppendConversationMemoryActivityPreservesTenantForScopedHindsightBank(t *testing.T) {
@@ -179,7 +180,10 @@ func TestAppendConversationMemoryActivityProjectsFailureWhenHindsightAppendFails
 	store := executionpersistence.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 15, 12, 8, 0, 0, time.UTC)
 	createMemoryAppendRunForTest(t, store, "run-memory-append-failed", "我之后主要关注保研材料", ptrBool(true), now)
-	executor := &fakePersonalMemoryExecutor{appendErr: errors.New("hindsight retain failed")}
+	executor := &fakePersonalMemoryExecutor{
+		appendErr:   errors.New("hindsight retain failed"),
+		appendDelay: 5 * time.Millisecond,
+	}
 	server := newAdapterForTest(config.Config{TemporalWorkerIdentity: "test:memory-append"})
 	server.personalMemoryExecutor = executor
 	server.personalMemoryErr = nil
@@ -219,6 +223,36 @@ func TestAppendConversationMemoryActivityProjectsFailureWhenHindsightAppendFails
 	}
 	if payload["user_message"] != nil || payload["assistant_message"] != nil {
 		t.Fatalf("failure projection leaked conversation text: %#v", payload)
+	}
+	assertMemoryAppendProjectionHasElapsedTiming(t, store, "run-memory-append-failed")
+}
+
+func assertMemoryAppendProjectionHasElapsedTiming(
+	t *testing.T,
+	store *executionpersistence.InMemoryRunProjectionStore,
+	runID string,
+) {
+	t.Helper()
+	steps, err := store.ListRunSteps(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list memory append steps: %v", err)
+	}
+	if len(steps) != 1 {
+		t.Fatalf("memory append steps = %#v, want one step", steps)
+	}
+	step := steps[0]
+	if !step.CompletedAt.After(step.StartedAt) {
+		t.Fatalf("memory append step timing = %s..%s, want elapsed interval", step.StartedAt, step.CompletedAt)
+	}
+	attempts, err := store.ListStepAttempts(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("list memory append attempts: %v", err)
+	}
+	if len(attempts) != 1 {
+		t.Fatalf("memory append attempts = %#v, want one attempt", attempts)
+	}
+	if !attempts[0].CompletedAt.After(attempts[0].StartedAt) || attempts[0].DurationMS <= 0 {
+		t.Fatalf("memory append attempt timing = %#v, want elapsed duration", attempts[0])
 	}
 }
 

@@ -160,6 +160,8 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 			tool_name: toolResult.toolName,
 			arguments_json: toolResult.argumentsJson,
 			result: toolResult.result,
+			...(toolResult.startedAt ? { started_at: toolResult.startedAt } : {}),
+			...(toolResult.completedAt ? { completed_at: toolResult.completedAt } : {}),
 			...(toolResult.failure
 				? {
 						failure: {

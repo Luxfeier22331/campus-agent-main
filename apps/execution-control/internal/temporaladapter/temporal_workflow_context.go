@@ -2,10 +2,11 @@ package temporaladapter
 
 import (
 	"fmt"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -172,6 +173,8 @@ type agentRuntimeWebCitation struct {
 
 type agentToolResult struct {
 	ArgumentsJSON map[string]any                    `json:"arguments_json"`
+	StartedAt     *time.Time                        `json:"started_at"`
+	CompletedAt   *time.Time                        `json:"completed_at"`
 	DurationMS    float64                           `json:"duration_ms"`
 	Failure       *temporalruntime.ExecutionFailure `json:"failure"`
 	InvocationID  string                            `json:"invocation_id"`

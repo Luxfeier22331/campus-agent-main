@@ -884,6 +884,8 @@ func workflowToolResultsFromRuntimeResponse(
 	for _, result := range response.ToolResults {
 		results = append(results, temporalruntime.AgentToolResult{
 			ArgumentsJSON: execution.CloneAnyMapFromValue(result.ArgumentsJSON),
+			StartedAt:     cloneOptionalTime(result.StartedAt),
+			CompletedAt:   cloneOptionalTime(result.CompletedAt),
 			DurationMS:    result.DurationMS,
 			Failure:       result.Failure,
 			InvocationID:  strings.TrimSpace(result.InvocationID),
@@ -970,7 +972,7 @@ func (s *Adapter) projectWorkflowToolResults(
 	output temporalruntime.WorkflowOperationActivityOutput,
 	identity temporalStepProjection,
 ) error {
-	completedAt := time.Now().UTC().Truncate(time.Microsecond)
+	projectedAt := time.Now().UTC().Truncate(time.Microsecond)
 	for _, result := range output.ToolResults {
 		toolName := strings.TrimSpace(result.ToolName)
 		if toolName == "" || strings.TrimSpace(result.InvocationID) == "" {
@@ -982,6 +984,14 @@ func (s *Adapter) projectWorkflowToolResults(
 		durationMS, err := workflowToolDurationMS(result.DurationMS)
 		if err != nil {
 			return err
+		}
+		startedAt, completedAt, err := workflowToolProjectionTimes(
+			result,
+			identity.StartedAt,
+			projectedAt,
+		)
+		if err != nil {
+			return fmt.Errorf("workflow tool %s timing is invalid: %w", toolName, err)
 		}
 		status := strings.TrimSpace(result.Status)
 		if status != "completed" && status != "failed" {
@@ -1013,27 +1023,58 @@ func (s *Adapter) projectWorkflowToolResults(
 		}
 		projectionClass := projectionClassForToolName(toolName)
 		if err := s.projectTemporalStep(ctx, identityWithParent(identity, request.StepID, temporalStepProjection{
-			Attempt:         identity.Attempt,
-			ActivityAttempt: identity.ActivityAttempt,
-			Tool:            projectionClass,
-			Run:             run,
-			Status:          toolStepStatus(status),
-			StepID:          fmt.Sprintf("sdk_tool.execute.%s.%s", toolName, result.InvocationID),
-			StepKind:        "tool",
-			TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
-			WorkerID:        identity.WorkerID,
-			StartedAt:       identity.StartedAt,
-			CompletedAt:     completedAt,
-			DurationMS:      durationMS,
-			UpdatedAt:       completedAt,
-			ResultKind:      toolResultKind(status),
-			ProjectionRef:   workflowToolProjectionRef(run.RequestID, toolName, result.InvocationID),
-			Payload:         payload,
+			Attempt:            identity.Attempt,
+			ActivityAttempt:    identity.ActivityAttempt,
+			Tool:               projectionClass,
+			Run:                run,
+			Status:             toolStepStatus(status),
+			StepID:             fmt.Sprintf("sdk_tool.execute.%s.%s", toolName, result.InvocationID),
+			StepKind:           "tool",
+			TaskQueue:          temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
+			WorkerID:           identity.WorkerID,
+			StartedAt:          startedAt,
+			CompletedAt:        completedAt,
+			AttemptStartedAt:   startedAt,
+			AttemptCompletedAt: completedAt,
+			DurationMS:         durationMS,
+			UpdatedAt:          projectedAt,
+			AttemptUpdatedAt:   projectedAt,
+			ResultKind:         toolResultKind(status),
+			ProjectionRef:      workflowToolProjectionRef(run.RequestID, toolName, result.InvocationID),
+			Payload:            payload,
 		})); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func workflowToolProjectionTimes(
+	result temporalruntime.AgentToolResult,
+	fallbackStartedAt time.Time,
+	fallbackCompletedAt time.Time,
+) (time.Time, time.Time, error) {
+	startedAt := canonicalOptionalToolTime(result.StartedAt, fallbackStartedAt)
+	completedAt := canonicalOptionalToolTime(result.CompletedAt, fallbackCompletedAt)
+	if !startedAt.IsZero() && !completedAt.IsZero() && completedAt.Before(startedAt) {
+		return time.Time{}, time.Time{}, fmt.Errorf("completed_at precedes started_at")
+	}
+	return startedAt, completedAt, nil
+}
+
+func canonicalOptionalToolTime(value *time.Time, fallback time.Time) time.Time {
+	if value == nil || value.IsZero() {
+		return fallback.UTC().Truncate(time.Microsecond)
+	}
+	return value.UTC().Truncate(time.Microsecond)
+}
+
+func cloneOptionalTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	cloned := value.UTC().Truncate(time.Microsecond)
+	return &cloned
 }
 
 func identityWithParent(
@@ -1336,6 +1377,8 @@ func agentRuntimeResponseFromTemporalOutput(
 	for _, result := range output.ToolResults {
 		response.ToolResults = append(response.ToolResults, agentToolResult{
 			ArgumentsJSON: result.ArgumentsJSON,
+			StartedAt:     cloneOptionalTime(result.StartedAt),
+			CompletedAt:   cloneOptionalTime(result.CompletedAt),
 			DurationMS:    result.DurationMS,
 			Failure:       result.Failure,
 			InvocationID:  result.InvocationID,

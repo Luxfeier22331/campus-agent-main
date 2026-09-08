@@ -58,6 +58,7 @@ export function toRequestSummary(row: OpsRequestRow): OpsRequestSummary {
 				? {
 						kind: row.executionStepKind,
 						status: row.executionStepStatus,
+						toolName: row.executionStepToolName,
 					}
 				: null,
 		failureKind: normalizeNullableString(row.executionFailureKind),

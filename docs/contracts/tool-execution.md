@@ -130,9 +130,12 @@ Finalization 失败。
 Agents SDK 负责依据 `tool-function-schemas.v4.json` 验证模型生成的函数参数。Execution Control 只读取
 同一文件参与工具合同指纹，不再递归实现第二份 schema 校验；handler 仍负责身份、业务前置条件和结果合同。
 Agent Runtime 返回的每个 `tool_results` 项包含实际 `tool_name`、`arguments_json`、`status`、
-`duration_ms`、有界 `result`、实际 `invocation_id` 和可选结构化 `failure`。`failure` 只包含
-`code`、`operation`、可选 `detail`、`http_status` 与 `invocation_id`；它是一次工具或模型操作的
-诊断事实，不替代运行终态的 `terminal_reason`。
+`duration_ms`、有界 `result`、实际 `invocation_id` 和可选结构化 `failure`。实际执行过的工具调用
+还可以携带 `started_at` 与 `completed_at`，二者是 RFC3339 UTC 时间；`duration_ms` 仍由 Runtime
+使用 monotonic clock 测量，不由这两个 wall-clock 字段反推。预算、身份或合同校验在工具执行器启动
+前失败时不伪造工具时间区间；旧 Runtime 缺少时间字段时，execution-control 保留已有 Activity
+时间回退。`failure` 只包含 `code`、`operation`、可选 `detail`、`http_status` 与 `invocation_id`；
+它是一次工具或模型操作的诊断事实，不替代运行终态的 `terminal_reason`。
 
 ## 工具合同指纹
 

@@ -41,6 +41,22 @@ test("the personal-memory cleanup migration only drops the compatibility views",
 	assert.doesNotMatch(migration, /CASCADE|IF EXISTS|DROP TABLE|GRANT|REVOKE/u);
 });
 
+test("the Ops Web step timing migration grants only the required read columns", async () => {
+	const migration = await readFile(
+		resolve(jobRoot, "migrations/0004_grant_ops_web_step_activity_attempt.sql"),
+		"utf8",
+	);
+	assert.equal(
+		migration.trim(),
+		[
+			"GRANT SELECT (activity_attempt) ON TABLE execution_control.agent_run_steps TO ops_web;",
+			"GRANT SELECT (activity_attempt) ON TABLE execution_control.agent_step_attempts TO ops_web;",
+			"GRANT SELECT (updated_at) ON TABLE execution_control.agent_step_attempts TO ops_web;",
+		].join("\n"),
+	);
+	assert.doesNotMatch(migration, /GRANT SELECT ON TABLE|INSERT|UPDATE|DELETE|REVOKE/u);
+});
+
 test("the migration journal records the compatibility-view cleanup after existing migrations", async () => {
 	const journal = JSON.parse(
 		await readFile(resolve(jobRoot, "migrations/meta/_journal.json"), "utf8"),
@@ -52,6 +68,11 @@ test("the migration journal records the compatibility-view cleanup after existin
 	);
 	assert.equal(cleanupEntry?.idx, 2);
 	assert.equal(cleanupEntry?.tag, "0002_remove_runtime_personal_memory_compat_views");
+	const timingEntry = journal.entries?.find(
+		(entry) => entry.tag === "0004_grant_ops_web_step_activity_attempt",
+	);
+	assert.equal(timingEntry?.idx, 4);
+	assert.equal(timingEntry?.tag, "0004_grant_ops_web_step_activity_attempt");
 });
 
 test("database configuration uses the standard PostgreSQL environment", () => {

@@ -590,13 +590,15 @@ describe("ops-web PostgreSQL grants", () => {
 		await expect(
 			runtime.query(
 				`select step_id, request_id, step_kind, status, started_at, completed_at,
-					updated_at, sanitized_payload_json
+					activity_attempt, updated_at, sanitized_payload_json
 				 from execution_control.agent_run_steps limit 0`,
 			),
 		).resolves.toBeDefined();
 		await expect(
 			runtime.query(
 				`select step_id, request_id, attempt, status, started_at, completed_at, duration_ms,
+					activity_attempt,
+					updated_at,
 					model_provider, model_name, model_request_count, input_tokens, output_tokens,
 					cached_input_tokens, usage_observed, fail_close_reason, terminal_reason,
 					sanitized_payload_json

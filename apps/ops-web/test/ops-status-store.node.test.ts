@@ -65,9 +65,70 @@ describe("PostgreSQL ops status store", () => {
 		expect(sql).toContain('"execution_control"."agent_runs"');
 		expect(sql).toContain('"execution_control"."agent_run_steps"');
 		expect(sql).toContain('"execution_control"."agent_step_attempts"');
+		expect(sql).toContain('candidate."activity_attempt" = step."activity_attempt"');
+		expect(sql).toContain('attempt."duration_ms" as "durationMs"');
 		expect(sql).not.toContain('"runtime"."agent_runs"');
 		expect(sql).not.toContain('"runtime"."agent_run_steps"');
 		expect(sql).not.toContain('"runtime"."agent_step_attempts"');
+	});
+
+	it("uses the matching attempt duration and exposes tool identity in diagnostics", async () => {
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb({
+				requestRows: [
+					requestRow({
+						executionStepKind: "tool",
+						executionStepStatus: "completed",
+						executionStepToolName: "campus_search",
+					}),
+				],
+				diagnostics: runDiagnostics({
+					steps: [
+						runStepRow({
+							durationMs: 37,
+							stepKind: "tool",
+							sanitizedPayloadJson: {
+								invocation_id: "call-1",
+								tool_name: "campus_search",
+							},
+						}),
+					],
+				}),
+			}),
+			now: () => now,
+		});
+
+		const detail = await store.getRequestDetail("req_pg_001");
+		if (!detail) {
+			throw new Error("request detail is missing");
+		}
+		expect(detail.execution.stages[0]).toMatchObject({
+			durationMs: 37,
+			invocationId: "call-1",
+			toolName: "campus_search",
+		});
+		const list = await store.listRequests({ window: "1h" });
+		expect(list.data[0]?.executionStage).toEqual({
+			kind: "tool",
+			status: "completed",
+			toolName: "campus_search",
+		});
+	});
+
+	it("falls back to stage timestamps when an attempt duration is unavailable", async () => {
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb({
+				diagnostics: runDiagnostics({
+					steps: [runStepRow({ durationMs: null })],
+				}),
+			}),
+			now: () => now,
+		});
+		const detail = await store.getRequestDetail("req_pg_001");
+		if (!detail) {
+			throw new Error("request detail is missing");
+		}
+		expect(detail.execution.stages[0]?.durationMs).toBe(3_100);
 	});
 
 	it("builds windowed request overview data", async () => {

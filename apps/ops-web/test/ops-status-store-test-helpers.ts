@@ -150,6 +150,7 @@ export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsReq
 		executionFailureKind: null,
 		executionStepKind: "agent",
 		executionStepStatus: "completed",
+		executionStepToolName: null,
 		failCloseReason: null,
 		questionPreview: "缓考申请需要哪些材料？",
 		questionText: "缓考申请需要哪些材料？",
@@ -175,6 +176,7 @@ export function runDiagnostics(
 export function runStepRow(overrides: Partial<OpsRequestStageRow> = {}): OpsRequestStageRow {
 	return {
 		completedAt: new Date("2026-07-09T07:29:03.800Z"),
+		durationMs: 3_100,
 		sanitizedPayloadJson: {
 			agent_runtime_release: "agent-runtime@899f251",
 			execution_control_release: "execution-control@a77a046",

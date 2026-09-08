@@ -314,13 +314,17 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 				);
 			}
 			context.functionToolBudget.reserved += 1;
-			const startedAt = performance.now();
+			const startedAt = new Date().toISOString();
+			const startedAtMonotonic = performance.now();
 			const parsedArguments = argumentsJson as Record<string, unknown>;
 			const result = await executeSdkTool(runtimeTool, parsedArguments, context, invocationId);
+			const completedAt = new Date().toISOString();
 			context.functionToolResults.set(invocationId, {
 				...result,
 				argumentsJson: parsedArguments,
-				durationMs: Math.max(0.001, performance.now() - startedAt),
+				durationMs: Math.max(0.001, performance.now() - startedAtMonotonic),
+				startedAt,
+				completedAt,
 				toolName: runtimeTool.name,
 				invocationId,
 			});

@@ -57,8 +57,9 @@ SQL 片段。
   已写入回答的完成请求仍保留 `COMPLETED` 与 `WRITTEN`。
 
 两种视图使用 `v2` 游标；游标包含所属视图，不能跨视图复用。每条摘要只包含请求 ID、问题预览及
-截断事实、产品状态和生命周期、开始完成时间、一次总耗时、产品结果状态、当前执行阶段、失败类型和
-关注原因。接口不返回原始用户 ID、其他关联 ID、模型活动、token、完整步骤、执行尝试或技术错误明细。
+截断事实、产品状态和生命周期、开始完成时间、一次总耗时、产品结果状态、当前执行阶段、可用的工具名、
+失败类型和关注原因。接口不返回原始用户 ID、其他关联 ID、模型活动、token、完整步骤、执行尝试或技术
+错误明细。
 
 `result` 的状态为：
 
@@ -66,7 +67,7 @@ SQL 片段。
 - `WRITTEN`：对应 `answer` 或 `error` 助手消息已经写入会话；
 - `MISSING`：产品已进入终态，但没有满足 request、conversation 和 role 关联的助手消息。
 
-`executionStage` 是当前请求最近保存步骤的 `kind` 和 `status`，没有步骤时为 `null`；
+`executionStage` 是当前请求最近保存步骤的 `kind`、`status` 和可用的 `toolName`，没有步骤时为 `null`；
 `failureKind` 只来自最近失败 step 的结构化 `failure.code`，不从产品 `errorCode`、run
 `terminalReason` 或 `failCloseReason` 补值。执行阶段失败会让请求进入 `attention`，但不改写产品请求状态；
 因此回答已经写入时仍为 `COMPLETED` 与 `WRITTEN`，并以 `EXECUTION_STAGE_FAILED` 标记需要关注。列表查询不读取
@@ -94,7 +95,9 @@ locator 或 trace card。
 - `failCloseReason`：协调器执行失败收口的原因；
 - `releases`：本次运行实际记录的 execution-control 与 agent-runtime release，二者只用于诊断；
 - `model`：模型与 provider、模型请求数及汇总 token；
-- `stages[]`：阶段类型、状态、起止时间、耗时和有界失败类型。
+- `stages[]`：阶段类型、状态、工具名和调用 ID（适用时）、起止时间、耗时和有界失败类型；耗时优先
+  使用同一 `request_id`、`step_id`、`activity_attempt` 的 attempt 投影 `duration_ms`，缺失时才由阶段
+  起止时间计算。
 
 `failure`、`terminalReason` 与 `failCloseReason` 在页面中分区展示，任何一个字段都不能替代另一个。
 历史运行没有某个诊断字段时返回 `null`，没有持久阶段时返回空数组，不从产品错误、终态、日志或外部

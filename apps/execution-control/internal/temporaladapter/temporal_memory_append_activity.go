@@ -16,6 +16,7 @@ func (s *Adapter) AppendConversationMemory(
 	ctx context.Context,
 	input temporalruntime.AppendConversationMemoryActivityInput,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+	activityStartedAt := time.Now().UTC().Truncate(time.Microsecond)
 	stopHeartbeat := startTemporalActivityHeartbeat(ctx, "memory.append", 10*time.Second)
 	defer stopHeartbeat()
 	recordTemporalActivityHeartbeat(ctx, "memory.append.started")
@@ -26,20 +27,34 @@ func (s *Adapter) AppendConversationMemory(
 	payload, err := s.loadExecutionPayload(ctx, run)
 	if err != nil {
 		failureKind := execution.InputFailureKind(err, "memory_append_request_invalid")
-		return s.projectMemoryAppendFailure(ctx, run, failureKind, err)
+		return s.projectMemoryAppendFailure(ctx, run, failureKind, err, activityStartedAt, time.Now())
 	}
 	enabled, known := memoryEnabledFromExecutionPayload(payload)
 	if !known {
-		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RequestID, "memory_enabled_unknown"))
+		return s.projectMemoryAppendResult(
+			ctx,
+			run,
+			skippedMemoryAppendOutput(run.RequestID, "memory_enabled_unknown"),
+			activityStartedAt,
+			time.Now(),
+		)
 	}
 	if !enabled {
-		return s.projectMemoryAppendResult(ctx, run, skippedMemoryAppendOutput(run.RequestID, "memory_disabled"))
+		return s.projectMemoryAppendResult(
+			ctx,
+			run,
+			skippedMemoryAppendOutput(run.RequestID, "memory_disabled"),
+			activityStartedAt,
+			time.Now(),
+		)
 	}
 	if s.personalMemoryErr != nil {
 		return s.projectMemoryAppendResult(
 			ctx,
 			run,
 			skippedMemoryAppendOutput(run.RequestID, "personal_memory_not_configured"),
+			activityStartedAt,
+			time.Now(),
 		)
 	}
 	if s.personalMemoryExecutor == nil {
@@ -47,19 +62,37 @@ func (s *Adapter) AppendConversationMemory(
 			ctx,
 			run,
 			skippedMemoryAppendOutput(run.RequestID, "personal_memory_not_configured"),
+			activityStartedAt,
+			time.Now(),
 		)
 	}
 	request, err := memoryAppendRequestForRun(run, payload)
 	if err != nil {
-		return s.projectMemoryAppendFailure(ctx, run, "memory_append_request_invalid", err)
+		return s.projectMemoryAppendFailure(
+			ctx,
+			run,
+			"memory_append_request_invalid",
+			err,
+			activityStartedAt,
+			time.Now(),
+		)
 	}
 	recordTemporalActivityHeartbeat(ctx, "memory.append.request_ready")
 	recordTemporalActivityHeartbeat(ctx, "memory.append.call_hindsight")
 	stopProviderHeartbeat := startPersonalMemoryHeartbeat(ctx, "memory.append.call_hindsight")
+	providerStartedAt := time.Now().UTC().Truncate(time.Microsecond)
 	result, err := s.personalMemoryExecutor.AppendConversationTurn(ctx, request)
+	providerCompletedAt := time.Now().UTC().Truncate(time.Microsecond)
 	stopProviderHeartbeat()
 	if err != nil {
-		return s.projectMemoryAppendFailure(ctx, run, "hindsight_append_failed", err)
+		return s.projectMemoryAppendFailure(
+			ctx,
+			run,
+			"hindsight_append_failed",
+			err,
+			providerStartedAt,
+			providerCompletedAt,
+		)
 	}
 	recordTemporalActivityHeartbeat(ctx, "memory.append.project_result")
 	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
@@ -68,7 +101,7 @@ func (s *Adapter) AppendConversationMemory(
 		SchemaVersion:        "memory_conversation_append_result_v3",
 		Status:               "completed",
 		ThreadID:             run.ConversationID,
-	})
+	}, providerStartedAt, providerCompletedAt)
 	recordTemporalActivityHeartbeat(ctx, "memory.append.completed")
 	return output, err
 }
@@ -78,6 +111,8 @@ func (s *Adapter) projectMemoryAppendFailure(
 	run execution.DurableRun,
 	failureKind string,
 	cause error,
+	startedAt time.Time,
+	completedAt time.Time,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	summary := summarizeTemporalFailure(failureKind)
 	output := temporalruntime.AppendConversationMemoryActivityOutput{
@@ -86,7 +121,9 @@ func (s *Adapter) projectMemoryAppendFailure(
 		SkipReasons:   []string{failureKind},
 		Status:        "failed",
 	}
-	now := time.Now().UTC()
+	startedAt = canonicalMemoryAppendTime(startedAt)
+	completedAt = canonicalMemoryAppendTime(completedAt)
+	updatedAt := time.Now().UTC().Truncate(time.Microsecond)
 	payload := map[string]any{
 		"appended_message_count": output.AppendedMessageCount,
 		"failure": map[string]any{
@@ -101,20 +138,23 @@ func (s *Adapter) projectMemoryAppendFailure(
 		"thread_id":      output.ThreadID,
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       temporalActivityAttempt(ctx),
-		Tool:          "memory",
-		Run:           run,
-		Status:        "failed",
-		StepID:        "memory.append",
-		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     now,
-		CompletedAt:   now,
-		UpdatedAt:     now,
-		ResultKind:    "memory_conversation_append_result",
-		ProjectionRef: temporalProjectionRef(run.RequestID, "memory/append"),
-		Payload:       payload,
+		Attempt:            temporalActivityAttempt(ctx),
+		Tool:               "memory",
+		Run:                run,
+		Status:             "failed",
+		StepID:             "memory.append",
+		StepKind:           "memory",
+		TaskQueue:          temporalruntime.ActivityTaskQueueCore,
+		WorkerID:           s.config.TemporalWorkerIdentity,
+		StartedAt:          startedAt,
+		CompletedAt:        completedAt,
+		AttemptStartedAt:   startedAt,
+		AttemptCompletedAt: completedAt,
+		UpdatedAt:          updatedAt,
+		AttemptUpdatedAt:   updatedAt,
+		ResultKind:         "memory_conversation_append_result",
+		ProjectionRef:      temporalProjectionRef(run.RequestID, "memory/append"),
+		Payload:            payload,
 	}); err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, sanitizedTemporalApplicationError(
 			"activity_projection_failed",
@@ -189,8 +229,12 @@ func (s *Adapter) projectMemoryAppendResult(
 	ctx context.Context,
 	run execution.DurableRun,
 	output temporalruntime.AppendConversationMemoryActivityOutput,
+	startedAt time.Time,
+	completedAt time.Time,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
-	now := time.Now().UTC()
+	startedAt = canonicalMemoryAppendTime(startedAt)
+	completedAt = canonicalMemoryAppendTime(completedAt)
+	updatedAt := time.Now().UTC().Truncate(time.Microsecond)
 	if strings.TrimSpace(output.SchemaVersion) == "" {
 		output.SchemaVersion = "memory_conversation_append_result_v3"
 	}
@@ -206,25 +250,35 @@ func (s *Adapter) projectMemoryAppendResult(
 		"thread_id":              output.ThreadID,
 	}
 	err := s.projectTemporalStep(ctx, temporalStepProjection{
-		Attempt:       temporalActivityAttempt(ctx),
-		Tool:          "memory",
-		Run:           run,
-		Status:        output.Status,
-		StepID:        "memory.append",
-		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
-		WorkerID:      s.config.TemporalWorkerIdentity,
-		StartedAt:     now,
-		CompletedAt:   now,
-		UpdatedAt:     now,
-		ResultKind:    "memory_conversation_append_result",
-		ProjectionRef: temporalProjectionRef(run.RequestID, "memory/append"),
-		Payload:       payload,
+		Attempt:            temporalActivityAttempt(ctx),
+		Tool:               "memory",
+		Run:                run,
+		Status:             output.Status,
+		StepID:             "memory.append",
+		StepKind:           "memory",
+		TaskQueue:          temporalruntime.ActivityTaskQueueCore,
+		WorkerID:           s.config.TemporalWorkerIdentity,
+		StartedAt:          startedAt,
+		CompletedAt:        completedAt,
+		AttemptStartedAt:   startedAt,
+		AttemptCompletedAt: completedAt,
+		UpdatedAt:          updatedAt,
+		AttemptUpdatedAt:   updatedAt,
+		ResultKind:         "memory_conversation_append_result",
+		ProjectionRef:      temporalProjectionRef(run.RequestID, "memory/append"),
+		Payload:            payload,
 	})
 	if err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
 	}
 	return output, nil
+}
+
+func canonicalMemoryAppendTime(value time.Time) time.Time {
+	if value.IsZero() {
+		return time.Now().UTC().Truncate(time.Microsecond)
+	}
+	return value.UTC().Truncate(time.Microsecond)
 }
 
 func (s *Adapter) temporalCompletedFinalizationRun(

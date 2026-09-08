@@ -146,6 +146,8 @@ type ExecutionFailure struct {
 
 type AgentToolResult struct {
 	ArgumentsJSON map[string]any    `json:"arguments_json"`
+	StartedAt     *time.Time        `json:"started_at,omitempty"`
+	CompletedAt   *time.Time        `json:"completed_at,omitempty"`
 	DurationMS    float64           `json:"duration_ms"`
 	Failure       *ExecutionFailure `json:"failure,omitempty"`
 	InvocationID  string            `json:"invocation_id"`

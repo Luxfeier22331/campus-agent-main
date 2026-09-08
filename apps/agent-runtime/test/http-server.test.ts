@@ -141,6 +141,8 @@ describe("agent runtime HTTP handler", () => {
 			invocationId: "call-1",
 			argumentsJson: { search_query: "通知" },
 			durationMs: 12,
+			startedAt: "2026-09-06T10:00:00.000Z",
+			completedAt: "2026-09-06T10:00:00.012Z",
 		};
 		const handler = createAgentRuntimeHandler({
 			runtime: {
@@ -175,6 +177,8 @@ describe("agent runtime HTTP handler", () => {
 		expect((body.tool_results as unknown[])[0]).toMatchObject({
 			failure: { code: "source_unavailable", operation: "tool.campus_search" },
 			status: "failed",
+			started_at: "2026-09-06T10:00:00.000Z",
+			completed_at: "2026-09-06T10:00:00.012Z",
 		});
 	});
 

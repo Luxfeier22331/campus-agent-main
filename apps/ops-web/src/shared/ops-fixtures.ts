@@ -37,8 +37,10 @@ function execution(
 				durationMs: status === "running" ? null : 3_100,
 				failureKind: failed ? "provider_unavailable" : null,
 				kind: "agent",
+				invocationId: null,
 				startedAt: "2026-07-09T06:29:00.700Z",
 				status,
+				toolName: null,
 			},
 		],
 		terminalReason:
@@ -214,6 +216,7 @@ function requestSummary(
 			? {
 					kind: detail.execution.stages.at(-1)?.kind ?? "unknown",
 					status: detail.execution.stages.at(-1)?.status ?? "unknown",
+					toolName: detail.execution.stages.at(-1)?.toolName ?? null,
 				}
 			: null,
 		failureKind: detail.execution.failure.code,

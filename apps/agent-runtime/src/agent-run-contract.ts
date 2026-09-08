@@ -220,6 +220,9 @@ export interface ToolExecutionResult extends UntimedToolExecutionResult {
 	invocationId: string;
 	argumentsJson: Record<string, unknown>;
 	durationMs: number;
+	/** Wall-clock boundaries for the actual tool executor call, when available. */
+	startedAt?: string;
+	completedAt?: string;
 }
 
 export interface WebCitation {

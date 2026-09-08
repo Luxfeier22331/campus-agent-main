@@ -11,23 +11,24 @@ export function requestSql(suffix: string): string {
 				"assistant_message_present" as "assistantMessagePresent",
 				"attention_reason" as "attentionReason",
 				"completed_at" as "completedAt",
-			"duration_ms" as "durationMs",
-			"error_code" as "errorCode",
-			"execution_failure_kind" as "executionFailureKind",
-			"execution_step_kind" as "executionStepKind",
-			"execution_step_status" as "executionStepStatus",
-			"fail_close_reason" as "failCloseReason",
+				"duration_ms" as "durationMs",
+				"error_code" as "errorCode",
+				"execution_failure_kind" as "executionFailureKind",
+				"execution_step_kind" as "executionStepKind",
+				"execution_step_status" as "executionStepStatus",
+				"execution_step_tool_name" as "executionStepToolName",
+				"fail_close_reason" as "failCloseReason",
 				"projected_at" as "dataUpdatedAt",
 				"question_preview" as "questionPreview",
 				"question_truncated" as "questionTruncated",
-			"request_id" as "requestId",
-			"run_status" as "runStatus",
-			"attention_priority" as "attentionPriority",
-			"started_at" as "startedAt",
-			"status",
-			"terminal_reason" as "terminalReason"
-		from request_rows
-		${suffix}
+				"request_id" as "requestId",
+				"run_status" as "runStatus",
+				"attention_priority" as "attentionPriority",
+				"started_at" as "startedAt",
+				"status",
+				"terminal_reason" as "terminalReason"
+			from request_rows
+			${suffix}
 	`;
 }
 
@@ -46,6 +47,7 @@ export function requestDetailSql(suffix: string): string {
 				"execution_failure_kind" as "executionFailureKind",
 				"execution_step_kind" as "executionStepKind",
 				"execution_step_status" as "executionStepStatus",
+				"execution_step_tool_name" as "executionStepToolName",
 				"fail_close_reason" as "failCloseReason",
 				"projected_at" as "dataUpdatedAt",
 				"question_preview" as "questionPreview",
@@ -78,6 +80,7 @@ export function requestRowsCte(): string {
 				) as "execution_failure_kind",
 				latest_step.step_kind as "execution_step_kind",
 				latest_step.status as "execution_step_status",
+				nullif(latest_step.sanitized_payload_json ->> 'tool_name', '') as "execution_step_tool_name",
 				nullif(agent_run.fail_close_reason, '') as "fail_close_reason",
 					greatest(
 					dispatch.updated_at,
@@ -185,16 +188,26 @@ export function buildRequestFilter(
 export function requestStagesSql(): string {
 	return `
 		select
-			"completed_at" as "completedAt",
-			"sanitized_payload_json" as "sanitizedPayloadJson",
-			"step_id" as "stepId",
-			"started_at" as "startedAt",
-			"status",
-			"step_kind" as "stepKind",
-			"updated_at" as "updatedAt"
-		from "execution_control"."agent_run_steps"
-		where "request_id" = $1
-		order by coalesce("started_at", "updated_at") asc, "step_id" asc
+			step."completed_at" as "completedAt",
+			attempt."duration_ms" as "durationMs",
+			step."sanitized_payload_json" as "sanitizedPayloadJson",
+			step."step_id" as "stepId",
+			step."started_at" as "startedAt",
+			step."status",
+			step."step_kind" as "stepKind",
+			step."updated_at" as "updatedAt"
+		from "execution_control"."agent_run_steps" as step
+		left join lateral (
+			select candidate."duration_ms"
+			from "execution_control"."agent_step_attempts" as candidate
+			where candidate."request_id" = step."request_id"
+				and candidate."step_id" = step."step_id"
+				and candidate."activity_attempt" = step."activity_attempt"
+			order by candidate."attempt" desc, candidate."updated_at" desc
+			limit 1
+		) as attempt on true
+		where step."request_id" = $1
+		order by coalesce(step."started_at", step."updated_at") asc, step."step_id" asc
 		`;
 }
 

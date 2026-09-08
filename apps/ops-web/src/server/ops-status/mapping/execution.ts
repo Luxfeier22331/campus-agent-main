@@ -15,11 +15,13 @@ export function toExecutionDiagnostics(
 		const failure = readExecutionFailure(payload.failure);
 		return {
 			completedAt: stage.completedAt?.toISOString() ?? null,
-			durationMs: stageDurationMs(stage.startedAt, stage.completedAt),
+			durationMs: stageDurationMs(stage),
 			failureKind: failure?.code ?? null,
 			kind: stage.stepKind,
+			invocationId: normalizeNullableString(payload.invocation_id),
 			startedAt: stage.startedAt?.toISOString() ?? null,
 			status: stage.status,
+			toolName: normalizeNullableString(payload.tool_name),
 		};
 	});
 	const failedStage = diagnostics.stages
@@ -137,7 +139,12 @@ function diagnosticPayloadString(
 	return null;
 }
 
-function stageDurationMs(startedAt: Date | null, completedAt: Date | null): number | null {
+function stageDurationMs(stage: OpsRequestStageRow): number | null {
+	const storedDuration = readStoredDurationMs(stage.durationMs);
+	if (storedDuration !== null) {
+		return storedDuration;
+	}
+	const { startedAt, completedAt } = stage;
 	if (!(startedAt && completedAt)) {
 		return null;
 	}
@@ -146,6 +153,13 @@ function stageDurationMs(startedAt: Date | null, completedAt: Date | null): numb
 		throw new Error("Execution stage completed before it started");
 	}
 	return durationMs;
+}
+
+function readStoredDurationMs(value: number | string | null): number | null {
+	const normalized = typeof value === "string" && value.trim() ? Number(value) : value;
+	return typeof normalized === "number" && Number.isSafeInteger(normalized) && normalized >= 0
+		? normalized
+		: null;
 }
 
 function compareExecutionStageRecency(left: OpsRequestStageRow, right: OpsRequestStageRow): number {

@@ -384,7 +384,7 @@ function RequestExecutionStage({
 			<span className="text-muted-foreground text-xs">执行阶段</span>
 			<span className="font-medium text-foreground">
 				{stage
-					? `${formatOpsDomainValue(stage.kind)} · ${formatOpsDomainValue(stage.status)}`
+					? `${formatOpsDomainValue(stage.toolName ?? stage.kind)} · ${formatOpsDomainValue(stage.status)}`
 					: formatLifecyclePhase(request.lifecyclePhase)}
 			</span>
 			{request.failureKind ? (

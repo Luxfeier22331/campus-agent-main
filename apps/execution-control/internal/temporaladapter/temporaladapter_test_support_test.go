@@ -307,6 +307,7 @@ func expectInternalFinalizationResponseForTest(
 
 type fakePersonalMemoryExecutor struct {
 	appendErr     error
+	appendDelay   time.Duration
 	appendCount   int
 	commandCount  int
 	commandErr    error
@@ -351,6 +352,9 @@ func (executor *fakePersonalMemoryExecutor) AppendConversationTurn(
 ) (memoryruntime.AppendConversationTurnResult, error) {
 	executor.appendCount++
 	executor.seenAppend = request
+	if executor.appendDelay > 0 {
+		time.Sleep(executor.appendDelay)
+	}
 	if executor.appendErr != nil {
 		return memoryruntime.AppendConversationTurnResult{}, executor.appendErr
 	}

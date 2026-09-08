@@ -8,6 +8,7 @@ import {
 } from "./support/api-mocks";
 import { mockAuthApi } from "./support/auth-mocks";
 import { collectPageDiagnostics } from "./support/diagnostics";
+import { startStreamingSseServer } from "./support/streaming-sse-server";
 
 test.describe("Q&A browser flow", () => {
 	test("opens the auth dialog when an anonymous user submits a prompt", async ({ page }) => {
@@ -153,6 +154,186 @@ test.describe("Q&A browser flow", () => {
 		await expect(page.getByRole("button", { name: "停止生成" })).toHaveCount(0);
 	});
 
+	test("keeps the historical streaming viewport bounded and renders sources", async ({ page }) => {
+		const prompt = "请详细说明历史会话中的评审流程";
+		const requestId = "req_issue_342";
+		const conversationId = "conv_history_e2e";
+		const answerText = createLongStreamingAnswer();
+		const sourceItems = [
+			{
+				citationIndexes: [1],
+				collectionLabel: "学生规章",
+				kind: "campus_document" as const,
+				primaryAction: {
+					disabledReason: null,
+					external: false as const,
+					href: "/docs/regulations/student_rules/doc-c62077b20430",
+					label: "查看文档" as const,
+				},
+				sectionTitle: "考勤与请假",
+				snippet: "学生应按规定完成考勤，特殊情况依照请假流程办理。",
+				title: "学生考勤管理规定",
+				versionSlug: "2026",
+			},
+		];
+		const answerChunks = splitText(answerText, 100);
+		const streamServer = await startStreamingSseServer((requestBody) => {
+			const body = JSON.parse(requestBody) as {
+				conversationId?: string;
+				prompt?: string;
+			};
+			const requestedConversationId = body.conversationId ?? conversationId;
+			const requestedPrompt = body.prompt ?? prompt;
+			const answer = {
+				conversation: {
+					activeRequestId: null,
+					archivedAt: null,
+					createdAt: "2026-06-30T08:00:00.000Z",
+					id: requestedConversationId,
+					messages: [
+						{
+							conversationId: requestedConversationId,
+							createdAt: "2026-06-30T08:00:00.000Z",
+							id: "msg_issue_342_user",
+							kind: null,
+							requestId,
+							retryable: null,
+							role: "user" as const,
+							structuredParts: [],
+							text: requestedPrompt,
+						},
+						{
+							conversationId: requestedConversationId,
+							createdAt: "2026-06-30T08:00:00.000Z",
+							id: "msg_issue_342_assistant",
+							kind: "answer" as const,
+							requestId,
+							retryable: null,
+							role: "assistant" as const,
+							structuredParts: [{ sourceItems, type: "source_items" as const }],
+							text: answerText,
+						},
+					],
+					pinnedAt: null,
+					title: requestedPrompt,
+					updatedAt: "2026-06-30T08:00:00.000Z",
+				},
+				result: {
+					kind: "answer" as const,
+					requestId,
+					text: answerText,
+				},
+			};
+			return [
+				{
+					body: streamEvent("request.accepted", {
+						occurredAt: "2026-06-30T08:00:00.000Z",
+						requestId,
+						sequence: 1,
+						status: "accepted",
+					}),
+				},
+				...answerChunks.map((delta, index) => ({
+					body: streamEvent("answer.delta", {
+						delta,
+						messageId: "msg_issue_342_assistant",
+						occurredAt: "2026-06-30T08:00:00.000Z",
+						requestId,
+						sequence: index + 2,
+						status: "streaming",
+					}),
+					delayMs: 45,
+				})),
+				{
+					body: streamEvent("request.completed", {
+						answer,
+						occurredAt: "2026-06-30T08:00:00.000Z",
+						requestId,
+						sequence: answerChunks.length + 2,
+						status: "completed",
+					}),
+				},
+			];
+		});
+
+		try {
+			await mockCampusApi(page);
+			await page.route("**/api/chat/requests/stream", (route) =>
+				route.continue({ url: `${streamServer.url}/stream` }),
+			);
+			await page.goto("/");
+			await page.getByRole("button", { name: "国家奖学金" }).click();
+			await expect(page.getByText("历史记录中的国家奖学金回答。")).toBeVisible();
+			await page.getByLabel("消息输入").fill(prompt);
+			await page.getByRole("button", { name: "发送" }).click();
+
+			await expect(page.locator(".aui-thread-run-status")).toHaveText("正在回答");
+			await expect(page.locator("[data-aui-top-anchor-reserve]")).toHaveCount(1);
+			await expect(page.getByRole("button", { name: "停止生成" })).toBeVisible();
+
+			const samples = await page.evaluate(async () => {
+				const values: Array<{
+					clientHeight: number;
+					pageScrollHeight: number;
+					reserveHeight: number;
+					scrollHeight: number;
+					stopInViewport: boolean;
+					windowHeight: number;
+				}> = [];
+				for (let index = 0; index < 24; index += 1) {
+					const viewport = document.querySelector<HTMLElement>('[data-slot="aui_thread-viewport"]');
+					const reserve = document.querySelector<HTMLElement>("[data-aui-top-anchor-reserve]");
+					const stop = document.querySelector<HTMLButtonElement>('[aria-label="停止生成"]');
+					if (!stop) {
+						break;
+					}
+					const rect = stop?.getBoundingClientRect();
+					values.push({
+						clientHeight: viewport?.clientHeight ?? 0,
+						pageScrollHeight: document.documentElement.scrollHeight,
+						reserveHeight: reserve?.getBoundingClientRect().height ?? 0,
+						scrollHeight: viewport?.scrollHeight ?? 0,
+						stopInViewport: Boolean(
+							rect &&
+								rect.top >= 0 &&
+								rect.left >= 0 &&
+								rect.bottom <= window.innerHeight &&
+								rect.right <= window.innerWidth,
+						),
+						windowHeight: window.innerHeight,
+					});
+					await new Promise((resolve) => window.setTimeout(resolve, 100));
+				}
+				return values;
+			});
+
+			const viewportHeight = samples[0]?.clientHeight ?? 0;
+			const clientHeights = samples.map((sample) => sample.clientHeight);
+			const reserveHeights = samples.map((sample) => sample.reserveHeight);
+			const scrollHeights = samples.map((sample) => sample.scrollHeight);
+			expect(viewportHeight).toBeGreaterThan(0);
+			expect(Math.max(...clientHeights) - Math.min(...clientHeights)).toBeLessThanOrEqual(2);
+			expect(Math.max(...reserveHeights)).toBeLessThanOrEqual(viewportHeight * 2);
+			expect(Math.max(...scrollHeights)).toBeGreaterThan(Math.min(...scrollHeights));
+			expect(samples.every((sample) => sample.pageScrollHeight <= sample.windowHeight + 2)).toBe(
+				true,
+			);
+			expect(samples.length).toBeGreaterThanOrEqual(5);
+			expect(samples.every((sample) => sample.stopInViewport)).toBe(true);
+
+			await expect(page.getByText("评审流程说明")).toBeVisible();
+			await expect(page.getByRole("region", { name: "来源" })).toBeVisible();
+			await expect(page.getByText("学生考勤管理规定")).toBeVisible();
+			expect(streamServer.requestBodies).toHaveLength(1);
+			expect(JSON.parse(streamServer.requestBodies[0] ?? "{}")).toMatchObject({
+				conversationId,
+				prompt,
+			});
+		} finally {
+			await streamServer.close();
+		}
+	});
+
 	test("continues an opened historical conversation with the existing conversation id", async ({
 		page,
 	}) => {
@@ -225,8 +406,44 @@ test.describe("Q&A browser flow", () => {
 
 	test("surfaces a failed stream terminal event and allows the next submit", async ({ page }) => {
 		await mockCampusApi(page);
+		const conversationId = "conv_e2e";
+		const prompt = "这次请求会失败吗？";
+		const createdAt = "2026-06-30T08:00:00.000Z";
+		await page.route("**/api/chat/conversations/conv_e2e", (route) =>
+			route.fulfill({
+				json: {
+					conversation: {
+						id: conversationId,
+						activeRequestId: null,
+						archivedAt: null,
+						pinnedAt: null,
+						createdAt,
+						updatedAt: createdAt,
+						title: prompt,
+						messages: [
+							{ id: "msg_failed_user", role: "user", kind: null, text: prompt, retryable: null },
+							{
+								id: "msg_failed_assistant",
+								role: "assistant",
+								kind: "error",
+								text: "请求失败。",
+								retryable: true,
+							},
+						].map((message) => ({
+							...message,
+							conversationId,
+							createdAt,
+							requestId: "req_failed_e2e",
+							structuredParts: [],
+						})),
+					},
+				},
+			}),
+		);
+		const streamBodies: unknown[] = [];
 		let failFirstStream = true;
 		await page.route("**/api/chat/requests/stream", async (route) => {
+			streamBodies.push(route.request().postDataJSON());
 			if (failFirstStream) {
 				failFirstStream = false;
 				await fulfillChatFailedStream(route);
@@ -236,15 +453,21 @@ test.describe("Q&A browser flow", () => {
 		});
 		await page.goto("/");
 
-		await page.getByLabel("消息输入").fill("这次请求会失败吗？");
+		await page.getByLabel("消息输入").fill(prompt);
 		await page.getByRole("button", { name: "发送" }).click();
 
 		await expect(page.getByText("请求失败。")).toBeVisible();
+		await expect(page.getByText("请求失败。", { exact: true })).toHaveCount(1);
+		await expect(page.getByRole("button", { name: "停止生成" })).toHaveCount(0);
 
 		await page.getByLabel("消息输入").fill("国家奖学金怎么评审？");
 		await page.getByRole("button", { name: "发送" }).click();
 
 		await expect(page.getByText("国家奖学金评审材料以学校正式通知为准。")).toBeVisible();
+		expect(streamBodies).toEqual([
+			expect.objectContaining({ conversationId, prompt }),
+			expect.objectContaining({ conversationId, prompt: "国家奖学金怎么评审？" }),
+		]);
 	});
 
 	test("opens a historical conversation from the thread list", async ({ page }) => {
@@ -273,4 +496,30 @@ test.describe("Q&A browser flow", () => {
 
 function lastStreamBody(requests: CampusApiRequestRecord[]) {
 	return requests.filter((request) => request.path === "/api/chat/requests/stream").at(-1)?.body;
+}
+
+function createLongStreamingAnswer(): string {
+	return [
+		"## 评审流程说明",
+		"以下内容用于验证历史会话继续提问时的长回答布局。",
+		...Array.from(
+			{ length: 80 },
+			(_, index) =>
+				`${index + 1}. 第 ${index + 1} 项：申请人应按照学校正式通知准备材料，并在规定时间内完成提交；具体要求以发布部门的最新说明为准。`,
+		),
+		"### 办理提醒",
+		"如需确认当前规则，请打开来源文档并以页面中的正式版本为准。",
+	].join("\n\n");
+}
+
+function splitText(text: string, chunkSize: number): string[] {
+	const chunks: string[] = [];
+	for (let start = 0; start < text.length; start += chunkSize) {
+		chunks.push(text.slice(start, start + chunkSize));
+	}
+	return chunks;
+}
+
+function streamEvent(event: string, data: unknown): string {
+	return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
