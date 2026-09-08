@@ -7,6 +7,8 @@ import { readDatabaseConnectionConfig } from "./postgres-tls.ts";
 import { TRANSPORT_BASELINE_PERIODS, TRANSPORT_BASELINE_ROUTES } from "./transport-baseline.ts";
 
 const BOOTSTRAP_ACTOR = "system:transport-baseline";
+const TRANSPORT_SCHEMA_WAIT_TIMEOUT_MS = 60_000;
+const TRANSPORT_SCHEMA_WAIT_INTERVAL_MS = 2_000;
 
 interface BootstrapDatabase {
 	query(
@@ -136,10 +138,68 @@ export async function bootstrapTransportScheduleFromEnv(
 	});
 	const pool = new pg.Pool({ ...config, max: 1 });
 	try {
+		await waitForTransportSchema(pool);
 		return await bootstrapTransportSchedule({ database: pool });
 	} finally {
 		await pool.end();
 	}
+}
+
+export async function waitForTransportSchema(
+	database: BootstrapDatabase,
+	options: {
+		now?: () => number;
+		sleep?: (milliseconds: number) => Promise<void>;
+		timeoutMs?: number;
+		intervalMs?: number;
+	} = {},
+): Promise<void> {
+	const now = options.now ?? Date.now;
+	const sleep =
+		options.sleep ??
+		((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+	const timeoutMs = options.timeoutMs ?? TRANSPORT_SCHEMA_WAIT_TIMEOUT_MS;
+	const intervalMs = options.intervalMs ?? TRANSPORT_SCHEMA_WAIT_INTERVAL_MS;
+	const deadline = now() + timeoutMs;
+
+	while (true) {
+		try {
+			const result = await database.query(`
+				select
+					to_regclass('transport.routes') as routes,
+					to_regclass('transport.schedule_periods') as periods,
+					to_regclass('transport.schedule_items') as items
+			`);
+			const row = result.rows[0];
+			if (row?.routes && row.periods && row.items) {
+				return;
+			}
+			throw Object.assign(new Error("Transport schema is not ready."), { code: "42P01" });
+		} catch (error) {
+			if (!isTransportSchemaReadinessError(error)) {
+				throw error;
+			}
+			const remaining = deadline - now();
+			if (remaining <= 0) {
+				throw new Error("Timed out waiting for the transport schema to become ready.", {
+					cause: error,
+				});
+			}
+			await sleep(Math.min(intervalMs, remaining));
+		}
+	}
+}
+
+function isTransportSchemaReadinessError(error: unknown): boolean {
+	const code =
+		typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+	const message = error instanceof Error ? error.message : String(error);
+	return (
+		code === "ECONNREFUSED" ||
+		code === "57P03" ||
+		code === "42P01" ||
+		/ECONNREFUSED|does not exist/u.test(message)
+	);
 }
 
 function nonNegativeInteger(value: unknown, label: string): number {
