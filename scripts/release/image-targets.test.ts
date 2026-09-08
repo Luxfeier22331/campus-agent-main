@@ -17,6 +17,7 @@ test("active image target registry excludes the historical schema image", () => 
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"document-ocr",
 		"execution-control",
 		"internal-portal-collection",
 		"model-config",
@@ -46,6 +47,7 @@ test("maps shared Node build inputs to all active Node images", () => {
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
 		"notice-index-publisher",
@@ -57,6 +59,7 @@ test("maps shared Node build inputs to all active Node images", () => {
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
 		"notice-index-publisher",
@@ -68,6 +71,7 @@ test("maps shared Node build inputs to all active Node images", () => {
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
 		"notice-index-publisher",
@@ -83,10 +87,12 @@ test("maps shared Docker context changes to every active image", () => {
 
 test("maps non-Turbo notice and execution inputs to their consumers", () => {
 	assert.deepEqual(targets(["packages/notice-database/src/index.ts"]), [
+		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
 		"notice-index-publisher",
 		"notice-publisher",
+		"ops-web",
 	]);
 	assert.deepEqual(targets(["configs/runtime/tools.v7.json"]), ["execution-control"]);
 });
@@ -121,4 +127,17 @@ test("recognizes container definition changes independently of image selection",
 	assert.equal(containerBuildInputsChanged(["scripts/release/images.mts"]), true);
 	assert.equal(containerBuildInputsChanged(["apps/agent-runtime/Dockerfile"]), true);
 	assert.equal(containerBuildInputsChanged(["docs/runbooks/release.md"]), false);
+});
+
+test("maps OCR bundled inputs to its image", () => {
+	for (const file of [
+		"packages/document-ocr/src/runner.ts",
+		"packages/notice-database/src/index.ts",
+		"packages/domains/notices/src/index.ts",
+		"packages/contracts/package.json",
+		"packages/contracts/src/notices.ts",
+		"configs/sources/internal-portal.json",
+	]) {
+		assert.ok(targets([file]).includes("document-ocr"), file);
+	}
 });

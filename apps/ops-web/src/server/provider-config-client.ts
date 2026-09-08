@@ -83,6 +83,23 @@ export function createProviderConfigAdminClient(
 	}
 
 	return {
+		async getOcrConfig() {
+			const status = asRecord(await request("", { method: "GET" }));
+			return asRecord(status.configs).document_ocr ?? null;
+		},
+		async putOcrConfig(body: { baseUrl: string; apiKey?: string | undefined }, actorId: string) {
+			return request("/document_ocr", {
+				method: "PUT",
+				actorId,
+				body: {
+					base_url: body.baseUrl,
+					...(body.apiKey ? { api_key: body.apiKey } : {}),
+					provider: "paddleocr",
+					api_protocol: "paddleocr.jobs",
+					model: "PaddleOCR-VL-1.6",
+				},
+			});
+		},
 		discoverModels(
 			body: z.input<typeof ModelDiscoveryRequestSchema>,
 			actorId: string,

@@ -6,8 +6,10 @@ export const transport = pgSchema("transport");
 export const transportRoutes = transport.table(
 	"routes",
 	{
+		boardingGuide: text("boarding_guide"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		defaultBoardingPoint: text("default_boarding_point"),
+		dropOffPoint: text("drop_off_point"),
 		destination: text("destination").notNull(),
 		displayOrder: integer("display_order").notNull(),
 		origin: text("origin").notNull(),

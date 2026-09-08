@@ -7,3 +7,5 @@ resources:
   - notice-classifier.yaml
   - notice-index-publisher.yaml
   - notice-publisher.yaml
+  - document-ocr.yaml
+  - document-ocr-network-policy.yaml

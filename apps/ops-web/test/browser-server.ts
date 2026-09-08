@@ -725,6 +725,12 @@ function fixtureProviderConfigClient() {
 				sampledAt: new Date().toISOString(),
 			};
 		},
+		async getOcrConfig() {
+			return null;
+		},
+		async putOcrConfig() {
+			return null;
+		},
 		async getStatus() {
 			return status;
 		},

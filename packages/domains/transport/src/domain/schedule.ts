@@ -106,7 +106,9 @@ export const TransportSchedulePeriodInputSchema = z
 
 export const TransportRouteInputSchema = z
 	.object({
+		boardingGuide: OptionalText(2_000),
 		defaultBoardingPoint: OptionalText(500),
+		dropOffPoint: OptionalText(500),
 		destination: Text(500),
 		displayOrder: z.number().int().nonnegative(),
 		origin: Text(500),
@@ -162,8 +164,16 @@ export const TransportPublicRouteSchema = z
 	})
 	.strict();
 
+export const TransportRouteCatalogEntrySchema = TransportRouteInputSchema.omit({
+	displayOrder: true,
+}).extend({ nextServiceDate: IsoDate.nullable() });
+
 export const TransportPublicScheduleResponseSchema = z
-	.object({ date: IsoDate, routes: z.array(TransportPublicRouteSchema).max(500) })
+	.object({
+		date: IsoDate,
+		routeCatalog: z.array(TransportRouteCatalogEntrySchema).max(500),
+		routes: z.array(TransportPublicRouteSchema).max(500),
+	})
 	.strict();
 
 export type TransportServiceKind = z.infer<typeof TransportServiceKindSchema>;
@@ -172,6 +182,7 @@ export type TransportRiderType = z.infer<typeof TransportRiderTypeSchema>;
 export type TransportScheduleItem = z.infer<typeof TransportScheduleItemSchema>;
 export type TransportSchedulePeriodInput = z.infer<typeof TransportSchedulePeriodInputSchema>;
 export type TransportRouteInput = z.infer<typeof TransportRouteInputSchema>;
+export type TransportRouteCatalogEntry = z.infer<typeof TransportRouteCatalogEntrySchema>;
 export type TransportPublicDeparture = z.infer<typeof TransportPublicDepartureSchema>;
 export type TransportPublicRoute = z.infer<typeof TransportPublicRouteSchema>;
 export type TransportPublicScheduleResponse = z.infer<typeof TransportPublicScheduleResponseSchema>;

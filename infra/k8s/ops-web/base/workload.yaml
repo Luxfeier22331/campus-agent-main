@@ -97,6 +97,18 @@ spec:
                   key: OPS_WEB_DATABASE_URL
             - name: OBJECT_STORE_ENDPOINT
               value: http://object-store:9000
+            - name: OBJECT_STORE_BUCKET_SOURCE
+              value: campus-agent-source
+            - name: OBJECT_STORE_SOURCE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_SOURCE_ACCESS_KEY
+            - name: OBJECT_STORE_SOURCE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-secrets
+                  key: OBJECT_STORE_SOURCE_SECRET_KEY
             - name: OBJECT_STORE_DERIVED_ACCESS_KEY
               valueFrom:
                 secretKeyRef:

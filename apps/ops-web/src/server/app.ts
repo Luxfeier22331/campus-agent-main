@@ -116,6 +116,7 @@ import {
 } from "./routes/model-settings.ts";
 import { registerNoticeRoutes } from "./routes/notices.ts";
 import { registerObservabilityRoutes, registerOverviewRoute } from "./routes/observability.ts";
+import { registerOcrRoutes } from "./routes/ocr.ts";
 import { registerTransportRoutes } from "./routes/transport.ts";
 import { logOpsError } from "./safe-logging.ts";
 import { createPgTransportStore } from "./transport-store.ts";
@@ -507,6 +508,14 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 
 	registerOverviewRoute({ admission, app, overviewService });
+	registerOcrRoutes({
+		admission,
+		app,
+		providerConfigClient,
+		publicOrigin,
+		pool: databasePool,
+		env: env as NodeJS.ProcessEnv,
+	});
 	registerModelSettingsRoutes({ admission, app, providerConfigClient, publicOrigin });
 	registerInternalPortalRoutes({
 		admission,

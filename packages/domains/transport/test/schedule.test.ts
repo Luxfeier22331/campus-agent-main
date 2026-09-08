@@ -72,6 +72,7 @@ describe("transport schedule model", () => {
 	it("keeps the public response limited to the structured schedule", () => {
 		const response = TransportPublicScheduleResponseSchema.parse({
 			date: "2026-09-07",
+			routeCatalog: [],
 			routes: [
 				{
 					boardingPoint: "聚雅餐厅东侧停车场路口",

@@ -79,12 +79,24 @@ describe("transport PostgreSQL store integration", () => {
 			pool: opsPool,
 		});
 		const route = await store.createRoute(ACTOR, {
+			boardingGuide: "先预约再乘车",
+			dropOffPoint: "海淀校区东门",
 			defaultBoardingPoint: "丰台校区南门",
 			destination: "海淀校区",
 			displayOrder: 0,
 			origin: "丰台校区",
 			routeId: ROUTE_ID,
 			serviceKind: "commute",
+		});
+		expect(route).toMatchObject({ boardingGuide: "先预约再乘车", dropOffPoint: "海淀校区东门" });
+		const cleared = await store.updateRoute(ACTOR, route.routeId, {
+			boardingGuide: null,
+			dropOffPoint: null,
+		});
+		expect(cleared).toMatchObject({
+			boardingGuide: null,
+			dropOffPoint: null,
+			defaultBoardingPoint: "丰台校区南门",
 		});
 		const period = await store.createSchedulePeriod(ACTOR, PERIOD_INPUT);
 		const updated = await store.updateSchedulePeriod(ACTOR, period.scheduleId, {

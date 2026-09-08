@@ -443,6 +443,12 @@ func validateShape(target Target, apiKey string) error {
 	if target.Name == "" || target.Provider == "" || target.APIProtocol == "" || target.BaseURL == "" || target.Model == "" || strings.TrimSpace(apiKey) == "" {
 		return errors.New("name, provider, api_protocol, base_url, model and api_key are required")
 	}
+	if target.Name == ConfigDocumentOCR {
+		if target.Provider != "paddleocr" || target.APIProtocol != "paddleocr.jobs" || target.Model != "PaddleOCR-VL-1.6" {
+			return errors.New("OCR requires paddleocr, paddleocr.jobs and PaddleOCR-VL-1.6")
+		}
+		return nil
+	}
 	if target.Name != ConfigPrimaryAgent && target.Name != ConfigCampusDocsEmbedding && target.Name != ConfigCampusDocsReranker && target.Name != ConfigNoticeClassification {
 		return errors.New("name is invalid")
 	}

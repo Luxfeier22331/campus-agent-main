@@ -88,7 +88,14 @@ async function loadSchedule(
 		periodsByRoute.set(period.input.routeId, periods);
 	}
 
-	const response: TransportPublicScheduleResponse = { date, routes: [] };
+	const response: TransportPublicScheduleResponse = {
+		date,
+		routeCatalog: routes.map(({ input: { displayOrder: _order, ...route } }) => ({
+			...route,
+			nextServiceDate: nextServiceDate(periodsByRoute.get(route.routeId) ?? [], date),
+		})),
+		routes: [],
+	};
 	for (const route of routes) {
 		const period = selectPeriod(periodsByRoute.get(route.input.routeId) ?? [], date);
 		if (!period) {
@@ -127,6 +134,8 @@ function parseRoute(row: RouteRow): ParsedRoute {
 	try {
 		return {
 			input: TransportRouteInputSchema.parse({
+				boardingGuide: nullableText(row.boardingGuide),
+				dropOffPoint: nullableText(row.dropOffPoint),
 				defaultBoardingPoint: nullableText(row.defaultBoardingPoint),
 				destination: row.destination,
 				displayOrder: row.displayOrder,
@@ -211,6 +220,40 @@ function selectPeriod(periods: readonly ParsedPeriod[], date: string): ParsedPer
 			.filter((period) => transportPeriodIncludesDate(period.input, date))
 			.sort(comparePeriods)[0] ?? null
 	);
+}
+
+function nextServiceDate(periods: readonly ParsedPeriod[], date: string): string | null {
+	// Between period boundaries the winning schedule repeats weekly. Check one week
+	// per segment, including the final unbounded segment, rather than scanning days indefinitely.
+	const boundaries = new Set([date]);
+	for (const { input } of periods) {
+		if (input.validFrom > date) {
+			boundaries.add(input.validFrom);
+		}
+		if (input.validTo !== null && input.validTo >= date) {
+			boundaries.add(addDays(input.validTo, 1));
+		}
+	}
+	const starts = [...boundaries].sort();
+	for (const [index, start] of starts.entries()) {
+		const end = starts[index + 1];
+		for (let offset = 0; offset < 7; offset++) {
+			const candidate = addDays(start, offset);
+			if (end && candidate >= end) {
+				break;
+			}
+			if (selectPeriod(periods, candidate)?.input.status === "operating") {
+				return candidate;
+			}
+		}
+	}
+	return null;
+}
+
+function addDays(date: string, amount: number): string {
+	const parsed = new Date(`${date}T00:00:00Z`);
+	parsed.setUTCDate(parsed.getUTCDate() + amount);
+	return parsed.toISOString().slice(0, 10);
 }
 
 function comparePeriods(left: ParsedPeriod, right: ParsedPeriod): number {

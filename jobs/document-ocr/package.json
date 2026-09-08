@@ -1,0 +1,28 @@
+{
+	"name": "document-ocr",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"scripts": {
+		"ocr": "tsx src/local-cli.ts",
+		"build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.js --external:pg --external:@aws-sdk/client-s3 --external:jsdom",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1111.0",
+		"@campus-agent/document-ocr": "workspace:*",
+		"@campus-agent/notice-database": "workspace:*",
+		"pg": "^8.22.0",
+		"jsdom": "^27.4.0"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.3",
+		"@types/pg": "^8.15.6",
+		"@types/jsdom": "^27.0.0",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.12",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.10"
+	}
+}

@@ -10,8 +10,22 @@ export interface TransportBaselinePeriod {
 	scheduleId: string;
 }
 
+const COMMUTE_GUIDE = [
+	"学生乘车须提前申请，经辅导员审批通过后乘车。教师班次优先教师，有空位时可在学生乘车点乘坐。",
+	"电脑端：服务门户搜索“通勤”，选择“学生乘坐通勤班车申请”，填写乘车日期和事由后提交。",
+	"手机端：企业微信 → 工作台 → 丰台校区 → 学生班车申请。",
+].join("\n");
+const SUBWAY_GUIDE = [
+	"本校师生预约后乘车，现场扫码签到。周五09:00开放周末预约。取消行程请及时取消预约。",
+	"企业微信：工作台 → 接驳车预约。",
+	"民大通：服务 → 预约服务 → 接驳车预约。",
+	"电脑端：服务门户 → 预约 → 接驳车预约。",
+].join("\n");
+
 export const TRANSPORT_BASELINE_ROUTES: readonly TransportRouteInput[] = [
 	{
+		boardingGuide: COMMUTE_GUIDE,
+		dropOffPoint: "聚雅餐厅东侧停车场路口",
 		defaultBoardingPoint: null,
 		destination: "丰台校区",
 		displayOrder: 0,
@@ -20,6 +34,8 @@ export const TRANSPORT_BASELINE_ROUTES: readonly TransportRouteInput[] = [
 		serviceKind: "commute",
 	},
 	{
+		boardingGuide: COMMUTE_GUIDE,
+		dropOffPoint: null,
 		defaultBoardingPoint: "聚雅餐厅东侧停车场路口",
 		destination: "海淀校区",
 		displayOrder: 1,
@@ -28,6 +44,8 @@ export const TRANSPORT_BASELINE_ROUTES: readonly TransportRouteInput[] = [
 		serviceKind: "commute",
 	},
 	{
+		boardingGuide: SUBWAY_GUIDE,
+		dropOffPoint: "五棵松地铁站A口（西北口）北侧200米国家开放大学东门口",
 		defaultBoardingPoint: "聚雅餐厅东侧停车场路口",
 		destination: "五棵松地铁站",
 		displayOrder: 2,
@@ -36,6 +54,8 @@ export const TRANSPORT_BASELINE_ROUTES: readonly TransportRouteInput[] = [
 		serviceKind: "subway",
 	},
 	{
+		boardingGuide: SUBWAY_GUIDE,
+		dropOffPoint: "智慧中心南侧",
 		defaultBoardingPoint: "五棵松地铁站A口（西北口）北侧200米国家开放大学东门口",
 		destination: "丰台校区",
 		displayOrder: 3,
@@ -44,6 +64,8 @@ export const TRANSPORT_BASELINE_ROUTES: readonly TransportRouteInput[] = [
 		serviceKind: "subway",
 	},
 	{
+		boardingGuide: SUBWAY_GUIDE,
+		dropOffPoint: "篱笆房地铁站B2口",
 		defaultBoardingPoint: "学生活动中心西侧停车场路口",
 		destination: "篱笆房地铁站",
 		displayOrder: 4,
@@ -52,6 +74,8 @@ export const TRANSPORT_BASELINE_ROUTES: readonly TransportRouteInput[] = [
 		serviceKind: "subway",
 	},
 	{
+		boardingGuide: SUBWAY_GUIDE,
+		dropOffPoint: "学生活动中心西侧停车场路口",
 		defaultBoardingPoint: "篱笆房地铁站B2口",
 		destination: "丰台校区",
 		displayOrder: 5,
@@ -196,7 +220,12 @@ function fixedPeriod(
 			boardingPointOverride: null,
 			items: entries.map(
 				([departureTime, riderType], sortOrder): TransportScheduleItem => ({
-					boardingPoint: null,
+					boardingPoint:
+						routeId === "route:haidian-to-fengtai"
+							? riderType === "teacher"
+								? "校东门内北侧"
+								: "校东门内南侧"
+							: null,
 					capacity: null,
 					departureTime,
 					kind: "fixed",

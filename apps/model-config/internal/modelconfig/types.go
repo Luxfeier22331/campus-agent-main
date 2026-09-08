@@ -9,9 +9,10 @@ const (
 	ConfigCampusDocsEmbedding  ConfigName = "campus_docs_embedding"
 	ConfigCampusDocsReranker   ConfigName = "campus_docs_reranker"
 	ConfigNoticeClassification ConfigName = "notice_classification"
+	ConfigDocumentOCR          ConfigName = "document_ocr"
 )
 
-var AllConfigNames = []ConfigName{ConfigPrimaryAgent, ConfigCampusDocsEmbedding, ConfigCampusDocsReranker, ConfigNoticeClassification}
+var AllConfigNames = []ConfigName{ConfigPrimaryAgent, ConfigCampusDocsEmbedding, ConfigCampusDocsReranker, ConfigNoticeClassification, ConfigDocumentOCR}
 
 type Target struct {
 	Name        ConfigName `json:"name"`
@@ -33,7 +34,8 @@ type Descriptor struct {
 }
 
 type RuntimeConfig struct {
-	SchemaVersion string `json:"schema_version"`
+	UpdatedAt     *time.Time `json:"updated_at,omitempty"`
+	SchemaVersion string     `json:"schema_version"`
 	Target
 	Capabilities Capabilities `json:"capabilities"`
 	APIKey       string       `json:"api_key"`

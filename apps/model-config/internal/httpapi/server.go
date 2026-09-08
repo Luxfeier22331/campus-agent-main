@@ -46,6 +46,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "model_config_unavailable", "Model Config is unavailable.")
 		return
 	}
+	if r.URL.Path == "/internal/admin/model-configs/document_ocr/validation-result" && r.Method == http.MethodPost {
+		s.serveOCRValidationResult(w, r)
+		return
+	}
 	if name, ok := routeName(r.URL.Path, "/internal/model-targets/", ""); ok && r.Method == http.MethodGet {
 		s.serveTarget(w, r, name)
 		return
@@ -173,6 +177,20 @@ func (s *Server) servePut(w http.ResponseWriter, r *http.Request, name modelconf
 		apiKey = current.APIKey
 	}
 	input.APIKey = &apiKey
+	if name == modelconfig.ConfigDocumentOCR {
+		if err := modelconfig.ValidateOCRInput(input, apiKey); err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "invalid_setting", err.Error())
+			return
+		}
+		view, err := s.store.Put(r.Context(), validationActor(r), input, modelconfig.Validation{})
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		noStore(w)
+		writeJSON(w, http.StatusOK, view)
+		return
+	}
 	target := modelconfig.Target{
 		Name:        name,
 		Provider:    input.Provider,
@@ -195,6 +213,10 @@ func (s *Server) servePut(w http.ResponseWriter, r *http.Request, name modelconf
 }
 
 func (s *Server) serveValidate(w http.ResponseWriter, r *http.Request, name modelconfig.ConfigName) {
+	if name == modelconfig.ConfigDocumentOCR {
+		writeError(w, http.StatusUnprocessableEntity, "async_validation_required", "Start OCR validation through Ops OCR tasks.")
+		return
+	}
 	if r.URL.RawQuery != "" {
 		writeError(w, http.StatusBadRequest, "invalid_query", "This endpoint does not accept query parameters.")
 		return

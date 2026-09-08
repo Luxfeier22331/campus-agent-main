@@ -222,6 +222,16 @@ func localSeedEnvironment(name modelconfig.ConfigName) (localSeedDefinition, boo
 				}
 			},
 		}, true
+	case modelconfig.ConfigDocumentOCR:
+		return localSeedDefinition{
+			environmentKeys: []string{"DOCUMENT_OCR_API_KEY", "DOCUMENT_OCR_BASE_URL"},
+			build: func(values map[string]string) modelconfig.LocalSeedConfig {
+				return modelconfig.LocalSeedConfig{
+					APIKey: values["DOCUMENT_OCR_API_KEY"], Name: name, Provider: "paddleocr",
+					APIProtocol: "paddleocr.jobs", BaseURL: values["DOCUMENT_OCR_BASE_URL"], Model: "PaddleOCR-VL-1.6",
+				}
+			},
+		}, true
 	case modelconfig.ConfigCampusDocsEmbedding:
 		return localSeedDefinition{
 			environmentKeys: []string{"EMBEDDING_API_KEY", "EMBEDDING_BASE_URL"},

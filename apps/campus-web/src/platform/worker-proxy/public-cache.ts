@@ -102,6 +102,17 @@ function getPublicCacheSearch(url: URL): string | null {
 	if (!isPublicCacheableAppApiPath(url.pathname)) {
 		return null;
 	}
+	if (url.pathname === "/api/transport/schedule") {
+		const date = url.searchParams.get("date");
+		if (
+			url.searchParams.size !== 1 ||
+			date === null ||
+			!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u.test(date)
+		) {
+			return null;
+		}
+		return `?date=${encodeURIComponent(date)}`;
+	}
 	if (url.searchParams.size > 0) {
 		return null;
 	}
@@ -112,7 +123,8 @@ function isPublicCacheableAppApiPath(pathname: string): boolean {
 	return (
 		pathname === "/api/dining" ||
 		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||
-		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname)
+		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname) ||
+		pathname === "/api/transport/schedule"
 	);
 }
 

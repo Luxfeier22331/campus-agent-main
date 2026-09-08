@@ -22,12 +22,14 @@
 - `/overview`：运行概况；
 - `/requests`、`/requests/:requestId`：运行记录与详情；
 - `/providers`：在线模型配置；
+- `/ocr`：通知图片/PDF 识别任务与分页结果；Paddle 连接在模型配置页维护。
 - `/internal-portal`：门户凭据与自动化 token；
 - `/email-access`、`/users`、`/users/:userId`、`/users/activity`：账号管理；
 - `/dining`：食堂内容维护；
 - `/groups`：同好群目录维护。
 - `/notices`：查看通知库存、维护分类，并启动固定的采集、分类和发布任务。
-- `/transport`：维护班车路线、班次、乘车点和服务例外，并审核通知提取声明。
+- `/transport`：维护班车线路、完整时间段和班次明细。线路表单可独立编辑默认乘车点、下车点和乘车指引；
+  后两项可留空，指引支持换行。时间段备注用于运行说明，不承担通知审核或自动提取。
 
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器 DTO 位于 `src/shared/`，HTTP 入口位于
 `src/server/app.ts`。

@@ -152,6 +152,39 @@ describe("campus worker public app-api cache", () => {
 		expect(appApiFetch).toHaveBeenCalledTimes(2);
 	});
 
+	it("caches transport schedules per valid date", async () => {
+		installFakeEdgeCache();
+		const appApiFetch = vi.fn((request: Request) =>
+			Promise.resolve(
+				new Response(JSON.stringify({ search: new URL(request.url).search }), {
+					headers: {
+						"cache-control": "public, max-age=30, s-maxage=60",
+						"content-type": "application/json; charset=utf-8",
+					},
+				}),
+			),
+		);
+		const env = createEnv({ fetch: appApiFetch });
+		const request = (url: string) => worker.fetch(new Request(url), env);
+
+		const first = await request("https://campus.muc.wiki/api/transport/schedule?date=2026-09-08");
+		const second = await request("https://campus.muc.wiki/api/transport/schedule?date=2026-09-08");
+		const anotherDate = await request(
+			"https://campus.muc.wiki/api/transport/schedule?date=2026-09-09",
+		);
+		const malformed = await request("https://campus.muc.wiki/api/transport/schedule?date=2026-9-8");
+
+		expect(first.headers.get("x-campus-edge-cache")).toBe("miss");
+		expect(second.headers.get("x-campus-edge-cache")).toBe("hit");
+		expect(anotherDate.headers.get("x-campus-edge-cache")).toBe("miss");
+		expect(malformed.headers.get("x-campus-edge-cache")).toBeNull();
+		expect(malformed.headers.get("cache-control")).toBe("no-store");
+		expect(appApiFetch).toHaveBeenCalledTimes(3);
+		expect(appApiFetch.mock.calls[0]?.[0].url).toContain("date=2026-09-08");
+		expect(appApiFetch.mock.calls[1]?.[0].url).toContain("date=2026-09-09");
+		expect(appApiFetch.mock.calls[2]?.[0].url).toContain("date=2026-9-8");
+	});
+
 	it("bypasses and does not store failed dining responses", async () => {
 		installFakeEdgeCache();
 		const appApiFetch = vi.fn(() =>

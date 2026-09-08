@@ -11,6 +11,79 @@ const ROUTE_ID = "route:test";
 const DATE = "2026-09-07";
 
 describe("transport schedule public projection", () => {
+	it.each([
+		{
+			label: "weekend discovery from a weekday",
+			date: "2026-09-09",
+			extra: [],
+			expected: "2026-09-12",
+		},
+		{ label: "today is operating", date: "2026-09-12", extra: [], expected: "2026-09-12" },
+		{
+			label: "suspension longer than a week",
+			date: "2026-09-09",
+			extra: [
+				period({
+					scheduleId: "closed",
+					validFrom: "2026-09-12",
+					validTo: "2026-12-31",
+					status: "suspended",
+				}),
+			],
+			expected: "2027-01-02",
+		},
+		{
+			label: "indefinite suspension",
+			date: "2026-09-09",
+			extra: [period({ scheduleId: "closed", validFrom: "2026-09-12", status: "suspended" })],
+			expected: null,
+		},
+		{
+			label: "an operating exception inside suspension",
+			date: "2026-09-09",
+			extra: [
+				period({ scheduleId: "closed", validFrom: "2026-09-12", status: "suspended" }),
+				period({ scheduleId: "reopened", validFrom: "2026-10-10", validTo: "2026-10-10" }),
+			],
+			expected: "2026-10-10",
+		},
+	])("returns a catalog and resolves $label", async ({ date, extra, expected }) => {
+		const periods = [period({ scheduleId: "weekend", weekdays: [6, 7] }), ...extra];
+		const db = fakeDatabase({
+			routes: [route()],
+			periods,
+			items: periods
+				.filter((p) => p.status === "operating")
+				.map((p) => item({ itemId: `${p.scheduleId}:0`, scheduleId: p.scheduleId })),
+		});
+		const result = await createPgTransportScheduleService({} as never, {
+			getDb: async () => db,
+		}).getSchedule(date);
+		expect(result.routeCatalog).toHaveLength(1);
+		expect(result.routeCatalog[0]).toMatchObject({
+			routeId: ROUTE_ID,
+			nextServiceDate: expected,
+			dropOffPoint: "东门",
+		});
+		if (date === "2026-09-09") {
+			expect(result.routes).toHaveLength(0);
+		}
+	});
+
+	it("keeps expired and unconfigured routes discoverable without inventing future dates", async () => {
+		for (const periods of [[], [period({ scheduleId: "ended", validTo: "2026-09-06" })]]) {
+			const db = fakeDatabase({
+				routes: [route()],
+				periods,
+				items: periods.map((p) => item({ scheduleId: p.scheduleId, itemId: "ended:0" })),
+			});
+			const result = await createPgTransportScheduleService({} as never, {
+				getDb: async () => db,
+			}).getSchedule(DATE);
+			expect(result.routes).toEqual([]);
+			expect(result.routeCatalog[0]?.nextServiceDate).toBeNull();
+		}
+	});
 	it("selects the most specific applicable complete period", async () => {
 		const db = fakeDatabase({
 			routes: [route()],
@@ -35,6 +108,18 @@ describe("transport schedule public projection", () => {
 
 		expect(result).toEqual({
 			date: DATE,
+			routeCatalog: [
+				{
+					boardingGuide: "企业微信 → 工作台 → 接驳车预约",
+					dropOffPoint: "东门",
+					defaultBoardingPoint: "默认乘车点",
+					origin: "丰台校区",
+					destination: "海淀校区",
+					routeId: ROUTE_ID,
+					serviceKind: "commute",
+					nextServiceDate: DATE,
+				},
+			],
 			routes: [
 				{
 					boardingPoint: "默认乘车点",
@@ -145,6 +230,8 @@ describe("transport schedule public projection", () => {
 
 function route() {
 	return {
+		boardingGuide: "企业微信 → 工作台 → 接驳车预约",
+		dropOffPoint: "东门",
 		createdAt: new Date("2026-08-01T00:00:00.000Z"),
 		defaultBoardingPoint: "默认乘车点",
 		destination: "海淀校区",
@@ -164,6 +251,7 @@ function period(input: {
 	validFrom?: string;
 	validTo?: string | null;
 	note?: string | null;
+	weekdays?: number[];
 }) {
 	return {
 		boardingPointOverride: input.boardingPointOverride ?? null,
@@ -176,7 +264,7 @@ function period(input: {
 		updatedBy: "test",
 		validFrom: input.validFrom ?? "2026-08-31",
 		validTo: input.validTo === undefined ? null : input.validTo,
-		weekdays: [1, 2, 3, 4, 5, 6, 7],
+		weekdays: input.weekdays ?? [1, 2, 3, 4, 5, 6, 7],
 	};
 }
 

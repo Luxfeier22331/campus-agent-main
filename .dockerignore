@@ -36,6 +36,9 @@ jobs/internal-portal-collection/**/.env.*
 !jobs/internal-portal-collection/**/.env.example
 !jobs/notice-classifier/
 !jobs/notice-classifier/**
+!jobs/document-ocr/
+!jobs/document-ocr/**
+jobs/document-ocr/.env*
 !jobs/notice-index-publisher/
 !jobs/notice-index-publisher/**
 !jobs/notice-publisher/
@@ -63,6 +66,8 @@ configs/sources/**
 !packages/notice-classifier-core/**
 !packages/notice-database/
 !packages/notice-database/**
+!packages/document-ocr/
+!packages/document-ocr/**
 !packages/eval-langfuse/
 !packages/eval-langfuse/**
 !packages/ingestion-contracts/

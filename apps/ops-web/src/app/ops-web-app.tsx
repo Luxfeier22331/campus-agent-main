@@ -39,6 +39,7 @@ import { GroupsPage } from "./groups-page";
 import { InternalPortalPage } from "./internal-portal-page";
 import { NotFoundPage } from "./not-found-page";
 import { NoticesPage } from "./notices-page";
+import { OcrPage } from "./ocr-page";
 import {
 	ignoredRequestSearchParamNames,
 	optionalBoundedSearchString,
@@ -145,6 +146,11 @@ const noticesRoute = createRoute({
 	path: "/notices",
 	component: NoticesPage,
 });
+const ocrRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/ocr",
+	component: OcrPage,
+});
 
 const usersRoute = createRoute({
 	getParentRoute: () => rootRoute,
@@ -227,6 +233,7 @@ const routeTree = rootRoute.addChildren([
 	providerConfigRoute,
 	internalPortalRoute,
 	noticesRoute,
+	ocrRoute,
 	emailAccessRoute,
 	usersRoute,
 	accountEventsRoute,
@@ -268,6 +275,7 @@ function RootLayout() {
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
 				{ href: "/internal-portal", icon: KeyRound, label: "内部门户凭据" },
 				{ href: "/notices", icon: ListChecks, label: "通知维护" },
+				{ href: "/ocr", icon: ListChecks, label: "文档识别" },
 				{ href: "/email-access", icon: UserRoundCheck, label: "账号准入" },
 				{ href: "/users", icon: UsersRound, label: "用户管理" },
 				{ href: "/users/activity", icon: History, label: "账号操作记录" },

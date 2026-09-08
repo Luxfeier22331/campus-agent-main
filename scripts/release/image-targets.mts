@@ -3,6 +3,7 @@ export const ACTIVE_IMAGE_TARGETS = [
 	"campus-agent-schema",
 	"campus-docs-index-publisher",
 	"campus-rag-index-publisher",
+	"document-ocr",
 	"execution-control",
 	"internal-portal-collection",
 	"model-config",
@@ -19,6 +20,7 @@ export const NODE_IMAGE_TARGETS = [
 	"campus-agent-schema",
 	"campus-docs-index-publisher",
 	"campus-rag-index-publisher",
+	"document-ocr",
 	"internal-portal-collection",
 	"notice-classifier",
 	"notice-index-publisher",
@@ -32,6 +34,7 @@ export interface ImageScopeTask {
 }
 
 export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map([
+	["document-ocr", ["document-ocr"]],
 	["agent-runtime", ["agent-runtime"]],
 	["campus-agent-schema", ["campus-agent-schema"]],
 	["campus-docs-index-publisher", ["campus-docs-index-publisher"]],
@@ -46,6 +49,7 @@ export const IMAGE_PACKAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> 
 ]);
 
 export const DOCKERFILE_IMAGE_TARGETS: ReadonlyMap<string, readonly ImageTarget[]> = new Map([
+	["jobs/document-ocr/Dockerfile", ["document-ocr"]],
 	["apps/agent-runtime/Dockerfile", ["agent-runtime"]],
 	["apps/execution-control/Dockerfile", ["execution-control"]],
 	["apps/model-config/Dockerfile", ["model-config"]],
@@ -97,6 +101,17 @@ export function imageTargetsForScope(scope: {
 }): ImageTarget[] {
 	const targets = new Set<ImageTarget>();
 	const files = scope.changedFiles;
+	if (
+		changesPath(files, "packages/document-ocr") ||
+		changesPath(files, "jobs/document-ocr") ||
+		changesPath(files, "packages/notice-database") ||
+		changesPath(files, "packages/domains/notices") ||
+		files.includes("configs/sources/internal-portal.json") ||
+		files.includes("packages/contracts/package.json") ||
+		files.includes("packages/contracts/src/notices.ts")
+	) {
+		addTargets(targets, ["document-ocr", "ops-web"]);
+	}
 
 	for (const task of scope.tasks) {
 		if (task.task === "build") {

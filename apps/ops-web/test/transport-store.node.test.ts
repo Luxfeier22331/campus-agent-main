@@ -47,6 +47,8 @@ const PERIOD_INPUT: TransportOpsSchedulePeriodInput = {
 };
 
 const ROUTE_ROW = {
+	boarding_guide: "先预约再乘车",
+	drop_off_point: "海淀校区东门",
 	created_at: NOW,
 	default_boarding_point: "丰台校区南门",
 	destination: "海淀校区",
@@ -104,10 +106,44 @@ const ITEM_ROWS = [
 ];
 
 describe("PostgreSQL transport store", () => {
+	it("updates guidance and allows explicit null to clear route fields", async () => {
+		let row = { ...ROUTE_ROW } as Record<string, unknown>;
+		const query = vi.fn(async (sql: string, values: unknown[] = []) => {
+			if (normalizeSql(sql).startsWith("update transport.routes")) {
+				row = {
+					...row,
+					default_boarding_point: values[4],
+					drop_off_point: values[8],
+					boarding_guide: values[9],
+				};
+			}
+			return { rows: [row] };
+		});
+		const { store } = createStore(query);
+		expect(
+			await store.updateRoute(ACTOR, ROUTE_ID, {
+				boardingGuide: "企业微信预约",
+				dropOffPoint: "智慧中心南侧",
+			}),
+		).toMatchObject({
+			boardingGuide: "企业微信预约",
+			dropOffPoint: "智慧中心南侧",
+			defaultBoardingPoint: ROUTE_ROW.default_boarding_point,
+		});
+		expect(
+			await store.updateRoute(ACTOR, ROUTE_ID, {
+				boardingGuide: null,
+				dropOffPoint: null,
+				defaultBoardingPoint: null,
+			}),
+		).toMatchObject({ boardingGuide: null, dropOffPoint: null, defaultBoardingPoint: null });
+	});
 	it("maps routes, complete periods", async () => {
 		const routeQuery = vi.fn().mockResolvedValue({ rows: [ROUTE_ROW] });
 		await expect(createStore(routeQuery).store.listRoutes()).resolves.toEqual([
 			{
+				boardingGuide: ROUTE_ROW.boarding_guide,
+				dropOffPoint: ROUTE_ROW.drop_off_point,
 				createdAt: NOW.toISOString(),
 				defaultBoardingPoint: ROUTE_ROW.default_boarding_point,
 				destination: ROUTE_ROW.destination,
@@ -204,6 +240,8 @@ describe("PostgreSQL transport store", () => {
 		const duplicate = Object.assign(new Error("duplicate"), { code: "23505" });
 		await expect(
 			createStore(vi.fn().mockRejectedValue(duplicate)).store.createRoute(ACTOR, {
+				boardingGuide: null,
+				dropOffPoint: null,
 				defaultBoardingPoint: null,
 				destination: "海淀校区",
 				displayOrder: 0,

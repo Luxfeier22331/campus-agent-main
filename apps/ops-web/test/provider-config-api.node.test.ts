@@ -139,6 +139,8 @@ describe("ops model settings BFF", () => {
 			admission: createAllowAllOpsAdmission({ email: "ops@example.test" }),
 			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
 			providerConfigClient: {
+				getOcrConfig: async () => null,
+				putOcrConfig: vi.fn(),
 				discoverModels,
 				getStatus: async () => status,
 				put,
@@ -289,6 +291,8 @@ describe("ops model settings BFF", () => {
 			admission: createAllowAllOpsAdmission(),
 			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
 			providerConfigClient: {
+				getOcrConfig: async () => null,
+				putOcrConfig: vi.fn(),
 				discoverModels: vi.fn(),
 				getStatus: async () => status,
 				put: vi.fn(),
@@ -331,6 +335,8 @@ describe("ops model settings BFF", () => {
 			admission: createAllowAllOpsAdmission(),
 			env: { OPS_WEB_PUBLIC_ORIGIN: "https://ops.example.test" },
 			providerConfigClient: {
+				getOcrConfig: async () => null,
+				putOcrConfig: vi.fn(),
 				discoverModels: vi.fn(),
 				getStatus: async () => {
 					throw new ProviderConfigAdminResponseError(upstream);

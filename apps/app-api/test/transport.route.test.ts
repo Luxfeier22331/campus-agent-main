@@ -15,7 +15,7 @@ const env = {
 
 function service(): TransportScheduleService {
 	return {
-		getSchedule: vi.fn(async (date) => ({ date, routes: [] })),
+		getSchedule: vi.fn(async (date) => ({ date, routeCatalog: [], routes: [] })),
 	};
 }
 
@@ -30,7 +30,11 @@ describe("transport schedule route", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("public, max-age=30, s-maxage=60");
-		await expect(response.json()).resolves.toEqual({ date: "2026-09-06", routes: [] });
+		await expect(response.json()).resolves.toEqual({
+			date: "2026-09-06",
+			routeCatalog: [],
+			routes: [],
+		});
 		expect(transportScheduleService.getSchedule).toHaveBeenCalledWith("2026-09-06");
 	});
 

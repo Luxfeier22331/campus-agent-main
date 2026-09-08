@@ -2,6 +2,7 @@ import { Card, CardContent } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import type { ModelSettingKind } from "../shared/ops-contract";
+import { OcrConfigForm } from "./ocr-config-form";
 import { fetchExecutionModelSettings } from "./ops-api/model-settings";
 import { ErrorState, PageHeader, StaleDataWarning } from "./ops-display";
 import { ExecutionModelSettingForm } from "./provider-config-form";
@@ -15,6 +16,7 @@ export function ProviderConfigPage() {
 				title="模型配置"
 			/>
 			<ExecutionModelSettings />
+			<OcrConfigForm />
 		</section>
 	);
 }

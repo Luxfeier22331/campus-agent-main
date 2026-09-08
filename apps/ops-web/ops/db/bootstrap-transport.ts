@@ -54,8 +54,8 @@ export async function bootstrapTransportSchedule(input: {
 			await input.database.query(
 				`insert into transport.routes
 				 (route_id, origin, destination, service_kind, default_boarding_point,
-				  display_order, created_at, updated_at, updated_by)
-				 values ($1, $2, $3, $4, $5, $6, $7, $7, $8)`,
+				  display_order, created_at, updated_at, updated_by, drop_off_point, boarding_guide)
+				 values ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10)`,
 				[
 					route.routeId,
 					route.origin,
@@ -65,6 +65,8 @@ export async function bootstrapTransportSchedule(input: {
 					route.displayOrder,
 					timestamp,
 					BOOTSTRAP_ACTOR,
+					route.dropOffPoint,
+					route.boardingGuide,
 				],
 			);
 		}

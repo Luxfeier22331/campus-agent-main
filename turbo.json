@@ -30,7 +30,11 @@
 				"$TURBO_ROOT$/packages/internal-portal-client/src/**",
 				"$TURBO_ROOT$/packages/ui/package.json",
 				"$TURBO_ROOT$/packages/ui/src/**",
-				"$TURBO_ROOT$/scripts/release/check-ops-web-artifact.mjs"
+				"$TURBO_ROOT$/scripts/release/check-ops-web-artifact.mjs",
+				"$TURBO_ROOT$/packages/document-ocr/package.json",
+				"$TURBO_ROOT$/packages/document-ocr/src/**",
+				"$TURBO_ROOT$/packages/domains/notices/package.json",
+				"$TURBO_ROOT$/packages/domains/notices/src/**"
 			],
 			"outputs": ["dist/**", "dist-ops/**", "dist-server/**", ".tanstack/**"]
 		},
@@ -208,6 +212,24 @@
 				"HINDSIGHT_*",
 				"OTEL_*"
 			]
+		},
+		"document-ocr#build": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/packages/notice-database/package.json",
+				"$TURBO_ROOT$/packages/notice-database/src/**",
+				"$TURBO_ROOT$/packages/contracts/package.json",
+				"$TURBO_ROOT$/packages/contracts/src/notices.ts",
+				"$TURBO_ROOT$/packages/document-ocr/package.json",
+				"$TURBO_ROOT$/packages/document-ocr/src/**",
+				"$TURBO_ROOT$/packages/domains/notices/package.json",
+				"$TURBO_ROOT$/packages/domains/notices/src/**",
+				"$TURBO_ROOT$/configs/sources/internal-portal.json"
+			],
+			"outputs": ["dist/**"]
+		},
+		"ocr": {
+			"cache": false
 		}
 	}
 }

@@ -652,6 +652,7 @@ describe("managed worktree environment", () => {
 				resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal/.env.local"),
 				resolve(repoRoot, "jobs/notice-classifier/.env.local"),
 				resolve(repoRoot, "jobs/notice-publisher/.env.local"),
+				resolve(repoRoot, "jobs/document-ocr/.env.local"),
 			].sort(),
 		);
 	});
@@ -821,6 +822,7 @@ describe("local development lifecycle guards", () => {
 			"internal-portal-collection",
 			"notice-classifier",
 			"notice-publisher",
+			"document-ocr",
 		]);
 		assert.deepEqual(resolveLocalDevTargetPlan("notice-classifier").environmentProjections, [
 			"model-config",
@@ -1345,7 +1347,7 @@ function createRepositoryShape(): string {
 	mkdirSync(resolve(repoRoot, "jobs/internal-portal-collection/adapters/internal-portal"), {
 		recursive: true,
 	});
-	for (const job of ["notice-classifier", "notice-publisher"]) {
+	for (const job of ["notice-classifier", "notice-publisher", "document-ocr"]) {
 		mkdirSync(resolve(repoRoot, "jobs", job), { recursive: true });
 	}
 	for (const job of [

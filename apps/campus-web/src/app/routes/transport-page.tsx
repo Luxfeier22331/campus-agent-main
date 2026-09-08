@@ -1,8 +1,11 @@
+import type {
+	TransportPublicScheduleResponse,
+	TransportServiceKind,
+} from "@campus-agent/transport/domain";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
 	type RiderFilter,
-	type RouteChoice,
 	TransportPageView,
 	transportDate,
 } from "@/components/transport/transport-page-view";
@@ -21,9 +24,31 @@ export function TransportPageContent() {
 	const [now, setNow] = useState(() => new Date());
 	const [date, setDate] = useState(() => transportDate(new Date()));
 	const [rider, setRider] = useState<RiderFilter>("all");
-	const [routeId, setRouteId] = useState<string>();
-	const [routeChoices, setRouteChoices] = useState<RouteChoice[]>([]);
+	const [serviceKind, setServiceKind] = useState<TransportServiceKind>("commute");
+	const [selectedRoutes, setSelectedRoutes] = useState<
+		Partial<Record<TransportServiceKind, string>>
+	>({});
 	const query = useQuery(transportScheduleQueryOptions(date));
+	const [lastSuccess, setLastSuccess] = useState<TransportPublicScheduleResponse>();
+	const [slowDate, setSlowDate] = useState<string>();
+	const data = query.data ?? lastSuccess;
+	useEffect(() => {
+		if (query.isSuccess && !query.isPlaceholderData) {
+			setLastSuccess(query.data);
+		}
+	}, [query.data, query.isSuccess, query.isPlaceholderData]);
+	const allRouteChoices = data?.routeCatalog ?? [];
+	const availableKinds = (["commute", "subway", "special"] as const).filter((kind) =>
+		allRouteChoices.some((route) => route.serviceKind === kind),
+	);
+	const activeServiceKind = availableKinds.includes(serviceKind)
+		? serviceKind
+		: (availableKinds[0] ?? "commute");
+	const routeChoices = allRouteChoices.filter((route) => route.serviceKind === activeServiceKind);
+	const routeId = selectedRoutes[activeServiceKind];
+	const selectedRouteId = routeChoices.some((route) => route.routeId === routeId)
+		? routeId
+		: routeChoices[0]?.routeId;
 	useEffect(() => {
 		let timer: ReturnType<typeof setTimeout>;
 		const tick = () => {
@@ -44,40 +69,37 @@ export function TransportPageContent() {
 		};
 	}, []);
 	useEffect(() => {
-		if (!query.data) {
+		setSlowDate(undefined);
+		if (!query.isFetching) {
 			return;
 		}
-		setRouteId((selected) => selected ?? query.data.routes[0]?.routeId);
-		setRouteChoices((previous) => {
-			const retained = previous.filter(
-				(item) => !query.data.routes.some((route) => route.routeId === item.routeId),
-			);
-			return [
-				...query.data.routes.map(({ routeId, origin, destination, serviceKind }) => ({
-					routeId,
-					origin,
-					destination,
-					serviceKind,
-				})),
-				...retained,
-			];
-		});
-	}, [query.data]);
+		const timer = setTimeout(() => setSlowDate(date), 800);
+		return () => clearTimeout(timer);
+	}, [date, query.isFetching]);
 	return (
 		<TransportPageView
-			data={query.data}
+			data={data}
 			date={date}
-			routeId={routeId}
+			routeId={selectedRouteId}
 			routeChoices={routeChoices}
 			rider={rider}
 			now={now}
 			onDateChange={setDate}
-			onRouteChange={setRouteId}
+			onRouteChange={(id) =>
+				setSelectedRoutes((current) => ({ ...current, [activeServiceKind]: id }))
+			}
+			onServiceKindChange={(kind) => {
+				setServiceKind(kind);
+			}}
+			serviceKind={activeServiceKind}
+			serviceKinds={availableKinds}
 			onRiderChange={setRider}
 			onRefresh={() => void query.refetch()}
 			refreshing={query.isFetching}
-			loading={query.isPending}
-			failed={query.isError}
+			loading={query.isPending && !data}
+			updating={query.isFetching && Boolean(data)}
+			slowUpdating={query.isFetching && slowDate === date}
+			failed={query.isError && !query.isFetching}
 		/>
 	);
 }

@@ -2,7 +2,7 @@
 
 Model Config 负责具名在线模型配置及其 Provider API Key。当前配置名为
 `primary_agent`、`campus_docs_embedding`、`campus_docs_reranker` 和
-`notice_classification`。`name` 表示产品配置槽位，`api_protocol` 决定验证与调用方式；服务不维护
+`notice_classification`、`document_ocr`。`name` 表示产品配置槽位，`api_protocol` 决定验证与调用方式；服务不维护
 额外的模型类型或 consumer 类型字段。
 
 服务不代理模型请求。内部 consumer 读取一次完整配置后直接调用 Provider。`target_sha256` 只包含
@@ -20,6 +20,14 @@ Model Config 负责具名在线模型配置及其 Provider API Key。当前配�
 - `PUT /internal/admin/model-configs/{name}`：验证后替换当前配置；
 - `POST /internal/admin/model-configs/{name}/validate`：使用当前配置重新验证并只更新验证结果；
 - `POST /internal/admin/model-configs/{name}/models`：发现 Provider 模型。
+
+`document_ocr` 使用 PaddleOCR 的 `paddleocr.jobs` 协议和 `PaddleOCR-VL-1.6`：
+PUT 只检查配置字段并加密保存，重置验证状态，不在 HTTP 请求里等待 OCR。
+Ops 发起异步验证任务，Document OCR Job 完成后调用
+`POST /internal/admin/model-configs/document_ocr/validation-result`，
+携带运行配置的 `updated_at` 和验证结果。配置已改变时返回 409，不接受旧结果；
+仅 OCR runtime 响应新增 `updated_at`，涵盖不会改变 target hash 的密钥轮换。
+其他模型的同步保存、验证行为保持不变。
 
 Primary Agent 在持久执行准入时先读取 target，Agent Runtime 再携带预期 hash 读取完整配置。Campus
 Docs Embedding 与 Notice Classifier 等普通 Job 直接读取一次完整配置；Embedding Set 记录响应中的

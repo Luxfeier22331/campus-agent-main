@@ -220,6 +220,7 @@ test("maps Turbo-owned Dockerfiles when they share a Turbo configuration commit"
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
 		"notice-index-publisher",
@@ -249,6 +250,7 @@ test("publishes all images when the shared Docker context changes", async (t) =>
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"document-ocr",
 		"execution-control",
 		"internal-portal-collection",
 		"model-config",
@@ -309,10 +311,12 @@ test("publishes all notice and transport consumers when the shared notice databa
 	const runner = syntheticScopeRunner(changed("packages/notice-database/src/index.ts"), []);
 	const plan = await planCandidates(options(root), runner);
 	assert.deepEqual(plan.images, [
+		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
 		"notice-index-publisher",
 		"notice-publisher",
+		"ops-web",
 	]);
 	assert.deepEqual(plan.workers, []);
 });
@@ -451,6 +455,7 @@ test("a Node lockfile change selects all active Node images but not the independ
 		"campus-agent-schema",
 		"campus-docs-index-publisher",
 		"campus-rag-index-publisher",
+		"document-ocr",
 		"internal-portal-collection",
 		"notice-classifier",
 		"notice-index-publisher",

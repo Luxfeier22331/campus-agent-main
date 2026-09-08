@@ -20,6 +20,8 @@ const PUBLIC_ORIGIN = "https://ops.example.test";
 const writeHeaders = { "content-type": "application/json", origin: PUBLIC_ORIGIN };
 
 const route: TransportOpsRoute = {
+	boardingGuide: "先预约再乘车",
+	dropOffPoint: "海淀校区东门",
 	createdAt: NOW,
 	defaultBoardingPoint: "丰台校区南门",
 	destination: "海淀校区",
@@ -96,6 +98,8 @@ describe("Ops Web transport API", () => {
 		const store = transportStore();
 		const app = createTransportApp(store);
 		const routeInput = {
+			boardingGuide: route.boardingGuide,
+			dropOffPoint: route.dropOffPoint,
 			defaultBoardingPoint: route.defaultBoardingPoint,
 			destination: route.destination,
 			displayOrder: route.displayOrder,

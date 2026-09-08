@@ -128,13 +128,15 @@ func (s *Store) Descriptor(ctx context.Context, name ConfigName) (Descriptor, er
 func (s *Store) Resolve(ctx context.Context, name ConfigName, expected string) (RuntimeConfig, error) {
 	var target Target
 	var encrypted []byte
-	err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model,encrypted_api_key from model_config.model_configs where name=$1`, name).Scan(
+	var updatedAt time.Time
+	err := s.pool.QueryRow(ctx, `select name,provider,api_protocol,base_url,model,encrypted_api_key,updated_at from model_config.model_configs where name=$1`, name).Scan(
 		&target.Name,
 		&target.Provider,
 		&target.APIProtocol,
 		&target.BaseURL,
 		&target.Model,
 		&encrypted,
+		&updatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RuntimeConfig{}, fmt.Errorf("%w: %s", ErrNotFound, name)
@@ -150,7 +152,13 @@ func (s *Store) Resolve(ctx context.Context, name ConfigName, expected string) (
 	if err != nil {
 		return RuntimeConfig{}, err
 	}
+	var configUpdatedAt *time.Time
+	if name == ConfigDocumentOCR {
+		value := updatedAt.UTC()
+		configUpdatedAt = &value
+	}
 	return RuntimeConfig{
+		UpdatedAt:     configUpdatedAt,
 		SchemaVersion: "model_runtime_config.v1",
 		Target:        target,
 		Capabilities:  CapabilitiesForTarget(target),
@@ -329,7 +337,7 @@ func (s *Store) Put(ctx context.Context, actor string, input ConfigInput, valida
 		}
 		apiKey = current.APIKey
 	}
-	if validation.Status != "passed" {
+	if name != ConfigDocumentOCR && validation.Status != "passed" {
 		return ConfigView{}, errors.New("model config must be validated before persistence")
 	}
 	target := Target{
@@ -353,6 +361,17 @@ func (s *Store) Put(ctx context.Context, actor string, input ConfigInput, valida
 		return ConfigView{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if name == ConfigDocumentOCR {
+		view, err := scanConfigView(tx.QueryRow(ctx, `insert into model_config.model_configs(name,provider,api_protocol,base_url,model,encrypted_api_key,updated_at,updated_by) values($1,$2,$3,$4,$5,$6,$7,$8) on conflict(name) do update set provider=excluded.provider,api_protocol=excluded.api_protocol,base_url=excluded.base_url,model=excluded.model,encrypted_api_key=excluded.encrypted_api_key,updated_at=excluded.updated_at,updated_by=excluded.updated_by,validation_status=null,validation_error_code='',validation_message='',validation_observed_dimensions=null,validated_at=null,validated_by=null returning name,provider,api_protocol,base_url,model,(length(encrypted_api_key)>0),validation_status,validation_error_code,validation_message,coalesce(validation_observed_dimensions,0),validated_at,validated_by,updated_at,updated_by`,
+			name, target.Provider, target.APIProtocol, target.BaseURL, target.Model, encrypted, now, actor))
+		if err != nil {
+			return ConfigView{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return ConfigView{}, err
+		}
+		return view, nil
+	}
 	view, err := scanConfigView(tx.QueryRow(ctx, `insert into model_config.model_configs(name,provider,api_protocol,base_url,model,encrypted_api_key,validation_status,validation_error_code,validation_message,validation_observed_dimensions,validated_at,validated_by,updated_at,updated_by) values($1,$2,$3,$4,$5,$6,$7,$8,$9,nullif($10,0),$11,$12,$11,$12) on conflict(name) do update set provider=excluded.provider,api_protocol=excluded.api_protocol,base_url=excluded.base_url,model=excluded.model,encrypted_api_key=excluded.encrypted_api_key,validation_status=excluded.validation_status,validation_error_code=excluded.validation_error_code,validation_message=excluded.validation_message,validation_observed_dimensions=excluded.validation_observed_dimensions,validated_at=excluded.validated_at,validated_by=excluded.validated_by,updated_at=excluded.updated_at,updated_by=excluded.updated_by returning name,provider,api_protocol,base_url,model,(length(encrypted_api_key)>0),validation_status,validation_error_code,validation_message,coalesce(validation_observed_dimensions,0),validated_at,validated_by,updated_at,updated_by`,
 		name,
 		target.Provider,

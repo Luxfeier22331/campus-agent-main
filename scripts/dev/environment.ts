@@ -31,6 +31,8 @@ const IMPORTED_EXTERNAL_ENV_MARKER =
 	"# External development credentials imported from the main checkout by pnpm dev:init.";
 
 const SHARED_EXTERNAL_PROVIDER_ENV_KEYS = [
+	"DOCUMENT_OCR_API_KEY",
+	"DOCUMENT_OCR_BASE_URL",
 	"LLM_BASE_URL",
 	"LLM_API_KEY",
 	"LLM_MODEL",
@@ -45,6 +47,7 @@ const SHARED_EXTERNAL_PROVIDER_ENV_KEYS = [
 ] as const;
 
 const LOCAL_MODEL_CONFIG_ENVIRONMENT_KEYS: Record<LocalModelConfigName, readonly string[]> = {
+	document_ocr: ["DOCUMENT_OCR_BASE_URL", "DOCUMENT_OCR_API_KEY"],
 	primary_agent: ["LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"],
 	campus_docs_embedding: ["EMBEDDING_BASE_URL", "EMBEDDING_API_KEY"],
 	campus_docs_reranker: ["RERANK_BASE_URL", "RERANK_API_KEY", "RERANK_MODEL"],
@@ -59,6 +62,7 @@ const MAIN_INTERNAL_PORTAL_ENV_PATH =
 	"jobs/internal-portal-collection/adapters/internal-portal/.env.local";
 
 export const MANAGED_LOCAL_ENVIRONMENT_PATHS = {
+	documentOcr: "jobs/document-ocr/.env.local",
 	appApi: "apps/app-api/.env.local",
 	appApiVars: "apps/app-api/.dev.vars.local",
 	campusWeb: "apps/campus-web/.dev.vars.local",
@@ -87,6 +91,7 @@ const LOCAL_DEV_ENVIRONMENT_TARGETS: Record<
 	LocalDevEnvironmentTarget,
 	readonly ManagedLocalEnvironment[]
 > = {
+	"document-ocr": ["documentOcr"],
 	core: ["appApi", "appApiVars", "campusWeb", "modelConfig", "executionControl", "agentRuntime"],
 	"model-config": ["modelConfig"],
 	"ops-web": ["opsWeb"],
@@ -382,6 +387,9 @@ export function renderLocalEnvironmentFiles(input: {
 			OPS_WEB_APP_API_URL: `http://127.0.0.1:${profile.ports.appApi}`,
 			OPS_WEB_CAMPUS_WEB_URL: `http://127.0.0.1:${profile.ports.campusWeb}`,
 			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
+			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
+			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
 			OBJECT_STORE_DERIVED_READ_ACCESS_KEY: "minioadmin",
@@ -423,6 +431,21 @@ export function renderLocalEnvironmentFiles(input: {
 			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
 			NOTICES_DATABASE_SSLMODE: "disable",
 			NOTICES_DATABASE_URL: database.noticePublisher,
+		});
+	}
+	if (shouldRender("documentOcr")) {
+		writeManagedEnv(paths.documentOcr, {
+			DEPLOYMENT_ENVIRONMENT: "local",
+			MODEL_CONFIG_URL: `http://127.0.0.1:${runtimePorts.modelConfig}`,
+			NOTICES_DATABASE_SSLMODE: "disable",
+			NOTICES_DATABASE_URL: database.owner,
+			OBJECT_STORE_BUCKET_DERIVED: profile.bucketName,
+			OBJECT_STORE_BUCKET_SOURCE: "campus-agent-source",
+			OBJECT_STORE_DERIVED_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_DERIVED_SECRET_KEY: "minioadmin",
+			OBJECT_STORE_ENDPOINT: "http://127.0.0.1:9000",
+			OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
+			OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 		});
 	}
 	if (shouldRender("noticePublisher")) {

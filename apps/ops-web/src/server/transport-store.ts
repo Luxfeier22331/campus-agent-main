@@ -33,7 +33,7 @@ export function createPgTransportStore(input: {
 			return withTransportStoreErrors(async () => {
 				const result = await input.pool.query(
 					`SELECT route_id, origin, destination, service_kind, default_boarding_point,
-					        display_order, created_at, updated_at, updated_by
+					        display_order, created_at, updated_at, updated_by, drop_off_point, boarding_guide
 					 FROM transport.routes
 					 ORDER BY display_order, route_id`,
 				);
@@ -48,8 +48,8 @@ export function createPgTransportStore(input: {
 					await input.pool.query(
 						`INSERT INTO transport.routes
 						 (route_id, origin, destination, service_kind, default_boarding_point,
-						  display_order, created_at, updated_at, updated_by)
-						 VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8)`,
+						  display_order, created_at, updated_at, updated_by, drop_off_point, boarding_guide)
+						 VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10)`,
 						[
 							routeInput.routeId,
 							routeInput.origin,
@@ -59,6 +59,8 @@ export function createPgTransportStore(input: {
 							routeInput.displayOrder,
 							timestamp,
 							actor.principalId,
+							routeInput.dropOffPoint,
+							routeInput.boardingGuide,
 						],
 					);
 				} catch (error) {
@@ -77,7 +79,16 @@ export function createPgTransportStore(input: {
 			return withTransportStoreErrors(async () => {
 				const current = await requireRoute(input.pool, routeId);
 				const updated = TransportRouteInputSchema.parse({
-					defaultBoardingPoint: routeInput.defaultBoardingPoint ?? current.defaultBoardingPoint,
+					defaultBoardingPoint:
+						routeInput.defaultBoardingPoint === undefined
+							? current.defaultBoardingPoint
+							: routeInput.defaultBoardingPoint,
+					dropOffPoint:
+						routeInput.dropOffPoint === undefined ? current.dropOffPoint : routeInput.dropOffPoint,
+					boardingGuide:
+						routeInput.boardingGuide === undefined
+							? current.boardingGuide
+							: routeInput.boardingGuide,
 					destination: routeInput.destination ?? current.destination,
 					displayOrder: routeInput.displayOrder ?? current.displayOrder,
 					origin: routeInput.origin ?? current.origin,
@@ -88,7 +99,7 @@ export function createPgTransportStore(input: {
 					`UPDATE transport.routes
 					 SET origin = $2, destination = $3, service_kind = $4,
 					     default_boarding_point = $5, display_order = $6,
-					     updated_at = $7, updated_by = $8
+					     updated_at = $7, updated_by = $8, drop_off_point = $9, boarding_guide = $10
 					 WHERE route_id = $1`,
 					[
 						routeId,
@@ -99,6 +110,8 @@ export function createPgTransportStore(input: {
 						updated.displayOrder,
 						now().toISOString(),
 						actor.principalId,
+						updated.dropOffPoint,
+						updated.boardingGuide,
 					],
 				);
 				return requireRoute(input.pool, routeId);
@@ -281,7 +294,7 @@ async function replaceScheduleItems(
 async function requireRoute(db: TransportDatabase, routeId: string): Promise<TransportOpsRoute> {
 	const result = await db.query(
 		`SELECT route_id, origin, destination, service_kind, default_boarding_point,
-		        display_order, created_at, updated_at, updated_by
+		        display_order, created_at, updated_at, updated_by, drop_off_point, boarding_guide
 		 FROM transport.routes WHERE route_id = $1`,
 		[routeId],
 	);
@@ -320,6 +333,8 @@ async function requireSchedulePeriod(
 
 function toRoute(row: Record<string, unknown>): TransportOpsRoute {
 	return TransportOpsRouteSchema.parse({
+		boardingGuide: nullableText(row.boarding_guide),
+		dropOffPoint: nullableText(row.drop_off_point),
 		createdAt: isoDateTime(row.created_at),
 		defaultBoardingPoint: nullableText(row.default_boarding_point),
 		destination: String(row.destination),

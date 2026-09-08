@@ -8,6 +8,18 @@ describe("transport public schedule model", () => {
 	it("accepts the structured response used by Campus Web", () => {
 		const response = TransportPublicScheduleResponseSchema.parse({
 			date: "2026-09-07",
+			routeCatalog: [
+				{
+					boardingGuide: null,
+					defaultBoardingPoint: "聚雅餐厅东侧停车场路口",
+					destination: "海淀校区",
+					dropOffPoint: null,
+					nextServiceDate: "2026-09-07",
+					origin: "丰台校区",
+					routeId: "route:fengtai-to-haidian",
+					serviceKind: "commute",
+				},
+			],
 			routes: [
 				{
 					boardingPoint: "聚雅餐厅东侧停车场路口",

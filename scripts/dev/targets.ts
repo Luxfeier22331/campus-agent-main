@@ -1,4 +1,5 @@
 export type LocalDevTarget =
+	| "document-ocr"
 	| "core"
 	| "ops-web"
 	| "notice-publisher"
@@ -17,6 +18,7 @@ export type LocalDevCapability =
 	| "temporal";
 
 export type LocalDevEnvironmentProjection =
+	| "document-ocr"
 	| "core"
 	| "model-config"
 	| "ops-web"
@@ -30,6 +32,7 @@ export type LocalDevEnvironmentProjection =
 export type LocalDevRuntimeDependency = "core" | "model-config" | "ops-web";
 
 export type LocalModelConfigName =
+	| "document_ocr"
 	| "primary_agent"
 	| "campus_docs_embedding"
 	| "campus_docs_reranker"
@@ -64,6 +67,15 @@ interface LocalDevTargetDefinition
 }
 
 const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
+	"document-ocr": {
+		bootstrapSteps: ["campus-agent-schema", "model-config-seed", "model-config-check"],
+		capabilities: ["postgres", "source-bucket", "derived-bucket"],
+		directEnvironmentProjections: ["model-config", "document-ocr"],
+		environmentDependencies: [],
+		modelConfigNames: ["document_ocr"],
+		runtimeDependencies: ["model-config"],
+		target: "document-ocr",
+	},
 	core: {
 		bootstrapSteps: [
 			"campus-agent-schema",
@@ -97,6 +109,7 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 			"internal-portal-collection",
 			"notice-classifier",
 			"notice-publisher",
+			"document-ocr",
 		],
 		environmentDependencies: ["core"],
 		modelConfigNames: ["notice_classification"],

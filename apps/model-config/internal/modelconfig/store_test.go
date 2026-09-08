@@ -27,6 +27,32 @@ func TestNewStoreUsesBoundedConnectionPool(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigOmitsOCRTimestampForExistingConsumers(t *testing.T) {
+	now := time.Now().UTC()
+	for _, tc := range []struct {
+		name      string
+		updatedAt *time.Time
+	}{
+		{"existing consumer", nil},
+		{"OCR", &now},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := json.Marshal(RuntimeConfig{UpdatedAt: tc.updatedAt})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(body, &payload); err != nil {
+				t.Fatal(err)
+			}
+			_, present := payload["updated_at"]
+			if present != (tc.updatedAt != nil) {
+				t.Fatalf("unexpected runtime JSON: %s", body)
+			}
+		})
+	}
+}
+
 func TestScanConfigViewNormalizesDatabaseTimestampsToUTC(t *testing.T) {
 	location := time.FixedZone("UTC+8", 8*60*60)
 	view, err := scanConfigView(configViewScannerStub{values: []any{

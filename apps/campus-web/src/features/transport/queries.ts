@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { getTransportSchedule } from "./api";
 
 export const transportQueryKeys = {
@@ -9,6 +9,7 @@ export function transportScheduleQueryOptions(date: string) {
 	return queryOptions({
 		queryKey: transportQueryKeys.schedule(date),
 		queryFn: ({ signal }) => getTransportSchedule(date, { signal }),
+		placeholderData: keepPreviousData,
 		staleTime: 60_000,
 	});
 }

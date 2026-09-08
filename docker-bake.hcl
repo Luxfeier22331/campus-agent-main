@@ -12,6 +12,7 @@ variable "IMAGE_SOURCE" {
 
 group "default" {
   targets = [
+    "document-ocr",
     "agent-runtime",
     "campus-agent-schema",
     "campus-docs-index-publisher",
@@ -93,4 +94,9 @@ target "internal-portal-collection" {
   inherits   = ["_common"]
   dockerfile = "jobs/internal-portal-collection/Dockerfile"
   target     = "runtime"
+}
+
+target "document-ocr" {
+  inherits = ["_common"]
+  dockerfile = "jobs/document-ocr/Dockerfile"
 }
