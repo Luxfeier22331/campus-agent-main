@@ -31,6 +31,7 @@ export function localApplicationBootstrapCommands(
 	steps: readonly LocalApplicationBootstrapStep[] = [
 		"campus-web-docs",
 		"campus-agent-schema",
+		"ops-web-transport-bootstrap",
 		"app-api-seed-local-campus-groups",
 		"app-api-seed-local-test-user",
 		"notice-publisher-seed-local",
@@ -95,6 +96,12 @@ export function localApplicationBootstrapCommands(
 				env: { ...process.env, ...postgresEnvironment(database.owner), PGSSLMODE: "disable" },
 			},
 			step: "campus-agent-schema",
+		},
+		{
+			args: ["--dir", "apps/ops-web", "db:bootstrap-transport"],
+			command: pnpm,
+			options: { cwd: repoRoot, env: opsWebEnv },
+			step: "ops-web-transport-bootstrap",
 		},
 		modelConfigCommand("model-config-seed", "seed"),
 		{
@@ -195,6 +202,14 @@ export async function probeLocalBootstrapStep(
 	}
 	if (step === "campus-agent-schema") {
 		return await probeSchema(repoRoot, profile);
+	}
+	if (step === "ops-web-transport-bootstrap") {
+		return await probeSql(
+			repoRoot,
+			localDatabaseUrls(profile).owner,
+			"select count(*) from transport.routes",
+			{ emptyIsMissing: true, minimum: 1 },
+		);
 	}
 	if (step === "app-api-seed-local-campus-groups") {
 		return await probeSql(

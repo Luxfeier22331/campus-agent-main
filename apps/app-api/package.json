@@ -23,6 +23,7 @@
 		"@better-auth/core": "1.7.1",
 		"@better-auth/oauth-provider": "1.7.1",
 		"@campus-agent/dining": "workspace:*",
+		"@campus-agent/transport": "workspace:*",
 		"@hono/zod-openapi": "^1.6.0",
 		"aws4fetch": "1.0.20",
 		"better-auth": "1.7.1",

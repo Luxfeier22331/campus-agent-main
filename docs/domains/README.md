@@ -11,6 +11,7 @@ status: active
 - [calendar.md](./calendar.md)：校历参考数据、通知关联和未开放边界；
 - [source-card.md](./source-card.md)：问答来源卡片、阅读器固定链接、锚点与高亮；
 - [groups.md](./groups.md)：同好群目录维护和学生端读取。
+- [transport.md](./transport.md)：通知中的交通班次来源声明与未上线边界。
 
 HTTP、数据结构、运行时和操作步骤仍由 `docs/contracts/`、`docs/data/`、
 `docs/architecture/` 和 `docs/runbooks/` 维护。一个窄能力文档能够讲清楚时，不再拆成入口、

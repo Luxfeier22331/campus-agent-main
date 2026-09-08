@@ -3,6 +3,7 @@ export type ProductNavItemId =
 	| "docs"
 	| "notices"
 	| "map"
+	| "transport"
 	| "dining"
 	| "groups"
 	| "feedback"
@@ -24,6 +25,7 @@ export const productNavItems = [
 	{ href: DOCS_HOME_PATH, id: "docs", label: "文档" },
 	{ href: "/notices", id: "notices", label: "通知" },
 	{ href: "/map", id: "map", label: "校园地图" },
+	{ href: "/transport", id: "transport", label: "班车" },
 	{ href: "/dining", id: "dining", label: "食堂" },
 	{ href: "/groups", id: "groups", label: "同好群" },
 	{ href: "/feedback", id: "feedback", label: "反馈" },

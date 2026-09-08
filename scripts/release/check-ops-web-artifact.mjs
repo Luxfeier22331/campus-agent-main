@@ -31,6 +31,13 @@ if (!existsSync(bootstrapEntry)) {
 	throw new Error(`ops-web production bootstrap entry is missing: ${bootstrapEntry}`);
 }
 
+const transportBootstrapEntry = join(root, "dist-ops", "db", "bootstrap-transport.js");
+if (!existsSync(transportBootstrapEntry)) {
+	throw new Error(
+		`ops-web production transport bootstrap entry is missing: ${transportBootstrapEntry}`,
+	);
+}
+
 const databaseEntry = join(root, "dist-ops", "db", "ops-web-database.js");
 if (!existsSync(databaseEntry)) {
 	throw new Error(`ops-web production database entry is missing: ${databaseEntry}`);
@@ -42,7 +49,8 @@ if (!existsSync(internalPortalCheckEntry)) {
 }
 
 for (const [label, entry] of [
-	["bootstrap", bootstrapEntry],
+	["Dining bootstrap", bootstrapEntry],
+	["transport bootstrap", transportBootstrapEntry],
 	["database", databaseEntry],
 	["internal portal check", internalPortalCheckEntry],
 ]) {

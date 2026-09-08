@@ -13,6 +13,7 @@
 		"check": "pnpm typecheck && pnpm test && pnpm build",
 		"dev:api": "node --env-file-if-exists=.env.local --experimental-strip-types src/server/node.ts",
 		"dev:fixture": "set -a && . ./.env.local && set +a && exec node --experimental-strip-types test/fixtures/internal-portal-automation-server.ts --port \"$PORT\"",
+		"db:bootstrap-transport": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --experimental-strip-types ops/db/bootstrap-transport.ts",
 		"dev:web": "set -a && . ./.env.local && set +a && exec vite --host 127.0.0.1 --port \"$OPS_WEB_WEB_PORT\" --strictPort",
 		"start": "node --env-file-if-exists=.env dist-server/node.js",
 		"db:bootstrap-dining": "node --experimental-strip-types ops/db/bootstrap-dining.ts",
@@ -24,6 +25,7 @@
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1111.0",
 		"@campus-agent/internal-portal-client": "workspace:*",
+		"@campus-agent/transport": "workspace:*",
 		"@dnd-kit/core": "6.3.1",
 		"@dnd-kit/sortable": "10.0.0",
 		"@dnd-kit/utilities": "3.2.2",

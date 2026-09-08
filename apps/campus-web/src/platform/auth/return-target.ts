@@ -6,6 +6,7 @@ const CAMPUS_RETURN_PATH_PREFIXES = ["/c/", "/docs/", "/notices/"] as const;
 const CAMPUS_RETURN_EXACT_PATHS = new Set([
 	"/",
 	"/map",
+	"/transport",
 	"/dining",
 	"/groups",
 	"/feedback",

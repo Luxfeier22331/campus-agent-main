@@ -62,6 +62,12 @@ const opsWebInternalPortalPrivileges = {
 	canTokensUpdate: true,
 	canUseSchema: true,
 } as const;
+const opsWebTransportPrivileges = {
+	canMutateItems: true,
+	canMutatePeriods: true,
+	canMutateRoutes: true,
+	canUseSchema: true,
+} as const;
 describe("ops-web database verification", () => {
 	beforeEach(() => {
 		connect.mockReset().mockResolvedValue(undefined);
@@ -269,6 +275,9 @@ function installSuccessfulQueries() {
 		}
 		if (sql.includes("has_schema_privilege(current_user, 'dining'")) {
 			return { rowCount: 1, rows: [opsWebDiningPrivileges] };
+		}
+		if (sql.includes("has_schema_privilege(current_user, 'transport'")) {
+			return { rowCount: 1, rows: [opsWebTransportPrivileges] };
 		}
 		if (sql.includes("has_schema_privilege(current_user, 'internal_portal'")) {
 			return { rowCount: 1, rows: [opsWebInternalPortalPrivileges] };

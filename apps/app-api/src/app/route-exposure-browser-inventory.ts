@@ -123,6 +123,12 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/transport/schedule",
+		callerClass: "browser-surface",
+		admission: "public transport schedule read by local date",
+	},
+	{
+		method: "GET",
 		path: "/api/dining/floorplans/:asset",
 		callerClass: "browser-surface",
 		admission: "public immutable dining floorplan asset read",

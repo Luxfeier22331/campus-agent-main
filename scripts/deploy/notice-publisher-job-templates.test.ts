@@ -30,10 +30,12 @@ test("notice publisher manual Job template is suspended and non-retrying", () =>
 	assert.deepEqual(container(manifest, "notice-publisher").args, ["publish"]);
 });
 
-test("Ops Web bootstrap only runs the Dining bootstrap", () => {
+test("Ops Web bootstrap initializes transport before Dining", () => {
 	const bootstrap = container(singleManifest(bootstrapManifestPath), "bootstrap");
 	assert.equal(bootstrap.envFrom, undefined);
-	assert.deepEqual(bootstrap.args, ["exec node dist-ops/db/bootstrap-dining.js\n"]);
+	assert.deepEqual(bootstrap.args, [
+		"node dist-ops/db/bootstrap-transport.js\nexec node dist-ops/db/bootstrap-dining.js\n",
+	]);
 });
 
 test("notice publisher workloads can reach their required services", () => {

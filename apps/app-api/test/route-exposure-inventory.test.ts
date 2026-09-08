@@ -24,6 +24,7 @@ const routeFiles = [
 	"notices.ts",
 	"profile-memory.ts",
 	"runtime.ts",
+	"transport.ts",
 ] as const;
 
 const registeredRouteRegex = /input\.app\.(all|delete|get|patch|post|put)\(\s*["']([^"']+)["']/g;

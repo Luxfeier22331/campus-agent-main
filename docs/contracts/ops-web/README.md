@@ -87,6 +87,20 @@ status: active
 - `GET /api/ops/notices/jobs`
 - `GET /api/ops/notices/jobs/:jobName`
 
+班车维护：
+
+- `GET /api/ops/transport/routes`、`POST /api/ops/transport/routes`
+- `PATCH`、`DELETE /api/ops/transport/routes/:routeId`
+- `GET /api/ops/transport/schedule-sets`、`POST /api/ops/transport/schedule-sets`
+- `PATCH`、`DELETE /api/ops/transport/schedule-sets/:scheduleSetId`
+- `GET /api/ops/transport/point-periods`、`POST /api/ops/transport/point-periods`
+- `PATCH`、`DELETE /api/ops/transport/point-periods/:periodId`
+- `GET /api/ops/transport/exceptions`、`POST /api/ops/transport/exceptions`
+- `PATCH`、`DELETE /api/ops/transport/exceptions/:exceptionId`
+- `GET /api/ops/transport/claims`
+- `POST /api/ops/transport/claims/:claimId/approve`
+- `POST /api/ops/transport/claims/:claimId/reject`
+
 健康检查：
 
 - `GET /healthz`

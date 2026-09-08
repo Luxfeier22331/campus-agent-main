@@ -116,7 +116,16 @@ import {
 } from "./routes/model-settings.ts";
 import { registerNoticeRoutes } from "./routes/notices.ts";
 import { registerObservabilityRoutes, registerOverviewRoute } from "./routes/observability.ts";
+import { registerTransportRoutes } from "./routes/transport.ts";
 import { logOpsError } from "./safe-logging.ts";
+import { createPgTransportStore } from "./transport-store.ts";
+import type { TransportStore } from "./transport-store-contract.ts";
+import {
+	TransportStoreConflictError,
+	TransportStoreNotFoundError,
+	TransportStoreUnavailableError,
+	TransportStoreValidationError,
+} from "./transport-store-errors.ts";
 
 interface OpsHealthEnv {
 	OPS_WEB_KUBERNETES_NAMESPACE?: string;
@@ -147,6 +156,7 @@ interface OpsAppOptions {
 	overviewService?: OpsOverviewService;
 	noticeJobService?: NoticeJobService;
 	noticeStore?: NoticeStore;
+	transportStore?: TransportStore;
 	staticRoot?: string;
 	store?: OpsStatusStore;
 	providerConfigClient?: ReturnType<typeof createProviderConfigAdminClient>;
@@ -184,6 +194,11 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		(databasePool
 			? createPgNoticeStore(databasePool)
 			: createUnavailableNoticeStore(databaseUnavailable));
+	const transportStore =
+		options.transportStore ??
+		(databasePool
+			? createPgTransportStore({ pool: databasePool })
+			: createUnavailableTransportStore(databaseUnavailable));
 	const providerConfigClient = options.providerConfigClient ?? createProviderConfigAdminClient(env);
 	const campusGroupsClient =
 		options.campusGroupsClient ??
@@ -318,6 +333,27 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		}
 		if (error instanceof NoticeStoreUnavailableError) {
 			return jsonError("OPS_NOTICE_STORE_UNAVAILABLE", error.message, 503);
+		}
+		if (error instanceof TransportStoreUnavailableError) {
+			return respond(
+				jsonError("OPS_TRANSPORT_STORE_UNAVAILABLE", "班车管理数据库不可用。", 503),
+				"transport_store_unavailable",
+			);
+		}
+		if (error instanceof TransportStoreNotFoundError) {
+			return respond(
+				jsonError("OPS_TRANSPORT_NOT_FOUND", error.message, 404),
+				"transport_not_found",
+			);
+		}
+		if (error instanceof TransportStoreConflictError) {
+			return respond(
+				jsonError("OPS_TRANSPORT_CONFLICT", error.message, 409, error.details),
+				"transport_conflict",
+			);
+		}
+		if (error instanceof TransportStoreValidationError) {
+			return respond(jsonError("OPS_TRANSPORT_INVALID", error.message, 400), "transport_invalid");
 		}
 		if (error instanceof InternalPortalCredentialStoreUnavailableError) {
 			return respond(
@@ -507,6 +543,7 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		diningReviewStore,
 		publicOrigin,
 	});
+	registerTransportRoutes({ admission, app, publicOrigin, store: transportStore });
 
 	app.all("/api/*", () => jsonError("OPS_API_ROUTE_NOT_FOUND", "未找到该运维接口。"));
 	app.use("/*", serveStatic({ root: staticRoot }));
@@ -528,6 +565,21 @@ export function createDefaultNoticeJobService(
 			? createLocalNoticeJobStore()
 			: createKubernetesNoticeJobStore(env.OPS_WEB_KUBERNETES_NAMESPACE?.trim() || "default"),
 	);
+}
+
+function createUnavailableTransportStore(cause: unknown): TransportStore {
+	const fail = () =>
+		Promise.reject(new TransportStoreUnavailableError("班车管理数据库不可用。", { cause }));
+	return {
+		createRoute: fail,
+		createSchedulePeriod: fail,
+		deleteRoute: fail,
+		deleteSchedulePeriod: fail,
+		listRoutes: fail,
+		listSchedulePeriods: fail,
+		updateRoute: fail,
+		updateSchedulePeriod: fail,
+	};
 }
 
 function createDefaultInternalPortalCredentialService(

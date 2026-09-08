@@ -13,6 +13,7 @@ import type { NoticeService } from "../modules/notices";
 import type { ProfileMemoryService } from "../modules/profile-memory";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
+import type { TransportScheduleService } from "../modules/transport";
 
 export interface AppDependencies {
 	accountAdminService?: AccountAdminService;
@@ -30,6 +31,7 @@ export interface AppDependencies {
 	chatCommandService?: ChatCommandService;
 	diningMapReadService?: DiningMapReadService;
 	diningContentService?: DiningContentService;
+	transportScheduleService?: TransportScheduleService;
 	emailAccessService?: EmailAccessService;
 	noticeService?: NoticeService;
 	getAppAuth?: AppAuthGetter;
@@ -67,4 +69,5 @@ export interface AppRequestScope {
 	resolveNoticeService(): NoticeService;
 	resolveProfileMemoryService(): ProfileMemoryService;
 	resolveRuntimeRunService(): RuntimeRunService;
+	resolveTransportScheduleService(): TransportScheduleService;
 }

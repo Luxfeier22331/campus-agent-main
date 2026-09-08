@@ -14,6 +14,7 @@ import { registerInternalRoutes } from "./internal";
 import { registerNoticeRoutes } from "./notices";
 import { registerProfileMemoryRoutes } from "./profile-memory";
 import { registerRuntimeRoutes } from "./runtime";
+import { registerTransportRoutes } from "./transport";
 
 export function registerAppRoutes(input: {
 	accessInvitationEmailSender?: AppDependencies["accessInvitationEmailSender"];
@@ -29,6 +30,7 @@ export function registerAppRoutes(input: {
 		env: input.env,
 		runtimeReadinessProbe: input.runtimeReadinessProbe,
 	});
+	registerTransportRoutes({ app: input.app, createRequestScope: input.createRequestScope });
 	registerAuthRoutes({
 		app: input.app,
 		authHandler: input.authHandler,

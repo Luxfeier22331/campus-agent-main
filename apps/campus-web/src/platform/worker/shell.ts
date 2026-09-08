@@ -11,6 +11,7 @@ const SHELL_PATH_PREFIXES = ["/c/", "/notices/"] as const;
 const SHELL_EXACT_PATHS = new Set([
 	"/",
 	"/map",
+	"/transport",
 	"/dining",
 	"/groups",
 	"/feedback",

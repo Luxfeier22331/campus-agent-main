@@ -16,6 +16,9 @@ export function resolveRouteMetadata(pathname: string): CampusRouteMetadata {
 	if (pathname === "/dining") {
 		return publicMetadata("食堂地图", "查看校园食堂、楼层和窗口分布。", "/dining");
 	}
+	if (pathname === "/transport") {
+		return publicMetadata("校园班车", "查看从校园通知整理的历史班车与地铁接驳资料。", "/transport");
+	}
 	if (pathname === "/groups") {
 		return publicMetadata("同好群", "查找面向本校学生公开的兴趣交流群。", "/groups");
 	}

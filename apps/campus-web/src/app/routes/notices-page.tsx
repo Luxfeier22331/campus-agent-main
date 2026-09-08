@@ -115,13 +115,13 @@ export function NoticesPageContent() {
 				<Label className="sr-only" htmlFor="notice-search">
 					标题或正文关键词
 				</Label>
-				<div className="relative rounded-xl border border-input bg-background shadow-[var(--shadow-xs)] transition-shadow focus-within:ring-2 focus-within:ring-ring">
+				<div className="relative flex items-center rounded-xl border border-input bg-background shadow-[var(--shadow-xs)] transition-shadow focus-within:ring-2 focus-within:ring-ring">
 					<Search
 						aria-hidden="true"
 						className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[var(--sys-text-muted)]"
 					/>
 					<Input
-						className="min-h-12 rounded-xl border-0 bg-transparent pl-11 pr-12 shadow-none focus-visible:ring-0"
+						className="min-h-12 min-w-0 flex-1 rounded-xl border-0 bg-transparent pl-11 pr-2 shadow-none focus-visible:ring-0"
 						id="notice-search"
 						maxLength={100}
 						onChange={(event) => setQueryDraft(event.target.value)}
@@ -130,7 +130,7 @@ export function NoticesPageContent() {
 					/>
 					<Button
 						aria-label={`搜索${itemLabel}`}
-						className="absolute right-0.5 top-1/2 size-11 min-h-0 -translate-y-1/2 rounded-[10px] p-0"
+						className="mr-0.5 size-11 min-h-0 shrink-0 rounded-[10px] p-0"
 						size="icon"
 						type="submit"
 					>
@@ -154,9 +154,7 @@ export function NoticesPageContent() {
 					)}
 					<DateRangeFilter
 						from={search.from}
-						onClear={() => updateSearch({ from: undefined, to: undefined })}
-						onFromChange={(value) => updateSearch({ from: value })}
-						onToChange={(value) => updateSearch({ to: value })}
+						onApply={(range) => updateSearch(range)}
 						to={search.to}
 					/>
 					{hasFilters ? (

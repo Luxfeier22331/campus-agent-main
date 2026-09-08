@@ -206,6 +206,7 @@ describe("campus worker boundary", () => {
 			"/",
 			"/c/conv_1",
 			"/map",
+			"/transport",
 			"/dining",
 			"/groups",
 			"/feedback",
@@ -514,6 +515,33 @@ describe("campus worker boundary", () => {
 			JSON.stringify({ prompt: "国家奖学金什么时候评审？" }),
 		);
 		await expect(response.text()).resolves.toContain("请先登录。");
+	});
+
+	it("forwards the public transport schedule query to the configured app-api", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ date: "2026-09-08", routes: [] }), {
+				headers: { "content-type": "application/json" },
+				status: 200,
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const env = { ...createEnv(), APP_API_BASE_URL: "http://127.0.0.1:27031" };
+
+		const response = await worker.fetch(
+			new Request("http://127.0.0.1:27014/api/transport/schedule?date=2026-09-08"),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		const firstCall = fetchMock.mock.calls[0];
+		if (!firstCall) {
+			throw new Error("expected one forwarded fetch call");
+		}
+		expect((firstCall[0] as Request).url).toBe(
+			"http://127.0.0.1:27031/api/transport/schedule?date=2026-09-08",
+		);
+		await expect(response.json()).resolves.toEqual({ date: "2026-09-08", routes: [] });
 	});
 
 	it("strips stale entity encoding headers from proxied app-api responses", async () => {

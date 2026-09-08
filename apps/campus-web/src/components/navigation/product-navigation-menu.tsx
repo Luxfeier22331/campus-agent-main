@@ -18,6 +18,7 @@ import {
 	Activity,
 	Bell,
 	BookOpen,
+	Bus,
 	Home,
 	MapIcon,
 	Menu,
@@ -46,6 +47,7 @@ const productNavIcons = {
 	groups: UsersRound,
 	map: MapIcon,
 	notices: Bell,
+	transport: Bus,
 	status: Activity,
 } satisfies Record<ProductNavItemId, typeof Home>;
 

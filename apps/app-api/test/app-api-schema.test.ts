@@ -32,6 +32,14 @@ describe("app-api schema installer", () => {
 		expect(sql).not.toContain('"official_web"');
 		expect(sql).not.toContain('"operator"');
 		expect(sql).not.toContain('"dining"');
+		expect(sql).toContain('GRANT USAGE ON SCHEMA "transport" TO "app_api"');
+		expect(sql).toContain('GRANT SELECT ON TABLE "transport"."routes" TO "app_api"');
+		expect(sql).toContain('GRANT SELECT ON TABLE "transport"."schedule_periods" TO "app_api"');
+		expect(sql).toContain('GRANT SELECT ON TABLE "transport"."schedule_items" TO "app_api"');
+		expect(sql).not.toContain('"transport"."schedule_adjustments"');
+		expect(sql).not.toContain(
+			'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "transport"',
+		);
 		expect(sql).not.toContain('"wechat_official_account"');
 		expect(sql).toContain('GRANT CONNECT ON DATABASE "campus_agent_wt_3_a1b2c3d4"');
 		expect(() => buildAppApiGrantSql("campus-agent-invalid")).toThrow(

@@ -21,13 +21,13 @@ repos:
     hooks:
       - id: biome
         name: Biome
-        entry: pnpm exec biome check --no-errors-on-unmatched
+        entry: pnpm --config.verify-deps-before-run=false exec biome check --no-errors-on-unmatched
         language: system
         files: '\.(?:[cm]?[jt]sx?|jsonc?|css|html)$'
 
       - id: markdownlint
         name: Markdownlint
-        entry: pnpm exec markdownlint-cli2 --no-globs --
+        entry: pnpm --config.verify-deps-before-run=false exec markdownlint-cli2 --no-globs --
         language: system
         files: '\.md$'
         exclude: '^apps/campus-web/\.generated/'

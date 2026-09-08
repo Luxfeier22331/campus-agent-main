@@ -102,6 +102,10 @@ test("maps notice index and embedding runtime changes to their artifact images",
 	]);
 });
 
+test("transport domain changes do not select a retired publisher image", () => {
+	assert.deepEqual(targets(["packages/domains/transport/src/domain/schedule.ts"]), []);
+});
+
 test("maps the docs publisher's shared contract sources to its image", () => {
 	assert.deepEqual(targets(["packages/contracts/src/campus-docs/node/index.ts"]), [
 		"campus-docs-index-publisher",

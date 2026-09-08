@@ -171,8 +171,8 @@ describe("notice pages", () => {
 		expect(screen.queryByLabelText("结束")).toBeNull();
 
 		fireEvent.click(screen.getByRole("button", { name: "发布日期：2026年8月1日 - 2026年8月20日" }));
-		expect(await screen.findByLabelText("开始")).toHaveValue("2026-08-01");
-		expect(screen.getByLabelText("结束")).toHaveValue("2026-08-20");
+		expect(await screen.findByLabelText("开始")).toBeVisible();
+		expect(screen.getByLabelText("结束")).toBeVisible();
 		expect(screen.queryByLabelText("正文来源")).toBeNull();
 		expect(screen.queryByLabelText("门户栏目")).toBeNull();
 		expect(screen.queryByLabelText("发布部门")).toBeNull();
@@ -225,7 +225,7 @@ describe("notice pages", () => {
 		expect(screen.getByRole("alert")).toHaveTextContent("校园动态暂时无法读取，请稍后重试。");
 	});
 
-	it("restores the date range, constrains both inputs, and resets pagination on change", async () => {
+	it("restores the date range and resets pagination on calendar change", async () => {
 		Object.assign(routeSearch, {
 			from: "2026-03-01",
 			page: 7,
@@ -238,13 +238,14 @@ describe("notice pages", () => {
 		fireEvent.click(screen.getByRole("button", { name: "发布日期：2026年3月1日 - 2026年8月13日" }));
 		const from = await screen.findByLabelText("开始");
 		const to = screen.getByLabelText("结束");
-		expect(screen.getByRole("group", { name: "发布日期" })).toBeVisible();
-		expect(from).toHaveValue("2026-03-01");
-		expect(from).toHaveAttribute("max", "2026-08-13");
-		expect(to).toHaveValue("2026-08-13");
-		expect(to).toHaveAttribute("min", "2026-03-01");
+		expect(screen.getByRole("group", { name: "发布日期范围" })).toBeVisible();
+		expect(from).toBeVisible();
+		expect(to).toBeVisible();
 
-		fireEvent.change(from, { target: { value: "2026-04-01" } });
+		fireEvent.click(screen.getByRole("button", { name: "下个月" }));
+		fireEvent.click(screen.getByRole("button", { name: "2026年4月1日星期三" }));
+		expect(navigate).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("button", { name: "应用" }));
 		expect(lastSearchUpdate({ from: "2026-03-01", page: 7, to: "2026-08-13" })).toEqual({
 			from: "2026-04-01",
 			page: 1,

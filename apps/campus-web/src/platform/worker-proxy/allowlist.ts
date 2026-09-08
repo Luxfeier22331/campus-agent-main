@@ -37,6 +37,7 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/dining",
 	"/api/feedback",
 	"/api/notices",
+	"/api/transport/schedule",
 ] as const;
 
 const STATIC_ALLOWED_PATHS = new Set<string>(CAMPUS_ALLOWED_APP_API_PATHS);

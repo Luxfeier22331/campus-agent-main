@@ -17,6 +17,7 @@ import {
 } from "campus-contracts/account-admin";
 import {
 	Activity,
+	Bus,
 	ClipboardList,
 	History,
 	KeyRound,
@@ -50,6 +51,7 @@ import { OverviewPage } from "./overview-page";
 import { ProviderConfigPage } from "./provider-config-page";
 import { RequestDetailPage } from "./request-detail-page";
 import { RequestsPage as RequestsPageView } from "./requests-page";
+import { TransportPage } from "./transport-page";
 import { SidebarLayout } from "./ui/sidebar-layout";
 import { UserDetailPage } from "./user-detail-page";
 import { UsersPage } from "./users-page";
@@ -205,6 +207,12 @@ const diningReportsRoute = createRoute({
 	component: DiningReportsPage,
 });
 
+const transportRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/transport",
+	component: TransportPage,
+});
+
 const groupsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/groups",
@@ -227,6 +235,7 @@ const routeTree = rootRoute.addChildren([
 	diningMenuRoute,
 	diningReviewsRoute,
 	diningReportsRoute,
+	transportRoute,
 	groupsRoute,
 ]);
 
@@ -263,6 +272,7 @@ function RootLayout() {
 				{ href: "/users", icon: UsersRound, label: "用户管理" },
 				{ href: "/users/activity", icon: History, label: "账号操作记录" },
 				{ href: "/dining", icon: Utensils, label: "食堂" },
+				{ href: "/transport", icon: Bus, label: "班车" },
 				{ href: "/groups", icon: UsersRound, label: "同好群" },
 			]}
 		>

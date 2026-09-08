@@ -36,6 +36,7 @@ import {
 } from "../modules/runtime-command";
 import { ensureDurableRunForStoredInput } from "../modules/runtime-command/service/durable-run";
 import { buildRuntimeRunService, createPgRuntimeRunStore } from "../modules/runtime-run";
+import { createPgTransportScheduleService } from "../modules/transport";
 import { createRequestRuntimeScope } from "../request-runtime-scope";
 import type { AppDependencies, AppRequestScope } from "./types";
 
@@ -64,6 +65,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				null;
 			let notices = input.dependencies.noticeService ?? null;
 			let runtimeRuns = input.dependencies.runtimeRunService ?? null;
+			let transportSchedule = input.dependencies.transportScheduleService ?? null;
 			const resolveProfileMemoryPersistence = () =>
 				(profileMemoryPersistence ??= createPgProfileMemoryPersistence(input.env, {
 					getDb: runtime.getDb,
@@ -186,6 +188,10 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 							store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
 						});
 					})()),
+				resolveTransportScheduleService: () =>
+					(transportSchedule ??= createPgTransportScheduleService(input.env, {
+						getDb: runtime.getDb,
+					})),
 			};
 		},
 	};

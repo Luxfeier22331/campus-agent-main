@@ -20,11 +20,11 @@ schema 定义，连接拓扑见 `../architecture/system/data-plane.md`，部署�
 
 | 角色 | 运行所有者 | 权限边界 |
 | --- | --- | --- |
-| `campus_agent` | 数据库 bootstrap 与显式 schema/publisher Job | schema 安装、授权和一次性规范化发布，不用于常驻运行时 |
+| `campus_agent` | 数据库 schema 与显式 bootstrap Job | schema 安装、授权和一次性业务初始化，不用于常驻运行时 |
 | `app_api` | `apps/app-api` | 产品数据读写和获准运行摘要读取 |
 | `execution_control` | `apps/execution-control` | 执行投影和个人记忆状态读写 |
 | `model_config` | `apps/model-config` | 当前具名模型配置与加密凭据读写 |
-| `notice_publisher` | `jobs/notice-publisher` | 通知规范化写入；本地由独立运行角色连接，部署 Job 复用 `campus_agent` |
+| `notice_publisher` | `jobs/notice-publisher` | 通知规范化写入；部署 Job 复用 `campus_agent` |
 | `ops_web` | `apps/ops-web` | 获准运行投影的列级只读访问、Dining 内容维护和内部门户凭据及 automation token 读写 |
 
 Temporal、Hindsight 和 Langfuse 使用自己的数据存储或登录角色，不共享产品运行时角色。外部
@@ -63,6 +63,7 @@ Kubernetes 资源，也不会替代 CNPG 对 PostgreSQL 角色的对账。退役
 | `campus_docs_serving.current_index` | Campus RAG serving（统一 publisher 复用 `execution_control` 技术身份写入） | Campus RAG publisher、execution-control Campus Search |
 | `notices.*` | notice-publisher（部署 Job 复用 `campus_agent`） | App API 只读业务表 |
 | `dining.*` | Ops Web | Ops Web、App API 公开读取 |
+| `transport.*` | Ops Web；空库 baseline 由 Ops Web bootstrap 写入 | App API 公开 projection、Ops Web |
 | `internal_portal.credentials`、`internal_portal.automation_tokens` | Ops Web | Ops Web；internal-portal-collection 只通过内部解析 API 消费结果 |
 
 ingestion registry 和来源事实由采集数据所有者维护，不并入产品 schema。各表字段、状态和保留
@@ -86,7 +87,7 @@ Notice Chunk/Embedding builder 不写入该表。在线 execution-control 的 Ca
 Secret。
 旧 `docs.*` schema 由 App API migration 删除，历史 migration 不构成当前所有权。
 通知 schema 与显式发布 Job 同样复用既有 `campus_agent` owner Secret；部署环境不需要
-`notice_publisher` 登录或密码，本地通知发布仍使用独立的 `notice_publisher` 运行角色。
+`notice_publisher` 登录或密码。班车 baseline 由现有 Ops Web bootstrap Job 使用 `ops_web` 连接写入。
 
 ## 迁移合同
 
@@ -123,6 +124,7 @@ Secret。
 | `owner_deletion_fences(state=deleted)` | execution-control | 保留最小 tombstone，阻止 owner 复活；不含用户内容 |
 | Temporal history | Temporal/platform | 按平台 retention；不由 PostgreSQL 删除任务即时清理 |
 | Hindsight personal memory | Hindsight；execution-control 推进删除命令 | 账号清除合同；execution-control 不保存正文 |
+| `transport.routes`、`transport.schedule_periods`、`transport.schedule_items` | Ops Web | 当前线路和完整班次表由 Ops Web 直接维护；没有自动清理或通知回放 |
 | 门户原始 source/file/source.json | 采集/来源数据面 | 按来源清单和业务引用决定；由来源 owner 人工核对清理 |
 | normalized reader/source manifest | Campus Docs/Campus Web 数据面 | 当前及仍被清单引用的历史对象保留 |
 | Docs/Notice chunk/embedding 内容寻址制品 | Campus RAG retrieval serving | 由显式引用或人工清单治理，不加宽泛 TTL |
@@ -147,7 +149,7 @@ embedding 制品的存活判断。未有明确引用或删除清单时，本仓�
 | Ops Web runtime | 4 | internal-portal check 也复用该 pool 上限 |
 | App API Node runtime | 4 | 部署环境的 Node pool；Cloudflare Worker 使用 Hyperdrive，不建立该 pool |
 | campus-agent schema migrator | 1 | 统一 Job 的 PostgreSQL client |
-| Ops Web bootstrap/dining | 1 | bootstrap 进程显式使用单连接 pool |
+| Ops Web bootstrap | 1 | transport 与 Dining bootstrap 各进程显式使用单连接 pool |
 | notice-publisher | 1 | Job 进程显式使用单连接 pool |
 | Campus RAG publisher | 1 | 使用单个 PostgreSQL client |
 
@@ -188,6 +190,8 @@ CNPG、Temporal、Hindsight 及其他平台保留连接
   但不能读取地图草稿和评价修改历史，也不能修改地图或菜单；
 - App API 只能读取 `notices` 的通知、资源 metadata、类型、组织和分类业务表，不能读取
   `drizzle.campus_agent_migrations` 或写入该 schema；
+- App API 对 `transport.routes`、`transport.schedule_periods` 和 `transport.schedule_items` 只有读取权限；
+  Ops Web 使用 `ops_web` 角色维护三张班车表；
 - Ops Web 使用同一 `ops_web` 角色维护 Dining 地图、菜单、评价、举报和评价修改历史；
 - Ops Web 使用 `ops_web` 角色读写 `internal_portal.credentials` 和
   `internal_portal.automation_tokens`；token 明文保留是为满足 Ops Web 的重复 reveal 合同，不作为通用

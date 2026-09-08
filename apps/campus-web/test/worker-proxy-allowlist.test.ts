@@ -76,4 +76,10 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/notices/latest")).toBe(false);
 		expect(isAllowedCampusAppApiRequest("/api/notices/358159/attachments/0")).toBe(false);
 	});
+
+	it("allows the public transport schedule route without broadening transport paths", () => {
+		expect(isAllowedCampusAppApiRequest("/api/transport/schedule")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/transport/admin")).toBe(false);
+		expect(isAllowedCampusAppApiRequest("/api/transport/schedule/items")).toBe(false);
+	});
 });

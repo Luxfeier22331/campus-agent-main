@@ -35,6 +35,7 @@ spec:
             - -ec
           args:
             - |
+              node dist-ops/db/bootstrap-transport.js
               exec node dist-ops/db/bootstrap-dining.js
           env:
             - name: DEPLOYMENT_ENVIRONMENT

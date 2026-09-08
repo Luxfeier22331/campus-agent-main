@@ -1,5 +1,7 @@
 const APP_API_DML_SCHEMAS = ["app_auth", "campus_groups", "chat", "profile"] as const;
 
+const TRANSPORT_READ_TABLES = ["routes", "schedule_periods", "schedule_items"] as const;
+
 export interface DatabaseGrantClient {
 	query(sql: string): Promise<unknown>;
 }
@@ -7,6 +9,10 @@ export interface DatabaseGrantClient {
 export function buildAppApiGrantSql(databaseName: string): string {
 	const databaseIdentifier = quoteDatabaseIdentifier(databaseName);
 	const schemaList = APP_API_DML_SCHEMAS.map((schema) => `"${schema}"`).join(", ");
+	const transportReadGrants = TRANSPORT_READ_TABLES.map(
+		(table) => `		EXECUTE 'REVOKE ALL PRIVILEGES ON TABLE "transport"."${table}" FROM "app_api"';
+		EXECUTE 'GRANT SELECT ON TABLE "transport"."${table}" TO "app_api"';`,
+	).join("\n");
 	const perSchemaStatements = APP_API_DML_SCHEMAS.flatMap((schema) => [
 		`REVOKE CREATE ON SCHEMA "${schema}" FROM "app_api"`,
 		`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "${schema}" FROM "app_api"`,
@@ -22,6 +28,15 @@ export function buildAppApiGrantSql(databaseName: string): string {
 		`REVOKE CREATE ON SCHEMA "runtime" FROM "app_api"`,
 		`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "runtime" FROM "app_api"`,
 		`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "runtime"."request_observability_fact" TO "app_api"`,
+		`DO $app_api_transport_grants$
+BEGIN
+	IF to_regnamespace('transport') IS NOT NULL THEN
+		EXECUTE 'REVOKE ALL PRIVILEGES ON SCHEMA "transport" FROM "app_api"';
+		EXECUTE 'GRANT USAGE ON SCHEMA "transport" TO "app_api"';
+${transportReadGrants}
+	END IF;
+END
+$app_api_transport_grants$`,
 	].join(";\n");
 }
 

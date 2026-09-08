@@ -8,8 +8,8 @@ status: active
 
 ## 范围
 
-本文说明内部门户通知与文件发布采集、分类交接和通知发布。系统没有通用采集任务控制面、来源
-callback、独立 run ledger 或自动索引发布；通知分类 Job 是独立的一次性阶段，不由采集自动触发。
+本文说明内部门户通知与文件发布采集、分类交接和通知发布。系统没有通用采集任务控制面、来源 callback、独立
+run ledger 或自动索引发布；通知分类 Job 是独立的一次性阶段，不由采集自动触发。
 
 ## 前置条件
 
@@ -216,8 +216,8 @@ publisher；已发布内容与新清洗结果冲突时，由引入清洗合同�
 ## Kubernetes
 
 `infra/k8s/ops-web/base` 提供 Ops Web API、数据库授权 Job 和 `ops-web-internal-portal-check` CronJob；
-`infra/k8s/ingestion-runtime/base/runtime` 只包含三个默认暂停的内部门户采集模板、通知分类和通知发布
-CronJob 模板，不包含自动采集或发布调度。internal-portal-collection 镜像的 Job 入口消费
+`infra/k8s/ingestion-runtime/base/runtime` 包含默认暂停的内部门户采集、通知分类和通知发布 CronJob 模板。
+这些模板不包含自动采集或发布调度。internal-portal-collection 镜像的 Job 入口消费
 `OPS_WEB_INTERNAL_URL`、既有
 `OPS_WEB_INTERNAL_TOKEN` 和 source bucket 配置；通知增量与回填还使用既有数据库 owner 连接登记通知
 库存。三种采集模式都只能由维护者显式创建一次性 Job：

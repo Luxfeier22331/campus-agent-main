@@ -304,7 +304,7 @@ test("publishes the notice publisher image for its source or Dockerfile change",
 	assert.deepEqual(plan.workers, []);
 });
 
-test("publishes all notice jobs when the shared notice database package changes", async (t) => {
+test("publishes all notice and transport consumers when the shared notice database package changes", async (t) => {
 	const root = await fixture(t);
 	const runner = syntheticScopeRunner(changed("packages/notice-database/src/index.ts"), []);
 	const plan = await planCandidates(options(root), runner);

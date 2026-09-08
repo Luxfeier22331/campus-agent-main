@@ -1,3 +1,4 @@
+export * from "@campus-agent/transport/schema";
 export * from "./account-admin";
 export * from "./auth";
 export * from "./campus-groups";
@@ -7,6 +8,7 @@ export * from "./email-access";
 export * from "./profile";
 export * from "./runtime";
 
+import * as transport from "@campus-agent/transport/schema";
 import * as accountAdmin from "./account-admin";
 import * as auth from "./auth";
 import * as campusGroups from "./campus-groups";
@@ -25,4 +27,5 @@ export const appApiSchema = {
 	...emailAccess,
 	...profile,
 	...runtime,
+	...transport,
 };

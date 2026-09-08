@@ -38,6 +38,7 @@ export type LocalModelConfigName =
 export type LocalBootstrapStep =
 	| "campus-web-docs"
 	| "campus-agent-schema"
+	| "ops-web-transport-bootstrap"
 	| "model-config-seed"
 	| "model-config-check"
 	| "app-api-seed-local-campus-groups"
@@ -66,6 +67,7 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 	core: {
 		bootstrapSteps: [
 			"campus-agent-schema",
+			"ops-web-transport-bootstrap",
 			"model-config-seed",
 			"campus-web-docs",
 			"app-api-seed-local-campus-groups",
@@ -83,6 +85,7 @@ const TARGET_DEFINITIONS: Record<LocalDevTarget, LocalDevTargetDefinition> = {
 	"ops-web": {
 		bootstrapSteps: [
 			"campus-agent-schema",
+			"ops-web-transport-bootstrap",
 			"model-config-seed",
 			"notice-publisher-seed-local",
 			"model-config-check",

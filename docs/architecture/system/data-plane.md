@@ -10,6 +10,8 @@ status: active
 
 当前采集数据面由显式 CLI 和可复用 Job 入口组成。通知采集产生来源对象并登记数据库库存，文件发布
 采集只产生来源对象；采集不自动清洗、分类、发布产品投影或开放查询目标，也不维护通用任务状态。
+交通班车不属于通知采集链路。Ops Web 直接维护 `transport.*` 结构化数据，App API 按日期读取，Campus Web
+展示公开投影；它不消费通知，也不成为通用采集编排器。
 
 ## 组件职责
 
@@ -19,6 +21,9 @@ status: active
 | `jobs/internal-portal-collection` | 以本地 CLI 或一次性 Job 采集通知、通知资源和文件发布原始对象，并登记通知库存 | TGC 持久化、常驻服务、清洗、分类、发布、PDF 解析 |
 | `jobs/notice-classifier` | 读取通知数据库中的标题并写回分类 | 正文清洗、门户栏目判断、发布、自动调度 |
 | `jobs/notice-publisher` | 读取已分类库存、校验来源、清洗正文、写入正文与 derived 图片并标记发布 | 定时采集、分类、在线读取 |
+| `apps/ops-web` | 维护 `transport.*` 线路、完整时间段和班次明细 | 通知采集、学生端读取 |
+| `apps/app-api` | 读取 `transport.*` 并按本地日期生成公开班车 projection | 写入班车事实、通知审核 |
+| `apps/campus-web` | 通过 App API 展示 `/transport` 页面和日期班次状态 | 直接读取 PostgreSQL、source bucket 或通知声明 |
 | `packages/internal-portal-client` | CAS 跳转、门户 Cookie 会话、TGC 校验和错误分类 | 配置、凭据存储和采集业务 |
 | `packages/ingestion-contracts` | 当前来源对象与同步边界 JSON 合同 | 任务注册表、工作流和供应商客户端 |
 
@@ -32,6 +37,14 @@ notice-sync / notice-backfill
 -> 独立模型分类
 -> 分类写回通知数据库
 -> notice-publisher 显式清洗并写入正文、资源 metadata 和发布状态
+```
+
+班车展示链路独立于通知发布链路：
+
+```text
+Ops Web 维护 transport.routes、schedule_periods、schedule_items
+-> App API 按日期选择完整时间段并生成公开投影
+-> Campus Web /transport
 ```
 
 本地命令直接读取受管理 `.env.local` 的 TGC。线上入口先向 Ops Web 解析一条当前可用 TGC，再调用相同
@@ -61,9 +74,10 @@ internal-portal-collection 只消费解析结果。`ops-web-internal-portal-chec
 
 ## 状态分工
 
-- PostgreSQL：`internal_portal.credentials`、`internal_portal.automation_tokens` 和 `notices.*`，由
-  Ops Web 与通知所有者分别维护；
+- PostgreSQL：`internal_portal.credentials`、`internal_portal.automation_tokens`、`notices.*` 和
+  `transport.*`，分别由 Ops Web、通知数据面和班车 Ops Web owner 按权限维护；
 - source bucket：门户通知、资源、边界状态、文件发布原始文件和 `source.json`；
+- 班车数据不复制通知图片或附件，也不依赖 source bucket；
 - derived bucket：通知发布产生的内容寻址图片；
 - Temporal：只服务 execution-control 的在线执行，不再承载 ingestion 采集。
 

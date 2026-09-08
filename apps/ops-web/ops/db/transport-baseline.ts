@@ -1,0 +1,217 @@
+import type {
+	TransportRiderType,
+	TransportRouteInput,
+	TransportScheduleItem,
+	TransportSchedulePeriodInput,
+} from "@campus-agent/transport/domain";
+
+export interface TransportBaselinePeriod {
+	input: TransportSchedulePeriodInput;
+	scheduleId: string;
+}
+
+export const TRANSPORT_BASELINE_ROUTES: readonly TransportRouteInput[] = [
+	{
+		defaultBoardingPoint: null,
+		destination: "丰台校区",
+		displayOrder: 0,
+		origin: "海淀校区",
+		routeId: "route:haidian-to-fengtai",
+		serviceKind: "commute",
+	},
+	{
+		defaultBoardingPoint: "聚雅餐厅东侧停车场路口",
+		destination: "海淀校区",
+		displayOrder: 1,
+		origin: "丰台校区",
+		routeId: "route:fengtai-to-haidian",
+		serviceKind: "commute",
+	},
+	{
+		defaultBoardingPoint: "聚雅餐厅东侧停车场路口",
+		destination: "五棵松地铁站",
+		displayOrder: 2,
+		origin: "丰台校区",
+		routeId: "route:fengtai-to-wukesong",
+		serviceKind: "subway",
+	},
+	{
+		defaultBoardingPoint: "五棵松地铁站A口（西北口）北侧200米国家开放大学东门口",
+		destination: "丰台校区",
+		displayOrder: 3,
+		origin: "五棵松地铁站",
+		routeId: "route:wukesong-to-fengtai",
+		serviceKind: "subway",
+	},
+	{
+		defaultBoardingPoint: "学生活动中心西侧停车场路口",
+		destination: "篱笆房地铁站",
+		displayOrder: 4,
+		origin: "丰台校区",
+		routeId: "route:fengtai-to-libafang",
+		serviceKind: "subway",
+	},
+	{
+		defaultBoardingPoint: "篱笆房地铁站B2口",
+		destination: "丰台校区",
+		displayOrder: 5,
+		origin: "篱笆房地铁站",
+		routeId: "route:libafang-to-fengtai",
+		serviceKind: "subway",
+	},
+];
+
+const WEEKDAYS = [1, 2, 3, 4, 5];
+const WEEKENDS = [6, 7];
+
+export const TRANSPORT_BASELINE_PERIODS: readonly TransportBaselinePeriod[] = [
+	fixedPeriod(
+		"baseline:weekday:haidian-to-fengtai",
+		"route:haidian-to-fengtai",
+		"2026-08-31",
+		WEEKDAYS,
+		[
+			["06:40", "teacher"],
+			["08:10", "student"],
+			["08:30", "teacher"],
+			["11:00", "teacher"],
+			["12:30", "teacher"],
+			["14:30", "teacher"],
+			["16:30", "teacher"],
+			["17:45", "student"],
+			["19:30", "student"],
+			["20:55", "student"],
+			["21:45", "student"],
+		],
+	),
+	fixedPeriod(
+		"baseline:weekday:fengtai-to-haidian",
+		"route:fengtai-to-haidian",
+		"2026-08-31",
+		WEEKDAYS,
+		[
+			["06:40", "teacher"],
+			["07:30", "student"],
+			["08:10", "student"],
+			["10:50", "teacher"],
+			["12:30", "teacher"],
+			["13:00", "teacher"],
+			["13:30", "teacher"],
+			["16:00", "teacher"],
+			["16:20", "student"],
+			["17:45", "teacher"],
+			["18:45", "teacher"],
+			["20:55", "teacher"],
+			["21:45", "teacher"],
+		],
+	),
+	fixedPeriod(
+		"baseline:weekend:haidian-to-fengtai",
+		"route:haidian-to-fengtai",
+		"2026-09-05",
+		WEEKENDS,
+		[
+			["08:00", "teacher"],
+			["12:30", "student"],
+			["16:30", "teacher"],
+			["18:10", "teacher"],
+			["20:30", "student"],
+		],
+		"周六、日及法定节假日班次",
+	),
+	fixedPeriod(
+		"baseline:weekend:fengtai-to-haidian",
+		"route:fengtai-to-haidian",
+		"2026-09-05",
+		WEEKENDS,
+		[
+			["08:00", "student"],
+			["12:30", "teacher"],
+			["18:10", "teacher"],
+		],
+		"周六、日及法定节假日班次",
+	),
+	fixedPeriod(
+		"baseline:weekend:fengtai-to-wukesong",
+		"route:fengtai-to-wukesong",
+		"2026-09-05",
+		WEEKENDS,
+		[
+			["09:00", "all"],
+			["09:30", "all"],
+			["10:00", "all"],
+			["10:30", "all"],
+			["11:00", "all"],
+			["11:30", "all"],
+			["15:00", "all"],
+			["16:00", "all"],
+			["17:00", "all"],
+		],
+		"周六、日及法定节假日班次",
+	),
+	fixedPeriod(
+		"baseline:weekend:wukesong-to-fengtai",
+		"route:wukesong-to-fengtai",
+		"2026-09-05",
+		WEEKENDS,
+		[
+			["18:30", "all"],
+			["19:30", "all"],
+			["20:00", "all"],
+			["20:30", "all"],
+			["21:00", "all"],
+			["21:30", "all"],
+			["22:00", "all"],
+		],
+		"周六、日及法定节假日班次",
+	),
+	fixedPeriod(
+		"baseline:weekend:fengtai-to-libafang",
+		"route:fengtai-to-libafang",
+		"2026-09-05",
+		WEEKENDS,
+		[["08:00", "all"]],
+		"周六、日及法定节假日班次",
+	),
+	fixedPeriod(
+		"baseline:weekend:libafang-to-fengtai",
+		"route:libafang-to-fengtai",
+		"2026-09-05",
+		WEEKENDS,
+		[["20:00", "all"]],
+		"周六、日及法定节假日班次",
+	),
+];
+
+function fixedPeriod(
+	scheduleId: string,
+	routeId: string,
+	validFrom: string,
+	weekdays: readonly number[],
+	entries: readonly [string, TransportRiderType][],
+	note: string | null = null,
+): TransportBaselinePeriod {
+	return {
+		input: {
+			boardingPointOverride: null,
+			items: entries.map(
+				([departureTime, riderType], sortOrder): TransportScheduleItem => ({
+					boardingPoint: null,
+					capacity: null,
+					departureTime,
+					kind: "fixed",
+					note: null,
+					riderType,
+					sortOrder,
+				}),
+			),
+			note,
+			routeId,
+			status: "operating",
+			validFrom,
+			validTo: null,
+			weekdays: [...weekdays],
+		},
+		scheduleId,
+	};
+}

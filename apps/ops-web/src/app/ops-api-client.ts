@@ -64,3 +64,13 @@ export {
 	fetchOpsRequests,
 	type OpsRequestListParams,
 } from "./ops-api/observability";
+export {
+	createTransportRoute,
+	createTransportSchedulePeriod,
+	deleteTransportRoute,
+	deleteTransportSchedulePeriod,
+	fetchTransportRoutes,
+	fetchTransportSchedulePeriods,
+	updateTransportRoute,
+	updateTransportSchedulePeriod,
+} from "./ops-api/transport";

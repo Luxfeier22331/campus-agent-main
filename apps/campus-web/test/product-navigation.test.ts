@@ -9,6 +9,7 @@ describe("campus product navigation model", () => {
 			["docs", "/docs", "文档"],
 			["notices", "/notices", "通知"],
 			["map", "/map", "校园地图"],
+			["transport", "/transport", "班车"],
 			["dining", "/dining", "食堂"],
 			["groups", "/groups", "同好群"],
 			["feedback", "/feedback", "反馈"],
@@ -31,6 +32,7 @@ describe("campus product navigation model", () => {
 		expect(isProductNavActive("/docs/regulations", findItem("docs"))).toBe(true);
 		expect(isProductNavActive("/notices/358159", findItem("notices"))).toBe(true);
 		expect(isProductNavActive("/map", findItem("map"))).toBe(true);
+		expect(isProductNavActive("/transport", findItem("transport"))).toBe(true);
 		expect(isProductNavActive("/dining", findItem("dining"))).toBe(true);
 		expect(isProductNavActive("/groups", findItem("groups"))).toBe(true);
 		expect(isProductNavActive("/feedback", findItem("feedback"))).toBe(true);

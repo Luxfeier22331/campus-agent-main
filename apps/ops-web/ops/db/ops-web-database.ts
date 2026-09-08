@@ -35,6 +35,17 @@ const DINING_GRANT_STATEMENTS = [
 	`GRANT SELECT, INSERT ON TABLE "dining"."review_reports" TO "app_api"`,
 ] as const;
 
+const TRANSPORT_GRANT_STATEMENTS = [
+	`REVOKE ALL PRIVILEGES ON SCHEMA "transport" FROM PUBLIC, "ops_web"`,
+	`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "transport" FROM PUBLIC, "ops_web"`,
+	`GRANT USAGE ON SCHEMA "transport" TO "ops_web"`,
+	`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+		"transport"."routes",
+		"transport"."schedule_periods",
+		"transport"."schedule_items"
+	 TO "ops_web"`,
+] as const;
+
 const OPS_WEB_GRANT_STATEMENTS = [
 	`GRANT USAGE ON SCHEMA "notices" TO "ops_web"`,
 	`GRANT SELECT ON TABLE
@@ -119,6 +130,9 @@ export async function applyOpsWebGrantStatements(client: {
 	query(sql: string): Promise<unknown>;
 }): Promise<void> {
 	await applyDiningGrantStatements(client);
+	for (const statement of TRANSPORT_GRANT_STATEMENTS) {
+		await client.query(statement);
+	}
 	for (const statement of OPS_WEB_GRANT_STATEMENTS) {
 		await client.query(statement);
 	}
@@ -223,6 +237,33 @@ const REQUIRED_SELECTS = [
 		sql: `
 			select "edit_id", "review_id", "previous_body", "next_body", "edited_at", "edited_by"
 			from "dining"."review_edits"
+			limit 0
+		`,
+	},
+	{
+		label: "transport.routes",
+		sql: `
+			select "route_id", "origin", "destination", "service_kind", "default_boarding_point",
+				"display_order", "created_at", "updated_at", "updated_by"
+			from "transport"."routes"
+			limit 0
+		`,
+	},
+	{
+		label: "transport.schedule_periods",
+		sql: `
+			select "schedule_id", "route_id", "valid_from", "valid_to", "weekdays", "status",
+				"boarding_point_override", "note", "created_at", "updated_at", "updated_by"
+			from "transport"."schedule_periods"
+			limit 0
+		`,
+	},
+	{
+		label: "transport.schedule_items",
+		sql: `
+			select "item_id", "schedule_id", "kind", "boarding_point", "departure_time", "first_departure_time",
+				"last_departure_time", "interval_minutes", "rider_type", "capacity", "note", "sort_order"
+			from "transport"."schedule_items"
 			limit 0
 		`,
 	},
@@ -436,6 +477,7 @@ async function verifyOpsWebRoleAndGrants(config: DatabaseConnectionConfig): Prom
 		}
 
 		await verifyOpsWebDiningPrivileges(client);
+		await verifyOpsWebTransportPrivileges(client);
 		await verifyOpsWebInternalPortalPrivileges(client);
 
 		const providerConfigPrivileges = await client.query<{
@@ -625,6 +667,30 @@ async function verifyOpsWebDiningAccess(config: DatabaseConnectionConfig): Promi
 		await assertOpsWebCurrentUser(client);
 		await verifyOpsWebDiningPrivileges(client);
 	});
+}
+
+async function verifyOpsWebTransportPrivileges(client: Client): Promise<void> {
+	const privileges = await client.query<{
+		canMutateItems: boolean;
+		canMutatePeriods: boolean;
+		canMutateRoutes: boolean;
+		canUseSchema: boolean;
+	}>(`select
+		has_schema_privilege(current_user, 'transport', 'USAGE') as "canUseSchema",
+		has_table_privilege(current_user, 'transport.routes', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateRoutes",
+		has_table_privilege(current_user, 'transport.schedule_periods', 'SELECT,INSERT,UPDATE,DELETE') as "canMutatePeriods",
+		has_table_privilege(current_user, 'transport.schedule_items', 'SELECT,INSERT,UPDATE,DELETE') as "canMutateItems"`);
+	const access = privileges.rows[0];
+	if (
+		!(
+			access?.canUseSchema &&
+			access.canMutateRoutes &&
+			access.canMutatePeriods &&
+			access.canMutateItems
+		)
+	) {
+		throw new Error("ops_web is missing required transport management privileges.");
+	}
 }
 
 function readDatabaseConfigs(env: NodeJS.ProcessEnv): {

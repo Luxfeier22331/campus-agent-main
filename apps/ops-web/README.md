@@ -25,6 +25,7 @@
 - `/dining`：食堂内容维护；
 - `/groups`：同好群目录维护。
 - `/notices`：查看通知库存、维护分类，并启动固定的采集、分类和发布任务。
+- `/transport`：维护班车路线、班次、乘车点和服务例外，并审核通知提取声明。
 
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器 DTO 位于 `src/shared/`，HTTP 入口位于
 `src/server/app.ts`。
@@ -80,9 +81,9 @@ pnpm --dir apps/ops-web test:browser
 pnpm --dir apps/ops-web test:database-integration
 ```
 
-`pnpm dev:init -- --target ops-web` 会生成 core 与 Ops Web 实际消费者所需的环境投影，通过
-`campus-agent-schema` 安装统一 schema 和授权，再写入通知分类与 Dining 本地 seed；新的本地 profile 不需要
-单独初始化 notice-publisher。`test:database-integration` 只验证当前统一 schema 拓扑。
+`pnpm dev:init -- --target ops-web` 会生成 core、Ops Web 和通知相关实际消费者所需的环境投影，通过
+`campus-agent-schema` 安装统一 schema 和授权，再写入班车 baseline、通知分类与 Dining 本地 seed；
+新的本地 profile 不需要单独初始化 notice-publisher。`test:database-integration` 验证当前统一 schema 拓扑。
 
 `dev:api` 和 `dev:web` 分别启动 Node API 与 Vite 页面；`dev:fixture` 只监听 loopback，使用内存凭据服务
 和固定 fixture token，启动时打印 endpoint、token 与测试凭据 ID。它不读取本地真实凭据，也不会改变
@@ -91,10 +92,10 @@ pnpm --dir apps/ops-web test:database-integration
 同好群和账号管理页面通过服务端配置的 `OPS_WEB_APP_API_URL` 和 `OPS_WEB_INTERNAL_TOKEN` 调用 app-api；
 前者是 HTTP(S) 根地址，令牌不下发到浏览器。
 
-`pnpm dev:init -- --target ops-web` 为当前 worktree 创建独立 PostgreSQL database 和所需 derived
-bucket，生成 Ops Web 及通知采集、分类、发布任务实际读取的环境文件，并通过统一 schema 和 seed owner
-补齐 Notice、分类模型与 Dining 本地基线，使后台按钮可以执行完整本地 Job 链路。Ops Web 使用统一
-`ops_web` 角色和本地对象存储连接；Dining 不创建专属角色、连接、桶或凭据。
+`pnpm dev:init -- --target ops-web` 为当前 worktree 创建独立 PostgreSQL database 和所需 source/derived
+bucket，生成 Ops Web 及通知采集、分类、发布任务实际读取的环境文件，并通过统一 schema 和 seed owner 补齐
+班车 baseline、Notice、分类模型与 Dining 本地基线。班车由 Ops Web 直接维护，使用统一 `ops_web` 角色；Dining
+不创建专属角色、连接、桶或凭据。
 
 Ops Web 的 Dining、内部门户凭据与 automation token 声明式 schema 位于
 `packages/domains/dining/src/schema.ts` 和 `apps/ops-web/ops/db/internal-portal-schema.ts`，对应的
@@ -104,6 +105,7 @@ Dining 基线草稿，并通过正式 publisher 上传 SVG、原子写入 releas
 发布时不修改数据。授权和 bootstrap 不建表，也不维护 migration ledger。
 
 ```bash
+pnpm --dir apps/ops-web db:bootstrap-transport
 pnpm --dir apps/ops-web db:bootstrap-dining
 ```
 

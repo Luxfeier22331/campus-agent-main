@@ -8,6 +8,7 @@ const checker = join(process.cwd(), "scripts/release/check-ops-web-artifact.mjs"
 
 function artifact({
 	bootstrap = "export const ready = true;",
+	transportBootstrap = "export const ready = true;",
 	database = "export const ready = true;",
 	internalPortalCheck = "export const ready = true;",
 	server = "export const ready = true;",
@@ -18,6 +19,10 @@ function artifact({
 	if (bootstrap !== null) {
 		mkdirSync(join(root, "dist-ops", "db"), { recursive: true });
 		writeFileSync(join(root, "dist-ops/db/bootstrap-dining.js"), bootstrap);
+	}
+	if (transportBootstrap !== null) {
+		mkdirSync(join(root, "dist-ops", "db"), { recursive: true });
+		writeFileSync(join(root, "dist-ops/db/bootstrap-transport.js"), transportBootstrap);
 	}
 	if (database !== null) {
 		mkdirSync(join(root, "dist-ops", "db"), { recursive: true });
@@ -61,6 +66,14 @@ test("rejects a missing database artifact", () => {
 	);
 });
 
+test("rejects a missing transport bootstrap artifact", () => {
+	const root = artifact({ transportBootstrap: null });
+	assert.throws(
+		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
+		/production transport bootstrap entry is missing/u,
+	);
+});
+
 test("rejects a missing internal portal check artifact", () => {
 	const root = artifact({ internalPortalCheck: null });
 	assert.throws(
@@ -74,5 +87,13 @@ test("rejects an unresolved bootstrap runtime dependency", () => {
 	assert.throws(
 		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
 		/bootstrap entry cannot load its runtime dependencies/u,
+	);
+});
+
+test("rejects an unresolved transport bootstrap runtime dependency", () => {
+	const root = artifact({ transportBootstrap: 'import "@campus-agent/transport/domain";' });
+	assert.throws(
+		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
+		/transport bootstrap entry cannot load its runtime dependencies/u,
 	);
 });

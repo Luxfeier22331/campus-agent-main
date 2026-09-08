@@ -14,4 +14,13 @@ describe("campus auth return target", () => {
 			),
 		).toBe("/groups?source=account#sports");
 	});
+
+	it("allows the public transport page as a same-site return target", () => {
+		expect(isCampusReturnPath("/transport")).toBe(true);
+		expect(
+			resolveAccountAuthReturnTarget(
+				new URLSearchParams({ redirectTo: "/transport?source=account" }),
+			),
+		).toBe("/transport?source=account");
+	});
 });
