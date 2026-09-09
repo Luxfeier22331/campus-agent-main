@@ -470,6 +470,9 @@ importers:
       '@campus-agent/internal-portal-client':
         specifier: workspace:*
         version: link:../../packages/internal-portal-client
+      '@campus-agent/notices':
+        specifier: workspace:*
+        version: link:../../packages/domains/notices
       '@campus-agent/transport':
         specifier: workspace:*
         version: link:../../packages/domains/transport
@@ -539,6 +542,9 @@ importers:
       jose:
         specifier: ^6.2.9
         version: 6.2.9
+      jsdom:
+        specifier: ^27.4.0
+        version: 27.4.0(@noble/hashes@2.3.0)(supports-color@10.2.2)
       lucide-react:
         specifier: ^1.31.0
         version: 1.31.0(react@19.2.8)
@@ -596,7 +602,7 @@ importers:
         version: 12.1.0(supports-color@10.2.2)
       '@testing-library/jest-dom':
         specifier: ^7.0.1
-        version: 7.0.1(@testing-library/dom@10.4.1)(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0)))
+        version: 7.0.1(@testing-library/dom@10.4.1)(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@27.4.0(@noble/hashes@2.3.0)(supports-color@10.2.2))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0)))
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -618,9 +624,6 @@ importers:
       app-api:
         specifier: workspace:*
         version: link:../app-api
-      jsdom:
-        specifier: ^30.0.1
-        version: 30.0.1(@noble/hashes@2.3.0)
       notice-publisher:
         specifier: workspace:*
         version: link:../../jobs/notice-publisher
@@ -641,7 +644,7 @@ importers:
         version: 8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0)
       vitest:
         specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@27.4.0(@noble/hashes@2.3.0)(supports-color@10.2.2))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
 
   apps/status-web:
     dependencies:
@@ -790,6 +793,9 @@ importers:
       '@campus-agent/notice-database':
         specifier: workspace:*
         version: link:../../packages/notice-database
+      '@campus-agent/notices':
+        specifier: workspace:*
+        version: link:../../packages/domains/notices
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)(supports-color@10.2.2)
@@ -1042,9 +1048,6 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1009.0
         version: 3.1111.0
-      '@campus-agent/notices':
-        specifier: workspace:*
-        version: link:../domains/notices
       '@paddleocr/api-sdk':
         specifier: 0.2.3
         version: 0.2.3
@@ -11201,6 +11204,18 @@ snapshots:
       lz-string: 1.5.0
       picocolors: 1.1.1
       pretty-format: 27.5.1
+
+  '@testing-library/jest-dom@7.0.1(@testing-library/dom@10.4.1)(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@27.4.0(@noble/hashes@2.3.0)(supports-color@10.2.2))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0)))':
+    dependencies:
+      '@adobe/css-tools': 4.5.0
+      '@testing-library/dom': 10.4.1
+      aria-query: 5.3.2
+      css.escape: 1.5.1
+      dom-accessibility-api: 0.6.3
+      picocolors: 1.1.1
+      redent: 3.0.0
+    optionalDependencies:
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@27.4.0(@noble/hashes@2.3.0)(supports-color@10.2.2))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))
 
   '@testing-library/jest-dom@7.0.1(@testing-library/dom@10.4.1)(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0)))':
     dependencies:

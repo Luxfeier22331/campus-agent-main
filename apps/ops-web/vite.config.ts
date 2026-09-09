@@ -29,7 +29,6 @@ export default defineConfig({
 			"@campus-agent/ui",
 			"campus-contracts",
 			"fast-xml-parser",
-			"jsdom",
 		],
 	},
 });

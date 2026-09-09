@@ -34,6 +34,10 @@
 路由组合位于 `src/app/ops-web-app.tsx`，浏览器 DTO 位于 `src/shared/`，HTTP 入口位于
 `src/server/app.ts`。
 
+通知 OCR 入口从通知领域读取来源资源引用，再选择图片/PDF 创建 OCR 任务；通用 OCR 包不负责解析通知。
+Node 构建内联通知 workspace 源码，但外部加载生产依赖 `jsdom`，不将其文件资源读取逻辑打入 ESM bundle。
+镜像构建在独立 production deploy 目录检查所有服务端 JavaScript 的依赖边界，并实际加载和实例化 `jsdom`。
+
 通知维护页面只暴露七个固定操作：增量采集、按日期回填、分类缺失通知、分类单条通知、发布待发布通知、
 发布单条通知和重新发布单条通知。分类编辑直接更新通知数据库中的唯一分类字段。部署环境的服务端从
 同一 namespace 的现有 CronJob `spec.jobTemplate` 创建一次性 Job；浏览器不能

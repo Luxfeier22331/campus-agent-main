@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -13,13 +13,27 @@ if (!existsSync(serverEntry)) {
 	throw new Error(`ops-web production server entry is missing: ${serverEntry}`);
 }
 
-const serverSource = readFileSync(serverEntry, "utf8");
+function javascriptFiles(directory) {
+	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+		const path = join(directory, entry.name);
+		if (entry.isDirectory()) {
+			return javascriptFiles(path);
+		}
+		return entry.name.endsWith(".js") ? [path] : [];
+	});
+}
+
+const serverSources = javascriptFiles(join(root, "dist-server")).map((path) =>
+	readFileSync(path, "utf8"),
+);
+const serverSource = serverSources.join("\n");
 const workspaceImport = /(?:from|import\s*\(|require\s*\()\s*["']@campus-agent\/[^"']+["']/u;
 if (workspaceImport.test(serverSource)) {
 	throw new Error("ops-web production server must not import a workspace package at runtime");
 }
 
-const typeScriptImport = /(?:from|import\s*\(|require\s*\()\s*["'][^"']+\.ts["']/u;
+const typeScriptImport =
+	/(?:from\s*["']|import\s*\(\s*["']|require\s*\(\s*["'])[^"']+(?<!\.d)\.ts["']/u;
 if (typeScriptImport.test(serverSource)) {
 	throw new Error(
 		"ops-web production server must not import a TypeScript source module at runtime",
@@ -27,8 +41,24 @@ if (typeScriptImport.test(serverSource)) {
 }
 
 const externalJsdomImport = /(?:from|import\s*\(|require\s*\()\s*["']jsdom["']/u;
-if (externalJsdomImport.test(serverSource)) {
-	throw new Error("ops-web production server must bundle jsdom");
+if (!externalJsdomImport.test(serverSource)) {
+	throw new Error("ops-web production server must keep jsdom external");
+}
+
+try {
+	execFileSync(
+		process.execPath,
+		[
+			"--input-type=module",
+			"--eval",
+			'const { JSDOM } = await import("jsdom"); new JSDOM("<body></body>");',
+		],
+		{ cwd: root, stdio: "pipe" },
+	);
+} catch (error) {
+	throw new Error("ops-web production artifact cannot load jsdom from its deploy dependencies", {
+		cause: error,
+	});
 }
 
 const bootstrapEntry = join(root, "dist-ops", "db", "bootstrap-dining.js");

@@ -39,6 +39,9 @@ pnpm --filter document-ocr ocr import --manifest /absolute/path/collection/ocr/m
 扫描已采集的内部通知标题：班车、接驳、通勤、社会实践专车。分类和发布不是前提；
 指定通知 ID 时不限制标题。图片选择复用采集器的规范化规则，附件仅处理 PDF，跳过 XLSX。
 
+通知来源适配由 `@campus-agent/notices` 的 `listNoticeSourceResources()` 提供；本 Job 将资源引用映射为
+OCR 输入，通用 `@campus-agent/document-ocr` 不依赖通知领域。构建保留外部 `jsdom`，由镜像的生产依赖提供。
+
 每轮先恢复未完成任务，再处理新输入；单并发，最多提交 10 个新任务。CronJob 每 15 分钟运行，
 `concurrencyPolicy: Forbid`，Job deadline 为一小时。发布模板默认暂停。
 

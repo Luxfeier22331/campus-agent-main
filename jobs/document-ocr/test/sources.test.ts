@@ -1,19 +1,32 @@
-import { expect, it } from "vitest";
-import { noticeInputs } from "../src/sources.ts";
+import type { OcrInput, OcrObjects } from "@campus-agent/document-ocr";
+import type { Pool } from "pg";
+import { expect, it, vi } from "vitest";
+import { selectNoticeInputs } from "../src/sources.ts";
 
-it("selects source images and PDF attachments without requiring publication/classification", () => {
-	expect(
-		noticeInputs(
-			"123",
-			{
-				notice_id: 123,
-				is_external: false,
-				notice_content_html: '<p><img src="a.jpg"><img src="b.png"></p>',
-				attachments: [{ suffix: "xlsx" }, { suffix: "pdf" }],
-			},
-			"portal.example",
+it("selects source images and PDF attachments without requiring publication/classification", async () => {
+	const query = vi.fn().mockResolvedValue({
+		rows: [{ id: "123" }],
+	});
+	const objects: OcrObjects = {
+		getSource: vi.fn().mockResolvedValue(
+			new TextEncoder().encode(
+				JSON.stringify({
+					notice_id: 123,
+					is_external: false,
+					notice_content_html: '<p><img src="a.jpg"><img src="b.png"></p>',
+					attachments: [{ suffix: "xlsx" }, { suffix: ".PDF" }, { suffix: null }],
+				}),
+			),
 		),
-	).toEqual([
+		getDerived: vi.fn(),
+		putDerived: vi.fn(),
+		close: vi.fn(),
+	};
+	const inputs: OcrInput[] = [];
+	for await (const input of selectNoticeInputs({ query } as unknown as Pool, objects, "123")) {
+		inputs.push(input);
+	}
+	expect(inputs).toEqual([
 		{
 			kind: "source",
 			noticeId: "123",
@@ -33,4 +46,6 @@ it("selects source images and PDF attachments without requiring publication/clas
 			contentType: "application/pdf",
 		},
 	]);
+	expect(objects.getSource).toHaveBeenCalledWith("internal_portal/notices/123.json");
+	expect(query).toHaveBeenCalledWith(expect.any(String), ["123"]);
 });

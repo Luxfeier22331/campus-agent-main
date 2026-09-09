@@ -1,10 +1,10 @@
 import {
 	createOcrObjects,
 	createOcrTaskStore,
-	noticeInputs,
 	type OcrTask,
 	resolveOcrConfig,
 } from "@campus-agent/document-ocr";
+import { listNoticeSourceResources } from "@campus-agent/notices";
 import type { Hono } from "hono";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -106,11 +106,22 @@ export function registerOcrRoutes(input: {
 					await objects.getSource(`internal_portal/notices/${body.data.noticeId}.json`),
 				),
 			);
-			const inputs = noticeInputs(
+			const inputs = listNoticeSourceResources(
 				body.data.noticeId,
 				source,
 				new URL(portal.portal_base_url).hostname,
-			);
+			)
+				.filter(
+					(resource) =>
+						resource.kind === "image" ||
+						resource.suffix?.toLowerCase().replace(/^\./u, "") === "pdf",
+				)
+				.map((resource) => ({
+					kind: "source" as const,
+					noticeId: resource.noticeId,
+					key: resource.sourceKey,
+					contentType: resource.kind === "image" ? "image/*" : "application/pdf",
+				}));
 			const runtime = await config();
 			const tasks: OcrTask[] = [];
 			for (const resource of inputs) {

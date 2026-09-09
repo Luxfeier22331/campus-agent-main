@@ -16,6 +16,17 @@ function artifact({
 	const root = mkdtempSync("/tmp/ops-web-artifact-test-");
 	mkdirSync(join(root, "dist-server"), { recursive: true });
 	writeFileSync(join(root, "dist-server", "node.js"), server);
+	mkdirSync(join(root, "dist-server/assets"), { recursive: true });
+	writeFileSync(join(root, "dist-server/assets/vendor.js"), 'export { JSDOM } from "jsdom";');
+	mkdirSync(join(root, "node_modules/jsdom"), { recursive: true });
+	writeFileSync(
+		join(root, "node_modules/jsdom/package.json"),
+		JSON.stringify({ type: "module", exports: "./index.js" }),
+	);
+	writeFileSync(
+		join(root, "node_modules/jsdom/index.js"),
+		"export class JSDOM { constructor() {} }",
+	);
 	if (bootstrap !== null) {
 		mkdirSync(join(root, "dist-ops", "db"), { recursive: true });
 		writeFileSync(join(root, "dist-ops/db/bootstrap-dining.js"), bootstrap);
@@ -50,11 +61,18 @@ test("rejects a workspace package import", () => {
 	);
 });
 
-test("rejects an external jsdom import", () => {
-	const root = artifact({ server: 'import { JSDOM } from "jsdom";' });
+test("accepts an external jsdom import with a production dependency", () => {
+	const root = artifact({ server: "export const ready = true;" });
+	assert.doesNotThrow(() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }));
+});
+
+test("rejects a missing production jsdom dependency", () => {
+	const root = artifact();
+	writeFileSync(join(root, "node_modules/jsdom/index.js"), "");
+	writeFileSync(join(root, "node_modules/jsdom/package.json"), JSON.stringify({ type: "module" }));
 	assert.throws(
 		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
-		/production server must bundle jsdom/u,
+		/production artifact cannot load jsdom/u,
 	);
 });
 

@@ -1,8 +1,8 @@
-import { noticeInputs, type OcrObjects } from "@campus-agent/document-ocr";
+import type { OcrInput, OcrObjects } from "@campus-agent/document-ocr";
+import { listNoticeSourceResources } from "@campus-agent/notices";
 import type { Pool } from "pg";
 import portal from "../../../configs/sources/internal-portal.json" with { type: "json" };
 
-export { noticeInputs } from "@campus-agent/document-ocr";
 export async function* selectNoticeInputs(pool: Pool, objects: OcrObjects, noticeId?: string) {
 	if (noticeId !== undefined && !/^[1-9]\d*$/.test(noticeId)) {
 		throw new Error("noticeId must be a positive integer");
@@ -17,6 +17,24 @@ export async function* selectNoticeInputs(pool: Pool, objects: OcrObjects, notic
 		const source = JSON.parse(
 			new TextDecoder().decode(await objects.getSource(`internal_portal/notices/${row.id}.json`)),
 		);
-		yield* noticeInputs(row.id, source, new URL(portal.portal_base_url).hostname);
+		const resources = listNoticeSourceResources(
+			row.id,
+			source,
+			new URL(portal.portal_base_url).hostname,
+		);
+		for (const resource of resources) {
+			if (
+				resource.kind === "attachment" &&
+				resource.suffix?.toLowerCase().replace(/^\./u, "") !== "pdf"
+			) {
+				continue;
+			}
+			yield {
+				kind: "source",
+				noticeId: resource.noticeId,
+				key: resource.sourceKey,
+				contentType: resource.kind === "image" ? "image/*" : "application/pdf",
+			} satisfies OcrInput;
+		}
 	}
 }
