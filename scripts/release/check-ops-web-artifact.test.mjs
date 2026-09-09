@@ -50,6 +50,14 @@ test("rejects a workspace package import", () => {
 	);
 });
 
+test("rejects an external jsdom import", () => {
+	const root = artifact({ server: 'import { JSDOM } from "jsdom";' });
+	assert.throws(
+		() => execFileSync(process.execPath, [checker, root], { stdio: "pipe" }),
+		/production server must bundle jsdom/u,
+	);
+});
+
 test("rejects a missing bootstrap artifact", () => {
 	const root = artifact({ bootstrap: null });
 	assert.throws(

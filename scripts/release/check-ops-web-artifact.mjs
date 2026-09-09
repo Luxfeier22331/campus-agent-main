@@ -26,6 +26,11 @@ if (typeScriptImport.test(serverSource)) {
 	);
 }
 
+const externalJsdomImport = /(?:from|import\s*\(|require\s*\()\s*["']jsdom["']/u;
+if (externalJsdomImport.test(serverSource)) {
+	throw new Error("ops-web production server must bundle jsdom");
+}
+
 const bootstrapEntry = join(root, "dist-ops", "db", "bootstrap-dining.js");
 if (!existsSync(bootstrapEntry)) {
 	throw new Error(`ops-web production bootstrap entry is missing: ${bootstrapEntry}`);
