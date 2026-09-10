@@ -57,14 +57,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Install Nix
-        if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
       - name: Verify current main revision
+        shell: bash -e {0}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -75,6 +69,12 @@ jobs:
             exit 1
           fi
 
+      - name: Install Nix
+        if: runner.environment != 'self-hosted'
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
       - name: Create GitOps read token
         id: gitops-read-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
@@ -185,14 +185,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Nix
-        if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
       - name: Verify current main revision before image publication
+        shell: bash -e {0}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -203,6 +197,12 @@ jobs:
             exit 1
           fi
 
+      - name: Install Nix
+        if: runner.environment != 'self-hosted'
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
       - name: Setup Docker Buildx
         if: runner.environment != 'self-hosted'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
@@ -256,14 +256,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Nix
-        if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
       - name: Verify current main revision before Worker publication
+        shell: bash -e {0}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -274,6 +268,12 @@ jobs:
             exit 1
           fi
 
+      - name: Install Nix
+        if: runner.environment != 'self-hosted'
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
       - name: Install selected Worker workspaces
         id: install_workers
         env:
@@ -503,17 +503,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Nix
-        if: runner.environment != 'self-hosted'
-        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
-          enable_kvm: false
-
       - name: Verify current main revision before promotion
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: nix develop .#ci-core --command bash -e {0}
+        shell: bash -e {0}
         run: |
           set -euo pipefail
           current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
@@ -522,6 +515,12 @@ jobs:
             exit 1
           fi
 
+      - name: Install Nix
+        if: runner.environment != 'self-hosted'
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
       - name: Prepare release inputs
         shell: bash -e {0}
         run: |

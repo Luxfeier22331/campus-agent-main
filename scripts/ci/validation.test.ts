@@ -69,6 +69,9 @@ test("docs-only changes keep automatic evidence empty", () => {
 	assert.deepEqual(plan.affectedPackages, []);
 	assert.deepEqual(plan.lightSurfaces, []);
 	assert.deepEqual(plan.validationProfiles, []);
+	assert.ok(
+		plan.profileDecisions.every((decision) => !decision.selected && decision.reason.length > 0),
+	);
 });
 
 test("execution-control native checks are automatic while service integrations stay manual", () => {
@@ -104,6 +107,13 @@ test("selects affected Node and Worker evidence from Turbo tasks", () => {
 	);
 	assert.deepEqual(plan.affectedPackages, ["app-api", "campus-contracts"]);
 	assert.deepEqual(plan.validationProfiles, ["affected-node"]);
+	assert.deepEqual(
+		plan.profileDecisions
+			.filter((decision) => decision.selected)
+			.map((decision) => decision.profile),
+		plan.validationProfiles,
+	);
+	assert.ok(plan.affectedTasks.some((task) => task.package === "app-api"));
 });
 
 test("keeps database, infrastructure, OTel, and browser checks manual", () => {

@@ -104,6 +104,11 @@
           ciCore = pkgs.mkShellNoCC { packages = corePackages; };
           ciLight = pkgs.mkShellNoCC { packages = lightPackages; };
           ciRelease = pkgs.mkShellNoCC { packages = releasePackages; };
+          ciFormat = pkgs.mkShellNoCC { packages = [ pkgs.golangci-lint ]; };
+          ciGo = pkgs.mkShellNoCC {
+            packages = corePackages ++ [ goToolchain pkgs.golangci-lint ];
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
+          };
           ciFull = pkgs.mkShellNoCC {
             packages = fullPackages;
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
@@ -117,6 +122,8 @@
           ci-core = ciCore;
           ci-light = ciLight;
           ci-release = ciRelease;
+          ci-format = ciFormat;
+          ci-go = ciGo;
           ci-full = ciFull;
           default = ciCore;
         }

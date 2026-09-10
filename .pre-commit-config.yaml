@@ -6,14 +6,19 @@ repos:
   - repo: builtin
     hooks:
       - id: check-added-large-files
+        groups: [fast]
         stages: [pre-commit]
       - id: check-merge-conflict
+        groups: [fast]
         stages: [pre-commit]
       - id: check-json
+        groups: [fast]
         stages: [pre-commit]
       - id: check-toml
+        groups: [fast]
         stages: [pre-commit]
       - id: check-yaml
+        groups: [fast]
         stages: [pre-commit]
         args: [--allow-multiple-documents]
 
@@ -21,12 +26,16 @@ repos:
     hooks:
       - id: biome
         name: Biome
+        groups: [fast]
+        # Biome already parallelizes internally; multiple batches reload the project.
+        require_serial: true
         entry: pnpm --config.verify-deps-before-run=false exec biome check --no-errors-on-unmatched
         language: system
         files: '\.(?:[cm]?[jt]sx?|jsonc?|css|html)$'
 
       - id: markdownlint
         name: Markdownlint
+        groups: [language]
         entry: pnpm --config.verify-deps-before-run=false exec markdownlint-cli2 --no-globs --
         language: system
         files: '\.md$'
@@ -34,30 +43,35 @@ repos:
 
       - id: editorconfig
         name: EditorConfig
+        groups: [fast]
         entry: nix develop .#ci-light --command editorconfig-checker -no-color -disable-indentation -disable-indent-size
         language: system
         exclude: '(^|/)(dist|node_modules|\.tmp|drizzle/meta)(/|$)'
 
       - id: ruff-check
         name: Ruff lint
+        groups: [language]
         entry: nix develop .#ci-light --command uv run --no-sync ruff check
         language: system
         files: '\.py$'
 
       - id: ruff-format
         name: Ruff format
+        groups: [language]
         entry: nix develop .#ci-light --command uv run --no-sync ruff format --check
         language: system
         files: '\.py$'
 
       - id: sqlfluff
         name: SQLFluff
+        groups: [language]
         entry: nix develop .#ci-light --command uv run --no-sync sqlfluff lint --config .sqlfluff
         language: system
         files: '\.sql$'
 
       - id: yamllint
         name: Yamllint
+        groups: [fast]
         entry: nix develop .#ci-light --command uv run --no-sync yamllint -c .yamllint.yml
         language: system
         files: '\.ya?ml$'
@@ -65,18 +79,21 @@ repos:
 
       - id: shellcheck
         name: ShellCheck
+        groups: [fast]
         entry: nix develop .#ci-light --command shellcheck -x -s bash
         language: system
         files: '\.sh$'
 
       - id: go-format
         name: Go format
-        entry: nix develop .#ci-full --command golangci-lint fmt --diff
+        groups: [language]
+        entry: nix develop .#ci-format --command golangci-lint fmt --diff
         language: system
         files: '\.go$'
 
       - id: staged-secrets
         name: Staged secret scan
+        groups: [secrets]
         entry: nix develop .#ci-light --command gitleaks git --pre-commit --redact --staged
         language: system
         pass_filenames: false

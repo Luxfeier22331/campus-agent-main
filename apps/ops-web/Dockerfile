@@ -11,7 +11,7 @@ WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
   && pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-web-workspace
@@ -30,7 +30,7 @@ WORKDIR /app
 
 COPY --from=pruner /repo/out/json/ ./
 
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
   && pnpm install --ignore-scripts --frozen-lockfile --filter ops-web...
@@ -39,7 +39,8 @@ COPY --from=pruner /repo/out/full/ ./
 COPY configs/sources/internal-portal.json ./configs/sources/internal-portal.json
 COPY scripts/release/check-ops-web-artifact.mjs ./scripts/release/check-ops-web-artifact.mjs
 
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
+  --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   pnpm --filter ops-web build \
   && PNPM_CONFIG_IGNORE_SCRIPTS=true pnpm --filter ops-web deploy --legacy --prod /opt/ops-web \
   && node scripts/release/check-ops-web-artifact.mjs /opt/ops-web

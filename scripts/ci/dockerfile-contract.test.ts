@@ -44,6 +44,21 @@ test("Node image deploys do not execute workspace lifecycle scripts", () => {
 	assert.match(deployLines[0], /PNPM_CONFIG_IGNORE_SCRIPTS=true/u);
 });
 
+test("Ops Web pnpm commands mount the configured store and Corepack cache", () => {
+	const dockerfile = readFileSync(resolve(repositoryRoot, "apps/ops-web/Dockerfile"), "utf8");
+	const pnpmHome = dockerfile.match(/^ENV PNPM_HOME=(.+)$/mu)?.[1];
+	assert.equal(pnpmHome, "/pnpm");
+	const commands = dockerfile.replaceAll("\\\n", " ").split("\n");
+	const pnpmCommands = commands.filter(
+		(line) => line.startsWith("RUN ") && /\bpnpm (?:install|--filter)/u.test(line),
+	);
+	assert.equal(pnpmCommands.length, 3);
+	for (const command of pnpmCommands) {
+		assert(command.includes(`id=pnpm-store,target=${pnpmHome}/store,sharing=locked`));
+		assert(command.includes("id=corepack,target=/root/.cache/node/corepack,sharing=locked"));
+	}
+});
+
 test("Node image defaults follow the repository Node version", () => {
 	const bake = readFileSync(resolve(repositoryRoot, "docker-bake.hcl"), "utf8");
 	const bakeVersion = bake.match(/variable "NODE_VERSION" \{\s*default = "([^"]+)"\s*\}/u)?.[1];

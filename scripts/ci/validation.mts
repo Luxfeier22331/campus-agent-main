@@ -26,6 +26,9 @@ export interface ValidationPlan {
 	head: string;
 	lightSurfaces: LightSurface[];
 	validationProfiles: ValidationProfile[];
+	profileDecisions: Array<{ profile: ValidationProfile; selected: boolean; reason: string }>;
+	affectedTasks: AffectedScope["tasks"];
+	changedFiles: string[];
 }
 
 export interface ValidationPlanOptions {
@@ -97,12 +100,36 @@ export function validationPlanFromScope(
 	_options: Pick<ValidationPlanOptions, "mode">,
 ): ValidationPlan {
 	const validationProfiles = selectValidationProfiles(scope);
+	const reasons: Partial<Record<ValidationProfile, [string, string]>> = {
+		"affected-node": ["Affected task graph contains Node tasks", "No affected Node tasks"],
+		"execution-control-native": [
+			"Affected task graph contains execution-control native tasks",
+			"No affected execution-control native tasks",
+		],
+		"image-build": ["Affected scope selects image targets", "No affected image targets"],
+		"container-build": [
+			"Container definition inputs changed or image targets selected",
+			"No container definition changes or affected image targets",
+		],
+	};
 	return {
 		affectedPackages: selectAffectedPackages(scope),
 		base: scope.base,
 		head: scope.head,
 		lightSurfaces: selectLightSurfaces(scope.changedFiles),
 		validationProfiles,
+		affectedTasks: scope.tasks,
+		changedFiles: scope.changedFiles,
+		profileDecisions: VALIDATION_PROFILES.map((profile) => {
+			const selected = validationProfiles.includes(profile);
+			return {
+				profile,
+				selected,
+				reason:
+					reasons[profile]?.[selected ? 0 : 1] ??
+					"Manual evidence; not selected by pull-request validation",
+			};
+		}),
 	};
 }
 

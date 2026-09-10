@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -25,6 +26,52 @@ function runnerSelector(hostedRunner: "ubuntu-24.04" | "ubuntu-24.04-arm"): stri
 		`fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '${JSON.stringify(SELF_HOSTED_RUNNER_LABELS)}' || '"${hostedRunner}"')`,
 	);
 }
+
+test("timing reporter uses trusted code and read-only permissions after PR completion", async () => {
+	const workflow = await loadWorkflow("ci-timing-report.yml");
+	assert.deepEqual(workflow.permissions, { contents: "read", actions: "read" });
+	const report = workflowJob(workflow, "report");
+	const checkout = namedStep(report, "Checkout trusted reporting code");
+	assert(isObject(checkout.with));
+	assert.equal(checkout.with.ref, githubExpression("github.event.repository.default_branch"));
+	assert.equal(checkout.with["persist-credentials"], false);
+	assert.deepEqual(
+		jobSteps(report)
+			.filter((step) => step.run)
+			.map((step) => step.run),
+		["node --experimental-strip-types scripts/ci/timing-report.mts"],
+	);
+	const setup = namedStep(report, "Setup reporting Node");
+	assert(isObject(setup.with));
+	assert.equal(setup.with["node-version-file"], ".node-version");
+	assert.equal(setup.with["package-manager-cache"], false);
+});
+
+test("workflow jq selects Node and image evidence from the plan profile array", async () => {
+	const workflow = await loadWorkflow("pr.yml");
+	const plan = namedStep(
+		workflowJob(workflow, "repo-checks"),
+		"Generate pull request validation plan",
+	);
+	const expression = String(plan.run).match(/node_evidence_profiles="\$\(jq -c '([^']+)'/u)?.[1];
+	assert(expression, "workflow must extract evidence profiles");
+	for (const [profiles, expected] of [
+		[[], []],
+		[["affected-node"], ["affected-node"]],
+		[["image-build"], ["image-build"]],
+		[
+			["affected-node", "container-build", "image-build"],
+			["affected-node", "image-build"],
+		],
+		[["container-build", "execution-control-native"], []],
+	]) {
+		const actual = execFileSync("jq", ["-c", expression], {
+			input: JSON.stringify({ validationProfiles: profiles, affectedPackages: ["ops-web"] }),
+			encoding: "utf8",
+		});
+		assert.deepEqual(JSON.parse(actual), expected);
+	}
+});
 
 async function loadWorkflow(name: string): Promise<Record<string, unknown>> {
 	const source = await readFile(path.join(REPOSITORY_ROOT, ".github/workflows", name), "utf8");
@@ -175,13 +222,21 @@ test("pull request validation keeps the shared required-check contract", async (
 	]);
 	const repoChecks = workflowJob(workflow, "repo-checks");
 	assert.equal(repoChecks.if, "github.event.pull_request.draft == false");
-	assert.equal(repoChecks["runs-on"], runnerSelector("ubuntu-24.04"));
+	assert.equal(repoChecks["runs-on"], runnerSelector("ubuntu-24.04-arm"));
 	assert.equal(namedStep(repoChecks, "Install Nix").if, "runner.environment != 'self-hosted'");
 	const staticDependencies = namedStep(repoChecks, "Install static-check dependencies");
 	assert.equal(staticDependencies.if, "always()");
-	assert.equal(staticDependencies.run, "uv sync --only-dev --no-install-workspace");
-	const repositoryCheck = namedStep(repoChecks, "Check repository");
-	assert.equal(repositoryCheck.run, "pnpm check");
+	assert.match(String(staticDependencies.run), /uv sync --only-dev --no-install-workspace/u);
+	const repositoryCheck = namedStep(repoChecks, "Lint repository");
+	assert.match(String(repositoryCheck.run), /pnpm lint --verbose --log-file/u);
+	assert.match(
+		String(namedStep(repoChecks, "Check repository documentation").if),
+		/steps.repository_lint.outcome == 'success'/u,
+	);
+	assert.match(
+		String(namedStep(repoChecks, "Test repository scripts").if),
+		/steps.repository_docs.outcome == 'success'/u,
+	);
 	assert(isObject(repositoryCheck.env));
 	assert.equal(repositoryCheck.env.GITHUB_TOKEN, githubExpression("github.token"));
 	for (const removed of ["Lint Python", "Lint YAML", "Lint SQL", "Lint Shell"]) {
@@ -193,6 +248,7 @@ test("pull request validation keeps the shared required-check contract", async (
 	}
 	assert.equal(namedStep(repoChecks, "Summarize repository evidence").shell, "bash -e {0}");
 	const native = namedStep(repoChecks, "Check execution-control native code");
+	assert.equal(native.shell, "nix develop .#ci-go --command bash -e {0}");
 	assert.match(String(native.if), /execution-control-native/u);
 	assert.match(String(native.run), /--profiles '\["execution-control-native"\]'/u);
 	const summary = namedStep(repoChecks, "Summarize repository evidence");
@@ -280,6 +336,12 @@ test("scheduled dependency evidence has a bounded read-only lane", async () => {
 
 test("candidate publication keeps permissions, runners, and job dependencies explicit", async () => {
 	const workflow = await loadWorkflow("execution-runtime-publish.yml");
+	for (const name of ["release-plan", "publish-images", "publish-workers", "promote"]) {
+		const steps = jobSteps(workflowJob(workflow, name));
+		const guard = steps.findIndex((step) => String(step.name).startsWith("Verify current main"));
+		assert(guard >= 0 && guard < steps.findIndex((step) => step.name === "Install Nix"), name);
+		assert.equal(steps[guard].shell, "bash -e {0}");
+	}
 	assert.deepEqual(workflow.permissions, { contents: "read" });
 	assert.deepEqual(workflow.concurrency, {
 		"cancel-in-progress": false,

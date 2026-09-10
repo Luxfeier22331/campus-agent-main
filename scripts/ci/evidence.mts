@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { appendFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { imageTargetsForScope } from "../release/image-targets.mts";
@@ -20,6 +21,35 @@ const PRE_PUSH_NODE_TASKS = ["typecheck", "test", "test:worker"] as const;
 const PRE_PUSH_NATIVE_TASKS = ["native:typecheck", "native:test"] as const;
 
 export type EvidenceCommandRunner = CommandRunner;
+
+export interface EvidenceEvent {
+	kind: "command" | "profile";
+	profile: string;
+	command?: string[];
+	startedAt: string;
+	status: "running" | "success" | "failure";
+	finishedAt?: string;
+	durationMs?: number;
+	exitCode?: number | null;
+	failureClass?: "runner" | "unknown";
+}
+
+function reportEvent(event: EvidenceEvent, env: NodeJS.ProcessEnv): void {
+	if (env.CI_EVIDENCE_ENABLED !== "1") {
+		return;
+	}
+	const line = JSON.stringify(event);
+	if (env.CI_EVIDENCE_STDOUT === "1") {
+		process.stdout.write(`CI_EVIDENCE ${line}\n`);
+	}
+	if (env.CI_EVIDENCE_FILE) {
+		appendFileSync(env.CI_EVIDENCE_FILE, `${line}\n`);
+	}
+	if (env.GITHUB_STEP_SUMMARY && event.status !== "running") {
+		// JSON inside a code block avoids interpreting command arguments as Markdown.
+		appendFileSync(env.GITHUB_STEP_SUMMARY, `\n\`\`\`json\n${line}\n\`\`\`\n`);
+	}
+}
 
 export function runCommand(
 	command: string,
@@ -49,13 +79,42 @@ function runProfileCommand(
 	runner: EvidenceCommandRunner,
 	options: { cwd: string; env: NodeJS.ProcessEnv },
 ): void {
-	const result = runner(command, args, options);
-	if (result.error) {
-		throw result.error;
-	}
-	if (result.status !== 0) {
-		throw new Error(
-			`Candidate validation profile ${profile} failed with exit code ${result.status ?? 1}`,
+	const start = performance.now();
+	const event: EvidenceEvent = {
+		kind: "command",
+		profile,
+		command: [command, ...args],
+		startedAt: new Date().toISOString(),
+		status: "running",
+	};
+	reportEvent(event, options.env);
+	let result: CommandResult | undefined;
+	try {
+		result = runner(command, args, options);
+		if (result.error) {
+			throw result.error;
+		}
+		if (result.status !== 0) {
+			throw new Error(
+				`Candidate validation profile ${profile} failed with exit code ${result.status ?? 1}: ${command} ${args.join(" ")}`,
+			);
+		}
+		event.status = "success";
+	} finally {
+		if (event.status === "running") {
+			event.status = "failure";
+		}
+		reportEvent(
+			{
+				...event,
+				finishedAt: new Date().toISOString(),
+				durationMs: Math.round(performance.now() - start),
+				exitCode: result?.status ?? null,
+				...(event.status === "failure"
+					? { failureClass: result?.error || !result ? ("runner" as const) : ("unknown" as const) }
+					: {}),
+			},
+			options.env,
 		);
 	}
 }
@@ -308,14 +367,20 @@ export function runCandidateEvidence(
 		repository?: string;
 		repositoryRoot: string;
 		summaryFile?: string;
+		eventFile?: string;
 	},
 	runner: EvidenceCommandRunner = runCommand,
 ): void {
 	if (!(SHA_PATTERN.test(input.base) && SHA_PATTERN.test(input.head))) {
 		throw new Error("Candidate evidence revisions must be full lowercase commit SHAs");
 	}
-	const env = {
+	const env: NodeJS.ProcessEnv = {
 		...process.env,
+		CI_EVIDENCE_ENABLED: runner === runCommand || input.eventFile ? "1" : "0",
+		CI_EVIDENCE_STDOUT: runner === runCommand ? "1" : "0",
+		CI_EVIDENCE_FILE: input.eventFile ?? process.env.CI_EVIDENCE_FILE,
+		GITHUB_STEP_SUMMARY:
+			runner === runCommand ? (input.summaryFile ?? process.env.GITHUB_STEP_SUMMARY) : undefined,
 		...(input.profiles.includes("container-build") || input.profiles.includes("image-build")
 			? { NODE_VERSION: readNodeVersion(input.repositoryRoot) }
 			: {}),
@@ -338,42 +403,66 @@ export function runCandidateEvidence(
 			)
 		: undefined;
 	for (const profile of input.profiles) {
-		process.stdout.write(`Running validation profile: ${profile}\n`);
-		const executor = VALIDATION_PROFILE_REGISTRY[profile].executor;
-		if (executor.kind === "affected-node") {
-			if (!scope) {
-				throw new Error(`Validation profile ${profile} requires an affected scope`);
+		const start = performance.now();
+		const event: EvidenceEvent = {
+			kind: "profile",
+			profile,
+			startedAt: new Date().toISOString(),
+			status: "running",
+		};
+		reportEvent(event, env);
+		try {
+			const executor = VALIDATION_PROFILE_REGISTRY[profile].executor;
+			if (executor.kind === "affected-node") {
+				if (!scope) {
+					throw new Error(`Validation profile ${profile} requires an affected scope`);
+				}
+				runAffectedNodeEvidence(
+					{
+						env,
+						repositoryRoot: input.repositoryRoot,
+						scope,
+					},
+					runner,
+				);
+				event.status = "success";
+				continue;
 			}
-			runAffectedNodeEvidence(
+			if (executor.kind === "affected-images") {
+				if (!scope) {
+					throw new Error(`Validation profile ${profile} requires an affected scope`);
+				}
+				if (!input.repository) {
+					throw new Error("Image build evidence requires --repository");
+				}
+				runAffectedImageEvidence(
+					{
+						repository: input.repository,
+						scope,
+						summaryFile: input.summaryFile,
+					},
+					runner,
+					options,
+				);
+				event.status = "success";
+				continue;
+			}
+			for (const [command, ...args] of executor.commands) {
+				runProfileCommand(profile, command, args, runner, options);
+			}
+			event.status = "success";
+		} finally {
+			if (event.status === "running") {
+				event.status = "failure";
+			}
+			reportEvent(
 				{
-					env,
-					repositoryRoot: input.repositoryRoot,
-					scope,
+					...event,
+					finishedAt: new Date().toISOString(),
+					durationMs: Math.round(performance.now() - start),
 				},
-				runner,
+				env,
 			);
-			continue;
-		}
-		if (executor.kind === "affected-images") {
-			if (!scope) {
-				throw new Error(`Validation profile ${profile} requires an affected scope`);
-			}
-			if (!input.repository) {
-				throw new Error("Image build evidence requires --repository");
-			}
-			runAffectedImageEvidence(
-				{
-					repository: input.repository,
-					scope,
-					summaryFile: input.summaryFile,
-				},
-				runner,
-				options,
-			);
-			continue;
-		}
-		for (const [command, ...args] of executor.commands) {
-			runProfileCommand(profile, command, args, runner, options);
 		}
 	}
 }

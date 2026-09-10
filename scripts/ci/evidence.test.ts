@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -13,6 +15,50 @@ import {
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../..");
+
+test("records completed commands before a failure without running later commands", () => {
+	const directory = mkdtempSync(path.join(os.tmpdir(), "ci-evidence-"));
+	const file = path.join(directory, "events.jsonl");
+	let calls = 0;
+	try {
+		assert.throws(
+			() =>
+				runCandidateEvidence(
+					{
+						base: BASE,
+						head: HEAD,
+						profiles: ["execution-control-native"],
+						repositoryRoot: REPOSITORY_ROOT,
+						eventFile: file,
+					},
+					() => ({ status: ++calls === 2 ? 17 : 0 }),
+				),
+			/exit code 17/u,
+		);
+		assert.equal(calls, 2);
+		const events = readFileSync(file, "utf8")
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line));
+		const commands = events.filter(
+			(event) => event.kind === "command" && event.status !== "running",
+		);
+		assert.deepEqual(
+			commands.map((event) => [event.status, event.exitCode]),
+			[
+				["success", 0],
+				["failure", 17],
+			],
+		);
+		assert.ok(
+			commands.every((event) => event.durationMs >= 0 && event.startedAt && event.finishedAt),
+		);
+		assert.equal(events.at(-1).kind, "profile");
+		assert.equal(events.at(-1).status, "failure");
+	} finally {
+		rmSync(directory, { recursive: true });
+	}
+});
 
 test("captures structured command output larger than the Node default buffer", () => {
 	const outputBytes = 2 * 1024 * 1024;

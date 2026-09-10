@@ -49,7 +49,7 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 | `pre-commit` | 暂存文件的 check-only 跨语言静态检查和 Secret 扫描 | typecheck、test、build 或 runtime |
 | `pre-push` | 受影响 Node 模块的 typecheck/test/worker test 与 Go 模块的 vet/test | build、integration、浏览器 E2E 或 runtime |
 | `pnpm verify` | 对当前工作树的源码和配置执行全量 lint、合同、类型与测试检查 | 需显式选择的制品构建、浏览器 E2E、部署或运行时状态 |
-| `pnpm check` | 仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
+| `pnpm check` | 本地仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
 | `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描 | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
 | `pnpm test` | 仓库开发、验证和发布脚本测试 | package test、镜像构建或外部服务 |
@@ -62,8 +62,16 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 
 `.pre-commit-config.yaml` 是 Biome、Markdownlint、EditorConfig、Ruff、SQLFluff、Yamllint、ShellCheck、
 Go format 和基础解析检查的单一可执行 owner。`pre-commit` 只选择暂存文件，`pnpm lint` 选择全部
-tracked 文件；两条入口都不改写文件。PR CI 通过 `pnpm check` 复用该配置，并另行扫描 PR authored
-commit 历史。
+tracked 文件；两条入口都不改写文件。PR CI 将 lint、文档检查和脚本测试按依赖顺序分步执行，保留每个
+hook 的原生耗时；Biome 使用单批文件输入，避免多个进程重复加载项目。hook groups 仅用于本地诊断，
+CI 仍执行一次全量 prek。Go format 使用 `ci-format`，自动 native evidence 使用 `ci-go`，完整工具集
+保留在 `ci-full`，不让纯格式检查准备完整 Go、容器和集群环境。CI 另行扫描 PR authored commit
+历史。完成后的运行会由只读 `ci-timing-report` workflow 汇总步骤、profile/command、hook 和可观察到的缓存信号；缺少旧日志中的
+信号保持 unknown，不推断取消原因或缓存命中率。并行 lane 只有在至少 3–5 次已埋点运行取得真实
+耗时数据后才评估。
+
+报告 workflow 直接使用 `.node-version` 固定的 Node 与 runner 上的 gh，不安装 Nix 或 workspace
+依赖；最近 20 次运行中展示 5 次已完成运行。计算总体 CI 成本时也应计入这个独立报告 job。
 
 package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护。Turbo 只负责声明
 任务图、输入和缓存边界；integration test 与有副作用任务不得依赖缓存，远端缓存是否命中不影响
@@ -101,6 +109,76 @@ Turbo prune、依赖安装、编译和 runtime 入口能完成；它们不替代
 `HIGH,CRITICAL`、`os,library` 且已有修复版本的漏洞反馈。漏洞结果或扫描器执行异常只写入发布日志和
 step summary，不阻塞 staging 候选发布或 promotion；镜像构建、推送、registry inspect、digest 解析和
 必要发布产物写入失败仍然阻塞发布。
+
+正式发布使用 BuildKit 原生 `rawjson` 进度，由 `scripts/release/buildkit-progress.mts` 流式解析并在
+原有发布日志中显示操作开始、完成、缓存命中、命令输出和错误；忽略高频 layer 字节进度。原有 step
+summary 按镜像列出依赖安装、编译与部署包、SBOM、镜像导出、推送和缓存导出的操作耗时，不增加报告
+job。失败和信号退出也保留已经观测到的阶段；未完成耗时标为 unknown，不推算结束时间。
+
+registry 缓存继续使用 `mode=max` 和 `ignore-error=true`。镜像发布结果与缓存导出结果分别显示：
+导出失败会留下 warning，不能因为镜像推送成功就声称缓存成功。复用已有镜像时不执行构建或缓存导出。
+同一操作的多段时间取区间并集；操作之间以及 exporter 父子步骤可能重叠，不能相加作为总耗时。
+
+layer cache 命中表示整个命令没有执行；pnpm 的 reused/downloaded 则来自实际执行时的 Progress
+输出，两者分别呈现。没有包进度时显示 unknown；同一命令的多次安装进度分开保留，不相加为总命中率。
+编译和 deploy 同处一个 Dockerfile RUN 时只报告该 RUN 的总耗时，不从包进度推算独立编译耗时。
+
+## 本地镜像耗时对照
+
+`scripts/ci/measure-image.mts` 是本地诊断入口，直接调用现有 Bake target，不进入 Actions 或候选发布
+流程。需要已启动的独立 Buildx builder 和回环 registry；不复用日常 builder，不清理共享缓存。
+例如先运行以下命令（名称和端口应选择未占用值）：
+
+```bash
+docker run -d --name ci-image-registry -p 127.0.0.1:15000:5000 registry:2
+cat > /tmp/ci-image-buildkit.toml <<'EOF'
+[registry."127.0.0.1:15000"]
+  http = true
+  insecure = true
+EOF
+docker buildx create --name ci-image-measure --driver docker-container \
+  --driver-opt network=host --buildkitd-config /tmp/ci-image-buildkit.toml --bootstrap
+node scripts/ci/measure-image.mts --builder ci-image-measure \
+  --context /tmp/source-measure-context \
+  --cache-ref 127.0.0.1:15000/cache:baseline \
+  --image-ref 127.0.0.1:15000/ops:baseline \
+  --output /tmp/image-baseline-cold
+```
+
+`--context` 指向从 tracked 工作树文件复制的独立目录，包含 `docker-bake.hcl`、`.dockerignore` 和源码。
+基线与候选目录只保留被评估的 Dockerfile 差异。不要复制本地环境文件、node_modules 或构建输出。
+默认 target 为 `ops-web`、平台为 `linux/arm64`，保留 Bake 的 SBOM 和 Dockerfile 内的制品检查；
+镜像与 `mode=max` 缓存只允许导出到显式 `127.0.0.1:<port>` registry，不扫描或发布线上制品。
+需要代理时，分别配置 Docker daemon、Buildx 客户端、builder 和构建容器可达的代理地址。
+
+按同一顺序分别测基线与候选：独立 builder 首次构建、相同输入热构建三次、新 builder 加
+`--import-cache` 导入 registry 缓存、修改无关应用源码、修改 Ops Web 实际依赖源码。每次使用新的
+`--output` 目录；增量实验从相同原始上下文开始。每组串行运行，避免与 lint/test 等重任务争用 CPU。
+使用热构建中位数，记录冷启动是否包括镜像拉取与依赖下载；共享已有工具缓存的运行不能称为冷启动。
+
+验证依赖缓存边界时，在临时上下文同时修改实际依赖 manifest 与 lockfile，然后比较同一 builder
+重建与新 builder 仅导入基线 registry 缓存的重建。先验证新 builder 的未变更输入能命中安装和编译层，
+再检查依赖变更后实际执行的 pnpm reused/downloaded；不要将恢复安装层等同于恢复 cache mount 内的
+pnpm store。各组使用独立输出目录，并在需要再次导入基线前避免覆盖其 cache tag。
+
+本地 Ops Web 对照在临时 manifest 和 lockfile 中新增 `is-odd@3.0.1`：已有 builder 的应用依赖安装
+观测到 reused=1099、downloaded=2；新 builder 仅导入基线 registry 缓存时为 reused=248、downloaded=853。
+后者的 248 个复用包来自同次构建先执行的根依赖安装，该步骤本身 reused=0、downloaded=248。
+未改依赖的新 builder 实测中，安装与编译 RUN 可以整体命中 layer cache。上述结果分别验证了层缓存
+和同一 builder 的 pnpm store 收益，不表示 registry 导出保存了 cache mount，也不作为 CI 提速百分比。
+
+输出包含 `buildkit.jsonl`、`metadata.json`、`report.json`。`report.json` 的 `buildkit` 字段复用正式
+发布的解析结构，包含 operations、cacheExport、cacheWarnings 与 incomplete；保留各操作的时间区间、
+状态及 pnpm 包进度。不能将重叠阶段相加作为总耗时。`cacheBytes` 是缓存 manifest 引用的压缩层总大小，
+不是本次上传字节数；本地 registry 传输和 ARM 模拟运行也不能当作 GHCR、原生 ARM runner 的耗时。
+只有制品通过、缓存体积下降且热构建和增量路径无退化时，才保留候选 Dockerfile 优化。
+
+实验结束后只删除本次创建的 builder 与 registry：
+
+```bash
+docker buildx rm ci-image-measure
+docker rm -f ci-image-registry
+```
 
 ## 报告
 

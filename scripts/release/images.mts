@@ -6,6 +6,7 @@ import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 
 import { readNodeVersion } from "../toolchain/node-version.mts";
+import { BuildkitProgress, type BuildkitReport, renderBuildkit } from "./buildkit-progress.mts";
 
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const IMAGE_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -19,9 +20,11 @@ export interface CommandResult {
 	code: number;
 	stderr: string;
 	stdout: string;
+	buildkit?: BuildkitReport;
+	signal?: NodeJS.Signals | null;
 }
 
-export type CommandOutput = "capture" | "stream";
+export type CommandOutput = "capture" | "stream" | "buildkit";
 
 export type CommandRunner = (
 	command: string,
@@ -55,6 +58,7 @@ type ScanFeedback = "recorded" | "warning";
 
 interface ImageReport {
 	buildMs?: number;
+	buildkit?: BuildkitReport;
 	digest?: string;
 	failedStage?: Exclude<ImageStage, "total">;
 	image: string;
@@ -102,22 +106,32 @@ export async function runCommand(
 		});
 		let stdout = "";
 		let stderr = "";
+		const progress =
+			options.output === "buildkit"
+				? new BuildkitProgress((text) => process.stderr.write(text))
+				: undefined;
 		child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
-			if (options.output === "stream") {
+			if (progress) {
+				progress.push(chunk, "stdout");
+			} else if (options.output === "stream") {
 				process.stderr.write(chunk);
 			} else {
 				stdout += chunk;
 			}
 		});
 		child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-			if (options.output === "stream") {
+			if (progress) {
+				progress.push(chunk, "stderr");
+			} else if (options.output === "stream") {
 				process.stderr.write(chunk);
 			} else {
 				stderr += chunk;
 			}
 		});
 		child.once("error", reject);
-		child.once("close", (code) => resolve({ code: code ?? 1, stderr, stdout }));
+		child.once("close", (code, signal) =>
+			resolve({ code: code ?? 1, stderr, stdout, signal, buildkit: progress?.finish(signal) }),
+		);
 	});
 }
 
@@ -233,6 +247,16 @@ async function appendSummary(file: string, reports: ImageReport[], runMs: number
 			"| Image | Result | Inspect | Build/push/cache export | Trivy feedback | Scan | Total | Digest |",
 			"| --- | --- | ---: | ---: | --- | ---: | ---: | --- |",
 			...rows,
+			...reports.flatMap((report) => [
+				"",
+				`#### Build phases: ${report.image}`,
+				"",
+				report.buildkit
+					? renderBuildkit(report.buildkit)
+					: report.result === "reused" || report.result === "not-started"
+						? "Build and cache export: not run."
+						: "Build observations: unavailable; cache export outcome unknown.",
+			]),
 			"",
 		].join("\n"),
 	);
@@ -638,7 +662,7 @@ export async function publishImages(
 					"docker-bake.hcl",
 					"--metadata-file",
 					metadataFile,
-					"--progress=plain",
+					"--progress=rawjson",
 					"--pull",
 					"--push",
 					"--set",
@@ -656,8 +680,9 @@ export async function publishImages(
 					built = await runner("docker", buildArguments, {
 						cwd: root,
 						env: environment,
-						output: "stream",
+						output: "buildkit",
 					});
+					report.buildkit = built.buildkit;
 				} catch (error) {
 					report.failedStage = "build";
 					report.buildMs = elapsed(buildStartedAt);

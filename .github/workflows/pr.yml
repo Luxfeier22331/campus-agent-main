@@ -25,7 +25,8 @@ env:
 jobs:
   repo-checks:
     if: github.event.pull_request.draft == false
-    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04"') }}
+    # Image evidence executes linux/arm64 runtime stages, matching publication.
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04-arm"') }}
     timeout-minutes: 30
     defaults:
       run:
@@ -46,6 +47,8 @@ jobs:
 
       - name: Install validation dependencies
         run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
           set -euo pipefail
           pnpm install --frozen-lockfile \
             --filter campus-agent-web-workspace \
@@ -57,6 +60,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           MERGE_SHA: ${{ github.sha }}
         run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
           set -euo pipefail
           plan="$(node --experimental-strip-types scripts/ci/validation.mts \
             --base "$BASE_SHA" \
@@ -68,7 +73,7 @@ jobs:
           affected_packages="$(jq -c '.affectedPackages' <<< "$plan")"
           light_surfaces="$(jq -c '.lightSurfaces' <<< "$plan")"
           validation_profiles="$(jq -c '.validationProfiles' <<< "$plan")"
-          node_evidence_profiles="$(jq -c '[.[] | select(. == "affected-node" or . == "image-build")]' <<< "$plan")"
+          node_evidence_profiles="$(jq -c '[.validationProfiles[] | select(. == "affected-node" or . == "image-build")]' <<< "$plan")"
           has_container_build="$(jq -r --arg profile container-build \
             '.validationProfiles | index($profile) != null' <<< "$plan")"
           has_image_build="$(jq -r --arg profile image-build \
@@ -84,34 +89,88 @@ jobs:
             echo "has_image_build=$has_image_build"
           } >> "$GITHUB_OUTPUT"
           jq . <<< "$plan"
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          jq . <<< "$plan" > "$RUNNER_TEMP/ci-evidence/plan.json"
+          printf 'CI_PLAN %s\n' "$(jq -c . <<< "$plan")"
+          {
+            echo '### Validation selection'
+            echo
+            echo '| Profile | Selected | Reason |'
+            echo '| --- | --- | --- |'
+            jq -r '.profileDecisions[] | "| \(.profile) | \(.selected) | \(.reason) |"' <<< "$plan"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install static-check dependencies
         id: install_static_dependencies
         if: always()
         continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
-        run: uv sync --only-dev --no-install-workspace
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          uv sync --only-dev --no-install-workspace
 
-      - name: Check repository
-        id: repository_check
-        if: always()
+      - name: Lint repository
+        id: repository_lint
+        if: ${{ !cancelled() && steps.install_static_dependencies.outcome == 'success' }}
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm check
+          RUST_LOG: prek=trace
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          started=$SECONDS
+          parent_pid=$BASHPID
+          (
+            while kill -0 "$parent_pid" 2>/dev/null; do
+              sleep 20
+              echo "[lint] still running; elapsed $((SECONDS - started))s; hook progress is in the prek trace below"
+            done
+          ) &
+          heartbeat_pid=$!
+          trap 'kill "$heartbeat_pid" 2>/dev/null || true; wait "$heartbeat_pid" 2>/dev/null || true' EXIT
+          # prek owns file selection, hook concurrency, results and timing.
+          pnpm lint --verbose --log-file "$RUNNER_TEMP/ci-evidence/prek.log"
+
+      - name: Check repository documentation
+        id: repository_docs
+        if: ${{ !cancelled() && steps.repository_lint.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          pnpm docs:check
+
+      - name: Test repository scripts
+        id: repository_test
+        if: ${{ !cancelled() && steps.repository_docs.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          pnpm test
 
       - name: Check executable contracts
         id: contracts
         if: always() && contains(fromJSON(steps.plan.outputs.light_surfaces), 'contracts')
         continue-on-error: true
-        run: pnpm --dir packages/contracts check
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          pnpm --dir packages/contracts check
 
       - name: Lint GitHub Actions
         id: github_actions
         if: always() && contains(fromJSON(steps.plan.outputs.light_surfaces), 'config')
         continue-on-error: true
         shell: nix develop .#ci-light --command bash -e {0}
-        run: actionlint && zizmor --min-severity=medium .github
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          actionlint && zizmor --min-severity=medium .github
 
       - name: Scan authored commits for secrets
         id: secrets
@@ -121,6 +180,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
           merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
           gitleaks git \
             --redact \
@@ -134,6 +195,8 @@ jobs:
         env:
           AFFECTED_PACKAGES: ${{ steps.plan.outputs.affected_packages }}
         run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
           set -euo pipefail
           jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and length > 0)' \
             <<< "$AFFECTED_PACKAGES" >/dev/null
@@ -156,20 +219,17 @@ jobs:
         env:
           BASE_SHA: ${{ steps.plan.outputs.base }}
           HEAD_SHA: ${{ steps.plan.outputs.head }}
+          CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/node-image.jsonl
           TURBO_CACHE: "local:rw,remote:rw"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           VALIDATION_PROFILES: ${{ steps.plan.outputs.node_evidence_profiles }}
         shell: nix develop .#ci-release --command bash -e {0}
-        run: >-
-          node --experimental-strip-types scripts/ci/evidence.mts
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-          --profiles "$VALIDATION_PROFILES"
-          --repository "$GITHUB_REPOSITORY"
-          --summary "$GITHUB_STEP_SUMMARY"
-
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --base "$BASE_SHA" --head "$HEAD_SHA" --profiles "$VALIDATION_PROFILES" --repository "$GITHUB_REPOSITORY" --summary "$GITHUB_STEP_SUMMARY"
       - name: Run container build contract evidence
         id: container_build
         if: always() && steps.plan.outputs.has_container_build == 'true'
@@ -177,34 +237,33 @@ jobs:
         env:
           BASE_SHA: ${{ steps.plan.outputs.base }}
           HEAD_SHA: ${{ steps.plan.outputs.head }}
+          CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/container.jsonl
           VALIDATION_PROFILES: '["container-build"]'
         shell: nix develop .#ci-release --command bash -e {0}
-        run: >-
-          node --experimental-strip-types scripts/ci/evidence.mts
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-          --profiles "$VALIDATION_PROFILES"
-
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --base "$BASE_SHA" --head "$HEAD_SHA" --profiles "$VALIDATION_PROFILES"
       - name: Check execution-control native code
         id: execution_control_native
         if: always() && contains(fromJSON(steps.plan.outputs.validation_profiles), 'execution-control-native')
         continue-on-error: true
-        shell: nix develop .#ci-full --command bash -e {0}
+        shell: nix develop .#ci-go --command bash -e {0}
         env:
+          CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/native.jsonl
           BASE_SHA: ${{ steps.plan.outputs.base }}
           HEAD_SHA: ${{ steps.plan.outputs.head }}
-        run: >-
-          node --experimental-strip-types scripts/ci/evidence.mts
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-          --profiles '["execution-control-native"]'
-
+        run: |
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          node --experimental-strip-types scripts/ci/evidence.mts --base "$BASE_SHA" --head "$HEAD_SHA" --profiles '["execution-control-native"]'
       - name: Summarize repository evidence
         if: always()
         shell: bash -e {0}
         env:
           RESULTS: >-
             {
+              "plan":"${{ steps.plan.outcome }}",
               "affected-node-and-images":"${{ steps.node_image.outcome }}",
               "container-build":"${{ steps.container_build.outcome }}",
               "contracts":"${{ steps.contracts.outcome }}",
@@ -212,12 +271,37 @@ jobs:
               "github-actions":"${{ steps.github_actions.outcome }}",
               "install-affected":"${{ steps.install_affected.outcome }}",
               "install-static-dependencies":"${{ steps.install_static_dependencies.outcome }}",
-              "repository-check":"${{ steps.repository_check.outcome }}",
+              "repository-lint":"${{ steps.repository_lint.outcome }}",
+              "repository-docs":"${{ steps.repository_docs.outcome }}",
+              "repository-test":"${{ steps.repository_test.outcome }}",
               "secrets":"${{ steps.secrets.outcome }}"
             }
         run: |
-          jq . <<< "$RESULTS"
+          echo CI_BODY_STARTED
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          mkdir -p "$RUNNER_TEMP/ci-evidence"
+          jq . <<< "$RESULTS" | tee "$RUNNER_TEMP/ci-evidence/outcomes.json"
+          printf 'CI_OUTCOMES %s\n' "$(jq -c . <<< "$RESULTS")"
+          {
+            echo '### Check outcomes'
+            echo
+            echo '| Check | Outcome |'
+            echo '| --- | --- |'
+            jq -r 'to_entries[] | "| \(.key) | \(.value) |"' <<< "$RESULTS"
+            echo
+            echo 'Skipped repository stages follow pnpm check short-circuit order; other skips follow the validation selection or a failed prerequisite.'
+            echo 'Final timings, cancellation status and recent-run comparison are published by the CI timing report workflow.'
+          } >> "$GITHUB_STEP_SUMMARY"
           if ! jq -e 'all(.[]; . != "failure" and . != "cancelled")' <<< "$RESULTS" >/dev/null; then
             echo "One or more repository evidence surfaces failed." >&2
             exit 1
           fi
+
+      - name: Preserve failed check diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: ci-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-evidence/
+          if-no-files-found: ignore
+          retention-days: 7

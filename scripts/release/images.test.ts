@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-
+import { parseBuildkit } from "./buildkit-progress.mts";
 import {
 	buildImages,
 	type CommandOutput,
@@ -152,6 +152,7 @@ test("reuses an existing immutable linux/arm64 image", async (t) => {
 	assert.match(summary, /Script duration: \d+\.\ds/u);
 	assert.match(summary, /Cache: registry with mode=max/u);
 	assert.match(summary, /Results: built=0 reused=1 failed=0 not-started=0/u);
+	assert.match(summary, /Build and cache export: not run\./u);
 	assert.match(summary, /Trivy feedback: recorded=1 warnings=0 not-run=0/u);
 	assert.match(summary, /\| `agent-runtime` \| reused \| \d+\.\d+s \| - \| recorded \|/u);
 	assert(summary.includes(FIRST_DIGEST));
@@ -300,8 +301,8 @@ test("reads the pushed digest from Docker Bake metadata", async (t) => {
 	});
 	const build = calls.find((call) => call.args.includes("--metadata-file"));
 	assert(build);
-	assert.equal(build.output, "stream");
-	assert(build.args.includes("--progress=plain"));
+	assert.equal(build.output, "buildkit");
+	assert(build.args.includes("--progress=rawjson"));
 	assert.equal(
 		build.args.find((argument) => argument.includes(".cache-from=")),
 		"agent-runtime.cache-from=type=registry,ref=ghcr.io/muc-wiki/campus-agent/agent-runtime:buildcache-arm64",
@@ -330,6 +331,82 @@ test("reads the pushed digest from Docker Bake metadata", async (t) => {
 	assert.match(summary, /\| `agent-runtime` \| built \|/u);
 });
 
+test("publication keeps an ignored cache export failure visible without blocking the image", async (t) => {
+	const { options } = await fixture(t);
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const buildkit = parseBuildkit(
+		JSON.stringify({
+			vertexes: [
+				{
+					digest: "image",
+					name: "exporting to image",
+					started: "2026-09-10T00:00:00Z",
+					completed: "2026-09-10T00:00:01Z",
+				},
+				{
+					digest: "cache",
+					name: "exporting cache to registry",
+					started: "2026-09-10T00:00:01Z",
+					completed: "2026-09-10T00:00:02Z",
+					error: "403 forbidden",
+				},
+			],
+		}),
+	);
+	const runner: CommandRunner = async (_command, args, commandOptions) => {
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime"]);
+		}
+		if (args.includes("imagetools")) {
+			return result({ code: 1, stderr: "manifest unknown" });
+		}
+		if (commandOptions.output === "buildkit") {
+			await writeFile(
+				args[args.indexOf("--metadata-file") + 1],
+				JSON.stringify({ "agent-runtime": { "containerimage.digest": FIRST_DIGEST } }),
+			);
+			return result({ buildkit });
+		}
+		return result();
+	};
+	assert.deepEqual(await publishImages(options, runner), { "agent-runtime": FIRST_DIGEST });
+	const summary = await readFile(options.summaryFile, "utf8");
+	assert.match(summary, /Results: built=1/u);
+	assert.match(summary, /Cache export: \*\*warning\*\*/u);
+	assert.match(summary, /403 forbidden/u);
+});
+
+test("failed builds keep completed phases and unfinished cache export in the summary", async (t) => {
+	const { options } = await fixture(t);
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const buildkit = parseBuildkit(
+		JSON.stringify({
+			vertexes: [
+				{
+					digest: "install",
+					name: "RUN pnpm install",
+					started: "2026-09-10T00:00:00Z",
+					completed: "2026-09-10T00:00:01Z",
+				},
+				{ digest: "cache", name: "exporting cache to registry", started: "2026-09-10T00:00:01Z" },
+			],
+		}),
+	);
+	const runner: CommandRunner = async (_command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(["agent-runtime"]);
+		}
+		if (args.includes("imagetools")) {
+			return result({ code: 1, stderr: "manifest unknown" });
+		}
+		return result({ code: 1, stderr: "connection closed", buildkit });
+	};
+	await assert.rejects(publishImages(options, runner), /connection closed/u);
+	const summary = await readFile(options.summaryFile, "utf8");
+	assert.match(summary, /RUN pnpm install \| complete/u);
+	assert.match(summary, /Cache export: \*\*unfinished\*\*/u);
+});
+
 test("records a build failure and leaves later images not started", async (t) => {
 	const { options } = await fixture(t);
 	options.images = ["ops-web", "agent-runtime"];
@@ -354,6 +431,7 @@ test("records a build failure and leaves later images not started", async (t) =>
 	assert.match(summary, /Results: built=0 reused=0 failed=1 not-started=1/u);
 	assert.match(summary, /\| `agent-runtime` \| failed \(build\) \|/u);
 	assert.match(summary, /\| `ops-web` \| not-started \|/u);
+	assert.match(summary, /Build and cache export: not run\./u);
 });
 
 test("records non-zero Trivy output as non-blocking feedback", async (t) => {
