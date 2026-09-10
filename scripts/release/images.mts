@@ -44,6 +44,7 @@ export interface PublishImageOptions {
 }
 
 export interface BuildImagesOptions {
+	cacheRegistry?: string;
 	images: string[];
 	logger?: (message: string) => void;
 	repository: string;
@@ -292,6 +293,9 @@ async function appendBuildSummary(
 			"| Image | Result | Build | Total |",
 			"| --- | --- | ---: | ---: |",
 			...rows,
+			...reports.flatMap((report) =>
+				report.buildkit ? ["", `#### ${report.image}`, renderBuildkit(report.buildkit)] : [],
+			),
 			"",
 		].join("\n"),
 	);
@@ -462,7 +466,7 @@ export async function buildImages(
 			"bake",
 			"--file",
 			"docker-bake.hcl",
-			"--progress=plain",
+			"--progress=rawjson",
 			"--pull",
 			"--provenance=false",
 			"--sbom=false",
@@ -470,8 +474,14 @@ export async function buildImages(
 			`${image}.platform=linux/arm64`,
 			"--set",
 			`${image}.output=type=cacheonly`,
-			image,
 		];
+		if (options.cacheRegistry) {
+			buildArguments.push(
+				"--set",
+				`${image}.cache-from=type=registry,ref=${options.cacheRegistry.toLowerCase()}/${image}:${IMAGE_CACHE_TAG}`,
+			);
+		}
+		buildArguments.push(image);
 		logStage(logger, image, "total", "start");
 		logStage(logger, image, "build", "start", "mode=build-only output=type=cacheonly");
 		const buildStartedAt = performance.now();
@@ -479,9 +489,10 @@ export async function buildImages(
 			const built = await runner("docker", buildArguments, {
 				cwd: root,
 				env: environment,
-				output: "stream",
+				output: "buildkit",
 			});
 			report.buildMs = elapsed(buildStartedAt);
+			report.buildkit = built.buildkit;
 			if (built.code !== 0) {
 				throw commandError("docker", buildArguments, built);
 			}
@@ -876,6 +887,7 @@ async function main(args: string[]): Promise<void> {
 	const mode = values.get("mode") ?? "publish";
 	if (mode === "build-only") {
 		await buildImages({
+			cacheRegistry: values.get("cache-registry"),
 			images,
 			repository: required(values, "repository"),
 			repositoryRoot: values.get("root") ?? process.cwd(),

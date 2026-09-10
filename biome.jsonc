@@ -33,6 +33,43 @@
 			"tailwindDirectives": true
 		}
 	},
+	// These entrypoints read workflow configuration outside Turbo's task cache.
+	"overrides": [
+		{
+			"includes": ["scripts/ci/evidence.mts", "scripts/ci/evidence.test.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noUndeclaredEnvVars": {
+							"level": "warn",
+							"options": {
+								"allowedEnvVars": [
+									"CI_EVIDENCE_FILE",
+									"GITHUB_STEP_SUMMARY",
+									"CI_IMAGE_CACHE_REGISTRY"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["scripts/ci/timing-report.mts", "scripts/ci/timing-report.test.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noUndeclaredEnvVars": {
+							"level": "warn",
+							"options": {
+								"allowedEnvVars": ["GITHUB_REPOSITORY", "REPORT_RUN_ID", "GITHUB_STEP_SUMMARY"]
+							}
+						}
+					}
+				}
+			}
+		}
+	],
 	"linter": {
 		"enabled": true,
 		"domains": {

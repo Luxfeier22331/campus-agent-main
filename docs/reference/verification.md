@@ -70,8 +70,33 @@ CI 仍执行一次全量 prek。Go format 使用 `ci-format`，自动 native evi
 信号保持 unknown，不推断取消原因或缓存命中率。并行 lane 只有在至少 3–5 次已埋点运行取得真实
 耗时数据后才评估。
 
+CI 在静态检查准备步骤顺序执行 `nix print-dev-env`，将 `ci-light`、`ci-format` 环境写入 runner
+临时目录；准备成功后通过 `CI_NIX_LIGHT_ENV`、`CI_NIX_FORMAT_ENV` 交给 hook。hook 加载环境后
+直接执行工具，保留 prek 并发，避免每个 hook 重复求值 flake。普通本地 hook 未设置这两个变量时
+仍使用原有 `nix develop` 入口；显式提供的环境文件不可用时检查失败。
+
+SQLFluff hook 在传入文件前排除 `.sqlfluffignore` 中的历史 SQL，以及统一 schema Job 的
+`0000_campus_agent_baseline.sql`。该文件是不可改写的 `pg_dump` 基线，由现有 PostgreSQL 集成
+测试通过统一迁移入口实际执行；后续手写 migration 继续执行 SQL lint，不扩大文件大小限制。
+
 报告 workflow 直接使用 `.node-version` 固定的 Node 与 runner 上的 gh，不安装 Nix 或 workspace
 依赖；最近 20 次运行中展示 5 次已完成运行。计算总体 CI 成本时也应计入这个独立报告 job。
+
+报告按日志中的 job/step 归属计算 shell 准备耗时，缺少归属时显示 unknown。同一次 hook 的 trace
+耗时与 verbose 结果合并显示，重复执行仍分别记录。pnpm 安装按步骤、镜像和 BuildKit operation
+保留每次安装的最后进度，不将 Docker 内安装覆盖到宿主机统计，也不合并为全局命中率。
+宿主机安装仅从依赖安装步骤采集；Docker 安装和 BuildKit 缓存信号仅从镜像 evidence 步骤的活动
+镜像构建中采集，脚本测试输出的模拟事件不参与统计。GitHub API 时间戳精确到秒，步骤、排队、
+趋势和 shell 准备耗时展示为向下取整的约整数秒（不足一秒显示 `<1s`）；JSON 保留原始毫秒值。
+hook 和 command 的直接测量耗时继续保留小数。
+
+hosted PR runner 使用 `PNPM_CONFIG_STORE_DIR` 指向 runner 临时目录中的共享 store，在首次安装前
+按前缀恢复、选中依赖全部安装成功后保存。缓存键使用 v2 命名空间，区分 OS、架构、Node/pnpm 版本、
+lockfile/workspace 配置和实际安装 filters（排序去重）。优先恢复同一 lockfile 下的缓存，再尝试相同
+工具版本的其他缓存；部分恢复由 frozen install 补齐缺失依赖。plan 生成后计算包含安装范围的保存键，
+仅在实际恢复键与保存键相同时跳过保存，确保同一 PR 扩大安装范围后能保存新增依赖。缓存服务异常不阻塞正常安装，
+安装失败或取消不保存。只缓存 store，不缓存 node_modules 或环境文件；self-hosted runner 保留自身
+持久 store。该缓存用于同一 PR 后续运行，不增加主分支缓存预热 job。
 
 package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护。Turbo 只负责声明
 任务图、输入和缓存边界；integration test 与有副作用任务不得依赖缓存，远端缓存是否命中不影响
@@ -99,7 +124,14 @@ package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README �
 `container-build` 是廉价的构建定义检查，执行 `docker buildx bake --print`。`image-build` 使用
 `scripts/release/image-targets.mts` 与候选发布共用的受影响目标映射，逐个执行
 `scripts/release/images.mts --mode build-only`：固定 `linux/arm64`，输出为 BuildKit `type=cacheonly`，
-关闭发布阶段的 provenance/SBOM attestation，不 push、不 load、不读取 registry 现有镜像，也不运行 Trivy。
+关闭发布阶段的 provenance/SBOM attestation，不 push、不 load、不复用 registry 现有发布镜像，也不运行 Trivy。
+同仓且非 Dependabot 的 PR 在选中镜像验证时使用 `GITHUB_TOKEN` 的 `packages: read` 权限登录 GHCR，
+只读导入发布流程维护的 `buildcache-arm64`。外部 PR、Dependabot 或未配置缓存的本地执行继续冷构建；
+登录配置错误明确失败，缓存导入缺失或不可读的诊断由 BuildKit 保留，不进行脚本级重试。
+本地可通过 `--cache-registry 127.0.0.1:<port>/cache` 指定回环 registry 前缀，实际引用为
+`<prefix>/<image>:buildcache-arm64`；省略该参数不读取外部缓存。证据入口通过
+`CI_IMAGE_CACHE_REGISTRY` 传入此选项。build-only 复用正式发布的 BuildKit 分段日志和 summary，
+但不写入 registry 缓存。
 两个 profile 只证明当前 Dockerfile、
 Turbo prune、依赖安装、编译和 runtime 入口能完成；它们不替代正式候选发布、镜像扫描或部署验收。
 
@@ -179,6 +211,37 @@ pnpm store。各组使用独立输出目录，并在需要再次导入基线前�
 docker buildx rm ci-image-measure
 docker rm -f ci-image-registry
 ```
+
+## 本地 CI 缓存测量
+
+使用实际 `buildImages` 入口、独立 builder 和回环 registry 验证 build-only。Docker Desktop x86_64
+模拟 ARM64 的 Ops Web 冷构建为 643.3 秒，包含依赖下载和制品检查。相同输入在全新 builder 上只读
+导入 registry 缓存后为 86.2 秒，两段安装与编译 RUN 均为 cached；无缓存导出。种子缓存保持 mode=max，
+manifest 引用约 667 MB 压缩层；本机准备该缓存的导出耗时约 758 秒，不属于 PR build-only 路径。
+另一全新 builder 仅修改 Ops Web 实际源码后为 442.8 秒：两段安装继续 cached，编译与部署包 RUN
+重新执行 163.0 秒并通过制品检查，未写回缓存。上述本地模拟和回环传输数值不能预测原生 ARM runner
+与 GHCR 的实际耗时；尚未通过线上 PR 令牌验证私有 GHCR 拉取权限。
+
+小型临时 Dockerfile 单独验证了缺失缓存仍可完成冷构建，以及命令退出 23 时 summary 保留失败原因和之前的操作；这些故障实验不作为
+Ops Web 的性能样本。两条路径都没有镜像推送或缓存导出。
+
+本地 pnpm 11.20.0 测量复用 PR #438 的 affected package 集合，在每轮新的源码目录（无 node_modules）
+执行 root/contracts 与 affected 两段 frozen install；store 由 `PNPM_CONFIG_STORE_DIR` 指定。
+
+| 场景 | root / affected（秒） | 解压 / 压缩（秒） | 合计（秒） |
+| --- | --- | --- | ---: |
+| 空 store | 6.4 / 226.2 | — / 77.6 | 310.3 |
+| 原 store 热运行，三次 | 4.9 / 11.6；9.1 / 9.5；4.0 / 9.6 | — | 16.4；18.5；13.6 |
+| 完整归档恢复到新 store，三次 | 28.4 / 32.5；7.7 / 18.6；27.6 / 28.6 | 220.1 / 20.1；12.5 / 2.4；171.9 / 37.5 | 301.2；41.2；265.5 |
+| 仅根依赖归档恢复 | 23.0 / 157.0 | 61.4 / — | 241.4 |
+
+完整归档约 276 MB；完整恢复后的两段安装分别 reused=249/850、downloaded=0/0。部分恢复后第二段
+正常补下 850 个包。恢复样本的合计包含再次压缩；Actions 精确命中时跳过保存。测量期间本机出现很高
+的磁盘 I/O 等待，解压样本波动明显；这些数值证明复用行为，不能作为 Actions 网络传输后的净收益。
+
+已有 Nix store 上首次/随后三次 shell 进入耗时（秒）：ci-core 9.14/1.02/0.74/0.89，
+ci-light 1.64/0.15/0.17/1.39，ci-release 0.81/0.11/0.10/0.68，ci-format 0.85/0.13/0.07/0.50。
+未清理 Nix store，也未新增 Nix 或 uv 缓存；这些结果不表示新 runner 的环境下载成本。
 
 ## 报告
 

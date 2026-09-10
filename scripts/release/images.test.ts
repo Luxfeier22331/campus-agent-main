@@ -630,6 +630,7 @@ test("build-only evidence builds selected targets without publishing or scanning
 	await buildImages(
 		{
 			images: ["ops-web", "agent-runtime"],
+			cacheRegistry: "GHCR.IO/MUC-WIKI/CAMPUS-AGENT",
 			logger: (message) => logs.push(message),
 			repository: options.repository,
 			repositoryRoot: options.repositoryRoot,
@@ -647,15 +648,24 @@ test("build-only evidence builds selected targets without publishing or scanning
 		})),
 		[
 			{ command: "docker", output: "capture", subcommand: "buildx" },
-			{ command: "docker", output: "stream", subcommand: "buildx" },
-			{ command: "docker", output: "stream", subcommand: "buildx" },
+			{ command: "docker", output: "buildkit", subcommand: "buildx" },
+			{ command: "docker", output: "buildkit", subcommand: "buildx" },
 		],
 	);
-	const builds = calls.filter((call) => call.output === "stream");
+	const builds = calls.filter((call) => call.output === "buildkit");
 	assert.equal(builds.length, 2);
 	for (const build of builds) {
 		assert(build.args.includes("--pull"));
-		assert(build.args.includes("--progress=plain"));
+		assert(build.args.includes("--progress=rawjson"));
+		assert(
+			build.args.includes(
+				`${build.args.at(-1)}.cache-from=type=registry,ref=ghcr.io/muc-wiki/campus-agent/${build.args.at(-1)}:buildcache-arm64`,
+			),
+		);
+		assert.equal(
+			build.args.some((arg) => arg.includes(".cache-to=")),
+			false,
+		);
 		assert(build.args.includes("--provenance=false"));
 		assert(build.args.includes("--sbom=false"));
 		assert(build.args.includes("--set"));
@@ -713,7 +723,69 @@ test("build-only evidence stops after the first failed image", async (t) => {
 		),
 		/build failed/u,
 	);
-	assert.equal(calls.filter((call) => call.includes("--progress=plain")).length, 1);
+	assert.equal(calls.filter((call) => call.includes("--progress=rawjson")).length, 1);
 	assert(logs.some((line) => line.includes("failed=1 not_started=1")));
 	assert.match(await readFile(summaryFile, "utf8"), /not-started/u);
+});
+
+test("build-only without cache configuration stays offline from registry caches", async (t) => {
+	const { options } = await fixture(t);
+	await buildImages(
+		{ ...options, images: ["ops-web"], logger: () => undefined },
+		async (_command, args) => {
+			assert.equal(
+				args.some((arg) => /\.cache-(from|to)=/u.test(arg)),
+				false,
+			);
+			return args.includes("--print") ? bakePrint(["ops-web"]) : result();
+		},
+	);
+});
+
+test("build-only failures preserve completed operations and cache import diagnostics", async (t) => {
+	const { options } = await fixture(t);
+	const summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const buildkit = parseBuildkit(
+		`${JSON.stringify({
+			vertexes: [
+				{
+					digest: "import",
+					name: "importing cache manifest",
+					started: "2026-09-10T00:00:00Z",
+					completed: "2026-09-10T00:00:01Z",
+					error: "cache not found",
+				},
+				{
+					digest: "install",
+					name: "RUN pnpm install",
+					started: "2026-09-10T00:00:01Z",
+					completed: "2026-09-10T00:00:02Z",
+				},
+				{
+					digest: "build",
+					name: "RUN pnpm build",
+					started: "2026-09-10T00:00:02Z",
+					error: "compile failed",
+				},
+			],
+		})}\n`,
+	);
+	await assert.rejects(
+		buildImages(
+			{
+				...options,
+				summaryFile,
+				images: ["ops-web"],
+				cacheRegistry: "127.0.0.1:15001/cache",
+				logger: () => undefined,
+			},
+			async (_command, args) =>
+				args.includes("--print") ? bakePrint(["ops-web"]) : result({ code: 1, buildkit }),
+		),
+		/exit code 1/u,
+	);
+	const summary = await readFile(summaryFile, "utf8");
+	assert.match(summary, /cache not found/u);
+	assert.match(summary, /RUN pnpm install \| complete/u);
+	assert.match(summary, /compile failed/u);
 });

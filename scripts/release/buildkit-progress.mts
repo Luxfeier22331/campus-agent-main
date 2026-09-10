@@ -133,7 +133,7 @@ export class BuildkitProgress {
 		this.lines.clear();
 		for (const [id, line] of this.packageLines) {
 			if (line) {
-				this.packageProgress(id, line);
+				this.commandLine(id, line);
 			}
 		}
 		this.packageLines.clear();
@@ -322,12 +322,23 @@ export class BuildkitProgress {
 			return;
 		}
 		const text = Buffer.from(event.data, "base64").toString("utf8");
-		this.log(text);
 		const lines = ((this.packageLines.get(event.vertex) ?? "") + text).split(/[\r\n]/u);
 		this.packageLines.set(event.vertex, lines.pop() ?? "");
 		for (const line of lines) {
-			this.packageProgress(event.vertex, line);
+			this.commandLine(event.vertex, line);
 		}
+	}
+
+	private commandLine(id: string, line: string): void {
+		// Keep package progress attributable when several RUN operations interleave.
+		if (/^Progress: resolved /u.test(stripVTControlCharacters(line))) {
+			this.log(
+				`[buildkit-pnpm] ${JSON.stringify({ operation: id, name: this.operation(id).name, progress: stripVTControlCharacters(line) })}\n`,
+			);
+		} else {
+			this.log(`${line}\n`);
+		}
+		this.packageProgress(id, line);
 	}
 
 	private packageProgress(id: string, raw: string): void {

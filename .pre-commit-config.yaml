@@ -44,35 +44,43 @@ repos:
       - id: editorconfig
         name: EditorConfig
         groups: [fast]
-        entry: nix develop .#ci-light --command editorconfig-checker -no-color -disable-indentation -disable-indent-size
+        # CI sources Nix's prepared environment; local hooks retain their flake entrypoint.
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- editorconfig-checker -no-color -disable-indentation -disable-indent-size
         language: system
         exclude: '(^|/)(dist|node_modules|\.tmp|drizzle/meta)(/|$)'
 
       - id: ruff-check
         name: Ruff lint
         groups: [language]
-        entry: nix develop .#ci-light --command uv run --no-sync ruff check
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- uv run --no-sync ruff check
         language: system
         files: '\.py$'
 
       - id: ruff-format
         name: Ruff format
         groups: [language]
-        entry: nix develop .#ci-light --command uv run --no-sync ruff format --check
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- uv run --no-sync ruff format --check
         language: system
         files: '\.py$'
 
       - id: sqlfluff
         name: SQLFluff
         groups: [language]
-        entry: nix develop .#ci-light --command uv run --no-sync sqlfluff lint --config .sqlfluff
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- uv run --no-sync sqlfluff lint --config .sqlfluff
         language: system
         files: '\.sql$'
+        # Match .sqlfluffignore before passing explicit filenames to SQLFluff.
+        exclude: >-
+          (?x)^(
+            apps/app-api/drizzle/|
+            apps/app-api/test/fixtures/(app-auth-pre-drizzle|chat-pre-0001)\.sql$|
+            jobs/campus-agent-schema/migrations/0000_campus_agent_baseline\.sql$
+          )
 
       - id: yamllint
         name: Yamllint
         groups: [fast]
-        entry: nix develop .#ci-light --command uv run --no-sync yamllint -c .yamllint.yml
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- uv run --no-sync yamllint -c .yamllint.yml
         language: system
         files: '\.ya?ml$'
         exclude: '^pnpm-lock\.yaml$'
@@ -80,21 +88,21 @@ repos:
       - id: shellcheck
         name: ShellCheck
         groups: [fast]
-        entry: nix develop .#ci-light --command shellcheck -x -s bash
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- shellcheck -x -s bash
         language: system
         files: '\.sh$'
 
       - id: go-format
         name: Go format
         groups: [language]
-        entry: nix develop .#ci-format --command golangci-lint fmt --diff
+        entry: bash -ec 'if [ -n "${CI_NIX_FORMAT_ENV:-}" ]; then . "$CI_NIX_FORMAT_ENV"; exec "$@"; fi; exec nix develop .#ci-format --command "$@"' -- golangci-lint fmt --diff
         language: system
         files: '\.go$'
 
       - id: staged-secrets
         name: Staged secret scan
         groups: [secrets]
-        entry: nix develop .#ci-light --command gitleaks git --pre-commit --redact --staged
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- gitleaks git --pre-commit --redact --staged
         language: system
         pass_filenames: false
         always_run: true

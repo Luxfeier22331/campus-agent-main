@@ -31,23 +31,67 @@ const duration = (start: string, end: string) => {
 };
 const timestamp = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/;
 
+interface Location {
+	job: string | null;
+	step: string | null;
+}
+interface Hook extends Location {
+	name: string;
+	finishedAt: string;
+	durationMs: number;
+	outcome: string;
+	source: string;
+}
+interface PnpmInstall extends Location {
+	image: string | null;
+	operation: string | null;
+	name: string | null;
+	resolved: number;
+	reused: number;
+	downloaded: number;
+	added: number;
+	done: boolean;
+}
+
+function mergeHooks(observations: Hook[]): Hook[] {
+	const traces = observations.filter((hook) => hook.source === "prek trace busy+idle");
+	const merged = [...traces];
+	for (const verbose of observations.filter((hook) => hook.source === "prek verbose")) {
+		const trace = traces.find(
+			(hook) =>
+				hook.job === verbose.job &&
+				hook.step === verbose.step &&
+				hook.name === verbose.name &&
+				hook.source === "prek trace busy+idle",
+		);
+		if (trace) {
+			trace.outcome = verbose.outcome;
+			trace.source = "prek trace + verbose";
+		} else {
+			merged.push(verbose);
+		}
+	}
+	return merged.sort((a, b) => Date.parse(a.finishedAt) - Date.parse(b.finishedAt));
+}
+
 export function parseEvidence(log: string) {
 	const commands: Record<string, unknown>[] = [];
 	let plan: Record<string, unknown> | undefined;
 	let outcomes: Record<string, string> = {};
-	const bodies: string[] = [];
-	const hooks: Array<{
-		name: string;
-		finishedAt: string;
-		durationMs: number;
-		outcome: string;
-		source: string;
-	}> = [];
-	let verboseHook: { name: string; outcome: string } | undefined;
-	let hookOutcome = "unknown";
+	const bodies: Array<Location & { time: string }> = [];
+	const hooks: Hook[] = [];
+	const pnpmInstalls: PnpmInstall[] = [];
+	const installs = new Map<string, PnpmInstall>();
+	const scopes = new Map<
+		string,
+		{
+			verboseHook?: { name: string; outcome: string };
+			hookOutcome: string;
+			image: string | null;
+		}
+	>();
 	const cacheSignals: Record<string, string[]> = {
 		nix: [],
-		pnpm: [],
 		uv: [],
 		turbo: [],
 		buildkit: [],
@@ -55,34 +99,48 @@ export function parseEvidence(log: string) {
 	for (const raw of log.split("\n")) {
 		const line = stripVTControlCharacters(raw);
 		const time = line.match(timestamp)?.[0];
+		const columns = line.split("\t");
+		const location: Location =
+			columns.length >= 3 ? { job: columns[0], step: columns[1] } : { job: null, step: null };
+		const hostInstall =
+			location.step === "Install validation dependencies" ||
+			location.step === "Install affected workspaces";
+		const imageEvidence = location.step === "Run affected Node and image evidence";
+		const scopeKey = JSON.stringify(location);
+		let scope = scopes.get(scopeKey);
+		if (!scope) {
+			scope = { hookOutcome: "unknown", image: null };
+			scopes.set(scopeKey, scope);
+		}
 		// Ignore echoed shell source; only parse actual command output.
 		const payload = line.replace(/^.*?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\s*/, "");
 		const result = payload.match(/\.{3,}(Passed|Failed|Skipped)\s*$/);
 		if (result) {
-			hookOutcome =
+			scope.hookOutcome =
 				{ Passed: "success", Failed: "failure", Skipped: "skipped" }[result[1]] ?? "unknown";
 		}
 		const heading = payload.match(/^[- ]+hook id: (\S+)/);
 		if (heading) {
-			verboseHook = { name: heading[1], outcome: hookOutcome };
-			hookOutcome = "unknown";
+			scope.verboseHook = { name: heading[1], outcome: scope.hookOutcome };
+			scope.hookOutcome = "unknown";
 		}
 		const verbose = payload.match(/^[- ]+duration: ([\d.]+)(ms|s)$/);
-		if (verbose && verboseHook && time) {
+		if (verbose && scope.verboseHook && time) {
 			const ms = Number(verbose[1]) * (verbose[2] === "s" ? 1000 : 1);
 			if (Number.isFinite(ms)) {
 				hooks.push({
-					name: verboseHook.name,
+					...location,
+					name: scope.verboseHook.name,
 					finishedAt: time,
 					durationMs: ms,
-					outcome: verboseHook.outcome,
+					outcome: scope.verboseHook.outcome,
 					source: "prek verbose",
 				});
 			}
-			verboseHook = undefined;
+			scope.verboseHook = undefined;
 		}
 		if (payload === "CI_BODY_STARTED" && time) {
-			bodies.push(time);
+			bodies.push({ ...location, time });
 		}
 		for (const marker of ["CI_EVIDENCE ", "CI_PLAN ", "CI_OUTCOMES "]) {
 			if (!payload.startsWith(marker)) {
@@ -122,6 +180,7 @@ export function parseEvidence(log: string) {
 			const ms = milliseconds(hook[2]) + milliseconds(hook[3]);
 			if (Number.isFinite(ms)) {
 				hooks.push({
+					...location,
 					name: hook[1],
 					finishedAt: time,
 					durationMs: ms,
@@ -134,8 +193,62 @@ export function parseEvidence(log: string) {
 		if (/copying path .* from 'https?:/.test(payload)) {
 			cacheSignals.nix.push(payload);
 		}
-		if (/Progress: resolved \d+, reused \d+, downloaded \d+/.test(payload)) {
-			cacheSignals.pnpm = [payload];
+		const imageStart = payload.match(/^\[release-image\] image=(\S+) stage=build state=start/);
+		if (imageEvidence && imageStart) {
+			scope.image = imageStart[1];
+		}
+		let progress = payload;
+		let operation: string | null = null;
+		let operationName: string | null = null;
+		if (payload.startsWith("[buildkit-pnpm] ")) {
+			try {
+				const entry = JSON.parse(payload.slice("[buildkit-pnpm] ".length));
+				if (typeof entry.operation === "string" && typeof entry.progress === "string") {
+					operation = entry.operation;
+					operationName = typeof entry.name === "string" ? entry.name : null;
+					progress = entry.progress;
+				}
+			} catch {
+				/* Interrupted log line; leave the last complete observation. */
+			}
+		} else {
+			const buildkit = payload.match(/^(#\d+) [\d.]+ (Progress:.*)$/);
+			if (buildkit) {
+				operation = buildkit[1];
+				progress = buildkit[2];
+			}
+		}
+		const packages = progress.match(
+			/^Progress: resolved (\d+), reused (\d+), downloaded (\d+), added (\d+)(, done)?\s*$/,
+		);
+		if (
+			packages &&
+			((operation === null && hostInstall) || (operation !== null && imageEvidence && scope.image))
+		) {
+			const next: PnpmInstall = {
+				...location,
+				image: scope.image,
+				operation,
+				name: operationName,
+				resolved: Number(packages[1]),
+				reused: Number(packages[2]),
+				downloaded: Number(packages[3]),
+				added: Number(packages[4]),
+				done: Boolean(packages[5]),
+			};
+			const key = JSON.stringify([scopeKey, scope.image, operation]);
+			const previous = installs.get(key);
+			if (previous && JSON.stringify(previous) === JSON.stringify(next)) {
+				// BuildKit can repeat the final progress record for the same operation.
+			} else if (!previous || previous.done || next.resolved < previous.resolved) {
+				pnpmInstalls.push(next);
+				installs.set(key, next);
+			} else {
+				Object.assign(previous, next);
+			}
+		}
+		if (/^\[release-image\] .*stage=build state=(?:complete|failed)/.test(payload)) {
+			scope.image = null;
 		}
 		if (/^(Audited|Prepared|Installed) \d+ packages? in /.test(payload)) {
 			cacheSignals.uv.push(payload);
@@ -143,11 +256,11 @@ export function parseEvidence(log: string) {
 		if (/Cached:\s+\d+ cached, \d+ total/.test(payload)) {
 			cacheSignals.turbo.push(payload);
 		}
-		if (/^#\d+ CACHED/.test(payload)) {
+		if (imageEvidence && scope.image && /^#\d+ CACHED|^\[buildkit\] state=cached /.test(payload)) {
 			cacheSignals.buildkit.push(payload);
 		}
 	}
-	return { commands, plan, outcomes, bodies, hooks, cacheSignals };
+	return { commands, plan, outcomes, bodies, hooks: mergeHooks(hooks), pnpmInstalls, cacheSignals };
 }
 
 const outcomeKeys: Record<string, string> = {
@@ -161,6 +274,7 @@ const outcomeKeys: Record<string, string> = {
 	"Run container build contract evidence": "container-build",
 	"Check execution-control native code": "execution-control-native",
 	"Install affected workspaces": "install-affected",
+	"Login for image cache reads": "image-cache-login",
 	"Check executable contracts": "contracts",
 	"Lint GitHub Actions": "github-actions",
 	"Scan authored commits for secrets": "secrets",
@@ -172,9 +286,7 @@ export function buildReport(run: Run, jobs: Job[], log: string, recent: Run[]) {
 		job.steps.map((step) => {
 			const wallMs = duration(step.started_at, step.completed_at);
 			const body = evidence.bodies.find(
-				(time) =>
-					Date.parse(time) >= Date.parse(step.started_at) &&
-					Date.parse(time) < Date.parse(step.completed_at),
+				(entry) => entry.job === job.name && entry.step === step.name,
 			);
 			const outcome = evidence.outcomes[outcomeKeys[step.name]] ?? step.conclusion ?? "unknown";
 			return {
@@ -182,7 +294,7 @@ export function buildReport(run: Run, jobs: Job[], log: string, recent: Run[]) {
 				job: job.name,
 				outcome,
 				durationMs: wallMs,
-				setupMs: body ? duration(step.started_at, body) : null,
+				setupMs: body ? duration(step.started_at, body.time) : null,
 				failureClass:
 					outcome === "failure"
 						? step.name.toLowerCase().includes("lint")
@@ -230,6 +342,7 @@ export function buildReport(run: Run, jobs: Job[], log: string, recent: Run[]) {
 		trend,
 		notes: [
 			"setupMs measures step start to shell body, including Nix startup; not pure Nix evaluation time.",
+			"GitHub API timestamps have second precision. API-derived durations are displayed as approximate whole seconds (rounded down); raw milliseconds are preserved in JSON. Subsecond setup/step differences can reflect timestamp precision.",
 			"A newer run does not prove why a run was cancelled.",
 			"Missing cache signals mean unknown; uv audit/install output is not a cache hit rate.",
 			"A started command without a completion is unfinished; abrupt cancellation cannot guarantee a final event.",
@@ -247,9 +360,15 @@ export function renderReport(report: ReturnType<typeof buildReport>): string {
 			.replaceAll("\n", " ");
 	const seconds = (value: number | null | undefined) =>
 		value == null ? "unknown" : `${(value / 1000).toFixed(2)}s`;
+	const approximateSeconds = (value: number | null | undefined) => {
+		if (value == null) {
+			return "unknown";
+		}
+		return value < 1000 ? "&lt;1s" : `~${Math.floor(value / 1000)}s`;
+	};
 	return [
 		`## repo-checks — run ${report.runId}, attempt ${report.attempt}`,
-		`Source: ${cell(report.sha)}; result: ${cell(report.status)}; runner wait: ${seconds(report.queueMs)}.`,
+		`Source: ${cell(report.sha)}; result: ${cell(report.status)}; runner wait: ${approximateSeconds(report.queueMs)}.`,
 		report.plan
 			? `Plan: ${cell(JSON.stringify(report.plan))}`
 			: "Plan: unavailable (run predates instrumentation or logs were unavailable).",
@@ -258,7 +377,7 @@ export function renderReport(report: ReturnType<typeof buildReport>): string {
 		"| --- | --- | ---: | ---: |",
 		...report.stages.map(
 			(step) =>
-				`| ${cell(step.name)} | ${cell(step.outcome)} | ${seconds(step.durationMs)} | ${seconds(step.setupMs)} |`,
+				`| ${cell(step.name)} | ${cell(step.outcome)} | ${approximateSeconds(step.durationMs)} | ${approximateSeconds(step.setupMs)} |`,
 		),
 		"",
 		"### Completed lint hooks",
@@ -286,12 +405,21 @@ export function renderReport(report: ReturnType<typeof buildReport>): string {
 				`- ${tool}: ${signals.length > 0 ? signals.slice(-5).map(cell).join("; ") : "unknown (no reliable signal)"}`,
 		),
 		"",
+		"### pnpm installs",
+		"",
+		"| Job / step | Image / operation | Resolved | Reused | Downloaded | Added | Complete |",
+		"| --- | --- | ---: | ---: | ---: | ---: | --- |",
+		...report.pnpmInstalls.map(
+			(install) =>
+				`| ${cell(install.job)} / ${cell(install.step)} | ${install.image || install.operation ? `${cell(install.image)} / ${cell(install.name ?? install.operation)}` : "host"} | ${install.resolved} | ${install.reused} | ${install.downloaded} | ${install.added} | ${install.done} |`,
+		),
+		"",
 		"### Recent completed runs (workflow wall time, including setup)",
 		"",
 		"| Run | Result | Duration |",
 		"| --- | --- | ---: |",
 		...report.trend.map(
-			(item) => `| ${item.runId} | ${cell(item.status)} | ${seconds(item.durationMs)} |`,
+			(item) => `| ${item.runId} | ${cell(item.status)} | ${approximateSeconds(item.durationMs)} |`,
 		),
 		"",
 		...report.notes.map((note) => `- ${note}`),

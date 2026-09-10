@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 import { parseAllDocuments } from "yaml";
 
@@ -26,6 +27,181 @@ function runnerSelector(hostedRunner: "ubuntu-24.04" | "ubuntu-24.04-arm"): stri
 		`fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '${JSON.stringify(SELF_HOSTED_RUNNER_LABELS)}' || '"${hostedRunner}"')`,
 	);
 }
+
+// Exercise the workflow's boolean expressions against concrete event outcomes.
+function condition(expression: unknown, context: Record<string, unknown>): boolean {
+	return runInNewContext(
+		String(expression).replaceAll(".cache-matched-key", '["cache-matched-key"]'),
+		{
+			cancelled: () => false,
+			contains: (values: string[], value: string) => values.includes(value),
+			fromJSON: JSON.parse,
+			...context,
+		},
+	);
+}
+
+test("PR image caches are read only and selected only for eligible image builds", async () => {
+	const job = workflowJob(await loadWorkflow("pr.yml"), "repo-checks");
+	assert.deepEqual(job.permissions, {
+		contents: "read",
+		"pull-requests": "read",
+		packages: "read",
+	});
+	const login = namedStep(job, "Login for image cache reads");
+	assert(isObject(login.with));
+	assert.equal(login.with.password, githubExpression("github.token"));
+	for (const [hasImage, sameRepo, actor, cancelled, expected] of [
+		[true, true, "developer", false, true],
+		[false, true, "developer", false, false],
+		[true, false, "developer", false, false],
+		[true, true, "dependabot[bot]", false, false],
+		[true, true, "developer", true, false],
+	] as const) {
+		assert.equal(
+			condition(login.if, {
+				cancelled: () => cancelled,
+				steps: { plan: { outputs: { has_image_build: String(hasImage) } } },
+				github: {
+					actor,
+					repository: "owner/source",
+					event: {
+						pull_request: {
+							head: { repo: { full_name: sameRepo ? "owner/source" : "fork/source" } },
+						},
+					},
+				},
+			}),
+			expected,
+		);
+	}
+	const evidence = namedStep(job, "Run affected Node and image evidence");
+	assert(isObject(evidence.env));
+	assert.match(
+		String(evidence.env.CI_IMAGE_CACHE_REGISTRY),
+		/steps.login_image_cache.outcome == 'success'/u,
+	);
+	const summary = namedStep(job, "Summarize repository evidence");
+	assert(isObject(summary.env));
+	assert.match(String(summary.env.RESULTS), /steps.login_image_cache.outcome/u);
+});
+
+test("pnpm caches restore before installs and save only successful installation state", async () => {
+	const job = workflowJob(await loadWorkflow("pr.yml"), "repo-checks");
+	const steps = jobSteps(job);
+	const restore = namedStep(job, "Restore pnpm store");
+	const save = namedStep(job, "Save pnpm store");
+	assert.equal(restore.if, "runner.environment != 'self-hosted'");
+	assert.equal(restore["continue-on-error"], true);
+	assert.equal(save["continue-on-error"], true);
+	assert(isObject(restore.with) && isObject(save.with));
+	assert.deepEqual(save.with, {
+		path: restore.with.path,
+		key: githubExpression("steps.plan.outputs.pnpm_cache_key"),
+	});
+	assert.match(String(restore.with.key), /hashFiles\('pnpm-lock.yaml', 'pnpm-workspace.yaml'\)/u);
+	assert.deepEqual(String(restore.with["restore-keys"]).trim().split("\n"), [
+		restore.with.key,
+		`${githubExpression("steps.pnpm_cache.outputs.prefix")}-`,
+	]);
+	const plan = namedStep(job, "Generate pull request validation plan");
+	assert(isObject(plan.env));
+	assert.equal(`${plan.env.PNPM_CACHE_BASE}-scope-`, restore.with.key);
+	assert(steps.indexOf(restore) < steps.indexOf(namedStep(job, "Install validation dependencies")));
+	assert(steps.indexOf(save) > steps.indexOf(namedStep(job, "Install affected workspaces")));
+	assert.match(String(namedStep(job, "Configure hosted pnpm store").run), /PNPM_CONFIG_STORE_DIR/u);
+	assert.match(String(namedStep(job, "Configure hosted pnpm store").run), /prefix=pnpm-v2-/u);
+	for (const [hit, root, affected, selected, cancelled, environment, expected] of [
+		[false, "success", "success", true, false, "github-hosted", true],
+		[true, "success", "success", true, false, "github-hosted", false],
+		[false, "failure", "success", true, false, "github-hosted", false],
+		[false, "success", "failure", true, false, "github-hosted", false],
+		[false, "success", "skipped", true, false, "github-hosted", false],
+		[false, "success", "skipped", false, false, "github-hosted", true],
+		[false, "success", "success", true, true, "github-hosted", false],
+		[false, "success", "success", true, false, "self-hosted", false],
+	] as const) {
+		assert.equal(
+			condition(save.if, {
+				cancelled: () => cancelled,
+				runner: { environment },
+				steps: {
+					restore_pnpm: { outputs: { "cache-matched-key": hit ? "current-scope" : "other-scope" } },
+					install_validation: { outcome: root },
+					install_affected: { outcome: affected },
+					plan: {
+						outcome: "success",
+						outputs: {
+							validation_profiles: JSON.stringify(selected ? ["affected-node"] : []),
+							pnpm_cache_key: "current-scope",
+						},
+					},
+				},
+			}),
+			expected,
+		);
+	}
+});
+
+test("pnpm caches save expanded installation scopes and reuse their saved keys on later runs", async () => {
+	const job = workflowJob(await loadWorkflow("pr.yml"), "repo-checks");
+	const planStep = namedStep(job, "Generate pull request validation plan");
+	const save = namedStep(job, "Save pnpm store");
+	const scopeCommands = String(planStep.run).match(/(pnpm_install_scope=[\s\S]*?)\n\{/u)?.[1];
+	const keyCommand = String(planStep.run).match(/^\s*(echo "pnpm_cache_key=.*")$/mu)?.[1];
+	assert(
+		scopeCommands && keyCommand,
+		"workflow must compute and export the installation scope key",
+	);
+	const cacheKey = (packages: string[], selected = true, base = "pnpm-v2-tools-lock") =>
+		execFileSync("bash", ["-euo", "pipefail", "-c", `${scopeCommands}\n${keyCommand}`], {
+			encoding: "utf8",
+			env: {
+				...process.env,
+				PNPM_CACHE_BASE: base,
+				plan: JSON.stringify({
+					validationProfiles: selected ? ["affected-node"] : [],
+					affectedPackages: packages,
+				}),
+			},
+		})
+			.trim()
+			.replace(/^pnpm_cache_key=/u, "");
+	const rootKey = cacheKey([], false);
+	const expandedKey = cacheKey(["ops-web", "app-api"]);
+	assert.match(rootKey, /^pnpm-v2-tools-lock-scope-[a-f0-9]{64}$/u);
+	assert.notEqual(rootKey, expandedKey);
+	assert.equal(cacheKey(["app-api", "ops-web", "ops-web"]), expandedKey);
+	assert.equal(cacheKey(["ops-web"], false), rootKey);
+	assert.equal(cacheKey(["campus-contracts"]), rootKey);
+	const changedLockKey = cacheKey(["ops-web", "app-api"], true, "pnpm-v2-tools-new-lock");
+	assert.notEqual(changedLockKey, expandedKey);
+	for (const [matchedKey, nextKey, selected, expected] of [
+		["", rootKey, false, true],
+		[rootKey, expandedKey, true, true],
+		[expandedKey, expandedKey, true, false],
+		[expandedKey, changedLockKey, true, true],
+	] as const) {
+		assert.equal(
+			condition(save.if, {
+				runner: { environment: "github-hosted" },
+				steps: {
+					restore_pnpm: { outputs: { "cache-matched-key": matchedKey } },
+					install_validation: { outcome: "success" },
+					install_affected: { outcome: selected ? "success" : "skipped" },
+					plan: {
+						outcome: "success",
+						outputs: {
+							pnpm_cache_key: nextKey,
+							validation_profiles: JSON.stringify(selected ? ["affected-node"] : []),
+						},
+					},
+				},
+			}),
+			expected,
+		);
+	}
+});
 
 test("timing reporter uses trusted code and read-only permissions after PR completion", async () => {
 	const workflow = await loadWorkflow("ci-timing-report.yml");

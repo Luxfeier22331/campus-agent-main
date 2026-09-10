@@ -262,6 +262,9 @@ function runAffectedImageEvidence(
 	if (input.summaryFile) {
 		args.push("--summary", input.summaryFile);
 	}
+	if (options.env.CI_IMAGE_CACHE_REGISTRY) {
+		args.push("--cache-registry", options.env.CI_IMAGE_CACHE_REGISTRY);
+	}
 	runProfileCommand("image-build", "node", args, runner, options);
 }
 

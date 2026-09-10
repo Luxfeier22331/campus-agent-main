@@ -72,7 +72,16 @@ test("captures structured command output larger than the Node default buffer", (
 	assert.equal(result.stdout?.length, outputBytes);
 });
 
-test("runs affected Node tasks from the shared scope without a downloaded Turbo", () => {
+test("runs affected Node tasks from the shared scope without a downloaded Turbo", (t) => {
+	const previousCacheRegistry = process.env.CI_IMAGE_CACHE_REGISTRY;
+	process.env.CI_IMAGE_CACHE_REGISTRY = "127.0.0.1:15001/cache";
+	t.after(() => {
+		if (previousCacheRegistry === undefined) {
+			delete process.env.CI_IMAGE_CACHE_REGISTRY;
+		} else {
+			process.env.CI_IMAGE_CACHE_REGISTRY = previousCacheRegistry;
+		}
+	});
 	const calls: Array<{
 		command: string;
 		args: string[];
@@ -191,6 +200,8 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	assert(imageEvidence.includes(HEAD));
 	assert(imageEvidence.includes("--summary"));
 	assert(imageEvidence.includes("/tmp/campus-agent-summary.md"));
+	assert(imageEvidence.includes("--cache-registry"));
+	assert(imageEvidence.includes("127.0.0.1:15001/cache"));
 	assert(!commands.some((command) => command.includes("dlx")));
 	assert(calls.every((call) => call.base === BASE && call.head === HEAD));
 	const bake = calls.find(
