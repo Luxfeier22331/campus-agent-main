@@ -20,6 +20,7 @@ it("selects source images and PDF attachments without requiring publication/clas
 		),
 		getDerived: vi.fn(),
 		putDerived: vi.fn(),
+		deleteDerived: vi.fn(),
 		close: vi.fn(),
 	};
 	const inputs: OcrInput[] = [];

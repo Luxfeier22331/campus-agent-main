@@ -1,5 +1,5 @@
 import { downloadResource } from "./provider.ts";
-import type { OcrObjects, OcrResult } from "./types.ts";
+import type { OcrObjects, OcrPage, OcrResult } from "./types.ts";
 
 interface ParsedPage {
 	text: string;
@@ -50,9 +50,10 @@ export async function persistResult(
 	raw: Uint8Array,
 	objects: OcrObjects,
 	options: { download?: (url: string) => Promise<Uint8Array>; allowMissingImages?: boolean } = {},
-): Promise<OcrResult> {
+): Promise<{ result: OcrResult; pages: OcrPage[] }> {
 	const prefix = `ocr/tasks/${taskId}`;
-	const result: OcrResult = { rawKey: `${prefix}/result.jsonl`, pages: [], missingImages: [] };
+	const result: OcrResult = { rawKey: `${prefix}/result.jsonl`, missingImages: [] };
+	const storedPages: OcrPage[] = [];
 	await objects.putDerived(result.rawKey, raw, "application/x-ndjson");
 	const pages = parseResult(new TextDecoder().decode(raw));
 	for (const [pageIndex, page] of pages.entries()) {
@@ -79,13 +80,7 @@ export async function persistResult(
 			markdown = markdown.replaceAll(name, `images/${pageIndex}-${imageIndex}`);
 			images.push(key);
 		}
-		const markdownKey = `${prefix}/page-${String(pageIndex).padStart(3, "0")}.md`;
-		await objects.putDerived(
-			markdownKey,
-			new TextEncoder().encode(markdown),
-			"text/markdown; charset=utf-8",
-		);
-		result.pages.push({ markdownKey, images });
+		storedPages.push({ index: pageIndex, markdown, images });
 	}
-	return result;
+	return { result, pages: storedPages };
 }

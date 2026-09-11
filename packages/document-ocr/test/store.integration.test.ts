@@ -60,6 +60,23 @@ it("preserves microsecond config identity and state through PostgreSQL", async (
 		providerJobId: "stored-provider-job",
 	});
 });
+it("stores OCR pages transactionally and exposes a computed page count", async () => {
+	const task = await store.create({ kind: "validation" }, config);
+	ids.push(task.id);
+	task.status = "completed";
+	await store.saveResult(
+		task,
+		[{ index: 0, markdown: "<table><tr><td>CAMPUS</td></tr></table>", images: [] }],
+		{
+			rawKey: `ocr/tasks/${task.id}/result.jsonl`,
+			missingImages: [],
+		},
+	);
+	expect(await store.getPages(task.id)).toEqual([
+		{ index: 0, markdown: "<table><tr><td>CAMPUS</td></tr></table>", images: [] },
+	]);
+	expect(await store.get(task.id)).toMatchObject({ status: "completed", pageCount: 1 });
+});
 it("excludes simultaneous manual and scheduled runners and releases the lock", async () => {
 	const first = await withOcrLock(pool, async () => {
 		expect(await withOcrLock(pool, async () => "second")).toBeNull();

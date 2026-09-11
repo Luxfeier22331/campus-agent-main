@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createPaddleClient, downloadResource } from "./provider.ts";
 import { OcrResultError, persistResult } from "./results.ts";
-import type { OcrConfig, OcrObjects, OcrTask, OcrTaskStore } from "./types.ts";
+import type { OcrConfig, OcrObjects, OcrPage, OcrTask, OcrTaskStore } from "./types.ts";
 
 export interface RunOcrOptions {
 	store: OcrTaskStore;
@@ -28,24 +28,36 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 		...(options.signal ? [options.signal] : []),
 	]);
 	async function finishResult(raw?: Uint8Array) {
-		if (!task.result) {
+		let pages: OcrPage[];
+		let result = task.result;
+		if (task.result) {
+			pages = await store.getPages(task.id);
+		} else {
 			if (!raw) {
 				throw new OcrResultError("OCR result missing");
 			}
-			task.result = await persistResult(
+			const persisted = await persistResult(
 				task.id,
 				raw,
 				objects,
 				options.download ? { download: options.download } : {},
 			);
-			await store.save(task);
+			result = persisted.result;
+			pages = persisted.pages;
+		}
+		if (!(result && pages.length > 0)) {
+			throw new OcrResultError("OCR result has no stored pages");
 		}
 		if (task.input.kind === "validation") {
-			const firstPage = task.result.pages[0];
-			if (task.result.pages.length !== 1 || !firstPage) {
+			if (!task.result) {
+				await store.saveResult(task, pages, result);
+			}
+			const storedPages = await store.getPages(task.id);
+			const firstPage = storedPages[0];
+			if (storedPages.length !== 1 || !firstPage) {
 				throw new OcrResultError("OCR validation must return one page");
 			}
-			const text = new TextDecoder().decode(await objects.getDerived(firstPage.markdownKey));
+			const text = firstPage.markdown;
 			if (!(text.includes("CAMPUS") && text.includes("12345"))) {
 				throw new OcrResultError("OCR validation text was not recognized");
 			}
@@ -55,9 +67,9 @@ export async function runOcrTask(task: OcrTask, options: RunOcrOptions): Promise
 				"Paddle OCR one-page parsing completed.",
 			);
 		}
-		task.status = "completed";
-		task.error = null;
-		await store.save(task);
+		const completed = { ...task, status: "completed" as const, error: null };
+		await store.saveResult(completed, pages, result);
+		Object.assign(task, completed);
 	}
 	try {
 		if (task.status === "submitting" && !task.providerJobId) {

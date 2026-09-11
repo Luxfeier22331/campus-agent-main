@@ -135,7 +135,7 @@ export function registerOcrRoutes(input: {
 							id: task.id,
 							status: task.status,
 							createdAt: task.createdAt,
-							pageCount: task.result?.pages.length ?? 0,
+							pageCount: task.pageCount,
 							missingImageCount: task.result?.missingImages.length ?? 0,
 							error: task.error,
 							hasResult: task.status === "completed" && task.result !== null,
@@ -235,28 +235,22 @@ export function registerOcrRoutes(input: {
 		if (!task?.result) {
 			return jsonError("OPS_OCR_NOT_READY", "识别结果尚未保存。", 404);
 		}
-		const objects = createOcrObjects(env);
-		try {
-			const pages: { index: number; markdown: string }[] = [];
-			for (const [index, page] of task.result.pages.entries()) {
-				const markdown = ocrMarkdownForBrowser(
-					task.id,
-					new TextDecoder().decode(await objects.getDerived(page.markdownKey)),
-					page.images,
-				);
-				pages.push({ index, markdown });
-			}
-			return c.json({ pages, missingImages: task.result.missingImages });
-		} finally {
-			objects.close();
-		}
+		const pages = await store().getPages(task.id);
+		return c.json({
+			pages: pages.map((page) => ({
+				index: page.index,
+				markdown: ocrMarkdownForBrowser(task.id, page.markdown, page.images),
+			})),
+			missingImages: task.result.missingImages,
+		});
 	});
 	app.get("/api/ops/ocr/tasks/:id/images/:name", async (c) => {
 		if (!z.uuid().safeParse(c.req.param("id")).success) {
 			return jsonError("OPS_OCR_INVALID", "任务 ID 无效。", 400);
 		}
 		const task = await store().get(c.req.param("id"));
-		const key = task?.result?.pages
+		const pages = task ? await store().getPages(task.id) : [];
+		const key = pages
 			.flatMap((p) => p.images)
 			.find((key) => key.split("/").at(-1) === c.req.param("name"));
 		if (!key) {

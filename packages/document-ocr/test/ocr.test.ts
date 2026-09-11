@@ -9,6 +9,7 @@ import {
 	OCR_OPTIONS,
 	type OcrConfig,
 	type OcrObjects,
+	type OcrPage,
 	type OcrTask,
 	type OcrTaskStore,
 	parseResult,
@@ -37,6 +38,7 @@ function fixture() {
 		progress: null,
 		error: null,
 		result: null,
+		pageCount: 0,
 		createdAt: config.updatedAt,
 		updatedAt: config.updatedAt,
 	};
@@ -53,10 +55,12 @@ function fixture() {
 		async putDerived(key, bytes) {
 			stored.set(key, bytes);
 		},
+		deleteDerived: vi.fn(),
 		close() {
 			/* In-memory fixture has no connections. */
 		},
 	};
+	let storedPages: OcrPage[] = [];
 	const store: OcrTaskStore = {
 		save: vi.fn(),
 		get: vi.fn(),
@@ -64,6 +68,12 @@ function fixture() {
 		listNotice: vi.fn(),
 		create: vi.fn(),
 		runnable: vi.fn(),
+		getPages: vi.fn(async () => structuredClone(storedPages)),
+		saveResult: vi.fn(async (updated, pages, result) => {
+			storedPages = structuredClone(pages);
+			updated.result = structuredClone(result);
+			updated.pageCount = pages.length;
+		}),
 	};
 	const client = {
 		submitDocumentParsing: vi.fn().mockResolvedValue({ jobId: "provider-1" }),
@@ -153,9 +163,7 @@ describe("Paddle document parsing", () => {
 			{ download: async () => new Uint8Array([1]) },
 		);
 		expect(result.pages[0]?.images).toEqual(["ocr/tasks/task-1/images/0-0"]);
-		expect(
-			new TextDecoder().decode(await f.objects.getDerived(result.pages[0]?.markdownKey ?? "")),
-		).toBe("![x](images/0-0)");
+		expect(result.pages[0]?.markdown).toBe("![x](images/0-0)");
 	});
 	it("persists provider id before polling and completes after storing results", async () => {
 		const f = fixture();
@@ -165,15 +173,13 @@ describe("Paddle document parsing", () => {
 		};
 		const reportValidation = vi.fn();
 		await runOcrTask(f.task, { ...f, reportValidation });
-		expect(snapshots.map((t) => t.status)).toEqual([
-			"submitting",
-			"submitted",
-			"submitted",
-			"submitted",
-			"completed",
-		]);
+		expect(snapshots.map((t) => t.status)).toEqual(["submitting", "submitted", "submitted"]);
 		expect(snapshots[1]?.providerJobId).toBe("provider-1");
-		expect(f.task.result?.pages).toHaveLength(1);
+		expect(f.store.saveResult).toHaveBeenCalledWith(
+			f.task,
+			expect.arrayContaining([expect.objectContaining({ index: 0 })]),
+			expect.objectContaining({ rawKey: "ocr/tasks/task-1/result.jsonl" }),
+		);
 		expect(reportValidation).toHaveBeenCalledWith(config.updatedAt, true, expect.any(String));
 	});
 	it("never resubmits an interrupted submission without a job id", async () => {
@@ -204,7 +210,7 @@ describe("Paddle document parsing", () => {
 		const reportValidation = vi.fn().mockRejectedValueOnce(new Error("callback unavailable"));
 		await runOcrTask(f.task, { ...f, reportValidation });
 		expect(f.task.status).toBe("submitted");
-		expect(f.task.result?.pages).toHaveLength(1);
+		expect(f.store.saveResult).toHaveBeenCalled();
 		vi.mocked(f.client.getStatus).mockRejectedValue(new Error("provider job expired"));
 		await runOcrTask(f.task, { ...f, reportValidation });
 		expect(f.task.status).toBe("completed");
@@ -269,6 +275,6 @@ describe("Paddle document parsing", () => {
 			},
 		);
 		expect(result.pages).toHaveLength(1);
-		expect(result.missingImages).toEqual(["a.jpg"]);
+		expect(result.result.missingImages).toEqual(["a.jpg"]);
 	});
 });

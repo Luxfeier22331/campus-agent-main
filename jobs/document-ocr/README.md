@@ -22,12 +22,26 @@ pnpm --filter document-ocr ocr resume --task <task-id>
 pnpm --filter document-ocr ocr rerun --task <task-id>
 pnpm --filter document-ocr ocr export --task <task-id> --directory /absolute/path/output
 pnpm --filter document-ocr ocr import --manifest /absolute/path/collection/ocr/manifest.json
+pnpm --filter document-ocr ocr migrate-pages --dry-run
+pnpm --filter document-ocr ocr migrate-pages
+pnpm --filter document-ocr ocr cleanup-page-objects --dry-run
+pnpm --filter document-ocr ocr cleanup-page-objects
 ```
 
 路径参数相对于 Job 包目录，建议使用绝对路径。数据库和 derived bucket 使用当前 worktree 的
 隔离资源，source bucket 沿用现有本地采集共享桶；导入不改写共享来源。历史导入复用
 `ocr/manifest.json` 的 42 份完成记录，下载必要图片但不重新提交识别；缺图会明确报告。
-已完成任务再次导入直接跳过。导出目录按任务 ID 分隔，包含原始 JSONL、Markdown 和图片。
+已完成任务再次导入直接跳过。导出目录按任务 ID 分隔，包含原始 JSONL、数据库中的 Markdown 正文和图片。
+
+页面迁移命令不访问 Paddle 或 Model Config，必须在 schema `0008_ocr_pages` 应用后运行。
+`migrate-pages` 把旧 Markdown 对象按原任务和页序写入数据库，保留旧引用供清理定位；
+`cleanup-page-objects` 验证正文、页序和图片引用后，只删除旧 Markdown 对象并移除旧结果路径字段。
+两条命令共用 OCR advisory lock，锁忙时失败而非报告迁移成功。`--dry-run` 只检查，不写库或删除对象。
+
+已有环境切换时，先暂停 Ops 写入并等待旧 OCR Job 结束，再执行 schema 和页面迁移、部署新的 Ops/OCR
+镜像，验收结果读取后运行清理。保持现有 CronJob 暂停配置；不要只手动缩容 Ops 而让 Argo CD 自愈恢复旧版本。
+由 GitOps owner 协调目标应用的短暂维护窗口，Campus Web 和其他应用不停止。清理中断后可重跑清理命令；
+迁移和清理都不重新识别，也不改变历史任务状态和时间。
 
 运行配置来自 `MODEL_CONFIG_URL` 下的 `document_ocr`。数据库复用
 `@campus-agent/notice-database` 的 PG/NOTICES_DATABASE 环境合同；对象存储使用

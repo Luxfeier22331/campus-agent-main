@@ -40,13 +40,14 @@ export async function importHistory(
 			throw new Error("Existing OCR task conflicts with imported job");
 		}
 		const raw = new Uint8Array(await readFile(resolve(root, ocr.result.path)));
-		task.result = await persistResult(task.id, raw, objects, { allowMissingImages: true });
+		const persisted = await persistResult(task.id, raw, objects, { allowMissingImages: true });
 		task.inputSha256 = resource.input.sha256;
 		task.providerJobId = ocr.jobId;
 		task.status = "completed";
 		task.error = null;
-		await store.save(task);
-		if (task.result.missingImages.length > 0) {
+		task.result = persisted.result;
+		await store.saveResult(task, persisted.pages, persisted.result);
+		if (persisted.result.missingImages.length > 0) {
 			missingImages.push({ taskId: task.id, images: task.result.missingImages });
 		}
 		imported++;

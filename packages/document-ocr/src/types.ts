@@ -25,12 +25,12 @@ export type OcrInput =
 	| { kind: "uploaded"; key: string; contentType: string }
 	| { kind: "validation" };
 export interface OcrPage {
-	markdownKey: string;
+	index: number;
+	markdown: string;
 	images: string[];
 }
 export interface OcrResult {
 	rawKey: string;
-	pages: OcrPage[];
 	missingImages: string[];
 }
 export interface OcrTask {
@@ -44,6 +44,7 @@ export interface OcrTask {
 	progress: { totalPages?: number; extractedPages?: number } | null;
 	error: string | null;
 	result: OcrResult | null;
+	pageCount: number;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -51,6 +52,7 @@ export interface OcrObjects {
 	getSource(key: string): Promise<Uint8Array>;
 	getDerived(key: string): Promise<Uint8Array>;
 	putDerived(key: string, body: Uint8Array, contentType: string): Promise<void>;
+	deleteDerived(key: string): Promise<void>;
 	close(): void;
 }
 export interface OcrTaskStore {
@@ -59,5 +61,7 @@ export interface OcrTaskStore {
 	listNotice(noticeId: string): Promise<OcrTask[]>;
 	create(input: OcrInput, config: OcrConfig, rerun?: boolean): Promise<OcrTask>;
 	save(task: OcrTask): Promise<void>;
+	getPages(taskId: string): Promise<OcrPage[]>;
+	saveResult(task: OcrTask, pages: OcrPage[], result: OcrResult): Promise<void>;
 	runnable(): Promise<OcrTask[]>;
 }

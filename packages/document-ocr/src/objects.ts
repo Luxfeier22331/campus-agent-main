@@ -1,4 +1,9 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+	DeleteObjectCommand,
+	GetObjectCommand,
+	PutObjectCommand,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import type { OcrObjects } from "./types.ts";
 export function createOcrObjects(env: NodeJS.ProcessEnv): OcrObjects {
 	function required(key: string) {
@@ -52,6 +57,11 @@ export function createOcrObjects(env: NodeJS.ProcessEnv): OcrObjects {
 				}),
 				{ abortSignal: AbortSignal.timeout(60_000) },
 			);
+		},
+		async deleteDerived(key) {
+			await derived.send(new DeleteObjectCommand({ Bucket: derivedBucket, Key: key }), {
+				abortSignal: AbortSignal.timeout(60_000),
+			});
 		},
 		close() {
 			source.destroy();

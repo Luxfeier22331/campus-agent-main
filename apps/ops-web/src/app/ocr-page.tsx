@@ -164,7 +164,7 @@ export function OcrPage() {
 									</td>
 									<td className="p-3">
 										{task.result
-											? task.result.pages.length
+											? task.pageCount
 											: task.progress?.totalPages
 												? `${task.progress.extractedPages ?? 0} / ${task.progress.totalPages}`
 												: "—"}

@@ -57,6 +57,13 @@
       "when": 1788998400000,
       "tag": "0007_transport_route_guidance",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789084800000,
+      "tag": "0008_ocr_pages",
+      "breakpoints": true
     }
   ]
 }

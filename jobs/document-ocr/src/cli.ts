@@ -14,6 +14,7 @@ import {
 } from "@campus-agent/document-ocr";
 import { createNoticeDatabasePool } from "@campus-agent/notice-database";
 import { importHistory } from "./import.ts";
+import { cleanupPageObjects, migratePages } from "./page-migration.ts";
 import { selectNoticeInputs } from "./sources.ts";
 
 export async function main() {
@@ -25,11 +26,23 @@ export async function main() {
 			task: { type: "string" },
 			directory: { type: "string" },
 			manifest: { type: "string" },
+			"dry-run": { type: "boolean", default: false },
 		},
 	});
 	const command = positionals[0] ?? "scan";
 	if (
-		!["scan", "file", "notice", "resume", "rerun", "export", "import", "validate"].includes(command)
+		![
+			"scan",
+			"file",
+			"notice",
+			"resume",
+			"rerun",
+			"export",
+			"import",
+			"validate",
+			"migrate-pages",
+			"cleanup-page-objects",
+		].includes(command)
 	) {
 		throw new Error("Unknown OCR command");
 	}
@@ -41,17 +54,35 @@ export async function main() {
 	process.once("SIGTERM", stop);
 	process.once("SIGINT", stop);
 	try {
-		const outcome = await withOcrLock(pool, async (store) => {
+		const outcome = await withOcrLock(pool, async (store, client) => {
+			if (command === "migrate-pages") {
+				return migratePages(client, objects, values["dry-run"]);
+			}
+			if (command === "cleanup-page-objects") {
+				return cleanupPageObjects(client, objects, values["dry-run"]);
+			}
 			if (command === "export") {
 				const task = await store.get(required(values.task, "--task"));
 				if (!task?.result) {
 					throw new Error("OCR task has no stored result");
 				}
 				const directory = resolve(required(values.directory, "--directory"), task.id);
-				for (const key of [
-					task.result.rawKey,
-					...task.result.pages.flatMap((page) => [page.markdownKey, ...page.images]),
+				const pages = await store.getPages(task.id);
+				for (const [relative, bytes] of [
+					["result.jsonl", await objects.getDerived(task.result.rawKey)] as const,
+					...pages.map(
+						(page) =>
+							[
+								`page-${String(page.index).padStart(3, "0")}.md`,
+								new TextEncoder().encode(page.markdown),
+							] as const,
+					),
 				]) {
+					const path = resolve(directory, relative);
+					await mkdir(dirname(path), { recursive: true });
+					await writeFile(path, bytes);
+				}
+				for (const key of pages.flatMap((page) => page.images)) {
 					const relative = key.slice(`ocr/tasks/${task.id}/`.length);
 					const path = resolve(directory, relative);
 					await mkdir(dirname(path), { recursive: true });
@@ -151,6 +182,9 @@ export async function main() {
 			}
 			return { newSubmissions };
 		});
+		if (outcome === null && ["migrate-pages", "cleanup-page-objects"].includes(command)) {
+			throw new Error("OCR runner already active; page migration/cleanup was not executed");
+		}
 		console.log(JSON.stringify({ summary: outcome ?? { skipped: "OCR runner already active" } }));
 	} finally {
 		process.off("SIGTERM", stop);

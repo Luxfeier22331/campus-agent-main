@@ -10,8 +10,8 @@ Ops Web 和 OCR Job 各自选择图片/PDF 并映射为 `OcrInput`，再交给�
 - Provider 固定为 `paddleocr`，协议 `paddleocr.jobs`，模型 `PaddleOCR-VL-1.6`。
 - 任务放在统一数据库的 `ocr.tasks`，DDL 由 `campus-agent-schema` 负责。
 - 密钥只由 Model Config 加密保存，任务只记录目标、选项和配置更新时间。
-- 原始 JSONL、按顺序的 Markdown 与 Markdown 引用图片保存在 derived bucket 的
-  `ocr/tasks/<id>/`；本地上传输入位于 `ocr/inputs/`。不保存供应商调试图片。
+- 原始 JSONL 与 Markdown 引用图片保存在 derived bucket 的 `ocr/tasks/<id>/`；页面正文和页序保存在
+  数据库 `ocr.pages`。本地上传输入位于 `ocr/inputs/`。不保存供应商调试图片。
 - Markdown 保留 HTML 表格。Ops 使用已有人员认证、同源校验和安全 HTML 渲染。
 
 ## 异步行为
