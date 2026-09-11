@@ -51,8 +51,8 @@ func TestInvalidCompletedResponseRetainsPreviouslyVisibleDelta(t *testing.T) {
 			}
 			synthesis := temporalruntime.SynthesizeAnswerActivityInput{
 				WorkflowOperationActivityInputBase: base,
-				Plan:                               *planned.Plan, CompletedSteps: []temporalruntime.WorkflowCompletedStep{*step.CompletedStep},
-				Evidence: step.Evidence, AnswerMode: "grounded",
+				SourceAttempts:                     step.SourceAttempts,
+				Evidence:                           step.Evidence, AnswerMode: "grounded",
 			}
 			allowCompleted := make(chan struct{})
 			defer close(allowCompleted)

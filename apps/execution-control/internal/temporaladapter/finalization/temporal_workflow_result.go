@@ -30,7 +30,6 @@ func WorkflowFinalizationResultMap(
 		"admission_snapshot_sha256": execution.SHA256JSONRef(input.AdmissionSnapshot),
 		"workflow_result_ref":       output.WorkflowResultRef,
 		"agent_runtime_release":     output.RuntimeRelease,
-		"context_usage":             execution.CloneAnyMapFromValue(output.ContextUsage),
 		"final_output":              output.FinalOutput,
 		"solve_outcome":             output.SolveOutcome,
 		"answer_mode":               output.AnswerMode,
@@ -58,9 +57,6 @@ func WorkflowFinalizationResultMap(
 	if output.Evidence != nil {
 		result["evidence"] = append([]temporalruntime.WorkflowEvidence{}, output.Evidence...)
 	}
-	if output.StructuredOutput != nil {
-		result["structured_output"] = execution.CloneAnyMapFromValue(output.StructuredOutput)
-	}
 	if output.SourceAttempts != nil {
 		result["source_attempts"] = append([]temporalruntime.WorkflowSourceAttempt{}, output.SourceAttempts...)
 	}
@@ -75,12 +71,11 @@ func WorkflowToolResultMap(
 	durationMS float64,
 ) map[string]any {
 	toolResult := map[string]any{
-		"arguments_json": execution.CloneAnyMapFromValue(result.ArgumentsJSON),
-		"duration_ms":    durationMS,
-		"invocation_id":  result.InvocationID,
-		"result":         execution.CloneAnyMapFromValue(result.Result),
-		"status":         result.Status,
-		"tool_name":      result.ToolName,
+		"duration_ms":   durationMS,
+		"invocation_id": result.InvocationID,
+		"result":        execution.CloneAnyMapFromValue(result.Result),
+		"status":        result.Status,
+		"tool_name":     result.ToolName,
 	}
 	if result.StartedAt != nil {
 		toolResult["started_at"] = result.StartedAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)

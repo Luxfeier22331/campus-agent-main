@@ -175,7 +175,7 @@ func ToolExecutionWorkflow(
 		}
 		return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", failureCode, errors.New("search ended without usable evidence or a successful no-match result"))
 	}
-	synthesis, err := executeSynthesizeAnswer(ctx, activityOptions, input, plan, completedSteps, evidence, answerMode)
+	synthesis, err := executeSynthesizeAnswer(ctx, activityOptions, input, completedSteps, evidence, answerMode)
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
 			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
@@ -303,7 +303,7 @@ func executeSolveTask(
 	input ToolExecutionWorkflowInput,
 ) (WorkflowOperationActivityOutput, error) {
 	var output WorkflowOperationActivityOutput
-	err := workflow.ExecuteActivity(
+	err := executeBoundedActivity(
 		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
 		SolveTaskActivityName,
 		SolveTaskActivityInput{
@@ -324,7 +324,7 @@ func executeTaskStep(
 	citationStart int,
 ) (WorkflowOperationActivityOutput, error) {
 	var output WorkflowOperationActivityOutput
-	err := workflow.ExecuteActivity(
+	err := executeBoundedActivity(
 		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
 		ExecuteTaskStepActivityName,
 		ExecuteTaskStepActivityInput{
@@ -348,7 +348,7 @@ func executeReplanTask(
 	replanIndex int,
 ) (WorkflowOperationActivityOutput, error) {
 	var output WorkflowOperationActivityOutput
-	err := workflow.ExecuteActivity(
+	err := executeBoundedActivity(
 		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
 		ReplanTaskActivityName,
 		ReplanTaskActivityInput{
@@ -367,20 +367,19 @@ func executeSynthesizeAnswer(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
 	input ToolExecutionWorkflowInput,
-	plan WorkflowTaskPlan,
 	completedSteps []WorkflowCompletedStep,
 	evidence []WorkflowEvidence,
 	answerMode string,
 ) (WorkflowOperationActivityOutput, error) {
 	var output WorkflowOperationActivityOutput
-	err := workflow.ExecuteActivity(
+	err := executeBoundedActivity(
 		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
 		SynthesizeAnswerActivityName,
 		SynthesizeAnswerActivityInput{
 			AnswerMode:                         answerMode,
 			WorkflowOperationActivityInputBase: workflowOperationActivityInputBase(input),
-			Plan:                               plan,
-			CompletedSteps:                     append([]WorkflowCompletedStep{}, completedSteps...),
+			SourceAttempts:                     WorkflowCompletedSourceAttempts(completedSteps),
+			RemainingFacts:                     WorkflowRemainingFactsForSynthesis(completedSteps),
 			Evidence:                           append([]WorkflowEvidence{}, evidence...),
 		},
 	).Get(ctx, &output)
@@ -395,7 +394,7 @@ func executeWorkflowFinalization(
 	finalizationOptions := unlimitedFinalizerActivityOptions(30 * time.Second)
 	finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
 	var output WorkflowFinalizationActivityOutput
-	err := workflow.ExecuteActivity(finalizationCtx, WriteWorkflowFinalizationActivityName, input).Get(ctx, &output)
+	err := executeBoundedActivity(finalizationCtx, WriteWorkflowFinalizationActivityName, input).Get(ctx, &output)
 	return output, err
 }
 
@@ -452,26 +451,27 @@ func canonicalCompletedWorkflowStep(
 	want WorkflowTaskPlanStep,
 	executionIndex int,
 ) (WorkflowCompletedStep, error) {
-	if output.CompletedStep == nil {
-		return WorkflowCompletedStep{}, errors.New("executor returned no completed step")
+	completed := WorkflowCompletedStep{
+		Step: want, ExecutionIndex: executionIndex, Summary: output.FinalOutput,
+		RemainingFacts: append([]string{}, output.RemainingFacts...),
+		Evidence:       append([]WorkflowEvidence{}, output.Evidence...),
+		SourceAttempts: append([]WorkflowSourceAttempt{}, output.SourceAttempts...),
 	}
-	completed := *output.CompletedStep
+	if strings.TrimSpace(completed.Summary) == "" {
+		return WorkflowCompletedStep{}, errors.New("executor summary is empty")
+	}
 	if err := ValidateWorkflowStepOutcome(completed); err != nil {
 		return WorkflowCompletedStep{}, err
 	}
-	if completed.Step.ID != want.ID || strings.TrimSpace(completed.Summary) == "" {
-		return WorkflowCompletedStep{}, errors.New("executor completed step identity is invalid")
-	}
-	completed.Step = want
-	completed.ExecutionIndex = executionIndex
-	completed.Evidence = append([]WorkflowEvidence{}, output.Evidence...)
-	if len(completed.Evidence) == 0 {
-		completed.Evidence = append([]WorkflowEvidence{}, output.CompletedStep.Evidence...)
-	}
-	if len(completed.SourceAttempts) == 0 {
-		completed.SourceAttempts = append([]WorkflowSourceAttempt{}, output.SourceAttempts...)
-	}
 	return completed, nil
+}
+
+func WorkflowRemainingFactsForSynthesis(completed []WorkflowCompletedStep) []WorkflowRemainingFacts {
+	result := make([]WorkflowRemainingFacts, 0, len(completed))
+	for _, item := range completed {
+		result = append(result, WorkflowRemainingFacts{Objective: item.Step.Objective, Facts: append([]string{}, item.RemainingFacts...)})
+	}
+	return result
 }
 
 func mergeWorkflowEvidence(
@@ -578,7 +578,7 @@ func PersonalMemoryCommandWorkflow(
 	}
 	finalizerOptions := unlimitedFinalizerActivityOptions(15 * time.Second)
 	finalizerCtx := workflow.WithActivityOptions(ctx, finalizerOptions)
-	if err := workflow.ExecuteActivity(
+	if err := executeBoundedActivity(
 		finalizerCtx,
 		FinalizePersonalMemoryCommandReceiptActivityName,
 		FinalizePersonalMemoryCommandReceiptActivityInput{Command: input.Command, Result: result},
@@ -587,7 +587,7 @@ func PersonalMemoryCommandWorkflow(
 	}
 	callbackOptions := unlimitedFinalizerActivityOptions(15 * time.Second)
 	callbackCtx := workflow.WithActivityOptions(ctx, callbackOptions)
-	if err := workflow.ExecuteActivity(
+	if err := executeBoundedActivity(
 		callbackCtx,
 		WritePersonalMemoryCommandResultActivityName,
 		result,
@@ -605,7 +605,7 @@ func executePersonalMemoryCommandProvider(
 ) error {
 	for {
 		providerCtx := workflow.WithActivityOptions(ctx, options)
-		err := workflow.ExecuteActivity(
+		err := executeBoundedActivity(
 			providerCtx,
 			ExecutePersonalMemoryCommandActivityName,
 			command,
@@ -674,7 +674,7 @@ func finalizeExecutionFailure(
 		MaximumAttempts:    0,
 	}
 	finalizerCtx := workflow.WithActivityOptions(ctx, options)
-	return workflow.ExecuteActivity(finalizerCtx, FinalizeExecutionFailureActivityName, FinalizeExecutionFailureActivityInput{
+	return executeBoundedActivity(finalizerCtx, FinalizeExecutionFailureActivityName, FinalizeExecutionFailureActivityInput{
 		FailureKind: workflowFailureKind(cause, fallbackKind),
 		FailedAt:    workflow.Now(ctx).UTC(),
 		RequestID:   input.RequestID,
@@ -703,7 +703,7 @@ func finalizeWorkflowCancellation(
 		MaximumInterval:    30 * time.Second,
 		MaximumAttempts:    0,
 	}
-	err := workflow.ExecuteActivity(
+	err := executeBoundedActivity(
 		workflow.WithActivityOptions(disconnectedCtx, options),
 		FinalizeExecutionCancellationActivityName,
 		FinalizeExecutionCancellationActivityInput{
@@ -770,7 +770,7 @@ func executeMemoryAppend(
 		memoryActivityOptions(activityOptions, input.PersonalMemoryTimeoutSeconds),
 	)
 	var appendResult AppendConversationMemoryActivityOutput
-	return workflow.ExecuteActivity(
+	return executeBoundedActivity(
 		contextCtx,
 		AppendConversationMemoryActivityName,
 		AppendConversationMemoryActivityInput{

@@ -22,6 +22,7 @@ const LIGHT_SURFACES: LightSurface[] = ["contracts", "config"];
 
 export interface ValidationPlan {
 	affectedPackages: string[];
+	images: string[];
 	base: string;
 	head: string;
 	lightSurfaces: LightSurface[];
@@ -114,6 +115,7 @@ export function validationPlanFromScope(
 	};
 	return {
 		affectedPackages: selectAffectedPackages(scope),
+		images: imageTargetsForScope(scope),
 		base: scope.base,
 		head: scope.head,
 		lightSurfaces: selectLightSurfaces(scope.changedFiles),

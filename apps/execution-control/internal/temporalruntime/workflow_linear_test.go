@@ -171,7 +171,7 @@ func TestToolExecutionWorkflowRunsSolveExecutorAndSynthesizerInOrder(t *testing.
 		Run(func(mock.Arguments) { sequence = append(sequence, "execute_step") }).
 		Return(workflowStepOutput(input.RequestID, step, "查到通知。", []WorkflowEvidence{evidence}, []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "matched"}}), nil).Once()
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-		return actual.RequestID == input.RequestID && len(actual.CompletedSteps) == 1 &&
+		return actual.RequestID == input.RequestID && len(actual.RemainingFacts) == 1 &&
 			len(actual.Evidence) == 1 && actual.Evidence[0].ID == evidence.ID
 	})).
 		Run(func(mock.Arguments) { sequence = append(sequence, "synthesize") }).
@@ -275,8 +275,8 @@ func TestToolExecutionWorkflowFollowsMultipleStepDependencies(t *testing.T) {
 			Return(workflowStepOutput(input.RequestID, step, step.Objective+"完成。", []WorkflowEvidence{evidence}, []WorkflowSourceAttempt{{Source: step.CandidateSources[0], Status: "matched"}}), nil).Once()
 	}
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-		return len(actual.CompletedSteps) == 3 && actual.CompletedSteps[0].Step.ID == first.ID &&
-			actual.CompletedSteps[1].Step.ID == second.ID && actual.CompletedSteps[2].Step.ID == third.ID
+		return len(actual.RemainingFacts) == 3 && actual.RemainingFacts[0].Objective == first.Objective &&
+			actual.RemainingFacts[1].Objective == second.Objective && actual.RemainingFacts[2].Objective == third.Objective
 	})).Return(workflowSynthesisOutput(input.RequestID, "依赖顺序答案。", []WorkflowEvidence{evidence}), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).
 		Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
@@ -316,7 +316,7 @@ func TestToolExecutionWorkflowContinuesToWebSearchAfterCampusNoMatch(t *testing.
 		Run(func(mock.Arguments) { steps = append(steps, webStep.ID) }).
 		Return(workflowStepOutput(input.RequestID, webStep, "公开网页找到资料。", []WorkflowEvidence{webEvidence}, []WorkflowSourceAttempt{{Source: WorkflowSourceWebSearch, Status: "matched"}}), nil).Once()
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-		return len(actual.CompletedSteps) == 2 && len(actual.Evidence) == 1 && actual.Evidence[0].Source == WorkflowSourceWebSearch
+		return len(actual.RemainingFacts) == 2 && len(actual.Evidence) == 1 && actual.Evidence[0].Source == WorkflowSourceWebSearch
 	})).Return(workflowSynthesisOutput(input.RequestID, "基于公开资料的答案。", []WorkflowEvidence{webEvidence}), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
@@ -380,10 +380,9 @@ func TestToolExecutionWorkflowPreservesEvidenceAfterStepFailureAndContinues(t *t
 		Run(func(mock.Arguments) { sequence = append(sequence, "last") }).
 		Return(workflowStepOutput(input.RequestID, last, "补充资料完成。", []WorkflowEvidence{lastEvidence}, []WorkflowSourceAttempt{{Source: WorkflowSourceWebSearch, Status: "matched"}}), nil).Once()
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-		return len(actual.CompletedSteps) == 3 &&
-			actual.CompletedSteps[1].Step.ID == failed.ID &&
-			actual.CompletedSteps[1].Evidence != nil && len(actual.CompletedSteps[1].Evidence) == 0 &&
-			actual.CompletedSteps[1].Failure != nil && actual.CompletedSteps[1].Failure.Code == "agent_deadline_exceeded" &&
+		return len(actual.RemainingFacts) == 3 &&
+			actual.RemainingFacts[1].Objective == failed.Objective &&
+			len(actual.RemainingFacts[1].Facts) == 1 &&
 			len(actual.Evidence) == 2 && actual.Evidence[0].ID == firstEvidence.ID && actual.Evidence[1].ID == lastEvidence.ID
 	})).
 		Run(func(mock.Arguments) { sequence = append(sequence, "synthesize") }).
@@ -431,8 +430,8 @@ func TestToolExecutionWorkflowSynthesizesExistingEvidenceAfterTimedOutStep(t *te
 		return actual.Step.ID == second.ID
 	})).Return(WorkflowOperationActivityOutput{}, temporal.NewNonRetryableApplicationError("agent runtime timed out", "agent_deadline_exceeded", nil)).Once()
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-		return len(actual.CompletedSteps) == 2 && actual.CompletedSteps[1].Step.ID == second.ID &&
-			actual.CompletedSteps[1].Failure != nil && actual.CompletedSteps[1].Failure.Code == "agent_deadline_exceeded" &&
+		return len(actual.RemainingFacts) == 2 && actual.RemainingFacts[1].Objective == second.Objective &&
+			len(actual.RemainingFacts[1].Facts) == 1 &&
 			len(actual.Evidence) == 1 && actual.Evidence[0].ID == evidence.ID
 	})).Return(workflowSynthesisOutput(input.RequestID, "仅基于已取得资料的答案。", []WorkflowEvidence{evidence}), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
@@ -521,7 +520,7 @@ func TestToolExecutionWorkflowReplansAfterFinalCampusSearchMissOrFailure(t *test
 				Run(func(mock.Arguments) { sequence = append(sequence, "web") }).
 				Return(workflowStepOutput(input.RequestID, webStep, "公开网页找到资料。", []WorkflowEvidence{webEvidence}, []WorkflowSourceAttempt{{Source: WorkflowSourceWebSearch, Status: "matched"}}), nil).Once()
 			env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-				return len(actual.CompletedSteps) == 2 && len(actual.Evidence) == 1 &&
+				return len(actual.RemainingFacts) == 2 && len(actual.Evidence) == 1 &&
 					actual.Evidence[0].Source == WorkflowSourceWebSearch
 			})).
 				Run(func(mock.Arguments) { sequence = append(sequence, "synthesize") }).
@@ -567,7 +566,7 @@ func TestToolExecutionWorkflowReplannerCanReplaceRemainingPath(t *testing.T) {
 			len(actual.Plan.Steps) == 2 && actual.Plan.Steps[0].ID == first.ID && actual.Plan.Steps[1].ID == newSecond.ID
 	})).Return(workflowStepOutput(input.RequestID, newSecond, "新路径完成。", nil, []WorkflowSourceAttempt{{Source: WorkflowSourceWebSearch, Status: "matched"}}), nil).Once()
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-		return len(actual.CompletedSteps) == 2 && actual.CompletedSteps[1].Step.ID == newSecond.ID
+		return len(actual.RemainingFacts) == 2 && actual.RemainingFacts[1].Objective == newSecond.Objective
 	})).Return(workflowSynthesisOutput(input.RequestID, "重规划后的答案。", nil), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
@@ -654,7 +653,7 @@ func TestToolExecutionWorkflowReplannerCanEndSearchAndSynthesize(t *testing.T) {
 		Return(workflowStepOutput(input.RequestID, first, "校内来源没有匹配结果。", nil, []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "no_match"}}), nil).Once()
 	env.OnActivity(ReplanTaskActivityName, mock.Anything, mock.Anything).Return(workflowReplanOutput(input.RequestID, "insufficient", "检索无匹配结果。", nil), nil).Once()
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-		return len(actual.CompletedSteps) == 1 && actual.CompletedSteps[0].Step.ID == first.ID
+		return len(actual.RemainingFacts) == 1 && actual.RemainingFacts[0].Objective == first.Objective
 	})).Return(workflowSynthesisOutput(input.RequestID, "提前合成的答案。", nil), nil).Once()
 	env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 	env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
@@ -943,7 +942,7 @@ func workflowStepOutput(
 		RequestID:      requestID,
 		Status:         "completed",
 		FinalOutput:    summary,
-		CompletedStep:  &completed,
+		RemainingFacts: completed.RemainingFacts,
 		Evidence:       append([]WorkflowEvidence{}, evidence...),
 		SourceAttempts: append([]WorkflowSourceAttempt{}, attempts...),
 	}

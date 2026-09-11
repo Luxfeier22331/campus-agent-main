@@ -1,12 +1,12 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type {
-	CompletedTaskStep,
 	TaskPlan,
 	TaskReplan,
 	WorkflowEvidence,
 	WorkflowOperationResult,
 	WorkflowOperationStreamEvent,
 } from "./agent-run-contract.ts";
+import { encodeOperationPayload } from "./operation-payload.ts";
 import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
 export function agentRunStreamResponse(
@@ -37,6 +37,7 @@ export function agentRunStreamResponse(
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
 			let exhausted = false;
+			let provisionalDeltaSent = false;
 			try {
 				for (;;) {
 					const item = await iterator.next();
@@ -58,10 +59,12 @@ export function agentRunStreamResponse(
 						continue;
 					}
 					if (event.event === "answer_delta") {
+						provisionalDeltaSent = true;
 						controller.enqueue(
 							encodeSseEvent("answer_delta", {
-								schema_version: "workflow_runtime_answer_delta.v1",
+								schema_version: "workflow_runtime_answer_delta.v2",
 								delta: event.data.delta,
+								provisional: true,
 							}),
 						);
 						continue;
@@ -74,6 +77,14 @@ export function agentRunStreamResponse(
 			} catch (error) {
 				options.onError?.(error);
 				if (!cancelled) {
+					if (provisionalDeltaSent) {
+						controller.enqueue(
+							encodeSseEvent("answer_invalidated", {
+								schema_version: "workflow_runtime_answer_invalidation.v1",
+								reason: "terminal_result_unavailable",
+							}),
+						);
+					}
 					controller.enqueue(
 						encodeSseEvent("error", {
 							...agentRuntimeErrorPayload(
@@ -109,7 +120,7 @@ export function agentRunStreamResponse(
 }
 
 export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelease: string) {
-	return {
+	const payload = {
 		operation: result.operation,
 		status: result.status,
 		request_id: result.requestId,
@@ -138,12 +149,9 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 		final_output: result.finalOutput,
 		...(result.answerMode ? { answer_mode: result.answerMode } : {}),
 		...(result.solveOutcome === undefined ? {} : { solve_outcome: result.solveOutcome }),
-		...(result.structuredOutput === undefined
-			? {}
-			: { structured_output: structuredOutputWire(result.structuredOutput) }),
-		...(result.completedStep === undefined
-			? {}
-			: { completed_step: completedStepWire(result.completedStep) }),
+		...(result.plan ? { plan: structuredOutputWire(result.plan) } : {}),
+		...(result.replan ? { replan: structuredOutputWire(result.replan) } : {}),
+		...(result.remainingFacts ? { remaining_facts: result.remainingFacts } : {}),
 		evidence: result.evidence.map(evidenceWire),
 		source_attempts: result.sourceAttempts.map((attempt) => ({
 			source: attempt.source,
@@ -200,6 +208,7 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 			usage_observed: result.usage.usageObserved,
 		},
 	};
+	return payload;
 }
 
 function structuredOutputWire(value: TaskPlan | TaskReplan): Record<string, unknown> {
@@ -224,24 +233,6 @@ function taskPlanStepWire(step: TaskPlan["steps"][number]) {
 		depends_on: step.dependsOn,
 		id: step.id,
 		objective: step.objective,
-	};
-}
-
-function completedStepWire(step: CompletedTaskStep) {
-	return {
-		evidence: step.evidence.map(evidenceWire),
-		execution_index: step.executionIndex,
-		source_attempts: step.sourceAttempts.map((attempt) => ({
-			source: attempt.source,
-			status: attempt.status,
-			...(attempt.failureCode ? { failure_code: attempt.failureCode } : {}),
-		})),
-		step: taskPlanStepWire(step.step),
-		summary: step.summary,
-		remaining_facts: step.remainingFacts,
-		...(step.failure
-			? { failure: { code: step.failure.code, operation: step.failure.operation } }
-			: {}),
 	};
 }
 
@@ -280,7 +271,7 @@ export function authorizedBearerValue(headerValue: string, sharedSecret: string)
 }
 
 export function jsonResponse(status: number, body: unknown): Response {
-	return new Response(JSON.stringify(body), {
+	return new Response(encodeOperationPayload(body), {
 		status,
 		headers: { "content-type": "application/json" },
 	});
@@ -291,5 +282,5 @@ export function errorMessage(error: unknown): string {
 }
 
 function encodeSseEvent(event: string, data: unknown): Uint8Array {
-	return new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+	return new TextEncoder().encode(`event: ${event}\ndata: ${encodeOperationPayload(data)}\n\n`);
 }

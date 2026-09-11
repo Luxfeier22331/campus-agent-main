@@ -54,7 +54,7 @@ func validateAgentInvocationReceipt(receipt AgentInvocationReceipt, completed bo
 		!validLowerHexSHA256(receipt.InputSHA256) || receipt.CreatedAt.IsZero() || receipt.UpdatedAt.IsZero() {
 		return fmt.Errorf("%w: invalid invocation receipt", ErrAgentInvocationConflict)
 	}
-	if completed && (!validLowerHexSHA256(receipt.OutputSHA256) || !json.Valid(receipt.OutputJSON) || receipt.CompletedAt.IsZero()) {
+	if completed && (!validLowerHexSHA256(receipt.OutputSHA256) || !json.Valid(receipt.OutputJSON) || len(receipt.OutputJSON) > MaxAgentInvocationOutputBytes || receipt.CompletedAt.IsZero()) {
 		return fmt.Errorf("%w: invalid completed invocation receipt", ErrAgentInvocationConflict)
 	}
 	return nil

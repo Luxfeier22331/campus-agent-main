@@ -11,11 +11,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-docker info >/dev/null
+docker version --format '{{.Server.Version}}' >/dev/null
 docker buildx inspect --bootstrap "$BUILDX_BUILDER" >/dev/null
 
 builder_json="$({ docker buildx ls --format '{{json .}}'; } | jq -s --arg builder "$BUILDX_BUILDER" '
-	[ .[] | select(.Name == $builder) | (.Nodes // []) ] as $node_sets
+	[ .[] | select(.Name == $builder and .Driver == "docker-container") | (.Nodes // []) ] as $node_sets
 	| if ($node_sets | length) > 0 then {Nodes: ($node_sets | add)} else error("runner-owned Buildx builder was not found") end
 ')"
 
@@ -31,13 +31,17 @@ if [[ -z "$available_bytes" || "$available_bytes" -lt "$required_free_space_byte
 	exit 1
 fi
 
-printf 'FROM scratch\n' >"$probe_directory/Dockerfile"
+printf 'FROM scratch\nCOPY probe /probe\n' >"$probe_directory/Dockerfile"
+printf 'runner cache export probe\n' >"$probe_directory/probe"
 docker buildx build \
 	--builder "$BUILDX_BUILDER" \
 	--platform linux/arm64 \
 	--file "$probe_directory/Dockerfile" \
 	--output "type=oci,dest=$probe_directory/probe.tar" \
+	--cache-to "type=local,dest=$probe_directory/cache,mode=max" \
 	"$probe_directory" >/dev/null
+
+test -s "$probe_directory/cache/index.json"
 
 tar -xOf "$probe_directory/probe.tar" index.json \
 	| jq -e '

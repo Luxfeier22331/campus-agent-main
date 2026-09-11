@@ -249,35 +249,10 @@ function validRunBody() {
 		operation: "synthesize" as const,
 		operation_input: {
 			answer_mode: "insufficient" as const,
-			completed_steps: [
-				{
-					step: {
-						id: "step.first",
-						objective: "资料",
-						candidate_sources: ["campus_search"],
-						depends_on: [],
-					},
-					execution_index: 1,
-					summary: "没有匹配",
-					remaining_facts: ["资料"],
-					evidence: [],
-					source_attempts: [{ source: "campus_search", status: "no_match" as const }],
-				},
-			],
+			source_attempts: [{ source: "campus_search", status: "no_match" as const }],
+			remaining_facts: [{ objective: "资料", facts: ["资料"] }],
 			evidence: [],
 			goal: "你好",
-			plan: {
-				schema_version: "task_plan.v1" as const,
-				goal: "你好",
-				steps: [
-					{
-						id: "step.first",
-						objective: "资料",
-						candidate_sources: ["campus_search"],
-						depends_on: [],
-					},
-				],
-			},
 		},
 		limits: {
 			agent_deadline_ms: 10_000,

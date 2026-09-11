@@ -44,6 +44,9 @@ func (s *ReceiptService) finish(ctx context.Context, receipt execution.AgentInvo
 	if err != nil {
 		return err
 	}
+	if err := execution.ValidateOperationPayloadBytes(encoded); err != nil {
+		return err
+	}
 	hash := sha256.Sum256(encoded)
 	receipt.OutputJSON = encoded
 	receipt.OutputSHA256 = hex.EncodeToString(hash[:])

@@ -31,7 +31,10 @@ function runnerSelector(hostedRunner: "ubuntu-24.04" | "ubuntu-24.04-arm"): stri
 // Exercise the workflow's boolean expressions against concrete event outcomes.
 function condition(expression: unknown, context: Record<string, unknown>): boolean {
 	return runInNewContext(
-		String(expression).replaceAll(".cache-matched-key", '["cache-matched-key"]'),
+		String(expression)
+			.replaceAll(".cache-matched-key", '["cache-matched-key"]')
+			.replaceAll(".cache-hit", '["cache-hit"]')
+			.replaceAll(".repository-validation", '["repository-validation"]'),
 		{
 			cancelled: () => false,
 			contains: (values: string[], value: string) => values.includes(value),
@@ -41,53 +44,89 @@ function condition(expression: unknown, context: Record<string, unknown>): boole
 	);
 }
 
-test("PR image caches are read only and selected only for eligible image builds", async () => {
-	const job = workflowJob(await loadWorkflow("pr.yml"), "repo-checks");
-	assert.deepEqual(job.permissions, {
-		contents: "read",
-		"pull-requests": "read",
-		packages: "read",
-	});
-	const login = namedStep(job, "Login for image cache reads");
-	assert(isObject(login.with));
-	assert.equal(login.with.password, githubExpression("github.token"));
-	for (const [hasImage, sameRepo, actor, cancelled, expected] of [
-		[true, true, "developer", false, true],
-		[false, true, "developer", false, false],
-		[true, false, "developer", false, false],
-		[true, true, "dependabot[bot]", false, false],
-		[true, true, "developer", true, false],
+test("image cache permissions are confined to mutually exclusive reusable jobs", async () => {
+	const workflow = await loadWorkflow("pr.yml");
+	const validation = workflowJob(workflow, "repository-validation");
+	assert.equal((validation.permissions as Record<string, string>).packages, "read");
+	const trusted = workflowJob(workflow, "image-evidence-trusted");
+	const readonly = workflowJob(workflow, "image-evidence-readonly");
+	assert.equal((trusted.permissions as Record<string, string>).packages, "write");
+	assert.equal((readonly.permissions as Record<string, string>).packages, "read");
+	assert.equal(trusted.uses, readonly.uses);
+	for (const [sameRepo, actor, author, cancelled, result, selected, expected] of [
+		[true, "developer", "developer", false, "success", true, [true, false]],
+		[false, "developer", "developer", false, "success", true, [false, true]],
+		[true, "developer", "dependabot[bot]", false, "success", true, [false, true]],
+		[true, "dependabot[bot]", "developer", false, "success", true, [false, true]],
+		[true, "developer", "developer", true, "success", true, [false, false]],
+		[true, "developer", "developer", false, "failure", true, [false, false]],
+		[true, "developer", "developer", false, "success", false, [false, false]],
 	] as const) {
-		assert.equal(
-			condition(login.if, {
-				cancelled: () => cancelled,
-				steps: { plan: { outputs: { has_image_build: String(hasImage) } } },
-				github: {
-					actor,
-					repository: "owner/source",
-					event: {
-						pull_request: {
-							head: { repo: { full_name: sameRepo ? "owner/source" : "fork/source" } },
-						},
+		const context = {
+			cancelled: () => cancelled,
+			needs: {
+				"repository-validation": { result, outputs: { has_image_build: String(selected) } },
+			},
+			github: {
+				actor,
+				repository: "owner/source",
+				event: {
+					pull_request: {
+						head: { repo: { full_name: sameRepo ? "owner/source" : "fork/source" } },
+						user: { login: author },
 					},
 				},
-			}),
-			expected,
-		);
+			},
+		};
+		assert.deepEqual([condition(trusted.if, context), condition(readonly.if, context)], expected);
 	}
-	const evidence = namedStep(job, "Run affected Node and image evidence");
-	assert(isObject(evidence.env));
+	const build = workflowJob(await loadWorkflow("pr-image-evidence.yml"), "build");
+	const builder = namedStep(build, "Setup Docker Buildx");
+	assert.equal((builder.with as Record<string, string>).driver, "docker-container");
 	assert.match(
-		String(evidence.env.CI_IMAGE_CACHE_REGISTRY),
-		/steps.login_image_cache.outcome == 'success'/u,
+		String((builder.with as Record<string, string>)["buildkitd-config-inline"]),
+		/max-parallelism = 2/u,
 	);
-	const summary = namedStep(job, "Summarize repository evidence");
-	assert(isObject(summary.env));
-	assert.match(String(summary.env.RESULTS), /steps.login_image_cache.outcome/u);
+	assert.equal(namedStep(build, "Login for image caches")["continue-on-error"], true);
+	assert(!jobSteps(build).some((step) => /pnpm install|pnpm check|turbo/u.test(String(step.run))));
+});
+
+test("required repo-checks rejects failures and unexpected image skips", async () => {
+	const gate = workflowJob(await loadWorkflow("pr.yml"), "repo-checks");
+	assert.deepEqual(gate.permissions, {});
+	assert.match(String(gate.if), /always\(\)/u);
+	const step = namedStep(gate, "Check all selected evidence");
+	for (const [validation, selected, trusted, readonly, passes] of [
+		["success", "false", "skipped", "skipped", true],
+		["success", "true", "success", "skipped", true],
+		["success", "true", "skipped", "success", true],
+		["success", "true", "skipped", "skipped", false],
+		["success", "true", "failure", "skipped", false],
+		["success", "true", "cancelled", "skipped", false],
+		["failure", "false", "skipped", "skipped", false],
+		["success", "", "skipped", "skipped", false],
+	] as const) {
+		const invoke = () =>
+			execFileSync("bash", ["-e", "-c", String(step.run)], {
+				env: {
+					...process.env,
+					VALIDATION_RESULT: validation,
+					IMAGE_SELECTED: selected,
+					TRUSTED_RESULT: trusted,
+					READONLY_RESULT: readonly,
+				},
+				stdio: "pipe",
+			});
+		if (passes) {
+			assert.doesNotThrow(invoke);
+		} else {
+			assert.throws(invoke);
+		}
+	}
 });
 
 test("pnpm caches restore before installs and save only successful installation state", async () => {
-	const job = workflowJob(await loadWorkflow("pr.yml"), "repo-checks");
+	const job = workflowJob(await loadWorkflow("pr.yml"), "repository-validation");
 	const steps = jobSteps(job);
 	const restore = namedStep(job, "Restore pnpm store");
 	const save = namedStep(job, "Save pnpm store");
@@ -144,7 +183,7 @@ test("pnpm caches restore before installs and save only successful installation 
 });
 
 test("pnpm caches save expanded installation scopes and reuse their saved keys on later runs", async () => {
-	const job = workflowJob(await loadWorkflow("pr.yml"), "repo-checks");
+	const job = workflowJob(await loadWorkflow("pr.yml"), "repository-validation");
 	const planStep = namedStep(job, "Generate pull request validation plan");
 	const save = namedStep(job, "Save pnpm store");
 	const scopeCommands = String(planStep.run).match(/(pnpm_install_scope=[\s\S]*?)\n\{/u)?.[1];
@@ -203,6 +242,90 @@ test("pnpm caches save expanded installation scopes and reuse their saved keys o
 	}
 });
 
+test("Go caches follow native selection and save fresh successful analysis only", async () => {
+	const job = workflowJob(await loadWorkflow("pr.yml"), "repository-validation");
+	const steps = jobSteps(job);
+	const restore = namedStep(job, "Restore Go and lint caches");
+	const native = namedStep(job, "Check execution-control native code");
+	const save = namedStep(job, "Save Go and lint caches");
+	assert(isObject(restore.with) && isObject(save.with));
+	assert.equal(save.with.path, restore.with.path);
+	assert.equal(save.with.key, githubExpression("steps.restore_go.outputs.cache-primary-key"));
+	assert.equal(
+		String(restore.with.key),
+		`${String(restore.with["restore-keys"]).trim()}${githubExpression("github.sha")}`,
+	);
+	assert.match(String(restore.with.key), /runner.arch/u);
+	assert.match(String(restore.with.key), /flake.lock/u);
+	assert.match(String(restore.with.key), /go.work/u);
+	assert.match(String(restore.with.key), /go.sum/u);
+	assert.match(String(restore.with.key), /golangci.yml/u);
+	assert(steps.indexOf(restore) < steps.indexOf(namedStep(job, "Lint repository")));
+	assert(steps.indexOf(save) > steps.indexOf(native));
+	assert.equal(restore["continue-on-error"], true);
+	assert.equal(save["continue-on-error"], true);
+	for (const [variable, directory] of [
+		["GOCACHE", "build"],
+		["GOMODCACHE", "mod"],
+		["GOLANGCI_LINT_CACHE", "lint"],
+	]) {
+		assert(
+			String(restore.with.path).includes(
+				`${githubExpression("runner.temp")}/go-cache/${directory}`,
+			),
+		);
+		assert(
+			String(namedStep(job, "Configure hosted Go caches").run).includes(
+				`${variable}=$RUNNER_TEMP/go-cache/${directory}`,
+			),
+		);
+	}
+	for (const [selected, cancelled, environment, plan, expected] of [
+		[true, false, "github-hosted", "success", true],
+		[false, false, "github-hosted", "success", false],
+		[true, true, "github-hosted", "success", false],
+		[true, false, "self-hosted", "success", false],
+		[true, false, "github-hosted", "failure", false],
+	] as const) {
+		assert.equal(
+			condition(restore.if, {
+				cancelled: () => cancelled,
+				runner: { environment },
+				steps: {
+					plan: {
+						outcome: plan,
+						outputs: {
+							validation_profiles: JSON.stringify(selected ? ["execution-control-native"] : []),
+						},
+					},
+				},
+			}),
+			expected,
+		);
+	}
+	for (const [hit, nativeOutcome, restoreOutcome, cancelled, expected] of [
+		["", "success", "success", false, true],
+		["false", "success", "success", false, true],
+		["true", "success", "success", false, false],
+		["false", "failure", "success", false, false],
+		["false", "skipped", "success", false, false],
+		["", "success", "failure", false, false],
+		["", "success", "skipped", false, false],
+		["false", "success", "success", true, false],
+	] as const) {
+		assert.equal(
+			condition(save.if, {
+				cancelled: () => cancelled,
+				steps: {
+					restore_go: { outcome: restoreOutcome, outputs: { "cache-hit": hit } },
+					execution_control_native: { outcome: nativeOutcome },
+				},
+			}),
+			expected,
+		);
+	}
+});
+
 test("timing reporter uses trusted code and read-only permissions after PR completion", async () => {
 	const workflow = await loadWorkflow("ci-timing-report.yml");
 	assert.deepEqual(workflow.permissions, { contents: "read", actions: "read" });
@@ -226,7 +349,7 @@ test("timing reporter uses trusted code and read-only permissions after PR compl
 test("workflow jq selects Node and image evidence from the plan profile array", async () => {
 	const workflow = await loadWorkflow("pr.yml");
 	const plan = namedStep(
-		workflowJob(workflow, "repo-checks"),
+		workflowJob(workflow, "repository-validation"),
 		"Generate pull request validation plan",
 	);
 	const expression = String(plan.run).match(/node_evidence_profiles="\$\(jq -c '([^']+)'/u)?.[1];
@@ -234,11 +357,8 @@ test("workflow jq selects Node and image evidence from the plan profile array", 
 	for (const [profiles, expected] of [
 		[[], []],
 		[["affected-node"], ["affected-node"]],
-		[["image-build"], ["image-build"]],
-		[
-			["affected-node", "container-build", "image-build"],
-			["affected-node", "image-build"],
-		],
+		[["image-build"], []],
+		[["affected-node", "container-build", "image-build"], ["affected-node"]],
 		[["container-build", "execution-control-native"], []],
 	]) {
 		const actual = execFileSync("jq", ["-c", expression], {
@@ -396,7 +516,7 @@ test("pull request validation keeps the shared required-check contract", async (
 		"synchronize",
 		"ready_for_review",
 	]);
-	const repoChecks = workflowJob(workflow, "repo-checks");
+	const repoChecks = workflowJob(workflow, "repository-validation");
 	assert.equal(repoChecks.if, "github.event.pull_request.draft == false");
 	assert.equal(repoChecks["runs-on"], runnerSelector("ubuntu-24.04-arm"));
 	assert.equal(namedStep(repoChecks, "Install Nix").if, "runner.environment != 'self-hosted'");
@@ -431,18 +551,18 @@ test("pull request validation keeps the shared required-check contract", async (
 	assert(isObject(summary.env));
 	assert.match(String(summary.env.RESULTS), /steps\.execution_control_native\.outcome/u);
 	assert.equal(
-		namedStep(repoChecks, "Run affected Node and image evidence").if,
-		"always() && steps.plan.outputs.node_evidence_profiles != '[]' && (\n  steps.plan.outputs.has_image_build == 'true' ||\n  steps.install_affected.outcome == 'success'\n)",
+		namedStep(repoChecks, "Run affected Node evidence").if,
+		"!cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.node_evidence_profiles != '[]' && steps.install_affected.outcome == 'success'",
 	);
 	assert.equal(
 		namedStep(repoChecks, "Run container build contract evidence").if,
-		"always() && steps.plan.outputs.has_container_build == 'true'",
+		"!cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.has_container_build == 'true'",
 	);
 	assert.equal(
-		namedStep(repoChecks, "Run affected Node and image evidence").shell,
-		"nix develop .#ci-release --command bash -e {0}",
+		namedStep(repoChecks, "Run affected Node evidence").shell,
+		"nix develop .#ci-core --command bash -e {0}",
 	);
-	const nodeAndImages = namedStep(repoChecks, "Run affected Node and image evidence");
+	const nodeAndImages = namedStep(repoChecks, "Run affected Node evidence");
 	assert(isObject(nodeAndImages.env));
 	assert.equal(
 		nodeAndImages.env.VALIDATION_PROFILES,
@@ -454,7 +574,7 @@ test("pull request validation keeps the shared required-check contract", async (
 
 test("Source diff consumers check out complete immutable history", async () => {
 	for (const [workflowName, jobName, persistCredentials] of [
-		["pr.yml", "repo-checks", false],
+		["pr.yml", "repository-validation", false],
 		["execution-runtime-publish.yml", "release-plan", true],
 	] as const) {
 		const workflow = await loadWorkflow(workflowName);
@@ -540,6 +660,12 @@ test("candidate publication keeps permissions, runners, and job dependencies exp
 	assert.equal(buildx.uses, "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c");
 	assert(isObject(buildx.with));
 	assert.equal(buildx.with["cache-binary"], false);
+	assert.equal(buildx.with.driver, "docker-container");
+	assert.match(String(buildx.with["buildkitd-config-inline"]), /max-parallelism = 2/u);
+	assert.equal(
+		namedStep(publishImages, "Verify runner-owned builder").if,
+		"runner.environment == 'self-hosted'",
+	);
 
 	const publishWorkers = workflowJob(workflow, "publish-workers");
 	assert.equal(publishWorkers.needs, "release-plan");

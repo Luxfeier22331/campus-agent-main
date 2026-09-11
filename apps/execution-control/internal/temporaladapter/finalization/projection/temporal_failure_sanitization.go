@@ -89,3 +89,17 @@ func SanitizedTemporalApplicationError(
 ) error {
 	return TemporalApplicationError(SummarizeTemporalFailure(kind), nonRetryable)
 }
+
+// SanitizedTemporalApplicationErrorWithDetails preserves bounded operational
+// facts for uncertain attempts without exposing provider payloads or secrets.
+func SanitizedTemporalApplicationErrorWithDetails(
+	kind string,
+	details map[string]string,
+	nonRetryable bool,
+) error {
+	summary := SummarizeTemporalFailure(kind)
+	if nonRetryable {
+		return temporal.NewNonRetryableApplicationError(summary.Message, summary.Kind, nil, details)
+	}
+	return temporal.NewApplicationErrorWithCause(summary.Message, summary.Kind, nil, details)
+}

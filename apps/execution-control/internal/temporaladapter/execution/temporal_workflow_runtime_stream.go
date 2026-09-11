@@ -36,9 +36,10 @@ func ReadAgentRuntimeSSEEvents(
 	handle func(AgentRuntimeSSEEvent) error,
 ) error {
 	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	scanner.Buffer(make([]byte, 0, 64*1024), execution.MaxAgentOperationPayloadBytes+1024)
 	eventName := ""
 	dataLines := make([]string, 0, 1)
+	dataSize := 0
 	flush := func() error {
 		if eventName == "" && len(dataLines) == 0 {
 			return nil
@@ -50,6 +51,9 @@ func ReadAgentRuntimeSSEEvents(
 			return fmt.Errorf("agent runtime SSE event %q data is required", eventName)
 		}
 		data := json.RawMessage(strings.Join(dataLines, "\n"))
+		if err := execution.ValidateOperationPayloadBytes(data); err != nil {
+			return err
+		}
 		if !json.Valid(data) {
 			return fmt.Errorf("agent runtime SSE event %q data is not valid JSON", eventName)
 		}
@@ -58,6 +62,7 @@ func ReadAgentRuntimeSSEEvents(
 		}
 		eventName = ""
 		dataLines = dataLines[:0]
+		dataSize = 0
 		return nil
 	}
 	for scanner.Scan() {
@@ -72,7 +77,15 @@ func ReadAgentRuntimeSSEEvents(
 		case strings.HasPrefix(line, "event:"):
 			eventName = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
 		case strings.HasPrefix(line, "data:"):
-			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+			value := strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " ")
+			if len(dataLines) > 0 {
+				dataSize++
+			}
+			dataSize += len(value)
+			if dataSize > execution.MaxAgentOperationPayloadBytes {
+				return &execution.OperationPayloadTooLargeError{Bytes: dataSize}
+			}
+			dataLines = append(dataLines, value)
 		case strings.HasPrefix(line, ":"):
 			continue
 		default:
@@ -80,6 +93,9 @@ func ReadAgentRuntimeSSEEvents(
 		}
 	}
 	if err := scanner.Err(); err != nil {
+		if errors.Is(err, bufio.ErrTooLong) {
+			return &execution.OperationPayloadTooLargeError{Bytes: execution.MaxAgentOperationPayloadBytes + 1}
+		}
 		return fmt.Errorf("read agent runtime stream: %w", err)
 	}
 	return flush()
@@ -179,6 +195,10 @@ func AgentRuntimeFailureFromResponse(statusCode int, response AgentRuntimeRespon
 }
 
 func WorkflowRuntimeFailureKind(cause error) string {
+	var sizeError *execution.OperationPayloadTooLargeError
+	if errors.As(cause, &sizeError) {
+		return "workflow_operation_payload_too_large"
+	}
 	var requestBuildError AgentRuntimeRequestBuildError
 	if errors.As(cause, &requestBuildError) {
 		return "agent_runtime_request_failed"
@@ -189,7 +209,7 @@ func WorkflowRuntimeFailureKind(cause error) string {
 			return "agent_runtime_unauthorized"
 		}
 		switch strings.TrimSpace(runtimeError.Code) {
-		case "invalid_request",
+		case "workflow_operation_payload_too_large", "invalid_request",
 			"context_budget_exceeded",
 			"agent_deadline_exceeded",
 			"max_turns_exceeded",
@@ -209,7 +229,7 @@ func WorkflowRuntimeFailureKind(cause error) string {
 	var applicationError AgentRuntimeApplicationError
 	if errors.As(cause, &applicationError) {
 		switch strings.TrimSpace(applicationError.Code) {
-		case "invalid_request",
+		case "workflow_operation_payload_too_large", "invalid_request",
 			"context_budget_exceeded",
 			"agent_deadline_exceeded",
 			"max_turns_exceeded",

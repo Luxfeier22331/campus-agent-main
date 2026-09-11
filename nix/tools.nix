@@ -12,6 +12,8 @@ let
   release =
     {
       x86_64 = {
+        nodeArch = "x64";
+        nodeHash = "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6";
         conftestArch = "x86_64";
         conftestHash = "sha256-lvwvvxHwr95RJWZHEn5vAKZM6Dmk2aChrvJCbA5vSz8=";
         kustomizeArch = "amd64";
@@ -24,6 +26,8 @@ let
         zizmorHash = "sha256-3ZbfBEpuhTjV9CN5D0U73QPUnlsrzDghSsxBovEpeDk=";
       };
       aarch64 = {
+        nodeArch = "arm64";
+        nodeHash = "6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2";
         conftestArch = "arm64";
         conftestHash = "sha256-O5w1Ij/jX5mI4VPN/7AUT5ESATBsdGdYtzvoKDHFQ9k=";
         kustomizeArch = "arm64";
@@ -43,6 +47,37 @@ let
   ];
 in
 rec {
+  # Use the official binary while nixpkgs lags the repository Node version.
+  # Return to nixpkgs when the matching version has Linux binary substitutes.
+  nodejs = stdenvNoCC.mkDerivation rec {
+    pname = "nodejs";
+    version = lib.removeSuffix "\n" (builtins.readFile ../.node-version);
+    src = pkgs.fetchurl {
+      url = "https://nodejs.org/dist/v${version}/node-v${version}-linux-${release.nodeArch}.tar.xz";
+      sha256 = release.nodeHash;
+    };
+    nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+    buildInputs = [ pkgs.stdenv.cc.cc.lib ];
+    dontBuild = true;
+    installPhase = ''
+      runHook preInstall
+      mkdir -p "$out"
+      cp -r bin lib include share "$out/"
+      runHook postInstall
+    '';
+    doInstallCheck = true;
+    installCheckPhase = ''
+      test "$("$out/bin/node" --version)" = "v${version}"
+    '';
+    meta = {
+      description = "Official Node.js binary";
+      homepage = "https://nodejs.org/";
+      license = lib.licenses.mit;
+      mainProgram = "node";
+      platforms = supportedPlatforms;
+    };
+  };
+
   conftest = stdenvNoCC.mkDerivation rec {
     pname = "conftest";
     version = "0.69.0";

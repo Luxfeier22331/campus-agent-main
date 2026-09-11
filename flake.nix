@@ -29,6 +29,7 @@
           packageJson = builtins.fromJSON (builtins.readFile ./package.json);
           pnpmVersion = nixpkgs.lib.removePrefix "pnpm@" packageJson.packageManager;
           tools = import ./nix/tools.nix { inherit pkgs; };
+          pnpmToolchain = pkgs.pnpm_11.override { nodejs-slim = tools.nodejs; };
           goModLines = pkgs.lib.splitString "\n" (builtins.readFile ./go.work);
           goLanguageDirective = pkgs.lib.findFirst (line: pkgs.lib.hasPrefix "go " line) null goModLines;
           goToolchainDirective = pkgs.lib.findFirst (line: pkgs.lib.hasPrefix "toolchain go" line) null goModLines;
@@ -57,27 +58,20 @@
           goToolchainPatch = builtins.elemAt goToolchainMatch 2;
           goToolchainVersion = "${goToolchainMajor}.${goToolchainMinor}.${goToolchainPatch}";
           goPackageAttribute = "go_${goLanguageMajor}_${goLanguageMinor}";
-          goBaseToolchain =
+          goToolchain =
             if goLanguageMajor != goToolchainMajor || goLanguageMinor != goToolchainMinor then
               throw "go.work go and toolchain versions must share major/minor"
             else if builtins.hasAttr goPackageAttribute pkgs then
               builtins.getAttr goPackageAttribute pkgs
             else
               throw "nixpkgs does not provide ${goPackageAttribute}";
-          goToolchain = goBaseToolchain.overrideAttrs (_: {
-            version = goToolchainVersion;
-            src = pkgs.fetchurl {
-              url = "https://go.dev/dl/go${goToolchainVersion}.src.tar.gz";
-              hash = "sha256-oHIcVMaIkBRI13rZs+x+p8R0cwdV/4kTgukuy5P/LLE=";
-            };
-          });
           corePackages = with pkgs; [
             gh
             gitMinimal
             gitleaks
             jq
-            nodejs_24
-            pnpm_11
+            tools.nodejs
+            pnpmToolchain
             ripgrep
           ];
           lightPackages = corePackages ++ (with pkgs; [
@@ -104,20 +98,26 @@
           ciCore = pkgs.mkShellNoCC { packages = corePackages; };
           ciLight = pkgs.mkShellNoCC { packages = lightPackages; };
           ciRelease = pkgs.mkShellNoCC { packages = releasePackages; };
-          ciFormat = pkgs.mkShellNoCC { packages = [ pkgs.golangci-lint ]; };
+          ciFormat = pkgs.mkShellNoCC {
+            packages = [ goToolchain pkgs.golangci-lint ];
+            GOTOOLCHAIN = "local";
+          };
           ciGo = pkgs.mkShellNoCC {
+            GOTOOLCHAIN = "local";
             packages = corePackages ++ [ goToolchain pkgs.golangci-lint ];
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
           };
           ciFull = pkgs.mkShellNoCC {
+            GOTOOLCHAIN = "local";
             packages = fullPackages;
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
           };
         in
-        assert pkgs.nodejs_24.version == nodeVersion;
-        assert pkgs.pnpm_11.version == pnpmVersion;
-        assert pkgs.golangci-lint.version == "2.12.2";
-        assert pkgs.trivy.version == "0.73.0";
+        assert goToolchain.version == goToolchainVersion;
+        assert tools.nodejs.version == nodeVersion;
+        assert pnpmToolchain.version == pnpmVersion;
+        assert pkgs.golangci-lint.version == "2.13.2";
+        assert pkgs.trivy.version == "0.74.0";
         {
           ci-core = ciCore;
           ci-light = ciLight;

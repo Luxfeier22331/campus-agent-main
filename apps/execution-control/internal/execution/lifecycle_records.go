@@ -125,3 +125,7 @@ type AgentInvocationReceipt struct {
 	CompletedAt  time.Time
 	UpdatedAt    time.Time
 }
+
+// MaxAgentInvocationOutputBytes bounds the recovery copy retained by a receipt.
+// It is intentionally a typed operation result, never a provider raw response.
+const MaxAgentInvocationOutputBytes = MaxAgentOperationPayloadBytes

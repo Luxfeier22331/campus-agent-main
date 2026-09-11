@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
@@ -17,6 +19,7 @@ const (
 	CampusSearchToolName         = "campus_search"
 	PersonalMemoryRecallToolName = "personal_memory_recall"
 	CampusSearchResultLimit      = campusdocs.SearchResultLimit
+	campusDocsIndexBindingKey    = "campus_docs_index_collection"
 )
 
 type AgentToolServiceOptions struct {
@@ -33,6 +36,7 @@ type AgentToolServiceOptions struct {
 }
 
 type AgentToolService struct {
+	indexBindingMu            sync.Mutex
 	campusDocsIndexStore      campusdocs.IndexStore
 	campusDocsIndexStoreError error
 	campusDocsSearcher        campusdocs.Searcher
@@ -113,7 +117,8 @@ func (s *AgentToolService) CampusSearch(
 	}
 	observe("received")
 	ctx = campusdocs.WithSearchObserver(ctx, &campusdocs.SearchObserver{Snapshot: snapshot, Phase: observe})
-	if _, err := s.validateRun(ctx, request.AccessContext, CampusSearchToolName); err != nil {
+	run, err := s.validateRun(ctx, request.AccessContext, CampusSearchToolName)
+	if err != nil {
 		return nil, err
 	}
 	if s.campusDocsIndexStore == nil {
@@ -128,6 +133,8 @@ func (s *AgentToolService) CampusSearch(
 	if s.campusDocsSearcher == nil {
 		return nil, errors.New("campus docs searcher is not configured")
 	}
+	s.indexBindingMu.Lock()
+	defer s.indexBindingMu.Unlock()
 	index, found, err := s.campusDocsIndexStore.CurrentIndex(ctx)
 	if err != nil {
 		return nil, err
@@ -135,6 +142,22 @@ func (s *AgentToolService) CampusSearch(
 	if !found {
 		return nil, errors.New("campus docs current index is not available")
 	}
+	boundCollection := execution.StringValue(run.Metadata[campusDocsIndexBindingKey])
+	if boundCollection != "" && boundCollection != index.Collection {
+		return nil, newAgentToolConflict(fmt.Errorf(
+			"campus docs index binding changed during run: bound=%s current=%s",
+			boundCollection,
+			index.Collection,
+		))
+	}
+	if boundCollection == "" {
+		metadata := execution.CloneAnyMapFromValue(run.Metadata)
+		metadata[campusDocsIndexBindingKey] = index.Collection
+		if err := s.store.ReplaceRunMetadata(ctx, run.RequestID, metadata); err != nil {
+			return nil, err
+		}
+	}
+	snapshot.IndexCollection = index.Collection
 	observe("index_loaded")
 	results, err := s.campusDocsSearcher.Search(
 		ctx,

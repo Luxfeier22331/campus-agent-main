@@ -51,6 +51,19 @@ func (applicationTestIndexStore) CurrentIndex(
 	return campusdocs.Index{Collection: "campus_docs_" + strings.Repeat("a", 64)}, true, nil
 }
 
+type switchingApplicationTestIndexStore struct {
+	collections []string
+	index       int
+}
+
+func (store *switchingApplicationTestIndexStore) CurrentIndex(context.Context) (campusdocs.Index, bool, error) {
+	collection := store.collections[store.index]
+	if store.index < len(store.collections)-1 {
+		store.index++
+	}
+	return campusdocs.Index{Collection: collection}, true, nil
+}
+
 type applicationTestSearcher struct{ query string }
 
 func (searcher *applicationTestSearcher) Search(
@@ -239,6 +252,69 @@ func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testi
 		},
 	}); !IsAgentToolConflict(err) {
 		t.Fatalf("stale attempt error = %v, want run conflict", err)
+	}
+}
+
+func TestAgentToolServiceRejectsIndexChangeWithinRun(t *testing.T) {
+	store, run, _ := applicationTestRunningRun(t, false)
+	indexStore := &switchingApplicationTestIndexStore{collections: []string{
+		"campus_docs_" + strings.Repeat("a", 64),
+		"campus_docs_" + strings.Repeat("b", 64),
+	}}
+	service := NewAgentToolService(AgentToolServiceOptions{
+		CampusDocsIndexStore: indexStore,
+		CampusDocsSearcher:   &applicationTestSearcher{},
+		Store:                store,
+	})
+	access := AgentToolAccessContext{
+		ActivityAttempt: 1, CitationStart: 1, InvocationID: "tool-index-race-1",
+		RequestID: run.RequestID, ResultLimit: 5, UserGoal: "查校务信息", WorkflowStepID: "task.step.step.lookup",
+	}
+	if _, err := service.CampusSearch(context.Background(), CampusSearchRequest{AccessContext: access, SearchQuery: "第一次"}); err != nil {
+		t.Fatalf("first search failed: %v", err)
+	}
+	access.InvocationID = "tool-index-race-2"
+	if _, err := service.CampusSearch(context.Background(), CampusSearchRequest{AccessContext: access, SearchQuery: "第二次"}); !IsAgentToolConflict(err) {
+		t.Fatalf("second search error = %v, want index binding conflict", err)
+	}
+}
+
+func TestAgentToolServiceSerializesConcurrentFirstIndexBinding(t *testing.T) {
+	store, run, _ := applicationTestRunningRun(t, false)
+	indexStore := &switchingApplicationTestIndexStore{collections: []string{
+		"campus_docs_" + strings.Repeat("a", 64),
+		"campus_docs_" + strings.Repeat("b", 64),
+	}}
+	service := NewAgentToolService(AgentToolServiceOptions{
+		CampusDocsIndexStore: indexStore,
+		CampusDocsSearcher:   &applicationTestSearcher{},
+		Store:                store,
+	})
+	base := AgentToolAccessContext{
+		ActivityAttempt: 1, CitationStart: 1, RequestID: run.RequestID, ResultLimit: 5,
+		UserGoal: "查校务信息", WorkflowStepID: "task.step.step.lookup",
+	}
+	errs := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func(index int) {
+			access := base
+			access.InvocationID = "tool-index-concurrent-" + string(rune('1'+index))
+			_, err := service.CampusSearch(context.Background(), CampusSearchRequest{AccessContext: access, SearchQuery: "并发检索"})
+			errs <- err
+		}(i)
+	}
+	var success, conflicts int
+	for i := 0; i < 2; i++ {
+		if err := <-errs; err == nil {
+			success++
+		} else if IsAgentToolConflict(err) {
+			conflicts++
+		} else {
+			t.Fatalf("concurrent search error = %v", err)
+		}
+	}
+	if success != 1 || conflicts != 1 {
+		t.Fatalf("concurrent binding outcomes success=%d conflicts=%d, want 1/1", success, conflicts)
 	}
 }
 

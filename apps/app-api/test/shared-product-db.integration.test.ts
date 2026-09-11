@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { createHash } from "node:crypto";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
@@ -560,7 +561,52 @@ describe("app-api shared product DB integration", () => {
 				expect(await recordTtft()).toBe(true);
 				await finalize();
 			} else if (order === "finalization_first") {
-				await finalize();
+				const responseJson = JSON.stringify({
+					answer_text: "国家奖学金每学年评审一次。",
+					error: null,
+					model_usage: {
+						cached_input_tokens: 0,
+						input_tokens: 1,
+						output_tokens: 1,
+						total_tokens: 2,
+					},
+					result: null,
+					observability: null,
+					stage_timing: { "workflow.first_delta_ms": 600 },
+					status: "completed",
+				});
+				const callback = (json = responseJson, at = completedAt) =>
+					app.request(`/api/internal/execution/requests/${requestId}/product-finalization`, {
+						method: "PUT",
+						headers: {
+							"content-type": "application/json",
+							"x-app-product-callback-auth": env.APP_API_EXECUTION_SHARED_SECRET ?? "",
+						},
+						body: JSON.stringify({
+							completed_at: at,
+							finalization_fingerprint: createHash("sha256")
+								.update(`${requestId}\0${json}`)
+								.digest("hex"),
+							response_json: json,
+						}),
+					});
+				const first = await callback();
+				expect(first.status, await first.clone().text()).toBe(200);
+				expect(await first.json()).toEqual({ outcome: "applied" });
+				// A callback may be repeated after execution-control's event or CAS
+				// write fails. PostgreSQL must preserve one product completion.
+				const replays = await Promise.all([callback(), callback()]);
+				for (const replay of replays) {
+					expect(replay.status).toBe(200);
+					expect(await replay.json()).toEqual({ outcome: "replayed" });
+				}
+				expect((await callback(responseJson, "2026-07-16T04:00:05.000Z")).status).toBe(409);
+				expect((await callback(responseJson.replace("每学年", "每学期"))).status).toBe(409);
+				const messages = await dbClient.query<{ count: string }>(
+					'select count(*)::text as count from "chat"."messages" where "conversation_id" = $1 and "role" = $2',
+					[conversationId, "assistant"],
+				);
+				expect(messages.rows[0]?.count).toBe("1");
 				expect(await recordTtft()).toBe(true);
 			} else {
 				const staleFinalization = await buildFinalization();

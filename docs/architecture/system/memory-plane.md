@@ -95,6 +95,11 @@ execution-control 可以保存 bank/document identity、generation fence 和 com
 student run-step 不得保存原始 bank/document/operation ID、provider payload 或 memory 正文；允许保存
 公共状态、计数、hash、timing 和 failure kind。
 
+Agent Activity 的有界恢复输出允许在 evidence excerpt 中携带最多 4000 个 Unicode codepoint 的
+memory 正文，供后续模型 operation 消费。工具摘要只携带 outcome；不重复保存 memory_text，
+也不把工具原始 arguments、debug 和 failure detail 写入 Temporal history 或 receipt。
+这份执行恢复载荷不属于浏览器或 student run-step 投影，随父 run 生命周期保留和删除。
+
 Langfuse Agent trace 可以记录实际可见工具名和有界结果状态，但不记录 Hindsight metadata、
 `memory_text`、工具输入输出或模型输入输出。Hindsight 不发送新的 Langfuse trace；具体字段边界见
 [Langfuse 运行合同](../../contracts/langfuse-runtime.md)。

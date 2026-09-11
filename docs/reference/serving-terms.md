@@ -105,7 +105,8 @@ Docs section 由 reader heading 路径或标题前正文形成，并绑定文档
 
 PostgreSQL `campus_docs_serving.current_index` 的单行记录，只保存当前 collection 名；该表名沿用历史
 schema 命名。唯一写入者是 `jobs/campus-rag-index-publisher`，而不是 Docs 或 Notice builder。execution-control
-不在在线 run 准入时读取它；`campus_search` 执行时读取当前绑定。数据库不保存索引历史、查询定义或
+不在在线 run 准入时读取它；一次在线 run 的首次 `campus_search` 读取并记录 immutable collection binding，
+同一 run 后续检索必须复用该 binding。数据库不保存索引历史、查询定义或
 重复的不可变索引记录。
 
 ### 索引发布

@@ -510,4 +510,45 @@ describe("chat command durable runtime cutover", () => {
 		});
 		expect(finalWrites).toHaveLength(1);
 	});
+
+	it("returns immediately after observing terminal finalization", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const listRunEvents = vi.fn().mockResolvedValueOnce(
+			durableEventPage([
+				durableEvent({
+					eventId: "event-terminal-first",
+					eventType: "finalization.completed",
+					occurredAt: "2026-06-04T01:02:04.000Z",
+					payload: { request_id: "req_0001", response: answerResponsePayload() },
+					sequence: 1,
+					visibility: "internal",
+				}),
+			]),
+		);
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue(durableRun()),
+			getRun: vi.fn(),
+			listRunEvents,
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			durableEventPolling: { maxAttempts: 36 },
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		await service.submit({
+			payload: { conversationId: "conv_01HQ", prompt: "示例大学本科学生国家奖学金评审办法" },
+			principal: createPrincipal(),
+			requestKind: "public_chat",
+		});
+
+		expect(listRunEvents).toHaveBeenCalledOnce();
+		expect(finalWrites).toHaveLength(1);
+	});
 });

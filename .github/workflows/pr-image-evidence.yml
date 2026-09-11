@@ -1,0 +1,99 @@
+name: pr-image-evidence
+
+on:
+  workflow_call:
+    inputs:
+      images:
+        required: true
+        type: string
+      source_sha:
+        required: true
+        type: string
+      cache_write:
+        required: true
+        type: boolean
+      pull_request_number:
+        required: true
+        type: number
+
+# The caller assigns packages:read or packages:write. Do not elevate it here.
+env:
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    max-jobs = 1
+    cores = 2
+
+jobs:
+  build:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_MODE == 'self-hosted' && '["self-hosted","Linux","campus-ci"]' || '"ubuntu-24.04-arm"') }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: nix develop .#ci-release --command bash -e {0}
+    steps:
+      - name: Checkout selected source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+
+      - name: Install Nix
+        if: runner.environment != 'self-hosted'
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.35.1/install
+          enable_kvm: false
+
+      - name: Setup Docker Buildx
+        id: buildx
+        if: runner.environment != 'self-hosted'
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+        with:
+          driver: docker-container
+          cache-binary: false
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 2
+
+      - name: Select hosted builder
+        if: runner.environment != 'self-hosted'
+        shell: bash -e {0}
+        env:
+          BUILDER: ${{ steps.buildx.outputs.name }}
+        run: echo "BUILDX_BUILDER=$BUILDER" >> "$GITHUB_ENV"
+
+      - name: Verify runner-owned builder
+        if: runner.environment == 'self-hosted'
+        run: bash scripts/ci/runner-capability-probe.sh
+
+      - name: Login for image caches
+        id: login
+        if: inputs.cache_write
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Run image evidence
+        env:
+          IMAGES: ${{ inputs.images }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          CACHE_AUTHENTICATED: ${{ steps.login.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          echo CI_BODY_STARTED
+          cache_args=()
+          if [[ "$CACHE_AUTHENTICATED" == true ]]; then
+            image_root="ghcr.io/${GITHUB_REPOSITORY,,}"
+            pr_cache="$image_root/pr-cache-$PR_NUMBER"
+            imports="$(jq -cn --arg pr "$pr_cache" --arg main "$image_root" '[$pr, $main]')"
+            cache_args=(--cache-import-registries "$imports" --cache-export-registry "$pr_cache")
+          else
+            echo "Image cache: no authenticated imports or exports; building without remote cache."
+          fi
+          node --experimental-strip-types scripts/release/images.mts \
+            --mode build-only --images "$IMAGES" --repository "$GITHUB_REPOSITORY" \
+            --source-sha "$SOURCE_SHA" --summary "$GITHUB_STEP_SUMMARY" "${cache_args[@]}"

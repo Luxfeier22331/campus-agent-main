@@ -185,6 +185,8 @@ Activity 调度和投影修复，但供应商调用仍然只能开始一次。Ac
 provider invocation envelope 的摘要并写入 invocation receipt；只有 receipt 不存在时可进入首次调用。
 receipt 为 `started` 时结果不确定，以 `workflow_attempt_uncertain` 阻断，不重新调用模型；
 `completed` receipt 则解码已保存的 operation output，校验身份、修复投影后返回原结果。
+恢复前严格检查字段、1 MiB 完整输出预算及已有 output hash。JSONB 读回后按类型化 DTO 重新编码校验，
+不使用存储引擎的文本键序或空白；失败时不再次调用供应商。
 已领取的 invocation 返回失败时，application receipt service 写入 `failed` 及有界错误码；后续投递
 返回该失败，不再次执行供应商调用。进程在写入终态前退出时仍保留 `started`，按不确定结果处理。
 该约束承认 Activity dispatch 和外部模型 API 之间不存在原子事务。
@@ -198,6 +200,11 @@ completed receipt 保存完整类型化 operation output、输出 hash 和完成
 各 operation 的 StepResult 仍保存有界摘要和正文 hash；receipt 是执行恢复载荷，不取代 app-api 的
 产品答案所有权。独立 receipt store 负责记录与冲突检查，保留期限随父 run；内存 owner 在共享锁下删除，
 PostgreSQL 通过外键级联删除，不另设 receipt TTL。
+Runtime 拥有模型输出结构解析；workflow 拥有计划预算、图依赖和 replan decision 语义；adapter 拥有
+身份、来源准入及恢复校验。Solve/Replan 各只传递一份类型化决策，workflow 自行构造 completed step；
+Synthesis 的输入不重复 plan/completed steps，只传递回答所需的材料与剩余事实。
+各传输与恢复边界的字节预算及无旧合同兼容的切换要求见
+[执行合同](../../contracts/tool-execution.md#agent-结果传递)。
 准入快照在 builder、持久输入解码和 Activity 边界校验，不与自身工具列表重复比较。
 
 ## 取消、超时与终态处理
@@ -275,6 +282,22 @@ worker 和 task queue 不进入 Campus Web。回答过程读取同一事件时�
 execution-control 根据运行就绪状态、策略和下游预算接纳新 run。进程内 limit 只是单进程保护，
 Temporal task queue 与 worker 扩缩容共同定义部署容量。缺少 Temporal、
 投影、供应商、内部查询、目标注册表或可信依据时拒绝接收或终结运行。
+
+## Workflow completion budget
+
+产品 `completed` 与 Temporal root workflow close 是两个有意分开的观察点。Finalization CAS
+成功后，产品答案已经 canonical；随后个人记忆追加仍作为非关键 side effect 在 core activity queue
+执行。当前 workflow 会等待该 activity 的既有 timeout/retry 收敛，再返回 workflow result；append
+失败不能回滚已提交的产品答案，也不能重复追加已完成 run。当前不引入 detached child workflow、
+outbox 或第二套 memory store。该同步等待是现行合同，不表示产品客户端必须等待 memory append。
+
+Workflow 的 900 秒 `WorkflowExecutionTimeout` 是硬生命周期上限。Agent operation 的 deadline、
+plan/replan 次数、activity timeout/retry、finalization 和 memory append 都受该上限约束；它们不是
+保证一定消耗的时间额度。达到硬上限时由 Temporal timeout/reconciler 以 `expired` 收口，不能把
+`agent_deadline_exceeded`、`workflow_attempt_uncertain` 或取消伪装成同一错误。App API 的 durable
+polling `maxAttempts` 是连续空页预算，不是严格 elapsed-time SLA；一旦观察到 terminal event，
+应立即返回，不再等待后续 workflow close。修改任一 operation 或 polling 默认值时，必须重新核对
+这张预算关系和终态优先级。
 
 ## 禁止形态
 

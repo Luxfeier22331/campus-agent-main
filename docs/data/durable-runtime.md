@@ -128,10 +128,16 @@ result。Campus Docs
 工具身份、参数摘要、`outcome`、结果 hash、产品投影 ref 和真实工具耗时；如果 Runtime 提供 RFC3339
 UTC 边界，也保存实际工具调用的起止时间，不保存 `memory_text`。同一工具的重复调用按实际调用顺序分别投影。
 
+Temporal Activity result/input 不是个人记忆数据库。跨 Activity 传递的 memory/tool 结果必须经过
+Temporal-facing allowlist 和既有 evidence 字符上限；不得把 provider 原始响应、未裁剪查询、凭据或
+调试载荷写入 history。PostgreSQL run/event 删除不代表平台 history 立即消失，账号删除合同必须同时遵守
+Temporal retention、访问控制和 replay 可见性边界。
+
 Agent Runtime 的流式 `answer_delta` 只携带临时展示用的 `delta` 和
 `agent_runtime_answer_delta.v3`；execution-control 在合并后为浏览器事件分配本地 `chunk_index`。
-`answer_completed` 只表示增量流已结束，不复制累积正文；`final_output` 是 Finalization 使用的 canonical
-答案正文。
+`answer_completed` 只表示增量流已结束，不复制累积正文；`answer_delta` 是 provisional 展示事实，
+`final_output` 是 Finalization 使用的 canonical 答案正文。若最终校验失败，消费者必须丢弃或标记
+provisional 增量，不得把它当作有效最终答案。
 
 ## Agent Workflow operation 投影
 
@@ -159,11 +165,13 @@ operation 输入、可见工具、预算、预期模型及工具合同和会话�
 抛错且无法取得 usage 时保存 `usage_observed = false`，不用零伪装成真实用量。
 
 invocation receipt 在供应商调用前持久化调用身份、上述 envelope fingerprint 和开始状态。完成时
-`OutputJSON` 保存完整类型化 operation output，`OutputSHA256` 保存其摘要，同时记录完成时间。
-该恢复载荷可能包含回答正文、证据、工具参数和结果，不是仅含 ref/hash/schema 的摘要，也不是供应商
+`OutputJSON` 保存有界的完整类型化 operation output，最大为 1 MiB；`OutputSHA256` 保存其摘要，同时记录完成时间。
+该恢复载荷可能包含回答正文、证据和 allowlist 工具结果，不包含原始工具参数、debug 或 failure detail；
+memory 正文仅出现在 evidence 中。它不是仅含 ref/hash/schema 的摘要，也不是供应商
 原始响应。receipt 先于诊断投影提交；completed receipt 在 Activity 重投递时用于恢复原结果并修复投影。
 started receipt 或无法解码的 completed 结果以 `workflow_attempt_uncertain` 阻断；恢复结果仍需通过身份
-和来源校验，修复失败沿用既有错误路径，不重新调用供应商。产品答案由 app-api 拥有。
+和来源校验，且首次输出与 replay 共享字段和完整 UTF-8 JSON 大小校验。输出 hash 以恢复后的类型化
+序列化校验，不以 JSONB 文本表示计算。修复失败沿用既有错误路径，不重新调用供应商。产品答案由 app-api 拥有。
 
 ## Finalization 投影
 
@@ -179,7 +187,7 @@ Finalization 读取 workflow 传入的 Agent result，验证身份、执行输�
 `finalization.write` 的 completed StepResult 只保存 agent result ref、request、
 `finalization_fingerprint_sha256` 和有界 `finalization_summary`。该 summary 包含答案正文及其 hash、
 响应 hash、状态和 Campus/Web 来源计数，不保存完整来源对象、模型用量或完整最终响应。内部
-内部 `finalization.completed` event 保留完整 `ExecutionFinalizationResponse`，用于产品回调后的修复和
+内部 `finalization.completed` event 保留完整 `ExecutionFinalizationResponse`（最多 1 MiB），用于产品回调后的修复和
 完成重放校验。新路径不再写同名 browser-visible event；历史版本留下的同名浏览器事件只作为兼容数据，
 由 app-api 过滤，不得作为产品成功终态。浏览器成功终态统一使用 `run.completed`，且只能在
 `FinalizeRunProjection` 成功后追加。
@@ -188,6 +196,9 @@ ref、`finalization_fingerprint_sha256`、首次 `run.progress(finalizing)` 时�
 时间；同一 Activity 的 retry 或 callback 后 projection/CAS 重试必须复用这组时间。canonical
 `finalization.write` Step/Result 与 run.CompletedAt 不采用 Temporal Workflow 的 `FinalizedAt`，
 以避免 workflow history 时间早于实际 finalization Activity。
+
+成功 callback 前必须完成 recovery response 字段和大小的确定性校验。产品写入成功后 event 或 projection
+失败，可以重发相同 response、fingerprint 和完成时间；app-api 幂等返回，不重复创建产品完成效果。
 `FinalizeRunProjection` 是该终态的唯一提交点：它在同一内存临界区或持有 PostgreSQL run-row lock 的
 单个事务中，校验并提交 completed `finalization.write` Step、Attempt、Result 与 completed run 四元组，
 同时释放 conversation active-run lock。已经存在的 pending 或 leased cancellation 在同一 CAS 中改为

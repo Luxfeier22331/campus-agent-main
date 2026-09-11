@@ -4,7 +4,6 @@
 	"private": true,
 	"type": "module",
 	"description": "One-shot internal portal notice and file collection job.",
-	"packageManager": "pnpm@11.20.0",
 	"scripts": {
 		"build": "esbuild adapters/internal-portal/src/collection-job.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/collection-job.js --external:@aws-sdk/client-s3 --external:content-disposition --external:dotenv --external:jsdom --external:mime-types --external:pg --external:tldts --external:undici && node ./dist/collection-job.js --help",
 		"auth:check": "tsx adapters/internal-portal/src/auth-cli.ts check",

@@ -32,6 +32,12 @@ SHA-tagged release 窗口和无 tag 宽限期是当前小规模 staging 的初�
 发布频率、回滚窗口或环境数量发生变化时，应在清理 workflow 的手动输入和对应决策中重新评估。
 未知 tag 不自动删除，而是保持并报告，等待 owner 登记语义。
 
+`campus-agent/pr-cache-<number>/<active-image>` 是 PR 缓存包，由同一清理入口管理。源码 PR 开放期间
+保护当前 `buildcache-arm64` 及其 manifest closure，无 tag 历史版本保留 7 天。PR 关闭或合并满同一
+宽限期后形成整包删除候选；未到期不删包。源码 PR 状态不可读取或无效时保持缓存并报告 policy error，
+禁止 apply。查询按 PR 号去重，需要 Source 仓 `pull-requests: read` 权限；默认 report、手动 apply
+保持不变。apply 后仅复查保留包的 manifest，不读取刚删除的缓存包。
+
 退役包不按 version 猜测删除，而是由显式 allowlist 直接形成整包删除候选。默认 scheduled/manual
 `report` 只生成计划；选择 workflow 的 `apply` 模式才执行删除，因此 `apply` 是对整包删除的人工确认。
 任何 GitOps 引用退役包、active package 缺失、未登记 package 或保护 digest 缺失，都会使 apply 失败。
@@ -45,7 +51,7 @@ allowlist 条目。
 
 ```text
 report: 盘点 GHCR、GitOps 和 OCI manifest closure，上传结构化报告，不删除
-apply: 使用同一份实时盘点结果删除计划中的 active versions 或显式退役 packages
+apply: 使用同一份实时盘点结果删除计划中的 active versions、退役 packages 或过期 PR 缓存包
 ```
 
 GitHub API 按 package version ID 删除。apply 后 workflow 重新读取 package inventory，并重新检查

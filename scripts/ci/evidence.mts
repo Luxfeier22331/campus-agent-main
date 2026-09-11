@@ -262,8 +262,11 @@ function runAffectedImageEvidence(
 	if (input.summaryFile) {
 		args.push("--summary", input.summaryFile);
 	}
-	if (options.env.CI_IMAGE_CACHE_REGISTRY) {
-		args.push("--cache-registry", options.env.CI_IMAGE_CACHE_REGISTRY);
+	if (options.env.CI_IMAGE_CACHE_IMPORT_REGISTRIES) {
+		args.push("--cache-import-registries", options.env.CI_IMAGE_CACHE_IMPORT_REGISTRIES);
+	}
+	if (options.env.CI_IMAGE_CACHE_EXPORT_REGISTRY) {
+		args.push("--cache-export-registry", options.env.CI_IMAGE_CACHE_EXPORT_REGISTRY);
 	}
 	runProfileCommand("image-build", "node", args, runner, options);
 }

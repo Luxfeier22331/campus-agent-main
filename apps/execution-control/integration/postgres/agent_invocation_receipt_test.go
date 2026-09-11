@@ -124,21 +124,30 @@ func testAgentInvocationReceipt(t *testing.T, harness *postgresHarness) {
 		t.Fatalf("failed receipt survived parent deletion: %v", err)
 	}
 
-	t.Run("adapter replay does not repeat provider execution", func(t *testing.T) {
+	t.Run("adapter replay repairs projection without repeating provider execution", func(t *testing.T) {
 		input := agenttest.CreateQueuedRun(t, store, "run-provider-replay")
 		snapshot := agenttest.AdmissionSnapshot(t)
 		provider := &receiptProvider{requestID: input.Wire.RequestID, fingerprint: execution.ToolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint)}
 		adapter := temporaladapter.New(temporaladapter.Options{
 			Config:             config.Config{AgentRuntimeBaseURL: "http://fixture.invalid", AgentRuntimeSharedSecret: "integration-secret"},
-			RunProjectionStore: store, ExecutionInputLoader: input, AgentRuntimeClient: provider,
+			RunProjectionStore: &receiptProjectionFailureStore{RunStore: store},
+			ReceiptStore:       store.Receipts, ExecutionInputLoader: input, AgentRuntimeClient: provider,
 		})
 		request := temporalruntime.SolveTaskActivityInput{
 			WorkflowOperationActivityInputBase: temporalruntime.WorkflowOperationActivityInputBase{
 				RequestID: input.Wire.RequestID, ConversationID: input.Wire.ConversationID, AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot),
 			}, MaxSteps: 2,
 		}
-		first, err := adapter.SolveTask(t.Context(), request)
+		_, err := adapter.SolveTask(t.Context(), request)
+		if err == nil {
+			t.Fatal("expected injected projection failure after receipt completion")
+		}
+		completedReceipt, err := store.Receipts.GetAgentInvocationReceipt(t.Context(), input.Wire.RequestID+":solve.initial")
 		if err != nil {
+			t.Fatal(err)
+		}
+		var first temporalruntime.WorkflowOperationActivityOutput
+		if err := json.Unmarshal(completedReceipt.OutputJSON, &first); err != nil {
 			t.Fatal(err)
 		}
 		restored, err := adapter.SolveTask(t.Context(), request)
@@ -159,7 +168,62 @@ func testAgentInvocationReceipt(t *testing.T, harness *postgresHarness) {
 		if execution.HashAdmissionJSON(persisted) != execution.HashAdmissionJSON(first) || stored.OutputSHA256 != execution.HashAdmissionJSON(first) {
 			t.Fatalf("receipt did not retain full operation result and hash: %#v", stored)
 		}
+		conn := connect(t, databaseURL)
+		defer closeConn(t, conn)
+		if _, err := conn.Exec(t.Context(), "update execution_control.agent_invocation_receipts set output_json=$1::jsonb where invocation_id=$2", "{broken", stored.InvocationID); err == nil {
+			t.Fatal("PostgreSQL accepted malformed receipt JSON")
+		}
+		for _, kind := range []string{"unknown", "type", "digest", "oversize"} {
+			t.Run(kind, func(t *testing.T) {
+				var payload map[string]any
+				if err := json.Unmarshal(stored.OutputJSON, &payload); err != nil {
+					t.Fatal(err)
+				}
+				switch kind {
+				case "unknown":
+					payload["raw_debug"] = "private receipt debug"
+				case "type":
+					payload["status"] = 42
+				case "digest":
+					payload["final_output"] = "tampered answer"
+				case "oversize":
+					payload["final_output"] = strings.Repeat("x", execution.MaxAgentOperationPayloadBytes)
+				}
+				encoded, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := conn.Exec(t.Context(), "update execution_control.agent_invocation_receipts set output_json=$1::jsonb where invocation_id=$2", string(encoded), stored.InvocationID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := adapter.SolveTask(t.Context(), request); err == nil {
+					t.Fatal("invalid receipt was replayed")
+				}
+				if provider.calls != 1 {
+					t.Fatal("invalid receipt invoked provider")
+				}
+				if _, err := conn.Exec(t.Context(), "update execution_control.agent_invocation_receipts set output_json=$1::jsonb where invocation_id=$2", string(stored.OutputJSON), stored.InvocationID); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+		if _, err := adapter.SolveTask(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
 	})
+}
+
+type receiptProjectionFailureStore struct {
+	executionapplication.RunStore
+	failed bool
+}
+
+func (s *receiptProjectionFailureStore) UpsertStepResult(ctx context.Context, result execution.StepResultProjection) (execution.StepResultProjection, error) {
+	if result.StepID == "solve.initial" && result.Status == "completed" && !s.failed {
+		s.failed = true
+		return execution.StepResultProjection{}, errors.New("injected projection failure after completed receipt")
+	}
+	return s.RunStore.UpsertStepResult(ctx, result)
 }
 
 type receiptProvider struct {

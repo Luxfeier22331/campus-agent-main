@@ -1,4 +1,5 @@
 import { stripVTControlCharacters } from "node:util";
+import { ACTIVE_IMAGE_TARGETS } from "./image-targets.mts";
 
 interface Interval {
 	started: string;
@@ -16,6 +17,7 @@ interface PackageProgress {
 interface Operation {
 	id: string;
 	parentId?: string;
+	target?: string;
 	name: string;
 	category: string;
 	intervals: Interval[];
@@ -42,7 +44,8 @@ function timestamp(value: unknown): value is string {
 	return typeof value === "string" && Number.isFinite(Date.parse(value)) && Date.parse(value) > 0;
 }
 
-function category(name: string): string {
+function category(operationName: string): string {
+	const name = operationName.replace(/^\[[^\]]+\]\s*/u, "");
 	if (/exporting cache|preparing build cache|sending cache export/iu.test(name)) {
 		return "cache-export";
 	}
@@ -106,6 +109,7 @@ function duration(intervals: Interval[]): number | null {
 
 export class BuildkitProgress {
 	private readonly operations = new Map<string, Operation>();
+	private readonly targetNames = new Map<string, Set<string>>();
 	private readonly lines = new Map<string, string>();
 	private readonly packageLines = new Map<string, string>();
 	private readonly warnings = new Set<string>();
@@ -253,6 +257,21 @@ export class BuildkitProgress {
 			operation.name = name;
 			operation.category = category(name);
 		}
+		operation.parentId ??= parentId;
+		const label = operation.name.match(/^\[([a-z0-9-]+)(?:\s|\])/u)?.[1];
+		const names = this.targetNames.get(id) ?? new Set<string>();
+		if (label && ACTIVE_IMAGE_TARGETS.some((target) => target === label)) {
+			names.add(label);
+			this.targetNames.set(id, names);
+		}
+		operation.target =
+			names.size > 0
+				? names.size === 1
+					? [...names][0]
+					: undefined
+				: operation.parentId
+					? this.operations.get(operation.parentId)?.target
+					: undefined;
 		return operation;
 	}
 
@@ -333,7 +352,7 @@ export class BuildkitProgress {
 		// Keep package progress attributable when several RUN operations interleave.
 		if (/^Progress: resolved /u.test(stripVTControlCharacters(line))) {
 			this.log(
-				`[buildkit-pnpm] ${JSON.stringify({ operation: id, name: this.operation(id).name, progress: stripVTControlCharacters(line) })}\n`,
+				`[buildkit-pnpm] ${JSON.stringify({ operation: id, target: this.operation(id).target, name: this.operation(id).name, progress: stripVTControlCharacters(line) })}\n`,
 			);
 		} else {
 			this.log(`${line}\n`);
@@ -397,14 +416,14 @@ export function renderBuildkit(report: BuildkitReport): string {
 										`resolved=${entry.resolved} reused=${entry.reused} downloaded=${entry.downloaded} added=${entry.added}${entry.done ? " done" : " unfinished"}`,
 								)
 								.join("; ");
-		return `| ${cell(operation.category)} | ${cell(operation.name)} | ${cell(operation.error ? `${operation.state}: ${operation.error}` : operation.state)} | ${operation.durationMs === null ? "unknown" : `${(operation.durationMs / 1000).toFixed(2)}s`} | ${cell(packages)} |`;
+		return `| ${cell(operation.target ?? "shared/unknown")} | ${cell(operation.category)} | ${cell(operation.name)} | ${cell(operation.error ? `${operation.state}: ${operation.error}` : operation.state)} | ${operation.durationMs === null ? "unknown" : `${(operation.durationMs / 1000).toFixed(2)}s`} | ${cell(packages)} |`;
 	});
 	return [
 		`Cache export: **${report.cacheExport}**; observation: ${report.incomplete ? "incomplete" : "available"}${report.signal ? `; signal: ${cell(report.signal)}` : ""}.`,
 		...report.cacheWarnings.map((warning) => `- ${cell(warning)}`),
 		"",
-		"| Phase | Operation | State | Duration | pnpm package observations |",
-		"| --- | --- | --- | ---: | --- |",
+		"| Named target | Phase | Operation | State | Duration | pnpm package observations |",
+		"| --- | --- | --- | --- | ---: | --- |",
 		...rows,
 		"",
 		"Durations are unions within an operation; operations and exporter substeps overlap. Do not sum them as wall time.",

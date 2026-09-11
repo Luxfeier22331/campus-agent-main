@@ -20,6 +20,44 @@ const run: Run = {
 const line = (time: string, message: string, step = "Lint repository", job = "repo-checks") =>
 	`${job}\t${step}\t2026-09-09T10:${time}Z ${message}\n`;
 
+test("Go restore warnings remain errors even when the action succeeds", () => {
+	const parsed = parseEvidence(
+		line(
+			"00:01",
+			"##[warning]Failed to restore: tar failed with error: The process exited with code 2",
+			"Restore Go and lint caches",
+		) +
+			line("00:02", "Cache not found for input keys: go-v2-key", "Restore Go and lint caches") +
+			line(
+				"00:03",
+				"GO_CACHE action_outcome=success exact_hit= primary=go-v2-key matched=",
+				"Check execution-control native code",
+			),
+	);
+	assert.equal(parsed.cacheRestores[0].state, "restore-error");
+	assert.equal(parsed.cacheRestores[0].warnings.length, 1);
+	for (const exact of [true, false]) {
+		const restored = parseEvidence(
+			line("00:01", "Cache restored from key: go-v2-old", "Restore Go and lint caches") +
+				line(
+					"00:02",
+					`GO_CACHE action_outcome=success exact_hit=${exact} primary=go-v2-key matched=go-v2-old`,
+					"Check execution-control native code",
+				),
+		);
+		assert.equal(restored.cacheRestores[0].state, exact ? "exact-hit" : "prefix-hit");
+	}
+});
+
+test("outcomes remain scoped to their producing jobs", () => {
+	const parsed = parseEvidence(
+		line("00:01", 'CI_OUTCOMES {"repository-lint":"failure"}', "Summary", "validation") +
+			line("00:02", 'CI_OUTCOMES {"repository-lint":"success"}', "Summary", "images"),
+	);
+	assert.equal(parsed.outcomesByJob.validation["repository-lint"], "failure");
+	assert.equal(parsed.outcomesByJob.images["repository-lint"], "success");
+});
+
 test("report CLI runs with only Node and gh for success, failure and cancelled logs", async (t) => {
 	for (const conclusion of ["success", "failure", "cancelled", "unavailable"]) {
 		await t.test(conclusion, () => {
@@ -124,6 +162,17 @@ test("separates environment startup from body and preserves actual continue-on-e
 	assert.equal(report.stages[0].durationMs, 7000);
 	assert.equal(report.stages[0].outcome, "failure");
 	assert.equal(report.stages[0].failureClass, "lint");
+});
+
+test("Go cache observations distinguish prefix hits and misses without implying lint hit rates", () => {
+	const signal = "GO_CACHE restore=success exact_hit=false primary=go-new matched=go-old";
+	const parsed = parseEvidence(
+		line("00:07", signal, "Check execution-control native code") +
+			line("00:08", `printf '${signal}'`, "Check execution-control native code") +
+			line("00:09", signal, "Test repository scripts"),
+	);
+	assert.deepEqual(parsed.cacheSignals.go, [signal]);
+	assert.deepEqual(parseEvidence("").cacheSignals.go, []);
 });
 
 test("reads native prek timing and tool cache facts without inventing a cache miss", () => {

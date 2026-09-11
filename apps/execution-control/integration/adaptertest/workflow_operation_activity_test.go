@@ -54,9 +54,9 @@ func TestWorkflowOperationReplanDecisionContract(t *testing.T) {
 	for _, decision := range []string{"continue", "synthesize", "revise", "unknown", ""} {
 		t.Run(decision, func(t *testing.T) {
 			output, err := executionactivities.WorkflowOperationOutputFromRuntimeResponse(executionactivities.AgentRuntimeResponse{
-				StructuredOutput: map[string]any{
-					"schema_version": "task_replan.v2", "decision": decision,
-					"reason": "检查剩余路径", "remaining_steps": []any{},
+				Replan: &temporalruntime.WorkflowTaskReplan{
+					SchemaVersion: "task_replan.v2", Decision: decision,
+					Reason: "检查剩余路径", RemainingSteps: []temporalruntime.WorkflowTaskPlanStep{},
 				},
 			}, temporalruntime.WorkflowOperationReplan, "result-replan")
 			if decision == "continue" || decision == "synthesize" {
@@ -276,8 +276,8 @@ func TestProjectWorkflowToolResultsUsesRuntimeTimingForStepAndAttempt(t *testing
 		RequestID: runID,
 		StepID:    "step.campus",
 	}
-	output := temporalruntime.WorkflowOperationActivityOutput{
-		ToolResults: []temporalruntime.AgentToolResult{{
+	output := executionactivities.AgentRuntimeResponse{
+		ToolResults: []executionactivities.AgentToolResult{{
 			ArgumentsJSON: map[string]any{"search_query": "规定"},
 			StartedAt:     &startedAt,
 			CompletedAt:   &completedAt,
@@ -296,7 +296,7 @@ func TestProjectWorkflowToolResultsUsesRuntimeTimingForStepAndAttempt(t *testing
 		WorkerID:        "test:tool-timing",
 	}
 
-	if err := NewExecutionAdapter(adapter).ProjectWorkflowToolResults(context.Background(), run, request, output, identity); err != nil {
+	if err := NewExecutionAdapter(adapter).ProjectWorkflowToolResults(context.Background(), run, request, output.ToolResults, identity); err != nil {
 		t.Fatalf("project workflow tool result: %v", err)
 	}
 	steps, err := store.ListRunSteps(context.Background(), runID)

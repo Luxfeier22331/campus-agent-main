@@ -53,6 +53,41 @@ const evidence: WorkflowEvidence = {
 };
 
 describe("agent runtime HTTP handler", () => {
+	it("rejects oversized completion JSON and invalidates streamed drafts", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run(input) {
+					return resultFor(input, { finalOutput: "😀".repeat(262144) });
+				},
+				async *stream(input) {
+					yield { event: "answer_delta", data: { delta: "draft", provisional: true } };
+					yield {
+						event: "completed",
+						data: resultFor(input, { finalOutput: "😀".repeat(262144) }),
+					};
+				},
+			},
+		});
+		const response = await post(handler, validBody("synthesize"));
+		expect(response.status).toBe(500);
+		expect(await response.json()).toMatchObject({
+			error: { code: "workflow_operation_payload_too_large" },
+		});
+		const streamed = await post(
+			handler,
+			validBody("synthesize"),
+			"/internal/agent-requests/stream",
+		);
+		const events = parseSseEvents(await streamed.text());
+		expect(events.map((event) => event.event)).toEqual([
+			"answer_delta",
+			"answer_invalidated",
+			"error",
+		]);
+		expect(events.at(-1)?.data.code).toBe("workflow_operation_payload_too_large");
+	});
+
 	it("serves health and readiness endpoints with their intended authorization boundary", async () => {
 		const handler = createAgentRuntimeHandler({ runtime: runtimeFor(), sharedSecret: "secret" });
 
@@ -102,7 +137,7 @@ describe("agent runtime HTTP handler", () => {
 			runtime: {
 				async run(input) {
 					observed = input;
-					return resultFor(input, { solveOutcome: "plan", structuredOutput: taskPlan });
+					return resultFor(input, { solveOutcome: "plan", plan: taskPlan });
 				},
 				stream: streamFor(),
 			},
@@ -121,7 +156,7 @@ describe("agent runtime HTTP handler", () => {
 		expect(responseBody).toMatchObject({
 			operation: "solve",
 			status: "completed",
-			structured_output: {
+			plan: {
 				schema_version: "task_plan.v1",
 				goal: "查询奖学金",
 			},
@@ -205,7 +240,8 @@ describe("agent runtime HTTP handler", () => {
 		expect(events.map((event) => event.event)).toEqual(["answer_delta", "completed"]);
 		expect(events[0]?.data).toEqual({
 			delta: "部分答案",
-			schema_version: "workflow_runtime_answer_delta.v1",
+			schema_version: "workflow_runtime_answer_delta.v2",
+			provisional: true,
 		});
 		expect(events[1]?.data).toMatchObject({
 			operation: "synthesize",
@@ -223,7 +259,7 @@ describe("agent runtime HTTP handler", () => {
 				},
 				async *stream(input: SolveWorkflowOperationInput | SynthesizeWorkflowOperationInput) {
 					yield { event: "solve_decision", data: { outcome: "answer" } };
-					yield { event: "answer_delta", data: { delta: answer } };
+					yield { event: "answer_delta", data: { delta: answer, provisional: true } };
 					yield {
 						event: "completed",
 						data: resultFor(input, { finalOutput: answer, solveOutcome: "answer" }),
@@ -248,7 +284,8 @@ describe("agent runtime HTTP handler", () => {
 		});
 		expect(events[1]?.data).toEqual({
 			delta: answer,
-			schema_version: "workflow_runtime_answer_delta.v1",
+			schema_version: "workflow_runtime_answer_delta.v2",
+			provisional: true,
 		});
 		expect(events[2]?.data).toMatchObject({
 			final_output: answer,
@@ -273,7 +310,7 @@ describe("agent runtime HTTP handler", () => {
 					yield { event: "solve_decision", data: { outcome: "plan" } };
 					yield {
 						event: "completed",
-						data: resultFor(input, { solveOutcome: "plan", structuredOutput: taskPlan }),
+						data: resultFor(input, { solveOutcome: "plan", plan: taskPlan }),
 					};
 				},
 			},
@@ -294,7 +331,7 @@ describe("agent runtime HTTP handler", () => {
 			operation: "solve",
 			solve_outcome: "plan",
 			status: "completed",
-			structured_output: { schema_version: "task_plan.v1" },
+			plan: { schema_version: "task_plan.v1" },
 		});
 	});
 
@@ -473,7 +510,7 @@ describe("agent runtime HTTP handler", () => {
 					throw new Error("blocking operation must not be used");
 				},
 				async *stream() {
-					yield { event: "answer_delta", data: { delta: "partial" } };
+					yield { event: "answer_delta", data: { delta: "partial", provisional: true } };
 				},
 			},
 			sharedSecret: "secret",
@@ -489,7 +526,18 @@ describe("agent runtime HTTP handler", () => {
 		expect(events).toEqual([
 			{
 				event: "answer_delta",
-				data: { delta: "partial", schema_version: "workflow_runtime_answer_delta.v1" },
+				data: {
+					delta: "partial",
+					schema_version: "workflow_runtime_answer_delta.v2",
+					provisional: true,
+				},
+			},
+			{
+				event: "answer_invalidated",
+				data: {
+					reason: "terminal_result_unavailable",
+					schema_version: "workflow_runtime_answer_invalidation.v1",
+				},
 			},
 			{
 				event: "error",
@@ -582,7 +630,7 @@ function streamFor(includeDelta = false): WorkflowOperationRuntime["stream"] {
 		input: SynthesizeWorkflowOperationInput,
 	): AsyncIterable<WorkflowOperationStreamEvent> {
 		if (includeDelta) {
-			yield { event: "answer_delta", data: { delta: "部分答案" } };
+			yield { event: "answer_delta", data: { delta: "部分答案", provisional: true } };
 		}
 		yield { event: "completed", data: resultFor(input, { finalOutput: "最终答案。" }) };
 	};
@@ -673,8 +721,8 @@ function validBody(
 		operation,
 		operation_input: {
 			goal: plan.goal,
-			plan: planWire(plan),
-			completed_steps: [],
+			source_attempts: [],
+			remaining_facts: [],
 			evidence: [evidenceWire(evidence)],
 			answer_mode: "grounded",
 		},

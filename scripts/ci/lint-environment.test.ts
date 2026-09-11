@@ -82,7 +82,7 @@ test("CI prepares both Nix environments before exposing them to hooks", (t) => {
 	const directory = mkdtempSync(path.join(os.tmpdir(), "lint-prepare-"));
 	t.after(() => rmSync(directory, { recursive: true, force: true }));
 	const workflow = parse(readFileSync(path.join(root, ".github/workflows/pr.yml"), "utf8"));
-	const prepare = workflow.jobs["repo-checks"].steps.find(
+	const prepare = workflow.jobs["repository-validation"].steps.find(
 		(step: { name: string }) => step.name === "Install static-check dependencies",
 	);
 	assert.equal(prepare.shell, "bash -e {0}");

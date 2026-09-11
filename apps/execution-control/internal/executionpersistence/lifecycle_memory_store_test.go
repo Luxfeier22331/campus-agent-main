@@ -617,6 +617,26 @@ func TestInMemoryAgentInvocationReceiptFailsClosedOnAmbiguousReplay(t *testing.T
 	}
 }
 
+func TestInMemoryAgentInvocationReceiptRejectsOversizedRecoveryOutput(t *testing.T) {
+	store := NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 7, 23, 1, 2, 3, 0, time.UTC)
+	createRunProjectionForTest(t, store, "run-oversized-receipt", "conv-agent-receipt", now)
+	receipt := execution.AgentInvocationReceipt{
+		InvocationID: "run-oversized-receipt:agent-primary", RequestID: "run-oversized-receipt",
+		InputSHA256: strings.Repeat("a", 64), CreatedAt: now, UpdatedAt: now,
+	}
+	if _, disposition, err := store.Receipts.BeginAgentInvocation(context.Background(), receipt); err != nil || disposition != execution.AgentInvocationDispositionClaimed {
+		t.Fatalf("claim disposition=%q err=%v", disposition, err)
+	}
+	receipt.OutputJSON = json.RawMessage(`{"output":"` + strings.Repeat("x", execution.MaxAgentInvocationOutputBytes) + `"}`)
+	receipt.OutputSHA256 = strings.Repeat("b", 64)
+	receipt.CompletedAt = now.Add(time.Second)
+	receipt.UpdatedAt = receipt.CompletedAt
+	if _, err := store.Receipts.CompleteAgentInvocation(context.Background(), receipt); err == nil {
+		t.Fatal("expected oversized receipt output to be rejected")
+	}
+}
+
 func atomicRunCreateRequestForTest(now time.Time) execution.DurableRunCreateIntent {
 	return execution.DurableRunCreateIntent{
 		Run: execution.DurableRun{

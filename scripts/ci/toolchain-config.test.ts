@@ -15,6 +15,7 @@ for (const app of ["execution-control", "model-config"]) {
 	test(`${app} Docker image follows the go.mod toolchain version`, () => {
 		const goMod = readFileSync(path.join(ROOT, `apps/${app}/go.mod`), "utf8");
 		const dockerfile = readFileSync(path.join(ROOT, `apps/${app}/Dockerfile`), "utf8");
+		const goWork = readFileSync(path.join(ROOT, "go.work"), "utf8");
 		const languageVersion = capture(
 			goMod,
 			/^go ([0-9]+[.][0-9]+)$/mu,
@@ -40,6 +41,11 @@ for (const app of ["execution-control", "model-config"]) {
 			dockerVersion,
 			toolchainVersion,
 			"Dockerfile Go version must match go.mod toolchain",
+		);
+		assert.equal(
+			capture(goWork, /^toolchain go([0-9]+[.][0-9]+[.][0-9]+)$/mu, "go.work toolchain"),
+			toolchainVersion,
+			"workspace and module toolchains must match",
 		);
 	});
 }

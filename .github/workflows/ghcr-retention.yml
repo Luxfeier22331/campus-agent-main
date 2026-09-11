@@ -44,6 +44,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      pull-requests: read
     defaults:
       run:
         shell: nix develop .#ci-release --command bash -e {0}

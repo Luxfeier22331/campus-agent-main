@@ -26,6 +26,7 @@ type Candidate struct {
 }
 
 type Snapshot struct {
+	IndexCollection   string           `json:"indexCollection,omitempty"`
 	EffectiveQuery    string           `json:"effectiveQuery"`
 	CitationStart     int              `json:"citationStart"`
 	ResultLimit       int              `json:"resultLimit"`

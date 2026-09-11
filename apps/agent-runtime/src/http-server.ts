@@ -81,6 +81,7 @@ export function createAgentRuntimeHandler(
 						runtimeInputFromAgentRunRequest(parsed, providerConfig, signals.signal),
 					),
 				);
+				return jsonResponse(200, agentRunResultWire(result, options.runtimeRelease));
 			} catch (error) {
 				try {
 					options.onRunError?.(error, {
@@ -98,7 +99,6 @@ export function createAgentRuntimeHandler(
 					runtime_release: options.runtimeRelease,
 				});
 			}
-			return jsonResponse(200, agentRunResultWire(result, options.runtimeRelease));
 		}
 		if (request.method === "POST" && url.pathname === "/internal/agent-requests/stream") {
 			if (!authorized(request, options.sharedSecret)) {

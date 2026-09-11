@@ -161,14 +161,32 @@ Finalization 前同时核对准入、已保存结果和本地合同。任一阶�
 
 ## Agent 结果传递
 
+Operation HTTP 与 Activity 输出使用类型化 `plan` / `replan`，不再附带重复的
+`structured_output`。Executor 返回摘要 `final_output`、`remaining_facts`、evidence 和 source attempts；
+completed step 的步骤身份与执行序号由 workflow 构造，不接受 Runtime 回传副本。
+Synthesize 只接收目标、answer mode、evidence、source attempts 和
+`remaining_facts: [{ objective, facts }]`，不接收完整 plan 或 completed steps。Runtime 的 synthesis
+响应不回传 evidence/source attempts；adapter 将已准入的请求材料附到完整恢复输出。
+
+完整 Activity 输入、Runtime HTTP 请求/响应（SSE 为单个 completed JSON 对象）、Activity/receipt 输出和
+finalization recovery response 的上限均为 1 MiB（1,048,576 字节）。每个边界按其实际 UTF-8 JSON
+编码计量，包含 envelope、JSON 转义及所有数组；字符数限制不能代替字节预算。SSE framing 不占 JSON
+预算，多行 data 的换行和空白计入预算。超限不得调度 Activity、提交 completed receipt 或发布成功回调。
+失败仍通过既有 failure finalizer 收敛，不新增恢复存储。
+
 StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memory.append` 可写的例外由
 `../data/durable-runtime.md` 定义。
 
 `personal_memory_recall` 是 Execute Step operation 同一次 SDK run 内的有界工具调用，不使用独立 memory
-ref 或独立 payload。它的完整结果只进入有界 operation result；operation invocation receipt 约束整个 SDK
+ref 或独立 payload。memory 正文仅保留在 evidence excerpt 中，最多 4000 个 Unicode codepoint；
+Temporal 工具摘要只保留 `matched` / `no_match` outcome，不保存原始 arguments、debug 或 failure detail。
+Campus 工具摘要遵守现有 bounded search result 合同，Ops 查询诊断仍由已有专用投影拥有。
+operation invocation receipt 约束整个 SDK
 run 不得因 Activity 重投递而再次执行。已有 `started` receipt 时以 `workflow_attempt_uncertain`
 阻断；`completed` receipt 保存完整类型化 operation output，重投递时校验身份、修复投影并返回
-原结果，不重新调用供应商。结果无法解码或无法通过恢复校验时沿用既有失败路径。
+原结果，不重新调用供应商。首次输出与 replay 使用同一字段和大小校验；replay 还校验已有输出 hash，
+按恢复后的类型化输出编码计算，不能对 PostgreSQL JSONB 的文本空白和键顺序计算 hash。
+结果无法解码或无法通过恢复校验时沿用既有失败路径。
 
 `campus_search` 也在同一次 SDK run 内执行，不创建独立 Temporal Activity。它的结果只在本次
 Agent result 内有效，不能跨 request 或从模型输出中重新构造。
@@ -184,6 +202,14 @@ Workflow 输入只携带运行标识、输入 ref/hash 与有界策略版本，�
 重复完成、取消和较晚结果的最终裁决；execution-control 的终态投影必须与该结果一致，不能先向浏览器
 发布相冲突的终态。成功 callback 后只有 `FinalizeRunProjection` 成功追加的 `run.completed` 才能成为
 浏览器成功终态；内部 `finalization.completed` 不是产品终态。
+
+成功 finalization 在产品 callback 前完成 recovery response 的确定性字段与大小校验。callback 成功后
+event 或 projection 写入失败时允许重发相同 response、fingerprint 和 completed time；app-api 必须返回
+幂等 replay，且只保留一次产品完成效果。完成时间或响应冲突不得覆盖产品结果。
+
+本次 operation DTO 切换不保留旧 history/receipt 合同。上线须先停止新请求准入、排空旧 workflow，
+再协调更新 execution-control 与 agent-runtime 后恢复准入；工具 fingerprint 一致本身不能证明
+operation DTO 兼容。本地验证不执行该部署。
 
 所有 source-side Temporal Activity 在处理业务输入前，必须从当前 Activity context 读取 Workflow ID
 和精确 Temporal Run ID，并与持久 start intent 的 Workflow ID/root Run ID 绑定比较。绑定尚未确认是

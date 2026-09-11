@@ -61,7 +61,12 @@ export interface ManifestInspection {
 	manifests: ManifestChild[];
 }
 
-export type ImagePackageKind = "active" | "retired" | "unmanaged";
+export type ImagePackageKind = "active" | "retired" | "unmanaged" | "pr-cache";
+
+export interface SourcePullRequest {
+	state: "open" | "closed";
+	closedAt: string | null;
+}
 export type VersionAction = "keep" | "delete";
 
 export interface VersionDecision {
@@ -126,6 +131,7 @@ interface ProtectedRootSelection {
 }
 
 interface RetentionPlanningInput {
+	pullRequests?: Record<string, SourcePullRequest>;
 	manifestClosure?: Record<string, readonly string[]>;
 	mode?: "apply" | "report";
 	now?: Date;
@@ -239,7 +245,7 @@ function packageNameFromApi(value: unknown, context: string): string | undefined
 		return undefined;
 	}
 	const image = name.slice(PACKAGE_PREFIX.length);
-	if (!PACKAGE_NAME_PATTERN.test(image)) {
+	if (!PACKAGE_NAME_PATTERN.test(image) && cachePullRequest(name) === undefined) {
 		throw new Error(`${context} has an invalid image package name`);
 	}
 	return name;
@@ -380,7 +386,45 @@ export async function readGitopsImageDigests(
 	);
 }
 
+function cachePullRequest(name: string): string | undefined {
+	const match = /^campus-agent\/pr-cache-([1-9][0-9]*)\/([a-z0-9-]+)$/u.exec(name);
+	return match && ACTIVE_IMAGE_TARGETS.some((image) => image === match[2]) ? match[1] : undefined;
+}
+
+export async function readCachePullRequests(
+	packages: readonly PackageInventory[],
+	repository = DEFAULT_REPOSITORY,
+	runner: CommandRunner = runCommand,
+): Promise<Record<string, SourcePullRequest>> {
+	const requests: Record<string, SourcePullRequest> = {};
+	for (const number of new Set(
+		packages.map((pkg) => cachePullRequest(pkg.name)).filter((number) => number !== undefined),
+	)) {
+		let value: unknown;
+		try {
+			value = await ghJson([`repos/${repository}/pulls/${number}`], runner);
+		} catch {
+			// An absent entry becomes a reported policy error and prevents apply.
+			continue;
+		}
+		const record = Array.isArray(value) ? value[0] : value;
+		if (
+			!record ||
+			typeof record !== "object" ||
+			(record.state !== "open" && record.state !== "closed") ||
+			(record.closed_at !== null && typeof record.closed_at !== "string")
+		) {
+			continue;
+		}
+		requests[number] = { state: record.state, closedAt: record.closed_at };
+	}
+	return requests;
+}
+
 function packageKind(name: string): ImagePackageKind {
+	if (cachePullRequest(name) !== undefined) {
+		return "pr-cache";
+	}
 	if (ACTIVE_PACKAGE_NAMES.includes(name)) {
 		return "active";
 	}
@@ -422,11 +466,11 @@ export function protectedRootsForInventory(input: {
 	const errors: string[] = [];
 
 	for (const inventory of input.packages) {
-		if (packageKind(inventory.name) !== "active") {
+		if (!["active", "pr-cache"].includes(packageKind(inventory.name))) {
 			continue;
 		}
 		const latest = new Set(
-			sortedReleaseVersions(inventory.versions)
+			sortedReleaseVersions(packageKind(inventory.name) === "active" ? inventory.versions : [])
 				.slice(0, keepLatestReleases)
 				.map((version) => version.name),
 		);
@@ -542,7 +586,7 @@ export async function fetchManifestClosure(
 		const image = packageName.startsWith(PACKAGE_PREFIX)
 			? packageName.slice(PACKAGE_PREFIX.length)
 			: packageName;
-		if (!PACKAGE_NAME_PATTERN.test(image)) {
+		if (!PACKAGE_NAME_PATTERN.test(image) && cachePullRequest(packageName) === undefined) {
 			throw new Error(`Invalid image package name: ${packageName}`);
 		}
 		const queue = [...new Set(roots)];
@@ -639,6 +683,16 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 		.sort((left, right) => left.name.localeCompare(right.name))
 		.map<PackageRetentionPlan>((inventory) => {
 			const classification = packageKind(inventory.name);
+			const prNumber = cachePullRequest(inventory.name);
+			const pr = prNumber ? input.pullRequests?.[prNumber] : undefined;
+			const validPr =
+				pr &&
+				(pr.state === "open" || (pr.closedAt !== null && Number.isFinite(Date.parse(pr.closedAt))));
+			const expiredPr =
+				validPr && pr.state === "closed" && Date.parse(pr.closedAt as string) <= cutoff;
+			if (classification === "pr-cache" && !validPr) {
+				errors.push(`Source PR state unavailable for cache package: ${inventory.name}`);
+			}
 			const rootDigests = new Set(roots.byPackage[inventory.name] ?? []);
 			const manifestDigests = new Set(input.manifestClosure?.[inventory.name] ?? []);
 			for (const digest of rootDigests) {
@@ -651,6 +705,15 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 				.slice()
 				.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 				.map((version) => {
+					if (classification === "pr-cache" && (!validPr || expiredPr)) {
+						return decision(
+							version,
+							"keep",
+							expiredPr
+								? "closed-pr-package-will-be-deleted-as-a-whole"
+								: "source-pr-state-unavailable",
+						);
+					}
 					if (classification === "retired") {
 						return decision(version, "keep", "retired-package-will-be-deleted-as-a-whole");
 					}
@@ -690,9 +753,9 @@ export function planRetention(input: RetentionPlanningInput): RetentionPlan {
 					return decision(version, "delete", "expired-untagged-version");
 				});
 			const packageAction =
-				classification === "retired"
+				classification === "retired" || expiredPr
 					? "delete"
-					: classification === "unmanaged"
+					: classification === "unmanaged" || (classification === "pr-cache" && !validPr)
 						? "hold"
 						: "retain";
 			return {
@@ -943,6 +1006,7 @@ async function main(args: string[]): Promise<void> {
 	const options = parseArgs(args);
 	const gitopsDigests = await readGitopsImageDigests(options.gitopsRoot, options.gitopsRefs);
 	const inventory = await readPackageInventory(options.owner);
+	const pullRequests = await readCachePullRequests(inventory, options.repository);
 	const roots = protectedRootsForInventory({
 		gitopsDigests,
 		keepLatestReleases: options.keepLatestReleases,
@@ -950,6 +1014,7 @@ async function main(args: string[]): Promise<void> {
 	});
 	const manifestClosure = await fetchManifestClosure(roots.byPackage, options.repository);
 	const plan = planRetention({
+		pullRequests,
 		manifestClosure,
 		mode: options.mode,
 		now: new Date(),
@@ -997,8 +1062,14 @@ async function main(args: string[]): Promise<void> {
 				}
 			}
 		}
-		const afterManifestClosure = await fetchManifestClosure(roots.byPackage, options.repository);
+		const retainedRoots = Object.fromEntries(
+			Object.entries(roots.byPackage).filter(([name]) => !deletions.packages.includes(name)),
+		);
+		const afterManifestClosure = await fetchManifestClosure(retainedRoots, options.repository);
 		for (const [packageName, protectedDigests] of Object.entries(manifestClosure)) {
+			if (deletions.packages.includes(packageName)) {
+				continue;
+			}
 			const observed = new Set(afterManifestClosure[packageName] ?? []);
 			for (const digest of protectedDigests) {
 				if (!observed.has(digest)) {

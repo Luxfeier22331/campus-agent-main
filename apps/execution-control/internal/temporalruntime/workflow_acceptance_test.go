@@ -30,7 +30,7 @@ func TestToolExecutionWorkflowReplansPartialCoverageWithinBudget(t *testing.T) {
 			plan := WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: workflowTestGoal, Steps: []WorkflowTaskPlanStep{first}}
 			evidence := WorkflowEvidence{SchemaVersion: "workflow_evidence.v1", ID: "evidence.conditions", Source: WorkflowSourceCampusSearch, Title: "申请条件", Excerpt: "在校学生可申请。", CitationIndex: 1}
 			output := workflowStepOutput(input.RequestID, first, "已取得申请条件。", []WorkflowEvidence{evidence}, []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "matched"}})
-			output.CompletedStep.RemainingFacts = append([]string{}, tc.missing...)
+			output.RemainingFacts = append([]string{}, tc.missing...)
 			env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(workflowPlanOutput(input.RequestID, plan), nil).Once()
 			env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.MatchedBy(func(actual ExecuteTaskStepActivityInput) bool { return actual.Step.ID == first.ID })).Return(output, nil).Once()
 			if tc.wantReplans > 0 {
@@ -40,7 +40,7 @@ func TestToolExecutionWorkflowReplansPartialCoverageWithinBudget(t *testing.T) {
 				env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.MatchedBy(func(actual ExecuteTaskStepActivityInput) bool { return actual.Step.ID == next.ID })).Return(workflowStepOutput(input.RequestID, next, "未找到日期。", nil, []WorkflowSourceAttempt{{Source: WorkflowSourceWebSearch, Status: "no_match"}}), nil).Once()
 			}
 			env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-				return actual.AnswerMode == "grounded" && len(actual.Evidence) == 1 && len(actual.CompletedSteps) == 1+tc.wantReplans
+				return actual.AnswerMode == "grounded" && len(actual.Evidence) == 1 && len(actual.RemainingFacts) == 1+tc.wantReplans
 			})).Return(workflowSynthesisOutput(input.RequestID, "在校学生可申请，截止日期尚未查明。", []WorkflowEvidence{evidence}), nil).Once()
 			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()

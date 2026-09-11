@@ -98,6 +98,15 @@ lockfile/workspace 配置和实际安装 filters（排序去重）。优先恢�
 安装失败或取消不保存。只缓存 store，不缓存 node_modules 或环境文件；self-hosted runner 保留自身
 持久 store。该缓存用于同一 PR 后续运行，不增加主分支缓存预热 job。
 
+选中 execution-control native 检查时，hosted runner 还恢复 Go modules、Go build 和 golangci-lint
+缓存。目录由 native 步骤显式指定，与缓存 action 一致。键区分 OS、架构、锁定工具链、module 合同、lint
+配置及源码提交；相同工具链/依赖的前缀可恢复上一提交，检查成功后保存新提交的分析结果。精确命中时仍
+执行检查，但不重复保存；取消、检查失败或 self-hosted 不上传缓存。日志记录实际恢复键与精确命中标志，
+golangci-lint verbose 保留内部耗时；action 命中不等于全部 lint 分析命中。
+
+Nix 使用 lock 中的原生 Go 包，并校验其版本与 `go.work` 一致；版本不符直接失败，不通过源码覆盖升级。
+手动更新 `nixpkgs` 后须同步工具版本合同，并确认 CI 目标架构的 Go 和 lint 在二进制缓存中可用。
+
 package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护。Turbo 只负责声明
 任务图、输入和缓存边界；integration test 与有副作用任务不得依赖缓存，远端缓存是否命中不影响
 正确性。
@@ -122,16 +131,17 @@ package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README �
 ## PR 镜像检查边界
 
 `container-build` 是廉价的构建定义检查，执行 `docker buildx bake --print`。`image-build` 使用
-`scripts/release/image-targets.mts` 与候选发布共用的受影响目标映射，逐个执行
+`scripts/release/image-targets.mts` 与候选发布共用的受影响目标映射，按 Bake 分组执行
 `scripts/release/images.mts --mode build-only`：固定 `linux/arm64`，输出为 BuildKit `type=cacheonly`，
 关闭发布阶段的 provenance/SBOM attestation，不 push、不 load、不复用 registry 现有发布镜像，也不运行 Trivy。
-同仓且非 Dependabot 的 PR 在选中镜像验证时使用 `GITHUB_TOKEN` 的 `packages: read` 权限登录 GHCR，
-只读导入发布流程维护的 `buildcache-arm64`。外部 PR、Dependabot 或未配置缓存的本地执行继续冷构建；
-登录配置错误明确失败，缓存导入缺失或不可读的诊断由 BuildKit 保留，不进行脚本级重试。
-本地可通过 `--cache-registry 127.0.0.1:<port>/cache` 指定回环 registry 前缀，实际引用为
-`<prefix>/<image>:buildcache-arm64`；省略该参数不读取外部缓存。证据入口通过
-`CI_IMAGE_CACHE_REGISTRY` 传入此选项。build-only 复用正式发布的 BuildKit 分段日志和 summary，
-但不写入 registry 缓存。
+缓存导入缺失或不可读的诊断由 BuildKit 保留，不进行脚本级重试。
+本地可通过 `--cache-import-registries '["127.0.0.1:<port>/cache"]'` 指定回环 registry 前缀，
+实际引用为 `<prefix>/<image>:buildcache-arm64`；省略该参数不读取外部缓存。证据入口通过
+`CI_IMAGE_CACHE_IMPORT_REGISTRIES` 传入 JSON 数组。需要导出时显式传入 `--cache-export-registry`。
+build-only 复用正式发布的 BuildKit 分段日志和 summary，不推送运行镜像。
+同仓非 Dependabot PR 的独立镜像 job 同时导入当前 PR 和主线缓存，仅将 `mode=max` 缓存导出至
+`ghcr.io/<owner>/<repo>/pr-cache-<number>/<image>:buildcache-arm64`。fork、Dependabot 和登录失败时
+不使用认证缓存。普通校验 job 不持有 package write 权限，最终 `repo-checks` 汇总所有选中任务。
 两个 profile 只证明当前 Dockerfile、
 Turbo prune、依赖安装、编译和 runtime 入口能完成；它们不替代正式候选发布、镜像扫描或部署验收。
 
@@ -144,8 +154,13 @@ step summary，不阻塞 staging 候选发布或 promotion；镜像构建、推�
 
 正式发布使用 BuildKit 原生 `rawjson` 进度，由 `scripts/release/buildkit-progress.mts` 流式解析并在
 原有发布日志中显示操作开始、完成、缓存命中、命令输出和错误；忽略高频 layer 字节进度。原有 step
-summary 按镜像列出依赖安装、编译与部署包、SBOM、镜像导出、推送和缓存导出的操作耗时，不增加报告
+summary 按批次列出依赖安装、编译与部署包、SBOM、镜像导出、推送和缓存导出的操作耗时，不增加报告
 job。失败和信号退出也保留已经观测到的阶段；未完成耗时标为 unknown，不推算结束时间。
+
+build-only 和正式发布均按现有 Bake `heavy`、`standard` 分组与选中目标取交集，先 heavy 后 standard，
+每个非空组调用一次 Bake。日志保留具名 target；共享操作不重复计入各镜像。批次失败时只将已观察到的
+目标错误标记为 failed，同批未确认目标为 unfinished，后续组为 not-started。正式发布仍先检查不可变
+tag，仅构建缺失镜像，全部 digest 有效后才写最终结果。主线只读写 canonical 缓存。
 
 registry 缓存继续使用 `mode=max` 和 `ignore-error=true`。镜像发布结果与缓存导出结果分别显示：
 导出失败会留下 warning，不能因为镜像推送成功就声称缓存成功。复用已有镜像时不执行构建或缓存导出。

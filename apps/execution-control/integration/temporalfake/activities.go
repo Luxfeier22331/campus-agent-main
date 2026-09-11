@@ -109,7 +109,7 @@ func (Activities) ExecuteTaskStepActivity(
 	}
 	return temporalruntime.WorkflowOperationActivityOutput{
 		Operation:      temporalruntime.WorkflowOperationExecuteStep,
-		CompletedStep:  &completed,
+		RemainingFacts: completed.RemainingFacts,
 		RequestID:      input.RequestID,
 		Status:         "completed",
 		FinalOutput:    completed.Summary,
@@ -145,7 +145,7 @@ func (Activities) SynthesizeAnswerActivity(
 		Status:         "completed",
 		FinalOutput:    "这是合成后的校园信息答案。",
 		AnswerMode:     input.AnswerMode,
-		SourceAttempts: temporalruntime.WorkflowCompletedSourceAttempts(input.CompletedSteps),
+		SourceAttempts: input.SourceAttempts,
 		Evidence:       append([]temporalruntime.WorkflowEvidence{}, input.Evidence...),
 	}, nil
 }

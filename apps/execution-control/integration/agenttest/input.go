@@ -57,13 +57,13 @@ func (modelTarget) ResolveModelTarget(context.Context) (execution.ModelTarget, e
 	return execution.ModelTarget{TargetSHA256: strings.Repeat("a", 64), HostedWebSearch: true}, nil
 }
 
-func AdmissionSnapshot(t *testing.T) execution.AgentAdmissionSnapshot {
+func AdmissionSnapshot(t *testing.T, personalMemory ...bool) execution.AgentAdmissionSnapshot {
 	t.Helper()
 	service := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
 		ToolContract:        toolcontract.Files{},
 		ModelTargetResolver: modelTarget{}, AgentDeadlineMS: 10000,
 	})
-	snapshot, err := service.BuildAgentAdmissionSnapshot(t.Context(), false)
+	snapshot, err := service.BuildAgentAdmissionSnapshot(t.Context(), len(personalMemory) > 0 && personalMemory[0])
 	if err != nil {
 		t.Fatal(err)
 	}

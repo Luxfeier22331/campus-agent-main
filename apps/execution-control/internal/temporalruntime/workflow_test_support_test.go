@@ -149,7 +149,7 @@ func (Activities) ExecuteTaskStepActivity(
 	}
 	return WorkflowOperationActivityOutput{
 		Operation:      WorkflowOperationExecuteStep,
-		CompletedStep:  &completed,
+		RemainingFacts: completed.RemainingFacts,
 		RequestID:      input.RequestID,
 		Status:         "completed",
 		FinalOutput:    completed.Summary,

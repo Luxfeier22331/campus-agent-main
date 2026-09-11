@@ -2,6 +2,7 @@ import { MaxTurnsExceededError, ToolCallError, ToolTimeoutError } from "@openai/
 import type { ExecutionFailure } from "./agent-run-contract.ts";
 
 export type AgentRuntimeErrorCode =
+	| "workflow_operation_payload_too_large"
 	| "invalid_request"
 	| "context_budget_exceeded"
 	| "agent_deadline_exceeded"

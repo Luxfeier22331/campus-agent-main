@@ -45,12 +45,12 @@ func validateDurableRun(run DurableRun) error {
 }
 
 func validateDurableRunMetadata(run DurableRun) error {
-	if len(run.Metadata) != 3 {
+	if len(run.Metadata) < 3 || len(run.Metadata) > 4 {
 		return fmt.Errorf("%w: metadata must contain only execution input references", ErrInvalidDurableRun)
 	}
 	for key := range run.Metadata {
 		switch key {
-		case "execution_contract_version", "execution_input_ref", "execution_input_sha256":
+		case "execution_contract_version", "execution_input_ref", "execution_input_sha256", "campus_docs_index_collection":
 		default:
 			return fmt.Errorf("%w: metadata field %s is forbidden", ErrInvalidDurableRun, key)
 		}
@@ -66,6 +66,12 @@ func validateDurableRunMetadata(run DurableRun) error {
 	inputSHA256, ok := run.Metadata["execution_input_sha256"].(string)
 	if !ok {
 		return fmt.Errorf("%w: metadata.execution_input_sha256 must be a string", ErrInvalidDurableRun)
+	}
+	if binding, exists := run.Metadata["campus_docs_index_collection"]; exists {
+		collection, ok := binding.(string)
+		if !ok || strings.TrimSpace(collection) == "" {
+			return fmt.Errorf("%w: metadata.campus_docs_index_collection must be a non-empty string", ErrInvalidDurableRun)
+		}
 	}
 	metadata := contracts.ExecutionRunMetadataWire{
 		ExecutionContractVersion: contractVersion,

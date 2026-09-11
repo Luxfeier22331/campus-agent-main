@@ -115,18 +115,17 @@ func (s *Adapter) SynthesizeAnswer(
 	return s.RunWorkflowOperationActivity(ctx, WorkflowOperationActivityRequest{
 		AdmissionSnapshot: workflowcontract.AdmissionToDomain(input.AdmissionSnapshot),
 		AnswerMode:        input.AnswerMode,
-		CompletedSteps:    input.CompletedSteps,
+		SourceAttempts:    input.SourceAttempts,
 		ConversationID:    input.ConversationID,
 		Evidence:          input.Evidence,
 		Operation:         temporalruntime.WorkflowOperationSynthesize,
 		Payload: map[string]any{
-			"completed_steps": input.CompletedSteps,
+			"source_attempts": input.SourceAttempts,
+			"remaining_facts": input.RemainingFacts,
 			"evidence":        input.Evidence,
 			"answer_mode":     input.AnswerMode,
-			"plan":            input.Plan,
 		},
 		RequestID:   input.RequestID,
-		Plan:        &input.Plan,
 		StepID:      "answer.synthesize",
 		StepKind:    "synthesizer",
 		Stream:      true,
@@ -135,6 +134,7 @@ func (s *Adapter) SynthesizeAnswer(
 }
 
 type WorkflowOperationActivityRequest struct {
+	SourceAttempts    []temporalruntime.WorkflowSourceAttempt
 	AnswerMode        string
 	AdmissionSnapshot execution.AgentAdmissionSnapshot
 	CompletedSteps    []temporalruntime.WorkflowCompletedStep
@@ -232,6 +232,9 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	if err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_invocation_envelope_invalid", err)
 	}
+	if err := execution.ValidateOperationPayloadBytes(providerRequestBody); err != nil {
+		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_payload_too_large", err)
+	}
 	providerRequestSHA256, err := WorkflowOperationProviderRequestSHA256(providerPayload)
 	if err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_invocation_envelope_invalid", err)
@@ -256,20 +259,29 @@ func (s *Adapter) RunWorkflowOperationActivity(
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_invocation_receipt_failed", err)
 	}
 	if disposition == execution.AgentInvocationDispositionAmbiguous {
-		return temporalruntime.WorkflowOperationActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
+		return temporalruntime.WorkflowOperationActivityOutput{}, activityprojection.SanitizedTemporalApplicationErrorWithDetails(
 			"workflow_attempt_uncertain",
-			errors.New("workflow operation receipt is already started without a result"),
+			map[string]string{
+				"invocation_id": strings.TrimSpace(invocationID),
+				"request_id":    strings.TrimSpace(run.RequestID),
+				"receipt_state": string(receipt.State),
+				"step_id":       strings.TrimSpace(request.StepID),
+			},
 			true,
 		)
 	}
 	if disposition == execution.AgentInvocationDispositionReplay {
 		var replay temporalruntime.WorkflowOperationActivityOutput
-		if err := json.Unmarshal(receipt.OutputJSON, &replay); err != nil {
+		if err := decodeReceiptOutput(receipt.OutputJSON, &replay); err != nil {
 			return temporalruntime.WorkflowOperationActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
 				"workflow_attempt_uncertain",
 				err,
 				true,
 			)
+		}
+		encodedReplay, err := json.Marshal(replay)
+		if err != nil || Sha256Bytes(encodedReplay) != receipt.OutputSHA256 {
+			return temporalruntime.WorkflowOperationActivityOutput{}, activityprojection.SanitizedTemporalApplicationError("workflow_attempt_uncertain", errors.New("receipt output digest differs"), true)
 		}
 		if err := s.RepairWorkflowOperationReplayProjection(ctx, run, request, receipt, replay); err != nil {
 			return temporalruntime.WorkflowOperationActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
@@ -351,6 +363,13 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	output.RequestID = run.RequestID
 	output.WorkflowResultRef = resultRef
 	output.RuntimeRelease = strings.TrimSpace(response.RuntimeRelease)
+	if request.Operation == temporalruntime.WorkflowOperationSynthesize {
+		if len(response.Evidence) != 0 || len(response.SourceAttempts) != 0 {
+			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("synthesizer must not echo evidence"))
+		}
+		output.Evidence = append([]temporalruntime.WorkflowEvidence{}, request.Evidence...)
+		output.SourceAttempts = append([]temporalruntime.WorkflowSourceAttempt{}, request.SourceAttempts...)
+	}
 	if output.Status != "completed" {
 		return s.FailWorkflowOperationActivity(
 			ctx,
@@ -374,38 +393,25 @@ func (s *Adapter) RunWorkflowOperationActivity(
 			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("solver plan is missing"))
 		}
 	}
-	if request.Operation == temporalruntime.WorkflowOperationSolve && output.Plan != nil {
-		if err := temporalruntime.ValidateWorkflowPlan(
-			*output.Plan,
-			request.MaxSteps,
-			temporalruntime.AgentCapabilitiesSnapshot(request.AdmissionSnapshot.AgentCapabilities),
-		); err != nil {
-			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
-		}
-	}
 	if request.Operation == temporalruntime.WorkflowOperationReplan && output.Replan == nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("replanner result has no decision"))
 	}
-	if request.Operation == temporalruntime.WorkflowOperationReplan {
-		if err := temporalruntime.ValidateWorkflowReplanDecision(*output.Replan, request.CompletedSteps); err != nil {
-			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
-		}
-		if err := temporalruntime.ValidateWorkflowRemainingSteps(
-			output.Replan.RemainingSteps,
-			request.AdmissionSnapshot.AgentBudget.MaxPlanSteps,
-			request.CompletedSteps,
-			temporalruntime.AgentCapabilitiesSnapshot(request.AdmissionSnapshot.AgentCapabilities),
-		); err != nil {
-			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
-		}
-	}
+
 	if (request.Operation == temporalruntime.WorkflowOperationSolve || request.Operation == temporalruntime.WorkflowOperationExecuteStep || request.Operation == temporalruntime.WorkflowOperationSynthesize) &&
 		strings.TrimSpace(output.FinalOutput) == "" {
 		if request.Operation != temporalruntime.WorkflowOperationSolve || output.SolveOutcome == "answer" {
 			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("text operation result is empty"))
 		}
 	}
-	if err := s.ProjectWorkflowToolResults(ctx, run, request, output, startedProjection); err != nil {
+	if err := ValidateOperationOutputFields(output); err != nil {
+		kind := "workflow_operation_result_invalid"
+		var sizeError *execution.OperationPayloadTooLargeError
+		if errors.As(err, &sizeError) {
+			kind = "workflow_operation_payload_too_large"
+		}
+		return s.FailWorkflowOperationActivity(ctx, run, request, kind, err)
+	}
+	if err := s.ProjectWorkflowToolResults(ctx, run, request, response.ToolResults, startedProjection); err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_tool_projection_failed", err)
 	}
 	completedAt := time.Now().UTC().Truncate(time.Microsecond)
@@ -512,14 +518,8 @@ func ValidateWorkflowOperationRequest(request WorkflowOperationActivityRequest) 
 		if request.CitationStart < 1 {
 			return errors.New("executor citation_start must be positive")
 		}
-		if err := temporalruntime.ValidateWorkflowPlan(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, temporalruntime.AgentCapabilitiesSnapshot(request.AdmissionSnapshot.AgentCapabilities)); err != nil {
-			return err
-		}
 		if !temporalruntime.WorkflowPlanContainsStep(*request.Plan, *request.Step) {
 			return errors.New("executor step is not part of the supplied plan")
-		}
-		if err := temporalruntime.ValidateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan); err != nil {
-			return err
 		}
 	case temporalruntime.WorkflowOperationReplan:
 		if request.Plan == nil || request.ReplanIndex < 1 ||
@@ -529,26 +529,11 @@ func ValidateWorkflowOperationRequest(request WorkflowOperationActivityRequest) 
 		if request.MaxRemainingSteps < 0 || request.MaxRemainingSteps != request.AdmissionSnapshot.AgentBudget.MaxPlanSteps-len(request.CompletedSteps) {
 			return errors.New("replanner remaining-step budget is invalid")
 		}
-		if err := temporalruntime.ValidateWorkflowPlan(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, temporalruntime.AgentCapabilitiesSnapshot(request.AdmissionSnapshot.AgentCapabilities)); err != nil {
-			return err
-		}
-		if err := temporalruntime.ValidateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan); err != nil {
-			return err
-		}
-		if err := temporalruntime.ValidateWorkflowRemainingSteps(request.RemainingSteps, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, request.CompletedSteps, temporalruntime.AgentCapabilitiesSnapshot(request.AdmissionSnapshot.AgentCapabilities)); err != nil {
-			return err
-		}
 	case temporalruntime.WorkflowOperationSynthesize:
-		if request.Plan == nil || request.StepID != "answer.synthesize" || !request.Stream {
+		if request.StepID != "answer.synthesize" || !request.Stream {
 			return errors.New("synthesizer identity or stream mode is invalid")
 		}
-		if err := temporalruntime.ValidateWorkflowPlan(*request.Plan, request.AdmissionSnapshot.AgentBudget.MaxPlanSteps, temporalruntime.AgentCapabilitiesSnapshot(request.AdmissionSnapshot.AgentCapabilities)); err != nil {
-			return err
-		}
-		if err := temporalruntime.ValidateWorkflowCompletedSteps(request.CompletedSteps, *request.Plan); err != nil {
-			return err
-		}
-		if err := temporalruntime.ValidateWorkflowAnswerMode(request.AnswerMode, request.Evidence, temporalruntime.WorkflowCompletedSourceAttempts(request.CompletedSteps)); err != nil {
+		if err := temporalruntime.ValidateWorkflowAnswerMode(request.AnswerMode, request.Evidence, request.SourceAttempts); err != nil {
 			return err
 		}
 		for _, item := range request.Evidence {
@@ -581,23 +566,6 @@ func ValidateWorkflowOperationOutputSources(
 		if err := ValidateWorkflowOutputEvidence(output.Evidence, allowed); err != nil {
 			return err
 		}
-		if output.CompletedStep != nil {
-			if output.CompletedStep.Failure != nil {
-				return errors.New("executor cannot manufacture an activity failure")
-			}
-			if err := temporalruntime.ValidateWorkflowStepOutcome(*output.CompletedStep); err != nil {
-				return err
-			}
-			if !temporalruntime.WorkflowTaskPlanStepEqual(output.CompletedStep.Step, *request.Step) {
-				return errors.New("executor completed step does not match the admitted step")
-			}
-			if err := ValidateWorkflowOutputSourceAttempts(output.CompletedStep.SourceAttempts, allowed); err != nil {
-				return err
-			}
-			if err := ValidateWorkflowOutputEvidence(output.CompletedStep.Evidence, allowed); err != nil {
-				return err
-			}
-		}
 		return ValidateWorkflowOutputWebSearch(output, allowed)
 	case temporalruntime.WorkflowOperationSolve:
 		if len(output.ToolResults) > 0 || len(output.Evidence) > 0 || len(output.SourceAttempts) > 0 ||
@@ -615,7 +583,7 @@ func ValidateWorkflowOperationOutputSources(
 		if output.AnswerMode != request.AnswerMode {
 			return errors.New("synthesizer answer mode does not match request")
 		}
-		expectedAttempts := temporalruntime.WorkflowCompletedSourceAttempts(request.CompletedSteps)
+		expectedAttempts := request.SourceAttempts
 		if len(output.Evidence) != len(request.Evidence) || (len(output.Evidence) > 0 && activityprojection.Sha256AnyValue(output.Evidence) != activityprojection.Sha256AnyValue(request.Evidence)) ||
 			len(output.SourceAttempts) != len(expectedAttempts) || (len(expectedAttempts) > 0 && activityprojection.Sha256AnyValue(output.SourceAttempts) != activityprojection.Sha256AnyValue(expectedAttempts)) {
 			return errors.New("synthesizer changed admitted evidence or source attempts")
@@ -805,12 +773,15 @@ func WorkflowOperationOutputFromRuntimeResponse(
 	operation temporalruntime.WorkflowOperation,
 	resultRef string,
 ) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	tools, err := WorkflowToolResultsFromRuntimeResponse(response)
+	if err != nil {
+		return temporalruntime.WorkflowOperationActivityOutput{}, err
+	}
 	output := temporalruntime.WorkflowOperationActivityOutput{
 		Operation:               operation,
 		SolveOutcome:            strings.TrimSpace(response.SolveOutcome),
 		AnswerMode:              strings.TrimSpace(response.AnswerMode),
 		WorkflowResultRef:       resultRef,
-		ContextUsage:            execution.CloneAnyMapFromValue(response.ContextUsage),
 		FinalOutput:             strings.TrimSpace(response.FinalOutput),
 		ModelName:               strings.TrimSpace(response.ModelName),
 		ModelProvider:           strings.TrimSpace(response.ModelProvider),
@@ -819,7 +790,7 @@ func WorkflowOperationOutputFromRuntimeResponse(
 		StageTiming:             execution.CloneAnyMapFromValue(response.StageTiming),
 		Status:                  strings.TrimSpace(response.Status),
 		ToolContractFingerprint: execution.CloneAnyMapFromValue(response.ToolContractFingerprint),
-		ToolResults:             WorkflowToolResultsFromRuntimeResponse(response),
+		ToolResults:             tools,
 		RuntimeRelease:          strings.TrimSpace(response.RuntimeRelease),
 		Usage: temporalruntime.AgentUsageSummary{
 			CachedInputTokens: response.Usage.CachedInputTokens,
@@ -831,80 +802,48 @@ func WorkflowOperationOutputFromRuntimeResponse(
 		WebCitations:  WorkflowWebCitationsFromRuntimeResponse(response),
 		WebSearchUsed: response.WebSearchUsed,
 	}
-	if response.StructuredOutput != nil {
-		output.StructuredOutput = execution.CloneAnyMapFromValue(response.StructuredOutput)
-	}
+	output.Plan = response.Plan
+	output.Replan = response.Replan
+	output.RemainingFacts = append([]string{}, response.RemainingFacts...)
 	if len(response.Evidence) > 0 {
-		if err := activityprojection.DecodeWorkflowValue(response.Evidence, &output.Evidence); err != nil {
+		if err := decodeOperationValue(response.Evidence, &output.Evidence); err != nil {
 			return temporalruntime.WorkflowOperationActivityOutput{}, fmt.Errorf("decode workflow evidence: %w", err)
 		}
 	}
 	if len(response.SourceAttempts) > 0 {
-		if err := activityprojection.DecodeWorkflowValue(response.SourceAttempts, &output.SourceAttempts); err != nil {
+		if err := decodeOperationValue(response.SourceAttempts, &output.SourceAttempts); err != nil {
 			return temporalruntime.WorkflowOperationActivityOutput{}, fmt.Errorf("decode workflow source attempts: %w", err)
 		}
 	}
-	if len(response.CompletedStep) > 0 {
-		var completed temporalruntime.WorkflowCompletedStep
-		if err := activityprojection.DecodeWorkflowValue(response.CompletedStep, &completed); err != nil {
-			return temporalruntime.WorkflowOperationActivityOutput{}, fmt.Errorf("decode completed workflow step: %w", err)
-		}
-		output.CompletedStep = &completed
+	if operation == temporalruntime.WorkflowOperationSolve && output.SolveOutcome != "answer" && output.SolveOutcome != "plan" {
+		return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("solve outcome is missing or invalid")
 	}
-	if operation == temporalruntime.WorkflowOperationSolve {
-		if output.SolveOutcome != "answer" && output.SolveOutcome != "plan" {
-			return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("solve outcome is missing or invalid")
-		}
-		if output.SolveOutcome == "plan" {
-			if len(response.StructuredOutput) == 0 {
-				return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("solve plan structured output is missing")
-			}
-			var plan temporalruntime.WorkflowTaskPlan
-			if err := activityprojection.DecodeWorkflowValue(response.StructuredOutput, &plan); err != nil {
-				return temporalruntime.WorkflowOperationActivityOutput{}, fmt.Errorf("decode solve task plan: %w", err)
-			}
-			if plan.SchemaVersion != "task_plan.v1" || strings.TrimSpace(plan.Goal) == "" {
-				return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("solve task plan identity is invalid")
-			}
-			output.Plan = &plan
-		}
+	if output.Replan != nil && (output.Replan.SchemaVersion != "task_replan.v2" || (output.Replan.Decision != "continue" && output.Replan.Decision != "synthesize" && output.Replan.Decision != "insufficient")) {
+		return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("replan schema is invalid")
 	}
-	if operation == temporalruntime.WorkflowOperationReplan {
-		if len(response.StructuredOutput) == 0 {
-			return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("replanner structured output is missing")
-		}
-		var replan temporalruntime.WorkflowTaskReplan
-		if err := activityprojection.DecodeWorkflowValue(response.StructuredOutput, &replan); err != nil {
-			return temporalruntime.WorkflowOperationActivityOutput{}, fmt.Errorf("decode task replan: %w", err)
-		}
-		if replan.SchemaVersion != "task_replan.v2" ||
-			(replan.Decision != "continue" && replan.Decision != "synthesize" && replan.Decision != "insufficient") {
-			return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("task replan identity is invalid")
-		}
-		output.Replan = &replan
-	}
+
 	return output, nil
 }
 
-func WorkflowToolResultsFromRuntimeResponse(
-	response AgentRuntimeResponse,
-) []temporalruntime.AgentToolResult {
+func WorkflowToolResultsFromRuntimeResponse(response AgentRuntimeResponse) ([]temporalruntime.AgentToolResult, error) {
 	results := make([]temporalruntime.AgentToolResult, 0, len(response.ToolResults))
 	for _, result := range response.ToolResults {
-		results = append(results, temporalruntime.AgentToolResult{
-			ArgumentsJSON: execution.CloneAnyMapFromValue(result.ArgumentsJSON),
-			StartedAt:     CloneOptionalTime(result.StartedAt),
-			CompletedAt:   CloneOptionalTime(result.CompletedAt),
-			DurationMS:    result.DurationMS,
-			Failure:       result.Failure,
-			InvocationID:  strings.TrimSpace(result.InvocationID),
-			Result:        execution.CloneAnyMapFromValue(result.Result),
-			Status:        strings.TrimSpace(result.Status),
-			ToolName:      strings.TrimSpace(result.ToolName),
-		})
+		bounded, err := temporalToolResult(result)
+		if err != nil {
+			return nil, err
+		}
+		var failure *temporalruntime.ExecutionFailure
+		if result.Failure != nil {
+			copied := *result.Failure
+			copied.Detail = ""
+			failure = &copied
+		}
+		results = append(results, temporalruntime.AgentToolResult{StartedAt: CloneOptionalTime(result.StartedAt), CompletedAt: CloneOptionalTime(result.CompletedAt), DurationMS: result.DurationMS, Failure: failure, InvocationID: strings.TrimSpace(result.InvocationID), Result: bounded, Status: strings.TrimSpace(result.Status), ToolName: strings.TrimSpace(result.ToolName)})
 	}
-	return results
+	return results, nil
 }
+
+const temporalMemoryTextLimit = 4000
 
 func WorkflowWebCitationsFromRuntimeResponse(
 	response AgentRuntimeResponse,
@@ -957,9 +896,7 @@ func WorkflowOperationResultPayload(
 	if output.Replan != nil {
 		payload["replan_sha256"] = activityprojection.Sha256AnyValue(output.Replan)
 	}
-	if output.CompletedStep != nil {
-		payload["completed_step_sha256"] = activityprojection.Sha256AnyValue(output.CompletedStep)
-	}
+
 	payload["evidence_sha256"] = activityprojection.Sha256AnyValue(output.Evidence)
 	payload["source_attempts_sha256"] = activityprojection.Sha256AnyValue(output.SourceAttempts)
 	payload["tool_results_sha256"] = activityprojection.Sha256AnyValue(output.ToolResults)
@@ -971,11 +908,11 @@ func (s *Adapter) ProjectWorkflowToolResults(
 	ctx context.Context,
 	run execution.DurableRun,
 	request WorkflowOperationActivityRequest,
-	output temporalruntime.WorkflowOperationActivityOutput,
+	tools []AgentToolResult,
 	identity activityprojection.TemporalStepProjection,
 ) error {
 	projectedAt := time.Now().UTC().Truncate(time.Microsecond)
-	for _, result := range output.ToolResults {
+	for _, result := range tools {
 		toolName := strings.TrimSpace(result.ToolName)
 		if toolName == "" || strings.TrimSpace(result.InvocationID) == "" {
 			return errors.New("workflow tool result identity is required")
@@ -988,7 +925,7 @@ func (s *Adapter) ProjectWorkflowToolResults(
 			return err
 		}
 		startedAt, completedAt, err := WorkflowToolProjectionTimes(
-			result,
+			temporalruntime.AgentToolResult{StartedAt: result.StartedAt, CompletedAt: result.CompletedAt},
 			identity.StartedAt,
 			projectedAt,
 		)
@@ -1206,14 +1143,25 @@ func (s *Adapter) CallWorkflowOperationRuntime(
 			return AgentRuntimeResponse{}, AgentRuntimeHTTPError{StatusCode: response.StatusCode, Code: "unauthorized"}
 		}
 		var decoded AgentRuntimeResponse
-		_ = json.NewDecoder(response.Body).Decode(&decoded)
+		encoded, err := io.ReadAll(io.LimitReader(response.Body, execution.MaxAgentOperationPayloadBytes+1))
+		if err != nil {
+			return AgentRuntimeResponse{}, err
+		}
+		if err := execution.ValidateOperationPayloadBytes(encoded); err != nil {
+			return AgentRuntimeResponse{}, err
+		}
+		_ = json.Unmarshal(encoded, &decoded)
 		return AgentRuntimeResponse{}, AgentRuntimeFailureFromResponse(response.StatusCode, decoded)
 	}
 	if stream {
 		return s.ConsumeWorkflowRuntimeStream(ctx, run, operation, response.Body)
 	}
 	var decoded AgentRuntimeResponse
-	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+	encoded, readErr := io.ReadAll(io.LimitReader(response.Body, execution.MaxAgentOperationPayloadBytes+1))
+	if readErr != nil {
+		return AgentRuntimeResponse{}, readErr
+	}
+	if err := decodeOperationJSON(encoded, &decoded); err != nil {
 		return AgentRuntimeResponse{}, err
 	}
 	if strings.TrimSpace(decoded.RequestID) != strings.TrimSpace(run.RequestID) {
@@ -1260,12 +1208,16 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 			var delta struct {
 				SchemaVersion string `json:"schema_version"`
 				Delta         string `json:"delta"`
+				Provisional   *bool  `json:"provisional"`
 			}
 			if err := json.Unmarshal(event.Data, &delta); err != nil {
 				return fmt.Errorf("decode workflow runtime answer delta: %w", err)
 			}
-			if delta.SchemaVersion != "workflow_runtime_answer_delta.v1" || delta.Delta == "" {
+			if (delta.SchemaVersion != "workflow_runtime_answer_delta.v1" && delta.SchemaVersion != "workflow_runtime_answer_delta.v2") || delta.Delta == "" {
 				return errors.New("workflow runtime answer delta schema or value is invalid")
+			}
+			if delta.SchemaVersion == "workflow_runtime_answer_delta.v2" && (delta.Provisional == nil || !*delta.Provisional) {
+				return errors.New("workflow runtime answer delta must be provisional")
 			}
 			if operation == temporalruntime.WorkflowOperationSolve && solveOutcome != "answer" {
 				return errors.New("workflow runtime solve answer delta requires an answer decision")
@@ -1274,7 +1226,7 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 			return s.ProjectWorkflowAnswerDelta(ctx, run, messageID, chunkIndex, delta.Delta)
 		case "completed":
 			var response AgentRuntimeResponse
-			if err := json.Unmarshal(event.Data, &response); err != nil {
+			if err := decodeOperationJSON(event.Data, &response); err != nil {
 				return fmt.Errorf("decode workflow runtime completed event: %w", err)
 			}
 			if err := ValidateWorkflowRuntimeCompletedResponse(run, operation, solveOutcome, response); err != nil {
@@ -1347,53 +1299,4 @@ func ValidateWorkflowRuntimeCompletedResponse(
 		}
 	}
 	return nil
-}
-
-func AgentRuntimeResponseFromTemporalOutput(
-	output temporalruntime.WorkflowOperationActivityOutput,
-) AgentRuntimeResponse {
-	response := AgentRuntimeResponse{
-		ContextUsage:            execution.CloneAnyMapFromValue(output.ContextUsage),
-		FinalOutput:             output.FinalOutput,
-		SolveOutcome:            output.SolveOutcome,
-		AnswerMode:              output.AnswerMode,
-		ModelName:               output.ModelName,
-		ModelProvider:           output.ModelProvider,
-		ProviderResponseID:      output.ProviderResponseID,
-		RequestID:               output.RequestID,
-		StageTiming:             execution.CloneAnyMapFromValue(output.StageTiming),
-		Status:                  output.Status,
-		ToolContractFingerprint: execution.CloneAnyMapFromValue(output.ToolContractFingerprint),
-		RuntimeRelease:          output.RuntimeRelease,
-		Usage: AgentRuntimeUsage{
-			CachedInputTokens: output.Usage.CachedInputTokens,
-			InputTokens:       output.Usage.InputTokens,
-			ModelRequestCount: output.Usage.ModelRequestCount,
-			OutputTokens:      output.Usage.OutputTokens,
-			UsageObserved:     output.Usage.UsageObserved,
-		},
-		WebSearchUsed: output.WebSearchUsed,
-	}
-	if output.StructuredOutput != nil {
-		response.StructuredOutput = execution.CloneAnyMapFromValue(output.StructuredOutput)
-	}
-	for _, result := range output.ToolResults {
-		response.ToolResults = append(response.ToolResults, AgentToolResult{
-			ArgumentsJSON: result.ArgumentsJSON,
-			StartedAt:     CloneOptionalTime(result.StartedAt),
-			CompletedAt:   CloneOptionalTime(result.CompletedAt),
-			DurationMS:    result.DurationMS,
-			Failure:       result.Failure,
-			InvocationID:  result.InvocationID,
-			Result:        result.Result,
-			Status:        result.Status,
-			ToolName:      result.ToolName,
-		})
-	}
-	for _, citation := range output.WebCitations {
-		response.WebCitations = append(response.WebCitations, AgentRuntimeWebCitation{
-			EndIndex: citation.EndIndex, StartIndex: citation.StartIndex, Title: citation.Title, URL: citation.URL,
-		})
-	}
-	return response
 }

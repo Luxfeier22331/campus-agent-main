@@ -43,6 +43,7 @@ interface Hook extends Location {
 	source: string;
 }
 interface PnpmInstall extends Location {
+	batch?: string;
 	image: string | null;
 	operation: string | null;
 	name: string | null;
@@ -78,6 +79,12 @@ export function parseEvidence(log: string) {
 	const commands: Record<string, unknown>[] = [];
 	let plan: Record<string, unknown> | undefined;
 	let outcomes: Record<string, string> = {};
+	const outcomesByJob: Record<string, Record<string, string>> = {};
+	const batches: Array<Location & Record<string, unknown>> = [];
+	const cacheRestores = new Map<
+		string,
+		Location & { state: string; matchedKey?: string; warnings: string[] }
+	>();
 	const bodies: Array<Location & { time: string }> = [];
 	const hooks: Hook[] = [];
 	const pnpmInstalls: PnpmInstall[] = [];
@@ -87,11 +94,13 @@ export function parseEvidence(log: string) {
 		{
 			verboseHook?: { name: string; outcome: string };
 			hookOutcome: string;
+			batch?: string;
 			image: string | null;
 		}
 	>();
 	const cacheSignals: Record<string, string[]> = {
 		nix: [],
+		go: [],
 		uv: [],
 		turbo: [],
 		buildkit: [],
@@ -105,7 +114,9 @@ export function parseEvidence(log: string) {
 		const hostInstall =
 			location.step === "Install validation dependencies" ||
 			location.step === "Install affected workspaces";
-		const imageEvidence = location.step === "Run affected Node and image evidence";
+		const imageEvidence =
+			location.step === "Run affected Node and image evidence" ||
+			location.step === "Run image evidence";
 		const scopeKey = JSON.stringify(location);
 		let scope = scopes.get(scopeKey);
 		if (!scope) {
@@ -114,6 +125,48 @@ export function parseEvidence(log: string) {
 		}
 		// Ignore echoed shell source; only parse actual command output.
 		const payload = line.replace(/^.*?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\s*/, "");
+		if (location.step === "Restore Go and lint caches") {
+			const restore = cacheRestores.get(scopeKey) ?? {
+				...location,
+				state: "unknown",
+				warnings: [],
+			};
+			if (/Failed to restore|Cache restore failed/iu.test(payload)) {
+				restore.state = "restore-error";
+				restore.warnings.push(payload);
+			} else if (
+				restore.state !== "restore-error" &&
+				/Cache not found for input keys/u.test(payload)
+			) {
+				restore.state = "miss";
+			} else if (/Cache restored from key:/u.test(payload)) {
+				restore.matchedKey = payload.split("Cache restored from key:")[1].trim();
+				restore.state = "restored";
+			}
+			cacheRestores.set(scopeKey, restore);
+		}
+		if (imageEvidence && payload.startsWith("[release-batch] ")) {
+			try {
+				const entry = JSON.parse(payload.slice("[release-batch] ".length));
+				if (typeof entry.batch === "string") {
+					batches.push({ ...location, ...entry });
+					scope.batch = entry.state === "start" ? entry.batch : undefined;
+					scope.image = null;
+				}
+			} catch {
+				/* Interrupted batch record. */
+			}
+		}
+		if (
+			location.step === "Check execution-control native code" &&
+			payload.startsWith("GO_CACHE ")
+		) {
+			cacheSignals.go.push(payload);
+			const restore = [...cacheRestores.values()].find((entry) => entry.job === location.job);
+			if (restore && restore.state !== "restore-error" && /matched=\S+/u.test(payload)) {
+				restore.state = /exact_hit=true\b/u.test(payload) ? "exact-hit" : "prefix-hit";
+			}
+		}
 		const result = payload.match(/\.{3,}(Passed|Failed|Skipped)\s*$/);
 		if (result) {
 			scope.hookOutcome =
@@ -158,7 +211,8 @@ export function parseEvidence(log: string) {
 					plan = value;
 				}
 				if (marker === "CI_OUTCOMES ") {
-					outcomes = value;
+					outcomes = { ...outcomes, ...value };
+					outcomesByJob[location.job ?? "unknown"] = value;
 				}
 			} catch {
 				// A cancelled process may leave a partial final log line.
@@ -200,11 +254,13 @@ export function parseEvidence(log: string) {
 		let progress = payload;
 		let operation: string | null = null;
 		let operationName: string | null = null;
+		let operationTarget: string | null = scope.image;
 		if (payload.startsWith("[buildkit-pnpm] ")) {
 			try {
 				const entry = JSON.parse(payload.slice("[buildkit-pnpm] ".length));
 				if (typeof entry.operation === "string" && typeof entry.progress === "string") {
 					operation = entry.operation;
+					operationTarget = typeof entry.target === "string" ? entry.target : scope.image;
 					operationName = typeof entry.name === "string" ? entry.name : null;
 					progress = entry.progress;
 				}
@@ -223,11 +279,13 @@ export function parseEvidence(log: string) {
 		);
 		if (
 			packages &&
-			((operation === null && hostInstall) || (operation !== null && imageEvidence && scope.image))
+			((operation === null && hostInstall) ||
+				(operation !== null && imageEvidence && (scope.image || scope.batch)))
 		) {
 			const next: PnpmInstall = {
 				...location,
-				image: scope.image,
+				image: operationTarget,
+				...(scope.batch ? { batch: scope.batch } : {}),
 				operation,
 				name: operationName,
 				resolved: Number(packages[1]),
@@ -236,7 +294,7 @@ export function parseEvidence(log: string) {
 				added: Number(packages[4]),
 				done: Boolean(packages[5]),
 			};
-			const key = JSON.stringify([scopeKey, scope.image, operation]);
+			const key = JSON.stringify([scopeKey, scope.batch, operationTarget, operation]);
 			const previous = installs.get(key);
 			if (previous && JSON.stringify(previous) === JSON.stringify(next)) {
 				// BuildKit can repeat the final progress record for the same operation.
@@ -256,14 +314,30 @@ export function parseEvidence(log: string) {
 		if (/Cached:\s+\d+ cached, \d+ total/.test(payload)) {
 			cacheSignals.turbo.push(payload);
 		}
-		if (imageEvidence && scope.image && /^#\d+ CACHED|^\[buildkit\] state=cached /.test(payload)) {
+		if (
+			imageEvidence &&
+			(scope.image || scope.batch) &&
+			/^(?:#\d+ CACHED|\[buildkit\] state=cached )/u.test(payload)
+		) {
 			cacheSignals.buildkit.push(payload);
 		}
 	}
-	return { commands, plan, outcomes, bodies, hooks: mergeHooks(hooks), pnpmInstalls, cacheSignals };
+	return {
+		commands,
+		plan,
+		outcomes,
+		outcomesByJob,
+		batches,
+		cacheRestores: [...cacheRestores.values()],
+		bodies,
+		hooks: mergeHooks(hooks),
+		pnpmInstalls,
+		cacheSignals,
+	};
 }
 
 const outcomeKeys: Record<string, string> = {
+	"Run affected Node evidence": "affected-node",
 	"Generate pull request validation plan": "plan",
 	"Install static-check dependencies": "install-static-dependencies",
 	"Lint repository": "repository-lint",
@@ -288,7 +362,8 @@ export function buildReport(run: Run, jobs: Job[], log: string, recent: Run[]) {
 			const body = evidence.bodies.find(
 				(entry) => entry.job === job.name && entry.step === step.name,
 			);
-			const outcome = evidence.outcomes[outcomeKeys[step.name]] ?? step.conclusion ?? "unknown";
+			const outcome =
+				evidence.outcomesByJob[job.name]?.[outcomeKeys[step.name]] ?? step.conclusion ?? "unknown";
 			return {
 				...step,
 				job: job.name,
@@ -400,6 +475,16 @@ export function renderReport(report: ReturnType<typeof buildReport>): string {
 		"",
 		"### Cache signals",
 		"",
+		...report.cacheRestores.map(
+			(entry) =>
+				`- Go restore (${cell(entry.job)}): ${cell(entry.state)}; ${cell(entry.matchedKey ?? "-")}${entry.warnings.length > 0 ? ` — ${cell(entry.warnings.join("; "))}` : ""}`,
+		),
+		...report.batches
+			.filter((entry) => entry.state !== "start")
+			.map(
+				(entry) =>
+					`- Image batch ${cell(entry.batch)}: ${cell(entry.state)}, ${seconds(typeof entry.durationMs === "number" ? entry.durationMs : null)}; cache export=${cell(entry.cacheExport)}`,
+			),
 		...Object.entries(report.cacheSignals).map(
 			([tool, signals]) =>
 				`- ${tool}: ${signals.length > 0 ? signals.slice(-5).map(cell).join("; ") : "unknown (no reliable signal)"}`,

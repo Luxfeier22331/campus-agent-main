@@ -91,7 +91,8 @@ pnpm check
 | `test:stream-integration` | 本地 `httptest.Server` SSE、真实 consumer 和 in-memory projection，不启动 Temporal |
 | `test:database-integration` | testcontainers PostgreSQL、共享 schema、receipt 和投影持久化，不启动 Temporal |
 
-这些 integration 不隐式启动 `pnpm dev`、App API、Campus Web 或真实 Agent Runtime，也不连接 staging。
+Temporal integration 的 operation 合同测试启动真实 Node Runtime HTTP 服务，使用受控模型 runner；
+需要本地 Node 和 agent-runtime 依赖。其余 integration 不隐式启动产品服务，也不连接 staging。
 完整产品链路验证仍由产品测试入口负责。
 
 `integration/temporal` 拥有真实 workflow、history replay 和取消场景，`integration/execution_http`

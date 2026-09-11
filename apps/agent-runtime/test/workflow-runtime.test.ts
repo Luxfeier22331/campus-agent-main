@@ -133,10 +133,16 @@ describe("workflow operation runtime", () => {
 			];
 			expect(result.sourceAttempts).toEqual(attempts);
 			const request = replanInput(taskPlan("个人偏好", [step]), []);
-			if (!result.completedStep) {
-				throw new Error("missing completed step");
-			}
-			request.operationInput.completedSteps = [result.completedStep];
+			request.operationInput.completedSteps = [
+				{
+					step,
+					executionIndex: 1,
+					summary: result.finalOutput,
+					evidence: result.evidence,
+					sourceAttempts: result.sourceAttempts,
+					remainingFacts: result.remainingFacts ?? [],
+				},
+			];
 			await runtime.run(request);
 			const message = observedReplan?.input.at(-1);
 			if (!(message && "content" in message) || typeof message.content !== "string") {
@@ -178,7 +184,7 @@ describe("workflow operation runtime", () => {
 		expect(result.solveOutcome).toBe("plan");
 		expect(result.status).toBe("completed");
 		expect(result.finalOutput).toBe("");
-		expect(result.structuredOutput).toEqual(plan);
+		expect(result.plan).toEqual(plan);
 		expect(observed?.operation).toBe("solve");
 		expect(observed?.tools).toEqual([]);
 		expect(observed?.allowWebSearch).toBe(false);
@@ -236,7 +242,7 @@ describe("workflow operation runtime", () => {
 			solveOutcome: "answer",
 			status: "completed",
 		});
-		expect(result.structuredOutput).toBeUndefined();
+		expect(result.plan).toBeUndefined();
 	});
 
 	it("executes only the sources admitted by the current step and builds evidence", async () => {
@@ -308,9 +314,8 @@ describe("workflow operation runtime", () => {
 		expect(observed?.instructions).toContain("引用编号由结构化 evidence 保留");
 		expect(observed?.instructions).not.toContain("步骤摘要必须写成");
 		expect(observedWorkflowStepId).toBe("task.step.step.notice");
-		expect(result.completedStep).toMatchObject({
-			step,
-			summary: "找到校园通知。",
+		expect(result).toMatchObject({
+			finalOutput: "找到校园通知。",
 			sourceAttempts: [{ source: "campus_search", status: "matched" }],
 		});
 		expect(result.evidence).toEqual([
@@ -443,7 +448,7 @@ describe("workflow operation runtime", () => {
 		const result = await runtime.run(replanInput(plan, replan.remainingSteps));
 
 		expect(result.operation).toBe("replan");
-		expect(result.structuredOutput).toEqual(replan);
+		expect(result.replan).toEqual(replan);
 		expect(result.finalOutput).toBe("");
 	});
 
@@ -499,7 +504,7 @@ describe("workflow operation runtime", () => {
 				catalog,
 				runner: async () => runnerResult({ finalOutput: JSON.stringify(replan) }),
 			});
-			expect((await runtime.run(replanInput(plan, plan.steps))).structuredOutput).toEqual(replan);
+			expect((await runtime.run(replanInput(plan, plan.steps))).replan).toEqual(replan);
 		},
 	);
 
@@ -517,7 +522,7 @@ describe("workflow operation runtime", () => {
 				catalog,
 				runner: async () => runnerResult({ finalOutput: JSON.stringify(replan) }),
 			});
-			expect((await runtime.run(replanInput(plan, plan.steps))).structuredOutput).toEqual(replan);
+			expect((await runtime.run(replanInput(plan, plan.steps))).replan).toEqual(replan);
 		},
 	);
 
@@ -585,11 +590,8 @@ describe("workflow operation runtime", () => {
 		});
 		expect(JSON.stringify(synthesisInput)).not.toContain("coverageNotes");
 		expect(result.finalOutput).toBe("奖学金每学年评审一次 [1]。");
-		expect(result.evidence).toEqual([evidence]);
-		expect(result.sourceAttempts).toEqual([
-			{ source: "campus_search", status: "matched" },
-			{ source: "web_search", status: "failed", failureCode: "provider_internal" },
-		]);
+		expect(result.evidence).toEqual([]);
+		expect(result.sourceAttempts).toEqual([]);
 	});
 
 	it("keeps insufficient synthesis concise and rejects fabricated citations", async () => {
@@ -746,7 +748,7 @@ describe("workflow operation runtime", () => {
 				}),
 		});
 
-		expect((await runtime.run(solveInput("目标", 2))).structuredOutput).toEqual(
+		expect((await runtime.run(solveInput("目标", 2))).plan).toEqual(
 			taskPlan("目标", [unavailableStep]),
 		);
 	});
@@ -795,7 +797,16 @@ function synthesizeInput(
 ): SynthesizeWorkflowOperationInput {
 	return {
 		operation: "synthesize",
-		operationInput: { answerMode: "grounded", completedSteps, evidence, goal: plan.goal, plan },
+		operationInput: {
+			answerMode: "grounded",
+			evidence,
+			goal: plan.goal,
+			sourceAttempts: completedSteps.flatMap((step) => step.sourceAttempts),
+			remainingFacts: completedSteps.map((step) => ({
+				objective: step.step.objective,
+				facts: step.remainingFacts,
+			})),
+		},
 		...commonInput("req-synthesize", ["campus_search"]),
 	};
 }

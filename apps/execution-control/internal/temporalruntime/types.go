@@ -124,9 +124,14 @@ type ReplanTaskActivityInput struct {
 type SynthesizeAnswerActivityInput struct {
 	AnswerMode string `json:"answer_mode"`
 	WorkflowOperationActivityInputBase
-	Plan           WorkflowTaskPlan        `json:"plan"`
-	CompletedSteps []WorkflowCompletedStep `json:"completed_steps"`
-	Evidence       []WorkflowEvidence      `json:"evidence"`
+	Evidence       []WorkflowEvidence       `json:"evidence"`
+	SourceAttempts []WorkflowSourceAttempt  `json:"source_attempts"`
+	RemainingFacts []WorkflowRemainingFacts `json:"remaining_facts"`
+}
+
+type WorkflowRemainingFacts struct {
+	Objective string   `json:"objective"`
+	Facts     []string `json:"facts"`
 }
 
 type ToolExecutionWorkflowResult struct {
@@ -159,15 +164,14 @@ type ExecutionFailure struct {
 }
 
 type AgentToolResult struct {
-	ArgumentsJSON map[string]any    `json:"arguments_json"`
-	StartedAt     *time.Time        `json:"started_at,omitempty"`
-	CompletedAt   *time.Time        `json:"completed_at,omitempty"`
-	DurationMS    float64           `json:"duration_ms"`
-	Failure       *ExecutionFailure `json:"failure,omitempty"`
-	InvocationID  string            `json:"invocation_id"`
-	Result        map[string]any    `json:"result"`
-	Status        string            `json:"status"`
-	ToolName      string            `json:"tool_name"`
+	StartedAt    *time.Time        `json:"started_at,omitempty"`
+	CompletedAt  *time.Time        `json:"completed_at,omitempty"`
+	DurationMS   float64           `json:"duration_ms"`
+	Failure      *ExecutionFailure `json:"failure,omitempty"`
+	InvocationID string            `json:"invocation_id"`
+	Result       map[string]any    `json:"result"`
+	Status       string            `json:"status"`
+	ToolName     string            `json:"tool_name"`
 }
 
 type AgentWebCitation struct {
@@ -182,12 +186,10 @@ type WorkflowOperationActivityOutput struct {
 	Operation               WorkflowOperation       `json:"operation"`
 	SolveOutcome            string                  `json:"solve_outcome,omitempty"`
 	WorkflowResultRef       string                  `json:"agent_result_ref"`
-	ContextUsage            map[string]any          `json:"context_usage"`
 	FinalOutput             string                  `json:"final_output"`
-	StructuredOutput        map[string]any          `json:"structured_output,omitempty"`
 	Plan                    *WorkflowTaskPlan       `json:"plan,omitempty"`
 	Replan                  *WorkflowTaskReplan     `json:"replan,omitempty"`
-	CompletedStep           *WorkflowCompletedStep  `json:"completed_step,omitempty"`
+	RemainingFacts          []string                `json:"remaining_facts,omitempty"`
 	Evidence                []WorkflowEvidence      `json:"evidence"`
 	SourceAttempts          []WorkflowSourceAttempt `json:"source_attempts"`
 	ModelName               string                  `json:"model_name"`

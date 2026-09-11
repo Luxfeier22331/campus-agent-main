@@ -11,11 +11,88 @@ import {
 	planRetention,
 	protectedRootsForInventory,
 	RETIRED_PACKAGE_NAMES,
+	readCachePullRequests,
 } from "./ghcr-retention.mts";
 
 const NOW = new Date("2026-09-04T00:00:00.000Z");
 const digest = (character: string) => `sha256:${character.repeat(64)}`;
 const tag = (character: string) => character.repeat(40);
+
+test("PR caches protect the current tag, expire history and delete only after closure grace", () => {
+	const name = "campus-agent/pr-cache-442/ops-web";
+	const packages = [
+		...inventory(),
+		{
+			name,
+			versions: [
+				version(100, "a", ["buildcache-arm64"], "2026-08-01T00:00:00Z"),
+				version(101, "b", [], "2026-08-01T00:00:00Z"),
+				version(102, "c", [], "2026-09-03T00:00:00Z"),
+			],
+		},
+	];
+	const planned = (pr?: { state: "open" | "closed"; closedAt: string | null }) =>
+		planRetention({ now: NOW, packages, pullRequests: pr ? { "442": pr } : {} });
+	const open = planned({ state: "open", closedAt: null });
+	assert.deepEqual(open.errors, []);
+	const cache = open.packages.find((pkg) => pkg.name === name);
+	assert.equal(cache?.packageAction, "retain");
+	assert.equal(cache?.versions.find((v) => v.id === 100)?.reason, "current-build-cache");
+	assert.equal(cache?.versions.find((v) => v.id === 101)?.action, "delete");
+	assert.equal(cache?.versions.find((v) => v.id === 102)?.action, "keep");
+	assert.equal(
+		planned({ state: "closed", closedAt: "2026-08-28T00:00:01Z" }).packages.find(
+			(pkg) => pkg.name === name,
+		)?.packageAction,
+		"retain",
+	);
+	assert.equal(
+		planned({ state: "closed", closedAt: "2026-08-28T00:00:00Z" }).packages.find(
+			(pkg) => pkg.name === name,
+		)?.packageAction,
+		"delete",
+	);
+	for (const pr of [undefined, { state: "closed" as const, closedAt: "invalid" }]) {
+		const plan = planned(pr);
+		assert(plan.errors.some((error) => error.includes("Source PR state unavailable")));
+		assert(
+			plan.packages.find((pkg) => pkg.name === name)?.versions.every((v) => v.action === "keep"),
+		);
+		assert.notEqual(plan.packages.find((pkg) => pkg.name === name)?.packageAction, "delete");
+	}
+});
+
+test("PR state lookup deduplicates image packages and holds unavailable state", async () => {
+	const packages = ["ops-web", "agent-runtime"].map((image) => ({
+		name: `campus-agent/pr-cache-442/${image}`,
+		versions: [],
+	}));
+	const calls: string[][] = [];
+	assert.deepEqual(
+		await readCachePullRequests(packages, "MUC-WIKI/campus-agent", async (_command, args) => {
+			calls.push(args);
+			return { code: 0, stderr: "", stdout: JSON.stringify({ state: "open", closed_at: null }) };
+		}),
+		{ "442": { state: "open", closedAt: null } },
+	);
+	assert.equal(calls.length, 1);
+	assert.deepEqual(
+		await readCachePullRequests(packages, "MUC-WIKI/campus-agent", async () => ({
+			code: 1,
+			stderr: "API unavailable",
+			stdout: "",
+		})),
+		{},
+	);
+	for (const name of [
+		"campus-agent/pr-cache-0/ops-web",
+		"campus-agent/pr-cache-442/unregistered",
+		"campus-agent/pr-cache-442/ops-web/extra",
+	]) {
+		const plan = planRetention({ now: NOW, packages: [...inventory(), { name, versions: [] }] });
+		assert(plan.errors.some((error) => error.includes("not registered")));
+	}
+});
 
 function version(
 	id: number,

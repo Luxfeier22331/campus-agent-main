@@ -9,7 +9,6 @@ import type {
 	AgentRunnerResult,
 	AgentRunnerSolveDecision,
 	AgentRuntimeLimits,
-	CompletedTaskStep,
 	CreateWorkflowOperationRuntimeOptions,
 	ModelContextUsage,
 	SdkToolRuntime,
@@ -247,7 +246,7 @@ export function createWorkflowOperationRuntime(
 					);
 				}
 				firstDeltaAt ??= new Date();
-				yield { event: "answer_delta", data: item };
+				yield { event: "answer_delta", data: { ...item, provisional: true } };
 			}
 			throw new AgentRuntimeError(
 				"run_failed",
@@ -269,10 +268,8 @@ function prepareOperation(
 		catalog.contractFingerprint,
 	);
 	if (input.operation === "synthesize") {
-		const { answerMode, evidence, completedSteps } = input.operationInput;
-		const hasNoMatch = completedSteps.some((step) =>
-			step.sourceAttempts.some((attempt) => attempt.status === "no_match"),
-		);
+		const { answerMode, evidence, sourceAttempts } = input.operationInput;
+		const hasNoMatch = sourceAttempts.some((attempt) => attempt.status === "no_match");
 		if (
 			(answerMode === "grounded" && evidence.length === 0) ||
 			(answerMode === "insufficient" && (evidence.length > 0 || !hasNoMatch)) ||
@@ -562,10 +559,7 @@ function synthesisPayload(
 			excerpt: item.excerpt,
 		})),
 		answerMode: input.answerMode,
-		remainingFacts: input.completedSteps.map((step) => ({
-			objective: step.step.objective,
-			facts: step.remainingFacts,
-		})),
+		remainingFacts: input.remainingFacts,
 	};
 }
 
@@ -629,7 +623,7 @@ function operationResultFromRunner(args: {
 					finalOutput: "",
 					solveOutcome: "plan",
 					status: "completed",
-					structuredOutput: outcome.plan,
+					plan: outcome.plan,
 					evidence,
 					sourceAttempts,
 					terminalReason: "operation_completed",
@@ -641,7 +635,7 @@ function operationResultFromRunner(args: {
 					...common,
 					finalOutput: "",
 					status: "completed",
-					structuredOutput: replan,
+					replan,
 					evidence: [],
 					sourceAttempts: [],
 					terminalReason: "operation_completed",
@@ -655,20 +649,12 @@ function operationResultFromRunner(args: {
 					input.operationInput.citationStart,
 				);
 				const sourceAttempts = sourceAttemptsFromRunnerResult(runnerResult);
-				const completedStep: CompletedTaskStep = {
-					remainingFacts: parsed.remainingFacts,
-					evidence,
-					executionIndex: input.operationInput.completedSteps.length + 1,
-					sourceAttempts,
-					step: input.operationInput.step,
-					summary: finalOutput,
-				};
 				return {
 					...common,
 					webCitations: parsed.result.webCitations,
 					finalOutput,
 					status: "completed",
-					completedStep,
+					remainingFacts: parsed.remainingFacts,
 					evidence,
 					sourceAttempts,
 					terminalReason: "operation_completed",
@@ -688,8 +674,8 @@ function operationResultFromRunner(args: {
 					answerMode: input.operationInput.answerMode,
 					finalOutput,
 					status: "completed",
-					evidence: normalizeEvidence(input.operationInput.evidence),
-					sourceAttempts: sourceAttemptsFromCompletedSteps(input.operationInput.completedSteps),
+					evidence: [],
+					sourceAttempts: [],
 					terminalReason: "operation_completed",
 				};
 			}
@@ -890,7 +876,7 @@ function evidenceFromRunnerResult(
 		}
 		evidence.push({
 			citationIndex: nextCitationIndex,
-			excerpt: excerpt.slice(0, maxEvidenceExcerptCharacters),
+			excerpt: [...excerpt].slice(0, maxEvidenceExcerptCharacters).join(""),
 			id,
 			schemaVersion: "workflow_evidence.v1",
 			source: "web_search",
@@ -932,7 +918,7 @@ function campusEvidenceFromResult(result: Record<string, unknown>): WorkflowEvid
 			evidence.push({
 				citationHref,
 				citationIndex,
-				excerpt: excerpt.slice(0, maxEvidenceExcerptCharacters),
+				excerpt: [...excerpt].slice(0, maxEvidenceExcerptCharacters).join(""),
 				id: `campus:${id}`,
 				noticeId,
 				resultRef: id,
@@ -948,7 +934,7 @@ function campusEvidenceFromResult(result: Record<string, unknown>): WorkflowEvid
 		}
 		const item: WorkflowEvidence = {
 			citationIndex,
-			excerpt: excerpt.slice(0, maxEvidenceExcerptCharacters),
+			excerpt: [...excerpt].slice(0, maxEvidenceExcerptCharacters).join(""),
 			id: `campus:${id}`,
 			resultRef: id,
 			schemaVersion: "workflow_evidence.v1",
@@ -985,7 +971,7 @@ function personalMemoryEvidenceFromResult(result: Record<string, unknown>): Work
 	if (memoryText) {
 		return [
 			{
-				excerpt: memoryText.slice(0, maxEvidenceExcerptCharacters),
+				excerpt: [...memoryText].slice(0, maxEvidenceExcerptCharacters).join(""),
 				id: `memory:${sha256(memoryText)}`,
 				schemaVersion: "workflow_evidence.v1",
 				source: "personal_memory_recall",
@@ -1006,7 +992,7 @@ function personalMemoryEvidenceFromResult(result: Record<string, unknown>): Work
 			continue;
 		}
 		evidence.push({
-			excerpt: excerpt.slice(0, maxEvidenceExcerptCharacters),
+			excerpt: [...excerpt].slice(0, maxEvidenceExcerptCharacters).join(""),
 			id: `memory:${index}:${sha256(excerpt)}`,
 			schemaVersion: "workflow_evidence.v1",
 			source: "personal_memory_recall",
@@ -1062,15 +1048,8 @@ function sourceAttemptsFromRunnerResult(result: AgentRunnerResult): SourceAttemp
 	return attempts;
 }
 
-function sourceAttemptsFromCompletedSteps(steps: CompletedTaskStep[]): SourceAttempt[] {
-	return steps.flatMap((step) => step.sourceAttempts);
-}
-
 function sourceForToolName(name: string): WorkflowSource | undefined {
-	if (name === "campus_search" || name === "personal_memory_recall") {
-		return name;
-	}
-	return undefined;
+	return name === "campus_search" || name === "personal_memory_recall" ? name : undefined;
 }
 
 function normalizeEvidence(evidence: WorkflowEvidence[]): WorkflowEvidence[] {

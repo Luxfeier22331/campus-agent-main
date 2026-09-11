@@ -35,7 +35,9 @@ main 中已验证的源码
 5. 所有被选候选物成功后，才把同一源码身份交给环境仓；不创建缺少已选制品的部分提升。
 
 普通 PR 不发布最终候选物，也不访问私有环境、供应商状态、集群或真实私有数据。涉及镜像的 PR
-可以执行 `cacheonly` 的 `linux/arm64` build-only 证据，但不会写入 registry 或加载本地镜像。特殊制品和手动
+可以执行 `cacheonly` 的 `linux/arm64` build-only 证据，不发布运行镜像或加载本地镜像。同仓非 Dependabot
+PR 的独立镜像 job 可以读取 PR 和主线缓存，并写入该 PR 的 `pr-cache-<number>` 命名空间；fork 和
+Dependabot job 不进行认证缓存读写。主线发布仍只读写 canonical 缓存。特殊制品和手动
 验证入口只有在明确选择时运行，不提供隐式全量发布或全量验证开关。
 
 ## 环境交接

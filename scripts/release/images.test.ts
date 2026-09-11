@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parseBuildkit } from "./buildkit-progress.mts";
 import {
+	bakeBatches,
 	buildImages,
 	type CommandOutput,
 	type CommandResult,
@@ -18,6 +19,107 @@ const FIRST_DIGEST = `sha256:${"b".repeat(64)}`;
 const SECOND_DIGEST = `sha256:${"c".repeat(64)}`;
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
+test("batch selection rejects overlapping and missing group membership", () => {
+	const source = (heavy: string[], standard: string[]) =>
+		JSON.stringify({
+			target: { "ops-web": {} },
+			group: { heavy: { targets: heavy }, standard: { targets: standard } },
+		});
+	assert.throws(() => bakeBatches(source(["ops-web"], ["ops-web"]), ["ops-web"]), /exactly one/u);
+	assert.throws(() => bakeBatches(source([], []), ["ops-web"]), /exactly one/u);
+	assert.deepEqual(bakeBatches(source(["ops-web"], []), ["ops-web"]), [
+		{ name: "heavy", images: ["ops-web"] },
+	]);
+});
+
+test("twelve selected images run in two batches with PR and canonical cache imports", async (t) => {
+	const { options } = await fixture(t);
+	const bake = await readFile(path.join(REPOSITORY_ROOT, "docker-bake.hcl"), "utf8");
+	const images = [...bake.matchAll(/^target "([a-z][a-z-]+)"/gmu)].map((match) => match[1]);
+	assert.equal(images.length, 12);
+	const calls: string[][] = [];
+	await buildImages(
+		{
+			...options,
+			images,
+			cacheImportRegistries: ["ghcr.io/test/pr-cache-442", "ghcr.io/test/main"],
+			cacheExportRegistry: "ghcr.io/test/pr-cache-442",
+		},
+		async (_command, args) => {
+			if (args.includes("--print")) {
+				return bakePrint(images);
+			}
+			calls.push(args);
+			return result();
+		},
+	);
+	assert.equal(calls.length, 2);
+	assert.deepEqual(
+		calls.map((args) => args.filter((arg) => images.includes(arg))),
+		[
+			["execution-control", "model-config", "ops-web"],
+			images
+				.filter((image) => !["execution-control", "model-config", "ops-web"].includes(image))
+				.sort(),
+		],
+	);
+	for (const args of calls) {
+		for (const image of args.filter((arg) => images.includes(arg))) {
+			assert(
+				args.includes(
+					`${image}.cache-from=type=registry,ref=ghcr.io/test/pr-cache-442/${image}:buildcache-arm64`,
+				),
+			);
+			assert(
+				args.includes(
+					`${image}.cache-from+=type=registry,ref=ghcr.io/test/main/${image}:buildcache-arm64`,
+				),
+			);
+			assert(
+				args.includes(
+					`${image}.cache-to=type=registry,ref=ghcr.io/test/pr-cache-442/${image}:buildcache-arm64,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true`,
+				),
+			);
+		}
+		assert(!args.includes("--push"));
+	}
+});
+
+test("batch failures distinguish named errors, cancellation and later targets without publishing digests", async (t) => {
+	const { options } = await fixture(t);
+	options.images = ["ops-web", "execution-control", "agent-runtime"];
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	const buildkit = parseBuildkit(
+		JSON.stringify({
+			vertexes: [
+				{ digest: "bad", name: "[ops-web build 1/1] RUN pnpm build", error: "exit code 1" },
+				{
+					digest: "cancel",
+					name: "[execution-control build 1/1] RUN go build",
+					error: "context canceled",
+				},
+			],
+		}),
+	);
+	await assert.rejects(
+		publishImages(options, async (_command, args) => {
+			if (args.includes("--print")) {
+				return bakePrint(options.images);
+			}
+			if (args.includes("imagetools")) {
+				return result({ code: 1, stderr: "manifest unknown" });
+			}
+			return result({ code: 1, stderr: "build failed", buildkit });
+		}),
+		/build failed/u,
+	);
+	const summary = await readFile(options.summaryFile, "utf8");
+	assert(summary.includes("| `ops-web` | failed (build) |"));
+	assert(summary.includes("| `execution-control` | unfinished |"));
+	assert(summary.includes("| `agent-runtime` | not-started |"));
+	await assert.rejects(access(options.outputFile));
+});
+
 function result(overrides: Partial<CommandResult> = {}): CommandResult {
 	return { code: 0, stderr: "", stdout: "", ...overrides };
 }
@@ -26,6 +128,18 @@ function bakePrint(targets: string[]): CommandResult {
 	return result({
 		stdout: JSON.stringify({
 			target: Object.fromEntries(targets.map((target) => [target, {}])),
+			group: {
+				heavy: {
+					targets: targets.filter((target) =>
+						["ops-web", "execution-control", "model-config"].includes(target),
+					),
+				},
+				standard: {
+					targets: targets.filter(
+						(target) => !["ops-web", "execution-control", "model-config"].includes(target),
+					),
+				},
+			},
 		}),
 	});
 }
@@ -43,6 +157,35 @@ test("every Docker Bake target references an existing Dockerfile", async () => {
 			`${dockerfile} must exist`,
 		);
 	}
+});
+
+test("Docker Bake groups cover all targets without overlap", async () => {
+	const bake = await readFile(path.join(REPOSITORY_ROOT, "docker-bake.hcl"), "utf8");
+	const groupTargets = (name: string) => {
+		const match = bake.match(new RegExp(String.raw`group "${name}" \{([\s\S]*?)\n\}`, "u"));
+		assert(match, `${name} group must exist`);
+		return [...match[1].matchAll(/"([a-z0-9-]+)"/gu)].map((entry) => entry[1]);
+	};
+	const heavy = groupTargets("heavy");
+	const standard = groupTargets("standard");
+	assert.deepEqual(new Set(heavy).intersection(new Set(standard)).size, 0);
+	assert.deepEqual(
+		new Set([...heavy, ...standard]),
+		new Set([
+			"document-ocr",
+			"agent-runtime",
+			"campus-agent-schema",
+			"campus-docs-index-publisher",
+			"campus-rag-index-publisher",
+			"execution-control",
+			"model-config",
+			"notice-classifier",
+			"notice-index-publisher",
+			"notice-publisher",
+			"ops-web",
+			"internal-portal-collection",
+		]),
+	);
 });
 
 function manifest(
@@ -100,6 +243,78 @@ test("rejects image names that Docker Bake does not declare", async (t) => {
 	);
 });
 
+test("publication excludes reused targets, batches missing targets and writes only complete digests", async (t) => {
+	const { options } = await fixture(t);
+	options.images = ["ops-web", "model-config", "execution-control", "agent-runtime"];
+	const calls: string[][] = [];
+	const runner: CommandRunner = async (command, args) => {
+		if (args.includes("--print")) {
+			return bakePrint(options.images);
+		}
+		if (args.includes("imagetools")) {
+			return args.some((arg) => arg.includes(`/model-config:${SHA}`))
+				? manifest(FIRST_DIGEST)
+				: result({ code: 1, stderr: "manifest unknown" });
+		}
+		if (command === "trivy") {
+			return result();
+		}
+		calls.push(args);
+		const targets = args.filter((arg) => options.images.includes(arg));
+		const metadata = args[args.indexOf("--metadata-file") + 1];
+		await writeFile(
+			metadata,
+			JSON.stringify(
+				Object.fromEntries(
+					targets.map((image) => [image, { "containerimage.digest": SECOND_DIGEST }]),
+				),
+			),
+		);
+		assert(!args.some((arg) => arg.includes("pr-cache")));
+		for (const image of targets) {
+			assert(
+				args.includes(
+					`${image}.cache-from=type=registry,ref=ghcr.io/muc-wiki/campus-agent/${image}:buildcache-arm64`,
+				),
+			);
+		}
+		return result();
+	};
+	const digests = await publishImages(options, runner);
+	assert.deepEqual(
+		calls.map((args) => args.filter((arg) => options.images.includes(arg))),
+		[["execution-control", "ops-web"], ["agent-runtime"]],
+	);
+	assert.deepEqual(digests, {
+		"agent-runtime": SECOND_DIGEST,
+		"execution-control": SECOND_DIGEST,
+		"model-config": FIRST_DIGEST,
+		"ops-web": SECOND_DIGEST,
+	});
+	assert.deepEqual(JSON.parse(await readFile(options.outputFile, "utf8")), digests);
+});
+
+test("missing metadata leaves publication unfinished and does not write a digest map", async (t) => {
+	const { options } = await fixture(t);
+	options.summaryFile = path.join(options.repositoryRoot, "summary.md");
+	await assert.rejects(
+		publishImages(options, async (_command, args) => {
+			if (args.includes("--print")) {
+				return bakePrint(options.images);
+			}
+			if (args.includes("imagetools")) {
+				return result({ code: 1, stderr: "manifest unknown" });
+			}
+			return result();
+		}),
+		/ENOENT/u,
+	);
+	assert(
+		(await readFile(options.summaryFile, "utf8")).includes("| `agent-runtime` | unfinished |"),
+	);
+	await assert.rejects(access(options.outputFile));
+});
+
 test("reuses an existing immutable linux/arm64 image", async (t) => {
 	const { options } = await fixture(t);
 	const calls: Array<{
@@ -151,10 +366,10 @@ test("reuses an existing immutable linux/arm64 image", async (t) => {
 	const summary = await readFile(options.summaryFile, "utf8");
 	assert.match(summary, /Script duration: \d+\.\ds/u);
 	assert.match(summary, /Cache: registry with mode=max/u);
-	assert.match(summary, /Results: built=0 reused=1 failed=0 not-started=0/u);
+	assert.match(summary, /Results: built=0 reused=1 failed=0 unfinished=0 not-started=0/u);
 	assert.match(summary, /Build and cache export: not run\./u);
 	assert.match(summary, /Trivy feedback: recorded=1 warnings=0 not-run=0/u);
-	assert.match(summary, /\| `agent-runtime` \| reused \| \d+\.\d+s \| - \| recorded \|/u);
+	assert.match(summary, /\| `agent-runtime` \| reused \| \d+\.\d+s \| recorded \|/u);
 	assert(summary.includes(FIRST_DIGEST));
 });
 
@@ -315,19 +530,19 @@ test("reads the pushed digest from Docker Bake metadata", async (t) => {
 	assert.equal(calls.find((call) => call.args.includes("imagetools"))?.output, "capture");
 	assert(
 		logs.some(
-			(line) =>
-				/ stage=build state=start /u.test(line) &&
-				line.includes("cache_type=registry") &&
-				line.includes("cache_mode=max") &&
-				line.includes("duration_scope=build_push_cache_export"),
+			(line) => line.startsWith("[release-batch] ") && JSON.parse(line.slice(16)).state === "start",
 		),
 	);
-	assert(logs.some((line) => /stage=build state=complete duration_ms=\d+/u.test(line)));
+	assert(
+		logs.some(
+			(line) =>
+				line.startsWith("[release-batch] ") && JSON.parse(line.slice(16)).state === "success",
+		),
+	);
 	assert(logs.some((line) => /stage=run state=complete .*built=1/u.test(line)));
-	assert(logs.some((line) => line.includes("result=built")));
 	const summary = await readFile(options.summaryFile, "utf8");
 	assert.match(summary, /Build\/push\/cache export/u);
-	assert.match(summary, /Results: built=1 reused=0 failed=0 not-started=0/u);
+	assert.match(summary, /Results: built=1 reused=0 failed=0 unfinished=0 not-started=0/u);
 	assert.match(summary, /\| `agent-runtime` \| built \|/u);
 });
 
@@ -424,14 +639,16 @@ test("records a build failure and leaves later images not started", async (t) =>
 	};
 
 	await assert.rejects(publishImages(options, runner), /build failed/u);
-	assert(logs.some((line) => /image=agent-runtime stage=build state=failed/u.test(line)));
-	assert(logs.some((line) => /image=agent-runtime stage=total state=failed/u.test(line)));
-	assert(logs.some((line) => /stage=run state=failed .*failed=1 not_started=1/u.test(line)));
+	assert(
+		logs.some(
+			(line) =>
+				line.startsWith("[release-batch] ") && JSON.parse(line.slice(16)).state === "failure",
+		),
+	);
 	const summary = await readFile(options.summaryFile, "utf8");
-	assert.match(summary, /Results: built=0 reused=0 failed=1 not-started=1/u);
-	assert.match(summary, /\| `agent-runtime` \| failed \(build\) \|/u);
-	assert.match(summary, /\| `ops-web` \| not-started \|/u);
-	assert.match(summary, /Build and cache export: not run\./u);
+	assert.match(summary, /failed=0 unfinished=1 not-started=1/u);
+	assert.match(summary, /\| `ops-web` \| unfinished \|/u);
+	assert.match(summary, /\| `agent-runtime` \| not-started \|/u);
 });
 
 test("records non-zero Trivy output as non-blocking feedback", async (t) => {
@@ -478,9 +695,9 @@ test("records non-zero Trivy output as non-blocking feedback", async (t) => {
 	assert(logs.includes("ops web feedback\n"));
 	assert(logs.some((line) => /stage=scan state=warning .*exit_code=2 blocking=false/u.test(line)));
 	const summary = await readFile(options.summaryFile, "utf8");
-	assert.match(summary, /Results: built=0 reused=2 failed=0 not-started=0/u);
+	assert.match(summary, /Results: built=0 reused=2 failed=0 unfinished=0 not-started=0/u);
 	assert.match(summary, /Trivy feedback: recorded=1 warnings=1 not-run=0/u);
-	assert.match(summary, /\| `agent-runtime` \| reused \| \d+\.\d+s \| - \| warning \|/u);
+	assert.match(summary, /\| `agent-runtime` \| reused \| \d+\.\d+s \| warning \|/u);
 });
 
 test("continues with later images when the Trivy process throws", async (t) => {
@@ -630,7 +847,7 @@ test("build-only evidence builds selected targets without publishing or scanning
 	await buildImages(
 		{
 			images: ["ops-web", "agent-runtime"],
-			cacheRegistry: "GHCR.IO/MUC-WIKI/CAMPUS-AGENT",
+			cacheImportRegistries: ["GHCR.IO/MUC-WIKI/CAMPUS-AGENT"],
 			logger: (message) => logs.push(message),
 			repository: options.repository,
 			repositoryRoot: options.repositoryRoot,
@@ -691,9 +908,46 @@ test("build-only evidence builds selected targets without publishing or scanning
 	const summary = await readFile(summaryFile, "utf8");
 	assert.match(summary, /Container build results/u);
 	assert.match(summary, /Output: BuildKit cacheonly/u);
-	assert.match(summary, /Results: built=2 reused=0 failed=0 not-started=0/u);
+	assert.match(summary, /Results: built=2 reused=0 failed=0 unfinished=0 not-started=0/u);
 	assert.match(summary, /\| `agent-runtime` \| built \|/u);
 	assert.match(summary, /\| `ops-web` \| built \|/u);
+});
+
+test("build-only can export an isolated PR cache without publishing an image", async (t) => {
+	const { options } = await fixture(t);
+	const calls: Array<{ args: string[]; output: CommandOutput }> = [];
+	await buildImages(
+		{
+			...options,
+			images: ["ops-web"],
+			cacheImportRegistries: ["ghcr.io/muc-wiki/campus-agent"],
+			cacheExportRegistry: "ghcr.io/muc-wiki/campus-agent/pr-cache-442",
+		},
+		async (_command, args, commandOptions) => {
+			calls.push({ args, output: commandOptions.output });
+			if (args.includes("--print")) {
+				return bakePrint(["ops-web"]);
+			}
+			return result();
+		},
+	);
+	const build = calls.find((call) => call.output === "buildkit");
+	assert(build);
+	assert(
+		build.args.some((arg) =>
+			arg.includes(
+				".cache-from=type=registry,ref=ghcr.io/muc-wiki/campus-agent/ops-web:buildcache-arm64",
+			),
+		),
+	);
+	assert(
+		build.args.some((arg) =>
+			arg.includes(
+				".cache-to=type=registry,ref=ghcr.io/muc-wiki/campus-agent/pr-cache-442/ops-web:buildcache-arm64",
+			),
+		),
+	);
+	assert.equal(build.args.includes("--push"), false);
 });
 
 test("build-only evidence stops after the first failed image", async (t) => {
@@ -724,7 +978,7 @@ test("build-only evidence stops after the first failed image", async (t) => {
 		/build failed/u,
 	);
 	assert.equal(calls.filter((call) => call.includes("--progress=rawjson")).length, 1);
-	assert(logs.some((line) => line.includes("failed=1 not_started=1")));
+	assert(logs.some((line) => line.includes("unfinished=1 not_started=1")));
 	assert.match(await readFile(summaryFile, "utf8"), /not-started/u);
 });
 
@@ -776,7 +1030,7 @@ test("build-only failures preserve completed operations and cache import diagnos
 				...options,
 				summaryFile,
 				images: ["ops-web"],
-				cacheRegistry: "127.0.0.1:15001/cache",
+				cacheImportRegistries: ["127.0.0.1:15001/cache"],
 				logger: () => undefined,
 			},
 			async (_command, args) =>

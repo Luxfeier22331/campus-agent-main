@@ -195,8 +195,10 @@ const synthesizeRequestSchema = z
 			.object({
 				answer_mode: z.enum(["grounded", "insufficient"]),
 				goal: z.string().min(1),
-				plan: taskPlanSchema,
-				completed_steps: z.array(completedStepSchema),
+				source_attempts: z.array(sourceAttemptSchema),
+				remaining_facts: z.array(
+					z.object({ objective: z.string().min(1), facts: z.array(z.string()) }).strict(),
+				),
 				evidence: z.array(evidenceSchema),
 			})
 			.strict(),
@@ -311,10 +313,14 @@ export function runtimeInputFromAgentRunRequest(
 		operation: "synthesize",
 		operationInput: {
 			answerMode: parsed.operation_input.answer_mode,
-			completedSteps: parsed.operation_input.completed_steps.map(mapCompletedStep),
+			sourceAttempts: parsed.operation_input.source_attempts.map((item) => ({
+				source: item.source,
+				status: item.status,
+				...(item.failure_code ? { failureCode: item.failure_code } : {}),
+			})),
+			remainingFacts: parsed.operation_input.remaining_facts,
 			evidence: parsed.operation_input.evidence.map(mapEvidence),
 			goal: parsed.operation_input.goal,
-			plan: mapTaskPlan(parsed.operation_input.plan),
 		},
 	} satisfies SynthesizeWorkflowOperationInput;
 }

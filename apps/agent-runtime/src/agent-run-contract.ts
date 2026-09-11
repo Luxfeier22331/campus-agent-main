@@ -113,9 +113,9 @@ export interface SynthesizeWorkflowOperationInput extends WorkflowOperationInput
 	operationInput: {
 		answerMode: WorkflowAnswerMode;
 		goal: string;
-		plan: TaskPlan;
-		completedSteps: CompletedTaskStep[];
 		evidence: WorkflowEvidence[];
+		sourceAttempts: SourceAttempt[];
+		remainingFacts: { objective: string; facts: string[] }[];
 	};
 }
 
@@ -306,8 +306,9 @@ export interface WorkflowOperationResult {
 	contextUsage: ModelContextUsage;
 	finalOutput: string;
 	solveOutcome?: "answer" | "plan";
-	structuredOutput?: TaskPlan | TaskReplan;
-	completedStep?: CompletedTaskStep;
+	plan?: TaskPlan;
+	replan?: TaskReplan;
+	remainingFacts?: string[];
 	evidence: WorkflowEvidence[];
 	sourceAttempts: SourceAttempt[];
 	modelName: string;
@@ -344,7 +345,7 @@ export type WorkflowOperationStreamEvent =
 	  }
 	| {
 			event: "answer_delta";
-			data: { delta: string };
+			data: { delta: string; provisional: true };
 	  }
 	| {
 			event: "completed";

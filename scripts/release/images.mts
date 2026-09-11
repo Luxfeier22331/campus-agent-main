@@ -12,8 +12,6 @@ const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const IMAGE_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
-const IMAGE_CACHE_TYPE = "registry";
-const IMAGE_CACHE_MODE = "max";
 const IMAGE_CACHE_TAG = "buildcache-arm64";
 
 export interface CommandResult {
@@ -44,7 +42,8 @@ export interface PublishImageOptions {
 }
 
 export interface BuildImagesOptions {
-	cacheRegistry?: string;
+	cacheImportRegistries?: string[];
+	cacheExportRegistry?: string;
 	images: string[];
 	logger?: (message: string) => void;
 	repository: string;
@@ -53,13 +52,11 @@ export interface BuildImagesOptions {
 	summaryFile?: string;
 }
 
-type ImageResult = "built" | "failed" | "not-started" | "reused";
+type ImageResult = "built" | "failed" | "not-started" | "reused" | "unfinished";
 type ImageStage = "build" | "inspect" | "scan" | "total";
 type ScanFeedback = "recorded" | "warning";
 
 interface ImageReport {
-	buildMs?: number;
-	buildkit?: BuildkitReport;
 	digest?: string;
 	failedStage?: Exclude<ImageStage, "total">;
 	image: string;
@@ -67,8 +64,6 @@ interface ImageReport {
 	result: ImageResult;
 	scanFeedback?: ScanFeedback;
 	scanMs?: number;
-	startedAt?: number;
-	totalMs?: number;
 }
 
 interface ImageManifest {
@@ -205,97 +200,69 @@ function resultCounts(reports: ImageReport[]): Record<ImageResult, number> {
 			built: 0,
 			failed: 0,
 			"not-started": 0,
+			unfinished: 0,
 			reused: 0,
 		},
 	);
 }
 
-function longestImage(reports: ImageReport[]): ImageReport | undefined {
-	return [...reports]
-		.filter((report) => report.totalMs !== undefined)
-		.sort((left, right) => (right.totalMs ?? 0) - (left.totalMs ?? 0))[0];
+interface BakeBatch {
+	name: "heavy" | "standard";
+	images: string[];
 }
 
-async function appendSummary(file: string, reports: ImageReport[], runMs: number): Promise<void> {
-	const counts = resultCounts(reports);
-	const scanCounts = scanFeedbackCounts(reports);
-	const longest = longestImage(reports);
-	const rows = reports.map((report) => {
-		const result = report.failedStage ? `failed (${report.failedStage})` : report.result;
-		return `| ${[
-			`\`${report.image}\``,
-			result,
-			durationCell(report.inspectMs),
-			durationCell(report.buildMs),
-			report.scanFeedback ?? "-",
-			durationCell(report.scanMs),
-			durationCell(report.totalMs),
-			report.digest ? `\`${report.digest}\`` : "-",
-		].join(" | ")} |`;
-	});
-	await appendFile(
-		path.resolve(file),
-		[
-			"### Published image results",
-			"",
-			`- Requested images: ${reports.length}`,
-			`- Script duration: ${durationCell(runMs)}`,
-			`- Cache: ${IMAGE_CACHE_TYPE} with mode=${IMAGE_CACHE_MODE}; per-image ref suffix=:${IMAGE_CACHE_TAG}`,
-			`- Results: built=${counts.built} reused=${counts.reused} failed=${counts.failed} not-started=${counts["not-started"]}`,
-			`- Trivy feedback: recorded=${scanCounts.recorded} warnings=${scanCounts.warnings} not-run=${scanCounts.notRun}`,
-			`- Longest image: ${longest ? `\`${longest.image}\` (${durationCell(longest.totalMs)})` : "-"}`,
-			"",
-			"| Image | Result | Inspect | Build/push/cache export | Trivy feedback | Scan | Total | Digest |",
-			"| --- | --- | ---: | ---: | --- | ---: | ---: | --- |",
-			...rows,
-			...reports.flatMap((report) => [
-				"",
-				`#### Build phases: ${report.image}`,
-				"",
-				report.buildkit
-					? renderBuildkit(report.buildkit)
-					: report.result === "reused" || report.result === "not-started"
-						? "Build and cache export: not run."
-						: "Build observations: unavailable; cache export outcome unknown.",
-			]),
-			"",
-		].join("\n"),
-	);
+interface BatchReport extends BakeBatch {
+	durationMs: number;
+	result: "success" | "failure";
+	buildkit?: BuildkitReport;
 }
 
-async function appendBuildSummary(
+async function appendSummary(
 	file: string,
 	reports: ImageReport[],
+	batches: BatchReport[],
 	runMs: number,
+	mode: string,
 ): Promise<void> {
 	const counts = resultCounts(reports);
-	const longest = longestImage(reports);
-	const rows = reports.map((report) => {
-		const result = report.failedStage ? `failed (${report.failedStage})` : report.result;
-		return `| ${[
-			`\`${report.image}\``,
-			result,
-			durationCell(report.buildMs),
-			durationCell(report.totalMs),
-		].join(" | ")} |`;
-	});
+	const scans = scanFeedbackCounts(reports);
 	await appendFile(
 		path.resolve(file),
 		[
-			"### Container build results",
+			mode === "build-only" ? "### Container build results" : "### Published image results",
 			"",
-			`- Requested images: ${reports.length}`,
-			`- Script duration: ${durationCell(runMs)}`,
-			"- Output: BuildKit cacheonly; no registry push, image load, or vulnerability scan",
-			`- Results: built=${counts.built} reused=${counts.reused} failed=${counts.failed} not-started=${counts["not-started"]}`,
-			`- Longest image: ${longest ? `\`${longest.image}\` (${durationCell(longest.totalMs)})` : "-"}`,
+			`- Mode: ${mode}; Script duration: ${durationCell(runMs)}`,
+			`- Cache: registry with mode=max; per-image ref suffix=:${IMAGE_CACHE_TAG}`,
+			...(mode === "build-only"
+				? ["- Output: BuildKit cacheonly; cache export when configured"]
+				: []),
+			...(batches.length === 0 ? ["Build and cache export: not run."] : []),
+			`- Results: built=${counts.built} reused=${counts.reused} failed=${counts.failed} unfinished=${counts.unfinished} not-started=${counts["not-started"]}`,
+			`- Trivy feedback: recorded=${scans.recorded} warnings=${scans.warnings} not-run=${scans.notRun}`,
 			"",
-			"| Image | Result | Build | Total |",
-			"| --- | --- | ---: | ---: |",
-			...rows,
-			...reports.flatMap((report) =>
-				report.buildkit ? ["", `#### ${report.image}`, renderBuildkit(report.buildkit)] : [],
+			"| Image | Result | Inspect | Scan feedback | Scan | Digest |",
+			"| --- | --- | ---: | --- | ---: | --- |",
+			...reports.map(
+				(r) =>
+					`| \`${r.image}\` | ${r.failedStage ? `failed (${r.failedStage})` : r.result} | ${durationCell(r.inspectMs)} | ${r.scanFeedback ?? "-"} | ${durationCell(r.scanMs)} | ${r.digest ?? "-"} |`,
 			),
+			"",
+			"| Batch | Targets | Result | Build/push/cache export wall time |",
+			"| --- | --- | --- | ---: |",
+			...batches.map(
+				(b) =>
+					`| ${b.name} | ${b.images.join(", ")} | ${b.result} | ${durationCell(b.durationMs)} |`,
+			),
+			...batches.flatMap((b) => [
+				"",
+				`#### Build phases: ${b.name}`,
+				"",
+				b.buildkit
+					? renderBuildkit(b.buildkit)
+					: "Build observations: unavailable; cache export outcome unknown.",
+			]),
+			"",
+			"Batch time is measured once. Shared operations are not charged to each image.",
 			"",
 		].join("\n"),
 	);
@@ -350,21 +317,31 @@ function existingDigest(source: string, tag: string, sourceSha: string): string 
 	return requiredDigest(manifest?.digest, tag);
 }
 
-function bakeTargets(source: string): Set<string> {
-	let value: unknown;
-	try {
-		value = JSON.parse(source) as unknown;
-	} catch (error) {
-		throw new Error("Docker Bake returned invalid JSON", { cause: error });
+export function bakeBatches(source: string, images: string[]): BakeBatch[] {
+	const value = JSON.parse(source) as {
+		target?: Record<string, unknown>;
+		group?: Record<string, { targets: string[] }>;
+	};
+	if (!(value?.target && value.group)) {
+		throw new Error("Docker Bake output must contain targets and heavy/standard groups");
 	}
-	if (typeof value !== "object" || value === null || Array.isArray(value)) {
-		throw new Error("Docker Bake output must be an object");
+	const batches: BakeBatch[] = [];
+	for (const name of ["heavy", "standard"] as const) {
+		const targets = value.group[name]?.targets;
+		if (!Array.isArray(targets) || targets.some((target) => typeof target !== "string")) {
+			throw new Error(`Docker Bake group is missing or invalid: ${name}`);
+		}
+		batches.push({ name, images: images.filter((image) => targets.includes(image)) });
 	}
-	const target = (value as { target?: unknown }).target;
-	if (typeof target !== "object" || target === null || Array.isArray(target)) {
-		throw new Error("Docker Bake output does not contain targets");
+	for (const image of images) {
+		if (!Object.hasOwn(value.target, image)) {
+			throw new Error(`Image is not declared in docker-bake.hcl: ${image}`);
+		}
+		if (batches.filter((batch) => batch.images.includes(image)).length !== 1) {
+			throw new Error(`Image must belong to exactly one Bake group: ${image}`);
+		}
 	}
-	return new Set(Object.keys(target));
+	return batches.filter((batch) => batch.images.length > 0);
 }
 
 function buildDigest(source: string, image: string): string {
@@ -410,11 +387,125 @@ function validateOptions(options: PublishImageOptions): void {
 }
 
 function validateBuildOptions(options: BuildImagesOptions): void {
+	if (
+		options.cacheImportRegistries !== undefined &&
+		(!Array.isArray(options.cacheImportRegistries) ||
+			options.cacheImportRegistries.some((value) => typeof value !== "string" || !value.trim()))
+	) {
+		throw new Error("Cache imports must be a JSON array of registry prefixes");
+	}
 	if (!REPOSITORY_PATTERN.test(options.repository)) {
 		throw new Error(`Invalid repository: ${options.repository}`);
 	}
 	if (!SHA_PATTERN.test(options.sourceSha)) {
 		throw new Error(`Invalid source SHA: ${options.sourceSha}`);
+	}
+}
+
+function buildEnvironment(options: BuildImagesOptions | PublishImageOptions): NodeJS.ProcessEnv {
+	return {
+		...process.env,
+		IMAGE_REVISION: options.sourceSha,
+		IMAGE_SOURCE: `https://github.com/${options.repository}`,
+		NODE_VERSION: readNodeVersion(options.repositoryRoot),
+	};
+}
+
+async function planBatches(
+	images: string[],
+	root: string,
+	env: NodeJS.ProcessEnv,
+	runner: CommandRunner,
+): Promise<BakeBatch[]> {
+	const args = ["buildx", "bake", "--file", "docker-bake.hcl", "--print", "heavy", "standard"];
+	const printed = await runner("docker", args, { cwd: root, env, output: "capture" });
+	if (printed.code !== 0) {
+		throw commandError("docker", args, printed);
+	}
+	return bakeBatches(printed.stdout, images);
+}
+
+function cacheArguments(image: string, imports: string[], exported?: string): string[] {
+	const args: string[] = [];
+	for (const [index, prefix] of [...new Set(imports)].entries()) {
+		args.push(
+			"--set",
+			`${image}.cache-from${index === 0 ? "=" : "+="}type=registry,ref=${prefix.toLowerCase()}/${image}:${IMAGE_CACHE_TAG}`,
+		);
+	}
+	if (exported) {
+		args.push(
+			"--set",
+			`${image}.cache-to=type=registry,ref=${exported.toLowerCase()}/${image}:${IMAGE_CACHE_TAG},mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true`,
+		);
+	}
+	return args;
+}
+
+async function runBatch(
+	batch: BakeBatch,
+	overrides: string[],
+	root: string,
+	env: NodeJS.ProcessEnv,
+	runner: CommandRunner,
+	logger: (message: string) => void,
+	batches: BatchReport[],
+	reports: ImageReport[],
+): Promise<void> {
+	const selected = reports.filter((report) => batch.images.includes(report.image));
+	for (const report of selected) {
+		report.result = "unfinished";
+	}
+	const started = performance.now();
+	logger(
+		`[release-batch] ${JSON.stringify({ batch: batch.name, images: batch.images, state: "start" })}\n`,
+	);
+	const report: BatchReport = { ...batch, durationMs: 0, result: "failure" };
+	batches.push(report);
+	const args = [
+		"buildx",
+		"bake",
+		"--file",
+		"docker-bake.hcl",
+		"--progress=rawjson",
+		"--pull",
+		...overrides,
+		...batch.images,
+	];
+	try {
+		const built = await runner("docker", args, { cwd: root, env, output: "buildkit" });
+		report.buildkit = built.buildkit;
+		if (built.code !== 0) {
+			for (const image of selected) {
+				if (
+					built.buildkit?.operations.some(
+						(op) =>
+							op.target === image.image &&
+							op.state === "failed" &&
+							!/cancel(?:led|ed)/iu.test(op.error ?? ""),
+					)
+				) {
+					image.result = "failed";
+					image.failedStage = "build";
+				}
+			}
+			throw commandError("docker", args, built);
+		}
+		report.result = "success";
+		for (const image of selected) {
+			image.result = "built";
+		}
+	} finally {
+		report.durationMs = elapsed(started);
+		logger(
+			`[release-batch] ${JSON.stringify({
+				batch: batch.name,
+				images: batch.images,
+				state: report.result,
+				durationMs: report.durationMs,
+				cacheExport: report.buildkit?.cacheExport ?? "unknown",
+			})}\n`,
+		);
 	}
 }
 
@@ -424,136 +515,51 @@ export async function buildImages(
 ): Promise<void> {
 	validateBuildOptions(options);
 	const images = normalizedImages(options.images);
-	const logger = options.logger ?? ((message: string) => process.stderr.write(message));
-	const runStartedAt = performance.now();
-	logRun(logger, "start", `images_count=${images.length} mode=build-only output=cacheonly`);
 	const root = path.resolve(options.repositoryRoot);
-	const environment = {
-		...process.env,
-		IMAGE_REVISION: options.sourceSha,
-		IMAGE_SOURCE: `https://github.com/${options.repository}`,
-		NODE_VERSION: readNodeVersion(root),
-	};
-	const commandOptions = { cwd: root, env: environment, output: "capture" as const };
-	const printArguments = ["buildx", "bake", "--file", "docker-bake.hcl", "--print"];
-	let printed: CommandResult;
-	try {
-		printed = await runner("docker", printArguments, commandOptions);
-	} catch (error) {
-		logRun(logger, "failed", `duration_ms=${elapsed(runStartedAt)} failed_stage=preflight`);
-		throw error;
-	}
-	if (printed.code !== 0) {
-		logRun(logger, "failed", `duration_ms=${elapsed(runStartedAt)} failed_stage=preflight`);
-		throw commandError("docker", printArguments, printed);
-	}
-	const targets = bakeTargets(printed.stdout);
-	for (const image of images) {
-		if (!targets.has(image)) {
-			throw new Error(`Image is not declared in docker-bake.hcl: ${image}`);
-		}
-	}
-
+	const env = buildEnvironment(options);
+	const logger = options.logger ?? ((message: string) => process.stderr.write(message));
+	const started = performance.now();
 	const reports = images.map<ImageReport>((image) => ({ image, result: "not-started" }));
+	const batches: BatchReport[] = [];
 	let failure: unknown;
-	for (const [index, image] of images.entries()) {
-		const report = reports[index] as ImageReport;
-		report.result = "failed";
-		const totalStartedAt = performance.now();
-		report.startedAt = totalStartedAt;
-		const buildArguments = [
-			"buildx",
-			"bake",
-			"--file",
-			"docker-bake.hcl",
-			"--progress=rawjson",
-			"--pull",
-			"--provenance=false",
-			"--sbom=false",
-			"--set",
-			`${image}.platform=linux/arm64`,
-			"--set",
-			`${image}.output=type=cacheonly`,
-		];
-		if (options.cacheRegistry) {
-			buildArguments.push(
-				"--set",
-				`${image}.cache-from=type=registry,ref=${options.cacheRegistry.toLowerCase()}/${image}:${IMAGE_CACHE_TAG}`,
-			);
-		}
-		buildArguments.push(image);
-		logStage(logger, image, "total", "start");
-		logStage(logger, image, "build", "start", "mode=build-only output=type=cacheonly");
-		const buildStartedAt = performance.now();
-		try {
-			const built = await runner("docker", buildArguments, {
-				cwd: root,
-				env: environment,
-				output: "buildkit",
-			});
-			report.buildMs = elapsed(buildStartedAt);
-			report.buildkit = built.buildkit;
-			if (built.code !== 0) {
-				throw commandError("docker", buildArguments, built);
+	logRun(logger, "start", `images_count=${images.length} mode=build-only output=cacheonly`);
+	try {
+		for (const batch of await planBatches(images, root, env, runner)) {
+			const overrides = ["--provenance=false", "--sbom=false"];
+			for (const image of batch.images) {
+				overrides.push(
+					"--set",
+					`${image}.platform=linux/arm64`,
+					"--set",
+					`${image}.output=type=cacheonly`,
+					...cacheArguments(
+						image,
+						options.cacheImportRegistries ?? [],
+						options.cacheExportRegistry,
+					),
+				);
 			}
-		} catch (error) {
-			report.failedStage = "build";
-			report.buildMs = elapsed(buildStartedAt);
-			failure = error;
-			logStage(logger, image, "build", "failed", `duration_ms=${report.buildMs}`);
-			break;
+			await runBatch(batch, overrides, root, env, runner, logger, batches, reports);
 		}
-		report.result = "built";
-		logStage(logger, image, "build", "complete", `duration_ms=${report.buildMs}`);
-		report.totalMs = elapsed(totalStartedAt);
-		logStage(
-			logger,
-			image,
-			"total",
-			"complete",
-			`duration_ms=${report.totalMs} result=${report.result}`,
-		);
-	}
-	for (const report of reports) {
-		if (report.result === "failed" && report.totalMs === undefined) {
-			report.totalMs = report.startedAt === undefined ? undefined : elapsed(report.startedAt);
-			logStage(
-				logger,
-				report.image,
-				"total",
-				"failed",
-				`duration_ms=${report.totalMs ?? 0} failed_stage=${report.failedStage ?? "unknown"}`,
-			);
-			if (failure === undefined) {
-				failure = new Error(`Container build failed: ${report.image}`);
-			}
-			break;
-		}
+	} catch (error) {
+		failure = error;
 	}
 	if (options.summaryFile) {
 		try {
-			await appendBuildSummary(options.summaryFile, reports, elapsed(runStartedAt));
+			await appendSummary(options.summaryFile, reports, batches, elapsed(started), "build-only");
 		} catch (error) {
 			logger(
-				`[release-image] summary state=failed original_error=${failure !== undefined} error=${error instanceof Error ? error.message : String(error)}\n`,
+				`[release-image] summary state=failed original_error=${failure !== undefined} error=${String(error)}\n`,
 			);
 			failure ??= error;
 		}
 	}
-	const counts = resultCounts(reports);
 	logRun(
 		logger,
-		failure === undefined ? "complete" : "failed",
-		[
-			`duration_ms=${elapsed(runStartedAt)}`,
-			`images_count=${reports.length}`,
-			`built=${counts.built}`,
-			`reused=${counts.reused}`,
-			`failed=${counts.failed}`,
-			`not_started=${counts["not-started"]}`,
-		].join(" "),
+		failure ? "failed" : "complete",
+		`duration_ms=${elapsed(started)} images_count=${images.length} built=${resultCounts(reports).built} unfinished=${resultCounts(reports).unfinished} not_started=${resultCounts(reports)["not-started"]}`,
 	);
-	if (failure !== undefined) {
+	if (failure) {
 		throw failure;
 	}
 }
@@ -564,185 +570,88 @@ export async function publishImages(
 ): Promise<Record<string, string>> {
 	validateOptions(options);
 	const images = normalizedImages(options.images);
-	const logger = options.logger ?? ((message: string) => process.stderr.write(message));
-	const runStartedAt = performance.now();
-	logRun(
-		logger,
-		"start",
-		`images_count=${images.length} cache_type=${IMAGE_CACHE_TYPE} cache_mode=${IMAGE_CACHE_MODE}`,
-	);
 	const root = path.resolve(options.repositoryRoot);
-	const environment = {
-		...process.env,
-		IMAGE_REVISION: options.sourceSha,
-		IMAGE_SOURCE: `https://github.com/${options.repository}`,
-		NODE_VERSION: readNodeVersion(root),
-	};
-	const commandOptions = { cwd: root, env: environment, output: "capture" as const };
-	const printArguments = ["buildx", "bake", "--file", "docker-bake.hcl", "--print"];
-	let printed: CommandResult;
-	try {
-		printed = await runner("docker", printArguments, commandOptions);
-	} catch (error) {
-		logRun(logger, "failed", `duration_ms=${elapsed(runStartedAt)} failed_stage=preflight`);
-		throw error;
-	}
-	if (printed.code !== 0) {
-		logRun(logger, "failed", `duration_ms=${elapsed(runStartedAt)} failed_stage=preflight`);
-		throw commandError("docker", printArguments, printed);
-	}
-	const targets = bakeTargets(printed.stdout);
-	for (const image of images) {
-		if (!targets.has(image)) {
-			throw new Error(`Image is not declared in docker-bake.hcl: ${image}`);
-		}
-	}
-
-	const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "campus-agent-images-"));
+	const env = buildEnvironment(options);
+	const commandOptions = { cwd: root, env, output: "capture" as const };
+	const logger = options.logger ?? ((message: string) => process.stderr.write(message));
+	const started = performance.now();
 	const reports = images.map<ImageReport>((image) => ({ image, result: "not-started" }));
+	const batches: BatchReport[] = [];
 	const imageRoot = `ghcr.io/${options.repository.toLowerCase()}`;
+	const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "campus-agent-images-"));
 	const digests: Record<string, string> = {};
-	let failure: { error: unknown } | undefined;
+	let failure: unknown;
+	logRun(logger, "start", `images_count=${images.length} cache_type=registry cache_mode=max`);
 	try {
-		for (const [index, image] of images.entries()) {
-			const report = reports[index] as ImageReport;
-			report.result = "failed";
-			const totalStartedAt = performance.now();
-			report.startedAt = totalStartedAt;
-			const repository = `${imageRoot}/${image}`;
-			const tag = `${repository}:${options.sourceSha}`;
-			const inspectArguments = ["buildx", "imagetools", "inspect", tag, "--format", "{{json .}}"];
-			logStage(logger, image, "total", "start");
-			logStage(logger, image, "inspect", "start");
-			const inspectStartedAt = performance.now();
-			let inspected: CommandResult;
+		const planned = await planBatches(images, root, env, runner);
+		for (const report of reports) {
+			const tag = `${imageRoot}/${report.image}:${options.sourceSha}`;
+			const args = ["buildx", "imagetools", "inspect", tag, "--format", "{{json .}}"];
+			const inspectStarted = performance.now();
+			logStage(logger, report.image, "inspect", "start");
 			try {
-				inspected = await runner("docker", inspectArguments, commandOptions);
+				const inspected = await runner("docker", args, commandOptions);
+				if (inspected.code === 0) {
+					report.digest = existingDigest(inspected.stdout, tag, options.sourceSha);
+					report.result = "reused";
+				} else if (!/manifest unknown|not found|no such manifest/iu.test(inspected.stderr)) {
+					throw commandError("docker", args, inspected);
+				}
 			} catch (error) {
+				report.result = "failed";
 				report.failedStage = "inspect";
-				report.inspectMs = elapsed(inspectStartedAt);
-				logStage(logger, image, "inspect", "failed", `duration_ms=${report.inspectMs}`);
 				throw error;
-			}
-			report.inspectMs = elapsed(inspectStartedAt);
-			let digest: string;
-			if (inspected.code === 0) {
-				try {
-					digest = existingDigest(inspected.stdout, tag, options.sourceSha);
-				} catch (error) {
-					report.failedStage = "inspect";
-					logStage(logger, image, "inspect", "failed", `duration_ms=${report.inspectMs}`);
-					throw error;
-				}
-				report.result = "reused";
+			} finally {
+				report.inspectMs = elapsed(inspectStarted);
 				logStage(
 					logger,
-					image,
+					report.image,
 					"inspect",
-					"complete",
-					`duration_ms=${report.inspectMs} reused=true`,
-				);
-			} else {
-				if (!/manifest unknown|not found|no such manifest/iu.test(inspected.stderr)) {
-					report.failedStage = "inspect";
-					logStage(
-						logger,
-						image,
-						"inspect",
-						"failed",
-						`duration_ms=${report.inspectMs} exit_code=${inspected.code}`,
-					);
-					throw commandError("docker", inspectArguments, inspected);
-				}
-				logStage(
-					logger,
-					image,
-					"inspect",
-					"complete",
-					`duration_ms=${report.inspectMs} reused=false`,
-				);
-				const metadataFile = path.join(temporaryDirectory, `${image}.json`);
-				const cacheRef = `${repository}:${IMAGE_CACHE_TAG}`;
-				const cacheDetails =
-					`cache_type=${IMAGE_CACHE_TYPE} cache_mode=${IMAGE_CACHE_MODE} ` +
-					`cache_ref=${cacheRef} duration_scope=build_push_cache_export`;
-				const buildArguments = [
-					"buildx",
-					"bake",
-					"--file",
-					"docker-bake.hcl",
-					"--metadata-file",
-					metadataFile,
-					"--progress=rawjson",
-					"--pull",
-					"--push",
-					"--set",
-					`${image}.tags=${tag}`,
-					"--set",
-					`${image}.cache-from=type=${IMAGE_CACHE_TYPE},ref=${cacheRef}`,
-					"--set",
-					`${image}.cache-to=type=${IMAGE_CACHE_TYPE},ref=${cacheRef},mode=${IMAGE_CACHE_MODE},image-manifest=true,oci-mediatypes=true,ignore-error=true`,
-					image,
-				];
-				logStage(logger, image, "build", "start", cacheDetails);
-				const buildStartedAt = performance.now();
-				let built: CommandResult;
-				try {
-					built = await runner("docker", buildArguments, {
-						cwd: root,
-						env: environment,
-						output: "buildkit",
-					});
-					report.buildkit = built.buildkit;
-				} catch (error) {
-					report.failedStage = "build";
-					report.buildMs = elapsed(buildStartedAt);
-					logStage(
-						logger,
-						image,
-						"build",
-						"failed",
-						`duration_ms=${report.buildMs} ${cacheDetails}`,
-					);
-					throw error;
-				}
-				report.buildMs = elapsed(buildStartedAt);
-				if (built.code !== 0) {
-					report.failedStage = "build";
-					logStage(
-						logger,
-						image,
-						"build",
-						"failed",
-						`duration_ms=${report.buildMs} exit_code=${built.code} ${cacheDetails}`,
-					);
-					throw commandError("docker", buildArguments, built);
-				}
-				try {
-					digest = buildDigest(await readFile(metadataFile, "utf8"), image);
-				} catch (error) {
-					report.failedStage = "build";
-					logStage(
-						logger,
-						image,
-						"build",
-						"failed",
-						`duration_ms=${report.buildMs} ${cacheDetails}`,
-					);
-					throw error;
-				}
-				report.result = "built";
-				logStage(
-					logger,
-					image,
-					"build",
-					"complete",
-					`duration_ms=${report.buildMs} ${cacheDetails}`,
+					report.failedStage ? "failed" : "complete",
+					`duration_ms=${report.inspectMs} reused=${report.result === "reused"}`,
 				);
 			}
-			report.digest = digest;
-
-			const trivyArguments = [
+		}
+		for (const plannedBatch of planned) {
+			const batch = {
+				...plannedBatch,
+				images: plannedBatch.images.filter(
+					(image) => !reports.find((r) => r.image === image)?.digest,
+				),
+			};
+			if (batch.images.length === 0) {
+				continue;
+			}
+			const metadata = path.join(temporaryDirectory, `${batch.name}.json`);
+			const overrides = ["--push", "--metadata-file", metadata];
+			for (const image of batch.images) {
+				overrides.push(
+					"--set",
+					`${image}.tags=${imageRoot}/${image}:${options.sourceSha}`,
+					...cacheArguments(image, [imageRoot], imageRoot),
+				);
+			}
+			await runBatch(batch, overrides, root, env, runner, logger, batches, reports);
+			for (const image of batch.images) {
+				const report = reports.find((r) => r.image === image) as ImageReport;
+				report.result = "unfinished";
+			}
+			const source = await readFile(metadata, "utf8");
+			for (const image of batch.images) {
+				const report = reports.find((r) => r.image === image) as ImageReport;
+				try {
+					report.digest = buildDigest(source, image);
+					report.result = "built";
+				} catch (error) {
+					report.result = "failed";
+					report.failedStage = "build";
+					throw error;
+				}
+			}
+		}
+		for (const report of reports) {
+			const digest = requiredDigest(report.digest, report.image);
+			const args = [
 				"image",
 				"--cache-dir",
 				path.resolve(options.trivyCacheDirectory),
@@ -757,102 +666,56 @@ export async function publishImages(
 				"HIGH,CRITICAL",
 				"--exit-code",
 				"0",
-				`${repository}@${digest}`,
+				`${imageRoot}/${report.image}@${digest}`,
 			];
-			logStage(logger, image, "scan", "start");
-			const scanStartedAt = performance.now();
+			const scanStarted = performance.now();
+			let scanDetails = "";
+			logStage(logger, report.image, "scan", "start");
 			try {
-				const scanned = await runner("trivy", trivyArguments, {
-					cwd: root,
-					env: environment,
-					output: "capture",
-				});
-				report.scanMs = elapsed(scanStartedAt);
+				const scanned = await runner("trivy", args, commandOptions);
 				logCommandOutput(logger, scanned);
-				if (scanned.code === 0) {
-					report.scanFeedback = "recorded";
-					logStage(logger, image, "scan", "complete", `duration_ms=${report.scanMs}`);
-				} else {
-					report.scanFeedback = "warning";
-					logStage(
-						logger,
-						image,
-						"scan",
-						"warning",
-						`duration_ms=${report.scanMs} exit_code=${scanned.code} blocking=false`,
-					);
-				}
+				report.scanFeedback = scanned.code === 0 ? "recorded" : "warning";
+				scanDetails = `exit_code=${scanned.code}`;
 			} catch (error) {
 				report.scanFeedback = "warning";
-				report.scanMs = elapsed(scanStartedAt);
-				logger(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
-				logStage(
-					logger,
-					image,
-					"scan",
-					"warning",
-					`duration_ms=${report.scanMs} error=execution blocking=false`,
-				);
+				scanDetails = "error=execution";
+				logger(`${String(error)}\n`);
 			}
-			digests[image] = digest;
-			report.totalMs = elapsed(totalStartedAt);
+			report.scanMs = elapsed(scanStarted);
 			logStage(
 				logger,
-				image,
-				"total",
-				"complete",
-				`duration_ms=${report.totalMs} result=${report.result} digest=${digest}`,
+				report.image,
+				"scan",
+				report.scanFeedback === "recorded" ? "complete" : "warning",
+				`duration_ms=${report.scanMs} ${scanDetails} blocking=false`,
 			);
+			digests[report.image] = digest;
 		}
-
 		const output = path.resolve(options.outputFile);
-		const temporaryOutput = `${output}.tmp`;
-		await writeFile(temporaryOutput, `${JSON.stringify(digests, null, 2)}\n`);
-		await rename(temporaryOutput, output);
+		await writeFile(`${output}.tmp`, `${JSON.stringify(digests, null, 2)}\n`);
+		await rename(`${output}.tmp`, output);
 	} catch (error) {
-		failure = { error };
+		failure = error;
 	} finally {
-		for (const report of reports) {
-			if (report.result === "failed" && report.totalMs === undefined) {
-				report.totalMs = report.startedAt === undefined ? undefined : elapsed(report.startedAt);
-				logStage(
-					logger,
-					report.image,
-					"total",
-					"failed",
-					`duration_ms=${report.totalMs ?? 0} failed_stage=${report.failedStage ?? "unknown"}`,
-				);
-				break;
-			}
-		}
 		if (options.summaryFile) {
 			try {
-				await appendSummary(options.summaryFile, reports, elapsed(runStartedAt));
+				await appendSummary(options.summaryFile, reports, batches, elapsed(started), "publish");
 			} catch (error) {
-				const originalError = failure !== undefined;
 				logger(
-					`[release-image] summary state=failed original_error=${originalError} error=${error instanceof Error ? error.message : String(error)}\n`,
+					`[release-image] summary state=failed original_error=${failure !== undefined} error=${String(error)}\n`,
 				);
-				failure ??= { error };
+				failure ??= error;
 			}
 		}
-		const counts = resultCounts(reports);
 		logRun(
 			logger,
 			failure ? "failed" : "complete",
-			[
-				`duration_ms=${elapsed(runStartedAt)}`,
-				`images_count=${reports.length}`,
-				`built=${counts.built}`,
-				`reused=${counts.reused}`,
-				`failed=${counts.failed}`,
-				`not_started=${counts["not-started"]}`,
-			].join(" "),
+			`duration_ms=${elapsed(started)} images_count=${images.length} built=${resultCounts(reports).built} reused=${resultCounts(reports).reused} unfinished=${resultCounts(reports).unfinished}`,
 		);
 		await rm(temporaryDirectory, { force: true, recursive: true });
 	}
 	if (failure) {
-		throw failure.error;
+		throw failure;
 	}
 	return digests;
 }
@@ -887,7 +750,8 @@ async function main(args: string[]): Promise<void> {
 	const mode = values.get("mode") ?? "publish";
 	if (mode === "build-only") {
 		await buildImages({
-			cacheRegistry: values.get("cache-registry"),
+			cacheImportRegistries: JSON.parse(values.get("cache-import-registries") ?? "[]") as string[],
+			cacheExportRegistry: values.get("cache-export-registry"),
 			images,
 			repository: required(values, "repository"),
 			repositoryRoot: values.get("root") ?? process.cwd(),

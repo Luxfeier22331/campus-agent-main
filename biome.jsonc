@@ -46,7 +46,7 @@
 								"allowedEnvVars": [
 									"CI_EVIDENCE_FILE",
 									"GITHUB_STEP_SUMMARY",
-									"CI_IMAGE_CACHE_REGISTRY"
+									"CI_IMAGE_CACHE_IMPORT_REGISTRIES"
 								]
 							}
 						}

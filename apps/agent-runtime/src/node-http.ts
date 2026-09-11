@@ -7,7 +7,9 @@ import {
 } from "node:http";
 import { authorizedBearerValue, jsonResponse } from "./http-response.ts";
 
-export const AGENT_RUNTIME_MAX_REQUEST_BODY_BYTES = 1 << 20;
+import { MAX_OPERATION_PAYLOAD_BYTES } from "./operation-payload.ts";
+
+export const AGENT_RUNTIME_MAX_REQUEST_BODY_BYTES = MAX_OPERATION_PAYLOAD_BYTES;
 
 const BODY_ROUTES = new Set(["/internal/agent-requests", "/internal/agent-requests/stream"]);
 

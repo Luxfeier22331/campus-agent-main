@@ -2,7 +2,9 @@ package finalization
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -10,6 +12,8 @@ import (
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
+
+const maxFinalizationRecoveryBytes = execution.MaxAgentOperationPayloadBytes
 
 func TemporalFinalizationResultPayload(
 	finalizedResponse map[string]any,
@@ -72,6 +76,9 @@ func (s *Adapter) AppendTemporalFinalizationCompletedEvents(
 	finalizedResponse map[string]any,
 	payload map[string]any,
 ) error {
+	if err := validateFinalizationRecoveryResponse(finalizedResponse); err != nil {
+		return err
+	}
 	internalPayload := execution.CloneAnyMapFromValue(payload)
 	internalPayload["response"] = finalizedResponse
 	expected := execution.DurableRunEvent{
@@ -137,6 +144,24 @@ func (s *Adapter) AppendTemporalFinalizationCompletedEvents(
 	// The browser-visible terminal event is appended only after the
 	// FinalizeRunProjection CAS commits the canonical finalization records and
 	// releases the conversation lock.
+	return nil
+}
+
+func validateFinalizationRecoveryResponse(response map[string]any) error {
+	encodedResponse, err := json.Marshal(response)
+	if err != nil {
+		return fmt.Errorf("encode finalization recovery response: %w", err)
+	}
+	if len(encodedResponse) > maxFinalizationRecoveryBytes {
+		return activityprojection.SanitizedTemporalApplicationError(
+			"finalization_response_too_large",
+			fmt.Errorf("finalization recovery response exceeds %d bytes", maxFinalizationRecoveryBytes),
+			true,
+		)
+	}
+	if err := validateRecoveryResponseFields(encodedResponse); err != nil {
+		return activityprojection.SanitizedTemporalApplicationError("finalization_response_invalid", err, true)
+	}
 	return nil
 }
 

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG NODE_VERSION=24.19.0
+ARG NODE_VERSION=24.21.0
 
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
 
@@ -11,7 +11,7 @@ WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
   && pnpm install --ignore-scripts --frozen-lockfile --filter campus-agent-web-workspace
@@ -30,7 +30,7 @@ WORKDIR /app
 
 COPY --from=pruner /repo/out/json/ ./
 
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
   && pnpm install --ignore-scripts --frozen-lockfile --filter notice-classifier...
@@ -49,7 +49,7 @@ WORKDIR /app
 
 COPY --from=pruner /repo/out/json/ ./
 
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store,sharing=locked \
   --mount=type=cache,id=corepack,target=/root/.cache/node/corepack,sharing=locked \
   corepack enable pnpm \
   && pnpm install --ignore-scripts --prod --frozen-lockfile --filter notice-classifier...

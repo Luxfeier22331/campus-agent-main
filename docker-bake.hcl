@@ -3,7 +3,7 @@ variable "IMAGE_REVISION" {
 }
 
 variable "NODE_VERSION" {
-  default = "24.19.0"
+  default = "24.21.0"
 }
 
 variable "IMAGE_SOURCE" {
@@ -23,6 +23,28 @@ group "default" {
     "notice-index-publisher",
     "notice-publisher",
     "ops-web",
+    "internal-portal-collection",
+  ]
+}
+
+group "heavy" {
+  targets = [
+    "ops-web",
+    "execution-control",
+    "model-config",
+  ]
+}
+
+group "standard" {
+  targets = [
+    "document-ocr",
+    "agent-runtime",
+    "campus-agent-schema",
+    "campus-docs-index-publisher",
+    "campus-rag-index-publisher",
+    "notice-classifier",
+    "notice-index-publisher",
+    "notice-publisher",
     "internal-portal-collection",
   ]
 }

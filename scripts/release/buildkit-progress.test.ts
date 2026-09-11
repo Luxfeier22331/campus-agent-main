@@ -11,6 +11,52 @@ const vertex = (value: object) => `${JSON.stringify({ vertexes: [value] })}\n`;
 const command = (id: string, text: string) =>
 	`${JSON.stringify({ logs: [{ vertex: id, stream: 1, data: Buffer.from(text).toString("base64") }] })}\n`;
 
+test("concurrent Bake targets retain attribution without assigning shared operations", () => {
+	const output: string[] = [];
+	const parser = new BuildkitProgress((text) => output.push(text));
+	parser.push(
+		vertex({ digest: "a", name: "[ops-web build 2/3] RUN pnpm install", started: time(0) }),
+	);
+	parser.push(
+		vertex({ digest: "b", name: "[model-config build 2/3] RUN pnpm install", started: time(0) }),
+	);
+	parser.push(
+		vertex({
+			digest: "shared",
+			name: "[internal] load build context",
+			started: time(0),
+			completed: time(1),
+		}),
+	);
+	parser.push(command("a", "Progress: resolved 2, reused 1, downloaded 1, added 2, done\n"));
+	parser.push(command("b", "Progress: resolved 3, reused 0, downloaded 3, added 3, done\n"));
+	parser.push(vertex({ digest: "a", completed: time(2) }));
+	parser.push(vertex({ digest: "b", completed: time(3) }));
+	const report = parser.finish();
+	assert.equal(report.operations.find((op) => op.id === "shared")?.target, undefined);
+	assert.equal(report.operations.find((op) => op.id === "a")?.target, "ops-web");
+	assert.equal(report.operations.find((op) => op.id === "a")?.category, "dependencies");
+	const log = [
+		'[release-batch] {"batch":"heavy","images":["ops-web","model-config"],"state":"start"}',
+		...output,
+		'[release-batch] {"batch":"heavy","state":"success","durationMs":3000}',
+	].join("\n");
+	const evidence = parseEvidence(
+		log
+			.split("\n")
+			.map((line) => `images\tRun image evidence\t${time(0)} ${line}`)
+			.join("\n"),
+	);
+	assert.deepEqual(
+		evidence.pnpmInstalls.map((item) => [item.image, item.batch, item.downloaded]),
+		[
+			["ops-web", "heavy", 1],
+			["model-config", "heavy", 3],
+		],
+	);
+	assert.equal(evidence.batches.at(-1)?.durationMs, 3000);
+});
+
 test("real BuildKit samples retain installs, SBOM, exporter substeps and cache import", () => {
 	for (const name of ["fixed-first", "cache-only-import"]) {
 		const log = readFileSync(
@@ -53,6 +99,38 @@ test("chunked JSON, repeated starts and overlapping intervals are not overwritte
 	assert.equal(report.operations[0].intervals.length, 3);
 	assert.equal(report.operations[1].durationMs, 9000);
 	assert.equal(report.incomplete, false);
+});
+
+test("a vertex shared by multiple Bake targets is not attributed to the last target", () => {
+	const report = parseBuildkit(
+		vertex({
+			digest: "shared",
+			name: "[execution-control build 1/9] FROM golang",
+			started: time(0),
+		}) +
+			vertex({
+				digest: "shared",
+				name: "[model-config build 1/6] FROM golang",
+				started: time(0),
+				completed: time(1),
+			}) +
+			vertex({ digest: "shared", completed: time(1) }),
+	);
+	assert.equal(report.operations.length, 1);
+	assert.equal(report.operations[0].target, undefined);
+	assert.equal(report.operations[0].durationMs, 1000);
+});
+
+test("single-target Dockerfile stage names are not reported as Bake targets", () => {
+	const report = parseBuildkit(
+		vertex({
+			digest: "build",
+			name: "[build 9/9] RUN go build",
+			started: time(0),
+			completed: time(1),
+		}),
+	);
+	assert.equal(report.operations[0].target, undefined);
 });
 
 test("command progress keeps separate install sequences and decodes split log lines", () => {

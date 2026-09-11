@@ -29,7 +29,11 @@ async function createOciFixture(root: string, architecture: string): Promise<str
 	return fixture;
 }
 
-async function runProbe(options: { architecture: string }): Promise<{
+async function runProbe(options: {
+	architecture: string;
+	driver?: string;
+	skipCache?: boolean;
+}): Promise<{
 	status: number;
 	stdout: string;
 	stderr: string;
@@ -54,24 +58,31 @@ printf '%s\\n' "fixture 100000000000 1000000000 50000000000 1% /"
 		`#!/usr/bin/env bash
 set -euo pipefail
 case "\${1:-}" in
-  info) exit 0 ;;
+  version) exit 0 ;;
   buildx)
     case "\${2:-}" in
       inspect) exit 0 ;;
       ls)
-        printf '%s\\n' "{\\"Name\\":\\"campus-agent-release\\",\\"Nodes\\":[{\\"Status\\":\\"running\\",\\"Platforms\\":[\\"linux/arm64\\"]}]}"
-        printf '%s\\n' "{\\"Name\\":\\"campus-agent-release\\",\\"Nodes\\":[{\\"Status\\":\\"running\\",\\"Platforms\\":[\\"linux/arm64\\"]}]}"
+        printf '%s\\n' "{\\"Name\\":\\"campus-agent-release\\",\\"Driver\\":\\"${options.driver ?? "docker-container"}\\",\\"Nodes\\":[{\\"Status\\":\\"running\\",\\"Platforms\\":[\\"linux/arm64\\"]}]}"
+        printf '%s\\n' "{\\"Name\\":\\"campus-agent-release\\",\\"Driver\\":\\"${options.driver ?? "docker-container"}\\",\\"Nodes\\":[{\\"Status\\":\\"running\\",\\"Platforms\\":[\\"linux/arm64\\"]}]}"
         exit 0
         ;;
       build)
         output=""
+        cache=""
         previous=""
         for argument in "$@"; do
           if [[ "$previous" == --output ]]; then output="$argument"; fi
+          if [[ "$previous" == --cache-to ]]; then cache="$argument"; fi
           previous="$argument"
         done
         destination="\${output##*dest=}"
         cp "\${PROBE_FIXTURE}" "\${destination}"
+        if [[ "\${PROBE_SKIP_CACHE:-false}" == true ]]; then exit 0; fi
+        cache_destination="\${cache#*dest=}"
+        cache_destination="\${cache_destination%%,*}"
+        mkdir -p "$cache_destination"
+        printf '{"schemaVersion":2}\\n' > "$cache_destination/index.json"
         exit 0
         ;;
     esac
@@ -88,6 +99,7 @@ exit 1
 				BUILDX_BUILDER: "campus-agent-release",
 				PATH: `${bin}:${process.env.PATH ?? ""}`,
 				PROBE_FIXTURE: fixture,
+				PROBE_SKIP_CACHE: String(options.skipCache ?? false),
 			},
 			maxBuffer: 4 * 1024 * 1024,
 		});
@@ -113,4 +125,11 @@ test("runner capability probe accepts an arm64 builder and OCI result", async ()
 test("runner capability probe rejects a non-arm64 OCI result", async () => {
 	const result = await runProbe({ architecture: "amd64" });
 	assert.notEqual(result.status, 0);
+});
+
+test("runner capability probe rejects an unsupported driver and missing cache export", async () => {
+	for (const options of [{ driver: "docker" }, { skipCache: true }]) {
+		const result = await runProbe({ architecture: "arm64", ...options });
+		assert.notEqual(result.status, 0);
+	}
 });

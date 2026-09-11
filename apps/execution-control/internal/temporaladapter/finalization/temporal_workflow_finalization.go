@@ -138,6 +138,10 @@ func (s *Adapter) CommitWorkflowFinalization(
 		}
 		return s.FailFinalizationActivity(ctx, run, "", failureKind, "", err)
 	}
+	// Deterministic rejection must happen before publishing product success.
+	if err := validateFinalizationRecoveryResponse(finalizedResponse); err != nil {
+		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
+	}
 	writeProductFinalization := s.ProductFinalizationWriter
 	if writeProductFinalization == nil {
 		writeProductFinalization = s.WriteChatProductFinalization
@@ -773,6 +777,9 @@ func (s *Adapter) CompletedWorkflowFinalizedResponse(
 		}
 		response := execution.CloneAnyMapFromValue(event.Payload["response"])
 		if len(response) > 0 {
+			if err := validateFinalizationRecoveryResponse(response); err != nil {
+				return nil, err
+			}
 			return response, nil
 		}
 		break

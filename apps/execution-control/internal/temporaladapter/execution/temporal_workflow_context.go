@@ -127,29 +127,30 @@ func AnyListFromAny(value any) []any {
 }
 
 type AgentRuntimeResponse struct {
-	AnswerMode              string                    `json:"answer_mode"`
-	Operation               string                    `json:"operation"`
-	SolveOutcome            string                    `json:"solve_outcome"`
-	Status                  string                    `json:"status"`
-	Error                   AgentRuntimeError         `json:"error"`
-	RequestID               string                    `json:"request_id"`
-	ContextUsage            map[string]any            `json:"context_usage"`
-	FinalOutput             string                    `json:"final_output"`
-	StructuredOutput        map[string]any            `json:"structured_output"`
-	CompletedStep           map[string]any            `json:"completed_step"`
-	Evidence                []map[string]any          `json:"evidence"`
-	SourceAttempts          []map[string]any          `json:"source_attempts"`
-	ModelName               string                    `json:"model_name"`
-	ModelProvider           string                    `json:"model_provider"`
-	ProviderResponseID      string                    `json:"provider_response_id"`
-	StageTiming             map[string]any            `json:"stage_timing"`
-	ToolResults             []AgentToolResult         `json:"tool_results"`
-	TerminalReason          string                    `json:"terminal_reason"`
-	ToolContractFingerprint map[string]any            `json:"tool_contract_fingerprint"`
-	RuntimeRelease          string                    `json:"runtime_release"`
-	Usage                   AgentRuntimeUsage         `json:"usage"`
-	WebCitations            []AgentRuntimeWebCitation `json:"web_citations"`
-	WebSearchUsed           bool                      `json:"web_search_used"`
+	AnswerMode              string                              `json:"answer_mode"`
+	Operation               string                              `json:"operation"`
+	SolveOutcome            string                              `json:"solve_outcome"`
+	Status                  string                              `json:"status"`
+	Error                   AgentRuntimeError                   `json:"error"`
+	RequestID               string                              `json:"request_id"`
+	ContextUsage            map[string]any                      `json:"context_usage"`
+	FinalOutput             string                              `json:"final_output"`
+	Plan                    *temporalruntime.WorkflowTaskPlan   `json:"plan,omitempty"`
+	Replan                  *temporalruntime.WorkflowTaskReplan `json:"replan,omitempty"`
+	RemainingFacts          []string                            `json:"remaining_facts,omitempty"`
+	Evidence                []map[string]any                    `json:"evidence"`
+	SourceAttempts          []map[string]any                    `json:"source_attempts"`
+	ModelName               string                              `json:"model_name"`
+	ModelProvider           string                              `json:"model_provider"`
+	ProviderResponseID      string                              `json:"provider_response_id"`
+	StageTiming             map[string]any                      `json:"stage_timing"`
+	ToolResults             []AgentToolResult                   `json:"tool_results"`
+	TerminalReason          string                              `json:"terminal_reason"`
+	ToolContractFingerprint map[string]any                      `json:"tool_contract_fingerprint"`
+	RuntimeRelease          string                              `json:"runtime_release"`
+	Usage                   AgentRuntimeUsage                   `json:"usage"`
+	WebCitations            []AgentRuntimeWebCitation           `json:"web_citations"`
+	WebSearchUsed           bool                                `json:"web_search_used"`
 }
 
 type AgentRuntimeWebCitation struct {

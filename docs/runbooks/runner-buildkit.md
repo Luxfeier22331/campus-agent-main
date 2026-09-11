@@ -41,13 +41,15 @@ gh variable delete CI_RUNNER_MODE \
 
 Self-hosted Runner 服务为作业注入 `HOME`、`DOCKER_CONFIG` 和 `BUILDX_BUILDER`。源码工作流只依赖
 这个能力合同，不判断 builder 是原生目标、QEMU/binfmt 还是其他宿主实现。GitHub-hosted 的镜像任务
-在工作流内初始化 Buildx，不消费 self-hosted Runner 的 builder 配置。
+在工作流内初始化 `docker-container` Buildx，BuildKit `max-parallelism=2`，不消费 self-hosted Runner
+的 builder 配置。该限制约束 builder 的并发构建操作；Bake 每次只提交一个现有 heavy/standard 分组。
 
 ## 能力探针
 
 备用 Runner 的探针入口是 `scripts/ci/runner-capability-probe.sh`。它会检查 Docker、runner-owned builder 的
-运行状态和 `linux/arm64` 平台、根文件系统至少 25GB 可用空间，并使用 `scratch` Dockerfile 输出
-OCI 制品后检查其 OCI platform 元数据。
+`docker-container` driver、运行状态和 `linux/arm64` 平台、根文件系统至少 25GB 可用空间，并使用
+`scratch` Dockerfile 同时输出 OCI 制品和 `mode=max` 本地缓存，再检查 OCI platform 元数据和缓存
+index。探针不删除或重建已有 builder；本地 exporter 验证不替代 GHCR 权限验收。
 
 在对应 Runner 用户环境中执行：
 
@@ -55,7 +57,7 @@ OCI 制品后检查其 OCI platform 元数据。
 BUILDX_BUILDER=campus-agent-release \
 HOME=/home/github-runner \
 DOCKER_CONFIG=/home/github-runner/.docker \
-scripts/ci/runner-capability-probe.sh
+bash scripts/ci/runner-capability-probe.sh
 ```
 
 `sq-nixos` 使用 `/var/lib/github-runner` 作为 `HOME` 和 Docker 配置目录。服务启动前必须通过同一

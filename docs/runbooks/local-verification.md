@@ -23,6 +23,23 @@ Kubernetes/GitOps 之外维护第二套 staging 生命周期。`docker-compose.e
 默认诊断 compose 使用 debug OTel Collector。只有验证本地 Agent trace 到 Langfuse 的转发时加入
 `docker-compose.execution-runtime.langfuse.yml`。
 
+## Node 工具链
+
+Node 版本以根目录 `.node-version` 为准。使用 fnm 的本地环境在当前 worktree 执行：
+
+```bash
+fnm install
+fnm use
+corepack enable pnpm
+node --version
+pnpm --version
+```
+
+CI 使用 `nix develop .#ci-core`；Node 与 pnpm 的启动解释器使用同一版本。
+当前 nixpkgs 的 Node 版本落后，`nix/tools.nix` 下载并校验官方 Linux x64/arm64 二进制，
+只执行解包与动态链接修正，不编译 Node 源码。升级时同步该文件的两个 SHA-256、
+`.node-version`、Bake 和 Dockerfile 默认值；nixpkgs 提供匹配版本及二进制缓存后可恢复使用其包。
+
 ## Worker 检查
 
 ```bash
