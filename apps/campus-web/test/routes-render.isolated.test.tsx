@@ -406,7 +406,7 @@ describe("campus routes", () => {
 		render(<HomePage />);
 
 		const openMobileThreadsButton = screen.getByRole("button", { name: "打开聊天记录" });
-		expect(openMobileThreadsButton).toHaveClass("size-[var(--control-height-touch)]");
+		expect(openMobileThreadsButton).toHaveClass("size-12");
 		await user.click(openMobileThreadsButton);
 		const mobileMenu = screen.getByRole("dialog", { name: "聊天记录" });
 		const closeMobileMenuButton = within(mobileMenu).getByRole("button", {

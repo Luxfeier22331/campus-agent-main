@@ -18,12 +18,17 @@ describe("campus-web UI primitive boundary", () => {
 		expect(source).not.toContain('title = "导航"');
 	});
 
-	it("keeps shared button and local toggle-group on vetted CVA primitives", () => {
+	it("keeps button and toggle-group implementations in the shared UI package", () => {
 		const buttonSource = readSource("../../packages/ui/src/button.tsx");
 		const toggleGroupSource = readSource("src/components/ui/toggle-group.tsx");
+		const sharedToggleGroupSource = readSource("../../packages/ui/src/toggle-group.tsx");
 
 		expect(buttonSource).toContain("buttonVariants = cva(");
-		expect(toggleGroupSource).toContain("toggleVariants");
+		expect(toggleGroupSource.trim()).toBe(
+			'export { ToggleGroup, ToggleGroupItem } from "@campus-agent/ui";',
+		);
+		expect(sharedToggleGroupSource).toContain("toggleVariants = cva(");
+		expect(sharedToggleGroupSource).toContain('from "@radix-ui/react-toggle-group"');
 	});
 
 	it("uses the shared checkbox primitive", () => {

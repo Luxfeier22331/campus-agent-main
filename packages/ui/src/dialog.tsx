@@ -17,7 +17,7 @@ export const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<DialogPrimitive.Overlay
 		className={cn(
-			"fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+			"fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)] duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
 			className,
 		)}
 		ref={ref}
@@ -40,7 +40,7 @@ export const DialogContent = React.forwardRef<
 		<DialogOverlay />
 		<DialogPrimitive.Content
 			className={cn(
-				"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border bg-background p-6 shadow-lg duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+				"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] overflow-y-auto gap-4 rounded-[var(--radius-xl)] border bg-background p-5 sm:p-6 shadow-lg duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
 				className,
 			)}
 			ref={ref}
@@ -48,7 +48,12 @@ export const DialogContent = React.forwardRef<
 		>
 			{children}
 			{showCloseButton ? (
-				<DialogPrimitive.Close className="absolute right-3 top-3 inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring">
+				<DialogPrimitive.Close
+					className={cn(
+						buttonVariants({ variant: "ghost", size: "icon" }),
+						"absolute right-3 top-3 text-muted-foreground",
+					)}
+				>
 					<X aria-hidden="true" className="size-4" />
 					<span className="sr-only">{closeLabel}</span>
 				</DialogPrimitive.Close>
@@ -102,7 +107,7 @@ export const AlertDialogContent = React.forwardRef<
 		<AlertDialogPrimitive.Overlay className="fixed inset-0 z-[var(--layer-overlay)] bg-[var(--sys-overlay)]" />
 		<AlertDialogPrimitive.Content
 			className={cn(
-				"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border bg-background p-6 shadow-lg",
+				"fixed left-1/2 top-1/2 z-[var(--layer-overlay)] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] overflow-y-auto gap-4 rounded-[var(--radius-xl)] border bg-background p-5 sm:p-6 shadow-lg",
 				className,
 			)}
 			ref={ref}
@@ -182,7 +187,7 @@ export const SheetHeader = DialogHeader;
 export const SheetFooter = DialogFooter;
 
 const sheetVariants = cva(
-	"fixed z-[var(--layer-overlay)] overflow-y-auto bg-background p-5 shadow-lg duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out",
+	"fixed z-[var(--layer-overlay)] overflow-y-auto bg-background p-5 shadow-lg duration-[var(--motion-duration-standard)] ease-[var(--motion-easing-standard)] data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none",
 	{
 		variants: {
 			side: {
@@ -216,7 +221,12 @@ export const SheetContent = React.forwardRef<
 			{...props}
 		>
 			{children}
-			<DialogPrimitive.Close className="absolute right-3 top-3 inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring">
+			<DialogPrimitive.Close
+				className={cn(
+					buttonVariants({ variant: "ghost", size: "icon" }),
+					"absolute right-3 top-3 text-muted-foreground",
+				)}
+			>
 				<X aria-hidden="true" className="size-4" />
 				<span className="sr-only">{closeLabel}</span>
 			</DialogPrimitive.Close>

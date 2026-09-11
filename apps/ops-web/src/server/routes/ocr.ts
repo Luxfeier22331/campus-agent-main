@@ -9,6 +9,7 @@ import type { Hono } from "hono";
 import type { Pool } from "pg";
 import { z } from "zod";
 import portal from "../../../../../configs/sources/internal-portal.json" with { type: "json" };
+import { NoticeOcrSchema } from "../../shared/ocr-contract.ts";
 import { launchOcrJob } from "../ocr-jobs.ts";
 import { ocrMarkdownForBrowser } from "../ocr-results.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
@@ -84,6 +85,68 @@ export function registerOcrRoutes(input: {
 		return c.json({ task, launchError: await launch() }, 202);
 	});
 	app.get("/api/ops/ocr/tasks", async (c) => c.json({ tasks: await store().list() }));
+	app.get("/api/ops/ocr/notices/:noticeId", async (c) => {
+		const noticeId = c.req.param("noticeId");
+		if (!/^[1-9]\d*$/.test(noticeId)) {
+			return jsonError("OPS_OCR_INVALID", "通知 ID 无效。", 400);
+		}
+		if (!pool) {
+			throw new Error("OCR database unavailable");
+		}
+		const found = await pool.query("select notice_id from notices.notices where notice_id=$1", [
+			noticeId,
+		]);
+		if (found.rows.length === 0) {
+			return jsonError("OPS_OCR_NOT_FOUND", "通知不存在。", 404);
+		}
+		const objects = createOcrObjects(env);
+		try {
+			const source = JSON.parse(
+				new TextDecoder().decode(
+					await objects.getSource(`internal_portal/notices/${noticeId}.json`),
+				),
+			);
+			const tasks = await store().listNotice(noticeId);
+			const resources = listNoticeSourceResources(
+				noticeId,
+				source,
+				new URL(portal.portal_base_url).hostname,
+			)
+				.filter(
+					(resource) =>
+						resource.kind === "image" ||
+						resource.suffix?.toLowerCase().replace(/^\./u, "") === "pdf",
+				)
+				.map((resource) => {
+					const batches = tasks.filter(
+						(task) => task.input.kind === "source" && task.input.key === resource.sourceKey,
+					);
+					return {
+						sourceKey: resource.sourceKey,
+						kind: resource.kind,
+						ordinal: resource.ordinal,
+						label:
+							resource.kind === "image"
+								? `图片${resource.ordinal + 1}`
+								: `附件${resource.ordinal + 1}`,
+						selectedResultId:
+							batches.find((task) => task.status === "completed" && task.result)?.id ?? null,
+						batches: batches.map((task) => ({
+							id: task.id,
+							status: task.status,
+							createdAt: task.createdAt,
+							pageCount: task.result?.pages.length ?? 0,
+							missingImageCount: task.result?.missingImages.length ?? 0,
+							error: task.error,
+							hasResult: task.status === "completed" && task.result !== null,
+						})),
+					};
+				});
+			return c.json(NoticeOcrSchema.parse({ noticeId, resources }));
+		} finally {
+			objects.close();
+		}
+	});
 	app.get("/api/ops/ocr/tasks/:id", async (c) => {
 		if (!z.uuid().safeParse(c.req.param("id")).success) {
 			return jsonError("OPS_OCR_INVALID", "任务 ID 无效。", 400);
@@ -121,6 +184,7 @@ export function registerOcrRoutes(input: {
 					noticeId: resource.noticeId,
 					key: resource.sourceKey,
 					contentType: resource.kind === "image" ? "image/*" : "application/pdf",
+					resource: { kind: resource.kind, ordinal: resource.ordinal },
 				}));
 			const runtime = await config();
 			const tasks: OcrTask[] = [];

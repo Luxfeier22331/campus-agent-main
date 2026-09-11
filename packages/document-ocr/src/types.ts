@@ -15,7 +15,13 @@ export interface OcrConfig extends OcrTarget {
 	updatedAt: string;
 }
 export type OcrInput =
-	| { kind: "source"; key: string; noticeId: string; contentType: string }
+	| {
+			kind: "source";
+			key: string;
+			noticeId: string;
+			contentType: string;
+			resource?: { kind: "image" | "attachment"; ordinal: number };
+	  }
 	| { kind: "uploaded"; key: string; contentType: string }
 	| { kind: "validation" };
 export interface OcrPage {
@@ -50,6 +56,7 @@ export interface OcrObjects {
 export interface OcrTaskStore {
 	get(id: string): Promise<OcrTask | null>;
 	list(limit?: number): Promise<OcrTask[]>;
+	listNotice(noticeId: string): Promise<OcrTask[]>;
 	create(input: OcrInput, config: OcrConfig, rerun?: boolean): Promise<OcrTask>;
 	save(task: OcrTask): Promise<void>;
 	runnable(): Promise<OcrTask[]>;

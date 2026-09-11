@@ -146,7 +146,7 @@ export function DiningReviewSheet(props: {
 									/>
 									<div className="flex flex-wrap items-center justify-between gap-3">
 										<label
-											className="flex min-h-9 items-center gap-2 text-sm text-[var(--sys-text-muted)]"
+											className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-[var(--sys-text-muted)]"
 											htmlFor="dining-review-anonymous"
 										>
 											<Checkbox

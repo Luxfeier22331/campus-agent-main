@@ -7,8 +7,17 @@ import {
 	transportRiderLabel,
 	transportServiceKindLabel,
 } from "@campus-agent/transport/domain";
-import { Button, cn, Tabs, TabsList, TabsTrigger } from "@campus-agent/ui";
-import { ArrowLeftRight, ChevronLeft, ChevronRight, MapPin, RefreshCw } from "lucide-react";
+import {
+	Button,
+	cn,
+	Disclosure,
+	DisclosureSummary,
+	Tabs,
+	TabsList,
+	TabsTrigger,
+} from "@campus-agent/ui";
+import { ChevronLeft, ChevronRight, MapPin, RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
 import { CampusDatePicker } from "@/components/ui/date-picker";
 import { StateMessage } from "@/components/ui/state-message";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -18,6 +27,7 @@ export type RiderFilter = "all" | "student" | "teacher";
 export type RouteChoice = TransportRouteCatalogEntry;
 export interface TransportPageViewProps {
 	data?: TransportPublicScheduleResponse | undefined;
+	showRider?: boolean;
 	date: string;
 	routeId: string | undefined;
 	routeChoices: readonly RouteChoice[];
@@ -33,11 +43,11 @@ export interface TransportPageViewProps {
 	refreshing?: boolean;
 	loading?: boolean;
 	failed?: boolean;
-	updating?: boolean;
-	slowUpdating?: boolean;
+	calendar?: (onSelect: (date: string) => void) => ReactNode;
 }
 export function TransportPageView({
 	data,
+	showRider: showRiderFromPrevious,
 	date,
 	routeId,
 	routeChoices,
@@ -53,11 +63,9 @@ export function TransportPageView({
 	refreshing = false,
 	loading = false,
 	failed = false,
-	updating = false,
-	slowUpdating = false,
+	calendar,
 }: TransportPageViewProps) {
 	const today = transportDate(now);
-	const displayedDate = data?.date ?? date;
 	const route = data?.routes.find((item) => item.routeId === routeId);
 	const choice = routeChoices.find((item) => item.routeId === routeId);
 	const kinds =
@@ -66,15 +74,8 @@ export function TransportPageView({
 			routeChoices.some((item) => item.serviceKind === kind),
 		);
 	const activeKind = serviceKind ?? choice?.serviceKind ?? kinds[0] ?? "commute";
-	const reverse = routeChoices.filter(
-		(item) =>
-			item.routeId !== routeId &&
-			item.serviceKind === choice?.serviceKind &&
-			item.origin === choice?.destination &&
-			item.destination === choice?.origin,
-	);
-	const returnRoute = activeKind !== "subway" && reverse.length === 1 ? reverse[0] : undefined;
-	const showRider = route?.departures.some((item) => item.riderType !== "all") ?? false;
+	const showRider =
+		route?.departures.some((item) => item.riderType !== "all") ?? showRiderFromPrevious ?? false;
 	const chooseKind = (value: string) => {
 		if (onServiceKindChange) {
 			onServiceKindChange(value as TransportServiceKind);
@@ -86,7 +87,7 @@ export function TransportPageView({
 		}
 	};
 	return (
-		<section className="mx-auto w-full max-w-3xl px-4 py-4 pb-16 sm:px-6 sm:py-6">
+		<section className="campus-transport-page mx-auto w-full max-w-3xl px-4 py-4 pb-16 sm:px-6 sm:py-6">
 			<header className="grid gap-3">
 				<div className="flex items-center justify-between gap-3">
 					<h1 className="text-2xl font-semibold">校园班车</h1>
@@ -102,7 +103,7 @@ export function TransportPageView({
 				</div>
 				{kinds.length > 0 ? (
 					<Tabs value={activeKind} onValueChange={chooseKind}>
-						<TabsList aria-label="班车服务类型">
+						<TabsList aria-label="班车服务类型" presentation="segmented">
 							{kinds.map((kind) => (
 								<TabsTrigger value={kind} key={kind} className="flex-1 px-2">
 									{transportServiceKindLabel(kind)}
@@ -120,7 +121,12 @@ export function TransportPageView({
 					>
 						<ChevronLeft />
 					</Button>
-					<CampusDatePicker value={date} ariaLabel={`选择日期：${date}`} onChange={onDateChange} />
+					<CampusDatePicker
+						value={date}
+						ariaLabel={`选择日期：${date}`}
+						onChange={onDateChange}
+						{...(calendar ? { calendar } : {})}
+					/>
 					<Button
 						aria-label="后一天"
 						size="icon"
@@ -135,12 +141,6 @@ export function TransportPageView({
 						</Button>
 					)}
 				</div>
-				{updating && !failed ? (
-					<p role="status" aria-live="polite" className="-mt-2 text-xs text-info">
-						{slowUpdating ? "仍在更新" : "更新中"}
-						{displayedDate === date ? "…" : ` · 当前为 ${shortDate(displayedDate)}班次`}
-					</p>
-				) : null}
 				{activeKind === "subway" ? (
 					<SubwayRoutePicker
 						routes={routeChoices.filter((item) => item.serviceKind === "subway")}
@@ -148,30 +148,31 @@ export function TransportPageView({
 						onChange={onRouteChange}
 					/>
 				) : (
-					<fieldset>
-						<legend className="sr-only">线路方向</legend>
-						<div className="grid grid-cols-2 gap-2">
-							{routeChoices
-								.filter((item) => item.serviceKind === activeKind)
-								.map((item) => (
-									<Button
-										key={item.routeId}
-										variant="outline"
-										aria-pressed={item.routeId === routeId}
-										onClick={() => onRouteChange(item.routeId)}
-										className={cn(
-											"h-auto min-h-11 whitespace-normal px-2 py-2 text-sm",
-											item.routeId === routeId &&
-												"border-border-selected bg-selected text-selected-foreground",
-										)}
-									>
-										{item.origin} → {item.destination}
-									</Button>
-								))}
-						</div>
-					</fieldset>
+					<ToggleGroup
+						type="single"
+						aria-label="线路方向"
+						value={routeId ?? ""}
+						onValueChange={(value) => value && onRouteChange(value)}
+						presentation="segmented"
+						className="grid grid-cols-2"
+					>
+						{routeChoices
+							.filter((item) => item.serviceKind === activeKind)
+							.map((item) => (
+								<ToggleGroupItem
+									key={item.routeId}
+									value={item.routeId}
+									className="whitespace-normal"
+								>
+									<span>
+										<span className="whitespace-nowrap">{item.origin}</span> →{" "}
+										<span className="whitespace-nowrap">{item.destination}</span>
+									</span>
+								</ToggleGroupItem>
+							))}
+					</ToggleGroup>
 				)}
-				{showRider || returnRoute ? (
+				{showRider ? (
 					<div className="flex flex-wrap items-center justify-between gap-2">
 						{showRider ? (
 							<ToggleGroup
@@ -183,14 +184,11 @@ export function TransportPageView({
 										onRiderChange(value);
 									}
 								}}
-								className="justify-start rounded-md bg-surface-muted p-1"
+								presentation="segmented"
+								className="justify-start"
 							>
 								{(["all", "student", "teacher"] as const).map((value) => (
-									<ToggleGroupItem
-										key={value}
-										value={value}
-										className="min-h-11 rounded-md px-3 data-[state=on]:bg-selected data-[state=on]:text-selected-foreground"
-									>
+									<ToggleGroupItem key={value} value={value} className="whitespace-nowrap">
 										{value === "all" ? "全部" : value === "student" ? "学生" : "教师"}
 									</ToggleGroupItem>
 								))}
@@ -200,22 +198,12 @@ export function TransportPageView({
 								{(route?.departures?.length ?? 0) > 0 ? "全体师生" : ""}
 							</span>
 						)}
-						{returnRoute ? (
-							<Button
-								variant="ghost"
-								className="ml-auto px-2"
-								onClick={() => onRouteChange(returnRoute.routeId)}
-							>
-								<ArrowLeftRight />
-								查返程
-							</Button>
-						) : null}
 					</div>
 				) : null}
 			</header>
 			{failed ? (
 				<StateMessage
-					title={data ? `查询失败，当前显示 ${shortDate(displayedDate)}班次` : "班车信息加载失败"}
+					title="班车信息加载失败"
 					layout="section"
 					tone="danger"
 					primaryAction={
@@ -238,16 +226,28 @@ export function TransportPageView({
 				</div>
 			) : data ? (
 				choice ? (
-					<TransportRoute
-						key={`${displayedDate}:${routeId}:${rider}`}
-						route={route}
-						choice={choice}
-						date={displayedDate}
-						today={today}
-						rider={showRider ? rider : "all"}
-						now={now}
-						onDateChange={onDateChange}
-					/>
+					activeKind === "subway" ? (
+						<SubwayStationRoutes
+							choices={routeChoices.filter((item) => stationOf(item) === stationOf(choice))}
+							routes={data?.routes ?? []}
+							date={date}
+							today={today}
+							rider={showRider ? rider : "all"}
+							now={now}
+							onDateChange={onDateChange}
+						/>
+					) : (
+						<TransportRoute
+							key={`${date}:${routeId}`}
+							route={route}
+							choice={choice}
+							date={date}
+							today={today}
+							rider={showRider ? rider : "all"}
+							now={now}
+							onDateChange={onDateChange}
+						/>
+					)
 				) : (
 					<StateMessage title="当天暂无班次信息" description="请选择其他日期或线路方向。" />
 				)
@@ -256,8 +256,53 @@ export function TransportPageView({
 	);
 }
 
-function shortDate(date: string) {
-	return `${Number(date.slice(5, 7))}月${Number(date.slice(8))}日`;
+function stationOf(route: RouteChoice) {
+	return route.origin === "丰台校区" ? route.destination : route.origin;
+}
+
+function SubwayStationRoutes({
+	choices,
+	routes,
+	date,
+	today,
+	rider,
+	now,
+	onDateChange,
+}: {
+	choices: readonly RouteChoice[];
+	routes: readonly TransportPublicRoute[];
+	date: string;
+	today: string;
+	rider: RiderFilter;
+	now: Date;
+	onDateChange: (date: string) => void;
+}) {
+	const ordered = [...choices].sort(
+		(a, b) => Number(b.origin === "丰台校区") - Number(a.origin === "丰台校区"),
+	);
+	return (
+		<section
+			aria-label={`${stationOf(ordered[0] as RouteChoice)}往返班次`}
+			className="mt-3 grid gap-5"
+		>
+			{ordered.map((choice) => (
+				<div key={choice.routeId} className="grid gap-2">
+					<h2 className="text-base font-semibold">
+						{choice.origin} → {choice.destination}
+					</h2>
+					<TransportRoute
+						route={routes.find((item) => item.routeId === choice.routeId)}
+						choice={choice}
+						date={date}
+						today={today}
+						rider={rider}
+						now={now}
+						onDateChange={onDateChange}
+					/>
+				</div>
+			))}
+		</section>
+	);
 }
 
 function SubwayRoutePicker({
@@ -269,60 +314,36 @@ function SubwayRoutePicker({
 	choice: RouteChoice | undefined;
 	onChange: (routeId: string) => void;
 }) {
-	const stationOf = (route: RouteChoice) =>
-		route.origin === "丰台校区" ? route.destination : route.origin;
 	const stations = [...new Set(routes.map(stationOf))];
 	const station = choice ? stationOf(choice) : stations[0];
 	const outbound = choice?.origin === "丰台校区";
-	const directions = routes.filter((route) => stationOf(route) === station);
-	const buttonClass = (selected: boolean) =>
-		cn(
-			"h-auto min-h-11 whitespace-normal px-2 py-2 text-sm",
-			selected && "border-border-selected bg-selected text-selected-foreground",
-		);
 	return (
 		<div className="grid gap-2">
-			<fieldset>
-				<legend className="sr-only">地铁站</legend>
-				<div className="grid grid-cols-2 gap-2">
-					{stations.map((name) => (
-						<Button
-							key={name}
-							variant="outline"
-							aria-pressed={name === station}
-							className={buttonClass(name === station)}
-							onClick={() => {
-								const matches = routes.filter((route) => stationOf(route) === name);
-								const next =
-									matches.find((route) => (route.origin === "丰台校区") === outbound) ?? matches[0];
-								if (next) {
-									onChange(next.routeId);
-								}
-							}}
-						>
-							{name.replace(/地铁站$/u, "")}
-						</Button>
-					))}
-				</div>
-			</fieldset>
-			<fieldset>
-				<legend className="sr-only">线路方向</legend>
-				<div className="grid grid-cols-2 gap-2">
-					{[...directions]
-						.sort((a, b) => Number(b.origin === "丰台校区") - Number(a.origin === "丰台校区"))
-						.map((route) => (
-							<Button
-								key={route.routeId}
-								variant="outline"
-								aria-pressed={route.routeId === choice?.routeId}
-								className={buttonClass(route.routeId === choice?.routeId)}
-								onClick={() => onChange(route.routeId)}
-							>
-								{route.origin === "丰台校区" ? "去地铁站" : "回丰台校区"}
-							</Button>
-						))}
-				</div>
-			</fieldset>
+			<ToggleGroup
+				type="single"
+				aria-label="地铁站"
+				value={station ?? ""}
+				presentation="segmented"
+				className="grid grid-cols-2"
+				onValueChange={(name) => {
+					if (!name) {
+						return;
+					}
+					const matches = routes.filter((route) => stationOf(route) === name);
+					const next =
+						matches.find((route) => (route.origin === "丰台校区") === outbound) ?? matches[0];
+					if (next) {
+						onChange(next.routeId);
+					}
+				}}
+			>
+				{stations.map((name) => (
+					<ToggleGroupItem key={name} value={name} className="whitespace-nowrap">
+						{name.replace(/地铁站$/u, "")}
+					</ToggleGroupItem>
+				))}
+			</ToggleGroup>
+			<p className="text-sm text-muted-foreground">往返班次同时展示</p>
 		</div>
 	);
 }
@@ -376,15 +397,28 @@ function TransportRoute({
 	now: Date;
 	onDateChange: (date: string) => void;
 }) {
-	const departures = filterDepartures(route?.departures ?? [], rider);
+	const routeDepartures = route?.departures ?? [];
+	const departures = filterDepartures(routeDepartures, rider);
 	const next = nextDepartures(departures, date, now);
 	const isToday = date === today;
 	const points = new Set(
-		departures.map(
+		routeDepartures.map(
 			(item) => item.boardingPoint ?? route?.boardingPoint ?? choice.defaultBoardingPoint,
 		),
 	);
 	const commonPoint = points.size === 1 ? ([...points][0] ?? null) : null;
+	const pointByRider = new Map<TransportPublicDeparture["riderType"], string>();
+	for (const riderType of ["all", "student", "teacher"] as const) {
+		const riderPoints = new Set(
+			routeDepartures
+				.filter((item) => item.riderType === riderType)
+				.map((item) => item.boardingPoint ?? route?.boardingPoint ?? choice.defaultBoardingPoint),
+		);
+		const point = [...riderPoints][0];
+		if (riderPoints.size === 1 && point) {
+			pointByRider.set(riderType, point);
+		}
+	}
 	const allRiders = departures.length > 0 && departures.every((item) => item.riderType === "all");
 	const past = isToday
 		? departures.filter((item) => getDepartureStatus(item, date, today, now) === "past")
@@ -408,6 +442,7 @@ function TransportRoute({
 			today={today}
 			now={now}
 			commonPoint={commonPoint}
+			pointByRider={pointByRider}
 			defaultPoint={route?.boardingPoint ?? choice.defaultBoardingPoint}
 			allRiders={allRiders}
 			grid={canUseGrid}
@@ -438,6 +473,20 @@ function TransportRoute({
 				</>
 			) : departures.length > 0 ? (
 				<>
+					<RouteGuidance choice={choice} />
+					{commonPoint ? (
+						<BoardingPoint value={commonPoint} />
+					) : pointByRider.size > 0 ? (
+						<section aria-label="乘车点" className="mt-4 grid gap-1 text-sm">
+							<p className="text-muted-foreground">乘车点</p>
+							{[...pointByRider].map(([riderType, point]) => (
+								<p key={riderType} className="flex gap-2">
+									<span className="font-medium">{transportRiderLabel(riderType)}</span>
+									<span className="text-muted-foreground">{point}</span>
+								</p>
+							))}
+						</section>
+					) : null}
 					{next.length > 0 ? (
 						<section
 							aria-label="下一班及当前运行班次"
@@ -459,9 +508,13 @@ function TransportRoute({
 											<span className="text-sm">{transportRiderLabel(item.riderType)}</span>
 										)}
 									</p>
-									<BoardingPoint
-										value={item.boardingPoint ?? route.boardingPoint ?? choice.defaultBoardingPoint}
-									/>
+									{commonPoint || pointByRider.has(item.riderType) ? null : (
+										<BoardingPoint
+											value={
+												item.boardingPoint ?? route.boardingPoint ?? choice.defaultBoardingPoint
+											}
+										/>
+									)}
 									{item.note ? <p className="mt-1 text-sm">{item.note}</p> : null}
 									{item.capacity ? <p className="mt-1 text-xs">容量：{item.capacity} 人</p> : null}
 								</div>
@@ -470,19 +523,9 @@ function TransportRoute({
 					) : isToday && past.length === departures.length ? (
 						<p className="py-3 text-sm text-muted-foreground">今日班次已结束</p>
 					) : null}
-					{commonPoint &&
-					!next.some(
-						(item) =>
-							(item.boardingPoint ?? route.boardingPoint ?? choice.defaultBoardingPoint) ===
-							commonPoint,
-					) ? (
-						<BoardingPoint value={commonPoint} />
-					) : null}
 					{remaining.length > 0 ? (
-						<section aria-label={isToday ? "后续班次" : "完整时刻表"} className="mt-4">
-							<h3 className="mb-2 text-sm text-muted-foreground">
-								{isToday ? "后续班次" : "完整时刻表"}
-							</h3>
+						<section aria-label={isToday ? "后续班次" : "班次"} className="mt-4">
+							{isToday ? <h3 className="mb-2 text-sm text-muted-foreground">后续班次</h3> : null}
 							{timeGroups(remaining).length > 1
 								? timeGroups(remaining).map((group) => (
 										<section key={group.label} className="mb-3">
@@ -494,12 +537,10 @@ function TransportRoute({
 						</section>
 					) : null}
 					{past.length > 0 ? (
-						<details className="mt-3 text-muted-foreground">
-							<summary className="min-h-11 cursor-pointer content-center text-sm">
-								已发车 {past.length} 班
-							</summary>
-							{renderList(past)}
-						</details>
+						<Disclosure className="mt-3 text-muted-foreground">
+							<DisclosureSummary className="text-sm">已发车 {past.length} 班</DisclosureSummary>
+							<div className="pt-3">{renderList(past)}</div>
+						</Disclosure>
 					) : null}
 					{route.note ? <p className="mt-3 text-sm text-muted-foreground">{route.note}</p> : null}
 				</>
@@ -507,14 +548,12 @@ function TransportRoute({
 				<StateMessage title="当天暂无该对象班次" description="可切换班次对象查看。" />
 			)}
 			{!route || route.status === "suspended" ? (
-				<details className="mt-4 border-t pt-3 text-sm">
-					<summary className="min-h-11 cursor-pointer content-center text-info">线路信息</summary>
+				<Disclosure className="mt-4 border-t pt-3 text-sm">
+					<DisclosureSummary className="text-info">线路信息</DisclosureSummary>
 					<BoardingPoint value={route?.boardingPoint ?? choice.defaultBoardingPoint} />
 					<RouteGuidance choice={choice} expanded />
-				</details>
-			) : (
-				<RouteGuidance choice={choice} />
-			)}
+				</Disclosure>
+			) : null}
 		</article>
 	);
 }
@@ -534,6 +573,7 @@ function DepartureList({
 	today,
 	now,
 	commonPoint,
+	pointByRider,
 	defaultPoint,
 	allRiders,
 	grid,
@@ -543,6 +583,7 @@ function DepartureList({
 	today: string;
 	now: Date;
 	commonPoint: string | null;
+	pointByRider: ReadonlyMap<TransportPublicDeparture["riderType"], string>;
 	defaultPoint: string | null;
 	allRiders: boolean;
 	grid: boolean;
@@ -586,7 +627,9 @@ function DepartureList({
 								</span>
 							) : null}
 						</div>
-						{point && point !== commonPoint ? <BoardingPoint value={point} /> : null}
+						{point && point !== commonPoint && point !== pointByRider.get(item.riderType) ? (
+							<BoardingPoint value={point} />
+						) : null}
 						{item.note ? <p className="mt-1 text-sm text-muted-foreground">{item.note}</p> : null}
 						{item.capacity === null ? null : (
 							<p className="mt-1 text-xs text-muted-foreground">容量：{item.capacity} 人</p>
@@ -607,12 +650,12 @@ function RouteGuidance({ choice, expanded = false }: { choice: RouteChoice; expa
 				expanded ? (
 					<p className="mt-2 whitespace-pre-line leading-relaxed">{choice.boardingGuide}</p>
 				) : (
-					<details className="mt-1">
-						<summary className="min-h-11 cursor-pointer content-center text-info">乘车指引</summary>
-						<p className="whitespace-pre-line rounded-md bg-surface-muted p-3 leading-relaxed">
+					<Disclosure className="mt-1">
+						<DisclosureSummary className="text-info">乘车指引</DisclosureSummary>
+						<p className="mt-3 whitespace-pre-line rounded-[var(--radius-lg)] bg-surface-muted p-3 leading-relaxed">
 							{choice.boardingGuide}
 						</p>
-					</details>
+					</Disclosure>
 				)
 			) : null}
 		</aside>

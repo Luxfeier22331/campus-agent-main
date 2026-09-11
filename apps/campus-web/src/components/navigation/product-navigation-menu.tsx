@@ -96,7 +96,7 @@ export function ProductNavMobileMenu({
 							<SheetTrigger asChild>
 								<Button
 									aria-label="打开全局菜单"
-									className={cn("rounded-md", triggerClassName)}
+									className={cn(triggerClassName)}
 									data-slot="product-nav-mobile-trigger"
 									ref={triggerRef}
 									size="icon-lg"
@@ -146,7 +146,7 @@ export function ProductNavMobileMenu({
 											<ProductNavLink
 												aria-current={active ? "page" : undefined}
 												className={cn(
-													"flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] hover:bg-surface-hover focus-visible:bg-surface-hover",
+													"flex min-h-11 w-full items-center gap-3 rounded-[var(--radius-lg)] px-3 text-sm transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
 													active && "bg-selected font-semibold text-selected-foreground",
 												)}
 												item={item}

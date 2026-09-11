@@ -3,7 +3,7 @@ import {
 	transportScheduleItems,
 	transportSchedulePeriods,
 } from "@campus-agent/transport/schema";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RuntimeDatabase } from "../src/db/runtime";
 import { createPgTransportScheduleService } from "../src/modules/transport/schedule-store";
 
@@ -11,6 +11,30 @@ const ROUTE_ID = "route:test";
 const DATE = "2026-09-07";
 
 describe("transport schedule public projection", () => {
+	it("reads the three tables once for a whole month and applies the same period precedence as Ops", async () => {
+		const db = fakeDatabase({
+			routes: [route()],
+			periods: [
+				period({ scheduleId: "a" }),
+				{ ...period({ scheduleId: "b" }), updatedAt: new Date("2026-09-01T00:00:00Z") },
+			],
+			items: [
+				item({ scheduleId: "a", itemId: "a:0", departureTime: "07:30" }),
+				item({ scheduleId: "b", itemId: "b:0", departureTime: "08:30" }),
+			],
+		});
+		const select = vi.spyOn(db, "select");
+		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		const range = await service.getRange("2026-09-01", "2026-09-30");
+		expect(select).toHaveBeenCalledTimes(3);
+		expect(range.days).toHaveLength(30);
+		expect(range.days.find((day) => day.date === DATE)?.routes[0]?.departures[0]).toMatchObject({
+			departureTime: "08:30",
+		});
+		for (const day of range.days) {
+			expect(await service.getSchedule(day.date)).toEqual(day);
+		}
+	});
 	it.each([
 		{
 			label: "weekend discovery from a weekday",

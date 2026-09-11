@@ -1,4 +1,12 @@
 import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogTitle,
+	AlertDialogTrigger,
 	Button,
 	Dialog,
 	DialogContent,
@@ -35,6 +43,23 @@ function DialogExample() {
 	);
 }
 
+function AlertExample() {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger asChild>
+				<Button variant="outline">打开放弃修改确认</Button>
+			</AlertDialogTrigger>
+			<AlertDialogContent>
+				<AlertDialogTitle>放弃未保存的修改？</AlertDialogTitle>
+				<AlertDialogDescription>当前修改尚未保存。</AlertDialogDescription>
+				<AlertDialogFooter>
+					<AlertDialogCancel>继续编辑</AlertDialogCancel>
+					<AlertDialogAction>放弃修改</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
+}
 function SheetExample() {
 	const [open, setOpen] = useState(false);
 	return (
@@ -82,6 +107,7 @@ export const OVERLAY_ENTRIES: readonly StyleDevStory[] = [
 		variants: [
 			{ id: "dialog", label: "Dialog", render: () => <DialogExample /> },
 			{ id: "sheet", label: "Sheet", render: () => <SheetExample /> },
+			{ id: "alert", label: "AlertDialog", render: () => <AlertExample /> },
 			{ id: "tooltip", label: "Tooltip", render: () => <TooltipExample /> },
 		],
 		group: "浮层",

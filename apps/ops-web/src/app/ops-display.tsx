@@ -42,7 +42,11 @@ export function PageShell({
 		<section>
 			<PageHeader {...(description ? { description } : {})} title={title} />
 			<Card>
-				<CardContent aria-live="polite" className="p-6 text-muted-foreground text-sm" role="status">
+				<CardContent
+					aria-live="polite"
+					className="p-4 text-muted-foreground text-sm md:p-5"
+					role="status"
+				>
 					{children}
 				</CardContent>
 			</Card>
@@ -62,7 +66,7 @@ export function ErrorState({
 	const detail = describeError(error);
 	return (
 		<div
-			className="grid gap-3 rounded-md border border-danger/20 bg-danger-subtle p-4 text-danger"
+			className="grid gap-3 rounded-[var(--radius-lg)] border border-danger-border bg-danger-subtle p-4 text-foreground"
 			role="alert"
 		>
 			<div className="grid gap-1">
@@ -86,7 +90,7 @@ export function InlineError({ error, title }: { error: unknown; title: string })
 	const detail = describeError(error);
 	return (
 		<div
-			className="rounded-md border border-danger/20 bg-danger-subtle px-3 py-2 text-danger"
+			className="rounded-[var(--radius-lg)] border border-danger-border bg-danger-subtle px-3 py-3 text-foreground"
 			role="alert"
 		>
 			<p className="font-medium">{title}</p>
@@ -110,12 +114,12 @@ export function StaleDataWarning({
 	const detail = describeError(error);
 	return (
 		<div
-			className="mb-4 flex flex-col gap-3 rounded-md border border-warning/20 bg-warning-subtle px-3 py-2 text-warning sm:flex-row sm:items-center sm:justify-between"
+			className="mb-4 flex flex-col gap-3 rounded-[var(--radius-lg)] border border-warning-border bg-warning-subtle px-3 py-3 text-foreground sm:flex-row sm:items-center sm:justify-between"
 			role="alert"
 		>
 			<div className="grid gap-1 text-sm">
 				<p className="font-medium">{title}</p>
-				<p className="text-warning text-xs">
+				<p className="text-muted-foreground text-xs">
 					仍显示最后一次成功数据（{formatTimestamp(new Date(lastSuccessfulAt).toISOString())}）。
 					数据可能已经过期。{detail.message}
 				</p>
@@ -155,7 +159,7 @@ function TechnicalErrorDetails({
 
 export function KeyValue({ label, value }: { label: string; value: ReactNode }) {
 	return (
-		<div className="grid min-w-0 gap-1 border-border border-b py-2 last:border-b-0">
+		<div className="grid min-h-11 min-w-0 content-center gap-1 border-border border-b py-2 last:border-b-0">
 			<span className="font-medium text-muted-foreground text-xs">{label}</span>
 			<span className="min-w-0 break-words text-foreground">{value}</span>
 		</div>
@@ -324,7 +328,7 @@ export function MetricTile({
 	return (
 		<div
 			className={cn(
-				"grid min-w-0 content-center gap-1 rounded-md border border-border bg-background px-3 py-2.5",
+				"grid min-w-0 content-center gap-1 rounded-[var(--radius-lg)] border border-border bg-background px-3 py-2.5",
 				className,
 			)}
 		>

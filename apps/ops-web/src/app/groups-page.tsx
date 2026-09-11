@@ -97,7 +97,7 @@ export function GroupsPage() {
 				<Card>
 					<CardContent
 						aria-live="polite"
-						className="p-6 text-muted-foreground text-sm"
+						className="p-4 text-muted-foreground text-sm md:p-5"
 						role="status"
 					>
 						正在读取同好群目录...
@@ -221,7 +221,7 @@ export function GroupsPage() {
 					</DndContext>
 				) : (
 					<Card>
-						<CardContent className="p-6 text-muted-foreground text-sm">
+						<CardContent className="p-4 text-muted-foreground text-sm md:p-5">
 							目录中还没有分组。
 						</CardContent>
 					</Card>

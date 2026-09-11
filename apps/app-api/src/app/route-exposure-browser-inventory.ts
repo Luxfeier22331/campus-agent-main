@@ -129,6 +129,12 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/transport/schedule-range",
+		callerClass: "browser-surface",
+		admission: "public transport schedule range read for up to 31 local dates",
+	},
+	{
+		method: "GET",
 		path: "/api/dining/floorplans/:asset",
 		callerClass: "browser-surface",
 		admission: "public immutable dining floorplan asset read",

@@ -38,7 +38,7 @@ export function ThemeModeControl({
 			aria-label={label ?? undefined}
 			{...props}
 		>
-			<div className="grid min-h-11 grid-cols-3 items-stretch gap-0.5 rounded-md border border-border bg-surface-muted p-0.5">
+			<div className="grid min-h-11 grid-cols-3 items-stretch gap-1 rounded-[1.75rem] bg-surface-muted p-1">
 				{options.map(({ icon: Icon, label: optionLabel, value }) => (
 					<label
 						className={cn("relative min-w-0", disabled ? "cursor-not-allowed" : "cursor-pointer")}
@@ -58,7 +58,7 @@ export function ThemeModeControl({
 							type="radio"
 							value={value}
 						/>
-						<span className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-sm px-2 text-center text-muted-foreground text-xs transition-[color,background-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] hover:bg-surface-hover hover:text-foreground peer-checked:bg-background peer-checked:text-foreground peer-checked:shadow-[var(--shadow-xs)] peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:cursor-not-allowed peer-disabled:text-[var(--state-disabled-text)]">
+						<span className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-full border border-transparent px-2 text-center text-muted-foreground text-xs transition-[color,background-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:bg-surface-hover hover:text-foreground peer-checked:border-border-selected peer-checked:bg-selected peer-checked:text-selected-foreground peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-ring peer-disabled:cursor-not-allowed peer-disabled:text-[var(--state-disabled-text)]">
 							{React.createElement(Icon, { "aria-hidden": true, className: "size-4 shrink-0" })}
 							<span className="whitespace-nowrap">{optionLabel}</span>
 						</span>

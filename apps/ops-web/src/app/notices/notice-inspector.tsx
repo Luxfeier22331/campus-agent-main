@@ -10,6 +10,7 @@ import { formatTimestamp } from "../format";
 import { ErrorState, InlineError } from "../ops-display";
 import { getNoticeActionState } from "./notice-actions";
 import { NoticeJobDiagnostics } from "./notice-job-diagnostics";
+import { NoticeOcrSection } from "./notice-ocr";
 import type { NoticeJobFamily } from "./notice-status";
 import {
 	NoticeCategoryBadge,
@@ -146,6 +147,8 @@ export function NoticeInspector(props: NoticeInspectorProps) {
 							) : null}
 						</dl>
 					</section>
+
+					<NoticeOcrSection noticeId={notice.noticeId} />
 
 					<section aria-labelledby="notice-category-editor" className="grid gap-3">
 						<div>

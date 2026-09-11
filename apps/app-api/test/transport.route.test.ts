@@ -16,6 +16,7 @@ const env = {
 function service(): TransportScheduleService {
 	return {
 		getSchedule: vi.fn(async (date) => ({ date, routeCatalog: [], routes: [] })),
+		getRange: vi.fn(async (from, to) => ({ from, to, days: [] })),
 	};
 }
 
@@ -81,5 +82,40 @@ describe("transport schedule route", () => {
 				details: { routeId: "route:test" },
 			},
 		});
+	});
+
+	it("serves a bounded schedule range", async () => {
+		const transportScheduleService = service();
+		const app = createApp(env, { transportScheduleService });
+
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/transport/schedule-range?from=2026-09-10&to=2026-09-12",
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("cache-control")).toBe("public, max-age=30, s-maxage=60");
+		await expect(response.json()).resolves.toEqual({
+			from: "2026-09-10",
+			to: "2026-09-12",
+			days: [],
+		});
+		expect(transportScheduleService.getRange).toHaveBeenCalledWith("2026-09-10", "2026-09-12");
+	});
+
+	it("rejects ranges longer than 31 days before calling the service", async () => {
+		const transportScheduleService = service();
+		const app = createApp(env, { transportScheduleService });
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/transport/schedule-range?from=2026-09-01&to=2026-10-02",
+			),
+		);
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toMatchObject({
+			error: { code: "transport_range_invalid" },
+		});
+		expect(transportScheduleService.getRange).not.toHaveBeenCalled();
 	});
 });

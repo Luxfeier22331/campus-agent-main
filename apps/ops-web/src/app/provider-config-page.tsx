@@ -90,7 +90,11 @@ function ExecutionModelSettings() {
 function LoadingSettings() {
 	return (
 		<Card>
-			<CardContent aria-live="polite" className="p-6 text-muted-foreground text-sm" role="status">
+			<CardContent
+				aria-live="polite"
+				className="p-4 text-muted-foreground text-sm md:p-5"
+				role="status"
+			>
 				正在读取模型配置...
 			</CardContent>
 		</Card>

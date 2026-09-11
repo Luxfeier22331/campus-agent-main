@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	selectTransportPeriod,
 	TransportPublicScheduleResponseSchema,
 	TransportSchedulePeriodInputSchema,
+	transportDateRange,
 	transportPeriodIncludesDate,
 	transportServiceKindLabel,
 } from "../src/domain/schedule.ts";
@@ -48,6 +50,28 @@ describe("transport schedule model", () => {
 		expect(transportPeriodIncludesDate(operatingPeriod, "2026-09-07")).toBe(true);
 		expect(transportPeriodIncludesDate(operatingPeriod, "2026-09-06")).toBe(false);
 		expect(transportPeriodIncludesDate(operatingPeriod, "2026-08-30")).toBe(false);
+	});
+
+	it("selects the narrowest newer override without mutating the input", () => {
+		const periods = [
+			{ ...operatingPeriod, scheduleId: "base", updatedAt: "2026-09-01T00:00:00.000Z" },
+			{
+				...operatingPeriod,
+				scheduleId: "special",
+				validFrom: "2026-09-10",
+				validTo: "2026-09-12",
+				updatedAt: "2026-09-01T00:00:00.000Z",
+			},
+		];
+		const selected = selectTransportPeriod(periods, "2026-09-11");
+		expect(selected?.scheduleId).toBe("special");
+		expect(periods.map((period) => period.scheduleId)).toEqual(["base", "special"]);
+	});
+
+	it("limits a date range to 31 days", () => {
+		expect(transportDateRange("2026-09-10", "2026-09-10")).toEqual(["2026-09-10"]);
+		expect(transportDateRange("2026-09-01", "2026-10-01")).toHaveLength(31);
+		expect(() => transportDateRange("2026-09-01", "2026-10-02")).toThrow("1 至 31 天");
 	});
 
 	it("rejects invalid operating and suspended period contents", () => {

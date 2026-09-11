@@ -63,10 +63,11 @@ export function ThemeModeMenu({ className, contentClassName, label = "外观" }:
 					align="end"
 					aria-labelledby={menuLabelId}
 					className={cn(
-						"z-[var(--layer-overlay)] select-none min-w-44 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-sm)]",
+						"z-[var(--layer-overlay)] select-none min-w-44 max-w-[calc(100vw-2rem)] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto rounded-[var(--radius-lg)] border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-sm)]",
 						contentClassName,
 					)}
 					data-slot="theme-mode-menu-content"
+					collisionPadding={16}
 					sideOffset={6}
 				>
 					<DropdownMenuPrimitive.Label
@@ -81,13 +82,13 @@ export function ThemeModeMenu({ className, contentClassName, label = "外观" }:
 					>
 						{options.map(({ icon: Icon, label: optionLabel, value }) => (
 							<DropdownMenuPrimitive.RadioItem
-								className="relative flex min-h-11 cursor-default select-none items-center gap-2 rounded-sm px-2 pr-8 text-sm outline-none transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] focus:bg-surface-hover data-[disabled]:pointer-events-none data-[disabled]:text-[var(--state-disabled-text)] data-[state=checked]:bg-selected data-[state=checked]:font-medium data-[state=checked]:text-selected-foreground"
+								className="relative flex min-h-11 cursor-default select-none items-center gap-2 rounded-[var(--radius-md)] px-3 pr-9 text-sm outline-none transition-colors duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none focus:bg-surface-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[disabled]:pointer-events-none data-[disabled]:text-[var(--state-disabled-text)] data-[state=checked]:bg-selected data-[state=checked]:font-medium data-[state=checked]:text-selected-foreground"
 								key={value}
 								value={value}
 							>
 								<Icon aria-hidden="true" className="size-4" />
 								<span>{optionLabel}</span>
-								<DropdownMenuPrimitive.ItemIndicator className="absolute right-2 inline-flex size-4 items-center justify-center">
+								<DropdownMenuPrimitive.ItemIndicator className="absolute right-3 inline-flex size-4 items-center justify-center">
 									<Check aria-hidden="true" className="size-4" />
 								</DropdownMenuPrimitive.ItemIndicator>
 							</DropdownMenuPrimitive.RadioItem>

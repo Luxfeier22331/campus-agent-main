@@ -1,4 +1,5 @@
 import {
+	selectTransportPeriod,
 	TransportRouteInputSchema,
 	TransportSchedulePeriodInputSchema,
 	transportPeriodIncludesDate,
@@ -10,6 +11,22 @@ import {
 } from "../ops/db/transport-baseline.ts";
 
 describe("transport initialization data", () => {
+	it("loads the real May Day window without inventing year-round holiday schedules", () => {
+		const special = TRANSPORT_BASELINE_PERIODS.filter((p) => p.input.validTo !== null);
+		expect(special).toHaveLength(6);
+		expect(special.flatMap((p) => p.input.items)).toHaveLength(25);
+		for (const { input } of special) {
+			expect(transportPeriodIncludesDate(input, "2026-04-28")).toBe(true);
+			expect(transportPeriodIncludesDate(input, "2026-05-05")).toBe(true);
+			expect(transportPeriodIncludesDate(input, "2026-05-06")).toBe(false);
+			expect(transportPeriodIncludesDate(input, "2027-05-01")).toBe(false);
+		}
+		const periods = TRANSPORT_BASELINE_PERIODS.filter(
+			(p) => p.input.routeId === "route:fengtai-to-wukesong",
+		).map((p) => ({ ...p.input, scheduleId: p.scheduleId }));
+		expect(selectTransportPeriod(periods, "2026-05-01")?.items).toHaveLength(8);
+		expect(selectTransportPeriod(periods, "2026-09-12")?.items).toHaveLength(9);
+	});
 	it("keeps the six directions and 32 commute / 18 subway departures", () => {
 		expect(TRANSPORT_BASELINE_ROUTES).toHaveLength(6);
 		for (const route of TRANSPORT_BASELINE_ROUTES) {
@@ -26,15 +43,15 @@ describe("transport initialization data", () => {
 				TRANSPORT_BASELINE_ROUTES.filter((r) => r.serviceKind === kind).map((r) => r.routeId),
 			);
 			expect(
-				TRANSPORT_BASELINE_PERIODS.filter((p) => routes.has(p.input.routeId)).flatMap(
-					(p) => p.input.items,
-				),
+				TRANSPORT_BASELINE_PERIODS.filter(
+					(p) => routes.has(p.input.routeId) && p.input.validTo === null,
+				).flatMap((p) => p.input.items),
 			).toHaveLength(expected);
 		}
 	});
 	it("uses the rider-specific Haidian boarding point on weekdays and weekends", () => {
 		const periods = TRANSPORT_BASELINE_PERIODS.filter(
-			(p) => p.input.routeId === "route:haidian-to-fengtai",
+			(p) => p.input.routeId === "route:haidian-to-fengtai" && p.input.validTo === null,
 		);
 		expect(periods).toHaveLength(2);
 		for (const { input } of periods) {

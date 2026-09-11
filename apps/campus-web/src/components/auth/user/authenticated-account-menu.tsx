@@ -73,8 +73,10 @@ export function AuthenticatedAccountMenu({
 			<Dropdown.Trigger
 				{...(presentation === "icon" ? { "aria-label": `账号：${userName}` } : {})}
 				className={cn(
-					"inline-flex min-h-11 items-center justify-center gap-2 rounded-md text-foreground outline-none transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-					presentation === "icon" ? "size-11" : "w-full min-w-0 justify-start px-2 text-sm",
+					"inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-lg)] text-foreground outline-none transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
+					presentation === "icon"
+						? "size-11 rounded-full"
+						: "w-full min-w-0 justify-start px-2 text-sm",
 					className,
 				)}
 			>

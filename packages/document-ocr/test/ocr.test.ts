@@ -61,6 +61,7 @@ function fixture() {
 		save: vi.fn(),
 		get: vi.fn(),
 		list: vi.fn(),
+		listNotice: vi.fn(),
 		create: vi.fn(),
 		runnable: vi.fn(),
 	};

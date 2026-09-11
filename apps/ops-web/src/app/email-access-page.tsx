@@ -323,7 +323,7 @@ function CreateGrantForm({
 			</Button>
 			{requiresConfirmation ? (
 				<label
-					className="flex items-center gap-2 text-foreground text-sm md:col-span-4"
+					className="flex min-h-11 cursor-pointer items-center gap-2 text-foreground text-sm md:col-span-4"
 					htmlFor="email-access-production-confirmation"
 				>
 					<Checkbox
@@ -349,11 +349,11 @@ function GrantMobileList({
 }) {
 	return (
 		<div
-			className="divide-y divide-border border-border border-y bg-background md:hidden"
+			className="divide-y divide-border rounded-[var(--radius-lg)] border border-border bg-background px-3 md:hidden"
 			data-testid="email-access-mobile-list"
 		>
 			{grants.map((grant) => (
-				<article className="grid min-w-0 gap-4 py-4" key={grant.id}>
+				<article className="grid min-w-0 gap-3 py-3" key={grant.id}>
 					<header className="flex min-w-0 items-start justify-between gap-3">
 						<h3 className="min-w-0 break-all font-semibold text-foreground text-sm">
 							{grant.email}

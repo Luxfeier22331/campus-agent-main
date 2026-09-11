@@ -57,9 +57,9 @@ export function SidebarLayout({
 					<Link
 						aria-current={active ? "page" : undefined}
 						className={cn(
-							"flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-[color,background-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)]",
+							"flex min-h-11 items-center gap-3 rounded-[var(--radius-lg)] px-3 text-sm transition-[color,background-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
 							active
-								? "bg-selected font-semibold text-selected-foreground shadow-[inset_3px_0_0_var(--sys-border-selected)] hover:bg-selected-hover active:bg-selected-pressed"
+								? "bg-selected font-semibold text-selected-foreground hover:bg-selected-hover active:bg-selected-pressed"
 								: "text-foreground hover:bg-surface-hover active:bg-surface-pressed",
 						)}
 						key={item.href}

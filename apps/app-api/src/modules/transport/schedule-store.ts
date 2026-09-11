@@ -1,5 +1,8 @@
 import {
+	selectTransportPeriod,
 	type TransportPublicDeparture,
+	type TransportPublicScheduleRange,
+	TransportPublicScheduleRangeSchema,
 	type TransportPublicScheduleResponse,
 	TransportPublicScheduleResponseSchema,
 	type TransportRouteInput,
@@ -8,7 +11,7 @@ import {
 	TransportScheduleItemSchema,
 	type TransportSchedulePeriodInput,
 	TransportSchedulePeriodInputSchema,
-	transportPeriodIncludesDate,
+	transportDateRange,
 } from "@campus-agent/transport/domain";
 import {
 	transportRoutes,
@@ -28,6 +31,7 @@ export type { TransportPublicScheduleResponse as TransportScheduleResponse } fro
 
 export interface TransportScheduleService {
 	getSchedule(date: string): Promise<TransportPublicScheduleResponse>;
+	getRange(from: string, to: string): Promise<TransportPublicScheduleRange>;
 }
 
 type RouteRow = typeof transportRoutes.$inferSelect;
@@ -41,6 +45,7 @@ interface ParsedRoute {
 interface ParsedPeriod {
 	readonly input: TransportSchedulePeriodInput;
 	readonly scheduleId: string;
+	readonly updatedAt: string;
 }
 
 export function createPgTransportScheduleService(
@@ -50,15 +55,18 @@ export function createPgTransportScheduleService(
 	const getDb = options.getDb ?? createRuntimeDbGetter(env);
 	return {
 		async getSchedule(date) {
-			return loadSchedule(await getDb(), date);
+			return projectSchedule(await loadSchedules(await getDb()), date);
+		},
+		async getRange(from, to) {
+			const dates = transportDateRange(from, to);
+			const schedules = await loadSchedules(await getDb());
+			const days = dates.map((date) => projectSchedule(schedules, date));
+			return TransportPublicScheduleRangeSchema.parse({ from, to, days });
 		},
 	};
 }
 
-async function loadSchedule(
-	db: RuntimeDatabase,
-	date: string,
-): Promise<TransportPublicScheduleResponse> {
+async function loadSchedules(db: RuntimeDatabase) {
 	const [routeRows, periodRows, itemRows] = await Promise.all([
 		db
 			.select()
@@ -88,6 +96,13 @@ async function loadSchedule(
 		periodsByRoute.set(period.input.routeId, periods);
 	}
 
+	return { routes, periodsByRoute };
+}
+
+function projectSchedule(
+	{ routes, periodsByRoute }: Awaited<ReturnType<typeof loadSchedules>>,
+	date: string,
+): TransportPublicScheduleResponse {
 	const response: TransportPublicScheduleResponse = {
 		date,
 		routeCatalog: routes.map(({ input: { displayOrder: _order, ...route } }) => ({
@@ -161,7 +176,11 @@ function parsePeriod(row: PeriodRow, rows: readonly ItemRow[]): ParsedPeriod {
 			validTo: row.validTo,
 			weekdays: row.weekdays,
 		});
-		return { input, scheduleId: String(row.scheduleId) };
+		return {
+			input,
+			scheduleId: String(row.scheduleId),
+			updatedAt: new Date(row.updatedAt).toISOString(),
+		};
 	} catch (error) {
 		throw projectionError("班车时间段事实无效。", {
 			cause: error,
@@ -215,10 +234,9 @@ function groupItems(rows: readonly ItemRow[]): Map<string, ItemRow[]> {
 }
 
 function selectPeriod(periods: readonly ParsedPeriod[], date: string): ParsedPeriod | null {
-	return (
-		periods
-			.filter((period) => transportPeriodIncludesDate(period.input, date))
-			.sort(comparePeriods)[0] ?? null
+	return selectTransportPeriod(
+		periods.map((period) => ({ ...period, ...period.input })),
+		date,
 	);
 }
 
@@ -254,27 +272,6 @@ function addDays(date: string, amount: number): string {
 	const parsed = new Date(`${date}T00:00:00Z`);
 	parsed.setUTCDate(parsed.getUTCDate() + amount);
 	return parsed.toISOString().slice(0, 10);
-}
-
-function comparePeriods(left: ParsedPeriod, right: ParsedPeriod): number {
-	return (
-		right.input.validFrom.localeCompare(left.input.validFrom) ||
-		compareEndDates(left.input.validTo, right.input.validTo) ||
-		left.scheduleId.localeCompare(right.scheduleId)
-	);
-}
-
-function compareEndDates(left: string | null, right: string | null): number {
-	if (left === right) {
-		return 0;
-	}
-	if (left === null) {
-		return 1;
-	}
-	if (right === null) {
-		return -1;
-	}
-	return left.localeCompare(right);
 }
 
 function toPublicDeparture(

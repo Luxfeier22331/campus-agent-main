@@ -109,7 +109,7 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 			) : null}
 			{data.cache.status === "STALE" ? (
 				<div
-					className="mb-4 rounded-md border border-warning/20 bg-warning-subtle px-3 py-2 text-warning text-sm"
+					className="mb-4 rounded-[var(--radius-lg)] border border-warning-border bg-warning-subtle px-4 py-3 text-foreground text-sm"
 					role="alert"
 				>
 					部分来源显示旧数据，最旧结果距本次刷新约 {formatDuration(data.cache.ageMs)}。

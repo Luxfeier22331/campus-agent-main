@@ -74,11 +74,11 @@ export function DataTable<T extends RowData>({
 		<div
 			aria-busy={busy}
 			className={cn(
-				"min-w-0 w-full max-w-full border-border border-y bg-background transition-opacity",
+				"min-w-0 w-full max-w-full rounded-[var(--radius-lg)] border border-border bg-background transition-opacity motion-reduce:transition-none",
 				busy && "opacity-60",
 			)}
 		>
-			<div className="overflow-x-auto overscroll-x-contain">
+			<div className="overflow-x-auto overscroll-x-contain rounded-[inherit]">
 				<div style={{ minWidth }}>
 					<table
 						aria-label={caption}
@@ -93,7 +93,7 @@ export function DataTable<T extends RowData>({
 										return (
 											<th
 												className={cn(
-													"border-border border-b bg-secondary px-3 py-2 font-semibold text-muted-foreground text-xs",
+													"h-10 border-border border-b bg-surface-muted px-3 py-2 font-semibold text-muted-foreground text-xs",
 													column?.headerClassName,
 													stickyFirstColumn &&
 														index === 0 &&
@@ -167,7 +167,7 @@ function DataTableRow<T extends RowData>({
 }) {
 	const cells = row.getVisibleCells();
 	return (
-		<tr className="group border-border border-b transition-colors last:border-b-0 hover:bg-surface-muted/60 focus-within:bg-surface-muted/60">
+		<tr className="group h-11 border-border border-b transition-colors motion-reduce:transition-none last:border-b-0 hover:bg-surface-hover focus-within:bg-surface-hover">
 			{cells.map((cell, index) => {
 				const column = columnById.get(cell.column.id);
 				const content = flexRender(cell.column.columnDef.cell, cell.getContext());
@@ -175,19 +175,19 @@ function DataTableRow<T extends RowData>({
 					stickyFirstColumn &&
 						index === 0 &&
 						(pinBothEdges
-							? "md:sticky md:left-0 md:z-10 md:border-r md:bg-background md:group-hover:bg-surface-muted"
-							: "sticky left-0 z-10 border-r bg-background group-hover:bg-surface-muted"),
+							? "md:sticky md:left-0 md:z-10 md:border-r md:bg-background md:group-hover:bg-surface-hover md:group-focus-within:bg-surface-hover"
+							: "sticky left-0 z-10 border-r bg-background group-hover:bg-surface-hover group-focus-within:bg-surface-hover"),
 					column?.stickyRight ||
 						(stickyLastColumn &&
 							index === cells.length - 1 &&
 							(pinBothEdges
-								? "md:sticky md:right-0 md:z-10 md:border-l md:bg-background md:group-hover:bg-surface-muted"
-								: "sticky right-0 z-10 border-l bg-background group-hover:bg-surface-muted")),
+								? "md:sticky md:right-0 md:z-10 md:border-l md:bg-background md:group-hover:bg-surface-hover md:group-focus-within:bg-surface-hover"
+								: "sticky right-0 z-10 border-l bg-background group-hover:bg-surface-hover group-focus-within:bg-surface-hover")),
 				);
 				return columns[index]?.rowHeader ? (
 					<th
 						className={cn(
-							"break-words px-3 py-3 text-left font-medium align-top",
+							"break-words px-3 py-2.5 text-left font-medium align-top",
 							column?.cellClassName,
 							stickyClass,
 						)}
@@ -198,7 +198,7 @@ function DataTableRow<T extends RowData>({
 					</th>
 				) : (
 					<td
-						className={cn("break-words px-3 py-3 align-top", column?.cellClassName, stickyClass)}
+						className={cn("break-words px-3 py-2.5 align-top", column?.cellClassName, stickyClass)}
 						key={cell.id}
 					>
 						{content}

@@ -5,6 +5,11 @@ export const TRANSPORT_SCHEDULE_STATUSES = ["operating", "suspended"] as const;
 export const TRANSPORT_RIDER_TYPES = ["student", "teacher", "all"] as const;
 export const TRANSPORT_SCHEDULE_ITEM_KINDS = ["fixed", "interval"] as const;
 
+export const TransportDateSchema = z
+	.string()
+	.regex(/^\d{4}-\d{2}-\d{2}$/u, "日期必须为 YYYY-MM-DD")
+	.refine(isValidIsoDate, "日期无效");
+
 const Identifier = z.string().trim().min(1).max(200);
 const Text = (max: number) => z.string().trim().min(1).max(max);
 const OptionalText = (max: number) => Text(max).nullable();
@@ -176,6 +181,14 @@ export const TransportPublicScheduleResponseSchema = z
 	})
 	.strict();
 
+export const TransportPublicScheduleRangeSchema = z
+	.object({
+		from: TransportDateSchema,
+		to: TransportDateSchema,
+		days: z.array(TransportPublicScheduleResponseSchema).min(1).max(31),
+	})
+	.strict();
+
 export type TransportServiceKind = z.infer<typeof TransportServiceKindSchema>;
 export type TransportScheduleStatus = z.infer<typeof TransportScheduleStatusSchema>;
 export type TransportRiderType = z.infer<typeof TransportRiderTypeSchema>;
@@ -186,6 +199,30 @@ export type TransportRouteCatalogEntry = z.infer<typeof TransportRouteCatalogEnt
 export type TransportPublicDeparture = z.infer<typeof TransportPublicDepartureSchema>;
 export type TransportPublicRoute = z.infer<typeof TransportPublicRouteSchema>;
 export type TransportPublicScheduleResponse = z.infer<typeof TransportPublicScheduleResponseSchema>;
+export type TransportPublicScheduleRange = z.infer<typeof TransportPublicScheduleRangeSchema>;
+
+export function shiftTransportDate(date: string, amount: number): string {
+	TransportDateSchema.parse(date);
+	const value = new Date(`${date}T00:00:00Z`);
+	value.setUTCDate(value.getUTCDate() + amount);
+	return value.toISOString().slice(0, 10);
+}
+
+export function transportDateRange(from: string, to: string): string[] {
+	TransportDateSchema.parse(from);
+	TransportDateSchema.parse(to);
+	if (from > to) {
+		throw new Error("结束日期不能早于开始日期");
+	}
+	const dates: string[] = [];
+	for (let date = from; date <= to && dates.length <= 31; date = shiftTransportDate(date, 1)) {
+		dates.push(date);
+	}
+	if (dates.length === 0 || dates.length > 31) {
+		throw new Error("查询范围须为 1 至 31 天");
+	}
+	return dates;
+}
 
 export function transportPeriodIncludesDate(
 	period: Pick<TransportSchedulePeriodInput, "validFrom" | "validTo" | "weekdays">,
@@ -199,6 +236,25 @@ export function transportPeriodIncludesDate(
 		return false;
 	}
 	return period.weekdays.includes(isoWeekday(date));
+}
+
+export function selectTransportPeriod<
+	T extends Pick<TransportSchedulePeriodInput, "validFrom" | "validTo" | "weekdays"> & {
+		scheduleId?: string;
+		updatedAt?: string;
+	},
+>(periods: readonly T[], date: string): T | null {
+	return (
+		[...periods]
+			.filter((period) => transportPeriodIncludesDate(period, date))
+			.sort(
+				(left, right) =>
+					right.validFrom.localeCompare(left.validFrom) ||
+					compareNullableDates(left.validTo, right.validTo) ||
+					(right.updatedAt ?? "").localeCompare(left.updatedAt ?? "") ||
+					(left.scheduleId ?? "").localeCompare(right.scheduleId ?? ""),
+			)[0] ?? null
+	);
 }
 
 export function transportRiderLabel(riderType: TransportRiderType): string {
@@ -253,4 +309,17 @@ function isoWeekday(value: string): number {
 
 function assertNever(value: never): never {
 	throw new Error(`Unexpected transport value: ${String(value)}`);
+}
+
+function compareNullableDates(left: string | null, right: string | null): number {
+	if (left === right) {
+		return 0;
+	}
+	if (left === null) {
+		return 1;
+	}
+	if (right === null) {
+		return -1;
+	}
+	return left.localeCompare(right);
 }

@@ -15,6 +15,11 @@ export function createOcrTaskStore(db: Pick<Pool, "query"> | PoolClient): OcrTas
 			return (await select("where id=$1", [id]))[0] ?? null;
 		},
 		list: (limit = 100) => select("order by created_at desc limit $1", [limit]),
+		listNotice: (noticeId) =>
+			select(
+				"where input->>'kind'='source' and input->>'noticeId'=$1 order by created_at desc, id desc",
+				[noticeId],
+			),
 		runnable: () =>
 			select("where status in ('pending','submitting','submitted') order by created_at"),
 		async create(input, config, rerun = false) {

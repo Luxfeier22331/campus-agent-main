@@ -81,7 +81,34 @@ const props = {
 };
 
 describe("transport page", () => {
-	it("pairs subway stations and preserves direction when changing station", () => {
+	it("keeps direction, station and audience selections when clicking the selected option", () => {
+		const onRouteChange = vi.fn();
+		const onRiderChange = vi.fn();
+		const { rerender } = render(
+			<TransportPageView {...props} onRouteChange={onRouteChange} onRiderChange={onRiderChange} />,
+		);
+		const direction = screen.getByRole("radio", { name: "丰台校区 → 海淀校区" });
+		fireEvent.click(direction);
+		expect(direction).toHaveAttribute("aria-checked", "true");
+		expect(onRouteChange).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("radio", { name: "全部" }));
+		expect(onRiderChange).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("radio", { name: "学生" }));
+		expect(onRiderChange).toHaveBeenCalledWith("student");
+		rerender(
+			<TransportPageView
+				{...props}
+				serviceKind="subway"
+				routeId={data.routes[1]?.routeId}
+				onRouteChange={onRouteChange}
+			/>,
+		);
+		const station = screen.getByRole("radio", { name: "五棵松" });
+		fireEvent.click(station);
+		expect(station).toHaveAttribute("aria-checked", "true");
+		expect(onRouteChange).not.toHaveBeenCalled();
+	});
+	it("pairs subway stations and shows both directions together", () => {
 		const base = data.routeCatalog[1];
 		if (!base) {
 			throw new Error("missing subway fixture");
@@ -113,19 +140,15 @@ describe("transport page", () => {
 			);
 		}
 		render(<Harness />);
-		fireEvent.click(screen.getByRole("button", { name: "回丰台校区" }));
+		expect(screen.queryByRole("button", { name: "回丰台校区" })).not.toBeInTheDocument();
 		expect(screen.getByRole("article", { name: "五棵松地铁站 → 丰台校区" })).toBeVisible();
-		fireEvent.click(screen.getByRole("button", { name: "篱笆房" }));
-		expect(screen.getByRole("button", { name: "回丰台校区" })).toHaveAttribute(
-			"aria-pressed",
-			"true",
-		);
+		fireEvent.click(screen.getByRole("radio", { name: "篱笆房" }));
+		expect(screen.queryByRole("button", { name: "去地铁站" })).not.toBeInTheDocument();
 		expect(screen.getByRole("article", { name: "篱笆房地铁站 → 丰台校区" })).toBeVisible();
-		fireEvent.click(screen.getByRole("button", { name: "去地铁站" }));
 		expect(screen.getByRole("article", { name: "丰台校区 → 篱笆房地铁站" })).toBeVisible();
 		expect(screen.queryByRole("button", { name: "查返程" })).not.toBeInTheDocument();
 	});
-	it("selects the available direction for a one-way subway station", () => {
+	it("does not expose a separate direction switch for a one-way subway station", () => {
 		const inbound = data.routeCatalog[1];
 		if (!inbound) {
 			throw new Error("missing subway fixture");
@@ -150,12 +173,9 @@ describe("transport page", () => {
 		};
 		render(<Harness />);
 		expect(screen.queryByRole("button", { name: "去地铁站" })).not.toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "篱笆房" }));
-		expect(screen.getByRole("button", { name: "去地铁站" })).toHaveAttribute(
-			"aria-pressed",
-			"true",
-		);
+		fireEvent.click(screen.getByRole("radio", { name: "篱笆房" }));
 		expect(screen.queryByRole("button", { name: "回丰台校区" })).not.toBeInTheDocument();
+		expect(screen.getByRole("article", { name: "丰台校区 → 篱笆房地铁站" })).toBeVisible();
 	});
 	it("collapses fixed route information on dates with no service", () => {
 		render(<TransportPageView {...props} data={{ ...data, routes: [] }} />);
@@ -199,12 +219,12 @@ describe("transport page", () => {
 		render(
 			<TransportPageView {...props} data={{ ...data, routes: [] }} onDateChange={onDateChange} />,
 		);
-		expect(screen.getByRole("button", { name: "丰台校区 → 海淀校区" })).toBeEnabled();
+		expect(screen.getByRole("radio", { name: "丰台校区 → 海淀校区" })).toBeEnabled();
 		expect(screen.getByText("当天暂无班次安排")).toBeVisible();
 		fireEvent.click(screen.getByRole("button", { name: "查看 9月12日班次" }));
 		expect(onDateChange).toHaveBeenCalledWith("2026-09-12");
 	});
-	it("offers only an unambiguous same-kind reverse direction", () => {
+	it("keeps both directions in the direction selector without a duplicate return action", () => {
 		const forward = data.routeCatalog[0];
 		if (!forward) {
 			throw new Error("missing catalog fixture");
@@ -215,16 +235,8 @@ describe("transport page", () => {
 			origin: forward.destination,
 			destination: forward.origin,
 		};
-		const onRouteChange = vi.fn();
-		const { rerender } = render(
-			<TransportPageView
-				{...props}
-				routeChoices={[forward, reverse]}
-				onRouteChange={onRouteChange}
-			/>,
-		);
-		fireEvent.click(screen.getByRole("button", { name: "查返程" }));
-		expect(onRouteChange).toHaveBeenCalledWith("reverse");
+		const { rerender } = render(<TransportPageView {...props} routeChoices={[forward, reverse]} />);
+		expect(screen.queryByRole("button", { name: "查返程" })).toBeNull();
 		rerender(
 			<TransportPageView
 				{...props}
@@ -290,12 +302,82 @@ describe("transport page", () => {
 			getDepartureStatus(interval, props.date, props.date, new Date("2026-09-07T12:01:00+08:00")),
 		).toBe("past");
 	});
-	it("does not hide the common stop when the next departure uses a different stop", () => {
+	it("shows audience stops once above departures, including the next departure", () => {
 		render(<TransportPageView {...props} now={new Date("2026-09-07T06:00:00+08:00")} />);
+		const stops = screen.getByLabelText("乘车点");
+		expect(stops).toHaveTextContent("教师班次教师班车乘车点");
+		expect(stops).toHaveTextContent("学生班次聚雅餐厅东侧停车场路口");
+		expect(screen.getByText("教师班车乘车点")).toBeVisible();
+		expect(screen.getByText("聚雅餐厅东侧停车场路口")).toBeVisible();
 		expect(screen.getByRole("region", { name: "下一班及当前运行班次" })).toHaveTextContent(
-			"教师班车乘车点",
+			"教师班次",
 		);
-		expect(screen.getByText("乘车点：聚雅餐厅东侧停车场路口")).toBeVisible();
+	});
+	it("keeps route guidance and boarding information stable when filtering departures", () => {
+		const now = new Date("2026-09-07T06:00:00+08:00");
+		const { rerender } = render(<TransportPageView {...props} now={now} />);
+		const stops = screen.getByRole("region", { name: "乘车点" });
+		const stopText = stops.textContent;
+		const guide = screen.getByText("企业微信 → 工作台 → 接驳车预约");
+		fireEvent.click(screen.getByText("乘车指引"));
+		expect(guide).toBeVisible();
+
+		for (const rider of ["student", "teacher", "all"] as const) {
+			rerender(<TransportPageView {...props} now={now} rider={rider} />);
+			expect(screen.getByRole("region", { name: "乘车点" })).toBe(stops);
+			expect(stops.textContent).toBe(stopText);
+			expect(guide).toBeVisible();
+			const next = screen.getByRole("region", { name: "下一班及当前运行班次" });
+			expect(next).toHaveTextContent(rider === "student" ? "18:00" : "06:40");
+			expect(screen.queryByText(rider === "student" ? "06:40" : "18:00")).toBe(
+				rider === "all" ? screen.getByText("18:00") : null,
+			);
+		}
+	});
+	it("does not collapse different stops for the same audience", () => {
+		const base = data.routes[0];
+		const original = base?.departures[0];
+		if (!(base && original)) {
+			throw new Error("missing commute fixture");
+		}
+		const departures = ["06:40", "12:00", "18:00"].map((departureTime, index) => ({
+			...original,
+			kind: "fixed" as const,
+			departureTime,
+			boardingPoint: index === 0 ? "北门" : "南门",
+		}));
+		render(
+			<TransportPageView
+				{...props}
+				now={new Date("2026-09-07T06:00:00+08:00")}
+				data={{ ...data, routes: [{ ...base, departures }] }}
+			/>,
+		);
+		expect(screen.getByRole("region", { name: "下一班及当前运行班次" })).toHaveTextContent(
+			"乘车点：北门",
+		);
+		const times = screen.getAllByRole("listitem");
+		expect(times).toHaveLength(2);
+		for (const item of times) {
+			expect(item).toHaveTextContent("乘车点：南门");
+		}
+	});
+	it("deduplicates repeated teacher and student stops independently", () => {
+		const base = data.routes[0];
+		if (!base) {
+			throw new Error("missing commute fixture");
+		}
+		const departures = base.departures.flatMap((item) => [
+			item,
+			{
+				...item,
+				kind: "fixed" as const,
+				departureTime: item.riderType === "teacher" ? "12:00" : "19:00",
+			},
+		]);
+		render(<TransportPageView {...props} data={{ ...data, routes: [{ ...base, departures }] }} />);
+		expect(screen.getAllByText("教师班车乘车点")).toHaveLength(1);
+		expect(screen.getAllByText("聚雅餐厅东侧停车场路口")).toHaveLength(1);
 	});
 	it("distinguishes suspended, rider-empty and finished schedules", () => {
 		const { rerender } = render(<TransportPageView {...props} routeId={data.routes[1]?.routeId} />);
@@ -316,11 +398,11 @@ describe("transport page", () => {
 		expect(screen.getByRole("heading", { level: 1, name: "校园班车" })).toBeInTheDocument();
 		expect(screen.getAllByRole("article")).toHaveLength(1);
 		const commute = screen.getByRole("article", { name: "丰台校区 → 海淀校区" });
-		expect(within(commute).getAllByText("乘车点：聚雅餐厅东侧停车场路口").length).toBeGreaterThan(
-			0,
-		);
-		expect(within(commute).getByText("教师班次")).toBeInTheDocument();
-		expect(within(commute).getByText("乘车点：教师班车乘车点")).toBeInTheDocument();
+		expect(within(commute).getByText("聚雅餐厅东侧停车场路口")).toBeVisible();
+		expect(
+			within(screen.getByRole("region", { name: "乘车点" })).getByText("教师班次"),
+		).toBeVisible();
+		expect(within(commute).getByText("教师班车乘车点")).toBeVisible();
 		expect(within(commute).getAllByText("学生班次").length).toBeGreaterThan(0);
 		expect(screen.getByRole("region", { name: "下一班及当前运行班次" })).toHaveTextContent("18:00");
 

@@ -36,7 +36,7 @@ export function StateMessage({
 				layout === "page" &&
 					"mx-auto flex min-h-[40dvh] max-w-2xl flex-col justify-center gap-2 py-12",
 				layout === "overlay" &&
-					"grid gap-2 rounded-lg border border-border/70 bg-surface-raised p-4 shadow-[var(--shadow-sm)]",
+					"grid gap-2 rounded-[var(--radius-lg)] border border-border/70 bg-surface-raised p-4 shadow-[var(--shadow-sm)]",
 				textAlign === "center" && "text-center",
 				tone === "danger" && "text-danger",
 				tone === "warning" && "text-warning",

@@ -14,7 +14,7 @@ import {
 import { cn } from "./cn";
 
 const controlClass =
-	"w-full rounded-md border border-input bg-background px-3 text-foreground shadow-[var(--shadow-xs)] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
+	"w-full min-w-0 rounded-[var(--radius-lg)] border border-input bg-background px-3 text-foreground transition-colors motion-reduce:transition-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
 	({ className, type, ...props }, ref) => (
@@ -37,7 +37,7 @@ export const Textarea = forwardRef<
 	TextareaHTMLAttributes<HTMLTextAreaElement>
 >(({ className, ...props }, ref) => (
 	<textarea
-		className={cn(controlClass, "min-h-20 resize-y py-2 text-sm", className)}
+		className={cn(controlClass, "min-h-20 resize-y py-2 text-base md:text-sm", className)}
 		ref={ref}
 		{...props}
 	/>
@@ -46,11 +46,11 @@ Textarea.displayName = "Textarea";
 
 export const NativeSelect = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
 	({ children, className, ...props }, ref) => (
-		<div className="relative">
+		<div className="relative min-w-0">
 			<select
 				className={cn(
 					controlClass,
-					"min-h-[var(--ui-control-height)] appearance-none pr-9 text-sm",
+					"min-h-[var(--ui-control-height)] appearance-none pr-9 text-base md:text-sm",
 					className,
 				)}
 				ref={ref}
@@ -129,7 +129,7 @@ export function Field({
 	});
 
 	return (
-		<div className={cn("grid gap-1.5 text-sm", className)}>
+		<div className={cn("grid min-w-0 gap-1.5 text-sm", className)}>
 			<Label htmlFor={controlId}>{label}</Label>
 			{action ? (
 				<div className="relative">

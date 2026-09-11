@@ -22,6 +22,11 @@ status: active
 
 ## 响应
 
+`GET /api/transport/schedule-range?from=YYYY-MM-DD&to=YYYY-MM-DD` 供月历查询；起止日期均包含在内，
+最多 31 天。返回 `{ from, to, days }`，`days` 每项与单日接口相同，包含完整 `routeCatalog`。
+日期范围无效返回 `400`；认证和缓存策略与单日接口一致。服务一次读取班次数据后生成整个范围，
+不按天重复查询数据库。
+
 ```json
 {
   "date": "2026-09-07",
@@ -66,5 +71,8 @@ App API 读取：
 对每条线路，先筛选 `valid_from`、`valid_to` 和 ISO 星期均匹配请求日期的时间段，再按时间段的生效范围选择
 一条完整班次表。班次明细上的 `boarding_point` 优先于时间段上的 `boarding_point_override`，后者优先于线路
 默认乘车点；停运状态不输出班次明细。
+
+生效时间段按开始日期降序、结束日期升序（长期最后）、更新时间降序、标识升序选择；
+Ops 月历和变更预览复用相同规则。
 
 接口只提供当前结构化投影，不提供通知浏览、OCR、编辑操作或实时车辆位置。

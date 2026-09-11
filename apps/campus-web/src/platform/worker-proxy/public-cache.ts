@@ -102,16 +102,18 @@ function getPublicCacheSearch(url: URL): string | null {
 	if (!isPublicCacheableAppApiPath(url.pathname)) {
 		return null;
 	}
-	if (url.pathname === "/api/transport/schedule") {
-		const date = url.searchParams.get("date");
+	if (
+		url.pathname === "/api/transport/schedule" ||
+		url.pathname === "/api/transport/schedule-range"
+	) {
+		const names = url.pathname.endsWith("schedule-range") ? ["from", "to"] : ["date"];
 		if (
-			url.searchParams.size !== 1 ||
-			date === null ||
-			!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u.test(date)
+			url.searchParams.size !== names.length ||
+			names.some((name) => !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u.test(url.searchParams.get(name) ?? ""))
 		) {
 			return null;
 		}
-		return `?date=${encodeURIComponent(date)}`;
+		return `?${names.map((name) => `${name}=${encodeURIComponent(url.searchParams.get(name) as string)}`).join("&")}`;
 	}
 	if (url.searchParams.size > 0) {
 		return null;
@@ -124,7 +126,8 @@ function isPublicCacheableAppApiPath(pathname: string): boolean {
 		pathname === "/api/dining" ||
 		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||
 		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname) ||
-		pathname === "/api/transport/schedule"
+		pathname === "/api/transport/schedule" ||
+		pathname === "/api/transport/schedule-range"
 	);
 }
 

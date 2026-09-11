@@ -1,6 +1,32 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { waitForTransportSchema } from "../ops/db/bootstrap-transport";
+import { bootstrapTransportSchedule, waitForTransportSchema } from "../ops/db/bootstrap-transport";
+
+describe("transport baseline bootstrap", () => {
+	it("initializes normal and real special-date schedules in an empty database", async () => {
+		const query = vi.fn(async () => ({ rowCount: 1, rows: [{ routes: 0, periods: 0, items: 0 }] }));
+		expect(await bootstrapTransportSchedule({ database: { query } })).toEqual({
+			status: "initialized",
+			routes: 6,
+			periods: 14,
+			items: 75,
+		});
+		expect(query).toHaveBeenCalledWith("COMMIT");
+	});
+	it("does not overwrite existing operator-maintained schedules", async () => {
+		const query = vi.fn(async () => ({
+			rowCount: 1,
+			rows: [{ routes: 6, periods: 8, items: 50 }],
+		}));
+		expect(await bootstrapTransportSchedule({ database: { query } })).toEqual({
+			status: "already_initialized",
+			routes: 6,
+			periods: 8,
+			items: 50,
+		});
+		expect(query).toHaveBeenCalledTimes(1);
+	});
+});
 
 describe("transport schema readiness", () => {
 	it("waits for a transient connection or missing-schema failure", async () => {

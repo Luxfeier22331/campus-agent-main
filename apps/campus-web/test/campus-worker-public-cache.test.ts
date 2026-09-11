@@ -152,7 +152,14 @@ describe("campus worker public app-api cache", () => {
 		expect(appApiFetch).toHaveBeenCalledTimes(2);
 	});
 
-	it("caches transport schedules per valid date", async () => {
+	it.each([
+		["schedule?date=2026-09-08", "schedule?date=2026-09-09", "schedule?date=2026-9-8"],
+		[
+			"schedule-range?from=2026-09-01&to=2026-09-30",
+			"schedule-range?from=2026-10-01&to=2026-10-31",
+			"schedule-range?from=2026-9-1&to=2026-09-30",
+		],
+	])("caches transport query %s independently", async (query, another, invalid) => {
 		installFakeEdgeCache();
 		const appApiFetch = vi.fn((request: Request) =>
 			Promise.resolve(
@@ -167,12 +174,10 @@ describe("campus worker public app-api cache", () => {
 		const env = createEnv({ fetch: appApiFetch });
 		const request = (url: string) => worker.fetch(new Request(url), env);
 
-		const first = await request("https://campus.muc.wiki/api/transport/schedule?date=2026-09-08");
-		const second = await request("https://campus.muc.wiki/api/transport/schedule?date=2026-09-08");
-		const anotherDate = await request(
-			"https://campus.muc.wiki/api/transport/schedule?date=2026-09-09",
-		);
-		const malformed = await request("https://campus.muc.wiki/api/transport/schedule?date=2026-9-8");
+		const first = await request(`https://campus.muc.wiki/api/transport/${query}`);
+		const second = await request(`https://campus.muc.wiki/api/transport/${query}`);
+		const anotherDate = await request(`https://campus.muc.wiki/api/transport/${another}`);
+		const malformed = await request(`https://campus.muc.wiki/api/transport/${invalid}`);
 
 		expect(first.headers.get("x-campus-edge-cache")).toBe("miss");
 		expect(second.headers.get("x-campus-edge-cache")).toBe("hit");
@@ -180,9 +185,9 @@ describe("campus worker public app-api cache", () => {
 		expect(malformed.headers.get("x-campus-edge-cache")).toBeNull();
 		expect(malformed.headers.get("cache-control")).toBe("no-store");
 		expect(appApiFetch).toHaveBeenCalledTimes(3);
-		expect(appApiFetch.mock.calls[0]?.[0].url).toContain("date=2026-09-08");
-		expect(appApiFetch.mock.calls[1]?.[0].url).toContain("date=2026-09-09");
-		expect(appApiFetch.mock.calls[2]?.[0].url).toContain("date=2026-9-8");
+		expect(appApiFetch.mock.calls[0]?.[0].url).toContain(query);
+		expect(appApiFetch.mock.calls[1]?.[0].url).toContain(another);
+		expect(appApiFetch.mock.calls[2]?.[0].url).toContain(invalid);
 	});
 
 	it("bypasses and does not store failed dining responses", async () => {

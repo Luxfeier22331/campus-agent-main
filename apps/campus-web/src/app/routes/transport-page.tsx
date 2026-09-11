@@ -4,6 +4,7 @@ import type {
 } from "@campus-agent/transport/domain";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { TransportMonthCalendar } from "@/components/transport/transport-calendar";
 import {
 	type RiderFilter,
 	TransportPageView,
@@ -13,6 +14,9 @@ import { transportScheduleQueryOptions } from "@/features/transport/queries";
 import { createCampusQueryClient } from "@/platform/query/client";
 
 const transportQueryClient = createCampusQueryClient();
+function stationOf(route: { origin: string; destination: string }) {
+	return route.origin === "丰台校区" ? route.destination : route.origin;
+}
 export function TransportPage() {
 	return (
 		<QueryClientProvider client={transportQueryClient}>
@@ -30,14 +34,14 @@ export function TransportPageContent() {
 	>({});
 	const query = useQuery(transportScheduleQueryOptions(date));
 	const [lastSuccess, setLastSuccess] = useState<TransportPublicScheduleResponse>();
-	const [slowDate, setSlowDate] = useState<string>();
-	const data = query.data ?? lastSuccess;
 	useEffect(() => {
 		if (query.isSuccess && !query.isPlaceholderData) {
 			setLastSuccess(query.data);
 		}
 	}, [query.data, query.isSuccess, query.isPlaceholderData]);
-	const allRouteChoices = data?.routeCatalog ?? [];
+	const catalogData = query.data ?? lastSuccess;
+	const data = query.data?.date === date ? query.data : undefined;
+	const allRouteChoices = catalogData?.routeCatalog ?? [];
 	const availableKinds = (["commute", "subway", "special"] as const).filter((kind) =>
 		allRouteChoices.some((route) => route.serviceKind === kind),
 	);
@@ -49,6 +53,7 @@ export function TransportPageContent() {
 	const selectedRouteId = routeChoices.some((route) => route.routeId === routeId)
 		? routeId
 		: routeChoices[0]?.routeId;
+	const previousRoute = lastSuccess?.routes.find((item) => item.routeId === selectedRouteId);
 	useEffect(() => {
 		let timer: ReturnType<typeof setTimeout>;
 		const tick = () => {
@@ -68,17 +73,23 @@ export function TransportPageContent() {
 			document.removeEventListener("visibilitychange", visible);
 		};
 	}, []);
-	useEffect(() => {
-		setSlowDate(undefined);
-		if (!query.isFetching) {
-			return;
-		}
-		const timer = setTimeout(() => setSlowDate(date), 800);
-		return () => clearTimeout(timer);
-	}, [date, query.isFetching]);
 	return (
 		<TransportPageView
+			calendar={(onSelect) => (
+				<TransportMonthCalendar
+					date={date}
+					routes={routeChoices.filter((route) =>
+						activeServiceKind === "subway"
+							? stationOf(route) ===
+								stationOf(routeChoices.find((item) => item.routeId === selectedRouteId) ?? route)
+							: route.routeId === selectedRouteId,
+					)}
+					rider={rider}
+					onSelect={onSelect}
+				/>
+			)}
 			data={data}
+			showRider={previousRoute?.departures.some((item) => item.riderType !== "all") ?? false}
 			date={date}
 			routeId={selectedRouteId}
 			routeChoices={routeChoices}
@@ -96,10 +107,8 @@ export function TransportPageContent() {
 			onRiderChange={setRider}
 			onRefresh={() => void query.refetch()}
 			refreshing={query.isFetching}
-			loading={query.isPending && !data}
-			updating={query.isFetching && Boolean(data)}
-			slowUpdating={query.isFetching && slowDate === date}
-			failed={query.isError && !query.isFetching}
+			loading={query.isFetching && !data}
+			failed={query.isError && !query.isFetching && !data}
 		/>
 	);
 }

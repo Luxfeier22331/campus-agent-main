@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { DataTable } from "../src/app/ui/data-table";
 
 const rawPalettePattern =
@@ -112,6 +112,47 @@ describe("UI foundation boundaries", () => {
 				/>,
 			),
 		).toThrow("DataTable requires exactly one row header column");
+	});
+
+	it("preserves table semantics and independent row actions during refresh", () => {
+		const action = vi.fn();
+		const columns = [
+			{ cell: (row: { id: string }) => row.id, header: "名称", rowHeader: true },
+			{
+				cell: () => (
+					<button type="button" onClick={action}>
+						编辑记录
+					</button>
+				),
+				header: "操作",
+			},
+		];
+		const { container, getByRole, rerender, getByText } = render(
+			<DataTable
+				caption="排班记录"
+				busy
+				columns={columns}
+				data={[{ id: "记录一" }]}
+				rowKey={(row) => row.id}
+				stickyLastColumn
+			/>,
+		);
+		expect(getByRole("table", { name: "排班记录" })).toBeTruthy();
+		expect(getByRole("rowheader", { name: "记录一" }).getAttribute("scope")).toBe("row");
+		expect(container.firstElementChild?.getAttribute("aria-busy")).toBe("true");
+		fireEvent.click(getByRole("button", { name: "编辑记录" }));
+		expect(action).toHaveBeenCalledTimes(1);
+		rerender(
+			<DataTable
+				caption="排班记录"
+				columns={columns}
+				data={[]}
+				rowKey={(row) => row.id}
+				emptyMessage="暂无排班"
+			/>,
+		);
+		expect(getByText("暂无排班").getAttribute("colspan")).toBe("2");
+		expect(container.firstElementChild?.getAttribute("aria-busy")).toBe("false");
 	});
 
 	it("defers two-sided table pinning until the medium breakpoint", () => {

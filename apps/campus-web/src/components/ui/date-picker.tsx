@@ -1,7 +1,7 @@
 import { Button } from "@campus-agent/ui";
 import { type CalendarDate, parseDate, today } from "@internationalized/date";
 import { CalendarDays } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { DateField, DateInput, DateSegment, I18nProvider } from "react-aria-components";
 import { CampusCalendar } from "./calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
@@ -12,10 +12,12 @@ export function CampusDatePicker({
 	value,
 	onChange,
 	ariaLabel,
+	calendar,
 }: {
 	value: string;
 	onChange: (value: string) => void;
 	ariaLabel: string;
+	calendar?: (onSelect: (date: string) => void) => ReactNode;
 }) {
 	const selected = parseDate(value);
 	const [open, setOpen] = useState(false);
@@ -25,7 +27,7 @@ export function CampusDatePicker({
 			<PopoverTrigger asChild>
 				<Button
 					aria-label={ariaLabel}
-					className="min-w-0 flex-1 justify-center rounded-lg border-border px-3 shadow-none sm:min-w-48 sm:flex-none"
+					className="min-w-0 flex-1 justify-center px-3 sm:min-w-48 sm:flex-none"
 					size="lg"
 					variant="outline"
 				>
@@ -39,13 +41,20 @@ export function CampusDatePicker({
 				className="w-[min(20rem,calc(100vw-2rem))] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-4"
 				sideOffset={8}
 			>
-				<CampusCalendar
-					onChange={(next) => {
-						onChange(next.toString());
+				{calendar ? (
+					calendar((next) => {
+						onChange(next);
 						setOpen(false);
-					}}
-					value={selected}
-				/>
+					})
+				) : (
+					<CampusCalendar
+						onChange={(next) => {
+							onChange(next.toString());
+							setOpen(false);
+						}}
+						value={selected}
+					/>
+				)}
 			</PopoverContent>
 		</Popover>
 	);
@@ -117,8 +126,8 @@ export function CampusDateRangePicker({
 					aria-label={from || to ? `发布日期：${label}` : "发布日期"}
 					className={
 						from || to
-							? "max-w-full rounded-lg border-[var(--campus-selected-border)] bg-selected px-3 text-selected-foreground shadow-none"
-							: "max-w-full rounded-lg border-border bg-transparent px-3 shadow-none"
+							? "max-w-full border-[var(--campus-selected-border)] bg-selected px-3 text-selected-foreground shadow-none"
+							: "max-w-full border-border bg-transparent px-3 shadow-none"
 					}
 					size="sm"
 					variant="outline"
@@ -236,8 +245,8 @@ function DateEndpoint({
 					{...(errorId ? { "aria-describedby": errorId } : {})}
 					className={
 						active
-							? "rounded-md border border-[var(--campus-selected-border)] bg-selected px-2 py-1.5 text-sm text-selected-foreground"
-							: "rounded-md border border-border px-2 py-1.5 text-sm text-[var(--sys-text-default)]"
+							? "rounded-[var(--radius-lg)] border border-[var(--campus-selected-border)] bg-selected px-2 py-1.5 text-sm text-selected-foreground"
+							: "rounded-[var(--radius-lg)] border border-border px-2 py-1.5 text-sm text-[var(--sys-text-default)]"
 					}
 					granularity="day"
 					onChange={(next) => onChange(next?.toString())}

@@ -284,7 +284,7 @@ const ThreadListItem: FC<ThreadListItemsProps> = ({ onActionError, onNavigate })
 	};
 
 	return (
-		<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-surface-hover data-active:bg-selected data-active:text-selected-foreground relative grid min-h-14 grid-cols-[minmax(0,1fr)_4.5rem] items-stretch rounded-lg transition-colors lg:min-h-12">
+		<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-surface-hover data-active:bg-selected data-active:text-selected-foreground relative grid min-h-14 grid-cols-[minmax(0,1fr)_4.5rem] items-stretch rounded-[var(--radius-lg)] transition-colors motion-reduce:transition-none lg:min-h-12">
 			{isEditing ? (
 				<form
 					className="flex min-w-0 items-center px-1"

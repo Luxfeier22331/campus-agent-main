@@ -43,6 +43,49 @@ describe("shared UI primitives", () => {
 		expect(ref.current).toBeDisabled();
 		expect(ref.current).toHaveAttribute("type", "button");
 	});
+	it("keeps native keyboard activation and does not submit forms by default", async () => {
+		const user = userEvent.setup();
+		const click = vi.fn();
+		const submit = vi.fn((event) => event.preventDefault());
+		render(
+			<form onSubmit={submit}>
+				<Button onClick={click}>预览</Button>
+				<Button disabled onClick={click}>
+					不可用
+				</Button>
+				<Button type="submit">提交</Button>
+			</form>,
+		);
+		await user.tab();
+		expect(screen.getByRole("button", { name: "预览" })).toHaveFocus();
+		await user.keyboard("{Enter} ");
+		expect(click).toHaveBeenCalledTimes(2);
+		expect(submit).not.toHaveBeenCalled();
+		await user.click(screen.getByRole("button", { name: "不可用" }));
+		expect(click).toHaveBeenCalledTimes(2);
+		await user.click(screen.getByRole("button", { name: "提交" }));
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+	it("preserves asChild links and consumer class overrides", () => {
+		render(
+			<Button asChild variant="outline" className="rounded-lg">
+				<a href="/transport">班车</a>
+			</Button>,
+		);
+		const link = screen.getByRole("link", { name: "班车" });
+		expect(link).toHaveAttribute("href", "/transport");
+		expect(link).not.toHaveAttribute("type");
+		expect(link).toHaveClass("rounded-lg");
+		expect(link).not.toHaveClass("rounded-full");
+	});
+	it("keeps busy state supplied by the caller without changing the accessible name", () => {
+		render(
+			<Button disabled aria-busy>
+				保存中…
+			</Button>,
+		);
+		expect(screen.getByRole("button", { name: "保存中…" })).toHaveAttribute("aria-busy", "true");
+	});
 
 	it("toggles checkboxes through their accessible label", async () => {
 		const user = userEvent.setup();

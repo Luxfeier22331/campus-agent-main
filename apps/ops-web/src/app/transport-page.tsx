@@ -1,4 +1,9 @@
-import { formatWeekdays, transportPeriodIncludesDate } from "@campus-agent/transport/domain";
+import {
+	formatWeekdays,
+	selectTransportPeriod,
+	shiftTransportDate,
+	transportPeriodIncludesDate,
+} from "@campus-agent/transport/domain";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -10,6 +15,8 @@ import {
 	Badge,
 	Button,
 	cn,
+	Disclosure,
+	DisclosureSummary,
 	NativeSelect,
 	Tabs,
 	TabsContent,
@@ -22,7 +29,9 @@ import { useEffect, useRef, useState } from "react";
 import type {
 	TransportOpsRoute,
 	TransportOpsSchedulePeriod,
+	TransportOpsSchedulePeriodInput,
 } from "../server/transport-store-contract";
+import { TransportOpsSchedulePeriodInputSchema } from "../server/transport-store-contract";
 import {
 	deleteTransportRoute,
 	deleteTransportSchedulePeriod,
@@ -30,15 +39,28 @@ import {
 	fetchTransportSchedulePeriods,
 } from "./ops-api-client";
 import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
+import { TransportCalendar } from "./transport-calendar";
 import { TransportPeriodEditor, TransportRouteEditor } from "./transport-editors";
+
+import { effectiveDetails } from "./transport-impact";
 import { ConfirmAction } from "./ui/alert-dialog";
+
+function weekdayOf(date: string) {
+	const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+	return day === 0 ? 7 : day;
+}
 
 const QUERY_ROOT = ["transport", "ops"] as const;
 const KINDS = ["commute", "subway", "special"] as const;
 type ServiceKind = (typeof KINDS)[number];
 type Editor =
 	| { type: "route"; source: TransportOpsRoute | null }
-	| { type: "period"; source: TransportOpsSchedulePeriod | null; copy: boolean };
+	| {
+			type: "period";
+			source: TransportOpsSchedulePeriod | null;
+			copy: boolean;
+			initial?: TransportOpsSchedulePeriodInput;
+	  };
 
 export function TransportPage() {
 	const client = useQueryClient();
@@ -146,6 +168,9 @@ function TransportWorkspace({
 			setSelectedId(undefined);
 		});
 	const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
+	const [viewDate, setViewDate] = useState(today);
+	const [calendarMonth, setCalendarMonth] = useState(`${today.slice(0, 7)}-01`);
+	const effective = selectTransportPeriod(routePeriods, viewDate);
 	return (
 		<section className="mx-auto w-full max-w-[1440px]">
 			<PageHeader
@@ -175,7 +200,7 @@ function TransportWorkspace({
 			/>
 			{error ? <InlineError error={error} title="刷新失败，仍显示已有班车数据" /> : null}
 			<Tabs value={kind} onValueChange={selectKind}>
-				<TabsList aria-label="班车服务类型">
+				<TabsList aria-label="班车服务类型" presentation="segmented">
 					{kinds.map((item) => (
 						<TabsTrigger key={item} value={item}>
 							{kindLabel(item)}
@@ -238,7 +263,7 @@ function TransportWorkspace({
 								})}
 							</nav>
 						</div>
-						<div className="min-w-0 scroll-mt-4 outline-none" ref={editorRef} tabIndex={-1}>
+						<div className="min-w-0 scroll-mt-24 outline-none" ref={editorRef} tabIndex={-1}>
 							{editor?.type === "route" ? (
 								<TransportRouteEditor
 									key={editor.source?.routeId ?? "new"}
@@ -260,25 +285,122 @@ function TransportWorkspace({
 									source={editor.source}
 									copy={editor.copy}
 									route={selected}
+									periods={routePeriods}
+									effectiveDate={viewDate}
+									{...(editor.initial ? { initial: editor.initial } : {})}
 									onDirty={setDirty}
 									onBusy={setBusy}
 									onCancel={() => guard(close)}
-									onSaved={() => {
+									onSaved={(period) => {
+										if (editor.copy || !editor.source) {
+											setViewDate(period.validFrom);
+											setCalendarMonth(`${period.validFrom.slice(0, 7)}-01`);
+										}
 										close();
 										onChanged();
 									}}
 								/>
 							) : selected ? (
-								<RouteDetails
-									route={selected}
-									periods={routePeriods}
-									today={today}
-									onChanged={onChanged}
-									onEditRoute={() => begin({ type: "route", source: selected })}
-									onNew={() => begin({ type: "period", source: null, copy: false })}
-									onEdit={(period) => begin({ type: "period", source: period, copy: false })}
-									onCopy={(period) => begin({ type: "period", source: period, copy: true })}
-								/>
+								<div className="grid gap-5">
+									<div className="grid items-start gap-4 lg:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.1fr)]">
+										<TransportCalendar
+											key={selected.routeId}
+											periods={routePeriods}
+											date={viewDate}
+											month={calendarMonth}
+											onMonthChange={setCalendarMonth}
+											onDateChange={setViewDate}
+											onApplyPeriod={(source, from, to) =>
+												begin({
+													type: "period",
+													source,
+													copy: true,
+													initial: periodInputForRange(source, from, to, source.status),
+												})
+											}
+											onSuspendPeriod={(from, to) =>
+												begin({
+													type: "period",
+													source: null,
+													copy: false,
+													initial: {
+														routeId: selected.routeId,
+														validFrom: from,
+														validTo: to,
+														weekdays: [1, 2, 3, 4, 5, 6, 7],
+														status: "suspended",
+														items: [],
+														boardingPointOverride: null,
+														note: null,
+													},
+												})
+											}
+										/>
+										<section aria-label="当天有效班次" className="grid gap-3 rounded-lg border p-4">
+											<div className="flex flex-wrap items-center justify-between gap-2">
+												<h3 className="font-semibold">{viewDate} · 当天有效班次</h3>
+												{effective ? (
+													<Button
+														variant="outline"
+														onClick={() =>
+															begin({ type: "period", source: effective, copy: false })
+														}
+													>
+														编辑生效时间段
+													</Button>
+												) : (
+													<Button
+														onClick={() =>
+															begin({
+																type: "period",
+																source: null,
+																copy: false,
+																initial: {
+																	routeId: selected.routeId,
+																	validFrom: viewDate,
+																	validTo: viewDate,
+																	weekdays: [weekdayOf(viewDate)],
+																	status: "operating",
+																	items: [],
+																	boardingPointOverride: null,
+																	note: null,
+																},
+															})
+														}
+													>
+														新增时间段
+													</Button>
+												)}
+											</div>
+											{effective ? (
+												<p className="text-xs text-muted-foreground">
+													生效时间段：{periodLabel(effective)}
+												</p>
+											) : null}
+											<p className="whitespace-pre-line text-sm leading-7">
+												{effectiveDetails(effective, selected).join("\n")}
+											</p>
+										</section>
+									</div>
+									<RouteDetails
+										route={selected}
+										periods={routePeriods}
+										today={today}
+										onChanged={onChanged}
+										onEditRoute={() => begin({ type: "route", source: selected })}
+										onNew={() => begin({ type: "period", source: null, copy: false })}
+										onEdit={(period) => begin({ type: "period", source: period, copy: false })}
+										onCopy={(period) => begin({ type: "period", source: period, copy: true })}
+										onEnd={(period) =>
+											begin({
+												type: "period",
+												source: period,
+												copy: false,
+												initial: periodInputWithEnd(period, shiftTransportDate(today, -1)),
+											})
+										}
+									/>
+								</div>
 							) : (
 								<p className="py-8 text-muted-foreground">尚未配置线路，请新增线路。</p>
 							)}
@@ -318,6 +440,7 @@ function RouteDetails({
 	onNew,
 	onEdit,
 	onCopy,
+	onEnd,
 }: {
 	route: TransportOpsRoute;
 	periods: TransportOpsSchedulePeriod[];
@@ -327,6 +450,7 @@ function RouteDetails({
 	onNew: () => void;
 	onEdit: (period: TransportOpsSchedulePeriod) => void;
 	onCopy: (period: TransportOpsSchedulePeriod) => void;
+	onEnd: (period: TransportOpsSchedulePeriod) => void;
 }) {
 	const remove = useMutation({ mutationFn: deleteTransportRoute, onSuccess: onChanged });
 	const groups = [
@@ -371,10 +495,10 @@ function RouteDetails({
 					) : null}
 				</dl>
 				{route.boardingGuide ? (
-					<details className="text-sm">
-						<summary className="cursor-pointer text-info">乘车指引</summary>
-						<p className="whitespace-pre-line pt-2">{route.boardingGuide}</p>
-					</details>
+					<Disclosure className="text-sm">
+						<DisclosureSummary className="text-info">乘车指引</DisclosureSummary>
+						<p className="whitespace-pre-line pt-3">{route.boardingGuide}</p>
+					</Disclosure>
 				) : null}
 			</header>
 			<div className="flex justify-between items-center gap-2">
@@ -403,6 +527,8 @@ function RouteDetails({
 									onChanged={onChanged}
 									onEdit={() => onEdit(period)}
 									onCopy={() => onCopy(period)}
+									onEnd={() => onEnd(period)}
+									canEnd={!period.validTo || period.validTo >= today}
 								/>
 							))}
 					</section>
@@ -432,6 +558,8 @@ function PeriodCard({
 	onChanged,
 	onEdit,
 	onCopy,
+	onEnd,
+	canEnd,
 }: {
 	period: TransportOpsSchedulePeriod;
 	route: TransportOpsRoute;
@@ -439,6 +567,8 @@ function PeriodCard({
 	onChanged: () => void;
 	onEdit: () => void;
 	onCopy: () => void;
+	onEnd: () => void;
+	canEnd: boolean;
 }) {
 	const remove = useMutation({ mutationFn: deleteTransportSchedulePeriod, onSuccess: onChanged });
 	return (
@@ -465,6 +595,11 @@ function PeriodCard({
 					>
 						编辑
 					</Button>
+					{canEnd && period.validFrom < today ? (
+						<Button size="sm" variant="ghost" onClick={onEnd}>
+							结束安排
+						</Button>
+					) : null}
 					<Button
 						onClick={onCopy}
 						size="sm"
@@ -496,12 +631,12 @@ function PeriodCard({
 				<p className="mt-2 text-sm">本时间段乘车点：{period.boardingPointOverride}</p>
 			) : null}
 			{period.status === "operating" ? (
-				<details className="mt-3 text-sm">
-					<summary className="cursor-pointer leading-relaxed">
+				<Disclosure className="mt-3 text-sm">
+					<DisclosureSummary className="leading-relaxed">
 						<span className="font-mono">{period.items.slice(0, 4).map(itemTime).join(" · ")}</span>
 						<span className="ml-2 text-info">查看全部 {period.items.length} 班</span>
-					</summary>
-					<ul className="mt-2 divide-y">
+					</DisclosureSummary>
+					<ul className="mt-3 divide-y">
 						{period.items.map((item) => (
 							<li
 								key={item.itemId}
@@ -526,13 +661,44 @@ function PeriodCard({
 							</li>
 						))}
 					</ul>
-				</details>
+				</Disclosure>
 			) : (
 				<p className="mt-2 text-sm text-muted-foreground">此期间停运</p>
 			)}
 			{remove.error ? <InlineError error={remove.error} title="删除失败" /> : null}
 		</section>
 	);
+}
+
+function periodInputWithEnd(period: TransportOpsSchedulePeriod, validTo: string) {
+	return TransportOpsSchedulePeriodInputSchema.parse({
+		boardingPointOverride: period.boardingPointOverride,
+		items: period.items.map(({ itemId: _itemId, ...item }) => item),
+		note: period.note,
+		routeId: period.routeId,
+		status: period.status,
+		validFrom: period.validFrom,
+		validTo,
+		weekdays: period.weekdays,
+	});
+}
+
+function periodInputForRange(
+	period: TransportOpsSchedulePeriod,
+	validFrom: string,
+	validTo: string,
+	status: "operating" | "suspended",
+) {
+	return TransportOpsSchedulePeriodInputSchema.parse({
+		boardingPointOverride: period.boardingPointOverride,
+		items: status === "suspended" ? [] : period.items.map(({ itemId: _itemId, ...item }) => item),
+		note: period.note,
+		routeId: period.routeId,
+		status,
+		validFrom,
+		validTo,
+		weekdays: [1, 2, 3, 4, 5, 6, 7],
+	});
 }
 function kindLabel(kind: ServiceKind) {
 	return kind === "commute" ? "两校区通勤" : kind === "subway" ? "地铁接驳" : "临时班次";

@@ -101,7 +101,7 @@ export function DiningReportsPage() {
 				onValueChange={(value) => changeStatus(value as ReportStatus)}
 				value={status}
 			>
-				<TabsList aria-label="举报状态">
+				<TabsList aria-label="举报状态" presentation="segmented">
 					<TabsTrigger value="pending">待处理</TabsTrigger>
 					<TabsTrigger value="resolved">已处理</TabsTrigger>
 				</TabsList>

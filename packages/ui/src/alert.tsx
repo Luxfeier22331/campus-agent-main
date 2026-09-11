@@ -3,15 +3,15 @@ import * as React from "react";
 import { cn } from "./cn";
 
 const alertVariants = cva(
-	"relative w-full rounded-md border px-4 py-3 text-sm [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg~*]:pl-7",
+	"relative w-full rounded-[var(--radius-lg)] border px-4 py-3 text-sm text-foreground [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg~*]:pl-7",
 	{
 		variants: {
 			tone: {
 				neutral: "border-border bg-background text-foreground",
-				info: "border-info-border bg-info-subtle text-info",
-				success: "border-success-border bg-success-subtle text-success",
-				warning: "border-warning-border bg-warning-subtle text-warning",
-				danger: "border-danger-border bg-danger-subtle text-danger [&>svg]:text-danger",
+				info: "border-info-border bg-info-subtle [&>svg]:text-info",
+				success: "border-success-border bg-success-subtle [&>svg]:text-success",
+				warning: "border-warning-border bg-warning-subtle [&>svg]:text-warning",
+				danger: "border-danger-border bg-danger-subtle [&>svg]:text-danger",
 			},
 		},
 		defaultVariants: { tone: "neutral" },
@@ -30,7 +30,7 @@ export const AlertTitle = React.forwardRef<
 	HTMLHeadingElement,
 	React.HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
-	<h3 className={cn("mb-1 font-semibold leading-none", className)} ref={ref} {...props} />
+	<h3 className={cn("mb-1 font-semibold leading-snug", className)} ref={ref} {...props} />
 ));
 AlertTitle.displayName = "AlertTitle";
 

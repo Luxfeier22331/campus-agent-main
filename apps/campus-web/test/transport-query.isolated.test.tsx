@@ -1,6 +1,6 @@
 import type { TransportPublicScheduleResponse } from "@campus-agent/transport/domain";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TransportPageContent } from "../src/app/routes/transport-page";
 import { transportQueryKeys } from "../src/features/transport/queries";
@@ -90,6 +90,86 @@ async function mountLoaded() {
 }
 
 describe("transport query transitions", () => {
+	it("keeps audience controls usable during cross-date loading without showing old departures", async () => {
+		const pending = deferred();
+		const first = schedule("2026-09-07");
+		for (const route of first.routes) {
+			route.departures = route.departures.map((departure, index) => ({
+				...departure,
+				riderType: index === 0 ? "teacher" : "all",
+			}));
+		}
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((url: string) =>
+				url.includes("2026-09-08") ? pending.promise : Promise.resolve(Response.json(first)),
+			),
+		);
+		await mountLoaded();
+		const controls = screen.getByRole("radiogroup", { name: "班次对象" });
+		fireEvent.click(screen.getByRole("button", { name: "后一天" }));
+		expect(screen.getByRole("radiogroup", { name: "班次对象" })).toBe(controls);
+		fireEvent.click(within(controls).getByRole("radio", { name: "学生" }));
+		expect(within(controls).getByRole("radio", { name: "学生" })).toHaveAttribute(
+			"aria-checked",
+			"true",
+		);
+		expect(screen.queryByRole("article")).not.toBeInTheDocument();
+		expect(document.querySelector("time")).toBeNull();
+		const next = schedule("2026-09-08");
+		next.routes = first.routes.map((route) => ({ ...route, note: "班次-2026-09-08" }));
+		await act(async () => pending.resolve(Response.json(next)));
+		await screen.findByText("班次-2026-09-08");
+		expect(screen.queryByText("18:00")).not.toBeInTheDocument();
+		expect(screen.getByText("19:00")).toBeVisible();
+	});
+	it("counts both directions of the selected subway station, excluding other stations", async () => {
+		const daily = schedule("2026-09-07");
+		const base = daily.routes[0];
+		const catalog = daily.routeCatalog[0];
+		if (!(base && catalog)) {
+			throw new Error("missing route fixture");
+		}
+		daily.routes = [
+			{ origin: "丰台校区", destination: "篱笆房地铁站" },
+			{ origin: "篱笆房地铁站", destination: "丰台校区" },
+			{ origin: "丰台校区", destination: "五棵松地铁站" },
+		].map((direction, index) => ({
+			...base,
+			...direction,
+			serviceKind: "subway",
+			routeId: `subway-${index}`,
+			departures: base.departures.slice(0, 1),
+		}));
+		daily.routeCatalog = daily.routes.map(({ routeId, origin, destination, serviceKind }) => ({
+			...catalog,
+			routeId,
+			origin,
+			destination,
+			serviceKind,
+		}));
+		vi.stubGlobal(
+			"fetch",
+			vi.fn((url: string) =>
+				Promise.resolve(
+					Response.json(
+						url.includes("schedule-range")
+							? { from: "2026-09-01", to: "2026-09-30", days: [daily] }
+							: daily,
+					),
+				),
+			),
+		);
+		render(
+			<QueryClientProvider client={client}>
+				<TransportPageContent />
+			</QueryClientProvider>,
+		);
+		await screen.findByRole("article", { name: "丰台校区 → 篱笆房地铁站" });
+		fireEvent.click(screen.getByRole("button", { name: "选择日期：2026-09-07" }));
+		expect(await screen.findByText("2班")).toBeVisible();
+		expect(screen.queryByText("3班")).not.toBeInTheDocument();
+	});
 	it("keeps the response date and next departure until the new date succeeds", async () => {
 		const pending = deferred();
 		vi.stubGlobal(
@@ -101,9 +181,10 @@ describe("transport query transitions", () => {
 		await mountLoaded();
 		fireEvent.click(screen.getByRole("button", { name: "后一天" }));
 		expect(screen.getByRole("button", { name: "选择日期：2026-09-08" })).toBeEnabled();
-		expect(screen.getByRole("status")).toHaveTextContent("更新中 · 当前为 9月7日班次");
-		expect(screen.getByRole("region", { name: "下一班及当前运行班次" })).toHaveTextContent("18:00");
-		expect(document.querySelector("time")?.getAttribute("datetime")).toContain("2026-09-07");
+		expect(screen.getByRole("status", { name: "正在加载班车信息" })).toBeVisible();
+		expect(screen.getByRole("button", { name: "刷新班车信息" })).toBeDisabled();
+		expect(screen.queryByText("班次-2026-09-07")).not.toBeInTheDocument();
+		expect(document.querySelector("time")).toBeNull();
 		await act(async () => pending.resolve(response("2026-09-08")));
 		await screen.findByText("班次-2026-09-08");
 		expect(screen.queryByText("下一班")).not.toBeInTheDocument();
@@ -120,13 +201,13 @@ describe("transport query transitions", () => {
 		await mountLoaded();
 		fireEvent.click(screen.getByRole("button", { name: "后一天" }));
 		await act(async () => pending.resolve(new Response("unavailable", { status: 503 })));
-		await screen.findByText("查询失败，当前显示 9月7日班次");
-		expect(screen.getByText("班次-2026-09-07")).toBeVisible();
+		await screen.findByText("班车信息加载失败");
+		expect(screen.queryByText("班次-2026-09-07")).not.toBeInTheDocument();
 		expect(client.getQueryData(transportQueryKeys.schedule("2026-09-08"))).toBeUndefined();
 		pending = deferred();
 		fireEvent.click(screen.getByRole("button", { name: "重试" }));
 		await waitFor(() => expect(screen.queryByText(/查询失败/)).not.toBeInTheDocument());
-		expect(screen.getByText("班次-2026-09-07")).toBeVisible();
+		expect(screen.queryByText("班次-2026-09-07")).not.toBeInTheDocument();
 		expect(fetch.mock.calls.at(-1)?.[0]).toContain("date=2026-09-08");
 		await act(async () => pending.resolve(response("2026-09-08")));
 		await screen.findByText("班次-2026-09-08");
@@ -140,7 +221,7 @@ describe("transport query transitions", () => {
 		vi.stubGlobal("fetch", fetch);
 		await mountLoaded();
 		fireEvent.click(screen.getByRole("button", { name: "刷新班车信息" }));
-		await screen.findByText("查询失败，当前显示 9月7日班次");
+		await waitFor(() => expect(screen.getByText("班次-2026-09-07")).toBeVisible());
 		expect(screen.getByText("班次-2026-09-07")).toBeVisible();
 		expect(screen.getByRole("region", { name: "下一班及当前运行班次" })).toBeVisible();
 	});
@@ -190,7 +271,7 @@ describe("transport query transitions", () => {
 		expect(screen.queryByText("班次-2026-09-08")).not.toBeInTheDocument();
 	});
 
-	it("resets delayed feedback when changing the requested date", async () => {
+	it("does not add intrusive update notices when changing dates", async () => {
 		const pending = deferred();
 		vi.stubGlobal(
 			"fetch",
@@ -200,12 +281,38 @@ describe("transport query transitions", () => {
 		);
 		await mountLoaded();
 		fireEvent.click(screen.getByRole("button", { name: "后一天" }));
-		await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("仍在更新"), {
-			timeout: 2000,
-		});
+		expect(screen.getByRole("status", { name: "正在加载班车信息" })).toBeVisible();
 		fireEvent.click(screen.getByRole("button", { name: "后一天" }));
-		expect(screen.getByRole("status")).toHaveTextContent("更新中 · 当前为 9月7日班次");
+		expect(screen.getByRole("status", { name: "正在加载班车信息" })).toBeVisible();
 		fireEvent.click(screen.getByRole("button", { name: "今天" }));
 		expect(screen.queryByRole("status")).not.toBeInTheDocument();
+	});
+	it("loads month availability and reuses its dates without another daily request", async () => {
+		const days = Array.from({ length: 30 }, (_, index) =>
+			schedule(`2026-09-${String(index + 1).padStart(2, "0")}`),
+		);
+		const fetch = vi.fn((url: string) =>
+			Promise.resolve(
+				url.includes("schedule-range")
+					? new Response(JSON.stringify({ from: "2026-09-01", to: "2026-09-30", days }), {
+							headers: { "content-type": "application/json" },
+						})
+					: response("2026-09-07"),
+			),
+		);
+		vi.stubGlobal("fetch", fetch);
+		await mountLoaded();
+		expect(fetch).toHaveBeenCalledTimes(1);
+		fireEvent.click(screen.getByRole("button", { name: "选择日期：2026-09-07" }));
+		await waitFor(() =>
+			expect(client.getQueryData(transportQueryKeys.schedule("2026-09-08"))).toEqual(
+				schedule("2026-09-08"),
+			),
+		);
+		expect(await screen.findAllByText("2班")).toHaveLength(30);
+		fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+		fireEvent.click(screen.getByRole("button", { name: "后一天" }));
+		await screen.findByText("班次-2026-09-08");
+		expect(fetch).toHaveBeenCalledTimes(2);
 	});
 });

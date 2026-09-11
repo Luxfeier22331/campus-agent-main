@@ -205,7 +205,81 @@ export const TRANSPORT_BASELINE_PERIODS: readonly TransportBaselinePeriod[] = [
 		[["20:00", "all"]],
 		"周六、日及法定节假日班次",
 	),
+	// 355867（2026-04-25）：4/28–5/5 独立安排，不外推到其他年份或假期。
+	specialPeriod(
+		"haidian-to-fengtai",
+		[
+			["08:00", "teacher"],
+			["12:30", "student"],
+			["16:30", "teacher"],
+			["18:10", "teacher"],
+			["20:30", "student"],
+		],
+		"东门内",
+	),
+	specialPeriod(
+		"fengtai-to-haidian",
+		[
+			["08:00", "student"],
+			["12:30", "teacher"],
+			["18:10", "teacher"],
+		],
+		"聚雅餐厅东侧停车场路口",
+	),
+	specialPeriod(
+		"fengtai-to-wukesong",
+		[
+			["09:00", "all"],
+			["09:30", "all"],
+			["10:00", "all"],
+			["10:30", "all"],
+			["11:00", "all"],
+			["11:30", "all"],
+			["15:00", "all"],
+			["16:00", "all"],
+		],
+		"聚雅餐厅东侧停车场路口",
+	),
+	specialPeriod(
+		"wukesong-to-fengtai",
+		[
+			["18:30", "all"],
+			["19:30", "all"],
+			["20:00", "all"],
+			["20:30", "all"],
+			["21:00", "all"],
+			["21:30", "all"],
+			["22:00", "all"],
+		],
+		"五棵松地铁站A口（西北口）北侧200米国家开放大学东门口",
+	),
+	specialPeriod("fengtai-to-libafang", [["08:00", "all"]], "学生活动中心西侧停车场路口"),
+	specialPeriod("libafang-to-fengtai", [["20:00", "all"]], "篱笆房地铁站B2口"),
 ];
+
+function specialPeriod(
+	direction: string,
+	entries: readonly [string, TransportRiderType][],
+	boardingPoint: string,
+): TransportBaselinePeriod {
+	const period = fixedPeriod(
+		`baseline:2026-may-day:${direction}`,
+		`route:${direction}`,
+		"2026-04-28",
+		[1, 2, 3, 4, 5, 6, 7],
+		entries,
+		"五一期间安排",
+	);
+	return {
+		...period,
+		input: {
+			...period.input,
+			validTo: "2026-05-05",
+			boardingPointOverride: boardingPoint,
+			items: period.input.items.map((item) => ({ ...item, boardingPoint: null })),
+		},
+	};
+}
 
 function fixedPeriod(
 	scheduleId: string,

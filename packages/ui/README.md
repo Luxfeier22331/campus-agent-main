@@ -11,6 +11,26 @@
 
 ## 主题
 
+Tabs 默认使用下划线导航；`TabsList presentation="segmented"` 用于少量同级视图，保留 Radix 的
+Tabs 键盘和面板关联。Checkbox 为 20px 方框，支持勾选和混合态，消费者通过关联标签提供至少 44px 的
+点击行。菜单使用 12px 浮层、8px 菜单项和 44px 行高；导航继续由应用维护。
+
+Card 使用 16px 圆角、细边框且不带默认阴影，内边距为窄屏 16px、桌面 20px。Badge 是非交互状态文本，
+Alert 保留原有语义与操作，以文本层级及图标、浅背景和边界表达状态。应用中的表格保持紧凑密度，
+不因外观统一而改变数据结构或改为卡片列表。
+
+Button 使用胶囊外形，图标按钮为圆形。`primary` 强调当前主操作，`secondary` 使用中性填充，
+`outline` 保留细边界，`ghost` 用于轻操作，`destructive` 表达危险操作，`link` 保留文字链接外观。
+主次层级由消费页面决定；同一操作区优先突出一个当前主操作。保存状态由调用方通过 `disabled`、
+`aria-busy` 和文案表达，不在共享按钮中管理请求。小尺寸按钮在窄屏或粗指针设备上扩大触控区域；
+减少动态效果模式下关闭按压缩放。
+
+表单控件使用 12px 圆角、无默认阴影和统一焦点边界；原生输入值、校验、只读和禁用行为保持不变。
+`ToggleGroup` 支持 `presentation="plain" | "segmented" | "chips"`：默认外观兼容旧消费者，
+分段样式用于单选筛选，带固定勾选占位的 chips 用于多选。`type`、值和事件沿用 Radix 接口。
+`Disclosure` / `DisclosureSummary` 保留原生 details/summary 属性、ref 和展开行为，仅统一整行触发区与箭头；
+内容使用普通容器并留出 12px 间距。Dialog 使用 16px 圆角，小型浮层为 12px，不改变焦点管理。
+
 应用入口用 `ThemeProvider` 包住页面，并在入口 HTML 引用 `theme-bootstrap.js`。控件通过
 `ThemeModeControl` 提供“跟随系统”“浅色”“深色”三种选择；默认跟随系统，手动选择只保存外观
 偏好，不保存业务数据。无 Provider 时 `useTheme` 使用可静态渲染的 system 默认值，便于文档预渲染和

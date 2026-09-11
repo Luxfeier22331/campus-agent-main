@@ -113,8 +113,8 @@
 	--input-radius: var(--radius-md);
 	--card-bg: var(--sys-surface-default);
 	--card-border: var(--sys-border-subtle);
-	--card-radius: var(--radius-md);
-	--card-shadow: var(--shadow-xs);
+	--card-radius: var(--radius-xl);
+	--card-shadow: none;
 	--ui-page-gutter: 1rem;
 	--ui-section-gap: var(--space-8);
 	--ui-control-height: var(--control-height-default);

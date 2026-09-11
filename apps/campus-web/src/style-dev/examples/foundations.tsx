@@ -1,4 +1,4 @@
-import { Badge, Button, ThemeModeControl } from "@campus-agent/ui";
+import { Badge, Button, ThemeModeControl, ThemeModeMenu } from "@campus-agent/ui";
 import { useEffect, useRef } from "react";
 import type { StyleDevStory } from "../contracts";
 import { TokenCatalog } from "../token-catalog";
@@ -38,6 +38,7 @@ function ThemeExample() {
 	return (
 		<div className="mx-auto flex max-w-2xl flex-wrap items-center gap-3">
 			<ThemeModeControl aria-label="切换主题" label="主题" />
+			<ThemeModeMenu />
 			<Badge tone="neutral">中性内容</Badge>
 			<Badge tone="info">信息提示</Badge>
 			<Button size="sm" variant="primary">

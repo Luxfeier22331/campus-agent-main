@@ -81,6 +81,40 @@
 	--field-shadow: var(--shadow-xs);
 }
 
+[data-campus-account-surface="account-menu"] {
+	max-width: calc(100vw - 2rem);
+	border: 1px solid var(--sys-border-subtle);
+	border-radius: var(--radius-lg);
+	background: var(--sys-surface-raised);
+	color: var(--sys-text-default);
+	box-shadow: var(--shadow-sm);
+}
+
+[data-campus-account-surface="account-menu"] [data-slot="menu-item"] {
+	min-height: var(--control-height-touch);
+	gap: 0.5rem;
+	border-radius: var(--radius-md);
+}
+
+[data-campus-account-surface="account-menu"] [data-slot="menu-item"][data-focus="true"],
+[data-campus-account-surface="account-menu"] [data-slot="menu-item"][data-hovered="true"] {
+	background: var(--sys-surface-hover);
+	color: var(--sys-text-default);
+}
+
+[data-campus-account-surface="account-menu"] [data-slot="menu-item"][data-focus-visible="true"] {
+	outline: 2px solid var(--sys-focus-ring);
+	outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-campus-account-surface="account-menu"][data-entering="true"],
+	[data-campus-account-surface="account-menu"][data-exiting="true"] {
+		animation: none;
+		transition: none;
+	}
+}
+
 [data-campus-account-surface="settings"] .tabs__list-container {
 	border-radius: var(--radius-lg);
 }

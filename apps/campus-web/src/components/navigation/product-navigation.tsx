@@ -87,7 +87,7 @@ function ProductNavButton({
 	linkMode: ProductNavigationLinkMode;
 }) {
 	const className = cn(
-		"min-h-9 rounded-md bg-transparent px-2.5 text-xs text-inherit",
+		"min-h-9 rounded-[var(--radius-lg)] bg-transparent px-2.5 text-xs text-inherit focus-visible:ring-inset",
 		active
 			? "bg-selected font-semibold text-selected-foreground hover:bg-selected-hover hover:text-selected-foreground active:bg-selected-pressed"
 			: "",

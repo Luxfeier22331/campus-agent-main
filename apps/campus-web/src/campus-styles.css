@@ -50,6 +50,10 @@
 }
 
 @layer base {
+	html:has(.campus-transport-page) {
+		scrollbar-gutter: stable;
+	}
+
 	:focus-visible {
 		outline-color: var(--campus-focus-ring);
 	}

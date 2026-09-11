@@ -79,6 +79,7 @@ describe("campus worker app-api proxy allowlist", () => {
 
 	it("allows the public transport schedule route without broadening transport paths", () => {
 		expect(isAllowedCampusAppApiRequest("/api/transport/schedule")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/transport/schedule-range")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/transport/admin")).toBe(false);
 		expect(isAllowedCampusAppApiRequest("/api/transport/schedule/items")).toBe(false);
 	});

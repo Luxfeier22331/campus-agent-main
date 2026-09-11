@@ -158,14 +158,14 @@ export function SignUpForm({
 					render={({ field, fieldState }) => (
 						<div>
 							<label
-								className="flex cursor-pointer items-start gap-2 text-sm leading-5"
+								className="flex min-h-11 cursor-pointer items-start gap-2 py-3 text-sm leading-5"
 								htmlFor={legalConsentId}
 							>
 								<Checkbox
 									aria-describedby={fieldState.error ? legalConsentErrorId : undefined}
 									aria-invalid={fieldState.invalid || undefined}
 									checked={field.value}
-									className="mt-0.5"
+									className="mt-0"
 									id={legalConsentId}
 									name={field.name}
 									onBlur={field.onBlur}
