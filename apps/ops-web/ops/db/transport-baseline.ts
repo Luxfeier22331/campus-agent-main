@@ -34,8 +34,12 @@ export const TRANSPORT_BASELINE_ROUTES: readonly TransportRouteInput[] = [
 		serviceKind: "commute",
 	},
 	{
-		boardingGuide: COMMUTE_GUIDE,
-		dropOffPoint: null,
+		boardingGuide: [
+			COMMUTE_GUIDE,
+			"海淀校区停车点：教师点在校东门内北侧，学生点在校东门内南侧。",
+			"途中可在地铁10号线莲花桥站、地铁6号线花园桥站附近下车。",
+		].join("\n"),
+		dropOffPoint: "校东门内",
 		defaultBoardingPoint: "聚雅餐厅东侧停车场路口",
 		destination: "海淀校区",
 		displayOrder: 1,

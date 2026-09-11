@@ -99,6 +99,8 @@ spec:
               value: http://object-store:9000
             - name: OBJECT_STORE_BUCKET_SOURCE
               value: campus-agent-source
+            - name: OBJECT_STORE_BUCKET_DERIVED
+              value: campus-agent-derived
             - name: OBJECT_STORE_SOURCE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:

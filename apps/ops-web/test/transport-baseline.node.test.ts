@@ -72,6 +72,17 @@ describe("transport initialization data", () => {
 		expect(period?.input.note).not.toContain("下车");
 		expect(period?.input.note).not.toContain("预约");
 	});
+	it("includes the Haidian destination and intermediate drop-offs only on the return route", () => {
+		const route = TRANSPORT_BASELINE_ROUTES.find((r) => r.routeId === "route:fengtai-to-haidian");
+		expect(route?.dropOffPoint).toBe("校东门内");
+		expect(route?.boardingGuide).toContain("教师点在校东门内北侧，学生点在校东门内南侧");
+		expect(route?.boardingGuide).toContain("地铁10号线莲花桥站、地铁6号线花园桥站附近下车");
+		expect(route?.boardingGuide).toContain("学生乘车须提前申请");
+		const outbound = TRANSPORT_BASELINE_ROUTES.find(
+			(r) => r.routeId === "route:haidian-to-fengtai",
+		);
+		expect(outbound?.boardingGuide).not.toContain("莲花桥");
+	});
 	it("serves 24 weekday departures and 26 weekend departures", () => {
 		for (const [date, count] of [
 			["2026-09-08", 24],
