@@ -3,7 +3,12 @@ import {
 	transportScheduleItems,
 	transportSchedulePeriods,
 } from "@campus-agent/transport/schema";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
+import {
+	MAY_DAY_PERIODS,
+	SUMMER_PERIODS,
+} from "../../../packages/domains/transport/test/fixtures/history";
 import type { RuntimeDatabase } from "../src/db/runtime";
 import { createPgTransportScheduleService } from "../src/modules/transport/schedule-store";
 
@@ -11,6 +16,98 @@ const ROUTE_ID = "route:test";
 const DATE = "2026-09-07";
 
 describe("transport schedule public projection", () => {
+	it("loads only winning-period published metadata in one batch and keeps the old shape without include", async () => {
+		const execute = vi.fn().mockResolvedValue({
+			rows: [
+				{
+					schedule_id: "special",
+					notice_id: "358327",
+					title: "恢复运行",
+					released_at: "2026-08-28T00:00:00Z",
+					is_external: false,
+					external_url: null,
+				},
+				{
+					schedule_id: "special",
+					notice_id: "357813",
+					title: "暑期停运",
+					released_at: "2026-07-07T00:00:00Z",
+					is_external: true,
+					external_url: "https://example.org/notice",
+				},
+			],
+		});
+		const db = fakeDatabase({
+			routes: [route()],
+			periods: [
+				period({ scheduleId: "baseline" }),
+				period({
+					scheduleId: "special",
+					validFrom: "2026-09-07",
+					validTo: "2026-09-08",
+					status: "suspended",
+					dropOffPointOverride: "调整下车点",
+				}),
+			],
+			items: [item({ scheduleId: "baseline", itemId: "baseline:0" })],
+		});
+		db.execute = execute;
+		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		expect((await service.getSchedule(DATE)).routes[0]).not.toHaveProperty("noticeContext");
+		expect(execute).not.toHaveBeenCalled();
+		const result = await service.getRange("2026-09-07", "2026-09-09", { includeNotices: true });
+		expect(execute).toHaveBeenCalledTimes(1);
+		const query = new PgDialect().sqlToQuery(execute.mock.calls[0]?.[0]);
+		expect(query.sql).toContain("AND n.is_published");
+		expect(query.params).toEqual(["special", "baseline"]);
+		expect(query.sql).not.toMatch(/summary|content_html|ocr/);
+		const first = result.days[0];
+		expect(first?.routes[0]).toMatchObject({
+			status: "suspended",
+			departures: [],
+			noticeContext: {
+				validFrom: "2026-09-07",
+				validTo: "2026-09-08",
+				notices: [
+					{ noticeId: "358327", title: "恢复运行" },
+					{ noticeId: "357813", isExternal: true },
+				],
+			},
+		});
+		expect(first?.routeCatalog[0]?.dropOffPoint).toBe("调整下车点");
+		expect(result.days[2]?.routeCatalog[0]?.dropOffPoint).toBe("东门");
+		expect(result.days[2]?.routes[0]?.noticeContext?.notices).toEqual([]);
+		for (const day of result.days) {
+			expect(await service.getSchedule(day.date, { includeNotices: true })).toEqual(day);
+		}
+	});
+	it("projects shared complete historical tables without merging overlapping periods", async () => {
+		const fixtures = [...MAY_DAY_PERIODS, ...SUMMER_PERIODS];
+		const ids = [...new Set(fixtures.map((p) => p.input.routeId))];
+		const db = fakeDatabase({
+			routes: ids.map((routeId) => ({ ...route(), routeId })),
+			periods: fixtures.map(({ scheduleId, input }) => ({ ...period({ scheduleId }), ...input })),
+			items: fixtures.flatMap(({ scheduleId, input }) =>
+				input.items.map((entry, index) => ({
+					...item({ scheduleId, itemId: `${scheduleId}:${index}` }),
+					...entry,
+				})),
+			),
+		});
+		const service = createPgTransportScheduleService({} as never, { getDb: async () => db });
+		expect(
+			(await service.getSchedule("2026-04-27")).routes.reduce((n, r) => n + r.departures.length, 0),
+		).toBe(24);
+		expect(
+			(await service.getSchedule("2026-04-28")).routes.reduce((n, r) => n + r.departures.length, 0),
+		).toBe(25);
+		expect(
+			(await service.getSchedule("2026-07-13")).routes.reduce((n, r) => n + r.departures.length, 0),
+		).toBe(6);
+		expect(
+			(await service.getSchedule("2026-08-30")).routes.reduce((n, r) => n + r.departures.length, 0),
+		).toBe(4);
+	});
 	it("reads the three tables once for a whole month and applies the same period precedence as Ops", async () => {
 		const db = fakeDatabase({
 			routes: [route()],
@@ -270,6 +367,7 @@ function route() {
 
 function period(input: {
 	boardingPointOverride?: string | null;
+	dropOffPointOverride?: string | null;
 	scheduleId: string;
 	status?: "operating" | "suspended";
 	validFrom?: string;
@@ -279,6 +377,7 @@ function period(input: {
 }) {
 	return {
 		boardingPointOverride: input.boardingPointOverride ?? null,
+		dropOffPointOverride: input.dropOffPointOverride ?? null,
 		createdAt: new Date("2026-08-01T00:00:00.000Z"),
 		note: input.note ?? null,
 		routeId: ROUTE_ID,

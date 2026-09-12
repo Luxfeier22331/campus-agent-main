@@ -70,6 +70,12 @@ import {
 	NoticeJobUnavailableError,
 } from "./notice-jobs.ts";
 import {
+	createNoticePreviewStore,
+	type NoticePreviewEnv,
+	NoticePreviewError,
+	type NoticePreviewStore,
+} from "./notice-preview.ts";
+import {
 	createPgNoticeStore,
 	createUnavailableNoticeStore,
 	NoticeNotFoundError,
@@ -114,6 +120,7 @@ import {
 	providerConfigAdminErrorResponse,
 	registerModelSettingsRoutes,
 } from "./routes/model-settings.ts";
+import { registerNoticePreviewRoutes } from "./routes/notice-preview.ts";
 import { registerNoticeRoutes } from "./routes/notices.ts";
 import { registerObservabilityRoutes, registerOverviewRoute } from "./routes/observability.ts";
 import { registerOcrRoutes } from "./routes/ocr.ts";
@@ -138,6 +145,7 @@ type OpsAppEnv = OpsAdmissionEnv &
 	AccountAdminEnv &
 	CampusGroupsAdminEnv &
 	DiningStoreEnv &
+	NoticePreviewEnv &
 	OpsWebDatabaseEnv &
 	OpsHealthEnv &
 	OpsStatusEnv &
@@ -157,6 +165,7 @@ interface OpsAppOptions {
 	overviewService?: OpsOverviewService;
 	noticeJobService?: NoticeJobService;
 	noticeStore?: NoticeStore;
+	noticePreviewStore?: NoticePreviewStore;
 	transportStore?: TransportStore;
 	staticRoot?: string;
 	store?: OpsStatusStore;
@@ -253,6 +262,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	});
 
 	app.onError((error, context) => {
+		if (error instanceof NoticePreviewError) {
+			return jsonError(error.code, error.message, error.status);
+		}
 		const respond = (response: Response, failureKind: string) => {
 			const requestId = normalizeLogRequestId(
 				context.req.header("x-request-id") ?? context.req.param("requestId"),
@@ -544,6 +556,12 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 	registerObservabilityRoutes({ admission, app, store });
 	registerCampusGroupsRoutes({ admission, app, client: campusGroupsClient, publicOrigin });
 	registerNoticeRoutes({ admission, app, jobService: noticeJobService, store: noticeStore });
+	registerNoticePreviewRoutes({
+		admission,
+		app,
+		store: noticeStore,
+		source: options.noticePreviewStore ?? createNoticePreviewStore(env),
+	});
 	registerDiningRoutes({
 		admission,
 		app,
@@ -580,6 +598,9 @@ function createUnavailableTransportStore(cause: unknown): TransportStore {
 	const fail = () =>
 		Promise.reject(new TransportStoreUnavailableError("班车管理数据库不可用。", { cause }));
 	return {
+		listSchedulePeriodNotices: fail,
+		replaceSchedulePeriodNotices: fail,
+		listNoticeSchedulePeriods: fail,
 		createRoute: fail,
 		createSchedulePeriod: fail,
 		deleteRoute: fail,

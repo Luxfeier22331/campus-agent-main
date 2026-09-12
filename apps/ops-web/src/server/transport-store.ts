@@ -4,6 +4,9 @@ import { TransportRouteInputSchema } from "@campus-agent/transport/domain";
 import type { Pool, PoolClient } from "pg";
 
 import {
+	NoticeTransportPeriodsResponseSchema,
+	type TransportNoticeLinkInput,
+	TransportNoticeLinksResponseSchema,
 	type TransportOpsActor,
 	type TransportOpsRoute,
 	TransportOpsRouteSchema,
@@ -17,6 +20,7 @@ import {
 import {
 	TransportStoreConflictError,
 	TransportStoreNotFoundError,
+	TransportStoreValidationError,
 	withTransportStoreErrors,
 } from "./transport-store-errors.ts";
 
@@ -29,6 +33,50 @@ export function createPgTransportStore(input: {
 	const now = input.now ?? (() => new Date());
 
 	return {
+		async listSchedulePeriodNotices(scheduleId) {
+			return withTransportStoreErrors(async () => {
+				await requireSchedulePeriod(input.pool, scheduleId);
+				return readNoticeLinks(input.pool, scheduleId);
+			});
+		},
+		async replaceSchedulePeriodNotices(scheduleId, links) {
+			return withTransportStoreErrors(() =>
+				transaction(input.pool, async (client) => {
+					const result = await client.query(
+						"SELECT schedule_id FROM transport.schedule_periods WHERE schedule_id = $1 FOR UPDATE",
+						[scheduleId],
+					);
+					if (!result.rowCount) {
+						throw new TransportStoreNotFoundError("班次时间段不存在。");
+					}
+					await writeNoticeLinks(client, scheduleId, links);
+					return readNoticeLinks(client, scheduleId);
+				}),
+			);
+		},
+		async listNoticeSchedulePeriods(noticeId) {
+			return withTransportStoreErrors(async () => {
+				const notice = await input.pool.query(
+					"SELECT notice_id FROM notices.notices WHERE notice_id=$1",
+					[noticeId],
+				);
+				if (!notice.rowCount) {
+					throw new TransportStoreNotFoundError("通知不存在。");
+				}
+				const result = await input.pool.query(
+					`SELECT p.schedule_id AS "scheduleId", p.route_id AS "routeId",
+					r.origin, r.destination, p.valid_from::text AS "validFrom", p.valid_to::text AS "validTo",
+					p.weekdays, p.status, l.summary
+					FROM transport.schedule_period_notices l
+					JOIN transport.schedule_periods p USING (schedule_id)
+					JOIN transport.routes r USING (route_id)
+					WHERE l.notice_id=$1 ORDER BY p.valid_from DESC, r.display_order, p.schedule_id`,
+					[noticeId],
+				);
+				return NoticeTransportPeriodsResponseSchema.parse({ schedulePeriods: result.rows })
+					.schedulePeriods;
+			});
+		},
 		async listRoutes() {
 			return withTransportStoreErrors(async () => {
 				const result = await input.pool.query(
@@ -151,6 +199,10 @@ export function createPgTransportStore(input: {
 					await requireRoute(client, periodInput.routeId);
 					const scheduleId = `schedule:${randomUUID().replaceAll("-", "")}`;
 					await insertSchedulePeriod(client, actor, scheduleId, periodInput, now());
+					const noticeLinks = periodInput.noticeLinks ?? [];
+					if (noticeLinks.length > 0) {
+						await writeNoticeLinks(client, scheduleId, noticeLinks);
+					}
 					return requireSchedulePeriod(client, scheduleId);
 				}),
 			);
@@ -181,11 +233,53 @@ export function createPgTransportStore(input: {
 	};
 }
 
+async function readNoticeLinks(db: TransportDatabase, scheduleId: string) {
+	const result = await db.query(
+		`SELECT l.notice_id::text AS "noticeId", l.summary, n.title,
+		n.released_at AS "releasedAt", n.is_published AS "isPublished"
+		FROM transport.schedule_period_notices l JOIN notices.notices n USING (notice_id)
+		WHERE l.schedule_id=$1 ORDER BY n.released_at DESC, n.notice_id DESC`,
+		[scheduleId],
+	);
+	return TransportNoticeLinksResponseSchema.parse({
+		noticeLinks: result.rows.map((row) => ({
+			...row,
+			noticeId: Number(row.noticeId),
+			releasedAt: new Date(row.releasedAt).toISOString(),
+		})),
+	}).noticeLinks;
+}
+
+async function writeNoticeLinks(
+	db: TransportDatabase,
+	scheduleId: string,
+	links: TransportNoticeLinkInput[],
+) {
+	if (links.length > 0) {
+		const notices = await db.query(
+			"SELECT notice_id FROM notices.notices WHERE notice_id=ANY($1::bigint[]) FOR KEY SHARE",
+			[links.map((link) => link.noticeId)],
+		);
+		if (notices.rowCount !== links.length) {
+			throw new TransportStoreValidationError("所选通知不存在或重复，请重新选择。");
+		}
+	}
+	await db.query("DELETE FROM transport.schedule_period_notices WHERE schedule_id=$1", [
+		scheduleId,
+	]);
+	for (const link of links) {
+		await db.query(
+			"INSERT INTO transport.schedule_period_notices (schedule_id, notice_id, summary) VALUES ($1,$2,$3)",
+			[scheduleId, link.noticeId, link.summary],
+		);
+	}
+}
+
 async function listSchedulePeriods(db: TransportDatabase): Promise<TransportOpsSchedulePeriod[]> {
 	const [periodResult, itemResult] = await Promise.all([
 		db.query(
 			`SELECT schedule_id, route_id, valid_from::text, valid_to::text, weekdays, status,
-			        boarding_point_override, note, created_at, updated_at, updated_by
+			        boarding_point_override, drop_off_point_override, note, created_at, updated_at, updated_by
 			 FROM transport.schedule_periods
 			 ORDER BY valid_from DESC, schedule_id`,
 		),
@@ -213,8 +307,8 @@ async function insertSchedulePeriod(
 	await client.query(
 		`INSERT INTO transport.schedule_periods
 		 (schedule_id, route_id, valid_from, valid_to, weekdays, status,
-		  boarding_point_override, note, created_at, updated_at, updated_by)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10)`,
+		  boarding_point_override, note, created_at, updated_at, updated_by, drop_off_point_override)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11)`,
 		[
 			scheduleId,
 			periodInput.routeId,
@@ -226,6 +320,7 @@ async function insertSchedulePeriod(
 			periodInput.note,
 			timestamp.toISOString(),
 			actor.principalId,
+			periodInput.dropOffPointOverride ?? null,
 		],
 	);
 	await replaceScheduleItems(client, scheduleId, periodInput.items);
@@ -242,7 +337,7 @@ async function updateSchedulePeriodRow(
 		`UPDATE transport.schedule_periods
 		 SET route_id = $2, valid_from = $3, valid_to = $4, weekdays = $5,
 		     status = $6, boarding_point_override = $7, note = $8,
-		     updated_at = $9, updated_by = $10
+		     updated_at = $9, updated_by = $10, drop_off_point_override = $11
 		 WHERE schedule_id = $1`,
 		[
 			scheduleId,
@@ -255,6 +350,7 @@ async function updateSchedulePeriodRow(
 			periodInput.note,
 			timestamp.toISOString(),
 			actor.principalId,
+			periodInput.dropOffPointOverride ?? null,
 		],
 	);
 	await replaceScheduleItems(client, scheduleId, periodInput.items);
@@ -311,7 +407,7 @@ async function requireSchedulePeriod(
 ): Promise<TransportOpsSchedulePeriod> {
 	const result = await db.query(
 		`SELECT schedule_id, route_id, valid_from::text, valid_to::text, weekdays, status,
-		        boarding_point_override, note, created_at, updated_at, updated_by
+		        boarding_point_override, drop_off_point_override, note, created_at, updated_at, updated_by
 		 FROM transport.schedule_periods WHERE schedule_id = $1`,
 		[scheduleId],
 	);
@@ -353,6 +449,7 @@ function toSchedulePeriod(
 ): TransportOpsSchedulePeriod {
 	return TransportOpsSchedulePeriodSchema.parse({
 		boardingPointOverride: nullableText(row.boarding_point_override),
+		dropOffPointOverride: nullableText(row.drop_off_point_override),
 		createdAt: isoDateTime(row.created_at),
 		items: itemRows.map(toScheduleItem),
 		note: nullableText(row.note),

@@ -3,7 +3,8 @@ import type {
 	TransportServiceKind,
 } from "@campus-agent/transport/domain";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
 import { TransportMonthCalendar } from "@/components/transport/transport-calendar";
 import {
 	type RiderFilter,
@@ -11,6 +12,7 @@ import {
 	transportDate,
 } from "@/components/transport/transport-page-view";
 import { transportScheduleQueryOptions } from "@/features/transport/queries";
+import type { TransportSearch } from "@/features/transport/route-search";
 import { createCampusQueryClient } from "@/platform/query/client";
 
 const transportQueryClient = createCampusQueryClient();
@@ -18,20 +20,40 @@ function stationOf(route: { origin: string; destination: string }) {
 	return route.origin === "丰台校区" ? route.destination : route.origin;
 }
 export function TransportPage() {
+	const search = useSearch({ from: "/transport" });
+	const navigate = useNavigate({ from: "/transport" });
+	const onSelectionChange = useCallback(
+		(next: TransportSearch) => {
+			void navigate({ search: next, replace: true, resetScroll: false });
+		},
+		[navigate],
+	);
 	return (
 		<QueryClientProvider client={transportQueryClient}>
-			<TransportPageContent />
+			<TransportPageContent initialSearch={search} onSelectionChange={onSelectionChange} />
 		</QueryClientProvider>
 	);
 }
-export function TransportPageContent() {
+export function TransportPageContent({
+	initialSearch = {},
+	onSelectionChange,
+}: {
+	initialSearch?: TransportSearch;
+	onSelectionChange?: (search: TransportSearch) => void;
+}) {
 	const [now, setNow] = useState(() => new Date());
-	const [date, setDate] = useState(() => transportDate(new Date()));
-	const [rider, setRider] = useState<RiderFilter>("all");
-	const [serviceKind, setServiceKind] = useState<TransportServiceKind>("commute");
+	const [date, setDate] = useState(() => initialSearch.date ?? transportDate(new Date()));
+	const [rider, setRider] = useState<RiderFilter>(initialSearch.rider ?? "all");
+	const [serviceKind, setServiceKind] = useState<TransportServiceKind>(
+		initialSearch.serviceKind ?? "commute",
+	);
 	const [selectedRoutes, setSelectedRoutes] = useState<
 		Partial<Record<TransportServiceKind, string>>
-	>({});
+	>(
+		initialSearch.routeId
+			? { [initialSearch.serviceKind ?? "commute"]: initialSearch.routeId }
+			: {},
+	);
 	const query = useQuery(transportScheduleQueryOptions(date));
 	const [lastSuccess, setLastSuccess] = useState<TransportPublicScheduleResponse>();
 	useEffect(() => {
@@ -54,6 +76,16 @@ export function TransportPageContent() {
 		? routeId
 		: routeChoices[0]?.routeId;
 	const previousRoute = lastSuccess?.routes.find((item) => item.routeId === selectedRouteId);
+	useEffect(() => {
+		if (selectedRouteId) {
+			onSelectionChange?.({
+				date,
+				rider,
+				serviceKind: activeServiceKind,
+				routeId: selectedRouteId,
+			});
+		}
+	}, [date, rider, activeServiceKind, selectedRouteId, onSelectionChange]);
 	useEffect(() => {
 		let timer: ReturnType<typeof setTimeout>;
 		const tick = () => {

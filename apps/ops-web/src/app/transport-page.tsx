@@ -24,6 +24,7 @@ import {
 	TabsTrigger,
 } from "@campus-agent/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useBlocker, useNavigate } from "@tanstack/react-router";
 import { Plus, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -41,8 +42,8 @@ import {
 import { ErrorState, InlineError, PageHeader, PageShell } from "./ops-display";
 import { TransportCalendar } from "./transport-calendar";
 import { TransportPeriodEditor, TransportRouteEditor } from "./transport-editors";
-
 import { effectiveDetails } from "./transport-impact";
+import { TransportNoticeLinkEditor } from "./transport-notice-links";
 import { ConfirmAction } from "./ui/alert-dialog";
 
 function weekdayOf(date: string) {
@@ -55,14 +56,20 @@ const KINDS = ["commute", "subway", "special"] as const;
 type ServiceKind = (typeof KINDS)[number];
 type Editor =
 	| { type: "route"; source: TransportOpsRoute | null }
+	| { type: "notices"; source: TransportOpsSchedulePeriod }
 	| {
 			type: "period";
 			source: TransportOpsSchedulePeriod | null;
 			copy: boolean;
 			initial?: TransportOpsSchedulePeriodInput;
+			quickAction?: { kind: "add" | "edit" | "cancel"; index: number };
 	  };
 
-export function TransportPage() {
+export function TransportPage({
+	initialScheduleId,
+}: {
+	initialScheduleId?: string | undefined;
+} = {}) {
 	const client = useQueryClient();
 	const routes = useQuery({
 		queryKey: [...QUERY_ROOT, "routes"],
@@ -83,6 +90,7 @@ export function TransportPage() {
 	}
 	return (
 		<TransportWorkspace
+			initialScheduleId={initialScheduleId}
 			routes={routes.data.routes}
 			periods={periods.data.schedulePeriods}
 			onChanged={refresh}
@@ -98,30 +106,66 @@ function TransportWorkspace({
 	onChanged,
 	refreshing,
 	error,
+	initialScheduleId,
 }: {
 	routes: TransportOpsRoute[];
 	periods: TransportOpsSchedulePeriod[];
 	onChanged: () => void;
 	refreshing: boolean;
 	error: unknown;
+	initialScheduleId?: string | undefined;
 }) {
+	const target = periods.find((period) => period.scheduleId === initialScheduleId);
+	const targetRoute = routes.find((route) => route.routeId === target?.routeId);
 	const kinds = KINDS.filter((kind) => routes.some((route) => route.serviceKind === kind));
-	const [requestedKind, setKind] = useState<ServiceKind>(kinds[0] ?? "commute");
+	const [requestedKind, setKind] = useState<ServiceKind>(
+		targetRoute?.serviceKind ?? kinds[0] ?? "commute",
+	);
 	const kind = kinds.includes(requestedKind) ? requestedKind : (kinds[0] ?? "commute");
 	const kindRoutes = routes.filter((route) => route.serviceKind === kind);
-	const [selectedId, setSelectedId] = useState<string>();
+	const [selectedId, setSelectedId] = useState<string | undefined>(targetRoute?.routeId);
 	const selected = kindRoutes.find((route) => route.routeId === selectedId) ?? kindRoutes[0];
 	const routePeriods = periods.filter((period) => period.routeId === selected?.routeId);
-	const [editor, setEditor] = useState<Editor | null>(null);
+	const [editor, setEditor] = useState<Editor | null>(
+		target ? { type: "period", source: target, copy: false } : null,
+	);
 	const [dirty, setDirty] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [confirmOpen, setConfirmOpen] = useState(false);
+	const navigate = useNavigate({ from: "/transport" });
+	const resolvedEntry = useRef(initialScheduleId);
+	const blocker = useBlocker({
+		disabled: !(dirty || busy),
+		shouldBlockFn: () => dirty || busy,
+		enableBeforeUnload: dirty || busy,
+		withResolver: true,
+	});
+	useEffect(() => {
+		if (busy && blocker.status === "blocked") {
+			blocker.reset();
+		}
+	}, [busy, blocker]);
 	const pendingAction = useRef<(() => void) | null>(null);
 	const editorRef = useRef<HTMLDivElement>(null);
+	// Only called after the local leave guard, or a successful save.
+	const clearEntry = () => {
+		if (!initialScheduleId) {
+			return;
+		}
+		resolvedEntry.current = undefined;
+		void navigate({
+			to: "/transport",
+			search: {},
+			replace: true,
+			resetScroll: false,
+			ignoreBlocker: true,
+		});
+	};
 	const close = () => {
 		setEditor(null);
 		setDirty(false);
 		setBusy(false);
+		clearEntry();
 	};
 	const guard = (action: () => void) => {
 		if (busy) {
@@ -140,20 +184,10 @@ function TransportWorkspace({
 			editorRef.current?.focus({ preventScroll: true });
 		}
 	}, [editor]);
-	useEffect(() => {
-		if (!dirty) {
-			return;
-		}
-		const beforeUnload = (event: BeforeUnloadEvent) => {
-			event.preventDefault();
-			event.returnValue = "";
-		};
-		window.addEventListener("beforeunload", beforeUnload);
-		return () => window.removeEventListener("beforeunload", beforeUnload);
-	}, [dirty]);
 	const begin = (next: Editor) =>
 		guard(() => {
 			setDirty(false);
+			clearEntry();
 			setEditor(next);
 		});
 	const selectRoute = (id: string) =>
@@ -168,9 +202,61 @@ function TransportWorkspace({
 			setSelectedId(undefined);
 		});
 	const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
-	const [viewDate, setViewDate] = useState(today);
-	const [calendarMonth, setCalendarMonth] = useState(`${today.slice(0, 7)}-01`);
+	const [viewDate, setViewDate] = useState(target?.validFrom ?? today);
+	const [calendarMonth, setCalendarMonth] = useState(
+		`${(target?.validFrom ?? today).slice(0, 7)}-01`,
+	);
+	useEffect(() => {
+		if (resolvedEntry.current === initialScheduleId) {
+			return;
+		}
+		resolvedEntry.current = initialScheduleId;
+		setDirty(false);
+		setBusy(false);
+		setEditor(target ? { type: "period", source: target, copy: false } : null);
+		if (target && targetRoute) {
+			setKind(targetRoute.serviceKind);
+			setSelectedId(targetRoute.routeId);
+			setViewDate(target.validFrom);
+			setCalendarMonth(`${target.validFrom.slice(0, 7)}-01`);
+		}
+	}, [initialScheduleId, target, targetRoute]);
 	const effective = selectTransportPeriod(routePeriods, viewDate);
+	const quickEdit = (action: "add" | "edit" | "cancel", index = 0) => {
+		if (!selected) {
+			return;
+		}
+		const initial = effective
+			? periodInputForRange(effective, viewDate, viewDate, effective.status)
+			: {
+					routeId: selected.routeId,
+					validFrom: viewDate,
+					validTo: viewDate,
+					weekdays: [weekdayOf(viewDate)],
+					status: "operating" as const,
+					items: [],
+					boardingPointOverride: null,
+					note: null,
+				};
+		if (action === "add") {
+			initial.status = "operating";
+		}
+		if (action === "cancel") {
+			initial.items = initial.items
+				.filter((_, i) => i !== index)
+				.map((item, sortOrder) => ({ ...item, sortOrder }));
+			if (initial.items.length === 0) {
+				initial.status = "suspended";
+			}
+		}
+		begin({
+			type: "period",
+			source: effective,
+			copy: true,
+			initial,
+			quickAction: { kind: action, index: action === "add" ? initial.items.length : index },
+		});
+	};
 	return (
 		<section className="mx-auto w-full max-w-[1440px]">
 			<PageHeader
@@ -199,6 +285,14 @@ function TransportWorkspace({
 				}
 			/>
 			{error ? <InlineError error={error} title="刷新失败，仍显示已有班车数据" /> : null}
+			{initialScheduleId && !target ? (
+				<div className="grid gap-3 rounded border p-4">
+					<p role="alert">所关联的时间段不存在或已删除。</p>
+					<Button className="justify-self-start" variant="outline" onClick={() => guard(close)}>
+						返回班车维护
+					</Button>
+				</div>
+			) : null}
 			<Tabs value={kind} onValueChange={selectKind}>
 				<TabsList aria-label="班车服务类型" presentation="segmented">
 					{kinds.map((item) => (
@@ -264,7 +358,16 @@ function TransportWorkspace({
 							</nav>
 						</div>
 						<div className="min-w-0 scroll-mt-24 outline-none" ref={editorRef} tabIndex={-1}>
-							{editor?.type === "route" ? (
+							{editor?.type === "notices" ? (
+								<TransportNoticeLinkEditor
+									key={editor.source.scheduleId}
+									scheduleId={editor.source.scheduleId}
+									onDirty={setDirty}
+									onBusy={setBusy}
+									onCancel={() => guard(close)}
+									onSaved={close}
+								/>
+							) : editor?.type === "route" ? (
 								<TransportRouteEditor
 									key={editor.source?.routeId ?? "new"}
 									source={editor.source}
@@ -284,6 +387,7 @@ function TransportWorkspace({
 									key={`${editor.copy ? "copy" : "edit"}-${editor.source?.scheduleId ?? "new"}`}
 									source={editor.source}
 									copy={editor.copy}
+									quickAction={editor.quickAction}
 									route={selected}
 									periods={routePeriods}
 									effectiveDate={viewDate}
@@ -300,7 +404,7 @@ function TransportWorkspace({
 										onChanged();
 									}}
 								/>
-							) : selected ? (
+							) : initialScheduleId && !target ? null : selected ? (
 								<div className="grid gap-5">
 									<div className="grid items-start gap-4 lg:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.1fr)]">
 										<TransportCalendar
@@ -339,6 +443,7 @@ function TransportWorkspace({
 										<section aria-label="当天有效班次" className="grid gap-3 rounded-lg border p-4">
 											<div className="flex flex-wrap items-center justify-between gap-2">
 												<h3 className="font-semibold">{viewDate} · 当天有效班次</h3>
+												<Button onClick={() => quickEdit("add")}>新增班次</Button>
 												{effective ? (
 													<Button
 														variant="outline"
@@ -377,14 +482,62 @@ function TransportWorkspace({
 													生效时间段：{periodLabel(effective)}
 												</p>
 											) : null}
-											<p className="whitespace-pre-line text-sm leading-7">
-												{effectiveDetails(effective, selected).join("\n")}
-											</p>
+											{effective?.status === "operating" ? (
+												<p className="text-sm">
+													下车点：
+													{effective.dropOffPointOverride ?? selected.dropOffPoint ?? "未填写"}
+												</p>
+											) : null}
+											{effective?.status === "operating" ? (
+												<ul className="divide-y">
+													{effective.items.map((item, index) => (
+														<li key={item.itemId} className="grid gap-2 py-3">
+															<div className="flex flex-wrap items-center justify-between gap-2">
+																<span className="font-mono">
+																	{itemTime(item)} · {riderLabel(item.riderType)}
+																</span>
+																<div className="flex gap-1">
+																	<Button
+																		size="sm"
+																		variant="outline"
+																		aria-label={`修改班次 ${itemTime(item)} ${riderLabel(item.riderType)}`}
+																		onClick={() => quickEdit("edit", index)}
+																	>
+																		修改
+																	</Button>
+																	<Button
+																		size="sm"
+																		variant="ghost"
+																		aria-label={`取消班次 ${itemTime(item)} ${riderLabel(item.riderType)}`}
+																		onClick={() => quickEdit("cancel", index)}
+																	>
+																		取消班次
+																	</Button>
+																</div>
+															</div>
+															<p className="text-sm">
+																{item.boardingPoint ??
+																	effective.boardingPointOverride ??
+																	selected.defaultBoardingPoint ??
+																	"乘车点未填写"}
+															</p>
+															{item.note ? (
+																<p className="text-sm text-muted-foreground">{item.note}</p>
+															) : null}
+														</li>
+													))}
+												</ul>
+											) : (
+												<p className="text-sm">
+													{effectiveDetails(effective, selected).join("\n")}
+												</p>
+											)}
 										</section>
 									</div>
 									<RouteDetails
 										route={selected}
 										periods={routePeriods}
+										onNotices={(period) => begin({ type: "notices", source: period })}
 										today={today}
 										onChanged={onChanged}
 										onEditRoute={() => begin({ type: "route", source: selected })}
@@ -408,7 +561,18 @@ function TransportWorkspace({
 					</div>
 				</TabsContent>
 			</Tabs>
-			<AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+			<AlertDialog
+				open={confirmOpen || (!busy && blocker.status === "blocked")}
+				onOpenChange={(open) => {
+					setConfirmOpen(open);
+					if (!open) {
+						pendingAction.current = null;
+						if (blocker.status === "blocked") {
+							blocker.reset();
+						}
+					}
+				}}
+			>
 				<AlertDialogContent>
 					<AlertDialogTitle>放弃未保存的修改？</AlertDialogTitle>
 					<AlertDialogDescription>当前修改尚未保存。</AlertDialogDescription>
@@ -417,6 +581,10 @@ function TransportWorkspace({
 						<AlertDialogAction
 							onClick={() => {
 								setDirty(false);
+								if (blocker.status === "blocked") {
+									blocker.proceed();
+									return;
+								}
 								const action = pendingAction.current;
 								pendingAction.current = null;
 								action?.();
@@ -441,6 +609,7 @@ function RouteDetails({
 	onEdit,
 	onCopy,
 	onEnd,
+	onNotices,
 }: {
 	route: TransportOpsRoute;
 	periods: TransportOpsSchedulePeriod[];
@@ -451,6 +620,7 @@ function RouteDetails({
 	onEdit: (period: TransportOpsSchedulePeriod) => void;
 	onCopy: (period: TransportOpsSchedulePeriod) => void;
 	onEnd: (period: TransportOpsSchedulePeriod) => void;
+	onNotices: (period: TransportOpsSchedulePeriod) => void;
 }) {
 	const remove = useMutation({ mutationFn: deleteTransportRoute, onSuccess: onChanged });
 	const groups = [
@@ -522,6 +692,7 @@ function RouteDetails({
 								<PeriodCard
 									key={period.scheduleId}
 									period={period}
+									onNotices={() => onNotices(period)}
 									route={route}
 									today={today}
 									onChanged={onChanged}
@@ -560,6 +731,7 @@ function PeriodCard({
 	onCopy,
 	onEnd,
 	canEnd,
+	onNotices,
 }: {
 	period: TransportOpsSchedulePeriod;
 	route: TransportOpsRoute;
@@ -569,6 +741,7 @@ function PeriodCard({
 	onCopy: () => void;
 	onEnd: () => void;
 	canEnd: boolean;
+	onNotices: () => void;
 }) {
 	const remove = useMutation({ mutationFn: deleteTransportSchedulePeriod, onSuccess: onChanged });
 	return (
@@ -586,7 +759,15 @@ function PeriodCard({
 						{transportPeriodIncludesDate(period, today) ? " · 包含今天" : ""}
 					</p>
 				</div>
-				<div className="flex gap-1">
+				<div className="flex flex-wrap gap-1">
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={onNotices}
+						aria-label={`关联通知 ${period.scheduleId}`}
+					>
+						关联通知
+					</Button>
 					<Button
 						onClick={onEdit}
 						size="sm"
@@ -629,6 +810,9 @@ function PeriodCard({
 			{period.note ? <p className="mt-2 text-sm">{period.note}</p> : null}
 			{period.boardingPointOverride ? (
 				<p className="mt-2 text-sm">本时间段乘车点：{period.boardingPointOverride}</p>
+			) : null}
+			{period.dropOffPointOverride ? (
+				<p className="mt-2 text-sm">本时间段下车点：{period.dropOffPointOverride}</p>
 			) : null}
 			{period.status === "operating" ? (
 				<Disclosure className="mt-3 text-sm">
@@ -673,6 +857,7 @@ function PeriodCard({
 function periodInputWithEnd(period: TransportOpsSchedulePeriod, validTo: string) {
 	return TransportOpsSchedulePeriodInputSchema.parse({
 		boardingPointOverride: period.boardingPointOverride,
+		dropOffPointOverride: period.dropOffPointOverride,
 		items: period.items.map(({ itemId: _itemId, ...item }) => item),
 		note: period.note,
 		routeId: period.routeId,
@@ -691,6 +876,7 @@ function periodInputForRange(
 ) {
 	return TransportOpsSchedulePeriodInputSchema.parse({
 		boardingPointOverride: period.boardingPointOverride,
+		dropOffPointOverride: period.dropOffPointOverride,
 		items: status === "suspended" ? [] : period.items.map(({ itemId: _itemId, ...item }) => item),
 		note: period.note,
 		routeId: period.routeId,

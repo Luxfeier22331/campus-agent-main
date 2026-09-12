@@ -231,6 +231,25 @@ export function runPrePushEvidence(
 		TURBO_SCM_HEAD: input.head,
 	};
 	const options = { cwd: input.repositoryRoot, env };
+	const localGitVariables = runner("git", ["rev-parse", "--local-env-vars"], options);
+	if (localGitVariables.error) {
+		throw localGitVariables.error;
+	}
+	if (localGitVariables.status !== 0) {
+		throw new Error("Cannot determine Git hook environment variables for root tests");
+	}
+	// Root tests create their own repositories; hook-local Git paths must not follow them.
+	const rootTestEnv = { ...env };
+	for (const name of (localGitVariables.stdout ?? "").split(/\s+/u).filter(Boolean)) {
+		delete rootTestEnv[name];
+	}
+	runProfileCommand(
+		"pre-push",
+		"nix",
+		["develop", ".#ci-core", "--command", "pnpm", "test"],
+		runner,
+		{ ...options, env: rootTestEnv },
+	);
 	const scope = input.base
 		? resolveAffectedScope(
 				{ base: input.base, head: input.head, repositoryRoot: input.repositoryRoot },

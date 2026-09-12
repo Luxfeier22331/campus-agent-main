@@ -15,7 +15,7 @@ export type {
 
 export async function getTransportSchedule(date: string, input: { signal?: AbortSignal } = {}) {
 	const payload = await requestJson<unknown>({
-		path: `/api/transport/schedule?date=${encodeURIComponent(date)}`,
+		path: `/api/transport/schedule?date=${encodeURIComponent(date)}&include=notices`,
 		...(input.signal ? { signal: input.signal } : {}),
 	});
 	return TransportPublicScheduleResponseSchema.parse(payload);
@@ -27,7 +27,7 @@ export async function getTransportScheduleRange(
 	input: { signal?: AbortSignal } = {},
 ) {
 	const payload = await requestJson<unknown>({
-		path: `/api/transport/schedule-range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+		path: `/api/transport/schedule-range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&include=notices`,
 		...(input.signal ? { signal: input.signal } : {}),
 	});
 	return TransportPublicScheduleRangeSchema.parse(payload);

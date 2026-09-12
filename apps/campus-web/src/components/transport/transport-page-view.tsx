@@ -1,4 +1,5 @@
 import {
+	formatWeekdays,
 	type TransportPublicDeparture,
 	type TransportPublicRoute,
 	type TransportPublicScheduleResponse,
@@ -74,6 +75,7 @@ export function TransportPageView({
 			routeChoices.some((item) => item.serviceKind === kind),
 		);
 	const activeKind = serviceKind ?? choice?.serviceKind ?? kinds[0] ?? "commute";
+	const returnTo = `/transport?${new URLSearchParams({ date, rider, serviceKind: activeKind, routeId: routeId ?? "" })}`;
 	const showRider =
 		route?.departures.some((item) => item.riderType !== "all") ?? showRiderFromPrevious ?? false;
 	const chooseKind = (value: string) => {
@@ -228,6 +230,7 @@ export function TransportPageView({
 				choice ? (
 					activeKind === "subway" ? (
 						<SubwayStationRoutes
+							returnTo={returnTo}
 							choices={routeChoices.filter((item) => stationOf(item) === stationOf(choice))}
 							routes={data?.routes ?? []}
 							date={date}
@@ -238,6 +241,7 @@ export function TransportPageView({
 						/>
 					) : (
 						<TransportRoute
+							returnTo={returnTo}
 							key={`${date}:${routeId}`}
 							route={route}
 							choice={choice}
@@ -261,6 +265,7 @@ function stationOf(route: RouteChoice) {
 }
 
 function SubwayStationRoutes({
+	returnTo,
 	choices,
 	routes,
 	date,
@@ -270,6 +275,7 @@ function SubwayStationRoutes({
 	onDateChange,
 }: {
 	choices: readonly RouteChoice[];
+	returnTo: string;
 	routes: readonly TransportPublicRoute[];
 	date: string;
 	today: string;
@@ -291,6 +297,7 @@ function SubwayStationRoutes({
 						{choice.origin} → {choice.destination}
 					</h2>
 					<TransportRoute
+						returnTo={returnTo}
 						route={routes.find((item) => item.routeId === choice.routeId)}
 						choice={choice}
 						date={date}
@@ -381,6 +388,7 @@ export function nextDepartures(
 }
 
 function TransportRoute({
+	returnTo,
 	route,
 	choice,
 	date,
@@ -390,6 +398,7 @@ function TransportRoute({
 	onDateChange,
 }: {
 	route: TransportPublicRoute | undefined;
+	returnTo: string;
 	choice: RouteChoice;
 	date: string;
 	today: string;
@@ -469,7 +478,7 @@ function TransportRoute({
 							) : undefined
 						}
 					/>
-					{route?.note ? <p className="text-sm">{route.note}</p> : null}
+					<Arrangement route={route} returnTo={returnTo} />
 				</>
 			) : departures.length > 0 ? (
 				<>
@@ -487,6 +496,7 @@ function TransportRoute({
 							))}
 						</section>
 					) : null}
+					<Arrangement route={route} returnTo={returnTo} />
 					{next.length > 0 ? (
 						<section
 							aria-label="下一班及当前运行班次"
@@ -542,10 +552,12 @@ function TransportRoute({
 							<div className="pt-3">{renderList(past)}</div>
 						</Disclosure>
 					) : null}
-					{route.note ? <p className="mt-3 text-sm text-muted-foreground">{route.note}</p> : null}
 				</>
 			) : (
-				<StateMessage title="当天暂无该对象班次" description="可切换班次对象查看。" />
+				<>
+					<Arrangement route={route} returnTo={returnTo} />
+					<StateMessage title="当天暂无该对象班次" description="可切换班次对象查看。" />
+				</>
 			)}
 			{!route || route.status === "suspended" ? (
 				<Disclosure className="mt-4 border-t pt-3 text-sm">
@@ -557,6 +569,79 @@ function TransportRoute({
 		</article>
 	);
 }
+function Arrangement({
+	route,
+	returnTo,
+}: {
+	route: TransportPublicRoute | undefined;
+	returnTo: string;
+}) {
+	const context = route?.noticeContext;
+	const hasNotices = context !== undefined && context.notices.length > 0;
+	if (!(route && (route.note || hasNotices))) {
+		return null;
+	}
+	const links = context?.notices.map((notice) => (
+		<li key={notice.noticeId} className="min-w-0">
+			<a
+				className="inline-flex min-h-11 max-w-full items-center gap-2 py-2 text-info underline underline-offset-4"
+				href={
+					notice.isExternal
+						? notice.externalUrl
+						: `/notices/${notice.noticeId}?returnTo=${encodeURIComponent(returnTo)}`
+				}
+				{...(notice.isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+			>
+				<span className="min-w-0 break-words">{notice.title}</span>
+				<time className="shrink-0 text-xs text-muted-foreground" dateTime={notice.releasedAt}>
+					{new Intl.DateTimeFormat("zh-CN", {
+						timeZone: "Asia/Shanghai",
+						year: "numeric",
+						month: "numeric",
+						day: "numeric",
+					}).format(new Date(notice.releasedAt))}
+				</time>
+			</a>
+		</li>
+	));
+	return (
+		<section
+			aria-label="班次安排"
+			className="my-3 grid gap-1 border-l-2 border-info-border pl-3 text-sm"
+		>
+			{route.note ? <p className="whitespace-pre-line">{route.note}</p> : null}
+			{hasNotices ? (
+				<>
+					<p className="text-xs text-muted-foreground">
+						{context.validFrom}
+						{context.validTo === context.validFrom
+							? ""
+							: context.validTo
+								? ` — ${context.validTo}`
+								: " 起"}{" "}
+						·{" "}
+						{context.weekdays.length === 7
+							? "每天"
+							: context.weekdays.join(",") === "1,2,3,4,5"
+								? "周一至周五"
+								: context.weekdays.join(",") === "6,7"
+									? "周六、周日"
+									: formatWeekdays(context.weekdays)}
+					</p>
+					{context.notices.length === 1 ? (
+						<ul>{links}</ul>
+					) : (
+						<Disclosure>
+							<DisclosureSummary>相关通知（{context.notices.length}）</DisclosureSummary>
+							<ul>{links}</ul>
+						</Disclosure>
+					)}
+				</>
+			) : null}
+		</section>
+	);
+}
+
 function timeGroups(items: TransportPublicDeparture[]) {
 	return [
 		{ label: "早间", items: items.filter((item) => startTime(item) < "12:00") },

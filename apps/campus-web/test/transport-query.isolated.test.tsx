@@ -90,6 +90,52 @@ async function mountLoaded() {
 }
 
 describe("transport query transitions", () => {
+	it("loads notice metadata, persists resolved selections, and hides old notices while switching date", async () => {
+		const pending = deferred();
+		const first = schedule("2026-09-07");
+		first.routes[0]!.noticeContext = {
+			validFrom: "2026-09-07",
+			validTo: null,
+			weekdays: [1, 2, 3, 4, 5],
+			notices: [
+				{
+					noticeId: "355867",
+					title: "仅前一天的通知",
+					releasedAt: "2026-04-25T00:00:00Z",
+					isExternal: false,
+					externalUrl: null,
+				},
+			],
+		};
+		const fetch = vi.fn((input: RequestInfo | URL) => {
+			const url = new URL(String(input), "https://campus.test");
+			expect(url.searchParams.get("include")).toBe("notices");
+			return url.searchParams.get("date") === "2026-09-07"
+				? Promise.resolve(Response.json(first))
+				: pending.promise;
+		});
+		vi.stubGlobal("fetch", fetch);
+		const onSelectionChange = vi.fn();
+		render(
+			<QueryClientProvider client={client}>
+				<TransportPageContent
+					initialSearch={{ date: "2026-09-07", rider: "student" }}
+					onSelectionChange={onSelectionChange}
+				/>
+			</QueryClientProvider>,
+		);
+		await screen.findByRole("link", { name: /仅前一天的通知/ });
+		expect(onSelectionChange).toHaveBeenLastCalledWith({
+			date: "2026-09-07",
+			rider: "student",
+			serviceKind: "commute",
+			routeId: "commute",
+		});
+		fireEvent.click(screen.getByRole("button", { name: "后一天" }));
+		expect(screen.queryByRole("link", { name: /仅前一天的通知/ })).not.toBeInTheDocument();
+		await act(async () => pending.resolve(response("2026-09-08")));
+		await screen.findByText("班次-2026-09-08");
+	});
 	it("keeps audience controls usable during cross-date loading without showing old departures", async () => {
 		const pending = deferred();
 		const first = schedule("2026-09-07");
@@ -314,5 +360,8 @@ describe("transport query transitions", () => {
 		fireEvent.click(screen.getByRole("button", { name: "后一天" }));
 		await screen.findByText("班次-2026-09-08");
 		expect(fetch).toHaveBeenCalledTimes(2);
+		for (const [url] of fetch.mock.calls) {
+			expect(new URL(url, "https://campus.test").searchParams.get("include")).toBe("notices");
+		}
 	});
 });

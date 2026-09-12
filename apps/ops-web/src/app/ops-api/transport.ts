@@ -1,10 +1,16 @@
 import {
+	NoticeTransportPeriodsResponseSchema,
+	type TransportNoticeLinkInput,
+	TransportNoticeLinksInputSchema,
+	TransportNoticeLinksResponseSchema,
 	type TransportOpsRouteCreate,
 	TransportOpsRouteCreateSchema,
 	TransportOpsRouteResponseSchema,
 	TransportOpsRoutesResponseSchema,
 	type TransportOpsRouteUpdate,
 	TransportOpsRouteUpdateSchema,
+	type TransportOpsSchedulePeriodCreate,
+	TransportOpsSchedulePeriodCreateSchema,
 	type TransportOpsSchedulePeriodInput,
 	TransportOpsSchedulePeriodInputSchema,
 	TransportOpsSchedulePeriodResponseSchema,
@@ -50,14 +56,44 @@ export async function fetchTransportSchedulePeriods(input: { signal?: AbortSigna
 	);
 }
 
-export async function createTransportSchedulePeriod(input: TransportOpsSchedulePeriodInput) {
-	TransportOpsSchedulePeriodInputSchema.parse(input);
+export async function createTransportSchedulePeriod(input: TransportOpsSchedulePeriodCreate) {
+	TransportOpsSchedulePeriodCreateSchema.parse(input);
 	return TransportOpsSchedulePeriodResponseSchema.parse(
 		await fetchJson("/api/ops/transport/schedule-periods", {
 			body: JSON.stringify(input),
 			headers: { "content-type": "application/json" },
 			method: "POST",
 		}),
+	);
+}
+
+export async function fetchTransportNoticeLinks(scheduleId: string, signal?: AbortSignal) {
+	return TransportNoticeLinksResponseSchema.parse(
+		await fetchJson(
+			`/api/ops/transport/schedule-periods/${encodeURIComponent(scheduleId)}/notices`,
+			{ signal },
+		),
+	);
+}
+export async function saveTransportNoticeLinks(
+	scheduleId: string,
+	noticeLinks: TransportNoticeLinkInput[],
+) {
+	const body = TransportNoticeLinksInputSchema.parse({ noticeLinks });
+	return TransportNoticeLinksResponseSchema.parse(
+		await fetchJson(
+			`/api/ops/transport/schedule-periods/${encodeURIComponent(scheduleId)}/notices`,
+			{
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body),
+			},
+		),
+	);
+}
+export async function fetchNoticeTransportPeriods(noticeId: number, signal?: AbortSignal) {
+	return NoticeTransportPeriodsResponseSchema.parse(
+		await fetchJson(`/api/ops/notices/${noticeId}/transport-schedule-periods`, { signal }),
 	);
 }
 

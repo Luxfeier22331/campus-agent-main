@@ -45,6 +45,10 @@ describe("notice maintenance page", () => {
 		expect(await screen.findByRole("heading", { name: "通知维护" })).toBeInTheDocument();
 		expect(await screen.findByText("尚无分类结果")).toBeInTheDocument();
 		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
+			button: 0,
+			ctrlKey: false,
+		});
 		expect(await screen.findByRole("option", { name: "请选择分类" })).toBeInTheDocument();
 		fireEvent.click(await screen.findByRole("button", { name: "使用模型分类" }));
 		await waitFor(() =>
@@ -91,6 +95,10 @@ describe("notice maintenance page", () => {
 
 		render(<OpsWebApp initialPath="/notices" />);
 		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
+			button: 0,
+			ctrlKey: false,
+		});
 		fireEvent.click(await screen.findByRole("button", { name: "重新发布" }));
 		await waitFor(() =>
 			expect(requests).toContainEqual({ noticeId: 354516, operation: "notice-republish-one" }),
@@ -149,6 +157,10 @@ describe("notice maintenance page", () => {
 
 		render(<OpsWebApp initialPath="/notices" />);
 		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
+			button: 0,
+			ctrlKey: false,
+		});
 
 		expect(await screen.findByText("完成分类 1 条")).toBeInTheDocument();
 		expect(screen.queryByText("发布通知 1 条")).not.toBeInTheDocument();
@@ -464,6 +476,10 @@ describe("notice maintenance page", () => {
 
 		render(<OpsWebApp initialPath="/notices" />);
 		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
+			button: 0,
+			ctrlKey: false,
+		});
 		expect(await screen.findByRole("combobox", { name: "通知分类" })).toBeInTheDocument();
 		fireEvent.change(screen.getByRole("combobox", { name: "分类" }), {
 			target: { value: "campus_operations" },
@@ -501,10 +517,18 @@ describe("notice maintenance page", () => {
 
 		render(<OpsWebApp initialPath="/notices" />);
 		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
+			button: 0,
+			ctrlKey: false,
+		});
 		const category = await screen.findByRole("combobox", { name: "通知分类" });
 		await waitFor(() => expect(screen.queryByText("正在刷新详情…")).not.toBeInTheDocument());
 		fireEvent.change(category, { target: { value: "campus_operations" } });
 		expect(await screen.findByText("有未保存的分类更改。")).toBeInTheDocument();
+		fireEvent.mouseDown(screen.getByRole("tab", { name: "正文" }), { button: 0, ctrlKey: false });
+		expect(screen.queryByRole("combobox", { name: "通知分类" })).not.toBeInTheDocument();
+		fireEvent.mouseDown(screen.getByRole("tab", { name: "维护" }), { button: 0, ctrlKey: false });
+		expect(screen.getByRole("combobox", { name: "通知分类" })).toHaveValue("campus_operations");
 		fireEvent.click(screen.getByRole("button", { name: "刷新通知队列" }));
 
 		expect(await screen.findByRole("dialog", { name: "有未保存的分类更改" })).toBeInTheDocument();
@@ -597,6 +621,10 @@ describe("notice maintenance page", () => {
 			expect(await screen.findByRole("heading", { name: "通知维护" })).toBeInTheDocument();
 			expect(await screen.findByText("尚无分类结果")).toBeInTheDocument();
 			fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+			fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
+				button: 0,
+				ctrlKey: false,
+			});
 			expect(await screen.findByRole("option", { name: "请选择分类" })).toBeInTheDocument();
 
 			jobFinished = true;
@@ -675,6 +703,10 @@ describe("notice maintenance page", () => {
 
 		render(<OpsWebApp initialPath="/notices" />);
 		fireEvent.click((await screen.findAllByText("测试通知"))[0] as HTMLElement);
+		fireEvent.mouseDown(await screen.findByRole("tab", { name: "维护" }), {
+			button: 0,
+			ctrlKey: false,
+		});
 		const category = await screen.findByRole("combobox", { name: "通知分类" });
 		fireEvent.change(category, { target: { value: "student_affairs" } });
 		expect(await screen.findByText("有未保存的分类更改。")).toBeInTheDocument();
@@ -741,6 +773,13 @@ function noticeListResponse(items: ReturnType<typeof notice>[]) {
 }
 
 function useDesktopViewport() {
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe = vi.fn();
+			disconnect = vi.fn();
+		},
+	);
 	vi.stubGlobal(
 		"matchMedia",
 		vi.fn(() => ({

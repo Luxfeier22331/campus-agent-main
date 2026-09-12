@@ -76,6 +76,7 @@ export const TransportScheduleItemSchema = z.discriminatedUnion("kind", [
 export const TransportSchedulePeriodInputSchema = z
 	.object({
 		boardingPointOverride: OptionalText(500),
+		dropOffPointOverride: OptionalText(500).optional(),
 		items: z.array(TransportScheduleItemSchema).max(2_000),
 		note: OptionalText(1_000),
 		routeId: Identifier,
@@ -156,6 +157,28 @@ export const TransportPublicDepartureSchema = z.discriminatedUnion("kind", [
 	PublicIntervalDepartureSchema,
 ]);
 
+const PublicNoticeBase = z.object({
+	noticeId: z.string().regex(/^[1-9][0-9]*$/u),
+	title: Text(4_000),
+	releasedAt: z.iso.datetime({ offset: true }),
+});
+export const TransportPublicNoticeSchema = z.discriminatedUnion("isExternal", [
+	PublicNoticeBase.extend({ isExternal: z.literal(false), externalUrl: z.null() }).strict(),
+	PublicNoticeBase.extend({
+		isExternal: z.literal(true),
+		externalUrl: z.url().refine((value) => ["http:", "https:"].includes(new URL(value).protocol)),
+	}).strict(),
+]);
+export const TransportNoticeContextSchema = z
+	.object({
+		validFrom: IsoDate,
+		validTo: IsoDate.nullable(),
+		weekdays: Weekdays,
+		notices: z.array(TransportPublicNoticeSchema).max(100),
+	})
+	.strict();
+export type TransportPublicNotice = z.infer<typeof TransportPublicNoticeSchema>;
+
 export const TransportPublicRouteSchema = z
 	.object({
 		boardingPoint: OptionalText(500),
@@ -166,6 +189,7 @@ export const TransportPublicRouteSchema = z
 		routeId: Identifier,
 		serviceKind: TransportServiceKindSchema,
 		status: TransportScheduleStatusSchema,
+		noticeContext: TransportNoticeContextSchema.optional(),
 	})
 	.strict();
 

@@ -2,9 +2,11 @@ import type { Hono } from "hono";
 import type { OpsAdmission, OpsOperatorContext } from "../ops-admission.ts";
 import type { TransportStore } from "../transport-store-contract.ts";
 import {
+	TransportNoticeLinksInputSchema,
 	type TransportOpsActor,
 	TransportOpsRouteCreateSchema,
 	TransportOpsRouteUpdateSchema,
+	TransportOpsSchedulePeriodCreateSchema,
 	TransportOpsSchedulePeriodInputSchema,
 } from "../transport-store-contract.ts";
 import {
@@ -21,6 +23,45 @@ export function registerTransportRoutes(input: {
 	publicOrigin: string | null;
 	store: TransportStore;
 }): void {
+	input.app.get("/api/ops/transport/schedule-periods/:scheduleId/notices", async (context) => {
+		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const id = context.req.param("scheduleId");
+		if (!OpsPathIdSchema.safeParse(id).success) {
+			return jsonError("OPS_TRANSPORT_SCHEDULE_INVALID", "时间段标识无效。", 400);
+		}
+		return context.json({ noticeLinks: await input.store.listSchedulePeriodNotices(id) });
+	});
+	input.app.put("/api/ops/transport/schedule-periods/:scheduleId/notices", async (context) => {
+		const operator = await admitTransportWrite(input, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const id = context.req.param("scheduleId");
+		const body = TransportNoticeLinksInputSchema.safeParse(
+			await readBoundedJson(context.req.raw, 512 * 1024),
+		);
+		if (!(OpsPathIdSchema.safeParse(id).success && body.success)) {
+			return jsonError("OPS_TRANSPORT_NOTICE_LINKS_INVALID", "通知关联无效。", 400);
+		}
+		return context.json({
+			noticeLinks: await input.store.replaceSchedulePeriodNotices(id, body.data.noticeLinks),
+		});
+	});
+	input.app.get("/api/ops/notices/:noticeId/transport-schedule-periods", async (context) => {
+		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
+		if (operator instanceof Response) {
+			return operator;
+		}
+		const raw = context.req.param("noticeId");
+		const id = Number(raw);
+		if (!(/^[1-9][0-9]*$/.test(raw) && Number.isSafeInteger(id))) {
+			return jsonError("OPS_NOTICE_ID_INVALID", "通知 ID 无效。", 400);
+		}
+		return context.json({ schedulePeriods: await input.store.listNoticeSchedulePeriods(id) });
+	});
 	input.app.get("/api/ops/transport/routes", async (context) => {
 		const operator = await admitOpsApiRequest(input.admission, context.req.raw);
 		if (operator instanceof Response) {
@@ -95,7 +136,7 @@ export function registerTransportRoutes(input: {
 		if (operator instanceof Response) {
 			return operator;
 		}
-		const body = TransportOpsSchedulePeriodInputSchema.safeParse(
+		const body = TransportOpsSchedulePeriodCreateSchema.safeParse(
 			await readBoundedJson(context.req.raw, 512 * 1024),
 		);
 		if (!body.success) {

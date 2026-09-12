@@ -1,6 +1,11 @@
 const APP_API_DML_SCHEMAS = ["app_auth", "campus_groups", "chat", "profile"] as const;
 
-const TRANSPORT_READ_TABLES = ["routes", "schedule_periods", "schedule_items"] as const;
+const TRANSPORT_READ_TABLES = [
+	"routes",
+	"schedule_periods",
+	"schedule_items",
+	"schedule_period_notices",
+] as const;
 
 export interface DatabaseGrantClient {
 	query(sql: string): Promise<unknown>;

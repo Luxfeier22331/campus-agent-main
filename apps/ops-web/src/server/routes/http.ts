@@ -40,7 +40,7 @@ export function isJsonContentType(value: string | null | undefined): boolean {
 export function jsonError(
 	code: string,
 	message: string,
-	status: 400 | 401 | 403 | 404 | 409 | 422 | 428 | 500 | 503 = 404,
+	status: 400 | 401 | 403 | 404 | 409 | 422 | 428 | 500 | 502 | 503 = 404,
 	details?: Record<string, unknown>,
 ) {
 	return new Response(JSON.stringify({ error: { code, message, ...details } }), {

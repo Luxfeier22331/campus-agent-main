@@ -4,7 +4,12 @@
 	"private": true,
 	"description": "Runtime-neutral notice domain contracts, taxonomy, and content normalization.",
 	"type": "module",
+	"sideEffects": [
+		"**/*.css"
+	],
 	"exports": {
+		"./browser": "./src/browser.ts",
+		"./content.css": "./src/content.css",
 		".": "./src/index.ts",
 		"./taxonomy": "./src/taxonomy.ts"
 	},

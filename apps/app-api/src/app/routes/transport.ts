@@ -24,7 +24,13 @@ export function registerTransportRoutes(input: {
 		}
 		try {
 			return jsonResponse(
-				await input.createRequestScope().resolveTransportScheduleService().getSchedule(date.data),
+				await input
+					.createRequestScope()
+					.resolveTransportScheduleService()
+					.getSchedule(
+						date.data,
+						...(c.req.query("include") === "notices" ? [{ includeNotices: true }] : []),
+					),
 				{
 					headers: { "cache-control": "public, max-age=30, s-maxage=60" },
 				},
@@ -53,7 +59,14 @@ export function registerTransportRoutes(input: {
 		}
 		try {
 			return jsonResponse(
-				await input.createRequestScope().resolveTransportScheduleService().getRange(from, to),
+				await input
+					.createRequestScope()
+					.resolveTransportScheduleService()
+					.getRange(
+						from,
+						to,
+						...(c.req.query("include") === "notices" ? [{ includeNotices: true }] : []),
+					),
 				{ headers: { "cache-control": "public, max-age=30, s-maxage=60" } },
 			);
 		} catch (error) {

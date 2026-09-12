@@ -1,6 +1,6 @@
 import { Button, Skeleton } from "@campus-agent/ui";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useParams, useSearch } from "@tanstack/react-router";
 import type { NoticeAttachmentMetadata } from "campus-contracts/notices";
 import { ArrowLeft, ExternalLink, File } from "lucide-react";
 import { useMemo } from "react";
@@ -10,6 +10,7 @@ import { prepareNoticeContentHtml } from "@/features/notices/content-html";
 import { buildInternalPortalNoticeUrl } from "@/features/notices/internal-portal-url";
 import { noticeDetailQueryOptions } from "@/features/notices/queries";
 import { noticeQueryClient } from "@/features/notices/query-client";
+import { parseTransportSearch, transportReturnTarget } from "@/features/transport/route-search";
 import { ApiRequestError } from "@/platform/api/client";
 
 const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
@@ -28,6 +29,8 @@ export function NoticeDetailPage() {
 
 export function NoticeDetailPageContent() {
 	const { noticeId } = useParams({ from: "/notices/$noticeId" });
+	const search = useSearch({ from: "/notices/$noticeId" });
+	const returnTo = transportReturnTarget(search.returnTo);
 	const notice = useQuery(noticeDetailQueryOptions(noticeId));
 	const preparedContent = useMemo(
 		() =>
@@ -42,16 +45,28 @@ export function NoticeDetailPageContent() {
 	return (
 		<article className="mx-auto w-full max-w-[var(--layout-docs-content-width)] px-4 py-6 pb-24 sm:px-5 lg:px-6">
 			<Button asChild className="-ml-3" size="sm" variant="ghost">
-				<Link
-					search={{
-						page: 1,
-						stream: isCampusNews ? "campus_news" : "notices",
-					}}
-					to="/notices"
-				>
-					<ArrowLeft />
-					{isCampusNews ? "返回校园动态" : "返回通知目录"}
-				</Link>
+				{returnTo ? (
+					<Link
+						to="/transport"
+						search={parseTransportSearch(
+							Object.fromEntries(new URL(returnTo, "https://campus.local").searchParams),
+						)}
+					>
+						<ArrowLeft />
+						返回班车
+					</Link>
+				) : (
+					<Link
+						search={{
+							page: 1,
+							stream: isCampusNews ? "campus_news" : "notices",
+						}}
+						to="/notices"
+					>
+						<ArrowLeft />
+						{isCampusNews ? "返回校园动态" : "返回通知目录"}
+					</Link>
+				)}
 			</Button>
 
 			{notice.isPending ? <NoticeDetailSkeleton /> : null}

@@ -10,6 +10,13 @@ const image = {
 };
 
 describe("notice content HTML boundary", () => {
+	it("only accepts image routes for the selected audience", () => {
+		const html = '<img src="notice-asset:image:0" alt="">';
+		const opsImage = { ordinal: 0, url: "/api/ops/notices/358159/images/0" };
+		expect(prepareNoticeContentHtml(html, [opsImage], { audience: "ops" }).status).toBe("ready");
+		expect(prepareNoticeContentHtml(html, [opsImage]).status).toBe("invalid");
+		expect(prepareNoticeContentHtml(html, [image], { audience: "ops" }).status).toBe("invalid");
+	});
 	it("accepts the published allowlist and rewrites image placeholders", () => {
 		expect(
 			prepareNoticeContentHtml(

@@ -216,7 +216,10 @@ const diningReportsRoute = createRoute({
 const transportRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/transport",
-	component: TransportPage,
+	validateSearch: (search: Record<string, unknown>) => ({
+		scheduleId: optionalBoundedSearchString(search.scheduleId, 200),
+	}),
+	component: () => <TransportPage initialScheduleId={transportRoute.useSearch().scheduleId} />,
 });
 
 const groupsRoute = createRoute({

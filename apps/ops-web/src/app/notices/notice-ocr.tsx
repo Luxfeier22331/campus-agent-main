@@ -14,14 +14,22 @@ const labels = {
 	failed: "识别失败",
 } as const;
 
-export function NoticeOcrSection({ noticeId }: { noticeId: number }) {
+export function NoticeOcrSection({
+	noticeId,
+	active = true,
+}: {
+	noticeId: number;
+	active?: boolean;
+}) {
 	const [selected, setSelected] = useState<string | null>(null);
 	const [batch, setBatch] = useState<Record<string, string>>({});
 	const query = useQuery({
+		enabled: active,
 		queryKey: ["ocr", "notice", noticeId],
 		queryFn: async ({ signal }) =>
 			NoticeOcrSchema.parse(await fetchJson(`/api/ops/ocr/notices/${noticeId}`, { signal })),
 		refetchInterval: (current) =>
+			active &&
 			current.state.data?.resources.some((resource) =>
 				resource.batches.some((item) =>
 					["pending", "submitting", "submitted"].includes(item.status),
@@ -35,6 +43,9 @@ export function NoticeOcrSection({ noticeId }: { noticeId: number }) {
 			<h3 id="notice-ocr-heading" className="font-medium text-sm">
 				识别结果
 			</h3>
+			{query.data && query.data.resources.length > 0 ? (
+				<p className="text-xs text-muted-foreground">可识别资源 {query.data.resources.length} 项</p>
+			) : null}
 			{query.isPending ? (
 				<p role="status" className="text-sm text-muted-foreground">
 					正在读取识别结果…

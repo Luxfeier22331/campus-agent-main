@@ -9,7 +9,7 @@ import {
 	SheetContent,
 } from "@campus-agent/ui";
 import { RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ErrorState, PageHeader, StaleDataWarning } from "../ops-display";
 import { NoticeInspector } from "./notice-inspector";
 import { NoticeMaintenanceToolbar } from "./notice-maintenance-toolbar";
@@ -20,6 +20,30 @@ import { useNoticeMaintenance } from "./use-notice-maintenance";
 export function NoticeMaintenancePage() {
 	const model = useNoticeMaintenance();
 	const desktop = useDesktopLayout();
+	const inspector = useRef<HTMLElement>(null);
+	useLayoutEffect(() => {
+		const element = inspector.current;
+		if (!(desktop && element)) {
+			return;
+		}
+		const resize = () => {
+			const height = Math.max(0, window.innerHeight - element.getBoundingClientRect().top - 16);
+			element.style.height = `${height}px`;
+		};
+		resize();
+		window.addEventListener("scroll", resize, { passive: true });
+		window.addEventListener("resize", resize);
+		const observer = new ResizeObserver(resize);
+		if (element.parentElement) {
+			observer.observe(element.parentElement);
+		}
+		return () => {
+			window.removeEventListener("scroll", resize);
+			window.removeEventListener("resize", resize);
+			observer.disconnect();
+		};
+	}, [desktop]);
+	const returnFocus = useRef<HTMLElement | null>(null);
 	const routeBlocked = model.blocker.status === "blocked";
 	const unsavedDialogOpen = Boolean(model.pendingIntent) || routeBlocked;
 
@@ -121,8 +145,9 @@ export function NoticeMaintenancePage() {
 				/>
 				{desktop ? (
 					<aside
+						ref={inspector}
 						aria-label="通知检查器"
-						className="min-h-[34rem] min-w-0 rounded-[var(--card-radius)] border border-border bg-card"
+						className="sticky top-[calc(4.5rem+1px)] flex min-h-0 min-w-0 self-start overflow-hidden rounded-[var(--card-radius)] border border-border bg-card"
 					>
 						<NoticeInspector
 							createJobError={model.createJobError}
@@ -158,6 +183,14 @@ export function NoticeMaintenancePage() {
 				>
 					<SheetContent
 						aria-label="通知详情"
+						onOpenAutoFocus={() => {
+							returnFocus.current =
+								document.activeElement instanceof HTMLElement ? document.activeElement : null;
+						}}
+						onCloseAutoFocus={(event) => {
+							event.preventDefault();
+							returnFocus.current?.focus();
+						}}
 						className="flex w-full max-w-none flex-col p-0"
 						side="right"
 					>
@@ -172,7 +205,6 @@ export function NoticeMaintenancePage() {
 							isFamilyBusy={model.isFamilyBusy}
 							mobile
 							notice={model.selectedNotice}
-							onClose={model.requestCloseNotice}
 							onDraftCategory={model.setDraftCategory}
 							onRetry={() => void model.detail.refetch()}
 							onSave={() => void model.saveDraft().catch(() => undefined)}

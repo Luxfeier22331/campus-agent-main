@@ -81,8 +81,8 @@ export function NoticeQueue({
 									type="button"
 								>
 									<div className="flex min-w-0 items-start justify-between gap-3">
-										<div className="min-w-0">
-											<p className="truncate font-medium text-sm">{notice.title}</p>
+										<div className="min-w-0 flex-1">
+											<p className="line-clamp-2 break-words font-medium text-sm">{notice.title}</p>
 											<p className="mt-1 font-mono text-muted-foreground text-xs">
 												#{notice.noticeId}
 											</p>

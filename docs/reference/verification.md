@@ -47,7 +47,7 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 | 命令 | 负责 | 不证明 |
 | --- | --- | --- |
 | `pre-commit` | 暂存文件的 check-only 跨语言静态检查和 Secret 扫描 | typecheck、test、build 或 runtime |
-| `pre-push` | 受影响 Node 模块的 typecheck/test/worker test 与 Go 模块的 format/lint/vet/test | build、integration、浏览器 E2E 或 runtime |
+| `pre-push` | 根目录 `pnpm test`，以及受影响 Node 模块的 typecheck/test/worker test 与 Go 模块的 format/lint/vet/test | build、integration、浏览器 E2E 或 runtime |
 | `pnpm verify` | 全量源码检查、Ragas 单测、数据库集成、Infra、OTel 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
 | `pnpm verify --source` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Ragas 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
 | `pnpm check` | 本地仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
@@ -65,9 +65,10 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 公共验证执行器统一 Node、Go、构建和数据库任务集合；全量与 affected 只改变选择范围。
 本地和 CI 使用仓库锁定的 Nix 工具链，Go 检查不依赖用户 PATH 中的全局 lint 版本。
 
-pre-push 只执行 Node/Go 模块检查：正常推送比较远端旧提交与待推送提交；新分支使用本地
+pre-push 先执行根目录 `pnpm test`，覆盖仓库脚本及跨应用源码边界；失败时直接阻止推送，不继续模块检查。
+根目录测试不依赖模块 affected 范围，即使没有受影响模块也执行。随后执行 Node/Go 模块检查：正常推送比较远端旧提交与待推送提交；新分支使用本地
 `origin/main` 的 merge-base；缺少基准或非快进时执行全量模块检查。删除分支不执行检查，
-不自动 fetch。仓库文档和脚本测试继续由 `pnpm check`、`pnpm verify` 和 PR 执行。
+不自动 fetch。仓库文档检查仍由 `pnpm check`、`pnpm verify` 和 PR 执行；这些入口也保留仓库脚本测试。
 
 源码 affected 使用真实提交和 Turbo 配置。发布候选由 release 所有者保留现有配置过滤及显式镜像
 选择规则，不让发布选择反向抑制源码校验。PR 复用生成的任务计划；选中但未成功执行的检查不能通过汇总。

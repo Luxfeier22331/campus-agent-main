@@ -127,6 +127,231 @@ async function selectDarkTheme(page: Page): Promise<void> {
 	await drawer.getByText("深色", { exact: true }).click();
 }
 
+test("通知预览只重试失败图片，附件可读且不提前读取 OCR", async ({ page }) => {
+	let previewRequests = 0;
+	let ocrRequests = 0;
+	const images = [0, 0];
+	const longName = `${"班次安排".repeat(24)}.pdf`;
+	page.on("request", (request) => {
+		if (request.url().includes("/api/ops/ocr/")) {
+			ocrRequests += 1;
+		}
+	});
+	await page.route("**/api/ops/notices/354516/preview", async (route) => {
+		previewRequests += 1;
+		await route.fulfill({
+			json: {
+				noticeId: 354516,
+				isExternal: false,
+				externalUrl: null,
+				contentHtml:
+					'<p>图片失败不影响正文阅读。</p><p><img src="notice-asset:image:0" alt="班次表"></p><p><img src="notice-asset:image:1" alt="乘车点"></p>',
+				images: [0, 1].map((ordinal) => ({
+					ordinal,
+					url: `/api/ops/notices/354516/images/${ordinal}`,
+				})),
+				attachments: [
+					{
+						ordinal: 0,
+						name: longName,
+						suffix: "pdf",
+						url: "/api/ops/notices/354516/attachments/0",
+					},
+					{ ordinal: 1, name: null, suffix: null, url: "/api/ops/notices/354516/attachments/1" },
+				],
+			},
+		});
+	});
+	await page.route("**/api/ops/notices/354516/images/*", async (route) => {
+		const ordinal = Number(route.request().url().split("/").at(-1));
+		images[ordinal] = (images[ordinal] ?? 0) + 1;
+		if (ordinal === 0 && images[ordinal] === 1) {
+			await route.fulfill({ status: 404 });
+		} else {
+			await route.fulfill({
+				contentType: "image/png",
+				body: Buffer.from(
+					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+					"base64",
+				),
+			});
+		}
+	});
+	await page.goto("/notices");
+	await page.getByRole("list", { name: "通知队列" }).getByRole("button").first().click();
+	await expect(page.getByText("图片 2", { exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "附件 2", exact: true })).toBeVisible();
+	await expect(page.getByText("图片加载失败", { exact: true })).toBeVisible();
+	await expect(page.getByRole("link", { name: longName })).toBeVisible();
+	await expect(page.getByRole("link", { name: "附件 2", exact: true })).toBeVisible();
+	const previewsBeforeRetry = previewRequests;
+	await page.getByRole("button", { name: "重试班次表" }).click();
+	await expect(page.getByRole("img", { name: "班次表", exact: true })).toBeVisible();
+	await expect.poll(() => images).toEqual([2, 1]);
+	expect(previewRequests).toBe(previewsBeforeRetry);
+	expect(ocrRequests).toBe(0);
+	await expect(page.getByText("图片加载失败", { exact: true })).toBeHidden();
+	await expect(page.getByRole("link", { name: "查看原图：班次表" })).toHaveAttribute(
+		"target",
+		"_blank",
+	);
+	await page.getByRole("tab", { name: "维护", exact: true }).click();
+	await page.getByRole("tab", { name: "正文", exact: true }).click();
+	await expect(page.getByRole("link", { name: "查看原图：班次表" })).toBeVisible();
+	await expect
+		.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+		.toBe(true);
+});
+
+test("长通知页签吸顶、阅读位置恢复与附件键盘跳转", async ({ page }) => {
+	const errors = captureRuntimeErrors(page);
+	const requests: string[] = [];
+	page.on("request", (request) => requests.push(request.url()));
+	await page.route("**/api/ops/notices/354516/preview", (route) =>
+		route.fulfill({
+			json: {
+				noticeId: 354516,
+				isExternal: false,
+				externalUrl: null,
+				images: [],
+				contentHtml: Array.from(
+					{ length: 65 },
+					(_, index) => `<p>通知第 ${index + 1} 段：请按安排办理相关手续。</p>`,
+				).join(""),
+				attachments: [
+					{
+						ordinal: 0,
+						name: "班次安排.pdf",
+						suffix: "pdf",
+						url: "/api/ops/notices/354516/attachments/0",
+					},
+				],
+			},
+		}),
+	);
+	await page.goto("/notices");
+	const queue = page.getByRole("list", { name: "通知队列" });
+	await queue.getByRole("button").first().click();
+	const scroll = page.locator("[data-notice-scroll]");
+	const tabs = page.getByRole("tablist", { name: "通知详情视图" });
+	await expect(page.getByRole("button", { name: "附件 1", exact: true })).toBeVisible();
+	const oldUrl = page.url();
+	const attachmentRequests = () => requests.filter((url) => url.includes("/attachments/")).length;
+	const beforeRequests = attachmentRequests();
+	const pageScroll = await page.evaluate(() => window.scrollY);
+	await page.getByRole("button", { name: "附件 1", exact: true }).click();
+	const heading = page.getByRole("heading", { name: "附件", exact: true });
+	await expect(heading).toBeFocused();
+	await expect(heading).toBeInViewport();
+	expect(page.url()).toBe(oldUrl);
+	expect(attachmentRequests()).toBe(beforeRequests);
+	expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+	const tabsBox = await tabs.boundingBox();
+	const headingBox = await heading.boundingBox();
+	expect(headingBox?.y).toBeGreaterThanOrEqual((tabsBox?.y ?? 0) + (tabsBox?.height ?? 0));
+	await page.keyboard.press("Tab");
+	await expect(page.getByRole("link", { name: "班次安排.pdf" })).toBeFocused();
+	const bodyPosition = await scroll.evaluate((element) => element.scrollTop);
+	expect(bodyPosition).toBeGreaterThan(500);
+	await expect(tabs).toBeInViewport();
+	await page.getByRole("tab", { name: "维护", exact: true }).click();
+	await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
+	await expect(page.getByRole("combobox", { name: "通知分类" })).toBeInViewport();
+	await expect(page.getByRole("button", { name: "保存分类" })).toBeInViewport();
+	const contentOrder = await page.getByRole("tabpanel").getByRole("heading").allTextContents();
+	expect(contentOrder.indexOf("分类")).toBeLessThan(contentOrder.indexOf("来源信息"));
+	expect(contentOrder.indexOf("下一步")).toBeLessThan(contentOrder.indexOf("识别结果"));
+	await scroll.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	const maintenancePosition = await scroll.evaluate((element) => element.scrollTop);
+	await page.getByRole("tab", { name: "正文", exact: true }).click();
+	await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(bodyPosition);
+	await expect(page.getByRole("combobox", { name: "通知分类" })).toHaveCount(0);
+	await page.getByRole("tab", { name: "维护", exact: true }).click();
+	await expect
+		.poll(() => scroll.evaluate((element) => element.scrollTop))
+		.toBe(maintenancePosition);
+	if ((page.viewportSize()?.width ?? 0) < 1024) {
+		await page.keyboard.press("Escape");
+		await queue.getByRole("button").first().click();
+	} else {
+		await queue.getByRole("button").nth(1).click();
+		await queue.getByRole("button").first().click();
+		await page.evaluate(() => window.scrollTo(0, 200));
+		await expect
+			.poll(async () => {
+				const box = await page.getByRole("complementary", { name: "通知检查器" }).boundingBox();
+				return box ? box.y + box.height : Number.POSITIVE_INFINITY;
+			})
+			.toBeLessThanOrEqual((page.viewportSize()?.height ?? 900) - 15);
+	}
+	await expect(page.getByRole("tab", { name: "正文", exact: true })).toHaveAttribute(
+		"aria-selected",
+		"true",
+	);
+	await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
+	await expectStableViewport(page, errors);
+});
+
+test("通知标题最多两行且不挤压状态标签", async ({ page }) => {
+	await page.route("**/api/ops/notices?*", async (route) => {
+		const response = await route.fetch();
+		const data = await response.json();
+		data.items[0].title = "关于秋季学期两校区通勤班车及地铁接驳车运行时间和上下车地点调整的通知";
+		await route.fulfill({ json: data });
+	});
+	await page.goto("/notices");
+	const row = page.getByRole("list", { name: "通知队列" }).getByRole("button").first();
+	const title = row.locator("p").first();
+	await expect(title).toHaveText(/关于秋季学期两校区/);
+	const metrics = await title.evaluate((element) => ({
+		height: element.getBoundingClientRect().height,
+		lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
+		clamp: getComputedStyle(element).webkitLineClamp,
+	}));
+	expect(metrics.clamp).toBe("2");
+	expect(metrics.height).toBeGreaterThan(metrics.lineHeight);
+	expect(metrics.height).toBeLessThanOrEqual(metrics.lineHeight * 2 + 1);
+	await expect(row.getByText("待分类", { exact: true })).toBeVisible();
+	await expect
+		.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+		.toBe(true);
+});
+
+test("移动端通知关闭与 Esc 保留草稿提醒并返回队列焦点", async ({ page }) => {
+	await page.goto("/notices");
+	const selected = page.getByRole("list", { name: "通知队列" }).getByRole("button").first();
+	await selected.click();
+	if ((page.viewportSize()?.width ?? 0) >= 1024) {
+		await expect(page.getByRole("complementary", { name: "通知检查器" })).toBeVisible();
+		return;
+	}
+	const inspector = page.getByRole("dialog", { name: "通知详情", exact: true });
+	await expect(inspector.getByRole("button", { name: "关闭", exact: true })).toHaveCount(1);
+	await inspector.getByRole("tab", { name: "维护", exact: true }).click();
+	await inspector.getByRole("combobox", { name: "通知分类" }).selectOption("campus_operations");
+	await inspector.getByRole("tab", { name: "正文", exact: true }).click();
+	await inspector.getByRole("button", { name: "关闭", exact: true }).click();
+	const warning = page.getByRole("dialog", { name: "有未保存的分类更改", exact: true });
+	await expect(warning).toBeVisible();
+	await warning.getByRole("button", { name: "取消", exact: true }).click();
+	await inspector.getByRole("tab", { name: "维护", exact: true }).click();
+	await expect(inspector.getByRole("combobox", { name: "通知分类" })).toHaveValue(
+		"campus_operations",
+	);
+	await page.keyboard.press("Escape");
+	await expect(warning).toBeVisible();
+	await warning.getByRole("button", { name: "放弃更改", exact: true }).click();
+	await expect(inspector).toBeHidden();
+	await expect(selected).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(inspector).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(inspector).toBeHidden();
+	await expect(selected).toBeFocused();
+});
+
 test("通知维护在不同宽度下保持队列、Inspector 和任务中心层级", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
 	await page.goto("/notices");
@@ -155,10 +380,14 @@ test("通知维护在不同宽度下保持队列、Inspector 和任务中心层�
 	if ((page.viewportSize()?.width ?? 0) < 1024) {
 		const inspector = page.getByRole("dialog", { name: "通知详情" });
 		await expect(inspector).toBeVisible();
+		await expect(inspector.getByText("请同学们按时完成学期注册。")).toBeVisible();
+		await inspector.getByRole("tab", { name: "维护" }).click();
 		await expect(inspector.getByRole("combobox", { name: "通知分类" })).toBeVisible();
 	} else {
 		const inspector = page.getByRole("complementary", { name: "通知检查器" });
 		await expect(inspector).toBeVisible();
+		await expect(inspector.getByRole("table")).toBeVisible();
+		await inspector.getByRole("tab", { name: "维护" }).click();
 		await expect(inspector.getByRole("combobox", { name: "通知分类" })).toBeVisible();
 	}
 

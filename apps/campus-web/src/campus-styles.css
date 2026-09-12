@@ -1,5 +1,6 @@
 @import "@campus-agent/ui/tokens.css";
 @import "@campus-agent/ui/theme.css";
+@import "@campus-agent/notices/content.css";
 @import "./design/tokens.css";
 @import "tw-shimmer";
 @source "../../../packages/ui/src";
@@ -175,41 +176,6 @@
 	outline-offset: 4px;
 }
 
-.notice-content {
-	color: var(--sys-text-default);
-	font-size: 1rem;
-	line-height: 1.85;
-	overflow-wrap: anywhere;
-}
-
-.notice-content > * + * {
-	margin-top: 1rem;
-}
-
-.notice-content h3,
-.notice-content h4,
-.notice-content h5,
-.notice-content h6 {
-	color: var(--sys-text-strong);
-	font-weight: 600;
-	line-height: 1.45;
-}
-
-.notice-content h3 {
-	font-size: 1.25rem;
-}
-
-.notice-content h4,
-.notice-content h5,
-.notice-content h6 {
-	font-size: 1.0625rem;
-}
-
-.notice-content ul,
-.notice-content ol {
-	padding-left: 1.5rem;
-}
-
 .notice-category-badge {
 	border-color: var(--notice-category-badge-border);
 	background: var(--notice-category-badge-bg);
@@ -250,87 +216,6 @@
 	--notice-category-badge-bg: var(--notice-category-teal-bg);
 	--notice-category-badge-border: var(--notice-category-teal-border);
 	--notice-category-badge-text: var(--notice-category-teal-text);
-}
-
-.notice-content ul {
-	list-style: disc;
-}
-
-.notice-content ol {
-	list-style: decimal;
-}
-
-.notice-content a {
-	color: var(--campus-link);
-	text-decoration: underline;
-	text-underline-offset: 0.2em;
-}
-
-.notice-content img {
-	display: inline-block;
-	width: auto;
-	max-width: 100%;
-	height: auto;
-	vertical-align: middle;
-}
-
-.notice-content > img,
-.notice-content p > img:only-child {
-	display: block;
-	margin-inline: auto;
-}
-
-.notice-content blockquote {
-	border-left: 3px solid var(--sys-border-default);
-	color: var(--sys-text-muted);
-	padding-left: 1rem;
-}
-
-.notice-content table {
-	display: block;
-	width: 100%;
-	overflow-x: auto;
-	border-collapse: collapse;
-}
-
-.notice-content th,
-.notice-content td {
-	min-width: 8rem;
-	border: 1px solid var(--sys-border-default);
-	padding: 0.5rem 0.75rem;
-	text-align: left;
-	vertical-align: top;
-}
-
-.notice-content th {
-	background: var(--sys-bg-subtle);
-	font-weight: 600;
-}
-
-.notice-content [data-align="center"] {
-	text-align: center;
-}
-
-.notice-content [data-align="end"] {
-	text-align: end;
-}
-
-.notice-content [data-align="justify"] {
-	text-align: justify;
-}
-
-.notice-content p[data-indent="true"] {
-	text-indent: 2em;
-}
-
-.notice-content strong[data-emphasis="alert"] {
-	color: var(--sys-status-danger);
-}
-
-.notice-content mark {
-	background: var(--sys-status-warning-subtle);
-	color: inherit;
-	padding-inline: 0.1em;
 }
 
 [data-surface="map-first"] .maplibregl-ctrl-top-right {

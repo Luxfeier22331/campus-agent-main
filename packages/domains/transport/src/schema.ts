@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, integer, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	bigint,
+	check,
+	date,
+	index,
+	integer,
+	pgSchema,
+	primaryKey,
+	text,
+	timestamp,
+} from "drizzle-orm/pg-core";
 
 export const transport = pgSchema("transport");
 
@@ -32,6 +42,7 @@ export const transportSchedulePeriods = transport.table(
 	"schedule_periods",
 	{
 		boardingPointOverride: text("boarding_point_override"),
+		dropOffPointOverride: text("drop_off_point_override"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		note: text("note"),
 		routeId: text("route_id")
@@ -117,5 +128,21 @@ export const transportScheduleItems = transport.table(
 			table.sortOrder,
 			table.itemId,
 		),
+	],
+);
+
+export const transportSchedulePeriodNotices = transport.table(
+	"schedule_period_notices",
+	{
+		scheduleId: text("schedule_id")
+			.notNull()
+			.references(() => transportSchedulePeriods.scheduleId, { onDelete: "cascade" }),
+		// The cross-schema FK to notices.notices is installed by the unified migration.
+		noticeId: bigint("notice_id", { mode: "number" }).notNull(),
+		summary: text("summary"),
+	},
+	(table) => [
+		primaryKey({ columns: [table.scheduleId, table.noticeId] }),
+		index("transport_schedule_period_notices_notice_idx").on(table.noticeId),
 	],
 );

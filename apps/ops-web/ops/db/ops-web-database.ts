@@ -42,7 +42,8 @@ const TRANSPORT_GRANT_STATEMENTS = [
 	`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
 		"transport"."routes",
 		"transport"."schedule_periods",
-		"transport"."schedule_items"
+		"transport"."schedule_items",
+		"transport"."schedule_period_notices"
 	 TO "ops_web"`,
 ] as const;
 

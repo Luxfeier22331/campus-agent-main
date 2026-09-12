@@ -2,8 +2,9 @@ import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { getTransportSchedule, getTransportScheduleRange } from "./api";
 
 export const transportQueryKeys = {
-	schedule: (date: string) => ["transport", "schedule", date] as const,
-	scheduleRange: (from: string, to: string) => ["transport", "schedule-range", from, to] as const,
+	schedule: (date: string) => ["transport", "schedule", date, "notices"] as const,
+	scheduleRange: (from: string, to: string) =>
+		["transport", "schedule-range", from, to, "notices"] as const,
 };
 
 export function transportScheduleQueryOptions(date: string) {

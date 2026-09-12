@@ -249,6 +249,9 @@ importers:
       '@campus-agent/dining':
         specifier: workspace:*
         version: link:../../packages/domains/dining
+      '@campus-agent/notices':
+        specifier: workspace:*
+        version: link:../../packages/domains/notices
       '@campus-agent/transport':
         specifier: workspace:*
         version: link:../../packages/domains/transport

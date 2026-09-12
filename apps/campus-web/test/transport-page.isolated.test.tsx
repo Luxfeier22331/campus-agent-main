@@ -81,6 +81,72 @@ const props = {
 };
 
 describe("transport page", () => {
+	it("shows one route-level passenger note and a published notice link with selection return target", () => {
+		const schedule = structuredClone(data);
+		const route = schedule.routes[0]!;
+		route.note = "五一期间按本表运行";
+		route.noticeContext = {
+			validFrom: "2026-04-28",
+			validTo: "2026-05-05",
+			weekdays: [1, 2, 3, 4, 5, 6, 7],
+			notices: [
+				{
+					noticeId: "355867",
+					title: "五一班车安排",
+					releasedAt: "2026-04-25T05:11:00Z",
+					isExternal: false,
+					externalUrl: null,
+				},
+			],
+		};
+		render(<TransportPageView {...props} data={schedule} rider="student" />);
+		expect(screen.getAllByText("五一期间按本表运行")).toHaveLength(1);
+		expect(screen.getByLabelText("班次安排")).toHaveTextContent("2026-04-28 — 2026-05-05");
+		const url = new URL(
+			screen.getByRole("link", { name: /五一班车安排/ }).getAttribute("href")!,
+			"https://campus.test",
+		);
+		expect(url.pathname).toBe("/notices/355867");
+		expect(new URL(url.searchParams.get("returnTo")!, url.origin).searchParams.get("rider")).toBe(
+			"student",
+		);
+	});
+	it("keeps notices for suspended or filtered-empty routes; multiple links are collapsed", () => {
+		const schedule = structuredClone(data);
+		const route = schedule.routes[0]!;
+		route.noticeContext = {
+			validFrom: "2026-07-13",
+			validTo: "2026-09-04",
+			weekdays: [1, 2, 3, 4, 5, 6, 7],
+			notices: [
+				{
+					noticeId: "358327",
+					title: "恢复运行",
+					releasedAt: "2026-08-28T00:00:00Z",
+					isExternal: false,
+					externalUrl: null,
+				},
+				{
+					noticeId: "357813",
+					title: "暂停运行",
+					releasedAt: "2026-07-07T00:00:00Z",
+					isExternal: true,
+					externalUrl: "https://example.org/notice",
+				},
+			],
+		};
+		route.departures = route.departures.filter((d) => d.riderType === "teacher");
+		const { rerender } = render(<TransportPageView {...props} data={schedule} rider="student" />);
+		expect(screen.getByText("当天暂无该对象班次")).toBeInTheDocument();
+		expect(screen.getByText("相关通知（2）").closest("details")).not.toHaveAttribute("open");
+		fireEvent.click(screen.getByText("相关通知（2）"));
+		expect(screen.getByRole("link", { name: /暂停运行/ })).toHaveAttribute("target", "_blank");
+		route.status = "suspended";
+		route.departures = [];
+		rerender(<TransportPageView {...props} data={schedule} />);
+		expect(screen.getByText("当天停运")).toBeInTheDocument();
+		expect(screen.getByLabelText("班次安排")).toBeInTheDocument();
+	});
 	it("keeps direction, station and audience selections when clicking the selected option", () => {
 		const onRouteChange = vi.fn();
 		const onRiderChange = vi.fn();

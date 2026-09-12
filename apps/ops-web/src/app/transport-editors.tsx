@@ -1,8 +1,4 @@
-import {
-	formatWeekdays,
-	selectTransportPeriod,
-	transportRiderLabel,
-} from "@campus-agent/transport/domain";
+import { formatWeekdays } from "@campus-agent/transport/domain";
 import {
 	Button,
 	Disclosure,
@@ -14,7 +10,7 @@ import {
 	ToggleGroup,
 	ToggleGroupItem,
 } from "@campus-agent/ui";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	createContext,
 	type FormEvent,
@@ -27,6 +23,7 @@ import {
 } from "react";
 import { z } from "zod";
 import {
+	type TransportNoticeLink,
 	type TransportOpsRoute,
 	type TransportOpsRouteCreate,
 	TransportOpsRouteCreateSchema,
@@ -42,6 +39,7 @@ import {
 } from "./ops-api-client";
 import { InlineError } from "./ops-display";
 import { TransportImpact } from "./transport-impact";
+import { TransportNoticePicker } from "./transport-notice-links";
 
 interface EditorEvents {
 	onDirty: (dirty: boolean) => void;
@@ -223,6 +221,7 @@ interface PeriodDraft {
 	weekdays: number[];
 	status: "operating" | "suspended";
 	boardingPointOverride: string;
+	dropOffPointOverride: string;
 	note: string;
 	items: ItemDraft[];
 }
@@ -260,6 +259,7 @@ function makeDraft(
 		weekdays: seed ? [...seed.weekdays] : [1, 2, 3, 4, 5],
 		status: seed?.status ?? "operating",
 		boardingPointOverride: seed?.boardingPointOverride ?? "",
+		dropOffPointOverride: seed?.dropOffPointOverride ?? "",
 		note: seed?.note ?? "",
 		items:
 			seed?.items.map((item) => ({
@@ -285,6 +285,7 @@ function periodInput(form: PeriodDraft): TransportOpsSchedulePeriodInput {
 		...form,
 		validTo: form.validTo || null,
 		boardingPointOverride: form.boardingPointOverride.trim() || null,
+		dropOffPointOverride: form.dropOffPointOverride.trim() || null,
 		note: form.note.trim() || null,
 		items:
 			form.status === "suspended"
@@ -318,6 +319,7 @@ export function TransportPeriodEditor({
 	periods = [],
 	effectiveDate,
 	initial,
+	quickAction,
 }: EditorEvents & {
 	source: TransportOpsSchedulePeriod | null;
 	copy: boolean;
@@ -326,10 +328,41 @@ export function TransportPeriodEditor({
 	periods?: TransportOpsSchedulePeriod[];
 	effectiveDate?: string;
 	initial?: TransportOpsSchedulePeriodInput;
+	quickAction?: { kind: "add" | "edit" | "cancel"; index: number } | undefined;
 }) {
-	const [form, setForm] = useDraft(() => makeDraft(source, route.routeId, copy, initial), onDirty);
+	const [form, setForm, formDirty] = useDraft(
+		() => {
+			const draft = makeDraft(source, route.routeId, copy, initial);
+			if (quickAction?.kind === "add") {
+				draft.items.push(newItem());
+			}
+			return draft;
+		},
+		() => undefined,
+	);
+	const [noticeLinks, setNoticeLinks] = useState<TransportNoticeLink[]>([]);
+	const hasPreparedChanges = Boolean(initial) || quickAction?.kind === "add";
+	useEffect(
+		() => onDirty(hasPreparedChanges || formDirty || noticeLinks.length > 0),
+		[hasPreparedChanges, formDirty, noticeLinks.length, onDirty],
+	);
+	const editorBody = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (quickAction && quickAction.kind !== "cancel") {
+			const frame = requestAnimationFrame(() => {
+				editorBody.current
+					?.querySelector<HTMLElement>(
+						`fieldset[aria-label="班次 ${quickAction.index + 1}"] input[type="time"]`,
+					)
+					?.focus();
+			});
+			return () => cancelAnimationFrame(frame);
+		}
+		return;
+	}, [quickAction]);
 	const [errors, setErrors] = useState<Record<string, string>>({});
 	const [preview, setPreview] = useState<TransportOpsSchedulePeriodInput | null>(null);
+	const queryClient = useQueryClient();
 	const canSave =
 		preview !== null &&
 		(copy ||
@@ -340,11 +373,19 @@ export function TransportPeriodEditor({
 		mutationFn: (value: TransportOpsSchedulePeriodInput) =>
 			source && !copy
 				? updateTransportSchedulePeriod(source.scheduleId, value)
-				: createTransportSchedulePeriod(value),
-		onSuccess: (result) => onSaved(result.schedulePeriod),
+				: createTransportSchedulePeriod({
+						...value,
+						noticeLinks: noticeLinks.map(({ noticeId, summary }) => ({ noticeId, summary })),
+					}),
+		onSuccess: (result) => {
+			if (!source || copy) {
+				void queryClient.invalidateQueries({ queryKey: ["notice-transport-periods"] });
+			}
+			onSaved(result.schedulePeriod);
+		},
 	});
 	useEffect(() => onBusy(save.isPending), [save.isPending, onBusy]);
-	const formSnapshot = JSON.stringify(form);
+	const formSnapshot = JSON.stringify([form, noticeLinks]);
 	// The snapshot is intentionally the trigger: any draft edit invalidates its preview.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: formSnapshot is the intentional trigger.
 	useEffect(() => setPreview(null), [formSnapshot]);
@@ -362,7 +403,15 @@ export function TransportPeriodEditor({
 	const inheritedPoint = form.boardingPointOverride || route.defaultBoardingPoint || "未填写";
 	return (
 		<EditorFrame
-			title={copy ? "复制为新时间段" : source ? "编辑时间段" : "新增时间段"}
+			title={
+				quickAction
+					? "指定日期调整班次"
+					: copy
+						? "复制为新时间段"
+						: source
+							? "编辑时间段"
+							: "新增时间段"
+			}
 			subtitle={`${route.origin} → ${route.destination}`}
 			busy={save.isPending}
 			onCancel={onCancel}
@@ -382,132 +431,164 @@ export function TransportPeriodEditor({
 			confirmDisabled={!canSave}
 		>
 			<Errors.Provider value={errors}>
-				<div className="grid gap-3 sm:grid-cols-3">
-					<Text
-						label="开始日期"
-						name="validFrom"
-						type="date"
-						value={form.validFrom}
-						onChange={(validFrom) => setForm({ ...form, validFrom })}
-					/>
-					<Text
-						label="结束日期（留空长期）"
-						name="validTo"
-						type="date"
-						value={form.validTo}
-						onChange={(validTo) => setForm({ ...form, validTo })}
-					/>
-					<Choice
-						label="状态"
-						name="status"
-						value={form.status}
-						options={[
-							["operating", "运行"],
-							["suspended", "停运"],
-						]}
-						onChange={(status) => setForm({ ...form, status: status as PeriodDraft["status"] })}
-					/>
-				</div>
-				<fieldset className="grid gap-2">
-					<legend className="mb-2 text-sm font-medium">适用星期</legend>
-					<ToggleGroup
-						type="multiple"
-						presentation="chips"
-						aria-label="适用星期"
-						className="grid grid-cols-[repeat(auto-fit,minmax(4.125rem,1fr))] sm:grid-cols-7"
-						value={form.weekdays.map(String)}
-						onValueChange={(values) =>
-							setForm({ ...form, weekdays: values.map(Number).sort((a, b) => a - b) })
-						}
-					>
-						{["一", "二", "三", "四", "五", "六", "日"].map((label, index) => (
-							<ToggleGroupItem key={label} value={String(index + 1)}>
-								周{label}
-							</ToggleGroupItem>
-						))}
-					</ToggleGroup>
-					{errors.weekdays ? (
-						<p role="alert" className="text-danger text-sm">
-							{errors.weekdays}
+				<div ref={editorBody} className="grid gap-4">
+					{quickAction ? (
+						<p className="text-sm text-muted-foreground">
+							另存为所选日期的完整安排，原安排不变；扩展日期范围会套用整份时刻表。
 						</p>
 					) : null}
-				</fieldset>
-				<Disclosure
-					open={errors.boardingPointOverride || errors.note ? true : undefined}
-					className="text-sm"
-				>
-					<DisclosureSummary className="font-medium">
-						乘车点与备注{form.boardingPointOverride || form.note ? " · 已填写" : ""}
-					</DisclosureSummary>
-					<div className="mt-3 grid gap-3 sm:grid-cols-2">
+					<div className="grid gap-3 sm:grid-cols-3">
 						<Text
-							label="本时间段乘车点"
-							name="boardingPointOverride"
-							placeholder={route.defaultBoardingPoint ?? "留空按班次设置"}
-							value={form.boardingPointOverride}
-							onChange={(boardingPointOverride) => setForm({ ...form, boardingPointOverride })}
+							label="开始日期"
+							name="validFrom"
+							type="date"
+							value={form.validFrom}
+							onChange={(validFrom) => setForm({ ...form, validFrom })}
 						/>
-						<Area
-							label="备注"
-							name="note"
-							value={form.note}
-							onChange={(note) => setForm({ ...form, note })}
+						<Text
+							label="结束日期（留空长期）"
+							name="validTo"
+							type="date"
+							value={form.validTo}
+							onChange={(validTo) => setForm({ ...form, validTo })}
+						/>
+						<Choice
+							label="状态"
+							name="status"
+							value={form.status}
+							options={[
+								["operating", "运行"],
+								["suspended", "停运"],
+							]}
+							onChange={(status) => setForm({ ...form, status: status as PeriodDraft["status"] })}
 						/>
 					</div>
-				</Disclosure>
-				<section aria-label="班次明细" className="grid gap-2">
-					<div className="flex items-center justify-between">
-						<h3 className="font-medium">
-							班次明细{form.status === "operating" ? ` · ${form.items.length} 班` : ""}
-						</h3>
-						<Button
-							disabled={form.status === "suspended"}
-							variant="outline"
-							size="sm"
-							onClick={() => setForm({ ...form, items: [...form.items, newItem()] })}
+					<fieldset className="grid gap-2">
+						<legend className="mb-2 text-sm font-medium">适用星期</legend>
+						<ToggleGroup
+							type="multiple"
+							presentation="chips"
+							aria-label="适用星期"
+							className="grid grid-cols-[repeat(auto-fit,minmax(4.125rem,1fr))] sm:grid-cols-7"
+							value={form.weekdays.map(String)}
+							onValueChange={(values) =>
+								setForm({ ...form, weekdays: values.map(Number).sort((a, b) => a - b) })
+							}
 						>
-							添加班次
-						</Button>
-					</div>
-					{form.status === "suspended" ? (
-						<p className="py-4 text-sm text-muted-foreground">
-							此时间段停运。切回运行可继续编辑本次草稿班次。
-						</p>
-					) : form.items.length === 0 ? (
-						<p className="py-4 text-sm text-muted-foreground">尚未添加班次。</p>
-					) : (
-						<div className="divide-y rounded-md border px-3">
-							{form.items.map((item, index) => (
-								<ItemRow
-									key={item.key}
-									index={index}
-									item={item}
-									inheritedPoint={inheritedPoint}
-									onChange={(next) =>
-										setForm({
-											...form,
-											items: form.items.map((current, i) => (i === index ? next : current)),
-										})
-									}
-									onRemove={() =>
-										setForm({ ...form, items: form.items.filter((_, i) => i !== index) })
-									}
-								/>
+							{["一", "二", "三", "四", "五", "六", "日"].map((label, index) => (
+								<ToggleGroupItem key={label} value={String(index + 1)}>
+									周{label}
+								</ToggleGroupItem>
 							))}
+						</ToggleGroup>
+						{errors.weekdays ? (
+							<p role="alert" className="text-danger text-sm">
+								{errors.weekdays}
+							</p>
+						) : null}
+					</fieldset>
+					<Disclosure
+						open={
+							errors.boardingPointOverride || errors.dropOffPointOverride || errors.note
+								? true
+								: undefined
+						}
+						className="text-sm"
+					>
+						<DisclosureSummary className="font-medium">
+							上下车点与乘客说明
+							{form.boardingPointOverride || form.dropOffPointOverride || form.note
+								? " · 已填写"
+								: ""}
+						</DisclosureSummary>
+						<div className="mt-3 grid gap-3 sm:grid-cols-2">
+							<Text
+								label="本时间段乘车点"
+								name="boardingPointOverride"
+								placeholder={route.defaultBoardingPoint ?? "留空按班次设置"}
+								value={form.boardingPointOverride}
+								onChange={(boardingPointOverride) => setForm({ ...form, boardingPointOverride })}
+							/>
+							<Text
+								label="本时间段下车点"
+								name="dropOffPointOverride"
+								placeholder={route.dropOffPoint ?? "留空沿用线路下车点"}
+								value={form.dropOffPointOverride}
+								onChange={(dropOffPointOverride) => setForm({ ...form, dropOffPointOverride })}
+							/>
+							<Area
+								label="乘客说明"
+								name="note"
+								value={form.note}
+								onChange={(note) => setForm({ ...form, note })}
+							/>
 						</div>
-					)}
-					{errors.items ? (
-						<p className="text-danger text-sm" role="alert">
-							{errors.items}
+					</Disclosure>
+					<section aria-label="班次明细" className="grid gap-2">
+						<div className="flex items-center justify-between">
+							<h3 className="font-medium">
+								班次明细{form.status === "operating" ? ` · ${form.items.length} 班` : ""}
+							</h3>
+							<Button
+								disabled={form.status === "suspended"}
+								variant="outline"
+								size="sm"
+								onClick={() => setForm({ ...form, items: [...form.items, newItem()] })}
+							>
+								添加班次
+							</Button>
+						</div>
+						{form.status === "suspended" ? (
+							<p className="py-4 text-sm text-muted-foreground">
+								此时间段停运。切回运行可继续编辑本次草稿班次。
+							</p>
+						) : form.items.length === 0 ? (
+							<p className="py-4 text-sm text-muted-foreground">尚未添加班次。</p>
+						) : (
+							<div className="divide-y rounded-md border px-3">
+								{form.items.map((item, index) => (
+									<ItemRow
+										key={item.key}
+										index={index}
+										item={item}
+										inheritedPoint={inheritedPoint}
+										onChange={(next) =>
+											setForm({
+												...form,
+												items: form.items.map((current, i) => (i === index ? next : current)),
+											})
+										}
+										onRemove={() =>
+											setForm({ ...form, items: form.items.filter((_, i) => i !== index) })
+										}
+									/>
+								))}
+							</div>
+						)}
+						{errors.items ? (
+							<p className="text-danger text-sm" role="alert">
+								{errors.items}
+							</p>
+						) : null}
+					</section>
+					{Object.keys(errors).length > 0 ? (
+						<p role="alert" className="text-danger text-sm">
+							请检查标出的日期、星期或班次信息。
 						</p>
 					) : null}
-				</section>
-				{Object.keys(errors).length > 0 ? (
-					<p role="alert" className="text-danger text-sm">
-						请检查标出的日期、星期或班次信息。
-					</p>
-				) : null}
-				{save.error ? <InlineError error={save.error} title="时间段保存失败" /> : null}
+					{!source || copy ? (
+						<TransportNoticePicker
+							value={noticeLinks}
+							onChange={setNoticeLinks}
+							disabled={save.isPending}
+						/>
+					) : (
+						<p className="text-sm text-muted-foreground">
+							通知关联保留不变，可在时间段的“关联通知”入口单独修改。
+						</p>
+					)}
+					{save.error ? <InlineError error={save.error} title="时间段保存失败" /> : null}
+				</div>
 			</Errors.Provider>
 		</EditorFrame>
 	);
@@ -713,38 +794,15 @@ function PeriodPreview({
 				validTo: source.validTo,
 				weekdays: source.weekdays,
 				boardingPointOverride: source.boardingPointOverride,
+				dropOffPointOverride: source.dropOffPointOverride,
 				note: source.note,
 				items: source.items,
 			}
 		: null;
-	const itemLabel = (item: TransportOpsSchedulePeriodInput["items"][number]) =>
-		item.kind === "fixed"
-			? `${item.departureTime} · ${transportRiderLabel(item.riderType)}`
-			: `${item.firstDepartureTime}–${item.lastDepartureTime} · 每${item.intervalMinutes}分钟 · ${transportRiderLabel(item.riderType)}`;
-	const oldItems = before?.items ?? [];
-	const itemChanges = value.items.flatMap((item, index) => {
-		const old = oldItems[index];
-		if (!old) {
-			return [{ text: `新增班次：${itemLabel(item)}`, key: `add-${index}` }];
-		}
-		const oldLabel = itemLabel(old);
-		const nextLabel = itemLabel(item);
-		const fields = [
-			oldLabel === nextLabel ? null : `班次：${oldLabel} → ${nextLabel}`,
-			old.boardingPoint === item.boardingPoint
-				? null
-				: `乘车点：${old.boardingPoint ?? "未填写"} → ${item.boardingPoint ?? "未填写"}`,
-			old.capacity === item.capacity
-				? null
-				: `容量：${old.capacity ?? "未设置"} → ${item.capacity ?? "未设置"}`,
-			old.note === item.note ? null : `备注：${old.note ?? "无"} → ${item.note ?? "无"}`,
-		].filter((field): field is string => Boolean(field));
-		return fields.map((text) => ({ text, key: `${index}-${text}` }));
-	});
-	const removed = oldItems
-		.slice(value.items.length)
-		.map((item, index) => `删除班次：${itemLabel(item)}（第${value.items.length + index + 1}项）`);
 	const changes = [
+		before && before.dropOffPointOverride !== value.dropOffPointOverride
+			? `时间段下车点：${before.dropOffPointOverride ?? "沿用线路"} → ${value.dropOffPointOverride ?? "沿用线路"}`
+			: null,
 		before && before.validFrom !== value.validFrom
 			? `开始日期：${before.validFrom} → ${value.validFrom}`
 			: null,
@@ -761,34 +819,16 @@ function PeriodPreview({
 			? `时间段乘车点：${before.boardingPointOverride ?? "沿用线路/班次"} → ${value.boardingPointOverride ?? "沿用线路/班次"}`
 			: null,
 		before && before.note !== value.note
-			? `时间段备注：${before.note ?? "无"} → ${value.note ?? "无"}`
+			? `乘客说明：${before.note ?? "无"} → ${value.note ?? "无"}`
 			: null,
-		...itemChanges.map((change) => change.text),
-		...removed,
 	].filter((change): change is string => Boolean(change));
-	const beforeEffective = effectiveDate ? selectTransportPeriod(periods, effectiveDate) : null;
-	const previewEffective = effectiveDate
-		? selectTransportPeriod(
-				[
-					...periods.filter((period) => period.scheduleId !== source?.scheduleId),
-					{
-						...value,
-						scheduleId: source?.scheduleId ?? "preview",
-						createdAt: source?.createdAt ?? new Date().toISOString(),
-						updatedAt: new Date().toISOString(),
-						updatedBy: "preview",
-						items: value.items.map((item, index) => ({ ...item, itemId: `preview-${index}` })),
-					},
-				],
-				effectiveDate,
-			)
-		: null;
 	return (
 		<section
 			aria-label="保存前变更预览"
 			className="grid gap-2 rounded-md border bg-surface-muted p-3 text-sm"
 		>
 			<h3 className="font-medium">保存前变更预览</h3>
+			<p>{source ? "更新当前时间段" : "新增时间段，保留原安排"}</p>
 			<p>
 				{route.origin} → {route.destination} · {value.validFrom} — {value.validTo ?? "长期"} ·{" "}
 				{formatWeekdays(value.weekdays)}
@@ -799,15 +839,6 @@ function PeriodPreview({
 						<li key={change}>{change}</li>
 					))}
 				</ul>
-			) : (
-				<p>没有字段变化。</p>
-			)}
-			{effectiveDate ? (
-				<div className="grid gap-1 border-t pt-2">
-					<h4 className="font-medium">{effectiveDate} 实际生效结果</h4>
-					<p>修改前：{describeEffectivePeriod(beforeEffective)}</p>
-					<p>修改后：{describeEffectivePeriod(previewEffective)}</p>
-				</div>
 			) : null}
 			<TransportImpact
 				source={source}
@@ -820,12 +851,6 @@ function PeriodPreview({
 	);
 }
 
-function describeEffectivePeriod(period: TransportOpsSchedulePeriod | null): string {
-	if (!period) {
-		return "无安排";
-	}
-	return period.status === "suspended" ? "停运" : `${period.items.length} 班`;
-}
 interface TextProps {
 	name: string;
 	label: string;

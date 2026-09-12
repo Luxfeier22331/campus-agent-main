@@ -21,6 +21,34 @@ function service(): TransportScheduleService {
 }
 
 describe("transport schedule route", () => {
+	it("opts into notice metadata on both public endpoints", async () => {
+		const transportScheduleService = service();
+		const app = createApp(env, { transportScheduleService });
+		expect(
+			(
+				await app.fetch(
+					new Request(
+						"https://app-api.internal/api/transport/schedule?date=2026-09-06&include=notices",
+					),
+				)
+			).status,
+		).toBe(200);
+		expect(transportScheduleService.getSchedule).toHaveBeenCalledWith("2026-09-06", {
+			includeNotices: true,
+		});
+		expect(
+			(
+				await app.fetch(
+					new Request(
+						"https://app-api.internal/api/transport/schedule-range?from=2026-09-01&to=2026-09-30&include=notices",
+					),
+				)
+			).status,
+		).toBe(200);
+		expect(transportScheduleService.getRange).toHaveBeenCalledWith("2026-09-01", "2026-09-30", {
+			includeNotices: true,
+		});
+	});
 	it("serves a public local-date schedule with a shared cache boundary", async () => {
 		const transportScheduleService = service();
 		const app = createApp(env, { transportScheduleService });

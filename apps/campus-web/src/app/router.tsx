@@ -2,6 +2,7 @@ import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tan
 import { lazy, Suspense } from "react";
 import { DiningRoutePending } from "@/components/dining/dining-page-skeleton";
 import { parseNoticeRouteSearch } from "@/features/notices/search";
+import { parseTransportSearch, transportReturnTarget } from "@/features/transport/route-search";
 import { NotFoundPage, RootLayout, RoutePending } from "./root-layout";
 
 const ConversationPage = lazy(() =>
@@ -140,6 +141,7 @@ const mapRoute = createRoute({
 });
 
 const transportRoute = createRoute({
+	validateSearch: parseTransportSearch,
 	component: TransportPage,
 	getParentRoute: () => rootRoute,
 	path: "/transport",
@@ -186,6 +188,10 @@ const noticesRoute = createRoute({
 });
 
 const noticeDetailRoute = createRoute({
+	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
+		const returnTo = transportReturnTarget(search.returnTo);
+		return returnTo ? { returnTo } : {};
+	},
 	component: NoticeDetailPage,
 	getParentRoute: () => rootRoute,
 	path: "/notices/$noticeId",

@@ -6,14 +6,45 @@ status: active
 
 # 通知维护接口
 
-Ops Web 提供通知安全 metadata 的查看与分类维护，并复用暂停的 CronJob 模板启动固定任务。浏览器不能
-读取正文列，也不能提交任意 Kubernetes 命令、镜像、环境变量或 namespace。
+Ops Web 提供通知摘要、已采集正文预览与分类维护，并复用暂停的 CronJob 模板启动固定任务。浏览器不能
+提交任意 Kubernetes 命令、镜像、环境变量或 namespace。
 
 ## 通知
 
 - `GET /api/ops/notices?q=&state=&category=&page=`
 - `GET /api/ops/notices/:noticeId`
 - `PUT /api/ops/notices/:noticeId/category`
+
+### 正文预览
+
+- `GET /api/ops/notices/:noticeId/preview`
+- `GET /api/ops/notices/:noticeId/images/:ordinal`
+- `GET /api/ops/notices/:noticeId/attachments/:ordinal`
+
+预览统一读取 source bucket 中已采集的通知，使用与 publisher 相同的正文规范化逻辑；不读取或写入发布投影，
+不触发发布、采集或 OCR。已发布、未分类及待发布通知均可由已登录运营人员预览。响应包含 `noticeId`、
+`contentHtml`、`isExternal`、`externalUrl`、`images`（展示序号和 Ops URL）、`attachments`（来源序号、名称、后缀和 Ops URL）。
+外链通知只提供原始链接，不抓取外部正文。
+
+图片接口按展示序号映射 source ordinal，附件按来源序号定位；客户端不能指定对象 key 或任意 URL。
+资源按需从对象存储流式读取，图片及 PDF 支持浏览器查看，其他附件下载。列表预览不逐个下载或探测附件。
+空正文不隐藏附件；来源或附件 404 与存储不可用分别返回错误，不通过发布内容回退。
+
+详情默认打开「正文」页签，「维护」保留来源信息、分类、发布及 OCR 识别结果。页签切换保留分类草稿，
+切换通知沿用未保存提醒。正文查询按通知 ID 隔离，沿用 Ops 查询策略，不轮询、不复用上一条通知作为占位。
+正文内显示图片和附件数量；维护页的「可识别资源」数量不代表已有识别结果，也不触发提前读取 OCR。
+图片失败时可单独重试，重试不重新请求正文或其他资源。移动端保留顶部关闭入口，关闭后返回通知队列焦点。
+
+### 班车关联
+
+- `GET /api/ops/notices/:noticeId/transport-schedule-periods` 返回通知关联的班车时间段，供通知详情查看并跳转到
+  Ops 排班编辑器；响应包含线路、有效日期、星期、运行状态和关联说明。
+- 排班时间段使用 `GET/PUT /api/ops/transport/schedule-periods/:scheduleId/notices` 读取或替换关联通知，关联输入为
+  `{ "noticeLinks": [{ "noticeId": number, "summary": string|null }] }`。同一时间段内通知不可重复，最多 100 条。
+- 新建时间段可以在创建请求中携带同样的 `noticeLinks`，与时间段及班次明细原子保存；复制、范围套用和单班次快捷调整
+  不自动复制通知关联。编辑已有时间段保留原关联，关联独立保存不会改变时间段更新时间或生效优先级。
+
+### 摘要与分类
 
 列表和详情只返回通知 ID、标题、发布时间、类型、组织、外链 metadata、分类和推导状态。列表响应还返回
 `counts`，它按当前 `q` 和 `category` 筛选统计四类数量，并忽略当前 `state` 筛选：`all`、

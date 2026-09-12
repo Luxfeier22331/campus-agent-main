@@ -26,11 +26,12 @@ function pushEnvironment(from: string, to: string): NodeJS.ProcessEnv {
 	return { PRE_COMMIT_FROM_REF: from, PRE_COMMIT_TO_REF: to };
 }
 
-test("runs only affected Node and Go pre-push tasks", () => {
+test("runs root tests before affected Node and Go pre-push tasks", () => {
 	const calls: Array<{
 		args: string[];
 		base?: string;
 		command: string;
+		cwd: string;
 		head?: string;
 	}> = [];
 	const runner: EvidenceCommandRunner = (command, args, options) => {
@@ -38,6 +39,7 @@ test("runs only affected Node and Go pre-push tasks", () => {
 			args,
 			base: options.env.TURBO_SCM_BASE,
 			command,
+			cwd: options.cwd,
 			head: options.env.TURBO_SCM_HEAD,
 		});
 		if (command === "git" && args[0] === "diff") {
@@ -70,7 +72,9 @@ test("runs only affected Node and Go pre-push tasks", () => {
 	const commands = calls
 		.filter(({ command, args }) => command === "nix" && !args.includes("--dry-run=json"))
 		.map(({ command, args }) => [command, ...args].join(" "));
-	assert.equal(commands.length, 2);
+	assert.equal(commands.length, 3);
+	assert.equal(commands[0], "nix develop .#ci-core --command pnpm test");
+	assert.equal(calls.find(({ command }) => command === "nix")?.cwd, "/repository");
 	const native = commands.find((command) => command.includes(".#ci-go"));
 	assert(native?.includes("model-config#native:lint"));
 	assert(native?.includes("model-config#native:format"));
@@ -90,14 +94,53 @@ test("runs only affected Node and Go pre-push tasks", () => {
 	);
 });
 
+test("root test failure stops pre-push before affected task planning", () => {
+	const calls: string[] = [];
+	assert.throws(
+		() =>
+			runPrePush(
+				{ env: pushEnvironment(BASE, HEAD), repositoryRoot: "/repository" },
+				(command, args) => {
+					calls.push([command, ...args].join(" "));
+					return { status: command === "nix" ? 1 : 0 };
+				},
+			),
+		/pre-push failed with exit code 1.*pnpm test/u,
+	);
+	assert.deepEqual(calls, [
+		`git merge-base --is-ancestor ${BASE} ${HEAD}`,
+		"git rev-parse --local-env-vars",
+		"nix develop .#ci-core --command pnpm test",
+	]);
+});
+
+test("runs root tests even when no module tasks are affected", () => {
+	const commands: string[] = [];
+	runPrePush(
+		{ env: pushEnvironment(BASE, HEAD), repositoryRoot: "/repository" },
+		(command, args) => {
+			commands.push([command, ...args].join(" "));
+			return { status: 0, stdout: "" };
+		},
+	);
+	assert.deepEqual(
+		commands.filter((command) => command.startsWith("nix ")),
+		["nix develop .#ci-core --command pnpm test"],
+	);
+});
+
 test("runs the complete light task set when a new or rewritten branch has no usable base", () => {
 	const calls: string[] = [];
 	const runner: EvidenceCommandRunner = (command, args) => {
 		calls.push([command, ...args].join(" "));
-		return { status: command === "git" ? 1 : 0 };
+		return { status: command === "git" && !args.includes("--local-env-vars") ? 1 : 0 };
 	};
 
 	runPrePush({ env: pushEnvironment(ZERO_REF, HEAD), repositoryRoot: "/repository" }, runner);
+	assert.equal(
+		calls.filter((command) => command === "nix develop .#ci-core --command pnpm test").length,
+		1,
+	);
 	assert(
 		calls.some(
 			(command) => command.includes(".#ci-core") && command.includes("typecheck test test:worker"),
@@ -118,6 +161,41 @@ test("runs the complete light task set when a new or rewritten branch has no usa
 		})),
 		{ head: HEAD, kind: "full" },
 	);
+});
+
+test("root tests do not inherit hook-local Git paths or alter the caller environment", () => {
+	const env = {
+		...pushEnvironment(BASE, HEAD),
+		GIT_DIR: "/repository/.git",
+		GIT_WORK_TREE: "/repository",
+		GIT_INDEX_FILE: "/repository/.git/index",
+		GIT_COMMON_DIR: "/repository/.git",
+		PATH: "/test/bin",
+	};
+	let rootTestsRan = false;
+	runPrePush({ env, repositoryRoot: "/repository" }, (command, args, options) => {
+		if (command === "git" && args.includes("--local-env-vars")) {
+			return {
+				status: 0,
+				stdout: "GIT_DIR\nGIT_WORK_TREE\nGIT_INDEX_FILE\nGIT_COMMON_DIR\n",
+			};
+		}
+		if (command === "nix") {
+			rootTestsRan = true;
+			assert.equal(options.env.GIT_DIR, undefined);
+			assert.equal(options.env.GIT_WORK_TREE, undefined);
+			assert.equal(options.env.GIT_INDEX_FILE, undefined);
+			assert.equal(options.env.GIT_COMMON_DIR, undefined);
+			assert.equal(options.env.PATH, env.PATH);
+			assert.equal(options.cwd, "/repository");
+		}
+		return { status: 0, stdout: "" };
+	});
+	assert(rootTestsRan);
+	assert.equal(env.GIT_DIR, "/repository/.git");
+	assert.equal(env.GIT_WORK_TREE, "/repository");
+	assert.equal(env.GIT_INDEX_FILE, "/repository/.git/index");
+	assert.equal(env.GIT_COMMON_DIR, "/repository/.git");
 });
 
 test("skips remote branch deletion and rejects invalid push refs", () => {

@@ -58,6 +58,33 @@ const app = createOpsApp({
 	diningReviewStore: browserDiningContentStore,
 	noticeJobService: createNoticeJobService(browserNoticeJobStore),
 	noticeStore: browserNoticeStore,
+	noticePreviewStore: {
+		async get(key) {
+			const noticeId = Number(key.match(/\/(\d+)\.json$/u)?.[1]);
+			const notice = await browserNoticeStore.get(noticeId);
+			if (!notice) {
+				throw new Error("Missing preview fixture");
+			}
+			const response = Response.json({
+				schema_version: "internal_portal_notice_source.v2",
+				notice_id: noticeId,
+				notice_type: notice.noticeType.id,
+				organization_id: notice.organization?.id ?? null,
+				notice_title: notice.title,
+				notice_release_time: "2026-08-23 18:00:00",
+				is_external: notice.isExternal,
+				external_url: notice.externalUrl,
+				notice_content_html: notice.isExternal
+					? null
+					: "<p>请同学们按时完成学期注册。</p><table><tr><th>日期</th><th>地点</th></tr><tr><td>9月1日</td><td>教学楼</td></tr></table>",
+				attachments: [],
+			});
+			if (!response.body) {
+				throw new Error("Missing fixture body");
+			}
+			return { body: response.body, contentType: "application/json" };
+		},
+	},
 	providerConfigClient: fixtureProviderConfigClient(),
 	staticRoot: "dist",
 	store: createFixtureOpsStatusStore(),
@@ -65,6 +92,10 @@ const app = createOpsApp({
 
 serve({
 	fetch: (request) => {
+		const ocrNotice = /^\/api\/ops\/ocr\/notices\/(\d+)$/u.exec(new URL(request.url).pathname);
+		if (request.method === "GET" && ocrNotice) {
+			return Response.json({ noticeId: ocrNotice[1], resources: [] });
+		}
 		if (request.method === "GET" && new URL(request.url).pathname.startsWith("/dining")) {
 			browserDiningStore.reset();
 			browserDiningContentStore.reset();

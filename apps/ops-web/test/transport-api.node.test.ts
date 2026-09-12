@@ -61,6 +61,9 @@ const period: TransportOpsSchedulePeriod = {
 
 function transportStore(): TransportStore {
 	return {
+		listSchedulePeriodNotices: vi.fn(async () => []),
+		replaceSchedulePeriodNotices: vi.fn(async () => []),
+		listNoticeSchedulePeriods: vi.fn(async () => []),
 		createRoute: vi.fn(async () => route),
 		createSchedulePeriod: vi.fn(async () => period),
 		deleteRoute: vi.fn(async () => undefined),

@@ -52,6 +52,7 @@ export function effectiveDetails(
 			].join(" · "),
 		),
 		...(period.note ? [period.note] : []),
+		`下车点：${period.dropOffPointOverride ?? route.dropOffPoint ?? "未填写"}`,
 	];
 }
 
@@ -153,6 +154,8 @@ export function TransportImpact({
 	const days = buildTransportImpactDays(from, to, periods, afterPeriods, route);
 	const changedDays = days.filter((day) => day.changed);
 	const groups = groupChangedDays(days);
+	const expandedGroup =
+		groups.find((group) => group.some((day) => day.date === effectiveDate)) ?? groups[0];
 	return (
 		<section aria-label="逐日影响范围" className="grid gap-3 border-t pt-3">
 			<h4 className="font-medium">逐日影响范围</h4>
@@ -198,6 +201,7 @@ export function TransportImpact({
 						return (
 							<Disclosure
 								key={`${firstDay.date}-${lastDay.date}`}
+								open={group === expandedGroup}
 								className="rounded-[var(--radius-lg)] border p-3"
 							>
 								<DisclosureSummary className="font-medium">

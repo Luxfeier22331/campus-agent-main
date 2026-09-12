@@ -1,6 +1,8 @@
 import {
 	selectTransportPeriod,
 	type TransportPublicDeparture,
+	type TransportPublicNotice,
+	TransportPublicNoticeSchema,
 	type TransportPublicScheduleRange,
 	TransportPublicScheduleRangeSchema,
 	type TransportPublicScheduleResponse,
@@ -18,7 +20,7 @@ import {
 	transportScheduleItems,
 	transportSchedulePeriods,
 } from "@campus-agent/transport/schema";
-import { asc } from "drizzle-orm";
+import { asc, sql } from "drizzle-orm";
 import type { Env } from "../../config";
 import {
 	createRuntimeDbGetter,
@@ -30,8 +32,15 @@ import { AppApiRouteError } from "../../http";
 export type { TransportPublicScheduleResponse as TransportScheduleResponse } from "@campus-agent/transport/domain";
 
 export interface TransportScheduleService {
-	getSchedule(date: string): Promise<TransportPublicScheduleResponse>;
-	getRange(from: string, to: string): Promise<TransportPublicScheduleRange>;
+	getSchedule(
+		date: string,
+		options?: { includeNotices: boolean },
+	): Promise<TransportPublicScheduleResponse>;
+	getRange(
+		from: string,
+		to: string,
+		options?: { includeNotices: boolean },
+	): Promise<TransportPublicScheduleRange>;
 }
 
 type RouteRow = typeof transportRoutes.$inferSelect;
@@ -54,16 +63,75 @@ export function createPgTransportScheduleService(
 ): TransportScheduleService {
 	const getDb = options.getDb ?? createRuntimeDbGetter(env);
 	return {
-		async getSchedule(date) {
-			return projectSchedule(await loadSchedules(await getDb()), date);
+		async getSchedule(date, options) {
+			const db = await getDb();
+			const schedules = await loadSchedules(db);
+			const notices = options?.includeNotices
+				? await loadNotices(db, schedules, [date])
+				: undefined;
+			return projectSchedule(schedules, date, notices);
 		},
-		async getRange(from, to) {
+		async getRange(from, to, options) {
 			const dates = transportDateRange(from, to);
-			const schedules = await loadSchedules(await getDb());
-			const days = dates.map((date) => projectSchedule(schedules, date));
+			const db = await getDb();
+			const schedules = await loadSchedules(db);
+			const notices = options?.includeNotices ? await loadNotices(db, schedules, dates) : undefined;
+			const days = dates.map((date) => projectSchedule(schedules, date, notices));
 			return TransportPublicScheduleRangeSchema.parse({ from, to, days });
 		},
 	};
+}
+
+async function loadNotices(
+	db: RuntimeDatabase,
+	{ periodsByRoute }: Awaited<ReturnType<typeof loadSchedules>>,
+	dates: string[],
+) {
+	const ids = new Set<string>();
+	for (const periods of periodsByRoute.values()) {
+		for (const date of dates) {
+			const period = selectPeriod(periods, date);
+			if (period) {
+				ids.add(period.scheduleId);
+			}
+		}
+	}
+	const grouped = new Map<string, TransportPublicNotice[]>();
+	if (ids.size === 0) {
+		return grouped;
+	}
+	const result = await db.execute<{
+		schedule_id: string;
+		notice_id: string;
+		title: string;
+		released_at: Date | string;
+		is_external: boolean;
+		external_url: string | null;
+	}>(sql`
+		SELECT l.schedule_id, n.notice_id::text, n.title, n.released_at, n.is_external, n.external_url
+		FROM transport.schedule_period_notices l
+		JOIN notices.notices n ON n.notice_id = l.notice_id
+		WHERE l.schedule_id IN (${sql.join(
+			[...ids].map((id) => sql`${id}`),
+			sql`, `,
+		)})
+		AND n.is_published
+		ORDER BY n.released_at DESC, n.notice_id DESC
+	`);
+	for (const row of result.rows) {
+		const notices = grouped.get(row.schedule_id) ?? [];
+		notices.push(
+			TransportPublicNoticeSchema.parse({
+				noticeId: row.notice_id,
+				title: row.title,
+				releasedAt: new Date(row.released_at).toISOString(),
+				isExternal: row.is_external,
+				externalUrl: row.is_external ? row.external_url : null,
+			}),
+		);
+		grouped.set(row.schedule_id, notices);
+	}
+	return grouped;
 }
 
 async function loadSchedules(db: RuntimeDatabase) {
@@ -102,11 +170,15 @@ async function loadSchedules(db: RuntimeDatabase) {
 function projectSchedule(
 	{ routes, periodsByRoute }: Awaited<ReturnType<typeof loadSchedules>>,
 	date: string,
+	notices?: Map<string, TransportPublicNotice[]>,
 ): TransportPublicScheduleResponse {
 	const response: TransportPublicScheduleResponse = {
 		date,
 		routeCatalog: routes.map(({ input: { displayOrder: _order, ...route } }) => ({
 			...route,
+			dropOffPoint:
+				selectPeriod(periodsByRoute.get(route.routeId) ?? [], date)?.input.dropOffPointOverride ??
+				route.dropOffPoint,
 			nextServiceDate: nextServiceDate(periodsByRoute.get(route.routeId) ?? [], date),
 		})),
 		routes: [],
@@ -117,6 +189,16 @@ function projectSchedule(
 			continue;
 		}
 		response.routes.push({
+			...(notices
+				? {
+						noticeContext: {
+							validFrom: period.input.validFrom,
+							validTo: period.input.validTo,
+							weekdays: period.input.weekdays,
+							notices: notices.get(period.scheduleId) ?? [],
+						},
+					}
+				: {}),
 			boardingPoint: period.input.boardingPointOverride ?? route.input.defaultBoardingPoint,
 			departures:
 				period.input.status === "suspended"
@@ -168,6 +250,7 @@ function parsePeriod(row: PeriodRow, rows: readonly ItemRow[]): ParsedPeriod {
 	try {
 		const input = TransportSchedulePeriodInputSchema.parse({
 			boardingPointOverride: nullableText(row.boardingPointOverride),
+			dropOffPointOverride: nullableText(row.dropOffPointOverride),
 			items: rows.map(parseItem),
 			note: nullableText(row.note),
 			routeId: row.routeId,
