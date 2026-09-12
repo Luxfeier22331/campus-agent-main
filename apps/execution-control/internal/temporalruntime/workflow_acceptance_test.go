@@ -40,7 +40,7 @@ func TestToolExecutionWorkflowReplansPartialCoverageWithinBudget(t *testing.T) {
 				env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.MatchedBy(func(actual ExecuteTaskStepActivityInput) bool { return actual.Step.ID == next.ID })).Return(workflowStepOutput(input.RequestID, next, "未找到日期。", nil, []WorkflowSourceAttempt{{Source: WorkflowSourceWebSearch, Status: "no_match"}}), nil).Once()
 			}
 			env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
-				return actual.AnswerMode == "grounded" && len(actual.Evidence) == 1 && len(actual.RemainingFacts) == 1+tc.wantReplans
+				return len(actual.Evidence) == 1 && len(actual.RemainingFacts) == 1+tc.wantReplans
 			})).Return(workflowSynthesisOutput(input.RequestID, "在校学生可申请，截止日期尚未查明。", []WorkflowEvidence{evidence}), nil).Once()
 			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
 			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
@@ -90,15 +90,60 @@ func TestToolExecutionWorkflowFailsWithoutRecoveryAdmission(t *testing.T) {
 	}
 }
 
-func TestWorkflowReplanRejectsUngroundedSynthesis(t *testing.T) {
-	for _, status := range []string{"no_match", "failed"} {
+func TestWorkflowSynthesisRequiresMaterialsOrSuccessfulAttempt(t *testing.T) {
+	for _, status := range []string{"matched", "no_match", "completed", "failed", ""} {
 		completed := []WorkflowCompletedStep{{SourceAttempts: []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: status}}}}
-		if err := ValidateWorkflowReplanDecision(WorkflowTaskReplan{SchemaVersion: "task_replan.v2", Decision: "synthesize"}, completed); err == nil {
-			t.Fatalf("synthesize accepted without evidence for %s", status)
+		if got := workflowCanSynthesize(nil, completed); got != (status != "failed" && status != "") {
+			t.Fatalf("synthesis readiness for %q = %t", status, got)
 		}
-		err := ValidateWorkflowReplanDecision(WorkflowTaskReplan{SchemaVersion: "task_replan.v2", Decision: "insufficient"}, completed)
-		if (err == nil) != (status == "no_match") {
-			t.Fatalf("insufficient decision for %s: %v", status, err)
+		if !workflowCanSynthesize([]WorkflowEvidence{{ID: "candidate"}}, completed) {
+			t.Fatal("candidate materials must permit synthesis even after another source fails")
 		}
+	}
+	if workflowCanSynthesize(nil, nil) {
+		t.Fatal("no materials and no source attempt must not pretend to be no-match")
+	}
+	if err := ValidateWorkflowReplanDecision(WorkflowTaskReplan{SchemaVersion: "task_replan.v3", Decision: "synthesize"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateWorkflowReplanDecision(WorkflowTaskReplan{SchemaVersion: "task_replan.v3", Decision: "insufficient"}); err == nil {
+		t.Fatal("retired insufficient decision was accepted")
+	}
+}
+
+func TestWorkflowKeepsUnhelpfulCandidatesAndCompletes(t *testing.T) {
+	for _, replan := range []bool{false, true} {
+		t.Run(map[bool]string{false: "budget exhausted", true: "replanner finishes"}[replan], func(t *testing.T) {
+			var suite testsuite.WorkflowTestSuite
+			env := suite.NewTestWorkflowEnvironment()
+			registerWorkflowTestActivities(env, &Activities{})
+			input := validToolExecutionWorkflowInput("run-unhelpful-candidate")
+			input.AdmissionSnapshot.AgentBudget.MaxReplans = 0
+			if replan {
+				input.AdmissionSnapshot.AgentBudget.MaxReplans = 1
+			}
+			step := WorkflowTaskPlanStep{ID: "step.lookup", Objective: "申请截止日期", CandidateSources: []WorkflowSource{WorkflowSourceCampusSearch}}
+			plan := WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: workflowTestGoal, Steps: []WorkflowTaskPlanStep{step}}
+			evidence := []WorkflowEvidence{{SchemaVersion: "workflow_evidence.v1", ID: "candidate", Source: WorkflowSourceCampusSearch, Title: "申请资格", Excerpt: "在校学生可申请。", CitationIndex: 1}}
+			output := workflowStepOutput(input.RequestID, step, "只有资格要求，没有截止日期。", evidence, []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "matched"}})
+			output.RemainingFacts = []string{"申请截止日期"}
+			env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(workflowPlanOutput(input.RequestID, plan), nil).Once()
+			env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.Anything).Return(output, nil).Once()
+			if replan {
+				env.OnActivity(ReplanTaskActivityName, mock.Anything, mock.Anything).Return(workflowReplanOutput(input.RequestID, "synthesize", "没有进一步适用路径。", nil), nil).Once()
+			}
+			env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
+				return len(actual.Evidence) == 1 && actual.Evidence[0].ID == "candidate" && actual.SourceAttempts[0].Status == "matched" && equalStrings(actual.RemainingFacts[0].Facts, []string{"申请截止日期"})
+			})).Return(workflowSynthesisOutput(input.RequestID, "暂时无法确认申请截止日期。", evidence), nil).Once()
+			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
+			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
+			env.ExecuteWorkflow(ToolExecutionWorkflow, input)
+			if err := env.GetWorkflowError(); err != nil {
+				t.Fatal(err)
+			}
+			env.AssertExpectations(t)
+			env.AssertActivityNumberOfCalls(t, ExecuteTaskStepActivityName, 1)
+			env.AssertActivityNumberOfCalls(t, SynthesizeAnswerActivityName, 1)
+		})
 	}
 }

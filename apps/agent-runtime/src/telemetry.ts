@@ -1,6 +1,4 @@
-import { OpenAIAgentsInstrumentation } from "@arizeai/openinference-instrumentation-openai-agents";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
-import * as agents from "@openai/agents";
 import {
 	context,
 	propagation,
@@ -18,6 +16,7 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_NAMESPACE } from "@opentelemetry/semantic-conventions";
+import { disableOpenAITracing, instrumentOpenAI } from "./openai-telemetry.ts";
 import { createSafeSpanProcessor } from "./telemetry-sanitizer.ts";
 
 export interface AgentTelemetryController {
@@ -37,7 +36,7 @@ export function startAgentRuntimeTelemetry(
 	}
 	// The SDK installs its OpenAI exporter during module initialization. This service
 	// owns the OTLP/Langfuse path below, so the SDK exporter must stay disabled.
-	agents.setTracingDisabled(true);
+	disableOpenAITracing();
 	if (!(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || env.OTEL_EXPORTER_OTLP_ENDPOINT)) {
 		activeTelemetry = noopTelemetryController();
 		return activeTelemetry;
@@ -66,15 +65,7 @@ export function startAgentRuntimeTelemetry(
 			propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
 		}),
 	});
-	const instrumentation = new OpenAIAgentsInstrumentation({
-		exclusiveProcessor: true,
-		traceConfig: {
-			hideInputs: true,
-			hideOutputs: true,
-		},
-		tracerProvider: provider,
-	});
-	instrumentation.manuallyInstrument(agents, { exclusiveProcessor: true });
+	const instrumentation = instrumentOpenAI(provider);
 
 	activeTelemetry = {
 		configured: true,

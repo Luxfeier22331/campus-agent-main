@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 // This is the internal successful recovery response, constructed by this owner.
@@ -23,8 +25,9 @@ type recoveryResponse struct {
 		TerminalReason string `json:"terminal_reason"`
 	} `json:"observability"`
 	Result *struct {
-		TerminalReason string           `json:"terminal_reason"`
-		Sources        []recoverySource `json:"sources"`
+		TerminalReason    string                             `json:"terminal_reason"`
+		Sources           []recoverySource                   `json:"sources"`
+		SearchSuggestions []temporalruntime.SearchSuggestion `json:"search_suggestions"`
 	} `json:"result"`
 	StageTiming map[string]float64 `json:"stage_timing"`
 }

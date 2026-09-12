@@ -61,6 +61,10 @@ func (s *Adapter) RepairWorkflowOperationReplayProjection(
 		if startedAt.IsZero() {
 			startedAt = step.StartedAt
 		}
+		projectionStatus := "completed"
+		if output.Status == "failed" {
+			projectionStatus = "failed"
+		}
 		projection := identity.Apply(activityprojection.TemporalStepProjection{
 			Attempt:            attemptNumber,
 			CompletedAt:        completedAt,
@@ -76,7 +80,7 @@ func (s *Adapter) RepairWorkflowOperationReplayProjection(
 			ResultKind:         WorkflowOperationResultKind(request.Operation),
 			Run:                run,
 			StartedAt:          startedAt,
-			Status:             "completed",
+			Status:             projectionStatus,
 			StepID:             request.StepID,
 			StepKind:           execution.FirstNonEmptyText(step.StepKind, request.StepKind),
 			TaskQueue:          execution.FirstNonEmptyText(step.TaskQueue, temporalruntime.ActivityTaskQueueAgent),
@@ -88,7 +92,7 @@ func (s *Adapter) RepairWorkflowOperationReplayProjection(
 		if err := s.ProjectTemporalStep(ctx, projection); err != nil {
 			return err
 		}
-	case "completed":
+	case "completed", "failed":
 		// The aggregate step can be durable even when the process stopped in
 		// the middle of projectTemporalStep. Preserve its stored payload and
 		// timestamps so filling the missing child rows remains idempotent.
@@ -111,9 +115,9 @@ func (s *Adapter) RepairWorkflowOperationReplayProjection(
 			if _, err := s.RunProjectionStore.UpsertStepAttempt(ctx, attempt); err != nil {
 				return err
 			}
-		} else if strings.TrimSpace(existingAttempt.Status) != "completed" {
+		} else if strings.TrimSpace(existingAttempt.Status) != strings.TrimSpace(output.Status) {
 			return fmt.Errorf(
-				"workflow operation step %s is completed but its attempt is %s",
+				"workflow operation step %s disagrees with its attempt status %s",
 				request.StepID,
 				existingAttempt.Status,
 			)
@@ -129,12 +133,16 @@ func (s *Adapter) RepairWorkflowOperationReplayProjection(
 			if createdAt.IsZero() {
 				createdAt = completedAt
 			}
+			resultStatus := "completed"
+			if output.Status == "failed" {
+				resultStatus = "failed"
+			}
 			if _, err := s.RunProjectionStore.UpsertStepResult(ctx, execution.StepResultProjection{
 				ResultID:             expectedResultID,
 				StepID:               request.StepID,
 				RequestID:            run.RequestID,
 				AttemptID:            activityprojection.TemporalStepAttemptID(run.RequestID, request.StepID, attemptNumber),
-				Status:               "completed",
+				Status:               resultStatus,
 				ResultKind:           WorkflowOperationResultKind(request.Operation),
 				ProjectionRef:        activityprojection.WorkflowOperationResultRef(run.RequestID, request.StepID),
 				CreatedAt:            createdAt,
@@ -165,8 +173,13 @@ func ValidateWorkflowOperationReplayOutput(
 	if strings.TrimSpace(output.WorkflowResultRef) != activityprojection.WorkflowOperationResultRef(run.RequestID, request.StepID) {
 		return fmt.Errorf("replayed workflow operation result ref does not match step")
 	}
-	if strings.TrimSpace(output.Status) != "completed" {
+	if strings.TrimSpace(output.Status) != "completed" && strings.TrimSpace(output.Status) != "failed" {
 		return fmt.Errorf("replayed workflow operation status is %q", output.Status)
+	}
+	if output.Status == "failed" {
+		if output.Failure == nil || strings.TrimSpace(output.Failure.Code) == "" {
+			return fmt.Errorf("replayed failed workflow operation has no failure")
+		}
 	}
 	return ValidateWorkflowOperationOutputSources(request, output)
 }
@@ -277,7 +290,7 @@ func WorkflowOperationReplayAttemptProjection(
 	attempt.StepID = request.StepID
 	attempt.RequestID = run.RequestID
 	attempt.Attempt = attemptNumber
-	attempt.Status = "completed"
+	attempt.Status = output.Status
 	attempt.TaskQueue = execution.FirstNonEmptyText(attempt.TaskQueue, step.TaskQueue, temporalruntime.ActivityTaskQueueAgent)
 	attempt.WorkerID = execution.FirstNonEmptyText(attempt.WorkerID, step.WorkerID, identity.WorkerID)
 	attempt.WorkflowID = execution.FirstNonEmptyText(attempt.WorkflowID, identity.WorkflowID, "campus-agent.chat."+run.RequestID)

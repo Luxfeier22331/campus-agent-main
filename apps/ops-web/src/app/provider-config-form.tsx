@@ -307,7 +307,15 @@ export function ExecutionModelSettingForm({
 											className="min-h-11"
 											onChange={(event) =>
 												updateDraft(
-													{ provider: event.target.value as ExecutionDraft["provider"] },
+													{
+														provider: event.target.value as ExecutionDraft["provider"],
+														transport:
+															event.target.value === "google"
+																? "generate_content"
+																: draft.transport === "generate_content"
+																	? "responses"
+																	: draft.transport,
+													},
 													["provider"],
 												)
 											}
@@ -320,6 +328,9 @@ export function ExecutionModelSettingForm({
 												</>
 											) : (
 												<>
+													{kind === "llm" ? (
+														<option value="google">Gemini（原生 API）</option>
+													) : null}
 													<option value="openai">OpenAI</option>
 													<option value="openai-compatible">OpenAI 兼容接口</option>
 												</>
@@ -344,8 +355,15 @@ export function ExecutionModelSettingForm({
 												}
 												value={draft.transport}
 											>
-												<option value="responses">Responses API</option>
-												<option value="chat_completions">Chat Completions API</option>
+												{draft.provider === "google" ? (
+													<option value="generate_content">Gemini GenerateContent</option>
+												) : null}
+												<option disabled={draft.provider === "google"} value="responses">
+													Responses API
+												</option>
+												<option disabled={draft.provider === "google"} value="chat_completions">
+													Chat Completions API
+												</option>
 											</NativeSelect>
 										</FormField>
 									)}

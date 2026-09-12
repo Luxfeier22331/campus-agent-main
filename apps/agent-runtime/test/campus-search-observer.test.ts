@@ -93,7 +93,9 @@ describe("Campus Search observation delivery", () => {
 			} else {
 				expect(await promise).toMatchObject({
 					status: "failed",
-					failure: { code: "transient_internal_query_failed" },
+					failure: {
+						code: mode === "network" ? "campus_search_network_failed" : "campus_search_timeout",
+					},
 				});
 			}
 			expect(observations.map((o) => o.phase)).toEqual([

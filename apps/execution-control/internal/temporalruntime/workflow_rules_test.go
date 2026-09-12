@@ -43,17 +43,17 @@ func TestValidateWorkflowRulesSharePlanAndReplanSemantics(t *testing.T) {
 	}{
 		{
 			name:   "continue requires remaining steps",
-			replan: WorkflowTaskReplan{SchemaVersion: "task_replan.v2", Decision: "continue"},
+			replan: WorkflowTaskReplan{SchemaVersion: "task_replan.v3", Decision: "continue"},
 			want:   "requires remaining steps",
 		},
 		{
 			name:   "synthesize rejects remaining steps",
-			replan: WorkflowTaskReplan{SchemaVersion: "task_replan.v2", Decision: "synthesize", RemainingSteps: []WorkflowTaskPlanStep{replacement}},
+			replan: WorkflowTaskReplan{SchemaVersion: "task_replan.v3", Decision: "synthesize", RemainingSteps: []WorkflowTaskPlanStep{replacement}},
 			want:   "must not contain remaining steps",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			err := ValidateWorkflowReplanDecision(test.replan, completed)
+			err := ValidateWorkflowReplanDecision(test.replan)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want substring %q", err, test.want)
 			}

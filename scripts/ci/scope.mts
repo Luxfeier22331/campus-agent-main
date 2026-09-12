@@ -1,20 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { BUILD_TASKS, NATIVE_TASKS, NODE_TASKS } from "./validation-profiles.mts";
+
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 
-const AFFECTED_TASKS = [
-	"build",
-	"build:worker",
-	"native:test",
-	"native:typecheck",
-	"test",
-	"test:worker",
-	"typecheck",
-] as const;
+const AFFECTED_TASKS = [...NODE_TASKS, ...NATIVE_TASKS, ...BUILD_TASKS];
 
 export interface CommandResult {
 	error?: Error;
@@ -48,11 +40,7 @@ export interface AffectedScopeOptions {
 	repositoryRoot: string;
 }
 
-function isTurboConfig(file: string): boolean {
-	return file === "turbo.json" || file.endsWith("/turbo.json");
-}
-
-function run(
+export function run(
 	command: string,
 	args: string[],
 	options: { cwd: string; env: NodeJS.ProcessEnv },
@@ -80,7 +68,11 @@ function commandError(command: string, args: string[], result: CommandResult): E
 	return new Error(`${command} ${args.join(" ")} failed: ${detail}`);
 }
 
-function requireSuccess(command: string, args: string[], result: CommandResult): CommandResult {
+export function requireSuccess(
+	command: string,
+	args: string[],
+	result: CommandResult,
+): CommandResult {
 	if (result.error || result.status !== 0) {
 		throw commandError(command, args, result);
 	}
@@ -156,159 +148,20 @@ export function parseChangedFiles(source: string): string[] {
 	return [...files].sort();
 }
 
-function collectTurboTasks(
+export function collectTurboTasks(
 	base: string,
 	head: string,
 	root: string,
 	runner: CommandRunner,
+	tasks: readonly string[] = AFFECTED_TASKS,
 ): ScopeTask[] {
 	const env = { ...process.env, TURBO_SCM_BASE: base, TURBO_SCM_HEAD: head };
-	const turboArgs = ["exec", "turbo", "run", ...AFFECTED_TASKS, "--affected", "--dry-run=json"];
+	const turboArgs = ["exec", "turbo", "run", ...tasks, "--affected", "--dry-run=json"];
 	const turbo = requireSuccess("pnpm", turboArgs, runner("pnpm", turboArgs, { cwd: root, env }));
 	return parseTurboTasks(turbo.stdout ?? "");
 }
 
-interface TreeEntry {
-	mode: string;
-	object: string;
-}
-
-function readTreeEntry(
-	tree: string,
-	file: string,
-	root: string,
-	runner: CommandRunner,
-	env: NodeJS.ProcessEnv,
-): TreeEntry | undefined {
-	const args = ["ls-tree", "-z", tree, "--", file];
-	const result = requireSuccess("git", args, runner("git", args, { cwd: root, env }));
-	const source = result.stdout ?? "";
-	if (source === "") {
-		return;
-	}
-	const entries = source.split("\0").filter(Boolean);
-	if (entries.length !== 1) {
-		throw new Error(`Git returned multiple tree entries for ${file}`);
-	}
-	const separator = entries[0]?.indexOf("\t") ?? -1;
-	const header = separator >= 0 ? entries[0]?.slice(0, separator).split(" ") : undefined;
-	if (
-		header?.length !== 3 ||
-		header[1] !== "blob" ||
-		!header[0] ||
-		!header[2] ||
-		!SHA_PATTERN.test(header[2])
-	) {
-		throw new Error(`Git returned an invalid tree entry for ${file}`);
-	}
-	return { mode: header[0], object: header[2] };
-}
-
-function commitTree(
-	tree: string,
-	message: string,
-	parent: string | undefined,
-	root: string,
-	runner: CommandRunner,
-	env: NodeJS.ProcessEnv,
-): string {
-	const args = ["commit-tree", tree];
-	if (parent) {
-		args.push("-p", parent);
-	}
-	args.push("-m", message);
-	const commitEnv = {
-		...env,
-		GIT_AUTHOR_DATE: "1970-01-01T00:00:00Z",
-		GIT_AUTHOR_EMAIL: "ci-scope@example.invalid",
-		GIT_AUTHOR_NAME: "Source CI scope",
-		GIT_COMMITTER_DATE: "1970-01-01T00:00:00Z",
-		GIT_COMMITTER_EMAIL: "ci-scope@example.invalid",
-		GIT_COMMITTER_NAME: "Source CI scope",
-	};
-	const result = requireSuccess("git", args, runner("git", args, { cwd: root, env: commitEnv }));
-	const commit = result.stdout?.trim() ?? "";
-	if (!SHA_PATTERN.test(commit)) {
-		throw new Error("Git returned an invalid synthetic scope commit");
-	}
-	return commit;
-}
-
-function collectTurboTasksWithHeadConfig(
-	base: string,
-	head: string,
-	configFiles: readonly string[],
-	root: string,
-	runner: CommandRunner,
-): ScopeTask[] {
-	const tempRoot = mkdtempSync(path.join(os.tmpdir(), "campus-agent-scope-"));
-	const index = path.join(tempRoot, "index");
-	const env = { ...process.env, GIT_INDEX_FILE: index };
-	try {
-		const readTreeArgs = ["read-tree", `${base}^{tree}`];
-		requireSuccess("git", readTreeArgs, runner("git", readTreeArgs, { cwd: root, env }));
-
-		for (const file of configFiles) {
-			const baseEntry = readTreeEntry(`${base}^{tree}`, file, root, runner, env);
-			const headEntry = readTreeEntry(`${head}^{tree}`, file, root, runner, env);
-			if (headEntry) {
-				const updateArgs = [
-					"update-index",
-					"--add",
-					"--cacheinfo",
-					headEntry.mode,
-					headEntry.object,
-					file,
-				];
-				requireSuccess("git", updateArgs, runner("git", updateArgs, { cwd: root, env }));
-			} else if (baseEntry) {
-				const removeArgs = ["update-index", "--force-remove", "--", file];
-				requireSuccess("git", removeArgs, runner("git", removeArgs, { cwd: root, env }));
-			}
-		}
-
-		const baseTreeResult = requireSuccess(
-			"git",
-			["write-tree"],
-			runner("git", ["write-tree"], { cwd: root, env }),
-		);
-		const baseTree = baseTreeResult.stdout?.trim() ?? "";
-		if (!SHA_PATTERN.test(baseTree)) {
-			throw new Error("Git returned an invalid synthetic scope tree");
-		}
-		const syntheticBase = commitTree(
-			baseTree,
-			"synthetic Turbo scope base",
-			undefined,
-			root,
-			runner,
-			env,
-		);
-		const headTreeArgs = ["rev-parse", `${head}^{tree}`];
-		const headTreeResult = requireSuccess(
-			"git",
-			headTreeArgs,
-			runner("git", headTreeArgs, { cwd: root, env }),
-		);
-		const headTree = headTreeResult.stdout?.trim() ?? "";
-		if (!SHA_PATTERN.test(headTree)) {
-			throw new Error("Git returned an invalid affected head tree");
-		}
-		const syntheticHead = commitTree(
-			headTree,
-			"synthetic Turbo scope head",
-			syntheticBase,
-			root,
-			runner,
-			env,
-		);
-		return collectTurboTasks(syntheticBase, syntheticHead, root, runner);
-	} finally {
-		rmSync(tempRoot, { force: true, recursive: true });
-	}
-}
-
-export function resolveAffectedScope(
+export function resolveGitScope(
 	options: AffectedScopeOptions,
 	runner: CommandRunner = run,
 ): AffectedScope {
@@ -343,21 +196,20 @@ export function resolveAffectedScope(
 	];
 	const diff = requireSuccess("git", diffArgs, runner("git", diffArgs, { cwd: root, env }));
 	const changedFiles = parseChangedFiles(diff.stdout ?? "");
-	const turboConfigFiles = changedFiles.filter(isTurboConfig);
+	return { base: options.base, head: options.head, changedFiles, tasks: [] };
+}
+
+export function resolveAffectedScope(
+	options: AffectedScopeOptions,
+	runner: CommandRunner = run,
+): AffectedScope {
+	const scope = resolveGitScope(options, runner);
 	return {
-		base: options.base,
-		changedFiles,
-		head: options.head,
+		...scope,
 		tasks:
-			turboConfigFiles.length > 0
-				? collectTurboTasksWithHeadConfig(
-						options.base,
-						options.head,
-						turboConfigFiles,
-						root,
-						runner,
-					)
-				: collectTurboTasks(options.base, options.head, root, runner),
+			scope.changedFiles.length > 0
+				? collectTurboTasks(scope.base, scope.head, options.repositoryRoot, runner)
+				: [],
 	};
 }
 

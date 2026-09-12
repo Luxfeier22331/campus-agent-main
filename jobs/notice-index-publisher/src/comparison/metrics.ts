@@ -10,6 +10,7 @@ import {
 	type NoticeQuestionComparison,
 	type NoticeRetrievalMetricComparison,
 	type NumericDelta,
+	type MetricDelta,
 	type RankingCutoffKey,
 	type RankChangeSummary,
 	type RecallMetricName,
@@ -100,15 +101,15 @@ export function compareMetricSlice(
 ): NoticeRetrievalMetricComparison {
 	return {
 		mean: Object.fromEntries(
-			MEAN_METRIC_NAMES.map((name) => [name, numericDelta(baseline[name], candidate[name])]),
-		) as Record<MeanMetricName, NumericDelta>,
+			MEAN_METRIC_NAMES.map((name) => [name, metricDelta(baseline[name], candidate[name])]),
+		) as Record<MeanMetricName, MetricDelta>,
 		questionCount: numericDelta(baseline.questionCount, candidate.questionCount),
 		recallAt: Object.fromEntries(
 			RECALL_METRIC_NAMES.map((name) => [
 				name,
 				compareRecallAt(baseline[name], candidate[name]),
 			]),
-		) as Record<RecallMetricName, Record<RankingCutoffKey, NumericDelta>>,
+		) as Record<RecallMetricName, Record<RankingCutoffKey, MetricDelta>>,
 		singleChunkAnswerQuestionCount: numericDelta(
 			baseline.singleChunkAnswerQuestionCount,
 			candidate.singleChunkAnswerQuestionCount,
@@ -133,15 +134,19 @@ function summarizeRankChanges(changes: readonly number[]): RankChangeSummary {
 }
 
 function compareRecallAt(
-	baseline: Record<RankingCutoffKey, number>,
-	candidate: Record<RankingCutoffKey, number>,
-): Record<RankingCutoffKey, NumericDelta> {
+	baseline: Record<RankingCutoffKey, number> | null,
+	candidate: Record<RankingCutoffKey, number> | null,
+): Record<RankingCutoffKey, MetricDelta> {
 	return {
-		"1": numericDelta(baseline["1"], candidate["1"]),
-		"3": numericDelta(baseline["3"], candidate["3"]),
-		"5": numericDelta(baseline["5"], candidate["5"]),
-		"10": numericDelta(baseline["10"], candidate["10"]),
+		"1": metricDelta(baseline?.["1"] ?? null, candidate?.["1"] ?? null),
+		"3": metricDelta(baseline?.["3"] ?? null, candidate?.["3"] ?? null),
+		"5": metricDelta(baseline?.["5"] ?? null, candidate?.["5"] ?? null),
+		"10": metricDelta(baseline?.["10"] ?? null, candidate?.["10"] ?? null),
 	};
+}
+
+function metricDelta(baseline: number | null, candidate: number | null): MetricDelta {
+	return { baseline, candidate, delta: baseline === null || candidate === null ? null : round(candidate - baseline) };
 }
 
 function distributionDelta(

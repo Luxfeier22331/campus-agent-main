@@ -7,7 +7,7 @@ import {
 	fetchWithoutRedirects,
 	normalizeProviderBaseURL,
 	openAIAgentsRunnerOptionsFromProviderConfig,
-} from "../src/provider-config.ts";
+} from "../src/openai-provider.ts";
 
 describe("agent runtime provider config", () => {
 	it("creates SDK runner options from request scoped provider config", () => {

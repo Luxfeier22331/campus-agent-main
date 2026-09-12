@@ -56,7 +56,7 @@ Finalization 前继续校验该 hash。目标缺失或不一致都失败关闭�
 
 ## 模型输入
 
-Agent Runtime 在创建真实 `AgentInputItem[]` 时组装：
+Agent Runtime 在创建中立 `ModelMessage[]` 时组装，再由 runner 转为对应 SDK 的输入：
 
 - 已裁剪的近期完整会话片段；
 - 存在已确认值时的有界会话状态；
@@ -69,9 +69,12 @@ execution-control 不预先构造另一份模型上下文摘要。
 
 用户文本、对话、记忆和工具结果都是不可信数据，不能拼入 developer instruction。匹配的个人记忆只能
 支持用户自身事实或偏好，不能被当作机构事实来源。`campus_search` 结果作为本轮函数工具结果进入 SDK
-上下文；来源公开字段由 execution-control 在 Finalization 中从真实函数工具结果派生。hosted
-`web_search` 结果由 SDK 直接提供给同一次 run；Finalization 校验 SDK 原生引用并派生 `web_page`
-来源卡。Web Search 不进入本地 `tool_results` 或工具轨迹，也不保存供应商原始搜索结果。
+上下文；来源公开字段由 execution-control 在 Finalization 中从真实证据派生。托管 `web_search`
+分别映射为 OpenAI 原生 Web Search 或 Gemini 原生 `googleSearch`。runner 从原生 annotation /
+grounding support 提取 URL、标题和被支持的文本片段，统一交给 Workflow 编号、Synthesizer 引用，
+Finalization 按正文实际引用派生 `web_page` 来源卡。Web Search 不进入本地 `tool_results` 或工具轨迹。
+Google `searchEntryPoint.renderedContent` 通过 `search_suggestions` 保存到产品结构化消息并展示；
+它不参与证据编号，也不进入后续模型上下文。
 
 Solve 根据用户目标决定直接回答或生成步骤和候选来源；Executor 只能执行当前步骤允许的来源；Replanner 根据实际
 结果重新决定剩余路径。`campus_search` 的 `no_match` 只说明当前 Campus Docs 没有找到证据，不会由
@@ -83,7 +86,7 @@ Solve 根据用户目标决定直接回答或生成步骤和候选来源；Execu
 ## 输出与终态
 
 Agent Runtime 对 `solve`（直接答案或计划结果）和 `replan` 返回结构化 operation 结果；Solve 不执行检索，
-`execute_step` 返回步骤文本、证据和来源尝试，对 `synthesize` 返回非空 `final_output` 及 Web citation。
+`execute_step` 返回步骤文本、证据和来源尝试，对 `synthesize` 返回非空 `final_output` 与已汇总的引用材料。
 Agent Runtime 只校验 operation 输出的结构合同；execution-control 再统一校验每个 operation
 的语义合同、依赖、引用位置和来源后，再写入 `execution_finalization_response_v9`。追问、资料不足、工具失败后
 保留成功证据的部分答案都作为 `completed` 正文保存。
@@ -93,8 +96,8 @@ Agent Runtime 只校验 operation 输出的结构合同；execution-control 再�
 
 ## 可观测性
 
-Agents SDK 与 OpenInference instrumentation 将模型 span 发送到受信任 Langfuse 链路，并传播 W3C
-trace context。请求不能改变遥测配置，SDK 保持 `traceIncludeSensitiveData=false`。trace 只包含
+OpenAI instrumentation 与 Gemini runner 的模型 span 复用受信任的 OTel/Langfuse 链路，并传播 W3C
+trace context。请求不能改变遥测配置，OpenAI SDK 保持 `traceIncludeSensitiveData=false`。trace 只包含
 受控模型标识、用量、阶段结果和关联元数据，不包含 prompt、对话正文、evidence 正文、工具原始
 载荷、供应商原始响应或认证材料。
 

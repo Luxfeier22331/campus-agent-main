@@ -145,9 +145,10 @@ describe("request observability stage timing", () => {
 		});
 	});
 
-	it("rejects non-canonical app-api stage timing fields in finalized facts", () => {
-		expect(() =>
-			buildFinalizedRequestObservabilityFact({
+	it.each(["completed", "error", "cancelled"] as const)(
+		"does not let stored browser diagnostics block %s finalization",
+		(status) => {
+			const fact = buildFinalizedRequestObservabilityFact({
 				completedAt: "2026-04-13T08:00:01.350Z",
 				conversationId: "conv_stage_timing_invalid_01HQ",
 				durationMs: 1350,
@@ -162,12 +163,26 @@ describe("request observability stage timing", () => {
 					status: "completed",
 				}),
 				startedAt: "2026-04-13T08:00:00.000Z",
-				status: "completed",
+				status,
 				stageTiming: {
+					"client.first_delta_ms": 0,
+					"client.first_render_ms": 2039076.3999999762,
+					"stream.app_api_ttft_ms": 26517,
+					"projection.closeout_ms": "invalid historical diagnostic",
 					"app_api.synthetic_ms": 1,
 				},
 				surface: "campus_web",
-			}),
-		).toThrow("stage_timing.app_api.synthetic_ms is not an allowed stage timing field");
-	});
+			});
+			expect(fact.status).toBe(status);
+			expect(fact.stageTiming).toMatchObject({
+				"stream.app_api_ttft_ms": 26517,
+				"workflow.execute_step_ms": 710,
+			});
+			// The SQL merge preserves these existing columns without reserializing
+			// them through the stricter execution response contract.
+			expect(fact.stageTiming).not.toHaveProperty("client.first_delta_ms");
+			expect(fact.stageTiming).not.toHaveProperty("client.first_render_ms");
+			expect(fact.stageTiming).not.toHaveProperty("app_api.synthetic_ms");
+		},
+	);
 });

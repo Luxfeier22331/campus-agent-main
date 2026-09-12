@@ -73,7 +73,7 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 	evidence, err := client.Search(
 		t.Context(),
 		campusdocs.Index{Collection: collection},
-		"学籍规定",
+		campusdocs.SearchQuery{RetrievalQuery: "学籍规定", RerankQuery: "学籍规定"},
 		campusdocs.SearchResultLimit,
 	)
 	if err != nil {
@@ -92,6 +92,8 @@ func TestCampusDocsRetrievalUsesEmbeddingProviderAndReturnsNoMatch(t *testing.T)
 }
 
 func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
+	const retrievalQuery = "本科生 转专业 申请条件"
+	const rerankQuery = "我想申请转专业，需要满足什么条件？"
 	snapshot := &campusdiagnostics.Snapshot{CitationStart: 4, Durations: map[string]int64{}}
 	phases := []string{}
 	ctx := campusdocs.WithSearchObserver(t.Context(), &campusdocs.SearchObserver{Snapshot: snapshot, Phase: func(phase string) { phases = append(phases, phase) }})
@@ -108,6 +110,13 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 		switch request.URL.Path {
 		case "/v1/embeddings":
 			embeddingsCalled = true
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body["input"] != campusdocs.BuildDenseQueryText(retrievalQuery, campusdocs.EmbeddingQueryInstruction) {
+				t.Fatalf("embedding did not use retrieval query: %#v", body)
+			}
 			embedding := make([]float64, campusdocs.EmbeddingDimensions)
 			embedding[0] = 0.25
 			writeJSON(response, http.StatusOK, map[string]any{
@@ -119,7 +128,7 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 				t.Fatalf("decode rerank request: %v", err)
 			}
-			if body["model"] != campusDocsRerankModel || body["query"] != "学籍规定" {
+			if body["model"] != campusDocsRerankModel || body["query"] != rerankQuery {
 				t.Fatalf("rerank request = %#v", body)
 			}
 			documents, ok := body["documents"].([]any)
@@ -136,6 +145,16 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 			writeJSON(response, http.StatusOK, map[string]any{"results": results})
 		case "/collections/" + collection + "/points/query":
 			qdrantCalled = true
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			prefetch := body["prefetch"].([]any)
+			actual, _ := json.Marshal(prefetch[1].(map[string]any)["query"])
+			want, _ := json.Marshal(campusdocs.BuildSparseVector(retrievalQuery))
+			if string(actual) != string(want) {
+				t.Fatalf("sparse query = %s, want %s", actual, want)
+			}
 			writeJSON(response, http.StatusOK, map[string]any{
 				"result": map[string]any{"points": points},
 			})
@@ -156,7 +175,7 @@ func TestCampusDocsRetrievalReranksCandidatesBeforeEvidenceLimit(t *testing.T) {
 	evidence, err := client.Search(
 		ctx,
 		campusdocs.Index{Collection: collection},
-		"学籍规定",
+		campusdocs.SearchQuery{RetrievalQuery: retrievalQuery, RerankQuery: rerankQuery},
 		campusdocs.SearchResultLimit,
 	)
 	if err != nil {
@@ -289,7 +308,7 @@ func TestCampusDocsRetrievalReturnsNoMatchWhenAllRerankerScoresAreBelowThreshold
 	evidence, err := client.Search(
 		ctx,
 		campusdocs.Index{Collection: collection},
-		"火星校区服务",
+		campusdocs.SearchQuery{RetrievalQuery: "火星校区服务", RerankQuery: "火星校区服务"},
 		campusdocs.SearchResultLimit,
 	)
 	if err != nil {
@@ -343,7 +362,7 @@ func TestCampusDocsRetrievalDoesNotFallbackWhenRerankerResponseIsInvalid(t *test
 	evidence, err := client.Search(
 		t.Context(),
 		campusdocs.Index{Collection: collection},
-		"学籍规定",
+		campusdocs.SearchQuery{RetrievalQuery: "学籍规定", RerankQuery: "学籍规定"},
 		campusdocs.SearchResultLimit,
 	)
 	if err == nil || !strings.Contains(err.Error(), "reranker response index is invalid") {
@@ -475,7 +494,7 @@ func newCampusDocsHTTPClientForTest(
 	resolver runtimeConfigResolver,
 ) *campusDocsHTTPClient {
 	t.Helper()
-	searcher, err := NewCampusDocsSearcher(cfg, resolver)
+	searcher, err := NewCampusDocsSearcher(cfg, resolver, nil)
 	if err != nil {
 		t.Fatalf("build Campus docs searcher: %v", err)
 	}

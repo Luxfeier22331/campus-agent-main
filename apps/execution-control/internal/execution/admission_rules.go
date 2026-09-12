@@ -82,11 +82,13 @@ func ValidateAdmissionSnapshot(snapshot AgentAdmissionSnapshot) error {
 		"agent_deadline_ms":        snapshot.AgentLimits.AgentDeadlineMS,
 		"context_char_limit":       snapshot.AgentLimits.ContextCharLimit,
 		"current_input_char_limit": snapshot.AgentLimits.CurrentInputCharLimit,
-		"max_output_tokens":        snapshot.AgentLimits.MaxOutputTokens,
 	} {
 		if value <= 0 {
 			return fmt.Errorf("%s admission snapshot must be positive", name)
 		}
+	}
+	if snapshot.AgentLimits.MaxOutputTokens < 0 {
+		return errors.New("max_output_tokens admission snapshot must be nonnegative")
 	}
 	return nil
 }

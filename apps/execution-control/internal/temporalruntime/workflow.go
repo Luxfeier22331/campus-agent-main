@@ -30,6 +30,9 @@ func ToolExecutionWorkflow(
 		}
 		return ToolExecutionWorkflowResult{}, err
 	}
+	if !input.DeadlineAt.IsZero() && !workflow.Now(ctx).Before(input.DeadlineAt) {
+		return failWorkflowStage(ctx, activityOptions, input, "workflow.deadline", "agent_deadline_exceeded", errors.New("workflow deadline has expired"))
+	}
 	solveResult, err := executeSolveTask(ctx, activityOptions, input)
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
@@ -47,7 +50,49 @@ func ToolExecutionWorkflow(
 		}
 		return ToolExecutionWorkflowResult{}, err
 	}
+	if solveResult.Status == "failed" {
+		evidence, _, mergeErr := mergeWorkflowEvidence(nil, solveResult.Evidence, 1)
+		if mergeErr != nil {
+			return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_evidence_invalid", mergeErr)
+		}
+		if len(evidence) == 0 {
+			code := workflowNoMaterialsFailure(solveResult)
+			return failWorkflowStage(ctx, activityOptions, input, "solve.initial", code, errors.New("solver failed without usable materials"))
+		}
+		recoveryReason := "workflow_solve_failed"
+		if solveResult.Failure != nil {
+			recoveryReason = solveResult.Failure.Code
+		}
+		synthesis, synthesisErr := executeSynthesizeAnswer(ctx, activityOptions, input, SynthesizeAnswerActivityInput{
+			Mode:              "recovery",
+			Evidence:          evidence,
+			SourceAttempts:    append([]WorkflowSourceAttempt{}, solveResult.SourceAttempts...),
+			RemainingFacts:    []WorkflowRemainingFacts{},
+			RecoveryReason:    recoveryReason,
+			BufferAnswer:      solveResult.AnswerStarted,
+			SearchSuggestions: solveResult.SearchSuggestions,
+		})
+		if synthesisErr != nil {
+			if workflowExecutionCanceled(ctx, synthesisErr) {
+				return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
+			}
+			if workflowFailureKind(synthesisErr, "") != "agent_deadline_exceeded" {
+				synthesisErr = temporal.NewNonRetryableApplicationError("recovery synthesis failed", "answer_synthesis_failed", synthesisErr)
+			}
+			return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", "answer_synthesis_failed", synthesisErr)
+		}
+		if synthesis.Status == "failed" || strings.TrimSpace(synthesis.FinalOutput) == "" {
+			if synthesis.Failure != nil && synthesis.Failure.Code == "agent_deadline_exceeded" {
+				return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", "agent_deadline_exceeded", errors.New("recovery reached request deadline"))
+			}
+			return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", "answer_synthesis_failed", errors.New("synthesizer did not return a complete answer"))
+		}
+		return finalizeWorkflowAnswer(ctx, activityOptions, input, synthesis)
+	}
 	if solveResult.SolveOutcome == "answer" {
+		if len(solveResult.Evidence) == 0 && len(solveResult.SourceAttempts) > 0 {
+			return failWorkflowStage(ctx, activityOptions, input, "solve.initial", workflowNoMaterialsFailure(solveResult), errors.New("retrieval returned no usable materials"))
+		}
 		if strings.TrimSpace(solveResult.FinalOutput) == "" {
 			return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_solve_invalid", errors.New("solver returned empty answer"))
 		}
@@ -72,6 +117,9 @@ func ToolExecutionWorkflow(
 	}
 	replanCount := 0
 	for len(remaining) > 0 {
+		if !input.DeadlineAt.IsZero() && !workflow.Now(ctx).Before(input.DeadlineAt) {
+			return failWorkflowStage(ctx, activityOptions, input, "workflow.deadline", "agent_deadline_exceeded", errors.New("workflow deadline has expired"))
+		}
 		stepIndex := nextReadyWorkflowStep(remaining, completedSteps)
 		if stepIndex < 0 {
 			return failWorkflowStage(
@@ -84,7 +132,7 @@ func ToolExecutionWorkflow(
 			)
 		}
 		step := remaining[stepIndex]
-		stepResult, stepErr := executeTaskStep(ctx, activityOptions, input, plan, step, completedSteps, nextCitationIndex)
+		stepResult, stepErr := executeTaskStep(ctx, activityOptions, input, plan, step, completedSteps, nextCitationIndex, solveResult)
 		var completed WorkflowCompletedStep
 		if stepErr != nil {
 			if workflowExecutionCanceled(ctx, stepErr) {
@@ -94,17 +142,33 @@ func ToolExecutionWorkflow(
 				return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), "workflow_step_failed", stepErr)
 			}
 			completed = failedWorkflowStep(step, len(completedSteps)+1, stepErr)
+		} else if stepResult.Status == "failed" {
+			if stepResult.Failure == nil || !WorkflowFailureRecoverable(stepResult.Failure.Code) {
+				code := "workflow_step_failed"
+				if stepResult.Failure != nil {
+					code = stepResult.Failure.Code
+				}
+				return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), code, errors.New("executor returned an unrecoverable failure"))
+			}
+			if stepResult.Failure.Code == "agent_deadline_exceeded" {
+				return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), "agent_deadline_exceeded", errors.New("executor reached request deadline"))
+			}
+			completed = failedWorkflowStep(step, len(completedSteps)+1,
+				temporal.NewNonRetryableApplicationError("executor output failed", stepResult.Failure.Code, nil))
+			completed.Evidence = stepResult.Evidence
+			completed.SourceAttempts = stepResult.SourceAttempts
+			completed.SearchSuggestions = stepResult.SearchSuggestions
 		} else {
 			var completedErr error
 			completed, completedErr = canonicalCompletedWorkflowStep(stepResult, step, len(completedSteps)+1)
 			if completedErr != nil {
 				return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), "workflow_step_invalid", completedErr)
 			}
-			var mergeErr error
-			evidence, nextCitationIndex, mergeErr = mergeWorkflowEvidence(evidence, completed.Evidence, nextCitationIndex)
-			if mergeErr != nil {
-				return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), "workflow_evidence_invalid", mergeErr)
-			}
+		}
+		var mergeErr error
+		evidence, nextCitationIndex, mergeErr = mergeWorkflowEvidence(evidence, completed.Evidence, nextCitationIndex)
+		if mergeErr != nil {
+			return failWorkflowStage(ctx, activityOptions, input, workflowTaskStepID(step.ID), "workflow_evidence_invalid", mergeErr)
 		}
 		completedSteps = append(completedSteps, completed)
 		remaining = append(remaining[:stepIndex], remaining[stepIndex+1:]...)
@@ -124,6 +188,7 @@ func ToolExecutionWorkflow(
 			completedSteps,
 			remaining,
 			replanCount,
+			solveResult,
 		)
 		if replanErr != nil {
 			if workflowExecutionCanceled(ctx, replanErr) {
@@ -134,15 +199,21 @@ func ToolExecutionWorkflow(
 			}
 			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_failed", replanErr)
 		}
+		if replanResult.Status == "failed" && replanResult.Failure != nil && WorkflowFailureRecoverable(replanResult.Failure.Code) {
+			if replanResult.Failure.Code == "agent_deadline_exceeded" {
+				return failWorkflowStage(ctx, activityOptions, input, replanStage, "agent_deadline_exceeded", errors.New("replanner reached request deadline"))
+			}
+			continue
+		}
 		if replanResult.Replan == nil {
 			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_invalid", errors.New("replanner returned no decision"))
 		}
 		decision := replanResult.Replan
-		if err := ValidateWorkflowReplanDecision(*decision, completedSteps); err != nil {
+		if err := ValidateWorkflowReplanDecision(*decision); err != nil {
 			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_invalid", err)
 		}
 		switch decision.Decision {
-		case "synthesize", "insufficient":
+		case "synthesize":
 			remaining = nil
 		case "continue":
 			if err := ValidateWorkflowRemainingSteps(
@@ -159,8 +230,7 @@ func ToolExecutionWorkflow(
 			return failWorkflowStage(ctx, activityOptions, input, replanStage, "workflow_replan_invalid", fmt.Errorf("unsupported replan decision %q", decision.Decision))
 		}
 	}
-	answerMode, modeErr := WorkflowAnswerMode(evidence, completedSteps)
-	if modeErr != nil {
+	if !workflowCanSynthesize(evidence, completedSteps) {
 		// Preserve a concrete failure code when every attempt failed.
 		failureCode := "workflow_evidence_unavailable"
 		for _, completed := range completedSteps {
@@ -173,9 +243,13 @@ func ToolExecutionWorkflow(
 				}
 			}
 		}
-		return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", failureCode, errors.New("search ended without usable evidence or a successful no-match result"))
+		return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", failureCode, errors.New("search ended without materials or a successful source attempt"))
 	}
-	synthesis, err := executeSynthesizeAnswer(ctx, activityOptions, input, completedSteps, evidence, answerMode)
+	synthesis, err := executeSynthesizeAnswer(ctx, activityOptions, input, SynthesizeAnswerActivityInput{
+		Mode: "planned", RemainingFacts: WorkflowRemainingFactsForSynthesis(completedSteps), Evidence: evidence,
+		SourceAttempts:    append(append([]WorkflowSourceAttempt{}, solveResult.SourceAttempts...), WorkflowCompletedSourceAttempts(completedSteps)...),
+		SearchSuggestions: workflowSearchSuggestions(solveResult.SearchSuggestions, completedSteps),
+	})
 	if err != nil {
 		if workflowExecutionCanceled(ctx, err) {
 			return finalizeWorkflowCancellation(ctx, activityOptions, input, "user_requested")
@@ -192,16 +266,22 @@ func ToolExecutionWorkflow(
 		}
 		return ToolExecutionWorkflowResult{}, err
 	}
-	if synthesis.AnswerMode != answerMode {
-		return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", "workflow_synthesis_invalid", errors.New("synthesizer answer mode does not match request"))
-	}
-	if err := ValidateWorkflowAnswerMode(synthesis.AnswerMode, synthesis.Evidence, synthesis.SourceAttempts); err != nil {
-		return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", "workflow_synthesis_invalid", err)
-	}
-	if strings.TrimSpace(synthesis.FinalOutput) == "" {
+	if synthesis.Status == "failed" || strings.TrimSpace(synthesis.FinalOutput) == "" {
 		return failWorkflowStage(ctx, activityOptions, input, "answer.synthesize", "workflow_synthesis_invalid", errors.New("synthesizer returned empty output"))
 	}
 	return finalizeWorkflowAnswer(ctx, activityOptions, input, synthesis)
+}
+
+func workflowNoMaterialsFailure(output WorkflowOperationActivityOutput) string {
+	if output.Failure != nil && output.Failure.Code != "retrieval_budget_exhausted" {
+		return output.Failure.Code
+	}
+	for _, attempt := range output.SourceAttempts {
+		if attempt.Status == "failed" && attempt.FailureCode != "" && attempt.FailureCode != "campus_search_result_budget_exhausted" {
+			return attempt.FailureCode
+		}
+	}
+	return "materials_insufficient"
 }
 
 func workflowStepNeedsRecoveryReplan(completed WorkflowCompletedStep, _ []WorkflowTaskPlanStep, _ []WorkflowCompletedStep) bool {
@@ -322,6 +402,7 @@ func executeTaskStep(
 	step WorkflowTaskPlanStep,
 	completedSteps []WorkflowCompletedStep,
 	citationStart int,
+	solveResult WorkflowOperationActivityOutput,
 ) (WorkflowOperationActivityOutput, error) {
 	var output WorkflowOperationActivityOutput
 	err := executeBoundedActivity(
@@ -333,6 +414,8 @@ func executeTaskStep(
 			Step:                               step,
 			CompletedSteps:                     append([]WorkflowCompletedStep{}, completedSteps...),
 			CitationStart:                      citationStart,
+			PriorEvidence:                      solveResult.Evidence,
+			PriorSourceAttempts:                solveResult.SourceAttempts,
 		},
 	).Get(ctx, &output)
 	return output, err
@@ -346,6 +429,7 @@ func executeReplanTask(
 	completedSteps []WorkflowCompletedStep,
 	remaining []WorkflowTaskPlanStep,
 	replanIndex int,
+	solveResult WorkflowOperationActivityOutput,
 ) (WorkflowOperationActivityOutput, error) {
 	var output WorkflowOperationActivityOutput
 	err := executeBoundedActivity(
@@ -358,6 +442,8 @@ func executeReplanTask(
 			RemainingSteps:                     append([]WorkflowTaskPlanStep{}, remaining...),
 			MaxRemainingSteps:                  input.AdmissionSnapshot.AgentBudget.MaxPlanSteps - len(completedSteps),
 			ReplanIndex:                        replanIndex,
+			PriorEvidence:                      solveResult.Evidence,
+			PriorSourceAttempts:                solveResult.SourceAttempts,
 		},
 	).Get(ctx, &output)
 	return output, err
@@ -367,21 +453,14 @@ func executeSynthesizeAnswer(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
 	input ToolExecutionWorkflowInput,
-	completedSteps []WorkflowCompletedStep,
-	evidence []WorkflowEvidence,
-	answerMode string,
+	materials SynthesizeAnswerActivityInput,
 ) (WorkflowOperationActivityOutput, error) {
+	materials.WorkflowOperationActivityInputBase = workflowOperationActivityInputBase(input)
 	var output WorkflowOperationActivityOutput
 	err := executeBoundedActivity(
 		workflow.WithActivityOptions(ctx, workflowOperationActivityOptions(activityOptions)),
 		SynthesizeAnswerActivityName,
-		SynthesizeAnswerActivityInput{
-			AnswerMode:                         answerMode,
-			WorkflowOperationActivityInputBase: workflowOperationActivityInputBase(input),
-			SourceAttempts:                     WorkflowCompletedSourceAttempts(completedSteps),
-			RemainingFacts:                     WorkflowRemainingFactsForSynthesis(completedSteps),
-			Evidence:                           append([]WorkflowEvidence{}, evidence...),
-		},
+		materials,
 	).Get(ctx, &output)
 	return output, err
 }
@@ -453,9 +532,10 @@ func canonicalCompletedWorkflowStep(
 ) (WorkflowCompletedStep, error) {
 	completed := WorkflowCompletedStep{
 		Step: want, ExecutionIndex: executionIndex, Summary: output.FinalOutput,
-		RemainingFacts: append([]string{}, output.RemainingFacts...),
-		Evidence:       append([]WorkflowEvidence{}, output.Evidence...),
-		SourceAttempts: append([]WorkflowSourceAttempt{}, output.SourceAttempts...),
+		RemainingFacts:    append([]string{}, output.RemainingFacts...),
+		Evidence:          append([]WorkflowEvidence{}, output.Evidence...),
+		SourceAttempts:    append([]WorkflowSourceAttempt{}, output.SourceAttempts...),
+		SearchSuggestions: append([]SearchSuggestion{}, output.SearchSuggestions...),
 	}
 	if strings.TrimSpace(completed.Summary) == "" {
 		return WorkflowCompletedStep{}, errors.New("executor summary is empty")
@@ -464,6 +544,14 @@ func canonicalCompletedWorkflowStep(
 		return WorkflowCompletedStep{}, err
 	}
 	return completed, nil
+}
+
+func workflowSearchSuggestions(initial []SearchSuggestion, completed []WorkflowCompletedStep) []SearchSuggestion {
+	result := append([]SearchSuggestion{}, initial...)
+	for _, step := range completed {
+		result = append(result, step.SearchSuggestions...)
+	}
+	return result
 }
 
 func WorkflowRemainingFactsForSynthesis(completed []WorkflowCompletedStep) []WorkflowRemainingFacts {

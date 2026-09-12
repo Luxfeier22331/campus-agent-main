@@ -29,7 +29,8 @@ function tool；注册表、handler 和内部可用性字段的存在不会单�
 决定当前步骤的候选来源，Executor 根据问题所需事实、已获得证据和工具声明范围决定实际调用。系统没有
 客户端指定工具、Knowledge Agent、handoff 或文档类别路由。
 
-Agent Runtime 在上述本地函数工具之外固定附加 Agents SDK 原生 `web_search` hosted tool。它不在
+Agent Runtime 在步骤允许 `web_search` 时附加供应商原生搜索工具：OpenAI Web Search 或 Gemini
+Google Search。它不在
 `tools.v7.json`、`visible_function_tool_names` 或 execution-control handler 中登记，也不由客户端
 选择。它只用于校园问题的公开网页证据。
 

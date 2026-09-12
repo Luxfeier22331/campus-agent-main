@@ -7,7 +7,8 @@
 - 执行 Solve、Executor、Replanner 和 Synthesizer；Solve 可以直接回答，也可以返回任务计划；
 - 严格解析并做结构 schema 校验 Solve/Replanner 返回的 JSON 文本，以及步骤摘要和最终文本；结构化合同不依赖
   OpenAI-compatible Provider 强制执行 JSON Schema；
-- 只向 Executor 开放当前步骤声明且本轮获准的函数工具，以及可用时的托管 `web_search`；
+- Solve 可在已准入来源范围内直接检索并回答；Executor 只接收当前步骤声明且本轮获准的函数工具，
+  两者复用同一工具预算、证据和 citation 合同；可用时支持托管 `web_search`；
 - 消费 execution-control 提供的预期 Model Target hash、上下文和 operation 预算，并从共同受信任的
   Model Config 读取仍匹配该 hash 的 `primary_agent` 配置；该名称是历史配置键，不是 Agent 层级；
 - 把本地函数调用交回 execution-control，不直接访问产品数据库、Campus Docs 数据库或 Hindsight；
@@ -17,11 +18,20 @@
 持久执行、计划顺序、重新规划次数、取消、工具准入和产品终态属于 execution-control 与 Temporal。
 本应用不保存会话或运行状态。
 
-Solve 的 SDK 输出使用根对象 `{ result: answer分支 | plan分支 }`，由 `sdk-runner.ts` 解包为既有
-operation 合同；`workflow-runtime.ts` 继续严格校验互斥分支。该适配解决根 union 无法转换为严格
-Provider schema、可选字段方案可能产生错配分支的问题；消费者仅为 SDK runner，不改变 HTTP 或 Temporal
-合同。SDK 支持根 union 后重新评估此适配。Synthesizer 只使用材料已有的 citationIndex，且区分检索失败
+Solve 的模型输出使用根对象 `{ result: answer分支 | plan分支 }`，由 runner 解包为 operation 合同；
+`workflow-runtime.ts` 统一严格校验互斥分支及长度/数量约束。Gemini 的 schema 投影省略本地长度和数量
+限制，并将 const 转为 enum，避免供应商结构化解码器拒绝完整 Solve schema；这不放宽应用校验。
+OpenAI adapter 将通用 schema 的 oneOf 投影为 anyOf，保留原 SDK 的互斥分支转换；最终互斥校验仍由
+workflow-runtime 负责。Synthesizer 的组合编号 `[1, 2]` 在输出时统一为 `[1][2]`，由既有引用闭包处理。
+检索或 Solve 失败但已保留 evidence 时使用 recovery synthesis，只基于已有材料生成回答，不伪造 task plan。
+Synthesizer 只使用材料已有的 citationIndex，且区分检索失败
 与检索成功但无匹配，最终引用校验仍然保留。
+
+Executor 与 Solve/Replanner 一样向 runner 传递结构化输出 schema；Executor 输出仍为
+`summary`、`remainingFacts`。Adapter 已解码的 `structuredOutput` 直接交给 Runtime 校验，不重复
+JSON 解码。JSON 语法或输出 schema 错误返回 `model_output_invalid` 和完整失败结果，已完成的
+工具结果、证据、来源尝试及用量不会随异常丢失；不自动修复 JSON 或重试模型。
+`max_output_tokens=0` 表示未设置应用输出上限，runner 不发送供应商 token 上限参数。
 
 ## 编排语义
 
@@ -29,14 +39,32 @@ Provider schema、可选字段方案可能产生错配分支的问题；消费�
 接近 ReAct，但本应用不实现显式 thought/action/observation 状态机。仓库没有独立 skill runtime；当前只有
 workflow operation 实现，不暴露尚未有真实消费者的策略枚举。
 
-Replanner 的 `task_replan.v2` 使用 `continue`、`synthesize` 和 `insufficient`。Runtime 只负责版本、字段、枚举、
+Replanner 的 `task_replan.v3` 只使用 `continue` 和 `synthesize`。Runtime 只负责版本、字段、枚举、
 长度和数组结构；计划预算、依赖、候选来源可用性以及 decision 与 `remainingSteps` 的语义组合由
-execution-control 统一准入。`reason` 说明决策原因，不构成额外执行状态。
+execution-control 统一准入。Replan 决策不符合这些语义时同样保存 `model_output_invalid` 失败结果及
+用量，由 Workflow 继续既有获准路径；不执行被拒绝的新计划。该错误由 execution-control 发现，
+没有 Runtime 格式失败原文快照。`reason` 说明决策原因，不构成额外执行状态。
 
-Executor 必须返回 `summary` 与 `remainingFacts`。Synthesis 必须声明 `answerMode`：`grounded`
-要求存在证据，`insufficient` 仅适用于没有证据但至少有真实 `no_match` 的结果。
-这些字段只用于运行时合同和收敛判断；`insufficient` 回答保持简洁，不注入检索覆盖范围、内部步骤或
-`coverageNotes` 一类防御性说明，也不能把未查到资料表述为事实不存在。
+Executor 通过 `summary` 保留已确认内容，通过 `remainingFacts` 表达本步骤尚缺事实。候选材料不等于
+答案充分性；Synthesizer 统一回答材料支持的部分，并简短说明具体缺项，不使用回答模式枚举。
+有候选材料或真实成功的来源尝试即可综合；无材料且没有成功来源时由 Workflow 按技术失败收口。
+Runtime 和 Finalization 不重复判断材料是否足够，最终引用有效性检查保留。
+资料不足的回答不注入检索覆盖范围、内部步骤或防御性说明，也不能把未查到表述为事实不存在。
+
+HTTP 与 SSE 的错误响应和日志复用同一次分类结果及 operation/deadline 上下文。内部 `failure.detail`
+保留最多 1024 字符的原因摘要，调用栈仅进入服务日志、最多 8192 字符；不记录原始模型正文、请求响应
+对象或凭据。未知异常仍为 `run_failed`，不凭异常名称推断 provider 故障，也不改变恢复或重试策略。
+
+模型输出格式失败另通过内部响应的可选 `model_output_diagnostic` 返回 Ops 专用诊断：解析前可见
+文本最多 64 KiB（UTF-8 边界截断），原字节数、截断标记、JSON/结构校验阶段、错误摘要、schema
+名称和 finish reason。只采集失败输出，不采集 thinking、prompt 或原始 SDK 响应；普通日志和
+外部 trace 仍不记录正文。诊断不进入用户答案、后续模型上下文、receipt 或 Temporal history。
+
+operation 消费准入时持久化的绝对 `deadline_at`，切换步骤、重规划或恢复不能重置期限；Model Config
+读取也计入预算。检索预留 30 秒供回答生成，最终生成预留 5 秒供终态写入。Runtime 到期立即结束 HTTP/SSE
+响应等待并返回 `agent_deadline_exceeded`，同时取消 SDK 与工具；不等待 SDK 清理后才发送终态。
+正常成功仍等待完整 SDK 结果，迟到结果不能覆盖已发送终态。客户端先断开时停止该计时，不能在稍后
+将取消改报成超时。Execution 只有未收到明确结果且传输期限到达时才使用 `agent_runtime_timeout`。
 
 `max_model_turns` 与 `max_function_tool_calls` 按单个 operation 计数；`max_plan_steps` 与
 `max_replans` 由外层 workflow 作为请求级预算执行。
@@ -48,7 +76,25 @@ Executor 必须返回 `summary` 与 `remainingFacts`。Synthesis 必须声明 `a
 - `http-run-contract.ts` 负责 HTTP 请求校验与运行输入投影，`http-response.ts` 负责普通响应和 SSE
   wire 投影；
 - `sdk-runner.ts` 只负责 OpenAI Agents SDK 与工具循环，不决定持久步骤顺序；
+- `gemini-runner.ts` 使用官方 `@google/genai` 执行 GenerateContent、原生 Google Search 和函数循环；
+- `provider-config.ts` 按 Model Config 的 provider/transport 选择 runner，不按模型名猜测，也不自动切换；
+- `function-tools.ts` 共享本地工具预算、调用记录与 Campus citation 编号；SDK 数据结构、错误转换留在 adapter；
 - Provider、工具执行和 SDK runner 依赖上述 leaf contract，不反向依赖 HTTP server。
+
+`google` + `google.generate_content` 选择 Gemini，`openai` / `openai-compatible` 配合
+`openai.responses` / `openai.chat_completions` 选择 OpenAI。配置中的 Gemini Base URL 应包含 API 版本路径，
+如 `https://generativelanguage.googleapis.com/v1beta`；网关同样填写其原生 Gemini API 根路径。
+Solve/Executor 可使用已准入工具，Synthesizer 不使用工具；Solve/Synthesizer 使用流式生成。
+若失败的 Solve 已发出回答片段，recovery synthesis 使用非流式生成，并通过最终回答替换草稿，
+不把两次生成的片段拼接。恢复没有新的计划或检索，只有已有 evidence、source attempts 和失败原因；
+`recovery` 是输入来源，不是答案充分性分类。无材料时保留具体技术失败，确无可用材料则返回
+`materials_insufficient`；已有材料但恢复生成失败返回 `answer_synthesis_failed`。取消与绝对截止时间优先。
+引用预算耗尽以 `retrieval_budget_exhausted` 立即停止模型循环，已完成工具结果、用量和 provider response ID
+随失败结果保存。Solve 转为计划时，其材料与尝试记录继续供 Executor/Replanner 使用。
+Gemini 函数结果回传时保留完整模型 Content
+及 thought signature，不把这些供应商对象送入 Temporal。Web grounding 在 runner 中转换为
+`webEvidence`；Google 搜索建议 HTML 通过 `search_suggestions` 持久化并由前端隔离 iframe 展示，
+不进入下一轮模型上下文。
 
 ## 入口
 

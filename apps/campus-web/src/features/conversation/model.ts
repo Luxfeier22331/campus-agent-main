@@ -50,10 +50,9 @@ export type SourceItemPayload =
 	| CampusNoticeSourceItemPayload
 	| WebPageSourceItemPayload;
 
-export interface ChatStructuredPart {
-	sourceItems: SourceItemPayload[];
-	type: "source_items";
-}
+export type ChatStructuredPart =
+	| { sourceItems: SourceItemPayload[]; type: "source_items" }
+	| { type: "search_suggestions"; provider: "google"; renderedContent: string };
 
 export interface ChatMessage {
 	conversationId: string;

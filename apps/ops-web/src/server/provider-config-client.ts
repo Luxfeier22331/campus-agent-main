@@ -7,6 +7,7 @@ import {
 	ModelDiscoveryResponseSchema,
 	type ModelSettingKindSchema,
 	type ModelSettingUpdate,
+	NoticeClassifierModelSettingUpdateSchema,
 	RerankerModelSettingUpdateSchema,
 } from "../shared/ops-contract.ts";
 
@@ -120,7 +121,9 @@ export function createProviderConfigAdminClient(
 					? EmbeddingModelSettingUpdateSchema.parse(body)
 					: kind === "reranker"
 						? RerankerModelSettingUpdateSchema.parse(body)
-						: LLMModelSettingUpdateSchema.parse(body);
+						: kind === "notice_classifier"
+							? NoticeClassifierModelSettingUpdateSchema.parse(body)
+							: LLMModelSettingUpdateSchema.parse(body);
 			await request(`/${configNameForKind(kind)}`, {
 				actorId,
 				body: updateInput(kind, parsed),
@@ -178,7 +181,12 @@ function updateInput(kind: ModelSettingKind, input: ModelSettingUpdate) {
 	const text = input as z.infer<typeof LLMModelSettingUpdateSchema>;
 	return {
 		...(text.apiKey ? { api_key: text.apiKey } : {}),
-		api_protocol: text.transport === "responses" ? "openai.responses" : "openai.chat_completions",
+		api_protocol:
+			text.transport === "generate_content"
+				? "google.generate_content"
+				: text.transport === "responses"
+					? "openai.responses"
+					: "openai.chat_completions",
 		base_url: text.baseUrl,
 		provider: text.provider,
 		model: text.model,
@@ -230,15 +238,17 @@ function mapStatus(value: unknown) {
 			model: b.model,
 			provider: b.provider,
 			transport:
-				b.api_protocol === "openai.responses"
-					? "responses"
-					: b.api_protocol === "openai.chat_completions"
-						? "chat_completions"
-						: b.api_protocol === "cohere.rerank"
-							? "rerank"
-							: b.api_protocol === "openai.embeddings"
-								? "embeddings"
-								: undefined,
+				b.api_protocol === "google.generate_content"
+					? "generate_content"
+					: b.api_protocol === "openai.responses"
+						? "responses"
+						: b.api_protocol === "openai.chat_completions"
+							? "chat_completions"
+							: b.api_protocol === "cohere.rerank"
+								? "rerank"
+								: b.api_protocol === "openai.embeddings"
+									? "embeddings"
+									: undefined,
 			updatedAt: b.updated_at,
 			updatedBy: b.updated_by,
 		};

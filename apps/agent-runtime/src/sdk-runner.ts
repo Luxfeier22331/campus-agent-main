@@ -2,10 +2,10 @@ import {
 	Agent,
 	type AgentOptions,
 	type AgentOutputType,
-	type AssistantMessageItem,
+	AgentsError,
 	type ModelProvider,
 	Runner,
-	type RunResult,
+	RunResult,
 	type StreamedRunResult,
 	tool,
 	type Usage,
@@ -18,11 +18,18 @@ import type {
 	AgentRunnerResult,
 	AgentRunnerSolveDecision,
 	PromptProviderRuntimeConfig,
-	SdkToolRuntime,
 	StreamingAgentRunner,
 	ToolExecutionResult,
-	WebCitation,
+	WebEvidence,
 } from "./agent-run-contract.ts";
+import {
+	type FunctionToolContext as AgentSdkContext,
+	createFunctionToolContext,
+	invokeFunctionTool,
+} from "./function-tools.ts";
+import { openAIRuntimeError } from "./openai-errors.ts";
+import { failedRunnerResult } from "./runner-failure.ts";
+import { normalizedModelOutput, partialJSONStringField } from "./runner-output.ts";
 import { AgentRuntimeError } from "./runtime-errors.ts";
 import type { JsonObjectSchema } from "./tool-catalog.ts";
 
@@ -32,18 +39,6 @@ const emptyParametersSchema = {
 	properties: {},
 	required: [],
 };
-
-interface AgentSdkContext {
-	campusSearch: {
-		nextCitationIndex: number;
-		queue: Promise<void>;
-	};
-	functionToolBudget: {
-		limit: number;
-		reserved: number;
-	};
-	functionToolResults: Map<string, ToolExecutionResult>;
-}
 
 type CampusAgent = Agent<AgentSdkContext, AgentOutputType>;
 
@@ -57,15 +52,41 @@ export interface OpenAIAgentsRunnerOptions {
 
 export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}): AgentRunner {
 	return async (input) => {
-		const requestOptions = resolveRequestOptions(options, input.providerConfig);
-		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
-		const runner = createSdkRunner(requestOptions.modelProvider, input.operation);
-		const result = await runner.run(runtime.agent, input.input, {
-			context: runtime.context,
-			maxTurns: input.limits.maxTurns,
-			...(input.signal ? { signal: input.signal } : {}),
-		});
-		return agentRunnerResultFromSDKResult(result, input.operation);
+		let runtime: ReturnType<typeof createSdkRuntime> | undefined;
+		let result: RunResult<AgentSdkContext, CampusAgent> | undefined;
+		try {
+			const requestOptions = resolveRequestOptions(options, input.providerConfig);
+			runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
+			const runner = createSdkRunner(requestOptions.modelProvider, input.operation);
+			result = await runner.run(
+				runtime.agent,
+				input.input.map((message) =>
+					message.role === "assistant"
+						? {
+								role: "assistant" as const,
+								status: "completed" as const,
+								content: [{ type: "output_text" as const, text: message.content }],
+							}
+						: { role: "user" as const, content: message.content },
+				),
+				{
+					context: runtime.context,
+					maxTurns: input.limits.maxTurns,
+					...(input.signal ? { signal: input.signal } : {}),
+				},
+			);
+			return agentRunnerResultFromSDKResult(result, input.operation);
+		} catch (error) {
+			const classified = openAIRuntimeError(error);
+			if (runtime) {
+				return failedRunnerResult(
+					classified,
+					input,
+					partialSdkResult(runtime.context, result ?? sdkErrorResult(error)),
+				);
+			}
+			throw classified;
+		}
 	};
 }
 
@@ -73,27 +94,92 @@ export function createStreamingOpenAIAgentsRunner(
 	options: OpenAIAgentsRunnerOptions = {},
 ): StreamingAgentRunner {
 	return async function* (input) {
-		const requestOptions = resolveRequestOptions(options, input.providerConfig);
-		const runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
-		const runner = createSdkRunner(requestOptions.modelProvider, input.operation);
-		const result = await runner.run(runtime.agent, input.input, {
-			context: runtime.context,
-			maxTurns: input.limits.maxTurns,
-			...(input.signal ? { signal: input.signal } : {}),
-			stream: true,
-		});
-		if (input.operation === "solve") {
-			yield* streamSolveResult(result, input);
-			return;
-		}
-		for await (const delta of result.toTextStream()) {
-			if (delta !== "") {
-				yield { delta } satisfies AgentRunnerAnswerDelta;
+		let runtime: ReturnType<typeof createSdkRuntime> | undefined;
+		let result: StreamedRunResult<AgentSdkContext, CampusAgent> | undefined;
+		let answerStarted = false;
+		try {
+			const requestOptions = resolveRequestOptions(options, input.providerConfig);
+			runtime = createSdkRuntime(input, requestOptions.model?.trim() || undefined);
+			const runner = createSdkRunner(requestOptions.modelProvider, input.operation);
+			result = await runner.run(
+				runtime.agent,
+				input.input.map((message) =>
+					message.role === "assistant"
+						? {
+								role: "assistant" as const,
+								status: "completed" as const,
+								content: [{ type: "output_text" as const, text: message.content }],
+							}
+						: { role: "user" as const, content: message.content },
+				),
+				{
+					context: runtime.context,
+					maxTurns: input.limits.maxTurns,
+					...(input.signal ? { signal: input.signal } : {}),
+					stream: true,
+				},
+			);
+			if (input.operation === "solve") {
+				for await (const event of streamSolveResult(result, input)) {
+					if ("delta" in event && event.delta !== "") {
+						answerStarted = true;
+					}
+					yield event;
+				}
+				return;
 			}
+			for await (const delta of result.toTextStream()) {
+				if (delta !== "") {
+					answerStarted = true;
+					yield { delta } satisfies AgentRunnerAnswerDelta;
+				}
+			}
+			await result.completed;
+			throwIfStreamRunDidNotComplete(result, input.signal);
+			yield agentRunnerResultFromSDKResult(result, input.operation);
+		} catch (error) {
+			const classified = openAIRuntimeError(error);
+			if (runtime) {
+				yield failedRunnerResult(classified, input, {
+					...partialSdkResult(runtime.context, result ?? sdkErrorResult(error)),
+					answerStarted,
+				});
+				return;
+			}
+			throw classified;
 		}
-		await result.completed;
-		throwIfStreamRunDidNotComplete(result, input.signal);
-		yield agentRunnerResultFromSDKResult(result, input.operation);
+	};
+}
+
+function sdkErrorResult(error: unknown): RunResult<AgentSdkContext, CampusAgent> | undefined {
+	return error instanceof AgentsError && error.state ? new RunResult(error.state) : undefined;
+}
+
+function partialSdkResult(
+	context: AgentSdkContext,
+	result?:
+		| RunResult<AgentSdkContext, CampusAgent>
+		| StreamedRunResult<AgentSdkContext, CampusAgent>,
+): AgentRunnerResult {
+	return {
+		finalOutput: "",
+		providerResponseId: result?.lastResponseId?.trim() ?? "",
+		toolResults: [...context.functionToolResults.values()],
+		...(result
+			? {
+					webEvidence: extractWebEvidence(result),
+					webSearchUsed: webSearchUsedFromSDKResult(result),
+				}
+			: {}),
+		usage: result
+			? usageFromSDK(result.runContext.usage)
+			: {
+					modelRequestCount: 0,
+					inputTokens: 0,
+					outputTokens: 0,
+					cachedInputTokens: 0,
+					usageObserved: false,
+				},
 	};
 }
 
@@ -149,73 +235,6 @@ async function* streamSolveResult(
 	yield finalResult;
 }
 
-function partialJSONStringField(serialized: string, field: string): string | undefined {
-	const fieldPattern = new RegExp(`"${field}"\\s*:\\s*"`, "u");
-	const match = fieldPattern.exec(serialized);
-	if (!match) {
-		return undefined;
-	}
-	const start = match.index + match[0].length;
-	let value = "";
-	for (let index = start; index < serialized.length; index += 1) {
-		const character = serialized[index];
-		if (character === '"') {
-			return value;
-		}
-		if (character !== "\\") {
-			value += character;
-			continue;
-		}
-		if (index + 1 >= serialized.length) {
-			return value;
-		}
-		const escapeCharacter = serialized[index + 1];
-		if (escapeCharacter === undefined) {
-			return value;
-		}
-		switch (escapeCharacter) {
-			case '"':
-			case "\\":
-			case "/":
-				value += escapeCharacter;
-				index += 1;
-				break;
-			case "b":
-				value += "\b";
-				index += 1;
-				break;
-			case "f":
-				value += "\f";
-				index += 1;
-				break;
-			case "n":
-				value += "\n";
-				index += 1;
-				break;
-			case "r":
-				value += "\r";
-				index += 1;
-				break;
-			case "t":
-				value += "\t";
-				index += 1;
-				break;
-			case "u": {
-				const hex = serialized.slice(index + 2, index + 6);
-				if (!/^[0-9a-f]{4}$/iu.test(hex)) {
-					return value;
-				}
-				value += String.fromCharCode(Number.parseInt(hex, 16));
-				index += 5;
-				break;
-			}
-			default:
-				return value;
-		}
-	}
-	return value;
-}
-
 function resolveRequestOptions(
 	options: OpenAIAgentsRunnerOptions,
 	providerConfig: PromptProviderRuntimeConfig,
@@ -256,14 +275,7 @@ function throwIfStreamRunDidNotComplete(
 }
 
 function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
-	const context: AgentSdkContext = {
-		campusSearch: { nextCitationIndex: input.citationStart, queue: Promise.resolve() },
-		functionToolBudget: {
-			limit: input.limits.maxFunctionToolCalls,
-			reserved: 0,
-		},
-		functionToolResults: new Map(),
-	};
+	const context = createFunctionToolContext(input);
 	if (input.allowWebSearch && input.providerConfig.hostedWebSearch !== true) {
 		throw new AgentRuntimeError(
 			"model_config_incompatible",
@@ -276,13 +288,40 @@ function createSdkRuntime(input: AgentRunnerInput, model: string | undefined) {
 	const agentConfig: AgentOptions<AgentSdkContext, AgentOutputType> = {
 		name: `Campus workflow ${input.operation}`,
 		instructions: input.instructions,
-		...(input.outputType ? { outputType: input.outputType } : {}),
+		...(input.outputSchema
+			? {
+					outputType: {
+						type: "json_schema" as const,
+						name: input.outputSchema.name,
+						schema: openAIOutputSchema(input.outputSchema.schema) as JsonObjectSchema,
+						strict: true,
+					},
+				}
+			: {}),
 		...(model ? { model } : {}),
-		modelSettings: { maxTokens: input.limits.maxOutputTokens },
+		...(input.limits.maxOutputTokens
+			? { modelSettings: { maxTokens: input.limits.maxOutputTokens } }
+			: {}),
 		tools: [...input.tools.map((runtimeTool) => sdkTool(runtimeTool)), ...hostedTools],
-	};
+	} as AgentOptions<AgentSdkContext, AgentOutputType>;
 	const agent = new Agent<AgentSdkContext, AgentOutputType>(agentConfig);
 	return { agent, context };
+}
+
+// Match the SDK's Zod discriminated-union projection. The workflow still
+// validates exclusive branches; OpenAI's structured decoder accepts anyOf.
+export function openAIOutputSchema(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(openAIOutputSchema);
+	}
+	if (!value || typeof value !== "object") {
+		return value;
+	}
+	return Object.fromEntries(
+		Object.entries(value)
+			.filter(([key]) => key !== "$schema")
+			.map(([key, item]) => [key === "oneOf" ? "anyOf" : key, openAIOutputSchema(item)]),
+	);
 }
 
 function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
@@ -300,156 +339,32 @@ function sdkTool(runtimeTool: AgentRunnerInput["tools"][number]) {
 					`${runtimeTool.name} requires SDK run context.`,
 				);
 			}
-			if (context.functionToolBudget.reserved >= context.functionToolBudget.limit) {
-				throw new AgentRuntimeError(
-					"tool_execution_failed",
-					"The admitted function tool call budget is exhausted.",
-				);
-			}
 			const invocationId = details?.toolCall?.callId;
 			if (!invocationId) {
-				throw new AgentRuntimeError(
-					"tool_execution_failed",
-					`${runtimeTool.name} is missing its SDK call ID.`,
-				);
+				throw new AgentRuntimeError("tool_execution_failed", "Function call ID is missing.");
 			}
-			context.functionToolBudget.reserved += 1;
-			const startedAt = new Date().toISOString();
-			const startedAtMonotonic = performance.now();
-			const parsedArguments = argumentsJson as Record<string, unknown>;
-			const result = await executeSdkTool(runtimeTool, parsedArguments, context, invocationId);
-			const completedAt = new Date().toISOString();
-			context.functionToolResults.set(invocationId, {
-				...result,
-				argumentsJson: parsedArguments,
-				durationMs: Math.max(0.001, performance.now() - startedAtMonotonic),
-				startedAt,
-				completedAt,
-				toolName: runtimeTool.name,
+			return invokeFunctionTool(
+				runtimeTool,
+				argumentsJson as Record<string, unknown>,
+				context,
 				invocationId,
-			});
-			return result;
+			);
 		},
 	});
-}
-
-async function executeSdkTool(
-	runtimeTool: AgentRunnerInput["tools"][number],
-	argumentsJson: Record<string, unknown>,
-	context: AgentSdkContext,
-	invocationId: string,
-) {
-	if (runtimeTool.name !== "campus_search") {
-		return runtimeTool.execute(argumentsJson, { invocationId });
-	}
-	const previous = context.campusSearch.queue;
-	let release: () => void = () => undefined;
-	context.campusSearch.queue = new Promise<void>((resolve) => {
-		release = resolve;
-	});
-	await runtimeTool.observe?.(argumentsJson, invocationId, { phase: "queued" });
-	await previous;
-	try {
-		if (runtimeTool.signal?.aborted) {
-			await runtimeTool.observe?.(argumentsJson, invocationId, { phase: "canceled" });
-			throw runtimeTool.signal.reason ?? new Error("Agent run was canceled.");
-		}
-		const citationStart = context.campusSearch.nextCitationIndex;
-		if (citationStart > 10) {
-			await runtimeTool.observe?.(argumentsJson, invocationId, {
-				phase: "failed",
-				failureCode: "campus_search_result_budget_exhausted",
-			});
-			return {
-				failure: {
-					code: "campus_search_result_budget_exhausted",
-					operation: "tool.campus_search",
-					detail: "campus search result budget is exhausted",
-					invocationId,
-				},
-				result: { error: "campus search result budget is exhausted" },
-				status: "failed" as const,
-			};
-		}
-		const resultLimit = Math.min(5, 11 - citationStart);
-		const result = await runtimeTool.execute(argumentsJson, {
-			citationStart,
-			invocationId,
-			resultLimit,
-		});
-		context.campusSearch.nextCitationIndex += campusSearchResultCount(
-			result,
-			citationStart,
-			resultLimit,
-		);
-		return result;
-	} finally {
-		release();
-	}
-}
-
-function campusSearchResultCount(
-	result: Awaited<ReturnType<SdkToolRuntime["execute"]>>,
-	citationStart: number,
-	resultLimit: number,
-): number {
-	if (result.status !== "completed") {
-		return 0;
-	}
-	const results = result.result.results;
-	if (!Array.isArray(results) || results.length > resultLimit) {
-		throw new AgentRuntimeError(
-			"tool_execution_failed",
-			"campus_search returned an invalid result list.",
-		);
-	}
-	for (const [offset, item] of results.entries()) {
-		if (
-			item === null ||
-			typeof item !== "object" ||
-			(item as Record<string, unknown>).citation_index !== citationStart + offset
-		) {
-			throw new AgentRuntimeError(
-				"tool_execution_failed",
-				"campus_search returned invalid citation indexes.",
-			);
-		}
-	}
-	return results.length;
 }
 
 function agentRunnerResultFromSDKResult(
 	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
 	operation: AgentRunnerInput["operation"],
 ) {
-	const sdkOutput = result.finalOutput;
-	const rawFinalOutput =
-		operation === "solve" && isRecord(sdkOutput) ? sdkOutput.result : sdkOutput;
-	const finalOutput = textOutputFromSDKResult(rawFinalOutput, operation);
 	return {
-		finalOutput,
-		...(isRecord(rawFinalOutput) ? { structuredOutput: rawFinalOutput } : {}),
+		...normalizedModelOutput(result.finalOutput, operation),
 		providerResponseId: result.lastResponseId?.trim() ?? "",
 		toolResults: toolResultsFromSDKResult(result),
-		webCitations: extractWebCitations(result),
+		webEvidence: extractWebEvidence(result),
 		webSearchUsed: webSearchUsedFromSDKResult(result),
 		usage: usageFromSDK(result.runContext.usage),
 	};
-}
-
-function textOutputFromSDKResult(value: unknown, operation: AgentRunnerInput["operation"]): string {
-	if (typeof value === "string") {
-		return value;
-	}
-	if (
-		operation === "solve" &&
-		isRecord(value) &&
-		value.outcome === "answer" &&
-		typeof value.answer === "string"
-	) {
-		return value.answer;
-	}
-	return "";
 }
 
 function toolResultsFromSDKResult(
@@ -484,121 +399,45 @@ function webSearchUsedFromSDKResult(
 	});
 }
 
-function extractWebCitations(
+function extractWebEvidence(
 	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
-): WebCitation[] {
-	const finalOutput = typeof result.finalOutput === "string" ? result.finalOutput : "";
-	if (finalOutput === "") {
-		return [];
-	}
-	const finalMessages = messagesForFinalOutput(result, finalOutput);
-	if (finalMessages.length === 0) {
-		return [];
-	}
-
-	const citations: WebCitation[] = [];
-	let partOffset = 0;
-	for (const message of finalMessages) {
-		for (const content of outputTextContents(message)) {
-			const annotations = content.providerData?.annotations;
-			if (annotations === undefined) {
-				partOffset += [...content.text].length;
-				continue;
-			}
-			if (!Array.isArray(annotations)) {
-				throw citationValidationError("output text annotations must be an array");
-			}
-			for (const annotation of annotations) {
-				if (!isRecord(annotation)) {
-					throw citationValidationError("web citation annotation must be an object");
-				}
-				if (annotation.type !== "url_citation") {
-					continue;
-				}
-				const startIndex = integerValue(annotation.start_index);
-				const endIndex = integerValue(annotation.end_index);
-				const title = stringValue(annotation.title);
-				const url = serializedWebCitationURL(annotation.url);
-				if (
-					startIndex === null ||
-					endIndex === null ||
-					startIndex < 0 ||
-					endIndex <= startIndex ||
-					!title ||
-					!url
-				) {
-					throw citationValidationError("web citation annotation fields are invalid");
-				}
-				if (endIndex > content.text.length) {
-					throw citationValidationError("web citation annotation is outside its text part");
-				}
-				const startCodePoint = codePointOffsetFromUtf16(content.text, startIndex);
-				const endCodePoint = codePointOffsetFromUtf16(content.text, endIndex);
-				if (startCodePoint === null || endCodePoint === null || endCodePoint <= startCodePoint) {
-					throw citationValidationError("web citation annotation splits a code point");
-				}
-				citations.push({
-					startIndex: partOffset + startCodePoint,
-					endIndex: partOffset + endCodePoint,
-					title,
-					url,
-				});
-			}
-			partOffset += [...content.text].length;
-		}
-	}
-	return citations;
-}
-
-function messagesForFinalOutput(
-	result: RunResult<AgentSdkContext, CampusAgent> | StreamedRunResult<AgentSdkContext, CampusAgent>,
-	finalOutput: string,
-): AssistantMessageItem[] {
-	const messages = result.newItems.flatMap((item) =>
-		item.type === "message_output_item" && item.rawItem?.type === "message" ? [item.rawItem] : [],
-	);
-	const matched: AssistantMessageItem[] = [];
-	let matchedText = "";
-	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		const message = messages[index];
-		if (!message) {
+): WebEvidence[] {
+	const evidence: WebEvidence[] = [];
+	for (const item of result.newItems) {
+		if (item.rawItem.type !== "message" || item.rawItem.role !== "assistant") {
 			continue;
 		}
-		matched.unshift(message);
-		matchedText = assistantMessageText(message) + matchedText;
-		if (matchedText === finalOutput) {
-			return matched;
-		}
-		if (!finalOutput.endsWith(matchedText)) {
-			return [];
+		for (const part of item.rawItem.content) {
+			if (part.type !== "output_text") {
+				continue;
+			}
+			const annotations = part.providerData?.annotations;
+			if (!Array.isArray(annotations)) {
+				continue;
+			}
+			for (const annotation of annotations) {
+				if (!isRecord(annotation) || annotation.type !== "url_citation") {
+					continue;
+				}
+				const url = serializedWebCitationURL(annotation.url);
+				const title = stringValue(annotation.title);
+				const start = integerValue(annotation.start_index);
+				const end = integerValue(annotation.end_index);
+				if (
+					!(url && title) ||
+					start === null ||
+					end === null ||
+					start < 0 ||
+					end <= start ||
+					end > part.text.length
+				) {
+					throw citationValidationError("invalid web citation");
+				}
+				evidence.push({ url, title, excerpt: part.text.slice(start, end) });
+			}
 		}
 	}
-	return [];
-}
-
-function assistantMessageText(message: unknown): string {
-	return outputTextContents(message)
-		.map((content) => content.text)
-		.join("");
-}
-
-function outputTextContents(
-	message: unknown,
-): Array<{ text: string; providerData?: Record<string, unknown> }> {
-	if (!(isRecord(message) && Array.isArray(message.content))) {
-		return [];
-	}
-	return message.content.flatMap((content) => {
-		if (!isRecord(content) || content.type !== "output_text" || typeof content.text !== "string") {
-			return [];
-		}
-		return [
-			{
-				text: content.text,
-				...(isRecord(content.providerData) ? { providerData: content.providerData } : {}),
-			},
-		];
-	});
+	return evidence;
 }
 
 function citationValidationError(message: string): AgentRuntimeError {
@@ -630,18 +469,6 @@ function serializedWebCitationURL(value: unknown): string | null {
 	} catch {
 		return null;
 	}
-}
-
-function codePointOffsetFromUtf16(text: string, offset: number): number | null {
-	if (offset < 0 || offset > text.length) {
-		return null;
-	}
-	const prefix = text.slice(0, offset);
-	const last = prefix.charCodeAt(prefix.length - 1);
-	if (last >= 0xd800 && last <= 0xdbff) {
-		return null;
-	}
-	return [...prefix].length;
 }
 
 function usageFromSDK(usage: Usage) {

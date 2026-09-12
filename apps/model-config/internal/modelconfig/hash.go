@@ -9,7 +9,7 @@ import (
 func CapabilitiesForTarget(target Target) Capabilities {
 	return Capabilities{
 		HostedWebSearch: (target.Provider == "openai" || target.Provider == "openai-compatible") &&
-			target.APIProtocol == "openai.responses",
+			target.APIProtocol == "openai.responses" || (target.Provider == "google" && target.APIProtocol == "google.generate_content"),
 	}
 }
 

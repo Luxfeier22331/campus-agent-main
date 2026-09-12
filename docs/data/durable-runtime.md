@@ -16,9 +16,13 @@ app-api 产品读模型、Ops Web 运行记录、诊断和评测消费，并保�
 ### Campus Search 诊断投影
 
 `execution_control.agent_campus_search_diagnostics` 是 execution-control 所有、Ops Web 只读的专用投影，
-以 `(request_id, invocation_id)` 标识一次工具调用，schema version 为 1。它不属于产品事件、工作流
+以 `(request_id, invocation_id)` 标识一次工具调用，schema version 为 2。它不属于产品事件、工作流
 状态或最终答案；不写入 `agent_run_events`、`agent_step_results` 或 App API 的 request observability fact。
 请求删除时通过外键级联删除，不单独增加 TTL 或历史回填机制。
+
+v2 硬切由统一 schema migration 0008 删除旧诊断行并替换版本约束；不删除请求、消息、通知或索引。
+生产者与 Ops 消费者一起升级，不保留 v1 读取或双写。升级时先停止旧生产者，迁移后启动新版；
+历史请求没有诊断时展示无数据，不从日志重建。
 
 Agent Runtime 经现有内部 query auth 上报 queued、dispatching、completed、failed、canceled；服务端记录
 received、index_loaded、embedded、retrieved、reranked、selected。固定接口为
@@ -93,6 +97,16 @@ recovery 失败或首次绑定身份未知时仍保持 pending，
 账号产品数据。
 
 ### Step、Attempt 与 Result
+
+`agent_step_results.model_output_diagnostic_json` 是可空的 Ops 专用失败输出诊断列，schema version
+为 1。它与不可变的业务 payload 分开，不参与结果重放比较，也不进入 invocation receipt 或 Temporal
+Activity 结果。Execution Control 在业务结果持久化后以一秒超时单独写入一次；失败不改变业务结果，
+不重试、不在重放时重新调用模型补录。首次写入后不覆盖；缺失行不被诊断写入重建。
+
+诊断只记录 `model_output_invalid` 的可见模型输出前缀（最多 64 KiB UTF-8）、原字节数、截断标记、
+校验阶段、最多 1024 字符的错误说明、schema 名称和可空 finish reason。随父请求、账号删除，
+不单独增加 TTL 或历史回填。Ops 使用已有请求/步骤/attempt 关联读取这列，不获得完整结果 payload
+读取权限。未来移除 Ops 格式错误诊断时应一并删除该列及其生产/消费代码。
 
 step 投影描述持久运行架构中的稳定阶段。阶段语义由
 `../architecture/system/durable-runtime.md` 维护，具体 `step_id` 与 `step_kind` 由执行代码和

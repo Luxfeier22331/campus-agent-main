@@ -146,6 +146,7 @@ func (s *InMemoryRunProjectionStore) deleteRunLocked(requestID string, run execu
 	for key, projection := range s.stepResults {
 		if projection.RequestID == requestID {
 			delete(s.stepResults, key)
+			delete(s.modelOutputDiagnostics, key)
 		}
 	}
 	s.Receipts.deleteRunLocked(requestID)

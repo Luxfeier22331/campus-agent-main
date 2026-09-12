@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { containerBuildInputsChanged, imageTargetsForScope } from "../release/image-targets.mts";
 import { type AffectedScope, type CommandRunner, resolveAffectedScope } from "./scope.mts";
 import {
+	BUILD_TASKS,
+	NATIVE_TASKS,
+	NODE_TASKS,
 	VALIDATION_PROFILES,
 	type ValidationProfile,
 	validationProfileMetadata,
@@ -35,7 +39,6 @@ export interface ValidationPlan {
 export interface ValidationPlanOptions {
 	base: string;
 	head: string;
-	mode: "pull-request";
 	repositoryRoot: string;
 }
 
@@ -43,7 +46,7 @@ function changesPath(files: readonly string[], prefix: string): boolean {
 	return files.some((file) => file === prefix || file.startsWith(`${prefix}/`));
 }
 
-const AFFECTED_NODE_TASKS = new Set(["build", "build:worker", "test", "test:worker", "typecheck"]);
+const AFFECTED_NODE_TASKS = new Set<string>([...NODE_TASKS, ...BUILD_TASKS]);
 
 function selectAffectedPackages(scope: AffectedScope): string[] {
 	return [
@@ -79,12 +82,8 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	if (scope.tasks.some(({ task }) => AFFECTED_NODE_TASKS.has(task))) {
 		selected.add("affected-node");
 	}
-	if (
-		scope.tasks.some(
-			({ package: name, task }) => name === "execution-control" && task.startsWith("native:"),
-		)
-	) {
-		selected.add("execution-control-native");
+	if (scope.tasks.some(({ task }) => (NATIVE_TASKS as readonly string[]).includes(task))) {
+		selected.add("affected-native");
 	}
 	const images = imageTargetsForScope(scope);
 	if (containerBuildInputsChanged(files) || images.length > 0) {
@@ -96,17 +95,11 @@ function selectValidationProfiles(scope: AffectedScope): ValidationProfile[] {
 	return VALIDATION_PROFILES.filter((profile) => selected.has(profile));
 }
 
-export function validationPlanFromScope(
-	scope: AffectedScope,
-	_options: Pick<ValidationPlanOptions, "mode">,
-): ValidationPlan {
+export function validationPlanFromScope(scope: AffectedScope): ValidationPlan {
 	const validationProfiles = selectValidationProfiles(scope);
 	const reasons: Partial<Record<ValidationProfile, [string, string]>> = {
 		"affected-node": ["Affected task graph contains Node tasks", "No affected Node tasks"],
-		"execution-control-native": [
-			"Affected task graph contains execution-control native tasks",
-			"No affected execution-control native tasks",
-		],
+		"affected-native": ["Affected task graph contains native tasks", "No affected native tasks"],
 		"image-build": ["Affected scope selects image targets", "No affected image targets"],
 		"container-build": [
 			"Container definition inputs changed or image targets selected",
@@ -148,7 +141,39 @@ export function planValidation(
 		},
 		runner,
 	);
-	return validationPlanFromScope(scope, options);
+	return validationPlanFromScope(scope);
+}
+
+export function checkValidationOutcomes(
+	plan: ValidationPlan,
+	outcomes: Record<string, string>,
+): void {
+	const required = [
+		"plan",
+		"install-static-dependencies",
+		"repository-lint",
+		"repository-docs",
+		"repository-test",
+		"secrets",
+	];
+	required.push(...plan.validationProfiles.filter((profile) => profile !== "image-build"));
+	if (plan.validationProfiles.includes("affected-node")) {
+		required.push("install-affected");
+	}
+	if (plan.lightSurfaces.includes("contracts")) {
+		required.push("contracts");
+	}
+	if (plan.lightSurfaces.includes("config")) {
+		required.push("github-actions");
+	}
+	const failed = required.filter((name) => outcomes[name] !== "success");
+	const unexpectedFailures = Object.entries(outcomes)
+		.filter(([, value]) => value === "failure" || value === "cancelled")
+		.map(([name]) => name);
+	const failures = [...new Set([...failed, ...unexpectedFailures])];
+	if (failures.length > 0) {
+		throw new Error(`Selected checks did not succeed: ${failures.join(", ")}`);
+	}
 }
 
 function argumentsMap(args: string[]): Map<string, string> {
@@ -174,19 +199,23 @@ function required(values: Map<string, string>, name: string): string {
 
 function main(args: string[]): void {
 	const values = argumentsMap(args);
+	if (values.has("check-outcomes")) {
+		const plan = JSON.parse(readFileSync(required(values, "plan"), "utf8")) as ValidationPlan;
+		const outcomes = JSON.parse(readFileSync(required(values, "check-outcomes"), "utf8")) as Record<
+			string,
+			string
+		>;
+		checkValidationOutcomes(plan, outcomes);
+		return;
+	}
 	const describedProfile = values.get("describe-profile");
 	if (describedProfile !== undefined) {
 		process.stdout.write(`${JSON.stringify(validationProfileMetadata(describedProfile))}\n`);
 		return;
 	}
-	const mode = required(values, "mode");
-	if (mode !== "pull-request") {
-		throw new Error("--mode must be pull-request");
-	}
 	const plan = planValidation({
 		base: required(values, "base"),
 		head: required(values, "head"),
-		mode,
 		repositoryRoot: values.get("root") ?? process.cwd(),
 	});
 	process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);

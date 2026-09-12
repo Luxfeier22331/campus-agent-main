@@ -1,12 +1,14 @@
-import { MaxTurnsExceededError, ToolCallError, ToolTimeoutError } from "@openai/agents";
+import { ZodError } from "zod";
 import type { ExecutionFailure } from "./agent-run-contract.ts";
 
 export type AgentRuntimeErrorCode =
+	| "model_output_invalid"
 	| "workflow_operation_payload_too_large"
 	| "invalid_request"
 	| "context_budget_exceeded"
 	| "agent_deadline_exceeded"
 	| "max_turns_exceeded"
+	| "retrieval_budget_exhausted"
 	| "provider_unavailable"
 	| "model_config_incompatible"
 	| "citation_validation_failed"
@@ -29,13 +31,14 @@ export class AgentRuntimeError extends Error {
 			code?: string;
 			operation?: string;
 		} = {},
+		options: ErrorOptions = {},
 	) {
-		super(message);
+		super(message, options);
 		this.code = code;
 		this.failure = {
 			code,
 			operation: failure.operation ?? "agent.runtime",
-			...(failure.detail ? { detail: failure.detail } : {}),
+			...(failure.detail ? { detail: boundedErrorText(failure.detail, 1024) } : {}),
 			...(failure.httpStatus === undefined ? {} : { httpStatus: failure.httpStatus }),
 			...(failure.invocationId ? { invocationId: failure.invocationId } : {}),
 		};
@@ -45,7 +48,7 @@ export class AgentRuntimeError extends Error {
 
 export function agentRuntimeErrorPayload(
 	error: unknown,
-	options: { deadlineSignal?: AbortSignal } = {},
+	options: { deadlineSignal?: AbortSignal; operation?: string } = {},
 ): {
 	code: AgentRuntimeErrorCode;
 	message: string;
@@ -60,7 +63,10 @@ export function agentRuntimeErrorPayload(
 		code: classified.code,
 		message: classified.message,
 		retryable: false,
-		operation: classified.failure.operation,
+		operation:
+			classified.failure.operation === "agent.runtime"
+				? (options.operation ?? classified.failure.operation)
+				: classified.failure.operation,
 		...(classified.failure.detail ? { detail: classified.failure.detail } : {}),
 		...(classified.failure.httpStatus === undefined
 			? {}
@@ -87,18 +93,6 @@ function classifyAgentRuntimeError(
 			{ operation: "agent.runtime", detail: "agent deadline signal was aborted" },
 		);
 	}
-	if (error instanceof MaxTurnsExceededError) {
-		return new AgentRuntimeError("max_turns_exceeded", "Agent run exceeded its turn limit.", {
-			operation: "agent.runner",
-		});
-	}
-	if (error instanceof ToolCallError || error instanceof ToolTimeoutError) {
-		return new AgentRuntimeError(
-			"tool_execution_failed",
-			publicAgentRuntimeErrorMessage("tool_execution_failed"),
-			{ operation: "agent.tool", detail: "SDK tool execution failed" },
-		);
-	}
 	const providerFailure = classifyProviderFailure(error);
 	if (providerFailure) {
 		return new AgentRuntimeError(
@@ -107,9 +101,93 @@ function classifyAgentRuntimeError(
 			providerFailure,
 		);
 	}
+	const httpStatus = numberValue(providerErrorRecord(error)?.status);
 	return new AgentRuntimeError("run_failed", publicAgentRuntimeErrorMessage("run_failed"), {
 		operation: "agent.runtime",
+		detail: summarizeRuntimeError(error),
+		...(httpStatus === undefined ? {} : { httpStatus }),
 	});
+}
+
+export type AgentRuntimeErrorPayload = ReturnType<typeof agentRuntimeErrorPayload>;
+
+// Only explicit error fields are diagnostic input: never serialize the SDK's
+// request, response, headers, configuration, or model-output objects.
+export function summarizeRuntimeError(error: unknown): string {
+	const causes: string[] = [];
+	let current = error;
+	for (let depth = 0; depth < 4 && current instanceof Error; depth++) {
+		const name = current.name;
+		if (current instanceof SyntaxError) {
+			const position = current.message.match(
+				/(?:at position \d+(?: \(line \d+ column \d+\))?|line \d+ column \d+)/u,
+			)?.[0];
+			causes.push(`${name}: parsing failed${position ? ` ${position}` : ""}`);
+		} else if (current instanceof ZodError) {
+			causes.push(
+				`${name}: ${current.issues
+					.slice(0, 8)
+					.map((issue) => `${issue.path.join(".")}: ${issue.code}`)
+					.join("; ")}`,
+			);
+		} else {
+			const record = providerErrorRecord(current);
+			const providerStatus = numberValue(
+				record?.status ?? record?.statusCode ?? record?.httpStatus,
+			);
+			causes.push(
+				`${name}: ${providerStatus === undefined ? current.message : `HTTP ${providerStatus}`}`,
+			);
+		}
+		current = current.cause;
+	}
+	return boundedErrorText(causes.join("; caused by ") || "Non-Error exception", 1024);
+}
+
+export function agentRuntimeErrorLogFields(error: unknown, payload: AgentRuntimeErrorPayload) {
+	const stacks: string[] = [];
+	let current = error;
+	for (let depth = 0; depth < 4 && current instanceof Error; depth++) {
+		// Error headlines can include response bodies; only keep stack frames.
+		stacks.push(
+			(current.stack ?? "")
+				.split("\n")
+				.filter((line) => /^\s+at /u.test(line))
+				.join("\n"),
+		);
+		current = current.cause;
+	}
+	return {
+		error_code: payload.code,
+		error_operation: payload.operation,
+		error_cause: summarizeRuntimeError(error),
+		...(stacks.some(Boolean) ? { error_stack: boundedErrorText(stacks.join("\n"), 8192) } : {}),
+		...(payload.detail ? { error_detail: payload.detail } : {}),
+		...(payload.http_status === undefined ? {} : { error_http_status: payload.http_status }),
+		...(payload.invocation_id ? { invocation_id: payload.invocation_id } : {}),
+	};
+}
+
+function boundedErrorText(text: string, limit: number): string {
+	const safe = text
+		.replace(/\bBearer\s+[^\s,;"']+/giu, "Bearer [redacted]")
+		.replace(
+			/\b(api[_-]?key|token|password|secret|authorization|cookie)\s*[:=]\s*(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/giu,
+			"$1=[redacted]",
+		)
+		.replace(/https?:\/\/[^\s"'<>]+/gu, (value) => {
+			try {
+				const url = new URL(value);
+				url.username = "";
+				url.password = "";
+				url.search = "";
+				url.hash = "";
+				return url.toString();
+			} catch {
+				return "[invalid URL]";
+			}
+		});
+	return Array.from(safe).slice(0, limit).join("");
 }
 
 function classifyProviderFailure(error: unknown):

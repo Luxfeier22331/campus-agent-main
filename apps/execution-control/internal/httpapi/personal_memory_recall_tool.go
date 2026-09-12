@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionapplication"
 )
@@ -21,6 +22,7 @@ type personalMemoryRecallToolEnvelope struct {
 
 type agentToolAccessContext struct {
 	ActivityAttempt int    `json:"activity_attempt"`
+	DeadlineAt      string `json:"deadline_at"`
 	RequestID       string `json:"request_id"`
 	InvocationID    string `json:"invocation_id"`
 	WorkflowStepID  string `json:"workflow_step_id"`
@@ -102,6 +104,7 @@ func agentToolAccessContextToApplication(
 ) executionapplication.AgentToolAccessContext {
 	return executionapplication.AgentToolAccessContext{
 		ActivityAttempt: access.ActivityAttempt,
+		DeadlineAt:      parseDeadlineAt(access.DeadlineAt),
 		CitationStart:   access.CitationStart,
 		InvocationID:    access.InvocationID,
 		RequestID:       access.RequestID,
@@ -109,4 +112,15 @@ func agentToolAccessContextToApplication(
 		UserGoal:        access.UserGoal,
 		WorkflowStepID:  access.WorkflowStepID,
 	}
+}
+
+func parseDeadlineAt(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
 }

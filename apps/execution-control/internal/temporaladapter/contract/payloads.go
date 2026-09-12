@@ -24,6 +24,7 @@ func MemoryCommandToWorkflow(s memoryruntime.PersonalMemoryCommandRequest) tempo
 }
 func WorkflowInput(input execution.WorkflowStartInput) temporalruntime.ToolExecutionWorkflowInput {
 	return temporalruntime.ToolExecutionWorkflowInput{
+		DeadlineAt:        input.DeadlineAt,
 		AdmissionSnapshot: AdmissionToWorkflow(input.AdmissionSnapshot), AdmissionSnapshotSHA256: input.AdmissionSnapshotSHA256, ConversationID: input.ConversationID, Namespace: input.Namespace, PayloadSHA256: input.PayloadSHA256, PersonalMemoryTimeoutSeconds: input.PersonalMemoryTimeoutSeconds, RequestID: input.RequestID, TaskQueue: input.TaskQueue, TraceParent: input.TraceParent, WorkflowID: input.WorkflowID,
 	}
 }

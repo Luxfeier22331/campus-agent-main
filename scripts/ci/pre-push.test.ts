@@ -8,6 +8,20 @@ const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
 const ZERO_REF = "0".repeat(40);
 
+test("new branches use the available main merge-base without fetching", () => {
+	const calls: string[] = [];
+	const plan = planPrePush(
+		{ env: pushEnvironment(ZERO_REF, HEAD), repositoryRoot: "/repository" },
+		(command, args) => {
+			calls.push([command, ...args].join(" "));
+			return { status: 0, stdout: `${BASE}\n` };
+		},
+	);
+	assert.deepEqual(plan, { kind: "affected", base: BASE, head: HEAD });
+	assert.equal(calls.length, 2);
+	assert(calls.every((command) => !command.includes("fetch")));
+});
+
 function pushEnvironment(from: string, to: string): NodeJS.ProcessEnv {
 	return { PRE_COMMIT_FROM_REF: from, PRE_COMMIT_TO_REF: to };
 }
@@ -40,6 +54,8 @@ test("runs only affected Node and Go pre-push tasks", () => {
 						{ command: "tsc", package: "agent-runtime", task: "typecheck" },
 						{ command: "vitest", package: "agent-runtime", task: "test" },
 						{ command: "go vet", package: "model-config", task: "native:typecheck" },
+						{ command: "lint", package: "model-config", task: "native:lint" },
+						{ command: "format", package: "model-config", task: "native:format" },
 						{ command: "go test", package: "model-config", task: "native:test" },
 						{ command: "vite build", package: "agent-runtime", task: "build" },
 					],
@@ -52,14 +68,20 @@ test("runs only affected Node and Go pre-push tasks", () => {
 	runPrePush({ env: pushEnvironment(BASE, HEAD), repositoryRoot: "/repository" }, runner);
 
 	const commands = calls
-		.filter(({ command, args }) => command === "pnpm" && !args.includes("--dry-run=json"))
+		.filter(({ command, args }) => command === "nix" && !args.includes("--dry-run=json"))
 		.map(({ command, args }) => [command, ...args].join(" "));
-	assert.deepEqual(commands, [
-		"pnpm exec turbo run typecheck --only --summarize --filter=agent-runtime",
-		"pnpm exec turbo run test --only --summarize --filter=agent-runtime",
-		"pnpm exec turbo run native:typecheck --only --concurrency=1 --summarize --filter=model-config",
-		"pnpm exec turbo run native:test --only --concurrency=1 --summarize --filter=model-config",
-	]);
+	assert.equal(commands.length, 2);
+	const native = commands.find((command) => command.includes(".#ci-go"));
+	assert(native?.includes("model-config#native:lint"));
+	assert(native?.includes("model-config#native:format"));
+	assert(native?.includes("model-config#native:test"));
+	assert(native?.includes("model-config#native:typecheck"));
+	assert(
+		commands.some(
+			(command) => command.includes(".#ci-core") && command.includes("agent-runtime#test"),
+		),
+	);
+
 	assert(!commands.some((command) => command.includes(" build")));
 	assert(
 		calls
@@ -72,15 +94,23 @@ test("runs the complete light task set when a new or rewritten branch has no usa
 	const calls: string[] = [];
 	const runner: EvidenceCommandRunner = (command, args) => {
 		calls.push([command, ...args].join(" "));
-		return { status: 0 };
+		return { status: command === "git" ? 1 : 0 };
 	};
 
 	runPrePush({ env: pushEnvironment(ZERO_REF, HEAD), repositoryRoot: "/repository" }, runner);
-	assert.deepEqual(calls, [
-		"pnpm exec turbo run typecheck test test:worker --summarize",
-		"pnpm exec turbo run native:typecheck --concurrency=1 --summarize",
-		"pnpm exec turbo run native:test --concurrency=1 --summarize",
-	]);
+	assert(
+		calls.some(
+			(command) => command.includes(".#ci-core") && command.includes("typecheck test test:worker"),
+		),
+	);
+	assert(
+		calls.some(
+			(command) =>
+				command.includes(".#ci-go") &&
+				command.includes("native:format native:lint native:typecheck native:test"),
+		),
+	);
+	assert(!calls.some((command) => command.includes(" fetch ")));
 
 	assert.deepEqual(
 		planPrePush({ env: pushEnvironment(BASE, HEAD), repositoryRoot: "/repository" }, () => ({

@@ -1,0 +1,220 @@
+import type {
+	AgentRunnerInput,
+	SdkToolRuntime,
+	ToolExecutionResult,
+} from "./agent-run-contract.ts";
+import { retrievalDeadlineAt, sourceUnavailable } from "./execution-budget.ts";
+import { AgentRuntimeError } from "./runtime-errors.ts";
+export interface FunctionToolContext {
+	unavailableSources: Set<string>;
+	campusSearch: {
+		nextCitationIndex: number;
+		queue: Promise<void>;
+	};
+	functionToolBudget: {
+		limit: number;
+		reserved: number;
+	};
+	functionToolResults: Map<string, ToolExecutionResult>;
+}
+
+export function createFunctionToolContext(input: AgentRunnerInput): FunctionToolContext {
+	return {
+		unavailableSources: new Set(
+			(input.priorSourceAttempts ?? [])
+				.filter((attempt) => sourceUnavailable(attempt.failureCode))
+				.map((attempt) => attempt.source),
+		),
+		campusSearch: { nextCitationIndex: input.citationStart, queue: Promise.resolve() },
+		functionToolBudget: { limit: input.limits.maxFunctionToolCalls, reserved: 0 },
+		functionToolResults: new Map(),
+	};
+}
+export async function invokeFunctionTool(
+	runtimeTool: SdkToolRuntime,
+	args: Record<string, unknown>,
+	context: FunctionToolContext,
+	invocationId: string,
+) {
+	if (context.functionToolBudget.reserved >= context.functionToolBudget.limit) {
+		throw new AgentRuntimeError(
+			"tool_execution_failed",
+			"The admitted function tool call budget is exhausted.",
+		);
+	}
+	context.functionToolBudget.reserved++;
+	runtimeTool.signal?.throwIfAborted();
+	const startedAt = new Date().toISOString();
+	const started = performance.now();
+	const deadlineAt = new Date(
+		Math.min(
+			Date.now() + (runtimeTool.timeoutMs ?? 45_000),
+			retrievalDeadlineAt(runtimeTool.deadlineAt),
+		),
+	).toISOString();
+	const result = context.unavailableSources.has(runtimeTool.name)
+		? {
+				status: "failed" as const,
+				result: {
+					error:
+						"This source is unavailable for this request; use existing materials or another admitted source.",
+				},
+				failure: { code: "source_unavailable_for_request", operation: `tool.${runtimeTool.name}` },
+			}
+		: await executeSdkTool(runtimeTool, args, context, invocationId, deadlineAt);
+	if (sourceUnavailable(result.failure?.code)) {
+		context.unavailableSources.add(runtimeTool.name);
+	}
+	context.functionToolResults.set(invocationId, {
+		...result,
+		argumentsJson: args,
+		durationMs: Math.max(0.001, performance.now() - started),
+		startedAt,
+		completedAt: new Date().toISOString(),
+		toolName: runtimeTool.name,
+		invocationId,
+	});
+	if (result.failure?.code === "campus_search_result_budget_exhausted") {
+		throw new AgentRuntimeError(
+			"retrieval_budget_exhausted",
+			"Campus Search result budget is exhausted; synthesize from the materials already retrieved.",
+			{ operation: `tool.${runtimeTool.name}`, invocationId },
+		);
+	}
+	return result;
+}
+async function executeSdkTool(
+	runtimeTool: AgentRunnerInput["tools"][number],
+	argumentsJson: Record<string, unknown>,
+	context: FunctionToolContext,
+	invocationId: string,
+	deadlineAt: string,
+) {
+	if (Date.parse(deadlineAt) <= Date.now()) {
+		return {
+			status: "failed" as const,
+			result: { error: "Retrieval budget exhausted; answer using existing materials." },
+			failure: { code: "retrieval_budget_exhausted", operation: `tool.${runtimeTool.name}` },
+		};
+	}
+	if (runtimeTool.name !== "campus_search") {
+		return runtimeTool.execute(argumentsJson, { invocationId, deadlineAt });
+	}
+	const previous = context.campusSearch.queue;
+	let release: () => void = () => undefined;
+	context.campusSearch.queue = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await runtimeTool.observe?.(argumentsJson, invocationId, { phase: "queued" });
+	try {
+		await waitForToolTurn(previous, runtimeTool.signal, Date.parse(deadlineAt));
+	} catch (error) {
+		await runtimeTool.observe?.(argumentsJson, invocationId, {
+			phase: "failed",
+			failureCode: "campus_search_timeout",
+		});
+		return {
+			failure: {
+				code: "campus_search_timeout",
+				operation: "tool.campus_search",
+				detail: error instanceof Error ? error.message : "campus search queue timed out",
+				invocationId,
+			},
+			result: { error: "campus search queue timed out" },
+			status: "failed" as const,
+		};
+	}
+	try {
+		if (runtimeTool.signal?.aborted) {
+			await runtimeTool.observe?.(argumentsJson, invocationId, { phase: "canceled" });
+			throw runtimeTool.signal.reason ?? new Error("Agent run was canceled.");
+		}
+		const citationStart = context.campusSearch.nextCitationIndex;
+		if (citationStart > 10) {
+			await runtimeTool.observe?.(argumentsJson, invocationId, {
+				phase: "failed",
+				failureCode: "campus_search_result_budget_exhausted",
+			});
+			return {
+				failure: {
+					code: "campus_search_result_budget_exhausted",
+					operation: "tool.campus_search",
+					detail: "campus search result budget is exhausted",
+					invocationId,
+				},
+				result: { error: "campus search result budget is exhausted" },
+				status: "failed" as const,
+			};
+		}
+		const resultLimit = Math.min(5, 11 - citationStart);
+		const result = await runtimeTool.execute(argumentsJson, {
+			deadlineAt,
+			citationStart,
+			invocationId,
+			resultLimit,
+		});
+		context.campusSearch.nextCitationIndex += campusSearchResultCount(
+			result,
+			citationStart,
+			resultLimit,
+		);
+		return result;
+	} finally {
+		release();
+	}
+}
+
+async function waitForToolTurn(
+	previous: Promise<void>,
+	signal: AbortSignal | undefined,
+	deadlineMs: number,
+): Promise<void> {
+	const remaining = Math.max(1, deadlineMs - Date.now());
+	const timeout = new Promise<never>((_, reject) =>
+		setTimeout(() => reject(new Error("campus search queue deadline exceeded")), remaining),
+	);
+	const canceled = signal
+		? new Promise<never>((_, reject) => {
+				if (signal.aborted) {
+					reject(signal.reason ?? new Error("Agent run was canceled."));
+				} else {
+					signal.addEventListener(
+						"abort",
+						() => reject(signal.reason ?? new Error("Agent run was canceled.")),
+						{ once: true },
+					);
+				}
+			})
+		: new Promise<never>(() => undefined);
+	await Promise.race([previous, timeout, canceled]);
+}
+
+function campusSearchResultCount(
+	result: Awaited<ReturnType<SdkToolRuntime["execute"]>>,
+	citationStart: number,
+	resultLimit: number,
+): number {
+	if (result.status !== "completed") {
+		return 0;
+	}
+	const results = result.result.results;
+	if (!Array.isArray(results) || results.length > resultLimit) {
+		throw new AgentRuntimeError(
+			"tool_execution_failed",
+			"campus_search returned an invalid result list.",
+		);
+	}
+	for (const [offset, item] of results.entries()) {
+		if (
+			item === null ||
+			typeof item !== "object" ||
+			(item as Record<string, unknown>).citation_index !== citationStart + offset
+		) {
+			throw new AgentRuntimeError(
+				"tool_execution_failed",
+				"campus_search returned invalid citation indexes.",
+			);
+		}
+	}
+	return results.length;
+}

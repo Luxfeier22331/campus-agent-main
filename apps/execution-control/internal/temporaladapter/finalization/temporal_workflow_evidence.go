@@ -249,7 +249,6 @@ func WorkflowEvidenceSource(
 func WorkflowResultsFromAgentResult(agentResult map[string]any) ([]WorkflowRunResult, error) {
 	results := []WorkflowRunResult{}
 	seenIndexes := map[int]struct{}{}
-	seenRefs := map[string]struct{}{}
 	for _, toolResult := range WorkflowToolResultMaps(agentResult["tool_results"]) {
 		if strings.TrimSpace(execution.StringValue(toolResult["status"])) != "completed" ||
 			strings.TrimSpace(execution.StringValue(toolResult["tool_name"])) != activityprojection.WorkflowCampusSearchToolName {
@@ -265,11 +264,9 @@ func WorkflowResultsFromAgentResult(agentResult map[string]any) ([]WorkflowRunRe
 			if _, duplicate := seenIndexes[item.CitationIndex]; duplicate {
 				return nil, fmt.Errorf("successful campus_search citation_index %d is duplicated", item.CitationIndex)
 			}
-			if _, duplicate := seenRefs[item.ResultRef]; duplicate {
-				return nil, fmt.Errorf("successful campus_search result_ref %q is duplicated", item.ResultRef)
-			}
 			seenIndexes[item.CitationIndex] = struct{}{}
-			seenRefs[item.ResultRef] = struct{}{}
+			// Repeated searches may return the same source under different indexes.
+			// Preserve every index until citations are resolved and sources are merged.
 			results = append(results, WorkflowRunResultFromCampusSearch(item))
 		}
 	}

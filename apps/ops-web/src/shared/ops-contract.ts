@@ -1,6 +1,7 @@
 import { NOTICE_CATEGORIES } from "campus-contracts/notices";
 import { z } from "zod";
 import { CampusSearchDiagnosticsSchema } from "./campus-search-diagnostics.ts";
+import { ModelOutputDiagnosticSchema } from "./model-output-diagnostic.ts";
 
 export {
 	type InternalPortalCredential,
@@ -159,6 +160,7 @@ export const ModelSettingKindSchema = z.enum(["llm", "embedding", "reranker", "n
 export type ModelSettingKind = z.infer<typeof ModelSettingKindSchema>;
 
 export const ModelProviderSchema = z.enum([
+	"google",
 	"openai",
 	"openai-compatible",
 	"cohere",
@@ -202,7 +204,7 @@ export const ExecutionModelSettingSchema = z.object({
 	latestValidation: ModelSettingLatestValidationSchema.nullable(),
 	model: z.string().min(1),
 	provider: ModelProviderSchema,
-	transport: z.enum(["responses", "chat_completions", "embeddings", "rerank"]),
+	transport: z.enum(["responses", "chat_completions", "generate_content", "embeddings", "rerank"]),
 	updatedAt: IsoDateTimeSchema,
 	updatedBy: z.string().min(1),
 });
@@ -239,9 +241,16 @@ const LLMModelSettingUpdateBaseSchema = z.object({
 	provider: z.enum(["openai", "openai-compatible"]),
 });
 
-export const LLMModelSettingUpdateSchema = LLMModelSettingUpdateBaseSchema.extend({
+export const NoticeClassifierModelSettingUpdateSchema = LLMModelSettingUpdateBaseSchema.extend({
 	transport: z.enum(["responses", "chat_completions"]),
 }).strict();
+export const LLMModelSettingUpdateSchema = z.union([
+	NoticeClassifierModelSettingUpdateSchema,
+	LLMModelSettingUpdateBaseSchema.extend({
+		provider: z.literal("google"),
+		transport: z.literal("generate_content"),
+	}).strict(),
+]);
 
 export const EmbeddingModelSettingUpdateSchema = z
 	.object({
@@ -465,6 +474,7 @@ const OpsExecutionFailureSchema = z.object({
 });
 
 const OpsExecutionStageSchema = z.object({
+	modelOutputDiagnostic: ModelOutputDiagnosticSchema.nullish(),
 	completedAt: IsoDateTimeSchema.nullable(),
 	durationMs: z.number().int().nonnegative().nullable(),
 	failureKind: z.string().min(1).nullable(),

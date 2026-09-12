@@ -52,21 +52,21 @@ repos:
       - id: ruff-check
         name: Ruff lint
         groups: [language]
-        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- uv run --no-sync ruff check
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- ruff check
         language: system
         files: '\.py$'
 
       - id: ruff-format
         name: Ruff format
         groups: [language]
-        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- uv run --no-sync ruff format --check
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- ruff format --check
         language: system
         files: '\.py$'
 
       - id: sqlfluff
         name: SQLFluff
         groups: [language]
-        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- uv run --no-sync sqlfluff lint --config .sqlfluff
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- sqlfluff lint --config .sqlfluff
         language: system
         files: '\.sql$'
         # Match .sqlfluffignore before passing explicit filenames to SQLFluff.
@@ -80,7 +80,7 @@ repos:
       - id: yamllint
         name: Yamllint
         groups: [fast]
-        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec "$@"; fi; exec nix develop .#ci-light --command "$@"' -- uv run --no-sync yamllint -c .yamllint.yml
+        entry: bash -ec 'if [ -n "${CI_NIX_LIGHT_ENV:-}" ]; then . "$CI_NIX_LIGHT_ENV"; exec uv run --no-sync "$@"; fi; exec nix develop .#ci-light --command uv run --locked --only-dev "$@"' -- yamllint -c .yamllint.yml
         language: system
         files: '\.ya?ml$'
         exclude: '^pnpm-lock\.yaml$'

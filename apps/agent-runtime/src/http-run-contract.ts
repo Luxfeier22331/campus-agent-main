@@ -61,7 +61,8 @@ const runtimeLimitsSchema = z
 		agent_deadline_ms: z.number().int().positive(),
 		context_char_limit: z.number().int().positive(),
 		current_input_char_limit: z.number().int().positive(),
-		max_output_tokens: z.number().int().positive(),
+		// Zero means the application does not impose a provider output cap.
+		max_output_tokens: z.number().int().nonnegative(),
 		max_function_tool_calls: z.number().int().nonnegative(),
 		max_turns: z.number().int().positive(),
 		max_plan_steps: z.number().int().positive(),
@@ -123,6 +124,9 @@ const stepFailureSchema = z
 
 const completedStepSchema = z
 	.object({
+		search_suggestions: z
+			.array(z.object({ provider: z.literal("google"), rendered_content: z.string() }).strict())
+			.optional(),
 		step: taskPlanStepSchema,
 		execution_index: z.number().int().positive(),
 		summary: z.string().min(1),
@@ -134,6 +138,9 @@ const completedStepSchema = z
 	.strict();
 
 const commonRequestShape = {
+	deadline_at: z.string().datetime({ offset: true }),
+	prior_evidence: z.array(evidenceSchema).default([]),
+	prior_source_attempts: z.array(sourceAttemptSchema).default([]),
 	activity_attempt: z.number().int().positive(),
 	user_id: z.string().min(1),
 	request_id: z.string().min(1),
@@ -193,13 +200,17 @@ const synthesizeRequestSchema = z
 		operation: z.literal("synthesize"),
 		operation_input: z
 			.object({
-				answer_mode: z.enum(["grounded", "insufficient"]),
 				goal: z.string().min(1),
-				source_attempts: z.array(sourceAttemptSchema),
+				mode: z.enum(["planned", "recovery"]).default("planned"),
 				remaining_facts: z.array(
 					z.object({ objective: z.string().min(1), facts: z.array(z.string()) }).strict(),
 				),
 				evidence: z.array(evidenceSchema),
+				source_attempts: z.array(sourceAttemptSchema),
+				recovery_reason: z.string().trim().min(1).max(500).optional(),
+				search_suggestions: z
+					.array(z.object({ provider: z.literal("google"), rendered_content: z.string() }).strict())
+					.default([]),
 			})
 			.strict(),
 	})
@@ -231,6 +242,17 @@ export const agentRunRequestSchema = z
 				path: ["operation_input", "max_steps"],
 			});
 		}
+		if (
+			value.operation === "synthesize" &&
+			value.operation_input.mode === "recovery" &&
+			(value.operation_input.evidence.length === 0 || !value.operation_input.recovery_reason)
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "recovery synthesis requires evidence and a failure reason",
+				path: ["operation_input"],
+			});
+		}
 	});
 
 export type AgentRunRequest = z.infer<typeof agentRunRequestSchema>;
@@ -251,6 +273,13 @@ export function runtimeInputFromAgentRunRequest(
 	signal: AbortSignal,
 ): WorkflowOperationInput {
 	const base = {
+		deadlineAt: parsed.deadline_at,
+		priorEvidence: parsed.prior_evidence.map(mapEvidence),
+		priorSourceAttempts: parsed.prior_source_attempts.map((attempt) => ({
+			source: attempt.source,
+			status: attempt.status,
+			...(attempt.failure_code ? { failureCode: attempt.failure_code } : {}),
+		})),
 		activityAttempt: parsed.activity_attempt,
 		conversationId: parsed.conversation_id,
 		expectedToolContractFingerprint: mapToolContractFingerprint(
@@ -312,15 +341,22 @@ export function runtimeInputFromAgentRunRequest(
 		...base,
 		operation: "synthesize",
 		operationInput: {
-			answerMode: parsed.operation_input.answer_mode,
-			sourceAttempts: parsed.operation_input.source_attempts.map((item) => ({
-				source: item.source,
-				status: item.status,
-				...(item.failure_code ? { failureCode: item.failure_code } : {}),
-			})),
-			remainingFacts: parsed.operation_input.remaining_facts,
 			evidence: parsed.operation_input.evidence.map(mapEvidence),
 			goal: parsed.operation_input.goal,
+			mode: parsed.operation_input.mode,
+			remainingFacts: parsed.operation_input.remaining_facts,
+			sourceAttempts: parsed.operation_input.source_attempts.map((attempt) => ({
+				source: attempt.source,
+				status: attempt.status,
+				...(attempt.failure_code ? { failureCode: attempt.failure_code } : {}),
+			})),
+			...(parsed.operation_input.recovery_reason
+				? { recoveryReason: parsed.operation_input.recovery_reason }
+				: {}),
+			searchSuggestions: parsed.operation_input.search_suggestions.map((item) => ({
+				provider: item.provider,
+				renderedContent: item.rendered_content,
+			})),
 		},
 	} satisfies SynthesizeWorkflowOperationInput;
 }
@@ -400,6 +436,10 @@ function mapEvidence(value: z.infer<typeof evidenceSchema>): WorkflowEvidence {
 function mapCompletedStep(value: z.infer<typeof completedStepSchema>): CompletedTaskStep {
 	return {
 		remainingFacts: value.remaining_facts,
+		searchSuggestions: (value.search_suggestions ?? []).map((s) => ({
+			provider: s.provider,
+			renderedContent: s.rendered_content,
+		})),
 		...(value.failure ? { failure: value.failure } : {}),
 		evidence: value.evidence.map(mapEvidence),
 		executionIndex: value.execution_index,

@@ -8,6 +8,7 @@ import (
 // intentionally distinct from the application workflow input so Temporal
 // serialization does not leak application contracts across the adapter.
 type ToolExecutionWorkflowInput struct {
+	DeadlineAt                   time.Time              `json:"deadline_at"`
 	AdmissionSnapshot            AgentAdmissionSnapshot `json:"admission_snapshot"`
 	AdmissionSnapshotSHA256      string                 `json:"admission_snapshot_sha256"`
 	ConversationID               string                 `json:"conversation_id"`
@@ -83,13 +84,14 @@ type WorkflowSourceAttempt struct {
 }
 
 type WorkflowCompletedStep struct {
-	RemainingFacts []string                `json:"remaining_facts"`
-	Failure        *ExecutionFailure       `json:"failure,omitempty"`
-	Step           WorkflowTaskPlanStep    `json:"step"`
-	ExecutionIndex int                     `json:"execution_index"`
-	Summary        string                  `json:"summary"`
-	Evidence       []WorkflowEvidence      `json:"evidence"`
-	SourceAttempts []WorkflowSourceAttempt `json:"source_attempts"`
+	SearchSuggestions []SearchSuggestion      `json:"search_suggestions,omitempty"`
+	RemainingFacts    []string                `json:"remaining_facts"`
+	Failure           *ExecutionFailure       `json:"failure,omitempty"`
+	Step              WorkflowTaskPlanStep    `json:"step"`
+	ExecutionIndex    int                     `json:"execution_index"`
+	Summary           string                  `json:"summary"`
+	Evidence          []WorkflowEvidence      `json:"evidence"`
+	SourceAttempts    []WorkflowSourceAttempt `json:"source_attempts"`
 }
 
 type WorkflowOperationActivityInputBase struct {
@@ -106,27 +108,34 @@ type SolveTaskActivityInput struct {
 
 type ExecuteTaskStepActivityInput struct {
 	WorkflowOperationActivityInputBase
-	Plan           WorkflowTaskPlan        `json:"plan"`
-	Step           WorkflowTaskPlanStep    `json:"step"`
-	CompletedSteps []WorkflowCompletedStep `json:"completed_steps"`
-	CitationStart  int                     `json:"citation_start"`
+	PriorEvidence       []WorkflowEvidence      `json:"prior_evidence,omitempty"`
+	PriorSourceAttempts []WorkflowSourceAttempt `json:"prior_source_attempts,omitempty"`
+	Plan                WorkflowTaskPlan        `json:"plan"`
+	Step                WorkflowTaskPlanStep    `json:"step"`
+	CompletedSteps      []WorkflowCompletedStep `json:"completed_steps"`
+	CitationStart       int                     `json:"citation_start"`
 }
 
 type ReplanTaskActivityInput struct {
 	WorkflowOperationActivityInputBase
-	Plan              WorkflowTaskPlan        `json:"plan"`
-	CompletedSteps    []WorkflowCompletedStep `json:"completed_steps"`
-	RemainingSteps    []WorkflowTaskPlanStep  `json:"remaining_steps"`
-	MaxRemainingSteps int                     `json:"max_remaining_steps"`
-	ReplanIndex       int                     `json:"replan_index"`
+	PriorEvidence       []WorkflowEvidence      `json:"prior_evidence,omitempty"`
+	PriorSourceAttempts []WorkflowSourceAttempt `json:"prior_source_attempts,omitempty"`
+	Plan                WorkflowTaskPlan        `json:"plan"`
+	CompletedSteps      []WorkflowCompletedStep `json:"completed_steps"`
+	RemainingSteps      []WorkflowTaskPlanStep  `json:"remaining_steps"`
+	MaxRemainingSteps   int                     `json:"max_remaining_steps"`
+	ReplanIndex         int                     `json:"replan_index"`
 }
 
 type SynthesizeAnswerActivityInput struct {
-	AnswerMode string `json:"answer_mode"`
 	WorkflowOperationActivityInputBase
-	Evidence       []WorkflowEvidence       `json:"evidence"`
-	SourceAttempts []WorkflowSourceAttempt  `json:"source_attempts"`
-	RemainingFacts []WorkflowRemainingFacts `json:"remaining_facts"`
+	Mode              string                   `json:"mode,omitempty"`
+	Evidence          []WorkflowEvidence       `json:"evidence"`
+	SourceAttempts    []WorkflowSourceAttempt  `json:"source_attempts"`
+	RemainingFacts    []WorkflowRemainingFacts `json:"remaining_facts"`
+	RecoveryReason    string                   `json:"recovery_reason,omitempty"`
+	BufferAnswer      bool                     `json:"buffer_answer,omitempty"`
+	SearchSuggestions []SearchSuggestion       `json:"search_suggestions,omitempty"`
 }
 
 type WorkflowRemainingFacts struct {
@@ -156,6 +165,7 @@ type AppendConversationMemoryActivityOutput struct {
 }
 
 type ExecutionFailure struct {
+	Stage        string `json:"stage,omitempty"`
 	Code         string `json:"code"`
 	Operation    string `json:"operation"`
 	Detail       string `json:"detail,omitempty"`
@@ -174,15 +184,14 @@ type AgentToolResult struct {
 	ToolName     string            `json:"tool_name"`
 }
 
-type AgentWebCitation struct {
-	EndIndex   int    `json:"end_index"`
-	StartIndex int    `json:"start_index"`
-	Title      string `json:"title"`
-	URL        string `json:"url"`
+type SearchSuggestion struct {
+	Provider        string `json:"provider"`
+	RenderedContent string `json:"rendered_content"`
 }
 
 type WorkflowOperationActivityOutput struct {
-	AnswerMode              string                  `json:"answer_mode,omitempty"`
+	Failure                 *ExecutionFailure       `json:"failure,omitempty"`
+	AnswerStarted           bool                    `json:"answer_started,omitempty"`
 	Operation               WorkflowOperation       `json:"operation"`
 	SolveOutcome            string                  `json:"solve_outcome,omitempty"`
 	WorkflowResultRef       string                  `json:"agent_result_ref"`
@@ -203,8 +212,7 @@ type WorkflowOperationActivityOutput struct {
 	ToolContractFingerprint map[string]any          `json:"tool_contract_fingerprint"`
 	RuntimeRelease          string                  `json:"runtime_release"`
 	Usage                   AgentUsageSummary       `json:"usage"`
-	WebCitations            []AgentWebCitation      `json:"web_citations"`
-	WebSearchUsed           bool                    `json:"web_search_used"`
+	SearchSuggestions       []SearchSuggestion      `json:"search_suggestions,omitempty"`
 }
 
 type AgentUsageSummary struct {

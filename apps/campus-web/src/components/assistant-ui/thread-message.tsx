@@ -57,6 +57,7 @@ const AssistantMessage: FC = () => {
 	} = useContext(ThreadComponentsContext);
 	useContext(ThreadSettingsContext);
 	const messageCustom = useAuiState((s) => s.message.metadata.custom);
+	const messageId = useAuiState((s) => s.message.id);
 	const messageMetadata = useMemo(() => readCampusMessageMetadata(messageCustom), [messageCustom]);
 
 	return (
@@ -111,7 +112,11 @@ const AssistantMessage: FC = () => {
 								);
 							}
 							case "text":
-								return <LazyMarkdownText />;
+								return (
+									<div data-answer-message-id={messageId}>
+										<LazyMarkdownText />
+									</div>
+								);
 							case "reasoning":
 								return <Reasoning {...part} />;
 							case "tool-call":

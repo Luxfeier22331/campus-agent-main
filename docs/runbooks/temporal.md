@@ -68,7 +68,8 @@ execution-control 网关为新建在线回答固定设置 900 秒的 Temporal `W
 
 ## Replanner 决策收敛发布
 
-删除旧 `revise` 决策的版本不支持回放包含该结果的旧 history。发布采用维护窗口排空：
+`task_replan.v3` 删除旧 `insufficient` 决策及综合回答的模式字段；不支持跨版本恢复旧运行。
+发布采用维护窗口排空：
 先暂停新在线 run 准入，保持旧 execution-control 与 agent-runtime 运行，等待已接受的在线 run、
 待投递启动命令和开放的在线回答 workflow 收敛；旧 poller 退出后协调升级两个服务，再恢复准入。
 排空未完成不得发布该版本，不添加 alias、兼容 worker 或 version marker。

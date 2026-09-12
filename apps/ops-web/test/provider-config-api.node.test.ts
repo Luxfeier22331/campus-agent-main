@@ -7,7 +7,12 @@ import {
 	ProviderConfigAdminResponseError,
 	ProviderConfigAdminUnavailableError,
 } from "../src/server/provider-config-client";
-import { ExecutionModelSettingsStatusSchema } from "../src/shared/ops-contract";
+import {
+	ExecutionModelSettingsStatusSchema,
+	LLMModelSettingUpdateSchema,
+	NoticeClassifierModelSettingUpdateSchema,
+	RerankerModelSettingUpdateSchema,
+} from "../src/shared/ops-contract";
 import { createTestOpsApp } from "./helpers/ops-app";
 
 const status = ExecutionModelSettingsStatusSchema.parse({
@@ -22,6 +27,21 @@ const status = ExecutionModelSettingsStatusSchema.parse({
 });
 
 describe("ops model settings BFF", () => {
+	it("admits native Gemini only for the primary LLM slot", () => {
+		const config = {
+			provider: "google",
+			transport: "generate_content",
+			baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+			model: "gemini-test",
+			apiKey: "key",
+		};
+		expect(LLMModelSettingUpdateSchema.safeParse(config).success).toBe(true);
+		expect(
+			LLMModelSettingUpdateSchema.safeParse({ ...config, transport: "responses" }).success,
+		).toBe(false);
+		expect(NoticeClassifierModelSettingUpdateSchema.safeParse(config).success).toBe(false);
+		expect(RerankerModelSettingUpdateSchema.safeParse(config).success).toBe(false);
+	});
 	const config = {
 		api_protocol: "openai.responses",
 		base_url: "https://provider.example/v1",
@@ -44,6 +64,7 @@ describe("ops model settings BFF", () => {
 			},
 		);
 	it.each([
+		["google.generate_content", "generate_content"],
 		["openai.responses", "responses"],
 		["openai.chat_completions", "chat_completions"],
 		["openai.embeddings", "embeddings"],

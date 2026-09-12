@@ -2,7 +2,7 @@
 	"name": "agent-runtime",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Internal OpenAI Agents SDK runtime for campus-agent primary assistant turns.",
+	"description": "Provider-neutral model operation runtime for campus-agent.",
 	"type": "module",
 	"scripts": {
 		"build": "tsc --project tsconfig.build.json",
@@ -11,6 +11,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@google/genai": "2.21.0",
 		"@arizeai/openinference-instrumentation-openai-agents": "^0.2.7",
 		"@langfuse/otel": "^5.10.1",
 		"@langfuse/tracing": "^5.10.1",

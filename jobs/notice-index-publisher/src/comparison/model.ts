@@ -54,6 +54,12 @@ export interface NumericDelta {
 	delta: number;
 }
 
+export interface MetricDelta {
+	baseline: number | null;
+	candidate: number | null;
+	delta: number | null;
+}
+
 export interface NoticeChunkRunSummary {
 	chunkChars: DistributionSummary;
 	chunkCount: number;
@@ -117,9 +123,9 @@ export interface RankChangeSummary {
 }
 
 export interface NoticeRetrievalMetricComparison {
-	mean: Record<MeanMetricName, NumericDelta>;
+	mean: Record<MeanMetricName, MetricDelta>;
 	questionCount: NumericDelta;
-	recallAt: Record<RecallMetricName, Record<RankingCutoffKey, NumericDelta>>;
+	recallAt: Record<RecallMetricName, Record<RankingCutoffKey, MetricDelta>>;
 	singleChunkAnswerQuestionCount: NumericDelta;
 }
 

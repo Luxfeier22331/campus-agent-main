@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { imageTargetsForScope } from "../release/image-targets.mts";
@@ -9,16 +9,22 @@ import {
 	type CommandResult,
 	type CommandRunner,
 	resolveAffectedScope,
+	type ScopeTask,
 } from "./scope.mts";
 import {
+	ACTION_COMMANDS,
+	BUILD_TASKS,
+	CONTRACT_COMMAND,
+	DATABASE_TASKS,
+	EVAL_TASKS,
 	isValidationProfile,
+	NATIVE_TASKS,
+	NODE_TASKS,
 	VALIDATION_PROFILE_REGISTRY,
 	type ValidationProfile,
 } from "./validation-profiles.mts";
 
-const SHA_PATTERN = /^[0-9a-f]{40}$/;
-const PRE_PUSH_NODE_TASKS = ["typecheck", "test", "test:worker"] as const;
-const PRE_PUSH_NATIVE_TASKS = ["native:typecheck", "native:test"] as const;
+type ExecutionProfile = ValidationProfile | "pre-push" | "verify";
 
 export type EvidenceCommandRunner = CommandRunner;
 
@@ -73,7 +79,7 @@ export function runCommand(
 }
 
 function runProfileCommand(
-	profile: ValidationProfile | "pre-push",
+	profile: ExecutionProfile,
 	command: string,
 	args: string[],
 	runner: EvidenceCommandRunner,
@@ -119,119 +125,63 @@ function runProfileCommand(
 	}
 }
 
-function runAffectedTask(
-	input: {
-		profile: "pre-push";
-		scope: AffectedScope;
-		serialized: boolean;
-		task: string;
-	},
+export function runTasks(
+	profile: ExecutionProfile,
+	tasks: readonly string[],
 	runner: EvidenceCommandRunner,
 	options: { cwd: string; env: NodeJS.ProcessEnv },
+	input: { scope?: readonly ScopeTask[]; native?: boolean; shell?: string } = {},
 ): void {
-	const packages = [
-		...new Set(
-			input.scope.tasks
-				.filter(({ task }) => task === input.task)
-				.map(({ package: packageName }) => packageName),
-		),
-	].sort();
-	if (packages.length === 0) {
+	const selected = input.scope
+		? [
+				...new Set(
+					input.scope
+						.filter((item) => tasks.includes(item.task))
+						.map((item) => `${item.package}#${item.task}`),
+				),
+			].sort()
+		: [...tasks];
+	if (selected.length === 0) {
 		return;
 	}
+	const args = [
+		"exec",
+		"turbo",
+		"run",
+		...selected,
+		...(input.native ? ["--concurrency=1"] : []),
+		"--summarize",
+	];
+	const taskOptions = input.native
+		? {
+				...options,
+				env: {
+					...options.env,
+					GOTOOLCHAIN: "local",
+					CAMPUS_NATIVE_PLATFORM: `${process.platform}-${process.arch}`,
+				},
+			}
+		: options;
 	runProfileCommand(
-		input.profile,
-		"pnpm",
-		[
-			"exec",
-			"turbo",
-			"run",
-			input.task,
-			"--only",
-			...(input.serialized ? ["--concurrency=1"] : []),
-			"--summarize",
-			...packages.map((packageName) => `--filter=${packageName}`),
-		],
+		profile,
+		input.shell ? "nix" : "pnpm",
+		input.shell ? ["develop", `.#${input.shell}`, "--command", "pnpm", ...args] : args,
 		runner,
-		options,
+		taskOptions,
 	);
 }
 
 function runAffectedNodeEvidence(
-	input: {
-		env: NodeJS.ProcessEnv;
-		repositoryRoot: string;
-		scope: AffectedScope;
-	},
+	input: { env: NodeJS.ProcessEnv; repositoryRoot: string; scope: AffectedScope },
 	runner: EvidenceCommandRunner,
 ): void {
 	const options = { cwd: input.repositoryRoot, env: input.env };
-	for (const taskName of ["test", "test:worker", "typecheck"] as const) {
-		const packages = new Set(
-			input.scope.tasks.filter((task) => task.task === taskName).map((task) => task.package),
-		);
-		if (packages.size > 0) {
-			runProfileCommand(
-				"affected-node",
-				"pnpm",
-				[
-					"exec",
-					"turbo",
-					"run",
-					taskName,
-					"--only",
-					"--summarize",
-					...[...packages].sort().map((packageName) => `--filter=${packageName}`),
-				],
-				runner,
-				options,
-			);
-		}
-	}
-
-	const buildPackages = new Set(
-		input.scope.tasks
-			.filter((task) => task.task === "build" && task.package !== "campus-web")
-			.map((task) => task.package),
+	runTasks("affected-node", NODE_TASKS, runner, options, { scope: input.scope.tasks });
+	// Campus Web's worker task owns its fixture build; do not also run the data-backed build.
+	const builds = input.scope.tasks.filter(
+		(task) => !(task.package === "campus-web" && task.task === "build"),
 	);
-	if (buildPackages.size > 0) {
-		runProfileCommand(
-			"affected-node",
-			"pnpm",
-			[
-				"exec",
-				"turbo",
-				"run",
-				"build",
-				"--only",
-				"--summarize",
-				...[...buildPackages].sort().map((packageName) => `--filter=${packageName}`),
-			],
-			runner,
-			options,
-		);
-	}
-
-	const builtWorkers = new Set(
-		input.scope.tasks.filter((task) => task.task === "build:worker").map((task) => task.package),
-	);
-	if (builtWorkers.size > 0) {
-		runProfileCommand(
-			"affected-node",
-			"pnpm",
-			[
-				"exec",
-				"turbo",
-				"run",
-				"build:worker",
-				"--only",
-				"--summarize",
-				...[...builtWorkers].sort().map((packageName) => `--filter=${packageName}`),
-			],
-			runner,
-			options,
-		);
-	}
+	runTasks("affected-node", BUILD_TASKS, runner, options, { scope: builds });
 }
 
 function runAffectedImageEvidence(
@@ -272,58 +222,64 @@ function runAffectedImageEvidence(
 }
 
 export function runPrePushEvidence(
-	input: {
-		base?: string;
-		head: string;
-		repositoryRoot: string;
-	},
+	input: { base?: string; head: string; repositoryRoot: string; env?: NodeJS.ProcessEnv },
 	runner: EvidenceCommandRunner = runCommand,
 ): void {
-	if (
-		!SHA_PATTERN.test(input.head) ||
-		(input.base !== undefined && !SHA_PATTERN.test(input.base))
-	) {
-		throw new Error("Pre-push evidence revisions must be full lowercase commit SHAs");
-	}
 	const env = {
-		...process.env,
+		...(input.env ?? process.env),
 		...(input.base ? { TURBO_SCM_BASE: input.base } : {}),
 		TURBO_SCM_HEAD: input.head,
 	};
 	const options = { cwd: input.repositoryRoot, env };
-	if (!input.base) {
-		runProfileCommand(
-			"pre-push",
-			"pnpm",
-			["exec", "turbo", "run", ...PRE_PUSH_NODE_TASKS, "--summarize"],
-			runner,
-			options,
-		);
-		for (const task of PRE_PUSH_NATIVE_TASKS) {
-			runProfileCommand(
-				"pre-push",
-				"pnpm",
-				["exec", "turbo", "run", task, "--concurrency=1", "--summarize"],
+	const scope = input.base
+		? resolveAffectedScope(
+				{ base: input.base, head: input.head, repositoryRoot: input.repositoryRoot },
 				runner,
-				options,
-			);
-		}
+			).tasks
+		: undefined;
+	runTasks("pre-push", NODE_TASKS, runner, options, { scope, shell: "ci-core" });
+	runTasks("pre-push", NATIVE_TASKS, runner, options, { scope, shell: "ci-go", native: true });
+}
+
+export function runVerification(
+	input: { sourceOnly: boolean; repositoryRoot: string },
+	runner: EvidenceCommandRunner = runCommand,
+): void {
+	const options = { cwd: input.repositoryRoot, env: { ...process.env } };
+	const command = (args: readonly [string, ...string[]]) =>
+		runProfileCommand("verify", args[0], [...args.slice(1)], runner, options);
+	command(["uv", "sync", "--locked", "--all-packages", "--dev"]);
+	command(["pnpm", "check"]);
+	runRepositoryCheck("contracts", input.repositoryRoot, runner);
+	runRepositoryCheck("config", input.repositoryRoot, runner);
+	runTasks("verify", NODE_TASKS, runner, options);
+	runTasks("verify", NATIVE_TASKS, runner, options, { native: true });
+	runTasks("verify", EVAL_TASKS, runner, options);
+	if (input.sourceOnly) {
 		return;
 	}
-
-	const scope = resolveAffectedScope(
-		{
-			base: input.base,
-			head: input.head,
-			repositoryRoot: input.repositoryRoot,
-		},
+	runTasks("verify", DATABASE_TASKS, runner, options, { native: true });
+	runCandidateEvidence(
+		{ profiles: ["infra", "otel", "container-build"], repositoryRoot: input.repositoryRoot },
 		runner,
 	);
-	for (const task of PRE_PUSH_NODE_TASKS) {
-		runAffectedTask({ profile: "pre-push", scope, serialized: false, task }, runner, options);
+}
+
+export function runRepositoryCheck(
+	check: string,
+	repositoryRoot: string,
+	runner: EvidenceCommandRunner = runCommand,
+): void {
+	const commands =
+		check === "contracts" ? [CONTRACT_COMMAND] : check === "config" ? ACTION_COMMANDS : undefined;
+	if (!commands) {
+		throw new Error(`Unsupported repository check: ${check}`);
 	}
-	for (const task of PRE_PUSH_NATIVE_TASKS) {
-		runAffectedTask({ profile: "pre-push", scope, serialized: true, task }, runner, options);
+	for (const [command, ...args] of commands) {
+		runProfileCommand("verify", command, [...args], runner, {
+			cwd: repositoryRoot,
+			env: process.env,
+		});
 	}
 }
 
@@ -367,8 +323,9 @@ export function parseValidationProfiles(source: string): ValidationProfile[] {
 
 export function runCandidateEvidence(
 	input: {
-		base: string;
-		head: string;
+		base?: string;
+		head?: string;
+		scope?: AffectedScope;
 		profiles: ValidationProfile[];
 		repository?: string;
 		repositoryRoot: string;
@@ -377,9 +334,6 @@ export function runCandidateEvidence(
 	},
 	runner: EvidenceCommandRunner = runCommand,
 ): void {
-	if (!(SHA_PATTERN.test(input.base) && SHA_PATTERN.test(input.head))) {
-		throw new Error("Candidate evidence revisions must be full lowercase commit SHAs");
-	}
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
 		CI_EVIDENCE_ENABLED: runner === runCommand || input.eventFile ? "1" : "0",
@@ -396,18 +350,22 @@ export function runCandidateEvidence(
 	const options = { cwd: input.repositoryRoot, env };
 	const requiresScope = input.profiles.some((profile) => {
 		const executor = VALIDATION_PROFILE_REGISTRY[profile].executor;
-		return executor.kind === "affected-node" || executor.kind === "affected-images";
+		return (
+			executor.kind === "affected-node" ||
+			executor.kind === "affected-native" ||
+			executor.kind === "affected-images"
+		);
 	});
-	const scope = requiresScope
-		? resolveAffectedScope(
-				{
-					base: input.base,
-					head: input.head,
-					repositoryRoot: input.repositoryRoot,
-				},
-				runner,
-			)
-		: undefined;
+	let scope = input.scope;
+	if (requiresScope && !scope) {
+		if (!(input.base && input.head)) {
+			throw new Error("Affected validation requires --plan or --base and --head");
+		}
+		scope = resolveAffectedScope(
+			{ base: input.base, head: input.head, repositoryRoot: input.repositoryRoot },
+			runner,
+		);
+	}
 	for (const profile of input.profiles) {
 		const start = performance.now();
 		const event: EvidenceEvent = {
@@ -419,6 +377,14 @@ export function runCandidateEvidence(
 		reportEvent(event, env);
 		try {
 			const executor = VALIDATION_PROFILE_REGISTRY[profile].executor;
+			if (executor.kind === "native" || executor.kind === "affected-native") {
+				runTasks(profile, NATIVE_TASKS, runner, options, {
+					native: true,
+					...(executor.kind === "affected-native" ? { scope: scope?.tasks ?? [] } : {}),
+				});
+				event.status = "success";
+				continue;
+			}
 			if (executor.kind === "affected-node") {
 				if (!scope) {
 					throw new Error(`Validation profile ${profile} requires an affected scope`);
@@ -475,10 +441,47 @@ export function runCandidateEvidence(
 
 async function main(args: string[]): Promise<void> {
 	const values = argumentsMap(args);
+	if (values.has("check")) {
+		runRepositoryCheck(
+			required(values, "check"),
+			path.resolve(values.get("root") ?? process.cwd()),
+		);
+		return;
+	}
+	const verification = values.get("verify");
+	if (verification !== undefined) {
+		if (verification !== "full" && verification !== "source") {
+			throw new Error("--verify must be full or source");
+		}
+		runVerification({
+			sourceOnly: verification === "source",
+			repositoryRoot: path.resolve(values.get("root") ?? process.cwd()),
+		});
+		return;
+	}
+	const planPath = values.get("plan");
+	const plan = planPath
+		? (JSON.parse(readFileSync(planPath, "utf8")) as {
+				base: string;
+				head: string;
+				changedFiles: string[];
+				affectedTasks: ScopeTask[];
+			})
+		: undefined;
 	const profiles = parseValidationProfiles(required(values, "profiles"));
 	runCandidateEvidence({
-		base: required(values, "base"),
-		head: required(values, "head"),
+		base: values.get("base"),
+		head: values.get("head"),
+		...(plan
+			? {
+					scope: {
+						base: plan.base,
+						head: plan.head,
+						changedFiles: plan.changedFiles,
+						tasks: plan.affectedTasks,
+					},
+				}
+			: {}),
 		profiles,
 		repository: values.get("repository"),
 		repositoryRoot: path.resolve(values.get("root") ?? process.cwd()),

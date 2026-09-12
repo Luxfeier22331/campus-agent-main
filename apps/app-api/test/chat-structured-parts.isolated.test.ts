@@ -6,6 +6,27 @@ import { normalizeChatStructuredParts } from "../src/modules/chat";
 import { normalizeSourceItemsPart } from "../src/modules/runtime-command/service/normalize";
 
 describe("chat structured parts", () => {
+	it("preserves Google search suggestions without requiring source cards", () => {
+		const html = '<div><a href="https://www.google.com/search?q=muc">MUC</a></div>';
+		const parts = normalizeSourceItemsPart({
+			status: "completed",
+			result: {
+				search_suggestions: [
+					{ provider: "google", rendered_content: html },
+					{ provider: "google", rendered_content: html },
+				],
+			},
+		});
+		expect(parts).toEqual([
+			{ type: "search_suggestions", provider: "google", renderedContent: html },
+		]);
+		expect(
+			normalizeSourceItemsPart({
+				status: "error",
+				result: { search_suggestions: [{ provider: "google", rendered_content: html }] },
+			}),
+		).toEqual([]);
+	});
 	it("projects a document source result into browser source items", () => {
 		const parts = normalizeSourceItemsPart({
 			result: {

@@ -1,25 +1,16 @@
 {
 	"extends": ["//"],
 	"tasks": {
-		"native:format": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/flake.lock",
-				"$TURBO_ROOT$/flake.nix",
-				"$TURBO_ROOT$/nix/**"
-			]
-		},
-		"native:lint": {
-			"inputs": [
-				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/flake.lock",
-				"$TURBO_ROOT$/flake.nix",
-				"$TURBO_ROOT$/nix/**"
-			]
-		},
 		"native:test": {
 			"inputs": [
 				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**",
 				"$TURBO_ROOT$/configs/runtime/**",
 				"$TURBO_ROOT$/packages/contracts/fixtures/tool_execution_contract/**"
 			]

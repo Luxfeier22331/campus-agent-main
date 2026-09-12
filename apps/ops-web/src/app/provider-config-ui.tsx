@@ -19,6 +19,9 @@ export const executionModelSettingsQueryKey = ["ops", "model-configs"] as const;
 type LatestValidation = ModelSettingLatestValidation | null;
 
 export function transportLabel(value: string) {
+	if (value === "generate_content") {
+		return "Gemini GenerateContent API";
+	}
 	return (
 		{
 			chat_completions: "Chat Completions API",

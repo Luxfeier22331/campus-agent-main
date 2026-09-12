@@ -61,7 +61,7 @@ func AdmissionSnapshot(t *testing.T, personalMemory ...bool) execution.AgentAdmi
 	t.Helper()
 	service := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
 		ToolContract:        toolcontract.Files{},
-		ModelTargetResolver: modelTarget{}, AgentDeadlineMS: 10000,
+		ModelTargetResolver: modelTarget{}, AgentDeadlineMS: 60000,
 	})
 	snapshot, err := service.BuildAgentAdmissionSnapshot(t.Context(), len(personalMemory) > 0 && personalMemory[0])
 	if err != nil {

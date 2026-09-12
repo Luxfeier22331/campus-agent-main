@@ -69,11 +69,11 @@ export interface RetrievalMetricSlice {
 	meanAnswerReciprocalRank: number;
 	meanNoticeReciprocalRank: number;
 	meanReciprocalRank: number;
-	meanSingleChunkAnswerReciprocalRank: number;
+	meanSingleChunkAnswerReciprocalRank: number | null;
 	noticeRecallAt: Record<RankingCutoffKey, number>;
 	questionCount: number;
 	singleChunkAnswerQuestionCount: number;
-	singleChunkAnswerRecallAt: Record<RankingCutoffKey, number>;
+	singleChunkAnswerRecallAt: Record<RankingCutoffKey, number> | null;
 	targetChunkRecallAt: Record<RankingCutoffKey, number>;
 }
 
@@ -95,6 +95,7 @@ export interface NoticeEmbeddingEvaluationResult {
 }
 
 export interface EmbeddingEvaluationManifest {
+	embeddingSet?: Sha256Ref;
 	chunkCount: number;
 	chunkDefinition: {
 		algorithm: string;

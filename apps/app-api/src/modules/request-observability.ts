@@ -29,7 +29,7 @@ function addStageTimingField(
 function addOptionalStageTimingField(
 	timing: Partial<Record<StageTimingField, number>>,
 	field: StageTimingField,
-	value: number | null | undefined,
+	value: unknown,
 ) {
 	if (!(typeof value === "number" && Number.isFinite(value) && value >= 0)) {
 		return;
@@ -49,7 +49,12 @@ function mergeStageTiming(input: {
 		addStageTimingField(timing, field, value);
 	}
 	for (const [field, value] of Object.entries(input.appApiStageTiming ?? {})) {
-		addStageTimingField(timing, field, value);
+		// Stored diagnostics also contain browser-owned observations. They stay
+		// in the row via the finalization transaction's JSON merge; they are not
+		// execution contract fields and must not gate a product terminal state.
+		if (STAGE_TIMING_FIELD_SET.has(field)) {
+			addOptionalStageTimingField(timing, field as StageTimingField, value);
+		}
 	}
 	addOptionalStageTimingField(timing, "request.total_ms", input.requestTotalMs);
 	if (timing["stream.app_api_ttft_ms"] === undefined) {

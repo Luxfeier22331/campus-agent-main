@@ -3,6 +3,7 @@ import type {
 	PromptProviderRuntimeConfig,
 	WorkflowOperationRuntime,
 } from "./agent-run-contract.ts";
+import { operationDeadlineMs } from "./execution-budget.ts";
 import {
 	agentRunResultWire,
 	agentRunStreamResponse,
@@ -20,15 +21,27 @@ import {
 	type ModelConfigClientOptions,
 	resolveModelRuntimeConfig,
 } from "./model-config-client.ts";
-import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
+import { createRuntimeCancellation, waitForRuntimeWork } from "./runtime-cancellation.ts";
+import { type AgentRuntimeErrorPayload, agentRuntimeErrorPayload } from "./runtime-errors.ts";
 import { bindAsyncIterableToActiveContext } from "./telemetry.ts";
 
 export interface AgentRuntimeHandlerOptions {
 	onRunError?: (
 		error: unknown,
-		context: { operation: AgentRunRequest["operation"]; requestId: string },
+		context: {
+			operation: AgentRunRequest["operation"];
+			requestId: string;
+			failure: AgentRuntimeErrorPayload;
+		},
 	) => void;
-	onStreamError?: (error: unknown, context: { requestId: string }) => void;
+	onStreamError?: (
+		error: unknown,
+		context: {
+			operation: AgentRunRequest["operation"];
+			requestId: string;
+			failure: AgentRuntimeErrorPayload;
+		},
+	) => void;
 	runtimeRelease: string;
 	sharedSecret: string;
 	runtime: WorkflowOperationRuntime;
@@ -61,7 +74,11 @@ export function createAgentRuntimeHandler(
 			}
 			return jsonResponse(200, { runtime_release: options.runtimeRelease, status: "ready" });
 		}
-		if (request.method === "POST" && url.pathname === "/internal/agent-requests") {
+		if (
+			request.method === "POST" &&
+			(url.pathname === "/internal/agent-requests" ||
+				url.pathname === "/internal/agent-requests/stream")
+		) {
 			if (!authorized(request, options.sharedSecret)) {
 				return unauthorizedResponse();
 			}
@@ -69,86 +86,86 @@ export function createAgentRuntimeHandler(
 			if (parsed instanceof Response) {
 				return parsed;
 			}
-			const providerConfig = await resolveProviderConfig(parsed, options.modelConfig);
-			if (providerConfig instanceof Response) {
-				return providerConfig;
+			const stream = url.pathname.endsWith("/stream");
+			if (stream && parsed.operation !== "solve" && parsed.operation !== "synthesize") {
+				return jsonResponse(400, {
+					error: {
+						code: "invalid_request",
+						message: "Only solve and synthesize operations support streaming.",
+						retryable: false,
+					},
+				});
 			}
-			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
-			let result: Awaited<ReturnType<WorkflowOperationRuntime["run"]>>;
+			const signals = createRuntimeCancellation(
+				request.signal,
+				operationDeadlineMs(parsed.deadline_at, parsed.operation),
+			);
+			let streamOwnsCancellation = false;
 			try {
-				result = await withAgentTraceAttributes(parsed, () =>
-					options.runtime.run(
-						runtimeInputFromAgentRunRequest(parsed, providerConfig, signals.signal),
-					),
+				const providerConfig = await waitForRuntimeWork(signals.signal, () =>
+					resolveProviderConfig(parsed, options.modelConfig, signals.signal),
+				);
+				if (providerConfig instanceof Response) {
+					return providerConfig;
+				}
+				const runtimeInput = runtimeInputFromAgentRunRequest(
+					parsed,
+					providerConfig,
+					signals.signal,
+				);
+				if (
+					stream &&
+					(runtimeInput.operation === "solve" || runtimeInput.operation === "synthesize")
+				) {
+					const response = withAgentTraceAttributes(parsed, () =>
+						agentRunStreamResponse(
+							bindAsyncIterableToActiveContext(options.runtime.stream(runtimeInput)),
+							{
+								signal: signals.signal,
+								deadlineSignal: signals.deadlineSignal,
+								onClose: signals.dispose,
+								onCancel: signals.cancel,
+								operation: `workflow.${parsed.operation}`,
+								runtimeRelease: options.runtimeRelease,
+								onError: (error, failure) =>
+									options.onStreamError?.(error, {
+										requestId: parsed.request_id,
+										operation: parsed.operation,
+										failure,
+									}),
+							},
+						),
+					);
+					streamOwnsCancellation = true;
+					return response;
+				}
+				const result = await waitForRuntimeWork(signals.signal, () =>
+					withAgentTraceAttributes(parsed, () => options.runtime.run(runtimeInput)),
 				);
 				return jsonResponse(200, agentRunResultWire(result, options.runtimeRelease));
 			} catch (error) {
+				const runtimeError = agentRuntimeErrorPayload(error, {
+					deadlineSignal: signals.deadlineSignal,
+					operation: `workflow.${parsed.operation}`,
+				});
 				try {
-					options.onRunError?.(error, {
+					(stream ? options.onStreamError : options.onRunError)?.(error, {
 						operation: parsed.operation,
 						requestId: parsed.request_id,
+						failure: runtimeError,
 					});
 				} catch {
 					// Diagnostics must not change the operation response.
 				}
-				const runtimeError = agentRuntimeErrorPayload(error, {
-					deadlineSignal: signals.deadlineSignal,
-				});
 				return jsonResponse(runtimeError.code === "tool_contract_mismatch" ? 409 : 500, {
 					error: runtimeError,
 					runtime_release: options.runtimeRelease,
 				});
+			} finally {
+				if (!streamOwnsCancellation) {
+					signals.dispose();
+				}
 			}
-		}
-		if (request.method === "POST" && url.pathname === "/internal/agent-requests/stream") {
-			if (!authorized(request, options.sharedSecret)) {
-				return unauthorizedResponse();
-			}
-			const parsed = await parseRunRequest(request);
-			if (parsed instanceof Response) {
-				return parsed;
-			}
-			if (parsed.operation !== "solve" && parsed.operation !== "synthesize") {
-				return jsonResponse(400, {
-					error: {
-						code: "invalid_request",
-						message: "Only solve and synthesize operations support streaming.",
-						retryable: false,
-					},
-				});
-			}
-			const providerConfig = await resolveProviderConfig(parsed, options.modelConfig);
-			if (providerConfig instanceof Response) {
-				return providerConfig;
-			}
-			const signals = runtimeSignals(request.signal, parsed.limits.agent_deadline_ms);
-			const runtimeInput = runtimeInputFromAgentRunRequest(parsed, providerConfig, signals.signal);
-			if (runtimeInput.operation !== "solve" && runtimeInput.operation !== "synthesize") {
-				return jsonResponse(400, {
-					error: {
-						code: "invalid_request",
-						message: "Only solve and synthesize operations support streaming.",
-						retryable: false,
-					},
-				});
-			}
-			return withAgentTraceAttributes(parsed, () =>
-				agentRunStreamResponse(
-					bindAsyncIterableToActiveContext(options.runtime.stream(runtimeInput)),
-					{
-						deadlineSignal: signals.deadlineSignal,
-						runtimeRelease: options.runtimeRelease,
-						...(options.onStreamError
-							? {
-									onError: (error: unknown) =>
-										options.onStreamError?.(error, {
-											requestId: parsed.request_id,
-										}),
-								}
-							: {}),
-					},
-				),
-			);
 		}
 		return jsonResponse(404, {
 			error: {
@@ -162,10 +179,12 @@ export function createAgentRuntimeHandler(
 async function resolveProviderConfig(
 	parsed: AgentRunRequest,
 	options: ModelConfigClientOptions,
+	signal: AbortSignal,
 ): Promise<PromptProviderRuntimeConfig | Response> {
 	try {
-		return await resolveModelRuntimeConfig(options, parsed.expected_model_target_sha256);
+		return await resolveModelRuntimeConfig(options, parsed.expected_model_target_sha256, signal);
 	} catch (error) {
+		signal.throwIfAborted();
 		if (error instanceof ModelConfigClientError) {
 			return jsonResponse(error.status === 409 ? 409 : 503, {
 				error: { code: error.code, message: error.message },
@@ -210,12 +229,4 @@ function withAgentTraceAttributes<T>(parsed: AgentRunRequest, callback: () => T)
 		},
 		callback,
 	);
-}
-
-function runtimeSignals(parent: AbortSignal, deadlineMs: number) {
-	const deadlineSignal = AbortSignal.timeout(deadlineMs);
-	return {
-		deadlineSignal,
-		signal: AbortSignal.any([parent, deadlineSignal]),
-	};
 }

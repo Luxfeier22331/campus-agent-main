@@ -1,13 +1,37 @@
+export const NODE_TASKS = ["typecheck", "test", "test:worker"] as const;
+export const NATIVE_TASKS = [
+	"native:format",
+	"native:lint",
+	"native:typecheck",
+	"native:test",
+] as const;
+export const BUILD_TASKS = ["build", "build:worker"] as const;
+export const EVAL_TASKS = ["test:eval"] as const;
+export const DATABASE_TASKS = [
+	"test:migration-integration",
+	"test:database-integration",
+	"test:shared-db-integration",
+] as const;
+export const CONTRACT_COMMAND = ["pnpm", "--dir", "packages/contracts", "check"] as const;
+export const ACTION_COMMANDS = [
+	["actionlint"],
+	["zizmor", "--min-severity=medium", ".github"],
+] as const;
+
 export type ValidationLane = "manual" | "pull-request";
 
-type ValidationCommand = readonly [command: string, ...args: string[]];
+export type ValidationCommand = readonly [command: string, ...args: string[]];
 
 type ValidationExecutor =
 	| { kind: "affected-node" }
+	| { kind: "affected-native" }
+	| { kind: "native" }
 	| { kind: "affected-images" }
 	| { commands: readonly ValidationCommand[]; kind: "commands" };
 
 interface ValidationProfileDefinition {
+	shell: string;
+	installPackages: readonly string[];
 	executor: ValidationExecutor;
 	lane: ValidationLane;
 	requiresDocker: boolean;
@@ -31,23 +55,18 @@ function serializedTurboCommand(packageName: string, task: string): ValidationCo
 	];
 }
 
-function nativeCommands(packageName: string): ValidationCommand[] {
-	return [
-		serializedTurboCommand(packageName, "native:format"),
-		serializedTurboCommand(packageName, "native:lint"),
-		serializedTurboCommand(packageName, "native:typecheck"),
-		serializedTurboCommand(packageName, "native:test"),
-	];
-}
-
 export const VALIDATION_PROFILE_REGISTRY = {
 	"affected-node": {
+		shell: "ci-core",
+		installPackages: [],
 		executor: { kind: "affected-node" },
 		lane: "pull-request",
 		requiresDocker: false,
 		requiresUv: false,
 	},
 	"container-build": {
+		shell: "ci-release",
+		installPackages: [],
 		executor: {
 			commands: [["docker", "buildx", "bake", "--file", "docker-bake.hcl", "--print"]],
 			kind: "commands",
@@ -57,39 +76,36 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	"image-build": {
+		shell: "ci-release",
+		installPackages: [],
 		executor: { kind: "affected-images" },
 		lane: "pull-request",
 		requiresDocker: true,
 		requiresUv: false,
 	},
 	go: {
-		executor: {
-			commands: [...nativeCommands("execution-control"), ...nativeCommands("model-config")],
-			kind: "commands",
-		},
+		shell: "ci-go",
+		installPackages: [],
+		executor: { kind: "native" },
 		lane: "manual",
 		requiresDocker: false,
 		requiresUv: false,
 	},
-	"execution-control-native": {
-		executor: {
-			commands: [
-				["pnpm", "--dir", "apps/execution-control", "native:format"],
-				["pnpm", "--dir", "apps/execution-control", "native:lint"],
-				["pnpm", "--dir", "apps/execution-control", "native:typecheck"],
-				["pnpm", "--dir", "apps/execution-control", "native:test"],
-			],
-			kind: "commands",
-		},
+	"affected-native": {
+		shell: "ci-go",
+		installPackages: [],
+		executor: { kind: "affected-native" },
 		lane: "pull-request",
 		requiresDocker: false,
 		requiresUv: false,
 	},
 	ragas: {
+		shell: "ci-light",
+		installPackages: ["eval-langfuse...", "ragas-runner"],
 		executor: {
 			commands: [
 				turboCommand("eval-langfuse", "typecheck", "test"),
-				serializedTurboCommand("ragas-runner", "test:eval"),
+				serializedTurboCommand("ragas-runner", EVAL_TASKS[0]),
 			],
 			kind: "commands",
 		},
@@ -98,6 +114,8 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: true,
 	},
 	"app-api-migration": {
+		shell: "ci-release",
+		installPackages: ["app-api..."],
 		executor: {
 			commands: [turboCommand("app-api", "test:migration-integration")],
 			kind: "commands",
@@ -107,6 +125,8 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	"app-api-product-db": {
+		shell: "ci-release",
+		installPackages: ["app-api...", "campus-agent-schema..."],
 		executor: {
 			commands: [turboCommand("app-api", "test:shared-db-integration")],
 			kind: "commands",
@@ -116,6 +136,8 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	"execution-control-postgres": {
+		shell: "ci-full",
+		installPackages: ["campus-agent-schema..."],
 		executor: {
 			commands: [turboCommand("execution-control", "test:database-integration")],
 			kind: "commands",
@@ -125,6 +147,8 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	"execution-control-temporal": {
+		shell: "ci-go",
+		installPackages: ["agent-runtime..."],
 		executor: {
 			commands: [["pnpm", "--dir", "apps/execution-control", "test:temporal-integration"]],
 			kind: "commands",
@@ -134,6 +158,8 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	"execution-control-stream": {
+		shell: "ci-go",
+		installPackages: [],
 		executor: {
 			commands: [["pnpm", "--dir", "apps/execution-control", "test:stream-integration"]],
 			kind: "commands",
@@ -143,6 +169,8 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	"execution-control-replay": {
+		shell: "ci-go",
+		installPackages: [],
 		executor: {
 			commands: [["pnpm", "--dir", "apps/execution-control", "test:temporal-replay"]],
 			kind: "commands",
@@ -152,6 +180,8 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	"model-config-postgres": {
+		shell: "ci-full",
+		installPackages: ["campus-agent-schema..."],
 		executor: {
 			commands: [turboCommand("model-config", "test:database-integration")],
 			kind: "commands",
@@ -161,6 +191,8 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	"ops-web-postgres": {
+		shell: "ci-release",
+		installPackages: ["ops-web...", "campus-agent-schema..."],
 		executor: {
 			commands: [turboCommand("ops-web", "test:database-integration")],
 			kind: "commands",
@@ -170,12 +202,16 @@ export const VALIDATION_PROFILE_REGISTRY = {
 		requiresUv: false,
 	},
 	infra: {
+		shell: "ci-full",
+		installPackages: [],
 		executor: { commands: [["scripts/infra/validate.sh"]], kind: "commands" },
 		lane: "manual",
 		requiresDocker: false,
 		requiresUv: false,
 	},
 	otel: {
+		shell: "ci-release",
+		installPackages: [],
 		executor: { commands: [["scripts/otel/validate-config.sh"]], kind: "commands" },
 		lane: "manual",
 		requiresDocker: true,
@@ -198,6 +234,8 @@ export function isValidationProfile(value: string): value is ValidationProfile {
 export function validationProfileMetadata(profile: string): {
 	lane: ValidationLane;
 	name: ValidationProfile;
+	shell: string;
+	installPackages: readonly string[];
 	requiresDocker: boolean;
 	requiresUv: boolean;
 } {
@@ -208,6 +246,8 @@ export function validationProfileMetadata(profile: string): {
 	return {
 		lane: definition.lane,
 		name: profile,
+		shell: definition.shell,
+		installPackages: definition.installPackages,
 		requiresDocker: definition.requiresDocker,
 		requiresUv: definition.requiresUv,
 	};

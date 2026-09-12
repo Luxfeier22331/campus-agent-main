@@ -212,6 +212,7 @@ func (s *RunService) workflowInputForRun(
 		return execution.WorkflowStartInput{}, err
 	}
 	workflowInput := execution.WorkflowStartInput{
+		DeadlineAt:                   run.CreatedAt.Add(time.Duration(admissionSnapshot.AgentLimits.AgentDeadlineMS) * time.Millisecond),
 		AdmissionSnapshot:            admissionSnapshot,
 		AdmissionSnapshotSHA256:      execution.SHA256JSONRef(admissionSnapshot),
 		ConversationID:               run.ConversationID,

@@ -29,7 +29,7 @@ import (
 // Characterize #401 without changing visibility semantics: deltas are already
 // browser-visible before completed validation and survive failure finalization.
 func TestInvalidCompletedResponseRetainsPreviouslyVisibleDelta(t *testing.T) {
-	for _, kind := range []string{"citation", "answer_mode", "json"} {
+	for _, kind := range []string{"citation", "source_attempts", "json"} {
 		t.Run(kind, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
@@ -52,7 +52,7 @@ func TestInvalidCompletedResponseRetainsPreviouslyVisibleDelta(t *testing.T) {
 			synthesis := temporalruntime.SynthesizeAnswerActivityInput{
 				WorkflowOperationActivityInputBase: base,
 				SourceAttempts:                     step.SourceAttempts,
-				Evidence:                           step.Evidence, AnswerMode: "grounded",
+				Evidence:                           step.Evidence,
 			}
 			allowCompleted := make(chan struct{})
 			defer close(allowCompleted)
@@ -75,12 +75,12 @@ func TestInvalidCompletedResponseRetainsPreviouslyVisibleDelta(t *testing.T) {
 				}
 				completed := map[string]any{
 					"request_id": requestID, "operation": "synthesize", "status": "completed",
-					"final_output": "visible draft", "answer_mode": "grounded",
-					"evidence": step.Evidence, "source_attempts": step.SourceAttempts,
+					"final_output": "visible draft",
+					"evidence":     step.Evidence, "source_attempts": step.SourceAttempts,
 					"tool_contract_fingerprint": execution.ToolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint),
 				}
-				if kind == "answer_mode" {
-					completed["answer_mode"] = "insufficient"
+				if kind == "source_attempts" {
+					completed["source_attempts"] = []temporalruntime.WorkflowSourceAttempt{}
 				}
 				if kind == "citation" {
 					evidence := append([]temporalruntime.WorkflowEvidence(nil), step.Evidence...)

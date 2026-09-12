@@ -15,6 +15,7 @@ const REPOSITORY_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
 interface LocalEmbeddingEvaluationCommand {
 	chunkRun: Sha256Ref;
+	embeddingSet?: Sha256Ref;
 	questionFile: string;
 }
 
@@ -29,6 +30,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 	const result = await runLocalNoticeEmbeddingEvaluation({
 		artifactRoot: ARTIFACT_ROOT,
 		chunkRun: command.chunkRun,
+		...(command.embeddingSet ? { embeddingSet: command.embeddingSet } : {}),
 		embedding: createOpenAICompatibleEmbeddingClient(connection),
 		modelTargetSha256,
 		onEmbeddingProgress(completedInputCount, totalInputCount) {
@@ -74,7 +76,7 @@ export function parseLocalEmbeddingEvaluationCommand(
 	argv: readonly string[],
 ): LocalEmbeddingEvaluationCommand {
 	const args = argv[0] === "--" ? argv.slice(1) : [...argv];
-	if (args.length !== 4) usage();
+	if (args.length !== 4 && args.length !== 6) usage();
 	const flags = new Map<string, string>();
 	for (let index = 0; index < args.length; index += 2) {
 		const name = args[index];
@@ -83,12 +85,15 @@ export function parseLocalEmbeddingEvaluationCommand(
 		flags.set(name, value);
 	}
 	for (const name of flags.keys()) {
-		if (!["--chunk-run", "--questions"].includes(name)) usage();
+		if (!["--chunk-run", "--questions", "--embedding-set"].includes(name)) usage();
 	}
 	const chunkRun = requiredFlag(flags, "--chunk-run");
 	if (!/^sha256:[0-9a-f]{64}$/u.test(chunkRun)) usage();
+	const embeddingSet = flags.get("--embedding-set");
+	if (embeddingSet !== undefined && !/^sha256:[0-9a-f]{64}$/u.test(embeddingSet)) usage();
 	return {
 		chunkRun: chunkRun as Sha256Ref,
+		...(embeddingSet ? { embeddingSet: embeddingSet as Sha256Ref } : {}),
 		questionFile: resolve(REPOSITORY_ROOT, requiredFlag(flags, "--questions")),
 	};
 }
@@ -101,7 +106,7 @@ function requiredFlag(flags: ReadonlyMap<string, string>, name: string): string 
 
 function usage(): never {
 	throw new Error(
-		"Usage: evaluate-embeddings-local --chunk-run sha256:<id> --questions <path>",
+		"Usage: evaluate-embeddings-local --chunk-run sha256:<id> --questions <path> [--embedding-set sha256:<id>]",
 	);
 }
 

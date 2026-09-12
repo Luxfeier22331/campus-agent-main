@@ -60,6 +60,7 @@ pnpm dev
 `build:test` 只供浏览器回归使用确定性测试内容。Campus Web 的正常开发和构建读取对象存储固定键
 `campus-docs/source.json`。共享依赖只由 canonical checkout 的 `pnpm dev:shared-reconcile` 供应；
 `pnpm dev:init -- --target core` 为当前 worktree 创建实例资源，在来源键缺失时写入确定性开发样例，
+
 并安装核心 schema/seed 和 Temporal namespace。`pnpm dev` 随后只读取就绪状态，并由 Turbo 并行启动
 Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行初始化、迁移或 seed。
 直接执行 `pnpm --dir apps/campus-web build` 也会读取当前 worktree 的托管配置。只有显式访问其他对象
@@ -68,6 +69,32 @@ Campus Web、app-api、execution-control 和 agent-runtime。它不隐式执行�
 文档准备进程读取对象存储配置并生成按来源摘要命名的本地目录；随后启动的 Vite 进程只接收该目录、
 构建目标和页面运行所需配置，不接收对象存储凭据。没有对象存储访问时，应使用 `build:test` 和
 Worker fixture 检查，不要把测试环境改成读取远端文档。
+
+真实流式验收先确认进程已加载当前源码：Agent Runtime 的本地 Node 进程和 Execution Control 的
+Go 进程需要显式重启。使用已初始化的开发账号发起会话，等待产品终态后再提交下一轮，不把手动
+取消当作正常收尾的验证。检查页面文本增长、`request.completed` 和持久状态；客户端计时上报
+返回 204 只说明接收成功，还应确认两项值同起点、首渲染不早于首 delta，并且不会阻断终态。
+
+### 模型输出格式失败验收
+
+先用普通服务验证真实检索、回答和通知链接。需要稳定触发格式失败时，等待当前请求结束并停止当前
+worktree 的普通 Agent Runtime，在 `apps/agent-runtime` 目录启动本地专用 fixture：
+
+```bash
+pnpm exec node --env-file-if-exists=.env.local --experimental-strip-types \
+  --network-family-autoselection-attempt-timeout=2000 test/fixtures/model-output-failure-server.ts
+```
+
+fixture 仍调用配置中的真实模型和工具，只在 `citationStart >= 2` 且当前 Executor 已成功调用
+`campus_search` 时，一次性把它的终端可见输出替换成明确标记的非法 JSON。通过已初始化账号发起
+两个依赖检索步骤；只有日志出现 `test.model_output_replaced` 才算命中，Solve 直接回答不算。
+等待请求终态，检查失败步骤保留 `model_output_invalid`、检索材料能继续供合成使用、Ops
+“模型输出诊断”能展开看到替换文本，以及通知链接可打开。最终请求可以成功，失败步骤不能改成成功。
+
+诊断正文仅在 `agent_step_results.model_output_diagnostic_json`，不应出现在 invocation receipt、
+不可变业务 payload 或 Temporal Activity output；未记录诊断不能解释成模型输出为空。
+这属于受控故障验收，不代表真实模型产生了该非法文本。结束后停止 fixture，恢复
+`pnpm --dir apps/agent-runtime dev`，再用普通会话确认服务已恢复。
 
 初始化失败时运行：
 
@@ -192,11 +219,44 @@ seed 缺失的 Model Config；它不访问 Provider、不覆盖已有配置，�
 `NOTICE_CLASSIFICATION_BASE_URL`、`NOTICE_CLASSIFICATION_API_KEY` 和
 `NOTICE_CLASSIFICATION_MODEL` 输入；是否复用 endpoint 或凭据由调用方的本地输入决定，不把两个配置
 合并，也不改变通知消费者逻辑。
+Gemini 本地初始连接使用 `LLM_PROVIDER=google`、`LLM_API_PROTOCOL=google.generate_content`，以及
+`LLM_BASE_URL`（包含 `/v1beta` 等原生版本路径）、`LLM_MODEL` 和 `LLM_API_KEY`。已有配置使用 Ops 的
+LLM 表单选择“Gemini（原生 API）”后保存，不重跑 seed 覆盖在线配置。OpenAI / Gemini 切换只影响新请求；
+不在运行中换 runner，不自动 fallback。验证时等待每个会话终态后再发送下一个问题，分别检查问候、
+Campus RAG、Google Search 来源卡及刷新后的搜索建议；单独验证配置连接成功不能替代真实会话。
+
+验证查询 Embedding 精确缓存时，重启当前 worktree 的 execution-control 清空进程内缓存，再用已有
+开发账号发起两个独立的相同问题会话，每个都等待终态。核对 Ops 中实际 `effectiveQuery` 相同
+（模型可能改写同一个问题，因此“用户问题相同”不保证 hit），以及 Ops Campus Search 诊断中的
+cacheOutcome 从 miss 变为 hit。hit 的 estimatedSavedMs 是避免的上游耗时估算，不是整轮
+回答的实测加速。对照 Ops 的 embedding、retrieval 和 rerank 耗时与返回候选，确认第二次仍执行召回
+和排序；答案措辞可变化，但引用必须来自本轮检索。不要为验证缓存重建索引或重新注册账号。
+
+Campus Search v2 实际验收需要完整跑通已有账号发问、工具完成、Ops 请求详情和引用通知详情：
+核对诊断完整性与调用结果分开展示，实际模型和 collection 不被 DTO 丢弃，Qdrant HTTP/server/
+decode/postprocess 可区分；已知同通知多块候选在分组后仅返回一块，排除原因可见，最终引用数与
+产品来源一致。先等待会话结束再发下一题。离线标注评测与真实会话各验证自己的链路，不能互相替代。
+schema 0008 只清除旧诊断；先停止本 worktree 的旧 execution-control，执行统一 schema migration，
+再启动新版与 Ops API。不要在仍有旧生产者的 staging 单独提前应用这次硬切。
 `pnpm dev:init -- --target core` 通过 `campus-agent-schema` 为新建或重建的本地数据库安装统一 baseline。
 启动前会在 seed 后检查当前 Model Config 密文可由 `model-config-encryption.key` 解密；失败说明数据库和 key 不属于
 同一个本地实例。不要复制其他 worktree、staging 或 production 的 encryption key；使用
 `pnpm dev:destroy -- --instance <instance-id> --confirm <instance-id>` 显式销毁该实例后重新运行
 `pnpm dev:init -- --target core`，再通过 Ops Web 配置本地模型。
+
+## 本地供应商定向直连
+
+若本地代理拖慢某个供应商，可在当前 worktree 根 `.env` 的 `NO_PROXY` 中追加目标域名，例如
+`NO_PROXY=ai.gitee.com`。这里的 `NO_PROXY` / `no_proxy` 是本地附加名单：`dev:init` 将其与初始化
+进程已有的两个变量合并、去空白和重复项，生成内容一致的大小写变量，仅写入 Execution Control 和
+Model Config 的托管环境文件。前者覆盖 embedding / rerank，后者覆盖供应商连接校验。
+没有非空本地名单时不生成覆盖值，保持启动进程的继承行为。此名单不从 main checkout 自动导入。
+
+修改后先确认当前 bootstrap ready，再运行 `pnpm dev:init -- --target core` 并重启当前 worktree 的
+Execution Control、Model Config；已有 ready 的模型配置不会重新 seed。不要直接编辑托管 `.env.local`。
+此操作不改写 `HTTP_PROXY` / `HTTPS_PROXY`，不改变 Agent Runtime 的 Gemini 网络路径，也不改线上配置。
+回退时仅删除本轮追加的域名，再初始化并重启；若删除全部本地名单，重新生成会移除旧的托管覆盖值。
+使用真实 RAG 会话和 Ops 分阶段耗时确认效果，不以连接校验成功替代会话验收。
 
 ## Campus Web 浏览器回归
 

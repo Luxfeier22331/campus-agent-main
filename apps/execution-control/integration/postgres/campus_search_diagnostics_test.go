@@ -41,12 +41,13 @@ func testCampusSearchDiagnostics(t *testing.T, harness *postgresHarness) {
 	defer closeConn(t, ops)
 	var status, phase, query string
 	var queued bool
+	var schemaVersion int
 	var cited []string
-	err = ops.QueryRow(t.Context(), `select status,current_phase,snapshot_json->>'effectiveQuery',phase_times_json ? 'queued',cited_result_refs from execution_control.agent_campus_search_diagnostics where request_id='diagnostic-run'`).Scan(&status, &phase, &query, &queued, &cited)
+	err = ops.QueryRow(t.Context(), `select status,current_phase,snapshot_json->>'effectiveQuery',phase_times_json ? 'queued',cited_result_refs,schema_version from execution_control.agent_campus_search_diagnostics where request_id='diagnostic-run'`).Scan(&status, &phase, &query, &queued, &cited, &schemaVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status != "completed" || phase != "completed" || query != "图书馆" || !queued || len(cited) != 1 {
+	if schemaVersion != 2 || status != "completed" || phase != "completed" || query != "图书馆" || !queued || len(cited) != 1 {
 		t.Fatalf("invalid merged observation: %s %s %s %v %v", status, phase, query, queued, cited)
 	}
 	if _, err := ops.Exec(t.Context(), `delete from execution_control.agent_campus_search_diagnostics`); err == nil {
@@ -59,6 +60,9 @@ func testCampusSearchDiagnostics(t *testing.T, harness *postgresHarness) {
 	}
 	owner := connect(t, ownerURL)
 	defer closeConn(t, owner)
+	if _, err := owner.Exec(t.Context(), `update execution_control.agent_campus_search_diagnostics set schema_version=1 where request_id='diagnostic-run'`); err == nil {
+		t.Fatal("retired diagnostic schema accepted")
+	}
 	var appCanRead bool
 	if err := owner.QueryRow(t.Context(), `select has_any_column_privilege('app_api','execution_control.agent_campus_search_diagnostics','SELECT')`).Scan(&appCanRead); err != nil {
 		t.Fatal(err)

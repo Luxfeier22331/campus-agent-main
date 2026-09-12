@@ -191,6 +191,7 @@ export function requestStagesSql(): string {
 			step."completed_at" as "completedAt",
 			attempt."duration_ms" as "durationMs",
 			step."sanitized_payload_json" as "sanitizedPayloadJson",
+			result."model_output_diagnostic_json" as "modelOutputDiagnosticJson",
 			step."step_id" as "stepId",
 			step."started_at" as "startedAt",
 			step."status",
@@ -198,7 +199,7 @@ export function requestStagesSql(): string {
 			step."updated_at" as "updatedAt"
 		from "execution_control"."agent_run_steps" as step
 		left join lateral (
-			select candidate."duration_ms"
+			select candidate."duration_ms", candidate."attempt_id"
 			from "execution_control"."agent_step_attempts" as candidate
 			where candidate."request_id" = step."request_id"
 				and candidate."step_id" = step."step_id"
@@ -206,6 +207,9 @@ export function requestStagesSql(): string {
 			order by candidate."attempt" desc, candidate."updated_at" desc
 			limit 1
 		) as attempt on true
+		left join "execution_control"."agent_step_results" as result
+			on result."request_id" = step."request_id" and result."step_id" = step."step_id"
+			and result."attempt_id" = attempt."attempt_id"
 		where step."request_id" = $1
 		order by coalesce(step."started_at", step."updated_at") asc, step."step_id" asc
 		`;

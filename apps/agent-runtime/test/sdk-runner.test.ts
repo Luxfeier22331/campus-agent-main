@@ -2,6 +2,7 @@ import type { AssistantMessageItem, ModelProvider } from "@openai/agents";
 import { assistantMessage, functionCall, ScriptedModel } from "@openai/agents/testing";
 import { zodTextFormat } from "openai/helpers/zod";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import type {
 	AgentRunnerAnswerDelta,
 	AgentRunnerInput,
@@ -9,7 +10,11 @@ import type {
 	AgentRunnerSolveDecision,
 	SdkToolRuntime,
 } from "../src/agent-run-contract.ts";
-import { createOpenAIAgentsRunner, createStreamingOpenAIAgentsRunner } from "../src/sdk-runner.ts";
+import {
+	createOpenAIAgentsRunner,
+	createStreamingOpenAIAgentsRunner,
+	openAIOutputSchema,
+} from "../src/sdk-runner.ts";
 import { solveSdkOutputSchema } from "../src/workflow-runtime.ts";
 
 const providerConfig = {
@@ -107,20 +112,8 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		const format = zodTextFormat(solveSdkOutputSchema, "solve");
 		expect(format.strict).toBe(true);
 		expect(format.schema).toMatchObject({ type: "object", required: ["result"] });
-	});
-
-	it.each([
-		{ result: { outcome: "answer", plan: {} } },
-		{ result: { outcome: "answer", answer: "" } },
-		{ result: { outcome: "answer", answer: "你好", plan: {} } },
-		{ outcome: "answer", answer: "你好" },
-	])("rejects invalid solve wire output %j", async (output) => {
-		const model = new ScriptedModel([[assistantMessage(JSON.stringify(output))]]);
-		await expect(
-			createOpenAIAgentsRunner({ model: "gpt-test", modelProvider: providerFor(model) })(
-				input([], { operation: "solve", outputType: solveSdkOutputSchema }),
-			),
-		).rejects.toThrow();
+		const { $schema: _dialect, ...expected } = format.schema;
+		expect(openAIOutputSchema(z.toJSONSchema(solveSdkOutputSchema))).toEqual(expected);
 	});
 
 	it("unwraps a non-streaming answer with answer before outcome", async () => {
@@ -130,7 +123,12 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		const result = await createOpenAIAgentsRunner({
 			model: "gpt-test",
 			modelProvider: providerFor(model),
-		})(input([], { operation: "solve", outputType: solveSdkOutputSchema }));
+		})(
+			input([], {
+				operation: "solve",
+				outputSchema: { name: "solve", schema: z.toJSONSchema(solveSdkOutputSchema) },
+			}),
+		);
 		expect(result).toMatchObject({
 			finalOutput: "你好",
 			structuredOutput: { outcome: "answer", answer: "你好" },
@@ -334,6 +332,10 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		})(input([searchTool]));
 
 		expect(downstreamCalls).toBe(2);
+		expect(model.calls).toHaveLength(3);
+		expect(result.failure?.code).toBe("retrieval_budget_exhausted");
+		expect(result.usage.modelRequestCount).toBe(3);
+		expect(result.providerResponseId).not.toBe("");
 		expect(observations.filter((item) => item.invocationId === "search-3")).toEqual([
 			{ invocationId: "search-3", phase: "queued" },
 			{
@@ -364,7 +366,10 @@ describe("OpenAI Agents SDK runner adapter", () => {
 				model: "gpt-test",
 				modelProvider: providerFor(model),
 			})(input([lookupTool(execute)], { limits: { ...limits, maxFunctionToolCalls: 1 } })),
-		).rejects.toThrow("tool call budget is exhausted");
+		).resolves.toMatchObject({
+			failure: { code: "tool_execution_failed" },
+			toolResults: [expect.objectContaining({ invocationId: "call-1", status: "completed" })],
+		});
 	});
 
 	it("streams SDK text from every model turn and keeps final output canonical", async () => {
@@ -390,6 +395,29 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		});
 	});
 
+	it("retains answer-started when a streamed draft fails before completion", async () => {
+		const model = new ScriptedModel([
+			[
+				assistantMessage("未完成草稿"),
+				functionCall("test_lookup", { query_text: "通知" }, { callId: "call-1" }),
+			],
+		]);
+		const events: Array<AgentRunnerAnswerDelta | AgentRunnerResult | AgentRunnerSolveDecision> = [];
+		for await (const event of createStreamingOpenAIAgentsRunner({
+			model: "gpt-test",
+			modelProvider: providerFor(model),
+		})(input([lookupTool()], { limits: { ...limits, maxTurns: 1 } }))) {
+			events.push(event);
+		}
+		expect(events[0]).toEqual({ delta: "未完成草稿" });
+		expect(events.at(-1)).toMatchObject({
+			answerStarted: true,
+			finalOutput: "",
+			failure: { code: "max_turns_exceeded" },
+			toolResults: [{ invocationId: "call-1" }],
+		});
+	});
+
 	it("streams a structured solve answer only after emitting its decision", async () => {
 		const answer = '中文\n"校园"';
 		const model = new ScriptedModel([
@@ -399,7 +427,12 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		for await (const event of createStreamingOpenAIAgentsRunner({
 			model: "gpt-test",
 			modelProvider: providerFor(model),
-		})(input([], { operation: "solve", outputType: solveSdkOutputSchema }))) {
+		})(
+			input([], {
+				operation: "solve",
+				outputSchema: { name: "solve", schema: z.toJSONSchema(solveSdkOutputSchema) },
+			}),
+		)) {
 			events.push(event);
 		}
 
@@ -435,7 +468,12 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		for await (const event of createStreamingOpenAIAgentsRunner({
 			model: "gpt-test",
 			modelProvider: providerFor(model),
-		})(input([], { operation: "solve", outputType: solveSdkOutputSchema }))) {
+		})(
+			input([], {
+				operation: "solve",
+				outputSchema: { name: "solve", schema: z.toJSONSchema(solveSdkOutputSchema) },
+			}),
+		)) {
 			events.push(event);
 		}
 
@@ -509,10 +547,9 @@ describe("OpenAI Agents SDK runner adapter", () => {
 
 		expect(result).toMatchObject({
 			toolResults: [],
-			webCitations: [
+			webEvidence: [
 				{
-					endIndex: 8,
-					startIndex: 6,
+					excerpt: "这里",
 					title: "学校官网",
 					url: "https://www.muc.edu.cn/contact#address",
 				},

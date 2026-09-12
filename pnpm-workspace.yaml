@@ -25,6 +25,7 @@ overrides:
 minimumReleaseAge: 0
 
 allowBuilds:
+  "@google/genai": false
   "@swc/core": false
   cpu-features: false
   esbuild: false

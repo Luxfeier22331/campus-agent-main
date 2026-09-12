@@ -442,6 +442,68 @@ describe("managed worktree environment", () => {
 		}
 	});
 
+	it("merges local direct-connect additions only into the two Go consumers", () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+		writeFileSync(
+			resolve(repoRoot, ".env"),
+			'NO_PROXY=" ai.gitee.com, localhost,, "\nno_proxy="ai.gitee.com,internal.example"\n',
+		);
+		const environment = {
+			NO_PROXY: "127.0.0.1, localhost",
+			no_proxy: "localhost,10.0.0.0/8",
+			HTTPS_PROXY: "http://proxy.example:7897",
+		};
+		const beforeEnvironment = { ...environment };
+		const render = () =>
+			renderLocalEnvironmentFiles({ profile, qdrant, repoRoot, target: "core", environment });
+		render();
+		const paths = managedLocalEnvironmentPaths(repoRoot);
+		const expected = "127.0.0.1,localhost,10.0.0.0/8,ai.gitee.com,internal.example";
+		for (const path of [paths.executionControl, paths.modelConfig]) {
+			const before = readFileSync(path, "utf8");
+			const values = parseEnv(before);
+			assert.equal(values.NO_PROXY, expected);
+			assert.equal(values.no_proxy, expected);
+			assert.equal(values.HTTPS_PROXY, undefined);
+			render();
+			assert.equal(readFileSync(path, "utf8"), before);
+		}
+		for (const path of [paths.agentRuntime, paths.appApi, paths.appApiVars, paths.campusWeb]) {
+			const values = parseEnv(readFileSync(path, "utf8"));
+			assert.equal(values.NO_PROXY, undefined);
+			assert.equal(values.no_proxy, undefined);
+		}
+		assert.deepEqual(environment, beforeEnvironment);
+		writeFileSync(resolve(repoRoot, ".env"), "");
+		render();
+		for (const path of [paths.executionControl, paths.modelConfig]) {
+			const values = parseEnv(readFileSync(path, "utf8"));
+			assert.equal(values.NO_PROXY, undefined);
+			assert.equal(values.no_proxy, undefined);
+		}
+	});
+	it("does not project inherited proxy exclusions without local additions", () => {
+		const repoRoot = createRepositoryShape();
+		const profile = createProfile(repoRoot);
+		for (const contents of [undefined, 'NO_PROXY=" , "\nno_proxy=""\n']) {
+			if (contents !== undefined) {
+				writeFileSync(resolve(repoRoot, ".env"), contents);
+			}
+			renderLocalEnvironmentFiles({
+				profile,
+				qdrant,
+				repoRoot,
+				projections: ["model-config"],
+				environment: { NO_PROXY: "inherited.example" },
+			});
+			const values = parseEnv(
+				readFileSync(managedLocalEnvironmentPaths(repoRoot).modelConfig, "utf8"),
+			);
+			assert.equal(values.NO_PROXY, undefined);
+			assert.equal(values.no_proxy, undefined);
+		}
+	});
 	it("renders isolated endpoints and preserves generated secrets", () => {
 		const repoRoot = createRepositoryShape();
 		const profile = createProfile(repoRoot);

@@ -55,7 +55,7 @@ func TestWorkflowOperationReplanDecisionContract(t *testing.T) {
 		t.Run(decision, func(t *testing.T) {
 			output, err := executionactivities.WorkflowOperationOutputFromRuntimeResponse(executionactivities.AgentRuntimeResponse{
 				Replan: &temporalruntime.WorkflowTaskReplan{
-					SchemaVersion: "task_replan.v2", Decision: decision,
+					SchemaVersion: "task_replan.v3", Decision: decision,
 					Reason: "检查剩余路径", RemainingSteps: []temporalruntime.WorkflowTaskPlanStep{},
 				},
 			}, temporalruntime.WorkflowOperationReplan, "result-replan")
@@ -170,8 +170,29 @@ func TestValidateWorkflowOperationOutputSourcesRequiresCurrentStepCandidates(t *
 	}
 }
 
-func TestValidateWorkflowOperationOutputSourcesRejectsRetrievalOnSolver(t *testing.T) {
-	request := executionactivities.WorkflowOperationActivityRequest{Operation: temporalruntime.WorkflowOperationSolve}
+func TestFailedOperationPreservesToolFailuresButStillChecksSources(t *testing.T) {
+	step := temporalruntime.WorkflowTaskPlanStep{ID: "step.campus", Objective: "查询", CandidateSources: []temporalruntime.WorkflowSource{temporalruntime.WorkflowSourceCampusSearch}}
+	request := executionactivities.WorkflowOperationActivityRequest{Operation: temporalruntime.WorkflowOperationExecuteStep, Step: &step}
+	output := temporalruntime.WorkflowOperationActivityOutput{
+		Status: "failed", Failure: &temporalruntime.ExecutionFailure{Code: "model_output_invalid"},
+		ToolResults: []temporalruntime.AgentToolResult{{ToolName: campusSearchToolName, Status: "failed", Failure: &temporalruntime.ExecutionFailure{Code: "retrieval_budget_exhausted"}}},
+	}
+	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err != nil {
+		t.Fatal(err)
+	}
+	output.ToolResults[0].ToolName = personalMemoryRecallToolName
+	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err == nil {
+		t.Fatal("accepted foreign source")
+	}
+}
+
+func TestValidateWorkflowOperationOutputSourcesAllowsAdmittedRetrievalOnSolver(t *testing.T) {
+	request := executionactivities.WorkflowOperationActivityRequest{
+		Operation: temporalruntime.WorkflowOperationSolve,
+		AdmissionSnapshot: execution.AgentAdmissionSnapshot{AgentCapabilities: execution.AgentCapabilitiesSnapshot{
+			VisibleFunctionToolNames: []string{campusSearchToolName},
+		}},
+	}
 	output := temporalruntime.WorkflowOperationActivityOutput{
 		ToolResults: []temporalruntime.AgentToolResult{{
 			ToolName:     campusSearchToolName,
@@ -180,9 +201,97 @@ func TestValidateWorkflowOperationOutputSourcesRejectsRetrievalOnSolver(t *testi
 		}},
 	}
 
-	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err == nil ||
-		!strings.Contains(err.Error(), "solver returned retrieval output") {
-		t.Fatalf("solver source validation error = %v", err)
+	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err != nil {
+		t.Fatalf("admitted solver retrieval rejected: %v", err)
+	}
+	request.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames = nil
+	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err == nil {
+		t.Fatal("solver accepted an unadmitted tool")
+	}
+}
+
+func TestSolverWebEvidenceUsesAdmission(t *testing.T) {
+	request := executionactivities.WorkflowOperationActivityRequest{Operation: temporalruntime.WorkflowOperationSolve}
+	output := temporalruntime.WorkflowOperationActivityOutput{Evidence: []temporalruntime.WorkflowEvidence{{Source: temporalruntime.WorkflowSourceWebSearch, CitationIndex: 1, Title: "官网", Excerpt: "地址", URL: "https://example.edu"}}}
+	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err == nil {
+		t.Fatal("accepted unadmitted web evidence")
+	}
+	request.AdmissionSnapshot.AgentCapabilities.HostedWebSearch = true
+	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRecoverySynthesisContract(t *testing.T) {
+	evidence := []temporalruntime.WorkflowEvidence{{ID: "notice", Source: temporalruntime.WorkflowSourceCampusSearch, CitationIndex: 1, Title: "通知", Excerpt: "2册增加至4册"}}
+	attempts := []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}}
+	request := executionactivities.WorkflowOperationActivityRequest{
+		Operation: temporalruntime.WorkflowOperationSynthesize, StepID: "answer.synthesize", Goal: "借购数量", Mode: "recovery", RecoveryReason: "provider_timeout",
+		Evidence: evidence, SourceAttempts: attempts,
+		AdmissionSnapshot: execution.AgentAdmissionSnapshot{AgentCapabilities: execution.AgentCapabilitiesSnapshot{VisibleFunctionToolNames: []string{campusSearchToolName}}},
+	}
+	for _, stream := range []bool{false, true} {
+		request.Stream = stream
+		if err := executionactivities.ValidateWorkflowOperationRequest(request); err != nil {
+			t.Fatal(err)
+		}
+	}
+	output := temporalruntime.WorkflowOperationActivityOutput{Evidence: evidence, SourceAttempts: attempts}
+	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err != nil {
+		t.Fatal(err)
+	}
+	output.SourceAttempts = nil
+	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err == nil {
+		t.Fatal("lost source attempts accepted")
+	}
+	request.Evidence = nil
+	if err := executionactivities.ValidateWorkflowOperationRequest(request); err == nil {
+		t.Fatal("recovery without materials accepted")
+	}
+}
+
+func TestRuntimeRequestRetainsSolverMaterialsForLaterOperations(t *testing.T) {
+	evidence := []temporalruntime.WorkflowEvidence{{ID: "notice", Source: temporalruntime.WorkflowSourceCampusSearch, CitationIndex: 1, Title: "通知", Excerpt: "2册增加至4册"}}
+	attempts := []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}}
+	for _, operation := range []temporalruntime.WorkflowOperation{temporalruntime.WorkflowOperationExecuteStep, temporalruntime.WorkflowOperationReplan} {
+		payload := executionactivities.WorkflowOperationRuntimeRequestPayload(execution.DurableRun{RequestID: "materials"}, executionactivities.WorkflowOperationActivityRequest{Operation: operation, PriorEvidence: evidence, PriorSourceAttempts: attempts}, nil, executionactivities.WorkflowRuntimeLimits{}, 1)
+		if len(payload["prior_evidence"].([]temporalruntime.WorkflowEvidence)) != 1 || len(payload["prior_source_attempts"].([]temporalruntime.WorkflowSourceAttempt)) != 1 {
+			t.Fatalf("lost solver context: %#v", payload)
+		}
+	}
+}
+
+func TestFailedSolveStreamPreservesDraftWithoutCompletingAnswer(t *testing.T) {
+	ctx := context.Background()
+	store := executionpersistence.NewInMemoryRunProjectionStore()
+	createQueuedDurableRunForTest(t, store, "failed-stream", "conv-stream", time.Now(), agentRequestForDurableWorkerTest("test"))
+	if _, err := store.TransitionRun(ctx, "failed-stream", execution.DurableRunStatusAdmitted, "", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(ctx, "failed-stream", execution.DurableRunStatusRunning, "", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	run, err := store.GetRun(ctx, "failed-stream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := &executionactivities.Adapter{Writer: &activityprojection.Writer{RunProjectionStore: store}}
+	body := "event: solve_decision\ndata: {\"schema_version\":\"workflow_runtime_solve_decision.v1\",\"outcome\":\"answer\"}\n\nevent: answer_delta\ndata: {\"schema_version\":\"workflow_runtime_answer_delta.v1\",\"delta\":\"草稿\"}\n\nevent: failed\ndata: {\"request_id\":\"failed-stream\",\"status\":\"failed\",\"operation\":\"solve\",\"failure\":{\"code\":\"provider_timeout\",\"operation\":\"solve\"}}\n\n"
+	output, err := adapter.ConsumeWorkflowRuntimeStream(ctx, run, temporalruntime.WorkflowOperationSolve, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !output.AnswerStarted || output.Status != "failed" {
+		t.Fatalf("output=%#v", output)
+	}
+	events, err := store.ListRunEvents(ctx, run.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range events {
+		if event.EventType == execution.DurableRunEventTypeRunAnswerCompleted {
+			t.Fatal("failed stream completed answer")
+		}
 	}
 }
 
@@ -197,17 +306,17 @@ func TestValidateWorkflowOperationOutputSourcesRequiresExplicitWebCandidate(t *t
 		Step:      &step,
 	}
 	output := temporalruntime.WorkflowOperationActivityOutput{
-		WebSearchUsed: true,
-		WebCitations: []temporalruntime.AgentWebCitation{{
-			StartIndex: 0,
-			EndIndex:   1,
-			Title:      "学校官网",
-			URL:        "https://example.edu/page",
+		Evidence: []temporalruntime.WorkflowEvidence{{
+			Source:        temporalruntime.WorkflowSourceWebSearch,
+			CitationIndex: 1,
+			Excerpt:       "学校地址",
+			Title:         "学校官网",
+			URL:           "https://example.edu/page",
 		}},
 	}
 
 	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err == nil ||
-		!strings.Contains(err.Error(), "not a candidate source") {
+		!strings.Contains(err.Error(), "not a candidate") {
 		t.Fatalf("web source validation error = %v", err)
 	}
 }
@@ -227,7 +336,6 @@ func TestValidateWorkflowOperationOutputSourcesAllowsWebNoMatchWithoutCitations(
 			Source: temporalruntime.WorkflowSourceWebSearch,
 			Status: "no_match",
 		}},
-		WebSearchUsed: true,
 	}
 
 	if err := executionactivities.ValidateWorkflowOperationOutputSources(request, output); err != nil {

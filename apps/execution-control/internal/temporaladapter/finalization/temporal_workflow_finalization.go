@@ -36,24 +36,35 @@ func (s *Adapter) WriteWorkflowFinalization(
 			true,
 		)
 	}
-	output, err := s.CommitWorkflowFinalization(ctx, input)
-	if err == nil && output.Status == "completed" {
-		campusdiagnostics.MarkCitations(ctx, s.RunProjectionStore, input.RequestID, campusSearchCitedRefs(input.WorkflowResult))
-	}
-	return output, err
+	return s.CommitWorkflowFinalization(ctx, input)
 }
 
-// The finalization path has already validated the citation closure. This only
-// projects the referenced Campus candidates after successful finalization.
-func campusSearchCitedRefs(result temporalruntime.WorkflowOperationActivityOutput) []string {
+// Use the finalized sources, not the original answer's indexes: a repeated
+// search can assign another index to evidence already retained by the runtime.
+func campusSearchCitedRefs(finalizedResponse map[string]any, result temporalruntime.WorkflowOperationActivityOutput) []string {
 	refs := []string{}
-	markers := map[string]bool{}
-	for _, marker := range WorkflowCitationPattern.FindAllString(result.FinalOutput, -1) {
-		markers[marker] = true
+	evidenceRefs := map[string]string{}
+	if result.Operation == temporalruntime.WorkflowOperationSynthesize {
+		for _, item := range result.Evidence {
+			if item.Source == temporalruntime.WorkflowSourceCampusSearch {
+				evidenceRefs[item.ID] = execution.FirstNonEmptyText(item.ResultRef, item.ID)
+			}
+		}
 	}
-	for _, item := range result.Evidence {
-		if item.Source == temporalruntime.WorkflowSourceCampusSearch && markers[fmt.Sprintf("[%d]", item.CitationIndex)] {
-			refs = append(refs, execution.FirstNonEmptyText(item.ResultRef, item.ID))
+	seen := map[string]bool{}
+	responseResult := execution.CloneAnyMapFromValue(finalizedResponse["result"])
+	for _, source := range WorkflowToolResultMaps(responseResult["sources"]) {
+		kind := execution.StringValue(source["kind"])
+		if kind != "campus_document" && kind != "campus_notice" {
+			continue
+		}
+		ref := execution.StringValue(source["evidence_ref"])
+		if mapped, ok := evidenceRefs[ref]; ok {
+			ref = mapped
+		}
+		if ref != "" && !seen[ref] {
+			seen[ref] = true
+			refs = append(refs, ref)
 		}
 	}
 	return refs
@@ -195,6 +206,7 @@ func (s *Adapter) CommitWorkflowFinalization(
 	if err := s.AppendWorkflowRunCompletedEvent(ctx, completedRun, completedAt); err != nil {
 		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
+	campusdiagnostics.MarkCitations(ctx, s.RunProjectionStore, input.RequestID, campusSearchCitedRefs(finalizedResponse, workflowResult))
 	return temporalruntime.WorkflowFinalizationActivityOutput{
 		CompletedAt:   completedAt,
 		ProjectionRef: activityprojection.TemporalProjectionRef(completedRun.RequestID, "finalization/write"),
@@ -643,6 +655,7 @@ func (s *Adapter) RepairCompletedWorkflowFinalization(
 	if err := s.AppendWorkflowRunCompletedEvent(ctx, canonicalRun, completedAt); err != nil {
 		return temporalruntime.WorkflowFinalizationActivityOutput{}, err
 	}
+	campusdiagnostics.MarkCitations(ctx, s.RunProjectionStore, input.RequestID, campusSearchCitedRefs(finalizedResponse, input.WorkflowResult))
 	return temporalruntime.WorkflowFinalizationActivityOutput{
 		CompletedAt:   completedAt,
 		ProjectionRef: canonicalRun.FinalResponseRef,
@@ -796,19 +809,6 @@ func ValidateWorkflowResultSucceeded(agentResult map[string]any) (string, string
 	if status != "completed" {
 		return "", "agent_runtime_incomplete", fmt.Errorf("workflow result status is %q", status)
 	}
-	if execution.StringValue(agentResult["operation"]) == string(temporalruntime.WorkflowOperationSynthesize) {
-		evidence, err := WorkflowEvidenceFromAgentResult(agentResult)
-		if err != nil {
-			return "", "workflow_synthesis_invalid", err
-		}
-		var attempts []temporalruntime.WorkflowSourceAttempt
-		if err := activityprojection.DecodeWorkflowValue(agentResult["source_attempts"], &attempts); err != nil {
-			return "", "workflow_synthesis_invalid", err
-		}
-		if err := temporalruntime.ValidateWorkflowAnswerMode(execution.StringValue(agentResult["answer_mode"]), evidence, attempts); err != nil {
-			return "", "workflow_synthesis_invalid", err
-		}
-	}
 	expectedFingerprint := execution.CloneAnyMapFromValue(agentResult["admitted_tool_contract_fingerprint"])
 	if len(expectedFingerprint) > 0 {
 		actualFingerprint := execution.CloneAnyMapFromValue(agentResult["tool_contract_fingerprint"])
@@ -846,14 +846,15 @@ func (s *Adapter) WorkflowFinalizedResponse(
 		return nil, err
 	}
 	observability := map[string]any{
-		"agent_runtime":   "openai_agents_sdk",
+		"agent_runtime":   "agent_runtime",
 		"model_name":      workflowResult["model_name"],
 		"model_provider":  workflowResult["model_provider"],
 		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	result := map[string]any{
-		"sources":         citationClosure.Sources,
-		"terminal_reason": string(execution.DurableTerminalReasonAnswerCompleted),
+		"sources":            citationClosure.Sources,
+		"search_suggestions": workflowResult["search_suggestions"],
+		"terminal_reason":    string(execution.DurableTerminalReasonAnswerCompleted),
 	}
 	modelUsage, err := WorkflowModelUsage(workflowResult)
 	if err != nil {

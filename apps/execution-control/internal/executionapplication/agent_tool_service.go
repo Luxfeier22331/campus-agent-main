@@ -52,6 +52,7 @@ type AgentToolService struct {
 type AgentToolAccessContext struct {
 	ActivityAttempt int
 	CitationStart   int
+	DeadlineAt      time.Time
 	InvocationID    string
 	RequestID       string
 	ResultLimit     int
@@ -102,11 +103,21 @@ func (s *AgentToolService) CampusSearch(
 	request CampusSearchRequest,
 ) (map[string]any, error) {
 	access := request.AccessContext
-	query := campusSearchRetrievalQuery(access.UserGoal, request.SearchQuery)
+	if !access.DeadlineAt.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, access.DeadlineAt)
+		defer cancel()
+	}
+	query := campusdocs.SearchQuery{
+		RetrievalQuery: strings.TrimSpace(request.SearchQuery),
+		RerankQuery:    strings.TrimSpace(access.UserGoal),
+	}
 	snapshot := &campusdiagnostics.Snapshot{
-		EffectiveQuery: campusdiagnostics.Bound(query, 1024), CitationStart: access.CitationStart,
+		EffectiveQuery: campusdiagnostics.Bound(query.RetrievalQuery, 1024),
+		RerankQuery:    campusdiagnostics.Bound(query.RerankQuery, 1024), CitationStart: access.CitationStart,
 		ResultLimit: access.ResultLimit, Durations: map[string]int64{}, Candidates: []campusdiagnostics.Candidate{},
-		SnapshotTruncated: len([]rune(query)) > 1024,
+		FailedStage:       "validation",
+		SnapshotTruncated: len([]rune(query.RetrievalQuery)) > 1024 || len([]rune(query.RerankQuery)) > 1024,
 	}
 	observe := func(phase string) {
 		campusdiagnostics.Record(ctx, s.store, campusdiagnostics.Observation{
@@ -115,32 +126,44 @@ func (s *AgentToolService) CampusSearch(
 			SearchQuery: request.SearchQuery, Phase: phase, At: time.Now(), Snapshot: snapshot,
 		})
 	}
+	finishFailure := func(err error) error {
+		if err == nil {
+			return nil
+		}
+		phase := "failed"
+		if errors.Is(err, context.Canceled) {
+			phase = "canceled"
+		}
+		observe(phase)
+		return err
+	}
 	observe("received")
 	ctx = campusdocs.WithSearchObserver(ctx, &campusdocs.SearchObserver{Snapshot: snapshot, Phase: observe})
 	run, err := s.validateRun(ctx, request.AccessContext, CampusSearchToolName)
 	if err != nil {
-		return nil, err
+		return nil, finishFailure(err)
 	}
+	snapshot.FailedStage = "index"
 	if s.campusDocsIndexStore == nil {
 		if s.campusDocsIndexStoreError != nil {
-			return nil, s.campusDocsIndexStoreError
+			return nil, finishFailure(s.campusDocsIndexStoreError)
 		}
-		return nil, errors.New("campus docs index store is not configured")
+		return nil, finishFailure(errors.New("campus docs index store is not configured"))
 	}
 	if s.campusDocsSearcherError != nil {
-		return nil, s.campusDocsSearcherError
+		return nil, finishFailure(s.campusDocsSearcherError)
 	}
 	if s.campusDocsSearcher == nil {
-		return nil, errors.New("campus docs searcher is not configured")
+		return nil, finishFailure(errors.New("campus docs searcher is not configured"))
 	}
 	s.indexBindingMu.Lock()
 	defer s.indexBindingMu.Unlock()
 	index, found, err := s.campusDocsIndexStore.CurrentIndex(ctx)
 	if err != nil {
-		return nil, err
+		return nil, finishFailure(err)
 	}
 	if !found {
-		return nil, errors.New("campus docs current index is not available")
+		return nil, finishFailure(errors.New("campus docs current index is not available"))
 	}
 	boundCollection := execution.StringValue(run.Metadata[campusDocsIndexBindingKey])
 	if boundCollection != "" && boundCollection != index.Collection {
@@ -157,7 +180,7 @@ func (s *AgentToolService) CampusSearch(
 			return nil, err
 		}
 	}
-	snapshot.IndexCollection = index.Collection
+	snapshot.Retrieval = &campusdiagnostics.RetrievalMeta{Collection: index.Collection}
 	observe("index_loaded")
 	results, err := s.campusDocsSearcher.Search(
 		ctx,
@@ -166,8 +189,9 @@ func (s *AgentToolService) CampusSearch(
 		request.AccessContext.ResultLimit,
 	)
 	if err != nil {
-		return nil, err
+		return nil, finishFailure(err)
 	}
+	snapshot.FailedStage = ""
 	return campusdocs.EncodeSearchResult(results, request.AccessContext.CitationStart), nil
 }
 
@@ -299,7 +323,10 @@ func latestWorkflowOperationStep(
 	found := false
 	stepID = strings.TrimSpace(stepID)
 	for _, step := range steps {
-		if step.StepID != stepID || step.StepKind != "executor" || step.Status != "started" {
+		if step.StepID != stepID || step.Status != "started" {
+			continue
+		}
+		if step.StepKind != "executor" && step.StepKind != "solver" {
 			continue
 		}
 		attempt := step.ActivityAttempt
@@ -363,15 +390,6 @@ func recallRequestForRun(
 		return memoryruntime.RecallRequest{}, err
 	}
 	return request, nil
-}
-
-func campusSearchRetrievalQuery(userGoal string, searchQuery string) string {
-	userGoal = strings.TrimSpace(userGoal)
-	searchQuery = strings.TrimSpace(searchQuery)
-	if searchQuery == userGoal {
-		return userGoal
-	}
-	return userGoal + "\n检索表达：" + searchQuery
 }
 
 func exactInt64Value(value any) (int64, bool) {

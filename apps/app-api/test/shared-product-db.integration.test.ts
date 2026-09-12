@@ -516,6 +516,13 @@ describe("app-api shared product DB integration", () => {
 					observedAt: firstTtftObservedAt,
 					requestId,
 				});
+			const recordClientTiming = () =>
+				store.recordClientTiming?.({
+					requestId,
+					firstDeltaMs: 1100,
+					firstRenderMs: 1150,
+					observedAt: firstTtftObservedAt,
+				});
 			const buildFinalization = async () => {
 				const finalized = buildFinalizedWrite({
 					assistantMessageId: acceptedWrite.turnDispatch.assistantMessageId,
@@ -559,6 +566,7 @@ describe("app-api shared product DB integration", () => {
 
 			if (order === "ttft_first") {
 				expect(await recordTtft()).toBe(true);
+				expect(await recordClientTiming()).toBe(true);
 				await finalize();
 			} else if (order === "finalization_first") {
 				const responseJson = JSON.stringify({
@@ -608,9 +616,11 @@ describe("app-api shared product DB integration", () => {
 				);
 				expect(messages.rows[0]?.count).toBe("1");
 				expect(await recordTtft()).toBe(true);
+				expect(await recordClientTiming()).toBe(true);
 			} else {
 				const staleFinalization = await buildFinalization();
 				expect(await recordTtft()).toBe(true);
+				expect(await recordClientTiming()).toBe(true);
 				await store.finalizeRequest(staleFinalization);
 			}
 
@@ -654,6 +664,7 @@ describe("app-api shared product DB integration", () => {
 				[requestId],
 			);
 			expect(duplicateRow.rows[0]).toEqual(firstRow.rows[0]);
+			expect(await recordClientTiming()).toBe(false);
 			return firstRow.rows[0];
 		}
 
@@ -661,6 +672,8 @@ describe("app-api shared product DB integration", () => {
 		const finalizationFirst = await runOrder("finalization_first");
 		const ttftAfterFinalizationSnapshot = await runOrder("ttft_after_finalization_snapshot");
 		expect(ttftFirst?.stage_timing).toEqual({
+			"client.first_delta_ms": 1100,
+			"client.first_render_ms": 1150,
 			"workflow.first_delta_ms": 600,
 			"request.total_ms": 3000,
 			"stream.app_api_ttft_ms": 1000,

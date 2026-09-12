@@ -18,10 +18,13 @@ const labels: Record<string, string> = {
 	rerank_below_threshold: "低于重排阈值",
 	result_limit: "返回数量限制",
 	evidence_char_budget: "正文字符预算",
+	source_group_limit: "同一通知已保留更高分片段",
 	embedding: "Embedding",
 	retrieval: "召回",
 	rerank: "重排",
 	selection: "筛选",
+	validation: "运行校验",
+	index: "读取索引",
 };
 
 export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearchDiagnostics }) {
@@ -29,23 +32,35 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 		<section aria-label="Campus Search 检索诊断" data-testid="campus-search-diagnostics">
 			<h2 className="mb-3 font-semibold text-lg">Campus Search 检索诊断</h2>
 			<p className="mb-3 text-sm text-muted-foreground">
-				{diagnostics.dataState} · {diagnostics.calls.length}{" "}
-				次调用。候选与分数用于排障，不代表召回率。
+				诊断
+				{diagnostics.diagnosticState === "COMPLETE"
+					? "完整"
+					: diagnostics.diagnosticState === "PARTIAL"
+						? "部分可用"
+						: diagnostics.diagnosticState === "NO_DATA"
+							? "无数据"
+							: "不可用"}{" "}
+				· {diagnostics.calls.length} 次调用。候选与分数用于排障，不代表召回率。
 			</p>
 			{diagnostics.reason ? <p className="mb-3 text-sm">{diagnostics.reason}</p> : null}
 			{diagnostics.calls.map((call) => (
 				<details key={call.invocationId} className="border-y border-border py-3" open>
 					<summary className="cursor-pointer font-medium">
-						{call.searchQuery || "空查询"} · {labels[call.status]} ·{" "}
-						{labels[call.currentPhase] ?? call.currentPhase}
+						{call.searchQuery || "空查询"} · {labels[call.status]}
+						{call.currentPhase === call.status
+							? ""
+							: ` · ${labels[call.currentPhase] ?? call.currentPhase}`}
 					</summary>
 					<p className="mt-2 text-xs text-muted-foreground">
 						{call.workflowStepId} · attempt {call.activityAttempt} · {call.invocationId}
 					</p>
 					<p className="my-2 text-sm">
-						排队 {ms(call.queueMs)} · 工具总耗时 {ms(call.toolTotalMs)}
+						排队 {ms(call.queueMs)} · 请求往返 {ms(call.toolTotalMs)}
 						{call.failureCode ? ` · ${call.failureCode}` : ""}
 						{call.httpStatus ? ` · HTTP ${call.httpStatus}` : ""}
+					</p>
+					<p className="text-xs text-muted-foreground">
+						请求往返：发出请求至收到终态；不含排队。执行摘要工具耗时包含工具包装与观察上报；各阶段可嵌套，不能直接相加。
 					</p>
 					<ol className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
 						{Object.entries(call.phaseTimes)
@@ -58,8 +73,15 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 					</ol>
 					{call.snapshot ? (
 						<>
+							{call.snapshot.failedStage &&
+							(call.status === "failed" || call.status === "canceled") ? (
+								<p>失败阶段：{labels[call.snapshot.failedStage]}</p>
+							) : null}
 							<p className="my-3 whitespace-pre-wrap text-sm">
-								实际查询：{call.snapshot.effectiveQuery}
+								召回查询：{call.snapshot.effectiveQuery}
+							</p>
+							<p className="my-3 whitespace-pre-wrap text-sm">
+								排序目标：{call.snapshot.rerankQuery ?? "未记录"}
 							</p>
 							<p className="text-sm">
 								{call.snapshot.retrievalMode ?? "尚未检索"}
@@ -70,9 +92,48 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 									? ` · 重排输入 ${call.snapshot.rerankInputCount} · 重排保留 ${call.snapshot.rerankKeptCount}`
 									: ""}
 								{call.phaseTimes.selected
-									? ` · 返回 ${call.snapshot.returnedCount} · 排除 ${call.snapshot.excludedCount}`
+									? ` · 通知聚合后 ${call.snapshot.sourceGroupedCount} · 同通知排除 ${call.snapshot.sourceGroupedExcludedCount} · 返回模型 ${call.snapshot.returnedCount} · 排除 ${call.snapshot.excludedCount} · 最终引用 ${call.citedCount ?? "未判定"}`
 									: ""}
 							</p>
+							{call.snapshot.embedding ? (
+								<p className="my-2 text-xs">
+									Embedding：{call.snapshot.embedding.provider} / {call.snapshot.embedding.model} ·{" "}
+									{call.snapshot.embedding.dimensions} 维 ·{" "}
+									{call.snapshot.embedding.instructionVersion} · 服务{" "}
+									{call.snapshot.embedding.serviceOrigin}· 缓存
+									{call.snapshot.embedding.cacheOutcome ?? "未记录"} · 合并等待{" "}
+									{ms(
+										call.snapshot.embedding.cacheWaitMs ??
+											(call.snapshot.embedding.cacheOutcome ? 0 : null),
+									)}
+									· 估算避免的加载耗时
+									{ms(
+										call.snapshot.embedding.estimatedSavedMs ??
+											(call.snapshot.embedding.cacheOutcome ? 0 : null),
+									)}
+								</p>
+							) : (
+								<p className="text-xs">Embedding 配置未记录</p>
+							)}
+							{call.snapshot.retrieval ? (
+								<div className="my-2 break-all text-xs">
+									<p>Collection：{call.snapshot.retrieval.collection}</p>
+									<p>
+										Qdrant HTTP 往返 {ms(call.snapshot.retrieval.httpMs)} · Qdrant 服务端{" "}
+										{ms(call.snapshot.retrieval.qdrantMs)} · 解码{" "}
+										{ms(call.snapshot.retrieval.decodeMs)} · 候选后处理{" "}
+										{ms(call.snapshot.retrieval.postprocessMs)}
+									</p>
+									<p>服务端耗时包含在 HTTP 往返内；两者差值不能直接解释成网络延迟。</p>
+								</div>
+							) : null}
+							{call.snapshot.rerank ? (
+								<p className="my-2 text-xs">
+									重排：{call.snapshot.rerank.provider} / {call.snapshot.rerank.model} · HTTP 往返{" "}
+									{ms(call.snapshot.rerank.httpMs)} · 输入 {call.snapshot.rerank.inputCount}
+								</p>
+							) : null}
+							{call.snapshot.snapshotTruncated ? <p>诊断字段或候选快照已截断。</p> : null}
 							<p className="my-2 text-xs">
 								{Object.entries(call.snapshot.durations)
 									.map(([phase, duration]) => `${labels[phase]} ${ms(duration ?? null)}`)
@@ -99,6 +160,9 @@ export function CampusSearchSection({ diagnostics }: { diagnostics: CampusSearch
 																{candidate.title} · {candidate.section} ({candidate.sourceKind})
 															</summary>
 															<p className="my-2 whitespace-pre-wrap">{candidate.text}</p>
+															<p>
+																来源 ID：{candidate.noticeId ?? candidate.documentId ?? "未记录"}
+															</p>
 															<p className="break-all text-xs text-muted-foreground">
 																{candidate.resultRef}
 																{candidate.returned ? "" : " · 正文仅预览"}

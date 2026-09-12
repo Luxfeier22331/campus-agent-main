@@ -169,13 +169,16 @@ func validateDescriptor(value descriptor) error {
 	if value.Name != "primary_agent" {
 		return errors.New("model config target name is invalid")
 	}
-	if value.Provider != "openai" && value.Provider != "openai-compatible" {
+	if value.Provider != "google" && value.Provider != "openai" && value.Provider != "openai-compatible" {
 		return errors.New("model config target provider is invalid")
 	}
 	if strings.TrimSpace(value.BaseURL) == "" || strings.TrimSpace(value.BaseURL) != value.BaseURL || strings.TrimSpace(value.Model) == "" || strings.TrimSpace(value.Model) != value.Model {
 		return errors.New("model config target is invalid")
 	}
-	if value.APIProtocol != "openai.responses" && value.APIProtocol != "openai.chat_completions" {
+	validGoogleProtocol := value.Provider == "google" && value.APIProtocol == "google.generate_content"
+	validOpenAIProtocol := value.Provider != "google" &&
+		(value.APIProtocol == "openai.responses" || value.APIProtocol == "openai.chat_completions")
+	if !validGoogleProtocol && !validOpenAIProtocol {
 		return errors.New("model config target API protocol is invalid")
 	}
 	if !lowercaseSHA256.MatchString(value.TargetSHA256) {

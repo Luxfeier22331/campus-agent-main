@@ -19,6 +19,7 @@ var (
 )
 
 type WorkflowStartInput struct {
+	DeadlineAt                   time.Time              `json:"deadline_at"`
 	AdmissionSnapshot            AgentAdmissionSnapshot `json:"admission_snapshot"`
 	AdmissionSnapshotSHA256      string                 `json:"admission_snapshot_sha256"`
 	ConversationID               string                 `json:"conversation_id"`

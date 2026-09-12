@@ -248,7 +248,6 @@ function validRunBody() {
 		conversation_id: "conversation-1",
 		operation: "synthesize" as const,
 		operation_input: {
-			answer_mode: "insufficient" as const,
 			source_attempts: [{ source: "campus_search", status: "no_match" as const }],
 			remaining_facts: [{ objective: "资料", facts: ["资料"] }],
 			evidence: [],
@@ -267,6 +266,7 @@ function validRunBody() {
 		expected_model_target_sha256:
 			"5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70",
 		request_id: "request-1",
+		deadline_at: new Date(Date.now() + 240_000).toISOString(),
 		user_id: "user-1",
 		visible_function_tool_names: ["campus_search"],
 		expected_tool_contract_fingerprint: {
@@ -296,8 +296,6 @@ function completedResult(input: { requestId: string }) {
 		toolResults: [],
 		evidence: [],
 		sourceAttempts: [{ source: "campus_search" as const, status: "no_match" as const }],
-		webCitations: [],
-		webSearchUsed: false,
 		toolContractFingerprint: testToolContractFingerprint(),
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 	};

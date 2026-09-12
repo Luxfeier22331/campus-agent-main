@@ -435,4 +435,63 @@ export function registerChatRunRoutes(input: {
 			throw error;
 		}
 	});
+
+	input.app.post("/api/chat/requests/:requestId/client-timing", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+		try {
+			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
+			const firstDeltaMs = body.firstDeltaMs;
+			const firstRenderMs = body.firstRenderMs;
+			if (
+				!(
+					typeof firstDeltaMs === "number" &&
+					Number.isFinite(firstDeltaMs) &&
+					firstDeltaMs >= 0 &&
+					typeof firstRenderMs === "number" &&
+					Number.isFinite(firstRenderMs) &&
+					firstRenderMs >= firstDeltaMs
+				)
+			) {
+				throw new AppApiRouteError({
+					code: "invalid_request",
+					message: "Client timing values are invalid.",
+					retryable: false,
+					status: 400,
+				});
+			}
+			const service = scope.resolveChatCommandService();
+			await scope
+				.resolveRuntimeRunService()
+				.getStatus({ principal: resolved.principal, requestId: c.req.param("requestId") });
+			if (!service.recordClientTiming) {
+				throw new AppApiRouteError({
+					code: "dependency_not_ready",
+					message: "Client timing is not configured.",
+					retryable: true,
+					status: 503,
+				});
+			}
+			await service.recordClientTiming({
+				requestId: c.req.param("requestId"),
+				firstDeltaMs,
+				firstRenderMs,
+			});
+			return new Response(null, { status: 204 });
+		} catch (error) {
+			const response = input.routeChatErrorResponse(error, createRouteErrorCorrelation());
+			if (response) {
+				return response;
+			}
+			throw error;
+		}
+	});
 }

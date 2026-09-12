@@ -100,6 +100,11 @@ export interface AcceptedChatCommandContext {
 }
 
 export interface ChatCommandService {
+	recordClientTiming?(input: {
+		requestId: string;
+		firstDeltaMs: number;
+		firstRenderMs: number;
+	}): Promise<boolean>;
 	applyProductFinalization?(input: {
 		completedAt: string;
 		finalizationFingerprint: string;

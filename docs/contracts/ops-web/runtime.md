@@ -77,6 +77,13 @@ attempt 诊断。
 
 ## `GET /api/ops/requests/:requestId`
 
+`execution.stages[].modelOutputDiagnostic` 为可空的模型格式错误诊断。v1 包含 `schema_version`、
+`text`、`original_utf8_bytes`、`truncated`、`validation_stage`（`json_parse`/`schema_validation`）、
+`validation_message`、`output_schema` 和可空 `finish_reason`。读取当前阶段 attempt 对应的结果列；
+列表不读取正文，诊断解码失败只显示未记录，不影响产品结果展示。
+详情使用折叠的纯文本面板；空字符串显示“模型返回空文本”，null 显示“未记录”，不能互相替代。
+截断必须明确标注。步骤格式失败但利用材料合成成功时，步骤保持失败、产品仍为 `COMPLETED`/`WRITTEN`。
+
 `requestId` 只允许字母、数字、点、下划线、冒号和连字符，最长 128 字符。无效 ID 返回
 `400 OPS_INVALID_REQUEST_ID`，不存在返回 `404 OPS_REQUEST_NOT_FOUND`。
 
@@ -98,21 +105,42 @@ locator 或 trace card。
 - `stages[]`：阶段类型、状态、工具名和调用 ID（适用时）、起止时间、耗时和有界失败类型；耗时优先
   使用同一 `request_id`、`step_id`、`activity_attempt` 的 attempt 投影 `duration_ms`，缺失时才由阶段
   起止时间计算。
-- `campusSearch`：Campus Search 专用诊断，包含 `dataState`、`reason` 与 `calls[]`。每次调用展示
-  invocation、workflow step、activity attempt、查询、最后观察阶段、阶段时间、排队和工具总耗时、
+- `campusSearch`：Campus Search 专用诊断，包含 `diagnosticState`、`reason` 与 `calls[]`。每次调用展示
+  invocation、workflow step、activity attempt、查询、最后观察阶段、阶段时间、排队和请求往返耗时、
   失败码与 HTTP 状态，以及服务端检索快照。这些 ID 只用于 Ops 关联，不授予操作运行的权限。
 
-Campus Search 的 `dataState` 为 `FRESH`、`PARTIAL`、`NO_DATA` 或 `UNAVAILABLE`。无记录表示旧请求、
+Campus Search 的 `diagnosticState` 为 `COMPLETE`、`PARTIAL`、`NO_DATA` 或 `UNAVAILABLE`；
+页面分别显示诊断完整、部分可用、无数据、不可用。这是诊断完整性，不表示数据新鲜度、检索成功或
+召回质量；不改变其他 Ops 接口缓存的 FRESH/STALE 语义。只消费 schema v2，不兼容旧快照。
+成功调用完整性要求已执行阶段的时间和配置、选择快照，以及请求终态后的引用投影；零召回不要求
+重排。失败调用以终态和明确失败阶段判断，不要求未执行阶段。无记录表示旧请求、
 未调用工具或未收到观察，不能据此推断检索失败；终态请求中缺少工具终态的调用显示 `incomplete`。
 诊断查询失败只使 `campusSearch` 不可用，不遮盖产品结果。活动请求约每两秒刷新，隐藏页面不后台
 轮询；进入终态后再刷新一次以读取引用投影，随后停止定时刷新。
 
 快照包含实际检索表达（最多 1024 字符）、dense / hybrid RRF 模式、embedding / retrieval / rerank /
-selection 耗时、召回与去重后候选数、重排输入与保留数、返回与排除数。只有对应阶段已观察完成时，
+selection 耗时、召回与去重后候选数、重排输入与保留数、通知分组后候选数及同通知排除数、
+返回模型与排除数。只有对应阶段已观察完成时，
 该阶段统计才有含义。最多 24 个候选记录来源、标题、章节、融合分数、重排分数、两次排序名次及
-筛选原因（低于重排阈值、返回数量限制、正文预算）。返回项保存工具已返回的正文，总计最多 4000
+筛选原因（低于重排阈值、同通知已有代表块、返回数量限制、正文预算）。候选保存 noticeId 或
+documentId；同一通知最多返回重排第一块，文档不受影响。返回项保存工具已返回的正文，总计最多 4000
 字符；排除项只有最多 160 字符预览。候选的 `cited` 在 finalization 成功后为实际引用与否，未完成或
 引用投影缺失时为 `null`。这里只反映本次工具的候选与选择，不提供没有标注集支持的 recall / precision。
+
+`citedCount` 统计返回项中实际被引用的 Chunk，未判定为 null，不把返回数量当引用数量。
+引用投影来自成功 Finalization 的最终 Campus 来源，不重新用原始正文编号匹配去重后的 evidence；
+已完成请求修复使用已保存的最终来源。`cited` 按请求级稳定 `result_ref` 判断，同一来源在多次调用
+出现时可在各调用中标为已引用，不表示能归因到模型采用的某一次调用，也不应将各调用的
+`citedCount` 相加作为请求的唯一来源数。
+Embedding 元数据来自实际配置，包含 provider、model、dimensions、instructionVersion 和只含
+scheme/host 的 serviceOrigin，不返回 API key 或 URL path/query。缓存区分 hit/miss/wait/bypass，
+wait 为同请求合并等待；estimatedSavedMs 是 hit 避免的历史加载耗时估算，不是整轮实测加速。
+检索展示实际 collection、HTTP 往返、Qdrant 响应 time 换算的毫秒、解码和候选后处理；
+重排展示实际 provider/model/inputCount/HTTP 往返。未测量用 null，已测得不足一毫秒保留 0。
+Qdrant 服务端耗时包含于 HTTP 往返，不能相加或把差值直接称为网络延迟。
+请求往返从 dispatching 至工具终态，不含 queued 至 dispatching 的排队；执行摘要中的工具
+attempt 耗时还包含包装与观察上报。各层耗时不是可相加的独立段。
+失败阶段由当前执行位置记录，不通过耗时是否为零推断。`snapshotTruncated` 明示有界快照截断。
 
 `failure`、`terminalReason` 与 `failCloseReason` 在页面中分区展示，任何一个字段都不能替代另一个。
 历史运行没有某个诊断字段时返回 `null`，没有持久阶段时返回空数组，不从产品错误、终态、日志或外部

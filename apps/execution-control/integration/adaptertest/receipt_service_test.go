@@ -56,8 +56,8 @@ func TestReceiptServiceOwnsTerminalOutputAndDeletion(t *testing.T) {
 	if err := service.Fail(ctx, failed, "provider_failed"); err != nil {
 		t.Fatal(err)
 	}
-	failed, _, err = service.Begin(ctx, failed.InvocationID, failed.RequestID, inputHash)
-	if !errors.Is(err, executionapplication.ErrInvocationFailed) || failed.State != execution.AgentInvocationReceiptStateFailed {
+	failed, disposition, err = service.Begin(ctx, failed.InvocationID, failed.RequestID, inputHash)
+	if err != nil || disposition != execution.AgentInvocationDispositionReplay || failed.State != execution.AgentInvocationReceiptStateFailed {
 		t.Fatalf("failed invocation was reopened: %#v %v", failed, err)
 	}
 	if err := service.Complete(ctx, failed, output); !errors.Is(err, execution.ErrAgentInvocationConflict) {

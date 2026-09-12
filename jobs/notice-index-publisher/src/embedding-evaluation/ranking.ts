@@ -149,10 +149,8 @@ export function summarizeNoticeRetrievalRankings(
 				rankings.length,
 			6,
 		),
-		meanSingleChunkAnswerReciprocalRank: round(
-			singleChunkAnswerRankings.length === 0
-				? 0
-				: singleChunkAnswerRankings.reduce(
+		meanSingleChunkAnswerReciprocalRank: singleChunkAnswerRankings.length === 0 ? null : round(
+				singleChunkAnswerRankings.reduce(
 						(sum, ranking) => sum + 1 / ranking.singleChunkAnswerRank!,
 						0,
 					) / singleChunkAnswerRankings.length,
@@ -163,10 +161,8 @@ export function summarizeNoticeRetrievalRankings(
 		),
 		questionCount: rankings.length,
 		singleChunkAnswerQuestionCount: singleChunkAnswerRankings.length,
-		singleChunkAnswerRecallAt: cutoffRecord((cutoff) =>
-			singleChunkAnswerRankings.length === 0
-				? 0
-				: fraction(
+		singleChunkAnswerRecallAt: singleChunkAnswerRankings.length === 0 ? null : cutoffRecord((cutoff) =>
+				fraction(
 						singleChunkAnswerRankings,
 						(ranking) => ranking.singleChunkAnswerRank! <= cutoff,
 					),

@@ -62,7 +62,7 @@ func NewOwner(cfg config.Config, logger *slog.Logger) (*Owner, error) {
 	}
 
 	campusDocsIndexStore, campusDocsIndexStoreErr := newCampusDocsIndexStore(cfg)
-	campusDocsSearcher, campusDocsSearcherErr := outboundadapter.NewCampusDocsSearcher(cfg, modelConfigResolver)
+	campusDocsSearcher, campusDocsSearcherErr := outboundadapter.NewCampusDocsSearcher(cfg, modelConfigResolver, logger)
 
 	admissionService := executionapplication.NewAdmissionService(executionapplication.AdmissionOptions{
 		ToolContract:          toolcontract.Files{},

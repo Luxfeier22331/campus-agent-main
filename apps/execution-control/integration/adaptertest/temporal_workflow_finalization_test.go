@@ -2,10 +2,15 @@ package adaptertest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionpersistence"
@@ -59,7 +64,6 @@ func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
 		AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot),
 		WorkflowResult: temporalruntime.WorkflowOperationActivityOutput{
 			Operation:               temporalruntime.WorkflowOperationSynthesize,
-			AnswerMode:              "grounded",
 			WorkflowResultRef:       activityprojection.WorkflowOperationResultRef(runID, "answer.synthesize"),
 			FinalOutput:             "你好，我是校园问答助手。",
 			ModelName:               "gpt-5.6-terra",
@@ -70,6 +74,7 @@ func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
 			Status:                  "completed",
 			Evidence:                evidence,
 			SourceAttempts:          []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}},
+			SearchSuggestions:       []temporalruntime.SearchSuggestion{{Provider: "google", RenderedContent: "<div>Google search suggestions</div>"}},
 			TerminalReason:          "answer_completed",
 			ToolContractFingerprint: execution.ToolContractFingerprintSnapshotMap(snapshot.ToolContractFingerprint),
 			Usage: temporalruntime.AgentUsageSummary{
@@ -101,6 +106,10 @@ func TestWriteWorkflowFinalizationCompletesSynthesizedResult(t *testing.T) {
 		t.Fatalf("list events: %v", err)
 	}
 	finalizedResponse := expectInternalFinalizationResponseForTest(t, events)
+	serialized, _ := json.Marshal(finalizedResponse["result"])
+	if !strings.Contains(string(serialized), "Google search suggestions") {
+		t.Fatalf("search suggestions did not reach final product response: %s", serialized)
+	}
 	if finalizedResponse["answer_text"] != "你好，我是校园问答助手。" {
 		t.Fatalf("answer_text = %#v", finalizedResponse["answer_text"])
 	}
@@ -411,6 +420,98 @@ func TestWriteWorkflowFinalizationCompletedReplayUsesDurableTiming(t *testing.T)
 	}
 }
 
+func TestWorkflowFinalizationProjectsCitationsOnCompletionAndRepair(t *testing.T) {
+	for _, mode := range []string{"solve", "planned", "recovery", "diagnostics unavailable", "invalid citation"} {
+		t.Run(mode, func(t *testing.T) {
+			store, adapter, input := workflowFinalizationFixture(t, "run-citations-"+strings.ReplaceAll(mode, " ", "-"))
+			diagnostics := &finalizationCitationStore{InMemoryRunProjectionStore: store}
+			adapter.RunProjectionStore = diagnostics
+			ref := "result://" + strings.Repeat("a", 64)
+			input.WorkflowResult.Evidence = []temporalruntime.WorkflowEvidence{{
+				ID: "campus:" + ref, ResultRef: ref, Source: temporalruntime.WorkflowSourceCampusSearch,
+				SchemaVersion: "workflow_evidence.v1", Title: "通知", Excerpt: "报名要求", SectionTitle: "报名",
+				NoticeID: "12345", CitationHref: "/notices/12345", CitationIndex: 1,
+			}}
+			input.WorkflowResult.FinalOutput = "报名要求见 [1]。"
+			if mode == "solve" || mode == "diagnostics unavailable" || mode == "invalid citation" {
+				input.WorkflowResult.Operation = temporalruntime.WorkflowOperationSolve
+				input.WorkflowResult.SolveOutcome = "answer"
+				input.WorkflowResult.WorkflowResultRef = activityprojection.WorkflowOperationResultRef(input.RequestID, "solve.initial")
+				input.WorkflowResult.FinalOutput = "报名要求见 [5]。"
+				item := campusdocs.SearchResultItem{ResultRef: ref, SourceKind: "notice", Title: "通知", Text: "报名要求", SectionTitle: "报名", NoticeID: "12345", CitationHref: "/notices/12345"}
+				for _, start := range []int{1, 5} {
+					input.WorkflowResult.ToolResults = append(input.WorkflowResult.ToolResults, temporalruntime.AgentToolResult{
+						ToolName: "campus_search", Status: "completed", Result: campusdocs.EncodeSearchResult([]campusdocs.SearchResultItem{item}, start),
+					})
+				}
+			}
+			if mode == "recovery" {
+				input.WorkflowResult.SourceAttempts = append(input.WorkflowResult.SourceAttempts, temporalruntime.WorkflowSourceAttempt{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "failed"})
+			}
+			if mode == "diagnostics unavailable" {
+				diagnostics.writeError = errors.New("diagnostics unavailable")
+			}
+			if mode == "invalid citation" {
+				input.WorkflowResult.FinalOutput = "报名要求见 [9]。"
+			}
+			output, err := adapter.WriteWorkflowFinalization(t.Context(), input)
+			if mode == "invalid citation" {
+				if err == nil && output.Status == "completed" {
+					t.Fatal("invalid answer completed")
+				}
+				if len(diagnostics.writes) != 0 {
+					t.Fatalf("failed finalization marked citations: %v", diagnostics.writes)
+				}
+				return
+			}
+			if err != nil || output.Status != "completed" {
+				t.Fatalf("finalize = %#v, %v", output, err)
+			}
+			if !reflect.DeepEqual(diagnostics.writes, [][]string{{ref}}) {
+				t.Fatalf("citation writes = %v", diagnostics.writes)
+			}
+			events, err := store.ListRunEvents(t.Context(), input.RequestID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := expectInternalFinalizationResponseForTest(t, events)
+			if response["answer_text"] != "报名要求见 [1](/notices/12345)。" {
+				t.Fatalf("answer = %v", response["answer_text"])
+			}
+			diagnostics.writes = nil
+			repaired, err := adapter.WriteWorkflowFinalization(t.Context(), input)
+			if err != nil || repaired.Status != "completed" || !repaired.CompletedAt.Equal(output.CompletedAt) {
+				t.Fatalf("repair = %#v, %v", repaired, err)
+			}
+			if !reflect.DeepEqual(diagnostics.writes, [][]string{{ref}}) {
+				t.Fatalf("repaired citation writes = %v", diagnostics.writes)
+			}
+		})
+	}
+}
+
+type finalizationCitationStore struct {
+	*executionpersistence.InMemoryRunProjectionStore
+	writes     [][]string
+	writeError error
+}
+
+func (*finalizationCitationStore) ObserveCampusSearch(context.Context, campusdiagnostics.Observation) error {
+	return nil
+}
+
+func (s *finalizationCitationStore) MarkCampusSearchCitations(ctx context.Context, requestID string, refs []string) error {
+	run, err := s.GetRun(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	if run.Status != execution.DurableRunStatusCompleted {
+		return errors.New("citations projected before completion")
+	}
+	s.writes = append(s.writes, append([]string{}, refs...))
+	return s.writeError
+}
+
 func TestFinalizationTimingReservationClampsClockRollback(t *testing.T) {
 	store, adapter, input := workflowFinalizationFixture(t, "run-finalization-clock-rollback")
 	run, err := store.GetRun(context.Background(), input.RequestID)
@@ -474,7 +575,6 @@ func workflowFinalizationFixture(
 		RequestID:         runID,
 		WorkflowResult: temporalruntime.WorkflowOperationActivityOutput{
 			Operation:               temporalruntime.WorkflowOperationSynthesize,
-			AnswerMode:              "grounded",
 			WorkflowResultRef:       activityprojection.WorkflowOperationResultRef(runID, "answer.synthesize"),
 			FinalOutput:             "fixture answer",
 			ModelName:               "fixture-model",

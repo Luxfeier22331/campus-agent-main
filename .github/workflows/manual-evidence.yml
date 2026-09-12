@@ -40,12 +40,11 @@ jobs:
     timeout-minutes: 90
     defaults:
       run:
-        shell: nix develop .#ci-full --command bash -e {0}
+        shell: nix develop .#ci-core --command bash -e {0}
     steps:
       - name: Checkout selected revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Install Nix
@@ -54,11 +53,6 @@ jobs:
         with:
           install_url: https://releases.nixos.org/nix/nix-2.35.1/install
           enable_kvm: false
-
-      - name: Install workspaces
-        run: |
-          set -euo pipefail
-          pnpm install --frozen-lockfile
 
       - name: Resolve profile requirements
         id: profile
@@ -71,19 +65,33 @@ jobs:
           test "$(jq -r '.lane' <<< "$metadata")" = manual
           echo "requires_docker=$(jq -r '.requiresDocker' <<< "$metadata")" >> "$GITHUB_OUTPUT"
           echo "requires_uv=$(jq -r '.requiresUv' <<< "$metadata")" >> "$GITHUB_OUTPUT"
+          echo "shell=$(jq -r '.shell' <<< "$metadata")" >> "$GITHUB_OUTPUT"
+          echo "packages=$(jq -c '.installPackages' <<< "$metadata")" >> "$GITHUB_OUTPUT"
+
+      - name: Install selected workspaces
+        env:
+          PACKAGES: ${{ steps.profile.outputs.packages }}
+        run: |
+          filters=(--filter campus-agent-web-workspace)
+          while IFS= read -r package; do
+            filters+=(--filter "$package")
+          done < <(jq -r '.[]' <<< "$PACKAGES")
+          pnpm install --frozen-lockfile "${filters[@]}"
 
       - name: Install evaluation dependencies
         if: steps.profile.outputs.requires_uv == 'true'
-        run: uv sync --package campus-ragas-runner
+        shell: nix develop .#ci-light --command bash -e {0}
+        run: uv sync --locked --package campus-ragas-runner
 
       - name: Verify Docker evidence dependency
         if: steps.profile.outputs.requires_docker == 'true'
+        shell: nix develop .#ci-release --command bash -e {0}
         run: docker info >/dev/null
 
       - name: Run selected profile
+        shell: bash -e {0}
         env:
-          BASE_SHA: ${{ github.event.repository.default_branch }}
-          HEAD_SHA: ${{ github.sha }}
+          VALIDATION_SHELL: ${{ steps.profile.outputs.shell }}
           TURBO_CACHE: "local:rw,remote:rw"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
           TURBO_TELEMETRY_DISABLED: "1"
@@ -91,9 +99,5 @@ jobs:
           VALIDATION_PROFILES: '["${{ inputs.profile }}"]'
         run: |
           set -euo pipefail
-          base_sha="$(git merge-base HEAD "origin/${BASE_SHA}")"
-          test -n "$base_sha"
-          node --experimental-strip-types scripts/ci/evidence.mts \
-            --base "$base_sha" \
-            --head "$HEAD_SHA" \
+          nix develop ".#$VALIDATION_SHELL" --command node --experimental-strip-types scripts/ci/evidence.mts \
             --profiles "$VALIDATION_PROFILES"

@@ -651,7 +651,7 @@ func TestToolExecutionWorkflowReplannerCanEndSearchAndSynthesize(t *testing.T) {
 	env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(workflowPlanOutput(input.RequestID, plan), nil).Once()
 	env.OnActivity(ExecuteTaskStepActivityName, mock.Anything, mock.MatchedBy(func(actual ExecuteTaskStepActivityInput) bool { return actual.Step.ID == first.ID })).
 		Return(workflowStepOutput(input.RequestID, first, "校内来源没有匹配结果。", nil, []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "no_match"}}), nil).Once()
-	env.OnActivity(ReplanTaskActivityName, mock.Anything, mock.Anything).Return(workflowReplanOutput(input.RequestID, "insufficient", "检索无匹配结果。", nil), nil).Once()
+	env.OnActivity(ReplanTaskActivityName, mock.Anything, mock.Anything).Return(workflowReplanOutput(input.RequestID, "synthesize", "检索无匹配结果。", nil), nil).Once()
 	env.OnActivity(SynthesizeAnswerActivityName, mock.Anything, mock.MatchedBy(func(actual SynthesizeAnswerActivityInput) bool {
 		return len(actual.RemainingFacts) == 1 && actual.RemainingFacts[0].Objective == first.Objective
 	})).Return(workflowSynthesisOutput(input.RequestID, "提前合成的答案。", nil), nil).Once()
@@ -954,7 +954,7 @@ func workflowReplanOutput(requestID string, decision string, reason string, rema
 		RequestID: requestID,
 		Status:    "completed",
 		Replan: &WorkflowTaskReplan{
-			SchemaVersion:  "task_replan.v2",
+			SchemaVersion:  "task_replan.v3",
 			Decision:       decision,
 			Reason:         reason,
 			RemainingSteps: append([]WorkflowTaskPlanStep{}, remaining...),
@@ -963,10 +963,8 @@ func workflowReplanOutput(requestID string, decision string, reason string, rema
 }
 
 func workflowSynthesisOutput(requestID string, finalOutput string, evidence []WorkflowEvidence) WorkflowOperationActivityOutput {
-	answerMode := "grounded"
 	attempts := []WorkflowSourceAttempt{}
 	if len(evidence) == 0 {
-		answerMode = "insufficient"
 		attempts = []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "no_match"}}
 	}
 	return WorkflowOperationActivityOutput{
@@ -974,7 +972,6 @@ func workflowSynthesisOutput(requestID string, finalOutput string, evidence []Wo
 		RequestID:      requestID,
 		Status:         "completed",
 		FinalOutput:    finalOutput,
-		AnswerMode:     answerMode,
 		Evidence:       append([]WorkflowEvidence{}, evidence...),
 		SourceAttempts: attempts,
 	}

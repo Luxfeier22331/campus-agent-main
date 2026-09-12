@@ -106,9 +106,18 @@ func testAgentInvocationReceipt(t *testing.T, harness *postgresHarness) {
 	if err := service.Fail(t.Context(), failed, "provider_failed"); err != nil {
 		t.Fatal(err)
 	}
-	failed, _, err = service.Begin(t.Context(), failed.InvocationID, failed.RequestID, failed.InputSHA256)
-	if !errors.Is(err, executionapplication.ErrInvocationFailed) || failed.State != execution.AgentInvocationReceiptStateFailed {
+	failed, disposition, err = service.Begin(t.Context(), failed.InvocationID, failed.RequestID, failed.InputSHA256)
+	if err != nil || disposition != execution.AgentInvocationDispositionReplay || failed.State != execution.AgentInvocationReceiptStateFailed {
 		t.Fatalf("failed receipt reopened: %#v %v", failed, err)
+	}
+	var failureOutput struct {
+		Status  string `json:"status"`
+		Failure struct {
+			Code string `json:"code"`
+		} `json:"failure"`
+	}
+	if err := json.Unmarshal(failed.OutputJSON, &failureOutput); err != nil || failureOutput.Status != "failed" || failureOutput.Failure.Code != "provider_failed" {
+		t.Fatalf("failed receipt lost its output: %s %v", failed.OutputJSON, err)
 	}
 	if err := service.Complete(t.Context(), failed, map[string]string{"answer": "changed"}); !errors.Is(err, execution.ErrAgentInvocationConflict) {
 		t.Fatalf("failed receipt changed state: %v", err)

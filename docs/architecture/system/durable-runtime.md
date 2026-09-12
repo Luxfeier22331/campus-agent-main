@@ -9,10 +9,15 @@ status: active
 
 本文定义在线回答的持久生命周期。这里的 Agent Workflow 是产品编排概念；Temporal Workflow 是其
 持久化实现，负责 workflow history、task queue、retry、timer 和 activity dispatch。execution-control
-负责执行准入、四类 operation 的顺序、重规划预算、命令投递和有界投影；OpenAI Agents SDK 负责某个
-operation 内的模型与工具循环。app-api 拥有产品请求、原始执行输入和跨系统产品终态。
+负责执行准入、四类 operation 的顺序、重规划预算、命令投递和有界投影；Agent Runtime 中被配置选中的
+OpenAI 或 Gemini runner 负责 operation 内的模型与工具循环。app-api 拥有产品请求、原始执行输入和跨系统产品终态。
 
 ## 主要对象
+
+Executor 步骤状态与检索材料是否可用分别表达：`model_output_invalid` 表示步骤总结的结构化输出
+失败，不否定已经成功执行的工具。Runtime 返回完整失败结果，Execution Control 复用来源检查并保存
+失败 receipt；Workflow 保留步骤失败、材料和来源尝试，再按既有剩余步骤/Replanner/Synthesizer 流程
+收敛。不制造成功摘要，不重跑失败 operation，不放宽所有 `run_failed`；取消、截止时间和终态仍优先。
 
 - `Conversation`、`Turn`：app-api 产品事实；
 - `Run`：产品可见持久执行对象；
@@ -54,12 +59,12 @@ PostgreSQL 保存产品读取、运维和评测所需的有界投影，不是执
 
 ## 执行阶段
 
-1. **Solve**：在 agent queue 调用 `apps/agent-runtime`，直接回答简单请求或生成有界任务计划；
+1. **Solve**：在 agent queue 调用 `apps/agent-runtime`，可使用已准入检索来源直接回答简单请求，或生成有界任务计划；
 2. **Execute Step**：按依赖逐步调用 `apps/agent-runtime`，由 Executor 执行当前步骤允许的来源并保留
    成功证据、`no_match` 和失败状态；
 3. **Replan**：在步骤完成后调用 `apps/agent-runtime`，由 Replanner 决定继续、修改剩余步骤或进入合成；
 4. **Synthesize**：聚合成功证据后调用 `apps/agent-runtime` 生成最终正文；
-5. **Finalization**：在 core queue 校验 operation 结果、生成终态投影并写入最终投影；
+5. **Finalization**：在 core queue 校验 operation 结果、生成终态投影并写入最终投影；Solve/检索失败但已取得 evidence 时，先进入 recovery synthesis，再按 completed finalization 收口；
 6. **Memory Append**：在 core queue 提交有界的回答后记忆追加。
 
 Temporal 不把 SDK tool call 展开成独立 Temporal 阶段，但 Agent Workflow 的 Solve、Execute Step、Replan
@@ -164,6 +169,9 @@ execution-control 为每个 operation 提供运行标识、当前步骤/计划�
 
 plan、候选来源、依赖和 replan decision 的语义规则由 execution-control 的共享纯规则入口实现；Adapter
 与 Temporal workflow 只在各自信任边界调用，不复制同一套语义实现。
+Replan 的模型决策不满足这些语义时保存 `model_output_invalid` 失败结果及用量，继续既有获准路径，
+不执行无效决策。Runtime 输出格式失败保留的工具失败记录仍需满足本步骤来源边界，但不因工具自身
+失败再次拒收整个明确失败结果；是否恢复由 Workflow 按具体 operation 错误裁决。
 
 SDK `maxTurns` 只限制当前 operation 的代理与工具轮次，不是重试次数或重规划预算。重规划次数和
 步骤数量由外层 Agent Workflow 预算限制。内部 SDK 工具在当前 operation 生命周期内调用带认证的
@@ -187,15 +195,16 @@ receipt 为 `started` 时结果不确定，以 `workflow_attempt_uncertain` 阻�
 `completed` receipt 则解码已保存的 operation output，校验身份、修复投影后返回原结果。
 恢复前严格检查字段、1 MiB 完整输出预算及已有 output hash。JSONB 读回后按类型化 DTO 重新编码校验，
 不使用存储引擎的文本键序或空白；失败时不再次调用供应商。
-已领取的 invocation 返回失败时，application receipt service 写入 `failed` 及有界错误码；后续投递
-返回该失败，不再次执行供应商调用。进程在写入终态前退出时仍保留 `started`，按不确定结果处理。
+已领取的 invocation 返回明确失败结果时，application receipt service 写入 `failed` 和完整类型化
+operation output，保留已完成工具、证据、来源尝试及用量；传输或调用异常没有完整结果时只保存有界
+错误码。后续投递返回该失败，不再次执行供应商调用。进程在写入终态前退出时仍保留 `started`，按不确定结果处理。
 该约束承认 Activity dispatch 和外部模型 API 之间不存在原子事务。
 
 provider invocation envelope 的摘要是 receipt 的输入 fingerprint，绑定 request、step、operation、
 invocation、execution input hash、admission snapshot hash 和逻辑请求摘要。逻辑请求摘要排除
 `activity_attempt`；实际 HTTP 请求仍携带它来约束工具调用。它不是精确 HTTP bytes 的摘要，也不是
 agent-runtime 后续加工后的最终模型输入摘要。
-completed receipt 保存完整类型化 operation output、输出 hash 和完成时间，可能包含回答正文、证据及
+明确终态的 receipt 保存完整类型化 operation output、输出 hash 和完成时间，可能包含回答正文、证据及
 工具结果；先完成 receipt，再写诊断投影，使 Activity 重投递能够恢复结果而不重复供应商调用。
 各 operation 的 StepResult 仍保存有界摘要和正文 hash；receipt 是执行恢复载荷，不取代 app-api 的
 产品答案所有权。独立 receipt store 负责记录与冲突检查，保留期限随父 run；内存 owner 在共享锁下删除，
@@ -206,6 +215,12 @@ Synthesis 的输入不重复 plan/completed steps，只传递回答所需的材�
 各传输与恢复边界的字节预算及无旧合同兼容的切换要求见
 [执行合同](../../contracts/tool-execution.md#agent-结果传递)。
 准入快照在 builder、持久输入解码和 Activity 边界校验，不与自身工具列表重复比较。
+
+Solve 直接检索后转为计划时，已有 evidence/source attempts 继续传给 Executor 和 Replanner，
+并进入最终合成。引用预算耗尽立即结束模型循环；有材料的 Solve 失败使用显式 recovery synthesis，
+不制造计划步骤、不重新检索、不重置 deadline。已有正文片段时恢复使用缓冲生成，最终答案替换草稿。
+恢复失败和无材料分别使用 `answer_synthesis_failed`、`materials_insufficient`；无材料但发生
+供应商或工具故障时保留具体技术错误。失败 operation 的原始错误仍进入步骤诊断，不因产品恢复成功而丢失。
 
 ## 取消、超时与终态处理
 

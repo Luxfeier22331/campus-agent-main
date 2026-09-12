@@ -64,12 +64,12 @@ func (store *switchingApplicationTestIndexStore) CurrentIndex(context.Context) (
 	return campusdocs.Index{Collection: collection}, true, nil
 }
 
-type applicationTestSearcher struct{ query string }
+type applicationTestSearcher struct{ query campusdocs.SearchQuery }
 
 func (searcher *applicationTestSearcher) Search(
 	_ context.Context,
 	_ campusdocs.Index,
-	query string,
+	query campusdocs.SearchQuery,
 	_ int,
 ) ([]campusdocs.SearchResultItem, error) {
 	searcher.query = query
@@ -241,8 +241,8 @@ func TestAgentToolServiceOwnsCampusSearchRunValidationAndRetrievalQuery(t *testi
 	if result["outcome"] != "no_match" {
 		t.Fatalf("campus search result = %#v", result)
 	}
-	if searcher.query != "我想知道本科生转专业需要满足什么条件\n检索表达：本科生转专业申请条件" {
-		t.Fatalf("retrieval query = %q", searcher.query)
+	if searcher.query != (campusdocs.SearchQuery{RetrievalQuery: "本科生转专业申请条件", RerankQuery: "我想知道本科生转专业需要满足什么条件"}) {
+		t.Fatalf("search query = %#v", searcher.query)
 	}
 	if _, err := service.CampusSearch(context.Background(), CampusSearchRequest{
 		AccessContext: AgentToolAccessContext{
@@ -351,29 +351,36 @@ func TestAgentToolServiceBuildsPersonalMemoryRecallFromFrozenRunInput(t *testing
 	}
 }
 
-func TestCampusSearchRetrievalQueryUsesUserGoalAndSearchExpression(t *testing.T) {
+func TestCampusSearchSeparatesRetrievalExpressionAndUserGoal(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		userGoal    string
 		searchQuery string
-		want        string
 	}{
 		{
 			name:        "same expression",
 			userGoal:    "本科生转专业条件",
 			searchQuery: "本科生转专业条件",
-			want:        "本科生转专业条件",
 		},
 		{
 			name:        "focused expression",
 			userGoal:    "我想知道本科生转专业需要满足什么条件",
 			searchQuery: "本科生转专业申请条件",
-			want:        "我想知道本科生转专业需要满足什么条件\n检索表达：本科生转专业申请条件",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if got := campusSearchRetrievalQuery(test.userGoal, test.searchQuery); got != test.want {
-				t.Fatalf("retrieval query = %q, want %q", got, test.want)
+			store, run, _ := applicationTestRunningRun(t, false)
+			searcher := &applicationTestSearcher{}
+			service := NewAgentToolService(AgentToolServiceOptions{Store: store, CampusDocsIndexStore: applicationTestIndexStore{}, CampusDocsSearcher: searcher})
+			_, err := service.CampusSearch(t.Context(), CampusSearchRequest{
+				AccessContext: AgentToolAccessContext{RequestID: run.RequestID, UserGoal: " " + test.userGoal + " ", ResultLimit: 5, ActivityAttempt: 1, CitationStart: 1, InvocationID: "tool-campus-search-1", WorkflowStepID: "task.step.step.lookup"},
+				SearchQuery:   " " + test.searchQuery + " ",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if searcher.query.RetrievalQuery != test.searchQuery || searcher.query.RerankQuery != test.userGoal {
+				t.Fatalf("search queries = %#v", searcher.query)
 			}
 		})
 	}

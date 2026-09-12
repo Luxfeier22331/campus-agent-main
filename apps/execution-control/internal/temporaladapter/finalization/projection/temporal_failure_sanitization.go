@@ -38,6 +38,10 @@ func BoundedTemporalFailureKind(kind string) string {
 
 func TemporalFailurePublicMessage(kind string) string {
 	switch BoundedTemporalFailureKind(kind) {
+	case "answer_synthesis_failed":
+		return "已找到部分资料，但生成最终回答失败，请稍后重试。"
+	case "materials_insufficient":
+		return "暂未找到足够的校内资料来回答这个问题。"
 	case "personal_memory_not_configured":
 		return "Personal memory could not be loaded for this request."
 	case "agent_runtime_timeout", "agent_deadline_exceeded":

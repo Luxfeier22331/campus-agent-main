@@ -47,6 +47,7 @@ const RUNTIME_INVARIANT_ERROR_CODES = new Set([
 	"workflow_terminated_without_terminal_projection",
 ]);
 const PUBLIC_EXECUTION_ERROR_CODES = new Set([
+	"answer_synthesis_failed",
 	"approval_required",
 	"context_budget_exceeded",
 	"dependency_not_ready",
@@ -63,6 +64,7 @@ const PUBLIC_EXECUTION_ERROR_CODES = new Set([
 	"internal_error",
 	"invalid_request",
 	"max_turns_exceeded",
+	"materials_insufficient",
 	"personal_memory_not_configured",
 	"product_finalization_missing",
 	"provider_unavailable",
@@ -130,6 +132,10 @@ export function publicExecutionFailure(input: {
 		message = "The conversation is too large to process safely.";
 	} else if (errorCode === "max_turns_exceeded") {
 		message = "The request could not be completed within the allowed steps.";
+	} else if (errorCode === "answer_synthesis_failed") {
+		message = "已找到部分资料，但生成最终回答失败，请稍后重试。";
+	} else if (errorCode === "materials_insufficient") {
+		message = "暂未找到足够的校内资料来回答这个问题。";
 	} else {
 		message = "The request could not be completed.";
 	}

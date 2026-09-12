@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -50,10 +51,12 @@ func (s *Adapter) ExecuteTaskStep(
 ) (temporalruntime.WorkflowOperationActivityOutput, error) {
 	stepID := WorkflowTaskStepID(input.Step.ID)
 	return s.RunWorkflowOperationActivity(ctx, WorkflowOperationActivityRequest{
-		AdmissionSnapshot: workflowcontract.AdmissionToDomain(input.AdmissionSnapshot),
-		CompletedSteps:    input.CompletedSteps,
-		ConversationID:    input.ConversationID,
-		Operation:         temporalruntime.WorkflowOperationExecuteStep,
+		PriorEvidence:       input.PriorEvidence,
+		PriorSourceAttempts: input.PriorSourceAttempts,
+		AdmissionSnapshot:   workflowcontract.AdmissionToDomain(input.AdmissionSnapshot),
+		CompletedSteps:      input.CompletedSteps,
+		ConversationID:      input.ConversationID,
+		Operation:           temporalruntime.WorkflowOperationExecuteStep,
 		Payload: map[string]any{
 			"completed_steps": input.CompletedSteps,
 			"citation_start":  input.CitationStart,
@@ -83,10 +86,12 @@ func (s *Adapter) ReplanTask(
 		)
 	}
 	return s.RunWorkflowOperationActivity(ctx, WorkflowOperationActivityRequest{
-		AdmissionSnapshot: workflowcontract.AdmissionToDomain(input.AdmissionSnapshot),
-		CompletedSteps:    input.CompletedSteps,
-		ConversationID:    input.ConversationID,
-		Operation:         temporalruntime.WorkflowOperationReplan,
+		AdmissionSnapshot:   workflowcontract.AdmissionToDomain(input.AdmissionSnapshot),
+		CompletedSteps:      input.CompletedSteps,
+		ConversationID:      input.ConversationID,
+		Operation:           temporalruntime.WorkflowOperationReplan,
+		PriorEvidence:       input.PriorEvidence,
+		PriorSourceAttempts: input.PriorSourceAttempts,
 		Payload: map[string]any{
 			"completed_steps":     input.CompletedSteps,
 			"max_remaining_steps": input.MaxRemainingSteps,
@@ -104,57 +109,68 @@ func (s *Adapter) ReplanTask(
 	})
 }
 
-// SynthesizeAnswer is the only operation that may stream answer text to the
-// browser. The activity itself receives the completed operation result and
-// writes the durable finalization projection; intermediate workflow state is
-// kept internal.
+// SynthesizeAnswer generates a final answer from existing materials. Recovery
+// after visible Solve deltas is buffered so separate answers cannot interleave.
 func (s *Adapter) SynthesizeAnswer(
 	ctx context.Context,
 	input temporalruntime.SynthesizeAnswerActivityInput,
 ) (temporalruntime.WorkflowOperationActivityOutput, error) {
+	mode := strings.TrimSpace(input.Mode)
+	if mode == "" {
+		mode = "planned"
+	}
+	payload := map[string]any{
+		"remaining_facts":    append([]temporalruntime.WorkflowRemainingFacts{}, input.RemainingFacts...),
+		"evidence":           append([]temporalruntime.WorkflowEvidence{}, input.Evidence...),
+		"mode":               mode,
+		"source_attempts":    append([]temporalruntime.WorkflowSourceAttempt{}, input.SourceAttempts...),
+		"search_suggestions": append([]temporalruntime.SearchSuggestion{}, input.SearchSuggestions...),
+	}
+	if strings.TrimSpace(input.RecoveryReason) != "" {
+		payload["recovery_reason"] = input.RecoveryReason
+	}
 	return s.RunWorkflowOperationActivity(ctx, WorkflowOperationActivityRequest{
 		AdmissionSnapshot: workflowcontract.AdmissionToDomain(input.AdmissionSnapshot),
-		AnswerMode:        input.AnswerMode,
-		SourceAttempts:    input.SourceAttempts,
 		ConversationID:    input.ConversationID,
 		Evidence:          input.Evidence,
+		Mode:              mode,
+		RecoveryReason:    input.RecoveryReason,
+		SourceAttempts:    input.SourceAttempts,
 		Operation:         temporalruntime.WorkflowOperationSynthesize,
-		Payload: map[string]any{
-			"source_attempts": input.SourceAttempts,
-			"remaining_facts": input.RemainingFacts,
-			"evidence":        input.Evidence,
-			"answer_mode":     input.AnswerMode,
-		},
-		RequestID:   input.RequestID,
-		StepID:      "answer.synthesize",
-		StepKind:    "synthesizer",
-		Stream:      true,
-		TraceParent: input.TraceParent,
+		Payload:           payload,
+		RequestID:         input.RequestID,
+		StepID:            "answer.synthesize",
+		StepKind:          "synthesizer",
+		Stream:            !input.BufferAnswer,
+		TraceParent:       input.TraceParent,
 	})
 }
 
 type WorkflowOperationActivityRequest struct {
-	SourceAttempts    []temporalruntime.WorkflowSourceAttempt
-	AnswerMode        string
-	AdmissionSnapshot execution.AgentAdmissionSnapshot
-	CompletedSteps    []temporalruntime.WorkflowCompletedStep
-	ConversationID    string
-	CitationStart     int
-	Evidence          []temporalruntime.WorkflowEvidence
-	Goal              string
-	MaxSteps          int
-	MaxRemainingSteps int
-	Operation         temporalruntime.WorkflowOperation
-	Payload           map[string]any
-	Plan              *temporalruntime.WorkflowTaskPlan
-	RemainingSteps    []temporalruntime.WorkflowTaskPlanStep
-	RequestID         string
-	ReplanIndex       int
-	StepID            string
-	StepKind          string
-	Stream            bool
-	Step              *temporalruntime.WorkflowTaskPlanStep
-	TraceParent       string
+	PriorEvidence       []temporalruntime.WorkflowEvidence
+	PriorSourceAttempts []temporalruntime.WorkflowSourceAttempt
+	AdmissionSnapshot   execution.AgentAdmissionSnapshot
+	CompletedSteps      []temporalruntime.WorkflowCompletedStep
+	ConversationID      string
+	CitationStart       int
+	Evidence            []temporalruntime.WorkflowEvidence
+	Mode                string
+	RecoveryReason      string
+	SourceAttempts      []temporalruntime.WorkflowSourceAttempt
+	Goal                string
+	MaxSteps            int
+	MaxRemainingSteps   int
+	Operation           temporalruntime.WorkflowOperation
+	Payload             map[string]any
+	Plan                *temporalruntime.WorkflowTaskPlan
+	RemainingSteps      []temporalruntime.WorkflowTaskPlanStep
+	RequestID           string
+	ReplanIndex         int
+	StepID              string
+	StepKind            string
+	Stream              bool
+	Step                *temporalruntime.WorkflowTaskPlanStep
+	TraceParent         string
 }
 
 func (s *Adapter) RunWorkflowOperationActivity(
@@ -252,9 +268,6 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	}
 	invocationSHA256 := activityprojection.Sha256AnyValue(envelope)
 	receipt, disposition, err := s.Receipts.Begin(ctx, invocationID, run.RequestID, invocationSHA256)
-	if errors.Is(err, executionapplication.ErrInvocationFailed) {
-		return temporalruntime.WorkflowOperationActivityOutput{}, activityprojection.SanitizedTemporalApplicationError("workflow_invocation_failed", err, true)
-	}
 	if err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_invocation_receipt_failed", err)
 	}
@@ -370,7 +383,7 @@ func (s *Adapter) RunWorkflowOperationActivity(
 		output.Evidence = append([]temporalruntime.WorkflowEvidence{}, request.Evidence...)
 		output.SourceAttempts = append([]temporalruntime.WorkflowSourceAttempt{}, request.SourceAttempts...)
 	}
-	if output.Status != "completed" {
+	if output.Status != "completed" && output.Status != "failed" {
 		return s.FailWorkflowOperationActivity(
 			ctx,
 			run,
@@ -379,10 +392,15 @@ func (s *Adapter) RunWorkflowOperationActivity(
 			fmt.Errorf("runtime operation status is %q", output.Status),
 		)
 	}
+	if output.Status == "failed" {
+		if output.Failure == nil || strings.TrimSpace(output.Failure.Code) == "" {
+			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("failed runtime result has no classified failure"))
+		}
+	}
 	if err := ValidateWorkflowOperationOutputSources(request, output); err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
 	}
-	if request.Operation == temporalruntime.WorkflowOperationSolve {
+	if output.Status != "failed" && request.Operation == temporalruntime.WorkflowOperationSolve {
 		if output.SolveOutcome != "answer" && output.SolveOutcome != "plan" {
 			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("solver result has no valid outcome"))
 		}
@@ -393,11 +411,29 @@ func (s *Adapter) RunWorkflowOperationActivity(
 			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("solver plan is missing"))
 		}
 	}
-	if request.Operation == temporalruntime.WorkflowOperationReplan && output.Replan == nil {
+	if output.Status != "failed" && request.Operation == temporalruntime.WorkflowOperationReplan && output.Replan == nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("replanner result has no decision"))
 	}
-
-	if (request.Operation == temporalruntime.WorkflowOperationSolve || request.Operation == temporalruntime.WorkflowOperationExecuteStep || request.Operation == temporalruntime.WorkflowOperationSynthesize) &&
+	if output.Status != "failed" && request.Operation == temporalruntime.WorkflowOperationReplan {
+		decisionErr := temporalruntime.ValidateWorkflowReplanDecision(*output.Replan)
+		if decisionErr == nil {
+			decisionErr = temporalruntime.ValidateWorkflowRemainingSteps(
+				output.Replan.RemainingSteps,
+				request.AdmissionSnapshot.AgentBudget.MaxPlanSteps,
+				request.CompletedSteps,
+				temporalruntime.AgentCapabilitiesSnapshot(request.AdmissionSnapshot.AgentCapabilities),
+			)
+		}
+		if decisionErr != nil {
+			// A rejected model decision is not a transport failure. Preserve its
+			// usage and let the workflow continue the existing admitted plan.
+			output.Status = "failed"
+			output.TerminalReason = "agent_runtime_failed"
+			output.Failure = &temporalruntime.ExecutionFailure{Code: "model_output_invalid", Operation: "workflow.replan", Detail: decisionErr.Error()}
+			output.Replan = nil
+		}
+	}
+	if output.Status != "failed" && (request.Operation == temporalruntime.WorkflowOperationSolve || request.Operation == temporalruntime.WorkflowOperationExecuteStep || request.Operation == temporalruntime.WorkflowOperationSynthesize) &&
 		strings.TrimSpace(output.FinalOutput) == "" {
 		if request.Operation != temporalruntime.WorkflowOperationSolve || output.SolveOutcome == "answer" {
 			return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", errors.New("text operation result is empty"))
@@ -425,7 +461,13 @@ func (s *Adapter) RunWorkflowOperationActivity(
 	if err != nil {
 		return s.FailWorkflowOperationActivity(ctx, run, request, "workflow_operation_result_invalid", err)
 	}
-	if err := s.Receipts.Complete(ctx, receipt, output); err != nil {
+	var receiptErr error
+	if output.Status == "failed" {
+		receiptErr = s.Receipts.CompleteFailed(ctx, receipt, output)
+	} else {
+		receiptErr = s.Receipts.Complete(ctx, receipt, output)
+	}
+	if err := receiptErr; err != nil {
 		return temporalruntime.WorkflowOperationActivityOutput{}, err
 	}
 	receiptCompleted = true
@@ -442,12 +484,16 @@ func (s *Adapter) RunWorkflowOperationActivity(
 		WorkerID:          startedProjection.WorkerID,
 		WorkflowID:        startedProjection.WorkflowID,
 	}
+	projectionStatus := "completed"
+	if output.Status == "failed" {
+		projectionStatus = "failed"
+	}
 	if err := s.ProjectTemporalStep(ctx, identity.Apply(activityprojection.TemporalStepProjection{
 		Attempt:            startedProjection.Attempt,
 		ActivityAttempt:    startedProjection.ActivityAttempt,
 		PreserveAttempt:    true,
 		Run:                run,
-		Status:             "completed",
+		Status:             projectionStatus,
 		StepID:             request.StepID,
 		StepKind:           request.StepKind,
 		TaskQueue:          temporalruntime.ActivityTaskQueueAgent,
@@ -486,6 +532,18 @@ func (s *Adapter) RunWorkflowOperationActivity(
 		},
 	}); err != nil {
 		return temporalruntime.WorkflowOperationActivityOutput{}, err
+	}
+	if output.Status == "failed" && output.Failure != nil && output.Failure.Code == "model_output_invalid" && len(response.ModelOutputDiagnostic) > 0 {
+		var diagnostic execution.ModelOutputDiagnostic
+		if json.Unmarshal(response.ModelOutputDiagnostic, &diagnostic) == nil && diagnostic.Valid() {
+			diagnosticCtx, cancel := context.WithTimeout(ctx, time.Second)
+			err := s.RunProjectionStore.RecordModelOutputDiagnostic(diagnosticCtx, run.RequestID,
+				activityprojection.TemporalStepResultID(run.RequestID, request.StepID, startedProjection.Attempt), diagnostic)
+			cancel()
+			if err != nil {
+				slog.Warn("model output diagnostic was not stored", "request_id", run.RequestID, "step_id", request.StepID)
+			}
+		}
 	}
 	return output, nil
 }
@@ -530,15 +588,30 @@ func ValidateWorkflowOperationRequest(request WorkflowOperationActivityRequest) 
 			return errors.New("replanner remaining-step budget is invalid")
 		}
 	case temporalruntime.WorkflowOperationSynthesize:
-		if request.StepID != "answer.synthesize" || !request.Stream {
+		if request.StepID != "answer.synthesize" || (!request.Stream && request.Mode != "recovery") {
 			return errors.New("synthesizer identity or stream mode is invalid")
 		}
-		if err := temporalruntime.ValidateWorkflowAnswerMode(request.AnswerMode, request.Evidence, request.SourceAttempts); err != nil {
-			return err
+		mode := strings.TrimSpace(request.Mode)
+		if mode == "" {
+			mode = "planned"
+		}
+		if mode != "planned" && mode != "recovery" {
+			return errors.New("synthesis mode is invalid")
+		}
+		if mode == "recovery" && (len(request.Evidence) == 0 || strings.TrimSpace(request.RecoveryReason) == "") {
+			return errors.New("recovery synthesis requires evidence and a failure reason")
 		}
 		for _, item := range request.Evidence {
 			if strings.TrimSpace(item.ID) == "" || strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Excerpt) == "" {
 				return errors.New("synthesizer evidence fields are required")
+			}
+		}
+		if mode == "recovery" {
+			if err := ValidateWorkflowOutputEvidence(request.Evidence, WorkflowCandidateSourceSetFromAdmission(request.AdmissionSnapshot)); err != nil {
+				return err
+			}
+			if err := ValidateWorkflowOutputSourceAttempts(request.SourceAttempts, WorkflowCandidateSourceSetFromAdmission(request.AdmissionSnapshot)); err != nil {
+				return err
 			}
 		}
 	default:
@@ -551,6 +624,13 @@ func ValidateWorkflowOperationOutputSources(
 	request WorkflowOperationActivityRequest,
 	output temporalruntime.WorkflowOperationActivityOutput,
 ) error {
+	if output.Status != "failed" {
+		for _, result := range output.ToolResults {
+			if result.Status == "failed" && !temporalruntime.WorkflowToolFailureRecoverable(result.Failure) {
+				return errors.New("tool failure is not a recoverable source failure")
+			}
+		}
+	}
 	switch request.Operation {
 	case temporalruntime.WorkflowOperationExecuteStep:
 		if request.Step == nil {
@@ -566,38 +646,50 @@ func ValidateWorkflowOperationOutputSources(
 		if err := ValidateWorkflowOutputEvidence(output.Evidence, allowed); err != nil {
 			return err
 		}
-		return ValidateWorkflowOutputWebSearch(output, allowed)
-	case temporalruntime.WorkflowOperationSolve:
-		if len(output.ToolResults) > 0 || len(output.Evidence) > 0 || len(output.SourceAttempts) > 0 ||
-			output.WebSearchUsed || len(output.WebCitations) > 0 {
-			return errors.New("solver returned retrieval output")
-		}
 		return nil
+	case temporalruntime.WorkflowOperationSolve:
+		allowed := WorkflowCandidateSourceSetFromAdmission(request.AdmissionSnapshot)
+		if err := ValidateWorkflowOutputToolResults(output.ToolResults, allowed); err != nil {
+			return err
+		}
+		if err := ValidateWorkflowOutputSourceAttempts(output.SourceAttempts, allowed); err != nil {
+			return err
+		}
+		return ValidateWorkflowOutputEvidence(output.Evidence, allowed)
 	case temporalruntime.WorkflowOperationReplan:
-		if len(output.ToolResults) > 0 || len(output.Evidence) > 0 || len(output.SourceAttempts) > 0 ||
-			output.WebSearchUsed || len(output.WebCitations) > 0 {
+		if len(output.ToolResults) > 0 || len(output.Evidence) > 0 || len(output.SourceAttempts) > 0 {
 			return fmt.Errorf("workflow %s operation returned source output", request.Operation)
 		}
 		return nil
 	case temporalruntime.WorkflowOperationSynthesize:
-		if output.AnswerMode != request.AnswerMode {
-			return errors.New("synthesizer answer mode does not match request")
-		}
 		expectedAttempts := request.SourceAttempts
 		if len(output.Evidence) != len(request.Evidence) || (len(output.Evidence) > 0 && activityprojection.Sha256AnyValue(output.Evidence) != activityprojection.Sha256AnyValue(request.Evidence)) ||
 			len(output.SourceAttempts) != len(expectedAttempts) || (len(expectedAttempts) > 0 && activityprojection.Sha256AnyValue(output.SourceAttempts) != activityprojection.Sha256AnyValue(expectedAttempts)) {
 			return errors.New("synthesizer changed admitted evidence or source attempts")
 		}
-		if err := temporalruntime.ValidateWorkflowAnswerMode(output.AnswerMode, output.Evidence, output.SourceAttempts); err != nil {
-			return err
-		}
-		if len(output.ToolResults) > 0 || output.WebSearchUsed || len(output.WebCitations) > 0 {
+		if len(output.ToolResults) > 0 {
 			return errors.New("synthesizer returned retrieval output")
 		}
 		return nil
 	default:
 		return fmt.Errorf("unsupported workflow operation %q", request.Operation)
 	}
+}
+
+func WorkflowCandidateSourceSetFromAdmission(snapshot execution.AgentAdmissionSnapshot) map[temporalruntime.WorkflowSource]struct{} {
+	allowed := map[temporalruntime.WorkflowSource]struct{}{}
+	for _, name := range snapshot.AgentCapabilities.VisibleFunctionToolNames {
+		switch strings.TrimSpace(name) {
+		case activityprojection.WorkflowCampusSearchToolName:
+			allowed[temporalruntime.WorkflowSourceCampusSearch] = struct{}{}
+		case activityprojection.WorkflowPersonalMemoryRecallToolName:
+			allowed[temporalruntime.WorkflowSourcePersonalMemoryRecall] = struct{}{}
+		}
+	}
+	if snapshot.AgentCapabilities.HostedWebSearch {
+		allowed[temporalruntime.WorkflowSourceWebSearch] = struct{}{}
+	}
+	return allowed
 }
 
 func WorkflowCandidateSourceSet(
@@ -615,9 +707,6 @@ func ValidateWorkflowOutputToolResults(
 	allowed map[temporalruntime.WorkflowSource]struct{},
 ) error {
 	for _, result := range results {
-		if result.Status == "failed" && !temporalruntime.WorkflowToolFailureRecoverable(result.Failure) {
-			return errors.New("tool failure is not a recoverable source failure")
-		}
 		source, ok := WorkflowSourceForToolName(result.ToolName)
 		if !ok {
 			return fmt.Errorf("workflow tool result uses unsupported local tool %q", result.ToolName)
@@ -653,33 +742,6 @@ func ValidateWorkflowOutputEvidence(
 	for _, item := range evidence {
 		if _, admitted := allowed[item.Source]; !admitted {
 			return fmt.Errorf("workflow evidence %q uses a source that is not a candidate for the current step", item.ID)
-		}
-	}
-	return nil
-}
-
-func ValidateWorkflowOutputWebSearch(
-	output temporalruntime.WorkflowOperationActivityOutput,
-	allowed map[temporalruntime.WorkflowSource]struct{},
-) error {
-	if !output.WebSearchUsed && len(output.WebCitations) > 0 {
-		return errors.New("workflow web citations require a web search attempt")
-	}
-	if output.WebSearchUsed && len(output.WebCitations) == 0 {
-		noMatch := false
-		for _, attempt := range output.SourceAttempts {
-			if attempt.Source == temporalruntime.WorkflowSourceWebSearch && attempt.Status == "no_match" {
-				noMatch = true
-				break
-			}
-		}
-		if !noMatch {
-			return errors.New("workflow web search without citations must be recorded as no_match")
-		}
-	}
-	if output.WebSearchUsed || len(output.WebCitations) > 0 {
-		if _, admitted := allowed[temporalruntime.WorkflowSourceWebSearch]; !admitted {
-			return errors.New("workflow web search is not a candidate source for the current step")
 		}
 	}
 	return nil
@@ -733,6 +795,7 @@ func WorkflowOperationRuntimeRequestPayload(
 	activityAttempt int,
 ) map[string]any {
 	payload := map[string]any{
+		"deadline_at":                  run.CreatedAt.Add(time.Duration(request.AdmissionSnapshot.AgentLimits.AgentDeadlineMS) * time.Millisecond).Format(time.RFC3339Nano),
 		"activity_attempt":             activityAttempt,
 		"user_id":                      run.OwnerUserID,
 		"request_id":                   run.RequestID,
@@ -745,6 +808,12 @@ func WorkflowOperationRuntimeRequestPayload(
 	}
 	if expected := execution.ToolContractFingerprintSnapshotMap(request.AdmissionSnapshot.ToolContractFingerprint); expected != nil {
 		payload["expected_tool_contract_fingerprint"] = expected
+	}
+	if len(request.PriorEvidence) > 0 {
+		payload["prior_evidence"] = request.PriorEvidence
+	}
+	if len(request.PriorSourceAttempts) > 0 {
+		payload["prior_source_attempts"] = request.PriorSourceAttempts
 	}
 	if len(conversationContext) > 0 {
 		payload["conversation_context"] = conversationContext
@@ -778,9 +847,10 @@ func WorkflowOperationOutputFromRuntimeResponse(
 		return temporalruntime.WorkflowOperationActivityOutput{}, err
 	}
 	output := temporalruntime.WorkflowOperationActivityOutput{
+		Failure:                 response.Failure,
+		AnswerStarted:           response.AnswerStarted,
 		Operation:               operation,
 		SolveOutcome:            strings.TrimSpace(response.SolveOutcome),
-		AnswerMode:              strings.TrimSpace(response.AnswerMode),
 		WorkflowResultRef:       resultRef,
 		FinalOutput:             strings.TrimSpace(response.FinalOutput),
 		ModelName:               strings.TrimSpace(response.ModelName),
@@ -799,8 +869,8 @@ func WorkflowOperationOutputFromRuntimeResponse(
 			OutputTokens:      response.Usage.OutputTokens,
 			UsageObserved:     response.Usage.UsageObserved,
 		},
-		WebCitations:  WorkflowWebCitationsFromRuntimeResponse(response),
-		WebSearchUsed: response.WebSearchUsed,
+		SearchSuggestions: response.SearchSuggestions,
+		TerminalReason:    response.TerminalReason,
 	}
 	output.Plan = response.Plan
 	output.Replan = response.Replan
@@ -815,10 +885,10 @@ func WorkflowOperationOutputFromRuntimeResponse(
 			return temporalruntime.WorkflowOperationActivityOutput{}, fmt.Errorf("decode workflow source attempts: %w", err)
 		}
 	}
-	if operation == temporalruntime.WorkflowOperationSolve && output.SolveOutcome != "answer" && output.SolveOutcome != "plan" {
+	if output.Status != "failed" && operation == temporalruntime.WorkflowOperationSolve && output.SolveOutcome != "answer" && output.SolveOutcome != "plan" {
 		return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("solve outcome is missing or invalid")
 	}
-	if output.Replan != nil && (output.Replan.SchemaVersion != "task_replan.v2" || (output.Replan.Decision != "continue" && output.Replan.Decision != "synthesize" && output.Replan.Decision != "insufficient")) {
+	if output.Status != "failed" && output.Replan != nil && (output.Replan.SchemaVersion != "task_replan.v3" || (output.Replan.Decision != "continue" && output.Replan.Decision != "synthesize")) {
 		return temporalruntime.WorkflowOperationActivityOutput{}, errors.New("replan schema is invalid")
 	}
 
@@ -845,21 +915,6 @@ func WorkflowToolResultsFromRuntimeResponse(response AgentRuntimeResponse) ([]te
 
 const temporalMemoryTextLimit = 4000
 
-func WorkflowWebCitationsFromRuntimeResponse(
-	response AgentRuntimeResponse,
-) []temporalruntime.AgentWebCitation {
-	result := make([]temporalruntime.AgentWebCitation, 0, len(response.WebCitations))
-	for _, citation := range response.WebCitations {
-		result = append(result, temporalruntime.AgentWebCitation{
-			EndIndex:   citation.EndIndex,
-			StartIndex: citation.StartIndex,
-			Title:      strings.TrimSpace(citation.Title),
-			URL:        strings.TrimSpace(citation.URL),
-		})
-	}
-	return result
-}
-
 func WorkflowOperationResultPayload(
 	request WorkflowOperationActivityRequest,
 	output temporalruntime.WorkflowOperationActivityOutput,
@@ -874,7 +929,6 @@ func WorkflowOperationResultPayload(
 		"execution_control_release":  strings.TrimSpace(runtimeRelease),
 		"operation":                  string(request.Operation),
 		"solve_outcome":              output.SolveOutcome,
-		"answer_mode":                output.AnswerMode,
 		"provider_invocation_sha256": invocationSHA256,
 		"provider_response_id":       output.ProviderResponseID,
 		"stage_timing":               execution.CloneAnyMapFromValue(output.StageTiming),
@@ -888,7 +942,11 @@ func WorkflowOperationResultPayload(
 			"cached_input_tokens": output.Usage.CachedInputTokens,
 			"usage_observed":      output.Usage.UsageObserved,
 		},
-		"web_search_used": output.WebSearchUsed,
+		"search_suggestions": output.SearchSuggestions,
+	}
+	if output.Failure != nil {
+		payload["failure"] = output.Failure
+		payload["failure_kind"] = output.Failure.Code
 	}
 	if output.Plan != nil {
 		payload["plan_sha256"] = activityprojection.Sha256AnyValue(output.Plan)
@@ -1051,6 +1109,15 @@ func (s *Adapter) FailWorkflowOperationActivity(
 		"severity":  "error",
 	}
 	AddWorkflowFailureEvidence(payload, cause)
+	// Local result-contract errors contain the rejected field/shape, not the
+	// provider body. Keep that reason in Ops instead of erasing the diagnosis.
+	if failureKind == "workflow_operation_result_invalid" && cause != nil {
+		detail := []rune(cause.Error())
+		if len(detail) > 1024 {
+			detail = detail[:1024]
+		}
+		payload["failure"].(map[string]any)["detail"] = string(detail)
+	}
 	err := s.ProjectTemporalFailureStep(ctx, run, activityprojection.TemporalStepFailureProjection{
 		FailureKind:   summary.Kind,
 		ProjectionRef: activityprojection.WorkflowOperationResultRef(run.RequestID, request.StepID),
@@ -1079,10 +1146,15 @@ func AddWorkflowFailureEvidence(payload map[string]any, cause error) {
 	}
 	var runtimeError AgentRuntimeHTTPError
 	if errors.As(cause, &runtimeError) {
+		if runtimeError.Operation != "" {
+			failure["operation"] = runtimeError.Operation
+		}
 		if runtimeError.Detail != "" {
 			failure["detail"] = runtimeError.Detail
 		}
-		if runtimeError.StatusCode > 0 {
+		if runtimeError.HTTPStatus > 0 {
+			failure["http_status"] = runtimeError.HTTPStatus
+		} else if runtimeError.StatusCode > 0 {
 			failure["http_status"] = runtimeError.StatusCode
 		}
 		if runtimeError.InvocationID != "" {
@@ -1092,6 +1164,9 @@ func AddWorkflowFailureEvidence(payload map[string]any, cause error) {
 	}
 	var runtimeApplicationError AgentRuntimeApplicationError
 	if errors.As(cause, &runtimeApplicationError) {
+		if runtimeApplicationError.Operation != "" {
+			failure["operation"] = runtimeApplicationError.Operation
+		}
 		if runtimeApplicationError.Detail != "" {
 			failure["detail"] = runtimeApplicationError.Detail
 		}
@@ -1113,7 +1188,14 @@ func (s *Adapter) CallWorkflowOperationRuntime(
 	deadlineMS int,
 	stream bool,
 ) (AgentRuntimeResponse, error) {
-	timeout := WorkflowTransportTimeout(deadlineMS)
+	reserve := 5 * time.Second
+	if operation == temporalruntime.WorkflowOperationExecuteStep || operation == temporalruntime.WorkflowOperationReplan {
+		reserve = 30 * time.Second
+	}
+	timeout := time.Until(run.CreatedAt.Add(time.Duration(deadlineMS)*time.Millisecond).Add(-reserve)) + time.Second
+	if timeout <= 0 {
+		return AgentRuntimeResponse{}, AgentRuntimeApplicationError{Code: "agent_deadline_exceeded", Operation: "workflow." + string(operation)}
+	}
 	traceContext := telemetry.ExtractTraceParent(ctx, traceParent)
 	requestCtx, cancel := context.WithTimeout(traceContext, timeout)
 	defer cancel()
@@ -1182,6 +1264,7 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 	chunkIndex := 0
 	terminalEvent := ""
 	solveOutcome := ""
+	answerInvalidated := false
 
 	err := ReadAgentRuntimeSSEEvents(body, func(event AgentRuntimeSSEEvent) error {
 		if terminalEvent != "" {
@@ -1205,6 +1288,9 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 			}
 			solveOutcome = decision.Outcome
 		case "answer_delta":
+			if answerInvalidated {
+				return errors.New("workflow runtime answer delta appears after invalidation")
+			}
 			var delta struct {
 				SchemaVersion string `json:"schema_version"`
 				Delta         string `json:"delta"`
@@ -1224,16 +1310,36 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 			}
 			chunkIndex++
 			return s.ProjectWorkflowAnswerDelta(ctx, run, messageID, chunkIndex, delta.Delta)
-		case "completed":
+		case "answer_invalidated":
+			var invalidation struct {
+				SchemaVersion string `json:"schema_version"`
+				Reason        string `json:"reason"`
+			}
+			if err := decodeOperationJSON(event.Data, &invalidation); err != nil {
+				return fmt.Errorf("decode workflow runtime answer invalidation: %w", err)
+			}
+			if answerInvalidated || chunkIndex == 0 || invalidation.SchemaVersion != "workflow_runtime_answer_invalidation.v1" || invalidation.Reason != "terminal_result_unavailable" {
+				return errors.New("workflow runtime answer invalidation schema or order is invalid")
+			}
+			answerInvalidated = true
+		case "completed", "failed":
+			if event.Event == "completed" && answerInvalidated {
+				return errors.New("workflow runtime completed after answer invalidation")
+			}
 			var response AgentRuntimeResponse
 			if err := decodeOperationJSON(event.Data, &response); err != nil {
 				return fmt.Errorf("decode workflow runtime completed event: %w", err)
 			}
-			if err := ValidateWorkflowRuntimeCompletedResponse(run, operation, solveOutcome, response); err != nil {
+			if event.Event == "failed" {
+				if response.RequestID != run.RequestID || response.Operation != string(operation) || response.Status != "failed" || response.Failure == nil {
+					return errors.New("invalid failed operation result")
+				}
+			} else if err := ValidateWorkflowRuntimeCompletedResponse(run, operation, solveOutcome, response); err != nil {
 				return err
 			}
+			response.AnswerStarted = chunkIndex > 0
 			completed = &response
-			terminalEvent = "completed"
+			terminalEvent = event.Event
 		case "error":
 			var runtimeErr struct {
 				AgentRuntimeError
@@ -1265,7 +1371,7 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 	if completed == nil {
 		return AgentRuntimeResponse{}, errors.New("workflow runtime stream completed without completed event")
 	}
-	if operation == temporalruntime.WorkflowOperationSolve {
+	if operation == temporalruntime.WorkflowOperationSolve && completed.Status != "failed" {
 		if solveOutcome == "" {
 			return AgentRuntimeResponse{}, errors.New("workflow runtime solve completed without a decision")
 		}
@@ -1273,7 +1379,7 @@ func (s *Adapter) ConsumeWorkflowRuntimeStream(
 			return AgentRuntimeResponse{}, errors.New("workflow runtime solve plan emitted answer text")
 		}
 	}
-	if chunkIndex > 0 {
+	if chunkIndex > 0 && completed.Status != "failed" {
 		if err := s.ProjectWorkflowAnswerCompleted(ctx, run, messageID); err != nil {
 			return AgentRuntimeResponse{}, err
 		}

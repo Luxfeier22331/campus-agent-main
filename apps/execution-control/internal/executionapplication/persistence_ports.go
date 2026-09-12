@@ -51,6 +51,7 @@ type RunEventStore interface {
 }
 
 type RunProjectionStore interface {
+	RecordModelOutputDiagnostic(context.Context, string, string, execution.ModelOutputDiagnostic) error
 	UpsertRunStep(context.Context, execution.RunStepProjection) (execution.RunStepProjection, error)
 	UpsertStepAttempt(context.Context, execution.StepAttemptProjection) (execution.StepAttemptProjection, error)
 	UpsertStepResult(context.Context, execution.StepResultProjection) (execution.StepResultProjection, error)

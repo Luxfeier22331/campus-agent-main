@@ -47,8 +47,9 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 | 命令 | 负责 | 不证明 |
 | --- | --- | --- |
 | `pre-commit` | 暂存文件的 check-only 跨语言静态检查和 Secret 扫描 | typecheck、test、build 或 runtime |
-| `pre-push` | 受影响 Node 模块的 typecheck/test/worker test 与 Go 模块的 vet/test | build、integration、浏览器 E2E 或 runtime |
-| `pnpm verify` | 对当前工作树的源码和配置执行全量 lint、合同、类型与测试检查 | 需显式选择的制品构建、浏览器 E2E、部署或运行时状态 |
+| `pre-push` | 受影响 Node 模块的 typecheck/test/worker test 与 Go 模块的 format/lint/vet/test | build、integration、浏览器 E2E 或 runtime |
+| `pnpm verify` | 全量源码检查、Ragas 单测、数据库集成、Infra、OTel 和 Bake 配置检查 | 制品构建、Temporal/stream/replay、浏览器 E2E 或部署状态 |
+| `pnpm verify --source` | 仓库 lint、文档、脚本、合同、Actions lint、Node/Go 检查及 Ragas 单测，不启动数据库 | 制品构建、显式集成测试或部署状态 |
 | `pnpm check` | 本地仓库 lint、文档治理和仓库自动化测试 | package 行为或环境状态 |
 | `pnpm lint` | 对所有 tracked 文件执行与 `pre-commit` 相同的静态检查，但跳过 staged Secret 扫描 | 文档链接、业务行为或类型正确性 |
 | `pnpm docs:check` | frontmatter、ADR、链接和语言合同 | 代码或部署状态 |
@@ -60,52 +61,25 @@ package 的测试、类型或格式检查；只有合同、持久化、身份、
 | PR `container-build` profile | Docker Bake target、变量和构建定义可解析 | 镜像源码、依赖闭包或运行时入口 |
 | PR `image-build` profile | 受影响镜像可在 `linux/arm64` 以 `cacheonly` 完成 BuildKit 构建 | 推送、漏洞扫描或环境部署 |
 
-`.pre-commit-config.yaml` 是 Biome、Markdownlint、EditorConfig、Ruff、SQLFluff、Yamllint、ShellCheck、
-Go format 和基础解析检查的单一可执行 owner。`pre-commit` 只选择暂存文件，`pnpm lint` 选择全部
-tracked 文件；两条入口都不改写文件。PR CI 将 lint、文档检查和脚本测试按依赖顺序分步执行，保留每个
-hook 的原生耗时；Biome 使用单批文件输入，避免多个进程重复加载项目。hook groups 仅用于本地诊断，
-CI 仍执行一次全量 prek。Go format 使用 `ci-format`，自动 native evidence 使用 `ci-go`，完整工具集
-保留在 `ci-full`，不让纯格式检查准备完整 Go、容器和集群环境。CI 另行扫描 PR authored commit
-历史。完成后的运行会由只读 `ci-timing-report` workflow 汇总步骤、profile/command、hook 和可观察到的缓存信号；缺少旧日志中的
-信号保持 unknown，不推断取消原因或缓存命中率。并行 lane 只有在至少 3–5 次已埋点运行取得真实
-耗时数据后才评估。
+跨语言静态检查由 `.pre-commit-config.yaml` 拥有，包级任务由所属 manifest 拥有。
+公共验证执行器统一 Node、Go、构建和数据库任务集合；全量与 affected 只改变选择范围。
+本地和 CI 使用仓库锁定的 Nix 工具链，Go 检查不依赖用户 PATH 中的全局 lint 版本。
 
-CI 在静态检查准备步骤顺序执行 `nix print-dev-env`，将 `ci-light`、`ci-format` 环境写入 runner
-临时目录；准备成功后通过 `CI_NIX_LIGHT_ENV`、`CI_NIX_FORMAT_ENV` 交给 hook。hook 加载环境后
-直接执行工具，保留 prek 并发，避免每个 hook 重复求值 flake。普通本地 hook 未设置这两个变量时
-仍使用原有 `nix develop` 入口；显式提供的环境文件不可用时检查失败。
+pre-push 只执行 Node/Go 模块检查：正常推送比较远端旧提交与待推送提交；新分支使用本地
+`origin/main` 的 merge-base；缺少基准或非快进时执行全量模块检查。删除分支不执行检查，
+不自动 fetch。仓库文档和脚本测试继续由 `pnpm check`、`pnpm verify` 和 PR 执行。
 
-SQLFluff hook 在传入文件前排除 `.sqlfluffignore` 中的历史 SQL，以及统一 schema Job 的
-`0000_campus_agent_baseline.sql`。该文件是不可改写的 `pg_dump` 基线，由现有 PostgreSQL 集成
-测试通过统一迁移入口实际执行；后续手写 migration 继续执行 SQL lint，不扩大文件大小限制。
+源码 affected 使用真实提交和 Turbo 配置。发布候选由 release 所有者保留现有配置过滤及显式镜像
+选择规则，不让发布选择反向抑制源码校验。PR 复用生成的任务计划；选中但未成功执行的检查不能通过汇总。
 
-报告 workflow 直接使用 `.node-version` 固定的 Node 与 runner 上的 gh，不安装 Nix 或 workspace
-依赖；最近 20 次运行中展示 5 次已完成运行。计算总体 CI 成本时也应计入这个独立报告 job。
+完整验证保留现有数据库与配置检查，不扫描所有 `test:*` 命令。Temporal、stream、replay、浏览器
+与制品构建按实际边界显式运行。GitHub 手动 validation profile 先确定工具环境和工作区依赖，再执行
+固定检查，不需要 base/head。Go PostgreSQL 检查包含共享 schema Job 依赖；Temporal 检查包含
+其实际调用的 Agent Runtime Node 依赖。
 
-报告按日志中的 job/step 归属计算 shell 准备耗时，缺少归属时显示 unknown。同一次 hook 的 trace
-耗时与 verbose 结果合并显示，重复执行仍分别记录。pnpm 安装按步骤、镜像和 BuildKit operation
-保留每次安装的最后进度，不将 Docker 内安装覆盖到宿主机统计，也不合并为全局命中率。
-宿主机安装仅从依赖安装步骤采集；Docker 安装和 BuildKit 缓存信号仅从镜像 evidence 步骤的活动
-镜像构建中采集，脚本测试输出的模拟事件不参与统计。GitHub API 时间戳精确到秒，步骤、排队、
-趋势和 shell 准备耗时展示为向下取整的约整数秒（不足一秒显示 `<1s`）；JSON 保留原始毫秒值。
-hook 和 command 的直接测量耗时继续保留小数。
-
-hosted PR runner 使用 `PNPM_CONFIG_STORE_DIR` 指向 runner 临时目录中的共享 store，在首次安装前
-按前缀恢复、选中依赖全部安装成功后保存。缓存键使用 v2 命名空间，区分 OS、架构、Node/pnpm 版本、
-lockfile/workspace 配置和实际安装 filters（排序去重）。优先恢复同一 lockfile 下的缓存，再尝试相同
-工具版本的其他缓存；部分恢复由 frozen install 补齐缺失依赖。plan 生成后计算包含安装范围的保存键，
-仅在实际恢复键与保存键相同时跳过保存，确保同一 PR 扩大安装范围后能保存新增依赖。缓存服务异常不阻塞正常安装，
-安装失败或取消不保存。只缓存 store，不缓存 node_modules 或环境文件；self-hosted runner 保留自身
-持久 store。该缓存用于同一 PR 后续运行，不增加主分支缓存预热 job。
-
-选中 execution-control native 检查时，hosted runner 还恢复 Go modules、Go build 和 golangci-lint
-缓存。目录由 native 步骤显式指定，与缓存 action 一致。键区分 OS、架构、锁定工具链、module 合同、lint
-配置及源码提交；相同工具链/依赖的前缀可恢复上一提交，检查成功后保存新提交的分析结果。精确命中时仍
-执行检查，但不重复保存；取消、检查失败或 self-hosted 不上传缓存。日志记录实际恢复键与精确命中标志，
-golangci-lint verbose 保留内部耗时；action 命中不等于全部 lint 分析命中。
-
-Nix 使用 lock 中的原生 Go 包，并校验其版本与 `go.work` 一致；版本不符直接失败，不通过源码覆盖升级。
-手动更新 `nixpkgs` 后须同步工具版本合同，并确认 CI 目标架构的 Go 和 lint 在二进制缓存中可用。
+CI 保留现有命令输出、失败诊断和只读耗时报告。工具版本、缓存键、任务清单与 workflow 步骤以可执行
+配置为准，不在本文复制。Go 任务的输入包含 workspace 和工具链；缓存目录只透传，不当作源码输入。
+缓存服务不可用不改变任务正确性，检查成功也不等于所有缓存层均命中。
 
 package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README 维护。Turbo 只负责声明
 任务图、输入和缓存边界；integration test 与有副作用任务不得依赖缓存，远端缓存是否命中不影响
@@ -120,7 +94,7 @@ package 默认 `test`、`typecheck` 和 `build` 由所属 manifest 与 README �
 | 一般 TypeScript app/package/job | 所属 package 的 typecheck 与 test；跨 package 时使用明确 filter |
 | Worker route、binding 或 Wrangler 配置 | 所属 Worker 的 worker test、build 和模块测试 |
 | Campus Web 用户可见运行时 | 模块检查和制品完整性；按风险运行本地浏览器路径 |
-| execution-control Go | 所属 native format、lint、typecheck 和 test |
+| execution-control / model-config Go | 所属 native format、lint、typecheck 和 test |
 | migration 或数据库权限 | 对应 migration、数据库集成和所有者测试 |
 | eval package、Ragas adapter 或评测合同 | 所属 package test；跨语言时运行对应 adapter |
 | GitHub Actions | `pnpm check`、Actionlint 与 Zizmor |
@@ -170,93 +144,11 @@ layer cache 命中表示整个命令没有执行；pnpm 的 reused/downloaded �
 输出，两者分别呈现。没有包进度时显示 unknown；同一命令的多次安装进度分开保留，不相加为总命中率。
 编译和 deploy 同处一个 Dockerfile RUN 时只报告该 RUN 的总耗时，不从包进度推算独立编译耗时。
 
-## 本地镜像耗时对照
+## 本地镜像诊断
 
-`scripts/ci/measure-image.mts` 是本地诊断入口，直接调用现有 Bake target，不进入 Actions 或候选发布
-流程。需要已启动的独立 Buildx builder 和回环 registry；不复用日常 builder，不清理共享缓存。
-例如先运行以下命令（名称和端口应选择未占用值）：
-
-```bash
-docker run -d --name ci-image-registry -p 127.0.0.1:15000:5000 registry:2
-cat > /tmp/ci-image-buildkit.toml <<'EOF'
-[registry."127.0.0.1:15000"]
-  http = true
-  insecure = true
-EOF
-docker buildx create --name ci-image-measure --driver docker-container \
-  --driver-opt network=host --buildkitd-config /tmp/ci-image-buildkit.toml --bootstrap
-node scripts/ci/measure-image.mts --builder ci-image-measure \
-  --context /tmp/source-measure-context \
-  --cache-ref 127.0.0.1:15000/cache:baseline \
-  --image-ref 127.0.0.1:15000/ops:baseline \
-  --output /tmp/image-baseline-cold
-```
-
-`--context` 指向从 tracked 工作树文件复制的独立目录，包含 `docker-bake.hcl`、`.dockerignore` 和源码。
-基线与候选目录只保留被评估的 Dockerfile 差异。不要复制本地环境文件、node_modules 或构建输出。
-默认 target 为 `ops-web`、平台为 `linux/arm64`，保留 Bake 的 SBOM 和 Dockerfile 内的制品检查；
-镜像与 `mode=max` 缓存只允许导出到显式 `127.0.0.1:<port>` registry，不扫描或发布线上制品。
-需要代理时，分别配置 Docker daemon、Buildx 客户端、builder 和构建容器可达的代理地址。
-
-按同一顺序分别测基线与候选：独立 builder 首次构建、相同输入热构建三次、新 builder 加
-`--import-cache` 导入 registry 缓存、修改无关应用源码、修改 Ops Web 实际依赖源码。每次使用新的
-`--output` 目录；增量实验从相同原始上下文开始。每组串行运行，避免与 lint/test 等重任务争用 CPU。
-使用热构建中位数，记录冷启动是否包括镜像拉取与依赖下载；共享已有工具缓存的运行不能称为冷启动。
-
-验证依赖缓存边界时，在临时上下文同时修改实际依赖 manifest 与 lockfile，然后比较同一 builder
-重建与新 builder 仅导入基线 registry 缓存的重建。先验证新 builder 的未变更输入能命中安装和编译层，
-再检查依赖变更后实际执行的 pnpm reused/downloaded；不要将恢复安装层等同于恢复 cache mount 内的
-pnpm store。各组使用独立输出目录，并在需要再次导入基线前避免覆盖其 cache tag。
-
-本地 Ops Web 对照在临时 manifest 和 lockfile 中新增 `is-odd@3.0.1`：已有 builder 的应用依赖安装
-观测到 reused=1099、downloaded=2；新 builder 仅导入基线 registry 缓存时为 reused=248、downloaded=853。
-后者的 248 个复用包来自同次构建先执行的根依赖安装，该步骤本身 reused=0、downloaded=248。
-未改依赖的新 builder 实测中，安装与编译 RUN 可以整体命中 layer cache。上述结果分别验证了层缓存
-和同一 builder 的 pnpm store 收益，不表示 registry 导出保存了 cache mount，也不作为 CI 提速百分比。
-
-输出包含 `buildkit.jsonl`、`metadata.json`、`report.json`。`report.json` 的 `buildkit` 字段复用正式
-发布的解析结构，包含 operations、cacheExport、cacheWarnings 与 incomplete；保留各操作的时间区间、
-状态及 pnpm 包进度。不能将重叠阶段相加作为总耗时。`cacheBytes` 是缓存 manifest 引用的压缩层总大小，
-不是本次上传字节数；本地 registry 传输和 ARM 模拟运行也不能当作 GHCR、原生 ARM runner 的耗时。
-只有制品通过、缓存体积下降且热构建和增量路径无退化时，才保留候选 Dockerfile 优化。
-
-实验结束后只删除本次创建的 builder 与 registry：
-
-```bash
-docker buildx rm ci-image-measure
-docker rm -f ci-image-registry
-```
-
-## 本地 CI 缓存测量
-
-使用实际 `buildImages` 入口、独立 builder 和回环 registry 验证 build-only。Docker Desktop x86_64
-模拟 ARM64 的 Ops Web 冷构建为 643.3 秒，包含依赖下载和制品检查。相同输入在全新 builder 上只读
-导入 registry 缓存后为 86.2 秒，两段安装与编译 RUN 均为 cached；无缓存导出。种子缓存保持 mode=max，
-manifest 引用约 667 MB 压缩层；本机准备该缓存的导出耗时约 758 秒，不属于 PR build-only 路径。
-另一全新 builder 仅修改 Ops Web 实际源码后为 442.8 秒：两段安装继续 cached，编译与部署包 RUN
-重新执行 163.0 秒并通过制品检查，未写回缓存。上述本地模拟和回环传输数值不能预测原生 ARM runner
-与 GHCR 的实际耗时；尚未通过线上 PR 令牌验证私有 GHCR 拉取权限。
-
-小型临时 Dockerfile 单独验证了缺失缓存仍可完成冷构建，以及命令退出 23 时 summary 保留失败原因和之前的操作；这些故障实验不作为
-Ops Web 的性能样本。两条路径都没有镜像推送或缓存导出。
-
-本地 pnpm 11.20.0 测量复用 PR #438 的 affected package 集合，在每轮新的源码目录（无 node_modules）
-执行 root/contracts 与 affected 两段 frozen install；store 由 `PNPM_CONFIG_STORE_DIR` 指定。
-
-| 场景 | root / affected（秒） | 解压 / 压缩（秒） | 合计（秒） |
-| --- | --- | --- | ---: |
-| 空 store | 6.4 / 226.2 | — / 77.6 | 310.3 |
-| 原 store 热运行，三次 | 4.9 / 11.6；9.1 / 9.5；4.0 / 9.6 | — | 16.4；18.5；13.6 |
-| 完整归档恢复到新 store，三次 | 28.4 / 32.5；7.7 / 18.6；27.6 / 28.6 | 220.1 / 20.1；12.5 / 2.4；171.9 / 37.5 | 301.2；41.2；265.5 |
-| 仅根依赖归档恢复 | 23.0 / 157.0 | 61.4 / — | 241.4 |
-
-完整归档约 276 MB；完整恢复后的两段安装分别 reused=249/850、downloaded=0/0。部分恢复后第二段
-正常补下 850 个包。恢复样本的合计包含再次压缩；Actions 精确命中时跳过保存。测量期间本机出现很高
-的磁盘 I/O 等待，解压样本波动明显；这些数值证明复用行为，不能作为 Actions 网络传输后的净收益。
-
-已有 Nix store 上首次/随后三次 shell 进入耗时（秒）：ci-core 9.14/1.02/0.74/0.89，
-ci-light 1.64/0.15/0.17/1.39，ci-release 0.81/0.11/0.10/0.68，ci-format 0.85/0.13/0.07/0.50。
-未清理 Nix store，也未新增 Nix 或 uv 缓存；这些结果不表示新 runner 的环境下载成本。
+`scripts/ci/measure-image.mts` 继续作为独立诊断入口，使用专用 Buildx builder、回环 registry
+和隔离构建上下文；参数及输出由脚本维护。不清理日常 builder，不将本地模拟耗时解释为 CI 性能。
+历史测量样本不作为修改验证脚本的前置条件。
 
 ## 报告
 

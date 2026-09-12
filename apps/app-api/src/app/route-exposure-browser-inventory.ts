@@ -2,6 +2,12 @@ import type { AppApiRouteExposure } from "./route-exposure-types";
 
 export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	{
+		method: "POST",
+		path: "/api/chat/requests/:requestId/client-timing",
+		callerClass: "browser-surface",
+		admission: "session principal, same-origin request and request ownership required",
+	},
+	{
 		method: "GET",
 		path: "/.well-known/openid-configuration",
 		callerClass: "browser-surface",

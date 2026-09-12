@@ -200,6 +200,17 @@ pnpm --dir jobs/notice-index-publisher evaluate-embeddings-local -- \
 ranking 和输入问题。Recall/MRR 只说明当前 Chunk 与共享 Embedding provider 的离线效果，不代表 Qdrant、
 collection 组装、reranker 或在线 RAG 回答效果。
 
+已有发布向量时可追加 `--embedding-set sha256:<id>`，复用完整向量而只生成问题 Embedding。
+先把该 set 的 manifest 和它引用的 embeddings 对象按原对象键导出到 worktree `var/`，把对应
+完整 Chunk Run（manifest、chunks、validation、review-samples）放到上述本地 chunking 目录。
+命令要求 set 的 chunkRun 和 modelTargetSha256 与评测输入一致；缺失或错配直接报错，不静默
+重算整库。评测 manifest 记录显式 set，生成/复用数反映实际调用。
+使用固定问题、noticeId 和正文 evidence 分别看 Notice Recall、目标 Chunk Recall、答案证据
+Recall 和 MRR；缺少标签或正文锚点是无效样本，不计为零召回。分层指标同时查看 questionCount，
+singleChunkAnswerQuestionCount 为零时单块 Recall/MRR 及对比 delta 返回 null，表示不适用，不伪造 0 分。
+真实来源问题和产物只保留在
+忽略的 var，不提交受限通知正文。线上单次候选数和 rerank score 不可当作 Recall。
+
 ## 对比两次 Chunk 与 Embedding 结果
 
 先使用同一份 `questions.ndjson` 分别评测 baseline 和 candidate，再运行：

@@ -131,6 +131,44 @@ describe("PostgreSQL ops status store", () => {
 		expect(detail.execution.stages[0]?.durationMs).toBe(3_100);
 	});
 
+	it.each([
+		null,
+		{ schema_version: 99 },
+		{
+			schema_version: 1,
+			text: "",
+			original_utf8_bytes: 0,
+			truncated: false,
+			validation_stage: "json_parse",
+			validation_message: "Invalid JSON",
+			output_schema: "executor_output",
+			finish_reason: "STOP",
+		},
+	])("keeps optional model diagnostics separate from product success: %j", async (diagnostic) => {
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb({
+				diagnostics: runDiagnostics({
+					steps: [
+						runStepRow({
+							stepKind: "executor",
+							status: "failed",
+							sanitizedPayloadJson: { failure: { code: "model_output_invalid" } },
+							modelOutputDiagnosticJson: diagnostic,
+						}),
+					],
+				}),
+			}),
+			now: () => now,
+		});
+		const detail = await store.getRequestDetail("req_pg_001");
+		expect(detail?.request.status).toBe("COMPLETED");
+		expect(detail?.execution.stages[0]).toMatchObject({
+			status: "failed",
+			failureKind: "model_output_invalid",
+			modelOutputDiagnostic: diagnostic?.schema_version === 1 ? diagnostic : null,
+		});
+	});
+
 	it("builds windowed request overview data", async () => {
 		const store = createPgOpsStatusStore({
 			db: createFakeOpsDb(),

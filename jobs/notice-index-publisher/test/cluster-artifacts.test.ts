@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import { EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { writeStoredChunkRun } from "../src/artifacts.ts";
 import { buildNoticeChunkRun } from "../src/command.ts";
@@ -22,6 +22,27 @@ import { readStoredNoticeChunkRun } from "../src/run-reader.ts";
 import type { NoticeArtifactStore } from "../src/types.ts";
 
 describe("cluster notice artifacts", () => {
+	it("decodes embedding records separately without constructing a set-sized string", async () => {
+		const store = memoryStore();
+		const data = encodeNdjson([
+			{retrievalTextSha256: `sha256:${"a".repeat(64)}`, dense:vector()},
+			{retrievalTextSha256: `sha256:${"b".repeat(64)}`, dense:vector()},
+		]);
+		const key = noticeEmbeddingDataKey(sha256(data));
+		await store.writeImmutable(key, data);
+		const manifest = canonicalJsonBytes({
+			schemaVersion:"notice_embedding_set.v1",chunkRun:`sha256:${"c".repeat(64)}`,
+			embeddingCount:2,embeddingSpace:EMBEDDING_SPACE,modelTargetSha256:"d".repeat(64),
+			embeddings:{key,byteSize:data.byteLength,sha256:sha256(data)},
+		});
+		const id = sha256(manifest);
+		await store.writeImmutable(noticeEmbeddingSetManifestKey(id), manifest);
+		const decode = vi.spyOn(TextDecoder.prototype, "decode");
+		try {
+			expect((await readNoticeEmbeddingSet(store, id)).embeddings).toHaveLength(2);
+			expect(decode.mock.calls.every(([input]) => !input || input.byteLength < data.byteLength)).toBe(true);
+		} finally { decode.mockRestore(); }
+	});
 	it("writes and reads the existing chunk run contract in the derived prefix", async () => {
 		const store = memoryStore();
 		const prepared = buildNoticeChunkRun({

@@ -40,6 +40,9 @@ func TestBuildAgentAdmissionSnapshotResolvesModelTargetOnce(t *testing.T) {
 	if resolver.calls != 1 {
 		t.Fatalf("workflow model target calls = %d, want 1", resolver.calls)
 	}
+	if snapshot.AgentLimits.MaxOutputTokens != 0 {
+		t.Fatalf("default output limit = %d, want unset", snapshot.AgentLimits.MaxOutputTokens)
+	}
 	if snapshot.ModelTargetSHA256 != modelTargetSHA256ForTest {
 		t.Fatalf("provider admission hashes = %#v", snapshot)
 	}
@@ -87,7 +90,7 @@ func TestAdmissionSnapshotRejectsInvalidPolicy(t *testing.T) {
 			s.AgentCapabilities.VisibleFunctionToolNames = []string{"unknown"}
 		},
 		"budget": func(s *execution.AgentAdmissionSnapshot) { s.AgentBudget.MaxModelTurns = 0 },
-		"limits": func(s *execution.AgentAdmissionSnapshot) { s.AgentLimits.MaxOutputTokens = 0 },
+		"limits": func(s *execution.AgentAdmissionSnapshot) { s.AgentLimits.MaxOutputTokens = -1 },
 	} {
 		t.Run(name, func(t *testing.T) {
 			snapshot := admissionSnapshotForTest(t, false)

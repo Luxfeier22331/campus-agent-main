@@ -46,6 +46,10 @@ Langfuse。它不接收 execution-control、Hindsight、日志或指标。环境
 
 ## Trace 数据
 
+模型格式失败的可见输出诊断属于 Execution Control 的内部 Ops 投影，不属于本 trace 合同；其
+有界正文通过 Runtime 内部响应保存到独立诊断列，不进入 span、普通日志或外部 exporter。
+该例外见 ADR-0076 与持久执行数据文档，不启用 SDK sensitive data 导出。
+
 Agent producer 必须保持 `traceIncludeSensitiveData=false`、OpenInference
 `hideInputs=true`、`hideOutputs=true`。共享 span processor 在发送前只保留当前
 Agent/OpenInference/Langfuse 所需字段，并删除未知属性、links、异常正文、stack 和 status message。

@@ -148,6 +148,13 @@
       "when": 1787763070603,
       "tag": "0020_drop_product_execution_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789171200003,
+      "tag": "0021_ops_request_observability_select",
+      "breakpoints": true
     }
   ]
 }

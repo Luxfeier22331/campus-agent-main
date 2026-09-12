@@ -125,7 +125,7 @@ func (Activities) ReplanTaskActivity(
 	return temporalruntime.WorkflowOperationActivityOutput{
 		Operation: temporalruntime.WorkflowOperationReplan,
 		Replan: &temporalruntime.WorkflowTaskReplan{
-			SchemaVersion:  "task_replan.v2",
+			SchemaVersion:  "task_replan.v3",
 			Decision:       "continue",
 			Reason:         "继续执行已规划步骤。",
 			RemainingSteps: append([]temporalruntime.WorkflowTaskPlanStep{}, input.RemainingSteps...),
@@ -144,7 +144,6 @@ func (Activities) SynthesizeAnswerActivity(
 		RequestID:      input.RequestID,
 		Status:         "completed",
 		FinalOutput:    "这是合成后的校园信息答案。",
-		AnswerMode:     input.AnswerMode,
 		SourceAttempts: input.SourceAttempts,
 		Evidence:       append([]temporalruntime.WorkflowEvidence{}, input.Evidence...),
 	}, nil

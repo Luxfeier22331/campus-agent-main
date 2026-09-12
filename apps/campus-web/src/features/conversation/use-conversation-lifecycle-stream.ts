@@ -64,6 +64,7 @@ export function useConversationLifecycleStream({
 				holdAssistantDelta(messageId, delta, event.data.occurredAt);
 				return;
 			}
+			operationMachine.clientTiming.receive(event.data.requestId, messageId);
 			appendAssistantDelta(messageId, delta, event.data.occurredAt);
 		},
 		[appendAssistantDelta, holdAssistantDelta, operationMachine, ownsOperation],
@@ -91,6 +92,7 @@ export function useConversationLifecycleStream({
 				}
 				applyRunStateEvent(event, operation.id);
 				if (event.event === "request.accepted" && event.data.requestId) {
+					operationMachine.clientTiming.accept(event.data.requestId);
 					const acceptedRun: ActiveRun = {
 						...(conversationId ? { conversationId } : {}),
 						requestId: event.data.requestId,

@@ -10,7 +10,75 @@ import {
 	parseValidationProfiles,
 	runCandidateEvidence,
 	runCommand,
+	runVerification,
 } from "./evidence.mts";
+
+test("complete and source verification share checks without losing database coverage", () => {
+	const capture = (sourceOnly: boolean) => {
+		const commands: string[][] = [];
+		runVerification({ sourceOnly, repositoryRoot: REPOSITORY_ROOT }, (command, args) => {
+			commands.push([command, ...args]);
+			return { status: 0 };
+		});
+		return commands;
+	};
+	const source = capture(true);
+	const full = capture(false);
+	assert.deepEqual(full.slice(0, source.length), source);
+	assert(source.some((command) => command.includes("native:lint")));
+	assert(source.some((command) => command.includes("test:eval")));
+	assert(!source.some((command) => command.includes("test:database-integration")));
+	assert(
+		full.some(
+			(command) =>
+				command.includes("test:migration-integration") &&
+				command.includes("test:shared-db-integration"),
+		),
+	);
+	assert(full.some((command) => command.includes("scripts/infra/validate.sh")));
+	assert(full.some((command) => command.includes("scripts/otel/validate-config.sh")));
+	assert(full.some((command) => command[0] === "docker" && command.includes("--print")));
+});
+
+test("an existing plan executes exact native tasks without recomputing Git or Turbo scope", () => {
+	const commands: string[][] = [];
+	runCandidateEvidence(
+		{
+			profiles: ["affected-native"],
+			repositoryRoot: REPOSITORY_ROOT,
+			scope: {
+				base: BASE,
+				head: HEAD,
+				changedFiles: [],
+				tasks: [
+					{ package: "model-config", task: "native:lint" },
+					{ package: "execution-control", task: "native:test" },
+				],
+			},
+		},
+		(command, args, options) => {
+			commands.push([command, ...args]);
+			assert.equal(options.env.GOTOOLCHAIN, "local");
+			assert(options.env.CAMPUS_NATIVE_PLATFORM);
+			return { status: 0 };
+		},
+	);
+	assert.equal(commands.length, 1);
+	assert(commands[0]?.includes("model-config#native:lint"));
+	assert(commands[0]?.includes("execution-control#native:test"));
+	assert(!commands[0]?.includes("--only"));
+});
+
+test("command startup errors propagate without successful profile events", () => {
+	assert.throws(
+		() =>
+			runCandidateEvidence({ profiles: ["go"], repositoryRoot: REPOSITORY_ROOT }, () => ({
+				status: null,
+				error: new Error("tool unavailable"),
+			})),
+		/tool unavailable/,
+	);
+});
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -27,7 +95,7 @@ test("records completed commands before a failure without running later commands
 					{
 						base: BASE,
 						head: HEAD,
-						profiles: ["execution-control-native"],
+						profiles: ["ragas", "infra"],
 						repositoryRoot: REPOSITORY_ROOT,
 						eventFile: file,
 					},
@@ -141,46 +209,15 @@ test("runs affected Node tasks from the shared scope without a downloaded Turbo"
 	assert.equal(calls.filter((call) => call.command === "git" && call.args[0] === "diff").length, 1);
 	const evidenceCommands = commands.filter((command) => !command.includes("--dry-run=json"));
 	assert(!evidenceCommands.some((command) => command.includes("--affected")));
-	assert(
-		evidenceCommands.some(
-			(command) =>
-				command.includes("test") &&
-				command.includes("--only") &&
-				command.includes("--filter=agent-runtime"),
-		),
-	);
-	assert(
-		evidenceCommands.some(
-			(command) => command.includes("test:worker") && command.includes("--filter=app-api"),
-		),
-	);
-	assert(
-		evidenceCommands.some(
-			(command) => command.includes("test:worker") && command.includes("--filter=status-web"),
-		),
-	);
-	assert(
-		evidenceCommands.some(
-			(command) => command.includes("typecheck") && command.includes("--filter=ops-web"),
-		),
-	);
-	assert(
-		commands.some(
-			(command) =>
-				command.includes("build") &&
-				command.includes("--filter=ops-web") &&
-				!command.includes("--filter=campus-web"),
-		),
-	);
-	assert(
-		commands.some(
-			(command) =>
-				command.includes("build:worker") &&
-				command.includes("--filter=app-api") &&
-				command.includes("--filter=campus-web") &&
-				command.includes("--filter=status-web"),
-		),
-	);
+	const taskIds = evidenceCommands.flat().filter((arg) => arg.includes("#"));
+	assert(taskIds.includes("agent-runtime#test"));
+	assert(taskIds.includes("app-api#test:worker"));
+	assert(taskIds.includes("status-web#test:worker"));
+	assert(taskIds.includes("ops-web#typecheck"));
+	assert(taskIds.includes("ops-web#build"));
+	assert(taskIds.includes("campus-web#build:worker"));
+	assert(!taskIds.includes("campus-web#build"));
+	assert(!evidenceCommands.flat().includes("--only"));
 	assert(
 		commands.some((command) =>
 			command.join(" ").includes("docker buildx bake --file docker-bake.hcl --print"),
@@ -242,12 +279,10 @@ test("requires an explicit repository for image evidence", () => {
 	);
 });
 
-test("runs selected native, database, and OTel profiles in order", () => {
+test("runs fixed profiles without consulting Git", () => {
 	const calls: string[] = [];
 	runCandidateEvidence(
 		{
-			base: BASE,
-			head: HEAD,
 			profiles: ["go", "ragas", "ops-web-postgres", "otel"],
 			repositoryRoot: "/repository",
 		},
@@ -257,14 +292,7 @@ test("runs selected native, database, and OTel profiles in order", () => {
 		},
 	);
 	assert.deepEqual(calls, [
-		"pnpm exec turbo run native:format --filter=execution-control --concurrency=1 --summarize",
-		"pnpm exec turbo run native:lint --filter=execution-control --concurrency=1 --summarize",
-		"pnpm exec turbo run native:typecheck --filter=execution-control --concurrency=1 --summarize",
-		"pnpm exec turbo run native:test --filter=execution-control --concurrency=1 --summarize",
-		"pnpm exec turbo run native:format --filter=model-config --concurrency=1 --summarize",
-		"pnpm exec turbo run native:lint --filter=model-config --concurrency=1 --summarize",
-		"pnpm exec turbo run native:typecheck --filter=model-config --concurrency=1 --summarize",
-		"pnpm exec turbo run native:test --filter=model-config --concurrency=1 --summarize",
+		"pnpm exec turbo run native:format native:lint native:typecheck native:test --concurrency=1 --summarize",
 		"pnpm exec turbo run typecheck test --filter=eval-langfuse --summarize",
 		"pnpm exec turbo run test:eval --filter=ragas-runner --concurrency=1 --summarize",
 		"pnpm exec turbo run test:database-integration --filter=ops-web --summarize",

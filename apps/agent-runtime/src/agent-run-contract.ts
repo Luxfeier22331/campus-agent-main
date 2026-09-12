@@ -1,4 +1,3 @@
-import type { AgentInputItem, AgentOutputType } from "@openai/agents";
 import type { CampusSearchObservation, CampusSearchReporter } from "./campus-search-observer.ts";
 import type {
 	JsonObjectSchema,
@@ -8,7 +7,6 @@ import type {
 } from "./tool-catalog.ts";
 
 export type WorkflowOperation = "solve" | "execute_step" | "replan" | "synthesize";
-export type WorkflowAnswerMode = "grounded" | "insufficient";
 export type WorkflowSource = "campus_search" | "web_search" | "personal_memory_recall";
 
 export interface TaskPlanStep {
@@ -25,8 +23,8 @@ export interface TaskPlan {
 }
 
 export interface TaskReplan {
-	schemaVersion: "task_replan.v2";
-	decision: "continue" | "synthesize" | "insufficient";
+	schemaVersion: "task_replan.v3";
+	decision: "continue" | "synthesize";
 	reason: string;
 	remainingSteps: TaskPlanStep[];
 }
@@ -51,6 +49,7 @@ export interface WorkflowEvidence {
 }
 
 export interface CompletedTaskStep {
+	searchSuggestions?: SearchSuggestion[];
 	remainingFacts: string[];
 	failure?: ExecutionFailure;
 	step: TaskPlanStep;
@@ -67,6 +66,9 @@ export interface SourceAttempt {
 }
 
 interface WorkflowOperationInputBase {
+	deadlineAt?: string;
+	priorEvidence?: WorkflowEvidence[];
+	priorSourceAttempts?: SourceAttempt[];
 	activityAttempt?: number;
 	requestId: string;
 	conversationId: string;
@@ -111,11 +113,13 @@ export interface ReplanWorkflowOperationInput extends WorkflowOperationInputBase
 export interface SynthesizeWorkflowOperationInput extends WorkflowOperationInputBase {
 	operation: "synthesize";
 	operationInput: {
-		answerMode: WorkflowAnswerMode;
 		goal: string;
+		mode?: "planned" | "recovery";
 		evidence: WorkflowEvidence[];
 		sourceAttempts: SourceAttempt[];
 		remainingFacts: { objective: string; facts: string[] }[];
+		recoveryReason?: string;
+		searchSuggestions?: SearchSuggestion[];
 	};
 }
 
@@ -126,6 +130,7 @@ export type WorkflowOperationInput =
 	| SynthesizeWorkflowOperationInput;
 
 export interface ExecutionFailure {
+	stage?: string;
 	code: string;
 	operation: string;
 	detail?: string;
@@ -137,7 +142,8 @@ export interface AgentRuntimeLimits {
 	agentDeadlineMs: number;
 	contextCharLimit: number;
 	currentInputCharLimit: number;
-	maxOutputTokens: number;
+	/** Optional provider output cap; zero/undefined means omit it. */
+	maxOutputTokens?: number;
 	maxFunctionToolCalls: number;
 	maxTurns: number;
 }
@@ -202,6 +208,7 @@ export interface AgentRunnerAnswerDelta {
 }
 
 export interface ToolExecutionRequest {
+	deadlineAt?: string;
 	activityAttempt?: number;
 	tool: ToolCatalogEntry;
 	argumentsJson: Record<string, unknown>;
@@ -230,14 +237,28 @@ export interface ToolExecutionResult extends UntimedToolExecutionResult {
 	completedAt?: string;
 }
 
-export interface WebCitation {
-	startIndex: number;
-	endIndex: number;
+export interface WebEvidence {
+	excerpt: string;
 	title: string;
 	url: string;
 }
 
+export interface ModelMessage {
+	role: "user" | "assistant";
+	content: string;
+}
+export interface ModelResponseSchema {
+	name: string;
+	schema: Record<string, unknown>;
+}
+export interface SearchSuggestion {
+	provider: "google";
+	renderedContent: string;
+}
+
 export interface SdkToolRuntime {
+	deadlineAt?: string;
+	timeoutMs?: number;
 	signal?: AbortSignal;
 	observe?(
 		argumentsJson: Record<string, unknown>,
@@ -254,17 +275,20 @@ export interface SdkToolRuntime {
 }
 
 export interface SdkToolExecutionContext {
+	deadlineAt?: string;
 	invocationId?: string;
 	citationStart?: number;
 	resultLimit?: number;
 }
 
 export interface AgentRunnerInput {
+	deadlineAt?: string;
+	priorSourceAttempts?: SourceAttempt[];
 	activityAttempt?: number;
 	operation: WorkflowOperation;
-	input: AgentInputItem[];
+	input: ModelMessage[];
 	instructions: string;
-	outputType?: AgentOutputType;
+	outputSchema?: ModelResponseSchema;
 	limits: AgentRuntimeLimits;
 	tools: SdkToolRuntime[];
 	requestId: string;
@@ -275,12 +299,19 @@ export interface AgentRunnerInput {
 }
 
 export interface AgentRunnerResult {
+	/** In-process only; never projected into successful operation results. */
+	rawModelOutput?: { text: string; finishReason: string | null };
+	modelOutputDiagnostic?: ModelOutputDiagnostic;
+	failure?: ExecutionFailure;
+	answerStarted?: boolean;
+	answerAnnotations?: Array<{ start: number; end: number; url: string }>;
 	finalOutput: string;
 	structuredOutput?: unknown;
 	providerResponseId: string;
 	toolResults: ToolExecutionResult[];
-	webCitations: WebCitation[];
-	webSearchUsed: boolean;
+	webEvidence?: WebEvidence[];
+	searchSuggestions?: SearchSuggestion[];
+	webSearchUsed?: boolean;
 	usage: UsageSummary;
 }
 
@@ -299,7 +330,9 @@ export type ToolExecutor = ((
 };
 
 export interface WorkflowOperationResult {
-	answerMode?: WorkflowAnswerMode;
+	modelOutputDiagnostic?: ModelOutputDiagnostic;
+	failure?: ExecutionFailure;
+	answerStarted?: boolean;
 	status: "completed" | "failed";
 	operation: WorkflowOperation;
 	requestId: string;
@@ -317,10 +350,20 @@ export interface WorkflowOperationResult {
 	stageTiming: Record<string, number>;
 	toolContractFingerprint: ToolContractFingerprint;
 	toolResults: ToolExecutionResult[];
-	webCitations: WebCitation[];
-	webSearchUsed: boolean;
-	terminalReason: "operation_completed" | "agent_runtime_failed";
+	searchSuggestions?: SearchSuggestion[];
+	terminalReason: "operation_completed" | "agent_runtime_failed" | "recovered_from_materials";
 	usage: UsageSummary;
+}
+
+export interface ModelOutputDiagnostic {
+	schema_version: 1;
+	text: string;
+	original_utf8_bytes: number;
+	truncated: boolean;
+	validation_stage: "json_parse" | "schema_validation";
+	validation_message: string;
+	output_schema: string;
+	finish_reason: string | null;
 }
 
 export interface WorkflowOperationRuntime {
@@ -348,6 +391,6 @@ export type WorkflowOperationStreamEvent =
 			data: { delta: string; provisional: true };
 	  }
 	| {
-			event: "completed";
+			event: "completed" | "failed";
 			data: WorkflowOperationResult;
 	  };

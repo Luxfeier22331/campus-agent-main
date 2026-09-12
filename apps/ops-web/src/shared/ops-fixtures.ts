@@ -13,7 +13,11 @@ function execution(
 ): OpsRequestDetailResponse["execution"] {
 	const failed = status === "failed";
 	return {
-		campusSearch: { dataState: "NO_DATA", reason: "没有 Campus Search 观察记录。", calls: [] },
+		campusSearch: {
+			diagnosticState: "NO_DATA",
+			reason: "没有 Campus Search 观察记录。",
+			calls: [],
+		},
 		failCloseReason: failed ? "provider_timeout" : null,
 		failure: {
 			code: failed ? "provider_unavailable" : null,

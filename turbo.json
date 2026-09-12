@@ -65,19 +65,67 @@
 		},
 		"native:format": {
 			"outputLogs": "new-only",
-			"outputs": []
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
 		},
 		"native:lint": {
 			"outputLogs": "new-only",
-			"outputs": []
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
 		},
 		"native:test": {
 			"outputLogs": "new-only",
-			"outputs": []
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
 		},
 		"native:typecheck": {
 			"outputLogs": "new-only",
-			"outputs": []
+			"outputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/go.work",
+				"$TURBO_ROOT$/go.work.sum",
+				"$TURBO_ROOT$/apps/*/go.mod",
+				"$TURBO_ROOT$/apps/*/go.sum",
+				"$TURBO_ROOT$/flake.lock",
+				"$TURBO_ROOT$/flake.nix",
+				"$TURBO_ROOT$/nix/**"
+			],
+			"env": ["GOTOOLCHAIN", "CAMPUS_NATIVE_PLATFORM"],
+			"passThroughEnv": ["GOCACHE", "GOMODCACHE", "GOLANGCI_LINT_CACHE", "LD_LIBRARY_PATH"]
 		},
 		"internal-portal-collection#test": {
 			"dependsOn": ["^test"],

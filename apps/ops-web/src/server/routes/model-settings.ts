@@ -4,6 +4,7 @@ import {
 	LLMModelSettingUpdateSchema,
 	ModelDiscoveryRequestSchema,
 	ModelSettingKindSchema,
+	NoticeClassifierModelSettingUpdateSchema,
 	RerankerModelSettingUpdateSchema,
 } from "../../shared/ops-contract.ts";
 import type { OpsAdmission } from "../ops-admission.ts";
@@ -152,7 +153,9 @@ export function registerModelSettingsRoutes(input: {
 				? EmbeddingModelSettingUpdateSchema.safeParse(rawBody)
 				: kind.success && kind.data === "reranker"
 					? RerankerModelSettingUpdateSchema.safeParse(rawBody)
-					: LLMModelSettingUpdateSchema.safeParse(rawBody);
+					: kind.success && kind.data === "notice_classifier"
+						? NoticeClassifierModelSettingUpdateSchema.safeParse(rawBody)
+						: LLMModelSettingUpdateSchema.safeParse(rawBody);
 		if (!(kind.success && body.success)) {
 			return jsonError("OPS_INVALID_JSON", "请求体必须是有效 JSON。", 400);
 		}

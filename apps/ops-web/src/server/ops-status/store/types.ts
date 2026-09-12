@@ -66,6 +66,7 @@ export interface OpsRequestDetailRow extends OpsRequestRow {
 }
 
 export interface OpsRequestStageRow {
+	modelOutputDiagnosticJson?: unknown;
 	completedAt: Date | null;
 	durationMs: number | string | null;
 	sanitizedPayloadJson: unknown;

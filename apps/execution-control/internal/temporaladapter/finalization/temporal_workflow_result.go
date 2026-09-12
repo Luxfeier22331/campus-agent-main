@@ -17,22 +17,12 @@ func WorkflowFinalizationResultMap(
 	for _, result := range output.ToolResults {
 		toolResults = append(toolResults, WorkflowToolResultMap(result, result.DurationMS))
 	}
-	webCitations := make([]map[string]any, 0, len(output.WebCitations))
-	for _, citation := range output.WebCitations {
-		webCitations = append(webCitations, map[string]any{
-			"end_index":   citation.EndIndex,
-			"start_index": citation.StartIndex,
-			"title":       citation.Title,
-			"url":         citation.URL,
-		})
-	}
 	result := map[string]any{
 		"admission_snapshot_sha256": execution.SHA256JSONRef(input.AdmissionSnapshot),
 		"workflow_result_ref":       output.WorkflowResultRef,
 		"agent_runtime_release":     output.RuntimeRelease,
 		"final_output":              output.FinalOutput,
 		"solve_outcome":             output.SolveOutcome,
-		"answer_mode":               output.AnswerMode,
 		"model_name":                output.ModelName,
 		"model_provider":            output.ModelProvider,
 		"provider_response_id":      output.ProviderResponseID,
@@ -48,8 +38,7 @@ func WorkflowFinalizationResultMap(
 			"output_tokens":       output.Usage.OutputTokens,
 			"usage_observed":      output.Usage.UsageObserved,
 		},
-		"web_citations":   webCitations,
-		"web_search_used": output.WebSearchUsed,
+		"search_suggestions": output.SearchSuggestions,
 	}
 	if operation := strings.TrimSpace(string(output.Operation)); operation != "" {
 		result["operation"] = operation

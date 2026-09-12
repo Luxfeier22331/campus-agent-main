@@ -64,6 +64,27 @@
       "when": 1789084800000,
       "tag": "0008_ocr_pages",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789171200000,
+      "tag": "0009_campus_search_diagnostics_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789171200001,
+      "tag": "0010_model_output_diagnostic",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789171200002,
+      "tag": "0011_ops_model_output_attempt",
+      "breakpoints": true
     }
   ]
 }

@@ -125,21 +125,14 @@ func ValidateWorkflowRemainingSteps(
 }
 
 // ValidateWorkflowReplanDecision validates the decision/remaining-step shape.
-func ValidateWorkflowReplanDecision(replan WorkflowTaskReplan, completed []WorkflowCompletedStep) error {
-	if replan.SchemaVersion != "task_replan.v2" {
+func ValidateWorkflowReplanDecision(replan WorkflowTaskReplan) error {
+	if replan.SchemaVersion != "task_replan.v3" {
 		return errors.New("workflow replan schema version is invalid")
 	}
 	switch replan.Decision {
-	case "synthesize", "insufficient":
+	case "synthesize":
 		if len(replan.RemainingSteps) != 0 {
 			return errors.New("terminal replan decision must not contain remaining steps")
-		}
-		mode := "grounded"
-		if replan.Decision == "insufficient" {
-			mode = "insufficient"
-		}
-		if err := ValidateWorkflowAnswerMode(mode, WorkflowCompletedEvidence(completed), WorkflowCompletedSourceAttempts(completed)); err != nil {
-			return err
 		}
 	case "continue":
 		if len(replan.RemainingSteps) == 0 {
@@ -242,7 +235,7 @@ func ValidateWorkflowStepOutcome(step WorkflowCompletedStep) error {
 		}
 	}
 	if step.Failure != nil {
-		if !WorkflowFailureRecoverable(step.Failure.Code) || step.Failure.Operation != "execute_step" || len(step.Evidence) != 0 {
+		if !WorkflowFailureRecoverable(step.Failure.Code) || step.Failure.Operation != "execute_step" {
 			return errors.New("workflow step failure cannot be recovered")
 		}
 	}
@@ -253,7 +246,7 @@ func ValidateWorkflowStepOutcome(step WorkflowCompletedStep) error {
 // Transport timeouts and uncertain invocation receipts are intentionally absent.
 func WorkflowFailureRecoverable(code string) bool {
 	switch code {
-	case "agent_deadline_exceeded", "provider_timeout", "provider_connection_failed", "provider_rate_limited", "provider_http_failed":
+	case "model_output_invalid", "agent_deadline_exceeded", "provider_timeout", "provider_connection_failed", "provider_rate_limited", "provider_http_failed":
 		return true
 	default:
 		return false
@@ -268,14 +261,6 @@ func WorkflowToolFailureRecoverable(failure *ExecutionFailure) bool {
 		(failure.Code == "tool_handler_failed" && (failure.HTTPStatus == 429 || (failure.HTTPStatus >= 500 && failure.HTTPStatus < 600)))
 }
 
-func WorkflowCompletedEvidence(completed []WorkflowCompletedStep) []WorkflowEvidence {
-	result := []WorkflowEvidence{}
-	for _, step := range completed {
-		result = append(result, step.Evidence...)
-	}
-	return result
-}
-
 func WorkflowCompletedSourceAttempts(completed []WorkflowCompletedStep) []WorkflowSourceAttempt {
 	result := []WorkflowSourceAttempt{}
 	for _, step := range completed {
@@ -284,35 +269,21 @@ func WorkflowCompletedSourceAttempts(completed []WorkflowCompletedStep) []Workfl
 	return result
 }
 
-// Every exit from the search loop uses the same grounded/no-match/failure contract.
-func WorkflowAnswerMode(evidence []WorkflowEvidence, completed []WorkflowCompletedStep) (string, error) {
-	mode := "grounded"
-	if len(evidence) == 0 {
-		mode = "insufficient"
+// A successful source attempt permits synthesis even when its candidates cannot
+// answer the question. The synthesizer, not the workflow, judges answerability.
+func workflowCanSynthesize(evidence []WorkflowEvidence, completed []WorkflowCompletedStep) bool {
+	if len(evidence) > 0 {
+		return true
 	}
-	return mode, ValidateWorkflowAnswerMode(mode, evidence, WorkflowCompletedSourceAttempts(completed))
-}
-
-func ValidateWorkflowAnswerMode(mode string, evidence []WorkflowEvidence, attempts []WorkflowSourceAttempt) error {
-	switch mode {
-	case "grounded":
-		if len(evidence) > 0 {
-			return nil
-		}
-		return errors.New("grounded synthesis requires evidence")
-	case "insufficient":
-		if len(evidence) > 0 {
-			return errors.New("insufficient synthesis must not contain evidence")
-		}
-		for _, attempt := range attempts {
-			if attempt.Status == "no_match" {
-				return nil
+	for _, step := range completed {
+		for _, attempt := range step.SourceAttempts {
+			switch attempt.Status {
+			case "matched", "no_match", "completed":
+				return true
 			}
 		}
-		return errors.New("insufficient synthesis requires a real no_match result")
-	default:
-		return errors.New("workflow answer mode is invalid")
 	}
+	return false
 }
 
 func workflowHasRecoveryPath(completed []WorkflowCompletedStep, remaining []WorkflowTaskPlanStep, capabilities AgentCapabilitiesSnapshot) bool {

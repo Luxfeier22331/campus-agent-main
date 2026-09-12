@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
 	AgentRunnerResult,
 	AgentRuntimeLimits,
@@ -17,6 +17,7 @@ import { createAgentRuntimeHandler as createAgentRuntimeHandlerBase } from "../s
 import type { ModelConfigClientOptions } from "../src/model-config-client.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
 import { createWorkflowOperationRuntime } from "../src/workflow-runtime.ts";
+import { deferred } from "./helpers/deferred.ts";
 import { testToolContractFingerprint } from "./helpers/runtime-contract.ts";
 
 const targetSHA256 = "5b2e4a65688738d87e396008d0d331b53e13a9dc53a7c89c7391b0d5440b5b70";
@@ -52,7 +53,207 @@ const evidence: WorkflowEvidence = {
 	sectionTitle: "正文",
 };
 
+afterEach(() => vi.useRealTimers());
+
 describe("agent runtime HTTP handler", () => {
+	it("invalidates provisional output before preserving a failed terminal result", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				...runtimeFor(),
+				async *stream(input) {
+					yield { event: "answer_delta", data: { delta: "draft", provisional: true } };
+					yield {
+						event: "failed",
+						data: {
+							...resultFor(input),
+							status: "failed",
+							failure: { code: "model_output_invalid", operation: "workflow.synthesize" },
+						},
+					};
+				},
+			},
+		});
+		const response = await post(
+			handler,
+			validBody("synthesize"),
+			"/internal/agent-requests/stream",
+		);
+		const events = parseSseEvents(await response.text());
+		expect(events.map((event) => event.event)).toEqual([
+			"answer_delta",
+			"answer_invalidated",
+			"failed",
+		]);
+		expect(events.at(-1)?.data).toMatchObject({
+			status: "failed",
+			failure: { code: "model_output_invalid" },
+		});
+	});
+	it.each(["solve", "execute_step", "replan", "synthesize"] as const)(
+		"bounds uncooperative HTTP %s work and discards late failure",
+		async (operation) => {
+			vi.useFakeTimers();
+			const late = deferred<WorkflowOperationResult>();
+			const onRunError = vi.fn();
+			const runtime = { ...runtimeFor(), run: vi.fn(() => late.promise) };
+			const handler = createAgentRuntimeHandler({ runtime, onRunError, sharedSecret: "secret" });
+			const body = validBody(operation);
+			body.limits = { ...validRuntimeLimits(), agent_deadline_ms: 100 };
+			body.deadline_at = new Date(
+				Date.now() + 100 + (["execute_step", "replan"].includes(operation) ? 30_000 : 5_000),
+			).toISOString();
+			const response = post(handler, body);
+			await vi.advanceTimersByTimeAsync(100);
+			const wire = await (await response).json();
+			expect(wire.error).toMatchObject({
+				code: "agent_deadline_exceeded",
+				operation: `workflow.${operation}`,
+			});
+			expect(onRunError.mock.calls[0]?.[1].failure).toEqual(wire.error);
+			expect(runtime.run).toHaveBeenCalledOnce();
+			late.reject(new Error("cleanup failed later"));
+			await vi.advanceTimersByTimeAsync(1000);
+			expect(onRunError).toHaveBeenCalledOnce();
+			expect(vi.getTimerCount()).toBe(0);
+		},
+	);
+
+	it.each([false, true])(
+		"bounds an uncooperative stream with partial output=%s",
+		async (partial) => {
+			vi.useFakeTimers();
+			const late = deferred<WorkflowOperationStreamEvent>();
+			const onStreamError = vi.fn();
+			const cleanup = vi.fn();
+			const handler = createAgentRuntimeHandler({
+				sharedSecret: "secret",
+				onStreamError,
+				runtime: {
+					...runtimeFor(),
+					async *stream(input) {
+						try {
+							if (partial) {
+								yield { event: "answer_delta", data: { delta: "partial", provisional: true } };
+							}
+							yield await late.promise;
+							yield { event: "completed", data: resultFor(input) };
+						} finally {
+							cleanup();
+						}
+					},
+				},
+			});
+			const body = validBody("synthesize");
+			body.limits = { ...validRuntimeLimits(), agent_deadline_ms: 100 };
+			body.deadline_at = new Date(Date.now() + 5_100).toISOString();
+			const response = await post(handler, body, "/internal/agent-requests/stream");
+			const text = response.text();
+			await vi.advanceTimersByTimeAsync(100);
+			const events = parseSseEvents(await text);
+			expect(events.map((event) => event.event)).toEqual(
+				partial ? ["answer_delta", "answer_invalidated", "error"] : ["error"],
+			);
+			expect(events.at(-1)?.data).toMatchObject({
+				code: "agent_deadline_exceeded",
+				operation: "workflow.synthesize",
+			});
+			expect(cleanup).not.toHaveBeenCalled();
+			late.resolve({ event: "answer_delta", data: { delta: "too late", provisional: true } });
+			await vi.advanceTimersByTimeAsync(1000);
+			expect(cleanup).toHaveBeenCalledOnce();
+			expect(onStreamError).toHaveBeenCalledOnce();
+			expect(vi.getTimerCount()).toBe(0);
+		},
+	);
+
+	it.each([false, true])(
+		"includes Model Config latency in the operation deadline, stream=%s",
+		async (stream) => {
+			vi.useFakeTimers();
+			const config = modelConfigClient();
+			const releaseConfig = deferred<void>();
+			const runtime = {
+				...runtimeFor(),
+				run: vi.fn(() => new Promise<never>(() => undefined)),
+				stream: vi.fn(() => ({
+					async *[Symbol.asyncIterator]() {
+						await new Promise<never>(() => undefined);
+					},
+				})),
+			};
+			const handler = createAgentRuntimeHandler({
+				sharedSecret: "secret",
+				runtime,
+				modelConfig: {
+					...config,
+					fetchImplementation: async (...args) => {
+						await releaseConfig.promise;
+						return (config.fetchImplementation ?? fetch)(...args);
+					},
+				},
+			});
+			const body = validBody("solve");
+			body.limits = { ...validRuntimeLimits(), agent_deadline_ms: 100 };
+			body.deadline_at = new Date(Date.now() + 5_100).toISOString();
+			const pending = post(handler, body, `/internal/agent-requests${stream ? "/stream" : ""}`);
+			await vi.advanceTimersByTimeAsync(60);
+			releaseConfig.resolve();
+			await vi.advanceTimersByTimeAsync(0);
+			const streamText = stream ? (await pending).text() : undefined;
+			await vi.advanceTimersByTimeAsync(40);
+			const failure = stream
+				? parseSseEvents((await streamText) ?? "").at(-1)?.data
+				: (await (await pending).json()).error;
+			expect(failure).toMatchObject({ code: "agent_deadline_exceeded" });
+			expect(stream ? runtime.stream : runtime.run).toHaveBeenCalledOnce();
+		},
+	);
+
+	it("expires while Model Config is stuck and never starts the model", async () => {
+		vi.useFakeTimers();
+		const runtime = { ...runtimeFor(), run: vi.fn() };
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime,
+			modelConfig: {
+				baseUrl: "http://config",
+				fetchImplementation: async () => new Promise<never>(() => undefined),
+			},
+		});
+		const body = validBody("solve");
+		body.limits = { ...validRuntimeLimits(), agent_deadline_ms: 100 };
+		body.deadline_at = new Date(Date.now() + 5_100).toISOString();
+		const pending = post(handler, body);
+		await vi.advanceTimersByTimeAsync(100);
+		expect(await (await pending).json()).toMatchObject({
+			error: { code: "agent_deadline_exceeded", operation: "workflow.solve" },
+		});
+		expect(runtime.run).not.toHaveBeenCalled();
+	});
+
+	it("closes a canceled pending stream without a later deadline error", async () => {
+		vi.useFakeTimers();
+		const onStreamError = vi.fn();
+		let signal: AbortSignal | undefined;
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			onStreamError,
+			runtime: {
+				...runtimeFor(),
+				async *stream(input) {
+					signal = input.signal;
+					await new Promise<never>(() => undefined);
+				},
+			},
+		});
+		const response = await post(handler, validBody("solve"), "/internal/agent-requests/stream");
+		await response.body?.cancel();
+		await vi.advanceTimersByTimeAsync(100000);
+		expect(signal?.aborted).toBe(true);
+		expect(onStreamError).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(0);
+	});
 	it("rejects oversized completion JSON and invalidates streamed drafts", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -468,21 +669,27 @@ describe("agent runtime HTTP handler", () => {
 		const response = await post(handler, validBody("solve"));
 
 		expect(response.status).toBe(500);
-		expect(await response.json()).toMatchObject({
+		const body = await response.json();
+		expect(body).toMatchObject({
 			error: {
 				code: "run_failed",
 				message: "The agent runtime could not complete the request.",
+				operation: "workflow.solve",
+				detail: "Error: private provider response",
 				retryable: false,
 			},
 		});
 		expect(onRunError).toHaveBeenCalledWith(thrown, {
 			operation: "solve",
 			requestId: "req-solve",
+			failure: body.error,
 		});
 	});
 
 	it("classifies an operation deadline on the blocking route", async () => {
+		const onRunError = vi.fn();
 		const handler = createAgentRuntimeHandler({
+			onRunError,
 			runtime: {
 				async run(input) {
 					await waitForAbort(input.signal);
@@ -494,17 +701,57 @@ describe("agent runtime HTTP handler", () => {
 		});
 		const body = validBody("solve");
 		body.limits = { ...validRuntimeLimits(), agent_deadline_ms: 5 };
+		body.deadline_at = new Date(Date.now() + 5_005).toISOString();
 
 		const response = await post(handler, body);
 
 		expect(response.status).toBe(500);
-		expect(await response.json()).toMatchObject({
+		const result = await response.json();
+		expect(result).toMatchObject({
 			error: { code: "agent_deadline_exceeded", retryable: false },
 		});
+		expect(onRunError.mock.calls[0]?.[1].failure).toEqual(result.error);
 	});
 
-	it("emits an SSE error when a stream ends without a completed event", async () => {
+	it("uses the same deadline classification in stream diagnostics and the terminal event", async () => {
+		const onStreamError = vi.fn();
 		const handler = createAgentRuntimeHandler({
+			onStreamError,
+			sharedSecret: "secret",
+			runtime: {
+				async run() {
+					throw new Error("must stream");
+				},
+				async *stream(input) {
+					yield { event: "answer_delta", data: { delta: "partial", provisional: true } };
+					await waitForAbort(input.signal);
+					throw input.signal?.reason;
+				},
+			},
+		});
+		const body = validBody("synthesize");
+		body.limits = { ...validRuntimeLimits(), agent_deadline_ms: 5 };
+		body.deadline_at = new Date(Date.now() + 5_005).toISOString();
+		const response = await post(handler, body, "/internal/agent-requests/stream");
+		const terminal = parseSseEvents(await response.text()).at(-1);
+		expect(terminal).toMatchObject({
+			event: "error",
+			data: { code: "agent_deadline_exceeded", operation: "workflow.synthesize" },
+		});
+		const { runtime_release: _release, ...failure } = terminal?.data ?? {};
+		expect(onStreamError.mock.calls[0]?.[1].failure).toEqual(failure);
+	});
+
+	it.each([false, true])("emits an SSE error even if diagnostics throws: %s", async (logThrows) => {
+		const onStreamError = vi.fn<
+			NonNullable<Parameters<typeof createAgentRuntimeHandlerBase>[0]["onStreamError"]>
+		>(() => {
+			if (logThrows) {
+				throw new Error("log unavailable");
+			}
+		});
+		const handler = createAgentRuntimeHandler({
+			onStreamError,
 			runtime: {
 				async run() {
 					throw new Error("blocking operation must not be used");
@@ -522,6 +769,15 @@ describe("agent runtime HTTP handler", () => {
 			"/internal/agent-requests/stream",
 		);
 		const events = parseSseEvents(await response.text());
+		expect(onStreamError).toHaveBeenCalledWith(expect.any(Error), {
+			operation: "synthesize",
+			requestId: "req-synthesize",
+			failure: expect.objectContaining({ code: "run_failed", operation: "workflow.synthesize" }),
+		});
+		const eventData = events.find((event) => event.event === "error")?.data;
+		expect(eventData).toBeDefined();
+		const { runtime_release: _release, ...wireFailure } = eventData ?? {};
+		expect(onStreamError.mock.calls[0]?.[1].failure).toEqual(wireFailure);
 
 		expect(events).toEqual([
 			{
@@ -544,7 +800,8 @@ describe("agent runtime HTTP handler", () => {
 				data: {
 					code: "run_failed",
 					message: "The agent runtime could not complete the request.",
-					operation: "agent.runtime",
+					operation: "workflow.synthesize",
+					detail: "Error: Agent runtime stream ended without a terminal event.",
 					retryable: false,
 					runtime_release: "test-release",
 				},
@@ -562,8 +819,6 @@ describe("agent runtime HTTP handler", () => {
 					finalOutput: "",
 					providerResponseId: "resp",
 					toolResults: [],
-					webCitations: [],
-					webSearchUsed: false,
 					usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 				};
 			},
@@ -654,8 +909,6 @@ function resultFor(
 		stageTiming: { [`workflow.${input.operation}_ms`]: 2 },
 		toolContractFingerprint: fingerprint,
 		toolResults: [],
-		webCitations: [],
-		webSearchUsed: false,
 		terminalReason: "operation_completed",
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 	};
@@ -667,8 +920,6 @@ function agentRunnerResult(overrides: Partial<AgentRunnerResult> = {}): AgentRun
 		finalOutput: "",
 		providerResponseId: "resp-test",
 		toolResults: [],
-		webCitations: [],
-		webSearchUsed: false,
 		usage: { modelRequestCount: 1, inputTokens: 1, outputTokens: 1, usageObserved: true },
 		...overrides,
 	};
@@ -686,6 +937,7 @@ function validBody(
 		expected_tool_contract_fingerprint: wireFingerprint(),
 		expected_model_target_sha256: targetSHA256,
 		limits: validRuntimeLimits(),
+		deadline_at: new Date(Date.now() + 240_000).toISOString(),
 	};
 	if (operation === "solve") {
 		return { ...common, operation, operation_input: { goal: "查询校园通知", max_steps: 2 } };
@@ -724,7 +976,6 @@ function validBody(
 			source_attempts: [],
 			remaining_facts: [],
 			evidence: [evidenceWire(evidence)],
-			answer_mode: "grounded",
 		},
 	};
 }

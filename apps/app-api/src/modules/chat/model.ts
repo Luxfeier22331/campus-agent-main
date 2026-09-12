@@ -73,7 +73,12 @@ export interface ChatSourceItemsStructuredPart {
 	sourceItems: ChatSourceItem[];
 }
 
-export type ChatMessageStructuredPart = ChatSourceItemsStructuredPart;
+export interface ChatSearchSuggestionsPart {
+	type: "search_suggestions";
+	provider: "google";
+	renderedContent: string;
+}
+export type ChatMessageStructuredPart = ChatSourceItemsStructuredPart | ChatSearchSuggestionsPart;
 
 export interface ChatSessionSlot {
 	confirmed: boolean;
@@ -406,6 +411,18 @@ function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | nu
 		return null;
 	}
 
+	if (
+		value.type === "search_suggestions" &&
+		value.provider === "google" &&
+		typeof value.renderedContent === "string" &&
+		value.renderedContent.trim()
+	) {
+		return {
+			type: "search_suggestions",
+			provider: "google",
+			renderedContent: value.renderedContent,
+		};
+	}
 	if (value.type === "source_items") {
 		const sourceItems = normalizeSourceItems(value.sourceItems);
 		if (sourceItems.length === 0) {

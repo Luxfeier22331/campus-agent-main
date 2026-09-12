@@ -170,6 +170,7 @@ describe("execution-control tool executor", () => {
 				user_goal: "我想了解转专业需要满足什么条件？",
 				citation_start: 4,
 				result_limit: 5,
+				deadline_at: expect.any(String),
 			},
 		});
 	});
@@ -263,7 +264,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result.status).toBe("failed");
 		expect(result.failure).toMatchObject({
-			code: "tool_handler_failed",
+			code: "source_truth_unavailable",
 			operation: "tool.test_lookup",
 			httpStatus: 503,
 		});
@@ -300,7 +301,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result.status).toBe("failed");
 		expect(result.failure).toMatchObject({
-			code: "transient_internal_query_failed",
+			code: "campus_search_network_failed",
 			operation: "tool.test_lookup",
 		});
 		expect(result.result.error).toBe("execution-control query request failed");
@@ -328,7 +329,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result).toMatchObject({
 			status: "failed",
-			failure: { code: "transient_internal_query_failed", operation: "tool.test_lookup" },
+			failure: { code: "campus_search_timeout", operation: "tool.test_lookup" },
 			result: { error: "execution-control query timed out" },
 		});
 	});
@@ -362,7 +363,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result).toMatchObject({
 			status: "failed",
-			failure: { code: "transient_internal_query_failed", operation: "tool.test_lookup" },
+			failure: { code: "campus_search_timeout", operation: "tool.test_lookup" },
 			result: { error: "execution-control query timed out" },
 		});
 	});

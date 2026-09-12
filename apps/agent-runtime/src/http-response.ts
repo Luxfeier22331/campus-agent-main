@@ -7,17 +7,28 @@ import type {
 	WorkflowOperationStreamEvent,
 } from "./agent-run-contract.ts";
 import { encodeOperationPayload } from "./operation-payload.ts";
-import { agentRuntimeErrorPayload } from "./runtime-errors.ts";
+import { waitForRuntimeWork } from "./runtime-cancellation.ts";
+import { type AgentRuntimeErrorPayload, agentRuntimeErrorPayload } from "./runtime-errors.ts";
 
 export function agentRunStreamResponse(
 	events: AsyncIterable<WorkflowOperationStreamEvent>,
 	options: {
 		deadlineSignal?: AbortSignal;
-		onError?: (error: unknown) => void;
+		signal?: AbortSignal;
+		onClose?: () => void;
+		onCancel?: () => void;
+		operation?: string;
+		onError?: (error: unknown, failure: AgentRuntimeErrorPayload) => void;
 		runtimeRelease: string;
 	},
 ): Response {
 	const iterator = events[Symbol.asyncIterator]();
+	const stopped = new AbortController();
+	const signal = AbortSignal.any([
+		stopped.signal,
+		...(options.signal ? [options.signal] : []),
+		...(options.deadlineSignal ? [options.deadlineSignal] : []),
+	]);
 	let cancelled = false;
 	let iteratorReturnStarted = false;
 	const returnIterator = () => {
@@ -40,7 +51,7 @@ export function agentRunStreamResponse(
 			let provisionalDeltaSent = false;
 			try {
 				for (;;) {
-					const item = await iterator.next();
+					const item = await waitForRuntimeWork(signal, () => iterator.next());
 					if (cancelled) {
 						return;
 					}
@@ -69,13 +80,34 @@ export function agentRunStreamResponse(
 						);
 						continue;
 					}
-					controller.enqueue(
-						encodeSseEvent("completed", agentRunResultWire(event.data, options.runtimeRelease)),
+					const terminal = encodeSseEvent(
+						event.event,
+						agentRunResultWire(event.data, options.runtimeRelease),
 					);
+					if (event.event === "failed" && provisionalDeltaSent) {
+						controller.enqueue(
+							encodeSseEvent("answer_invalidated", {
+								schema_version: "workflow_runtime_answer_invalidation.v1",
+								reason: "terminal_result_unavailable",
+							}),
+						);
+					}
+					controller.enqueue(terminal);
 					return;
 				}
 			} catch (error) {
-				options.onError?.(error);
+				if (cancelled) {
+					return;
+				}
+				const failure = agentRuntimeErrorPayload(error, {
+					...(options.deadlineSignal ? { deadlineSignal: options.deadlineSignal } : {}),
+					...(options.operation ? { operation: options.operation } : {}),
+				});
+				try {
+					options.onError?.(error, failure);
+				} catch {
+					// Diagnostics must not prevent the terminal error event.
+				}
 				if (!cancelled) {
 					if (provisionalDeltaSent) {
 						controller.enqueue(
@@ -87,15 +119,13 @@ export function agentRunStreamResponse(
 					}
 					controller.enqueue(
 						encodeSseEvent("error", {
-							...agentRuntimeErrorPayload(
-								error,
-								options.deadlineSignal ? { deadlineSignal: options.deadlineSignal } : {},
-							),
+							...failure,
 							runtime_release: options.runtimeRelease,
 						}),
 					);
 				}
 			} finally {
+				options.onClose?.();
 				if (!exhausted) {
 					returnIterator();
 				}
@@ -106,6 +136,8 @@ export function agentRunStreamResponse(
 		},
 		cancel() {
 			cancelled = true;
+			stopped.abort();
+			options.onCancel?.();
 			returnIterator();
 		},
 	});
@@ -121,6 +153,23 @@ export function agentRunStreamResponse(
 
 export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelease: string) {
 	const payload = {
+		...(result.modelOutputDiagnostic
+			? { model_output_diagnostic: result.modelOutputDiagnostic }
+			: {}),
+		...(result.failure
+			? {
+					failure: {
+						code: result.failure.code,
+						operation: result.failure.operation,
+						...(result.failure.detail ? { detail: result.failure.detail } : {}),
+						...(result.failure.httpStatus === undefined
+							? {}
+							: { http_status: result.failure.httpStatus }),
+						...(result.failure.invocationId ? { invocation_id: result.failure.invocationId } : {}),
+					},
+				}
+			: {}),
+		...(result.answerStarted ? { answer_started: true } : {}),
 		operation: result.operation,
 		status: result.status,
 		request_id: result.requestId,
@@ -147,7 +196,6 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 				: {}),
 		},
 		final_output: result.finalOutput,
-		...(result.answerMode ? { answer_mode: result.answerMode } : {}),
 		...(result.solveOutcome === undefined ? {} : { solve_outcome: result.solveOutcome }),
 		...(result.plan ? { plan: structuredOutputWire(result.plan) } : {}),
 		...(result.replan ? { replan: structuredOutputWire(result.replan) } : {}),
@@ -192,13 +240,10 @@ export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelea
 			tools_sha256: result.toolContractFingerprint.toolsSha256,
 			function_schema_sha256: result.toolContractFingerprint.functionSchemaSha256,
 		},
-		web_citations: result.webCitations.map((citation) => ({
-			end_index: citation.endIndex,
-			start_index: citation.startIndex,
-			title: citation.title,
-			url: citation.url,
+		search_suggestions: (result.searchSuggestions ?? []).map((s) => ({
+			provider: s.provider,
+			rendered_content: s.renderedContent,
 		})),
-		web_search_used: result.webSearchUsed,
 		terminal_reason: result.terminalReason,
 		usage: {
 			model_request_count: result.usage.modelRequestCount,

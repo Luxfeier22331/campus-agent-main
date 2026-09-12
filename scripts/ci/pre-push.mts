@@ -49,7 +49,37 @@ export function planPrePush(
 		return { kind: "delete" };
 	}
 	if (from === ZERO_REF) {
-		return { head: to, kind: "full" };
+		const exists = runner("git", ["rev-parse", "--verify", "--quiet", "refs/remotes/origin/main"], {
+			cwd: input.repositoryRoot,
+			env: input.env,
+		});
+		if (exists.error) {
+			throw exists.error;
+		}
+		if (exists.status === 1) {
+			return { head: to, kind: "full" };
+		}
+		if (exists.status !== 0) {
+			throw commandError("git", ["rev-parse", "origin/main"], exists.status, exists.stderr);
+		}
+		const base = runner("git", ["merge-base", "origin/main", to], {
+			cwd: input.repositoryRoot,
+			env: input.env,
+		});
+		if (base.error) {
+			throw base.error;
+		}
+		if (base.status === 1) {
+			return { head: to, kind: "full" };
+		}
+		if (base.status !== 0) {
+			throw commandError("git", ["merge-base", "origin/main", to], base.status, base.stderr);
+		}
+		const sha = base.stdout?.trim() ?? "";
+		if (!SHA_PATTERN.test(sha)) {
+			throw new Error("Git returned an invalid push base");
+		}
+		return { base: sha, head: to, kind: "affected" };
 	}
 	const args = ["merge-base", "--is-ancestor", from, to];
 	const result = runner("git", args, {
@@ -83,6 +113,7 @@ export function runPrePush(
 			...(plan.kind === "affected" ? { base: plan.base } : {}),
 			head: plan.head,
 			repositoryRoot,
+			env,
 		},
 		runner,
 	);

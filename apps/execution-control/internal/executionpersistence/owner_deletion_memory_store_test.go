@@ -34,6 +34,7 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 	store.runSteps["step-1"] = execution.RunStepProjection{RequestID: requestID}
 	store.stepAttempts["attempt-1"] = execution.StepAttemptProjection{RequestID: requestID}
 	store.stepResults["result-1"] = execution.StepResultProjection{RequestID: requestID}
+	store.modelOutputDiagnostics["result-1"] = execution.ModelOutputDiagnostic{Text: "failed visible output"}
 	store.Receipts.records["invocation-1"] = execution.AgentInvocationReceipt{RequestID: requestID}
 	store.mu.Unlock()
 
@@ -80,6 +81,9 @@ func TestInMemoryOwnerDeletionReusesCancellationAndCascadesProjection(t *testing
 	}
 	if status.State != execution.OwnerDeletionStateDeleted || status.ActiveRuns != 0 {
 		t.Fatalf("finalize owner deletion status = %#v", status)
+	}
+	if len(store.modelOutputDiagnostics) != 0 {
+		t.Fatal("owner deletion retained model output diagnostics")
 	}
 	if _, err := store.GetRun(ctx, requestID); !errors.Is(err, execution.ErrDurableRunNotFound) {
 		t.Fatalf("deleted run lookup error = %v, want execution.ErrDurableRunNotFound", err)

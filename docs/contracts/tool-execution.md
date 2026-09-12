@@ -12,10 +12,24 @@ status: active
 
 - app-api 拥有浏览器认证、会话事实和浏览器传输；
 - execution-control 拥有准入、Temporal 生命周期、内部查询策略、终态处理和安全投影；
-- agent-runtime 在 Temporal Agent Workflow 的单个 operation Activity 内运行 OpenAI Agents SDK 循环；
+- agent-runtime 在单个 operation Activity 内运行由 Model Config 选择的 OpenAI 或 Gemini runner；
 - 浏览器不得直接调用本合同。
 
 ## 接口与认证
+
+### 模型输出失败的内部结果
+
+JSON 解码或输出 schema 校验失败使用 `model_output_invalid`，以 `status=failed` 的完整 operation
+结果返回，保留已完成工具结果、evidence、source attempts、模型用量和阶段耗时。失败不是成功摘要，
+不设置成功的 completed step；由 Workflow 根据真实失败建立步骤状态，并使用保留下来的材料继续
+既有合成流程。通用 `run_failed`、证据合同错误与未知执行状态不因此变成可恢复失败。
+Replan 的 decision/剩余计划语义仍由 execution-control 校验；被拒绝的模型决策保存
+`model_output_invalid` 及用量，Workflow 保留原获准计划而不执行无效替换。该 owner 不拥有解析前
+模型文本，因此不伪造原文诊断；其他结果合同错误保留有界校验原因供 Ops 查看。
+失败 receipt 保存完整业务结果，重放不再次调用模型或检索。Ops 专用的 `model_output_diagnostic`
+仅存在于 Runtime 内部传输与步骤诊断列，不进入业务 receipt、Activity 输出、事件或后续模型上下文。
+
+### 调用认证
 
 - app-api 调用 execution-control 的运行创建、状态、事件、步骤和取消接口；
 - execution-control 调用 app-api 的
@@ -73,15 +87,15 @@ task-queue 字段。
 execution-control 根据当前能力状态生成本轮工具集合：
 
 - `visible_function_tool_names` 是名称唯一的集合，数组顺序没有路由语义；
-- `execute_step` 只开放当前步骤候选来源对应的工具；`solve`、`replan` 和 `synthesize` 不执行本地
-  function tool；
+- `solve` 可使用本轮准入的工具直接检索并回答；`execute_step` 只开放当前步骤候选来源对应的工具；
+  `replan` 和 `synthesize` 不执行本地 function tool；
 - `max_model_turns` 与 `max_function_tool_calls` 是单个 operation 的预算，`max_plan_steps` 与
   `max_replans` 是外层 workflow 的请求级预算；同一工具可以重复调用，不从数组顺序推导调用顺序。
 
-以上字段和预算只描述本地 function tools。`web_search` 只有在当前 execute step 的候选来源中被显式
-允许时，Agent Runtime 才附加 Agents SDK 原生 hosted tool；它不进入工具注册表、
+以上字段和预算只描述本地 function tools。`web_search` 在 Solve 已准入，或在当前 execute step 的候选来源中被显式
+允许时，Agent Runtime 才附加供应商原生搜索（OpenAI Web Search / Gemini Google Search）；它不进入工具注册表、
 `visible_function_tool_names`、本地 `max_function_tool_calls`、execution-control handler 或
-`tool_results`。该能力要求 `primary_agent` Model Config 使用 OpenAI Responses API；不兼容的 Chat
+`tool_results`。该能力要求 `primary_agent` Model Config 使用 OpenAI Responses 或 Google GenerateContent；不兼容的 Chat
 Completions 配置以
 `model_config_incompatible` 拒绝，不进行 fallback。
 
@@ -106,28 +120,41 @@ Agent Workflow 的固定角色是中央民族大学校园问答助手，未明�
 
 需要补充或核验尚未采集的公开校园网页信息时，Replanner 可以为后续步骤加入 `web_search`，Executor
 再在该步骤内调用它。`campus_search` 返回 `no_match` 或失败表示当前已采集文档没有可用证据；这不会由
-代码自动触发 Web Search，也不能直接判定资料不足。只有 `campus_search` 成功返回 `matched`
-和 evidence 时才使用 `[n]` 引用；`web_search` 支持的每条事实必须由 SDK 原生 URL citation 支持，模型
-不得手写 URL、Markdown 来源链接、数字引用或 turn 引用。Finalization 校验 citation 的位置、URL 和
-标题，把实际引用转换为统一的编号正文链接及 `kind=web_page` 来源卡；当前仍不保存 Web Search
-原始结果，也不把它伪装成本地 function tool 轨迹。
+代码自动触发 Web Search，也不能直接判定资料不足。runner 在模型响应处解析 OpenAI URL annotation 或
+Gemini grounding support，提取 URL、标题与对应文本片段作为中立 `webEvidence`，不把供应商字符位置
+传给 Temporal。Workflow 为有效材料分配 citationIndex，Synthesizer 只使用这些编号输出 `[n]`。
+Finalization 按正文实际引用产生统一编号链接与 `kind=web_page` 来源卡；模型手写 URL 不作为来源。
+未引用材料和失败工具结果不贡献来源。
 
-`campus_search` evidence 按返回顺序对应正文中的 Markdown 引用 `[1]` 到 `[5]`。Finalization 只从
-同一次 request 的成功工具结果中解析实际出现的引用并派生公开来源；失败工具、越界编号和未被正文引用的
-evidence 不贡献来源。本轮没有成功 Campus Docs evidence、但存在有效 SDK 原生 Web citation 时，模型
-额外写出的数字引用只作为冗余正文标记移除，不生成来源，也不阻断已有 Web citation 的 Finalization；
-没有有效 Web citation 时仍按失败工具引用拒绝。
+Google 搜索建议是独立的 `search_suggestions` 数组，项包含 `provider=google` 与 `rendered_content`。
+它随 Solve 或已完成步骤传递并在合成（包括 recovery）时汇总，最终由 App API 保存为结构化消息，Campus Web 在隔离 iframe 中
+原样展示。它不参与引用编号、不进入后续模型输入，也不伪装成本地 function tool 轨迹。
 同一次 SDK run 可以多次调用 `campus_search`。每次最多返回 5 条结果，本轮累计最多 10 条；每条结果
-携带本轮全局 `citation_index` `1..10`。成功但没有结果的调用和失败调用不占用编号。只有正文实际
+携带本轮全局 `citation_index` `1..10`。单次调用内 `result_ref` 唯一；不同调用允许重复召回相同
+`result_ref`，各编号到来源的映射保留至 Finalization，不能因 evidence 去重丢弃后续编号。
+成功但没有结果的调用和失败调用不占用编号。只有正文实际
 引用的结果才是 cited results；Finalization 从同一次 request 的成功工具结果中解析 `[n]` 并派生公开
 来源卡片。失败工具结果和未被正文引用的候选不贡献来源；未知、零或超出 `1..10` 的引用使
 Finalization 失败。
 
-查询文本由 execution-control 确定性生成：`search_query` 与 `user_goal` 相同时只使用
-`user_goal`，否则使用 `user_goal + "\n检索表达：" + search_query`。dense、sparse 和 rerank
-消费同一查询文本。
+引用预算耗尽立即停止当前模型循环，并以 `retrieval_budget_exhausted` 返回失败 operation；
+失败不丢弃已完成工具结果、evidence、source attempts、用量或 provider response ID。
+所有 synthesis 输入只携带目标、汇总 evidence、source attempts、remaining facts 和搜索建议，不携带
+plan 或 completed steps，也不再检索。普通计划合成为 `mode=planned`；Solve 已有材料但失败时使用
+`mode=recovery`，另传 recovery reason。Runtime 不回传输入材料，由 Execution Control 重新附加
+已接纳的 evidence 和 source attempts，再保存 receipt 与传给 Workflow，失败结果也遵循这一规则。
+恢复成功正常完成产品回答；无材料时保留具体技术错误，资料确实为空时为 `materials_insufficient`；
+有材料但恢复生成失败为 `answer_synthesis_failed`。取消与请求绝对 deadline 不被恢复覆盖或延长。
+若 Solve 已发出正文，恢复结果整体替换草稿，失败流不能发送 answer-completed。Runtime 在草稿之后
+无法提供成功终态时先发送 `answer_invalidated`，再发送原始 `failed` 或 `error`；Execution Control
+保留原始失败原因，不把失效事件当作终态，也不接受其后的成功终态。
 
-Agents SDK 负责依据 `tool-function-schemas.v4.json` 验证模型生成的函数参数。Execution Control 只读取
+查询由 execution-control 按用途拆分：dense 和 sparse 使用工具提供的 `search_query`，rerank 使用
+当前 `user_goal`；分别去除首尾空白，不再把用户目标与扩展检索词拼接为同一查询。Ops 诊断记录实际
+召回查询与排序目标，历史记录缺少排序目标时不回填推断值。
+
+runner 负责依据 `tool-function-schemas.v4.json` 验证模型生成的函数参数：OpenAI 由 Agents SDK 验证，
+Gemini adapter 使用同一 JSON Schema 验证后调用共享本地工具执行器。Execution Control 只读取
 同一文件参与工具合同指纹，不再递归实现第二份 schema 校验；handler 仍负责身份、业务前置条件和结果合同。
 Agent Runtime 返回的每个 `tool_results` 项包含实际 `tool_name`、`arguments_json`、`status`、
 `duration_ms`、有界 `result`、实际 `invocation_id` 和可选结构化 `failure`。实际执行过的工具调用
@@ -177,14 +204,14 @@ finalization recovery response 的上限均为 1 MiB（1,048,576 字节）。每
 StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memory.append` 可写的例外由
 `../data/durable-runtime.md` 定义。
 
-`personal_memory_recall` 是 Execute Step operation 同一次 SDK run 内的有界工具调用，不使用独立 memory
+`personal_memory_recall` 是 Solve 或 Execute Step operation 同一次 SDK run 内的有界工具调用，不使用独立 memory
 ref 或独立 payload。memory 正文仅保留在 evidence excerpt 中，最多 4000 个 Unicode codepoint；
 Temporal 工具摘要只保留 `matched` / `no_match` outcome，不保存原始 arguments、debug 或 failure detail。
 Campus 工具摘要遵守现有 bounded search result 合同，Ops 查询诊断仍由已有专用投影拥有。
-operation invocation receipt 约束整个 SDK
-run 不得因 Activity 重投递而再次执行。已有 `started` receipt 时以 `workflow_attempt_uncertain`
-阻断；`completed` receipt 保存完整类型化 operation output，重投递时校验身份、修复投影并返回
-原结果，不重新调用供应商。首次输出与 replay 使用同一字段和大小校验；replay 还校验已有输出 hash，
+operation invocation receipt 约束整个 SDK run 不得因 Activity 重投递而再次执行。
+已有 `started` receipt 时以 `workflow_attempt_uncertain` 阻断；明确成功或失败的 receipt 保存完整类型化
+operation output，重投递时校验身份、修复投影并返回原结果，不重新调用供应商。
+首次输出与 replay 使用同一字段和大小校验；replay 还校验已有输出 hash，
 按恢复后的类型化输出编码计算，不能对 PostgreSQL JSONB 的文本空白和键顺序计算 hash。
 结果无法解码或无法通过恢复校验时沿用既有失败路径。
 
@@ -240,7 +267,14 @@ Describe 不可用、NotFound 或缺少必要关闭时间时保持重试，已�
 阶段耗时。追问、资料不足和范围说明都是 `completed` 助手正文。它不返回路由标签、外部平台引用
 或逐请求遥测控制项。`result.sources` 是完整来源集合，来源为 `campus_document`、`campus_notice` 或 `web_page`；
 Campus 文档来源保留文档定位；校园通知来源保留 `notice_id`、section title 和 `/notices/<noticeId>` `citation_href`；Web 来源保留 `hostname`、`url` 和
-`citation_href`。来源编号由 Finalization 按正文首次出现顺序写入，重复 Web URL 复用编号。
+`citation_href`。Solve 的来源编号由 Finalization 按正文首次出现顺序写入，相同 Campus `result_ref`
+或重复 Web URL 复用编号和来源卡；不同 `result_ref` 不按文档 ID、通知 ID 或 URL 额外合并。
+Synthesize 保留 Workflow 已分配的稳定 evidence 编号。
+
+检索链路统一综合回答，不携带 `answer_mode`。Replanner 使用 `task_replan.v3`，决策只有 `continue`
+和 `synthesize`。Workflow 在搜索结束后判断是否有材料或成功来源尝试（`matched`、`no_match`、
+`completed`）；没有材料也没有成功来源时保留具体技术失败，缺少具体原因时使用
+`workflow_evidence_unavailable`。该判断不评价材料能否回答问题，不在 Runtime 或 Finalization 重复执行。
 
 失败合同分为三个字段，不能互相补值：
 
@@ -254,6 +288,11 @@ Campus 文档来源保留文档定位；校园通知来源保留 `notice_id`、s
 返回未登记码时 execution-control 使用 `agent_runtime_response_invalid`，并把有界原始码放在该 step
 的诊断 `detail`。Agent Runtime HTTP/SSE 错误不决定产品 `retryable`；execution-control 在写产品终态
 时根据失败事实显式决定用户能否用相同输入新建请求，且该值与 Temporal 重试策略无关。
+
+`agent_deadline_exceeded` 表示 Runtime 在包含 Model Config 读取的 operation 预算到期后主动结束
+响应；取消继续传递给 SDK 和工具，但终态发送不等待其清理完成。Execution 收到该 HTTP/SSE 终态时
+保留代码、operation 和有界 detail；未收到明确结果而发生传输超时才使用 `agent_runtime_timeout`。
+两者不能按名称互相替换。正常完成仍须取得完整结果，取消或超时后的迟到结果不得覆盖终态。
 
 当前在线链路只有 `campus_search` 注册了机构知识结果 adapter。Finalization 按成功工具 adapter
 校验引用并派生公开来源；没有 adapter、来自失败工具或不属于同一次运行的引用均被拒绝。新的来源能力

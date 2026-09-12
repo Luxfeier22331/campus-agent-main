@@ -310,14 +310,36 @@ export function normalizeSourceItemsPart(input: {
 		normalizedSources.push(normalized);
 	}
 	const sourceItems = normalizedSources.map(sourceItemFromNormalized);
+	const suggestions: ChatMessageStructuredPart[] = [];
+	const seen = new Set<string>();
+	const rawSuggestions = isRecord(input.result) ? input.result.search_suggestions : undefined;
+	if (Array.isArray(rawSuggestions)) {
+		for (const suggestion of rawSuggestions) {
+			if (
+				isRecord(suggestion) &&
+				suggestion.provider === "google" &&
+				typeof suggestion.rendered_content === "string" &&
+				suggestion.rendered_content.trim() &&
+				!seen.has(suggestion.rendered_content)
+			) {
+				seen.add(suggestion.rendered_content);
+				suggestions.push({
+					type: "search_suggestions",
+					provider: "google",
+					renderedContent: suggestion.rendered_content,
+				});
+			}
+		}
+	}
 	return sourceItems.length > 0
 		? [
 				{
 					type: "source_items",
 					sourceItems,
 				},
+				...suggestions,
 			]
-		: [];
+		: suggestions;
 }
 
 function dedupeStableNumbers(values: number[]): number[] {

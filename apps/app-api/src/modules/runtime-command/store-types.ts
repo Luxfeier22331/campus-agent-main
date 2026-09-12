@@ -192,6 +192,12 @@ export interface ChatCommandObservabilityStore {
 		observedAt: string;
 		requestId: string;
 	}): Promise<boolean>;
+	recordClientTiming?(input: {
+		requestId: string;
+		firstDeltaMs: number;
+		firstRenderMs: number;
+		observedAt: string;
+	}): Promise<boolean>;
 	readRequestStageTiming(requestId: string): Promise<Record<string, unknown>>;
 }
 

@@ -81,3 +81,13 @@ func TestWorkflowEvidenceCitationClosureRejectsMismatchedNoticeIdentity(t *testi
 		t.Fatalf("error = %T %v, want workflow citation validation error", err, err)
 	}
 }
+
+func TestWorkflowSynthesisWithoutMaterialsAllowsTextButRejectsInventedCitation(t *testing.T) {
+	closure, err := finalizationactivities.WorkflowEvidenceCitationClosureForFinalization(nil, "暂时无法确认申请截止日期。")
+	if err != nil || closure.AnswerText != "暂时无法确认申请截止日期。" || len(closure.Sources) != 0 {
+		t.Fatalf("no-material answer = %#v, error = %v", closure, err)
+	}
+	if _, err := finalizationactivities.WorkflowEvidenceCitationClosureForFinalization(nil, "申请截止日期是明天 [1]。"); err == nil {
+		t.Fatal("accepted fabricated citation without materials")
+	}
+}

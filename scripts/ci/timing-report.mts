@@ -347,6 +347,7 @@ const outcomeKeys: Record<string, string> = {
 	"Run affected Node and image evidence": "affected-node-and-images",
 	"Run container build contract evidence": "container-build",
 	"Check execution-control native code": "execution-control-native",
+	"Check affected native code": "affected-native",
 	"Install affected workspaces": "install-affected",
 	"Login for image cache reads": "image-cache-login",
 	"Check executable contracts": "contracts",

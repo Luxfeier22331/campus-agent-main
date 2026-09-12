@@ -107,8 +107,7 @@ jobs:
           set -euo pipefail
           plan="$(node --experimental-strip-types scripts/ci/validation.mts \
             --base "$BASE_SHA" \
-            --head "$MERGE_SHA" \
-            --mode pull-request)"
+            --head "$MERGE_SHA")"
           jq -e . <<< "$plan" >/dev/null
           base="$(jq -r '.base' <<< "$plan")"
           head="$(jq -r '.head' <<< "$plan")"
@@ -155,7 +154,7 @@ jobs:
         if: >-
           !cancelled() && runner.environment != 'self-hosted' &&
           steps.plan.outcome == 'success' &&
-          contains(fromJSON(steps.plan.outputs.validation_profiles), 'execution-control-native')
+          contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native')
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -164,9 +163,9 @@ jobs:
             ${{ runner.temp }}/go-cache/mod
             ${{ runner.temp }}/go-cache/lint
           # Cache entries are immutable: each source revision saves its new analysis.
-          key: go-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.work', 'go.work.sum', 'apps/*/go.mod', 'apps/*/go.sum', 'flake.lock', 'apps/execution-control/.golangci.yml') }}-${{ github.sha }}
+          key: go-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.work', 'go.work.sum', 'apps/*/go.mod', 'apps/*/go.sum', 'flake.lock', 'apps/*/.golangci.yml') }}-${{ github.sha }}
           restore-keys: |
-            go-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.work', 'go.work.sum', 'apps/*/go.mod', 'apps/*/go.sum', 'flake.lock', 'apps/execution-control/.golangci.yml') }}-
+            go-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.work', 'go.work.sum', 'apps/*/go.mod', 'apps/*/go.sum', 'flake.lock', 'apps/*/.golangci.yml') }}-
 
       - name: Install static-check dependencies
         id: install_static_dependencies
@@ -241,7 +240,7 @@ jobs:
         run: |
           echo CI_BODY_STARTED
           mkdir -p "$RUNNER_TEMP/ci-evidence"
-          pnpm --dir packages/contracts check
+          node --experimental-strip-types scripts/ci/evidence.mts --check contracts
 
       - name: Lint GitHub Actions
         id: github_actions
@@ -251,7 +250,7 @@ jobs:
         run: |
           echo CI_BODY_STARTED
           mkdir -p "$RUNNER_TEMP/ci-evidence"
-          actionlint && zizmor --min-severity=medium .github
+          node --experimental-strip-types scripts/ci/evidence.mts --check config
 
       - name: Scan authored commits for secrets
         id: secrets
@@ -310,8 +309,6 @@ jobs:
           steps.install_affected.outcome == 'success'
         continue-on-error: true
         env:
-          BASE_SHA: ${{ steps.plan.outputs.base }}
-          HEAD_SHA: ${{ steps.plan.outputs.head }}
           CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/node.jsonl
           TURBO_CACHE: "local:rw,remote:rw"
           TURBO_TEAM: ${{ vars.TURBO_TEAM }}
@@ -322,24 +319,22 @@ jobs:
         run: |
           echo CI_BODY_STARTED
           mkdir -p "$RUNNER_TEMP/ci-evidence"
-          node --experimental-strip-types scripts/ci/evidence.mts --base "$BASE_SHA" --head "$HEAD_SHA" --profiles "$VALIDATION_PROFILES" --repository "$GITHUB_REPOSITORY" --summary "$GITHUB_STEP_SUMMARY"
+          node --experimental-strip-types scripts/ci/evidence.mts --plan "$RUNNER_TEMP/ci-evidence/plan.json" --profiles "$VALIDATION_PROFILES" --repository "$GITHUB_REPOSITORY" --summary "$GITHUB_STEP_SUMMARY"
       - name: Run container build contract evidence
         id: container_build
         if: "!cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.has_container_build == 'true'"
         continue-on-error: true
         env:
-          BASE_SHA: ${{ steps.plan.outputs.base }}
-          HEAD_SHA: ${{ steps.plan.outputs.head }}
           CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/container.jsonl
           VALIDATION_PROFILES: '["container-build"]'
         shell: nix develop .#ci-release --command bash -e {0}
         run: |
           echo CI_BODY_STARTED
           mkdir -p "$RUNNER_TEMP/ci-evidence"
-          node --experimental-strip-types scripts/ci/evidence.mts --base "$BASE_SHA" --head "$HEAD_SHA" --profiles "$VALIDATION_PROFILES"
-      - name: Check execution-control native code
-        id: execution_control_native
-        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'execution-control-native')"
+          node --experimental-strip-types scripts/ci/evidence.mts --profiles "$VALIDATION_PROFILES"
+      - name: Check affected native code
+        id: native_evidence
+        if: "!cancelled() && steps.plan.outcome == 'success' && contains(fromJSON(steps.plan.outputs.validation_profiles), 'affected-native')"
         continue-on-error: true
         shell: nix develop .#ci-go --command bash -e {0}
         env:
@@ -348,8 +343,6 @@ jobs:
           GO_CACHE_HIT: ${{ steps.restore_go.outputs.cache-hit }}
           GO_CACHE_RESTORE_OUTCOME: ${{ steps.restore_go.outcome }}
           CI_EVIDENCE_FILE: ${{ runner.temp }}/ci-evidence/native.jsonl
-          BASE_SHA: ${{ steps.plan.outputs.base }}
-          HEAD_SHA: ${{ steps.plan.outputs.head }}
         run: |
           echo CI_BODY_STARTED
           mkdir -p "$RUNNER_TEMP/ci-evidence"
@@ -358,10 +351,10 @@ jobs:
           go version
           go env GOCACHE GOMODCACHE
           golangci-lint cache status
-          node --experimental-strip-types scripts/ci/evidence.mts --base "$BASE_SHA" --head "$HEAD_SHA" --profiles '["execution-control-native"]'
+          node --experimental-strip-types scripts/ci/evidence.mts --plan "$RUNNER_TEMP/ci-evidence/plan.json" --profiles '["affected-native"]'
       - name: Save Go and lint caches
         if: >-
-          !cancelled() && steps.execution_control_native.outcome == 'success' &&
+          !cancelled() && steps.native_evidence.outcome == 'success' &&
           steps.restore_go.outcome == 'success' && steps.restore_go.outputs.cache-hit != 'true'
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -373,7 +366,7 @@ jobs:
           key: ${{ steps.restore_go.outputs.cache-primary-key }}
       - name: Summarize repository evidence
         if: always()
-        shell: bash -e {0}
+        shell: nix develop .#ci-core --command bash -e {0}
         env:
           RESULTS: >-
             {
@@ -381,7 +374,7 @@ jobs:
               "affected-node":"${{ steps.node_evidence.outcome }}",
               "container-build":"${{ steps.container_build.outcome }}",
               "contracts":"${{ steps.contracts.outcome }}",
-              "execution-control-native":"${{ steps.execution_control_native.outcome }}",
+              "affected-native":"${{ steps.native_evidence.outcome }}",
               "github-actions":"${{ steps.github_actions.outcome }}",
               "install-affected":"${{ steps.install_affected.outcome }}",
               "install-static-dependencies":"${{ steps.install_static_dependencies.outcome }}",
@@ -392,7 +385,6 @@ jobs:
             }
         run: |
           echo CI_BODY_STARTED
-          mkdir -p "$RUNNER_TEMP/ci-evidence"
           mkdir -p "$RUNNER_TEMP/ci-evidence"
           jq . <<< "$RESULTS" | tee "$RUNNER_TEMP/ci-evidence/outcomes.json"
           printf 'CI_OUTCOMES %s\n' "$(jq -c . <<< "$RESULTS")"
@@ -406,10 +398,9 @@ jobs:
             echo 'Skipped repository stages follow pnpm check short-circuit order; other skips follow the validation selection or a failed prerequisite.'
             echo 'Final timings, cancellation status and recent-run comparison are published by the CI timing report workflow.'
           } >> "$GITHUB_STEP_SUMMARY"
-          if ! jq -e 'all(.[]; . != "failure" and . != "cancelled")' <<< "$RESULTS" >/dev/null; then
-            echo "One or more repository evidence surfaces failed." >&2
-            exit 1
-          fi
+          node --experimental-strip-types scripts/ci/validation.mts \
+            --check-outcomes "$RUNNER_TEMP/ci-evidence/outcomes.json" \
+            --plan "$RUNNER_TEMP/ci-evidence/plan.json"
 
       - name: Preserve failed check diagnostics
         if: failure() || cancelled()

@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,7 +15,6 @@ const WorkflowTransportGraceMS = 5000
 
 const (
 	DefaultAgentDeadlineMS        = 240000
-	DefaultAgentMaxOutputTokens   = 2048
 	DefaultAgentCurrentInputChars = 8000
 	DefaultAgentContextChars      = 16000
 )
@@ -127,7 +127,6 @@ func AnyListFromAny(value any) []any {
 }
 
 type AgentRuntimeResponse struct {
-	AnswerMode              string                              `json:"answer_mode"`
 	Operation               string                              `json:"operation"`
 	SolveOutcome            string                              `json:"solve_outcome"`
 	Status                  string                              `json:"status"`
@@ -149,15 +148,10 @@ type AgentRuntimeResponse struct {
 	ToolContractFingerprint map[string]any                      `json:"tool_contract_fingerprint"`
 	RuntimeRelease          string                              `json:"runtime_release"`
 	Usage                   AgentRuntimeUsage                   `json:"usage"`
-	WebCitations            []AgentRuntimeWebCitation           `json:"web_citations"`
-	WebSearchUsed           bool                                `json:"web_search_used"`
-}
-
-type AgentRuntimeWebCitation struct {
-	EndIndex   int    `json:"end_index"`
-	StartIndex int    `json:"start_index"`
-	Title      string `json:"title"`
-	URL        string `json:"url"`
+	ModelOutputDiagnostic   json.RawMessage                     `json:"model_output_diagnostic"`
+	Failure                 *temporalruntime.ExecutionFailure   `json:"failure"`
+	AnswerStarted           bool                                `json:"answer_started"`
+	SearchSuggestions       []temporalruntime.SearchSuggestion  `json:"search_suggestions,omitempty"`
 }
 
 type AgentToolResult struct {
@@ -191,6 +185,7 @@ type AgentRuntimeError struct {
 
 type AgentRuntimeHTTPError struct {
 	StatusCode     int
+	HTTPStatus     int
 	Code           string
 	Operation      string
 	Detail         string

@@ -34,6 +34,7 @@ export class ModelConfigClientError extends Error {
 export async function resolveModelRuntimeConfig(
 	options: ModelConfigClientOptions,
 	expectedTargetSha256: string,
+	signal?: AbortSignal,
 ): Promise<PromptProviderRuntimeConfig> {
 	if (!/^[0-9a-f]{64}$/u.test(expectedTargetSha256)) {
 		throw new ModelConfigClientError(
@@ -59,10 +60,11 @@ export async function resolveModelRuntimeConfig(
 				headers: { accept: "application/json" },
 				method: "GET",
 				redirect: "error",
-				signal: AbortSignal.timeout(5_000),
+				signal: AbortSignal.any([AbortSignal.timeout(5_000), ...(signal ? [signal] : [])]),
 			},
 		);
 	} catch {
+		signal?.throwIfAborted();
 		throw new ModelConfigClientError(
 			"Model Config is unavailable.",
 			503,
@@ -81,6 +83,7 @@ export async function resolveModelRuntimeConfig(
 	try {
 		payload = (await response.json()) as RuntimeConfigResponse;
 	} catch {
+		signal?.throwIfAborted();
 		throw new ModelConfigClientError(
 			"Model Config returned invalid JSON.",
 			503,
@@ -104,7 +107,12 @@ export async function resolveModelRuntimeConfig(
 	return {
 		...(payload.capabilities?.hosted_web_search === true ? { hostedWebSearch: true } : {}),
 		provider: payload.provider,
-		transport: payload.api_protocol === "openai.responses" ? "responses" : "chat_completions",
+		transport:
+			payload.api_protocol === "google.generate_content"
+				? "generate_content"
+				: payload.api_protocol === "openai.responses"
+					? "responses"
+					: "chat_completions",
 		baseUrl: payload.base_url,
 		model: payload.model,
 		apiKey: payload.api_key,
@@ -142,9 +150,10 @@ function isRuntimeConfigResponse(value: unknown): value is RuntimeConfigResponse
 	return (
 		value.schema_version === "model_runtime_config.v1" &&
 		value.name === "primary_agent" &&
-		(value.provider === "openai" || value.provider === "openai-compatible") &&
-		(value.api_protocol === "openai.responses" ||
-			value.api_protocol === "openai.chat_completions") &&
+		((value.provider === "google" && value.api_protocol === "google.generate_content") ||
+			((value.provider === "openai" || value.provider === "openai-compatible") &&
+				(value.api_protocol === "openai.responses" ||
+					value.api_protocol === "openai.chat_completions"))) &&
 		nonEmptyString(value.api_key) &&
 		nonEmptyString(value.base_url) &&
 		nonEmptyString(value.model) &&

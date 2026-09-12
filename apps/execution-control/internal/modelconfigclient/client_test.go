@@ -36,6 +36,11 @@ func TestResolveModelTargetValidatesContract(t *testing.T) {
 		rawPayload string
 	}{
 		{name: "valid"},
+		{name: "native Gemini", mutate: func(value map[string]any) {
+			value["provider"] = "google"
+			value["api_protocol"] = "google.generate_content"
+		}},
+		{name: "Gemini with OpenAI protocol", mutate: func(value map[string]any) { value["provider"] = "google" }, wantErr: "API protocol"},
 		{name: "schema version", mutate: func(value map[string]any) { value["schema_version"] = "model_target.v2" }, wantErr: "schema version"},
 		{name: "name", mutate: func(value map[string]any) { value["name"] = "notice_classification" }, wantErr: "name"},
 		{name: "provider", mutate: func(value map[string]any) { value["provider"] = "unknown" }, wantErr: "provider"},

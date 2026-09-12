@@ -46,7 +46,8 @@ pnpm install
 pnpm check
 ```
 
-根据改动范围选择所属模块检查。完整命令和适用范围见
+根据改动范围选择所属模块检查。使用 `pnpm verify --source` 验证全量源码，`pnpm verify` 还包含数据库集成和配置检查。
+完整命令和适用范围见
 [测试与验证](./docs/reference/verification.md)。需要数据库、供应商、对象存储或私有内容的命令
 必须显式提供所属环境配置。
 
@@ -66,9 +67,11 @@ pnpm hooks:install
 `pnpm dev:init` 只初始化应用环境，不参与 Git hook 安装。CI、production install 和 Docker build
 context 中由安装脚本跳过 Git hook。
 
-先执行 `uv sync --locked --all-packages --dev`，使 Ruff、SQLFluff 和 Yamllint 可供 hook 使用。
+Python hooks 使用 `uv run --locked --only-dev`，按锁文件自动准备当前 worktree 的 Ruff、SQLFluff
+和 Yamllint，不要求预先手动同步依赖，也不依赖全局安装。首次缺少依赖时需要下载；下载失败或锁文件
+与依赖声明不一致时检查失败，不跳过检查或自动修改锁文件。开发流程中的 `uv sync` 可提前准备依赖。
 `pre-commit` 对暂存文件执行 check-only 静态检查和 Secret 扫描；`pre-push` 对受影响的 Node 与 Go
-模块执行类型检查和测试。两者都不替代 build、integration、浏览器 E2E、PR CI 或 runtime 验证。
+模块执行类型检查和测试，Go 同时执行 format 和 lint。两者都不替代 build、integration、浏览器 E2E、PR CI 或 runtime 验证。
 
 ## 许可证
 

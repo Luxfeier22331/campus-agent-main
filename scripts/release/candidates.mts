@@ -2,8 +2,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { type CommandRunner, resolveAffectedScope } from "../ci/scope.mts";
+import type { CommandRunner } from "../ci/scope.mts";
 import { imageTargetsForScope } from "./image-targets.mts";
+import { resolveReleaseScope } from "./source-scope.mts";
 import { readTopologyRetirements, type TopologyMigrationPlan } from "./topology-retirements.mts";
 import { type WorkerCandidate, workerCandidatesForPackage } from "./workers.mts";
 
@@ -104,7 +105,7 @@ export async function planCandidates(
 	if (!SHA_PATTERN.test(options.head)) {
 		throw new Error("Release head must be a 40-character lowercase commit SHA");
 	}
-	const scope = resolveAffectedScope(
+	const scope = resolveReleaseScope(
 		{
 			base,
 			collectAffected: true,

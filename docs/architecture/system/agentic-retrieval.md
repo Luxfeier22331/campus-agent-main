@@ -17,6 +17,24 @@ status: active
 `campus_docs_embedding` 与 `campus_docs_reranker` 连接；collection、provider 和检索参数不进入准入快照
 或 Temporal workflow input。
 
+查询 Embedding 使用检索适配器持有的进程内精确 LRU：最多 512 条，从成功加载起保留 24 小时，
+进程重启即清空。键由缓存版本、provider、规范化 Base URL、model、dimensions、instruction version
+及完整实际 Embedding 输入组成并计算 SHA-256；不做额外空白归一化或语义匹配，不包含 API key、
+collection 或 rerank query。每次调用先解析当前 Model Config，换模型、端点或输入会自然 miss，
+同向量空间的凭据轮换不失效缓存。仅保存维度正确且有限的成功向量，返回副本；错误不缓存。
+同键并发共享一次上游请求，每个等待者可独立取消；所有等待者退出或 20 秒上游期限到达后停止请求。
+缓存关闭时直接调用 provider。每次检索仍读取当前索引、执行 Qdrant 和 rerank，不缓存召回结果或答案。
+
+缓存由 `internal/embedding` 拥有，不引入 Execution Control/Temporal 持久状态或 Redis。
+现有 JSON 日志通过 `campus_docs.embedding.cache.hit/miss/wait/eviction` 的 `event_type` 计数，
+hit 的 `saved_ms` 以首次加载耗时估算避免的上游延迟；不记录原始 query、缓存键、向量或凭据。
+当前进程没有 metric exporter，因此直接复用日志出口，不注册无消费者的 OTel counter。
+Ops 现有 `embedding/retrieval/rerank/selection` 阶段语义不变，Embedding 耗时包括配置读取和缓存等待。
+该缓存只缓解重复查询的上游延迟；若未来检索服务已有等价共享缓存，在迁移时重新评估或移除这一层。
+
+召回使用工具提供的搜索表达，rerank 使用当前用户目标，不将扩展关键词拼接为排序目标。Ops 的现有
+诊断分别记录实际召回查询和排序目标；历史记录未保存排序目标时显示未记录，不回填推断值。
+
 检索只保留 rerank `relevance_score >= 0.5` 的候选，每次返回最多 5 条，同一 run 累计最多 10 条；
 没有候选时返回 `no_match`。该分数只表示查询与候选文本的相关性，不判断机构、人群或规则适用主体。
 工具返回的 `results` 是供 Agent 选择的候选，不等于答案已经使用。模型只对实际采用的结果使用其
@@ -28,6 +46,9 @@ status: active
 能够覆盖其中一部分的工具，只回答本轮候选直接支持的部分并生成普通正文，不能因另一部分没有资料而丢弃有效答案。
 所需机构事实完全没有本轮候选支持时，只能使用简洁的“暂未找到相关资料”或“目前无法确认”，不得用模型记忆补全，
 也不得向用户解释内部资料范围。
+
+候选存在与否不决定回答模式：正常搜索出口统一进入综合回答，由 Synthesizer 判断材料能回答什么。
+Workflow 只区分有材料或来源成功与无材料且没有成功来源的技术失败，不删除无用候选或伪造 `no_match`。
 
 Campus Docs/Notice 的来源清洗、reader、Chunk、Embedding 和统一 Publisher 仍属于独立离线数据面，由
 [检索服务](retrieval-serving.md) 维护。离线索引或当前指针只表示可供工具查询的制品已经发布，

@@ -8,8 +8,8 @@ export interface ExecutionDraft {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
-	provider: "openai" | "openai-compatible" | "cohere" | "cohere-compatible";
-	transport: "responses" | "chat_completions" | "embeddings" | "rerank";
+	provider: "google" | "openai" | "openai-compatible" | "cohere" | "cohere-compatible";
+	transport: "generate_content" | "responses" | "chat_completions" | "embeddings" | "rerank";
 }
 
 export function executionDraftFromSetting(
@@ -54,9 +54,15 @@ export function executionDraftPayload(
 		apiKey: draft.apiKey,
 		baseUrl: draft.baseUrl,
 		model: draft.model,
-		provider: draft.provider as "openai" | "openai-compatible",
+		provider: draft.provider as "google" | "openai" | "openai-compatible",
 	};
-	return { ...common, transport: draft.transport as "responses" | "chat_completions" };
+	return draft.provider === "google"
+		? { ...common, provider: "google", transport: "generate_content" }
+		: {
+				...common,
+				provider: draft.provider as "openai" | "openai-compatible",
+				transport: draft.transport as "responses" | "chat_completions",
+			};
 }
 
 export function executionDraftEquals(left: ExecutionDraft, right: ExecutionDraft): boolean {
@@ -93,6 +99,7 @@ export function providerLabel(provider: ExecutionDraft["provider"]): string {
 		{
 			cohere: "Cohere",
 			"cohere-compatible": "Cohere 兼容接口",
+			google: "Gemini",
 			openai: "OpenAI",
 			"openai-compatible": "OpenAI 兼容接口",
 		} as const

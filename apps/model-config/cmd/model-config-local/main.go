@@ -181,6 +181,16 @@ func localSeedConfigs(
 			}
 			values[key] = value
 		}
+		if name == modelconfig.ConfigPrimaryAgent {
+			values["LLM_PROVIDER"], _ = lookup("LLM_PROVIDER")
+			values["LLM_API_PROTOCOL"], _ = lookup("LLM_API_PROTOCOL")
+			if values["LLM_PROVIDER"] == "" {
+				values["LLM_PROVIDER"] = "openai-compatible"
+			}
+			if values["LLM_API_PROTOCOL"] == "" {
+				values["LLM_API_PROTOCOL"] = "openai.responses"
+			}
+		}
 		configs = append(configs, definition.build(values))
 	}
 	missing := make([]string, 0, len(missingSet))
@@ -203,8 +213,8 @@ func localSeedEnvironment(name modelconfig.ConfigName) (localSeedDefinition, boo
 			environmentKeys: []string{"LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"},
 			build: func(values map[string]string) modelconfig.LocalSeedConfig {
 				return modelconfig.LocalSeedConfig{
-					APIKey: values["LLM_API_KEY"], Name: name, Provider: "openai-compatible",
-					APIProtocol: "openai.responses", BaseURL: values["LLM_BASE_URL"], Model: values["LLM_MODEL"],
+					APIKey: values["LLM_API_KEY"], Name: name, Provider: values["LLM_PROVIDER"],
+					APIProtocol: values["LLM_API_PROTOCOL"], BaseURL: values["LLM_BASE_URL"], Model: values["LLM_MODEL"],
 				}
 			},
 		}, true

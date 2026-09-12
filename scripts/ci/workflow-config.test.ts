@@ -246,7 +246,7 @@ test("Go caches follow native selection and save fresh successful analysis only"
 	const job = workflowJob(await loadWorkflow("pr.yml"), "repository-validation");
 	const steps = jobSteps(job);
 	const restore = namedStep(job, "Restore Go and lint caches");
-	const native = namedStep(job, "Check execution-control native code");
+	const native = namedStep(job, "Check affected native code");
 	const save = namedStep(job, "Save Go and lint caches");
 	assert(isObject(restore.with) && isObject(save.with));
 	assert.equal(save.with.path, restore.with.path);
@@ -295,7 +295,7 @@ test("Go caches follow native selection and save fresh successful analysis only"
 					plan: {
 						outcome: plan,
 						outputs: {
-							validation_profiles: JSON.stringify(selected ? ["execution-control-native"] : []),
+							validation_profiles: JSON.stringify(selected ? ["affected-native"] : []),
 						},
 					},
 				},
@@ -318,7 +318,7 @@ test("Go caches follow native selection and save fresh successful analysis only"
 				cancelled: () => cancelled,
 				steps: {
 					restore_go: { outcome: restoreOutcome, outputs: { "cache-hit": hit } },
-					execution_control_native: { outcome: nativeOutcome },
+					native_evidence: { outcome: nativeOutcome },
 				},
 			}),
 			expected,
@@ -359,7 +359,7 @@ test("workflow jq selects Node and image evidence from the plan profile array", 
 		[["affected-node"], ["affected-node"]],
 		[["image-build"], []],
 		[["affected-node", "container-build", "image-build"], ["affected-node"]],
-		[["container-build", "execution-control-native"], []],
+		[["container-build", "affected-native"], []],
 	]) {
 		const actual = execFileSync("jq", ["-c", expression], {
 			input: JSON.stringify({ validationProfiles: profiles, affectedPackages: ["ops-web"] }),
@@ -542,14 +542,17 @@ test("pull request validation keeps the shared required-check contract", async (
 			removed,
 		);
 	}
-	assert.equal(namedStep(repoChecks, "Summarize repository evidence").shell, "bash -e {0}");
-	const native = namedStep(repoChecks, "Check execution-control native code");
+	assert.equal(
+		namedStep(repoChecks, "Summarize repository evidence").shell,
+		"nix develop .#ci-core --command bash -e {0}",
+	);
+	const native = namedStep(repoChecks, "Check affected native code");
 	assert.equal(native.shell, "nix develop .#ci-go --command bash -e {0}");
-	assert.match(String(native.if), /execution-control-native/u);
-	assert.match(String(native.run), /--profiles '\["execution-control-native"\]'/u);
+	assert.match(String(native.if), /affected-native/u);
+	assert.match(String(native.run), /--profiles '\["affected-native"\]'/u);
 	const summary = namedStep(repoChecks, "Summarize repository evidence");
 	assert(isObject(summary.env));
-	assert.match(String(summary.env.RESULTS), /steps\.execution_control_native\.outcome/u);
+	assert.match(String(summary.env.RESULTS), /steps\.native_evidence\.outcome/u);
 	assert.equal(
 		namedStep(repoChecks, "Run affected Node evidence").if,
 		"!cancelled() && steps.plan.outcome == 'success' && steps.plan.outputs.node_evidence_profiles != '[]' && steps.install_affected.outcome == 'success'",

@@ -1,10 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
-import { computeEmbeddingTargetSha256 } from "@campus-agent/embedding-runtime";
+import { computeEmbeddingTargetSha256, EMBEDDING_SPACE } from "@campus-agent/embedding-runtime";
+import { canonicalJsonBytes, encodeNdjson, sha256 } from "../src/encoding.ts";
+import { noticeEmbeddingDataKey, noticeEmbeddingSetManifestKey } from "../src/embedding-set.ts";
+import { dirname } from "node:path";
 
 import { buildLocalNoticeChunkRun } from "../src/command.ts";
 import {
@@ -93,7 +96,9 @@ describe("notice embedding evaluation", () => {
 		});
 		expect(result.metrics.noticeRecallAt["1"]).toBe(1);
 		expect(result.metrics.singleChunkAnswerQuestionCount).toBe(1);
-		expect(result.metrics.singleChunkAnswerRecallAt["1"]).toBe(1);
+		expect(result.metrics.singleChunkAnswerRecallAt?.["1"]).toBe(1);
+		expect(result.metrics.byStratum.multi?.singleChunkAnswerRecallAt).toBeNull();
+		expect(result.metrics.byStratum.multi?.meanSingleChunkAnswerReciprocalRank).toBeNull();
 		expect(result.metrics.singleChunkEvidenceQuestionCount).toBe(1);
 		expect(result.metrics.multiChunkEvidenceQuestionCount).toBe(1);
 		expect(result.rankings[1]).toMatchObject({
@@ -195,6 +200,37 @@ describe("notice embedding evaluation", () => {
 			expect(await readFile(join(first.outputDirectory, "manifest.json"), "utf8")).toBe(
 				await readFile(join(second.outputDirectory, "manifest.json"), "utf8"),
 			);
+			const vectorBytes = encodeNdjson(chunks.map((chunk) => ({
+				retrievalTextSha256: sha256(chunk.retrievalText),
+				dense: Array.from({length: EMBEDDING_SPACE.dimensions}, (_, i) => i === (chunk.noticeId === "1" ? 0 : 1) ? 1 : 0),
+			})));
+			const vectorKey = noticeEmbeddingDataKey(sha256(vectorBytes));
+			const manifestBytes = canonicalJsonBytes({
+				schemaVersion: "notice_embedding_set.v1", chunkRun: chunkRun.run,
+				embeddingCount: chunks.length, embeddingSpace: EMBEDDING_SPACE,
+				modelTargetSha256: "a".repeat(64),
+				embeddings: {key: vectorKey, sha256: sha256(vectorBytes), byteSize: vectorBytes.byteLength},
+			});
+			const embeddingSet = sha256(manifestBytes);
+			for (const [key, bytes] of [[vectorKey, vectorBytes], [noticeEmbeddingSetManifestKey(embeddingSet), manifestBytes]] as const) {
+				await mkdir(dirname(join(root, key)), {recursive:true});
+				await writeFile(join(root, key), bytes);
+			}
+			// Remove the per-text cache: reuse must come from the explicit set, not prior evaluation.
+			await rm(join(root, "notices/chunking/embedding-cache"), {recursive:true});
+			embed.mockClear();
+			const reused = await runLocalNoticeEmbeddingEvaluation({
+				artifactRoot: root, chunkRun: chunkRun.run, embeddingSet,
+				embedding: {embed}, modelTargetSha256: "a".repeat(64), questionFile,
+			});
+			expect(reused.generatedEmbeddingInputCount).toBe(1);
+			expect(reused.reusedEmbeddingInputCount).toBe(2);
+			expect(embed.mock.calls[0]?.[0].texts).toEqual([formatNoticeQuery("第一条通知的正文是什么？")]);
+			expect(reused.metrics).toEqual(first.metrics);
+			await expect(runLocalNoticeEmbeddingEvaluation({
+				artifactRoot: root, chunkRun: chunkRun.run, embeddingSet,
+				embedding: {embed}, modelTargetSha256: "b".repeat(64), questionFile,
+			})).rejects.toThrow("match chunk run and model target");
 		} finally {
 			await rm(root, { force: true, recursive: true });
 		}

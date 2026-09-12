@@ -21,9 +21,9 @@ func (s *PostgresRunProjectionStore) ObserveCampusSearch(ctx context.Context, o 
 	}
 	_, err = s.pool.Exec(ctx, `
 INSERT INTO execution_control.agent_campus_search_diagnostics AS d
- (request_id, invocation_id, workflow_step_id, activity_attempt, search_query,
+ (schema_version, request_id, invocation_id, workflow_step_id, activity_attempt, search_query,
  status, current_phase, phase_rank, phase_times_json, snapshot_json, failure_code, http_status)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,nullif($11,''),$12)
+VALUES (2,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,nullif($11,''),$12)
 ON CONFLICT (request_id, invocation_id) DO UPDATE SET
  phase_times_json = excluded.phase_times_json || d.phase_times_json,
  snapshot_json = CASE WHEN excluded.snapshot_json <> '{}'::jsonb AND

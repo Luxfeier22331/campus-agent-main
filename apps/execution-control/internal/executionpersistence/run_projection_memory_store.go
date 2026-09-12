@@ -14,6 +14,7 @@ type InMemoryRunProjectionStore struct {
 	runSteps                map[string]execution.RunStepProjection
 	stepAttempts            map[string]execution.StepAttemptProjection
 	stepResults             map[string]execution.StepResultProjection
+	modelOutputDiagnostics  map[string]execution.ModelOutputDiagnostic
 	activeRunByConversation map[string]string
 	workflowStartIntents    map[string]execution.WorkflowStartIntent
 	cancellationCommands    map[string]execution.RunCancellationCommand
@@ -28,6 +29,7 @@ func NewInMemoryRunProjectionStore() *InMemoryRunProjectionStore {
 		runSteps:                map[string]execution.RunStepProjection{},
 		stepAttempts:            map[string]execution.StepAttemptProjection{},
 		stepResults:             map[string]execution.StepResultProjection{},
+		modelOutputDiagnostics:  map[string]execution.ModelOutputDiagnostic{},
 		activeRunByConversation: map[string]string{},
 		workflowStartIntents:    map[string]execution.WorkflowStartIntent{},
 		cancellationCommands:    map[string]execution.RunCancellationCommand{},

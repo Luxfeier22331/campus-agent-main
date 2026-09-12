@@ -56,7 +56,12 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 					error: "execution-control query base URL is invalid",
 				});
 			}
-			const timeoutSignal = AbortSignal.timeout(request.tool.timeoutMs);
+			const deadlineAt =
+				request.deadlineAt ?? new Date(Date.now() + request.tool.timeoutMs).toISOString();
+			if (Date.parse(deadlineAt) <= Date.now()) {
+				return timedOutToolResult(request);
+			}
+			const timeoutSignal = AbortSignal.timeout(Math.max(1, Date.parse(deadlineAt) - Date.now()));
 			const executionSignal = AbortSignal.any(
 				[request.signal, timeoutSignal].filter(
 					(signal): signal is AbortSignal => signal !== undefined,
@@ -76,6 +81,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 					body: JSON.stringify({
 						payload: request.argumentsJson,
 						access_context: {
+							deadline_at: deadlineAt,
 							activity_attempt: request.activityAttempt ?? 1,
 							request_id: request.requestId,
 							invocation_id: request.invocationId,
@@ -100,7 +106,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 				if (timeoutSignal.aborted) {
 					return timedOutToolResult(request);
 				}
-				return failedToolResult(request, "transient_internal_query_failed", {
+				return failedToolResult(request, "campus_search_network_failed", {
 					error: "execution-control query request failed",
 				});
 			}
@@ -141,14 +147,18 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 				return timedOutToolResult(request);
 			}
 			if (!response.ok) {
-				return failedToolResult(
+				const error = result.error as Record<string, unknown> | undefined;
+				const code = typeof error?.code === "string" ? error.code : "tool_handler_failed";
+				const failed = failedToolResult(
 					request,
-					"tool_handler_failed",
-					{
-						error: "execution-control query failed",
-					},
+					code,
+					{ error: "execution-control query failed" },
 					response.status,
 				);
+				if (failed.failure && typeof error?.stage === "string") {
+					failed.failure.stage = error.stage;
+				}
+				return failed;
 			}
 			return {
 				status: "completed",
@@ -180,7 +190,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 }
 
 function timedOutToolResult(request: ToolExecutionRequest): UntimedToolExecutionResult {
-	return failedToolResult(request, "transient_internal_query_failed", {
+	return failedToolResult(request, "campus_search_timeout", {
 		error: "execution-control query timed out",
 	});
 }

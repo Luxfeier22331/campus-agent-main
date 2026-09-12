@@ -45,7 +45,10 @@ HTTP API 也不拥有 worker 生命周期。
   唯一负责生产依赖组装、Temporal client、worker 注册及生命周期；reconciler 依赖 application ports，
   不导入 Temporal SDK 或 HTTP；
 - `internal/campusdocs` 拥有索引与检索领域合同，`internal/campusdocspersistence` 实现当前索引的 PostgreSQL
-  读取，`internal/outboundadapter` 实现 embedding、Qdrant 和 reranker 调用。
+  读取，`internal/outboundadapter` 实现 embedding、Qdrant 和 reranker 调用；
+- `internal/embedding` 拥有独立的 Embedder 端口与进程内精确向量缓存，不依赖 Temporal、执行合同、
+  Model Config 或 Qdrant；检索适配器解析当前 provider 配置并注入 HTTP 实现，继续通过已有
+  `campusdocs.Searcher` 为工具服务。未来拆分检索运行时可迁移这一边界，不新增检索服务端口。
 
 ## 进程入口
 
@@ -70,8 +73,9 @@ poller，最后关闭运行投影、个人记忆状态和 Temporal starter。超
 
 ## 本地开发
 
-Go 语言版本与完整工具链版本由 `go.mod` 拥有。`flake.nix` 从中派生本地工具链，Dockerfile 保留
-构建镜像所需的版本投影，并由仓库测试检查一致性。优先使用仓库 flake 的 `ci-full` 运行以下命令。
+Go workspace 和工具链版本由根 `go.work` 拥有，模块的语言版本保留在 `go.mod`。
+`flake.nix` 使用锁定 Nix 工具并核对版本，Dockerfile 保留构建所需的版本投影。
+以下包级命令在仓库 `ci-go` 环境执行；全量源码检查使用 `pnpm verify --source`。
 
 ```bash
 pnpm --dir apps/execution-control native:format
@@ -111,7 +115,7 @@ Temporal fixture 按包管理 Dev Server，按测试管理 worker 和唯一 work
 包超时前预留 worker、client 和 server 的关闭时间。子进程测试会验证失败和超时后的监听端口已关闭。
 受保护 history 的用途和更新命令见 [replay fixtures](./integration/temporal/testdata/replay/README.md)。
 
-PR 对受影响的 execution-control 运行 `native:format`、`native:lint`、`native:typecheck`、`native:test`。
+PR 对受影响的 Go 包（包括 execution-control 与 model-config）运行 `native:format`、`native:lint`、`native:typecheck`、`native:test`。
 Temporal、stream、replay 和 PostgreSQL 在 GitHub 手动 validation profile 中分别选择，暂不作为 PR
 required service checks。本地 Dev Server fixture 不用于部署验证。
 

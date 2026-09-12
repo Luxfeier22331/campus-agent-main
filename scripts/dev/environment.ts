@@ -36,6 +36,8 @@ const SHARED_EXTERNAL_PROVIDER_ENV_KEYS = [
 	"LLM_BASE_URL",
 	"LLM_API_KEY",
 	"LLM_MODEL",
+	"LLM_PROVIDER",
+	"LLM_API_PROTOCOL",
 	"NOTICE_CLASSIFICATION_BASE_URL",
 	"NOTICE_CLASSIFICATION_API_KEY",
 	"NOTICE_CLASSIFICATION_MODEL",
@@ -48,7 +50,7 @@ const SHARED_EXTERNAL_PROVIDER_ENV_KEYS = [
 
 const LOCAL_MODEL_CONFIG_ENVIRONMENT_KEYS: Record<LocalModelConfigName, readonly string[]> = {
 	document_ocr: ["DOCUMENT_OCR_BASE_URL", "DOCUMENT_OCR_API_KEY"],
-	primary_agent: ["LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"],
+	primary_agent: ["LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL", "LLM_PROVIDER", "LLM_API_PROTOCOL"],
 	campus_docs_embedding: ["EMBEDDING_BASE_URL", "EMBEDDING_API_KEY"],
 	campus_docs_reranker: ["RERANK_BASE_URL", "RERANK_API_KEY", "RERANK_MODEL"],
 	notice_classification: [
@@ -257,7 +259,30 @@ export function localModelConfigCommandEnvironment(input: {
 	};
 }
 
+function localNoProxyEnvironment(
+	repoRoot: string,
+	inherited: NodeJS.ProcessEnv,
+): Record<string, string> {
+	const local = readOptionalEnv(resolve(repoRoot, ".env"));
+	const entries = (values: (string | undefined)[]) =>
+		values.flatMap((value) =>
+			(value ?? "")
+				.split(",")
+				.map((item) => item.trim())
+				.filter(Boolean),
+		);
+	const additions = entries([local.NO_PROXY, local.no_proxy]);
+	if (additions.length === 0) {
+		return {};
+	}
+	const merged = [
+		...new Set([...entries([inherited.NO_PROXY, inherited.no_proxy]), ...additions]),
+	].join(",");
+	return { NO_PROXY: merged, no_proxy: merged };
+}
+
 export function renderLocalEnvironmentFiles(input: {
+	environment?: NodeJS.ProcessEnv;
 	profile: LocalDevProfileV2;
 	qdrant?: LocalQdrantConnection;
 	repoRoot: string;
@@ -274,6 +299,7 @@ export function renderLocalEnvironmentFiles(input: {
 	assertLocalEnvironmentFilesAreManaged(repoRoot, projections);
 	const database = localDatabaseUrls(profile);
 	const paths = managedLocalEnvironmentPaths(repoRoot);
+	const noProxy = localNoProxyEnvironment(repoRoot, input.environment ?? process.env);
 	const runtimePorts = calculateLocalDevRuntimePorts(profile.slot);
 	const rendersCore = projections.includes("core");
 	const rendersOpsWeb = projections.includes("ops-web");
@@ -340,6 +366,7 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("executionControl")) {
 		writeManagedEnv(paths.executionControl, {
+			...noProxy,
 			APP_API_EXECUTION_SHARED_SECRET: executionSharedSecret,
 			DEPLOYMENT_ENVIRONMENT: "development",
 			DEPLOYMENT_RELEASE: `execution-runtime@${profile.instanceId}`,
@@ -363,6 +390,7 @@ export function renderLocalEnvironmentFiles(input: {
 	}
 	if (shouldRender("modelConfig")) {
 		writeManagedEnv(paths.modelConfig, {
+			...noProxy,
 			MODEL_CONFIG_DATABASE_URL: database.modelConfig,
 			MODEL_CONFIG_ENCRYPTION_KEY_FILE: resolveLocalModelConfigEncryptionKeyPath(repoRoot),
 			MODEL_CONFIG_HOST: "127.0.0.1",

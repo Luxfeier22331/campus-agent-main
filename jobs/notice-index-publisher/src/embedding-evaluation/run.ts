@@ -16,6 +16,7 @@ import {
 	type NoticeEmbeddingEvaluationResult,
 } from "./model.ts";
 import { evaluateDenseRetrieval } from "./ranking.ts";
+import { readNoticeEmbeddingSet } from "../embedding-set.ts";
 import { assertNoticeEmbeddingModelTargetSha256, resolveNoticeEmbeddingVectors } from "../embedding-cache.ts";
 import { canonicalJsonBytes, encodeNdjson, sha256 } from "../encoding.ts";
 import { artifactHex, readNoticeChunkRun } from "../run-reader.ts";
@@ -26,6 +27,8 @@ export async function runLocalNoticeEmbeddingEvaluation(input: {
 	chunkRun: Sha256Ref;
 	embedding: EmbeddingClient;
 	modelTargetSha256: string;
+	/** Explicit local artifact, using object-store keys relative to artifactRoot. */
+	embeddingSet?: Sha256Ref;
 	onEmbeddingProgress?: (completedInputCount: number, totalInputCount: number) => void;
 	onRankingProgress?: (completedQuestionCount: number, totalQuestionCount: number) => void;
 	questionFile: string;
@@ -37,22 +40,36 @@ export async function runLocalNoticeEmbeddingEvaluation(input: {
 	const questions = decodeNoticeQuestionNdjson(questionBytes);
 	assertQuestionEvidence(chunks, questions);
 	const embeddingInputs = buildEmbeddingInputSet(chunks, questions);
+	const stored = input.embeddingSet
+		? await readNoticeEmbeddingSet({ read: (key) => readFile(join(input.artifactRoot, key)) }, input.embeddingSet)
+		: null;
+	if (stored && (stored.manifest.chunkRun !== input.chunkRun || stored.manifest.modelTargetSha256 !== input.modelTargetSha256)) {
+		throw new Error("evaluation embedding set must match chunk run and model target");
+	}
+	const storedVectors = new Map(stored?.embeddings.map((item) => [item.retrievalTextSha256, item.dense]));
+	if (stored) {
+		for (const textSha256 of embeddingInputs.documentTextByChunkId.values()) {
+			if (!storedVectors.has(textSha256)) throw new Error("evaluation embedding set is missing a document vector");
+		}
+	}
+	const missingInputs = new Map([...embeddingInputs.textBySha256].filter(([digest]) => !storedVectors.has(digest)));
 	const resolved = await resolveNoticeEmbeddingVectors({
 		artifactRoot: input.artifactRoot,
 		embedding: input.embedding,
 		modelTargetSha256: input.modelTargetSha256,
 		...(input.onEmbeddingProgress ? { onProgress: input.onEmbeddingProgress } : {}),
-		textBySha256: embeddingInputs.textBySha256,
+		textBySha256: missingInputs,
 	});
+	const vectors = new Map([...storedVectors, ...resolved.vectorsByTextSha256]);
 	const documentVectorsByChunkId = new Map<Sha256Ref, number[]>();
 	for (const [chunkId, textSha256] of embeddingInputs.documentTextByChunkId) {
-		const vector = resolved.vectorsByTextSha256.get(textSha256);
+		const vector = vectors.get(textSha256);
 		if (!vector) throw new Error(`embedding vector is missing for chunk ${chunkId}`);
 		documentVectorsByChunkId.set(chunkId, vector);
 	}
 	const queryVectorsByQuestionId = new Map<string, number[]>();
 	for (const [questionId, textSha256] of embeddingInputs.queryTextByQuestionId) {
-		const vector = resolved.vectorsByTextSha256.get(textSha256);
+		const vector = vectors.get(textSha256);
 		if (!vector) throw new Error(`embedding vector is missing for question ${questionId}`);
 		queryVectorsByQuestionId.set(questionId, vector);
 	}
@@ -69,6 +86,7 @@ export async function runLocalNoticeEmbeddingEvaluation(input: {
 		chunkCount: chunks.length,
 		chunkDefinition: chunkManifest.definition,
 		chunkRun: input.chunkRun,
+		...(input.embeddingSet ? { embeddingSet: input.embeddingSet } : {}),
 		definition: NOTICE_EMBEDDING_EVALUATION_DEFINITION,
 		embeddingInputCount: embeddingInputs.textBySha256.size,
 		metrics: reference("metrics.json", metricsBytes),
@@ -99,7 +117,7 @@ export async function runLocalNoticeEmbeddingEvaluation(input: {
 		generatedEmbeddingInputCount: resolved.generatedInputCount,
 		metrics,
 		outputDirectory,
-		reusedEmbeddingInputCount: resolved.reusedInputCount,
+		reusedEmbeddingInputCount: resolved.reusedInputCount + embeddingInputs.textBySha256.size - missingInputs.size,
 		run,
 	};
 }

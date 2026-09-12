@@ -9,36 +9,62 @@ export function toCampusSearchDiagnostics(
 	finished: boolean,
 ): CampusSearchDiagnostics {
 	if (rows === null) {
-		return { dataState: "UNAVAILABLE", reason: "Campus Search 诊断查询不可用。", calls: [] };
+		return { diagnosticState: "UNAVAILABLE", reason: "Campus Search 诊断查询不可用。", calls: [] };
 	}
 	if (rows === undefined || rows.length === 0) {
 		return {
-			dataState: "NO_DATA",
+			diagnosticState: "NO_DATA",
 			reason: "没有 Campus Search 观察记录；旧请求不会回填。",
 			calls: [],
 		};
 	}
 	let partial = false;
 	const calls = rows.map((row): CampusSearchDiagnostics["calls"][number] => {
-		const raw = row.snapshot as Record<string, unknown>;
+		const raw = (row.snapshot ?? {}) as Record<string, unknown>;
 		const parsed = CampusSearchSnapshotSchema.safeParse({
 			...raw,
 			candidates: Array.isArray(raw.candidates)
 				? raw.candidates.map((candidate) => ({
 						...candidate,
 						cited:
-							candidate.returned && row.citedResultRefs !== null
-								? row.citedResultRefs.includes(candidate.resultRef)
-								: null,
+							row.citedResultRefs === null
+								? null
+								: row.citedResultRefs.includes(candidate.resultRef),
 					}))
 				: [],
 		});
-		const snapshot = row.schemaVersion === 1 && parsed.success ? parsed.data : null;
+		const snapshot = row.schemaVersion === 2 && parsed.success ? parsed.data : null;
+		const retrieved = Boolean(row.phaseTimes.retrieved);
+		const reranked = Boolean(row.phaseTimes.reranked);
 		const missing =
 			row.status === "running" ||
+			!snapshot ||
 			!row.phaseTimes.queued ||
+			((row.status === "failed" || row.status === "canceled") &&
+				!(row.phaseTimes[row.status] && snapshot?.failedStage)) ||
 			(row.status === "completed" &&
-				!(row.phaseTimes.selected && row.phaseTimes.dispatching && snapshot)) ||
+				!(
+					row.phaseTimes.completed &&
+					row.phaseTimes.received &&
+					row.phaseTimes.index_loaded &&
+					row.phaseTimes.embedded &&
+					retrieved &&
+					row.phaseTimes.selected &&
+					row.phaseTimes.dispatching &&
+					snapshot?.durations.embedding !== undefined &&
+					snapshot?.durations.retrieval !== undefined &&
+					snapshot?.durations.selection !== undefined &&
+					snapshot?.embedding?.cacheOutcome &&
+					snapshot.retrieval &&
+					snapshot.retrieval.httpMs !== null &&
+					snapshot.retrieval.decodeMs !== null &&
+					snapshot.retrieval.postprocessMs !== null &&
+					(snapshot.retrievedCount === 0 ||
+						(reranked &&
+							snapshot.durations.rerank !== undefined &&
+							snapshot.rerank?.httpMs !== null &&
+							snapshot.rerank))
+				)) ||
 			snapshot?.snapshotTruncated ||
 			(finished && row.status === "completed" && row.citedResultRefs === null);
 		partial ||= Boolean(missing);
@@ -53,6 +79,10 @@ export function toCampusSearchDiagnostics(
 			phaseTimes: row.phaseTimes,
 			queueMs: elapsed(row.phaseTimes.queued, row.phaseTimes.dispatching),
 			toolTotalMs: elapsed(row.phaseTimes.dispatching, terminalAt),
+			citedCount:
+				row.citedResultRefs === null || !snapshot
+					? null
+					: snapshot.candidates.filter((candidate) => candidate.returned && candidate.cited).length,
 			failureCode: row.failureCode,
 			httpStatus: row.httpStatus,
 			snapshot,
@@ -60,7 +90,7 @@ export function toCampusSearchDiagnostics(
 		};
 	});
 	return {
-		dataState: partial ? "PARTIAL" : "FRESH",
+		diagnosticState: partial ? "PARTIAL" : "COMPLETE",
 		reason: partial ? "调用仍在进行，或部分观察、候选快照、引用记录缺失。" : null,
 		calls,
 	};

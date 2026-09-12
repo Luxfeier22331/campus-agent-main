@@ -186,6 +186,7 @@ func (s *Adapter) ProjectWorkflowAnswerCompleted(
 func AgentRuntimeFailureFromResponse(statusCode int, response AgentRuntimeResponse) error {
 	return AgentRuntimeHTTPError{
 		StatusCode:     statusCode,
+		HTTPStatus:     response.Error.HTTPStatus,
 		Code:           strings.TrimSpace(response.Error.Code),
 		Detail:         strings.TrimSpace(response.Error.Detail),
 		InvocationID:   strings.TrimSpace(response.Error.InvocationID),
@@ -213,6 +214,9 @@ func WorkflowRuntimeFailureKind(cause error) string {
 			"context_budget_exceeded",
 			"agent_deadline_exceeded",
 			"max_turns_exceeded",
+			"retrieval_budget_exhausted",
+			"answer_synthesis_failed",
+			"materials_insufficient",
 			"provider_rate_limited",
 			"provider_http_failed",
 			"provider_connection_failed",
@@ -229,6 +233,8 @@ func WorkflowRuntimeFailureKind(cause error) string {
 	var applicationError AgentRuntimeApplicationError
 	if errors.As(cause, &applicationError) {
 		switch strings.TrimSpace(applicationError.Code) {
+		case "retrieval_budget_exhausted":
+			return "retrieval_budget_exhausted"
 		case "workflow_operation_payload_too_large", "invalid_request",
 			"context_budget_exceeded",
 			"agent_deadline_exceeded",

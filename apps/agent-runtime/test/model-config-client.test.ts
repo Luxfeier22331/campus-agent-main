@@ -16,6 +16,67 @@ const validRuntimeConfig = {
 } as const;
 
 describe("Model Config runtime client", () => {
+	it("maps a native Gemini target without guessing from the model name", async () => {
+		const result = await resolveModelRuntimeConfig(
+			{
+				baseUrl: "http://model-config",
+				fetchImplementation: async () =>
+					Response.json({
+						...validRuntimeConfig,
+						provider: "google",
+						api_protocol: "google.generate_content",
+						model: "gemini-3.1-flash-lite",
+						capabilities: { hosted_web_search: true },
+					}),
+			},
+			targetSha256,
+		);
+		expect(result).toMatchObject({
+			provider: "google",
+			transport: "generate_content",
+			hostedWebSearch: true,
+		});
+	});
+	it("propagates parent cancellation without relabeling it a config outage", async () => {
+		const parent = new AbortController();
+		const reason = new Error("operation stopped");
+		const pending = resolveModelRuntimeConfig(
+			{
+				baseUrl: "http://config",
+				fetchImplementation: async (_input, init) =>
+					new Promise<Response>((_resolve, reject) => {
+						init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), {
+							once: true,
+						});
+					}),
+			},
+			targetSha256,
+			parent.signal,
+		);
+		parent.abort(reason);
+		await expect(pending).rejects.toBe(reason);
+	});
+
+	it("keeps the independent config timeout classified as config unavailable", async () => {
+		vi.useFakeTimers();
+		try {
+			const parent = new AbortController();
+			const pending = resolveModelRuntimeConfig(
+				{
+					baseUrl: "http://config",
+					fetchImplementation: async () => {
+						throw new DOMException("timeout", "TimeoutError");
+					},
+				},
+				targetSha256,
+				parent.signal,
+			);
+			await expect(pending).rejects.toMatchObject({ code: "model_config_unavailable" });
+			expect(parent.signal.aborted).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 	it("loads the exact target with one unauthenticated GET", async () => {
 		const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
 			expect(String(input)).toBe(

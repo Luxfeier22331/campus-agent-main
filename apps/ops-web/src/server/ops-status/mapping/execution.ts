@@ -1,3 +1,4 @@
+import { ModelOutputDiagnosticSchema } from "../../../shared/model-output-diagnostic.ts";
 import type { OpsRequestDetailResponse } from "../../../shared/ops-contract.ts";
 import type {
 	OpsRequestDetailRow,
@@ -15,6 +16,8 @@ export function toExecutionDiagnostics(
 		const payload = isRecord(stage.sanitizedPayloadJson) ? stage.sanitizedPayloadJson : {};
 		const failure = readExecutionFailure(payload.failure);
 		return {
+			modelOutputDiagnostic:
+				ModelOutputDiagnosticSchema.safeParse(stage.modelOutputDiagnosticJson).data ?? null,
 			completedAt: stage.completedAt?.toISOString() ?? null,
 			durationMs: stageDurationMs(stage),
 			failureKind: failure?.code ?? null,

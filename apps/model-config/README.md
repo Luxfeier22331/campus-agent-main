@@ -9,6 +9,13 @@ Model Config 负责具名在线模型配置及其 Provider API Key。当前配�
 `name`、`provider`、`api_protocol`、规范化 Base URL 和 model，不包含 API Key，因此仅轮换 API Key
 不会改变目标 hash。
 
+`primary_agent` 支持 `openai` / `openai-compatible` 的 `openai.responses`、
+`openai.chat_completions`，以及 `google` 的 `google.generate_content`。Gemini 的 Base URL 包含版本路径
+（官方为 `https://generativelanguage.googleapis.com/v1beta`），验证使用 `:generateContent`，模型发现
+使用分页 `/models`，鉴权使用 `x-goog-api-key`。Gemini 只开放给主模型槽位，不扩展到 Embedding、
+Reranker 或通知分类。切换需通过管理接口验证后保存；运行中的请求仍按既有 target hash 绑定，
+不会自动切回 OpenAI。
+
 ## HTTP 合同
 
 服务通过 `MODEL_CONFIG_HOST` 和 `MODEL_CONFIG_PORT` 提供单一 listener，默认端口为 `8000`：

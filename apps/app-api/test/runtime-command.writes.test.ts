@@ -6,6 +6,12 @@ import { publicExecutionFailure } from "../src/modules/runtime-command/service/e
 
 describe("runtime command public execution errors", () => {
 	it.each([
+		["answer_synthesis_failed", "已找到部分资料，但生成最终回答失败，请稍后重试。"],
+		["materials_insufficient", "暂未找到足够的校内资料来回答这个问题。"],
+	])("explains %s without internal implementation labels", (errorCode, message) => {
+		expect(publicExecutionFailure({ errorCode, status: "error" })).toEqual({ errorCode, message });
+	});
+	it.each([
 		["provider_connection_failed", "provider_unavailable"],
 		["agent_deadline_exceeded", "execution_timeout"],
 		["invalid_request", "runtime_invariant_failed"],

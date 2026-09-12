@@ -69,7 +69,7 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 	if err != nil {
 		return Validation{Status: "failed", ErrorCode: "request_build_failed", Message: err.Error()}
 	}
-	req.Header.Set("authorization", "Bearer "+apiKey)
+	setProviderAuth(req, target.Provider, apiKey)
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("accept", "application/json")
 	if target.Provider == "cohere-compatible" {
@@ -127,7 +127,7 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 			return invalidProviderResponse(resp, raw, "rerank response must contain one finite result for document 0")
 		}
 	}
-	if target.APIProtocol == "openai.responses" || target.APIProtocol == "openai.chat_completions" {
+	if target.APIProtocol == "google.generate_content" || target.APIProtocol == "openai.responses" || target.APIProtocol == "openai.chat_completions" {
 		validator := validateTextProviderResponse
 		if target.Name == ConfigNoticeClassification {
 			validator = validateNoticeClassificationResponse
@@ -141,6 +141,8 @@ func Validate(ctx context.Context, target Target, apiKey string) Validation {
 
 func validationRequest(target Target) (string, any, error) {
 	switch target.APIProtocol {
+	case "google.generate_content":
+		return target.BaseURL + "/models/" + target.Model + ":generateContent", map[string]any{"contents": []any{map[string]any{"role": "user", "parts": []any{map[string]string{"text": "Reply with OK."}}}}, "generationConfig": map[string]any{"maxOutputTokens": 128}}, nil
 	case "openai.responses":
 		if target.Name == ConfigNoticeClassification {
 			return target.BaseURL + "/responses", map[string]any{
@@ -221,6 +223,23 @@ func noticeClassificationJSONSchema(protocol string) map[string]any {
 
 func validateTextProviderResponse(protocol string, raw []byte) error {
 	switch protocol {
+	case "google.generate_content":
+		var response struct {
+			Candidates []struct {
+				Content struct{ Parts []struct{ Text string } }
+			}
+		}
+		if err := json.Unmarshal(raw, &response); err != nil {
+			return err
+		}
+		for _, candidate := range response.Candidates {
+			for _, part := range candidate.Content.Parts {
+				if strings.TrimSpace(part.Text) != "" {
+					return nil
+				}
+			}
+		}
+		return errors.New("gemini response text is missing")
 	case "openai.responses":
 		var response struct {
 			ID string `json:"id"`
@@ -349,6 +368,9 @@ func DiscoverModels(ctx context.Context, name ConfigName, provider, baseURL, api
 		}
 		return nil, Validation{Status: "failed", ErrorCode: "invalid_setting", Message: message}
 	}
+	if provider == "google" {
+		return discoverGeminiModels(ctx, normalized, apiKey)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, normalized+"/models", nil)
 	if err != nil {
 		return nil, Validation{Status: "failed", ErrorCode: "request_build_failed", Message: "model discovery request is invalid"}
@@ -430,7 +452,9 @@ func DiscoverModels(ctx context.Context, name ConfigName, provider, baseURL, api
 
 func discoveryProviderAllowed(name ConfigName, provider string) bool {
 	switch name {
-	case ConfigPrimaryAgent, ConfigNoticeClassification:
+	case ConfigPrimaryAgent:
+		return provider == "google" || provider == "openai" || provider == "openai-compatible"
+	case ConfigNoticeClassification:
 		return provider == "openai" || provider == "openai-compatible"
 	case ConfigCampusDocsReranker:
 		return provider == "cohere" || provider == "cohere-compatible"
@@ -459,6 +483,9 @@ func validateShape(target Target, apiKey string) error {
 		if (target.Provider != "cohere" && target.Provider != "cohere-compatible") || target.APIProtocol != rerankAPIProtocol {
 			return errors.New("reranker target is fixed by the Campus Docs contract")
 		}
+		return nil
+	}
+	if target.Name == ConfigPrimaryAgent && target.Provider == "google" && target.APIProtocol == "google.generate_content" {
 		return nil
 	}
 	if target.Provider != "openai" && target.Provider != "openai-compatible" {

@@ -1,3 +1,5 @@
+import { BrowserAnswerTiming } from "./browser-answer-timing";
+
 export interface ActiveRun {
 	conversationId?: string | undefined;
 	requestId: string;
@@ -17,6 +19,7 @@ export type RunCancellationState =
 	| { operationId: number; phase: "acknowledged"; requestId: string };
 
 export class RunOperationMachine {
+	readonly clientTiming = new BrowserAnswerTiming();
 	activeRun: ActiveRun | null = null;
 	cancellation: RunCancellationState = { phase: "idle" };
 	controller: AbortController | null = null;
@@ -66,6 +69,7 @@ export class RunOperationMachine {
 	}
 
 	invalidate(): void {
+		this.clientTiming.cancel();
 		this.recovering = false;
 		this.operationId += 1;
 		this.controller?.abort();

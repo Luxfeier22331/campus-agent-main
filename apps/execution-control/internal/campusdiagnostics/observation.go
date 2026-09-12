@@ -11,6 +11,8 @@ import (
 )
 
 type Candidate struct {
+	NoticeID        string   `json:"noticeId,omitempty"`
+	DocumentID      string   `json:"documentId,omitempty"`
 	ResultRef       string   `json:"resultRef"`
 	SourceKind      string   `json:"sourceKind"`
 	Title           string   `json:"title"`
@@ -26,20 +28,52 @@ type Candidate struct {
 }
 
 type Snapshot struct {
-	IndexCollection   string           `json:"indexCollection,omitempty"`
-	EffectiveQuery    string           `json:"effectiveQuery"`
-	CitationStart     int              `json:"citationStart"`
-	ResultLimit       int              `json:"resultLimit"`
-	RetrievalMode     string           `json:"retrievalMode,omitempty"`
-	Durations         map[string]int64 `json:"durations"`
-	RetrievedCount    int              `json:"retrievedCount"`
-	DeduplicatedCount int              `json:"deduplicatedCount"`
-	RerankInputCount  int              `json:"rerankInputCount"`
-	RerankKeptCount   int              `json:"rerankKeptCount"`
-	ReturnedCount     int              `json:"returnedCount"`
-	ExcludedCount     int              `json:"excludedCount"`
-	Candidates        []Candidate      `json:"candidates"`
-	SnapshotTruncated bool             `json:"snapshotTruncated"`
+	EffectiveQuery             string           `json:"effectiveQuery"`
+	RerankQuery                string           `json:"rerankQuery"`
+	CitationStart              int              `json:"citationStart"`
+	ResultLimit                int              `json:"resultLimit"`
+	RetrievalMode              string           `json:"retrievalMode,omitempty"`
+	Durations                  map[string]int64 `json:"durations"`
+	RetrievedCount             int              `json:"retrievedCount"`
+	DeduplicatedCount          int              `json:"deduplicatedCount"`
+	RerankInputCount           int              `json:"rerankInputCount"`
+	RerankKeptCount            int              `json:"rerankKeptCount"`
+	SourceGroupedCount         int              `json:"sourceGroupedCount"`
+	SourceGroupedExcludedCount int              `json:"sourceGroupedExcludedCount"`
+	ReturnedCount              int              `json:"returnedCount"`
+	ExcludedCount              int              `json:"excludedCount"`
+	Candidates                 []Candidate      `json:"candidates"`
+	SnapshotTruncated          bool             `json:"snapshotTruncated"`
+	Embedding                  *EmbeddingMeta   `json:"embedding,omitempty"`
+	Retrieval                  *RetrievalMeta   `json:"retrieval,omitempty"`
+	Rerank                     *RerankMeta      `json:"rerank,omitempty"`
+	FailedStage                string           `json:"failedStage,omitempty"`
+}
+
+type EmbeddingMeta struct {
+	Provider           string `json:"provider,omitempty"`
+	Model              string `json:"model,omitempty"`
+	ServiceOrigin      string `json:"serviceOrigin,omitempty"`
+	Dimensions         int    `json:"dimensions,omitempty"`
+	InstructionVersion string `json:"instructionVersion,omitempty"`
+	CacheOutcome       string `json:"cacheOutcome,omitempty"`
+	CacheWaitMs        int64  `json:"cacheWaitMs,omitempty"`
+	EstimatedSavedMs   int64  `json:"estimatedSavedMs,omitempty"`
+}
+
+type RetrievalMeta struct {
+	Collection    string   `json:"collection,omitempty"`
+	HTTPMs        *int64   `json:"httpMs"`
+	QdrantMs      *float64 `json:"qdrantMs"`
+	DecodeMs      *int64   `json:"decodeMs"`
+	PostprocessMs *int64   `json:"postprocessMs"`
+}
+
+type RerankMeta struct {
+	Provider   string `json:"provider,omitempty"`
+	Model      string `json:"model,omitempty"`
+	HTTPMs     *int64 `json:"httpMs"`
+	InputCount int    `json:"inputCount,omitempty"`
 }
 
 type Observation struct {
@@ -87,13 +121,17 @@ type Store interface {
 // No retry and no background queue: a diagnostic outage cannot change a tool
 // result or prevent cancellation. Each write has its own short deadline.
 func Record(ctx context.Context, store any, observation Observation) {
+	_ = RecordError(ctx, store, observation)
+}
+
+func RecordError(ctx context.Context, store any, observation Observation) error {
 	writer, ok := store.(Store)
 	if !ok {
-		return
+		return nil
 	}
 	bounded, cancel := context.WithTimeout(context.WithoutCancel(ctx), 200*time.Millisecond)
 	defer cancel()
-	_ = writer.ObserveCampusSearch(bounded, observation)
+	return writer.ObserveCampusSearch(bounded, observation)
 }
 
 func MarkCitations(ctx context.Context, store any, requestID string, refs []string) {

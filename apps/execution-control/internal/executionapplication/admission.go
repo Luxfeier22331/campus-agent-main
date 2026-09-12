@@ -10,7 +10,6 @@ import (
 
 const (
 	defaultAgentDeadlineMS        = 240000
-	defaultAgentMaxOutputTokens   = 2048
 	defaultAgentCurrentInputChars = 8000
 	defaultAgentContextChars      = 16000
 	defaultMaxFunctionToolCalls   = 8
@@ -42,12 +41,19 @@ func NewAdmissionService(options AdmissionOptions) *AdmissionService {
 			AgentDeadlineMS:       positiveOrDefault(options.AgentDeadlineMS, defaultAgentDeadlineMS),
 			ContextCharLimit:      positiveOrDefault(options.ContextCharLimit, defaultAgentContextChars),
 			CurrentInputCharLimit: positiveOrDefault(options.CurrentInputCharLimit, defaultAgentCurrentInputChars),
-			MaxOutputTokens:       positiveOrDefault(options.MaxOutputTokens, defaultAgentMaxOutputTokens),
+			MaxOutputTokens:       nonNegative(options.MaxOutputTokens),
 		},
 		modelTargetResolver: options.ModelTargetResolver,
 		modelTargetError:    options.ModelTargetError,
 		toolContract:        options.ToolContract,
 	}
+}
+
+func nonNegative(value int) int {
+	if value < 0 {
+		return 0
+	}
+	return value
 }
 
 func (s *AdmissionService) BuildAgentAdmissionSnapshot(

@@ -8,25 +8,24 @@ import (
 )
 
 const (
-	defaultTemporalTaskQueue           = "campus-agent.workflow.v3"
-	defaultAgentRuntimeDeadlineMS      = 240_000
-	defaultAgentRuntimeInputCharLimit  = 8_000
-	defaultAgentRuntimeMaxOutputTokens = 2_048
-	defaultMaxConcurrentAnswers        = 8
-	defaultMemoryContextCharBudget     = 2_500
-	defaultMemoryRecallLimit           = 8
-	defaultMemoryRecallMaxTokens       = 2_500
-	defaultMemoryTimeoutSeconds        = 90
-	defaultQueueCapacity               = 24
-	defaultQueueTimeoutMS              = 3_000
-	defaultProductCallbackTimeoutMS    = 5_000
-	defaultRequestBodyLimitBytes       = 1_048_576
-	defaultRequestTimeoutMS            = 95_000
-	defaultShutdownGraceMS             = 95_000
-	fixedHTTPHost                      = "0.0.0.0"
-	fixedHTTPPort                      = 8000
-	fixedTemporalWorkflowTimeoutSec    = 900
-	maxGatewayPort                     = 65_533
+	defaultTemporalTaskQueue          = "campus-agent.workflow.v3"
+	defaultAgentRuntimeDeadlineMS     = 240_000
+	defaultAgentRuntimeInputCharLimit = 8_000
+	defaultMaxConcurrentAnswers       = 8
+	defaultMemoryContextCharBudget    = 2_500
+	defaultMemoryRecallLimit          = 8
+	defaultMemoryRecallMaxTokens      = 2_500
+	defaultMemoryTimeoutSeconds       = 90
+	defaultQueueCapacity              = 24
+	defaultQueueTimeoutMS             = 3_000
+	defaultProductCallbackTimeoutMS   = 5_000
+	defaultRequestBodyLimitBytes      = 1_048_576
+	defaultRequestTimeoutMS           = 95_000
+	defaultShutdownGraceMS            = 95_000
+	fixedHTTPHost                     = "0.0.0.0"
+	fixedHTTPPort                     = 8000
+	fixedTemporalWorkflowTimeoutSec   = 900
+	maxGatewayPort                    = 65_533
 )
 
 type Config struct {
@@ -157,23 +156,25 @@ func loadFromEnv() (Config, error) {
 		AgentRuntimeBaseURL:                     strings.TrimRight(strings.TrimSpace(values.AgentRuntimeBaseURL), "/"),
 		AgentRuntimeSharedSecret:                values.AgentRuntimeSharedSecret,
 		AgentRuntimeDeadlineMS:                  defaultAgentRuntimeDeadlineMS,
-		AgentRuntimeMaxOutputTokens:             defaultAgentRuntimeMaxOutputTokens,
-		AgentRuntimeInputCharLimit:              defaultAgentRuntimeInputCharLimit,
-		AgentRuntimeContextCharLimit:            16_000,
-		ProductCallbackBaseURL:                  strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
-		ProductCallbackTimeoutMS:                defaultProductCallbackTimeoutMS,
-		ModelConfigBaseURL:                      strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
-		QdrantURL:                               strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
-		QdrantReadOnlyAPIKey:                    strings.TrimSpace(values.QdrantReadOnlyAPIKey),
-		QdrantTLSCACertPath:                     strings.TrimSpace(values.QdrantTLSCACertPath),
-		WorkerProfiles:                          defaultWorkerProfiles(),
-		PersonalMemoryBaseURL:                   strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
-		PersonalMemoryAPISecret:                 strings.TrimSpace(values.PersonalMemoryAPISecret),
-		PersonalMemoryOwnerSalt:                 strings.TrimSpace(values.PersonalMemoryOwnerSalt),
-		PersonalMemoryTimeoutSeconds:            defaultMemoryTimeoutSeconds,
-		PersonalMemoryRecallLimit:               defaultMemoryRecallLimit,
-		PersonalMemoryRecallMaxTokens:           defaultMemoryRecallMaxTokens,
-		PersonalMemoryContextCharBudget:         defaultMemoryContextCharBudget,
+		// Zero means no application-imposed output-token limit. Provider defaults
+		// remain authoritative until a model-specific limit is configured.
+		AgentRuntimeMaxOutputTokens:     0,
+		AgentRuntimeInputCharLimit:      defaultAgentRuntimeInputCharLimit,
+		AgentRuntimeContextCharLimit:    16_000,
+		ProductCallbackBaseURL:          strings.TrimRight(strings.TrimSpace(values.ProductCallbackBaseURL), "/"),
+		ProductCallbackTimeoutMS:        defaultProductCallbackTimeoutMS,
+		ModelConfigBaseURL:              strings.TrimRight(strings.TrimSpace(values.ModelConfigBaseURL), "/"),
+		QdrantURL:                       strings.TrimRight(strings.TrimSpace(values.QdrantURL), "/"),
+		QdrantReadOnlyAPIKey:            strings.TrimSpace(values.QdrantReadOnlyAPIKey),
+		QdrantTLSCACertPath:             strings.TrimSpace(values.QdrantTLSCACertPath),
+		WorkerProfiles:                  defaultWorkerProfiles(),
+		PersonalMemoryBaseURL:           strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
+		PersonalMemoryAPISecret:         strings.TrimSpace(values.PersonalMemoryAPISecret),
+		PersonalMemoryOwnerSalt:         strings.TrimSpace(values.PersonalMemoryOwnerSalt),
+		PersonalMemoryTimeoutSeconds:    defaultMemoryTimeoutSeconds,
+		PersonalMemoryRecallLimit:       defaultMemoryRecallLimit,
+		PersonalMemoryRecallMaxTokens:   defaultMemoryRecallMaxTokens,
+		PersonalMemoryContextCharBudget: defaultMemoryContextCharBudget,
 	}, nil
 }
 

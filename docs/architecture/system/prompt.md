@@ -22,10 +22,10 @@ status: active
 结构解析；execution-control 负责计划与重规划的语义准入。在线回答由
 `solve`、`execute_step`、`replan` 和 `synthesize` 四类 operation 组成；Solve 可以直接回答或返回计划，代码固定步骤顺序和预算，模型
 在步骤边界内选择如何使用候选来源。Solve 只负责直接回答或生成计划；机构知识由 `execute_step` 按需
-通过已注册的 `campus_search` function tool 提供，也可以由步骤显式允许的 Agents SDK 原生 `web_search`
+通过已注册的 `campus_search` function tool 提供，也可以由步骤显式允许的供应商原生 `web_search`
 补充或核验尚未采集的公开校园网页信息。
 工具是否存在、如何执行和结果如何公开，必须由对应合同与实现决定，不能因为提示词中出现相关描述就
-扩大模型能力。Agents SDK 在这些边界内负责当前 operation 的语义决策、必要的工具循环和答案生成。
+扩大模型能力。配置选中的 runner 在这些边界内负责当前 operation 的模型调用、工具循环和答案生成。
 提示词不能替代代码检查，也不能扩大当前 operation 已提供的能力。
 
 提示词不实现第二套编排器，也不把模型的隐性思维当作持久状态。计划、实际证据和后续路径由
@@ -56,12 +56,16 @@ execution-control 的 Agent Workflow 合同显式传递；提示词只约束每�
 只引用本轮实际采用的结果。
 execution-control 传入类型化数据，不在 Go 侧维护另一套 Agent prompt 或答案合成 prompt。
 
+Executor 用 `summary` 与 `remainingFacts` 表达已确认内容和具体缺项；相关候选不自动视为答案充分。
+Replanner 的 `synthesize` 同时用于资料足够、部分可答以及没有进一步适用路径的收尾，不区分回答模式。
+Synthesizer 先回答有支持的内容，再简短说明具体缺项；不因另一来源失败而降低已确认内容的确定性。
+
 `campus_search` 返回 `no_match` 或失败时，Executor 保留该来源尝试，Replanner 决定是否增加允许
 `web_search` 的后续步骤；系统不由代码自动回退，也不要求固定的 2～3 个 turn。问题所需事实可从尚未
 采集的公开校园网页获取时，后续步骤可以使用 `web_search`，不能仅凭校内无匹配就判定事实不存在。`web_search` 只服务
-于校园问题，不是通用开放域能力。只有 `campus_search` 成功返回 evidence 时才使用 `[n]` 引用；Web Search
-支持的事实必须由 SDK 原生 URL citation 支持，模型不得手写 URL、Markdown 来源链接、数字引用或 turn
-引用。Finalization 负责生成统一的编号来源链接。
+于校园问题，不是通用开放域能力。runner 将 Web Search 原生 annotation / grounding 转为有效材料；
+Synthesizer 对 Campus 和 Web 材料统一使用实际 citationIndex 输出 `[n]`，不手写 URL 或虚构来源编号。
+Finalization 按实际引用生成来源链接。Google 搜索建议独立展示，不是模型输入。
 
 ## 可信边界
 
@@ -79,7 +83,7 @@ execution-control 传入类型化数据，不在 Go 侧维护另一套 Agent pro
 ## 输入与输出
 
 当前用户消息只出现一次。Agent Runtime 在真实模型输入数组上按字符预算裁剪最旧完整会话片段，
-并加入工具结果。Agents SDK 返回原生文本；Agent Runtime 要求非空 `final_output`，execution-control
+并加入工具结果。runner 返回中立 operation 结果；Agent Runtime 要求非空 `final_output`，execution-control
 校验工具结果并从正文引用派生来源，但不调用第二个模型改写答案。
 
 具体上下文行为见 `../../product/run-context.md`，Agent 输入输出见 `agent-framework.md`，终态

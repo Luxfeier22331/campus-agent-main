@@ -2,6 +2,7 @@ import { cn } from "@campus-agent/ui";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
 import { CampusSearchSection } from "./campus-search-diagnostics";
 import { formatDuration, formatTimestamp } from "./format";
+import { ModelOutputDiagnosticPanel } from "./model-output-diagnostic.tsx";
 import { KeyValue } from "./ops-display";
 import { formatOpsDomainValue } from "./ops-domain-labels";
 
@@ -126,6 +127,9 @@ function ExecutionSection({ detail }: { detail: OpsRequestDetailResponse }) {
 								<p className="text-danger text-sm">
 									失败类型：{formatOpsDomainValue(stage.failureKind)}
 								</p>
+							) : null}
+							{stage.failureKind === "model_output_invalid" || stage.modelOutputDiagnostic ? (
+								<ModelOutputDiagnosticPanel diagnostic={stage.modelOutputDiagnostic} />
 							) : null}
 						</li>
 					))}

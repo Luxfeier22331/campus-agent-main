@@ -138,6 +138,15 @@ export function buildChatCommandService(
 	}
 
 	return {
+		async recordClientTiming(input) {
+			if (!dependencies.observabilityStore.recordClientTiming) {
+				return false;
+			}
+			return dependencies.observabilityStore.recordClientTiming({
+				...input,
+				observedAt: new Date().toISOString(),
+			});
+		},
 		async readExecutionInput(requestId) {
 			const stored = await dependencies.commandStore.readDurableRunInput(requestId);
 			return stored

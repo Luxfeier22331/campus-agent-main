@@ -31,6 +31,9 @@ func (s *Server) handleCampusSearchObservation(w http.ResponseWriter, r *http.Re
 		return
 	}
 	observation.RequestID = requestID
-	campusdiagnostics.Record(r.Context(), s.runProjectionStore, observation)
+	if err := campusdiagnostics.RecordError(r.Context(), s.runProjectionStore, observation); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "observation_unavailable", "Campus search observation could not be stored.", false)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

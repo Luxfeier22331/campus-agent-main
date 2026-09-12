@@ -68,7 +68,14 @@ console.log(JSON.stringify({tool: ${JSON.stringify(tool)}, args: process.argv.sl
 			);
 		assert.deepEqual(invoke({ ...env, PATH: `${directory}:${env.PATH}` }), {
 			tool: "nix",
-			args: ["develop", `.#${shell}`, "--command", command, ...args, ...filenames],
+			args: [
+				"develop",
+				`.#${shell}`,
+				"--command",
+				command,
+				...(command === "uv" ? ["run", "--locked", "--only-dev", ...args.slice(2)] : args),
+				...filenames,
+			],
 		});
 		assert.deepEqual(invoke({ ...env, [variable]: environment }), {
 			tool: command,

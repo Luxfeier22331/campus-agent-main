@@ -145,14 +145,21 @@ export function noticeEmbeddingSetManifestKey(id: Sha256Ref): string {
 }
 
 function decodeEmbeddings(bytes: Uint8Array, expectedCount: number): StoredNoticeEmbedding[] {
-	const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-	if (!text.endsWith("\n")) throw new Error("notice embedding NDJSON must end with a newline");
-	const lines = text.slice(0, -1).split("\n");
-	if (lines.length !== expectedCount || lines.some((line) => line === "")) {
-		throw new Error("notice embedding data count does not match its manifest");
-	}
+	// A published set can exceed V8's single-string limit. Decode one record at
+	// a time; the verified bytes and resulting vectors need no full text copy.
+	const decoder = new TextDecoder("utf-8", { fatal: true });
+	const data = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	if (data.at(-1) !== 10) throw new Error("notice embedding NDJSON must end with a newline");
 	const seen = new Set<Sha256Ref>();
-	return lines.map((line, index) => {
+	const result: StoredNoticeEmbedding[] = [];
+	for (let start = 0; start < data.length;) {
+		const end = data.indexOf(10, start);
+		if (end === start || result.length >= expectedCount) {
+			throw new Error("notice embedding data count does not match its manifest");
+		}
+		const line = decoder.decode(data.subarray(start, end));
+		start = end + 1;
+		const index = result.length;
 		let value: unknown;
 		try {
 			value = JSON.parse(line) as unknown;
@@ -166,8 +173,10 @@ function decodeEmbeddings(bytes: Uint8Array, expectedCount: number): StoredNotic
 			throw new Error(`notice embedding data repeats retrieval text: ${value.retrievalTextSha256}`);
 		}
 		seen.add(value.retrievalTextSha256);
-		return value as unknown as StoredNoticeEmbedding;
-	});
+		result.push(value as unknown as StoredNoticeEmbedding);
+	}
+	if (result.length !== expectedCount) throw new Error("notice embedding data count does not match its manifest");
+	return result;
 }
 
 function reference(key: string, byteSize: number, digest: Sha256Ref): ObjectReference {

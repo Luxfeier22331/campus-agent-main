@@ -49,5 +49,23 @@ export function createPgChatCommandObservabilityStore(
 			}
 			return rows[0].stageTiming;
 		},
+		async recordClientTiming(input) {
+			const db = await getDb();
+			const timing = requestObservabilityFact.stageTimingJson;
+			const updated = await db
+				.update(requestObservabilityFact)
+				.set({
+					stageTimingJson: sql`jsonb_set(jsonb_set(${timing}, array['client.first_delta_ms'], to_jsonb(${input.firstDeltaMs}::double precision), true), array['client.first_render_ms'], to_jsonb(${input.firstRenderMs}::double precision), true)`,
+					updatedAt: sql<Date>`greatest(${requestObservabilityFact.updatedAt}, ${new Date(input.observedAt)})`,
+				})
+				.where(
+					and(
+						eq(requestObservabilityFact.requestId, input.requestId),
+						sql`not (${timing} ? 'client.first_delta_ms')`,
+					),
+				)
+				.returning({ requestId: requestObservabilityFact.requestId });
+			return updated.length === 1;
+		},
 	};
 }

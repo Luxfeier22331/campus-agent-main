@@ -247,6 +247,7 @@ export function useConversationRunCoordinator({
 				return;
 			}
 			const operation = startOperation();
+			operationMachineRef.current.clientTiming.start();
 			const controller = operation.controller;
 			const localMessageId = `local-user-${crypto.randomUUID()}`;
 			const acceptedAt = new Date().toISOString();

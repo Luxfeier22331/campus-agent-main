@@ -165,7 +165,7 @@ func (Activities) ReplanTaskActivity(
 	return WorkflowOperationActivityOutput{
 		Operation: WorkflowOperationReplan,
 		Replan: &WorkflowTaskReplan{
-			SchemaVersion:  "task_replan.v2",
+			SchemaVersion:  "task_replan.v3",
 			Decision:       "continue",
 			Reason:         "继续执行已规划步骤。",
 			RemainingSteps: append([]WorkflowTaskPlanStep{}, input.RemainingSteps...),

@@ -3,6 +3,8 @@ package adaptertest
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/outboundadapter"
 	executionactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/execution"
 	finalizationactivities "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization"
 	activityprojection "github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporaladapter/finalization/projection"
@@ -84,6 +87,88 @@ func TestWorkflowFailureProjectionKeepsBoundedRuntimeEvidence(t *testing.T) {
 func TestWorkflowRuntimeTimeoutKeepsItsRuntimeFailureKind(t *testing.T) {
 	if got := executionactivities.WorkflowRuntimeFailureKind(context.DeadlineExceeded); got != "agent_runtime_timeout" {
 		t.Fatalf("runtime timeout failure kind = %q, want agent_runtime_timeout", got)
+	}
+}
+
+func TestRuntimeDeadlineSurvivesRealHTTPTransport(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				failure := `{"code":"agent_deadline_exceeded","operation":"workflow.solve","detail":"agent deadline signal was aborted"}`
+				if stream {
+					w.Header().Set("content-type", "text/event-stream")
+					_, _ = fmt.Fprintf(w, "event: error\ndata: %s\n\n", failure)
+				} else {
+					w.Header().Set("content-type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = fmt.Fprintf(w, `{"error":%s}`, failure)
+				}
+			}))
+			defer server.Close()
+			adapter := executionactivities.Adapter{AgentRuntimeClient: outboundadapter.NewAgentRuntimeClient(config.Config{
+				AgentRuntimeBaseURL: server.URL, AgentRuntimeSharedSecret: "secret",
+			})}
+			_, err := adapter.CallWorkflowOperationRuntime(t.Context(), execution.DurableRun{RequestID: "deadline", CreatedAt: time.Now()}, temporalruntime.WorkflowOperationSolve, "", []byte(`{}`), 6000, stream)
+			if got := executionactivities.WorkflowRuntimeFailureKind(err); got != "agent_deadline_exceeded" {
+				t.Fatalf("failure=%v kind=%s", err, got)
+			}
+			payload := map[string]any{"failure": map[string]any{"code": "agent_deadline_exceeded", "operation": "solve"}}
+			executionactivities.AddWorkflowFailureEvidence(payload, err)
+			failure := payload["failure"].(map[string]any)
+			if failure["operation"] != "workflow.solve" || failure["detail"] != "agent deadline signal was aborted" {
+				t.Fatalf("failure evidence=%#v", failure)
+			}
+		})
+	}
+}
+
+func TestRuntimeBlackholeRemainsTransportTimeout(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
+			finish := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				if stream {
+					w.Header().Set("content-type", "text/event-stream")
+					w.(http.Flusher).Flush()
+				}
+				select {
+				case <-r.Context().Done():
+				case <-finish:
+				}
+			}))
+			defer server.Close()
+			defer close(finish)
+			adapter := executionactivities.Adapter{AgentRuntimeClient: outboundadapter.NewAgentRuntimeClient(config.Config{
+				AgentRuntimeBaseURL: server.URL, AgentRuntimeSharedSecret: "secret",
+			})}
+			_, err := adapter.CallWorkflowOperationRuntime(t.Context(), execution.DurableRun{RequestID: "blackhole", CreatedAt: time.Now()}, temporalruntime.WorkflowOperationSolve, "", []byte(`{}`), 4100, stream)
+			if got := executionactivities.WorkflowRuntimeFailureKind(err); got != "agent_runtime_timeout" {
+				t.Fatalf("failure=%v kind=%s", err, got)
+			}
+		})
+	}
+}
+
+func TestWorkflowFailureProjectionPreservesSourceStatusAndOperation(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusBadGateway} {
+		for _, cause := range []error{
+			executionactivities.AgentRuntimeFailureFromResponse(http.StatusInternalServerError, executionactivities.AgentRuntimeResponse{
+				Error: executionactivities.AgentRuntimeError{
+					Code: "run_failed", Operation: "workflow.execute_step", HTTPStatus: status, Detail: "provider rejection",
+				},
+			}),
+			executionactivities.AgentRuntimeApplicationError{
+				Code: "run_failed", Operation: "workflow.execute_step", HTTPStatus: status, Detail: "provider rejection",
+			},
+		} {
+			payload := map[string]any{"failure": map[string]any{"code": "run_failed", "operation": "execute_step"}}
+			executionactivities.AddWorkflowFailureEvidence(payload, cause)
+			failure := payload["failure"].(map[string]any)
+			if failure["http_status"] != status || failure["operation"] != "workflow.execute_step" || failure["detail"] != "provider rejection" {
+				t.Fatalf("%T failure evidence = %#v", cause, failure)
+			}
+		}
 	}
 }
 

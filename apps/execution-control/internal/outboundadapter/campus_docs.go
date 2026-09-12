@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
@@ -21,12 +22,13 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdiagnostics"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/campusdocs"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/embedding"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/modelconfigclient"
 )
 
 const (
-	campusDocsEmbeddingTimeout         = 10 * time.Second
+	campusDocsEmbeddingTimeout         = 20 * time.Second
 	campusDocsRerankTimeout            = 45 * time.Second
 	campusDocsQdrantTimeout            = 60 * time.Second
 	campusDocsCandidateLimit           = 24
@@ -38,7 +40,7 @@ type runtimeConfigResolver interface {
 }
 
 type campusDocsHTTPClient struct {
-	embeddingHTTPClient *http.Client
+	embedder            embedding.Embedder
 	rerankHTTPClient    *http.Client
 	modelConfigResolver runtimeConfigResolver
 	httpClient          *http.Client
@@ -74,6 +76,7 @@ type qdrantPoint struct {
 func NewCampusDocsSearcher(
 	cfg config.Config,
 	modelConfigResolver runtimeConfigResolver,
+	logger *slog.Logger,
 ) (campusdocs.Searcher, error) {
 	qdrantURL := strings.TrimRight(strings.TrimSpace(cfg.QdrantURL), "/")
 	if qdrantURL == "" {
@@ -97,7 +100,11 @@ func NewCampusDocsSearcher(
 		return nil, err
 	}
 	return &campusDocsHTTPClient{
-		embeddingHTTPClient: NoRedirectHTTPClient(&http.Client{Timeout: campusDocsEmbeddingTimeout}),
+		embedder: &campusDocsEmbedder{
+			resolver:   modelConfigResolver,
+			httpClient: NoRedirectHTTPClient(&http.Client{Timeout: campusDocsEmbeddingTimeout}),
+			cache:      embedding.NewCache(embedding.DefaultCapacity, embedding.DefaultTTL, campusDocsEmbeddingTimeout, logger),
+		},
 		rerankHTTPClient:    NoRedirectHTTPClient(&http.Client{Timeout: campusDocsRerankTimeout}),
 		modelConfigResolver: modelConfigResolver,
 		httpClient:          qdrantClient,
@@ -139,9 +146,11 @@ func qdrantHTTPClient(scheme string, timeout time.Duration, caCertPath string) (
 func (client *campusDocsHTTPClient) Search(
 	ctx context.Context,
 	index campusdocs.Index,
-	query string,
+	queries campusdocs.SearchQuery,
 	resultLimit int,
 ) ([]campusdocs.SearchResultItem, error) {
+	query := strings.TrimSpace(queries.RetrievalQuery)
+	rerankQuery := strings.TrimSpace(queries.RerankQuery)
 	observer := campusdocs.SearchObservation(ctx)
 	snapshot := observer.Snapshot
 	snapshot.RetrievalMode = "hybrid_rrf"
@@ -149,38 +158,42 @@ func (client *campusDocsHTTPClient) Search(
 		snapshot.RetrievalMode = "dense"
 	}
 	started := time.Now()
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return nil, errors.New("campus docs query is required")
+	stage := "embedding"
+	snapshot.FailedStage = stage
+	defer func() {
+		if snapshot.FailedStage != "" {
+			snapshot.Durations[stage] = time.Since(started).Milliseconds()
+		}
+	}()
+	snapshot.Retrieval = &campusdiagnostics.RetrievalMeta{Collection: index.Collection}
+	if query == "" || rerankQuery == "" {
+		return nil, errors.New("campus docs retrieval query and rerank query are required")
 	}
 	if err := campusdocs.ValidateIndex(index); err != nil {
 		return nil, err
 	}
-	embeddingConfig, err := client.resolveEmbeddingProviderConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-	embedding, err := client.embedQueryWithRuntimeConfig(
-		ctx,
-		embeddingConfig,
-		campusdocs.BuildDenseQueryText(query, campusdocs.EmbeddingQueryInstruction),
-		campusdocs.EmbeddingDimensions,
-	)
+	embedding, err := client.embedder.Embed(ctx, embedding.Request{
+		Input:              campusdocs.BuildDenseQueryText(query, campusdocs.EmbeddingQueryInstruction),
+		Dimensions:         campusdocs.EmbeddingDimensions,
+		InstructionVersion: "campus-query.v1",
+	})
 	if err != nil {
 		return nil, err
 	}
 	snapshot.Durations["embedding"] = time.Since(started).Milliseconds()
 	observer.Phase("embedded")
 	started = time.Now()
+	stage, snapshot.FailedStage = "retrieval", "retrieval"
 	points, err := client.queryCampusDocsPoints(ctx, query, embedding, index)
 	if err != nil {
 		return nil, err
 	}
+	postprocessStarted := time.Now()
 	candidates := make([]campusDocsCandidate, 0, len(points))
 	snapshot.Candidates = make([]campusdiagnostics.Candidate, 0, campusDocsCandidateLimit)
 	snapshot.RetrievedCount = len(points)
 	seen := map[string]struct{}{}
-	for _, point := range points {
+	for pointIndex, point := range points {
 		candidate, err := campusDocsCandidateFromQdrantPoint(index, point)
 		if err != nil {
 			return nil, err
@@ -195,9 +208,10 @@ func (client *campusDocsHTTPClient) Search(
 		if len(snapshot.Candidates) < campusDocsCandidateLimit {
 			snapshot.Candidates = append(snapshot.Candidates, campusdiagnostics.Candidate{
 				ResultRef: candidate.result.ResultRef, SourceKind: candidate.result.SourceKind,
+				NoticeID: candidate.result.NoticeID, DocumentID: candidate.result.DocumentID,
 				Title:       campusdiagnostics.Bound(candidate.result.Title, 400),
 				Section:     campusdiagnostics.Bound(candidate.result.SectionTitle, 400),
-				FusionScore: point.Score, RetrievalRank: len(candidates) + 1,
+				FusionScore: point.Score, RetrievalRank: pointIndex + 1,
 				Text: campusdiagnostics.Bound(candidate.result.Text, 160),
 			})
 			candidate.diagnostic = &snapshot.Candidates[len(snapshot.Candidates)-1]
@@ -212,17 +226,25 @@ func (client *campusDocsHTTPClient) Search(
 	snapshot.DeduplicatedCount = len(candidates)
 	snapshot.RerankInputCount = len(candidates)
 	snapshot.Durations["retrieval"] = time.Since(started).Milliseconds()
+	if snapshot.Retrieval != nil {
+		ms := time.Since(postprocessStarted).Milliseconds()
+		snapshot.Retrieval.PostprocessMs = &ms
+	}
 	observer.Phase("retrieved")
 	if len(candidates) == 0 {
+		snapshot.Durations["selection"] = 0
+		snapshot.FailedStage = ""
 		observer.Phase("selected")
 		return []campusdocs.SearchResultItem{}, nil
 	}
 	started = time.Now()
+	stage, snapshot.FailedStage = "rerank", "rerank"
 	rerankerConfig, err := client.resolveRerankerProviderConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rankedCandidates, err := client.rerankCampusDocsCandidates(ctx, rerankerConfig, query, candidates)
+	snapshot.Rerank = &campusdiagnostics.RerankMeta{Provider: rerankerConfig.Provider, Model: rerankerConfig.Model, InputCount: len(candidates)}
+	rankedCandidates, err := client.rerankCampusDocsCandidates(ctx, rerankerConfig, rerankQuery, candidates)
 	if err != nil {
 		return nil, err
 	}
@@ -231,6 +253,8 @@ func (client *campusDocsHTTPClient) Search(
 	snapshot.Durations["rerank"] = time.Since(started).Milliseconds()
 	observer.Phase("reranked")
 	started = time.Now()
+	stage, snapshot.FailedStage = "selection", "selection"
+	rankedCandidates = groupNoticeCandidates(rankedCandidates, snapshot)
 	results := make([]campusdocs.SearchResultItem, 0, resultLimit)
 	characterCount := 0
 	for _, candidate := range rankedCandidates {
@@ -259,82 +283,29 @@ func (client *campusDocsHTTPClient) Search(
 	snapshot.ReturnedCount = len(results)
 	snapshot.ExcludedCount = len(candidates) - len(results)
 	snapshot.Durations["selection"] = time.Since(started).Milliseconds()
+	snapshot.FailedStage = ""
 	observer.Phase("selected")
 	return results, nil
 }
 
-func (client *campusDocsHTTPClient) embedQueryWithRuntimeConfig(
-	ctx context.Context,
-	embeddingConfig modelconfigclient.RuntimeConfig,
-	queryText string,
-	dimensions int,
-) ([]float64, error) {
-	if client == nil || client.embeddingHTTPClient == nil {
-		return nil, errors.New("embedding HTTP client is not configured")
+func groupNoticeCandidates(candidates []campusDocsCandidate, snapshot *campusdiagnostics.Snapshot) []campusDocsCandidate {
+	seen := make(map[string]struct{}, len(candidates))
+	grouped := make([]campusDocsCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.result.SourceKind == "notice" {
+			if _, ok := seen[candidate.result.NoticeID]; ok {
+				if candidate.diagnostic != nil {
+					candidate.diagnostic.ExclusionReason = "source_group_limit"
+				}
+				continue
+			}
+			seen[candidate.result.NoticeID] = struct{}{}
+		}
+		grouped = append(grouped, candidate)
 	}
-	body, err := json.Marshal(map[string]any{
-		"model":      embeddingConfig.Model,
-		"input":      strings.TrimSpace(queryText),
-		"dimensions": dimensions,
-	})
-	if err != nil {
-		return nil, err
-	}
-	baseURL, err := modelconfigclient.NormalizeBaseURL(embeddingConfig.BaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("embedding provider base url: %w", err)
-	}
-	request, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		baseURL+"/embeddings",
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("authorization", "Bearer "+embeddingConfig.APIKey)
-	request.Header.Set("content-type", "application/json")
-	response, err := NoRedirectHTTPClient(client.embeddingHTTPClient).Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = response.Body.Close() }()
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, err
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("embedding provider status %d", response.StatusCode)
-	}
-	var payload struct {
-		Data []struct {
-			Embedding []float64 `json:"embedding"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(responseBody, &payload); err != nil {
-		return nil, fmt.Errorf("parse embedding response: %w", err)
-	}
-	if len(payload.Data) == 0 || len(payload.Data[0].Embedding) == 0 {
-		return nil, errors.New("embedding response did not contain embedding")
-	}
-	embedding := payload.Data[0].Embedding
-	if len(embedding) != dimensions {
-		return nil, fmt.Errorf("embedding dimension = %d, want %d", len(embedding), dimensions)
-	}
-	if err := validateCampusDocsEmbedding(embedding); err != nil {
-		return nil, err
-	}
-	return embedding, nil
-}
-
-func (client *campusDocsHTTPClient) resolveEmbeddingProviderConfig(
-	ctx context.Context,
-) (modelconfigclient.RuntimeConfig, error) {
-	if client == nil || client.modelConfigResolver == nil {
-		return modelconfigclient.RuntimeConfig{}, errors.New("model config resolver is not configured")
-	}
-	return client.modelConfigResolver.ResolveRuntimeConfig(ctx, "campus_docs_embedding")
+	snapshot.SourceGroupedCount = len(grouped)
+	snapshot.SourceGroupedExcludedCount = len(candidates) - len(grouped)
+	return grouped
 }
 
 func (client *campusDocsHTTPClient) resolveRerankerProviderConfig(
@@ -382,19 +353,38 @@ func (client *campusDocsHTTPClient) queryCampusDocsPoints(
 	}
 	request.Header.Set("api-key", client.qdrantQueryAPIKey)
 	request.Header.Set("content-type", "application/json")
+	meta := campusdocs.SearchObservation(ctx).Snapshot.Retrieval
+	httpStarted := time.Now()
+	defer func() {
+		if meta != nil && meta.HTTPMs == nil {
+			ms := time.Since(httpStarted).Milliseconds()
+			meta.HTTPMs = &ms
+		}
+	}()
 	response, err := NoRedirectHTTPClient(client.httpClient).Do(request)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = response.Body.Close() }()
 	responseBody, err := io.ReadAll(response.Body)
+	if meta != nil {
+		ms := time.Since(httpStarted).Milliseconds()
+		meta.HTTPMs = &ms
+	}
 	if err != nil {
 		return nil, err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, fmt.Errorf("qdrant query status %d", response.StatusCode)
 	}
-	return decodeCampusDocsQdrantQueryResponse(responseBody)
+	decodeStarted := time.Now()
+	defer func() {
+		if meta != nil {
+			ms := time.Since(decodeStarted).Milliseconds()
+			meta.DecodeMs = &ms
+		}
+	}()
+	return decodeCampusDocsQdrantQueryResponse(responseBody, meta)
 }
 
 func validateCampusDocsEmbedding(embedding []float64) error {
@@ -413,14 +403,22 @@ func validateCampusDocsEmbedding(embedding []float64) error {
 	return nil
 }
 
-func decodeCampusDocsQdrantQueryResponse(responseBody []byte) ([]qdrantPoint, error) {
+func decodeCampusDocsQdrantQueryResponse(responseBody []byte, meta *campusdiagnostics.RetrievalMeta) ([]qdrantPoint, error) {
 	var payload struct {
+		Time   json.RawMessage `json:"time"`
 		Result *struct {
 			Points *[]qdrantPointWire `json:"points"`
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(responseBody, &payload); err != nil {
 		return nil, fmt.Errorf("parse qdrant query response: %w", err)
+	}
+	if meta != nil && len(payload.Time) > 0 && string(payload.Time) != "null" {
+		var seconds float64
+		if err := json.Unmarshal(payload.Time, &seconds); err == nil && seconds >= 0 && !math.IsInf(seconds*1000, 0) {
+			ms := seconds * 1000
+			meta.QdrantMs = &ms
+		}
 	}
 	if payload.Result == nil {
 		return nil, errors.New("qdrant query response result is missing or null")
@@ -604,12 +602,24 @@ func (client *campusDocsHTTPClient) rerankCampusDocsCandidates(
 	if provider.Provider == "cohere-compatible" {
 		request.Header.Set("X-Failover-Enabled", "true")
 	}
+	meta := campusdocs.SearchObservation(ctx).Snapshot.Rerank
+	httpStarted := time.Now()
+	defer func() {
+		if meta != nil && meta.HTTPMs == nil {
+			ms := time.Since(httpStarted).Milliseconds()
+			meta.HTTPMs = &ms
+		}
+	}()
 	response, err := NoRedirectHTTPClient(client.rerankHTTPClient).Do(request)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = response.Body.Close() }()
 	responseBody, err := io.ReadAll(response.Body)
+	if meta != nil {
+		ms := time.Since(httpStarted).Milliseconds()
+		meta.HTTPMs = &ms
+	}
 	if err != nil {
 		return nil, err
 	}
