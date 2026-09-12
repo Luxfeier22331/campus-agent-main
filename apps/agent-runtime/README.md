@@ -47,7 +47,8 @@ execution-control 统一准入。Replan 决策不符合这些语义时同样保�
 
 Executor 通过 `summary` 保留已确认内容，通过 `remainingFacts` 表达本步骤尚缺事实。候选材料不等于
 答案充分性；Synthesizer 统一回答材料支持的部分，并简短说明具体缺项，不使用回答模式枚举。
-有候选材料或真实成功的来源尝试即可综合；无材料且没有成功来源时由 Workflow 按技术失败收口。
+有候选材料、成功来源尝试或明确的来源不可用结果即可综合。Solve 已返回合法答案时直接最终化，
+不因缺少 evidence 否决答案；模型、合同、取消与截止时间错误仍保持原有失败语义。
 Runtime 和 Finalization 不重复判断材料是否足够，最终引用有效性检查保留。
 资料不足的回答不注入检索覆盖范围、内部步骤或防御性说明，也不能把未查到表述为事实不存在。
 
@@ -93,7 +94,12 @@ Solve/Executor 可使用已准入工具，Synthesizer 不使用工具；Solve/Sy
 随失败结果保存。Solve 转为计划时，其材料与尝试记录继续供 Executor/Replanner 使用。
 Gemini 函数结果回传时保留完整模型 Content
 及 thought signature，不把这些供应商对象送入 Temporal。Web grounding 在 runner 中转换为
-`webEvidence`；Google 搜索建议 HTML 通过 `search_suggestions` 持久化并由前端隔离 iframe 展示，
+`webEvidence`。流式调用保留每次 grounding metadata；支持文本优先于 UTF-8 偏移，无法转换的支持项
+单独丢弃并计数。Solve 解包后映射到最终答案的 Unicode codepoint 位置，Finalization 在支持段末尾
+插入引用，不替换正文；计划合成仍消费既有 evidence 编号。
+`web_search_diagnostic` 只保存计数、状态和固定丢弃原因，随既有阶段净化投影进入 Ops；不保存查询、
+prompt 或完整 SDK 响应。缺少 supports 不等于搜索无匹配，也不代表答案具有可核验引用。
+Google 搜索建议 HTML 通过 `search_suggestions` 持久化并由前端隔离 iframe 展示，
 不进入下一轮模型上下文。
 
 ## 入口

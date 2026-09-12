@@ -14,6 +14,24 @@ const transportResultSchemaRef = schemaRef(
 );
 
 describe("execution-control tool executor", () => {
+	it("classifies memory transport failure independently from Campus Search", async () => {
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://127.0.0.1:1",
+			sharedSecret: "test",
+			fetchImpl: async () => {
+				throw new TypeError("network failed");
+			},
+		});
+		const request = toolRequest();
+		request.tool.name = "personal_memory_recall";
+		expect(await executor(request)).toMatchObject({
+			status: "failed",
+			failure: {
+				code: "personal_memory_recall_network_failed",
+				operation: "tool.personal_memory_recall",
+			},
+		});
+	});
 	it("fails closed when execution-control query config is missing", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "",

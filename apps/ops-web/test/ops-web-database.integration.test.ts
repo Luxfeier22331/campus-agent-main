@@ -52,6 +52,21 @@ function requiredClient(client: Client | undefined, name: string): Client {
 }
 
 describe("ops-web PostgreSQL grants", () => {
+	it("permits bounded terminal failure projection without granting event access", async () => {
+		const client = await connect(postgres.opsWebConnectionString);
+		try {
+			await client.query(
+				"select code, operation, detail, invocation_id, http_status from execution_control.ops_terminal_failures limit 0",
+			);
+			expect(
+				await postgresErrorCode(
+					client.query("select payload_json from execution_control.agent_run_events limit 0"),
+				),
+			).toBe("42501");
+		} finally {
+			await client.end();
+		}
+	});
 	let applyResult: Awaited<ReturnType<typeof applyOpsWebDatabaseGrants>>;
 	let management: Client;
 	let opsWeb: Client | undefined;

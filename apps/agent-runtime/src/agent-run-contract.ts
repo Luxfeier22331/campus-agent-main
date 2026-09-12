@@ -241,6 +241,9 @@ export interface WebEvidence {
 	excerpt: string;
 	title: string;
 	url: string;
+	/** Code-point offsets in the final visible operation output when known. */
+	startIndex?: number;
+	endIndex?: number;
 }
 
 export interface ModelMessage {
@@ -299,6 +302,7 @@ export interface AgentRunnerInput {
 }
 
 export interface AgentRunnerResult {
+	webSearchDiagnostic?: WebSearchDiagnostic;
 	/** In-process only; never projected into successful operation results. */
 	rawModelOutput?: { text: string; finishReason: string | null };
 	modelOutputDiagnostic?: ModelOutputDiagnostic;
@@ -330,6 +334,8 @@ export type ToolExecutor = ((
 };
 
 export interface WorkflowOperationResult {
+	webEvidence?: WebEvidence[];
+	webSearchDiagnostic?: WebSearchDiagnostic;
 	modelOutputDiagnostic?: ModelOutputDiagnostic;
 	failure?: ExecutionFailure;
 	answerStarted?: boolean;
@@ -364,6 +370,20 @@ export interface ModelOutputDiagnostic {
 	validation_message: string;
 	output_schema: string;
 	finish_reason: string | null;
+}
+
+/** Bounded adapter facts for Ops; never contains queries, answers or source bodies. */
+export interface WebSearchDiagnostic {
+	schema_version: 1;
+	state: "not_used" | "sources_available" | "metadata_only" | "unmapped";
+	query_count: number;
+	chunk_count: number;
+	support_count: number;
+	converted_count: number;
+	discarded_count: number;
+	discard_reasons: Partial<
+		Record<"invalid_segment" | "invalid_source" | "answer_unmapped", number>
+	>;
 }
 
 export interface WorkflowOperationRuntime {

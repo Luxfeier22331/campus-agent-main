@@ -411,7 +411,7 @@ describe("Gemini native runner", () => {
 					'<div><a href="https://www.google.com/search?q=muc" target="_blank">搜索建议</a></div>',
 			},
 		};
-		expect(geminiGrounding(grounded)).toEqual({
+		expect(geminiGrounding(grounded)).toMatchObject({
 			used: true,
 			evidence: [{ excerpt: "海淀校区", url: "https://www.muc.edu.cn/", title: "学校官网" }],
 			suggestions: [
@@ -628,6 +628,78 @@ describe("Gemini native runner", () => {
 			searchSuggestions: [{ provider: "google", renderedContent: "<div>搜索建议</div>" }],
 		});
 	});
+	it("preserves earlier stream grounding through a suggestions-only tail", async () => {
+		const text = "😀海淀校区地址。";
+		const first = response("😀海淀");
+		const second = response("校区地址。");
+		second.candidates[0].groundingMetadata = {
+			groundingChunks: [{ web: { uri: "https://www.muc.edu.cn/", title: "学校官网" } }],
+			groundingSupports: [
+				{
+					segment: { startIndex: 4, endIndex: Buffer.byteLength(text) },
+					groundingChunkIndices: [0],
+				},
+			],
+		};
+		const tail = response("");
+		tail.candidates[0].groundingMetadata = {
+			searchEntryPoint: { renderedContent: "<div>搜索建议</div>" },
+		};
+		const events: Array<AgentRunnerResult | AgentRunnerAnswerDelta | AgentRunnerSolveDecision> = [];
+		for await (const event of createStreamingGeminiRunner({
+			createModels: () => ({
+				generateContent: vi.fn(),
+				generateContentStream: async () =>
+					(async function* () {
+						yield first;
+						yield second;
+						yield tail;
+					})(),
+			}),
+		})(input({ allowWebSearch: true }))) {
+			events.push(event);
+		}
+		expect(events.at(-1)).toMatchObject({
+			finalOutput: text,
+			webEvidence: [{ excerpt: "海淀校区地址。", startIndex: 1, endIndex: 8 }],
+			webSearchDiagnostic: { state: "sources_available", support_count: 1, converted_count: 1 },
+			searchSuggestions: [{ provider: "google", renderedContent: "<div>搜索建议</div>" }],
+		});
+	});
+
+	it("uses segment text before offsets and records discarded supports without failing the answer", () => {
+		const grounded = response("海淀校区地址。");
+		grounded.candidates[0].groundingMetadata = {
+			groundingChunks: [{ web: { uri: "https://www.muc.edu.cn/", title: "学校官网" } }],
+			groundingSupports: [
+				{ segment: { text: "海淀校区", endIndex: 999 }, groundingChunkIndices: [0] },
+				{ segment: { endIndex: 999 }, groundingChunkIndices: [0] },
+				{ segment: { text: "地址" }, groundingChunkIndices: [9] },
+			],
+		};
+		expect(geminiGrounding(grounded)).toMatchObject({
+			evidence: [{ excerpt: "海淀校区" }],
+			diagnostic: {
+				converted_count: 1,
+				discarded_count: 2,
+				discard_reasons: { invalid_segment: 1, invalid_source: 1 },
+			},
+		});
+	});
+
+	it("distinguishes metadata-only search from an unused search tool", () => {
+		const grounded = response("答案");
+		expect(geminiGrounding(grounded).diagnostic.state).toBe("not_used");
+		grounded.candidates[0].groundingMetadata = {
+			searchEntryPoint: { renderedContent: "<div>建议</div>" },
+		};
+		expect(geminiGrounding(grounded)).toMatchObject({
+			used: true,
+			evidence: [],
+			diagnostic: { state: "metadata_only" },
+		});
+	});
+
 	it("rejects a truncated stream instead of reporting completion", async () => {
 		const generateContentStream = vi.fn(async function* () {
 			const chunk = response("部分回答");

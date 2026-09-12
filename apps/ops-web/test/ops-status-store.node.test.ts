@@ -72,6 +72,44 @@ describe("PostgreSQL ops status store", () => {
 		expect(sql).not.toContain('"runtime"."agent_step_attempts"');
 	});
 
+	it("keeps terminal failure distinct from a recoverable stage failure and exposes grounding counts", async () => {
+		const diagnostic = {
+			schema_version: 1,
+			state: "metadata_only",
+			query_count: 1,
+			chunk_count: 0,
+			support_count: 0,
+			converted_count: 0,
+			discarded_count: 0,
+			discard_reasons: {},
+		};
+		const rows = runDiagnostics({
+			steps: [
+				runStepRow({
+					status: "failed",
+					sanitizedPayloadJson: {
+						failure: {
+							code: "personal_memory_recall_failed",
+							operation: "tool.personal_memory_recall",
+						},
+						web_search_diagnostic: diagnostic,
+					},
+				}),
+			],
+		});
+		rows.terminalFailure = { code: "citation_validation_failed", operation: "finalization.write" };
+		const store = createPgOpsStatusStore({
+			db: createFakeOpsDb({ diagnostics: rows }),
+			now: () => now,
+		});
+		const detail = await store.getRequestDetail("req_pg_001");
+		expect(detail?.execution.terminalFailure).toMatchObject({ code: "citation_validation_failed" });
+		expect(detail?.execution.failure.code).toBe("personal_memory_recall_failed");
+		expect(detail?.execution.stages[0]?.webSearchDiagnostic).toEqual(diagnostic);
+		rows.terminalFailure = null;
+		expect((await store.getRequestDetail("req_pg_001"))?.execution.terminalFailure).toBeNull();
+	});
+
 	it("uses the matching attempt duration and exposes tool identity in diagnostics", async () => {
 		const store = createPgOpsStatusStore({
 			db: createFakeOpsDb({

@@ -257,8 +257,18 @@ func WorkflowToolFailureRecoverable(failure *ExecutionFailure) bool {
 	if failure == nil {
 		return false
 	}
-	return failure.Code == "transient_internal_query_failed" ||
+	return WorkflowSourceUnavailable(failure.Code) ||
 		(failure.Code == "tool_handler_failed" && (failure.HTTPStatus == 429 || (failure.HTTPStatus >= 500 && failure.HTTPStatus < 600)))
+}
+
+func WorkflowSourceUnavailable(code string) bool {
+	switch code {
+	case "campus_search_timeout", "campus_search_network_failed", "campus_search_unavailable", "campus_search_rate_limited", "transient_internal_query_failed",
+		"personal_memory_recall_failed", "personal_memory_recall_timeout", "personal_memory_recall_network_failed", "source_unavailable_for_request", "retrieval_budget_exhausted":
+		return true
+	default:
+		return false
+	}
 }
 
 func WorkflowCompletedSourceAttempts(completed []WorkflowCompletedStep) []WorkflowSourceAttempt {
@@ -269,8 +279,8 @@ func WorkflowCompletedSourceAttempts(completed []WorkflowCompletedStep) []Workfl
 	return result
 }
 
-// A successful source attempt permits synthesis even when its candidates cannot
-// answer the question. The synthesizer, not the workflow, judges answerability.
+// Source unavailability is context for the answer, not a failure of generation.
+// Contract/provider failures without usable materials still fail the operation.
 func workflowCanSynthesize(evidence []WorkflowEvidence, completed []WorkflowCompletedStep) bool {
 	if len(evidence) > 0 {
 		return true
@@ -280,6 +290,10 @@ func workflowCanSynthesize(evidence []WorkflowEvidence, completed []WorkflowComp
 			switch attempt.Status {
 			case "matched", "no_match", "completed":
 				return true
+			case "failed":
+				if WorkflowSourceUnavailable(attempt.FailureCode) {
+					return true
+				}
 			}
 		}
 	}

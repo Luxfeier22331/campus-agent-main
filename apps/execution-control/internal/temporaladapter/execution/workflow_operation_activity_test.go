@@ -36,6 +36,18 @@ func TestReceiptBudgetSurvivesJSONBWhitespace(t *testing.T) {
 	}
 }
 
+func TestSourceFailureDoesNotInvalidateCompletedAnswer(t *testing.T) {
+	request := WorkflowOperationActivityRequest{Operation: temporalruntime.WorkflowOperationSolve}
+	request.AdmissionSnapshot.AgentCapabilities.VisibleFunctionToolNames = []string{"personal_memory_recall", "campus_search"}
+	for _, code := range []string{"personal_memory_recall_failed", "campus_search_timeout", "tool_contract_mismatch", "run_context_conflict"} {
+		output := temporalruntime.WorkflowOperationActivityOutput{Status: "completed", ToolResults: []temporalruntime.AgentToolResult{{ToolName: "personal_memory_recall", Status: "failed", Failure: &temporalruntime.ExecutionFailure{Code: code, Operation: "tool.personal_memory_recall"}}}}
+		err := ValidateWorkflowOperationOutputSources(request, output)
+		if (err == nil) != temporalruntime.WorkflowSourceUnavailable(code) {
+			t.Fatalf("code %s: %v", code, err)
+		}
+	}
+}
+
 func TestTemporalMemoryToolResultIsAllowlistedAndBounded(t *testing.T) {
 	result, err := temporalToolResult(AgentToolResult{
 		ToolName: "personal_memory_recall", Status: "completed",

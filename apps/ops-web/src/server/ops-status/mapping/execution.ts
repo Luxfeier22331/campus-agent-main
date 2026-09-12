@@ -1,5 +1,6 @@
 import { ModelOutputDiagnosticSchema } from "../../../shared/model-output-diagnostic.ts";
 import type { OpsRequestDetailResponse } from "../../../shared/ops-contract.ts";
+import { WebSearchDiagnosticSchema } from "../../../shared/web-search-diagnostic.ts";
 import type {
 	OpsRequestDetailRow,
 	OpsRequestDiagnosticsRows,
@@ -16,6 +17,8 @@ export function toExecutionDiagnostics(
 		const payload = isRecord(stage.sanitizedPayloadJson) ? stage.sanitizedPayloadJson : {};
 		const failure = readExecutionFailure(payload.failure);
 		return {
+			webSearchDiagnostic:
+				WebSearchDiagnosticSchema.safeParse(payload.web_search_diagnostic).data ?? null,
 			modelOutputDiagnostic:
 				ModelOutputDiagnosticSchema.safeParse(stage.modelOutputDiagnosticJson).data ?? null,
 			completedAt: stage.completedAt?.toISOString() ?? null,
@@ -60,6 +63,7 @@ export function toExecutionDiagnostics(
 	const outputTokens = sumAttemptField(usageAttempts, "outputTokens");
 
 	return {
+		terminalFailure: readExecutionFailure(diagnostics.terminalFailure),
 		campusSearch: toCampusSearchDiagnostics(diagnostics.campusSearch, row.completedAt !== null),
 		failCloseReason: normalizeNullableString(row.failCloseReason),
 		failure: {

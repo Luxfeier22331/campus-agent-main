@@ -256,6 +256,12 @@ app-api 从这些投影生成学生产品 read model。学生浏览器响应只�
 模型用量，不经 app-api 复制到 `runtime.request_observability_fact`。Ops Web 与评测均不读取原始执行
 payload。
 
+Ops 的回答终态失败读取 `execution_control.ops_terminal_failures`：只投影 `run.failed` 的失败码和
+同代码 activity failure 的有界操作、详情、HTTP 状态、invocation ID。视图不复制事件、不保存额外
+状态；原始事件仍不可读，保留与删除跟随原 run。旧事件只有 failure kind 时，其他字段允许为空。
+联网搜索诊断存于既有 step/attempt 的 `sanitized_payload_json.web_search_diagnostic`，只含状态、
+计数与固定丢弃原因，消费者与字段见 Ops runtime 合同，不采集原始 grounding 响应或查询正文。
+
 ## 相关文档
 
 - `../contracts/tool-execution.md`

@@ -190,6 +190,8 @@ type SearchSuggestion struct {
 }
 
 type WorkflowOperationActivityOutput struct {
+	WebEvidence             []WebEvidence           `json:"web_evidence,omitempty"`
+	WebSearchDiagnostic     *WebSearchDiagnostic    `json:"web_search_diagnostic,omitempty"`
 	Failure                 *ExecutionFailure       `json:"failure,omitempty"`
 	AnswerStarted           bool                    `json:"answer_started,omitempty"`
 	Operation               WorkflowOperation       `json:"operation"`
@@ -213,6 +215,25 @@ type WorkflowOperationActivityOutput struct {
 	RuntimeRelease          string                  `json:"runtime_release"`
 	Usage                   AgentUsageSummary       `json:"usage"`
 	SearchSuggestions       []SearchSuggestion      `json:"search_suggestions,omitempty"`
+}
+
+type WebEvidence struct {
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+	Excerpt    string `json:"excerpt"`
+	StartIndex int    `json:"start_index"`
+	EndIndex   int    `json:"end_index"`
+}
+
+type WebSearchDiagnostic struct {
+	SchemaVersion  int            `json:"schema_version"`
+	State          string         `json:"state"`
+	QueryCount     int            `json:"query_count"`
+	ChunkCount     int            `json:"chunk_count"`
+	SupportCount   int            `json:"support_count"`
+	ConvertedCount int            `json:"converted_count"`
+	DiscardedCount int            `json:"discarded_count"`
+	DiscardReasons map[string]int `json:"discard_reasons"`
 }
 
 type AgentUsageSummary struct {

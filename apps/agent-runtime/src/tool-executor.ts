@@ -106,7 +106,7 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 				if (timeoutSignal.aborted) {
 					return timedOutToolResult(request);
 				}
-				return failedToolResult(request, "campus_search_network_failed", {
+				return failedToolResult(request, toolTransportFailureCode(request, "network_failed"), {
 					error: "execution-control query request failed",
 				});
 			}
@@ -190,9 +190,16 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 }
 
 function timedOutToolResult(request: ToolExecutionRequest): UntimedToolExecutionResult {
-	return failedToolResult(request, "campus_search_timeout", {
+	return failedToolResult(request, toolTransportFailureCode(request, "timeout"), {
 		error: "execution-control query timed out",
 	});
+}
+
+function toolTransportFailureCode(
+	request: ToolExecutionRequest,
+	kind: "timeout" | "network_failed",
+): string {
+	return `${request.tool.name === "personal_memory_recall" ? "personal_memory_recall" : "campus_search"}_${kind}`;
 }
 
 function failedToolResult(

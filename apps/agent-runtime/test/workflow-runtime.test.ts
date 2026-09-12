@@ -311,6 +311,31 @@ describe("workflow operation runtime", () => {
 		expect(result.plan).toBeUndefined();
 	});
 
+	it("maps structured Solve grounding into answer-relative citations", async () => {
+		const answer = "😀海淀校区地址。";
+		const runtime = createWorkflowOperationRuntime({
+			catalog,
+			runner: async () =>
+				runnerResult({
+					finalOutput: JSON.stringify({ outcome: "answer", answer }),
+					webSearchUsed: true,
+					webEvidence: [
+						{
+							excerpt: JSON.stringify({ answer }),
+							title: "学校官网",
+							url: "https://www.muc.edu.cn/",
+						},
+					],
+				}),
+		});
+		const result = await runtime.run(solveInput("海淀校区地址？", 4));
+		expect(result).toMatchObject({
+			status: "completed",
+			finalOutput: answer,
+			webEvidence: [{ excerpt: answer, startIndex: 0, endIndex: 8 }],
+		});
+	});
+
 	it("executes only the sources admitted by the current step and builds evidence", async () => {
 		let observed: AgentRunnerInput | undefined;
 		let observedWorkflowStepId = "";
@@ -426,7 +451,7 @@ describe("workflow operation runtime", () => {
 		expect(runnerCalled).toBe(false);
 	});
 
-	it("records a hosted Web Search with no cited result as no_match", async () => {
+	it("does not infer no-match from missing hosted search citation supports", async () => {
 		const step: TaskPlanStep = {
 			...taskStep("step.web", "查询公开校园网页"),
 			candidateSources: ["web_search"],
@@ -447,7 +472,7 @@ describe("workflow operation runtime", () => {
 
 		expect(result.status).toBe("completed");
 		expect(result.evidence).toEqual([]);
-		expect(result.sourceAttempts).toEqual([{ source: "web_search", status: "no_match" }]);
+		expect(result.sourceAttempts).toEqual([{ source: "web_search", status: "completed" }]);
 	});
 
 	it("keeps a completed step when a source fails and records the failure separately", async () => {

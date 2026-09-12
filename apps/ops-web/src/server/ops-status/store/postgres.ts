@@ -137,12 +137,19 @@ export function createPgOpsStatusStoreDatabase(
 		},
 		async getRequestDiagnostics(requestId) {
 			return classifyDbError(async () => {
-				const [stages, modelAttempts, campusSearch] = await Promise.all([
+				const [stages, modelAttempts, campusSearch, terminalFailure] = await Promise.all([
 					pool.query(requestStagesSql(), [requestId]),
 					pool.query(requestModelAttemptsSql(), [requestId]),
 					pool.query(requestCampusSearchSql(), [requestId]).catch(() => null),
+					pool.query(
+						`select code, operation, detail, invocation_id, http_status
+						from execution_control.ops_terminal_failures where request_id = $1
+						order by occurred_at desc, event_id desc limit 1`,
+						[requestId],
+					),
 				]);
 				return {
+					terminalFailure: terminalFailure.rows[0] ?? null,
 					campusSearch: campusSearch ? (campusSearch.rows as CampusSearchDiagnosticRow[]) : null,
 					modelAttempts: modelAttempts.rows as OpsRequestModelAttemptRow[],
 					stages: stages.rows as OpsRequestStageRow[],
@@ -229,6 +236,9 @@ export function createPgOpsStatusStoreDatabase(
 					pool.query(requestStagesSql(), ["__schema_check__"]),
 					pool.query(requestModelAttemptsSql(), ["__schema_check__"]),
 					pool.query(requestCampusSearchSql(), ["__schema_check__"]),
+					pool.query(
+						"select code, operation, detail, invocation_id, http_status from execution_control.ops_terminal_failures limit 0",
+					),
 				]);
 			});
 		},

@@ -95,6 +95,7 @@ export interface OpsRequestModelAttemptRow {
 }
 
 export interface OpsRequestDiagnosticsRows {
+	terminalFailure?: unknown;
 	campusSearch?: CampusSearchDiagnosticRow[] | null;
 	modelAttempts: OpsRequestModelAttemptRow[];
 	stages: OpsRequestStageRow[];

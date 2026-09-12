@@ -87,11 +87,60 @@ func (s *Adapter) WorkflowCitationClosureForFinalization(
 	if err != nil {
 		return WorkflowCitationClosure{}, err
 	}
+	// Grounding spans describe supported prose, not replaceable citation markers.
+	// Insert references at their end so multiple/overlapping supports preserve text.
+	grounded, err := WorkflowGroundedCitations(agentResult, answerText)
+	if err != nil {
+		return WorkflowCitationClosure{}, err
+	}
+	for _, citation := range grounded {
+		for _, existing := range citations {
+			if existing.StartByte < citation.StartByte && citation.StartByte < existing.EndByte {
+				return WorkflowCitationClosure{}, WorkflowCitationValidationErrorf("grounding insertion intersects a citation marker")
+			}
+		}
+		citations = append(citations, citation)
+	}
+	sort.SliceStable(citations, func(i, j int) bool {
+		if citations[i].StartByte != citations[j].StartByte {
+			return citations[i].StartByte < citations[j].StartByte
+		}
+		return citations[i].EndByte < citations[j].EndByte
+	})
 	answerWithCitations, sources := RewriteWorkflowCitations(answerText, citations)
 	return WorkflowCitationClosure{
 		AnswerText: answerWithCitations,
 		Sources:    sources,
 	}, nil
+}
+
+func WorkflowGroundedCitations(agentResult map[string]any, answer string) ([]WorkflowCitation, error) {
+	var evidence []temporalruntime.WebEvidence
+	if raw := agentResult["web_evidence"]; raw != nil {
+		if err := activityprojection.DecodeWorkflowValue(raw, &evidence); err != nil {
+			return nil, WorkflowCitationValidationErrorf("web evidence is invalid")
+		}
+	}
+	citations := []WorkflowCitation{}
+	seen := map[string]bool{}
+	for _, item := range evidence {
+		start, startOK := WorkflowByteOffsetAtCodePoint(answer, item.StartIndex)
+		end, endOK := WorkflowByteOffsetAtCodePoint(answer, item.EndIndex)
+		uri, hostname, urlOK := NormalizeWorkflowWebCitationURL(item.URL)
+		if !startOK || !endOK || end <= start || !urlOK || strings.TrimSpace(item.Title) == "" || answer[start:end] != item.Excerpt {
+			return nil, WorkflowCitationValidationErrorf("web evidence must identify an exact supported answer span")
+		}
+		key := fmt.Sprintf("%d:%s", end, uri)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		citations = append(citations, WorkflowCitation{
+			StartByte: end, EndByte: end, IdentityKey: "web:" + uri,
+			Source: map[string]any{"kind": "web_page", "title": item.Title, "url": uri, "citation_href": uri, "hostname": hostname},
+		})
+	}
+	return citations, nil
 }
 
 func WorkflowEvidenceFromAgentResult(

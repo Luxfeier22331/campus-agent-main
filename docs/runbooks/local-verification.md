@@ -128,6 +128,31 @@ internal-portal-collection 和 notice-classifier 不需要再单独运行 notice
 
 ## 可选应用
 
+### 搜索与记忆失败边界
+
+使用已初始化的 `test@muc.edu.cn` 开发账号登录。仅在本 worktree 的 Ops 模型配置选择 Gemini
+原生 `generate_content` 及对应凭据；Hindsight 的 provider/model/endpoint/Secret 属于环境仓的
+独立部署，不读取这份主模型配置，也不能借用主模型 key 修复记忆服务。
+
+先发起真实联网问题，等待会话终态后查看 Ops 同一请求：答案和搜索建议应保留；如果只有查询或
+建议而没有 supports，应显示 `metadata_only`，不能把它称为“已验证引用”或“搜索无匹配”。
+有 supports 时确认正文未被引用替换、来源卡为 web_page，并核对丢弃原因与实际最终来源。
+
+验证记忆故障时，仅在本 worktree 临时设置不可达的本地 `HINDSIGHT_API_BASE_URL` 与独立测试
+tenant key / owner salt，重启服务，再请求先回忆偏好、然后检索校内资料。等待回答及 append 阶段
+结束，确认 recall failed、后续回答 completed、append failed 不回滚答案、terminalFailure 为空。
+这是受控的记忆不可用验收，不表示成功写入 Hindsight。结束后移除临时配置并重启普通服务。
+
+Hindsight 部署修复应在环境仓单独处理：使用该服务自己的 Secret 验证实际 retain 与 recall，
+`/models` 出现某个模型不能代替 retain 验收；不得通过切换聊天模型隐式修复记忆模型。
+
+网关无法稳定返回 supports 时，显式启动 `apps/agent-runtime/test/fixtures/search-boundaries-server.ts`
+补充受控端到端测试。启动方式与上面的格式错误 fixture 相同，必须监听 loopback；普通请求仍用
+真实 provider。分别在新会话发送 `[smoke:grounding]` 和 `[smoke:contract-failure]`：前者应保留
+正文、两个明确标记的测试来源与搜索建议，Ops 显示转换 2、丢弃 1；后者应产生失败终态与可见原因。
+这只验证供应商响应之后的真实传输、Temporal、数据库与 UI，不代表真实搜索结果。结束后恢复
+普通 Runtime 和连接地址，不保留测试入口在线。
+
 可选应用不由根 `pnpm dev` 启动，初始化仍由根 CLI 拥有：
 
 ```bash

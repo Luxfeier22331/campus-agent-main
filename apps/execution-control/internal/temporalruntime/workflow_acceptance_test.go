@@ -91,6 +91,12 @@ func TestToolExecutionWorkflowFailsWithoutRecoveryAdmission(t *testing.T) {
 }
 
 func TestWorkflowSynthesisRequiresMaterialsOrSuccessfulAttempt(t *testing.T) {
+	for _, code := range []string{"campus_search_timeout", "personal_memory_recall_failed"} {
+		completed := []WorkflowCompletedStep{{SourceAttempts: []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: "failed", FailureCode: code}}}}
+		if !workflowCanSynthesize(nil, completed) {
+			t.Fatalf("source unavailable must permit synthesis: %s", code)
+		}
+	}
 	for _, status := range []string{"matched", "no_match", "completed", "failed", ""} {
 		completed := []WorkflowCompletedStep{{SourceAttempts: []WorkflowSourceAttempt{{Source: WorkflowSourceCampusSearch, Status: status}}}}
 		if got := workflowCanSynthesize(nil, completed); got != (status != "failed" && status != "") {

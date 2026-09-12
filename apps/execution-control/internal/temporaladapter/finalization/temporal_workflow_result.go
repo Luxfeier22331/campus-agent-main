@@ -39,6 +39,7 @@ func WorkflowFinalizationResultMap(
 			"usage_observed":      output.Usage.UsageObserved,
 		},
 		"search_suggestions": output.SearchSuggestions,
+		"web_evidence":       output.WebEvidence,
 	}
 	if operation := strings.TrimSpace(string(output.Operation)); operation != "" {
 		result["operation"] = operation

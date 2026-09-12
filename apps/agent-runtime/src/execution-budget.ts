@@ -21,6 +21,9 @@ export function retrievalDeadlineAt(deadlineAt: string | undefined): number {
 
 export function sourceUnavailable(code: string | undefined): boolean {
 	return (
+		code === "personal_memory_recall_failed" ||
+		code === "personal_memory_recall_timeout" ||
+		code === "personal_memory_recall_network_failed" ||
 		code === "campus_search_timeout" ||
 		code === "campus_search_network_failed" ||
 		code === "campus_search_unavailable" ||

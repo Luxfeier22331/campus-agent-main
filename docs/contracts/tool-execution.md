@@ -121,8 +121,11 @@ Agent Workflow 的固定角色是中央民族大学校园问答助手，未明�
 需要补充或核验尚未采集的公开校园网页信息时，Replanner 可以为后续步骤加入 `web_search`，Executor
 再在该步骤内调用它。`campus_search` 返回 `no_match` 或失败表示当前已采集文档没有可用证据；这不会由
 代码自动触发 Web Search，也不能直接判定资料不足。runner 在模型响应处解析 OpenAI URL annotation 或
-Gemini grounding support，提取 URL、标题与对应文本片段作为中立 `webEvidence`，不把供应商字符位置
-传给 Temporal。Workflow 为有效材料分配 citationIndex，Synthesizer 只使用这些编号输出 `[n]`。
+Gemini grounding support，提取 URL、标题与对应文本片段作为中立 `webEvidence`。供应商 UTF-8/Part
+位置只留在 adapter；Solve 直接回答通过 `web_evidence` 传递最终答案的 codepoint `start_index` /
+`end_index`、`excerpt`、`title`、`url`，Finalization 校验精确正文跨度并在末尾插入引用，保留正文及
+同段多来源。流式 metadata 不以最后一块覆盖前文；支持项不能映射时单项丢弃、记录诊断，不否决答案。
+Workflow 为计划内的有效材料分配 citationIndex，Synthesizer 只使用这些编号输出 `[n]`。
 Finalization 按正文实际引用产生统一编号链接与 `kind=web_page` 来源卡；模型手写 URL 不作为来源。
 未引用材料和失败工具结果不贡献来源。
 
@@ -272,9 +275,11 @@ Campus 文档来源保留文档定位；校园通知来源保留 `notice_id`、s
 Synthesize 保留 Workflow 已分配的稳定 evidence 编号。
 
 检索链路统一综合回答，不携带 `answer_mode`。Replanner 使用 `task_replan.v3`，决策只有 `continue`
-和 `synthesize`。Workflow 在搜索结束后判断是否有材料或成功来源尝试（`matched`、`no_match`、
-`completed`）；没有材料也没有成功来源时保留具体技术失败，缺少具体原因时使用
-`workflow_evidence_unavailable`。该判断不评价材料能否回答问题，不在 Runtime 或 Finalization 重复执行。
+和 `synthesize`。合法的 Solve answer 不因 evidence 为空而失败。计划合成接受材料、成功来源尝试
+（`matched`、`no_match`、`completed`）或明确的来源不可用结果，模型据此回答当前能确认的部分。
+记忆 recall、Campus Search 网络/超时/不可用错误是非阻断来源失败；工具参数、结果、身份和准入
+合同错误仍阻断。没有可用材料且模型 operation 自身失败时仍保留具体技术错误。
+原生联网搜索缺少支持段时记录 `completed` 尝试及独立诊断，不推断 `no_match`。
 
 失败合同分为三个字段，不能互相补值：
 

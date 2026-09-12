@@ -118,6 +118,7 @@ const defaultInstructions: Record<WorkflowOperation, string> = {
 		'需要多个相互依赖的目标、多个检索步骤或一次检索无法闭合时，输出 {"result":{"outcome":"plan","plan":{...}}}，不得包含 answer 字段。',
 		"计划必须符合 task_plan.v1 合同。",
 		"不需要检索的问题必须直接返回 answer，不要制造空计划。",
+		"个人记忆只是辅助上下文，不可用时仍回答当前消息；来源失败不否决已有答案，不能据此编造事实。",
 		"candidateSources 只能使用 operation data 中 availableSources 列出的值。",
 		"不要把来源名称、内部运行标签或实现细节暴露给用户；它们只用于内部执行。",
 	].join("\n"),
@@ -622,6 +623,9 @@ function operationResultFromRunner(args: {
 }): WorkflowOperationResult {
 	const { input, prepared, runnerResult } = args;
 	const common = {
+		...(runnerResult.webSearchDiagnostic
+			? { webSearchDiagnostic: runnerResult.webSearchDiagnostic }
+			: {}),
 		...(runnerResult.modelOutputDiagnostic
 			? { modelOutputDiagnostic: runnerResult.modelOutputDiagnostic }
 			: {}),
@@ -661,8 +665,26 @@ function operationResultFromRunner(args: {
 				const evidence = evidenceFromRunnerResult(runnerResult, 1);
 				const sourceAttempts = sourceAttemptsFromRunnerResult(runnerResult);
 				if (outcome.outcome === "answer") {
+					const webEvidence = remapWebEvidenceToOutput(
+						runnerResult.webEvidence ?? [],
+						outcome.answer,
+					);
+					const discarded = (runnerResult.webEvidence?.length ?? 0) - webEvidence.length;
+					if (common.webSearchDiagnostic && discarded > 0) {
+						common.webSearchDiagnostic = {
+							...common.webSearchDiagnostic,
+							state: webEvidence.length > 0 ? "sources_available" : "unmapped",
+							converted_count: webEvidence.length,
+							discarded_count: common.webSearchDiagnostic.discarded_count + discarded,
+							discard_reasons: {
+								...common.webSearchDiagnostic.discard_reasons,
+								answer_unmapped: discarded,
+							},
+						};
+					}
 					return {
 						...common,
+						...(webEvidence.length > 0 ? { webEvidence } : {}),
 						finalOutput: outcome.answer,
 						solveOutcome: "answer",
 						status: "completed",
@@ -760,6 +782,28 @@ function operationResultFromRunner(args: {
 			{ cause: error },
 		);
 	}
+}
+
+function remapWebEvidenceToOutput(
+	evidence: NonNullable<AgentRunnerResult["webEvidence"]>,
+	output: string,
+): NonNullable<AgentRunnerResult["webEvidence"]> {
+	return evidence.flatMap((item) => {
+		// Supports for structured Solve may include the JSON envelope/escaping.
+		const excerpt = partialJSONStringField(item.excerpt, "answer") ?? item.excerpt;
+		const index = output.indexOf(excerpt);
+		if (!excerpt || index < 0) {
+			return [];
+		}
+		return [
+			{
+				...item,
+				excerpt,
+				startIndex: [...output.slice(0, index)].length,
+				endIndex: [...output.slice(0, index + excerpt.length)].length,
+			},
+		];
+	});
 }
 
 function requireSolveOutcome(
@@ -1059,7 +1103,8 @@ function sourceAttemptsFromRunnerResult(result: AgentRunnerResult): SourceAttemp
 	if (result.webSearchUsed) {
 		attempts.push({
 			source: "web_search",
-			status: (result.webEvidence?.length ?? 0) > 0 ? "completed" : "no_match",
+			// Missing citation supports do not prove that the search had no matches.
+			status: "completed",
 		});
 	}
 	return attempts;

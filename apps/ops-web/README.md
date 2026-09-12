@@ -70,6 +70,8 @@ Ops Web 的内部解析接口。
   反向拥有数据库或外部平台配置；
 - 运行列表只读取产品摘要和最新执行阶段，详情才读取完整净化步骤与尝试；Ops Web 不能读取
   `agent_run_events`、`agent_step_results` 或旧 `runtime.*` 视图；
+- 详情通过 `execution_control.ops_terminal_failures` 受限视图区分回答终态失败与阶段失败，不授予
+  原始事件读取权限；联网搜索诊断复用阶段净化 payload，仅展示 adapter 计数和固定原因；
 - Node 服务内的 Ops Status、Dining、内部门户凭据和自动化 token adapter 共享一个应用级 PostgreSQL
   Pool；Dining 地图、菜单和评价仍分别拥有具体 store，不互相导入具体实现；
 - 页面负责 query、mutation 和用户交互编排；可独立验证的目录变换、拖拽规则和编辑器视图不与页面

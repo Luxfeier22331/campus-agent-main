@@ -153,6 +153,18 @@ export function agentRunStreamResponse(
 
 export function agentRunResultWire(result: WorkflowOperationResult, runtimeRelease: string) {
 	const payload = {
+		...(result.webEvidence && result.webEvidence.length > 0
+			? {
+					web_evidence: result.webEvidence.map((item) => ({
+						title: item.title,
+						url: item.url,
+						excerpt: item.excerpt,
+						start_index: item.startIndex,
+						end_index: item.endIndex,
+					})),
+				}
+			: {}),
+		...(result.webSearchDiagnostic ? { web_search_diagnostic: result.webSearchDiagnostic } : {}),
 		...(result.modelOutputDiagnostic
 			? { model_output_diagnostic: result.modelOutputDiagnostic }
 			: {}),

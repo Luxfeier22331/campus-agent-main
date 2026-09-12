@@ -2,6 +2,7 @@ import { NOTICE_CATEGORIES } from "campus-contracts/notices";
 import { z } from "zod";
 import { CampusSearchDiagnosticsSchema } from "./campus-search-diagnostics.ts";
 import { ModelOutputDiagnosticSchema } from "./model-output-diagnostic.ts";
+import { WebSearchDiagnosticSchema } from "./web-search-diagnostic.ts";
 
 export {
 	type InternalPortalCredential,
@@ -474,6 +475,7 @@ const OpsExecutionFailureSchema = z.object({
 });
 
 const OpsExecutionStageSchema = z.object({
+	webSearchDiagnostic: WebSearchDiagnosticSchema.nullish(),
 	modelOutputDiagnostic: ModelOutputDiagnosticSchema.nullish(),
 	completedAt: IsoDateTimeSchema.nullable(),
 	durationMs: z.number().int().nonnegative().nullable(),
@@ -490,6 +492,7 @@ export const OpsRequestDetailResponseSchema = z.object({
 		campusSearch: CampusSearchDiagnosticsSchema,
 		failCloseReason: z.string().min(1).nullable(),
 		failure: OpsExecutionFailureSchema,
+		terminalFailure: OpsExecutionFailureSchema.nullish(),
 		model: z.object({
 			name: z.string().min(1).nullable(),
 			provider: z.string().min(1).nullable(),

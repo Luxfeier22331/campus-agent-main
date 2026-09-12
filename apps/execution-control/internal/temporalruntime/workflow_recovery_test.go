@@ -154,7 +154,7 @@ func TestFailedSolveRecoveryUsesMaterialsWithoutPlan(t *testing.T) {
 	}
 }
 
-func TestNoMaterialsPreservesTechnicalFailure(t *testing.T) {
+func TestValidAnswerCompletesWithoutSourceEvidence(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		attempt WorkflowSourceAttempt
@@ -162,16 +162,21 @@ func TestNoMaterialsPreservesTechnicalFailure(t *testing.T) {
 	}{
 		{"no_match", WorkflowSourceAttempt{Source: WorkflowSourceCampusSearch, Status: "no_match"}, "materials_insufficient"},
 		{"source_failure", WorkflowSourceAttempt{Source: WorkflowSourceCampusSearch, Status: "failed", FailureCode: "campus_search_timeout"}, "campus_search_timeout"},
+		{"memory_failure", WorkflowSourceAttempt{Source: WorkflowSourcePersonalMemoryRecall, Status: "failed", FailureCode: "personal_memory_recall_failed"}, "personal_memory_recall_failed"},
+		{"web_metadata_only", WorkflowSourceAttempt{Source: WorkflowSourceWebSearch, Status: "no_match"}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env := (&testsuite.WorkflowTestSuite{}).NewTestWorkflowEnvironment()
 			registerWorkflowTestActivities(env, &Activities{})
 			input := validToolExecutionWorkflowInput(tc.name)
 			env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(WorkflowOperationActivityOutput{Status: "completed", SolveOutcome: "answer", FinalOutput: "暂未找到相关资料。", SourceAttempts: []WorkflowSourceAttempt{tc.attempt}}, nil).Once()
-			env.OnActivity(FinalizeExecutionFailureActivityName, mock.Anything, mock.MatchedBy(func(actual FinalizeExecutionFailureActivityInput) bool { return actual.FailureKind == tc.want })).Return(FinalizeExecutionFailureActivityOutput{Status: "failed"}, nil).Once()
+			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.MatchedBy(func(actual WriteWorkflowFinalizationActivityInput) bool {
+				return actual.WorkflowResult.FinalOutput == "暂未找到相关资料。"
+			})).Return(WorkflowFinalizationActivityOutput{Status: "completed"}, nil).Once()
+			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{Status: "completed"}, nil).Once()
 			env.ExecuteWorkflow(ToolExecutionWorkflow, input)
-			if env.GetWorkflowError() == nil {
-				t.Fatal("no-materials run completed")
+			if err := env.GetWorkflowError(); err != nil {
+				t.Fatalf("valid answer failed: %v", err)
 			}
 			env.AssertExpectations(t)
 			env.AssertActivityNumberOfCalls(t, SynthesizeAnswerActivityName, 0)

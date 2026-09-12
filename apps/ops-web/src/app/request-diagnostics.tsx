@@ -9,6 +9,14 @@ import { formatOpsDomainValue } from "./ops-domain-labels";
 export function RequestDiagnostics({ detail }: { detail: OpsRequestDetailResponse }) {
 	return (
 		<>
+			{detail.execution.terminalFailure ? (
+				<section aria-label="回答终态失败">
+					<h2 className="mb-3 font-semibold text-lg">回答终态失败</h2>
+					<KeyValue label="失败代码" value={detail.execution.terminalFailure.code ?? "未记录"} />
+					<KeyValue label="操作" value={detail.execution.terminalFailure.operation ?? "未记录"} />
+					<KeyValue label="详情" value={detail.execution.terminalFailure.detail ?? "未记录"} />
+				</section>
+			) : null}
 			<FailureSection detail={detail} />
 			<RunClosureSection detail={detail} />
 			<ExecutionSection detail={detail} />
@@ -43,7 +51,7 @@ function FailureSection({ detail }: { detail: OpsRequestDetailResponse }) {
 	return (
 		<section aria-labelledby="request-failure-title" data-testid="request-failure">
 			<h2 className="mb-3 font-semibold text-foreground text-lg" id="request-failure-title">
-				失败摘要
+				阶段失败摘要（不等于回答失败）
 			</h2>
 			<div className="grid border-danger/30 border-y text-sm sm:grid-cols-2 lg:grid-cols-3">
 				<KeyValue
@@ -130,6 +138,35 @@ function ExecutionSection({ detail }: { detail: OpsRequestDetailResponse }) {
 							) : null}
 							{stage.failureKind === "model_output_invalid" || stage.modelOutputDiagnostic ? (
 								<ModelOutputDiagnosticPanel diagnostic={stage.modelOutputDiagnostic} />
+							) : null}
+							{stage.webSearchDiagnostic ? (
+								<section aria-label="联网搜索诊断" className="text-sm">
+									<p>
+										联网搜索：
+										{
+											{
+												not_used: "未观察到搜索",
+												sources_available: "来源可用",
+												metadata_only: "仅搜索元数据，无可引用支持",
+												unmapped: "引用未能映射到答案",
+											}[stage.webSearchDiagnostic.state]
+										}
+									</p>
+									<p>
+										查询 {stage.webSearchDiagnostic.query_count} · 来源{" "}
+										{stage.webSearchDiagnostic.chunk_count} · 支持段{" "}
+										{stage.webSearchDiagnostic.support_count} · 转换{" "}
+										{stage.webSearchDiagnostic.converted_count} · 丢弃{" "}
+										{stage.webSearchDiagnostic.discarded_count}
+									</p>
+									{Object.entries(stage.webSearchDiagnostic.discard_reasons).map(
+										([reason, count]) => (
+											<p key={reason}>
+												{reason}: {count}
+											</p>
+										),
+									)}
+								</section>
 							) : null}
 						</li>
 					))}

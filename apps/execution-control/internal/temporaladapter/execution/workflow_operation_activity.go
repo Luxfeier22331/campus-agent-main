@@ -869,8 +869,10 @@ func WorkflowOperationOutputFromRuntimeResponse(
 			OutputTokens:      response.Usage.OutputTokens,
 			UsageObserved:     response.Usage.UsageObserved,
 		},
-		SearchSuggestions: response.SearchSuggestions,
-		TerminalReason:    response.TerminalReason,
+		SearchSuggestions:   response.SearchSuggestions,
+		WebEvidence:         response.WebEvidence,
+		WebSearchDiagnostic: response.WebSearchDiagnostic,
+		TerminalReason:      response.TerminalReason,
 	}
 	output.Plan = response.Plan
 	output.Replan = response.Replan
@@ -942,7 +944,8 @@ func WorkflowOperationResultPayload(
 			"cached_input_tokens": output.Usage.CachedInputTokens,
 			"usage_observed":      output.Usage.UsageObserved,
 		},
-		"search_suggestions": output.SearchSuggestions,
+		"search_suggestions":    output.SearchSuggestions,
+		"web_search_diagnostic": output.WebSearchDiagnostic,
 	}
 	if output.Failure != nil {
 		payload["failure"] = output.Failure

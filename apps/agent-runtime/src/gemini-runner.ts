@@ -16,6 +16,7 @@ import type {
 	SearchSuggestion,
 	StreamingAgentRunner,
 	WebEvidence,
+	WebSearchDiagnostic,
 } from "./agent-run-contract.ts";
 import { retrievalDeadlineAt } from "./execution-budget.ts";
 import { createFunctionToolContext, invokeFunctionTool } from "./function-tools.ts";
@@ -159,6 +160,7 @@ async function executeGeminiFunctionCalls(
 }
 
 interface GeminiStreamTurn {
+	groundingSnapshots: GeminiGroundingMetadata[];
 	response: GenerateContentResponse;
 	content: Content;
 	text: string;
@@ -216,7 +218,7 @@ async function collectGeminiStreamTurn(
 ): Promise<GeminiStreamTurn> {
 	const parts: Part[] = [];
 	let last: GenerateContentResponse | undefined;
-	let groundingMetadata: GeminiGroundingMetadata | undefined;
+	const groundingSnapshots: GeminiGroundingMetadata[] = [];
 	let finishReason: string | undefined;
 	let contentSeen = false;
 	const textDeltas: string[] = [];
@@ -236,7 +238,7 @@ async function collectGeminiStreamTurn(
 			}
 		}
 		if (candidate?.groundingMetadata) {
-			groundingMetadata = candidate.groundingMetadata;
+			groundingSnapshots.push(candidate.groundingMetadata);
 		}
 		finishReason = candidate?.finishReason ?? finishReason;
 		if (chunk.usageMetadata) {
@@ -267,11 +269,11 @@ async function collectGeminiStreamTurn(
 			{
 				...(last.candidates?.[0] ?? {}),
 				content,
-				...(groundingMetadata ? { groundingMetadata } : {}),
 			},
 		],
 	} as GenerateContentResponse;
 	return {
+		groundingSnapshots,
 		response,
 		content,
 		text: visibleText(response),
@@ -331,50 +333,152 @@ function observeUsage(result: AgentRunnerResult, response: GenerateContentRespon
 	result.providerResponseId = response.responseId ?? result.providerResponseId;
 }
 
-export function geminiGrounding(response: GenerateContentResponse): {
+export function geminiGrounding(
+	response: GenerateContentResponse,
+	snapshots?: GeminiGroundingMetadata[],
+): {
 	used: boolean;
 	evidence: WebEvidence[];
 	suggestions: SearchSuggestion[];
+	diagnostic: WebSearchDiagnostic;
 } {
 	const candidate = response.candidates?.[0];
-	const metadata = candidate?.groundingMetadata;
-	if (!metadata) {
-		return { used: false, evidence: [], suggestions: [] };
-	}
+	const metadataList =
+		snapshots ?? (candidate?.groundingMetadata ? [candidate.groundingMetadata] : []);
+	const diagnostic: WebSearchDiagnostic = {
+		schema_version: 1,
+		state: "not_used",
+		query_count: 0,
+		chunk_count: 0,
+		support_count: 0,
+		converted_count: 0,
+		discarded_count: 0,
+		discard_reasons: {},
+	};
 	const evidence: WebEvidence[] = [];
-	for (const support of metadata.groundingSupports ?? []) {
-		const segment = support.segment;
-		const part = candidate?.content?.parts?.[segment?.partIndex ?? 0];
-		if (!(segment && part?.text)) {
-			continue;
+	const queries = new Set<string>();
+	const chunks = new Set<string>();
+	const supports = new Set<string>();
+	const suggestions = new Set<string>();
+	const converted = new Set<string>();
+	let sourceChunks = metadataList.find(
+		(item) => (item.groundingChunks?.length ?? 0) > 0,
+	)?.groundingChunks;
+	const discard = (reason: "invalid_segment" | "invalid_source") => {
+		diagnostic.discarded_count++;
+		diagnostic.discard_reasons[reason] = (diagnostic.discard_reasons[reason] ?? 0) + 1;
+	};
+	for (const metadata of metadataList) {
+		for (const query of metadata.webSearchQueries ?? []) {
+			queries.add(query);
 		}
-		const bytes = Buffer.from(part.text, "utf8");
-		const start = segment.startIndex ?? 0;
-		const end = segment.endIndex;
-		if (end === undefined || start < 0 || end <= start || end > bytes.length) {
-			throw new AgentRuntimeError("citation_validation_failed", "Invalid grounding segment.");
+		for (const chunk of metadata.groundingChunks ?? []) {
+			chunks.add(JSON.stringify(chunk));
 		}
-		const excerpt = new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(start, end));
-		for (const index of support.groundingChunkIndices ?? []) {
-			const web = metadata.groundingChunks?.[index]?.web;
-			if (!(web?.uri && web.title)) {
+		if (metadata.searchEntryPoint?.renderedContent) {
+			suggestions.add(metadata.searchEntryPoint.renderedContent);
+		}
+		if (metadata.groundingChunks && metadata.groundingChunks.length > 0) {
+			sourceChunks = metadata.groundingChunks;
+		}
+		for (const support of metadata.groundingSupports ?? []) {
+			const sources = (support.groundingChunkIndices ?? []).map(
+				(index) => sourceChunks?.[index]?.web,
+			);
+			const supportKey = JSON.stringify([support.segment, sources]);
+			if (supports.has(supportKey)) {
 				continue;
 			}
-			const url = new URL(web.uri);
-			if (url.protocol !== "https:" && url.protocol !== "http:") {
-				throw new AgentRuntimeError("citation_validation_failed", "Invalid grounding URL.");
+			supports.add(supportKey);
+			const segment = support.segment;
+			const part = candidate?.content?.parts?.[segment?.partIndex ?? 0];
+			if (!segment || part?.thought) {
+				discard("invalid_segment");
+				continue;
 			}
-			evidence.push({ url: url.toString(), title: web.title, excerpt });
+			let excerpt = segment.text;
+			if (!excerpt) {
+				// Streaming text deltas form one logical text Part. Offsets refer to
+				// that Part, not to the individual transport chunk carrying metadata.
+				const text =
+					snapshots && (segment.partIndex ?? 0) === 0 ? visibleText(response) : part?.text;
+				const bytes = Buffer.from(text ?? "", "utf8");
+				const start = segment.startIndex ?? 0;
+				const end = segment.endIndex;
+				try {
+					if (
+						!Number.isInteger(start) ||
+						end === undefined ||
+						!Number.isInteger(end) ||
+						start < 0 ||
+						end <= start ||
+						end > bytes.length
+					) {
+						throw new Error("invalid offset");
+					}
+					excerpt = new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(start, end));
+				} catch {
+					discard("invalid_segment");
+					continue;
+				}
+			}
+			for (const web of sources) {
+				if (!(web?.uri && web.title)) {
+					discard("invalid_source");
+					continue;
+				}
+				let url: URL;
+				try {
+					url = new URL(web.uri);
+					if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) {
+						throw new Error("invalid source");
+					}
+				} catch {
+					discard("invalid_source");
+					continue;
+				}
+				const key = JSON.stringify([excerpt, url.toString()]);
+				if (converted.has(key)) {
+					continue;
+				}
+				converted.add(key);
+				const visible = visibleText(response);
+				const excerptStart = visible.indexOf(excerpt);
+				evidence.push({
+					url: url.toString(),
+					title: web.title,
+					excerpt,
+					...(excerptStart >= 0
+						? {
+								startIndex: [...visible.slice(0, excerptStart)].length,
+								endIndex: [...visible.slice(0, excerptStart + excerpt.length)].length,
+							}
+						: {}),
+				});
+			}
 		}
 	}
-	const html = metadata.searchEntryPoint?.renderedContent;
+	const used = queries.size > 0 || chunks.size > 0 || supports.size > 0 || suggestions.size > 0;
+	diagnostic.query_count = queries.size;
+	diagnostic.chunk_count = chunks.size;
+	diagnostic.support_count = supports.size;
+	diagnostic.converted_count = evidence.length;
+	diagnostic.state =
+		evidence.length > 0
+			? "sources_available"
+			: supports.size > 0
+				? "unmapped"
+				: used
+					? "metadata_only"
+					: "not_used";
 	return {
-		used:
-			(metadata.webSearchQueries?.length ?? 0) > 0 ||
-			(metadata.groundingChunks?.length ?? 0) > 0 ||
-			Boolean(html),
+		used,
 		evidence,
-		suggestions: html ? [{ provider: "google", renderedContent: html }] : [],
+		diagnostic,
+		suggestions: [...suggestions].map((renderedContent) => ({
+			provider: "google",
+			renderedContent,
+		})),
 	};
 }
 
@@ -397,6 +501,39 @@ function emptyResult(): AgentRunnerResult & {
 			usageObserved: false,
 		},
 	};
+}
+
+function recordGrounding(result: AgentRunnerResult, grounding: ReturnType<typeof geminiGrounding>) {
+	const previous = result.webSearchDiagnostic;
+	const diagnostic = grounding.diagnostic;
+	if (previous) {
+		for (const field of [
+			"query_count",
+			"chunk_count",
+			"support_count",
+			"converted_count",
+			"discarded_count",
+		] as const) {
+			diagnostic[field] += previous[field];
+		}
+		for (const reason of ["invalid_segment", "invalid_source", "answer_unmapped"] as const) {
+			const count =
+				(previous.discard_reasons[reason] ?? 0) + (diagnostic.discard_reasons[reason] ?? 0);
+			if (count > 0) {
+				diagnostic.discard_reasons[reason] = count;
+			}
+		}
+		if (diagnostic.state === "not_used") {
+			diagnostic.state = previous.state;
+		}
+		if (diagnostic.converted_count > 0) {
+			diagnostic.state = "sources_available";
+		}
+	}
+	result.webSearchDiagnostic = diagnostic;
+	result.webSearchUsed ||= grounding.used;
+	result.webEvidence = [...(result.webEvidence ?? []), ...grounding.evidence];
+	result.searchSuggestions = [...(result.searchSuggestions ?? []), ...grounding.suggestions];
 }
 
 async function observed(
@@ -451,9 +588,7 @@ export function createGeminiRunner(options: GeminiRunnerOptions = {}): AgentRunn
 				observeUsage(result, response);
 				const content = assertComplete(response);
 				const grounding = geminiGrounding(response);
-				result.webSearchUsed ||= grounding.used;
-				result.webEvidence.push(...grounding.evidence);
-				result.searchSuggestions.push(...grounding.suggestions);
+				recordGrounding(result, grounding);
 				const calls = (content.parts ?? []).flatMap((part) =>
 					part.functionCall ? [part.functionCall] : [],
 				);
@@ -565,10 +700,8 @@ export function createStreamingGeminiRunner(
 						},
 					);
 				}
-				const grounding = geminiGrounding(streamed.response);
-				result.webSearchUsed ||= grounding.used;
-				result.webEvidence.push(...grounding.evidence);
-				result.searchSuggestions.push(...grounding.suggestions);
+				const grounding = geminiGrounding(streamed.response, streamed.groundingSnapshots);
+				recordGrounding(result, grounding);
 				if (streamed.functionCalls.length > 0) {
 					contents.push(streamed.content);
 					contents.push({

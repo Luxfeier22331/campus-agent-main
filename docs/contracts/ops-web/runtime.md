@@ -99,6 +99,9 @@ locator 或 trace card。
 - `failure`：当前失败操作的结构化诊断事实，包括 `code`、`operation`、可选 `detail`、
   `httpStatus` 和 `invocationId`。存在多个失败阶段时，按阶段 `updatedAt`、`startedAt`、`stepId` 的降序确定当前失败阶段；
 - `terminalReason`：execution-control 保存的粗粒度运行终态；
+- `terminalFailure`：可空的终态失败，字段与 `failure` 相同。代码来自 `run.failed`，同代码的内部
+  activity failure 可提供操作与诊断摘要；仅通过受限视图读取，不从阶段失败推断回答失败。
+  已完成回答后的 memory append 失败只出现在阶段失败，不产生此字段；
 - `failCloseReason`：协调器执行失败收口的原因；
 - `releases`：本次运行实际记录的 execution-control 与 agent-runtime release，二者只用于诊断；
 - `model`：模型与 provider、模型请求数及汇总 token；
@@ -143,6 +146,15 @@ attempt 耗时还包含包装与观察上报。各层耗时不是可相加的独
 失败阶段由当前执行位置记录，不通过耗时是否为零推断。`snapshotTruncated` 明示有界快照截断。
 
 `failure`、`terminalReason` 与 `failCloseReason` 在页面中分区展示，任何一个字段都不能替代另一个。
+
+`stages[].webSearchDiagnostic` 为可空的 v1 联网搜索诊断：`schema_version=1`，`state` 为
+`not_used`、`sources_available`、`metadata_only` 或 `unmapped`；`query_count`、`chunk_count`、
+`support_count`、`converted_count`、`discarded_count` 统计同一 operation 内的 adapter 观察。
+同 turn 重复 metadata 去重，跨模型轮次累计。`discard_reasons` 只有 `invalid_segment`、
+`invalid_source`、`answer_unmapped` 三种计数。不保存搜索词、来源正文、prompt 或原始 SDK 响应。
+metadata_only 说明观察到搜索但没有支持段，不能证明无匹配；sources_available 表示可引用材料，
+不证明答案正确或最终实际引用。无诊断为 null，不伪造零计数。诊断随原阶段与父 run 保留/删除，
+只供现有 Ops 用户定位来源丢失；移除该功能时同时删除 producer、字段与界面，不另建管道。
 历史运行没有某个诊断字段时返回 `null`，没有持久阶段时返回空数组，不从产品错误、终态、日志或外部
 trace 推导根因。
 Ops Web 只以 `requestId` 聚合 `chat.turn_dispatches`、产品消息以及 execution-control 的固定净化列；

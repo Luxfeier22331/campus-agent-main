@@ -220,7 +220,10 @@ Solve 直接检索后转为计划时，已有 evidence/source attempts 继续传
 并进入最终合成。引用预算耗尽立即结束模型循环；有材料的 Solve 失败使用显式 recovery synthesis，
 不制造计划步骤、不重新检索、不重置 deadline。已有正文片段时恢复使用缓冲生成，最终答案替换草稿。
 恢复失败和无材料分别使用 `answer_synthesis_failed`、`materials_insufficient`；无材料但发生
-供应商或工具故障时保留具体技术错误。失败 operation 的原始错误仍进入步骤诊断，不因产品恢复成功而丢失。
+供应商或工具故障时保留具体技术错误。上述规则针对失败的模型 operation，不把合法 Solve answer
+或正常 Executor 的来源不可用结果改判失败。个人记忆只是辅助上下文；recall 失败允许后续检索、
+合成和直接回答，append 继续位于回答最终化之后。失败 operation 的原始错误仍进入步骤诊断，
+不因产品恢复成功而丢失；Ops 分别展示阶段失败和 run 终态失败。
 
 ## 取消、超时与终态处理
 

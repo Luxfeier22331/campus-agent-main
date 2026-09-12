@@ -90,9 +90,6 @@ func ToolExecutionWorkflow(
 		return finalizeWorkflowAnswer(ctx, activityOptions, input, synthesis)
 	}
 	if solveResult.SolveOutcome == "answer" {
-		if len(solveResult.Evidence) == 0 && len(solveResult.SourceAttempts) > 0 {
-			return failWorkflowStage(ctx, activityOptions, input, "solve.initial", workflowNoMaterialsFailure(solveResult), errors.New("retrieval returned no usable materials"))
-		}
 		if strings.TrimSpace(solveResult.FinalOutput) == "" {
 			return failWorkflowStage(ctx, activityOptions, input, "solve.initial", "workflow_solve_invalid", errors.New("solver returned empty answer"))
 		}
