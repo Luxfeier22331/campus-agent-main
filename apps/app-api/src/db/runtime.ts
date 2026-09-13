@@ -136,8 +136,15 @@ async function withIsolatedProbePool<T>(
 export async function createRuntimePool(env: Env): Promise<Pool> {
 	const config = buildRuntimeDatabaseConfig(env);
 	const environment = resolveEnvironment(env);
-	if (!shouldCacheRuntimeState(env)) {
+	if (!(shouldCacheRuntimeState(env) || isWorkerRuntimeDatabaseContext())) {
 		return createPool({
+			connectionString: config.connectionString,
+			environment,
+		});
+	}
+	if (!shouldCacheRuntimeState(env)) {
+		return createCachedPool({
+			cacheKey: `runtime:${config.connectionString}|${environment}`,
 			connectionString: config.connectionString,
 			environment,
 		});
