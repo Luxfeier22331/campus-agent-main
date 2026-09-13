@@ -7,6 +7,7 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DocsPage } from "../src/app/routes/docs-page";
@@ -20,6 +21,7 @@ afterEach(() => {
 
 describe("docs start page", () => {
 	it("lists every public document without restoring directory routes", async () => {
+		const user = userEvent.setup();
 		await renderDirectory({
 			kind: "directory",
 			siteIndex: createLargeDocsSiteIndex(),
@@ -35,6 +37,12 @@ describe("docs start page", () => {
 		const undergraduateSection = screen
 			.getByText("本科培养方案", { selector: ".docs-start-section-title" })
 			.closest("details");
+		expect(undergraduateSection).not.toHaveAttribute("open");
+		await user.click(
+			within(undergraduateSection as HTMLElement).getByText("本科培养方案", {
+				selector: ".docs-start-section-title",
+			}),
+		);
 		expect(undergraduateSection).toHaveAttribute("open");
 		expect(
 			within(undergraduateSection as HTMLElement).getByRole("link", {

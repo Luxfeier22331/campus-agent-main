@@ -27,14 +27,14 @@ export function ProductBrandLink({
 	const mobileLabel = compactLabel || subtitle || "校园问答";
 	const children = (
 		<span className="min-w-0">
-			<span className="block truncate whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:hidden">
+			<span className="campus-product-brand-compact block truncate whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:hidden">
 				{mobileLabel}
 			</span>
-			<span className="hidden whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:block">
+			<span className="campus-product-brand-expanded hidden whitespace-nowrap text-sm font-semibold tracking-normal text-[var(--sys-text-strong)] lg:block">
 				{desktopLabel}
 			</span>
 			{subtitle ? (
-				<span className="hidden truncate text-xs text-[var(--sys-text-subtle)] lg:block">
+				<span className="campus-product-brand-expanded hidden truncate text-xs text-[var(--sys-text-subtle)] lg:block">
 					{subtitle}
 				</span>
 			) : null}

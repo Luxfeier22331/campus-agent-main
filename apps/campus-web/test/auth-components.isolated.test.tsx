@@ -61,44 +61,6 @@ vi.mock("@marsidev/react-turnstile", () => ({
 	Turnstile: () => <fieldset aria-label="安全验证" />,
 }));
 
-vi.mock("@better-auth-ui/heroui", () => ({
-	AuthProvider: ({
-		avatar,
-		children,
-		localization,
-	}: {
-		avatar?: { enabled?: boolean };
-		children: React.ReactNode;
-		localization?: { auth?: { email?: string; name?: string; signOut?: string } };
-	}) => (
-		<section
-			aria-label="settings-auth-provider"
-			data-auth-email={localization?.auth?.email}
-			data-auth-name={localization?.auth?.name}
-			data-auth-sign-out={localization?.auth?.signOut}
-			data-avatar-enabled={String(avatar?.enabled)}
-		>
-			{children}
-		</section>
-	),
-	Settings: ({
-		className,
-		variant,
-		view,
-	}: {
-		className?: string;
-		variant?: string;
-		view?: string;
-	}) => (
-		<section
-			aria-label="account-settings"
-			className={className}
-			data-variant={variant}
-			data-view={view}
-		/>
-	),
-}));
-
 import { AuthPanel } from "../src/components/auth/auth";
 import {
 	ForgotPasswordForm,
@@ -109,7 +71,6 @@ import {
 	VerificationResult,
 } from "../src/components/auth/auth-email-flows";
 import { SignInForm, SignUpForm } from "../src/components/auth/auth-forms";
-import { Settings } from "../src/components/auth/settings/settings";
 import { AccountEntry } from "../src/components/auth/user/account-entry";
 
 const sharedFormProps = {
@@ -486,29 +447,5 @@ describe("campus-owned authentication journeys", () => {
 			{ throw: true },
 		);
 		expect(sessionState.refresh).toHaveBeenCalledOnce();
-	});
-
-	it("keeps Better Auth UI scoped to authenticated account settings", () => {
-		render(<Settings view="security" />);
-
-		const provider = screen.getByLabelText("settings-auth-provider");
-		const settings = screen.getByLabelText("account-settings");
-		expect(provider).toHaveAttribute("data-avatar-enabled", "false");
-		expect(provider).toHaveAttribute("data-auth-name", "姓名");
-		expect(provider).toHaveAttribute("data-auth-email", "邮箱");
-		expect(provider).toHaveAttribute("data-auth-sign-out", "退出登录");
-		expect(settings).toHaveAttribute("data-view", "security");
-		expect(settings).toHaveAttribute("data-variant", "transparent");
-		expect(settings).toHaveClass("campus-account-settings");
-		expect(screen.getByLabelText("account-settings-layout").firstElementChild).toHaveAttribute(
-			"data-campus-account-settings-column",
-		);
-		expect(screen.getByLabelText("account-settings-layout").firstElementChild).toHaveClass(
-			"max-w-2xl",
-		);
-		expect(screen.getByLabelText("account-settings-layout")).toHaveAttribute(
-			"data-campus-avatar-editing",
-			"disabled",
-		);
 	});
 });

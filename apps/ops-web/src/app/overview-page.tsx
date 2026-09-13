@@ -1,4 +1,4 @@
-import { Button, Field, NativeSelect } from "@campus-agent/ui";
+import { Alert, Button, Field, NativeSelect } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, RefreshCw } from "lucide-react";
@@ -108,17 +108,14 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 				/>
 			) : null}
 			{data.cache.status === "STALE" ? (
-				<div
-					className="mb-4 rounded-[var(--radius-lg)] border border-warning-border bg-warning-subtle px-4 py-3 text-foreground text-sm"
-					role="alert"
-				>
+				<Alert className="mb-4" tone="warning">
 					部分来源显示旧数据，最旧结果距本次刷新约 {formatDuration(data.cache.ageMs)}。
-				</div>
+				</Alert>
 			) : null}
 
 			<dl className="grid border-border border-y md:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-border">
 				<div className="grid content-start gap-2 border-border border-b px-1 py-4 md:border-r md:px-4 xl:border-b-0 xl:border-r-0 xl:pl-0">
-					<dt className="font-medium text-muted-foreground text-xs">整体状态</dt>
+					<dt className="font-medium ui-metadata">整体状态</dt>
 					<dd>
 						<StatusBadge status={data.health.status} />
 					</dd>
@@ -148,13 +145,13 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 				/>
 			</dl>
 
-			<div className="mt-8 grid items-start gap-8 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:gap-0">
+			<div className="mt-[var(--ui-section-gap)] grid items-start gap-[var(--ui-section-gap)] xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:gap-0">
 				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:border-r xl:pr-8">
-					<h2 className="mb-4 font-semibold text-lg">请求趋势</h2>
+					<h2 className="mb-4 ui-section-title">请求趋势</h2>
 					<RequestTrendChart trends={data.trends} />
 				</section>
 				<section className="min-w-0 border-border border-b pb-8 xl:border-b-0 xl:pl-8">
-					<h2 className="mb-4 font-semibold text-lg">当前问题</h2>
+					<h2 className="mb-4 ui-section-title">当前问题</h2>
 					{data.issues.length === 0 ? (
 						<p className="text-muted-foreground text-sm">当前没有需要处理的问题。</p>
 					) : (
@@ -194,7 +191,7 @@ export function OverviewPage({ window }: { window: OpsOverviewWindow }) {
 function OverviewMetric({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="grid content-center gap-1 border-border border-b px-1 py-4 md:px-4 xl:border-b-0">
-			<dt className="font-medium text-muted-foreground text-xs">{label}</dt>
+			<dt className="font-medium ui-metadata">{label}</dt>
 			<dd className="font-semibold text-2xl text-foreground tabular-nums">{value}</dd>
 		</div>
 	);
@@ -396,7 +393,7 @@ function TrendSummaryTable({ trends }: { trends: OpsOverviewResponse["trends"]["
 function TrendValue({ label, value }: { label: string; value: number | string }) {
 	return (
 		<div className="grid gap-1">
-			<span className="text-muted-foreground text-xs">{label}</span>
+			<span className="ui-metadata">{label}</span>
 			<span className="font-semibold text-foreground tabular-nums">{value}</span>
 		</div>
 	);

@@ -380,25 +380,27 @@ export function DiningFloorplanEditor(props: {
 	return (
 		<>
 			<section aria-labelledby="dining-editor-title" className="dining-map-editor editor-shell">
-				<header className="editor-toolbar app-toolbar">
-					<h2 id="dining-editor-title">地图草稿</h2>
-					<NativeSelect
-						aria-label="选择楼层"
-						className="min-h-11"
-						onChange={(event) => switchFloor(event.target.value)}
-						value={activeFloorId}
-					>
-						{props.draft.bundle.layouts.map((layout) => (
-							<option key={layout.floorId} value={layout.floorId}>
-								{layout.label}
-							</option>
-						))}
-					</NativeSelect>
-					<span className={`editor-status ${status.kind === "error" ? "error" : ""}`} role="status">
-						{status.message}
-					</span>
-					<button
-						className="save"
+				<header className="editor-toolbar">
+					<h2 className="editor-toolbar-title ui-section-title" id="dining-editor-title">
+						地图草稿
+					</h2>
+					<div className="editor-floor-control">
+						<NativeSelect
+							aria-label="选择楼层"
+							className="min-h-11"
+							onChange={(event) => switchFloor(event.target.value)}
+							value={activeFloorId}
+						>
+							{props.draft.bundle.layouts.map((layout) => (
+								<option key={layout.floorId} value={layout.floorId}>
+									{layout.label}
+								</option>
+							))}
+						</NativeSelect>
+					</div>
+					<Button
+						aria-busy={props.saving}
+						className="editor-save min-w-0 whitespace-normal"
 						disabled={
 							props.saving ||
 							dirtyFloorIds.size === 0 ||
@@ -409,8 +411,14 @@ export function DiningFloorplanEditor(props: {
 						type="button"
 					>
 						<Save aria-hidden="true" size={16} />
-						保存草稿
-					</button>
+						<span>保存草稿</span>
+					</Button>
+					<span
+						className={`editor-status ui-metadata ${status.kind === "error" ? "error" : ""}`}
+						role="status"
+					>
+						{status.message}
+					</span>
 				</header>
 				<div className="editor-body">
 					<aside aria-label="地图元素" className="editor-sidebar">

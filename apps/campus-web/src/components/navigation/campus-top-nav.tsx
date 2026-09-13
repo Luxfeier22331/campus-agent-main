@@ -23,6 +23,7 @@ export interface CampusTopNavProps {
 	accountAction?: ReactNode;
 	activePath?: string;
 	brandLabel?: string;
+	compactBrandLabel?: string;
 	contextLabel?: string;
 	density?: CampusTopNavDensity;
 	leadingAction?: ReactNode;
@@ -31,6 +32,7 @@ export interface CampusTopNavProps {
 	mobileAccountAction?: ProductNavMobileAccountAction;
 	mobileLocalActions?: ProductNavMobileLocalActions;
 	showMobileMenu?: boolean;
+	showLocalActionsOnMobile?: boolean;
 	variant: CampusTopNavVariant;
 }
 
@@ -38,6 +40,7 @@ export function CampusTopNav({
 	accountAction,
 	activePath = "/",
 	brandLabel,
+	compactBrandLabel,
 	contextLabel,
 	density = "default",
 	leadingAction,
@@ -46,6 +49,7 @@ export function CampusTopNav({
 	mobileAccountAction,
 	mobileLocalActions,
 	showMobileMenu = true,
+	showLocalActionsOnMobile = false,
 	variant,
 }: CampusTopNavProps) {
 	const immersive = variant === "immersive";
@@ -89,7 +93,7 @@ export function CampusTopNav({
 						{leadingAction}
 						<ProductBrandLink
 							className="h-full"
-							compactLabel={brandLabel}
+							compactLabel={compactBrandLabel ?? brandLabel}
 							desktopLabel={brandLabel}
 							linkMode={linkMode}
 							subtitle={contextLabel}
@@ -100,43 +104,54 @@ export function CampusTopNav({
 					<ProductNavActions
 						activePath={activePath}
 						className={cn(
-							"shrink-0 items-center gap-0.5",
-							immersive
-								? "flex text-[var(--map-overlay-muted)]"
-								: "hidden text-muted-foreground lg:flex",
+							"campus-top-nav-product-nav shrink-0 items-center gap-0.5",
+							immersive ? "flex text-[var(--map-overlay-muted)]" : "hidden text-muted-foreground",
 						)}
 						linkMode={linkMode}
 					/>
 				)}
 				<div className="flex shrink-0 items-center gap-1">
 					{localActions ? (
-						<div className="hidden items-center gap-1 lg:flex">{localActions}</div>
+						<div
+							className={cn(
+								"items-center gap-1",
+								showLocalActionsOnMobile ? "flex" : "campus-top-nav-local-actions hidden",
+							)}
+						>
+							{localActions}
+						</div>
 					) : null}
 					{focused ? (
 						<ThemeModeMenu />
 					) : (
 						<ThemeModeMenu
 							className={cn(
-								"shrink-0",
+								"campus-top-nav-theme shrink-0",
 								immersive
 									? "text-[var(--map-overlay-muted)] hover:bg-[var(--map-overlay-surface-hover)] hover:text-[var(--map-overlay-text)]"
-									: "hidden lg:inline-flex",
+									: "hidden",
 							)}
 						/>
 					)}
 					{!focused && showMobileMenu ? (
-						<Suspense fallback={<span aria-hidden="true" className="size-11 lg:hidden" />}>
+						<Suspense
+							fallback={<span aria-hidden="true" className="campus-top-nav-mobile-menu size-11" />}
+						>
 							<ProductNavMobileMenu
 								accountAction={mobileAccount}
 								activePath={activePath}
 								linkMode={linkMode}
 								localActions={mobileLocalActions}
-								triggerClassName="lg:hidden"
+								triggerClassName={cn("campus-top-nav-mobile-menu", immersive && "lg:hidden")}
 							/>
 						</Suspense>
 					) : null}
 					{!focused && accountAction ? (
-						<div className="hidden items-center lg:flex">{accountAction}</div>
+						<div
+							className={cn("campus-top-nav-account hidden items-center", immersive && "lg:flex")}
+						>
+							{accountAction}
+						</div>
 					) : null}
 				</div>
 			</div>

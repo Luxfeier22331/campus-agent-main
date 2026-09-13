@@ -85,7 +85,6 @@ describe("declarative docs reader components", () => {
 			<ReaderDocument>
 				<ReaderDocumentMeta
 					collectionLabel="学生手册"
-					topicLabel="课程与考试"
 					versionSlug="2025"
 					versions={[
 						{ canonicalUrl: "/docs/regulations/student_rules/rules", versionSlug: "2026" },
@@ -104,9 +103,31 @@ describe("declarative docs reader components", () => {
 		const versionSelector = screen.getByRole("combobox", { name: "选择文档版本" });
 		expect(versionSelector).toHaveTextContent("2025 年版");
 		const metadata = screen.getByLabelText("文档信息与版本");
-		expect(metadata).toHaveTextContent("主题：课程与考试");
 		expect(metadata).toHaveTextContent("学生手册");
 		expect(metadata.querySelector("details")).toBeNull();
+	});
+
+	it("links to the newest version and preserves modified native link clicks", () => {
+		const onVersionNavigate = vi.fn();
+		render(
+			<ReaderDocumentMeta
+				collectionLabel={null}
+				onVersionNavigate={onVersionNavigate}
+				versionSlug="2025"
+				versions={[
+					{ canonicalUrl: "/docs/rules/v/2024", versionSlug: "2024" },
+					{ canonicalUrl: "/docs/rules", versionSlug: "2026" },
+					{ canonicalUrl: "/docs/rules/v/2025", versionSlug: "2025" },
+				]}
+			/>,
+		);
+		const currentVersion = screen.getByRole("link", { name: "查看当前版" });
+		expect(currentVersion).toHaveAttribute("href", "/docs/rules");
+		fireEvent.click(currentVersion);
+		expect(onVersionNavigate).toHaveBeenCalledExactlyOnceWith("/docs/rules");
+		onVersionNavigate.mockClear();
+		fireEvent.click(currentVersion, { ctrlKey: true });
+		expect(onVersionNavigate).not.toHaveBeenCalled();
 	});
 
 	it("keeps compact tables semantic without deriving mobile cards", () => {
@@ -237,7 +258,6 @@ describe("declarative docs reader components", () => {
 			<ReaderDocument>
 				<ReaderDocumentMeta
 					collectionLabel="学生手册"
-					topicLabel="课程与考试"
 					versionSlug="2026"
 					versions={[
 						{ canonicalUrl: "/docs/regulations/student_rules/rules", versionSlug: "2026" },
@@ -247,7 +267,6 @@ describe("declarative docs reader components", () => {
 		);
 
 		expect(screen.queryByRole("combobox", { name: "选择文档版本" })).not.toBeInTheDocument();
-		expect(screen.getByText("主题：课程与考试")).toBeInTheDocument();
 		expect(screen.getByText("学生手册")).toBeInTheDocument();
 		expect(screen.getByText("2026 年版")).toBeInTheDocument();
 		expect(screen.queryByText("来源详情")).not.toBeInTheDocument();

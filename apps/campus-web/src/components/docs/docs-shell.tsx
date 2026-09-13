@@ -38,21 +38,21 @@ export function DocsShell({
 }) {
 	const [searchOpen, setSearchOpen] = useState(false);
 	const searchNavigationRef = useRef(false);
-	const searchReturnFocusRef = useRef<HTMLElement | null>(null);
 
 	return (
 		<Dialog onOpenChange={setSearchOpen} open={searchOpen}>
 			<div className="docs-site" data-ui-profile="campus">
 				<CampusTopNav
 					accountAction={
-						<Button asChild className="docs-account-link text-xs" size="icon-lg" variant="ghost">
+						<Button asChild className="text-xs" size="icon" variant="ghost">
 							<a aria-label="账号" href="/account">
-								<UserRound aria-hidden="true" className="docs-account-icon" />
+								<UserRound aria-hidden="true" className="size-4" />
 								<span className="sr-only">账号</span>
 							</a>
 						</Button>
 					}
 					activePath={activePath}
+					compactBrandLabel="校园问答"
 					contextLabel="校园文档"
 					leadingAction={<MobileTree siteIndex={siteIndex} activePath={activePath} />}
 					linkMode="anchor"
@@ -72,7 +72,7 @@ export function DocsShell({
 									className="docs-search-trigger shrink-0"
 									onFocus={() => void loadDocsSearchPanel()}
 									onPointerEnter={() => void loadDocsSearchPanel()}
-									size="icon-lg"
+									size="icon"
 									variant="ghost"
 								>
 									<Search aria-hidden="true" />
@@ -81,28 +81,7 @@ export function DocsShell({
 							{outline.length > 0 ? <MobileOutline outline={outline} /> : null}
 						</>
 					}
-					mobileLocalActions={(closeMenu) => (
-						<>
-							<Button
-								className="justify-start"
-								onClick={() =>
-									closeMenu(() => {
-										searchReturnFocusRef.current =
-											document.activeElement instanceof HTMLElement ? document.activeElement : null;
-										setSearchOpen(true);
-									})
-								}
-								onFocus={() => void loadDocsSearchPanel()}
-								onPointerEnter={() => void loadDocsSearchPanel()}
-								size="lg"
-								variant="outline"
-							>
-								<Search aria-hidden="true" />
-								<span>搜索文档</span>
-							</Button>
-							{outline.length > 0 ? <MobileOutline outline={outline} /> : null}
-						</>
-					)}
+					showLocalActionsOnMobile
 					variant="workspace"
 				/>
 				<div className="docs-site-grid" data-has-outline={outline.length > 0 ? "true" : "false"}>
@@ -119,19 +98,13 @@ export function DocsShell({
 				<BackToTop />
 			</div>
 			<DialogContent
-				className="docs-search-dialog w-[calc(100%-2rem)] gap-0 overflow-hidden rounded-lg p-0 sm:max-w-2xl"
+				className="docs-search-dialog w-[calc(100%-2rem)] gap-0 overflow-hidden rounded-[var(--radius-xl)] p-0 sm:max-w-2xl"
 				closeLabel="关闭搜索"
 				onCloseAutoFocus={(event) => {
 					if (searchNavigationRef.current) {
 						event.preventDefault();
 						searchNavigationRef.current = false;
-						searchReturnFocusRef.current = null;
 						return;
-					}
-					if (searchReturnFocusRef.current?.isConnected) {
-						event.preventDefault();
-						searchReturnFocusRef.current.focus({ preventScroll: true });
-						searchReturnFocusRef.current = null;
 					}
 				}}
 			>
@@ -333,14 +306,14 @@ function MobileTree(props: Parameters<typeof DocsTree>[0]) {
 				<Button
 					aria-label="打开文档目录"
 					className="shrink-0 lg:hidden"
-					size="icon-lg"
+					size="icon"
 					variant="ghost"
 				>
 					<ListTree aria-hidden="true" />
 				</Button>
 			</SheetTrigger>
 			<SheetContent className="docs-navigation-sheet overflow-y-auto p-0" side="left">
-				<SheetHeader className="border-b px-5 py-4 text-left">
+				<SheetHeader className="docs-navigation-sheet-header">
 					<SheetTitle>文档目录</SheetTitle>
 				</SheetHeader>
 				<div className="p-4">
@@ -359,17 +332,19 @@ function MobileOutline({ outline }: { outline: readonly DocsOutlineItem[] }) {
 				<Button
 					aria-label="打开本页目录"
 					className="shrink-0 xl:hidden"
-					size="icon-lg"
+					size="icon"
 					variant="ghost"
 				>
 					<List aria-hidden="true" />
 				</Button>
 			</SheetTrigger>
-			<SheetContent className="docs-navigation-sheet overflow-y-auto" side="right">
-				<SheetHeader className="mb-4 text-left">
+			<SheetContent className="docs-navigation-sheet overflow-y-auto p-0" side="right">
+				<SheetHeader className="docs-navigation-sheet-header">
 					<SheetTitle>本页目录</SheetTitle>
 				</SheetHeader>
-				<DocsOutline onNavigate={() => setOpen(false)} outline={outline} showLabel={false} />
+				<div className="p-4">
+					<DocsOutline onNavigate={() => setOpen(false)} outline={outline} showLabel={false} />
+				</div>
 			</SheetContent>
 		</Sheet>
 	);
@@ -442,7 +417,7 @@ function BackToTop() {
 					top: 0,
 				})
 			}
-			size="icon-lg"
+			size="icon"
 			title="返回顶部"
 			type="button"
 			variant="outline"

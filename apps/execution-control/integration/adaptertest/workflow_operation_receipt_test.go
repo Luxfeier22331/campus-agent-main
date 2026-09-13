@@ -1,6 +1,7 @@
 package adaptertest
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -171,8 +172,13 @@ func (c *receiptTestRuntimeClient) Execute(context.Context, executionapplication
 }
 
 func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) {
-	for _, status := range []string{"started", "completed", "failed", "model_output_invalid"} {
+	for _, status := range []string{"started", "completed", "failed", "model_output_invalid", "execute-legacy", "execute-summary", "execute-corrupt"} {
 		t.Run(status, func(t *testing.T) {
+			shape := status
+			execute := strings.HasPrefix(shape, "execute-")
+			if execute {
+				status = "completed"
+			}
 			failureCode := "retrieval_budget_exhausted"
 			if status == "model_output_invalid" {
 				failureCode = status
@@ -181,7 +187,7 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			completed := status != "started"
 			ctx := context.Background()
 			now := time.Now().UTC().Add(-time.Minute)
-			runID := "run-receipt-restore-" + status
+			runID := "run-receipt-restore-" + shape
 			store := executionpersistence.NewInMemoryRunProjectionStore()
 			createQueuedDurableRunForTest(t, store, runID, "conv-"+runID, now, agentRequestForDurableWorkerTest("hello"))
 			run, err := store.GetRun(ctx, runID)
@@ -202,6 +208,18 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 				AdmissionSnapshot: snapshot, ConversationID: run.ConversationID, RequestID: runID,
 				Operation: temporalruntime.WorkflowOperationSolve, StepID: "solve.initial", StepKind: "solver",
 				MaxSteps: 2, Stream: true, Payload: map[string]any{"goal": "hello", "max_steps": 2},
+			}
+			step := temporalruntime.WorkflowTaskPlanStep{ID: "step.notice", Objective: "hello", CandidateSources: []temporalruntime.WorkflowSource{temporalruntime.WorkflowSourceCampusSearch}, DependsOn: []string{}}
+			plan := temporalruntime.WorkflowTaskPlan{SchemaVersion: "task_plan.v1", Goal: "hello", Steps: []temporalruntime.WorkflowTaskPlanStep{step}}
+			if execute {
+				request.Operation = temporalruntime.WorkflowOperationExecuteStep
+				request.StepID = executionactivities.WorkflowTaskStepID(step.ID)
+				request.StepKind = "executor"
+				request.Stream = false
+				request.Plan = &plan
+				request.Step = &step
+				request.CitationStart = 1
+				request.Payload = map[string]any{"goal": "hello", "completed_steps": request.CompletedSteps, "citation_start": 1, "plan": plan, "step": step}
 			}
 			limits := executionactivities.LimitsFromAdmissionSnapshot(snapshot.AgentLimits)
 			limits.MaxTurns = snapshot.AgentBudget.MaxModelTurns
@@ -225,10 +243,10 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 				t.Fatal(err)
 			}
 			receipt := execution.AgentInvocationReceipt{
-				InvocationID: runID + ":solve.initial", RequestID: runID, CreatedAt: now, UpdatedAt: now,
+				InvocationID: runID + ":" + request.StepID, RequestID: runID, CreatedAt: now, UpdatedAt: now,
 				InputSHA256: activityprojection.Sha256AnyValue(executionactivities.WorkflowOperationInvocationEnvelope{
 					AdmissionSnapshotSHA256: execution.HashAdmissionJSON(snapshot), ExecutionInputSHA256: metadata.ExecutionInputSHA256,
-					InvocationID: runID + ":solve.initial", Operation: request.Operation, ProviderRequestSHA256: providerHash,
+					InvocationID: runID + ":" + request.StepID, Operation: request.Operation, ProviderRequestSHA256: providerHash,
 					RequestID: runID, SchemaVersion: executionactivities.WorkflowOperationInvocationSchemaVersion, StepID: request.StepID,
 				}),
 			}
@@ -238,6 +256,16 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			output := temporalruntime.WorkflowOperationActivityOutput{
 				Operation: request.Operation, RequestID: runID, WorkflowResultRef: activityprojection.WorkflowOperationResultRef(runID, request.StepID),
 				Status: "completed", SolveOutcome: "answer", FinalOutput: "保存的回答",
+			}
+			if execute {
+				output.SolveOutcome = ""
+				result := map[string]any{"outcome": "matched"}
+				if shape == "execute-legacy" {
+					result["results"] = []any{map[string]any{"citation_index": float64(1), "citation_href": "/notices/notice-1", "notice_id": "notice-1", "result_ref": "result://sha256:" + strings.Repeat("a", 64), "section_title": "办理说明", "source_kind": "notice", "text": "唯一检索正文", "title": "校园服务"}}
+				}
+				output.ToolResults = []temporalruntime.AgentToolResult{{ToolName: "campus_search", Status: "completed", InvocationID: "search-1", Result: result}}
+				output.Evidence = []temporalruntime.WorkflowEvidence{{ID: "notice", Title: "校园服务", Excerpt: "唯一检索正文", Source: temporalruntime.WorkflowSourceCampusSearch, CitationIndex: 1}}
+				output.SourceAttempts = []temporalruntime.WorkflowSourceAttempt{{Source: temporalruntime.WorkflowSourceCampusSearch, Status: "matched"}}
 			}
 			if status == "failed" {
 				output.Status = "failed"
@@ -253,13 +281,27 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 					t.Fatal(err)
 				}
 				receipt.OutputSHA256 = executionactivities.Sha256Bytes(receipt.OutputJSON)
+				if execute {
+					// PostgreSQL JSONB changes object key order and whitespace.
+					var object map[string]any
+					if err := json.Unmarshal(receipt.OutputJSON, &object); err != nil {
+						t.Fatal(err)
+					}
+					receipt.OutputJSON, err = json.MarshalIndent(object, "", "  ")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if shape == "execute-corrupt" {
+						receipt.OutputSHA256 = strings.Repeat("0", 64)
+					}
+				}
 				receipt.CompletedAt = now.Add(time.Second)
 				receipt.UpdatedAt = receipt.CompletedAt
 				if _, err := store.Receipts.CompleteAgentInvocation(ctx, receipt); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := store.UpsertRunStep(ctx, execution.RunStepProjection{
-					RequestID: runID, ConversationID: run.ConversationID, StepID: request.StepID, StepKind: "solver",
+					RequestID: runID, ConversationID: run.ConversationID, StepID: request.StepID, StepKind: request.StepKind,
 					Status: "started", StartedAt: now, UpdatedAt: now, ActivityAttempt: 1,
 					TaskQueue: temporalruntime.ActivityTaskQueueAgent, PayloadSchemaVersion: "run-step-projection-v1",
 				}); err != nil {
@@ -267,16 +309,19 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 				}
 			}
 			env := (&testsuite.WorkflowTestSuite{}).NewTestActivityEnvironment()
-			env.RegisterActivity(adapter.SolveTask)
-			value, activityErr := env.ExecuteActivity(adapter.SolveTask, temporalruntime.SolveTaskActivityInput{
-				WorkflowOperationActivityInputBase: temporalruntime.WorkflowOperationActivityInputBase{
-					AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot), RequestID: runID, ConversationID: run.ConversationID,
-				}, MaxSteps: 2,
-			})
+			restore := func(ctx context.Context) (temporalruntime.WorkflowOperationActivityOutput, error) {
+				base := temporalruntime.WorkflowOperationActivityInputBase{AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot), RequestID: runID, ConversationID: run.ConversationID}
+				if execute {
+					return adapter.ExecuteTaskStep(ctx, temporalruntime.ExecuteTaskStepActivityInput{WorkflowOperationActivityInputBase: base, Plan: plan, Step: step, CitationStart: 1})
+				}
+				return adapter.SolveTask(ctx, temporalruntime.SolveTaskActivityInput{WorkflowOperationActivityInputBase: base, MaxSteps: 2})
+			}
+			env.RegisterActivity(restore)
+			value, activityErr := env.ExecuteActivity(restore)
 			if client.calls != 0 {
 				t.Fatalf("provider calls = %d", client.calls)
 			}
-			if !completed {
+			if !completed || shape == "execute-corrupt" {
 				assertTemporalActivityRootFenceError(t, activityErr, "workflow_attempt_uncertain", true)
 				return
 			}
@@ -299,11 +344,7 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 				t.Fatalf("results=%#v err=%v", results, err)
 			}
 			// A second replay must accept an already repaired failed attempt too.
-			value, activityErr = env.ExecuteActivity(adapter.SolveTask, temporalruntime.SolveTaskActivityInput{
-				WorkflowOperationActivityInputBase: temporalruntime.WorkflowOperationActivityInputBase{
-					AdmissionSnapshot: workflowcontract.AdmissionToWorkflow(snapshot), RequestID: runID, ConversationID: run.ConversationID,
-				}, MaxSteps: 2,
-			})
+			value, activityErr = env.ExecuteActivity(restore)
 			if activityErr != nil {
 				t.Fatal(activityErr)
 			}
@@ -312,6 +353,12 @@ func TestOperationActivityRestoresReceiptWithoutProviderExecution(t *testing.T) 
 			}
 			if !reflect.DeepEqual(restored, output) || client.calls != 0 {
 				t.Fatalf("second replay changed result or called provider: %#v", restored)
+			}
+			if execute {
+				saved, _, err := store.Receipts.BeginAgentInvocation(ctx, receipt)
+				if err != nil || !bytes.Equal(saved.OutputJSON, receipt.OutputJSON) || saved.OutputSHA256 != receipt.OutputSHA256 {
+					t.Fatalf("replay rewrote receipt: %v", err)
+				}
 			}
 		})
 	}

@@ -11,7 +11,7 @@ import {
 	TooltipTrigger,
 } from "@campus-agent/ui";
 import { compareDocsVersionSlugs, formatDocsVersionLabel } from "campus-contracts/campus-docs";
-import { History, Link as LinkIcon } from "lucide-react";
+import { CircleAlert, History, Link as LinkIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	createContext,
@@ -251,13 +251,11 @@ export function ReaderPermalink({
 export function ReaderDocumentMeta({
 	collectionLabel,
 	onVersionNavigate,
-	topicLabel,
 	versionSlug,
 	versions,
 }: {
-	collectionLabel: string;
+	collectionLabel: string | null;
 	onVersionNavigate?: (href: string) => void;
-	topicLabel: string | null;
 	versionSlug: string;
 	versions?: ReaderVersion[];
 }) {
@@ -269,6 +267,9 @@ export function ReaderDocumentMeta({
 				? version.versionSlug
 				: current,
 		"",
+	);
+	const latestVersion = resolvedVersions.find(
+		(version) => version.versionSlug === latestVersionSlug,
 	);
 	const isLatest = !latestVersionSlug || versionSlug === latestVersionSlug;
 	const versionLabel = formatDocsVersionLabel(versionSlug);
@@ -292,23 +293,46 @@ export function ReaderDocumentMeta({
 			data-docs-reader-meta="true"
 			data-docs-version-slug={versionSlug}
 		>
-			<p className="document-meta-summary">
-				{hasMultipleVersions ? null : <span>{versionLabel}</span>}
-				{topicLabel ? <span>主题：{topicLabel}</span> : null}
-				<span>{collectionLabel}</span>
-			</p>
+			{!hasMultipleVersions || collectionLabel !== null ? (
+				<p className="document-meta-summary">
+					{hasMultipleVersions ? null : <span>{versionLabel}</span>}
+					{collectionLabel === null ? null : <span>{collectionLabel}</span>}
+				</p>
+			) : null}
 			{isLatest && !hasMultipleVersions ? null : (
 				<div className="document-meta-controls">
 					{isLatest ? null : (
 						<p
 							aria-label="正在阅读历史版本，请以当前版为准。"
-							className="docs-reader-status docs-version-history-warning"
+							className="docs-version-history-warning"
 							role="status"
 							title="正在阅读历史版本，请以当前版为准。"
 						>
+							<CircleAlert aria-hidden="true" />
 							历史版本
 						</p>
 					)}
+					{!isLatest && latestVersion ? (
+						<a
+							className="docs-version-current-link"
+							href={latestVersion.canonicalUrl}
+							onClick={(event) => {
+								if (
+									onVersionNavigate &&
+									event.button === 0 &&
+									!event.metaKey &&
+									!event.ctrlKey &&
+									!event.shiftKey &&
+									!event.altKey
+								) {
+									event.preventDefault();
+									onVersionNavigate(latestVersion.canonicalUrl);
+								}
+							}}
+						>
+							查看当前版
+						</a>
+					) : null}
 					{hasMultipleVersions ? (
 						<div className="docs-version-switcher">
 							<Select name="docs-version" onValueChange={selectVersion} value={versionSlug}>
@@ -318,11 +342,7 @@ export function ReaderDocumentMeta({
 								</SelectTrigger>
 								<SelectContent className="docs-version-menu">
 									{resolvedVersions.map((version) => (
-										<SelectItem
-											className="docs-version-option"
-											key={version.versionSlug}
-											value={version.versionSlug}
-										>
+										<SelectItem key={version.versionSlug} value={version.versionSlug}>
 											{formatDocsVersionLabel(version.versionSlug)}
 										</SelectItem>
 									))}

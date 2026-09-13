@@ -1,18 +1,26 @@
 import { cn } from "@campus-agent/ui";
-import { Dropdown } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut, Settings, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { campusAuthClient } from "@/platform/auth/client";
 import { useCampusSession } from "@/platform/auth/session";
 
 export type AccountMenuPlacement = "bottom-end" | "right-end" | "top-start";
 
 const MENU_PLACEMENTS = {
-	"bottom-end": "bottom end",
-	"right-end": "right bottom",
-	"top-start": "top start",
+	"bottom-end": { side: "bottom", align: "end" },
+	"right-end": { side: "right", align: "end" },
+	"top-start": { side: "top", align: "start" },
 } as const;
+
+const menuItemClass =
+	"min-h-11 gap-2 rounded-md px-3 focus:bg-surface-hover focus:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none";
 
 export function AuthenticatedAccountMenu({
 	className,
@@ -35,6 +43,11 @@ export function AuthenticatedAccountMenu({
 	const session = useCampusSession();
 	const [signingOut, setSigningOut] = useState(false);
 	const [signOutError, setSignOutError] = useState(false);
+	const [internalOpen, setInternalOpen] = useState(false);
+	const changeOpen = (next: boolean) => {
+		setInternalOpen(next);
+		onOpenChange?.(next);
+	};
 	const userName = session.data?.user.name?.trim() || "校园用户";
 	const userEmail = session.data?.user.email ?? "";
 	const initial = Array.from(userName)[0]?.toUpperCase() || "用";
@@ -57,7 +70,7 @@ export function AuthenticatedAccountMenu({
 			await campusAuthClient.signOut({ fetchOptions: { throw: true } });
 			await session.refresh();
 			onSignedOut?.();
-			onOpenChange?.(false);
+			changeOpen(false);
 		} catch {
 			setSignOutError(true);
 		} finally {
@@ -66,11 +79,8 @@ export function AuthenticatedAccountMenu({
 	}
 
 	return (
-		<Dropdown
-			{...(open === undefined ? {} : { isOpen: open })}
-			{...(onOpenChange ? { onOpenChange } : {})}
-		>
-			<Dropdown.Trigger
+		<DropdownMenu open={open ?? internalOpen} onOpenChange={changeOpen}>
+			<DropdownMenuTrigger
 				{...(presentation === "icon" ? { "aria-label": `账号：${userName}` } : {})}
 				className={cn(
 					"inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-lg)] text-foreground outline-none transition-[color,background-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-easing-standard)] motion-reduce:transition-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
@@ -96,35 +106,42 @@ export function AuthenticatedAccountMenu({
 						) : null}
 					</span>
 				) : null}
-			</Dropdown.Trigger>
-			<Dropdown.Popover
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				aria-label="账号菜单"
+				className="max-w-[calc(100vw-2rem)] rounded-lg border-border bg-popover shadow-[var(--shadow-sm)] motion-reduce:animate-none"
 				data-campus-account-surface="account-menu"
-				placement={MENU_PLACEMENTS[menuPlacement]}
+				{...MENU_PLACEMENTS[menuPlacement]}
 			>
 				<div className="max-w-64 border-b px-3 py-2.5">
 					<p className="truncate font-medium text-sm">{userName}</p>
 					<p className="truncate text-[var(--sys-text-subtle)] text-xs">{userEmail}</p>
 				</div>
-				<Dropdown.Menu aria-label="账号菜单" onAction={handleAction}>
-					<Dropdown.Item id="account" textValue="账号设置">
-						<Settings aria-hidden="true" className="size-4" />
-						<span>账号设置</span>
-					</Dropdown.Item>
-					<Dropdown.Item id="security" textValue="安全设置">
-						<ShieldCheck aria-hidden="true" className="size-4" />
-						<span>安全设置</span>
-					</Dropdown.Item>
-					<Dropdown.Item id="sign-out" isDisabled={signingOut} textValue="退出登录">
-						<LogOut aria-hidden="true" className="size-4" />
-						<span>{signingOut ? "正在退出" : "退出登录"}</span>
-					</Dropdown.Item>
-				</Dropdown.Menu>
+				<DropdownMenuItem className={menuItemClass} onSelect={() => void handleAction("account")}>
+					<Settings aria-hidden="true" className="size-4" />
+					<span>账号设置</span>
+				</DropdownMenuItem>
+				<DropdownMenuItem className={menuItemClass} onSelect={() => void handleAction("security")}>
+					<ShieldCheck aria-hidden="true" className="size-4" />
+					<span>安全设置</span>
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					className={menuItemClass}
+					disabled={signingOut}
+					onSelect={(event) => {
+						event.preventDefault();
+						void handleAction("sign-out");
+					}}
+				>
+					<LogOut aria-hidden="true" className="size-4" />
+					<span>{signingOut ? "正在退出" : "退出登录"}</span>
+				</DropdownMenuItem>
 				{signOutError ? (
 					<p className="max-w-64 border-t px-3 py-2 text-danger text-xs" role="alert">
 						退出失败，你仍保持登录状态。请稍后重试。
 					</p>
 				) : null}
-			</Dropdown.Popover>
-		</Dropdown>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }

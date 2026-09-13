@@ -114,10 +114,12 @@ describe("campus experience routes", () => {
 	it("serves a content-addressed floorplan only after digest verification", async () => {
 		const markup = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
 		const digest = createHash("sha256").update(markup).digest("hex");
-		globalThis.fetch = vi.fn(
-			async () =>
+		globalThis.fetch = vi.fn(function (this: typeof globalThis) {
+			expect(this).toBe(globalThis);
+			return Promise.resolve(
 				new Response(markup, { headers: { "content-type": "image/svg+xml" }, status: 200 }),
-		);
+			);
+		}) as typeof fetch;
 		const app = createApp(
 			{ ...env, OBJECT_STORE_LOCAL_BASE_URL: "https://assets.example.test/public/" },
 			{ campusExperienceService: createService() },

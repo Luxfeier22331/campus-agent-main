@@ -22,9 +22,38 @@ test.describe("docs reader experience", () => {
 			/docs-reader-highlight/u,
 		);
 		await expect(page.locator(`#${attendanceSectionAnchor}`)).toBeFocused();
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL(publicReaderPath, page.url()).toString(),
+			new URL(publicReaderPath, "https://campus.muc.wiki").toString(),
+		);
+	});
+
+	test("uses the current document canonical when opening its explicit version alias", async ({
+		page,
+	}) => {
+		await page.goto(`${publicReaderPath}/v/2026`, { waitUntil: "domcontentloaded" });
+		await waitForDocsHydration(page);
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			`https://campus.muc.wiki${publicReaderPath}`,
+		);
+	});
+
+	test("returns from a historical version through the current-version link", async ({ page }) => {
+		await page.goto(historicalReaderPath, { waitUntil: "domcontentloaded" });
+		await waitForDocsHydration(page);
+		const currentVersion = page.getByRole("link", { name: "查看当前版" });
+		await expect(currentVersion).toHaveAttribute("href", publicReaderPath);
+		await currentVersion.click();
+		await expect(page).toHaveURL(publicReaderPath);
+		await expect(page.getByRole("heading", { level: 1, name: "学生考勤管理规定" })).toBeFocused();
+		await expect(page.getByRole("link", { name: "查看当前版" })).toHaveCount(0);
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			`https://campus.muc.wiki${publicReaderPath}`,
 		);
 	});
 
@@ -190,17 +219,84 @@ test.describe("docs reader experience", () => {
 		await expect(treePanel).toBeHidden();
 		await expect(outlinePanel).toBeHidden();
 		await expect(treeTrigger).toBeVisible();
-		await expect(outlineTrigger).toBeHidden();
+		await expect(outlineTrigger).toBeVisible();
 		const productMenuTrigger = page.getByRole("button", { name: "打开全局菜单" });
 		await productMenuTrigger.click();
 		const productMenu = page.getByRole("dialog", { name: "校园问答导航" });
-		await expect(productMenu.getByRole("button", { name: "打开本页目录" })).toBeVisible();
+		await expect(productMenu.getByRole("button", { name: "打开本页目录" })).toHaveCount(0);
 		await page.keyboard.press("Escape");
 		await expect(productMenu).toBeHidden();
 		await expect(productMenuTrigger).toBeFocused();
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
 		).toBe(false);
+	});
+
+	test("keeps navigation and reading content within the viewport with enlarged text", async ({
+		page,
+	}) => {
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await page.goto(historicalReaderPath, { waitUntil: "networkidle" });
+		await waitForDocsHydration(page);
+		for (const width of [320, 390, 1024, 1280, 1440]) {
+			await page.setViewportSize({ height: 900, width });
+			for (const fontSize of [16, 32]) {
+				await page.evaluate((size) => {
+					document.documentElement.style.fontSize = `${size}px`;
+				}, fontSize);
+				await expect(page.locator(".docs-document-body p").first()).toHaveCSS(
+					"font-size",
+					`${fontSize * 1.0625}px`,
+				);
+				await expect
+					.poll(
+						() =>
+							page.evaluate(
+								() =>
+									document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+							),
+						{ message: `${width}px at ${(fontSize / 16) * 100}% text` },
+					)
+					.toBe(true);
+				const metadataFits = await page
+					.locator(".document-meta-summary")
+					.evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
+				expect(metadataFits, "collection label should wrap without clipping").toBe(true);
+
+				const bounds = await page.locator(".campus-top-nav").evaluate((header) => {
+					const bar = header.getBoundingClientRect();
+					return [...header.querySelectorAll("button, a")]
+						.filter((element) => element.getBoundingClientRect().width > 0)
+						.every((element) => {
+							const box = element.getBoundingClientRect();
+							return (
+								box.x >= 0 &&
+								box.right <= document.documentElement.clientWidth &&
+								box.top >= bar.top &&
+								box.bottom <= bar.bottom
+							);
+						});
+				});
+				expect(bounds, `${width}px top bar at ${(fontSize / 16) * 100}% text`).toBe(true);
+				await expect(page.getByRole("button", { name: "搜索校园文档" })).toBeVisible();
+			}
+		}
+		await page.setViewportSize({ height: 720, width: 320 });
+		const searchDialog = await openDocsSearch(page);
+		const input = searchDialog.getByRole("combobox", { name: "搜索校园文档" });
+		await expect(input).toHaveAccessibleDescription("搜索全部文档的当前版本");
+		await input.fill("教学活动");
+		await expect(searchDialog.locator(".docs-search-result").first()).toBeVisible();
+		const inputTop = (await input.boundingBox())?.y;
+		await searchDialog.locator("[cmdk-list]").evaluate((list) => {
+			list.scrollTop = list.scrollHeight;
+		});
+		expect((await input.boundingBox())?.y).toBe(inputTop);
+		const dialogBox = await searchDialog.boundingBox();
+		expect(dialogBox?.y).toBeGreaterThanOrEqual(0);
+		expect((dialogBox?.y ?? 0) + (dialogBox?.height ?? 0)).toBeLessThanOrEqual(720);
+		await page.keyboard.press("Escape");
+		await expect(page.getByRole("button", { name: "搜索校园文档" })).toBeFocused();
 	});
 
 	test("distinguishes nested headings and reveals permalink controls on demand", async ({
@@ -228,8 +324,8 @@ test.describe("docs reader experience", () => {
 			),
 		);
 		expect(headingStyles).toEqual([
-			{ fontWeight: "700", level: "2", marginTop: "40px" },
-			{ fontWeight: "650", level: "3", marginTop: "28px" },
+			{ fontWeight: "600", level: "2", marginTop: "32px" },
+			{ fontWeight: "600", level: "3", marginTop: "28px" },
 			{ fontWeight: "600", level: "4", marginTop: "20px" },
 		]);
 
@@ -277,6 +373,8 @@ test.describe("docs reader experience", () => {
 		);
 		await expect(breadcrumbs.getByText("规章制度", { exact: true })).toBeVisible();
 		await expect(breadcrumbs.getByText("校园生活", { exact: true })).toBeVisible();
+		await expect(page.getByLabel("文档信息与版本")).not.toContainText("校园生活");
+		await expect(page.getByLabel("文档信息与版本")).toContainText("学生手册");
 		await expect(breadcrumbs.getByRole("link", { name: "规章制度" })).toHaveCount(0);
 		await expect(breadcrumbs.getByRole("link", { name: "校园生活" })).toHaveCount(0);
 
@@ -296,6 +394,7 @@ test.describe("docs reader experience", () => {
 		const response = await page.goto("/docs/regulations", { waitUntil: "domcontentloaded" });
 
 		expect(response?.status()).toBe(404);
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
 		await expect(page.getByRole("heading", { level: 1, name: "文档不存在" })).toBeVisible();
 		await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
 			"content",
@@ -313,9 +412,10 @@ test.describe("docs reader experience", () => {
 			"content",
 			"中央民族大学校园文档。",
 		);
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL("/docs", page.url()).toString(),
+			"https://campus.muc.wiki/docs",
 		);
 
 		await expect(startPage.getByRole("link", { name: "学生考勤管理规定" })).toBeVisible();
@@ -328,9 +428,10 @@ test.describe("docs reader experience", () => {
 			"content",
 			"学生应按时参加教学活动。",
 		);
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL(publicReaderPath, page.url()).toString(),
+			new URL(publicReaderPath, "https://campus.muc.wiki").toString(),
 		);
 
 		await page.goBack();
@@ -338,9 +439,10 @@ test.describe("docs reader experience", () => {
 		await waitForDocsHydration(page);
 		await expect(page.getByRole("heading", { level: 1, name: "校园文档" })).toBeVisible();
 		await expect(page).toHaveTitle("校园文档 | 中央民族大学校园问答");
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL("/docs", page.url()).toString(),
+			"https://campus.muc.wiki/docs",
 		);
 
 		await page.goForward();
@@ -348,9 +450,10 @@ test.describe("docs reader experience", () => {
 		await waitForDocsHydration(page);
 		await expect(page.getByRole("heading", { level: 1, name: "学生考勤管理规定" })).toBeVisible();
 		await expect(page).toHaveTitle("学生考勤管理规定 | 中央民族大学校园问答");
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL(publicReaderPath, page.url()).toString(),
+			new URL(publicReaderPath, "https://campus.muc.wiki").toString(),
 		);
 	});
 
@@ -407,9 +510,15 @@ test.describe("docs reader experience", () => {
 		await page.getByRole("option", { name: "2025 年版" }).click();
 
 		await expect(page).toHaveURL(historicalReaderPath);
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			`https://campus.muc.wiki${historicalReaderPath}`,
+		);
 		expect(documentRequests).toEqual([]);
 		const metadata = page.locator(".document-meta-summary");
-		await expect(metadata).toContainText("校园生活");
+		await expect(metadata).not.toContainText("校园生活");
+		await expect(page.getByRole("navigation", { name: "面包屑" })).toContainText("校园生活");
 		await expect(metadata).toContainText("学生手册");
 		const historyStatus = page.getByRole("status", {
 			name: "正在阅读历史版本，请以当前版为准。",
@@ -459,6 +568,11 @@ test.describe("docs reader experience", () => {
 		await expect(page.getByRole("status", { name: "正在加载文档" })).toBeVisible();
 		releaseRequests();
 		await expect(page).toHaveURL(historicalReaderPath);
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			`https://campus.muc.wiki${historicalReaderPath}`,
+		);
 		await expect(
 			page.getByRole("status", { name: "正在阅读历史版本，请以当前版为准。" }),
 		).toHaveText("历史版本");
@@ -471,7 +585,8 @@ test.describe("docs reader experience", () => {
 
 		await expect(page.getByText("校园文档", { exact: true }).first()).toBeVisible();
 		const metadata = page.locator(".document-meta-summary");
-		await expect(metadata).toContainText("校园生活");
+		await expect(metadata).not.toContainText("校园生活");
+		await expect(page.getByRole("navigation", { name: "面包屑" })).toContainText("校园生活");
 		await expect(metadata).toContainText("学生手册");
 		await expect(page.getByLabel("表格移动端按行阅读")).toHaveCount(0);
 		const compactTable = page.locator(
@@ -493,7 +608,7 @@ test.describe("docs reader experience", () => {
 		expect(wideTableOverflow.canScroll).toBe(true);
 		expect(wideTableOverflow.scrollLeft).toBeGreaterThan(0);
 		await expect(page.getByText("校级社会实践", { exact: true })).toBeVisible();
-		for (const name of ["打开文档目录", "打开全局菜单"] as const) {
+		for (const name of ["打开文档目录", "搜索校园文档", "打开本页目录", "打开全局菜单"] as const) {
 			const box = await page.getByRole("button", { name }).boundingBox();
 			expect(box?.width).toBeGreaterThanOrEqual(44);
 			expect(box?.height).toBeGreaterThanOrEqual(44);
@@ -503,24 +618,20 @@ test.describe("docs reader experience", () => {
 		await productMenuTrigger.click();
 		const productMenu = page.getByRole("dialog", { name: "校园问答导航" });
 		const accountLink = productMenu.getByRole("link", { name: "账号" });
-		const searchButton = productMenu.getByRole("button", { name: "搜索文档" });
+		const searchButton = page.getByRole("button", { name: "搜索校园文档" });
 		await expect(accountLink).toHaveAttribute("href", "/account");
-		for (const control of [
-			accountLink,
-			searchButton,
-			productMenu.getByRole("button", { name: "打开本页目录" }),
-		]) {
-			const box = await control.boundingBox();
-			expect(box?.width).toBeGreaterThanOrEqual(44);
-			expect(box?.height).toBeGreaterThanOrEqual(44);
-		}
+		await expect(productMenu.getByRole("button", { name: "搜索文档" })).toHaveCount(0);
+		await expect(productMenu.getByRole("button", { name: "打开本页目录" })).toHaveCount(0);
+		const accountBox = await accountLink.boundingBox();
+		expect(accountBox?.height).toBeGreaterThanOrEqual(44);
+		await page.keyboard.press("Escape");
 		await searchButton.click();
 		await expect(productMenu).toBeHidden();
 		const searchDialog = page.getByRole("dialog", { name: "搜索校园文档" });
 		await expect(searchDialog.getByRole("combobox", { name: "搜索校园文档" })).toBeFocused();
 		await searchDialog.getByRole("button", { name: "关闭搜索" }).click();
 		await expect(searchDialog).toBeHidden();
-		await expect(productMenuTrigger).toBeFocused();
+		await expect(searchButton).toBeFocused();
 		for (const locator of [
 			page.getByRole("combobox", { name: "选择文档版本" }),
 			page.getByRole("button", { name: "复制“六、课程地图”链接" }),
@@ -673,9 +784,7 @@ test.describe("docs reader experience", () => {
 		await expect(productMenu).toBeHidden();
 		await expect(productNavTrigger).toBeFocused();
 
-		await productNavTrigger.click();
-		await expect(productMenu).toBeVisible();
-		const outlineTrigger = productMenu.getByRole("button", { name: "打开本页目录" });
+		const outlineTrigger = page.getByRole("button", { name: "打开本页目录" });
 		await outlineTrigger.click();
 		const outlineDialog = page.getByRole("dialog", { name: "本页目录" });
 		await expect(outlineDialog.getByRole("navigation", { name: "本页目录" })).toBeVisible();
@@ -701,6 +810,11 @@ test.describe("docs reader without JavaScript", () => {
 		await expect(page.getByRole("navigation", { name: "文档目录" })).toBeVisible();
 		await expect(page.getByRole("link", { name: "账号" })).toHaveAttribute("href", "/account");
 		await expect(page.locator("#root")).not.toHaveAttribute("data-campus-hydrated", "true");
+		await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			`https://campus.muc.wiki${publicReaderPath}`,
+		);
 	});
 });
 

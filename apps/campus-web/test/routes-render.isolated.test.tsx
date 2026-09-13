@@ -558,8 +558,8 @@ describe("campus routes", () => {
 
 		render(<DiningPage />);
 
-		expect(await screen.findByRole("button", { name: hall.name })).toHaveAttribute(
-			"aria-pressed",
+		expect(await screen.findByRole("radio", { name: hall.name })).toHaveAttribute(
+			"aria-checked",
 			"true",
 		);
 		const windowButton = await screen.findByRole("button", {
@@ -606,8 +606,12 @@ describe("campus routes", () => {
 		}
 
 		render(<DiningPage />);
-		await user.click(await screen.findByRole("button", { name: hall.name }));
+		await user.click(await screen.findByRole("radio", { name: hall.name }));
 		await user.click(await screen.findByText(floor.label));
+		await user.click(screen.getByRole("radio", { name: floor.label }));
+		await user.click(screen.getByRole("radio", { name: hall.name }));
+		expect(screen.getByRole("radio", { name: hall.name })).toBeChecked();
+		expect(screen.getByRole("radio", { name: floor.label })).toBeChecked();
 
 		await waitFor(() => {
 			expect(diningFloorplanAssetMock.loadDiningFloorplanAsset).toHaveBeenCalledWith(

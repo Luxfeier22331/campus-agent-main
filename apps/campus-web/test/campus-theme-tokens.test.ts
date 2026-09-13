@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 
 const campusSource = readFileSync("src/design/tokens.css", "utf8");
 const campusStyles = readFileSync("src/campus-styles.css", "utf8");
-const appStyles = readFileSync("src/app-styles.css", "utf8");
 const sharedSource = readFileSync("../../packages/ui/src/tokens.css", "utf8");
 const sharedThemeSource = readFileSync("../../packages/ui/src/theme.css", "utf8");
 const opsStyles = readFileSync("../ops-web/src/styles.css", "utf8");
@@ -221,8 +220,6 @@ describe("Campus color token contract", () => {
 		expect(campusStyles).toContain("--color-selected: var(--campus-selected-bg);");
 		expect(campusStyles).toContain("--color-link: var(--campus-link);");
 		expect(campusStyles).toContain("--color-ring: var(--campus-focus-ring);");
-		expect(appStyles).toContain("--accent: var(--campus-action);");
-		expect(appStyles).toContain("--field-border-focus: var(--campus-focus-ring);");
 		expect(sharedThemeSource).toContain('@import "tw-animate-css";');
 	});
 

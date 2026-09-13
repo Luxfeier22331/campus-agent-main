@@ -99,8 +99,8 @@
 @layer components {
 	.ui-page-title {
 		color: var(--sys-text-strong);
-		font-size: var(--font-size-2xl);
-		font-weight: 650;
+		font-size: var(--ui-page-title-size);
+		font-weight: 600;
 		letter-spacing: 0;
 		line-height: var(--line-height-tight);
 	}
@@ -172,5 +172,23 @@
 		transition-duration: 0.01ms;
 		animation-duration: 0.01ms;
 		animation-iteration-count: 1;
+	}
+}
+
+@layer utilities {
+	.rounded-sm {
+		border-radius: var(--radius-sm);
+	}
+
+	.rounded-md {
+		border-radius: var(--radius-md);
+	}
+
+	.rounded-lg {
+		border-radius: var(--radius-lg);
+	}
+
+	.rounded-xl {
+		border-radius: var(--radius-xl);
 	}
 }

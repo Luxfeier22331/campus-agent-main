@@ -1,6 +1,5 @@
-import { Skeleton } from "@campus-agent/ui";
-import { Modal } from "@heroui/react";
-import { lazy, Suspense } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, Skeleton } from "@campus-agent/ui";
+import { lazy, Suspense, useRef } from "react";
 
 import type { AuthDialogView } from "./auth-dialog-content";
 
@@ -17,31 +16,40 @@ export function AuthDialog({
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 }) {
+	const returnFocus = useRef<HTMLElement | null>(null);
 	return (
-		<Modal.Backdrop
-			data-campus-account-surface="auth-modal"
-			isDismissable
-			isOpen={open}
-			onOpenChange={onOpenChange}
-			variant="blur"
-		>
-			<Modal.Container placement="center" scroll="inside" size="md">
-				<Modal.Dialog aria-label="登录或创建校园问答账号">
-					<Modal.CloseTrigger aria-label="关闭登录窗口" className="min-h-11 min-w-11" />
-					<Modal.Body>
-						<div className="mx-auto w-full max-w-sm">
-							<Suspense fallback={<AuthDialogPending />}>
-								<AuthDialogContent
-									onAuthenticated={() => onOpenChange(false)}
-									redirectTo={readCurrentRouteTarget()}
-									view={initialView}
-								/>
-							</Suspense>
-						</div>
-					</Modal.Body>
-				</Modal.Dialog>
-			</Modal.Container>
-		</Modal.Backdrop>
+		<Dialog onOpenChange={onOpenChange} open={open}>
+			<DialogContent
+				aria-describedby="campus-auth-dialog-description"
+				aria-label="登录或创建校园问答账号"
+				className="max-w-md pt-14"
+				closeLabel="关闭登录窗口"
+				onOpenAutoFocus={() => {
+					returnFocus.current =
+						document.activeElement instanceof HTMLElement ? document.activeElement : null;
+				}}
+				onCloseAutoFocus={(event) => {
+					if (returnFocus.current?.isConnected) {
+						event.preventDefault();
+						returnFocus.current.focus();
+					}
+				}}
+			>
+				<DialogTitle className="sr-only">登录或创建校园问答账号</DialogTitle>
+				<DialogDescription className="sr-only" id="campus-auth-dialog-description">
+					使用校园账号登录或创建账号
+				</DialogDescription>
+				<div className="mx-auto w-full max-w-sm">
+					<Suspense fallback={<AuthDialogPending />}>
+						<AuthDialogContent
+							onAuthenticated={() => onOpenChange(false)}
+							redirectTo={readCurrentRouteTarget()}
+							view={initialView}
+						/>
+					</Suspense>
+				</div>
+			</DialogContent>
+		</Dialog>
 	);
 }
 

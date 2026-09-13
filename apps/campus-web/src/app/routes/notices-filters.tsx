@@ -24,11 +24,7 @@ export function FilterSelect(props: {
 				onValueChange={(value) => props.onChange(value === "all" ? undefined : value)}
 				value={props.value ?? "all"}
 			>
-				<SelectTrigger
-					aria-label={props.label}
-					className="min-h-9 w-auto max-w-56 gap-2 rounded-lg border-border bg-transparent px-3 py-1.5 shadow-none"
-					id={props.id}
-				>
+				<SelectTrigger aria-label={props.label} className="w-auto max-w-56" id={props.id}>
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent align="start">

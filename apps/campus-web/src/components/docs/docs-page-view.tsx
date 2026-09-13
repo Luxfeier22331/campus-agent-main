@@ -61,7 +61,7 @@ function DocsStartPage({ data }: { data: DocsDirectoryRouteData }) {
 							</header>
 							<div className="docs-start-sections">
 								{group.sections.map((section) => (
-									<details className="docs-start-section" key={section.key} open>
+									<details className="docs-start-section" key={section.key}>
 										<summary>
 											<span className="docs-start-section-title">{section.label}</span>
 											<span className="docs-start-section-count">

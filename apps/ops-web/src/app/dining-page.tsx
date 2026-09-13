@@ -25,6 +25,7 @@ import {
 	saveDiningDraft,
 } from "./ops-api/dining";
 import { ConfirmAction } from "./ui/alert-dialog";
+import "./dining-page.css";
 
 const loadDiningFloorplanEditor = () =>
 	import("./dining-studio/editor").then((module) => ({
@@ -98,12 +99,12 @@ export function DiningPage() {
 	const mutationError = save.error ?? publish.error ?? restore.error;
 
 	return (
-		<div className="mx-auto grid w-full min-w-0 max-w-[1600px] gap-5">
+		<div className="dining-workspace mx-auto grid w-full min-w-0 max-w-[1600px] gap-5">
 			<DiningTaskNavigation />
 			<header className="flex flex-wrap items-end justify-between gap-4 border-border border-b pb-4">
 				<div>
 					<p className="text-muted-foreground text-sm">食堂</p>
-					<h1 className="font-semibold text-2xl">平面图维护</h1>
+					<h1 className="ui-page-title">平面图维护</h1>
 				</div>
 				<div className="flex flex-wrap items-center justify-end gap-2">
 					<PublicationState
@@ -148,8 +149,8 @@ export function DiningPage() {
 				</div>
 			) : null}
 
-			<div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-				<div className="min-w-0">
+			<div className="dining-workspace-columns min-w-0">
+				<div className="dining-editor-container">
 					<Suspense fallback={<EditorLoading />}>
 						<DiningFloorplanEditor
 							draft={draft}
@@ -249,10 +250,7 @@ function ReleaseHistory(props: {
 	unsavedCount: number;
 }) {
 	return (
-		<aside
-			aria-labelledby="dining-release-history"
-			className="min-w-0 border-border xl:border-l xl:pl-5"
-		>
+		<aside aria-labelledby="dining-release-history" className="dining-release-history min-w-0">
 			<div className="mb-3 flex items-center gap-2">
 				<History className="size-4 text-muted-foreground" />
 				<h2 className="font-semibold" id="dining-release-history">
@@ -333,12 +331,12 @@ function DiningPageLoading() {
 		<div
 			aria-busy="true"
 			aria-label="正在读取食堂地图"
-			className="mx-auto grid w-full max-w-[1600px] gap-5"
+			className="dining-workspace mx-auto grid w-full min-w-0 max-w-[1600px] gap-5"
 			role="status"
 		>
 			<div className="h-16 animate-pulse border-border border-b bg-surface-muted" />
-			<div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-				<div className="h-[620px] animate-pulse rounded-md bg-surface-muted" />
+			<div className="dining-workspace-columns">
+				<div className="h-[620px] animate-pulse rounded-xl bg-surface-muted" />
 				<div className="h-80 animate-pulse rounded-md bg-surface-muted" />
 			</div>
 		</div>
@@ -349,7 +347,7 @@ function EditorLoading() {
 	return (
 		<div
 			aria-label="正在加载地图编辑器"
-			className="h-[620px] animate-pulse rounded-md bg-surface-muted"
+			className="h-[620px] animate-pulse rounded-xl bg-surface-muted"
 			role="status"
 		/>
 	);

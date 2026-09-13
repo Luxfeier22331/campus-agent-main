@@ -16,8 +16,8 @@ vi.mock("@/components/auth/auth", () => ({
 
 vi.mock("@/components/auth/settings/settings", () => ({
 	Settings: ({ view }: { view?: string }) => (
-		<section aria-label="better-auth-ui-settings" data-view={view}>
-			Better Auth UI Settings
+		<section aria-label="campus-account-settings" data-view={view}>
+			Campus Account Settings
 		</section>
 	),
 }));
@@ -78,10 +78,10 @@ describe("campus account pages", () => {
 		);
 	});
 
-	it("routes account settings through Better Auth UI settings components", () => {
+	it("routes account settings through the campus settings view", () => {
 		const { unmount } = render(<AccountSettingsPage view="account" />);
 
-		expect(screen.getByLabelText("better-auth-ui-settings")).toHaveAttribute(
+		expect(screen.getByLabelText("campus-account-settings")).toHaveAttribute(
 			"data-view",
 			"account",
 		);
@@ -89,7 +89,7 @@ describe("campus account pages", () => {
 		unmount();
 		render(<AccountSettingsPage view="security" />);
 
-		expect(screen.getByLabelText("better-auth-ui-settings")).toHaveAttribute(
+		expect(screen.getByLabelText("campus-account-settings")).toHaveAttribute(
 			"data-view",
 			"security",
 		);

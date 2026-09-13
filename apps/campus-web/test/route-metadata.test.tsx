@@ -53,6 +53,9 @@ describe("campus-web route metadata", () => {
 			"content",
 			expect.stringContaining("食堂"),
 		);
-		expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute("href", "/dining");
+		expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			"https://campus.muc.wiki/dining",
+		);
 	});
 });

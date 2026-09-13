@@ -99,7 +99,7 @@ export function ProductNavMobileMenu({
 									className={cn(triggerClassName)}
 									data-slot="product-nav-mobile-trigger"
 									ref={triggerRef}
-									size="icon-lg"
+									size={variant === "map" ? "icon-lg" : "icon"}
 									variant={variant === "map" ? "secondary" : "ghost"}
 								>
 									<Menu aria-hidden="true" className="size-4" />

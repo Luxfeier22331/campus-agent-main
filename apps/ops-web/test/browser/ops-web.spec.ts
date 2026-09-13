@@ -2,7 +2,9 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { CampusGroupsCatalog } from "campus-contracts/campus-groups";
 
+import type { NoticeOcr } from "../../src/shared/ocr-contract.ts";
 import type { ExecutionModelSettingsStatus } from "../../src/shared/ops-contract.ts";
+import { opsRequestDetailFixture } from "../../src/shared/ops-fixtures.ts";
 
 const browserCampusGroup = {
 	id: "qq-760540871",
@@ -354,6 +356,9 @@ test("移动端通知关闭与 Esc 保留草稿提醒并返回队列焦点", asy
 
 test("通知维护在不同宽度下保持队列、Inspector 和任务中心层级", async ({ page }) => {
 	const errors = captureRuntimeErrors(page);
+	await page.route("**/api/ops/ocr/notices/354516", (route) =>
+		route.fulfill({ json: { noticeId: "354516", resources: [] } satisfies NoticeOcr }),
+	);
 	await page.goto("/notices");
 
 	await expect(page.getByRole("heading", { name: "通知维护" })).toBeVisible();
@@ -395,6 +400,7 @@ test("通知维护在不同宽度下保持队列、Inspector 和任务中心层�
 		(page.viewportSize()?.width ?? 0) < 1024
 			? page.getByRole("dialog", { name: "通知详情" })
 			: page.getByRole("complementary", { name: "通知检查器" });
+	await expect(inspector.getByText("没有可识别的图片或 PDF。", { exact: true })).toBeVisible();
 	await inspector.getByRole("button", { name: "使用模型分类" }).click();
 	if ((page.viewportSize()?.width ?? 0) < 1024) {
 		await inspector.getByRole("button", { name: "关闭" }).first().click();
@@ -535,7 +541,7 @@ test("运行记录进入同页产品结果和执行诊断", async ({ page }) => 
 	await expect(page.getByRole("heading", { name: "运行详情" })).toBeVisible();
 	await expect(page.getByTestId("request-question")).toContainText("缓考申请需要哪些材料？");
 	await expect(page.getByTestId("request-result")).toContainText(
-		"缓考申请需要在规定期限内提交书面材料并说明原因。",
+		opsRequestDetailFixture.result.text,
 	);
 	await expect(page.getByTestId("request-sources")).toContainText("学生管理规定");
 	await expect(page.getByTestId("request-sources")).toContainText("[1]");

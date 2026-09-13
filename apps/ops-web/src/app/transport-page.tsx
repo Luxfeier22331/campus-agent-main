@@ -1,3 +1,4 @@
+import "./transport-page.css";
 import {
 	formatWeekdays,
 	selectTransportPeriod,
@@ -258,7 +259,7 @@ function TransportWorkspace({
 		});
 	};
 	return (
-		<section className="mx-auto w-full max-w-[1440px]">
+		<section className="ops-transport-workspace mx-auto w-full max-w-[1440px]">
 			<PageHeader
 				title="班车维护"
 				actions={
@@ -302,7 +303,7 @@ function TransportWorkspace({
 					))}
 				</TabsList>
 				<TabsContent value={kind} className="mt-4">
-					<div className="grid items-start gap-5 xl:grid-cols-[15rem_minmax(0,1fr)]">
+					<div className="ops-transport-columns grid items-start gap-5">
 						<div className="min-w-0">
 							<label className="grid gap-1 text-sm xl:hidden" htmlFor="ops-transport-route">
 								线路方向
@@ -337,10 +338,10 @@ function TransportWorkspace({
 											aria-current={selected?.routeId === route.routeId ? "true" : undefined}
 											onClick={() => selectRoute(route.routeId)}
 											className={cn(
-												"grid gap-1.5 rounded-md border p-3 text-left text-sm",
+												"grid select-none gap-1.5 rounded-md border p-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none",
 												selected?.routeId === route.routeId
-													? "border-border-selected bg-selected text-selected-foreground"
-													: "border-transparent hover:bg-surface-muted",
+													? "border-border-selected bg-selected text-selected-foreground hover:bg-selected-hover active:bg-selected-pressed"
+													: "border-transparent hover:bg-surface-hover active:bg-surface-pressed",
 											)}
 										>
 											<span className="font-medium">
@@ -406,7 +407,7 @@ function TransportWorkspace({
 								/>
 							) : initialScheduleId && !target ? null : selected ? (
 								<div className="grid gap-5">
-									<div className="grid items-start gap-4 lg:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.1fr)]">
+									<div className="ops-transport-day grid items-start gap-4">
 										<TransportCalendar
 											key={selected.routeId}
 											periods={routePeriods}
@@ -440,7 +441,10 @@ function TransportWorkspace({
 												})
 											}
 										/>
-										<section aria-label="当天有效班次" className="grid gap-3 rounded-lg border p-4">
+										<section
+											aria-label="当天有效班次"
+											className="grid gap-3 rounded-[var(--card-radius)] border border-[var(--card-border)] bg-card p-4 text-card-foreground md:p-5"
+										>
 											<div className="flex flex-wrap items-center justify-between gap-2">
 												<h3 className="font-semibold">{viewDate} · 当天有效班次</h3>
 												<Button onClick={() => quickEdit("add")}>新增班次</Button>
@@ -745,7 +749,10 @@ function PeriodCard({
 }) {
 	const remove = useMutation({ mutationFn: deleteTransportSchedulePeriod, onSuccess: onChanged });
 	return (
-		<section className="rounded-md border p-3 sm:p-4" aria-label={periodLabel(period)}>
+		<section
+			className="rounded-[var(--card-radius)] border border-[var(--card-border)] bg-card p-4 text-card-foreground md:p-5"
+			aria-label={periodLabel(period)}
+		>
 			<div className="flex flex-wrap items-start justify-between gap-2">
 				<div className="grid gap-1">
 					<div className="flex flex-wrap gap-2 items-center">

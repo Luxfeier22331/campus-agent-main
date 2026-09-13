@@ -842,7 +842,7 @@ func WorkflowOperationOutputFromRuntimeResponse(
 	operation temporalruntime.WorkflowOperation,
 	resultRef string,
 ) (temporalruntime.WorkflowOperationActivityOutput, error) {
-	tools, err := WorkflowToolResultsFromRuntimeResponse(response)
+	tools, err := WorkflowToolResultsFromRuntimeResponse(response, operation)
 	if err != nil {
 		return temporalruntime.WorkflowOperationActivityOutput{}, err
 	}
@@ -897,10 +897,10 @@ func WorkflowOperationOutputFromRuntimeResponse(
 	return output, nil
 }
 
-func WorkflowToolResultsFromRuntimeResponse(response AgentRuntimeResponse) ([]temporalruntime.AgentToolResult, error) {
+func WorkflowToolResultsFromRuntimeResponse(response AgentRuntimeResponse, operation temporalruntime.WorkflowOperation) ([]temporalruntime.AgentToolResult, error) {
 	results := make([]temporalruntime.AgentToolResult, 0, len(response.ToolResults))
 	for _, result := range response.ToolResults {
-		bounded, err := temporalToolResult(result)
+		bounded, err := temporalToolResult(result, operation)
 		if err != nil {
 			return nil, err
 		}

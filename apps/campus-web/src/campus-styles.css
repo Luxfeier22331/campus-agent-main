@@ -228,20 +228,39 @@
 	}
 }
 
-@layer utilities {
-	.rounded-sm {
-		border-radius: var(--radius-sm);
+:root {
+	--ui-page-title-size: var(--font-size-xl);
+}
+
+@media (min-width: 48rem) {
+	:root {
+		--ui-page-title-size: var(--font-size-2xl);
+	}
+}
+
+.campus-top-nav:not([data-variant="immersive"]) {
+	container: campus-top-nav / inline-size;
+}
+
+@container campus-top-nav (min-width: 64rem) {
+	.campus-top-nav-product-nav,
+	.campus-top-nav-theme,
+	.campus-top-nav-account,
+	.campus-top-nav-local-actions {
+		display: inline-flex;
 	}
 
-	.rounded-md {
-		border-radius: var(--radius-md);
+	.campus-top-nav-mobile-menu {
+		display: none;
+	}
+}
+
+@container campus-top-nav (width < 64rem) {
+	.campus-product-brand-expanded {
+		display: none;
 	}
 
-	.rounded-lg {
-		border-radius: var(--radius-lg);
-	}
-
-	.rounded-xl {
-		border-radius: var(--radius-xl);
+	.campus-product-brand-compact {
+		display: block;
 	}
 }

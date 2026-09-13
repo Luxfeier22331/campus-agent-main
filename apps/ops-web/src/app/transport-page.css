@@ -1,0 +1,25 @@
+.ops-transport-workspace {
+	container: ops-transport / inline-size;
+}
+
+.ops-transport-day {
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+
+.ops-transport-route-list {
+	display: none;
+}
+
+@container ops-transport (min-width: 64rem) {
+	.ops-transport-route-picker {
+		display: none;
+	}
+
+	.ops-transport-route-list {
+		display: grid;
+	}
+
+	.ops-transport-columns {
+		grid-template-columns: 15rem minmax(0, 1fr);
+	}
+}

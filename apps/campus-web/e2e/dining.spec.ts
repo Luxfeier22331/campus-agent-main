@@ -31,8 +31,8 @@ test.describe("dining map", () => {
 		await mockCampusApi(page, { requests });
 		await openDiningPage(page);
 
-		await expect(page.getByRole("button", { name: "海淀一食堂" })).toHaveAttribute(
-			"aria-pressed",
+		await expect(page.getByRole("radio", { name: "海淀一食堂" })).toHaveAttribute(
+			"aria-checked",
 			"true",
 		);
 		await page.getByRole("button", { name: "选择兰州拉面" }).click();
@@ -56,7 +56,7 @@ test.describe("dining map", () => {
 		await mockCampusApi(page, { requests });
 		await openDiningPage(page);
 
-		await page.getByRole("button", { name: "荟贤食堂" }).click();
+		await page.getByRole("radio", { name: "荟贤食堂" }).click();
 		await expect(page.getByText("荟贤一层", { exact: true })).toBeVisible();
 		await page.getByRole("radio", { name: "荟贤二层" }).click();
 		await expect(page.getByText("荟贤二层", { exact: true })).toBeVisible();
@@ -279,8 +279,13 @@ test.describe("dining map", () => {
 		await deleteDialog.getByRole("button", { name: "删除", exact: true }).click();
 		await expect(sheet.getByText("汤底很香，分量合适。")).toBeHidden();
 
-		await sheet.getByRole("button", { name: "举报评价" }).click();
+		const reportTrigger = sheet.getByRole("button", { name: "举报评价" });
+		await reportTrigger.click();
 		const reportDialog = page.getByRole("dialog", { name: "举报评价" });
+		await expect(reportDialog).toHaveCSS("border-radius", "16px");
+		await page.keyboard.press("Escape");
+		await expect(reportTrigger).toBeFocused();
+		await reportTrigger.click();
 		await reportDialog.getByLabel("补充说明").fill("内容与菜品无关");
 		await reportDialog.getByRole("button", { name: "提交举报" }).click();
 		await expect(sheet.getByText("已举报")).toBeVisible();

@@ -109,9 +109,7 @@ export function FeedbackPage({
 
 	return (
 		<section className="mx-auto max-w-[var(--layout-page-form-width)] px-4 py-6 pb-24 lg:px-6">
-			<h1 className="mt-1 text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
-				反馈
-			</h1>
+			<h1 className="mt-1 ui-page-title">反馈</h1>
 			<Separator className="mt-5" />
 			<Card className="mt-5">
 				<CardHeader>

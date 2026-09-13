@@ -46,9 +46,7 @@ export function DiningPageSkeleton({
 export function DiningRoutePending() {
 	return (
 		<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-4 pb-24 sm:px-5 sm:py-6 lg:px-6">
-			<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
-				食堂
-			</h1>
+			<h1 className="ui-page-title">食堂</h1>
 			<DiningPageSkeleton includeHallSwitcher />
 		</section>
 	);

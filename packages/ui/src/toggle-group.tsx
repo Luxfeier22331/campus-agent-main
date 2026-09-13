@@ -42,7 +42,7 @@ export const ToggleGroup = React.forwardRef<
 		ref={ref}
 		className={cn(
 			"flex items-center justify-center gap-1",
-			presentation === "segmented" && "rounded-[1.75rem] bg-surface-muted p-1",
+			presentation === "segmented" && "rounded-[var(--radius-pill)] bg-surface-muted p-1",
 			presentation === "chips" && "flex-wrap justify-start gap-2",
 			className,
 		)}

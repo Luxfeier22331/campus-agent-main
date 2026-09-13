@@ -1,0 +1,25 @@
+.dining-workspace {
+	container: dining-workspace / inline-size;
+}
+
+.dining-workspace-columns {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--space-5);
+}
+
+.dining-editor-container {
+	container: dining-editor / inline-size;
+	min-width: 0;
+}
+
+@container dining-workspace (min-width: 70rem) {
+	.dining-workspace-columns {
+		grid-template-columns: minmax(0, 1fr) 20rem;
+	}
+
+	.dining-release-history {
+		border-left: 1px solid var(--sys-border-subtle);
+		padding-left: var(--space-5);
+	}
+}

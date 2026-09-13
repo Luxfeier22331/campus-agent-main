@@ -172,9 +172,7 @@ export function InterestGroupsPageContent({ catalog }: { catalog: InterestGroupC
 			id="interest-groups-top"
 		>
 			<header>
-				<h1 className="text-3xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-					同好群
-				</h1>
+				<h1 className="ui-page-title">同好群</h1>
 			</header>
 
 			<div className="mt-7 min-w-0">
@@ -328,7 +326,7 @@ function CategoryNavigation({
 						<a
 							aria-current={activeSectionId === section.id ? "location" : undefined}
 							className={cn(
-								"group flex min-h-10 shrink-0 items-center justify-between gap-3 rounded-full border px-4 text-sm transition-[color,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-full lg:rounded-md lg:border-0 lg:border-l-2 lg:px-3",
+								"group flex min-h-11 shrink-0 items-center justify-between gap-3 rounded-full border px-4 text-sm transition-[color,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-full lg:rounded-md lg:border-0 lg:border-l-2 lg:px-3",
 								activeSectionId === section.id
 									? "border-border-selected bg-selected font-medium text-selected-foreground shadow-[var(--shadow-xs)] hover:bg-selected-hover active:bg-selected-pressed lg:border-border-selected lg:shadow-none"
 									: "border-border bg-background text-[var(--sys-text-muted)] hover:bg-surface-hover hover:text-accent-foreground active:bg-surface-pressed lg:border-transparent lg:bg-transparent lg:shadow-none",
@@ -371,7 +369,7 @@ function GroupCard({
 		<li className="h-full min-w-0">
 			<article
 				aria-labelledby={nameId}
-				className="group flex h-full min-h-40 min-w-0 flex-col rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-xs)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-border-default hover:shadow-[var(--shadow-sm)] focus-within:border-border-selected focus-within:shadow-[var(--shadow-sm)] motion-reduce:transform-none sm:min-h-44"
+				className="group flex h-full min-h-40 min-w-0 flex-col rounded-[var(--card-radius)] border border-border bg-card p-4 transition-[border-color] duration-200 hover:border-border-default focus-within:border-border-selected sm:min-h-44 motion-reduce:transition-none"
 			>
 				<div className="flex min-w-0 items-start gap-3">
 					{joinLink ? (
@@ -474,16 +472,17 @@ function GroupCard({
 					</p>
 				) : null}
 				{joinLink ? (
-					<a
-						aria-label={`加入 ${group.name}`}
-						className="mt-auto inline-flex min-h-9 items-center gap-1 self-end rounded-md border border-border-selected bg-selected px-2.5 pt-px text-xs font-medium text-link transition-colors hover:bg-selected-hover hover:text-link-hover active:bg-selected-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-						href={joinLink.url}
-						rel="noopener noreferrer"
-						target="_blank"
-					>
-						{joinLink.platform === "discord" ? "加入 Discord" : "加入群聊"}
-						<ExternalLink aria-hidden="true" className="size-3.5" />
-					</a>
+					<Button asChild className="mt-auto self-end" size="sm" variant="outline">
+						<a
+							aria-label={`加入 ${group.name}`}
+							href={joinLink.url}
+							rel="noopener noreferrer"
+							target="_blank"
+						>
+							{joinLink.platform === "discord" ? "加入 Discord" : "加入群聊"}
+							<ExternalLink aria-hidden="true" className="size-3.5" />
+						</a>
+					</Button>
 				) : null}
 			</article>
 		</li>

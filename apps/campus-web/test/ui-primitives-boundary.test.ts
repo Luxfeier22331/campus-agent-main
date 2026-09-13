@@ -38,17 +38,4 @@ describe("campus-web UI primitive boundary", () => {
 		expect(reviewSource).toContain("Checkbox,");
 		expect(reviewSource).not.toContain('from "../ui/checkbox"');
 	});
-
-	it("adapts HeroUI tokens and account settings within the application boundary", () => {
-		const stylesSource = readSource("src/app-styles.css");
-
-		expect(stylesSource).toContain("--accent: var(--campus-action);");
-		expect(stylesSource).toContain("--accent-soft: var(--campus-selected-bg);");
-		expect(stylesSource).toContain("--focus: var(--campus-focus-ring);");
-		expect(stylesSource).toContain("--link: var(--campus-link);");
-		expect(stylesSource).toContain("--field-border: var(--input-border);");
-		expect(stylesSource).toContain('[data-campus-account-surface="settings"]');
-		expect(stylesSource).toContain("min-height: var(--ui-control-height);");
-		expect(stylesSource).toContain('input[type="file"][accept="image/*"]');
-	});
 });

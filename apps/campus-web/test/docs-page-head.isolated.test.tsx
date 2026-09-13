@@ -6,7 +6,9 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
+import { StrictMode } from "react";
+import { hydrateRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CampusPageMetadataHead } from "../src/app/page-metadata-head";
@@ -43,12 +45,68 @@ describe("campus page metadata head", () => {
 			"content",
 			"中央民族大学校园文档。",
 		);
-		expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute("href", "/docs");
+		expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			"https://campus.muc.wiki/docs",
+		);
 
 		view.unmount();
 
 		expect(document.title).toBe("Campus UI");
 		expect(document.head.querySelector('meta[name="description"]')).toBeNull();
+		expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
+	});
+
+	it("adopts the static canonical and updates or removes it across route remounts", async () => {
+		document.head.innerHTML = '<link rel="canonical" href="https://campus.muc.wiki/docs">';
+		const staticCanonical = document.head.querySelector('link[rel="canonical"]');
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const errors: unknown[] = [];
+		function head(path: string | null, key: string) {
+			return (
+				<StrictMode>
+					<CampusPageMetadataHead
+						key={key}
+						metadata={{
+							canonicalPath: path,
+							description: "文档",
+							robots: "index,follow",
+							title: "文档",
+						}}
+					/>
+				</StrictMode>
+			);
+		}
+		let root!: ReturnType<typeof hydrateRoot>;
+		await act(async () => {
+			root = hydrateRoot(container, head("/docs", "directory"), {
+				onRecoverableError: (error) => errors.push(error),
+			});
+		});
+		try {
+			expect(document.head.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+			expect(document.head.querySelector('link[rel="canonical"]')).toBe(staticCanonical);
+			for (const [key, path] of [
+				["document", "/docs/regulations/student_rules/rules"],
+				["history", "/docs/regulations/student_rules/rules/v/2025"],
+				["directory", "/docs"],
+				["public-app", "/map"],
+				["private-app", null],
+				["public-again", "/docs"],
+			] as const) {
+				await act(async () => root.render(head(path, key)));
+				expect(
+					[...document.head.querySelectorAll('link[rel="canonical"]')].map((link) =>
+						link.getAttribute("href"),
+					),
+				).toEqual(path === null ? [] : [`https://campus.muc.wiki${path}`]);
+			}
+			expect(errors).toEqual([]);
+		} finally {
+			await act(async () => root.unmount());
+			container.remove();
+		}
 		expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
 	});
 

@@ -70,7 +70,7 @@ export function TransportMonthCalendar({
 					return (
 						<span className="grid text-center leading-tight">
 							<span>{day.day}</span>
-							<span className="min-h-3 text-[9px] font-normal">{label}</span>
+							<span className="ui-metadata min-h-3 font-normal text-inherit">{label}</span>
 						</span>
 					);
 				}}

@@ -245,8 +245,8 @@ function DateEndpoint({
 					{...(errorId ? { "aria-describedby": errorId } : {})}
 					className={
 						active
-							? "rounded-[var(--radius-lg)] border border-[var(--campus-selected-border)] bg-selected px-2 py-1.5 text-sm text-selected-foreground"
-							: "rounded-[var(--radius-lg)] border border-border px-2 py-1.5 text-sm text-[var(--sys-text-default)]"
+							? "rounded-[var(--input-radius)] border border-[var(--campus-selected-border)] bg-selected px-2 py-1.5 text-sm text-selected-foreground"
+							: "rounded-[var(--input-radius)] border border-border px-2 py-1.5 text-sm text-[var(--sys-text-default)]"
 					}
 					granularity="day"
 					onChange={(next) => onChange(next?.toString())}

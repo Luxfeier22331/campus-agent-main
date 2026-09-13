@@ -63,9 +63,7 @@ export function DiningPageView({
 
 	return (
 		<section className="mx-auto max-w-[var(--layout-page-workspace-width)] px-4 py-4 pb-40 sm:px-5 sm:py-6 sm:pb-24 lg:px-6">
-			<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
-				食堂地图
-			</h1>
+			<h1 className="ui-page-title">食堂地图</h1>
 			{isPending ? <DiningPageSkeleton includeHallSwitcher /> : null}
 			{isError ? (
 				<StateMessage

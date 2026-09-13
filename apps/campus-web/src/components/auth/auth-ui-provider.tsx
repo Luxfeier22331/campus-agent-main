@@ -1,22 +1,27 @@
-import { AuthProvider } from "@better-auth-ui/heroui";
-import { ToastProvider } from "@heroui/react";
+import { AuthProvider } from "@better-auth-ui/react";
+import { QueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-
-import { createCampusSettingsProviderProps } from "./auth-ui-provider-config";
+import { type ReactNode, useState } from "react";
+import { campusAuthClient } from "@/platform/auth/client";
 
 export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 	const navigate = useNavigate();
-	const commonProps = createCampusSettingsProviderProps({
-		navigate: ({ replace, to }) => {
-			void navigate({ ...(replace === undefined ? {} : { replace }), to });
-		},
-	});
+	const [queryClient] = useState(
+		() =>
+			new QueryClient({
+				defaultOptions: { queries: { staleTime: 5000, refetchOnWindowFocus: false } },
+			}),
+	);
 
 	return (
-		<AuthProvider {...commonProps}>
+		<AuthProvider
+			authClient={campusAuthClient}
+			queryClient={queryClient}
+			navigate={({ replace, to }) => {
+				void navigate({ ...(replace === undefined ? {} : { replace }), to });
+			}}
+		>
 			{children}
-			<ToastProvider placement="top" />
 		</AuthProvider>
 	);
 }

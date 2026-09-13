@@ -78,8 +78,7 @@ function DiningFloorplanUnavailable(props: {
 	return (
 		<section
 			aria-label="平面图降级窗口列表"
-			className="min-h-56 bg-destructive/5 px-4 py-5 sm:px-5"
-			style={{ aspectRatio: props.aspectRatio }}
+			className="min-h-56 w-full min-w-0 max-w-full bg-destructive/5 px-4 py-5 sm:px-5"
 		>
 			<div className="text-center" role="alert">
 				<h3 className="text-sm font-semibold text-[var(--sys-text-strong)]">平面图暂时无法显示</h3>
@@ -98,11 +97,11 @@ function DiningFloorplanUnavailable(props: {
 			<div className="mx-auto mt-4 w-full max-w-xl border-border/70 border-t pt-3">
 				<p className="text-xs font-medium text-[var(--sys-text-subtle)]">窗口列表</p>
 				{visibleWindows.length > 0 ? (
-					<ul className="mt-2 grid list-none grid-cols-1 gap-1 p-0 sm:grid-cols-2">
+					<ul className="mt-2 grid min-w-0 list-none grid-cols-1 gap-1 p-0 sm:grid-cols-2">
 						{visibleWindows.map((window) => {
 							const selected = window.windowId === props.selectedWindowId;
 							return (
-								<li key={window.windowId}>
+								<li className="min-w-0" key={window.windowId}>
 									<Button
 										aria-pressed={selected}
 										className={cn(

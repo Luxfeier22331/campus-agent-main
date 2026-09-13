@@ -1,4 +1,4 @@
-import { Badge, Button, Card, CardContent, cn } from "@campus-agent/ui";
+import { Alert, Badge, Button, Card, CardContent, cn } from "@campus-agent/ui";
 import { Check, CircleAlert, Clipboard, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -18,11 +18,9 @@ export function PageHeader({
 }) {
 	return (
 		<div className="mb-6 flex flex-col gap-3 border-border border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
-			<div className="space-y-1">
-				<h1 className="font-semibold text-2xl text-foreground">{title}</h1>
-				{description ? (
-					<p className="max-w-3xl text-muted-foreground text-sm">{description}</p>
-				) : null}
+			<div className="min-w-0 space-y-1">
+				<h1 className="ui-page-title">{title}</h1>
+				{description ? <p className="ui-supporting max-w-3xl">{description}</p> : null}
 			</div>
 			{actions}
 		</div>
@@ -65,10 +63,7 @@ export function ErrorState({
 }) {
 	const detail = describeError(error);
 	return (
-		<div
-			className="grid gap-3 rounded-[var(--radius-lg)] border border-danger-border bg-danger-subtle p-4 text-foreground"
-			role="alert"
-		>
+		<Alert className="grid gap-3" tone="danger">
 			<div className="grid gap-1">
 				<p className="font-semibold">{title}</p>
 				<p className="text-sm">{detail.message}</p>
@@ -82,21 +77,18 @@ export function ErrorState({
 					</Button>
 				</div>
 			) : null}
-		</div>
+		</Alert>
 	);
 }
 
 export function InlineError({ error, title }: { error: unknown; title: string }) {
 	const detail = describeError(error);
 	return (
-		<div
-			className="rounded-[var(--radius-lg)] border border-danger-border bg-danger-subtle px-3 py-3 text-foreground"
-			role="alert"
-		>
+		<Alert tone="danger">
 			<p className="font-medium">{title}</p>
 			<p className="mt-1 text-xs">{detail.message}</p>
 			<TechnicalErrorDetails className="mt-2" detail={detail} />
-		</div>
+		</Alert>
 	);
 }
 
@@ -113,9 +105,9 @@ export function StaleDataWarning({
 }) {
 	const detail = describeError(error);
 	return (
-		<div
-			className="mb-4 flex flex-col gap-3 rounded-[var(--radius-lg)] border border-warning-border bg-warning-subtle px-3 py-3 text-foreground sm:flex-row sm:items-center sm:justify-between"
-			role="alert"
+		<Alert
+			className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+			tone="warning"
 		>
 			<div className="grid gap-1 text-sm">
 				<p className="font-medium">{title}</p>
@@ -129,7 +121,7 @@ export function StaleDataWarning({
 				<RefreshCw className="size-4" />
 				重试刷新
 			</Button>
-		</div>
+		</Alert>
 	);
 }
 

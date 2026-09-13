@@ -101,6 +101,12 @@ func ValidateOperationOutputFields(output temporalruntime.WorkflowOperationActiv
 		}
 		switch tool.ToolName {
 		case "campus_search":
+			// New Execute outputs retain only the outcome. Existing receipts keep
+			// their complete result so replay can verify and return the saved hash.
+			if output.Operation == temporalruntime.WorkflowOperationExecuteStep && len(tool.Result) == 1 &&
+				(tool.Result["outcome"] == "matched" || tool.Result["outcome"] == "no_match") {
+				continue
+			}
 			if _, _, err := campusdocs.DecodeSearchResult(tool.Result); err != nil {
 				return err
 			}
@@ -115,14 +121,18 @@ func ValidateOperationOutputFields(output temporalruntime.WorkflowOperationActiv
 	return nil
 }
 
-func temporalToolResult(result AgentToolResult) (map[string]any, error) {
+func temporalToolResult(result AgentToolResult, operation temporalruntime.WorkflowOperation) (map[string]any, error) {
 	if result.Status != "completed" {
 		return map[string]any{}, nil
 	}
 	switch strings.TrimSpace(result.ToolName) {
 	case "campus_search":
-		if _, _, err := campusdocs.DecodeSearchResult(result.Result); err != nil {
+		outcome, _, err := campusdocs.DecodeSearchResult(result.Result)
+		if err != nil {
 			return nil, err
+		}
+		if operation == temporalruntime.WorkflowOperationExecuteStep {
+			return map[string]any{"outcome": outcome}, nil
 		}
 		return execution.CloneAnyMapFromValue(result.Result), nil
 	case "personal_memory_recall":

@@ -53,6 +53,7 @@ export function DiningReviewSheet(props: {
 	const [reportReviewId, setReportReviewId] = useState<string | null>(null);
 	const [reportReason, setReportReason] = useState<DiningReportReason>("spam");
 	const [reportDetails, setReportDetails] = useState("");
+	const reportTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const reviewIdempotencyKey = useRef<{ key: string; menuItemId: string } | null>(null);
 	const menuItemId = props.item?.menuItemId ?? "";
 	const reviews = useInfiniteQuery(
@@ -240,7 +241,10 @@ export function DiningReviewSheet(props: {
 													authenticated={session.status === "authenticated"}
 													onDelete={() => remove.mutate(review.reviewId)}
 													onLogin={() => setAuthOpen(true)}
-													onReport={() => setReportReviewId(review.reviewId)}
+													onReport={(trigger) => {
+														reportTriggerRef.current = trigger;
+														setReportReviewId(review.reviewId);
+													}}
 													review={review}
 												/>
 											</div>
@@ -270,7 +274,15 @@ export function DiningReviewSheet(props: {
 				onOpenChange={(open) => !open && setReportReviewId(null)}
 				open={Boolean(reportReviewId)}
 			>
-				<DialogContent className="w-[calc(100%-2rem)] rounded-lg">
+				<DialogContent
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						const trigger = reportTriggerRef.current;
+						if (trigger?.isConnected) {
+							trigger.focus();
+						}
+					}}
+				>
 					<DialogHeader>
 						<DialogTitle>举报评价</DialogTitle>
 						<DialogDescription>选择最符合的原因。</DialogDescription>
@@ -334,7 +346,7 @@ function ReviewActions(props: {
 	authenticated: boolean;
 	onDelete(): void;
 	onLogin(): void;
-	onReport(): void;
+	onReport(trigger: HTMLButtonElement): void;
 	review: {
 		canDelete: boolean;
 		canReport: boolean;
@@ -371,7 +383,9 @@ function ReviewActions(props: {
 		return (
 			<Button
 				aria-label="举报评价"
-				onClick={props.authenticated ? props.onReport : props.onLogin}
+				onClick={(event) =>
+					props.authenticated ? props.onReport(event.currentTarget) : props.onLogin()
+				}
 				size="icon"
 				variant="ghost"
 			>

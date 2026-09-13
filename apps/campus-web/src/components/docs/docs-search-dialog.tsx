@@ -2,7 +2,7 @@ import { Button, Skeleton } from "@campus-agent/ui";
 import { useDebouncer, useThrottler } from "@tanstack/react-pacer";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import {
 	Command,
 	CommandGroup,
@@ -44,6 +44,7 @@ export function DocsSearchPanel({
 	siteIndex: DocsSiteIndex;
 }) {
 	const navigate = useNavigate();
+	const searchScopeId = useId();
 	const [searchClient, setSearchClient] = useState<DocsSearchClient | null>(null);
 	const [query, setQuery] = useState(initialQuery);
 	const [activeQuery, setActiveQuery] = useState("");
@@ -281,16 +282,20 @@ export function DocsSearchPanel({
 	}
 
 	return (
-		<Command label="搜索校园文档" shouldFilter={false}>
+		<Command className="docs-search-panel" label="搜索校园文档" shouldFilter={false}>
 			<CommandInput
 				aria-label="搜索校园文档"
-				className="h-11 pr-10"
+				aria-describedby={searchScopeId}
+				className="h-12 pr-10 text-base"
 				name="docs-search-query"
 				onValueChange={updateQuery}
 				placeholder="搜索标题、章节或正文"
 				ref={inputRef}
 				value={query}
 			/>
+			<p className="docs-search-scope" id={searchScopeId}>
+				搜索全部文档的当前版本
+			</p>
 			<CommandList
 				aria-busy={status === "loading" || searching || loadingMore || undefined}
 				className="max-h-[min(70dvh,36rem)]"

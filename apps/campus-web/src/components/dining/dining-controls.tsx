@@ -1,6 +1,5 @@
 import {
 	Button,
-	cn,
 	Select,
 	SelectContent,
 	SelectGroup,
@@ -32,28 +31,24 @@ export function DiningHallSwitcher(props: {
 						key={campus}
 					>
 						<span className="text-xs font-medium text-[var(--sys-text-subtle)]">{campus}</span>
-						<div className="flex items-center gap-1 rounded-lg bg-surface-muted/60 p-1">
-							{halls.map((hall) => {
-								const selected = hall.hallId === props.selectedHallId;
-								return (
-									<Button
-										aria-pressed={selected}
-										className={cn(
-											"min-h-9 rounded-md px-3 shadow-none",
-											selected
-												? "bg-selected text-selected-foreground shadow-sm hover:bg-selected-hover active:bg-selected-pressed"
-												: "text-[var(--sys-text-muted)] hover:bg-background/70",
-										)}
-										key={hall.hallId}
-										onClick={() => props.onSelectHall(hall)}
-										type="button"
-										variant="ghost"
-									>
-										{hall.name}
-									</Button>
-								);
-							})}
-						</div>
+						<ToggleGroup
+							aria-label={`${campus}食堂`}
+							onValueChange={(hallId) => {
+								const hall = halls.find((item) => item.hallId === hallId);
+								if (hall) {
+									props.onSelectHall(hall);
+								}
+							}}
+							presentation="segmented"
+							type="single"
+							value={props.selectedHallId}
+						>
+							{halls.map((hall) => (
+								<ToggleGroupItem key={hall.hallId} value={hall.hallId}>
+									{hall.name}
+								</ToggleGroupItem>
+							))}
+						</ToggleGroup>
 					</fieldset>
 				))}
 			</div>
@@ -108,17 +103,14 @@ export function DiningMapToolbar(props: {
 				{props.floors.length > 1 ? (
 					<ToggleGroup
 						aria-label="楼层"
-						className="w-fit shrink-0 rounded-lg bg-surface-muted/70 p-1"
+						className="w-fit shrink-0"
+						presentation="segmented"
 						onValueChange={(floorId) => floorId && props.onSelectFloor(floorId)}
 						type="single"
 						value={props.selectedFloorId}
 					>
 						{props.floors.map((floor) => (
-							<ToggleGroupItem
-								className="min-h-11 rounded-md px-3 data-[state=on]:bg-selected data-[state=on]:text-selected-foreground data-[state=on]:shadow-sm data-[state=on]:hover:bg-selected-hover sm:min-h-9"
-								key={floor.floorId}
-								value={floor.floorId}
-							>
+							<ToggleGroupItem key={floor.floorId} value={floor.floorId}>
 								{floor.label}
 							</ToggleGroupItem>
 						))}

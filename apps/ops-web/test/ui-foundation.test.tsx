@@ -64,8 +64,8 @@ describe("UI foundation boundaries", () => {
 		expect(reports).toContain('<TabsTrigger value="pending">');
 		expect(reports).toContain('<TabsTrigger value="resolved">');
 		expect(reports).not.toContain("aria-pressed");
-		expect(editor).toContain("background: var(--dining-editor-surface-selected);");
-		expect(editor).toContain("color: var(--dining-editor-text-selected);");
+		expect(editor).toContain("--dining-editor-surface-selected: var(--sys-surface-selected);");
+		expect(editor).toContain("--dining-editor-text-selected: var(--sys-text-selected);");
 	});
 
 	it("keeps Ops TSX on semantic colors and shared visible form controls", () => {

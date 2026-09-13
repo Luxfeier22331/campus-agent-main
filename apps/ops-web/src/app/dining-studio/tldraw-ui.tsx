@@ -1,4 +1,4 @@
-import { cn, useTheme } from "@campus-agent/ui";
+import { Button, cn, useTheme } from "@campus-agent/ui";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import {
 	Armchair,
@@ -373,8 +373,10 @@ export function DiningElementList({ editor, onSelect }: { editor: Editor; onSele
 					<section className="element-section" key={group.key}>
 						<div className="element-section-heading">
 							<h3>{group.label}</h3>
-							<button
+							<Button
 								aria-label={group.shapes.every((shape) => shape.isLocked) ? "解锁本组" : "锁定本组"}
+								size="icon"
+								variant="ghost"
 								onClick={() =>
 									toggleShapeLocks(
 										editor,
@@ -389,7 +391,7 @@ export function DiningElementList({ editor, onSelect }: { editor: Editor; onSele
 								) : (
 									<Lock aria-hidden="true" size={14} />
 								)}
-							</button>
+							</Button>
 						</div>
 						<div className="element-list">
 							{[...group.shapes]
@@ -429,9 +431,9 @@ export function DiningEditorErrorFallback({ error }: { error: unknown }) {
 				<strong>地图编辑器暂时无法继续</strong>
 				<p>重新载入已保存地图后可以继续编辑，当前未保存修改将被丢弃。</p>
 				{import.meta.env.DEV && error instanceof Error ? <pre>{error.message}</pre> : null}
-				<button onClick={() => window.location.reload()} type="button">
+				<Button className="max-w-full whitespace-normal" onClick={() => window.location.reload()}>
 					重新载入已保存地图
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

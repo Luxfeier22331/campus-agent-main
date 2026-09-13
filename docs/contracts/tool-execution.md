@@ -210,12 +210,19 @@ StepResult 自身首写不可变，终态写入 fence 及 completed 后仅 `memo
 `personal_memory_recall` 是 Solve 或 Execute Step operation 同一次 SDK run 内的有界工具调用，不使用独立 memory
 ref 或独立 payload。memory 正文仅保留在 evidence excerpt 中，最多 4000 个 Unicode codepoint；
 Temporal 工具摘要只保留 `matched` / `no_match` outcome，不保存原始 arguments、debug 或 failure detail。
-Campus 工具摘要遵守现有 bounded search result 合同，Ops 查询诊断仍由已有专用投影拥有。
+Runtime HTTP 中的 Campus 工具结果继续遵守完整 bounded search result 合同。execution-control 在
+转换 Execute 输出时先校验完整结果，成功工具的 `result` 随后只保留 `matched` / `no_match` outcome；
+正文和引用材料保留在 evidence 中。失败 Execute 中已成功的工具同样裁剪，失败工具的 result 仍为空。
+工具身份、状态、耗时和既有失败摘要保留；已有工具投影继续使用完整 Runtime 结果，先于 receipt 写入。
+Solve 输出保留完整 Campus 结果供直接回答的终态引用解析使用，Ops 查询诊断仍由已有专用投影拥有。
 operation invocation receipt 约束整个 SDK run 不得因 Activity 重投递而再次执行。
 已有 `started` receipt 时以 `workflow_attempt_uncertain` 阻断；明确成功或失败的 receipt 保存完整类型化
 operation output，重投递时校验身份、修复投影并返回原结果，不重新调用供应商。
 首次输出与 replay 使用同一字段和大小校验；replay 还校验已有输出 hash，
 按恢复后的类型化输出编码计算，不能对 PostgreSQL JSONB 的文本空白和键顺序计算 hash。
+Execute 校验同时接受当前 DTO 已保存的完整 Campus 结果与仅含 outcome 的新摘要。旧 receipt
+按原形态校验 hash、修复投影并返回，不在恢复时裁剪或重写；新执行统一保存摘要。此规则不恢复更早
+已淘汰的 operation DTO，也不放宽 Runtime HTTP 的完整工具结果校验。
 结果无法解码或无法通过恢复校验时沿用既有失败路径。
 
 `campus_search` 也在同一次 SDK run 内执行，不创建独立 Temporal Activity。它的结果只在本次

@@ -5,13 +5,12 @@ import { StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 
 import { createDocsRouter, DocsRouterProvider } from "../app/docs-router.tsx";
-import { composeCampusPageTitle } from "../app/page-metadata.ts";
+import { composeCampusPageTitle, resolveCampusCanonicalUrl } from "../app/page-metadata.ts";
 import { DOCS_ROUTE_BOOTSTRAP_ID, type DocsRouteData } from "../features/docs/data-source.ts";
 import { resolveDocsPageMetadata } from "../features/docs/page-metadata.ts";
 import { createBuildDocsDataSource } from "./native-reader-data-source.ts";
 import { NATIVE_DOCS_CATALOG_FILE, readNativeDocsCatalog } from "./native-reader-site.ts";
 
-const CAMPUS_WEB_CANONICAL_ORIGIN = "https://campus.muc.wiki";
 const DOCS_NOT_FOUND_ROUTE = "/docs/_not-found";
 
 type NativeDocsPageInput =
@@ -157,10 +156,9 @@ function buildHtmlDocument(input: NativeDocsPageInput): string {
 				robots: "noindex,nofollow" as const,
 				title: composeCampusPageTitle("文档不存在"),
 			};
-	const canonical = metadata.canonicalPath
-		? `<link rel="canonical" href="${escapeHtml(
-				new URL(metadata.canonicalPath, CAMPUS_WEB_CANONICAL_ORIGIN).toString(),
-			)}" vite-ignore />`
+	const canonicalUrl = resolveCampusCanonicalUrl(metadata.canonicalPath);
+	const canonical = canonicalUrl
+		? `<link rel="canonical" href="${escapeHtml(canonicalUrl)}" vite-ignore />`
 		: "";
 	const bootstrap = routeData ? buildRouteBootstrapTemplate(routeData) : "";
 	return `<!doctype html>

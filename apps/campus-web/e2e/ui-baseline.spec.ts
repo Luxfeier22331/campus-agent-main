@@ -4,6 +4,11 @@ import { mockCampusApi } from "./support/api-mocks";
 
 const surfaces = [
 	{
+		name: "班车",
+		path: "/transport",
+		ready: (page: Page) => page.getByRole("heading", { level: 1, name: "校园班车" }),
+	},
+	{
 		name: "问答",
 		path: "/",
 		ready: (page: Page) => page.getByTestId("assistant-chat"),
@@ -38,6 +43,7 @@ const surfaces = [
 test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 	test.beforeEach(async ({ page }) => {
 		await mockCampusApi(page, { authenticated: false });
+		await mockTransportApi(page);
 	});
 
 	test("代表性页面在目标宽度保持主要任务可见且没有页面级溢出", async ({ page }) => {
@@ -52,6 +58,136 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 				overflow.scrollWidth,
 				`${surface.name} ${surface.path} 在 ${overflow.clientWidth}px 下发生页面级横向溢出`,
 			).toBeLessThanOrEqual(overflow.clientWidth + 1);
+		}
+	});
+
+	test("Dining 分段筛选在明暗主题和各断点保持选择与键盘操作", async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await page.goto("/dining", { waitUntil: "domcontentloaded" });
+		for (const theme of ["light", "dark"]) {
+			await page.evaluate((value) => {
+				document.documentElement.dataset.theme = value;
+			}, theme);
+			if ((page.viewportSize()?.width ?? 0) >= 1024) {
+				const hall = page.getByRole("radio", { name: "荟贤食堂" });
+				await hall.focus();
+				await page.keyboard.press("Space");
+				await expect(hall).toBeChecked();
+				await hall.click();
+				await expect(hall).toBeChecked();
+				await expect(page.getByRole("radio", { name: "海淀一食堂" })).not.toBeChecked();
+			} else {
+				const hall = page.getByRole("combobox", { name: "选择食堂" });
+				await hall.click();
+				await page.getByRole("option", { name: "荟贤食堂" }).click();
+				await expect(hall).toContainText("荟贤食堂");
+			}
+			const floor = page.getByRole("radio", { name: "荟贤二层" });
+			await floor.click();
+			await floor.click();
+			await expect(floor).toBeChecked();
+			await page.keyboard.press("ArrowLeft");
+			await expect(page.getByRole("radio", { name: "荟贤一层" })).toBeFocused();
+			await page.keyboard.press("Space");
+			await expect(page.getByRole("radio", { name: "荟贤一层" })).toBeChecked();
+			await expect(floor).not.toBeChecked();
+			await expect(page).toHaveURL(/floor=fengtai-1f/u);
+			expect((await floor.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+				page.viewportSize()?.width ?? 0,
+			);
+		}
+	});
+
+	test("通知筛选在明暗主题下保持触控尺寸并可选择和清除", async ({ page }) => {
+		await mockCampusApi(page, { authenticated: true });
+		await page.route("**/api/notices?**", (route) =>
+			route.fulfill({
+				json: {
+					filters: {
+						categories: [{ label: "采购招标", value: "procurement" }],
+						noticeTypes: [],
+						organizations: [],
+					},
+					items: [],
+					pagination: { page: 1, pageSize: 30, totalItems: 0, totalPages: 0 },
+				},
+			}),
+		);
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await page.goto("/notices", { waitUntil: "domcontentloaded" });
+		const category = page.getByRole("combobox", { name: "业务分类" });
+		await expect(page.getByRole("heading", { name: "没有符合条件的通知" })).toBeVisible();
+		for (const theme of ["light", "dark"]) {
+			await page.evaluate((value) => {
+				document.documentElement.dataset.theme = value;
+			}, theme);
+			await expect(category).toHaveCSS("border-radius", "12px");
+			expect((await category.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+			await category.focus();
+			await page.keyboard.press("Space");
+			await page.getByRole("option", { name: "采购招标" }).click();
+			await expect(category).toContainText("采购招标");
+			await expect(page).toHaveURL(/category=procurement/u);
+			await expect(category).toBeFocused();
+			await page.getByRole("button", { name: "清除筛选" }).click();
+			await expect(category).toContainText("全部分类");
+			await expect(page).not.toHaveURL(/category=/u);
+			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+				page.viewportSize()?.width ?? 0,
+			);
+		}
+	});
+
+	test("班车月历在放大文字及明暗主题下保持可读并恢复焦点", async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await page.goto("/transport", { waitUntil: "networkidle" });
+		await expect(page.getByRole("radio", { name: "丰台校区 → 海淀校区" })).toBeVisible();
+		for (const theme of ["light", "dark"]) {
+			for (const fontSize of [16, 32]) {
+				await page.evaluate(
+					({ theme, fontSize }) => {
+						document.documentElement.dataset.theme = theme;
+						document.documentElement.style.fontSize = `${fontSize}px`;
+					},
+					{ theme, fontSize },
+				);
+				const nav = page.locator(".campus-top-nav");
+				expect(
+					await nav.evaluate((element) =>
+						[...element.querySelectorAll("a, button")]
+							.filter((control) => control.getBoundingClientRect().width > 0)
+							.every((control) => {
+								const box = control.getBoundingClientRect();
+								return box.left >= 0 && box.right <= document.documentElement.clientWidth;
+							}),
+					),
+				).toBe(true);
+				const date = page.getByRole("button", { name: /^选择日期：/u });
+				await date.click();
+				const calendar = page.getByRole("region", { name: "班车月历" });
+				await expect(calendar).toBeVisible();
+				await expect(calendar.getByText("停运", { exact: true }).first()).toBeVisible();
+				if (fontSize === 16) {
+					const results = await new AxeBuilder({ page })
+						.withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+						.analyze();
+					expect(results.violations, formatViolations(results.violations)).toEqual([]);
+				}
+				expect(
+					await calendar
+						.locator(".ui-metadata")
+						.first()
+						.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
+				).toBeGreaterThanOrEqual(12);
+				expect(
+					await page.evaluate(
+						() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+					),
+				).toBe(true);
+				await page.keyboard.press("Escape");
+				await expect(date).toBeFocused();
+			}
 		}
 	});
 
@@ -181,17 +317,11 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await expect(searchTrigger).toBeFocused();
 	});
 
-	test("账号弹窗首帧可见且不产生 HeroUI PressResponder 警告", async ({ page }) => {
+	test("共享账号弹窗首帧可见并在关闭后恢复焦点", async ({ page }) => {
 		if ((page.viewportSize()?.width ?? 0) < 1024) {
 			return;
 		}
 
-		const pressResponderWarnings: string[] = [];
-		page.on("console", (message) => {
-			if (message.type() === "warning" && message.text().includes("PressResponder")) {
-				pressResponderWarnings.push(message.text());
-			}
-		});
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		await expect(page.getByTestId("assistant-chat")).toBeVisible();
 		const loginTrigger = page
@@ -204,10 +334,9 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 		await page.keyboard.press("Escape");
 		await expect(authDialog).toBeHidden();
 		await expect(loginTrigger).toBeFocused();
-		expect(pressResponderWarnings).toEqual([]);
 	});
 
-	test("HeroUI 账户界面不会改写 Campus 交互色与圆角", async ({ page }) => {
+	test("账户界面沿用 Campus 交互色与圆角", async ({ page }) => {
 		const width = page.viewportSize()?.width ?? 0;
 		if (width !== 390 && width !== 1440) {
 			return;
@@ -282,7 +411,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 				await resolveCssColor(page, "--sys-status-success-subtle"),
 			);
 			expect((await readVisualStyle(success)).color).toBe(
-				await resolveCssColor(page, "--sys-status-success"),
+				await resolveCssColor(page, "--sys-text-default"),
 			);
 
 			const failFeedback = async (route: Route) => {
@@ -301,7 +430,7 @@ test.describe("Campus UI baseline", { tag: "@ui-baseline" }, () => {
 				await resolveCssColor(page, "--sys-status-danger-subtle"),
 			);
 			expect((await readVisualStyle(danger)).color).toBe(
-				await resolveCssColor(page, "--sys-status-danger"),
+				await resolveCssColor(page, "--sys-text-default"),
 			);
 			await page.unroute("**/api/feedback", failFeedback);
 		}
@@ -490,4 +619,62 @@ async function readApplicationStylesheetSources(page: Page): Promise<string[]> {
 					: (node.dataset.viteDevId ?? ""),
 		),
 	);
+}
+
+async function mockTransportApi(page: Page) {
+	const route = {
+		routeId: "route:style-test",
+		serviceKind: "commute",
+		origin: "丰台校区",
+		destination: "海淀校区",
+		boardingPoint: "聚雅餐厅东侧停车场路口",
+		note: null,
+		status: "operating",
+		departures: [
+			{
+				kind: "fixed",
+				departureTime: "18:00",
+				riderType: "all",
+				boardingPoint: null,
+				capacity: null,
+				note: null,
+			},
+		],
+	};
+	const catalog = [
+		{
+			routeId: route.routeId,
+			serviceKind: route.serviceKind,
+			origin: route.origin,
+			destination: route.destination,
+			defaultBoardingPoint: route.boardingPoint,
+			boardingGuide: "请提前候车",
+			dropOffPoint: null,
+			nextServiceDate: null,
+		},
+	];
+	const schedule = (date: string) => ({
+		date,
+		routeCatalog: catalog,
+		routes: [
+			{
+				...route,
+				...(date.endsWith("01") ? { status: "suspended", departures: [] } : {}),
+				...(date.endsWith("02") ? { departures: [] } : {}),
+			},
+		],
+	});
+	await page.route("**/api/transport/schedule**", async (request) => {
+		const url = new URL(request.request().url());
+		if (url.pathname.endsWith("schedule-range")) {
+			const from = url.searchParams.get("from") ?? "";
+			const to = url.searchParams.get("to") ?? "";
+			const days = Array.from({ length: Number(to.slice(-2)) }, (_, index) =>
+				schedule(`${from.slice(0, 8)}${String(index + 1).padStart(2, "0")}`),
+			);
+			await request.fulfill({ json: { from, to, days } });
+		} else {
+			await request.fulfill({ json: schedule(url.searchParams.get("date") ?? "") });
+		}
+	});
 }

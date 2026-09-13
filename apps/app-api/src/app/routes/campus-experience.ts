@@ -151,7 +151,7 @@ function resolveObjectStoreUpstream(env: Env): { baseUrl: string; fetch: typeof 
 			status: 503,
 		});
 	}
-	return { baseUrl: localBaseUrl, fetch: globalThis.fetch };
+	return { baseUrl: localBaseUrl, fetch: globalThis.fetch.bind(globalThis) };
 }
 
 function ensureTrailingSlash(value: string): string {

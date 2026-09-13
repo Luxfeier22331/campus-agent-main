@@ -13,7 +13,7 @@ export const SelectTrigger = React.forwardRef<
 >(({ children, className, ...props }, ref) => (
 	<SelectPrimitive.Trigger
 		className={cn(
-			"flex min-h-[var(--ui-control-height)] w-full min-w-0 items-center justify-between rounded-[var(--radius-lg)] border border-input bg-background gap-2 px-3 py-2 text-base md:text-sm transition-colors motion-reduce:transition-none data-[placeholder]:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger [&>span:first-child]:min-w-0 [&>span:first-child]:truncate [&>span:last-child]:shrink-0",
+			"flex min-h-[var(--ui-control-height)] w-full min-w-0 items-center justify-between rounded-[var(--input-radius)] border border-input bg-background gap-2 px-3 py-2 text-base md:text-sm transition-colors motion-reduce:transition-none data-[placeholder]:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border-default disabled:bg-[var(--state-disabled-bg)] disabled:text-[var(--state-disabled-text)] aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger [&>span:first-child]:min-w-0 [&>span:first-child]:truncate [&>span:last-child]:shrink-0",
 			className,
 		)}
 		ref={ref}
@@ -104,7 +104,7 @@ export const SelectItem = React.forwardRef<
 >(({ children, className, ...props }, ref) => (
 	<SelectPrimitive.Item
 		className={cn(
-			"relative flex min-h-9 select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+			"relative flex min-h-[var(--control-height-touch)] select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 			className,
 		)}
 		ref={ref}

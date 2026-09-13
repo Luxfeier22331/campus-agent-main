@@ -110,7 +110,7 @@
 	--state-disabled-bg: #efeff2;
 	--state-disabled-text: #6e6e73;
 	--input-border: var(--sys-border-control);
-	--input-radius: var(--radius-md);
+	--input-radius: var(--radius-lg);
 	--card-bg: var(--sys-surface-default);
 	--card-border: var(--sys-border-subtle);
 	--card-radius: var(--radius-xl);
@@ -118,6 +118,7 @@
 	--ui-page-gutter: 1rem;
 	--ui-section-gap: var(--space-8);
 	--ui-control-height: var(--control-height-default);
+	--ui-page-title-size: var(--font-size-2xl);
 }
 
 :root[data-theme="dark"] {

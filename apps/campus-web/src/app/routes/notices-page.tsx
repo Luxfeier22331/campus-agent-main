@@ -74,10 +74,8 @@ export function NoticesPageContent() {
 			<header>
 				<div className="flex min-w-0 flex-wrap items-start justify-between gap-3 sm:flex-nowrap sm:gap-4">
 					<div className="min-w-0">
-						<h1 className="text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-							{isCampusNews ? "校园动态" : "通知目录"}
-						</h1>
-						<p className="mt-1 text-sm text-[var(--sys-text-muted)]">
+						<h1 className="ui-page-title">{isCampusNews ? "校园动态" : "通知目录"}</h1>
+						<p className="mt-1 text-sm text-muted-foreground">
 							{notices.data
 								? `${notices.data.pagination.totalItems} 条${itemLabel}`
 								: `正在读取${itemLabel}`}
@@ -85,7 +83,8 @@ export function NoticesPageContent() {
 					</div>
 					<ToggleGroup
 						aria-label="通知视图"
-						className="shrink-0 rounded-lg bg-surface-muted p-1"
+						className="shrink-0"
+						presentation="segmented"
 						onValueChange={(value) => {
 							if (value === "notices" || value === "campus_news") {
 								updateStream(value);
@@ -95,16 +94,10 @@ export function NoticesPageContent() {
 						type="single"
 						value={search.stream}
 					>
-						<ToggleGroupItem
-							className="min-w-16 rounded-md px-3 data-[state=on]:bg-background data-[state=on]:shadow-[var(--shadow-xs)] sm:min-w-20"
-							value="notices"
-						>
+						<ToggleGroupItem className="min-w-16 px-3 sm:min-w-20" value="notices">
 							通知
 						</ToggleGroupItem>
-						<ToggleGroupItem
-							className="min-w-20 rounded-md px-3 data-[state=on]:bg-background data-[state=on]:shadow-[var(--shadow-xs)]"
-							value="campus_news"
-						>
+						<ToggleGroupItem className="min-w-20 px-3" value="campus_news">
 							校园动态
 						</ToggleGroupItem>
 					</ToggleGroup>
@@ -115,13 +108,13 @@ export function NoticesPageContent() {
 				<Label className="sr-only" htmlFor="notice-search">
 					标题或正文关键词
 				</Label>
-				<div className="relative flex items-center rounded-xl border border-input bg-background shadow-[var(--shadow-xs)] transition-shadow focus-within:ring-2 focus-within:ring-ring">
+				<div className="relative flex items-center rounded-[var(--input-radius)] border border-input bg-background transition-shadow focus-within:ring-2 focus-within:ring-ring">
 					<Search
 						aria-hidden="true"
-						className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[var(--sys-text-muted)]"
+						className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
 					/>
 					<Input
-						className="min-h-12 min-w-0 flex-1 rounded-xl border-0 bg-transparent pl-11 pr-2 shadow-none focus-visible:ring-0"
+						className="min-h-12 min-w-0 flex-1 rounded-[var(--input-radius)] border-0 bg-transparent pl-11 pr-2 shadow-none focus-visible:ring-0"
 						id="notice-search"
 						maxLength={100}
 						onChange={(event) => setQueryDraft(event.target.value)}
@@ -130,7 +123,7 @@ export function NoticesPageContent() {
 					/>
 					<Button
 						aria-label={`搜索${itemLabel}`}
-						className="mr-0.5 size-11 min-h-0 shrink-0 rounded-[10px] p-0"
+						className="mr-0.5 size-11 min-h-0 shrink-0 rounded-full p-0"
 						size="icon"
 						type="submit"
 					>
@@ -160,7 +153,7 @@ export function NoticesPageContent() {
 					{hasFilters ? (
 						<Button
 							aria-label="清除筛选"
-							className="ml-auto rounded-lg px-2.5 text-[var(--sys-text-muted)]"
+							className="ml-auto px-2.5 text-muted-foreground"
 							onClick={() => {
 								setQueryDraft("");
 								void navigate({ search: { page: 1, stream: search.stream } });

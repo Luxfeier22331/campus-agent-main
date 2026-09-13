@@ -1,4 +1,12 @@
-import { Badge, Button, Card, CardContent } from "@campus-agent/ui";
+import {
+	Alert,
+	AlertDescription,
+	AlertTitle,
+	Badge,
+	Button,
+	Card,
+	CardContent,
+} from "@campus-agent/ui";
 import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
@@ -165,10 +173,10 @@ export function FederationErrorPage({ search }: { search?: string } = {}) {
 				icon={<TriangleAlert aria-hidden="true" className="size-5" />}
 				title="登录授权未完成"
 			/>
-			<div className="rounded-md border border-destructive/20 bg-destructive/5 p-4">
-				<p className="font-medium text-destructive text-sm">{error.title}</p>
-				<p className="mt-2 text-muted-foreground text-sm leading-6">{error.description}</p>
-			</div>
+			<Alert tone="danger">
+				<AlertTitle>{error.title}</AlertTitle>
+				<AlertDescription>{error.description}</AlertDescription>
+			</Alert>
 			<Button asChild className="mt-6 w-full" variant="outline">
 				<a href="/account/login">返回登录</a>
 			</Button>
@@ -213,7 +221,7 @@ function readOAuthError(search?: string): { description: string; title: string }
 function FederationPageShell({ children }: { children: ReactNode }) {
 	return (
 		<section className="mx-auto min-h-[calc(100dvh-var(--layout-campus-topnav-height))] w-full max-w-lg px-5 py-10 lg:px-8 lg:py-14">
-			<Card className="rounded-lg border-input shadow-none">
+			<Card>
 				<CardContent className="p-6 sm:p-8">{children}</CardContent>
 			</Card>
 		</section>
@@ -226,7 +234,7 @@ function FederationStatusHeader({ icon, title }: { icon: ReactNode; title: strin
 			<span className="mx-auto mb-5 grid size-12 place-items-center rounded-lg bg-foreground text-background">
 				{icon}
 			</span>
-			<h1 className="font-semibold text-2xl tracking-normal">{title}</h1>
+			<h1 className="ui-page-title">{title}</h1>
 		</div>
 	);
 }
@@ -239,7 +247,7 @@ function OAuthClientPanel({
 	oauthContext: CampusOAuthContext;
 }) {
 	return (
-		<div className="mb-6 rounded-lg border border-border bg-surface-muted/40 p-4">
+		<Card className="mb-6 bg-surface-muted p-4">
 			<div className="flex items-center justify-between gap-4">
 				<div>
 					<p className="font-semibold text-foreground text-sm">{client.displayName}</p>
@@ -260,6 +268,6 @@ function OAuthClientPanel({
 					))}
 				</ul>
 			</div>
-		</div>
+		</Card>
 	);
 }

@@ -1,4 +1,4 @@
-import { Button, cn } from "@campus-agent/ui";
+import { Alert, Button, cn } from "@campus-agent/ui";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
@@ -104,9 +104,9 @@ export function RequestsPage({
 				/>
 			) : null}
 			{ignoredParamNames.length > 0 ? (
-				<div className="mb-3 border-warning/20 border-y bg-warning-subtle px-1 py-2 text-warning text-sm">
+				<Alert className="mb-4" tone="warning" role="note">
 					已忽略无效筛选参数：<span className="font-mono">{ignoredParamNames.join("、")}</span>
-				</div>
+				</Alert>
 			) : null}
 			<RequestFilters search={search} />
 			<div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -135,9 +135,7 @@ export function RequestsPage({
 				) : null}
 			</div>
 			{hasActiveFilters ? (
-				<p className="mb-3 text-muted-foreground text-xs">
-					已应用：{activeFilterLabels.join("、")}
-				</p>
+				<p className="mb-3 ui-metadata">已应用：{activeFilterLabels.join("、")}</p>
 			) : null}
 			{requests.isPlaceholderData ? (
 				<p className="mb-3 text-warning text-sm" role="status">
@@ -255,14 +253,12 @@ function RequestMobileList({
 					key={request.requestId}
 				>
 					<div className="flex items-start justify-between gap-3">
-						<span className="text-muted-foreground text-xs">
-							{formatTimestamp(request.startedAt)}
-						</span>
+						<span className="ui-metadata">{formatTimestamp(request.startedAt)}</span>
 						<div className="grid justify-items-end gap-1">
 							<StatusBadge status={request.status} />
 							{request.attentionReason ? (
 								<div className="grid justify-items-end gap-0.5">
-									<span className="text-muted-foreground text-[11px]">关注原因</span>
+									<span className="ui-metadata text-muted-foreground">关注原因</span>
 									<RequestAttentionReason request={request} />
 								</div>
 							) : null}
@@ -284,10 +280,7 @@ function RequestMobileList({
 						</span>
 					</div>
 					<div className="flex min-w-0 items-center gap-1">
-						<span
-							className="truncate font-mono text-muted-foreground text-xs"
-							title={request.requestId}
-						>
+						<span className="truncate font-mono ui-metadata" title={request.requestId}>
 							{request.requestId}
 						</span>
 						<CopyIconButton
@@ -381,7 +374,7 @@ function RequestExecutionStage({
 	const stage = request.executionStage;
 	return (
 		<div className={cn("grid gap-1 text-sm", className)}>
-			<span className="text-muted-foreground text-xs">执行阶段</span>
+			<span className="ui-metadata">执行阶段</span>
 			<span className="font-medium text-foreground">
 				{stage
 					? `${formatOpsDomainValue(stage.toolName ?? stage.kind)} · ${formatOpsDomainValue(stage.status)}`
@@ -399,7 +392,7 @@ function RequestExecutionStage({
 function RequestProductResult({ request }: { request: OpsRequestSummary }) {
 	return (
 		<div className="grid min-w-[150px] gap-1 text-sm">
-			<span className="text-muted-foreground text-xs">产品结果</span>
+			<span className="ui-metadata">产品结果</span>
 			<span className="font-medium text-foreground">{formatResultSummary(request)}</span>
 		</div>
 	);

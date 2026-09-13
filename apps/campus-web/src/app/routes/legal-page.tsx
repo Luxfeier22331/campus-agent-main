@@ -122,9 +122,7 @@ function LegalDocumentShell({
 	return (
 		<section className="mx-auto min-h-[calc(100dvh-var(--layout-campus-topnav-height))] max-w-[var(--layout-page-form-width)] px-4 py-6 pb-24 lg:px-6">
 			<p className="text-sm font-medium text-[var(--sys-text-muted)]">生效日期：{EFFECTIVE_DATE}</p>
-			<h1 className="mt-1 text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
-				{title}
-			</h1>
+			<h1 className="mt-1 ui-page-title">{title}</h1>
 			<Separator className="mt-5" />
 			<Card className="mt-5 p-5 md:p-7">
 				<div className="space-y-7 text-sm leading-7 text-[var(--sys-text-muted)]">

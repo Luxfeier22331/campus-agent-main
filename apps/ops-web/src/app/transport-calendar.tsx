@@ -72,7 +72,10 @@ export function TransportCalendar({
 		});
 	}, [month]);
 	return (
-		<section aria-label="排班月历" className="grid gap-3 rounded-lg border p-3 sm:p-4">
+		<section
+			aria-label="排班月历"
+			className="grid gap-3 rounded-[var(--card-radius)] border border-[var(--card-border)] bg-card p-4 text-card-foreground md:p-5"
+		>
 			<header className="flex items-center justify-between gap-2">
 				<Button
 					aria-label="上个月"
@@ -121,7 +124,7 @@ export function TransportCalendar({
 								{Number(cell.slice(8))}
 							</span>
 							<span
-								className={`block text-[10px] ${period?.status === "suspended" ? "text-danger" : "text-muted-foreground"}`}
+								className={`ui-metadata block ${period?.status === "suspended" ? "text-danger" : "text-muted-foreground"}`}
 							>
 								{period ? (operating ? `${period.items.length} 班` : "停运") : "无安排"}
 							</span>

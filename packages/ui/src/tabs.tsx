@@ -16,7 +16,9 @@ export const TabsList = React.forwardRef<
 	<TabsPrimitive.List
 		className={cn(
 			"flex max-w-full gap-1 overflow-x-auto",
-			presentation === "underline" ? "border-b" : "w-fit rounded-[1.75rem] bg-surface-muted p-1",
+			presentation === "underline"
+				? "border-b"
+				: "w-fit rounded-[var(--radius-pill)] bg-surface-muted p-1",
 			className,
 		)}
 		data-presentation={presentation}
