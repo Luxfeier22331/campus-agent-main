@@ -363,10 +363,18 @@ func TestWriteWorkflowFinalizationReservesStableCompletionBeforeCallbackRetry(t 
 	if err != nil {
 		t.Fatalf("list finalization steps: %v", err)
 	}
-	if len(steps) != 1 {
+	if len(steps) != 2 {
 		t.Fatalf("finalization steps = %#v", steps)
 	}
-	step := steps[0]
+	var step execution.RunStepProjection
+	for _, candidate := range steps {
+		if candidate.StepID == "finalization.write" {
+			step = candidate
+		}
+	}
+	if step.StepID == "" {
+		t.Fatalf("finalization.write step missing: %#v", steps)
+	}
 	if !step.StartedAt.Equal(reservation.StartedAt) ||
 		!step.CompletedAt.Equal(reservation.CompletedAt) ||
 		!step.UpdatedAt.Equal(reservation.CompletedAt) {

@@ -4,7 +4,6 @@ import type { ChatConversationStore } from "./store";
 
 export interface ChatConversationServiceContext {
 	detailStore?: Pick<ChatConversationStore, "getConversationDetailByOwner">;
-	dispatchMemoryCommands?: () => Promise<unknown>;
 	generateId(prefix: string): string;
 	now(): Date;
 	store: ChatConversationStore;
@@ -15,9 +14,6 @@ export function createChatConversationServiceContext(
 ): ChatConversationServiceContext {
 	return {
 		...(dependencies.detailStore ? { detailStore: dependencies.detailStore } : {}),
-		...(dependencies.dispatchMemoryCommands
-			? { dispatchMemoryCommands: dependencies.dispatchMemoryCommands }
-			: {}),
 		generateId:
 			dependencies.generateId ?? ((prefix) => `${prefix}_${randomUUID().replace(/-/g, "")}`),
 		now: dependencies.now ?? (() => new Date()),

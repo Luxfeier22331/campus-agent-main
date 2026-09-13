@@ -10,11 +10,10 @@ import (
 
 var ErrInvalidMemoryProjection = errors.New("invalid memory runtime projection")
 
-const PersonalMemoryCommandSchemaVersion = "personal_memory_command.v2"
+const PersonalMemoryCommandSchemaVersion = "personal_memory_command.v3"
 
 type RecallRequest struct {
 	OwnerGeneration int64             `json:"owner_generation"`
-	OwnerSequence   int64             `json:"owner_sequence"`
 	QueryTimestamp  string            `json:"query_timestamp"`
 	RequestID       string            `json:"request_id"`
 	SessionSlots    map[string]string `json:"session_slots,omitempty"`
@@ -30,7 +29,6 @@ type RecallResult struct {
 
 type AppendConversationTurnRequest struct {
 	OwnerGeneration      int64  `json:"owner_generation"`
-	OwnerSequence        int64  `json:"owner_sequence"`
 	RequestID            string `json:"request_id"`
 	TenantID             string `json:"tenant_id,omitempty"`
 	ThreadID             string `json:"thread_id"`
@@ -45,8 +43,8 @@ type AppendConversationTurnResult struct {
 }
 
 type PersonalMemoryCommandItem struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Text  string `json:"text,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
 type PersonalMemoryCommandRequest struct {
@@ -58,9 +56,7 @@ type PersonalMemoryCommandRequest struct {
 	OwnerSequence     int64                      `json:"owner_sequence"`
 	SchemaVersion     string                     `json:"schema_version"`
 	SubjectID         string                     `json:"subject_id,omitempty"`
-	SubjectRevision   int64                      `json:"subject_revision,omitempty"`
 	SourceUpdatedAt   string                     `json:"source_updated_at"`
-	SourceMessageIDs  []string                   `json:"source_message_ids,omitempty"`
 	SubjectScopeHash  string                     `json:"-"`
 	SupersessionScope string                     `json:"supersession_scope"`
 	TenantID          string                     `json:"tenant_id"`
@@ -106,37 +102,21 @@ func ValidatePersonalMemoryCommandRequest(request PersonalMemoryCommandRequest) 
 		if request.SupersessionScope != "owner:erase:"+strconv.FormatInt(request.OwnerGeneration, 10) {
 			return fmt.Errorf("%w: owner erase supersession_scope is invalid", ErrInvalidMemoryProjection)
 		}
-	case "item_upsert":
-		if request.Item == nil || strings.TrimSpace(request.SubjectID) == "" || strings.TrimSpace(request.Item.Key) == "" || strings.TrimSpace(request.Item.Value) == "" {
-			return fmt.Errorf("%w: item upsert payload is incomplete", ErrInvalidMemoryProjection)
+	case "memory_add", "memory_update":
+		if request.Item == nil || strings.TrimSpace(request.SubjectID) == "" {
+			return fmt.Errorf("%w: memory payload and subject_id are required", ErrInvalidMemoryProjection)
 		}
-		if request.SupersessionScope != "item:"+strings.TrimSpace(request.SubjectID) {
-			return fmt.Errorf("%w: item upsert supersession_scope is invalid", ErrInvalidMemoryProjection)
+		if request.CommandKind == "memory_add" && strings.TrimSpace(request.Item.Text) == "" {
+			return fmt.Errorf("%w: memory text is required", ErrInvalidMemoryProjection)
 		}
-	case "item_delete":
-		if strings.TrimSpace(request.SubjectID) == "" {
-			return fmt.Errorf("%w: subject_id is required", ErrInvalidMemoryProjection)
+		if request.Item.State != "" && request.Item.State != "active" && request.Item.State != "inactive" {
+			return fmt.Errorf("%w: invalid memory state", ErrInvalidMemoryProjection)
 		}
-		if request.SupersessionScope != "item:"+strings.TrimSpace(request.SubjectID) {
-			return fmt.Errorf("%w: item delete supersession_scope is invalid", ErrInvalidMemoryProjection)
+		if request.CommandKind == "memory_update" && strings.TrimSpace(request.Item.Text) == "" && request.Item.State == "" {
+			return fmt.Errorf("%w: memory edit is empty", ErrInvalidMemoryProjection)
 		}
-	case "conversation_prune", "conversation_delete":
-		if strings.TrimSpace(request.SubjectID) == "" || len(request.SourceMessageIDs) < 1 || len(request.SourceMessageIDs) > 50 {
-			return fmt.Errorf("%w: conversation source deletion requires subject_id and 1..50 source_message_ids", ErrInvalidMemoryProjection)
-		}
-		if request.SupersessionScope != "source_batch:"+strings.TrimSpace(request.CommandID) {
-			return fmt.Errorf("%w: conversation source deletion supersession_scope is invalid", ErrInvalidMemoryProjection)
-		}
-		seen := make(map[string]struct{}, len(request.SourceMessageIDs))
-		for _, sourceMessageID := range request.SourceMessageIDs {
-			sourceMessageID = strings.TrimSpace(sourceMessageID)
-			if sourceMessageID == "" {
-				return fmt.Errorf("%w: source_message_ids must not contain empty ids", ErrInvalidMemoryProjection)
-			}
-			if _, duplicate := seen[sourceMessageID]; duplicate {
-				return fmt.Errorf("%w: source_message_ids must be unique", ErrInvalidMemoryProjection)
-			}
-			seen[sourceMessageID] = struct{}{}
+		if request.SupersessionScope != "memory:"+strings.TrimSpace(request.SubjectID) {
+			return fmt.Errorf("%w: memory scope is invalid", ErrInvalidMemoryProjection)
 		}
 	default:
 		return fmt.Errorf("%w: unsupported command_kind", ErrInvalidMemoryProjection)
@@ -148,7 +128,7 @@ func ValidatePersonalMemoryCommandRequest(request PersonalMemoryCommandRequest) 
 }
 
 func ValidateRecallRequest(request RecallRequest) error {
-	if request.OwnerGeneration < 1 || request.OwnerSequence < 0 {
+	if request.OwnerGeneration < 1 {
 		return fmt.Errorf("%w: valid owner generation and sequence are required", ErrInvalidMemoryProjection)
 	}
 	if strings.TrimSpace(request.RequestID) == "" {
@@ -170,7 +150,7 @@ func ValidateRecallRequest(request RecallRequest) error {
 }
 
 func ValidateAppendConversationTurnRequest(request AppendConversationTurnRequest) error {
-	if request.OwnerGeneration < 1 || request.OwnerSequence < 0 {
+	if request.OwnerGeneration < 1 {
 		return fmt.Errorf("%w: valid owner generation and sequence are required", ErrInvalidMemoryProjection)
 	}
 	required := map[string]string{

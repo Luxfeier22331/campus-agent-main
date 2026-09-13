@@ -13,6 +13,8 @@ import (
 )
 
 type TemporalStepProjection struct {
+	// RunStepStatus keeps a retryable attempt failure from closing the whole step.
+	RunStepStatus         string
 	ActivityAttempt       int
 	ActivityID            string
 	ActivityType          string
@@ -96,6 +98,17 @@ func (s *Writer) ProjectTemporalStep(ctx context.Context, projection TemporalSte
 	if attemptUpdatedAt.IsZero() {
 		attemptUpdatedAt = updatedAt
 	}
+	stepStatus, stepCompletedAt, stepPayload := projection.Status, projection.CompletedAt, projection.Payload
+	if projection.RunStepStatus != "" {
+		stepStatus = projection.RunStepStatus
+		stepCompletedAt = time.Time{}
+		stepPayload = execution.CloneAnyMapFromValue(projection.Payload)
+		stepPayload["status"] = stepStatus
+		if failure, ok := stepPayload["failure"]; ok {
+			stepPayload["last_attempt_failure"] = failure
+			delete(stepPayload, "failure")
+		}
+	}
 	if completionErr == nil {
 		if _, err := s.RunProjectionStore.UpsertRunStep(ctx, execution.RunStepProjection{
 			StepID:               projection.StepID,
@@ -104,15 +117,15 @@ func (s *Writer) ProjectTemporalStep(ctx context.Context, projection TemporalSte
 			StepKind:             projection.StepKind,
 			Tool:                 projection.Tool,
 			ParentStepID:         projection.ParentStepID,
-			Status:               projection.Status,
+			Status:               stepStatus,
 			ActivityAttempt:      projection.ActivityAttempt,
 			TaskQueue:            projection.TaskQueue,
 			WorkerID:             projection.WorkerID,
 			StartedAt:            projection.StartedAt,
-			CompletedAt:          projection.CompletedAt,
+			CompletedAt:          stepCompletedAt,
 			UpdatedAt:            updatedAt,
 			PayloadSchemaVersion: "run-step-projection-v1",
-			SanitizedPayload:     projection.Payload,
+			SanitizedPayload:     stepPayload,
 		}); err != nil {
 			if !errors.Is(err, execution.ErrStaleRunStepProjection) {
 				return err
@@ -179,7 +192,7 @@ func (s *Writer) ProjectTemporalStep(ctx context.Context, projection TemporalSte
 			completionErr = fmt.Errorf("stale terminal step attempt projection: %w", err)
 		}
 	}
-	if completionErr == nil && strings.TrimSpace(projection.ResultKind) != "" {
+	if completionErr == nil && strings.TrimSpace(projection.ResultKind) != "" && TemporalStepTerminal(projection.Status) {
 		if _, err := s.RunProjectionStore.UpsertStepResult(ctx, execution.StepResultProjection{
 			ResultID:             TemporalStepResultID(projection.Run.RequestID, projection.StepID, attempt),
 			StepID:               projection.StepID,

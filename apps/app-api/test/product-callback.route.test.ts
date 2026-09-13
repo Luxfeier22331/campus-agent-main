@@ -46,6 +46,7 @@ function goEscapedFinalizationResponseJson(): string {
 
 function appWithCallbacks(input: {
 	applyMemoryResult?: ProfileMemoryService["applyResult"];
+	dispatchPending?: ProfileMemoryService["dispatchPending"];
 	applyProductFinalization?: NonNullable<ChatCommandService["applyProductFinalization"]>;
 }) {
 	return createApp(
@@ -60,6 +61,8 @@ function appWithCallbacks(input: {
 				submit: vi.fn(),
 			},
 			profileMemoryService: {
+				dispatchPending:
+					input.dispatchPending ?? vi.fn(async () => ({ admitted: 0, failed: 0, processed: 0 })),
 				applyResult: input.applyMemoryResult ?? vi.fn(async () => "applied" as const),
 			} as unknown as ProfileMemoryService,
 		},
@@ -218,7 +221,8 @@ describe("product callback routes", () => {
 
 	it("accepts replayed or superseded memory results with deterministic fingerprints", async () => {
 		const applyMemoryResult = vi.fn(async () => "superseded" as const);
-		const app = appWithCallbacks({ applyMemoryResult });
+		const dispatchPending = vi.fn(async () => ({ admitted: 1, failed: 0, processed: 1 }));
+		const app = appWithCallbacks({ applyMemoryResult, dispatchPending });
 		const commandId = "memcmd_1";
 		const fingerprint = sha256(`${commandId}\0succeeded\0`);
 
@@ -237,6 +241,10 @@ describe("product callback routes", () => {
 
 		expect(result.status).toBe(200);
 		expect(await result.json()).toEqual({ outcome: "superseded" });
+		expect(dispatchPending).toHaveBeenCalledOnce();
+		expect(applyMemoryResult.mock.invocationCallOrder[0]).toBeLessThan(
+			dispatchPending.mock.invocationCallOrder[0] ?? 0,
+		);
 		expect(applyMemoryResult).toHaveBeenCalledWith({
 			commandId,
 			resultFingerprint: fingerprint,

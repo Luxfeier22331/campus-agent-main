@@ -1,7 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-
 import type { Hono } from "hono";
-
 import type { Env } from "../../config";
 import { errorEnvelope, jsonResponse } from "../../http";
 import {
@@ -13,6 +11,7 @@ import {
 	sha256Text,
 } from "../../modules/runtime-command/service/durable-metadata";
 import { ChatFinalizationConflict } from "../../modules/runtime-command/store-types";
+import { resolveWaitUntil } from "../request-utils";
 import type { AppRequestScope } from "../types";
 
 function hasMatchingSecret(
@@ -262,17 +261,13 @@ export function registerInternalRoutes(input: {
 				{ status: 400 },
 			);
 		}
-		const outcome = await input
-			.createRequestScope()
-			.resolveProfileMemoryService()
-			.applyResult({
-				commandId: c.req.param("commandId"),
-				...(typeof errorCode === "string" && errorCode.trim()
-					? { errorCode: errorCode.trim() }
-					: {}),
-				resultFingerprint: resultFingerprint.trim(),
-				status,
-			});
+		const memoryService = input.createRequestScope().resolveProfileMemoryService();
+		const outcome = await memoryService.applyResult({
+			commandId: c.req.param("commandId"),
+			...(typeof errorCode === "string" && errorCode.trim() ? { errorCode: errorCode.trim() } : {}),
+			resultFingerprint: resultFingerprint.trim(),
+			status,
+		});
 		if (outcome === "not_found") {
 			return jsonResponse(
 				errorEnvelope({
@@ -292,6 +287,13 @@ export function registerInternalRoutes(input: {
 				}),
 				{ status: 409 },
 			);
+		}
+		const dispatch = memoryService.dispatchPending();
+		const waitUntil = resolveWaitUntil(c);
+		if (waitUntil) {
+			waitUntil(dispatch);
+		} else {
+			await dispatch;
 		}
 		return jsonResponse({ outcome }, { status: 200 });
 	});

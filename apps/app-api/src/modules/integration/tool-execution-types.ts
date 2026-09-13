@@ -15,7 +15,6 @@ export interface ToolExecutionSessionSummary {
 export interface ToolExecutionMemorySummary {
 	appendEnabled: boolean;
 	ownerGeneration?: number;
-	ownerSequence?: number;
 	recallEnabled: boolean;
 }
 

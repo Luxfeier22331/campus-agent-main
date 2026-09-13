@@ -135,3 +135,27 @@ describe("Campus Search Ops display", () => {
 		).toBe(2000);
 	});
 });
+
+describe("post-answer memory polling", () => {
+	const detail = (status: string, stages: Array<{ kind: string; status: string }>) =>
+		({
+			request: { lifecyclePhase: "FINISHED", status },
+			execution: { stages },
+		}) as OpsRequestDetailResponse;
+	it.each(["pending", "running"])("continues for %s background work", (status) => {
+		expect(requestDetailPollInterval(detail("COMPLETED", [{ kind: "memory", status }]))).toBe(2000);
+		expect(requestDetailPollInterval(detail("COMPLETED", [{ kind: "finalization", status }]))).toBe(
+			2000,
+		);
+	});
+	it.each(["completed", "failed", "skipped"])("stops for %s memory", (status) => {
+		expect(requestDetailPollInterval(detail("COMPLETED", [{ kind: "memory", status }]))).toBe(
+			false,
+		);
+	});
+	it.each(["FAILED", "CANCELED"])("does not wait after %s answer", (status) => {
+		expect(requestDetailPollInterval(detail(status, [{ kind: "memory", status: "pending" }]))).toBe(
+			false,
+		);
+	});
+});

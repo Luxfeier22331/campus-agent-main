@@ -100,22 +100,44 @@ export function createWorkerRuntime(
 			);
 		},
 		async scheduled(): Promise<void> {
+			const jobs: { name: string; run: () => Promise<unknown> }[] = [];
 			if (isDeployedEnvironment(resolveEnvironment(env))) {
-				const indeterminate = await createPgAccountAdminStore(env).markStaleCommandsIndeterminate(
-					new Date(Date.now() - 5 * 60_000),
-				);
-				if (indeterminate > 0) {
-					console.error({ indeterminate, source: "app-api.account-admin-reconciler" });
-				}
+				jobs.push({
+					name: "account-admin",
+					run: async () => {
+						const indeterminate = await createPgAccountAdminStore(
+							env,
+						).markStaleCommandsIndeterminate(new Date(Date.now() - 5 * 60_000));
+						if (indeterminate > 0) {
+							console.error({ indeterminate, source: "app-api.account-admin-reconciler" });
+						}
+					},
+				});
 			}
 			if (isDeployedEnvironment(resolveEnvironment(env)) || dependencies.emailAccessService) {
-				await resolveEmailAccessService().expire();
+				jobs.push({ name: "email-access", run: () => resolveEmailAccessService().expire() });
 			}
 			if (isExecutionControlRuntimeConfigured(env)) {
-				await resolveProfileMemoryService().dispatchPending();
+				jobs.push({ name: "memory", run: () => resolveProfileMemoryService().dispatchPending() });
+				jobs.push({
+					name: "account-lifecycle",
+					run: () => resolveAccountLifecycleService().dispatchPending(),
+				});
 			}
-			if (isExecutionControlRuntimeConfigured(env)) {
-				await resolveAccountLifecycleService().dispatchPending();
+			const results = await Promise.allSettled(jobs.map((job) => Promise.resolve().then(job.run)));
+			const errors: unknown[] = [];
+			for (const [index, result] of results.entries()) {
+				if (result.status === "rejected") {
+					console.error({
+						source: "app-api.scheduled",
+						job: jobs[index]?.name,
+						errorCode: "scheduled_job_failed",
+					});
+					errors.push(result.reason);
+				}
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, "Scheduled jobs failed");
 			}
 		},
 	};

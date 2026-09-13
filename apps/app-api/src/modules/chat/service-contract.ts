@@ -80,7 +80,6 @@ export interface ChatConversationService {
 
 export interface ChatConversationServiceDependencies {
 	detailStore?: Pick<ChatConversationStore, "getConversationDetailByOwner">;
-	dispatchMemoryCommands?: () => Promise<unknown>;
 	generateId?: (prefix: string) => string;
 	now?: () => Date;
 	store: ChatConversationStore;

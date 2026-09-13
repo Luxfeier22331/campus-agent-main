@@ -1,53 +1,34 @@
 import { and, asc, eq, sql } from "drizzle-orm";
-
-import {
-	profileMemoryCommandSources,
-	profileMemoryCommands,
-	profileMemorySettings,
-} from "../../db/schema";
-import { isCurrentCommandScopeHead, reconcileOwnerMemoryState } from "./command-state";
+import { profileMemoryCommands, profileMemorySettings } from "../../db/schema";
+import { reconcileOwnerMemoryState } from "./command-state";
+import type { ProfileMemoryEdit, ProfileMemoryLifecycleState } from "./model";
 import type { ProfileMemoryStoreContext } from "./store-context";
-import type { ProfileMemoryCommandPayload, ProfileMemoryCommandStore } from "./store-contract";
+import type { ProfileMemoryCommandStore } from "./store-contract";
 import { toCommand } from "./store-helpers";
-import { profileMemoryItemSelection, profileMemoryItems } from "./store-schema";
-
-export function createProfileMemoryCommandStore(
-	context: ProfileMemoryStoreContext,
-): ProfileMemoryCommandStore {
-	const { getDb } = context;
+export function createProfileMemoryCommandStore({
+	getDb,
+}: ProfileMemoryStoreContext): ProfileMemoryCommandStore {
 	return {
 		async applyCommandResult(input) {
 			const db = await getDb();
 			return db.transaction(async (tx) => {
-				const identityRows = await tx
+				const [identity] = await tx
 					.select({ ownerUserId: profileMemoryCommands.ownerUserId })
 					.from(profileMemoryCommands)
-					.where(eq(profileMemoryCommands.commandId, input.commandId))
-					.limit(1);
-				const identity = identityRows[0];
+					.where(eq(profileMemoryCommands.commandId, input.commandId));
 				if (!identity) {
 					return "not_found";
 				}
-				const now = new Date(input.updatedAt);
-				const settingsRows = await tx
+				const [settings] = await tx
 					.select()
 					.from(profileMemorySettings)
 					.where(eq(profileMemorySettings.ownerUserId, identity.ownerUserId))
-					.limit(1)
 					.for("update");
-				const settings = settingsRows[0];
-				const commands = await tx
+				const [command] = await tx
 					.select()
 					.from(profileMemoryCommands)
-					.where(
-						and(
-							eq(profileMemoryCommands.commandId, input.commandId),
-							eq(profileMemoryCommands.ownerUserId, identity.ownerUserId),
-						),
-					)
-					.limit(1)
+					.where(eq(profileMemoryCommands.commandId, input.commandId))
 					.for("update");
-				const command = commands[0];
 				if (!command) {
 					return "not_found";
 				}
@@ -58,130 +39,55 @@ export function createProfileMemoryCommandStore(
 						? "replayed"
 						: "conflict";
 				}
-				if (command.resultFingerprint !== null) {
-					return command.resultFingerprint === input.resultFingerprint ? "replayed" : "conflict";
-				}
-				const isCurrentScopeHead = await isCurrentCommandScopeHead(tx, command);
-				let fenceMatches =
-					command.status !== "superseded" &&
-					Boolean(settings) &&
-					settings?.generation === command.ownerGeneration &&
-					isCurrentScopeHead;
-				if (
-					fenceMatches &&
-					(command.commandKind === "item_upsert" || command.commandKind === "item_delete")
-				) {
-					const subjectRows = command.subjectId
-						? await tx
-								.select(profileMemoryItemSelection)
-								.from(profileMemoryItems)
-								.where(
-									and(
-										eq(profileMemoryItems.ownerUserId, command.ownerUserId),
-										eq(profileMemoryItems.itemId, command.subjectId),
-									),
-								)
-								.limit(1)
-						: [];
-					const subject = subjectRows[0];
-					fenceMatches = Boolean(
-						command.subjectId &&
-							subject &&
-							subject.ownerGeneration === command.ownerGeneration &&
-							subject.revision === command.subjectRevision,
-					);
-				}
-				const appliedStatus = fenceMatches ? input.status : "superseded";
+				const current =
+					command.status !== "superseded" && settings?.generation === command.ownerGeneration;
+				const now = new Date(input.updatedAt);
 				await tx
 					.update(profileMemoryCommands)
 					.set({
-						acceptedItemKey: null,
-						acceptedItemValue: null,
-						lastErrorCode: input.errorCode ?? null,
-						processedAt: now,
+						status: current ? input.status : "superseded",
 						reportedResultStatus: input.status,
 						resultFingerprint: input.resultFingerprint,
-						status: appliedStatus,
+						lastErrorCode: input.errorCode ?? null,
+						payload: input.status === "succeeded" || !current ? null : command.payload,
+						processedAt: now,
 						updatedAt: now,
 					})
-					.where(eq(profileMemoryCommands.commandId, command.commandId));
-				await tx
-					.delete(profileMemoryCommandSources)
-					.where(eq(profileMemoryCommandSources.commandId, command.commandId));
-				if (
-					appliedStatus === "succeeded" &&
-					command.commandKind === "item_delete" &&
-					command.subjectId
-				) {
-					await tx
-						.delete(profileMemoryItems)
-						.where(
-							and(
-								eq(profileMemoryItems.itemId, command.subjectId),
-								eq(profileMemoryItems.revision, command.subjectRevision ?? 0),
-							),
-						);
-				}
-				if (appliedStatus === "succeeded" && command.commandKind === "owner_erase") {
-					await tx
-						.delete(profileMemoryItems)
-						.where(eq(profileMemoryItems.ownerUserId, command.ownerUserId));
-				}
+					.where(eq(profileMemoryCommands.commandId, input.commandId));
 				if (settings) {
 					await reconcileOwnerMemoryState(tx, {
+						ownerUserId: identity.ownerUserId,
 						generation: settings.generation,
 						now,
-						ownerUserId: command.ownerUserId,
 					});
 				}
-				return fenceMatches ? "applied" : "superseded";
+				return current ? "applied" : "superseded";
 			});
 		},
-
-		async listPendingAdmissions(input) {
+		async listPendingAdmissions({ limit }) {
 			const db = await getDb();
-			const commands = await db
+			const rows = await db
 				.select()
 				.from(profileMemoryCommands)
 				.where(
 					and(
 						eq(profileMemoryCommands.status, "pending_admission"),
-						sql`not exists (
-							select 1
-							from profile.memory_commands earlier
-							where earlier.owner_user_id = ${profileMemoryCommands.ownerUserId}
-								and earlier.owner_sequence < ${profileMemoryCommands.ownerSequence}
-								and earlier.status in ('pending_admission', 'admitted')
-						)`,
+						sql`not exists (select 1 from profile.memory_commands earlier
+          where earlier.owner_user_id = ${profileMemoryCommands.ownerUserId}
+          and earlier.owner_sequence < ${profileMemoryCommands.ownerSequence}
+          and earlier.status in ('pending_admission','admitted'))`,
 					),
 				)
 				.orderBy(asc(profileMemoryCommands.createdAt), asc(profileMemoryCommands.commandId))
-				.limit(Math.max(1, input.limit));
-			const payloads: ProfileMemoryCommandPayload[] = [];
-			for (const command of commands) {
-				const sourceRows = await db
-					.select({ sourceMessageId: profileMemoryCommandSources.sourceMessageId })
-					.from(profileMemoryCommandSources)
-					.where(eq(profileMemoryCommandSources.commandId, command.commandId))
-					.orderBy(asc(profileMemoryCommandSources.sourceMessageId));
-				payloads.push({
-					...toCommand(
-						command,
-						sourceRows.map((row) => row.sourceMessageId),
-					),
-					item:
-						command.acceptedItemKey !== null && command.acceptedItemValue !== null
-							? { key: command.acceptedItemKey, value: command.acceptedItemValue }
-							: null,
-					lifecycleState:
-						command.acceptedLifecycleState as ProfileMemoryCommandPayload["lifecycleState"],
-					schemaVersion: "personal_memory_command.v2",
-					sourceUpdatedAt: command.sourceUpdatedAt.toISOString(),
-				});
-			}
-			return payloads;
+				.limit(Math.max(1, limit));
+			return rows.map((row) => ({
+				...toCommand(row),
+				item: row.payload as ProfileMemoryEdit | null,
+				lifecycleState: row.acceptedLifecycleState as ProfileMemoryLifecycleState,
+				schemaVersion: "personal_memory_command.v3" as const,
+				sourceUpdatedAt: row.sourceUpdatedAt.toISOString(),
+			}));
 		},
-
 		async markCommandAdmitted(input) {
 			const db = await getDb();
 			const rows = await db
@@ -189,6 +95,7 @@ export function createProfileMemoryCommandStore(
 				.set({
 					admittedAt: new Date(input.admittedAt),
 					status: "admitted",
+					lastErrorCode: null,
 					updatedAt: new Date(input.admittedAt),
 				})
 				.where(
@@ -197,8 +104,20 @@ export function createProfileMemoryCommandStore(
 						eq(profileMemoryCommands.status, "pending_admission"),
 					),
 				)
-				.returning({ commandId: profileMemoryCommands.commandId });
+				.returning({ id: profileMemoryCommands.commandId });
 			return rows.length === 1;
+		},
+		async markAdmissionFailed(input) {
+			const db = await getDb();
+			await db
+				.update(profileMemoryCommands)
+				.set({ lastErrorCode: input.errorCode, updatedAt: new Date(input.updatedAt) })
+				.where(
+					and(
+						eq(profileMemoryCommands.commandId, input.commandId),
+						eq(profileMemoryCommands.status, "pending_admission"),
+					),
+				);
 		},
 	};
 }

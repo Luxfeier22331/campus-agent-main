@@ -34,7 +34,7 @@ func NewPostgresStateStore(ctx context.Context, options PostgresStateStoreOption
 	return &PostgresStateStore{pool: pool}, nil
 }
 
-func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, callID string, generation int64, sequence int64, subjectHash string, kind string, ttl time.Duration) error {
+func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, callID string, generation int64, kind string, ttl time.Duration) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, ca
 	var fence memoryruntime.FenceState
 	err = tx.QueryRow(ctx, `select generation,lifecycle_state,last_owner_sequence from execution_control.personal_memory_owner_fences where owner_scope_hash=$1 for update`, ownerHash).Scan(&fence.Generation, &fence.Lifecycle, &fence.Sequence)
 	if errors.Is(err, pgx.ErrNoRows) {
-		if generation != 1 || sequence != 0 {
+		if generation != 1 {
 			return memoryruntime.ErrMemoryFenceConflict
 		}
 		fence = memoryruntime.FenceState{Generation: 1, Lifecycle: "active", Sequence: 0}
@@ -53,13 +53,13 @@ func (s *PostgresStateStore) BeginCall(ctx context.Context, ownerHash string, ca
 	} else if err != nil {
 		return err
 	}
-	if fence.Generation != generation || fence.Sequence != sequence || fence.Lifecycle != "active" {
+	if fence.Generation != generation || fence.Lifecycle != "active" {
 		return memoryruntime.ErrMemoryFenceConflict
 	}
 	if _, err := tx.Exec(ctx, `delete from execution_control.personal_memory_call_leases where call_id=$1 and expires_at <= now()`, callID); err != nil {
 		return err
 	}
-	command, err := tx.Exec(ctx, `insert into execution_control.personal_memory_call_leases (call_id,owner_scope_hash,generation,owner_sequence,subject_scope_hash,operation_kind,expires_at,created_at) values ($1,$2,$3,$4,$5,$6,$7,now()) on conflict do nothing`, callID, ownerHash, generation, sequence, subjectHash, kind, time.Now().Add(ttl))
+	command, err := tx.Exec(ctx, `insert into execution_control.personal_memory_call_leases (call_id,owner_scope_hash,generation,operation_kind,expires_at,created_at) values ($1,$2,$3,$4,$5,now()) on conflict do nothing`, callID, ownerHash, generation, kind, time.Now().Add(ttl))
 	if err != nil {
 		return err
 	}
@@ -127,14 +127,6 @@ func (s *PostgresStateStore) MarkOwnerDeleted(ctx context.Context, ownerHash str
 		return err
 	}
 	return tx.Commit(ctx)
-}
-
-func (s *PostgresStateStore) SubjectDrained(ctx context.Context, ownerHash string, generation int64, subjectHash string, beforeSequence int64) (bool, error) {
-	var active bool
-	err := s.pool.QueryRow(ctx, `select
-		exists(select 1 from execution_control.personal_memory_call_leases where owner_scope_hash=$1 and generation=$2 and subject_scope_hash=$3 and owner_sequence < $4 and expires_at > now())
-		or exists(select 1 from execution_control.personal_memory_command_receipts where owner_scope_hash=$1 and generation=$2 and subject_scope_hash=$3 and sequence < $4 and status not in ('succeeded','failed'))`, ownerHash, generation, subjectHash, beforeSequence).Scan(&active)
-	return !active, err
 }
 
 func (s *PostgresStateStore) BeginCommand(ctx context.Context, ownerHash string, command memoryruntime.PersonalMemoryCommandRequest, leaseTTL time.Duration) (memoryruntime.CommandReceipt, bool, error) {

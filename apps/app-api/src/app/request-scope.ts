@@ -75,6 +75,7 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 				if (!memory) {
 					memory = buildProfileMemoryService({
 						commandAdmitter: createExecutionControlPersonalMemoryClient(input.env),
+						memoryReader: createExecutionControlPersonalMemoryClient(input.env),
 						commandStore: persistence.commands,
 						mutationStore: persistence.mutations,
 						readStore: persistence.reads,
@@ -85,7 +86,6 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 			const resolveChatConversationService = () =>
 				(chat ??= buildChatConversationService({
 					detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
-					dispatchMemoryCommands: () => resolveProfileMemoryService().dispatchPending(),
 					store: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
 				}));
 			const resolveChatCommandService = () => {

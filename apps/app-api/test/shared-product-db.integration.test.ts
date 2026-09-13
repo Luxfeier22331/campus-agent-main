@@ -692,242 +692,107 @@ describe("app-api shared product DB integration", () => {
 		);
 	});
 
-	it("serializes profile-memory idempotency, dispatch and scope-head reconciliation", async () => {
+	it("serializes commands without blocking chat memory and retains failed payloads for explicit retry", async () => {
 		const suffix = Date.now().toString(36);
 		const ownerUserId = `memory-owner-${suffix}`;
-		const firstEnv = buildSharedDbIntegrationEnv({
+		const env = buildSharedDbIntegrationEnv({
 			runtimeConnectionString: postgres.runtimeConnectionString,
 		});
-		const secondEnv = buildSharedDbIntegrationEnv({
-			runtimeConnectionString: postgres.runtimeConnectionString,
-		});
-		const firstStore = createPgProfileMemoryStore(firstEnv);
-		const secondStore = createPgProfileMemoryStore(secondEnv);
-		const mutationIdentity = {
-			idempotencyKeyHash: `idem-${suffix}`,
-			requestFingerprint: `request-${suffix}`,
-		};
-		const [firstCreate, replayedCreate] = await Promise.all([
-			firstStore.createItem({
-				commandId: `command-create-a-${suffix}`,
-				...mutationIdentity,
-				itemId: `item-a-${suffix}`,
-				key: "answer_style",
-				ownerUserId,
-				updatedAt: "2026-07-16T01:00:00.000Z",
-				value: "先给结论",
-			}),
-			secondStore.createItem({
-				commandId: `command-create-b-${suffix}`,
-				...mutationIdentity,
-				itemId: `item-b-${suffix}`,
-				key: "answer_style",
-				ownerUserId,
-				updatedAt: "2026-07-16T01:00:00.000Z",
-				value: "先给结论",
-			}),
-		]);
-		expect(replayedCreate.item?.itemId).toBe(firstCreate.item?.itemId);
-
-		const itemId = firstCreate.item?.itemId;
-		if (!itemId) {
-			throw new Error("profile-memory integration create did not return an item");
-		}
-		await firstStore.updateItem({
-			commandId: `command-update-1-${suffix}`,
-			idempotencyKeyHash: `idem-update-1-${suffix}`,
-			itemId,
-			key: "answer_style",
+		const first = createPgProfileMemoryStore(env);
+		const second = createPgProfileMemoryStore(env);
+		const base = (id: string) => ({
+			commandId: `${id}-${suffix}`,
+			idempotencyKeyHash: `${id}-idem-${suffix}`,
+			requestFingerprint: `${id}-request-${suffix}`,
 			ownerUserId,
-			requestFingerprint: `request-update-1-${suffix}`,
-			updatedAt: "2026-07-16T01:01:00.000Z",
-			value: "先给最终结论",
+			updatedAt: "2026-09-12T01:00:00Z",
 		});
-		const firstAdmissions = await firstStore.listPendingAdmissions({ limit: 20 });
-		expect(firstAdmissions.filter((command) => command.ownerUserId === ownerUserId)).toEqual([
+		const [accepted, replayed] = await Promise.all([
+			first.createItem({ ...base("add"), text: "先给结论" }),
+			second.createItem({ ...base("add"), commandId: `alternative-${suffix}`, text: "先给结论" }),
+		]);
+		expect(accepted.commandId).toBe(replayed.commandId);
+		expect(accepted.syncStatus).toBe("synced");
+		const complete = (commandId: string, status: "succeeded" | "failed") =>
+			first.applyCommandResult({
+				commandId,
+				status,
+				...(status === "failed" ? { errorCode: "provider_timeout" } : {}),
+				resultFingerprint: (status === "failed" ? "b" : "a").repeat(64),
+				updatedAt: "2026-09-12T01:01:00Z",
+			});
+		await first.updateItem({ ...base("edit"), memoryId: "fact-1", text: "先给一句结论" });
+		expect(
+			(await first.listPendingAdmissions({ limit: 100 })).filter(
+				(c) => c.ownerUserId === ownerUserId,
+			),
+		).toEqual([
 			expect.objectContaining({
-				commandId: `command-update-1-${suffix}`,
-				item: { key: "answer_style", value: "先给最终结论" },
-				schemaVersion: "personal_memory_command.v2",
-				supersessionScope: `item:${itemId}`,
+				commandId: accepted.commandId,
+				item: { text: "先给结论" },
+				schemaVersion: "personal_memory_command.v3",
 			}),
 		]);
-		await firstStore.markCommandAdmitted({
-			admittedAt: "2026-07-16T01:01:10.000Z",
-			commandId: `command-update-1-${suffix}`,
-		});
-		await firstStore.updateItem({
-			commandId: `command-update-2-${suffix}`,
-			idempotencyKeyHash: `idem-update-2-${suffix}`,
-			itemId,
-			key: "answer_style",
-			ownerUserId,
-			requestFingerprint: `request-update-2-${suffix}`,
-			updatedAt: "2026-07-16T01:02:00.000Z",
-			value: "先给一句结论",
+		await first.markCommandAdmitted({
+			commandId: accepted.commandId,
+			admittedAt: "2026-09-12T01:00:01Z",
 		});
 		expect(
-			(await firstStore.listPendingAdmissions({ limit: 20 })).filter(
-				(command) => command.ownerUserId === ownerUserId,
+			(await first.listPendingAdmissions({ limit: 100 })).filter(
+				(c) => c.ownerUserId === ownerUserId,
 			),
 		).toEqual([]);
-
-		const superseded = await firstStore.applyCommandResult({
-			commandId: `command-update-1-${suffix}`,
-			resultFingerprint: "a".repeat(64),
-			status: "succeeded",
-			updatedAt: "2026-07-16T01:03:00.000Z",
-		});
-		expect(superseded).toBe("superseded");
+		expect(await complete(accepted.commandId, "succeeded")).toBe("applied");
 		expect(
-			await firstStore.applyCommandResult({
-				commandId: `command-update-1-${suffix}`,
-				resultFingerprint: "a".repeat(64),
-				status: "succeeded",
-				updatedAt: "2026-07-16T01:03:01.000Z",
-			}),
-		).toBe("replayed");
-		expect(
-			(await firstStore.listPendingAdmissions({ limit: 20 })).filter(
-				(command) => command.ownerUserId === ownerUserId,
+			(await first.listPendingAdmissions({ limit: 100 })).filter(
+				(c) => c.ownerUserId === ownerUserId,
 			),
-		).toEqual([expect.objectContaining({ commandId: `command-update-2-${suffix}` })]);
-
-		await firstStore.applyCommandResult({
-			commandId: `command-update-2-${suffix}`,
-			resultFingerprint: "b".repeat(64),
-			status: "succeeded",
-			updatedAt: "2026-07-16T01:04:00.000Z",
-		});
-		expect(await firstStore.listByOwner(ownerUserId)).toMatchObject({
-			lifecycleState: "active",
+		).toEqual([expect.objectContaining({ commandId: base("edit").commandId })]);
+		expect(await complete(base("edit").commandId, "failed")).toBe("applied");
+		expect(await first.listByOwner(ownerUserId)).toMatchObject({
 			syncStatus: "synced",
+			operations: [
+				expect.objectContaining({ commandId: base("edit").commandId, status: "failed" }),
+			],
 		});
-
-		const dbClient = requireClient(client);
-		const commandRows = await dbClient.query<{
-			accepted_item_value: string | null;
-			command_id: string;
-			reported_result_status: string | null;
-			status: string;
-		}>(
-			`
-			select "command_id", "status", "reported_result_status", "accepted_item_value"
-			from "profile"."memory_commands"
-			where "owner_user_id" = $1
-			order by "owner_sequence"
-		`,
-			[ownerUserId],
-		);
-		expect(commandRows.rows).toHaveLength(3);
-		expect(commandRows.rows[1]).toEqual({
-			accepted_item_value: null,
-			command_id: `command-update-1-${suffix}`,
-			reported_result_status: "succeeded",
-			status: "superseded",
+		const retry = await first.retryCommand({
+			...base("retry"),
+			failedCommandId: base("edit").commandId,
 		});
-		expect(commandRows.rows.every((row) => row.accepted_item_value === null)).toBe(true);
-
-		await firstStore.updateItem({
-			commandId: `command-update-before-erase-${suffix}`,
-			idempotencyKeyHash: `idem-update-before-erase-${suffix}`,
-			itemId,
-			key: "answer_style",
-			ownerUserId,
-			requestFingerprint: `request-update-before-erase-${suffix}`,
-			updatedAt: "2026-07-16T01:05:00.000Z",
-			value: "这段快照必须在 erase 时清除",
-		});
-		const beforeErase = await dbClient.query<{ accepted_item_value: string | null }>(
-			`
-			select "accepted_item_value"
-			from "profile"."memory_commands"
-			where "command_id" = $1
-		`,
-			[`command-update-before-erase-${suffix}`],
-		);
-		expect(beforeErase.rows[0]?.accepted_item_value).toBe("这段快照必须在 erase 时清除");
-
-		await firstStore.erase({
-			commandId: `command-erase-${suffix}`,
-			idempotencyKeyHash: `idem-erase-${suffix}`,
-			ownerUserId,
-			requestFingerprint: `request-erase-${suffix}`,
-			updatedAt: "2026-07-16T01:06:00.000Z",
-		});
-		const afterErase = await dbClient.query<{ retained_snapshots: string }>(
-			`
-			select count(*) filter (
-				where "accepted_item_key" is not null or "accepted_item_value" is not null
-			)::text as retained_snapshots
-			from "profile"."memory_commands"
-			where "owner_user_id" = $1
-		`,
-			[ownerUserId],
-		);
-		expect(afterErase.rows[0]?.retained_snapshots).toBe("0");
 		expect(
-			await firstStore.applyCommandResult({
-				commandId: `command-erase-${suffix}`,
-				resultFingerprint: "c".repeat(64),
-				status: "succeeded",
-				updatedAt: "2026-07-16T01:07:00.000Z",
+			(await first.listPendingAdmissions({ limit: 100 })).filter(
+				(c) => c.ownerUserId === ownerUserId,
+			),
+		).toEqual([
+			expect.objectContaining({
+				commandId: retry.commandId,
+				item: { text: "先给一句结论" },
+				subjectId: "fact-1",
 			}),
-		).toBe("applied");
-		await expect(
-			firstStore.createItem({
-				commandId: `command-create-after-erase-${suffix}`,
-				idempotencyKeyHash: `idem-create-after-erase-${suffix}`,
-				itemId: `item-after-erase-${suffix}`,
-				key: "recent_goal",
-				ownerUserId,
-				requestFingerprint: `request-create-after-erase-${suffix}`,
-				updatedAt: "2026-07-16T01:08:00.000Z",
-				value: "不应生成 outbox",
-			}),
-		).rejects.toMatchObject({ code: "profile_memory_not_ready" });
-		await expect(
-			firstStore.setLifecycle({
-				commandId: `command-pause-after-erase-${suffix}`,
-				idempotencyKeyHash: `idem-pause-after-erase-${suffix}`,
-				lifecycleState: "paused",
-				ownerUserId,
-				requestFingerprint: `request-pause-after-erase-${suffix}`,
-				updatedAt: "2026-07-16T01:08:30.000Z",
-			}),
-		).rejects.toMatchObject({ code: "profile_memory_not_ready" });
-		await expect(
-			firstStore.setLifecycle({
-				commandId: `command-reactivate-${suffix}`,
-				idempotencyKeyHash: `idem-reactivate-${suffix}`,
-				lifecycleState: "active",
-				ownerUserId,
-				requestFingerprint: `request-reactivate-${suffix}`,
-				updatedAt: "2026-07-16T01:09:00.000Z",
-			}),
-		).resolves.toMatchObject({ lifecycleState: "active" });
-		expect(await firstStore.listByOwner(ownerUserId)).toMatchObject({
+		]);
+		await complete(retry.commandId, "succeeded");
+		await first.updateItem({ ...base("disable"), memoryId: "fact-1", state: "inactive" });
+		await first.erase(base("erase"));
+		const db = requireClient(client);
+		const payloads = await db.query(
+			"select payload from profile.memory_commands where owner_user_id=$1",
+			[ownerUserId],
+		);
+		expect(payloads.rows.every((row) => row.payload === null)).toBe(true);
+		await complete(base("erase").commandId, "succeeded");
+		expect(await first.listByOwner(ownerUserId)).toMatchObject({
+			lifecycleState: "erased",
+			syncStatus: "synced",
+			operations: [],
+		});
+		await expect(first.createItem({ ...base("after"), text: "blocked" })).rejects.toMatchObject({
+			code: "profile_memory_not_ready",
+		});
+		await first.setLifecycle({ ...base("enable"), lifecycleState: "active" });
+		expect(await first.listByOwner(ownerUserId)).toMatchObject({
 			lifecycleState: "active",
 			syncStatus: "pending",
 		});
-		await expect(
-			firstStore.erase({
-				commandId: `command-erase-after-reactivate-${suffix}`,
-				idempotencyKeyHash: `idem-erase-after-reactivate-${suffix}`,
-				ownerUserId,
-				requestFingerprint: `request-erase-after-reactivate-${suffix}`,
-				updatedAt: "2026-07-16T01:10:00.000Z",
-			}),
-		).resolves.toMatchObject({ lifecycleState: "erasing", syncStatus: "pending" });
-		const reeraseRows = await dbClient.query<{ owner_generation: number }>(
-			`
-			select "owner_generation"::int
-			from "profile"."memory_commands"
-			where "command_id" = $1
-			`,
-			[`command-erase-after-reactivate-${suffix}`],
-		);
-		expect(reeraseRows.rows[0]?.owner_generation).toBe(3);
 	});
 
 	it("coalesces repeated erase requests and retries failed erase in the same generation", async () => {
@@ -1073,7 +938,7 @@ describe("app-api shared product DB integration", () => {
 		expect(commandCount.rows[0]?.count).toBe("2");
 	});
 
-	it("keeps conversation source batches independent and scrubs them after callback", async () => {
+	it("deletes conversations without creating memory cleanup commands", async () => {
 		const suffix = Date.now().toString(36);
 		const ownerUserId = `source-owner-${suffix}`;
 		const conversationId = `source-conversation-${suffix}`;
@@ -1106,61 +971,18 @@ describe("app-api shared product DB integration", () => {
 			}),
 		).toBe(true);
 
-		const commandRows = await dbClient.query<{
-			command_id: string;
-			source_count: string;
-			supersession_scope: string;
-		}>(
-			`
-				select command."command_id", command."supersession_scope", count(source."command_id")::text as source_count
-				from "profile"."memory_commands" command
-				join "profile"."memory_command_sources" source using ("command_id")
-				where command."owner_user_id" = $1
-				group by command."command_id", command."owner_sequence", command."supersession_scope"
-				order by command."owner_sequence"
-			`,
+		const commands = await dbClient.query(
+			"select command_id from profile.memory_commands where owner_user_id=$1",
 			[ownerUserId],
 		);
-		expect(commandRows.rows.map((row) => row.source_count)).toEqual(["50", "1"]);
-		expect(new Set(commandRows.rows.map((row) => row.supersession_scope)).size).toBe(2);
-		for (const row of commandRows.rows) {
-			expect(row.supersession_scope).toBe(`source_batch:${row.command_id}`);
-		}
-
-		const memoryStore = createPgProfileMemoryStore(env);
-		expect(
-			await memoryStore.applyCommandResult({
-				commandId: commandRows.rows[0]?.command_id ?? "",
-				resultFingerprint: "d".repeat(64),
-				status: "succeeded",
-				updatedAt: "2026-07-16T02:02:00.000Z",
-			}),
-		).toBe("applied");
-		expect(
-			await memoryStore.applyCommandResult({
-				commandId: commandRows.rows[1]?.command_id ?? "",
-				resultFingerprint: "e".repeat(64),
-				status: "succeeded",
-				updatedAt: "2026-07-16T02:03:00.000Z",
-			}),
-		).toBe("applied");
-		const retainedSources = await dbClient.query<{ count: string }>(
-			`
-				select count(*)::text as count
-				from "profile"."memory_command_sources" source
-				join "profile"."memory_commands" command using ("command_id")
-				where command."owner_user_id" = $1
-			`,
-			[ownerUserId],
-		);
-		expect(retainedSources.rows[0]?.count).toBe("0");
-		expect(await memoryStore.listByOwner(ownerUserId)).toMatchObject({
+		expect(commands.rows).toEqual([]);
+		expect(await createPgProfileMemoryStore(env).listByOwner(ownerUserId)).toMatchObject({
 			lifecycleState: "active",
 			syncStatus: "synced",
 		});
 	});
 
-	it("projects conversation prune sources without applying an item revision fence", async () => {
+	it("prunes conversation messages without mutating personal memory", async () => {
 		const suffix = Date.now().toString(36);
 		const ownerUserId = `prune-owner-${suffix}`;
 		const conversationId = `prune-conversation-${suffix}`;
@@ -1210,41 +1032,7 @@ describe("app-api shared product DB integration", () => {
 		const pending = (await memoryStore.listPendingAdmissions({ limit: 20 })).filter(
 			(command) => command.ownerUserId === ownerUserId,
 		);
-		expect(pending).toEqual([
-			expect.objectContaining({
-				commandKind: "conversation_prune",
-				sourceMessageIds: [`${sourcePrefix}2`, `${sourcePrefix}3`],
-				subjectId: conversationId,
-			}),
-		]);
-		const commandId = pending[0]?.commandId;
-		if (!commandId) {
-			throw new Error("conversation prune did not produce a memory command");
-		}
-		expect(
-			await memoryStore.markCommandAdmitted({
-				admittedAt: "2026-07-16T03:01:30.000Z",
-				commandId,
-			}),
-		).toBe(true);
-		expect(
-			await memoryStore.applyCommandResult({
-				commandId,
-				resultFingerprint: "f".repeat(64),
-				status: "succeeded",
-				updatedAt: "2026-07-16T03:02:00.000Z",
-			}),
-		).toBe("applied");
-
-		const retainedSources = await dbClient.query<{ count: string }>(
-			`
-				select count(*)::text as count
-				from "profile"."memory_command_sources"
-				where "command_id" = $1
-			`,
-			[commandId],
-		);
-		expect(retainedSources.rows[0]?.count).toBe("0");
+		expect(pending).toEqual([]);
 		expect(await memoryStore.listByOwner(ownerUserId)).toMatchObject({
 			lifecycleState: "active",
 			syncStatus: "synced",

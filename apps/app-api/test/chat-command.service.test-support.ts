@@ -243,7 +243,6 @@ export function createCommandStore(options?: {
 	memorySnapshot?: {
 		appendEnabled: boolean;
 		ownerGeneration: number;
-		ownerSequence: number;
 		recallEnabled: boolean;
 	} | null;
 }) {
@@ -654,13 +653,11 @@ function internalContextFromWire(wire: Record<string, unknown>): ToolExecutionIn
 		},
 		...(typeof memoryWire?.recall_enabled === "boolean" &&
 		typeof memoryWire.append_enabled === "boolean" &&
-		typeof memoryWire.owner_generation === "number" &&
-		typeof memoryWire.owner_sequence === "number"
+		typeof memoryWire.owner_generation === "number"
 			? {
 					memory: {
 						appendEnabled: memoryWire.append_enabled,
 						ownerGeneration: memoryWire.owner_generation,
-						ownerSequence: memoryWire.owner_sequence,
 						recallEnabled: memoryWire.recall_enabled,
 					},
 				}

@@ -1,4 +1,5 @@
 import type { Env } from "../../config";
+import type { ProfileMemoryReader } from "../profile-memory";
 import type { ExecutionRunMetadataWire } from "./generated/tool-execution-contract";
 
 export type ExecutionControlRuntimeEnv = Pick<
@@ -93,6 +94,6 @@ export interface ExecutionControlOwnerDeletionClient {
 	finalizeOwnerDeletion(input: { ownerUserId: string }): Promise<ExecutionControlOwnerDeletion>;
 }
 
-export interface ExecutionControlPersonalMemoryClient {
+export interface ExecutionControlPersonalMemoryClient extends ProfileMemoryReader {
 	admit(input: import("../profile-memory").ProfileMemoryCommandPayload): Promise<void>;
 }

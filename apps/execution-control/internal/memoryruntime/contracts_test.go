@@ -84,20 +84,20 @@ func TestValidatePersonalMemoryCommandRequiresV2SchemaAndCanonicalSupersessionSc
 func validRecallRequestForTest() RecallRequest {
 	return RecallRequest{
 		OwnerGeneration: 1,
-		OwnerSequence:   0,
-		QueryTimestamp:  "2026-06-16T10:00:00Z",
-		RequestID:       "req-memory-test",
-		TenantID:        "tenant-main",
-		ThreadID:        "conv-memory-test",
-		UserGoal:        "我如何准备保研材料？",
-		UserID:          "user-memory-test",
+
+		QueryTimestamp: "2026-06-16T10:00:00Z",
+		RequestID:      "req-memory-test",
+		TenantID:       "tenant-main",
+		ThreadID:       "conv-memory-test",
+		UserGoal:       "我如何准备保研材料？",
+		UserID:         "user-memory-test",
 	}
 }
 
 func validAppendConversationTurnRequestForTest() AppendConversationTurnRequest {
 	return AppendConversationTurnRequest{
-		OwnerGeneration:      1,
-		OwnerSequence:        0,
+		OwnerGeneration: 1,
+
 		RequestID:            "req-memory-test",
 		TenantID:             "tenant-main",
 		ThreadID:             "conv-memory-test",

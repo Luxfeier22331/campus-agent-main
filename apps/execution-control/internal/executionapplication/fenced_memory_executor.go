@@ -27,7 +27,7 @@ func NewFencedExecutor(executor MemoryExecutor, state MemoryStore, ownerSalt str
 }
 
 func (e fencedMemoryExecutor) Recall(ctx context.Context, request memoryruntime.RecallRequest) (memoryruntime.RecallResult, error) {
-	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RequestID, request.ThreadID, request.OwnerGeneration, request.OwnerSequence, "recall")
+	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RequestID, request.OwnerGeneration, "recall")
 	if err != nil {
 		return memoryruntime.RecallResult{}, err
 	}
@@ -36,7 +36,7 @@ func (e fencedMemoryExecutor) Recall(ctx context.Context, request memoryruntime.
 }
 
 func (e fencedMemoryExecutor) AppendConversationTurn(ctx context.Context, request memoryruntime.AppendConversationTurnRequest) (memoryruntime.AppendConversationTurnResult, error) {
-	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RequestID, request.ThreadID, request.OwnerGeneration, request.OwnerSequence, "append")
+	ownerHash, callID, err := e.beginCall(ctx, request.TenantID, request.UserID, request.RequestID, request.OwnerGeneration, "append")
 	if err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
@@ -44,11 +44,10 @@ func (e fencedMemoryExecutor) AppendConversationTurn(ctx context.Context, reques
 	return e.MemoryExecutor.AppendConversationTurn(ctx, request)
 }
 
-func (e fencedMemoryExecutor) beginCall(ctx context.Context, tenantID string, userID string, runID string, subjectID string, generation int64, sequence int64, kind string) (string, string, error) {
+func (e fencedMemoryExecutor) beginCall(ctx context.Context, tenantID string, userID string, runID string, generation int64, kind string) (string, string, error) {
 	ownerHash := memoryruntime.OwnerScopeHash(e.ownerSalt, tenantID, userID)
-	subjectHash := memoryruntime.SubjectScopeHash(ownerHash, subjectID)
 	callID := fmt.Sprintf("%s:%s", runID, kind)
-	if err := e.state.BeginCall(ctx, ownerHash, callID, generation, sequence, subjectHash, kind, e.ttl); err != nil {
+	if err := e.state.BeginCall(ctx, ownerHash, callID, generation, kind, e.ttl); err != nil {
 		return "", "", fmt.Errorf("personal memory %s fence rejected: %w", kind, err)
 	}
 	return ownerHash, callID, nil

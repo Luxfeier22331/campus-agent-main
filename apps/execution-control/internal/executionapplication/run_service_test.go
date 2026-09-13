@@ -345,8 +345,7 @@ func TestAgentToolServiceBuildsPersonalMemoryRecallFromFrozenRunInput(t *testing
 		executor.request.ThreadID != run.ConversationID ||
 		executor.request.UserID != run.OwnerUserID ||
 		executor.request.UserGoal != "新的记忆查询" ||
-		executor.request.OwnerGeneration != 2 ||
-		executor.request.OwnerSequence != 7 {
+		executor.request.OwnerGeneration != 2 {
 		t.Fatalf("recall request = %#v", executor.request)
 	}
 }

@@ -7,7 +7,6 @@ import { isProfileMemoryRuntimeEnabled } from "./model";
 export interface ProfileMemoryRuntimeSnapshot {
 	appendEnabled: boolean;
 	ownerGeneration: number;
-	ownerSequence: number;
 	recallEnabled: boolean;
 }
 
@@ -29,7 +28,6 @@ export async function captureProfileMemorySnapshotForUpdate(
 	return {
 		appendEnabled: memoryEnabled,
 		ownerGeneration: settings?.generation ?? 1,
-		ownerSequence: settings?.commandSequence ?? 0,
 		recallEnabled: memoryEnabled,
 	};
 }

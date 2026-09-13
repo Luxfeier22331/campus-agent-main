@@ -41,7 +41,6 @@ export function buildToolExecutionContextProjection(input: {
 	memory?: {
 		appendEnabled: boolean;
 		ownerGeneration: number;
-		ownerSequence: number;
 		recallEnabled: boolean;
 	} | null;
 	sessionSlots: ChatConversation["sessionSlots"];

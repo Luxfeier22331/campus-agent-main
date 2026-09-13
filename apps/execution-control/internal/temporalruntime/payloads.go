@@ -40,8 +40,8 @@ type AgentRuntimeLimitsSnapshot struct {
 }
 
 type PersonalMemoryCommandItem struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Text  string `json:"text,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
 type PersonalMemoryCommandRequest struct {
@@ -53,11 +53,14 @@ type PersonalMemoryCommandRequest struct {
 	OwnerSequence     int64                      `json:"owner_sequence"`
 	SchemaVersion     string                     `json:"schema_version"`
 	SubjectID         string                     `json:"subject_id,omitempty"`
-	SubjectRevision   int64                      `json:"subject_revision,omitempty"`
 	SourceUpdatedAt   string                     `json:"source_updated_at"`
-	SourceMessageIDs  []string                   `json:"source_message_ids,omitempty"`
 	SubjectScopeHash  string                     `json:"-"`
 	SupersessionScope string                     `json:"supersession_scope"`
 	TenantID          string                     `json:"tenant_id"`
 	UserID            string                     `json:"user_id"`
+}
+
+type FinalizeMemoryAppendActivityInput struct {
+	RequestID   string `json:"request_id"`
+	FailureKind string `json:"failure_kind"`
 }

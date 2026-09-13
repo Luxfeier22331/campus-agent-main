@@ -302,6 +302,17 @@ func (s *Adapter) CommitWorkflowFinalizationStep(
 	finalizationFingerprint := strings.TrimSpace(
 		execution.StringValue(projection.Payload["finalization_fingerprint_sha256"]),
 	)
+
+	// Register the post-answer step before publishing the completed finalization projection.
+	// Replayed finalization must not reset an already running/terminal append.
+	_, pendingErr := s.RunProjectionStore.UpsertRunStep(ctx, execution.RunStepProjection{
+		StepID: "memory.append", RequestID: run.RequestID, ConversationID: run.ConversationID, StepKind: "memory", Tool: "memory",
+		Status: "pending", TaskQueue: temporalruntime.ActivityTaskQueueCore, UpdatedAt: completionAt,
+		PayloadSchemaVersion: "run-step-projection-v1", SanitizedPayload: map[string]any{"status": "pending"},
+	})
+	if pendingErr != nil && !errors.Is(pendingErr, execution.ErrStaleRunStepProjection) {
+		return execution.DurableRun{}, pendingErr
+	}
 	finalized, err := s.RunProjectionStore.FinalizeRunProjection(
 		ctx,
 		execution.RunProjectionFinalizeRequest{

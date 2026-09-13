@@ -143,6 +143,20 @@ export function createExecutionControlPersonalMemoryClient(
 	});
 
 	return {
+		async listItems(input) {
+			return (await requestExecutionControl("/internal/memory/personal/items/list", {
+				body: { ...input, tenantId: DEFAULT_PERSONAL_MEMORY_TENANT_ID },
+				expectedStatus: 200,
+				method: "POST",
+			})) as unknown as import("../profile-memory").ProfileMemoryPage;
+		},
+		async getItem(input) {
+			return (await requestExecutionControl("/internal/memory/personal/items/get", {
+				body: { ...input, tenantId: DEFAULT_PERSONAL_MEMORY_TENANT_ID },
+				expectedStatus: 200,
+				method: "POST",
+			})) as unknown as import("../profile-memory").ProfileMemoryItem;
+		},
 		async admit(command) {
 			await requestExecutionControl("/internal/memory/personal/commands", {
 				body: {
@@ -154,10 +168,8 @@ export function createExecutionControlPersonalMemoryClient(
 					owner_generation: command.ownerGeneration,
 					owner_sequence: command.ownerSequence,
 					subject_id: command.subjectId,
-					subject_revision: command.subjectRevision,
 					supersession_scope: command.supersessionScope,
 					source_updated_at: command.sourceUpdatedAt,
-					source_message_ids: command.sourceMessageIds,
 					tenant_id: DEFAULT_PERSONAL_MEMORY_TENANT_ID,
 					user_id: command.ownerUserId,
 				},

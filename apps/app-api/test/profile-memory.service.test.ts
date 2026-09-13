@@ -34,29 +34,13 @@ function createPrincipal(chat = true): ResolvedAppPrincipal {
 	};
 }
 
-function pendingResult(item = true) {
+function pendingResult() {
 	return {
-		...(item
-			? {
-					item: pendingItem(),
-				}
-			: {}),
+		commandId: "memcmd_01HQ",
 		lifecycleState: "active" as const,
-		syncStatus: "pending" as const,
+		syncStatus: "synced" as const,
 	};
 }
-
-function pendingItem() {
-	return {
-		itemId: "mem_01HQ",
-		key: "answer_style",
-		revision: 1,
-		state: "saving" as const,
-		updatedAt: "2026-04-27T08:00:00.000Z",
-		value: "先给结论",
-	};
-}
-
 type TestProfileMemoryStore = ProfileMemoryCommandStore &
 	ProfileMemoryMutationStore &
 	ProfileMemoryReadStore;
@@ -73,30 +57,27 @@ function createStore(): TestProfileMemoryStore {
 	return {
 		applyCommandResult: vi.fn(async () => "applied" as const),
 		createItem: vi.fn(async () => pendingResult()),
-		deleteItem: vi.fn(async () => ({
-			...pendingResult(),
-			item: { ...pendingItem(), state: "deleting" as const },
-		})),
+		retryCommand: vi.fn(async () => pendingResult()),
+		updateItem: vi.fn(async () => pendingResult()),
 		erase: vi.fn(async () => ({
+			...pendingResult(),
 			lifecycleState: "erasing" as const,
 			syncStatus: "pending" as const,
 		})),
 		findCommandByIdempotency: vi.fn(async () => null),
 		listPendingAdmissions: vi.fn(async () => []),
 		markCommandAdmitted: vi.fn(async () => true),
+		markAdmissionFailed: vi.fn(async () => undefined),
+		generationByOwner: vi.fn(async () => 1),
 		listByOwner: vi.fn(async () => ({
-			itemCount: 0,
-			items: [],
+			operations: [],
 			lifecycleState: "active" as const,
 			syncStatus: "synced" as const,
 		})),
-		setLifecycle: vi.fn(async (_input) => ({
+		setLifecycle: vi.fn(async () => ({
+			...pendingResult(),
 			lifecycleState: "paused" as const,
 			syncStatus: "pending" as const,
-		})),
-		updateItem: vi.fn(async () => ({
-			...pendingResult(),
-			item: { ...pendingItem(), revision: 2 },
 		})),
 	};
 }
@@ -120,80 +101,109 @@ describe("profile memory service", () => {
 		expect(isProfileMemoryRuntimeEnabled({ lifecycleState, syncStatus })).toBe(expected);
 	});
 
-	it("writes normalized desired state and a command without calling Hindsight inline", async () => {
+	it("enqueues natural language without an inline Hindsight write or disabling memory", async () => {
 		const store = createStore();
 		const service = buildProfileMemoryService({
 			...serviceStores(store),
-			generateId: (prefix) => (prefix === "mem" ? "mem_01HQ" : "memcmd_01HQ"),
-			now: () => new Date("2026-04-27T08:00:00.000Z"),
+			generateId: () => "memcmd_01HQ",
 		});
-
 		const result = await service.createItem({
-			idempotencyKey: "idem-create-0001",
-			key: " 最喜欢的 作者 ",
 			principal: createPrincipal(),
-			value: " 先给   结论 ",
+			idempotencyKey: "idem-create-0001",
+			text: "  先给   结论  ",
 		});
-
 		expect(store.createItem).toHaveBeenCalledWith(
 			expect.objectContaining({
 				commandId: "memcmd_01HQ",
-				itemId: "mem_01HQ",
-				key: "最喜欢的 作者",
 				ownerUserId: "user_01HQ",
-				updatedAt: "2026-04-27T08:00:00.000Z",
-				value: "先给 结论",
+				text: "先给   结论",
 			}),
 		);
-		expect(result.syncStatus).toBe("pending");
+		expect(result.syncStatus).toBe("synced");
 	});
-
-	it("accepts Unicode keys and ordinary auth substrings without changing case", async () => {
+	it("rejects empty memory text", async () => {
 		const store = createStore();
 		const service = buildProfileMemoryService(serviceStores(store));
-		await service.createItem({
-			idempotencyKey: "idem-create-0002",
-			key: "Favorite_Author",
+		await expect(
+			service.createItem({
+				principal: createPrincipal(),
+				idempotencyKey: "idem-empty-0001",
+				text: "  ",
+			}),
+		).rejects.toMatchObject({ status: 400 });
+		expect(store.createItem).not.toHaveBeenCalled();
+	});
+	it("reads and curates native facts within the owner's generation", async () => {
+		const store = createStore();
+		const memoryId = "a6d4624b-6db8-4dc8-a1c4-7db9c4231d0e";
+		const fact = {
+			memoryId,
+			text: "先给结论",
+			kind: "fact" as const,
+			state: "active" as const,
+			origin: "conversation" as const,
+			mentionedAt: null,
+			editedAt: null,
+		};
+		const memoryReader = {
+			getItem: vi.fn(async () => fact),
+			listItems: vi.fn(async () => ({ items: [fact], total: 1, limit: 20, offset: 0 })),
+		};
+		const service = buildProfileMemoryService({ ...serviceStores(store), memoryReader });
+		await service.updateItem({
 			principal: createPrincipal(),
-			value: "刘慈欣",
+			idempotencyKey: "idem-curate-0001",
+			memoryId,
+			state: "inactive",
 		});
-		expect(store.createItem).toHaveBeenCalledWith(
-			expect.objectContaining({ key: "Favorite_Author", value: "刘慈欣" }),
+		expect(memoryReader.getItem).toHaveBeenCalledWith({
+			ownerUserId: "user_01HQ",
+			ownerGeneration: 1,
+			memoryId,
+		});
+		expect(store.updateItem).toHaveBeenCalledWith(
+			expect.objectContaining({ memoryId, state: "inactive" }),
 		);
+		await expect(
+			service.listItems({ principal: createPrincipal(), limit: 20, offset: 0 }),
+		).resolves.toMatchObject({ items: [fact] });
 	});
-
-	it("counts key and value limits by Unicode code points", async () => {
+	it("keeps derived memories read-only and does not mask provider read failure with an empty bank", async () => {
 		const store = createStore();
-		const service = buildProfileMemoryService(serviceStores(store));
-		const key = "😀".repeat(64);
-		const value = "🧭".repeat(500);
-
-		await service.createItem({
-			idempotencyKey: "idem-unicode-0001",
-			key,
-			principal: createPrincipal(),
-			value,
+		const memoryId = "a6d4624b-6db8-4dc8-a1c4-7db9c4231d0e";
+		const service = buildProfileMemoryService({
+			...serviceStores(store),
+			memoryReader: {
+				getItem: async () => ({
+					memoryId,
+					text: "summary",
+					kind: "summary",
+					state: "active",
+					origin: "derived",
+					mentionedAt: null,
+					editedAt: null,
+				}),
+				listItems: async () => {
+					throw new Error("provider unavailable");
+				},
+			},
 		});
-		expect(store.createItem).toHaveBeenCalledWith(expect.objectContaining({ key, value }));
-
 		await expect(
-			service.createItem({
-				idempotencyKey: "idem-unicode-0002",
-				key: `${key}😀`,
+			service.updateItem({
 				principal: createPrincipal(),
-				value,
+				idempotencyKey: "idem-summary-0001",
+				memoryId,
+				text: "changed",
 			}),
-		).rejects.toMatchObject({ code: "invalid_profile_memory_item", status: 400 });
+		).rejects.toMatchObject({ code: "memory_derived_read_only" });
+		expect(store.updateItem).not.toHaveBeenCalled();
 		await expect(
-			service.createItem({
-				idempotencyKey: "idem-unicode-0003",
-				key: "valid_key",
-				principal: createPrincipal(),
-				value: `${value}🧭`,
-			}),
-		).rejects.toMatchObject({ code: "invalid_profile_memory_item", status: 400 });
+			service.listItems({ principal: createPrincipal(), limit: 20, offset: 0 }),
+		).rejects.toThrow("provider unavailable");
+		await expect(service.list({ principal: createPrincipal() })).resolves.toMatchObject({
+			lifecycleState: "active",
+		});
 	});
-
 	it("creates a successor erase command after an account-deletion erase failed", async () => {
 		const store = createStore();
 		vi.mocked(store.findCommandByIdempotency)
@@ -243,19 +253,17 @@ describe("profile memory service", () => {
 		vi.mocked(store.listPendingAdmissions).mockResolvedValueOnce([
 			{
 				commandId: "memcmd_01HQ",
-				commandKind: "item_upsert",
-				item: { key: "answer_style", value: "先给结论" },
+				commandKind: "memory_add",
+				item: { text: "先给结论" },
 				lifecycleState: "active",
 				ownerGeneration: 1,
 				ownerSequence: 1,
 				ownerUserId: "user_01HQ",
-				schemaVersion: "personal_memory_command.v2",
-				sourceMessageIds: [],
+				schemaVersion: "personal_memory_command.v3",
 				sourceUpdatedAt: "2026-04-27T08:00:00.000Z",
 				status: "pending_admission",
 				subjectId: "mem_01HQ",
-				subjectRevision: 1,
-				supersessionScope: "item:mem_01HQ",
+				supersessionScope: "memory:mem_01HQ",
 			},
 		]);
 		const commandAdmitter: ProfileMemoryCommandAdmitter = {

@@ -26,7 +26,7 @@ func MemoryRecallRequestForRun(
 		execution.NestedAny(payload, "context", "actor", "user_id"),
 		run.OwnerUserID,
 	)
-	ownerGeneration, ownerSequence, err := MemoryOwnerFenceFromPayload(payload)
+	ownerGeneration, err := MemoryOwnerGenerationFromPayload(payload)
 	if err != nil {
 		return memoryruntime.RecallRequest{}, err
 	}
@@ -35,7 +35,6 @@ func MemoryRecallRequestForRun(
 	))
 	request := memoryruntime.RecallRequest{
 		OwnerGeneration: ownerGeneration,
-		OwnerSequence:   ownerSequence,
 		QueryTimestamp:  queryTimestamp,
 		RequestID:       run.RequestID,
 		SessionSlots:    MemorySessionSlotsFromPayload(payload),
@@ -50,16 +49,12 @@ func MemoryRecallRequestForRun(
 	return request, nil
 }
 
-func MemoryOwnerFenceFromPayload(payload map[string]any) (int64, int64, error) {
+func MemoryOwnerGenerationFromPayload(payload map[string]any) (int64, error) {
 	generation, ok := ExactInt64(execution.NestedAny(payload, "context", "memory", "owner_generation"))
 	if !ok || generation < 1 {
-		return 0, 0, errors.New("memory owner generation is required")
+		return 0, errors.New("memory owner generation is required")
 	}
-	sequence, ok := ExactInt64(execution.NestedAny(payload, "context", "memory", "owner_sequence"))
-	if !ok || sequence < 0 {
-		return 0, 0, errors.New("memory owner sequence is required")
-	}
-	return generation, sequence, nil
+	return generation, nil
 }
 
 func ExactInt64(value any) (int64, bool) {

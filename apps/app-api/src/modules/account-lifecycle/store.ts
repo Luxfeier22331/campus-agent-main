@@ -10,9 +10,7 @@ import {
 	oauthClient,
 	oauthConsent,
 	oauthRefreshToken,
-	profileMemoryCommandSources,
 	profileMemoryCommands,
-	profileMemoryItems,
 	profileMemorySettings,
 	requestObservabilityFact,
 	session,
@@ -235,15 +233,6 @@ export function createPgAccountLifecycleStore(
 					await tx.delete(requestObservabilityFact).where(or(...observabilityFilters));
 				}
 				await tx.delete(conversations).where(eq(conversations.ownerUserId, request.ownerUserId));
-				await tx.delete(profileMemoryCommandSources).where(
-					sql`${profileMemoryCommandSources.commandId} in (
-						select command_id from profile.memory_commands
-						where owner_user_id = ${request.ownerUserId}
-					)`,
-				);
-				await tx
-					.delete(profileMemoryItems)
-					.where(eq(profileMemoryItems.ownerUserId, request.ownerUserId));
 				await tx
 					.delete(profileMemoryCommands)
 					.where(eq(profileMemoryCommands.ownerUserId, request.ownerUserId));

@@ -36,56 +36,52 @@ function principal() {
 }
 
 function service(): ProfileMemoryService {
-	const pending = { lifecycleState: "active" as const, syncStatus: "pending" as const };
+	const pending = {
+		commandId: "memcmd_01",
+		lifecycleState: "active" as const,
+		syncStatus: "synced" as const,
+	};
 	return {
 		applyResult: vi.fn(async () => "applied" as const),
-		createItem: vi.fn(async () => ({
-			...pending,
-			item: {
-				itemId: "mem_01",
-				key: "answer_style",
-				revision: 1,
-				state: "saving" as const,
-				updatedAt: "2026-04-27T00:00:00.000Z",
-				value: "先给结论",
-			},
-		})),
-		deleteItem: vi.fn(async () => pending),
+		createItem: vi.fn(async () => pending),
+		updateItem: vi.fn(async () => pending),
+		retryCommand: vi.fn(async () => pending),
 		dispatchPending: vi.fn(async () => ({ admitted: 0, failed: 0, processed: 0 })),
 		erase: vi.fn(async () => ({
+			...pending,
 			lifecycleState: "erasing" as const,
 			syncStatus: "pending" as const,
 		})),
 		eraseForAccountDeletion: vi.fn(async () => ({
+			...pending,
 			lifecycleState: "erasing" as const,
 			syncStatus: "pending" as const,
 		})),
 		list: vi.fn(async () => ({
-			itemCount: 0,
-			items: [],
+			operations: [],
 			lifecycleState: "active" as const,
 			syncStatus: "synced" as const,
 		})),
+		listItems: vi.fn(async () => ({ items: [], total: 0, limit: 20, offset: 0 })),
+		getItem: vi.fn(async () => ({
+			memoryId: "fact",
+			text: "先给结论",
+			kind: "fact" as const,
+			state: "active" as const,
+			origin: "manual" as const,
+			mentionedAt: null,
+			editedAt: null,
+		})),
 		setLifecycle: vi.fn(async () => ({
+			...pending,
 			lifecycleState: "paused" as const,
 			syncStatus: "pending" as const,
-		})),
-		updateItem: vi.fn(async () => ({
-			...pending,
-			item: {
-				itemId: "mem_01",
-				key: "answer_style",
-				revision: 2,
-				state: "saving" as const,
-				updatedAt: "2026-04-27T00:00:00.000Z",
-				value: "简洁回答",
-			},
 		})),
 	};
 }
 
 describe("profile memory routes", () => {
-	it("returns the canonical local projection", async () => {
+	it("returns local lifecycle and operation status independently of provider content", async () => {
 		const app = createApp(env, {
 			getPrincipal: vi.fn().mockResolvedValue(principal()),
 			profileMemoryService: service(),
@@ -93,15 +89,15 @@ describe("profile memory routes", () => {
 		const response = await app.fetch(new Request("https://app-api.internal/api/me/profile-memory"));
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({
-			profileMemory: { itemCount: 0, items: [], lifecycleState: "active", syncStatus: "synced" },
+			profileMemory: { operations: [], lifecycleState: "active", syncStatus: "synced" },
 		});
 	});
 
 	it.each([
-		["POST", "/api/me/profile-memory/items", { key: "answer_style", value: "先给结论" }],
-		["PATCH", "/api/me/profile-memory/items/mem_01", { key: "answer_style", value: "简洁回答" }],
+		["POST", "/api/me/profile-memory/items", { text: "先给结论" }],
+		["PATCH", "/api/me/profile-memory/items/mem_01", { text: "简洁回答" }],
 		["PATCH", "/api/me/profile-memory/settings", { enabled: false }],
-		["DELETE", "/api/me/profile-memory/items/mem_01", undefined],
+		["PATCH", "/api/me/profile-memory/items/mem_01", { state: "inactive" }],
 		["DELETE", "/api/me/profile-memory", undefined],
 	] as const)("requires idempotency and returns 202 for %s %s", async (method, path, body) => {
 		const profileMemoryService = service();
@@ -120,8 +116,46 @@ describe("profile memory routes", () => {
 			}),
 		);
 		expect(response.status).toBe(202);
+		expect(profileMemoryService.dispatchPending).toHaveBeenCalledTimes(1);
 	});
 
+	it("retires per-item deletion", async () => {
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(principal()),
+			profileMemoryService: service(),
+		});
+		expect(
+			(
+				await app.fetch(
+					new Request("https://app-api.internal/api/me/profile-memory/items/fact", {
+						method: "DELETE",
+					}),
+				)
+			).status,
+		).toBe(404);
+	});
+	it("passes the search, type, state and pagination to the reader", async () => {
+		const memory = service();
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(principal()),
+			profileMemoryService: memory,
+		});
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/me/profile-memory/items?q=偏好&kind=fact&state=inactive&limit=10&offset=20",
+			),
+		);
+		expect(response.status).toBe(200);
+		expect(memory.listItems).toHaveBeenCalledWith(
+			expect.objectContaining({
+				q: "偏好",
+				kind: "fact",
+				state: "inactive",
+				limit: 10,
+				offset: 20,
+			}),
+		);
+	});
 	it("rejects mutations without Idempotency-Key", async () => {
 		const app = createApp(env, {
 			getPrincipal: vi.fn().mockResolvedValue(principal()),

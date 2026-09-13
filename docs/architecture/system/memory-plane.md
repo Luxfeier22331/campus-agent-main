@@ -6,142 +6,86 @@ status: active
 
 # 个人记忆
 
-## 边界
+Hindsight 是唯一个人记忆运行时；Qdrant 只负责机构知识。记忆辅助理解个人偏好、背景与指代，
+不决定身份、授权、工具开放或机构事实。聊天和记忆有独立生命周期。
 
-Hindsight 是当前唯一个人记忆 runtime。Qdrant 只保存机构知识；仓库不维护个人记忆 collection、
-embedding、extraction prompt、dedupe/merge 或 provider-backed extraction eval。
-
-个人记忆是 user-scoped advisory context，可用于跨会话跟进、偏好、地点、服务、别名消歧、query
-framing 和措辞。它不能决定身份、授权、来源信任、工具开放或失败拒绝。
+所有权决策见 [ADR-0058](../../decisions/adr-0058-hindsight.md)；个人记忆与会话上下文边界见
+[ADR-0015](../../decisions/adr-0015-memory-boundaries.md)。记忆不能覆盖实体识别结果，见
+[ADR-0021](../../decisions/adr-0021-entity-aliases.md)。
 
 ## 所有权
 
-| 所有者 | 职责 |
+| Owner | 职责 |
 | --- | --- |
-| Hindsight | retain、recall、extraction、graph、dedupe/merge 和 bank lifecycle |
-| execution-control | ID 派生、bank policy、SDK 调用、边界裁剪、内部命令、generation fence 和 receipt |
-| Temporal | Agent Activity、append、个人记忆命令和删除检查点的 durable execution |
-| app-api | 用户可见接口、生命周期、期望状态、outbox 和 PostgreSQL 产品投影 |
-| agent-runtime | 在本轮可用时向模型暴露 `personal_memory_recall`，不持有 Hindsight credential |
+| Hindsight | 内容、原生事实编辑/停用/恢复、来源、派生观察、consolidation、bank 清除 |
+| execution-control | bank 身份派生、SDK 适配、generation fence、在途租约、命令回执 |
+| Temporal | 命令串行执行、回答后的追加与有界重试、终态投影 |
+| app-api | 当前用户接口、生命周期、命令 outbox；不复制记忆内容列表 |
+| campus-web | 原生内容管理、条目级待处理状态及重试、暂停与完整清除 |
+| ops-web | 已有 step/attempt 投影上的后台追加进度，不代理 Hindsight 内部任务 |
+| agent-runtime | 按需调用 personal_memory_recall，不持有 Hindsight 凭据 |
 
-app-api 不直连 Hindsight；agent-runtime 只调用 execution-control 的有界内部 handler，不直连
-Hindsight 或暴露其原始 API。运行配置归属见 [Provider 与模型配置](../../environment/providers.md)，
-本文件不复制环境变量。
+app-api 通过 execution-control 的内部接口读取或提交命令。Hindsight 的端点与模型配置独立于
+聊天模型，见 [Provider 配置](../../environment/providers.md)。本项目不重新实现记忆抽取、向量化、
+去重或派生观察，也不建立另一份可写内容投影。
 
-## Identity 与隔离
+## 身份和执行
 
-- 产品默认 tenant 为显式 `tenant-main`；
-- bank ID 从稳定 salt、tenant、user ID 和用户代次派生；
-- 每条 accepted user message 对应
-  `conversation:<conversation_hash>:message:<message_hash>` document ID；
-- explicit profile document ID 为 `profile:<memory_id>`；
-- 产品 user、conversation 和 message ID 不直接作为 Hindsight object ID；
-- salt 在同一环境必须稳定，不跨环境共享。
+bank 从稳定环境 salt、tenant、user ID 和 generation 派生。默认 tenant 为 tenant-main。
+会话追加使用确定性的 conversation/message document ID；手工添加使用确定性的 profile document ID，
+重试同一个添加命令不会生成另一个来源。写入仅在 bank 不存在时创建并设置既有 Memory Defense 策略；
+recall 不创建 bank。
 
-写入操作先检查 scoped bank，仅在不存在时按固定策略创建，并启用 Memory Defense
-`sensitive_data -> redact`。recall 只读取已存在的 bank；bank 不存在时返回 no-match，不创建或重配
-bank。
+聊天准入冻结 recall_enabled、append_enabled 和 generation。普通命令序号只排序管理命令，
+不传入聊天调用、不比较命令序号来拒绝已经准入的 recall/append。暂停/清除仍通过 owner lifecycle
+和 generation 阻止不允许的调用；清除等待已开始的旧代次调用排空。
 
-## 在线执行
+recall 在 Agent 的普通工具调用中执行，使用当前用户范围和 accepted message 时间。
+无匹配不代表用户事实不存在；依赖失败返回失败工具结果，不阻止与记忆无关的回答，也不为了弥补
+个人记忆失败触发联网搜索。机构知识仍需 campus_search 或合适的当轮来源。
 
-在持久回答开始时，execution-control 冻结 `recall_enabled`、`append_enabled` 和用户代次。
-`recall_enabled=false` 时新运行不开放个人记忆工具；为 true 时，Primary Agent 可以按当前请求调用
-`personal_memory_recall`。调用次数受本轮总工具预算限制，不另设每工具一次限制。handler 重新校验运行身份、
-策略和用户代次后调用 Hindsight，并返回
-裁剪后的 `memory_text`。matched 结果可以支持用户自身事实或偏好，但不能支持机构事实、替代 Campus
-Docs evidence、成为公开来源或改变工具集合；no-match 不能被解释为任何事实。
+回答提交后才追加当前用户消息，不追加助手回答。追加使用原生同步 retain 和 private observation scope；
+错误不能回滚已经完成的回答。失败/取消的产品请求不追加。
 
-追加 activity 只有在 app-api 已接受同一 `finalization_fingerprint`，且 execution-control 的
-`completed` run 已绑定 `completed` `finalization.write` 投影后，才以确定性文档标识同步保留已接受
-的用户消息。取消、失败、过期、终态冲突或缺少该绑定时不得追加。完整阶段和队列关系由
-[持久 Agent 运行时](./durable-runtime.md) 维护。
+## 用户管理
 
-recall 使用 accepted user message 时间作为 `query_timestamp`。返回 fact 即使缺少 `occurred_*` 或
-`mentioned_at` 仍可进入有界 context，此时更新时间为空。
+管理页统一展示原生 fact、experience 和 summary；来源标为手工、会话、派生或未知。
+事实和经历可以修改、停用和恢复。停用是原生 invalidated，排除召回但保留可恢复归档。
+summary 只读，展开支持事实并在事实上操作，由 Hindsight 更新派生内容，不手工改写派生观察。
+没有来源时不伪造对应聊天记录。
 
-append 使用确定性 document ID、`update_mode=replace` 和 private observation scope。Hindsight
-同步返回后本次 activity 才成功；仓库不代理其内部 operation。append 失败不回滚已经完成的回答，
-但必须记录 failed step 和稳定失败状态。
+暂停保留 bank 和管理能力，关闭后续 recall/append。恢复不换代，也不重新导入历史消息。
+完整清除递增代次、排空旧调用、删除旧 bank（含来源、派生内容和归档）；成功后仍关闭。
+账号注销在完成这些清理后再完成账号删除；原有账号隔离不因普通管理简化而移除。
 
-gate 在 chat 准入时冻结，后续执行不重读可变设置。关闭 recall 时不开放工具或创建 recall step；
-开启 recall 时由 Primary Agent 按当前请求决定是否执行，调用次数受本轮总工具预算限制。关闭 append 时追加
-activity 投影 skipped step。两者都不能从 PostgreSQL、Qdrant 或供应商抽取记忆。
+**会话删除、批量删除和裁剪不产生记忆命令。**产品不承诺它们清除已提取记忆。
+单条物理删除 API、来源删除批次和 subject-drain 已退役。
 
-## 用户管理与删除
+## 状态和诊断
 
-app-api 在 PostgreSQL 中维护 lifecycle、item desired state 和 command outbox。execution-control
-按用户命令序列接收命令，完成 Hindsight 修改后写入幂等 receipt；app-api 根据 receipt
-更新用户可见状态。
+app-api 只保存 lifecycle、命令及其待执行正文；成功后清空正文，失败时保留供显式重试，
+完整清除会移除所有命令正文。普通修改 pending 不关闭整库读取，失败显示在对应命令/条目。
+生命周期 syncStatus 与普通命令状态分开。
 
-- pause 保留当前 generation 的 bank 和 item，后续 turn 的两个 gate 均关闭；
-- resume 恢复后续 turn 的召回和追加，不创建新 generation；
-- item upsert/delete 使用确定性 profile document ID，删除不存在的 document 视为幂等成功；
-- 账号全量清除会递增代次、拒绝旧代次、等待在途调用排空并删除上一代 bank；
-- retired bank 删除并确认不存在后，产品 lifecycle 才能从 `erasing` 进入 `erased`。
+回调保存命令终态后继续派发下一条；定时任务之间互不阻塞。页面只在存在未完成命令时轮询，
+查询和缓存按用户隔离，完成时刷新实际 bank 内容；不把接受命令当作修改完成。
 
-账号注销由 App API 编排，但不会绕过上述 memory fence：execution-control 先冻结该 owner 的新 run，
-App API 推进 owner erase 并等待 Hindsight 清除及在途调用排空，随后由 execution-control 将个人记忆状态
-标记为 `deleted`。标记后旧 generation、旧 command 和旧 workflow 不能再次创建 memory call；Hindsight
-bank 和 memory 内容由 Hindsight 所有并按本合同清除，execution-control 只保留必要的生命周期 fence，
-不复制 memory 正文。
+memory.append 在完成投影前登记 pending，Activity 开始投影 running。单次失败记入 attempt，
+整体 step 在 Temporal 重试期间保持 running；重试耗尽由 workflow 记录最终 failed。
+Ops 在产品完成后仍观察已有 pending/running 的记忆或 finalization step，直到终态才停止，
+不使用固定两秒补刷。失败、取消和 skipped 不使轮询永久等待。
 
-conversation prune/delete 在删除产品 message 前捕获 message ID，并派生与 retain 相同的 document
-ID。`DeleteDocument` 同步删除来源文档及其 memory units；后续 consolidation 由 Hindsight 内部维护，
-仓库不轮询该内部过程。
+记忆管理正文只返回给当前用户，不进入通用运行日志或 Ops 列表。已有有界模型恢复上下文仍可包含
+memory excerpt；Langfuse 不新增原始记忆导出，见 [Langfuse 合同](../../contracts/langfuse-runtime.md)。
+不采集 Hindsight 内部 consolidation 的第二套进度。
 
-## 投影与数据最小化
+## 部署与退役
 
-execution-control 可以保存 bank/document identity、generation fence 和 command receipt。浏览器与
-student run-step 不得保存原始 bank/document/operation ID、provider payload 或 memory 正文；允许保存
-公共状态、计数、hash、timing 和 failure kind。
+本地及 staging 的旧个人记忆允许硬切：先停止相关写入，删除本环境产品 bank，再应用 memory-only
+迁移并恢复服务。保留账户、会话、通知、RAG、共享对象存储和通用 Temporal 数据。
+不迁移旧手工条目、来源删除命令或旧 Temporal 记忆流程；只终止明确属于个人记忆的旧流程。
+执行前列明目标 bank 和工作流，避免把整个 Hindsight 服务或 Temporal namespace 当作删除目标。
+本地与 staging 使用同一支持原生 curation 的 Hindsight 版本。
 
-Agent Activity 的有界恢复输出允许在 evidence excerpt 中携带最多 4000 个 Unicode codepoint 的
-memory 正文，供后续模型 operation 消费。工具摘要只携带 outcome；不重复保存 memory_text，
-也不把工具原始 arguments、debug 和 failure detail 写入 Temporal history 或 receipt。
-这份执行恢复载荷不属于浏览器或 student run-step 投影，随父 run 生命周期保留和删除。
-
-Langfuse Agent trace 可以记录实际可见工具名和有界结果状态，但不记录 Hindsight metadata、
-`memory_text`、工具输入输出或模型输入输出。Hindsight 不发送新的 Langfuse trace；具体字段边界见
-[Langfuse 运行合同](../../contracts/langfuse-runtime.md)。
-
-## Temporal 与失败语义
-
-- recall 工具位于同一次 Agent Activity 和 SDK run 内，不是独立 Temporal Activity；
-- Agent Activity 的 timeout、cancellation 和 invocation receipt 同时约束模型与 recall 工具；
-- append 位于 core activity queue，其 heartbeat、retry 和 non-retryable error 由明确 activity policy 管理；
-- deterministic config、request、bank policy 和 projection error 不 retry；
-- Temporal 不充当 memory database，也不保存 raw recall/retain payload；
-- recall 工具业务失败形成失败的 SDK tool result，不得贡献个人事实，也不要求先取得其他 evidence
-  才允许回答当前消息。网络/超时使用 `personal_memory_recall_network_failed` /
-  `personal_memory_recall_timeout`，服务错误使用 `personal_memory_recall_failed`，不混用 Campus Search
-  错误码。参数、结果、身份或运行合同错误仍失败关闭；
-- append 是回答完成后的 side effect，失败不回滚回答。
-
-## 数据边界
-
-- Hindsight：个人记忆图、bank 和内部操作；
-- PostgreSQL `profile.*`：生命周期、期望状态、command outbox 和用户可见投影；
-- Temporal：Activity、命令和删除检查点生命周期；
-- 执行投影：有界 step 与结果；
-- Qdrant：机构知识；
-- Langfuse：可选 Agent/model/tool trace，不参与个人记忆 lifecycle。
-
-## 禁止形态
-
-- Hindsight MCP、原始 API 或供应商类型直接暴露给 Primary Agent；
-- 调用 Hindsight reflect 形成独立的记忆推理路径；
-- app-api 或 agent-runtime 直接调用 Hindsight；
-- personal memory 写入 Qdrant；
-- raw memory、bank 或 operation payload 进入浏览器或 model-visible tool；
-- memory 影响工具/文档范围准入或授权；
-- 使用 Zep 或供应商抽取维护第二条个人记忆路径。
-
-## 相关文档
-
-- [ADR-0015](../../decisions/adr-0015-memory-boundaries.md)
-- [ADR-0021](../../decisions/adr-0021-entity-aliases.md)
-- [ADR-0058](../../decisions/adr-0058-hindsight.md)
-- [ADR-0082](../../decisions/adr-0082-hindsight-lifecycle.md)
-- [个人记忆接口](../../contracts/app-api/memory.md)
-- [Durable runtime](./durable-runtime.md)
-- [身份与授权](./identity-authz.md)
+接口细节见 [App API 个人记忆](../../contracts/app-api/memory.md)，决策见
+[ADR-0082](../../decisions/adr-0082-hindsight-lifecycle.md)。

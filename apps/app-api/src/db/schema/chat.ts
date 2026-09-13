@@ -109,7 +109,6 @@ export const turnDispatches = chat.table(
 		memoryRecallEnabled: boolean("memory_recall_enabled"),
 		memoryAppendEnabled: boolean("memory_append_enabled"),
 		memoryOwnerGeneration: bigint("memory_owner_generation", { mode: "number" }),
-		memoryOwnerSequence: bigint("memory_owner_sequence", { mode: "number" }),
 		idempotencyKey: text("idempotency_key"),
 		requestFingerprintSha256: text("request_fingerprint_sha256"),
 		executionInputJson: text("execution_input_json"),

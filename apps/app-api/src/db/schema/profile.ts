@@ -4,8 +4,8 @@ import {
 	check,
 	index,
 	integer,
+	jsonb,
 	pgSchema,
-	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -64,33 +64,6 @@ export const profileMemorySettings = profile.table("memory_settings", {
 	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });
 
-export const profileMemoryItems = profile.table(
-	"memory_items",
-	{
-		itemId: text("item_id").primaryKey(),
-		ownerUserId: text("owner_user_id").notNull(),
-		ownerGeneration: bigint("owner_generation", { mode: "number" }).notNull().default(1),
-		key: text("key").notNull(),
-		value: text("value").notNull(),
-		revision: bigint("revision", { mode: "number" }).notNull().default(1),
-		desiredState: text("desired_state").notNull().default("present"),
-		syncStatus: text("sync_status").notNull().default("pending"),
-		syncErrorCode: text("sync_error_code"),
-		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		ownerKeyUnique: uniqueIndex("profile_memory_items_owner_key_uidx").on(
-			table.ownerUserId,
-			table.key,
-		),
-		ownerUpdatedAtIndex: index("profile_memory_items_owner_updated_at_idx").on(
-			table.ownerUserId,
-			table.updatedAt,
-		),
-	}),
-);
-
 export const profileMemoryCommands = profile.table(
 	"memory_commands",
 	{
@@ -101,9 +74,7 @@ export const profileMemoryCommands = profile.table(
 		commandKind: text("command_kind").notNull(),
 		supersessionScope: text("supersession_scope").notNull(),
 		subjectId: text("subject_id"),
-		subjectRevision: bigint("subject_revision", { mode: "number" }),
-		acceptedItemKey: text("accepted_item_key"),
-		acceptedItemValue: text("accepted_item_value"),
+		payload: jsonb("payload").$type<{ text?: string; state?: "active" | "inactive" }>(),
 		acceptedLifecycleState: text("accepted_lifecycle_state").notNull(),
 		sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }).notNull(),
 		status: text("status").notNull().default("pending_admission"),
@@ -146,24 +117,9 @@ export const profileMemoryCommands = profile.table(
 			"profile_memory_commands_lifecycle_snapshot_check",
 			sql`${table.acceptedLifecycleState} in ('active', 'paused', 'erasing', 'erased')`,
 		),
-		itemSnapshotPairCheck: check(
-			"profile_memory_commands_item_snapshot_pair_check",
-			sql`(${table.acceptedItemKey} is null) = (${table.acceptedItemValue} is null)`,
-		),
 		reportedResultStatusCheck: check(
 			"profile_memory_commands_reported_result_status_check",
 			sql`${table.reportedResultStatus} is null or ${table.reportedResultStatus} in ('succeeded', 'failed')`,
 		),
 	}),
-);
-
-export const profileMemoryCommandSources = profile.table(
-	"memory_command_sources",
-	{
-		commandId: text("command_id")
-			.notNull()
-			.references(() => profileMemoryCommands.commandId, { onDelete: "cascade" }),
-		sourceMessageId: text("source_message_id").notNull(),
-	},
-	(table) => [primaryKey({ columns: [table.commandId, table.sourceMessageId] })],
 );

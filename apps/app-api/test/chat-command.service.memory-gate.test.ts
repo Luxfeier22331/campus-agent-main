@@ -30,7 +30,6 @@ describe("chat command service memory gate projection", () => {
 			memorySnapshot: {
 				appendEnabled: true,
 				ownerGeneration: 3,
-				ownerSequence: 7,
 				recallEnabled: false,
 			},
 		});
@@ -57,7 +56,6 @@ describe("chat command service memory gate projection", () => {
 			{
 				appendEnabled: true,
 				ownerGeneration: 3,
-				ownerSequence: 7,
 				recallEnabled: false,
 			},
 		]);
@@ -69,7 +67,6 @@ describe("chat command service memory gate projection", () => {
 					memory: {
 						appendEnabled: true,
 						ownerGeneration: 3,
-						ownerSequence: 7,
 						recallEnabled: false,
 					},
 				}),
@@ -90,7 +87,6 @@ describe("chat command service memory gate projection", () => {
 			memorySnapshot: {
 				appendEnabled: true,
 				ownerGeneration: 3,
-				ownerSequence: 7,
 				recallEnabled: true,
 			},
 		});

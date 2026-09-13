@@ -315,7 +315,7 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "PATCH",
-		path: "/api/me/profile-memory/items/:itemId",
+		path: "/api/me/profile-memory/items/:memoryId",
 		callerClass: "browser-surface",
 		admission: "session principal required",
 	},
@@ -332,8 +332,20 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "session principal required",
 	},
 	{
-		method: "DELETE",
-		path: "/api/me/profile-memory/items/:itemId",
+		method: "GET",
+		path: "/api/me/profile-memory/items",
+		callerClass: "browser-surface",
+		admission: "session principal required",
+	},
+	{
+		method: "GET",
+		path: "/api/me/profile-memory/items/:memoryId",
+		callerClass: "browser-surface",
+		admission: "session principal required",
+	},
+	{
+		method: "POST",
+		path: "/api/me/profile-memory/operations/:commandId/retry",
 		callerClass: "browser-surface",
 		admission: "session principal required",
 	},

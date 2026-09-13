@@ -1,19 +1,20 @@
 export type {
+	ProfileMemoryEdit,
 	ProfileMemoryItem,
 	ProfileMemoryItemState,
+	ProfileMemoryKind,
 	ProfileMemoryLifecycleState,
 	ProfileMemoryList,
 	ProfileMemoryMutationResult,
+	ProfileMemoryPage,
+	ProfileMemoryQuery,
 	ProfileMemorySyncStatus,
-} from "./model";
-export {
-	normalizeProfileMemoryKey,
-	normalizeProfileMemoryValue,
 } from "./model";
 export type {
 	ProfileMemoryCommandAdmitter,
 	ProfileMemoryCommandResultApplyOutcome,
 	ProfileMemoryCommandResultInput,
+	ProfileMemoryReader,
 	ProfileMemoryService,
 	ProfileMemoryServiceDependencies,
 } from "./service";

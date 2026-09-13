@@ -1,87 +1,73 @@
 export type ProfileMemoryLifecycleState = "active" | "paused" | "erasing" | "erased";
 export type ProfileMemorySyncStatus = "synced" | "pending" | "failed";
-export type ProfileMemoryItemState = "synced" | "saving" | "deleting" | "failed";
+export type ProfileMemoryItemState = "active" | "inactive";
+export type ProfileMemoryKind = "fact" | "experience" | "summary";
 export type ProfileMemoryCommandKind =
 	| "owner_transition"
 	| "owner_erase"
-	| "item_upsert"
-	| "item_delete"
-	| "conversation_delete"
-	| "conversation_prune";
-
+	| "memory_add"
+	| "memory_update";
 export interface ProfileMemoryItem {
-	itemId: string;
-	key: string;
-	revision: number;
+	memoryId: string;
+	text: string;
+	kind: ProfileMemoryKind;
 	state: ProfileMemoryItemState;
-	updatedAt: string;
-	value: string;
+	origin: "manual" | "conversation" | "derived" | "unknown";
+	mentionedAt: string | null;
+	editedAt: string | null;
+	sourceMemories?: ProfileMemoryItem[];
 }
-
-export interface ProfileMemoryList {
-	itemCount: number;
+export interface ProfileMemoryQuery {
+	q?: string;
+	kind?: ProfileMemoryKind;
+	state?: ProfileMemoryItemState;
+	limit: number;
+	offset: number;
+}
+export interface ProfileMemoryPage {
 	items: ProfileMemoryItem[];
+	total: number;
+	limit: number;
+	offset: number;
+}
+export interface ProfileMemoryOperation {
+	commandId: string;
+	commandKind: ProfileMemoryCommandKind;
+	memoryId: string | null;
+	status: "pending_admission" | "admitted" | "succeeded" | "failed" | "superseded";
+	errorCode: string | null;
+}
+export interface ProfileMemoryList {
 	lifecycleState: ProfileMemoryLifecycleState;
 	syncStatus: ProfileMemorySyncStatus;
+	operations: ProfileMemoryOperation[];
 }
-
 export interface ProfileMemoryCommand {
 	commandId: string;
 	commandKind: ProfileMemoryCommandKind;
 	ownerGeneration: number;
 	ownerSequence: number;
 	ownerUserId: string;
-	status: "pending_admission" | "admitted" | "succeeded" | "failed" | "superseded";
+	status: ProfileMemoryOperation["status"];
 	subjectId: string | null;
-	subjectRevision: number | null;
-	sourceMessageIds: string[];
 	supersessionScope: string;
 }
-
 export interface ProfileMemoryMutationResult {
-	item?: ProfileMemoryItem;
+	commandId: string;
 	lifecycleState: ProfileMemoryLifecycleState;
 	syncStatus: ProfileMemorySyncStatus;
 }
-
+export interface ProfileMemoryEdit {
+	text?: string;
+	state?: ProfileMemoryItemState;
+}
 export function isProfileMemoryRuntimeEnabled(input: {
 	lifecycleState: string;
 	syncStatus: string;
 }): boolean {
+	// syncStatus describes lifecycle commands only, not ordinary memory writes.
 	return input.lifecycleState === "active" && input.syncStatus !== "pending";
 }
-
-export function profileMemoryItemState(input: {
-	desiredState: string;
-	syncStatus: string;
-}): ProfileMemoryItemState {
-	if (input.syncStatus === "failed") {
-		return "failed";
-	}
-	if (input.desiredState === "deleted") {
-		return "deleting";
-	}
-	return input.syncStatus === "synced" ? "synced" : "saving";
-}
-
 export function toIsoString(value: Date): string {
 	return value.toISOString();
-}
-
-function normalizeString(value: unknown): string {
-	return typeof value === "string" ? value.trim() : "";
-}
-
-export function normalizeProfileMemoryKey(value: unknown): string {
-	const normalized = normalizeString(value).replace(/\s+/gu, " ");
-	const characterCount = Array.from(normalized).length;
-	return characterCount >= 1 && characterCount <= 64 ? normalized : "";
-}
-
-export function normalizeProfileMemoryValue(value: unknown): string {
-	const normalized = normalizeString(value).replace(/\s+/g, " ");
-	if (!normalized || Array.from(normalized).length > 500) {
-		return "";
-	}
-	return normalized;
 }

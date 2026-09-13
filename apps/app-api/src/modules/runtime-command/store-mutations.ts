@@ -59,7 +59,6 @@ export function buildAcceptTurnDispatchInsertValues(
 		memoryRecallEnabled: memorySnapshot?.recallEnabled ?? null,
 		memoryAppendEnabled: memorySnapshot?.appendEnabled ?? null,
 		memoryOwnerGeneration: memorySnapshot?.ownerGeneration ?? null,
-		memoryOwnerSequence: memorySnapshot?.ownerSequence ?? null,
 		idempotencyKey: input.idempotencyKey,
 		requestFingerprintSha256: input.requestFingerprintSha256,
 		executionInputJson: frozenRun.executionInputJson,

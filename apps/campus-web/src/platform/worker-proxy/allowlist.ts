@@ -62,6 +62,7 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/chat\/requests\/[^/]+\/cancel$/.test(pathname) ||
 		/^\/api\/chat\/requests\/[^/]+\/client-timing$/.test(pathname) ||
 		/^\/api\/me\/profile-memory\/items\/[^/]+$/.test(pathname) ||
+		/^\/api\/me\/profile-memory\/operations\/[^/]+\/retry$/.test(pathname) ||
 		/^\/api\/dining\/floorplans\/[0-9a-f]{64}\.svg$/.test(pathname) ||
 		/^\/api\/dining\/windows\/[^/]+\/menu$/.test(pathname) ||
 		/^\/api\/dining\/menu-items\/[^/]+\/reviews$/.test(pathname) ||

@@ -17,6 +17,7 @@ type workflowTestActivityRegistrar interface {
 }
 
 func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activities *Activities) {
+	env.RegisterActivityWithOptions(activities.FinalizeMemoryAppendActivity, activity.RegisterOptions{Name: FinalizeMemoryAppendActivityName})
 	env.RegisterActivityWithOptions(
 		activities.AppendConversationMemoryActivity,
 		activity.RegisterOptions{Name: AppendConversationMemoryActivityName},
@@ -219,4 +220,8 @@ func validToolExecutionWorkflowInput(requestID string) ToolExecutionWorkflowInpu
 			},
 		},
 	}
+}
+
+func (Activities) FinalizeMemoryAppendActivity(context.Context, FinalizeMemoryAppendActivityInput) error {
+	return nil
 }

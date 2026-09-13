@@ -58,6 +58,37 @@ function createRuntimeReadinessResult() {
 }
 
 describe("app-api worker foundation", () => {
+	it("runs the other scheduled owners even when memory dispatch fails", async () => {
+		const dispatchMemory = vi.fn(async () => {
+			throw new Error("memory unavailable");
+		});
+		const dispatchAccount = vi.fn(async () => ({ processed: 0 }));
+		const expire = vi.fn(async () => 0);
+		const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		try {
+			const runtime = createWorkerRuntime(env, {
+				profileMemoryService: {
+					dispatchPending: dispatchMemory,
+				} as unknown as import("../src/modules/profile-memory").ProfileMemoryService,
+				accountLifecycleService: {
+					dispatchPending: dispatchAccount,
+				} as unknown as import("../src/modules/account-lifecycle").AccountLifecycleService,
+				emailAccessService: {
+					expire,
+				} as unknown as import("../src/modules/email-access").EmailAccessService,
+			});
+			await expect(runtime.scheduled()).rejects.toThrow("Scheduled jobs failed");
+			expect(dispatchMemory).toHaveBeenCalledOnce();
+			expect(dispatchAccount).toHaveBeenCalledOnce();
+			expect(expire).toHaveBeenCalledOnce();
+			expect(log).toHaveBeenCalledWith(
+				expect.objectContaining({ job: "memory", errorCode: "scheduled_job_failed" }),
+			);
+		} finally {
+			log.mockRestore();
+		}
+	});
+
 	it("supports standard regular expression escaping", () => {
 		const literal = "a-b.c";
 		const pattern = new RegExp(`^${RegExp.escape(literal)}$`, "u");

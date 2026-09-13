@@ -17,10 +17,10 @@ func AdmissionToWorkflow(s execution.AgentAdmissionSnapshot) temporalruntime.Age
 	}
 }
 func MemoryCommandToDomain(s temporalruntime.PersonalMemoryCommandRequest) memoryruntime.PersonalMemoryCommandRequest {
-	return memoryruntime.PersonalMemoryCommandRequest{CommandID: s.CommandID, CommandKind: s.CommandKind, Item: (*memoryruntime.PersonalMemoryCommandItem)(s.Item), LifecycleState: s.LifecycleState, OwnerGeneration: s.OwnerGeneration, OwnerSequence: s.OwnerSequence, SchemaVersion: s.SchemaVersion, SubjectID: s.SubjectID, SubjectRevision: s.SubjectRevision, SourceUpdatedAt: s.SourceUpdatedAt, SourceMessageIDs: s.SourceMessageIDs, SubjectScopeHash: s.SubjectScopeHash, SupersessionScope: s.SupersessionScope, TenantID: s.TenantID, UserID: s.UserID}
+	return memoryruntime.PersonalMemoryCommandRequest{CommandID: s.CommandID, CommandKind: s.CommandKind, Item: (*memoryruntime.PersonalMemoryCommandItem)(s.Item), LifecycleState: s.LifecycleState, OwnerGeneration: s.OwnerGeneration, OwnerSequence: s.OwnerSequence, SchemaVersion: s.SchemaVersion, SubjectID: s.SubjectID, SourceUpdatedAt: s.SourceUpdatedAt, SubjectScopeHash: s.SubjectScopeHash, SupersessionScope: s.SupersessionScope, TenantID: s.TenantID, UserID: s.UserID}
 }
 func MemoryCommandToWorkflow(s memoryruntime.PersonalMemoryCommandRequest) temporalruntime.PersonalMemoryCommandRequest {
-	return temporalruntime.PersonalMemoryCommandRequest{CommandID: s.CommandID, CommandKind: s.CommandKind, Item: (*temporalruntime.PersonalMemoryCommandItem)(s.Item), LifecycleState: s.LifecycleState, OwnerGeneration: s.OwnerGeneration, OwnerSequence: s.OwnerSequence, SchemaVersion: s.SchemaVersion, SubjectID: s.SubjectID, SubjectRevision: s.SubjectRevision, SourceUpdatedAt: s.SourceUpdatedAt, SourceMessageIDs: s.SourceMessageIDs, SubjectScopeHash: s.SubjectScopeHash, SupersessionScope: s.SupersessionScope, TenantID: s.TenantID, UserID: s.UserID}
+	return temporalruntime.PersonalMemoryCommandRequest{CommandID: s.CommandID, CommandKind: s.CommandKind, Item: (*temporalruntime.PersonalMemoryCommandItem)(s.Item), LifecycleState: s.LifecycleState, OwnerGeneration: s.OwnerGeneration, OwnerSequence: s.OwnerSequence, SchemaVersion: s.SchemaVersion, SubjectID: s.SubjectID, SourceUpdatedAt: s.SourceUpdatedAt, SubjectScopeHash: s.SubjectScopeHash, SupersessionScope: s.SupersessionScope, TenantID: s.TenantID, UserID: s.UserID}
 }
 func WorkflowInput(input execution.WorkflowStartInput) temporalruntime.ToolExecutionWorkflowInput {
 	return temporalruntime.ToolExecutionWorkflowInput{

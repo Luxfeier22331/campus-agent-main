@@ -158,6 +158,13 @@ func (s *AgentToolService) CampusSearch(
 	}
 	s.indexBindingMu.Lock()
 	defer s.indexBindingMu.Unlock()
+	// The run snapshot was loaded before acquiring the service-wide lock. Re-read
+	// it here so a concurrent first caller cannot bind against the same empty
+	// metadata snapshot.
+	run, err = s.store.GetRun(ctx, access.RequestID)
+	if err != nil {
+		return nil, finishFailure(err)
+	}
 	index, found, err := s.campusDocsIndexStore.CurrentIndex(ctx)
 	if err != nil {
 		return nil, finishFailure(err)
@@ -366,16 +373,11 @@ func recallRequestForRun(
 	if !ok || generation < 1 {
 		return memoryruntime.RecallRequest{}, errors.New("memory owner generation is required")
 	}
-	sequence, ok := exactInt64Value(execution.NestedAny(payload, "context", "memory", "owner_sequence"))
-	if !ok || sequence < 0 {
-		return memoryruntime.RecallRequest{}, errors.New("memory owner sequence is required")
-	}
 	queryTimestamp := strings.TrimSpace(execution.OptionalStringFromAny(
 		execution.NestedAny(payload, "context", "conversation", "current_user_message", "created_at"),
 	))
 	request := memoryruntime.RecallRequest{
 		OwnerGeneration: generation,
-		OwnerSequence:   sequence,
 		QueryTimestamp:  queryTimestamp,
 		RequestID:       run.RequestID,
 		TenantID: execution.FirstNonEmptyText(

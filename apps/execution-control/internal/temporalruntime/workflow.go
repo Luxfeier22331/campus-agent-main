@@ -352,7 +352,15 @@ func finalizeWorkflowAnswer(
 	// cancellation request raced with the finalization activity.
 	postFinalizationCtx, postFinalizationCancel := workflow.NewDisconnectedContext(ctx)
 	defer postFinalizationCancel()
-	_ = executeMemoryAppend(postFinalizationCtx, activityOptions, input)
+
+	if appendErr := executeMemoryAppend(postFinalizationCtx, activityOptions, input); appendErr != nil {
+		finalCtx := workflow.WithActivityOptions(postFinalizationCtx, unlimitedFinalizerActivityOptions(15*time.Second))
+		if err := executeBoundedActivity(finalCtx, FinalizeMemoryAppendActivityName, FinalizeMemoryAppendActivityInput{
+			RequestID: input.RequestID, FailureKind: workflowFailureKind(appendErr, "memory_append_failed"),
+		}).Get(postFinalizationCtx, nil); err != nil {
+			return workflowResultFromFinalization(finalization), err
+		}
+	}
 	return workflowResultFromFinalization(finalization), nil
 }
 
@@ -726,7 +734,7 @@ func personalMemoryCommandProviderActivityOptions(commandKind string) workflow.A
 
 func destructivePersonalMemoryCommand(commandKind string) bool {
 	switch strings.TrimSpace(commandKind) {
-	case "owner_erase", "item_delete", "conversation_prune", "conversation_delete":
+	case "owner_erase":
 		return true
 	default:
 		return false

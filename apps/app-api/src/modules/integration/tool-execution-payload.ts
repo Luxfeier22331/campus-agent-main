@@ -61,7 +61,6 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 					memory: {
 						append_enabled: context.memory.appendEnabled,
 						owner_generation: context.memory.ownerGeneration,
-						owner_sequence: context.memory.ownerSequence,
 						recall_enabled: context.memory.recallEnabled,
 					},
 				}

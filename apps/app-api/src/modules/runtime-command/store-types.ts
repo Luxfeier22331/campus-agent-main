@@ -17,7 +17,6 @@ export type TurnDispatchStatus =
 export interface TurnDispatchMemorySnapshot {
 	appendEnabled: boolean;
 	ownerGeneration: number;
-	ownerSequence: number;
 	recallEnabled: boolean;
 }
 

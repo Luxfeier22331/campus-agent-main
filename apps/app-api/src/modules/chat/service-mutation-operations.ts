@@ -66,9 +66,6 @@ export function createChatConversationMutationOperations(
 		async deleteAll(input) {
 			const ownerUserId = assertChatPrincipal(input.principal);
 			const deletedCount = await context.store.deleteConversationsByOwner(ownerUserId);
-			if (deletedCount > 0) {
-				await context.dispatchMemoryCommands?.();
-			}
 
 			return { deletedCount };
 		},
@@ -89,7 +86,6 @@ export function createChatConversationMutationOperations(
 					status: 404,
 				});
 			}
-			await context.dispatchMemoryCommands?.();
 
 			return { deleted: true as const };
 		},
@@ -109,7 +105,6 @@ export function createChatConversationMutationOperations(
 					status: 404,
 				});
 			}
-			await context.dispatchMemoryCommands?.();
 
 			return { deleted: true as const };
 		},

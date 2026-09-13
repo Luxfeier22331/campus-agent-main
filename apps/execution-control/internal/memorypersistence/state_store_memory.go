@@ -16,35 +16,33 @@ type InMemoryStateStore struct {
 }
 
 type memoryCallLease struct {
-	ExpiresAt        time.Time
-	Generation       int64
-	OwnerSequence    int64
-	OwnerScopeHash   string
-	SubjectScopeHash string
+	ExpiresAt      time.Time
+	Generation     int64
+	OwnerScopeHash string
 }
 
 func NewInMemoryStateStore() *InMemoryStateStore {
 	return &InMemoryStateStore{fences: map[string]memoryruntime.FenceState{}, leases: map[string]memoryCallLease{}, receipts: map[string]memoryruntime.CommandReceipt{}}
 }
 
-func (s *InMemoryStateStore) BeginCall(_ context.Context, ownerHash string, callID string, generation int64, sequence int64, subjectHash string, _ string, ttl time.Duration) error {
+func (s *InMemoryStateStore) BeginCall(_ context.Context, ownerHash string, callID string, generation int64, _ string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	fence, ok := s.fences[ownerHash]
 	if !ok {
-		if generation != 1 || sequence != 0 {
+		if generation != 1 {
 			return memoryruntime.ErrMemoryFenceConflict
 		}
 		fence = memoryruntime.FenceState{Generation: 1, Lifecycle: "active", Sequence: 0}
 		s.fences[ownerHash] = fence
 	}
-	if fence.Generation != generation || fence.Sequence != sequence || fence.Lifecycle != "active" {
+	if fence.Generation != generation || fence.Lifecycle != "active" {
 		return memoryruntime.ErrMemoryFenceConflict
 	}
 	if existing, ok := s.leases[callID]; ok && time.Now().Before(existing.ExpiresAt) {
 		return memoryruntime.ErrMemoryFenceConflict
 	}
-	s.leases[callID] = memoryCallLease{ExpiresAt: time.Now().Add(ttl), Generation: generation, OwnerSequence: sequence, OwnerScopeHash: ownerHash, SubjectScopeHash: subjectHash}
+	s.leases[callID] = memoryCallLease{ExpiresAt: time.Now().Add(ttl), Generation: generation, OwnerScopeHash: ownerHash}
 	return nil
 }
 
@@ -114,27 +112,6 @@ func (s *InMemoryStateStore) MarkOwnerDeleted(_ context.Context, ownerHash strin
 		}
 	}
 	return nil
-}
-
-func (s *InMemoryStateStore) SubjectDrained(_ context.Context, ownerHash string, generation int64, subjectHash string, beforeSequence int64) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now()
-	for callID, lease := range s.leases {
-		if now.After(lease.ExpiresAt) {
-			delete(s.leases, callID)
-			continue
-		}
-		if lease.OwnerScopeHash == ownerHash && lease.Generation == generation && lease.SubjectScopeHash == subjectHash && lease.OwnerSequence < beforeSequence {
-			return false, nil
-		}
-	}
-	for _, receipt := range s.receipts {
-		if receipt.OwnerScopeHash == ownerHash && receipt.Generation == generation && receipt.SubjectScopeHash == subjectHash && receipt.Sequence < beforeSequence && !memoryruntime.CommandReceiptTerminal(receipt.Status) {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 
 func (s *InMemoryStateStore) BeginCommand(_ context.Context, ownerHash string, command memoryruntime.PersonalMemoryCommandRequest, leaseTTL time.Duration) (memoryruntime.CommandReceipt, bool, error) {

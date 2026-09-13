@@ -573,7 +573,6 @@ export function registerAppApiAuthConfigSuite() {
 					"turnDispatches",
 					"requestObservabilityFact",
 					"profileMemorySettings",
-					"profileMemoryItems",
 					"profileMemoryCommands",
 				]),
 			);

@@ -98,12 +98,9 @@ func TestHindsightHTTPClientSendsSynchronousReplaceRetain(t *testing.T) {
 	}
 }
 
-func TestHindsightHTTPClientTreatsMissingSourceAndBankAsDeleted(t *testing.T) {
+func TestHindsightHTTPClientTreatsMissingBankAsDeleted(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.Method + " " + request.URL.Path {
-		case "DELETE /v1/default/banks/bank-01/documents/conversation:abc:message:def":
-			response.WriteHeader(http.StatusNotFound)
-			_, _ = response.Write([]byte(`{"detail":"not found"}`))
 		case "DELETE /v1/default/banks/bank-01":
 			response.WriteHeader(http.StatusNotFound)
 			_, _ = response.Write([]byte(`{"detail":"not found"}`))
@@ -114,9 +111,6 @@ func TestHindsightHTTPClientTreatsMissingSourceAndBankAsDeleted(t *testing.T) {
 	defer server.Close()
 
 	client := newHindsightHTTPClient(hindsightClientOptions{apiSecret: "hindsight-secret", baseURL: server.URL})
-	if err := client.DeleteDocument(context.Background(), "bank-01", "conversation:abc:message:def"); err != nil {
-		t.Fatalf("delete missing document: %v", err)
-	}
 	if err := client.DeleteBank(context.Background(), "bank-01"); err != nil {
 		t.Fatalf("delete missing bank: %v", err)
 	}

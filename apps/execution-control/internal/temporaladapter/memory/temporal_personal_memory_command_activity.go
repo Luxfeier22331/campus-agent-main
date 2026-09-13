@@ -118,20 +118,15 @@ func (s *Adapter) ExecutePersonalMemoryCommand(
 			)
 		}
 	}
-	if command.CommandKind == "conversation_prune" || command.CommandKind == "conversation_delete" {
-		drained, drainErr := s.PersonalMemoryStateStore.SubjectDrained(ctx, ownerHash, command.OwnerGeneration, command.SubjectScopeHash, command.OwnerSequence)
-		if drainErr != nil || !drained {
-			_ = s.PersonalMemoryStateStore.MarkCommandRetryable(ctx, command.CommandID, ownerHash)
-			return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
-				"memory_subject_not_drained",
-				drainErr,
-				false,
-			)
-		}
-	}
 	activityprojection.RecordTemporalActivityHeartbeat(ctx, "memory.command.provider")
 	result, err := s.PersonalMemoryExecutor.ExecuteCommand(ctx, command)
 	if err != nil {
+		if errors.Is(err, memoryruntime.ErrMemoryNotFound) {
+			return PersonalMemoryActivityOutput(command.CommandID, "failed", "profile_memory_item_not_found"), nil
+		}
+		if errors.Is(err, memoryruntime.ErrMemoryEditRejected) {
+			return PersonalMemoryActivityOutput(command.CommandID, "failed", "memory_edit_rejected"), nil
+		}
 		_ = s.PersonalMemoryStateStore.MarkCommandRetryable(ctx, command.CommandID, ownerHash)
 		return temporalruntime.PersonalMemoryCommandActivityOutput{}, activityprojection.SanitizedTemporalApplicationError(
 			"hindsight_command_failed",
@@ -233,7 +228,7 @@ func (s *Adapter) FinalizePersonalMemoryCommandReceipt(
 
 func PersonalMemoryCommandErrorCode(errorCode string) string {
 	switch strings.TrimSpace(errorCode) {
-	case "hindsight_command_failed", "personal_memory_command_failed":
+	case "hindsight_command_failed", "personal_memory_command_failed", "profile_memory_item_not_found", "memory_edit_rejected":
 		return strings.TrimSpace(errorCode)
 	default:
 		return "personal_memory_command_failed"

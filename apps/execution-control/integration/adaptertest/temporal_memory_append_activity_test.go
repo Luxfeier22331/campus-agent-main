@@ -226,6 +226,25 @@ func TestAppendConversationMemoryActivityProjectsFailureWhenHindsightAppendFails
 		t.Fatalf("failure projection leaked conversation text: %#v", payload)
 	}
 	assertMemoryAppendProjectionHasElapsedTiming(t, store, "run-memory-append-failed")
+	steps, err := store.ListRunSteps(context.Background(), "run-memory-append-failed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(steps) != 1 || steps[0].Status != "running" || !steps[0].CompletedAt.IsZero() || steps[0].SanitizedPayload["failure"] != nil {
+		t.Fatalf("retryable append must remain running: %#v", steps)
+	}
+	if err = server.FinalizeMemoryAppendActivity(context.Background(), temporalruntime.FinalizeMemoryAppendActivityInput{RequestID: "run-memory-append-failed", FailureKind: "hindsight_append_failed"}); err != nil {
+		t.Fatal(err)
+	}
+	steps, err = store.ListRunSteps(context.Background(), "run-memory-append-failed")
+	if err != nil || steps[0].Status != "failed" || steps[0].CompletedAt.IsZero() {
+		t.Fatalf("terminal append = %#v, err=%v", steps, err)
+	}
+	attempts, err := store.ListStepAttempts(context.Background(), "run-memory-append-failed")
+	if err != nil || len(attempts) != 1 || attempts[0].Status != "failed" {
+		t.Fatalf("original attempt = %#v, err=%v", attempts, err)
+	}
+
 }
 
 func assertMemoryAppendProjectionHasElapsedTiming(
@@ -242,7 +261,7 @@ func assertMemoryAppendProjectionHasElapsedTiming(
 		t.Fatalf("memory append steps = %#v, want one step", steps)
 	}
 	step := steps[0]
-	if !step.CompletedAt.After(step.StartedAt) {
+	if step.Status != "running" && !step.CompletedAt.After(step.StartedAt) {
 		t.Fatalf("memory append step timing = %s..%s, want elapsed interval", step.StartedAt, step.CompletedAt)
 	}
 	attempts, err := store.ListStepAttempts(context.Background(), runID)
@@ -415,7 +434,7 @@ func createMemoryAppendRunForTest(
 		},
 	}
 	if memoryEnabled != nil {
-		contextProjection["memory"] = map[string]any{"append_enabled": *memoryEnabled, "recall_enabled": *memoryEnabled, "owner_generation": 1, "owner_sequence": 0}
+		contextProjection["memory"] = map[string]any{"append_enabled": *memoryEnabled, "recall_enabled": *memoryEnabled, "owner_generation": 1}
 	}
 	wire := executionPayloadWireForTemporalTest(
 		runID,

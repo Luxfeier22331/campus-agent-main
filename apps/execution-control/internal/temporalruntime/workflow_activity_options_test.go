@@ -76,14 +76,14 @@ func TestMemoryActivityOptionsDefaultToGovernedTimeout(t *testing.T) {
 	}
 }
 
-func TestPersonalMemoryCommandRetryPolicySeparatesPrivacyDeletesFromUpserts(t *testing.T) {
-	for _, commandKind := range []string{"owner_erase", "item_delete", "conversation_prune", "conversation_delete"} {
+func TestPersonalMemoryCommandRetryPolicySeparatesFullEraseFromOrdinaryEdits(t *testing.T) {
+	for _, commandKind := range []string{"owner_erase"} {
 		options := personalMemoryCommandProviderActivityOptions(commandKind)
 		if options.RetryPolicy == nil || options.RetryPolicy.MaximumAttempts != 0 {
 			t.Fatalf("%s maximum attempts = %#v, want unlimited", commandKind, options.RetryPolicy)
 		}
 	}
-	for _, commandKind := range []string{"item_upsert", "owner_transition"} {
+	for _, commandKind := range []string{"memory_add", "memory_update", "owner_transition"} {
 		options := personalMemoryCommandProviderActivityOptions(commandKind)
 		if options.RetryPolicy == nil || options.RetryPolicy.MaximumAttempts != 5 {
 			t.Fatalf("%s maximum attempts = %#v, want 5", commandKind, options.RetryPolicy)

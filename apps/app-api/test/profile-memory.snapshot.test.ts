@@ -23,7 +23,6 @@ describe("profile memory accepted-request snapshot", () => {
 		await expect(captureProfileMemorySnapshotForUpdate(transaction, "user_01HQ")).resolves.toEqual({
 			appendEnabled: true,
 			ownerGeneration: 1,
-			ownerSequence: 0,
 			recallEnabled: true,
 		});
 		expect(forUpdate).toHaveBeenCalledWith("update");
@@ -42,7 +41,6 @@ describe("profile memory accepted-request snapshot", () => {
 		await expect(captureProfileMemorySnapshotForUpdate(transaction, "user_01HQ")).resolves.toEqual({
 			appendEnabled: false,
 			ownerGeneration: 3,
-			ownerSequence: 7,
 			recallEnabled: false,
 		});
 	});

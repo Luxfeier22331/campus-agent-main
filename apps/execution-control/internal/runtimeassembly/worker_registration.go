@@ -95,6 +95,7 @@ func NewCoreActivityWorkerWithOptions(
 		coreQueue = temporalruntime.ActivityTaskQueueCore
 	}
 	coreWorker := worker.New(temporalClient, coreQueue, options)
+	coreWorker.RegisterActivityWithOptions(contextActivities.FinalizeMemoryAppendActivity, activityRegisterOptions(temporalruntime.FinalizeMemoryAppendActivityName))
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.AppendConversationMemoryActivity,
 		activityRegisterOptions(temporalruntime.AppendConversationMemoryActivityName),

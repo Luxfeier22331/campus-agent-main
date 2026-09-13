@@ -91,6 +91,8 @@ describe("app-api schema installer", () => {
 			{ idx: 19, tag: "0019_superb_morbius", version: "7" },
 			{ idx: 20, tag: "0020_drop_product_execution_ids", version: "7" },
 			{ idx: 21, tag: "0021_ops_request_observability_select", version: "7" },
+			{ idx: 22, tag: "0022_personal_memory_management", version: "7" },
+			{ idx: 23, tag: "0023_retire_memory_call_sequence", version: "7" },
 		];
 		expect(journal.entries.map(({ idx, tag, version }) => ({ idx, tag, version }))).toEqual(
 			expectedEntries,

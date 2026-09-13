@@ -693,12 +693,31 @@ describe("OpsWebApp", () => {
 				],
 			},
 		};
+		const initialPendingDetail = {
+			...opsRequestDetailFixture,
+			execution: {
+				...opsRequestDetailFixture.execution,
+				stages: [
+					...opsRequestDetailFixture.execution.stages,
+					{
+						completedAt: null,
+						durationMs: null,
+						failureKind: null,
+						kind: "memory",
+						invocationId: null,
+						startedAt: "2026-07-09T06:29:09.500Z",
+						status: "pending",
+						toolName: null,
+					},
+				],
+			},
+		};
 		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url =
 				typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
 			if (url.includes("/api/ops/requests/req_ops_001")) {
 				detailCalls += 1;
-				return Response.json(detailCalls === 1 ? opsRequestDetailFixture : laterFailureDetail);
+				return Response.json(detailCalls === 1 ? initialPendingDetail : laterFailureDetail);
 			}
 			return originalFetch(input, init);
 		}) as typeof fetch;

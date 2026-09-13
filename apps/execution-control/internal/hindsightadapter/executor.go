@@ -27,7 +27,9 @@ type hindsightClient interface {
 	BankExists(context.Context, string) (bool, error)
 	EnsureBank(context.Context, string, hindsightBankConfig) error
 	DeleteBank(context.Context, string) error
-	DeleteDocument(context.Context, string, string) error
+	ListMemories(context.Context, string, memoryruntime.MemoryQuery) (memoryruntime.MemoryPage, error)
+	GetMemory(context.Context, string, string) (memoryruntime.MemoryRecord, error)
+	UpdateMemory(context.Context, string, string, memoryruntime.PersonalMemoryCommandItem) error
 	RecallMemories(context.Context, string, hindsightRecallRequest) (hindsightRecallResponse, error)
 	RetainMemories(context.Context, string, hindsightRetainRequest) (hindsightRetainResponse, error)
 }
@@ -101,7 +103,7 @@ func (e hindsightExecutor) ExecuteCommand(
 		if exists {
 			return memoryruntime.PersonalMemoryCommandResult{}, errors.New("hindsight retired bank still exists after delete")
 		}
-	case "item_upsert":
+	case "memory_add":
 		if err := e.ensureBankForWrite(ctx, bankID); err != nil {
 			return memoryruntime.PersonalMemoryCommandResult{}, err
 		}
@@ -109,10 +111,10 @@ func (e hindsightExecutor) ExecuteCommand(
 		result, err := e.client.RetainMemories(ctx, bankID, hindsightRetainRequest{
 			Async: boolPointer(false),
 			Items: []hindsightMemoryItem{{
-				Content:           strings.TrimSpace(request.Item.Key) + ": " + strings.TrimSpace(request.Item.Value),
-				Context:           "explicit profile memory",
+				Content:           strings.TrimSpace(request.Item.Text),
+				Context:           "Explicit personal memory supplied by the human user. First-person statements refer to the user, not the assistant. Extract facts about the user.",
 				DocumentID:        documentID,
-				Metadata:          map[string]string{"canonical_subject": strings.TrimSpace(request.Item.Key), "memory_id": strings.TrimSpace(request.SubjectID), "source": "explicit_profile_memory"},
+				Metadata:          map[string]string{"source": "manual"},
 				ObservationScopes: [][]string{{"scope:private"}},
 				Tags:              hindsightProfileTags(request.TenantID, bankID),
 				Timestamp:         strings.TrimSpace(request.SourceUpdatedAt),
@@ -125,16 +127,9 @@ func (e hindsightExecutor) ExecuteCommand(
 		if err := requireHindsightRetainAccepted(result, bankID, 1, false); err != nil {
 			return memoryruntime.PersonalMemoryCommandResult{}, err
 		}
-	case "item_delete":
-		if err := e.client.DeleteDocument(ctx, bankID, hindsightProfileDocumentID(request.SubjectID)); err != nil {
+	case "memory_update":
+		if err := e.client.UpdateMemory(ctx, bankID, request.SubjectID, *request.Item); err != nil {
 			return memoryruntime.PersonalMemoryCommandResult{}, err
-		}
-	case "conversation_prune", "conversation_delete":
-		for _, sourceMessageID := range request.SourceMessageIDs {
-			documentID := e.conversationMessageDocumentID(bankID, request.SubjectID, sourceMessageID)
-			if err := e.client.DeleteDocument(ctx, bankID, documentID); err != nil {
-				return memoryruntime.PersonalMemoryCommandResult{}, err
-			}
 		}
 	default:
 		return memoryruntime.PersonalMemoryCommandResult{}, fmt.Errorf("unsupported personal memory command %q", request.CommandKind)
@@ -193,7 +188,7 @@ func (e hindsightExecutor) AppendConversationTurn(
 		Async: boolPointer(false),
 		Items: []hindsightMemoryItem{{
 			Content:    strings.TrimSpace(request.UserMessage),
-			Context:    "campus assistant user message",
+			Context:    "Message written by the human user to the campus assistant. First-person statements refer to the user, not the assistant. Extract facts about the user.",
 			DocumentID: documentID,
 			Metadata: map[string]string{
 				"request_id":        strings.TrimSpace(request.RequestID),

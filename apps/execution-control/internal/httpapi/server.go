@@ -26,6 +26,7 @@ type Server struct {
 	runProjectionStoreErr    error
 	personalMemoryStateStore executionapplication.MemoryStore
 	personalMemoryStateErr   error
+	personalMemoryReader     executionapplication.MemoryReader
 	temporalStarter          executionapplication.WorkflowGateway
 	temporalStarterErr       error
 	runService               executionapplication.RunCommandService
@@ -41,6 +42,7 @@ type ServerOptions struct {
 	Logger                   *slog.Logger
 	PersonalMemoryStateStore executionapplication.MemoryStore
 	PersonalMemoryStateError error
+	PersonalMemoryReader     executionapplication.MemoryReader
 	RunProjectionStore       executionapplication.RunStore
 	RunReader                executionreadmodel.Reader
 	RunProjectionStoreError  error
@@ -80,6 +82,7 @@ func NewServerWithOptions(cfg config.Config, options ServerOptions) *Server {
 		runProjectionStoreErr:    options.RunProjectionStoreError,
 		personalMemoryStateStore: options.PersonalMemoryStateStore,
 		personalMemoryStateErr:   options.PersonalMemoryStateError,
+		personalMemoryReader:     options.PersonalMemoryReader,
 		temporalStarter:          options.TemporalStarter,
 		temporalStarterErr:       options.TemporalStarterError,
 		runService:               options.RunService,
@@ -176,6 +179,10 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		} else {
 			writeError(response, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/items/list":
+		s.handlePersonalMemoryRead(response, request, false)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/items/get":
+		s.handlePersonalMemoryRead(response, request, true)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/commands":
 		s.handlePersonalMemoryCommand(response, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/recall":

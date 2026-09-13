@@ -19,7 +19,7 @@ Go 实现的内部执行运行时。它负责执行准入、Temporal 工作流�
 | 工作流 | 用途 | 详细文档 |
 | --- | --- | --- |
 | `ToolExecutionWorkflow` | 在线回答的 Agent Activity、终态处理和记忆追加 | `docs/architecture/system/durable-runtime.md` |
-| `PersonalMemoryCommandWorkflow` | 个人记忆条目、会话和账户级变更 | `docs/architecture/system/memory-plane.md` |
+| `PersonalMemoryCommandWorkflow` | 原生记忆增改、停用/恢复和账户级变更 | `docs/architecture/system/memory-plane.md` |
 
 在线回答只使用 workflow、core activity 和 agent activity 三类 task queue。个人记忆函数工具在
 Agent Activity 内按需执行，不单独创建 Temporal activity；Campus RAG publisher 不属于在线回答链路。

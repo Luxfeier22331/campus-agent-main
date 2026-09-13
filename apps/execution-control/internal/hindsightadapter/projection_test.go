@@ -29,13 +29,13 @@ func TestHindsightRecallUsesExistingBankWithoutReconfiguringIt(t *testing.T) {
 
 	result, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
 		OwnerGeneration: 1,
-		OwnerSequence:   0,
-		QueryTimestamp:  "2026-06-16T10:03:04Z",
-		RequestID:       "req-hindsight-recall-untimed",
-		TenantID:        "tenant-main",
-		ThreadID:        "conv-hindsight-recall-untimed",
-		UserGoal:        "我应该如何阅读培养方案？",
-		UserID:          "user-executor",
+
+		QueryTimestamp: "2026-06-16T10:03:04Z",
+		RequestID:      "req-hindsight-recall-untimed",
+		TenantID:       "tenant-main",
+		ThreadID:       "conv-hindsight-recall-untimed",
+		UserGoal:       "我应该如何阅读培养方案？",
+		UserID:         "user-executor",
 	})
 	if err != nil {
 		t.Fatalf("recall: %v", err)
@@ -63,13 +63,13 @@ func TestHindsightRecallReturnsNoMatchWhenBankDoesNotExist(t *testing.T) {
 
 	result, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
 		OwnerGeneration: 1,
-		OwnerSequence:   0,
-		QueryTimestamp:  "2026-06-16T10:03:04Z",
-		RequestID:       "req-hindsight-recall-missing",
-		TenantID:        "tenant-main",
-		ThreadID:        "conv-hindsight-recall-missing",
-		UserGoal:        "我应该如何阅读培养方案？",
-		UserID:          "user-executor",
+
+		QueryTimestamp: "2026-06-16T10:03:04Z",
+		RequestID:      "req-hindsight-recall-missing",
+		TenantID:       "tenant-main",
+		ThreadID:       "conv-hindsight-recall-missing",
+		UserGoal:       "我应该如何阅读培养方案？",
+		UserID:         "user-executor",
 	})
 	if err != nil {
 		t.Fatalf("recall: %v", err)

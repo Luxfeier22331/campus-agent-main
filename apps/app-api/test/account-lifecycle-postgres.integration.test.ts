@@ -51,12 +51,6 @@ describe("account lifecycle PostgreSQL integration", () => {
 			[userId, now],
 		);
 		await client.query(
-			`insert into "profile"."memory_items"
-				("item_id", "owner_user_id", "key", "value", "created_at", "updated_at")
-			 values ($1, $2, 'preference', 'private value', $3, $3)`,
-			[`memory-item-${suffix}`, userId, now],
-		);
-		await client.query(
 			`insert into "chat"."conversations"
 				("id", "owner_user_id", "title", "created_at", "updated_at")
 			 values ($1, $2, 'Private conversation', $3, $3)`,

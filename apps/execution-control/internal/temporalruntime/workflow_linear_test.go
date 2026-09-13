@@ -1,13 +1,16 @@
 package temporalruntime
 
 import (
+	"context"
 	"errors"
+	"go.temporal.io/sdk/activity"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/stretchr/testify/mock"
+	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -18,13 +21,13 @@ func TestPersonalMemoryCommandWorkflowRetriesCallbackWithoutRepeatingProviderMut
 	registerWorkflowTestActivities(env, &Activities{})
 	command := PersonalMemoryCommandRequest{
 		CommandID:         "memcmd-retry-callback",
-		CommandKind:       "item_upsert",
+		CommandKind:       "memory_add",
 		OwnerGeneration:   1,
 		OwnerSequence:     1,
 		SchemaVersion:     memoryruntime.PersonalMemoryCommandSchemaVersion,
 		SubjectID:         "memory-1",
 		SupersessionScope: "item:memory-1",
-		Item:              &PersonalMemoryCommandItem{Key: "program", Value: "cs"},
+		Item:              &PersonalMemoryCommandItem{Text: "program: cs"},
 		SourceUpdatedAt:   "2026-07-16T00:00:00Z",
 		TenantID:          "tenant-main",
 		UserID:            "user-1",
@@ -987,4 +990,38 @@ func equalStrings(left []string, right []string) bool {
 		}
 	}
 	return true
+}
+
+func TestMemoryAppendExhaustionClosesOnlyBackgroundStep(t *testing.T) {
+	for _, mode := range []string{"provider", "timeout"} {
+		t.Run(mode, func(t *testing.T) {
+			var suite testsuite.WorkflowTestSuite
+			env := suite.NewTestWorkflowEnvironment()
+			registerWorkflowTestActivities(env, &Activities{})
+			input := validToolExecutionWorkflowInput("memory-final-" + mode)
+			answer := WorkflowOperationActivityOutput{Operation: WorkflowOperationSolve, SolveOutcome: "answer", FinalOutput: "答案", RequestID: input.RequestID, Status: "completed"}
+			env.OnActivity(SolveTaskActivityName, mock.Anything, mock.Anything).Return(answer, nil).Once()
+			env.OnActivity(WriteWorkflowFinalizationActivityName, mock.Anything, mock.Anything).Return(WorkflowFinalizationActivityOutput{RequestID: input.RequestID, Status: "completed"}, nil).Once()
+			cause := temporal.NewApplicationError("provider failed", "hindsight_append_failed")
+			if mode == "timeout" {
+				cause = temporal.NewTimeoutError(enumspb.TIMEOUT_TYPE_START_TO_CLOSE, nil)
+			}
+			env.OnActivity(AppendConversationMemoryActivityName, mock.Anything, mock.Anything).Return(AppendConversationMemoryActivityOutput{}, cause).Times(3)
+			env.OnActivity(FinalizeMemoryAppendActivityName, mock.Anything, mock.MatchedBy(func(actual FinalizeMemoryAppendActivityInput) bool {
+				return actual.RequestID == input.RequestID && actual.FailureKind != ""
+			})).Return(func(ctx context.Context, _ FinalizeMemoryAppendActivityInput) error {
+				if queue := activity.GetInfo(ctx).TaskQueue; queue != ActivityTaskQueueCore {
+					t.Errorf("finalizer queue = %q", queue)
+				}
+				return nil
+			}).Once()
+			env.ExecuteWorkflow(ToolExecutionWorkflow, input)
+			if err := env.GetWorkflowError(); err != nil {
+				t.Fatal(err)
+			}
+			env.AssertActivityNumberOfCalls(t, FinalizeMemoryAppendActivityName, 1)
+			env.AssertActivityNumberOfCalls(t, FinalizeExecutionFailureActivityName, 0)
+			env.AssertExpectations(t)
+		})
+	}
 }

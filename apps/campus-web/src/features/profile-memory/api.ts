@@ -1,86 +1,103 @@
 import { createIdempotencyKey, requestJson } from "@/platform/api/client";
-
 export type ProfileMemoryLifecycleState = "active" | "paused" | "erasing" | "erased";
 export type ProfileMemorySyncStatus = "synced" | "pending" | "failed";
-
 export interface ProfileMemoryItem {
-	itemId: string;
-	key: string;
-	revision: number;
-	state: "synced" | "saving" | "deleting" | "failed";
-	updatedAt: string;
-	value: string;
+	memoryId: string;
+	text: string;
+	kind: "fact" | "experience" | "summary";
+	state: "active" | "inactive";
+	origin: "manual" | "conversation" | "derived" | "unknown";
+	mentionedAt: string | null;
+	editedAt: string | null;
+	sourceMemories?: ProfileMemoryItem[];
 }
-
+export interface ProfileMemoryOperation {
+	commandId: string;
+	commandKind: string;
+	memoryId: string | null;
+	status: string;
+	errorCode: string | null;
+}
 export interface ProfileMemoryState {
-	itemCount: number;
-	items: ProfileMemoryItem[];
 	lifecycleState: ProfileMemoryLifecycleState;
 	syncStatus: ProfileMemorySyncStatus;
+	operations: ProfileMemoryOperation[];
 }
-
 export interface ProfileMemoryMutationResult {
-	item?: ProfileMemoryItem;
+	commandId: string;
 	lifecycleState: ProfileMemoryLifecycleState;
 	syncStatus: ProfileMemorySyncStatus;
 }
-
-interface ProfileMemoryEnvelope {
-	profileMemory: ProfileMemoryState;
+export interface ProfileMemoryQuery {
+	q?: string;
+	kind?: ProfileMemoryItem["kind"];
+	state: ProfileMemoryItem["state"];
+	limit: number;
+	offset: number;
 }
-
+export interface ProfileMemoryPage {
+	items: ProfileMemoryItem[];
+	total: number;
+	limit: number;
+	offset: number;
+}
 export async function getProfileMemory(): Promise<ProfileMemoryState> {
-	return (await requestJson<ProfileMemoryEnvelope>({ path: "/api/me/profile-memory" }))
-		.profileMemory;
+	return (
+		await requestJson<{ profileMemory: ProfileMemoryState }>({ path: "/api/me/profile-memory" })
+	).profileMemory;
 }
-
-export async function setProfileMemoryEnabled(
-	enabled: boolean,
-): Promise<ProfileMemoryMutationResult> {
+export function listProfileMemories(query: ProfileMemoryQuery): Promise<ProfileMemoryPage> {
+	const params = new URLSearchParams();
+	for (const [key, value] of Object.entries(query)) {
+		if (value !== undefined && value !== "") {
+			params.set(key, String(value));
+		}
+	}
+	return requestJson({ path: `/api/me/profile-memory/items?${params.toString()}` });
+}
+export async function getProfileMemoryItem(memoryId: string): Promise<ProfileMemoryItem> {
+	return (
+		await requestJson<{ item: ProfileMemoryItem }>({
+			path: `/api/me/profile-memory/items/${encodeURIComponent(memoryId)}`,
+		})
+	).item;
+}
+export function setProfileMemoryEnabled(enabled: boolean) {
 	return mutate("/api/me/profile-memory/settings", "PATCH", { enabled });
 }
-
-export async function createProfileMemoryItem(input: {
-	key: string;
-	value: string;
-}): Promise<ProfileMemoryMutationResult> {
+export function createProfileMemoryItem(input: { text: string }) {
 	return mutate("/api/me/profile-memory/items", "POST", input);
 }
-
-export async function updateProfileMemoryItem(input: {
-	itemId: string;
-	key: string;
-	value: string;
-}): Promise<ProfileMemoryMutationResult> {
-	return mutate(`/api/me/profile-memory/items/${encodeURIComponent(input.itemId)}`, "PATCH", {
-		key: input.key,
-		value: input.value,
-	});
+export function updateProfileMemoryItem({
+	memoryId,
+	...edit
+}: {
+	memoryId: string;
+	text?: string;
+	state?: "active" | "inactive";
+}) {
+	return mutate(`/api/me/profile-memory/items/${encodeURIComponent(memoryId)}`, "PATCH", edit);
 }
-
-export async function deleteProfileMemoryItem(
-	itemId: string,
-): Promise<ProfileMemoryMutationResult> {
-	return mutate(`/api/me/profile-memory/items/${encodeURIComponent(itemId)}`, "DELETE");
+export function retryProfileMemoryOperation(commandId: string) {
+	return mutate(`/api/me/profile-memory/operations/${encodeURIComponent(commandId)}/retry`, "POST");
 }
-
-export async function eraseProfileMemory(): Promise<ProfileMemoryMutationResult> {
+export function eraseProfileMemory() {
 	return mutate("/api/me/profile-memory", "DELETE");
 }
-
 async function mutate(
 	path: string,
 	method: "DELETE" | "PATCH" | "POST",
 	body?: unknown,
 ): Promise<ProfileMemoryMutationResult> {
-	const response = await requestJson<{ profileMemory: ProfileMemoryMutationResult }>({
-		...(body === undefined ? {} : { body: JSON.stringify(body) }),
-		headers: {
-			...(body === undefined ? {} : { "content-type": "application/json" }),
-			"Idempotency-Key": createIdempotencyKey(),
-		},
-		method,
-		path,
-	});
-	return response.profileMemory;
+	return (
+		await requestJson<{ profileMemory: ProfileMemoryMutationResult }>({
+			path,
+			method,
+			...(body === undefined ? {} : { body: JSON.stringify(body) }),
+			headers: {
+				"Idempotency-Key": createIdempotencyKey(),
+				...(body === undefined ? {} : { "content-type": "application/json" }),
+			},
+		})
+	).profileMemory;
 }

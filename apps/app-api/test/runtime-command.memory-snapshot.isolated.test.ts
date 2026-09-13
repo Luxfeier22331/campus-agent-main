@@ -102,7 +102,6 @@ describe("runtime command profile memory snapshot boundary", () => {
 		const snapshot = {
 			appendEnabled: true,
 			ownerGeneration: 3,
-			ownerSequence: 7,
 			recallEnabled: false,
 		};
 		captureMemorySnapshot.mockResolvedValue(snapshot);

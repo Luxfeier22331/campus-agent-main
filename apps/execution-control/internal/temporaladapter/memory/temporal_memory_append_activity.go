@@ -25,6 +25,9 @@ func (s *Adapter) AppendConversationMemory(
 	if err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
 	}
+	if _, err = s.ProjectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{Status: "running"}, activityStartedAt, time.Time{}); err != nil {
+		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
+	}
 	payload, err := s.LoadExecutionPayload(ctx, run)
 	if err != nil {
 		failureKind := execution.InputFailureKind(err, "memory_append_request_invalid")
@@ -91,7 +94,7 @@ func (s *Adapter) AppendConversationMemory(
 			run,
 			"hindsight_append_failed",
 			err,
-			providerStartedAt,
+			activityStartedAt,
 			providerCompletedAt,
 		)
 	}
@@ -143,6 +146,7 @@ func (s *Adapter) ProjectMemoryAppendFailure(
 		Tool:               "memory",
 		Run:                run,
 		Status:             "failed",
+		RunStepStatus:      "running",
 		StepID:             "memory.append",
 		StepKind:           "memory",
 		TaskQueue:          temporalruntime.ActivityTaskQueueCore,
@@ -186,13 +190,12 @@ func MemoryAppendRequestForRun(
 		run.OwnerUserID,
 	)
 	tenantID := execution.FirstNonEmptyText(payload["tenant_id"], execution.NestedAny(payload, "context", "tenant_id"))
-	ownerGeneration, ownerSequence, err := MemoryOwnerFenceFromPayload(payload)
+	ownerGeneration, err := MemoryOwnerGenerationFromPayload(payload)
 	if err != nil {
 		return memoryruntime.AppendConversationTurnRequest{}, err
 	}
 	request := memoryruntime.AppendConversationTurnRequest{
 		OwnerGeneration:      ownerGeneration,
-		OwnerSequence:        ownerSequence,
 		RequestID:            run.RequestID,
 		TenantID:             tenantID,
 		ThreadID:             run.ConversationID,
@@ -234,7 +237,9 @@ func (s *Adapter) ProjectMemoryAppendResult(
 	completedAt time.Time,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	startedAt = CanonicalMemoryAppendTime(startedAt)
-	completedAt = CanonicalMemoryAppendTime(completedAt)
+	if output.Status != "running" {
+		completedAt = CanonicalMemoryAppendTime(completedAt)
+	}
 	updatedAt := time.Now().UTC().Truncate(time.Microsecond)
 	if strings.TrimSpace(output.SchemaVersion) == "" {
 		output.SchemaVersion = "memory_conversation_append_result_v3"
@@ -340,4 +345,32 @@ func StartPersonalMemoryHeartbeat(ctx context.Context, detail string) func() {
 		}
 	}()
 	return func() { close(stop) }
+}
+
+func (s *Adapter) FinalizeMemoryAppendActivity(ctx context.Context, input temporalruntime.FinalizeMemoryAppendActivityInput) error {
+	run, err := s.TemporalCompletedFinalizationRun(ctx, input.RequestID)
+	if err != nil {
+		return err
+	}
+	steps, err := s.RunProjectionStore.ListRunSteps(ctx, run.RequestID)
+	if err != nil {
+		return err
+	}
+	step := execution.RunStepProjection{StepID: "memory.append", RequestID: run.RequestID, ConversationID: run.ConversationID,
+		StepKind: "memory", Tool: "memory", PayloadSchemaVersion: "run-step-projection-v1", TaskQueue: temporalruntime.ActivityTaskQueueCore}
+	for _, existing := range steps {
+		if existing.StepID == step.StepID {
+			if activityprojection.TemporalStepTerminal(existing.Status) {
+				return nil
+			}
+			step = existing
+		}
+	}
+	now := time.Now().UTC()
+	step.Status = "failed"
+	step.CompletedAt = now
+	step.UpdatedAt = now
+	step.SanitizedPayload = map[string]any{"status": "failed", "failure": map[string]any{"code": input.FailureKind, "operation": "memory.append"}}
+	_, err = s.RunProjectionStore.UpsertRunStep(ctx, step)
+	return err
 }

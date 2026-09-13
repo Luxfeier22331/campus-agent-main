@@ -28,7 +28,7 @@ var (
 func TestInMemoryStateStoreFencesOnlineCallsAcrossPauseAndErase(t *testing.T) {
 	store := NewInMemoryStateStore()
 	ctx := context.Background()
-	if err := store.BeginCall(ctx, "owner", "run-1:recall", 1, 0, "subject", "recall", time.Minute); err != nil {
+	if err := store.BeginCall(ctx, "owner", "run-1:recall", 1, "recall", time.Minute); err != nil {
 		t.Fatalf("begin initial recall: %v", err)
 	}
 	if err := store.EndCall(ctx, "owner", "run-1:recall"); err != nil {
@@ -41,14 +41,14 @@ func TestInMemoryStateStoreFencesOnlineCallsAcrossPauseAndErase(t *testing.T) {
 	if _, err := store.FinalizeCommand(ctx, pause.CommandID, "owner", "succeeded", "", testCommandResultFingerprint, "paused"); err != nil {
 		t.Fatalf("complete pause: %v", err)
 	}
-	if err := store.BeginCall(ctx, "owner", "run-2:recall", 1, 1, "subject", "recall", time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
+	if err := store.BeginCall(ctx, "owner", "run-2:recall", 1, "recall", time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
 		t.Fatalf("paused recall error=%v", err)
 	}
 	erase := PersonalMemoryCommandRequest{CommandID: "cmd-erase", CommandKind: "owner_erase", OwnerGeneration: 2, OwnerSequence: 2, SchemaVersion: PersonalMemoryCommandSchemaVersion, SupersessionScope: "owner:erase:2", TenantID: "tenant-main", UserID: "user-1"}
 	if _, execute, err := store.BeginCommand(ctx, "owner", erase, time.Minute); err != nil || !execute {
 		t.Fatalf("begin erase execute=%t err=%v", execute, err)
 	}
-	if err := store.BeginCall(ctx, "owner", "run-stale:append", 1, 1, "subject", "append", time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
+	if err := store.BeginCall(ctx, "owner", "run-stale:append", 1, "append", time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
 		t.Fatalf("stale append error=%v", err)
 	}
 }
@@ -113,7 +113,7 @@ func TestInMemoryStateStoreAllowsCoalescedSequenceGapAndRejectsOlderCommand(t *t
 		t.Fatal(err)
 	}
 	stale := PersonalMemoryCommandRequest{
-		CommandID: "stale-item", CommandKind: "item_delete", OwnerGeneration: 1, OwnerSequence: 1,
+		CommandID: "stale-item", CommandKind: "memory_update", OwnerGeneration: 1, OwnerSequence: 1,
 		SchemaVersion: PersonalMemoryCommandSchemaVersion, SourceUpdatedAt: "2026-07-16T00:00:01Z",
 		SubjectID: "memory-1", SupersessionScope: "item:memory-1",
 	}
@@ -137,22 +137,22 @@ func TestInMemoryStateStoreReplaysSucceededReceiptWithoutExecution(t *testing.T)
 	}
 }
 
-func TestInMemoryStateStoreSubjectDrainWaitsForEarlierConversationCall(t *testing.T) {
+func TestOrdinaryMemoryCommandDoesNotFenceChatCalls(t *testing.T) {
 	store := NewInMemoryStateStore()
 	ctx := context.Background()
-	if err := store.BeginCall(ctx, "owner", "run-1:append", 1, 0, "conversation-a", "append", time.Minute); err != nil {
+	if err := store.BeginCall(ctx, "owner", "before", 1, "append", time.Minute); err != nil {
 		t.Fatal(err)
 	}
-	drained, err := store.SubjectDrained(ctx, "owner", 1, "conversation-a", 1)
+	cmd := PersonalMemoryCommandRequest{CommandID: "edit", CommandKind: "memory_update", OwnerGeneration: 1, OwnerSequence: 1, SchemaVersion: PersonalMemoryCommandSchemaVersion, SupersessionScope: "memory:fact"}
+	if _, _, err := store.BeginCommand(ctx, "owner", cmd, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.BeginCall(ctx, "owner", "after", 1, "recall", time.Minute); err != nil {
+		t.Fatalf("ordinary edit fenced chat: %v", err)
+	}
+	drained, err := store.GenerationDrained(ctx, "owner", 1)
 	if err != nil || drained {
-		t.Fatalf("drained=%t err=%v, want active call to block deletion", drained, err)
-	}
-	if err := store.EndCall(ctx, "owner", "run-1:append"); err != nil {
-		t.Fatal(err)
-	}
-	drained, err = store.SubjectDrained(ctx, "owner", 1, "conversation-a", 1)
-	if err != nil || !drained {
-		t.Fatalf("drained=%t err=%v, want subject drained", drained, err)
+		t.Fatalf("erase must still wait for active calls: drained=%t err=%v", drained, err)
 	}
 }
 
@@ -160,7 +160,7 @@ func TestInMemoryStateStoreGenerationDrainIncludesProcessingReceipts(t *testing.
 	store := NewInMemoryStateStore()
 	ctx := context.Background()
 	command := PersonalMemoryCommandRequest{
-		CommandID: "cmd-delete", CommandKind: "item_delete", OwnerGeneration: 1,
+		CommandID: "cmd-delete", CommandKind: "memory_update", OwnerGeneration: 1,
 		OwnerSequence: 1, SubjectID: "mem-1", SubjectScopeHash: "item-1",
 		SchemaVersion: PersonalMemoryCommandSchemaVersion, SupersessionScope: "item:mem-1",
 		TenantID: "tenant-main", UserID: "user-1",
@@ -184,7 +184,7 @@ func TestInMemoryStateStoreGenerationDrainIncludesProcessingReceipts(t *testing.
 func TestInMemoryStateStoreMarkOwnerDeletedRequiresDrainAndFencesFutureWork(t *testing.T) {
 	store := NewInMemoryStateStore()
 	ctx := context.Background()
-	if err := store.BeginCall(ctx, "owner-deleted", "run-1:recall", 1, 0, "subject", "recall", time.Minute); err != nil {
+	if err := store.BeginCall(ctx, "owner-deleted", "run-1:recall", 1, "recall", time.Minute); err != nil {
 		t.Fatalf("begin active call: %v", err)
 	}
 	if err := store.MarkOwnerDeleted(ctx, "owner-deleted"); !errors.Is(err, ErrMemoryOwnerNotDrained) {
@@ -199,11 +199,11 @@ func TestInMemoryStateStoreMarkOwnerDeletedRequiresDrainAndFencesFutureWork(t *t
 	if err := store.MarkOwnerDeleted(ctx, "owner-deleted"); err != nil {
 		t.Fatalf("replay mark owner deleted: %v", err)
 	}
-	if err := store.BeginCall(ctx, "owner-deleted", "run-2:recall", 1, 0, "subject", "recall", time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
+	if err := store.BeginCall(ctx, "owner-deleted", "run-2:recall", 1, "recall", time.Minute); !errors.Is(err, ErrMemoryFenceConflict) {
 		t.Fatalf("begin call after owner deletion error=%v, want ErrMemoryFenceConflict", err)
 	}
 	command := PersonalMemoryCommandRequest{
-		CommandID: "cmd-after-owner-deletion", CommandKind: "item_delete",
+		CommandID: "cmd-after-owner-deletion", CommandKind: "memory_update",
 		OwnerGeneration: 1, OwnerSequence: 1, SchemaVersion: PersonalMemoryCommandSchemaVersion,
 		SubjectID: "memory-1", SubjectScopeHash: "subject-hash",
 		SupersessionScope: "item:memory-1",
@@ -217,7 +217,7 @@ func TestInMemoryStateStoreBlocksLaterOwnerSequenceUntilEarlierReceiptIsTerminal
 	store := NewInMemoryStateStore()
 	ctx := context.Background()
 	first := PersonalMemoryCommandRequest{
-		CommandID: "cmd-1", CommandKind: "item_upsert", Item: &PersonalMemoryCommandItem{Key: "program", Value: "cs"},
+		CommandID: "cmd-1", CommandKind: "memory_add", Item: &PersonalMemoryCommandItem{Text: "program: cs"},
 		OwnerGeneration: 1, OwnerSequence: 1, SchemaVersion: PersonalMemoryCommandSchemaVersion,
 		SourceUpdatedAt: "2026-07-16T00:00:00Z", SubjectID: "memory-1", SupersessionScope: "item:memory-1",
 	}
@@ -275,7 +275,7 @@ func TestInMemoryStateStoreFinalizesReceiptWithIdempotentCAS(t *testing.T) {
 func TestInMemoryStateStoreDrainTreatsRetryableReceiptAsActive(t *testing.T) {
 	store := NewInMemoryStateStore()
 	command := PersonalMemoryCommandRequest{
-		CommandID: "cmd-retryable", CommandKind: "item_delete", OwnerGeneration: 1, OwnerSequence: 1,
+		CommandID: "cmd-retryable", CommandKind: "memory_update", OwnerGeneration: 1, OwnerSequence: 1,
 		SchemaVersion: PersonalMemoryCommandSchemaVersion, SubjectID: "memory-1", SubjectScopeHash: "subject-hash",
 		SupersessionScope: "item:memory-1",
 	}

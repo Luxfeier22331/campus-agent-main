@@ -83,6 +83,7 @@ func NewOwner(cfg config.Config, logger *slog.Logger) (*Owner, error) {
 		RecallMaxTokens:   cfg.PersonalMemoryRecallMaxTokens,
 		Timeout:           time.Duration(cfg.PersonalMemoryTimeoutSeconds * float64(time.Second)),
 	})
+	personalMemoryReader, _ := personalMemoryExecutor.(executionapplication.MemoryReader)
 	personalMemoryStateStore, personalMemoryStateErr := newPersonalMemoryStateStore(ctx, cfg)
 	if personalMemoryErr == nil && personalMemoryStateErr == nil {
 		personalMemoryExecutor = executionapplication.NewFencedExecutor(
@@ -138,6 +139,7 @@ func NewOwner(cfg config.Config, logger *slog.Logger) (*Owner, error) {
 		StoreError:                runProjectionStoreErr,
 	})
 	server := httpapi.NewServerWithOptions(cfg, httpapi.ServerOptions{
+		PersonalMemoryReader:     personalMemoryReader,
 		AgentToolService:         agentToolService,
 		Logger:                   logger,
 		PersonalMemoryStateStore: personalMemoryStateStore,

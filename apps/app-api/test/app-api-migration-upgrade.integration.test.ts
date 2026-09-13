@@ -768,28 +768,6 @@ describe("app-api migration upgrade", () => {
 				sync_status: "pending",
 			},
 		]);
-		const runtimeDb = drizzle(pool, { schema: appApiSchema });
-		const migratedStore = createPgProfileMemoryStore({}, { getDb: async () => runtimeDb });
-		await expect(
-			migratedStore.createItem({
-				commandId: "memory-upgrade-reconcile-command",
-				idempotencyKeyHash: "memory-upgrade-reconcile-idempotency",
-				itemId: "memory-upgrade-reconcile-item",
-				key: "answer_style",
-				ownerUserId: "memory-upgrade-reconcile-owner",
-				requestFingerprint: "memory-upgrade-reconcile-request",
-				updatedAt: "2026-07-15T09:01:00Z",
-				value: "先给结论",
-			}),
-		).resolves.toMatchObject({ syncStatus: "pending" });
-		await expect(
-			migratedStore.applyCommandResult({
-				commandId: "memory-upgrade-reconcile-command",
-				resultFingerprint: "6".repeat(64),
-				status: "succeeded",
-				updatedAt: "2026-07-15T09:02:00Z",
-			}),
-		).resolves.toBe("applied");
 		const legacyMemoryColumns = await pool.query<{
 			column_default: string | null;
 			column_name: string;
@@ -827,40 +805,42 @@ describe("app-api migration upgrade", () => {
 			contractedStore.createItem({
 				commandId: "memory-contract-create",
 				idempotencyKeyHash: "memory-contract-create-idempotency",
-				itemId: "memory-contract-item",
-				key: "answer_style",
 				ownerUserId: "memory-contract-owner",
 				requestFingerprint: "memory-contract-create-request",
 				updatedAt: "2026-08-17T01:00:00Z",
-				value: "先给结论",
+				text: "先给结论",
 			}),
-		).resolves.toMatchObject({ item: { itemId: "memory-contract-item" } });
+		).resolves.toMatchObject({ commandId: "memory-contract-create", syncStatus: "synced" });
 		await expect(contractedStore.listByOwner("memory-contract-owner")).resolves.toMatchObject({
-			itemCount: 1,
-			items: [{ itemId: "memory-contract-item", value: "先给结论" }],
+			operations: [
+				expect.objectContaining({
+					commandId: "memory-contract-create",
+					status: "pending_admission",
+				}),
+			],
 		});
 		await expect(
 			contractedStore.updateItem({
 				commandId: "memory-contract-update",
 				idempotencyKeyHash: "memory-contract-update-idempotency",
-				itemId: "memory-contract-item",
-				key: "answer_style",
+				memoryId: "memory-contract-item",
 				ownerUserId: "memory-contract-owner",
 				requestFingerprint: "memory-contract-update-request",
 				updatedAt: "2026-08-17T01:01:00Z",
-				value: "先给步骤",
+				text: "先给步骤",
 			}),
-		).resolves.toMatchObject({ item: { revision: 2, value: "先给步骤" } });
+		).resolves.toMatchObject({ commandId: "memory-contract-update" });
 		await expect(
-			contractedStore.deleteItem({
+			contractedStore.updateItem({
+				state: "inactive",
 				commandId: "memory-contract-delete",
 				idempotencyKeyHash: "memory-contract-delete-idempotency",
-				itemId: "memory-contract-item",
+				memoryId: "memory-contract-item",
 				ownerUserId: "memory-contract-owner",
 				requestFingerprint: "memory-contract-delete-request",
 				updatedAt: "2026-08-17T01:02:00Z",
 			}),
-		).resolves.toMatchObject({ item: { state: "deleting" } });
+		).resolves.toMatchObject({ commandId: "memory-contract-delete" });
 		const retired = await pool.query<{ schema_name: string }>(`
 			select schema_name
 			from unnest(array['campus_services', 'campus_services_ops', 'docs', 'identity', 'observability', 'official_web', 'operator', 'provider_config', 'wechat_official_account']) schema_name

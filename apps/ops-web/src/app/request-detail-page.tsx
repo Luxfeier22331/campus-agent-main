@@ -1,7 +1,6 @@
 import { Button, cn } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
@@ -26,21 +25,6 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 		refetchInterval: (query) => requestDetailPollInterval(query.state.data),
 		refetchIntervalInBackground: false,
 	});
-	const finishedRequestId =
-		detail.data?.request.lifecyclePhase === "FINISHED" ? detail.data.request.requestId : null;
-	const refetch = detail.refetch;
-	useEffect(() => {
-		if (!finishedRequestId) {
-			return;
-		}
-		// Product completion can precede the best-effort citation projection.
-		const timer = setTimeout(() => {
-			if (document.visibilityState === "visible") {
-				void refetch();
-			}
-		}, 2000);
-		return () => clearTimeout(timer);
-	}, [finishedRequestId, refetch]);
 	const returnPath = normalizeRequestListReturnPath(from);
 
 	if (detail.isPending) {
@@ -90,6 +74,12 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 				/>
 			) : null}
 			<RequestSummary detail={detail.data} />
+			{detail.data.request.lifecyclePhase === "FINISHED" &&
+			requestDetailPollInterval(detail.data) !== false ? (
+				<p className="mt-3 text-sm text-muted-foreground">
+					回答已完成，后台记忆或结果投影仍在处理中。
+				</p>
+			) : null}
 			<div className="grid gap-10 py-6">
 				<QuestionSection detail={detail.data} />
 				<ResultSection detail={detail.data} />
@@ -108,7 +98,19 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 export function requestDetailPollInterval(
 	detail: OpsRequestDetailResponse | undefined,
 ): number | false {
-	return detail?.request.lifecyclePhase === "FINISHED" ? false : 2000;
+	if (detail?.request.lifecyclePhase !== "FINISHED") {
+		return 2000;
+	}
+	if (detail.request.status !== "COMPLETED") {
+		return false;
+	}
+	return detail.execution.stages.some(
+		(stage) =>
+			(stage.kind === "memory" || stage.kind === "finalization") &&
+			["pending", "running"].includes(stage.status),
+	)
+		? 2000
+		: false;
 }
 
 function BackToRequests({ href }: { href: string }) {

@@ -49,7 +49,6 @@ describe("runtime command mutations", () => {
 			{
 				appendEnabled: true,
 				ownerGeneration: 3,
-				ownerSequence: 7,
 				recallEnabled: false,
 			},
 			{
@@ -63,7 +62,6 @@ describe("runtime command mutations", () => {
 			executionInputSha256: "b".repeat(64),
 			memoryAppendEnabled: true,
 			memoryOwnerGeneration: 3,
-			memoryOwnerSequence: 7,
 			memoryRecallEnabled: false,
 			requestId: "req_001",
 			status: "accepted",

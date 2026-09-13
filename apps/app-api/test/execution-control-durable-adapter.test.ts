@@ -403,7 +403,7 @@ describe("execution control runtime adapter", () => {
 		expect(run.status).toBe("canceled");
 	});
 
-	it("sends source-document deletion commands through the command endpoint", async () => {
+	it("sends native memory curation commands through the command endpoint", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValueOnce(
 			new Response(JSON.stringify({}), {
 				status: 202,
@@ -420,19 +420,17 @@ describe("execution control runtime adapter", () => {
 
 		await client.admit({
 			commandId: "memcmd_01HQ",
-			commandKind: "conversation_prune",
-			item: null,
+			commandKind: "memory_update",
+			item: { state: "inactive" },
 			lifecycleState: "active",
 			ownerGeneration: 2,
 			ownerSequence: 7,
 			ownerUserId: "user_01HQ",
-			schemaVersion: "personal_memory_command.v2",
-			sourceMessageIds: ["msg_user_01", "msg_user_02"],
+			schemaVersion: "personal_memory_command.v3",
 			sourceUpdatedAt: "2026-06-10T08:00:00.000Z",
 			status: "pending_admission",
-			subjectId: "conv_01HQ",
-			subjectRevision: null,
-			supersessionScope: "source_batch:memcmd_01HQ",
+			subjectId: "fact_01",
+			supersessionScope: "memory:fact_01",
 		});
 		expect(fetchImplementation).toHaveBeenCalledWith(
 			"https://execution-control.internal/internal/memory/personal/commands",
@@ -443,17 +441,15 @@ describe("execution control runtime adapter", () => {
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
 			command_id: "memcmd_01HQ",
-			command_kind: "conversation_prune",
-			item: null,
+			command_kind: "memory_update",
+			item: { state: "inactive" },
 			lifecycle_state: "active",
 			owner_generation: 2,
 			owner_sequence: 7,
-			schema_version: "personal_memory_command.v2",
-			source_message_ids: ["msg_user_01", "msg_user_02"],
+			schema_version: "personal_memory_command.v3",
 			source_updated_at: "2026-06-10T08:00:00.000Z",
-			subject_id: "conv_01HQ",
-			subject_revision: null,
-			supersession_scope: "source_batch:memcmd_01HQ",
+			subject_id: "fact_01",
+			supersession_scope: "memory:fact_01",
 			tenant_id: "tenant-main",
 			user_id: "user_01HQ",
 		});

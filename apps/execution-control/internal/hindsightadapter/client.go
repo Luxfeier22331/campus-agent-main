@@ -167,35 +167,6 @@ func (c hindsightHTTPClient) RecallMemories(
 	return fromHindsightSDKRecallResponse(responseBody), nil
 }
 
-func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, documentID string) error {
-	trimmedBankID := strings.TrimSpace(bankID)
-	responseBody, response, err := c.client.DocumentsAPI.
-		DeleteDocument(ctx, trimmedBankID, strings.TrimSpace(documentID)).
-		Execute()
-	if response != nil && response.StatusCode == http.StatusNotFound {
-		if response.Body != nil {
-			_ = response.Body.Close()
-		}
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	if err := requireHindsightSuccess(response, "delete document"); err != nil {
-		return err
-	}
-	if responseBody == nil || !responseBody.GetSuccess() {
-		return errors.New("hindsight delete document returned success=false")
-	}
-	if strings.TrimSpace(responseBody.GetDocumentId()) != strings.TrimSpace(documentID) {
-		return fmt.Errorf("hindsight delete document id=%q, want %q", responseBody.GetDocumentId(), documentID)
-	}
-	return nil
-}
-
 func (c hindsightHTTPClient) DeleteBank(ctx context.Context, bankID string) error {
 	trimmedBankID := strings.TrimSpace(bankID)
 	responseBody, response, err := c.client.BanksAPI.

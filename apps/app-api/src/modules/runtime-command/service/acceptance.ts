@@ -184,7 +184,6 @@ export async function acceptChatCommand(
 						? {
 								appendEnabled: memorySnapshot.appendEnabled,
 								ownerGeneration: memorySnapshot.ownerGeneration,
-								ownerSequence: memorySnapshot.ownerSequence,
 								recallEnabled: memorySnapshot.recallEnabled,
 							}
 						: null,

@@ -41,7 +41,7 @@ Hindsight 是唯一个人记忆 runtime：
 
 - 仓库不维护个人记忆 embedding、抽取 prompt、合并算法或第二套向量存储；
 - 个人记忆不可用会降低或阻止相应记忆操作，但不会切换到另一套记忆实现；
-- Hindsight 内部标识和原始 payload 不进入浏览器或模型可见工具；
+- 用户管理接口可以返回当前用户的原生 memory ID 和内容；bank/tenant 标识及供应商原始 payload 不进入浏览器或模型可见工具；
 - Hindsight MCP、Python tool 和原始 API 不直接暴露给 Primary Agent。
 
 ## 否决方案
