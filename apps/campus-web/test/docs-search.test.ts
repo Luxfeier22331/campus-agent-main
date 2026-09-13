@@ -110,6 +110,25 @@ describe("native docs search", () => {
 		]);
 	});
 
+	it("ranks an exact section heading before generic body matches", () => {
+		const directSection = createSearchEntry({
+			docId: "doc-course-map",
+			searchText: "本办法适用于相关学生",
+			sectionTitle: "转专业",
+		});
+		const genericBody = createSearchEntry({
+			docId: "doc-leave",
+			searchText: "学生专业调整应按规定办理",
+			sectionTitle: "总则",
+		});
+		const engine = createDocsSearchEngine(
+			[createSearchIndex([genericBody, directSection])],
+			createSiteIndex(),
+		);
+
+		expect(searchDocsEngine("转专业", engine)[0]?.entry).toBe(directSection);
+	});
+
 	it("ranks entries covering every query term before partial matches", () => {
 		const fullMatch = createSearchEntry({
 			docId: "doc-scholarship",
