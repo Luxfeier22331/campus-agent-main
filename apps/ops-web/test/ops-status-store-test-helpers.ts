@@ -116,6 +116,9 @@ function validAttentionReason(
 
 export function requestRow(overrides: Partial<OpsRequestDetailRow> = {}): OpsRequestDetailRow {
 	return {
+		conversationId: "conv_pg_001",
+		userMessageId: "msg_pg_q1",
+		assistantMessageId: "msg_pg_a1",
 		assistantKind: "answer",
 		assistantMessagePresent: true,
 		assistantMessageText: "缓考申请需提交书面材料。",
@@ -221,7 +224,7 @@ function filterRequestRows(
 	since: Date,
 ): OpsRequestDetailRow[] {
 	return rows
-		.filter((row) => row.startedAt >= since)
+		.filter((row) => query.requestId || row.startedAt >= since)
 		.filter((row) => {
 			if (requestListView(query) === "attention" && row.attentionReason === null) {
 				return false;

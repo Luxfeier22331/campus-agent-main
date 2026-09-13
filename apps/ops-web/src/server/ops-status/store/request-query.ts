@@ -39,6 +39,9 @@ export function requestDetailSql(suffix: string): string {
 				"assistant_kind" as "assistantKind",
 				"assistant_message_present" as "assistantMessagePresent",
 				"assistant_message_text" as "assistantMessageText",
+ "conversation_id" as "conversationId",
+ "user_message_id" as "userMessageId",
+ "assistant_message_id" as "assistantMessageId",
 				"assistant_structured_parts_json" as "assistantStructuredPartsJson",
 				"attention_reason" as "attentionReason",
 				"completed_at" as "completedAt",
@@ -68,7 +71,10 @@ export function requestRowsCte(): string {
 	return `
 		with request_rows as (
 			select
-				dispatch.completed_at as "completed_at",
+				dispatch.conversation_id as "conversation_id",
+ dispatch.user_message_id as "user_message_id",
+ assistant_message.id as "assistant_message_id",
+ dispatch.completed_at as "completed_at",
 				case
 					when dispatch.completed_at is null then null
 					else round(extract(epoch from (dispatch.completed_at - dispatch.created_at)) * 1000)::int
@@ -166,8 +172,10 @@ export function buildRequestFilter(
 } {
 	const values: unknown[] = [];
 	const conditions: string[] = [];
-	values.push(since);
-	conditions.push(`"started_at" >= $${values.length}`);
+	if (!query.requestId) {
+		values.push(since);
+		conditions.push(`"started_at" >= $${values.length}`);
+	}
 	if (requestListView(query) === "attention") {
 		conditions.push('"attention_priority" is not null');
 	}

@@ -163,7 +163,7 @@ describe("OpsWebApp", () => {
 
 		fireEvent.click(await screen.findByRole("button", { name: "打开导航" }));
 		const mobileNav = await screen.findByRole("dialog");
-		fireEvent.click(within(mobileNav).getByRole("link", { name: "运行记录" }));
+		fireEvent.click(within(mobileNav).getByRole("link", { name: "运行诊断" }));
 
 		expect(await screen.findByRole("heading", { name: "运行记录" })).toBeInTheDocument();
 		await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());

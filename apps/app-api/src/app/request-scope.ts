@@ -9,6 +9,8 @@ import { getOpsAccountAdminApi } from "../modules/auth/ops-account-admin-plugin"
 import { buildCampusExperienceService } from "../modules/campus-experience";
 import { buildCampusGroupsService, createPgCampusGroupsStore } from "../modules/campus-groups";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
+import { createChatFeedbackQueryService } from "../modules/chat/feedback-query";
+import { createOpsConversationQueryService } from "../modules/chat/ops-conversation-query";
 import {
 	buildChatAvailabilityService,
 	createPgChatAvailabilityStore,
@@ -58,6 +60,8 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 			let campusGroups = input.dependencies.campusGroupsService ?? null;
 			let chatAvailability = input.dependencies.chatAvailabilityService ?? null;
 			let chat = input.dependencies.chatConversationService ?? null;
+			let opsConversationQuery = input.dependencies.opsConversationQueryService ?? null;
+			let feedbackQuery = input.dependencies.chatFeedbackQueryService ?? null;
 			let command = input.dependencies.chatCommandService ?? null;
 			let chatCommandPersistence: ReturnType<typeof createPgChatCommandPersistence> | null = null;
 			let dining = input.dependencies.diningMapReadService ?? null;
@@ -151,6 +155,10 @@ export function createRequestScopeFactory(input: { dependencies: AppDependencies
 					})),
 				resolveChatCommandService,
 				resolveChatConversationService,
+				resolveOpsConversationQueryService: () =>
+					(opsConversationQuery ??= createOpsConversationQueryService({ getDb: runtime.getDb })),
+				resolveChatFeedbackQueryService: () =>
+					(feedbackQuery ??= createChatFeedbackQueryService({ getDb: runtime.getDb })),
 				resolveDiningMapReadService: () =>
 					(dining ??= createPgDiningMapReadService({
 						getDb: runtime.getDb,

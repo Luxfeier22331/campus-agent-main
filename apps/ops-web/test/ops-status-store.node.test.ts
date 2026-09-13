@@ -788,7 +788,10 @@ describe("PostgreSQL ops status store", () => {
 	});
 
 	it("filters exact request IDs", async () => {
-		const target = requestRow({ requestId: "req_target" });
+		const target = requestRow({
+			requestId: "req_target",
+			startedAt: new Date(now.getTime() - 3 * 60 * 60 * 1000),
+		});
 		const store = createPgOpsStatusStore({
 			db: createFakeOpsDb({ requestRows: [requestRow(), target] }),
 			now: () => now,

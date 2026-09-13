@@ -30,6 +30,11 @@ export function toRequestDetail(
 ): OpsRequestDetailResponse {
 	const status = normalizeRequestStatus(row.status);
 	return {
+		conversation: {
+			id: row.conversationId,
+			userMessageId: row.userMessageId,
+			assistantMessageId: row.assistantMessageId,
+		},
 		execution: toExecutionDiagnostics(row, diagnostics),
 		generatedAt: generatedAt.toISOString(),
 		question: {

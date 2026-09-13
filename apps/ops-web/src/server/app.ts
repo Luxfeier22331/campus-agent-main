@@ -15,6 +15,16 @@ import {
 	CampusGroupsAdminUnavailableError,
 	createCampusGroupsAdminClient,
 } from "./campus-groups-client.ts";
+import {
+	ChatConversationResponseError,
+	ChatConversationUnavailableError,
+	createChatConversationClient,
+} from "./chat-conversation-client.ts";
+import {
+	ChatFeedbackResponseError,
+	ChatFeedbackUnavailableError,
+	createChatFeedbackClient,
+} from "./chat-feedback-client.ts";
 import type { OpsWebDatabaseEnv } from "./database.ts";
 import type {
 	DiningMapStore,
@@ -113,6 +123,8 @@ import {
 import { registerAccountAdminRoutes } from "./routes/account-admin.ts";
 import { isAutomationHostRequest, registerAutomationRoutes } from "./routes/automation.ts";
 import { CampusGroupsRequestError, registerCampusGroupsRoutes } from "./routes/campus-groups.ts";
+import { registerChatConversationRoutes } from "./routes/chat-conversations.ts";
+import { registerChatFeedbackRoutes } from "./routes/chat-feedback.ts";
 import { registerDiningRoutes } from "./routes/dining.ts";
 import { registerEmailAccessRoutes } from "./routes/email-access.ts";
 import { jsonError } from "./routes/http.ts";
@@ -158,6 +170,8 @@ type OpsAppEnv = OpsAdmissionEnv &
 	ProviderConfigAdminEnv;
 
 interface OpsAppOptions {
+	chatConversationClient?: ReturnType<typeof createChatConversationClient>;
+	chatFeedbackClient?: ReturnType<typeof createChatFeedbackClient>;
 	accountAdminClient?: ReturnType<typeof createAccountAdminClient>;
 	admission?: OpsAdmission;
 	env?: OpsAppEnv;
@@ -222,6 +236,9 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			...(env.OPS_WEB_APP_API_URL ? { OPS_WEB_APP_API_URL: env.OPS_WEB_APP_API_URL } : {}),
 			...(env.OPS_WEB_INTERNAL_TOKEN ? { OPS_WEB_INTERNAL_TOKEN: env.OPS_WEB_INTERNAL_TOKEN } : {}),
 		});
+	const chatConversationClient =
+		options.chatConversationClient ?? createChatConversationClient(env);
+	const chatFeedbackClient = options.chatFeedbackClient ?? createChatFeedbackClient(env);
 	const accountAdminClient = options.accountAdminClient ?? createAccountAdminClient(env);
 	const emailAccessClient = options.emailAccessClient ?? createEmailAccessAdminClient(env);
 	const internalPortalCredentialService =
@@ -285,6 +302,29 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 			});
 			return response;
 		};
+		if (error instanceof ChatConversationUnavailableError) {
+			return respond(
+				jsonError("OPS_CHAT_CONVERSATION_UNAVAILABLE", "会话后端不可用。", 503),
+				"chat_conversation_unavailable",
+			);
+		}
+		if (error instanceof ChatFeedbackUnavailableError) {
+			return respond(
+				jsonError("OPS_CHAT_FEEDBACK_UNAVAILABLE", "回答反馈后端不可用。", 503),
+				"chat_feedback_unavailable",
+			);
+		}
+		if (
+			error instanceof ChatFeedbackResponseError ||
+			error instanceof ChatConversationResponseError
+		) {
+			const headers = new Headers(error.response.headers);
+			headers.set("cache-control", "no-store");
+			return respond(
+				new Response(error.response.body, { status: error.response.status, headers }),
+				"chat_feedback_response",
+			);
+		}
 		if (error instanceof AccountAdminUnavailableError) {
 			return respond(
 				jsonError("OPS_ACCOUNT_ADMIN_UNAVAILABLE", "用户管理后端不可用。", 503),
@@ -557,6 +597,8 @@ export function createOpsApp(options: OpsAppOptions = {}) {
 		publicOrigin,
 		tokenService: internalPortalAutomationTokenService,
 	});
+	registerChatConversationRoutes({ admission, app, client: chatConversationClient });
+	registerChatFeedbackRoutes({ admission, app, client: chatFeedbackClient });
 	registerAccountAdminRoutes({ admission, app, client: accountAdminClient, publicOrigin });
 	registerEmailAccessRoutes({ admission, app, client: emailAccessClient, publicOrigin });
 	registerObservabilityRoutes({ admission, app, store });

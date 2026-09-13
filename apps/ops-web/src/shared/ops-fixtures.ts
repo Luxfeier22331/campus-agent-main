@@ -58,6 +58,11 @@ function execution(
 }
 
 const knowledgeDetail = {
+	conversation: {
+		id: "conv_ops_1",
+		userMessageId: "msg_ops_1_q",
+		assistantMessageId: "msg_ops_1_a",
+	},
 	execution: execution("completed"),
 	generatedAt: now,
 	question: { text: "缓考申请需要哪些材料？" },
@@ -107,6 +112,11 @@ const knowledgeDetail = {
 } satisfies OpsRequestDetailResponse;
 
 const directDetail = {
+	conversation: {
+		id: "conv_ops_2",
+		userMessageId: "msg_ops_2_q",
+		assistantMessageId: "msg_ops_2_a",
+	},
 	execution: execution("completed"),
 	generatedAt: now,
 	question: { text: "你好，你能帮我做什么？" },
@@ -127,6 +137,7 @@ const directDetail = {
 } satisfies OpsRequestDetailResponse;
 
 const runningDetail = {
+	conversation: { id: "conv_ops_3", userMessageId: "msg_ops_3_q", assistantMessageId: null },
 	execution: execution("running"),
 	generatedAt: now,
 	question: { text: "帮我查一下最近的校园通知" },
@@ -142,6 +153,11 @@ const runningDetail = {
 } satisfies OpsRequestDetailResponse;
 
 const failedDetail = {
+	conversation: {
+		id: "conv_ops_4",
+		userMessageId: "msg_ops_4_q",
+		assistantMessageId: "msg_ops_4_a",
+	},
 	execution: execution("failed"),
 	generatedAt: now,
 	question: { text: "帮我看看本周有哪些重要通知" },
@@ -162,6 +178,11 @@ const failedDetail = {
 } satisfies OpsRequestDetailResponse;
 
 const clarificationDetail = {
+	conversation: {
+		id: "conv_ops_5",
+		userMessageId: "msg_ops_5_q",
+		assistantMessageId: "msg_ops_5_a",
+	},
 	execution: execution("completed"),
 	generatedAt: now,
 	question: { text: "请帮我查询申请条件" },
@@ -182,6 +203,7 @@ const clarificationDetail = {
 } satisfies OpsRequestDetailResponse;
 
 const missingResultDetail = {
+	conversation: { id: "conv_ops_6", userMessageId: "msg_ops_6_q", assistantMessageId: null },
 	execution: execution("completed"),
 	generatedAt: now,
 	question: { text: "奖学金申请截止到哪一天？" },

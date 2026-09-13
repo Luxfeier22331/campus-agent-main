@@ -6,6 +6,8 @@ import type { AuthEmailSender } from "../modules/auth/reset-mail";
 import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusGroupsService } from "../modules/campus-groups";
 import type { ChatConversationService } from "../modules/chat";
+import type { ChatFeedbackQueryService } from "../modules/chat/feedback-query";
+import type { OpsConversationQueryService } from "../modules/chat/ops-conversation-query";
 import type { ChatAvailabilityService } from "../modules/chat-availability";
 import type { DiningContentService, DiningMapReadService } from "../modules/dining";
 import type { EmailAccessService } from "../modules/email-access";
@@ -19,6 +21,8 @@ import type { RequestRuntimeScopeDependencies } from "../request-runtime-scope";
 export interface AppDependencies {
 	runtimeScopeDependencies?: RequestRuntimeScopeDependencies;
 	accountAdminService?: AccountAdminService;
+	chatFeedbackQueryService?: ChatFeedbackQueryService;
+	opsConversationQueryService?: OpsConversationQueryService;
 	accountLifecycleService?: AccountLifecycleService;
 	accessInvitationEmailSender?: AuthEmailSender;
 	authHandler?: (
@@ -60,6 +64,8 @@ export interface AppRequestScope {
 	getDb: import("../db/runtime").RuntimeDbGetter;
 	getAppAuth: AppAuthGetter;
 	resolveAccountAdminService(): AccountAdminService;
+	resolveChatFeedbackQueryService(): ChatFeedbackQueryService;
+	resolveOpsConversationQueryService(): OpsConversationQueryService;
 	resolveAccountLifecycleService(): AccountLifecycleService;
 	resolveCampusExperienceService(): CampusExperienceService;
 	resolveCampusGroupsService(): CampusGroupsService;

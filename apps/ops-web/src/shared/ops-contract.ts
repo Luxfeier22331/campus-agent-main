@@ -1,3 +1,7 @@
+import { ChatSourceItemSchema as OpsProductSourceSchema } from "campus-contracts/chat-sources";
+
+export { CitationIndexesSchema } from "campus-contracts/chat-sources";
+
 import { NOTICE_CATEGORIES } from "campus-contracts/notices";
 import { z } from "zod";
 import { CampusSearchDiagnosticsSchema } from "./campus-search-diagnostics.ts";
@@ -354,11 +358,6 @@ const OpsRequestLifecyclePhaseSchema = z.enum([
 	"FINISHED",
 ]);
 const OpsAssistantMessageKindSchema = z.enum(["answer", "error"]);
-export const CitationIndexesSchema = z
-	.array(z.number().int().min(1).max(10))
-	.min(1)
-	.max(10)
-	.refine((values) => new Set(values).size === values.length, "citation indexes must be unique");
 const OpsRequestResultSummarySchema = z.discriminatedUnion("state", [
 	z.object({ kind: z.null(), state: z.literal("PENDING") }),
 	z.object({ kind: OpsAssistantMessageKindSchema, state: z.literal("WRITTEN") }),
@@ -411,57 +410,6 @@ export const OpsRequestListResponseSchema = z.object({
 	window: OpsRequestWindowSchema,
 });
 
-const OpsCampusProductSourceSchema = z.object({
-	citationIndexes: CitationIndexesSchema,
-	collectionLabel: z.string(),
-	kind: z.literal("campus_document"),
-	primaryAction: z.object({
-		disabledReason: z.string().min(1).nullable(),
-		external: z.literal(false),
-		href: z.string().min(1).nullable(),
-		label: z.literal("查看文档"),
-	}),
-	sectionTitle: z.string(),
-	snippet: z.string().nullable(),
-	title: z.string().min(1),
-	versionSlug: z.string().regex(/^[1-9]\d*$/u),
-});
-
-const OpsWebProductSourceSchema = z.object({
-	citationIndexes: CitationIndexesSchema,
-	hostname: z.string().min(1),
-	kind: z.literal("web_page"),
-	primaryAction: z.object({
-		disabledReason: z.string().min(1).nullable(),
-		external: z.literal(true),
-		href: z.string().min(1).nullable(),
-		label: z.literal("打开网页"),
-	}),
-	snippet: z.string().nullable(),
-	title: z.string().min(1),
-});
-
-const OpsNoticeProductSourceSchema = z.object({
-	citationIndexes: CitationIndexesSchema,
-	kind: z.literal("campus_notice"),
-	noticeId: z.string().min(1),
-	primaryAction: z.object({
-		disabledReason: z.string().min(1).nullable(),
-		external: z.literal(false),
-		href: z.string().min(1).nullable(),
-		label: z.literal("查看通知"),
-	}),
-	sectionTitle: z.string(),
-	snippet: z.string().nullable(),
-	title: z.string().min(1),
-});
-
-const OpsProductSourceSchema = z.discriminatedUnion("kind", [
-	OpsCampusProductSourceSchema,
-	OpsNoticeProductSourceSchema,
-	OpsWebProductSourceSchema,
-]);
-
 const OpsProductResultSchema = z.discriminatedUnion("state", [
 	z.object({ state: z.literal("PENDING") }),
 	z.object({ reasonCode: z.literal("ASSISTANT_MESSAGE_MISSING"), state: z.literal("MISSING") }),
@@ -495,6 +443,11 @@ const OpsExecutionStageSchema = z.object({
 });
 
 export const OpsRequestDetailResponseSchema = z.object({
+	conversation: z.object({
+		id: z.string(),
+		userMessageId: z.string(),
+		assistantMessageId: z.string().nullable(),
+	}),
 	execution: z.object({
 		campusSearch: CampusSearchDiagnosticsSchema,
 		failCloseReason: z.string().min(1).nullable(),

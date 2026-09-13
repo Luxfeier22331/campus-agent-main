@@ -23,6 +23,8 @@
 
 - `/overview`：运行概况；
 - `/requests`、`/requests/:requestId`：运行记录与详情；
+- `/conversations/:conversationId`：从运行或反馈进入的会话只读详情，可定位消息并查看各轮运行；
+- `/chat-feedback`：当前回答反馈的筛选、数量统计和对应问答详情，通过 App API 读取；
 - `/providers`：在线模型配置；
 - `/ocr`：通知图片/PDF 识别任务与分页结果；Paddle 连接在模型配置页维护。
 - `/internal-portal`：门户凭据与自动化 token；

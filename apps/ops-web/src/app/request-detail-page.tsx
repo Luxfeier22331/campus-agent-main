@@ -1,9 +1,9 @@
-import { Button, cn } from "@campus-agent/ui";
+import { Button } from "@campus-agent/ui";
 import { useQuery } from "@tanstack/react-query";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import type { OpsRequestDetailResponse } from "../shared/ops-contract";
+import { ChatAnswerBody, ChatAnswerSources } from "./chat-answer-content";
 import { formatTimestamp } from "./format";
 import { fetchOpsRequestDetail } from "./ops-api/observability";
 import {
@@ -25,6 +25,7 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 		refetchInterval: (query) => requestDetailPollInterval(query.state.data),
 		refetchIntervalInBackground: false,
 	});
+	const href = useRouterState({ select: (state) => state.location.href });
 	const returnPath = normalizeRequestListReturnPath(from);
 
 	if (detail.isPending) {
@@ -74,6 +75,19 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 				/>
 			) : null}
 			<RequestSummary detail={detail.data} />
+			<Button asChild variant="outline" className="mt-4">
+				<Link
+					to="/conversations/$conversationId"
+					params={{ conversationId: detail.data.conversation.id }}
+					search={{
+						messageId:
+							detail.data.conversation.assistantMessageId ?? detail.data.conversation.userMessageId,
+						from: href,
+					}}
+				>
+					查看所属会话
+				</Link>
+			</Button>
 			{detail.data.request.lifecyclePhase === "FINISHED" &&
 			requestDetailPollInterval(detail.data) !== false ? (
 				<p className="mt-3 text-sm text-muted-foreground">
@@ -83,7 +97,11 @@ export function RequestDetailPage({ from, requestId }: { from?: string; requestI
 			<div className="grid gap-10 py-6">
 				<QuestionSection detail={detail.data} />
 				<ResultSection detail={detail.data} />
-				<SourcesSection detail={detail.data} />
+				{detail.data.result.state === "WRITTEN" && detail.data.result.sources.length > 0 ? (
+					<div data-testid="request-sources">
+						<ChatAnswerSources sources={detail.data.result.sources} />
+					</div>
+				) : null}
 				<RequestDiagnostics detail={detail.data} />
 			</div>
 			{detail.data.request.lifecyclePhase === "FINISHED" ? null : (
@@ -116,11 +134,17 @@ export function requestDetailPollInterval(
 function BackToRequests({ href }: { href: string }) {
 	return (
 		<a
-			className="mb-3 inline-flex min-h-10 items-center gap-2 font-medium text-muted-foreground text-sm hover:text-foreground hover:underline"
+			className="mb-3 inline-flex min-h-11 items-center gap-2 font-medium text-muted-foreground text-sm hover:text-foreground hover:underline"
 			href={href}
 		>
 			<ArrowLeft className="size-4" />
-			返回运行记录
+			{href.startsWith("/chat-feedback")
+				? "返回回答反馈"
+				: href.startsWith("/conversations/")
+					? "返回会话"
+					: href.startsWith("/requests/")
+						? "返回运行详情"
+						: "返回运行记录"}
 		</a>
 	);
 }
@@ -166,19 +190,8 @@ function ResultSection({ detail }: { detail: OpsRequestDetailResponse }) {
 				会话结果
 			</h2>
 			{detail.result.state === "WRITTEN" ? (
-				<div
-					className={cn(
-						"border-y py-5",
-						detail.result.kind === "error"
-							? "border-danger/30 bg-danger-subtle px-4 text-danger"
-							: "border-border",
-					)}
-					role={detail.result.kind === "error" ? "alert" : undefined}
-				>
-					{detail.result.kind === "error" ? (
-						<p className="mb-2 font-semibold">错误结果已写入会话</p>
-					) : null}
-					<SafeMarkdown>{detail.result.text}</SafeMarkdown>
+				<div className="max-w-3xl border-y border-border py-5">
+					<ChatAnswerBody text={detail.result.text} kind={detail.result.kind} />
 				</div>
 			) : detail.result.state === "MISSING" ? (
 				<div className="border border-danger/30 bg-danger-subtle p-4 text-danger" role="alert">
@@ -194,142 +207,5 @@ function ResultSection({ detail }: { detail: OpsRequestDetailResponse }) {
 				</div>
 			)}
 		</section>
-	);
-}
-
-function SafeMarkdown({ children }: { children: string }) {
-	return (
-		<ReactMarkdown
-			components={{
-				a: ({ className, ...props }) => (
-					<a
-						{...props}
-						className={cn("break-words font-medium text-info underline", className)}
-						rel="noreferrer"
-						target="_blank"
-					/>
-				),
-				code: ({ className, ...props }) => (
-					<code
-						{...props}
-						className={cn(
-							"break-words rounded bg-secondary px-1 py-0.5 font-mono text-sm",
-							className,
-						)}
-					/>
-				),
-				li: ({ className, ...props }) => <li {...props} className={cn("ml-5 pl-1", className)} />,
-				ol: ({ className, ...props }) => (
-					<ol {...props} className={cn("my-3 list-decimal space-y-1", className)} />
-				),
-				p: ({ className, ...props }) => (
-					<p {...props} className={cn("my-3 first:mt-0 last:mb-0 leading-7", className)} />
-				),
-				pre: ({ className, ...props }) => (
-					<pre
-						{...props}
-						className={cn("my-3 max-w-full overflow-x-auto bg-secondary p-3 text-sm", className)}
-					/>
-				),
-				ul: ({ className, ...props }) => (
-					<ul {...props} className={cn("my-3 list-disc space-y-1", className)} />
-				),
-			}}
-			remarkPlugins={[remarkGfm]}
-		>
-			{children}
-		</ReactMarkdown>
-	);
-}
-
-function SourcesSection({ detail }: { detail: OpsRequestDetailResponse }) {
-	if (detail.result.state !== "WRITTEN" || detail.result.sources.length === 0) {
-		return null;
-	}
-	return (
-		<section aria-labelledby="request-sources-title" data-testid="request-sources">
-			<h2 className="mb-4 font-semibold text-foreground text-lg" id="request-sources-title">
-				回答来源
-			</h2>
-			<ul className="divide-y divide-border border-border border-y">
-				{detail.result.sources.map((source, sourceIndex) => (
-					<li
-						className="grid gap-2 py-4"
-						key={[
-							source.kind,
-							source.title,
-							...(source.kind === "campus_document"
-								? [source.collectionLabel, source.sectionTitle, source.versionSlug]
-								: source.kind === "campus_notice"
-									? [source.noticeId, source.sectionTitle]
-									: [source.hostname]),
-							source.primaryAction.href,
-							source.primaryAction.label,
-							source.snippet,
-							sourceIndex,
-						].join(":")}
-					>
-						<div className="flex flex-wrap items-start justify-between gap-3">
-							<div className="flex min-w-0 items-start gap-2">
-								<span
-									aria-label={`引用 ${source.citationIndexes.join("、")}`}
-									className="text-muted-foreground shrink-0 text-sm font-medium"
-									role="img"
-								>
-									{source.citationIndexes.map((index) => `[${index}]`).join(" ")}
-								</span>
-								<div className="min-w-0">
-									<p className="font-medium text-foreground">{source.title}</p>
-									{(source.kind === "campus_document" || source.kind === "campus_notice") &&
-									source.sectionTitle ? (
-										<p className="mt-1 text-muted-foreground text-xs">{source.sectionTitle}</p>
-									) : null}
-									<p className="mt-1 text-muted-foreground text-xs">
-										{source.kind === "web_page"
-											? source.hostname
-											: source.kind === "campus_notice"
-												? `通知 ${source.noticeId}`
-												: [source.collectionLabel, formatDocsVersionLabel(source.versionSlug)]
-														.filter(Boolean)
-														.join(" · ")}
-									</p>
-								</div>
-							</div>
-							<SourceAction source={source} />
-						</div>
-						{source.snippet ? (
-							<p className="max-w-3xl text-muted-foreground text-sm leading-6">{source.snippet}</p>
-						) : null}
-					</li>
-				))}
-			</ul>
-		</section>
-	);
-}
-
-function formatDocsVersionLabel(versionSlug: string): string {
-	return versionSlug.length === 4 ? `${versionSlug} 年版` : `第 ${versionSlug} 版`;
-}
-
-function SourceAction({
-	source,
-}: {
-	source: Extract<OpsRequestDetailResponse["result"], { state: "WRITTEN" }>["sources"][number];
-}) {
-	const action = source.primaryAction;
-	if (!action.href) {
-		return action.disabledReason ? (
-			<span className="text-muted-foreground text-xs">{action.disabledReason}</span>
-		) : null;
-	}
-	return (
-		<a
-			className="inline-flex min-h-10 items-center gap-2 font-medium text-info text-sm hover:underline"
-			href={action.href}
-			rel={action.external ? "noopener noreferrer" : undefined}
-			target={action.external ? "_blank" : undefined}
-		>
-			{action.label}
-		</a>
 	);
 }

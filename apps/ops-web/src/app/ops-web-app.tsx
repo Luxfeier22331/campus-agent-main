@@ -30,6 +30,9 @@ import {
 import { useMemo } from "react";
 import type { OpsOverviewWindow } from "../shared/ops-contract";
 import { AccountEventsPage } from "./account-events-page";
+import { ChatConversationPage } from "./chat-conversation-page";
+import { ChatFeedbackPage } from "./chat-feedback-page";
+import { ConversationsPage } from "./conversations-page";
 import { DiningMenuPage } from "./dining-menu-page";
 import { DiningPage } from "./dining-page";
 import { DiningReportsPage } from "./dining-reports-page";
@@ -112,6 +115,25 @@ const requestsRoute = createRoute({
 		};
 	},
 	component: RequestsRoute,
+});
+
+const conversationsListRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/conversations",
+	validateSearch: (search: Record<string, unknown>) => ({
+		q: optionalBoundedSearchString(search.q, 256),
+		cursor: optionalBoundedSearchString(search.cursor, 512),
+		from: optionalSearchString(search.from),
+		to: optionalSearchString(search.to),
+		status: optionalStatus(search.status),
+		feedback:
+			search.feedback === "WITH_FEEDBACK" || search.feedback === "WITHOUT_FEEDBACK"
+				? search.feedback
+				: undefined,
+		hasFailures:
+			search.hasFailures === "true" ? true : search.hasFailures === "false" ? false : undefined,
+	}),
+	component: () => <ConversationsPage search={conversationsListRoute.useSearch()} />,
 });
 
 const requestDetailRoute = createRoute({
@@ -222,6 +244,31 @@ const transportRoute = createRoute({
 	component: () => <TransportPage initialScheduleId={transportRoute.useSearch().scheduleId} />,
 });
 
+const chatConversationRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/conversations/$conversationId",
+	validateSearch: (search: Record<string, unknown>) => ({
+		messageId: optionalBoundedSearchString(search.messageId, 200),
+		from: optionalSearchString(search.from),
+	}),
+	component: ChatConversationRoute,
+});
+
+const chatFeedbackRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/chat-feedback",
+	validateSearch: (search: Record<string, unknown>) => ({
+		feedbackId: optionalBoundedSearchString(search.feedbackId, 200),
+		vote: optionalBoundedSearchString(search.vote, 20),
+		startDate: optionalBoundedSearchString(search.startDate, 10),
+		endDate: optionalBoundedSearchString(search.endDate, 10),
+		requestId: optionalBoundedSearchString(search.requestId, 200),
+		cursor: optionalBoundedSearchString(search.cursor, 1024),
+		history: optionalSearchString(search.history),
+	}),
+	component: () => <ChatFeedbackPage search={chatFeedbackRoute.useSearch()} />,
+});
+
 const groupsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/groups",
@@ -232,6 +279,9 @@ const routeTree = rootRoute.addChildren([
 	indexRoute,
 	overviewRoute,
 	requestsRoute,
+	conversationsListRoute,
+	chatFeedbackRoute,
+	chatConversationRoute,
 	requestDetailRoute,
 	providerConfigRoute,
 	internalPortalRoute,
@@ -274,7 +324,9 @@ function RootLayout() {
 		<SidebarLayout
 			navItems={[
 				{ href: "/overview", icon: Activity, label: "运行概览" },
-				{ href: "/requests", icon: ClipboardList, label: "运行记录" },
+				{ href: "/conversations", icon: History, label: "历史会话" },
+				{ href: "/requests", icon: ClipboardList, label: "运行诊断" },
+				{ href: "/chat-feedback", icon: ClipboardList, label: "回答反馈" },
 				{ href: "/providers", icon: ServerCog, label: "模型配置" },
 				{ href: "/internal-portal", icon: KeyRound, label: "内部门户凭据" },
 				{ href: "/notices", icon: ListChecks, label: "通知维护" },
@@ -339,4 +391,17 @@ function DiningRoute() {
 
 function optionalOverviewWindow(value: unknown): OpsOverviewWindow | undefined {
 	return value === "15m" || value === "1h" || value === "6h" || value === "24h" ? value : undefined;
+}
+
+function ChatConversationRoute() {
+	const { conversationId } = chatConversationRoute.useParams();
+	const { messageId, from } = chatConversationRoute.useSearch();
+	return (
+		<ChatConversationPage
+			key={conversationId}
+			conversationId={conversationId}
+			messageId={messageId}
+			from={from}
+		/>
+	);
 }

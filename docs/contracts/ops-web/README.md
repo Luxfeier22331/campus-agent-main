@@ -9,6 +9,7 @@ status: active
 本目录定义 Ops Web 服务端提供给自身页面的 HTTP 接口：
 
 - [runtime.md](./runtime.md)：运行概况、运行记录和运行详情中的持久执行诊断；
+- [chat-feedback.md](./chat-feedback.md)：回答反馈筛选、统计和对应问答的只读查询；
 - [providers.md](./providers.md)：在线模型配置；
 - [internal-portal.md](./internal-portal.md)：内部门户凭据与自动化 token；
 - [notices.md](./notices.md)：通知库存、分类维护和固定 Job 操作入口；
@@ -30,6 +31,8 @@ status: active
 - 缓存、游标、状态枚举、错误码和精确字段由对应子合同及可执行 schema 维护。
 
 - `GET /api/ops/overview`
+- `GET /api/ops/chat-conversations`
+- `GET /api/ops/chat-conversations/:conversationId`
 - `GET /api/ops/requests`
 - `GET /api/ops/requests/:requestId`
 
@@ -186,3 +189,5 @@ status: active
 
 - `../../product/ops-web.md`
 - `../../data/postgres-ownership.md`
+
+- [会话只读查询](./chat-conversations.md)：历史会话列表、会话详情，以及从运行或反馈查看消息上下文。

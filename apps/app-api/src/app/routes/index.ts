@@ -1,5 +1,4 @@
 import type { Hono } from "hono";
-
 import type { Env } from "../../config";
 import type { AppDependencies, AppRequestScope, AppRuntimeReadinessResult } from "../types";
 import { registerAccountAdminRoutes } from "./account-admin";
@@ -7,6 +6,8 @@ import { registerAuthRoutes } from "./auth";
 import { registerCampusExperienceRoutes } from "./campus-experience";
 import { registerCampusGroupsRoutes } from "./campus-groups";
 import { registerChatRoutes } from "./chat";
+import { registerChatConversationAdminRoutes } from "./chat-conversation-admin";
+import { registerChatFeedbackAdminRoutes } from "./chat-feedback-admin";
 import { registerDiningContentRoutes } from "./dining";
 import { registerEmailAccessAdminRoutes } from "./email-access-admin";
 import { registerFederationRoutes } from "./federation";
@@ -87,6 +88,16 @@ export function registerAppRoutes(input: {
 		...(input.accessInvitationEmailSender
 			? { accessInvitationEmailSender: input.accessInvitationEmailSender }
 			: {}),
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+	});
+	registerChatConversationAdminRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+	});
+	registerChatFeedbackAdminRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
 		env: input.env,
